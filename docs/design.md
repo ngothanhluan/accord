@@ -23,22 +23,24 @@ Landscape check (2026-09): no tool combines folder-as-source-of-truth, multi-rol
 
 ## 2. Folder convention
 
-The root folder name defaults to the project name, `accord/`, and is overridable in config.
+The root folder is always `accord/`. It is not configurable; a `.accord` pointer file may be added later as an additive change.
 
 ```
 accord/
-  config.yml               # profile, tracker adapter, design source, token path, roles
+  config.yml                    # version pin, profile, tracker adapter, token path, roles, runtimes
   product/
-    glossary.md            # domain terms
-    business-rules.md      # rules, thresholds, rounding, edge cases already decided
-  features/<slug>.md       # one file per epic: intent, EARS spec, design link, decisions
-  tickets/<id>.md          # one file per story: Gherkin AC, short plan, ui flag
-  assets/<id>/prototype.html
+    glossary.md                 # domain terms
+    business-rules.md           # rules, thresholds, rounding, edge cases already decided
+  tickets/<id>.md               # one file per epic, story, or bug
+  tickets/<id>/verification.md  # review record, written by the fresh review context
+  assets/<id>/prototype.html    # designer-owned
 ```
 
-Flat files, not nested folders. An epic maps to a feature file, a story maps to a ticket file. This mirrors every tracker's model and keeps indexing trivial.
+Flat files, not nested folders. Epics, stories, and bugs share one file type (`type: epic | story | bug`); a story or bug names its epic with `parent:`. An epic holds intent and requirements for its children and is linted but never gated. This mirrors every tracker's model and keeps indexing trivial.
 
-Every file has YAML frontmatter validated against a JSON schema (`status`, `owner`, `tracker_ids`, `ui`, `confirmed_by` on decisions).
+Every ticket has YAML frontmatter validated against `ticket.schema.json`: `id`, `title`, `type`, `status` (`draft | open | archived`, document lifecycle only; work status stays in the tracker), optional `parent`, `tracker` (map keyed by adapter), `ui`, `design`, `assumptions`, `ac_hash`, and `verified` (always the last key). Unknown keys are errors, so tracker-owned data cannot leak into git.
+
+The body has fixed headings in fixed order: `## Intent`, `## Requirements`, `## Acceptance criteria`, `## Open questions` (BA-owned), then `## Plan` (developer-owned, last). Epics omit Acceptance criteria and Plan.
 
 Formats:
 - Requirements in EARS: `WHEN <trigger> the system SHALL <response>` and its four sibling patterns. Lintable by regex.
@@ -53,22 +55,23 @@ No binary assets in the repo. Prototypes are HTML text. Screenshots are rendered
 
 `config.yml` declares `profile: build` or `profile: maintain`.
 
-- **build**: a new project, typically 2 to 6 weeks. In week zero the BA writes `product/` and one feature file per epic (5 to 10). Acceptance criteria are written per story just before it enters the sprint, not all up front.
-- **maintain**: a delivered project receiving individual tickets. Feature files are optional; an epic tagged `feature` re-enables them. At handover, feature specs are folded into `product/business-rules.md` and archived.
+- **build**: a new project, typically 2 to 6 weeks. In week zero the BA writes `product/` and one epic ticket per epic (5 to 10). Acceptance criteria are written per story just before it enters the sprint, not all up front.
+- **maintain**: a delivered project receiving individual tickets. Epic tickets are optional. At handover, epic intent and requirements are folded into `product/business-rules.md` and the epics are set to `status: archived`.
 
 Profiles decide what the gates require. The rule lives in config, not in someone's judgement per ticket.
 
 ## 4. Roles and ownership
 
-The roster is configurable. Default: BA, Designer, Dev, QA, Lead. Small teams merge roles.
+The roster is `roles:` in `config.yml`: `ba` and `dev` are required, `designer` is optional. QA and lead are not roster roles: QA verifies on the dev environment and records results in the tracker; the lead's readiness review is a step inside the BA workflow. The roster only decides which skills are rendered; it never changes a gate result.
 
-- **BA** owns intent, spec, and every acceptance scenario. Only the BA edits acceptance criteria.
+- **BA** owns intent, spec, and every acceptance scenario. Only the BA edits acceptance criteria. The lead's readiness review happens inside the BA workflow before Ready.
 - **Designer** owns the design link or prototype.
-- **Dev / FE** implements from spec, AC, design, and plan only. Never adds a requirement. A gap is written to decisions and work stops until confirmed.
-- **QA** tests against AC and ticks scenarios. Suggests missing scenarios by commenting to the BA, never by editing. AC is the test plan; there is no separate test plan artifact.
-- **Lead** may ask the BA directly and record the answer in decisions, confirming with the BA when needed. This is a human process; the tool does not gate on who wrote a decision.
+- **Dev / FE** implements from spec, AC, design, and plan only. Never adds a requirement. A gap goes to `## Open questions` and work stops until the BA answers.
+- **QA** (outside the repo) tests against the acceptance criteria on the dev environment after Done passes and records the result in the tracker; suggests missing scenarios to the BA, never by editing. AC is the test plan; there is no separate test plan artifact.
 
-Role workflows ship as skill files (Claude Code, Cursor, Copilot) so every member gets the same workflow from their own AI subscription. Each skill starts by running the CLI gate and stops on failure.
+The reviewer is not a role. The dev workflow's last step opens a fresh agent context (a subagent in Claude Code, a new chat in Cursor or Codex) and hands it `review.md`; only that fresh context writes `tickets/<id>/verification.md`. The agent that wrote the code never does. This is procedural, not tool-enforced, so the skill states it plainly.
+
+Role workflows ship as skill files (Claude Code, Cursor, Copilot, Codex) so every member gets the same workflow from their own AI subscription. Each skill starts by running the CLI gate and stops on failure.
 
 ## 5. Gates
 
@@ -79,13 +82,13 @@ Role workflows ship as skill files (Claude Code, Cursor, Copilot) so every membe
 | At least one Gherkin scenario. A bug fix is written as Given the situation, When the action, Then the correct result | BA |
 | `ui: true` and profile maintain: `prototype.html` exists and was generated from the project's existing styles | Dev or Designer |
 | `ui: true` and profile build: a Figma link or a prototype exists | Designer |
-| Decisions without `confirmed_by`: warning, not a block | Lead |
+| Unchecked `## Open questions` items or unconfirmed `assumptions:` entries block Ready | BA |
 
 Prototype rule: if the repo has design tokens (CSS variables, Tailwind config, a design-system folder; the path is declared in config) the prototype may only use those tokens, and the linter flags hard-coded colours and spacing. If there are no tokens, the prototype must open with a comment listing the stylesheets it was derived from, so a reviewer can check.
 
 Not every ticket has UI. `ui: false` skips the design checks in both profiles.
 
-**Done** (a story may reach QA passed). An independent reviewer agent, not the one that wrote the code, produces `verification.md` mapping each scenario to evidence. QA ticks each scenario. An unticked scenario blocks. This is the part that addresses the 36% failure mode.
+**Done** (a story may go to QA). The dev workflow's final step opens a fresh agent context that produces `tickets/<id>/verification.md`, one `## @ac-n` block per scenario with `Result:` and `Evidence:`. The developer runs the scenarios on the dev environment and ticks `verified: [ac-1, ...]` in the ticket's frontmatter. Done passes only when the scenario tag set, the evidence tag set, and `verified` are the same set, and the acceptance criteria hash still matches the one recorded at Ready. QA then tests on the dev environment and records the outcome in the tracker. This is the part that addresses the 36% failure mode.
 
 ## 6. Tracker and git: hybrid by durability
 

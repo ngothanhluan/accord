@@ -1,0 +1,58 @@
+{
+  "contract": "1.0.0",
+  "flavor": "core",
+  "milestone": "v0.1",
+  "phases": [
+    {
+      "number": "1",
+      "name": "Workspace and Formats",
+      "status": "in_progress"
+    },
+    {
+      "number": "2",
+      "name": "Core Model and Loading",
+      "status": "pending"
+    },
+    {
+      "number": "3",
+      "name": "Lint",
+      "status": "pending"
+    },
+    {
+      "number": "4",
+      "name": "Gates",
+      "status": "pending"
+    },
+    {
+      "number": "5",
+      "name": "CLI Commands",
+      "status": "pending"
+    },
+    {
+      "number": "6",
+      "name": "Skills",
+      "status": "pending"
+    },
+    {
+      "number": "7",
+      "name": "Scaffolding and Example Repo",
+      "status": "pending"
+    },
+    {
+      "number": "8",
+      "name": "MCP Server",
+      "status": "pending"
+    },
+    {
+      "number": "9",
+      "name": "Publish and Dogfood",
+      "status": "pending"
+    }
+  ],
+  "next": {
+    "command": "/gsd:progress --next",
+    "label": "Advance to the next step (verify)",
+    "reason": "Phase 1 of 9 · ready to verify"
+  },
+  "updated_at": "2026-09-06T02:30:47.687Z"
+}

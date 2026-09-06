@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://accord.dev/schemas/verification.schema.json",
+  "title": "accord verification.md frontmatter (tickets/<id>/verification.md)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["ticket", "commit", "reviewed_on"],
+  "properties": {
+    "ticket": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    "commit": { "type": "string", "pattern": "^[0-9a-f]{7,40}$" },
+    "reviewed_on": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" }
+  }
+}

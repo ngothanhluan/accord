@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://accord.dev/schemas/ticket.schema.json",
+  "title": "accord ticket frontmatter (tickets/<id>.md)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "title", "type", "status"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    "title": { "type": "string", "minLength": 1 },
+    "type": { "type": "string", "enum": ["epic", "story", "bug"] },
+    "status": { "type": "string", "enum": ["draft", "open", "archived"] },
+    "parent": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    "tracker": {
+      "type": "object",
+      "patternProperties": { "^[a-z][a-z0-9-]*$": { "type": "string", "minLength": 1 } },
+      "additionalProperties": false
+    },
+    "ui": { "type": "boolean" },
+    "design": { "type": "string", "pattern": "^https://" },
+    "assumptions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["text", "confirmed"],
+        "properties": {
+          "text": { "type": "string", "minLength": 1 },
+          "confirmed": { "type": "boolean" }
+        }
+      }
+    },
+    "ac_hash": { "type": "string", "minLength": 1 },
+    "verified": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^ac-[1-9][0-9]*$" }
+    }
+  }
+}

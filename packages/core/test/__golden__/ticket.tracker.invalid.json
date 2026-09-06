@@ -1,0 +1,17 @@
+[
+  {
+    "path": "/tracker",
+    "rule": "schema.additionalProperties",
+    "reason": "must NOT have additional properties"
+  },
+  {
+    "path": "/tracker/shortcut",
+    "rule": "schema.type",
+    "reason": "must be string"
+  },
+  {
+    "path": "/tracker/jira",
+    "rule": "schema.minLength",
+    "reason": "must NOT have fewer than 1 characters"
+  }
+]

@@ -1,0 +1,11 @@
+{
+  "name": "@accord-dev/accord",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "bin": { "accord": "./dist/cli.js" },
+  "files": ["dist", "README.md"],
+  "engines": { "node": ">=22.12.0" },
+  "scripts": { "build": "tsdown" },
+  "dependencies": { "@accord-dev/accord-core": "0.1.0", "commander": "15.0.0" }
+}

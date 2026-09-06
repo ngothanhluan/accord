@@ -1,0 +1,14 @@
+{
+  "name": "@accord-dev/accord-core",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+    "./schemas/*": "./schemas/*",
+    "./package.json": "./package.json"
+  },
+  "files": ["dist", "schemas", "templates", "README.md"],
+  "scripts": { "build": "tsdown" },
+  "dependencies": { "@cucumber/gherkin": "42.0.1", "ajv": "8.20.0", "yaml": "2.9.0" }
+}

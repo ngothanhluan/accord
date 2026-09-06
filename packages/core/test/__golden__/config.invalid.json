@@ -1,0 +1,27 @@
+[
+  {
+    "path": "",
+    "rule": "schema.additionalProperties",
+    "reason": "must NOT have additional properties"
+  },
+  {
+    "path": "/tracker",
+    "rule": "schema.required",
+    "reason": "must have required property 'repo'"
+  },
+  {
+    "path": "/tracker",
+    "rule": "schema.if",
+    "reason": "must match \"then\" schema"
+  },
+  {
+    "path": "/roles/0",
+    "rule": "schema.const",
+    "reason": "must be equal to constant"
+  },
+  {
+    "path": "/roles",
+    "rule": "schema.contains",
+    "reason": "must contain at least 1 valid item(s)"
+  }
+]

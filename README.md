@@ -21,7 +21,7 @@ AI coding agents produce features that pass their own tests and still miss what 
 
 ## What it is not
 
-- Not another spec-generation CLI. It sits at the team layer and works alongside Spec Kit, OpenSpec, or your own harness.
+- Not another spec-generation CLI. It sits at the team layer and works alongside whatever agent harness each member already uses.
 - Not a ticket system. Your tracker stays your tracker.
 - Not a database. Git is the only source of truth; a stateless remote MCP server lets non-technical members work the same tickets from their chat app over the GitHub API.
 

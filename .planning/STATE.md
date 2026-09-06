@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
 milestone: v0.1
-current_phase: 1
-current_phase_name: Workspace and Formats
-status: verifying
-stopped_at: Completed 01-05-PLAN.md
-last_updated: "2026-09-06T02:30:50.309Z"
+current_phase: 2
+current_phase_name: Core Model and Loading
+status: planning
+stopped_at: Phase 01 complete, ready to plan Phase 2
+last_updated: "2026-09-06T04:40:13.133Z"
 last_activity: 2026-09-06
-last_activity_desc: Phase 1 execution started
-state_head: 0d512c4ea602816ff1cda1c5ffd31ca719ac1a0a
+last_activity_desc: Phase 01 complete, transitioned to Phase 2
+state_head: b60d3f50c2fd8ec8cc7f2ae364c98b221db6cb6f
 progress:
   total_phases: 9
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 5
   completed_plans: 5
 ---
@@ -20,25 +20,25 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-09-05)
+See: .planning/PROJECT.md (updated 2026-09-06)
 
 **Core value:** An agent cannot start a story without captured intent and acceptance criteria, and cannot finish one without independent verification against them.
-**Current focus:** Phase 1 — Workspace and Formats
+**Current focus:** Phase 2 — Core Model and Loading
 
 ## Current Position
 
-Phase: 1 (Workspace and Formats) — EXECUTING
-Plan: 5 of 5
-Status: Phase complete — ready for verification
-Last activity: 2026-09-06 — Phase 1 execution started
+Phase: 2 — Core Model and Loading
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-09-06 — Phase 01 complete, transitioned to Phase 2
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [█░░░░░░░░░] 1/9 phases (11%)
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 0
+- Total plans completed: 5
 - Average duration: -
 - Total execution time: 0.0 hours
 
@@ -46,7 +46,7 @@ Progress: [░░░░░░░░░░] 0%
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| - | - | - | - |
+| 01 | 5 | - | - |
 
 **Recent Trend:**
 
@@ -70,6 +70,11 @@ Progress: [░░░░░░░░░░] 0%
 
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
+
+- [Phase 01 UAT]: README.md and docs/design.md name no other tools or harnesses; positioning is stated without comparisons (owner decision, 2026-09-06)
+- [Phase 01 UAT]: `Mode: mvp` cleared on Phase 1 only; infrastructure phases carry no User Story. Later phases keep their Mode line and are reassessed when planned
+- [Phase 01 UAT]: `workflow.api_coverage_gate` disabled; accord integrates no model API, and the gate false-positived on the word "api" in planning text
+- [Phase 01 security]: 17 threats closed at L1 grep depth; two accepted risks (placeholder schema `$id` until Phase 9; README carries no employer detail)
 
 - [Roadmap]: Three research conflicts settled in REQUIREMENTS.md before Phase 1: tick key is the `@ac-n` tag (FMT-04); tracker field is a map keyed by adapter (FMT-03); author-mismatch check is supplied by the CLI host and reported as skipped by MCP (GATE-05)
 - [Roadmap]: OPS-01 and OPS-02 sit in Phase 1 so the Windows CI job exists from the first commit
@@ -104,6 +109,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-09-06T02:30:50.284Z
-Stopped at: Completed 01-05-PLAN.md
+Last session: 2026-09-06T04:41:01.785Z
+Stopped at: Phase 1 UAT complete (4/4 pass, 2 gaps fixed inline), SECURITY.md written, phase marked complete; ready to plan Phase 2
 Resume file: None

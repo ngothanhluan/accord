@@ -13,4 +13,3 @@ Result: pass
 <!-- pass | fail | blocked -->
 
 Evidence: <what was run or inspected, may span several lines>
-<!-- The reference syntax `gate done` checks is decided in Phase 4. -->

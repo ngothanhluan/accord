@@ -22,14 +22,15 @@ Publishing without dogfooding, or dogfooding from a local build, does not close 
 
 ### Validated
 
-(None yet — ship to validate)
+- ✓ JSON schema for ticket frontmatter (plus `config.yml` and `verification.md` schemas, JSON Schema 2020-12, ajv) — Phase 1
+- ✓ Templates for ticket file (build, maintain, epic), product files (glossary, business rules), prototype header, and `verification.md` — Phase 1
+- ✓ Core purity: the build fails when `core` imports a `node:*` module — Phase 1
+- ✓ CI green on ubuntu-latest and windows-latest for Node 22 and 24 from the first code commit — Phase 1
 
 ### Active
 
 **Folder and formats**
 - [ ] Folder convention with fixed root `accord/`, `product/`, `tickets/`, `assets/<id>/`; a story or bug names its epic with `parent:`
-- [ ] JSON schema for ticket frontmatter
-- [ ] Templates for ticket file, product files, prototype header
 - [ ] `config.yml` with pinned accord version, profile (`build` | `maintain`), tracker adapter (`none` default), design-token path, role roster, enabled runtimes
 
 **Core**
@@ -103,7 +104,7 @@ Publishing without dogfooding, or dogfooding from a local build, does not close 
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Epic, story, and bug are one file type (`type:`); `parent:` groups | Mirrors trackers; one schema, one folder | — Pending |
+| Epic, story, and bug are one file type (`type:`); `parent:` groups | Mirrors trackers; one schema, one folder | ✓ Phase 1: `ticket.schema.json` enforces the `type` enum, `parent` optional on every type |
 | Profiles `build` / `maintain` set gate strictness | Rule in config, not per-ticket judgement | — Pending |
 | Every code-touching story, including bug fixes, needs ≥1 Gherkin scenario | Bug fixes are where QA most lacks criteria | — Pending |
 | AC owned by BA only | Single owner of the contract | — Pending |
@@ -116,7 +117,9 @@ Publishing without dogfooding, or dogfooding from a local build, does not close 
 | Git is the only source of truth; no server-side state | Every host is a git client over the same core; hub as a separate product dropped | — Pending |
 | Remote MCP server is the non-tech frontend | Members have chat subscriptions, not API keys; accord goes into their tool instead of hosting a model | — Pending |
 | No API keys anywhere in accord | Subscriptions cannot power a third-party app; avoids cost and secret handling | — Pending |
-| Monorepo `core` / `cli` / `mcp` | Core must run in Node and in the MCP host; one repo keeps them in lockstep; skill definitions are data both hosts read, so they live in core | — Pending |
+| Monorepo `core` / `cli` / `mcp` | Core must run in Node and in the MCP host; one repo keeps them in lockstep; skill definitions are data both hosts read, so they live in core | ✓ Phase 1: `core` and `cli` workspaces live with a purity guard; `mcp` added in Phase 8 |
+| Public docs name no other tools or harnesses | Positioning stands on its own; comparisons date quickly and invite argument | ✓ Phase 1 UAT (2026-09-06): README and design.md rewritten without tool names |
+| Templates carry no project-internal notes | A BA or developer using a template must not see accord phase numbers or planning references | ✓ Phase 1 UAT: `verification.md` and `epic.md` guidance cleaned |
 | v0.1 = npm publish + MCP deployed + one real ticket through both gates with a non-tech BA on a chat client | Publishing alone proves nothing; the non-tech path is the risky one | — Pending |
 
 ## Evolution
@@ -137,4 +140,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-09-06 after Phase 1 planning (vocabulary: epic, verified, three roles, three workspaces)*
+*Last updated: 2026-09-06 after Phase 1 transition (schemas, templates, purity guard, and two-OS CI validated)*

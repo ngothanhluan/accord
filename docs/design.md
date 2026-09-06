@@ -6,7 +6,7 @@ Living design document. Captures decisions from the initial brainstorm (2026-09-
 
 Small delivery teams (BA, designer, developer, front-end, QA, team lead, coordinator) adopt AI coding agents and get two recurring failures: features that do not match the intent, and QA with no acceptance criteria to test against.
 
-Existing harnesses (OMC, GSD, Spec Kit, OpenSpec, Kiro) are single-developer tools. They interview the developer, but the person holding the intent is the BA or the client. The gap is not another agent harness; it is a shared artifact contract between roles.
+Existing agent harnesses are single-developer tools. They interview the developer, but the person holding the intent is the BA or the client. The gap is not another agent harness; it is a shared artifact contract between roles.
 
 Research on where agent failures come from changes the design more than anything else. A study of 20,574 real coding-agent sessions (arXiv 2605.29442) reports:
 
@@ -19,7 +19,7 @@ Research on where agent failures come from changes the design more than anything
 
 Underspecification is real but is not the largest cause. So Accord spends as much on the Done gate (independent verification against acceptance criteria) as on the Ready gate (capturing intent), and it makes the gates deterministic through a CLI rather than leaving them to prompts an agent can ignore.
 
-Landscape check (2026-09): no tool combines folder-as-source-of-truth, multi-role workflow, deterministic gates, MCP editing, and conflict approval. Closest pieces: Backlog.md (folder + web UI + MCP, single repo), BMad (roles, no tooling), OpenSpec (proposal lifecycle), Decap CMS (branch-based editorial approval, for website content). Accord borrows EARS from Kiro, proposal-then-archive from OpenSpec, the role roster idea from BMad, and the editorial approval model from Decap.
+No existing tool combines folder-as-source-of-truth, multi-role workflow, deterministic gates, MCP editing, and conflict approval in one place. Accord borrows established ideas where they fit: EARS for requirements, a proposal-then-archive lifecycle, a role roster, and branch-based editorial approval.
 
 ## 2. Folder convention
 

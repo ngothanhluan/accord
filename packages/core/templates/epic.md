@@ -3,7 +3,7 @@ id: "TICKET-ID"                            # equals the file name: tickets/<id>.
 title: "Short title in business language"
 type: epic                                 # an epic groups stories and bugs, holds intent and requirements for its children, is linted but never gated
 status: draft                              # draft | open | archived. Document lifecycle only; work status stays in the tracker
-# The epic this ticket belongs to. Grouping is by parent; there is no per-epic folder.
+# Leave unset on an epic; a story or bug uses it to name its epic. Grouping is by parent; there is no per-epic folder.
 # parent: "EPIC-ID"
 # Ids in the tracker, a map keyed by adapter name; values are strings.
 # tracker: { shortcut: "1234" }

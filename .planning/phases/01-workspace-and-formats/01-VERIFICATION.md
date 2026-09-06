@@ -1,15 +1,17 @@
 ---
 phase: 01-workspace-and-formats
 verified: 2026-09-06T02:45:00Z
-status: human_needed
+status: passed
 score: 41/43 must-haves verified
 behavior_unverified: 0
 overrides_applied: 0
 deferred:
+
   - truth: "CORE-01 first clause: pure core over an immutable `RepoSnapshot`"
     addressed_in: "Phase 2"
     evidence: "Phase 2 goal: 'Core turns any repository snapshot into typed tickets, verification records, and scenarios'; requirements CORE-02, CORE-03, CORE-06. Phase 1 delivers the second clause (ESLint bans every `node:*` import) only."
 human_verification:
+
   - test: "After the owner commits and pushes to `main`, open the GitHub Actions run named `ci` and check the four matrix legs: ubuntu-latest/22, ubuntu-latest/24, windows-latest/22, windows-latest/24."
     expected: "All four legs green on the first push that contains code (success criterion 1). If a Node 22 leg fails on tsdown's engine check (^22.18), set that leg's `node-version` to `22.18` (RESEARCH A1)."
     why_human: "No commit or push is allowed in this repo by AI; CI cannot run until the owner pushes. Locally `npm run check` is green on Windows only; the POSIX half of plan 01-01 truth 1 and the `npm ci` step from a clean checkout have not been exercised."

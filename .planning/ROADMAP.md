@@ -13,7 +13,7 @@ Accord is a team contract for AI-assisted delivery: a folder convention, determi
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Workspace and Formats** - Monorepo with two-OS CI, core purity guard, JSON schemas, folder convention, and templates
+- [x] **Phase 1: Workspace and Formats** - Monorepo with two-OS CI, core purity guard, JSON schemas, folder convention, and templates (completed 2026-09-06)
 - [ ] **Phase 2: Core Model and Loading** - Snapshot to typed tickets, scenarios, and verification with correct line numbers on any line ending or OS
 - [ ] **Phase 3: Lint** - Rule engine as data; schema, EARS, Gherkin, token, tick, hygiene, and size findings rendered to text and JSON
 - [ ] **Phase 4: Gates** - Ready and Done evaluated deterministically with AC hash, three-set match, evidence check, profile matrix, and exit codes
@@ -28,7 +28,6 @@ Decimal phases appear between their surrounding integers in numeric order.
 ### Phase 1: Workspace and Formats
 
 **Goal**: The repository is a three-workspace monorepo with green CI on Ubuntu and Windows, the core cannot import Node built-ins, and the contract's file formats are fixed by schemas and templates.
-**Mode:** mvp
 **Depends on**: Nothing (first phase)
 **Requirements**: OPS-01, OPS-02, CORE-01, FMT-01, FMT-02, FMT-03, FMT-06, FMT-07
 **Research**: no (npm workspaces, ESLint, JSON Schema 2020-12 are standard patterns verified in STACK.md)
@@ -194,7 +193,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Workspace and Formats | 5/5 | In Progress|  |
+| 1. Workspace and Formats | 5/5 | Complete    | 2026-09-06 |
 | 2. Core Model and Loading | 0/TBD | Not started | - |
 | 3. Lint | 0/TBD | Not started | - |
 | 4. Gates | 0/TBD | Not started | - |

@@ -120,7 +120,7 @@ Publishing without dogfooding, or dogfooding from a local build, does not close 
 | Remote MCP server is the non-tech frontend | Members have chat subscriptions, not API keys; accord goes into their tool instead of hosting a model | — Pending |
 | No API keys anywhere in accord | Subscriptions cannot power a third-party app; avoids cost and secret handling | — Pending |
 | Monorepo `core` / `cli` / `mcp` | Core must run in Node and in the MCP host; one repo keeps them in lockstep; skill definitions are data both hosts read, so they live in core | ✓ Phase 1: `core` and `cli` workspaces live with a purity guard; `mcp` added in Phase 8 |
-| Public docs name no other tools or harnesses | Positioning stands on its own; comparisons date quickly and invite argument | ✓ Phase 1 UAT (2026-09-06): README and design.md rewritten without tool names |
+| Nothing accord ships names another tool or harness | Positioning stands on its own; comparisons date quickly and invite argument; a reader meeting the name of a tool they do not have learns nothing. Covers README, design docs, templates, schemas, and workflow text under `docs/skills/`, which renders into shipped SKILL.md files. Provenance for adapted material goes in the commit message | ✓ Phase 1 UAT (2026-09-06): README and design.md rewritten without tool names. Scope widened 2026-09-12 after the debug technique shipped a plugin name; caught and removed in `fc592fb` |
 | Templates carry no project-internal notes | A BA or developer using a template must not see accord phase numbers or planning references | ✓ Phase 1 UAT: `verification.md` and `epic.md` guidance cleaned |
 | v0.1 = npm publish + MCP deployed + one real ticket through both gates with a non-tech BA on a chat client | Publishing alone proves nothing; the non-tech path is the risky one | — Pending |
 
@@ -128,14 +128,14 @@ Publishing without dogfooding, or dogfooding from a local build, does not close 
 
 This document evolves at phase transitions and milestone boundaries.
 
-**After each phase transition** (via `/gsd-transition`):
+**After each phase transition**:
 1. Requirements invalidated? → Move to Out of Scope with reason
 2. Requirements validated? → Move to Validated with phase reference
 3. New requirements emerged? → Add to Active
 4. Decisions to log? → Add to Key Decisions
 5. "What This Is" still accurate? → Update if drifted
 
-**After each milestone** (via `/gsd-complete-milestone`):
+**After each milestone**:
 1. Full review of all sections
 2. Core Value check — still the right priority?
 3. Audit Out of Scope — reasons still valid?

@@ -17,6 +17,7 @@ Accord is a team contract for AI-assisted software delivery: a conventional fold
 - **Cross-platform**: CLI must run on Windows and POSIX — author develops on Windows; teams are mixed
 - **Independence**: adapter `none` must be fully usable; nothing may require a tracker or Figma
 - **Naming**: npm `accord` is held by an abandoned package; publish scoped unless the name is reclaimed
+- **No other tools named**: nothing accord ships names another tool, plugin, harness, or planning system — not README, design docs, templates, schemas, or workflow and technique text under `docs/skills/`, which renders into the SKILL.md files users receive. Provenance for adapted material goes in the commit message. Positioning stands on its own, comparisons date quickly, and a reader meeting the name of something they do not have learns nothing
 - **Attribution**: commits authored solely by the author
 
 <!-- GSD:project-end -->

@@ -1,0 +1,73 @@
+{
+  "errors": [
+    {
+      "file": "accord/config.yml",
+      "line": 9,
+      "pointer": "",
+      "reason": "must NOT have additional properties",
+      "rule": "schema.additionalProperties"
+    },
+    {
+      "file": "accord/config.yml",
+      "line": 2,
+      "pointer": "/profile",
+      "reason": "must be equal to one of the allowed values",
+      "rule": "schema.enum"
+    },
+    {
+      "file": "accord/config.yml",
+      "line": 3,
+      "pointer": "/tracker",
+      "reason": "must have required property 'repo'",
+      "rule": "schema.required"
+    },
+    {
+      "file": "accord/config.yml",
+      "line": 3,
+      "pointer": "/tracker",
+      "reason": "must match \"then\" schema",
+      "rule": "schema.if"
+    },
+    {
+      "file": "accord/config.yml",
+      "line": 7,
+      "pointer": "/roles/0",
+      "reason": "must be equal to constant",
+      "rule": "schema.const"
+    },
+    {
+      "file": "accord/config.yml",
+      "line": 7,
+      "pointer": "/roles",
+      "reason": "must contain at least 1 valid item(s)",
+      "rule": "schema.contains"
+    }
+  ],
+  "tickets": {
+    "T": {
+      "file": "accord/tickets/T.md",
+      "frontmatter": {
+        "id": "T",
+        "status": "open",
+        "title": "t",
+        "type": "story",
+        "ui": false
+      },
+      "id": "T",
+      "requirements": [],
+      "scenarios": [],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 8,
+          "lines": []
+        }
+      ]
+    }
+  },
+  "tree": [
+    "accord/config.yml",
+    "accord/tickets/T.md"
+  ],
+  "verifications": {}
+}

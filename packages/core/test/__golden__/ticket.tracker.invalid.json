@@ -1,16 +1,17 @@
 [
   {
-    "path": "/tracker",
+    "pointer": "/tracker",
     "rule": "schema.additionalProperties",
-    "reason": "must NOT have additional properties"
+    "reason": "must NOT have additional properties",
+    "param": "Shortcut"
   },
   {
-    "path": "/tracker/shortcut",
+    "pointer": "/tracker/shortcut",
     "rule": "schema.type",
     "reason": "must be string"
   },
   {
-    "path": "/tracker/jira",
+    "pointer": "/tracker/jira",
     "rule": "schema.minLength",
     "reason": "must NOT have fewer than 1 characters"
   }

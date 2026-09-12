@@ -1,26 +1,28 @@
 [
   {
-    "path": "",
+    "pointer": "",
     "rule": "schema.additionalProperties",
-    "reason": "must NOT have additional properties"
+    "reason": "must NOT have additional properties",
+    "param": "sprint"
   },
   {
-    "path": "/tracker",
+    "pointer": "/tracker",
     "rule": "schema.required",
-    "reason": "must have required property 'repo'"
+    "reason": "must have required property 'repo'",
+    "param": "repo"
   },
   {
-    "path": "/tracker",
+    "pointer": "/tracker",
     "rule": "schema.if",
     "reason": "must match \"then\" schema"
   },
   {
-    "path": "/roles/0",
+    "pointer": "/roles/0",
     "rule": "schema.const",
     "reason": "must be equal to constant"
   },
   {
-    "path": "/roles",
+    "pointer": "/roles",
     "rule": "schema.contains",
     "reason": "must contain at least 1 valid item(s)"
   }

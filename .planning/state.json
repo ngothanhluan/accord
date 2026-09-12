@@ -11,7 +11,7 @@
     {
       "number": "2",
       "name": "Core Model and Loading",
-      "status": "pending"
+      "status": "in_progress"
     },
     {
       "number": "3",
@@ -51,8 +51,8 @@
   ],
   "next": {
     "command": "/gsd:progress --next",
-    "label": "Advance to the next step (plan phase 2)",
-    "reason": "Phase 2 of 9 — needs a plan"
+    "label": "Advance to the next step (verify)",
+    "reason": "Phase 2 of 9 · ready to verify"
   },
-  "updated_at": "2026-09-06T04:40:13.180Z"
+  "updated_at": "2026-09-06T08:09:45.334Z"
 }

@@ -42,16 +42,24 @@ describe('built core bundle', () => {
   it('bundle imports no Node built-in', () => {
     const js = readFileSync(join(distDir, 'index.js'), 'utf8');
     for (const re of forbidden) expect(js).not.toMatch(re);
-    // ajv stays an external dependency; inlining it would hide its requires behind a shim.
+    // ajv, yaml, and gherkin stay external dependencies; inlining would hide their requires behind a shim.
     expect(js).toContain('ajv/dist/2020');
+    expect(js).toMatch(/from\s*["']yaml["']/);
+    expect(js).toMatch(/from\s*["']@cucumber\/gherkin["']/);
   });
 
   it('declarations expose the seam', () => {
     const dts = readFileSync(join(distDir, 'index.d.ts'), 'utf8');
-    for (const name of ['validate', 'SchemaId', 'schemaIds', 'Finding']) expect(dts).toContain(name);
+    const names = [
+      'validate', 'SchemaId', 'schemaIds', 'Finding', 'SchemaFinding',
+      'loadSnapshot', 'RepoSnapshot', 'SnapshotInput', 'Ticket', 'ScenarioRef', 'Verification', 'AccordConfig',
+      'setFrontmatterKey', 'FrontmatterValue',
+    ];
+    for (const name of names) expect(dts).toContain(name);
     // Only the exported surface matters; tsdown's `//#region src/validate/ajv.d.ts` comment is not a type.
+    // D-55: the model is plain interfaces, so no gherkin AST or yaml Document type may leak.
     const exported = dts.split('\n').filter((line) => line.startsWith('export'));
-    for (const line of exported) expect(line).not.toMatch(/ajv/i);
+    for (const line of exported) expect(line).not.toMatch(/ajv|@cucumber|yaml/i);
     expect(dts).not.toContain('ErrorObject');
   });
 

@@ -1,41 +1,43 @@
 [
   {
-    "path": "",
+    "pointer": "",
     "rule": "schema.additionalProperties",
-    "reason": "must NOT have additional properties"
+    "reason": "must NOT have additional properties",
+    "param": "owner"
   },
   {
-    "path": "/id",
+    "pointer": "/id",
     "rule": "schema.pattern",
     "reason": "must match pattern \"^[A-Za-z0-9][A-Za-z0-9._-]*$\""
   },
   {
-    "path": "/title",
+    "pointer": "/title",
     "rule": "schema.minLength",
     "reason": "must NOT have fewer than 1 characters"
   },
   {
-    "path": "/type",
+    "pointer": "/type",
     "rule": "schema.enum",
     "reason": "must be equal to one of the allowed values"
   },
   {
-    "path": "/status",
+    "pointer": "/status",
     "rule": "schema.enum",
     "reason": "must be equal to one of the allowed values"
   },
   {
-    "path": "/tracker",
+    "pointer": "/tracker",
     "rule": "schema.additionalProperties",
-    "reason": "must NOT have additional properties"
+    "reason": "must NOT have additional properties",
+    "param": "Shortcut"
   },
   {
-    "path": "/verified/2",
+    "pointer": "/verified/2",
     "rule": "schema.pattern",
     "reason": "must match pattern \"^ac-[1-9][0-9]*$\""
   },
   {
-    "path": "/verified",
+    "pointer": "/verified",
     "rule": "schema.uniqueItems",
     "reason": "must NOT have duplicate items (items ## 1 and 0 are identical)"
   }

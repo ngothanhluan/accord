@@ -1,0 +1,325 @@
+{
+  "config": {
+    "accord": "0.1.0",
+    "design": {
+      "tokens": "src/styles/tokens.css"
+    },
+    "profile": "build",
+    "roles": [
+      "ba",
+      "dev"
+    ],
+    "runtimes": [
+      "claude",
+      "codex",
+      "cursor",
+      "copilot"
+    ],
+    "tracker": {
+      "adapter": "none"
+    }
+  },
+  "errors": [],
+  "tickets": {
+    "EPIC-1": {
+      "file": "accord/tickets/EPIC-1.md",
+      "frontmatter": {
+        "id": "EPIC-1",
+        "status": "open",
+        "title": "Tài khoản và đăng nhập",
+        "type": "epic",
+        "ui": false
+      },
+      "id": "EPIC-1",
+      "requirements": [
+        {
+          "line": 12,
+          "text": "WHEN người dùng có tài khoản the system SHALL cho phép đăng nhập"
+        }
+      ],
+      "scenarios": [],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 8,
+          "lines": [
+            {
+              "line": 9,
+              "text": "Nhóm các câu chuyện về tài khoản."
+            },
+            {
+              "line": 10,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Requirements",
+          "line": 11,
+          "lines": [
+            {
+              "line": 12,
+              "text": "WHEN người dùng có tài khoản the system SHALL cho phép đăng nhập"
+            },
+            {
+              "line": 13,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Open questions",
+          "line": 14,
+          "lines": []
+        }
+      ]
+    },
+    "LOGIN-1": {
+      "file": "accord/tickets/LOGIN-1.md",
+      "frontmatter": {
+        "assumptions": [
+          {
+            "confirmed": true,
+            "text": "Người dùng đã có tài khoản"
+          }
+        ],
+        "design": "https://www.figma.com/file/abc",
+        "id": "LOGIN-1",
+        "parent": "EPIC-1",
+        "status": "open",
+        "title": "Đăng nhập bằng email",
+        "tracker": {
+          "jira": "1e3",
+          "shortcut": "1234"
+        },
+        "type": "story",
+        "ui": true,
+        "verified": [
+          "ac-1"
+        ]
+      },
+      "id": "LOGIN-1",
+      "requirements": [
+        {
+          "line": 25,
+          "text": "WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+        },
+        {
+          "line": 26,
+          "text": "IF mật khẩu sai THEN the system SHALL hiển thị thông báo lỗi"
+        }
+      ],
+      "scenarios": [
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 37,
+          "name": "Đăng nhập thành công",
+          "steps": [
+            "Given một người dùng đã đăng ký",
+            "When họ gửi email và mật khẩu hợp lệ",
+            "Then họ thấy bảng điều khiển"
+          ],
+          "tags": [
+            "@ac-1"
+          ]
+        },
+        {
+          "acTag": "ac-2",
+          "keyword": "Scenario",
+          "line": 42,
+          "name": "Mật khẩu sai",
+          "steps": [
+            "Given một người dùng đã đăng ký",
+            "When họ gửi mật khẩu sai",
+            "Then họ thấy thông báo lỗi"
+          ],
+          "tags": [
+            "@ac-2"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 19,
+          "lines": [
+            {
+              "line": 20,
+              "text": "Người dùng đăng nhập bằng email và mật khẩu để vào bảng điều khiển."
+            },
+            {
+              "line": 21,
+              "text": "Không hỗ trợ đăng nhập mạng xã hội trong phiên bản này."
+            },
+            {
+              "line": 22,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Requirements",
+          "line": 23,
+          "lines": [
+            {
+              "line": 24,
+              "text": "<!-- BA. One EARS line per requirement. -->"
+            },
+            {
+              "line": 25,
+              "text": "- WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+            },
+            {
+              "line": 26,
+              "text": "- IF mật khẩu sai THEN the system SHALL hiển thị thông báo lỗi"
+            },
+            {
+              "line": 27,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Acceptance criteria",
+          "line": 28,
+          "lines": [
+            {
+              "line": 29,
+              "text": "<!-- BA. One fenced gherkin block; every scenario tagged @ac-n. -->"
+            },
+            {
+              "line": 30,
+              "text": "```gherkin"
+            },
+            {
+              "line": 31,
+              "text": "Feature: LOGIN-1"
+            },
+            {
+              "line": 32,
+              "text": ""
+            },
+            {
+              "line": 33,
+              "text": "  Background:"
+            },
+            {
+              "line": 34,
+              "text": "    Given một người dùng đã đăng ký"
+            },
+            {
+              "line": 35,
+              "text": ""
+            },
+            {
+              "line": 36,
+              "text": "  @ac-1"
+            },
+            {
+              "line": 37,
+              "text": "  Scenario: Đăng nhập thành công"
+            },
+            {
+              "line": 38,
+              "text": "    When họ gửi email và mật khẩu hợp lệ"
+            },
+            {
+              "line": 39,
+              "text": "    Then họ thấy bảng điều khiển"
+            },
+            {
+              "line": 40,
+              "text": ""
+            },
+            {
+              "line": 41,
+              "text": "  @ac-2"
+            },
+            {
+              "line": 42,
+              "text": "  Scenario: Mật khẩu sai"
+            },
+            {
+              "line": 43,
+              "text": "    When họ gửi mật khẩu sai"
+            },
+            {
+              "line": 44,
+              "text": "    Then họ thấy thông báo lỗi"
+            },
+            {
+              "line": 45,
+              "text": "```"
+            },
+            {
+              "line": 46,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Open questions",
+          "line": 47,
+          "lines": [
+            {
+              "line": 48,
+              "text": "- [x] Có cần ghi nhớ đăng nhập không? Không, để sau."
+            },
+            {
+              "line": 49,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Plan",
+          "line": 50,
+          "lines": [
+            {
+              "line": 51,
+              "text": "<!-- Developer fills this in. BA leaves it empty. -->"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "tree": [
+    "README.md",
+    "accord/config.yml",
+    "accord/product/glossary.md",
+    "accord/tickets/EPIC-1.md",
+    "accord/tickets/LOGIN-1.md",
+    "accord/tickets/LOGIN-1/verification.md",
+    "src/login.ts",
+    "src/styles/tokens.css"
+  ],
+  "verifications": {
+    "LOGIN-1": {
+      "blocks": [
+        {
+          "acTag": "ac-1",
+          "evidence": "npm test -- login.spec.ts\ntest/login.spec.ts covers the happy path",
+          "line": 9,
+          "name": "Đăng nhập thành công",
+          "result": "pass"
+        },
+        {
+          "acTag": "ac-2",
+          "evidence": "",
+          "line": 17,
+          "name": "Mật khẩu sai",
+          "result": "fail"
+        }
+      ],
+      "file": "accord/tickets/LOGIN-1/verification.md",
+      "frontmatter": {
+        "commit": "1234567",
+        "reviewed_on": "2026-09-01",
+        "ticket": "LOGIN-1"
+      },
+      "ticket": "LOGIN-1"
+    }
+  }
+}

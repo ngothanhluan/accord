@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { schemaIds, validate } from '../src/index.js';
-import type { Finding } from '../src/index.js';
+import type { SchemaFinding } from '../src/index.js';
 import configSchema from '../schemas/config.schema.json' with { type: 'json' };
 import verificationSchema from '../schemas/verification.schema.json' with { type: 'json' };
 
@@ -61,11 +61,11 @@ describe('ticket schema', () => {
     expect(empty).toHaveLength(4);
     for (const f of empty) {
       expect(f.rule).toBe('schema.required');
-      expect(f.path).toBe('');
+      expect(f.pointer).toBe('');
     }
     const nul = validate('ticket', null);
     expect(nul).toHaveLength(1);
-    expect(nul[0]).toMatchObject({ rule: 'schema.type', path: '' });
+    expect(nul[0]).toMatchObject({ rule: 'schema.type', pointer: '' });
   });
 });
 
@@ -73,9 +73,9 @@ describe('ticket schema', () => {
 // Plan 01-03: config.yml, verification.md, and ordering acceptance criteria
 // ---------------------------------------------------------------------------
 
-/** True when some finding has exactly this (path, rule) pair. */
-const has = (findings: Finding[], path: string, rule: string): boolean =>
-  findings.some((f) => f.path === path && f.rule === rule);
+/** True when some finding has exactly this (pointer, rule) pair. */
+const has = (findings: SchemaFinding[], pointer: string, rule: string): boolean =>
+  findings.some((f) => f.pointer === pointer && f.rule === rule);
 
 // RESEARCH Code Example 9 probe: extra key, github-issues without repo, lonely role.
 const configProbe = {

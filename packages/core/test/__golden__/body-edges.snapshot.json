@@ -1,0 +1,561 @@
+{
+  "config": {
+    "accord": "0.1.0",
+    "design": {
+      "tokens": ""
+    },
+    "profile": "build",
+    "roles": [
+      "ba",
+      "dev"
+    ],
+    "runtimes": [
+      "claude",
+      "codex",
+      "cursor",
+      "copilot"
+    ],
+    "tracker": {
+      "adapter": "none"
+    }
+  },
+  "errors": [
+    {
+      "file": "accord/tickets/DUP.md",
+      "line": 13,
+      "reason": "duplicate heading \"## Requirements\"; the first occurrence is used",
+      "rule": "load.heading-duplicate"
+    }
+  ],
+  "tickets": {
+    "CASE": {
+      "file": "accord/tickets/CASE.md",
+      "frontmatter": {
+        "id": "CASE",
+        "status": "open",
+        "title": "t",
+        "type": "story",
+        "ui": false
+      },
+      "id": "CASE",
+      "requirements": [
+        {
+          "line": 11,
+          "text": "WHEN a the system SHALL b"
+        }
+      ],
+      "scenarios": [
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 18,
+          "name": "one",
+          "steps": [
+            "Given x"
+          ],
+          "tags": [
+            "@ac-1"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "INTENT",
+          "line": 7,
+          "lines": [
+            {
+              "line": 8,
+              "text": "One line."
+            },
+            {
+              "line": 9,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "requirements",
+          "line": 10,
+          "lines": [
+            {
+              "line": 11,
+              "text": "WHEN a the system SHALL b"
+            },
+            {
+              "line": 12,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Acceptance Criteria",
+          "line": 13,
+          "lines": [
+            {
+              "line": 14,
+              "text": "```gherkin"
+            },
+            {
+              "line": 15,
+              "text": "Feature: CASE"
+            },
+            {
+              "line": 16,
+              "text": ""
+            },
+            {
+              "line": 17,
+              "text": "  @ac-1"
+            },
+            {
+              "line": 18,
+              "text": "  Scenario: one"
+            },
+            {
+              "line": 19,
+              "text": "    Given x"
+            },
+            {
+              "line": 20,
+              "text": "```"
+            }
+          ]
+        }
+      ]
+    },
+    "DUP": {
+      "file": "accord/tickets/DUP.md",
+      "frontmatter": {
+        "id": "DUP",
+        "status": "open",
+        "title": "t",
+        "type": "story",
+        "ui": false
+      },
+      "id": "DUP",
+      "requirements": [
+        {
+          "line": 11,
+          "text": "WHEN a the system SHALL b"
+        }
+      ],
+      "scenarios": [
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 21,
+          "name": "one",
+          "steps": [
+            "Given x"
+          ],
+          "tags": [
+            "@ac-1"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 7,
+          "lines": [
+            {
+              "line": 8,
+              "text": "One line."
+            },
+            {
+              "line": 9,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Requirements",
+          "line": 10,
+          "lines": [
+            {
+              "line": 11,
+              "text": "- WHEN a the system SHALL b"
+            },
+            {
+              "line": 12,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Requirements",
+          "line": 13,
+          "lines": [
+            {
+              "line": 14,
+              "text": "- WHEN c the system SHALL d"
+            },
+            {
+              "line": 15,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Acceptance criteria",
+          "line": 16,
+          "lines": [
+            {
+              "line": 17,
+              "text": "```gherkin"
+            },
+            {
+              "line": 18,
+              "text": "Feature: DUP"
+            },
+            {
+              "line": 19,
+              "text": ""
+            },
+            {
+              "line": 20,
+              "text": "  @ac-1"
+            },
+            {
+              "line": 21,
+              "text": "  Scenario: one"
+            },
+            {
+              "line": 22,
+              "text": "    Given x"
+            },
+            {
+              "line": 23,
+              "text": "```"
+            }
+          ]
+        }
+      ]
+    },
+    "FENCE": {
+      "file": "accord/tickets/FENCE.md",
+      "frontmatter": {
+        "id": "FENCE",
+        "status": "open",
+        "title": "t",
+        "type": "story",
+        "ui": false
+      },
+      "id": "FENCE",
+      "requirements": [
+        {
+          "line": 16,
+          "text": "WHEN one"
+        },
+        {
+          "line": 17,
+          "text": "WHEN two"
+        },
+        {
+          "line": 18,
+          "text": "WHEN three"
+        },
+        {
+          "line": 19,
+          "text": "WHEN four"
+        },
+        {
+          "line": 20,
+          "text": "WHEN five"
+        }
+      ],
+      "scenarios": [
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 28,
+          "name": "one",
+          "steps": [
+            "Given x"
+          ],
+          "tags": [
+            "@ac-1"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Requirements",
+          "line": 7,
+          "lines": [
+            {
+              "line": 8,
+              "text": "<!-- single-line comment -->"
+            },
+            {
+              "line": 9,
+              "text": "<!--"
+            },
+            {
+              "line": 10,
+              "text": "- WHEN inside a comment the system SHALL not count"
+            },
+            {
+              "line": 11,
+              "text": "-->"
+            },
+            {
+              "line": 12,
+              "text": "~~~"
+            },
+            {
+              "line": 13,
+              "text": "## Acceptance criteria"
+            },
+            {
+              "line": 14,
+              "text": "- WHEN inside a fence the system SHALL not count"
+            },
+            {
+              "line": 15,
+              "text": "~~~"
+            },
+            {
+              "line": 16,
+              "text": "- WHEN one"
+            },
+            {
+              "line": 17,
+              "text": "* WHEN two"
+            },
+            {
+              "line": 18,
+              "text": "+ WHEN three"
+            },
+            {
+              "line": 19,
+              "text": "1. WHEN four"
+            },
+            {
+              "line": 20,
+              "text": "WHEN five"
+            },
+            {
+              "line": 21,
+              "text": "### Sub heading"
+            },
+            {
+              "line": 22,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Acceptance criteria",
+          "line": 23,
+          "lines": [
+            {
+              "line": 24,
+              "text": "```gherkin"
+            },
+            {
+              "line": 25,
+              "text": "Feature: FENCE"
+            },
+            {
+              "line": 26,
+              "text": ""
+            },
+            {
+              "line": 27,
+              "text": "  @ac-1"
+            },
+            {
+              "line": 28,
+              "text": "  Scenario: one"
+            },
+            {
+              "line": 29,
+              "text": "    Given x"
+            },
+            {
+              "line": 30,
+              "text": "```"
+            },
+            {
+              "line": 31,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Plan",
+          "line": 32,
+          "lines": [
+            {
+              "line": 33,
+              "text": "```gherkin"
+            },
+            {
+              "line": 34,
+              "text": "Feature: FENCE plan"
+            },
+            {
+              "line": 35,
+              "text": ""
+            },
+            {
+              "line": 36,
+              "text": "  @ac-9"
+            },
+            {
+              "line": 37,
+              "text": "  Scenario: ignored"
+            },
+            {
+              "line": 38,
+              "text": "    Given y"
+            },
+            {
+              "line": 39,
+              "text": "```"
+            }
+          ]
+        }
+      ]
+    },
+    "NOREQ": {
+      "file": "accord/tickets/NOREQ.md",
+      "frontmatter": {
+        "id": "NOREQ",
+        "status": "open",
+        "title": "t",
+        "type": "story",
+        "ui": false
+      },
+      "id": "NOREQ",
+      "requirements": [],
+      "scenarios": [],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 7,
+          "lines": [
+            {
+              "line": 8,
+              "text": "One line."
+            }
+          ]
+        }
+      ]
+    },
+    "TILDE": {
+      "file": "accord/tickets/TILDE.md",
+      "frontmatter": {
+        "id": "TILDE",
+        "status": "open",
+        "title": "t",
+        "type": "story",
+        "ui": false
+      },
+      "id": "TILDE",
+      "requirements": [],
+      "scenarios": [
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 13,
+          "name": "one",
+          "steps": [
+            "Given x"
+          ],
+          "tags": [
+            "@ac-1"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Acceptance criteria",
+          "line": 7,
+          "lines": [
+            {
+              "line": 8,
+              "text": "```gherkin"
+            },
+            {
+              "line": 9,
+              "text": "Feature: TILDE"
+            },
+            {
+              "line": 10,
+              "text": "~~~"
+            },
+            {
+              "line": 11,
+              "text": ""
+            },
+            {
+              "line": 12,
+              "text": "  @ac-1"
+            },
+            {
+              "line": 13,
+              "text": "  Scenario: one"
+            },
+            {
+              "line": 14,
+              "text": "    Given x"
+            },
+            {
+              "line": 15,
+              "text": "````"
+            }
+          ]
+        }
+      ]
+    },
+    "UNTERMINATED": {
+      "file": "accord/tickets/UNTERMINATED.md",
+      "frontmatter": {
+        "id": "UNTERMINATED",
+        "status": "open",
+        "title": "t",
+        "type": "story",
+        "ui": false
+      },
+      "id": "UNTERMINATED",
+      "requirements": [],
+      "scenarios": [],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 7,
+          "lines": [
+            {
+              "line": 8,
+              "text": "One line."
+            },
+            {
+              "line": 9,
+              "text": "```"
+            },
+            {
+              "line": 10,
+              "text": "## Requirements"
+            },
+            {
+              "line": 11,
+              "text": "- WHEN swallowed the system SHALL not count"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "tree": [
+    "accord/config.yml",
+    "accord/tickets/CASE.md",
+    "accord/tickets/DUP.md",
+    "accord/tickets/FENCE.md",
+    "accord/tickets/NOREQ.md",
+    "accord/tickets/TILDE.md",
+    "accord/tickets/UNTERMINATED.md"
+  ],
+  "verifications": {}
+}

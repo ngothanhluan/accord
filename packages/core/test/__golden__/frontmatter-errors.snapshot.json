@@ -1,0 +1,222 @@
+{
+  "config": {
+    "accord": "0.1.0",
+    "design": {
+      "tokens": ""
+    },
+    "profile": "build",
+    "roles": [
+      "ba",
+      "dev"
+    ],
+    "runtimes": [
+      "claude",
+      "codex",
+      "cursor",
+      "copilot"
+    ],
+    "tracker": {
+      "adapter": "none"
+    }
+  },
+  "errors": [
+    {
+      "file": "accord/tickets/EMPTY.md",
+      "line": 1,
+      "reason": "no frontmatter block (---) at the top of the file",
+      "rule": "load.frontmatter-missing"
+    },
+    {
+      "file": "accord/tickets/EMPTYFM.md",
+      "line": 2,
+      "reason": "frontmatter must be a YAML mapping",
+      "rule": "load.yaml-not-map"
+    },
+    {
+      "file": "accord/tickets/NOFM.md",
+      "line": 1,
+      "reason": "no frontmatter block (---) at the top of the file",
+      "rule": "load.frontmatter-missing"
+    },
+    {
+      "file": "accord/tickets/NOTMAP.md",
+      "line": 2,
+      "reason": "frontmatter must be a YAML mapping",
+      "rule": "load.yaml-not-map"
+    },
+    {
+      "file": "accord/tickets/SCHEMA.md",
+      "line": 2,
+      "pointer": "",
+      "reason": "must have required property 'title'",
+      "rule": "schema.required"
+    },
+    {
+      "file": "accord/tickets/SCHEMA.md",
+      "line": 5,
+      "pointer": "",
+      "reason": "must NOT have additional properties",
+      "rule": "schema.additionalProperties"
+    },
+    {
+      "file": "accord/tickets/SCHEMA.md",
+      "line": 3,
+      "pointer": "/type",
+      "reason": "must be equal to one of the allowed values",
+      "rule": "schema.enum"
+    },
+    {
+      "file": "accord/tickets/SCHEMA.md",
+      "line": 7,
+      "pointer": "/assumptions/0/confirmed",
+      "reason": "must be boolean",
+      "rule": "schema.type"
+    },
+    {
+      "file": "accord/tickets/SCHEMA.md",
+      "line": 9,
+      "pointer": "/verified/0",
+      "reason": "must match pattern \"^ac-[1-9][0-9]*$\"",
+      "rule": "schema.pattern"
+    },
+    {
+      "file": "accord/tickets/SYNTAX.md",
+      "line": 4,
+      "reason": "Map keys must be unique at line 3, column 1:",
+      "rule": "load.yaml-syntax"
+    },
+    {
+      "file": "accord/tickets/UNTERMINATED.md",
+      "line": 1,
+      "reason": "no frontmatter block (---) at the top of the file",
+      "rule": "load.frontmatter-missing"
+    }
+  ],
+  "tickets": {
+    "EMPTY": {
+      "file": "accord/tickets/EMPTY.md",
+      "id": "EMPTY",
+      "requirements": [],
+      "scenarios": [],
+      "sections": []
+    },
+    "EMPTYFM": {
+      "file": "accord/tickets/EMPTYFM.md",
+      "id": "EMPTYFM",
+      "requirements": [],
+      "scenarios": [],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 4,
+          "lines": []
+        }
+      ]
+    },
+    "MISMATCH": {
+      "file": "accord/tickets/MISMATCH.md",
+      "frontmatter": {
+        "id": "OTHER",
+        "status": "draft",
+        "title": "t",
+        "type": "bug",
+        "ui": false
+      },
+      "id": "MISMATCH",
+      "requirements": [],
+      "scenarios": [],
+      "sections": []
+    },
+    "NOFM": {
+      "file": "accord/tickets/NOFM.md",
+      "id": "NOFM",
+      "requirements": [],
+      "scenarios": [],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 1,
+          "lines": [
+            {
+              "line": 2,
+              "text": "Không có frontmatter."
+            }
+          ]
+        }
+      ]
+    },
+    "NOTMAP": {
+      "file": "accord/tickets/NOTMAP.md",
+      "id": "NOTMAP",
+      "requirements": [],
+      "scenarios": [],
+      "sections": []
+    },
+    "SCHEMA": {
+      "file": "accord/tickets/SCHEMA.md",
+      "id": "SCHEMA",
+      "requirements": [],
+      "scenarios": [],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 12,
+          "lines": []
+        }
+      ]
+    },
+    "SYNTAX": {
+      "file": "accord/tickets/SYNTAX.md",
+      "id": "SYNTAX",
+      "requirements": [],
+      "scenarios": [],
+      "sections": []
+    },
+    "TYPING": {
+      "file": "accord/tickets/TYPING.md",
+      "frontmatter": {
+        "id": "TYPING",
+        "status": "open",
+        "title": "007",
+        "tracker": {
+          "date": "2026-01-01",
+          "exp": "1e3",
+          "hex": "0x1F",
+          "oct": "0123"
+        },
+        "type": "story",
+        "ui": false
+      },
+      "id": "TYPING",
+      "requirements": [],
+      "scenarios": [],
+      "sections": []
+    },
+    "UNTERMINATED": {
+      "file": "accord/tickets/UNTERMINATED.md",
+      "id": "UNTERMINATED",
+      "requirements": [],
+      "scenarios": [],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 4,
+          "lines": []
+        }
+      ]
+    }
+  },
+  "tree": [
+    "accord/config.yml",
+    "accord/tickets/EMPTY.md",
+    "accord/tickets/EMPTYFM.md",
+    "accord/tickets/MISMATCH.md",
+    "accord/tickets/NOFM.md",
+    "accord/tickets/NOTMAP.md",
+    "accord/tickets/SCHEMA.md",
+    "accord/tickets/SYNTAX.md",
+    "accord/tickets/TYPING.md",
+    "accord/tickets/UNTERMINATED.md"
+  ],
+  "verifications": {}
+}

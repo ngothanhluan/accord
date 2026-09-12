@@ -1,0 +1,9 @@
+accord: "0.1.0"
+profile: staging
+tracker:
+  adapter: github-issues
+design:
+  tokens: ""
+roles: [ba]
+runtimes: [claude]
+sprint: 3

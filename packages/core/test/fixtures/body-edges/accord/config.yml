@@ -1,0 +1,8 @@
+accord: "0.1.0"
+profile: build
+tracker:
+  adapter: none
+design:
+  tokens: ""
+roles: [ba, dev]
+runtimes: [claude, codex, cursor, copilot]

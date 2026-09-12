@@ -1,0 +1,37 @@
+{
+  "errors": [
+    {
+      "file": "accord/config.yml",
+      "line": 2,
+      "reason": "Flow sequence in block collection must be sufficiently indented and end with a ] at line 2, column 1:",
+      "rule": "load.yaml-syntax"
+    }
+  ],
+  "tickets": {
+    "T": {
+      "file": "accord/tickets/T.md",
+      "frontmatter": {
+        "id": "T",
+        "status": "open",
+        "title": "t",
+        "type": "story",
+        "ui": false
+      },
+      "id": "T",
+      "requirements": [],
+      "scenarios": [],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 8,
+          "lines": []
+        }
+      ]
+    }
+  },
+  "tree": [
+    "accord/config.yml",
+    "accord/tickets/T.md"
+  ],
+  "verifications": {}
+}

@@ -1,0 +1,876 @@
+{
+  "config": {
+    "accord": "0.1.0",
+    "design": {
+      "tokens": ""
+    },
+    "profile": "build",
+    "roles": [
+      "ba",
+      "dev"
+    ],
+    "runtimes": [
+      "claude",
+      "codex",
+      "cursor",
+      "copilot"
+    ],
+    "tracker": {
+      "adapter": "none"
+    }
+  },
+  "errors": [
+    {
+      "file": "accord/tickets/BADLANG.md",
+      "line": 10,
+      "reason": "Language not supported: xx",
+      "rule": "load.gherkin-parse"
+    },
+    {
+      "file": "accord/tickets/PARSE-ERROR.md",
+      "line": 15,
+      "reason": "expected: #EOF, #TableRow, #DocStringSeparator, #StepLine, #TagLine, #ExamplesLine, #ScenarioLine, #RuleLine, #Comment, #Empty, got 'Đây là dòng sai'",
+      "rule": "load.gherkin-parse"
+    }
+  ],
+  "tickets": {
+    "BADLANG": {
+      "file": "accord/tickets/BADLANG.md",
+      "frontmatter": {
+        "id": "BADLANG",
+        "status": "open",
+        "title": "t",
+        "type": "story",
+        "ui": false
+      },
+      "id": "BADLANG",
+      "requirements": [],
+      "scenarios": [],
+      "sections": [
+        {
+          "heading": "Acceptance criteria",
+          "line": 7,
+          "lines": [
+            {
+              "line": 8,
+              "text": ""
+            },
+            {
+              "line": 9,
+              "text": "```gherkin"
+            },
+            {
+              "line": 10,
+              "text": "# language: xx"
+            },
+            {
+              "line": 11,
+              "text": "Feature: X"
+            },
+            {
+              "line": 12,
+              "text": "```"
+            }
+          ]
+        }
+      ]
+    },
+    "EMPTY-AC": {
+      "file": "accord/tickets/EMPTY-AC.md",
+      "frontmatter": {
+        "id": "EMPTY-AC",
+        "status": "open",
+        "title": "t",
+        "type": "story",
+        "ui": false
+      },
+      "id": "EMPTY-AC",
+      "requirements": [],
+      "scenarios": [],
+      "sections": [
+        {
+          "heading": "Acceptance criteria",
+          "line": 7,
+          "lines": [
+            {
+              "line": 8,
+              "text": ""
+            },
+            {
+              "line": 9,
+              "text": "<!-- Viết các kịch bản Gherkin ở đây -->"
+            },
+            {
+              "line": 10,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Plan",
+          "line": 11,
+          "lines": []
+        }
+      ]
+    },
+    "MULTI": {
+      "file": "accord/tickets/MULTI.md",
+      "frontmatter": {
+        "id": "MULTI",
+        "status": "open",
+        "title": "t",
+        "type": "story",
+        "ui": false
+      },
+      "id": "MULTI",
+      "requirements": [],
+      "scenarios": [
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 13,
+          "name": "One",
+          "steps": [
+            "Given a"
+          ],
+          "tags": [
+            "@ac-1"
+          ]
+        },
+        {
+          "acTag": "ac-2",
+          "keyword": "Scenario",
+          "line": 19,
+          "name": "Two",
+          "steps": [
+            "Given b"
+          ],
+          "tags": [
+            "@ac-2"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Acceptance criteria",
+          "line": 7,
+          "lines": [
+            {
+              "line": 8,
+              "text": ""
+            },
+            {
+              "line": 9,
+              "text": "```gherkin"
+            },
+            {
+              "line": 10,
+              "text": "Feature: MULTI"
+            },
+            {
+              "line": 11,
+              "text": ""
+            },
+            {
+              "line": 12,
+              "text": "@ac-1"
+            },
+            {
+              "line": 13,
+              "text": "Scenario: One"
+            },
+            {
+              "line": 14,
+              "text": "  Given a"
+            },
+            {
+              "line": 15,
+              "text": "```"
+            },
+            {
+              "line": 16,
+              "text": ""
+            },
+            {
+              "line": 17,
+              "text": "```gherkin"
+            },
+            {
+              "line": 18,
+              "text": "@ac-2"
+            },
+            {
+              "line": 19,
+              "text": "Scenario: Two"
+            },
+            {
+              "line": 20,
+              "text": "  Given b"
+            },
+            {
+              "line": 21,
+              "text": "```"
+            },
+            {
+              "line": 22,
+              "text": ""
+            },
+            {
+              "line": 23,
+              "text": "```gherkin"
+            },
+            {
+              "line": 24,
+              "text": "Feature: X"
+            },
+            {
+              "line": 25,
+              "text": "```"
+            }
+          ]
+        }
+      ]
+    },
+    "OUTLINE": {
+      "file": "accord/tickets/OUTLINE.md",
+      "frontmatter": {
+        "id": "OUTLINE",
+        "status": "open",
+        "title": "t",
+        "type": "story",
+        "ui": false
+      },
+      "id": "OUTLINE",
+      "requirements": [],
+      "scenarios": [
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario Outline",
+          "line": 13,
+          "name": "Nhiều giá trị",
+          "steps": [
+            "Given <a>",
+            "Examples: | a | | 1 | | 2 |"
+          ],
+          "tags": [
+            "@ac-1"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Acceptance criteria",
+          "line": 7,
+          "lines": [
+            {
+              "line": 8,
+              "text": ""
+            },
+            {
+              "line": 9,
+              "text": "```gherkin"
+            },
+            {
+              "line": 10,
+              "text": "Feature: OUTLINE"
+            },
+            {
+              "line": 11,
+              "text": ""
+            },
+            {
+              "line": 12,
+              "text": "@ac-1"
+            },
+            {
+              "line": 13,
+              "text": "Scenario Outline: Nhiều giá trị"
+            },
+            {
+              "line": 14,
+              "text": "  Given <a>"
+            },
+            {
+              "line": 15,
+              "text": ""
+            },
+            {
+              "line": 16,
+              "text": "  Examples:"
+            },
+            {
+              "line": 17,
+              "text": "    | a |"
+            },
+            {
+              "line": 18,
+              "text": "    | 1 |"
+            },
+            {
+              "line": 19,
+              "text": "    | 2 |"
+            },
+            {
+              "line": 20,
+              "text": "```"
+            }
+          ]
+        }
+      ]
+    },
+    "PARSE-ERROR": {
+      "file": "accord/tickets/PARSE-ERROR.md",
+      "frontmatter": {
+        "id": "PARSE-ERROR",
+        "status": "open",
+        "title": "t",
+        "type": "story",
+        "ui": false
+      },
+      "id": "PARSE-ERROR",
+      "requirements": [],
+      "scenarios": [],
+      "sections": [
+        {
+          "heading": "Acceptance criteria",
+          "line": 7,
+          "lines": [
+            {
+              "line": 8,
+              "text": ""
+            },
+            {
+              "line": 9,
+              "text": "```gherkin"
+            },
+            {
+              "line": 10,
+              "text": "Feature: PARSE-ERROR"
+            },
+            {
+              "line": 11,
+              "text": ""
+            },
+            {
+              "line": 12,
+              "text": "@ac-1"
+            },
+            {
+              "line": 13,
+              "text": "Scenario: S"
+            },
+            {
+              "line": 14,
+              "text": "  Given a"
+            },
+            {
+              "line": 15,
+              "text": "  Đây là dòng sai"
+            },
+            {
+              "line": 16,
+              "text": "```"
+            }
+          ]
+        }
+      ]
+    },
+    "RULE": {
+      "file": "accord/tickets/RULE.md",
+      "frontmatter": {
+        "id": "RULE",
+        "status": "open",
+        "title": "t",
+        "type": "story",
+        "ui": false
+      },
+      "id": "RULE",
+      "requirements": [],
+      "scenarios": [
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 21,
+          "name": "Trong rule",
+          "steps": [
+            "Given fb",
+            "Given rb",
+            "Given s"
+          ],
+          "tags": [
+            "@ac-1"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Acceptance criteria",
+          "line": 7,
+          "lines": [
+            {
+              "line": 8,
+              "text": ""
+            },
+            {
+              "line": 9,
+              "text": "```gherkin"
+            },
+            {
+              "line": 10,
+              "text": "Feature: RULE"
+            },
+            {
+              "line": 11,
+              "text": ""
+            },
+            {
+              "line": 12,
+              "text": "Background:"
+            },
+            {
+              "line": 13,
+              "text": "  Given fb"
+            },
+            {
+              "line": 14,
+              "text": ""
+            },
+            {
+              "line": 15,
+              "text": "Rule: Thanh toán"
+            },
+            {
+              "line": 16,
+              "text": ""
+            },
+            {
+              "line": 17,
+              "text": "  Background:"
+            },
+            {
+              "line": 18,
+              "text": "    Given rb"
+            },
+            {
+              "line": 19,
+              "text": ""
+            },
+            {
+              "line": 20,
+              "text": "  @ac-1"
+            },
+            {
+              "line": 21,
+              "text": "  Scenario: Trong rule"
+            },
+            {
+              "line": 22,
+              "text": "    Given s"
+            },
+            {
+              "line": 23,
+              "text": "```"
+            }
+          ]
+        }
+      ]
+    },
+    "STEPS": {
+      "file": "accord/tickets/STEPS.md",
+      "frontmatter": {
+        "id": "STEPS",
+        "status": "open",
+        "title": "t",
+        "type": "story",
+        "ui": false
+      },
+      "id": "STEPS",
+      "requirements": [],
+      "scenarios": [
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 13,
+          "name": "Chuỗi và bảng",
+          "steps": [
+            "Given a thing",
+            "When a doc string \"\"\"hello world\"\"\"",
+            "Then a table | x | y | | 1 | 2 |"
+          ],
+          "tags": [
+            "@ac-1"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Acceptance criteria",
+          "line": 7,
+          "lines": [
+            {
+              "line": 8,
+              "text": ""
+            },
+            {
+              "line": 9,
+              "text": "```gherkin"
+            },
+            {
+              "line": 10,
+              "text": "Feature: STEPS"
+            },
+            {
+              "line": 11,
+              "text": ""
+            },
+            {
+              "line": 12,
+              "text": "@ac-1"
+            },
+            {
+              "line": 13,
+              "text": "Scenario: Chuỗi và bảng"
+            },
+            {
+              "line": 14,
+              "text": "  Given  a   thing"
+            },
+            {
+              "line": 15,
+              "text": "  When a doc string"
+            },
+            {
+              "line": 16,
+              "text": "    \"\"\""
+            },
+            {
+              "line": 17,
+              "text": "    hello"
+            },
+            {
+              "line": 18,
+              "text": "      world"
+            },
+            {
+              "line": 19,
+              "text": "    \"\"\""
+            },
+            {
+              "line": 20,
+              "text": "  Then a table"
+            },
+            {
+              "line": 21,
+              "text": "    | x | y |"
+            },
+            {
+              "line": 22,
+              "text": "    | 1 | 2 |"
+            },
+            {
+              "line": 23,
+              "text": "```"
+            }
+          ]
+        }
+      ]
+    },
+    "TAGS": {
+      "file": "accord/tickets/TAGS.md",
+      "frontmatter": {
+        "id": "TAGS",
+        "status": "open",
+        "title": "t",
+        "type": "story",
+        "ui": false
+      },
+      "id": "TAGS",
+      "requirements": [],
+      "scenarios": [
+        {
+          "keyword": "Scenario",
+          "line": 13,
+          "name": "Không thẻ",
+          "steps": [
+            "Given a"
+          ],
+          "tags": []
+        },
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 17,
+          "name": "Hai thẻ",
+          "steps": [
+            "Given b"
+          ],
+          "tags": [
+            "@ac-1",
+            "@ac-2",
+            "@smoke"
+          ]
+        },
+        {
+          "acTag": "ac-3",
+          "keyword": "Scenario",
+          "line": 21,
+          "name": "Thẻ ba",
+          "steps": [
+            "Given c"
+          ],
+          "tags": [
+            "@smoke",
+            "@ac-3"
+          ]
+        },
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 25,
+          "name": "Trùng thẻ",
+          "steps": [
+            "Given d"
+          ],
+          "tags": [
+            "@ac-1"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Acceptance criteria",
+          "line": 7,
+          "lines": [
+            {
+              "line": 8,
+              "text": ""
+            },
+            {
+              "line": 9,
+              "text": "```gherkin"
+            },
+            {
+              "line": 10,
+              "text": "@feature-tag"
+            },
+            {
+              "line": 11,
+              "text": "Feature: TAGS"
+            },
+            {
+              "line": 12,
+              "text": ""
+            },
+            {
+              "line": 13,
+              "text": "Scenario: Không thẻ"
+            },
+            {
+              "line": 14,
+              "text": "  Given a"
+            },
+            {
+              "line": 15,
+              "text": ""
+            },
+            {
+              "line": 16,
+              "text": "@ac-1 @ac-2 @smoke"
+            },
+            {
+              "line": 17,
+              "text": "Scenario: Hai thẻ"
+            },
+            {
+              "line": 18,
+              "text": "  Given b"
+            },
+            {
+              "line": 19,
+              "text": ""
+            },
+            {
+              "line": 20,
+              "text": "@smoke @ac-3"
+            },
+            {
+              "line": 21,
+              "text": "Scenario: Thẻ ba"
+            },
+            {
+              "line": 22,
+              "text": "  Given c"
+            },
+            {
+              "line": 23,
+              "text": ""
+            },
+            {
+              "line": 24,
+              "text": "@ac-1"
+            },
+            {
+              "line": 25,
+              "text": "Scenario: Trùng thẻ"
+            },
+            {
+              "line": 26,
+              "text": "  Given d"
+            },
+            {
+              "line": 27,
+              "text": "```"
+            }
+          ]
+        }
+      ]
+    },
+    "VI": {
+      "file": "accord/tickets/VI.md",
+      "frontmatter": {
+        "id": "VI",
+        "status": "open",
+        "title": "t",
+        "type": "story",
+        "ui": false
+      },
+      "id": "VI",
+      "requirements": [],
+      "scenarios": [
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 17,
+          "name": "Đăng nhập",
+          "steps": [
+            "Cho một người dùng",
+            "Khi họ đăng nhập",
+            "Thì thấy bảng điều khiển"
+          ],
+          "tags": [
+            "@ac-1"
+          ]
+        },
+        {
+          "acTag": "ac-2",
+          "keyword": "Scenario Outline",
+          "line": 22,
+          "name": "Nhiều",
+          "steps": [
+            "Cho một người dùng",
+            "Cho <a>",
+            "Examples: | a | | 1 |"
+          ],
+          "tags": [
+            "@ac-2"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Acceptance criteria",
+          "line": 7,
+          "lines": [
+            {
+              "line": 8,
+              "text": ""
+            },
+            {
+              "line": 9,
+              "text": "```gherkin"
+            },
+            {
+              "line": 10,
+              "text": "# language: vi"
+            },
+            {
+              "line": 11,
+              "text": "Tính năng: VI"
+            },
+            {
+              "line": 12,
+              "text": ""
+            },
+            {
+              "line": 13,
+              "text": "Bối cảnh:"
+            },
+            {
+              "line": 14,
+              "text": "  Cho một người dùng"
+            },
+            {
+              "line": 15,
+              "text": ""
+            },
+            {
+              "line": 16,
+              "text": "@ac-1"
+            },
+            {
+              "line": 17,
+              "text": "Kịch bản: Đăng nhập"
+            },
+            {
+              "line": 18,
+              "text": "  Khi họ đăng nhập"
+            },
+            {
+              "line": 19,
+              "text": "  Thì thấy bảng điều khiển"
+            },
+            {
+              "line": 20,
+              "text": ""
+            },
+            {
+              "line": 21,
+              "text": "@ac-2"
+            },
+            {
+              "line": 22,
+              "text": "Khung kịch bản: Nhiều"
+            },
+            {
+              "line": 23,
+              "text": "  Cho <a>"
+            },
+            {
+              "line": 24,
+              "text": ""
+            },
+            {
+              "line": 25,
+              "text": "  Dữ liệu:"
+            },
+            {
+              "line": 26,
+              "text": "    | a |"
+            },
+            {
+              "line": 27,
+              "text": "    | 1 |"
+            },
+            {
+              "line": 28,
+              "text": "```"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "tree": [
+    "accord/config.yml",
+    "accord/tickets/BADLANG.md",
+    "accord/tickets/EMPTY-AC.md",
+    "accord/tickets/MULTI.md",
+    "accord/tickets/OUTLINE.md",
+    "accord/tickets/PARSE-ERROR.md",
+    "accord/tickets/RULE.md",
+    "accord/tickets/STEPS.md",
+    "accord/tickets/TAGS.md",
+    "accord/tickets/VI.md"
+  ],
+  "verifications": {}
+}

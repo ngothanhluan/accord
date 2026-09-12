@@ -1,0 +1,35 @@
+{
+  "errors": [
+    {
+      "file": "accord/config.yml",
+      "reason": "accord/config.yml not found in snapshot",
+      "rule": "load.config-missing"
+    }
+  ],
+  "tickets": {
+    "ONLY": {
+      "file": "accord/tickets/ONLY.md",
+      "frontmatter": {
+        "id": "ONLY",
+        "status": "open",
+        "title": "t",
+        "type": "story",
+        "ui": false
+      },
+      "id": "ONLY",
+      "requirements": [],
+      "scenarios": [],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 8,
+          "lines": []
+        }
+      ]
+    }
+  },
+  "tree": [
+    "accord/tickets/ONLY.md"
+  ],
+  "verifications": {}
+}

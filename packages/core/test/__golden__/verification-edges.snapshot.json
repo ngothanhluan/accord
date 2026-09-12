@@ -1,0 +1,452 @@
+{
+  "config": {
+    "accord": "0.1.0",
+    "design": {
+      "tokens": ""
+    },
+    "profile": "build",
+    "roles": [
+      "ba",
+      "dev"
+    ],
+    "runtimes": [
+      "claude",
+      "codex",
+      "cursor",
+      "copilot"
+    ],
+    "tracker": {
+      "adapter": "none"
+    }
+  },
+  "errors": [
+    {
+      "file": "accord/tickets/A/verification.md",
+      "line": 31,
+      "reason": "duplicate heading \"## @ac-1 Một lần nữa\"; the first occurrence is used",
+      "rule": "load.heading-duplicate"
+    },
+    {
+      "file": "accord/tickets/A/verification.md",
+      "line": 16,
+      "reason": "Result must be pass, fail, or blocked",
+      "rule": "load.result-invalid"
+    },
+    {
+      "file": "accord/tickets/A/verification.md",
+      "line": 22,
+      "reason": "Result must be pass, fail, or blocked",
+      "rule": "load.result-invalid"
+    },
+    {
+      "file": "accord/tickets/B/verification.md",
+      "line": 3,
+      "pointer": "/commit",
+      "reason": "must match pattern \"^[0-9a-f]{7,40}$\"",
+      "rule": "schema.pattern"
+    },
+    {
+      "file": "accord/tickets/C.md",
+      "line": 1,
+      "reason": "no frontmatter block (---) at the top of the file",
+      "rule": "load.frontmatter-missing"
+    },
+    {
+      "file": "accord/tickets/ORPHAN/verification.md",
+      "reason": "verification record without a ticket: accord/tickets/ORPHAN.md is missing",
+      "rule": "load.verification-orphan"
+    }
+  ],
+  "tickets": {
+    "A": {
+      "file": "accord/tickets/A.md",
+      "frontmatter": {
+        "id": "A",
+        "status": "open",
+        "title": "Câu chuyện A",
+        "type": "story",
+        "ui": false
+      },
+      "id": "A",
+      "requirements": [
+        {
+          "line": 12,
+          "text": "WHEN người dùng gửi biểu mẫu the system SHALL lưu dữ liệu"
+        }
+      ],
+      "scenarios": [
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 19,
+          "name": "Một",
+          "steps": [
+            "Given một điều kiện",
+            "Then một kết quả"
+          ],
+          "tags": [
+            "@ac-1"
+          ]
+        },
+        {
+          "acTag": "ac-2",
+          "keyword": "Scenario",
+          "line": 24,
+          "name": "Hai",
+          "steps": [
+            "Given một điều kiện khác",
+            "Then một kết quả khác"
+          ],
+          "tags": [
+            "@ac-2"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 8,
+          "lines": [
+            {
+              "line": 9,
+              "text": "Câu chuyện có hai kịch bản để đối chiếu với bản ghi kiểm chứng."
+            },
+            {
+              "line": 10,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Requirements",
+          "line": 11,
+          "lines": [
+            {
+              "line": 12,
+              "text": "- WHEN người dùng gửi biểu mẫu the system SHALL lưu dữ liệu"
+            },
+            {
+              "line": 13,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Acceptance criteria",
+          "line": 14,
+          "lines": [
+            {
+              "line": 15,
+              "text": "```gherkin"
+            },
+            {
+              "line": 16,
+              "text": "Feature: A"
+            },
+            {
+              "line": 17,
+              "text": ""
+            },
+            {
+              "line": 18,
+              "text": "  @ac-1"
+            },
+            {
+              "line": 19,
+              "text": "  Scenario: Một"
+            },
+            {
+              "line": 20,
+              "text": "    Given một điều kiện"
+            },
+            {
+              "line": 21,
+              "text": "    Then một kết quả"
+            },
+            {
+              "line": 22,
+              "text": ""
+            },
+            {
+              "line": 23,
+              "text": "  @ac-2"
+            },
+            {
+              "line": 24,
+              "text": "  Scenario: Hai"
+            },
+            {
+              "line": 25,
+              "text": "    Given một điều kiện khác"
+            },
+            {
+              "line": 26,
+              "text": "    Then một kết quả khác"
+            },
+            {
+              "line": 27,
+              "text": "```"
+            },
+            {
+              "line": 28,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Open questions",
+          "line": 29,
+          "lines": [
+            {
+              "line": 30,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Plan",
+          "line": 31,
+          "lines": []
+        }
+      ]
+    },
+    "B": {
+      "file": "accord/tickets/B.md",
+      "frontmatter": {
+        "id": "B",
+        "status": "open",
+        "title": "Câu chuyện B",
+        "type": "story",
+        "ui": false
+      },
+      "id": "B",
+      "requirements": [
+        {
+          "line": 12,
+          "text": "WHEN người dùng bấm lưu the system SHALL xác nhận"
+        }
+      ],
+      "scenarios": [
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 19,
+          "name": "B1",
+          "steps": [
+            "Given một điều kiện",
+            "Then một kết quả"
+          ],
+          "tags": [
+            "@ac-1"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 8,
+          "lines": [
+            {
+              "line": 9,
+              "text": "Câu chuyện hợp lệ có bản ghi kiểm chứng với frontmatter hỏng."
+            },
+            {
+              "line": 10,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Requirements",
+          "line": 11,
+          "lines": [
+            {
+              "line": 12,
+              "text": "- WHEN người dùng bấm lưu the system SHALL xác nhận"
+            },
+            {
+              "line": 13,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Acceptance criteria",
+          "line": 14,
+          "lines": [
+            {
+              "line": 15,
+              "text": "```gherkin"
+            },
+            {
+              "line": 16,
+              "text": "Feature: B"
+            },
+            {
+              "line": 17,
+              "text": ""
+            },
+            {
+              "line": 18,
+              "text": "  @ac-1"
+            },
+            {
+              "line": 19,
+              "text": "  Scenario: B1"
+            },
+            {
+              "line": 20,
+              "text": "    Given một điều kiện"
+            },
+            {
+              "line": 21,
+              "text": "    Then một kết quả"
+            },
+            {
+              "line": 22,
+              "text": "```"
+            },
+            {
+              "line": 23,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Open questions",
+          "line": 24,
+          "lines": [
+            {
+              "line": 25,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Plan",
+          "line": 26,
+          "lines": []
+        }
+      ]
+    },
+    "C": {
+      "file": "accord/tickets/C.md",
+      "id": "C",
+      "requirements": [],
+      "scenarios": [],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 1,
+          "lines": [
+            {
+              "line": 2,
+              "text": "Vé không có frontmatter nhưng vẫn có bản ghi kiểm chứng."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "tree": [
+    "accord/assets/A/prototype.html",
+    "accord/config.yml",
+    "accord/tickets/A.md",
+    "accord/tickets/A/plan.md",
+    "accord/tickets/A/verification.md",
+    "accord/tickets/B.md",
+    "accord/tickets/B/verification.md",
+    "accord/tickets/C.md",
+    "accord/tickets/C/verification.md",
+    "accord/tickets/ORPHAN/verification.md",
+    "accord/tickets/notes.txt"
+  ],
+  "verifications": {
+    "A": {
+      "blocks": [
+        {
+          "acTag": "ac-1",
+          "evidence": "dòng một\ndòng hai\ndòng ba",
+          "line": 7,
+          "name": "Một",
+          "result": "pass"
+        },
+        {
+          "acTag": "ac-2",
+          "evidence": "chạy npm test",
+          "line": 16,
+          "name": "Hai"
+        },
+        {
+          "acTag": "ac-3",
+          "evidence": "",
+          "line": 20,
+          "name": "Ba"
+        },
+        {
+          "acTag": "ac-4",
+          "evidence": "",
+          "line": 24,
+          "name": "Bốn",
+          "result": "blocked"
+        }
+      ],
+      "file": "accord/tickets/A/verification.md",
+      "frontmatter": {
+        "commit": "abcdef0",
+        "reviewed_on": "2026-09-02",
+        "ticket": "A"
+      },
+      "ticket": "A"
+    },
+    "B": {
+      "blocks": [
+        {
+          "acTag": "ac-1",
+          "evidence": "ok",
+          "line": 7,
+          "name": "B1",
+          "result": "pass"
+        }
+      ],
+      "file": "accord/tickets/B/verification.md",
+      "ticket": "B"
+    },
+    "C": {
+      "blocks": [
+        {
+          "acTag": "ac-1",
+          "evidence": "ok",
+          "line": 7,
+          "name": "C1",
+          "result": "pass"
+        }
+      ],
+      "file": "accord/tickets/C/verification.md",
+      "frontmatter": {
+        "commit": "0123456",
+        "reviewed_on": "2026-09-02",
+        "ticket": "C"
+      },
+      "ticket": "C"
+    },
+    "ORPHAN": {
+      "blocks": [
+        {
+          "acTag": "ac-1",
+          "evidence": "ok",
+          "line": 7,
+          "name": "Không có vé",
+          "result": "pass"
+        }
+      ],
+      "file": "accord/tickets/ORPHAN/verification.md",
+      "frontmatter": {
+        "commit": "0123456",
+        "reviewed_on": "2026-09-02",
+        "ticket": "ORPHAN"
+      },
+      "ticket": "ORPHAN"
+    }
+  }
+}

@@ -73,6 +73,10 @@ The roster is `roles:` in `config.yml`: `ba` and `dev` are required, `designer` 
 
 The reviewer is not a role. The dev workflow's last step opens a fresh agent context (a subagent in Claude Code, a new chat in Cursor or Codex) and hands it `review.md`; only that fresh context writes `tickets/<id>/verification.md`. The agent that wrote the code never does. This is procedural, not tool-enforced, so the skill states it plainly.
 
+That context does two separable jobs and writes both into the same file. The `## @ac-n` blocks answer whether the change does what the acceptance criteria say. A `## Review` section answers whether what it does is sound — edge cases no scenario covers, business logic invented rather than specified, state and error handling, trust boundaries, reuse missed. Every review finding names a concrete failure: the input or state, and the wrong result that follows. A finding that cannot produce one was a preference and is dropped. The reviewer reports and never edits, since a reviewer that fixes has rejoined the work it was brought in to judge.
+
+Two techniques are loaded by the role workflows rather than invoked as roles of their own: systematic debugging, loaded by `dev` for a `type: bug` ticket or any unexpected behaviour, and code review, loaded by the review context. A bug needs no debugging session file because the ticket is the session.
+
 Role workflows ship as skill files (Claude Code, Cursor, Copilot, Codex) so every member gets the same workflow from their own AI subscription. Each skill starts by running the CLI gate and stops on failure.
 
 Solo use is the same contract with one person. The four roles become four stages the developer and their agent pass through in order, not four people; the roster still decides which skills are rendered, and no gate result changes. Nothing in the gates reads who a person is, which is why the single-person case needs no separate mode.

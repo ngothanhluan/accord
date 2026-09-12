@@ -140,7 +140,7 @@ Plans:
 
 ### Phase 6: Skills
 
-**Goal**: Each role has one workflow definition, rendered to a SKILL.md that Claude Code, Cursor, Copilot, and Codex all read, and kept in sync with a generated marker and hash.
+**Goal**: Each role has one workflow definition complete enough to replace a general planning system, plus the shared techniques those workflows load, rendered to SKILL.md files that Claude Code, Cursor, Copilot, and Codex all read and kept in sync with a generated marker and hash.
 **Mode:** mvp
 **Depends on**: Phase 5
 **Requirements**: SKILL-01, SKILL-02, SKILL-03, SKILL-04, SKILL-05, SKILL-06, SKILL-07, SKILL-08, CLI-08
@@ -151,6 +151,10 @@ Plans:
   2. `accord skills sync` writes each rendered skill to `.claude/skills/accord-<role>/` and `.agents/skills/accord-<role>/` with a generated marker and content hash, and a second run is a no-op
   3. Every rendered skill begins with a lint or gate command, none restates a rule the CLI enforces, and a test fails if a skill names a CLI command that does not exist
   4. The BA skill keeps the ticket `draft` and stops before Ready while open questions, unconfirmed assumptions, or TODO markers remain; the dev skill's review step runs in a fresh context and writes only `verification.md`; only the developer writes `verified`
+  5. Two techniques render alongside the roles and are loaded by them, not invoked as roles: systematic debugging (dev workflow, `type: bug` or any unexpected behaviour) and code review (review context, appended to `verification.md` under `## Review`). Drafts live in `docs/skills/`
+  6. The workflows carry the work a general planning system would: the BA skill covers project and epic setup in `build` profile, the dev skill covers planning into `## Plan` and implementation, the review context covers code review, and `accord status` plus the ticket covers resume — no session or handoff file exists anywhere
+
+**Scope note**: this is the heaviest phase in the project. Rendering is mechanical; writing four workflows good enough to replace a mature planning system is not. Plan it as content work with a rendering step, not the reverse.
 
 **Plans**: TBD
 

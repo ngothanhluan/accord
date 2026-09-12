@@ -75,6 +75,7 @@ v1 is the v0.1 milestone: npm publish, MCP deployed, one real ticket through Rea
 - [ ] **SKILL-06**: The dev workflow's final step runs the review in a fresh agent context that writes only `verification.md`; the context that wrote the code never writes it
 - [ ] **SKILL-07**: Only the developer writes `verified` in frontmatter, as a self-test checklist run on the dev environment before the card goes to QA
 - [ ] **SKILL-08**: A test asserts every CLI command named in a skill exists
+- [ ] **SKILL-09**: Two techniques render alongside the role skills and are loaded by them rather than invoked as roles: systematic debugging (loaded by `dev` for `type: bug` or unexpected behaviour; adds no artifact, since the ticket is the session) and code review (loaded by the fresh review context; appends findings to `verification.md` under `## Review`, each finding naming a concrete failure scenario). Drafts live in `docs/skills/`
 
 ### MCP server
 
@@ -107,7 +108,7 @@ v1 is the v0.1 milestone: npm publish, MCP deployed, one real ticket through Rea
 
 ### Skills and gates
 
-- **SKILL-09**: `lint` detects drift between skill copies and their definition
+- **SKILL-11**: `lint` detects drift between skill copies and their definition
 - **SKILL-10**: `disable-model-invocation` on gate skills once Codex's handling of unknown frontmatter keys is verified
 - **GATE-12**: Token rule promoted from warning to error in `build` profile after pilot data
 - **GATE-13**: Author check in MCP via the GitHub commits API
@@ -188,6 +189,7 @@ v1 is the v0.1 milestone: npm publish, MCP deployed, one real ticket through Rea
 | SKILL-06 | Phase 6 | Pending |
 | SKILL-07 | Phase 6 | Pending |
 | SKILL-08 | Phase 6 | Pending |
+| SKILL-09 | Phase 6 | Pending |
 | MCP-01 | Phase 8 | Pending |
 | MCP-02 | Phase 8 | Pending |
 | MCP-03 | Phase 8 | Pending |
@@ -204,8 +206,8 @@ v1 is the v0.1 milestone: npm publish, MCP deployed, one real ticket through Rea
 
 **Coverage:**
 
-- v1 requirements: 64 total
-- Mapped to phases: 64
+- v1 requirements: 65 total
+- Mapped to phases: 65
 - Unmapped: 0 ✓
 
 ---

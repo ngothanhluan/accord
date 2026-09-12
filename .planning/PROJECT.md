@@ -2,11 +2,13 @@
 
 ## What This Is
 
-Accord is a team contract for AI-assisted software delivery: a conventional folder in each repository where BA, designer, developer, and QA record intent, EARS requirements, Gherkin acceptance criteria, and design references before an agent writes code, plus a CLI and a remote MCP server that check that contract deterministically. Technical members work through Claude Code, Cursor, Codex, or Copilot; non-technical members work through the AI chat app they already pay for, connected to the same MCP server. It is an open-source personal project (MIT); the author's employer is the first user, not the owner.
+Accord is a contract for AI-assisted software delivery: a conventional folder in each repository where intent, EARS requirements, Gherkin acceptance criteria, and design references are recorded before an agent writes code, plus a CLI and a remote MCP server that check that contract deterministically, plus the role workflows that carry a ticket from intent to verified. The four roles — BA, designer, developer, reviewer — are four people on a team and four stages for one person working alone; no gate reads who anyone is, so the solo case needs no separate mode. Technical members work through Claude Code, Cursor, Codex, or Copilot; non-technical members work through the AI chat app they already pay for, connected to the same MCP server. It is an open-source personal project (MIT); the author's employer is the first user, not the owner.
 
 ## Core Value
 
-An agent cannot start a story without captured intent and acceptance criteria, and cannot finish one without independent verification against them.
+accord is the development workflow and the gate that checks it, in one package. An agent cannot start a story without captured intent and acceptance criteria, and cannot finish one without independent verification against them; the workflows that carry a ticket between those two gates ship alongside the gate, so process and check never drift apart.
+
+It replaces a general planning system rather than sitting on top of one. It needs fewer moving parts to do so: a system whose every safety net is another agent reviewing the last must keep adding reviewers, while a deterministic gate absorbs that job once. Four role workflows and two techniques, not thirty agents.
 
 ## Milestone: v0.1
 

@@ -92,7 +92,7 @@ Plans:
 **Goal**: `lint` over a snapshot returns every format, EARS, Gherkin, token, tick, hygiene, and size finding with file, line, rule id, and reason, rendered as text or JSON from one result object.
 **Mode:** mvp
 **Depends on**: Phase 2
-**Requirements**: CORE-04, CORE-05, LINT-01, LINT-02, LINT-03, LINT-04, LINT-05, LINT-06, LINT-07, FMT-09, FMT-10, FMT-11
+**Requirements**: CORE-04, CORE-05, LINT-01, LINT-02, LINT-03, LINT-04, LINT-05, LINT-06, LINT-07, LINT-08, FMT-09, FMT-10, FMT-11
 **Research**: yes (token rule LINT-04 only: colour and spacing detection heuristics, Tailwind v4 `@theme` extraction; all other rules are standard patterns)
 **Success Criteria** (what must be TRUE):
 
@@ -101,6 +101,7 @@ Plans:
   3. A Gherkin parse error, a missing or duplicate `@ac-n` tag, an empty step, and a code-touching ticket with zero scenarios each produce a finding with its own rule id
   4. A `prototype.html` using a colour or spacing value outside the token file warns and never errors, and a `verified` entry naming a tag with no scenario warns
   5. TODO sentinels, unchecked open questions, unconfirmed assumptions, and oversize intent, EARS, or scenario counts are reported, and the same result object renders to text and to JSON with identical content
+  6. A ticket whose `## Plan` steps carry a tag set different from its scenario tag set warns and names the tags missing from each side; equal sets produce no finding, and an empty `## Plan` on a ticket with scenarios warns rather than errors
 
 **Plans**: TBD
 
@@ -143,7 +144,7 @@ Plans:
 **Goal**: Each role has one workflow definition complete enough to replace a general planning system, plus the shared techniques those workflows load, rendered to SKILL.md files that Claude Code, Cursor, Copilot, and Codex all read and kept in sync with a generated marker and hash.
 **Mode:** mvp
 **Depends on**: Phase 5
-**Requirements**: SKILL-01, SKILL-02, SKILL-03, SKILL-04, SKILL-05, SKILL-06, SKILL-07, SKILL-08, CLI-08
+**Requirements**: SKILL-01, SKILL-02, SKILL-03, SKILL-04, SKILL-05, SKILL-06, SKILL-07, SKILL-08, SKILL-09, SKILL-12, CLI-08
 **Research**: light (re-verify the four runtimes' skill directories and Codex's handling of non-spec frontmatter keys at planning time; runtimes have moved three times in eighteen months)
 **Success Criteria** (what must be TRUE):
 
@@ -153,6 +154,7 @@ Plans:
   4. The BA skill keeps the ticket `draft` and stops before Ready while open questions, unconfirmed assumptions, or TODO markers remain; the dev skill's review step runs in a fresh context and writes only `verification.md`; only the developer writes `verified`
   5. Two techniques render alongside the roles and are loaded by them, not invoked as roles: systematic debugging (dev workflow, `type: bug` or any unexpected behaviour) and code review (review context, appended to `verification.md` under `## Review`). Drafts live in `docs/skills/`
   6. The workflows carry the work a general planning system would: the BA skill covers project and epic setup in `build` profile, the dev skill covers planning into `## Plan` and implementation, the review context covers code review, and `accord status` plus the ticket covers resume — no session or handoff file exists anywhere
+  7. The dev skill reviews `## Plan` against intent and acceptance criteria in a fresh context before implementing, reading no code and editing only `## Plan`, and a fixture whose plan targets the wrong layer or the wrong order comes back changed
 
 **Scope note**: this is the heaviest phase in the project. Rendering is mechanical; writing four workflows good enough to replace a mature planning system is not. Plan it as content work with a rendering step, not the reverse.
 

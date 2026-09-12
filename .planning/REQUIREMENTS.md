@@ -39,6 +39,7 @@ v1 is the v0.1 milestone: npm publish, MCP deployed, one real ticket through Rea
 - [ ] **LINT-05**: Orphaned tick warning when `verified` names a tag with no scenario
 - [ ] **LINT-06**: TODO sentinel, unchecked `## Open questions` item, and unconfirmed `assumptions:` entry are detected as findings
 - [ ] **LINT-07**: Size warnings: intent over 5 lines, over 15 EARS lines, over 5 scenarios
+- [ ] **LINT-08**: Each step under `## Plan` carries the `@ac-n` tag it serves; lint warns when the plan tag set and the scenario tag set differ, naming which tags are missing from which side. A warning and not a gate, because the plan is written after Ready and before Done, so no gate sits where the check would help, and a tag can always be attached without thought
 
 ### Gates
 
@@ -76,6 +77,7 @@ v1 is the v0.1 milestone: npm publish, MCP deployed, one real ticket through Rea
 - [ ] **SKILL-07**: Only the developer writes `verified` in frontmatter, as a self-test checklist run on the dev environment before the card goes to QA
 - [ ] **SKILL-08**: A test asserts every CLI command named in a skill exists
 - [ ] **SKILL-09**: Two techniques render alongside the role skills and are loaded by them rather than invoked as roles: systematic debugging (loaded by `dev` for `type: bug` or unexpected behaviour; adds no artifact, since the ticket is the session) and code review (loaded by the fresh review context; appends findings to `verification.md` under `## Review`, each finding naming a concrete failure scenario). Drafts live in `docs/skills/`
+- [ ] **SKILL-12**: Before implementing, the dev workflow reviews `## Plan` against the intent and the acceptance criteria in a fresh context that reads no code and edits only `## Plan`; it adds no artifact. Coverage is LINT-08's job, so this step reads for soundness: wrong layer, wrong order, a missing dependency, an approach the acceptance criteria will not survive
 
 ### MCP server
 
@@ -162,6 +164,7 @@ v1 is the v0.1 milestone: npm publish, MCP deployed, one real ticket through Rea
 | LINT-05 | Phase 3 | Pending |
 | LINT-06 | Phase 3 | Pending |
 | LINT-07 | Phase 3 | Pending |
+| LINT-08 | Phase 3 | Pending |
 | GATE-01 | Phase 4 | Pending |
 | GATE-02 | Phase 4 | Pending |
 | GATE-03 | Phase 4 | Pending |
@@ -190,6 +193,7 @@ v1 is the v0.1 milestone: npm publish, MCP deployed, one real ticket through Rea
 | SKILL-07 | Phase 6 | Pending |
 | SKILL-08 | Phase 6 | Pending |
 | SKILL-09 | Phase 6 | Pending |
+| SKILL-12 | Phase 6 | Pending |
 | MCP-01 | Phase 8 | Pending |
 | MCP-02 | Phase 8 | Pending |
 | MCP-03 | Phase 8 | Pending |
@@ -206,8 +210,8 @@ v1 is the v0.1 milestone: npm publish, MCP deployed, one real ticket through Rea
 
 **Coverage:**
 
-- v1 requirements: 65 total
-- Mapped to phases: 65
+- v1 requirements: 67 total
+- Mapped to phases: 67
 - Unmapped: 0 ✓
 
 ---

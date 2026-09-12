@@ -40,7 +40,9 @@ Flat files, not nested folders. Epics, stories, and bugs share one file type (`t
 
 Every ticket has YAML frontmatter validated against `ticket.schema.json`: `id`, `title`, `type`, `status` (`draft | open | archived`, document lifecycle only; work status stays in the tracker), optional `parent`, `tracker` (map keyed by adapter), `ui`, `design`, `assumptions`, `ac_hash`, and `verified` (always the last key). Unknown keys are errors, so tracker-owned data cannot leak into git.
 
-The body has fixed headings in fixed order: `## Intent`, `## Requirements`, `## Acceptance criteria`, `## Open questions` (BA-owned), then `## Plan` (developer-owned, last). Epics omit Acceptance criteria and Plan.
+The body has fixed headings in fixed order: `## Intent`, `## Requirements`, `## Acceptance criteria`, `## Open questions` (BA-owned), then `## Plan` and `## Verification notes` (developer-owned, last). Epics omit Acceptance criteria, Plan, and Verification notes.
+
+`## Verification notes` holds one `### @ac-n` block per ticked scenario, each a line the developer writes themselves naming the logic that makes the scenario correct. It lives in the body rather than in frontmatter because it is the one field guaranteed to be free-form prose, and prose in YAML breaks the parse on the first colon.
 
 Formats:
 - Requirements in EARS: `WHEN <trigger> the system SHALL <response>` and its four sibling patterns. Lintable by regex.
@@ -73,6 +75,8 @@ The reviewer is not a role. The dev workflow's last step opens a fresh agent con
 
 Role workflows ship as skill files (Claude Code, Cursor, Copilot, Codex) so every member gets the same workflow from their own AI subscription. Each skill starts by running the CLI gate and stops on failure.
 
+Solo use is the same contract with one person. The four roles become four stages the developer and their agent pass through in order, not four people; the roster still decides which skills are rendered, and no gate result changes. Nothing in the gates reads who a person is, which is why the single-person case needs no separate mode.
+
 ## 5. Gates
 
 **Ready** (a story may enter the sprint). Applies to every story that touches code, including small bug fixes.
@@ -88,7 +92,17 @@ Prototype rule: if the repo has design tokens (CSS variables, Tailwind config, a
 
 Not every ticket has UI. `ui: false` skips the design checks in both profiles.
 
-**Done** (a story may go to QA). The dev workflow's final step opens a fresh agent context that produces `tickets/<id>/verification.md`, one `## @ac-n` block per scenario with `Result:` and `Evidence:`. The developer runs the scenarios on the dev environment and ticks `verified: [ac-1, ...]` in the ticket's frontmatter. Done passes only when the scenario tag set, the evidence tag set, and `verified` are the same set, and the acceptance criteria hash still matches the one recorded at Ready. QA then tests on the dev environment and records the outcome in the tracker. This is the part that addresses the 36% failure mode.
+**Done** (a story may go to QA). Three layers, each defeating a different lie.
+
+*Machine.* Every scenario not tagged `@ui` carries a `@test:<id>` tag naming the test that proves it. Done fails unless that test is reported passed in the JUnit XML report named by `tests.report` in `config.yml`; the host puts that file into the snapshot and core reads it with a line scanner. A free-text `Evidence:` line never satisfies a non-`@ui` scenario on its own, because an agent can write one without running anything. A `@ui` scenario is exempt and leans on the human layer instead — brittle end-to-end tests get muted, and a muted gate is a decorative gate. A host with no report available reports the check skipped, as the author check does.
+
+*Fresh context.* The dev workflow's final step opens a fresh agent context that produces `tickets/<id>/verification.md`, one `## @ac-n` block per scenario with `Result:` and `Evidence:`. The agent that wrote the code never writes this file.
+
+*Human.* The developer runs the scenarios on the dev environment, ticks `verified: [ac-1, ...]`, and writes one line per scenario under `## Verification notes` naming the logic that makes it correct. The note must reference a path or symbol that exists in the snapshot and must not be the scenario text pasted back; there is no character-count floor, which would only invite padding. Each tick binds to the AC hash and the commit sha, so a tick never survives a change to either.
+
+Done passes only when the scenario tag set, the evidence tag set, and `verified` are the same set, every required test passed, every tick carries a valid note, and the acceptance criteria hash still matches the one recorded at Ready. QA then tests on the dev environment and records the outcome in the tracker. This is the part that addresses the 36% failure mode.
+
+What this cannot do: verify that the developer understood the code. No gate can. It verifies that a human touched the ticket, at the right version, in their own words, per scenario. Claiming more would be theatre.
 
 ## 6. Tracker and git: hybrid by durability
 

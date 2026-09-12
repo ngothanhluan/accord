@@ -68,14 +68,31 @@ Plans:
   4. The same fixture saved as LF, CRLF, and BOM+CRLF produces byte-identical snapshot goldens on Ubuntu and Windows CI, including a fixture with Windows-style paths
   5. Every file core emits is LF and UTF-8 without BOM
 
-**Plans**: TBD
+**Plans**: 7/7 plans executed
+
+Plans:
+**Wave 1**
+
+- [x] 02-01-PLAN.md — Tracer: `loadSnapshot` over the `valid-build` fixture, one golden identical across LF/CRLF/BOM+CRLF/mixed/backslash keys; `Finding` rename (D-52); D-55 public API
+
+**Wave 2** *(blocked on Wave 1 completion; all five run in parallel; each scopes golden creation to its own fixture with `-t "fixture <name>"`, and the whole core suite is checked at wave end)*
+
+- [x] 02-02-PLAN.md — Frontmatter and `config.yml` error findings with exact lines (D-31..D-34), YAML typing boundaries (CORE-02)
+- [x] 02-03-PLAN.md — Fence-aware section scanner and EARS extraction edges: fenced fakes, heading casing, duplicates, fences under other headings (D-36, D-39..D-41)
+- [x] 02-04-PLAN.md — Gherkin shapes: Outline, `vi` dialect, Background, Rule, parse errors, tag variants, doc strings, multi-fence (D-35, D-46..D-50)
+- [x] 02-05-PLAN.md — Verification records, orphan records, ignored files (D-37, D-42)
+- [x] 02-07-PLAN.md — CLI filesystem loader over `git ls-files` with parity against the core golden (D-51)
+
+**Wave 3** *(blocked on 02-02: the write primitive builds on the final `load/frontmatter.ts`)*
+
+- [x] 02-06-PLAN.md — `setFrontmatterKey` tick-write primitive with Markdown goldens and load round trip (D-43..D-45, FMT-08)
 
 ### Phase 3: Lint
 
 **Goal**: `lint` over a snapshot returns every format, EARS, Gherkin, token, tick, hygiene, and size finding with file, line, rule id, and reason, rendered as text or JSON from one result object.
 **Mode:** mvp
 **Depends on**: Phase 2
-**Requirements**: CORE-04, CORE-05, LINT-01, LINT-02, LINT-03, LINT-04, LINT-05, LINT-06, LINT-07
+**Requirements**: CORE-04, CORE-05, LINT-01, LINT-02, LINT-03, LINT-04, LINT-05, LINT-06, LINT-07, FMT-09, FMT-10, FMT-11
 **Research**: yes (token rule LINT-04 only: colour and spacing detection heuristics, Tailwind v4 `@theme` extraction; all other rules are standard patterns)
 **Success Criteria** (what must be TRUE):
 
@@ -92,7 +109,7 @@ Plans:
 **Goal**: Ready and Done evaluate deterministically over a snapshot, list reasons by rule, apply the build/maintain matrix, and offer no bypass.
 **Mode:** mvp
 **Depends on**: Phase 3
-**Requirements**: GATE-01, GATE-02, GATE-03, GATE-04, GATE-05, GATE-06, GATE-07
+**Requirements**: GATE-01, GATE-02, GATE-03, GATE-04, GATE-05, GATE-06, GATE-07, GATE-08, GATE-09, GATE-10, GATE-11
 **Research**: no (rules-as-data and three-set match are established shapes from ARCHITECTURE.md)
 **Success Criteria** (what must be TRUE):
 
@@ -194,7 +211,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Workspace and Formats | 5/5 | Complete    | 2026-09-06 |
-| 2. Core Model and Loading | 0/TBD | Not started | - |
+| 2. Core Model and Loading | 7/7 | In Progress|  |
 | 3. Lint | 0/TBD | Not started | - |
 | 4. Gates | 0/TBD | Not started | - |
 | 5. CLI Commands | 0/TBD | Not started | - |

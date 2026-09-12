@@ -12,20 +12,23 @@ v1 is the v0.1 milestone: npm publish, MCP deployed, one real ticket through Rea
 - [x] **FMT-01**: Folder convention with fixed root `accord/` containing `product/`, `tickets/`, `assets/<id>/`; no per-epic folder, grouping is `parent:`
 - [x] **FMT-02**: Ticket frontmatter validated by a JSON Schema 2020-12 file with `additionalProperties: false`: `id`, `title`, `type` (`epic` | `story` | `bug`), `status` (`draft` | `open` | `archived`), optional `parent`, `tracker` map, `ui`, `design`, `assumptions`, `ac_hash`, `verified`
 - [x] **FMT-03**: Tracker links are a map keyed by adapter name, e.g. `tracker: { github-issues: 42 }`
-- [ ] **FMT-04**: Acceptance criteria are Gherkin in a fenced `gherkin` block; every scenario carries a unique `@ac-n` tag; a Scenario Outline counts as one scenario
-- [ ] **FMT-05**: Requirements are EARS lines in a `## Requirements` section, one requirement per line
+- [x] **FMT-04**: Acceptance criteria are Gherkin in a fenced `gherkin` block; every scenario carries a unique `@ac-n` tag; a Scenario Outline counts as one scenario
+- [x] **FMT-05**: Requirements are EARS lines in a `## Requirements` section, one requirement per line
 - [x] **FMT-06**: `config.yml` with pinned accord version, profile (`build` | `maintain`), tracker adapter (`none` default; `github-issues` requires `repo`), design-token path, role roster (`ba` and `dev` required, `designer` optional), runtimes; validated by its own schema
 - [x] **FMT-07**: Templates: `ticket-build.md`, `ticket-maintain.md`, `epic.md`, `glossary.md`, `business-rules.md`, prototype header, `verification.md`
-- [ ] **FMT-08**: All generated files are LF and UTF-8 without BOM; readers accept CRLF and BOM input
+- [x] **FMT-08**: All generated files are LF and UTF-8 without BOM; readers accept CRLF and BOM input
+- [ ] **FMT-09**: A scenario not tagged `@ui` carries exactly one `@test:<id>` tag naming the test that proves it; `@ui` scenarios carry none
+- [ ] **FMT-10**: Human verification notes live in a `## Verification notes` section placed last in the ticket body, after `## Plan`, with one `### @ac-n` block per ticked scenario; `verified` in frontmatter stays a plain string array, because free-form human prose in YAML breaks the parse (Decision 2)
+- [ ] **FMT-11**: `config.yml` gains `tests.report`, a repo-relative path to a JUnit XML report; the host adds that file to the snapshot input and core reads it with a line scanner, no XML dependency (Decision 4)
 
 ### Core
 
 - [x] **CORE-01**: Pure core over an immutable `RepoSnapshot`; ESLint bans every `node:*` import inside core
-- [ ] **CORE-02**: Frontmatter parsed with `yaml` core schema where numerics stay strings; round-trips comments on tick writes
-- [ ] **CORE-03**: Gherkin blocks extracted with line numbers remapped to the Markdown file
+- [x] **CORE-02**: Frontmatter parsed with `yaml` core schema where numerics stay strings; round-trips comments on tick writes
+- [x] **CORE-03**: Gherkin blocks extracted with line numbers remapped to the Markdown file
 - [ ] **CORE-04**: Rules are data (id, gate, level, appliesTo, profile); the build/maintain matrix is one table
 - [ ] **CORE-05**: Every finding carries file, line, rule id, and reason; one result object renders to text and JSON
-- [ ] **CORE-06**: Fixture repos and JSON goldens cover pass, fail, CRLF, BOM, and Windows path cases
+- [x] **CORE-06**: Fixture repos and JSON goldens cover pass, fail, CRLF, BOM, and Windows path cases
 
 ### Lint
 
@@ -46,6 +49,10 @@ v1 is the v0.1 milestone: npm publish, MCP deployed, one real ticket through Rea
 - [ ] **GATE-05**: Author-mismatch warning when implementation and evidence share a git author; the CLI host supplies authors, the MCP host reports the check as skipped (a developer ticking their own work is expected)
 - [ ] **GATE-06**: Exit codes 0 pass, 1 fail, 2 config error; reasons listed by rule; no bypass flag
 - [ ] **GATE-07**: Profile `maintain` downgrades token and size rules to warnings; `build` keeps them as configured
+- [ ] **GATE-08**: Every scenario not tagged `@ui` carries a `@test:<id>` tag, and `gate done` passes only when a test case matching that id is reported passed in the JUnit XML report named by `config.yml` `tests.report`; a free-text `Evidence:` line alone never satisfies a non-`@ui` scenario. A host that cannot supply the report (the MCP host) reports the check as skipped, as GATE-05 does
+- [ ] **GATE-09**: A scenario tagged `@ui` is exempt from GATE-08 and instead requires the stricter human note of GATE-10
+- [ ] **GATE-10**: Each ticked scenario carries a human-written note under `## Verification notes`; `gate done` fails when the note is missing, when it references no path or symbol present in the snapshot (the GATE-04 rule), or when it is identical to or a substring of the scenario text. No character-count floor: arbitrary, language-dependent, and it invites padding
+- [ ] **GATE-11**: Each human tick binds to the AC hash and the commit sha it was made against; `gate done` fails when either has changed since the tick, so a tick never survives a code or AC change
 
 ### CLI
 
@@ -102,8 +109,8 @@ v1 is the v0.1 milestone: npm publish, MCP deployed, one real ticket through Rea
 
 - **SKILL-09**: `lint` detects drift between skill copies and their definition
 - **SKILL-10**: `disable-model-invocation` on gate skills once Codex's handling of unknown frontmatter keys is verified
-- **GATE-08**: Token rule promoted from warning to error in `build` profile after pilot data
-- **GATE-09**: Author check in MCP via the GitHub commits API
+- **GATE-12**: Token rule promoted from warning to error in `build` profile after pilot data
+- **GATE-13**: Author check in MCP via the GitHub commits API
 
 ### Views
 
@@ -133,17 +140,20 @@ v1 is the v0.1 milestone: npm publish, MCP deployed, one real ticket through Rea
 | FMT-01 | Phase 1 | Complete |
 | FMT-02 | Phase 1 | Complete |
 | FMT-03 | Phase 1 | Complete |
-| FMT-04 | Phase 2 | Pending |
-| FMT-05 | Phase 2 | Pending |
+| FMT-04 | Phase 2 | Complete |
+| FMT-05 | Phase 2 | Complete |
 | FMT-06 | Phase 1 | Complete |
 | FMT-07 | Phase 1 | Complete |
-| FMT-08 | Phase 2 | Pending |
+| FMT-08 | Phase 2 | Complete |
+| FMT-09 | Phase 3 | Pending |
+| FMT-10 | Phase 3 | Pending |
+| FMT-11 | Phase 3 | Pending |
 | CORE-01 | Phase 1 | Complete |
-| CORE-02 | Phase 2 | Pending |
-| CORE-03 | Phase 2 | Pending |
+| CORE-02 | Phase 2 | Complete |
+| CORE-03 | Phase 2 | Complete |
 | CORE-04 | Phase 3 | Pending |
 | CORE-05 | Phase 3 | Pending |
-| CORE-06 | Phase 2 | Pending |
+| CORE-06 | Phase 2 | Complete |
 | LINT-01 | Phase 3 | Pending |
 | LINT-02 | Phase 3 | Pending |
 | LINT-03 | Phase 3 | Pending |
@@ -158,6 +168,10 @@ v1 is the v0.1 milestone: npm publish, MCP deployed, one real ticket through Rea
 | GATE-05 | Phase 4 | Pending |
 | GATE-06 | Phase 4 | Pending |
 | GATE-07 | Phase 4 | Pending |
+| GATE-08 | Phase 4 | Pending |
+| GATE-09 | Phase 4 | Pending |
+| GATE-10 | Phase 4 | Pending |
+| GATE-11 | Phase 4 | Pending |
 | CLI-01 | Phase 7 | Pending |
 | CLI-02 | Phase 7 | Pending |
 | CLI-03 | Phase 7 | Pending |
@@ -190,11 +204,12 @@ v1 is the v0.1 milestone: npm publish, MCP deployed, one real ticket through Rea
 
 **Coverage:**
 
-- v1 requirements: 57 total
-- Mapped to phases: 57
+- v1 requirements: 64 total
+- Mapped to phases: 64
 - Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-09-05*
 *Last updated: 2026-09-05 after roadmap creation (traceability populated)*
 *Last updated: 2026-09-06 after Phase 1 planning (CONTEXT text updates applied)*
+*Last updated: 2026-09-12 after solo re-aim exploration (FMT-09..11, GATE-08..11; v2 gates renumbered to 12/13)*

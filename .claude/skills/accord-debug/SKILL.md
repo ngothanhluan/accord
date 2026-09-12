@@ -15,11 +15,6 @@ A technique, not a role. The `dev` workflow loads it whenever a ticket has
 `type: bug`, or whenever anything behaves unexpectedly mid-implementation.
 It adds no artifact of its own: a bug is a ticket, and the ticket is the session.
 
-Adapted from the `systematic-debugging` skill in the Superpowers plugin
-(claude-plugins-official, 6.3.0), whose four-phase method and rationalization
-table are kept. Removed: its cross-references to other Superpowers skills, and
-every piece of session plumbing, which accord already gets from the ticket file.
-
 ## The iron law
 
 ```

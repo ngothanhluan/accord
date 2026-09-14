@@ -43,6 +43,7 @@
       "rule": "schema.contains"
     }
   ],
+  "files": {},
   "tickets": {
     "T": {
       "file": "accord/tickets/T.md",

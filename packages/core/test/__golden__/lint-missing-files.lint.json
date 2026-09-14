@@ -1,0 +1,20 @@
+{
+  "errors": 0,
+  "findings": [
+    {
+      "file": "accord/config.yml",
+      "level": "warning",
+      "pointer": "/tests/report",
+      "reason": "tests.report \"reports/missing.xml\" is not in the snapshot",
+      "rule": "lint.report-missing"
+    },
+    {
+      "file": "accord/config.yml",
+      "level": "warning",
+      "pointer": "/design/tokens",
+      "reason": "design.tokens \"src/missing.css\" is not in the snapshot; tokens are read from config.design.tokens only, so the token rule is skipped",
+      "rule": "lint.tokens-missing"
+    }
+  ],
+  "warnings": 2
+}

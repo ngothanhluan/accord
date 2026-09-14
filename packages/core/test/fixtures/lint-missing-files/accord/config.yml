@@ -1,0 +1,10 @@
+accord: "0.1.0"
+profile: build
+tracker:
+  adapter: none
+design:
+  tokens: src/missing.css
+roles: [ba, dev]
+runtimes: [claude, codex, cursor, copilot]
+tests:
+  report: reports/missing.xml

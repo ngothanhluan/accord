@@ -27,6 +27,7 @@
       "rule": "load.heading-duplicate"
     }
   ],
+  "files": {},
   "tickets": {
     "CASE": {
       "file": "accord/tickets/CASE.md",

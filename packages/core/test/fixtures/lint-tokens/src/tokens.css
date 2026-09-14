@@ -1,0 +1,11 @@
+@theme {
+  --color-primary: #0055ff;
+  --spacing: 0.25rem;
+  --color-*: initial;
+}
+@theme inline {
+  --color-canvas: var(--acme-canvas);
+}
+:root { --acme-canvas: #fff; }
+[data-theme="dark"] { --acme-canvas: #000; }
+/* --color-old: red; */

@@ -1,5 +1,5 @@
 // D-39 heading normalisation, D-40 duplicate headings, D-41 EARS lines; STACK Decision 4 fence-aware scanner.
-import type { Finding } from '../model/finding.js';
+import type { LoadFinding } from '../model/finding.js';
 import type { Line, Section } from '../model/snapshot.js';
 
 export interface Fence {
@@ -79,9 +79,9 @@ export function duplicateHeadings(
   file: string,
   sections: Section[],
   keyOf: (section: Section) => string | undefined,
-): Finding[] {
+): LoadFinding[] {
   const seen = new Set<string>();
-  const findings: Finding[] = [];
+  const findings: LoadFinding[] = [];
   for (const section of sections) {
     const k = keyOf(section);
     if (k === undefined) continue;
@@ -130,7 +130,7 @@ export function stripHtmlComments(lines: Line[]): Line[] {
   });
 }
 
-const LIST_MARKER = /^\s*(?:[-*+]|\d+\.)\s+/;
+export const LIST_MARKER = /^\s*(?:[-*+]|\d+\.)\s+/;
 
 /** D-41: every non-blank line outside fences and comments, list marker stripped, with its line. */
 export function requirementLines(section: Section, fences: Fence[]): Line[] {

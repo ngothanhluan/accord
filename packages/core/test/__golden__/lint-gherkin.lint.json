@@ -1,0 +1,76 @@
+{
+  "errors": 7,
+  "findings": [
+    {
+      "file": "accord/tickets/ACTAGS.md",
+      "level": "error",
+      "line": 19,
+      "reason": "scenario \"Không thẻ\" has no @ac-n tag",
+      "rule": "lint.ac-tag-missing"
+    },
+    {
+      "file": "accord/tickets/ACTAGS.md",
+      "level": "error",
+      "line": 23,
+      "reason": "scenario \"Hai thẻ\" carries more than one @ac-n tag",
+      "rule": "lint.ac-tag-multiple"
+    },
+    {
+      "file": "accord/tickets/ACTAGS.md",
+      "level": "error",
+      "line": 27,
+      "reason": "@ac-1 is already used by scenario \"Hai thẻ\"",
+      "rule": "lint.ac-tag-duplicate"
+    },
+    {
+      "file": "accord/tickets/NOSCEN.md",
+      "level": "error",
+      "line": 14,
+      "reason": "a story needs at least one tagged scenario",
+      "rule": "lint.no-scenarios"
+    },
+    {
+      "file": "accord/tickets/STEPS.md",
+      "level": "error",
+      "line": 19,
+      "reason": "scenario \"Trống\" step 1 \"Given\" has no text",
+      "rule": "lint.step-empty"
+    },
+    {
+      "file": "accord/tickets/STEPS.md",
+      "level": "error",
+      "line": 23,
+      "reason": "scenario \"Không bước\" has no steps",
+      "rule": "lint.step-empty"
+    },
+    {
+      "file": "accord/tickets/STEPS.md",
+      "level": "warning",
+      "line": 26,
+      "reason": "scenario \"Mẫu\" has a placeholder step \"Given ...\"",
+      "rule": "lint.sentinel"
+    },
+    {
+      "file": "accord/tickets/TESTTAGS.md",
+      "level": "error",
+      "line": 19,
+      "reason": "scenario \"Hai thẻ kiểm thử\" carries more than one @test: tag",
+      "rule": "lint.test-tag-duplicate"
+    },
+    {
+      "file": "accord/tickets/TESTTAGS.md",
+      "level": "warning",
+      "line": 23,
+      "reason": "scenario \"Giao diện có thẻ kiểm thử\" is @ui and carries a @test: tag",
+      "rule": "lint.test-tag-on-ui"
+    },
+    {
+      "file": "accord/tickets/TESTTAGS.md",
+      "level": "warning",
+      "line": 27,
+      "reason": "scenario \"Thiếu thẻ kiểm thử\" has no @test:<id> tag and is not @ui",
+      "rule": "lint.test-tag-missing"
+    }
+  ],
+  "warnings": 3
+}

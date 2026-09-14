@@ -1,17 +1,17 @@
 // D-31..D-35, D-38: every frontmatter and config.yml failure class pinned with an exact file and line.
 import { beforeAll, describe, expect, it } from 'vitest';
 import { loadSnapshot } from '../src/index.js';
-import type { Finding, RepoSnapshot } from '../src/index.js';
+import type { LoadFinding, RepoSnapshot } from '../src/index.js';
 import { loadConfig } from '../src/load/config.js';
 import { normaliseText, splitFrontmatter } from '../src/load/frontmatter.js';
 import { readFixture, variants } from './helpers/fixture.js';
 
 const BOM = String.fromCharCode(0xfeff);
 
-const has = (errors: Finding[], file: string, rule: string, line: number, pointer?: string): boolean =>
+const has = (errors: LoadFinding[], file: string, rule: string, line: number, pointer?: string): boolean =>
   errors.some((e) => e.file === file && e.rule === rule && e.line === line && e.pointer === pointer);
 
-const forFile = (errors: Finding[], file: string): Finding[] => errors.filter((e) => e.file === file);
+const forFile = (errors: LoadFinding[], file: string): LoadFinding[] => errors.filter((e) => e.file === file);
 
 describe('ticket frontmatter errors (D-32, D-33)', () => {
   let snap: RepoSnapshot;

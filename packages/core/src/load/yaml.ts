@@ -1,7 +1,7 @@
 // D-33 YAML parse with line tracking and the JSON-pointer-to-line rule for schema findings.
 import { LineCounter, isMap, isScalar, isSeq, parseDocument } from 'yaml';
 import type { Document, Tags } from 'yaml';
-import type { Finding, SchemaFinding } from '../model/finding.js';
+import type { LoadFinding, SchemaFinding } from '../model/finding.js';
 
 // STACK Decision 2: core schema, numerics stay strings so `1e3` and `0123` survive as written.
 export const stringNumerics = (tags: Tags): Tags =>
@@ -11,14 +11,14 @@ export interface ParsedYaml {
   map?: Record<string, unknown>;
   doc: Document;
   lines: LineCounter;
-  findings: Finding[];
+  findings: LoadFinding[];
 }
 
 /** Parse YAML text; `lineOffset` is added to every YAML line to reach the file line. */
 export function parseYamlMap(file: string, yamlText: string, lineOffset: number): ParsedYaml {
   const lines = new LineCounter();
   const doc = parseDocument(yamlText, { schema: 'core', customTags: stringNumerics, lineCounter: lines });
-  const findings: Finding[] = [];
+  const findings: LoadFinding[] = [];
   if (doc.errors.length > 0) {
     for (const err of doc.errors) {
       findings.push({
@@ -61,7 +61,7 @@ export function schemaFindings(
   lines: LineCounter,
   lineOffset: number,
   found: SchemaFinding[],
-): Finding[] {
+): LoadFinding[] {
   const nodeAt = (path: Segment[]): unknown => (path.length === 0 ? doc.contents : doc.getIn(path, true));
 
   // Offset of the key (in a map) or item (in a seq) that `path` names; undefined at the root.

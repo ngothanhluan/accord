@@ -1,5 +1,6 @@
-// D-55 public API: loadSnapshot, the model types, and the Phase 1 exports. load/* internals stay private.
-export type { Finding, SchemaFinding } from './model/finding.js';
+// D-55 public API: loadSnapshot, lintSnapshot, renderText, the model types, and the Phase 1 exports.
+// load/* and lint/* internals (including RULES) stay private.
+export type { Finding, Level, LoadFinding, SchemaFinding } from './model/finding.js';
 export type {
   SnapshotInput,
   RepoSnapshot,
@@ -14,6 +15,9 @@ export type {
   AccordConfig,
 } from './model/snapshot.js';
 export { loadSnapshot } from './load/snapshot.js';
+export { lintSnapshot } from './lint/index.js';
+export type { LintResult } from './lint/index.js';
+export { renderText } from './lint/render.js';
 export { validate, schemaIds } from './validate/index.js';
 export type { SchemaId } from './validate/index.js';
 export { templates } from './generated/templates.js';

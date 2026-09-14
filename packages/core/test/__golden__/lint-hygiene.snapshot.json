@@ -1,0 +1,1276 @@
+{
+  "config": {
+    "accord": "0.1.0",
+    "design": {
+      "tokens": ""
+    },
+    "profile": "build",
+    "roles": [
+      "ba",
+      "dev"
+    ],
+    "runtimes": [
+      "claude",
+      "codex",
+      "cursor",
+      "copilot"
+    ],
+    "tracker": {
+      "adapter": "none"
+    }
+  },
+  "errors": [],
+  "files": {},
+  "tickets": {
+    "CLEAN": {
+      "file": "accord/tickets/CLEAN.md",
+      "frontmatter": {
+        "assumptions": [
+          {
+            "confirmed": true,
+            "text": "Người dùng đã có tài khoản"
+          }
+        ],
+        "id": "CLEAN",
+        "status": "draft",
+        "title": "Phiếu sạch",
+        "type": "story",
+        "ui": false,
+        "verified": [
+          "ac-1"
+        ]
+      },
+      "id": "CLEAN",
+      "requirements": [
+        {
+          "line": 16,
+          "text": "WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+        },
+        {
+          "line": 17,
+          "text": "IF mật khẩu sai THEN the system SHALL hiển thị thông báo lỗi"
+        }
+      ],
+      "scenarios": [
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 24,
+          "name": "Đăng nhập thành công",
+          "steps": [
+            "When họ gửi email và mật khẩu hợp lệ",
+            "Then họ thấy bảng điều khiển"
+          ],
+          "tags": [
+            "@ac-1",
+            "@test:t#a"
+          ]
+        },
+        {
+          "acTag": "ac-2",
+          "keyword": "Scenario",
+          "line": 29,
+          "name": "Mật khẩu sai",
+          "steps": [
+            "When họ gửi mật khẩu sai",
+            "Then họ thấy thông báo lỗi"
+          ],
+          "tags": [
+            "@ac-2",
+            "@ui"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 11,
+          "lines": [
+            {
+              "line": 12,
+              "text": "Người dùng đăng nhập bằng email và mật khẩu để vào bảng điều khiển."
+            },
+            {
+              "line": 13,
+              "text": "Không hỗ trợ đăng nhập mạng xã hội trong phiên bản này."
+            },
+            {
+              "line": 14,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Requirements",
+          "line": 15,
+          "lines": [
+            {
+              "line": 16,
+              "text": "- WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+            },
+            {
+              "line": 17,
+              "text": "- IF mật khẩu sai THEN the system SHALL hiển thị thông báo lỗi"
+            },
+            {
+              "line": 18,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Acceptance criteria",
+          "line": 19,
+          "lines": [
+            {
+              "line": 20,
+              "text": "```gherkin"
+            },
+            {
+              "line": 21,
+              "text": "Feature: CLEAN"
+            },
+            {
+              "line": 22,
+              "text": ""
+            },
+            {
+              "line": 23,
+              "text": "  @ac-1 @test:t#a"
+            },
+            {
+              "line": 24,
+              "text": "  Scenario: Đăng nhập thành công"
+            },
+            {
+              "line": 25,
+              "text": "    When họ gửi email và mật khẩu hợp lệ"
+            },
+            {
+              "line": 26,
+              "text": "    Then họ thấy bảng điều khiển"
+            },
+            {
+              "line": 27,
+              "text": ""
+            },
+            {
+              "line": 28,
+              "text": "  @ac-2 @ui"
+            },
+            {
+              "line": 29,
+              "text": "  Scenario: Mật khẩu sai"
+            },
+            {
+              "line": 30,
+              "text": "    When họ gửi mật khẩu sai"
+            },
+            {
+              "line": 31,
+              "text": "    Then họ thấy thông báo lỗi"
+            },
+            {
+              "line": 32,
+              "text": "```"
+            },
+            {
+              "line": 33,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Open questions",
+          "line": 34,
+          "lines": [
+            {
+              "line": 35,
+              "text": "- [x] Đã rõ"
+            },
+            {
+              "line": 36,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Plan",
+          "line": 37,
+          "lines": [
+            {
+              "line": 38,
+              "text": "- Bước một @ac-1"
+            },
+            {
+              "line": 39,
+              "text": "- Bước hai @ac-2"
+            },
+            {
+              "line": 40,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Verification notes",
+          "line": 41,
+          "lines": [
+            {
+              "line": 42,
+              "text": "### @ac-1 Đăng nhập"
+            },
+            {
+              "line": 43,
+              "text": "Đã kiểm tra bằng tay."
+            }
+          ]
+        }
+      ]
+    },
+    "EPIC": {
+      "file": "accord/tickets/EPIC.md",
+      "frontmatter": {
+        "id": "EPIC",
+        "status": "draft",
+        "title": "Sử thi",
+        "type": "epic",
+        "ui": false
+      },
+      "id": "EPIC",
+      "requirements": [
+        {
+          "line": 17,
+          "text": "WHEN người dùng mở sử thi the system SHALL liệt kê các câu chuyện"
+        }
+      ],
+      "scenarios": [],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 8,
+          "lines": [
+            {
+              "line": 9,
+              "text": "Dòng một."
+            },
+            {
+              "line": 10,
+              "text": "Dòng hai."
+            },
+            {
+              "line": 11,
+              "text": "Dòng ba."
+            },
+            {
+              "line": 12,
+              "text": "Dòng bốn."
+            },
+            {
+              "line": 13,
+              "text": "Dòng năm."
+            },
+            {
+              "line": 14,
+              "text": "Dòng sáu."
+            },
+            {
+              "line": 15,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Requirements",
+          "line": 16,
+          "lines": [
+            {
+              "line": 17,
+              "text": "- WHEN người dùng mở sử thi the system SHALL liệt kê các câu chuyện"
+            },
+            {
+              "line": 18,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Open questions",
+          "line": 19,
+          "lines": []
+        }
+      ]
+    },
+    "HEADINGS": {
+      "file": "accord/tickets/HEADINGS.md",
+      "frontmatter": {
+        "id": "HEADINGS",
+        "status": "draft",
+        "title": "Thiếu tiêu đề",
+        "type": "bug",
+        "ui": false
+      },
+      "id": "HEADINGS",
+      "requirements": [],
+      "scenarios": [
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 16,
+          "name": "Hiển thị",
+          "steps": [
+            "Given một trang",
+            "Then trang hiển thị đúng"
+          ],
+          "tags": [
+            "@ac-1",
+            "@ui"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 8,
+          "lines": [
+            {
+              "line": 9,
+              "text": "Lỗi hiển thị khi thiếu tiêu đề."
+            },
+            {
+              "line": 10,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Acceptance criteria",
+          "line": 11,
+          "lines": [
+            {
+              "line": 12,
+              "text": "```gherkin"
+            },
+            {
+              "line": 13,
+              "text": "Feature: HEADINGS"
+            },
+            {
+              "line": 14,
+              "text": ""
+            },
+            {
+              "line": 15,
+              "text": "  @ac-1 @ui"
+            },
+            {
+              "line": 16,
+              "text": "  Scenario: Hiển thị"
+            },
+            {
+              "line": 17,
+              "text": "    Given một trang"
+            },
+            {
+              "line": 18,
+              "text": "    Then trang hiển thị đúng"
+            },
+            {
+              "line": 19,
+              "text": "```"
+            }
+          ]
+        }
+      ]
+    },
+    "HYGIENE": {
+      "file": "accord/tickets/HYGIENE.md",
+      "frontmatter": {
+        "assumptions": [
+          {
+            "confirmed": false,
+            "text": "Người dùng đã có tài khoản"
+          },
+          {
+            "confirmed": true,
+            "text": "Đã có SSO"
+          }
+        ],
+        "id": "HYGIENE",
+        "status": "draft",
+        "title": "Vệ sinh phiếu",
+        "tracker": {},
+        "type": "story",
+        "ui": false,
+        "verified": [
+          "ac-1",
+          "ac-9"
+        ]
+      },
+      "id": "HYGIENE",
+      "requirements": [
+        {
+          "line": 19,
+          "text": "WHEN người dùng gửi form the system SHALL lưu TBD"
+        },
+        {
+          "line": 20,
+          "text": "WHEN người dùng huỷ the system SHALL maybe đóng form"
+        }
+      ],
+      "scenarios": [
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 27,
+          "name": "Đăng nhập",
+          "steps": [
+            "Given probably một người dùng",
+            "When ...",
+            "Then thấy bảng điều khiển"
+          ],
+          "tags": [
+            "@ac-1",
+            "@test:t#a"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 13,
+          "lines": [
+            {
+              "line": 14,
+              "text": "Người dùng đăng nhập. TODO viết thêm. FIXME nữa."
+            },
+            {
+              "line": 15,
+              "text": "Kết quả: <observable outcome> cho người dùng."
+            },
+            {
+              "line": 16,
+              "text": "<!-- TODO - [ ] <placeholder text> TICKET-ID -->"
+            },
+            {
+              "line": 17,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Requirements",
+          "line": 18,
+          "lines": [
+            {
+              "line": 19,
+              "text": "- WHEN người dùng gửi form the system SHALL lưu TBD"
+            },
+            {
+              "line": 20,
+              "text": "- WHEN người dùng huỷ the system SHALL maybe đóng form"
+            },
+            {
+              "line": 21,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Acceptance criteria",
+          "line": 22,
+          "lines": [
+            {
+              "line": 23,
+              "text": "```gherkin"
+            },
+            {
+              "line": 24,
+              "text": "Feature: TICKET-ID"
+            },
+            {
+              "line": 25,
+              "text": ""
+            },
+            {
+              "line": 26,
+              "text": "  @ac-1 @test:t#a"
+            },
+            {
+              "line": 27,
+              "text": "  Scenario: Đăng nhập"
+            },
+            {
+              "line": 28,
+              "text": "    Given probably một người dùng"
+            },
+            {
+              "line": 29,
+              "text": "    When ..."
+            },
+            {
+              "line": 30,
+              "text": "    Then thấy bảng điều khiển"
+            },
+            {
+              "line": 31,
+              "text": "```"
+            },
+            {
+              "line": 32,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Open questions",
+          "line": 33,
+          "lines": [
+            {
+              "line": 34,
+              "text": "- [ ] Chưa rõ luồng SSO"
+            },
+            {
+              "line": 35,
+              "text": "- [x] It depends on the tracker"
+            },
+            {
+              "line": 36,
+              "text": "- [x] Đã rõ"
+            },
+            {
+              "line": 37,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Plan",
+          "line": 38,
+          "lines": [
+            {
+              "line": 39,
+              "text": "- Làm form @ac-1"
+            },
+            {
+              "line": 40,
+              "text": "- Viết test"
+            },
+            {
+              "line": 41,
+              "text": "- Nối tracker @ac-2"
+            }
+          ]
+        }
+      ]
+    },
+    "NOTES": {
+      "file": "accord/tickets/NOTES.md",
+      "frontmatter": {
+        "id": "NOTES",
+        "status": "draft",
+        "title": "Ghi chú kiểm chứng sai chỗ",
+        "type": "story",
+        "ui": false
+      },
+      "id": "NOTES",
+      "requirements": [
+        {
+          "line": 12,
+          "text": "WHEN người dùng gửi form the system SHALL lưu dữ liệu"
+        }
+      ],
+      "scenarios": [
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 19,
+          "name": "Đăng nhập",
+          "steps": [
+            "Given một người dùng",
+            "Then thấy bảng điều khiển"
+          ],
+          "tags": [
+            "@ac-1",
+            "@test:t#a"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 8,
+          "lines": [
+            {
+              "line": 9,
+              "text": "Ghi chú kiểm chứng phải đứng cuối và khớp với kịch bản."
+            },
+            {
+              "line": 10,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Requirements",
+          "line": 11,
+          "lines": [
+            {
+              "line": 12,
+              "text": "- WHEN người dùng gửi form the system SHALL lưu dữ liệu"
+            },
+            {
+              "line": 13,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Acceptance criteria",
+          "line": 14,
+          "lines": [
+            {
+              "line": 15,
+              "text": "```gherkin"
+            },
+            {
+              "line": 16,
+              "text": "Feature: NOTES"
+            },
+            {
+              "line": 17,
+              "text": ""
+            },
+            {
+              "line": 18,
+              "text": "  @ac-1 @test:t#a"
+            },
+            {
+              "line": 19,
+              "text": "  Scenario: Đăng nhập"
+            },
+            {
+              "line": 20,
+              "text": "    Given một người dùng"
+            },
+            {
+              "line": 21,
+              "text": "    Then thấy bảng điều khiển"
+            },
+            {
+              "line": 22,
+              "text": "```"
+            },
+            {
+              "line": 23,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Open questions",
+          "line": 24,
+          "lines": [
+            {
+              "line": 25,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Verification notes",
+          "line": 26,
+          "lines": [
+            {
+              "line": 27,
+              "text": "### @ac-1 Đăng nhập"
+            },
+            {
+              "line": 28,
+              "text": "Đã kiểm tra bằng tay."
+            },
+            {
+              "line": 29,
+              "text": "<!-- ghi chú mẫu -->"
+            },
+            {
+              "line": 30,
+              "text": "### @ac-9 Không có"
+            },
+            {
+              "line": 31,
+              "text": "Không có kịch bản này."
+            },
+            {
+              "line": 32,
+              "text": "### @AC-1 nope"
+            },
+            {
+              "line": 33,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Plan",
+          "line": 34,
+          "lines": [
+            {
+              "line": 35,
+              "text": "- Làm @ac-1"
+            }
+          ]
+        }
+      ]
+    },
+    "PLAN-EMPTY": {
+      "file": "accord/tickets/PLAN-EMPTY.md",
+      "frontmatter": {
+        "id": "PLAN-EMPTY",
+        "status": "draft",
+        "title": "Kế hoạch trống",
+        "type": "story",
+        "ui": false
+      },
+      "id": "PLAN-EMPTY",
+      "requirements": [
+        {
+          "line": 12,
+          "text": "WHEN người dùng gửi form the system SHALL lưu dữ liệu"
+        }
+      ],
+      "scenarios": [
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 19,
+          "name": "Đăng nhập",
+          "steps": [
+            "Given một người dùng",
+            "Then thấy bảng điều khiển"
+          ],
+          "tags": [
+            "@ac-1",
+            "@test:t#a"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 8,
+          "lines": [
+            {
+              "line": 9,
+              "text": "Kế hoạch chưa có bước nào dù đã có kịch bản."
+            },
+            {
+              "line": 10,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Requirements",
+          "line": 11,
+          "lines": [
+            {
+              "line": 12,
+              "text": "- WHEN người dùng gửi form the system SHALL lưu dữ liệu"
+            },
+            {
+              "line": 13,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Acceptance criteria",
+          "line": 14,
+          "lines": [
+            {
+              "line": 15,
+              "text": "```gherkin"
+            },
+            {
+              "line": 16,
+              "text": "Feature: PLAN-EMPTY"
+            },
+            {
+              "line": 17,
+              "text": ""
+            },
+            {
+              "line": 18,
+              "text": "  @ac-1 @test:t#a"
+            },
+            {
+              "line": 19,
+              "text": "  Scenario: Đăng nhập"
+            },
+            {
+              "line": 20,
+              "text": "    Given một người dùng"
+            },
+            {
+              "line": 21,
+              "text": "    Then thấy bảng điều khiển"
+            },
+            {
+              "line": 22,
+              "text": "```"
+            },
+            {
+              "line": 23,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Open questions",
+          "line": 24,
+          "lines": [
+            {
+              "line": 25,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Plan",
+          "line": 26,
+          "lines": [
+            {
+              "line": 27,
+              "text": "<!-- Developer fills this in. BA leaves it empty. -->"
+            }
+          ]
+        }
+      ]
+    },
+    "SIZE": {
+      "file": "accord/tickets/SIZE.md",
+      "frontmatter": {
+        "id": "SIZE",
+        "status": "draft",
+        "title": "Phiếu quá dài",
+        "type": "story",
+        "ui": false
+      },
+      "id": "SIZE",
+      "requirements": [
+        {
+          "line": 19,
+          "text": "WHEN sự kiện 1 xảy ra the system SHALL ghi nhận 1"
+        },
+        {
+          "line": 20,
+          "text": "WHEN sự kiện 2 xảy ra the system SHALL ghi nhận 2"
+        },
+        {
+          "line": 21,
+          "text": "WHEN sự kiện 3 xảy ra the system SHALL ghi nhận 3"
+        },
+        {
+          "line": 22,
+          "text": "WHEN sự kiện 4 xảy ra the system SHALL ghi nhận 4"
+        },
+        {
+          "line": 23,
+          "text": "WHEN sự kiện 5 xảy ra the system SHALL ghi nhận 5"
+        },
+        {
+          "line": 24,
+          "text": "WHEN sự kiện 6 xảy ra the system SHALL ghi nhận 6"
+        },
+        {
+          "line": 25,
+          "text": "WHEN sự kiện 7 xảy ra the system SHALL ghi nhận 7"
+        },
+        {
+          "line": 26,
+          "text": "WHEN sự kiện 8 xảy ra the system SHALL ghi nhận 8"
+        },
+        {
+          "line": 27,
+          "text": "WHEN sự kiện 9 xảy ra the system SHALL ghi nhận 9"
+        },
+        {
+          "line": 28,
+          "text": "WHEN sự kiện 10 xảy ra the system SHALL ghi nhận 10"
+        },
+        {
+          "line": 29,
+          "text": "WHEN sự kiện 11 xảy ra the system SHALL ghi nhận 11"
+        },
+        {
+          "line": 30,
+          "text": "WHEN sự kiện 12 xảy ra the system SHALL ghi nhận 12"
+        },
+        {
+          "line": 31,
+          "text": "WHEN sự kiện 13 xảy ra the system SHALL ghi nhận 13"
+        },
+        {
+          "line": 32,
+          "text": "WHEN sự kiện 14 xảy ra the system SHALL ghi nhận 14"
+        },
+        {
+          "line": 33,
+          "text": "WHEN sự kiện 15 xảy ra the system SHALL ghi nhận 15"
+        },
+        {
+          "line": 34,
+          "text": "WHEN sự kiện 16 xảy ra the system SHALL ghi nhận 16"
+        }
+      ],
+      "scenarios": [
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 41,
+          "name": "Kịch bản 1",
+          "steps": [
+            "Given điều kiện 1"
+          ],
+          "tags": [
+            "@ac-1",
+            "@test:t#1"
+          ]
+        },
+        {
+          "acTag": "ac-2",
+          "keyword": "Scenario",
+          "line": 45,
+          "name": "Kịch bản 2",
+          "steps": [
+            "Given điều kiện 2"
+          ],
+          "tags": [
+            "@ac-2",
+            "@test:t#2"
+          ]
+        },
+        {
+          "acTag": "ac-3",
+          "keyword": "Scenario",
+          "line": 49,
+          "name": "Kịch bản 3",
+          "steps": [
+            "Given điều kiện 3"
+          ],
+          "tags": [
+            "@ac-3",
+            "@test:t#3"
+          ]
+        },
+        {
+          "acTag": "ac-4",
+          "keyword": "Scenario",
+          "line": 53,
+          "name": "Kịch bản 4",
+          "steps": [
+            "Given điều kiện 4"
+          ],
+          "tags": [
+            "@ac-4",
+            "@test:t#4"
+          ]
+        },
+        {
+          "acTag": "ac-5",
+          "keyword": "Scenario",
+          "line": 57,
+          "name": "Kịch bản 5",
+          "steps": [
+            "Given điều kiện 5"
+          ],
+          "tags": [
+            "@ac-5",
+            "@test:t#5"
+          ]
+        },
+        {
+          "acTag": "ac-6",
+          "keyword": "Scenario",
+          "line": 61,
+          "name": "Kịch bản 6",
+          "steps": [
+            "Given điều kiện 6"
+          ],
+          "tags": [
+            "@ac-6",
+            "@test:t#6"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 8,
+          "lines": [
+            {
+              "line": 9,
+              "text": "Dòng một."
+            },
+            {
+              "line": 10,
+              "text": "Dòng hai."
+            },
+            {
+              "line": 11,
+              "text": ""
+            },
+            {
+              "line": 12,
+              "text": "Dòng ba."
+            },
+            {
+              "line": 13,
+              "text": "<!-- ghi chú -->"
+            },
+            {
+              "line": 14,
+              "text": "Dòng bốn."
+            },
+            {
+              "line": 15,
+              "text": "Dòng năm."
+            },
+            {
+              "line": 16,
+              "text": "Dòng sáu."
+            },
+            {
+              "line": 17,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Requirements",
+          "line": 18,
+          "lines": [
+            {
+              "line": 19,
+              "text": "- WHEN sự kiện 1 xảy ra the system SHALL ghi nhận 1"
+            },
+            {
+              "line": 20,
+              "text": "- WHEN sự kiện 2 xảy ra the system SHALL ghi nhận 2"
+            },
+            {
+              "line": 21,
+              "text": "- WHEN sự kiện 3 xảy ra the system SHALL ghi nhận 3"
+            },
+            {
+              "line": 22,
+              "text": "- WHEN sự kiện 4 xảy ra the system SHALL ghi nhận 4"
+            },
+            {
+              "line": 23,
+              "text": "- WHEN sự kiện 5 xảy ra the system SHALL ghi nhận 5"
+            },
+            {
+              "line": 24,
+              "text": "- WHEN sự kiện 6 xảy ra the system SHALL ghi nhận 6"
+            },
+            {
+              "line": 25,
+              "text": "- WHEN sự kiện 7 xảy ra the system SHALL ghi nhận 7"
+            },
+            {
+              "line": 26,
+              "text": "- WHEN sự kiện 8 xảy ra the system SHALL ghi nhận 8"
+            },
+            {
+              "line": 27,
+              "text": "- WHEN sự kiện 9 xảy ra the system SHALL ghi nhận 9"
+            },
+            {
+              "line": 28,
+              "text": "- WHEN sự kiện 10 xảy ra the system SHALL ghi nhận 10"
+            },
+            {
+              "line": 29,
+              "text": "- WHEN sự kiện 11 xảy ra the system SHALL ghi nhận 11"
+            },
+            {
+              "line": 30,
+              "text": "- WHEN sự kiện 12 xảy ra the system SHALL ghi nhận 12"
+            },
+            {
+              "line": 31,
+              "text": "- WHEN sự kiện 13 xảy ra the system SHALL ghi nhận 13"
+            },
+            {
+              "line": 32,
+              "text": "- WHEN sự kiện 14 xảy ra the system SHALL ghi nhận 14"
+            },
+            {
+              "line": 33,
+              "text": "- WHEN sự kiện 15 xảy ra the system SHALL ghi nhận 15"
+            },
+            {
+              "line": 34,
+              "text": "- WHEN sự kiện 16 xảy ra the system SHALL ghi nhận 16"
+            },
+            {
+              "line": 35,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Acceptance criteria",
+          "line": 36,
+          "lines": [
+            {
+              "line": 37,
+              "text": "```gherkin"
+            },
+            {
+              "line": 38,
+              "text": "Feature: SIZE"
+            },
+            {
+              "line": 39,
+              "text": ""
+            },
+            {
+              "line": 40,
+              "text": "  @ac-1 @test:t#1"
+            },
+            {
+              "line": 41,
+              "text": "  Scenario: Kịch bản 1"
+            },
+            {
+              "line": 42,
+              "text": "    Given điều kiện 1"
+            },
+            {
+              "line": 43,
+              "text": ""
+            },
+            {
+              "line": 44,
+              "text": "  @ac-2 @test:t#2"
+            },
+            {
+              "line": 45,
+              "text": "  Scenario: Kịch bản 2"
+            },
+            {
+              "line": 46,
+              "text": "    Given điều kiện 2"
+            },
+            {
+              "line": 47,
+              "text": ""
+            },
+            {
+              "line": 48,
+              "text": "  @ac-3 @test:t#3"
+            },
+            {
+              "line": 49,
+              "text": "  Scenario: Kịch bản 3"
+            },
+            {
+              "line": 50,
+              "text": "    Given điều kiện 3"
+            },
+            {
+              "line": 51,
+              "text": ""
+            },
+            {
+              "line": 52,
+              "text": "  @ac-4 @test:t#4"
+            },
+            {
+              "line": 53,
+              "text": "  Scenario: Kịch bản 4"
+            },
+            {
+              "line": 54,
+              "text": "    Given điều kiện 4"
+            },
+            {
+              "line": 55,
+              "text": ""
+            },
+            {
+              "line": 56,
+              "text": "  @ac-5 @test:t#5"
+            },
+            {
+              "line": 57,
+              "text": "  Scenario: Kịch bản 5"
+            },
+            {
+              "line": 58,
+              "text": "    Given điều kiện 5"
+            },
+            {
+              "line": 59,
+              "text": ""
+            },
+            {
+              "line": 60,
+              "text": "  @ac-6 @test:t#6"
+            },
+            {
+              "line": 61,
+              "text": "  Scenario: Kịch bản 6"
+            },
+            {
+              "line": 62,
+              "text": "    Given điều kiện 6"
+            },
+            {
+              "line": 63,
+              "text": "```"
+            },
+            {
+              "line": 64,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Open questions",
+          "line": 65,
+          "lines": [
+            {
+              "line": 66,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Plan",
+          "line": 67,
+          "lines": [
+            {
+              "line": 68,
+              "text": "- Một bước @ac-1 @ac-2 @ac-3 @ac-4 @ac-5 @ac-6"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "tree": [
+    "accord/config.yml",
+    "accord/tickets/CLEAN.md",
+    "accord/tickets/EPIC.md",
+    "accord/tickets/HEADINGS.md",
+    "accord/tickets/HYGIENE.md",
+    "accord/tickets/NOTES.md",
+    "accord/tickets/PLAN-EMPTY.md",
+    "accord/tickets/SIZE.md"
+  ],
+  "verifications": {}
+}

@@ -33,6 +33,7 @@
       "rule": "load.gherkin-parse"
     }
   ],
+  "files": {},
   "tickets": {
     "BADLANG": {
       "file": "accord/tickets/BADLANG.md",

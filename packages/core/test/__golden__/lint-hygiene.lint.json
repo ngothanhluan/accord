@@ -1,0 +1,185 @@
+{
+  "errors": 3,
+  "findings": [
+    {
+      "file": "accord/tickets/EPIC.md",
+      "level": "warning",
+      "line": 8,
+      "reason": "## Intent has 6 lines; the limit is 5",
+      "rule": "lint.intent-oversize"
+    },
+    {
+      "file": "accord/tickets/HEADINGS.md",
+      "level": "error",
+      "reason": "missing \"## Open questions\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/HEADINGS.md",
+      "level": "error",
+      "reason": "missing \"## Plan\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/HEADINGS.md",
+      "level": "error",
+      "reason": "missing \"## Requirements\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/HYGIENE.md",
+      "level": "warning",
+      "pointer": "/assumptions/0/confirmed",
+      "reason": "assumption \"Người dùng đã có tài khoản\" is not confirmed",
+      "rule": "lint.assumption-unconfirmed"
+    },
+    {
+      "file": "accord/tickets/HYGIENE.md",
+      "level": "warning",
+      "pointer": "/verified/1",
+      "reason": "verified names \"ac-9\" but no scenario carries @ac-9",
+      "rule": "lint.tick-orphan"
+    },
+    {
+      "file": "accord/tickets/HYGIENE.md",
+      "level": "warning",
+      "pointer": "/tracker",
+      "reason": "tracker is empty; remove the key or add an adapter id",
+      "rule": "lint.tracker-empty"
+    },
+    {
+      "file": "accord/tickets/HYGIENE.md",
+      "level": "warning",
+      "line": 14,
+      "reason": "contains sentinel \"FIXME\"",
+      "rule": "lint.sentinel"
+    },
+    {
+      "file": "accord/tickets/HYGIENE.md",
+      "level": "warning",
+      "line": 14,
+      "reason": "contains sentinel \"TODO\"",
+      "rule": "lint.sentinel"
+    },
+    {
+      "file": "accord/tickets/HYGIENE.md",
+      "level": "warning",
+      "line": 15,
+      "reason": "contains placeholder \"<observable outcome>\"",
+      "rule": "lint.sentinel"
+    },
+    {
+      "file": "accord/tickets/HYGIENE.md",
+      "level": "warning",
+      "line": 19,
+      "reason": "contains sentinel \"TBD\"",
+      "rule": "lint.sentinel"
+    },
+    {
+      "file": "accord/tickets/HYGIENE.md",
+      "level": "warning",
+      "line": 19,
+      "reason": "vague wording \"TBD\"",
+      "rule": "lint.vague-wording"
+    },
+    {
+      "file": "accord/tickets/HYGIENE.md",
+      "level": "warning",
+      "line": 20,
+      "reason": "vague wording \"maybe\"",
+      "rule": "lint.vague-wording"
+    },
+    {
+      "file": "accord/tickets/HYGIENE.md",
+      "level": "warning",
+      "line": 24,
+      "reason": "contains sentinel \"TICKET-ID\"",
+      "rule": "lint.sentinel"
+    },
+    {
+      "file": "accord/tickets/HYGIENE.md",
+      "level": "warning",
+      "line": 27,
+      "reason": "scenario \"Đăng nhập\" has a placeholder step \"When ...\"",
+      "rule": "lint.sentinel"
+    },
+    {
+      "file": "accord/tickets/HYGIENE.md",
+      "level": "warning",
+      "line": 28,
+      "reason": "vague wording \"probably\"",
+      "rule": "lint.vague-wording"
+    },
+    {
+      "file": "accord/tickets/HYGIENE.md",
+      "level": "warning",
+      "line": 34,
+      "reason": "open question is unchecked",
+      "rule": "lint.open-question"
+    },
+    {
+      "file": "accord/tickets/HYGIENE.md",
+      "level": "warning",
+      "line": 35,
+      "reason": "vague wording \"depends\"",
+      "rule": "lint.vague-wording"
+    },
+    {
+      "file": "accord/tickets/HYGIENE.md",
+      "level": "warning",
+      "line": 38,
+      "reason": "plan lacks nothing; scenarios lack @ac-2",
+      "rule": "lint.plan-tags-differ"
+    },
+    {
+      "file": "accord/tickets/HYGIENE.md",
+      "level": "warning",
+      "line": 40,
+      "reason": "plan step carries no @ac-n tag",
+      "rule": "lint.plan-step-untagged"
+    },
+    {
+      "file": "accord/tickets/NOTES.md",
+      "level": "warning",
+      "line": 26,
+      "reason": "\"## Verification notes\" must be the last section",
+      "rule": "lint.notes-not-last"
+    },
+    {
+      "file": "accord/tickets/NOTES.md",
+      "level": "warning",
+      "line": 30,
+      "reason": "note block \"@ac-9\" matches no scenario",
+      "rule": "lint.note-orphan"
+    },
+    {
+      "file": "accord/tickets/PLAN-EMPTY.md",
+      "level": "warning",
+      "line": 26,
+      "reason": "ticket has scenarios but ## Plan has no step",
+      "rule": "lint.plan-empty"
+    },
+    {
+      "file": "accord/tickets/SIZE.md",
+      "level": "warning",
+      "line": 8,
+      "reason": "## Intent has 6 lines; the limit is 5",
+      "rule": "lint.intent-oversize"
+    },
+    {
+      "file": "accord/tickets/SIZE.md",
+      "level": "warning",
+      "line": 18,
+      "reason": "## Requirements has 16 EARS lines; the limit is 15",
+      "rule": "lint.requirements-oversize"
+    },
+    {
+      "file": "accord/tickets/SIZE.md",
+      "level": "warning",
+      "line": 36,
+      "reason": "## Acceptance criteria has 6 scenarios; the limit is 5",
+      "rule": "lint.scenarios-oversize"
+    }
+  ],
+  "warnings": 23
+}

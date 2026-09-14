@@ -1,0 +1,300 @@
+{
+  "config": {
+    "accord": "0.1.0",
+    "design": {
+      "tokens": ""
+    },
+    "profile": "build",
+    "roles": [
+      "ba",
+      "dev"
+    ],
+    "runtimes": [
+      "claude",
+      "codex",
+      "cursor",
+      "copilot"
+    ],
+    "tracker": {
+      "adapter": "none"
+    }
+  },
+  "errors": [],
+  "files": {},
+  "tickets": {
+    "EARS": {
+      "file": "accord/tickets/EARS.md",
+      "frontmatter": {
+        "id": "EARS",
+        "status": "draft",
+        "title": "Phân loại EARS",
+        "type": "story",
+        "ui": false
+      },
+      "id": "EARS",
+      "requirements": [
+        {
+          "line": 12,
+          "text": "The system shall log every request."
+        },
+        {
+          "line": 13,
+          "text": "WHEN the user submits the form, the system SHALL save the data"
+        },
+        {
+          "line": 14,
+          "text": "While the aircraft is on ground, the system shall disable reverse thrust"
+        },
+        {
+          "line": 15,
+          "text": "IF the password is wrong THEN the system SHALL show an error"
+        },
+        {
+          "line": 16,
+          "text": "Where the premium feature is enabled, the system shall show the export button"
+        },
+        {
+          "line": 17,
+          "text": "While the user is signed in, when the session expires, the system shall redirect to login"
+        },
+        {
+          "line": 18,
+          "text": "WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+        },
+        {
+          "line": 19,
+          "text": "IF mật khẩu sai THEN the system SHALL hiển thị thông báo lỗi"
+        },
+        {
+          "line": 20,
+          "text": "WHEN người dùng có tài khoản the system SHALL cho phép đăng nhập"
+        },
+        {
+          "line": 21,
+          "text": "WHEN the user clicks, it saves"
+        },
+        {
+          "line": 22,
+          "text": "The user logs in"
+        },
+        {
+          "line": 23,
+          "text": "The system must log it"
+        },
+        {
+          "line": 24,
+          "text": "WHEN x the system shall"
+        },
+        {
+          "line": 25,
+          "text": "Sau khi đăng nhập WHEN x the system shall y"
+        },
+        {
+          "line": 26,
+          "text": "WHEN a WHEN b the system shall c"
+        },
+        {
+          "line": 27,
+          "text": "WHEN the system shall save"
+        },
+        {
+          "line": 28,
+          "text": "IF x the system shall y"
+        },
+        {
+          "line": 29,
+          "text": "WHEN x THEN the system shall y"
+        },
+        {
+          "line": 30,
+          "text": "IF x THEN y WHEN z the system shall w"
+        }
+      ],
+      "scenarios": [
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 37,
+          "name": "Ghi nhật ký",
+          "steps": [
+            "When họ gửi yêu cầu",
+            "Then yêu cầu được ghi lại"
+          ],
+          "tags": [
+            "@ac-1",
+            "@test:t#a"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 8,
+          "lines": [
+            {
+              "line": 9,
+              "text": "Mỗi dòng yêu cầu là một trong sáu mẫu EARS."
+            },
+            {
+              "line": 10,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Requirements",
+          "line": 11,
+          "lines": [
+            {
+              "line": 12,
+              "text": "- The system shall log every request."
+            },
+            {
+              "line": 13,
+              "text": "- WHEN the user submits the form, the system SHALL save the data"
+            },
+            {
+              "line": 14,
+              "text": "- While the aircraft is on ground, the system shall disable reverse thrust"
+            },
+            {
+              "line": 15,
+              "text": "- IF the password is wrong THEN the system SHALL show an error"
+            },
+            {
+              "line": 16,
+              "text": "- Where the premium feature is enabled, the system shall show the export button"
+            },
+            {
+              "line": 17,
+              "text": "- While the user is signed in, when the session expires, the system shall redirect to login"
+            },
+            {
+              "line": 18,
+              "text": "- WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+            },
+            {
+              "line": 19,
+              "text": "- IF mật khẩu sai THEN the system SHALL hiển thị thông báo lỗi"
+            },
+            {
+              "line": 20,
+              "text": "- WHEN người dùng có tài khoản the system SHALL cho phép đăng nhập"
+            },
+            {
+              "line": 21,
+              "text": "- WHEN the user clicks, it saves"
+            },
+            {
+              "line": 22,
+              "text": "- The user logs in"
+            },
+            {
+              "line": 23,
+              "text": "- The system must log it"
+            },
+            {
+              "line": 24,
+              "text": "- WHEN x the system shall"
+            },
+            {
+              "line": 25,
+              "text": "- Sau khi đăng nhập WHEN x the system shall y"
+            },
+            {
+              "line": 26,
+              "text": "- WHEN a WHEN b the system shall c"
+            },
+            {
+              "line": 27,
+              "text": "- WHEN the system shall save"
+            },
+            {
+              "line": 28,
+              "text": "- IF x the system shall y"
+            },
+            {
+              "line": 29,
+              "text": "- WHEN x THEN the system shall y"
+            },
+            {
+              "line": 30,
+              "text": "- IF x THEN y WHEN z the system shall w"
+            },
+            {
+              "line": 31,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Acceptance criteria",
+          "line": 32,
+          "lines": [
+            {
+              "line": 33,
+              "text": "```gherkin"
+            },
+            {
+              "line": 34,
+              "text": "Feature: EARS"
+            },
+            {
+              "line": 35,
+              "text": ""
+            },
+            {
+              "line": 36,
+              "text": "  @ac-1 @test:t#a"
+            },
+            {
+              "line": 37,
+              "text": "  Scenario: Ghi nhật ký"
+            },
+            {
+              "line": 38,
+              "text": "    When họ gửi yêu cầu"
+            },
+            {
+              "line": 39,
+              "text": "    Then yêu cầu được ghi lại"
+            },
+            {
+              "line": 40,
+              "text": "```"
+            },
+            {
+              "line": 41,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Open questions",
+          "line": 42,
+          "lines": [
+            {
+              "line": 43,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Plan",
+          "line": 44,
+          "lines": [
+            {
+              "line": 45,
+              "text": "- Ghi nhật ký @ac-1"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "tree": [
+    "accord/config.yml",
+    "accord/tickets/EARS.md"
+  ],
+  "verifications": {}
+}

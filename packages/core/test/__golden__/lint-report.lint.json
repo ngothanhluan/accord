@@ -1,0 +1,13 @@
+{
+  "errors": 0,
+  "findings": [
+    {
+      "file": "accord/tickets/REPORT.md",
+      "level": "warning",
+      "line": 29,
+      "reason": "@test:nope#missing not found in reports/junit.xml; ids are classname#name with spaces as '-'",
+      "rule": "lint.test-id-unknown"
+    }
+  ],
+  "warnings": 1
+}

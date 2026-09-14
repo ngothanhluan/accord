@@ -1,0 +1,62 @@
+{
+  "errors": 0,
+  "findings": [
+    {
+      "file": "accord/assets/PROTO-1/prototype.html",
+      "level": "warning",
+      "line": 10,
+      "reason": "padding: hard-coded spacing 12px",
+      "rule": "lint.token-hardcoded"
+    },
+    {
+      "file": "accord/assets/PROTO-1/prototype.html",
+      "level": "warning",
+      "line": 11,
+      "reason": "background: hard-coded colour #fff",
+      "rule": "lint.token-hardcoded"
+    },
+    {
+      "file": "accord/assets/PROTO-1/prototype.html",
+      "level": "warning",
+      "line": 12,
+      "reason": "border: unknown token var(--nope); tokens are read from config.design.tokens only",
+      "rule": "lint.token-hardcoded"
+    },
+    {
+      "file": "accord/assets/PROTO-1/prototype.html",
+      "level": "warning",
+      "line": 16,
+      "reason": "class bg-[#fff]: hard-coded colour #fff",
+      "rule": "lint.token-hardcoded"
+    },
+    {
+      "file": "accord/assets/PROTO-1/prototype.html",
+      "level": "warning",
+      "line": 16,
+      "reason": "class hover:bg-[oklch(60%_0.15_50)]/50: hard-coded colour oklch(60% 0.15 50)",
+      "rule": "lint.token-hardcoded"
+    },
+    {
+      "file": "accord/assets/PROTO-1/prototype.html",
+      "level": "warning",
+      "line": 16,
+      "reason": "class p-[13px]: hard-coded spacing 13px",
+      "rule": "lint.token-hardcoded"
+    },
+    {
+      "file": "accord/assets/PROTO-1/prototype.html",
+      "level": "warning",
+      "line": 17,
+      "reason": "color: hard-coded colour white",
+      "rule": "lint.token-hardcoded"
+    },
+    {
+      "file": "accord/assets/PROTO-1/prototype.html",
+      "level": "warning",
+      "line": 18,
+      "reason": "padding: hard-coded spacing 2rem",
+      "rule": "lint.token-hardcoded"
+    }
+  ],
+  "warnings": 8
+}

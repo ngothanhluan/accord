@@ -1,0 +1,668 @@
+{
+  "config": {
+    "accord": "0.1.0",
+    "design": {
+      "tokens": ""
+    },
+    "profile": "build",
+    "roles": [
+      "ba",
+      "dev"
+    ],
+    "runtimes": [
+      "claude",
+      "codex",
+      "cursor",
+      "copilot"
+    ],
+    "tracker": {
+      "adapter": "none"
+    }
+  },
+  "errors": [],
+  "files": {},
+  "tickets": {
+    "ACTAGS": {
+      "file": "accord/tickets/ACTAGS.md",
+      "frontmatter": {
+        "id": "ACTAGS",
+        "status": "draft",
+        "title": "Thẻ @ac-n",
+        "type": "story",
+        "ui": false
+      },
+      "id": "ACTAGS",
+      "requirements": [
+        {
+          "line": 12,
+          "text": "WHEN người dùng gửi biểu mẫu the system SHALL lưu dữ liệu"
+        }
+      ],
+      "scenarios": [
+        {
+          "keyword": "Scenario",
+          "line": 19,
+          "name": "Không thẻ",
+          "steps": [
+            "Given a"
+          ],
+          "tags": [
+            "@test:t#a"
+          ]
+        },
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 23,
+          "name": "Hai thẻ",
+          "steps": [
+            "Given b"
+          ],
+          "tags": [
+            "@ac-1",
+            "@ac-2",
+            "@test:t#b"
+          ]
+        },
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 27,
+          "name": "Trùng thẻ",
+          "steps": [
+            "Given c"
+          ],
+          "tags": [
+            "@ac-1",
+            "@test:t#c"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 8,
+          "lines": [
+            {
+              "line": 9,
+              "text": "Mỗi kịch bản mang đúng một thẻ @ac-n riêng."
+            },
+            {
+              "line": 10,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Requirements",
+          "line": 11,
+          "lines": [
+            {
+              "line": 12,
+              "text": "- WHEN người dùng gửi biểu mẫu the system SHALL lưu dữ liệu"
+            },
+            {
+              "line": 13,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Acceptance criteria",
+          "line": 14,
+          "lines": [
+            {
+              "line": 15,
+              "text": "```gherkin"
+            },
+            {
+              "line": 16,
+              "text": "Feature: ACTAGS"
+            },
+            {
+              "line": 17,
+              "text": ""
+            },
+            {
+              "line": 18,
+              "text": "  @test:t#a"
+            },
+            {
+              "line": 19,
+              "text": "  Scenario: Không thẻ"
+            },
+            {
+              "line": 20,
+              "text": "    Given a"
+            },
+            {
+              "line": 21,
+              "text": ""
+            },
+            {
+              "line": 22,
+              "text": "  @ac-1 @ac-2 @test:t#b"
+            },
+            {
+              "line": 23,
+              "text": "  Scenario: Hai thẻ"
+            },
+            {
+              "line": 24,
+              "text": "    Given b"
+            },
+            {
+              "line": 25,
+              "text": ""
+            },
+            {
+              "line": 26,
+              "text": "  @ac-1 @test:t#c"
+            },
+            {
+              "line": 27,
+              "text": "  Scenario: Trùng thẻ"
+            },
+            {
+              "line": 28,
+              "text": "    Given c"
+            },
+            {
+              "line": 29,
+              "text": "```"
+            },
+            {
+              "line": 30,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Open questions",
+          "line": 31,
+          "lines": [
+            {
+              "line": 32,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Plan",
+          "line": 33,
+          "lines": [
+            {
+              "line": 34,
+              "text": "- Làm @ac-1"
+            }
+          ]
+        }
+      ]
+    },
+    "NOSCEN": {
+      "file": "accord/tickets/NOSCEN.md",
+      "frontmatter": {
+        "id": "NOSCEN",
+        "status": "draft",
+        "title": "Không có kịch bản",
+        "type": "story",
+        "ui": false
+      },
+      "id": "NOSCEN",
+      "requirements": [
+        {
+          "line": 12,
+          "text": "WHEN người dùng gửi biểu mẫu the system SHALL lưu dữ liệu"
+        }
+      ],
+      "scenarios": [],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 8,
+          "lines": [
+            {
+              "line": 9,
+              "text": "Một câu chuyện cần ít nhất một kịch bản."
+            },
+            {
+              "line": 10,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Requirements",
+          "line": 11,
+          "lines": [
+            {
+              "line": 12,
+              "text": "- WHEN người dùng gửi biểu mẫu the system SHALL lưu dữ liệu"
+            },
+            {
+              "line": 13,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Acceptance criteria",
+          "line": 14,
+          "lines": [
+            {
+              "line": 15,
+              "text": "<!-- Chưa viết kịch bản -->"
+            },
+            {
+              "line": 16,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Open questions",
+          "line": 17,
+          "lines": [
+            {
+              "line": 18,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Plan",
+          "line": 19,
+          "lines": []
+        }
+      ]
+    },
+    "STEPS": {
+      "file": "accord/tickets/STEPS.md",
+      "frontmatter": {
+        "id": "STEPS",
+        "status": "draft",
+        "title": "Bước trống",
+        "type": "story",
+        "ui": false
+      },
+      "id": "STEPS",
+      "requirements": [
+        {
+          "line": 12,
+          "text": "WHEN người dùng gửi biểu mẫu the system SHALL lưu dữ liệu"
+        }
+      ],
+      "scenarios": [
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 19,
+          "name": "Trống",
+          "steps": [
+            "Given"
+          ],
+          "tags": [
+            "@ac-1",
+            "@test:t#a"
+          ]
+        },
+        {
+          "acTag": "ac-2",
+          "keyword": "Scenario",
+          "line": 23,
+          "name": "Không bước",
+          "steps": [],
+          "tags": [
+            "@ac-2",
+            "@test:t#b"
+          ]
+        },
+        {
+          "acTag": "ac-3",
+          "keyword": "Scenario",
+          "line": 26,
+          "name": "Mẫu",
+          "steps": [
+            "Given ..."
+          ],
+          "tags": [
+            "@ac-3",
+            "@test:t#c"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 8,
+          "lines": [
+            {
+              "line": 9,
+              "text": "Mỗi kịch bản có ít nhất một bước có nội dung."
+            },
+            {
+              "line": 10,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Requirements",
+          "line": 11,
+          "lines": [
+            {
+              "line": 12,
+              "text": "- WHEN người dùng gửi biểu mẫu the system SHALL lưu dữ liệu"
+            },
+            {
+              "line": 13,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Acceptance criteria",
+          "line": 14,
+          "lines": [
+            {
+              "line": 15,
+              "text": "```gherkin"
+            },
+            {
+              "line": 16,
+              "text": "Feature: STEPS"
+            },
+            {
+              "line": 17,
+              "text": ""
+            },
+            {
+              "line": 18,
+              "text": "  @ac-1 @test:t#a"
+            },
+            {
+              "line": 19,
+              "text": "  Scenario: Trống"
+            },
+            {
+              "line": 20,
+              "text": "    Given "
+            },
+            {
+              "line": 21,
+              "text": ""
+            },
+            {
+              "line": 22,
+              "text": "  @ac-2 @test:t#b"
+            },
+            {
+              "line": 23,
+              "text": "  Scenario: Không bước"
+            },
+            {
+              "line": 24,
+              "text": ""
+            },
+            {
+              "line": 25,
+              "text": "  @ac-3 @test:t#c"
+            },
+            {
+              "line": 26,
+              "text": "  Scenario: Mẫu"
+            },
+            {
+              "line": 27,
+              "text": "    Given ..."
+            },
+            {
+              "line": 28,
+              "text": "```"
+            },
+            {
+              "line": 29,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Open questions",
+          "line": 30,
+          "lines": [
+            {
+              "line": 31,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Plan",
+          "line": 32,
+          "lines": [
+            {
+              "line": 33,
+              "text": "- Làm @ac-1 @ac-2 @ac-3"
+            }
+          ]
+        }
+      ]
+    },
+    "TESTTAGS": {
+      "file": "accord/tickets/TESTTAGS.md",
+      "frontmatter": {
+        "id": "TESTTAGS",
+        "status": "draft",
+        "title": "Thẻ kiểm thử",
+        "type": "story",
+        "ui": false
+      },
+      "id": "TESTTAGS",
+      "requirements": [
+        {
+          "line": 12,
+          "text": "WHEN người dùng gửi biểu mẫu the system SHALL lưu dữ liệu"
+        }
+      ],
+      "scenarios": [
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 19,
+          "name": "Hai thẻ kiểm thử",
+          "steps": [
+            "Given a"
+          ],
+          "tags": [
+            "@ac-1",
+            "@test:t#a",
+            "@test:t#b"
+          ]
+        },
+        {
+          "acTag": "ac-2",
+          "keyword": "Scenario",
+          "line": 23,
+          "name": "Giao diện có thẻ kiểm thử",
+          "steps": [
+            "Given b"
+          ],
+          "tags": [
+            "@ac-2",
+            "@ui",
+            "@test:t#c"
+          ]
+        },
+        {
+          "acTag": "ac-3",
+          "keyword": "Scenario",
+          "line": 27,
+          "name": "Thiếu thẻ kiểm thử",
+          "steps": [
+            "Given c"
+          ],
+          "tags": [
+            "@ac-3"
+          ]
+        },
+        {
+          "acTag": "ac-4",
+          "keyword": "Scenario",
+          "line": 31,
+          "name": "Giao diện",
+          "steps": [
+            "Given d"
+          ],
+          "tags": [
+            "@ac-4",
+            "@ui"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 8,
+          "lines": [
+            {
+              "line": 9,
+              "text": "Kịch bản không phải @ui mang đúng một thẻ @test:."
+            },
+            {
+              "line": 10,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Requirements",
+          "line": 11,
+          "lines": [
+            {
+              "line": 12,
+              "text": "- WHEN người dùng gửi biểu mẫu the system SHALL lưu dữ liệu"
+            },
+            {
+              "line": 13,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Acceptance criteria",
+          "line": 14,
+          "lines": [
+            {
+              "line": 15,
+              "text": "```gherkin"
+            },
+            {
+              "line": 16,
+              "text": "Feature: TESTTAGS"
+            },
+            {
+              "line": 17,
+              "text": ""
+            },
+            {
+              "line": 18,
+              "text": "  @ac-1 @test:t#a @test:t#b"
+            },
+            {
+              "line": 19,
+              "text": "  Scenario: Hai thẻ kiểm thử"
+            },
+            {
+              "line": 20,
+              "text": "    Given a"
+            },
+            {
+              "line": 21,
+              "text": ""
+            },
+            {
+              "line": 22,
+              "text": "  @ac-2 @ui @test:t#c"
+            },
+            {
+              "line": 23,
+              "text": "  Scenario: Giao diện có thẻ kiểm thử"
+            },
+            {
+              "line": 24,
+              "text": "    Given b"
+            },
+            {
+              "line": 25,
+              "text": ""
+            },
+            {
+              "line": 26,
+              "text": "  @ac-3"
+            },
+            {
+              "line": 27,
+              "text": "  Scenario: Thiếu thẻ kiểm thử"
+            },
+            {
+              "line": 28,
+              "text": "    Given c"
+            },
+            {
+              "line": 29,
+              "text": ""
+            },
+            {
+              "line": 30,
+              "text": "  @ac-4 @ui"
+            },
+            {
+              "line": 31,
+              "text": "  Scenario: Giao diện"
+            },
+            {
+              "line": 32,
+              "text": "    Given d"
+            },
+            {
+              "line": 33,
+              "text": "```"
+            },
+            {
+              "line": 34,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Open questions",
+          "line": 35,
+          "lines": [
+            {
+              "line": 36,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Plan",
+          "line": 37,
+          "lines": [
+            {
+              "line": 38,
+              "text": "- Làm @ac-1 @ac-2 @ac-3 @ac-4"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "tree": [
+    "accord/config.yml",
+    "accord/tickets/ACTAGS.md",
+    "accord/tickets/NOSCEN.md",
+    "accord/tickets/STEPS.md",
+    "accord/tickets/TESTTAGS.md"
+  ],
+  "verifications": {}
+}

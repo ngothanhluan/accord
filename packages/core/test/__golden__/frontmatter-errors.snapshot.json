@@ -92,6 +92,7 @@
       "rule": "load.frontmatter-missing"
     }
   ],
+  "files": {},
   "tickets": {
     "EMPTY": {
       "file": "accord/tickets/EMPTY.md",

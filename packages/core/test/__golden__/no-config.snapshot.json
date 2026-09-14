@@ -6,6 +6,7 @@
       "rule": "load.config-missing"
     }
   ],
+  "files": {},
   "tickets": {
     "ONLY": {
       "file": "accord/tickets/ONLY.md",

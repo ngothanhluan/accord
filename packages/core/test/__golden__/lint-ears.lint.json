@@ -1,0 +1,83 @@
+{
+  "errors": 0,
+  "findings": [
+    {
+      "file": "accord/tickets/EARS.md",
+      "level": "warning",
+      "line": 11,
+      "reason": "## Requirements has 19 EARS lines; the limit is 15",
+      "rule": "lint.requirements-oversize"
+    },
+    {
+      "file": "accord/tickets/EARS.md",
+      "level": "warning",
+      "line": 21,
+      "reason": "has WHEN but no 'the system shall'",
+      "rule": "lint.ears-unclassified"
+    },
+    {
+      "file": "accord/tickets/EARS.md",
+      "level": "warning",
+      "line": 22,
+      "reason": "no EARS keyword and no 'the system shall'",
+      "rule": "lint.ears-unclassified"
+    },
+    {
+      "file": "accord/tickets/EARS.md",
+      "level": "warning",
+      "line": 23,
+      "reason": "has 'the system must' but the verb must be 'shall'",
+      "rule": "lint.ears-unclassified"
+    },
+    {
+      "file": "accord/tickets/EARS.md",
+      "level": "warning",
+      "line": 24,
+      "reason": "has 'the system shall' but no response after it",
+      "rule": "lint.ears-unclassified"
+    },
+    {
+      "file": "accord/tickets/EARS.md",
+      "level": "warning",
+      "line": 25,
+      "reason": "has 'the system shall' but the line starts with prose and no keyword",
+      "rule": "lint.ears-unclassified"
+    },
+    {
+      "file": "accord/tickets/EARS.md",
+      "level": "warning",
+      "line": 26,
+      "reason": "has WHEN twice",
+      "rule": "lint.ears-unclassified"
+    },
+    {
+      "file": "accord/tickets/EARS.md",
+      "level": "warning",
+      "line": 27,
+      "reason": "has WHEN but no trigger before 'the system shall'",
+      "rule": "lint.ears-unclassified"
+    },
+    {
+      "file": "accord/tickets/EARS.md",
+      "level": "warning",
+      "line": 28,
+      "reason": "has IF but no THEN before 'the system shall'",
+      "rule": "lint.ears-unclassified"
+    },
+    {
+      "file": "accord/tickets/EARS.md",
+      "level": "warning",
+      "line": 29,
+      "reason": "has THEN but no IF",
+      "rule": "lint.ears-unclassified"
+    },
+    {
+      "file": "accord/tickets/EARS.md",
+      "level": "warning",
+      "line": 30,
+      "reason": "THEN must come last before 'the system shall'",
+      "rule": "lint.ears-unclassified"
+    }
+  ],
+  "warnings": 11
+}

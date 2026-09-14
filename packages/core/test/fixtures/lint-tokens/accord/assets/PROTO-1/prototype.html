@@ -1,0 +1,23 @@
+<!--
+accord prototype for ticket PROTO-1
+Derived from: src/tokens.css
+Note: the colour #123456 in this comment is never reported
+-->
+<!doctype html>
+<html lang="en">
+<head><style>
+.card { color: var(--color-primary); padding:
+  12px; margin: 0 auto; gap: calc(var(--spacing) * 2);
+  background: #fff; /* border: 1px solid #000; */ border-color: transparent;
+  border: 1px solid var(--nope); outline-color: CurrentColor; caret-color: var(--color-primary, #fff);
+}
+</style></head>
+<body>
+<div class="bg-[#fff] p-[13px] hover:bg-[oklch(60%_0.15_50)]/50 mt-[var(--spacing)] bg-(--color-primary) text-[14px] w-[13px]">
+<p style="color: white; border: 1px solid var(--color-primary)">x</p>
+<p style='padding: 2rem;
+  color: var(--color-primary)'>y</p>
+<script>const c = "#000"; document.body.style.color = c;</script>
+</div>
+</body>
+</html>

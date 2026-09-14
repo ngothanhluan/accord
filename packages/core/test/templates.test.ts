@@ -68,7 +68,7 @@ describe('template structure', () => {
   });
 
   it('headings are in D-07 order', () => {
-    const story = ['## Intent', '## Requirements', '## Acceptance criteria', '## Open questions', '## Plan'];
+    const story = ['## Intent', '## Requirements', '## Acceptance criteria', '## Open questions', '## Plan', '## Verification notes'];
     expect(headings(build)).toEqual(story);
     expect(headings(maintain)).toEqual(story);
     expect(headings(epic)).toEqual(['## Intent', '## Requirements', '## Open questions']);

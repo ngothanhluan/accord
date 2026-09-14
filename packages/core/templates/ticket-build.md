@@ -32,7 +32,8 @@ If the story has a screen, set ui: true in the frontmatter. Ready then requires 
 
 ## Acceptance criteria
 <!-- BA. One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.
-A bug is written as Given the situation, When the action, Then the correct result. -->
+A bug is written as Given the situation, When the action, Then the correct result.
+A scenario that is not @ui also carries one @test:<id> tag, where <id> is the case id from the test report (classname#name, spaces as -); add it after Ready, it is outside the AC hash. -->
 ```gherkin
 Feature: TICKET-ID
 
@@ -49,3 +50,6 @@ Feature: TICKET-ID
 ## Plan
 <!-- Developer fills this in. BA leaves it empty.
 A short plan only. Evidence goes to tickets/<id>/verification.md, written by the fresh review context, not by the agent that wrote the code. -->
+
+## Verification notes
+<!-- Developer, at Done. One "### @ac-n <scenario name>" block per ticked scenario, a few lines each: what was run and what was seen. This section stays last; evidence with a result lives in tickets/<id>/verification.md. -->

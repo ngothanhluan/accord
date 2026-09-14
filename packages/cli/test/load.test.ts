@@ -49,6 +49,7 @@ describe('loadFromFs', () => {
       const input = loadFromFs(tmp);
       expect(stableJson(loadSnapshot(input))).toBe(readFileSync(golden, 'utf8'));
       expect(Object.keys(input.files).sort()).toEqual([
+        'accord/assets/LOGIN-1/prototype.html',
         'accord/config.yml',
         'accord/product/glossary.md',
         'accord/tickets/EPIC-1.md',
@@ -58,6 +59,7 @@ describe('loadFromFs', () => {
       ]);
       expect(input.tree).toEqual([
         'README.md',
+        'accord/assets/LOGIN-1/prototype.html',
         'accord/config.yml',
         'accord/product/glossary.md',
         'accord/tickets/EPIC-1.md',
@@ -110,6 +112,42 @@ describe('loadFromFs', () => {
       );
       const { files } = loadFromFs(tmp);
       expect(Object.keys(files).some((k) => k.endsWith('outside.css'))).toBe(false);
+    } finally {
+      cleanup(parent);
+    }
+  });
+
+  it('reads tests.report into files', () => {
+    const tmp = makeRepo();
+    try {
+      const configPath = join(tmp, 'accord/config.yml');
+      writeFileSync(configPath, readFileSync(configPath, 'utf8') + 'tests:\n  report: reports/junit.xml\n');
+      mkdirSync(join(tmp, 'reports'));
+      writeFileSync(
+        join(tmp, 'reports/junit.xml'),
+        '<testsuite><testcase classname="a" name="b"/><testcase classname="a" name="c"><failure/></testcase></testsuite>\n',
+      );
+      const input = loadFromFs(tmp);
+      expect(Object.keys(input.files)).toContain('reports/junit.xml');
+      expect(loadSnapshot(input).tests).toEqual({ 'a#b': 'passed', 'a#c': 'failed' });
+    } finally {
+      cleanup(tmp);
+    }
+  });
+
+  it('skips a report path outside the repository', () => {
+    const parent = makeTmp();
+    try {
+      const tmp = join(parent, 'repo');
+      mkdirSync(tmp);
+      cpSync(fixture, tmp, { recursive: true });
+      gitInit(tmp);
+      writeFileSync(join(parent, 'outside.xml'), '<testsuite><testcase name="x"/></testsuite>\n');
+      const configPath = join(tmp, 'accord/config.yml');
+      writeFileSync(configPath, readFileSync(configPath, 'utf8') + 'tests:\n  report: ../outside.xml\n');
+      const input = loadFromFs(tmp);
+      expect(Object.keys(input.files).some((k) => k.endsWith('outside.xml'))).toBe(false);
+      expect('tests' in loadSnapshot(input)).toBe(false);
     } finally {
       cleanup(parent);
     }

@@ -20,6 +20,10 @@
     }
   },
   "errors": [],
+  "files": {
+    "accord/assets/LOGIN-1/prototype.html": "<!--\naccord prototype for ticket LOGIN-1\nDerived from: src/styles/tokens.css\nRule: use only colours and spacing from those files; the token rule (lint) warns on hard-coded values\nOwner: designer (assets/<id>/ is designer-owned)\n-->\n<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>LOGIN-1 prototype</title>\n<style>\n.login { color: var(--color-primary); padding: var(--space-2); border: 1px solid transparent; }\n</style>\n</head>\n<body>\n<form class=\"p-[var(--space-2)] bg-(--color-primary)\"></form>\n</body>\n</html>\n",
+    "src/styles/tokens.css": ":root { --color-primary: #0055ff; --space-2: 0.5rem; }\n"
+  },
   "tickets": {
     "EPIC-1": {
       "file": "accord/tickets/EPIC-1.md",
@@ -287,6 +291,7 @@
   },
   "tree": [
     "README.md",
+    "accord/assets/LOGIN-1/prototype.html",
     "accord/config.yml",
     "accord/product/glossary.md",
     "accord/tickets/EPIC-1.md",

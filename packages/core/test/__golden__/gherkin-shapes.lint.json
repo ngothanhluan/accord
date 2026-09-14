@@ -1,0 +1,349 @@
+{
+  "errors": 43,
+  "findings": [
+    {
+      "file": "accord/tickets/BADLANG.md",
+      "level": "error",
+      "reason": "missing \"## Intent\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/BADLANG.md",
+      "level": "error",
+      "reason": "missing \"## Open questions\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/BADLANG.md",
+      "level": "error",
+      "reason": "missing \"## Plan\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/BADLANG.md",
+      "level": "error",
+      "reason": "missing \"## Requirements\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/BADLANG.md",
+      "level": "error",
+      "line": 7,
+      "reason": "a story needs at least one tagged scenario",
+      "rule": "lint.no-scenarios"
+    },
+    {
+      "file": "accord/tickets/BADLANG.md",
+      "level": "error",
+      "line": 10,
+      "reason": "Language not supported: xx",
+      "rule": "load.gherkin-parse"
+    },
+    {
+      "file": "accord/tickets/EMPTY-AC.md",
+      "level": "error",
+      "reason": "missing \"## Intent\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/EMPTY-AC.md",
+      "level": "error",
+      "reason": "missing \"## Open questions\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/EMPTY-AC.md",
+      "level": "error",
+      "reason": "missing \"## Requirements\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/EMPTY-AC.md",
+      "level": "error",
+      "line": 7,
+      "reason": "a story needs at least one tagged scenario",
+      "rule": "lint.no-scenarios"
+    },
+    {
+      "file": "accord/tickets/MULTI.md",
+      "level": "error",
+      "reason": "missing \"## Intent\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/MULTI.md",
+      "level": "error",
+      "reason": "missing \"## Open questions\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/MULTI.md",
+      "level": "error",
+      "reason": "missing \"## Plan\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/MULTI.md",
+      "level": "error",
+      "reason": "missing \"## Requirements\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/MULTI.md",
+      "level": "warning",
+      "line": 13,
+      "reason": "scenario \"One\" has no @test:<id> tag and is not @ui",
+      "rule": "lint.test-tag-missing"
+    },
+    {
+      "file": "accord/tickets/MULTI.md",
+      "level": "warning",
+      "line": 19,
+      "reason": "scenario \"Two\" has no @test:<id> tag and is not @ui",
+      "rule": "lint.test-tag-missing"
+    },
+    {
+      "file": "accord/tickets/OUTLINE.md",
+      "level": "error",
+      "reason": "missing \"## Intent\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/OUTLINE.md",
+      "level": "error",
+      "reason": "missing \"## Open questions\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/OUTLINE.md",
+      "level": "error",
+      "reason": "missing \"## Plan\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/OUTLINE.md",
+      "level": "error",
+      "reason": "missing \"## Requirements\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/OUTLINE.md",
+      "level": "warning",
+      "line": 13,
+      "reason": "scenario \"Nhiều giá trị\" has no @test:<id> tag and is not @ui",
+      "rule": "lint.test-tag-missing"
+    },
+    {
+      "file": "accord/tickets/PARSE-ERROR.md",
+      "level": "error",
+      "reason": "missing \"## Intent\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/PARSE-ERROR.md",
+      "level": "error",
+      "reason": "missing \"## Open questions\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/PARSE-ERROR.md",
+      "level": "error",
+      "reason": "missing \"## Plan\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/PARSE-ERROR.md",
+      "level": "error",
+      "reason": "missing \"## Requirements\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/PARSE-ERROR.md",
+      "level": "error",
+      "line": 7,
+      "reason": "a story needs at least one tagged scenario",
+      "rule": "lint.no-scenarios"
+    },
+    {
+      "file": "accord/tickets/PARSE-ERROR.md",
+      "level": "error",
+      "line": 15,
+      "reason": "expected: #EOF, #TableRow, #DocStringSeparator, #StepLine, #TagLine, #ExamplesLine, #ScenarioLine, #RuleLine, #Comment, #Empty, got 'Đây là dòng sai'",
+      "rule": "load.gherkin-parse"
+    },
+    {
+      "file": "accord/tickets/RULE.md",
+      "level": "error",
+      "reason": "missing \"## Intent\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/RULE.md",
+      "level": "error",
+      "reason": "missing \"## Open questions\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/RULE.md",
+      "level": "error",
+      "reason": "missing \"## Plan\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/RULE.md",
+      "level": "error",
+      "reason": "missing \"## Requirements\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/RULE.md",
+      "level": "warning",
+      "line": 21,
+      "reason": "scenario \"Trong rule\" has no @test:<id> tag and is not @ui",
+      "rule": "lint.test-tag-missing"
+    },
+    {
+      "file": "accord/tickets/STEPS.md",
+      "level": "error",
+      "reason": "missing \"## Intent\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/STEPS.md",
+      "level": "error",
+      "reason": "missing \"## Open questions\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/STEPS.md",
+      "level": "error",
+      "reason": "missing \"## Plan\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/STEPS.md",
+      "level": "error",
+      "reason": "missing \"## Requirements\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/STEPS.md",
+      "level": "warning",
+      "line": 13,
+      "reason": "scenario \"Chuỗi và bảng\" has no @test:<id> tag and is not @ui",
+      "rule": "lint.test-tag-missing"
+    },
+    {
+      "file": "accord/tickets/TAGS.md",
+      "level": "error",
+      "reason": "missing \"## Intent\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/TAGS.md",
+      "level": "error",
+      "reason": "missing \"## Open questions\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/TAGS.md",
+      "level": "error",
+      "reason": "missing \"## Plan\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/TAGS.md",
+      "level": "error",
+      "reason": "missing \"## Requirements\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/TAGS.md",
+      "level": "error",
+      "line": 13,
+      "reason": "scenario \"Không thẻ\" has no @ac-n tag",
+      "rule": "lint.ac-tag-missing"
+    },
+    {
+      "file": "accord/tickets/TAGS.md",
+      "level": "warning",
+      "line": 13,
+      "reason": "scenario \"Không thẻ\" has no @test:<id> tag and is not @ui",
+      "rule": "lint.test-tag-missing"
+    },
+    {
+      "file": "accord/tickets/TAGS.md",
+      "level": "error",
+      "line": 17,
+      "reason": "scenario \"Hai thẻ\" carries more than one @ac-n tag",
+      "rule": "lint.ac-tag-multiple"
+    },
+    {
+      "file": "accord/tickets/TAGS.md",
+      "level": "warning",
+      "line": 17,
+      "reason": "scenario \"Hai thẻ\" has no @test:<id> tag and is not @ui",
+      "rule": "lint.test-tag-missing"
+    },
+    {
+      "file": "accord/tickets/TAGS.md",
+      "level": "warning",
+      "line": 21,
+      "reason": "scenario \"Thẻ ba\" has no @test:<id> tag and is not @ui",
+      "rule": "lint.test-tag-missing"
+    },
+    {
+      "file": "accord/tickets/TAGS.md",
+      "level": "error",
+      "line": 25,
+      "reason": "@ac-1 is already used by scenario \"Hai thẻ\"",
+      "rule": "lint.ac-tag-duplicate"
+    },
+    {
+      "file": "accord/tickets/TAGS.md",
+      "level": "warning",
+      "line": 25,
+      "reason": "scenario \"Trùng thẻ\" has no @test:<id> tag and is not @ui",
+      "rule": "lint.test-tag-missing"
+    },
+    {
+      "file": "accord/tickets/VI.md",
+      "level": "error",
+      "reason": "missing \"## Intent\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/VI.md",
+      "level": "error",
+      "reason": "missing \"## Open questions\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/VI.md",
+      "level": "error",
+      "reason": "missing \"## Plan\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/VI.md",
+      "level": "error",
+      "reason": "missing \"## Requirements\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/VI.md",
+      "level": "warning",
+      "line": 17,
+      "reason": "scenario \"Đăng nhập\" has no @test:<id> tag and is not @ui",
+      "rule": "lint.test-tag-missing"
+    },
+    {
+      "file": "accord/tickets/VI.md",
+      "level": "warning",
+      "line": 22,
+      "reason": "scenario \"Nhiều\" has no @test:<id> tag and is not @ui",
+      "rule": "lint.test-tag-missing"
+    }
+  ],
+  "warnings": 11
+}

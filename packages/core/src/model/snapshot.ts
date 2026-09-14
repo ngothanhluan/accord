@@ -1,6 +1,6 @@
 // D-28 input contract and the RepoSnapshot model (D-30 to D-32, D-42, D-46). Type-only file.
 // Plain records and arrays, never Map/Set, so JSON.stringify of a snapshot is the golden (D-54).
-import type { Finding } from './finding.js';
+import type { LoadFinding } from './finding.js';
 
 export interface SnapshotInput {
   files: Record<string, string>; // repo-relative key -> text; everything under accord/ plus the tokens file (D-30)
@@ -78,6 +78,7 @@ export interface AccordConfig {
   design: { tokens: string }; // 'src/styles/tokens.css' or ''
   roles: ('ba' | 'dev' | 'designer')[];
   runtimes: ('claude' | 'codex' | 'cursor' | 'copilot')[];
+  tests?: { report: string }; // D-72: repo-relative path of the test report
 }
 
 export interface RepoSnapshot {
@@ -85,5 +86,7 @@ export interface RepoSnapshot {
   tickets: Record<string, Ticket>; // keyed by file stem
   verifications: Record<string, Verification>; // keyed by folder name
   tree: string[]; // sorted, forward slashes (D-29, D-30)
-  errors: Finding[]; // every loader and schema finding, in file order
+  errors: LoadFinding[]; // every loader and schema finding, in file order; lint stamps the level (D-58)
+  files: Record<string, string>; // D-65: normalised text of every accord/assets/<id>/prototype.html, the config.design.tokens file, and the config.tests.report file; nothing else
+  tests?: Record<string, 'passed' | 'failed' | 'skipped'>; // D-72: absent when no report is in files
 }

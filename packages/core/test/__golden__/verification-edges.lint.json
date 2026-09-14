@@ -1,0 +1,90 @@
+{
+  "errors": 6,
+  "findings": [
+    {
+      "file": "accord/assets/A/prototype.html",
+      "level": "warning",
+      "line": 1,
+      "reason": "prototype has no \"Derived from:\" line in its header comment",
+      "rule": "lint.prototype-derivation"
+    },
+    {
+      "file": "accord/tickets/A.md",
+      "level": "warning",
+      "line": 19,
+      "reason": "scenario \"Một\" has no @test:<id> tag and is not @ui",
+      "rule": "lint.test-tag-missing"
+    },
+    {
+      "file": "accord/tickets/A.md",
+      "level": "warning",
+      "line": 24,
+      "reason": "scenario \"Hai\" has no @test:<id> tag and is not @ui",
+      "rule": "lint.test-tag-missing"
+    },
+    {
+      "file": "accord/tickets/A.md",
+      "level": "warning",
+      "line": 31,
+      "reason": "ticket has scenarios but ## Plan has no step",
+      "rule": "lint.plan-empty"
+    },
+    {
+      "file": "accord/tickets/A/verification.md",
+      "level": "error",
+      "line": 16,
+      "reason": "Result must be pass, fail, or blocked",
+      "rule": "load.result-invalid"
+    },
+    {
+      "file": "accord/tickets/A/verification.md",
+      "level": "error",
+      "line": 22,
+      "reason": "Result must be pass, fail, or blocked",
+      "rule": "load.result-invalid"
+    },
+    {
+      "file": "accord/tickets/A/verification.md",
+      "level": "error",
+      "line": 31,
+      "reason": "duplicate heading \"## @ac-1 Một lần nữa\"; the first occurrence is used",
+      "rule": "load.heading-duplicate"
+    },
+    {
+      "file": "accord/tickets/B.md",
+      "level": "warning",
+      "line": 19,
+      "reason": "scenario \"B1\" has no @test:<id> tag and is not @ui",
+      "rule": "lint.test-tag-missing"
+    },
+    {
+      "file": "accord/tickets/B.md",
+      "level": "warning",
+      "line": 26,
+      "reason": "ticket has scenarios but ## Plan has no step",
+      "rule": "lint.plan-empty"
+    },
+    {
+      "file": "accord/tickets/B/verification.md",
+      "level": "error",
+      "line": 3,
+      "pointer": "/commit",
+      "reason": "must match pattern \"^[0-9a-f]{7,40}$\"",
+      "rule": "schema.pattern"
+    },
+    {
+      "file": "accord/tickets/C.md",
+      "level": "error",
+      "line": 1,
+      "reason": "no frontmatter block (---) at the top of the file",
+      "rule": "load.frontmatter-missing"
+    },
+    {
+      "file": "accord/tickets/ORPHAN/verification.md",
+      "level": "error",
+      "reason": "verification record without a ticket: accord/tickets/ORPHAN.md is missing",
+      "rule": "load.verification-orphan"
+    }
+  ],
+  "warnings": 6
+}

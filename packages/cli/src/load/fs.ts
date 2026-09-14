@@ -48,10 +48,10 @@ function accordFiles(root: string): Record<string, string> {
   return files;
 }
 
-/** Path of the configured tokens file relative to the root, or undefined when unset, missing, or outside the root (T-02-20). */
-function tokensPath(root: string, tokens: string | undefined): string | undefined {
-  if (!tokens) return undefined;
-  const rel = tokens.replace(/\\/g, '/').replace(/^\.\//, '');
+/** A configured path relative to the root, or undefined when unset, missing, or outside the root (T-02-20, T-03-02). */
+function containedPath(root: string, rel: string | undefined): string | undefined {
+  if (!rel) return undefined;
+  rel = rel.replace(/\\/g, '/').replace(/^\.\//, '');
   const abs = resolve(root, rel);
   const back = relative(root, abs);
   if (back === '' || back.startsWith('..') || isAbsolute(back)) return undefined;
@@ -62,8 +62,12 @@ function tokensPath(root: string, tokens: string | undefined): string | undefine
 export function loadFromFs(root: string): SnapshotInput {
   const tree = gitTree(root);
   const files = accordFiles(root);
-  // First pass reads config.design.tokens; a missing tokens file is Phase 3's lint concern (LINT-04).
-  const tokens = tokensPath(root, loadSnapshot({ files, tree }).config?.design.tokens);
-  if (tokens !== undefined) files[tokens] = readFileSync(join(root, tokens), 'utf8');
+  // First pass reads the config; the tokens file and the test report are read the same way,
+  // and a missing one is lint's concern (LINT-04, FMT-11).
+  const config = loadSnapshot({ files, tree }).config;
+  for (const value of [config?.design.tokens, config?.tests?.report]) {
+    const key = containedPath(root, value);
+    if (key !== undefined) files[key] = readFileSync(join(root, key), 'utf8');
+  }
   return { files, tree };
 }

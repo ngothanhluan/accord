@@ -1,6 +1,6 @@
 // D-35 parse errors as findings, D-36 fence input, D-46 to D-50 ScenarioRef extraction.
 import { AstBuilder, Errors, GherkinClassicTokenMatcher, Parser, dialects } from '@cucumber/gherkin';
-import type { Finding } from '../model/finding.js';
+import type { LoadFinding } from '../model/finding.js';
 import type { ScenarioRef } from '../model/snapshot.js';
 import type { Fence } from './sections.js';
 
@@ -13,7 +13,7 @@ type Step = Scenario['steps'][number];
 type Row = { readonly cells: readonly { readonly value: string }[] };
 
 const LANGUAGE = /^#\s*language:\s*([A-Za-z-]+)/;
-const AC_TAG = /^@ac-[1-9][0-9]*$/;
+export const AC_TAG = /^@ac-[1-9][0-9]*$/;
 
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const row = (r: Row) => '| ' + r.cells.map((c) => c.value).join(' | ') + ' |';
@@ -61,7 +61,7 @@ export function extractScenarios(
   file: string,
   ticketId: string,
   fence: Fence,
-): { scenarios: ScenarioRef[]; findings: Finding[] } {
+): { scenarios: ScenarioRef[]; findings: LoadFinding[] } {
   const lines = fence.content.map((l) => l.text);
   const firstText = lines.find((l) => l.trim() !== '') ?? '';
   const lang = LANGUAGE.exec(firstText)?.[1] ?? 'en';

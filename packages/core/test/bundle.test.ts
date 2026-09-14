@@ -54,6 +54,7 @@ describe('built core bundle', () => {
       'validate', 'SchemaId', 'schemaIds', 'Finding', 'SchemaFinding',
       'loadSnapshot', 'RepoSnapshot', 'SnapshotInput', 'Ticket', 'ScenarioRef', 'Verification', 'AccordConfig',
       'setFrontmatterKey', 'FrontmatterValue',
+      'lintSnapshot', 'renderText', 'LintResult', 'Level', 'LoadFinding',
     ];
     for (const name of names) expect(dts).toContain(name);
     // Only the exported surface matters; tsdown's `//#region src/validate/ajv.d.ts` comment is not a type.

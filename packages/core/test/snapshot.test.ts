@@ -63,6 +63,7 @@ describe('fixture valid-build: pinned values', () => {
     expect(snap.errors).toEqual([]);
     expect(snap.tree).toEqual([
       'README.md',
+      'accord/assets/LOGIN-1/prototype.html',
       'accord/config.yml',
       'accord/product/glossary.md',
       'accord/tickets/EPIC-1.md',

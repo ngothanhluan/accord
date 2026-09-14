@@ -1,0 +1,203 @@
+{
+  "errors": 21,
+  "findings": [
+    {
+      "file": "accord/tickets/CASE.md",
+      "level": "error",
+      "reason": "missing \"## Open questions\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/CASE.md",
+      "level": "error",
+      "reason": "missing \"## Plan\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/CASE.md",
+      "level": "warning",
+      "line": 18,
+      "reason": "scenario \"one\" has no @test:<id> tag and is not @ui",
+      "rule": "lint.test-tag-missing"
+    },
+    {
+      "file": "accord/tickets/DUP.md",
+      "level": "error",
+      "reason": "missing \"## Open questions\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/DUP.md",
+      "level": "error",
+      "reason": "missing \"## Plan\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/DUP.md",
+      "level": "error",
+      "line": 13,
+      "reason": "duplicate heading \"## Requirements\"; the first occurrence is used",
+      "rule": "load.heading-duplicate"
+    },
+    {
+      "file": "accord/tickets/DUP.md",
+      "level": "warning",
+      "line": 21,
+      "reason": "scenario \"one\" has no @test:<id> tag and is not @ui",
+      "rule": "lint.test-tag-missing"
+    },
+    {
+      "file": "accord/tickets/FENCE.md",
+      "level": "error",
+      "reason": "missing \"## Intent\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/FENCE.md",
+      "level": "error",
+      "reason": "missing \"## Open questions\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/FENCE.md",
+      "level": "warning",
+      "line": 16,
+      "reason": "has WHEN but no 'the system shall'",
+      "rule": "lint.ears-unclassified"
+    },
+    {
+      "file": "accord/tickets/FENCE.md",
+      "level": "warning",
+      "line": 17,
+      "reason": "has WHEN but no 'the system shall'",
+      "rule": "lint.ears-unclassified"
+    },
+    {
+      "file": "accord/tickets/FENCE.md",
+      "level": "warning",
+      "line": 18,
+      "reason": "has WHEN but no 'the system shall'",
+      "rule": "lint.ears-unclassified"
+    },
+    {
+      "file": "accord/tickets/FENCE.md",
+      "level": "warning",
+      "line": 19,
+      "reason": "has WHEN but no 'the system shall'",
+      "rule": "lint.ears-unclassified"
+    },
+    {
+      "file": "accord/tickets/FENCE.md",
+      "level": "warning",
+      "line": 20,
+      "reason": "has WHEN but no 'the system shall'",
+      "rule": "lint.ears-unclassified"
+    },
+    {
+      "file": "accord/tickets/FENCE.md",
+      "level": "warning",
+      "line": 28,
+      "reason": "scenario \"one\" has no @test:<id> tag and is not @ui",
+      "rule": "lint.test-tag-missing"
+    },
+    {
+      "file": "accord/tickets/FENCE.md",
+      "level": "warning",
+      "line": 32,
+      "reason": "ticket has scenarios but ## Plan has no step",
+      "rule": "lint.plan-empty"
+    },
+    {
+      "file": "accord/tickets/NOREQ.md",
+      "level": "error",
+      "reason": "missing \"## Acceptance criteria\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/NOREQ.md",
+      "level": "error",
+      "reason": "missing \"## Open questions\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/NOREQ.md",
+      "level": "error",
+      "reason": "missing \"## Plan\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/NOREQ.md",
+      "level": "error",
+      "reason": "missing \"## Requirements\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/NOREQ.md",
+      "level": "error",
+      "reason": "a story needs at least one tagged scenario",
+      "rule": "lint.no-scenarios"
+    },
+    {
+      "file": "accord/tickets/TILDE.md",
+      "level": "error",
+      "reason": "missing \"## Intent\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/TILDE.md",
+      "level": "error",
+      "reason": "missing \"## Open questions\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/TILDE.md",
+      "level": "error",
+      "reason": "missing \"## Plan\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/TILDE.md",
+      "level": "error",
+      "reason": "missing \"## Requirements\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/TILDE.md",
+      "level": "warning",
+      "line": 13,
+      "reason": "scenario \"one\" has no @test:<id> tag and is not @ui",
+      "rule": "lint.test-tag-missing"
+    },
+    {
+      "file": "accord/tickets/UNTERMINATED.md",
+      "level": "error",
+      "reason": "missing \"## Acceptance criteria\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/UNTERMINATED.md",
+      "level": "error",
+      "reason": "missing \"## Open questions\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/UNTERMINATED.md",
+      "level": "error",
+      "reason": "missing \"## Plan\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/UNTERMINATED.md",
+      "level": "error",
+      "reason": "missing \"## Requirements\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/UNTERMINATED.md",
+      "level": "error",
+      "reason": "a story needs at least one tagged scenario",
+      "rule": "lint.no-scenarios"
+    }
+  ],
+  "warnings": 10
+}

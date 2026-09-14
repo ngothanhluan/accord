@@ -1,0 +1,76 @@
+{
+  "errors": 10,
+  "findings": [
+    {
+      "file": "accord/config.yml",
+      "level": "error",
+      "line": 2,
+      "pointer": "/profile",
+      "reason": "must be equal to one of the allowed values",
+      "rule": "schema.enum"
+    },
+    {
+      "file": "accord/config.yml",
+      "level": "error",
+      "line": 3,
+      "pointer": "/tracker",
+      "reason": "must have required property 'repo'",
+      "rule": "schema.required"
+    },
+    {
+      "file": "accord/config.yml",
+      "level": "error",
+      "line": 7,
+      "pointer": "/roles/0",
+      "reason": "must be equal to constant",
+      "rule": "schema.const"
+    },
+    {
+      "file": "accord/config.yml",
+      "level": "error",
+      "line": 7,
+      "pointer": "/roles",
+      "reason": "must contain at least 1 valid item(s)",
+      "rule": "schema.contains"
+    },
+    {
+      "file": "accord/config.yml",
+      "level": "error",
+      "line": 9,
+      "pointer": "",
+      "reason": "must NOT have additional properties",
+      "rule": "schema.additionalProperties"
+    },
+    {
+      "file": "accord/tickets/T.md",
+      "level": "error",
+      "reason": "missing \"## Acceptance criteria\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/T.md",
+      "level": "error",
+      "reason": "missing \"## Open questions\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/T.md",
+      "level": "error",
+      "reason": "missing \"## Plan\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/T.md",
+      "level": "error",
+      "reason": "missing \"## Requirements\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/T.md",
+      "level": "error",
+      "reason": "a story needs at least one tagged scenario",
+      "rule": "lint.no-scenarios"
+    }
+  ],
+  "warnings": 0
+}

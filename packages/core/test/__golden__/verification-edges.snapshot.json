@@ -57,6 +57,9 @@
       "rule": "load.verification-orphan"
     }
   ],
+  "files": {
+    "accord/assets/A/prototype.html": "<!doctype html>\n<p>Prototype for A; ignored by the loader (D-37).</p>\n"
+  },
   "tickets": {
     "A": {
       "file": "accord/tickets/A.md",

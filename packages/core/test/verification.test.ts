@@ -1,7 +1,7 @@
 // D-42 evidence blocks, D-32/D-40 applied to records, D-37 folder convention: every shape pinned with exact lines.
 import { beforeAll, describe, expect, it } from 'vitest';
 import { loadSnapshot } from '../src/index.js';
-import type { Finding, RepoSnapshot } from '../src/index.js';
+import type { LoadFinding, RepoSnapshot } from '../src/index.js';
 import { parseVerification } from '../src/load/verification.js';
 import { readFixture } from './helpers/fixture.js';
 
@@ -9,7 +9,7 @@ const A = 'accord/tickets/A/verification.md';
 const B = 'accord/tickets/B/verification.md';
 const ORPHAN = 'accord/tickets/ORPHAN/verification.md';
 
-const where = (errors: Finding[], file: string, rule: string): Finding[] =>
+const where = (errors: LoadFinding[], file: string, rule: string): LoadFinding[] =>
   errors.filter((e) => e.file === file && e.rule === rule);
 
 let snap: RepoSnapshot;

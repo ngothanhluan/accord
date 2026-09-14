@@ -1,0 +1,39 @@
+{
+  "config": {
+    "accord": "0.1.0",
+    "design": {
+      "tokens": ""
+    },
+    "profile": "build",
+    "roles": [
+      "ba",
+      "dev"
+    ],
+    "runtimes": [
+      "claude",
+      "codex",
+      "cursor",
+      "copilot"
+    ],
+    "tracker": {
+      "adapter": "none"
+    }
+  },
+  "errors": [],
+  "files": {
+    "accord/assets/A/prototype.html": "<!--\naccord prototype for ticket TICKET-ID\nDerived from: <list the stylesheets or token files this prototype was built from, one per line>\nRule: use only colours and spacing from those files; the token rule (lint) warns on hard-coded values\nOwner: designer (assets/<id>/ is designer-owned)\n-->\n<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>TICKET-ID prototype</title>\n</head>\n<body>\n</body>\n</html>\n",
+    "accord/assets/B/prototype.html": "<!--\naccord prototype for ticket B\nDerived from: src/base.css\nRule: use only colours and spacing from those files; the token rule (lint) warns on hard-coded values\nOwner: designer (assets/<id>/ is designer-owned)\n-->\n<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>B prototype</title>\n<style>\nbody { color: #fff; }\n</style>\n</head>\n<body>\n</body>\n</html>\n",
+    "accord/assets/C/prototype.html": "<!--\naccord prototype for ticket TICKET-ID\nDerived from: src/nope.css\nRule: use only colours and spacing from those files; the token rule (lint) warns on hard-coded values\nOwner: designer (assets/<id>/ is designer-owned)\n-->\n<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>TICKET-ID prototype</title>\n</head>\n<body>\n</body>\n</html>\n",
+    "accord/assets/D/prototype.html": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>D prototype</title>\n</head>\n<body>\n<p style=\"color: #fff\">no header comment at all</p>\n</body>\n</html>\n"
+  },
+  "tickets": {},
+  "tree": [
+    "accord/assets/A/prototype.html",
+    "accord/assets/B/prototype.html",
+    "accord/assets/C/prototype.html",
+    "accord/assets/D/prototype.html",
+    "accord/config.yml",
+    "src/base.css"
+  ],
+  "verifications": {}
+}

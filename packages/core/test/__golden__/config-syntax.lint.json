@@ -1,0 +1,43 @@
+{
+  "errors": 6,
+  "findings": [
+    {
+      "file": "accord/config.yml",
+      "level": "error",
+      "line": 2,
+      "reason": "Flow sequence in block collection must be sufficiently indented and end with a ] at line 2, column 1:",
+      "rule": "load.yaml-syntax"
+    },
+    {
+      "file": "accord/tickets/T.md",
+      "level": "error",
+      "reason": "missing \"## Acceptance criteria\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/T.md",
+      "level": "error",
+      "reason": "missing \"## Open questions\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/T.md",
+      "level": "error",
+      "reason": "missing \"## Plan\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/T.md",
+      "level": "error",
+      "reason": "missing \"## Requirements\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/T.md",
+      "level": "error",
+      "reason": "a story needs at least one tagged scenario",
+      "rule": "lint.no-scenarios"
+    }
+  ],
+  "warnings": 0
+}

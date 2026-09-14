@@ -1,0 +1,167 @@
+{
+  "errors": 24,
+  "findings": [
+    {
+      "file": "accord/tickets/EMPTY.md",
+      "level": "error",
+      "line": 1,
+      "reason": "no frontmatter block (---) at the top of the file",
+      "rule": "load.frontmatter-missing"
+    },
+    {
+      "file": "accord/tickets/EMPTYFM.md",
+      "level": "error",
+      "line": 2,
+      "reason": "frontmatter must be a YAML mapping",
+      "rule": "load.yaml-not-map"
+    },
+    {
+      "file": "accord/tickets/MISMATCH.md",
+      "level": "error",
+      "reason": "missing \"## Acceptance criteria\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/MISMATCH.md",
+      "level": "error",
+      "reason": "missing \"## Intent\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/MISMATCH.md",
+      "level": "error",
+      "reason": "missing \"## Open questions\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/MISMATCH.md",
+      "level": "error",
+      "reason": "missing \"## Plan\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/MISMATCH.md",
+      "level": "error",
+      "reason": "missing \"## Requirements\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/MISMATCH.md",
+      "level": "error",
+      "pointer": "/id",
+      "reason": "frontmatter id \"OTHER\" differs from the file name \"MISMATCH\"",
+      "rule": "lint.id-mismatch"
+    },
+    {
+      "file": "accord/tickets/MISMATCH.md",
+      "level": "error",
+      "reason": "a bug needs at least one tagged scenario",
+      "rule": "lint.no-scenarios"
+    },
+    {
+      "file": "accord/tickets/NOFM.md",
+      "level": "error",
+      "line": 1,
+      "reason": "no frontmatter block (---) at the top of the file",
+      "rule": "load.frontmatter-missing"
+    },
+    {
+      "file": "accord/tickets/NOTMAP.md",
+      "level": "error",
+      "line": 2,
+      "reason": "frontmatter must be a YAML mapping",
+      "rule": "load.yaml-not-map"
+    },
+    {
+      "file": "accord/tickets/SCHEMA.md",
+      "level": "error",
+      "line": 2,
+      "pointer": "",
+      "reason": "must have required property 'title'",
+      "rule": "schema.required"
+    },
+    {
+      "file": "accord/tickets/SCHEMA.md",
+      "level": "error",
+      "line": 3,
+      "pointer": "/type",
+      "reason": "must be equal to one of the allowed values",
+      "rule": "schema.enum"
+    },
+    {
+      "file": "accord/tickets/SCHEMA.md",
+      "level": "error",
+      "line": 5,
+      "pointer": "",
+      "reason": "must NOT have additional properties",
+      "rule": "schema.additionalProperties"
+    },
+    {
+      "file": "accord/tickets/SCHEMA.md",
+      "level": "error",
+      "line": 7,
+      "pointer": "/assumptions/0/confirmed",
+      "reason": "must be boolean",
+      "rule": "schema.type"
+    },
+    {
+      "file": "accord/tickets/SCHEMA.md",
+      "level": "error",
+      "line": 9,
+      "pointer": "/verified/0",
+      "reason": "must match pattern \"^ac-[1-9][0-9]*$\"",
+      "rule": "schema.pattern"
+    },
+    {
+      "file": "accord/tickets/SYNTAX.md",
+      "level": "error",
+      "line": 4,
+      "reason": "Map keys must be unique at line 3, column 1:",
+      "rule": "load.yaml-syntax"
+    },
+    {
+      "file": "accord/tickets/TYPING.md",
+      "level": "error",
+      "reason": "missing \"## Acceptance criteria\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/TYPING.md",
+      "level": "error",
+      "reason": "missing \"## Intent\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/TYPING.md",
+      "level": "error",
+      "reason": "missing \"## Open questions\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/TYPING.md",
+      "level": "error",
+      "reason": "missing \"## Plan\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/TYPING.md",
+      "level": "error",
+      "reason": "missing \"## Requirements\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/TYPING.md",
+      "level": "error",
+      "reason": "a story needs at least one tagged scenario",
+      "rule": "lint.no-scenarios"
+    },
+    {
+      "file": "accord/tickets/UNTERMINATED.md",
+      "level": "error",
+      "line": 1,
+      "reason": "no frontmatter block (---) at the top of the file",
+      "rule": "load.frontmatter-missing"
+    }
+  ],
+  "warnings": 0
+}

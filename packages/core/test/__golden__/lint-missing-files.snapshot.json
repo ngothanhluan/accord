@@ -1,0 +1,159 @@
+{
+  "config": {
+    "accord": "0.1.0",
+    "design": {
+      "tokens": "src/missing.css"
+    },
+    "profile": "build",
+    "roles": [
+      "ba",
+      "dev"
+    ],
+    "runtimes": [
+      "claude",
+      "codex",
+      "cursor",
+      "copilot"
+    ],
+    "tests": {
+      "report": "reports/missing.xml"
+    },
+    "tracker": {
+      "adapter": "none"
+    }
+  },
+  "errors": [],
+  "files": {},
+  "tickets": {
+    "MISSING": {
+      "file": "accord/tickets/MISSING.md",
+      "frontmatter": {
+        "id": "MISSING",
+        "status": "draft",
+        "title": "Tệp cấu hình trỏ tới tệp vắng mặt",
+        "type": "story",
+        "ui": false
+      },
+      "id": "MISSING",
+      "requirements": [
+        {
+          "line": 12,
+          "text": "WHEN người dùng gửi biểu mẫu the system SHALL lưu dữ liệu"
+        }
+      ],
+      "scenarios": [
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 19,
+          "name": "Lưu dữ liệu",
+          "steps": [
+            "When họ gửi biểu mẫu",
+            "Then dữ liệu được lưu"
+          ],
+          "tags": [
+            "@ac-1",
+            "@test:t#a"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 8,
+          "lines": [
+            {
+              "line": 9,
+              "text": "Cấu hình trỏ tới tệp token và báo cáo kiểm thử không có trong kho."
+            },
+            {
+              "line": 10,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Requirements",
+          "line": 11,
+          "lines": [
+            {
+              "line": 12,
+              "text": "- WHEN người dùng gửi biểu mẫu the system SHALL lưu dữ liệu"
+            },
+            {
+              "line": 13,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Acceptance criteria",
+          "line": 14,
+          "lines": [
+            {
+              "line": 15,
+              "text": "```gherkin"
+            },
+            {
+              "line": 16,
+              "text": "Feature: MISSING"
+            },
+            {
+              "line": 17,
+              "text": ""
+            },
+            {
+              "line": 18,
+              "text": "  @ac-1 @test:t#a"
+            },
+            {
+              "line": 19,
+              "text": "  Scenario: Lưu dữ liệu"
+            },
+            {
+              "line": 20,
+              "text": "    When họ gửi biểu mẫu"
+            },
+            {
+              "line": 21,
+              "text": "    Then dữ liệu được lưu"
+            },
+            {
+              "line": 22,
+              "text": "```"
+            },
+            {
+              "line": 23,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Open questions",
+          "line": 24,
+          "lines": [
+            {
+              "line": 25,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Plan",
+          "line": 26,
+          "lines": [
+            {
+              "line": 27,
+              "text": "- Làm @ac-1"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "tree": [
+    "accord/config.yml",
+    "accord/tickets/MISSING.md"
+  ],
+  "verifications": {}
+}

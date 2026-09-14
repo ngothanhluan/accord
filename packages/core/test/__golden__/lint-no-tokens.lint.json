@@ -1,0 +1,27 @@
+{
+  "errors": 0,
+  "findings": [
+    {
+      "file": "accord/assets/A/prototype.html",
+      "level": "warning",
+      "line": 3,
+      "reason": "\"Derived from:\" lists no path",
+      "rule": "lint.prototype-derivation"
+    },
+    {
+      "file": "accord/assets/C/prototype.html",
+      "level": "warning",
+      "line": 3,
+      "reason": "\"Derived from:\" path \"src/nope.css\" is not in the repository",
+      "rule": "lint.prototype-derivation"
+    },
+    {
+      "file": "accord/assets/D/prototype.html",
+      "level": "warning",
+      "line": 1,
+      "reason": "prototype has no \"Derived from:\" line in its header comment",
+      "rule": "lint.prototype-derivation"
+    }
+  ],
+  "warnings": 3
+}

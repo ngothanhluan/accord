@@ -1,0 +1,269 @@
+{
+  "config": {
+    "accord": "0.1.0",
+    "design": {
+      "tokens": ""
+    },
+    "profile": "build",
+    "roles": [
+      "ba",
+      "dev"
+    ],
+    "runtimes": [
+      "claude",
+      "codex",
+      "cursor",
+      "copilot"
+    ],
+    "tests": {
+      "report": "reports/junit.xml"
+    },
+    "tracker": {
+      "adapter": "none"
+    }
+  },
+  "errors": [],
+  "files": {
+    "reports/junit.xml": "<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n<testsuites name=\"tests\" tests=\"4\" failures=\"1\" errors=\"0\" time=\"0.05\">\n  <testsuite name=\"test/auth.spec.ts\" timestamp=\"2026-09-14T00:00:00.000Z\" tests=\"4\" failures=\"1\" errors=\"0\" skipped=\"1\" time=\"0.05\">\n    <testcase classname=\"test/auth.spec.ts\" name=\"auth &gt; accepts a good password\" time=\"0.01\">\n    </testcase>\n    <testcase classname=\"test/auth.spec.ts\" name=\"auth &gt; rejects bad password\" time=\"0.02\">\n      <failure message=\"expected 401\" type=\"AssertionError\">\nAssertionError: expected 200 to be 401\n      </failure>\n    </testcase>\n    <testcase classname=\"test/auth.spec.ts\" name=\"auth &gt; remembers me\" time=\"0\">\n      <skipped/>\n    </testcase>\n    <testcase classname=\"test/auth.spec.ts\" name=\"auth &gt; accepts a good password\" time=\"0.01\"/>\n  </testsuite>\n</testsuites>\n"
+  },
+  "tests": {
+    "test/auth.spec.ts#auth->-accepts-a-good-password": "passed",
+    "test/auth.spec.ts#auth->-rejects-bad-password": "failed",
+    "test/auth.spec.ts#auth->-remembers-me": "skipped"
+  },
+  "tickets": {
+    "REPORT": {
+      "file": "accord/tickets/REPORT.md",
+      "frontmatter": {
+        "id": "REPORT",
+        "status": "open",
+        "title": "Đăng nhập có báo cáo kiểm thử",
+        "type": "story",
+        "ui": false
+      },
+      "id": "REPORT",
+      "requirements": [
+        {
+          "line": 12,
+          "text": "WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+        }
+      ],
+      "scenarios": [
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 19,
+          "name": "Đăng nhập thành công",
+          "steps": [
+            "When họ gửi email và mật khẩu hợp lệ",
+            "Then họ thấy bảng điều khiển"
+          ],
+          "tags": [
+            "@ac-1",
+            "@test:test/auth.spec.ts#auth->-accepts-a-good-password"
+          ]
+        },
+        {
+          "acTag": "ac-2",
+          "keyword": "Scenario",
+          "line": 24,
+          "name": "Mật khẩu sai",
+          "steps": [
+            "When họ gửi mật khẩu sai",
+            "Then họ thấy thông báo lỗi"
+          ],
+          "tags": [
+            "@ac-2",
+            "@test:test/auth.spec.ts#auth->-rejects-bad-password"
+          ]
+        },
+        {
+          "acTag": "ac-3",
+          "keyword": "Scenario",
+          "line": 29,
+          "name": "Ghi nhớ đăng nhập",
+          "steps": [
+            "When họ chọn ghi nhớ",
+            "Then phiên được giữ"
+          ],
+          "tags": [
+            "@ac-3",
+            "@test:nope#missing"
+          ]
+        },
+        {
+          "acTag": "ac-4",
+          "keyword": "Scenario",
+          "line": 34,
+          "name": "Nút đăng nhập",
+          "steps": [
+            "When họ mở trang đăng nhập",
+            "Then họ thấy nút đăng nhập"
+          ],
+          "tags": [
+            "@ac-4",
+            "@ui"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 8,
+          "lines": [
+            {
+              "line": 9,
+              "text": "Người dùng đăng nhập bằng email và mật khẩu để vào bảng điều khiển."
+            },
+            {
+              "line": 10,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Requirements",
+          "line": 11,
+          "lines": [
+            {
+              "line": 12,
+              "text": "- WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+            },
+            {
+              "line": 13,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Acceptance criteria",
+          "line": 14,
+          "lines": [
+            {
+              "line": 15,
+              "text": "```gherkin"
+            },
+            {
+              "line": 16,
+              "text": "Feature: REPORT"
+            },
+            {
+              "line": 17,
+              "text": ""
+            },
+            {
+              "line": 18,
+              "text": "  @ac-1 @test:test/auth.spec.ts#auth->-accepts-a-good-password"
+            },
+            {
+              "line": 19,
+              "text": "  Scenario: Đăng nhập thành công"
+            },
+            {
+              "line": 20,
+              "text": "    When họ gửi email và mật khẩu hợp lệ"
+            },
+            {
+              "line": 21,
+              "text": "    Then họ thấy bảng điều khiển"
+            },
+            {
+              "line": 22,
+              "text": ""
+            },
+            {
+              "line": 23,
+              "text": "  @ac-2 @test:test/auth.spec.ts#auth->-rejects-bad-password"
+            },
+            {
+              "line": 24,
+              "text": "  Scenario: Mật khẩu sai"
+            },
+            {
+              "line": 25,
+              "text": "    When họ gửi mật khẩu sai"
+            },
+            {
+              "line": 26,
+              "text": "    Then họ thấy thông báo lỗi"
+            },
+            {
+              "line": 27,
+              "text": ""
+            },
+            {
+              "line": 28,
+              "text": "  @ac-3 @test:nope#missing"
+            },
+            {
+              "line": 29,
+              "text": "  Scenario: Ghi nhớ đăng nhập"
+            },
+            {
+              "line": 30,
+              "text": "    When họ chọn ghi nhớ"
+            },
+            {
+              "line": 31,
+              "text": "    Then phiên được giữ"
+            },
+            {
+              "line": 32,
+              "text": ""
+            },
+            {
+              "line": 33,
+              "text": "  @ac-4 @ui"
+            },
+            {
+              "line": 34,
+              "text": "  Scenario: Nút đăng nhập"
+            },
+            {
+              "line": 35,
+              "text": "    When họ mở trang đăng nhập"
+            },
+            {
+              "line": 36,
+              "text": "    Then họ thấy nút đăng nhập"
+            },
+            {
+              "line": 37,
+              "text": "```"
+            },
+            {
+              "line": 38,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Open questions",
+          "line": 39,
+          "lines": [
+            {
+              "line": 40,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Plan",
+          "line": 41,
+          "lines": [
+            {
+              "line": 42,
+              "text": "- Làm @ac-1 @ac-2 @ac-3 @ac-4"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "tree": [
+    "accord/config.yml",
+    "accord/tickets/REPORT.md",
+    "reports/junit.xml"
+  ],
+  "verifications": {}
+}

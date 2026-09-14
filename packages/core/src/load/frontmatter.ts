@@ -1,5 +1,5 @@
 // D-32 frontmatter boundary and D-38 BOM/CRLF normalisation (promoted from templates.test.ts).
-import type { Finding } from '../model/finding.js';
+import type { LoadFinding } from '../model/finding.js';
 import { validate } from '../validate/index.js';
 import { parseYamlMap, schemaFindings } from './yaml.js';
 
@@ -30,7 +30,7 @@ export interface LoadedFrontmatter<T> {
   value?: T; // the typed object only when there are zero findings (D-32)
   body: string;
   bodyOffset: number;
-  findings: Finding[];
+  findings: LoadFinding[];
 }
 
 export function loadFrontmatter<T>(
@@ -40,7 +40,7 @@ export function loadFrontmatter<T>(
 ): LoadedFrontmatter<T> {
   const { yaml, body, bodyOffset } = splitFrontmatter(text);
   if (yaml === null) {
-    const finding: Finding = {
+    const finding: LoadFinding = {
       file,
       line: 1,
       rule: 'load.frontmatter-missing',

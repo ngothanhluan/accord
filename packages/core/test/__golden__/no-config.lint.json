@@ -1,0 +1,42 @@
+{
+  "errors": 6,
+  "findings": [
+    {
+      "file": "accord/config.yml",
+      "level": "error",
+      "reason": "accord/config.yml not found in snapshot",
+      "rule": "load.config-missing"
+    },
+    {
+      "file": "accord/tickets/ONLY.md",
+      "level": "error",
+      "reason": "missing \"## Acceptance criteria\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/ONLY.md",
+      "level": "error",
+      "reason": "missing \"## Open questions\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/ONLY.md",
+      "level": "error",
+      "reason": "missing \"## Plan\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/ONLY.md",
+      "level": "error",
+      "reason": "missing \"## Requirements\"",
+      "rule": "lint.heading-missing"
+    },
+    {
+      "file": "accord/tickets/ONLY.md",
+      "level": "error",
+      "reason": "a story needs at least one tagged scenario",
+      "rule": "lint.no-scenarios"
+    }
+  ],
+  "warnings": 0
+}

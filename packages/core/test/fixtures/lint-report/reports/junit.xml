@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="tests" tests="4" failures="1" errors="0" time="0.05">
+  <testsuite name="test/auth.spec.ts" timestamp="2026-09-14T00:00:00.000Z" tests="4" failures="1" errors="0" skipped="1" time="0.05">
+    <testcase classname="test/auth.spec.ts" name="auth &gt; accepts a good password" time="0.01">
+    </testcase>
+    <testcase classname="test/auth.spec.ts" name="auth &gt; rejects bad password" time="0.02">
+      <failure message="expected 401" type="AssertionError">
+AssertionError: expected 200 to be 401
+      </failure>
+    </testcase>
+    <testcase classname="test/auth.spec.ts" name="auth &gt; remembers me" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="test/auth.spec.ts" name="auth &gt; accepts a good password" time="0.01"/>
+  </testsuite>
+</testsuites>

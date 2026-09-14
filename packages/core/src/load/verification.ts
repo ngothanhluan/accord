@@ -1,5 +1,5 @@
 // D-42 verification.md: one block per `## @ac-n <name>` heading, matched by tag.
-import type { Finding } from '../model/finding.js';
+import type { LoadFinding } from '../model/finding.js';
 import type { EvidenceBlock, Section, Verification, VerificationFrontmatter } from '../model/snapshot.js';
 import { loadFrontmatter } from './frontmatter.js';
 import { duplicateHeadings, scan, stripHtmlComments } from './sections.js';
@@ -11,7 +11,7 @@ export function parseVerification(
   id: string,
   file: string,
   text: string,
-): { verification: Verification; findings: Finding[] } {
+): { verification: Verification; findings: LoadFinding[] } {
   const fm = loadFrontmatter<VerificationFrontmatter>(file, text, 'verification');
   const findings = [...fm.findings];
   const { sections } = scan(fm.body, fm.bodyOffset);

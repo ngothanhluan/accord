@@ -124,9 +124,17 @@ describe('config.schema.json', () => {
     expect(has(roles(['ba', 'dev', 'dev']), '/roles', 'schema.uniqueItems')).toBe(true);
   });
 
-  it('top-level properties are exactly the six D-16 keys', () => {
+  it('tests.report is optional; when present it is a non-empty string and the only key (D-72)', () => {
+    const tests = (t: unknown) => validate('config', { ...minimal.config, tests: t });
+    expect(tests({ report: 'reports/junit.xml' })).toEqual([]);
+    expect(has(tests({}), '/tests', 'schema.required')).toBe(true);
+    expect(has(tests({ report: '' }), '/tests/report', 'schema.minLength')).toBe(true);
+    expect(has(tests({ report: 'x', extra: 1 }), '/tests', 'schema.additionalProperties')).toBe(true);
+  });
+
+  it('top-level properties are the six D-16 keys plus optional tests (D-72)', () => {
     const keys = ['accord', 'profile', 'tracker', 'design', 'roles', 'runtimes'];
-    expect(Object.keys(configSchema.properties)).toEqual(keys);
+    expect(Object.keys(configSchema.properties)).toEqual([...keys, 'tests']);
     expect(configSchema.required).toEqual(keys);
     for (const key of Object.keys(configSchema.properties)) {
       expect(key).not.toMatch(/key|token|secret|password/i);

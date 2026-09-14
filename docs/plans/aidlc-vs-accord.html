@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8"><title>AI-DLC vs accord</title>
+<style>
+:root{--ink:#1f2328;--mute:#59636e;--line:#d0d7de;--bg:#fff;--soft:#f6f8fa;--ok:#1a7f37;--no:#cf222e;--part:#9a6700}
+body{font:15px/1.55 system-ui,Segoe UI,sans-serif;color:var(--ink);background:var(--bg);max-width:1100px;margin:0 auto;padding:32px 20px}
+h1{font-size:26px;margin:0 0 4px}h2{font-size:19px;margin:36px 0 10px;border-bottom:1px solid var(--line);padding-bottom:6px}
+p.lead{color:var(--mute);margin:0 0 20px}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}th,td{border:1px solid var(--line);padding:8px 10px;vertical-align:top;text-align:left}th{background:var(--soft)}
+.ok{color:var(--ok);font-weight:600}.no{color:var(--no);font-weight:600}.part{color:var(--part);font-weight:600}
+.verdict{background:var(--soft);border-left:4px solid var(--ok);padding:14px 18px;margin:20px 0}
+code{background:var(--soft);padding:1px 5px;border-radius:4px;font-size:13px}
+small{color:var(--mute)}
+</style></head><body>
+<h1>AI-DLC (awslabs/aidlc-workflows) có thay được accord không?</h1>
+<p class="lead">Khảo sát 2026-09-14. Nguồn: README, rule files và docs trên GitHub của cả nhánh <code>v1</code> (1.0.1, rules-only) lẫn <code>main</code> (2.8.2, có CLI). Nhánh v1 đi sau main 301 commit.</p>
+
+<div class="verdict"><strong>Kết luận: không thay thế được.</strong> v1 là bộ prompt-rules không có kiểm tra deterministic nào, tức đúng loại "general planning system" mà accord đặt ra để thay. v2 có engine và sensor thật, nhưng là một lifecycle 33 giai đoạn hướng AWS, không có MCP server cho người không kỹ thuật, không parse Gherkin, sensor mặc định chỉ cảnh báo. Ba yêu cầu định danh của accord (gate Ready/Done deterministic trên Gherkin, BA làm việc qua chat app bằng remote MCP, không API key) không có ở cả hai bản. Nên tiếp tục accord và mượn 3 ý tưởng bên dưới.</div>
+
+<h2>1. Hai bản AI-DLC là gì</h2>
+<table><tr><th style="width:18%"></th><th>v1 (nhánh bạn gửi)</th><th>main / v2.8.2</th></tr>
+<tr><td>Hình thức</td><td>Zip chứa file Markdown rule, copy vào <code>.kiro/steering</code>, <code>.cursor/rules</code>, <code>CLAUDE.md</code>, <code>AGENTS.md</code>… Không cài gì.</td><td>Binary <code>aidlc</code> cài bằng curl/PowerShell. 1.260 file trong repo, 70 tool TypeScript, 725 file test. Sinh runtime cho 7 harness.</td></tr>
+<tr><td>Cấu trúc</td><td>3 phase (Inception, Construction, Operations placeholder), ~13 stage. AI tự "assume role" product owner, architect…</td><td>5 phase, 33 stage, 14 agent persona, 11 scope (express 10 stage, bugfix 9, feature 33). Engine deterministic quyết định stage kế; hook PostToolUse chạy sensor.</td></tr>
+<tr><td>Artifact</td><td><code>aidlc-docs/</code>: requirements.md, stories.md (INVEST + AC dạng tự do), plan có tag <code>[Answer]:</code>, audit.md, aidlc-state.md.</td><td><code>aidlc/spaces/&lt;space&gt;/intents/&lt;YYMMDD&gt;-&lt;label&gt;/</code> với hàng chục file mỗi intent, traceability.json, audit shard 98 loại event.</td></tr>
+<tr><td>"Gate"</td><td>Chỉ là prose: "DO NOT PROCEED until user confirms". Không có code nào kiểm tra.</td><td>6 sensor deterministic: linter, type-check, required-sections (≥2 heading H2), upstream-coverage, traceability (shape của JSON), claim-sources. Mặc định <code>advisory</code>; chỉ block khi stage bind ở mức blocking. Verification gate giữa phase kiểm tra traceability.</td></tr>
+<tr><td>Model/provider</td><td>Không quan tâm, chạy trong IDE của người dùng.</td><td>Claude Code và Codex ship mặc định Amazon Bedrock; đổi được nhưng phải tự cấu hình.</td></tr>
+<tr><td>MCP</td><td>Không.</td><td>Chỉ là MCP <em>client</em> (.mcp.json trỏ tới context7, aws-mcp…). Không có MCP <em>server</em> expose tool aidlc cho chat app.</td></tr>
+<tr><td>License</td><td colspan="2">MIT-0</td></tr></table>
+
+<h2>2. Đối chiếu với yêu cầu của accord</h2>
+<table><tr><th style="width:34%">Yêu cầu accord (PROJECT.md)</th><th>v1</th><th>v2</th><th>Ghi chú</th></tr>
+<tr><td>Agent không được bắt đầu story nếu chưa có intent + AC; gate Ready deterministic</td><td class="no">Không</td><td class="part">Một phần</td><td>v2 có claim-sources sensor (mọi claim phải có tag nguồn) và verification gate, nhưng đều là kiểm tra hình dạng tài liệu, không phải parse AC.</td></tr>
+<tr><td>Gherkin parse, EARS line check, AC hash tại Ready, Done fail nếu AC đổi</td><td class="no">Không</td><td class="no">Không</td><td>Docs v2 nói rõ: rule bảo "story theo Given/When/Then", sensor chỉ xác minh heading có mặt.</td></tr>
+<tr><td>Done gate: scenario set = evidence set (verification.md) = verified ticks; tick của QA người</td><td class="no">Không</td><td class="part">Một phần</td><td>v2: traceability.json do agent tự khai, sensor kiểm tra shape/orphan; Build and Test do quality-agent (LLM) dẫn. Không có tick của QA người trong git.</td></tr>
+<tr><td>Review ở context mới, tách builder / reviewer / QA; git author là bằng chứng</td><td class="no">Không</td><td class="part">Một phần</td><td>v2 có 2 reviewer agent, hook review-freeze, và <code>aidlc attest</code> (commit provenance). Gần nhất với accord ở điểm này.</td></tr>
+<tr><td>BA không kỹ thuật làm việc qua chat app (claude.ai, ChatGPT) bằng remote MCP + GitHub OAuth</td><td class="no">Không</td><td class="no">Không</td><td>Cả hai chỉ có đường IDE/CLI. Đây là yêu cầu định danh của accord.</td></tr>
+<tr><td>Không API key; thành viên chỉ có subscription</td><td class="ok">Được</td><td class="part">Phải cấu hình lại</td><td>v2 mặc định Bedrock.</td></tr>
+<tr><td>Chạy Claude Code, Cursor, Copilot, Codex với cùng một định nghĩa</td><td class="ok">Được</td><td class="ok">Được</td><td>v2 còn thêm Kiro, opencode.</td></tr>
+<tr><td>Windows + POSIX</td><td class="ok">Được</td><td class="ok">Được</td><td>v2 có install.ps1.</td></tr>
+<tr><td>Ticket-level, sống cạnh tracker (Shortcut/GitHub Issues), adapter <code>none</code></td><td class="part">Một phần</td><td class="no">Không</td><td>v2 là lifecycle theo intent với spaces, unit claims, bolts; không có khái niệm ticket/tracker.</td></tr>
+<tr><td>"Ít bộ phận chuyển động": 4 workflow + 2 kỹ thuật, không phải 30 agent</td><td class="part">~13 stage</td><td class="no">33 stage, 14 agent</td><td>Express vẫn 10 stage cho một request nhỏ.</td></tr>
+<tr><td>Không nêu tên tool khác trong thứ mình ship</td><td colspan="2">Không liên quan</td><td>Nếu dùng aidlc thì ràng buộc này vô nghĩa.</td></tr></table>
+
+<h2>3. Lựa chọn</h2>
+<table><tr><th>Phương án</th><th>Được</th><th>Mất</th></tr>
+<tr><td>A. Dùng aidlc v1 thay accord</td><td>Không phải build gì.</td><td>Không có gate nào ngoài lời hứa của model. Đúng failure mode accord nhắm tới (36% instruction-following failure). BA không có đường vào.</td></tr>
+<tr><td>B. Dùng aidlc v2 thay accord</td><td>Engine, sensor, audit, reviewer có sẵn; đội AWS bảo trì.</td><td>Nặng gấp nhiều lần nhu cầu agency 2–6 tuần; mặc định Bedrock; không MCP server; không Gherkin/EARS; không ticket/tracker; phải sống trong cấu trúc <code>aidlc/spaces/…</code> của họ.</td></tr>
+<tr><td>C. Hybrid: aidlc v2 cho dev, accord chỉ gate + MCP</td><td>Bớt phần workflow.</td><td>Hai hệ thống, hai folder, hai state; accord phải đọc artifact của aidlc thay vì ticket của mình. Vi phạm "process và check không được drift".</td></tr>
+<tr><td><strong>D. Tiếp tục accord, mượn ý tưởng (Đề xuất)</strong></td><td>Giữ đúng core value và scope v0.1. Rút ngắn thiết kế nhờ 3 pattern đã được thử.</td><td>Vẫn phải build.</td></tr></table>
+
+<h2>4. Ba thứ đáng mượn (provenance ghi ở commit message, không ghi trong file ship)</h2>
+<table><tr><th style="width:28%">Của AI-DLC</th><th>Áp vào accord</th></tr>
+<tr><td>v1: câu hỏi nhúng tag <code>[Answer]:</code> trong file, rồi bước "phân tích câu trả lời mơ hồ" bắt buộc trước khi đi tiếp.</td><td>BA workflow: readiness review chặn Ready khi còn open question. Danh sách từ mơ hồ ("mix of", "depends", "probably") dùng được ngay làm lint warning.</td></tr>
+<tr><td>v2: sensor <code>claim-sources</code>, mọi claim trong intent phải mang tag nguồn, assumption phải được confirm rõ ràng.</td><td>Ticket template: mục Assumptions phải trống hoặc được BA xác nhận trước Ready. Đã có "unconfirmed assumptions block Ready"; thêm quy tắc tag nguồn nếu thấy rẻ.</td></tr>
+<tr><td>v2: <code>traceability.json</code> với status đóng (OK/GAP/ORPHAN/Deferred/N/A), sensor fail-closed khi upstream ID thiếu.</td><td><code>verification.md</code> của accord: giữ <code>Result:</code> pass/fail/blocked đã có; cân nhắc thêm ORPHAN cho evidence không trỏ tới scenario nào. Loader Phase 2 đã báo orphan.</td></tr></table>
+
+<h2>5. Đọc sâu ba thứ đề xuất (2026-09-14, đợt 2)</h2>
+<p class="lead">Nguồn: v1 <code>question-format-guide.md</code>, <code>overconfidence-prevention.md</code>; v2 <code>intent-capture.md</code>, <code>aidlc-sensor-claim-sources.ts</code> (1.420 dòng), <code>aidlc-sensor-traceability.ts</code> (637 dòng), <code>code-generation.md</code>, <code>build-and-test.md</code>, <code>stage-protocol-reviewer.md</code>. Đối chiếu với <code>docs/design.md</code> §2, §5 và <code>packages/core/templates/verification.md</code> của accord.</p>
+
+<h3>5.1 v1: file câu hỏi và bước soi câu trả lời</h3>
+<table><tr><th style="width:40%">Cơ chế thật</th><th>Với accord</th></tr>
+<tr><td>Không bao giờ hỏi trong chat. Mọi câu hỏi nằm trong file <code>&lt;stage&gt;-questions.md</code>, dạng trắc nghiệm A–E, "Other" bắt buộc ở cuối, người dùng điền sau tag <code>[Answer]:</code>. Agent chỉ đọc lại file khi người dùng nói "done".</td><td class="part">Mượn một phần. Với BA làm việc qua chat app + MCP, câu hỏi nằm trong ticket (<code>## Open questions</code>) chứ không phải file riêng. Quy tắc "Other bắt buộc" và "không bịa option cho đủ A–D" nên đưa vào text workflow BA.</td></tr>
+<tr><td>Sau khi có câu trả lời, bắt buộc soi: từ mơ hồ ("mix of", "somewhere between", "not sure", "depends", "maybe", "probably"), thuật ngữ chưa định nghĩa, câu trả lời mâu thuẫn nhau (scope "bug fix" nhưng "entire codebase affected"), câu trả lời gộp nhiều option. Nếu có, tạo file <code>-clarification-questions.md</code> và không đi tiếp.</td><td class="ok">Mượn. Phần từ mơ hồ là regex, đặt vào <code>lint</code> như warning trên <code>## Requirements</code>, <code>## Acceptance criteria</code> và câu trả lời trong <code>## Open questions</code>. Phần mâu thuẫn là phán đoán của model, đặt vào text readiness review của workflow BA.</td></tr>
+<tr><td><code>overconfidence-prevention.md</code>: họ từng ship rule "chỉ hỏi khi thật cần" và model bỏ qua câu hỏi; phải đảo thành "khi nghi ngờ thì hỏi".</td><td class="ok">Bài học đúng hướng accord đang đi: gate chặn Ready khi còn open question, thay vì trông cậy model tự thấy cần hỏi.</td></tr></table>
+
+<h3>5.2 v2: sensor claim-sources</h3>
+<table><tr><th style="width:40%">Cơ chế thật</th><th>Với accord</th></tr>
+<tr><td>File câu hỏi mở đầu bằng <code>## Sources</code>: <code>[desc]</code> (mô tả ban đầu, so khớp byte với <code>project-description.json</code>), <code>[scope]</code>, <code>[memory:M1]</code> (phải khớp đúng một dòng rule dưới đúng heading H2 trong org/team/project.md). Đó là toàn bộ vũ trụ nguồn được phép.</td><td class="no">Không mượn. Tag nguồn cho từng đoạn quá nặng với spec 5–15 dòng EARS. Nguồn của accord đã cố định: Intent → Requirements → AC, cùng một file, BA là owner duy nhất.</td></tr>
+<tr><td>Mỗi paragraph, list item, table row trong deliverable phải mang ít nhất một tag <code>[desc]</code>, <code>[Q&lt;n&gt;]</code> (phải có answer đã điền), <code>[scope]</code>, <code>[memory:…]</code>. <code>[assumption]</code> chỉ được nằm trong <code>## Assumptions &amp; Open Questions</code>.</td><td class="no">Không mượn vì lý do trên.</td></tr>
+<tr><td>Assumption còn lại phải được người xác nhận bằng câu trả lời đúng chuỗi <code>A. Accept assumptions</code>, và text của từng assumption khi xác nhận phải khớp (sau chuẩn hoá) với text trong artifact. Agent không thể tự xoá section hay đổi assumption sau khi được duyệt. "Acceptance does not turn an assumption into fact."</td><td class="ok">Mượn ý. accord đã có <code>assumptions:</code> trong frontmatter và rule "unconfirmed block Ready". Điểm thêm: xác nhận phải là hành động của BA ghi trong git (author là bằng chứng), và assumption được xác nhận vẫn giữ nguyên trong ticket chứ không xoá.</td></tr>
+<tr><td>1.420 dòng TS, phần lớn để phân biệt <code>[Q1]</code> là tag hay là link reference theo CommonMark (definition, container, indented code, title continuation…). Họ chọn "fail-closed": thà bắt lỗi oan còn hơn cho qua.</td><td class="ok">Xác nhận lựa chọn của accord: assumptions nằm trong YAML frontmatter, không nhúng tag vào prose Markdown, nên không phải viết parser này. Giữ nguyên.</td></tr></table>
+
+<h3>5.3 v2: traceability.json và Target Verification Matrix</h3>
+<table><tr><th style="width:40%">Cơ chế thật</th><th>Với accord</th></tr>
+<tr><td>stories.md đánh ID <code>US1.2</code>, <code>AC1.2.3</code>, requirements <code>FR1</code>/<code>NFR1.1</code>, rules <code>BR1.1</code>. Sensor lấy ID bằng regex từ artifact upstream, bắt <code>upstream_ids</code> phải bằng đúng tập đó, mọi ID phải có dòng coverage, status đóng OK/GAP/ORPHAN/Deferred/N/A, OK/Deferred/N/A phải có target.</td><td class="part">accord đã có tương đương mạnh hơn: tag <code>@ac-n</code> trong Gherkin, tập scenario = tập evidence = tập <code>verified</code>. Không cần thêm.</td></tr>
+<tr><td>Ở code-generation, target của OK phải là đường dẫn tương đối trong workspace, tồn tại, là file, không escape ra ngoài project. Chỉ kiểm tra file tồn tại, không chạy test.</td><td class="ok">Mượn một quy tắc nhỏ: <code>Evidence:</code> trong <code>verification.md</code> hiện là free text. Design §5 đã bắt <code>## Verification notes</code> của dev phải nêu path hoặc symbol có trong snapshot; áp cùng rule cho <code>Evidence:</code> của reviewer là một lint rẻ. Phần chạy test thì accord đã mạnh hơn (<code>@test:&lt;id&gt;</code> + JUnit XML).</td></tr>
+<tr><td>Build and Test: ma trận Target ID / Expected / Actual / Evidence / Owning Stage / Verdict với verdict cuối là <code>Met | Not Met | Unverified</code>; <code>Pending</code> không được còn khi stage kết thúc; target "deferred" vẫn là Unverified và không được tính là pass trừ khi có stage sau nhận trách nhiệm; "Weakening, relaxing, lowering, or disabling a defined quality target is never an acceptable fix."</td><td class="part">Gần với <code>Result: pass | fail | blocked</code> của accord. Hai điểm design.md chưa nói rõ, cần bạn quyết (xem §6).</td></tr>
+<tr><td>Cross-unit final coverage gate: mọi FR/NFR/AC phải OK trong ít nhất một traceability.json và file target tồn tại; ID nào thiếu là finding ở gate.</td><td class="ok">Chính là Done gate của accord ở mức ticket. Không thêm.</td></tr></table>
+
+<h3>5.4 v2: reviewer protocol (đọc thêm vì gần với fresh-context review)</h3>
+<table><tr><th style="width:40%">Cơ chế thật</th><th>Với accord</th></tr>
+<tr><td>Reviewer là sub-agent riêng, nhận: stage definition, file Q&amp;A, artifact, upstream contracts. <strong>Không</strong> nhận <code>memory.md</code> hay plan của builder: "The reviewer forms independent judgment."</td><td class="ok">Mượn. Ticket của accord chứa cả <code>## Plan</code> và <code>## Verification notes</code> (dev-owned). Review context nên được bảo bỏ qua hai section này, chỉ đọc AC + code + kết quả test. Một dòng trong text workflow dev.</td></tr>
+<tr><td>Adversarial contract: "Refute, don't confirm. READY is the verdict it fails to reach after trying to break the artifact, not the default it starts from." Finding chỉ dựa trên opinion là suggestion, không phải lý do NOT-READY.</td><td class="ok">Mượn câu chữ cho <code>docs/skills/code-review.md</code>; skill này đã có "every finding must name a concrete failure scenario", cùng tinh thần.</td></tr>
+<tr><td>Logger chụp fingerprint byte của artifact lúc gửi review; verdict bị từ chối nếu byte đổi. Sau verdict, hook review-freeze chặn ghi vào artifact cho tới khi người duyệt. Reviewer chỉ được ghi đúng một file review.</td><td class="part">accord bind bằng <code>commit:</code> trong frontmatter <code>verification.md</code> và tick bind vào AC hash + commit sha. Cần chắc Done gate so <code>commit:</code> của verification.md với commit đang gate (xem §6).</td></tr>
+<tr><td>Reviewer bookkeeping không được nằm trong artifact (không ghi "reviewed", vòng review, trạng thái finding vào deliverable) vì nó lỗi thời by construction.</td><td class="ok">accord đã tách: verification.md riêng, tick ở frontmatter, QA ở tracker. Giữ.</td></tr></table>
+
+<h2>6. Quyết định (trả lời 2026-09-14)</h2>
+<table><tr><th>Câu hỏi</th><th>Quyết định</th><th>Phương án đã loại</th></tr>
+<tr><td>Q1. <code>Result: blocked</code> trong verification.md làm Done fail, hay chỉ warning?</td><td class="ok">Fail. Blocked là chưa xác minh.</td><td>Warning nếu scenario có tag <code>@ui</code>; fail cho scenario còn lại.</td></tr>
+<tr><td>Q2. Test <code>@test:&lt;id&gt;</code> ở trạng thái <em>skipped</em> trong JUnit XML tính là gì?</td><td class="ok">Không phải passed, Done fail. Tắt test là một cách né gate.</td><td>Coi như thiếu report (check skipped) khi cả file không có test đó.</td></tr>
+<tr><td>Q3. Done gate có so <code>commit:</code> trong verification.md với HEAD đang gate không, hay chỉ tick <code>verified</code> bind commit?</td><td class="ok">Có so; lệch thì fail. Dev sửa gì sau review thì chạy review lại.</td><td>Chỉ warning, vì reviewer có thể chạy trước khi dev sửa lỗi nhỏ.</td></tr>
+<tr><td>Q4. Lint từ mơ hồ áp lên đâu?</td><td class="ok">Warning trên Requirements, AC, câu trả lời Open questions. Không block Ready vì regex có false positive.</td><td>Block Ready ở profile maintain, warning ở build.</td></tr></table>
+
+<h2>7. Chưa xác minh</h2>
+<p><small>Chưa chạy thử aidlc v2 trên máy; đánh giá từ docs và source tree. Chưa đọc PDF "AI-DLC Workflows 2.0 Specification". Số liệu stage/agent lấy từ README và guide 04, 06.</small></p>
+</body></html>

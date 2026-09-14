@@ -14,8 +14,8 @@ Accord is a team contract for AI-assisted delivery: a folder convention, determi
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Workspace and Formats** - Monorepo with two-OS CI, core purity guard, JSON schemas, folder convention, and templates (completed 2026-09-06)
-- [ ] **Phase 2: Core Model and Loading** - Snapshot to typed tickets, scenarios, and verification with correct line numbers on any line ending or OS
-- [ ] **Phase 3: Lint** - Rule engine as data; schema, EARS, Gherkin, token, tick, hygiene, and size findings rendered to text and JSON
+- [x] **Phase 2: Core Model and Loading** - Snapshot to typed tickets, scenarios, and verification with correct line numbers on any line ending or OS (completed 2026-09-13)
+- [x] **Phase 3: Lint** - Rule engine as data; schema, EARS, Gherkin, token, tick, hygiene, and size findings rendered to text and JSON (completed 2026-09-14)
 - [ ] **Phase 4: Gates** - Ready and Done evaluated deterministically with AC hash, three-set match, evidence check, profile matrix, and exit codes
 - [ ] **Phase 5: CLI Commands** - `new ticket`, `lint`, `gate`, `status` on Windows and POSIX with `--json`, version pin, and the `github-issues` adapter
 - [ ] **Phase 6: Skills** - One workflow definition per role rendered to SKILL.md for all four runtimes, synced with marker and hash
@@ -56,7 +56,6 @@ Plans:
 ### Phase 2: Core Model and Loading
 
 **Goal**: Core turns any repository snapshot into typed tickets, verification records, and scenarios with correct line numbers, whatever the line endings, BOM, or operating system.
-**Mode:** mvp
 **Depends on**: Phase 1
 **Requirements**: FMT-04, FMT-05, FMT-08, CORE-02, CORE-03, CORE-06
 **Research**: no (`yaml` and `@cucumber/gherkin` behaviour verified by running in STACK.md)
@@ -90,7 +89,6 @@ Plans:
 ### Phase 3: Lint
 
 **Goal**: `lint` over a snapshot returns every format, EARS, Gherkin, token, tick, hygiene, and size finding with file, line, rule id, and reason, rendered as text or JSON from one result object.
-**Mode:** mvp
 **Depends on**: Phase 2
 **Requirements**: CORE-04, CORE-05, LINT-01, LINT-02, LINT-03, LINT-04, LINT-05, LINT-06, LINT-07, LINT-08, FMT-09, FMT-10, FMT-11
 **Research**: yes (token rule LINT-04 only: colour and spacing detection heuristics, Tailwind v4 `@theme` extraction; all other rules are standard patterns)
@@ -101,9 +99,29 @@ Plans:
   3. A Gherkin parse error, a missing or duplicate `@ac-n` tag, an empty step, and a code-touching ticket with zero scenarios each produce a finding with its own rule id
   4. A `prototype.html` using a colour or spacing value outside the token file warns and never errors, and a `verified` entry naming a tag with no scenario warns
   5. TODO sentinels, unchecked open questions, unconfirmed assumptions, and oversize intent, EARS, or scenario counts are reported, and the same result object renders to text and to JSON with identical content
+  7. Vague wording ("depends", "maybe", "probably", "mix of", "somewhere between", "not sure", "TBD") in `## Requirements`, `## Acceptance criteria`, or an answered `## Open questions` item warns with its line number and never errors
   6. A ticket whose `## Plan` steps carry a tag set different from its scenario tag set warns and names the tags missing from each side; equal sets produce no finding, and an empty `## Plan` on a ticket with scenarios warns rather than errors
 
-**Plans**: TBD
+**Plans:** 6/6 plans complete
+
+Plans:
+**Wave 1**
+
+- [x] 03-01-PLAN.md — Tracer: `Finding.level`, `RepoSnapshot.files`, rule table with two rules, `lintSnapshot`, `renderText`, golden loop and identity test
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [x] 03-02-PLAN.md — Ticket rules: headings, sentinels, open questions, assumptions, ticks, vague wording, sizes, plan tags, verification notes; fixture `lint-hygiene`
+- [x] 03-03-PLAN.md — Test report: `tests.report` schema key, CLI read with containment, `scanJUnit`, `snapshot.tests`, `load.report-invalid`; fixture `lint-report`
+- [x] 03-04-PLAN.md — Templates: `## Verification notes` section and `@test:` guidance, `npm run gen`, heading pin
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [x] 03-05-PLAN.md — EARS classifier and Gherkin rules: ac-tag, step-empty, no-scenarios, `@test:` duplicate/on-ui, unknown id, report-missing; fixtures `lint-ears`, `lint-gherkin`, `lint-missing-files`
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [x] 03-06-PLAN.md — Token rule: `tokenNames`, `scanPrototype`, `Derived from:`, `tokens-missing`; fixtures `lint-tokens`, `lint-no-tokens`; `valid-build` prototype
 
 ### Phase 4: Gates
 
@@ -115,9 +133,9 @@ Plans:
 **Success Criteria** (what must be TRUE):
 
   1. `gate ready` passes a fixture only when frontmatter is valid, intent is present, at least one EARS line and one tagged scenario exist, no hygiene finding remains, and a design reference is present where the profile requires it; a pass records `ac_hash`
-  2. `gate done` passes only when the scenario tag set, the evidence tag set in `verification.md`, and `verified` are equal, and a mismatch lists which tags are missing from which set
+  2. `gate done` passes only when the scenario tag set, the evidence tag set in `verification.md`, and `verified` are equal, and a mismatch lists which tags are missing from which set; a `Result: blocked` block fails Done as `fail` does, and a `verification.md` whose `commit:` differs from the gated commit fails Done with a stale-review reason
   3. Editing the acceptance criteria after Ready makes `gate done` fail with an AC-changed reason until Ready is re-run
-  4. An evidence line naming a file, test, or command absent from the snapshot fails Done; when the host supplies git authors, implementation, evidence, and tick by one author warn; when the host supplies none, the check reports as skipped
+  4. An evidence line naming a file, test, or command absent from the snapshot fails Done; a `@test:<id>` test reported skipped in the JUnit report is not passed and fails Done; when the host supplies git authors, implementation, evidence, and tick by one author warn; when the host supplies none, the check reports as skipped
   5. Results carry exit codes 0, 1, or 2, the `maintain` profile downgrades token and size rules to warnings, and no flag or option bypasses a gate
 
 **Plans**: TBD
@@ -217,8 +235,8 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Workspace and Formats | 5/5 | Complete    | 2026-09-06 |
-| 2. Core Model and Loading | 7/7 | In Progress|  |
-| 3. Lint | 0/TBD | Not started | - |
+| 2. Core Model and Loading | 7/7 | Complete    | 2026-09-13 |
+| 3. Lint | 6/6 | Complete    | 2026-09-14 |
 | 4. Gates | 0/TBD | Not started | - |
 | 5. CLI Commands | 0/TBD | Not started | - |
 | 6. Skills | 0/TBD | Not started | - |

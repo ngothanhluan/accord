@@ -96,11 +96,13 @@ Prototype rule: if the repo has design tokens (CSS variables, Tailwind config, a
 
 Not every ticket has UI. `ui: false` skips the design checks in both profiles.
 
+Lint also warns, and only warns, on vague wording in `## Requirements`, `## Acceptance criteria`, and answered `## Open questions`: "depends", "maybe", "probably", "mix of", "somewhere between", "not sure", "TBD". The words are a regex with false positives, so the finding never blocks Ready; the BA reads it and decides.
+
 **Done** (a story may go to QA). Three layers, each defeating a different lie.
 
-*Machine.* Every scenario not tagged `@ui` carries a `@test:<id>` tag naming the test that proves it. Done fails unless that test is reported passed in the JUnit XML report named by `tests.report` in `config.yml`; the host puts that file into the snapshot and core reads it with a line scanner. A free-text `Evidence:` line never satisfies a non-`@ui` scenario on its own, because an agent can write one without running anything. A `@ui` scenario is exempt and leans on the human layer instead — brittle end-to-end tests get muted, and a muted gate is a decorative gate. A host with no report available reports the check skipped, as the author check does.
+*Machine.* Every scenario not tagged `@ui` carries a `@test:<id>` tag naming the test that proves it. Done fails unless that test is reported passed in the JUnit XML report named by `tests.report` in `config.yml`; the host puts that file into the snapshot and core reads it with a line scanner. A free-text `Evidence:` line never satisfies a non-`@ui` scenario on its own, because an agent can write one without running anything. A `@ui` scenario is exempt and leans on the human layer instead — brittle end-to-end tests get muted, and a muted gate is a decorative gate. A test reported skipped is not passed: muting a test is the cheapest way past a gate, so a skipped `@test:<id>` fails Done exactly as a failed one does. A host with no report available reports the check skipped, as the author check does.
 
-*Fresh context.* The dev workflow's final step opens a fresh agent context that produces `tickets/<id>/verification.md`, one `## @ac-n` block per scenario with `Result:` and `Evidence:`. The agent that wrote the code never writes this file.
+*Fresh context.* The dev workflow's final step opens a fresh agent context that produces `tickets/<id>/verification.md`, one `## @ac-n` block per scenario with `Result:` and `Evidence:`. The agent that wrote the code never writes this file. `Result: blocked` fails Done as `fail` does; a scenario that could not be verified is not verified. The file's `commit:` must equal the commit being gated, so a review of an older commit fails Done until the review is re-run.
 
 *Human.* The developer runs the scenarios on the dev environment, ticks `verified: [ac-1, ...]`, and writes one line per scenario under `## Verification notes` naming the logic that makes it correct. The note must reference a path or symbol that exists in the snapshot and must not be the scenario text pasted back; there is no character-count floor, which would only invite padding. Each tick binds to the AC hash and the commit sha, so a tick never survives a change to either.
 
@@ -158,3 +160,5 @@ Why a CLI and not just templates and prompts: templates are suggestions and prom
 | 2026-09-04 | Full CLI (init, new, lint, gate, status) in v0.1, TypeScript | Deterministic gates counter the instruction-following failure mode |
 | 2026-09-04 | Docs in English | Public project |
 | 2026-09-04 | Hub is a separate later repo | Convention must prove itself first |
+| 2026-09-14 | `Result: blocked` fails Done; a skipped `@test:<id>` is not passed; `verification.md` `commit:` must match the gated commit | Unverified is not verified; muted tests and stale reviews are the cheap ways past a gate |
+| 2026-09-14 | Vague-wording lint is warning-only, never blocks Ready | Regex has false positives; the BA decides |

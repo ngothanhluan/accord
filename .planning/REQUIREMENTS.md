@@ -17,29 +17,29 @@ v1 is the v0.1 milestone: npm publish, MCP deployed, one real ticket through Rea
 - [x] **FMT-06**: `config.yml` with pinned accord version, profile (`build` | `maintain`), tracker adapter (`none` default; `github-issues` requires `repo`), design-token path, role roster (`ba` and `dev` required, `designer` optional), runtimes; validated by its own schema
 - [x] **FMT-07**: Templates: `ticket-build.md`, `ticket-maintain.md`, `epic.md`, `glossary.md`, `business-rules.md`, prototype header, `verification.md`
 - [x] **FMT-08**: All generated files are LF and UTF-8 without BOM; readers accept CRLF and BOM input
-- [ ] **FMT-09**: A scenario not tagged `@ui` carries exactly one `@test:<id>` tag naming the test that proves it; `@ui` scenarios carry none
-- [ ] **FMT-10**: Human verification notes live in a `## Verification notes` section placed last in the ticket body, after `## Plan`, with one `### @ac-n` block per ticked scenario; `verified` in frontmatter stays a plain string array, because free-form human prose in YAML breaks the parse (Decision 2)
-- [ ] **FMT-11**: `config.yml` gains `tests.report`, a repo-relative path to a JUnit XML report; the host adds that file to the snapshot input and core reads it with a line scanner, no XML dependency (Decision 4)
+- [x] **FMT-09**: A scenario not tagged `@ui` carries exactly one `@test:<id>` tag naming the test that proves it; `@ui` scenarios carry none
+- [x] **FMT-10**: Human verification notes live in a `## Verification notes` section placed last in the ticket body, after `## Plan`, with one `### @ac-n` block per ticked scenario; `verified` in frontmatter stays a plain string array, because free-form human prose in YAML breaks the parse (Decision 2)
+- [x] **FMT-11**: `config.yml` gains `tests.report`, a repo-relative path to a JUnit XML report; the host adds that file to the snapshot input and core reads it with a line scanner, no XML dependency (Decision 4)
 
 ### Core
 
 - [x] **CORE-01**: Pure core over an immutable `RepoSnapshot`; ESLint bans every `node:*` import inside core
 - [x] **CORE-02**: Frontmatter parsed with `yaml` core schema where numerics stay strings; round-trips comments on tick writes
 - [x] **CORE-03**: Gherkin blocks extracted with line numbers remapped to the Markdown file
-- [ ] **CORE-04**: Rules are data (id, gate, level, appliesTo, profile); the build/maintain matrix is one table
-- [ ] **CORE-05**: Every finding carries file, line, rule id, and reason; one result object renders to text and JSON
+- [x] **CORE-04**: Rules are data (id, gate, level, appliesTo, profile); the build/maintain matrix is one table
+- [x] **CORE-05**: Every finding carries file, line, rule id, and reason; one result object renders to text and JSON
 - [x] **CORE-06**: Fixture repos and JSON goldens cover pass, fail, CRLF, BOM, and Windows path cases
 
 ### Lint
 
-- [ ] **LINT-01**: Frontmatter schema errors with path and line
-- [ ] **LINT-02**: EARS classifier over the six Mavin templates; unclassifiable lines warn
-- [ ] **LINT-03**: Gherkin rules: parse error, missing or duplicate `@ac-n` tag, empty step, at least one scenario on code-touching tickets
-- [ ] **LINT-04**: Prototype design-token rule on `prototype.html`, warning-only in v0.1
-- [ ] **LINT-05**: Orphaned tick warning when `verified` names a tag with no scenario
-- [ ] **LINT-06**: TODO sentinel, unchecked `## Open questions` item, and unconfirmed `assumptions:` entry are detected as findings
-- [ ] **LINT-07**: Size warnings: intent over 5 lines, over 15 EARS lines, over 5 scenarios
-- [ ] **LINT-08**: Each step under `## Plan` carries the `@ac-n` tag it serves; lint warns when the plan tag set and the scenario tag set differ, naming which tags are missing from which side. A warning and not a gate, because the plan is written after Ready and before Done, so no gate sits where the check would help, and a tag can always be attached without thought
+- [x] **LINT-01**: Frontmatter schema errors with path and line
+- [x] **LINT-02**: EARS classifier over the six Mavin templates; unclassifiable lines warn
+- [x] **LINT-03**: Gherkin rules: parse error, missing or duplicate `@ac-n` tag, empty step, at least one scenario on code-touching tickets
+- [x] **LINT-04**: Prototype design-token rule on `prototype.html`, warning-only in v0.1
+- [x] **LINT-05**: Orphaned tick warning when `verified` names a tag with no scenario
+- [x] **LINT-06**: TODO sentinel, unchecked `## Open questions` item, and unconfirmed `assumptions:` entry are detected as findings
+- [x] **LINT-07**: Size warnings: intent over 5 lines, over 15 EARS lines, over 5 scenarios
+- [x] **LINT-08**: Each step under `## Plan` carries the `@ac-n` tag it serves; lint warns when the plan tag set and the scenario tag set differ, naming which tags are missing from which side. A warning and not a gate, because the plan is written after Ready and before Done, so no gate sits where the check would help, and a tag can always be attached without thought
 
 ### Gates
 
@@ -148,23 +148,23 @@ v1 is the v0.1 milestone: npm publish, MCP deployed, one real ticket through Rea
 | FMT-06 | Phase 1 | Complete |
 | FMT-07 | Phase 1 | Complete |
 | FMT-08 | Phase 2 | Complete |
-| FMT-09 | Phase 3 | Pending |
-| FMT-10 | Phase 3 | Pending |
-| FMT-11 | Phase 3 | Pending |
+| FMT-09 | Phase 3 | Complete |
+| FMT-10 | Phase 3 | Complete |
+| FMT-11 | Phase 3 | Complete |
 | CORE-01 | Phase 1 | Complete |
 | CORE-02 | Phase 2 | Complete |
 | CORE-03 | Phase 2 | Complete |
-| CORE-04 | Phase 3 | Pending |
-| CORE-05 | Phase 3 | Pending |
+| CORE-04 | Phase 3 | Complete |
+| CORE-05 | Phase 3 | Complete |
 | CORE-06 | Phase 2 | Complete |
-| LINT-01 | Phase 3 | Pending |
-| LINT-02 | Phase 3 | Pending |
-| LINT-03 | Phase 3 | Pending |
-| LINT-04 | Phase 3 | Pending |
-| LINT-05 | Phase 3 | Pending |
-| LINT-06 | Phase 3 | Pending |
-| LINT-07 | Phase 3 | Pending |
-| LINT-08 | Phase 3 | Pending |
+| LINT-01 | Phase 3 | Complete |
+| LINT-02 | Phase 3 | Complete |
+| LINT-03 | Phase 3 | Complete |
+| LINT-04 | Phase 3 | Complete |
+| LINT-05 | Phase 3 | Complete |
+| LINT-06 | Phase 3 | Complete |
+| LINT-07 | Phase 3 | Complete |
+| LINT-08 | Phase 3 | Complete |
 | GATE-01 | Phase 4 | Pending |
 | GATE-02 | Phase 4 | Pending |
 | GATE-03 | Phase 4 | Pending |

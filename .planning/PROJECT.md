@@ -28,6 +28,10 @@ Publishing without dogfooding, or dogfooding from a local build, does not close 
 - ✓ Templates for ticket file (build, maintain, epic), product files (glossary, business rules), prototype header, and `verification.md` — Phase 1
 - ✓ Core purity: the build fails when `core` imports a `node:*` module — Phase 1
 - ✓ CI green on ubuntu-latest and windows-latest for Node 22 and 24 from the first code commit — Phase 1
+- ✓ Core loads any repository snapshot into typed tickets, scenarios (with Markdown line numbers and `@ac-n` tags), and verification records; YAML numerics and dates stay strings; LF, CRLF, BOM+CRLF, and Windows paths yield byte-identical goldens on both CI operating systems — Phase 2
+- ✓ Tick-write primitive `setFrontmatterKey` changes one frontmatter key and preserves every other byte, comments included; output is LF and UTF-8 without BOM — Phase 2
+- ✓ CLI filesystem loader over `git ls-files` with `design.tokens` contained to the repository root; never spawns npm or npx — Phase 2
+- ✓ Lint engine over a snapshot: format, EARS, Gherkin, design-token, tick, hygiene, and size findings, each with file, line, rule id, and reason, rendered as text or JSON from one result object — Phase 3
 
 ### Active
 
@@ -41,7 +45,7 @@ Publishing without dogfooding, or dogfooding from a local build, does not close 
 **CLI**
 - [ ] `init` scaffolds the folder, config, templates, skill files, and a CI workflow
 - [ ] `new ticket <id>`
-- [ ] `lint`: frontmatter schema, EARS line check, Gherkin parse, prototype token rule, orphaned `verified` tick warning
+- [ ] `lint`: frontmatter schema, EARS line check, Gherkin parse, prototype token rule, orphaned `verified` tick warning <sub>engine done Phase 3; the CLI command that calls it is Phase 5</sub>
 - [ ] `gate ready <id>` and `gate done <id>` with reasons and exit codes 0 pass / 1 fail / 2 config error
 - [ ] `status` table across tickets
 - [ ] Runs on Windows and POSIX; never spawns npm or npx
@@ -112,7 +116,8 @@ Publishing without dogfooding, or dogfooding from a local build, does not close 
 | AC owned by BA only | Single owner of the contract | — Pending |
 | Full CLI in v0.1, not templates only | Deterministic gates counter the dominant failure mode | — Pending |
 | Hybrid tracker + git, batched doc PRs | Volume control without abandoning git | — Pending |
-| Developer self-test ticks (`verified`) live in ticket frontmatter; evidence in `tickets/<id>/verification.md` written by a fresh review context; QA records in the tracker | Evidence and confirmation in separate files with separate owners; git author is the proof; QA works where the team already works | — Pending |
+| Developer self-test ticks (`verified`) live in ticket frontmatter; evidence in `tickets/<id>/verification.md` written by a fresh review context; QA records in the tracker | Evidence and confirmation in separate files with separate owners; git author is the proof; QA works where the team already works | ◆ Phase 2: loader parses `verification.md` (`Result:` limited to pass/fail/blocked, orphans reported) and `setFrontmatterKey` writes `verified` as the last key; the gate that compares them is Phase 4 |
+| Core never guesses: a malformed record yields a finding with file and line, and the value is absent rather than defaulted | A gate built on guessed values would pass tickets that should fail; findings carry the line so the author can fix the file | ✓ Phase 2: `load.*` findings for frontmatter, config, Gherkin, and verification records; 24 threats closed, none open |
 | One workflow definition per role, rendered to SKILL.md and MCP prompt | 4 runtimes × 3 roles hand-written would drift; chat and agent users must follow identical steps | — Pending |
 | `init` copies SKILL.md into `.claude/skills/` and `.agents/skills/` | Verified: those two paths cover all four runtimes; no per-runtime wrappers needed | — Pending |
 | Codex added as fourth target runtime | Team members use it | — Pending |
@@ -122,6 +127,8 @@ Publishing without dogfooding, or dogfooding from a local build, does not close 
 | Monorepo `core` / `cli` / `mcp` | Core must run in Node and in the MCP host; one repo keeps them in lockstep; skill definitions are data both hosts read, so they live in core | ✓ Phase 1: `core` and `cli` workspaces live with a purity guard; `mcp` added in Phase 8 |
 | Nothing accord ships names another tool or harness | Positioning stands on its own; comparisons date quickly and invite argument; a reader meeting the name of a tool they do not have learns nothing. Covers README, design docs, templates, schemas, and workflow text under `docs/skills/`, which renders into shipped SKILL.md files. Provenance for adapted material goes in the commit message | ✓ Phase 1 UAT (2026-09-06): README and design.md rewritten without tool names. Scope widened 2026-09-12 after the debug technique shipped a plugin name; caught and removed in `fc592fb` |
 | Templates carry no project-internal notes | A BA or developer using a template must not see accord phase numbers or planning references | ✓ Phase 1 UAT: `verification.md` and `epic.md` guidance cleaned |
+| Lint text output is `file:line: level rule reason` plus a literal-plural summary line, colour-free | One shape for every parser; the same result object renders to JSON, so text is never the source of truth | ✓ Phase 3 UAT (2026-09-14): accepted after reading a 26-finding run. Terminal click-through works on the `path:line` prefix; the stock `$gcc` / `$tsc` problem matchers do not match this shape, so a CI consumer supplies its own |
+| Lookups against machine-produced id maps use `Object.hasOwn`, never `in` | A plain object inherits `Object.prototype`, so an id like `toString` reads as present: test ids silently vanish and an unknown `@test:` id reads as known — the exact bypass the exact-lookup rule exists to prevent | ✓ Phase 3 UAT (2026-09-14): reproduced (2 of 3 ids dropped), fixed in `load/junit.ts` and `lint/gherkin.ts`, two regression tests added |
 | v0.1 = npm publish + MCP deployed + one real ticket through both gates with a non-tech BA on a chat client | Publishing alone proves nothing; the non-tech path is the risky one | — Pending |
 
 ## Evolution
@@ -142,4 +149,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-09-06 after Phase 1 transition (schemas, templates, purity guard, and two-OS CI validated)*
+*Last updated: 2026-09-14 after Phase 3 transition (lint engine validated: all seven ROADMAP criteria, 16 threats closed, 390 tests green)*

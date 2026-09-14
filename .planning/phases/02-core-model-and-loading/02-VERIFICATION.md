@@ -1,20 +1,23 @@
 ---
 phase: 02-core-model-and-loading
 verified: 2026-09-06T08:16:27Z
-status: human_needed
+status: passed
 score: 48/50 must-haves verified
 behavior_unverified: 1
 overrides_applied: 0
 behavior_unverified_items:
+
   - truth: "A machine without `git` raises `UsageError` (plan 02-07 truth 5, the ENOENT half)"
     test: "On a shell where `git` is not on PATH (or with PATH emptied for the process), run `node -e \"import('./packages/cli/src/load/fs.js')\"`-equivalent through vitest or a Phase 5 spawn test and call `loadFromFs(<any dir>)`."
     expected: "Throws `UsageError` with message `git is required but was not found on PATH` and `exitCode` 2; no shell is involved."
     why_human: "The test suite cannot remove git from PATH without an injectable environment; only the not-a-repository branch of the same `catch` is exercised (SUMMARY 02-07 coverage item D6, human_judgment: true)."
 coincidental_reliance_items:
+
   - truth: "A directory that is not a git repository raises `UsageError` (plan 02-07 truth 5)"
     reason: undeclared-precondition
     harden: "The test `a directory that is not a repository is a UsageError` assumes `os.tmpdir()` is outside any git work tree (comment in load.test.ts line 119). Declare it by creating the temp dir under a path proven repo-free, or init a bare marker and assert on it, so a CI runner whose temp dir sits inside a checkout cannot turn the test green for the wrong reason."
 human_verification:
+
   - test: "After the owner commits and pushes to `main`, open the GitHub Actions run named `ci` and check the two Ubuntu legs (ubuntu-latest/22, ubuntu-latest/24) alongside the two Windows legs."
     expected: "All four legs green; in particular `packages/core/test/snapshot.test.ts` (five fixture goldens), `packages/core/test/write.test.ts` (three Markdown goldens), and `packages/cli/test/load.test.ts` (parity with `valid-build.snapshot.json` from a real `git ls-files` tree) pass on Ubuntu with the committed goldens unchanged (ROADMAP criterion 4, D-54)."
     why_human: "No commit or push is allowed by AI in this repo. The Windows leg is proven locally (npm run check exit 0, 13 files / 195 tests; verifier probes below); the Ubuntu half of criterion 4 cannot run on this machine."

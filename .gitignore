@@ -6,3 +6,4 @@ dist/
 .omc/
 .gsd/
 .planning/milestone.lock
+.planning/research/.cache/

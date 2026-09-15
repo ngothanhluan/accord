@@ -87,6 +87,8 @@ Solo use is the same contract with one person. The four roles become four stages
 
 | Check | Owner |
 |---|---|
+| `## Intent` is not empty: it says what the story is for, in business language | BA |
+| `## Requirements` carries at least one EARS line | BA |
 | At least one Gherkin scenario. A bug fix is written as Given the situation, When the action, Then the correct result | BA |
 | `ui: true` and profile maintain: `prototype.html` exists and was generated from the project's existing styles | Dev or Designer |
 | `ui: true` and profile build: a Figma link or a prototype exists | Designer |

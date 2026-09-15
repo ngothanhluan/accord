@@ -43,27 +43,27 @@ v1 is the v0.1 milestone: npm publish, MCP deployed, one real ticket through Rea
 
 ### Gates
 
-- [ ] **GATE-01**: `gate ready` passes only with valid frontmatter, intent, at least one EARS line, at least one tagged scenario, no LINT-06 findings, and a design reference when the profile requires it; records `ac_hash`
-- [ ] **GATE-02**: `gate done` passes only when the scenario tag set, the evidence set in `verification.md`, and `verified` are equal
-- [ ] **GATE-03**: `gate done` fails when the AC hash differs from the one recorded at Ready
-- [ ] **GATE-04**: Each evidence line must reference a file, test, or command that exists in the snapshot
-- [ ] **GATE-05**: Author-mismatch warning when implementation and evidence share a git author; the CLI host supplies authors, the MCP host reports the check as skipped (a developer ticking their own work is expected)
-- [ ] **GATE-06**: Exit codes 0 pass, 1 fail, 2 config error; reasons listed by rule; no bypass flag
-- [ ] **GATE-07**: Profile `maintain` downgrades token and size rules to warnings; `build` keeps them as configured
-- [ ] **GATE-08**: Every scenario not tagged `@ui` carries a `@test:<id>` tag, and `gate done` passes only when a test case matching that id is reported passed in the JUnit XML report named by `config.yml` `tests.report`; a free-text `Evidence:` line alone never satisfies a non-`@ui` scenario. A host that cannot supply the report (the MCP host) reports the check as skipped, as GATE-05 does
-- [ ] **GATE-09**: A scenario tagged `@ui` is exempt from GATE-08 and instead requires the stricter human note of GATE-10
-- [ ] **GATE-10**: Each ticked scenario carries a human-written note under `## Verification notes`; `gate done` fails when the note is missing, when it references no path or symbol present in the snapshot (the GATE-04 rule), or when it is identical to or a substring of the scenario text. No character-count floor: arbitrary, language-dependent, and it invites padding
-- [ ] **GATE-11**: Each human tick binds to the AC hash and the commit sha it was made against; `gate done` fails when either has changed since the tick, so a tick never survives a code or AC change
+- [x] **GATE-01**: `gate ready` passes only with valid frontmatter, intent, at least one EARS line, at least one tagged scenario, no LINT-06 findings, and a design reference when the profile requires it; records `ac_hash`
+- [x] **GATE-02**: `gate done` passes only when the scenario tag set, the evidence set in `verification.md`, and `verified` are equal
+- [x] **GATE-03**: `gate done` fails when the AC hash differs from the one recorded at Ready
+- [x] **GATE-04**: Each evidence line must reference a file, test, or command that exists in the snapshot
+- [x] **GATE-05**: Author-mismatch warning when implementation and evidence share a git author; the CLI host supplies authors, the MCP host reports the check as skipped (a developer ticking their own work is expected)
+- [x] **GATE-06**: Exit codes 0 pass, 1 fail, 2 config error; reasons listed by rule; no bypass flag
+- [x] **GATE-07**: Profile `maintain` downgrades token and size rules to warnings; `build` keeps them as configured
+- [x] **GATE-08**: Every scenario not tagged `@ui` carries a `@test:<id>` tag, and `gate done` passes only when a test case matching that id is reported passed in the JUnit XML report named by `config.yml` `tests.report`; a free-text `Evidence:` line alone never satisfies a non-`@ui` scenario. A host that cannot supply the report (the MCP host) reports the check as skipped, as GATE-05 does
+- [x] **GATE-09**: A scenario tagged `@ui` is exempt from GATE-08 and instead requires the stricter human note of GATE-10
+- [x] **GATE-10**: Each ticked scenario carries a human-written note under `## Verification notes`; `gate done` fails when the note is missing, when it references no path or symbol present in the snapshot (the GATE-04 rule), or when it is identical to or a substring of the scenario text. No character-count floor: arbitrary, language-dependent, and it invites padding
+- [x] **GATE-11**: Each human tick binds to the AC hash and the commit sha it was made against; `gate done` fails when either has changed since the tick, so a tick never survives a code or AC change
 
 ### CLI
 
 - [ ] **CLI-01**: `init` scaffolds folder, config, templates, and skill copies; idempotent; never overwrites edited files; prints what it created
 - [ ] **CLI-02**: `init` writes a CI workflow that runs `lint` and `gate done` on touched tickets and always reports a job result
 - [ ] **CLI-03**: `init` adds a short pointer to `AGENTS.md` and `CLAUDE.md` without duplicating skill bodies
-- [ ] **CLI-04**: `new ticket <id>` from the profile's template with tag scaffolding
-- [ ] **CLI-05**: `lint`, `gate ready <id>`, `gate done <id>`, `status` with `--json`
-- [ ] **CLI-06**: CLI refuses to run when its version differs from the pin in `config.yml`
-- [ ] **CLI-07**: Runs on Windows and POSIX; never spawns `npm`, `npx`, or any `.cmd`
+- [x] **CLI-04**: `new ticket <id>` from the profile's template with tag scaffolding
+- [x] **CLI-05**: `lint`, `gate ready <id>`, `gate done <id>`, `status` with `--json`
+- [x] **CLI-06**: CLI refuses to run when its version differs from the pin in `config.yml`
+- [x] **CLI-07**: Runs on Windows and POSIX; never spawns `npm`, `npx`, or any `.cmd`
 - [ ] **CLI-08**: `skills sync` regenerates skill copies with a generated marker and content hash
 
 ### Skills
@@ -91,7 +91,7 @@ v1 is the v0.1 milestone: npm publish, MCP deployed, one real ticket through Rea
 
 ### Integration and proof
 
-- [ ] **INTG-01**: `github-issues` adapter is read-only (title, state, labels) over REST `fetch` with a token from `gh auth token` or `GITHUB_TOKEN`; gates never consult it
+- [x] **INTG-01**: `github-issues` adapter is read-only (title, state, labels) over REST `fetch` with a token from `gh auth token` or `GITHUB_TOKEN`; gates never consult it
 - [ ] **INTG-02**: Example repo with one maintain-profile ticket and one build-profile ticket passing both gates
 
 ### Delivery
@@ -165,24 +165,24 @@ v1 is the v0.1 milestone: npm publish, MCP deployed, one real ticket through Rea
 | LINT-06 | Phase 3 | Complete |
 | LINT-07 | Phase 3 | Complete |
 | LINT-08 | Phase 3 | Complete |
-| GATE-01 | Phase 4 | Pending |
-| GATE-02 | Phase 4 | Pending |
-| GATE-03 | Phase 4 | Pending |
-| GATE-04 | Phase 4 | Pending |
-| GATE-05 | Phase 4 | Pending |
-| GATE-06 | Phase 4 | Pending |
-| GATE-07 | Phase 4 | Pending |
-| GATE-08 | Phase 4 | Pending |
-| GATE-09 | Phase 4 | Pending |
-| GATE-10 | Phase 4 | Pending |
-| GATE-11 | Phase 4 | Pending |
+| GATE-01 | Phase 4 | Complete |
+| GATE-02 | Phase 4 | Complete |
+| GATE-03 | Phase 4 | Complete |
+| GATE-04 | Phase 4 | Complete |
+| GATE-05 | Phase 4 | Complete |
+| GATE-06 | Phase 4 | Complete |
+| GATE-07 | Phase 4 | Complete |
+| GATE-08 | Phase 4 | Complete |
+| GATE-09 | Phase 4 | Complete |
+| GATE-10 | Phase 4 | Complete |
+| GATE-11 | Phase 4 | Complete |
 | CLI-01 | Phase 7 | Pending |
 | CLI-02 | Phase 7 | Pending |
 | CLI-03 | Phase 7 | Pending |
-| CLI-04 | Phase 5 | Pending |
-| CLI-05 | Phase 5 | Pending |
-| CLI-06 | Phase 5 | Pending |
-| CLI-07 | Phase 5 | Pending |
+| CLI-04 | Phase 5 | Complete |
+| CLI-05 | Phase 5 | Complete |
+| CLI-06 | Phase 5 | Complete |
+| CLI-07 | Phase 5 | Complete |
 | CLI-08 | Phase 6 | Pending |
 | SKILL-01 | Phase 6 | Pending |
 | SKILL-02 | Phase 6 | Pending |
@@ -201,7 +201,7 @@ v1 is the v0.1 milestone: npm publish, MCP deployed, one real ticket through Rea
 | MCP-05 | Phase 8 | Pending |
 | MCP-06 | Phase 8 | Pending |
 | MCP-07 | Phase 8 | Pending |
-| INTG-01 | Phase 5 | Pending |
+| INTG-01 | Phase 5 | Complete |
 | INTG-02 | Phase 7 | Pending |
 | OPS-01 | Phase 1 | Complete |
 | OPS-02 | Phase 1 | Complete |

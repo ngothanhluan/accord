@@ -1,19 +1,19 @@
 ---
 gsd_state_version: "1.0"
 milestone: v0.1
-current_phase: 4
-current_phase_name: Gates
+current_phase: 6
+current_phase_name: Skills
 status: planning
-stopped_at: Phase 4 context gathered
-last_updated: "2026-09-14T07:46:06.081Z"
-last_activity: 2026-09-14
-last_activity_desc: Phase 3 complete, transitioned to Phase 4
-state_head: f4cc8cc920ef165e7f71bed0dd023550f2c74a38
+stopped_at: Phase 05 complete, ready to plan Phase 6
+last_updated: "2026-09-15T07:19:10.296Z"
+last_activity: 2026-09-15
+last_activity_desc: Phase 05 complete, transitioned to Phase 6
+state_head: 97a7977174efa56e1d98594355d15a46af50a8b9
 progress:
   total_phases: 9
   completed_phases: 3
-  total_plans: 18
-  completed_plans: 18
+  total_plans: 28
+  completed_plans: 28
 ---
 
 # Project State
@@ -23,14 +23,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-09-14)
 
 **Core value:** An agent cannot start a story without captured intent and acceptance criteria, and cannot finish one without independent verification against them.
-**Current focus:** Phase 04 — Gates
+**Current focus:** Phase 05 — CLI Commands
 
 ## Current Position
 
-Phase: 4 — Gates
+Phase: 6 — Skills
 Plan: Not started
 Status: Ready to plan
-Last activity: 2026-09-14 — Phase 3 complete, transitioned to Phase 4
+Last activity: 2026-09-15 — Phase 05 complete, transitioned to Phase 6
 
 Progress: [███░░░░░░░] 3/9 phases (33%)
 
@@ -38,7 +38,7 @@ Progress: [███░░░░░░░] 3/9 phases (33%)
 
 **Velocity:**
 
-- Total plans completed: 18
+- Total plans completed: 28
 - Average duration: -
 - Total execution time: 0.0 hours
 
@@ -49,6 +49,8 @@ Progress: [███░░░░░░░] 3/9 phases (33%)
 | 01 | 5 | - | - |
 | 02 | 7 | - | - |
 | 3 | 6 | - | - |
+| 04 | 4 | - | - |
+| 05 | 6 | - | - |
 
 **Recent Trend:**
 
@@ -78,6 +80,10 @@ Progress: [███░░░░░░░] 3/9 phases (33%)
 | Phase 03 P04 | 5 min | 1 tasks | 5 files |
 | Phase 03 P05 | 7 min | 2 tasks | 28 files |
 | Phase 03 P06 | 5 min | 2 tasks | 24 files |
+| Phase 05 P01 | 25 min | 3 tasks | 12 files |
+| Phase 05 P02 | 12 min | 2 tasks | 8 files |
+| Phase 05 P05 | 14 min | 2 tasks | 4 files |
+| Phase 05 P06 | 9 min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -132,6 +138,22 @@ Recent decisions affecting current work:
 - [Phase 03 UAT]: The two prototype-chain `in` lookups were fixed in Phase 3 rather than deferred to Phase 4, because GATE-08 reads `snapshot.tests` directly. `Object.hasOwn` in `load/junit.ts:41` and `lint/gherkin.ts:85`, plus two regression tests; suite 388 -> 390
 - [Phase 03 security]: 16 threats closed at L1 grep depth; three accepted risks (hand-written passing report is Phase 4 gate scope; sentinels inside HTML comments are unlinted by D-73; the engine itself runs no regex). The UAT fix strengthened the T-03-09 and T-03-10 mitigations
 
+- [Phase 05]: 05-01: a commander refusal that is not `--version`/`--help` maps to exit 2, not commander's own exit 1, so a mistyped command cannot be read as a lint failure (STACK Decision 1). The plan text said "its exitCode or 2" — flagged for an owner ruling in 05-01-SUMMARY
+- [Phase 05]: 05-01: the version pin is checked only when `snapshot.config` is defined, so a missing or schema-invalid config.yml exits 1 with its schema findings rather than 2 with a pin error
+- [Phase 05]: 05-01: bare `accord` with no arguments prints help to stderr and exits 2 (commander's own default reaching the usage-error branch); unspecified by the plan, flagged
+- [Phase 05]: 05-01: the in-process `run(argv, cwd)` harness lives in test/helpers/repo.ts beside makeRepo rather than being copied into three test files
+- [Phase 05]: 05-01: only CLI-06 ticked; CLI-05 and CLI-07 span plans 05-02..05-06 and would be false to close on `lint` alone
+- [Phase 05]: 05-02: `statusRows` lives in core, not the CLI, so Phase 8's MCP host gets it from the barrel with no second implementation; `scoped` stays private
+- [Phase 05]: 05-02: `ready` reads `stale` when `ac_hash` is recorded but the ticket now has no `@ac-n` scenario at all — unspecified by D-91, flagged for an owner ruling in 05-02-SUMMARY
+- [Phase 05]: 05-02: parentless tickets (epics and orphans) sort before every grouped child via `parent ?? ''`; D-92 fixes the axis but not this tie-break, flagged
+- [Phase 05]: 05-02: the archived case is spread onto a `valid-build` SnapshotInput in the test rather than added to the shared fixture, so no Phase 1-4 golden moved
+- [Phase 05]: 05-02: CLI-05 stays unticked; it closes when `accord status` prints, which is 05-04
+- [Phase 05]: 05-05: the ticket id regex is a literal in new-ticket.ts rather than read from ticket.schema.json, so the one guard between argv and a filesystem write is visible at its call site
+- [Phase 05]: 05-05: an unknown `--type` is commander's own `Option().choices()` refusal mapped to exit 2, not a hand-rolled check inside newTicket
+- [Phase 05]: 05-05: `type:` is written double-quoted because D-45 quotes every string core writes, so a scaffolded ticket differs from a hand-copied template by one pair of quotes; the round-trip test proves it parses — flagged for an owner ruling in 05-05-SUMMARY
+- [Phase 05]: 05-05: `accord/tickets/` is created when absent and a partially-written file is not cleaned up on a write failure; both unspecified by the plan, flagged
+- [Phase 05]: 05-05: CLI-04 and CLI-07 both ticked — CLI-07 closes now that `new ticket` (write and refusal branches) is in the printed-path backslash loop
+
 ### Pending Todos
 
 None yet.
@@ -157,6 +179,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-09-14T07:46:05.808Z
-Stopped at: Phase 4 context gathered
-Resume file: .planning/phases/04-gates/04-CONTEXT.md
+Last session: 2026-09-15T05:05:00.000Z
+Stopped at: Phase 05 complete, ready to plan Phase 6
+Resume file: .planning/phases/05-cli-commands/05-06-PLAN.md
+
+- [Phase 05]: 05-06: the tracker adapter is reached only from `status` on the text path — under `--json` no request is issued at all, because D-98 makes stdout the core array verbatim and enrichment is a rendering concern

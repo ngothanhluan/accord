@@ -16,8 +16,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Workspace and Formats** - Monorepo with two-OS CI, core purity guard, JSON schemas, folder convention, and templates (completed 2026-09-06)
 - [x] **Phase 2: Core Model and Loading** - Snapshot to typed tickets, scenarios, and verification with correct line numbers on any line ending or OS (completed 2026-09-13)
 - [x] **Phase 3: Lint** - Rule engine as data; schema, EARS, Gherkin, token, tick, hygiene, and size findings rendered to text and JSON (completed 2026-09-14)
-- [ ] **Phase 4: Gates** - Ready and Done evaluated deterministically with AC hash, three-set match, evidence check, profile matrix, and exit codes
-- [ ] **Phase 5: CLI Commands** - `new ticket`, `lint`, `gate`, `status` on Windows and POSIX with `--json`, version pin, and the `github-issues` adapter
+- [x] **Phase 4: Gates** - Ready and Done evaluated deterministically with AC hash, three-set match, evidence check, profile matrix, and exit codes (completed 2026-09-15)
+- [x] **Phase 5: CLI Commands** - `new ticket`, `lint`, `gate`, `status` on Windows and POSIX with `--json`, version pin, and the `github-issues` adapter (completed 2026-09-15)
 - [ ] **Phase 6: Skills** - One workflow definition per role rendered to SKILL.md for all four runtimes, synced with marker and hash
 - [ ] **Phase 7: Scaffolding and Example Repo** - `init` delivers the whole contract in one command; example repo passes both gates in both profiles
 - [ ] **Phase 8: MCP Server** - Stateless Streamable HTTP server over the GitHub API with GitHub OAuth, deployed and verified from two chat clients
@@ -138,7 +138,24 @@ Plans:
   4. An evidence line naming a file, test, or command absent from the snapshot fails Done; a `@test:<id>` test reported skipped in the JUnit report is not passed and fails Done; when the host supplies git authors, implementation, evidence, and tick by one author warn; when the host supplies none, the check reports as skipped
   5. Results carry exit codes 0, 1, or 2, the `maintain` profile downgrades token and size rules to warnings, and no flag or option bypasses a gate
 
-**Plans**: TBD
+**Plans**: 4/4 plans executed
+
+Plans:
+**Wave 1**
+
+- [x] 04-01-PLAN.md — Tracer: `gateReady` end to end over `valid-build` through the gate rule table to a `GateResult` rendered by `renderText`; the Ready reasons on both profiles; the `git`, `verified_hash`, `verified_commit` frontmatter contract
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [x] 04-02-PLAN.md — Done vertical slice: the three-set match, `Result: blocked`, the stale-review commit, the AC-hash staleness, the tick binding, and the D-81 sha comparison
+
+**Wave 3** *(blocked on Wave 2)*
+
+- [x] 04-03-PLAN.md — The Human layer: one shared reference extraction and segment-boundary resolution rule, the per-block evidence check, and the three verification-note rules including the `@ui` case
+
+**Wave 4** *(blocked on Wave 3)*
+
+- [x] 04-04-PLAN.md — The Machine layer: the JUnit join with skipped failing as failed does, both unconfigured-report branches, the author-mismatch warning, and the CLI as the only producer of the host git facts
 
 ### Phase 5: CLI Commands
 
@@ -155,7 +172,26 @@ Plans:
   4. A spawn test of the built binary passes on Ubuntu and Windows CI, and the CLI never spawns `npm`, `npx`, or any `.cmd`
   5. With tracker `github-issues` configured, `status` shows issue title, state, and labels using a token from `gh auth token` or `GITHUB_TOKEN`, and every gate returns the same result with or without the token
 
-**Plans**: TBD
+**Plans**: 6/6 plans executed
+
+Plans:
+**Wave 1**
+
+- [x] 05-01-PLAN.md — Tracer: `accord lint` end to end — commander spine, `git rev-parse` root resolution, the shared preflight, `renderText` with `styleText`, `--json` verbatim, the 0/1/2 exit map, the `config.yml` version pin, and the CLI-07 spawn allowlist
+- [x] 05-02-PLAN.md — Core `statusRows`: the pure, sorted `StatusRow[]` behind `status`, costing one repo-wide lint, with goldens
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [x] 05-03-PLAN.md — `gate ready <id>` and `gate done <id>` end to end, plus the one write the project performs: `ac_hash` into the ticket file, with its rerun no-op and its exit-2 write-failure path
+
+**Wave 3** *(blocked on Wave 2)*
+
+- [x] 05-04-PLAN.md — `accord status`: the ASCII `padEnd` table, the archived filter with its hidden count, `--json` verbatim, and the ASCII-only and no-backslash invariants
+
+**Wave 4** *(blocked on Wave 3)*
+
+- [x] 05-05-PLAN.md — `accord new ticket <id> --type`: template selection by profile, id substitution, the overwrite refusal, and the id-pattern rejection
+- [x] 05-06-PLAN.md — The read-only `github-issues` adapter: token lookup, parallel per-issue GET, soft degradation, and the test proving every gate is blind to the tracker
 
 ### Phase 6: Skills
 
@@ -237,8 +273,8 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 1. Workspace and Formats | 5/5 | Complete    | 2026-09-06 |
 | 2. Core Model and Loading | 7/7 | Complete    | 2026-09-13 |
 | 3. Lint | 6/6 | Complete    | 2026-09-14 |
-| 4. Gates | 0/TBD | Not started | - |
-| 5. CLI Commands | 0/TBD | Not started | - |
+| 4. Gates | 4/4 | Complete    | 2026-09-15 |
+| 5. CLI Commands | 6/6 | Complete    | 2026-09-15 |
 | 6. Skills | 0/TBD | Not started | - |
 | 7. Scaffolding and Example Repo | 0/TBD | Not started | - |
 | 8. MCP Server | 0/TBD | Not started | - |

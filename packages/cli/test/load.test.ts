@@ -1,6 +1,6 @@
 // D-51: the CLI loader must reproduce the core golden from a real git working tree.
 import { execFileSync } from 'node:child_process';
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -30,7 +30,23 @@ function stableJson(x: unknown): string {
 }
 
 const makeTmp = () => mkdtempSync(join(tmpdir(), 'accord-fs-'));
-const gitInit = (dir: string) => execFileSync('git', ['init', '-q'], { cwd: dir });
+
+/**
+ * The one git invocation site in this file. `execFileSync` defaults to `process.cwd()`, which under
+ * vitest is the accord repository root, so a single omitted `cwd` on an `add -A` / `commit` pair would
+ * stage and commit the author's whole working tree inside a green test run. The working directory is
+ * therefore pinned once, here, and the guard refuses to hand the wrapper out unless `tmp` is a throwaway
+ * sandbox under the OS temp directory. It throws rather than expects, so it fires outside a test body too.
+ */
+function gitIn(tmp: string) {
+  const root = realpathSync(tmp);
+  if (!root.startsWith(realpathSync(tmpdir())) || root === realpathSync(process.cwd())) {
+    throw new Error('refusing to run git outside a temporary sandbox: ' + tmp);
+  }
+  return (...args: string[]) =>
+    execFileSync('git', args, { cwd: tmp, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+}
+const gitInit = (dir: string) => gitIn(dir)('init', '-q');
 // git object files are read-only on Windows; retries let rmSync win the race with the index writer.
 const cleanup = (dir: string) => rmSync(dir, { recursive: true, force: true, maxRetries: 5 });
 
@@ -40,6 +56,18 @@ function makeRepo(): string {
   cpSync(fixture, tmp, { recursive: true });
   gitInit(tmp);
   return tmp;
+}
+
+/** The same fixture with exactly one commit, so HEAD is born and `gitFacts` has something to read. */
+function makeCommittedRepo(): { tmp: string; git: (...args: string[]) => string } {
+  const tmp = makeTmp();
+  cpSync(fixture, tmp, { recursive: true });
+  const git = gitIn(tmp);
+  git('init', '-q');
+  const who = ['-c', 'user.email=dev@example.test', '-c', 'user.name=Dev', '-c', 'commit.gpgsign=false'];
+  git(...who, 'add', '-A');
+  git(...who, 'commit', '-m', 'seed');
+  return { tmp, git };
 }
 
 describe('loadFromFs', () => {
@@ -172,6 +200,38 @@ describe('loadFromFs', () => {
       expect(() => loadFromFs(dir)).toThrow('no accord/ folder');
     } finally {
       cleanup(dir);
+    }
+  });
+
+  it('omits git entirely when the repository has no commit, so the golden is byte-unchanged (D-54)', () => {
+    const tmp = makeRepo();
+    try {
+      expect(Object.hasOwn(loadFromFs(tmp), 'git')).toBe(false);
+    } finally {
+      cleanup(tmp);
+    }
+  });
+
+  it('supplies git.commit and git.authors from a repository with one commit (D-78)', () => {
+    const { tmp, git } = makeCommittedRepo();
+    try {
+      // Closes the loop on the guard: a helper that ever drifted onto the accord repository fails here
+      // rather than committing to it.
+      const toplevel = realpathSync(git('rev-parse', '--show-toplevel').trim());
+      expect(toplevel).toBe(realpathSync(tmp));
+      expect(toplevel).not.toBe(realpathSync(process.cwd()));
+
+      const input = loadFromFs(tmp);
+      const facts = input.git;
+      if (facts === undefined) throw new Error('expected loadFromFs to supply git facts');
+      expect(facts.commit).toMatch(/^[0-9a-f]{40}$/);
+      expect(facts.authors[facts.commit]).toBe('dev@example.test');
+      expect(facts.authors['accord/tickets/LOGIN-1/verification.md']).toBe('dev@example.test');
+      for (const k of Object.keys(facts.authors)) expect(k).not.toContain('\\');
+      // The field survives the loader untouched (D-78).
+      expect(loadSnapshot(input).git).toEqual(facts);
+    } finally {
+      cleanup(tmp);
     }
   });
 

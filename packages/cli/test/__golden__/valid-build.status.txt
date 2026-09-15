@@ -1,0 +1,5 @@
+id       type   status  parent  ui   err/warn  ready  ticks     tracker               
+-------  -----  ------  ------  ---  --------  -----  --------  ----------------------
+EPIC-1   epic   open    -       no   0/0       -      -         -                     
+LOGIN-1  story  open    EPIC-1  yes  0/3       -      1/2 none  shortcut:1234 jira:1e3
+2 tickets shown, 0 archived hidden

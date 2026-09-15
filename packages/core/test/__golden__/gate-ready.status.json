@@ -1,0 +1,72 @@
+[
+  {
+    "errors": 0,
+    "id": "CLEAN",
+    "ready": "none",
+    "status": "open",
+    "ticksBinding": "none",
+    "ticksTagged": 1,
+    "ticksVerified": 0,
+    "type": "story",
+    "ui": false,
+    "warnings": 1
+  },
+  {
+    "errors": 0,
+    "id": "HYGIENE",
+    "ready": "none",
+    "status": "open",
+    "ticksBinding": "none",
+    "ticksTagged": 1,
+    "ticksVerified": 0,
+    "type": "story",
+    "ui": false,
+    "warnings": 5
+  },
+  {
+    "errors": 0,
+    "id": "NOUI",
+    "ready": "none",
+    "status": "open",
+    "ticksBinding": "none",
+    "ticksTagged": 1,
+    "ticksVerified": 0,
+    "type": "story",
+    "ui": false,
+    "warnings": 1
+  },
+  {
+    "errors": 1,
+    "id": "SCHEMA",
+    "ready": "none",
+    "ticksBinding": "none",
+    "ticksTagged": 1,
+    "ticksVerified": 0,
+    "ui": false,
+    "warnings": 1
+  },
+  {
+    "errors": 0,
+    "id": "THIN",
+    "ready": "none",
+    "status": "open",
+    "ticksBinding": "none",
+    "ticksTagged": 1,
+    "ticksVerified": 0,
+    "type": "story",
+    "ui": false,
+    "warnings": 3
+  },
+  {
+    "errors": 0,
+    "id": "UINOREF",
+    "ready": "none",
+    "status": "open",
+    "ticksBinding": "none",
+    "ticksTagged": 1,
+    "ticksVerified": 0,
+    "type": "story",
+    "ui": true,
+    "warnings": 1
+  }
+]

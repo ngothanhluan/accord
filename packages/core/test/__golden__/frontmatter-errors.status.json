@@ -1,0 +1,102 @@
+[
+  {
+    "errors": 1,
+    "id": "EMPTY",
+    "ready": "none",
+    "ticksBinding": "none",
+    "ticksTagged": 0,
+    "ticksVerified": 0,
+    "ui": false,
+    "warnings": 0
+  },
+  {
+    "errors": 1,
+    "id": "EMPTYFM",
+    "ready": "none",
+    "ticksBinding": "none",
+    "ticksTagged": 0,
+    "ticksVerified": 0,
+    "ui": false,
+    "warnings": 0
+  },
+  {
+    "errors": 7,
+    "id": "MISMATCH",
+    "ready": "none",
+    "status": "draft",
+    "ticksBinding": "none",
+    "ticksTagged": 0,
+    "ticksVerified": 0,
+    "type": "bug",
+    "ui": false,
+    "warnings": 0
+  },
+  {
+    "errors": 1,
+    "id": "NOFM",
+    "ready": "none",
+    "ticksBinding": "none",
+    "ticksTagged": 0,
+    "ticksVerified": 0,
+    "ui": false,
+    "warnings": 0
+  },
+  {
+    "errors": 1,
+    "id": "NOTMAP",
+    "ready": "none",
+    "ticksBinding": "none",
+    "ticksTagged": 0,
+    "ticksVerified": 0,
+    "ui": false,
+    "warnings": 0
+  },
+  {
+    "errors": 5,
+    "id": "SCHEMA",
+    "ready": "none",
+    "ticksBinding": "none",
+    "ticksTagged": 0,
+    "ticksVerified": 0,
+    "ui": false,
+    "warnings": 0
+  },
+  {
+    "errors": 1,
+    "id": "SYNTAX",
+    "ready": "none",
+    "ticksBinding": "none",
+    "ticksTagged": 0,
+    "ticksVerified": 0,
+    "ui": false,
+    "warnings": 0
+  },
+  {
+    "errors": 6,
+    "id": "TYPING",
+    "ready": "none",
+    "status": "open",
+    "ticksBinding": "none",
+    "ticksTagged": 0,
+    "ticksVerified": 0,
+    "tracker": {
+      "date": "2026-01-01",
+      "exp": "1e3",
+      "hex": "0x1F",
+      "oct": "0123"
+    },
+    "type": "story",
+    "ui": false,
+    "warnings": 0
+  },
+  {
+    "errors": 1,
+    "id": "UNTERMINATED",
+    "ready": "none",
+    "ticksBinding": "none",
+    "ticksTagged": 0,
+    "ticksVerified": 0,
+    "ui": false,
+    "warnings": 0
+  }
+]

@@ -1,0 +1,31 @@
+[
+  {
+    "errors": 0,
+    "id": "EPIC-1",
+    "ready": "none",
+    "status": "open",
+    "ticksBinding": "none",
+    "ticksTagged": 0,
+    "ticksVerified": 0,
+    "type": "epic",
+    "ui": false,
+    "warnings": 0
+  },
+  {
+    "errors": 0,
+    "id": "LOGIN-1",
+    "parent": "EPIC-1",
+    "ready": "none",
+    "status": "open",
+    "ticksBinding": "none",
+    "ticksTagged": 2,
+    "ticksVerified": 1,
+    "tracker": {
+      "jira": "1e3",
+      "shortcut": "1234"
+    },
+    "type": "story",
+    "ui": true,
+    "warnings": 3
+  }
+]

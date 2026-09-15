@@ -1,12 +1,12 @@
 #!/usr/bin/env node
-// Phase 1 placeholder entry: proves the workspace link, ESM, and shebang. Phase 5 replaces it with commander.
-import { schemaIds, validate } from '@accord-dev/accord-core';
-import pkg from '../package.json' with { type: 'json' };
+// CLI-04 entry: the real argv, cwd, and streams in; an exit code out. Everything testable lives in
+// run.ts. `process.exitCode` is assigned rather than `process.exit` called, because exit would
+// truncate a pending stdout write.
+import { runCli } from './run.js';
 
-if (process.argv[2] === '--version') {
-  console.log(pkg.version);
-} else {
-  console.log(`accord ${pkg.version}`);
-  console.log(`schemas: ${schemaIds.join(', ')}`);
-  console.log(`validate('ticket', {}) -> ${validate('ticket', {}).length} findings`);
-}
+process.exitCode = await runCli(process.argv.slice(2), {
+  cwd: process.cwd(),
+  stdout: process.stdout,
+  stderr: process.stderr,
+  env: process.env,
+});

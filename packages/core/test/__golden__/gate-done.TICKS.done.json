@@ -1,0 +1,15 @@
+{
+  "acHash": "fnv1a64:0e84e174c4cdc76b",
+  "findings": [
+    {
+      "file": "accord/tickets/TICKS.md",
+      "level": "error",
+      "pointer": "/verified",
+      "reason": "verified is set but verified_hash and verified_commit are not recorded",
+      "rule": "gate.tick-unbound"
+    }
+  ],
+  "gate": "done",
+  "ticket": "TICKS",
+  "verdict": "fail"
+}

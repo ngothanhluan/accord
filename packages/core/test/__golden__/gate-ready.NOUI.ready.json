@@ -1,0 +1,15 @@
+{
+  "acHash": "fnv1a64:6d3a29c3e382ce96",
+  "findings": [
+    {
+      "file": "accord/tickets/NOUI.md",
+      "level": "warning",
+      "line": 20,
+      "reason": "scenario \"Xoá phiên hết hạn\" has no @test:<id> tag and is not @ui",
+      "rule": "lint.test-tag-missing"
+    }
+  ],
+  "gate": "ready",
+  "ticket": "NOUI",
+  "verdict": "pass"
+}

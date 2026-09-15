@@ -1,0 +1,29 @@
+{
+  "acHash": "fnv1a64:6111813f5832f177",
+  "findings": [
+    {
+      "file": "accord/tickets/LOGIN-1.md",
+      "level": "warning",
+      "line": 37,
+      "reason": "scenario \"Đăng nhập thành công\" has no @test:<id> tag and is not @ui",
+      "rule": "lint.test-tag-missing"
+    },
+    {
+      "file": "accord/tickets/LOGIN-1.md",
+      "level": "warning",
+      "line": 42,
+      "reason": "scenario \"Mật khẩu sai\" has no @test:<id> tag and is not @ui",
+      "rule": "lint.test-tag-missing"
+    },
+    {
+      "file": "accord/tickets/LOGIN-1.md",
+      "level": "warning",
+      "line": 50,
+      "reason": "ticket has scenarios but ## Plan has no step",
+      "rule": "lint.plan-empty"
+    }
+  ],
+  "gate": "ready",
+  "ticket": "LOGIN-1",
+  "verdict": "pass"
+}

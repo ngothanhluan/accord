@@ -237,6 +237,20 @@ describe('ticket.schema.json decisions D-01..D-05, D-21..D-25', () => {
     expect(has(ticket({ ac_hash: 123 }), '/ac_hash', 'schema.type')).toBe(true);
   });
 
+  it('D-76: verified_hash and verified_commit are optional, lowercase-hashed, and at least 7 hex characters', () => {
+    expect(ticket({})).toEqual([]); // a ticket carrying neither key still validates
+    expect(ticket({ verified_hash: 'fnv1a64:0123456789abcdef' })).toEqual([]);
+    expect(has(ticket({ verified_hash: 'abc' }), '/verified_hash', 'schema.pattern')).toBe(true);
+    // The algorithm prefix and the digits are both lowercase (D-75).
+    expect(has(ticket({ verified_hash: 'FNV1A64:0123456789ABCDEF' }), '/verified_hash', 'schema.pattern')).toBe(true);
+    expect(ticket({ verified_commit: '1234567' })).toEqual([]);
+    expect(ticket({ verified_commit: 'a'.repeat(40) })).toEqual([]);
+    expect(has(ticket({ verified_commit: '123456' }), '/verified_commit', 'schema.minLength')).toBe(true);
+    expect(has(ticket({ verified_commit: 'zzzzzzz' }), '/verified_commit', 'schema.pattern')).toBe(true);
+    // additionalProperties: false still closes the object around the two new keys.
+    expect(has(ticket({ verified_sha: '1234567' }), '', 'schema.additionalProperties')).toBe(true);
+  });
+
   it('D-03: verified is a unique list of ac-n tags', () => {
     expect(ticket({ verified: ['ac-1', 'ac-12'] })).toEqual([]);
     expect(has(ticket({ verified: ['ac-0'] }), '/verified/0', 'schema.pattern')).toBe(true);

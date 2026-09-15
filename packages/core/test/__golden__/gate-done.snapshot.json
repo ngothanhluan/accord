@@ -1,0 +1,3158 @@
+{
+  "config": {
+    "accord": "0.1.0",
+    "design": {
+      "tokens": ""
+    },
+    "profile": "build",
+    "roles": [
+      "ba",
+      "dev"
+    ],
+    "runtimes": [
+      "claude",
+      "codex",
+      "cursor",
+      "copilot"
+    ],
+    "tests": {
+      "report": "reports/junit.xml"
+    },
+    "tracker": {
+      "adapter": "none"
+    }
+  },
+  "errors": [],
+  "files": {
+    "reports/junit.xml": "<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n<testsuites name=\"tests\" tests=\"4\" failures=\"1\" errors=\"0\" time=\"0.04\">\n  <testsuite name=\"test/login.spec.ts\" timestamp=\"2026-09-14T00:00:00.000Z\" tests=\"4\" failures=\"1\" errors=\"0\" skipped=\"1\" time=\"0.04\">\n    <testcase classname=\"test/login.spec.ts\" name=\"ok1\" time=\"0.01\"/>\n    <testcase classname=\"test/login.spec.ts\" name=\"ok2\" time=\"0.01\"/>\n    <testcase classname=\"test/login.spec.ts\" name=\"skip1\" time=\"0\"><skipped message=\"tam thoi tat\"/></testcase>\n    <testcase classname=\"test/login.spec.ts\" name=\"fail1\" time=\"0.02\"><failure message=\"expected true to be false\">at test/login.spec.ts:9</failure></testcase>\n  </testsuite>\n</testsuites>\n"
+  },
+  "tests": {
+    "test/login.spec.ts#fail1": "failed",
+    "test/login.spec.ts#ok1": "passed",
+    "test/login.spec.ts#ok2": "passed",
+    "test/login.spec.ts#skip1": "skipped"
+  },
+  "tickets": {
+    "BLOCKED": {
+      "file": "accord/tickets/BLOCKED.md",
+      "frontmatter": {
+        "ac_hash": "fnv1a64:0e84e174c4cdc76b",
+        "id": "BLOCKED",
+        "status": "open",
+        "title": "Một khối bằng chứng bị chặn",
+        "type": "story",
+        "ui": false,
+        "verified": [
+          "ac-1",
+          "ac-2"
+        ],
+        "verified_commit": "1234567",
+        "verified_hash": "fnv1a64:0e84e174c4cdc76b"
+      },
+      "id": "BLOCKED",
+      "requirements": [
+        {
+          "line": 19,
+          "text": "WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+        }
+      ],
+      "scenarios": [
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 26,
+          "name": "Đăng nhập thành công",
+          "steps": [
+            "When họ gửi email và mật khẩu hợp lệ",
+            "Then họ thấy bảng điều khiển"
+          ],
+          "tags": [
+            "@ac-1",
+            "@test:test/login.spec.ts#ok1"
+          ]
+        },
+        {
+          "acTag": "ac-2",
+          "keyword": "Scenario",
+          "line": 31,
+          "name": "Mật khẩu sai",
+          "steps": [
+            "When họ gửi mật khẩu sai",
+            "Then họ thấy thông báo lỗi"
+          ],
+          "tags": [
+            "@ac-2",
+            "@test:test/login.spec.ts#ok2"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 15,
+          "lines": [
+            {
+              "line": 16,
+              "text": "Người dùng đăng nhập bằng email để vào bảng điều khiển."
+            },
+            {
+              "line": 17,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Requirements",
+          "line": 18,
+          "lines": [
+            {
+              "line": 19,
+              "text": "- WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+            },
+            {
+              "line": 20,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Acceptance criteria",
+          "line": 21,
+          "lines": [
+            {
+              "line": 22,
+              "text": "```gherkin"
+            },
+            {
+              "line": 23,
+              "text": "Feature: BLOCKED"
+            },
+            {
+              "line": 24,
+              "text": ""
+            },
+            {
+              "line": 25,
+              "text": "  @ac-1 @test:test/login.spec.ts#ok1"
+            },
+            {
+              "line": 26,
+              "text": "  Scenario: Đăng nhập thành công"
+            },
+            {
+              "line": 27,
+              "text": "    When họ gửi email và mật khẩu hợp lệ"
+            },
+            {
+              "line": 28,
+              "text": "    Then họ thấy bảng điều khiển"
+            },
+            {
+              "line": 29,
+              "text": ""
+            },
+            {
+              "line": 30,
+              "text": "  @ac-2 @test:test/login.spec.ts#ok2"
+            },
+            {
+              "line": 31,
+              "text": "  Scenario: Mật khẩu sai"
+            },
+            {
+              "line": 32,
+              "text": "    When họ gửi mật khẩu sai"
+            },
+            {
+              "line": 33,
+              "text": "    Then họ thấy thông báo lỗi"
+            },
+            {
+              "line": 34,
+              "text": "```"
+            },
+            {
+              "line": 35,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Open questions",
+          "line": 36,
+          "lines": [
+            {
+              "line": 37,
+              "text": "- [x] Đã rõ"
+            },
+            {
+              "line": 38,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Plan",
+          "line": 39,
+          "lines": [
+            {
+              "line": 40,
+              "text": "- Làm màn hình đăng nhập @ac-1"
+            },
+            {
+              "line": 41,
+              "text": "- Trả lỗi khi xác thực hỏng @ac-2"
+            },
+            {
+              "line": 42,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Verification notes",
+          "line": 43,
+          "lines": [
+            {
+              "line": 44,
+              "text": "### @ac-1"
+            },
+            {
+              "line": 45,
+              "text": "src/auth/login.ts mở phiên mới rồi chuyển hướng, đã xem lại bằng tay."
+            },
+            {
+              "line": 46,
+              "text": ""
+            },
+            {
+              "line": 47,
+              "text": "### @ac-2"
+            },
+            {
+              "line": 48,
+              "text": "src/auth/login.ts dừng trước khi tạo phiên và ghi nhật ký lần thử hỏng."
+            }
+          ]
+        }
+      ]
+    },
+    "COMMIT": {
+      "file": "accord/tickets/COMMIT.md",
+      "frontmatter": {
+        "ac_hash": "fnv1a64:0e84e174c4cdc76b",
+        "id": "COMMIT",
+        "status": "open",
+        "title": "Bản sao của PASS cho COMMIT",
+        "type": "story",
+        "ui": false,
+        "verified": [
+          "ac-1",
+          "ac-2"
+        ],
+        "verified_commit": "9999999",
+        "verified_hash": "fnv1a64:0e84e174c4cdc76b"
+      },
+      "id": "COMMIT",
+      "requirements": [
+        {
+          "line": 19,
+          "text": "WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+        }
+      ],
+      "scenarios": [
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 26,
+          "name": "Đăng nhập thành công",
+          "steps": [
+            "When họ gửi email và mật khẩu hợp lệ",
+            "Then họ thấy bảng điều khiển"
+          ],
+          "tags": [
+            "@ac-1",
+            "@test:test/login.spec.ts#ok1"
+          ]
+        },
+        {
+          "acTag": "ac-2",
+          "keyword": "Scenario",
+          "line": 31,
+          "name": "Mật khẩu sai",
+          "steps": [
+            "When họ gửi mật khẩu sai",
+            "Then họ thấy thông báo lỗi"
+          ],
+          "tags": [
+            "@ac-2",
+            "@test:test/login.spec.ts#ok2"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 15,
+          "lines": [
+            {
+              "line": 16,
+              "text": "Người dùng đăng nhập bằng email để vào bảng điều khiển."
+            },
+            {
+              "line": 17,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Requirements",
+          "line": 18,
+          "lines": [
+            {
+              "line": 19,
+              "text": "- WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+            },
+            {
+              "line": 20,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Acceptance criteria",
+          "line": 21,
+          "lines": [
+            {
+              "line": 22,
+              "text": "```gherkin"
+            },
+            {
+              "line": 23,
+              "text": "Feature: COMMIT"
+            },
+            {
+              "line": 24,
+              "text": ""
+            },
+            {
+              "line": 25,
+              "text": "  @ac-1 @test:test/login.spec.ts#ok1"
+            },
+            {
+              "line": 26,
+              "text": "  Scenario: Đăng nhập thành công"
+            },
+            {
+              "line": 27,
+              "text": "    When họ gửi email và mật khẩu hợp lệ"
+            },
+            {
+              "line": 28,
+              "text": "    Then họ thấy bảng điều khiển"
+            },
+            {
+              "line": 29,
+              "text": ""
+            },
+            {
+              "line": 30,
+              "text": "  @ac-2 @test:test/login.spec.ts#ok2"
+            },
+            {
+              "line": 31,
+              "text": "  Scenario: Mật khẩu sai"
+            },
+            {
+              "line": 32,
+              "text": "    When họ gửi mật khẩu sai"
+            },
+            {
+              "line": 33,
+              "text": "    Then họ thấy thông báo lỗi"
+            },
+            {
+              "line": 34,
+              "text": "```"
+            },
+            {
+              "line": 35,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Open questions",
+          "line": 36,
+          "lines": [
+            {
+              "line": 37,
+              "text": "- [x] Đã rõ"
+            },
+            {
+              "line": 38,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Plan",
+          "line": 39,
+          "lines": [
+            {
+              "line": 40,
+              "text": "- Làm màn hình đăng nhập @ac-1"
+            },
+            {
+              "line": 41,
+              "text": "- Trả lỗi khi xác thực hỏng @ac-2"
+            },
+            {
+              "line": 42,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Verification notes",
+          "line": 43,
+          "lines": [
+            {
+              "line": 44,
+              "text": "### @ac-1"
+            },
+            {
+              "line": 45,
+              "text": "src/auth/login.ts mở phiên mới rồi chuyển hướng, đã xem lại bằng tay."
+            },
+            {
+              "line": 46,
+              "text": ""
+            },
+            {
+              "line": 47,
+              "text": "### @ac-2"
+            },
+            {
+              "line": 48,
+              "text": "src/auth/login.ts dừng trước khi tạo phiên và ghi nhật ký lần thử hỏng."
+            }
+          ]
+        }
+      ]
+    },
+    "EMPTY": {
+      "file": "accord/tickets/EMPTY.md",
+      "frontmatter": {
+        "id": "EMPTY",
+        "status": "open",
+        "title": "Sử thi không có kịch bản",
+        "type": "epic",
+        "ui": false
+      },
+      "id": "EMPTY",
+      "requirements": [
+        {
+          "line": 13,
+          "text": "WHEN một câu chuyện con hoàn tất the system SHALL cập nhật tiến độ của sử thi"
+        }
+      ],
+      "scenarios": [],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 9,
+          "lines": [
+            {
+              "line": 10,
+              "text": "Nhóm các câu chuyện đăng nhập lại thành một sử thi."
+            },
+            {
+              "line": 11,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Requirements",
+          "line": 12,
+          "lines": [
+            {
+              "line": 13,
+              "text": "- WHEN một câu chuyện con hoàn tất the system SHALL cập nhật tiến độ của sử thi"
+            },
+            {
+              "line": 14,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Open questions",
+          "line": 15,
+          "lines": [
+            {
+              "line": 16,
+              "text": "- [x] Đã rõ"
+            }
+          ]
+        }
+      ]
+    },
+    "EVIDENCE": {
+      "file": "accord/tickets/EVIDENCE.md",
+      "frontmatter": {
+        "ac_hash": "fnv1a64:0e84e174c4cdc76b",
+        "id": "EVIDENCE",
+        "status": "open",
+        "title": "Bằng chứng không nêu tệp nào có thật",
+        "type": "story",
+        "ui": false,
+        "verified": [
+          "ac-1",
+          "ac-2"
+        ],
+        "verified_commit": "1234567",
+        "verified_hash": "fnv1a64:0e84e174c4cdc76b"
+      },
+      "id": "EVIDENCE",
+      "requirements": [
+        {
+          "line": 19,
+          "text": "WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+        }
+      ],
+      "scenarios": [
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 26,
+          "name": "Đăng nhập thành công",
+          "steps": [
+            "When họ gửi email và mật khẩu hợp lệ",
+            "Then họ thấy bảng điều khiển"
+          ],
+          "tags": [
+            "@ac-1",
+            "@test:test/login.spec.ts#ok1"
+          ]
+        },
+        {
+          "acTag": "ac-2",
+          "keyword": "Scenario",
+          "line": 31,
+          "name": "Mật khẩu sai",
+          "steps": [
+            "When họ gửi mật khẩu sai",
+            "Then họ thấy thông báo lỗi"
+          ],
+          "tags": [
+            "@ac-2",
+            "@test:test/login.spec.ts#ok2"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 15,
+          "lines": [
+            {
+              "line": 16,
+              "text": "Người dùng đăng nhập bằng email để vào bảng điều khiển."
+            },
+            {
+              "line": 17,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Requirements",
+          "line": 18,
+          "lines": [
+            {
+              "line": 19,
+              "text": "- WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+            },
+            {
+              "line": 20,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Acceptance criteria",
+          "line": 21,
+          "lines": [
+            {
+              "line": 22,
+              "text": "```gherkin"
+            },
+            {
+              "line": 23,
+              "text": "Feature: EVIDENCE"
+            },
+            {
+              "line": 24,
+              "text": ""
+            },
+            {
+              "line": 25,
+              "text": "  @ac-1 @test:test/login.spec.ts#ok1"
+            },
+            {
+              "line": 26,
+              "text": "  Scenario: Đăng nhập thành công"
+            },
+            {
+              "line": 27,
+              "text": "    When họ gửi email và mật khẩu hợp lệ"
+            },
+            {
+              "line": 28,
+              "text": "    Then họ thấy bảng điều khiển"
+            },
+            {
+              "line": 29,
+              "text": ""
+            },
+            {
+              "line": 30,
+              "text": "  @ac-2 @test:test/login.spec.ts#ok2"
+            },
+            {
+              "line": 31,
+              "text": "  Scenario: Mật khẩu sai"
+            },
+            {
+              "line": 32,
+              "text": "    When họ gửi mật khẩu sai"
+            },
+            {
+              "line": 33,
+              "text": "    Then họ thấy thông báo lỗi"
+            },
+            {
+              "line": 34,
+              "text": "```"
+            },
+            {
+              "line": 35,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Open questions",
+          "line": 36,
+          "lines": [
+            {
+              "line": 37,
+              "text": "- [x] Đã rõ"
+            },
+            {
+              "line": 38,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Plan",
+          "line": 39,
+          "lines": [
+            {
+              "line": 40,
+              "text": "- Làm màn hình đăng nhập @ac-1"
+            },
+            {
+              "line": 41,
+              "text": "- Trả lỗi khi xác thực hỏng @ac-2"
+            },
+            {
+              "line": 42,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Verification notes",
+          "line": 43,
+          "lines": [
+            {
+              "line": 44,
+              "text": "### @ac-1"
+            },
+            {
+              "line": 45,
+              "text": "src/auth/login.ts mở phiên mới rồi chuyển hướng, đã xem lại bằng tay."
+            },
+            {
+              "line": 46,
+              "text": ""
+            },
+            {
+              "line": 47,
+              "text": "### @ac-2"
+            },
+            {
+              "line": 48,
+              "text": "src/auth/login.ts dừng trước khi tạo phiên và ghi nhật ký lần thử hỏng."
+            }
+          ]
+        }
+      ]
+    },
+    "MACHINE": {
+      "file": "accord/tickets/MACHINE.md",
+      "frontmatter": {
+        "ac_hash": "fnv1a64:cf39577f15f434b9",
+        "id": "MACHINE",
+        "status": "open",
+        "title": "Lớp máy của Done đọc báo cáo chứ không nghe lời khai",
+        "type": "story",
+        "ui": false,
+        "verified": [
+          "ac-1",
+          "ac-2",
+          "ac-3",
+          "ac-4"
+        ],
+        "verified_commit": "1234567",
+        "verified_hash": "fnv1a64:cf39577f15f434b9"
+      },
+      "id": "MACHINE",
+      "requirements": [
+        {
+          "line": 21,
+          "text": "WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+        }
+      ],
+      "scenarios": [
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 28,
+          "name": "Bài kiểm thử bị tắt tiếng",
+          "steps": [
+            "When họ gửi email và mật khẩu hợp lệ",
+            "Then họ thấy bảng điều khiển"
+          ],
+          "tags": [
+            "@ac-1",
+            "@test:test/login.spec.ts#skip1"
+          ]
+        },
+        {
+          "acTag": "ac-2",
+          "keyword": "Scenario",
+          "line": 33,
+          "name": "Bài kiểm thử hỏng",
+          "steps": [
+            "When họ gửi mật khẩu sai",
+            "Then họ thấy thông báo lỗi"
+          ],
+          "tags": [
+            "@ac-2",
+            "@test:test/login.spec.ts#fail1"
+          ]
+        },
+        {
+          "acTag": "ac-3",
+          "keyword": "Scenario",
+          "line": 38,
+          "name": "Mã kiểm thử không có trong báo cáo",
+          "steps": [
+            "When họ gửi email chưa đăng ký",
+            "Then họ thấy lời mời tạo tài khoản"
+          ],
+          "tags": [
+            "@ac-3",
+            "@test:nope#missing"
+          ]
+        },
+        {
+          "acTag": "ac-4",
+          "keyword": "Scenario",
+          "line": 43,
+          "name": "Kịch bản quên gắn thẻ kiểm thử",
+          "steps": [
+            "When họ gửi email viết hoa",
+            "Then hệ thống vẫn nhận đúng tài khoản"
+          ],
+          "tags": [
+            "@ac-4"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 17,
+          "lines": [
+            {
+              "line": 18,
+              "text": "Người dùng đăng nhập bằng email để vào bảng điều khiển."
+            },
+            {
+              "line": 19,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Requirements",
+          "line": 20,
+          "lines": [
+            {
+              "line": 21,
+              "text": "- WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+            },
+            {
+              "line": 22,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Acceptance criteria",
+          "line": 23,
+          "lines": [
+            {
+              "line": 24,
+              "text": "```gherkin"
+            },
+            {
+              "line": 25,
+              "text": "Feature: MACHINE"
+            },
+            {
+              "line": 26,
+              "text": ""
+            },
+            {
+              "line": 27,
+              "text": "  @ac-1 @test:test/login.spec.ts#skip1"
+            },
+            {
+              "line": 28,
+              "text": "  Scenario: Bài kiểm thử bị tắt tiếng"
+            },
+            {
+              "line": 29,
+              "text": "    When họ gửi email và mật khẩu hợp lệ"
+            },
+            {
+              "line": 30,
+              "text": "    Then họ thấy bảng điều khiển"
+            },
+            {
+              "line": 31,
+              "text": ""
+            },
+            {
+              "line": 32,
+              "text": "  @ac-2 @test:test/login.spec.ts#fail1"
+            },
+            {
+              "line": 33,
+              "text": "  Scenario: Bài kiểm thử hỏng"
+            },
+            {
+              "line": 34,
+              "text": "    When họ gửi mật khẩu sai"
+            },
+            {
+              "line": 35,
+              "text": "    Then họ thấy thông báo lỗi"
+            },
+            {
+              "line": 36,
+              "text": ""
+            },
+            {
+              "line": 37,
+              "text": "  @ac-3 @test:nope#missing"
+            },
+            {
+              "line": 38,
+              "text": "  Scenario: Mã kiểm thử không có trong báo cáo"
+            },
+            {
+              "line": 39,
+              "text": "    When họ gửi email chưa đăng ký"
+            },
+            {
+              "line": 40,
+              "text": "    Then họ thấy lời mời tạo tài khoản"
+            },
+            {
+              "line": 41,
+              "text": ""
+            },
+            {
+              "line": 42,
+              "text": "  @ac-4"
+            },
+            {
+              "line": 43,
+              "text": "  Scenario: Kịch bản quên gắn thẻ kiểm thử"
+            },
+            {
+              "line": 44,
+              "text": "    When họ gửi email viết hoa"
+            },
+            {
+              "line": 45,
+              "text": "    Then hệ thống vẫn nhận đúng tài khoản"
+            },
+            {
+              "line": 46,
+              "text": "```"
+            },
+            {
+              "line": 47,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Open questions",
+          "line": 48,
+          "lines": [
+            {
+              "line": 49,
+              "text": "- [x] Đã rõ"
+            },
+            {
+              "line": 50,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Plan",
+          "line": 51,
+          "lines": [
+            {
+              "line": 52,
+              "text": "- Làm màn hình đăng nhập @ac-1"
+            },
+            {
+              "line": 53,
+              "text": "- Trả lỗi khi xác thực hỏng @ac-2"
+            },
+            {
+              "line": 54,
+              "text": "- Mời tạo tài khoản khi email lạ @ac-3"
+            },
+            {
+              "line": 55,
+              "text": "- Chuẩn hoá email trước khi tra cứu @ac-4"
+            },
+            {
+              "line": 56,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Verification notes",
+          "line": 57,
+          "lines": [
+            {
+              "line": 58,
+              "text": "### @ac-1"
+            },
+            {
+              "line": 59,
+              "text": "src/auth/login.ts mở phiên mới rồi chuyển hướng, tôi đã đọc lại từng nhánh."
+            },
+            {
+              "line": 60,
+              "text": ""
+            },
+            {
+              "line": 61,
+              "text": "### @ac-2"
+            },
+            {
+              "line": 62,
+              "text": "src/auth/login.ts dừng trước khi tạo phiên và ghi nhật ký lần thử hỏng."
+            },
+            {
+              "line": 63,
+              "text": ""
+            },
+            {
+              "line": 64,
+              "text": "### @ac-3"
+            },
+            {
+              "line": 65,
+              "text": "src/auth/login.ts trả về lời mời đăng ký thay vì báo sai mật khẩu, tránh lộ email nào đã tồn tại."
+            },
+            {
+              "line": 66,
+              "text": ""
+            },
+            {
+              "line": 67,
+              "text": "### @ac-4"
+            },
+            {
+              "line": 68,
+              "text": "src/auth/login.ts hạ chữ thường email trước khi tra cứu, nên email viết hoa vẫn vào đúng tài khoản."
+            }
+          ]
+        }
+      ]
+    },
+    "NOTES": {
+      "file": "accord/tickets/NOTES.md",
+      "frontmatter": {
+        "ac_hash": "fnv1a64:01d5981d93f368f0",
+        "id": "NOTES",
+        "status": "open",
+        "title": "Ghi chú thiếu, dán lại, và không nêu tệp",
+        "type": "story",
+        "ui": false,
+        "verified": [
+          "ac-1",
+          "ac-2",
+          "ac-3"
+        ],
+        "verified_commit": "1234567",
+        "verified_hash": "fnv1a64:01d5981d93f368f0"
+      },
+      "id": "NOTES",
+      "requirements": [
+        {
+          "line": 20,
+          "text": "WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+        }
+      ],
+      "scenarios": [
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 27,
+          "name": "Đăng nhập thành công",
+          "steps": [
+            "When họ gửi email và mật khẩu hợp lệ",
+            "Then họ thấy bảng điều khiển"
+          ],
+          "tags": [
+            "@ac-1",
+            "@test:test/login.spec.ts#ok1"
+          ]
+        },
+        {
+          "acTag": "ac-2",
+          "keyword": "Scenario",
+          "line": 32,
+          "name": "Mật khẩu sai",
+          "steps": [
+            "When họ gửi mật khẩu sai",
+            "Then họ thấy thông báo lỗi"
+          ],
+          "tags": [
+            "@ac-2",
+            "@test:test/login.spec.ts#ok2"
+          ]
+        },
+        {
+          "acTag": "ac-3",
+          "keyword": "Scenario",
+          "line": 37,
+          "name": "Nút đăng nhập bị vô hiệu hoá",
+          "steps": [
+            "When ô email còn trống",
+            "Then nút đăng nhập bị mờ đi"
+          ],
+          "tags": [
+            "@ac-3",
+            "@ui"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 16,
+          "lines": [
+            {
+              "line": 17,
+              "text": "Người dùng đăng nhập bằng email để vào bảng điều khiển."
+            },
+            {
+              "line": 18,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Requirements",
+          "line": 19,
+          "lines": [
+            {
+              "line": 20,
+              "text": "- WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+            },
+            {
+              "line": 21,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Acceptance criteria",
+          "line": 22,
+          "lines": [
+            {
+              "line": 23,
+              "text": "```gherkin"
+            },
+            {
+              "line": 24,
+              "text": "Feature: NOTES"
+            },
+            {
+              "line": 25,
+              "text": ""
+            },
+            {
+              "line": 26,
+              "text": "  @ac-1 @test:test/login.spec.ts#ok1"
+            },
+            {
+              "line": 27,
+              "text": "  Scenario: Đăng nhập thành công"
+            },
+            {
+              "line": 28,
+              "text": "    When họ gửi email và mật khẩu hợp lệ"
+            },
+            {
+              "line": 29,
+              "text": "    Then họ thấy bảng điều khiển"
+            },
+            {
+              "line": 30,
+              "text": ""
+            },
+            {
+              "line": 31,
+              "text": "  @ac-2 @test:test/login.spec.ts#ok2"
+            },
+            {
+              "line": 32,
+              "text": "  Scenario: Mật khẩu sai"
+            },
+            {
+              "line": 33,
+              "text": "    When họ gửi mật khẩu sai"
+            },
+            {
+              "line": 34,
+              "text": "    Then họ thấy thông báo lỗi"
+            },
+            {
+              "line": 35,
+              "text": ""
+            },
+            {
+              "line": 36,
+              "text": "  @ac-3 @ui"
+            },
+            {
+              "line": 37,
+              "text": "  Scenario: Nút đăng nhập bị vô hiệu hoá"
+            },
+            {
+              "line": 38,
+              "text": "    When ô email còn trống"
+            },
+            {
+              "line": 39,
+              "text": "    Then nút đăng nhập bị mờ đi"
+            },
+            {
+              "line": 40,
+              "text": "```"
+            },
+            {
+              "line": 41,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Open questions",
+          "line": 42,
+          "lines": [
+            {
+              "line": 43,
+              "text": "- [x] Đã rõ"
+            },
+            {
+              "line": 44,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Plan",
+          "line": 45,
+          "lines": [
+            {
+              "line": 46,
+              "text": "- Làm màn hình đăng nhập @ac-1"
+            },
+            {
+              "line": 47,
+              "text": "- Trả lỗi khi xác thực hỏng @ac-2"
+            },
+            {
+              "line": 48,
+              "text": "- Làm nút đăng nhập mờ đi @ac-3"
+            },
+            {
+              "line": 49,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Verification notes",
+          "line": 50,
+          "lines": [
+            {
+              "line": 51,
+              "text": "### @ac-2"
+            },
+            {
+              "line": 52,
+              "text": "Mật khẩu sai When họ gửi mật khẩu sai Then họ thấy thông báo lỗi src/auth/login.ts"
+            },
+            {
+              "line": 53,
+              "text": ""
+            },
+            {
+              "line": 54,
+              "text": "### @ac-3"
+            },
+            {
+              "line": 55,
+              "text": "LoginButton"
+            }
+          ]
+        }
+      ]
+    },
+    "NOVERIF": {
+      "file": "accord/tickets/NOVERIF.md",
+      "frontmatter": {
+        "id": "NOVERIF",
+        "status": "open",
+        "title": "Không có hồ sơ kiểm chứng",
+        "type": "story",
+        "ui": false
+      },
+      "id": "NOVERIF",
+      "requirements": [
+        {
+          "line": 13,
+          "text": "WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+        }
+      ],
+      "scenarios": [
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 20,
+          "name": "Đăng nhập thành công",
+          "steps": [
+            "When họ gửi email và mật khẩu hợp lệ",
+            "Then họ thấy bảng điều khiển"
+          ],
+          "tags": [
+            "@ac-1",
+            "@test:test/login.spec.ts#ok1"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 9,
+          "lines": [
+            {
+              "line": 10,
+              "text": "Người dùng đăng nhập bằng email để vào bảng điều khiển."
+            },
+            {
+              "line": 11,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Requirements",
+          "line": 12,
+          "lines": [
+            {
+              "line": 13,
+              "text": "- WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+            },
+            {
+              "line": 14,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Acceptance criteria",
+          "line": 15,
+          "lines": [
+            {
+              "line": 16,
+              "text": "```gherkin"
+            },
+            {
+              "line": 17,
+              "text": "Feature: NOVERIF"
+            },
+            {
+              "line": 18,
+              "text": ""
+            },
+            {
+              "line": 19,
+              "text": "  @ac-1 @test:test/login.spec.ts#ok1"
+            },
+            {
+              "line": 20,
+              "text": "  Scenario: Đăng nhập thành công"
+            },
+            {
+              "line": 21,
+              "text": "    When họ gửi email và mật khẩu hợp lệ"
+            },
+            {
+              "line": 22,
+              "text": "    Then họ thấy bảng điều khiển"
+            },
+            {
+              "line": 23,
+              "text": "```"
+            },
+            {
+              "line": 24,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Open questions",
+          "line": 25,
+          "lines": [
+            {
+              "line": 26,
+              "text": "- [x] Đã rõ"
+            },
+            {
+              "line": 27,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Plan",
+          "line": 28,
+          "lines": [
+            {
+              "line": 29,
+              "text": "- Làm màn hình đăng nhập @ac-1"
+            }
+          ]
+        }
+      ]
+    },
+    "PASS": {
+      "file": "accord/tickets/PASS.md",
+      "frontmatter": {
+        "ac_hash": "fnv1a64:0e84e174c4cdc76b",
+        "id": "PASS",
+        "status": "open",
+        "title": "Đăng nhập đã được kiểm chứng",
+        "type": "story",
+        "ui": false,
+        "verified": [
+          "ac-1",
+          "ac-2"
+        ],
+        "verified_commit": "1234567",
+        "verified_hash": "fnv1a64:0e84e174c4cdc76b"
+      },
+      "id": "PASS",
+      "requirements": [
+        {
+          "line": 19,
+          "text": "WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+        }
+      ],
+      "scenarios": [
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 26,
+          "name": "Đăng nhập thành công",
+          "steps": [
+            "When họ gửi email và mật khẩu hợp lệ",
+            "Then họ thấy bảng điều khiển"
+          ],
+          "tags": [
+            "@ac-1",
+            "@test:test/login.spec.ts#ok1"
+          ]
+        },
+        {
+          "acTag": "ac-2",
+          "keyword": "Scenario",
+          "line": 31,
+          "name": "Mật khẩu sai",
+          "steps": [
+            "When họ gửi mật khẩu sai",
+            "Then họ thấy thông báo lỗi"
+          ],
+          "tags": [
+            "@ac-2",
+            "@test:test/login.spec.ts#ok2"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 15,
+          "lines": [
+            {
+              "line": 16,
+              "text": "Người dùng đăng nhập bằng email để vào bảng điều khiển."
+            },
+            {
+              "line": 17,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Requirements",
+          "line": 18,
+          "lines": [
+            {
+              "line": 19,
+              "text": "- WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+            },
+            {
+              "line": 20,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Acceptance criteria",
+          "line": 21,
+          "lines": [
+            {
+              "line": 22,
+              "text": "```gherkin"
+            },
+            {
+              "line": 23,
+              "text": "Feature: PASS"
+            },
+            {
+              "line": 24,
+              "text": ""
+            },
+            {
+              "line": 25,
+              "text": "  @ac-1 @test:test/login.spec.ts#ok1"
+            },
+            {
+              "line": 26,
+              "text": "  Scenario: Đăng nhập thành công"
+            },
+            {
+              "line": 27,
+              "text": "    When họ gửi email và mật khẩu hợp lệ"
+            },
+            {
+              "line": 28,
+              "text": "    Then họ thấy bảng điều khiển"
+            },
+            {
+              "line": 29,
+              "text": ""
+            },
+            {
+              "line": 30,
+              "text": "  @ac-2 @test:test/login.spec.ts#ok2"
+            },
+            {
+              "line": 31,
+              "text": "  Scenario: Mật khẩu sai"
+            },
+            {
+              "line": 32,
+              "text": "    When họ gửi mật khẩu sai"
+            },
+            {
+              "line": 33,
+              "text": "    Then họ thấy thông báo lỗi"
+            },
+            {
+              "line": 34,
+              "text": "```"
+            },
+            {
+              "line": 35,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Open questions",
+          "line": 36,
+          "lines": [
+            {
+              "line": 37,
+              "text": "- [x] Đã rõ"
+            },
+            {
+              "line": 38,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Plan",
+          "line": 39,
+          "lines": [
+            {
+              "line": 40,
+              "text": "- Làm màn hình đăng nhập @ac-1"
+            },
+            {
+              "line": 41,
+              "text": "- Trả lỗi khi xác thực hỏng @ac-2"
+            },
+            {
+              "line": 42,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Verification notes",
+          "line": 43,
+          "lines": [
+            {
+              "line": 44,
+              "text": "### @ac-1"
+            },
+            {
+              "line": 45,
+              "text": "src/auth/login.ts mở phiên mới rồi chuyển hướng, đã xem lại bằng tay."
+            },
+            {
+              "line": 46,
+              "text": ""
+            },
+            {
+              "line": 47,
+              "text": "### @ac-2"
+            },
+            {
+              "line": 48,
+              "text": "src/auth/login.ts dừng trước khi tạo phiên và ghi nhật ký lần thử hỏng."
+            }
+          ]
+        }
+      ]
+    },
+    "REVIEW": {
+      "file": "accord/tickets/REVIEW.md",
+      "frontmatter": {
+        "ac_hash": "fnv1a64:0e84e174c4cdc76b",
+        "id": "REVIEW",
+        "status": "open",
+        "title": "Bản sao của PASS cho REVIEW",
+        "type": "story",
+        "ui": false,
+        "verified": [
+          "ac-1",
+          "ac-2"
+        ],
+        "verified_commit": "1234567",
+        "verified_hash": "fnv1a64:0e84e174c4cdc76b"
+      },
+      "id": "REVIEW",
+      "requirements": [
+        {
+          "line": 19,
+          "text": "WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+        }
+      ],
+      "scenarios": [
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 26,
+          "name": "Đăng nhập thành công",
+          "steps": [
+            "When họ gửi email và mật khẩu hợp lệ",
+            "Then họ thấy bảng điều khiển"
+          ],
+          "tags": [
+            "@ac-1",
+            "@test:test/login.spec.ts#ok1"
+          ]
+        },
+        {
+          "acTag": "ac-2",
+          "keyword": "Scenario",
+          "line": 31,
+          "name": "Mật khẩu sai",
+          "steps": [
+            "When họ gửi mật khẩu sai",
+            "Then họ thấy thông báo lỗi"
+          ],
+          "tags": [
+            "@ac-2",
+            "@test:test/login.spec.ts#ok2"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 15,
+          "lines": [
+            {
+              "line": 16,
+              "text": "Người dùng đăng nhập bằng email để vào bảng điều khiển."
+            },
+            {
+              "line": 17,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Requirements",
+          "line": 18,
+          "lines": [
+            {
+              "line": 19,
+              "text": "- WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+            },
+            {
+              "line": 20,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Acceptance criteria",
+          "line": 21,
+          "lines": [
+            {
+              "line": 22,
+              "text": "```gherkin"
+            },
+            {
+              "line": 23,
+              "text": "Feature: REVIEW"
+            },
+            {
+              "line": 24,
+              "text": ""
+            },
+            {
+              "line": 25,
+              "text": "  @ac-1 @test:test/login.spec.ts#ok1"
+            },
+            {
+              "line": 26,
+              "text": "  Scenario: Đăng nhập thành công"
+            },
+            {
+              "line": 27,
+              "text": "    When họ gửi email và mật khẩu hợp lệ"
+            },
+            {
+              "line": 28,
+              "text": "    Then họ thấy bảng điều khiển"
+            },
+            {
+              "line": 29,
+              "text": ""
+            },
+            {
+              "line": 30,
+              "text": "  @ac-2 @test:test/login.spec.ts#ok2"
+            },
+            {
+              "line": 31,
+              "text": "  Scenario: Mật khẩu sai"
+            },
+            {
+              "line": 32,
+              "text": "    When họ gửi mật khẩu sai"
+            },
+            {
+              "line": 33,
+              "text": "    Then họ thấy thông báo lỗi"
+            },
+            {
+              "line": 34,
+              "text": "```"
+            },
+            {
+              "line": 35,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Open questions",
+          "line": 36,
+          "lines": [
+            {
+              "line": 37,
+              "text": "- [x] Đã rõ"
+            },
+            {
+              "line": 38,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Plan",
+          "line": 39,
+          "lines": [
+            {
+              "line": 40,
+              "text": "- Làm màn hình đăng nhập @ac-1"
+            },
+            {
+              "line": 41,
+              "text": "- Trả lỗi khi xác thực hỏng @ac-2"
+            },
+            {
+              "line": 42,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Verification notes",
+          "line": 43,
+          "lines": [
+            {
+              "line": 44,
+              "text": "### @ac-1"
+            },
+            {
+              "line": 45,
+              "text": "src/auth/login.ts mở phiên mới rồi chuyển hướng, đã xem lại bằng tay."
+            },
+            {
+              "line": 46,
+              "text": ""
+            },
+            {
+              "line": 47,
+              "text": "### @ac-2"
+            },
+            {
+              "line": 48,
+              "text": "src/auth/login.ts dừng trước khi tạo phiên và ghi nhật ký lần thử hỏng."
+            }
+          ]
+        }
+      ]
+    },
+    "SETS": {
+      "file": "accord/tickets/SETS.md",
+      "frontmatter": {
+        "ac_hash": "fnv1a64:0e84e174c4cdc76b",
+        "id": "SETS",
+        "status": "open",
+        "title": "Ba tập hợp không khớp nhau",
+        "type": "story",
+        "ui": false,
+        "verified": [
+          "ac-1",
+          "ac-3"
+        ],
+        "verified_commit": "1234567",
+        "verified_hash": "fnv1a64:0e84e174c4cdc76b"
+      },
+      "id": "SETS",
+      "requirements": [
+        {
+          "line": 19,
+          "text": "WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+        }
+      ],
+      "scenarios": [
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 26,
+          "name": "Đăng nhập thành công",
+          "steps": [
+            "When họ gửi email và mật khẩu hợp lệ",
+            "Then họ thấy bảng điều khiển"
+          ],
+          "tags": [
+            "@ac-1",
+            "@test:test/login.spec.ts#ok1"
+          ]
+        },
+        {
+          "acTag": "ac-2",
+          "keyword": "Scenario",
+          "line": 31,
+          "name": "Mật khẩu sai",
+          "steps": [
+            "When họ gửi mật khẩu sai",
+            "Then họ thấy thông báo lỗi"
+          ],
+          "tags": [
+            "@ac-2",
+            "@test:test/login.spec.ts#ok2"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 15,
+          "lines": [
+            {
+              "line": 16,
+              "text": "Người dùng đăng nhập bằng email để vào bảng điều khiển."
+            },
+            {
+              "line": 17,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Requirements",
+          "line": 18,
+          "lines": [
+            {
+              "line": 19,
+              "text": "- WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+            },
+            {
+              "line": 20,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Acceptance criteria",
+          "line": 21,
+          "lines": [
+            {
+              "line": 22,
+              "text": "```gherkin"
+            },
+            {
+              "line": 23,
+              "text": "Feature: SETS"
+            },
+            {
+              "line": 24,
+              "text": ""
+            },
+            {
+              "line": 25,
+              "text": "  @ac-1 @test:test/login.spec.ts#ok1"
+            },
+            {
+              "line": 26,
+              "text": "  Scenario: Đăng nhập thành công"
+            },
+            {
+              "line": 27,
+              "text": "    When họ gửi email và mật khẩu hợp lệ"
+            },
+            {
+              "line": 28,
+              "text": "    Then họ thấy bảng điều khiển"
+            },
+            {
+              "line": 29,
+              "text": ""
+            },
+            {
+              "line": 30,
+              "text": "  @ac-2 @test:test/login.spec.ts#ok2"
+            },
+            {
+              "line": 31,
+              "text": "  Scenario: Mật khẩu sai"
+            },
+            {
+              "line": 32,
+              "text": "    When họ gửi mật khẩu sai"
+            },
+            {
+              "line": 33,
+              "text": "    Then họ thấy thông báo lỗi"
+            },
+            {
+              "line": 34,
+              "text": "```"
+            },
+            {
+              "line": 35,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Open questions",
+          "line": 36,
+          "lines": [
+            {
+              "line": 37,
+              "text": "- [x] Đã rõ"
+            },
+            {
+              "line": 38,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Plan",
+          "line": 39,
+          "lines": [
+            {
+              "line": 40,
+              "text": "- Làm màn hình đăng nhập @ac-1"
+            },
+            {
+              "line": 41,
+              "text": "- Trả lỗi khi xác thực hỏng @ac-2"
+            },
+            {
+              "line": 42,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Verification notes",
+          "line": 43,
+          "lines": [
+            {
+              "line": 44,
+              "text": "### @ac-1"
+            },
+            {
+              "line": 45,
+              "text": "src/auth/login.ts mở phiên mới rồi chuyển hướng, đã xem lại bằng tay."
+            },
+            {
+              "line": 46,
+              "text": ""
+            },
+            {
+              "line": 47,
+              "text": "### @ac-2"
+            },
+            {
+              "line": 48,
+              "text": "src/auth/login.ts dừng trước khi tạo phiên và ghi nhật ký lần thử hỏng."
+            }
+          ]
+        }
+      ]
+    },
+    "SOLO": {
+      "file": "accord/tickets/SOLO.md",
+      "frontmatter": {
+        "ac_hash": "fnv1a64:0e84e174c4cdc76b",
+        "id": "SOLO",
+        "status": "open",
+        "title": "Phiếu chỉ có một người vừa viết vừa duyệt",
+        "type": "story",
+        "ui": false,
+        "verified": [
+          "ac-1",
+          "ac-2"
+        ],
+        "verified_commit": "1234567",
+        "verified_hash": "fnv1a64:0e84e174c4cdc76b"
+      },
+      "id": "SOLO",
+      "requirements": [
+        {
+          "line": 19,
+          "text": "WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+        }
+      ],
+      "scenarios": [
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 26,
+          "name": "Đăng nhập thành công",
+          "steps": [
+            "When họ gửi email và mật khẩu hợp lệ",
+            "Then họ thấy bảng điều khiển"
+          ],
+          "tags": [
+            "@ac-1",
+            "@test:test/login.spec.ts#ok1"
+          ]
+        },
+        {
+          "acTag": "ac-2",
+          "keyword": "Scenario",
+          "line": 31,
+          "name": "Mật khẩu sai",
+          "steps": [
+            "When họ gửi mật khẩu sai",
+            "Then họ thấy thông báo lỗi"
+          ],
+          "tags": [
+            "@ac-2",
+            "@test:test/login.spec.ts#ok2"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 15,
+          "lines": [
+            {
+              "line": 16,
+              "text": "Người dùng đăng nhập bằng email để vào bảng điều khiển."
+            },
+            {
+              "line": 17,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Requirements",
+          "line": 18,
+          "lines": [
+            {
+              "line": 19,
+              "text": "- WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+            },
+            {
+              "line": 20,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Acceptance criteria",
+          "line": 21,
+          "lines": [
+            {
+              "line": 22,
+              "text": "```gherkin"
+            },
+            {
+              "line": 23,
+              "text": "Feature: SOLO"
+            },
+            {
+              "line": 24,
+              "text": ""
+            },
+            {
+              "line": 25,
+              "text": "  @ac-1 @test:test/login.spec.ts#ok1"
+            },
+            {
+              "line": 26,
+              "text": "  Scenario: Đăng nhập thành công"
+            },
+            {
+              "line": 27,
+              "text": "    When họ gửi email và mật khẩu hợp lệ"
+            },
+            {
+              "line": 28,
+              "text": "    Then họ thấy bảng điều khiển"
+            },
+            {
+              "line": 29,
+              "text": ""
+            },
+            {
+              "line": 30,
+              "text": "  @ac-2 @test:test/login.spec.ts#ok2"
+            },
+            {
+              "line": 31,
+              "text": "  Scenario: Mật khẩu sai"
+            },
+            {
+              "line": 32,
+              "text": "    When họ gửi mật khẩu sai"
+            },
+            {
+              "line": 33,
+              "text": "    Then họ thấy thông báo lỗi"
+            },
+            {
+              "line": 34,
+              "text": "```"
+            },
+            {
+              "line": 35,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Open questions",
+          "line": 36,
+          "lines": [
+            {
+              "line": 37,
+              "text": "- [x] Đã rõ"
+            },
+            {
+              "line": 38,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Plan",
+          "line": 39,
+          "lines": [
+            {
+              "line": 40,
+              "text": "- Làm màn hình đăng nhập @ac-1"
+            },
+            {
+              "line": 41,
+              "text": "- Trả lỗi khi xác thực hỏng @ac-2"
+            },
+            {
+              "line": 42,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Verification notes",
+          "line": 43,
+          "lines": [
+            {
+              "line": 44,
+              "text": "### @ac-1"
+            },
+            {
+              "line": 45,
+              "text": "src/auth/login.ts mở phiên mới rồi chuyển hướng, đã xem lại bằng tay."
+            },
+            {
+              "line": 46,
+              "text": ""
+            },
+            {
+              "line": 47,
+              "text": "### @ac-2"
+            },
+            {
+              "line": 48,
+              "text": "src/auth/login.ts dừng trước khi tạo phiên và ghi nhật ký lần thử hỏng."
+            }
+          ]
+        }
+      ]
+    },
+    "STALE": {
+      "file": "accord/tickets/STALE.md",
+      "frontmatter": {
+        "ac_hash": "fnv1a64:deadbeefdeadbeef",
+        "id": "STALE",
+        "status": "open",
+        "title": "Bản sao của PASS cho STALE",
+        "type": "story",
+        "ui": false,
+        "verified": [
+          "ac-1",
+          "ac-2"
+        ],
+        "verified_commit": "1234567",
+        "verified_hash": "fnv1a64:deadbeefdeadbeef"
+      },
+      "id": "STALE",
+      "requirements": [
+        {
+          "line": 19,
+          "text": "WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+        }
+      ],
+      "scenarios": [
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 26,
+          "name": "Đăng nhập thành công",
+          "steps": [
+            "When họ gửi email và mật khẩu hợp lệ",
+            "Then họ thấy bảng điều khiển"
+          ],
+          "tags": [
+            "@ac-1",
+            "@test:test/login.spec.ts#ok1"
+          ]
+        },
+        {
+          "acTag": "ac-2",
+          "keyword": "Scenario",
+          "line": 31,
+          "name": "Mật khẩu sai",
+          "steps": [
+            "When họ gửi mật khẩu sai",
+            "Then họ thấy thông báo lỗi"
+          ],
+          "tags": [
+            "@ac-2",
+            "@test:test/login.spec.ts#ok2"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 15,
+          "lines": [
+            {
+              "line": 16,
+              "text": "Người dùng đăng nhập bằng email để vào bảng điều khiển."
+            },
+            {
+              "line": 17,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Requirements",
+          "line": 18,
+          "lines": [
+            {
+              "line": 19,
+              "text": "- WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+            },
+            {
+              "line": 20,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Acceptance criteria",
+          "line": 21,
+          "lines": [
+            {
+              "line": 22,
+              "text": "```gherkin"
+            },
+            {
+              "line": 23,
+              "text": "Feature: STALE"
+            },
+            {
+              "line": 24,
+              "text": ""
+            },
+            {
+              "line": 25,
+              "text": "  @ac-1 @test:test/login.spec.ts#ok1"
+            },
+            {
+              "line": 26,
+              "text": "  Scenario: Đăng nhập thành công"
+            },
+            {
+              "line": 27,
+              "text": "    When họ gửi email và mật khẩu hợp lệ"
+            },
+            {
+              "line": 28,
+              "text": "    Then họ thấy bảng điều khiển"
+            },
+            {
+              "line": 29,
+              "text": ""
+            },
+            {
+              "line": 30,
+              "text": "  @ac-2 @test:test/login.spec.ts#ok2"
+            },
+            {
+              "line": 31,
+              "text": "  Scenario: Mật khẩu sai"
+            },
+            {
+              "line": 32,
+              "text": "    When họ gửi mật khẩu sai"
+            },
+            {
+              "line": 33,
+              "text": "    Then họ thấy thông báo lỗi"
+            },
+            {
+              "line": 34,
+              "text": "```"
+            },
+            {
+              "line": 35,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Open questions",
+          "line": 36,
+          "lines": [
+            {
+              "line": 37,
+              "text": "- [x] Đã rõ"
+            },
+            {
+              "line": 38,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Plan",
+          "line": 39,
+          "lines": [
+            {
+              "line": 40,
+              "text": "- Làm màn hình đăng nhập @ac-1"
+            },
+            {
+              "line": 41,
+              "text": "- Trả lỗi khi xác thực hỏng @ac-2"
+            },
+            {
+              "line": 42,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Verification notes",
+          "line": 43,
+          "lines": [
+            {
+              "line": 44,
+              "text": "### @ac-1"
+            },
+            {
+              "line": 45,
+              "text": "src/auth/login.ts mở phiên mới rồi chuyển hướng, đã xem lại bằng tay."
+            },
+            {
+              "line": 46,
+              "text": ""
+            },
+            {
+              "line": 47,
+              "text": "### @ac-2"
+            },
+            {
+              "line": 48,
+              "text": "src/auth/login.ts dừng trước khi tạo phiên và ghi nhật ký lần thử hỏng."
+            }
+          ]
+        }
+      ]
+    },
+    "TICKS": {
+      "file": "accord/tickets/TICKS.md",
+      "frontmatter": {
+        "ac_hash": "fnv1a64:0e84e174c4cdc76b",
+        "id": "TICKS",
+        "status": "open",
+        "title": "Bản sao của PASS cho TICKS",
+        "type": "story",
+        "ui": false,
+        "verified": [
+          "ac-1",
+          "ac-2"
+        ]
+      },
+      "id": "TICKS",
+      "requirements": [
+        {
+          "line": 17,
+          "text": "WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+        }
+      ],
+      "scenarios": [
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 24,
+          "name": "Đăng nhập thành công",
+          "steps": [
+            "When họ gửi email và mật khẩu hợp lệ",
+            "Then họ thấy bảng điều khiển"
+          ],
+          "tags": [
+            "@ac-1",
+            "@test:test/login.spec.ts#ok1"
+          ]
+        },
+        {
+          "acTag": "ac-2",
+          "keyword": "Scenario",
+          "line": 29,
+          "name": "Mật khẩu sai",
+          "steps": [
+            "When họ gửi mật khẩu sai",
+            "Then họ thấy thông báo lỗi"
+          ],
+          "tags": [
+            "@ac-2",
+            "@test:test/login.spec.ts#ok2"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 13,
+          "lines": [
+            {
+              "line": 14,
+              "text": "Người dùng đăng nhập bằng email để vào bảng điều khiển."
+            },
+            {
+              "line": 15,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Requirements",
+          "line": 16,
+          "lines": [
+            {
+              "line": 17,
+              "text": "- WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+            },
+            {
+              "line": 18,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Acceptance criteria",
+          "line": 19,
+          "lines": [
+            {
+              "line": 20,
+              "text": "```gherkin"
+            },
+            {
+              "line": 21,
+              "text": "Feature: TICKS"
+            },
+            {
+              "line": 22,
+              "text": ""
+            },
+            {
+              "line": 23,
+              "text": "  @ac-1 @test:test/login.spec.ts#ok1"
+            },
+            {
+              "line": 24,
+              "text": "  Scenario: Đăng nhập thành công"
+            },
+            {
+              "line": 25,
+              "text": "    When họ gửi email và mật khẩu hợp lệ"
+            },
+            {
+              "line": 26,
+              "text": "    Then họ thấy bảng điều khiển"
+            },
+            {
+              "line": 27,
+              "text": ""
+            },
+            {
+              "line": 28,
+              "text": "  @ac-2 @test:test/login.spec.ts#ok2"
+            },
+            {
+              "line": 29,
+              "text": "  Scenario: Mật khẩu sai"
+            },
+            {
+              "line": 30,
+              "text": "    When họ gửi mật khẩu sai"
+            },
+            {
+              "line": 31,
+              "text": "    Then họ thấy thông báo lỗi"
+            },
+            {
+              "line": 32,
+              "text": "```"
+            },
+            {
+              "line": 33,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Open questions",
+          "line": 34,
+          "lines": [
+            {
+              "line": 35,
+              "text": "- [x] Đã rõ"
+            },
+            {
+              "line": 36,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Plan",
+          "line": 37,
+          "lines": [
+            {
+              "line": 38,
+              "text": "- Làm màn hình đăng nhập @ac-1"
+            },
+            {
+              "line": 39,
+              "text": "- Trả lỗi khi xác thực hỏng @ac-2"
+            },
+            {
+              "line": 40,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Verification notes",
+          "line": 41,
+          "lines": [
+            {
+              "line": 42,
+              "text": "### @ac-1"
+            },
+            {
+              "line": 43,
+              "text": "src/auth/login.ts mở phiên mới rồi chuyển hướng, đã xem lại bằng tay."
+            },
+            {
+              "line": 44,
+              "text": ""
+            },
+            {
+              "line": 45,
+              "text": "### @ac-2"
+            },
+            {
+              "line": 46,
+              "text": "src/auth/login.ts dừng trước khi tạo phiên và ghi nhật ký lần thử hỏng."
+            }
+          ]
+        }
+      ]
+    },
+    "UINOTE": {
+      "file": "accord/tickets/UINOTE.md",
+      "frontmatter": {
+        "ac_hash": "fnv1a64:f3a2a28e8544cf06",
+        "id": "UINOTE",
+        "status": "open",
+        "title": "Kịch bản @ui chịu đúng quy tắc ghi chú như mọi kịch bản khác",
+        "type": "story",
+        "ui": false,
+        "verified": [
+          "ac-1",
+          "ac-2"
+        ],
+        "verified_commit": "1234567",
+        "verified_hash": "fnv1a64:f3a2a28e8544cf06"
+      },
+      "id": "UINOTE",
+      "requirements": [
+        {
+          "line": 19,
+          "text": "WHEN ô email còn trống the system SHALL làm mờ nút đăng nhập"
+        }
+      ],
+      "scenarios": [
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 26,
+          "name": "Nút đăng nhập bị vô hiệu hoá",
+          "steps": [
+            "When ô email còn trống",
+            "Then nút đăng nhập bị mờ đi"
+          ],
+          "tags": [
+            "@ac-1",
+            "@ui"
+          ]
+        },
+        {
+          "acTag": "ac-2",
+          "keyword": "Scenario",
+          "line": 31,
+          "name": "Thông báo lỗi hiện ra",
+          "steps": [
+            "When họ gửi mật khẩu sai",
+            "Then thông báo lỗi hiện ngay dưới ô mật khẩu"
+          ],
+          "tags": [
+            "@ac-2",
+            "@ui"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 15,
+          "lines": [
+            {
+              "line": 16,
+              "text": "Màn hình đăng nhập phải hiển thị đúng trạng thái cho người dùng."
+            },
+            {
+              "line": 17,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Requirements",
+          "line": 18,
+          "lines": [
+            {
+              "line": 19,
+              "text": "- WHEN ô email còn trống the system SHALL làm mờ nút đăng nhập"
+            },
+            {
+              "line": 20,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Acceptance criteria",
+          "line": 21,
+          "lines": [
+            {
+              "line": 22,
+              "text": "```gherkin"
+            },
+            {
+              "line": 23,
+              "text": "Feature: UINOTE"
+            },
+            {
+              "line": 24,
+              "text": ""
+            },
+            {
+              "line": 25,
+              "text": "  @ac-1 @ui"
+            },
+            {
+              "line": 26,
+              "text": "  Scenario: Nút đăng nhập bị vô hiệu hoá"
+            },
+            {
+              "line": 27,
+              "text": "    When ô email còn trống"
+            },
+            {
+              "line": 28,
+              "text": "    Then nút đăng nhập bị mờ đi"
+            },
+            {
+              "line": 29,
+              "text": ""
+            },
+            {
+              "line": 30,
+              "text": "  @ac-2 @ui"
+            },
+            {
+              "line": 31,
+              "text": "  Scenario: Thông báo lỗi hiện ra"
+            },
+            {
+              "line": 32,
+              "text": "    When họ gửi mật khẩu sai"
+            },
+            {
+              "line": 33,
+              "text": "    Then thông báo lỗi hiện ngay dưới ô mật khẩu"
+            },
+            {
+              "line": 34,
+              "text": "```"
+            },
+            {
+              "line": 35,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Open questions",
+          "line": 36,
+          "lines": [
+            {
+              "line": 37,
+              "text": "- [x] Đã rõ"
+            },
+            {
+              "line": 38,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Plan",
+          "line": 39,
+          "lines": [
+            {
+              "line": 40,
+              "text": "- Làm nút đăng nhập mờ đi @ac-1"
+            },
+            {
+              "line": 41,
+              "text": "- Hiện thông báo lỗi @ac-2"
+            },
+            {
+              "line": 42,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Verification notes",
+          "line": 43,
+          "lines": [
+            {
+              "line": 44,
+              "text": "### @ac-1"
+            },
+            {
+              "line": 45,
+              "text": "src/auth/login.ts đặt thuộc tính disabled, tôi đã bấm thử trên máy và nút không phản hồi."
+            },
+            {
+              "line": 46,
+              "text": ""
+            },
+            {
+              "line": 47,
+              "text": "### @ac-2"
+            },
+            {
+              "line": 48,
+              "text": "Thông báo lỗi hiện ra When họ gửi mật khẩu sai Then thông báo lỗi hiện ngay dưới ô mật khẩu src/auth/login.ts"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "tree": [
+    "accord/config.yml",
+    "accord/tickets/BLOCKED.md",
+    "accord/tickets/BLOCKED/verification.md",
+    "accord/tickets/COMMIT.md",
+    "accord/tickets/COMMIT/verification.md",
+    "accord/tickets/EMPTY.md",
+    "accord/tickets/EVIDENCE.md",
+    "accord/tickets/EVIDENCE/verification.md",
+    "accord/tickets/MACHINE.md",
+    "accord/tickets/MACHINE/verification.md",
+    "accord/tickets/NOTES.md",
+    "accord/tickets/NOTES/verification.md",
+    "accord/tickets/NOVERIF.md",
+    "accord/tickets/PASS.md",
+    "accord/tickets/PASS/verification.md",
+    "accord/tickets/REVIEW.md",
+    "accord/tickets/REVIEW/verification.md",
+    "accord/tickets/SETS.md",
+    "accord/tickets/SETS/verification.md",
+    "accord/tickets/SOLO.md",
+    "accord/tickets/SOLO/verification.md",
+    "accord/tickets/STALE.md",
+    "accord/tickets/STALE/verification.md",
+    "accord/tickets/TICKS.md",
+    "accord/tickets/TICKS/verification.md",
+    "accord/tickets/UINOTE.md",
+    "accord/tickets/UINOTE/verification.md",
+    "reports/junit.xml",
+    "src/auth/login.ts",
+    "test/login.spec.ts"
+  ],
+  "verifications": {
+    "BLOCKED": {
+      "blocks": [
+        {
+          "acTag": "ac-1",
+          "evidence": "test/login.spec.ts#ok1",
+          "line": 7,
+          "name": "Đăng nhập thành công",
+          "result": "pass"
+        },
+        {
+          "acTag": "ac-2",
+          "evidence": "test/login.spec.ts#ok2",
+          "line": 13,
+          "name": "Mật khẩu sai",
+          "result": "blocked"
+        }
+      ],
+      "file": "accord/tickets/BLOCKED/verification.md",
+      "frontmatter": {
+        "commit": "1234567",
+        "reviewed_on": "2026-09-10",
+        "ticket": "BLOCKED"
+      },
+      "ticket": "BLOCKED"
+    },
+    "COMMIT": {
+      "blocks": [
+        {
+          "acTag": "ac-1",
+          "evidence": "test/login.spec.ts#ok1",
+          "line": 7,
+          "name": "Đăng nhập thành công",
+          "result": "pass"
+        },
+        {
+          "acTag": "ac-2",
+          "evidence": "test/login.spec.ts#ok2",
+          "line": 13,
+          "name": "Mật khẩu sai",
+          "result": "pass"
+        }
+      ],
+      "file": "accord/tickets/COMMIT/verification.md",
+      "frontmatter": {
+        "commit": "1234567",
+        "reviewed_on": "2026-09-10",
+        "ticket": "COMMIT"
+      },
+      "ticket": "COMMIT"
+    },
+    "EVIDENCE": {
+      "blocks": [
+        {
+          "acTag": "ac-1",
+          "evidence": "đã chạy thử bằng tay và mọi thứ đều ổn",
+          "line": 7,
+          "name": "Đăng nhập thành công",
+          "result": "pass"
+        },
+        {
+          "acTag": "ac-2",
+          "evidence": "test/login.spec.ts cùng với src/nope.ts",
+          "line": 13,
+          "name": "Mật khẩu sai",
+          "result": "pass"
+        }
+      ],
+      "file": "accord/tickets/EVIDENCE/verification.md",
+      "frontmatter": {
+        "commit": "1234567",
+        "reviewed_on": "2026-09-10",
+        "ticket": "EVIDENCE"
+      },
+      "ticket": "EVIDENCE"
+    },
+    "MACHINE": {
+      "blocks": [
+        {
+          "acTag": "ac-1",
+          "evidence": "test/login.spec.ts#skip1",
+          "line": 7,
+          "name": "Bài kiểm thử bị tắt tiếng",
+          "result": "pass"
+        },
+        {
+          "acTag": "ac-2",
+          "evidence": "test/login.spec.ts#fail1",
+          "line": 13,
+          "name": "Bài kiểm thử hỏng",
+          "result": "pass"
+        },
+        {
+          "acTag": "ac-3",
+          "evidence": "test/login.spec.ts và src/auth/login.ts",
+          "line": 19,
+          "name": "Mã kiểm thử không có trong báo cáo",
+          "result": "pass"
+        },
+        {
+          "acTag": "ac-4",
+          "evidence": "test/login.spec.ts và src/auth/login.ts",
+          "line": 25,
+          "name": "Kịch bản quên gắn thẻ kiểm thử",
+          "result": "pass"
+        }
+      ],
+      "file": "accord/tickets/MACHINE/verification.md",
+      "frontmatter": {
+        "commit": "1234567",
+        "reviewed_on": "2026-09-10",
+        "ticket": "MACHINE"
+      },
+      "ticket": "MACHINE"
+    },
+    "NOTES": {
+      "blocks": [
+        {
+          "acTag": "ac-1",
+          "evidence": "test/login.spec.ts#ok1",
+          "line": 7,
+          "name": "Đăng nhập thành công",
+          "result": "pass"
+        },
+        {
+          "acTag": "ac-2",
+          "evidence": "test/login.spec.ts#ok2",
+          "line": 13,
+          "name": "Mật khẩu sai",
+          "result": "pass"
+        },
+        {
+          "acTag": "ac-3",
+          "evidence": "đã xem bằng mắt trên src/auth/login.ts",
+          "line": 19,
+          "name": "Nút đăng nhập bị vô hiệu hoá",
+          "result": "pass"
+        }
+      ],
+      "file": "accord/tickets/NOTES/verification.md",
+      "frontmatter": {
+        "commit": "1234567",
+        "reviewed_on": "2026-09-10",
+        "ticket": "NOTES"
+      },
+      "ticket": "NOTES"
+    },
+    "PASS": {
+      "blocks": [
+        {
+          "acTag": "ac-1",
+          "evidence": "test/login.spec.ts#ok1",
+          "line": 7,
+          "name": "Đăng nhập thành công",
+          "result": "pass"
+        },
+        {
+          "acTag": "ac-2",
+          "evidence": "test/login.spec.ts#ok2",
+          "line": 13,
+          "name": "Mật khẩu sai",
+          "result": "pass"
+        }
+      ],
+      "file": "accord/tickets/PASS/verification.md",
+      "frontmatter": {
+        "commit": "1234567",
+        "reviewed_on": "2026-09-10",
+        "ticket": "PASS"
+      },
+      "ticket": "PASS"
+    },
+    "REVIEW": {
+      "blocks": [
+        {
+          "acTag": "ac-1",
+          "evidence": "test/login.spec.ts#ok1",
+          "line": 7,
+          "name": "Đăng nhập thành công",
+          "result": "pass"
+        },
+        {
+          "acTag": "ac-2",
+          "evidence": "test/login.spec.ts#ok2",
+          "line": 13,
+          "name": "Mật khẩu sai",
+          "result": "pass"
+        }
+      ],
+      "file": "accord/tickets/REVIEW/verification.md",
+      "frontmatter": {
+        "commit": "9999999",
+        "reviewed_on": "2026-09-10",
+        "ticket": "REVIEW"
+      },
+      "ticket": "REVIEW"
+    },
+    "SETS": {
+      "blocks": [
+        {
+          "acTag": "ac-1",
+          "evidence": "test/login.spec.ts#ok1",
+          "line": 7,
+          "name": "Đăng nhập thành công",
+          "result": "pass"
+        }
+      ],
+      "file": "accord/tickets/SETS/verification.md",
+      "frontmatter": {
+        "commit": "1234567",
+        "reviewed_on": "2026-09-10",
+        "ticket": "SETS"
+      },
+      "ticket": "SETS"
+    },
+    "SOLO": {
+      "blocks": [
+        {
+          "acTag": "ac-1",
+          "evidence": "test/login.spec.ts#ok1",
+          "line": 7,
+          "name": "Đăng nhập thành công",
+          "result": "pass"
+        },
+        {
+          "acTag": "ac-2",
+          "evidence": "test/login.spec.ts#ok2",
+          "line": 13,
+          "name": "Mật khẩu sai",
+          "result": "pass"
+        }
+      ],
+      "file": "accord/tickets/SOLO/verification.md",
+      "frontmatter": {
+        "commit": "1234567",
+        "reviewed_on": "2026-09-10",
+        "ticket": "SOLO"
+      },
+      "ticket": "SOLO"
+    },
+    "STALE": {
+      "blocks": [
+        {
+          "acTag": "ac-1",
+          "evidence": "test/login.spec.ts#ok1",
+          "line": 7,
+          "name": "Đăng nhập thành công",
+          "result": "pass"
+        },
+        {
+          "acTag": "ac-2",
+          "evidence": "test/login.spec.ts#ok2",
+          "line": 13,
+          "name": "Mật khẩu sai",
+          "result": "pass"
+        }
+      ],
+      "file": "accord/tickets/STALE/verification.md",
+      "frontmatter": {
+        "commit": "1234567",
+        "reviewed_on": "2026-09-10",
+        "ticket": "STALE"
+      },
+      "ticket": "STALE"
+    },
+    "TICKS": {
+      "blocks": [
+        {
+          "acTag": "ac-1",
+          "evidence": "test/login.spec.ts#ok1",
+          "line": 7,
+          "name": "Đăng nhập thành công",
+          "result": "pass"
+        },
+        {
+          "acTag": "ac-2",
+          "evidence": "test/login.spec.ts#ok2",
+          "line": 13,
+          "name": "Mật khẩu sai",
+          "result": "pass"
+        }
+      ],
+      "file": "accord/tickets/TICKS/verification.md",
+      "frontmatter": {
+        "commit": "1234567",
+        "reviewed_on": "2026-09-10",
+        "ticket": "TICKS"
+      },
+      "ticket": "TICKS"
+    },
+    "UINOTE": {
+      "blocks": [
+        {
+          "acTag": "ac-1",
+          "evidence": "đã bấm thử trên màn hình dựng từ src/auth/login.ts",
+          "line": 7,
+          "name": "Nút đăng nhập bị vô hiệu hoá",
+          "result": "pass"
+        },
+        {
+          "acTag": "ac-2",
+          "evidence": "đã bấm thử trên màn hình dựng từ src/auth/login.ts",
+          "line": 13,
+          "name": "Thông báo lỗi hiện ra",
+          "result": "pass"
+        }
+      ],
+      "file": "accord/tickets/UINOTE/verification.md",
+      "frontmatter": {
+        "commit": "1234567",
+        "reviewed_on": "2026-09-10",
+        "ticket": "UINOTE"
+      },
+      "ticket": "UINOTE"
+    }
+  }
+}

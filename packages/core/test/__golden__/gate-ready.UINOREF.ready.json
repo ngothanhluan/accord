@@ -1,0 +1,22 @@
+{
+  "acHash": "fnv1a64:c68caf4b4f4a9346",
+  "findings": [
+    {
+      "file": "accord/tickets/UINOREF.md",
+      "level": "error",
+      "pointer": "/ui",
+      "reason": "ui: true needs a non-empty design: URL or accord/assets/UINOREF/prototype.html",
+      "rule": "gate.design-missing"
+    },
+    {
+      "file": "accord/tickets/UINOREF.md",
+      "level": "warning",
+      "line": 20,
+      "reason": "scenario \"Mở trang đăng nhập\" has no @test:<id> tag and is not @ui",
+      "rule": "lint.test-tag-missing"
+    }
+  ],
+  "gate": "ready",
+  "ticket": "UINOREF",
+  "verdict": "fail"
+}

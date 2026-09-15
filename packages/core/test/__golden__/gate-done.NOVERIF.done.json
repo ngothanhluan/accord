@@ -1,0 +1,28 @@
+{
+  "acHash": "fnv1a64:8613b1c0604c6a56",
+  "findings": [
+    {
+      "file": "accord/tickets/NOVERIF.md",
+      "level": "error",
+      "pointer": "/ac_hash",
+      "reason": "Ready has recorded no ac_hash for this ticket",
+      "rule": "gate.ac-hash-missing"
+    },
+    {
+      "file": "accord/tickets/NOVERIF.md",
+      "level": "error",
+      "line": 15,
+      "reason": "scenarios lack nothing; evidence lacks @ac-1; verified lacks @ac-1",
+      "rule": "gate.tags-differ"
+    },
+    {
+      "file": "accord/tickets/NOVERIF/verification.md",
+      "level": "error",
+      "reason": "no review record; Done needs accord/tickets/NOVERIF/verification.md",
+      "rule": "gate.verification-missing"
+    }
+  ],
+  "gate": "done",
+  "ticket": "NOVERIF",
+  "verdict": "fail"
+}

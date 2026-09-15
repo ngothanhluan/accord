@@ -30,7 +30,7 @@ describe('renderText (D-60)', () => {
   });
 
   it('an empty result is only the summary line', () => {
-    expect(renderText({ findings: [], errors: 0, warnings: 0 })).toBe('0 errors, 0 warnings\n');
+    expect(renderText({ findings: [] })).toBe('0 errors, 0 warnings\n');
   });
 
   it('JSON and text carry the same content: JSON round-trips and every text line parses back (CORE-05)', () => {

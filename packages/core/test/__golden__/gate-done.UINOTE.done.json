@@ -1,0 +1,15 @@
+{
+  "acHash": "fnv1a64:f3a2a28e8544cf06",
+  "findings": [
+    {
+      "file": "accord/tickets/UINOTE.md",
+      "level": "error",
+      "line": 47,
+      "reason": "note \"@ac-2\" adds nothing beyond the scenario text and its references",
+      "rule": "gate.note-pasted"
+    }
+  ],
+  "gate": "done",
+  "ticket": "UINOTE",
+  "verdict": "fail"
+}

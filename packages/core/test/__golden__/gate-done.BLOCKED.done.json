@@ -1,0 +1,15 @@
+{
+  "acHash": "fnv1a64:0e84e174c4cdc76b",
+  "findings": [
+    {
+      "file": "accord/tickets/BLOCKED/verification.md",
+      "level": "error",
+      "line": 13,
+      "reason": "evidence block \"@ac-2\" records Result: blocked",
+      "rule": "gate.result-not-pass"
+    }
+  ],
+  "gate": "done",
+  "ticket": "BLOCKED",
+  "verdict": "fail"
+}

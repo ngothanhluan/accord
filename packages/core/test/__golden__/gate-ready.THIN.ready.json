@@ -1,0 +1,43 @@
+{
+  "acHash": "fnv1a64:710e1a6536fa9b93",
+  "findings": [
+    {
+      "file": "accord/tickets/THIN.md",
+      "level": "error",
+      "line": 9,
+      "reason": "\"## Intent\" is empty; Ready needs the intent written",
+      "rule": "gate.intent-empty"
+    },
+    {
+      "file": "accord/tickets/THIN.md",
+      "level": "error",
+      "line": 13,
+      "reason": "\"## Requirements\" has no EARS line; at least one must name \"the system shall\"",
+      "rule": "gate.ears-missing"
+    },
+    {
+      "file": "accord/tickets/THIN.md",
+      "level": "warning",
+      "line": 14,
+      "reason": "no EARS keyword and no 'the system shall'",
+      "rule": "lint.ears-unclassified"
+    },
+    {
+      "file": "accord/tickets/THIN.md",
+      "level": "warning",
+      "line": 15,
+      "reason": "no EARS keyword and no 'the system shall'",
+      "rule": "lint.ears-unclassified"
+    },
+    {
+      "file": "accord/tickets/THIN.md",
+      "level": "warning",
+      "line": 22,
+      "reason": "scenario \"Xem danh sách\" has no @test:<id> tag and is not @ui",
+      "rule": "lint.test-tag-missing"
+    }
+  ],
+  "gate": "ready",
+  "ticket": "THIN",
+  "verdict": "fail"
+}

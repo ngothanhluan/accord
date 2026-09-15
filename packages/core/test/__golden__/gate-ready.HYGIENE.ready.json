@@ -1,0 +1,43 @@
+{
+  "acHash": "fnv1a64:8613b1c0604c6a56",
+  "findings": [
+    {
+      "file": "accord/tickets/HYGIENE.md",
+      "level": "error",
+      "pointer": "/assumptions/0/confirmed",
+      "reason": "assumption \"Đã có SSO\" is not confirmed",
+      "rule": "lint.assumption-unconfirmed"
+    },
+    {
+      "file": "accord/tickets/HYGIENE.md",
+      "level": "error",
+      "line": 12,
+      "reason": "contains sentinel \"TODO\"",
+      "rule": "lint.sentinel"
+    },
+    {
+      "file": "accord/tickets/HYGIENE.md",
+      "level": "warning",
+      "line": 15,
+      "reason": "vague wording \"maybe\"",
+      "rule": "lint.vague-wording"
+    },
+    {
+      "file": "accord/tickets/HYGIENE.md",
+      "level": "warning",
+      "line": 22,
+      "reason": "scenario \"Đăng nhập thành công\" has no @test:<id> tag and is not @ui",
+      "rule": "lint.test-tag-missing"
+    },
+    {
+      "file": "accord/tickets/HYGIENE.md",
+      "level": "error",
+      "line": 28,
+      "reason": "open question is unchecked",
+      "rule": "lint.open-question"
+    }
+  ],
+  "gate": "ready",
+  "ticket": "HYGIENE",
+  "verdict": "fail"
+}

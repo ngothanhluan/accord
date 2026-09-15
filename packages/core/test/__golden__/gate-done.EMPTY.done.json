@@ -1,0 +1,19 @@
+{
+  "findings": [
+    {
+      "file": "accord/tickets/EMPTY.md",
+      "level": "error",
+      "reason": "no scenario carries an @ac-n tag, so Done has nothing to be claimed about",
+      "rule": "gate.no-scenarios"
+    },
+    {
+      "file": "accord/tickets/EMPTY/verification.md",
+      "level": "error",
+      "reason": "no review record; Done needs accord/tickets/EMPTY/verification.md",
+      "rule": "gate.verification-missing"
+    }
+  ],
+  "gate": "done",
+  "ticket": "EMPTY",
+  "verdict": "fail"
+}

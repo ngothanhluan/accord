@@ -1,0 +1,50 @@
+{
+  "acHash": "fnv1a64:cf39577f15f434b9",
+  "findings": [
+    {
+      "file": "accord/tickets/MACHINE.md",
+      "level": "error",
+      "line": 28,
+      "reason": "@test:test/login.spec.ts#skip1 is recorded skipped in reports/junit.xml; Done passes on passed alone",
+      "rule": "gate.test-not-passed"
+    },
+    {
+      "file": "accord/tickets/MACHINE.md",
+      "level": "error",
+      "line": 33,
+      "reason": "@test:test/login.spec.ts#fail1 is recorded failed in reports/junit.xml; Done passes on passed alone",
+      "rule": "gate.test-not-passed"
+    },
+    {
+      "file": "accord/tickets/MACHINE.md",
+      "level": "error",
+      "line": 38,
+      "reason": "@test:nope#missing not found in reports/junit.xml; ids are classname#name with spaces as '-'",
+      "rule": "gate.test-unknown"
+    },
+    {
+      "file": "accord/tickets/MACHINE.md",
+      "level": "warning",
+      "line": 38,
+      "reason": "@test:nope#missing not found in reports/junit.xml; ids are classname#name with spaces as '-'",
+      "rule": "lint.test-id-unknown"
+    },
+    {
+      "file": "accord/tickets/MACHINE.md",
+      "level": "error",
+      "line": 43,
+      "reason": "scenario \"Kịch bản quên gắn thẻ kiểm thử\" carries no @test:<id> tag and is not @ui, so Done cannot check it against the report",
+      "rule": "gate.test-tag-missing"
+    },
+    {
+      "file": "accord/tickets/MACHINE.md",
+      "level": "warning",
+      "line": 43,
+      "reason": "scenario \"Kịch bản quên gắn thẻ kiểm thử\" has no @test:<id> tag and is not @ui",
+      "rule": "lint.test-tag-missing"
+    }
+  ],
+  "gate": "done",
+  "ticket": "MACHINE",
+  "verdict": "fail"
+}

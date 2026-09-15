@@ -1,0 +1,13 @@
+{
+  "errors": 0,
+  "findings": [
+    {
+      "file": "accord/config.yml",
+      "level": "warning",
+      "pointer": "/tests/report",
+      "reason": "tests.report \"reports/gone.xml\" is not in the snapshot",
+      "rule": "lint.report-missing"
+    }
+  ],
+  "warnings": 1
+}

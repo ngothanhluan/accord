@@ -1,0 +1,29 @@
+{
+  "acHash": "fnv1a64:01d5981d93f368f0",
+  "findings": [
+    {
+      "file": "accord/tickets/NOTES.md",
+      "level": "error",
+      "line": 50,
+      "reason": "verified lists @ac-1 but \"## Verification notes\" has no \"### @ac-1\" block",
+      "rule": "gate.note-missing"
+    },
+    {
+      "file": "accord/tickets/NOTES.md",
+      "level": "error",
+      "line": 51,
+      "reason": "note \"@ac-2\" adds nothing beyond the scenario text and its references",
+      "rule": "gate.note-pasted"
+    },
+    {
+      "file": "accord/tickets/NOTES.md",
+      "level": "error",
+      "line": 54,
+      "reason": "note \"@ac-3\" names no file or test that exists in the snapshot; a bare identifier is not enough, because the snapshot holds no source text",
+      "rule": "gate.note-unresolved"
+    }
+  ],
+  "gate": "done",
+  "ticket": "NOTES",
+  "verdict": "fail"
+}

@@ -1,0 +1,267 @@
+{
+  "config": {
+    "accord": "0.1.0",
+    "design": {
+      "tokens": ""
+    },
+    "profile": "build",
+    "roles": [
+      "ba",
+      "dev"
+    ],
+    "runtimes": [
+      "claude",
+      "codex",
+      "cursor",
+      "copilot"
+    ],
+    "tests": {
+      "report": "reports/gone.xml"
+    },
+    "tracker": {
+      "adapter": "none"
+    }
+  },
+  "errors": [],
+  "files": {},
+  "tickets": {
+    "GONE": {
+      "file": "accord/tickets/GONE.md",
+      "frontmatter": {
+        "ac_hash": "fnv1a64:0e84e174c4cdc76b",
+        "id": "GONE",
+        "status": "open",
+        "title": "Đăng nhập đã được kiểm chứng",
+        "type": "story",
+        "ui": false,
+        "verified": [
+          "ac-1",
+          "ac-2"
+        ],
+        "verified_commit": "1234567",
+        "verified_hash": "fnv1a64:0e84e174c4cdc76b"
+      },
+      "id": "GONE",
+      "requirements": [
+        {
+          "line": 19,
+          "text": "WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+        }
+      ],
+      "scenarios": [
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 26,
+          "name": "Đăng nhập thành công",
+          "steps": [
+            "When họ gửi email và mật khẩu hợp lệ",
+            "Then họ thấy bảng điều khiển"
+          ],
+          "tags": [
+            "@ac-1",
+            "@test:test/login.spec.ts#ok1"
+          ]
+        },
+        {
+          "acTag": "ac-2",
+          "keyword": "Scenario",
+          "line": 31,
+          "name": "Mật khẩu sai",
+          "steps": [
+            "When họ gửi mật khẩu sai",
+            "Then họ thấy thông báo lỗi"
+          ],
+          "tags": [
+            "@ac-2",
+            "@test:test/login.spec.ts#ok2"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 15,
+          "lines": [
+            {
+              "line": 16,
+              "text": "Người dùng đăng nhập bằng email để vào bảng điều khiển."
+            },
+            {
+              "line": 17,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Requirements",
+          "line": 18,
+          "lines": [
+            {
+              "line": 19,
+              "text": "- WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+            },
+            {
+              "line": 20,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Acceptance criteria",
+          "line": 21,
+          "lines": [
+            {
+              "line": 22,
+              "text": "```gherkin"
+            },
+            {
+              "line": 23,
+              "text": "Feature: GONE"
+            },
+            {
+              "line": 24,
+              "text": ""
+            },
+            {
+              "line": 25,
+              "text": "  @ac-1 @test:test/login.spec.ts#ok1"
+            },
+            {
+              "line": 26,
+              "text": "  Scenario: Đăng nhập thành công"
+            },
+            {
+              "line": 27,
+              "text": "    When họ gửi email và mật khẩu hợp lệ"
+            },
+            {
+              "line": 28,
+              "text": "    Then họ thấy bảng điều khiển"
+            },
+            {
+              "line": 29,
+              "text": ""
+            },
+            {
+              "line": 30,
+              "text": "  @ac-2 @test:test/login.spec.ts#ok2"
+            },
+            {
+              "line": 31,
+              "text": "  Scenario: Mật khẩu sai"
+            },
+            {
+              "line": 32,
+              "text": "    When họ gửi mật khẩu sai"
+            },
+            {
+              "line": 33,
+              "text": "    Then họ thấy thông báo lỗi"
+            },
+            {
+              "line": 34,
+              "text": "```"
+            },
+            {
+              "line": 35,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Open questions",
+          "line": 36,
+          "lines": [
+            {
+              "line": 37,
+              "text": "- [x] Đã rõ"
+            },
+            {
+              "line": 38,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Plan",
+          "line": 39,
+          "lines": [
+            {
+              "line": 40,
+              "text": "- Làm màn hình đăng nhập @ac-1"
+            },
+            {
+              "line": 41,
+              "text": "- Trả lỗi khi xác thực hỏng @ac-2"
+            },
+            {
+              "line": 42,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Verification notes",
+          "line": 43,
+          "lines": [
+            {
+              "line": 44,
+              "text": "### @ac-1"
+            },
+            {
+              "line": 45,
+              "text": "src/auth/login.ts mở phiên mới rồi chuyển hướng, đã xem lại bằng tay."
+            },
+            {
+              "line": 46,
+              "text": ""
+            },
+            {
+              "line": 47,
+              "text": "### @ac-2"
+            },
+            {
+              "line": 48,
+              "text": "src/auth/login.ts dừng trước khi tạo phiên và ghi nhật ký lần thử hỏng."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "tree": [
+    "accord/config.yml",
+    "accord/tickets/GONE.md",
+    "accord/tickets/GONE/verification.md",
+    "src/auth/login.ts",
+    "test/login.spec.ts"
+  ],
+  "verifications": {
+    "GONE": {
+      "blocks": [
+        {
+          "acTag": "ac-1",
+          "evidence": "test/login.spec.ts và src/auth/login.ts",
+          "line": 7,
+          "name": "Đăng nhập thành công",
+          "result": "pass"
+        },
+        {
+          "acTag": "ac-2",
+          "evidence": "test/login.spec.ts và src/auth/login.ts",
+          "line": 13,
+          "name": "Mật khẩu sai",
+          "result": "pass"
+        }
+      ],
+      "file": "accord/tickets/GONE/verification.md",
+      "frontmatter": {
+        "commit": "1234567",
+        "reviewed_on": "2026-09-10",
+        "ticket": "GONE"
+      },
+      "ticket": "GONE"
+    }
+  }
+}

@@ -136,5 +136,7 @@ export function loadSnapshot(input: SnapshotInput): RepoSnapshot {
     errors,
     files: snapshotFiles,
     ...(tests === undefined ? {} : { tests }),
+    // D-78: host facts pass straight through, spread so an absent `git` stays absent in the D-54 golden.
+    ...(input.git === undefined ? {} : { git: input.git }),
   };
 }

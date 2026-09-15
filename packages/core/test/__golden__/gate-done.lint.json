@@ -1,0 +1,27 @@
+{
+  "errors": 0,
+  "findings": [
+    {
+      "file": "accord/tickets/MACHINE.md",
+      "level": "warning",
+      "line": 38,
+      "reason": "@test:nope#missing not found in reports/junit.xml; ids are classname#name with spaces as '-'",
+      "rule": "lint.test-id-unknown"
+    },
+    {
+      "file": "accord/tickets/MACHINE.md",
+      "level": "warning",
+      "line": 43,
+      "reason": "scenario \"Kịch bản quên gắn thẻ kiểm thử\" has no @test:<id> tag and is not @ui",
+      "rule": "lint.test-tag-missing"
+    },
+    {
+      "file": "accord/tickets/SETS.md",
+      "level": "warning",
+      "pointer": "/verified/1",
+      "reason": "verified names \"ac-3\" but no scenario carries @ac-3",
+      "rule": "lint.tick-orphan"
+    }
+  ],
+  "warnings": 3
+}

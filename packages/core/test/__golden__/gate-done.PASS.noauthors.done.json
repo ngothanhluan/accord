@@ -1,0 +1,14 @@
+{
+  "acHash": "fnv1a64:0e84e174c4cdc76b",
+  "findings": [
+    {
+      "file": "accord/tickets/PASS/verification.md",
+      "level": "warning",
+      "reason": "the host supplied no author for the gated commit and the review file, so the review and the commit could not be compared",
+      "rule": "gate.author-skipped"
+    }
+  ],
+  "gate": "done",
+  "ticket": "PASS",
+  "verdict": "pass"
+}

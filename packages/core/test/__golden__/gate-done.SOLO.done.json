@@ -1,0 +1,14 @@
+{
+  "acHash": "fnv1a64:0e84e174c4cdc76b",
+  "findings": [
+    {
+      "file": "accord/tickets/SOLO/verification.md",
+      "level": "warning",
+      "reason": "the review and the gated commit share an author (dev@example.test), so no second pair of eyes touched this ticket",
+      "rule": "gate.author-match"
+    }
+  ],
+  "gate": "done",
+  "ticket": "SOLO",
+  "verdict": "pass"
+}

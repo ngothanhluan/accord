@@ -1,0 +1,22 @@
+{
+  "acHash": "fnv1a64:3f199d3ed4fe8c38",
+  "findings": [
+    {
+      "file": "accord/tickets/UILINK.md",
+      "level": "error",
+      "pointer": "/ui",
+      "reason": "ui: true needs accord/assets/UILINK/prototype.html; on this profile a design: URL is not enough",
+      "rule": "gate.design-missing"
+    },
+    {
+      "file": "accord/tickets/UILINK.md",
+      "level": "warning",
+      "line": 21,
+      "reason": "scenario \"Mở trang cài đặt\" has no @test:<id> tag and is not @ui",
+      "rule": "lint.test-tag-missing"
+    }
+  ],
+  "gate": "ready",
+  "ticket": "UILINK",
+  "verdict": "fail"
+}

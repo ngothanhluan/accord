@@ -1,0 +1,22 @@
+{
+  "acHash": "fnv1a64:0e84e174c4cdc76b",
+  "findings": [
+    {
+      "file": "accord/tickets/EVIDENCE/verification.md",
+      "level": "error",
+      "line": 7,
+      "reason": "evidence block \"@ac-1\" cites no file, test, or command that exists in the snapshot",
+      "rule": "gate.evidence-unresolved"
+    },
+    {
+      "file": "accord/tickets/EVIDENCE/verification.md",
+      "level": "warning",
+      "line": 13,
+      "reason": "evidence block \"@ac-2\" names \"src/nope.ts\", which is not in the snapshot",
+      "rule": "gate.reference-unknown"
+    }
+  ],
+  "gate": "done",
+  "ticket": "EVIDENCE",
+  "verdict": "fail"
+}

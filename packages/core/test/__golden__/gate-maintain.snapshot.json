@@ -1,0 +1,293 @@
+{
+  "config": {
+    "accord": "0.1.0",
+    "design": {
+      "tokens": ""
+    },
+    "profile": "maintain",
+    "roles": [
+      "ba",
+      "dev"
+    ],
+    "runtimes": [
+      "claude",
+      "codex",
+      "cursor",
+      "copilot"
+    ],
+    "tracker": {
+      "adapter": "none"
+    }
+  },
+  "errors": [],
+  "files": {
+    "accord/assets/UIPROTO/prototype.html": "<!--\naccord prototype for ticket UIPROTO\nDerived from: src/base.css\nRule: use only colours and spacing from those files; the token rule (lint) warns on hard-coded values\nOwner: designer (assets/<id>/ is designer-owned)\n-->\n<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>UIPROTO prototype</title>\n</head>\n<body>\n</body>\n</html>\n"
+  },
+  "tickets": {
+    "UILINK": {
+      "file": "accord/tickets/UILINK.md",
+      "frontmatter": {
+        "design": "https://example.com/design/uilink",
+        "id": "UILINK",
+        "status": "open",
+        "title": "Phiếu giao diện chỉ có đường dẫn thiết kế",
+        "type": "story",
+        "ui": true
+      },
+      "id": "UILINK",
+      "requirements": [
+        {
+          "line": 14,
+          "text": "WHEN người dùng mở trang cài đặt the system SHALL hiển thị bố cục mới"
+        }
+      ],
+      "scenarios": [
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 21,
+          "name": "Mở trang cài đặt",
+          "steps": [
+            "When họ mở trang cài đặt",
+            "Then họ thấy bố cục mới"
+          ],
+          "tags": [
+            "@ac-1"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 10,
+          "lines": [
+            {
+              "line": 11,
+              "text": "Người dùng thấy trang cài đặt được dựng lại."
+            },
+            {
+              "line": 12,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Requirements",
+          "line": 13,
+          "lines": [
+            {
+              "line": 14,
+              "text": "- WHEN người dùng mở trang cài đặt the system SHALL hiển thị bố cục mới"
+            },
+            {
+              "line": 15,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Acceptance criteria",
+          "line": 16,
+          "lines": [
+            {
+              "line": 17,
+              "text": "```gherkin"
+            },
+            {
+              "line": 18,
+              "text": "Feature: UILINK"
+            },
+            {
+              "line": 19,
+              "text": ""
+            },
+            {
+              "line": 20,
+              "text": "  @ac-1"
+            },
+            {
+              "line": 21,
+              "text": "  Scenario: Mở trang cài đặt"
+            },
+            {
+              "line": 22,
+              "text": "    When họ mở trang cài đặt"
+            },
+            {
+              "line": 23,
+              "text": "    Then họ thấy bố cục mới"
+            },
+            {
+              "line": 24,
+              "text": "```"
+            },
+            {
+              "line": 25,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Open questions",
+          "line": 26,
+          "lines": [
+            {
+              "line": 27,
+              "text": "- [x] Đã rõ"
+            },
+            {
+              "line": 28,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Plan",
+          "line": 29,
+          "lines": [
+            {
+              "line": 30,
+              "text": "- Dựng lại trang cài đặt @ac-1"
+            }
+          ]
+        }
+      ]
+    },
+    "UIPROTO": {
+      "file": "accord/tickets/UIPROTO.md",
+      "frontmatter": {
+        "id": "UIPROTO",
+        "status": "open",
+        "title": "Phiếu giao diện có bản mẫu",
+        "type": "story",
+        "ui": true
+      },
+      "id": "UIPROTO",
+      "requirements": [
+        {
+          "line": 13,
+          "text": "WHEN người dùng mở trang hồ sơ the system SHALL hiển thị bố cục mới"
+        }
+      ],
+      "scenarios": [
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 20,
+          "name": "Mở trang hồ sơ",
+          "steps": [
+            "When họ mở trang hồ sơ",
+            "Then họ thấy bố cục mới"
+          ],
+          "tags": [
+            "@ac-1"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 9,
+          "lines": [
+            {
+              "line": 10,
+              "text": "Người dùng thấy trang hồ sơ được dựng lại."
+            },
+            {
+              "line": 11,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Requirements",
+          "line": 12,
+          "lines": [
+            {
+              "line": 13,
+              "text": "- WHEN người dùng mở trang hồ sơ the system SHALL hiển thị bố cục mới"
+            },
+            {
+              "line": 14,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Acceptance criteria",
+          "line": 15,
+          "lines": [
+            {
+              "line": 16,
+              "text": "```gherkin"
+            },
+            {
+              "line": 17,
+              "text": "Feature: UIPROTO"
+            },
+            {
+              "line": 18,
+              "text": ""
+            },
+            {
+              "line": 19,
+              "text": "  @ac-1"
+            },
+            {
+              "line": 20,
+              "text": "  Scenario: Mở trang hồ sơ"
+            },
+            {
+              "line": 21,
+              "text": "    When họ mở trang hồ sơ"
+            },
+            {
+              "line": 22,
+              "text": "    Then họ thấy bố cục mới"
+            },
+            {
+              "line": 23,
+              "text": "```"
+            },
+            {
+              "line": 24,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Open questions",
+          "line": 25,
+          "lines": [
+            {
+              "line": 26,
+              "text": "- [x] Đã rõ"
+            },
+            {
+              "line": 27,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Plan",
+          "line": 28,
+          "lines": [
+            {
+              "line": 29,
+              "text": "- Dựng lại trang hồ sơ @ac-1"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "tree": [
+    "accord/assets/UIPROTO/prototype.html",
+    "accord/config.yml",
+    "accord/tickets/UILINK.md",
+    "accord/tickets/UIPROTO.md",
+    "src/base.css"
+  ],
+  "verifications": {}
+}

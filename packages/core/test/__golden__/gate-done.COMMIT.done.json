@@ -1,0 +1,15 @@
+{
+  "acHash": "fnv1a64:0e84e174c4cdc76b",
+  "findings": [
+    {
+      "file": "accord/tickets/COMMIT.md",
+      "level": "error",
+      "pointer": "/verified_commit",
+      "reason": "the ticks were made against commit 9999999; the gated commit is 1234567890abcdef1234567890abcdef12345678",
+      "rule": "gate.tick-stale-commit"
+    }
+  ],
+  "gate": "done",
+  "ticket": "COMMIT",
+  "verdict": "fail"
+}

@@ -1,0 +1,15 @@
+{
+  "acHash": "fnv1a64:0e84e174c4cdc76b",
+  "findings": [
+    {
+      "file": "accord/config.yml",
+      "level": "error",
+      "pointer": "/tests/report",
+      "reason": "tests.report \"reports/gone.xml\" is not in the snapshot",
+      "rule": "gate.report-missing"
+    }
+  ],
+  "gate": "done",
+  "ticket": "GONE",
+  "verdict": "fail"
+}

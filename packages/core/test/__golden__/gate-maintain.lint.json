@@ -1,0 +1,20 @@
+{
+  "errors": 0,
+  "findings": [
+    {
+      "file": "accord/tickets/UILINK.md",
+      "level": "warning",
+      "line": 21,
+      "reason": "scenario \"Mở trang cài đặt\" has no @test:<id> tag and is not @ui",
+      "rule": "lint.test-tag-missing"
+    },
+    {
+      "file": "accord/tickets/UIPROTO.md",
+      "level": "warning",
+      "line": 20,
+      "reason": "scenario \"Mở trang hồ sơ\" has no @test:<id> tag and is not @ui",
+      "rule": "lint.test-tag-missing"
+    }
+  ],
+  "warnings": 2
+}

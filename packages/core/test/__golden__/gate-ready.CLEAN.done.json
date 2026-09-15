@@ -1,0 +1,49 @@
+{
+  "acHash": "fnv1a64:8613b1c0604c6a56",
+  "findings": [
+    {
+      "file": "accord/config.yml",
+      "level": "error",
+      "pointer": "/tests",
+      "reason": "no test report is declared, so the machine layer cannot run and Done cannot pass; set tests.report",
+      "rule": "gate.tests-unconfigured"
+    },
+    {
+      "file": "accord/tickets/CLEAN.md",
+      "level": "error",
+      "pointer": "/ac_hash",
+      "reason": "Ready has recorded no ac_hash for this ticket",
+      "rule": "gate.ac-hash-missing"
+    },
+    {
+      "file": "accord/tickets/CLEAN.md",
+      "level": "error",
+      "line": 15,
+      "reason": "scenarios lack nothing; evidence lacks @ac-1; verified lacks @ac-1",
+      "rule": "gate.tags-differ"
+    },
+    {
+      "file": "accord/tickets/CLEAN.md",
+      "level": "error",
+      "line": 20,
+      "reason": "scenario \"Đăng nhập thành công\" carries no @test:<id> tag and is not @ui, so Done cannot check it against the report",
+      "rule": "gate.test-tag-missing"
+    },
+    {
+      "file": "accord/tickets/CLEAN.md",
+      "level": "warning",
+      "line": 20,
+      "reason": "scenario \"Đăng nhập thành công\" has no @test:<id> tag and is not @ui",
+      "rule": "lint.test-tag-missing"
+    },
+    {
+      "file": "accord/tickets/CLEAN/verification.md",
+      "level": "error",
+      "reason": "no review record; Done needs accord/tickets/CLEAN/verification.md",
+      "rule": "gate.verification-missing"
+    }
+  ],
+  "gate": "done",
+  "ticket": "CLEAN",
+  "verdict": "fail"
+}

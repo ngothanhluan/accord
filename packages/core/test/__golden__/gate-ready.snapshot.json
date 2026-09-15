@@ -1,0 +1,823 @@
+{
+  "config": {
+    "accord": "0.1.0",
+    "design": {
+      "tokens": ""
+    },
+    "profile": "build",
+    "roles": [
+      "ba",
+      "dev"
+    ],
+    "runtimes": [
+      "claude",
+      "codex",
+      "cursor",
+      "copilot"
+    ],
+    "tracker": {
+      "adapter": "none"
+    }
+  },
+  "errors": [
+    {
+      "file": "accord/tickets/SCHEMA.md",
+      "line": 2,
+      "pointer": "",
+      "reason": "must have required property 'title'",
+      "rule": "schema.required"
+    }
+  ],
+  "files": {},
+  "tickets": {
+    "CLEAN": {
+      "file": "accord/tickets/CLEAN.md",
+      "frontmatter": {
+        "id": "CLEAN",
+        "status": "open",
+        "title": "Phiếu sẵn sàng",
+        "type": "story",
+        "ui": false
+      },
+      "id": "CLEAN",
+      "requirements": [
+        {
+          "line": 13,
+          "text": "WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+        }
+      ],
+      "scenarios": [
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 20,
+          "name": "Đăng nhập thành công",
+          "steps": [
+            "When họ gửi email và mật khẩu hợp lệ",
+            "Then họ thấy bảng điều khiển"
+          ],
+          "tags": [
+            "@ac-1"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 9,
+          "lines": [
+            {
+              "line": 10,
+              "text": "Người dùng đăng nhập bằng email để vào bảng điều khiển."
+            },
+            {
+              "line": 11,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Requirements",
+          "line": 12,
+          "lines": [
+            {
+              "line": 13,
+              "text": "- WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+            },
+            {
+              "line": 14,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Acceptance criteria",
+          "line": 15,
+          "lines": [
+            {
+              "line": 16,
+              "text": "```gherkin"
+            },
+            {
+              "line": 17,
+              "text": "Feature: CLEAN"
+            },
+            {
+              "line": 18,
+              "text": ""
+            },
+            {
+              "line": 19,
+              "text": "  @ac-1"
+            },
+            {
+              "line": 20,
+              "text": "  Scenario: Đăng nhập thành công"
+            },
+            {
+              "line": 21,
+              "text": "    When họ gửi email và mật khẩu hợp lệ"
+            },
+            {
+              "line": 22,
+              "text": "    Then họ thấy bảng điều khiển"
+            },
+            {
+              "line": 23,
+              "text": "```"
+            },
+            {
+              "line": 24,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Open questions",
+          "line": 25,
+          "lines": [
+            {
+              "line": 26,
+              "text": "- [x] Đã rõ"
+            },
+            {
+              "line": 27,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Plan",
+          "line": 28,
+          "lines": [
+            {
+              "line": 29,
+              "text": "- Làm màn hình đăng nhập @ac-1"
+            }
+          ]
+        }
+      ]
+    },
+    "HYGIENE": {
+      "file": "accord/tickets/HYGIENE.md",
+      "frontmatter": {
+        "assumptions": [
+          {
+            "confirmed": false,
+            "text": "Đã có SSO"
+          }
+        ],
+        "id": "HYGIENE",
+        "status": "open",
+        "title": "Phiếu chưa vệ sinh",
+        "type": "story",
+        "ui": false
+      },
+      "id": "HYGIENE",
+      "requirements": [
+        {
+          "line": 15,
+          "text": "WHEN thanh toán maybe thất bại the system SHALL thử lại một lần"
+        }
+      ],
+      "scenarios": [
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 22,
+          "name": "Đăng nhập thành công",
+          "steps": [
+            "When họ gửi email và mật khẩu hợp lệ",
+            "Then họ thấy bảng điều khiển"
+          ],
+          "tags": [
+            "@ac-1"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 11,
+          "lines": [
+            {
+              "line": 12,
+              "text": "Người dùng đăng nhập bằng email. TODO viết thêm phần quên mật khẩu."
+            },
+            {
+              "line": 13,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Requirements",
+          "line": 14,
+          "lines": [
+            {
+              "line": 15,
+              "text": "- WHEN thanh toán maybe thất bại the system SHALL thử lại một lần"
+            },
+            {
+              "line": 16,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Acceptance criteria",
+          "line": 17,
+          "lines": [
+            {
+              "line": 18,
+              "text": "```gherkin"
+            },
+            {
+              "line": 19,
+              "text": "Feature: HYGIENE"
+            },
+            {
+              "line": 20,
+              "text": ""
+            },
+            {
+              "line": 21,
+              "text": "  @ac-1"
+            },
+            {
+              "line": 22,
+              "text": "  Scenario: Đăng nhập thành công"
+            },
+            {
+              "line": 23,
+              "text": "    When họ gửi email và mật khẩu hợp lệ"
+            },
+            {
+              "line": 24,
+              "text": "    Then họ thấy bảng điều khiển"
+            },
+            {
+              "line": 25,
+              "text": "```"
+            },
+            {
+              "line": 26,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Open questions",
+          "line": 27,
+          "lines": [
+            {
+              "line": 28,
+              "text": "- [ ] Chưa rõ luồng SSO"
+            },
+            {
+              "line": 29,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Plan",
+          "line": 30,
+          "lines": [
+            {
+              "line": 31,
+              "text": "- Làm màn hình đăng nhập @ac-1"
+            }
+          ]
+        }
+      ]
+    },
+    "NOUI": {
+      "file": "accord/tickets/NOUI.md",
+      "frontmatter": {
+        "id": "NOUI",
+        "status": "open",
+        "title": "Phiếu không có giao diện",
+        "type": "story",
+        "ui": false
+      },
+      "id": "NOUI",
+      "requirements": [
+        {
+          "line": 13,
+          "text": "WHEN phiên đăng nhập hết hạn the system SHALL xoá phiên đó"
+        }
+      ],
+      "scenarios": [
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 20,
+          "name": "Xoá phiên hết hạn",
+          "steps": [
+            "When công việc đêm chạy",
+            "Then phiên hết hạn không còn"
+          ],
+          "tags": [
+            "@ac-1"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 9,
+          "lines": [
+            {
+              "line": 10,
+              "text": "Hệ thống dọn phiên đăng nhập đã hết hạn mỗi đêm."
+            },
+            {
+              "line": 11,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Requirements",
+          "line": 12,
+          "lines": [
+            {
+              "line": 13,
+              "text": "- WHEN phiên đăng nhập hết hạn the system SHALL xoá phiên đó"
+            },
+            {
+              "line": 14,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Acceptance criteria",
+          "line": 15,
+          "lines": [
+            {
+              "line": 16,
+              "text": "```gherkin"
+            },
+            {
+              "line": 17,
+              "text": "Feature: NOUI"
+            },
+            {
+              "line": 18,
+              "text": ""
+            },
+            {
+              "line": 19,
+              "text": "  @ac-1"
+            },
+            {
+              "line": 20,
+              "text": "  Scenario: Xoá phiên hết hạn"
+            },
+            {
+              "line": 21,
+              "text": "    When công việc đêm chạy"
+            },
+            {
+              "line": 22,
+              "text": "    Then phiên hết hạn không còn"
+            },
+            {
+              "line": 23,
+              "text": "```"
+            },
+            {
+              "line": 24,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Open questions",
+          "line": 25,
+          "lines": [
+            {
+              "line": 26,
+              "text": "- [x] Đã rõ"
+            },
+            {
+              "line": 27,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Plan",
+          "line": 28,
+          "lines": [
+            {
+              "line": 29,
+              "text": "- Viết công việc dọn phiên @ac-1"
+            }
+          ]
+        }
+      ]
+    },
+    "SCHEMA": {
+      "file": "accord/tickets/SCHEMA.md",
+      "id": "SCHEMA",
+      "requirements": [
+        {
+          "line": 12,
+          "text": "WHEN người dùng gửi mật khẩu mới hợp lệ the system SHALL lưu mật khẩu đó"
+        }
+      ],
+      "scenarios": [
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 19,
+          "name": "Đổi mật khẩu",
+          "steps": [
+            "When họ gửi mật khẩu mới hợp lệ",
+            "Then mật khẩu được lưu"
+          ],
+          "tags": [
+            "@ac-1"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 8,
+          "lines": [
+            {
+              "line": 9,
+              "text": "Người dùng đổi mật khẩu trong phần cài đặt."
+            },
+            {
+              "line": 10,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Requirements",
+          "line": 11,
+          "lines": [
+            {
+              "line": 12,
+              "text": "- WHEN người dùng gửi mật khẩu mới hợp lệ the system SHALL lưu mật khẩu đó"
+            },
+            {
+              "line": 13,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Acceptance criteria",
+          "line": 14,
+          "lines": [
+            {
+              "line": 15,
+              "text": "```gherkin"
+            },
+            {
+              "line": 16,
+              "text": "Feature: SCHEMA"
+            },
+            {
+              "line": 17,
+              "text": ""
+            },
+            {
+              "line": 18,
+              "text": "  @ac-1"
+            },
+            {
+              "line": 19,
+              "text": "  Scenario: Đổi mật khẩu"
+            },
+            {
+              "line": 20,
+              "text": "    When họ gửi mật khẩu mới hợp lệ"
+            },
+            {
+              "line": 21,
+              "text": "    Then mật khẩu được lưu"
+            },
+            {
+              "line": 22,
+              "text": "```"
+            },
+            {
+              "line": 23,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Open questions",
+          "line": 24,
+          "lines": [
+            {
+              "line": 25,
+              "text": "- [x] Đã rõ"
+            },
+            {
+              "line": 26,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Plan",
+          "line": 27,
+          "lines": [
+            {
+              "line": 28,
+              "text": "- Làm biểu mẫu đổi mật khẩu @ac-1"
+            }
+          ]
+        }
+      ]
+    },
+    "THIN": {
+      "file": "accord/tickets/THIN.md",
+      "frontmatter": {
+        "id": "THIN",
+        "status": "open",
+        "title": "Phiếu rỗng ruột",
+        "type": "story",
+        "ui": false
+      },
+      "id": "THIN",
+      "requirements": [
+        {
+          "line": 14,
+          "text": "Màn hình phải nhanh"
+        },
+        {
+          "line": 15,
+          "text": "Người dùng thấy danh sách"
+        }
+      ],
+      "scenarios": [
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 22,
+          "name": "Xem danh sách",
+          "steps": [
+            "When họ mở trang danh sách",
+            "Then họ thấy danh sách"
+          ],
+          "tags": [
+            "@ac-1"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 9,
+          "lines": [
+            {
+              "line": 10,
+              "text": ""
+            },
+            {
+              "line": 11,
+              "text": "<!-- BA viết phần này -->"
+            },
+            {
+              "line": 12,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Requirements",
+          "line": 13,
+          "lines": [
+            {
+              "line": 14,
+              "text": "- Màn hình phải nhanh"
+            },
+            {
+              "line": 15,
+              "text": "- Người dùng thấy danh sách"
+            },
+            {
+              "line": 16,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Acceptance criteria",
+          "line": 17,
+          "lines": [
+            {
+              "line": 18,
+              "text": "```gherkin"
+            },
+            {
+              "line": 19,
+              "text": "Feature: THIN"
+            },
+            {
+              "line": 20,
+              "text": ""
+            },
+            {
+              "line": 21,
+              "text": "  @ac-1"
+            },
+            {
+              "line": 22,
+              "text": "  Scenario: Xem danh sách"
+            },
+            {
+              "line": 23,
+              "text": "    When họ mở trang danh sách"
+            },
+            {
+              "line": 24,
+              "text": "    Then họ thấy danh sách"
+            },
+            {
+              "line": 25,
+              "text": "```"
+            },
+            {
+              "line": 26,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Open questions",
+          "line": 27,
+          "lines": [
+            {
+              "line": 28,
+              "text": "- [x] Đã rõ"
+            },
+            {
+              "line": 29,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Plan",
+          "line": 30,
+          "lines": [
+            {
+              "line": 31,
+              "text": "- Dựng trang danh sách @ac-1"
+            }
+          ]
+        }
+      ]
+    },
+    "UINOREF": {
+      "file": "accord/tickets/UINOREF.md",
+      "frontmatter": {
+        "id": "UINOREF",
+        "status": "open",
+        "title": "Phiếu giao diện thiếu tham chiếu",
+        "type": "story",
+        "ui": true
+      },
+      "id": "UINOREF",
+      "requirements": [
+        {
+          "line": 13,
+          "text": "WHEN người dùng mở trang đăng nhập the system SHALL hiển thị biểu mẫu mới"
+        }
+      ],
+      "scenarios": [
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 20,
+          "name": "Mở trang đăng nhập",
+          "steps": [
+            "When họ mở trang đăng nhập",
+            "Then họ thấy biểu mẫu mới"
+          ],
+          "tags": [
+            "@ac-1"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 9,
+          "lines": [
+            {
+              "line": 10,
+              "text": "Người dùng thấy màn hình đăng nhập mới."
+            },
+            {
+              "line": 11,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Requirements",
+          "line": 12,
+          "lines": [
+            {
+              "line": 13,
+              "text": "- WHEN người dùng mở trang đăng nhập the system SHALL hiển thị biểu mẫu mới"
+            },
+            {
+              "line": 14,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Acceptance criteria",
+          "line": 15,
+          "lines": [
+            {
+              "line": 16,
+              "text": "```gherkin"
+            },
+            {
+              "line": 17,
+              "text": "Feature: UINOREF"
+            },
+            {
+              "line": 18,
+              "text": ""
+            },
+            {
+              "line": 19,
+              "text": "  @ac-1"
+            },
+            {
+              "line": 20,
+              "text": "  Scenario: Mở trang đăng nhập"
+            },
+            {
+              "line": 21,
+              "text": "    When họ mở trang đăng nhập"
+            },
+            {
+              "line": 22,
+              "text": "    Then họ thấy biểu mẫu mới"
+            },
+            {
+              "line": 23,
+              "text": "```"
+            },
+            {
+              "line": 24,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Open questions",
+          "line": 25,
+          "lines": [
+            {
+              "line": 26,
+              "text": "- [x] Đã rõ"
+            },
+            {
+              "line": 27,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Plan",
+          "line": 28,
+          "lines": [
+            {
+              "line": 29,
+              "text": "- Dựng biểu mẫu đăng nhập @ac-1"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "tree": [
+    "accord/config.yml",
+    "accord/tickets/CLEAN.md",
+    "accord/tickets/HYGIENE.md",
+    "accord/tickets/NOUI.md",
+    "accord/tickets/SCHEMA.md",
+    "accord/tickets/THIN.md",
+    "accord/tickets/UINOREF.md"
+  ],
+  "verifications": {}
+}

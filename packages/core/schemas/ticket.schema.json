@@ -31,6 +31,8 @@
       }
     },
     "ac_hash": { "type": "string", "minLength": 1 },
+    "verified_hash": { "type": "string", "pattern": "^fnv1a64:[0-9a-f]{16}$" },
+    "verified_commit": { "type": "string", "pattern": "^[0-9a-fA-F]+$", "minLength": 7 },
     "verified": {
       "type": "array",
       "uniqueItems": true,

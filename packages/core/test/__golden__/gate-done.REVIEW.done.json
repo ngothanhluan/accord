@@ -1,0 +1,15 @@
+{
+  "acHash": "fnv1a64:0e84e174c4cdc76b",
+  "findings": [
+    {
+      "file": "accord/tickets/REVIEW/verification.md",
+      "level": "error",
+      "pointer": "/commit",
+      "reason": "the review was written against commit 9999999; the gated commit is 1234567890abcdef1234567890abcdef12345678",
+      "rule": "gate.stale-review"
+    }
+  ],
+  "gate": "done",
+  "ticket": "REVIEW",
+  "verdict": "fail"
+}

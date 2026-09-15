@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="tests" tests="4" failures="1" errors="0" time="0.04">
+  <testsuite name="test/login.spec.ts" timestamp="2026-09-14T00:00:00.000Z" tests="4" failures="1" errors="0" skipped="1" time="0.04">
+    <testcase classname="test/login.spec.ts" name="ok1" time="0.01"/>
+    <testcase classname="test/login.spec.ts" name="ok2" time="0.01"/>
+    <testcase classname="test/login.spec.ts" name="skip1" time="0"><skipped message="tam thoi tat"/></testcase>
+    <testcase classname="test/login.spec.ts" name="fail1" time="0.02"><failure message="expected true to be false">at test/login.spec.ts:9</failure></testcase>
+  </testsuite>
+</testsuites>

@@ -5,7 +5,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const coreDir = join(repoRoot, 'packages', 'core');
@@ -24,6 +24,12 @@ const seamRule = 'no-restricted-imports';
 const ajvSnippet = "import { Ajv2020 } from 'ajv/dist/2020.js'; export const a = Ajv2020;";
 
 describe('layer A: ESLint rejects Node built-ins in core src', () => {
+  // Resolving the flat config and loading typescript-eslint costs ~25s on a cold
+  // runner and nothing thereafter. Pay it here, so each case keeps the 5s default.
+  beforeAll(async () => {
+    await ruleIds('export const warm = 1;');
+  }, 60_000);
+
   it('node:fs (prefixed)', async () => {
     const ids = await ruleIds("import { readFileSync } from 'node:fs'; export const x = readFileSync;");
     expect(ids).toEqual([purityRule]);

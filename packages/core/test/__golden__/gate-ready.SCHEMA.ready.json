@@ -1,0 +1,23 @@
+{
+  "acHash": "fnv1a64:26ff52c3b857dfed",
+  "findings": [
+    {
+      "file": "accord/tickets/SCHEMA.md",
+      "level": "error",
+      "line": 2,
+      "pointer": "",
+      "reason": "must have required property 'title'",
+      "rule": "schema.required"
+    },
+    {
+      "file": "accord/tickets/SCHEMA.md",
+      "level": "warning",
+      "line": 19,
+      "reason": "scenario \"Đổi mật khẩu\" has no @test:<id> tag and is not @ui",
+      "rule": "lint.test-tag-missing"
+    }
+  ],
+  "gate": "ready",
+  "ticket": "SCHEMA",
+  "verdict": "fail"
+}

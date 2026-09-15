@@ -1,0 +1,134 @@
+{
+  "acHash": "fnv1a64:32e0b95dea3e8862",
+  "findings": [
+    {
+      "file": "accord/assets/A/prototype.html",
+      "level": "warning",
+      "line": 1,
+      "reason": "prototype has no \"Derived from:\" line in its header comment",
+      "rule": "lint.prototype-derivation"
+    },
+    {
+      "file": "accord/config.yml",
+      "level": "error",
+      "pointer": "/tests",
+      "reason": "no test report is declared, so the machine layer cannot run and Done cannot pass; set tests.report",
+      "rule": "gate.tests-unconfigured"
+    },
+    {
+      "file": "accord/tickets/A.md",
+      "level": "error",
+      "pointer": "/ac_hash",
+      "reason": "Ready has recorded no ac_hash for this ticket",
+      "rule": "gate.ac-hash-missing"
+    },
+    {
+      "file": "accord/tickets/A.md",
+      "level": "error",
+      "line": 14,
+      "reason": "scenarios lack @ac-3 @ac-4; evidence lacks nothing; verified lacks @ac-1 @ac-2 @ac-3 @ac-4",
+      "rule": "gate.tags-differ"
+    },
+    {
+      "file": "accord/tickets/A.md",
+      "level": "error",
+      "line": 19,
+      "reason": "scenario \"Một\" carries no @test:<id> tag and is not @ui, so Done cannot check it against the report",
+      "rule": "gate.test-tag-missing"
+    },
+    {
+      "file": "accord/tickets/A.md",
+      "level": "warning",
+      "line": 19,
+      "reason": "scenario \"Một\" has no @test:<id> tag and is not @ui",
+      "rule": "lint.test-tag-missing"
+    },
+    {
+      "file": "accord/tickets/A.md",
+      "level": "error",
+      "line": 24,
+      "reason": "scenario \"Hai\" carries no @test:<id> tag and is not @ui, so Done cannot check it against the report",
+      "rule": "gate.test-tag-missing"
+    },
+    {
+      "file": "accord/tickets/A.md",
+      "level": "warning",
+      "line": 24,
+      "reason": "scenario \"Hai\" has no @test:<id> tag and is not @ui",
+      "rule": "lint.test-tag-missing"
+    },
+    {
+      "file": "accord/tickets/A.md",
+      "level": "warning",
+      "line": 31,
+      "reason": "ticket has scenarios but ## Plan has no step",
+      "rule": "lint.plan-empty"
+    },
+    {
+      "file": "accord/tickets/A/verification.md",
+      "level": "error",
+      "pointer": "/commit",
+      "reason": "the review was written against commit abcdef0; the gated commit is 1234567890abcdef1234567890abcdef12345678",
+      "rule": "gate.stale-review"
+    },
+    {
+      "file": "accord/tickets/A/verification.md",
+      "level": "error",
+      "line": 7,
+      "reason": "evidence block \"@ac-1\" cites no file, test, or command that exists in the snapshot",
+      "rule": "gate.evidence-unresolved"
+    },
+    {
+      "file": "accord/tickets/A/verification.md",
+      "level": "error",
+      "line": 16,
+      "reason": "evidence block \"@ac-2\" cites no file, test, or command that exists in the snapshot",
+      "rule": "gate.evidence-unresolved"
+    },
+    {
+      "file": "accord/tickets/A/verification.md",
+      "level": "error",
+      "line": 16,
+      "reason": "Result must be pass, fail, or blocked",
+      "rule": "load.result-invalid"
+    },
+    {
+      "file": "accord/tickets/A/verification.md",
+      "level": "error",
+      "line": 20,
+      "reason": "evidence block \"@ac-3\" cites no file, test, or command that exists in the snapshot",
+      "rule": "gate.evidence-unresolved"
+    },
+    {
+      "file": "accord/tickets/A/verification.md",
+      "level": "error",
+      "line": 22,
+      "reason": "Result must be pass, fail, or blocked",
+      "rule": "load.result-invalid"
+    },
+    {
+      "file": "accord/tickets/A/verification.md",
+      "level": "error",
+      "line": 24,
+      "reason": "evidence block \"@ac-4\" cites no file, test, or command that exists in the snapshot",
+      "rule": "gate.evidence-unresolved"
+    },
+    {
+      "file": "accord/tickets/A/verification.md",
+      "level": "error",
+      "line": 24,
+      "reason": "evidence block \"@ac-4\" records Result: blocked",
+      "rule": "gate.result-not-pass"
+    },
+    {
+      "file": "accord/tickets/A/verification.md",
+      "level": "error",
+      "line": 31,
+      "reason": "duplicate heading \"## @ac-1 Một lần nữa\"; the first occurrence is used",
+      "rule": "load.heading-duplicate"
+    }
+  ],
+  "gate": "done",
+  "ticket": "A",
+  "verdict": "fail"
+}

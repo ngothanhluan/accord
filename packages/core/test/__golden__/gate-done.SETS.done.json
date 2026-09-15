@@ -1,0 +1,29 @@
+{
+  "acHash": "fnv1a64:0e84e174c4cdc76b",
+  "findings": [
+    {
+      "file": "accord/tickets/SETS.md",
+      "level": "warning",
+      "pointer": "/verified/1",
+      "reason": "verified names \"ac-3\" but no scenario carries @ac-3",
+      "rule": "lint.tick-orphan"
+    },
+    {
+      "file": "accord/tickets/SETS.md",
+      "level": "error",
+      "line": 21,
+      "reason": "scenarios lack @ac-3; evidence lacks @ac-2 @ac-3; verified lacks @ac-2",
+      "rule": "gate.tags-differ"
+    },
+    {
+      "file": "accord/tickets/SETS.md",
+      "level": "error",
+      "line": 43,
+      "reason": "verified lists @ac-3 but \"## Verification notes\" has no \"### @ac-3\" block",
+      "rule": "gate.note-missing"
+    }
+  ],
+  "gate": "done",
+  "ticket": "SETS",
+  "verdict": "fail"
+}

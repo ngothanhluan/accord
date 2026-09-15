@@ -1,0 +1,15 @@
+{
+  "acHash": "fnv1a64:8613b1c0604c6a56",
+  "findings": [
+    {
+      "file": "accord/tickets/CLEAN.md",
+      "level": "warning",
+      "line": 20,
+      "reason": "scenario \"Đăng nhập thành công\" has no @test:<id> tag and is not @ui",
+      "rule": "lint.test-tag-missing"
+    }
+  ],
+  "gate": "ready",
+  "ticket": "CLEAN",
+  "verdict": "pass"
+}

@@ -19,6 +19,10 @@ ui: false
 # Developer self-test ticks, e.g. [ac-1, ac-2]. Only the developer writes it.
 # Always the last key so developer hunks stay far from BA hunks.
 # verified: []
+# The AC hash the ticks above were made against, copied from ac_hash at the moment of ticking.
+# verified_hash:
+# The commit sha those ticks were made against. Done fails unless both still equal the current values; a human writes both by hand.
+# verified_commit:
 verified: []
 ---
 

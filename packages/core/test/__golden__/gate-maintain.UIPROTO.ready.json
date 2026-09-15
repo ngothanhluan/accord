@@ -1,0 +1,15 @@
+{
+  "acHash": "fnv1a64:acbe401f4e1f8c9d",
+  "findings": [
+    {
+      "file": "accord/tickets/UIPROTO.md",
+      "level": "warning",
+      "line": 20,
+      "reason": "scenario \"Mở trang hồ sơ\" has no @test:<id> tag and is not @ui",
+      "rule": "lint.test-tag-missing"
+    }
+  ],
+  "gate": "ready",
+  "ticket": "UIPROTO",
+  "verdict": "pass"
+}

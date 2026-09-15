@@ -5,6 +5,10 @@ import type { LoadFinding } from './finding.js';
 export interface SnapshotInput {
   files: Record<string, string>; // repo-relative key -> text; everything under accord/ plus the tokens file (D-30)
   tree: string[]; // every path in the repository, content-free (D-30)
+  // D-78: host-supplied git facts, following the D-72 precedent for `tests`. `authors` is keyed by
+  // repo-relative posix path, plus one entry keyed by the value of `commit` carrying the gated commit's
+  // author. Absent — not undefined — when the host cannot supply it, so the D-54 goldens are unchanged.
+  git?: { commit: string; authors: Record<string, string> };
 }
 
 export interface Line {
@@ -39,6 +43,8 @@ export interface TicketFrontmatter {
   assumptions?: { text: string; confirmed: boolean }[];
   ac_hash?: string;
   verified?: string[]; // ['ac-1']
+  verified_hash?: string; // D-76: the AC hash the ticks were made against, 'fnv1a64:<16 hex>'
+  verified_commit?: string; // D-76: the commit sha those ticks were made against, at least 7 hex characters
 }
 
 export interface Ticket {
@@ -89,4 +95,7 @@ export interface RepoSnapshot {
   errors: LoadFinding[]; // every loader and schema finding, in file order; lint stamps the level (D-58)
   files: Record<string, string>; // D-65: normalised text of every accord/assets/<id>/prototype.html, the config.design.tokens file, and the config.tests.report file; nothing else
   tests?: Record<string, 'passed' | 'failed' | 'skipped'>; // D-72: absent when no report is in files
+  // D-78: carried through from SnapshotInput. Host-supplied, `authors` keyed by repo-relative posix path
+  // plus one entry keyed by the value of `commit`; absent, not undefined, when the host cannot supply it.
+  git?: { commit: string; authors: Record<string, string> };
 }

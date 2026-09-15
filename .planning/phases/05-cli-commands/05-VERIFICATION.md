@@ -74,8 +74,23 @@ owner_dispositions:
       A case-sensitive filesystem would only matter for two ticket files differing by case, which no
       fixture creates. And the one test with real cross-platform teeth — the D-51 backslash scan at
       spawn-surface.test.ts:103 — can only fail on Windows, which is the host it passed on; on Linux
-      that assertion is vacuous. Windows is the harder host here, not the easier one.
-    confirm_at: "First push. Read the `check` job's ubuntu-latest legs on Node 22 and 24; expect the same 708 tests green."
+      that assertion is vacuous.
+    confirmed: >-
+      2026-09-15, run 34942554349. Both ubuntu-latest legs (Node 22 and 24) green — the prediction held
+      and the deferred item is discharged.
+    correction: >-
+      The reasoning above closed with "Windows is the harder host here, not the easier one", and that
+      sentence was wrong in a way worth recording. It conflated *a* Windows host with *the* Windows CI
+      leg. Both windows-latest legs of the same run failed, on a test that passes on the author's
+      machine: load.test.ts's D-78 guard compares `git rev-parse --show-toplevel` against
+      `realpathSync(mkdtemp(...))`, and on the runner those are `C:\Users\runneradmin\...` and
+      `C:\Users\RUNNER~1\...` — one directory, two strings, because plain `realpathSync` does not
+      expand a Windows 8.3 short name and the runner's username is long enough to have one. Invisible
+      locally: a username of eight characters or fewer generates no alias. Fixed by canonicalising with
+      `realpathSync.native` on both sides of every path comparison in the CLI test guards. A test
+      defect, not a CLI defect — nothing in the product compares those two paths, and `repoRoot`
+      correctly takes git's long form. The phase stays closed; the correction is recorded rather than
+      the report re-run, because no must-have truth changed.
     on_failure: "Reopen phase 05 — a red Ubuntu leg would be a CLI defect, not a planning gap."
   - item: "Decide whether 05-04-SUMMARY.md finding 2 should be rewritten"
     ruling: "Resolved — finding 2 was rewritten 2026-09-15."

@@ -15,8 +15,11 @@ import { runCli } from '../../src/run.js';
 const fixtures = fileURLToPath(new URL('../../../core/test/fixtures/', import.meta.url));
 
 function gitIn(tmp: string) {
-  const root = realpathSync(tmp);
-  if (!root.startsWith(realpathSync(tmpdir())) || root === realpathSync(process.cwd())) {
+  // `.native`, not plain `realpathSync`: the plain form leaves a Windows 8.3 short component in place,
+  // so `C:\Users\RUNNER~1\...` and `C:\Users\runneradmin\...` compare unequal for one directory. The
+  // sibling guard in test/load.test.ts carries the full account.
+  const root = realpathSync.native(tmp);
+  if (!root.startsWith(realpathSync.native(tmpdir())) || root === realpathSync.native(process.cwd())) {
     throw new Error('refusing to run git outside a temporary sandbox: ' + tmp);
   }
   return (...args: string[]) =>

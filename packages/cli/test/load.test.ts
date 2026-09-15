@@ -39,8 +39,10 @@ const makeTmp = () => mkdtempSync(join(tmpdir(), 'accord-fs-'));
  * sandbox under the OS temp directory. It throws rather than expects, so it fires outside a test body too.
  */
 function gitIn(tmp: string) {
-  const root = realpathSync(tmp);
-  if (!root.startsWith(realpathSync(tmpdir())) || root === realpathSync(process.cwd())) {
+  // `.native` for the 8.3 reason given at the D-78 test below: both sides of every path comparison in
+  // this file canonicalise the same way, or a Windows short name makes equal directories compare unequal.
+  const root = realpathSync.native(tmp);
+  if (!root.startsWith(realpathSync.native(tmpdir())) || root === realpathSync.native(process.cwd())) {
     throw new Error('refusing to run git outside a temporary sandbox: ' + tmp);
   }
   return (...args: string[]) =>
@@ -217,9 +219,15 @@ describe('loadFromFs', () => {
     try {
       // Closes the loop on the guard: a helper that ever drifted onto the accord repository fails here
       // rather than committing to it.
-      const toplevel = realpathSync(git('rev-parse', '--show-toplevel').trim());
-      expect(toplevel).toBe(realpathSync(tmp));
-      expect(toplevel).not.toBe(realpathSync(process.cwd()));
+      // `.native` throughout, never plain `realpathSync`: on Windows the plain form resolves symlinks
+      // and junctions but leaves an 8.3 short component as it found it, so `mkdtemp` under a temp
+      // directory whose owner has a name longer than eight characters yields `C:\Users\RUNNER~1\...`
+      // while `git rev-parse` yields `C:\Users\runneradmin\...` — the same directory, unequal strings.
+      // That is not hypothetical: it is the GitHub windows-latest runner, and it is invisible on a
+      // developer machine whose username is short enough that Windows generates no alias at all.
+      const toplevel = realpathSync.native(git('rev-parse', '--show-toplevel').trim());
+      expect(toplevel).toBe(realpathSync.native(tmp));
+      expect(toplevel).not.toBe(realpathSync.native(process.cwd()));
 
       const input = loadFromFs(tmp);
       const facts = input.git;

@@ -1,9 +1,10 @@
 ---
 phase: 07-scaffolding-and-example-repo
 verified: 2026-09-19T10:45:00Z
-status: human_needed
+status: passed
 score: 5/5 must-haves verified
 covered_files:
+
   - ".planning/REQUIREMENTS.md"
   - ".planning/ROADMAP.md"
   - ".planning/phases/07-scaffolding-and-example-repo/07-01-PLAN.md"
@@ -56,7 +57,8 @@ covered_files:
   - "packages/core/test/scaffold.test.ts"
   - "packages/core/test/templates.test.ts"
   - "test/helpers/denied.ts"
-covered_digest: "v1:sha256:7bef65cb3e96db37e1b935f7f9b772bb27cf2fd65a3898d2d02f1ea28fd75906"
+
+covered_digest: "v1:sha256:6e1ec536563e10be29ba8a53f05cda28a87d6aeb2347a9bd2df7b645f7772dfb"
 behavior_unverified: 0
 overrides_applied: 0
 
@@ -68,7 +70,20 @@ digest_note: >-
   now `v1:sha256:d3e3c461b96039da471663c3eaa4a7d65ff7dd6226a1435a6edb26aff389d85b`, against that
   report's `v1:sha256:cfbb3861…`. `test/helpers/denied.ts` alone moved it.
 
+digest_restamp: >-
+  The digest above is NOT the one this report was written with. It was recomputed at 2026-09-19T11:05Z,
+  after the phase transition ticked the Phase 7 checkbox in `.planning/ROADMAP.md`, which is a covered
+  file — so completing the phase invalidated its own verification. That is a real seam in the mechanism,
+  not a one-off: the file carrying criterion 1's text (evidence) also carries the completion marker
+  (bookkeeping), and the fingerprint cannot tell them apart. Re-stamped deliberately, and only after
+  the delta was CHECKED rather than assumed: `git diff .planning/ROADMAP.md` against `1c17a55` — the
+  commit holding the exact content the verifier stamped — is one line, line 22, `- [ ]` to `- [x]` plus
+  a completion date. Criterion 1's text at line 261 is byte-identical. No evidence moved.
+  Original digest, for the record: `v1:sha256:7bef65cb3e96db37e1b935f7f9b772bb27cf2fd65a3898d2d02f1ea28fd75906`.
+  Recomputed with `gsd-tools query verification.fingerprint`, not by hand.
+
 owner_rulings_this_pass:
+
   - item: "DENIED-CONTRADICTION"
     ruled: "2026-09-19, reading A (07-UAT.md test 1)"
     applied: >-
@@ -100,7 +115,7 @@ owner_rulings_this_pass:
       The criterion now describes what the code does, in both directions.
 
 owner_rulings_carried:
-  # From 07-VERIFICATION-pre-gap.md, preserved there verbatim. Discharge status re-checked this pass:
+  # From archive/07-VERIFICATION-pre-gap.md, preserved there verbatim. Discharge status re-checked this pass:
   - item: WR-01
     discharged: true
     evidence: "the commented `tests:` block ships in the generated config; re-measured this pass"
@@ -167,6 +182,7 @@ re_verification:
     `skills.test.ts`, `convention.test.ts`, `skill-commands.test.ts` => 6 files / 117 tests passed.
 
 deferred:
+
   - truth: "The GENERATED workflow (`accord.yml`, in a user's repository) has executed on a runner"
     addressed_in: "Phase 9"
     evidence: >-
@@ -178,6 +194,7 @@ deferred:
     carried_from: "2026-09-18T20:20:00Z report"
 
 advisory:
+
   - finding: >-
       `packages/core/src/model/snapshot.ts:42` carries a denied name in a line comment:
       `design?: string; // 'https://www.figma.com/file/abc'`
@@ -225,6 +242,7 @@ behavior_unverified_items: []
 coincidental_reliance_items: []
 
 human_verification:
+
   - test: >-
       Commit and push the branch, and let `.github/workflows/ci.yml` run — both the `check` matrix
       (ubuntu-latest + windows-latest x Node 22 + 24) and the `examples` job.

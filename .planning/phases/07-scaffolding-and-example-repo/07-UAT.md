@@ -1,14 +1,14 @@
 ---
-status: partial
+status: complete
 phase: 07-scaffolding-and-example-repo
 source: [07-VERIFICATION.md]
 started: 2026-09-19T09:35:00Z
-updated: 2026-09-19T10:05:00Z
+updated: 2026-09-19T11:00:00Z
 ---
 
 ## Current Test
 
-[testing paused — 1 item outstanding: test 2 blocked on a commit]
+[testing complete]
 
 ## Tests
 
@@ -49,10 +49,21 @@ applied: |
   state the reason above rather than assert an absence that was not true.
   `npm run check` exit 0 afterwards: lint clean, 3x tsc clean, 36 files / 888 tests passing.
 follow_up: |
-  `README.md:18` is left as it stands. It names all four runtimes and README is in BOTH packages'
-  `files:` lists, so it is a published byte — but no `deniedNames` call site reads README, and under
-  reading A nothing requires the change. Whether to reword it for durability ("comparisons date
-  quickly") is a separate EDITORIAL decision, deliberately not coupled to the scan. Open, not blocking.
+  `README.md:18` is left as it stands. It names all four runtimes, but nothing requires the change
+  under reading A and no `deniedNames` call site reads README. Whether to reword it for durability
+  ("comparisons date quickly") is a separate EDITORIAL decision, deliberately not coupled to the scan.
+  Open, not blocking.
+
+  CORRECTION, from the re-verification of 2026-09-19: the ruling was presented with the claim that
+  "README is a published byte". That was true about the `files:` lists and FALSE about the outcome.
+  Both packages name `README.md` in `files:`, but `files:` resolves inside the package directory and
+  neither `packages/cli/` nor `packages/core/` contains a README — only the repo root does.
+  `npm pack --dry-run` yields 2 files for the CLI and 13 for core, with no README in either.
+
+  The ruling is unaffected: it rests on `runtimes:` config values and directory path components,
+  not on README. But this is a live Phase 9 item — publishing as things stand gives two packages
+  with a blank npm page. Fix is either to add a README to each package directory or to drop it from
+  the `files:` lists; that is a packaging decision, deliberately not taken here.
 result: pass
 
 ### 2. Run CI on a real runner
@@ -65,16 +76,25 @@ context: |
   The `examples` job relies on `sed -i`, `mktemp -d` and `cp -R` semantics; the job body was
   executed verbatim under Git Bash on Windows and passed — strong, but not ubuntu.
 carried_from: 2026-09-18T11:40:00Z report — still open
-result: blocked
-blocked_by: other
-reason: |
-  Cannot be run from here. The job needs a commit on a branch a runner can see, and the owner's
-  standing rule is that nothing is committed without explicit approval — 55 files, including all of
-  phases 6 and 7, are still in the working tree. This is a prerequisite gate, not a code defect:
-  it resolves the moment the phase is committed and pushed, and not before.
-result_note: |
-  Local evidence, unchanged: `npm run check` exit 0 on Windows (lint + 3x tsc + 36 files / 888 tests),
-  and the `examples` job body executed verbatim under Git Bash. Neither substitutes for ubuntu.
+result: pass
+evidence: |
+  Owner approved the commit on 2026-09-19. Phases 6 and 7 landed as `9f3f55b` (implementation, 80
+  files) and `1c17a55` (planning artifacts, 70 files), pushed to `origin/main` as `53e9df9..1c17a55`.
+
+  Run 35419856147 on `1c17a55` — conclusion `success`, all five jobs green:
+    check (ubuntu-latest, 22)   success
+    check (ubuntu-latest, 24)   success
+    check (windows-latest, 22)  success
+    check (windows-latest, 24)  success
+    run the generated workflow's commands against the examples   success
+
+  The examples job printed both expected lines on ubuntu, so `sed -i` / `mktemp -d` / `cp -R` behave
+  there as they did under Git Bash:
+    2026-09-19T03:54:31.4408102Z == build
+    2026-09-19T03:54:31.8338276Z == maintain
+
+  This closes the carry: the phase is no longer Windows-observed only. The full 2x2 matrix
+  (ubuntu + windows x Node 22 + 24) has now executed the same suite that passes locally.
 
 ### 3. Confirm the skill-copy overwrite reading of success criterion 1
 expected: |
@@ -101,10 +121,10 @@ result: pass
 ## Summary
 
 total: 3
-passed: 2
+passed: 3
 issues: 0
 pending: 0
 skipped: 0
-blocked: 1
+blocked: 0
 
 ## Gaps

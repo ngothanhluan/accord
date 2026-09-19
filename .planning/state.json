@@ -36,7 +36,7 @@
     {
       "number": "7",
       "name": "Scaffolding and Example Repo",
-      "status": "in_progress"
+      "status": "complete"
     },
     {
       "number": "8",
@@ -50,9 +50,9 @@
     }
   ],
   "next": {
-    "command": "/gsd:progress --next",
-    "label": "Advance to the next step",
-    "reason": "Phase 07 of 9 · executing"
+    "command": "/gsd-plan-phase 8",
+    "label": "Plan Phase 8: MCP Server",
+    "reason": "Phase 07 of 9 complete"
   },
-  "updated_at": "2026-09-19T02:05:18.793Z"
+  "updated_at": "2026-09-19T11:05:00Z"
 }

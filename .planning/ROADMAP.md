@@ -19,7 +19,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 4: Gates** - Ready and Done evaluated deterministically with AC hash, three-set match, evidence check, profile matrix, and exit codes (completed 2026-09-15)
 - [x] **Phase 5: CLI Commands** - `new ticket`, `lint`, `gate`, `status` on Windows and POSIX with `--json`, version pin, and the `github-issues` adapter (completed 2026-09-15)
 - [x] **Phase 6: Skills** - One workflow definition per role rendered to SKILL.md for all four runtimes, synced with marker and hash (completed 2026-09-17)
-- [ ] **Phase 7: Scaffolding and Example Repo** - `init` delivers the whole contract in one command; example repo passes both gates in both profiles
+- [x] **Phase 7: Scaffolding and Example Repo** - `init` delivers the whole contract in one command; example repo passes both gates in both profiles (completed 2026-09-19)
 - [ ] **Phase 8: MCP Server** - Stateless Streamable HTTP server over the GitHub API with GitHub OAuth, deployed and verified from two chat clients
 - [ ] **Phase 9: Publish and Dogfood** - Scoped npm package via trusted publishing; one real employer ticket through Ready and Done
 

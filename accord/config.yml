@@ -1,0 +1,13 @@
+# Written by hand in Phase 6. `accord init` does not ship until Phase 7; when it does, it must not
+# overwrite this file. It exists so `accord skills sync` can run in this repository, which is what
+# lets accord generate its own skill copies instead of hand-maintaining them.
+accord: "0.1.0"
+profile: maintain
+tracker:
+  adapter: none
+design:
+  # This repository ships a CLI and no interface, so no file exists at this path and `accord lint`
+  # reports the token rule as skipped. The key is required by config.schema.json.
+  tokens: docs/tokens.css
+roles: [ba, dev]
+runtimes: [claude]

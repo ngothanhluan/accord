@@ -84,7 +84,7 @@ describe('accord new ticket — what it writes', () => {
       const repo = sandbox();
       await run(['new', 'ticket', 'TCK-1', '--type', type], repo);
       const text = readFileSync(ticket(repo, 'TCK-1'), 'utf8');
-      expect(text).toContain('Ready then requires a Figma link in design:');
+      expect(text).toContain('Ready then requires a design link in design:');
       expect(text).not.toContain('prototype.html derived from');
     });
 
@@ -94,7 +94,7 @@ describe('accord new ticket — what it writes', () => {
       await run(['new', 'ticket', 'TCK-1', '--type', type], repo);
       const text = readFileSync(ticket(repo, 'TCK-1'), 'utf8');
       expect(text).toContain('prototype.html derived from');
-      expect(text).not.toContain('Ready then requires a Figma link in design:');
+      expect(text).not.toContain('Ready then requires a design link in design:');
     });
   }
 

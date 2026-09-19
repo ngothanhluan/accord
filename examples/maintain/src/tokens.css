@@ -1,0 +1,19 @@
+/* The design tokens this product already ships. Every screen reads them, and config.yml points
+   design.tokens here, so `accord lint` checks every prototype against these names. On the maintain
+   profile a prototype is built from what is already here rather than from fresh values. */
+:root {
+  --colour-surface: #ffffff;
+  --colour-ink: #1c1f24;
+  --colour-ink-quiet: #5b6470;
+  --colour-line: #d8dde3;
+  --colour-accent: #1f5f4f;
+  --colour-on-accent: #ffffff;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 16px;
+  --space-4: 24px;
+
+  --radius: 6px;
+  --font-body: system-ui, sans-serif;
+}

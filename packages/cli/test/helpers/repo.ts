@@ -35,6 +35,20 @@ export function makeRepo(fixture = 'valid-build'): string {
 }
 
 /**
+ * A throwaway git repository with nothing in it — no `accord/` folder, no fixture. `accord init` is the one
+ * command whose starting state is precisely this, and `makeRepo` always copies a fixture that already
+ * carries the folder `init` exists to create.
+ *
+ * A separate function rather than `makeRepo(fixture?)`: a caller that forgot the argument would then
+ * silently get an empty repository, and every other command's test reads a fixture it never named.
+ */
+export function makeEmptyRepo(): string {
+  const tmp = mkdtempSync(join(tmpdir(), 'accord-cli-'));
+  gitIn(tmp)('init', '-q');
+  return tmp;
+}
+
+/**
  * Commit everything in the sandbox and return the HEAD sha. Needed by the Done gate, whose rules read
  * `git.commit` (D-78): without a commit every `gate done` fails on `gate.commit-missing`, so the pass
  * verdict would be unreachable from the CLI. Identity and signing are supplied per invocation so the

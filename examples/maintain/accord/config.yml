@@ -1,0 +1,32 @@
+# The accord contract for this repository. Every key below is required; edit the values, keep the keys.
+# `accord init` never writes over a file that already exists, so what you put here survives re-running it.
+
+# The version every accord command in this repository must be. A command running under a different version
+# refuses rather than applying a different release's rules to your tickets.
+accord: "0.1.0"
+
+# build - a new product: a ticket with a screen carries a design: URL, or a prototype under accord/assets/.
+# maintain - an existing product: a ticket with a screen carries a prototype derived from what ships today.
+profile: maintain
+
+tracker:
+  # none - accord needs nothing outside this repository.
+  # github-issues - also add `repo: owner/name` here.
+  adapter: none
+
+design:
+  # Path to the file holding this product's design tokens, for example src/styles/tokens.css. While it is
+  # empty the hardcoded-value check is skipped; fill it in and every prototype is checked against it.
+  tokens: "src/tokens.css"
+
+# Who works through accord here. ba and dev are required; drop designer if nobody plays that part.
+roles: [ba, dev, designer]
+
+# Where `accord skills sync` puts the skill copies: claude -> .claude/skills, codex -> .agents/skills,
+# cursor and copilot -> both.
+runtimes: [claude, codex]
+
+# Where the test report lands. `accord gate done` reads it to check that the test behind each
+# @test: tag really passed; without it there is no Done.
+tests:
+  report: reports/junit.xml

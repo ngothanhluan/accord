@@ -21,7 +21,7 @@ interface Column {
   cell: (row: StatusRow, tracker: string | undefined) => string;
 }
 
-/** `{ shortcut: '1234', jira: '1e3' }` becomes `shortcut:1234 jira:1e3`. */
+/** `{ 'github-issues': '1e3' }` becomes `github-issues:1e3`; several keys are joined by one space. */
 function flatten(tracker: Record<string, string> | undefined): string {
   const pairs = Object.entries(tracker ?? {}).map(([k, v]) => k + ':' + v);
   return pairs.length === 0 ? EMPTY_CELL : pairs.join(' ');

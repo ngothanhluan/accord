@@ -1,0 +1,236 @@
+{
+  "config": {
+    "accord": "0.1.0",
+    "design": {
+      "tokens": "src/styles/tokens.css"
+    },
+    "profile": "maintain",
+    "roles": [
+      "ba",
+      "dev"
+    ],
+    "runtimes": [
+      "claude"
+    ],
+    "tracker": {
+      "adapter": "none"
+    }
+  },
+  "errors": [],
+  "files": {},
+  "tickets": {
+    "TCK-1": {
+      "file": "accord/tickets/TCK-1.md",
+      "frontmatter": {
+        "id": "TCK-1",
+        "status": "open",
+        "title": "Export the ticket list as a CSV file",
+        "type": "story",
+        "ui": false
+      },
+      "id": "TCK-1",
+      "requirements": [
+        {
+          "line": 22,
+          "text": "WHEN the user asks to export and at least one ticket is listed the system SHALL produce a CSV file with one header row and one row per listed ticket"
+        },
+        {
+          "line": 23,
+          "text": "WHEN the user asks to export and no ticket is listed the system SHALL say that there is nothing to export and produce no file"
+        }
+      ],
+      "scenarios": [
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 30,
+          "name": "Export a list that has tickets in it",
+          "steps": [
+            "Given three tickets are listed",
+            "When the user asks to export",
+            "Then a CSV file arrives with a header row and three ticket rows"
+          ],
+          "tags": [
+            "@ac-1"
+          ]
+        },
+        {
+          "acTag": "ac-2",
+          "keyword": "Scenario",
+          "line": 36,
+          "name": "Export an empty list",
+          "steps": [
+            "Given no ticket is listed",
+            "When the user asks to export",
+            "Then the user is told there is nothing to export and no file arrives"
+          ],
+          "tags": [
+            "@ac-2"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Intent",
+          "line": 15,
+          "lines": [
+            {
+              "line": 16,
+              "text": "A team lead who keeps their own weekly figures wants the ticket list out of the"
+            },
+            {
+              "line": 17,
+              "text": "tool and into a spreadsheet, without retyping it. Success is that the file opens"
+            },
+            {
+              "line": 18,
+              "text": "in a spreadsheet with one row per ticket. Editing tickets in the spreadsheet and"
+            },
+            {
+              "line": 19,
+              "text": "importing them back is a non-goal."
+            },
+            {
+              "line": 20,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Requirements",
+          "line": 21,
+          "lines": [
+            {
+              "line": 22,
+              "text": "- WHEN the user asks to export and at least one ticket is listed the system SHALL produce a CSV file with one header row and one row per listed ticket"
+            },
+            {
+              "line": 23,
+              "text": "- WHEN the user asks to export and no ticket is listed the system SHALL say that there is nothing to export and produce no file"
+            },
+            {
+              "line": 24,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Acceptance criteria",
+          "line": 25,
+          "lines": [
+            {
+              "line": 26,
+              "text": "```gherkin"
+            },
+            {
+              "line": 27,
+              "text": "Feature: TCK-1"
+            },
+            {
+              "line": 28,
+              "text": ""
+            },
+            {
+              "line": 29,
+              "text": "  @ac-1"
+            },
+            {
+              "line": 30,
+              "text": "  Scenario: Export a list that has tickets in it"
+            },
+            {
+              "line": 31,
+              "text": "    Given three tickets are listed"
+            },
+            {
+              "line": 32,
+              "text": "    When the user asks to export"
+            },
+            {
+              "line": 33,
+              "text": "    Then a CSV file arrives with a header row and three ticket rows"
+            },
+            {
+              "line": 34,
+              "text": ""
+            },
+            {
+              "line": 35,
+              "text": "  @ac-2"
+            },
+            {
+              "line": 36,
+              "text": "  Scenario: Export an empty list"
+            },
+            {
+              "line": 37,
+              "text": "    Given no ticket is listed"
+            },
+            {
+              "line": 38,
+              "text": "    When the user asks to export"
+            },
+            {
+              "line": 39,
+              "text": "    Then the user is told there is nothing to export and no file arrives"
+            },
+            {
+              "line": 40,
+              "text": "```"
+            },
+            {
+              "line": 41,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Open questions",
+          "line": 42,
+          "lines": [
+            {
+              "line": 43,
+              "text": "- [x] The separator is a comma in every locale."
+            },
+            {
+              "line": 44,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Plan",
+          "line": 45,
+          "lines": [
+            {
+              "line": 46,
+              "text": "- Wire the export control to the endpoint and show the empty-list message @ac-1 @ac-2"
+            },
+            {
+              "line": 47,
+              "text": "- Add the row serialiser that turns a ticket into a CSV line"
+            },
+            {
+              "line": 48,
+              "text": "- Add the export endpoint that gathers the listed tickets and calls the serialiser"
+            },
+            {
+              "line": 49,
+              "text": ""
+            }
+          ]
+        },
+        {
+          "heading": "Verification notes",
+          "line": 50,
+          "lines": []
+        }
+      ]
+    }
+  },
+  "tree": [
+    "accord/config.yml",
+    "accord/tickets/TCK-1.md"
+  ],
+  "verifications": {}
+}

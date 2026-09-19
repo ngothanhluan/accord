@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="signup" tests="2" failures="0" errors="0" time="0.02">
+  <testsuite name="test/signup.spec.ts" timestamp="2026-09-18T00:00:00.000Z" tests="2" failures="0" errors="0" skipped="0" time="0.02">
+    <testcase classname="test/signup.spec.ts" name="creates the account" time="0.01"/>
+    <testcase classname="test/signup.spec.ts" name="refuses an address already taken" time="0.01"/>
+  </testsuite>
+</testsuites>

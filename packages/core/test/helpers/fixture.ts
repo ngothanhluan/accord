@@ -6,16 +6,25 @@ import type { SnapshotInput } from '../../src/index.js';
 
 const BOM = String.fromCharCode(0xfeff);
 
-/** Read `test/fixtures/<name>/` into a SnapshotInput with forward-slash keys. */
-export function readFixture(name: string): SnapshotInput {
-  const root = fileURLToPath(new URL('../fixtures/' + name + '/', import.meta.url));
+/**
+ * Read any directory into a SnapshotInput with forward-slash keys. The walk lives here once: the
+ * fixtures are under `test/fixtures/`, the D-145 examples are at the repository root, and two copies
+ * of the same loop would be two places for the key normalisation to drift.
+ */
+export function readDir(root: URL): SnapshotInput {
+  const dir = fileURLToPath(root);
   const files: Record<string, string> = {};
-  for (const d of readdirSync(root, { recursive: true, withFileTypes: true })) {
+  for (const d of readdirSync(dir, { recursive: true, withFileTypes: true })) {
     if (!d.isFile()) continue;
     const abs = join(d.parentPath, d.name);
-    files[relative(root, abs).split(sep).join('/')] = readFileSync(abs, 'utf8');
+    files[relative(dir, abs).split(sep).join('/')] = readFileSync(abs, 'utf8');
   }
   return { files, tree: Object.keys(files).sort() };
+}
+
+/** Read `test/fixtures/<name>/` into a SnapshotInput with forward-slash keys. */
+export function readFixture(name: string): SnapshotInput {
+  return readDir(new URL('../fixtures/' + name + '/', import.meta.url));
 }
 
 const mapValues = (files: Record<string, string>, f: (v: string) => string) =>

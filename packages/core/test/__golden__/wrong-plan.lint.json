@@ -1,0 +1,41 @@
+{
+  "errors": 0,
+  "findings": [
+    {
+      "file": "accord/config.yml",
+      "level": "warning",
+      "pointer": "/design/tokens",
+      "reason": "design.tokens \"src/styles/tokens.css\" is not in the snapshot; tokens are read from config.design.tokens only, so the token rule is skipped",
+      "rule": "lint.tokens-missing"
+    },
+    {
+      "file": "accord/tickets/TCK-1.md",
+      "level": "warning",
+      "line": 30,
+      "reason": "scenario \"Export a list that has tickets in it\" has no @test:<id> tag and is not @ui",
+      "rule": "lint.test-tag-missing"
+    },
+    {
+      "file": "accord/tickets/TCK-1.md",
+      "level": "warning",
+      "line": 36,
+      "reason": "scenario \"Export an empty list\" has no @test:<id> tag and is not @ui",
+      "rule": "lint.test-tag-missing"
+    },
+    {
+      "file": "accord/tickets/TCK-1.md",
+      "level": "warning",
+      "line": 47,
+      "reason": "plan step carries no @ac-n tag",
+      "rule": "lint.plan-step-untagged"
+    },
+    {
+      "file": "accord/tickets/TCK-1.md",
+      "level": "warning",
+      "line": 48,
+      "reason": "plan step carries no @ac-n tag",
+      "rule": "lint.plan-step-untagged"
+    }
+  ],
+  "warnings": 5
+}

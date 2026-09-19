@@ -1,3 +1,7 @@
+---
+kind: technique
+---
+
 # Technique: code review
 
 A technique, not a role. The fresh review context loads it after writing the

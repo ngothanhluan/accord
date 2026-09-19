@@ -45,7 +45,7 @@ describe('documentation of the folder convention (FMT-01)', () => {
       'tickets/<id>/verification.md',
       'assets/<id>/',
       'parent:',
-      'tracker: { shortcut: "1234" }',
+      'tracker: { github-issues: "1234" }',
     ]) {
       expect(readme, phrase).toContain(phrase);
     }

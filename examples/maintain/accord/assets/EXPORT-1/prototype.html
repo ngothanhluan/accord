@@ -1,0 +1,85 @@
+<!--
+accord prototype for ticket EXPORT-1
+Derived from: src/tokens.css
+Rule: use only colours and spacing from those files; the token rule (lint) warns on hard-coded values
+Owner: designer (assets/<id>/ is designer-owned)
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>EXPORT-1 prototype</title>
+<style>
+  body {
+    font-family: var(--font-body);
+    background: var(--colour-surface);
+    color: var(--colour-ink);
+    margin: 0;
+    padding: var(--space-4);
+  }
+  .report-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding-bottom: var(--space-3);
+    border-bottom: 1px solid var(--colour-line);
+  }
+  .report-header h1 {
+    font-size: 1.25rem;
+    margin: 0;
+  }
+  .report-range {
+    color: var(--colour-ink-quiet);
+    margin: 0;
+    padding-top: var(--space-1);
+  }
+  .download {
+    font: inherit;
+    border: 0;
+    border-radius: var(--radius);
+    background: var(--colour-accent);
+    color: var(--colour-on-accent);
+    padding: var(--space-2) var(--space-3);
+    cursor: pointer;
+  }
+  .download:focus-visible {
+    outline: 2px solid var(--colour-accent);
+    outline-offset: var(--space-1);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: var(--space-4);
+  }
+  th, td {
+    text-align: left;
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--colour-line);
+  }
+  th {
+    color: var(--colour-ink-quiet);
+    font-weight: 600;
+  }
+</style>
+</head>
+<body>
+<div class="report-header">
+  <div>
+    <h1>Weekly report</h1>
+    <p class="report-range">8 to 14 September 2026</p>
+  </div>
+  <button class="download" type="button">Download CSV</button>
+</div>
+<table>
+  <thead>
+    <tr><th>Day</th><th>Member</th><th>Hours</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>2026-09-08</td><td>Mai</td><td>6.5</td></tr>
+    <tr><td>2026-09-09</td><td>Mai</td><td>7.0</td></tr>
+    <tr><td>2026-09-09</td><td>Tuan</td><td>4.25</td></tr>
+  </tbody>
+</table>
+</body>
+</html>

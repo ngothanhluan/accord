@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="export" tests="2" failures="0" errors="0" time="0.02">
+  <testsuite name="test/export.spec.ts" timestamp="2026-09-18T00:00:00.000Z" tests="2" failures="0" errors="0" skipped="0" time="0.02">
+    <testcase classname="test/export.spec.ts" name="writes one row per report line" time="0.01"/>
+    <testcase classname="test/export.spec.ts" name="quotes a name holding a comma" time="0.01"/>
+  </testsuite>
+</testsuites>

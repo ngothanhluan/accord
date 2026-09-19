@@ -6,11 +6,11 @@ status: draft                              # draft | open | archived. Document l
 # The epic this ticket belongs to. Grouping is by parent; there is no per-epic folder.
 # parent: "EPIC-ID"
 # Ids in the tracker, a map keyed by adapter name; values are strings.
-# tracker: { shortcut: "1234" }
+# tracker: { github-issues: "1234" }
 # When true, Ready requires a design reference; the Intent note below says which one this profile expects.
 ui: false
 # Optional design reference URL. Allowed on epics too.
-# design: "https://www.figma.com/..."
+# design: "https://example.com/design/..."
 # Unconfirmed assumptions block Ready.
 # assumptions:
 #   - { text: "...", confirmed: false }
@@ -30,7 +30,7 @@ ui: false
 Describe observable behaviour in business language; never name tables, endpoints, libraries, or screens.
 Terms go in product/glossary.md; rules already decided go in product/business-rules.md.
 If the story has a screen, set ui: true in the frontmatter. Ready then requires a prototype at assets/<id>/prototype.html derived from the project's existing styles.
-A Figma link in design: is optional in maintain; the prototype is the primary reference. -->
+A design link in design: is optional in maintain; the prototype is the primary reference. -->
 
 ## Requirements
 <!-- BA. One EARS line per requirement: WHEN <trigger> the system SHALL <response>, and its siblings. 5 to 15 lines. -->

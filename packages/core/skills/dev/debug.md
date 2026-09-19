@@ -1,3 +1,7 @@
+---
+kind: technique
+---
+
 # Technique: systematic debugging
 
 A technique, not a role. The `dev` workflow loads it whenever a ticket has
@@ -17,13 +21,13 @@ letter of this process while violating its spirit is also a failure.
 
 A bug is a ticket with `type: bug`. Its acceptance criteria are Gherkin in the
 form *Given the situation, When the action, Then the correct result* — which
-makes the reproduction and the regression test the same artifact. Ready still
-blocks until at least one scenario exists, so the first real work on a bug is
-writing the scenario that reproduces it, not reading code.
+makes the reproduction and the regression test the same artifact. The first
+real work on a bug is writing the scenario that reproduces it, not reading
+code; `accord gate ready <id>` is what says whether the ticket is there yet.
 
-Debugging state lives in `## Plan` in the ticket. There is no session file and
-no resume command: `accord status` plus the ticket is the whole picture. When a
-context is lost, re-read the ticket.
+Debugging state lives in `## Plan` in the ticket. Resuming is `accord status`
+plus the ticket — that is the whole picture. When a context is lost, re-read
+the ticket.
 
 ## Phase 1 — Root cause
 
@@ -65,8 +69,8 @@ Complete this before proposing any fix.
 ## Phase 4 — Fix
 
 1. **Write the failing test first.** For a bug ticket this is the `@ac-n`
-   scenario's test, tagged `@test:<id>` — the same test the Done gate will
-   require. Confirm it fails for the right reason before touching the fix.
+   scenario's test, tagged `@test:<id>`, and `accord gate done <id>` is what
+   reports on it. Confirm it fails for the right reason before touching the fix.
 2. **One fix, at the root cause.** No "while I'm here", no bundled refactor.
 3. **Verify.** The new test passes, nothing else broke, the reported symptom
    is actually gone.
@@ -100,7 +104,7 @@ From the developer, these mean the same thing: *"Is that actually happening?"*
 | Simple issue, process is overkill | Simple bugs have root causes too, and the process is fast on them |
 | Emergency, no time | Systematic is faster than guess-and-check thrashing. Thrashing only feels faster |
 | Try one fix first, then investigate | The first fix sets the pattern for the rest |
-| Test after confirming the fix | Untested fixes do not stick, and the Done gate will ask for the test anyway |
+| Test after confirming the fix | Untested fixes do not stick, and `accord gate done <id>` runs either way |
 | Several fixes at once saves time | You cannot tell which one worked, and you have added new bugs |
 | Reference is long, I'll adapt the pattern | Partial understanding guarantees a bug |
 | I can see the problem | Seeing a symptom is not understanding a cause |

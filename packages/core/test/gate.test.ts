@@ -620,6 +620,14 @@ describe('gate done: the Human layer', () => {
   const done = (ticket: string) => gateDone(loadSnapshot(input('gate-done', GIT)), ticket);
   const pick = (r: GateResult, rule: string) => r.findings.filter((f) => f.rule === rule);
 
+  /** gate-done with one in-memory edit applied to the PASS ticket's review file, run through Done. Same
+   *  shape as the Machine layer's `patched` below, so neither case needs a fixture and no golden moves. */
+  const patchedReview = (edit: (md: string) => string) => {
+    const raw = input('gate-done', GIT);
+    raw.files['accord/tickets/PASS/verification.md'] = edit(raw.files['accord/tickets/PASS/verification.md']);
+    return gateDone(loadSnapshot(raw), 'PASS');
+  };
+
   it('EVIDENCE: a block citing nothing real fails; a mistyped path only warns (GATE-04, D-83)', () => {
     const r = done('EVIDENCE');
     expect(pick(r, 'gate.evidence-unresolved').map((f) => [f.file, f.level])).toEqual([
@@ -685,6 +693,31 @@ describe('gate done: the Human layer', () => {
     expect(done2).toBe(done1);
     expect(ready2).toBe(ready1);
     expect(snapshot).toEqual(before);
+  });
+
+  it('EMPTY EVIDENCE: a block whose `Evidence:` label has no text after it fails (GATE-04, D-83)', () => {
+    // `evidenceUnresolved`'s own doc comment says an empty block cites nothing and fails the same way;
+    // nothing asserted it until now. The EVIDENCE fixture's @ac-1 carries non-empty prose that resolves
+    // to nothing, which is a different case — this is the empty one.
+    const r = patchedReview((md) => md.replace(/^Evidence:.*$/gm, 'Evidence:'));
+    expect(pick(r, 'gate.evidence-unresolved').map((f) => [f.file, f.level])).toEqual([
+      ['accord/tickets/PASS/verification.md', 'error'],
+      ['accord/tickets/PASS/verification.md', 'error'],
+    ]);
+    expect(r.verdict).toBe('fail');
+    // Attributable to the edit and not to the fixture: unpatched, the same ticket still reaches `pass`.
+    expect(done('PASS').verdict).toBe('pass');
+  });
+
+  it('LIST MARKER: the shape the review brief used to teach fails Done rather than passing quietly', () => {
+    // `parseVerification` anchors both labels at column 0 and strips no list marker, so a reviewer who
+    // mirrored a brief that bulleted them had their result read as invalid and their evidence dropped.
+    // The brief is repaired; this is the behavioural half of that defect, recorded where a future reader
+    // will find it — the gate refuses with two named rules at error, it does not pass on nothing.
+    const r = patchedReview((md) => md.replace(/^(Result:|Evidence:)/gm, '- $1'));
+    expect(pick(r, 'load.result-invalid').map((f) => f.level)).toEqual(['error', 'error']);
+    expect(pick(r, 'gate.evidence-unresolved').map((f) => f.level)).toEqual(['error', 'error']);
+    expect(r.verdict).toBe('fail');
   });
 });
 

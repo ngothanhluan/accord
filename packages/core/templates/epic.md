@@ -6,11 +6,11 @@ status: draft                              # draft | open | archived. Document l
 # Leave unset on an epic; a story or bug uses it to name its epic. Grouping is by parent; there is no per-epic folder.
 # parent: "EPIC-ID"
 # Ids in the tracker, a map keyed by adapter name; values are strings.
-# tracker: { shortcut: "1234" }
+# tracker: { github-issues: "1234" }
 # When true, Ready requires a design reference; the Intent note below says which one this profile expects.
 ui: false
 # Optional design reference URL. Allowed on epics too.
-# design: "https://www.figma.com/..."
+# design: "https://example.com/design/..."
 # Unconfirmed assumptions block Ready.
 # assumptions:
 #   - { text: "...", confirmed: false }

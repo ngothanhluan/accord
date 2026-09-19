@@ -98,6 +98,13 @@ describe('printed paths', () => {
     // paths, so both belong here.
     { name: 'new ticket', argv: ['new', 'ticket', 'TCK-1'], guard: 'accord/tickets/TCK-1.md' },
     { name: 'new ticket (refusal)', argv: ['new', 'ticket', 'LOGIN-1'], guard: 'accord/tickets/LOGIN-1.md' },
+    // The second writing command. `valid-build` rosters `dev` and every runtime, so it prints a path
+    // under both target directories; the guard is one of them.
+    { name: 'skills sync', argv: ['skills', 'sync'], guard: '.claude/skills/accord-dev/SKILL.md' },
+    // The third writing command, and the widest: it prints a line per scaffold path and a line per skill
+    // copy, so it covers both path sources in one run. `valid-build` already holds accord/config.yml, so
+    // this is the D-132 branch — every scaffold path skipped, every skill copy written.
+    { name: 'init', argv: ['init'], guard: 'accord/config.yml' },
   ];
 
   for (const { name, argv, guard } of COMMANDS) {

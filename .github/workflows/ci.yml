@@ -24,3 +24,58 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
+  examples:
+    name: run the generated workflow's commands against the examples
+    # No matrix. This job demonstrates that the two commands `accord init` writes into a user's
+    # workflow actually work against a filled-in repository; `check` above already covers both
+    # operating systems and both Node versions.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: lint and gate each example through the real CLI
+        shell: bash
+        run: |
+          # Deliberately not -e: both examples are reported on one run, so a failure in the first
+          # does not hide the state of the second. Same reasoning as the emitted workflow itself.
+          set -uo pipefail
+          code=0
+          cli="$GITHUB_WORKSPACE/packages/cli/dist/cli.js"
+          # Enumerated, never named: a third example is covered without editing this file.
+          for example in examples/*/; do
+            name=$(basename "$example")
+            echo "== $name"
+            # A copy, because `repoRoot` resolves the git top-level: running the CLI inside
+            # examples/<name>/ of this checkout would read THIS repository's accord/ folder.
+            tmp=$(mktemp -d)
+            cp -R "$example." "$tmp/"
+            git -C "$tmp" init -q
+            git -C "$tmp" add -A
+            git -C "$tmp" -c user.email=ci@example.invalid -c user.name=ci -c commit.gpgsign=false               commit -q --no-verify -m "$name"
+            sha=$(git -C "$tmp" rev-parse --short HEAD)
+            # The examples ship the placeholder short sha 1234567, because a file cannot carry the sha
+            # of the commit that is about to contain it. Done binds a tick to a commit, so the
+            # sandbox's own HEAD goes in before the gate runs. Anchored to the two keys that hold one.
+            for file in "$tmp"/accord/tickets/*.md; do
+              [ -f "$file" ] || continue
+              sed -i "s/^verified_commit: \"1234567\"$/verified_commit: \"$sha\"/" "$file"
+            done
+            for file in "$tmp"/accord/tickets/*/verification.md; do
+              [ -f "$file" ] || continue
+              sed -i "s/^commit: 1234567$/commit: $sha/" "$file"
+            done
+            ( cd "$tmp" && node "$cli" lint ) || code=1
+            for file in "$tmp"/accord/tickets/*.md; do
+              [ -f "$file" ] || continue
+              id=${file#"$tmp"/accord/tickets/}
+              id=${id%.md}
+              ( cd "$tmp" && node "$cli" gate done "$id" ) || code=1
+            done
+            rm -rf "$tmp"
+          done
+          exit $code

@@ -12,7 +12,7 @@ AI coding agents produce features that pass their own tests and still miss what 
 
 ## What it is
 
-- A folder convention: a fixed `accord/` folder at the repo root with `config.yml`, `product/` (glossary, business rules), `tickets/<id>.md` (epics, stories, and bugs are all tickets; a story names its epic with `parent:`), `tickets/<id>/verification.md` (the review record), and `assets/<id>/` (designer-owned prototypes). Tracker links are a `tracker:` map keyed by adapter, for example `tracker: { shortcut: "1234" }`.
+- A folder convention: a fixed `accord/` folder at the repo root with `config.yml`, `product/` (glossary, business rules), `tickets/<id>.md` (epics, stories, and bugs are all tickets; a story names its epic with `parent:`), `tickets/<id>/verification.md` (the review record), and `assets/<id>/` (designer-owned prototypes). Tracker links are a `tracker:` map keyed by adapter, for example `tracker: { github-issues: "1234" }`.
 - Plain-text formats a human and a model can both read and a linter can check: EARS for requirements, Gherkin for acceptance criteria, YAML frontmatter with a JSON schema, fixed headings per ticket: Intent, Requirements, Acceptance criteria, Open questions, Plan.
 - Two gates: **Ready** before work starts, **Done** before the card goes to QA: a fresh agent context, not the one that wrote the code, writes `tickets/<id>/verification.md`; the developer ticks `verified:` after a self-test; Done passes only when scenario tags, evidence tags, and `verified` match.
 - Role workflows (`ba`, `dev`, `designer`) shipped as skill files for Claude Code, Cursor, Copilot, and Codex; QA verifies on the dev environment and records results in the tracker.

@@ -8,8 +8,10 @@ import type { RepoSnapshot } from '@accord-dev/accord-core';
 import { Command, CommanderError, Option } from 'commander';
 import pkg from '../package.json' with { type: 'json' };
 import { gate } from './commands/gate.js';
+import { init } from './commands/init.js';
 import { lint } from './commands/lint.js';
 import { newTicket } from './commands/new-ticket.js';
+import { skills } from './commands/skills.js';
 import { status } from './commands/status.js';
 import { loadFromFs, UsageError } from './load/fs.js';
 import { pinMessage } from './pin.js';
@@ -49,8 +51,17 @@ function preflight(opts: RunOptions): CommandContext {
   return { root, snapshot, stdout: opts.stdout, stderr: opts.stderr, env: opts.env ?? {} };
 }
 
-export async function runCli(argv: string[], opts: RunOptions): Promise<number> {
-  let code = 0;
+/**
+ * The whole commander tree, exported so `packages/cli/test/skill-commands.test.ts` can walk the same
+ * object the CLI runs (SKILL-08, RESEARCH.md Pitfall 2 Option A). A literal list of command names in
+ * that test is exactly what the requirement forbids: a command added in a later phase would not appear
+ * in it, and a skill could then name a command that does not exist without CI noticing.
+ *
+ * Two things have to be threaded in rather than closed over: `opts`, which `configureOutput` and every
+ * `preflight` call read, and the mutable exit code, which each action assigns — hence `setCode` rather
+ * than a return value, because commander actions do not return one to the parser.
+ */
+export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Command {
   const program = new Command('accord')
     .description('check the accord folder in this repository')
     .exitOverride()
@@ -64,12 +75,25 @@ export async function runCli(argv: string[], opts: RunOptions): Promise<number> 
     })
     .version(pkg.version);
 
+  // The one command that cannot use `preflight`: that calls `loadFromFs`, whose `accordFiles` throws
+  // `no accord/ folder in <root>` (load/fs.ts:38-41) before the pin is ever consulted — and `init` is the
+  // command that creates that folder. The root is all it needs, so it resolves that itself. Registered
+  // first because it is the first thing a user runs, and it takes no options at all (D-134).
+  program
+    .command('init')
+    .description('write the accord contract into this repository, skipping every path that exists')
+    .action(() => {
+      setCode(
+        init({ root: repoRoot(opts.cwd), stdout: opts.stdout, stderr: opts.stderr, env: opts.env ?? {} }),
+      );
+    });
+
   program
     .command('lint')
     .description('report every finding in the accord folder')
     .option('--json', 'print the LintResult object instead of text')
     .action((options: { json?: boolean }) => {
-      code = lint(preflight(opts), options);
+      setCode(lint(preflight(opts), options));
     });
 
   // Both subcommands route through the same preflight the lint action uses, so the pin check is never
@@ -81,7 +105,7 @@ export async function runCli(argv: string[], opts: RunOptions): Promise<number> 
       .description('report whether the ticket passes the ' + which + ' gate')
       .option('--json', 'print the GateResult object instead of text')
       .action((id: string, options: { json?: boolean }) => {
-        code = gate(preflight(opts), which, id, options);
+        setCode(gate(preflight(opts), which, id, options));
       });
   }
 
@@ -102,7 +126,20 @@ export async function runCli(argv: string[], opts: RunOptions): Promise<number> 
         .default('story'),
     )
     .action((id: string, options: { type: 'epic' | 'story' | 'bug' }) => {
-      code = newTicket(preflight(opts), id, options);
+      setCode(newTicket(preflight(opts), id, options));
+    });
+
+  // D-121: the same `preflight` every other repository-reading command uses, so the pin check and the
+  // `config.yml` requirement come for free and in the right order — root, snapshot, pin — before any path
+  // is composed. Chained like `new ticket`, which means `.command('sync')` returns the *child*: if `skills`
+  // ever gains a second subcommand this must switch to the `gates` local-variable form above.
+  program
+    .command('skills')
+    .description('manage the accord skill copies in this repository')
+    .command('sync')
+    .description('write every skill this config declares into .claude/skills/ and .agents/skills/')
+    .action(() => {
+      setCode(skills(preflight(opts)));
     });
 
   program
@@ -113,8 +150,17 @@ export async function runCli(argv: string[], opts: RunOptions): Promise<number> 
     // The only async action: `status` may ask the tracker what it knows (INTG-01). `parseAsync`
     // awaits it, so the exit code is still settled before runCli returns.
     .action(async (options: { json?: boolean; all?: boolean }) => {
-      code = await status(preflight(opts), options);
+      setCode(await status(preflight(opts), options));
     });
+
+  return program;
+}
+
+export async function runCli(argv: string[], opts: RunOptions): Promise<number> {
+  let code = 0;
+  const program = buildProgram(opts, (n) => {
+    code = n;
+  });
 
   try {
     await program.parseAsync(argv, { from: 'user' });

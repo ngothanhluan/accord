@@ -1,0 +1,121 @@
+# Phase 06-skills - plan-checker findings, re-verification after revision iteration 2
+# Verdict: ISSUES FOUND - 1 blocker, 0 warnings, 0 info
+# All four entries carried into this pass (1 warning + 3 info from 06-CHECKER-ISSUES-2.yml)
+# are CLOSED. The blocker below is a fifth occurrence of the forbidden shape that the
+# iteration-2 narrowing does NOT exclude, found by the rest-of-render scan this pass was
+# asked to perform. My own iteration-2 evidence asserted the opposite ("handoff appears
+# nowhere in the intended prose - this is specific to the first one"); that statement
+# considered only prose the plans author, not prose 06-02 graduates verbatim.
+# required_property + evidence + severity bind. fix_hint is ONE non-binding example route.
+
+closure_verdicts:
+  - prior: "1. warning / verification_derivation / 06-04 Task 3 criterion-6 negative"
+    verdict: closed
+    note: >-
+      (a) No false positive among the four known occurrences, checked against the plan text and
+      not the summary. Shape 2 requires an artifact word immediately after the noun, separated by
+      at most one space or hyphen (06-04 lines 331-334). "The ticket is the session; no debugging
+      artifact is created" (06-02 line 198) is excluded by the semicolon plus four intervening
+      words - the closest call of the four, and correctly handled. "otherwise a new session - and
+      hand it ./review.md" (06-02 line 213) is followed by a dash and "and". "otherwise a new
+      session." (06-04 line 248) is followed by a period and a space, which the filename form
+      session + .md does not match. "so the next session finds the argument" (06-04 line 179) is
+      followed by "finds", not an artifact word. (b) The double guard-the-guard exists at 06-04
+      lines 336-339 and is restated in acceptance criterion line 365: scanned file count > 0 AND
+      the matcher asserted to match one fixture string per shape. Over-narrowing fails the fixture
+      assertion before the offender array can pass, so the negative cannot be quietly disabled.
+      (c) D-109 is preserved unambiguously: lines 322-328 say "This plan fixes the forbidden
+      literals; the executor does not choose them", quote the protected sentence, name D-109 and
+      the CLAUDE.md runtime-naming prohibition as the reason, and close with "Do not reword those
+      sentences to satisfy this scan; the scan is what bends." (d) The two planner-discipline-allow
+      markers (lines 359-360) are benign. They suppress exactly one check (gsd-tools
+      verify.cjs:410, forbidden literal inside an action block while an acceptance criterion
+      negative-greps it), which fires here only because the plan must state the literals in order
+      to fix them. verify.plan-structure is valid true with zero warnings on 06-04, so the
+      placement between the action and acceptance_criteria elements parses cleanly. The
+      artifact-word list (file/artifact/document/doc/note/log/state) is short, load-bearing, and
+      works the safe way round for CLAUDE.md simplicity-first: every entry ADDED strengthens the
+      assertion, unlike an exemption array where every entry weakens it. Not a hand-maintained
+      escape hatch.
+  - prior: "2. info / threat_model / 06-01 T-06-03 register cell"
+    verdict: closed
+    note: >-
+      06-01 line 591 now scopes the claim to "a link at the destination file itself" and records
+      the parent-directory case in the same cell: .claude/skills/accord-designer/ or
+      .claude/skills/ itself, resolved by traversal before the leaf lstat, "known-uncovered and
+      accepted", with the dotfiles-symlink reason. The claim no longer exceeds the mitigation and
+      the gap sits in the register, which is where a reader of the threat model looks. Accepting
+      it as a register note rather than a flagged_assumptions entry is defensible: the acceptance
+      is about the scope of one mitigation, not an unresolved question the owner must answer, and
+      the residual behaviour (writing through a link the user deliberately created) is the one the
+      user asked for. The mitigation itself was verified closed last pass and is not re-opened.
+  - prior: "3. info / verification_derivation / 06-02 Task 3 described-as-written"
+    verdict: closed
+    note: >-
+      The predicate is decidable. Action lines 394-398 now read "collect every accord/-rooted path
+      named anywhere in the two texts - named at all, with no write-verb heuristic", followed by
+      the stated reason the restriction makes "named" and "written" the same set (the only other
+      paths are the packages/ template source and the relative ./code-review.md, while any second
+      write target would be accord/-rooted). Acceptance criterion line 421 uses the same wording.
+      Two executors build the same set; no verb judgement is left open.
+  - prior: "4. info / verification_derivation / counts"
+    verdict: closed
+    note: >-
+      All three numbers check out against the enumerations. 06-04 must_haves line 40 reads "three
+      SKILL.md files and eight bundled references" and Task 3 line 318 reads "the eight bundled
+      reference files" - 11 rendered files minus 3 role SKILL.md = 8. 06-VALIDATION.md line 82
+      reads "all eleven rendered files" and enumerates 4 + 5 + 2 = 11. 06-04 acceptance criterion
+      line 369 ("exactly nine paths: four under accord-ba/ and five under accord-dev/") is correct
+      as-is for this repository's [ba, dev] roster and was rightly left alone.
+
+structural_recheck:
+  plan_structure: "verify.plan-structure valid true, errors [], warnings [] on all four plans (06-01..06-04); 3 tasks each, every task has files/action/verify/done."
+  waves: "06-01 wave 1 depends_on [] with a tracer first task; 06-02 wave 2 -> [06-01]; 06-03 and 06-04 wave 3 -> [06-01, 06-02]. Acyclic, no forward reference, tracer-first intact."
+  requirements: "All 11 IDs claimed - SKILL-01 (01,02,04), -02 (01), -03 (01), -04 (01,03), -05 (04), -06 (02), -07 (02), -08 (03), -09 (02), -12 (02), CLI-08 (01,03)."
+  must_haves: "Present in all four plans; truths, artifacts, key_links, prohibitions and flagged_assumptions all intact after the edits. Prohibition dispositions unchanged: the deny-list prohibition is asserted/automated in 06-02 and 06-04, the BA write-boundary prohibition stays unverified/flagged."
+  probes: "verify-command-path and failing-direction probes consumed as supplied: 28/28 severity none, readError null. Nothing to report."
+
+issues:
+  - dimension: verification_derivation
+    plans: ["06-02", "06-04"]
+    task: "06-02 Task 1 step 1 / 06-04 Task 3 step 2"
+    severity: blocker
+    required_property: >-
+      No text any plan in this phase instructs the executor to render matches a forbidden
+      criterion-6 shape - including text a plan graduates verbatim rather than authors.
+    evidence: >-
+      06-02 Task 1 step 1 says "Move the bodies of docs/skills/debug.md and
+      docs/skills/code-review.md unchanged", and its acceptance criterion (06-02 line 234) pins
+      the result: "their bodies match the former docs/skills/ bodies modulo the frontmatter
+      block". docs/skills/debug.md line 24 in the working tree today reads: "Debugging state lives
+      in ## Plan in the ticket. There is no session file and no resume command: accord status plus
+      the ticket is the whole picture." That body renders to accord-dev/debug.md, which is inside
+      skillTargets() and therefore inside the scan 06-04 Task 3 runs over the WHOLE render output.
+      "session file" is shape 2 exactly - the noun, one space, the artifact word file - so the
+      offender array is non-empty and toEqual([]) fails. This is not a near miss like the four
+      occurrences checked above; the string is checked in, the plan says move it unchanged, and
+      the narrowing does not and should not exclude it. 06-04 Task 1 step 5 already diagnoses this
+      exact shape for the BA file - "a sentence introducing those phrasings to deny them is the
+      one thing that makes a true criterion read as false" - but the instruction was applied only
+      to ba/SKILL.md, not to the graduated technique body, which is the older instance of the same
+      sentence and the one prior finding 4's evidence quoted. code-review.md and every other
+      specified text are clean; grep over docs/skills/, packages/core/skills/ and
+      packages/core/templates/ returns this file and nothing else.
+    failure_scenario: >-
+      Wave 2 lands packages/core/skills/dev/debug.md with the sentence intact, exactly as its
+      acceptance criterion requires. Wave 3's executor writes the criterion-6 negative as
+      specified, runs it, and gets one offender at accord-dev/debug.md:24. The two available
+      repairs are both plan violations: edit the graduated body, which breaks 06-02's "unchanged"
+      criterion that a wave-2 verifier has already signed off; or widen the scan's exclusion until
+      "session file" is no longer a match, which is the finding this whole chain descends from and
+      leaves ROADMAP criterion 6 ("no session or handoff file exists anywhere") unverified while
+      appearing green. Criterion 6 of the phase goal is decided by this one assertion.
+    fix_hint: >-
+      One non-binding route: 06-02 Task 1 step 1 states that the one sentence in debug.md denying
+      a session file and a resume command is replaced by the positive statement of the same fact
+      ("Debugging state lives in ## Plan in the ticket; accord status plus the ticket is the whole
+      picture"), for the reason 06-04 Task 1 step 5 already gives, and 06-02's acceptance
+      criterion names that one sentence as the sole permitted difference from the former body.
+      Another: the graduation happens as specified and 06-04 Task 3 additionally instructs the
+      strike, so the change sits in the plan that owns the criterion. Either way the plan decides
+      it - the executor's alternative is to bend the scan.

@@ -32,6 +32,8 @@ Publishing without dogfooding, or dogfooding from a local build, does not close 
 - ✓ Tick-write primitive `setFrontmatterKey` changes one frontmatter key and preserves every other byte, comments included; output is LF and UTF-8 without BOM — Phase 2
 - ✓ CLI filesystem loader over `git ls-files` with `design.tokens` contained to the repository root; never spawns npm or npx — Phase 2
 - ✓ Lint engine over a snapshot: format, EARS, Gherkin, design-token, tick, hygiene, and size findings, each with file, line, rule id, and reason, rendered as text or JSON from one result object — Phase 3
+- ✓ One canonical workflow definition per role (BA, designer, dev), plus the two techniques the dev workflow loads, kept as data and rendered to `SKILL.md` for all four runtimes — Phase 6. <sub>Deviation from the original wording: the definitions live in `packages/core/skills/`, not inside the `accord/` folder, because core is the isomorphic host both the CLI and the future MCP server read them from.</sub>
+- ✓ BA workflow keeps the ticket `draft` and blocks Ready while open questions, unconfirmed assumptions, or TODO markers remain — Phase 6
 
 ### Active
 
@@ -57,10 +59,9 @@ Publishing without dogfooding, or dogfooding from a local build, does not close 
 - [ ] AC hash recorded at Ready; Done fails if the AC changed since
 
 **Role workflows**
-- [ ] One canonical workflow definition per role (BA interview including the readiness review, designer attach design, dev implement slice then fresh-context review), kept as data inside the accord folder
-- [ ] Each definition renders to a `SKILL.md` and to the text returned by the MCP `get_workflow` tool, so agent and chat users follow the same steps
-- [ ] `init` copies each `SKILL.md` into `.claude/skills/` and `.agents/skills/`, which covers Claude Code, Cursor, Copilot, and Codex; copies are marked generated
-- [ ] BA workflow blocks Ready while open questions, unconfirmed assumptions, or TODO markers remain
+- [ ] Each definition renders to the text returned by the MCP `get_workflow` tool as well as to `SKILL.md`, so agent and chat users follow the same steps <sub>SKILL.md half shipped Phase 6; the MCP half is Phase 8</sub>
+- [ ] `init` copies each `SKILL.md` into `.claude/skills/` and `.agents/skills/`, which covers Claude Code, Cursor, Copilot, and Codex; copies are marked generated <sub>`accord skills sync` does this today (Phase 6, marked and hashed); `init` calling it is Phase 7</sub>
+- [ ] No rendered skill restates a rule the CLI enforces (SKILL-04) <sub>three sentences in the BA skill still do; accepted as a Phase 6 verification override, prose fix owed in Phase 7</sub>
 
 **MCP server**
 - [ ] Stateless remote MCP server (Streamable HTTP) sharing the core package
@@ -118,9 +119,9 @@ Publishing without dogfooding, or dogfooding from a local build, does not close 
 | Hybrid tracker + git, batched doc PRs | Volume control without abandoning git | — Pending |
 | Developer self-test ticks (`verified`) live in ticket frontmatter; evidence in `tickets/<id>/verification.md` written by a fresh review context; QA records in the tracker | Evidence and confirmation in separate files with separate owners; git author is the proof; QA works where the team already works | ◆ Phase 2: loader parses `verification.md` (`Result:` limited to pass/fail/blocked, orphans reported) and `setFrontmatterKey` writes `verified` as the last key; the gate that compares them is Phase 4 |
 | Core never guesses: a malformed record yields a finding with file and line, and the value is absent rather than defaulted | A gate built on guessed values would pass tickets that should fail; findings carry the line so the author can fix the file | ✓ Phase 2: `load.*` findings for frontmatter, config, Gherkin, and verification records; 24 threats closed, none open |
-| One workflow definition per role, rendered to SKILL.md and MCP prompt | 4 runtimes × 3 roles hand-written would drift; chat and agent users must follow identical steps | — Pending |
-| `init` copies SKILL.md into `.claude/skills/` and `.agents/skills/` | Verified: those two paths cover all four runtimes; no per-runtime wrappers needed | — Pending |
-| Codex added as fourth target runtime | Team members use it | — Pending |
+| One workflow definition per role, rendered to SKILL.md and MCP prompt | 4 runtimes × 3 roles hand-written would drift; chat and agent users must follow identical steps | ◆ Phase 6: definitions live in `packages/core/skills/` and render through `gen-skills.mjs` into a committed generated module; the SKILL.md half ships, the MCP `get_workflow` half is Phase 8. The repository's own hand-maintained `docs/skills/` copies were deleted in the same change |
+| `init` copies SKILL.md into `.claude/skills/` and `.agents/skills/` | Verified: those two paths cover all four runtimes; no per-runtime wrappers needed | ◆ Phase 6: `accord skills sync` writes both paths with a generated marker and content hash and is a byte-level no-op on a second run; `init` calling it is Phase 7 |
+| Codex added as fourth target runtime | Team members use it | ✓ Phase 6: the `DIRS` table covers all four runtimes and the orphan scan reads every directory it can produce |
 | Git is the only source of truth; no server-side state | Every host is a git client over the same core; hub as a separate product dropped | — Pending |
 | Remote MCP server is the non-tech frontend | Members have chat subscriptions, not API keys; accord goes into their tool instead of hosting a model | — Pending |
 | No API keys anywhere in accord | Subscriptions cannot power a third-party app; avoids cost and secret handling | — Pending |
@@ -149,4 +150,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-09-14 after Phase 3 transition (lint engine validated: all seven ROADMAP criteria, 16 threats closed, 390 tests green)*
+*Last updated: 2026-09-17 after Phase 6 transition (skills rendered and synced for four runtimes, 794 tests green; criterion 3's second clause closed by owner override, SKILL-04 still open for Phase 7). The Phase 4 and Phase 5 transitions never ran this step, so gate and CLI requirements below are still listed as Active although they shipped.*

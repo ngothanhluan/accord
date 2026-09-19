@@ -1,0 +1,227 @@
+# Phase 06-skills - plan-checker findings (pre-execution)
+# Verdict: ISSUES FOUND - 1 blocker, 8 warnings, 2 info
+# `required_property` + `evidence` + `severity` bind. `fix_hint` is ONE non-binding example route;
+# any mechanism that reaches `required_property` counts as addressing the issue.
+
+issues:
+  - dimension: threat_model
+    plan: "06-01"
+    task: 1
+    severity: blocker
+    required_property: "The high-severity T-06-03 mitigation is decided by a check that fails when the guard is absent"
+    evidence: >-
+      The phase threshold is block-on-`high` and T-06-03 is the one `high` in the register. Its
+      mitigation - `lstatSync(file, { throwIfNoEntry: false })`, refuse a symlink/junction/directory
+      with `UsageError` exit 2 before any write - exists only as the seventh bullet of Task 1's
+      nine-bullet action. Task 1's 10 acceptance criteria do not mention it. Task 3's CLI cases are
+      roster filtering, runtime filtering and mtime. 06-03 Task 2's six cases are `updated`,
+      `overwrote local edits`, no-marker, orphan, pin mismatch, no-config. `must_haves` disposes of
+      it as `verification: backstop`. That backstop classification does not hold here the way
+      D-115's does: `fs.symlinkSync(target, path, 'junction')` needs no elevation on Windows, so a
+      cross-platform check is cheap and available - this is not a property that resists
+      verification, it is one nobody verified.
+    failure_scenario: >-
+      The executor drops action bullet 7 while every test and every `<verify>` stays green and the
+      phase verifies. `writeFileSync` then follows a junction at `.claude/skills/accord-dev/` and
+      puts accord's bytes at a path the user never named.
+    fix_hint: >-
+      One non-binding route: a sandbox case that places a junction at one destination and asserts
+      exit 2 with the junction target's bytes untouched. A smaller route that also reaches the
+      property: a Task 1 acceptance criterion that fails when the `lstat` refusal is absent from
+      `packages/cli/src/commands/skills.ts`.
+
+  - dimension: key_links_planned
+    plan: "06-01"
+    task: 1
+    severity: warning
+    required_property: "Every core function a CLI task is instructed to call is exported from the seam the plan names as the only one the CLI may reach through"
+    evidence: >-
+      Action step 7 instructs the CLI to "read it, apply `normaliseText` from core". Step 6
+      enumerates the exports to add to `packages/core/src/index.ts` - `renderSkill`, `contentHash`,
+      `markerHash`, `withoutMarker`, `skillTargets`, `SkillFile`, `skills`, `SkillKey` - and
+      `normaliseText` is not among them. Read directly: `packages/core/src/index.ts` does not export
+      it today, and every file under `packages/cli/src/` imports from the package root
+      `@accord-dev/accord-core`. The plan's own `key_links` calls `index.ts` "the only seam the CLI
+      may reach through (D-107)".
+    failure_scenario: >-
+      The executor hand-rolls the BOM/CRLF strip inside `skills.ts` - `PATTERNS.md:121` records
+      `templates.test.ts` already doing exactly that - producing a fourth copy of the normalisation
+      that RESEARCH.md Pitfall 1 is about, on the read-back side of the no-op comparison.
+    fix_hint: "Add `normaliseText` to step 6's export list."
+
+  - dimension: verification_derivation
+    plans: ["06-02", "06-04"]
+    task: null
+    severity: warning
+    required_property: "Each clause of ROADMAP criterion 4 is decided by a criterion that can fail"
+    evidence: >-
+      Clause 1 (BA stops before Ready "while open questions, unconfirmed assumptions, or TODO
+      markers remain") is pinned only by 06-04's `contains the literal draft` and
+      `names ## Open questions`; the assumptions and TODO halves appear only in Task 1's action
+      prose. Clause 2 (the review step "writes only `verification.md`") is pinned by nothing:
+      06-02 Task 1 and Task 3 assert the step names a fresh context, names `./review.md` and names
+      no runtime product, while the write boundary sits in a `status: unverified /
+      verification: flagged` prohibition. Clause 3 (only the developer writes `verified`) is
+      properly pinned by "across the entire render output, exactly one file describes writing
+      `verified`".
+    failure_scenario: >-
+      `review.md` ships telling the fresh context to fix what it finds rather than report it; CI is
+      green; criterion 4's middle clause is false in the exact place the phase goal exists for.
+    fix_hint: >-
+      Widen the whole-render-output negatives 06-01 Task 3 already writes: one asserting no file
+      outside `accord-dev/SKILL.md` instructs an edit to source, one asserting the BA text names
+      all three Ready blockers.
+
+  - dimension: verification_derivation
+    plan: "06-04"
+    task: 3
+    severity: warning
+    required_property: "Criterion 6's session/handoff prohibition is checked over every rendered file, matching the criterion's word 'anywhere'"
+    evidence: >-
+      ROADMAP criterion 6 ends "no session or handoff file exists anywhere". The split-literal
+      negative assertion is scoped to the rendered `accord-ba/SKILL.md` only. The dev workflow is
+      the longer document and the likelier home for a handoff artifact; it is unchecked, as are all
+      nine bundled reference files.
+    failure_scenario: >-
+      `dev/SKILL.md` or `review.md` introduces a handoff note between the implementation and review
+      steps, the ba-scoped assertion stays green, and criterion 6 is false while reading as proven.
+    fix_hint: >-
+      Run the same split-literal negative over the whole `skillTargets()` output, as 06-01 Task 3
+      already does for backslashes and marker wording.
+
+  - dimension: verification_derivation
+    plans: ["06-01", "06-02", "06-04"]
+    task: null
+    severity: warning
+    required_property: "Criterion 3's clause 'none restates a rule the CLI enforces' has a verification path - automated, or listed as manual"
+    evidence: >-
+      SKILL-04's second half is carried by action instructions ("do not spell out the token rule",
+      "point at the command and let it speak") and by one human-judgement acceptance criterion in
+      06-04 Task 2 ("Neither file restates a Ready-table row or a lint rule as a rule"). No
+      automated assertion exists in any plan. 06-VALIDATION.md's Manual-Only table has exactly three
+      rows - the D-115 plan review, the three-reviews-read-as-one-shape pass, and the
+      Cursor/Copilot duplicate-name observation - and none of them is this.
+    failure_scenario: >-
+      `story.md` restates the Ready table for the reader's convenience, every automated check
+      passes, no human was scheduled to look, and criterion 3 ships half false with no record that
+      anyone judged it.
+    fix_hint: >-
+      A fourth row in 06-VALIDATION.md's Manual-Only table naming the check and the files it
+      covers. Note the property is not automatable as stated; a route that pretends otherwise would
+      fail differently.
+
+  - dimension: claude_md_compliance
+    plans: ["06-01", "06-04"]
+    task: null
+    severity: warning
+    required_property: "Every authored prose file that renders into a user repository carries a criterion that it names no other tool, plugin, harness, or planning system"
+    claude_md_rule: "No other tools named - binding, and explicitly extended to the workflow and technique text that renders into shipped SKILL.md files"
+    evidence: >-
+      Covered by an acceptance criterion: `shared/prototype.md` (06-01 Task 2), everything under
+      `packages/core/skills/dev/` (06-02 Task 1), `ba/SKILL.md` and `ba/setup.md` (06-04 Task 1).
+      Not covered: `designer/SKILL.md` (06-01 Task 1), `ba/story.md` and `ba/ready.md` (06-04
+      Task 2). `ready.md`'s only related criterion is "names no runtime product by name", a strictly
+      narrower set than tools, plugins, harnesses and planning systems.
+    failure_scenario: >-
+      `ba/ready.md` names a planning system while explaining the fresh-context review shape, and it
+      publishes to npm under a constraint the project states as absolute.
+    fix_hint: >-
+      One assertion over the whole render output rather than three more per-file criteria.
+
+  - dimension: context_compliance
+    plan: "06-02"
+    task: 2
+    severity: warning
+    required_property: "Each ROADMAP success criterion is either satisfied by the plans or amended before verification runs"
+    evidence: >-
+      ROADMAP criterion 5 ends "Drafts live in `docs/skills/`". D-105 (locked) graduates them into
+      `packages/core/skills/`, Task 2 `git rm`s both files, and "`git ls-files docs/skills` returns
+      nothing" is an acceptance criterion. The contradiction is correctly surfaced - 06-02's
+      `flagged_assumptions`, second entry, in frontmatter, with the rejected alternative and why.
+      The gap is downstream: no plan touches `.planning/ROADMAP.md`.
+    failure_scenario: >-
+      `/gsd-verify-work` reads criterion 5's final clause, finds `docs/skills/` deleted, and fails a
+      phase that did exactly what the locked decision required.
+    fix_hint: >-
+      Amend criterion 5's final clause to name `packages/core/skills/` as the source. The property
+      must NOT be reached by keeping `docs/skills/` - that contradicts locked decision D-105 and
+      reintroduces the drift the phase exists to remove.
+
+  - dimension: scope_sanity
+    plans: ["06-03", "06-04"]
+    task: 1
+    severity: warning
+    required_property: "A Wave-3 plan's own verify passes without output produced by a plan running beside it, and added assertions are the ones the requirement asks for"
+    evidence: >-
+      SKILL-08 requires one direction - "a test asserts every CLI command named in a skill exists".
+      06-03 Task 1 adds a third assertion in the other direction: every registered command path must
+      appear in at least one rendered file, "OR is listed in a short, commented exemption array".
+      `accord new ticket` and `accord status` are named only in 06-04's `ba/SKILL.md` and
+      `setup.md`; `accord skills sync` is named by no skill prose at all. 06-03 and 06-04 are both
+      Wave 3 and neither declares `depends_on` on the other.
+    failure_scenario: >-
+      06-03 lands before 06-04 in the wave; the reverse assertion fails on `new ticket` and
+      `status`; the cheapest repair is to add both to the exemption array, permanently defeating the
+      assertion for the two commands it would otherwise have caught. CLAUDE.md's simplicity rule is
+      also in play - the escape hatch is a hand-maintained list.
+    fix_hint: >-
+      Drop the reverse assertion - SKILL-08 is satisfied without it. Alternatively declare
+      `depends_on: ["06-04"]` on 06-03 so the render output it reads is complete when it runs,
+      accepting the loss of Wave-3 parallelism.
+
+  - dimension: scope_sanity
+    plan: "06-02"
+    task: null
+    severity: warning
+    required_property: "Each plan stays within the per-plan context budget"
+    evidence: >-
+      `estimate-check --calibrated` on 06-02's `estimate.tokens`: 104000 against a 100000 budget,
+      `over_budget: true`, ratio 1.04, recommendation "split into about 2 slices - a tracer plus 1
+      expansion slice". `confidence: low`, `sample_count: 0`, `calibration_applied: false` - the
+      figure is not calibrated for this project, so the structural signals matter more: 3 tasks (in
+      range) and 17 `files_modified` entries (above the 15 threshold), of which 5 are `skills sync`
+      output, 2 are deletions and 2 are fixtures, leaving 7 hand-authored. 06-01 (96000), 06-03
+      (72000) and 06-04 (92000) are all inside budget.
+    failure_scenario: >-
+      Quality degrades across the heaviest prose plan in the phase - the one the ROADMAP scope note
+      is about - and the dev workflow ships thinner than the criterion 6 bar.
+    fix_hint: >-
+      Advisory only; never a revision trigger. If acted on, note that splitting the graduation
+      (Task 2) away from the content (Task 1) reopens the window where the author has neither the
+      drafts nor the rendered skills, which is the stated reason 06-02 is one plan.
+
+  - dimension: research_resolution
+    plan: null
+    task: null
+    file: "06-RESEARCH.md"
+    severity: info
+    required_property: "RESEARCH.md carries no open question whose disposition is unrecorded"
+    evidence: >-
+      The `## Open Questions` heading lacks the `(RESOLVED)` suffix and none of the three questions
+      carries an inline RESOLVED marker. Substantively all three are settled and implemented: Q1
+      (Cursor/Copilot duplicate names) resolved as "do not design around it", carried as a
+      Manual-Only row in 06-VALIDATION.md; Q2 (emit `license:`) resolved as emit, present in
+      `SPEC_FIELDS` and in every role's frontmatter; Q3 (the D-129 number) resolved as 120, with an
+      acceptance criterion behind it.
+    failure_scenario: >-
+      A later automated gate scanning for unresolved research questions flags the phase, and someone
+      re-opens three questions that the plans already answered.
+    fix_hint: "Mark the section `(RESOLVED)` and append the one-line disposition each question already carries."
+
+  - dimension: pattern_compliance
+    plan: "06-01"
+    task: null
+    severity: info
+    required_property: "A deliberate deviation from the PATTERNS.md file map is recorded where the executor reads it"
+    evidence: >-
+      06-PATTERNS.md's File Classification maps `packages/core/src/skills/hash.ts` (analog
+      `packages/core/src/gate/hash.ts`, exact) and `packages/core/src/skills/index.ts` (barrel,
+      analog `gate/index.ts` + `validate/index.ts`, exact). The plans build neither - correctly,
+      under CLAUDE.md simplicity-first, since each would have one caller: `contentHash` folds into
+      `render.ts` and the exports go straight out of `packages/core/src/index.ts`. Nothing in any
+      plan records the choice, and 06-PATTERNS.md sits in every plan's `<context>` block.
+    failure_scenario: >-
+      The executor follows the pattern map and creates both files, adding a barrel and a module with
+      one caller each - the over-engineering CLAUDE.md forbids - while believing it is following the
+      analog discipline the plans ask for.
+    fix_hint: "One line in 06-01 stating that `contentHash` lives in `render.ts` and that there is no `skills/index.ts` barrel."

@@ -57,27 +57,27 @@ v1 is the v0.1 milestone: npm publish, MCP deployed, one real ticket through Rea
 
 ### CLI
 
-- [ ] **CLI-01**: `init` scaffolds folder, config, templates, and skill copies; idempotent; never overwrites edited files; prints what it created
-- [ ] **CLI-02**: `init` writes a CI workflow that runs `lint` and `gate done` on touched tickets and always reports a job result
-- [ ] **CLI-03**: `init` adds a short pointer to `AGENTS.md` and `CLAUDE.md` without duplicating skill bodies
+- [x] **CLI-01**: `init` scaffolds folder, config, templates, and skill copies; idempotent; never overwrites edited files; prints what it created
+- [x] **CLI-02**: `init` writes a CI workflow that runs `lint` and `gate done` on touched tickets and always reports a job result
+- [x] **CLI-03**: `init` adds a short pointer to `AGENTS.md` and `CLAUDE.md` without duplicating skill bodies
 - [x] **CLI-04**: `new ticket <id>` from the profile's template with tag scaffolding
 - [x] **CLI-05**: `lint`, `gate ready <id>`, `gate done <id>`, `status` with `--json`
 - [x] **CLI-06**: CLI refuses to run when its version differs from the pin in `config.yml`
 - [x] **CLI-07**: Runs on Windows and POSIX; never spawns `npm`, `npx`, or any `.cmd`
-- [ ] **CLI-08**: `skills sync` regenerates skill copies with a generated marker and content hash
+- [x] **CLI-08**: `skills sync` regenerates skill copies with a generated marker and content hash
 
 ### Skills
 
-- [ ] **SKILL-01**: One workflow definition per role as data: `ba`, `dev` (with a `review.md` reference for the fresh-context review step), `designer`
-- [ ] **SKILL-02**: Renderer produces `SKILL.md` with only the six spec frontmatter fields
-- [ ] **SKILL-03**: Copies land in `.claude/skills/accord-<role>/` and `.agents/skills/accord-<role>/`, which cover Claude Code, Cursor, Copilot, and Codex
-- [ ] **SKILL-04**: Every skill begins with a lint or gate call and never restates a rule the CLI enforces
-- [ ] **SKILL-05**: BA workflow interviews until no open questions remain, writes intent, EARS, Gherkin, glossary, and business rules, and marks the ticket `draft` until then
-- [ ] **SKILL-06**: The dev workflow's final step runs the review in a fresh agent context that writes only `verification.md`; the context that wrote the code never writes it
-- [ ] **SKILL-07**: Only the developer writes `verified` in frontmatter, as a self-test checklist run on the dev environment before the card goes to QA
-- [ ] **SKILL-08**: A test asserts every CLI command named in a skill exists
-- [ ] **SKILL-09**: Two techniques render alongside the role skills and are loaded by them rather than invoked as roles: systematic debugging (loaded by `dev` for `type: bug` or unexpected behaviour; adds no artifact, since the ticket is the session) and code review (loaded by the fresh review context; appends findings to `verification.md` under `## Review`, each finding naming a concrete failure scenario). Drafts live in `docs/skills/`
-- [ ] **SKILL-12**: Before implementing, the dev workflow reviews `## Plan` against the intent and the acceptance criteria in a fresh context that reads no code and edits only `## Plan`; it adds no artifact. Coverage is LINT-08's job, so this step reads for soundness: wrong layer, wrong order, a missing dependency, an approach the acceptance criteria will not survive
+- [x] **SKILL-01**: One workflow definition per role as data: `ba`, `dev` (with a `review.md` reference for the fresh-context review step), `designer`
+- [x] **SKILL-02**: Renderer produces `SKILL.md` with only the six spec frontmatter fields
+- [x] **SKILL-03**: Copies land in `.claude/skills/accord-<role>/` and `.agents/skills/accord-<role>/`, which cover Claude Code, Cursor, Copilot, and Codex
+- [x] **SKILL-04**: Every skill begins with a lint or gate call and never restates a rule the CLI enforces
+- [x] **SKILL-05**: BA workflow interviews until no open questions remain, writes intent, EARS, Gherkin, glossary, and business rules, and marks the ticket `draft` until then
+- [x] **SKILL-06**: The dev workflow's final step runs the review in a fresh agent context that writes only `verification.md`; the context that wrote the code never writes it
+- [x] **SKILL-07**: Only the developer writes `verified` in frontmatter, as a self-test checklist run on the dev environment before the card goes to QA
+- [x] **SKILL-08**: A test asserts every CLI command named in a skill exists
+- [x] **SKILL-09**: Two techniques render alongside the role skills and are loaded by them rather than invoked as roles: systematic debugging (loaded by `dev` for `type: bug` or unexpected behaviour; adds no artifact, since the ticket is the session) and code review (loaded by the fresh review context; appends findings to `verification.md` under `## Review`, each finding naming a concrete failure scenario). The definitions live in `packages/core/skills/`
+- [x] **SKILL-12**: Before implementing, the dev workflow reviews `## Plan` against the intent and the acceptance criteria in a fresh context that reads no code and edits only `## Plan`; it adds no artifact. Coverage is LINT-08's job, so this step reads for soundness: wrong layer, wrong order, a missing dependency, an approach the acceptance criteria will not survive
 
 ### MCP server
 
@@ -92,7 +92,7 @@ v1 is the v0.1 milestone: npm publish, MCP deployed, one real ticket through Rea
 ### Integration and proof
 
 - [x] **INTG-01**: `github-issues` adapter is read-only (title, state, labels) over REST `fetch` with a token from `gh auth token` or `GITHUB_TOKEN`; gates never consult it
-- [ ] **INTG-02**: Example repo with one maintain-profile ticket and one build-profile ticket passing both gates
+- [x] **INTG-02**: Example repo with one maintain-profile ticket and one build-profile ticket passing both gates
 
 ### Delivery
 
@@ -176,24 +176,24 @@ v1 is the v0.1 milestone: npm publish, MCP deployed, one real ticket through Rea
 | GATE-09 | Phase 4 | Complete |
 | GATE-10 | Phase 4 | Complete |
 | GATE-11 | Phase 4 | Complete |
-| CLI-01 | Phase 7 | Pending |
-| CLI-02 | Phase 7 | Pending |
-| CLI-03 | Phase 7 | Pending |
+| CLI-01 | Phase 7 | Complete |
+| CLI-02 | Phase 7 | Complete |
+| CLI-03 | Phase 7 | Complete |
 | CLI-04 | Phase 5 | Complete |
 | CLI-05 | Phase 5 | Complete |
 | CLI-06 | Phase 5 | Complete |
 | CLI-07 | Phase 5 | Complete |
-| CLI-08 | Phase 6 | Pending |
-| SKILL-01 | Phase 6 | Pending |
-| SKILL-02 | Phase 6 | Pending |
-| SKILL-03 | Phase 6 | Pending |
-| SKILL-04 | Phase 6 | Pending |
-| SKILL-05 | Phase 6 | Pending |
-| SKILL-06 | Phase 6 | Pending |
-| SKILL-07 | Phase 6 | Pending |
-| SKILL-08 | Phase 6 | Pending |
-| SKILL-09 | Phase 6 | Pending |
-| SKILL-12 | Phase 6 | Pending |
+| CLI-08 | Phase 6 | Complete |
+| SKILL-01 | Phase 6 | Complete |
+| SKILL-02 | Phase 6 | Complete |
+| SKILL-03 | Phase 6 | Complete |
+| SKILL-04 | Phase 6, Phase 7 | Complete |
+| SKILL-05 | Phase 6 | Complete |
+| SKILL-06 | Phase 6 | Complete |
+| SKILL-07 | Phase 6 | Complete |
+| SKILL-08 | Phase 6 | Complete |
+| SKILL-09 | Phase 6 | Complete |
+| SKILL-12 | Phase 6 | Complete |
 | MCP-01 | Phase 8 | Pending |
 | MCP-02 | Phase 8 | Pending |
 | MCP-03 | Phase 8 | Pending |
@@ -202,7 +202,7 @@ v1 is the v0.1 milestone: npm publish, MCP deployed, one real ticket through Rea
 | MCP-06 | Phase 8 | Pending |
 | MCP-07 | Phase 8 | Pending |
 | INTG-01 | Phase 5 | Complete |
-| INTG-02 | Phase 7 | Pending |
+| INTG-02 | Phase 7 | Complete |
 | OPS-01 | Phase 1 | Complete |
 | OPS-02 | Phase 1 | Complete |
 | OPS-03 | Phase 9 | Pending |

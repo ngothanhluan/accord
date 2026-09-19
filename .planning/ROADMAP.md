@@ -18,7 +18,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Lint** - Rule engine as data; schema, EARS, Gherkin, token, tick, hygiene, and size findings rendered to text and JSON (completed 2026-09-14)
 - [x] **Phase 4: Gates** - Ready and Done evaluated deterministically with AC hash, three-set match, evidence check, profile matrix, and exit codes (completed 2026-09-15)
 - [x] **Phase 5: CLI Commands** - `new ticket`, `lint`, `gate`, `status` on Windows and POSIX with `--json`, version pin, and the `github-issues` adapter (completed 2026-09-15)
-- [ ] **Phase 6: Skills** - One workflow definition per role rendered to SKILL.md for all four runtimes, synced with marker and hash
+- [x] **Phase 6: Skills** - One workflow definition per role rendered to SKILL.md for all four runtimes, synced with marker and hash (completed 2026-09-17)
 - [ ] **Phase 7: Scaffolding and Example Repo** - `init` delivers the whole contract in one command; example repo passes both gates in both profiles
 - [ ] **Phase 8: MCP Server** - Stateless Streamable HTTP server over the GitHub API with GitHub OAuth, deployed and verified from two chat clients
 - [ ] **Phase 9: Publish and Dogfood** - Scoped npm package via trusted publishing; one real employer ticket through Ready and Done
@@ -206,29 +206,111 @@ Plans:
   2. `accord skills sync` writes each rendered skill to `.claude/skills/accord-<role>/` and `.agents/skills/accord-<role>/` with a generated marker and content hash, and a second run is a no-op
   3. Every rendered skill begins with a lint or gate command, none restates a rule the CLI enforces, and a test fails if a skill names a CLI command that does not exist
   4. The BA skill keeps the ticket `draft` and stops before Ready while open questions, unconfirmed assumptions, or TODO markers remain; the dev skill's review step runs in a fresh context and writes only `verification.md`; only the developer writes `verified`
-  5. Two techniques render alongside the roles and are loaded by them, not invoked as roles: systematic debugging (dev workflow, `type: bug` or any unexpected behaviour) and code review (review context, appended to `verification.md` under `## Review`). Drafts live in `docs/skills/`
+  5. Two techniques render alongside the roles and are loaded by them, not invoked as roles: systematic debugging (dev workflow, `type: bug` or any unexpected behaviour) and code review (review context, appended to `verification.md` under `## Review`). The definitions live in `packages/core/skills/`
   6. The workflows carry the work a general planning system would: the BA skill covers project and epic setup in `build` profile, the dev skill covers planning into `## Plan` and implementation, the review context covers code review, and `accord status` plus the ticket covers resume — no session or handoff file exists anywhere
   7. The dev skill reviews `## Plan` against intent and acceptance criteria in a fresh context before implementing, reading no code and editing only `## Plan`, and a fixture whose plan targets the wrong layer or the wrong order comes back changed
 
 **Scope note**: this is the heaviest phase in the project. Rendering is mechanical; writing four workflows good enough to replace a mature planning system is not. Plan it as content work with a rendering step, not the reverse.
 
-**Plans**: TBD
+**Plans**: 8/8 executed — 4 build plans plus 4 gap-closure plans (06-07 and 06-08 close the
+G-1/G-2/G-3 gaps 06-VERIFICATION.md raised against the first gap-closure round). Criterion 3's second clause failed
+its manual read: three sentences in the BA skill restate a rule the CLI enforces, so SKILL-04 stays
+open. The owner upheld that verdict and deferred the prose fix to Phase 7 (06-06-SUMMARY CF-1), then
+accepted it formally as a verification override on 2026-09-17, which is what let the phase close at 7/7
+with SKILL-04 still unticked.
+
+Plans:
+**Wave 1**
+
+- [x] 06-01-PLAN.md — Tracer: the whole pipe on the thinnest content — `designer` plus the `prototype.md` it loads, through `gen-skills.mjs`, the committed generated module, `renderSkill`/`skillTargets`/`contentHash`, and `accord skills sync` into both target directories, with a second run that is a byte- and write-call-level no-op; plus the invariants every later definition inherits (SKILL-01, SKILL-02, SKILL-03, SKILL-04, CLI-08)
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [x] 06-02-PLAN.md — The `dev` slice: the workflow, the fresh-context review brief, the two techniques graduating out of `docs/skills/`, the graduation commit that replaces this repository's hand-maintained copies in the same change, and the wrong-plan fixture (SKILL-01, SKILL-06, SKILL-07, SKILL-09, SKILL-12)
+
+**Wave 3** *(blocked on Wave 2; both run in parallel — 06-03 touches only `packages/cli`, 06-04 only `packages/core`)*
+
+- [x] 06-03-PLAN.md — The guards: the SKILL-08 command scanner over the commander registry, the three sync states the tracer did not exercise, the orphan report, the pin refusal, and `skills sync` inside the Windows printed-path invariant (SKILL-04, SKILL-08, CLI-08)
+- [x] 06-04-PLAN.md — The `ba` slice: one definition with the profile branch, the setup and per-story briefs, the fresh-context readiness review, the rejected-alternatives convention in `business-rules.md`, and the full roster synced (SKILL-01, SKILL-05)
+
+**Gap closure — Wave 1** *(from 06-VERIFICATION.md; runs under `/gsd-execute-phase 06 --gaps-only`)*
+
+- [x] 06-05-PLAN.md — The three verification gaps: the orphan scan widened to every directory the `DIRS` table can produce, the two rendered step 2s made followable from the brief alone plus the regression that would have caught the leak, and REQUIREMENTS.md corrected to match what shipped (CLI-08, SKILL-09)
+
+**Gap closure — Wave 2** *(blocked on 06-05)*
+
+- [x] 06-06-PLAN.md — The two carried human-verification items: the wrong-plan fixture through the plan review, and the eleven-file rule-mention read that closes SKILL-04 (SKILL-04)
+
+**Gap closure round 2 — Wave 1** *(from 06-VERIFICATION.md gaps G-1, G-2, G-3 and advisory NF-02; runs under `/gsd-execute-phase 06 --gaps-only`. Wave numbers restart per gap round, as they did for 06-05/06-06. G-0 / SKILL-04 is deliberately absent — owner-deferred to Phase 7, WINDOWS.md entry 6)*
+
+- [x] 06-07-PLAN.md — The orphan scan stops at a link instead of routing through it: a per-component `lstat` guard on the scan set 06-05 widened, the junction case beside the two existing write cases, and the printed-output invariant narrowed to the text accord composes (CLI-08)
+
+**Gap closure round 2 — Wave 2** *(blocked on 06-07 — both plans run in one working tree and 06-08 regenerates `packages/core/dist/`, which 06-07's CLI suite loads)*
+
+- [x] 06-08-PLAN.md — The two rendered step 2s made accurate as well as reachable: `review.md` shows the column-0 shape the parser anchors on, `prototype.md` drops the lint promise the rule table does not keep, and `gate done`'s real behaviour on an empty evidence block is pinned by a test (SKILL-06, SKILL-09)
 
 ### Phase 7: Scaffolding and Example Repo
 
 **Goal**: A team runs one command in an empty repository and receives the whole contract: folder, config, templates, skills, agent pointers, and CI. An example repo proves both profiles pass both gates.
 **Mode:** mvp
 **Depends on**: Phase 6
-**Requirements**: CLI-01, CLI-02, CLI-03, INTG-02
+**Requirements**: CLI-01, CLI-02, CLI-03, INTG-02, SKILL-04 (Phase 6 carry-over, pulled in by D-148)
 **Research**: no (GitHub Actions workflow emission and idempotent scaffolding are standard patterns)
 **Success Criteria** (what must be TRUE):
 
-  1. `accord init` in an empty repo creates the root folder, `config.yml` with the pinned version, templates, and skill copies in both paths, prints every created path, and a second run changes nothing and never overwrites an edited file
+  1. `accord init` in an empty repo creates the root folder, `config.yml` with the pinned version, templates, and skill copies in both paths, prints every created path, and a second run changes nothing and never overwrites a human-authored file (skill copies under `.claude/skills/**` and `.agents/skills/**` are accord-owned rendered output: a hand edit there is overwritten and reported as `overwrote local edits`)
   2. The generated GitHub Actions workflow runs `lint` and `gate done` on touched tickets and reports a job result on docs-only and no-ticket diffs
   3. `AGENTS.md` and `CLAUDE.md` receive a short pointer to the accord skills without a copy of any skill body, created when missing and appended when present
   4. The example repo holds one maintain-profile ticket and one build-profile ticket, and both pass `gate ready` and `gate done` in that repo's CI
 
-**Plans**: TBD
+**Plans**: 15/15 plans executed — 8 executed, plus 3 gap-closure plans from the first 07-VERIFICATION.md pass and 1 of the 4 from the second; 3 pending
+
+Plans:
+**Wave 1**
+
+- [x] 07-01-PLAN.md — tracer: `accord init` end to end writing one artifact, registered before `lint` (wave 1)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [x] 07-05-PLAN.md — SKILL-04: a guard that fails when a skill restates a rule the CLI enforces, plus the prose fix (wave 2)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [x] 07-02-PLAN.md — CLI-01: product templates and skill copies join `init`; the write loop is shared with `skills sync` (wave 3)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [x] 07-03-PLAN.md — CLI-02: the generated `pull_request` workflow that lints and gates touched tickets (wave 4)
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [x] 07-04-PLAN.md — CLI-03: the `AGENTS.md` / `CLAUDE.md` pointer, plus the shipped-text name scan widened to every surface (wave 5)
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
+- [x] 07-07-PLAN.md — CLI-02: the emitted workflow's script body executed against four real diff shapes (wave 5)
+- [x] 07-06-PLAN.md — INTG-02: the build-profile example passing both gates locally (wave 6)
+
+**Wave 7** *(blocked on Wave 6 completion)*
+
+- [x] 07-08-PLAN.md — INTG-02: the maintain-profile example, the examples CI job, and the tick (wave 7)
+
+**Gap closure** *(from 07-VERIFICATION.md; the eight plans above stand as executed)*
+
+- [x] 07-09-PLAN.md — gap 1 tracer: every refusal before the first byte, and a partial run that prints what it wrote (wave 1)
+- [x] 07-10-PLAN.md — gap 2: the commented `tests:` block in the config `init` generates (wave 2)
+- [x] 07-11-PLAN.md — gap 3: the shipped ticket templates name no tool, and the name scan reaches them (wave 3; serialised after 07-10 because it deliberately reddens the tree to prove the scan fails)
+
+**Gap closure, second round** *(from 07-VERIFICATION.md 2026-09-18T20:20Z — two blockers plus all four warnings, per owner ruling GAP-SCOPE. Serialised end to end: every plan runs `npm run gen` or `npm run build`, which mutate shared build outputs, so two in one wave would race)*
+
+- [x] 07-12-PLAN.md — gap 1 tracer: the pointer append keeps every byte, plus GC-WR-01 and GC-WR-02 in the same two CLI files (wave 1)
+- [x] 07-13-PLAN.md — gap 2c: the shipped templates offer a tracker key accord actually ships (wave 2)
+- [x] 07-14-PLAN.md — gap 2a/2b: one denied list at the repository root, and the scan that reaches the published bundle (wave 3; the scan is written red against the pre-reword bundle, then the JSDoc is reworded)
+- [x] 07-15-PLAN.md — GC-WR-03 and GC-WR-04: the `tests:` instruction names both halves of its edit, and the assertion reading it anchors on both sides (wave 4)
+
+**Cross-cutting constraints:**
+
+- The example skeleton was produced by running the built `accord init`, so the example is standing proof that what `init` generates is a thing the gates accept (D-146)
 
 ### Phase 8: MCP Server
 
@@ -275,8 +357,8 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 3. Lint | 6/6 | Complete    | 2026-09-14 |
 | 4. Gates | 4/4 | Complete    | 2026-09-15 |
 | 5. CLI Commands | 6/6 | Complete    | 2026-09-15 |
-| 6. Skills | 0/TBD | Not started | - |
-| 7. Scaffolding and Example Repo | 0/TBD | Not started | - |
+| 6. Skills | 8/8 | Complete    | 2026-09-17 |
+| 7. Scaffolding and Example Repo | 15/15 | In Progress|  |
 | 8. MCP Server | 0/TBD | Not started | - |
 | 9. Publish and Dogfood | 0/TBD | Not started | - |
 

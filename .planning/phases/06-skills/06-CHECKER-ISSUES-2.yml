@@ -1,0 +1,215 @@
+# Phase 06-skills - plan-checker findings, re-verification after revision iteration 1
+# Verdict: ISSUES FOUND - 0 blockers, 1 warning, 3 info
+# The blocker and all 8 warnings from 06-CHECKER-ISSUES.yml are CLOSED. The single warning
+# below is a NEW problem introduced by the revision that closed prior finding 4.
+# `required_property` + `evidence` + `severity` bind. `fix_hint` is ONE non-binding example route.
+
+closure_verdicts:
+  - prior: "1. blocker / threat_model / 06-01 T-06-03"
+    verdict: closed
+    note: >-
+      The behavioural route was taken and it decides the guard on both legs. `dest` is one of
+      `skillTargets()`'s file paths; the link is placed AT that path (junction form on Windows,
+      plain symlink on POSIX), which is exactly the path bullet 7 lstats. With the guard: not a
+      regular file -> UsageError -> exit 2, stderr names the posix path, decoy untouched. With
+      bullet 7 dropped: on POSIX `writeFileSync` follows the symlink and the decoy's `latin1`
+      bytes change; on Windows `writeFileSync` onto a reparse-point directory throws outside the
+      UsageError catch, so the exit code is not 2. The case goes red either way. The `must_haves`
+      truth no longer carries `verification: backstop`, acceptance criterion 11 names the red
+      condition explicitly ("Removing the `lstatSync` refusal ... makes this case fail"), and the
+      T-06-03 Mitigation Plan cell was rewritten to say the guard is not a backstop. See the first
+      `info` entry below for the one residual scope point.
+  - prior: "2. warning / key_links_planned / 06-01"
+    verdict: closed
+    note: >-
+      `normaliseText` now appears in all three places: step 6's export list (line 309), the
+      `key_links` seam line with the Pitfall-1 reason (line 56), and the core-exports artifact
+      block (line 162).
+  - prior: "3. warning / verification_derivation / criterion 4 clause 1"
+    verdict: closed
+    note: >-
+      06-04 Task 3 now names all three Ready blockers - unchecked `## Open questions` item,
+      unconfirmed `assumptions:` entry, TODO marker - "asserted each independently so dropping any
+      one goes red", matched by acceptance criterion line 347.
+  - prior: "3. warning / verification_derivation / criterion 4 clause 2"
+    verdict: closed differently - accepted
+    note: >-
+      The set-equality route reaches the property. It works because of the `accord/`-rooted
+      restriction, which is load-bearing and appears deliberate: the brief's other two path
+      mentions are `packages/core/templates/verification.md` (the source it copies from) and
+      `./code-review.md` (relative), so neither enters the set, while any second artifact the
+      review context could be told to write IS `accord/`-rooted and breaks the equality. The
+      non-empty guard stops the vacuous pass. The planner's reason for avoiding a verb-based
+      negative is verified correct: `review.md`'s own intended text contains "A reviewer that
+      fixes has rejoined the work it was brought in to judge", which a fix/edit verb scan would
+      flag. One residual difference from the hint's route is recorded as `info` below.
+  - prior: "4. warning / verification_derivation / criterion 6 'anywhere'"
+    verdict: partially closed
+    note: >-
+      The self-invalidation was correctly diagnosed and step 5 was rewritten to state the resume
+      mechanism positively (06-04 lines 163-168), and the scan was widened from one file to every
+      `{path,text}` in `skillTargets()` with an offender array and a non-empty guard. But widening
+      the scan pulled four legitimately-authored occurrences of one of the two nouns into its
+      range. See the `warning` entry below.
+  - prior: "5. warning / verification_derivation / criterion 3 'none restates a rule'"
+    verdict: closed
+    note: >-
+      06-VALIDATION.md now carries a fourth Manual-Only row, and it is specific enough to execute:
+      it enumerates the rendered files by name, names the two sources to read them against
+      (docs/design.md section 5's Ready and Done tables, `packages/core/src/lint/rules.ts`),
+      states the test ("for each place a rule is mentioned, confirm the text names the command
+      that reports it rather than reproducing what it checks"), and states the record ("one line
+      per file in the phase verification notes"). The `must_haves` note in 06-04 line 39 says
+      plainly it is not automatable as stated. The stated count is wrong by one - see `info`
+      below - but the enumeration, which is the executable part, is complete.
+  - prior: "6. warning / claude_md_compliance / 'No other tools named'"
+    verdict: closed
+    note: >-
+      One whole-render deny-list scan in 06-01 Task 3 (case-insensitive, split-literal so the test
+      file does not trip its own scan, sorted `path:line: name` offender array vs `toEqual([])`,
+      accord and the four runtime names deliberately off the list), plus acceptance criterion line
+      550 stating it covers every file 06-02 and 06-04 add "without either plan restating the
+      criterion". The prohibition is `asserted/automated` in all three plans. The deny-list is not
+      the kind of hand-maintained list CLAUDE.md forbids: prior finding 8 objected to an EXEMPTION
+      array, where adding an entry defeats the assertion; here adding an entry strengthens it, and
+      no test can enumerate the universe of tool names, so a named list is the only available
+      mechanism. Promotion to `asserted/automated` is honest within that inherent bound.
+  - prior: "7. warning / context_compliance / ROADMAP criterion 5"
+    verdict: closed
+    note: >-
+      Verified against the working tree, not just the plan. `.planning/ROADMAP.md:209` still ends
+      "Drafts live in `docs/skills/`" and `git diff .planning/ROADMAP.md` touches only the
+      plan-list block and the progress table - the amendment is executor work, exactly as
+      required. 06-02 Task 2b performs it as a scoped `Edit` in the same change that deletes the
+      drafts, `.planning/ROADMAP.md` is in `files_modified` (line 8), and acceptance criteria
+      lines 325-326 pin the edit to criterion 5's own line while explicitly exempting the 06-02
+      plan-list entry that legitimately names the old path in past tense, plus a
+      nine-headings/seven-criteria guard against a rewrite. The owner decision is recorded in
+      `flagged_assumptions` line 71.
+  - prior: "8. warning / scope_sanity / 06-03 || 06-04 SKILL-08 reverse assertion"
+    verdict: closed
+    note: >-
+      Route 1 taken. 06-03 Task 1 ends with "Do not add an assertion in the other direction." and
+      states the reasoning - SKILL-08 asks for one direction, the reverse is false by construction
+      for `skills sync`, `new ticket` and `status`, and an exemption array is the escape hatch
+      CLAUDE.md names. No exemption array is introduced anywhere in the four plans. Wave-3
+      parallelism is sound: 06-03's scan reads `skillTargets()`, and `skillTargets()` skips a
+      declared role with no definition (06-02 `flagged_assumptions` line 74), so running before
+      06-04 yields a smaller file set that still satisfies both guard-the-guard assertions and
+      still produces an empty offender array. The second half of SKILL-08 is carried by reading
+      paths off `buildProgram` rather than a literal list (`must_haves` truth line 25).
+  - prior: "9. warning / scope_sanity / 06-02 context budget"
+    verdict: closed
+    note: >-
+      Disposition is stated rather than silent: `flagged_assumptions` line 72 gives the numbers,
+      the `confidence: low` / `sample_count: 0` caveat, the reason for staying one plan, and the
+      note that the finding was advisory and not a revision trigger.
+  - prior: "10. info / research_resolution"
+    verdict: closed
+    note: "06-RESEARCH.md line 635 now reads `## Open Questions (RESOLVED)` with a per-question RESOLVED line."
+  - prior: "11. info / pattern_compliance"
+    verdict: closed
+    note: >-
+      06-01 Task 1 action step 4 carries the deviation paragraph where the executor reads it,
+      naming both files not to create, the one-caller reason, and the fact that the analog
+      discipline still applies to the content of `gate/hash.ts` but not to its file boundary.
+
+issues:
+  - dimension: verification_derivation
+    plan: "06-04"
+    task: 3
+    severity: warning
+    required_property: >-
+      The criterion-6 negative's forbidden literals are defined narrowly enough that no
+      correctly-authored rendered text matches them.
+    evidence: >-
+      Widening the scan from `accord-ba/SKILL.md` to every `{path,text}` in `skillTargets()`
+      (06-04 Task 3, "the criterion-6 negative, run over the WHOLE render output") pulled the dev
+      and BA prose into its range, and that prose contains one of the two nouns four times, in
+      text the plans themselves instruct the executor to write -
+      06-02 Task 1 step 2: "The ticket is the session; no debugging artifact is created";
+      06-02 Task 1 step 7: "a subagent where the runtime provides one, otherwise a new session";
+      06-04 Task 2: "a subagent where the runtime provides one, otherwise a new session";
+      06-04 Task 1: "so the next session finds the argument instead of re-proposing the loser".
+      The plan calls the literals "the two resume-artifact nouns" and never defines them. Prior
+      finding 4's own evidence shows the pre-revision assertion matched on the bare noun (the BA
+      text said "There is no session file and no handoff file" and the criterion asserted the file
+      contains neither noun), so the bare-word reading is the one the executor inherits. The other
+      noun, handoff, appears nowhere in the intended prose - this is specific to the first one.
+    failure_scenario: >-
+      The executor builds the scan with the split-literal trick on the bare nouns, runs it over
+      the whole render output, and gets four offenders from `accord-dev/SKILL.md`,
+      `accord-ba/ready.md` and `accord-ba/setup.md`. The two cheapest repairs are both bad: reword
+      "otherwise a new session", which is the runtime-neutral phrasing D-109 requires and the only
+      way to say what a fresh context is without naming a runtime product; or loosen the scan
+      until it no longer decides criterion 6, which is the finding this warning descends from.
+    fix_hint: >-
+      One non-binding route: state the literals in the plan as the artifact nouns rather than the
+      bare words, so "no session or handoff file" is what is scanned for and "a new session" is
+      not a match. Another: keep the bare nouns and match only where a file/artifact word follows.
+      Either way the plan, not the executor, should decide it, because the executor's alternative
+      is to edit prose the plans specify verbatim.
+
+  - dimension: threat_model
+    plan: "06-01"
+    task: 1
+    severity: info
+    required_property: "The T-06-03 register cell describes the coverage the mitigation actually has"
+    evidence: >-
+      The guard lstats the leaf destination only. A directory junction or symlink at the PARENT
+      (`.claude/skills/accord-designer/`) is resolved by path traversal before the leaf lstat
+      runs, `mkdirSync(dirname, { recursive: true })` succeeds against it, and `writeFileSync`
+      puts bytes inside the link target. The register cell reads "Without this, `writeFileSync`
+      follows the link and puts accord's bytes at a path the user never named", which claims more
+      than the leaf check delivers.
+    failure_scenario: >-
+      Weak, and arguably not a defect at all: a user who has symlinked `.claude/skills` or a role
+      directory into a dotfiles repository has deliberately arranged that redirection, and
+      refusing it would be the annoying behaviour. The cost of the imprecision is only that a
+      later reader of the register believes parent-link redirection is covered when it is not.
+    fix_hint: >-
+      One non-binding route: scope the claim in the cell to the destination file itself. No test
+      or code change is implied.
+
+  - dimension: verification_derivation
+    plan: "06-02"
+    task: 3
+    severity: info
+    required_property: >-
+      A set-membership predicate an assertion turns on is defined mechanically enough that two
+      executors build the same set.
+    evidence: >-
+      The criterion (line 417) and the action (lines 394-398) both say "the set of `accord/`-rooted
+      paths DESCRIBED AS WRITTEN", but every other scan in this phase is specified down to its
+      mechanism (split-literal, case-insensitivity, sort order, offender-array shape,
+      guard-the-guard). "Described as written" needs either a write-verb heuristic - which the
+      planner deliberately and correctly avoided - or a collapse to "named at all". The collapse
+      is sound for the text 06-02 Task 1 specifies, because the `accord/`-rooted restriction
+      already excludes the template source path and the relative `./code-review.md`, leaving
+      exactly one member. It is brittle only forward: a future brief naming an `accord/`-rooted
+      path it merely READS turns a correct brief red.
+    failure_scenario: >-
+      Not reachable from this phase's content. Recorded so the executor collapses the predicate
+      knowingly rather than inventing a verb heuristic that trips on "A reviewer that fixes".
+    fix_hint: >-
+      One non-binding route: say in the action that the set is every `accord/`-rooted path the two
+      texts name, and that the restriction to `accord/`-rooted is what makes "named" and "written"
+      the same set here.
+
+  - dimension: verification_derivation
+    plans: ["06-04"]
+    task: null
+    severity: info
+    required_property: "A stated artifact count matches the render output it counts"
+    evidence: >-
+      The full-roster render output is 11 files - `accord-ba/` 4, `accord-dev/` 5,
+      `accord-designer/` 2 - i.e. three `SKILL.md` and eight bundled references. Two places say
+      otherwise: 06-04 `must_haves` line 40 ("three `SKILL.md` files and nine bundled references")
+      and 06-VALIDATION.md's new Manual-Only row ("read all twelve rendered files"). Both then
+      enumerate correctly, and no assertion anywhere pins the number - 06-04's acceptance
+      criterion line 350 counts this repository's nine synced paths under a `[ba, dev]` roster,
+      which is right.
+    failure_scenario: >-
+      None mechanical. A reader counting the enumeration against the prose pauses; the manual
+      reviewer reads the enumerated list, which is correct.
+    fix_hint: "One non-binding route: eleven and eight."

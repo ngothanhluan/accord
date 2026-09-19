@@ -31,12 +31,12 @@
     {
       "number": "6",
       "name": "Skills",
-      "status": "pending"
+      "status": "complete"
     },
     {
       "number": "7",
       "name": "Scaffolding and Example Repo",
-      "status": "pending"
+      "status": "in_progress"
     },
     {
       "number": "8",
@@ -51,8 +51,8 @@
   ],
   "next": {
     "command": "/gsd:progress --next",
-    "label": "Advance to the next step (plan phase 6)",
-    "reason": "Phase 6 of 9 — needs a plan"
+    "label": "Advance to the next step",
+    "reason": "Phase 07 of 9 · executing"
   },
-  "updated_at": "2026-09-15T07:19:10.336Z"
+  "updated_at": "2026-09-19T02:05:18.793Z"
 }

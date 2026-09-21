@@ -340,7 +340,7 @@ Plans:
   3. One real ticket reaches Ready and reaches Done on a coding agent, with a fresh-context review's `verification.md` and the developer's `verified` ticks
   4. The time from `new ticket` to Ready is recorded for that ticket, and the token rule is checked against the pilot's real stylesheet before any promotion to error
 
-**Plans**: 7/11 plans executed
+**Plans**: 8/11 plans executed
 
 Plans:
 **Wave 1** *(four parallel plans; no file overlap between them)*
@@ -364,7 +364,7 @@ Plans:
 
 **Wave 5**
 
-- [ ] 09-08-PLAN.md — The README ticket to Ready, timed; and the blocking ruling on criterion 2 (D-156, D-159)
+- [x] 09-08-PLAN.md — `README-1` at Ready in 6 minutes wall-clock, `ac_hash fnv1a64:565100d5d96d1415` (D-156, D-159); criterion 2 ruled option (a) — the check goes red and the reason is the finding
 
 **Wave 6**
 

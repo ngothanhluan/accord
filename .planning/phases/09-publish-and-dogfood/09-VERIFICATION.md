@@ -194,10 +194,52 @@ PASS.
 
 ## 5. Wall-clock new ticket to Ready (OPS-04 / ROADMAP 4, D-159)
 
-Status: pending — filled by 09-09.
+Status: **measured 2026-09-21.**
 
-Required evidence: two timestamps and the elapsed figure, with the `accord new ticket` and
-`accord gate ready` transcripts bracketing them.
+```
+start  2026-09-21 19:42 +0700
+end    2026-09-21 19:48 +0700
+        6 minutes
+```
+
+D-159's definition, so it does not have to be looked up: wall-clock from the `accord new ticket`
+command to the `accord gate ready` run that printed PASS, breaks included.
+
+The command that started the clock:
+
+```
+$ npx --yes @accord-dev/accord@0.1.0 new ticket README-1
+accord/tickets/README-1.md
+```
+
+The run that stopped it — the first one to exit 0 after the readiness review's questions were
+answered:
+
+```
+$ npx --yes @accord-dev/accord@0.1.0 gate ready README-1
+accord/tickets/README-1.md:30: warning lint.test-tag-missing scenario "The registry page carries the
+  same description, and its links work" has no @test:<id> tag and is not @ui
+  ... four more of the same, one per scenario ...
+0 errors, 5 warnings
+updated ac_hash fnv1a64:22698da82d6828e6 -> fnv1a64:565100d5d96d1415 in accord/tickets/README-1.md
+(exit 0)
+```
+
+Context, not a correction — the number is wall-clock and is not adjusted for any of this:
+
+- The scope was decided before the clock started. D-156 enumerated the four README defects on
+  2026-09-20 and 09-08's own plan restated them, so the BA stage was transcribing a decided scope
+  rather than discovering one. A ticket whose subject is not already settled would not look like
+  this.
+- The gate was run once before the readiness review rather than after it, which is out of order
+  against `story.md` steps 5 and 6. It passed, writing `ac_hash fnv1a64:22698da82d6828e6`. The
+  review then filed five questions, the gate correctly refused on all five as
+  `lint.open-question`, and the run recorded above is the one that passed after they were answered.
+  Both the out-of-order pass and the recovery are inside the six minutes.
+- Two of the five review findings were answered by amending the acceptance criteria, which is why
+  the hash moved between the two passes. Nothing was relaxed: no gate rule, lint rule, criterion or
+  template was changed to obtain either PASS.
+
 
 ## 6. Token findings: genuine vs false positive (OPS-04 / ROADMAP 4, D-161, D-163)
 

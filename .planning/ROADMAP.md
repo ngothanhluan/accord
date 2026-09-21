@@ -340,7 +340,7 @@ Plans:
   3. One real ticket reaches Ready and reaches Done on a coding agent, with a fresh-context review's `verification.md` and the developer's `verified` ticks
   4. The time from `new ticket` to Ready is recorded for that ticket, and the token rule is checked against the pilot's real stylesheet before any promotion to error
 
-**Plans**: 5/11 plans executed
+**Plans**: 6/11 plans executed
 
 Plans:
 **Wave 1** *(four parallel plans; no file overlap between them)*
@@ -356,7 +356,7 @@ Plans:
 
 **Wave 3** *(blocked on Waves 1-2; everything green on `main` first)*
 
-- [ ] 09-06-PLAN.md — Publish `0.1.0` from a tag over OIDC, and evidence it (D-157 step 1)
+- [x] 09-06-PLAN.md — `@accord-dev/accord@0.1.0` published from run 35581268150 over OIDC with a SLSA provenance attestation, and installable by `npx` on a bare runner (D-157 step 1) — criterion 1 is met
 
 **Wave 4** *(blocked on 09-06: the dogfood runs the published package, never a local build)*
 

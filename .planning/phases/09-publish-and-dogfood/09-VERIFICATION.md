@@ -106,17 +106,76 @@ protections disallow a tag ref blocks the job with an equally misleading error.
 
 ## 1. Published from Actions via trusted publishing (OPS-03 / ROADMAP 1)
 
-Status: pending — filled by 09-06.
+Status: **verified 2026-09-21.**
 
-Required evidence: Actions run URL; publish-step log showing no token was used; the npm page showing
-the provenance attestation; the trusted-publisher field values as configured, recorded above.
+`@accord-dev/accord@0.1.0` was published by run 35581268150, from tag `v0.1.0` on commit `a4ea1e7`.
+
+```
+https://github.com/ngothanhluan/accord/actions/runs/35581268150
+
+npm notice version:  0.1.0
+npm notice shasum:   549ea29ad0cd0ea6c3bd97da9a54c9207d44b659
+npm notice total files: 3
+npm notice Publishing to https://registry.npmjs.org/ with tag latest and public access
+npm notice publish Signed provenance statement with source and build information from GitHub Actions
+npm notice publish Provenance statement published to transparency log: https://search.sigstore.dev/?logIndex=2905307661
+```
+
+No token exists anywhere on this path: the job holds `id-token: write` and nothing else, no
+`NODE_AUTH_TOKEN` is set, and the repository defines no npm secret. The registry carries the
+attestation, which is the half a log line cannot fake:
+
+```
+dist.attestations.url -> https://registry.npmjs.org/-/npm/v1/attestations/@accord-dev%2faccord@0.1.0
+predicateType         -> https://slsa.dev/provenance/v1
+```
+
+The trusted-publisher table recorded above is verified by use rather than by report, and two failed
+runs are what verified it. Both are kept:
+
+- Run 35579914891 attempt 1 failed `E403 - OIDC permission denied for this action`. The certificate
+  sigstore issued on that attempt named exactly what the form was supposed to hold — repository
+  `ngothanhluan/accord`, workflow `publish.yml`, no environment, ref `refs/tags/v0.1.0` — so the
+  claim side was right and the record side was not. The author corrected the configuration between
+  attempts. Which field was wrong is not recorded, because npm exposes no way to read the record
+  back and the before state was never captured; the lesson is to capture it next time, not to guess
+  now.
+- Attempt 2 failed `E422 - "repository.url" is "", expected to match
+  "https://github.com/ngothanhluan/accord" from provenance`.
+
+Neither failure wrote to the registry, which is why `0.1.0` was still free on the third run. A tag
+that fails to publish is re-pointable; `v0.1.0` moved from `5a2eb4d` to `a4ea1e7` by force and cost
+nothing, because nothing had ever fetched it.
+
+That second failure names a constraint that exists only under provenance, and it is the reason
+09-01 through 09-05 could all be green with a defect in the manifest. `packages/cli/package.json`
+carried no `repository` field, and nothing caught it: the 0.0.0 bootstrap went up with a token,
+which signs no provenance, so the registry had nothing to cross-check the manifest against. Under
+trusted publishing it does — npm matches `repository.url` against the repository sigstore attests
+to and refuses the publish when they differ. Stated generally, because it will recur: a publish that
+skips provenance also skips every check provenance turns on, so the bootstrap proves less about the
+real release path than its success suggests.
 
 ## 2. npx on a clean machine prints the version (OPS-03 / ROADMAP 1)
 
-Status: pending — filled by 09-06.
+Status: **verified 2026-09-21.**
 
-Required evidence: smoke-job log including attempt count and printed version; ideally a second manual
-run with the npx cache cleared.
+The `smoke` job declares no `permissions` key at all, so it cannot mint an OIDC token even by
+accident, and takes no checkout, so the runner holds no `package.json` and no `node_modules`. That
+is the closest thing Actions offers to a clean machine.
+
+```
+attempt 1 .. 9: not yet visible; sleeping 15s
+attempt 10: 0.1.0
+```
+
+Ten attempts out of a budget of twelve — roughly 2m15s from the publish call returning to `npx
+--yes @accord-dev/accord@0.1.0 --version` resolving and printing `0.1.0`, against a three-minute
+ceiling. The margin is thinner than it looks comfortable being, and it is the number to watch on
+the next release rather than a result to celebrate. It is also the second observation of the same
+behaviour: 09-05 measured about 150 seconds for the packument index to appear after the 0.0.0
+publish, while the per-version endpoint answered at once. Two data points, one shape — the registry
+acknowledges a publish well before every edge serves it.
 
 ## 3. The generated CI workflow is green (OPS-04 / ROADMAP 2)
 

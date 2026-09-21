@@ -179,18 +179,140 @@ acknowledges a publish well before every edge serves it.
 
 ## 3. The generated CI workflow is green (OPS-04 / ROADMAP 2)
 
-Status: pending — filled by 09-08.
+Status: **NOT MET — the workflow failed for a reason nobody predicted, recorded as FINDING F-6.**
 
-Required evidence: PR URL; the `accord` check's conclusion; job log showing which ticket ids it gated,
-and the expected `lint.tokens-missing` warning.
+Pull request: https://github.com/ngothanhluan/accord/pull/1 — the one pull request D-155 allows.
+Run: https://github.com/ngothanhluan/accord/actions/runs/35607058696
+Conclusion of the `accord` check: **failure**.
+
+The run was ruled under 09-08 Task 1 option (a): the check goes red and the reason is the finding. The
+reason it actually went red is not the reason that ruling anticipated. It never reached a gate at all:
+
+```
+Run npx --yes @accord-dev/accord@0.1.0 lint || code=1
+sh: 1: accord: not found
+sh: 1: accord: not found
+##[error]Process completed with exit code 1.
+```
+
+Both invocations failed in about 1.6 seconds, too fast to have fetched anything. No ticket id was
+derived, no `lint.tokens-missing` warning was printed, and `gate done` never ran, so the evidence this
+section was meant to carry does not exist. What the log does confirm is D-162: the checkout step
+reports `ref: 7781f04c5c4f54391570fe6b1cf3227c763a809d`, the branch head rather than a synthetic merge
+commit, and permissions are `Contents: read`.
+
+The staleness reasons option (a) predicted are still real and still fire. They are recorded in section
+4, from the developer's machine, where the gate could actually run.
+
+### FINDING F-6: `npx --yes <pkg>@<version>` runs the workspace, not the registry, when the two match
+
+Root cause, reproduced in isolation rather than inferred. A directory holding nothing but a root
+manifest declaring `workspaces: ["packages/cli"]`, a `packages/cli/package.json` declaring
+`@accord-dev/accord` at `0.1.0` with a `bin`, and **no `node_modules`**, reproduces it exactly:
+
+```
+$ npx --yes @accord-dev/accord@0.1.0 --version
+'accord' is not recognized as an internal or external command
+```
+
+npm resolves the spec against the workspace tree, finds a local package of that name and version,
+declines to fetch, and tries to run a bin link that a repository without an install does not have. The
+runner's `sh: 1: accord: not found` is the same failure in the runner's shell.
+
+Asking for a version the workspace does not hold fetches normally, inside the repository and outside
+it — `npx --yes @accord-dev/accord@0.0.0 --version` prints `0.0.0` in both — so this is not npx
+ignoring the spec. It is npx honouring it against a local package that already satisfies it.
+
+Two consequences, and the second is a correction to evidence already recorded in this phase.
+
+1. The workflow `accord init` generates cannot work in a repository that *is* the package, unless the
+   job installs dependencies first. Every other repository is unaffected, because no other repository
+   declares a workspace of this name. A narrow blast radius, and a sharp edge in the one repository
+   the author was always going to try first.
+
+2. **The `npx --yes` runs in 09-07 and 09-08 were made from this repository's root, where
+   `node_modules/.bin/accord` exists and points at `packages/cli/dist/cli.js`.** Those runs used the
+   local build. 09-07's "No local build was invoked at any point" and 09-08's "Everything that touched
+   it was `npx --yes @accord-dev/accord@0.1.0`" describe an intent the command did not carry out.
+
+   The outcomes are unaffected. `packages/cli/dist/cli.js` and the published tarball's `dist/cli.js`
+   are byte-identical, `sha256 6f38f978...deb9e3`, checked by unpacking
+   `npm pack @accord-dev/accord@0.1.0`. The same bytes ran either way. What was lost is the provenance
+   the claim asserted, not the result it reported.
+
+   The runs that did exercise the registry are the ones made in an empty scratch directory — section
+   2 above, and `@ac-5` in section 4 — because an empty directory has no workspace to satisfy the
+   spec.
+
+Not fixed here. The fix is a scaffold or gate-semantics change and this phase's domain block rules
+both out; filed for v0.2 beside the tick-binding change.
 
 ## 4. Ready and Done on a coding agent with a fresh-context review (OPS-04 / ROADMAP 3)
 
-Status: pending — filled by 09-09.
+Status: **Ready MET. Done NOT MET, for four separate reasons, all recorded rather than worked around.**
 
-Required evidence: `accord/tickets/<id>.md` with `ac_hash` and `verified:`;
-`accord/tickets/<id>/verification.md` written by the subagent (D-158); both gate transcripts showing
-PASS.
+Ticket: `accord/tickets/README-1.md` — `ac_hash: fnv1a64:565100d5d96d1415`,
+`verified: [ac-2, ac-3, ac-4, ac-5]`, `verified_hash: fnv1a64:565100d5d96d1415`,
+`verified_commit: 61e0830`. `@ac-1` is deliberately not ticked.
+
+Review: `accord/tickets/README-1/verification.md`, `commit: 32d9c5a`, `reviewed_on: 2026-09-21`, one
+block per scenario in tag order. **Written by a subagent (D-158, the first branch of D-109)**, handed
+`.claude/skills/accord-dev/review.md` and the ticket id and nothing else. It passed four scenarios,
+failed `@ac-1`, and filed one finding. Nothing in it was edited by the context that wrote the change.
+
+`accord gate ready README-1` — **PASS**, exit 0. Transcript in section 5.
+
+`accord gate done README-1` — **FAIL**, 9 errors, run with the review and the ticks uncommitted, which
+is the only arrangement in which the two commit values can equal `HEAD`:
+
+```
+accord/config.yml: error gate.tests-unconfigured no test report is declared, so the machine layer
+  cannot run and Done cannot pass; set tests.report
+accord/tickets/README-1.md: error gate.tags-differ scenarios lack nothing; evidence lacks nothing;
+  verified lacks @ac-1
+accord/tickets/README-1.md: error gate.test-tag-missing  (five times, one per scenario)
+accord/tickets/README-1/verification.md: error gate.stale-review the review was written against
+  commit 32d9c5a; the gated commit is 61e0830...
+accord/tickets/README-1/verification.md: error gate.result-not-pass evidence block "@ac-1" records
+  Result: fail
+9 errors, 25 warnings
+```
+
+The same command after committing the review and the ticks reports **11** errors: the nine above plus
+
+```
+accord/tickets/README-1.md: error gate.tick-stale-commit the ticks were made against commit 61e0830;
+  the gated commit is 7781f04...
+```
+
+That is the structural gap 09-08 Task 1 recorded, now observed rather than reasoned about. Committing
+the tick is what makes the tick stale.
+
+The four reasons Done is not met, kept apart because they are four different things:
+
+1. **`@ac-1` is false at this commit and becomes true at the next release.** Its Given is a reader on
+   the registry, and the registry serves the readme published with 0.1.0. `publish.yml` exits when the
+   version is already on the registry, so 0.1.0 cannot be republished with the new text. 09-11's 0.1.1
+   makes it true. The reviewing context found this; the author had not.
+2. **The tick and the review go stale on the commit that carries them**, as above.
+3. **The machine layer has never been configured in this repository.** `accord/config.yml` declares no
+   `tests.report`, and D-80 makes that a hard fail with no bypass. accord has gated its own work and
+   the machine layer was absent for all of it.
+4. **Three of the five scenarios cannot name a `@test:<id>`, because no test can hold them.** GATE-08
+   requires every scenario that is not `@ui` to name a test id from the report. `@ac-1` and `@ac-3`
+   have real tests. `@ac-2` ("presents the four stages as stages one person passes through") and
+   `@ac-4` ("names no part that has been removed") are claims about prose, and `@ac-5` is a person
+   running a command and reading what it prints. None of the three is `@ui` in any honest reading of
+   that tag.
+
+   This is the sharpest design finding the dogfood produced: **the Done gate assumes every scenario
+   that is not a user interface is machine-checkable, and a documentation ticket's scenarios are
+   neither.** The shipped escape hatch is `@ui`, which would be a lie here. Adding tags to buy a pass
+   would also move `ac_hash` and drop the ticket back to Ready, so the gate refuses the shortcut twice
+   over. Recorded, not acted on: it is a v0.2 design question.
+
+Nothing under `packages/core/src/gate/` or `packages/core/src/lint/` was modified, no tag was added to
+obtain a pass, and `verified_commit` was not chased across commits.
 
 ## 5. Wall-clock new ticket to Ready (OPS-04 / ROADMAP 4, D-159)
 

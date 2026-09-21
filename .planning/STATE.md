@@ -4,8 +4,8 @@ milestone: v0.1
 current_phase: 09
 current_phase_name: Publish and Dogfood
 status: executing
-stopped_at: "Phase 09 Wave 5 done — README-1 at Ready on branch readme-1 in 6 minutes wall-clock, uncommitted pending owner review; criterion 2 ruled option (a); Wave 6 (09-09) next"
-last_updated: "2026-09-21T12:50:00.000Z"
+stopped_at: "Phase 09 Wave 6 done — pull request 1 open and not merged; README-1 reviewed by a fresh context and ticked 4 of 5, Done NOT reached (registry not republished, ticks stale on their own commit, no tests.report, three prose scenarios cannot name a @test id); FINDING F-6 — npx runs the workspace, not the registry, which also corrects 09-07 and 09-08's provenance claims; Wave 7 (09-10) next"
+last_updated: "2026-09-21T13:55:00.000Z"
 last_activity: 2026-09-21
 last_activity_desc: "Phase 09 Wave 4 — npx --yes @accord-dev/accord@0.1.0 init ran in accord's own repository; 5 files created, config.yml untouched, generated accord.yml carries D-162; lint 0 errors 1 expected warning"
 state_head: 2a5040af51e33ee7cfe7db5c5a56024326ff8959
@@ -13,7 +13,7 @@ progress:
   total_phases: 9
   completed_phases: 2
   total_plans: 62
-  completed_plans: 58
+  completed_plans: 59
 ---
 
 # Project State

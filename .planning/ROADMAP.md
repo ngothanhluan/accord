@@ -336,11 +336,11 @@ Plans:
 **Success Criteria** (what must be TRUE):
 
   1. The scoped package is published from GitHub Actions via npm trusted publishing with `engines` at Node 22.12 or later, and `npx --yes <scope>/accord --version` works on a clean machine
-  2. `accord init` from the published package runs on a real project's repository and the generated CI workflow is green
+  2. `accord init` from the published package runs on a real project's repository and the generated CI workflow is green — **NOT MET**: the workflow ran on pull request 1 and failed before reaching a gate (FINDING F-6). Rewording this criterion is open; the facts changed materially from what the 09-08 option (a) ruling assumed
   3. One real ticket reaches Ready and reaches Done on a coding agent, with a fresh-context review's `verification.md` and the developer's `verified` ticks
   4. The time from `new ticket` to Ready is recorded for that ticket, and the token rule is checked against the pilot's real stylesheet before any promotion to error
 
-**Plans**: 8/11 plans executed
+**Plans**: 9/11 plans executed
 
 Plans:
 **Wave 1** *(four parallel plans; no file overlap between them)*
@@ -368,7 +368,7 @@ Plans:
 
 **Wave 6**
 
-- [ ] 09-09-PLAN.md — The ticket to Done with a fresh-context review, and the one pull request (D-155, D-158)
+- [x] 09-09-PLAN.md — The README rewritten and reviewed by a context that did not write it (D-158); pull request 1 opened, the one D-155 allows, not merged. **Done NOT reached**, for four recorded reasons, and the `accord` check failed on a fifth nobody predicted — FINDING F-6, `npx --yes <pkg>@<version>` runs the workspace rather than the registry when the two match. See 09-VERIFICATION.md sections 3 and 4
 
 **Wave 7**
 

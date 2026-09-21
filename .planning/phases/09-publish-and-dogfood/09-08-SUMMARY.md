@@ -136,3 +136,17 @@ block forbids. The warnings clear in 09-09 when the tests are real.
 
 Three `pending` rows remain in `09-VERIFICATION.md`, down from four: two for 09-09 and one for
 09-10.
+
+## Correction, added 2026-09-21 by 09-09
+
+The `npx --yes @accord-dev/accord@0.1.0` invocations recorded above were run from this repository's
+root, where `node_modules/.bin/accord` exists and points at `packages/cli/dist/cli.js`. npm resolves
+`@accord-dev/accord@0.1.0` against the workspace tree, finds a local package of that name and version,
+and declines to fetch. **They ran the local build, not the package on the registry.**
+
+The reported behaviour is unaffected: the local `packages/cli/dist/cli.js` and the published tarball's
+are byte-identical, `sha256 6f38f978...deb9e3`, checked by unpacking `npm pack @accord-dev/accord@0.1.0`.
+The same bytes ran either way. What is wrong is the provenance claim, not the result.
+
+This is FINDING F-6, and it is also why the generated workflow failed on pull request 1 with
+`accord: not found`. See `09-VERIFICATION.md` section 3. The prose above is left as it was written.

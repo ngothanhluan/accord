@@ -142,3 +142,17 @@ plan's call.
 
 The owner reviewed the diff and approved it; the scaffold is committed as `8570852` on `readme-1`,
 on its own, with no README change and no ticket file. 09-08 adds the ticket to the same branch.
+
+## Correction, added 2026-09-21 by 09-09
+
+The `npx --yes @accord-dev/accord@0.1.0` invocations recorded above were run from this repository's
+root, where `node_modules/.bin/accord` exists and points at `packages/cli/dist/cli.js`. npm resolves
+`@accord-dev/accord@0.1.0` against the workspace tree, finds a local package of that name and version,
+and declines to fetch. **They ran the local build, not the package on the registry.**
+
+The reported behaviour is unaffected: the local `packages/cli/dist/cli.js` and the published tarball's
+are byte-identical, `sha256 6f38f978...deb9e3`, checked by unpacking `npm pack @accord-dev/accord@0.1.0`.
+The same bytes ran either way. What is wrong is the provenance claim, not the result.
+
+This is FINDING F-6, and it is also why the generated workflow failed on pull request 1 with
+`accord: not found`. See `09-VERIFICATION.md` section 3. The prose above is left as it was written.

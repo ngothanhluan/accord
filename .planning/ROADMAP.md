@@ -340,7 +340,7 @@ Plans:
   3. One real ticket reaches Ready and reaches Done on a coding agent, with a fresh-context review's `verification.md` and the developer's `verified` ticks
   4. The time from `new ticket` to Ready is recorded for that ticket, and the token rule is checked against the pilot's real stylesheet before any promotion to error
 
-**Plans**: 6/11 plans executed
+**Plans**: 7/11 plans executed
 
 Plans:
 **Wave 1** *(four parallel plans; no file overlap between them)*
@@ -360,7 +360,7 @@ Plans:
 
 **Wave 4** *(blocked on 09-06: the dogfood runs the published package, never a local build)*
 
-- [ ] 09-07-PLAN.md — `accord init` from the published package, on a branch (D-132, D-130)
+- [x] 09-07-PLAN.md — `accord init` from the published package on branch `readme-1`; `accord/config.yml` byte-identical, the generated `accord.yml` carries the D-162 `ref:` (D-132, D-130) — scaffold committed as `8570852`
 
 **Wave 5**
 

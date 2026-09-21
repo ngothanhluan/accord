@@ -209,7 +209,7 @@ this repository's own `accord/` folder receives nothing from 09-05.
 
 ## 7. Bootstrap token revoked (OPS-03 / D-151)
 
-Status: **OUTSTANDING — deliberate deviation, 2026-09-21.**
+Status: **CLOSED as an accepted deviation — owner ruling, 2026-09-21. The token is not revoked.**
 
 The granular bootstrap token has **not** been revoked. The author was asked twice and elected to
 retain it for now.
@@ -217,6 +217,11 @@ retain it for now.
 Verified live rather than assumed: after the author reported the step done, `npm whoami` using that
 token still returned `ngothanhluan`, so the credential remains valid with read and write on the
 `@accord-dev` scope.
+
+Asked a third time on 2026-09-21, after 0.1.0 had published over OIDC without touching the token,
+the author ruled: keep it, and do not hold the phase open for it. That ruling is what closes this
+row. It closes as an accepted deviation, not as a success — the difference matters, because the
+property below is still false and closing the row does not make it true.
 
 This is the one row of the seven that 09-05 was scoped to close, so 09-05 closes as partial rather
 than complete. Two consequences follow, both deliberate and both the author's call:
@@ -227,7 +232,7 @@ than complete. Two consequences follow, both deliberate and both the author's ca
   rest in that session log on disk, which raises the value of revoking it above the ordinary hygiene
   case.
 
-This section carries the word OUTSTANDING rather than the status word used by rows 1 through 6, so
-that those rows still number exactly six. 09-06, 09-08, 09-09 and 09-10 each step that count down by
-one and are only checkable if it starts at six. When the token is revoked, replace this section's
-status with the revocation date; do not reintroduce the rows-1-to-6 status word here.
+This section deliberately avoids the status word rows 1 through 6 use, so that those rows still
+number exactly six. 09-06, 09-08, 09-09 and 09-10 each step that count down by one and are only
+checkable if it starts at six. If the token is ever revoked, append the revocation date here; do not
+reintroduce the rows-1-to-6 status word.

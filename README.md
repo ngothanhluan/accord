@@ -1,14 +1,16 @@
 # accord
 
-A team contract for AI-assisted software delivery.
+A contract for AI-assisted software delivery.
 
-Accord defines a small, conventional folder inside your repository where a business analyst, designer, and developer write down what a feature is for, what it must do, how it must look, and how you will know it is done, before an AI agent writes a line of code; QA verifies against the same acceptance criteria. A CLI checks that contract deterministically, so an agent cannot skip it.
+Accord defines a small, conventional folder inside your repository where what a feature is for, what it must do, how it must look, and how you will know it is done are written down before an agent writes a line of code, and verified against those same acceptance criteria afterwards. A CLI checks that contract deterministically, so an agent cannot skip it.
 
-**Status: design phase.** Nothing is published yet. See [docs/design.md](docs/design.md) for the current design and the reasoning behind it.
+BA, designer, developer, reviewer are four stages a ticket passes through, not four job titles. One person passes through all four in turn; four people on a team divide them. No gate reads who anyone is, so the same rules hold either way.
+
+**Released:** `0.1.0`, as `@accord-dev/accord` on npm. See [docs/design.md](docs/design.md) for the design and the reasoning behind it.
 
 ## The problem
 
-AI coding agents produce features that pass their own tests and still miss what the user meant. The largest measured cause is not a missing spec but an agent ignoring instructions it already had. The second is a spec that never captured intent, and QA testing without acceptance criteria. Accord attacks both: intent and acceptance criteria are captured up front by the people who hold them, and a Done gate verifies the result against those criteria independently of the agent that built it.
+AI coding agents produce features that pass their own tests and still miss what the user meant. The largest measured cause is not a missing spec but an agent ignoring instructions it already had. The second is a spec that never captured intent, and QA testing without acceptance criteria. Accord attacks both: intent and acceptance criteria are captured up front by whoever holds them, and a Done gate verifies the result against those criteria independently of the agent that built it.
 
 ## What it is
 

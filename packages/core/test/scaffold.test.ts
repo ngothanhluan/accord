@@ -235,6 +235,18 @@ describe('initFiles — the CI workflow it plans (CLI-02)', () => {
     expect(steps[0].with?.['fetch-depth']).toBe(0);
   });
 
+  // D-162: without an explicit `ref:`, checkout lands on GitHub's synthetic merge commit, `gate done` binds
+  // the tick to that commit, and every author's `verified_commit` reads as stale — a gate that fails a
+  // correct review reads to a user as a broken gate. The key count is asserted rather than the one key, for
+  // the same reason the `permissions` case above uses `toEqual`: a third `with:` key that moves the checkout
+  // somewhere else has to fail a case instead of slipping past one. The delimiter is concatenated, following
+  // the split-literal convention the T-07-11 case below relies on.
+  it('checks out the head of the pull request, not the merge commit (D-162)', () => {
+    const delimiter = '$' + '{{';
+    expect(steps[0].with?.ref).toBe(`${delimiter} github.event.pull_request.head.sha }}`);
+    expect(Object.keys(steps[0].with ?? {})).toHaveLength(2);
+  });
+
   it('carries exactly one script, and passes the diff base to it through env', () => {
     expect(scripts).toHaveLength(1);
     expect(scripts[0].env?.BASE).toBeTypeOf('string');

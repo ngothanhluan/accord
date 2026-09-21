@@ -20,6 +20,12 @@
  * fail on its own output. That is the rule, not an exemption granted one name at a time: a two-word product
  * name is only incidentally matchable where the one-word form is not, and spelling is not a policy.
  *
+ * The match is case-SENSITIVE. Every name above is a proper noun with one canonical spelling, so nothing
+ * is lost by that, and it is what stops the scan tripping over ordinary words that share a spelling with
+ * a tool: `linear-gradient` in `lint/tokens.ts` is a CSS grammar term, not the tracker. The collision
+ * only became reachable when core was bundled into `dist/cli.js` (09-01), which widened this scan from
+ * accord's prose to accord's whole implementation.
+ *
  * `Shortcut` is absent too — it is ordinary English and would flag prose like "a shortcut past the gate";
  * the tracker risk it stands for is carried by the two tracker entries. Split literals, as
  * `templates.test.ts` does, so this file does not contain the names it forbids and so trip the scan it is
@@ -47,7 +53,7 @@ export function deniedNames(files: readonly { path: string; text: string }[]): s
   for (const { path, text } of files) {
     text.split('\n').forEach((line, i) => {
       for (const name of DENIED) {
-        if (new RegExp('\\b' + name + '\\b', 'i').test(line)) offenders.push(`${path}:${i + 1}: ${name}`);
+        if (new RegExp('\\b' + name + '\\b').test(line)) offenders.push(`${path}:${i + 1}: ${name}`);
       }
     });
   }

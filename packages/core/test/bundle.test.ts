@@ -67,8 +67,14 @@ describe('built core bundle', () => {
   it('manifest shape', () => {
     const pkg = JSON.parse(readFileSync(join(coreDir, 'package.json'), 'utf8'));
     expect(pkg.name).toBe('@accord-dev/accord-core');
+    // Pinned, not re-anchored to the CLI's version: core is private and unpublished, so bumping it
+    // in lockstep is ceremony with a failure mode — two version strings that can silently disagree.
     expect(pkg.version).toBe('0.1.0');
     expect(pkg.type).toBe('module');
+    // D-150: core is never published, so it is bundled into the CLI instead. The exports assertions
+    // below must stay even though nothing consumes them from the registry — `exports["."]` is what
+    // tsdown resolves the workspace package through, so this case is what would catch its removal.
+    expect(pkg.private).toBe(true);
     expect(pkg.exports['.']).toEqual({ types: './dist/index.d.ts', default: './dist/index.js' });
     expect(pkg.exports['./schemas/*']).toBe('./schemas/*');
     expect(pkg.files).toEqual(expect.arrayContaining(['dist', 'schemas', 'templates']));

@@ -50,9 +50,9 @@
     }
   ],
   "next": {
-    "command": "/gsd-plan-phase 8",
-    "label": "Plan Phase 8: MCP Server",
-    "reason": "Phase 07 of 9 complete"
+    "command": "/gsd:progress --next",
+    "label": "Advance to the next step",
+    "reason": "Phase 09 of 9 · executing"
   },
-  "updated_at": "2026-09-19T11:05:00Z"
+  "updated_at": "2026-09-21T04:07:20.843Z"
 }

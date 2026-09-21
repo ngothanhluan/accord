@@ -2,7 +2,9 @@
 
 ## Overview
 
-Accord is a team contract for AI-assisted delivery: a folder convention, deterministic gates, role skills for four coding agents, and a remote MCP server for chat clients. The roadmap follows the dependency chain the research identified. Formats and the isomorphic core come first because every host renders over them. Lint and gates follow as pure functions over a snapshot. The CLI is the reference host, the skills wrap the CLI, and the MCP server reuses core and the skill definitions with a GitHub-API loader. The milestone closes only when the scoped package is on npm and one real employer ticket has passed Ready and Done with the BA on a chat client and the developer on a coding agent.
+Accord is a contract for AI-assisted delivery: a folder convention, deterministic gates, and role skills for four coding agents. The roadmap follows the dependency chain the research identified. Formats and the isomorphic core come first because every host renders over them. Lint and gates follow as pure functions over a snapshot. The CLI is the reference host and the skills wrap the CLI. The milestone closes only when the scoped package is on npm and one real ticket has passed Ready and Done on a coding agent.
+
+The original roadmap carried a ninth deliverable, a remote MCP server, so that a non-technical BA could work tickets from a chat app. `.planning/notes/solo-reaim-and-three-layer-done.md` (2026-09-11) re-aimed accord from a team contract to a personal workflow set, which removed that deliverable's reason to exist; D-117 recorded the removal as owner action. Phase 8 is retained below as a tombstone rather than deleted, so that the references to it in the Phase 3 through 7 records stay true.
 
 ## Phases
 
@@ -20,8 +22,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 5: CLI Commands** - `new ticket`, `lint`, `gate`, `status` on Windows and POSIX with `--json`, version pin, and the `github-issues` adapter (completed 2026-09-15)
 - [x] **Phase 6: Skills** - One workflow definition per role rendered to SKILL.md for all four runtimes, synced with marker and hash (completed 2026-09-17)
 - [x] **Phase 7: Scaffolding and Example Repo** - `init` delivers the whole contract in one command; example repo passes both gates in both profiles (completed 2026-09-19)
-- [ ] **Phase 8: MCP Server** - Stateless Streamable HTTP server over the GitHub API with GitHub OAuth, deployed and verified from two chat clients
-- [ ] **Phase 9: Publish and Dogfood** - Scoped npm package via trusted publishing; one real employer ticket through Ready and Done
+- [~] **Phase 8: MCP Server** - REMOVED 2026-09-19 (D-117); the number is retained and not reused
+- [ ] **Phase 9: Publish and Dogfood** - Scoped npm package via trusted publishing; one real ticket through Ready and Done
 
 ## Phase Details
 
@@ -312,43 +314,74 @@ Plans:
 
 - The example skeleton was produced by running the built `accord init`, so the example is standing proof that what `init` generates is a thing the gates accept (D-146)
 
-### Phase 8: MCP Server
+### Phase 8: MCP Server — REMOVED
 
-**Goal**: A non-technical team member in claude.ai or a tools-only chat client works the same tickets through the same gates, and every write lands as a commit authored by that person.
-**Mode:** mvp
-**Depends on**: Phase 6 (needs the workflow definitions and the gate engine; can run in parallel with Phase 7)
-**Requirements**: MCP-01, MCP-02, MCP-03, MCP-04, MCP-05, MCP-06, MCP-07
-**Research**: yes (hosting choice and whether `ajv`, `yaml`, `@cucumber/gherkin` run there; GitHub OAuth App vs GitHub App user-to-server tokens for a stateless server; REST contents vs GraphQL `createCommitOnBranch`; fetching the whole folder per gate call within rate limits; MCP SDK Streamable HTTP and OAuth server API)
-**Success Criteria** (what must be TRUE):
+**Status**: removed 2026-09-19. The number is retained and is not reused.
 
-  1. A user connects the server from a chat client, signs in with GitHub, and a ticket saved from chat appears in the repository as a commit authored by the signed-in user
-  2. `get_workflow` for a role returns the same steps as that role's rendered `SKILL.md`, and clients that support prompts are offered the workflow as a prompt as well
-  3. `list_tickets`, `get_ticket`, `lint`, `gate_ready`, `gate_done`, and `status` return the same result objects as the CLI over a snapshot built from the GitHub API with no clone and no database
-  4. `save_ticket` refuses a write when the file changed since it was read and tells the user to re-read
-  5. The server runs on a serverless host and the tool set is verified from claude.ai and from one tools-only client (ChatGPT developer mode or Codex CLI)
+**What it was**: a stateless Streamable HTTP MCP server over the GitHub API with GitHub OAuth, so that a non-technical team member in claude.ai or a tools-only chat client could work the same tickets through the same gates, every write landing as a commit authored by that person. Its requirements were MCP-01 through MCP-07, now Out of Scope in REQUIREMENTS.md.
 
-**Plans**: TBD
+**Why it was removed**: `.planning/notes/solo-reaim-and-three-layer-done.md` (2026-09-11) re-aimed accord from a team contract to a personal workflow set for the author. The four roles became four stages one person passes through, which left the server with no user — it existed to put accord inside the chat subscription of someone who does not use a coding agent. `03-CONTEXT.md:146`, `04-CONTEXT.md:172`, and `05-CONTEXT.md:165` each carried the decision forward while declining to act on it, because removal is a roadmap-level change. `06-CONTEXT.md` recorded it as **D-117** with the residue named and an owner action attached. This is that action, executed.
+
+**What was not removed**: the `packages/mcp` workspace (OPS-01, shipped in Phase 1) stays as an empty workspace; the core purity guard stays, because isomorphic core is a discipline worth keeping on its own terms; and GATE-05 and GATE-08 keep their "a host that cannot supply this reports it as skipped" clauses, which are already shipped and host-agnostic.
+
+**Reversal cost if the team-contract aim returns**: the requirements text is preserved in REQUIREMENTS.md under Out of Scope and the research questions in `.planning/research/questions.md` are untouched, so reinstating means restoring a phase section, not redoing the analysis.
 
 ### Phase 9: Publish and Dogfood
 
-**Goal**: v0.1 is installable with `npx` from npm, and one real employer ticket passes Ready and Done with the BA on a chat client over MCP and the developer on a coding agent with the shipped skill.
+**Goal**: v0.1 is installable with `npx` from npm, and one real ticket passes Ready and Done with the author on a coding agent with the shipped skill.
 **Mode:** mvp
-**Depends on**: Phase 7, Phase 8
+**Depends on**: Phase 7
 **Requirements**: OPS-03, OPS-04
 **Research**: no (npm trusted publishing documented in STACK.md; the rest is measurement)
 **Success Criteria** (what must be TRUE):
 
   1. The scoped package is published from GitHub Actions via npm trusted publishing with `engines` at Node 22.12 or later, and `npx --yes <scope>/accord --version` works on a clean machine
-  2. `accord init` from the published package runs on the employer project's repository and the generated CI workflow is green
-  3. One real ticket reaches Ready with the BA working in a chat client over the deployed MCP server, and reaches Done with the developer on a coding agent, a fresh-context review's `verification.md`, and the developer's `verified` ticks
+  2. `accord init` from the published package runs on a real project's repository and the generated CI workflow is green
+  3. One real ticket reaches Ready and reaches Done on a coding agent, with a fresh-context review's `verification.md` and the developer's `verified` ticks
   4. The time from `new ticket` to Ready is recorded for that ticket, and the token rule is checked against the pilot's real stylesheet before any promotion to error
 
-**Plans**: TBD
+**Plans**: 5/11 plans executed
+
+Plans:
+**Wave 1** *(four parallel plans; no file overlap between them)*
+
+- [x] 09-01-PLAN.md — Tracer: the publishable artifact — core private, the dependency moved to `devDependencies`, `deps.alwaysBundle`, proved by installing the packed tarball (D-150, D-164)
+- [x] 09-02-PLAN.md — The emitted CI workflow checks out the pull request's head sha (D-162)
+- [x] 09-03-PLAN.md — `packages/cli/README.md` generated from the root README, with a drift test (D-156 defect 1)
+- [x] 09-04-PLAN.md — `.github/workflows/publish.yml` and a test that executes its version-check body (D-149, D-152)
+
+**Wave 2** *(blocked on 09-01: never publish a manifest that 404s)*
+
+- [x] 09-05-PLAN.md — npm scope confirmed (owner), the `0.0.0` bootstrap published and installable, the trusted publisher configured (D-151) — **token revocation OUTSTANDING**, see 09-VERIFICATION.md section 7
+
+**Wave 3** *(blocked on Waves 1-2; everything green on `main` first)*
+
+- [ ] 09-06-PLAN.md — Publish `0.1.0` from a tag over OIDC, and evidence it (D-157 step 1)
+
+**Wave 4** *(blocked on 09-06: the dogfood runs the published package, never a local build)*
+
+- [ ] 09-07-PLAN.md — `accord init` from the published package, on a branch (D-132, D-130)
+
+**Wave 5**
+
+- [ ] 09-08-PLAN.md — The README ticket to Ready, timed; and the blocking ruling on criterion 2 (D-156, D-159)
+
+**Wave 6**
+
+- [ ] 09-09-PLAN.md — The ticket to Done with a fresh-context review, and the one pull request (D-155, D-158)
+
+**Wave 7**
+
+- [ ] 09-10-PLAN.md — The token measurement in a scratch worktree of `C:/Work/SimplT` (D-153, D-154, D-161, D-163)
+
+**Wave 8**
+
+- [ ] 09-11-PLAN.md — The 40-file `0.1.1` sweep and the second publish (D-157 step 3)
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9. Phases 7 and 8 both depend only on Phase 6 and may run in parallel.
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 9. Phase 8 was removed (D-117) and its number is retained rather than reused.
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -358,9 +391,9 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 4. Gates | 4/4 | Complete    | 2026-09-15 |
 | 5. CLI Commands | 6/6 | Complete    | 2026-09-15 |
 | 6. Skills | 8/8 | Complete    | 2026-09-17 |
-| 7. Scaffolding and Example Repo | 15/15 | In Progress|  |
-| 8. MCP Server | 0/TBD | Not started | - |
-| 9. Publish and Dogfood | 0/TBD | Not started | - |
+| 7. Scaffolding and Example Repo | 15/15 | Complete    | 2026-09-19 |
+| 8. MCP Server | - | Removed | 2026-09-19 |
+| 9. Publish and Dogfood | 4/11 | In Progress|  |
 
 ---
 *Roadmap created: 2026-09-05*

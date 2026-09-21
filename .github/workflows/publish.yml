@@ -1,0 +1,130 @@
+name: publish
+# D-149: a pushed tag and nothing else, and no path filter — a job that skips itself leaves a
+# required status check pending forever, the same trap D-138 already names for the emitted accord.yml.
+#
+# The FILENAME is part of the npm trusted-publisher record (owner + repo + workflow filename, matched
+# exactly). Renaming this file breaks authentication on a workflow whose diff shows no change, so it
+# is fixed at creation and never renamed.
+on:
+  push:
+    tags: ['v*']
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    # Declared per job, unlike ci.yml which declares `contents: read` at workflow level: `id-token:
+    # write` is what mints the OIDC token, and a job that inherits it holds the authority to write a
+    # package every user installs. The smoke job below has no use for it and therefore never sees it.
+    # No GitHub deployment environment is declared: it is optional per npm's documentation, and one
+    # whose branch protections do not allow the tag ref blocks this job with an error that reads
+    # nothing like its cause.
+    permissions:
+      id-token: write
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          # Node 24 ships npm 11.19.0, over the npm 11.5.1 / Node 22.14 floor trusted publishing
+          # requires — which is why this job carries no global npm upgrade step. Moving it back to
+          # Node 22 (npm 10.9.8) puts that step back below the floor and makes it mandatory again.
+          node-version: 24
+          # Load-bearing, not cosmetic: this writes a project-level .npmrc naming the registry, and
+          # that registry is what the OIDC exchange targets. There is no `always-auth` input on this
+          # action; do not copy one from an older recipe.
+          registry-url: 'https://registry.npmjs.org'
+          cache: npm
+      - name: the tag and the manifest name the same version, exactly
+        id: version
+        shell: bash
+        env:
+          # Bound through env:, never interpolated into the script body — the tag is a
+          # maintainer-controlled string flowing into a shell on a runner that holds publish rights (T-09-10).
+          TAG: ${{ github.ref_name }}
+        run: |
+          # Fail fast, and before `npm ci`: a wrong tag should cost a few seconds, not a build.
+          set -euo pipefail
+          # `node -p` evaluates in CJS scope, which is why `require` works in a "type": "module"
+          # repository. A JSON parser rather than a regex over JSON — the classic silently-wrong step.
+          manifest=$(node -p "require('./packages/cli/package.json').version")
+          want="${TAG#v}"
+          # D-94's rule, in shell: byte equality on two strings, with the `v` strip as the only
+          # transformation. No semver library, no range, no tolerance — a tag that publishes a
+          # different version than it names is the one mismatch the pin cannot recover from afterwards.
+          if [ "$want" != "$manifest" ]; then
+            echo "tag ${TAG} names ${want}, packages/cli/package.json names ${manifest}" >&2
+            exit 1
+          fi
+          echo "VERSION=${manifest}" >> "$GITHUB_ENV"
+          # Both files, not one: GITHUB_ENV does not cross a job boundary, so the smoke job reads
+          # this half through needs.publish.outputs.version.
+          echo "VERSION=${manifest}" >> "$GITHUB_OUTPUT"
+      - run: npm ci
+      # One run on one OS (D-152), not ci.yml's 2 OS x 2 Node matrix: that matrix already runs on
+      # every push to main, and the one hole it cannot cover is a tag pointing at a commit that never
+      # went through CI — which this single check closes. `check` is build && lint && typecheck && test,
+      # and its build sequences core before cli, which the bundling depends on.
+      - run: npm run check
+      - name: publish unless this version is already on the registry
+        shell: bash
+        env:
+          PKG: '@accord-dev/accord'
+        run: |
+          set -euo pipefail
+          # `|| true` is load-bearing: on the first publish the package does not exist at all, so
+          # `npm view` exits non-zero with E404 and `set -e` would fail the very release this guard
+          # protects. The emptiness of stdout is the signal, not the exit code. A pre-flight probe
+          # rather than matching npm's error text, so a transient E409 packument write collision
+          # cannot be mistaken for "already published" and silently skipped (T-09-14).
+          on_registry=$(npm view "${PKG}@${VERSION}" version 2>/dev/null || true)
+          if [ "$on_registry" = "$VERSION" ]; then
+            echo "${PKG}@${VERSION} is already on the registry - skipping publish"
+            exit 0
+          fi
+          # `--access public` explicitly: a no-op under npm 11's default, correct under the historical
+          # restricted default for scoped packages, and self-documenting at the one call site that
+          # matters. The provenance flag is deliberately not passed — trusted publishing generates and
+          # publishes the attestation automatically, and passing it changes the failure mode on a
+          # non-OIDC path.
+          npm publish --workspace packages/cli --access public
+
+  smoke:
+    needs: publish
+    # No `permissions` key at all, so this job cannot mint an OIDC token even by accident (T-09-11).
+    # Nothing here is allowed to fail softly either: this is the only proof of the clean-machine
+    # clause, and evidence that can be ignored is not evidence.
+    runs-on: ubuntu-latest
+    steps:
+      # Deliberately no actions/checkout: `npx` on a runner with no package.json and no node_modules
+      # is the closest thing Actions offers to a clean machine, which is what the criterion asks for.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: install the published version through npx on a clean runner
+        shell: bash
+        env:
+          PKG: '@accord-dev/accord'
+          VERSION: ${{ needs.publish.outputs.version }}
+        run: |
+          # `-u` and `-o pipefail` but deliberately NOT `-e`, unlike the publish job above: the loop
+          # reads a non-zero exit as "not yet visible", and `-e` would stop on the first attempt.
+          set -uo pipefail
+          # The registry is eventually consistent: npm acknowledges a publish before every edge
+          # serves the new version. 12 attempts at 15s is a three-minute budget, and the attempt
+          # number is echoed so a slow release reads as a slow release rather than a broken package.
+          for attempt in $(seq 1 12); do
+            if out=$(npx --yes "${PKG}@${VERSION}" --version 2>&1); then
+              echo "attempt ${attempt}: ${out}"
+              # Visible but wrong output is not a propagation problem. Failing now rather than
+              # retrying keeps a genuinely broken bundle from burning the budget and being reported
+              # as a slow registry.
+              [ "$(echo "$out" | tail -1 | tr -d '[:space:]')" = "${VERSION}" ] && exit 0
+              echo "resolved, but printed '${out}' not '${VERSION}'" >&2
+              exit 1
+            fi
+            echo "attempt ${attempt}: not yet visible; sleeping 15s"
+            sleep 15
+          done
+          echo "${PKG}@${VERSION} never became installable within 3 minutes" >&2
+          exit 1

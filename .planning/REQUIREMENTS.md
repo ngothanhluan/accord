@@ -5,7 +5,7 @@
 
 ## v1 Requirements
 
-v1 is the v0.1 milestone: npm publish, MCP deployed, one real ticket through Ready and Done with a non-tech BA on a chat client.
+v1 is the v0.1 milestone: npm publish, and one real ticket through Ready and Done on a coding agent.
 
 ### Formats
 
@@ -79,16 +79,6 @@ v1 is the v0.1 milestone: npm publish, MCP deployed, one real ticket through Rea
 - [x] **SKILL-09**: Two techniques render alongside the role skills and are loaded by them rather than invoked as roles: systematic debugging (loaded by `dev` for `type: bug` or unexpected behaviour; adds no artifact, since the ticket is the session) and code review (loaded by the fresh review context; appends findings to `verification.md` under `## Review`, each finding naming a concrete failure scenario). The definitions live in `packages/core/skills/`
 - [x] **SKILL-12**: Before implementing, the dev workflow reviews `## Plan` against the intent and the acceptance criteria in a fresh context that reads no code and edits only `## Plan`; it adds no artifact. Coverage is LINT-08's job, so this step reads for soundness: wrong layer, wrong order, a missing dependency, an approach the acceptance criteria will not survive
 
-### MCP server
-
-- [ ] **MCP-01**: Stateless Streamable HTTP server built on the core package
-- [ ] **MCP-02**: GitHub OAuth; every commit is authored by the signed-in user
-- [ ] **MCP-03**: Snapshot built from the GitHub API and files written through it; no clone, no database
-- [ ] **MCP-04**: Tools: `get_workflow`, `list_tickets`, `get_ticket`, `save_ticket`, `lint`, `gate_ready`, `gate_done`, `status`
-- [ ] **MCP-05**: `get_workflow` returns the same steps the SKILL.md renders; prompts offered additionally where the client supports them
-- [ ] **MCP-06**: `save_ticket` rejects a write when the file changed since it was read
-- [ ] **MCP-07**: Deployed to a serverless host and verified from claude.ai and from one tools-only client
-
 ### Integration and proof
 
 - [x] **INTG-01**: `github-issues` adapter is read-only (title, state, labels) over REST `fetch` with a token from `gh auth token` or `GITHUB_TOKEN`; gates never consult it
@@ -99,7 +89,7 @@ v1 is the v0.1 milestone: npm publish, MCP deployed, one real ticket through Rea
 - [x] **OPS-01**: Monorepo with npm workspaces: `core`, `cli`, `mcp`
 - [x] **OPS-02**: CI on Ubuntu and Windows for Node 22 and 24 from the first commit
 - [ ] **OPS-03**: Scoped package published via npm trusted publishing; `engines` at Node 22.12 or later
-- [ ] **OPS-04**: One real employer ticket passes Ready and Done with the BA on a chat client over MCP and the developer on a coding agent; time from `new ticket` to Ready recorded
+- [ ] **OPS-04**: One real ticket passes Ready and Done on a coding agent, with a fresh-context review's `verification.md` and the developer's `verified` ticks; time from `new ticket` to Ready recorded
 
 ## v2 Requirements
 
@@ -113,7 +103,7 @@ v1 is the v0.1 milestone: npm publish, MCP deployed, one real ticket through Rea
 - **SKILL-11**: `lint` detects drift between skill copies and their definition
 - **SKILL-10**: `disable-model-invocation` on gate skills once Codex's handling of unknown frontmatter keys is verified
 - **GATE-12**: Token rule promoted from warning to error in `build` profile after pilot data
-- **GATE-13**: Author check in MCP via the GitHub commits API
+- ~~**GATE-13**: Author check in MCP via the GitHub commits API~~ — dropped with MCP-01..07 (D-117); it had no host left to run in
 
 ### Views
 
@@ -135,6 +125,19 @@ v1 is the v0.1 milestone: npm publish, MCP deployed, one real ticket through Rea
 | Live collaborative editing | Edits happen through discrete agent calls |
 | Committing screenshots or Figma exports | Repo weight; HTML prototype plus Figma link instead |
 | Jira, Linear adapters | After `none` and `github-issues`; Shortcut first if any |
+| Remote MCP server for chat clients (was MCP-01 to MCP-07, Phase 8) | Moved out 2026-09-19 by D-117. The server existed so a non-technical BA could work tickets from a chat subscription; `.planning/notes/solo-reaim-and-three-layer-done.md` (2026-09-11) re-aimed accord to a personal workflow set, leaving it without a user. Text preserved below so reinstating is a restore, not a redesign |
+
+### Removed requirements, preserved
+
+Out of scope since 2026-09-19 (D-117). The `packages/mcp` workspace (OPS-01) and the core purity guard stay; GATE-05 and GATE-08 keep their "a host that cannot supply this reports it as skipped" clauses, which are shipped and host-agnostic.
+
+- **MCP-01**: Stateless Streamable HTTP server built on the core package
+- **MCP-02**: GitHub OAuth; every commit is authored by the signed-in user
+- **MCP-03**: Snapshot built from the GitHub API and files written through it; no clone, no database
+- **MCP-04**: Tools: `get_workflow`, `list_tickets`, `get_ticket`, `save_ticket`, `lint`, `gate_ready`, `gate_done`, `status`
+- **MCP-05**: `get_workflow` returns the same steps the SKILL.md renders; prompts offered additionally where the client supports them
+- **MCP-06**: `save_ticket` rejects a write when the file changed since it was read
+- **MCP-07**: Deployed to a serverless host and verified from claude.ai and from one tools-only client
 
 ## Traceability
 
@@ -194,13 +197,13 @@ v1 is the v0.1 milestone: npm publish, MCP deployed, one real ticket through Rea
 | SKILL-08 | Phase 6 | Complete |
 | SKILL-09 | Phase 6 | Complete |
 | SKILL-12 | Phase 6 | Complete |
-| MCP-01 | Phase 8 | Pending |
-| MCP-02 | Phase 8 | Pending |
-| MCP-03 | Phase 8 | Pending |
-| MCP-04 | Phase 8 | Pending |
-| MCP-05 | Phase 8 | Pending |
-| MCP-06 | Phase 8 | Pending |
-| MCP-07 | Phase 8 | Pending |
+| MCP-01 | — | Out of Scope (D-117) |
+| MCP-02 | — | Out of Scope (D-117) |
+| MCP-03 | — | Out of Scope (D-117) |
+| MCP-04 | — | Out of Scope (D-117) |
+| MCP-05 | — | Out of Scope (D-117) |
+| MCP-06 | — | Out of Scope (D-117) |
+| MCP-07 | — | Out of Scope (D-117) |
 | INTG-01 | Phase 5 | Complete |
 | INTG-02 | Phase 7 | Complete |
 | OPS-01 | Phase 1 | Complete |

@@ -2,7 +2,9 @@
 
 ## What This Is
 
-Accord is a contract for AI-assisted software delivery: a conventional folder in each repository where intent, EARS requirements, Gherkin acceptance criteria, and design references are recorded before an agent writes code, plus a CLI and a remote MCP server that check that contract deterministically, plus the role workflows that carry a ticket from intent to verified. The four roles — BA, designer, developer, reviewer — are four people on a team and four stages for one person working alone; no gate reads who anyone is, so the solo case needs no separate mode. Technical members work through Claude Code, Cursor, Codex, or Copilot; non-technical members work through the AI chat app they already pay for, connected to the same MCP server. It is an open-source personal project (MIT); the author's employer is the first user, not the owner.
+Accord is a contract for AI-assisted software delivery: a conventional folder in each repository where intent, EARS requirements, Gherkin acceptance criteria, and design references are recorded before an agent writes code, plus a CLI that checks that contract deterministically, plus the role workflows that carry a ticket from intent to verified. The four roles — BA, designer, developer, reviewer — are four stages one person passes through, and equally four people on a team; no gate reads who anyone is, so neither case needs a separate mode. Everyone works through a coding agent: Claude Code, Cursor, Codex, or Copilot. It is an open-source personal project (MIT); the author is the first user.
+
+<sub>This paragraph formerly described a team contract with a remote MCP server for non-technical members. Reworded 2026-09-19 under D-117, following the 2026-09-11 re-aim recorded in `.planning/notes/solo-reaim-and-three-layer-done.md`.</sub>
 
 ## Core Value
 
@@ -15,10 +17,12 @@ It replaces a general planning system rather than sitting on top of one. It need
 v0.1 is done when all three hold:
 
 1. A scoped package is published on npm and installable with `npx`.
-2. The MCP server is deployed and reachable from at least one non-technical chat client.
-3. One real project at the author's employer runs `accord init`, and at least one real ticket passes a Ready gate and a Done gate, with the BA working through a chat client over MCP and the developer working through a coding agent with the shipped skill.
+2. One real project runs `accord init` from the published package, and its generated CI workflow is green.
+3. At least one real ticket passes a Ready gate and a Done gate on a coding agent with the shipped skill, with a fresh-context review's `verification.md` and the developer's `verified` ticks.
 
 Publishing without dogfooding, or dogfooding from a local build, does not close the milestone.
+
+<sub>Criterion 2 formerly required the MCP server deployed and reachable from a chat client, and criterion 3 required a non-technical BA working through that client. Both were rewritten 2026-09-19 under D-117, after the 2026-09-11 re-aim from a team contract to a personal workflow set removed the chat-client path. See `.planning/ROADMAP.md` "Phase 8: MCP Server — REMOVED".</sub>
 
 ## Requirements
 
@@ -42,7 +46,7 @@ Publishing without dogfooding, or dogfooding from a local build, does not close 
 - [ ] `config.yml` with pinned accord version, profile (`build` | `maintain`), tracker adapter (`none` default), design-token path, role roster, enabled runtimes
 
 **Core**
-- [ ] Pure core over a repository snapshot: parse, lint, Ready gate, Done gate, status; no filesystem or network access outside loaders, so the same code runs in Node and in the MCP host
+- [ ] Pure core over a repository snapshot: parse, lint, Ready gate, Done gate, status; no filesystem or network access outside loaders, so the engine is testable and portable independently of any host
 
 **CLI**
 - [ ] `init` scaffolds the folder, config, templates, skill files, and a CI workflow
@@ -59,17 +63,11 @@ Publishing without dogfooding, or dogfooding from a local build, does not close 
 - [ ] AC hash recorded at Ready; Done fails if the AC changed since
 
 **Role workflows**
-- [ ] Each definition renders to the text returned by the MCP `get_workflow` tool as well as to `SKILL.md`, so agent and chat users follow the same steps <sub>SKILL.md half shipped Phase 6; the MCP half is Phase 8</sub>
+- [x] Each definition renders to `SKILL.md` from one source, so every runtime follows the same steps <sub>shipped Phase 6; the MCP `get_workflow` half was dropped with Phase 8 (D-117)</sub>
 - [ ] `init` copies each `SKILL.md` into `.claude/skills/` and `.agents/skills/`, which covers Claude Code, Cursor, Copilot, and Codex; copies are marked generated <sub>`accord skills sync` does this today (Phase 6, marked and hashed); `init` calling it is Phase 7</sub>
 - [ ] No rendered skill restates a rule the CLI enforces (SKILL-04) <sub>three sentences in the BA skill still do; accepted as a Phase 6 verification override, prose fix owed in Phase 7</sub>
 
-**MCP server**
-- [ ] Stateless remote MCP server (Streamable HTTP) sharing the core package
-- [ ] GitHub OAuth; commits are authored by the signed-in user
-- [ ] Reads and writes ticket files through the GitHub API, no clone on the server
-- [ ] Tools: get workflow for a role, list tickets, get ticket, save ticket, lint, gate ready, gate done, status
-- [ ] Role workflow shipped as a tool result, not only as an MCP prompt: ChatGPT, Codex CLI, and Copilot expose MCP tools only; prompts are offered additionally where the client supports them (claude.ai, Claude Code, Cursor, VS Code)
-- [ ] Deployable to a serverless host with no database
+**MCP server** — dropped 2026-09-19 (D-117). Six items moved to `.planning/REQUIREMENTS.md` "Removed requirements, preserved".
 
 **Integration and proof**
 - [ ] Tracker adapter `github-issues`
@@ -99,7 +97,7 @@ Publishing without dogfooding, or dogfooding from a local build, does not close 
 ## Constraints
 
 - **Tech stack**: TypeScript monorepo — `core` (pure), `cli`, `mcp`; skill definitions live in `core` as data; distributed via npx — matches how AI-tool users install things
-- **Isomorphic core**: core must not import `node:fs` or `node:child_process` outside loaders — the MCP host has no filesystem
+- **Isomorphic core**: core must not import `node:fs` or `node:child_process` outside loaders — a pure core is testable and portable without a filesystem, and `mcp` stays an empty workspace after D-117
 - **No API keys**: accord never calls a model itself — team members have subscriptions, not keys
 - **Compatibility**: skill workflows must produce identical behaviour in Claude Code, Cursor, Copilot, and Codex — one definition per role, rendered
 - **Cross-platform**: CLI must run on Windows and POSIX — author develops on Windows; teams are mixed
@@ -119,18 +117,18 @@ Publishing without dogfooding, or dogfooding from a local build, does not close 
 | Hybrid tracker + git, batched doc PRs | Volume control without abandoning git | — Pending |
 | Developer self-test ticks (`verified`) live in ticket frontmatter; evidence in `tickets/<id>/verification.md` written by a fresh review context; QA records in the tracker | Evidence and confirmation in separate files with separate owners; git author is the proof; QA works where the team already works | ◆ Phase 2: loader parses `verification.md` (`Result:` limited to pass/fail/blocked, orphans reported) and `setFrontmatterKey` writes `verified` as the last key; the gate that compares them is Phase 4 |
 | Core never guesses: a malformed record yields a finding with file and line, and the value is absent rather than defaulted | A gate built on guessed values would pass tickets that should fail; findings carry the line so the author can fix the file | ✓ Phase 2: `load.*` findings for frontmatter, config, Gherkin, and verification records; 24 threats closed, none open |
-| One workflow definition per role, rendered to SKILL.md and MCP prompt | 4 runtimes × 3 roles hand-written would drift; chat and agent users must follow identical steps | ◆ Phase 6: definitions live in `packages/core/skills/` and render through `gen-skills.mjs` into a committed generated module; the SKILL.md half ships, the MCP `get_workflow` half is Phase 8. The repository's own hand-maintained `docs/skills/` copies were deleted in the same change |
+| One workflow definition per role, rendered to SKILL.md | 4 runtimes × 3 roles hand-written would drift; every runtime must follow identical steps | ✓ Phase 6: definitions live in `packages/core/skills/` and render through `gen-skills.mjs` into a committed generated module. The repository's own hand-maintained `docs/skills/` copies were deleted in the same change. The MCP `get_workflow` half was dropped with Phase 8 (D-117) |
 | `init` copies SKILL.md into `.claude/skills/` and `.agents/skills/` | Verified: those two paths cover all four runtimes; no per-runtime wrappers needed | ◆ Phase 6: `accord skills sync` writes both paths with a generated marker and content hash and is a byte-level no-op on a second run; `init` calling it is Phase 7 |
 | Codex added as fourth target runtime | Team members use it | ✓ Phase 6: the `DIRS` table covers all four runtimes and the orphan scan reads every directory it can produce |
 | Git is the only source of truth; no server-side state | Every host is a git client over the same core; hub as a separate product dropped | — Pending |
-| Remote MCP server is the non-tech frontend | Members have chat subscriptions, not API keys; accord goes into their tool instead of hosting a model | — Pending |
+| Remote MCP server is the non-tech frontend | Members have chat subscriptions, not API keys; accord goes into their tool instead of hosting a model | ✗ Reversed 2026-09-19 (D-117): the 2026-09-11 re-aim to a personal workflow set left this frontend with no user. The reasoning still holds if the team-contract aim ever returns |
 | No API keys anywhere in accord | Subscriptions cannot power a third-party app; avoids cost and secret handling | — Pending |
-| Monorepo `core` / `cli` / `mcp` | Core must run in Node and in the MCP host; one repo keeps them in lockstep; skill definitions are data both hosts read, so they live in core | ✓ Phase 1: `core` and `cli` workspaces live with a purity guard; `mcp` added in Phase 8 |
+| Monorepo `core` / `cli` / `mcp` | Core must run in Node and in a host with no filesystem; one repo keeps them in lockstep; skill definitions are data hosts read, so they live in core | ✓ Phase 1: `core` and `cli` workspaces live with a purity guard. `mcp` stays an empty workspace after D-117; the purity guard is kept on its own merits, since a pure core is testable without a filesystem regardless of who hosts it |
 | Nothing accord ships names another tool or harness | Positioning stands on its own; comparisons date quickly and invite argument; a reader meeting the name of a tool they do not have learns nothing. Covers README, design docs, templates, schemas, and workflow text under `docs/skills/`, which renders into shipped SKILL.md files. Provenance for adapted material goes in the commit message | ✓ Phase 1 UAT (2026-09-06): README and design.md rewritten without tool names. Scope widened 2026-09-12 after the debug technique shipped a plugin name; caught and removed in `fc592fb` |
 | Templates carry no project-internal notes | A BA or developer using a template must not see accord phase numbers or planning references | ✓ Phase 1 UAT: `verification.md` and `epic.md` guidance cleaned |
 | Lint text output is `file:line: level rule reason` plus a literal-plural summary line, colour-free | One shape for every parser; the same result object renders to JSON, so text is never the source of truth | ✓ Phase 3 UAT (2026-09-14): accepted after reading a 26-finding run. Terminal click-through works on the `path:line` prefix; the stock `$gcc` / `$tsc` problem matchers do not match this shape, so a CI consumer supplies its own |
 | Lookups against machine-produced id maps use `Object.hasOwn`, never `in` | A plain object inherits `Object.prototype`, so an id like `toString` reads as present: test ids silently vanish and an unknown `@test:` id reads as known — the exact bypass the exact-lookup rule exists to prevent | ✓ Phase 3 UAT (2026-09-14): reproduced (2 of 3 ids dropped), fixed in `load/junit.ts` and `lint/gherkin.ts`, two regression tests added |
-| v0.1 = npm publish + MCP deployed + one real ticket through both gates with a non-tech BA on a chat client | Publishing alone proves nothing; the non-tech path is the risky one | — Pending |
+| v0.1 = npm publish + `init` on a real repo + one real ticket through both gates on a coding agent | Publishing alone proves nothing; the gates have to survive a real ticket | — Pending. Narrowed 2026-09-19 (D-117) from "+ MCP deployed + a non-tech BA on a chat client" |
 
 ## Evolution
 

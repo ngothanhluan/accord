@@ -1,19 +1,19 @@
 ---
 gsd_state_version: "1.0"
 milestone: v0.1
-current_phase: 08
-current_phase_name: MCP Server
-status: planning
-stopped_at: Phase 07 complete — UAT 3/3, verification passed, CI green on 1c17a55
-last_updated: "2026-09-19T11:05:00Z"
-last_activity: 2026-09-19
-last_activity_desc: Phase 07 closed — committed, pushed, CI green on the full matrix
-state_head: 1c17a55
+current_phase: 09
+current_phase_name: Publish and Dogfood
+status: executing
+stopped_at: "Phase 09 Wave 2 done (09-05 partial — bootstrap token NOT revoked); Wave 3 (09-06) blocked on commit + pushed v0.1.0 tag"
+last_updated: "2026-09-21T08:20:00.000Z"
+last_activity: 2026-09-21
+last_activity_desc: "Phase 09 Wave 2 — @accord-dev/accord@0.0.0 published and verified installable; trusted publisher configured; token revocation outstanding; 900/900 green"
+state_head: 2a5040af51e33ee7cfe7db5c5a56024326ff8959
 progress:
   total_phases: 9
-  completed_phases: 7
-  total_plans: 51
-  completed_plans: 51
+  completed_phases: 2
+  total_plans: 62
+  completed_plans: 55
 ---
 
 # Project State
@@ -23,16 +23,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-09-17)
 
 **Core value:** An agent cannot start a story without captured intent and acceptance criteria, and cannot finish one without independent verification against them.
-**Current focus:** Phase 08 — MCP Server
+**Current focus:** Phase 09 — Publish and Dogfood
 
 ## Current Position
 
-Phase: 08 (MCP Server) — NOT STARTED
-Plan: none yet
-Status: Ready to plan
-Last activity: 2026-09-19 — Phase 07 closed (UAT 3/3, verification passed, CI green)
+Phase: 09 (Publish and Dogfood) — EXECUTING
+Plan: 5 of 11
+Status: Ready to execute
+Last activity: 2026-09-21 — Phase 09 execution started
 
-Progress: [████████░░] 7/9 phases (78%)
+Progress: [████████░░] 7 of 8 live phases (88%) — 9 numbers, Phase 8 removed (D-117)
 
 ## Performance Metrics
 
@@ -107,6 +107,9 @@ Progress: [████████░░] 7/9 phases (78%)
 | Phase 07 P13 | 9m | 2 tasks | 6 files |
 | Phase 07 P14 | 25min | 3 tasks | 8 files |
 | Phase 07 P15 | 20min | 2 tasks | 2 files |
+| Phase 09 P01 | 12min | 3 tasks | 7 files |
+| Phase 09 P02 | 4min | 2 tasks | 2 files |
+| Phase 09 P03 | 9min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -234,6 +237,8 @@ Recent decisions affecting current work:
 - [Phase 07]: [Phase 07-14]: the deniedNames scan now reads the build's OUTPUT (packages/cli/dist/cli.js), not only its inputs. Its ceiling is stated in the test's own comment: no test can prove dist matches src, so freshness comes from npm run build preceding npm test in both CI jobs.
 - [Phase 07]: 07-15: the generated config.yml's tests: instruction names both halves of the edit — remove the "# " (hash and space), and point report: at the file the team's own runner writes; the sample reports/junit.xml is unchanged (WR-01 not re-opened)
 - [Phase 07]: 07-15: the A-33 assertion is anchored on its own key line on both sides (lines.indexOf('# tests:') / exLines.indexOf('tests:')) with a content guard on the extracted pair, so a reworded instruction fails naming the offset rather than the claim
+- [Phase 09]: 09-03: repo-relative links in the generated npm README (docs/design.md) are copied verbatim and 404 on npmjs.com — ruling deferred to the 09-08 dogfood ticket per the plan
+- [Phase 09]: Task 1 checkpoint answered proceed: core private (D-150), core to devDependencies (D-164), deps.alwaysBundle spelling
 
 ### Pending Todos
 
@@ -257,11 +262,12 @@ None yet.
 - [Phase 7]: 07-08 F-2 remains open and unruled: the shipped ticket templates still name a design tool in example URLs. `examples/maintain` carries no such name and the templates were not edited
 - [Phase 7]: 07-07 F-6 — on a Windows host without Git Bash, `npm test` is green over nine unrun cases with no signal louder than the vitest skip marker; the POSIX guard makes CI honest, nothing makes a local Windows run loud
 - [Phase 7]: `.planning/WINDOWS.md` had 07-06's entry 12 in its JSON block but not in its table or counts, which made every further `windows append` refuse; repaired in 07-07 along with the new entry 13
-- [Phase 8]: MCP server design is unresearched: hosting (Workers vs Node host and whether `ajv` runs there), OAuth flavour, commit-without-clone API, folder fetch per gate call within rate limits
+- [Phase 8]: CLOSED 2026-09-19 — Phase 8 removed under D-117, so the unresearched MCP design (hosting, OAuth flavour, commit-without-clone API, rate limits) is no longer a risk. Questions preserved in `.planning/research/questions.md` if the team-contract aim returns
 - [Phase 9]: Employer tracker is Shortcut; decide during planning whether adapter `` is enough for the first real ticket
 - [Phase 7]: 07-09 F-1 (A-31) - guard.ts:33 says 'nothing was written' on the one refusal path that legitimately writes first (greenfield skill-target pre-pass). The message is shared with skills sync, where it is true, so rewording it is out of the gap scope. WINDOWS.md entry 15; needs a ticket
 - [Phase 7]: 07-10 F-1 (A-34) - the generated config.yml header says 'Every key below is required' and the file now ends with a commented-out optional tests: block. A-34 forbade rewording the header inside the plan; needs an owner ruling. WINDOWS.md entry 17
 - [Phase 7]: 07-10 F-2 - following the new block's instruction (uncomment before your first @test: ticket) yields a standing 'accord lint' warning lint.report-missing until the test runner first writes reports/junit.xml. Warning only, after a deliberate act; fresh init lint is still 0/0. Fix is a lint-rule decision, out of scope for phase 7. WINDOWS.md entry 18
+- FINDING F-1: packages/cli/test/bin.test.ts 'names no other tool' is RED on one false positive - 'linear-gradient' in packages/core/src/lint/tokens.ts:97 trips the Lin+ear entry in test/helpers/denied.ts now that core is bundled. Needs author decision between options A/B/C in 09-01-SUMMARY.md.
 
 ## Deferred Items
 
@@ -273,8 +279,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-09-19T02:05:22.763Z
-Stopped at: Completed 07-15-PLAN.md
+Last session: 2026-09-21T05:30:00.000Z
+Stopped at: Completed 09-03-PLAN.md (nothing committed — author approval pending)
 Resume file: None
 
 - [Phase 05]: 05-06: the tracker adapter is reached only from `status` on the text path — under `--json` no request is issued at all, because D-98 makes stdout the core array verbatim and enrichment is a rendering concern

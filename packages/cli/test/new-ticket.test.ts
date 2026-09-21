@@ -164,7 +164,10 @@ describe('accord new ticket — what it refuses', () => {
   // because the ticket template changes between versions.
   it('a mismatched pin stops it with exit 2 and writes no file (D-95)', async () => {
     const repo = sandbox();
-    setConfig(repo, /^accord: "0\.1\.0"$/m, 'accord: "9.9.9"');
+    // Matched on the key, not the version it currently holds: anchored on a literal, the next bump
+    // makes this rewrite nothing, the pin then agrees, and the case fails on an exit code rather
+    // than on the rule it tests. Which version it mismatches against is irrelevant.
+    setConfig(repo, /^accord: .*$/m, 'accord: "9.9.9"');
     const { code, err } = await run(['new', 'ticket', 'TCK-1'], repo);
     expect(code).toBe(2);
     expect(err).toContain('config.yml pins accord 9.9.9');

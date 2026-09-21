@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import pkg from '../package.json' with { type: 'json' };
 import { deniedNames } from '../../../test/helpers/denied.js';
 
 const cli = fileURLToPath(new URL('../dist/cli.js', import.meta.url));
@@ -24,9 +25,30 @@ describe('accord bin', () => {
     expect(out).toContain('lint');
   });
 
+  // Read from the manifest, not written as a literal: the version moves every release, and a
+  // literal here turns a routine bump into a red test in a file that has nothing to do with it.
   it('--version prints the version', () => {
     const out = execFileSync(process.execPath, [cli, '--version'], { encoding: 'utf8' });
-    expect(out.trim()).toBe('0.1.0');
+    expect(out.trim()).toBe(pkg.version);
+  });
+
+  // D-164: bundling under D-150 removes the import, not the declaration. A dependency on a package
+  // that is never published sends every `npx --yes` install to the registry for a name that 404s,
+  // and `npm publish --dry-run` says nothing about it, because the failure happens at install time
+  // on someone else's machine. The engines floor is read for the same reason: widening it would
+  // publish a package that installs onto a runtime commander 15 and vitest 5 both refuse (OPS-03).
+  it('declares exactly one runtime dependency and the OPS-03 engines floor (D-164)', () => {
+    expect(Object.keys(pkg.dependencies)).toEqual(['commander']);
+    expect(pkg.engines.node).toBe('>=22.12.0');
+  });
+
+  // The other half of the same failure, one layer down: a future edit that un-bundles core leaves a
+  // manifest that installs and a binary that cannot resolve its own import. Matched on the import
+  // specifier rather than a bare substring — an ordinary comment naming the package would defeat a
+  // substring search, and core's own strings inside the bundle would fire it.
+  it('the bundle inlines core rather than importing it (D-150)', () => {
+    const text = readFileSync(cli, 'utf8');
+    expect(text).not.toMatch(/from ['"]@accord-dev\/accord-core['"]/);
   });
 
   // The CLAUDE.md hard constraint over the one artifact npm uploads: `package.json` declares

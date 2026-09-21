@@ -4,14 +4,14 @@
 
 **accord**
 
-Accord is a team contract for AI-assisted software delivery: a conventional folder in each repository where BA, designer, developer, and QA record intent, EARS requirements, Gherkin acceptance criteria, and design references before an agent writes code, plus a CLI and a remote MCP server that check that contract deterministically. Technical members work through Claude Code, Cursor, Codex, or Copilot; non-technical members work through the AI chat app they already pay for, connected to the same MCP server. It is an open-source personal project (MIT); the author's employer is the first user, not the owner.
+Accord is a contract for AI-assisted software delivery: a conventional folder in each repository where intent, EARS requirements, Gherkin acceptance criteria, and design references are recorded before an agent writes code, plus a CLI that checks that contract deterministically. The four roles — BA, designer, developer, reviewer — are four stages one person passes through, and equally four people on a team; no gate reads who anyone is. Everyone works through a coding agent: Claude Code, Cursor, Codex, or Copilot. It is an open-source personal project (MIT); the author is the first user.
 
 **Core Value:** An agent cannot start a story without captured intent and acceptance criteria, and cannot finish one without independent verification against them.
 
 ### Constraints
 
 - **Tech stack**: TypeScript monorepo — `core` (pure), `cli`, `mcp`; skill definitions live in `core` as data; distributed via npx — matches how AI-tool users install things
-- **Isomorphic core**: core must not import `node:fs` or `node:child_process` outside loaders — the MCP host has no filesystem
+- **Isomorphic core**: core must not import `node:fs` or `node:child_process` outside loaders — a pure core is testable and portable without a filesystem, and `mcp` stays an empty workspace after D-117
 - **No API keys**: accord never calls a model itself — team members have subscriptions, not keys
 - **Compatibility**: skill workflows must produce identical behaviour in Claude Code, Cursor, Copilot, and Codex — one definition per role, rendered
 - **Cross-platform**: CLI must run on Windows and POSIX — author develops on Windows; teams are mixed

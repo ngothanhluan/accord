@@ -5,6 +5,9 @@ type: "story"
 status: open
 ui: false
 ac_hash: "fnv1a64:565100d5d96d1415"
+verified: [ac-2, ac-3, ac-4, ac-5]
+verified_hash: "fnv1a64:565100d5d96d1415"
+verified_commit: "61e0830"
 ---
 
 ## Intent
@@ -73,3 +76,17 @@ Feature: README-1
 - Read the generated package readme end to end, opening line through run instruction, and take out any name of a part no longer in the product — last, so the sweep covers the run section and whatever the generator added rather than only the paragraphs rewritten first @ac-4
 
 ## Verification notes
+
+ac-1 is not ticked. Its Given is a reader on the registry, and the registry serves the readme published with 0.1.0. `publish.yml` exits when the version is already on the registry, so 0.1.0 cannot be republished with this text; the scenario becomes true at the next released version and not before. The repository half is done and the review records it.
+
+### @ac-2
+The paragraph names the four as stages a ticket passes through and says in its own sentence that one person passes through all four and that no gate reads who anyone is, so nothing is left for the reader to infer from the folder layout. Read README.md line 7 at 61e0830.
+
+### @ac-3
+The status line names the released version in the same package@version string the run instruction uses, so the two cannot disagree, and the check `pins the run instruction to the version the package declares` fails the build if either moves alone. The design-phase sentence is gone and a sweep for it returns nothing. Ran `npx vitest run packages/cli/test/readme.test.ts`: 5 passed.
+
+### @ac-4
+Swept the whole page, opening line through run instruction, after the earlier steps had added their own text: QA, the remote MCP server and the four named runtimes return zero hits in `README.md` and zero in `packages/cli/README.md`. Each was checked against the shipped code before removal rather than removed on suspicion. Ran `grep -cEi` over both files: 0 and 0.
+
+### @ac-5
+Took the command out of README.md by reading the fenced block rather than retyping it, ran it in an empty directory with no checkout and no node_modules present, and it printed 0.1.0. Ran `npx --yes @accord-dev/accord@0.1.0 --version`.

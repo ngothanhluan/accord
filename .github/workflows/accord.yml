@@ -1,0 +1,49 @@
+name: accord
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  accord:
+    name: lint and gate the tickets this pull request touches
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Keep this. The script below diffs "$BASE"...HEAD, and the default shallow checkout does not
+          # contain the base commit: the diff would fail or come back empty, every ticket would go ungated,
+          # and the job would report green having gated nothing.
+          fetch-depth: 0
+          # Keep this too (D-162). Without it checkout lands on the synthetic merge commit, which nobody
+          # wrote: the review you signed off names a commit on the branch, so the stale-tick and
+          # stale-review rules both fail a review that is not stale. The rule is that the review must be of
+          # the code being gated, and that is the branch, not a speculative merge.
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: lint and gate
+        shell: bash
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          # Deliberately not -e: a lint failure and a gate failure should both be reported on one push, so
+          # the script accumulates an exit code instead of stopping at the first problem.
+          set -uo pipefail
+          code=0
+          npx --yes @accord-dev/accord@0.1.0 lint || code=1
+          # --diff-filter=d excludes deletions, so removing an obsolete ticket does not fail the pull
+          # request that removes it. [^/]+ keeps accord/tickets/<id>/verification.md out while
+          # accord/tickets/<id>.md stays in. || true keeps a zero-match grep from reading as a failure.
+          tickets=$(git diff --name-only --diff-filter=d "$BASE"...HEAD | grep -E '^accord/tickets/[^/]+[.]md$' || true)
+          if [ -z "$tickets" ]; then
+            echo "no ticket file changed in this pull request - nothing to gate"
+            exit $code
+          fi
+          # A here-string, not a pipe: the loop body runs in this shell, so its assignment to code survives.
+          while IFS= read -r file; do
+            id=${file#accord/tickets/}
+            id=${id%.md}
+            npx --yes @accord-dev/accord@0.1.0 gate done "$id" || code=1
+          done <<< "$tickets"
+          exit $code

@@ -4,16 +4,16 @@ milestone: v0.1
 current_phase: 09
 current_phase_name: Publish and Dogfood
 status: executing
-stopped_at: "Phase 09 Wave 2 done (09-05 partial — bootstrap token NOT revoked); Wave 3 (09-06) blocked on commit + pushed v0.1.0 tag"
-last_updated: "2026-09-21T08:20:00.000Z"
+stopped_at: "Phase 09 Wave 5 done — README-1 at Ready on branch readme-1 in 6 minutes wall-clock, uncommitted pending owner review; criterion 2 ruled option (a); Wave 6 (09-09) next"
+last_updated: "2026-09-21T12:50:00.000Z"
 last_activity: 2026-09-21
-last_activity_desc: "Phase 09 Wave 2 — @accord-dev/accord@0.0.0 published and verified installable; trusted publisher configured; token revocation outstanding; 900/900 green"
+last_activity_desc: "Phase 09 Wave 4 — npx --yes @accord-dev/accord@0.1.0 init ran in accord's own repository; 5 files created, config.yml untouched, generated accord.yml carries D-162; lint 0 errors 1 expected warning"
 state_head: 2a5040af51e33ee7cfe7db5c5a56024326ff8959
 progress:
   total_phases: 9
   completed_phases: 2
   total_plans: 62
-  completed_plans: 55
+  completed_plans: 58
 ---
 
 # Project State

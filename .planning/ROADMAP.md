@@ -340,7 +340,7 @@ Plans:
   3. One real ticket reaches Ready and reaches Done on a coding agent, with a fresh-context review's `verification.md` and the developer's `verified` ticks
   4. The time from `new ticket` to Ready is recorded for that ticket, and the token rule is checked against the pilot's real stylesheet before any promotion to error
 
-**Plans**: 5/11 plans executed
+**Plans**: 8/11 plans executed
 
 Plans:
 **Wave 1** *(four parallel plans; no file overlap between them)*
@@ -356,15 +356,15 @@ Plans:
 
 **Wave 3** *(blocked on Waves 1-2; everything green on `main` first)*
 
-- [ ] 09-06-PLAN.md — Publish `0.1.0` from a tag over OIDC, and evidence it (D-157 step 1)
+- [x] 09-06-PLAN.md — `@accord-dev/accord@0.1.0` published from run 35581268150 over OIDC with a SLSA provenance attestation, and installable by `npx` on a bare runner (D-157 step 1) — criterion 1 is met
 
 **Wave 4** *(blocked on 09-06: the dogfood runs the published package, never a local build)*
 
-- [ ] 09-07-PLAN.md — `accord init` from the published package, on a branch (D-132, D-130)
+- [x] 09-07-PLAN.md — `accord init` from the published package on branch `readme-1`; `accord/config.yml` byte-identical, the generated `accord.yml` carries the D-162 `ref:` (D-132, D-130) — scaffold committed as `8570852`
 
 **Wave 5**
 
-- [ ] 09-08-PLAN.md — The README ticket to Ready, timed; and the blocking ruling on criterion 2 (D-156, D-159)
+- [x] 09-08-PLAN.md — `README-1` at Ready in 6 minutes wall-clock, `ac_hash fnv1a64:565100d5d96d1415` (D-156, D-159); criterion 2 ruled option (a) — the check goes red and the reason is the finding
 
 **Wave 6**
 

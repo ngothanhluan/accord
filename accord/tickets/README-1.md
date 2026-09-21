@@ -66,9 +66,10 @@ Feature: README-1
 - [x] Yes, it fails, and a test notices rather than a person: the version in the run instruction has to equal the one the package declares, compared as strings. This is the rule the project already applies between the config file and the running tool, applied to the third place the number appears
 
 ## Plan
-- Rewrite the opening, the four-stage paragraph, the status line and the "what it is not" list in the repository readme @ac-2 @ac-3 @ac-4
-- Add a section that shows the one command a reader runs to try the tool, pinned to the released version @ac-5
-- Let the existing generator carry the result to the package readme, and rewrite repository-relative links to absolute repository URLs as it goes, because the registry serves the page from a different origin and the relative form resolves to nothing there @ac-1
-- Extend the generator's existing drift test so the version in the run instruction must equal the one the package declares, string for string @ac-5
+- Rewrite the repository readme's opening and four-stage paragraph so the stages read as stages one person passes through and equally four people on a team, and replace the status line with the version the package declares @ac-2 @ac-3
+- Add the run section: the one command a reader runs with nothing installed first, pinned to that same version, and run it in a clean directory and see it report its version before the section is called done @ac-5
+- Extend the generator's drift check so the version in the run instruction must equal the one the package declares, string for string, and fail the build when they differ; add the check if the generator has none @ac-5 @ac-3
+- Carry the repository readme to the package readme through the generator, rewriting repository-relative links to absolute repository URLs as it goes, because the registry serves the page from a different origin and the relative form resolves to nothing there; then open the generated file and follow every link. The registry shows this only from the next publish, so the version named in the text has to be the one that publish carries @ac-1
+- Read the generated package readme end to end, opening line through run instruction, and take out any name of a part no longer in the product — last, so the sweep covers the run section and whatever the generator added rather than only the paragraphs rewritten first @ac-4
 
 ## Verification notes

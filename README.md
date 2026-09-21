@@ -6,7 +6,7 @@ Accord defines a small, conventional folder inside your repository where what a 
 
 BA, designer, developer, reviewer are four stages a ticket passes through, not four job titles. One person passes through all four in turn; four people on a team divide them. No gate reads who anyone is, so the same rules hold either way.
 
-**Released:** `0.1.0`, as `@accord-dev/accord` on npm. See [docs/design.md](docs/design.md) for the design and the reasoning behind it.
+**Released:** `@accord-dev/accord@0.1.0`, on npm. See [docs/design.md](docs/design.md) for the design and the reasoning behind it.
 
 ## Try it
 

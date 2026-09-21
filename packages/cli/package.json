@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "type": "module",
   "license": "MIT",
+  "repository": { "type": "git", "url": "git+https://github.com/ngothanhluan/accord.git", "directory": "packages/cli" },
   "bin": { "accord": "./dist/cli.js" },
   "files": ["dist", "README.md"],
   "engines": { "node": ">=22.12.0" },

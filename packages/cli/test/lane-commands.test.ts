@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { cleanup, commitAll, gitRun, makeEmptyRepo, makeLaneRepo, makeRepo, run, writeFiles } from './helpers/repo.js';
 import { CONFIG, junit, laneTicket, REPORT } from '../../../test/helpers/lane.js';
+import { commitSeconds } from '../src/commands/task-done.js';
 
 const ticketText = (repo: string, id = 'T-1') => readFileSync(join(repo, 'accord', 'tickets', id + '.md'), 'utf8');
 
@@ -202,8 +203,19 @@ describe('accord task-done', () => {
       const plain = await run(['task-done', 'T-2', '1'], repo);
       expect(plain.code).toBe(2);
       expect(plain.err).toContain('accord/tickets/T-2.md has no lane:');
+      // D-51: a refusal that echoes a backslash prints it as a forward slash.
+      const slashed = await run(['task-done', 'NO\\PE', '1'], repo);
+      expect(slashed.code).toBe(2);
+      expect(slashed.err).toBe('no ticket NO/PE in accord/tickets/\n');
     } finally {
       cleanup(repo);
+    }
+  });
+
+  it('reads the HEAD commit time only as whole seconds; anything else is an environment error', () => {
+    expect(commitSeconds('1760000000\n')).toBe(1760000000);
+    for (const bad of ['', '\n', 'abc', '-5', '1.5', '17e8']) {
+      expect(() => commitSeconds(bad), JSON.stringify(bad)).toThrow('git printed no commit time for HEAD');
     }
   });
 });
@@ -392,6 +404,18 @@ describe('accord tests baseline', () => {
       expect(r.err).toContain('was not found');
       expect(r.err).not.toContain('\\');
       expect(existsSync(join(repo, 'accord', 'tests-baseline.txt'))).toBe(false);
+    } finally {
+      cleanup(repo);
+    }
+  });
+
+  it('prints a backslashed tests.report with forward slashes (D-51)', async () => {
+    const repo = makeLaneRepo({ 'accord/config.yml': CONFIG.replace('report: ' + REPORT, 'report: reports\\junit.xml') });
+    try {
+      rmSync(join(repo, ...REPORT.split('/')));
+      const r = await run(['tests', 'baseline'], repo);
+      expect(r.code).toBe(2);
+      expect(r.err).toBe('tests.report "reports/junit.xml" was not found; run the tests first\n');
     } finally {
       cleanup(repo);
     }

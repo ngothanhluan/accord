@@ -4,10 +4,17 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { recordTaskDone, taskVerdict } from '@accord-dev/accord-core';
+import { normaliseKey, recordTaskDone, taskVerdict } from '@accord-dev/accord-core';
 import { UsageError } from '../load/fs.js';
 import type { CommandContext } from '../run.js';
 import { requireLaneTicket, taskNumber } from './lane-args.js';
+
+/** `git show -s --format=%ct` output as seconds; anything but digits would make every report look fresh. */
+export function commitSeconds(out: string): number {
+  const text = out.trim();
+  if (!/^\d+$/.test(text)) throw new UsageError('git printed no commit time for HEAD; cannot tell whether the report is fresh');
+  return Number(text);
+}
 
 /**
  * shortcut: compares whole seconds (git's %ct), so a report written in the same second as the commit, but
@@ -17,14 +24,14 @@ function staleReport(ctx: CommandContext): string | undefined {
   const report = ctx.snapshot.config?.tests?.report;
   if (report === undefined || ctx.snapshot.tests === undefined) return undefined; // taskVerdict reports this
   // D-51: the raw config value may carry a backslash; the loader read the file under the slashed key.
-  const rel = report.replace(/\\/g, '/').replace(/^\.\//, '');
+  const rel = normaliseKey(report);
   const committed =
-    Number(
+    commitSeconds(
       execFileSync('git', ['show', '-s', '--format=%ct', 'HEAD'], {
         cwd: ctx.root,
         encoding: 'utf8',
         stdio: ['ignore', 'pipe', 'pipe'],
-      }).trim(),
+      }),
     ) * 1000;
   const written = Math.floor(statSync(join(ctx.root, ...rel.split('/'))).mtimeMs / 1000) * 1000;
   return written < committed ? `${rel} was written before the last commit; run the tests again` : undefined;

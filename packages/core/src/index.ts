@@ -60,3 +60,5 @@ export type { SkillKey } from './generated/skills.js';
 // The read-back that `skills sync` compares against a hash must normalise exactly as the write did
 // (RESEARCH.md Pitfall 1); re-exported so the CLI reuses this one, rather than hand-rolling a fourth copy.
 export { normaliseText } from './load/frontmatter.js';
+// The slashed form the loader keys a configured path under (D-51), so the CLI prints the same one.
+export { normaliseKey } from './load/snapshot.js';

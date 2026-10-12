@@ -3,7 +3,7 @@
 // way past gate.test-untraced.
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { untracedTests } from '@accord-dev/accord-core';
+import { normaliseKey, untracedTests } from '@accord-dev/accord-core';
 import { UsageError } from '../load/fs.js';
 import type { CommandContext } from '../run.js';
 
@@ -15,7 +15,9 @@ const HEADER =
 export function testsBaseline(ctx: CommandContext): number {
   const report = ctx.snapshot.config?.tests?.report;
   if (report === undefined) throw new UsageError('no tests.report in accord/config.yml; the baseline is read from the report');
-  if (ctx.snapshot.tests === undefined) throw new UsageError(`tests.report "${report}" was not found; run the tests first`);
+  if (ctx.snapshot.tests === undefined) {
+    throw new UsageError(`tests.report "${normaliseKey(report)}" was not found; run the tests first`);
+  }
   const file = join(ctx.root, 'accord', 'tests-baseline.txt');
   const all = untracedTests(ctx.snapshot);
   const ids = all.filter((i) => i !== ''); // an empty id would be a blank line, which parseBaseline skips

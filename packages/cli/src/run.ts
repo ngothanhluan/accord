@@ -223,11 +223,13 @@ export async function runCli(argv: string[], opts: RunOptions): Promise<number> 
     code = n;
   });
 
+  // D-51: an OS or git message can echo a Windows path; no `\` is ever printed.
+  const slashed = (message: string) => message.replace(/\\/g, '/') + '\n';
   try {
     await program.parseAsync(argv, { from: 'user' });
   } catch (err) {
     if (err instanceof UsageError) {
-      opts.stderr.write(err.message + '\n');
+      opts.stderr.write(slashed(err.message));
       return err.exitCode;
     }
     if (err instanceof CommanderError) {
@@ -236,7 +238,7 @@ export async function runCli(argv: string[], opts: RunOptions): Promise<number> 
       // which STACK Decision 1 puts at exit 2 — exit 1 is reserved for a lint or gate verdict.
       return err.code === 'commander.version' || err.code === 'commander.helpDisplayed' ? 0 : 2;
     }
-    opts.stderr.write((err instanceof Error ? err.message : String(err)) + '\n');
+    opts.stderr.write(slashed(err instanceof Error ? err.message : String(err)));
     return 2;
   }
   return code;

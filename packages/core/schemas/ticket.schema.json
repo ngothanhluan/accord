@@ -9,7 +9,7 @@
     "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
     "title": { "type": "string", "minLength": 1 },
     "type": { "type": "string", "enum": ["epic", "story", "bug"] },
-    "status": { "type": "string", "enum": ["draft", "open", "archived"] },
+    "status": { "type": "string", "enum": ["draft", "open", "archived", "dropped"] },
     "parent": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
     "tracker": {
       "type": "object",

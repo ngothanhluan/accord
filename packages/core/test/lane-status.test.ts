@@ -69,6 +69,14 @@ describe('dependencies and claims (spec §5)', () => {
     expect(nextRows(rows(started))).toEqual([]);
   });
 
+  it('a dropped ticket is never next and still blocks its dependants', () => {
+    const files = readied(approved({ 'accord/config.yml': CONFIG, [T1]: laneTicket('T-1') }, 'T-1'));
+    const dropped = { ...files, [T1]: setFrontmatterKey(files[T1], 'status', 'dropped') };
+    expect(nextRows(rows(dropped))).toEqual([]);
+    const dep = { ...dropped, 'accord/tickets/T-2.md': laneTicket('T-2', { frontmatter: ['depends_on: ["T-1"]'] }) };
+    expect(rows(dep).find((r) => r.id === 'T-2')).toMatchObject({ blockedBy: ['T-1'] });
+  });
+
   it('nextRows drops an approved ticket that has not passed Ready', () => {
     // An unchecked open question fails Ready, and Ready never wrote ac_hash.
     const body = LANE_BODY.replace('- [x] Delimiter? Comma.', '- [ ] Delimiter?');

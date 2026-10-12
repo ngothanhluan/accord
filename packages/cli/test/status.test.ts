@@ -150,6 +150,41 @@ describe('accord status archived filter (D-93)', () => {
   });
 });
 
+describe('accord status dropped filter (spec section 3)', () => {
+  let repo: string;
+
+  beforeAll(() => {
+    repo = makeRepo('valid-build');
+    addTicket(repo, 'GONE-1', 'status: dropped\nparent: EPIC-1');
+  });
+  afterAll(() => {
+    cleanup(repo);
+  });
+
+  it('hides the dropped ticket, names it, and --all shows it', async () => {
+    const plain = await run(['status'], repo);
+    expect(plain.out).toContain('1 dropped or archived ticket hidden (--all shows them)');
+    expect(plain.out).not.toContain('GONE-1');
+    expect((await run(['status', '--all'], repo)).out).toContain('GONE-1');
+  });
+
+  it('--json keeps the note on stderr', async () => {
+    const { out, err } = await run(['status', '--json'], repo);
+    expect((JSON.parse(out) as StatusRow[]).map((r) => r.id)).not.toContain('GONE-1');
+    expect(err).toContain('1 dropped or archived ticket hidden');
+  });
+
+  it('archived-only keeps the 0.1.0 wording', async () => {
+    const only = makeRepo('valid-build');
+    addTicket(only, 'OLD-1', 'status: archived\nparent: EPIC-1');
+    try {
+      expect((await run(['status'], only)).out).toContain('1 archived ticket hidden (--all shows them)');
+    } finally {
+      cleanup(only);
+    }
+  });
+});
+
 describe('accord status long values (T-05-12)', () => {
   let repo: string;
 

@@ -38,7 +38,7 @@ export interface TicketFrontmatter {
   id: string; // 'LOGIN-1', kept verbatim (D-34)
   title: string;
   type: 'epic' | 'story' | 'bug';
-  status: 'draft' | 'open' | 'archived';
+  status: 'draft' | 'open' | 'archived' | 'dropped';
   parent?: string; // 'EPIC-1'
   tracker?: Record<string, string>; // { shortcut: '1234' } — values are always strings
   ui: boolean; // defaults to false in the loader, not the schema (D-21)

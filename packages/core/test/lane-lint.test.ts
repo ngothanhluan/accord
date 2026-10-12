@@ -99,3 +99,21 @@ describe('depends_on (spec §5)', () => {
     expect(rules(files, 'lint.depends-unknown')).toEqual([]);
   });
 });
+
+describe('dropped (spec §3)', () => {
+  const dropped = (body: string) =>
+    laneTicket('T-2', { frontmatter: ['status: dropped'], body: LANE_BODY + body });
+  it('requires a ## Dropped reason', () => {
+    expect(rules(repo({ 'T-2': dropped('') }), 'lint.dropped-reason')).toHaveLength(1);
+    expect(rules(repo({ 'T-2': dropped('\n## Dropped\nSuperseded by T-3.\n') }), 'lint.dropped-reason')).toEqual([]);
+  });
+  it('a live ticket may not depend on a dropped one', () => {
+    const files = repo({
+      'T-1': laneTicket('T-1', { frontmatter: ['depends_on: ["T-2"]'] }),
+      'T-2': dropped('\n## Dropped\nSuperseded.\n'),
+    });
+    expect(rules(files, 'lint.depends-dropped')).toEqual([
+      expect.objectContaining({ file: 'accord/tickets/T-1.md', pointer: '/depends_on/0' }),
+    ]);
+  });
+});

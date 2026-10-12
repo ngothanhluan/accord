@@ -10,7 +10,7 @@ import type { Stage } from './stage.js';
 export interface StatusRow {
   id: string; // file stem: 'LOGIN-1'
   type?: 'epic' | 'story' | 'bug'; // absent when the frontmatter failed the schema
-  status?: 'draft' | 'open' | 'archived'; // absent when the frontmatter failed the schema; 'archived' is the D-93 filter
+  status?: 'draft' | 'open' | 'archived' | 'dropped'; // absent when the frontmatter failed the schema; 'archived' and 'dropped' are the D-93 filter
   parent?: string; // the D-92 grouping axis
   ui: boolean; // D-21: the loader defaults it to false
   errors: number; // ticket-scoped error findings from the one repo-wide lint
@@ -99,6 +99,7 @@ export function nextRows(rows: StatusRow[]): StatusRow[] {
       r.ready === 'ok' &&
       (r.blockedBy ?? []).length === 0 &&
       r.claimedBy === undefined &&
-      r.status !== 'archived',
+      r.status !== 'archived' &&
+      r.status !== 'dropped',
   );
 }

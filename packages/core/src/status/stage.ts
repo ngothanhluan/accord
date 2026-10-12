@@ -39,6 +39,7 @@ export function progressOf(snapshot: RepoSnapshot, ticket: Ticket): Progress | u
 export function isDone(snapshot: RepoSnapshot, id: string): boolean {
   if (!Object.hasOwn(snapshot.tickets, id)) return false;
   const ticket = snapshot.tickets[id];
+  if (ticket.frontmatter?.status === 'dropped') return false;
   const progress = progressOf(snapshot, ticket);
   return progress === undefined ? ticksBound(ticket) : progress.stage === 'done';
 }

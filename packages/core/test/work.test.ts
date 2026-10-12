@@ -60,6 +60,10 @@ describe('parseLedger, parseReview, parseBaseline', () => {
     });
   });
 
+  it('treats only "#" and "# text" as comments; "#123-x" is an id', () => {
+    expect(parseBaseline('# note\n#\n#123-x\n')).toEqual(['#123-x']);
+  });
+
   it('drops comments and blanks, sorts, and de-duplicates the baseline', () => {
     expect(parseBaseline('# header\nb#2\n\na#1\nb#2\n')).toEqual(['a#1', 'b#2']);
   });

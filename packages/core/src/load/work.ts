@@ -90,11 +90,11 @@ export function parseReview(file: string, text: string): Review {
   return review;
 }
 
-/** One report case id per line; blank lines and `#` comments are skipped; sorted and unique. */
+/** One report case id per line; blank lines and comments (`#` alone or `# ` plus text) are skipped; `#123-x` is an id; sorted and unique. */
 export function parseBaseline(text: string): string[] {
   const ids = normaliseText(text)
     .split('\n')
     .map((l) => l.trim())
-    .filter((l) => l !== '' && !l.startsWith('#'));
+    .filter((l) => l !== '' && l !== '#' && !l.startsWith('# '));
   return [...new Set(ids)].sort();
 }

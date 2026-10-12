@@ -396,4 +396,24 @@ describe('accord tests baseline', () => {
       cleanup(repo);
     }
   });
+
+  it('round-trips a case id that starts with # and skips empty-named cases with a notice', async () => {
+    const xml =
+      '<testsuites><testsuite name="all">' +
+      '<testcase classname="export" name="writes-csv"/><testcase classname="export" name="escapes-commas"/>' +
+      '<testcase name="#123 handles x"/><testcase name=""/>' +
+      '</testsuite></testsuites>\n';
+    const repo = makeLaneRepo({ [REPORT]: xml });
+    try {
+      const r = await run(['tests', 'baseline'], repo);
+      expect(r.code).toBe(0);
+      expect(r.out).toBe('wrote 1 case id to accord/tests-baseline.txt\n');
+      expect(r.err).toContain('skipped 1 case(s) with an empty name');
+      const text = readFileSync(join(repo, 'accord', 'tests-baseline.txt'), 'utf8');
+      expect(text.split('\n').filter((l) => l !== '' && !l.startsWith('# '))).toEqual(['#123-handles-x']);
+      expect((await run(['lint'], repo)).out).not.toContain('#123-handles-x');
+    } finally {
+      cleanup(repo);
+    }
+  });
 });

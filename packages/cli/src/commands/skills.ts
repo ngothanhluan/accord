@@ -76,21 +76,21 @@ export function writeSkillFiles(root: string, targets: SkillFile[], out: ReportR
 
 export const SETTINGS = '.claude/settings.json';
 
+/** What `writeHooks` will do, decided before any file is written; `text` is absent when nothing changes. */
+export type HooksPlan = { status: 'created' | 'unchanged' | 'updated'; text?: string };
+
 /**
- * The accord hooks, merged into `.claude/settings.json` for the claude runtime only. The file is the owner's:
- * anything that is not a JSON object is refused with the hooks printed to add by hand, and nothing is written.
- * The caller runs `assertNoLink(root, SETTINGS)` first, like every other destination.
+ * The pre-pass half: the link guard, then read, parse and merge `.claude/settings.json` for the claude runtime
+ * only. The file is the owner's: anything that is not a JSON object is refused here, with the hooks printed to
+ * add by hand, so the refusal lands before the first byte of the run. Writes nothing.
  */
-export function writeHooks(root: string, config: AccordConfig, out: ReportRow[]): void {
-  if (!config.runtimes.includes('claude')) return;
-  const file = join(root, ...SETTINGS.split('/'));
+export function planHooks(root: string, config: AccordConfig): HooksPlan | undefined {
+  if (!config.runtimes.includes('claude')) return undefined;
+  assertNoLink(root, SETTINGS);
   const entries = hookEntries(pkg);
-  const found = lstatSync(file, { throwIfNoEntry: false });
-  if (found === undefined) {
-    mkdirSync(dirname(file), { recursive: true });
-    writeFileSync(file, JSON.stringify(mergeHooks({}, entries), null, 2) + '\n');
-    out.push({ status: 'created', path: SETTINGS });
-    return;
+  const file = join(root, ...SETTINGS.split('/'));
+  if (lstatSync(file, { throwIfNoEntry: false }) === undefined) {
+    return { status: 'created', text: JSON.stringify(mergeHooks({}, entries), null, 2) + '\n' };
   }
   let parsed: unknown;
   let merged: Record<string, unknown>;
@@ -103,12 +103,19 @@ export function writeHooks(root: string, config: AccordConfig, out: ReportRow[])
       SETTINGS + ' is not a JSON object; nothing was written. Add these hooks by hand:\n' + JSON.stringify({ hooks: entries }, null, 2),
     );
   }
-  if (JSON.stringify(merged) === JSON.stringify(parsed)) {
-    out.push({ status: 'unchanged', path: SETTINGS });
-    return;
+  if (JSON.stringify(merged) === JSON.stringify(parsed)) return { status: 'unchanged' };
+  return { status: 'updated', text: JSON.stringify(merged, null, 2) + '\n' };
+}
+
+/** The write half: applies a plan that is already known to be valid. */
+export function writeHooks(root: string, plan: HooksPlan | undefined, out: ReportRow[]): void {
+  if (plan === undefined) return;
+  if (plan.text !== undefined) {
+    const file = join(root, ...SETTINGS.split('/'));
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, plan.text);
   }
-  writeFileSync(file, JSON.stringify(merged, null, 2) + '\n');
-  out.push({ status: 'updated', path: SETTINGS });
+  out.push({ status: plan.status, path: SETTINGS });
 }
 
 /**
@@ -178,11 +185,11 @@ export function skills(ctx: CommandContext): number {
   // a guard inside it leaves everything sorted ahead of the bad path on disk while the message claims
   // "nothing was written" — a false report is worse than either outcome on its own.
   for (const { path } of targets) assertNoLink(ctx.root, path);
-  assertNoLink(ctx.root, SETTINGS);
+  const hooks = planHooks(ctx.root, config);
 
   // Computed once, then rendered — so a `--json` mode added later cannot disagree with the text.
   const results = writeSkillFiles(ctx.root, targets);
-  writeHooks(ctx.root, config, results);
+  writeHooks(ctx.root, hooks, results);
 
   // Scanned after the writes, so a directory this run created is already on disk when it is judged.
   const stale = orphans(ctx.root, config);

@@ -533,3 +533,16 @@ describe('accord skills sync - hooks in .claude/settings.json', () => {
     expect(existsSync(at(repo, SETTINGS))).toBe(false);
   });
 });
+
+describe('accord skills sync - settings refusal comes first', () => {
+  it('invalid settings with the claude runtime: exit 2, settings byte-identical, no skill file written', async () => {
+    const repo = sandbox();
+    mkdirSync(at(repo, '.claude'), { recursive: true });
+    writeFileSync(at(repo, '.claude/settings.json'), '[1]');
+    const { code, err } = await run(['skills', 'sync'], repo);
+    expect(code).toBe(2);
+    expect(err).toContain('Add these hooks by hand');
+    expect(bytes(at(repo, '.claude/settings.json'))).toBe('[1]');
+    expect(listing(repo)).toEqual([]);
+  });
+});

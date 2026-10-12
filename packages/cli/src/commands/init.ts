@@ -14,9 +14,9 @@ import pkg from '../../package.json' with { type: 'json' };
 import { assertNoLink } from '../guard.js';
 import { loadFromFs, UsageError } from '../load/fs.js';
 import { pinMessage } from '../pin.js';
-import { SETTINGS, writeHooks, writeSkillFiles } from './skills.js';
-import type { AccordConfig, SkillFile } from '@accord-dev/accord-core';
-import type { ReportRow } from './skills.js';
+import { planHooks, writeHooks, writeSkillFiles } from './skills.js';
+import type { SkillFile } from '@accord-dev/accord-core';
+import type { HooksPlan, ReportRow } from './skills.js';
 import type { CommandContext } from '../run.js';
 
 /** No `snapshot`: loading one needs an `accord/` folder, and this is the command that puts one there. */
@@ -42,10 +42,10 @@ export function init(ctx: InitContext): number {
    * two call sites and no third — three checks that merely happen to be adjacent are three things that can
    * be reordered wrong, and this ordering is the whole of what stops a refused release writing anyway.
    *
-   * Returns the skill targets it guarded, with the config they came from: the roster is the config on disk's to decide (D-131), and
+   * Returns the skill targets it guarded and the settings plan, which refuses before any write: the roster is the config on disk's to decide (D-131), and
    * reaching them from the snapshot loaded here is what keeps the config parsed exactly once (A-07).
    */
-  const refusals = (): { targets: SkillFile[]; config: AccordConfig } => {
+  const refusals = (): { targets: SkillFile[]; hooks: HooksPlan | undefined } => {
     // One config parser and one schema application for the whole CLI (A-07) — the alternative is a second
     // YAML parse here that can disagree with the first.
     const snapshot = loadSnapshot(loadFromFs(ctx.root));
@@ -65,8 +65,7 @@ export function init(ctx: InitContext): number {
     // to `sync`, and a repository being initialised has no history to have orphaned anything.
     const targets = skillTargets(snapshot.config);
     for (const { path } of targets) assertNoLink(ctx.root, path);
-    assertNoLink(ctx.root, SETTINGS);
-    return { targets, config: snapshot.config };
+    return { targets, hooks: planHooks(ctx.root, snapshot.config) };
   };
 
   // The ordering this command is judged on: a repository that has refused this release receives no byte
@@ -110,9 +109,9 @@ export function init(ctx: InitContext): number {
     // itself.
     // GC-WR-01: the array, not the return value. A copy written before a later target throws is in the
     // report the catch below prints, because it was recorded the moment it became true.
-    const { targets, config } = guarded ?? refusals();
+    const { targets, hooks } = guarded ?? refusals();
     writeSkillFiles(ctx.root, targets, results);
-    writeHooks(ctx.root, config, results);
+    writeHooks(ctx.root, hooks, results);
 
     // CLI-03, and the one write in this command that is not skip-if-exists: an agent instruction file
     // belongs to whoever wrote it, so the block is appended to what is there rather than written over it.

@@ -3,7 +3,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { loadSnapshot } from '../src/index.js';
 import type { Finding, LintResult, RepoSnapshot } from '../src/index.js';
-import { gateDone, gateReady } from '../src/gate/index.js';
+import { gateDone, gatePlan, gateReady } from '../src/gate/index.js';
 import type { GateResult } from '../src/gate/index.js';
 import { isSha, shaEqual } from '../src/gate/done.js';
 import {
@@ -179,10 +179,11 @@ describe('gate ready valid-build/LOGIN-1: pinned values', () => {
     expect(renderText(asLint)).toBe(text);
   });
 
-  // Both gates, not Ready alone: every Done check is silent without a ticket, so a Done table missing
+  // Every gate, not Ready alone: every Plan and Done check is silent without a ticket, so a table missing
   // gate.ticket-unknown reads its verdict off an empty list and passes an id that does not exist.
   it.each([
     ['ready', gateReady],
+    ['plan', gatePlan],
     ['done', gateDone],
   ] as const)('gate %s: gate.ticket-unknown is the whole result for an id the snapshot does not carry', (_gate, run) => {
     const unknown = run(snapshot, 'NOPE');

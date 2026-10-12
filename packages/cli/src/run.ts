@@ -155,7 +155,7 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .command('new')
     .description('scaffold a document a human then fills in')
     .command('ticket <id>')
-    .description("write accord/tickets/<id>.md from the active profile's template, filling nothing in")
+    .description("write accord/tickets/<id>.md from the active profile's template, or the lane template under --lane, filling nothing in")
     .addOption(
       new Option('--type <type>', 'which template to render (D-104)')
         .choices(['epic', 'story', 'bug'])

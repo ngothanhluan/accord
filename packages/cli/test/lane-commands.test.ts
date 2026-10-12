@@ -273,6 +273,21 @@ describe('accord review-package', () => {
       const r = await run(['review-package', 'T-1', '--base', 'deadbeef'], repo);
       expect(r.code).toBe(2);
       expect(r.err).toContain('unknown base ref: deadbeef');
+      expect((await run(['review-package', 'T-1', '--base', '-p'], repo)).err).toBe('not a git ref: -p\n');
+    } finally {
+      cleanup(repo);
+    }
+  });
+
+  it('accepts a relative ref such as HEAD~1', async () => {
+    const repo = makeLaneRepo();
+    try {
+      commitAll(repo);
+      writeFiles(repo, { 'src/x.ts': 'export const x = 1;\n' });
+      commitAll(repo);
+      const r = await run(['review-package', 'T-1', '--base', 'HEAD~1'], repo);
+      expect(r.code).toBe(0);
+      expect(r.out).toContain('+export const x = 1;');
     } finally {
       cleanup(repo);
     }

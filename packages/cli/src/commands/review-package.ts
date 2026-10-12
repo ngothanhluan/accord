@@ -6,7 +6,8 @@ import type { CommandContext } from '../run.js';
 import { requireLaneTicket } from './lane-args.js';
 
 // No leading '-', so a ref can never be read as a git option; no spaces or shell metacharacters.
-const REF = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/;
+// `~` and `^` after the first character admit HEAD~3 and main^.
+const REF = /^[A-Za-z0-9][A-Za-z0-9._/~^-]*$/;
 
 export function reviewPackage(ctx: CommandContext, id: string, options: { base: string }): number {
   requireLaneTicket(ctx, id);

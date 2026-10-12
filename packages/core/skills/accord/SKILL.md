@@ -11,7 +11,8 @@ remember their names.
 ## Dashboard: `/accord` with no argument
 
 1. Run `accord status --json`, and `accord next --json` for the tickets ready
-   to pick up. Read the name to greet from `git config user.name`.
+   to pick up. Read the name to greet from `git config user.name`, and your
+   email from `git config user.email`.
 2. Show the dashboard built from that JSON. You format it; you never infer a
    state the JSON does not hold.
 
@@ -32,10 +33,10 @@ remember their names.
    → [Continue T-12]  [Pick up T-21]  [New request]
    ```
 
-   Yours are the tickets whose `claimedBy` is your name, each with its
-   `stage` and tasks (`tasksDone`/`tasksTotal`). The team's are the rest,
-   with who holds them and their `blockedBy`. The ones to pick up are those
-   `accord next` lists.
+   Yours are the tickets whose `claimedBy` is your `user.email`, each with
+   its `stage` and tasks (`tasksDone`/`tasksTotal`). The ones to pick up are
+   those `accord next` lists. The team's are the rest, other than those
+   `accord next` lists, with who holds them and their `blockedBy`.
 3. Offer Continue, Pick up, and New request.
 
 ## Continue
@@ -80,13 +81,13 @@ plausible reading; more than about three files expected.
 - **L and P.** Not built yet. Say so, and propose splitting the work into
   lane M tickets linked by `depends_on`.
 
-## Rules that hold in every lane
+## Rules
 
 - A lane only rises. Complexity found mid-task lifts the lane: stop, say so,
   and re-enter at the new lane's first incomplete stage. A lane never drops.
+- A ticket without `lane:` follows the 0.1.0 contract. Offer to add `lane: M`
+  and the lane headings; do it only on a yes.
 - In lane M the main session orchestrates and never edits product code.
 - Anything touching intent, a veto, an acceptance criterion, or a public
   interface stops the run and asks the owner. Every other decision on a
   ticket is a Ruling in `accord/tickets/<id>/ledger.md` under `## Rulings`.
-- A ticket without `lane:` follows the 0.1.0 contract. Offer to add `lane: M`
-  and the lane headings; do it only on a yes.

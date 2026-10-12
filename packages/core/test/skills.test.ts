@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import type { Tags } from 'yaml';
-import { allSkillDirs, contentHash, installedName, markerHash, renderSkill, skillDirs, skills, STAGES, skillTargets, withoutMarker } from '../src/index.js';
+import { agentTargets, allSkillDirs, contentHash, installedName, markerHash, renderSkill, skillDirs, skills, STAGES, skillTargets, withoutMarker } from '../src/index.js';
 import type { SkillKey } from '../src/index.js';
 import type { AccordConfig } from '../src/index.js';
 import { DONE_RULES, READY_RULES } from '../src/gate/rules.js';
@@ -322,6 +322,24 @@ describe('render output invariants', () => {
     // the other package's tests had to scan too; the outcome here is unchanged.
     // Guarded against a vacuous pass by the `has files to check` case at the top of this describe.
     expect(deniedNames(output)).toEqual([]);
+  });
+
+  it('no rendered skill or agent names a runtime product (D-109)', () => {
+    // One text, identical in every runtime: a fresh context is "a subagent where the runtime provides one,
+    // otherwise a new session", never a product name. Split literals so this file does not trip its own scan.
+    const PRODUCTS = ['Cur' + 'sor', 'Cop' + 'ilot', 'Cod' + 'ex', 'Claude ' + 'Code'];
+    const agents = agentTargets(config({ runtimes: ['claude'] }));
+    expect(agents.length, 'no agent rendered').toBeGreaterThan(0);
+    const named = (line: string) => PRODUCTS.filter((p) => new RegExp('\\b' + p + '\\b', 'i').test(line));
+    // Guard the guard: a matcher that cannot match fails here before it passes below.
+    expect(named('open it in ' + PRODUCTS[3])).toEqual([PRODUCTS[3]]);
+    const offenders: string[] = [];
+    for (const { path, text } of [...output, ...agents]) {
+      text.split('\n').forEach((line, i) => {
+        for (const p of named(line)) offenders.push(`${path}:${i + 1}: ${p}`);
+      });
+    }
+    expect(offenders).toEqual([]);
   });
 
   it('no rendered line carries the `Result:` or `Evidence:` label behind a list marker', () => {

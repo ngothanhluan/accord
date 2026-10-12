@@ -221,12 +221,12 @@ is foreign to the ticket; no "TODO", "TBD", "placeholder", "v1", "for now", "lat
 `accord-critic` checks meaning: no veto violated, nothing beyond the criteria, the approved approach
 followed. It also argues goal-backward: assuming every task passes its `verify:` line, does the `## Intent`
 hold for the person it names? A plan that covers each criterion on paper but leaves the intent unmet (a
-step nobody wired, a state nobody reaches) is a Must (phase 2).
+step nobody wired, a state nobody reaches) is a Must (phase 2). At most three revision rounds, then the
+owner is told; the run does not continue on a failing plan.
 
 `plan.md` frontmatter carries `baseline:`, the commit the plan was written against. `accord gate plan`
 checks that it names a commit that is an ancestor of `HEAD`, and `accord review-package <id>` diffs from
-it when no base is given, so review always sees the whole ticket and nothing before it (phase 2). At most three revision rounds, then the owner is told; the run does not continue on a failing
-plan.
+it when no base is given, so review always sees the whole ticket and nothing before it (phase 2).
 
 ### Slicing by review mode
 
@@ -387,7 +387,10 @@ escalation:
 ```
 
 `accord skills sync` renders these values into each agent file's frontmatter, extending the existing
-skills-as-data rendering.
+skills-as-data rendering. Agents install for the `claude` runtime only, at `.claude/agents/accord-<role>.md`.
+The final reviewer is a second render of the reviewer, `accord-final-reviewer`, routed by `reviewer.final`.
+A fix round at or after `fix_round_tier_up` passes a one-tier-higher model on the dispatch itself, in the
+order `haiku`, `sonnet`, `opus`, `fable`.
 
 **Debugging** (`accord-debug`, run by `accord-debugger`): no fix before a root cause; competing hypotheses,
 each with evidence for and against; session state written to a file so it survives compaction; grep every
@@ -429,7 +432,12 @@ measurements, and re-run when new models ship.
 - **Anchor**: the same SessionStart hook runs `accord anchor` on `compact`, `resume`, and `clear` (section 6).
 - **Hooks are minimal.** No completion-claim Stop hook in this version: regex detection is brittle, and
   enforcement lives in `task-done`, the gates, and CI. Add one only with evidence it is needed.
-- `accord init` writes hooks into the project's `.claude/settings.json`, so teammates get them by cloning.
+- `accord init` and `accord skills sync` write hooks into the project's `.claude/settings.json`, so teammates
+  get them by cloning, and keep every setting and hook accord did not write. Each hook is one command with no
+  shell syntax, `npx --yes <package>@<version> hook <event>`: `session-start` on `startup` (ruleset and the
+  one-line summary), `session-resume` on `resume|clear|compact` (ruleset and `accord anchor`), and
+  `subagent-start` for agents named `accord-*` (the ruleset as added context). The ruleset is a shipped
+  template.
 - On the owner's machine, overlapping workflow plugins are disabled in accord repositories and the
   workflow-enforcement block is removed from the project `CLAUDE.md`.
 
@@ -438,6 +446,10 @@ measurements, and re-run when new models ship.
 | Keep | Change | Add |
 |---|---|---|
 | `accord/` folder; frontmatter schema; Gherkin parsing; `@test:<id>`; `ac_hash`; JUnit scan; skills rendered from data; version pin; CI workflow | EARS optional, lint off by default; role skills replaced by stage skills; ticket headings per section 4; `## Plan` moves to `plan.md`; `## Verification notes` required only under `review: human`; constraint "identical behaviour in four runtimes" becomes "gates identical everywhere, orchestration Claude Code first" | frontmatter `lane`, `depends_on`, `approved_hash`, `status: dropped` (phase 2), `ui` (phase 4); `plan.md` `baseline:` (phase 2); config `review.mode` (phase 1), `stale_days` (phase 2), `review.max_pr_lines` and `ui.skill` (phase 4), `models`, `escalation`, `tests.affected`, `tests.full` (phase 2); commands `approve`, `gate plan`, `task-done`, `brief`, `review-package`, `tests baseline`, `anchor`, `next`, extended `status`; rules `lint.test-untraced`, `lint.depends-*`, lane Ready, plan, and Done rules; per-ticket `plan.md`, `ledger.md`, `review.md`; `accord/tests-baseline.txt`; agents `accord-*`; hooks; benchmark harness |
+
+**Skills.** `roles:` stays in the config schema so no config breaks. `skills sync` always installs `/accord`
+(source `skills/accord/`, installed as `accord`) and the stage skills (`accord-<stage>`); `designer` installs
+only when listed. A leftover `accord-ba` or `accord-dev` directory is reported as an orphan, never deleted.
 
 **Compatibility.** The `lane` key opts a ticket into this contract. A ticket without `lane` keeps every
 0.1.0 rule (EARS, `## Plan`, Verification notes), so existing tickets need no migration. Each config key is
@@ -462,16 +474,26 @@ The benchmark follows phase 2 because it measures prompts that must exist first.
 
 These are assumptions, not established facts. Each is checked at the start of the phase that needs it.
 
-- Claude Code agent frontmatter accepts an `effort` field alongside `model` (phase 2).
-- Project-level `.claude/settings.json` can disable user-level plugins; if not, the owner disables them at
-  user level (phase 2).
 - Headless `claude -p` accepts model and effort selection and a clean settings file (phase 3).
-- `git for-each-ref` over `refs/heads/t/` and `refs/remotes/` gives a reliable claim author on both Windows
-  and POSIX (phase 1).
-- Whether Claude Code compacts a subagent's context on its own, and whether a SessionStart `compact` hook
-  fires inside a subagent. The design does not depend on either (section 8 hands off instead of compacting),
-  but the answer decides whether the anchor also needs a SubagentStart path (phase 2).
-- Whether a PreCompact hook can add instructions to the compaction summary itself (phase 2).
+
+Checked at the start of phase 2, against the runtime's published documentation on 2026-10-12:
+
+- Agent frontmatter accepts `effort` (`low | medium | high | xhigh | max`) beside `model` (an alias or a full
+  model id), plus `tools` as an allowlist.
+- `enabledPlugins` is per key, and local settings override project settings, which override user settings.
+  The owner turns overlapping plugins off in the uncommitted local settings file of an accord repository;
+  accord ships nothing that names them.
+- SessionStart matches `startup`, `resume`, `clear`, and `compact`, and its standard output enters context.
+  SubagentStart matches on the agent's `name` and adds context through
+  `hookSpecificOutput.additionalContext`. A hook command runs in bash, or in PowerShell on Windows without
+  bash, so accord writes commands with no shell syntax at all.
+- A subagent compacts by the same rule as the main session. Whether SessionStart fires inside a subagent is
+  not documented; the design does not need it, because a subagent gets the ruleset from SubagentStart and
+  its ticket from a verbatim brief.
+- A PreCompact hook can only block or observe; it cannot add to the summary. Re-anchoring therefore stays on
+  SessionStart `compact`, and accord installs no PreCompact hook.
+- `git for-each-ref` over `refs/heads/t/` and `refs/remotes/` gives the claim author on Windows and POSIX
+  (phase 1).
 
 ## 18. Out of scope for this design
 

@@ -34,6 +34,7 @@ import {
   trackerEmpty,
   vagueWording,
 } from './ticket.js';
+import { testUntraced } from './tests.js';
 import { prototypeDerivation, tokenHardcoded, tokensMissing } from './tokens.js';
 
 /** What a check returns; the engine adds `rule` and `level` from the table row. */
@@ -76,6 +77,7 @@ export const RULES: readonly Rule[] = [
   { id: 'lint.test-tag-on-ui', level: 'warning', profiles: ['build', 'maintain'], check: testTagOnUi },
   { id: 'lint.test-id-unknown', level: 'warning', profiles: ['build', 'maintain'], check: testIdUnknown },
   { id: 'lint.report-missing', level: 'warning', profiles: ['build', 'maintain'], check: reportMissing },
+  { id: 'lint.test-untraced', level: 'warning', profiles: ['build', 'maintain'], check: testUntraced },
   { id: 'lint.token-hardcoded', level: 'warning', profiles: ['build', 'maintain'], check: tokenHardcoded },
   { id: 'lint.tokens-missing', level: 'warning', profiles: ['build', 'maintain'], check: tokensMissing },
   { id: 'lint.prototype-derivation', level: 'warning', profiles: ['build', 'maintain'], check: prototypeDerivation },

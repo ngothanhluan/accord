@@ -688,8 +688,9 @@ describe('gate done: the Human layer', () => {
     expect(pick(r, 'gate.note-missing')).toEqual([]);
     expect(pick(r, 'gate.note-unresolved')).toEqual([]);
     // No @ui-specific rule exists to be exempted or tightened. `profiles: ['build', ...]` contains the
-    // letters `ui`, so the match is anchored on the id and nothing else.
-    expect(DONE_RULES.filter((row) => row.id.includes('ui'))).toEqual([]);
+    // letters `ui`, so the match is anchored on the id and nothing else, and on a whole kebab segment,
+    // since `gate.suite-not-passed` spells `ui` inside a word.
+    expect(DONE_RULES.filter((row) => /[.-]ui(-|$)/.test(row.id))).toEqual([]);
   });
 
   it('PASS still goes through Done with no error finding after the Human layer lands', () => {

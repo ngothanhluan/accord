@@ -45,6 +45,7 @@ import {
   intentEmpty,
   ticketUnknown,
 } from './ready.js';
+import { reviewMissing, reviewUnconverged, suiteNotPassed, tasksIncomplete, testUntracedAtDone } from './work.js';
 import {
   evidenceUnresolved,
   noteMissing,
@@ -124,6 +125,11 @@ export const DONE_RULES: readonly GateRule[] = [
   { id: 'gate.report-missing', level: 'error', profiles: ['build', 'maintain'], check: reportMissing },
   { id: 'gate.test-unknown', level: 'error', profiles: ['build', 'maintain'], check: testUnknown },
   { id: 'gate.test-not-passed', level: 'error', profiles: ['build', 'maintain'], check: testNotPassed },
+  { id: 'gate.task-incomplete', level: 'error', profiles: ['build', 'maintain'], check: tasksIncomplete },
+  { id: 'gate.review-missing', level: 'error', profiles: ['build', 'maintain'], check: reviewMissing },
+  { id: 'gate.review-unconverged', level: 'error', profiles: ['build', 'maintain'], check: reviewUnconverged },
+  { id: 'gate.suite-not-passed', level: 'error', profiles: ['build', 'maintain'], check: suiteNotPassed },
+  { id: 'gate.test-untraced', level: 'error', profiles: ['build', 'maintain'], check: testUntracedAtDone },
   // GATE-05 (D-79): warnings, and never more. docs/design.md §4 makes the reviewer not a role, so the
   // two identities match on nearly every honest ticket; an error here would block every solo developer.
   { id: 'gate.author-match', level: 'warning', profiles: ['build', 'maintain'], check: authorMatch },

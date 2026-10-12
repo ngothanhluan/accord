@@ -25,6 +25,7 @@ export type {
   TicketWork,
 } from './model/snapshot.js';
 export { loadSnapshot } from './load/snapshot.js';
+export { loadConfig } from './load/config.js';
 export { lintSnapshot } from './lint/index.js';
 export type { LintResult } from './lint/index.js';
 export { gateDone, gatePlan, gateReady } from './gate/index.js';

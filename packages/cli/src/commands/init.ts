@@ -9,13 +9,13 @@
 // a document stays a manual act, and the version pin is what makes the mismatch visible.
 import { lstatSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { initFiles, loadSnapshot, POINTER_FILES, pointerText, skillTargets } from '@accord-dev/accord-core';
+import { initFiles, loadConfig, loadSnapshot, POINTER_FILES, pointerText, skillTargets } from '@accord-dev/accord-core';
 import pkg from '../../package.json' with { type: 'json' };
 import { assertNoLink } from '../guard.js';
 import { loadFromFs, UsageError } from '../load/fs.js';
 import { pinMessage } from '../pin.js';
 import { planHooks, writeHooks, writeSkillFiles } from './skills.js';
-import type { AccordConfig, SkillFile } from '@accord-dev/accord-core';
+import type { SkillFile } from '@accord-dev/accord-core';
 import type { HooksPlan, ReportRow } from './skills.js';
 import type { CommandContext } from '../run.js';
 
@@ -80,12 +80,12 @@ export function init(ctx: InitContext): number {
       : refusals();
 
   // Greenfield: the settings refusal cannot wait for `refusals()`, which runs after the scaffold is written, so
-  // it is taken here from the runtimes line of the config text this run is about to write. Settings do not
+  // it is taken here from the config text this run is about to write. Settings do not
   // depend on anything the loop writes, so this plan is the one applied below.
   const configText = files.find((f) => f.path === 'accord/config.yml')?.text ?? '';
-  const written = /^runtimes: \[(.*)\]/m.exec(configText)?.[1]?.split(',').map((r) => r.trim()) ?? [];
+  const written = loadConfig('accord/config.yml', configText).config?.runtimes ?? [];
   const greenfieldHooks =
-    guarded === undefined ? planHooks(ctx.root, { runtimes: written as AccordConfig['runtimes'] }) : undefined;
+    guarded === undefined ? planHooks(ctx.root, { runtimes: written }) : undefined;
 
   // Computed once, then rendered — so a `--json` mode added later cannot disagree with the text. One list
   // for both halves, so there is exactly one place that turns a status into a line of text.

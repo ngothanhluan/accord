@@ -373,7 +373,7 @@ the 0.1.0 human layer stays, and each slice's pull request is reviewed by a pers
 | `accord-debugger` | root cause with competing hypotheses | read, runs commands | Opus, high |
 
 The roster is design. **The model and effort column is a hypothesis** until the benchmark (section 13)
-replaces it. Fable is a candidate for the critic and the final reviewer.
+replaces it.
 
 Routing is configuration:
 
@@ -390,7 +390,7 @@ escalation:
 skills-as-data rendering. Agents install for the `claude` runtime only, at `.claude/agents/accord-<role>.md`.
 The final reviewer is a second render of the reviewer, `accord-final-reviewer`, routed by `reviewer.final`.
 A fix round at or after `fix_round_tier_up` passes a one-tier-higher model on the dispatch itself, in the
-order `haiku`, `sonnet`, `opus`, `fable`.
+order `haiku`, `sonnet`, `opus`; an executor already on `opus` stays there.
 
 **Debugging** (`accord-debug`, run by `accord-debugger`): no fix before a root cause; competing hypotheses,
 each with evidence for and against; session state written to a file so it survives compaction; grep every

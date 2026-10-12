@@ -21,7 +21,7 @@
 - Optional fields are omitted, never set to `undefined` (D-54). Caller-supplied ids are looked up with `Object.hasOwn`.
 - A gate or lint check returns drafts without `level` or `rule`; the table row stamps both (D-57).
 - A ticket without `lane:` produces byte-identical lint, gate, and status results to 0.1.0: no golden under `packages/core/test/__golden__/` changes, except the skill and scaffold outputs Task 7 replaces on purpose.
-- Nothing shipped (skills, agents, templates, schemas, source strings, generated files) names another tool, plugin, or planning system (`test/helpers/denied.ts`). Model aliases (`haiku`, `sonnet`, `opus`, `fable`) and the runtime directory names are allowed.
+- Nothing shipped (skills, agents, templates, schemas, source strings, generated files) names another tool, plugin, or planning system (`test/helpers/denied.ts`). Model aliases (`haiku`, `sonnet`, `opus`) and the runtime directory names are allowed.
 - YAML numerics stay strings (STACK Decision 2): `stale_days: 14` loads as `"14"`; schemas declare such keys `type: string` with a `pattern`.
 - Each rendered `SKILL.md` is at most 120 lines (D-129) and at most 5120 bytes (spec §2: under 5 KB). Detail that does not fit goes into a reference file the skill names (`loads:`).
 - Skill bodies follow the existing invariants in `packages/core/test/skills.test.ts`: name commands, not the state a command reports (no capitalised `Ready`/`Done`, no rule ids, no `warning`); every command named is registered (`skill-commands.test.ts`); no reference to a file that exists only in this repository.
@@ -42,7 +42,7 @@ These refine the spec. Record them in the spec in the same commit as this plan.
 
 - **Stage skills replace `ba` and `dev`; `roles:` stays.** The schema keeps `roles` unchanged so no config breaks. `skills sync` always installs `/accord` and the seven stage skills; `designer` still installs only when listed (UI is phase 4). The orphan scan compares against the directories the render produces, so a leftover `accord-ba` or `accord-dev` is reported with the existing removal hint.
 - **Installed names.** The source directory `skills/accord/` installs as `accord` (invoked `/accord`); every other source directory `X` installs as `accord-X`.
-- **Agents install for the `claude` runtime only**, at `.claude/agents/accord-<role>.md`, with the same marker-and-hash drift rule as skills. The final reviewer is a second render of the reviewer definition, `accord-final-reviewer`, routed by `models["reviewer.final"]`. Fix rounds 4 and 5 pass a one-tier-higher `model` on the dispatch itself; the tier order is `haiku`, `sonnet`, `opus`, `fable`.
+- **Agents install for the `claude` runtime only**, at `.claude/agents/accord-<role>.md`, with the same marker-and-hash drift rule as skills. The final reviewer is a second render of the reviewer definition, `accord-final-reviewer`, routed by `models["reviewer.final"]`. Fix rounds 4 and 5 pass a one-tier-higher `model` on the dispatch itself; the tier order is `haiku`, `sonnet`, `opus`; an executor already on `opus` stays on `opus`.
 - **Hooks are three CLI events.** `accord hook session-start` (ruleset plus a one-line summary), `accord hook session-resume` (ruleset plus `accord anchor` output, falling back to the summary off a ticket branch), and `accord hook subagent-start` (the ruleset as `additionalContext` JSON). `skills sync` and `init` write them into `.claude/settings.json` for the `claude` runtime as `npx --yes <pkg>@<version> hook <event>`, with matchers `startup`, `resume|clear|compact`, and `accord-.*`. No PreCompact hook (spec §17).
 - **The ruleset is a shipped template** (`templates/ruleset.md`); the hook prints it with the pinned invocation line filled in from the CLI's own package name and version, nothing from the repository.
 - **`baseline:` ancestry is a host fact.** The CLI runs `git merge-base --is-ancestor <sha> HEAD` for each plan baseline and passes the answers in; core skips the ancestry rule only when the host supplied no facts at all (pure tests), mirroring `git?`.
@@ -175,7 +175,7 @@ describe('phase 2 config keys', () => {
       "additionalProperties": false,
       "required": ["model"],
       "properties": {
-        "model": { "type": "string", "pattern": "^(haiku|sonnet|opus|fable|inherit|claude-[a-z0-9-]+)$" },
+        "model": { "type": "string", "pattern": "^(haiku|sonnet|opus|inherit|claude-[a-z0-9-]+)$" },
         "effort": { "type": "string", "enum": ["low", "medium", "high", "xhigh", "max"] }
       }
     }
@@ -644,7 +644,7 @@ The skill must say:
 2. `accord review-package <id>` into a file (it diffs from the plan's baseline).
 3. Choose reviewers by diff size and risk (spec §10 table): up to about 500 changed lines one `accord-reviewer` with both lenses; 500–1500 an `intent` and a `quality` reviewer in parallel; over 1500 split by area times lens plus one `integration` reviewer; auth, money, migration, or data deletion adds a `security` reviewer at any size. Name the lens in the dispatch. Inputs: the ticket file, the approach, the review package, the ledger; the executor's report is context, never evidence.
 4. Merge and de-duplicate findings. Fix every Must and Should through `accord-build`'s executor path, then re-review only the fix diff with one reviewer. Nice findings go to the ledger under `## Deferred`.
-5. At most five rounds; rounds at or after `escalation.fix_round_tier_up` (default 4) dispatch a fresh executor one model tier higher (`haiku` → `sonnet` → `opus` → `fable`). At the cap, stop and report the open findings to the owner; never report the work finished.
+5. At most five rounds; rounds at or after `escalation.fix_round_tier_up` (default 4) dispatch a fresh executor one model tier higher (`haiku` → `sonnet` → `opus`; `opus` stays `opus`). At the cap, stop and report the open findings to the owner; never report the work finished.
 6. After convergence, one `accord-final-reviewer` reads the whole package once; one fix and one scoped re-review if needed, then stop.
 7. Record every round in `tickets/<id>/review.md` as `./record.md` says, ending `verdict: converged`, or `verdict: accepted-by-owner` followed by the owner's sentence quoted.
 8. Next: `accord-verify`.

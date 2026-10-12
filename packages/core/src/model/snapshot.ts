@@ -102,6 +102,7 @@ export interface Ledger {
   file: string; // 'accord/tickets/LOGIN-1/ledger.md'
   done: Record<string, string>; // task number -> commit sha of its first done line
   rulings: string[]; // every 'Ruling: …' line, list marker stripped
+  rulingsSection?: string[]; // the '## Rulings' section's non-blank lines as written, comments stripped; absent without one
 }
 
 export interface Review {

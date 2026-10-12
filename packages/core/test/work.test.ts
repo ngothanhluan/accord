@@ -42,7 +42,10 @@ describe('parseLedger, parseReview, parseBaseline', () => {
       file: 'l',
       done: { '1': 'abc1234', '2': '1234567890' },
       rulings: ['Ruling: kept the signature — callers — one branch'],
+      rulingsSection: ['- Ruling: kept the signature — callers — one branch'],
     });
+    // No Rulings section: the field is omitted, never undefined (D-54).
+    expect(parseLedger('l', '- task 1 done abc1234\n')).not.toHaveProperty('rulingsSection');
   });
 
   it('takes the last verdict line', () => {

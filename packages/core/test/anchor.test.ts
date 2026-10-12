@@ -34,10 +34,42 @@ describe('anchorText', () => {
         '(none)',
         '',
         '## Rulings',
-        'Ruling: kept the old writer signature — callers depend on it — one extra branch if wrong',
+        '- Ruling: kept the old writer signature — callers depend on it — one extra branch if wrong',
         '',
       ].join('\n'),
     );
+  });
+
+  it('prints the Rulings section as written, then any Ruling: line outside it', () => {
+    const ledger = [
+      '## Tasks',
+      '- task 1 done abc1234',
+      'Ruling: stray, outside the section',
+      '',
+      '## Rulings',
+      '<!-- one per line -->',
+      '- **Ruling:** x',
+      '1. Ruling: numbered',
+      '- ruling: lower case',
+      '- Ruling: stray, outside the section',
+      '',
+      '## Notes',
+      '- Ruling: in notes',
+      '',
+    ].join('\n');
+    const text = anchorText(snap({ ...approved(base, 'T-1'), 'accord/tickets/T-1/ledger.md': ledger }), 'T-1') ?? '';
+    expect(text.slice(text.indexOf('## Rulings'))).toBe(
+      [
+        '## Rulings',
+        '- **Ruling:** x',
+        '1. Ruling: numbered',
+        '- ruling: lower case',
+        '- Ruling: stray, outside the section',
+        'Ruling: in notes',
+        '',
+      ].join('\n'),
+    );
+    expect(anchorText(snap(base), 'T-1')).toContain('## Rulings\n(none)\n');
   });
 
   it('names the next step for a stage without tasks', () => {

@@ -2,6 +2,7 @@
 // remembering them. Comments and blank lines are dropped; every other line is printed as written.
 import { workOf } from '../gate/work.js';
 import { headingKey, stripHtmlComments } from '../load/sections.js';
+import { RULING } from '../load/work.js';
 import type { RepoSnapshot } from '../model/snapshot.js';
 import { progressOf } from './stage.js';
 import type { Stage } from './stage.js';
@@ -36,7 +37,11 @@ export function anchorText(snapshot: RepoSnapshot, id: string): string | undefin
     const lines = s === undefined ? [] : stripHtmlComments(s.lines).map((l) => l.text).filter((t) => t.trim() !== '');
     out.push('', `## ${name}`, ...(lines.length === 0 ? ['(none)'] : lines));
   }
-  const rulings = work?.ledger?.rulings ?? [];
+  // The section verbatim, so a Ruling in a form the parser does not read is never dropped; then any
+  // parsed Ruling: line from elsewhere in the ledger that the section did not already print.
+  const written = work?.ledger?.rulingsSection ?? [];
+  const printed = new Set(written.map((l) => RULING.exec(l)?.[1]));
+  const rulings = [...written, ...(work?.ledger?.rulings ?? []).filter((r) => !printed.has(r))];
   out.push('', '## Rulings', ...(rulings.length === 0 ? ['(none)'] : rulings));
   return out.join('\n') + '\n';
 }

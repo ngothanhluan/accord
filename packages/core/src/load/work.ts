@@ -4,12 +4,12 @@
 import type { LoadFinding } from '../model/finding.js';
 import type { Ledger, Plan, PlanTask, Review } from '../model/snapshot.js';
 import { normaliseText } from './frontmatter.js';
-import { LIST_MARKER, scan } from './sections.js';
+import { headingKey, LIST_MARKER, scan, stripHtmlComments } from './sections.js';
 
 const TASK = /^Task\s+([1-9][0-9]*)\s*:\s*(.*)$/;
 export const FIELD = /^(covers|files|verify):(.*)$/;
 const DONE = /^\s*[-*+]\s+task\s+([1-9][0-9]*)\s+done\s+([0-9a-fA-F]{7,})\s*$/;
-const RULING = /^\s*(?:[-*+]\s+)?(Ruling:.*\S)\s*$/;
+export const RULING = /^\s*(?:[-*+]\s+)?(Ruling:.*\S)\s*$/;
 // Spec §10: the verdict is the first token; accepted-by-owner carries the owner's sentence after it.
 const VERDICT = /^verdict:\s*(\S+)(?:\s.*)?$/;
 
@@ -62,7 +62,10 @@ export function parsePlan(file: string, text: string): { plan: Plan; findings: L
   return { plan: { file, tasks }, findings };
 }
 
-/** `- task <n> done <sha>` lines, the first per task winning, and every `Ruling:` line, anywhere in the file. */
+/**
+ * `- task <n> done <sha>` lines, the first per task winning, every `Ruling:` line anywhere in the file, and
+ * the first `## Rulings` section as written, comments and blank lines dropped, when the file has one.
+ */
 export function parseLedger(file: string, text: string): Ledger {
   const done: Record<string, string> = {};
   const rulings: string[] = [];
@@ -75,7 +78,10 @@ export function parseLedger(file: string, text: string): Ledger {
     const r = RULING.exec(line);
     if (r) rulings.push(r[1]);
   }
-  return { file, done, rulings };
+  const section = scan(normaliseText(text), 0).sections.find((s) => headingKey(s.heading) === 'rulings');
+  if (section === undefined) return { file, done, rulings };
+  const written = stripHtmlComments(section.lines).map((l) => l.text).filter((t) => t.trim() !== '');
+  return { file, done, rulings, rulingsSection: written };
 }
 
 /** The last `verdict:` line decides; a record with none has no verdict. */

@@ -30,6 +30,10 @@ export const tasksIncomplete: GateRule['check'] = (snapshot, id) => {
   if (work?.plan === undefined) {
     return [{ file: planFile(id), reason: 'no plan; Done needs every planned task recorded in ' + ledgerFile(id) }];
   }
+  // A plan with no tasks would pass vacuously, so it fails the way a missing plan does.
+  if (work.plan.tasks.length === 0) {
+    return [{ file: planFile(id), reason: 'the plan has no tasks; Done needs every planned task recorded in ' + ledgerFile(id) }];
+  }
   const done = work.ledger?.done ?? {};
   return work.plan.tasks
     .filter((t) => !Object.hasOwn(done, String(t.n)))
@@ -62,10 +66,31 @@ export const reviewUnconverged: GateRule['check'] = (snapshot, id) => {
   ];
 };
 
-/** Spec §11: the report is the full suite's output, and any failed case fails Done. */
+/**
+ * Spec §11: the report is the full suite's output, and any failed case fails Done. A lane ticket needs a
+ * loaded report even when every scenario is @ui, so an all-@ui ticket cannot pass with no suite at all.
+ */
 export const suiteNotPassed: GateRule['check'] = (snapshot, id) => {
+  if (laneTicket(snapshot, id) === undefined) return [];
   const report = reportPath(snapshot);
-  if (laneTicket(snapshot, id) === undefined || report === undefined || !reportLoaded(snapshot)) return [];
+  if (report === undefined) {
+    return [
+      {
+        file: 'accord/config.yml',
+        pointer: '/tests',
+        reason: "no test report is configured; Done for a lane ticket needs the full suite's report in tests.report",
+      },
+    ];
+  }
+  if (!reportLoaded(snapshot)) {
+    return [
+      {
+        file: 'accord/config.yml',
+        pointer: '/tests/report',
+        reason: `no report at ${normaliseKey(report)}; Done for a lane ticket needs the full suite's report`,
+      },
+    ];
+  }
   const tests = snapshot.tests ?? {};
   const failed = Object.keys(tests)
     .filter((k) => tests[k] === 'failed')

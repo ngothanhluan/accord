@@ -52,6 +52,12 @@ describe('parseLedger, parseReview, parseBaseline', () => {
       line: 5,
     });
     expect(parseReview('r', 'no verdict here\n')).toEqual({ file: 'r' });
+    // Spec §10: accepted-by-owner carries the owner's sentence quoted; the verdict is the first token.
+    expect(parseReview('r', 'verdict: accepted-by-owner "ship it as is"\n')).toEqual({
+      file: 'r',
+      verdict: 'accepted-by-owner',
+      line: 1,
+    });
   });
 
   it('drops comments and blanks, sorts, and de-duplicates the baseline', () => {

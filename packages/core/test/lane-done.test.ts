@@ -79,6 +79,14 @@ describe('Done for lane tickets', () => {
     );
   });
 
+  it('a plan with no tasks fails on gate.task-incomplete, as a missing plan does', () => {
+    const r = done(doneFiles({ 'accord/tickets/T-1/plan.md': '# Plan\n\nNothing yet.\n' }));
+    expect(errors(r)).toContain('gate.task-incomplete');
+    expect(r.findings.find((f) => f.rule === 'gate.task-incomplete')?.reason).toBe(
+      'the plan has no tasks; Done needs every planned task recorded in accord/tickets/T-1/ledger.md',
+    );
+  });
+
   it('a missing review fails on gate.review-missing; an open one on gate.review-unconverged', () => {
     const missing = doneFiles();
     delete missing['accord/tickets/T-1/review.md'];
@@ -90,6 +98,29 @@ describe('Done for lane tickets', () => {
 
   it('accepted-by-owner is a verdict Done accepts', () => {
     expect(errors(done(doneFiles({ 'accord/tickets/T-1/review.md': 'verdict: accepted-by-owner\n' })))).toEqual([]);
+  });
+
+  it("accepted-by-owner with the owner's sentence quoted on the same line satisfies Done (spec §10)", () => {
+    const review = 'verdict: accepted-by-owner "ship it as is"\n';
+    expect(errors(done(doneFiles({ 'accord/tickets/T-1/review.md': review })))).toEqual([]);
+  });
+
+  it('a lane ticket with no tests.report configured fails on gate.suite-not-passed', () => {
+    const r = done(doneFiles({ 'accord/config.yml': CONFIG.replace(/tests:\n {2}report: .*\n/, '') }));
+    expect(errors(r)).toContain('gate.suite-not-passed');
+    expect(r.findings.find((f) => f.rule === 'gate.suite-not-passed')?.reason).toBe(
+      "no test report is configured; Done for a lane ticket needs the full suite's report in tests.report",
+    );
+  });
+
+  it('a lane ticket whose configured report is missing fails on gate.suite-not-passed', () => {
+    const files = doneFiles();
+    delete files[REPORT];
+    const r = done(files);
+    expect(errors(r)).toContain('gate.suite-not-passed');
+    expect(r.findings.find((f) => f.rule === 'gate.suite-not-passed')?.reason).toBe(
+      `no report at ${REPORT}; Done for a lane ticket needs the full suite's report`,
+    );
   });
 
   it('a failed case anywhere in the report fails on gate.suite-not-passed', () => {
@@ -117,9 +148,12 @@ describe('Done for lane tickets', () => {
 
   it('a ticket without lane gets none of the lane Done rules', () => {
     const r = done(doneFiles({}, CASES, laneTicket('T-1', { lane: '' })));
-    for (const rule of ['gate.task-incomplete', 'gate.review-missing', 'gate.suite-not-passed', 'gate.test-untraced']) {
+    const lane = ['gate.task-incomplete', 'gate.review-missing', 'gate.review-unconverged', 'gate.suite-not-passed'];
+    for (const rule of [...lane, 'gate.test-untraced']) {
       expect(errors(r)).not.toContain(rule);
     }
+    // review.mode outcome makes notes optional for lane tickets only.
+    expect(errors(r)).toContain('gate.note-missing');
   });
 });
 

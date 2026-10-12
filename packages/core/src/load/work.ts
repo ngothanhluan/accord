@@ -10,7 +10,8 @@ const TASK = /^Task\s+([1-9][0-9]*)\s*:\s*(.*)$/;
 export const FIELD = /^(covers|files|verify):(.*)$/;
 const DONE = /^\s*[-*+]\s+task\s+([1-9][0-9]*)\s+done\s+([0-9a-fA-F]{7,})\s*$/;
 const RULING = /^\s*(?:[-*+]\s+)?(Ruling:.*\S)\s*$/;
-const VERDICT = /^verdict:\s*(\S+)\s*$/;
+// Spec §10: the verdict is the first token; accepted-by-owner carries the owner's sentence after it.
+const VERDICT = /^verdict:\s*(\S+)(?:\s.*)?$/;
 
 type Field = 'covers' | 'files' | 'verify';
 

@@ -25,7 +25,7 @@ export type {
 export { loadSnapshot } from './load/snapshot.js';
 export { lintSnapshot } from './lint/index.js';
 export type { LintResult } from './lint/index.js';
-export { gateDone, gateReady } from './gate/index.js';
+export { gateDone, gatePlan, gateReady } from './gate/index.js';
 export { approvedHash } from './gate/hash.js';
 export type { GateResult } from './gate/index.js';
 export { statusRows } from './status/rows.js';

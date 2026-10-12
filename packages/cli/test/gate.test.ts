@@ -103,6 +103,16 @@ describe('accord gate — verdict, printer, exit code', () => {
     expect(out).toContain('error gate.ticket-unknown no ticket NOSUCH in the snapshot');
   });
 
+  it('gate plan on a ticket without lane: exits 1 with gate: plan and writes nothing', async () => {
+    const before = bytes(ticket(ready, 'CLEAN'));
+    const { code, out } = await run(['gate', 'plan', 'CLEAN', '--json'], ready);
+    expect(code).toBe(1);
+    const parsed = JSON.parse(out) as { gate: string; findings: { rule: string }[] };
+    expect(parsed.gate).toBe('plan');
+    expect(parsed.findings.map((f) => f.rule)).toContain('gate.lane-missing');
+    expect(bytes(ticket(ready, 'CLEAN'))).toBe(before);
+  });
+
   it('gate ready with no id exits 2 with commander’s missing-argument message', async () => {
     const { code, err } = await run(['gate', 'ready'], ready);
     expect(code).toBe(2);

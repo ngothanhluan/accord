@@ -6,11 +6,11 @@ import type { Finding } from '../model/finding.js';
 import type { RepoSnapshot } from '../model/snapshot.js';
 import { lintSnapshot } from '../lint/index.js';
 import { acHash } from './hash.js';
-import { downgradeMaintain, DONE_RULES, READY_PROMOTE, READY_RULES } from './rules.js';
+import { downgradeMaintain, DONE_RULES, PLAN_RULES, READY_PROMOTE, READY_RULES } from './rules.js';
 import type { GateRule } from './rules.js';
 
 export interface GateResult {
-  gate: 'ready' | 'done';
+  gate: 'ready' | 'plan' | 'done';
   ticket: string;
   verdict: 'pass' | 'fail';
   findings: Finding[]; // sorted by file, then line (line-less first), then rule, reason, pointer
@@ -83,6 +83,11 @@ function run(
 /** GATE-01: the Ready table plus the three LINT-06 hygiene rules promoted to blocking (D-89). */
 export function gateReady(snapshot: RepoSnapshot, id: string): GateResult {
   return run('ready', READY_RULES, READY_PROMOTE, snapshot, id);
+}
+
+/** Spec §7: the plan gate plus the ticket-scoped lint findings, which include load findings on plan.md. */
+export function gatePlan(snapshot: RepoSnapshot, id: string): GateResult {
+  return run('plan', PLAN_RULES, [], snapshot, id);
 }
 
 /**

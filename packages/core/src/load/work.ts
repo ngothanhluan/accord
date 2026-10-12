@@ -7,7 +7,7 @@ import { normaliseText } from './frontmatter.js';
 import { LIST_MARKER, scan } from './sections.js';
 
 const TASK = /^Task\s+([1-9][0-9]*)\s*:\s*(.*)$/;
-const FIELD = /^(covers|files|verify):(.*)$/;
+export const FIELD = /^(covers|files|verify):(.*)$/;
 const DONE = /^\s*[-*+]\s+task\s+([1-9][0-9]*)\s+done\s+([0-9a-fA-F]{7,})\s*$/;
 const RULING = /^\s*(?:[-*+]\s+)?(Ruling:.*\S)\s*$/;
 const VERDICT = /^verdict:\s*(\S+)\s*$/;

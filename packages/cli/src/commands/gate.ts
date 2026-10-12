@@ -1,4 +1,4 @@
-// CLI-05 `accord gate ready|done <id>`: the verdict comes off the pure core gate and from nothing else
+// CLI-05 `accord gate ready|plan|done <id>`: the verdict comes off the pure core gate and from nothing else
 // — the CLI adds no rule, no filter, and no level change (D-87). A passing Ready then performs the one
 // write accord makes to a file a human owns: `ac_hash` into the ticket (D-86, D-96). The result reaches
 // stdout before the write is attempted, so a write failure is reported after the true verdict rather
@@ -6,18 +6,19 @@
 // goes to stderr, so `jq '.findings[]'` works with no unwrapping (D-98).
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { gateDone, gateReady, renderText, setFrontmatterKey } from '@accord-dev/accord-core';
+import { gateDone, gatePlan, gateReady, renderText, setFrontmatterKey } from '@accord-dev/accord-core';
 import { UsageError } from '../load/fs.js';
 import { colourFindings } from '../render/color.js';
 import type { CommandContext } from '../run.js';
 
 export function gate(
   ctx: CommandContext,
-  which: 'ready' | 'done',
+  which: 'ready' | 'plan' | 'done',
   id: string,
   options: { json?: boolean },
 ): number {
-  const result = which === 'ready' ? gateReady(ctx.snapshot, id) : gateDone(ctx.snapshot, id);
+  const result =
+    which === 'ready' ? gateReady(ctx.snapshot, id) : which === 'plan' ? gatePlan(ctx.snapshot, id) : gateDone(ctx.snapshot, id);
   ctx.stdout.write(
     options.json ? JSON.stringify(result, null, 2) + '\n' : colourFindings(renderText(result), ctx.stdout),
   );

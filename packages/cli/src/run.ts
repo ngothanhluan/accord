@@ -96,10 +96,10 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
       setCode(lint(preflight(opts), options));
     });
 
-  // Both subcommands route through the same preflight the lint action uses, so the pin check is never
+  // All three subcommands route through the same preflight the lint action uses, so the pin check is never
   // conditional on which gate was asked for (D-95).
   const gates = program.command('gate').description('run one gate against one ticket');
-  for (const which of ['ready', 'done'] as const) {
+  for (const which of ['ready', 'plan', 'done'] as const) {
     gates
       .command(which + ' <id>')
       .description('report whether the ticket passes the ' + which + ' gate')

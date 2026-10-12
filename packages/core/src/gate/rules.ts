@@ -26,6 +26,17 @@ import {
   verificationMissing,
 } from './done.js';
 import {
+  acUncovered,
+  decisionUncited,
+  deferral,
+  laneMissing,
+  planEmpty,
+  planMissing,
+  refUnknown,
+  taskCoversMissing,
+  taskVerifyMissing,
+} from './plan.js';
+import {
   approachEmpty,
   approvalMissing,
   approvalStale,
@@ -71,6 +82,20 @@ export const READY_RULES: readonly GateRule[] = [
   { id: 'gate.approach-empty', level: 'error', profiles: ['build', 'maintain'], check: approachEmpty },
   { id: 'gate.approval-missing', level: 'error', profiles: ['build', 'maintain'], check: approvalMissing },
   { id: 'gate.approval-stale', level: 'error', profiles: ['build', 'maintain'], check: approvalStale },
+];
+
+/** Spec §7: the plan gate. Every row is an error: an incomplete plan never reaches an executor. */
+export const PLAN_RULES: readonly GateRule[] = [
+  TICKET_UNKNOWN,
+  { id: 'gate.lane-missing', level: 'error', profiles: ['build', 'maintain'], check: laneMissing },
+  { id: 'gate.plan-missing', level: 'error', profiles: ['build', 'maintain'], check: planMissing },
+  { id: 'gate.plan-empty', level: 'error', profiles: ['build', 'maintain'], check: planEmpty },
+  { id: 'gate.task-covers-missing', level: 'error', profiles: ['build', 'maintain'], check: taskCoversMissing },
+  { id: 'gate.task-verify-missing', level: 'error', profiles: ['build', 'maintain'], check: taskVerifyMissing },
+  { id: 'gate.plan-ac-uncovered', level: 'error', profiles: ['build', 'maintain'], check: acUncovered },
+  { id: 'gate.plan-decision-uncited', level: 'error', profiles: ['build', 'maintain'], check: decisionUncited },
+  { id: 'gate.plan-ref-unknown', level: 'error', profiles: ['build', 'maintain'], check: refUnknown },
+  { id: 'gate.plan-deferral', level: 'error', profiles: ['build', 'maintain'], check: deferral },
 ];
 
 /** GATE-02/GATE-03/GATE-11 (docs/design.md §5). Every row is an error on both profiles: Done is the

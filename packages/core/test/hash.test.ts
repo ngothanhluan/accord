@@ -1,8 +1,10 @@
 // D-75 and D-77: the AC hash algorithm and its input join, pinned so neither can drift silently —
 // the value is written into ticket files that outlive the release, so a change must fail loudly.
 import { describe, expect, it } from 'vitest';
+import { loadSnapshot } from '../src/index.js';
 import type { ScenarioRef } from '../src/index.js';
-import { acHash, hashInput } from '../src/gate/hash.js';
+import { acHash, approvedHash, fnv1a64, hashInput } from '../src/gate/hash.js';
+import { CONFIG, laneTicket } from '../../../test/helpers/lane.js';
 
 const NUL = '\u0000';
 const sc = (acTag: string | undefined, steps: string[], tags: string[] = []): ScenarioRef => ({
@@ -75,5 +77,43 @@ describe('acHash (D-75)', () => {
     expect(acHash([two, one])).toBe(base);
     expect(acHash([{ ...one, tags: [...one.tags, '@test:a-b'] }, two])).toBe(base);
     expect(acHash([{ ...one, acTag: 'ac-2' }, { ...two, acTag: 'ac-1' }])).not.toBe(base);
+  });
+});
+
+describe('approvedHash (spec §4)', () => {
+  const ticketOf = (text: string) =>
+    loadSnapshot({ files: { 'accord/config.yml': CONFIG, 'accord/tickets/T-1.md': text }, tree: [] }).tickets['T-1'];
+  const base = ticketOf(laneTicket('T-1'));
+
+  it('is fnv1a64-prefixed and stable', () => {
+    expect(approvedHash(base)).toMatch(/^fnv1a64:[0-9a-f]{16}$/);
+    expect(approvedHash(ticketOf(laneTicket('T-1')))).toBe(approvedHash(base));
+  });
+
+  it.each([
+    ['Intent', 'Owners can export their report as CSV.', 'Owners can export as TSV.'],
+    ['Vetoes', '- No new dependency.', '- No new file.'],
+    ['Decisions', '- D-01 Use the existing writer', '- D-01 Write a new writer'],
+    ['Approach', 'Extend the existing report writer with a csv mode.', 'Rewrite the writer.'],
+    ['Acceptance criteria', 'Then a csv file is written', 'Then a tsv file is written'],
+  ])('moves when %s changes', (_section, from, to) => {
+    expect(approvedHash(ticketOf(laneTicket('T-1').replace(from, to)))).not.toBe(approvedHash(base));
+  });
+
+  it('moves when a correction is appended', () => {
+    const text = laneTicket('T-1').replace('## Corrections\n', '## Corrections\n- "no, CSV only"\n');
+    expect(approvedHash(ticketOf(text))).not.toBe(approvedHash(base));
+  });
+
+  it('ignores comments, blank lines, indentation, @test tags, and Open questions', () => {
+    const text = laneTicket('T-1')
+      .replace('## Approach\n', '## Approach\n<!-- guidance -->\n\n   ')
+      .replace('@ac-1 @test:export#writes-csv', '@ac-1 @test:export#renamed')
+      .replace('- [x] Delimiter? Comma.', '- [x] Delimiter? Semicolon.');
+    expect(approvedHash(ticketOf(text))).toBe(approvedHash(base));
+  });
+
+  it('fnv1a64 of the empty string is the FNV offset basis', () => {
+    expect(fnv1a64('')).toBe('fnv1a64:cbf29ce484222325');
   });
 });

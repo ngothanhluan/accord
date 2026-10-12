@@ -84,7 +84,7 @@ export type HooksPlan = { status: 'created' | 'unchanged' | 'updated'; text?: st
  * only. The file is the owner's: anything that is not a JSON object is refused here, with the hooks printed to
  * add by hand, so the refusal lands before the first byte of the run. Writes nothing.
  */
-export function planHooks(root: string, config: AccordConfig): HooksPlan | undefined {
+export function planHooks(root: string, config: Pick<AccordConfig, 'runtimes'>): HooksPlan | undefined {
   if (!config.runtimes.includes('claude')) return undefined;
   assertNoLink(root, SETTINGS);
   const entries = hookEntries(pkg);

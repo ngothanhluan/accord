@@ -15,7 +15,7 @@ import { assertNoLink } from '../guard.js';
 import { loadFromFs, UsageError } from '../load/fs.js';
 import { pinMessage } from '../pin.js';
 import { planHooks, writeHooks, writeSkillFiles } from './skills.js';
-import type { SkillFile } from '@accord-dev/accord-core';
+import type { AccordConfig, SkillFile } from '@accord-dev/accord-core';
 import type { HooksPlan, ReportRow } from './skills.js';
 import type { CommandContext } from '../run.js';
 
@@ -79,6 +79,14 @@ export function init(ctx: InitContext): number {
       ? undefined
       : refusals();
 
+  // Greenfield: the settings refusal cannot wait for `refusals()`, which runs after the scaffold is written, so
+  // it is taken here from the runtimes line of the config text this run is about to write. Settings do not
+  // depend on anything the loop writes, so this plan is the one applied below.
+  const configText = files.find((f) => f.path === 'accord/config.yml')?.text ?? '';
+  const written = /^runtimes: \[(.*)\]/m.exec(configText)?.[1]?.split(',').map((r) => r.trim()) ?? [];
+  const greenfieldHooks =
+    guarded === undefined ? planHooks(ctx.root, { runtimes: written as AccordConfig['runtimes'] }) : undefined;
+
   // Computed once, then rendered — so a `--json` mode added later cannot disagree with the text. One list
   // for both halves, so there is exactly one place that turns a status into a line of text.
   const results: ReportRow[] = [];
@@ -109,7 +117,7 @@ export function init(ctx: InitContext): number {
     // itself.
     // GC-WR-01: the array, not the return value. A copy written before a later target throws is in the
     // report the catch below prints, because it was recorded the moment it became true.
-    const { targets, hooks } = guarded ?? refusals();
+    const { targets, hooks } = guarded ?? { ...refusals(), hooks: greenfieldHooks };
     writeSkillFiles(ctx.root, targets, results);
     writeHooks(ctx.root, hooks, results);
 

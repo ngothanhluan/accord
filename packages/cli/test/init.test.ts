@@ -525,3 +525,31 @@ describe('accord init — the AGENTS.md and CLAUDE.md pointer (CLI-03)', () => {
     }
   });
 });
+
+describe('accord init - invalid .claude/settings.json refuses before any write', () => {
+  const bad = (repo: string): void => {
+    mkdirSync(at(repo, '.claude'), { recursive: true });
+    writeFileSync(at(repo, '.claude/settings.json'), '{ not json');
+  };
+
+  it('no config: exit 2, settings byte-identical, no accord/ folder', async () => {
+    const repo = sandbox();
+    bad(repo);
+    const { code, err } = await run(['init'], repo);
+    expect(code).toBe(2);
+    expect(err).toContain('Add these hooks by hand');
+    expect(bytes(at(repo, '.claude/settings.json'))).toBe('{ not json');
+    expect(existsSync(at(repo, 'accord'))).toBe(false);
+  });
+
+  it('existing config: exit 2, settings byte-identical, no skill file written', async () => {
+    const repo = sandbox();
+    mkdirSync(at(repo, 'accord'), { recursive: true });
+    writeFileSync(at(repo, CONFIG), HAND_WRITTEN(pkg.version));
+    bad(repo);
+    const { code } = await run(['init'], repo);
+    expect(code).toBe(2);
+    expect(bytes(at(repo, '.claude/settings.json'))).toBe('{ not json');
+    expect(listing(repo)).toEqual([]);
+  });
+});

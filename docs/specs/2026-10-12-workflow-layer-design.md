@@ -58,7 +58,7 @@ the owner's approval.
 | plan | none | planner writes, critic checks, CLI gate | one plan per story, waves from `depends_on` | rolling wave: only the next epic in detail |
 | build | main session | one fresh executor per task, sequential | independent stories in parallel worktrees | each epic runs lane L |
 | review | one reviewer pass | loop to convergence | per story, then epic integration | as L |
-| verify | short report in chat | AC report, try-steps, Rulings | as M plus epic summary | as L, per milestone |
+| verify | short report in chat | AC report, try-steps, Rulings | as M plus epic summary | as L, per epic |
 | CLI gates | affected tests pass | `ready`, `plan`, `done` | as M, plus epic gate | as L |
 
 **Classification.** The agent proposes a lane with its reason, out loud, and the owner may override.
@@ -70,6 +70,23 @@ first incomplete stage. A lane never drops mid-task.
 
 **S proceeds without waiting** when the request has a concrete anchor (file, symbol, error message, or
 expected behaviour) and one plausible reading. Otherwise the agent asks exactly one question and waits.
+
+**No milestones or phases.** Grouping is the epic (`parent:`), order is `depends_on`, and progress is
+derived by `accord status`. A release mark, when one is wanted, is a git tag; accord does not read it.
+
+**Lifecycle.**
+- *Dropped.* `status: dropped` with a `## Dropped` section giving the reason in one line. `status` and
+  `next` skip it, and a live ticket whose `depends_on` names a dropped ticket is a lint error: its plan is
+  re-thought, not silently unblocked (phase 2).
+- *Stale.* `config.yml` gains `stale_days` (default 14). `status` flags a ticket whose last commit on any
+  of its records is older than that and whose stage is not done; a claim branch `t/<id>` with no commit in
+  that window is flagged the same way (phase 2).
+- *Retro.* When an epic's last story reaches done, `accord-verify` writes `tickets/<epic>/retro.md`: what
+  the Corrections and Rulings across its stories have in common, and whether any belongs in `product/`
+  rules. A correction that repeats across tickets is the only thing promoted; nothing else is kept as
+  memory (phase 4).
+- *Epic readiness.* `accord gate ready <epic>` additionally requires every story to exist, to name the
+  epic in `parent:`, and to have a `depends_on` graph with no cycle (phase 4).
 
 ## 4. Intent stage
 
@@ -202,7 +219,13 @@ critic flags a task that does not.
 is covered by a task; every `D-nn` is cited; every task has `covers:` and `verify:`; nothing in `covers:`
 is foreign to the ticket; no "TODO", "TBD", "placeholder", "v1", "for now", "later" in task text.
 `accord-critic` checks meaning: no veto violated, nothing beyond the criteria, the approved approach
-followed. At most three revision rounds, then the owner is told; the run does not continue on a failing
+followed. It also argues goal-backward: assuming every task passes its `verify:` line, does the `## Intent`
+hold for the person it names? A plan that covers each criterion on paper but leaves the intent unmet (a
+step nobody wired, a state nobody reaches) is a Must (phase 2).
+
+`plan.md` frontmatter carries `baseline:`, the commit the plan was written against. `accord gate plan`
+checks that it names a commit that is an ancestor of `HEAD`, and `accord review-package <id>` diffs from
+it when no base is given, so review always sees the whole ticket and nothing before it (phase 2). At most three revision rounds, then the owner is told; the run does not continue on a failing
 plan.
 
 ### Slicing by review mode
@@ -316,6 +339,20 @@ The owner's report:
 - what was not checked;
 - slow tests.
 
+**UI tickets** (`ui: true` in frontmatter, phase 4).
+- *Intent.* Each screen the ticket touches gets `@ui` scenarios for its states, not only the happy path:
+  empty, loading, error, overflow (long text, many rows), and narrow width. The design reference, when
+  there is one, is linked from the ticket as in 0.1.0; none is required.
+- *Review.* `accord-reviewer` gains a `ui` lens: the states above, accessibility (keyboard, focus, contrast,
+  labels), the project's own components and tokens before new ones, and fidelity to the design reference.
+  `config.yml` may name a design skill installed in the repository (`ui: { skill: <name> }`); the lens then
+  delegates the craft judgement to it and keeps the contract checks itself. The named skill only builds or
+  reviews inside a stage; it never runs its own intent, planning, or done steps, because two orchestrators
+  on one ticket is how intent drifts.
+- *Verify.* Each `@ui` scenario's evidence is a screenshot per state under `tickets/<id>/evidence/`, named
+  by scenario, at the commit `verification.md` records. Without a browser available the result is
+  `blocked`, never pass.
+
 **Human layer by review mode.** Under `outcome`, the owner reads the report, tries the steps, and ticks
 `verified:` (still bound to commit and `ac_hash`); `## Verification notes` is not required. Under `human`,
 the 0.1.0 human layer stays, and each slice's pull request is reviewed by a person.
@@ -400,7 +437,7 @@ measurements, and re-run when new models ship.
 
 | Keep | Change | Add |
 |---|---|---|
-| `accord/` folder; frontmatter schema; Gherkin parsing; `@test:<id>`; `ac_hash`; JUnit scan; skills rendered from data; version pin; CI workflow | EARS optional, lint off by default; role skills replaced by stage skills; ticket headings per section 4; `## Plan` moves to `plan.md`; `## Verification notes` required only under `review: human`; constraint "identical behaviour in four runtimes" becomes "gates identical everywhere, orchestration Claude Code first" | frontmatter `lane`, `depends_on`, `approved_hash`; config `review.mode` (phase 1), `review.max_pr_lines` (phase 4), `models`, `escalation`, `tests.affected`, `tests.full` (phase 2); commands `approve`, `gate plan`, `task-done`, `brief`, `review-package`, `tests baseline`, `anchor`, `next`, extended `status`; rules `lint.test-untraced`, `lint.depends-*`, lane Ready, plan, and Done rules; per-ticket `plan.md`, `ledger.md`, `review.md`; `accord/tests-baseline.txt`; agents `accord-*`; hooks; benchmark harness |
+| `accord/` folder; frontmatter schema; Gherkin parsing; `@test:<id>`; `ac_hash`; JUnit scan; skills rendered from data; version pin; CI workflow | EARS optional, lint off by default; role skills replaced by stage skills; ticket headings per section 4; `## Plan` moves to `plan.md`; `## Verification notes` required only under `review: human`; constraint "identical behaviour in four runtimes" becomes "gates identical everywhere, orchestration Claude Code first" | frontmatter `lane`, `depends_on`, `approved_hash`, `status: dropped` (phase 2), `ui` (phase 4); `plan.md` `baseline:` (phase 2); config `review.mode` (phase 1), `stale_days` (phase 2), `review.max_pr_lines` and `ui.skill` (phase 4), `models`, `escalation`, `tests.affected`, `tests.full` (phase 2); commands `approve`, `gate plan`, `task-done`, `brief`, `review-package`, `tests baseline`, `anchor`, `next`, extended `status`; rules `lint.test-untraced`, `lint.depends-*`, lane Ready, plan, and Done rules; per-ticket `plan.md`, `ledger.md`, `review.md`; `accord/tests-baseline.txt`; agents `accord-*`; hooks; benchmark harness |
 
 **Compatibility.** The `lane` key opts a ticket into this contract. A ticket without `lane` keeps every
 0.1.0 rule (EARS, `## Plan`, Verification notes), so existing tickets need no migration. Each config key is
@@ -412,9 +449,11 @@ The `.planning/` directory of the previous planning process is archived when pha
 
 1. **Contract.** Ticket format, schema keys, and the new gates and commands. CLI only, fully testable.
 2. **Skills and agents v1.** `/accord`, intent, approach, plan, build, review, verify, debug, plus the
-   ruleset hooks. Dogfood: run one lane M ticket of accord through accord.
+   ruleset hooks; `status: dropped`, `stale_days`, the plan `baseline:`, and the critic's goal-backward
+   question (sections 3 and 7). Dogfood: run one lane M ticket of accord through accord.
 3. **Benchmark.** Reviewer and executor fixtures; replace the default routing.
-4. **Lanes L and P.** Waves, worktrees, slicing for `review: human`, epic gate.
+4. **Lanes L and P.** Waves, worktrees, slicing for `review: human`, epic gate, epic readiness, retro, and
+   UI tickets (sections 3 and 11).
 5. **Test diet**, and benchmark fixtures for critic and auditor.
 
 The benchmark follows phase 2 because it measures prompts that must exist first.

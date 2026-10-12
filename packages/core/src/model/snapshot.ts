@@ -117,6 +117,11 @@ export interface TicketWork {
   review?: Review;
 }
 
+export type RouteKey =
+  | 'scout' | 'auditor' | 'architect' | 'critic' | 'planner'
+  | 'executor' | 'reviewer' | 'reviewer.final' | 'verifier' | 'debugger';
+export type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+
 export interface AccordConfig {
   accord: string; // '0.1.0'
   profile: 'build' | 'maintain';
@@ -124,8 +129,11 @@ export interface AccordConfig {
   design: { tokens: string }; // 'src/styles/tokens.css' or ''
   roles: ('ba' | 'dev' | 'designer')[];
   runtimes: ('claude' | 'codex' | 'cursor' | 'copilot')[];
-  tests?: { report: string }; // D-72: repo-relative path of the test report
+  tests?: { report: string; affected?: string; full?: string }; // D-72: repo-relative path of the test report; commands the skills run
   review?: { mode: 'human' | 'outcome' }; // spec §7: absent means 'human', the 0.1.0 behaviour
+  models?: Partial<Record<RouteKey, { model: string; effort?: Effort }>>; // absent entries use the default routing
+  escalation?: { fix_round_tier_up: string }; // '1'..'5'; YAML numerics stay strings
+  stale_days?: string; // digits; YAML numerics stay strings
 }
 
 export interface RepoSnapshot {

@@ -7,6 +7,7 @@ import { loadSnapshot } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
 import { Command, CommanderError, Option } from 'commander';
 import pkg from '../package.json' with { type: 'json' };
+import { approve } from './commands/approve.js';
 import { gate } from './commands/gate.js';
 import { init } from './commands/init.js';
 import { lint } from './commands/lint.js';
@@ -108,6 +109,13 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
         setCode(gate(preflight(opts), which, id, options));
       });
   }
+
+  program
+    .command('approve <id>')
+    .description("record the owner's approval of a lane ticket as approved_hash")
+    .action((id: string) => {
+      setCode(approve(preflight(opts), id));
+    });
 
   // D-95: `new ticket` is deliberately *not* exempt from the pin. The ticket template changes between
   // versions, so scaffolding from a template the repository is not pinned to is exactly the split

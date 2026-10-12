@@ -1,7 +1,7 @@
 // Spec §10 `accord review-package <id> [--base <ref>]`: what a reviewer reads — commits, stat, and the diff
 // with ten lines of context. git only, literal argument arrays, no shell (CLI-07).
 import { execFileSync } from 'node:child_process';
-import { workOf } from '@accord-dev/accord-core';
+import { undeclaredFiles, workOf } from '@accord-dev/accord-core';
 import { UsageError } from '../load/fs.js';
 import type { CommandContext } from '../run.js';
 import { requireLaneTicket } from './lane-args.js';
@@ -52,6 +52,14 @@ export function reviewPackage(ctx: CommandContext, id: string, options: { base?:
       '## Diff',
       git(['diff', '--no-color', '--no-ext-diff', '-U10', range, '--']).trimEnd() || '(no changes)',
     ];
+    const changed = git(['diff', '--name-only', '-z', '--no-renames', range, '--']).split('\0').filter((p) => p !== '');
+    const undeclared = undeclaredFiles(ctx.snapshot, id, changed);
+    parts.splice(
+      parts.indexOf('## Diff'),
+      0,
+      '## Undeclared files',
+      undeclared === undefined ? '(no plan)' : undeclared.join('\n') || '(none)',
+    );
   } catch (e) {
     throw new UsageError(`cannot diff ${range}: ${why(e)}`);
   }

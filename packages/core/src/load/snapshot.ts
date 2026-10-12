@@ -184,5 +184,6 @@ export function loadSnapshot(input: SnapshotInput): RepoSnapshot {
     ...(testsBaseline === undefined ? {} : { testsBaseline }),
     ...(input.claims === undefined ? {} : { claims: input.claims }),
     ...(input.ancestors === undefined ? {} : { ancestors: input.ancestors }),
+    ...(input.baselineFiles === undefined ? {} : { baselineFiles: input.baselineFiles }),
   };
 }

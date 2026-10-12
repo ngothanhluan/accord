@@ -14,6 +14,8 @@ export interface SnapshotInput {
   claims?: Record<string, string>;
   // Host-supplied ancestry: plan baseline sha -> is it an ancestor of HEAD. Absent when the host supplies none.
   ancestors?: Record<string, boolean>;
+  // Host-supplied: baseline sha -> the plans' non-new `files:` paths that exist at that commit. Absent when the host supplies none.
+  baselineFiles?: Record<string, string[]>;
 }
 
 export interface Line {
@@ -90,7 +92,8 @@ export interface PlanTask {
   title: string;
   line: number; // Markdown line of the task heading
   covers: string[]; // tokens of the first 'covers:' line: ['@ac-1', 'D-02']
-  files: string[]; // tokens of the first 'files:' line
+  files: string[]; // path tokens of the first 'files:' line, `(new)` dropped
+  newFiles: string[]; // the paths of that line followed by `(new)`
   verify: string[]; // report case ids of the first 'verify:' line
   lines: Line[]; // every line under the heading up to the next '## ' heading, fences included
 }
@@ -99,6 +102,8 @@ export interface Plan {
   file: string; // 'accord/tickets/LOGIN-1/plan.md'
   tasks: PlanTask[];
   baseline?: string; // frontmatter `baseline:`, a string as written; absent when there is none
+  planHash?: string; // frontmatter `plan_hash:` as written, recorded by `gate plan`; absent when there is none
+  bodyHash: string; // fnv1a64 of the normalised text below the frontmatter
 }
 
 export interface Ledger {
@@ -154,4 +159,5 @@ export interface RepoSnapshot {
   testsBaseline?: string[]; // spec §9: ids in accord/tests-baseline.txt; absent when the file does not exist
   claims?: Record<string, string>; // carried through from SnapshotInput
   ancestors?: Record<string, boolean>; // carried through from SnapshotInput
+  baselineFiles?: Record<string, string[]>; // carried through from SnapshotInput
 }

@@ -16,6 +16,8 @@ export function taskVerdict(snapshot: RepoSnapshot, id: string, n: number): Task
   const plan = workOf(snapshot, id)?.plan;
   if (plan === undefined) return fail('no plan at ' + planFile(id));
   const task = plan.tasks.find((t) => t.n === n);
+  if (plan.planHash === undefined) return fail(`plan.md has no plan_hash:; run accord gate plan ${id}`);
+  if (plan.planHash !== plan.bodyHash) return fail(`plan.md changed after accord gate plan last passed; run accord gate plan ${id} again`);
   if (task === undefined) return fail(`the plan has no "## Task ${n}"`);
   if (task.verify.length === 0) return fail(`task ${n} has no verify: line`);
   const tests = snapshot.tests;

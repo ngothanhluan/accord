@@ -155,6 +155,35 @@ function gitAncestors(root: string, shas: string[]): Record<string, boolean> {
   return out;
 }
 
+/**
+ * Spec §7: which of the plans' non-new `files:` paths exist at each baseline that is an ancestor of HEAD.
+ * One `git ls-tree` per baseline; `--literal-pathspecs` keeps a path from reading as pathspec magic, `isSha`
+ * keeps the sha from reading as an option. A git failure is an environment error, not a verdict.
+ */
+function gitBaselineFiles(root: string, wanted: Record<string, string[]>, ancestors: Record<string, boolean>): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const [sha, paths] of Object.entries(wanted)) {
+    if (!ancestors[sha]) continue;
+    if (paths.length === 0) {
+      out[sha] = [];
+      continue;
+    }
+    try {
+      const raw = execFileSync('git', ['--literal-pathspecs', 'ls-tree', '--name-only', '-z', sha, '--', ...paths], {
+        cwd: root,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+        maxBuffer: 64 * 1024 * 1024,
+      });
+      out[sha] = raw.split('\0').filter((p) => p !== '');
+    } catch (err) {
+      const stderr = String((err as { stderr?: string }).stderr ?? '').trim();
+      throw new UsageError(`git ls-tree failed at baseline ${sha}` + (stderr === '' ? '' : '\n' + stderr));
+    }
+  }
+  return out;
+}
+
 export function loadFromFs(root: string): SnapshotInput {
   const tree = gitTree(root);
   const files = accordFiles(root);
@@ -171,12 +200,22 @@ export function loadFromFs(root: string): SnapshotInput {
     ...new Set(Object.values(first.work ?? {}).flatMap((w) => (w.plan?.baseline !== undefined && isSha(w.plan.baseline) ? [w.plan.baseline] : []))),
   ];
   const claims = gitClaims(root);
+  const ancestors = shas.length === 0 ? undefined : gitAncestors(root, shas);
+  const wanted: Record<string, string[]> = {};
+  for (const plan of Object.values(first.work ?? {}).flatMap((w) => (w.plan === undefined ? [] : [w.plan]))) {
+    const sha = plan.baseline;
+    if (sha === undefined || !isSha(sha)) continue;
+    const mine = plan.tasks.flatMap((t) => t.files.filter((f) => !t.newFiles.includes(f)));
+    wanted[sha] = [...new Set([...(wanted[sha] ?? []), ...mine])];
+  }
+  const baselineFiles = ancestors === undefined ? {} : gitBaselineFiles(root, wanted, ancestors);
   return {
     files,
     tree,
     ...(git === undefined ? {} : { git }),
     // Omitted when empty, so a repository with no ticket branch loads exactly as before.
     ...(Object.keys(claims).length === 0 ? {} : { claims }),
-    ...(shas.length === 0 ? {} : { ancestors: gitAncestors(root, shas) }),
+    ...(ancestors === undefined ? {} : { ancestors }),
+    ...(Object.keys(baselineFiles).length === 0 ? {} : { baselineFiles }),
   };
 }

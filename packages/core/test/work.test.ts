@@ -14,6 +14,27 @@ describe('parsePlan', () => {
     ]);
   });
 
+  it('splits (new) off files: onto newFiles; a leading (new) marks nothing', () => {
+    const t = (v: string) => parsePlan('p', `## Task 1: A\nfiles: ${v}\n`).plan.tasks[0];
+    expect([t('src/a.ts, src/b.ts (new)').files, t('src/a.ts, src/b.ts (new)').newFiles]).toEqual([['src/a.ts', 'src/b.ts'], ['src/b.ts']]);
+    expect([t('(new) src/a.ts').files, t('(new) src/a.ts').newFiles]).toEqual([['src/a.ts'], []]);
+  });
+
+  it('reads plan_hash as written; the body hash ignores line endings, the BOM, and the frontmatter', () => {
+    const hash = 'plan_hash: fnv1a64:0123456789abcdef';
+    expect(parsePlan('p', PLAN.replace(/plan_hash: .*\n/, hash + '\n')).plan.planHash).toBe('fnv1a64:0123456789abcdef');
+    const body = parsePlan('p', PLAN).plan.bodyHash;
+    expect(parsePlan('p', PLAN.replace(/\n/g, '\r\n')).plan.bodyHash).toBe(body);
+    expect(parsePlan('p', '﻿' + PLAN.replace(/\n/g, '\r\n')).plan.bodyHash).toBe(body);
+    expect(parsePlan('p', PLAN.replace('verify: export#writes-csv', 'verify: export#other')).plan.bodyHash).not.toBe(body);
+    expect(parsePlan('p', PLAN.replace(/plan_hash: .*\n/, hash + '\n')).plan.bodyHash).toBe(body);
+    expect(parsePlan('p', PLAN.replace(/plan_hash: .*\n/, '')).plan.bodyHash).toBe(body);
+  });
+
+  it('the helper PLAN carries the hash of its own body', () => {
+    expect(PLAN).toContain(`plan_hash: "${parsePlan('p', PLAN).plan.bodyHash}"`);
+  });
+
   it('takes the first field line, accepts a list marker, and skips fenced lines', () => {
     const text = '## Task 1: A\n```\nverify: fenced#x\n```\n- verify: real#y\nverify: second#z\n';
     expect(parsePlan('p', text).plan.tasks[0].verify).toEqual(['real#y']);

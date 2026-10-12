@@ -36,6 +36,7 @@ import {
   planMissing,
   refUnknown,
   taskCoversMissing,
+  taskFileUnknown,
   taskVerifyMissing,
 } from './plan.js';
 import {
@@ -113,6 +114,7 @@ export const PLAN_RULES: readonly GateRule[] = [
   { id: 'gate.plan-baseline-unknown', level: 'error', profiles: ['build', 'maintain'], check: planBaselineUnknown },
   { id: 'gate.task-covers-missing', level: 'error', profiles: ['build', 'maintain'], check: taskCoversMissing },
   { id: 'gate.task-verify-missing', level: 'error', profiles: ['build', 'maintain'], check: taskVerifyMissing },
+  { id: 'gate.task-file-unknown', level: 'error', profiles: ['build', 'maintain'], check: taskFileUnknown },
   { id: 'gate.plan-ac-uncovered', level: 'error', profiles: ['build', 'maintain'], check: acUncovered },
   { id: 'gate.plan-decision-uncited', level: 'error', profiles: ['build', 'maintain'], check: decisionUncited },
   { id: 'gate.plan-ref-unknown', level: 'error', profiles: ['build', 'maintain'], check: refUnknown },

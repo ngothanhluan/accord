@@ -3,6 +3,7 @@
 // normalises BOM and CRLF itself (D-38), so every encoding variant parses to one value.
 import type { LoadFinding } from '../model/finding.js';
 import type { Ledger, Plan, PlanTask, Review } from '../model/snapshot.js';
+import { fnv1a64 } from '../gate/hash.js';
 import { normaliseText, splitFrontmatter } from './frontmatter.js';
 import { headingKey, LIST_MARKER, scan, stripHtmlComments } from './sections.js';
 import { parseYamlMap } from './yaml.js';
@@ -51,19 +52,35 @@ export function parsePlan(file: string, text: string): { plan: Plan; findings: L
       const key = f[1] as Field;
       if (fields[key] === undefined) fields[key] = tokens(f[2]);
     }
+    // `(new)` marks the path before it; a leading one marks nothing.
+    const files: string[] = [];
+    const newFiles: string[] = [];
+    for (const t of fields.files ?? []) {
+      if (t !== '(new)') files.push(t);
+      else if (files.length > 0) newFiles.push(files[files.length - 1]);
+    }
     tasks.push({
       n,
       title: m[2].trim(),
       line: s.line,
       covers: fields.covers ?? [],
-      files: fields.files ?? [],
+      files,
+      newFiles,
       verify: fields.verify ?? [],
       lines: s.lines,
     });
   }
   // A broken or non-string baseline is simply absent; gate.plan-baseline-missing says what to write.
-  const baseline = yaml === null ? undefined : parseYamlMap(file, yaml, 1).map?.baseline;
-  return { plan: { file, tasks, ...(typeof baseline === 'string' ? { baseline } : {}) }, findings };
+  const map = yaml === null ? undefined : parseYamlMap(file, yaml, 1).map;
+  const { baseline, plan_hash: planHash } = map ?? {};
+  const plan: Plan = {
+    file,
+    tasks,
+    bodyHash: fnv1a64(body),
+    ...(typeof baseline === 'string' ? { baseline } : {}),
+    ...(typeof planHash === 'string' ? { planHash } : {}),
+  };
+  return { plan, findings };
 }
 
 /**

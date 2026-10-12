@@ -90,6 +90,22 @@ export const taskVerifyMissing: GateRule['check'] = (snapshot, id) =>
       reason: `task ${t.n} has no verify: line naming the report cases that prove it`,
     }));
 
+/** Spec §7: only when the host supplied the baseline's files; the baseline rules own a missing or unknown baseline. */
+export const taskFileUnknown: GateRule['check'] = (snapshot, id) => {
+  const sha = planOf(snapshot, id)?.baseline;
+  if (sha === undefined || snapshot.baselineFiles === undefined || !Object.hasOwn(snapshot.baselineFiles, sha)) return [];
+  const exist = new Set(snapshot.baselineFiles[sha]);
+  return tasksOf(snapshot, id).flatMap((t) =>
+    t.files
+      .filter((f) => !t.newFiles.includes(f) && !exist.has(f))
+      .map((f) => ({
+        file: planFile(id),
+        line: t.line,
+        reason: `task ${t.n} names ${f}, which does not exist at baseline ${sha}; correct the path, or write (new) after it if the task creates it`,
+      })),
+  );
+};
+
 export const acUncovered: GateRule['check'] = (snapshot, id) => {
   const t = laneTicket(snapshot, id);
   const tasks = tasksOf(snapshot, id);

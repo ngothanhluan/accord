@@ -8,12 +8,14 @@ import { lintSnapshot } from '../lint/index.js';
 import { acHash } from './hash.js';
 import { downgradeMaintain, DONE_RULES, PLAN_RULES, READY_PROMOTE, READY_RULES } from './rules.js';
 import type { GateRule } from './rules.js';
+import { laneTicket, workOf } from './work.js';
 
 export interface GateResult {
   gate: 'ready' | 'plan' | 'done';
   ticket: string;
   verdict: 'pass' | 'fail';
   findings: Finding[]; // sorted by file, then line (line-less first), then rule, reason, pointer
+  planHash?: string; // gate plan only: the plan's bodyHash, when the ticket has a plan
   acHash?: string; // absent only when the ticket is unknown or carries no `@ac-n` scenario (D-86)
 }
 
@@ -87,7 +89,9 @@ export function gateReady(snapshot: RepoSnapshot, id: string): GateResult {
 
 /** Spec §7: the plan gate plus the ticket-scoped lint findings, which include load findings on plan.md. */
 export function gatePlan(snapshot: RepoSnapshot, id: string): GateResult {
-  return run('plan', PLAN_RULES, [], snapshot, id);
+  const result = run('plan', PLAN_RULES, [], snapshot, id);
+  const planHash = laneTicket(snapshot, id) === undefined ? undefined : workOf(snapshot, id)?.plan?.bodyHash;
+  return planHash === undefined ? result : { ...result, planHash };
 }
 
 /**

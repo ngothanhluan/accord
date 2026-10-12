@@ -62,6 +62,32 @@ describe('gate plan', () => {
     expect(errors(gate({}))).toEqual(['gate.plan-baseline-unknown']);
   });
 
+  describe('gate.task-file-unknown', () => {
+    const files = { ...base(), 'accord/tickets/T-1/plan.md': PLAN };
+    const gate = (baselineFiles?: Record<string, string[]>, text = PLAN) => {
+      const f = { ...files, 'accord/tickets/T-1/plan.md': text };
+      return gatePlan(loadSnapshot({ files: f, tree: Object.keys(f).sort(), ...(baselineFiles ? { baselineFiles } : {}) }), 'T-1');
+    };
+    it('passes when the path exists at baseline; names it once per task when it does not', () => {
+      expect(errors(gate({ abc1234: ['src/export.ts'] }))).toEqual([]);
+      const r = gate({ abc1234: [] });
+      expect(r.findings.filter((f) => f.rule === 'gate.task-file-unknown').map((f) => [f.line, f.reason])).toEqual([
+        [8, 'task 1 names src/export.ts, which does not exist at baseline abc1234; correct the path, or write (new) after it if the task creates it'],
+        [14, 'task 2 names src/export.ts, which does not exist at baseline abc1234; correct the path, or write (new) after it if the task creates it'],
+      ]);
+    });
+    it('a (new) path passes; no facts, or facts for another baseline, skip the rule', () => {
+      expect(errors(gate({ abc1234: [] }, PLAN.replace(/files: src\/export.ts/g, 'files: src/export.ts (new)')))).toEqual([]);
+      expect(errors(gate())).toEqual([]);
+      expect(errors(gate({ other12: [] }))).toEqual([]);
+    });
+    it('gatePlan reports the plan body hash, and none without a plan', () => {
+      expect(gate().planHash).toBe(loadSnapshot({ files, tree: [] }).work?.['T-1'].plan?.bodyHash);
+      const none = { ...base() };
+      expect(gatePlan(loadSnapshot({ files: none, tree: Object.keys(none).sort() }), 'T-1').planHash).toBeUndefined();
+    });
+  });
+
   it('names an uncovered criterion and an uncited decision', () => {
     const text = PLAN.replace('covers: @ac-1, D-01', 'covers: @ac-1').replace('covers: @ac-2', 'covers: @ac-1');
     expect(plan(base(), text).findings.filter((f) => f.level === 'error').map((f) => [f.rule, f.reason])).toEqual([
@@ -101,7 +127,7 @@ describe('gate plan', () => {
     expect(errors(plan(base(), paths))).toEqual([]);
     const r = plan(base(), paths.replace('Quote cells that contain a comma.', 'Quote cells later.'));
     expect(r.findings.filter((f) => f.rule === 'gate.plan-deferral').map((f) => [f.line, f.reason])).toEqual([
-      [17, 'task 2 defers work: "later"'],
+      [18, 'task 2 defers work: "later"'],
     ]);
   });
 

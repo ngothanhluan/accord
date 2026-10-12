@@ -109,6 +109,7 @@ export function makeLaneRepo(extra: Record<string, string> = {}): string {
     'accord/config.yml': CONFIG,
     'accord/tickets/T-1.md': laneTicket('T-1'),
     'accord/tickets/T-1/plan.md': PLAN,
+    'src/export.ts': 'export const write = 1;\n', // the file the plan's tasks name, so it exists at baseline
     [REPORT]: junit({ 'export#writes-csv': 'passed', 'export#escapes-commas': 'passed' }),
     ...extra,
   });

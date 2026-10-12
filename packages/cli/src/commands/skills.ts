@@ -9,6 +9,8 @@
 import { lstatSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import {
+  agentDir,
+  agentTargets,
   allSkillDirs,
   contentHash,
   hookEntries,
@@ -144,6 +146,14 @@ function orphans(root: string, config: AccordConfig): string[] {
       if (!declaredDir || !declaredRoles.has(entry.name)) found.push(dir + '/' + entry.name);
     }
   }
+  // Agent files: an `accord-*.md` the render no longer produces (a dropped runtime, a renamed definition).
+  if (scannable(root, agentDir)) {
+    const rendered = new Set(agentTargets(config).map((t) => t.path));
+    for (const entry of readdirSync(join(root, ...agentDir.split('/')), { withFileTypes: true })) {
+      const path = agentDir + '/' + entry.name;
+      if (entry.isFile() && entry.name.startsWith('accord-') && entry.name.endsWith('.md') && !rendered.has(path)) found.push(path);
+    }
+  }
   return found.sort();
 }
 
@@ -180,7 +190,7 @@ export function skills(ctx: CommandContext): number {
     throw new UsageError('accord/config.yml is missing or failed its schema; run accord lint');
   }
 
-  const targets = skillTargets(config);
+  const targets = [...skillTargets(config), ...agentTargets(config)];
   // T-06-03: refuse before the first byte, over every destination. The loop below writes as it iterates, so
   // a guard inside it leaves everything sorted ahead of the bad path on disk while the message claims
   // "nothing was written" — a false report is worse than either outcome on its own.

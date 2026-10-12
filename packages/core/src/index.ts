@@ -50,6 +50,7 @@ export type { TemplateName } from './generated/templates.js';
 export { setFrontmatterKey } from './write/frontmatter.js';
 export type { FrontmatterValue } from './write/frontmatter.js';
 export { contentHash, markerHash, renderSkill, withoutMarker } from './skills/render.js';
+export { AGENT_DEFAULTS, agentDir, agentTargets, renderAgent } from './skills/agents.js';
 export { allSkillDirs, skillDirs, skillTargets } from './skills/targets.js';
 export type { SkillFile } from './skills/targets.js';
 // `ScaffoldFile` is structurally identical to `SkillFile` and deliberately separate: a scaffold file is
@@ -64,6 +65,8 @@ export { hookEntries, isAccordHookCommand, mergeHooks } from './scaffold/hooks.j
 export type { HookEntries } from './scaffold/hooks.js';
 export { skills } from './generated/skills.js';
 export type { SkillKey } from './generated/skills.js';
+export { agents } from './generated/agents.js';
+export type { AgentKey } from './generated/agents.js';
 // The read-back that `skills sync` compares against a hash must normalise exactly as the write did
 // (RESEARCH.md Pitfall 1); re-exported so the CLI reuses this one, rather than hand-rolling a fourth copy.
 export { normaliseText } from './load/frontmatter.js';

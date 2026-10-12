@@ -66,6 +66,35 @@ function setConfig(repo: string, find: RegExp, replace: string): void {
   writeFileSync(file, readFileSync(file, 'utf8').replace(find, replace));
 }
 
+describe('accord skills sync — agents', () => {
+  const SCOUT = '.claude/agents/accord-scout.md';
+
+  it('writes the agent files for the claude runtime', async () => {
+    const repo = sandbox();
+    const { out } = await run(['skills', 'sync'], repo);
+    expect(out).toContain('created ' + SCOUT);
+    expect(existsSync(at(repo, SCOUT))).toBe(true);
+  });
+
+  it('a routing change in config.yml updates the agent on the next sync', async () => {
+    const repo = sandbox();
+    await run(['skills', 'sync'], repo);
+    writeFileSync(join(repo, 'accord', 'config.yml'), readFileSync(join(repo, 'accord', 'config.yml'), 'utf8') + '\nmodels:\n  scout:\n    model: sonnet\n');
+    const { out } = await run(['skills', 'sync'], repo);
+    expect(out).toContain('updated ' + SCOUT);
+    expect(readFileSync(at(repo, SCOUT), 'utf8')).toContain('model: "sonnet"');
+  });
+
+  it('reports a stray accord agent file as an orphan and keeps it', async () => {
+    const repo = sandbox();
+    await run(['skills', 'sync'], repo);
+    writeFileSync(at(repo, '.claude/agents/accord-old.md'), 'x');
+    const { err } = await run(['skills', 'sync'], repo);
+    expect(orphanDirs(err)).toEqual(['.claude/agents/accord-old.md']);
+    expect(existsSync(at(repo, '.claude/agents/accord-old.md'))).toBe(true);
+  });
+});
+
 describe('accord skills sync — what it writes', () => {
   it('creates one copy per runtime directory, prints a line each, and exits 0', async () => {
     const repo = sandbox();

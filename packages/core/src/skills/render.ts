@@ -97,5 +97,10 @@ export function renderSkill(key: SkillKey): string {
   }
   // D-111: the hash covers the rendered file with the marker line absent, so the same computation
   // reproduces it from a copy on disk — detecting both a changed definition and a hand-edited copy.
+  return stamp(head, body);
+}
+
+/** The marker line between a rendered head and body; agent rendering shares it so the drift rule is one rule. */
+export function stamp(head: string, body: string): string {
   return head + MARKER_HEAD + contentHash(head + body) + MARKER_TAIL + '\n' + body;
 }

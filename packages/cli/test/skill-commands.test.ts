@@ -88,7 +88,7 @@ function mentions(files: SkillFile[]): Mention[] {
 
 describe('the commands a skill may name (SKILL-08, D-110)', () => {
   it('reads the real paths off the commander tree the CLI runs', () => {
-    expect(REAL).toEqual(['approve', 'brief', 'gate done', 'gate plan', 'gate ready', 'init', 'lint', 'new ticket', 'next', 'review-package', 'skills sync', 'status', 'task-done', 'tests baseline']);
+    expect(REAL).toEqual(['anchor', 'approve', 'brief', 'gate done', 'gate plan', 'gate ready', 'init', 'lint', 'new ticket', 'next', 'review-package', 'skills sync', 'status', 'task-done', 'tests baseline']);
   });
 
   it('treats a namespace with no action of its own as not a command', () => {

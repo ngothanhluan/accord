@@ -7,6 +7,7 @@ import { loadSnapshot } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
 import { Command, CommanderError, Option } from 'commander';
 import pkg from '../package.json' with { type: 'json' };
+import { anchor } from './commands/anchor.js';
 import { approve } from './commands/approve.js';
 import { brief } from './commands/brief.js';
 import { gate } from './commands/gate.js';
@@ -203,6 +204,13 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .option('--json', 'print the StatusRow array instead of the table')
     .action((options: { json?: boolean }) => {
       setCode(next(preflight(opts), options));
+    });
+
+  program
+    .command('anchor [id]')
+    .description("print the active ticket's intent, vetoes, decisions, corrections, and position")
+    .action((id: string | undefined) => {
+      setCode(anchor(preflight(opts), id));
     });
 
   return program;

@@ -531,3 +531,52 @@ describe('status, claims, and next', () => {
     }
   });
 });
+
+describe('accord anchor', () => {
+  it('anchors the ticket the current branch names', async () => {
+    const repo = makeLaneRepo();
+    try {
+      commitAll(repo);
+      gitRun(repo, 'checkout', '-q', '-b', 't/T-1');
+      const r = await run(['anchor'], repo);
+      expect(r.code).toBe(0);
+      expect(r.out.startsWith('# Anchor: T-1 "Export"\n')).toBe(true);
+    } finally {
+      cleanup(repo);
+    }
+  });
+
+  it('prints nothing on a branch that names no ticket', async () => {
+    const repo = makeLaneRepo();
+    try {
+      commitAll(repo);
+      const r = await run(['anchor'], repo);
+      expect(r).toMatchObject({ code: 0, out: '' });
+    } finally {
+      cleanup(repo);
+    }
+  });
+
+  it('prints nothing on a detached HEAD, exit 0', async () => {
+    const repo = makeLaneRepo();
+    try {
+      commitAll(repo);
+      gitRun(repo, 'checkout', '-q', '--detach');
+      const r = await run(['anchor'], repo);
+      expect(r).toMatchObject({ code: 0, out: '' });
+    } finally {
+      cleanup(repo);
+    }
+  });
+
+  it('refuses an explicit id that is not a lane ticket, exit 2', async () => {
+    const repo = makeLaneRepo();
+    try {
+      const r = await run(['anchor', 'NOPE'], repo);
+      expect(r.code).toBe(2);
+      expect(r.err).toContain('no ticket NOPE in accord/tickets/');
+    } finally {
+      cleanup(repo);
+    }
+  });
+});

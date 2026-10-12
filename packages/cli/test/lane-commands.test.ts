@@ -3,7 +3,7 @@
 import { existsSync, readFileSync, utimesSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { cleanup, commitAll, makeLaneRepo, run } from './helpers/repo.js';
+import { cleanup, commitAll, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
 import { CONFIG, junit, laneTicket, REPORT } from '../../../test/helpers/lane.js';
 
 const ticketText = (repo: string, id = 'T-1') => readFileSync(join(repo, 'accord', 'tickets', id + '.md'), 'utf8');
@@ -202,6 +202,65 @@ describe('accord task-done', () => {
       const plain = await run(['task-done', 'T-2', '1'], repo);
       expect(plain.code).toBe(2);
       expect(plain.err).toContain('accord/tickets/T-2.md has no lane:');
+    } finally {
+      cleanup(repo);
+    }
+  });
+});
+
+describe('accord brief', () => {
+  it('prints the ticket verbatim, then the one task', async () => {
+    const repo = makeLaneRepo();
+    try {
+      const r = await run(['brief', 'T-1', '2'], repo);
+      expect(r.code).toBe(0);
+      expect(r.out.startsWith('---\nid: "T-1"\n')).toBe(true);
+      expect(r.out).toContain('\n---\n\n## Task 2: Escaping\ncovers: @ac-2\n');
+      expect(r.out).not.toContain('Task 1: Writer');
+    } finally {
+      cleanup(repo);
+    }
+  });
+
+  it('refuses a task the plan does not have, exit 2', async () => {
+    const repo = makeLaneRepo();
+    try {
+      const r = await run(['brief', 'T-1', '9'], repo);
+      expect(r.code).toBe(2);
+      expect(r.err).toContain('accord/tickets/T-1/plan.md has no "## Task 9"');
+    } finally {
+      cleanup(repo);
+    }
+  });
+});
+
+describe('accord review-package', () => {
+  it('prints commits, stat, and diff since the base', async () => {
+    const repo = makeLaneRepo();
+    try {
+      const base = commitAll(repo);
+      writeFiles(repo, { 'src/x.ts': 'export const x = 1;\n' });
+      commitAll(repo);
+      const r = await run(['review-package', 'T-1', '--base', base], repo);
+      expect(r.code).toBe(0);
+      expect(r.out).toContain('## Commits\n');
+      expect(r.out).toContain(' fixture\n');
+      expect(r.out).toContain('## Stat\n');
+      expect(r.out).toContain('src/x.ts');
+      expect(r.out).toContain('+export const x = 1;');
+    } finally {
+      cleanup(repo);
+    }
+  });
+
+  it('refuses a malformed or unknown base, exit 2', async () => {
+    const repo = makeLaneRepo();
+    try {
+      commitAll(repo);
+      expect((await run(['review-package', 'T-1', '--base', 'no such ref'], repo)).code).toBe(2);
+      const r = await run(['review-package', 'T-1', '--base', 'deadbeef'], repo);
+      expect(r.code).toBe(2);
+      expect(r.err).toContain('unknown base ref: deadbeef');
     } finally {
       cleanup(repo);
     }

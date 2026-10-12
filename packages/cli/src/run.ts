@@ -8,10 +8,12 @@ import type { RepoSnapshot } from '@accord-dev/accord-core';
 import { Command, CommanderError, Option } from 'commander';
 import pkg from '../package.json' with { type: 'json' };
 import { approve } from './commands/approve.js';
+import { brief } from './commands/brief.js';
 import { gate } from './commands/gate.js';
 import { init } from './commands/init.js';
 import { lint } from './commands/lint.js';
 import { newTicket } from './commands/new-ticket.js';
+import { reviewPackage } from './commands/review-package.js';
 import { skills } from './commands/skills.js';
 import { status } from './commands/status.js';
 import { taskDone } from './commands/task-done.js';
@@ -123,6 +125,21 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .description('record a plan task as done when the test report shows its verify cases passed')
     .action((id: string, task: string) => {
       setCode(taskDone(preflight(opts), id, task));
+    });
+
+  program
+    .command('brief <id> <task>')
+    .description('print the ticket and one plan task: the brief an executor receives')
+    .action((id: string, task: string) => {
+      setCode(brief(preflight(opts), id, task));
+    });
+
+  program
+    .command('review-package <id>')
+    .description('print the commits, stat, and diff a reviewer reads')
+    .option('--base <ref>', 'the commit or branch the work started from', 'main')
+    .action((id: string, options: { base: string }) => {
+      setCode(reviewPackage(preflight(opts), id, options));
     });
 
   // D-95: `new ticket` is deliberately *not* exempt from the pin. The ticket template changes between

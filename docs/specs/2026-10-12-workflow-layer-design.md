@@ -198,9 +198,9 @@ case ids that prove it, then prose for the executor: interface (consumes, produc
 first. A task fits in about half of an executor's context; the planner splits anything larger, and the
 critic flags a task that does not.
 
-`accord gate plan <id>` (new) checks mechanically: every `@ac-n` is covered by a task; every `D-nn` is
-cited; every task has `covers:` and `verify:`; nothing in `covers:` is foreign to the ticket; no "TODO",
-"TBD", "placeholder", "v1", "for now", "later" in task text.
+`accord gate plan <id>` (new) checks mechanically: the approval still matches the ticket; every `@ac-n`
+is covered by a task; every `D-nn` is cited; every task has `covers:` and `verify:`; nothing in `covers:`
+is foreign to the ticket; no "TODO", "TBD", "placeholder", "v1", "for now", "later" in task text.
 `accord-critic` checks meaning: no veto violated, nothing beyond the criteria, the approved approach
 followed. At most three revision rounds, then the owner is told; the run does not continue on a failing
 plan.
@@ -301,7 +301,8 @@ merges and de-duplicates findings before the fix loop.
 - no untraced test case in the report (`gate.test-untraced`, section 9);
 - no failed case in the report (`gate.suite-not-passed`); the report is the output of `tests.full`;
 - `review.md` ends with `verdict: converged` or `verdict: accepted-by-owner`;
-- every task in `plan.md` has a ledger completion line.
+- every task in `plan.md` has a ledger completion line;
+- the approval still matches the ticket (`gate.approval-stale`, section 4).
 
 `accord-verifier`, in a fresh context, writes `verification.md`. It distrusts summaries and checks four
 levels per criterion: exists, substantive (not a stub), wired (reachable from its entry point), and data

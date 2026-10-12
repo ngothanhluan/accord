@@ -71,6 +71,16 @@ describe('Done for lane tickets', () => {
     expect(r.verdict).toBe('pass');
   });
 
+  it('a Corrections line appended after Done stales the approval until the owner approves again', () => {
+    const files = doneFiles();
+    const t = 'accord/tickets/T-1.md';
+    const corrected = { ...files, [t]: files[t].replace('## Corrections\n', '## Corrections\n- C-01 Quote tabs too.\n') };
+    expect(errors(done(corrected))).toEqual(['gate.approval-stale']);
+    expect(errors(done(approved(corrected, 'T-1')))).toEqual([]);
+    const unapproved = { ...files, [t]: files[t].replace(/^approved_hash: .*\n/m, '') };
+    expect(errors(done(unapproved))).toEqual(['gate.approval-missing']);
+  });
+
   it('a task without a completion line fails on gate.task-incomplete', () => {
     const r = done(doneFiles({ 'accord/tickets/T-1/ledger.md': '## Tasks\n- task 1 done 1234567\n' }));
     expect(errors(r)).toEqual(['gate.task-incomplete']);

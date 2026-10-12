@@ -75,20 +75,36 @@ const TICKET_UNKNOWN: GateRule = {
   check: ticketUnknown,
 };
 
+/** Spec §4, §7, §11: Ready, Plan, and Done all refuse a lane ticket whose approval is absent or stale. */
+const APPROVAL_MISSING: GateRule = {
+  id: 'gate.approval-missing',
+  level: 'error',
+  profiles: ['build', 'maintain'],
+  check: approvalMissing,
+};
+const APPROVAL_STALE: GateRule = {
+  id: 'gate.approval-stale',
+  level: 'error',
+  profiles: ['build', 'maintain'],
+  check: approvalStale,
+};
+
 export const READY_RULES: readonly GateRule[] = [
   TICKET_UNKNOWN,
   { id: 'gate.design-missing', level: 'error', profiles: ['build', 'maintain'], check: designMissing },
   { id: 'gate.intent-empty', level: 'error', profiles: ['build', 'maintain'], check: intentEmpty },
   { id: 'gate.ears-missing', level: 'error', profiles: ['build', 'maintain'], check: earsMissing },
   { id: 'gate.approach-empty', level: 'error', profiles: ['build', 'maintain'], check: approachEmpty },
-  { id: 'gate.approval-missing', level: 'error', profiles: ['build', 'maintain'], check: approvalMissing },
-  { id: 'gate.approval-stale', level: 'error', profiles: ['build', 'maintain'], check: approvalStale },
+  APPROVAL_MISSING,
+  APPROVAL_STALE,
 ];
 
 /** Spec §7: the plan gate. Every row is an error: an incomplete plan never reaches an executor. */
 export const PLAN_RULES: readonly GateRule[] = [
   TICKET_UNKNOWN,
   { id: 'gate.lane-missing', level: 'error', profiles: ['build', 'maintain'], check: laneMissing },
+  APPROVAL_MISSING,
+  APPROVAL_STALE,
   { id: 'gate.plan-missing', level: 'error', profiles: ['build', 'maintain'], check: planMissing },
   { id: 'gate.plan-empty', level: 'error', profiles: ['build', 'maintain'], check: planEmpty },
   { id: 'gate.task-covers-missing', level: 'error', profiles: ['build', 'maintain'], check: taskCoversMissing },
@@ -125,6 +141,8 @@ export const DONE_RULES: readonly GateRule[] = [
   { id: 'gate.report-missing', level: 'error', profiles: ['build', 'maintain'], check: reportMissing },
   { id: 'gate.test-unknown', level: 'error', profiles: ['build', 'maintain'], check: testUnknown },
   { id: 'gate.test-not-passed', level: 'error', profiles: ['build', 'maintain'], check: testNotPassed },
+  APPROVAL_MISSING,
+  APPROVAL_STALE,
   { id: 'gate.task-incomplete', level: 'error', profiles: ['build', 'maintain'], check: tasksIncomplete },
   { id: 'gate.review-missing', level: 'error', profiles: ['build', 'maintain'], check: reviewMissing },
   { id: 'gate.review-unconverged', level: 'error', profiles: ['build', 'maintain'], check: reviewUnconverged },

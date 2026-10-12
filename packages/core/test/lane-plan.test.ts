@@ -28,6 +28,14 @@ describe('gate plan', () => {
     expect(r.verdict).toBe('pass');
   });
 
+  it('an unapproved ticket fails on gate.approval-missing; an edited one on gate.approval-stale', () => {
+    const files = base();
+    const t = 'accord/tickets/T-1.md';
+    expect(errors(plan({ ...files, [t]: laneTicket('T-1') }, PLAN))).toEqual(['gate.approval-missing']);
+    const edited = { ...files, [t]: files[t].replace('csv mode', 'tsv mode') };
+    expect(errors(plan(edited, PLAN))).toEqual(['gate.approval-stale']);
+  });
+
   it('no plan fails on gate.plan-missing', () => {
     expect(errors(plan(base()))).toEqual(['gate.plan-missing']);
   });

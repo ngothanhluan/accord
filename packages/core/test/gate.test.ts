@@ -624,6 +624,14 @@ describe('the gate rule tables (D-57, D-59)', () => {
         }
   });
 
+  // Spec §4, §7, §11: no lane gate passes on an approval that is absent or no longer matches.
+  it('Ready, Plan, and Done each carry both approval rows', () => {
+    for (const table of [READY_RULES, PLAN_RULES, DONE_RULES]) {
+      const ids = table.map((r) => r.id);
+      expect(ids).toEqual(expect.arrayContaining(['gate.approval-missing', 'gate.approval-stale']));
+    }
+  });
+
   it('READY_PROMOTE names only real lint rule ids', () => {
     for (const id of READY_PROMOTE) expect(RULES.some((r) => r.id === id), id).toBe(true);
   });

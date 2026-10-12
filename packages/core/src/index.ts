@@ -16,6 +16,11 @@ export type {
   Section,
   Line,
   AccordConfig,
+  PlanTask,
+  Plan,
+  Ledger,
+  Review,
+  TicketWork,
 } from './model/snapshot.js';
 export { loadSnapshot } from './load/snapshot.js';
 export { lintSnapshot } from './lint/index.js';

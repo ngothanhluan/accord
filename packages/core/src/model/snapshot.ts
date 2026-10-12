@@ -9,6 +9,9 @@ export interface SnapshotInput {
   // repo-relative posix path, plus one entry keyed by the value of `commit` carrying the gated commit's
   // author. Absent — not undefined — when the host cannot supply it, so the D-54 goldens are unchanged.
   git?: { commit: string; authors: Record<string, string> };
+  // Spec §5: host-supplied claims, ticket id -> author of the tip of branch t/<id>. Absent when the host
+  // has none, so the D-54 goldens are unchanged.
+  claims?: Record<string, string>;
 }
 
 export interface Line {
@@ -80,6 +83,39 @@ export interface Verification {
   blocks: EvidenceBlock[];
 }
 
+export interface PlanTask {
+  n: number; // 3, from '## Task 3: <title>'
+  title: string;
+  line: number; // Markdown line of the task heading
+  covers: string[]; // tokens of the first 'covers:' line: ['@ac-1', 'D-02']
+  files: string[]; // tokens of the first 'files:' line
+  verify: string[]; // report case ids of the first 'verify:' line
+  lines: Line[]; // every line under the heading up to the next '## ' heading, fences included
+}
+
+export interface Plan {
+  file: string; // 'accord/tickets/LOGIN-1/plan.md'
+  tasks: PlanTask[];
+}
+
+export interface Ledger {
+  file: string; // 'accord/tickets/LOGIN-1/ledger.md'
+  done: Record<string, string>; // task number -> commit sha of its first done line
+  rulings: string[]; // every 'Ruling: …' line, list marker stripped
+}
+
+export interface Review {
+  file: string; // 'accord/tickets/LOGIN-1/review.md'
+  verdict?: string; // the value of the last 'verdict:' line
+  line?: number; // its Markdown line
+}
+
+export interface TicketWork {
+  plan?: Plan;
+  ledger?: Ledger;
+  review?: Review;
+}
+
 export interface AccordConfig {
   accord: string; // '0.1.0'
   profile: 'build' | 'maintain';
@@ -102,4 +138,7 @@ export interface RepoSnapshot {
   // D-78: carried through from SnapshotInput. Host-supplied, `authors` keyed by repo-relative posix path
   // plus one entry keyed by the value of `commit`; absent, not undefined, when the host cannot supply it.
   git?: { commit: string; authors: Record<string, string> };
+  work?: Record<string, TicketWork>; // spec §7-§10, keyed by ticket folder; absent when no record exists
+  testsBaseline?: string[]; // spec §9: ids in accord/tests-baseline.txt; absent when the file does not exist
+  claims?: Record<string, string>; // carried through from SnapshotInput
 }

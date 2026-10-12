@@ -6,6 +6,7 @@ import type {
   SnapshotInput,
   Ticket,
   TicketFrontmatter,
+  TicketWork,
   Verification,
 } from '../model/snapshot.js';
 import { loadConfig } from './config.js';
@@ -14,12 +15,15 @@ import { extractScenarios } from './gherkin.js';
 import { scanJUnit } from './junit.js';
 import { d07Key, duplicateHeadings, headingKey, requirementLines, scan } from './sections.js';
 import { parseVerification } from './verification.js';
+import { parseBaseline, parseLedger, parsePlan, parseReview } from './work.js';
 
 const CONFIG = 'accord/config.yml';
 // A3: a configured report with none of these is garbage, reported once rather than once per scenario.
 const REPORT_TAG = /<testsuites?\b|<testcase\b/;
 const TICKET = /^accord\/tickets\/([^/]+)\.md$/;
 const VERIFICATION = /^accord\/tickets\/([^/]+)\/verification\.md$/;
+const WORK = /^accord\/tickets\/([^/]+)\/(plan|ledger|review)\.md$/;
+const BASELINE = 'accord/tests-baseline.txt';
 export const PROTOTYPE = /^accord\/assets\/([^/]+)\/prototype\.html$/;
 
 /** D-29: backslashes become slashes and a leading ./ is dropped; the separator is never an error. */
@@ -102,6 +106,8 @@ export function loadSnapshot(input: SnapshotInput): RepoSnapshot {
 
   const tickets: Record<string, Ticket> = {};
   const verifications: Record<string, Verification> = {};
+  const workFiles: { id: string; kind: string; file: string }[] = [];
+  let testsBaseline: string[] | undefined;
   for (const file of Object.keys(files).sort()) {
     const t = TICKET.exec(file);
     if (t) {
@@ -115,6 +121,16 @@ export function loadSnapshot(input: SnapshotInput): RepoSnapshot {
       const r = parseVerification(v[1], file, files[file]);
       verifications[v[1]] = r.verification;
       errors.push(...r.findings);
+      continue;
+    }
+    const w = WORK.exec(file);
+    if (w) {
+      workFiles.push({ id: w[1], kind: w[2], file });
+      continue;
+    }
+    if (file === BASELINE) {
+      testsBaseline = parseBaseline(files[file]);
+      continue;
     }
     // D-37: anything else is ignored.
   }
@@ -128,6 +144,31 @@ export function loadSnapshot(input: SnapshotInput): RepoSnapshot {
     });
   }
 
+  // Spec §7-§10, ruling F1: records count only under a lane ticket. A 0.1.0 ticket's records are ignored
+  // without a finding, so its lint, gate, and status results stay byte-identical (D-37).
+  const work: Record<string, TicketWork> = {};
+  for (const { id, kind, file } of workFiles) {
+    if (!Object.hasOwn(tickets, id)) {
+      errors.push({
+        file,
+        rule: 'load.work-orphan',
+        reason: `work record without a ticket: accord/tickets/${id}.md is missing`,
+      });
+      continue;
+    }
+    if (tickets[id].frontmatter?.lane === undefined) continue;
+    const entry = Object.hasOwn(work, id) ? work[id] : (work[id] = {});
+    if (kind === 'plan') {
+      const r = parsePlan(file, files[file]);
+      entry.plan = r.plan;
+      errors.push(...r.findings);
+    } else if (kind === 'ledger') {
+      entry.ledger = parseLedger(file, files[file]);
+    } else {
+      entry.review = parseReview(file, files[file]);
+    }
+  }
+
   return {
     ...(config === undefined ? {} : { config }),
     tickets,
@@ -138,5 +179,9 @@ export function loadSnapshot(input: SnapshotInput): RepoSnapshot {
     ...(tests === undefined ? {} : { tests }),
     // D-78: host facts pass straight through, spread so an absent `git` stays absent in the D-54 golden.
     ...(input.git === undefined ? {} : { git: input.git }),
+    // Spec §7-§10: spread so a repository with no workflow record keeps its D-54 golden byte-identical.
+    ...(Object.keys(work).length === 0 ? {} : { work }),
+    ...(testsBaseline === undefined ? {} : { testsBaseline }),
+    ...(input.claims === undefined ? {} : { claims: input.claims }),
   };
 }

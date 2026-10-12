@@ -732,7 +732,7 @@ The skill must say:
 4. `BLOCKED` with a question that touches intent, a veto, a criterion, or a public interface: ask the owner. `BLOCKED: context`: dispatch a fresh executor with the same brief plus the diff and ledger so far. `NEEDS_CONTEXT`: answer and re-dispatch.
 5. Files outside the task's `files:` line must be declared with a reason in the report; record a Ruling when you accept them.
 6. **Change of course.** When the approved approach cannot work, stop. Write a change note under the ticket's `## Approach`: what failed, which finished tasks still hold, and the proposed new approach. Ask the owner for a new yes; on yes run `accord approve <id>`, then `accord-plan` re-plans only the tasks the change touches. Never re-plan quietly.
-7. When `accord task-done` says `plan.md` changed, never run `accord gate plan` to clear it: revert the change and re-dispatch. Only `accord-plan` changes the plan.
+7. When `accord task-done` says `plan.md` changed, never run `accord gate plan` to clear it. Show the owner the diff of `plan.md`. If the owner made the change, `accord-plan` reviews it (critic, then `accord gate plan`); otherwise restore `plan.md` with the owner's yes and re-dispatch. Only `accord-plan` changes the plan.
 8. When every task has a ledger line, next: `accord-review`.
 
 `REQUIRED` row: `accord anchor`, `accord brief`, `accord-executor`, `tests.affected`, `accord task-done`, `BLOCKED: context`, `change note`, `accord approve`, `accord-plan`, `accord-review`.

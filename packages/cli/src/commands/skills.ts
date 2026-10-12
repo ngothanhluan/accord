@@ -17,7 +17,6 @@ import {
   markerHash,
   mergeHooks,
   normaliseText,
-  skillDirs,
   skillTargets,
   withoutMarker,
 } from '@accord-dev/accord-core';
@@ -121,29 +120,27 @@ export function writeHooks(root: string, plan: HooksPlan | undefined, out: Repor
 }
 
 /**
- * D-113: the scan opens every directory the table can produce (`allSkillDirs()`), and an `accord-*`
- * directory is an orphan when the config no longer declares the runtime that puts it on disk, or no
- * longer declares the role that names it. The declared subset cannot be the scan set: a directory
- * abandoned by dropping a runtime is by definition not in it, so it would never be opened at all.
- * `sync` never deletes — an orphan keeps loading in the runtime until someone removes it, so saying
- * nothing was rejected, and deleting files under a user's repository was rejected harder.
+ * D-113: the scan opens every directory the table can produce (`allSkillDirs()`), and an accord
+ * directory is an orphan when this render does not produce it: a dropped runtime, a role no longer
+ * declared, or a 0.1.0 `accord-ba` or `accord-dev` that the stage skills replaced while `roles:` still
+ * names them. The declared subset cannot be the scan set: a directory abandoned by dropping a runtime is
+ * by definition not in it, so it would never be opened at all. `sync` never deletes — an orphan keeps
+ * loading in the runtime until someone removes it, so saying nothing was rejected, and deleting files
+ * under a user's repository was rejected harder.
  *
- * D-123: `accord-*` and nothing else. A directory another tool owns is not read, not counted, and not
- * mentioned — inspecting someone else's files and editorialising about them is outside accord's
- * boundary. The declared set is `roles:` and `runtimes:`, not the render output: a role that is declared
- * but whose workflow has not been authored yet is not an orphan, it is a role waiting for its definition.
+ * D-123: `accord` and `accord-*` and nothing else. A directory another tool owns is not read, not
+ * counted, and not mentioned — inspecting someone else's files and editorialising about them is outside
+ * accord's boundary.
  */
 function orphans(root: string, config: AccordConfig): string[] {
-  const declaredRoles = new Set(config.roles.map((r) => 'accord-' + r));
-  const declaredDirs = new Set(skillDirs(config));
+  const rendered = new Set(skillTargets(config).map((t) => t.path.slice(0, t.path.lastIndexOf('/'))));
   const found: string[] = [];
   for (const dir of allSkillDirs()) {
     const abs = join(root, ...dir.split('/'));
     if (!scannable(root, dir)) continue;
-    const declaredDir = declaredDirs.has(dir);
     for (const entry of readdirSync(abs, { withFileTypes: true })) {
-      if (!entry.isDirectory() || !entry.name.startsWith('accord-')) continue;
-      if (!declaredDir || !declaredRoles.has(entry.name)) found.push(dir + '/' + entry.name);
+      if (!entry.isDirectory() || !(entry.name === 'accord' || entry.name.startsWith('accord-'))) continue;
+      if (!rendered.has(dir + '/' + entry.name)) found.push(dir + '/' + entry.name);
     }
   }
   // Agent files: an `accord-*.md` the render no longer produces (a dropped runtime, a renamed definition).

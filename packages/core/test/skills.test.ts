@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import type { Tags } from 'yaml';
-import { allSkillDirs, contentHash, markerHash, renderSkill, skillDirs, skills, skillTargets, withoutMarker } from '../src/index.js';
+import { allSkillDirs, contentHash, installedName, markerHash, renderSkill, skillDirs, skills, STAGES, skillTargets, withoutMarker } from '../src/index.js';
 import type { SkillKey } from '../src/index.js';
 import type { AccordConfig } from '../src/index.js';
 import { DONE_RULES, READY_RULES } from '../src/gate/rules.js';
@@ -67,14 +67,28 @@ describe('rendered skills', () => {
     const paths = skillTargets(config()).map((f) => f.path);
     expect(paths).toContain('.claude/skills/accord-designer/SKILL.md');
     expect(paths).toContain('.agents/skills/accord-designer/SKILL.md');
-    expect(paths).toContain('.claude/skills/accord-dev/SKILL.md');
-    expect(paths).toContain('.claude/skills/accord-ba/SKILL.md');
-    // All three roles in the `roles` enum are now authored, so the skip branch in `skillTargets` has no
-    // valid roster left that exercises it. The cast is what keeps that branch covered: a roster naming a
-    // role with no definition renders nothing rather than throwing, which is what lets a future role be
-    // added to the enum before its workflow is written.
+    expect(paths).toContain('.claude/skills/accord/SKILL.md');
+    expect(paths).toContain('.agents/skills/accord/SKILL.md');
+    // Every role in the `roles` enum is either authored or replaced by the stage skills, so the skip branch
+    // in `skillTargets` has no valid roster left that exercises it. The cast is what keeps that branch
+    // covered: a roster naming a role with no definition adds nothing to the stage set rather than throwing,
+    // which is what lets a future role be added to the enum before its workflow is written.
     const unauthored = skillTargets(config({ roles: ['qa'] as unknown as AccordConfig['roles'] }));
-    expect(unauthored).toEqual([]);
+    expect(unauthored).toEqual(skillTargets(config({ roles: ['ba', 'dev'] })));
+  });
+
+  it('the stage skills replace the ba and dev roles; roles: [ba, dev] still installs /accord', () => {
+    const paths = skillTargets(config({ roles: ['ba', 'dev'] })).map((f) => f.path);
+    expect(paths).toContain('.claude/skills/accord/SKILL.md');
+    expect(paths.filter((p) => /\/accord-(?:ba|dev)\//.test(p))).toEqual([]);
+    expect(paths.filter((p) => p.includes('/accord-designer/'))).toEqual([]);
+  });
+
+  it('installs the accord source directory as accord and every other X as accord-X', () => {
+    expect(STAGES).toEqual(['accord', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
+    expect(installedName('accord')).toBe('accord');
+    expect(installedName('intent')).toBe('accord-intent');
+    expect(installedName('designer')).toBe('accord-designer');
   });
 
   it('allSkillDirs is the whole table and a superset of every roster (D-113)', () => {
@@ -168,7 +182,15 @@ const SPEC_FIELDS = ['name', 'description', 'license', 'compatibility', 'metadat
 const MAX_SKILL_LINES = 120;
 
 /** The commands the CLI actually registers, longest path first so `gate ready` wins over a bare `gate`. */
-const COMMAND = /\baccord (gate ready|gate done|new ticket|skills sync|lint|status)\b/g;
+const COMMAND =
+  /\baccord (gate ready|gate done|gate plan|new ticket|skills sync|tests baseline|review-package|task-done|approve|anchor|brief|status|next|lint|hook)\b/g;
+
+/** Spec §2: each skill targets under 5 KB. */
+const MAX_SKILL_BYTES = 5120;
+
+/** The first command a SKILL.md names: `/accord` opens on the dashboard, a stage re-anchors, designer gates. */
+const firstCommand = (dir: string): string =>
+  dir === 'accord' ? 'status' : dir === 'accord-designer' ? 'gate ready' : 'anchor';
 
 /** The rendered text with its frontmatter block and its marker line removed — the prose a reader receives. */
 const bodyOf = (text: string) => withoutMarker(text).replace(FRONTMATTER, '');
@@ -214,20 +236,26 @@ describe('render output invariants', () => {
     }
   });
 
-  it('every SKILL.md opens on the gate (SKILL-04, D-128)', () => {
+  it('every SKILL.md opens on its first command (SKILL-04, D-128, spec §6)', () => {
     for (const { path, text } of skillFiles) {
       const found = [...bodyOf(text).matchAll(COMMAND)];
       // Guard the guard: a body naming no command is a failure, not a free pass.
       expect(found.length, `${path} names no accord command`).toBeGreaterThan(0);
-      // Per file, never a uniqueness check across files: all three roles opening on the same call is the
-      // intent of D-128, not a collision.
-      expect(found[0][1], path).toBe('gate ready');
+      // Per file, never a uniqueness check across files: every stage opening on `accord anchor` is the
+      // intent of spec §6, not a collision.
+      expect(found[0][1], path).toBe(firstCommand(baseOf(dirOf(path))));
     }
   });
 
   it('every SKILL.md is at most MAX_SKILL_LINES lines (D-129)', () => {
     for (const { path, text } of skillFiles) {
       expect(text.split('\n').length, path).toBeLessThanOrEqual(MAX_SKILL_LINES);
+    }
+  });
+
+  it('every SKILL.md is at most MAX_SKILL_BYTES bytes (spec §2)', () => {
+    for (const { path, text } of skillFiles) {
+      expect(new TextEncoder().encode(text).length, path).toBeLessThanOrEqual(MAX_SKILL_BYTES);
     }
   });
 
@@ -312,16 +340,6 @@ describe('render output invariants', () => {
     expect(offenders).toEqual([]);
   });
 
-  it('the review brief shows both verification labels at the start of a line', () => {
-    // The case above only proves no brief BULLETS the labels; deleting step 2 outright would pass it.
-    // This one proves the brief still shows the shape a reviewer is meant to copy.
-    const review = output.find((f) => f.path === '.claude/skills/accord-dev/review.md')?.text ?? '';
-    expect(review.length, 'accord-dev/review.md is missing from the render output').toBeGreaterThan(0);
-    const lines = review.split('\n');
-    expect(lines.some((l) => l.startsWith('Result:')), 'no line begins with the Result label').toBe(true);
-    expect(lines.some((l) => l.startsWith('Evidence:')), 'no line begins with the Evidence label').toBe(true);
-  });
-
   it('the prototype brief names no accord command before its step 4 heading', () => {
     // What this protects: the brief describes the work and then names the command; it does not preview
     // what the command will say. The case pins POSITION, not content — it would not have caught the
@@ -329,8 +347,8 @@ describe('render output invariants', () => {
     // ("the prose states nothing about what a command covers") stays a recorded manual read, because a
     // pattern cannot tell a legitimate D-128 naming from a restatement without the semantics of which
     // noun a quantifier modifies.
-    const body = bodyOf(output.find((f) => f.path === '.claude/skills/accord-dev/prototype.md')?.text ?? '');
-    expect(body.length, 'accord-dev/prototype.md is missing from the render output').toBeGreaterThan(0);
+    const body = bodyOf(output.find((f) => f.path === '.claude/skills/accord-designer/prototype.md')?.text ?? '');
+    expect(body.length, 'accord-designer/prototype.md is missing from the render output').toBeGreaterThan(0);
     const lines = body.split('\n');
     const step4 = lines.findIndex((l) => /^## 4\. /.test(l));
     // Guard the guard: no step 4 heading, or no command named at or after it, is a failure not a pass.
@@ -356,7 +374,8 @@ describe('render output invariants', () => {
     // A skill names `accord gate ready <id>` or `accord gate done <id>`, never the state the command
     // reports. Frontmatter is out of scope because the scan runs on the body: `description:` is how a
     // runtime decides whether to load the skill at all, and a code span there would not read as prose.
-    const VERDICT = /\b(?:Ready|Done)\b/;
+    // Spec §3 requires the lane S write-back label `Done when:`, which names no gate state.
+    const VERDICT = /\b(?:Ready|Done)\b(?! when:)/;
     // The subjects the READY_PROMOTE rules read. Each is legitimate on its own — the offence is naming
     // one in the same paragraph as the command that checks it.
     const PROMOTED = ['## Open questions', 'assumptions:', 'status: draft', 'TODO'];
@@ -400,209 +419,14 @@ describe('render output invariants', () => {
   });
 });
 
-// SKILL-06/07/12, D-115 part 1, D-119: what a user actually receives from the `dev` definition. Asserted over
-// the RENDERED text rather than the source, because the rendered text is the thing a runtime loads. The
-// manual half of ROADMAP criterion 7 — running the wrong-plan fixture through the plan-review step and
-// recording the `## Plan` before and after — is deliberately not here: the subject is model behaviour and
-// the "No API keys" constraint rules out running a model in the suite (D-115).
-const devSkill = output.find((f) => f.path === '.claude/skills/accord-dev/SKILL.md')?.text ?? '';
-const devBody = bodyOf(devSkill);
-
-/** The first line of every top-level numbered step, in body order. */
-const stepLines = devBody.split('\n').filter((line) => /^\d+\. /.test(line));
-
-/** One step and everything indented under it, up to the next top-level step. */
-function stepBlock(body: string, match: RegExp): string {
-  const lines = body.split('\n');
-  const start = lines.findIndex((line) => /^\d+\. /.test(line) && match.test(line));
-  if (start === -1) return '';
-  const after = lines.findIndex((line, i) => i > start && /^\d+\. /.test(line));
-  return lines.slice(start, after === -1 ? undefined : after).join('\n');
-}
-
-const PLAN_REVIEW = /\bplan\b[^\n]*\breview/i;
-const IMPLEMENT = /^\d+\. Implement\b/;
-
-describe('dev workflow structure', () => {
-  it('renders as a role with its four bundled files reachable by relative path (SKILL-09, D-108)', () => {
-    expect(devSkill.length, 'accord-dev/SKILL.md is missing from the render output').toBeGreaterThan(0);
-    for (const ref of ['./debug.md', './review.md', './prototype.md']) expect(devBody, ref).toContain(ref);
-    const present = new Set(output.map((f) => f.path));
-    for (const name of ['SKILL.md', 'debug.md', 'review.md', 'code-review.md', 'prototype.md']) {
-      expect(present.has('.claude/skills/accord-dev/' + name), name).toBe(true);
-    }
-  });
-
-  it('reviews the plan before the code is written (SKILL-12, D-115 part 1)', () => {
-    // The ordered array rather than two indexes, so a failure prints the actual order (templates.test.ts:70).
-    const order = stepLines
-      .filter((line) => PLAN_REVIEW.test(line) || IMPLEMENT.test(line))
-      .map((line) => (PLAN_REVIEW.test(line) ? 'plan-review' : 'implement'));
-    expect(order).toEqual(['plan-review', 'implement']);
-  });
-
-  it('the plan review reads no code and edits only the plan (SKILL-12)', () => {
-    const block = stepBlock(devBody, PLAN_REVIEW);
-    expect(block.length, 'no plan-review step was found').toBeGreaterThan(0);
-    // Two independent phrases, never one copied sentence: the substance is the boundary, not the wording.
-    expect(block, 'the plan review does not say it reads no code').toMatch(/\bread(s)? no code\b/i);
-    expect(block, 'the plan review does not say it edits only the plan').toMatch(/\bedits? only\b[^\n]*## Plan/i);
-  });
-
-  it('the code review opens a fresh context, gets review.md, and names no runtime product (SKILL-06, D-109)', () => {
-    const block = stepBlock(devBody, /\bcode\b[^\n]*\breview/i);
-    expect(block.length, 'no code-review step was found').toBeGreaterThan(0);
-    expect(block).toMatch(/\bfresh context\b/i);
-    expect(block).toContain('./review.md');
-    // D-109: one text, identical in every runtime. Split literals so this file does not trip its own scan.
-    const PRODUCTS = ['Cur' + 'sor', 'Cop' + 'ilot', 'Cod' + 'ex', 'Claude ' + 'Code'];
-    const named = PRODUCTS.filter((p) => new RegExp('\\b' + p + '\\b', 'i').test(block));
-    expect(named).toEqual([]);
-  });
-
-  it('exactly one rendered file tells its reader to write `verified` (SKILL-07)', () => {
-    // An imperative write verb immediately before the key, which is what distinguishes an instruction to this
-    // file's reader from code-review.md's third-person mention of the developer ticking it later.
-    const WRITES = /\b(ticks?|writes?|records?)\s+`?verified/i;
-    const authors = output.filter((f) => WRITES.test(f.text)).map((f) => f.path);
-    expect([...new Set(authors.map(baseOf))]).toEqual(['SKILL.md']);
-    expect(authors).toContain('.claude/skills/accord-dev/SKILL.md');
-  });
-});
-
-describe('the review context write boundary (ROADMAP criterion 4)', () => {
-  // The two files, and the only two files, the fresh review context receives.
-  const briefs = output.filter((f) =>
-    ['.claude/skills/accord-dev/review.md', '.claude/skills/accord-dev/code-review.md'].includes(f.path),
-  );
-  const VERIFICATION = 'accord/tickets/<id>/verification.md';
-
-  it('has both briefs to check', () => {
-    expect(briefs.map((f) => f.path)).toEqual([
-      '.claude/skills/accord-dev/code-review.md',
-      '.claude/skills/accord-dev/review.md',
-    ]);
-  });
-
-  it('the brief names verification.md and says it reports rather than changes what it judges', () => {
-    const review = briefs.find((f) => f.path.endsWith('/review.md'))?.text ?? '';
-    expect(review).toContain(VERIFICATION);
-    // Two independent phrases again: the boundary, not a sentence.
-    expect(review, 'the brief does not say it reports on the change').toMatch(/\breport on the change\b/i);
-    expect(review, 'the brief does not say it changes nothing').toMatch(/\bdo not change it\b/i);
-  });
-
-  it('names exactly one accord/-rooted path across both briefs, and it is verification.md', () => {
-    // Named at all, with no write-verb heuristic. Every other path these two texts mention is a relative
-    // ./ reference, which is not accord/-rooted, while any second artifact a reviewer could be told to
-    // write is. A second write target makes this go red.
-    const named = new Set<string>();
-    for (const { text } of briefs) for (const m of text.matchAll(/accord\/[A-Za-z0-9_<>./-]+/g)) named.add(m[0]);
-    // Guard the guard: a brief naming no write target at all is not a pass.
-    expect(named.size, 'neither brief names an accord/ path').toBeGreaterThan(0);
-    expect([...named].sort()).toEqual([VERIFICATION]);
-  });
-});
-
-describe('a shared reference renders once per role that loads it (D-119)', () => {
-  it('the two prototype.md copies are byte-identical, non-empty, and at two different paths', () => {
-    const copies = output.filter(
-      (f) => f.path.endsWith('/prototype.md') && f.path.startsWith('.claude/skills/'),
-    );
-    expect(copies.map((f) => f.path)).toEqual([
-      '.claude/skills/accord-designer/prototype.md',
-      '.claude/skills/accord-dev/prototype.md',
-    ]);
-    expect(copies[0].path).not.toBe(copies[1].path);
-    expect(copies[0].text.length).toBeGreaterThan(0);
-    expect(copies[0].text).toBe(copies[1].text);
-  });
-});
-
-// SKILL-05, D-118, D-125: what a user receives from the `ba` definition, asserted over the RENDERED texts.
-const baSkill = output.find((f) => f.path === '.claude/skills/accord-ba/SKILL.md')?.text ?? '';
-const baBody = bodyOf(baSkill);
-const baFile = (name: string) =>
-  output.find((f) => f.path === '.claude/skills/accord-ba/' + name)?.text ?? '';
-
-describe('ba workflow structure', () => {
-  it('renders as a role with its three bundled files reachable by relative path (SKILL-01, D-108)', () => {
-    expect(baSkill.length, 'accord-ba/SKILL.md is missing from the render output').toBeGreaterThan(0);
-    const present = new Set(output.map((f) => f.path));
-    for (const name of ['SKILL.md', 'setup.md', 'story.md', 'ready.md']) {
-      expect(present.has('.claude/skills/accord-ba/' + name), name).toBe(true);
-    }
-    // `ready.md` is referenced from story.md, not from SKILL.md; without its `loads:` entry it would never
-    // render and story.md's `./ready.md` would be a dead reference.
-    expect(baFile('story.md')).toContain('./ready.md');
-  });
-
-  it('branches on config.profile at its first step after the gate (D-118)', () => {
-    const block = stepBlock(baBody, /\bprofile\b/i);
-    expect(block.length, 'no step reads the profile').toBeGreaterThan(0);
-    expect(block, 'the branch step does not name config.profile').toContain('config.profile');
-    // Both branch targets in the one step, and `./setup.md` beside the `build` profile it belongs to.
-    expect(block, 'the build branch does not point at setup.md').toMatch(/`build`[\s\S]*\.\/setup\.md/);
-    expect(block, 'the other branch does not point at story.md').toContain('./story.md');
-  });
-
-  it('keeps the ticket draft and teaches where an undecided thing is recorded (SKILL-05)', () => {
-    // Narrowed under SKILL-04/D-148 (owner decision 2026-09-17, option A'). This case used to require
-    // `ba/SKILL.md` to enumerate the three subjects READY_PROMOTE reads, which is the restatement D-148
-    // ruled against. What survives is split by where each part is legitimate:
-    //   - `draft` is the ticket status the BA sets, not a claim about what a gate checks, so it stays here.
-    //   - the two recording places are asserted against `story.md`, which names them without a command
-    //     beside them — the shape `no rendered text restates a rule the CLI enforces` permits.
-    //   - a TODO marker is gone: it is nothing but `lint.sentinel`'s subject, and no wording of it in a
-    //     skill body satisfies SKILL-04. The CLI reports it; the skill does not preview the report.
-    // Asserted independently, not as one sentence, so one of them cannot be dropped silently.
-    expect(baBody, 'the ticket status is never named').toContain('draft');
-    const story = baFile('story.md');
-    expect(story.length, 'accord-ba/story.md is missing from the render output').toBeGreaterThan(0);
-    expect(story, 'open questions are not named as a place to record').toContain('## Open questions');
-    expect(story, 'unconfirmed assumptions are not named as a place to record').toMatch(/`assumptions:`[\s\S]{0,60}`confirmed: false`/);
-  });
-
-  it('names accord status and the ticket as the way to pick work back up', () => {
-    const block = stepBlock(baBody, /accord status/);
-    expect(block.length, 'no step names `accord status`').toBeGreaterThan(0);
-    expect(block, 'the resume step does not say what it is for').toMatch(/\bpick\b[^\n]*\bback up\b/i);
-    expect(block, 'the resume step does not name the ticket').toMatch(/\bthe ticket\b/i);
-  });
-
-  it('the setup branch carries project and epic setup (ROADMAP criterion 6)', () => {
-    const setup = baFile('setup.md');
-    expect(setup.length, 'accord-ba/setup.md is missing from the render output').toBeGreaterThan(0);
-    for (const literal of ['product/glossary.md', 'product/business-rules.md', 'accord new ticket', '--type epic']) {
-      expect(setup, literal).toContain(literal);
-    }
-    // D-116: the convention has no schema behind it, so the workflow teaching it is half of its enforcement
-    // and packages/core/templates/business-rules.md is the other half (templates.test.ts).
-    expect(setup, 'the rejected-alternatives convention is not taught').toContain('Rejected:');
-  });
-
-  it('the readiness review is a fresh context with a narrow read and a narrower write (D-125)', () => {
-    const ready = baFile('ready.md');
-    expect(ready.length, 'accord-ba/ready.md is missing from the render output').toBeGreaterThan(0);
-    // Two independent phrases per property, never one copied sentence.
-    expect(ready, 'the brief does not say it is a fresh context').toMatch(/\bfresh context\b/i);
-    expect(ready, 'the brief does not say it reads no code').toMatch(/\bread(s)? no code\b/i);
-    expect(ready, 'the brief does not confine its writes').toMatch(/\bwrites? only\b[^\n]*## Open questions/i);
-    // D-109 applies here too: one text, identical in every runtime.
-    const PRODUCTS = ['Cur' + 'sor', 'Cop' + 'ilot', 'Cod' + 'ex', 'Claude ' + 'Code'];
-    expect(PRODUCTS.filter((p) => new RegExp('\\b' + p + '\\b', 'i').test(ready))).toEqual([]);
-  });
-
-  it('exactly three roles render a SKILL.md (SKILL-01)', () => {
-    // One runtime, so "exactly three" is a count over the whole render output rather than over a slice of
-    // it: two runtimes turn the same three definitions into six files with three repeated directory names.
+// SKILL-01 and spec §6: which directories a single runtime receives. One runtime, so the count is over the
+// whole render output rather than a slice of it.
+describe('the installed skill set', () => {
+  it('renders every authored stage plus designer, and no ba or dev role', () => {
     const single = skillTargets(config({ runtimes: ['claude'] })).filter((f) => baseOf(f.path) === 'SKILL.md');
-    expect(single.length).toBe(3);
-    expect(single.map((f) => baseOf(dirOf(f.path))).sort()).toEqual([
-      'accord-ba',
-      'accord-designer',
-      'accord-dev',
-    ]);
+    const stages = STAGES.filter((s) => Object.hasOwn(skills, s + '/SKILL.md')).map(installedName);
+    expect(stages).toContain('accord');
+    expect(single.map((f) => baseOf(dirOf(f.path))).sort()).toEqual([...stages, 'accord-designer'].sort());
   });
 });
 

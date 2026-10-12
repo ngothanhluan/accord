@@ -117,14 +117,15 @@ describe('accord init — the first run', () => {
   // ROADMAP criterion 1, the whole of it: "skill copies in both paths", from one command with no config
   // edit first. Asserting `.claude/skills` alone would still pass on the pre-amendment single-runtime
   // default, which is precisely the gap D-134's amendment closed.
-  it('puts all three role directories under BOTH runtime paths (D-134 as amended)', async () => {
+  it('puts /accord and the designer role under BOTH runtime paths, and no ba or dev role (D-134 as amended)', async () => {
     const repo = sandbox();
     await run(['init'], repo);
     const found = listing(repo);
     for (const dir of ['.claude/skills', '.agents/skills']) {
-      for (const role of ['accord-ba', 'accord-dev', 'accord-designer']) {
-        expect(found, dir + '/' + role).toContain(dir + '/' + role);
+      for (const skill of ['accord', 'accord-designer']) {
+        expect(found, dir + '/' + skill).toContain(dir + '/' + skill + '/SKILL.md');
       }
+      for (const role of ['accord-ba', 'accord-dev']) expect(found, dir + '/' + role).not.toContain(dir + '/' + role);
     }
   });
 
@@ -246,7 +247,7 @@ describe('accord init — running it again', () => {
     expect(lines(out)).toContain('skipped ' + CONFIG);
     // `[claude]` alone: .agents/skills is not this repository's, so nothing may appear under it.
     expect(existsSync(at(repo, '.agents/skills'))).toBe(false);
-    expect(listing(repo)).toContain('.claude/skills/accord-ba/SKILL.md');
+    expect(listing(repo)).toContain('.claude/skills/accord/SKILL.md');
   });
 });
 
@@ -308,7 +309,7 @@ describe('accord init — a config it cannot act on', () => {
     // A directory where a file belongs, at a path that roster really targets: HAND_WRITTEN is `[ba, dev]` on
     // `[claude]`, so `skillTargets` returns this exact path. Occupying one it does not name would prove
     // nothing about the ordering.
-    mkdirSync(at(repo, '.claude/skills/accord-ba/SKILL.md'), { recursive: true });
+    mkdirSync(at(repo, '.claude/skills/accord/SKILL.md'), { recursive: true });
     const { code, err } = await refuses(repo);
     expect(code).toBe(2);
     expect(err).toContain('is not a regular file');
@@ -325,7 +326,7 @@ describe('accord init — a refusal that lands after a write', () => {
     const repo = sandbox();
     // A directory where a file belongs, at a path the default roster really targets — occupying an
     // invented path would prove nothing about the ordering.
-    mkdirSync(at(repo, '.claude/skills/accord-ba/SKILL.md'), { recursive: true });
+    mkdirSync(at(repo, '.claude/skills/accord/SKILL.md'), { recursive: true });
     const { code, out, err } = await run(['init'], repo);
     expect(code).toBe(2);
     expect(err).toContain('is not a regular file');
@@ -401,6 +402,8 @@ describe('accord init — the AGENTS.md and CLAUDE.md pointer (CLI-03)', () => {
     // reached it that should not have (T-07-20).
     expect(readFileSync(at(repo, CLAUDE), 'utf8')).toBe(agents);
     expect(agents.startsWith(POINTER_START)).toBe(true);
+    expect(agents).toContain('installed at `.claude/skills/accord*` and `.agents/skills/accord*`.');
+    expect(agents).toContain('Type `/accord` to see where work stands, or `/accord <request>` to start something new.');
   });
 
   // T-07-18, the prohibition this plan carries: an append adds a suffix and touches nothing else. Read

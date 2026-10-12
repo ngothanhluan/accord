@@ -73,16 +73,16 @@ export function skillLoads(key: SkillKey): SkillKey[] {
 }
 
 /**
- * The text that lands on disk. A `kind: role` definition renders its spec frontmatter, then the marker, then
- * the body; anything else renders the marker and the body alone (D-108: a bundled reference has no spec
- * frontmatter, which is what keeps it undiscoverable as a skill of its own).
+ * The text that lands on disk. A `kind: role` or `kind: skill` definition renders its spec frontmatter, then
+ * the marker, then the body; anything else renders the marker and the body alone (D-108: a bundled reference
+ * has no spec frontmatter, which is what keeps it undiscoverable as a skill of its own).
  *
  * Pure: reads the generated module only, and returns the same text on every call.
  */
 export function renderSkill(key: SkillKey): string {
   const { yaml, body } = source(key);
   let head = '';
-  if (yaml.kind === 'role') {
+  if (yaml.kind === 'role' || yaml.kind === 'skill') {
     // D-45: strings core writes are double-quoted. Hand concatenation would break the moment a
     // `description` contained a colon, which is why the block goes through yaml's own serialiser.
     // A spec field that is not a plain string (`metadata` is a map) serialises with yaml's defaults.

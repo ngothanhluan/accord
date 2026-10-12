@@ -2,6 +2,7 @@
 // `rule` and `level` from the row (D-58), so a level literal for a `lint.*` rule appears nowhere else.
 import type { Finding, Level } from '../model/finding.js';
 import type { RepoSnapshot } from '../model/snapshot.js';
+import { dependsCycle, dependsUnknown } from './depends.js';
 import { earsUnclassified } from './ears.js';
 import {
   acTagDuplicate,
@@ -47,6 +48,8 @@ export interface Rule {
 
 export const RULES: readonly Rule[] = [
   { id: 'lint.id-mismatch', level: 'error', profiles: ['build', 'maintain'], check: idMismatch },
+  { id: 'lint.depends-unknown', level: 'error', profiles: ['build', 'maintain'], check: dependsUnknown },
+  { id: 'lint.depends-cycle', level: 'error', profiles: ['build', 'maintain'], check: dependsCycle },
   { id: 'lint.test-tag-missing', level: 'warning', profiles: ['build', 'maintain'], check: testTagMissing },
   { id: 'lint.heading-missing', level: 'error', profiles: ['build', 'maintain'], check: headingMissing },
   { id: 'lint.tracker-empty', level: 'warning', profiles: ['build', 'maintain'], check: trackerEmpty },

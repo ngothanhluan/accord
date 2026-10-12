@@ -13,7 +13,7 @@ import { loadConfig } from './config.js';
 import { loadFrontmatter, normaliseText } from './frontmatter.js';
 import { extractScenarios } from './gherkin.js';
 import { scanJUnit } from './junit.js';
-import { d07Key, duplicateHeadings, headingKey, requirementLines, scan } from './sections.js';
+import { d07Key, duplicateHeadings, headingKey, laneKey, requirementLines, scan } from './sections.js';
 import { parseVerification } from './verification.js';
 import { parseBaseline, parseLedger, parsePlan, parseReview } from './work.js';
 
@@ -36,7 +36,7 @@ function parseTicket(id: string, file: string, text: string): { ticket: Ticket; 
   const frontmatter = fm.value === undefined ? undefined : { ...fm.value, ui: fm.value.ui ?? false };
 
   const { sections, fences } = scan(fm.body, fm.bodyOffset);
-  findings.push(...duplicateHeadings(file, sections, d07Key));
+  findings.push(...duplicateHeadings(file, sections, fm.value?.lane === undefined ? d07Key : laneKey));
 
   const requirementsSection = sections.find((s) => headingKey(s.heading) === 'requirements');
   const requirements = requirementsSection ? requirementLines(requirementsSection, fences) : [];

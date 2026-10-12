@@ -89,6 +89,23 @@ describe('accord task-done', () => {
     }
   });
 
+  it('says already recorded after the ledger line is committed and the report is older than HEAD', async () => {
+    const repo = makeLaneRepo();
+    try {
+      commitAll(repo);
+      freshen(repo);
+      expect((await run(['task-done', 'T-1', '1'], repo)).code).toBe(0);
+      commitAll(repo);
+      utimesSync(REPORT_PATH(repo), OLD, OLD);
+      const again = await run(['task-done', 'T-1', '1'], repo);
+      expect(again.code).toBe(0);
+      expect(again.out).toBe('task 1 of T-1 is already recorded in accord/tickets/T-1/ledger.md\n');
+      expect(ledger(repo).match(/task 1 done/g)).toHaveLength(1);
+    } finally {
+      cleanup(repo);
+    }
+  });
+
   it('reads a CRLF ledger as it reads an LF one', async () => {
     const crlf = '# Ledger\r\n\r\n## Tasks\r\n- task 1 done abc1234\r\n';
     const repo = makeLaneRepo({ 'accord/tickets/T-1/ledger.md': crlf });

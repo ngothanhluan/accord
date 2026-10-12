@@ -35,21 +35,23 @@ export function taskDone(ctx: CommandContext, id: string, task: string): number 
   requireLaneTicket(ctx, id);
   const commit = ctx.snapshot.git?.commit;
   if (commit === undefined) throw new UsageError('the repository has no commit; commit the task before recording it');
+  // T-05-07: `id` is a key the loader found on disk, so it is a file stem and never a traversal.
+  const rel = 'accord/tickets/' + id + '/ledger.md';
+  const file = join(ctx.root, 'accord', 'tickets', id, 'ledger.md');
+  const sha = commit.slice(0, 12);
+  // The ledger first: once its line is committed HEAD is newer than the report, and a re-run must still
+  // answer "already recorded" rather than "stale".
+  const next = recordTaskDone(existsSync(file) ? readFileSync(file, 'utf8') : undefined, n, sha);
+  if (next === undefined) {
+    ctx.stdout.write(`task ${n} of ${id} is already recorded in ${rel}\n`);
+    return 0;
+  }
   const verdict = taskVerdict(ctx.snapshot, id, n);
   const stale = verdict.verdict === 'pass' ? staleReport(ctx) : undefined;
   const reasons = [...verdict.reasons, ...(stale === undefined ? [] : [stale])];
   if (reasons.length > 0) {
     ctx.stdout.write(`task ${n} of ${id} is not done:\n` + reasons.map((r) => '  ' + r + '\n').join(''));
     return 1;
-  }
-  // T-05-07: `id` is a key the loader found on disk, so it is a file stem and never a traversal.
-  const rel = 'accord/tickets/' + id + '/ledger.md';
-  const file = join(ctx.root, 'accord', 'tickets', id, 'ledger.md');
-  const sha = commit.slice(0, 12);
-  const next = recordTaskDone(existsSync(file) ? readFileSync(file, 'utf8') : undefined, n, sha);
-  if (next === undefined) {
-    ctx.stdout.write(`task ${n} of ${id} is already recorded in ${rel}\n`);
-    return 0;
   }
   mkdirSync(join(ctx.root, 'accord', 'tickets', id), { recursive: true });
   writeFileSync(file, next);

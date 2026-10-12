@@ -109,17 +109,23 @@ function gitFacts(root: string): { commit: string; authors: Record<string, strin
  * Spec §5: a branch named t/<id>, local or on any remote, claims ticket <id> for the author of its tip.
  * One spawn, literal arguments. for-each-ref sorts by refname, so refs/remotes/... is read after
  * refs/heads/... and the pushed claim, the one teammates see, wins.
+ *
+ * A failure throws: `gitTree` has already proved git and the repository, so a failed for-each-ref is a
+ * broken ref store, and silently dropping claims would offer held tickets as free. No match exits 0.
  */
 function gitClaims(root: string): Record<string, string> {
   let out: string;
   try {
-    out = execFileSync('git', ['for-each-ref', '--format=%(refname)%00%(authoremail)', 'refs/heads/t/', 'refs/remotes/'], {
+    // for-each-ref globs with WM_PATHNAME, so `*` stays within one segment.
+    // shortcut: a remote whose name contains `/` is not matched; widen the pattern if one ever must be.
+    out = execFileSync('git', ['for-each-ref', '--format=%(refname)%00%(authoremail)', 'refs/heads/t/', 'refs/remotes/*/t/*'], {
       cwd: root,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
     });
-  } catch {
-    return {};
+  } catch (err) {
+    const stderr = String((err as { stderr?: string }).stderr ?? '').trim();
+    throw new UsageError('git for-each-ref failed reading the t/<id> claim branches' + (stderr === '' ? '' : '\n' + stderr));
   }
   const claims: Record<string, string> = {};
   for (const line of out.split('\n')) {

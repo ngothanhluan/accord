@@ -448,6 +448,39 @@ describe('status, claims, and next', () => {
     }
   });
 
+  it('the pushed claim wins over a local branch of the same name with a different tip author', async () => {
+    const repo = makeLaneRepo();
+    try {
+      commitAll(repo);
+      gitRun(repo, 'branch', 't/T-1');
+      const sha = gitRun(
+        repo,
+        '-c', 'user.email=remote@example.invalid',
+        '-c', 'user.name=remote',
+        'commit-tree', 'HEAD^{tree}', '-p', 'HEAD', '-m', 'remote',
+      ).trim();
+      gitRun(repo, 'update-ref', 'refs/remotes/origin/t/T-1', sha);
+      const rows = JSON.parse((await run(['status', '--json'], repo)).out) as { id: string; claimedBy?: string }[];
+      expect(rows.find((r) => r.id === 'T-1')?.claimedBy).toBe('remote@example.invalid');
+    } finally {
+      cleanup(repo);
+    }
+  });
+
+  it('a broken claim ref is an environment error, never a silently unclaimed ticket', async () => {
+    const repo = makeLaneRepo();
+    try {
+      commitAll(repo);
+      writeFiles(repo, { '.git/refs/heads/t/T-1': '1111111111111111111111111111111111111111\n' });
+      const result = await run(['next'], repo);
+      expect(result.code).toBe(2);
+      expect(result.err).toContain('git for-each-ref failed');
+      expect(result.out).toBe('');
+    } finally {
+      cleanup(repo);
+    }
+  });
+
   it('a ticket without lane is unchanged by a t/<id> branch, in the table and under --json', async () => {
     const repo = makeEmptyRepo();
     try {

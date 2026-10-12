@@ -132,9 +132,18 @@ describe('config.schema.json', () => {
     expect(has(tests({ report: 'x', extra: 1 }), '/tests', 'schema.additionalProperties')).toBe(true);
   });
 
-  it('top-level properties are the six D-16 keys plus optional tests (D-72)', () => {
+  it('review.mode is human or outcome and the only key (spec §7)', () => {
+    const review = (r: unknown) => validate('config', { ...minimal.config, review: r });
+    expect(review({ mode: 'outcome' })).toEqual([]);
+    expect(review({ mode: 'human' })).toEqual([]);
+    expect(has(review({}), '/review', 'schema.required')).toBe(true);
+    expect(has(review({ mode: 'both' }), '/review/mode', 'schema.enum')).toBe(true);
+    expect(has(review({ mode: 'human', max_pr_lines: 400 }), '/review', 'schema.additionalProperties')).toBe(true);
+  });
+
+  it('top-level properties are the six D-16 keys plus optional tests (D-72) and review (spec §7)', () => {
     const keys = ['accord', 'profile', 'tracker', 'design', 'roles', 'runtimes'];
-    expect(Object.keys(configSchema.properties)).toEqual([...keys, 'tests']);
+    expect(Object.keys(configSchema.properties)).toEqual([...keys, 'tests', 'review']);
     expect(configSchema.required).toEqual(keys);
     for (const key of Object.keys(configSchema.properties)) {
       expect(key).not.toMatch(/key|token|secret|password/i);
@@ -235,6 +244,17 @@ describe('ticket.schema.json decisions D-01..D-05, D-21..D-25', () => {
     expect(ticket({ ac_hash: 'a' })).toEqual([]);
     expect(has(ticket({ ac_hash: '' }), '/ac_hash', 'schema.minLength')).toBe(true);
     expect(has(ticket({ ac_hash: 123 }), '/ac_hash', 'schema.type')).toBe(true);
+  });
+
+  it('lane tickets: lane, depends_on, approved_hash (spec §4, §5)', () => {
+    expect(ticket({ lane: 'M', depends_on: ['T-1', 'T-2'], approved_hash: 'fnv1a64:0123456789abcdef' })).toEqual([]);
+    expect(ticket({ lane: 'L' })).toEqual([]);
+    expect(ticket({ lane: 'P', depends_on: [] })).toEqual([]);
+    expect(has(ticket({ lane: 'S' }), '/lane', 'schema.enum')).toBe(true);
+    expect(has(ticket({ depends_on: ['T-1', 'T-1'] }), '/depends_on', 'schema.uniqueItems')).toBe(true);
+    expect(has(ticket({ depends_on: ['-bad'] }), '/depends_on/0', 'schema.pattern')).toBe(true);
+    expect(has(ticket({ depends_on: 'T-1' }), '/depends_on', 'schema.type')).toBe(true);
+    expect(has(ticket({ approved_hash: 'abc' }), '/approved_hash', 'schema.pattern')).toBe(true);
   });
 
   it('D-76: verified_hash and verified_commit are optional, lowercase-hashed, and at least 7 hex characters', () => {

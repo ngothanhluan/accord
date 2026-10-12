@@ -41,6 +41,9 @@ export interface TicketFrontmatter {
   ui: boolean; // defaults to false in the loader, not the schema (D-21)
   design?: string; // 'https://www.figma.com/file/abc'
   assumptions?: { text: string; confirmed: boolean }[];
+  lane?: 'M' | 'L' | 'P'; // spec §3: present opts the ticket into the workflow-layer contract
+  depends_on?: string[]; // spec §5: ticket ids that must reach done first
+  approved_hash?: string; // spec §4: written by `accord approve`, 'fnv1a64:<16 hex>'
   ac_hash?: string;
   verified?: string[]; // ['ac-1']
   verified_hash?: string; // D-76: the AC hash the ticks were made against, 'fnv1a64:<16 hex>'
@@ -85,6 +88,7 @@ export interface AccordConfig {
   roles: ('ba' | 'dev' | 'designer')[];
   runtimes: ('claude' | 'codex' | 'cursor' | 'copilot')[];
   tests?: { report: string }; // D-72: repo-relative path of the test report
+  review?: { mode: 'human' | 'outcome' }; // spec §7: absent means 'human', the 0.1.0 behaviour
 }
 
 export interface RepoSnapshot {

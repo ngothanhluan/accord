@@ -203,7 +203,10 @@ The intent therefore never has to be remembered; it is re-read.
 2. The first option is always the lightest that works (principle 6). Each added layer of complexity names
    the acceptance criterion or constraint that requires it, or is dropped.
 3. `accord-critic`, in a fresh context, argues the strongest case against the chosen option and checks it
-   against Vetoes, Decisions, and Corrections. This runs for every lane M and above.
+   against Vetoes, Decisions, and Corrections. This runs for every lane M and above. The chosen option is
+   the one the architect recommends unless the owner picked another. Every finding the chosen option keeps
+   goes into the brief's risks, Must findings first; a Must that breaks a Veto, Decision, or Correction
+   rules the option out, and the critic runs again on the next one, or the owner is asked when none is left.
 4. The owner receives a brief of about 15 lines under `## Approach`: chosen option and why, rejected
    options and why, affected areas, risks, and test strategy (which criterion is tested at which layer).
    Approval runs `accord approve`; `accord gate ready` then requires intent, criteria, and approach.

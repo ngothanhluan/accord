@@ -14,6 +14,7 @@ import { lint } from './commands/lint.js';
 import { newTicket } from './commands/new-ticket.js';
 import { skills } from './commands/skills.js';
 import { status } from './commands/status.js';
+import { taskDone } from './commands/task-done.js';
 import { loadFromFs, UsageError } from './load/fs.js';
 import { pinMessage } from './pin.js';
 import { repoRoot } from './root.js';
@@ -115,6 +116,13 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .description("record the owner's approval of a lane ticket as approved_hash")
     .action((id: string) => {
       setCode(approve(preflight(opts), id));
+    });
+
+  program
+    .command('task-done <id> <task>')
+    .description('record a plan task as done when the test report shows its verify cases passed')
+    .action((id: string, task: string) => {
+      setCode(taskDone(preflight(opts), id, task));
     });
 
   // D-95: `new ticket` is deliberately *not* exempt from the pin. The ticket template changes between

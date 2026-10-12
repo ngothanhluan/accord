@@ -4,16 +4,10 @@ import { approvedHash } from '@accord-dev/accord-core';
 import { UsageError } from '../load/fs.js';
 import type { CommandContext } from '../run.js';
 import { writeKey } from '../write/key.js';
+import { requireLaneTicket } from './lane-args.js';
 
 export function approve(ctx: CommandContext, id: string): number {
-  if (!Object.hasOwn(ctx.snapshot.tickets, id)) throw new UsageError('no ticket ' + id + ' in accord/tickets/');
-  const ticket = ctx.snapshot.tickets[id];
-  if (ticket.frontmatter === undefined) {
-    throw new UsageError(ticket.file + ' has frontmatter errors; run accord lint');
-  }
-  if (ticket.frontmatter.lane === undefined) {
-    throw new UsageError(ticket.file + ' has no lane:, and approval applies to lane tickets only');
-  }
+  const ticket = requireLaneTicket(ctx, id);
   const hash = approvedHash(ticket);
   let wrote: boolean;
   try {

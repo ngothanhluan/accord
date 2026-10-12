@@ -155,6 +155,21 @@ READY TO PICK UP
 - `/accord <request>` goes straight to lane classification and the intent stage.
 - `accord next` lists tickets that passed Ready, are unblocked, and are unclaimed.
 - Session start prints one line ("1 in progress, 1 ready · type /accord"), not the dashboard.
+
+### Re-anchoring after compaction
+
+A summary loses detail, and an orchestrator that continues from a summary drifts from the owner's intent.
+The intent therefore never has to be remembered; it is re-read.
+
+- The active ticket is the current branch `t/<id>`, read from git, never from memory.
+- `accord anchor [<id>]` (new) prints, verbatim, the active ticket's Intent, Vetoes, Decisions, and
+  Corrections, then its stage, its position from the ledger ("build 3/5, next: task 4"), and its Rulings.
+  Without an id it uses the current branch; on a branch that names no ticket it prints nothing and exits 0.
+- The SessionStart hook on `compact`, `resume`, and `clear` runs `accord anchor`, so its output is in context
+  immediately after every compaction.
+- Every stage skill runs `accord anchor` as its first step, so every stage transition re-anchors.
+- A correction is written to `## Corrections` before any other action. A correction that exists only in
+  the conversation is lost at the next compaction.
 - Stage skills (`accord-intent`, `accord-approach`, `accord-plan`, `accord-build`, `accord-review`,
   `accord-verify`, `accord-debug`, `accord-test-diet`, `accord-bench`) are callable directly; `/accord`
   routes to them so nobody has to remember the names. They replace the 0.1.0 role skills `accord-ba` and
@@ -176,23 +191,26 @@ READY TO PICK UP
 
 ### Plan (machine-facing; the owner does not need to read it)
 
-`accord-planner` writes `tickets/<id>/plan.md`. Each task carries `covers:` (criteria and decisions),
-expected files, interface (consumes, produces), the test written first, and a verify command that can fail
-when the task is skipped.
+`accord-planner` writes `tickets/<id>/plan.md`, one `## Task <n>: <title>` section per task. Each task
+carries a `covers:` line (criteria and decisions), a `files:` line, a `verify:` line naming the test report
+case ids that prove it, then prose for the executor: interface (consumes, produces) and the test written
+first. A task fits in about half of an executor's context; the planner splits anything larger, and the
+critic flags a task that does not.
 
 `accord gate plan <id>` (new) checks mechanically: every `@ac-n` is covered by a task; every `D-nn` is
-cited; every task has a verify command; no "TODO", "placeholder", "v1", "for now", "later" in task text.
+cited; every task has `covers:` and `verify:`; nothing in `covers:` is foreign to the ticket; no "TODO",
+"TBD", "placeholder", "v1", "for now", "later" in task text.
 `accord-critic` checks meaning: no veto violated, nothing beyond the criteria, the approved approach
 followed. At most three revision rounds, then the owner is told; the run does not continue on a failing
 plan.
 
 ### Slicing by review mode
 
-`config.yml` gains `review: human | outcome`.
+`config.yml` gains `review: { mode: human | outcome }`. Absent means `human`, the 0.1.0 behaviour.
 
 - `human` (company projects): the planner groups tasks into slices. Each slice becomes one pull request,
-  at most `review.max_pr_lines` changed lines (default 400), green on its own, covering a stated subset of
-  criteria. Slicing is decided at plan time, not after the code exists.
+  at most `review.max_pr_lines` changed lines (default 400, added in phase 4), green on its own, covering a
+  stated subset of criteria. Slicing is decided at plan time, not after the code exists.
 - `outcome` (personal projects): one branch, no slicing; the owner reads the evidence report, not the diff.
 
 ## 8. Build
@@ -210,8 +228,15 @@ plan.
   - Any file outside the plan's list is declared with a reason.
 - Report: at most 15 lines. `DONE | DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT`, commits, test evidence,
   files touched, Rulings.
-- `accord task-done <id> <task>` (new) runs the task's verify command and writes the ledger line only on
-  exit 0. The orchestrator runs it; the executor's claim alone records nothing.
+- `accord task-done <id> <task>` (new) writes the ledger line only when every case the task's `verify:`
+  line names is recorded `passed` in the test report, and the report was written after the current commit.
+  The orchestrator runs the tests (`tests.affected`) and then `task-done`; the executor's claim alone records
+  nothing. The CLI never runs a test command itself: it spawns only `git`, so the check is the report, the
+  same evidence the Done gate reads.
+- **Context budget.** An executor never relies on compaction. One that nears its context limit stops,
+  commits what is finished, and returns `BLOCKED: context` with what remains. The orchestrator dispatches a
+  fresh executor with the verbatim brief plus the diff and ledger so far. A fresh context that re-reads the
+  brief is more faithful than a compacted one.
 - Lane M runs one executor at a time. Lane L runs independent stories in parallel worktrees.
 - `tickets/<id>/ledger.md` (committed) holds task lines, Rulings, and deferred items. The dashboard and
   Continue read it.
@@ -223,8 +248,9 @@ plan.
 | **Required** | each acceptance criterion has exactly one behaviour test, named by the scenario's existing `@test:<id>` tag, written before the code, at the cheapest layer that observes the behaviour |
 | **Allowed** | extra tests whose name carries `risk:<kind>`, where kind is one of: parsing, money or calculation, security or permission, concurrency, data loss, complex branching, regression of a real bug |
 | **Forbidden** | tests that restate the implementation, getter or setter tests, tests that only assert on mocks, a second test of behaviour a criterion test already covers at another layer |
-| **Speed** | during build only `test.affected` runs (a command template in config, for example `vitest related {files}` or `dotnet test --filter …`); `test.full` runs at Done; the verify report lists slow tests |
-| **Enforced** | `accord lint tests` (new): a test case that is new or changed in the branch, is not named by any scenario's `@test:<id>`, and does not carry `risk:` is an error that blocks Done |
+| **Speed** | during build only `tests.affected` runs (a command template in config, for example `vitest related {files}` or `dotnet test --filter …`, added in phase 2 with its consumer); `tests.full` runs at Done and writes the report `tests.report` names; the verify report lists slow tests |
+| **Enforced** | a test case in the report that is not named by any scenario's `@test:<id>`, does not carry `risk:` in its name, and is not listed in `accord/tests-baseline.txt` is `lint.test-untraced` (a warning in `accord lint`, once any lane ticket exists) and `gate.test-untraced` (an error at Done for lane tickets). Any failed case in the report is `gate.suite-not-passed` |
+| **Baseline** | `accord tests baseline` (new) writes `accord/tests-baseline.txt` once, listing the untraced cases that exist when a project adopts the policy. It refuses when the file exists: the baseline only shrinks, by hand or through the test diet, so it cannot become a way past the gate. A legacy case that is edited keeps its id and stays in the baseline; that is the known limit of a report-based check |
 | **Legacy** | not retroactive. `accord-test-diet` maps an existing suite to behaviours, finds duplicates, restating tests, and trivial tests, and **proposes** deletions backed by a mutation check showing the reduced suite catches the same injected faults. The owner approves before anything is deleted |
 
 A bug ticket's criterion is the reproduction, so a bug fix starts with a failing reproduction test under
@@ -271,8 +297,8 @@ merges and de-duplicates findings before the fix loop.
 
 `accord gate done <id>` keeps the 0.1.0 checks (scenario tags, JUnit results, skipped is not passed,
 `verification.md` commit match, `ac_hash`) and adds:
-- `accord lint tests` is clean;
-- `test.full` passed;
+- no untraced test case in the report (`gate.test-untraced`, section 9);
+- no failed case in the report (`gate.suite-not-passed`); the report is the output of `tests.full`;
 - `review.md` ends with `verdict: converged` or `verdict: accepted-by-owner`;
 - every task in `plan.md` has a ledger completion line.
 
@@ -339,8 +365,9 @@ measurements, and re-run when new models ship.
   intent drift). Start with 20 to 30 scenarios per role and add scenarios, rather than repeats, while
   results stay close.
 - **Roles first measured.** Reviewer: planted defects caught, false findings, at several diff sizes.
-  Executor: hidden tests passed, lines of code, tests written, test-policy compliance. Then critic (plans
-  with planted gaps) and auditor (deliberately ambiguous criteria).
+  Executor: hidden tests passed, lines of code, tests written, test-policy compliance, and quality against
+  task size, which sets the "half an executor's context" budget of section 7 from measurement. Then critic
+  (plans with planted gaps) and auditor (deliberately ambiguous criteria).
 - **Matrix.** Each role tries only plausible cells. Cells for xhigh are included for the critic, final and
   security reviewers, architect in lane P, and debugger; the hypothesis is that longer reasoning pays there
   and may hurt executors (more code and tests) and ordinary reviewers (more false findings). Three runs per
@@ -360,6 +387,7 @@ measurements, and re-run when new models ship.
   (for `accord-*` agents): ask on intent, vetoes, and interfaces; the ladder and the never-cut list; scope is
   impact; evidence before claims; the test policy; the Ruling format; end each reply with what was skipped,
   what was not checked, and any risk.
+- **Anchor**: the same SessionStart hook runs `accord anchor` on `compact`, `resume`, and `clear` (section 6).
 - **Hooks are minimal.** No completion-claim Stop hook in this version: regex detection is brittle, and
   enforcement lives in `task-done`, the gates, and CI. Add one only with evidence it is needed.
 - `accord init` writes hooks into the project's `.claude/settings.json`, so teammates get them by cloning.
@@ -370,7 +398,11 @@ measurements, and re-run when new models ship.
 
 | Keep | Change | Add |
 |---|---|---|
-| `accord/` folder; frontmatter schema; Gherkin parsing; `@test:<id>`; `ac_hash`; JUnit scan; skills rendered from data; version pin; CI workflow | EARS optional, lint off by default; role skills replaced by stage skills; ticket headings per section 4; `## Plan` moves to `plan.md`; `## Verification notes` required only under `review: human`; constraint "identical behaviour in four runtimes" becomes "gates identical everywhere, orchestration Claude Code first" | frontmatter `lane`, `depends_on`, `approved_hash`; config `review`, `review.max_pr_lines`, `models`, `escalation`, `test.affected`, `test.full`; commands `approve`, `gate plan`, `lint tests`, `task-done`, `brief`, `review-package`, `next`, extended `status`; per-ticket `plan.md`, `ledger.md`, `review.md`; agents `accord-*`; hooks; benchmark harness |
+| `accord/` folder; frontmatter schema; Gherkin parsing; `@test:<id>`; `ac_hash`; JUnit scan; skills rendered from data; version pin; CI workflow | EARS optional, lint off by default; role skills replaced by stage skills; ticket headings per section 4; `## Plan` moves to `plan.md`; `## Verification notes` required only under `review: human`; constraint "identical behaviour in four runtimes" becomes "gates identical everywhere, orchestration Claude Code first" | frontmatter `lane`, `depends_on`, `approved_hash`; config `review.mode` (phase 1), `review.max_pr_lines` (phase 4), `models`, `escalation`, `tests.affected`, `tests.full` (phase 2); commands `approve`, `gate plan`, `task-done`, `brief`, `review-package`, `tests baseline`, `anchor`, `next`, extended `status`; rules `lint.test-untraced`, `lint.depends-*`, lane Ready, plan, and Done rules; per-ticket `plan.md`, `ledger.md`, `review.md`; `accord/tests-baseline.txt`; agents `accord-*`; hooks; benchmark harness |
+
+**Compatibility.** The `lane` key opts a ticket into this contract. A ticket without `lane` keeps every
+0.1.0 rule (EARS, `## Plan`, Verification notes), so existing tickets need no migration. Each config key is
+added in the phase that first reads it.
 
 The `.planning/` directory of the previous planning process is archived when phase 2 below starts.
 
@@ -393,9 +425,12 @@ These are assumptions, not established facts. Each is checked at the start of th
 - Project-level `.claude/settings.json` can disable user-level plugins; if not, the owner disables them at
   user level (phase 2).
 - Headless `claude -p` accepts model and effort selection and a clean settings file (phase 3).
-- Detecting "new or changed test case" from JUnit output plus `git diff` works for vitest and for .NET test
-  frameworks; the JUnit `classname` or `file` attribute maps a case to its file (phase 1).
-- `git` remote branch listing gives a reliable claim author on both Windows and POSIX (phase 1).
+- `git for-each-ref` over `refs/heads/t/` and `refs/remotes/` gives a reliable claim author on both Windows
+  and POSIX (phase 1).
+- Whether Claude Code compacts a subagent's context on its own, and whether a SessionStart `compact` hook
+  fires inside a subagent. The design does not depend on either (section 8 hands off instead of compacting),
+  but the answer decides whether the anchor also needs a SubagentStart path (phase 2).
+- Whether a PreCompact hook can add instructions to the compaction summary itself (phase 2).
 
 ## 18. Out of scope for this design
 

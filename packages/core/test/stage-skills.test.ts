@@ -15,6 +15,7 @@ const config: AccordConfig = {
 
 const REQUIRED: Record<string, readonly string[]> = {
   accord: ['accord status --json', 'accord next', 't/<id>', 'accord new ticket', '--lane M', 'Understood:', 'Done when:', 'accord anchor', 'user.email'],
+  intent: ['accord anchor', 'accord-scout', 'accord-auditor', '0.2', '## Corrections', '## Open questions', 'D-01', 'accord-approach'],
 };
 
 const files = skillTargets(config);

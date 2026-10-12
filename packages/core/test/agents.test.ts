@@ -27,6 +27,11 @@ describe('rendered agents', () => {
     expect(scout(config())).not.toContain('route');
   });
 
+  it('renders the auditor read-only on its spec route', () => {
+    const text = agentTargets(config()).find((f) => f.path === '.claude/agents/accord-auditor.md')?.text ?? '';
+    expect(frontmatter(text)).toMatchObject({ name: 'accord-auditor', tools: 'Read', model: 'opus', effort: 'medium' });
+  });
+
   it('a models entry with only model keeps the default effort', () => {
     const fm = frontmatter(scout(config({ models: { scout: { model: 'sonnet' } } })));
     expect(fm).toMatchObject({ model: 'sonnet', effort: 'low' });

@@ -4,7 +4,7 @@ import { existsSync, readFileSync, rmSync, utimesSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { cleanup, commitAll, gitRun, makeEmptyRepo, makeLaneRepo, makeRepo, run, writeFiles } from './helpers/repo.js';
-import { CONFIG, junit, laneTicket, REPORT } from '../../../test/helpers/lane.js';
+import { CONFIG, junit, laneTicket, PLAN, REPORT } from '../../../test/helpers/lane.js';
 import { commitSeconds } from '../src/commands/task-done.js';
 
 const ticketText = (repo: string, id = 'T-1') => readFileSync(join(repo, 'accord', 'tickets', id + '.md'), 'utf8');
@@ -288,6 +288,56 @@ describe('accord review-package', () => {
       const r = await run(['review-package', 'T-1', '--base', 'HEAD~1'], repo);
       expect(r.code).toBe(0);
       expect(r.out).toContain('+export const x = 1;');
+    } finally {
+      cleanup(repo);
+    }
+  });
+});
+
+describe('plan baseline', () => {
+  const withBaseline = (sha: string) => PLAN.replace('abc1234', sha);
+
+  it('gate plan passes with the first commit as baseline and fails closed on an unknown one', async () => {
+    const repo = makeLaneRepo();
+    try {
+      await run(['approve', 'T-1'], repo);
+      const first = commitAll(repo);
+      writeFiles(repo, { 'accord/tickets/T-1/plan.md': withBaseline(first) });
+      commitAll(repo);
+      expect((await run(['gate', 'plan', 'T-1'], repo)).code).toBe(0);
+      writeFiles(repo, { 'accord/tickets/T-1/plan.md': withBaseline('0000000') });
+      const r = await run(['gate', 'plan', 'T-1'], repo);
+      expect(r.code).toBe(1);
+      expect(r.out).toContain('gate.plan-baseline-unknown');
+      // A bad baseline never breaks the commands that do not gate on it.
+      expect((await run(['status'], repo)).code).toBe(0);
+    } finally {
+      cleanup(repo);
+    }
+  });
+
+  it('review-package defaults its base to the plan baseline', async () => {
+    const repo = makeLaneRepo();
+    try {
+      const first = commitAll(repo);
+      writeFiles(repo, { 'accord/tickets/T-1/plan.md': withBaseline(first), 'src/x.ts': 'export const x = 1;\n' });
+      commitAll(repo);
+      const r = await run(['review-package', 'T-1'], repo);
+      expect(r.code).toBe(0);
+      expect(r.out).toContain(`(${first}...HEAD)`);
+      expect(r.out).toContain('+export const x = 1;');
+    } finally {
+      cleanup(repo);
+    }
+  });
+
+  it('review-package with no --base and no baseline exits 2', async () => {
+    const repo = makeLaneRepo({ 'accord/tickets/T-1/plan.md': '## Task 1: A\n' });
+    try {
+      commitAll(repo);
+      const r = await run(['review-package', 'T-1'], repo);
+      expect(r.code).toBe(2);
+      expect(r.err).toContain('no --base given and plan.md records no baseline:');
     } finally {
       cleanup(repo);
     }

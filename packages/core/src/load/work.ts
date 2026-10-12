@@ -3,8 +3,9 @@
 // normalises BOM and CRLF itself (D-38), so every encoding variant parses to one value.
 import type { LoadFinding } from '../model/finding.js';
 import type { Ledger, Plan, PlanTask, Review } from '../model/snapshot.js';
-import { normaliseText } from './frontmatter.js';
+import { normaliseText, splitFrontmatter } from './frontmatter.js';
 import { headingKey, LIST_MARKER, scan, stripHtmlComments } from './sections.js';
+import { parseYamlMap } from './yaml.js';
 
 const TASK = /^Task\s+([1-9][0-9]*)\s*:\s*(.*)$/;
 export const FIELD = /^(covers|files|verify):(.*)$/;
@@ -21,10 +22,11 @@ export const tokens = (v: string): string[] => v.split(/[\s,]+/).filter((x) => x
 /**
  * One task per `## Task <n>: <title>` section; any other section is prose and is skipped. A field is the
  * first `covers:`, `files:`, or `verify:` line in the section, outside a fence, with an optional list
- * marker. A repeated task number keeps the first section and reports the second.
+ * marker. `baseline:` in the frontmatter names the commit the plan was written against. A repeated task number keeps the first section and reports the second.
  */
 export function parsePlan(file: string, text: string): { plan: Plan; findings: LoadFinding[] } {
-  const { sections, fences } = scan(normaliseText(text), 0);
+  const { yaml, body, bodyOffset } = splitFrontmatter(text);
+  const { sections, fences } = scan(body, bodyOffset);
   const inFence = (n: number) => fences.some((f) => n >= f.open && n <= f.close);
   const findings: LoadFinding[] = [];
   const tasks: PlanTask[] = [];
@@ -59,7 +61,9 @@ export function parsePlan(file: string, text: string): { plan: Plan; findings: L
       lines: s.lines,
     });
   }
-  return { plan: { file, tasks }, findings };
+  // A broken or non-string baseline is simply absent; gate.plan-baseline-missing says what to write.
+  const baseline = yaml === null ? undefined : parseYamlMap(file, yaml, 1).map?.baseline;
+  return { plan: { file, tasks, ...(typeof baseline === 'string' ? { baseline } : {}) }, findings };
 }
 
 /**

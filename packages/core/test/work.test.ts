@@ -30,6 +30,20 @@ describe('parsePlan', () => {
   it('reads CRLF and a BOM the same as LF', () => {
     expect(parsePlan('p', '﻿' + PLAN.replace(/\n/g, '\r\n')).plan).toEqual(parsePlan('p', PLAN).plan);
   });
+
+  it('reads baseline: from the frontmatter and keeps task lines as file lines', () => {
+    const text = '---\nbaseline: 3f2a9c1\n---\n\n## Task 1: A\ncovers: @ac-1\n';
+    const { plan, findings } = parsePlan('p', text);
+    expect(findings).toEqual([]);
+    expect(plan.baseline).toBe('3f2a9c1');
+    expect(plan.tasks.map((t) => [t.n, t.line, t.covers])).toEqual([[1, 5, ['@ac-1']]]);
+    expect(parsePlan('p', '﻿' + text.replace(/\n/g, '\r\n')).plan).toEqual(plan);
+  });
+
+  it('omits baseline when there is no frontmatter or it is not a string', () => {
+    expect(parsePlan('p', '## Task 1: A\n').plan).not.toHaveProperty('baseline');
+    expect(parsePlan('p', '---\nbaseline: [1]\n---\n## Task 1: A\n').plan).not.toHaveProperty('baseline');
+  });
 });
 
 describe('parseLedger, parseReview, parseBaseline', () => {

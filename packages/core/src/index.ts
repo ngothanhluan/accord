@@ -28,6 +28,7 @@ export { loadSnapshot } from './load/snapshot.js';
 export { lintSnapshot } from './lint/index.js';
 export type { LintResult } from './lint/index.js';
 export { gateDone, gatePlan, gateReady } from './gate/index.js';
+export { isSha } from './gate/done.js';
 export { approvedHash } from './gate/hash.js';
 export type { GateResult } from './gate/index.js';
 export { taskVerdict } from './gate/task.js';

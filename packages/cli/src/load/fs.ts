@@ -3,7 +3,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { loadSnapshot } from '@accord-dev/accord-core';
+import { isSha, loadSnapshot } from '@accord-dev/accord-core';
 import type { SnapshotInput } from '@accord-dev/accord-core';
 
 /** Environment problem the user must fix (no git, not a repository, no accord/ folder); exit 2 in Phase 5. */
@@ -136,17 +136,40 @@ function gitClaims(root: string): Record<string, string> {
   return claims;
 }
 
+/**
+ * Spec §7: is each lane plan's baseline an ancestor of HEAD? Per sha, `git merge-base --is-ancestor`:
+ * exit 0 is true and every other outcome is false (an unknown sha exits 128, a spawn failure throws).
+ * Never a UsageError: this runs for every command, so a typo'd baseline must not break `status` or
+ * `lint`; false fails `gate plan` closed. `isSha` runs first, so a value cannot read as an option.
+ */
+function gitAncestors(root: string, shas: string[]): Record<string, boolean> {
+  const out: Record<string, boolean> = {};
+  for (const sha of shas) {
+    try {
+      execFileSync('git', ['merge-base', '--is-ancestor', sha, 'HEAD'], { cwd: root, stdio: 'ignore' });
+      out[sha] = true;
+    } catch {
+      out[sha] = false;
+    }
+  }
+  return out;
+}
+
 export function loadFromFs(root: string): SnapshotInput {
   const tree = gitTree(root);
   const files = accordFiles(root);
   // First pass reads the config; the tokens file and the test report are read the same way,
   // and a missing one is lint's concern (LINT-04, FMT-11).
-  const config = loadSnapshot({ files, tree }).config;
+  const first = loadSnapshot({ files, tree });
+  const config = first.config;
   for (const value of [config?.design.tokens, config?.tests?.report]) {
     const key = containedPath(root, value);
     if (key !== undefined) files[key] = readFileSync(join(root, key), 'utf8');
   }
   const git = gitFacts(root);
+  const shas = [
+    ...new Set(Object.values(first.work ?? {}).flatMap((w) => (w.plan?.baseline !== undefined && isSha(w.plan.baseline) ? [w.plan.baseline] : []))),
+  ];
   const claims = gitClaims(root);
   return {
     files,
@@ -154,5 +177,6 @@ export function loadFromFs(root: string): SnapshotInput {
     ...(git === undefined ? {} : { git }),
     // Omitted when empty, so a repository with no ticket branch loads exactly as before.
     ...(Object.keys(claims).length === 0 ? {} : { claims }),
+    ...(shas.length === 0 ? {} : { ancestors: gitAncestors(root, shas) }),
   };
 }

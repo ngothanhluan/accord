@@ -79,6 +79,10 @@ export function laneTicket(id: string, opts: { lane?: string; frontmatter?: stri
 }
 
 export const PLAN = [
+  '---',
+  'baseline: abc1234',
+  '---',
+  '',
   '# Plan',
   '',
   '## Task 1: Writer csv mode',

@@ -4,6 +4,7 @@
 import { headingKey, LIST_MARKER, stripHtmlComments } from '../load/sections.js';
 import { FIELD, tokens } from '../load/work.js';
 import type { PlanTask, RepoSnapshot, Ticket } from '../model/snapshot.js';
+import { isSha } from './done.js';
 import type { GateRule } from './rules.js';
 import { laneTicket, planFile, workOf } from './work.js';
 
@@ -46,6 +47,29 @@ export const planEmpty: GateRule['check'] = (snapshot, id) => {
   const plan = laneTicket(snapshot, id) === undefined ? undefined : workOf(snapshot, id)?.plan;
   if (plan === undefined || plan.tasks.length > 0) return [];
   return [{ file: plan.file, reason: 'the plan has no "## Task <n>: <title>" section' }];
+};
+
+const planOf = (snapshot: RepoSnapshot, id: string) =>
+  laneTicket(snapshot, id) === undefined ? undefined : workOf(snapshot, id)?.plan;
+
+export const planBaselineMissing: GateRule['check'] = (snapshot, id) => {
+  const plan = planOf(snapshot, id);
+  if (plan === undefined || (plan.baseline !== undefined && isSha(plan.baseline))) return [];
+  return [
+    {
+      file: plan.file,
+      reason: 'plan.md has no baseline:; write the commit the plan was written against (git rev-parse HEAD) into its frontmatter',
+    },
+  ];
+};
+
+/** Spec §7: only when the host supplied ancestry facts; pure callers without a repository skip it, like `git?`. */
+export const planBaselineUnknown: GateRule['check'] = (snapshot, id) => {
+  const plan = planOf(snapshot, id);
+  const sha = plan?.baseline;
+  if (plan === undefined || sha === undefined || !isSha(sha) || snapshot.ancestors === undefined) return [];
+  if (Object.hasOwn(snapshot.ancestors, sha) && snapshot.ancestors[sha]) return [];
+  return [{ file: plan.file, reason: `baseline ${sha} is not a commit on the history of HEAD` }];
 };
 
 export const taskCoversMissing: GateRule['check'] = (snapshot, id) =>

@@ -1,6 +1,7 @@
-// Spec §10 `accord review-package <id> --base <ref>`: what a reviewer reads — commits, stat, and the diff
+// Spec §10 `accord review-package <id> [--base <ref>]`: what a reviewer reads — commits, stat, and the diff
 // with ten lines of context. git only, literal argument arrays, no shell (CLI-07).
 import { execFileSync } from 'node:child_process';
+import { workOf } from '@accord-dev/accord-core';
 import { UsageError } from '../load/fs.js';
 import type { CommandContext } from '../run.js';
 import { requireLaneTicket } from './lane-args.js';
@@ -9,9 +10,10 @@ import { requireLaneTicket } from './lane-args.js';
 // `~` and `^` after the first character admit HEAD~3 and main^.
 const REF = /^[A-Za-z0-9][A-Za-z0-9._/~^-]*$/;
 
-export function reviewPackage(ctx: CommandContext, id: string, options: { base: string }): number {
+export function reviewPackage(ctx: CommandContext, id: string, options: { base?: string }): number {
   requireLaneTicket(ctx, id);
-  const base = options.base;
+  const base = options.base ?? workOf(ctx.snapshot, id)?.plan?.baseline;
+  if (base === undefined) throw new UsageError('no --base given and plan.md records no baseline:');
   if (!REF.test(base)) throw new UsageError('not a git ref: ' + base);
   const git = (args: string[]) =>
     execFileSync('git', args, {

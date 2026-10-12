@@ -4,6 +4,7 @@ import { readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setFrontmatterKey } from '@accord-dev/accord-core';
 import { describe, expect, it } from 'vitest';
+import { PLAN } from '../../../test/helpers/lane.js';
 import { cleanup, commitAll, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
 
 /** The orchestrator ran the suite after the last commit: task-done refuses a report older than HEAD. */
@@ -42,6 +43,9 @@ describe('lane ticket flow', () => {
       expect((await run(['gate', 'ready', 'T-1'], repo)).code).toBe(1);
       expect((await run(['approve', 'T-1'], repo)).code).toBe(0);
       expect((await run(['gate', 'ready', 'T-1'], repo)).code).toBe(0);
+      // The plan records the commit it was written against, which gate plan checks against HEAD.
+      const baseline = commitAll(repo);
+      writeFiles(repo, { 'accord/tickets/T-1/plan.md': PLAN.replace('abc1234', baseline) });
       expect((await run(['gate', 'plan', 'T-1'], repo)).code).toBe(0);
       commitAll(repo);
       freshReport(repo);

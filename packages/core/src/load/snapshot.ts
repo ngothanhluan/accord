@@ -183,5 +183,6 @@ export function loadSnapshot(input: SnapshotInput): RepoSnapshot {
     ...(Object.keys(work).length === 0 ? {} : { work }),
     ...(testsBaseline === undefined ? {} : { testsBaseline }),
     ...(input.claims === undefined ? {} : { claims: input.claims }),
+    ...(input.ancestors === undefined ? {} : { ancestors: input.ancestors }),
   };
 }

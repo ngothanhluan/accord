@@ -37,6 +37,7 @@ export { untracedTests } from './lint/tests.js';
 export type { TaskVerdict } from './gate/task.js';
 export { recordTaskDone } from './write/ledger.js';
 export { anchorText } from './status/anchor.js';
+export { rulesetText, sessionLine } from './status/session.js';
 export { nextRows, statusRows } from './status/rows.js';
 export type { Stage } from './status/stage.js';
 export type { StatusRow } from './status/rows.js';

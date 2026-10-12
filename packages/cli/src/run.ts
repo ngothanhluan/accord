@@ -11,6 +11,7 @@ import { anchor } from './commands/anchor.js';
 import { approve } from './commands/approve.js';
 import { brief } from './commands/brief.js';
 import { gate } from './commands/gate.js';
+import { hook, HOOK_EVENTS } from './commands/hook.js';
 import { init } from './commands/init.js';
 import { lint } from './commands/lint.js';
 import { newTicket } from './commands/new-ticket.js';
@@ -212,6 +213,16 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .description("print the active ticket's intent, vetoes, decisions, corrections, and position")
     .action((id: string | undefined) => {
       setCode(anchor(preflight(opts), id));
+    });
+
+  program
+    .command('hook <event>')
+    .description('print the ruleset for a Claude Code hook: ' + HOOK_EVENTS.join(', '))
+    .action((event: string) => {
+      if (!(HOOK_EVENTS as readonly string[]).includes(event)) {
+        throw new UsageError('unknown hook event ' + event + '; expected one of ' + HOOK_EVENTS.join(', '));
+      }
+      setCode(hook(preflight(opts), event as (typeof HOOK_EVENTS)[number]));
     });
 
   return program;

@@ -118,7 +118,8 @@ describe('template structure', () => {
   });
 
   it('sample values contain no tokens', () => {
-    for (const name of names) {
+    // The ruleset's one placeholder is filled by the hook at print time, never by a user.
+    for (const name of names.filter((n) => n !== 'ruleset.md')) {
       expect(templates[name]).not.toContain('{{');
       expect(templates[name]).not.toContain('}}');
     }

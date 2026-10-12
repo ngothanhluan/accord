@@ -211,7 +211,7 @@ The intent therefore never has to be remembered; it is re-read.
    option's text only, never the architect's reasoning, risk line, or recommendation, so its review stays
    independent. Every finding the chosen option keeps goes into the brief's risks, Must findings first; a
    Must that breaks a Veto, Decision, or Correction rules the option out, and the critic runs again on the
-   next option in the architect's ladder order that is not yet ruled out, or the owner is asked when none
+   first option in the architect's ladder order that is not yet ruled out, or the owner is asked when none
    is left. When the ticket touches auth, money, migration, or data deletion, the critic adds three
    concrete failure scenarios.
 4. The owner receives a brief of about 15 lines under `## Approach`: chosen option and why, rejected

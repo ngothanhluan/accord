@@ -28,7 +28,7 @@ the owner's yes before anyone plans. You run it in the main session.
    against the chosen option and checks it against Vetoes, Decisions, and
    Corrections. This runs for every ticket in lane M and above.
    If a Must finding would break a Veto, Decision, or Correction, that
-   option is out: take the next option in the architect's ladder order
+   option is out: take the first option in the architect's ladder order
    that is not yet ruled out, and run the critic again on it. If no option
    is left, ask the owner. When the ticket touches auth, money, migration,
    or data deletion, ask the critic for three concrete failure scenarios as

@@ -614,7 +614,7 @@ Edits to the files Tasks 8 and 9 wrote. **Spec:** §4 Interview, §7 Approach. E
 `packages/core/skills/approach/SKILL.md`:
 1. Step 2: the architect proposes the options in ladder order.
 2. Step 3: pass the critic the chosen option's text only (its name and what it does), never the architect's reasoning, risk line, or `Recommended` line, so its review stays independent.
-3. Step 3: replace "take the next option" with: take the next option in the architect's ladder order that is not yet ruled out, and run the critic again on it.
+3. Step 3: replace "take the next option" with: take the first option in the architect's ladder order that is not yet ruled out, and run the critic again on it.
 4. Step 3: when the ticket touches auth, money, migration, or data deletion, ask the critic for three concrete failure scenarios as well.
 5. Step 4: drop "so the owner can switch before saying yes" from the rejected-options line. The risks line adds: for a ticket that touches auth, money, migration, or data deletion, each of the critic's three failure scenarios and how it is undone.
 6. Step 5: if the owner picks another option, go back to step 3 with that option, rewrite the brief, and ask again. `accord approve` runs only on a yes to the brief as shown.

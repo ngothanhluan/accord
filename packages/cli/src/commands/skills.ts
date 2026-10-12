@@ -11,12 +11,15 @@ import { dirname, join } from 'node:path';
 import {
   allSkillDirs,
   contentHash,
+  hookEntries,
   markerHash,
+  mergeHooks,
   normaliseText,
   skillDirs,
   skillTargets,
   withoutMarker,
 } from '@accord-dev/accord-core';
+import pkg from '../../package.json' with { type: 'json' };
 import { assertNoLink } from '../guard.js';
 import { UsageError } from '../load/fs.js';
 import type { AccordConfig, SkillFile } from '@accord-dev/accord-core';
@@ -69,6 +72,43 @@ export function writeSkillFiles(root: string, targets: SkillFile[], out: ReportR
     out.push({ status: intact ? 'updated' : 'overwrote local edits', path });
   }
   return out;
+}
+
+export const SETTINGS = '.claude/settings.json';
+
+/**
+ * The accord hooks, merged into `.claude/settings.json` for the claude runtime only. The file is the owner's:
+ * anything that is not a JSON object is refused with the hooks printed to add by hand, and nothing is written.
+ * The caller runs `assertNoLink(root, SETTINGS)` first, like every other destination.
+ */
+export function writeHooks(root: string, config: AccordConfig, out: ReportRow[]): void {
+  if (!config.runtimes.includes('claude')) return;
+  const file = join(root, ...SETTINGS.split('/'));
+  const entries = hookEntries(pkg);
+  const found = lstatSync(file, { throwIfNoEntry: false });
+  if (found === undefined) {
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, JSON.stringify(mergeHooks({}, entries), null, 2) + '\n');
+    out.push({ status: 'created', path: SETTINGS });
+    return;
+  }
+  let parsed: unknown;
+  let merged: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(readFileSync(file, 'utf8'));
+    merged = mergeHooks(parsed, entries);
+  } catch (err) {
+    if (!(err instanceof SyntaxError || err instanceof TypeError)) throw err;
+    throw new UsageError(
+      SETTINGS + ' is not a JSON object; nothing was written. Add these hooks by hand:\n' + JSON.stringify({ hooks: entries }, null, 2),
+    );
+  }
+  if (JSON.stringify(merged) === JSON.stringify(parsed)) {
+    out.push({ status: 'unchanged', path: SETTINGS });
+    return;
+  }
+  writeFileSync(file, JSON.stringify(merged, null, 2) + '\n');
+  out.push({ status: 'updated', path: SETTINGS });
 }
 
 /**
@@ -138,9 +178,11 @@ export function skills(ctx: CommandContext): number {
   // a guard inside it leaves everything sorted ahead of the bad path on disk while the message claims
   // "nothing was written" — a false report is worse than either outcome on its own.
   for (const { path } of targets) assertNoLink(ctx.root, path);
+  assertNoLink(ctx.root, SETTINGS);
 
   // Computed once, then rendered — so a `--json` mode added later cannot disagree with the text.
   const results = writeSkillFiles(ctx.root, targets);
+  writeHooks(ctx.root, config, results);
 
   // Scanned after the writes, so a directory this run created is already on disk when it is judged.
   const stale = orphans(ctx.root, config);

@@ -1,0 +1,40 @@
+import { describe, expect, it } from 'vitest';
+import { hookEntries, mergeHooks } from '../src/index.js';
+
+const e = hookEntries({ name: '@accord-dev/accord', version: '0.2.0' });
+const foreign = { matcher: 'startup', hooks: [{ type: 'command', command: 'echo hi' }] };
+
+describe('mergeHooks', () => {
+  it('writes the entries into an empty settings object', () => {
+    expect(mergeHooks({}, e)).toEqual({ hooks: e });
+  });
+  it('keeps other keys, other events, and a foreign entry ahead of ours', () => {
+    const existing = { model: 'x', hooks: { SessionStart: [foreign], PreToolUse: [{ matcher: 'Bash', hooks: [] }] } };
+    const out = mergeHooks(existing, e) as { model: string; hooks: Record<string, unknown[]> };
+    expect(out.model).toBe('x');
+    expect(out.hooks.PreToolUse).toEqual(existing.hooks.PreToolUse);
+    expect(out.hooks.SessionStart).toEqual([foreign, ...e.SessionStart]);
+  });
+  it('is idempotent', () => {
+    const once = mergeHooks({ hooks: { SessionStart: [foreign] } }, e);
+    expect(mergeHooks(once, e)).toEqual(once);
+  });
+  it('replaces an older accord command, and strips it from a mixed entry', () => {
+    const old = { type: 'command', command: 'npx --yes @accord-dev/accord@0.0.9 hook session-start' };
+    const out = mergeHooks({ hooks: { SessionStart: [{ matcher: 'startup', hooks: [old, foreign.hooks[0]] }] } }, e) as {
+      hooks: { SessionStart: unknown[] };
+    };
+    expect(out.hooks.SessionStart).toEqual([{ matcher: 'startup', hooks: foreign.hooks }, ...e.SessionStart]);
+  });
+  it('throws on a non-object or a non-object hooks', () => {
+    expect(() => mergeHooks([], e)).toThrow(TypeError);
+    expect(() => mergeHooks({ hooks: 3 }, e)).toThrow(TypeError);
+  });
+  it('commands carry no shell syntax', () => {
+    for (const list of Object.values(e)) {
+      for (const entry of list) {
+        for (const h of entry.hooks) expect(h.command).toMatch(/^npx --yes [@a-z0-9/._-]+@[0-9A-Za-z.-]+ hook [a-z-]+$/);
+      }
+    }
+  });
+});

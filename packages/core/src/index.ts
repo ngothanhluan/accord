@@ -59,6 +59,8 @@ export type { ScaffoldFile } from './scaffold/init.js';
 // CLI-03: not a `ScaffoldFile`, deliberately. The pointer's text depends on what the file already holds
 // (D-142), which is the one thing the skip-if-exists write contract above never looks at.
 export { POINTER_END, POINTER_FILES, POINTER_START, pointerText } from './scaffold/pointer.js';
+export { hookEntries, isAccordHookCommand, mergeHooks } from './scaffold/hooks.js';
+export type { HookEntries } from './scaffold/hooks.js';
 export { skills } from './generated/skills.js';
 export type { SkillKey } from './generated/skills.js';
 // The read-back that `skills sync` compares against a hash must normalise exactly as the write did

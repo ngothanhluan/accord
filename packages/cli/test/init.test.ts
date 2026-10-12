@@ -109,7 +109,7 @@ describe('accord init — the first run', () => {
     // then the skill half in `skillTargets` order, read off the config this run wrote, then the two pointer
     // files. `toBe` on the whole stdout string, never `toContain`: D-133 is a claim about the whole list.
     expect(out).toBe(
-      report([...SCAFFOLD, ...skillPaths(repo), ...POINTER_FILES].map((p) => 'created ' + p)),
+      report([...SCAFFOLD, ...skillPaths(repo), '.claude/settings.json', ...POINTER_FILES].map((p) => 'created ' + p)),
     );
     expect(err).toBe('');
   });
@@ -198,6 +198,7 @@ describe('accord init — running it again', () => {
       report([
         ...SCAFFOLD.map((p) => 'skipped ' + p),
         ...skillPaths(repo).map((p) => 'unchanged ' + p),
+        'unchanged .claude/settings.json',
         ...POINTER_FILES.map((p) => 'skipped ' + p),
       ]),
     );

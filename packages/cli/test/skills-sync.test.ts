@@ -484,3 +484,52 @@ describe('writeSkillFiles — a run that stops part-way', () => {
     expect(out).toEqual([{ status: 'created', path: first.path }]);
   });
 });
+
+describe('accord skills sync - hooks in .claude/settings.json', () => {
+  const SETTINGS = '.claude/settings.json';
+  const commands = (repo: string): string[] =>
+    JSON.stringify(JSON.parse(bytes(at(repo, SETTINGS)))).match(/npx --yes [^"]+/g) ?? [];
+
+  it('creates the file with three accord commands; a second run is unchanged and writes nothing', async () => {
+    const repo = sandbox();
+    const first = await run(['skills', 'sync'], repo);
+    expect(first.out).toContain('created ' + SETTINGS + '\n');
+    expect(commands(repo)).toHaveLength(3);
+    const before = statSync(at(repo, SETTINGS)).mtimeMs;
+    const second = await run(['skills', 'sync'], repo);
+    expect(second.out).toContain('unchanged ' + SETTINGS + '\n');
+    expect(statSync(at(repo, SETTINGS)).mtimeMs).toBe(before);
+  });
+
+  it('keeps a foreign hook', async () => {
+    const repo = sandbox();
+    mkdirSync(at(repo, '.claude'), { recursive: true });
+    const foreign = { matcher: 'startup', hooks: [{ type: 'command', command: 'echo hi' }] };
+    writeFileSync(at(repo, SETTINGS), JSON.stringify({ model: 'x', hooks: { SessionStart: [foreign] } }));
+    const { code, out } = await run(['skills', 'sync'], repo);
+    expect(code).toBe(0);
+    expect(out).toContain('updated ' + SETTINGS + '\n');
+    const json = JSON.parse(bytes(at(repo, SETTINGS)));
+    expect(json.model).toBe('x');
+    expect(json.hooks.SessionStart[0]).toEqual(foreign);
+    expect(commands(repo)).toHaveLength(3);
+  });
+
+  it('refuses a file that is not JSON, prints the hooks to add, and leaves it byte-identical', async () => {
+    const repo = sandbox();
+    mkdirSync(at(repo, '.claude'), { recursive: true });
+    writeFileSync(at(repo, SETTINGS), '{ not json');
+    const { code, err } = await run(['skills', 'sync'], repo);
+    expect(code).toBe(2);
+    expect(err).toContain('Add these hooks by hand');
+    expect(err).toContain('hook session-start');
+    expect(bytes(at(repo, SETTINGS))).toBe('{ not json');
+  });
+
+  it('writes no settings file without the claude runtime', async () => {
+    const repo = sandbox();
+    setConfig(repo, /^runtimes: .*$/m, 'runtimes: [codex]');
+    await run(['skills', 'sync'], repo);
+    expect(existsSync(at(repo, SETTINGS))).toBe(false);
+  });
+});

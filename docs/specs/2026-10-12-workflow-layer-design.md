@@ -119,7 +119,8 @@ the contract that is tested and verified. `## Plan` moves out of the ticket into
 ## 5. Team coordination
 
 - **Dependencies.** `depends_on: [T-12]`. Lint fails on unknown ids and cycles. A ticket counts as done
-  when it passed Done and is merged into the default branch, both read from git.
+  when its records say done in the tree the command runs on; being merged is implied by its presence in
+  that tree.
 - **Claim.** Starting a ticket means pushing a branch `t/<id>`. `accord status` reads remote branches and
   their commit authors to show who holds what. Nothing is committed to the default branch to claim. When a
   tracker adapter is configured, its assignee is used instead.

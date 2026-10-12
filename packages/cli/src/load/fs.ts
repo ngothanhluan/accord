@@ -105,6 +105,31 @@ function gitFacts(root: string): { commit: string; authors: Record<string, strin
   return { commit, authors };
 }
 
+/**
+ * Spec §5: a branch named t/<id>, local or on any remote, claims ticket <id> for the author of its tip.
+ * One spawn, literal arguments. for-each-ref sorts by refname, so refs/remotes/... is read after
+ * refs/heads/... and the pushed claim, the one teammates see, wins.
+ */
+function gitClaims(root: string): Record<string, string> {
+  let out: string;
+  try {
+    out = execFileSync('git', ['for-each-ref', '--format=%(refname)%00%(authoremail)', 'refs/heads/t/', 'refs/remotes/'], {
+      cwd: root,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+  } catch {
+    return {};
+  }
+  const claims: Record<string, string> = {};
+  for (const line of out.split('\n')) {
+    const [ref, email] = line.split('\0');
+    const m = /^refs\/(?:heads|remotes\/[^/]+)\/t\/([^/]+)$/.exec(ref ?? '');
+    if (m !== null && email !== undefined) claims[m[1]] = email.replace(/^<|>$/g, '');
+  }
+  return claims;
+}
+
 export function loadFromFs(root: string): SnapshotInput {
   const tree = gitTree(root);
   const files = accordFiles(root);
@@ -116,5 +141,12 @@ export function loadFromFs(root: string): SnapshotInput {
     if (key !== undefined) files[key] = readFileSync(join(root, key), 'utf8');
   }
   const git = gitFacts(root);
-  return { files, tree, ...(git === undefined ? {} : { git }) };
+  const claims = gitClaims(root);
+  return {
+    files,
+    tree,
+    ...(git === undefined ? {} : { git }),
+    // Omitted when empty, so a repository with no ticket branch loads exactly as before.
+    ...(Object.keys(claims).length === 0 ? {} : { claims }),
+  };
 }

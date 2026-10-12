@@ -13,6 +13,7 @@ import { gate } from './commands/gate.js';
 import { init } from './commands/init.js';
 import { lint } from './commands/lint.js';
 import { newTicket } from './commands/new-ticket.js';
+import { next } from './commands/next.js';
 import { reviewPackage } from './commands/review-package.js';
 import { skills } from './commands/skills.js';
 import { status } from './commands/status.js';
@@ -194,6 +195,14 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     // awaits it, so the exit code is still settled before runCli returns.
     .action(async (options: { json?: boolean; all?: boolean }) => {
       setCode(await status(preflight(opts), options));
+    });
+
+  program
+    .command('next')
+    .description('list lane tickets that passed Ready, have no task recorded, and are unblocked and unclaimed')
+    .option('--json', 'print the StatusRow array instead of the table')
+    .action((options: { json?: boolean }) => {
+      setCode(next(preflight(opts), options));
     });
 
   return program;

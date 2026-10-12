@@ -3,7 +3,7 @@
 import { existsSync, readFileSync, rmSync, utimesSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { cleanup, commitAll, gitRun, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
+import { cleanup, commitAll, gitRun, makeEmptyRepo, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
 import { CONFIG, junit, laneTicket, REPORT } from '../../../test/helpers/lane.js';
 
 const ticketText = (repo: string, id = 'T-1') => readFileSync(join(repo, 'accord', 'tickets', id + '.md'), 'utf8');
@@ -412,6 +412,87 @@ describe('accord tests baseline', () => {
       const text = readFileSync(join(repo, 'accord', 'tests-baseline.txt'), 'utf8');
       expect(text.split('\n').filter((l) => l !== '' && !l.startsWith('# '))).toEqual(['#123-handles-x']);
       expect((await run(['lint'], repo)).out).not.toContain('#123-handles-x');
+    } finally {
+      cleanup(repo);
+    }
+  });
+});
+
+describe('status, claims, and next', () => {
+  it('a branch t/<id> claims the ticket for its tip author, ids with dots and underscores included', async () => {
+    const repo = makeLaneRepo({ 'accord/tickets/T-1.2_a.md': laneTicket('T-1.2_a') });
+    try {
+      commitAll(repo);
+      gitRun(repo, 'branch', 't/T-1.2_a');
+      const result = await run(['status', '--json'], repo);
+      const rows = JSON.parse(result.out) as { id: string; claimedBy?: string }[];
+      expect(rows.find((r) => r.id === 'T-1.2_a')?.claimedBy).toBe('fixture@example.invalid');
+      expect(rows.find((r) => r.id === 'T-1')).not.toHaveProperty('claimedBy');
+      const table = (await run(['status'], repo)).out;
+      expect(table).toContain('fixture@example.invalid');
+      expect(result.out + table).not.toContain('\\');
+    } finally {
+      cleanup(repo);
+    }
+  });
+
+  it('a pushed branch under refs/remotes/<remote>/t/<id> claims the ticket too', async () => {
+    const repo = makeLaneRepo();
+    try {
+      commitAll(repo);
+      gitRun(repo, 'update-ref', 'refs/remotes/origin/t/T-1', 'HEAD');
+      const rows = JSON.parse((await run(['status', '--json'], repo)).out) as { id: string; claimedBy?: string }[];
+      expect(rows.find((r) => r.id === 'T-1')?.claimedBy).toBe('fixture@example.invalid');
+    } finally {
+      cleanup(repo);
+    }
+  });
+
+  it('a ticket without lane is unchanged by a t/<id> branch, in the table and under --json', async () => {
+    const repo = makeEmptyRepo();
+    try {
+      writeFiles(repo, { 'accord/config.yml': CONFIG, 'accord/tickets/L-1.md': laneTicket('L-1', { lane: '' }) });
+      commitAll(repo);
+      const before = [await run(['status'], repo), await run(['status', '--json'], repo)];
+      gitRun(repo, 'branch', 't/L-1');
+      const after = [await run(['status'], repo), await run(['status', '--json'], repo)];
+      expect(after).toEqual(before);
+      expect(before[0].out.split('\n')[0]).not.toContain('stage');
+      const row = (JSON.parse(before[1].out) as Record<string, unknown>[])[0];
+      for (const key of ['lane', 'stage', 'tasksDone', 'tasksTotal', 'dependsOn', 'blockedBy', 'claimedBy']) {
+        expect(row).not.toHaveProperty(key);
+      }
+    } finally {
+      cleanup(repo);
+    }
+  });
+
+  it('the status table gains stage, who, and blocked by columns when a lane ticket exists', async () => {
+    const repo = makeLaneRepo();
+    try {
+      const out = (await run(['status'], repo)).out;
+      expect(out.split('\n')[0]).toMatch(/stage\s+who\s+blocked by\s+tracker/);
+      expect(out).toContain('intent');
+    } finally {
+      cleanup(repo);
+    }
+  });
+
+  // makeLaneRepo always writes a plan, so the approved ticket sits at build 0/2: approved, nothing recorded.
+  it('next lists an approved, unclaimed ticket, and nothing once it is claimed', async () => {
+    const repo = makeLaneRepo();
+    try {
+      await run(['approve', 'T-1'], repo);
+      const listed = await run(['next'], repo);
+      expect(listed.code).toBe(0);
+      expect(listed.out).toContain('T-1');
+      expect(listed.out).toContain('build 0/2');
+      const json = JSON.parse((await run(['next', '--json'], repo)).out) as { id: string }[];
+      expect(json.map((r) => r.id)).toEqual(['T-1']);
+      commitAll(repo);
+      gitRun(repo, 'branch', 't/T-1');
+      expect((await run(['next'], repo)).out).toBe('no ticket is ready to pick up\n');
+      expect((await run(['next', '--json'], repo)).out).toBe('[]\n');
     } finally {
       cleanup(repo);
     }

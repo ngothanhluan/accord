@@ -512,10 +512,12 @@ describe('status, claims, and next', () => {
   });
 
   // makeLaneRepo always writes a plan, so the approved ticket sits at build 0/2: approved, nothing recorded.
-  it('next lists an approved, unclaimed ticket, and nothing once it is claimed', async () => {
+  it('next lists an approved, Ready, unclaimed ticket, and nothing once it is claimed', async () => {
     const repo = makeLaneRepo();
     try {
       await run(['approve', 'T-1'], repo);
+      expect((await run(['next'], repo)).out).toBe('no ticket is ready to pick up\n');
+      expect((await run(['gate', 'ready', 'T-1'], repo)).code).toBe(0);
       const listed = await run(['next'], repo);
       expect(listed.code).toBe(0);
       expect(listed.out).toContain('T-1');

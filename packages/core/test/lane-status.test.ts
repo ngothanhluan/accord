@@ -3,11 +3,16 @@ import { describe, expect, it } from 'vitest';
 import { loadSnapshot, nextRows, setFrontmatterKey, statusRows } from '../src/index.js';
 import { acHash } from '../src/gate/hash.js';
 import { approved } from './helpers/approve.js';
-import { CONFIG, laneTicket, PLAN } from '../../../test/helpers/lane.js';
+import { CONFIG, LANE_BODY, laneTicket, PLAN } from '../../../test/helpers/lane.js';
 
 const rows = (files: Record<string, string>, claims?: Record<string, string>) =>
   statusRows(loadSnapshot({ files, tree: [], ...(claims === undefined ? {} : { claims }) }));
 const T1 = 'accord/tickets/T-1.md';
+// Records ac_hash the way a passing `gate ready` does.
+const readied = (files: Record<string, string>): Record<string, string> => {
+  const hash = acHash(loadSnapshot({ files, tree: [] }).tickets['T-1'].scenarios) as string;
+  return { ...files, [T1]: setFrontmatterKey(files[T1], 'ac_hash', hash) };
+};
 const LANE_KEYS = ['lane', 'stage', 'tasksDone', 'tasksTotal', 'dependsOn', 'blockedBy', 'claimedBy'];
 
 describe('stage (spec §6)', () => {
@@ -53,7 +58,7 @@ describe('dependencies and claims (spec §5)', () => {
   });
 
   it('nextRows keeps passed-Ready, not-started, unblocked, unclaimed tickets', () => {
-    const files = approved({ 'accord/config.yml': CONFIG, [T1]: laneTicket('T-1') }, 'T-1');
+    const files = readied(approved({ 'accord/config.yml': CONFIG, [T1]: laneTicket('T-1') }, 'T-1'));
     expect(nextRows(rows(files)).map((r) => r.id)).toEqual(['T-1']);
     expect(nextRows(rows(files, { 'T-1': 'an@example.test' }))).toEqual([]);
     expect(nextRows(rows({ 'accord/config.yml': CONFIG, [T1]: laneTicket('T-1') }))).toEqual([]);
@@ -64,8 +69,16 @@ describe('dependencies and claims (spec §5)', () => {
     expect(nextRows(rows(started))).toEqual([]);
   });
 
+  it('nextRows drops an approved ticket that has not passed Ready', () => {
+    // An unchecked open question fails Ready, and Ready never wrote ac_hash.
+    const body = LANE_BODY.replace('- [x] Delimiter? Comma.', '- [ ] Delimiter?');
+    const files = approved({ 'accord/config.yml': CONFIG, [T1]: laneTicket('T-1', { body }) }, 'T-1');
+    expect(rows(files)[0]).toMatchObject({ stage: 'plan', ready: 'none' });
+    expect(nextRows(rows(files))).toEqual([]);
+  });
+
   it('nextRows drops a ticket whose dependency is not done', () => {
-    const files = approved({ 'accord/config.yml': CONFIG, [T1]: dep('T-1', ['B']), 'accord/tickets/B.md': dep('B', []) }, 'T-1');
+    const files = readied(approved({ 'accord/config.yml': CONFIG, [T1]: dep('T-1', ['B']), 'accord/tickets/B.md': dep('B', []) }, 'T-1'));
     expect(nextRows(rows(files)).map((r) => r.id)).toEqual([]);
   });
 });

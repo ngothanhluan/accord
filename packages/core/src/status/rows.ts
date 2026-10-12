@@ -89,13 +89,14 @@ export function statusRows(snapshot: RepoSnapshot): StatusRow[] {
 }
 
 /**
- * Spec §6 `accord next`: lane tickets that passed Ready (approved at the current hash), have no task
- * recorded yet, are not archived, wait on no dependency, and are unclaimed.
+ * Spec §6 `accord next`: lane tickets that passed Ready (approved at the current hash, and `ac_hash`,
+ * which only a passing `gate ready` writes, matching the current criteria), have no task recorded yet, are not archived, wait on no dependency, and are unclaimed.
  */
 export function nextRows(rows: StatusRow[]): StatusRow[] {
   return rows.filter(
     (r) =>
       (r.stage === 'plan' || (r.stage === 'build' && r.tasksDone === 0)) &&
+      r.ready === 'ok' &&
       (r.blockedBy ?? []).length === 0 &&
       r.claimedBy === undefined &&
       r.status !== 'archived',

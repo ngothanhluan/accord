@@ -112,15 +112,17 @@ the contract that is tested and verified. `## Plan` moves out of the ticket into
 
 1. **Look before asking.** `accord-scout` gathers facts from the code. Anything the code answers is not
    asked. A question about an existing project cites the file that prompted it.
-2. **Score ambiguity** on four dimensions (goal, scope boundary, constraints, acceptance), shown to the
+2. **Confirm the parts.** Before the first score, the agent lists the request's top-level parts and the
+   owner confirms them.
+3. **Score ambiguity** on four dimensions (goal, scope boundary, constraints, acceptance), shown to the
    owner after each round.
-3. **One question per message, aimed at the weakest dimension**, multiple choice where possible, the
+4. **One question per message, aimed at the weakest dimension**, multiple choice where possible, the
    recommended option first with its reason.
-4. **Stop** when the score (the mean, where 0 is unambiguous) is at or below 0.2 and no dimension is above
+5. **Stop** when the score (the mean, where 0 is unambiguous) is at or below 0.2 and no dimension is above
    0.4, or when the owner says "enough" (recorded in the ledger as `Ruling: interview stopped by the owner
-   at <score>`).
-5. **Write back** the understanding, separating what the owner said from what the agent assumed.
-6. **Audit once.** `accord-auditor`, in a fresh context reading only the ticket, tries to find two
+   at <score>`). Before stopping, the agent asks once for the smallest version that still counts as done.
+6. **Write back** the understanding, separating what the owner said from what the agent assumed.
+7. **Audit once.** `accord-auditor`, in a fresh context reading only the ticket, tries to find two
    different readings of each acceptance criterion. A criterion with two readings goes back to the owner.
 
 ### Keeping intent binding
@@ -199,16 +201,24 @@ The intent therefore never has to be remembered; it is re-read.
 ### Approach (owner-approved)
 
 1. `accord-architect` reads the ticket, runs an impact analysis (callers, interfaces, tests, config,
-   exports the change must reach), and proposes two or three options.
-2. The first option is always the lightest that works (principle 6). Each added layer of complexity names
-   the acceptance criterion or constraint that requires it, or is dropped.
+   exports the change must reach), and proposes two or three options in ladder order.
+2. The first option is the first rung of the ladder that fully works (principle 6). The second and third
+   climb further only where a criterion or constraint needs it. Each added layer of complexity names the
+   acceptance criterion or constraint that requires it, or is dropped.
 3. `accord-critic`, in a fresh context, argues the strongest case against the chosen option and checks it
    against Vetoes, Decisions, and Corrections. This runs for every lane M and above. The chosen option is
-   the one the architect recommends unless the owner picked another. Every finding the chosen option keeps
-   goes into the brief's risks, Must findings first; a Must that breaks a Veto, Decision, or Correction
-   rules the option out, and the critic runs again on the next one, or the owner is asked when none is left.
+   the one the architect recommends unless the owner picked another. The critic receives the chosen
+   option's text only, never the architect's reasoning, risk line, or recommendation, so its review stays
+   independent. Every finding the chosen option keeps goes into the brief's risks, Must findings first; a
+   Must that breaks a Veto, Decision, or Correction rules the option out, and the critic runs again on the
+   next option in the architect's ladder order that is not yet ruled out, or the owner is asked when none
+   is left. When the ticket touches auth, money, migration, or data deletion, the critic adds three
+   concrete failure scenarios.
 4. The owner receives a brief of about 15 lines under `## Approach`: chosen option and why, rejected
    options and why, affected areas, risks, and test strategy (which criterion is tested at which layer).
+   For a ticket that touches auth, money, migration, or data deletion, the risks include the critic's three
+   failure scenarios and how each is undone. If the owner picks another option, the critic runs on it
+   (step 3) and the brief is rewritten before the owner is asked again.
    Approval runs `accord approve`; `accord gate ready` then requires intent, criteria, and approach.
 
 ### Plan (machine-facing; the owner does not need to read it)
@@ -216,21 +226,31 @@ The intent therefore never has to be remembered; it is re-read.
 `accord-planner` writes `tickets/<id>/plan.md`, one `## Task <n>: <title>` section per task. Each task
 carries a `covers:` line (criteria and decisions), a `files:` line, a `verify:` line naming the test report
 case ids that prove it, then prose for the executor: interface (consumes, produces) and the test written
-first. A task fits in about half of an executor's context; the planner splits anything larger, and the
-critic flags a task that does not.
+first. A path in `files:` that the task creates is followed by the token `(new)`. A task that edits an
+existing file names the behaviour there that must not change. Tasks are ordered so the one that proves the
+approach end to end (the wiring) comes first; polish comes last. A task fits in about half of an
+executor's context; the planner splits anything larger, and the critic flags a task that does not.
 
 `accord gate plan <id>` (new) checks mechanically: the approval still matches the ticket; every `@ac-n`
 is covered by a task; every `D-nn` is cited; every task has `covers:` and `verify:`; nothing in `covers:`
-is foreign to the ticket; no "TODO", "TBD", "placeholder", "v1", "for now", "later" in task text.
+is foreign to the ticket; no "TODO", "TBD", "placeholder", "v1", "for now", "later" in task text; every
+path in `files:` exists at `baseline:` unless it is marked `(new)` (`gate.task-file-unknown`, phase 2).
+On a pass it writes `plan_hash:`, the hash of the plan below its frontmatter, into `plan.md`, as
+`gate ready` writes `ac_hash` (phase 2).
 `accord-critic` checks meaning: no veto violated, nothing beyond the criteria, the approved approach
-followed. It also argues goal-backward: assuming every task passes its `verify:` line, does the `## Intent`
-hold for the person it names? A plan that covers each criterion on paper but leaves the intent unmet (a
-step nobody wired, a state nobody reaches) is a Must (phase 2). At most three revision rounds, then the
-owner is told; the run does not continue on a failing plan.
+followed. It checks that an executor holding only the ticket and one task could finish that task without
+asking; a task that fails this is a Should. It also argues goal-backward: assuming every task passes its
+`verify:` line, does the `## Intent` hold for the person it names? A plan that covers each criterion on
+paper but leaves the intent unmet (a step nobody wired, a state nobody reaches) is a Must (phase 2). At
+most three revision rounds, then the owner is told, and is shown the revision with the fewest Must
+findings and the round it came from; the run does not continue on a failing plan.
 
 `plan.md` frontmatter carries `baseline:`, the commit the plan was written against. `accord gate plan`
 checks that it names a commit that is an ancestor of `HEAD`, and `accord review-package <id>` diffs from
 it when no base is given, so review always sees the whole ticket and nothing before it (phase 2).
+
+Before build, `tests.full` runs on the baseline. Any failing case is shown to the owner, who decides
+whether it is fixed first or tracked as its own ticket; the agent never ignores it on its own.
 
 ### Slicing by review mode
 
@@ -254,10 +274,18 @@ it when no base is given, so review always sees the whole ticket and nothing bef
   - At most three attempts per problem.
   - No new package without asking.
   - Any file outside the plan's list is declared with a reason.
+  - Never edit the ticket or `plan.md`, and never weaken a criterion test after showing it fail. A test
+    that seems wrong is `BLOCKED` with the reason.
 - Report: at most 15 lines. `DONE | DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT`, commits, test evidence,
   files touched, Rulings.
+- **Change of course.** When the approved approach cannot work, the run stops. The orchestrator writes a
+  change note under `## Approach`: what failed, which finished tasks still hold, and the proposed new
+  approach. Because `approved_hash` covers `## Approach`, the owner's new yes and a new `accord approve`
+  are required; then only the tasks the change touches are re-planned. The approach is never re-planned
+  quietly.
 - `accord task-done <id> <task>` (new) writes the ledger line only when every case the task's `verify:`
-  line names is recorded `passed` in the test report, and the report was written after the current commit.
+  line names is recorded `passed` in the test report, the report was written after the current commit, and
+  the plan below its frontmatter still matches the `plan_hash:` that `gate plan` wrote when it last passed.
   The orchestrator runs the tests (`tests.affected`) and then `task-done`; the executor's claim alone records
   nothing. The CLI never runs a test command itself: it spawns only `git`, so the check is the report, the
   same evidence the Done gate reads.
@@ -287,13 +315,16 @@ the same rules.
 ## 10. Review
 
 **Input.** The ticket verbatim, the approach, a review package from `accord review-package <id>` (new:
-commit list, stat, diff with context), and the ledger. The executor's report is context, never evidence.
+commit list, stat, the changed files no task's `files:` names under `## Undeclared files`, and the diff
+with context), and the ledger. The executor's report is context, never evidence. The reviewer accepts an
+undeclared file only against a reason the ledger records as a Ruling; any other is an Extra finding.
 
 **Two axes, reported separately.**
 - *Intent*: each finding quotes the criterion, veto, or correction it violates. A category "Extra" covers
   anything nobody asked for. A spec's silence is not permission.
-- *Quality*: correctness, safety, simplicity (delete, reuse, standard library, not needed), and the test
-  policy of section 9.
+- *Quality*: correctness, safety, simplicity (delete, reuse, standard library, not needed), the test
+  policy of section 9, and the repository's written conventions and `product/` rules. Anything a configured
+  linter or type check already enforces is skipped.
 
 **Findings.** `Must | Should | Nice`, numbered. No concrete failing case, no finding.
 
@@ -311,8 +342,13 @@ lines) or the ticket under `review: outcome`. Independent slices are reviewed in
 merges and de-duplicates findings before the fix loop.
 
 **Loop to convergence.**
-- Fix every Must and Should, then re-review only the fix diff, with one reviewer.
+- Before fixing, each finding is marked `patch`, `plan-gap`, or `intent-gap`. Only patches enter the fix
+  loop. A plan gap goes back to the plan stage, where the critic runs again. An intent gap stops the run
+  and asks the owner.
+- Fix every Must and Should marked `patch`, then re-review only the fix diff, with one reviewer.
 - Converged means zero Must and zero Should. Nice findings go to the ledger as deferred, not fixed.
+- If round three still finds a new Must, the orchestrator says whether it traces to the ticket or the
+  plan; if it does, the owner is asked before round four.
 - At most five rounds. Rounds four and five use a fresh executor one model tier higher.
 - At the cap the run stops and reports the open findings to the owner. It never reports done.
 - After convergence, one fresh final reviewer on the strongest configured model reads the whole diff once
@@ -338,7 +374,7 @@ flows (not hard-coded). What it cannot prove is recorded as `Result: blocked` (n
 The owner's report:
 - one line per criterion: pass or fail, with evidence (test and output, or a screenshot for UI);
 - three to five "try this" steps that take about two minutes;
-- all Rulings;
+- all Rulings, ordered by their cost if wrong, highest first;
 - deferred items;
 - what was not checked;
 - slow tests.
@@ -397,9 +433,11 @@ A fix round at or after `fix_round_tier_up` passes a one-tier-higher model on th
 order `haiku`, `sonnet`, `opus`; an executor already on `opus` stays there.
 
 **Debugging** (`accord-debug`, run by `accord-debugger`): no fix before a root cause; competing hypotheses,
-each with evidence for and against; session state written to a file so it survives compaction; grep every
-caller and fix the root cause once in shared code; the fix starts with a failing reproduction test; after
-three failed fixes, stop, question the architecture, and ask the owner.
+each with evidence for and against, ranked before any is tested; one hypothesis is always that the test or
+measurement itself is wrong; the first test is the cheapest probe that separates the top two; after one
+failed fix, one debugger per remaining hypothesis runs in parallel; session state written to a file so it
+survives compaction; grep every caller and fix the root cause once in shared code; the fix starts with a
+failing reproduction test; after three failed fixes, stop, question the architecture, and ask the owner.
 
 ## 13. Benchmark harness
 
@@ -449,7 +487,7 @@ measurements, and re-run when new models ship.
 
 | Keep | Change | Add |
 |---|---|---|
-| `accord/` folder; frontmatter schema; Gherkin parsing; `@test:<id>`; `ac_hash`; JUnit scan; skills rendered from data; version pin; CI workflow | EARS optional, lint off by default; role skills replaced by stage skills; ticket headings per section 4; `## Plan` moves to `plan.md`; `## Verification notes` required only under `review: human`; constraint "identical behaviour in four runtimes" becomes "gates identical everywhere, orchestration Claude Code first" | frontmatter `lane`, `depends_on`, `approved_hash`, `status: dropped` (phase 2), `ui` (phase 4); `plan.md` `baseline:` (phase 2); config `review.mode` (phase 1), `stale_days` (phase 2), `review.max_pr_lines` and `ui.skill` (phase 4), `models`, `escalation`, `tests.affected`, `tests.full` (phase 2); commands `approve`, `gate plan`, `task-done`, `brief`, `review-package`, `tests baseline`, `anchor`, `next`, extended `status`; rules `lint.test-untraced`, `lint.depends-*`, lane Ready, plan, and Done rules; per-ticket `plan.md`, `ledger.md`, `review.md`; `accord/tests-baseline.txt`; agents `accord-*`; hooks; benchmark harness |
+| `accord/` folder; frontmatter schema; Gherkin parsing; `@test:<id>`; `ac_hash`; JUnit scan; skills rendered from data; version pin; CI workflow | EARS optional, lint off by default; role skills replaced by stage skills; ticket headings per section 4; `## Plan` moves to `plan.md`; `## Verification notes` required only under `review: human`; constraint "identical behaviour in four runtimes" becomes "gates identical everywhere, orchestration Claude Code first" | frontmatter `lane`, `depends_on`, `approved_hash`, `status: dropped` (phase 2), `ui` (phase 4); `plan.md` `baseline:` and `plan_hash:`, `files:` marker `(new)` (phase 2); config `review.mode` (phase 1), `stale_days` (phase 2), `review.max_pr_lines` and `ui.skill` (phase 4), `models`, `escalation`, `tests.affected`, `tests.full` (phase 2); commands `approve`, `gate plan`, `task-done`, `brief`, `review-package`, `tests baseline`, `anchor`, `next`, extended `status`; rules `lint.test-untraced`, `lint.depends-*`, lane Ready, plan, and Done rules, `gate.task-file-unknown` (phase 2); undeclared files in `review-package` (phase 2); per-ticket `plan.md`, `ledger.md`, `review.md`; `accord/tests-baseline.txt`; agents `accord-*`; hooks; benchmark harness |
 
 **Skills.** `roles:` stays in the config schema so no config breaks. `skills sync` always installs `/accord`
 (source `skills/accord/`, installed as `accord`) and the stage skills (`accord-<stage>`); `designer` installs
@@ -465,11 +503,14 @@ The `.planning/` directory of the previous planning process is archived when pha
 
 1. **Contract.** Ticket format, schema keys, and the new gates and commands. CLI only, fully testable.
 2. **Skills and agents v1.** `/accord`, intent, approach, plan, build, review, verify, debug, plus the
-   ruleset hooks; `status: dropped`, `stale_days`, the plan `baseline:`, and the critic's goal-backward
-   question (sections 3 and 7). Dogfood: run one lane M ticket of accord through accord.
+   ruleset hooks; `status: dropped`, `stale_days`, the plan `baseline:`, the critic's goal-backward
+   question, the plan's file and hash checks, and the review package's undeclared files (sections 3, 7,
+   8, and 10). Dogfood: run one lane M ticket of accord through accord.
 3. **Benchmark.** Reviewer and executor fixtures; replace the default routing.
 4. **Lanes L and P.** Waves, worktrees, slicing for `review: human`, epic gate, epic readiness, retro, and
    UI tickets (sections 3 and 11).
+   The plan for a story reads the Corrections and Rulings of its finished sibling stories, and two stories
+   whose plans name the same file never share a wave.
 5. **Test diet**, and benchmark fixtures for critic and auditor.
 
 The benchmark follows phase 2 because it measures prompts that must exist first.

@@ -35,6 +35,7 @@
 3. **A repository still on `roles: [ba, dev]` keeps working.** Its config stays valid, `skills sync` installs the stage set, and the old `accord-ba` and `accord-dev` directories are reported as orphans rather than deleted or silently left (Task 7 tests).
 4. **Bad routing is refused, not ignored.** An unknown `models` key, an unknown effort, or a malformed model id is a schema finding; an absent entry falls back to the spec §12 default (Task 1 and Task 6 tests).
 5. **Legacy and pre-baseline plans.** A 0.1.0 ticket is untouched by `dropped`, `baseline:`, and the new hooks; a lane plan without `baseline:` fails `gate plan` with a reason that says what to write (Task 2 and Task 3 tests).
+6. **A changed plan is refused, and `plan_hash` is written only on a pass.** `gate plan` writes `plan_hash:` into `plan.md` only on a pass and only on a difference, as `ac_hash` is written; `task-done` refuses a plan whose body no longer matches it; `gate.task-file-unknown` and the undeclared-files list read git only through literal argument arrays (Task 9b tests).
 
 ## Spec decisions taken in this plan
 
@@ -74,7 +75,9 @@ These refine the spec. Record them in the spec in the same commit as this plan.
 | `packages/core/src/skills/agents.ts` | `renderAgent`, `agentTargets`, `AGENT_DEFAULTS` | 6 |
 | `packages/core/src/skills/targets.ts`, `render.ts` | stage set, installed names | 7 |
 | `packages/core/skills/accord/SKILL.md` | `/accord` entry | 7 |
-| `packages/core/skills/{intent,approach,plan,build,review,verify,debug}/` | stage skills and their references | 8–14 |
+| `packages/core/skills/{intent,approach,plan,build,review,verify,debug}/` | stage skills and their references | 8–14, 9 revision |
+| `packages/core/src/load/work.ts`, `gate/plan.ts`, `gate/rules.ts`, `gate/task.ts`, `gate/work.ts`, `gate/index.ts` | `(new)`, `plan_hash`, `gate.task-file-unknown`, `undeclaredFiles` | 9b |
+| `packages/cli/src/load/fs.ts`, `commands/gate.ts`, `commands/review-package.ts` | baseline file facts, the `plan_hash` write, `## Undeclared files` | 9b |
 | `packages/core/skills/{ba,dev}/` | removed | 7 |
 | `packages/core/src/scaffold/pointer.ts` | pointer block text | 7 |
 | `packages/core/test/stage-skills.test.ts`, `agents.test.ts`, `hooks.test.ts`, `session.test.ts` | new tests | 4–14 |
@@ -551,7 +554,7 @@ A ticket is not started before `accord gate ready <id>` passes.
 
 ### Tasks 8–14: shared rules for the stage skill and agent tasks
 
-Each of these tasks writes one stage skill (and any reference files it loads) plus its agents, adds its row to `REQUIRED` in `stage-skills.test.ts`, regenerates the skills and agents modules, and commits once. The implementer reads the spec sections named in the task and writes prose that says exactly what they say — no rule added, none dropped, none softened. Every body:
+Each of these tasks writes one stage skill (and any reference files it loads) plus its agents, adds its row to `REQUIRED` in `stage-skills.test.ts` (and, from the Task 9 revision on, each agent's row to `AGENT_REQUIRED` in `agents.test.ts`), regenerates the skills and agents modules, and commits once. The implementer reads the spec sections named in the task and writes prose that says exactly what they say — no rule added, none dropped, none softened. Every body:
 - opens with `accord anchor` as its first command (the stage re-anchors);
 - hands every agent the ticket verbatim, never a summary (spec §4), by file path — `accord brief <id> <n>` output for an executor, the ticket file otherwise;
 - states when the run stops and asks (intent, a veto, a criterion, a public interface) and that every other decision is a Ruling in `tickets/<id>/ledger.md` under `## Rulings`;
@@ -598,28 +601,129 @@ Architect body: input the ticket; output impact list with `path:line`, then opti
 
 - [ ] Steps as Task 8; commit `feat: accord-approach, the architect, and the critic`.
 
+#### Task 9 revision (owner decision 2026-10-13)
+
+Edits to the files Tasks 8 and 9 wrote. **Spec:** §4 Interview, §7 Approach. Each skill stays under 5120 bytes and 120 lines. Agent phrases are pinned by a new `AGENT_REQUIRED` table in `packages/core/test/agents.test.ts`, asserted over the rendered agent file the same way `REQUIRED` is asserted over a rendered skill.
+
+`packages/core/skills/intent/SKILL.md`:
+1. New step after "Look before asking": **Confirm the parts.** Before the first score, list the request's top-level parts and ask the owner to confirm them. Renumber the steps after it.
+2. In the stop step, before the "enough" paragraph: before you stop, ask once for the smallest version that still counts as done.
+
+`REQUIRED` row `intent` gains: `top-level parts`, `smallest version`.
+
+`packages/core/skills/approach/SKILL.md`:
+1. Step 2: the architect proposes the options in ladder order.
+2. Step 3: pass the critic the chosen option's text only (its name and what it does), never the architect's reasoning, risk line, or `Recommended` line, so its review stays independent.
+3. Step 3: replace "take the next option" with: take the next option in the architect's ladder order that is not yet ruled out, and run the critic again on it.
+4. Step 3: when the ticket touches auth, money, migration, or data deletion, ask the critic for three concrete failure scenarios as well.
+5. Step 4: drop "so the owner can switch before saying yes" from the rejected-options line. The risks line adds: for a ticket that touches auth, money, migration, or data deletion, each of the critic's three failure scenarios and how it is undone.
+6. Step 5: if the owner picks another option, go back to step 3 with that option, rewrite the brief, and ask again. `accord approve` runs only on a yes to the brief as shown.
+
+`REQUIRED` row `approach` gains: `ladder order`, `text only`, `not yet ruled out`, `three concrete failure scenarios`, `undone`, `back to step 3`.
+
+`packages/core/agents/architect.md`:
+1. Replace the ladder line with: Option 1 is the first rung of the ladder that fully works: does it need to exist; already in the repo; standard library or platform; installed dependency; minimum new code. Options 2 and 3, when you give them, climb further only where a criterion or constraint needs it, and say which.
+2. Output format: each option gains a line after its name, `<what it does, in two or three lines>`, before the `cost / risk / serves` line. The caller hands the critic the name and these lines only.
+
+`AGENT_REQUIRED` row `architect`: `first rung`, `climb further`, `what it does`.
+
+`packages/core/agents/critic.md`:
+1. Input line: in `approach` mode you get the chosen option's text only, its name and what it does; you judge it without the architect's reasoning.
+2. Mode `approach` gains: when the ticket touches auth, money, migration, or data deletion, give three concrete failure scenarios, each with the step or state where it starts.
+3. Mode `plan`: every item becomes a check — `Check that no Veto is violated.`, `Check that nothing goes beyond the acceptance criteria.`, `Check that the approved ## Approach is followed.`, `Check that each task fits in half an executor's context.`, and the goal-backward item as `Check that, assuming every task passes its verify: line, the ## Intent holds for the person it names`, keeping its Must.
+4. Mode `plan` gains: `Check that an executor holding only the ticket and one task could finish that task without asking; a task that fails this is a Should.`
+5. The plan round cap (showing the owner the revision with the fewest Must findings) is not the critic's: it does not know rounds. It lands in Task 10's skill.
+
+`AGENT_REQUIRED` row `critic`: `text only`, `three concrete failure scenarios`, `Check that no Veto is violated`, `without asking`, `Should`.
+
+- [ ] Steps: extend `REQUIRED` and add `AGENT_REQUIRED` → run (FAIL) → edit the four files → regenerate the skills and agents modules → run the Task 8–14 test set, then the full suite (PASS) → commit `fix: intent confirms parts and the smallest version; approach keeps the critic independent and re-critiques a switched option`.
+
+---
+
+### Task 9b: Deterministic contract checks
+
+Not a stage skill task: the shared rules for Tasks 8–14 do not apply. **Spec:** §7 Plan, §8 Build, §10 Review.
+
+**Files:**
+- Modify: `packages/core/src/load/work.ts` (`parsePlan`: the `(new)` marker, `plan_hash:`, the body hash), `packages/core/src/model/snapshot.ts` (`PlanTask.newFiles`, `Plan.planHash`, `Plan.bodyHash`, `SnapshotInput.baselineFiles`, `RepoSnapshot.baselineFiles`), `packages/core/src/load/snapshot.ts` (carry `baselineFiles`)
+- Modify: `packages/core/src/gate/plan.ts`, `packages/core/src/gate/rules.ts` (`gate.task-file-unknown`), `packages/core/src/gate/index.ts` (`GateResult.planHash`), `packages/core/src/gate/task.ts` (plan hash check), `packages/core/src/gate/work.ts` (`undeclaredFiles`), `packages/core/src/index.ts`
+- Modify: `packages/cli/src/load/fs.ts` (baseline file facts), `packages/cli/src/commands/gate.ts` (write `plan_hash`), `packages/cli/src/commands/review-package.ts` (`## Undeclared files`)
+- Modify: `test/helpers/lane.ts` (`PLAN` gains its `plan_hash:`)
+- Test: `packages/core/test/work.test.ts`, `packages/core/test/lane-plan.test.ts`, `packages/core/test/task.test.ts`, `packages/core/test/undeclared.test.ts` (new), `packages/cli/test/lane-commands.test.ts`, `packages/cli/test/lane-flow.test.ts`
+
+**Interfaces:**
+- Consumes: `isSha` (`gate/done.ts`), `fnv1a64` (`gate/hash.ts`), `splitFrontmatter`, `tokens`, `planFile`, `workOf`, `laneTicket`, `writeKey` (`cli/src/write/key.ts`), `snapshot.ancestors` (Task 3).
+- Produces:
+
+```ts
+// model/snapshot.ts
+export interface PlanTask { /* existing fields */ files: string[]; newFiles: string[] } // files: every path token, `(new)` dropped; newFiles: the paths followed by `(new)`
+export interface Plan { /* existing fields */ planHash?: string; bodyHash: string }   // planHash: frontmatter `plan_hash:` as written; bodyHash: fnv1a64 of the normalised text below the frontmatter
+// SnapshotInput and RepoSnapshot
+baselineFiles?: Record<string, string[]>; // baseline sha -> the plans' non-new files: paths that exist at that commit
+// gate/index.ts
+export interface GateResult { /* existing fields */ planHash?: string } // gate plan only: the plan's bodyHash, when the ticket has a plan
+// gate/work.ts
+export function undeclaredFiles(snapshot: RepoSnapshot, id: string, changed: readonly string[]): string[] | undefined;
+```
+
+- Rule `gate.task-file-unknown` (error, both profiles), in `PLAN_RULES` after `gate.task-verify-missing`.
+
+Decisions:
+- **The new marker** is the token `(new)` right after the path, on the `files:` line: `files: src/export.ts, src/csv.ts (new)`. `tokens` already splits it off; `parsePlan` attaches it to the token before it. A leading `(new)` marks nothing and is not a path.
+- **`gate.task-file-unknown`** runs only when the host supplied `baselineFiles` and it holds the plan's baseline (the baseline rules own a missing or unknown baseline), mirroring `gate.plan-baseline-unknown`. One finding per task and path, at the task's line: `task <n> names <path>, which does not exist at baseline <sha>; correct the path, or write (new) after it if the task creates it`. Paths compare as written.
+- **The plan-changed signal is a recorded hash.** `gate plan` writes `plan_hash:` on a pass exactly as `gate ready` writes `ac_hash` (`writeKey`, only on a difference, after the verdict is printed, a write failure exits 2), and `taskVerdict` compares it with `bodyHash`. Justification: plan.md is written after its baseline commit, so the baseline holds no copy to compare, and a recorded hash reuses the one write path accord already has. The hash covers the text below the frontmatter, so writing the key never moves it.
+- **Undeclared files** are changed paths that no task's `files:` or `newFiles` names exactly or, for a token ending in `/`, contains. The ticket's own records (`accord/tickets/<id>.md` and everything under `accord/tickets/<id>/`) are never listed. Sorted, unique. `undefined` when the ticket has no plan.
+
+- [ ] **Step 1: Failing tests.**
+  - `work.test.ts`: `files: src/a.ts, src/b.ts (new)` parses `files: ['src/a.ts', 'src/b.ts']`, `newFiles: ['src/b.ts']`; `files: (new) src/a.ts` parses `files: ['src/a.ts']`, `newFiles: []`; `plan_hash: fnv1a64:0123456789abcdef` in the frontmatter parses as `planHash`; the LF, CRLF, and BOM+CRLF forms of one plan give one `bodyHash`; changing one `verify:` id changes it; adding or changing `plan_hash:` does not.
+  - `lane-plan.test.ts`: with `baselineFiles: { abc1234: ['src/export.ts'] }` the helper plan passes; with `{ abc1234: [] }` it fails with two `gate.task-file-unknown` findings (one per task) naming `src/export.ts` at each task's line; a plan whose task writes `src/export.ts (new)` passes with `{ abc1234: [] }`; no `baselineFiles` skips the rule; `baselineFiles: { other12: [] }` skips it; `gatePlan(...).planHash` equals the plan's `bodyHash`, and is absent for a ticket without a plan.
+  - `task.test.ts`: the helper plan with its `plan_hash:` passes; the same plan without `plan_hash:` fails with `plan.md has no plan_hash:; run accord gate plan T-1`; with a different hash it fails with `plan.md changed after accord gate plan last passed; run accord gate plan T-1 again`.
+  - `undeclared.test.ts`: a plan naming `src/export.ts` and changed `['src/export.ts', 'src/extra.ts', 'docs/x.md', 'accord/tickets/T-1.md', 'accord/tickets/T-1/ledger.md']` gives `['docs/x.md', 'src/extra.ts']`; a task with `files: src/` declares `src/extra.ts`; a `(new)` path is declared; a ticket without a plan gives `undefined`.
+  - `lane-commands.test.ts` (real git via `makeLaneRepo`, `gitRun`): a plan naming `src/nope.ts` fails `accord gate plan T-1` (exit 1) naming `gate.task-file-unknown`; `src/nope.ts (new)` passes; a passing `gate plan` writes `plan_hash:` into `plan.md` and a second run leaves its bytes and mtime unchanged; after `gate plan` passes, editing a `verify:` line in `plan.md` makes `accord task-done T-1 1` exit 1 with `plan.md changed after accord gate plan last passed`, and re-running `gate plan` clears it; `accord review-package T-1` after a commit adding `src/export.ts` and `docs/notes.md` prints `## Undeclared files` followed by `docs/notes.md` only; with nothing undeclared the section reads `(none)`.
+  - Existing `task-done` tests in `lane-commands.test.ts` and `lane-flow.test.ts` keep passing through the helper's hashed `PLAN`; a test whose plan text differs runs `accord gate plan` first. List each test changed in the report.
+
+- [ ] **Step 2: Run** the six files — expected FAIL.
+
+- [ ] **Step 3: Implement.**
+  - `parsePlan`: for the `files` field, a `(new)` token is dropped from `files` and pushes the token before it onto `newFiles`. Read `plan_hash` from the frontmatter map as `baseline` is read. `bodyHash = fnv1a64(body)` over the normalised body `splitFrontmatter` returns; if importing `gate/hash.ts` from `load/` makes a cycle the lint rejects, move `fnv1a64` to `load/hash.ts` and re-export it from `gate/hash.ts`.
+  - `PLAN` in `test/helpers/lane.ts`: compute its body's `fnv1a64` once, write the literal into its frontmatter as `plan_hash: "fnv1a64:…"`, and add a test asserting the literal still equals the parsed `bodyHash`, so an edit to `PLAN` fails loudly.
+  - `gate/plan.ts` `taskFileUnknown`; its row in `rules.ts`; `gatePlan` adds `planHash` when the ticket has a plan.
+  - `taskVerdict`: after the plan is found, `planHash` absent or different from `bodyHash` fails with the reasons above.
+  - `undeclaredFiles` in `gate/work.ts`; export it and the new types from `index.ts`.
+  - `fs.ts`: after the ancestry facts, for each baseline that maps to `true`, collect the non-new `files:` paths of every lane plan with that baseline and run `git --literal-pathspecs ls-tree --name-only -z <sha> -- <paths…>` (literal array; the sha is validated by `isSha`; `--literal-pathspecs` keeps a path from reading as pathspec magic). Split on NUL; record `[]` when no path exists or none was asked. A git failure is a `UsageError` naming the sha. Omit `baselineFiles` when no baseline maps to `true`.
+  - `gate.ts`: on a passing `gate plan` with `planHash`, `writeKey(ctx.root, plan.file, 'plan_hash', result.planHash)`, with the same stderr lines and exit-2 failure as the `ac_hash` write.
+  - `review-package.ts`: run `git diff --name-only -z --no-renames <range> --`, pass the paths to `undeclaredFiles`, and add `## Undeclared files` after `## Stat`: one path per line, `(none)` when empty, `(no plan)` when the ticket has none.
+
+- [ ] **Step 4: Run** the six files, `packages/cli/test/spawn-surface.test.ts`, then the full suite. PASS; no golden of a ticket without `lane:` changes.
+
+- [ ] **Step 5: Commit** — `feat: gate plan checks files at the baseline and records plan_hash; task-done refuses a changed plan; review-package lists undeclared files`.
+
 ### Task 10: `accord-plan`, with the planner
 
-**Files:** Create `packages/core/skills/plan/SKILL.md` (`name: accord-plan`); `packages/core/agents/planner.md` (`tools: Read, Grep, Glob, Write, Edit`, `route: planner`). **Spec:** §7 Plan, §7 Slicing.
+**Files:** Create `packages/core/skills/plan/SKILL.md` (`name: accord-plan`); `packages/core/agents/planner.md` (`tools: Read, Grep, Glob, Write, Edit`, `route: planner`). **Spec:** §7 Plan, §7 Slicing. **Depends on:** Task 9b (`(new)`, `plan_hash:`).
 
 The skill must say:
 1. `accord anchor`.
 2. Dispatch `accord-planner` with the ticket file: it writes `tickets/<id>/plan.md` with frontmatter `baseline: <git rev-parse HEAD>` and one `## Task <n>: <title>` per task, each with `covers:`, `files:`, `verify:` lines, then prose: interface (consumes, produces) and the test written first. A task fits in about half an executor's context.
 3. Under `review: human` (absent counts as human) the planner groups tasks into slices, each a pull request of a stated subset of criteria, green on its own; under `review: outcome`, one branch.
-4. Run `accord gate plan <id>`; fix what it prints.
+4. Run `accord gate plan <id>`; fix what it prints. On a pass it writes `plan_hash:` into `plan.md`; a plan changed later must pass `accord gate plan` again before `accord task-done` records a task.
 5. Dispatch `accord-critic` in `plan` mode with the ticket and the plan. Fix every Must and Should.
-6. At most three revision rounds; then stop and tell the owner what is still open. Never continue on a failing plan.
-7. The owner does not need to read the plan. Next: `accord-build`.
+6. At most three revision rounds; then stop and tell the owner what is still open, showing the revision with the fewest Must findings and the round it came from. Never continue on a failing plan.
+7. Before build, run `tests.full` from `accord/config.yml` on the baseline. Show the owner every failing case; the owner decides whether it is fixed first or tracked as its own ticket. Never ignore one on your own.
+8. The owner does not need to read the plan. Next: `accord-build`.
 
-`REQUIRED` row: `accord anchor`, `accord-planner`, `baseline:`, `covers:`, `verify:`, `accord gate plan`, `accord-critic`, `three`, `accord-build`.
+`REQUIRED` row: `accord anchor`, `accord-planner`, `baseline:`, `covers:`, `verify:`, `accord gate plan`, `plan_hash:`, `accord-critic`, `three`, `fewest Must`, `tests.full`, `accord-build`.
 
-Planner body: writes only `tickets/<id>/plan.md`; every `@ac-n` and every `D-nn` cited by some task's `covers:`; `verify:` names test report case ids that will exist; no TODO, TBD, placeholder, "for now", "later"; a bug ticket's first task is the failing reproduction test.
+Planner body: writes only `tickets/<id>/plan.md`; every `@ac-n` and every `D-nn` cited by some task's `covers:`; `verify:` names test report case ids that will exist; a path the task creates is followed by `(new)` on its `files:` line (`files: src/export.ts, src/csv.ts (new)`), and every other path must exist at the baseline; a task that edits an existing file names the behaviour there that must not change; order tasks so the one that proves the approach end to end (the wiring) comes first and polish comes last; no TODO, TBD, placeholder, "for now", "later"; a bug ticket's first task is the failing reproduction test.
+
+`AGENT_REQUIRED` row `planner`: `(new)`, `must not change`, `wiring`, `polish`.
 
 - [ ] Steps as Task 8; commit `feat: accord-plan and the planner`.
 
 ### Task 11: `accord-build`, with the executor
 
-**Files:** Create `packages/core/skills/build/SKILL.md` (`name: accord-build`); `packages/core/agents/executor.md` (no `tools` line — it inherits all; `route: executor`). **Spec:** §8, §9.
+**Files:** Create `packages/core/skills/build/SKILL.md` (`name: accord-build`); `packages/core/agents/executor.md` (no `tools` line — it inherits all; `route: executor`). **Spec:** §8, §9. **Depends on:** Task 9b (`task-done` refuses a changed plan).
 
 The skill must say:
 1. `accord anchor`; it names the next task.
@@ -627,33 +731,42 @@ The skill must say:
 3. When it reports, run the affected tests yourself with the `tests.affected` command from `accord/config.yml` (`{files}` replaced by the task's files), then `accord task-done <id> <n>`. The executor's claim alone records nothing.
 4. `BLOCKED` with a question that touches intent, a veto, a criterion, or a public interface: ask the owner. `BLOCKED: context`: dispatch a fresh executor with the same brief plus the diff and ledger so far. `NEEDS_CONTEXT`: answer and re-dispatch.
 5. Files outside the task's `files:` line must be declared with a reason in the report; record a Ruling when you accept them.
-6. When every task has a ledger line, next: `accord-review`.
+6. **Change of course.** When the approved approach cannot work, stop. Write a change note under the ticket's `## Approach`: what failed, which finished tasks still hold, and the proposed new approach. Ask the owner for a new yes; on yes run `accord approve <id>`, then `accord-plan` re-plans only the tasks the change touches. Never re-plan quietly.
+7. When `accord task-done` says `plan.md` changed, never run `accord gate plan` to clear it: revert the change and re-dispatch. Only `accord-plan` changes the plan.
+8. When every task has a ledger line, next: `accord-review`.
 
-`REQUIRED` row: `accord anchor`, `accord brief`, `accord-executor`, `tests.affected`, `accord task-done`, `BLOCKED: context`, `accord-review`.
+`REQUIRED` row: `accord anchor`, `accord brief`, `accord-executor`, `tests.affected`, `accord task-done`, `BLOCKED: context`, `change note`, `accord approve`, `accord-plan`, `accord-review`.
 
-Executor body (spec §8 rules verbatim in substance): write the task's criterion test first, show it failing then passing, both outputs in the report; fix small bugs met on the way and log them; stop with `BLOCKED` and a question when the work would change architecture or a public interface or cross a veto; at most three attempts per problem; no new package without asking; declare any file outside the plan's list; near the context limit, commit what is finished and return `BLOCKED: context` with what remains; report at most 15 lines: `DONE | DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT`, commits, test evidence, files touched, Rulings; never dispatch another agent.
+Executor body (spec §8 rules verbatim in substance): write the task's criterion test first, show it failing then passing, both outputs in the report; fix small bugs met on the way and log them; stop with `BLOCKED` and a question when the work would change architecture or a public interface or cross a veto; never edit the ticket or `plan.md`, and never weaken a criterion test after showing it fail — a test that seems wrong is `BLOCKED` with the reason; at most three attempts per problem; no new package without asking; declare any file outside the plan's list; near the context limit, commit what is finished and return `BLOCKED: context` with what remains; report at most 15 lines: `DONE | DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT`, commits, test evidence, files touched, Rulings; never dispatch another agent.
+
+`AGENT_REQUIRED` row `executor`: `plan.md`, `never weaken`, `BLOCKED`.
 
 - [ ] Steps as Task 8; commit `feat: accord-build and the executor`.
 
 ### Task 12: `accord-review`, with the reviewer and the final reviewer
 
-**Files:** Create `packages/core/skills/review/SKILL.md` (`name: accord-review`, `loads: [review/record.md]`) and `packages/core/skills/review/record.md` (the `review.md` format); `packages/core/agents/reviewer.md` (`tools: Read, Grep, Glob, Bash`, `route: reviewer`). **Spec:** §10.
+**Files:** Create `packages/core/skills/review/SKILL.md` (`name: accord-review`, `loads: [review/record.md]`) and `packages/core/skills/review/record.md` (the `review.md` format); `packages/core/agents/reviewer.md` (`tools: Read, Grep, Glob, Bash`, `route: reviewer`). **Spec:** §10. **Depends on:** Task 9b (`## Undeclared files`).
+
+Size: if the rendered `SKILL.md` passes 5120 bytes, move step 3's reviewer table into `record.md` under `## Choosing reviewers` and keep one line in step 3 naming it; the finding classes and the round 3 rule stay in `SKILL.md`.
 
 The skill must say:
 1. `accord anchor`.
-2. `accord review-package <id>` into a file (it diffs from the plan's baseline).
+2. `accord review-package <id>` into a file (it diffs from the plan's baseline and lists, under `## Undeclared files`, every changed file no task names).
 3. Choose reviewers by diff size and risk (spec §10 table): up to about 500 changed lines one `accord-reviewer` with both lenses; 500–1500 an `intent` and a `quality` reviewer in parallel; over 1500 split by area times lens plus one `integration` reviewer; auth, money, migration, or data deletion adds a `security` reviewer at any size. Name the lens in the dispatch. Inputs: the ticket file, the approach, the review package, the ledger; the executor's report is context, never evidence.
-4. Merge and de-duplicate findings. Fix every Must and Should through `accord-build`'s executor path, then re-review only the fix diff with one reviewer. Nice findings go to the ledger under `## Deferred`.
-5. At most five rounds; rounds at or after `escalation.fix_round_tier_up` (default 4) dispatch a fresh executor one model tier higher (`haiku` → `sonnet` → `opus`; `opus` stays `opus`). At the cap, stop and report the open findings to the owner; never report the work finished.
-6. After convergence, one `accord-final-reviewer` reads the whole package once; one fix and one scoped re-review if needed, then stop.
-7. Record every round in `tickets/<id>/review.md` as `./record.md` says, ending `verdict: converged`, or `verdict: accepted-by-owner` followed by the owner's sentence quoted.
-8. Next: `accord-verify`.
+4. Merge and de-duplicate findings. Before fixing, mark each one `patch`, `plan-gap`, or `intent-gap`. Only patches enter the fix loop: fix every Must and Should marked `patch` through `accord-build`'s executor path, then re-review only the fix diff with one reviewer. A plan gap goes back to `accord-plan`, where the critic runs again. An intent gap stops the run and asks the owner. Nice findings go to the ledger under `## Deferred`.
+5. If round 3 still finds a new Must, say whether it traces to the ticket or the plan; if it does, ask the owner before round 4.
+6. At most five rounds; rounds at or after `escalation.fix_round_tier_up` (default 4) dispatch a fresh executor one model tier higher (`haiku` → `sonnet` → `opus`; `opus` stays `opus`). At the cap, stop and report the open findings to the owner; never report the work finished.
+7. After convergence, one `accord-final-reviewer` reads the whole package once; one fix and one scoped re-review if needed, then stop.
+8. Record every round in `tickets/<id>/review.md` as `./record.md` says, ending `verdict: converged`, or `verdict: accepted-by-owner` followed by the owner's sentence quoted.
+9. Next: `accord-verify`.
 
-`record.md`: one `## Round <n>` section per round listing findings `Must|Should|Nice <n>: <finding> — <file:line> — fixed in <sha> | deferred | open`, then the single last line `verdict: …`.
+`record.md`: one `## Round <n>` section per round listing findings `Must|Should|Nice <n> [patch|plan-gap|intent-gap]: <finding> — <file:line> — fixed in <sha> | deferred | open`, then the single last line `verdict: …`.
 
-`REQUIRED` row: `accord anchor`, `accord review-package`, `accord-reviewer`, `accord-final-reviewer`, `Must`, `Should`, `Nice`, `five`, `fix_round_tier_up`, `verdict: converged`, `verdict: accepted-by-owner`, `accord-verify`.
+`REQUIRED` row: `accord anchor`, `accord review-package`, `accord-reviewer`, `accord-final-reviewer`, `Must`, `Should`, `Nice`, `patch`, `plan-gap`, `intent-gap`, `round 3`, `Undeclared files`, `five`, `fix_round_tier_up`, `verdict: converged`, `verdict: accepted-by-owner`, `accord-verify`.
 
-Reviewer body: lens parameter `intent | quality | security | integration | both`; intent findings quote the criterion, veto, or correction violated, and "Extra" covers anything nobody asked for — a spec's silence is not permission; quality covers correctness, safety, simplicity (delete, reuse, standard library, not needed) and the test policy (spec §9); findings `Must | Should | Nice`, numbered, each with a concrete failing case — no failing case, no finding; read-only except running tests and git. Extend `agents.test.ts`: `accord-final-reviewer.md` exists with `model: opus, effort: high` by default and follows `models["reviewer.final"]`.
+Reviewer body: lens parameter `intent | quality | security | integration | both`; intent findings quote the criterion, veto, or correction violated, and "Extra" covers anything nobody asked for — a spec's silence is not permission; quality covers correctness, safety, simplicity (delete, reuse, standard library, not needed), the test policy (spec §9), and the repository's written conventions and `product/` rules, skipping anything a configured linter or type check already enforces; each path under `## Undeclared files` in the review package is accepted only when the ledger holds a Ruling naming it with a reason, otherwise it is an Extra finding; findings `Must | Should | Nice`, numbered, each with a concrete failing case — no failing case, no finding; read-only except running tests and git. Extend `agents.test.ts`: `accord-final-reviewer.md` exists with `model: opus, effort: high` by default and follows `models["reviewer.final"]`.
+
+`AGENT_REQUIRED` row `reviewer`: `Extra`, `written conventions`, `product/`, `linter`, `Undeclared files`, `Ruling`.
 
 - [ ] Steps as Task 8; commit `feat: accord-review, the reviewer, and the final reviewer`.
 
@@ -665,11 +778,11 @@ The skill must say:
 1. `accord anchor`.
 2. Run the full suite with `tests.full` from `accord/config.yml` so the report `tests.report` names is fresh.
 3. Dispatch `accord-verifier` in a fresh context with the ticket file: it writes `verification.md`.
-4. Build the owner's report: one line per criterion, pass or fail, with evidence; three to five "try this" steps of about two minutes; all Rulings; deferred items; what was not checked; slow tests.
+4. Build the owner's report: one line per criterion, pass or fail, with evidence; three to five "try this" steps of about two minutes; all Rulings, ordered by their cost if wrong, highest first; deferred items; what was not checked; slow tests.
 5. Under `review: outcome` the owner reads the report, tries the steps, and ticks `verified:`; under `review: human` the 0.1.0 human layer stays. Never tick `verified:` for the owner.
 6. Run `accord gate done <id>` and work from what it prints.
 
-`REQUIRED` row: `accord anchor`, `tests.full`, `accord-verifier`, `verification.md`, `try this`, `verified:`, `accord gate done`.
+`REQUIRED` row: `accord anchor`, `tests.full`, `accord-verifier`, `verification.md`, `try this`, `cost if wrong`, `verified:`, `accord gate done`.
 
 Verifier body: distrust summaries; per criterion check exists, substantive (not a stub), wired (reachable from its entry point), and data flows (not hard-coded); what you cannot prove is `Result: blocked`, never pass; write only `verification.md`, in the format of the shipped `verification.md` template (read it from the repository's ticket folder convention).
 
@@ -679,11 +792,13 @@ Verifier body: distrust summaries; per criterion check exists, substantive (not 
 
 **Files:** Create `packages/core/skills/debug/SKILL.md` (`name: accord-debug`); `packages/core/agents/debugger.md` (`tools: Read, Grep, Glob, Bash, Write`, `route: debugger`). **Spec:** §12 Debugging. Reuse what still applies from the deleted `dev/debug.md` (`git show <Task 6 commit>:packages/core/skills/dev/debug.md`) — but within the 5 KB and 120-line limits.
 
-The skill must say: `accord anchor`; no fix before a root cause; competing hypotheses, each with evidence for and against; state written to `tickets/<id>/debug.md` so it survives compaction; grep every caller and fix the root cause once in shared code; the fix starts with a failing reproduction test; after three failed fixes, stop, question the architecture, and ask the owner; then return to the stage that called it.
+The skill must say: `accord anchor`; no fix before a root cause; competing hypotheses, each with evidence for and against, ranked before any is tested; one hypothesis is always that the test or measurement itself is wrong; test first the hypothesis whose cheapest probe separates the top two; after one failed fix, dispatch one `accord-debugger` per remaining hypothesis in parallel; state written to `tickets/<id>/debug.md` so it survives compaction; grep every caller and fix the root cause once in shared code; the fix starts with a failing reproduction test; after three failed fixes, stop, question the architecture, and ask the owner; then return to the stage that called it.
 
-`REQUIRED` row: `accord anchor`, `accord-debugger`, `debug.md`, `hypothes`, `reproduction`, `three`.
+`REQUIRED` row: `accord anchor`, `accord-debugger`, `debug.md`, `hypothes`, `measurement`, `cheapest probe`, `parallel`, `reproduction`, `three`.
 
-Debugger body: runs commands and reads; writes only `tickets/<id>/debug.md`; returns the root cause with evidence, the failing reproduction test it proposes, and the hypotheses ruled out.
+Debugger body: runs commands and reads; writes only `tickets/<id>/debug.md`; ranks its hypotheses before testing any, always including that the test or measurement is wrong, and runs first the cheapest probe that separates the top two; returns the root cause with evidence, the failing reproduction test it proposes, and the hypotheses ruled out. When dispatched with one hypothesis in a parallel round, it returns its evidence and writes nothing; the skill merges the results into `debug.md`, so parallel debuggers never write one file.
+
+`AGENT_REQUIRED` row `debugger`: `measurement`, `cheapest probe`, `parallel round`.
 
 - [ ] Steps as Task 8; commit `feat: accord-debug and the debugger`.
 

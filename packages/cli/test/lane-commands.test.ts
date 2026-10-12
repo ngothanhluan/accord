@@ -1,9 +1,9 @@
 // The workflow-layer commands end to end, in-process through runCli (STACK Decision 7), each against its
 // own sandbox so a write can never reach a fixture.
-import { existsSync, readFileSync, utimesSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync, utimesSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { cleanup, commitAll, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
+import { cleanup, commitAll, gitRun, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
 import { CONFIG, junit, laneTicket, REPORT } from '../../../test/helpers/lane.js';
 
 const ticketText = (repo: string, id = 'T-1') => readFileSync(join(repo, 'accord', 'tickets', id + '.md'), 'utf8');
@@ -261,6 +261,89 @@ describe('accord review-package', () => {
       const r = await run(['review-package', 'T-1', '--base', 'deadbeef'], repo);
       expect(r.code).toBe(2);
       expect(r.err).toContain('unknown base ref: deadbeef');
+    } finally {
+      cleanup(repo);
+    }
+  });
+});
+
+describe('brief and review-package edge cases', () => {
+  it('brief keeps a fenced "## Task" line inside its task and stops at the next real one', async () => {
+    const plan = [
+      '# Plan',
+      '',
+      '## Task 1: First',
+      'covers: @ac-1',
+      '```md',
+      '## Task 9: x',
+      '```',
+      '',
+      '## Task 2: Second',
+      'covers: @ac-2',
+      '',
+    ].join('\n');
+    const repo = makeLaneRepo({ 'accord/tickets/T-1/plan.md': plan });
+    try {
+      const r = await run(['brief', 'T-1', '1'], repo);
+      expect(r.code).toBe(0);
+      expect(r.out).toContain('```md\n## Task 9: x\n```\n');
+      expect(r.out).not.toContain('Task 2: Second');
+    } finally {
+      cleanup(repo);
+    }
+  });
+
+  it('brief refuses a ticket with no plan, exit 2', async () => {
+    const repo = makeLaneRepo();
+    try {
+      rmSync(join(repo, 'accord', 'tickets', 'T-1', 'plan.md'));
+      const r = await run(['brief', 'T-1', '1'], repo);
+      expect(r.code).toBe(2);
+      expect(r.err).toContain('no plan at accord/tickets/T-1/plan.md');
+    } finally {
+      cleanup(repo);
+    }
+  });
+
+  it('both refuse a ticket without lane, exit 2', async () => {
+    const repo = makeLaneRepo({ 'accord/tickets/T-2.md': laneTicket('T-2', { lane: '' }) });
+    try {
+      for (const argv of [['brief', 'T-2', '1'], ['review-package', 'T-2']]) {
+        const r = await run(argv, repo);
+        expect(r.code).toBe(2);
+        expect(r.err).toContain('has no lane:');
+      }
+    } finally {
+      cleanup(repo);
+    }
+  });
+
+  it('review-package on an empty range prints none and exits 0', async () => {
+    const repo = makeLaneRepo();
+    try {
+      const head = commitAll(repo);
+      const r = await run(['review-package', 'T-1', '--base', head], repo);
+      expect(r.code).toBe(0);
+      expect(r.out).toContain('## Commits\n\n(none)');
+      expect(r.out).toContain('## Diff\n\n(no changes)');
+    } finally {
+      cleanup(repo);
+    }
+  });
+
+  it('review-package refuses an unrelated base cleanly, exit 2', async () => {
+    const repo = makeLaneRepo();
+    try {
+      commitAll(repo);
+      const home = gitRun(repo, 'rev-parse', '--abbrev-ref', 'HEAD').trim();
+      gitRun(repo, 'checkout', '-q', '--orphan', 'other');
+      writeFiles(repo, { 'o.txt': 'o\n' });
+      const orphan = commitAll(repo);
+      gitRun(repo, 'checkout', '-q', home);
+      const r = await run(['review-package', 'T-1', '--base', orphan], repo);
+      expect(r.code).toBe(2);
+      expect(r.err).toContain('cannot diff');
+      expect(r.err).not.toContain('Command failed');
     } finally {
       cleanup(repo);
     }

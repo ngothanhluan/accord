@@ -19,21 +19,39 @@ export function reviewPackage(ctx: CommandContext, id: string, options: { base: 
       stdio: ['ignore', 'pipe', 'pipe'],
       maxBuffer: 64 * 1024 * 1024,
     });
+  const range = base + '...HEAD';
+  // A short reason for the one failure that explains itself, else git's own first stderr line.
+  const why = (e: unknown): string => {
+    const err = e as { code?: string; stderr?: string };
+    if (err.code === 'ENOBUFS') return 'the diff is larger than 64 MiB';
+    const line = (err.stderr ?? '').split('\n').find((l) => l.trim() !== '');
+    return line === undefined ? 'git failed' : line.replace(/^fatal: /, '').trim();
+  };
   try {
     git(['rev-parse', '--verify', '--quiet', base + '^{commit}']);
   } catch {
-    throw new UsageError('unknown base ref: ' + base);
+    let headless = false;
+    try {
+      git(['rev-parse', '--verify', '--quiet', 'HEAD^{commit}']);
+    } catch {
+      headless = true;
+    }
+    throw new UsageError(headless ? 'the repository has no commit to review' : 'unknown base ref: ' + base);
   }
-  const range = base + '...HEAD';
-  const parts = [
-    `# Review package: ${id} (${range})`,
-    '## Commits',
-    git(['log', '--format=%h %s', base + '..HEAD']).trimEnd() || '(none)',
-    '## Stat',
-    git(['diff', '--stat', range]).trimEnd() || '(no changes)',
-    '## Diff',
-    git(['diff', '-U10', range]).trimEnd() || '(no changes)',
-  ];
+  let parts: string[];
+  try {
+    parts = [
+      `# Review package: ${id} (${range})`,
+      '## Commits',
+      git(['log', '--no-color', '--format=%h %s', base + '..HEAD', '--']).trimEnd() || '(none)',
+      '## Stat',
+      git(['diff', '--no-color', '--no-ext-diff', '--stat', range, '--']).trimEnd() || '(no changes)',
+      '## Diff',
+      git(['diff', '--no-color', '--no-ext-diff', '-U10', range, '--']).trimEnd() || '(no changes)',
+    ];
+  } catch (e) {
+    throw new UsageError(`cannot diff ${range}: ${why(e)}`);
+  }
   ctx.stdout.write(parts.join('\n\n') + '\n');
   return 0;
 }

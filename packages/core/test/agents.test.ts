@@ -14,6 +14,22 @@ const frontmatter = (text: string): Record<string, unknown> => parse(text.split(
 const bodyOf = (text: string): string => withoutMarker(text).split('\n---\n').slice(1).join('\n---\n');
 const scout = (c: AccordConfig): string => agentTargets(c).find((f) => f.path === '.claude/agents/accord-scout.md')?.text ?? '';
 
+// What each agent must name, asserted over the RENDERED agent file, as REQUIRED is over a rendered skill.
+const AGENT_REQUIRED: Record<string, readonly string[]> = {
+  architect: ['first rung', 'climb further', 'what it does'],
+  critic: ['text only', 'three concrete failure scenarios', 'Check that no Veto is violated', 'without asking', 'Should'],
+};
+
+describe('agents name what the spec requires', () => {
+  for (const [role, phrases] of Object.entries(AGENT_REQUIRED)) {
+    it(`${role} names every required phrase`, () => {
+      const text = agentTargets(config()).find((f) => f.path === `.claude/agents/accord-${role}.md`)?.text ?? '';
+      expect(text.length, `accord-${role}.md is missing from the render output`).toBeGreaterThan(0);
+      expect(phrases.filter((p) => !text.includes(p))).toEqual([]);
+    });
+  }
+});
+
 describe('rendered agents', () => {
   it('renders scout with routed defaults and no authoring key', () => {
     const fm = frontmatter(scout(config()));

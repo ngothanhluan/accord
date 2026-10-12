@@ -18,19 +18,24 @@ plans or builds. You run it in the main session.
    the owner what the code answers. A question about an existing project
    cites the file that prompted it.
 
-3. **Score ambiguity** from 0 to 1 on four dimensions: goal, scope boundary,
+3. **Confirm the parts.** Before the first score, list the request's
+   top-level parts and ask the owner to confirm them.
+
+4. **Score ambiguity** from 0 to 1 on four dimensions: goal, scope boundary,
    constraints, acceptance; 0 is unambiguous, 1 is unknown. Show the owner
    the four scores after each round. No dimension may stay above 0.4. Stop
    when the total (the mean) is 0.2 or less with no dimension above 0.4, or
    when the owner says "enough".
+   Before you stop, ask once for the smallest version that still counts as
+   done.
    On "enough", write `Ruling: interview stopped by the owner at <score>`
    into `accord/tickets/<id>/ledger.md` under `## Rulings`.
 
-4. **One question per message**, aimed at the dimension with the highest
+5. **One question per message**, aimed at the dimension with the highest
    score. Multiple
    choice where possible, the recommended option first with its reason.
 
-5. **Write the ticket** `accord/tickets/<id>.md`, each section as follows:
+6. **Write the ticket** `accord/tickets/<id>.md`, each section as follows:
 
    | Section | Content |
    |---|---|
@@ -41,14 +46,14 @@ plans or builds. You run it in the main session.
    | `## Corrections` | every "no, I meant…", verbatim, append-only, written before any other action |
    | `## Open questions` | each unanswered question as an unchecked `- [ ]` item |
 
-6. **Write back** your understanding. Separate what the owner said from what
+7. **Write back** your understanding. Separate what the owner said from what
    you assumed, and invite correction.
 
-7. **Audit once.** Dispatch `accord-auditor` with only the path of the
+8. **Audit once.** Dispatch `accord-auditor` with only the path of the
    ticket file. A criterion it reads two ways goes back to the owner as a
    question.
 
-8. Next: `accord-approach`.
+9. Next: `accord-approach`.
 
 ## Rules
 

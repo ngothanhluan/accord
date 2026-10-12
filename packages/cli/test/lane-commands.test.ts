@@ -3,7 +3,7 @@
 import { existsSync, readFileSync, rmSync, utimesSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { cleanup, commitAll, gitRun, makeEmptyRepo, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
+import { cleanup, commitAll, gitRun, makeEmptyRepo, makeLaneRepo, makeRepo, run, writeFiles } from './helpers/repo.js';
 import { CONFIG, junit, laneTicket, REPORT } from '../../../test/helpers/lane.js';
 
 const ticketText = (repo: string, id = 'T-1') => readFileSync(join(repo, 'accord', 'tickets', id + '.md'), 'utf8');
@@ -575,6 +575,49 @@ describe('accord anchor', () => {
       const r = await run(['anchor', 'NOPE'], repo);
       expect(r.code).toBe(2);
       expect(r.err).toContain('no ticket NOPE in accord/tickets/');
+    } finally {
+      cleanup(repo);
+    }
+  });
+});
+
+describe('accord new ticket --lane', () => {
+  it('writes a lane story from ticket-lane.md with the lane set', async () => {
+    const repo = makeRepo('valid-build');
+    try {
+      const r = await run(['new', 'ticket', 'NEW-1', '--lane', 'L'], repo);
+      expect(r.code).toBe(0);
+      const text = ticketText(repo, 'NEW-1');
+      expect(text).toContain('id: "NEW-1"');
+      expect(text).toMatch(/\nlane: "L"/);
+      expect(text).toContain('\n## Vetoes\n');
+      expect(text).not.toContain('\n## Requirements\n');
+    } finally {
+      cleanup(repo);
+    }
+  });
+
+  it('an epic with --lane uses epic-lane.md', async () => {
+    const repo = makeRepo('valid-build');
+    try {
+      await run(['new', 'ticket', 'EP-1', '--type', 'epic', '--lane', 'P'], repo);
+      const text = ticketText(repo, 'EP-1');
+      // setFrontmatterKey double-quotes every string it writes (D-45).
+      expect(text).toContain('type: "epic"');
+      expect(text).toMatch(/\nlane: "P"/);
+      expect(text).not.toContain('## Acceptance criteria');
+    } finally {
+      cleanup(repo);
+    }
+  });
+
+  it('an epic in lane M is refused, exit 2, nothing written', async () => {
+    const repo = makeRepo('valid-build');
+    try {
+      const r = await run(['new', 'ticket', 'EP-2', '--type', 'epic', '--lane', 'M'], repo);
+      expect(r.code).toBe(2);
+      expect(r.err).toContain('an epic is lane L or P, not M');
+      expect(existsSync(join(repo, 'accord', 'tickets', 'EP-2.md'))).toBe(false);
     } finally {
       cleanup(repo);
     }

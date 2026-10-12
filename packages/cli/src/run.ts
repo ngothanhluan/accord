@@ -148,8 +148,8 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
   // D-95: `new ticket` is deliberately *not* exempt from the pin. The ticket template changes between
   // versions, so scaffolding from a template the repository is not pinned to is exactly the split
   // PITFALLS section 11 describes — the same shared preflight therefore stops it before any path is
-  // constructed and before any byte is written. `--type` is the only option: `--title` was rejected
-  // under D-104, and there is no `feature` subcommand — the one in docs/design.md section 7 died with
+  // constructed and before any byte is written. `--type` picks the template and `--lane` picks the lane
+  // variant: `--title` was rejected under D-104, and there is no `feature` subcommand — the one in docs/design.md section 7 died with
   // the features/ folder.
   program
     .command('new')
@@ -161,7 +161,8 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
         .choices(['epic', 'story', 'bug'])
         .default('story'),
     )
-    .action((id: string, options: { type: 'epic' | 'story' | 'bug' }) => {
+    .addOption(new Option('--lane <lane>', 'write a lane ticket (M, L, or P)').choices(['M', 'L', 'P']))
+    .action((id: string, options: { type: 'epic' | 'story' | 'bug'; lane?: 'M' | 'L' | 'P' }) => {
       setCode(newTicket(preflight(opts), id, options));
     });
 

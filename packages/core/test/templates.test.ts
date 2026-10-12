@@ -162,3 +162,24 @@ describe('generated module', () => {
     }
   });
 });
+
+describe('lane templates (spec §4)', () => {
+  it.each<[TemplateName, string]>([
+    ['ticket-lane.md', 'story'],
+    ['epic-lane.md', 'epic'],
+  ])('%s validates and declares a lane', (name, type) => {
+    const fm = frontmatter(templates[name]);
+    expect(validate('ticket', fm)).toEqual([]);
+    expect(fm).toMatchObject({ type, status: 'draft' });
+    expect(fm?.lane).toMatch(/^[MLP]$/);
+  });
+
+  it('lane headings are in spec order', () => {
+    expect(headings(templates['ticket-lane.md'])).toEqual([
+      '## Intent', '## Acceptance criteria', '## Vetoes', '## Decisions', '## Corrections', '## Open questions', '## Approach',
+    ]);
+    expect(headings(templates['epic-lane.md'])).toEqual([
+      '## Intent', '## Vetoes', '## Decisions', '## Corrections', '## Open questions', '## Approach',
+    ]);
+  });
+});

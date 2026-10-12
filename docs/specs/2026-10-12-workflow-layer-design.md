@@ -109,8 +109,8 @@ the contract that is tested and verified. `## Plan` moves out of the ticket into
 
 - Every downstream agent receives the ticket verbatim, never a summary.
 - `approved_hash` (new) covers Intent, Acceptance criteria, Vetoes, Decisions, Corrections, and Approach,
-  recorded by `accord approve <id>` after the owner's explicit yes. Ready fails when the hash no longer
-  matches. The existing `ac_hash` keeps failing Done when acceptance criteria change after Ready.
+  recorded by `accord approve <id>` after the owner's explicit yes. Ready, Plan, and Done fail when the hash
+  is missing or no longer matches. The existing `ac_hash` keeps failing Done when acceptance criteria change after Ready.
 - A decision the ticket does not cover is a **Ruling** in the ledger:
   `Ruling: <what> — <why> — <cost if wrong>`. A decision that touches intent, a veto, an acceptance
   criterion, or a public interface is not a Ruling: the run stops and asks.
@@ -163,8 +163,8 @@ A summary loses detail, and an orchestrator that continues from a summary drifts
 The intent therefore never has to be remembered; it is re-read.
 
 - The active ticket is the current branch `t/<id>`, read from git, never from memory.
-- `accord anchor [<id>]` (new) prints, verbatim, the active ticket's Intent, Vetoes, Decisions, and
-  Corrections, then its stage, its position from the ledger ("build 3/5, next: task 4"), and its Rulings.
+- `accord anchor [<id>]` (new) prints the active ticket's stage and its position from the ledger ("build
+  3/5, next: task 4"), then, verbatim, its Intent, Vetoes, Decisions, Corrections, and Rulings.
   Without an id it uses the current branch; on a branch that names no ticket it prints nothing and exits 0.
 - The SessionStart hook on `compact`, `resume`, and `clear` runs `accord anchor`, so its output is in context
   immediately after every compaction.
@@ -302,7 +302,7 @@ merges and de-duplicates findings before the fix loop.
 - no failed case in the report (`gate.suite-not-passed`); the report is the output of `tests.full`;
 - `review.md` ends with `verdict: converged` or `verdict: accepted-by-owner`;
 - every task in `plan.md` has a ledger completion line;
-- the approval still matches the ticket (`gate.approval-stale`, section 4).
+- the approval exists and still matches the ticket (`gate.approval-missing`, `gate.approval-stale`, section 4).
 
 `accord-verifier`, in a fresh context, writes `verification.md`. It distrusts summaries and checks four
 levels per criterion: exists, substantive (not a stub), wired (reachable from its entry point), and data

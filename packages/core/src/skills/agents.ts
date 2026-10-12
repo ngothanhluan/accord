@@ -37,6 +37,9 @@ function source(key: AgentKey): { yaml: Record<string, unknown>; body: string } 
 /** The agent as it lands on disk: name, description, tools (when authored), model, effort, marker, body. */
 export function renderAgent(key: AgentKey, route: { model: string; effort: Effort }, name?: string): string {
   const { yaml, body } = source(key);
+  if (typeof yaml.route !== 'string' || !Object.hasOwn(AGENT_DEFAULTS, yaml.route)) {
+    throw new Error(`agent ${key}: unknown route ${String(yaml.route)}`);
+  }
   const fields: [string, unknown][] = [
     ['name', name ?? yaml.name],
     ['description', yaml.description],

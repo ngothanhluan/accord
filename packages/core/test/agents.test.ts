@@ -11,6 +11,7 @@ const agentsDir = fileURLToPath(new URL('../agents/', import.meta.url));
 const config = (over: Partial<AccordConfig> = {}): AccordConfig =>
   ({ accord: '0.1.0', profile: 'build', tracker: { adapter: 'none' }, design: { tokens: '' }, roles: ['ba', 'dev'], runtimes: ['claude'], ...over }) as AccordConfig;
 const frontmatter = (text: string): Record<string, unknown> => parse(text.split('---\n')[1]) as Record<string, unknown>;
+const bodyOf = (text: string): string => withoutMarker(text).split('\n---\n').slice(1).join('\n---\n');
 const scout = (c: AccordConfig): string => agentTargets(c).find((f) => f.path === '.claude/agents/accord-scout.md')?.text ?? '';
 
 describe('rendered agents', () => {
@@ -43,10 +44,21 @@ describe('rendered agents', () => {
   it('names no other tool and stays short', () => {
     const files = agentTargets(config());
     expect(deniedNames(files)).toEqual([]);
-    for (const f of files) expect(f.text.split('\n').length, f.path).toBeLessThanOrEqual(60 + 12);
+    for (const f of files) expect(bodyOf(f.text).split('\n').length, f.path).toBeLessThanOrEqual(60);
+  });
+
+  it('every agent renders a model and an effort line', () => {
     for (const key of Object.keys(agents) as AgentKey[]) {
-      expect(renderAgent(key, { model: 'haiku', effort: 'low' }).split('\n').length).toBeLessThanOrEqual(60 + 12);
+      const lines = renderAgent(key, { model: 'haiku', effort: 'low' }).split('\n');
+      expect(lines.some((l) => l.startsWith('model:')), key).toBe(true);
+      expect(lines.some((l) => l.startsWith('effort:')), key).toBe(true);
     }
+  });
+
+  it('frontmatter keys come in a fixed order', () => {
+    const lines = scout(config()).split('\n');
+    const keys = lines.slice(1, lines.indexOf('---', 1)).map((l) => l.split(':')[0]);
+    expect(keys).toEqual(['name', 'description', 'tools', 'model', 'effort']);
   });
 
   it('generated module matches agents/ (drift)', () => {

@@ -50,6 +50,7 @@ export async function status(ctx: CommandContext, options: { json?: boolean; all
   const visible = options.all ? rows : rows.filter((r) => r.status !== 'archived' && r.status !== 'dropped');
   const hidden = rows.length - visible.length;
   // 0.1.0 wording stays byte-identical when every hidden row is archived.
+  // Relies on dropped rows always being hidden, so `hidden` never counts a shown one.
   const onlyArchived = rows.every((r) => r.status !== 'dropped');
   const hiddenNote =
     hidden === 0 ? '' : plural(hidden, (onlyArchived ? '' : 'dropped or ') + 'archived ticket') + ' hidden (--all shows them)';

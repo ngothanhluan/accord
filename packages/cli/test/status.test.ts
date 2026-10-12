@@ -50,7 +50,7 @@ Feature: ${id}
 
 ## Plan
 - [x] Done
-`;
+${extra.includes('status: dropped') ? '\n## Dropped\nSuperseded.\n' : ''}`;
 }
 
 function addTicket(repo: string, id: string, extra: string): void {

@@ -69,12 +69,32 @@ describe('dependencies and claims (spec §5)', () => {
     expect(nextRows(rows(started))).toEqual([]);
   });
 
-  it('a dropped ticket is never next and still blocks its dependants', () => {
+  it('a dropped ticket is never next', () => {
     const files = readied(approved({ 'accord/config.yml': CONFIG, [T1]: laneTicket('T-1') }, 'T-1'));
     const dropped = { ...files, [T1]: setFrontmatterKey(files[T1], 'status', 'dropped') };
+    // Everything else about it would admit it, so only the dropped filter excludes it.
+    expect(rows(dropped)[0]).toMatchObject({ status: 'dropped', ready: 'ok', stage: 'plan' });
     expect(nextRows(rows(dropped))).toEqual([]);
-    const dep = { ...dropped, 'accord/tickets/T-2.md': laneTicket('T-2', { frontmatter: ['depends_on: ["T-1"]'] }) };
-    expect(rows(dep).find((r) => r.id === 'T-2')).toMatchObject({ blockedBy: ['T-1'] });
+    expect(nextRows(rows(files)).map((r) => r.id)).toEqual(['T-1']);
+  });
+
+  it('a dropped ticket is never done, so it still blocks its dependants', () => {
+    const base = approved({ 'accord/config.yml': CONFIG, [T1]: laneTicket('T-1') }, 'T-1');
+    const reviewed: Record<string, string> = {
+      ...base,
+      'accord/tickets/T-1/plan.md': PLAN,
+      'accord/tickets/T-1/ledger.md': '## Tasks\n- task 1 done abc1234\n- task 2 done abc1234\n',
+      'accord/tickets/T-1/review.md': 'verdict: converged\n',
+    };
+    const hash = acHash(loadSnapshot({ files: reviewed, tree: [] }).tickets['T-1'].scenarios) as string;
+    const ticked = setFrontmatterKey(setFrontmatterKey(reviewed[T1], 'verified', ['ac-1', 'ac-2']), 'verified_hash', hash);
+    const T2 = { 'accord/tickets/T-2.md': laneTicket('T-2', { frontmatter: ['depends_on: ["T-1"]'] }) };
+    const done = { ...reviewed, [T1]: ticked, ...T2 };
+    expect(rows(done).find((r) => r.id === 'T-1')?.stage).toBe('done');
+    expect(rows(done).find((r) => r.id === 'T-2')?.blockedBy).toEqual([]);
+    const dropped = { ...done, [T1]: setFrontmatterKey(ticked, 'status', 'dropped') };
+    expect(rows(dropped).find((r) => r.id === 'T-1')?.stage).toBe('done');
+    expect(rows(dropped).find((r) => r.id === 'T-2')?.blockedBy).toEqual(['T-1']);
   });
 
   it('nextRows drops an approved ticket that has not passed Ready', () => {

@@ -53,6 +53,18 @@ const COLUMNS: Column[] = [
   { head: 'tracker', budget: 32, cell: (r, tracker) => tracker ?? flatten(r.tracker) },
 ];
 
+/** Spec §6: shown only when a visible row is a lane ticket, so a 0.1.0 repository's table is unchanged. */
+const LANE_COLUMNS: Column[] = [
+  {
+    head: 'stage',
+    budget: 12,
+    cell: (r) =>
+      r.stage === undefined ? EMPTY_CELL : r.stage === 'build' ? `build ${r.tasksDone ?? 0}/${r.tasksTotal ?? 0}` : r.stage,
+  },
+  { head: 'who', budget: 28, cell: (r) => r.claimedBy ?? EMPTY_CELL },
+  { head: 'blocked by', budget: 28, cell: (r) => (r.blockedBy ?? []).join(' ') || EMPTY_CELL },
+];
+
 // T-05-11: a frontmatter value is untrusted text rendered into a terminal. Anything outside printable
 // ASCII becomes a space before anything is measured, which is two invariants in one predicate: an
 // escape or a C0 control cannot inject an ANSI sequence or forge a row, and a box-drawing glyph or a
@@ -86,10 +98,13 @@ const fit = (v: string, budget: number): string => (v.length <= budget ? v : v.s
  * same length and a truncated cell is visible against its neighbours.
  */
 export function renderRows(rows: StatusRow[], trackerCells?: Record<string, string>): string {
-  const cells = rows.map((r) => COLUMNS.map((c) => fit(sanitise(c.cell(r, trackerCells?.[r.id])), c.budget)));
-  const widths = COLUMNS.map((c, i) => Math.max(c.head.length, ...cells.map((row) => row[i].length)));
+  const columns = rows.some((r) => r.lane !== undefined)
+    ? [...COLUMNS.slice(0, -1), ...LANE_COLUMNS, COLUMNS[COLUMNS.length - 1]]
+    : COLUMNS;
+  const cells = rows.map((r) => columns.map((c) => fit(sanitise(c.cell(r, trackerCells?.[r.id])), c.budget)));
+  const widths = columns.map((c, i) => Math.max(c.head.length, ...cells.map((row) => row[i].length)));
   const line = (values: string[]): string => values.map((v, i) => v.padEnd(widths[i])).join(GAP);
   return (
-    [line(COLUMNS.map((c) => c.head)), line(widths.map((w) => '-'.repeat(w))), ...cells.map(line)].join('\n') + '\n'
+    [line(columns.map((c) => c.head)), line(widths.map((w) => '-'.repeat(w))), ...cells.map(line)].join('\n') + '\n'
   );
 }

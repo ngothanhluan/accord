@@ -24,6 +24,10 @@ const POSITION = /:\d+(?::\d+)?$/;
 const NOTE_BLOCK = /^###\s+@(ac-[1-9][0-9]*)\b/;
 const NOTES = 'verification notes';
 
+/** Spec §11: under review mode outcome a lane ticket's human layer is the bound tick alone; notes are not required. */
+const notesOptional = (snapshot: RepoSnapshot, t: Ticket): boolean =>
+  t.frontmatter?.lane !== undefined && snapshot.config?.review?.mode === 'outcome';
+
 /** One whitespace-delimited token reduced to the thing that might be a path: punctuation off both ends,
  * then the position suffix. Returns '' when nothing is left. */
 function token(raw: string): string {
@@ -172,7 +176,7 @@ export const referenceUnknown: GateRule['check'] = (snapshot, id) => {
 /** GATE-10: a tick with no note is a claim nobody wrote down. */
 export const noteMissing: GateRule['check'] = (snapshot, id) => {
   const t = ticketOf(snapshot, id);
-  if (t === undefined) return [];
+  if (t === undefined || notesOptional(snapshot, t)) return [];
   const blocks = noteBlocks(t);
   const line = t.sections.find((s) => headingKey(s.heading) === NOTES)?.line;
   return ticked(t)
@@ -187,7 +191,7 @@ export const noteMissing: GateRule['check'] = (snapshot, id) => {
 /** GATE-10 via D-84: "symbol present in the snapshot" is the D-82 rule and nothing else. */
 export const noteUnresolved: GateRule['check'] = (snapshot, id) => {
   const t = ticketOf(snapshot, id);
-  if (t === undefined) return [];
+  if (t === undefined || notesOptional(snapshot, t)) return [];
   const blocks = noteBlocks(t);
   return ticked(t)
     .filter((tag) => Object.hasOwn(blocks, tag) && !cites(blocks[tag].text, snapshot))
@@ -206,7 +210,7 @@ export const noteUnresolved: GateRule['check'] = (snapshot, id) => {
  */
 export const notePasted: GateRule['check'] = (snapshot, id) => {
   const t = ticketOf(snapshot, id);
-  if (t === undefined) return [];
+  if (t === undefined || notesOptional(snapshot, t)) return [];
   const blocks = noteBlocks(t);
   return ticked(t).flatMap((tag) => {
     const block = Object.hasOwn(blocks, tag) ? blocks[tag] : undefined;

@@ -5,12 +5,13 @@
 // run git against the author's working tree inside a green test run. It throws rather than expects, so
 // it fires outside a test body too.
 import { execFileSync } from 'node:child_process';
-import { cpSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { PassThrough } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { runCli } from '../../src/run.js';
+import { CONFIG, junit, laneTicket, PLAN, REPORT } from '../../../../test/helpers/lane.js';
 
 const fixtures = fileURLToPath(new URL('../../../core/test/fixtures/', import.meta.url));
 
@@ -85,4 +86,31 @@ export async function run(
   const stderr = new PassThrough();
   const code = await runCli(argv, { cwd, stdout, stderr, env });
   return { code, out: String(stdout.read() ?? ''), err: String(stderr.read() ?? '') };
+}
+
+/** Run git in a sandbox; the same guard as every other spawn in this file. */
+export function gitRun(repo: string, ...args: string[]): string {
+  return gitIn(repo)(...args);
+}
+
+/** Write repo-relative posix paths into the sandbox, creating folders. */
+export function writeFiles(repo: string, files: Record<string, string>): void {
+  for (const [rel, text] of Object.entries(files)) {
+    const abs = join(repo, ...rel.split('/'));
+    mkdirSync(dirname(abs), { recursive: true });
+    writeFileSync(abs, text);
+  }
+}
+
+/** A sandbox holding one unapproved lane ticket T-1, its two-task plan, and a green report. */
+export function makeLaneRepo(extra: Record<string, string> = {}): string {
+  const repo = makeEmptyRepo();
+  writeFiles(repo, {
+    'accord/config.yml': CONFIG,
+    'accord/tickets/T-1.md': laneTicket('T-1'),
+    'accord/tickets/T-1/plan.md': PLAN,
+    [REPORT]: junit({ 'export#writes-csv': 'passed', 'export#escapes-commas': 'passed' }),
+    ...extra,
+  });
+  return repo;
 }

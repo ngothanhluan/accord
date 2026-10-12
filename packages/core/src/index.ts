@@ -16,13 +16,26 @@ export type {
   Section,
   Line,
   AccordConfig,
+  PlanTask,
+  Plan,
+  Ledger,
+  Review,
+  TicketWork,
 } from './model/snapshot.js';
 export { loadSnapshot } from './load/snapshot.js';
 export { lintSnapshot } from './lint/index.js';
 export type { LintResult } from './lint/index.js';
-export { gateDone, gateReady } from './gate/index.js';
+export { gateDone, gatePlan, gateReady } from './gate/index.js';
+export { approvedHash } from './gate/hash.js';
 export type { GateResult } from './gate/index.js';
-export { statusRows } from './status/rows.js';
+export { taskVerdict } from './gate/task.js';
+export { planFile, workOf } from './gate/work.js';
+export { untracedTests } from './lint/tests.js';
+export type { TaskVerdict } from './gate/task.js';
+export { recordTaskDone } from './write/ledger.js';
+export { anchorText } from './status/anchor.js';
+export { nextRows, statusRows } from './status/rows.js';
+export type { Stage } from './status/stage.js';
 export type { StatusRow } from './status/rows.js';
 export { renderText } from './lint/render.js';
 export { validate, schemaIds } from './validate/index.js';
@@ -47,3 +60,5 @@ export type { SkillKey } from './generated/skills.js';
 // The read-back that `skills sync` compares against a hash must normalise exactly as the write did
 // (RESEARCH.md Pitfall 1); re-exported so the CLI reuses this one, rather than hand-rolling a fourth copy.
 export { normaliseText } from './load/frontmatter.js';
+// The slashed form the loader keys a configured path under (D-51), so the CLI prints the same one.
+export { normaliseKey } from './load/snapshot.js';

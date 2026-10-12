@@ -1,4 +1,4 @@
-// CLI-05 `accord gate ready|done <id>` end to end, in-process through runCli with injected streams and
+// CLI-05 `accord gate ready|plan|done <id>` end to end, in-process through runCli with injected streams and
 // an explicit cwd (STACK Decision 7). Two contracts are under test: the 0/1 verdict exit (STACK
 // Decision 1) and the three outcomes of the one write accord performs — it happened, it was already
 // there, it failed (D-96, D-97). Every case runs against its own mkdtemp sandbox, so a write test can
@@ -101,6 +101,16 @@ describe('accord gate — verdict, printer, exit code', () => {
     const { code, out } = await run(['gate', 'ready', 'NOSUCH'], ready);
     expect(code).toBe(1);
     expect(out).toContain('error gate.ticket-unknown no ticket NOSUCH in the snapshot');
+  });
+
+  it('gate plan on a ticket without lane: exits 1 with gate: plan and writes nothing', async () => {
+    const before = bytes(ticket(ready, 'CLEAN'));
+    const { code, out } = await run(['gate', 'plan', 'CLEAN', '--json'], ready);
+    expect(code).toBe(1);
+    const parsed = JSON.parse(out) as { gate: string; findings: { rule: string }[] };
+    expect(parsed.gate).toBe('plan');
+    expect(parsed.findings.map((f) => f.rule)).toContain('gate.lane-missing');
+    expect(bytes(ticket(ready, 'CLEAN'))).toBe(before);
   });
 
   it('gate ready with no id exits 2 with commander’s missing-argument message', async () => {

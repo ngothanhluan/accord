@@ -18,7 +18,7 @@ const PLACEHOLDER = 'TICKET-ID';
 export function newTicket(
   ctx: CommandContext,
   id: string,
-  options: { type: 'epic' | 'story' | 'bug' },
+  options: { type: 'epic' | 'story' | 'bug'; lane?: 'M' | 'L' | 'P' },
 ): number {
   // T-05-14: this is the only guard between an argv string and a filesystem write, so it runs before
   // anything else touches a path. The pattern admits no slash, no backslash, no leading dot and no
@@ -31,15 +31,26 @@ export function newTicket(
     );
   }
 
+  // R14a: an epic groups stories, so lane M (one feature) is meaningless for it; refuse before any write.
+  if (options.type === 'epic' && options.lane === 'M') throw new UsageError('an epic is lane L or P, not M');
+
   // The generated record on the core public API is the only template source: packages/core/templates/
   // is not shipped into a consumer's node_modules the way the generated module is. `epic` has its own
   // template (no Acceptance criteria, Plan, or Verification notes), which is why `--type` exists at all.
   const name =
-    options.type === 'epic' ? 'epic.md' : (`ticket-${ctx.snapshot.config?.profile ?? 'build'}.md` as const);
+    options.lane !== undefined
+      ? options.type === 'epic'
+        ? ('epic-lane.md' as const)
+        : ('ticket-lane.md' as const)
+      : options.type === 'epic'
+        ? ('epic.md' as const)
+        : (`ticket-${ctx.snapshot.config?.profile ?? 'build'}.md` as const);
   // Two steps and no more. One global replacement covers both places the placeholder appears — the
   // frontmatter `id` value and the Gherkin `Feature:` line — and `setFrontmatterKey` preserves the
   // trailing guidance comment on the `type:` line, which is exactly what D-43 and D-45 bought.
-  const text = setFrontmatterKey(templates[name].replaceAll(PLACEHOLDER, id), 'type', options.type);
+  let text = setFrontmatterKey(templates[name].replaceAll(PLACEHOLDER, id), 'type', options.type);
+  // Spec §3: the lane the caller chose; the template's own value is only a default for reading.
+  if (options.lane !== undefined) text = setFrontmatterKey(text, 'lane', options.lane);
 
   const rel = 'accord/tickets/' + id + '.md';
   const file = join(ctx.root, rel);

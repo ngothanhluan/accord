@@ -105,6 +105,16 @@ describe('printed paths', () => {
     // copy, so it covers both path sources in one run. `valid-build` already holds accord/config.yml, so
     // this is the D-132 branch — every scaffold path skipped, every skill copy written.
     { name: 'init', argv: ['init'], guard: 'accord/config.yml' },
+    // The phase 1 commands. `valid-build` has no lane ticket, so most reach the no-lane refusal, which
+    // names the ticket file. `next` and `anchor` print no path there and are left out: an unguarded entry
+    // asserts nothing.
+    { name: 'gate plan', argv: ['gate', 'plan', 'LOGIN-1'], guard: 'accord/tickets/LOGIN-1.md' },
+    { name: 'approve (refusal)', argv: ['approve', 'LOGIN-1'], guard: 'accord/tickets/LOGIN-1.md' },
+    { name: 'task-done (refusal)', argv: ['task-done', 'LOGIN-1', '1'], guard: 'accord/tickets/LOGIN-1.md' },
+    { name: 'brief (refusal)', argv: ['brief', 'LOGIN-1', '1'], guard: 'accord/tickets/LOGIN-1.md' },
+    { name: 'review-package (refusal)', argv: ['review-package', 'LOGIN-1'], guard: 'accord/tickets/LOGIN-1.md' },
+    { name: 'tests baseline (refusal)', argv: ['tests', 'baseline'], guard: 'accord/config.yml' },
+    { name: 'new ticket --lane', argv: ['new', 'ticket', 'TCK-2', '--lane', 'M'], guard: 'accord/tickets/TCK-2.md' },
   ];
 
   for (const { name, argv, guard } of COMMANDS) {

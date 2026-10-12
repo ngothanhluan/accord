@@ -7,12 +7,19 @@ import { loadSnapshot } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
 import { Command, CommanderError, Option } from 'commander';
 import pkg from '../package.json' with { type: 'json' };
+import { anchor } from './commands/anchor.js';
+import { approve } from './commands/approve.js';
+import { brief } from './commands/brief.js';
 import { gate } from './commands/gate.js';
 import { init } from './commands/init.js';
 import { lint } from './commands/lint.js';
 import { newTicket } from './commands/new-ticket.js';
+import { next } from './commands/next.js';
+import { reviewPackage } from './commands/review-package.js';
 import { skills } from './commands/skills.js';
 import { status } from './commands/status.js';
+import { taskDone } from './commands/task-done.js';
+import { testsBaseline } from './commands/tests-baseline.js';
 import { loadFromFs, UsageError } from './load/fs.js';
 import { pinMessage } from './pin.js';
 import { repoRoot } from './root.js';
@@ -96,10 +103,10 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
       setCode(lint(preflight(opts), options));
     });
 
-  // Both subcommands route through the same preflight the lint action uses, so the pin check is never
+  // All three subcommands route through the same preflight the lint action uses, so the pin check is never
   // conditional on which gate was asked for (D-95).
   const gates = program.command('gate').description('run one gate against one ticket');
-  for (const which of ['ready', 'done'] as const) {
+  for (const which of ['ready', 'plan', 'done'] as const) {
     gates
       .command(which + ' <id>')
       .description('report whether the ticket passes the ' + which + ' gate')
@@ -109,23 +116,53 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
       });
   }
 
+  program
+    .command('approve <id>')
+    .description("record the owner's approval of a lane ticket as approved_hash")
+    .action((id: string) => {
+      setCode(approve(preflight(opts), id));
+    });
+
+  program
+    .command('task-done <id> <task>')
+    .description('record a plan task as done when the test report shows its verify cases passed')
+    .action((id: string, task: string) => {
+      setCode(taskDone(preflight(opts), id, task));
+    });
+
+  program
+    .command('brief <id> <task>')
+    .description('print the ticket and one plan task: the brief an executor receives')
+    .action((id: string, task: string) => {
+      setCode(brief(preflight(opts), id, task));
+    });
+
+  program
+    .command('review-package <id>')
+    .description('print the commits, stat, and diff a reviewer reads')
+    .option('--base <ref>', 'the commit or branch the work started from', 'main')
+    .action((id: string, options: { base: string }) => {
+      setCode(reviewPackage(preflight(opts), id, options));
+    });
+
   // D-95: `new ticket` is deliberately *not* exempt from the pin. The ticket template changes between
   // versions, so scaffolding from a template the repository is not pinned to is exactly the split
   // PITFALLS section 11 describes — the same shared preflight therefore stops it before any path is
-  // constructed and before any byte is written. `--type` is the only option: `--title` was rejected
-  // under D-104, and there is no `feature` subcommand — the one in docs/design.md section 7 died with
+  // constructed and before any byte is written. `--type` picks the template and `--lane` picks the lane
+  // variant: `--title` was rejected under D-104, and there is no `feature` subcommand — the one in docs/design.md section 7 died with
   // the features/ folder.
   program
     .command('new')
     .description('scaffold a document a human then fills in')
     .command('ticket <id>')
-    .description("write accord/tickets/<id>.md from the active profile's template, filling nothing in")
+    .description("write accord/tickets/<id>.md from the active profile's template, or the lane template under --lane, filling nothing in")
     .addOption(
       new Option('--type <type>', 'which template to render (D-104)')
         .choices(['epic', 'story', 'bug'])
         .default('story'),
     )
-    .action((id: string, options: { type: 'epic' | 'story' | 'bug' }) => {
+    .addOption(new Option('--lane <lane>', 'write a lane ticket (M, L, or P)').choices(['M', 'L', 'P']))
+    .action((id: string, options: { type: 'epic' | 'story' | 'bug'; lane?: 'M' | 'L' | 'P' }) => {
       setCode(newTicket(preflight(opts), id, options));
     });
 
@@ -143,6 +180,15 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     });
 
   program
+    .command('tests')
+    .description('manage the test policy records')
+    .command('baseline')
+    .description('write accord/tests-baseline.txt from the untraced cases in the report, once')
+    .action(() => {
+      setCode(testsBaseline(preflight(opts)));
+    });
+
+  program
     .command('status')
     .description('print one row per ticket')
     .option('--json', 'print the StatusRow array instead of the table')
@@ -151,6 +197,21 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     // awaits it, so the exit code is still settled before runCli returns.
     .action(async (options: { json?: boolean; all?: boolean }) => {
       setCode(await status(preflight(opts), options));
+    });
+
+  program
+    .command('next')
+    .description('list lane tickets that passed Ready, have no task recorded, and are unblocked and unclaimed')
+    .option('--json', 'print the StatusRow array instead of the table')
+    .action((options: { json?: boolean }) => {
+      setCode(next(preflight(opts), options));
+    });
+
+  program
+    .command('anchor [id]')
+    .description("print the active ticket's intent, vetoes, decisions, corrections, and position")
+    .action((id: string | undefined) => {
+      setCode(anchor(preflight(opts), id));
     });
 
   return program;
@@ -162,11 +223,13 @@ export async function runCli(argv: string[], opts: RunOptions): Promise<number> 
     code = n;
   });
 
+  // D-51: an OS or git message can echo a Windows path; no `\` is ever printed.
+  const slashed = (message: string) => message.replace(/\\/g, '/') + '\n';
   try {
     await program.parseAsync(argv, { from: 'user' });
   } catch (err) {
     if (err instanceof UsageError) {
-      opts.stderr.write(err.message + '\n');
+      opts.stderr.write(slashed(err.message));
       return err.exitCode;
     }
     if (err instanceof CommanderError) {
@@ -175,7 +238,7 @@ export async function runCli(argv: string[], opts: RunOptions): Promise<number> 
       // which STACK Decision 1 puts at exit 2 — exit 1 is reserved for a lint or gate verdict.
       return err.code === 'commander.version' || err.code === 'commander.helpDisplayed' ? 0 : 2;
     }
-    opts.stderr.write((err instanceof Error ? err.message : String(err)) + '\n');
+    opts.stderr.write(slashed(err instanceof Error ? err.message : String(err)));
     return 2;
   }
   return code;

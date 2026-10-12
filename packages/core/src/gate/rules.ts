@@ -25,7 +25,27 @@ import {
   tickUnbound,
   verificationMissing,
 } from './done.js';
-import { designMissing, earsMissing, intentEmpty, ticketUnknown } from './ready.js';
+import {
+  acUncovered,
+  decisionUncited,
+  deferral,
+  laneMissing,
+  planEmpty,
+  planMissing,
+  refUnknown,
+  taskCoversMissing,
+  taskVerifyMissing,
+} from './plan.js';
+import {
+  approachEmpty,
+  approvalMissing,
+  approvalStale,
+  designMissing,
+  earsMissing,
+  intentEmpty,
+  ticketUnknown,
+} from './ready.js';
+import { reviewMissing, reviewUnconverged, suiteNotPassed, tasksIncomplete, testUntracedAtDone } from './work.js';
 import {
   evidenceUnresolved,
   noteMissing,
@@ -45,8 +65,8 @@ export interface GateRule {
 }
 
 /**
- * GATE-02: neither gate may pass an id the snapshot does not carry. One row referenced by both tables,
- * never two copies, so a level or profile change can never reach one gate and miss the other (GATE-06).
+ * GATE-02: no gate may pass an id the snapshot does not carry. One row referenced by every table, never
+ * a copy per table, so a level or profile change can never reach one gate and miss another (GATE-06).
  */
 const TICKET_UNKNOWN: GateRule = {
   id: 'gate.ticket-unknown',
@@ -55,11 +75,44 @@ const TICKET_UNKNOWN: GateRule = {
   check: ticketUnknown,
 };
 
+/** Spec §4, §7, §11: Ready, Plan, and Done all refuse a lane ticket whose approval is absent or stale. */
+const APPROVAL_MISSING: GateRule = {
+  id: 'gate.approval-missing',
+  level: 'error',
+  profiles: ['build', 'maintain'],
+  check: approvalMissing,
+};
+const APPROVAL_STALE: GateRule = {
+  id: 'gate.approval-stale',
+  level: 'error',
+  profiles: ['build', 'maintain'],
+  check: approvalStale,
+};
+
 export const READY_RULES: readonly GateRule[] = [
   TICKET_UNKNOWN,
   { id: 'gate.design-missing', level: 'error', profiles: ['build', 'maintain'], check: designMissing },
   { id: 'gate.intent-empty', level: 'error', profiles: ['build', 'maintain'], check: intentEmpty },
   { id: 'gate.ears-missing', level: 'error', profiles: ['build', 'maintain'], check: earsMissing },
+  { id: 'gate.approach-empty', level: 'error', profiles: ['build', 'maintain'], check: approachEmpty },
+  APPROVAL_MISSING,
+  APPROVAL_STALE,
+];
+
+/** Spec §7: the plan gate. Every row is an error: an incomplete plan never reaches an executor. */
+export const PLAN_RULES: readonly GateRule[] = [
+  TICKET_UNKNOWN,
+  { id: 'gate.lane-missing', level: 'error', profiles: ['build', 'maintain'], check: laneMissing },
+  APPROVAL_MISSING,
+  APPROVAL_STALE,
+  { id: 'gate.plan-missing', level: 'error', profiles: ['build', 'maintain'], check: planMissing },
+  { id: 'gate.plan-empty', level: 'error', profiles: ['build', 'maintain'], check: planEmpty },
+  { id: 'gate.task-covers-missing', level: 'error', profiles: ['build', 'maintain'], check: taskCoversMissing },
+  { id: 'gate.task-verify-missing', level: 'error', profiles: ['build', 'maintain'], check: taskVerifyMissing },
+  { id: 'gate.plan-ac-uncovered', level: 'error', profiles: ['build', 'maintain'], check: acUncovered },
+  { id: 'gate.plan-decision-uncited', level: 'error', profiles: ['build', 'maintain'], check: decisionUncited },
+  { id: 'gate.plan-ref-unknown', level: 'error', profiles: ['build', 'maintain'], check: refUnknown },
+  { id: 'gate.plan-deferral', level: 'error', profiles: ['build', 'maintain'], check: deferral },
 ];
 
 /** GATE-02/GATE-03/GATE-11 (docs/design.md §5). Every row is an error on both profiles: Done is the
@@ -88,6 +141,13 @@ export const DONE_RULES: readonly GateRule[] = [
   { id: 'gate.report-missing', level: 'error', profiles: ['build', 'maintain'], check: reportMissing },
   { id: 'gate.test-unknown', level: 'error', profiles: ['build', 'maintain'], check: testUnknown },
   { id: 'gate.test-not-passed', level: 'error', profiles: ['build', 'maintain'], check: testNotPassed },
+  APPROVAL_MISSING,
+  APPROVAL_STALE,
+  { id: 'gate.task-incomplete', level: 'error', profiles: ['build', 'maintain'], check: tasksIncomplete },
+  { id: 'gate.review-missing', level: 'error', profiles: ['build', 'maintain'], check: reviewMissing },
+  { id: 'gate.review-unconverged', level: 'error', profiles: ['build', 'maintain'], check: reviewUnconverged },
+  { id: 'gate.suite-not-passed', level: 'error', profiles: ['build', 'maintain'], check: suiteNotPassed },
+  { id: 'gate.test-untraced', level: 'error', profiles: ['build', 'maintain'], check: testUntracedAtDone },
   // GATE-05 (D-79): warnings, and never more. docs/design.md §4 makes the reviewer not a role, so the
   // two identities match on nearly every honest ticket; an error here would block every solo developer.
   { id: 'gate.author-match', level: 'warning', profiles: ['build', 'maintain'], check: authorMatch },

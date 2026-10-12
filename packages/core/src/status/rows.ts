@@ -4,6 +4,8 @@ import type { RepoSnapshot } from '../model/snapshot.js';
 import { lintSnapshot } from '../lint/index.js';
 import { scoped } from '../gate/index.js';
 import { acHash } from '../gate/hash.js';
+import { isDone, progressOf } from './stage.js';
+import type { Stage } from './stage.js';
 
 export interface StatusRow {
   id: string; // file stem: 'LOGIN-1'
@@ -18,6 +20,14 @@ export interface StatusRow {
   ticksTagged: number; // scenarios carrying an @ac-n tag
   ticksBinding: 'none' | 'bound' | 'stale'; // frontmatter verified_hash against acHash(scenarios) (D-76)
   tracker?: Record<string, string>; // adapter-keyed ids, values always strings
+  // Spec §3-§6: set on lane tickets only, so a 0.1.0 ticket's row is byte-identical to 0.1.0.
+  lane?: 'M' | 'L' | 'P';
+  stage?: Stage;
+  tasksDone?: number;
+  tasksTotal?: number;
+  dependsOn?: string[]; // spec §5, as written
+  blockedBy?: string[]; // dependsOn entries whose ticket is not done; an unknown id blocks
+  claimedBy?: string; // host-supplied author of branch t/<id>
 }
 
 // Code-point order, never a locale-aware compare, so the goldens are identical on every host.
@@ -42,6 +52,9 @@ export function statusRows(snapshot: RepoSnapshot): StatusRow[] {
       const fm = ticket.frontmatter;
       const mine = scoped(findings, ticket.id);
       const hash = acHash(ticket.scenarios);
+      const progress = progressOf(snapshot, ticket);
+      const deps = fm?.depends_on;
+      const claims = snapshot.claims;
       return {
         id: ticket.id,
         // D-54: optional fields are omitted, never set to undefined, so JSON.stringify is a stable golden.
@@ -56,9 +69,36 @@ export function statusRows(snapshot: RepoSnapshot): StatusRow[] {
         ticksTagged: ticket.scenarios.filter((s) => s.acTag !== undefined).length,
         ticksBinding: compare(fm?.verified_hash, hash, 'bound'),
         ...(fm?.tracker === undefined ? {} : { tracker: fm.tracker }),
+        // Lane rows only, so a 0.1.0 row never moves; progress is undefined exactly when lane is, the two
+        // checks are for type narrowing.
+        ...(fm?.lane === undefined || progress === undefined
+          ? {}
+          : {
+              lane: fm.lane,
+              stage: progress.stage,
+              tasksDone: progress.tasksDone,
+              tasksTotal: progress.tasksTotal,
+              ...(deps === undefined ? {} : { dependsOn: deps, blockedBy: deps.filter((d) => !isDone(snapshot, d)) }),
+              ...(claims !== undefined && Object.hasOwn(claims, ticket.id) ? { claimedBy: claims[ticket.id] } : {}),
+            }),
       };
     })
     // Outline order: a parentless row keys on its own id, so a parent sorts into the same
     // group as its children instead of into a separate block of orphans above them.
     .sort((a, b) => cmp(a.parent ?? a.id, b.parent ?? b.id) || cmp(a.id, b.id));
+}
+
+/**
+ * Spec §6 `accord next`: lane tickets that passed Ready (approved at the current hash, and `ac_hash`,
+ * which only a passing `gate ready` writes, matching the current criteria), have no task recorded yet, are not archived, wait on no dependency, and are unclaimed.
+ */
+export function nextRows(rows: StatusRow[]): StatusRow[] {
+  return rows.filter(
+    (r) =>
+      (r.stage === 'plan' || (r.stage === 'build' && r.tasksDone === 0)) &&
+      r.ready === 'ok' &&
+      (r.blockedBy ?? []).length === 0 &&
+      r.claimedBy === undefined &&
+      r.status !== 'archived',
+  );
 }

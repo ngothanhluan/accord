@@ -235,9 +235,9 @@ const isTest = (tag: string) => tag.startsWith('@test:');
 const machineScenarios = (snapshot: RepoSnapshot, id: string): ScenarioRef[] =>
   (ticketOf(snapshot, id)?.scenarios ?? []).filter((s) => !s.tags.includes('@ui'));
 /** The configured report path, or undefined when `config.yml` declares no `tests.report`. */
-const reportPath = (snapshot: RepoSnapshot): string | undefined => snapshot.config?.tests?.report;
+export const reportPath = (snapshot: RepoSnapshot): string | undefined => snapshot.config?.tests?.report;
 /** True only when a report was declared *and* its file reached the snapshot; the join runs on nothing else. */
-const reportLoaded = (snapshot: RepoSnapshot): boolean => {
+export const reportLoaded = (snapshot: RepoSnapshot): boolean => {
   const report = reportPath(snapshot);
   return report !== undefined && Object.hasOwn(snapshot.files, normaliseKey(report));
 };

@@ -2,6 +2,8 @@
 
 Living design document. Captures decisions from the initial brainstorm (2026-09-04) and the research behind them. It will be replaced by real specs once the CLI exists.
 
+The workflow layer — lanes, owner approval, the plan gate, task records, review convergence, the traced-test policy, and re-anchoring after compaction — is specified in [specs/2026-10-12-workflow-layer-design.md](specs/2026-10-12-workflow-layer-design.md). Its contract applies to tickets that carry `lane:`; a ticket without it keeps every rule below.
+
 ## 1. Why this exists
 
 Small delivery teams (BA, designer, developer, front-end, QA, team lead, coordinator) adopt AI coding agents and get two recurring failures: features that do not match the intent, and QA with no acceptance criteria to test against.

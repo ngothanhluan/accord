@@ -57,9 +57,9 @@ export function classifyEars(text: string): { pattern: string } | { reason: stri
   return { pattern: main.length === 1 ? names[main[0].kw] : 'complex' };
 }
 
-/** LINT-02: one warning per requirement line that is none of the six patterns, at its Markdown line. */
+/** LINT-02: one warning per requirement line that is none of the six patterns, at its Markdown line; off for lane tickets (spec §4, §15). */
 export const earsUnclassified: Rule['check'] = (snapshot) =>
-  Object.values(snapshot.tickets).flatMap((t) =>
+  Object.values(snapshot.tickets).filter((t) => t.frontmatter?.lane === undefined).flatMap((t) =>
     t.requirements.flatMap((l) => {
       const r = classifyEars(l.text);
       return 'reason' in r ? [{ file: t.file, line: l.line, reason: r.reason }] : [];

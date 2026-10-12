@@ -19,6 +19,12 @@ const REQUIRED: Record<'story' | 'bug' | 'epic', string[]> = {
   bug: ['Intent', 'Requirements', 'Acceptance criteria', 'Open questions', 'Plan'],
   epic: ['Intent', 'Requirements', 'Open questions'],
 };
+// Spec §4: a ticket with `lane:` drops Requirements and Plan and adds the four owner sections.
+const LANE_REQUIRED: Record<'story' | 'bug' | 'epic', string[]> = {
+  story: ['Intent', 'Acceptance criteria', 'Vetoes', 'Decisions', 'Corrections', 'Open questions', 'Approach'],
+  bug: ['Intent', 'Acceptance criteria', 'Vetoes', 'Decisions', 'Corrections', 'Open questions', 'Approach'],
+  epic: ['Intent', 'Vetoes', 'Decisions', 'Corrections', 'Open questions', 'Approach'],
+};
 // D-73 sentinels: uppercase whole words, an angle-bracket placeholder outside HTML tags, a `...` step.
 const WORD = /(?:^|[^A-Za-z0-9_])(TODO|TBD|FIXME|TICKET-ID)(?![A-Za-z0-9_])/g;
 const PLACEHOLDER = /<[a-z][a-z]* [^<>="/]+>/g;
@@ -44,7 +50,7 @@ const typed = (snapshot: RepoSnapshot): Typed[] => tickets(snapshot).filter((t):
 /** D-71: every required heading for the ticket's type, in table order, no line. */
 export const headingMissing: Rule['check'] = (snapshot) =>
   typed(snapshot).flatMap((t) =>
-    REQUIRED[t.frontmatter.type]
+    (t.frontmatter.lane === undefined ? REQUIRED : LANE_REQUIRED)[t.frontmatter.type]
       .filter((name) => section(t, headingKey(name)) === undefined)
       .map((name) => ({ file: t.file, reason: `missing "## ${name}"` })),
   );
@@ -135,8 +141,13 @@ export const intentOversize = oversize(
   LIMITS.intent,
   'lines',
 );
-/** LINT-07: EARS lines. */
-export const requirementsOversize = oversize('Requirements', (t) => t.requirements.length, LIMITS.requirements, 'EARS lines');
+/** LINT-07: EARS lines; off for lane tickets, which carry no EARS (spec §4, §15). */
+export const requirementsOversize = oversize(
+  'Requirements',
+  (t) => (t.frontmatter?.lane === undefined ? t.requirements.length : 0),
+  LIMITS.requirements,
+  'EARS lines',
+);
 /** LINT-07: scenarios. */
 export const scenariosOversize = oversize('Acceptance criteria', (t) => t.scenarios.length, LIMITS.scenarios, 'scenarios');
 

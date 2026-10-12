@@ -15,11 +15,19 @@ export function headingKey(heading: string): string {
 }
 
 const D07_KEYS = new Set(['intent', 'requirements', 'acceptance criteria', 'open questions', 'plan']);
+// Spec §4: a ticket with `lane:` also tracks its four owner headings; a ticket without keeps the 0.1.0 set.
+const LANE_KEYS = new Set([...D07_KEYS, 'vetoes', 'decisions', 'corrections', 'approach']);
 
 /** Identity for ticket sections: one of the five D-07 headings, or undefined when untracked. */
 export const d07Key = (s: Section): string | undefined => {
   const k = headingKey(s.heading);
   return D07_KEYS.has(k) ? k : undefined;
+};
+
+/** Identity for lane-ticket sections: a D-07 heading or a lane heading, or undefined when untracked. */
+export const laneKey = (s: Section): string | undefined => {
+  const k = headingKey(s.heading);
+  return LANE_KEYS.has(k) ? k : undefined;
 };
 
 const FENCE_OPEN = /^(`{3,}|~{3,})(.*)$/;

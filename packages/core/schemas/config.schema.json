@@ -42,6 +42,12 @@
       "additionalProperties": false,
       "required": ["report"],
       "properties": { "report": { "type": "string", "minLength": 1 } }
+    },
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode"],
+      "properties": { "mode": { "type": "string", "enum": ["human", "outcome"] } }
     }
   }
 }

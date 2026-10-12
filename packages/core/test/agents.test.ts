@@ -32,6 +32,13 @@ describe('rendered agents', () => {
     expect(frontmatter(text)).toMatchObject({ name: 'accord-auditor', tools: 'Read', model: 'opus', effort: 'medium' });
   });
 
+  it('renders the architect and the critic read-only on their spec routes', () => {
+    for (const role of ['architect', 'critic']) {
+      const text = agentTargets(config()).find((f) => f.path === `.claude/agents/accord-${role}.md`)?.text ?? '';
+      expect(frontmatter(text)).toMatchObject({ name: `accord-${role}`, tools: 'Read, Grep, Glob', model: 'opus', effort: 'high' });
+    }
+  });
+
   it('a models entry with only model keeps the default effort', () => {
     const fm = frontmatter(scout(config({ models: { scout: { model: 'sonnet' } } })));
     expect(fm).toMatchObject({ model: 'sonnet', effort: 'low' });

@@ -19,13 +19,15 @@ plans or builds. You run it in the main session.
    cites the file that prompted it.
 
 3. **Score ambiguity** from 0 to 1 on four dimensions: goal, scope boundary,
-   constraints, acceptance. Show the owner the four scores after each round.
-   Floors: no dimension above 0.4. Stop when the total (the mean) is 0.2 or
-   less with no dimension over its floor, or when the owner says "enough".
+   constraints, acceptance; 0 is unambiguous, 1 is unknown. Show the owner
+   the four scores after each round. No dimension may stay above 0.4. Stop
+   when the total (the mean) is 0.2 or less with no dimension above 0.4, or
+   when the owner says "enough".
    On "enough", write `Ruling: interview stopped by the owner at <score>`
    into `accord/tickets/<id>/ledger.md` under `## Rulings`.
 
-4. **One question per message**, aimed at the weakest dimension. Multiple
+4. **One question per message**, aimed at the dimension with the highest
+   score. Multiple
    choice where possible, the recommended option first with its reason.
 
 5. **Write the ticket** `accord/tickets/<id>.md`, each section as follows:
@@ -36,7 +38,7 @@ plans or builds. You run it in the main session.
    | `## Acceptance criteria` | two to five Gherkin scenarios, `@ac-1` … `@ac-n`; you draft, the owner approves |
    | `## Vetoes` | what the owner forbids, in the owner's words |
    | `## Decisions` | settled answers in the owner's words: `- D-01 <decision> — "<the owner's sentence>"` |
-   | `## Corrections` | every "no, I meant…", verbatim, append-only |
+   | `## Corrections` | every "no, I meant…", verbatim, append-only, written before any other action |
    | `## Open questions` | each unanswered question as an unchecked `- [ ]` item |
 
 6. **Write back** your understanding. Separate what the owner said from what

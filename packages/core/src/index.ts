@@ -30,6 +30,7 @@ export { approvedHash } from './gate/hash.js';
 export type { GateResult } from './gate/index.js';
 export { taskVerdict } from './gate/task.js';
 export { planFile, workOf } from './gate/work.js';
+export { untracedTests } from './lint/tests.js';
 export type { TaskVerdict } from './gate/task.js';
 export { recordTaskDone } from './write/ledger.js';
 export { statusRows } from './status/rows.js';

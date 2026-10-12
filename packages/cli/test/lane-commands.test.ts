@@ -349,3 +349,51 @@ describe('brief and review-package edge cases', () => {
     }
   });
 });
+
+describe('accord tests baseline', () => {
+  const report = junit({ 'export#writes-csv': 'passed', 'export#escapes-commas': 'passed', 'util#formats-dates': 'passed' });
+
+  it('writes the untraced cases once and refuses a second time', async () => {
+    const repo = makeLaneRepo({ [REPORT]: report });
+    try {
+      const first = await run(['tests', 'baseline'], repo);
+      expect(first.code).toBe(0);
+      expect(first.out).toBe('wrote 1 case id to accord/tests-baseline.txt\n');
+      const text = readFileSync(join(repo, 'accord', 'tests-baseline.txt'), 'utf8');
+      expect(text.split('\n').filter((l) => l !== '' && !l.startsWith('#'))).toEqual(['util#formats-dates']);
+      const second = await run(['tests', 'baseline'], repo);
+      expect(second.code).toBe(2);
+      expect(second.err).toContain('accord/tests-baseline.txt already exists');
+      expect(readFileSync(join(repo, 'accord', 'tests-baseline.txt'), 'utf8')).toBe(text);
+      expect((await run(['lint'], repo)).out).not.toContain('lint.test-untraced');
+    } finally {
+      cleanup(repo);
+    }
+  });
+
+  it('refuses a repository with no tests.report, exit 2', async () => {
+    const repo = makeLaneRepo({ 'accord/config.yml': CONFIG.replace(/tests:\n {2}report: .*\n/, '') });
+    try {
+      const r = await run(['tests', 'baseline'], repo);
+      expect(r.code).toBe(2);
+      expect(r.err).toContain('no tests.report');
+      expect(existsSync(join(repo, 'accord', 'tests-baseline.txt'))).toBe(false);
+    } finally {
+      cleanup(repo);
+    }
+  });
+
+  it('refuses when the configured report file is missing, exit 2, writing nothing', async () => {
+    const repo = makeLaneRepo();
+    try {
+      rmSync(join(repo, ...REPORT.split('/')));
+      const r = await run(['tests', 'baseline'], repo);
+      expect(r.code).toBe(2);
+      expect(r.err).toContain('was not found');
+      expect(r.err).not.toContain('\\');
+      expect(existsSync(join(repo, 'accord', 'tests-baseline.txt'))).toBe(false);
+    } finally {
+      cleanup(repo);
+    }
+  });
+});

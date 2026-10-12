@@ -17,6 +17,7 @@ import { reviewPackage } from './commands/review-package.js';
 import { skills } from './commands/skills.js';
 import { status } from './commands/status.js';
 import { taskDone } from './commands/task-done.js';
+import { testsBaseline } from './commands/tests-baseline.js';
 import { loadFromFs, UsageError } from './load/fs.js';
 import { pinMessage } from './pin.js';
 import { repoRoot } from './root.js';
@@ -173,6 +174,15 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .description('write every skill this config declares into .claude/skills/ and .agents/skills/')
     .action(() => {
       setCode(skills(preflight(opts)));
+    });
+
+  program
+    .command('tests')
+    .description('manage the test policy records')
+    .command('baseline')
+    .description('write accord/tests-baseline.txt from the untraced cases in the report, once')
+    .action(() => {
+      setCode(testsBaseline(preflight(opts)));
     });
 
   program

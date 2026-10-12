@@ -4,6 +4,7 @@
 import { classifyEars } from '../lint/ears.js';
 import { headingKey, stripHtmlComments } from '../load/sections.js';
 import type { RepoSnapshot, Section, Ticket } from '../model/snapshot.js';
+import { approvedHash } from './hash.js';
 import type { GateRule } from './rules.js';
 
 const ticketFile = (id: string) => 'accord/tickets/' + id + '.md';
@@ -12,6 +13,8 @@ const ticketOf = (snapshot: RepoSnapshot, id: string): Ticket | undefined =>
   Object.hasOwn(snapshot.tickets, id) ? snapshot.tickets[id] : undefined;
 const section = (snapshot: RepoSnapshot, id: string, key: string): Section | undefined =>
   ticketOf(snapshot, id)?.sections.find((s) => headingKey(s.heading) === key);
+/** Spec §3: the key that opts a ticket into the workflow-layer contract. */
+const laneOf = (snapshot: RepoSnapshot, id: string) => ticketOf(snapshot, id)?.frontmatter?.lane;
 
 /** The gated id is not in the snapshot; this is the whole Ready result. */
 export const ticketUnknown: GateRule['check'] = (snapshot, id) =>
@@ -53,6 +56,8 @@ export const intentEmpty: GateRule['check'] = (snapshot, id) => {
  * nothing at all about a section holding no line worth classifying.
  */
 export const earsMissing: GateRule['check'] = (snapshot, id) => {
+  // Spec §4: a lane ticket has no Requirements section to hold EARS lines.
+  if (laneOf(snapshot, id) !== undefined) return [];
   const s = section(snapshot, id, 'requirements');
   const ticket = ticketOf(snapshot, id);
   if (s === undefined || ticket === undefined) return [];
@@ -62,6 +67,44 @@ export const earsMissing: GateRule['check'] = (snapshot, id) => {
       file: ticketFile(id),
       line: s.line,
       reason: '"## Requirements" has no EARS line; at least one must name "the system shall"',
+    },
+  ];
+};
+
+/** Spec §7: the owner approves an approach, so an empty one cannot be approved meaningfully. */
+export const approachEmpty: GateRule['check'] = (snapshot, id) => {
+  if (laneOf(snapshot, id) === undefined) return [];
+  const s = section(snapshot, id, 'approach');
+  if (s === undefined) return []; // lint.heading-missing owns the absent heading
+  if (stripHtmlComments(s.lines).some((l) => l.text.trim() !== '')) return [];
+  return [{ file: ticketFile(id), line: s.line, reason: '"## Approach" is empty; the owner approves an approach' }];
+};
+
+/** Spec §4: no approval recorded. */
+export const approvalMissing: GateRule['check'] = (snapshot, id) => {
+  const fm = ticketOf(snapshot, id)?.frontmatter;
+  if (fm?.lane === undefined || fm.approved_hash !== undefined) return [];
+  return [
+    {
+      file: ticketFile(id),
+      pointer: '/approved_hash',
+      reason: 'the owner has not approved this ticket; run accord approve ' + id + ' after the owner says yes',
+    },
+  ];
+};
+
+/** Spec §4: exact comparison, prefix included, as `gate.ac-changed` does (D-75). */
+export const approvalStale: GateRule['check'] = (snapshot, id) => {
+  const ticket = ticketOf(snapshot, id);
+  const recorded = ticket?.frontmatter?.approved_hash;
+  if (ticket === undefined || ticket.frontmatter?.lane === undefined || recorded === undefined) return [];
+  const now = approvedHash(ticket);
+  if (recorded === now) return [];
+  return [
+    {
+      file: ticketFile(id),
+      pointer: '/approved_hash',
+      reason: `the approved sections changed since approval: approved_hash records ${recorded}, they hash to ${now} now; the owner must approve again`,
     },
   ];
 };

@@ -485,6 +485,11 @@ const GATE01: Record<string, string[]> = {
   'valid frontmatter': ['schema.required', 'schema.additionalProperties', 'schema.enum', 'schema.pattern'],
   intent: ['gate.intent-empty'],
   'at least one EARS line': ['gate.ears-missing'],
+  'a lane ticket: an approach the owner approved, unchanged since': [
+    'gate.approach-empty',
+    'gate.approval-missing',
+    'gate.approval-stale',
+  ],
   'at least one tagged scenario': ['lint.no-scenarios', 'lint.ac-tag-missing'],
   'no LINT-06 findings': [...READY_PROMOTE],
   'a design reference when the profile requires it': ['gate.design-missing'],

@@ -25,7 +25,15 @@ import {
   tickUnbound,
   verificationMissing,
 } from './done.js';
-import { designMissing, earsMissing, intentEmpty, ticketUnknown } from './ready.js';
+import {
+  approachEmpty,
+  approvalMissing,
+  approvalStale,
+  designMissing,
+  earsMissing,
+  intentEmpty,
+  ticketUnknown,
+} from './ready.js';
 import {
   evidenceUnresolved,
   noteMissing,
@@ -60,6 +68,9 @@ export const READY_RULES: readonly GateRule[] = [
   { id: 'gate.design-missing', level: 'error', profiles: ['build', 'maintain'], check: designMissing },
   { id: 'gate.intent-empty', level: 'error', profiles: ['build', 'maintain'], check: intentEmpty },
   { id: 'gate.ears-missing', level: 'error', profiles: ['build', 'maintain'], check: earsMissing },
+  { id: 'gate.approach-empty', level: 'error', profiles: ['build', 'maintain'], check: approachEmpty },
+  { id: 'gate.approval-missing', level: 'error', profiles: ['build', 'maintain'], check: approvalMissing },
+  { id: 'gate.approval-stale', level: 'error', profiles: ['build', 'maintain'], check: approvalStale },
 ];
 
 /** GATE-02/GATE-03/GATE-11 (docs/design.md §5). Every row is an error on both profiles: Done is the

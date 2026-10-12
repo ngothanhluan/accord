@@ -15,7 +15,7 @@ const VERDICT = /^verdict:\s*(\S+)\s*$/;
 type Field = 'covers' | 'files' | 'verify';
 
 /** A field value: tokens separated by whitespace or commas, empty tokens dropped. */
-const tokens = (v: string): string[] => v.split(/[\s,]+/).filter((x) => x !== '');
+export const tokens = (v: string): string[] => v.split(/[\s,]+/).filter((x) => x !== '');
 
 /**
  * One task per `## Task <n>: <title>` section; any other section is prose and is skipped. A field is the

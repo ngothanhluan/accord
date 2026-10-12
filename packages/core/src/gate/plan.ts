@@ -2,7 +2,7 @@
 // nothing. Mechanical only — whether the plan is good is the critic's question; this gate answers whether
 // it is complete. Levels live in rules.ts (D-57).
 import { headingKey, LIST_MARKER, stripHtmlComments } from '../load/sections.js';
-import { FIELD } from '../load/work.js';
+import { FIELD, tokens } from '../load/work.js';
 import type { PlanTask, RepoSnapshot, Ticket } from '../model/snapshot.js';
 import type { GateRule } from './rules.js';
 import { laneTicket, planFile, workOf } from './work.js';
@@ -10,6 +10,8 @@ import { laneTicket, planFile, workOf } from './work.js';
 const DECISION = /^(D-[0-9]+)\b/;
 // Letter-or-digit boundaries on both sides: `v10` and `laterally` are not deferrals, `v1.` and `later.` are.
 const DEFERRAL = /(?<![\p{L}\p{N}])(TODO|TBD|placeholder|v1|for now|later)(?![\p{L}\p{N}])/iu;
+// A field holds ids and paths: only a token, or the whole value, that IS a deferral word defers work.
+const DEFERRAL_TOKEN = /^(TODO|TBD|placeholder|v1|for now|later)$/iu;
 
 /** `D-nn` at the start of a line under `## Decisions`, list marker and comments stripped; unique, in order. */
 export function decisionIds(t: Ticket): string[] {
@@ -100,16 +102,21 @@ export const refUnknown: GateRule['check'] = (snapshot, id) => {
 };
 
 /**
- * Spec §7: one finding per line, title included, naming the first deferral word on it. The `covers:`,
- * `files:` and `verify:` lines are skipped: they hold ids and paths, and `src/api/v1/x.ts` defers nothing.
+ * Spec §7: one finding per line, title included, naming the first deferral word on it. A `covers:`,
+ * `files:` or `verify:` line is matched token by token, so `files: TBD` defers and `src/later.ts` does not.
  */
+const deferred = (text: string): string | undefined => {
+  const f = FIELD.exec(text.replace(LIST_MARKER, '').trim());
+  if (f === null) return DEFERRAL.exec(text)?.[1];
+  return [f[2].trim(), ...tokens(f[2])].find((t) => DEFERRAL_TOKEN.test(t));
+};
+
 export const deferral: GateRule['check'] = (snapshot, id) =>
   tasksOf(snapshot, id).flatMap((x) =>
     [
-      { line: x.line, text: x.title },
-      ...stripHtmlComments(x.lines).filter((l) => !FIELD.test(l.text.replace(LIST_MARKER, '').trim())),
-    ].flatMap((l) => {
-      const m = DEFERRAL.exec(l.text);
-      return m ? [{ file: planFile(id), line: l.line, reason: `task ${x.n} defers work: "${m[1]}"` }] : [];
-    }),
+      { line: x.line, word: DEFERRAL.exec(x.title)?.[1] },
+      ...stripHtmlComments(x.lines).map((l) => ({ line: l.line, word: deferred(l.text) })),
+    ].flatMap(({ line, word }) =>
+      word === undefined ? [] : [{ file: planFile(id), line, reason: `task ${x.n} defers work: "${word}"` }],
+    ),
   );

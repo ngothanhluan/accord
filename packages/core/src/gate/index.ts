@@ -1,4 +1,4 @@
-// GATE-01/GATE-06 Ready and GATE-02/GATE-03/GATE-11 Done (D-87, D-89): the ticket-scoped lint findings
+// GATE-01/GATE-06 Ready, spec §7 Plan, and GATE-02/GATE-03/GATE-11 Done (D-87, D-89): the ticket-scoped lint findings
 // plus the gate table for the gate being run, merged into one sorted list. The verdict is read off that
 // list and from nothing else — there is no flag, option, or config key that can produce a `pass` while
 // an error finding exists.
@@ -59,7 +59,7 @@ function run(
   const gated = rules
     .filter((r) => r.profiles.includes(profile))
     .flatMap((r) => r.check(snapshot, id).map((d) => ({ ...d, rule: r.id, level: r.level })));
-  // An unknown id short-circuits: gate.ticket-unknown is already in `gated` on BOTH tables, every
+  // An unknown id short-circuits: gate.ticket-unknown is already in `gated` on every table, every
   // other check is silent without a ticket, and there is no scenario to hash. A table missing that row
   // would read its verdict off an empty list and pass a ticket that does not exist.
   const known = Object.hasOwn(snapshot.tickets, id);

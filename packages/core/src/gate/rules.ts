@@ -64,8 +64,8 @@ export interface GateRule {
 }
 
 /**
- * GATE-02: neither gate may pass an id the snapshot does not carry. One row referenced by both tables,
- * never two copies, so a level or profile change can never reach one gate and miss the other (GATE-06).
+ * GATE-02: no gate may pass an id the snapshot does not carry. One row referenced by every table, never
+ * a copy per table, so a level or profile change can never reach one gate and miss another (GATE-06).
  */
 const TICKET_UNKNOWN: GateRule = {
   id: 'gate.ticket-unknown',

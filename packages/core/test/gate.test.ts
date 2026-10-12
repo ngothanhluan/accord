@@ -6,7 +6,14 @@ import type { Finding, LintResult, RepoSnapshot } from '../src/index.js';
 import { gateDone, gateReady } from '../src/gate/index.js';
 import type { GateResult } from '../src/gate/index.js';
 import { isSha, shaEqual } from '../src/gate/done.js';
-import { downgradeMaintain, DONE_RULES, MAINTAIN_DOWNGRADE, READY_PROMOTE, READY_RULES } from '../src/gate/rules.js';
+import {
+  downgradeMaintain,
+  DONE_RULES,
+  MAINTAIN_DOWNGRADE,
+  PLAN_RULES,
+  READY_PROMOTE,
+  READY_RULES,
+} from '../src/gate/rules.js';
 import { RULES } from '../src/lint/rules.js';
 import { renderText } from '../src/lint/render.js';
 import { readFixture, stableJson } from './helpers/fixture.js';
@@ -598,20 +605,23 @@ describe('the maintain downgrade is the whole GATE-07 matrix, applied from one c
 
 describe('the gate rule tables (D-57, D-59)', () => {
   it('every id is gate.<kebab-name> and unique within its table', () => {
-    for (const table of [READY_RULES, DONE_RULES]) {
+    for (const table of [READY_RULES, PLAN_RULES, DONE_RULES]) {
       const ids = table.map((r) => r.id);
       for (const id of ids) expect(id, id).toMatch(/^gate\.[a-z-]+$/);
       expect(new Set(ids).size).toBe(ids.length);
     }
   });
 
-  // Reference identity, not a shape compare: a rule both gates run must be ONE row, so a level or
-  // profile change can never reach one gate and miss the other (GATE-06).
-  it('a rule both tables carry is the same row object', () => {
-    for (const r of READY_RULES) {
-      const shared = DONE_RULES.find((d) => d.id === r.id);
-      if (shared !== undefined) expect(shared, r.id).toBe(r);
-    }
+  // Reference identity, not a shape compare: a rule several gates run must be ONE row, so a level or
+  // profile change can never reach one gate and miss another (GATE-06).
+  it('a rule several tables carry is the same row object', () => {
+    const tables = [READY_RULES, PLAN_RULES, DONE_RULES];
+    for (const a of tables)
+      for (const b of tables)
+        for (const r of a) {
+          const shared = b.find((d) => d.id === r.id);
+          if (shared !== undefined) expect(shared, r.id).toBe(r);
+        }
   });
 
   it('READY_PROMOTE names only real lint rule ids', () => {

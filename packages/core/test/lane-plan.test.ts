@@ -79,6 +79,19 @@ describe('gate plan', () => {
     ]);
   });
 
+  // Task 2's files: line is the one followed by its own verify: line.
+  const task2Files = 'files: src/export.ts\nverify: export#escapes-commas';
+  it.each([
+    ['files: TBD', task2Files, 'files: TBD\nverify: export#escapes-commas', 'TBD'],
+    ['verify: TODO', 'verify: export#escapes-commas', 'verify: TODO', 'TODO'],
+    ['files: for now', task2Files, 'files: for now\nverify: export#escapes-commas', 'for now'],
+  ])('a field whose token is a deferral word fails: %s', (_, from, to, word) => {
+    const r = plan(base(), PLAN.replace(from, to));
+    expect(r.findings.filter((f) => f.level === 'error').map((f) => [f.rule, f.reason])).toEqual([
+      ['gate.plan-deferral', `task 2 defers work: "${word}"`],
+    ]);
+  });
+
   it('a ticket without lane fails on gate.lane-missing', () => {
     const f = base(laneTicket('T-1', { lane: '', body: LANE_BODY + '## Requirements\n\n## Plan\n' }));
     expect(errors(plan(f, PLAN))).toContain('gate.lane-missing');

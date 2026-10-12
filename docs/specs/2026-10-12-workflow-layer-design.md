@@ -116,8 +116,9 @@ the contract that is tested and verified. `## Plan` moves out of the ticket into
    owner after each round.
 3. **One question per message, aimed at the weakest dimension**, multiple choice where possible, the
    recommended option first with its reason.
-4. **Stop** when the score is at or below 0.2 and no dimension is below its floor, or when the owner says
-   "enough" (recorded in the ledger as a warning).
+4. **Stop** when the score (the mean, where 0 is unambiguous) is at or below 0.2 and no dimension is above
+   0.4, or when the owner says "enough" (recorded in the ledger as `Ruling: interview stopped by the owner
+   at <score>`).
 5. **Write back** the understanding, separating what the owner said from what the agent assumed.
 6. **Audit once.** `accord-auditor`, in a fresh context reading only the ticket, tries to find two
    different readings of each acceptance criterion. A criterion with two readings goes back to the owner.

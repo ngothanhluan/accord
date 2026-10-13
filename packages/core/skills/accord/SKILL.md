@@ -45,12 +45,12 @@ remember their names.
    never from memory.
 2. Run `accord anchor`. It prints the stage and the position from the ledger,
    then the owner's words verbatim.
-3. Load the stage skill for the stage it prints: `intent` → `accord-intent`,
-   `plan` → `accord-plan`, `build` → `accord-build`, `review` →
-   `accord-review`, `verify` → `accord-verify`. Resume at the step the anchor
-   names. Never re-run a task the ledger records.
-4. If `accord/tickets/<id>/debug.md` exists and has no `## Resolved`
+3. If `accord/tickets/<id>/debug.md` exists and has no `## Resolved`
    section, load `accord-debug` and resume there.
+4. Otherwise load the stage skill for the stage it prints: `intent` →
+   `accord-intent`, `plan` → `accord-plan`, `build` → `accord-build`,
+   `review` → `accord-review`, `verify` → `accord-verify`. Resume at the step
+   the anchor names. Never re-run a task the ledger records.
 
 ## Pick up
 

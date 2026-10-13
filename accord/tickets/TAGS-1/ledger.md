@@ -18,6 +18,7 @@
 - Ruling: on a recorded task whose verdict fails, task-done writes no tags and prints the already-recorded line as before — the brief's Interface — cost if wrong: none stated; review checks the order against the report's own description. (executor, task 3)
 - Ruling: the build skill names "a verify: id marked (@ac-n)" in one clause — the brief's sync test requires the build copy to contain "(@ac-" — cost if wrong: one clause to trim. (executor, task 4)
 - Ruling: a re-run of task-done on a recorded task with a tag left to fill, whose mapped test failed or is missing, exits 1 naming the test and the scenario and writes nothing; with no tag left to fill it keeps "already recorded" and exit 0 — the owner's reading of D-05, "Từ chối rõ ràng" — cost if wrong: one branch to revert.
+- Ruling: the recorded-task refusal reuses the verdict reasons plus "@ac-n is left without @test:T", listing only scenarios the writer would still write — keeps "already recorded" when nothing is left — cost if wrong: a differently worded message. (executor, review round 1)
 
 ## Deferred
 

@@ -17,10 +17,8 @@ fix.
 2. **Package.** Run `accord review-package <id>` into a file outside the
    working tree. It holds the commits, the stat, and the diff from the
    plan's `baseline:`, and lists under `## Undeclared files` every changed
-   file no task's `files:` line names. The review unit is the ticket under
-   `review: outcome` and each slice under `review: human` (pass `--base`
-   the commit the slice starts from); review independent slices in
-   parallel.
+   file no task's `files:` line names. The review unit is the whole
+   ticket, whatever `review.mode` in `accord/config.yml` says.
 
 3. **Reviewers.** Choose by the unit's diff size and risk:
    - up to about 500 changed lines: one `accord-reviewer`, lens `both`;
@@ -38,11 +36,19 @@ fix.
 4. **Classify.** Merge and de-duplicate the findings. Before fixing, mark
    each one `patch`, `plan-gap`, or `intent-gap`.
    - Fix every Must and Should marked `patch` through `accord-build`'s
-     executor path: write a brief file outside the working tree holding
-     the ticket file verbatim, then the findings to fix; dispatch a fresh
-     `accord-executor` with its path; route its stops as `accord-build`
-     does; run the `tests.affected` command over the files the fix
-     touched. Then re-review only the fix diff, with one reviewer.
+     executor path. Note the HEAD sha. Write a brief file outside the
+     working tree: copy the ticket file byte for byte (never retype it),
+     then append the findings to fix. Dispatch a fresh `accord-executor`
+     with its path, and route its stops as `accord-build` does.
+   - When it reports, run the `tests.affected` command over the files the
+     fix touched. If it fails, dispatch a fresh executor with the same
+     brief plus the failing output, in the same round.
+   - Copy every Ruling in its report, and each file outside the plan you
+     accept as a Ruling naming the file and its reason, into
+     `accord/tickets/<id>/ledger.md` under `## Rulings`; commit the ledger.
+   - Re-review only the fix diff: `accord review-package <id> --base
+     <the noted sha>` into a file outside the working tree, one reviewer,
+     lens `both`.
    - A plan gap goes back to `accord-plan`, where the critic runs again.
    - An intent gap stops the run and asks the owner.
    - Nice findings go to the ledger under `## Deferred`, not fixed.
@@ -61,11 +67,13 @@ fix.
 7. **Final review.** After convergence, one fresh `accord-final-reviewer`
    reads the whole review package once (over about 1500 changed lines,
    dispatch it with lens `integration`). If it finds a Must or Should:
-   one fix, one re-review scoped to that fix, then stop.
+   one fix and one scoped re-review, as in step 4. If a Must is still
+   open after that, stop and ask the owner.
 
 8. **Record.** Write every round to `accord/tickets/<id>/review.md` as
-   `./record.md` says, ending `verdict: converged`, or
-   `verdict: accepted-by-owner` followed by the owner's sentence quoted.
+   `./record.md` says, ending `verdict: converged`, or, when the owner
+   accepts any stop with findings still open, `verdict: accepted-by-owner`
+   followed by the owner's sentence quoted.
    Commit it.
 
 9. Next: `accord-verify`.

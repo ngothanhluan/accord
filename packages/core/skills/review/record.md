@@ -26,7 +26,7 @@ The single last line of the file is the verdict:
 - `verdict: converged` when zero Must and zero Should are open after the
   final review;
 - `verdict: accepted-by-owner "<the owner's sentence>"` when the run
-  stopped at the cap and the owner accepted the open findings, quoting what
-  the owner said.
+  stopped with findings still open, at the cap or after the final
+  re-review, and the owner accepted them, quoting what the owner said.
 
 Nothing follows the verdict line.

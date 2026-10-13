@@ -16,7 +16,9 @@ Nothing to install. Node 22.12 or newer, and:
 npx --yes @accord-dev/accord@0.1.0 --version
 ```
 
-That prints the version back. `init` in place of `--version` writes the `accord/` folder, the workflow skills for the runtimes you name, and a CI workflow pinned to the same release, into whatever repository you run it in. For the `claude` runtime it also writes the accord agents to `.claude/agents/` and three session hooks to `.claude/settings.json`, keeping every setting and hook already there. Then type `/accord` in your agent to see where work stands, or `/accord <request>` to start something.
+That prints the version back. `init` in place of `--version` writes the `accord/` folder, the workflow skills for the runtimes you name, and a CI workflow pinned to the same release, into whatever repository you run it in.
+
+**Unreleased, on `main`:** the workflow layer described below (lanes, `/accord`, the stage skills, the accord agents in `.claude/agents/`, and three session hooks in `.claude/settings.json`) is not in 0.1.0; it ships with the next release. To run it from a clone: `npm install`, `npm run build`, then `npm rebuild @accord-dev/accord` so the `accord` command exists for the hooks.
 
 ## The problem
 

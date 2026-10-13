@@ -128,6 +128,8 @@ Adapter `none` must be fully usable. The first external users will be solo devel
 
 ## 7. CLI
 
+The 0.1.0 commands. The workflow layer's commands are listed in section 9.
+
 TypeScript, distributed via npx, so it fits how AI-tool users already install things. The package name will likely be scoped, since `accord` on npm is held by an abandoned 2022 package.
 
 ```

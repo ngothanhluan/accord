@@ -41,8 +41,7 @@ judges, the owner decides.
      current `ac_hash:` and `verified_commit:` to the commit verified.
      `## Verification notes` is not required.
    - Under `review: human` the 0.1.0 human layer stays: a person ticks
-     `verified:` the same way and writes `## Verification notes`, and a
-     person reviews each slice's pull request.
+     `verified:` the same way and writes `## Verification notes`.
    - Never tick `verified:` for the owner, and never write
      `verified_hash:` or `verified_commit:`.
    - A `fail` or `blocked` criterion: show the owner. A failing criterion

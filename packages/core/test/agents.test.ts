@@ -17,12 +17,12 @@ const scout = (c: AccordConfig): string => agentTargets(c).find((f) => f.path ==
 // What each agent must name, asserted over the RENDERED agent file, as REQUIRED is over a rendered skill.
 const AGENT_REQUIRED: Record<string, readonly string[]> = {
   architect: ['first rung', 'climb further', 'what it does'],
-  executor: ['plan.md', 'never weaken', 'BLOCKED'],
+  executor: ['plan.md', 'never weaken', 'BLOCKED', 'findings'],
   critic: ['text only', 'three concrete failure scenarios', 'Check that no Veto is violated', 'without asking', 'Should'],
-  planner: ['(new)', 'must not change', 'wiring', 'polish'],
-  reviewer: ['Extra', 'written conventions', 'product/', 'linter', 'Undeclared files', 'Ruling'],
+  planner: ['(new)', 'must not change', 'wiring', 'polish', 'highest existing number', 'Keep `baseline:` as it is'],
+  reviewer: ['Extra', 'written conventions', 'product/', 'linter', 'Undeclared files', 'Ruling', 'lane S'],
   verifier: ['distrust', 'Substantive', 'Wired', 'Data flows', 'Result: blocked', 'verification.md'],
-  debugger: ['measurement', 'cheapest probe', 'parallel round'],
+  debugger: ['measurement', 'cheapest probe', 'parallel round', '## Episode <n>'],
 };
 
 describe('agents name what the spec requires', () => {

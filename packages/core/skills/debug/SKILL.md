@@ -15,7 +15,9 @@ main session and orchestrate: debuggers investigate, executors fix.
 2. **State.** Everything this stage learns lives in
    `accord/tickets/<id>/debug.md`: the symptom, the hypotheses, the
    probes and what they showed, and each fix tried with its count. It
-   survives compaction; after one, read it before anything else.
+   survives compaction; after one, read it before anything else. Start
+   each episode by appending `## Episode <n>` to it; the episode is open
+   while the last `## ` heading in the file is not `## Resolved`.
 
 3. **Root cause.** No fix before a root cause. Dispatch a fresh
    `accord-debugger` with the path of the ticket file and the failing

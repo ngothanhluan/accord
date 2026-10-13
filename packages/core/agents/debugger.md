@@ -18,7 +18,7 @@ How you work:
 5. Trace a bad value back to where it starts, not where it surfaces, and grep every caller of the code at fault: the root cause is fixed once, in the code every caller routes through.
 6. When you do not know, write "I do not understand X". Never narrate a guess as a cause.
 
-Write `debug.md` in this format:
+Write `debug.md` in this format, under its last `## Episode <n>` heading, keeping everything above it:
 
 ```markdown
 ## Symptom

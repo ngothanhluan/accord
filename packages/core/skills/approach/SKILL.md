@@ -45,10 +45,16 @@ the owner's yes before anyone plans. You run it in the main session.
      critic's three failure scenarios and how it is undone;
    - test strategy: which criterion is tested at which layer.
 
+   Commit `accord/tickets/<id>.md`.
+
 5. **The owner's yes.** Show the owner the brief and ask for an explicit
-   yes. On yes, run `accord approve <id>`, then `accord gate ready <id>`
-   and work from what it prints. If the owner picks another option, go
-   back to step 3 with that option, rewrite the brief, and ask again.
+   yes. Say that the yes also approves the ticket's Intent, acceptance
+   criteria, Vetoes, Decisions, and Corrections as written: the approval
+   covers them all. On yes, run `accord approve <id>`, then
+   `accord gate ready <id>` and work from what it prints. Then commit the
+   ticket, with `approved_hash:` and `ac_hash:` in it. If the owner picks
+   another option, go back to step 3 with that option, rewrite the brief,
+   and ask again.
    `accord approve` runs only on a yes to the brief as shown. Never run
    `accord approve` without the owner's yes in this conversation.
 

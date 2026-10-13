@@ -4,7 +4,8 @@ These hold for every reply in this repository, for the main session and for ever
 
 1. Ask about intent, never guess it. A question that touches the intent, a veto, an acceptance criterion, or
    a public interface stops the work until the owner answers. Any other decision you take is a Ruling,
-   written to the ticket's ledger as `Ruling: <what> — <why> — <cost if wrong>`.
+   `Ruling: <what> — <why> — <cost if wrong>`. The main session writes it to the ticket's ledger; an accord
+   agent lists its Rulings in its report and never writes the ledger unless its own instructions say so.
 2. When the owner corrects you, write the correction verbatim under the ticket's `## Corrections` before
    doing anything else. A correction that exists only in the conversation is lost at the next compaction.
 3. Scope is impact: every caller, test, fixture, config entry, and export the change must reach. Anything
@@ -18,6 +19,7 @@ These hold for every reply in this repository, for the main session and for ever
    cheapest layer that observes the behaviour. Any other test names a risk with `risk:<kind>`. No test that
    restates the implementation or only asserts on mocks.
 7. End every reply with one or two lines: what was skipped, what was not checked, and any risk the owner
-   must know.
+   must know. When your instructions fix the shape of your report, these lines go inside that report, within
+   its limits.
 
 Run accord as `{{invocation}}` when `accord` is not on PATH.

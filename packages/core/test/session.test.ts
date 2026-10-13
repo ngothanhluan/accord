@@ -16,6 +16,10 @@ describe('rulesetText', () => {
   });
   it('is under 2048 bytes', () => expect(Buffer.byteLength(text)).toBeLessThan(2048));
   it('names no other tool', () => expect(deniedNames([{ path: 'ruleset.md', text }])).toEqual([]));
+  it('leaves the ledger and the report shape to each agent', () => {
+    expect(text).toContain('never writes the ledger unless its own instructions say so');
+    expect(text).toContain('these lines go inside that report');
+  });
 });
 
 describe('sessionLine', () => {

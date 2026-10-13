@@ -45,12 +45,15 @@ remember their names.
    never from memory.
 2. Run `accord anchor`. It prints the stage and the position from the ledger,
    then the owner's words verbatim.
-3. If `accord/tickets/<id>/debug.md` exists and has no `## Resolved`
-   section, load `accord-debug` and resume there.
+3. If `accord/tickets/<id>/debug.md` exists and its last `## ` heading is
+   not `## Resolved`, load `accord-debug` and resume there.
 4. Otherwise load the stage skill for the stage it prints: `intent` →
-   `accord-intent`, `plan` → `accord-plan`, `build` → `accord-build`,
-   `review` → `accord-review`, `verify` → `accord-verify`. Resume at the step
-   the anchor names. Never re-run a task the ledger records.
+   `accord-approach` at step 5, the owner's yes, when the ticket's
+   `## Approach` is already written, otherwise `accord-intent`; `plan` →
+   `accord-plan`, `build` → `accord-build`, `review` → `accord-review`,
+   `verify` → `accord-verify`; `done` → say the ticket is done and offer
+   the dashboard. Resume at the step the anchor names. Never re-run a task
+   the ledger records.
 
 ## Pick up
 
@@ -76,10 +79,12 @@ plausible reading; more than about three files expected.
   Proceed without waiting only when the request has a concrete anchor (file,
   symbol, error message, or expected behaviour) and one plausible reading;
   otherwise ask exactly one question and wait. Do the change in the main
-  session, run the affected tests, have one reviewer pass in a fresh context,
-  and give a short report in chat.
-- **M.** Run `accord new ticket <id> --lane M`, create branch `t/<id>`, then
-  load `accord-intent`.
+  session and run the affected tests. Write the two lines and the
+  `git diff` of the change into a file outside the working tree, dispatch
+  one fresh `accord-reviewer`, lens `both`, with its path, and give a short
+  report in chat.
+- **M.** Run `accord new ticket <id> --lane M`, create branch `t/<id>` and
+  push it (the pushed branch is the claim), then load `accord-intent`.
 - **L and P.** Not built yet. Say so, and propose splitting the work into
   lane M tickets linked by `depends_on`.
 

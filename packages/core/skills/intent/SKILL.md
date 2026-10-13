@@ -51,7 +51,8 @@ plans or builds. You run it in the main session.
 
 8. **Audit once.** Dispatch `accord-auditor` with only the path of the
    ticket file. A criterion it reads two ways goes back to the owner as a
-   question.
+   question. Then commit `accord/tickets/<id>.md`, with the ledger if it
+   changed.
 
 9. Next: `accord-approach`.
 

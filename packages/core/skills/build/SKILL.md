@@ -10,7 +10,10 @@ session and orchestrate: executors write the code.
 
 ## Steps
 
-1. Run `accord anchor`. It names the next task.
+1. Run `accord anchor`. It names the next task. If
+   `git log -1 --format=%s -- accord/tickets/<id>/plan.md` does not print
+   `plan: <id> ready`, the plan stage has not finished: load `accord-plan`
+   and resume there instead of building.
 
 2. **Dispatch.** For each task in `plan.md` without a line in
    `accord/tickets/<id>/ledger.md`, in order, one at a time: run
@@ -26,6 +29,8 @@ session and orchestrate: executors write the code.
    nothing.
    - It refuses because a `verify:` case failed or is missing: dispatch
      a fresh executor with the same brief plus the reasons it printed.
+     If it refuses that way again after that dispatch, load `accord-debug`
+     instead of dispatching again.
    - It refuses because the report is missing or older than the commit:
      the `tests.affected` command does not write the report `tests.report`
      names. Tell the owner; do not loop.
@@ -54,8 +59,8 @@ session and orchestrate: executors write the code.
    Write a change note under the ticket's `## Approach`: what failed,
    which finished tasks still hold, and the proposed new approach. Ask the
    owner for a new yes; on yes run `accord approve <id>`, then
-   `accord-plan` re-plans only the tasks the change touches. Never
-   re-plan quietly.
+   `accord-plan`'s re-plan covers only the tasks the change touches.
+   Never re-plan quietly.
 
 7. **Plan changed.** When `accord task-done` says `plan.md` changed,
    never run `accord gate plan` to clear it. Show the owner the diff of

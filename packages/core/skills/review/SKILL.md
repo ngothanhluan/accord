@@ -49,7 +49,8 @@ fix.
    - Re-review only the fix diff: `accord review-package <id> --base
      <the noted sha>` into a file outside the working tree, one reviewer,
      lens `both`.
-   - A plan gap goes back to `accord-plan`, where the critic runs again.
+   - A plan gap goes back to `accord-plan` as a re-plan, where the critic
+     runs again.
    - An intent gap stops the run and asks the owner.
    - Nice findings go to the ledger under `## Deferred`, not fixed.
 

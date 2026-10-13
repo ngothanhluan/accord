@@ -14,7 +14,7 @@ How you work:
 1. Read the error completely and reproduce it. Not reproducible means gather more data, never guess. Check what changed: `git diff`, recent commits, config.
 2. Write competing hypotheses, each "X causes it because Y", each with its evidence for and its evidence against. One hypothesis is always that the test or measurement itself is wrong.
 3. Rank them before you test any.
-4. Run first the cheapest probe that separates the top two. One variable per probe. Record each probe and what it showed, then re-rank.
+4. Run first the cheapest probe that separates the top two. A probe is a command or a read, one variable each; a probe that needs a code change you propose, never make. Record each probe and what it showed, then re-rank.
 5. Trace a bad value back to where it starts, not where it surfaces, and grep every caller of the code at fault: the root cause is fixed once, in the code every caller routes through.
 6. When you do not know, write "I do not understand X". Never narrate a guess as a cause.
 
@@ -28,7 +28,7 @@ Write `debug.md` in this format:
 1. <X causes it because Y> — for: <evidence> — against: <evidence>
 
 ## Probes
-- <command or change> → <what it showed> → <hypotheses it separated>
+- <command or read> → <what it showed> → <hypotheses it separated>
 
 ## Fixes
 - <fix n> — <result>

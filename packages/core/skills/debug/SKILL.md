@@ -10,7 +10,7 @@ main session and orchestrate: debuggers investigate, executors fix.
 
 ## Steps
 
-1. Run `accord anchor`. Note the stage that called this one.
+1. Run `accord anchor`. The stage it prints is the one this returns to.
 
 2. **State.** Everything this stage learns lives in
    `accord/tickets/<id>/debug.md`: the symptom, the hypotheses, the
@@ -27,8 +27,11 @@ main session and orchestrate: debuggers investigate, executors fix.
    - the first test is the cheapest probe that separates the top two.
 
    It returns the root cause with evidence, the failing reproduction
-   test it proposes, and the hypotheses ruled out. A root cause without
-   evidence is a hypothesis: dispatch again. Commit `debug.md`.
+   test it proposes, and the hypotheses ruled out. Commit `debug.md`.
+   A root cause without evidence is a hypothesis: dispatch once more with
+   the path of `debug.md`. A second return without evidence (flaky,
+   timing, cannot reproduce): stop and ask the owner with the ranked
+   hypotheses and what was ruled out.
 
 4. **Fix.** The main session never edits product code: the fix goes
    through `accord-build`'s executor path. Note the HEAD sha. Write a
@@ -37,11 +40,12 @@ main session and orchestrate: debuggers investigate, executors fix.
    the reproduction test. The executor starts with that failing
    reproduction test, greps every caller of what it changes, and fixes
    the root cause once in shared code, never at each caller. Dispatch a
-   fresh `accord-executor` with its path, and route its stops as
-   `accord-build` does.
+   fresh `accord-executor` with its path. `BLOCKED` on a test that is
+   not a criterion test: ask the owner, as there is no plan task to
+   re-plan. Route every other stop as `accord-build` does.
 
-5. **Check.** Run the `tests.affected` command over the files the fix
-   touched. Copy every Ruling in the executor's report into
+5. **Check.** Run the `tests.affected` command over the files changed
+   since the noted sha. Copy every Ruling in the executor's report into
    `accord/tickets/<id>/ledger.md` under `## Rulings`. Record the fix and
    its result in `debug.md`, then commit `debug.md` with the ledger.
 
@@ -51,7 +55,8 @@ main session and orchestrate: debuggers investigate, executors fix.
    with the paths of the ticket file and `debug.md` and its one
    hypothesis. In a parallel round they write nothing and return
    evidence; you merge every result into `debug.md` and commit it. Then
-   back to step 4 with the root cause the evidence supports.
+   back to step 4 with the root cause the evidence supports. No
+   hypothesis left: back to step 3.
 
 7. **Three.** After three failed fixes, stop: never a fourth. Each fix
    uncovering a new problem elsewhere means the architecture is wrong,
@@ -60,7 +65,10 @@ main session and orchestrate: debuggers investigate, executors fix.
    own; an executor's three attempts at one problem inside a task also
    end at the owner.
 
-8. Next: return to the stage that called this one, noted in step 1.
+8. **Resolved.** Append `## Resolved` to `debug.md`, one line: the root
+   cause and the fix commit, or the owner's decision. Commit it.
+
+9. Next: return to the stage `accord anchor` prints.
 
 ## Rules
 
@@ -70,7 +78,7 @@ main session and orchestrate: debuggers investigate, executors fix.
 - A winning hypothesis that a criterion test is wrong is the owner's
   call: ask. Never edit the test yourself.
 - "It's probably X", "just try X", and "one more attempt" mean back to
-  step 3.
+  step 3, except after three failed fixes: step 7.
 - Anything touching intent, a veto, an acceptance criterion, or a public
   interface stops the run and asks the owner. Every other decision is a
   Ruling in `accord/tickets/<id>/ledger.md` under `## Rulings`:

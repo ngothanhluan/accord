@@ -49,6 +49,8 @@ remember their names.
    `plan` → `accord-plan`, `build` → `accord-build`, `review` →
    `accord-review`, `verify` → `accord-verify`. Resume at the step the anchor
    names. Never re-run a task the ledger records.
+4. If `accord/tickets/<id>/debug.md` exists and has no `## Resolved`
+   section, load `accord-debug` and resume there.
 
 ## Pick up
 

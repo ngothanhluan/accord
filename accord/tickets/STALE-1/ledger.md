@@ -1,6 +1,7 @@
 # Ledger
 
 ## Tasks
+- task 1 done 805080c8e73e
 
 ## Rulings
 
@@ -15,6 +16,10 @@
 - Ruling: the main session writes each scenario's `@test:<id>` tag (the task's verify id) into the ticket after `accord task-done` records the task that proves it — no skill step owns the tags and executors never edit the ticket; tags sit outside the AC hash — cost if wrong: none to Ready; a wrong id fails gate done.
 - Ruling: a ticket whose id has non-ASCII characters is never idle — git quotes such paths and the plan keeps the authors walk unchanged (critic round 3) — cost if wrong: such a ticket never shows idle.
 - Ruling: after the clean critic round the main session added two clarifying lines to Task 4 (workspace binary for skills sync; the 5120-byte cap) — both were Nice findings and change no behaviour — cost if wrong: none.
+- Ruling: (task 1 executor) the claim branch tip time is folded into lastActivity in loadFromFs through gitClaims, which now returns {claims, activity} — the Approach says so and ac-2 needs it — cost if wrong: a small change in one function; it is Task 2's code done early.
+- Ruling: (task 1 executor) the not-idle check for done, dropped, and archived sits in statusRows — covers ac-4 for one line — cost if wrong: drop that line; it is Task 3's code done early.
+- Ruling: (task 1 retry executor) the three tests moved to top-level it() with their setup as module-level consts — verify ids must equal the JUnit names — cost if wrong: none.
+- Ruling: Tasks 2 and 3 write their tests against code Task 1 already landed, so those tests pass on arrival; their executors show them passing instead of failing first — the alternative is reverting working code — cost if wrong: two criterion tests were never seen red.
 
 ## Deferred
 

@@ -36,7 +36,7 @@ Not in scope: the session-start line, notifications, and any automatic change to
 ```gherkin
 Feature: STALE-1 idle tickets
 
-  @ac-1
+  @ac-1 @test:packages/cli/test/status.test.ts#ac-1-a-ticket-untouched-past-the-window-shows-its-idle-days
   Scenario: A ticket untouched past the window shows its idle days
     Given a lane ticket at stage build whose newest commit on its records is 18 whole days old
     And no claim branch for it and no stale_days in the config
@@ -52,7 +52,7 @@ Feature: STALE-1 idle tickets
     Then its JSON row carries no idleDays
     And its text row shows no idle marker
 
-  @ac-3
+  @ac-3 @test:packages/core/test/lane-status.test.ts#ac-3-the-window-comes-from-stale_days
   Scenario: The window comes from stale_days
     Given stale_days is "30" in the config
     And a lane ticket at stage build whose newest commit on its records is 18 whole days old
@@ -67,7 +67,7 @@ Feature: STALE-1 idle tickets
     Then all three rows are listed
     And none of them carries idleDays
 
-  @ac-5
+  @ac-5 @test:packages/core/test/lane-status.test.ts#ac-5-the-default-window-is-14-days-and-idle-means-older-than-it
   Scenario: The default window is 14 days and idle means older than it
     Given no stale_days in the config
     And one lane ticket at stage build whose newest commit on its records is 14 whole days old

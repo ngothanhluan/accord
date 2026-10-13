@@ -164,18 +164,26 @@ function gitBaselineFiles(root: string, wanted: Record<string, string[]>, ancest
   const out: Record<string, string[]> = {};
   for (const [sha, paths] of Object.entries(wanted)) {
     if (!ancestors[sha]) continue;
-    if (paths.length === 0) {
+    // An absolute or escaping path cannot exist at the baseline, and git exits 128 on it: never pass it, so
+    // it stays absent and gate.task-file-unknown reports it as a finding.
+    const safe = paths.filter((p) => !/^([/\\]|[A-Za-z]:)/.test(p) && !p.split(/[/\\]/).includes('..'));
+    if (safe.length === 0) {
       out[sha] = [];
       continue;
     }
     try {
-      const raw = execFileSync('git', ['--literal-pathspecs', 'ls-tree', '--name-only', '-z', sha, '--', ...paths], {
+      const raw = execFileSync('git', ['--literal-pathspecs', 'ls-tree', '--name-only', '-z', sha, '--', ...safe], {
         cwd: root,
         encoding: 'utf8',
         stdio: ['ignore', 'pipe', 'pipe'],
         maxBuffer: 64 * 1024 * 1024,
       });
-      out[sha] = raw.split('\0').filter((p) => p !== '');
+      const listed = raw.split('\0').filter((p) => p !== '');
+      // ls-tree lists a directory's children, not the directory: a token is present when git names it or anything under it.
+      out[sha] = safe.filter((t) => {
+        const bare = t.replace(/\/+$/, '');
+        return listed.some((l) => l === bare || l.startsWith(bare + '/'));
+      });
     } catch (err) {
       const stderr = String((err as { stderr?: string }).stderr ?? '').trim();
       throw new UsageError(`git ls-tree failed at baseline ${sha}` + (stderr === '' ? '' : '\n' + stderr));

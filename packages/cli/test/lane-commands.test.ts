@@ -98,6 +98,8 @@ describe('accord task-done', () => {
       expect((await run(['task-done', 'T-1', '1'], repo)).code).toBe(0);
       commitAll(repo);
       utimesSync(REPORT_PATH(repo), OLD, OLD);
+      const later = new Date(Date.now() + 5000);
+      utimesSync(join(repo, 'reports', 'junit.xml'), later, later); // task-done needs a report newer than the commit
       const again = await run(['task-done', 'T-1', '1'], repo);
       expect(again.code).toBe(0);
       expect(again.out).toBe('task 1 of T-1 is already recorded in accord/tickets/T-1/ledger.md\n');
@@ -113,6 +115,8 @@ describe('accord task-done', () => {
     try {
       const sha = commitAll(repo);
       freshen(repo);
+      const later = new Date(Date.now() + 5000);
+      utimesSync(join(repo, 'reports', 'junit.xml'), later, later); // task-done needs a report newer than the commit
       const again = await run(['task-done', 'T-1', '1'], repo);
       expect(again.code).toBe(0);
       expect(again.out).toBe('task 1 of T-1 is already recorded in accord/tickets/T-1/ledger.md\n');
@@ -757,11 +761,56 @@ describe('plan contract checks', () => {
       expect(stale.code).toBe(1);
       expect(stale.out + stale.err).toContain('plan.md changed after accord gate plan last passed');
       expect((await run(['gate', 'plan', 'T-1'], repo)).code).toBe(0);
-      expect((await run(['task-done', 'T-1', '1'], repo)).out).not.toContain('plan.md changed');
+      const later = new Date(Date.now() + 5000);
+      utimesSync(join(repo, 'reports', 'junit.xml'), later, later); // task-done needs a report newer than the commit
+      const again = await run(['task-done', 'T-1', '1'], repo);
+      expect(again.code).toBe(0);
+      expect(readFileSync(join(repo, 'accord', 'tickets', 'T-1', 'ledger.md'), 'utf8')).toMatch(/- task 1 done [0-9a-f]{7,}/);
     } finally {
       cleanup(repo);
     }
-}, 30000);
+  }, 30000);
+
+  it('a directory token passes when it exists at baseline and fails when it does not', async () => {
+    const dirPlan = (token: string) => PLAN.replace('files: src/export.ts\nverify: export#writes-csv', `files: ${token}\nverify: export#writes-csv`);
+    const repo = await committed(dirPlan('src/'));
+    try {
+      expect((await run(['gate', 'plan', 'T-1'], repo)).code).toBe(0);
+      for (const [token, code] of [['src', 0], ['docs/', 1]] as const) {
+        writeFiles(repo, { 'accord/tickets/T-1/plan.md': readFileSync(planPath(repo), 'utf8').replace(/files: (src\/|src|docs\/)\nverify: export#writes-csv/, `files: ${token}\nverify: export#writes-csv`) });
+        const r = await run(['gate', 'plan', 'T-1'], repo);
+        expect([token, r.code]).toEqual([token, code]);
+        if (code === 1) expect(r.out).toContain('gate.task-file-unknown');
+      }
+    } finally {
+      cleanup(repo);
+    }
+  }, 30000);
+
+  it.each(['../x.ts', '/etc/x.ts', 'C:/x.ts', 'C:\\x.ts'])('the path %s is a finding, not a usage error', async (token) => {
+    const repo = await committed(PLAN.replace('files: src/export.ts\nverify: export#writes-csv', `files: ${token}\nverify: export#writes-csv`));
+    try {
+      expect((await run(['status'], repo)).code).toBe(0);
+      const r = await run(['gate', 'plan', 'T-1'], repo);
+      expect(r.code).toBe(1);
+      expect(r.out).toContain('gate.task-file-unknown');
+    } finally {
+      cleanup(repo);
+    }
+  }, 30000);
+
+  it('review-package prints (no plan) for a ticket without one', async () => {
+    const repo = makeLaneRepo();
+    try {
+      const base = commitAll(repo);
+      rmSync(planPath(repo));
+      const r = await run(['review-package', 'T-1', '--base', base], repo);
+      expect(r.code).toBe(0);
+      expect(r.out).toContain('## Undeclared files\n\n(no plan)');
+    } finally {
+      cleanup(repo);
+    }
+  });
 
   it('review-package lists undeclared files, or (none)', async () => {
     const repo = makeLaneRepo();

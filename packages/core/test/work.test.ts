@@ -18,6 +18,7 @@ describe('parsePlan', () => {
     const t = (v: string) => parsePlan('p', `## Task 1: A\nfiles: ${v}\n`).plan.tasks[0];
     expect([t('src/a.ts, src/b.ts (new)').files, t('src/a.ts, src/b.ts (new)').newFiles]).toEqual([['src/a.ts', 'src/b.ts'], ['src/b.ts']]);
     expect([t('(new) src/a.ts').files, t('(new) src/a.ts').newFiles]).toEqual([['src/a.ts'], []]);
+    expect([t('(new)').files, t('(new)').newFiles]).toEqual([[], []]);
   });
 
   it('reads plan_hash as written; the body hash ignores line endings, the BOM, and the frontmatter', () => {

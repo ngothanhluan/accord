@@ -1,11 +1,11 @@
 ---
 baseline: 84eb2b8daa424884b07b71dc3571f9a7198d0d6c
-plan_hash: "fnv1a64:757853c528b7280a"
+plan_hash: "fnv1a64:88c7cbd84cb72239"
 ---
 
 Review mode `outcome`: one branch, no slices. Report case ids follow the JUnit id shape in
 `packages/core/src/load/junit.ts`: `<classname>#<name>` with each whitespace run turned into `-`. Every test
-below is a top-level `it(...)` whose name starts with its `@test:` tag, so the name carries no describe prefix.
+below is a top-level `it(...)` whose name starts with its `@test:` tag or `risk:` kind, so the name carries no describe prefix.
 
 ## Task 1: Wiring: records activity reaches the status row and the table
 covers: @ac-1, D-01, D-03, D-04, D-07
@@ -38,6 +38,8 @@ Interface:
   `accord/tickets/<id>.md` or the first segment of `accord/tickets/<id>/...`; the id's time is the max seen.
   `gitFacts` returns that map beside `commit` and `authors`, and `loadFromFs` adds `lastActivity` to its result
   only when the map is non-empty. When the log spawn fails the map is empty and nothing is idle (ledger Ruling).
+  `loadFromFs` destructures the map out of the `gitFacts` result before building `git`, so `snapshot.git` stays
+  exactly `{ commit, authors }`.
 - `status` in `packages/cli/src/commands/status.ts` calls `statusRows(ctx.snapshot, Math.floor(Date.now() / 1000))`.
 - The `stage` column in `packages/cli/src/render/table.ts`: budget 12 becomes 24, and the cell appends
   ` idle <n>d` when `r.idleDays` is set.
@@ -95,15 +97,23 @@ key order and the D-54 omission of absent optional fields.
 
 ## Task 4: The dashboard shows idle tickets
 covers: D-08
-files: packages/core/skills/accord/SKILL.md, packages/core/src/generated/skills.ts, .claude/skills/accord/SKILL.md
-verify: packages/core/test/skills.test.ts#generated-module->-generated-module-matches-skills/-(drift)
+files: packages/core/skills/accord/SKILL.md, packages/core/src/generated/skills.ts, .claude/skills/accord/SKILL.md, packages/cli/test/skills-sync.test.ts
+verify: packages/core/test/skills.test.ts#generated-module->-generated-module-matches-skills/-(drift), packages/cli/test/skills-sync.test.ts#risk:drift-the-committed-/accord-copy-carries-the-idle-wording
 
-In the Dashboard section of `packages/core/skills/accord/SKILL.md`, step 2: a row that carries `idleDays` shows
-`idle <n>d` after its stage, in both YOURS IN PROGRESS and TEAM, and the example block gains one such row
-(`T-19  Export CSV  build 1/4 idle 18d · binh`). The text names no other tool. Then regenerate with `npm run gen`,
-which rewrites `packages/core/src/generated/skills.ts`, and `accord skills sync`, which rewrites
-`.claude/skills/accord/SKILL.md` (this repository's only runtime is `claude`). The existing drift case is the
-proof the source, the generated module, and the synced copy agree; no new test, since the change is prose.
+Test first, in `packages/cli/test/skills-sync.test.ts`: a top-level
+`it('risk:drift the committed /accord copy carries the idle wording')` that reads this repository's own
+`.claude/skills/accord/SKILL.md`, resolved with `new URL('../../../.claude/skills/accord/SKILL.md', import.meta.url)`,
+and asserts it contains `idleDays` and `idle <n>d`. It fails until the synced copy is regenerated, which is the
+gap the drift case leaves open: that case compares `packages/core/skills/` with the generated module only.
+
+In the Dashboard section of `packages/core/skills/accord/SKILL.md`, step 2: every section, READY TO PICK UP
+included, looks up each ticket's `idleDays` by id in the `accord status --json` rows, because `accord next --json`
+never carries it; a ticket whose status row carries `idleDays` shows `idle <n>d` after its stage. The example
+block gains one new row under TEAM, `T-22  Audit log  build 1/4 idle 18d · an`, an id the example does not
+already use. The text names no other tool. Then run, in order: `npm run gen`, which rewrites
+`packages/core/src/generated/skills.ts`; `npm run build`, because `accord skills sync` renders from the CLI's
+built output and `gen` does not rebuild it; and `accord skills sync`, which rewrites
+`.claude/skills/accord/SKILL.md` (this repository's only runtime is `claude`).
 
 Must not change: the rule that the dashboard never infers a state the JSON does not hold; every other section of
 the skill.

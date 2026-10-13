@@ -278,6 +278,9 @@ whether it is fixed first or tracked as its own ticket; the agent never ignores 
     that seems wrong is `BLOCKED` with the reason.
 - Report: at most 15 lines. `DONE | DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT`, commits, test evidence,
   files touched, Rulings.
+- Where a stop goes: `BLOCKED` on an architecture change is a change of course (below); `BLOCKED` after
+  the third failed attempt on one problem, or for a new package, goes to the owner, never to a fresh
+  executor for more tries.
 - **Change of course.** When the approved approach cannot work, the run stops. The orchestrator writes a
   change note under `## Approach`: what failed, which finished tasks still hold, and the proposed new
   approach. Because `approved_hash` covers `## Approach`, the owner's new yes and a new `accord approve`

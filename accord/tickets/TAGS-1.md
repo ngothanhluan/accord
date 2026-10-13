@@ -79,10 +79,18 @@ Feature: TAGS-1 build writes each scenario's test tag
 - D-03 The smallest done version has all four pieces: the map syntax, the gate plan check, task-done writing the tag, and the text in the ticket template, the build and plan skills, and the planner — "Đủ 4 mảnh"
 - D-04 Scope is who writes the tag and when, how each scenario finds its test, and the matching text; dogfood items 2 to 4 are separate tickets — "Đúng, đủ 3 phần"
 
-- D-05 An entry mapping a scenario the ticket does not have fails accord gate plan; a mapped @ui scenario is allowed and gets its tag; a scenario already carrying the same @test:T is left as it is and task-done passes; a test missing from the report or failing is refused as today, before anything is written — "Duyệt bản sửa"
+- D-05 An entry mapping a scenario the ticket does not have fails accord gate plan; a scenario already carrying the same @test:T is left as it is and task-done passes; a test missing from the report or failing is refused as today, before anything is written — "Duyệt bản sửa"
+- D-06 An entry mapping a @ui scenario fails accord gate plan, matching the rule that @ui and @test contradict (lint.test-tag-on-ui); this replaces the D-05 clause that let a mapped @ui scenario get its tag — "gate plan từ chối map vào @ui"
 
 ## Corrections
 
 ## Open questions
 
 ## Approach
+Chosen: a marker token after the test id on the verify line, like `(new)` on `files:`. `verify: pkg/x.test.ts#writes-tag (@ac-1), pkg/y.test.ts#helper`; a whole token `(@ac-n)` maps the id just before it, `T (@ac-1) (@ac-2)` maps one test to two scenarios. `load/work.ts` splits markers out so `task.verify` keeps only test ids and `PlanTask` gains `maps: { test, ac }[]`. `gate plan` adds `gate.plan-test-unmapped` (one reason per non-@ui scenario with no map) and `gate.plan-test-repeated` (names every id, repeats included); a map onto a scenario the ticket lacks, or onto a @ui scenario (D-06), also fails it. A pure writer `write/testtag.ts` takes the ticket text and the maps and returns the new text or the conflicts: it reads existing tags from the parsed scenario, inserts ` @test:T` right after the `@ac-n` token (never at line end, where a `#` comment would swallow it), and writes LF like `write/frontmatter.ts`. `task-done` computes the task's tags after a pass verdict and before the already-recorded return, so a re-run fills a missing tag; a conflict exits 1 naming @ac-n, U and T before any write; otherwise the ticket, then the ledger.
+Rejected: a key=value prefix (`@ac-1=T`): a second convention beside `(new)`, breaks on stray spaces, repeats the id to map two scenarios.
+Affected: `packages/core/src/load/work.ts`, `model/snapshot.ts`, `gate/plan.ts`, `gate/rules.ts`, new `write/testtag.ts` exported from `index.ts`, `packages/cli/src/commands/task-done.ts`, the shared PLAN fixture in `test/helpers/lane.ts`; text in `packages/core/agents/planner.md` and `executor.md` (the marker is not part of a test name), `skills/plan/SKILL.md`, `skills/build/SKILL.md` (commit the ticket with the ledger; a tag conflict asks the owner, never an executor or debug), `templates/ticket-lane.md`, the workflow-layer spec; then gen, build, skills sync.
+Risks (critic, no Must; Shoulds on re-runs, comments, parsed tags, @ui and the conflict branch are folded in above):
+- Nice: a malformed marker such as `(@ac-1,` stays a verify id and fails later as missing from the report; dogfood item 3 (lint rejects `@` in a verify id) catches it.
+- Nice: re-running `gate plan` on a plan written before this change fails until maps are added; done tickets never re-run it.
+Tests: map parsing in core `work.test.ts`; @ac-2, @ac-3, @ac-4's gate part, D-05 and D-06 in core `lane-plan.test.ts`; the writer's insertion, comment, CRLF and conflict cases in a core test; @ac-1, @ac-4's task-done part and @ac-5 in CLI `lane-commands.test.ts` on a ticket without tags.

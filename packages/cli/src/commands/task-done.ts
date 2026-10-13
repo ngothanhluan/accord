@@ -4,7 +4,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { normaliseKey, recordTaskDone, taskVerdict } from '@accord-dev/accord-core';
+import { normaliseKey, recordTaskDone, taskVerdict, workOf, writeTestTags } from '@accord-dev/accord-core';
 import { UsageError } from '../load/fs.js';
 import type { CommandContext } from '../run.js';
 import { requireLaneTicket, taskNumber } from './lane-args.js';
@@ -60,6 +60,13 @@ export function taskDone(ctx: CommandContext, id: string, task: string): number 
     ctx.stdout.write(`task ${n} of ${id} is not done:\n` + reasons.map((r) => '  ' + r + '\n').join(''));
     return 1;
   }
+  const ticket = ctx.snapshot.tickets[id];
+  const ticketFile = join(ctx.root, ...ticket.file.split('/'));
+  const maps = workOf(ctx.snapshot, id)?.plan?.tasks.find((t) => t.n === n)?.maps ?? [];
+  const tagged = writeTestTags(readFileSync(ticketFile, 'utf8'), ticket.scenarios, maps);
+  if (tagged.written.length > 0) writeFileSync(ticketFile, tagged.text);
+  for (const w of tagged.written) ctx.stdout.write(`wrote @test:${w.test} on ${w.ac} in ${ticket.file}
+`);
   mkdirSync(join(ctx.root, 'accord', 'tickets', id), { recursive: true });
   writeFileSync(file, next);
   ctx.stdout.write(`recorded task ${n} done at ${sha} in ${rel}\n`);

@@ -99,7 +99,8 @@ export interface PlanTask {
   covers: string[]; // tokens of the first 'covers:' line: ['@ac-1', 'D-02']
   files: string[]; // path tokens of the first 'files:' line, `(new)` dropped
   newFiles: string[]; // the paths of that line followed by `(new)`
-  verify: string[]; // report case ids of the first 'verify:' line
+  verify: string[]; // report case ids of the first 'verify:' line, `(@ac-n)` markers dropped
+  maps: { test: string; ac: string }[]; // each `(@ac-n)` marker with the test id before it: { test: 'a#x', ac: '@ac-1' }
   lines: Line[]; // every line under the heading up to the next '## ' heading, fences included
 }
 

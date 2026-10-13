@@ -15,6 +15,8 @@ export const RULING = /^\s*(?:[-*+]\s+)?(Ruling:.*\S)\s*$/;
 // Spec §10: the verdict is the first token; accepted-by-owner carries the owner's sentence after it.
 const VERDICT = /^verdict:\s*(\S+)(?:\s.*)?$/;
 
+const MARKER = /^\(@ac-[1-9][0-9]*\)$/;
+
 type Field = 'covers' | 'files' | 'verify';
 
 /** A field value: tokens separated by whitespace or commas, empty tokens dropped. */
@@ -59,6 +61,13 @@ export function parsePlan(file: string, text: string): { plan: Plan; findings: L
       if (t !== '(new)') files.push(t);
       else if (files.length > 0) newFiles.push(files[files.length - 1]);
     }
+    // `(@ac-n)` maps the test id before it to that scenario; a leading one maps nothing.
+    const verify: string[] = [];
+    const maps: PlanTask['maps'] = [];
+    for (const t of fields.verify ?? []) {
+      if (!MARKER.test(t)) verify.push(t);
+      else if (verify.length > 0) maps.push({ test: verify[verify.length - 1], ac: t.slice(1, -1) });
+    }
     tasks.push({
       n,
       title: m[2].trim(),
@@ -66,7 +75,8 @@ export function parsePlan(file: string, text: string): { plan: Plan; findings: L
       covers: fields.covers ?? [],
       files,
       newFiles,
-      verify: fields.verify ?? [],
+      verify,
+      maps,
       lines: s.lines,
     });
   }

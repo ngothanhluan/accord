@@ -261,19 +261,17 @@ describe('accord status with no tickets', () => {
   });
 });
 
-describe('idle tickets (STALE-1)', () => {
-  it('ac-1 a ticket untouched past the window shows its idle days', async () => {
-    const repo = makeLaneRepo();
-    try {
-      await run(['approve', 'T-1'], repo);
-      writeFiles(repo, { 'accord/tickets/T-1/ledger.md': '## Tasks\n- task 1 done abc1234\n' });
-      commitAllAt(repo, new Date(Date.now() - (18 * 24 + 1) * 3600 * 1000));
-      const json = await run(['status', '--json'], repo);
-      expect((JSON.parse(json.out) as StatusRow[])[0]).toMatchObject({ id: 'T-1', stage: 'build', idleDays: 18 });
-      const text = await run(['status'], repo);
-      expect(text.out).toContain('build 1/2 idle 18d');
-    } finally {
-      cleanup(repo);
-    }
-  });
+it('ac-1 a ticket untouched past the window shows its idle days', async () => {
+  const repo = makeLaneRepo();
+  try {
+    await run(['approve', 'T-1'], repo);
+    writeFiles(repo, { 'accord/tickets/T-1/ledger.md': '## Tasks\n- task 1 done abc1234\n' });
+    commitAllAt(repo, new Date(Date.now() - (18 * 24 + 1) * 3600 * 1000));
+    const json = await run(['status', '--json'], repo);
+    expect((JSON.parse(json.out) as StatusRow[])[0]).toMatchObject({ id: 'T-1', stage: 'build', idleDays: 18 });
+    const text = await run(['status'], repo);
+    expect(text.out).toContain('build 1/2 idle 18d');
+  } finally {
+    cleanup(repo);
+  }
 });

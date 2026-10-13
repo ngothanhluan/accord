@@ -341,7 +341,9 @@ undeclared file only against a reason the ledger records as a Ruling; any other 
 | risk flag (auth, money, migration, data deletion) | add a security reviewer in parallel, at any size |
 
 The review unit is the slice under `review: human` (usually one reviewer, since slices are at most 400
-lines) or the ticket under `review: outcome`. Independent slices are reviewed in parallel. The orchestrator
+lines) or the ticket under `review: outcome`. Independent slices are reviewed in parallel. In phase 2 the
+review unit is the ticket under both modes: `review-package` has no `--head`, so a slice cannot be isolated
+yet; per-slice review arrives with that option (phase 4). The orchestrator
 merges and de-duplicates findings before the fix loop.
 
 **Loop to convergence.**

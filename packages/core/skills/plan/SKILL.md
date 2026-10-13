@@ -25,29 +25,41 @@ read the plan.
 
 3. **Slices.** Under `review: human` the planner groups tasks into slices:
    each slice is one pull request covering a stated subset of the
-   acceptance criteria, green on its own. Under `review: outcome` it is
-   one branch, no slices.
+   acceptance criteria, green on its own. The planner writes each slice
+   into `plan.md`: the tasks it holds and the criteria it covers. Under
+   `review: outcome` it is one branch, no slices.
 
 4. **Gate.** Run `accord gate plan <id>` and fix what it prints, then run
    it again until it passes. On a pass it writes `plan_hash:` into
    `plan.md`. A plan changed after that, by a critic round or anything
    else, must pass `accord gate plan <id>` again before `accord task-done`
-   records a task, so re-run the gate after every revision.
+   records a task, so re-run the gate after every revision. A gate
+   failure you cannot fix counts as an open finding in step 6.
 
 5. **Critique.** Dispatch `accord-critic` in a fresh context, mode `plan`,
-   with the path of the ticket file and the path of `plan.md`. Have the
-   planner fix every Must and every Should, then go back to step 4.
+   with the path of the ticket file and the path of `plan.md`. After each
+   critic round, write
+   `Ruling: plan round <n> — <m> Must, <s> Should`
+   into `accord/tickets/<id>/ledger.md` under `## Rulings`, and commit
+   `plan.md` and the ledger together with the subject
+   `plan: <id> round <n>`. When the critic reports no Must or Should, go
+   to step 7. Otherwise have the planner fix every Must and every Should,
+   then go back to step 4.
 
 6. **Rounds.** At most three revision rounds. If Must or Should findings
    are still open after the third, stop and tell the owner what is still
-   open, and show the revision with the fewest Must findings and the
-   round it came from. Never continue on a failing plan.
+   open, and show the revision with the fewest Must findings: its round
+   and its commit, read from the ledger and `git log`. Never continue on
+   a failing plan.
 
-7. **Baseline tests.** Before build, with the working tree at the
-   `baseline:` commit, run the `tests.full` command from
-   `accord/config.yml`. Show the owner every failing case; the owner
-   decides whether it is fixed first or tracked as its own ticket. Never
-   ignore a failing case on your own.
+7. **Baseline tests.** Before the first build commit, run the
+   `tests.full` command from `accord/config.yml` at the current HEAD, and
+   only while `git diff --stat <baseline> HEAD` shows no change outside
+   `accord/`. Never check out, stash, reset, or clean to reach the
+   baseline. If product code has changed since the baseline, ask the
+   owner. Show the owner every failing case; the owner decides whether it
+   is fixed first or tracked as its own ticket. Never ignore a failing
+   case on your own.
 
 8. Next: `accord-build`.
 

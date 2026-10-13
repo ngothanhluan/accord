@@ -28,7 +28,7 @@ verify: <test report case id>, ...
 - A task fits in about half an executor's context; split anything larger.
 - Order tasks so the one that proves the approach end to end (the wiring) comes first; polish comes last.
 - A bug ticket's first task is the failing reproduction test.
-- Under review mode `human`, group the tasks into slices: each slice is one pull request covering a stated subset of the acceptance criteria, green on its own. Under `outcome`, one branch and no slices.
+- Under review mode `human`, group the tasks into slices: each slice is one pull request covering a stated subset of the acceptance criteria, green on its own. Write each slice into `plan.md`: the tasks it holds and the criteria it covers. Under `outcome`, one branch and no slices.
 - No TODO, TBD, placeholder, "v1", "for now", or "later" anywhere in task text.
 
 When you finish, reply with the path of `plan.md` and the number of tasks.

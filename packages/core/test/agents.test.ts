@@ -20,6 +20,7 @@ const AGENT_REQUIRED: Record<string, readonly string[]> = {
   executor: ['plan.md', 'never weaken', 'BLOCKED'],
   critic: ['text only', 'three concrete failure scenarios', 'Check that no Veto is violated', 'without asking', 'Should'],
   planner: ['(new)', 'must not change', 'wiring', 'polish'],
+  reviewer: ['Extra', 'written conventions', 'product/', 'linter', 'Undeclared files', 'Ruling'],
 };
 
 describe('agents name what the spec requires', () => {
@@ -55,6 +56,15 @@ describe('rendered agents', () => {
       const text = agentTargets(config()).find((f) => f.path === `.claude/agents/accord-${role}.md`)?.text ?? '';
       expect(frontmatter(text)).toMatchObject({ name: `accord-${role}`, tools: 'Read, Grep, Glob', model: 'opus', effort: 'high' });
     }
+  });
+
+  it('renders the final reviewer from the reviewer definition, routed by reviewer.final', () => {
+    const final = (c: AccordConfig): string => agentTargets(c).find((f) => f.path === '.claude/agents/accord-final-reviewer.md')?.text ?? '';
+    expect(frontmatter(final(config()))).toMatchObject({ name: 'accord-final-reviewer', tools: 'Read, Grep, Glob, Bash', model: 'opus', effort: 'high' });
+    const routed = config({ models: { 'reviewer.final': { model: 'sonnet', effort: 'max' }, reviewer: { model: 'haiku' } } });
+    expect(frontmatter(final(routed))).toMatchObject({ model: 'sonnet', effort: 'max' });
+    const reviewer = agentTargets(routed).find((f) => f.path === '.claude/agents/accord-reviewer.md')?.text ?? '';
+    expect(frontmatter(reviewer)).toMatchObject({ name: 'accord-reviewer', model: 'haiku', effort: 'high' });
   });
 
   it('a models entry with only model keeps the default effort', () => {

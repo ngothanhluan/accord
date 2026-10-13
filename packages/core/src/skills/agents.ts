@@ -66,7 +66,7 @@ export function agentTargets(config: AccordConfig): SkillFile[] {
     const { yaml } = source(key);
     out.push({ path: agentDir + '/' + String(yaml.name) + '.md', text: renderAgent(key, route(yaml.route as RouteKey)) });
     // The final reviewer is a second render of the reviewer definition, routed separately.
-    if ((key as string) === 'reviewer.md') {
+    if (key === 'reviewer.md') {
       out.push({
         path: agentDir + '/accord-final-reviewer.md',
         text: renderAgent(key, route('reviewer.final'), 'accord-final-reviewer'),

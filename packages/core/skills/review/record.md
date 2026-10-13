@@ -1,0 +1,32 @@
+---
+kind: reference
+---
+
+# The review record
+
+`accord/tickets/<id>/review.md` holds one section per review round, in
+order, and ends with the verdict.
+
+```
+## Round <n>
+
+Must|Should|Nice <n> [patch|plan-gap|intent-gap]: <finding> — <file:line> — fixed in <sha> | deferred | open
+```
+
+- One `## Round <n>` section per round, the final review included, each
+  listing that round's findings after merging and de-duplication, numbered
+  within the round.
+- Each finding carries its severity, its class, what it is, where it is,
+  and what became of it: `fixed in <sha>` with the fix commit, `deferred`
+  for a Nice finding written to the ledger under `## Deferred`, or `open`.
+- A round with no findings says `No findings`.
+
+The single last line of the file is the verdict:
+
+- `verdict: converged` when zero Must and zero Should are open after the
+  final review;
+- `verdict: accepted-by-owner "<the owner's sentence>"` when the run
+  stopped at the cap and the owner accepted the open findings, quoting what
+  the owner said.
+
+Nothing follows the verdict line.

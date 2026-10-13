@@ -12,8 +12,10 @@ read the plan.
 ## Steps
 
 1. Run `accord anchor`. When `plan.md` exists but the last commit that
-   touched it is not `plan: <id> ready`, resume at step 4, counting rounds
-   from the `plan: <id> round` commits in `git log`.
+   touched it is not `plan: <id> ready`, or `git status --porcelain` on
+   `plan.md` prints anything, resume at step 4, counting rounds from the
+   `plan: <id> round` commits in `git log` since the last
+   `plan: <id> ready`, if any.
 
 2. **Plan.** Run `git rev-parse HEAD`, read `review.mode` in
    `accord/config.yml` (absent counts as `human`), and dispatch
@@ -58,7 +60,8 @@ read the plan.
 6. **Rounds.** At most three revision rounds. If Must or Should findings
    are still open after the third, stop and tell the owner what is still
    open, and show the revision with the fewest Must findings: its round
-   and its commit, read from `git log`. Never continue on
+   and its commit, read from `git log` since the last `plan: <id> ready`,
+   if any. Never continue on
    a failing plan.
 
 7. **Baseline tests.** Before the first build commit, run the

@@ -70,7 +70,10 @@ main session and orchestrate: debuggers investigate, executors fix.
 8. **Resolved.** Append `## Resolved` to `debug.md`, one line: the root
    cause and the fix commit, or the owner's decision. Commit it.
 
-9. Next: return to the stage `accord anchor` prints.
+9. Next: return to the stage `accord anchor` prints. When that is
+   `accord-build`, start at its step 3 for the task that entered debug:
+   run the affected tests and `accord task-done` before dispatching
+   anything.
 
 ## Rules
 

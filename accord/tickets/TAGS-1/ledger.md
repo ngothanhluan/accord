@@ -23,3 +23,5 @@
 ## Deferred
 
 - Nice (review round 1): a tag conflict on an already-recorded task prints "task N of ID is not done:" although the ledger records it done; the reason line still names @ac-n, U and T — packages/cli/src/commands/task-done.ts:57-59,64-66.
+- Nice (final review): the build skill's re-run line for tickets recorded before the tag writer does nothing when their plan has no `(@ac-n)` markers, and gives no instruction to commit a ticket a re-run changed — packages/core/skills/build/SKILL.md:50-51.
+- Nice (final review): the new drift test is named `risk:drift`, a kind outside the reviewer's list that planner.md now points to (precedent: STALE-1) — packages/cli/test/skills-sync.test.ts:909. Same root as dogfood item 7.

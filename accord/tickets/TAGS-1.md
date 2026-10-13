@@ -65,7 +65,7 @@ Feature: TAGS-1 build writes each scenario's test tag
     Then gate plan passes
     And task-done passes and writes no tag for the unmapped id and none on the @ui scenario
 
-  @ac-5
+  @ac-5 @test:packages/cli/test/lane-commands.test.ts#ac-5-task-done-never-overwrites-a-different-test-tag
   Scenario: task-done never overwrites a different test tag
     Given scenario @ac-1 already carries @test:U and the plan maps @ac-1 to a different test id T that passed
     When the owner runs accord task-done for the task mapping @ac-1

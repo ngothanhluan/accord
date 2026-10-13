@@ -59,7 +59,7 @@ Feature: STALE-1 idle tickets
     When the owner runs accord status
     Then its JSON row carries no idleDays
 
-  @ac-4
+  @ac-4 @test:packages/core/test/lane-status.test.ts#ac-4-finished-and-closed-tickets-are-never-idle
   Scenario: Finished and closed tickets are never idle
     Given three lane tickets whose newest commit on their records is 100 whole days old
     And one is at stage done, one has status dropped, and one has status archived

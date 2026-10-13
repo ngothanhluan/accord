@@ -3,6 +3,7 @@
 ## Tasks
 - task 1 done 805080c8e73e
 - task 2 done f36e1208ca07
+- task 3 done 8e6481b6bd28
 
 ## Rulings
 
@@ -22,6 +23,7 @@
 - Ruling: (task 1 retry executor) the three tests moved to top-level it() with their setup as module-level consts — verify ids must equal the JUnit names — cost if wrong: none.
 - Ruling: Tasks 2 and 3 write their tests against code Task 1 already landed, so those tests pass on arrival; their executors show them passing instead of failing first — the alternative is reverting working code — cost if wrong: two criterion tests were never seen red.
 - Ruling: (task 2 executor) no production change; 6b63f29 already reads local and remote-tracking claim refs and keeps the max committer time; red shown by disabling the fold, then restored — cost if wrong: the remote-tracking case would show idleDays, but the test covers it.
+- Ruling: (task 3 executor) the laneless ticket (D-05) is a fourth row in the ac-4 test; 6b63f29 already skips it; red shown by forcing open=true, then restored — cost if wrong: D-05 has no separate test.
 
 ## Deferred
 

@@ -44,7 +44,7 @@ Feature: STALE-1 idle tickets
     Then its JSON row carries idleDays 18
     And its text row shows "idle 18d" after its stage
 
-  @ac-2
+  @ac-2 @test:packages/cli/test/status.test.ts#ac-2-a-recent-commit-on-the-claim-branch-keeps-the-ticket-active
   Scenario: A recent commit on the claim branch keeps the ticket active
     Given a lane ticket at stage build whose newest commit on its records is 18 whole days old
     And its claim branch t/<id>, local or remote-tracking, has a commit 2 days old

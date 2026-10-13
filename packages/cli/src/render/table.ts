@@ -57,9 +57,10 @@ const COLUMNS: Column[] = [
 const LANE_COLUMNS: Column[] = [
   {
     head: 'stage',
-    budget: 12,
+    budget: 24,
     cell: (r) =>
-      r.stage === undefined ? EMPTY_CELL : r.stage === 'build' ? `build ${r.tasksDone ?? 0}/${r.tasksTotal ?? 0}` : r.stage,
+      (r.stage === undefined ? EMPTY_CELL : r.stage === 'build' ? `build ${r.tasksDone ?? 0}/${r.tasksTotal ?? 0}` : r.stage) +
+      (r.idleDays === undefined ? '' : ` idle ${r.idleDays}d`),
   },
   { head: 'who', budget: 28, cell: (r) => r.claimedBy ?? EMPTY_CELL },
   { head: 'blocked by', budget: 28, cell: (r) => (r.blockedBy ?? []).join(' ') || EMPTY_CELL },

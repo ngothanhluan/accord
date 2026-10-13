@@ -110,3 +110,33 @@ describe('dependencies and claims (spec §5)', () => {
     expect(nextRows(rows(files)).map((r) => r.id)).toEqual([]);
   });
 });
+
+describe('idle days (STALE-1)', () => {
+  const NOW = 2_000_000_000;
+  const DAY = 86400;
+  // Build-stage lane tickets (approved, plan, one task done), each idle its given whole days plus an hour.
+  const idle = (config: string, ages: Record<string, number>) => {
+    const files: Record<string, string> = { 'accord/config.yml': config };
+    for (const id of Object.keys(ages)) {
+      Object.assign(files, approved({ ...files, [`accord/tickets/${id}.md`]: laneTicket(id) }, id));
+      files[`accord/tickets/${id}/plan.md`] = PLAN;
+      files[`accord/tickets/${id}/ledger.md`] = '## Tasks\n- task 1 done abc1234\n';
+    }
+    const lastActivity = Object.fromEntries(Object.entries(ages).map(([id, d]) => [id, NOW - d * DAY - 3600]));
+    return statusRows(loadSnapshot({ files, tree: [], lastActivity }), NOW);
+  };
+  const byId = (r: ReturnType<typeof idle>, id: string) => r.find((x) => x.id === id);
+
+  it('ac-3 the window comes from stale_days', () => {
+    const r = idle(CONFIG + 'stale_days: "30"\n', { 'T-1': 18, 'T-2': 31 });
+    expect(byId(r, 'T-1')?.stage).toBe('build');
+    expect(byId(r, 'T-1')?.idleDays).toBeUndefined();
+    expect(byId(r, 'T-2')?.idleDays).toBe(31);
+  });
+
+  it('ac-5 the default window is 14 days and idle means older than it', () => {
+    const r = idle(CONFIG, { 'T-1': 14, 'T-2': 15 });
+    expect(byId(r, 'T-1')?.idleDays).toBeUndefined();
+    expect(byId(r, 'T-2')?.idleDays).toBe(15);
+  });
+});

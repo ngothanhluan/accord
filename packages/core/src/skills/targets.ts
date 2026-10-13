@@ -56,18 +56,28 @@ export function allSkillDirs(): string[] {
   return [...new Set(Object.values(DIRS).flat())].sort(cmp);
 }
 
+/** Spec §6: `/accord` and the seven stage skills, by source directory. Installed whatever `roles:` says. */
+export const STAGES: readonly string[] = ['accord', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug'];
+
+/** The installed directory name: `accord` is invoked as `/accord`, every other source directory X as `accord-X`. */
+export function installedName(dir: string): string {
+  return dir === 'accord' ? 'accord' : 'accord-' + dir;
+}
+
 export function skillTargets(config: AccordConfig): SkillFile[] {
   const dirs = skillDirs(config);
   const out: SkillFile[] = [];
-  for (const role of config.roles) {
-    const key = (role + '/SKILL.md') as SkillKey;
+  // The stage skills replace the 0.1.0 `ba` and `dev` roles; `roles:` keeps them so no config breaks.
+  const sources = [...STAGES, ...config.roles.filter((r) => r !== 'ba' && r !== 'dev')];
+  for (const source of sources) {
+    const key = (source + '/SKILL.md') as SkillKey;
     if (!Object.hasOwn(skills, key)) continue;
     // D-108: the rendered filename is the entry's basename, which is what makes a `./prototype.md`
-    // reference inside the role's SKILL.md resolve in both target directories rather than one.
+    // reference inside the skill's SKILL.md resolve in both target directories rather than one.
     const loaded = skillLoads(key).map((entry) => ({ name: entry.split('/').at(-1) as string, text: renderSkill(entry) }));
     const text = renderSkill(key);
     for (const dir of dirs) {
-      const base = dir + '/accord-' + role + '/';
+      const base = dir + '/' + installedName(source) + '/';
       out.push({ path: base + 'SKILL.md', text });
       for (const file of loaded) out.push({ path: base + file.name, text: file.text });
     }

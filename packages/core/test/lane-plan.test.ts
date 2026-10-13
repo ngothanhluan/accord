@@ -41,7 +41,51 @@ describe('gate plan', () => {
   });
 
   it('a plan with no task fails on gate.plan-empty', () => {
-    expect(errors(plan(base(), '# Plan\n'))).toEqual(['gate.plan-empty']);
+    expect(errors(plan(base(), '---\nbaseline: abc1234\n---\n# Plan\n'))).toEqual(['gate.plan-empty']);
+  });
+
+  it('a plan without a baseline fails on gate.plan-baseline-missing, saying what to write', () => {
+    const r = plan(base(), PLAN.replace(/^---\n[\s\S]*?\n---\n\n/, ''));
+    expect(errors(r)).toEqual(['gate.plan-baseline-missing']);
+    expect(r.findings[0].reason).toContain('git rev-parse HEAD');
+  });
+
+  it('checks the baseline against the host ancestry facts only when they are supplied', () => {
+    const files = { ...base(), 'accord/tickets/T-1/plan.md': PLAN.replace('abc1234', '3f2a9c1') };
+    const gate = (ancestors?: Record<string, boolean>) =>
+      gatePlan(loadSnapshot({ files, tree: Object.keys(files).sort(), ...(ancestors ? { ancestors } : {}) }), 'T-1');
+    expect(errors(gate())).toEqual([]);
+    expect(errors(gate({ '3f2a9c1': true }))).toEqual([]);
+    const bad = gate({ '3f2a9c1': false });
+    expect(errors(bad)).toEqual(['gate.plan-baseline-unknown']);
+    expect(bad.findings[0].reason).toBe('baseline 3f2a9c1 is not a commit on the history of HEAD');
+    expect(errors(gate({}))).toEqual(['gate.plan-baseline-unknown']);
+  });
+
+  describe('gate.task-file-unknown', () => {
+    const files = { ...base(), 'accord/tickets/T-1/plan.md': PLAN };
+    const gate = (baselineFiles?: Record<string, string[]>, text = PLAN) => {
+      const f = { ...files, 'accord/tickets/T-1/plan.md': text };
+      return gatePlan(loadSnapshot({ files: f, tree: Object.keys(f).sort(), ...(baselineFiles ? { baselineFiles } : {}) }), 'T-1');
+    };
+    it('passes when the path exists at baseline; names it once per task when it does not', () => {
+      expect(errors(gate({ abc1234: ['src/export.ts'] }))).toEqual([]);
+      const r = gate({ abc1234: [] });
+      expect(r.findings.filter((f) => f.rule === 'gate.task-file-unknown').map((f) => [f.line, f.reason])).toEqual([
+        [8, 'task 1 names src/export.ts, which does not exist at baseline abc1234; correct the path, or write (new) after it if the task creates it'],
+        [14, 'task 2 names src/export.ts, which does not exist at baseline abc1234; correct the path, or write (new) after it if the task creates it'],
+      ]);
+    });
+    it('a (new) path passes; no facts, or facts for another baseline, skip the rule', () => {
+      expect(errors(gate({ abc1234: [] }, PLAN.replace(/files: src\/export.ts/g, 'files: src/export.ts (new)')))).toEqual([]);
+      expect(errors(gate())).toEqual([]);
+      expect(errors(gate({ other12: [] }))).toEqual([]);
+    });
+    it('gatePlan reports the plan body hash, and none without a plan', () => {
+      expect(gate().planHash).toBe(loadSnapshot({ files, tree: [] }).work?.['T-1'].plan?.bodyHash);
+      const none = { ...base() };
+      expect(gatePlan(loadSnapshot({ files: none, tree: Object.keys(none).sort() }), 'T-1').planHash).toBeUndefined();
+    });
   });
 
   it('names an uncovered criterion and an uncited decision', () => {
@@ -83,7 +127,7 @@ describe('gate plan', () => {
     expect(errors(plan(base(), paths))).toEqual([]);
     const r = plan(base(), paths.replace('Quote cells that contain a comma.', 'Quote cells later.'));
     expect(r.findings.filter((f) => f.rule === 'gate.plan-deferral').map((f) => [f.line, f.reason])).toEqual([
-      [13, 'task 2 defers work: "later"'],
+      [18, 'task 2 defers work: "later"'],
     ]);
   });
 

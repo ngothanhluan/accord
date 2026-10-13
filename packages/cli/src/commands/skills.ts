@@ -9,14 +9,18 @@
 import { lstatSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import {
+  agentDir,
+  agentTargets,
   allSkillDirs,
   contentHash,
+  hookEntries,
   markerHash,
+  mergeHooks,
   normaliseText,
-  skillDirs,
   skillTargets,
   withoutMarker,
 } from '@accord-dev/accord-core';
+import pkg from '../../package.json' with { type: 'json' };
 import { assertNoLink } from '../guard.js';
 import { UsageError } from '../load/fs.js';
 import type { AccordConfig, SkillFile } from '@accord-dev/accord-core';
@@ -71,30 +75,80 @@ export function writeSkillFiles(root: string, targets: SkillFile[], out: ReportR
   return out;
 }
 
+export const SETTINGS = '.claude/settings.json';
+
+/** What `writeHooks` will do, decided before any file is written; `text` is absent when nothing changes. */
+export type HooksPlan = { status: 'created' | 'unchanged' | 'updated'; text?: string };
+
 /**
- * D-113: the scan opens every directory the table can produce (`allSkillDirs()`), and an `accord-*`
- * directory is an orphan when the config no longer declares the runtime that puts it on disk, or no
- * longer declares the role that names it. The declared subset cannot be the scan set: a directory
- * abandoned by dropping a runtime is by definition not in it, so it would never be opened at all.
- * `sync` never deletes — an orphan keeps loading in the runtime until someone removes it, so saying
- * nothing was rejected, and deleting files under a user's repository was rejected harder.
+ * The pre-pass half: the link guard, then read, parse and merge `.claude/settings.json` for the claude runtime
+ * only. The file is the owner's: anything that is not a JSON object is refused here, with the hooks printed to
+ * add by hand, so the refusal lands before the first byte of the run. Writes nothing.
+ */
+export function planHooks(root: string, config: Pick<AccordConfig, 'runtimes'>): HooksPlan | undefined {
+  if (!config.runtimes.includes('claude')) return undefined;
+  assertNoLink(root, SETTINGS);
+  const entries = hookEntries(pkg);
+  const file = join(root, ...SETTINGS.split('/'));
+  if (lstatSync(file, { throwIfNoEntry: false }) === undefined) {
+    return { status: 'created', text: JSON.stringify(mergeHooks({}, entries), null, 2) + '\n' };
+  }
+  let parsed: unknown;
+  let merged: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(readFileSync(file, 'utf8'));
+    merged = mergeHooks(parsed, entries);
+  } catch (err) {
+    if (!(err instanceof SyntaxError || err instanceof TypeError)) throw err;
+    throw new UsageError(
+      SETTINGS + ' is not a JSON object; nothing was written. Add these hooks by hand:\n' + JSON.stringify({ hooks: entries }, null, 2),
+    );
+  }
+  if (JSON.stringify(merged) === JSON.stringify(parsed)) return { status: 'unchanged' };
+  return { status: 'updated', text: JSON.stringify(merged, null, 2) + '\n' };
+}
+
+/** The write half: applies a plan that is already known to be valid. */
+export function writeHooks(root: string, plan: HooksPlan | undefined, out: ReportRow[]): void {
+  if (plan === undefined) return;
+  if (plan.text !== undefined) {
+    const file = join(root, ...SETTINGS.split('/'));
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, plan.text);
+  }
+  out.push({ status: plan.status, path: SETTINGS });
+}
+
+/**
+ * D-113: the scan opens every directory the table can produce (`allSkillDirs()`), and an accord
+ * directory is an orphan when this render does not produce it: a dropped runtime, a role no longer
+ * declared, or a 0.1.0 `accord-ba` or `accord-dev` that the stage skills replaced while `roles:` still
+ * names them. The declared subset cannot be the scan set: a directory abandoned by dropping a runtime is
+ * by definition not in it, so it would never be opened at all. `sync` never deletes — an orphan keeps
+ * loading in the runtime until someone removes it, so saying nothing was rejected, and deleting files
+ * under a user's repository was rejected harder.
  *
- * D-123: `accord-*` and nothing else. A directory another tool owns is not read, not counted, and not
- * mentioned — inspecting someone else's files and editorialising about them is outside accord's
- * boundary. The declared set is `roles:` and `runtimes:`, not the render output: a role that is declared
- * but whose workflow has not been authored yet is not an orphan, it is a role waiting for its definition.
+ * D-123: `accord` and `accord-*` and nothing else. A directory another tool owns is not read, not
+ * counted, and not mentioned — inspecting someone else's files and editorialising about them is outside
+ * accord's boundary.
  */
 function orphans(root: string, config: AccordConfig): string[] {
-  const declaredRoles = new Set(config.roles.map((r) => 'accord-' + r));
-  const declaredDirs = new Set(skillDirs(config));
+  const rendered = new Set(skillTargets(config).map((t) => t.path.slice(0, t.path.lastIndexOf('/'))));
   const found: string[] = [];
   for (const dir of allSkillDirs()) {
     const abs = join(root, ...dir.split('/'));
     if (!scannable(root, dir)) continue;
-    const declaredDir = declaredDirs.has(dir);
     for (const entry of readdirSync(abs, { withFileTypes: true })) {
-      if (!entry.isDirectory() || !entry.name.startsWith('accord-')) continue;
-      if (!declaredDir || !declaredRoles.has(entry.name)) found.push(dir + '/' + entry.name);
+      if (!entry.isDirectory() || !(entry.name === 'accord' || entry.name.startsWith('accord-'))) continue;
+      if (!rendered.has(dir + '/' + entry.name)) found.push(dir + '/' + entry.name);
+    }
+  }
+  // Agent files: an `accord-*.md` the render no longer produces (a dropped runtime, a renamed definition).
+  if (scannable(root, agentDir)) {
+    const rendered = new Set(agentTargets(config).map((t) => t.path));
+    for (const entry of readdirSync(join(root, ...agentDir.split('/')), { withFileTypes: true })) {
+      const path = agentDir + '/' + entry.name;
+      if (entry.isFile() && entry.name.startsWith('accord-') && entry.name.endsWith('.md') && !rendered.has(path)) found.push(path);
     }
   }
   return found.sort();
@@ -133,14 +187,16 @@ export function skills(ctx: CommandContext): number {
     throw new UsageError('accord/config.yml is missing or failed its schema; run accord lint');
   }
 
-  const targets = skillTargets(config);
+  const targets = [...skillTargets(config), ...agentTargets(config)];
   // T-06-03: refuse before the first byte, over every destination. The loop below writes as it iterates, so
   // a guard inside it leaves everything sorted ahead of the bad path on disk while the message claims
   // "nothing was written" — a false report is worse than either outcome on its own.
   for (const { path } of targets) assertNoLink(ctx.root, path);
+  const hooks = planHooks(ctx.root, config);
 
   // Computed once, then rendered — so a `--json` mode added later cannot disagree with the text.
   const results = writeSkillFiles(ctx.root, targets);
+  writeHooks(ctx.root, hooks, results);
 
   // Scanned after the writes, so a directory this run created is already on disk when it is judged.
   const stale = orphans(ctx.root, config);

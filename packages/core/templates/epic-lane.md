@@ -2,7 +2,7 @@
 id: "TICKET-ID"                            # equals the file name: tickets/<id>.md
 title: "Short title in business language"
 type: epic                                 # an epic groups stories; its stories carry the acceptance criteria
-status: draft                              # draft | open | archived. Document lifecycle only; work status stays in the tracker
+status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: L                                    # L: an epic | P: an epic of a whole project
 # Tickets that must reach done before this one can start.
 # depends_on: ["OTHER-ID"]

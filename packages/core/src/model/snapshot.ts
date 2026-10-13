@@ -12,6 +12,15 @@ export interface SnapshotInput {
   // Spec §5: host-supplied claims, ticket id -> author of the tip of branch t/<id>. Absent when the host
   // has none, so the D-54 goldens are unchanged.
   claims?: Record<string, string>;
+  // Ticket id -> newest committer time (unix seconds) over its records and claim branch. Absent when the host has none.
+  lastActivity?: Record<string, number>;
+  // Host-supplied ancestry: plan baseline sha -> is it an ancestor of HEAD. Absent when the host supplies none.
+  ancestors?: Record<string, boolean>;
+  // Host-supplied: baseline sha -> the plans' non-new `files:` paths that exist at that commit. Absent when the host supplies none.
+  baselineFiles?: Record<string, string[]>;
+  // Host-supplied: a recorded verified_commit or verification commit, as written -> paths changed from it to HEAD.
+  // Present only when the sha is an ancestor of HEAD.
+  recordsSince?: Record<string, string[]>;
 }
 
 export interface Line {
@@ -38,7 +47,7 @@ export interface TicketFrontmatter {
   id: string; // 'LOGIN-1', kept verbatim (D-34)
   title: string;
   type: 'epic' | 'story' | 'bug';
-  status: 'draft' | 'open' | 'archived';
+  status: 'draft' | 'open' | 'archived' | 'dropped';
   parent?: string; // 'EPIC-1'
   tracker?: Record<string, string>; // { shortcut: '1234' } — values are always strings
   ui: boolean; // defaults to false in the loader, not the schema (D-21)
@@ -88,7 +97,8 @@ export interface PlanTask {
   title: string;
   line: number; // Markdown line of the task heading
   covers: string[]; // tokens of the first 'covers:' line: ['@ac-1', 'D-02']
-  files: string[]; // tokens of the first 'files:' line
+  files: string[]; // path tokens of the first 'files:' line, `(new)` dropped
+  newFiles: string[]; // the paths of that line followed by `(new)`
   verify: string[]; // report case ids of the first 'verify:' line
   lines: Line[]; // every line under the heading up to the next '## ' heading, fences included
 }
@@ -96,6 +106,9 @@ export interface PlanTask {
 export interface Plan {
   file: string; // 'accord/tickets/LOGIN-1/plan.md'
   tasks: PlanTask[];
+  baseline?: string; // frontmatter `baseline:`, a string as written; absent when there is none
+  planHash?: string; // frontmatter `plan_hash:` as written, recorded by `gate plan`; absent when there is none
+  bodyHash: string; // fnv1a64 of the normalised text below the frontmatter
 }
 
 export interface Ledger {
@@ -117,6 +130,11 @@ export interface TicketWork {
   review?: Review;
 }
 
+export type RouteKey =
+  | 'scout' | 'auditor' | 'architect' | 'critic' | 'planner'
+  | 'executor' | 'reviewer' | 'reviewer.final' | 'verifier' | 'debugger';
+export type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+
 export interface AccordConfig {
   accord: string; // '0.1.0'
   profile: 'build' | 'maintain';
@@ -124,8 +142,11 @@ export interface AccordConfig {
   design: { tokens: string }; // 'src/styles/tokens.css' or ''
   roles: ('ba' | 'dev' | 'designer')[];
   runtimes: ('claude' | 'codex' | 'cursor' | 'copilot')[];
-  tests?: { report: string }; // D-72: repo-relative path of the test report
+  tests?: { report: string; affected?: string; full?: string }; // D-72: repo-relative path of the test report; commands the skills run
   review?: { mode: 'human' | 'outcome' }; // spec §7: absent means 'human', the 0.1.0 behaviour
+  models?: Partial<Record<RouteKey, { model: string; effort?: Effort }>>; // absent entries use the default routing
+  escalation?: { fix_round_tier_up: string }; // '1'..'5'; YAML numerics stay strings
+  stale_days?: string; // digits; YAML numerics stay strings
 }
 
 export interface RepoSnapshot {
@@ -142,4 +163,8 @@ export interface RepoSnapshot {
   work?: Record<string, TicketWork>; // spec §7-§10, keyed by ticket folder; absent when no record exists
   testsBaseline?: string[]; // spec §9: ids in accord/tests-baseline.txt; absent when the file does not exist
   claims?: Record<string, string>; // carried through from SnapshotInput
+  lastActivity?: Record<string, number>; // carried through from SnapshotInput
+  ancestors?: Record<string, boolean>; // carried through from SnapshotInput
+  baselineFiles?: Record<string, string[]>; // carried through from SnapshotInput
+  recordsSince?: Record<string, string[]>; // carried through from SnapshotInput
 }

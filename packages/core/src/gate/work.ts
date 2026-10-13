@@ -111,3 +111,18 @@ export const testUntracedAtDone: GateRule['check'] = (snapshot, id) => {
   if (laneTicket(snapshot, id) === undefined || report === undefined || !reportLoaded(snapshot)) return [];
   return untracedTests(snapshot).map((t) => ({ file: normaliseKey(report), reason: UNTRACED(t) }));
 };
+
+/**
+ * Spec §10: changed paths that no task's `files:` names exactly or, for a token ending in `/`, contains.
+ * The ticket's own records are never listed. Sorted, unique; undefined when the ticket has no plan.
+ */
+export function undeclaredFiles(snapshot: RepoSnapshot, id: string, changed: readonly string[]): string[] | undefined {
+  const tasks = laneTicket(snapshot, id) === undefined ? undefined : workOf(snapshot, id)?.plan?.tasks;
+  if (tasks === undefined) return undefined;
+  const declared = tasks.flatMap((t) => [...t.files, ...t.newFiles]);
+  const own = 'accord/tickets/' + id;
+  return [...new Set(changed)]
+    .filter((p) => p !== own + '.md' && !p.startsWith(own + '/'))
+    .filter((p) => !declared.some((d) => (d.endsWith('/') ? p.startsWith(d) : p === d)))
+    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+}

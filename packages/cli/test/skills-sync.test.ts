@@ -33,17 +33,20 @@ function listing(repo: string): string[] {
   return out.sort();
 }
 
-/** The `accord-*` entry names the sandbox actually holds, read back off disk rather than written as literals. */
-function entryNames(repo: string): string[] {
+/** An entry name accord installs: `accord` itself or `accord-*`. */
+const isAccord = (name: string): boolean => name === 'accord' || name.startsWith('accord-');
+
+/** The accord entry names the sandbox actually holds, read back off disk rather than written as literals. */
+function entryNames(repo: string, dirs = ['.claude/skills', '.agents/skills']): string[] {
   const out = new Set<string>();
-  for (const dir of ['.claude/skills', '.agents/skills']) {
+  for (const dir of dirs) {
     const abs = at(repo, dir);
     if (!existsSync(abs)) continue;
     for (const e of readdirSync(abs, { withFileTypes: true })) {
-      if (e.isDirectory() && e.name.startsWith('accord-')) out.add(e.name);
+      if (e.isDirectory() && isAccord(e.name)) out.add(e.name);
     }
   }
-  return [...out];
+  return [...out].sort();
 }
 
 // Every case makes its own repository; this collects them so a failing assertion still cleans up.
@@ -65,6 +68,35 @@ function setConfig(repo: string, find: RegExp, replace: string): void {
   const file = join(repo, 'accord', 'config.yml');
   writeFileSync(file, readFileSync(file, 'utf8').replace(find, replace));
 }
+
+describe('accord skills sync — agents', () => {
+  const SCOUT = '.claude/agents/accord-scout.md';
+
+  it('writes the agent files for the claude runtime', async () => {
+    const repo = sandbox();
+    const { out } = await run(['skills', 'sync'], repo);
+    expect(out).toContain('created ' + SCOUT);
+    expect(existsSync(at(repo, SCOUT))).toBe(true);
+  });
+
+  it('a routing change in config.yml updates the agent on the next sync', async () => {
+    const repo = sandbox();
+    await run(['skills', 'sync'], repo);
+    writeFileSync(join(repo, 'accord', 'config.yml'), readFileSync(join(repo, 'accord', 'config.yml'), 'utf8') + '\nmodels:\n  scout:\n    model: sonnet\n');
+    const { out } = await run(['skills', 'sync'], repo);
+    expect(out).toContain('updated ' + SCOUT);
+    expect(readFileSync(at(repo, SCOUT), 'utf8')).toContain('model: "sonnet"');
+  });
+
+  it('reports a stray accord agent file as an orphan and keeps it', async () => {
+    const repo = sandbox();
+    await run(['skills', 'sync'], repo);
+    writeFileSync(at(repo, '.claude/agents/accord-old.md'), 'x');
+    const { err } = await run(['skills', 'sync'], repo);
+    expect(orphanDirs(err)).toEqual(['.claude/agents/accord-old.md']);
+    expect(existsSync(at(repo, '.claude/agents/accord-old.md'))).toBe(true);
+  });
+});
 
 describe('accord skills sync — what it writes', () => {
   it('creates one copy per runtime directory, prints a line each, and exits 0', async () => {
@@ -207,6 +239,20 @@ describe('accord skills sync — the orphan report (D-113, D-123)', () => {
     expect(out).not.toContain('accord-designer');
   });
 
+  it('reports a leftover 0.1.0 accord-ba role directory as an orphan, even with ba declared', async () => {
+    const repo = sandbox(); // roles: [ba, dev, designer]
+    const old = '.claude/skills/accord-ba/SKILL.md';
+    mkdirSync(at(repo, '.claude/skills/accord-ba'), { recursive: true });
+    writeFileSync(at(repo, old), 'written by accord 0.1.0\n');
+
+    const { code, out, err } = await run(['skills', 'sync'], repo);
+    expect(code).toBe(0);
+    expect(orphanDirs(err)).toEqual(['.claude/skills/accord-ba']);
+    expect(err).toMatch(/remove it with: rm -rf \.claude\/skills\/accord-ba/);
+    expect(bytes(at(repo, old))).toBe('written by accord 0.1.0\n');
+    expect(out).toContain('created .claude/skills/accord/SKILL.md');
+  });
+
   it('reports nothing when every accord-* directory is still declared', async () => {
     const repo = sandbox();
     await run(['skills', 'sync'], repo);
@@ -218,12 +264,10 @@ describe('accord skills sync — the orphan report (D-113, D-123)', () => {
   it('names an accord-* directory a dropped runtime left behind, the same way (D-113)', async () => {
     const repo = sandbox();
     await run(['skills', 'sync'], repo);
-    // `sandbox()` rosters all three roles, so dropping codex abandons three directories, not two.
-    const abandoned = [
-      '.agents/skills/accord-ba',
-      '.agents/skills/accord-designer',
-      '.agents/skills/accord-dev',
-    ];
+    // Every directory the first run put under .agents/skills, read off disk: `/accord`, each stage, designer.
+    const abandoned = entryNames(repo, ['.agents/skills']).map((n) => '.agents/skills/' + n);
+    expect(abandoned).toContain('.agents/skills/accord');
+    expect(abandoned).toContain('.agents/skills/accord-designer');
     const before = abandoned.map((d) => bytes(at(repo, d + '/SKILL.md')));
     setConfig(repo, /^runtimes: .*$/m, 'runtimes: [claude]');
 
@@ -252,7 +296,7 @@ describe('accord skills sync — the orphan report (D-113, D-123)', () => {
     // non-empty. It goes red again the moment the scan narrows back to the declared subset.
     const repo = sandbox();
     await run(['skills', 'sync'], repo);
-    const declaredRoles = new Set(['accord-ba', 'accord-dev', 'accord-designer']);
+    const declaredRoles = new Set(entryNames(repo));
     for (const [line, declaredDir] of [
       ['runtimes: [claude]', '.claude/skills'],
       ['runtimes: [codex]', '.agents/skills'],
@@ -262,7 +306,7 @@ describe('accord skills sync — the orphan report (D-113, D-123)', () => {
       const reported = new Set(orphanDirs(err));
       const unaccounted = listing(repo)
         .map((p) => relative(repo, p).split(sep).join('/'))
-        .filter((p) => /^\.(?:claude|agents)\/skills\/accord-[^/]+$/.test(p))
+        .filter((p) => /^\.(?:claude|agents)\/skills\/accord(?:-[^/]+)?$/.test(p))
         .filter((p) => {
           const declared =
             p.startsWith(declaredDir + '/') && declaredRoles.has(p.slice(p.lastIndexOf('/') + 1));
@@ -483,4 +527,72 @@ describe('writeSkillFiles — a run that stops part-way', () => {
     expect(() => writeSkillFiles(repo, [first, second], out)).toThrow();
     expect(out).toEqual([{ status: 'created', path: first.path }]);
   });
+});
+
+describe('accord skills sync - hooks in .claude/settings.json', () => {
+  const SETTINGS = '.claude/settings.json';
+  const commands = (repo: string): string[] =>
+    JSON.stringify(JSON.parse(bytes(at(repo, SETTINGS)))).match(/npx --yes [^"]+/g) ?? [];
+
+  it('creates the file with three accord commands; a second run is unchanged and writes nothing', async () => {
+    const repo = sandbox();
+    const first = await run(['skills', 'sync'], repo);
+    expect(first.out).toContain('created ' + SETTINGS + '\n');
+    expect(commands(repo)).toHaveLength(3);
+    const before = statSync(at(repo, SETTINGS)).mtimeMs;
+    const second = await run(['skills', 'sync'], repo);
+    expect(second.out).toContain('unchanged ' + SETTINGS + '\n');
+    expect(statSync(at(repo, SETTINGS)).mtimeMs).toBe(before);
+  });
+
+  it('keeps a foreign hook', async () => {
+    const repo = sandbox();
+    mkdirSync(at(repo, '.claude'), { recursive: true });
+    const foreign = { matcher: 'startup', hooks: [{ type: 'command', command: 'echo hi' }] };
+    writeFileSync(at(repo, SETTINGS), JSON.stringify({ model: 'x', hooks: { SessionStart: [foreign] } }));
+    const { code, out } = await run(['skills', 'sync'], repo);
+    expect(code).toBe(0);
+    expect(out).toContain('updated ' + SETTINGS + '\n');
+    const json = JSON.parse(bytes(at(repo, SETTINGS)));
+    expect(json.model).toBe('x');
+    expect(json.hooks.SessionStart[0]).toEqual(foreign);
+    expect(commands(repo)).toHaveLength(3);
+  });
+
+  it('refuses a file that is not JSON, prints the hooks to add, and leaves it byte-identical', async () => {
+    const repo = sandbox();
+    mkdirSync(at(repo, '.claude'), { recursive: true });
+    writeFileSync(at(repo, SETTINGS), '{ not json');
+    const { code, err } = await run(['skills', 'sync'], repo);
+    expect(code).toBe(2);
+    expect(err).toContain('Add these hooks by hand');
+    expect(err).toContain('hook session-start');
+    expect(bytes(at(repo, SETTINGS))).toBe('{ not json');
+  });
+
+  it('writes no settings file without the claude runtime', async () => {
+    const repo = sandbox();
+    setConfig(repo, /^runtimes: .*$/m, 'runtimes: [codex]');
+    await run(['skills', 'sync'], repo);
+    expect(existsSync(at(repo, SETTINGS))).toBe(false);
+  });
+});
+
+describe('accord skills sync - settings refusal comes first', () => {
+  it('invalid settings with the claude runtime: exit 2, settings byte-identical, no skill file written', async () => {
+    const repo = sandbox();
+    mkdirSync(at(repo, '.claude'), { recursive: true });
+    writeFileSync(at(repo, '.claude/settings.json'), '[1]');
+    const { code, err } = await run(['skills', 'sync'], repo);
+    expect(code).toBe(2);
+    expect(err).toContain('Add these hooks by hand');
+    expect(bytes(at(repo, '.claude/settings.json'))).toBe('[1]');
+    expect(listing(repo)).toEqual([]);
+  });
+});
+
+it('risk:drift the committed /accord copy carries the idle wording', () => {
+  const copy = readFileSync(new URL('../../../.claude/skills/accord/SKILL.md', import.meta.url), 'utf8');
+  expect(copy).toContain('idleDays');
+  expect(copy).toContain('idle <n>d');
 });

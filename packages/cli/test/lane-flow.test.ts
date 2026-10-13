@@ -4,6 +4,7 @@ import { readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setFrontmatterKey } from '@accord-dev/accord-core';
 import { describe, expect, it } from 'vitest';
+import { PLAN } from '../../../test/helpers/lane.js';
 import { cleanup, commitAll, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
 
 /** The orchestrator ran the suite after the last commit: task-done refuses a report older than HEAD. */
@@ -42,6 +43,9 @@ describe('lane ticket flow', () => {
       expect((await run(['gate', 'ready', 'T-1'], repo)).code).toBe(1);
       expect((await run(['approve', 'T-1'], repo)).code).toBe(0);
       expect((await run(['gate', 'ready', 'T-1'], repo)).code).toBe(0);
+      // The plan records the commit it was written against, which gate plan checks against HEAD.
+      const baseline = commitAll(repo);
+      writeFiles(repo, { 'accord/tickets/T-1/plan.md': PLAN.replace('abc1234', baseline) });
       expect((await run(['gate', 'plan', 'T-1'], repo)).code).toBe(0);
       commitAll(repo);
       freshReport(repo);
@@ -74,6 +78,18 @@ describe('lane ticket flow', () => {
       expect(done.code).toBe(0);
       const after = JSON.parse((await run(['status', '--json'], repo)).out) as Record<string, unknown>[];
       expect(after[0]).toMatchObject({ id: 'T-1', stage: 'done', tasksDone: 2, tasksTotal: 2 });
+
+      // Committing only the ticket's own records moves HEAD but not the reviewed code: the gate still passes.
+      commitAll(repo);
+      const committed = await run(['gate', 'done', 'T-1'], repo);
+      expect(committed.out).not.toContain(' error ');
+      expect(committed.code).toBe(0);
+      // A product-file change after the review is stale.
+      writeFiles(repo, { 'src/more.ts': 'export const more = 1;\n' });
+      commitAll(repo);
+      const stale = await run(['gate', 'done', 'T-1'], repo);
+      expect(stale.code).toBe(1);
+      expect(stale.out).toContain('gate.stale-review');
     } finally {
       cleanup(repo);
     }

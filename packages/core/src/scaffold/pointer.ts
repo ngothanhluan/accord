@@ -17,10 +17,10 @@ export const POINTER_END = '<!-- accord:end -->';
 // to govern where skill copies go.
 export const POINTER_FILES: readonly string[] = ['AGENTS.md', 'CLAUDE.md'];
 
-// D-143: the two skill directories and exactly one line of rule. No skill body is copied — a copy would
-// drift from the definition with nothing detecting it (CLI-03) — and there is no second rule, because an
-// agent that has not loaded a skill needs the one sentence that makes it load one, and anything past that
-// starts duplicating the skills.
+// D-143: the two skill directories, the `/accord` entry point, and exactly one line of rule. No skill body
+// is copied — a copy would drift from the definition with nothing detecting it (CLI-03) — and there is no
+// second rule, because an agent that has not loaded a skill needs the one sentence that makes it load one,
+// and anything past that starts duplicating the skills.
 //
 // T-07-20: fixed text with no interpolation. No repository content, no config value and no argument reaches
 // it, so nothing in a repository can smuggle an instruction into the context of an agent that reads it.
@@ -32,8 +32,8 @@ const BLOCK = `${POINTER_START}
 
 ## accord
 
-Role workflows for this repository are installed at \`.claude/skills/accord-*\` and
-\`.agents/skills/accord-*\`. Load the one for the stage you are in before you touch a ticket.
+Workflows for this repository are installed at \`.claude/skills/accord*\` and \`.agents/skills/accord*\`.
+Type \`/accord\` to see where work stands, or \`/accord <request>\` to start something new.
 
 A ticket is not started before \`accord gate ready <id>\` passes.
 ${POINTER_END}

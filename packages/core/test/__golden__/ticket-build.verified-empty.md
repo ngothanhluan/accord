@@ -2,7 +2,7 @@
 id: "TICKET-ID"                            # equals the file name: tickets/<id>.md
 title: "Short title in business language"
 type: story                                # epic | story | bug. story and bug touch code and need at least one tagged scenario
-status: draft                              # draft | open | archived. Document lifecycle only; work status stays in the tracker. draft blocks Ready
+status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker. draft blocks Ready
 # The epic this ticket belongs to. Grouping is by parent; there is no per-epic folder.
 # parent: "EPIC-ID"
 # Ids in the tracker, a map keyed by adapter name; values are strings.

@@ -61,22 +61,30 @@ export const LANE_BODY = [
 /** A ticket file. `lane: ''` omits the key, which makes a 0.1.0 ticket. `frontmatter` lines go before the closing ---. */
 export function laneTicket(id: string, opts: { lane?: string; frontmatter?: string[]; body?: string } = {}): string {
   const lane = opts.lane ?? 'M';
+  const extra = opts.frontmatter ?? [];
   const fm = [
     '---',
     `id: "${id}"`,
     'title: "Export"',
     'type: story',
-    'status: open',
+    // A given `status:` replaces the default rather than adding a second key.
+    ...(extra.some((l) => l.startsWith('status:')) ? [] : ['status: open']),
     ...(lane === '' ? [] : [`lane: ${lane}`]),
     'ui: false',
-    ...(opts.frontmatter ?? []),
+    ...extra,
     '---',
     '',
   ];
   return fm.join('\n') + (opts.body ?? LANE_BODY);
 }
 
+// plan_hash is the fnv1a64 of the body below the frontmatter; work.test.ts fails loudly when an edit moves it.
 export const PLAN = [
+  '---',
+  'baseline: abc1234',
+  'plan_hash: "fnv1a64:648e145e71cdacb8"',
+  '---',
+  '',
   '# Plan',
   '',
   '## Task 1: Writer csv mode',

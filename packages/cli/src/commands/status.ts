@@ -45,11 +45,15 @@ async function trackerCells(ctx: CommandContext, rows: StatusRow[]): Promise<Rec
 }
 
 export async function status(ctx: CommandContext, options: { json?: boolean; all?: boolean }): Promise<number> {
-  const rows = statusRows(ctx.snapshot);
+  const rows = statusRows(ctx.snapshot, Math.floor(Date.now() / 1000));
   // The filter runs before both writes, so the table and the JSON can never disagree.
-  const visible = options.all ? rows : rows.filter((r) => r.status !== 'archived');
+  const visible = options.all ? rows : rows.filter((r) => r.status !== 'archived' && r.status !== 'dropped');
   const hidden = rows.length - visible.length;
-  const hiddenNote = hidden === 0 ? '' : plural(hidden, 'archived ticket') + ' hidden (--all shows them)';
+  // 0.1.0 wording stays byte-identical when every hidden row is archived.
+  // Relies on dropped rows always being hidden, so `hidden` never counts a shown one.
+  const onlyArchived = rows.every((r) => r.status !== 'dropped');
+  const hiddenNote =
+    hidden === 0 ? '' : plural(hidden, (onlyArchived ? '' : 'dropped or ') + 'archived ticket') + ' hidden (--all shows them)';
 
   if (options.json) {
     // D-98: one write, the bare array, no envelope and no wrapper key, so an empty repository yields

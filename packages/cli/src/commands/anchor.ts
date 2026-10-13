@@ -21,23 +21,31 @@ function currentBranch(root: string): string | undefined {
   }
 }
 
+/** The id of the current branch `t/<id>`; undefined on any other branch. Throws when git could not say. */
+export function activeTicket(root: string): string | undefined {
+  const branch = currentBranch(root);
+  if (branch === undefined) throw new Error('could not read the current branch; nothing to anchor');
+  return /^t\/([^/]+)$/.exec(branch)?.[1];
+}
+
 export function anchor(ctx: CommandContext, id: string | undefined): number {
   if (id !== undefined) {
     requireLaneTicket(ctx, id);
     ctx.stdout.write(anchorText(ctx.snapshot, id) ?? '');
     return 0;
   }
-  const branch = currentBranch(ctx.root);
   // A hook must not fail a session start, but an empty anchor must not be silent: so every failure here
   // exits 0 and says why on stderr, and only a detached HEAD (nothing to anchor) says nothing.
-  if (branch === undefined) {
-    ctx.stderr.write('could not read the current branch; nothing to anchor\n');
+  let active: string | undefined;
+  try {
+    active = activeTicket(ctx.root);
+  } catch (e) {
+    ctx.stderr.write((e as Error).message + '\n');
     return 0;
   }
-  const m = /^t\/([^/]+)$/.exec(branch);
-  if (m === null) return 0;
-  const text = anchorText(ctx.snapshot, m[1]);
-  if (text === undefined) ctx.stderr.write(m[1] + ' is not a lane ticket in accord/tickets/; nothing to anchor\n');
+  if (active === undefined) return 0;
+  const text = anchorText(ctx.snapshot, active);
+  if (text === undefined) ctx.stderr.write(active + ' is not a lane ticket in accord/tickets/; nothing to anchor\n');
   else ctx.stdout.write(text);
   return 0;
 }

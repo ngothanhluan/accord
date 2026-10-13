@@ -128,6 +128,8 @@ Adapter `none` must be fully usable. The first external users will be solo devel
 
 ## 7. CLI
 
+The 0.1.0 commands. The workflow layer's commands are listed in section 9.
+
 TypeScript, distributed via npx, so it fits how AI-tool users already install things. The package name will likely be scoped, since `accord` on npm is held by an abandoned 2022 package.
 
 ```
@@ -148,7 +150,53 @@ Why a CLI and not just templates and prompts: templates are suggestions and prom
 - Tracker adapters beyond `none` and `github-issues`. Shortcut is the first paid-tracker adapter because the author's team uses it.
 - Live collaborative editing. CRDTs solve simultaneous typing; this team edits through discrete agent calls.
 
-## 9. Decisions log
+## 9. Workflow layer
+
+The contract above says what must be true before and after a ticket. The workflow layer is how a coding agent gets there without drifting from the owner's intent. The full rules are in the [workflow layer spec](specs/2026-10-12-workflow-layer-design.md); this is the map.
+
+**Entry point.** `/accord` with no argument shows a dashboard built from `accord status --json`: your tickets in progress with each one's stage and tasks done, the team's, and what is ready to pick up (`accord next`). The model formats it and never infers state. `/accord <request>` proposes a lane, says why, and starts the intent stage.
+
+**Lanes.** The size of the work decides how much each stage does; no lane skips a stage.
+
+- **S, small fix.** Intent is a two-line write-back in chat, the main session does the work, one reviewer pass, and the affected tests must pass. It proceeds without waiting when the request has a concrete anchor and one plausible reading.
+- **M, feature.** A ticket with `lane: M`, an owner-approved approach, a checked plan, one fresh executor per task, review to convergence, and an evidence report.
+- **L and P** (epics and projects) come later.
+
+Hidden complexity found mid-task lifts the lane; a lane never drops mid-task. A ticket without `lane:` keeps every 0.1.0 rule.
+
+**Stages.** Each is a skill, callable directly or routed to by `/accord`, and each starts with `accord anchor`, which re-reads the ticket's Intent, Vetoes, Decisions, Corrections, and position from git rather than trusting memory.
+
+| Stage | Skill | Ends with |
+|---|---|---|
+| intent | `accord-intent` | a ticket with Intent, two to five criteria, and Vetoes; ambiguity scored down to 0.2 or less |
+| approach | `accord-approach` | a brief of about 15 lines; the owner's yes runs `accord approve`, which writes `approved_hash` |
+| plan | `accord-plan` | `tickets/<id>/plan.md`; `accord gate plan` passes and writes `plan_hash:` |
+| build | `accord-build` | one ledger line per task, written by `accord task-done` |
+| review | `accord-review` | `tickets/<id>/review.md` ending in `verdict: converged` |
+| verify | `accord-verify` | `tickets/<id>/verification.md`, the owner's report, and `accord gate done` |
+
+`accord-debug` finds a root cause before any fix, ranks competing hypotheses before testing one, and returns to the stage it interrupted.
+
+**Agents.** Work that must not grade itself runs in fresh agent contexts, installed for the `claude` runtime at `.claude/agents/accord-<role>.md`: `scout`, `auditor`, `architect`, `critic`, `planner`, `executor`, `reviewer`, `final-reviewer`, `verifier`, and `debugger`. Every agent receives the ticket verbatim, never a summary; an executor gets it inside `accord brief <id> <task>` and never sees chat history.
+
+**Routing.** `models:` in `config.yml` sets each agent's model and effort; an absent entry falls back to the default (the values below for these three). `reviewer.final` routes the final reviewer. From the fix round `escalation.fix_round_tier_up` names (default 4), the executor is dispatched one tier higher, in the order `haiku`, `sonnet`, `opus`. `accord skills sync` renders these values into each agent's frontmatter.
+
+```yaml
+models:
+  executor:       { model: sonnet, effort: medium }
+  reviewer:       { model: sonnet, effort: high }
+  reviewer.final: { model: opus,   effort: high }
+escalation:
+  fix_round_tier_up: 4
+```
+
+**Tests.** During build the orchestrator runs `tests.affected`, a command template in `config.yml` with `{files}` replaced by the task's files, then `accord task-done`. The CLI never runs a test command: `task-done` reads only the report `tests.report` names, and refuses one written before the current commit. So the `tests.affected` template must write that report, or every `task-done` refuses it as stale. `tests.full` runs on the plan's baseline before build and again at Done, and writes the same report.
+
+**Done gate.** For a lane ticket `accord gate done` adds the review verdict, a ledger line per task, the approval, no failed case, and no untraced case to the 0.1.0 checks. Its commit match also accepts a later commit when every file changed since the recorded one is the ticket's own record (`accord/tickets/<id>.md` or a file under `accord/tickets/<id>/`), so committing the records does not make them stale.
+
+**Hooks.** `init` and `skills sync` write three hooks into `.claude/settings.json`, each one command with no shell syntax, `npx --yes <package>@<version> hook <event>`: `session-start` on startup prints the ruleset and a one-line summary; `session-resume` on resume, clear, and compact prints the ruleset and `accord anchor`; `subagent-start` gives every `accord-*` agent the ruleset. Every other setting and hook in the file is kept. The ruleset is one short shipped text: ask about intent, never guess it; record corrections verbatim; scope is impact; the lightest change that fully works; evidence before claims; one test per criterion; end each reply with what was skipped.
+
+## 10. Decisions log
 
 | Date | Decision | Rationale |
 |---|---|---|

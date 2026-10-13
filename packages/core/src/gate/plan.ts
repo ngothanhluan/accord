@@ -4,6 +4,7 @@
 import { headingKey, LIST_MARKER, stripHtmlComments } from '../load/sections.js';
 import { FIELD, tokens } from '../load/work.js';
 import type { PlanTask, RepoSnapshot, Ticket } from '../model/snapshot.js';
+import { isSha } from './done.js';
 import type { GateRule } from './rules.js';
 import { laneTicket, planFile, workOf } from './work.js';
 
@@ -48,6 +49,29 @@ export const planEmpty: GateRule['check'] = (snapshot, id) => {
   return [{ file: plan.file, reason: 'the plan has no "## Task <n>: <title>" section' }];
 };
 
+const planOf = (snapshot: RepoSnapshot, id: string) =>
+  laneTicket(snapshot, id) === undefined ? undefined : workOf(snapshot, id)?.plan;
+
+export const planBaselineMissing: GateRule['check'] = (snapshot, id) => {
+  const plan = planOf(snapshot, id);
+  if (plan === undefined || (plan.baseline !== undefined && isSha(plan.baseline))) return [];
+  return [
+    {
+      file: plan.file,
+      reason: 'plan.md has no baseline:; write the commit the plan was written against (git rev-parse HEAD) into its frontmatter',
+    },
+  ];
+};
+
+/** Spec §7: only when the host supplied ancestry facts; pure callers without a repository skip it, like `git?`. */
+export const planBaselineUnknown: GateRule['check'] = (snapshot, id) => {
+  const plan = planOf(snapshot, id);
+  const sha = plan?.baseline;
+  if (plan === undefined || sha === undefined || !isSha(sha) || snapshot.ancestors === undefined) return [];
+  if (Object.hasOwn(snapshot.ancestors, sha) && snapshot.ancestors[sha]) return [];
+  return [{ file: plan.file, reason: `baseline ${sha} is not a commit on the history of HEAD` }];
+};
+
 export const taskCoversMissing: GateRule['check'] = (snapshot, id) =>
   tasksOf(snapshot, id)
     .filter((t) => t.covers.length === 0)
@@ -65,6 +89,22 @@ export const taskVerifyMissing: GateRule['check'] = (snapshot, id) =>
       line: t.line,
       reason: `task ${t.n} has no verify: line naming the report cases that prove it`,
     }));
+
+/** Spec §7: only when the host supplied the baseline's files; the baseline rules own a missing or unknown baseline. */
+export const taskFileUnknown: GateRule['check'] = (snapshot, id) => {
+  const sha = planOf(snapshot, id)?.baseline;
+  if (sha === undefined || snapshot.baselineFiles === undefined || !Object.hasOwn(snapshot.baselineFiles, sha)) return [];
+  const exist = new Set(snapshot.baselineFiles[sha]);
+  return tasksOf(snapshot, id).flatMap((t) =>
+    t.files
+      .filter((f) => !t.newFiles.includes(f) && !exist.has(f))
+      .map((f) => ({
+        file: planFile(id),
+        line: t.line,
+        reason: `task ${t.n} names ${f}, which does not exist at baseline ${sha}; correct the path, or write (new) after it if the task creates it`,
+      })),
+  );
+};
 
 export const acUncovered: GateRule['check'] = (snapshot, id) => {
   const t = laneTicket(snapshot, id);

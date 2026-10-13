@@ -69,6 +69,34 @@ describe('dependencies and claims (spec §5)', () => {
     expect(nextRows(rows(started))).toEqual([]);
   });
 
+  it('a dropped ticket is never next', () => {
+    const files = readied(approved({ 'accord/config.yml': CONFIG, [T1]: laneTicket('T-1') }, 'T-1'));
+    const dropped = { ...files, [T1]: setFrontmatterKey(files[T1], 'status', 'dropped') };
+    // Everything else about it would admit it, so only the dropped filter excludes it.
+    expect(rows(dropped)[0]).toMatchObject({ status: 'dropped', ready: 'ok', stage: 'plan' });
+    expect(nextRows(rows(dropped))).toEqual([]);
+    expect(nextRows(rows(files)).map((r) => r.id)).toEqual(['T-1']);
+  });
+
+  it('a dropped ticket is never done, so it still blocks its dependants', () => {
+    const base = approved({ 'accord/config.yml': CONFIG, [T1]: laneTicket('T-1') }, 'T-1');
+    const reviewed: Record<string, string> = {
+      ...base,
+      'accord/tickets/T-1/plan.md': PLAN,
+      'accord/tickets/T-1/ledger.md': '## Tasks\n- task 1 done abc1234\n- task 2 done abc1234\n',
+      'accord/tickets/T-1/review.md': 'verdict: converged\n',
+    };
+    const hash = acHash(loadSnapshot({ files: reviewed, tree: [] }).tickets['T-1'].scenarios) as string;
+    const ticked = setFrontmatterKey(setFrontmatterKey(reviewed[T1], 'verified', ['ac-1', 'ac-2']), 'verified_hash', hash);
+    const T2 = { 'accord/tickets/T-2.md': laneTicket('T-2', { frontmatter: ['depends_on: ["T-1"]'] }) };
+    const done = { ...reviewed, [T1]: ticked, ...T2 };
+    expect(rows(done).find((r) => r.id === 'T-1')?.stage).toBe('done');
+    expect(rows(done).find((r) => r.id === 'T-2')?.blockedBy).toEqual([]);
+    const dropped = { ...done, [T1]: setFrontmatterKey(ticked, 'status', 'dropped') };
+    expect(rows(dropped).find((r) => r.id === 'T-1')?.stage).toBe('done');
+    expect(rows(dropped).find((r) => r.id === 'T-2')?.blockedBy).toEqual(['T-1']);
+  });
+
   it('nextRows drops an approved ticket that has not passed Ready', () => {
     // An unchecked open question fails Ready, and Ready never wrote ac_hash.
     const body = LANE_BODY.replace('- [x] Delimiter? Comma.', '- [ ] Delimiter?');
@@ -81,4 +109,56 @@ describe('dependencies and claims (spec §5)', () => {
     const files = readied(approved({ 'accord/config.yml': CONFIG, [T1]: dep('T-1', ['B']), 'accord/tickets/B.md': dep('B', []) }, 'T-1'));
     expect(nextRows(rows(files)).map((r) => r.id)).toEqual([]);
   });
+});
+
+const NOW = 2_000_000_000;
+const DAY = 86400;
+// Build-stage lane tickets (approved, plan, one task done), each idle its given whole days plus an hour.
+const idle = (config: string, ages: Record<string, number>) => {
+  const files: Record<string, string> = { 'accord/config.yml': config };
+  for (const id of Object.keys(ages)) {
+    Object.assign(files, approved({ ...files, [`accord/tickets/${id}.md`]: laneTicket(id) }, id));
+    files[`accord/tickets/${id}/plan.md`] = PLAN;
+    files[`accord/tickets/${id}/ledger.md`] = '## Tasks\n- task 1 done abc1234\n';
+  }
+  const lastActivity = Object.fromEntries(Object.entries(ages).map(([id, d]) => [id, NOW - d * DAY - 3600]));
+  return statusRows(loadSnapshot({ files, tree: [], lastActivity }), NOW);
+};
+const byId = (r: ReturnType<typeof idle>, id: string) => r.find((x) => x.id === id);
+
+it('ac-3 the window comes from stale_days', () => {
+  const r = idle(CONFIG + 'stale_days: "30"\n', { 'T-1': 18, 'T-2': 31 });
+  expect(byId(r, 'T-1')?.stage).toBe('build');
+  expect(byId(r, 'T-1')?.idleDays).toBeUndefined();
+  expect(byId(r, 'T-2')?.idleDays).toBe(31);
+});
+
+it('ac-5 the default window is 14 days and idle means older than it', () => {
+  const r = idle(CONFIG, { 'T-1': 14, 'T-2': 15 });
+  expect(byId(r, 'T-1')?.idleDays).toBeUndefined();
+  expect(byId(r, 'T-2')?.idleDays).toBe(15);
+});
+
+it('ac-4 finished and closed tickets are never idle', () => {
+  const files: Record<string, string> = { 'accord/config.yml': CONFIG };
+  const add = (id: string, opts: Parameters<typeof laneTicket>[1] = {}) => {
+    Object.assign(files, approved({ ...files, [`accord/tickets/${id}.md`]: laneTicket(id, opts) }, id));
+    files[`accord/tickets/${id}/plan.md`] = PLAN;
+    files[`accord/tickets/${id}/ledger.md`] = '## Tasks\n- task 1 done abc1234\n';
+  };
+  add('T-DONE');
+  files['accord/tickets/T-DONE/ledger.md'] = '## Tasks\n- task 1 done abc1234\n- task 2 done abc1234\n';
+  files['accord/tickets/T-DONE/review.md'] = 'verdict: converged\n';
+  const hash = acHash(loadSnapshot({ files, tree: [] }).tickets['T-DONE'].scenarios) as string;
+  const t = 'accord/tickets/T-DONE.md';
+  files[t] = setFrontmatterKey(setFrontmatterKey(files[t], 'verified', ['ac-1', 'ac-2']), 'verified_hash', hash);
+  add('T-DROP', { frontmatter: ['status: dropped'] });
+  add('T-ARCH', { frontmatter: ['status: archived'] });
+  files['accord/tickets/T-FREE.md'] = laneTicket('T-FREE', { lane: '' }); // D-05: no lane, never idle
+  const ids = ['T-DONE', 'T-DROP', 'T-ARCH', 'T-FREE'];
+  const lastActivity = Object.fromEntries(ids.map((id) => [id, NOW - 100 * DAY]));
+  const r = statusRows(loadSnapshot({ files, tree: [], lastActivity }), NOW);
+  expect(r.map((x) => x.id).sort()).toEqual([...ids].sort());
+  expect(byId(r, 'T-DONE')?.stage).toBe('done');
+  expect(r.filter((x) => x.idleDays !== undefined)).toEqual([]);
 });

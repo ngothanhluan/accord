@@ -7,7 +7,7 @@ import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { StatusRow } from '@accord-dev/accord-core';
-import { cleanup, makeRepo, run } from './helpers/repo.js';
+import { cleanup, commitAllAt, gitRun, makeLaneRepo, makeRepo, run, writeFiles } from './helpers/repo.js';
 
 const ESC = String.fromCharCode(27);
 
@@ -50,7 +50,7 @@ Feature: ${id}
 
 ## Plan
 - [x] Done
-`;
+${extra.includes('status: dropped') ? '\n## Dropped\nSuperseded.\n' : ''}`;
 }
 
 function addTicket(repo: string, id: string, extra: string): void {
@@ -150,6 +150,41 @@ describe('accord status archived filter (D-93)', () => {
   });
 });
 
+describe('accord status dropped filter (spec section 3)', () => {
+  let repo: string;
+
+  beforeAll(() => {
+    repo = makeRepo('valid-build');
+    addTicket(repo, 'GONE-1', 'status: dropped\nparent: EPIC-1');
+  });
+  afterAll(() => {
+    cleanup(repo);
+  });
+
+  it('hides the dropped ticket, names it, and --all shows it', async () => {
+    const plain = await run(['status'], repo);
+    expect(plain.out).toContain('1 dropped or archived ticket hidden (--all shows them)');
+    expect(plain.out).not.toContain('GONE-1');
+    expect((await run(['status', '--all'], repo)).out).toContain('GONE-1');
+  });
+
+  it('--json keeps the note on stderr', async () => {
+    const { out, err } = await run(['status', '--json'], repo);
+    expect((JSON.parse(out) as StatusRow[]).map((r) => r.id)).not.toContain('GONE-1');
+    expect(err).toContain('1 dropped or archived ticket hidden');
+  });
+
+  it('archived-only keeps the 0.1.0 wording', async () => {
+    const only = makeRepo('valid-build');
+    addTicket(only, 'OLD-1', 'status: archived\nparent: EPIC-1');
+    try {
+      expect((await run(['status'], only)).out).toContain('1 archived ticket hidden (--all shows them)');
+    } finally {
+      cleanup(only);
+    }
+  });
+});
+
 describe('accord status long values (T-05-12)', () => {
   let repo: string;
 
@@ -224,4 +259,46 @@ describe('accord status with no tickets', () => {
     expect(out.trim()).toBe('[]');
     expect(err).toBe('');
   });
+});
+
+it('ac-1 a ticket untouched past the window shows its idle days', async () => {
+  const repo = makeLaneRepo();
+  try {
+    await run(['approve', 'T-1'], repo);
+    writeFiles(repo, { 'accord/tickets/T-1/ledger.md': '## Tasks\n- task 1 done abc1234\n' });
+    commitAllAt(repo, new Date(Date.now() - (18 * 24 + 1) * 3600 * 1000));
+    const json = await run(['status', '--json'], repo);
+    expect((JSON.parse(json.out) as StatusRow[])[0]).toMatchObject({ id: 'T-1', stage: 'build', idleDays: 18 });
+    const text = await run(['status'], repo);
+    expect(text.out).toContain('build 1/2 idle 18d');
+  } finally {
+    cleanup(repo);
+  }
+});
+
+it('ac-2 a recent commit on the claim branch keeps the ticket active', async () => {
+  const repo = makeLaneRepo();
+  try {
+    await run(['approve', 'T-1'], repo);
+    writeFiles(repo, { 'accord/tickets/T-1/ledger.md': '## Tasks\n- task 1 done abc1234\n' });
+    commitAllAt(repo, new Date(Date.now() - (18 * 24 + 1) * 3600 * 1000));
+    const base = gitRun(repo, 'rev-parse', '--abbrev-ref', 'HEAD').trim();
+    gitRun(repo, 'checkout', '-q', '-b', 't/T-1');
+    writeFiles(repo, { 'src/other.ts': 'export const x = 1;\n' });
+    const tip = commitAllAt(repo, new Date(Date.now() - (2 * 24 + 1) * 3600 * 1000));
+    gitRun(repo, 'checkout', '-q', base);
+    const expectActive = async () => {
+      const json = await run(['status', '--json'], repo);
+      const row = (JSON.parse(json.out) as StatusRow[])[0];
+      expect(row).toMatchObject({ id: 'T-1', stage: 'build' });
+      expect(row).not.toHaveProperty('idleDays');
+      expect((await run(['status'], repo)).out).not.toContain('idle');
+    };
+    await expectActive(); // local branch
+    gitRun(repo, 'update-ref', 'refs/remotes/origin/t/T-1', tip);
+    gitRun(repo, 'branch', '-q', '-D', 't/T-1');
+    await expectActive(); // remote-tracking only
+  } finally {
+    cleanup(repo);
+  }
 });

@@ -16,7 +16,9 @@ Nothing to install. Node 22.12 or newer, and:
 npx --yes @accord-dev/accord@0.1.0 --version
 ```
 
-That prints the version back. `init` in place of `--version` writes the `accord/` folder, the role skill files for the runtimes you name, and a CI workflow pinned to the same release, into whatever repository you run it in.
+That prints the version back. `init` in place of `--version` writes the `accord/` folder, the workflow skills for the runtimes you name, and a CI workflow pinned to the same release, into whatever repository you run it in.
+
+**Unreleased, on `main`:** the workflow layer described below (lanes, `/accord`, the stage skills, the accord agents in `.claude/agents/`, and three session hooks in `.claude/settings.json`) is not in 0.1.0; it ships with the next release. To run it from a clone: `npm install`, `npm run build`, then `npm rebuild @accord-dev/accord` so the `accord` command exists for the hooks.
 
 ## The problem
 
@@ -27,8 +29,10 @@ AI coding agents produce features that pass their own tests and still miss what 
 - A folder convention: a fixed `accord/` folder at the repo root with `config.yml`, `product/` (glossary, business rules), `tickets/<id>.md` (epics, stories, and bugs are all tickets; a story names its epic with `parent:`), `tickets/<id>/verification.md` (the review record), and `assets/<id>/` (designer-owned prototypes). Tracker links are a `tracker:` map keyed by adapter, for example `tracker: { github-issues: "1234" }`.
 - Plain-text formats a human and a model can both read and a linter can check: EARS for requirements, Gherkin for acceptance criteria, YAML frontmatter with a JSON schema, fixed headings per ticket: Intent, Requirements, Acceptance criteria, Open questions, Plan.
 - Two gates: **Ready** before work starts, **Done** before the work is called finished: a fresh agent context, not the one that wrote the code, writes `tickets/<id>/verification.md`; the developer ticks `verified:` after a self-test; Done passes only when scenario tags, evidence tags, and `verified` match.
-- Role workflows (`ba`, `dev`, `designer`) shipped as skill files, one definition each, rendered for every runtime you list.
-- A CLI: `init`, `new`, `lint`, `gate`, `status`.
+- A workflow, shipped as skill files, one definition each, rendered for every runtime you list. `/accord` is the entry point: with no argument it shows your tickets, the team's, and what is ready to pick up; with a request it proposes a lane and starts. Every ticket runs the same six stages, each a skill you can also call directly: `accord-intent`, `accord-approach`, `accord-plan`, `accord-build`, `accord-review`, `accord-verify`, plus `accord-debug` for a root cause.
+- Lanes sized to the work: **S** for a small fix (done in the session, one review pass, affected tests), **M** for a feature (an owner-approved approach, a checked plan, one fresh executor per task, review to convergence, an evidence report). A ticket opts in with `lane:` in its frontmatter; a ticket without it keeps every 0.1.0 rule.
+- Tests as evidence, never as a claim. `accord task-done` and `accord gate done` read only the JUnit report `tests.report` names in `config.yml`, so the `tests.affected` command template you configure there must write that same report; if it writes nothing, every `task-done` refuses the report as older than the commit. The CLI never runs a test command itself.
+- A CLI: `init`, `new`, `lint`, `gate ready|plan|done`, `approve`, `brief`, `task-done`, `review-package`, `tests baseline`, `status`, `next`, `anchor`, `hook`, `skills sync`.
 - Trackers, design tools, and a future multi-repo hub are adapters, never requirements. The default tracker is `none`.
 
 ## What it is not

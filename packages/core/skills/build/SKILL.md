@@ -1,0 +1,63 @@
+---
+name: accord-build
+description: Use when a lane M ticket has a plan that passed accord gate plan and needs building. Dispatches one fresh executor per task from accord brief, runs the affected tests itself, and records each task with accord task-done.
+license: MIT
+kind: skill
+---
+
+This stage builds the plan one task at a time. You run it in the main
+session and orchestrate: executors write the code.
+
+## Steps
+
+1. Run `accord anchor`. It names the next task.
+
+2. **Dispatch.** For each task in `plan.md` without a line in
+   `accord/tickets/<id>/ledger.md`, in order, one at a time: run
+   `accord brief <id> <n>` into a file and dispatch a fresh
+   `accord-executor` with the path of that file only. Never pass chat
+   history.
+
+3. **Record.** When it reports, run the affected tests yourself: the
+   `tests.affected` command from `accord/config.yml`, with `{files}`
+   replaced by the paths on the task's `files:` line. Then run
+   `accord task-done <id> <n>` and work from what it prints. The
+   executor's claim alone records nothing.
+
+4. **Blocked.**
+   - `BLOCKED` with a question that touches intent, a veto, a criterion,
+     or a public interface: ask the owner.
+   - `BLOCKED` on a test that seems wrong: a criterion test is the
+     owner's, so ask the owner; any other test is a plan gap and goes back
+     to `accord-plan`. Never edit the test yourself.
+   - `BLOCKED: context`: dispatch a fresh executor with the same brief
+     plus the diff and the ledger so far.
+   - `NEEDS_CONTEXT`: answer, and dispatch again.
+
+5. **Files.** A file outside the task's `files:` line must be declared
+   in the report with a reason. When you accept it, record a Ruling.
+
+6. **Change of course.** When the approved approach cannot work, stop.
+   Write a change note under the ticket's `## Approach`: what failed,
+   which finished tasks still hold, and the proposed new approach. Ask the
+   owner for a new yes; on yes run `accord approve <id>`, then
+   `accord-plan` re-plans only the tasks the change touches. Never
+   re-plan quietly.
+
+7. **Plan changed.** When `accord task-done` says `plan.md` changed,
+   never run `accord gate plan` to clear it. Show the owner the diff of
+   `plan.md`. If the owner made the change, `accord-plan` reviews it
+   (critic, then `accord gate plan`); otherwise restore `plan.md` with the
+   owner's yes and dispatch again. Only `accord-plan` changes the plan.
+
+8. When every task has a ledger line, next: `accord-review`.
+
+## Rules
+
+- Every agent receives the ticket verbatim, by file path, never a summary:
+  the executor gets it inside its brief.
+- The main session orchestrates and never edits product code.
+- Anything touching intent, a veto, an acceptance criterion, or a public
+  interface stops the run and asks the owner. Every other decision is a
+  Ruling in `accord/tickets/<id>/ledger.md` under `## Rulings`:
+  `Ruling: <what> — <why> — <cost if wrong>`.

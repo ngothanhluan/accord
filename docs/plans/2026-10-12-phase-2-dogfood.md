@@ -1,4 +1,4 @@
-# Phase 2 dogfood: STALE-1
+# Phase 2 dogfood: STALE-1 and TAGS-1
 
 Task 16 of `docs/plans/2026-10-12-phase-2-skills.md`. One real lane M ticket, STALE-1 ("Idle tickets show
 in status"), taken through every stage with the phase 2 skills and agents on this repository.
@@ -19,7 +19,7 @@ in status"), taken through every stage with the phase 2 skills and agents on thi
 
 Each of these made `gate done` or `task-done` unreachable on the documented path, or would have.
 
-1. **No step writes the `@test:` tags (note 13).** The template says "add it during build"; executors never
+1. **No step writes the `@test:` tags (note 13).** Fixed by TAGS-1 (PR #4): `task-done` writes them. The template says "add it during build"; executors never
    edit the ticket; build and verify say nothing. Every lane M ticket fails `gate done`. Workaround used:
    the main session wrote each tag after `task-done`. Fix: `accord-build` step 3 writes the scenario's tag
    from the task's `verify:` id once `task-done` passes.
@@ -107,3 +107,72 @@ Each of these made `gate done` or `task-done` unreachable on the documented path
 - STALE-1 in a shallow clone (accepted risk: nothing is flagged there).
 - The `--all` listing of @ac-4 through the CLI (deferred in the ticket's ledger).
 - Why the suite grew by 7 tests where the plan named 6.
+
+# Second ticket: TAGS-1
+
+TAGS-1 ("task-done writes the `@test:` tags") fixed item 1 above, through `/accord` on this repository, in
+its own branch and pull request (item 4b).
+
+## How it ran
+
+- Stages: intent (3 interview rounds, 1 audit, 6 Decisions) → approach (architect, critic, owner's yes) →
+  plan (4 critic rounds, 3 revisions) → build (4 tasks, 1 retry) → review (1 Should fixed, 1 clean
+  re-review, final review with 2 Nice) → verify (5 of 5 pass, owner approved) → `gate done` 0 errors.
+- First lane M ticket to reach `gate done` with no hand edit of the ticket: `task-done` wrote all five
+  `@test:` tags. Suite 1144 → 1157 tests, all passing. Merged as PR #4.
+
+## Recurred
+
+- **Item 11.** `accord anchor` on the blank ticket again said "next: the owner approves" before intent.
+- **Item 9.** The critic needed three revisions and a fourth round; the cap was read as revisions, by Ruling.
+- **Item 6.** The review package was 183 KB, mostly generated modules.
+- **Item 7.** The `risk:<kind>` list was known only to the reviewer. TAGS-1 added it to the planner and
+  executor text; lint still checks only that `risk:` is present.
+
+## New findings
+
+19. **`(new)` resolves against the baseline.** A task modifying a file an earlier task creates must still
+    mark it `(new)`. The `gate plan` message was clear; the planner did not know. Fix: `planner.md` says so.
+20. **A verify id with a comma cannot be listed.** `verify:` tokens split on commas, with no escape. Fix:
+    lint rejects a comma in a verify id, alongside the `@` of item 3.
+21. **The executor wraps tests in `describe()` again (as in STALE-1).** `task-done` refused, as it should,
+    and cost a retry. The executor also left a background test run going when it reported. Fix: the
+    executor agent body says the report id is the top-level test name, and the executor stops every
+    process it started before reporting.
+22. **Deferred items have no reader after verify.** Review writes Nice findings under the ledger's
+    `## Deferred` and verify lists them, then nothing reads them again; `status`, `next`, and the dashboard
+    read only `## Tasks`, although spec section 8 says the dashboard reads the ledger. Fix: at verify the
+    owner decides each deferred item, a draft ticket or dropped with a reason, and `gate done` refuses an
+    undecided one. Draft tickets already show in the dashboard and `accord next`.
+23. **No external research step.** The architect relies on memory for library and API facts; the spec
+    never mentions research. Owner approved a researcher agent at the approach stage, writing
+    `tickets/<id>/research.md` with a source and date per fact: a library documentation tool when one is
+    installed, official documentation next, web search last.
+24. **UI skills by role.** Owner chose to map a design skill to each of three roles in `config.yml`
+    instead of one `ui.skill`; spec section 11 updated in the same pull request as this note.
+
+## Smaller
+
+25. Executor edits left three working-tree files with CRLF line endings; the index is LF and the commits
+    are correct, so the cost is a noisy `git status` only.
+
+## Deferred from TAGS-1
+
+The three Nice findings in `accord/tickets/TAGS-1/ledger.md` under `## Deferred`, carried here until
+item 22 gives them a home:
+
+- A tag conflict on an already-recorded task prints "task N of ID is not done:" although the ledger records
+  it done (`packages/cli/src/commands/task-done.ts:57-59,64-66`).
+- The build skill's re-run line for tickets recorded before the tag writer does nothing when the plan has
+  no `(@ac-n)` markers, and does not say to commit a ticket a re-run changed
+  (`packages/core/skills/build/SKILL.md:50-51`).
+- The drift test is named `risk:drift`, a kind outside the reviewer's list
+  (`packages/cli/test/skills-sync.test.ts:909`); same root as item 7.
+
+## What worked
+
+- `task-done` refused the `describe`-wrapped tests and, after review round 1, a recorded task whose mapped
+  test fails while its tag is unwritten.
+- Plan critic round 1 caught a shared test fixture whose ticket tags and plan maps had to agree.
+- Six owner decisions during intent (D-01 to D-06) settled the gate rules before planning; one reading of
+  D-05 came back to the owner during review, and the owner ruled on it.

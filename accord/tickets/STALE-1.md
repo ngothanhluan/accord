@@ -85,10 +85,20 @@ Feature: STALE-1 idle tickets
 - D-05 Only tickets with `lane:` can be idle — "Duyệt bản sửa"
 - D-06 The claim branch is read from local and remote-tracking refs, the newest commit counting — "Duyệt bản sửa"
 - D-07 Now is when the command runs; the CLI passes it in and core reads no clock — "Duyệt bản sửa"
+- D-08 The `/accord` dashboard shows "idle <n>d" for a row that carries idleDays — "Có, thêm vào skill"
 
 ## Corrections
 
 ## Open questions
 
 ## Approach
-<!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
+Chosen: the host supplies the newest activity per ticket and core does the arithmetic. The CLI loader extends the two git reads it already makes: the `git log --name-only -- accord/tickets` walk gains the committer time, and the `for-each-ref` over local and remote `t/*` gains `%(committerdate:unix)`. Both fold by max into `lastActivity: Record<id, seconds>` on `SnapshotInput`, left out when empty. `statusRows(snapshot, now?)` sets `idleDays` on lane rows that are not done, dropped, or archived when `floor((now - lastActivity) / 86400)` is greater than `stale_days` (default 14). `accord status` passes the current time; the table appends ` idle <n>d` to the stage cell; the `/accord` skill shows it (D-08). No new spawn, no new dependency, about 25 lines of source.
+Rejected: the host passes raw per-path and per-branch times and core maps them to tickets. It keeps the records rule pure but changes the shipped `claims` shape; no criterion needs it.
+Affected: `packages/core/src/model/snapshot.ts`, `packages/core/src/load/snapshot.ts`, `packages/core/src/status/rows.ts`, `packages/cli/src/load/fs.ts`, `packages/cli/src/commands/status.ts`, `packages/cli/src/render/table.ts` (stage width 12 to 24), `packages/core/skills/accord/SKILL.md` with its synced copies, tests in `packages/core/test/lane-status.test.ts` and `packages/cli/test/status.test.ts` with a dated-commit helper in `packages/cli/test/helpers/repo.ts`.
+Risks (critic, no Must; the Should on the dashboard is resolved by D-08):
+- Nice: records are read from history reachable from HEAD, so on an old branch a teammate's live ticket can look idle.
+- Nice: committer time; backdated test commits must set GIT_COMMITTER_DATE, and a rebase makes a branch look active.
+- Nice: a claim branch with no commit of its own carries the base's tip time, so a fresh pick up can still show idle until its first commit.
+- Nice: a lane ticket never committed is never idle.
+- Nice: in a shallow clone every ticket gets the boundary commit's time, so nothing is idle, silently.
+Tests: @ac-3, @ac-4, @ac-5 in core `lane-status.test.ts` with `lastActivity` and `now` given, no git; @ac-1 and @ac-2 in CLI `status.test.ts` against a real repository with commits dated away from whole-day boundaries (18 days plus an hour).

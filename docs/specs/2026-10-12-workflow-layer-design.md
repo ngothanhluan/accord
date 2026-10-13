@@ -372,6 +372,12 @@ merges and de-duplicates findings before the fix loop.
 - every task in `plan.md` has a ledger completion line;
 - the approval exists and still matches the ticket (`gate.approval-missing`, `gate.approval-stale`, section 4).
 
+The commit match (`commit:` in `verification.md`, `verified_commit:` in the ticket) passes when the recorded
+commit equals the gated commit, or when it is an ancestor of the gated commit and every file changed since
+is the ticket's own record (`accord/tickets/<id>.md` or a file under `accord/tickets/<id>/`). A commit
+cannot hold its own sha, so without this the records could never be committed and still pass on the branch
+(phase 2).
+
 `accord-verifier`, in a fresh context, writes `verification.md`. It distrusts summaries and checks four
 levels per criterion: exists, substantive (not a stub), wired (reachable from its entry point), and data
 flows (not hard-coded). What it cannot prove is recorded as `Result: blocked` (needs a human), never pass.

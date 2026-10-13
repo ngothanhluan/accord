@@ -699,6 +699,37 @@ Decisions:
 
 - [ ] **Step 5: Commit** — `feat: gate plan checks files at the baseline and records plan_hash; task-done refuses a changed plan; review-package lists undeclared files`.
 
+### Task 9c: The done gate accepts committed records (owner decision 2026-10-13)
+
+Not a stage skill task: the shared rules for Tasks 8–14 do not apply. **Spec:** §11 (the commit match paragraph).
+
+**Files:**
+- Modify: `packages/core/src/model/snapshot.ts` (`SnapshotInput.recordsSince`, `RepoSnapshot.recordsSince`), `packages/core/src/load/snapshot.ts` (carry it), `packages/core/src/gate/done.ts` (`tickStaleCommit`, `staleReview`)
+- Modify: `packages/cli/src/load/fs.ts` (the git fact)
+- Test: `packages/core/test/done.test.ts` (or the file that holds the `gate.tick-stale-commit` and `gate.stale-review` cases), `packages/cli/test/lane-flow.test.ts`
+
+**Interfaces:**
+- Consumes: `isSha`, `shaEqual` (`gate/done.ts`), `ticketFile`, `verificationFile`, `snapshot.git.commit`.
+- Produces:
+
+```ts
+// SnapshotInput and RepoSnapshot
+recordsSince?: Record<string, string[]>; // recorded sha, as written -> paths changed from it to HEAD; present only when the sha is an ancestor of HEAD
+```
+
+Decisions:
+- **Which shas.** For every ticket the snapshot loads, the host collects `verified_commit:` and `verification.md` `commit:` values that pass `isSha` and are not `shaEqual` to HEAD. For each, `git merge-base --is-ancestor <sha> HEAD` (exit 0 is true, anything else false, as ruling R1), then for an ancestor `git diff --name-only -z --no-renames <sha> HEAD --`. Literal argument arrays; never a shell. A sha that is not an ancestor, or that git cannot resolve, is left out of `recordsSince` (the rule then fails as today). A git failure other than "not an ancestor" is a `UsageError` naming the sha, as `gitBaselineFiles` does.
+- **The rule.** `tickStaleCommit` and `staleReview` return no finding when the shas are equal (unchanged) or when `recordsSince[recorded]` exists and every path in it is `accord/tickets/<id>.md` or starts with `accord/tickets/<id>/`. Any other path, or no fact, keeps today's finding and reason text unchanged. An empty list (the sha is HEAD's tree under another name) passes.
+- **No other rule changes.** The author check, `ac_hash`, approval, and suite rules are untouched. The generated workflow and its D-162 comment stay as they are: the checkout still names the branch head.
+
+- [ ] **Step 1: Failing tests.**
+  - Core: with `git.commit = 'bbbbbbb…'`, `verified_commit: aaaaaaa…`, and `recordsSince: { 'aaaaaaa…': ['accord/tickets/T-1.md', 'accord/tickets/T-1/verification.md'] }` → no `gate.tick-stale-commit`; the same for `verification.md` `commit:` and `gate.stale-review`. With `recordsSince` adding `src/a.ts` → both findings as today. With `accord/tickets/T-10.md` (another ticket whose id starts with `T-1`) → finding. With no `recordsSince` → finding. With `[]` → no finding.
+  - CLI `lane-flow.test.ts` (real git): after the existing passing `accord gate done`, commit `accord/tickets/<id>.md` and its `verification.md`, run `accord gate done` again → exit 0 at the new HEAD. Then commit a change to a product file → exit 1 naming `gate.stale-review`.
+- [ ] **Step 2: Run** — expected FAIL.
+- [ ] **Step 3: Implement** the fact in `fs.ts` and the two rule changes; export nothing new beyond the model field.
+- [ ] **Step 4: Run** the touched files, `packages/cli/test/spawn-surface.test.ts`, then the full suite. PASS; no golden changes unless a golden records the snapshot shape (say which in the report).
+- [ ] **Step 5: Commit** — `feat: the done gate accepts a later commit that only adds the ticket's own records`.
+
 ### Task 10: `accord-plan`, with the planner
 
 **Files:** Create `packages/core/skills/plan/SKILL.md` (`name: accord-plan`); `packages/core/agents/planner.md` (`tools: Read, Grep, Glob, Write, Edit`, `route: planner`). **Spec:** §7 Plan, §7 Slicing. **Depends on:** Task 9b (`(new)`, `plan_hash:`).

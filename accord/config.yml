@@ -11,3 +11,11 @@ design:
   tokens: docs/tokens.css
 roles: [ba, dev]
 runtimes: [claude]
+tests:
+  # JUnit report under node_modules/.cache so it is never committed.
+  report: node_modules/.cache/accord/junit.xml
+  affected: npx vitest related --run {files} --reporter=default --reporter=junit --outputFile.junit=node_modules/.cache/accord/junit.xml
+  full: npx vitest run --reporter=default --reporter=junit --outputFile.junit=node_modules/.cache/accord/junit.xml
+review:
+  mode: outcome
+stale_days: "14"

@@ -9,7 +9,7 @@ export const HOOK_EVENTS = ['session-start', 'session-resume', 'subagent-start']
 export type HookEvent = (typeof HOOK_EVENTS)[number];
 
 export function hook(ctx: CommandContext, event: HookEvent): number {
-  const rules = rulesetText(`\`npx --yes ${pkg.name}@${pkg.version}\``);
+  const rules = rulesetText(`npx --yes ${pkg.name}@${pkg.version}`);
   if (event === 'subagent-start') {
     const out = { hookSpecificOutput: { hookEventName: 'SubagentStart', additionalContext: rules } };
     ctx.stdout.write(JSON.stringify(out) + '\n');

@@ -13,6 +13,7 @@ describe('accord hook', () => {
       expect(r.out.startsWith('# accord rules\n')).toBe(true);
       expect(r.out).toMatch(SESSION_LINE);
       expect(r.out).not.toContain('{{');
+      expect(r.out).toMatch(/Run accord as `npx --yes @accord-dev\/accord@[^`]+` when/);
     } finally {
       cleanup(repo);
     }

@@ -12,6 +12,8 @@ export interface SnapshotInput {
   // Spec §5: host-supplied claims, ticket id -> author of the tip of branch t/<id>. Absent when the host
   // has none, so the D-54 goldens are unchanged.
   claims?: Record<string, string>;
+  // Ticket id -> newest committer time (unix seconds) over its records and claim branch. Absent when the host has none.
+  lastActivity?: Record<string, number>;
   // Host-supplied ancestry: plan baseline sha -> is it an ancestor of HEAD. Absent when the host supplies none.
   ancestors?: Record<string, boolean>;
   // Host-supplied: baseline sha -> the plans' non-new `files:` paths that exist at that commit. Absent when the host supplies none.
@@ -161,6 +163,7 @@ export interface RepoSnapshot {
   work?: Record<string, TicketWork>; // spec §7-§10, keyed by ticket folder; absent when no record exists
   testsBaseline?: string[]; // spec §9: ids in accord/tests-baseline.txt; absent when the file does not exist
   claims?: Record<string, string>; // carried through from SnapshotInput
+  lastActivity?: Record<string, number>; // carried through from SnapshotInput
   ancestors?: Record<string, boolean>; // carried through from SnapshotInput
   baselineFiles?: Record<string, string[]>; // carried through from SnapshotInput
   recordsSince?: Record<string, string[]>; // carried through from SnapshotInput

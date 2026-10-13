@@ -7,7 +7,7 @@ import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { StatusRow } from '@accord-dev/accord-core';
-import { cleanup, makeRepo, run } from './helpers/repo.js';
+import { cleanup, commitAllAt, gitRun, makeLaneRepo, makeRepo, run, writeFiles } from './helpers/repo.js';
 
 const ESC = String.fromCharCode(27);
 
@@ -259,4 +259,46 @@ describe('accord status with no tickets', () => {
     expect(out.trim()).toBe('[]');
     expect(err).toBe('');
   });
+});
+
+it('ac-1 a ticket untouched past the window shows its idle days', async () => {
+  const repo = makeLaneRepo();
+  try {
+    await run(['approve', 'T-1'], repo);
+    writeFiles(repo, { 'accord/tickets/T-1/ledger.md': '## Tasks\n- task 1 done abc1234\n' });
+    commitAllAt(repo, new Date(Date.now() - (18 * 24 + 1) * 3600 * 1000));
+    const json = await run(['status', '--json'], repo);
+    expect((JSON.parse(json.out) as StatusRow[])[0]).toMatchObject({ id: 'T-1', stage: 'build', idleDays: 18 });
+    const text = await run(['status'], repo);
+    expect(text.out).toContain('build 1/2 idle 18d');
+  } finally {
+    cleanup(repo);
+  }
+});
+
+it('ac-2 a recent commit on the claim branch keeps the ticket active', async () => {
+  const repo = makeLaneRepo();
+  try {
+    await run(['approve', 'T-1'], repo);
+    writeFiles(repo, { 'accord/tickets/T-1/ledger.md': '## Tasks\n- task 1 done abc1234\n' });
+    commitAllAt(repo, new Date(Date.now() - (18 * 24 + 1) * 3600 * 1000));
+    const base = gitRun(repo, 'rev-parse', '--abbrev-ref', 'HEAD').trim();
+    gitRun(repo, 'checkout', '-q', '-b', 't/T-1');
+    writeFiles(repo, { 'src/other.ts': 'export const x = 1;\n' });
+    const tip = commitAllAt(repo, new Date(Date.now() - (2 * 24 + 1) * 3600 * 1000));
+    gitRun(repo, 'checkout', '-q', base);
+    const expectActive = async () => {
+      const json = await run(['status', '--json'], repo);
+      const row = (JSON.parse(json.out) as StatusRow[])[0];
+      expect(row).toMatchObject({ id: 'T-1', stage: 'build' });
+      expect(row).not.toHaveProperty('idleDays');
+      expect((await run(['status'], repo)).out).not.toContain('idle');
+    };
+    await expectActive(); // local branch
+    gitRun(repo, 'update-ref', 'refs/remotes/origin/t/T-1', tip);
+    gitRun(repo, 'branch', '-q', '-D', 't/T-1');
+    await expectActive(); // remote-tracking only
+  } finally {
+    cleanup(repo);
+  }
 });

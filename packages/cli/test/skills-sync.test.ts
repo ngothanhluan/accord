@@ -590,3 +590,9 @@ describe('accord skills sync - settings refusal comes first', () => {
     expect(listing(repo)).toEqual([]);
   });
 });
+
+it('risk:drift the committed /accord copy carries the idle wording', () => {
+  const copy = readFileSync(new URL('../../../.claude/skills/accord/SKILL.md', import.meta.url), 'utf8');
+  expect(copy).toContain('idleDays');
+  expect(copy).toContain('idle <n>d');
+});

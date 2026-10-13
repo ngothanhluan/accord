@@ -68,7 +68,7 @@ function containedPath(root: string, rel: string | undefined): string | undefine
  * Returns undefined when the repository has no commit, so `loadFromFs` omits the key rather than emit
  * `undefined` and move the D-54 goldens; Done then fails cleanly with `gate.commit-missing`.
  */
-function gitFacts(root: string): { commit: string; authors: Record<string, string> } | undefined {
+function gitFacts(root: string): { commit: string; authors: Record<string, string>; activity: Record<string, number> } | undefined {
   const git = (args: string[]) =>
     execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   let head: string;
@@ -82,27 +82,36 @@ function gitFacts(root: string): { commit: string; authors: Record<string, strin
   const [commit, commitAuthor] = head.trim().split('\0');
   if (commit === undefined || commitAuthor === undefined) return undefined;
   const authors: Record<string, string> = {};
+  // Ticket id -> newest committer time over its records; empty when the log fails, so nothing is idle.
+  const activity: Record<string, number> = {};
   let log: string;
   try {
     // One bounded walk over one subtree in one spawn (T-04-23).
-    log = git(['log', '--format=%x01%ae', '--name-only', '--', 'accord/tickets']);
+    log = git(['log', '--format=%x01%ae%x00%ct','--name-only', '--', 'accord/tickets']);
   } catch {
     log = '';
   }
   let author: string | undefined;
+  let time = 0;
   for (const line of log.split('\n')) {
     const text = line.trim();
     if (text === '') continue;
-    if (text.startsWith('')) author = text.slice(1);
+    if (text.startsWith('')) {
+      const [email, ct] = text.slice(1).split('\0');
+      author = email;
+      time = Number(ct);
+    }
     // git log emits the most recent commit first, so the first author seen for a path is the latest.
     else if (author !== undefined) {
       const key = text.split(sep).join('/');
       if (!Object.hasOwn(authors, key)) authors[key] = author;
+      const id = /^accord\/tickets\/([^/]+?)(?:\.md$|\/)/.exec(key)?.[1];
+      if (id !== undefined && time > (activity[id] ?? 0)) activity[id] = time;
     }
   }
   // D-78: the gated commit's author rides under a key equal to the sha, which cannot collide with a path.
   authors[commit] = commitAuthor;
-  return { commit, authors };
+  return { commit, authors, activity };
 }
 
 /**
@@ -113,12 +122,12 @@ function gitFacts(root: string): { commit: string; authors: Record<string, strin
  * A failure throws: `gitTree` has already proved git and the repository, so a failed for-each-ref is a
  * broken ref store, and silently dropping claims would offer held tickets as free. No match exits 0.
  */
-function gitClaims(root: string): Record<string, string> {
+function gitClaims(root: string): { claims: Record<string, string>; activity: Record<string, number> } {
   let out: string;
   try {
     // for-each-ref globs with WM_PATHNAME, so `*` stays within one segment.
     // shortcut: a remote whose name contains `/` is not matched; widen the pattern if one ever must be.
-    out = execFileSync('git', ['for-each-ref', '--format=%(refname)%00%(authoremail)', 'refs/heads/t/', 'refs/remotes/*/t/*'], {
+    out = execFileSync('git', ['for-each-ref', '--format=%(refname)%00%(authoremail)%00%(committerdate:unix)', 'refs/heads/t/', 'refs/remotes/*/t/*'], {
       cwd: root,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -128,12 +137,16 @@ function gitClaims(root: string): Record<string, string> {
     throw new UsageError('git for-each-ref failed reading the t/<id> claim branches' + (stderr === '' ? '' : '\n' + stderr));
   }
   const claims: Record<string, string> = {};
+  const activity: Record<string, number> = {};
   for (const line of out.split('\n')) {
-    const [ref, email] = line.split('\0');
+    const [ref, email, when] = line.split('\0');
     const m = /^refs\/(?:heads|remotes\/[^/]+)\/t\/([^/]+)$/.exec(ref ?? '');
-    if (m !== null && email !== undefined) claims[m[1]] = email.replace(/^<|>$/g, '');
+    if (m === null || email === undefined) continue;
+    claims[m[1]] = email.replace(/^<|>$/g, '');
+    // Local and remote-tracking tips both count; the newest wins.
+    if (Number(when) > (activity[m[1]] ?? 0)) activity[m[1]] = Number(when);
   }
-  return claims;
+  return { claims, activity };
 }
 
 /**
@@ -229,11 +242,14 @@ export function loadFromFs(root: string): SnapshotInput {
     const key = containedPath(root, value);
     if (key !== undefined) files[key] = readFileSync(join(root, key), 'utf8');
   }
-  const git = gitFacts(root);
+  const facts = gitFacts(root);
+  const git = facts === undefined ? undefined : { commit: facts.commit, authors: facts.authors };
   const shas = [
     ...new Set(Object.values(first.work ?? {}).flatMap((w) => (w.plan?.baseline !== undefined && isSha(w.plan.baseline) ? [w.plan.baseline] : []))),
   ];
-  const claims = gitClaims(root);
+  const { claims, activity: branchActivity } = gitClaims(root);
+  const lastActivity: Record<string, number> = { ...facts?.activity };
+  for (const [id, t] of Object.entries(branchActivity)) if (t > (lastActivity[id] ?? 0)) lastActivity[id] = t;
   const ancestors = shas.length === 0 ? undefined : gitAncestors(root, shas);
   const wanted: Record<string, string[]> = {};
   for (const plan of Object.values(first.work ?? {}).flatMap((w) => (w.plan === undefined ? [] : [w.plan]))) {
@@ -259,6 +275,7 @@ export function loadFromFs(root: string): SnapshotInput {
     ...(git === undefined ? {} : { git }),
     // Omitted when empty, so a repository with no ticket branch loads exactly as before.
     ...(Object.keys(claims).length === 0 ? {} : { claims }),
+    ...(Object.keys(lastActivity).length === 0 ? {} : { lastActivity }),
     ...(ancestors === undefined ? {} : { ancestors }),
     ...(Object.keys(baselineFiles).length === 0 ? {} : { baselineFiles }),
     ...(Object.keys(recordsSince).length === 0 ? {} : { recordsSince }),

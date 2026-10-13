@@ -26,12 +26,17 @@ remember their names.
      T-15  Session store      done
      T-19  Export CSV         in progress · binh
      T-18  Login UI           blocked by T-12
+     T-22  Audit log          build 1/4 idle 18d · an
 
    READY TO PICK UP
      T-21  Password reset     M
 
    → [Continue T-12]  [Pick up T-21]  [New request]
    ```
+
+   Every section, READY TO PICK UP included, looks up each ticket's `idleDays`
+   by id in the `accord status --json` rows (`accord next --json` never carries
+   it); a ticket whose row has `idleDays` shows `idle <n>d` after its stage.
 
    Yours are the tickets whose `claimedBy` is your `user.email`, each with
    its `stage` and tasks (`tasksDone`/`tasksTotal`). The ones to pick up are

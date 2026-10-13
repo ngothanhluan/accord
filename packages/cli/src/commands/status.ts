@@ -45,7 +45,7 @@ async function trackerCells(ctx: CommandContext, rows: StatusRow[]): Promise<Rec
 }
 
 export async function status(ctx: CommandContext, options: { json?: boolean; all?: boolean }): Promise<number> {
-  const rows = statusRows(ctx.snapshot);
+  const rows = statusRows(ctx.snapshot, Math.floor(Date.now() / 1000));
   // The filter runs before both writes, so the table and the JSON can never disagree.
   const visible = options.all ? rows : rows.filter((r) => r.status !== 'archived' && r.status !== 'dropped');
   const hidden = rows.length - visible.length;

@@ -18,11 +18,17 @@ The plan:
 ```
 covers: @ac-1, D-02
 files: src/export.ts, src/csv.ts (new)
-verify: <test report case id>, ...
+verify: src/export.test.ts#writes-the-csv (@ac-1), src/csv.test.ts#risk:data-loss-quotes
 ```
 
 - Every `@ac-n` and every `D-nn` in the ticket is cited by some task's `covers:`. Nothing in `covers:` is foreign to the ticket.
 - `verify:` names the test report case ids that will exist once the task's tests are written.
+- Write `(@ac-n)` after the id of the test that proves scenario `@ac-n`: each scenario that is not `@ui` is mapped
+  to exactly one test; an id may carry two markers; an id that proves no scenario carries none; no `@ui` scenario
+  is mapped.
+- A test whose verify id maps no scenario carries `risk:<kind>` in its name, the kind from the reviewer's list
+  (parsing, money or calculation, security or permission, concurrency, data loss, complex branching, regression
+  of a real bug). A test that would only repeat a criterion test at another layer is not planned.
 - A path the task creates is followed by `(new)` on its `files:` line. Every other path must exist at the baseline.
 - The prose gives the interface (what the task consumes, what it produces) and the test written first.
 - A task that edits an existing file names the behaviour there that must not change.

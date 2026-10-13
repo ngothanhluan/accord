@@ -35,9 +35,14 @@ session and orchestrate: executors write the code.
    - It refuses because the report is missing or older than the commit:
      the `tests.affected` command does not write the report `tests.report`
      names. Tell the owner; do not loop.
+   - It writes the `@test:` tag of each scenario a `verify:` id marks
+     with `(@ac-n)`. It refuses because a scenario already carries a
+     different `@test:` tag: ask the owner; never an executor or `accord-debug`.
    - It writes the ledger line: copy every Ruling in the executor's
      report into `accord/tickets/<id>/ledger.md` under `## Rulings`, then
-     commit `accord/tickets/<id>/ledger.md`.
+     commit the ticket together with `accord/tickets/<id>/ledger.md`.
+   - A ticket whose recorded tasks predate the tag writer: run
+     `accord task-done <id> <n>` again for each recorded task.
 
 4. **Blocked.**
    - `BLOCKED` with a question that touches intent, a veto, a criterion,

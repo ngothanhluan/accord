@@ -26,7 +26,8 @@ read the plan.
    `verify:` line, then prose for the executor: the interface (consumes,
    produces) and the test written first. A task fits in about half an
    executor's context; the planner splits anything larger. Only the first
-   plan sets `baseline:`.
+   plan sets `baseline:`. In `verify:`, write `(@ac-n)` after the id of the
+   test that proves scenario `@ac-n`.
 
    **Re-plan**, entered from a change of course or a review plan gap:
    dispatch the planner with the ticket path, the `baseline:` already in

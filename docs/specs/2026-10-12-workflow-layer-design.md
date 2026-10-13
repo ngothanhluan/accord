@@ -231,14 +231,17 @@ The intent therefore never has to be remembered; it is re-read.
 carries a `covers:` line (criteria and decisions), a `files:` line, a `verify:` line naming the test report
 case ids that prove it, then prose for the executor: interface (consumes, produces) and the test written
 first. A path in `files:` that the task creates is followed by the token `(new)`. A task that edits an
-existing file names the behaviour there that must not change. Tasks are ordered so the one that proves the
+existing file names the behaviour there that must not change. A `verify:` id followed by the token `(@ac-n)`
+maps the test to scenario `@ac-n`; an id may carry two markers, and an id with none proves no scenario. Tasks are ordered so the one that proves the
 approach end to end (the wiring) comes first; polish comes last. A task fits in about half of an
 executor's context; the planner splits anything larger, and the critic flags a task that does not.
 
 `accord gate plan <id>` (new) checks mechanically: the approval still matches the ticket; every `@ac-n`
 is covered by a task; every `D-nn` is cited; every task has `covers:` and `verify:`; nothing in `covers:`
 is foreign to the ticket; no "TODO", "TBD", "placeholder", "v1", "for now", "later" in task text; every
-path in `files:` exists at `baseline:` unless it is marked `(new)` (`gate.task-file-unknown`, phase 2).
+path in `files:` exists at `baseline:` unless it is marked `(new)` (`gate.task-file-unknown`, phase 2); every scenario that is
+not `@ui` is mapped by exactly one marker across the plan (`gate.plan-test-unmapped`, `gate.plan-test-repeated`); a marker
+naming a scenario the ticket lacks, or a `@ui` scenario, fails.
 On a pass it writes `plan_hash:`, the hash of the plan below its frontmatter, into `plan.md`, as
 `gate ready` writes `ac_hash` (phase 2).
 `accord-critic` checks meaning: no veto violated, nothing beyond the criteria, the approved approach
@@ -300,7 +303,9 @@ touching `plan.md` carries it, and otherwise the plan stage resumes (phase 2).
   line names is recorded `passed` in the test report, the report was written after the current commit, and
   the plan below its frontmatter still matches the `plan_hash:` that `gate plan` wrote when it last passed.
   The orchestrator runs the tests (`tests.affected`) and then `task-done`; the executor's claim alone records
-  nothing. The CLI never runs a test command itself: it spawns only `git`, so the check is the report, the
+  nothing. It also writes each mapped scenario's `@test:<id>` tag into the ticket, right after the `@ac-n` token,
+  before the ledger line; a scenario already carrying a different tag is refused before any write, and a re-run fills
+  a missing tag. The CLI never runs a test command itself: it spawns only `git`, so the check is the report, the
   same evidence the Done gate reads.
 - **Context budget.** An executor never relies on compaction. One that nears its context limit stops,
   commits what is finished, and returns `BLOCKED: context` with what remains. The orchestrator dispatches a

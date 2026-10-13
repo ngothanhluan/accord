@@ -22,6 +22,7 @@ const AGENT_REQUIRED: Record<string, readonly string[]> = {
   planner: ['(new)', 'must not change', 'wiring', 'polish'],
   reviewer: ['Extra', 'written conventions', 'product/', 'linter', 'Undeclared files', 'Ruling'],
   verifier: ['distrust', 'Substantive', 'Wired', 'Data flows', 'Result: blocked', 'verification.md'],
+  debugger: ['measurement', 'cheapest probe', 'parallel round'],
 };
 
 describe('agents name what the spec requires', () => {

@@ -28,6 +28,10 @@ jobs:
       - run: npm run build
       # npm ci links bins before dist/cli.js exists, so it skips accord's; rebuild links it now.
       - run: npm rebuild
+      # gate done reads the report tests.full writes (accord/config.yml). A failing suite still writes it,
+      # and the gate then reports gate.suite-not-passed with everything else, so this step does not stop.
+      - name: full suite (tests.full)
+        run: npx vitest run --reporter=default --reporter=junit --outputFile.junit=node_modules/.cache/accord/junit.xml || true
       - name: lint and gate
         shell: bash
         env:

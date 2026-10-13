@@ -33,6 +33,14 @@ Each of these made `gate done` or `task-done` unreachable on the documented path
 4. **Phase 2 config keys are not set up (note 1).** This repository had no `tests.report`, `tests.affected`,
    `tests.full`, `review.mode`, or `stale_days`; plan and build stop at the first one. Fix: `/accord` first
    run, or `accord init` for an existing folder, offers the keys.
+4a. **The generated CI workflow never runs `tests.full` (found on PR #3).** `gate done` for a lane ticket
+   needs the report, so the pull request gate fails `gate.report-missing` on every lane M ticket. Fix: the
+   workflow `init` writes runs `tests.full` before the gate when the config names it. This repository's
+   own workflow was fixed by hand, along with a missing `npm rebuild` that had kept its gate job from ever
+   running (`accord: not found` since the workspace package took the published name).
+4b. **A ticket goes stale inside a larger pull request (found on PR #3).** STALE-1 was verified at its own
+   head, then merged into the phase branch with later commits; the PR gate correctly read its ticks and
+   review as stale. A ticket ships in its own pull request, or is re-verified at the head it ships with.
 
 ## Should fix
 

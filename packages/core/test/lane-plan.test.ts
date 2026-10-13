@@ -20,6 +20,42 @@ const plan = (f: Record<string, string>, text?: string, id = 'T-1') => {
 };
 const errors = (r: GateResult) => r.findings.filter((f) => f.level === 'error').map((f) => f.rule);
 
+const reasons = (r: GateResult, rule: string) => r.findings.filter((f) => f.rule === rule).map((f) => f.reason);
+const NO_MAPS = PLAN.replace(' (@ac-1)', '').replace(' (@ac-2)', '');
+const EXTRA = '  @ac-3\n  Scenario: third\n    Given a\n    When b\n    Then c\n```\n\n## Vetoes';
+
+it('ac-2 gate plan fails when a scenario has no test mapped to it anywhere in the plan', () => {
+  const body = LANE_BODY.replace('```\n\n## Vetoes', '\n' + EXTRA);
+  const r = plan(base(laneTicket('T-1', { body })), NO_MAPS.replace('export#writes-csv', 'export#writes-csv (@ac-1)'));
+  expect(reasons(r, 'gate.plan-test-unmapped')).toEqual([
+    '@ac-2 is mapped to no test; write (@ac-2) after the verify id that proves it',
+    '@ac-3 is mapped to no test; write (@ac-3) after the verify id that proves it',
+  ]);
+});
+
+it('ac-3 gate plan fails when a scenario is mapped more than once', () => {
+  const across = PLAN.replace('export#escapes-commas (@ac-2)', 'export#escapes-commas (@ac-1)');
+  const a = reasons(plan(base(), across), 'gate.plan-test-repeated');
+  expect(a).toHaveLength(1);
+  expect(a[0]).toContain('@ac-1');
+  expect(a[0]).toContain('export#writes-csv, export#escapes-commas');
+  const same = PLAN.replace('export#writes-csv (@ac-1)', 'export#writes-csv (@ac-1), export#writes-csv (@ac-1)');
+  const b = reasons(plan(base(), same), 'gate.plan-test-repeated');
+  expect(b).toEqual(['@ac-1 is mapped more than once: export#writes-csv, export#writes-csv']);
+});
+
+it('risk:complex-branching a map onto a missing scenario or a ui scenario fails gate plan', () => {
+  const missing = plan(base(), PLAN.replace('export#escapes-commas (@ac-2)', 'export#escapes-commas (@ac-2) (@ac-9)'));
+  expect(reasons(missing, 'gate.plan-map-invalid')).toEqual([
+    'task 2 maps export#escapes-commas to @ac-9, which is not a scenario of T-1',
+  ]);
+  const ui = laneTicket('T-1', { body: LANE_BODY.replace('@ac-2 @test:export#escapes-commas', '@ac-2 @ui') });
+  expect(reasons(plan(base(ui), PLAN), 'gate.plan-map-invalid')).toEqual([
+    'task 2 maps export#escapes-commas to @ac-2, a @ui scenario; a @ui scenario carries no @test tag',
+  ]);
+  expect(reasons(plan(base(ui), NO_MAPS.replace('export#writes-csv', 'export#writes-csv (@ac-1)')), 'gate.plan-test-unmapped')).toEqual([]);
+});
+
 describe('gate plan', () => {
   it('a plan covering every criterion and decision passes', () => {
     const r = plan(base(), PLAN);

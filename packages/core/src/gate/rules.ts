@@ -30,6 +30,7 @@ import {
   decisionUncited,
   deferral,
   laneMissing,
+  mapInvalid,
   planBaselineMissing,
   planBaselineUnknown,
   planEmpty,
@@ -38,6 +39,8 @@ import {
   taskCoversMissing,
   taskFileUnknown,
   taskVerifyMissing,
+  testRepeated,
+  testUnmapped,
 } from './plan.js';
 import {
   approachEmpty,
@@ -118,6 +121,9 @@ export const PLAN_RULES: readonly GateRule[] = [
   { id: 'gate.plan-ac-uncovered', level: 'error', profiles: ['build', 'maintain'], check: acUncovered },
   { id: 'gate.plan-decision-uncited', level: 'error', profiles: ['build', 'maintain'], check: decisionUncited },
   { id: 'gate.plan-ref-unknown', level: 'error', profiles: ['build', 'maintain'], check: refUnknown },
+  { id: 'gate.plan-test-unmapped', level: 'error', profiles: ['build', 'maintain'], check: testUnmapped },
+  { id: 'gate.plan-test-repeated', level: 'error', profiles: ['build', 'maintain'], check: testRepeated },
+  { id: 'gate.plan-map-invalid', level: 'error', profiles: ['build', 'maintain'], check: mapInvalid },
   { id: 'gate.plan-deferral', level: 'error', profiles: ['build', 'maintain'], check: deferral },
 ];
 

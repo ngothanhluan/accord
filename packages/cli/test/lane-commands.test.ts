@@ -756,7 +756,7 @@ describe('plan contract checks', () => {
       expect(statSync(planPath(repo)).mtimeMs).toBe(mtime);
 
       commitAll(repo);
-      writeFiles(repo, { 'accord/tickets/T-1/plan.md': written.replace('verify: export#writes-csv', 'verify: export#escapes-commas') });
+      writeFiles(repo, { 'accord/tickets/T-1/plan.md': written.replace('Add a csv branch to the writer.', 'Add a csv branch to the report writer.') });
       const stale = await run(['task-done', 'T-1', '1'], repo);
       expect(stale.code).toBe(1);
       expect(stale.out + stale.err).toContain('plan.md changed after accord gate plan last passed');
@@ -839,7 +839,7 @@ async function atBaseline(extra: Record<string, string>, plan: string): Promise<
   await run(['approve', 'T-1'], repo);
   await run(['gate', 'ready', 'T-1'], repo);
   const first = commitAll(repo);
-  writeFiles(repo, { 'accord/tickets/T-1/plan.md': plan.replace('abc1234', first) });
+  writeFiles(repo, { 'accord/tickets/T-1/plan.md': plan.replace('abc1234', first).replace(/plan_hash: .*\n/, '') }); // gate plan writes the hash
   commitAll(repo);
   expect((await run(['gate', 'plan', 'T-1'], repo)).code).toBe(0);
   commitAll(repo);
@@ -874,6 +874,20 @@ it('risk:complex-branching a failed mapped test writes no tag', async () => {
     expect((await run(['task-done', 'T-1', '1'], repo)).code).toBe(1);
     expect(ticketText(repo)).toBe(before);
     expect(existsSync(LEDGER_PATH(repo))).toBe(false);
+  } finally {
+    cleanup(repo);
+  }
+}, 30000);
+
+it('ac-4 an unmapped verify id and an unmapped ui scenario need no tag', async () => {
+  const ticket = laneTicket('T-1', { body: LANE_BODY.replace('@ac-2 @test:export#escapes-commas', '@ac-2 @ui').replace(' @test:export#writes-csv', '') });
+  const plan = MAPPED_PLAN.replace(/verify: export#escapes-commas[^\n]*\n/, 'verify: export#escapes-commas\n');
+  const repo = await atBaseline({ 'accord/tickets/T-1.md': ticket }, plan);
+  try {
+    const before = ticketText(repo);
+    expect((await run(['task-done', 'T-1', '2'], repo)).code).toBe(0);
+    expect(readFileSync(LEDGER_PATH(repo), 'utf8')).toContain('task 2 done');
+    expect(ticketText(repo)).toBe(before);
   } finally {
     cleanup(repo);
   }

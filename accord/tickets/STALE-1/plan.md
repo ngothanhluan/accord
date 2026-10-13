@@ -1,18 +1,19 @@
 ---
 baseline: 84eb2b8daa424884b07b71dc3571f9a7198d0d6c
-plan_hash: "fnv1a64:9e4ee38e9cdfaed7"
+plan_hash: "fnv1a64:9ae3b003072df573"
 ---
 
 Review mode `outcome`: one branch, no slices. Report case ids follow the JUnit id shape in
 `packages/core/src/load/junit.ts`: `<classname>#<name>` with each whitespace run turned into `-`. Every test
-below is a top-level `it(...)` whose name starts with its `@test:` tag or `risk:` kind, so the name carries no describe prefix.
+below is a top-level `it(...)` whose name starts with its criterion (`ac-n`, no leading `@`) or its `risk:` kind,
+so the name carries no describe prefix and the report id holds no `@` that would split a scenario tag.
 
 ## Task 1: Wiring: records activity reaches the status row and the table
 covers: @ac-1, @ac-3, @ac-5, D-01, D-03, D-04, D-07
 files: packages/core/src/model/snapshot.ts, packages/core/src/load/snapshot.ts, packages/core/src/status/rows.ts, packages/cli/src/load/fs.ts, packages/cli/src/commands/status.ts, packages/cli/src/render/table.ts, packages/cli/test/helpers/repo.ts, packages/cli/test/status.test.ts, packages/core/test/lane-status.test.ts
-verify: packages/cli/test/status.test.ts#@test:ac-1-a-ticket-untouched-past-the-window-shows-its-idle-days, packages/core/test/lane-status.test.ts#@test:ac-3-the-window-comes-from-stale_days, packages/core/test/lane-status.test.ts#@test:ac-5-the-default-window-is-14-days-and-idle-means-older-than-it
+verify: packages/cli/test/status.test.ts#ac-1-a-ticket-untouched-past-the-window-shows-its-idle-days, packages/core/test/lane-status.test.ts#ac-3-the-window-comes-from-stale_days, packages/core/test/lane-status.test.ts#ac-5-the-default-window-is-14-days-and-idle-means-older-than-it
 
-Test first, in `packages/cli/test/status.test.ts`: `it('@test:ac-1 a ticket untouched past the window shows its idle days')`.
+Test first, in `packages/cli/test/status.test.ts`: `it('ac-1 a ticket untouched past the window shows its idle days')`.
 Build a repository with `makeLaneRepo` holding one lane ticket at stage build (approved, a plan, a ledger with
 one task done, the same set-up `lane-status.test.ts` uses for build), with no `stale_days` in its config and no
 `t/*` branch. Commit it with the new helper dated 18 days and one hour before now. Run `accord status --json`
@@ -27,12 +28,15 @@ is unchanged.
 Also first, in `packages/core/test/lane-status.test.ts`, with no git: each calls
 `statusRows(loadSnapshot({ files, tree: [], lastActivity }), now)` with `now` a fixed second count and
 `lastActivity` set from it, the gaps offset by one hour off the whole-day boundary.
-- `@test:ac-3 the window comes from stale_days`: config with `stale_days: "30"`, a build-stage lane ticket 18 days
+- `ac-3 the window comes from stale_days`: config with `stale_days: "30"`, a build-stage lane ticket 18 days
   idle; the row has no `idleDays`. A second build-stage lane ticket under the same config, 31 days idle,
   carries `idleDays: 31`, which shows the window moved rather than idle being off.
-- `@test:ac-5 the default window is 14 days and idle means older than it`: no `stale_days`; one build-stage lane
+- `ac-5 the default window is 14 days and idle means older than it`: no `stale_days`; one build-stage lane
   ticket 14 days idle has no `idleDays`, another 15 days idle has `idleDays: 15`.
 Both fail before this task, each on its row that must carry `idleDays`.
+
+Build order: CLI tests import `@accord-dev/accord-core` from `packages/core/dist`, so after the core edits run
+`npm run build -w packages/core` before any CLI test or `tsc -p packages/cli`.
 
 Interface:
 - `SnapshotInput.lastActivity?: Record<string, number>` and the same key on `RepoSnapshot`: ticket id to the
@@ -43,10 +47,8 @@ Interface:
   `snapshot.lastActivity` has the ticket id, `idle = Math.floor((now - lastActivity[id]) / 86400)`; the row
   carries `idleDays: idle` when `idle > window`, where `window` is `Number(config.stale_days ?? '14')`.
   No clock is read in core (D-07).
-- `gitFacts` in `packages/cli/src/load/fs.ts`: the log spawn gains `-c`, `core.quotePath=false` as literal
-  arguments before `log`, so a non-ASCII ticket path comes out unquoted and maps to its id. The log format
-  becomes `%x01%ae%x00%ct`. The header line yields
-  both the author and the committer time. For each path under `accord/tickets/`, the ticket id is the stem of
+- `gitFacts` in `packages/cli/src/load/fs.ts`: the log format becomes `%x01%ae%x00%ct`; the spawn's other
+  arguments are unchanged. The header line yields both the author and the committer time. For each path under `accord/tickets/`, the ticket id is the stem of
   `accord/tickets/<id>.md` or the first segment of `accord/tickets/<id>/...`; the id's time is the max seen.
   `gitFacts` returns that map beside `commit` and `authors`, and `loadFromFs` adds `lastActivity` to its result
   only when the map is non-empty. When the log spawn fails the map is empty and nothing is idle (ledger Ruling).
@@ -65,9 +67,12 @@ since the lane columns render only for lane rows and a cell under 12 characters 
 ## Task 2: The claim branch tip counts as activity
 covers: @ac-2, D-02, D-06
 files: packages/cli/src/load/fs.ts, packages/cli/test/status.test.ts
-verify: packages/cli/test/status.test.ts#@test:ac-2-a-recent-commit-on-the-claim-branch-keeps-the-ticket-active
+verify: packages/cli/test/status.test.ts#ac-2-a-recent-commit-on-the-claim-branch-keeps-the-ticket-active
 
-Test first: `it('@test:ac-2 a recent commit on the claim branch keeps the ticket active')`. Same repository as
+This task edits no core file and relies on the `packages/core/dist` build Task 1 ends with; if it does touch
+core, run `npm run build -w packages/core` again before the CLI test.
+
+Test first: `it('ac-2 a recent commit on the claim branch keeps the ticket active')`. Same repository as
 Task 1, records committed 18 days and one hour ago with `commitAllAt`; then create branch `t/<id>`, commit a
 file outside `accord/tickets/` on it dated 2 days and one hour ago, and switch back to the original branch so
 the records walk from HEAD still sees only the old commit. Assert the JSON row has no `idleDays` key and the
@@ -86,10 +91,10 @@ the UsageError thrown when `for-each-ref` fails; `claims` and `lastActivity` bot
 ## Task 3: Finished and closed tickets are never idle
 covers: @ac-4, D-05
 files: packages/core/src/status/rows.ts, packages/core/test/lane-status.test.ts
-verify: packages/core/test/lane-status.test.ts#@test:ac-4-finished-and-closed-tickets-are-never-idle
+verify: packages/core/test/lane-status.test.ts#ac-4-finished-and-closed-tickets-are-never-idle
 
 Test first, in `packages/core/test/lane-status.test.ts`, built the same way as Task 1's core cases:
-`@test:ac-4 finished and closed tickets are never idle`: three lane tickets 100 days idle, one at stage done,
+`ac-4 finished and closed tickets are never idle`: three lane tickets 100 days idle, one at stage done,
 one with `status: dropped`, one with `status: archived`; `statusRows` returns all three rows and none has
 `idleDays`. A fourth, laneless ticket with the same activity also has no `idleDays` (D-05). It fails before
 this task, since Task 1 marks all three lane rows idle.
@@ -119,8 +124,10 @@ never carries it; a ticket whose status row carries `idleDays` shows `idle <n>d`
 block gains one new row under TEAM, `T-22  Audit log  build 1/4 idle 18d · an`, an id the example does not
 already use. The text names no other tool. Then run, in order: `npm run gen`, which rewrites
 `packages/core/src/generated/skills.ts`; `npm run build`, because `accord skills sync` renders from the CLI's
-built output and `gen` does not rebuild it; and `accord skills sync`, which rewrites
-`.claude/skills/accord/SKILL.md` (this repository's only runtime is `claude`).
+built output and `gen` does not rebuild it; and `node packages/cli/dist/cli.js skills sync` (the workspace
+build, never an `accord` found on PATH), which rewrites `.claude/skills/accord/SKILL.md` (this repository's only
+runtime is `claude`). The rendered SKILL.md stays at or under 5120 bytes (`MAX_SKILL_BYTES` in
+`packages/core/test/skills.test.ts`); about 550 bytes are left, so keep the added wording short.
 
 Must not change: the rule that the dashboard never infers a state the JSON does not hold; every other section of
 the skill.

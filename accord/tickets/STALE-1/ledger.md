@@ -13,5 +13,9 @@
 - Ruling: the claim branch t/STALE-1 stays local at the owner's word — the owner said "Giữ local" — cost if wrong: a teammate does not see the claim.
 - Ruling: `accord tests baseline` run once at the plan baseline (1137 existing untraced cases listed) — the repository adopted the test policy without the file, so gate done would flag every existing case — cost if wrong: existing untraced cases are grandfathered instead of each getting a risk: name.
 - Ruling: the main session writes each scenario's `@test:<id>` tag (the task's verify id) into the ticket after `accord task-done` records the task that proves it — no skill step owns the tags and executors never edit the ticket; tags sit outside the AC hash — cost if wrong: none to Ready; a wrong id fails gate done.
+- Ruling: a ticket whose id has non-ASCII characters is never idle — git quotes such paths and the plan keeps the authors walk unchanged (critic round 3) — cost if wrong: such a ticket never shows idle.
+- Ruling: after the clean critic round the main session added two clarifying lines to Task 4 (workspace binary for skills sync; the 5120-byte cap) — both were Nice findings and change no behaviour — cost if wrong: none.
 
 ## Deferred
+
+- @ac-4 test is core-only and does not observe that `status --all` lists dropped and archived rows (plan critic, Nice).

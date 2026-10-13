@@ -414,9 +414,12 @@ The owner's report:
   by scenario, at the commit `verification.md` records. Without a browser available the result is
   `blocked`, never pass.
 
-**Human layer by review mode.** Under `outcome`, the owner reads the report, tries the steps, and ticks
-`verified:` (still bound to commit and `ac_hash`); `## Verification notes` is not required. Under `human`,
-the 0.1.0 human layer stays, and each slice's pull request is reviewed by a person.
+**Human layer by review mode.** Under `outcome`, the owner reads the report and tries the steps; the
+orchestrator then asks one question, approve or not yet, naming the criteria, the commit verified, and the
+values it will write. Only an explicit approve lets it write `verified:` (still bound to commit and
+`ac_hash`), the way the owner's yes lets it run `accord approve`; silence or an unclear answer is not one.
+The commit message quotes the answer. `## Verification notes` is not required. Under `human`, the 0.1.0
+human layer stays: a person ticks by hand, and each slice's pull request is reviewed by a person.
 
 ## 12. Agents and model routing
 

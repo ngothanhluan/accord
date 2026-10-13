@@ -1,6 +1,6 @@
 ---
 name: accord-verify
-description: Use when a lane M ticket's review.md ends with a verdict and the work needs verifying. Runs the full suite, has a fresh verifier write verification.md, builds the owner's report, and runs accord gate done once the owner has ticked verified.
+description: Use when a lane M ticket's review.md ends with a verdict and the work needs verifying. Runs the full suite, has a fresh verifier write verification.md, builds the owner's report, and runs accord gate done once the owner has approved verified.
 license: MIT
 kind: skill
 ---
@@ -36,23 +36,27 @@ judges, the owner decides.
 
 5. **Owner.** Read `review.mode` in `accord/config.yml` (absent counts as
    `human`).
-   - Under `review: outcome` the owner reads the report, tries the steps,
-     and ticks `verified:` in the ticket, with `verified_hash:` set to the
-     current `ac_hash:` and `verified_commit:` to the commit verified.
-     `## Verification notes` is not required.
+   - Under `review: outcome`, after the report, ask the owner one
+     question with two choices, approve or not yet. The question names
+     the criteria to tick, the commit verified, and the three values you
+     will write. Only on an explicit approve, write `verified:` with those
+     criteria, `verified_hash:` set to the current `ac_hash:`, and
+     `verified_commit:` to the commit verified. Silence, an unclear
+     answer, or a yes given before the report is not an approve: ask
+     again. `## Verification notes` is not required.
    - Under `review: human` the 0.1.0 human layer stays: a person ticks
-     `verified:` the same way and writes `## Verification notes`.
-   - Never tick `verified:` for the owner, and never write
-     `verified_hash:` or `verified_commit:`.
+     `verified:` by hand, with the same two values, and writes
+     `## Verification notes`. You never write any of them.
    - A `fail` or `blocked` criterion: show the owner. A failing criterion
      goes back to `accord-build` as a fix, or the owner decides; it is
      never ticked past.
 
 6. Run `accord gate done <id>` and work from what it prints. Leave
-   `verification.md` and the owner's tick uncommitted until it passes;
+   `verification.md` and the tick uncommitted until it passes;
    the notice that the review file has no author yet is expected and no
    reason to commit earlier. When it passes, commit only
-   `accord/tickets/<id>.md` and `accord/tickets/<id>/verification.md`.
+   `accord/tickets/<id>.md` and `accord/tickets/<id>/verification.md`;
+   under `review: outcome` the commit message quotes the owner's answer.
 
 7. Next: `/accord`, for the next ticket.
 

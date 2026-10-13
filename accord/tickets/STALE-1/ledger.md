@@ -25,7 +25,10 @@
 - Ruling: Tasks 2 and 3 write their tests against code Task 1 already landed, so those tests pass on arrival; their executors show them passing instead of failing first — the alternative is reverting working code — cost if wrong: two criterion tests were never seen red.
 - Ruling: (task 2 executor) no production change; 6b63f29 already reads local and remote-tracking claim refs and keeps the max committer time; red shown by disabling the fold, then restored — cost if wrong: the remote-tracking case would show idleDays, but the test covers it.
 - Ruling: (task 3 executor) the laneless ticket (D-05) is a fourth row in the ac-4 test; 6b63f29 already skips it; red shown by forcing open=true, then restored — cost if wrong: D-05 has no separate test.
+- Ruling: the `risk:drift` test on the installed /accord copy stays, at the owner's word ("Giữ, ghi ngoại lệ") — it guards the sync-from-stale-dist failure the plan critic found; `drift` is not in the spec's risk kinds — cost if wrong: one test outside the policy list.
 
 ## Deferred
 
 - @ac-4 test is core-only and does not observe that `status --all` lists dropped and archived rows (plan critic, Nice).
+- Test policy: consider adding `drift` (an installed copy matching its source) to the spec's risk kinds (review round 1, owner exception).
+- `commitAll` in packages/cli/test/helpers/repo.ts is a one-line wrapper around `commitAllAt`; an optional date parameter would do (review round 1, Nice).

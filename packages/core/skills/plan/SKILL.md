@@ -38,18 +38,15 @@ read the plan.
 
 5. **Critique.** Dispatch `accord-critic` in a fresh context, mode `plan`,
    with the path of the ticket file and the path of `plan.md`. After each
-   critic round, write
-   `Ruling: plan round <n> — <m> Must, <s> Should`
-   into `accord/tickets/<id>/ledger.md` under `## Rulings`, and commit
-   `plan.md` and the ledger together with the subject
-   `plan: <id> round <n>`. When the critic reports no Must or Should, go
-   to step 7. Otherwise have the planner fix every Must and every Should,
-   then go back to step 4.
+   critic round, commit `plan.md` with the subject
+   `plan: <id> round <n>, <m> Must, <s> Should`. When the critic reports
+   no Must or Should, go to step 7. Otherwise have the planner fix every
+   Must and every Should, then go back to step 4.
 
 6. **Rounds.** At most three revision rounds. If Must or Should findings
    are still open after the third, stop and tell the owner what is still
    open, and show the revision with the fewest Must findings: its round
-   and its commit, read from the ledger and `git log`. Never continue on
+   and its commit, read from `git log`. Never continue on
    a failing plan.
 
 7. **Baseline tests.** Before the first build commit, run the

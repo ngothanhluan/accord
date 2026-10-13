@@ -18,6 +18,7 @@ const scout = (c: AccordConfig): string => agentTargets(c).find((f) => f.path ==
 const AGENT_REQUIRED: Record<string, readonly string[]> = {
   architect: ['first rung', 'climb further', 'what it does'],
   critic: ['text only', 'three concrete failure scenarios', 'Check that no Veto is violated', 'without asking', 'Should'],
+  planner: ['(new)', 'must not change', 'wiring', 'polish'],
 };
 
 describe('agents name what the spec requires', () => {

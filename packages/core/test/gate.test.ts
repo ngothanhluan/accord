@@ -431,6 +431,22 @@ describe('gate done gate-done: the identity layer (GATE-03, GATE-11, D-81)', () 
     expect(done.PASS.findings.filter((f) => f.rule === 'gate.stale-review')).toEqual([]);
   });
 
+  it('a later commit that touched only its own ticket records passes both commit rules (spec §11)', () => {
+    const own = (id: string, paths: string[]) => {
+      const r = gateDone(loadSnapshot({ ...input('gate-done', GIT), recordsSince: { '9999999': paths } }), id);
+      return r.findings.filter((f) => f.rule === 'gate.tick-stale-commit' || f.rule === 'gate.stale-review').map((f) => f.rule);
+    };
+    const mine = (id: string) => [`accord/tickets/${id}.md`, `accord/tickets/${id}/verification.md`];
+    expect(own('COMMIT', mine('COMMIT'))).toEqual([]);
+    expect(own('REVIEW', mine('REVIEW'))).toEqual([]);
+    expect(own('COMMIT', [])).toEqual([]);
+    expect(own('COMMIT', [...mine('COMMIT'), 'src/a.ts'])).toEqual(['gate.tick-stale-commit']);
+    expect(own('REVIEW', [...mine('REVIEW'), 'src/a.ts'])).toEqual(['gate.stale-review']);
+    // Another ticket whose id starts with this one's id is not its record.
+    expect(own('COMMIT', ['accord/tickets/COMMIT0.md'])).toEqual(['gate.tick-stale-commit']);
+    expect(own('COMMIT', ['accord/tickets/COMMIT0/plan.md'])).toEqual(['gate.tick-stale-commit']);
+  });
+
   it('a missing host commit fails Done rather than reporting the check skipped (D-80 reasoning)', () => {
     const noGit = gateDone(loadSnapshot(input('gate-done')), 'PASS');
     const missing = noGit.findings.filter((f) => f.rule === 'gate.commit-missing');

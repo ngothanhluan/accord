@@ -78,6 +78,18 @@ describe('lane ticket flow', () => {
       expect(done.code).toBe(0);
       const after = JSON.parse((await run(['status', '--json'], repo)).out) as Record<string, unknown>[];
       expect(after[0]).toMatchObject({ id: 'T-1', stage: 'done', tasksDone: 2, tasksTotal: 2 });
+
+      // Committing only the ticket's own records moves HEAD but not the reviewed code: the gate still passes.
+      commitAll(repo);
+      const committed = await run(['gate', 'done', 'T-1'], repo);
+      expect(committed.out).not.toContain(' error ');
+      expect(committed.code).toBe(0);
+      // A product-file change after the review is stale.
+      writeFiles(repo, { 'src/more.ts': 'export const more = 1;\n' });
+      commitAll(repo);
+      const stale = await run(['gate', 'done', 'T-1'], repo);
+      expect(stale.code).toBe(1);
+      expect(stale.out).toContain('gate.stale-review');
     } finally {
       cleanup(repo);
     }

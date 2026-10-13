@@ -192,6 +192,32 @@ function gitBaselineFiles(root: string, wanted: Record<string, string[]>, ancest
   return out;
 }
 
+/**
+ * Spec §11: for each recorded commit that is an ancestor of HEAD, the paths changed from it to HEAD. The shas are
+ * `isSha`-guarded so a value cannot read as an option; a non-ancestor is left out, and any other git failure is an
+ * environment error naming the sha.
+ */
+function gitRecordsSince(root: string, shas: string[]): Record<string, string[]> {
+  const ancestors = gitAncestors(root, shas);
+  const out: Record<string, string[]> = {};
+  for (const sha of shas) {
+    if (!ancestors[sha]) continue;
+    try {
+      const raw = execFileSync('git', ['diff', '--name-only', '-z', '--no-renames', sha, 'HEAD', '--'], {
+        cwd: root,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+        maxBuffer: 64 * 1024 * 1024,
+      });
+      out[sha] = raw.split('\0').filter((p) => p !== '');
+    } catch (err) {
+      const stderr = String((err as { stderr?: string }).stderr ?? '').trim();
+      throw new UsageError(`git diff failed from recorded commit ${sha}` + (stderr === '' ? '' : '\n' + stderr));
+    }
+  }
+  return out;
+}
+
 export function loadFromFs(root: string): SnapshotInput {
   const tree = gitTree(root);
   const files = accordFiles(root);
@@ -217,6 +243,16 @@ export function loadFromFs(root: string): SnapshotInput {
     wanted[sha] = [...new Set([...(wanted[sha] ?? []), ...mine])];
   }
   const baselineFiles = ancestors === undefined ? {} : gitBaselineFiles(root, wanted, ancestors);
+  // A recorded sha equal to HEAD is included: its diff is empty and the rule never reads it.
+  const recorded = [
+    ...new Set(
+      [
+        ...Object.values(first.tickets).map((t) => t.frontmatter?.verified_commit),
+        ...Object.values(first.verifications).map((v) => v.frontmatter?.commit),
+      ].filter((c): c is string => c !== undefined && isSha(c)),
+    ),
+  ];
+  const recordsSince = recorded.length === 0 ? {} : gitRecordsSince(root, recorded);
   return {
     files,
     tree,
@@ -225,5 +261,6 @@ export function loadFromFs(root: string): SnapshotInput {
     ...(Object.keys(claims).length === 0 ? {} : { claims }),
     ...(ancestors === undefined ? {} : { ancestors }),
     ...(Object.keys(baselineFiles).length === 0 ? {} : { baselineFiles }),
+    ...(Object.keys(recordsSince).length === 0 ? {} : { recordsSince }),
   };
 }

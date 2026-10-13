@@ -185,5 +185,6 @@ export function loadSnapshot(input: SnapshotInput): RepoSnapshot {
     ...(input.claims === undefined ? {} : { claims: input.claims }),
     ...(input.ancestors === undefined ? {} : { ancestors: input.ancestors }),
     ...(input.baselineFiles === undefined ? {} : { baselineFiles: input.baselineFiles }),
+    ...(input.recordsSince === undefined ? {} : { recordsSince: input.recordsSince }),
   };
 }

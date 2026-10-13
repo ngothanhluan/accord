@@ -16,6 +16,9 @@ export interface SnapshotInput {
   ancestors?: Record<string, boolean>;
   // Host-supplied: baseline sha -> the plans' non-new `files:` paths that exist at that commit. Absent when the host supplies none.
   baselineFiles?: Record<string, string[]>;
+  // Host-supplied: a recorded verified_commit or verification commit, as written -> paths changed from it to HEAD.
+  // Present only when the sha is an ancestor of HEAD.
+  recordsSince?: Record<string, string[]>;
 }
 
 export interface Line {
@@ -160,4 +163,5 @@ export interface RepoSnapshot {
   claims?: Record<string, string>; // carried through from SnapshotInput
   ancestors?: Record<string, boolean>; // carried through from SnapshotInput
   baselineFiles?: Record<string, string[]>; // carried through from SnapshotInput
+  recordsSince?: Record<string, string[]>; // carried through from SnapshotInput
 }

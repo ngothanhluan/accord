@@ -4,6 +4,7 @@
 - task 1 done 415134636d5f
 - task 2 done 1bcd7b09e483
 - task 3 done 68e6e38fed4b
+- task 4 done 04075ee4e588
 
 ## Rulings
 
@@ -15,3 +16,4 @@
 - Ruling: the shared PLAN fixture's plan_hash becomes fnv1a64:061c24200fe9bbf9 — it follows from adding the markers, and work.test.ts checks it — cost if wrong: a one-line edit. (executor, task 2)
 - Ruling: lane-commands.test.ts `atBaseline` strips plan_hash before writing the plan — MAPPED_PLAN now equals PLAN, so gate plan would write nothing and the next commit would be empty — cost if wrong: Task 1's tests go red on that empty commit. (executor, task 2)
 - Ruling: on a recorded task whose verdict fails, task-done writes no tags and prints the already-recorded line as before — the brief's Interface — cost if wrong: none stated; review checks the order against the report's own description. (executor, task 3)
+- Ruling: the build skill names "a verify: id marked (@ac-n)" in one clause — the brief's sync test requires the build copy to contain "(@ac-" — cost if wrong: one clause to trim. (executor, task 4)

@@ -14,15 +14,25 @@ session and orchestrate: executors write the code.
 
 2. **Dispatch.** For each task in `plan.md` without a line in
    `accord/tickets/<id>/ledger.md`, in order, one at a time: run
-   `accord brief <id> <n>` into a file and dispatch a fresh
-   `accord-executor` with the path of that file only. Never pass chat
-   history.
+   `accord brief <id> <n>` into a file outside the working tree (for
+   example the system temp directory), so it is never committed, and
+   dispatch a fresh `accord-executor` with the path of that file only.
+   Never pass chat history.
 
 3. **Record.** When it reports, run the affected tests yourself: the
    `tests.affected` command from `accord/config.yml`, with `{files}`
    replaced by the paths on the task's `files:` line. Then run
-   `accord task-done <id> <n>` and work from what it prints. The
-   executor's claim alone records nothing.
+   `accord task-done <id> <n>`. The executor's claim alone records
+   nothing.
+   - It refuses because a `verify:` case failed or is missing: dispatch
+     a fresh executor with the same brief plus the reasons it printed.
+   - It refuses because the report is missing or older than the commit:
+     the `tests.affected` command does not write the report `tests.report`
+     names. Tell the owner; do not loop.
+   - It writes the ledger line: commit `accord/tickets/<id>/ledger.md`.
+
+   Copy every Ruling in the executor's report into
+   `accord/tickets/<id>/ledger.md` under `## Rulings`.
 
 4. **Blocked.**
    - `BLOCKED` with a question that touches intent, a veto, a criterion,
@@ -30,6 +40,10 @@ session and orchestrate: executors write the code.
    - `BLOCKED` on a test that seems wrong: a criterion test is the
      owner's, so ask the owner; any other test is a plan gap and goes back
      to `accord-plan`. Never edit the test yourself.
+   - `BLOCKED` on an architecture change: go to step 6. `BLOCKED` after
+     three failed attempts: ask the owner, with what was tried; never
+     dispatch a fresh executor for more tries. A new package: ask the
+     owner.
    - `BLOCKED: context`: dispatch a fresh executor with the same brief
      plus the diff and the ledger so far.
    - `NEEDS_CONTEXT`: answer, and dispatch again.

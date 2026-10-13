@@ -30,6 +30,10 @@ describe('mergeHooks', () => {
     expect(() => mergeHooks([], e)).toThrow(TypeError);
     expect(() => mergeHooks({ hooks: 3 }, e)).toThrow(TypeError);
   });
+  it('throws on a non-array value under a hook event, never replacing it', () => {
+    expect(() => mergeHooks({ hooks: { SessionStart: { matcher: 'startup' } } }, e)).toThrow(TypeError);
+    expect(() => mergeHooks({ hooks: { SubagentStart: 'x' } }, e)).toThrow(TypeError);
+  });
   it('commands carry no shell syntax', () => {
     for (const list of Object.values(e)) {
       for (const entry of list) {

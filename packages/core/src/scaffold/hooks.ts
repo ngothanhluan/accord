@@ -32,8 +32,9 @@ export function mergeHooks(existing: unknown, entries: HookEntries): Record<stri
   const hooks: Record<string, unknown> = { ...(existing.hooks as Record<string, unknown> | undefined) };
   for (const [event, added] of Object.entries(entries)) {
     const current = hooks[event];
+    if (current !== undefined && !Array.isArray(current)) throw new TypeError('settings is not a JSON object');
     const kept: unknown[] = [];
-    for (const entry of Array.isArray(current) ? current : []) {
+    for (const entry of current ?? []) {
       if (!isObject(entry) || !Array.isArray(entry.hooks)) {
         kept.push(entry); // not a shape accord wrote; leave it be
         continue;

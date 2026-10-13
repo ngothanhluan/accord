@@ -138,3 +138,27 @@ it('ac-5 the default window is 14 days and idle means older than it', () => {
   expect(byId(r, 'T-1')?.idleDays).toBeUndefined();
   expect(byId(r, 'T-2')?.idleDays).toBe(15);
 });
+
+it('ac-4 finished and closed tickets are never idle', () => {
+  const files: Record<string, string> = { 'accord/config.yml': CONFIG };
+  const add = (id: string, opts: Parameters<typeof laneTicket>[1] = {}) => {
+    Object.assign(files, approved({ ...files, [`accord/tickets/${id}.md`]: laneTicket(id, opts) }, id));
+    files[`accord/tickets/${id}/plan.md`] = PLAN;
+    files[`accord/tickets/${id}/ledger.md`] = '## Tasks\n- task 1 done abc1234\n';
+  };
+  add('T-DONE');
+  files['accord/tickets/T-DONE/ledger.md'] = '## Tasks\n- task 1 done abc1234\n- task 2 done abc1234\n';
+  files['accord/tickets/T-DONE/review.md'] = 'verdict: converged\n';
+  const hash = acHash(loadSnapshot({ files, tree: [] }).tickets['T-DONE'].scenarios) as string;
+  const t = 'accord/tickets/T-DONE.md';
+  files[t] = setFrontmatterKey(setFrontmatterKey(files[t], 'verified', ['ac-1', 'ac-2']), 'verified_hash', hash);
+  add('T-DROP', { frontmatter: ['status: dropped'] });
+  add('T-ARCH', { frontmatter: ['status: archived'] });
+  files['accord/tickets/T-FREE.md'] = laneTicket('T-FREE', { lane: '' }); // D-05: no lane, never idle
+  const ids = ['T-DONE', 'T-DROP', 'T-ARCH', 'T-FREE'];
+  const lastActivity = Object.fromEntries(ids.map((id) => [id, NOW - 100 * DAY]));
+  const r = statusRows(loadSnapshot({ files, tree: [], lastActivity }), NOW);
+  expect(r.map((x) => x.id).sort()).toEqual([...ids].sort());
+  expect(byId(r, 'T-DONE')?.stage).toBe('done');
+  expect(r.filter((x) => x.idleDays !== undefined)).toEqual([]);
+});

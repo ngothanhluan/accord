@@ -910,6 +910,28 @@ it('ac-5 task-done never overwrites a different test tag', async () => {
   }
 }, 30000);
 
+it('risk:complex-branching a recorded task with a failed mapped test and a missing tag is refused', async () => {
+  const ledgerText = '# Ledger\n\n## Tasks\n- task 1 done abc1234\n';
+  const ticket = laneTicket('T-1', { body: LANE_BODY.replace(' @test:export#writes-csv', '') });
+  const repo = makeLaneRepo({
+    'accord/tickets/T-1.md': ticket,
+    'accord/tickets/T-1/ledger.md': ledgerText,
+    [REPORT]: junit({ 'export#writes-csv': 'failed', 'export#escapes-commas': 'passed' }),
+  });
+  try {
+    commitAll(repo);
+    freshen(repo);
+    const before = ticketText(repo);
+    const r = await run(['task-done', 'T-1', '1'], repo);
+    expect(r.code).toBe(1);
+    for (const s of ['export#writes-csv', '@ac-1']) expect(r.out).toContain(s);
+    expect(ticketText(repo)).toBe(before);
+    expect(ledger(repo)).toBe(ledgerText);
+  } finally {
+    cleanup(repo);
+  }
+}, 30000);
+
 it('risk:complex-branching a re-run on a recorded task fills a missing tag', async () => {
   const ledgerText = '# Ledger\n\n## Tasks\n- task 1 done abc1234\n';
   const ticket = laneTicket('T-1', { body: LANE_BODY.replace(' @test:export#writes-csv', '') });

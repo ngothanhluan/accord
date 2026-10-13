@@ -68,6 +68,9 @@ export function taskDone(ctx: CommandContext, id: string, task: string): number 
     for (const w of tagged.written) ctx.stdout.write(`wrote @test:${w.test} on ${w.ac} in ${ticket.file}\n`);
   }
   if (next === undefined) {
+    // D-05: a recorded task whose mapped test is not passing must not look done while a tag is still unwritten.
+    const left = verdict.verdict === 'pass' ? [] : writeTestTags(readFileSync(ticketFile, 'utf8'), ticket.scenarios, maps).written;
+    if (left.length > 0) return refuse([...verdict.reasons, ...left.map((w) => `${w.ac} is left without @test:${w.test}`)]);
     ctx.stdout.write(`task ${n} of ${id} is already recorded in ${rel}\n`);
     return 0;
   }

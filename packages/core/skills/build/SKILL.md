@@ -29,10 +29,9 @@ session and orchestrate: executors write the code.
    - It refuses because the report is missing or older than the commit:
      the `tests.affected` command does not write the report `tests.report`
      names. Tell the owner; do not loop.
-   - It writes the ledger line: commit `accord/tickets/<id>/ledger.md`.
-
-   Copy every Ruling in the executor's report into
-   `accord/tickets/<id>/ledger.md` under `## Rulings`.
+   - It writes the ledger line: copy every Ruling in the executor's
+     report into `accord/tickets/<id>/ledger.md` under `## Rulings`, then
+     commit `accord/tickets/<id>/ledger.md`.
 
 4. **Blocked.**
    - `BLOCKED` with a question that touches intent, a veto, a criterion,

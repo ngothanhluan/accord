@@ -45,19 +45,19 @@ Feature: TAGS-1 build writes each scenario's test tag
     Then the line holding the @ac-1 tag also carries @test:T
     And the ticket's stage, ac_hash and approved_hash are unchanged
 
-  @ac-2
+  @ac-2 @test:packages/core/test/lane-plan.test.ts#ac-2-gate-plan-fails-when-a-scenario-has-no-test-mapped-to-it-anywhere-in-the-plan
   Scenario: gate plan fails when a scenario has no test mapped to it anywhere in the plan
     Given a lane M plan in which no verify entry in any task maps a test to scenarios @ac-2 and @ac-3, which are not @ui
     When the owner runs accord gate plan
     Then it fails with one reason naming @ac-2 and one naming @ac-3
 
-  @ac-3
+  @ac-3 @test:packages/core/test/lane-plan.test.ts#ac-3-gate-plan-fails-when-a-scenario-is-mapped-more-than-once
   Scenario: gate plan fails when a scenario is mapped more than once
     Given a lane M plan in which two verify entries, in the same task or in different tasks, map scenario @ac-1
     When the owner runs accord gate plan
     Then it fails with a reason naming @ac-1 and every test id mapped to it, even when the two ids are the same
 
-  @ac-4
+  @ac-4 @test:packages/cli/test/lane-commands.test.ts#ac-4-an-unmapped-verify-id-and-an-unmapped-ui-scenario-need-no-tag
   Scenario: an unmapped verify id and an unmapped ui scenario need no tag
     Given an otherwise valid lane M plan with a verify id whose entry names no scenario
     And a scenario tagged @ui that no verify entry maps

@@ -2,6 +2,7 @@
 
 ## Tasks
 - task 1 done 415134636d5f
+- task 2 done 1bcd7b09e483
 
 ## Rulings
 
@@ -10,3 +11,5 @@
 - Ruling: Task 3 marks write/testtag.ts and its test `(new)` although Task 1 creates them — gate plan resolves paths against the baseline, and `(new)` stays relative to it — cost if wrong: none; the gate's own message asks for it.
 - Ruling: plan step 6's "at most three revision rounds" counts revisions, so round 3's findings get a third revision and one more critic round — the same reading STALE-1 used (dogfood item 9), and both open findings are local test-text defects — cost if wrong: one critic round more than the skill intended.
 - Ruling: task-done reaches the plan's maps through `workOf(ctx.snapshot, id)?.plan`, the accessor taskVerdict already uses — the brief did not name one — cost if wrong: one line to swap. (executor, task 1)
+- Ruling: the shared PLAN fixture's plan_hash becomes fnv1a64:061c24200fe9bbf9 — it follows from adding the markers, and work.test.ts checks it — cost if wrong: a one-line edit. (executor, task 2)
+- Ruling: lane-commands.test.ts `atBaseline` strips plan_hash before writing the plan — MAPPED_PLAN now equals PLAN, so gate plan would write nothing and the next commit would be empty — cost if wrong: Task 1's tests go red on that empty commit. (executor, task 2)

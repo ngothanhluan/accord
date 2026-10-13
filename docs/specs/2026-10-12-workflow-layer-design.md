@@ -173,6 +173,9 @@ READY TO PICK UP
 
 - "Stopped at" is read from the ledger, so **Continue** resumes at the exact step after compaction or in a
   new session, and never re-runs completed tasks.
+- The anchored stage `intent` covers the approach too: Continue resumes at the owner's yes in
+  `accord-approach` when `## Approach` is written, otherwise in `accord-intent`; at `done` it says so and
+  offers the dashboard (phase 2).
 - `/accord <request>` goes straight to lane classification and the intent stage.
 - `accord next` lists tickets that passed Ready, are unblocked, and are unclaimed.
 - Session start prints one line ("1 in progress, 1 ready · type /accord"), not the dashboard.
@@ -248,9 +251,15 @@ findings and the round it came from; the run does not continue on a failing plan
 `plan.md` frontmatter carries `baseline:`, the commit the plan was written against. `accord gate plan`
 checks that it names a commit that is an ancestor of `HEAD`, and `accord review-package <id>` diffs from
 it when no base is given, so review always sees the whole ticket and nothing before it (phase 2).
+Only the first plan sets `baseline:`. A re-plan, after a change of course or a review plan gap, keeps
+`baseline:` and every task the ledger records with its number, numbers new or changed tasks after the
+highest, keeps `(new)` relative to the baseline, and does not re-run the baseline tests; the critic and
+`gate plan` run as usual (phase 2).
 
 Before build, `tests.full` runs on the baseline. Any failing case is shown to the owner, who decides
-whether it is fixed first or tracked as its own ticket; the agent never ignores it on its own.
+whether it is fixed first or tracked as its own ticket; the agent never ignores it on its own. The plan
+stage then ends with a commit whose subject is `plan: <id> ready`; build starts only when the last commit
+touching `plan.md` carries it, and otherwise the plan stage resumes (phase 2).
 
 ### Slicing by review mode
 
@@ -447,7 +456,8 @@ order `haiku`, `sonnet`, `opus`; an executor already on `opus` stays there.
 each with evidence for and against, ranked before any is tested; one hypothesis is always that the test or
 measurement itself is wrong; the first test is the cheapest probe that separates the top two; after one
 failed fix, one debugger per remaining hypothesis runs in parallel; session state written to a file so it
-survives compaction; grep every caller and fix the root cause once in shared code; the fix starts with a
+survives compaction (each episode in `debug.md` opens with `## Episode <n>` and stays open while the
+file's last `## ` heading is not `## Resolved`); grep every caller and fix the root cause once in shared code; the fix starts with a
 failing reproduction test; after three failed fixes, stop, question the architecture, and ask the owner.
 
 ## 13. Benchmark harness
@@ -481,7 +491,8 @@ measurements, and re-run when new models ship.
 - **Ruleset**, about 1 to 2 KB, injected on SessionStart (startup, resume, clear, compact) and SubagentStart
   (for `accord-*` agents): ask on intent, vetoes, and interfaces; the ladder and the never-cut list; scope is
   impact; evidence before claims; the test policy; the Ruling format; end each reply with what was skipped,
-  what was not checked, and any risk.
+  what was not checked, and any risk. The main session writes Rulings to the ledger, while an accord agent
+  lists them in its report and keeps the closing lines inside its own report format (phase 2).
 - **Anchor**: the same SessionStart hook runs `accord anchor` on `compact`, `resume`, and `clear` (section 6).
 - **Hooks are minimal.** No completion-claim Stop hook in this version: regex detection is brittle, and
   enforcement lives in `task-done`, the gates, and CI. Add one only with evidence it is needed.

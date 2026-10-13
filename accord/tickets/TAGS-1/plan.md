@@ -1,6 +1,6 @@
 ---
 baseline: 17119d785335ce0562fbf6eacc9557438afb2c06
-plan_hash: "fnv1a64:c8843edf9acf08e8"
+plan_hash: "fnv1a64:5794df5481a8f545"
 ---
 
 Review mode `outcome`: one branch, no slices. Report case ids follow the JUnit id shape in
@@ -21,11 +21,14 @@ verify: packages/core/test/work.test.ts#risk:parsing-verify-markers-map-the-test
 
 Tests first.
 - `packages/core/test/work.test.ts`: `it('risk:parsing verify markers map the test id before them and stay out of verify')`.
-  `parsePlan` on `## Task 1: A\nverify: a#x (@ac-1), b#y, c#z (@ac-2) (@ac-3), (@ac-4)\n` gives
+  `parsePlan` on `## Task 1: A\nverify: (@ac-4), a#x (@ac-1), b#y, c#z (@ac-2) (@ac-3)\n` gives
   `verify: ['a#x', 'b#y', 'c#z']` and `maps: [{ test: 'a#x', ac: '@ac-1' }, { test: 'c#z', ac: '@ac-2' },
-  { test: 'c#z', ac: '@ac-3' }]`; the leading `(@ac-4)` maps nothing, as a leading `(new)` marks nothing.
+  { test: 'c#z', ac: '@ac-3' }]`; the leading `(@ac-4)` has no id before it and maps nothing, as a leading
+  `(new)` marks nothing.
 - `packages/core/test/testtag.test.ts` (new), each building its scenarios with `loadSnapshot` on a ticket made
-  by `laneTicket` from `test/helpers/lane.ts` with the `@test:` tags removed from `LANE_BODY`:
+  by `laneTicket` from `test/helpers/lane.ts` with the `@test:` tags removed from `LANE_BODY`. Both assert on
+  the result's properties (`.text`, `.written`) one by one, never `toEqual` on the whole result object, so
+  Task 3 adding a `conflicts` property leaves them green:
   - `risk:parsing inserts the test tag right after the ac token and before a comment`: the `@ac-1` line reads
     `  @ac-1 # first` in the input; with the map `{ test: 'export#writes-csv', ac: '@ac-1' }` the output line is
     `  @ac-1 @test:export#writes-csv # first` and every other line is byte-identical. A map onto `@ac-9`, which
@@ -51,7 +54,8 @@ Tests first.
   Run `task-done T-1 1`: exit 0; the `@ac-1` line is `  @ac-1 @test:export#writes-csv`; the `@ac-2` line is
   unchanged; the two hash lines are byte-identical and the row's `stage` is unchanged.
 - `packages/cli/test/lane-commands.test.ts`: top-level `it('risk:complex-branching a failed mapped test writes no tag')`
-  (D-05). The same `atBaseline` set-up with `MAPPED_PLAN`, with the report recording `export#writes-csv` failed; `task-done T-1 1` exits 1 and the
+  (D-05). The same `atBaseline` set-up with `MAPPED_PLAN` and the same tagless ticket,
+  `laneTicket('T-1', { body: LANE_BODY without its two @test tags })`, so a misplaced write would show, with the report recording `export#writes-csv` failed; `task-done T-1 1` exits 1 and the
   ticket bytes are unchanged and `accord/tickets/T-1/ledger.md` does not exist. This is a guard test: it passes
   as soon as it is written, since nothing writes a tag before this task. Its red step is a mutation check: once
   the writer is wired, move the `writeTestTags` call and the ticket write in `task-done.ts` above the verdict

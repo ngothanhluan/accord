@@ -26,6 +26,8 @@ jobs:
       # which has no bin until it is installed and built. Other repositories run the published package.
       - run: npm ci
       - run: npm run build
+      # npm ci links bins before dist/cli.js exists, so it skips accord's; rebuild links it now.
+      - run: npm rebuild
       - name: lint and gate
         shell: bash
         env:

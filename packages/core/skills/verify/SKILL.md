@@ -13,8 +13,10 @@ judges, the owner decides.
 
 1. Run `accord anchor`.
 
-2. **Suite.** Run the `tests.full` command from `accord/config.yml` at the
-   current HEAD, so the report `tests.report` names is fresh.
+2. **Suite.** First commit everything, `review.md` included, so the
+   working tree is clean: that commit is the one verified. Run the
+   `tests.full` command from `accord/config.yml` at it, so the report
+   `tests.report` names is fresh.
 
 3. **Verifier.** Dispatch `accord-verifier` in a fresh context with the
    path of `accord/tickets/<id>.md`. It writes
@@ -43,10 +45,17 @@ judges, the owner decides.
      person reviews each slice's pull request.
    - Never tick `verified:` for the owner, and never write
      `verified_hash:` or `verified_commit:`.
+   - A `fail` or `blocked` criterion: show the owner. A failing criterion
+     goes back to `accord-build` as a fix, or the owner decides; it is
+     never ticked past.
 
-6. Run `accord gate done <id>` and work from what it prints.
+6. Run `accord gate done <id>` and work from what it prints. Leave
+   `verification.md` and the owner's tick uncommitted until it passes;
+   the notice that the review file has no author yet is expected and no
+   reason to commit earlier. When it passes, commit only
+   `accord/tickets/<id>.md` and `accord/tickets/<id>/verification.md`.
 
-7. When it passes, next: `/accord`, for the next ticket.
+7. Next: `/accord`, for the next ticket.
 
 ## Rules
 

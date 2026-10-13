@@ -19,7 +19,7 @@ For each criterion, check four levels:
 
 What you cannot prove at all four levels is `Result: blocked`, never pass: it needs a human. A level that fails is `Result: fail`. Only a criterion proven at every level is `Result: pass`. A `@ui` scenario without a browser available is `blocked`.
 
-Write `verification.md` in the format of the shipped `verification.md` template:
+Write `verification.md` in this format:
 
 ```markdown
 ---

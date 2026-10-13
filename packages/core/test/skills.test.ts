@@ -348,7 +348,7 @@ describe('render output invariants', () => {
     // label behind a bullet therefore teaches a shape whose value the parser drops. Every offender is
     // collected before the assertion, so a RED names all of them at once rather than aborting on the
     // first. Guarded against a vacuous pass by the `has files to check` case at the top of this describe.
-    const BULLETED_LABEL = /^\s*[-*+]\s+.*\b(?:Result|Evidence):/;
+    const BULLETED_LABEL = /^\s*(?:[-*+]|\d+[.)])\s+.*\b(?:Result|Evidence):/;
     const offenders: string[] = [];
     // The agents too: the verifier carries the format it writes (next case).
     for (const { path, text } of [...output, ...agentTargets(config({ runtimes: ['claude'] }))]) {
@@ -374,7 +374,8 @@ describe('render output invariants', () => {
     // A write verb immediately before the key. The owner ticks it; the verify skill is the one file that
     // says so, and says the agent never does.
     const WRITES = /\b(ticks?|writes?|records?)\s+`?verified/i;
-    const authors = output.filter((f) => WRITES.test(f.text)).map((f) => f.path);
+    const rendered = [...output, ...agentTargets(config({ runtimes: ['claude'] }))];
+    const authors = rendered.filter((f) => WRITES.test(f.text)).map((f) => f.path);
     expect([...new Set(authors.map((p) => baseOf(dirOf(p)) + '/' + baseOf(p)))]).toEqual(['accord-verify/SKILL.md']);
     expect(authors).toContain('.claude/skills/accord-verify/SKILL.md');
   });

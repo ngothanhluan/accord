@@ -17,3 +17,8 @@
 - Ruling: lane-commands.test.ts `atBaseline` strips plan_hash before writing the plan — MAPPED_PLAN now equals PLAN, so gate plan would write nothing and the next commit would be empty — cost if wrong: Task 1's tests go red on that empty commit. (executor, task 2)
 - Ruling: on a recorded task whose verdict fails, task-done writes no tags and prints the already-recorded line as before — the brief's Interface — cost if wrong: none stated; review checks the order against the report's own description. (executor, task 3)
 - Ruling: the build skill names "a verify: id marked (@ac-n)" in one clause — the brief's sync test requires the build copy to contain "(@ac-" — cost if wrong: one clause to trim. (executor, task 4)
+- Ruling: a re-run of task-done on a recorded task with a tag left to fill, whose mapped test failed or is missing, exits 1 naming the test and the scenario and writes nothing; with no tag left to fill it keeps "already recorded" and exit 0 — the owner's reading of D-05, "Từ chối rõ ràng" — cost if wrong: one branch to revert.
+
+## Deferred
+
+- Nice (review round 1): a tag conflict on an already-recorded task prints "task N of ID is not done:" although the ledger records it done; the reason line still names @ac-n, U and T — packages/cli/src/commands/task-done.ts:57-59,64-66.

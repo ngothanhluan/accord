@@ -141,7 +141,8 @@ the contract that is tested and verified. `## Plan` moves out of the ticket into
 - **Dependencies.** `depends_on: [T-12]`. Lint fails on unknown ids and cycles. A ticket counts as done
   when its records say done in the tree the command runs on; being merged is implied by its presence in
   that tree.
-- **Claim.** Starting a ticket means pushing a branch `t/<id>`. `accord status` reads remote branches and
+- **Claim.** Starting a ticket means pushing a branch `t/<id>` with one commit of its own (the new ticket
+  file, or an empty `claim: <id>` commit on pick up), so its author is the claimant. `accord status` reads remote branches and
   their commit authors to show who holds what. Nothing is committed to the default branch to claim. When a
   tracker adapter is configured, its assignee is used instead.
 - **Waves.** Within an epic, stories without unmet dependencies form a wave and may run in parallel.
@@ -158,7 +159,7 @@ never infers state.
 Hello an                                      (from git config)
 
 YOURS IN PROGRESS
-  T-12  Login API          build 3/5 · stopped at: review round 2
+  T-12  Login API          build 3/5
 
 TEAM
   T-15  Session store      done
@@ -166,12 +167,12 @@ TEAM
   T-18  Login UI           blocked by T-12
 
 READY TO PICK UP
-  T-21  Password reset     M · passed Ready
+  T-21  Password reset     M
 
-→ [Continue T-12]  [Pick up T-21]  [New request]  [Details…]
+→ [Continue T-12]  [Pick up T-21]  [New request]
 ```
 
-- "Stopped at" is read from the ledger, so **Continue** resumes at the exact step after compaction or in a
+- The dashboard shows no position; on **Continue**, `accord anchor` reads it from the ledger, so it resumes at the exact step after compaction or in a
   new session, and never re-runs completed tasks.
 - The anchored stage `intent` covers the approach too: Continue resumes at the owner's yes in
   `accord-approach` when `## Approach` is written, otherwise in `accord-intent`; at `done` it says so and

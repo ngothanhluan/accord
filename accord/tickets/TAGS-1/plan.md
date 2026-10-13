@@ -1,6 +1,6 @@
 ---
 baseline: 17119d785335ce0562fbf6eacc9557438afb2c06
-plan_hash: "fnv1a64:6787f2c2f18f8d92"
+plan_hash: "fnv1a64:df4dd1f2c3bc0b8b"
 ---
 
 Review mode `outcome`: one branch, no slices. Report case ids follow the JUnit id shape in
@@ -13,9 +13,9 @@ task that changes core or CLI source ends with `npm run build`; CLI tests import
 so rebuild core (`npm run build -w packages/core`) before running a CLI test.
 
 ## Task 1: Wiring: a verify marker maps a test to a scenario and task-done writes its tag
-covers: @ac-1, D-01
+covers: @ac-1, D-01, D-05
 files: packages/core/src/model/snapshot.ts, packages/core/src/load/work.ts, packages/core/src/write/testtag.ts (new), packages/core/src/index.ts, packages/cli/src/commands/task-done.ts, packages/core/test/work.test.ts, packages/core/test/testtag.test.ts (new), packages/cli/test/lane-commands.test.ts
-verify: packages/core/test/work.test.ts#verify-markers-map-the-test-id-before-them-and-stay-out-of-verify, packages/core/test/testtag.test.ts#inserts-the-test-tag-right-after-the-ac-token-and-before-a-comment, packages/core/test/testtag.test.ts#reads-crlf-and-writes-lf, packages/cli/test/lane-commands.test.ts#ac-1-task-done-writes-the-tag-of-the-scenario-a-verify-entry-proves (@ac-1)
+verify: packages/core/test/work.test.ts#verify-markers-map-the-test-id-before-them-and-stay-out-of-verify, packages/core/test/testtag.test.ts#inserts-the-test-tag-right-after-the-ac-token-and-before-a-comment, packages/core/test/testtag.test.ts#reads-crlf-and-writes-lf, packages/cli/test/lane-commands.test.ts#ac-1-task-done-writes-the-tag-of-the-scenario-a-verify-entry-proves (@ac-1), packages/cli/test/lane-commands.test.ts#a-failed-mapped-test-writes-no-tag
 
 Tests first.
 - `packages/core/test/work.test.ts`: `it('verify markers map the test id before them and stay out of verify')`.
@@ -30,15 +30,26 @@ Tests first.
     the ticket lacks, changes nothing and is absent from `written`.
   - `reads crlf and writes lf`: the same ticket with `\r\n` line endings and a BOM gives the LF text of the
     first case, with no BOM.
+- `packages/cli/test/lane-commands.test.ts`, a top-level helper first, declared outside every `describe` so
+  top-level tests reach it (the `committed` and `withBaseline` helpers sit inside describes):
+  `atBaseline(extra: Record<string, string>, plan: string): Promise<string>`. It runs `makeLaneRepo(extra)`,
+  `approve T-1`, `gate ready T-1` (its exit code is not asserted; on a ticket it passes, it writes `ac_hash`),
+  `first = commitAll(repo)`, writes `accord/tickets/T-1/plan.md` as `plan.replace('abc1234', first)`,
+  `commitAll`, asserts `gate plan T-1` exits 0 (it writes `plan_hash` against a real baseline, so
+  `gate.plan-baseline-unknown` never fires), `commitAll`, `freshen`, and returns the repository path.
 - `packages/cli/test/lane-commands.test.ts`: top-level
-  `it('ac-1 task-done writes the tag of the scenario a verify entry proves')`. `makeLaneRepo` with
-  `accord/tickets/T-1.md` set to `laneTicket('T-1', { body: LANE_BODY without its two @test tags })` and
-  `accord/tickets/T-1/plan.md` set to `PLAN` with `verify: export#writes-csv` replaced by
-  `verify: export#writes-csv (@ac-1)`. Run `approve T-1`, `gate ready T-1` and `gate plan T-1` (the last writes
-  `plan_hash`), `commitAll`, `freshen`, record the `approved_hash:` and `ac_hash:` lines and the `stage` of
-  T-1's row in `status --json`. Run `task-done T-1 1`: exit 0; the `@ac-1` line is
-  `  @ac-1 @test:export#writes-csv`; the `@ac-2` line is unchanged; the two hash lines are byte-identical and
-  the row's `stage` is unchanged.
+  `it('ac-1 task-done writes the tag of the scenario a verify entry proves')`. `atBaseline` with
+  `accord/tickets/T-1.md` set to `laneTicket('T-1', { body: LANE_BODY without its two @test tags })` and the
+  plan `PLAN` with `verify: export#writes-csv` replaced by `verify: export#writes-csv (@ac-1)`. Record the
+  `approved_hash:` and `ac_hash:` lines (assert both exist) and the `stage` of T-1's row in `status --json`.
+  Run `task-done T-1 1`: exit 0; the `@ac-1` line is `  @ac-1 @test:export#writes-csv`; the `@ac-2` line is
+  unchanged; the two hash lines are byte-identical and the row's `stage` is unchanged.
+- `packages/cli/test/lane-commands.test.ts`: top-level `it('a failed mapped test writes no tag')` (D-05). The same
+  `atBaseline` set-up, with the report recording `export#writes-csv` failed; `task-done T-1 1` exits 1 and the
+  ticket bytes are unchanged and `accord/tickets/T-1/ledger.md` does not exist. This is a guard test: it passes
+  as soon as it is written, since nothing writes a tag before this task. Its red step is a mutation check: once
+  the writer is wired, move the `writeTestTags` call and the ticket write in `task-done.ts` above the verdict
+  check, see this test fail, and restore the order.
 
 Interface:
 - `PlanTask.maps: { test: string; ac: string }[]` in `model/snapshot.ts`, `ac` written as in the marker without
@@ -87,11 +98,21 @@ Tests first, top-level in `packages/core/test/lane-plan.test.ts`, using its `bas
   `gate.plan-map-invalid` finding naming task, test id and `@ac-9` (D-05); with `@ac-2` tagged `@ui` and
   mapped, a `gate.plan-map-invalid` finding naming `@ac-2` as a @ui scenario (D-06).
 In `packages/cli/test/lane-commands.test.ts`, top-level
-`it('ac-4 an unmapped verify id and an unmapped ui scenario need no tag')`: the ticket has no `@test:` tags and
-`@ac-2` carries `@ui`; the plan maps `export#writes-csv (@ac-1)` in task 1 and leaves task 2's
-`verify: export#escapes-commas` unmarked. `approve`, `gate plan` exits 0; `commitAll`, `freshen`;
-`task-done T-1 2` exits 0, the ledger gains task 2, and the ticket is byte-identical. The gate half fails before
-this task only if the unmapped rule wrongly counts @ui; the task-done half guards Task 1's skip.
+`it('ac-4 an unmapped verify id and an unmapped ui scenario need no tag')`: through Task 1's top-level
+`atBaseline` helper (which asserts `gate plan` exits 0), with a ticket that has no `@test:` tags and whose
+`@ac-2` line is `  @ac-2 @ui`, and a plan that maps `export#writes-csv (@ac-1)` in task 1 and leaves task 2's
+`verify: export#escapes-commas` unmarked. `task-done T-1 2` exits 0, the ledger gains task 2, and the ticket is
+byte-identical. This is a guard test: it passes as soon as it is written, since no map rule exists yet and
+Task 1 writes nothing for an unmapped id. Its red step is a mutation check: once `testUnmapped` is in place,
+drop its `@ui` exclusion (the `tags` filter), see this test fail at `gate plan`, and restore it.
+
+The existing test `a passing gate plan writes plan_hash once; an edited plan stops task-done until gate plan
+runs again` (in the `plan contract checks` describe) is this task's to keep green: its edit at the line
+`written.replace('verify: export#writes-csv', 'verify: export#escapes-commas')` would map `@ac-1` to
+`export#escapes-commas` while `LANE_BODY` tags `@ac-1` with `@test:export#writes-csv`, which Task 3 turns into a
+conflict and exit 1. Change that edit to one that alters only prose, so the maps and `LANE_BODY`'s `@test:` ids
+stay in agreement: `written.replace('Add a csv branch to the writer.', 'Add a csv branch to the report writer.')`.
+The test's assertions are unchanged.
 
 Interface, in `gate/plan.ts`, each check returning nothing for a non-lane ticket or a plan with no task
 (`planMissing` and `planEmpty` own those):
@@ -111,7 +132,8 @@ Fixture: in `test/helpers/lane.ts`, `PLAN` task 1 becomes `verify: export#writes
 
 Must not change: every existing rule and reason in `gate/plan.ts`; every existing case in `lane-plan.test.ts`,
 `work.test.ts`, `task.test.ts` and `lane-commands.test.ts` passes with the new `PLAN` (the cases that
-`replace` a `verify: export#...` prefix keep the marker that follows it, and still pass); the line numbers
+`replace` a `verify: export#...` prefix keep the marker that follows it, and still pass, apart from the one edit
+named above); the line numbers
 `gate.task-file-unknown` reports (8 and 14), since markers sit on existing lines.
 
 End by running `npm run build`.
@@ -119,23 +141,22 @@ End by running `npm run build`.
 ## Task 3: task-done refuses a different tag and a re-run fills a missing one
 covers: @ac-5, D-05
 files: packages/core/src/write/testtag.ts (new), packages/cli/src/commands/task-done.ts, packages/core/test/testtag.test.ts (new), packages/cli/test/lane-commands.test.ts
-verify: packages/cli/test/lane-commands.test.ts#ac-5-task-done-never-overwrites-a-different-test-tag (@ac-5), packages/core/test/testtag.test.ts#reports-a-conflict-when-the-scenario-carries-a-different-test-tag, packages/cli/test/lane-commands.test.ts#a-re-run-on-a-recorded-task-fills-a-missing-tag, packages/cli/test/lane-commands.test.ts#a-failed-mapped-test-writes-no-tag
+verify: packages/cli/test/lane-commands.test.ts#ac-5-task-done-never-overwrites-a-different-test-tag (@ac-5), packages/core/test/testtag.test.ts#reports-a-conflict-when-the-scenario-carries-a-different-test-tag, packages/cli/test/lane-commands.test.ts#a-re-run-on-a-recorded-task-fills-a-missing-tag
 
 Tests first.
 - `packages/core/test/testtag.test.ts`: `it('reports a conflict when the scenario carries a different test tag')`:
   `@ac-1` carries `@test:old#u`, the map is `{ test: 'export#writes-csv', ac: '@ac-1' }`; the result has
   `conflicts: [{ ac: '@ac-1', existing: 'old#u', test: 'export#writes-csv' }]`, `written: []`, and the input
   text unchanged.
-- `packages/cli/test/lane-commands.test.ts`, all top-level, on `makeLaneRepo`:
+- `packages/cli/test/lane-commands.test.ts`, all top-level, on `makeLaneRepo` then `commitAll` and `freshen`
+  (Task 2's `PLAN` carries a `plan_hash` matching its body, and task-done reads no baseline):
   - `ac-5 task-done never overwrites a different test tag`: the ticket's `@ac-1` line carries
-    `@test:export#old-name`, the report has `export#writes-csv` passed, `PLAN` maps it to `@ac-1`. After
-    `commitAll` and `freshen`, `task-done T-1 1` exits 1, stdout names `@ac-1`, `export#old-name` and
+    `@test:export#old-name`, the report has `export#writes-csv` passed, `PLAN` maps it to `@ac-1`.
+    `task-done T-1 1` exits 1, stdout names `@ac-1`, `export#old-name` and
     `export#writes-csv`; the ticket bytes are unchanged and `accord/tickets/T-1/ledger.md` does not exist.
   - `a re-run on a recorded task fills a missing tag`: the ticket lacks its `@test:` tags, the ledger already
     holds `- task 1 done abc1234`, the report is fresh; `task-done T-1 1` exits 0, prints the `wrote` line and
     the already-recorded line, the `@ac-1` line gains `@test:export#writes-csv`, the ledger is byte-identical.
-  - `a failed mapped test writes no tag`: the ticket lacks its `@test:` tags, the report records
-    `export#writes-csv` failed; `task-done T-1 1` exits 1 and the ticket and ledger are unchanged.
 
 Interface:
 - `writeTestTags` returns `{ text, written, conflicts }`; a scenario whose tags hold a `@test:` tag other than
@@ -158,7 +179,7 @@ needs a re-run; on any ticket whose tasks were recorded before the writer shippe
 ## Task 4: The plan, build, ticket and spec text name the marker
 covers: D-03, D-04
 files: packages/core/agents/planner.md, packages/core/agents/executor.md, packages/core/skills/plan/SKILL.md, packages/core/skills/build/SKILL.md, packages/core/templates/ticket-lane.md, docs/specs/2026-10-12-workflow-layer-design.md, packages/core/src/generated/agents.ts, packages/core/src/generated/skills.ts, packages/core/src/generated/templates.ts, .claude/agents/accord-planner.md, .claude/agents/accord-executor.md, .claude/skills/accord-plan/SKILL.md, .claude/skills/accord-build/SKILL.md, packages/cli/test/skills-sync.test.ts
-verify: packages/cli/test/skills-sync.test.ts#risk:drift-the-committed-plan-and-build-copies-carry-the-marker-wording, packages/core/test/agents.test.ts#rendered-agents->-generated-module-matches-agents/-(drift), packages/core/test/skills.test.ts#generated-module->-generated-module-matches-skills/-(drift), packages/core/test/templates.test.ts#generated-module->-generated-module-matches-templates/-(drift)
+verify: packages/cli/test/skills-sync.test.ts#risk:drift-the-committed-plan-and-build-copies-carry-the-marker-wording, packages/core/test/agents.test.ts#rendered-agents->-generated-module-matches-agents/-(drift), packages/core/test/skills.test.ts#generated-module->-generated-module-matches-skills/-(drift), packages/core/test/templates.test.ts#generated-module->-generated-module-matches-templates/-(drift), packages/core/test/skills.test.ts#render-output-invariants->-every-SKILL.md-is-at-most-MAX_SKILL_BYTES-bytes-(spec-§2)
 
 Test first, in `packages/cli/test/skills-sync.test.ts`, top-level
 `it('risk:drift the committed plan and build copies carry the marker wording')`, reading with
@@ -172,12 +193,14 @@ Text, naming no other tool:
   scenario is mapped. Update the example `verify:` line to show one marker.
 - `agents/executor.md`: `(@ac-n)` on a verify line is a marker, not part of the test name; a test name never
   starts with `@` and never holds `(@ac-n)`.
-- `skills/plan/SKILL.md`: `accord gate plan` refuses a plan where a non-@ui scenario has no map or more than one,
-  or a map names a missing or @ui scenario.
-- `skills/build/SKILL.md` step 3: `accord task-done` writes the scenario's `@test:` tag; commit the ticket
-  together with the ledger. A refusal naming a scenario that already carries a different `@test:` tag goes to the
-  owner, never to an executor or `accord-debug`. On a ticket whose recorded tasks predate the writer, run
-  `accord task-done` again for each recorded task to fill missing tags.
+- `skills/plan/SKILL.md`: one instruction only, write `(@ac-n)` after the verify id of the test that proves
+  scenario `@ac-n`. It does not list what `accord gate plan` checks: a skill names the command and the command's
+  output states its rules (SKILL-04, D-148, the `no rendered text restates a rule the CLI enforces` case in
+  `packages/core/test/skills.test.ts`).
+- `skills/build/SKILL.md` step 3, under the same discipline: when `accord task-done` writes the ledger line,
+  commit the ticket together with the ledger; when it refuses on a scenario that already carries a different
+  `@test:` tag, ask the owner, never an executor or `accord-debug`; on a ticket whose recorded tasks predate the
+  writer, run `accord task-done` again for each recorded task. No list of what task-done checks.
 - `templates/ticket-lane.md` line 32 comment: the `@test:<id>` tag is written by `accord task-done` from the
   plan's `(@ac-n)` marker, not by hand; it stays outside the AC hash.
 - The spec, §7 Plan (the `verify:` line, the marker, the three new gate rules) and §8 Build (`task-done` writes
@@ -186,7 +209,10 @@ Text, naming no other tool:
 Then run, in order: `npm run gen` (rewrites the three generated modules), `npm run build` (skills sync renders
 from the CLI's built output), and `node packages/cli/dist/cli.js skills sync` (the workspace build, never an
 `accord` on PATH), which rewrites the `.claude/` copies. Each rendered SKILL.md stays at or under
-`MAX_SKILL_BYTES` (5120) in `packages/core/test/skills.test.ts`; keep the added wording short.
+`MAX_SKILL_BYTES` (5120) in `packages/core/test/skills.test.ts`; keep the added wording short. The
+`render output invariants` case `no rendered text restates a rule the CLI enforces (SKILL-04, D-148)` must also
+pass; it is not on the verify line because its report id holds a comma, and the verify line splits tokens on
+commas.
 
 Must not change: every other rule in the planner, executor and the two skills; the other ticket templates;
 D-04 keeps `accord/tests-baseline.txt` setup, rejecting `@` in a verify id, and phase 2 config setup out of this

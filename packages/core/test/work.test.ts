@@ -160,14 +160,12 @@ describe('loadSnapshot work records', () => {
   });
 });
 
-describe('verify markers', () => {
-  it('risk:parsing verify markers map the test id before them and stay out of verify', () => {
-    const { plan } = parsePlan('p.md', '## Task 1: A\nverify: (@ac-4), a#x (@ac-1), b#y, c#z (@ac-2) (@ac-3)\n');
-    expect(plan.tasks[0].verify).toEqual(['a#x', 'b#y', 'c#z']);
-    expect(plan.tasks[0].maps).toEqual([
-      { test: 'a#x', ac: '@ac-1' },
-      { test: 'c#z', ac: '@ac-2' },
-      { test: 'c#z', ac: '@ac-3' },
-    ]);
-  });
+it('risk:parsing verify markers map the test id before them and stay out of verify', () => {
+  const { plan } = parsePlan('p.md', '## Task 1: A\nverify: (@ac-4), a#x (@ac-1), b#y, c#z (@ac-2) (@ac-3)\n');
+  expect(plan.tasks[0].verify).toEqual(['a#x', 'b#y', 'c#z']);
+  expect(plan.tasks[0].maps).toEqual([
+    { test: 'a#x', ac: '@ac-1' },
+    { test: 'c#z', ac: '@ac-2' },
+    { test: 'c#z', ac: '@ac-3' },
+  ]);
 });

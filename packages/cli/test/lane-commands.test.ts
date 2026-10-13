@@ -4,7 +4,7 @@ import { existsSync, readFileSync, rmSync, statSync, utimesSync } from 'node:fs'
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { cleanup, commitAll, gitRun, makeEmptyRepo, makeLaneRepo, makeRepo, run, writeFiles } from './helpers/repo.js';
-import { CONFIG, junit, laneTicket, PLAN, REPORT } from '../../../test/helpers/lane.js';
+import { CONFIG, junit, LANE_BODY, laneTicket, PLAN, REPORT } from '../../../test/helpers/lane.js';
 import { commitSeconds } from '../src/commands/task-done.js';
 
 const ticketText = (repo: string, id = 'T-1') => readFileSync(join(repo, 'accord', 'tickets', id + '.md'), 'utf8');
@@ -756,7 +756,7 @@ describe('plan contract checks', () => {
       expect(statSync(planPath(repo)).mtimeMs).toBe(mtime);
 
       commitAll(repo);
-      writeFiles(repo, { 'accord/tickets/T-1/plan.md': written.replace('verify: export#writes-csv', 'verify: export#escapes-commas') });
+      writeFiles(repo, { 'accord/tickets/T-1/plan.md': written.replace('Add a csv branch to the writer.', 'Add a csv branch to the report writer.') });
       const stale = await run(['task-done', 'T-1', '1'], repo);
       expect(stale.code).toBe(1);
       expect(stale.out + stale.err).toContain('plan.md changed after accord gate plan last passed');
@@ -830,3 +830,122 @@ describe('plan contract checks', () => {
     }
   });
 });
+
+const TAGLESS = laneTicket('T-1', { body: LANE_BODY.replace(' @test:export#writes-csv', '').replace(' @test:export#escapes-commas', '') });
+const MAPPED_PLAN = PLAN.replace(/verify: export#writes-csv[^\n]*\n/, 'verify: export#writes-csv (@ac-1)\n');
+
+async function atBaseline(extra: Record<string, string>, plan: string): Promise<string> {
+  const repo = makeLaneRepo(extra);
+  await run(['approve', 'T-1'], repo);
+  await run(['gate', 'ready', 'T-1'], repo);
+  const first = commitAll(repo);
+  writeFiles(repo, { 'accord/tickets/T-1/plan.md': plan.replace('abc1234', first).replace(/plan_hash: .*\n/, '') }); // gate plan writes the hash
+  commitAll(repo);
+  expect((await run(['gate', 'plan', 'T-1'], repo)).code).toBe(0);
+  commitAll(repo);
+  freshen(repo);
+  return repo;
+}
+
+it('ac-1 task-done writes the tag of the scenario a verify entry proves', async () => {
+  const repo = await atBaseline({ 'accord/tickets/T-1.md': TAGLESS }, MAPPED_PLAN);
+  try {
+    const before = ticketText(repo);
+    const hashes = (t: string) => [/^approved_hash:.*$/m.exec(t)?.[0], /^ac_hash:.*$/m.exec(t)?.[0]];
+    expect(hashes(before).every((h) => h !== undefined)).toBe(true);
+    const row = async () => JSON.parse((await run(['status', '--json'], repo)).out).find((r: { id: string }) => r.id === 'T-1')?.stage;
+    const stage = await row();
+    const r = await run(['task-done', 'T-1', '1'], repo);
+    expect(r.code).toBe(0);
+    const after = ticketText(repo);
+    expect(after).toContain('\n  @ac-1 @test:export#writes-csv\n');
+    expect(after).toContain('\n  @ac-2\n');
+    expect(hashes(after)).toEqual(hashes(before));
+    expect(await row()).toBe(stage);
+  } finally {
+    cleanup(repo);
+  }
+}, 30000);
+
+it('risk:complex-branching a failed mapped test writes no tag', async () => {
+  const repo = await atBaseline({ 'accord/tickets/T-1.md': TAGLESS, [REPORT]: junit({ 'export#writes-csv': 'failed', 'export#escapes-commas': 'passed' }) }, MAPPED_PLAN);
+  try {
+    const before = ticketText(repo);
+    expect((await run(['task-done', 'T-1', '1'], repo)).code).toBe(1);
+    expect(ticketText(repo)).toBe(before);
+    expect(existsSync(LEDGER_PATH(repo))).toBe(false);
+  } finally {
+    cleanup(repo);
+  }
+}, 30000);
+
+it('ac-4 an unmapped verify id and an unmapped ui scenario need no tag', async () => {
+  const ticket = laneTicket('T-1', { body: LANE_BODY.replace('@ac-2 @test:export#escapes-commas', '@ac-2 @ui').replace(' @test:export#writes-csv', '') });
+  const plan = MAPPED_PLAN.replace(/verify: export#escapes-commas[^\n]*\n/, 'verify: export#escapes-commas\n');
+  const repo = await atBaseline({ 'accord/tickets/T-1.md': ticket }, plan);
+  try {
+    const before = ticketText(repo);
+    expect((await run(['task-done', 'T-1', '2'], repo)).code).toBe(0);
+    expect(readFileSync(LEDGER_PATH(repo), 'utf8')).toContain('task 2 done');
+    expect(ticketText(repo)).toBe(before);
+  } finally {
+    cleanup(repo);
+  }
+}, 30000);
+
+it('ac-5 task-done never overwrites a different test tag', async () => {
+  const ticket = laneTicket('T-1', { body: LANE_BODY.replace('@test:export#writes-csv', '@test:export#old-name') });
+  const repo = makeLaneRepo({ 'accord/tickets/T-1.md': ticket });
+  try {
+    commitAll(repo);
+    freshen(repo);
+    const before = ticketText(repo);
+    const r = await run(['task-done', 'T-1', '1'], repo);
+    expect(r.code).toBe(1);
+    for (const s of ['@ac-1', 'export#old-name', 'export#writes-csv']) expect(r.out).toContain(s);
+    expect(ticketText(repo)).toBe(before);
+    expect(existsSync(LEDGER_PATH(repo))).toBe(false);
+  } finally {
+    cleanup(repo);
+  }
+}, 30000);
+
+it('risk:complex-branching a recorded task with a failed mapped test and a missing tag is refused', async () => {
+  const ledgerText = '# Ledger\n\n## Tasks\n- task 1 done abc1234\n';
+  const ticket = laneTicket('T-1', { body: LANE_BODY.replace(' @test:export#writes-csv', '') });
+  const repo = makeLaneRepo({
+    'accord/tickets/T-1.md': ticket,
+    'accord/tickets/T-1/ledger.md': ledgerText,
+    [REPORT]: junit({ 'export#writes-csv': 'failed', 'export#escapes-commas': 'passed' }),
+  });
+  try {
+    commitAll(repo);
+    freshen(repo);
+    const before = ticketText(repo);
+    const r = await run(['task-done', 'T-1', '1'], repo);
+    expect(r.code).toBe(1);
+    for (const s of ['export#writes-csv', '@ac-1']) expect(r.out).toContain(s);
+    expect(ticketText(repo)).toBe(before);
+    expect(ledger(repo)).toBe(ledgerText);
+  } finally {
+    cleanup(repo);
+  }
+}, 30000);
+
+it('risk:complex-branching a re-run on a recorded task fills a missing tag', async () => {
+  const ledgerText = '# Ledger\n\n## Tasks\n- task 1 done abc1234\n';
+  const ticket = laneTicket('T-1', { body: LANE_BODY.replace(' @test:export#writes-csv', '') });
+  const repo = makeLaneRepo({ 'accord/tickets/T-1.md': ticket, 'accord/tickets/T-1/ledger.md': ledgerText });
+  try {
+    commitAll(repo);
+    freshen(repo);
+    const r = await run(['task-done', 'T-1', '1'], repo);
+    expect(r.code).toBe(0);
+    expect(r.out).toContain('wrote @test:export#writes-csv on @ac-1');
+    expect(r.out).toContain('task 1 of T-1 is already recorded');
+    expect(ticketText(repo)).toContain('\n  @ac-1 @test:export#writes-csv\n');
+    expect(ledger(repo)).toBe(ledgerText);
+  } finally {
+    cleanup(repo);
+  }
+}, 30000);

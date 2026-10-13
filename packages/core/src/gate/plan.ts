@@ -141,6 +141,51 @@ export const refUnknown: GateRule['check'] = (snapshot, id) => {
   );
 };
 
+const uiTags = (t: Ticket): Set<string> =>
+  new Set(t.scenarios.flatMap((s) => (s.acTag !== undefined && s.tags.includes('@ui') ? ['@' + s.acTag] : [])));
+const mapsOf = (snapshot: RepoSnapshot, id: string) => tasksOf(snapshot, id).flatMap((x) => x.maps);
+
+export const testUnmapped: GateRule['check'] = (snapshot, id) => {
+  const t = laneTicket(snapshot, id);
+  const tasks = tasksOf(snapshot, id);
+  if (t === undefined || tasks.length === 0) return [];
+  const mapped = new Set(mapsOf(snapshot, id).map((m) => m.ac));
+  const ui = uiTags(t);
+  return acTags(t)
+    .filter((a) => !ui.has(a) && !mapped.has(a))
+    .map((a) => ({ file: planFile(id), reason: `${a} is mapped to no test; write (${a}) after the verify id that proves it` }));
+};
+
+export const testRepeated: GateRule['check'] = (snapshot, id) => {
+  if (laneTicket(snapshot, id) === undefined) return [];
+  const maps = mapsOf(snapshot, id);
+  return [...new Set(maps.map((m) => m.ac))].flatMap((a) => {
+    const tests = maps.filter((m) => m.ac === a).map((m) => m.test);
+    return tests.length < 2
+      ? []
+      : [{ file: planFile(id), reason: `${a} is mapped more than once: ${tests.join(', ')}` }];
+  });
+};
+
+export const mapInvalid: GateRule['check'] = (snapshot, id) => {
+  const t = laneTicket(snapshot, id);
+  if (t === undefined) return [];
+  const known = new Set(acTags(t));
+  const ui = uiTags(t);
+  return tasksOf(snapshot, id).flatMap((x) =>
+    x.maps.flatMap((m) => {
+      const why = !known.has(m.ac)
+        ? `which is not a scenario of ${id}`
+        : ui.has(m.ac)
+          ? 'a @ui scenario; a @ui scenario carries no @test tag'
+          : undefined;
+      return why === undefined
+        ? []
+        : [{ file: planFile(id), line: x.line, reason: `task ${x.n} maps ${m.test} to ${m.ac}, ${why}` }];
+    }),
+  );
+};
+
 /**
  * Spec §7: one finding per line, title included, naming the first deferral word on it. A `covers:`,
  * `files:` or `verify:` line is matched token by token, so `files: TBD` defers and `src/later.ts` does not.

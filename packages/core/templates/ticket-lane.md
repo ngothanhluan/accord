@@ -29,7 +29,7 @@ ui: false
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.
-A scenario that is not @ui also carries one @test:<id> tag naming the one test that proves it; add it during build, it is outside the AC hash. -->
+A scenario that is not @ui also carries one @test:<id> tag naming the one test that proves it; `accord task-done` writes it from the plan's `(@ac-n)` marker, not by hand; it is outside the AC hash. -->
 ```gherkin
 Feature: TICKET-ID
 

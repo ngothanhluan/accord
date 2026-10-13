@@ -596,3 +596,9 @@ it('risk:drift the committed /accord copy carries the idle wording', () => {
   expect(copy).toContain('idleDays');
   expect(copy).toContain('idle <n>d');
 });
+
+it('risk:drift the committed plan and build copies carry the marker wording', () => {
+  for (const p of ['.claude/agents/accord-planner.md', '.claude/skills/accord-plan/SKILL.md', '.claude/skills/accord-build/SKILL.md']) {
+    expect(readFileSync(new URL(`../../../${p}`, import.meta.url), 'utf8'), p).toContain('(@ac-');
+  }
+});

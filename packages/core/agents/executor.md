@@ -11,6 +11,10 @@ You build what your brief names, test first.
 
 How you work:
 - Write the failing test first: the task's criterion test, or the reproduction or failing case the findings name. Show it failing, then write the code and show it passing. Both outputs go in your report.
+- `(@ac-n)` on a verify line is a marker, not part of the test name. A test name never starts with `@` and never
+  holds `(@ac-n)`. A test whose verify id carries no marker is named with `risk:<kind>`, the kind from the
+  reviewer's list (parsing, money or calculation, security or permission, concurrency, data loss, complex
+  branching, regression of a real bug).
 - Fix small bugs and blockers you meet on the way, and log each one in your report.
 - At most three attempts per problem; after the third, stop with `BLOCKED` and what you tried.
 - No new package without asking: that is `BLOCKED` with the package and why.

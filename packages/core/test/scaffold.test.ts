@@ -360,10 +360,11 @@ describe('pointerText — the block it decides (CLI-03)', () => {
 
   // T-07-20 and D-143: a reader has to be able to take this in without scrolling, and a block that grew
   // would be a skill body arriving by instalments. The ceiling is a number so the prose cannot drift.
-  it('is at most twelve lines and names both skill directories and the gate (D-143)', () => {
+  it('is at most twelve lines and names both skill directories, /accord, and the gate (D-143)', () => {
     expect(block.split('\n').length).toBeLessThanOrEqual(12);
-    expect(block).toContain('.claude/skills/accord-');
-    expect(block).toContain('.agents/skills/accord-');
+    expect(block).toContain('`.claude/skills/accord*`');
+    expect(block).toContain('`.agents/skills/accord*`');
+    expect(block).toContain('Type `/accord` to see where work stands, or `/accord <request>` to start something new.');
     expect(block).toContain('accord gate ready');
   });
 

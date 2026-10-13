@@ -51,5 +51,16 @@ export function gate(
       );
     }
   }
+  // Same write path and failure mode as ac_hash: the hash of the plan text the passing verdict was read from.
+  if (which === 'plan' && result.verdict === 'pass' && result.planHash !== undefined) {
+    const rel = ctx.snapshot.work?.[id]?.plan?.file;
+    if (rel !== undefined) {
+      try {
+        if (writeKey(ctx.root, rel, 'plan_hash', result.planHash)) ctx.stderr.write('wrote plan_hash ' + result.planHash + ' to ' + rel + '\n');
+      } catch (err) {
+        throw new UsageError('cannot write plan_hash to ' + rel + ': ' + (err instanceof Error ? err.message : String(err)));
+      }
+    }
+  }
   return result.verdict === 'fail' ? 1 : 0;
 }

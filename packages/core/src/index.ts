@@ -16,6 +16,8 @@ export type {
   Section,
   Line,
   AccordConfig,
+  RouteKey,
+  Effort,
   PlanTask,
   Plan,
   Ledger,
@@ -23,17 +25,20 @@ export type {
   TicketWork,
 } from './model/snapshot.js';
 export { loadSnapshot } from './load/snapshot.js';
+export { loadConfig } from './load/config.js';
 export { lintSnapshot } from './lint/index.js';
 export type { LintResult } from './lint/index.js';
 export { gateDone, gatePlan, gateReady } from './gate/index.js';
+export { isSha } from './gate/done.js';
 export { approvedHash } from './gate/hash.js';
 export type { GateResult } from './gate/index.js';
 export { taskVerdict } from './gate/task.js';
-export { planFile, workOf } from './gate/work.js';
+export { planFile, undeclaredFiles, workOf } from './gate/work.js';
 export { untracedTests } from './lint/tests.js';
 export type { TaskVerdict } from './gate/task.js';
 export { recordTaskDone } from './write/ledger.js';
 export { anchorText } from './status/anchor.js';
+export { rulesetText, sessionLine } from './status/session.js';
 export { nextRows, statusRows } from './status/rows.js';
 export type { Stage } from './status/stage.js';
 export type { StatusRow } from './status/rows.js';
@@ -45,7 +50,8 @@ export type { TemplateName } from './generated/templates.js';
 export { setFrontmatterKey } from './write/frontmatter.js';
 export type { FrontmatterValue } from './write/frontmatter.js';
 export { contentHash, markerHash, renderSkill, withoutMarker } from './skills/render.js';
-export { allSkillDirs, skillDirs, skillTargets } from './skills/targets.js';
+export { AGENT_DEFAULTS, agentDir, agentTargets, renderAgent } from './skills/agents.js';
+export { allSkillDirs, installedName, skillDirs, skillTargets, STAGES } from './skills/targets.js';
 export type { SkillFile } from './skills/targets.js';
 // `ScaffoldFile` is structurally identical to `SkillFile` and deliberately separate: a scaffold file is
 // skipped when its path exists (D-130), a skill file is re-rendered against its marker and hash (D-131).
@@ -55,8 +61,12 @@ export type { ScaffoldFile } from './scaffold/init.js';
 // CLI-03: not a `ScaffoldFile`, deliberately. The pointer's text depends on what the file already holds
 // (D-142), which is the one thing the skip-if-exists write contract above never looks at.
 export { POINTER_END, POINTER_FILES, POINTER_START, pointerText } from './scaffold/pointer.js';
+export { hookEntries, isAccordHookCommand, mergeHooks } from './scaffold/hooks.js';
+export type { HookEntries } from './scaffold/hooks.js';
 export { skills } from './generated/skills.js';
 export type { SkillKey } from './generated/skills.js';
+export { agents } from './generated/agents.js';
+export type { AgentKey } from './generated/agents.js';
 // The read-back that `skills sync` compares against a hash must normalise exactly as the write did
 // (RESEARCH.md Pitfall 1); re-exported so the CLI reuses this one, rather than hand-rolling a fourth copy.
 export { normaliseText } from './load/frontmatter.js';

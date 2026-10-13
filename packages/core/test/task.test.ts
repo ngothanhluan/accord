@@ -1,10 +1,13 @@
 // Spec §8: a task is done when its verify cases passed; the ledger records it once.
 import { describe, expect, it } from 'vitest';
 import { loadSnapshot, recordTaskDone, taskVerdict } from '../src/index.js';
+import { fnv1a64 } from '../src/gate/hash.js';
 import { CONFIG, junit, laneTicket, PLAN, REPORT } from '../../../test/helpers/lane.js';
 
 type Cases = Record<string, 'passed' | 'failed' | 'skipped'>;
 const CASES: Cases = { 'export#writes-csv': 'passed', 'export#escapes-commas': 'passed' };
+// A plan edited for a test is hashed as `accord gate plan` would have recorded it.
+const hashed = (text: string) => text.replace(/^plan_hash: .*$/m, () => `plan_hash: "${fnv1a64(text.split('---\n')[2])}"`);
 const snap = (over: Record<string, string> = {}, cases: Cases | null = CASES) => {
   const files: Record<string, string> = {
     'accord/config.yml': CONFIG,
@@ -23,7 +26,7 @@ describe('taskVerdict', () => {
 
   it('names a failed case and a missing case, in verify order', () => {
     const s = snap(
-      { 'accord/tickets/T-1/plan.md': PLAN.replace('verify: export#writes-csv', 'verify: export#writes-csv, export#gone') },
+      { 'accord/tickets/T-1/plan.md': hashed(PLAN.replace('verify: export#writes-csv', 'verify: export#writes-csv, export#gone')) },
       { 'export#writes-csv': 'failed', 'export#escapes-commas': 'passed' },
     );
     expect(taskVerdict(s, 'T-1', 1)).toEqual({
@@ -41,9 +44,9 @@ describe('taskVerdict', () => {
   });
 
   it('fails with one reason for a missing plan, task, verify line, or report', () => {
-    const noPlan = snap({ 'accord/tickets/T-1/plan.md': '' });
+    const noPlan = snap({ 'accord/tickets/T-1/plan.md': `---\nplan_hash: "${fnv1a64('')}"\n---\n` });
     expect(taskVerdict(snap({}, CASES), 'T-1', 9).reasons).toEqual(['the plan has no "## Task 9"']);
-    expect(taskVerdict(snap({ 'accord/tickets/T-1/plan.md': '## Task 1: A\ncovers: @ac-1\n' }), 'T-1', 1).reasons).toEqual([
+    expect(taskVerdict(snap({ 'accord/tickets/T-1/plan.md': '---\nplan_hash: "' + fnv1a64('## Task 1: A\ncovers: @ac-1\n') + '"\n---\n## Task 1: A\ncovers: @ac-1\n' }), 'T-1', 1).reasons).toEqual([
       'task 1 has no verify: line',
     ]);
     expect(taskVerdict(snap({}, null), 'T-1', 1).reasons).toEqual([
@@ -53,6 +56,19 @@ describe('taskVerdict', () => {
     const files = { 'accord/config.yml': CONFIG, 'accord/tickets/T-1.md': laneTicket('T-1') };
     expect(taskVerdict(loadSnapshot({ files, tree: [] }), 'T-1', 1).reasons).toEqual([
       'no plan at accord/tickets/T-1/plan.md',
+    ]);
+  });
+});
+
+describe('taskVerdict plan hash', () => {
+  const hashLine = /^plan_hash: .*\n/m;
+  it('fails without a plan_hash:, and with a different one', () => {
+    expect(taskVerdict(snap({ 'accord/tickets/T-1/plan.md': PLAN.replace(hashLine, '') }), 'T-1', 1).reasons).toEqual([
+      'plan.md has no plan_hash:; run accord gate plan T-1',
+    ]);
+    const other = PLAN.replace(/plan_hash: .*/, 'plan_hash: "fnv1a64:0000000000000000"');
+    expect(taskVerdict(snap({ 'accord/tickets/T-1/plan.md': other }), 'T-1', 1).reasons).toEqual([
+      'plan.md changed after accord gate plan last passed; run accord gate plan T-1 again',
     ]);
   });
 });

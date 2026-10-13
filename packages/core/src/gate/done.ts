@@ -198,12 +198,20 @@ export const tickStaleHash: GateRule['check'] = (snapshot, id) => {
   ];
 };
 
+/** A later commit that changed only this ticket's own records (its file and folder) is the same reviewed code. */
+const onlyOwnRecords = (snapshot: RepoSnapshot, id: string, recorded: string): boolean => {
+  const since = snapshot.recordsSince;
+  if (since === undefined || !Object.hasOwn(since, recorded)) return false;
+  return since[recorded].every((p) => p === ticketFile(id) || p.startsWith('accord/tickets/' + id + '/'));
+};
+
 /** GATE-11: the ticks were made against a different commit. Both values are guarded on `isSha` first,
  * so a too-short value produces `gate.sha-too-short` alone and never two reasons for one typo (D-81). */
 export const tickStaleCommit: GateRule['check'] = (snapshot, id) => {
   const tick = frontmatterOf(snapshot, id)?.verified_commit;
   const host = snapshot.git?.commit;
   if (tick === undefined || host === undefined || !isSha(tick) || !isSha(host) || shaEqual(tick, host)) return [];
+  if (onlyOwnRecords(snapshot, id, tick)) return [];
   return [
     {
       file: ticketFile(id),
@@ -218,6 +226,7 @@ export const staleReview: GateRule['check'] = (snapshot, id) => {
   const review = verificationOf(snapshot, id)?.frontmatter?.commit;
   const host = snapshot.git?.commit;
   if (review === undefined || host === undefined || !isSha(review) || !isSha(host) || shaEqual(review, host)) return [];
+  if (onlyOwnRecords(snapshot, id, review)) return [];
   return [
     {
       file: verificationFile(id),

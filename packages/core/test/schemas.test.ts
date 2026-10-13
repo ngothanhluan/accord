@@ -141,9 +141,9 @@ describe('config.schema.json', () => {
     expect(has(review({ mode: 'human', max_pr_lines: 400 }), '/review', 'schema.additionalProperties')).toBe(true);
   });
 
-  it('top-level properties are the six D-16 keys plus optional tests (D-72) and review (spec §7)', () => {
+  it('top-level properties are the six D-16 keys plus optional tests (D-72) review (spec §7), models, escalation, and stale_days', () => {
     const keys = ['accord', 'profile', 'tracker', 'design', 'roles', 'runtimes'];
-    expect(Object.keys(configSchema.properties)).toEqual([...keys, 'tests', 'review']);
+    expect(Object.keys(configSchema.properties)).toEqual([...keys, 'tests', 'review', 'models', 'escalation', 'stale_days']);
     expect(configSchema.required).toEqual(keys);
     for (const key of Object.keys(configSchema.properties)) {
       expect(key).not.toMatch(/key|token|secret|password/i);
@@ -293,5 +293,27 @@ describe('ticket.schema.json decisions D-01..D-05, D-21..D-25', () => {
     expect(ticket({ id: 'EPIC-1.2_a' })).toEqual([]);
     expect(ticket({ parent: 'EPIC-1' })).toEqual([]);
     expect(has(ticket({ parent: '' }), '/parent', 'schema.pattern')).toBe(true);
+  });
+});
+
+describe('phase 2 config keys', () => {
+  const base = { accord: '0.1.0', profile: 'build', tracker: { adapter: 'none' }, design: { tokens: '' }, roles: ['ba', 'dev'], runtimes: ['claude'] };
+  it('accepts routing, escalation, test commands, and stale_days', () => {
+    expect(validate('config', {
+      ...base,
+      models: { executor: { model: 'sonnet', effort: 'medium' }, 'reviewer.final': { model: 'claude-opus-5-5', effort: 'high' }, scout: { model: 'haiku' } },
+      escalation: { fix_round_tier_up: '4' },
+      tests: { report: 'reports/junit.xml', affected: 'npx vitest related {files} --run', full: 'npx vitest run' },
+      stale_days: '14',
+    })).toEqual([]);
+  });
+  it('refuses an unknown route, an unknown effort, and a malformed model', () => {
+    expect(validate('config', { ...base, models: { tester: { model: 'sonnet' } } }).length).toBeGreaterThan(0);
+    expect(validate('config', { ...base, models: { executor: { model: 'sonnet', effort: 'huge' } } }).length).toBeGreaterThan(0);
+    expect(validate('config', { ...base, models: { executor: { model: 'Sonnet 5' } } }).length).toBeGreaterThan(0);
+  });
+  it('refuses a non-numeric stale_days and a tier-up outside 1..5', () => {
+    expect(validate('config', { ...base, stale_days: 'soon' }).length).toBeGreaterThan(0);
+    expect(validate('config', { ...base, escalation: { fix_round_tier_up: '9' } }).length).toBeGreaterThan(0);
   });
 });

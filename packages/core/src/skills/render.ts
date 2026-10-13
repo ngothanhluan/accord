@@ -73,16 +73,16 @@ export function skillLoads(key: SkillKey): SkillKey[] {
 }
 
 /**
- * The text that lands on disk. A `kind: role` definition renders its spec frontmatter, then the marker, then
- * the body; anything else renders the marker and the body alone (D-108: a bundled reference has no spec
- * frontmatter, which is what keeps it undiscoverable as a skill of its own).
+ * The text that lands on disk. A `kind: role` or `kind: skill` definition renders its spec frontmatter, then
+ * the marker, then the body; anything else renders the marker and the body alone (D-108: a bundled reference
+ * has no spec frontmatter, which is what keeps it undiscoverable as a skill of its own).
  *
  * Pure: reads the generated module only, and returns the same text on every call.
  */
 export function renderSkill(key: SkillKey): string {
   const { yaml, body } = source(key);
   let head = '';
-  if (yaml.kind === 'role') {
+  if (yaml.kind === 'role' || yaml.kind === 'skill') {
     // D-45: strings core writes are double-quoted. Hand concatenation would break the moment a
     // `description` contained a colon, which is why the block goes through yaml's own serialiser.
     // A spec field that is not a plain string (`metadata` is a map) serialises with yaml's defaults.
@@ -97,5 +97,10 @@ export function renderSkill(key: SkillKey): string {
   }
   // D-111: the hash covers the rendered file with the marker line absent, so the same computation
   // reproduces it from a copy on disk — detecting both a changed definition and a hand-edited copy.
+  return stamp(head, body);
+}
+
+/** The marker line between a rendered head and body; agent rendering shares it so the drift rule is one rule. */
+export function stamp(head: string, body: string): string {
   return head + MARKER_HEAD + contentHash(head + body) + MARKER_TAIL + '\n' + body;
 }

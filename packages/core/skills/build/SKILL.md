@@ -1,0 +1,82 @@
+---
+name: accord-build
+description: Use when a lane M ticket has a plan that passed accord gate plan and needs building. Dispatches one fresh executor per task from accord brief, runs the affected tests itself, and records each task with accord task-done.
+license: MIT
+kind: skill
+---
+
+This stage builds the plan one task at a time. You run it in the main
+session and orchestrate: executors write the code.
+
+## Steps
+
+1. Run `accord anchor`. It names the next task. If
+   `git log -1 --format=%s -- accord/tickets/<id>/plan.md` does not print
+   `plan: <id> ready`, or `git status --porcelain` on `plan.md` prints
+   anything, the plan stage has not finished: load `accord-plan` and
+   resume there instead of building.
+
+2. **Dispatch.** For each task in `plan.md` without a line in
+   `accord/tickets/<id>/ledger.md`, in order, one at a time: run
+   `accord brief <id> <n>` into a file outside the working tree (for
+   example the system temp directory), so it is never committed, and
+   dispatch a fresh `accord-executor` with the path of that file only.
+   Never pass chat history.
+
+3. **Record.** When it reports, run the affected tests yourself: the
+   `tests.affected` command from `accord/config.yml`, with `{files}`
+   replaced by the paths on the task's `files:` line. Then run
+   `accord task-done <id> <n>`. The executor's claim alone records
+   nothing.
+   - It refuses because a `verify:` case failed or is missing: dispatch
+     a fresh executor with the same brief plus the reasons it printed.
+     If it refuses that way again after that dispatch, load `accord-debug`
+     instead of dispatching again.
+   - It refuses because the report is missing or older than the commit:
+     the `tests.affected` command does not write the report `tests.report`
+     names. Tell the owner; do not loop.
+   - It writes the ledger line: copy every Ruling in the executor's
+     report into `accord/tickets/<id>/ledger.md` under `## Rulings`, then
+     commit `accord/tickets/<id>/ledger.md`.
+
+4. **Blocked.**
+   - `BLOCKED` with a question that touches intent, a veto, a criterion,
+     or a public interface: ask the owner.
+   - `BLOCKED` on a test that seems wrong: a criterion test is the
+     owner's, so ask the owner; any other test is a plan gap and goes back
+     to `accord-plan`. Never edit the test yourself.
+   - `BLOCKED` on an architecture change: go to step 6. `BLOCKED` after
+     three failed attempts: ask the owner, with what was tried; never
+     dispatch a fresh executor for more tries. A new package: ask the
+     owner.
+   - `BLOCKED: context`: dispatch a fresh executor with the same brief
+     plus the diff and the ledger so far.
+   - `NEEDS_CONTEXT`: answer, and dispatch again.
+
+5. **Files.** A file outside the task's `files:` line must be declared
+   in the report with a reason. When you accept it, record a Ruling.
+
+6. **Change of course.** When the approved approach cannot work, stop.
+   Write a change note under the ticket's `## Approach`: what failed,
+   which finished tasks still hold, and the proposed new approach. Ask the
+   owner for a new yes; on yes run `accord approve <id>`, then
+   `accord-plan`'s re-plan covers only the tasks the change touches.
+   Never re-plan quietly.
+
+7. **Plan changed.** When `accord task-done` says `plan.md` changed,
+   never run `accord gate plan` to clear it. Show the owner the diff of
+   `plan.md`. If the owner made the change, `accord-plan` reviews it
+   (critic, then `accord gate plan`); otherwise restore `plan.md` with the
+   owner's yes and dispatch again. Only `accord-plan` changes the plan.
+
+8. When every task has a ledger line, next: `accord-review`.
+
+## Rules
+
+- Every agent receives the ticket verbatim, by file path, never a summary:
+  the executor gets it inside its brief.
+- The main session orchestrates and never edits product code.
+- Anything touching intent, a veto, an acceptance criterion, or a public
+  interface stops the run and asks the owner. Every other decision is a
+  Ruling in `accord/tickets/<id>/ledger.md` under `## Rulings`:
+  `Ruling: <what> — <why> — <cost if wrong>`.

@@ -3,6 +3,7 @@
 import type { Finding, Level } from '../model/finding.js';
 import type { RepoSnapshot } from '../model/snapshot.js';
 import { dependsCycle, dependsUnknown } from './depends.js';
+import { dependsDropped, droppedReason } from './dropped.js';
 import { earsUnclassified } from './ears.js';
 import {
   acTagDuplicate,
@@ -51,6 +52,8 @@ export const RULES: readonly Rule[] = [
   { id: 'lint.id-mismatch', level: 'error', profiles: ['build', 'maintain'], check: idMismatch },
   { id: 'lint.depends-unknown', level: 'error', profiles: ['build', 'maintain'], check: dependsUnknown },
   { id: 'lint.depends-cycle', level: 'error', profiles: ['build', 'maintain'], check: dependsCycle },
+  { id: 'lint.depends-dropped', level: 'error', profiles: ['build', 'maintain'], check: dependsDropped },
+  { id: 'lint.dropped-reason', level: 'error', profiles: ['build', 'maintain'], check: droppedReason },
   { id: 'lint.test-tag-missing', level: 'warning', profiles: ['build', 'maintain'], check: testTagMissing },
   { id: 'lint.heading-missing', level: 'error', profiles: ['build', 'maintain'], check: headingMissing },
   { id: 'lint.tracker-empty', level: 'warning', profiles: ['build', 'maintain'], check: trackerEmpty },

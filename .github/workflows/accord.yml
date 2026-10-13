@@ -22,6 +22,10 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 24
+      # This repository is the accord workspace: npx resolves @accord-dev/accord to the local package,
+      # which has no bin until it is installed and built. Other repositories run the published package.
+      - run: npm ci
+      - run: npm run build
       - name: lint and gate
         shell: bash
         env:

@@ -10,7 +10,7 @@ import type { Stage } from './stage.js';
 export interface StatusRow {
   id: string; // file stem: 'LOGIN-1'
   type?: 'epic' | 'story' | 'bug'; // absent when the frontmatter failed the schema
-  status?: 'draft' | 'open' | 'archived'; // absent when the frontmatter failed the schema; 'archived' is the D-93 filter
+  status?: 'draft' | 'open' | 'archived' | 'dropped'; // absent when the frontmatter failed the schema; 'archived' and 'dropped' are the D-93 filter
   parent?: string; // the D-92 grouping axis
   ui: boolean; // D-21: the loader defaults it to false
   errors: number; // ticket-scoped error findings from the one repo-wide lint
@@ -28,6 +28,7 @@ export interface StatusRow {
   dependsOn?: string[]; // spec §5, as written
   blockedBy?: string[]; // dependsOn entries whose ticket is not done; an unknown id blocks
   claimedBy?: string; // host-supplied author of branch t/<id>
+  idleDays?: number; // whole days since the newest activity, present only when greater than stale_days
 }
 
 // Code-point order, never a locale-aware compare, so the goldens are identical on every host.
@@ -45,7 +46,7 @@ const compare = <T extends string>(recorded: string | undefined, current: string
  * Every ticket is returned, archived included; the D-93 filter and the `—` glyphs are the caller's.
  * Pure: reads the snapshot only, never mutates it, and returns the same result on every call.
  */
-export function statusRows(snapshot: RepoSnapshot): StatusRow[] {
+export function statusRows(snapshot: RepoSnapshot, now?: number): StatusRow[] {
   const { findings } = lintSnapshot(snapshot);
   return Object.values(snapshot.tickets)
     .map((ticket): StatusRow => {
@@ -55,6 +56,9 @@ export function statusRows(snapshot: RepoSnapshot): StatusRow[] {
       const progress = progressOf(snapshot, ticket);
       const deps = fm?.depends_on;
       const claims = snapshot.claims;
+      const last = snapshot.lastActivity?.[ticket.id];
+      const idle = now === undefined || last === undefined ? undefined : Math.floor((now - last) / 86400);
+      const open = fm?.status !== 'dropped' && fm?.status !== 'archived' && progress?.stage !== 'done';
       return {
         id: ticket.id,
         // D-54: optional fields are omitted, never set to undefined, so JSON.stringify is a stable golden.
@@ -80,6 +84,7 @@ export function statusRows(snapshot: RepoSnapshot): StatusRow[] {
               tasksTotal: progress.tasksTotal,
               ...(deps === undefined ? {} : { dependsOn: deps, blockedBy: deps.filter((d) => !isDone(snapshot, d)) }),
               ...(claims !== undefined && Object.hasOwn(claims, ticket.id) ? { claimedBy: claims[ticket.id] } : {}),
+              ...(open && idle !== undefined && idle > Number(snapshot.config?.stale_days ?? '14') ? { idleDays: idle } : {}),
             }),
       };
     })
@@ -99,6 +104,7 @@ export function nextRows(rows: StatusRow[]): StatusRow[] {
       r.ready === 'ok' &&
       (r.blockedBy ?? []).length === 0 &&
       r.claimedBy === undefined &&
-      r.status !== 'archived',
+      r.status !== 'archived' &&
+      r.status !== 'dropped',
   );
 }

@@ -15,7 +15,7 @@ import { CONFIG, junit, laneTicket, PLAN, REPORT } from '../../../../test/helper
 
 const fixtures = fileURLToPath(new URL('../../../core/test/fixtures/', import.meta.url));
 
-function gitIn(tmp: string) {
+function gitIn(tmp: string, env?: NodeJS.ProcessEnv) {
   // `.native`, not plain `realpathSync`: the plain form leaves a Windows 8.3 short component in place,
   // so `C:\Users\RUNNER~1\...` and `C:\Users\runneradmin\...` compare unequal for one directory. The
   // sibling guard in test/load.test.ts carries the full account.
@@ -24,7 +24,12 @@ function gitIn(tmp: string) {
     throw new Error('refusing to run git outside a temporary sandbox: ' + tmp);
   }
   return (...args: string[]) =>
-    execFileSync('git', args, { cwd: tmp, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    execFileSync('git', args, {
+      cwd: tmp,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      ...(env === undefined ? {} : { env: { ...process.env, ...env } }),
+    });
 }
 
 /** A throwaway git repository holding one core fixture; nothing is staged, so ls-files sees it via --others. */
@@ -56,7 +61,13 @@ export function makeEmptyRepo(): string {
  * host's global git config cannot change the result; the `gitIn` guard still applies.
  */
 export function commitAll(repo: string): string {
-  const git = gitIn(repo);
+  return commitAllAt(repo);
+}
+
+/** `commitAll` with author and committer date set to `when`, so a test can age a commit. */
+export function commitAllAt(repo: string, when?: Date): string {
+  const stamp = when === undefined ? undefined : `@${Math.floor(when.getTime() / 1000)} +0000`;
+  const git = gitIn(repo, stamp === undefined ? undefined : { GIT_COMMITTER_DATE: stamp, GIT_AUTHOR_DATE: stamp });
   git('add', '-A');
   git(
     '-c', 'user.email=fixture@example.invalid',
@@ -109,6 +120,7 @@ export function makeLaneRepo(extra: Record<string, string> = {}): string {
     'accord/config.yml': CONFIG,
     'accord/tickets/T-1.md': laneTicket('T-1'),
     'accord/tickets/T-1/plan.md': PLAN,
+    'src/export.ts': 'export const write = 1;\n', // the file the plan's tasks name, so it exists at baseline
     [REPORT]: junit({ 'export#writes-csv': 'passed', 'export#escapes-commas': 'passed' }),
     ...extra,
   });

@@ -41,13 +41,39 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["report"],
-      "properties": { "report": { "type": "string", "minLength": 1 } }
+      "properties": {
+        "report": { "type": "string", "minLength": 1 },
+        "affected": { "type": "string", "minLength": 1 },
+        "full": { "type": "string", "minLength": 1 }
+      }
     },
     "review": {
       "type": "object",
       "additionalProperties": false,
       "required": ["mode"],
       "properties": { "mode": { "type": "string", "enum": ["human", "outcome"] } }
-    }
+    },
+    "models": {
+      "type": "object",
+      "additionalProperties": false,
+      "patternProperties": {
+        "^(scout|auditor|architect|critic|planner|executor|reviewer|reviewer\\.final|verifier|debugger)$": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["model"],
+          "properties": {
+            "model": { "type": "string", "pattern": "^(haiku|sonnet|opus|inherit|claude-[a-z0-9-]+)$" },
+            "effort": { "type": "string", "enum": ["low", "medium", "high", "xhigh", "max"] }
+          }
+        }
+      }
+    },
+    "escalation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fix_round_tier_up"],
+      "properties": { "fix_round_tier_up": { "type": "string", "pattern": "^[1-5]$" } }
+    },
+    "stale_days": { "type": "string", "pattern": "^[1-9][0-9]{0,3}$" }
   }
 }

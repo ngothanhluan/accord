@@ -350,12 +350,33 @@ describe('render output invariants', () => {
     // first. Guarded against a vacuous pass by the `has files to check` case at the top of this describe.
     const BULLETED_LABEL = /^\s*[-*+]\s+.*\b(?:Result|Evidence):/;
     const offenders: string[] = [];
-    for (const { path, text } of output) {
+    // The agents too: the verifier carries the format it writes (next case).
+    for (const { path, text } of [...output, ...agentTargets(config({ runtimes: ['claude'] }))]) {
       text.split('\n').forEach((line, i) => {
         if (BULLETED_LABEL.test(line)) offenders.push(`${path}:${i + 1}: ${line}`);
       });
     }
     expect(offenders).toEqual([]);
+  });
+
+  it('the verifier shows both verification labels at the start of a line', () => {
+    // The case above only proves nothing BULLETS the labels; deleting the format outright would pass it.
+    // This one proves the verifier still shows the shape `load/verification.ts` parses.
+    const verifier =
+      agentTargets(config({ runtimes: ['claude'] })).find((f) => f.path === '.claude/agents/accord-verifier.md')?.text ?? '';
+    expect(verifier.length, 'accord-verifier.md is missing from the render output').toBeGreaterThan(0);
+    const lines = verifier.split('\n');
+    expect(lines.some((l) => l.startsWith('Result:')), 'no line begins with the Result label').toBe(true);
+    expect(lines.some((l) => l.startsWith('Evidence:')), 'no line begins with the Evidence label').toBe(true);
+  });
+
+  it('exactly one rendered file tells its reader about ticking `verified`, and it is accord-verify (SKILL-07)', () => {
+    // A write verb immediately before the key. The owner ticks it; the verify skill is the one file that
+    // says so, and says the agent never does.
+    const WRITES = /\b(ticks?|writes?|records?)\s+`?verified/i;
+    const authors = output.filter((f) => WRITES.test(f.text)).map((f) => f.path);
+    expect([...new Set(authors.map((p) => baseOf(dirOf(p)) + '/' + baseOf(p)))]).toEqual(['accord-verify/SKILL.md']);
+    expect(authors).toContain('.claude/skills/accord-verify/SKILL.md');
   });
 
   it('the prototype brief names no accord command before its step 4 heading', () => {

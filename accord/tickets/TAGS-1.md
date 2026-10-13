@@ -36,7 +36,7 @@ Not in scope: `accord/tests-baseline.txt` setup, rejecting `@` inside a verify i
 ```gherkin
 Feature: TAGS-1 build writes each scenario's test tag
 
-  @ac-1
+  @ac-1 @test:packages/cli/test/lane-commands.test.ts#ac-1-task-done-writes-the-tag-of-the-scenario-a-verify-entry-proves
   Scenario: task-done writes the tag of the scenario a verify entry proves
     Given a lane M ticket at stage build whose scenario @ac-1 carries no @test tag
     And plan task 1 maps scenario @ac-1 to test id T in its verify line

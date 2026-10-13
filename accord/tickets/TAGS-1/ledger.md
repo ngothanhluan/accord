@@ -1,6 +1,7 @@
 # Ledger
 
 ## Tasks
+- task 1 done 415134636d5f
 
 ## Rulings
 
@@ -8,3 +9,4 @@
 - Ruling: the tag writer ships in Task 1 with the wiring, not in a later task — the planner's rule puts end-to-end wiring first, and each task-done then writes its own tag with no re-run — cost if wrong: Task 1 is larger; the orchestrator commits the ticket with the ledger before Task 4 writes that into the build skill.
 - Ruling: Task 3 marks write/testtag.ts and its test `(new)` although Task 1 creates them — gate plan resolves paths against the baseline, and `(new)` stays relative to it — cost if wrong: none; the gate's own message asks for it.
 - Ruling: plan step 6's "at most three revision rounds" counts revisions, so round 3's findings get a third revision and one more critic round — the same reading STALE-1 used (dogfood item 9), and both open findings are local test-text defects — cost if wrong: one critic round more than the skill intended.
+- Ruling: task-done reaches the plan's maps through `workOf(ctx.snapshot, id)?.plan`, the accessor taskVerdict already uses — the brief did not name one — cost if wrong: one line to swap. (executor, task 1)

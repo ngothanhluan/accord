@@ -411,10 +411,13 @@ The owner's report:
   there is one, is linked from the ticket as in 0.1.0; none is required.
 - *Review.* `accord-reviewer` gains a `ui` lens: the states above, accessibility (keyboard, focus, contrast,
   labels), the project's own components and tokens before new ones, and fidelity to the design reference.
-  `config.yml` may name a design skill installed in the repository (`ui: { skill: <name> }`); the lens then
-  delegates the craft judgement to it and keeps the contract checks itself. The named skill only builds or
-  reviews inside a stage; it never runs its own intent, planning, or done steps, because two orchestrators
-  on one ticket is how intent drifts.
+- *Design skills by role.* `config.yml` may map a design skill installed in the repository to each of three
+  roles: `ui: { direction: <name>, build: <name>, review: <name> }`. `direction` chooses a visual direction
+  (style, palette, type, tokens) at the approach stage when the project has none; `build` builds or adjusts
+  screens inside that direction, within the executor's task; `review` takes the craft judgement in the `ui`
+  lens, which keeps the contract checks itself. A role with no skill falls to the stage's own agent. Shipped
+  text names only the roles. A named skill only works inside a stage; it never runs its own intent,
+  planning, or done steps, because two orchestrators on one ticket is how intent drifts.
 - *Verify.* Each `@ui` scenario's evidence is a screenshot per state under `tickets/<id>/evidence/`, named
   by scenario, at the commit `verification.md` records. Without a browser available the result is
   `blocked`, never pass.
@@ -518,7 +521,7 @@ measurements, and re-run when new models ship.
 
 | Keep | Change | Add |
 |---|---|---|
-| `accord/` folder; frontmatter schema; Gherkin parsing; `@test:<id>`; `ac_hash`; JUnit scan; skills rendered from data; version pin; CI workflow | EARS optional, lint off by default; role skills replaced by stage skills; ticket headings per section 4; `## Plan` moves to `plan.md`; `## Verification notes` required only under `review: human`; constraint "identical behaviour in four runtimes" becomes "gates identical everywhere, orchestration Claude Code first" | frontmatter `lane`, `depends_on`, `approved_hash`, `status: dropped` (phase 2), `ui` (phase 4); `plan.md` `baseline:` and `plan_hash:`, `files:` marker `(new)` (phase 2); config `review.mode` (phase 1), `stale_days` (phase 2), `review.max_pr_lines` and `ui.skill` (phase 4), `models`, `escalation`, `tests.affected`, `tests.full` (phase 2); commands `approve`, `gate plan`, `task-done`, `brief`, `review-package`, `tests baseline`, `anchor`, `next`, extended `status`; rules `lint.test-untraced`, `lint.depends-*`, lane Ready, plan, and Done rules, `gate.task-file-unknown` (phase 2); undeclared files in `review-package` (phase 2); per-ticket `plan.md`, `ledger.md`, `review.md`; `accord/tests-baseline.txt`; agents `accord-*`; hooks; benchmark harness |
+| `accord/` folder; frontmatter schema; Gherkin parsing; `@test:<id>`; `ac_hash`; JUnit scan; skills rendered from data; version pin; CI workflow | EARS optional, lint off by default; role skills replaced by stage skills; ticket headings per section 4; `## Plan` moves to `plan.md`; `## Verification notes` required only under `review: human`; constraint "identical behaviour in four runtimes" becomes "gates identical everywhere, orchestration Claude Code first" | frontmatter `lane`, `depends_on`, `approved_hash`, `status: dropped` (phase 2), `ui` (phase 4); `plan.md` `baseline:` and `plan_hash:`, `files:` marker `(new)` (phase 2); config `review.mode` (phase 1), `stale_days` (phase 2), `review.max_pr_lines` and `ui.direction`, `ui.build`, `ui.review` (phase 4), `models`, `escalation`, `tests.affected`, `tests.full` (phase 2); commands `approve`, `gate plan`, `task-done`, `brief`, `review-package`, `tests baseline`, `anchor`, `next`, extended `status`; rules `lint.test-untraced`, `lint.depends-*`, lane Ready, plan, and Done rules, `gate.task-file-unknown` (phase 2); undeclared files in `review-package` (phase 2); per-ticket `plan.md`, `ledger.md`, `review.md`; `accord/tests-baseline.txt`; agents `accord-*`; hooks; benchmark harness |
 
 **Skills.** `roles:` stays in the config schema so no config breaks. `skills sync` always installs `/accord`
 (source `skills/accord/`, installed as `accord`) and the stage skills (`accord-<stage>`); `designer` installs
@@ -539,7 +542,7 @@ The `.planning/` directory of the previous planning process is archived when pha
    8, and 10). Dogfood: run one lane M ticket of accord through accord.
 3. **Benchmark.** Reviewer and executor fixtures; replace the default routing.
 4. **Lanes L and P.** Waves, worktrees, slicing for `review: human`, epic gate, epic readiness, retro, and
-   UI tickets (sections 3 and 11).
+   UI tickets with design skills by role (sections 3 and 11).
    The plan for a story reads the Corrections and Rulings of its finished sibling stories, and two stories
    whose plans name the same file never share a wave.
 5. **Test diet**, and benchmark fixtures for critic and auditor.

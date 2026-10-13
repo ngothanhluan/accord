@@ -892,3 +892,38 @@ it('ac-4 an unmapped verify id and an unmapped ui scenario need no tag', async (
     cleanup(repo);
   }
 }, 30000);
+
+it('ac-5 task-done never overwrites a different test tag', async () => {
+  const ticket = laneTicket('T-1', { body: LANE_BODY.replace('@test:export#writes-csv', '@test:export#old-name') });
+  const repo = makeLaneRepo({ 'accord/tickets/T-1.md': ticket });
+  try {
+    commitAll(repo);
+    freshen(repo);
+    const before = ticketText(repo);
+    const r = await run(['task-done', 'T-1', '1'], repo);
+    expect(r.code).toBe(1);
+    for (const s of ['@ac-1', 'export#old-name', 'export#writes-csv']) expect(r.out).toContain(s);
+    expect(ticketText(repo)).toBe(before);
+    expect(existsSync(LEDGER_PATH(repo))).toBe(false);
+  } finally {
+    cleanup(repo);
+  }
+}, 30000);
+
+it('risk:complex-branching a re-run on a recorded task fills a missing tag', async () => {
+  const ledgerText = '# Ledger\n\n## Tasks\n- task 1 done abc1234\n';
+  const ticket = laneTicket('T-1', { body: LANE_BODY.replace(' @test:export#writes-csv', '') });
+  const repo = makeLaneRepo({ 'accord/tickets/T-1.md': ticket, 'accord/tickets/T-1/ledger.md': ledgerText });
+  try {
+    commitAll(repo);
+    freshen(repo);
+    const r = await run(['task-done', 'T-1', '1'], repo);
+    expect(r.code).toBe(0);
+    expect(r.out).toContain('wrote @test:export#writes-csv on @ac-1');
+    expect(r.out).toContain('task 1 of T-1 is already recorded');
+    expect(ticketText(repo)).toContain('\n  @ac-1 @test:export#writes-csv\n');
+    expect(ledger(repo)).toBe(ledgerText);
+  } finally {
+    cleanup(repo);
+  }
+}, 30000);

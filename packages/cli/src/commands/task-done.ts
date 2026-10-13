@@ -46,27 +46,31 @@ export function taskDone(ctx: CommandContext, id: string, task: string): number 
   const rel = 'accord/tickets/' + id + '/ledger.md';
   const file = join(ctx.root, 'accord', 'tickets', id, 'ledger.md');
   const sha = commit.slice(0, 12);
-  // The ledger first: once its line is committed HEAD is newer than the report, and a re-run must still
-  // answer "already recorded" rather than "stale".
   const next = recordTaskDone(existsSync(file) ? readFileSync(file, 'utf8') : undefined, n, sha);
+  const verdict = taskVerdict(ctx.snapshot, id, n);
+  const ticket = ctx.snapshot.tickets[id];
+  const ticketFile = join(ctx.root, ...ticket.file.split('/'));
+  const maps = workOf(ctx.snapshot, id)?.plan?.tasks.find((t) => t.n === n)?.maps ?? [];
+  // A recorded task is re-checked only for tags: the committed ledger makes HEAD newer than the report.
+  const stale = next !== undefined && verdict.verdict === 'pass' ? staleReport(ctx) : undefined;
+  const reasons = [...verdict.reasons, ...(stale === undefined ? [] : [stale])];
+  const refuse = (lines: string[]): number => {
+    ctx.stdout.write(`task ${n} of ${id} is not done:\n` + lines.map((r) => '  ' + r + '\n').join(''));
+    return 1;
+  };
+  if (next !== undefined && reasons.length > 0) return refuse(reasons);
+  if (next !== undefined || verdict.verdict === 'pass') {
+    const tagged = writeTestTags(readFileSync(ticketFile, 'utf8'), ticket.scenarios, maps);
+    if (tagged.conflicts.length > 0) {
+      return refuse(tagged.conflicts.map((c) => `${c.ac} already carries @test:${c.existing}; the plan maps it to ${c.test}`));
+    }
+    if (tagged.written.length > 0) writeFileSync(ticketFile, tagged.text);
+    for (const w of tagged.written) ctx.stdout.write(`wrote @test:${w.test} on ${w.ac} in ${ticket.file}\n`);
+  }
   if (next === undefined) {
     ctx.stdout.write(`task ${n} of ${id} is already recorded in ${rel}\n`);
     return 0;
   }
-  const verdict = taskVerdict(ctx.snapshot, id, n);
-  const stale = verdict.verdict === 'pass' ? staleReport(ctx) : undefined;
-  const reasons = [...verdict.reasons, ...(stale === undefined ? [] : [stale])];
-  if (reasons.length > 0) {
-    ctx.stdout.write(`task ${n} of ${id} is not done:\n` + reasons.map((r) => '  ' + r + '\n').join(''));
-    return 1;
-  }
-  const ticket = ctx.snapshot.tickets[id];
-  const ticketFile = join(ctx.root, ...ticket.file.split('/'));
-  const maps = workOf(ctx.snapshot, id)?.plan?.tasks.find((t) => t.n === n)?.maps ?? [];
-  const tagged = writeTestTags(readFileSync(ticketFile, 'utf8'), ticket.scenarios, maps);
-  if (tagged.written.length > 0) writeFileSync(ticketFile, tagged.text);
-  for (const w of tagged.written) ctx.stdout.write(`wrote @test:${w.test} on ${w.ac} in ${ticket.file}
-`);
   mkdirSync(join(ctx.root, 'accord', 'tickets', id), { recursive: true });
   writeFileSync(file, next);
   ctx.stdout.write(`recorded task ${n} done at ${sha} in ${rel}\n`);

@@ -11,12 +11,18 @@ export function writeTestTags(
   text: string,
   scenarios: ScenarioRef[],
   maps: { test: string; ac: string }[],
-): { text: string; written: { ac: string; test: string }[] } {
+): { text: string; written: { ac: string; test: string }[]; conflicts: { ac: string; existing: string; test: string }[] } {
   const lines = normaliseText(text).split('\n');
   const written: { ac: string; test: string }[] = [];
+  const conflicts: { ac: string; existing: string; test: string }[] = [];
   for (const { test, ac } of maps) {
     const sc = scenarios.find((s) => '@' + s.acTag === ac);
     if (sc === undefined || sc.tags.includes('@test:' + test)) continue;
+    const other = sc.tags.find((t) => t.startsWith('@test:'));
+    if (other !== undefined) {
+      conflicts.push({ ac, existing: other.slice('@test:'.length), test });
+      continue;
+    }
     for (let i = sc.line - 2; i >= 0; i--) {
       const m = new RegExp(String.raw`(^|\s)${ac}(?=\s|$)`).exec(lines[i]);
       if (m === null) continue;
@@ -26,5 +32,5 @@ export function writeTestTags(
       break;
     }
   }
-  return { text: lines.join('\n'), written };
+  return { text: lines.join('\n'), written, conflicts };
 }

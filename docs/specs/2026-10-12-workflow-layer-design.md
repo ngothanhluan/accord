@@ -241,7 +241,9 @@ is covered by a task; every `D-nn` is cited; every task has `covers:` and `verif
 is foreign to the ticket; no "TODO", "TBD", "placeholder", "v1", "for now", "later" in task text; every
 path in `files:` exists at `baseline:` unless it is marked `(new)` (`gate.task-file-unknown`, phase 2); every scenario that is
 not `@ui` is mapped by exactly one marker across the plan (`gate.plan-test-unmapped`, `gate.plan-test-repeated`); a marker
-naming a scenario the ticket lacks, or a `@ui` scenario, fails.
+naming a scenario the ticket lacks, or a `@ui` scenario, fails. A verify id holding `@`, path included, fails (`gate.plan-verify-at`), because the scenario's
+`@test:` tag would split; a comma touching a non-space character on both sides fails (`gate.plan-verify-comma`), naming the
+whole whitespace-free text as written; a comma followed by a space separates ids and passes.
 For a lane ticket, while `tests.report` is set in `accord/config.yml` and `accord/tests-baseline.txt` does not exist, it adds
 `gate.tests-baseline-missing`, a warning that asks the owner whether to run `accord tests baseline`, answered at the plan
 stage's baseline step.

@@ -1,6 +1,6 @@
 ---
 baseline: 3be1c058edab354ab449e75c966f0c6797dd4813
-plan_hash: "fnv1a64:b6b59b166d5a957e"
+plan_hash: "fnv1a64:4ac9f0ee405a72b0"
 ---
 
 Review mode `outcome`: one branch, no slices. Report case ids follow the JUnit id shape in
@@ -19,7 +19,7 @@ compare case-insensitively (ledger Ruling).
 ## Task 1: Wiring: new ticket assigns the creator's next id from refs already in the clone
 covers: @ac-1, D-01, D-04, D-05, D-08, D-09, D-10, D-11, D-14, D-15
 files: packages/core/schemas/config.schema.json, packages/core/src/model/snapshot.ts, packages/core/src/lint/ids.ts (new), packages/core/src/index.ts, packages/cli/src/load/fs.ts, packages/cli/src/commands/new-ticket.ts, packages/cli/src/run.ts, packages/core/test/schemas.test.ts, packages/cli/test/new-ticket.test.ts
-verify: packages/cli/test/new-ticket.test.ts#ac-1-new-ticket-assigns-the-creators-next-number-for-its-type (@ac-1), packages/cli/test/new-ticket.test.ts#risk:complex-branching-without-people-and-without-an-id-new-ticket-exits-2-and-writes-nothing, packages/cli/test/new-ticket.test.ts#risk:complex-branching-the-first-ticket-in-a-repository-with-no-commit-gets-number-1, packages/core/test/schemas.test.ts#risk:parsing-people-maps-an-email-to-2-to-4-capital-letters, packages/core/test/schemas.test.ts#risk:parsing-legacy_ids-is-a-list-of-distinct-ticket-ids
+verify: packages/cli/test/new-ticket.test.ts#ac-1-new-ticket-assigns-the-creators-next-number-for-its-type (@ac-1), packages/cli/test/new-ticket.test.ts#risk:complex-branching-without-people-and-without-an-id-new-ticket-exits-2-and-writes-nothing, packages/cli/test/new-ticket.test.ts#risk:complex-branching-the-first-ticket-in-a-repository-with-no-commit-gets-number-1, packages/cli/test/new-ticket.test.ts#risk:complex-branching-a-ticket-added-and-deleted-on-a-merged-and-deleted-branch-keeps-its-number, packages/core/test/schemas.test.ts#risk:parsing-people-maps-an-email-to-2-to-4-capital-letters, packages/core/test/schemas.test.ts#risk:parsing-legacy_ids-is-a-list-of-distinct-ticket-ids
 
 Tests first.
 - `packages/cli/test/new-ticket.test.ts`, top-level
@@ -43,6 +43,15 @@ Tests first.
   `  "an@example.com": AN`, `gitRun(repo, 'config', 'user.email', 'an@example.com')`, no commit. Run
   `['new', 'ticket', '--type', 'story']`: code 0, stdout `accord/tickets/ST-AN-1.md\n`, the file exists. Once
   Task 3 lands, the same case also covers its ref read on an unborn HEAD.
+- `packages/cli/test/new-ticket.test.ts`, top-level
+  `it('risk:complex-branching a ticket added and deleted on a merged and deleted branch keeps its number')`
+  (pins `--full-history`, D-11): `sandbox()`, `people:` / `  "an@example.com": AN` appended to config.yml,
+  user.email `an@example.com`, `commitAll`; note the current branch with `gitRun(repo, 'branch',
+  '--show-current')`. `gitRun(repo, 'checkout', '-q', '-b', 'side')`; write `accord/tickets/ST-AN-2.md` as
+  `laneTicket('ST-AN-2')`, `commitAll`; delete that file, `commitAll`; checkout the noted branch;
+  `gitRun(repo, '-c', 'user.email=fixture@example.invalid', '-c', 'user.name=fixture', '-c', 'commit.gpgsign=false', 'merge', '-q',
+  '--no-ff', '--no-edit', 'side')`; `gitRun(repo, 'branch', '-D', 'side')`. `['new', 'ticket', '--type',
+  'story']`: code 0, stdout `accord/tickets/ST-AN-3.md\n`.
 - `packages/core/test/schemas.test.ts`, top-level, using its `minimal.config` and `has` helpers:
   - `risk:parsing people maps an email to 2 to 4 capital letters`: `{ 'an@example.com': 'AN' }`,
     `{ 'an@example.com': 'ABCD' }` and `{}` are valid; values `'A'`, `'ABCDE'`, `'an'`, `'A1'` each give a
@@ -300,11 +309,14 @@ Text, naming no other tool:
   (D-03).
 - `skills/accord/ids.md` (new) also holds the drop rule: a ticket's type never changes; to change it, set
   `status: dropped` with its `## Dropped` reason, commit and merge that, and create a new ticket with
-  `accord new ticket --type <the other type>`; copy into the new ticket every section below the dropped
-  ticket's frontmatter (Intent, Acceptance criteria, Vetoes, Decisions, Corrections and the rest), never its
-  `approved_hash` or `ac_hash`, and then the owner approves the new ticket again (D-02, owner's answer "Chép
-  nội dung sang"); never delete a `t/` branch to drop a ticket (D-02, ledger Ruling). On a merge conflict under
-  `people`, keep every entry. It also says: fetch first with
+  `accord new ticket --type <the other type>`. Into the new ticket copy the dropped ticket's frontmatter keys
+  `lane`, `ui`, `design`, `parent`, `depends_on` and `tracker`, where present, and every section below its
+  frontmatter except `## Dropped`. Never copy `id`, `type`, `status`, `approved_hash`, `ac_hash`, `verified`,
+  `verified_hash` or `verified_commit`. Then the owner approves the new ticket again (D-02, ledger Rulings on
+  the owner's answers "Chép nội dung sang" and "Chuyển key mô tả công việc"). Never delete a `t/` branch to drop
+  a ticket (D-02, ledger Ruling). On a merge conflict under `people`, keep each email once; when the two sides
+  give one email different initials, ask the owner which to keep (ledger Ruling: a duplicate key makes
+  config.yml unreadable). It also says: fetch first with
   `git -c credential.interactive=never -c core.sshCommand="ssh -o BatchMode=yes" fetch`; on failure say so and
   continue, since only refs already in the clone are read (D-10). Register only when `people` exists, never
   create it. When `accord new ticket` says your email is not registered: look for it on other branches with

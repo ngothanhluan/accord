@@ -19,5 +19,9 @@
 - Ruling: the skill drops a ticket by committing `status: dropped` and merging, never by deleting its branch; deleting an unmerged pruned branch can free its number, a recorded limit of D-11 (critic round 2, Should 6) — cost if wrong: a reused number in that one case.
 - Ruling: the fetch is `git -c credential.interactive=never -c core.sshCommand="ssh -o BatchMode=yes" fetch`, replacing the GIT_TERMINAL_PROMPT ruling above (critic round 2, Should 7) — cost if wrong: a hang on an exotic credential helper.
 - Ruling: the number part is `[1-9][0-9]*` (critic round 2, Nice 9) — cost if wrong: none.
+- Ruling: the schema tests are named `risk:parsing` and the D-18 precedence test `risk:complex-branching`, replacing the Approach's `risk:schema` and `risk:regression`, which are not on the reviewer's kind list (planner) — cost if wrong: test names only.
+- Ruling: the skill detail goes in a new reference `packages/core/skills/accord/ids.md` loaded by /accord, since the skill file must stay within 5120 bytes (planner) — cost if wrong: one extra file.
+- Ruling: Task 5 adds no test of `init` writing `people: {}`; the existing scaffold test validating the init config against the schema is its check (planner) — cost if wrong: nothing fails if `people: {}` is later removed from init.
+- Ruling: Task 6 relies on the existing stage-skills phrase, size and drift tests, as in the TAGS-1 plan (planner) — cost if wrong: the reviewer may want a `risk:` test there.
 
 ## Deferred

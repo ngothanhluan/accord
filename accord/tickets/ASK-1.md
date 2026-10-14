@@ -40,7 +40,7 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: ASK-1
 
-  @ac-1
+  @ac-1 @test:packages/core/test/stage-skills.test.ts#ac-1-the-shared-ask-rule-holds-the-fixed-sentence-beside-every-stage-skill
   Scenario: the shared rule holds the fixed sentence beside every stage skill that asks the owner
     Given the files `accord skills sync` writes for a config that enables every runtime, in every target directory
     When a reader opens the ask.md beside the SKILL.md of each of accord, intent, approach, plan, build, review, verify, and debug

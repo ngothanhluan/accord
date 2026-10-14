@@ -40,7 +40,7 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: BASE-1
 
-  @ac-1
+  @ac-1 @test:packages/core/test/lane-plan.test.ts#ac-1-gate-plan-asks-about-the-tests-baseline-while-the-file-is-absent
   Scenario: gate plan warns while the tests baseline is absent
     Given a lane ticket whose plan passes every plan rule
     And accord/config.yml sets tests.report
@@ -49,7 +49,7 @@ Feature: BASE-1
     Then the result carries a warning that asks the owner whether to run accord tests baseline
     And the verdict is pass with exit code 0
 
-  @ac-2
+  @ac-2 @test:packages/core/test/lane-plan.test.ts#ac-2-gate-plan-is-silent-once-the-tests-baseline-exists
   Scenario: gate plan is silent once the tests baseline exists
     Given a lane ticket whose plan passes every plan rule
     And accord/config.yml sets tests.report
@@ -57,7 +57,7 @@ Feature: BASE-1
     When the owner runs accord gate plan for that ticket
     Then the result carries no tests baseline warning
 
-  @ac-3
+  @ac-3 @test:packages/core/test/lane-plan.test.ts#ac-3-gate-plan-is-silent-when-no-report-is-configured
   Scenario: gate plan is silent when no report is configured
     Given a lane ticket whose plan passes every plan rule
     And accord/config.yml has no tests.report key

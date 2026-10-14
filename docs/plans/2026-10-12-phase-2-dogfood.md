@@ -491,6 +491,7 @@ completion notice.
 | 18 | plan | planner (resumed, fixes) | opus, medium | 167,158 cumulative | 6 | 39s | round 6 two Should and two Nice fixed in a sixth round the owner allowed; gate plan passed |
 | 19 | plan | critic (round 7, diff only) | opus, high | 64,151 | 24 | 161s | no Must; 1 Should (`title` missing from the type-change carry-over list), 5 Nice (epic lane/parent copy, copied `@test:` tags and Feature line, case-insensitive emails and shared initials in a conflict, two test-setup details); owner asked |
 | 20 | plan | planner (resumed, fixes) | opus, medium | 171,867 cumulative | 7 | 29s | round 7 Should (`title`) and 5 Nice fixed; owner set the stop rule: one last diff-only critic; gate plan passed |
+| 21 | plan | critic (round 8, diff only, last) | opus, high | 57,113 | 24 | 140s | no Must; 1 Should, one sentence (`new ticket` without `--lane` on a type change writes a non-lane template); fixed under the owner's stop rule, no further critic |
 
 Baseline suite at 3be1c05: 55 files, 1182 tests pass, 62s.
 

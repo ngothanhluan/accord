@@ -1,6 +1,6 @@
 ---
 id: "ST-LN-1"                            # equals the file name: tickets/<id>.md
-title: "Short title in business language"
+title: "Claim branch names follow a configured template"
 type: "story" # story | bug. An epic uses its own template
 status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
@@ -26,6 +26,11 @@ ui: false
 
 ## Intent
 <!-- At most five lines: why, for whom, how success is measured, and what this does not do. -->
+The claim branch is fixed as `t/<id>`, while many teams name branches their own way, e.g. `feature/<id>`.
+For a team, accord should create, recognise and count claim branches named by the team's template.
+Success: with `branch: "feature/{id}"` in config.yml, /accord creates and pushes `feature/ST-LN-2`, `accord anchor` finds the active ticket from it, and status and next count it as a claim; `t/<id>` branches still count.
+Without the key nothing changes: the template is `t/{id}`.
+Not in this ticket: variables other than `{id}`, a free-text tail after the id, renaming existing branches, a configurable `claim: <id>` commit message.
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.
@@ -34,10 +39,38 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 Feature: ST-LN-1
 
   @ac-1
-  Scenario: <observable outcome>
-    Given ...
-    When ...
-    Then ...
+  Scenario: The active ticket is found from a branch named by the template
+    Given config.yml has `branch: "feature/{id}"` and ticket ST-AN-2 exists
+    When `accord anchor` runs with no id on branch feature/ST-AN-2
+    Then it prints the anchor of ST-AN-2 and exits 0
+
+  @ac-2
+  Scenario: Branches named by the template and t/ branches both count as claims
+    Given config.yml has `branch: "feature/{id}"` and tickets ST-AN-2 and ST-AN-3 exist
+    And the tip commit of the fetched ref origin/feature/ST-AN-2 is authored by "an@example.com", and that of origin/t/ST-AN-3 by "bo@example.com"
+    When `accord status --json` and `accord next --json` run
+    Then ST-AN-2 is claimed by "an@example.com", ST-AN-3 by "bo@example.com", and next lists neither
+
+  @ac-3
+  Scenario: Lint rejects an invalid template and other commands fall back to t/{id}
+    Given config.yml has `branch` set in turn to "{id}", "feature/{id}/{id}", "feature/x", "feature {id}", and "feature/..{id}"
+    When `accord lint` runs, and `accord anchor` runs with no id on branch t/ST-AN-2
+    Then lint reports a schema error on `branch` and exits 1 for each, and the anchor is that of ST-AN-2
+    And with "feature/{id}" lint reports no finding on `branch`
+
+  @ac-4
+  Scenario: Without the key nothing changes
+    Given config.yml has no `branch` key and tickets ST-AN-2 and ST-AN-3 exist
+    And the local branch t/ST-AN-2 is checked out, and the fetched ref origin/feature/ST-AN-3 exists with no t/ST-AN-3 anywhere
+    When `accord anchor` runs with no id, and `accord status --json` runs
+    Then the anchor is that of ST-AN-2, ST-AN-2 is claimed, and ST-AN-3 is not claimed
+
+  @ac-5
+  Scenario: The /accord skill uses the template
+    Given the /accord skill as shipped
+    When its Continue, Pick up and New request steps are read
+    Then the skill says once that the claim branch is built from `branch` in accord/config.yml, `t/{id}` when the key is absent
+    And Continue switches to the claim branch, and Pick up and New request create and push it
 ```
 
 ## Vetoes
@@ -45,12 +78,19 @@ Feature: ST-LN-1
 
 ## Decisions
 <!-- Settled answers, one per line: - D-01 <decision> — "<the owner's sentence>" -->
+- D-01 Three parts: an optional config key validated by the schema, defaulting to `t/{id}`; anchor, hook and the claim read use the template; the /accord skill tells the agent to create and switch to the branch the template gives — "Đúng 3 phần (Recommended)"
+- D-02 The template is fixed text plus exactly one `{id}`, matched against the whole branch name; no other variable and no free-text tail — "Chỉ {id} (Recommended)"
+- D-03 `t/<id>` branches always count as claims, next to branches named by the template, so changing the template never loses a claim; `t/` stays reserved — "Đọc cả t/ lẫn mẫu mới (Recommended)"
+- D-04 The schema requires exactly one `{id}`, at least one fixed character besides it, and only characters git allows in a branch name; lint reports an invalid template — "Chặt: đúng 1 {id}, có chữ cố định, tên git hợp lệ (Recommended)"
+- D-05 All three parts are the smallest version that counts as done — "Cả 3 phần (Recommended)"
+- D-06 An invalid template is a lint schema error (exit 1), like any other config key; while it is invalid, anchor, hook, status and next ignore it and use `t/{id}` — "Như key khác, lệnh khác dùng t/{id} (Recommended)"
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
 
 ## Open questions
 <!-- `- [ ]` items; Ready stays blocked while any is unchecked. -->
+- [x] What is the smallest version that still counts as done? All three parts (D-05).
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->

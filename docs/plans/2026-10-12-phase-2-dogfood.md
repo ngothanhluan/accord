@@ -475,6 +475,7 @@ completion notice.
 | 2 | intent | auditor | inherit | 20,191 | 2 | 32s | 3 of 5 criteria read two ways → 4 owner questions (D-10..D-13) |
 | 3 | approach | architect | inherit | 76,809 | 40 | 180s | 2 options, Option 1 recommended; 3 public-interface points to the owner (D-14..D-16) |
 | 4 | approach | critic (round 1) | inherit | 67,121 | 24 | 220s | 2 Must (number reuse after prune, D-11; shared initials across branches, D-04), 3 Should, 2 Nice → owner chose D-17 |
+| 5 | approach | critic (round 2) | inherit | 65,973 | 18 | 231s | no Must; 7 Should, 3 Nice → 1 owner question (D-18), the rest Rulings |
 
-Owner side so far: 13 interview answers, 1 correction (prefixes fixed, not configured), 2 scope splits
+Owner side so far: 13 interview answers, 7 approach answers (D-14..D-18), 1 correction (prefixes fixed, not configured), 2 scope splits
 (branch names, epic grouping to the dashboard ticket).

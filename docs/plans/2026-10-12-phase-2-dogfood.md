@@ -340,3 +340,68 @@ on this repository, in its own branch and pull request.
 - The approach critic caught that never trimming a leading dot would warn on every `.md` in prose and break
   `...path`; the owner narrowed D-01 rather than accept the noise.
 - Review converged in one round; the final review's only finding was a duplicated assertion.
+
+# Sixth ticket: ASK-1
+
+ASK-1 ("Every question to the owner stands alone") fixed item 36 above, through `/accord` on this repository,
+in its own branch and pull request.
+
+## How it ran
+
+- Stages: intent (4 owner answers, 1 audit with 4 two-way readings settled in one answer, 7 Decisions) →
+  approach (architect, two critic rounds; round 1's Must changed the option) → plan (critic 1 Nice) → build
+  (2 tasks, no retry) → review (round 1 none, final review 1 Should fixed, scoped re-review none) → verify
+  (2 of 2 pass, owner approved) → `gate done` 0 errors. Suite 1178 → 1180 tests. Merged as PR #12.
+- Every owner question in the run carried its context in the question itself, ahead of the rule it ships.
+
+## Recurred
+
+- **Item 11.** The session anchor on the blank ticket said "next: the owner approves the ticket", a fifth time.
+- **Item 30.** The rendered plan skill is now 5099 of 5120 bytes; ASK-1 had to measure every added byte.
+- **Item 35.** `gate done` warned three times on `gate.reference-unknown`, none a mistyped path (item 37).
+
+## New findings
+
+37. **The verifier cites globs and directories that are not in the tree.** `.claude/skills/*/ask.md`,
+    `packages/core/skills/*/SKILL.md` and `.agents/skills` each drew `gate.reference-unknown`. Fix: the
+    verifier cites one concrete file, never a glob; or the citation reader skips a token holding `*`.
+38. **The owner approved a summary of the criteria, not their text.** The approach yes covers Intent and the
+    acceptance criteria, but no step shows them verbatim, so the owner approved the orchestrator's summary
+    while `accord approve` hashed the file. The owner chose a ticket of its own, next in the queue: at the end
+    of the intent stage, after the audit and before the architect, the owner sees Intent and the criteria
+    block verbatim and says yes.
+39. **A floor the plan named was dropped, and only the final review saw it.** The plan said each criterion
+    test asserts the exact stage and directory lists; the tests looped over the code's own lists and could
+    pass checking nothing. The round 1 reviewer, which reads the ticket, the package and the ledger but not
+    `plan.md`, passed it. Fix: the reviewer reads each task's plan prose against the tests it produced.
+
+## Decided during ASK-1
+
+Asked what accord records, whether it needs pattern mapping, and whether it needs project knowledge, the
+owner set this order for the tickets after ASK-1:
+
+1. The intent review of item 38.
+2. Items 33 and 34, together with `accord/product/conventions.md`: the repository's engineering rules, one
+   per line with `Rejected:` lines, which `accord brief` appends to every brief; the planner and the
+   executor read `product/`; the verify stage offers to promote a Ruling or Correction that holds beyond
+   its ticket. This replaces the notes the orchestrator has pasted into every brief by hand.
+3. A run log: the plan critic's findings recorded per round as `review.md` records review, and one line per
+   agent run (agent, model, effort, outcome; tokens and time blank where the runtime gives none), so the
+   phase 3 benchmark starts with data.
+4. The planner names an existing file to copy the shape from for each `(new)` file; no separate agent.
+5. Items 4 and 4a, plus one verify step: `git fetch`, then `git merge origin/main` when the branch is
+   behind, then `tests.full`, so the commit verified is the one that merges; never a rebase.
+
+Then the deferred-to-backlog ticket (item 22), the researcher ticket, and phase 3.
+
+## Deferred from ASK-1
+
+(none)
+
+## What worked
+
+- The scout's byte counts showed, before any criterion was written, that copying the rule into eight
+  skills would break the size cap; the owner chose the shared file with that number in view.
+- The approach critic's Must caught that a pointer tied to the intent clause would leave most questions,
+  the approach yes and the verify approve among them, without the rule; both criteria would still have passed.
+- The final review's mutation reasoning (drop a stage, stay green) found the one gap three earlier readers missed.

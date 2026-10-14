@@ -65,7 +65,7 @@ Feature: BASE-1
     When the owner runs accord gate plan for that ticket
     Then the result carries no tests baseline warning
 
-  @ac-4
+  @ac-4 @test:packages/core/test/stage-skills.test.ts#ac-4-the-plan-skill-asks-the-owner-before-it-creates-the-tests-baseline
   Scenario: the plan skill asks the owner before creating the baseline
     Given the skills rendered by accord skills sync
     When the owner reads step 7, "Baseline tests", of the accord-plan skill

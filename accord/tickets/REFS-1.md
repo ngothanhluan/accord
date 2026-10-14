@@ -88,6 +88,7 @@ Feature: REFS-1
 - D-05 (audit) ac-1 cites in backticks, ac-2 to ac-4 as bare tokens in prose; the reader already treats both alike, so each form is held by one criterion — "Đồng ý cả 4 (Recommended)"
 - D-06 (audit) A `:n-m` citation resolves when its file is in the tree, whatever the file's length; core holds no source text (D-84), and `:n-m` goes as `:n` goes (D-01) — "Đồng ý cả 4 (Recommended)"
 - D-07 (audit) ac-4 yields exactly one `gate.reference-unknown` warning for the block, its message holding `"../x.md"`, none for `docs/x.md`; ac-5 reads one render of the verifier, because every runtime renders from the same source — "Đồng ý cả 4 (Recommended)"
+- D-08 (approach critic) D-01 narrowed: a leading `.` is kept only where it starts a path — `./x`, `../x`, or a dot-name such as `.claude/x` or `.eslintrc.json`; a token that is only `.` plus a known extension (`.md`, `.ts`) and a run of dots before a path (`...packages/x.ts`) are read as today, so neither raises a new warning nor stops resolving — "Chỉ khi nó mở đầu đường dẫn (Recommended)"
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
@@ -97,3 +98,23 @@ Feature: REFS-1
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
+**Chosen: edit `token()` in place, keeping a leading dot only where it starts a path.** The end trim is
+unchanged, so a trailing `.` still goes. At the start, `token()` trims every PUNCT character but `.`, then reads
+the leading dot run: it keeps a run of one or two dots followed by `/` or `\`, and a single dot followed by a
+character that is neither PUNCT nor `.`, `/`, `\` (`.claude/x`, `.eslintrc.json`); any other run is stripped and
+the start trim continues past it, as today (D-08). A token that is exactly `.` plus an EXT entry is not a
+candidate. `POSITION` becomes `/:\d+(?:[:-]\d+)?$/` (D-01, D-06). `normaliseKey` already strips `./`; `../x`
+and `..\x` stay unresolved and are named as written (D-02). The note rules share `token()`, so notes gain the
+same reading (D-82). The verifier gains the D-03 sentence.
+**Rejected:** never trimming a leading dot (D-01 literally): every `.md` word in a verifier's prose would warn,
+and `...packages/x.ts` would stop resolving (D-08).
+**Affected:** `packages/core/src/gate/refs.ts` only, among sources; `packages/core/agents/verifier.md`; the
+generated agents and the installed verifier, in the order `npm run gen`, `npm run build`,
+`node packages/cli/dist/cli.js skills sync`; the committed installed verifier is checked to hold the sentence.
+**Risks (critic):** Should, kept and fixed above: a quote or backtick after a dot (`."packages/x.ts"`) would
+have stopped resolving, and `..\x.md` would have been named `\x.md`. Should: a stale dist leaves the installed
+verifier without the sentence while ac-5 passes, so the order above is fixed. New, intended: a note that passed
+`gate.note-pasted` only because a `.claude/` or `:n-m` token stayed unresolved now fails it.
+**Tests:** ac-1..ac-4 in `packages/core/test/gate.test.ts` through the in-memory verification helper with an
+extended tree, ac-3 citing `:9000-9001`; risk tests in `packages/core/test/refs.test.ts` for `.md` in prose,
+`...packages/x.ts`, `."packages/x.ts"` and `..\x.md`; ac-5 one test over the rendered verifier agent.

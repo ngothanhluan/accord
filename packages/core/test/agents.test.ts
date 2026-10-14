@@ -43,6 +43,12 @@ it('ac-5 the planner and the executor say a test name holds no at sign and no co
   }
 });
 
+it('ac-5 the verifier states how to cite a file', () => {
+  const text = agentTargets(config()).find((f) => f.path === '.claude/agents/accord-verifier.md')?.text ?? '';
+  expect(text.length, 'accord-verifier.md is missing from the render output').toBeGreaterThan(0);
+  expect(text).toContain('Cite a file by its path from the repository root, with `:n` or `:n-m` after it for a line or a range of lines.');
+});
+
 describe('rendered agents', () => {
   it('renders scout with routed defaults and no authoring key', () => {
     const fm = frontmatter(scout(config()));

@@ -97,6 +97,5 @@ follow sentence B's "any section changed" over the line after it; a session that
 yes but before `## Approach` re-runs the intent stage; one corrected word at the approach yes re-runs the
 audit, the architect and the critic.
 **Tests:** ac-1 and ac-2 top-level in `packages/core/test/stage-skills.test.ts` over every runtime directory,
-`[ 	]*
-[ 	]*` to one space on step text that keeps its raw newlines, so a blank line inside a sentence fails;
+`[ \t]*\n[ \t]*` to one space on step text that keeps its raw newlines, so a blank line inside a sentence fails;
 ac-1 splits numbered steps at `^\d+\. ` and checks sentence A's step against the one auditor step and "Next".

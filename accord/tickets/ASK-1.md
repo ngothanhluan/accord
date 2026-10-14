@@ -73,3 +73,24 @@ Feature: ASK-1
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
+**Chosen: `loads:` plus one pointer sentence for every question.** A new `packages/core/skills/shared/ask.md`,
+`kind: reference` and shaped like `packages/core/skills/plan/baseline.md`, holds the D-02 sentence, wrapped. The
+eight stage skills add `shared/ask.md` to `loads:` (plan and review extend their lists); the render drops
+`loads:`, so it costs no bytes. Each Rules bullet beginning "Anything touching intent" ends with the sentence
+"Read `./ask.md` before any question to the owner.", rewrapped; the rest of the bullet is unchanged.
+**Rejected:** folding the pointer into "asks the owner, first reading `./ask.md`" (critic Must: it fires only for
+intent questions, so the approach yes and the verify approve would stay bare); loading `ask.md` in code for
+every stage (against D-03, and it hides the load).
+**Affected:** `packages/core/skills/shared/ask.md` (new); the eight `packages/core/skills/*/SKILL.md`;
+`packages/core/test/stage-skills.test.ts`; `packages/core/src/generated/skills.ts`; the eight
+`.claude/skills/accord*/SKILL.md` and the eight new `ask.md` beside them, in the order `npm run gen`,
+`npm run build`, `node packages/cli/dist/cli.js skills sync`. The plan's `files:` lines name all of them.
+**Risks (critic):** Should, fixed in the tests: ac-2 counts every paragraph or list item that begins "Anything
+touching intent" once a leading `- ` or indentation is stripped, not only column-0 bullets. Nice: ac-1 turns a
+line break and the indentation around it into one space but fails on a blank line inside the sentence (D-05).
+Nice: the rendered plan skill reaches about 5099 of 5120 bytes; its next addition goes into a loaded reference
+(`docs/plans/2026-10-12-phase-2-dogfood.md:218-219`), and two branches that each add to it can pass alone and
+fail together on main.
+**Tests:** ac-1 and ac-2 as top-level tests in `packages/core/test/stage-skills.test.ts`, over a config that
+enables every runtime, looping the eight stage names times every target directory, a missing or empty file
+failing. The caps and the relative-reference check in `packages/core/test/skills.test.ts` cover size and `./ask.md`.

@@ -264,7 +264,10 @@ highest, keeps `(new)` relative to the baseline, and does not re-run the baselin
 `gate plan` run as usual (phase 2).
 
 Before build, `tests.full` runs on the baseline. Any failing case is shown to the owner, who decides
-whether it is fixed first or tracked as its own ticket; the agent never ignores it on its own. The plan
+whether it is fixed first or tracked as its own ticket; the agent never ignores it on its own. When `tests.report` is set and `accord/tests-baseline.txt` is absent, the plan
+stage then asks the owner, after every failing case is decided, whether to run `accord tests baseline`; on a yes it commits
+the file in a commit of its own, never with `plan: <id> ready`, and it stops when `tests.full` wrote no report. The file
+ships to the main branch in its own pull request; a conflict in it keeps only the lines both sides hold. The plan
 stage then ends with a commit whose subject is `plan: <id> ready`; build starts only when the last commit
 touching `plan.md` carries it, and otherwise the plan stage resumes (phase 2).
 

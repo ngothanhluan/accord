@@ -52,6 +52,7 @@
 - Ruling: `defaultRef` is origin/HEAD's target, else origin/main, else origin/master, else none; `initialsHolder` takes the default ref's map only when it holds the initials (D-18) and otherwise scans the other refs in sorted order (executor, task 3) — cost if wrong: a repository whose default branch has another name on another remote falls back to scanning every ref.
 - Ruling: `lint.id-convention` skips a ticket whose type is not story, bug or epic, since no prefix exists for it and the schema already flags it (executor, task 4) — cost if wrong: such an id gets no convention finding.
 - Ruling: a type change strips every `@test:<id>` tag from the copied scenarios and renames the `Feature:` line to the new id, since those tags name tests tied to the dropped ticket and would collide on the first `task-done` (plan critic round 7, Nice; review round 1 intent Nice 1) — cost if wrong: one sentence in `ids.md`.
+- Ruling: `new ticket` checks for a shallow clone after the unregistered-email check and before the refs and history reads; if `git rev-parse --is-shallow-repository` itself fails it does not refuse (executor, review round 1 fix) — cost if wrong: a repository where that call fails could still reuse a number; the call exists in every git since 2.15.
 
 ## Deferred
 - A real branch named `feature/HEAD` is dropped by the `!r.endsWith('/HEAD')` filter, so its `people` is never read for D-17; match `refs/remotes/<remote>/HEAD` exactly (packages/cli/src/load/fs.ts:331).

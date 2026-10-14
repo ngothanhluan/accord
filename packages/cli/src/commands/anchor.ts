@@ -1,8 +1,10 @@
 // Spec §6 `accord anchor [id]`: the active ticket's intent, vetoes, decisions, corrections, and position,
 // for the SessionStart hook after compaction and for the first step of every stage skill. Without an id
-// the active ticket is the current branch t/<id>; on any other branch there is nothing to anchor.
+// the active ticket is the current branch named by a template in force (t/{id} or config `branch`); on any other branch there is nothing to anchor.
 import { execFileSync } from 'node:child_process';
-import { anchorText } from '@accord-dev/accord-core';
+import { anchorText, DEFAULT_BRANCH_TEMPLATE } from '@accord-dev/accord-core';
+import type { RepoSnapshot } from '@accord-dev/accord-core';
+import { ticketOfBranch } from '../load/fs.js';
 import type { CommandContext } from '../run.js';
 import { requireLaneTicket } from './lane-args.js';
 
@@ -21,11 +23,11 @@ function currentBranch(root: string): string | undefined {
   }
 }
 
-/** The id of the current branch `t/<id>`; undefined on any other branch. Throws when git could not say. */
-export function activeTicket(root: string): string | undefined {
+/** The id the current branch carries under a template in force; undefined on any other branch. Throws when git could not say. */
+export function activeTicket(root: string, snapshot: RepoSnapshot): string | undefined {
   const branch = currentBranch(root);
   if (branch === undefined) throw new Error('could not read the current branch; nothing to anchor');
-  return /^t\/([^/]+)$/.exec(branch)?.[1];
+  return ticketOfBranch(branch, snapshot.branchTemplates ?? [DEFAULT_BRANCH_TEMPLATE], (id) => Object.hasOwn(snapshot.tickets, id));
 }
 
 export function anchor(ctx: CommandContext, id: string | undefined): number {
@@ -38,7 +40,7 @@ export function anchor(ctx: CommandContext, id: string | undefined): number {
   // exits 0 and says why on stderr, and only a detached HEAD (nothing to anchor) says nothing.
   let active: string | undefined;
   try {
-    active = activeTicket(ctx.root);
+    active = activeTicket(ctx.root, ctx.snapshot);
   } catch (e) {
     ctx.stderr.write((e as Error).message + '\n');
     return 0;

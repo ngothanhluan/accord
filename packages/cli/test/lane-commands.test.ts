@@ -1029,3 +1029,20 @@ it('ac-3 gate plan fails on a comma inside a verify id', async () => {
     r.out.split('\n').some((l) => l.startsWith('accord/tickets/T-1/plan.md:') && l.includes('gate.plan-verify-comma')),
   ).toBe(true);
 }, 30000);
+
+const BRANCHED = CONFIG + 'branch: "feature/{id}"\n';
+
+it('ac-1 anchor finds the active ticket from a branch named by the template', async () => {
+  const repo = makeLaneRepo({ 'accord/config.yml': BRANCHED, 'accord/tickets/ST-AN-2.md': laneTicket('ST-AN-2') });
+  try {
+    commitAll(repo);
+    gitRun(repo, 'checkout', '-q', '-b', 'feature/ST-AN-2');
+    const r = await run(['anchor'], repo);
+    expect(r.code).toBe(0);
+    expect(r.out.startsWith('# Anchor: ST-AN-2 "Export"\n')).toBe(true);
+    const h = await run(['hook', 'session-resume'], repo);
+    expect(h.out).toContain('# Anchor: ST-AN-2 "Export"');
+  } finally {
+    cleanup(repo);
+  }
+});

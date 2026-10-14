@@ -21,6 +21,8 @@ export interface SnapshotInput {
   // Host-supplied: a recorded verified_commit or verification commit, as written -> paths changed from it to HEAD.
   // Present only when the sha is an ancestor of HEAD.
   recordsSince?: Record<string, string[]>;
+  // Claim branch templates in force ('t/{id}', 'feature/{id}'). Absent when only the default applies.
+  branchTemplates?: string[];
 }
 
 export interface Line {
@@ -150,6 +152,7 @@ export interface AccordConfig {
   stale_days?: string; // digits; YAML numerics stay strings
   people?: Record<string, string>; // email -> 2 to 4 capital letters (IDS-1)
   legacy_ids?: string[]; // ticket ids exempt from the id convention (IDS-1)
+  branch?: string; // claim branch template with exactly one {id}; absent means 't/{id}'
 }
 
 export interface RepoSnapshot {
@@ -170,4 +173,5 @@ export interface RepoSnapshot {
   ancestors?: Record<string, boolean>; // carried through from SnapshotInput
   baselineFiles?: Record<string, string[]>; // carried through from SnapshotInput
   recordsSince?: Record<string, string[]>; // carried through from SnapshotInput
+  branchTemplates?: string[]; // carried through from SnapshotInput
 }

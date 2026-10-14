@@ -3,7 +3,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { isSha, loadSnapshot, peopleOf } from '@accord-dev/accord-core';
+import { DEFAULT_BRANCH_TEMPLATE, isSha, loadSnapshot, peopleOf } from '@accord-dev/accord-core';
 import type { SnapshotInput } from '@accord-dev/accord-core';
 
 /** Environment problem the user must fix (no git, not a repository, no accord/ folder); exit 2 in Phase 5. */
@@ -231,6 +231,24 @@ function gitRecordsSince(root: string, shas: string[]): Record<string, string[]>
   return out;
 }
 
+/**
+ * The ticket id a branch name carries under the templates in force, or undefined. A `t/` name is matched only by
+ * `t/{id}`. Among matching templates the first whose id is `known` wins, else the first match in template order.
+ */
+export function ticketOfBranch(name: string, templates: readonly string[], known: (id: string) => boolean): string | undefined {
+  const ids: string[] = [];
+  for (const template of templates) {
+    if (name.startsWith('t/') && template !== DEFAULT_BRANCH_TEMPLATE) continue;
+    const parts = template.split('{id}');
+    if (parts.length !== 2) continue;
+    const [pre, suf] = parts;
+    if (!name.startsWith(pre) || !name.endsWith(suf) || name.length <= pre.length + suf.length) continue;
+    const id = name.slice(pre.length, name.length - suf.length);
+    if (!id.includes('/')) ids.push(id);
+  }
+  return ids.find(known) ?? ids[0];
+}
+
 export function loadFromFs(root: string): SnapshotInput {
   const tree = gitTree(root);
   const files = accordFiles(root);
@@ -269,9 +287,11 @@ export function loadFromFs(root: string): SnapshotInput {
     ),
   ];
   const recordsSince = recorded.length === 0 ? {} : gitRecordsSince(root, recorded);
+  const branchTemplates = [...new Set([DEFAULT_BRANCH_TEMPLATE, ...(config?.branch === undefined ? [] : [config.branch])])];
   return {
     files,
     tree,
+    ...(branchTemplates.length === 1 ? {} : { branchTemplates }),
     ...(git === undefined ? {} : { git }),
     // Omitted when empty, so a repository with no ticket branch loads exactly as before.
     ...(Object.keys(claims).length === 0 ? {} : { claims }),

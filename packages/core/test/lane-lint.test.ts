@@ -117,3 +117,35 @@ describe('dropped (spec §3)', () => {
     ]);
   });
 });
+
+const withPeople = (people: string[], legacy?: string[]) =>
+  CONFIG + 'people:\n' + people.map((p) => '  ' + p + '\n').join('') + (legacy ? `legacy_ids: [${legacy.join(', ')}]\n` : '');
+
+it('ac-3 lint rejects an id that breaks the convention and spares the legacy list', () => {
+  const asBug = (id: string) => laneTicket(id).replace('type: story', 'type: bug');
+  const files = {
+    ...repo({ 'SHOW-1': laneTicket('SHOW-1'), 'FOO-1': laneTicket('FOO-1'), 'ST-AN-4': asBug('ST-AN-4'), 'BUG-AN-1': asBug('BUG-AN-1') }),
+    'accord/config.yml': withPeople(['"lu@example.com": LN'], ['SHOW-1']),
+  };
+  const found = rules(files, 'lint.id-convention');
+  expect(found.map((f) => f.file)).toEqual(['accord/tickets/FOO-1.md', 'accord/tickets/ST-AN-4.md']);
+  expect(found[0]?.reason).toContain('ST-<initials>-<n>');
+  expect(found[0]?.reason).toContain('legacy_ids');
+  expect(found[1]?.reason).toContain('BUG-<initials>-<n>');
+});
+
+it('ac-4 lint rejects two people with the same initials', () => {
+  const files = { 'accord/config.yml': withPeople(['"an@example.com": AN', '"anh@example.com": AN']) };
+  const found = rules(files, 'lint.initials-duplicate');
+  expect(found).toHaveLength(1);
+  expect(found[0]?.file).toBe('accord/config.yml');
+  for (const s of ['AN', 'an@example.com', 'anh@example.com']) expect(found[0]?.reason).toContain(s);
+});
+
+it('risk:complex-branching emails differing only in case are flagged as one person', () => {
+  const files = { 'accord/config.yml': withPeople(['"An@example.com": AN', '"an@example.com": LN']) };
+  const found = rules(files, 'lint.initials-duplicate');
+  expect(found).toHaveLength(1);
+  expect(found[0]?.reason).toContain('An@example.com');
+  expect(found[0]?.reason).toContain('an@example.com');
+});

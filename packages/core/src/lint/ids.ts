@@ -1,3 +1,4 @@
+import type { Rule } from './rules.js';
 import { normaliseText } from '../load/frontmatter.js';
 import { parseYamlMap } from '../load/yaml.js';
 // IDS-1: the ticket id convention `<ST|BUG|EP>-<initials>-<n>`; pure, no I/O.
@@ -48,3 +49,42 @@ export function initialsHolder(
   }
   return undefined;
 }
+
+export const idConvention: Rule['check'] = (snapshot) => {
+  if (snapshot.config?.people === undefined) return []; // D-08
+  const legacy = snapshot.config.legacy_ids ?? [];
+  return Object.values(snapshot.tickets).flatMap((t) => {
+    const type = t.frontmatter?.type;
+    if (t.frontmatter === undefined || (type !== 'story' && type !== 'bug' && type !== 'epic') || legacy.includes(t.id)) return [];
+    const prefix = ID_PREFIX[type];
+    if (new RegExp(`^${prefix}-[A-Z]{2,4}-[1-9][0-9]*$`).test(t.id)) return [];
+    return [
+      {
+        file: t.file,
+        pointer: '/id',
+        reason: `id "${t.id}" does not follow ${prefix}-<initials>-<n> for a ${type}; if it predates the convention, add it to legacy_ids in accord/config.yml`,
+      },
+    ];
+  });
+};
+
+export const initialsDuplicate: Rule['check'] = (snapshot) => {
+  const people = snapshot.config?.people;
+  if (people === undefined) return [];
+  const group = (key: (email: string) => string): string[][] => {
+    const by = new Map<string, string[]>();
+    for (const email of Object.keys(people)) by.set(key(email), [...(by.get(key(email)) ?? []), email]);
+    return [...by.entries()].filter(([, v]) => v.length > 1).map(([k, v]) => [k, ...v]);
+  };
+  const at = { file: 'accord/config.yml', pointer: '/people' };
+  return [
+    ...group((e) => people[e] ?? '').map(([ini, ...emails]) => ({
+      ...at,
+      reason: `initials "${ini}" belong to ${emails.join(', ')}; each person needs their own`,
+    })),
+    ...group((e) => e.toLowerCase()).map(([, ...emails]) => ({
+      ...at,
+      reason: `${emails.join(' and ')} differ only in case and count as one person; keep one`,
+    })),
+  ];
+};

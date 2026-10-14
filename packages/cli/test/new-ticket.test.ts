@@ -241,3 +241,49 @@ it('risk:complex-branching a ticket added and deleted on a merged and deleted br
   expect(code).toBe(0);
   expect(out).toBe('accord/tickets/ST-AN-3.md\n');
 });
+
+function addPeopleRaw(repo: string, entry: string): void {
+  const file = join(repo, 'accord', 'config.yml');
+  const text = readFileSync(file, 'utf8');
+  writeFileSync(file, text + (text.endsWith('\n') ? '' : '\n') + 'people:\n  ' + entry + '\n');
+}
+
+it('ac-2 new ticket refuses an unregistered email and a hand-typed id', async () => {
+  const repo = sandbox();
+  addPeople(repo);
+  const before = listing(repo);
+  gitRun(repo, 'config', 'user.email', 'bo@example.com');
+  const first = await run(['new', 'ticket', '--type', 'bug'], repo);
+  expect(first.code).toBe(2);
+  expect(first.err).toContain('bo@example.com');
+  expect(first.err).toContain('people');
+  expect(first.err).toContain('accord/config.yml');
+  expect(listing(repo)).toEqual(before);
+  gitRun(repo, 'config', 'user.email', 'an@example.com');
+  const second = await run(['new', 'ticket', 'ST-AN-9'], repo);
+  expect(second.code).toBe(2);
+  expect(second.err).toContain('ST-AN-9');
+  expect(second.err).toContain('accord assigns ids');
+  expect(existsSync(ticket(repo, 'ST-AN-9'))).toBe(false);
+});
+
+it('risk:complex-branching an invalid config.yml stops new ticket naming the schema finding', async () => {
+  const repo = sandbox();
+  addPeopleRaw(repo, '"an@example.com": an');
+  const before = listing(repo);
+  const a = await run(['new', 'ticket', 'TCK-1'], repo);
+  expect(a.code).toBe(2);
+  expect(a.err).toContain('accord/config.yml');
+  expect(a.err).toContain('/people');
+  expect(existsSync(ticket(repo, 'TCK-1'))).toBe(false);
+  const b = await run(['new', 'ticket', '--type', 'story'], repo);
+  expect(b.code).toBe(2);
+  expect(b.err).toContain('/people');
+  expect(b.err).not.toContain('a ticket id is required');
+  expect(listing(repo)).toEqual(before);
+  const other = sandbox();
+  setConfig(other, /^profile: build$/m, 'profile: other');
+  const c = await run(['new', 'ticket', 'TCK-1'], other);
+  expect(c.code).toBe(0);
+  expect(existsSync(ticket(other, 'TCK-1'))).toBe(true);
+});

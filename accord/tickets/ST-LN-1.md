@@ -46,10 +46,11 @@ Feature: ST-LN-1
 
   @ac-2
   Scenario: Branches named by the template and t/ branches both count as claims
-    Given config.yml has `branch: "feature/{id}"` and tickets ST-AN-2 and ST-AN-3 exist
+    Given config.yml has `branch: "feature/{id}"` and tickets ST-AN-2, ST-AN-3 and ST-AN-4 exist
     And the tip commit of the fetched ref origin/feature/ST-AN-2 is authored by "an@example.com", and that of origin/t/ST-AN-3 by "bo@example.com"
     When `accord status --json` and `accord next --json` run
-    Then ST-AN-2 is claimed by "an@example.com", ST-AN-3 by "bo@example.com", and next lists neither
+    Then ST-AN-2 is claimed by "an@example.com" with branch "feature/ST-AN-2", and ST-AN-3 by "bo@example.com" with branch "t/ST-AN-3"
+    And next lists ST-AN-4 with branch "feature/ST-AN-4" and lists neither ST-AN-2 nor ST-AN-3
 
   @ac-3
   Scenario: Lint rejects an invalid template and other commands fall back to t/{id}
@@ -69,8 +70,8 @@ Feature: ST-LN-1
   Scenario: The /accord skill uses the template
     Given the /accord skill as shipped
     When its Continue, Pick up and New request steps are read
-    Then the skill says once that the claim branch is built from `branch` in accord/config.yml, `t/{id}` when the key is absent
-    And Continue switches to the claim branch, and Pick up and New request create and push it
+    Then Continue switches to the `branch` that `accord status --json` gives for the ticket
+    And Pick up and New request create and push the `branch` that `accord next --json` or `accord status --json` gives, and none of the three steps builds a branch name itself
 ```
 
 ## Vetoes
@@ -84,6 +85,8 @@ Feature: ST-LN-1
 - D-04 The schema requires exactly one `{id}`, at least one fixed character besides it, and only characters git allows in a branch name; lint reports an invalid template — "Chặt: đúng 1 {id}, có chữ cố định, tên git hợp lệ (Recommended)"
 - D-05 All three parts are the smallest version that counts as done — "Cả 3 phần (Recommended)"
 - D-06 An invalid template is a lint schema error (exit 1), like any other config key; while it is invalid, anchor, hook, status and next ignore it and use `t/{id}` — "Như key khác, lệnh khác dùng t/{id} (Recommended)"
+- D-07 The templates in force are `t/{id}`, the `branch` in the working tree's config.yml, and the `branch` in config.yml on the fetched default branch; a template reaches the whole team once it is on the default branch, and no other ref sets one — "Máy đang chạy + nhánh mặc định (Recommended)"
+- D-08 The CLI gives the branch name: each row of `status --json` and `next --json` carries `branch`, the claim branch of a claimed ticket or the name a new claim would use; the /accord skill reads it and never builds a name — "CLI in ra tên nhánh (Recommended)"
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->

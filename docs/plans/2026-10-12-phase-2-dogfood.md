@@ -527,3 +527,5 @@ First ticket created under the id convention: `accord new ticket --type story --
 | 7 | plan | planner | opus, medium | 165,950 | 63 | 556s | 5 tasks, 6 Rulings; gate plan passed first try |
 | 8 | plan | critic (plan round 1) | opus, high | 124,255 | 47 | 442s | 0 Must, 2 Should (preamble definitions missing from briefs; core helper the Approach rejected), 1 Nice deferred (docs) |
 | 9 | plan | planner (round 1 fixes) | opus, medium | 60,705 | 16 | 157s | definitions inlined per task; ticketOfBranch moved to the CLI; gate plan passed |
+
+Finding (ST-LN-1 plan round 1): `accord brief <id> <n>` prints the ticket and that task's section only, so anything a planner writes in a shared preamble never reaches the executor (packages/cli/src/commands/brief.ts:17-19). Either the planner agent's instructions forbid a preamble, or `brief` includes the text above `## Task 1`. Worth its own ticket.

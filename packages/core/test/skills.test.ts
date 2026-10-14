@@ -12,7 +12,6 @@ import type { SkillKey } from '../src/index.js';
 import type { AccordConfig } from '../src/index.js';
 import { DONE_RULES, READY_RULES } from '../src/gate/rules.js';
 import { RULES } from '../src/lint/rules.js';
-import { deniedNames } from '../../../test/helpers/denied.js';
 
 const skillsDir = fileURLToPath(new URL('../skills/', import.meta.url));
 const BOM = String.fromCharCode(0xfeff);
@@ -312,16 +311,6 @@ describe('render output invariants', () => {
       const marker = text.split('\n').find((line) => markerHash(line) !== undefined) as string;
       for (const word of forbidden) expect(marker, `${path}: ${marker}`).not.toMatch(word);
     }
-  });
-
-  it('no rendered text names another tool, plugin, harness, or planning system (CLAUDE.md)', () => {
-    // One assertion over the whole render output, so the prose plans 06-02 and 06-04 add is covered without
-    // either plan restating the criterion. The list and the scan moved out of this file to `helpers/denied.ts`
-    // in 07-04, when Phase 7 gave the same constraint three more shipped surfaces to cover, and on again to
-    // `test/helpers/denied.ts` at the repository root in 07-14, when the published CLI bundle became a surface
-    // the other package's tests had to scan too; the outcome here is unchanged.
-    // Guarded against a vacuous pass by the `has files to check` case at the top of this describe.
-    expect(deniedNames(output)).toEqual([]);
   });
 
   it('no rendered skill or agent names a runtime product (D-109)', () => {

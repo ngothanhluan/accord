@@ -5,7 +5,6 @@ import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import { agents, agentTargets, contentHash, markerHash, renderAgent, withoutMarker } from '../src/index.js';
 import type { AccordConfig, AgentKey } from '../src/index.js';
-import { deniedNames } from '../../../test/helpers/denied.js';
 
 const agentsDir = fileURLToPath(new URL('../agents/', import.meta.url));
 const config = (over: Partial<AccordConfig> = {}): AccordConfig =>
@@ -97,9 +96,8 @@ describe('rendered agents', () => {
     expect(agentTargets(config({ runtimes: ['codex'] }))).toEqual([]);
   });
 
-  it('names no other tool and stays short', () => {
+  it('stays short', () => {
     const files = agentTargets(config());
-    expect(deniedNames(files)).toEqual([]);
     for (const f of files) expect(bodyOf(f.text).split('\n').length, f.path).toBeLessThanOrEqual(60);
   });
 

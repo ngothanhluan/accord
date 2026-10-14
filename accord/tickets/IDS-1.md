@@ -48,7 +48,7 @@ Feature: IDS-1
     When `accord new ticket --type story` runs
     Then accord/tickets/ST-AN-4.md is written with type story, its path is printed, and the exit code is 0
 
-  @ac-2
+  @ac-2 @test:packages/cli/test/new-ticket.test.ts#ac-2-new-ticket-refuses-an-unregistered-email-and-a-hand-typed-id
   Scenario: Creating a ticket is refused for an unregistered email or a hand-typed id
     Given config.yml maps "an@example.com" to initials "AN" and has no entry for "bo@example.com"
     When `accord new ticket --type bug` runs with git user.email "bo@example.com"

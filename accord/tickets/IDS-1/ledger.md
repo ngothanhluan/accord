@@ -2,6 +2,7 @@
 
 ## Tasks
 - task 1 done 501be00fdb30
+- task 2 done ab0aa8a18baa
 
 ## Rulings
 
@@ -42,5 +43,6 @@
 - Ruling: gitTicketIdsInHistory lets a `for-each-ref` failure throw a raw error rather than a UsageError, since the brief named UsageError only for `git log` (executor, task 1) — cost if wrong: an unfriendly message in a repository whose ref store is broken, which earlier git reads already catch.
 - Ruling: the schema tests read the finding's `pointer`, which is where `/people/...` lives (executor, task 1) — cost if wrong: none.
 - Ruling: verify-named cases are top-level `it` calls, because the JUnit id carries every enclosing `describe` title; the shared `base` in the ids config tests became `idsBase` to avoid a collision (executor, task 1 retry) — cost if wrong: none, no behaviour change.
+- Ruling: the invalid-config refusal of `new ticket` prints `accord/config.yml:<line> <pointer> <reason>`, leaving out the line or pointer when absent, as the brief specified (executor, task 2) — cost if wrong: message wording only.
 
 ## Deferred

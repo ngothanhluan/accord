@@ -40,7 +40,7 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: SHOW-1
 
-  @ac-1
+  @ac-1 @test:packages/core/test/stage-skills.test.ts#ac-1-the-intent-skill-shows-intent-and-the-criteria-verbatim-before-the-architect
   Scenario: the intent stage shows Intent and the criteria verbatim and takes a yes before the architect
     Given the files `accord skills sync` writes for a config that enables every runtime, in every target directory
     When a reader opens each rendered `accord-intent/SKILL.md`

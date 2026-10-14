@@ -6,8 +6,8 @@
 // nothing to generate — only to substitute.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { initialsOf, nextTicketId, setFrontmatterKey, templates } from '@accord-dev/accord-core';
-import { gitTicketIdsInHistory, gitUserEmail, UsageError } from '../load/fs.js';
+import { initialsHolder, initialsOf, nextTicketId, setFrontmatterKey, templates } from '@accord-dev/accord-core';
+import { gitPeopleOnRefs, gitTicketIdsInHistory, gitUserEmail, UsageError } from '../load/fs.js';
 import type { CommandContext } from '../run.js';
 
 // The ticket schema's own id pattern (packages/core/schemas/ticket.schema.json). Duplicated as a
@@ -51,6 +51,13 @@ export function newTicket(
     if (initials === undefined) {
       throw new UsageError(
         email + ' is not registered - add "' + email + '": <INITIALS> (2 to 4 capital letters) under people in accord/config.yml, or ask /accord to register you',
+      );
+    }
+    const { byRef, defaultRef } = gitPeopleOnRefs(ctx.root);
+    const holder = initialsHolder(initials, email, byRef, defaultRef);
+    if (holder !== undefined) {
+      throw new UsageError(
+        'initials ' + initials + ' already belong to ' + holder + ' on another branch - choose other initials for ' + email + ' in accord/config.yml',
       );
     }
     const seen = [

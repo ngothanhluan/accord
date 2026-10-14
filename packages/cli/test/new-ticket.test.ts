@@ -287,3 +287,20 @@ it('risk:complex-branching an invalid config.yml stops new ticket naming the sch
   expect(c.code).toBe(0);
   expect(existsSync(ticket(other, 'TCK-1'))).toBe(true);
 });
+
+it('risk:parsing new ticket reads people on every ref and refuses initials another email holds', async () => {
+  const repo = sandbox();
+  addPeopleRaw(repo, '"bo@example.com": AN');
+  commitAll(repo);
+  gitRun(repo, 'update-ref', 'refs/remotes/origin/feature', 'HEAD');
+  const file = join(repo, 'accord', 'config.yml');
+  writeFileSync(file, readFileSync(file, 'utf8').replace('bo@example.com', 'an@example.com'));
+  commitAll(repo);
+  gitRun(repo, 'config', 'user.email', 'an@example.com');
+  const before = listing(repo);
+  const { code, err } = await run(['new', 'ticket'], repo);
+  expect(code).toBe(2);
+  expect(err).toContain('AN');
+  expect(err).toContain('bo@example.com');
+  expect(listing(repo)).toEqual(before);
+});

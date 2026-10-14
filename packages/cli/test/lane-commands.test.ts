@@ -1019,3 +1019,13 @@ it('ac-2 gate plan fails on a verify id whose path holds an at sign', async () =
   expect(r.out).toContain('packages/@scope/x.test.ts#writes');
   expect(atLine(r.out)).toBe(true);
 }, 30000);
+
+it('ac-3 gate plan fails on a comma inside a verify id', async () => {
+  const r = await gatePlanWith('verify: export#escapes-commas (@ac-2), src/x.test.ts#refuses-x,-exit-2');
+  expect(r.code).toBe(1);
+  expect(r.out).toContain('gate.plan-verify-comma');
+  expect(r.out).toContain('src/x.test.ts#refuses-x,-exit-2');
+  expect(
+    r.out.split('\n').some((l) => l.startsWith('accord/tickets/T-1/plan.md:') && l.includes('gate.plan-verify-comma')),
+  ).toBe(true);
+}, 30000);

@@ -218,6 +218,22 @@ export const verifyAt: GateRule['check'] = (snapshot, id) =>
       })),
   );
 
+/** D-05: a comma touching text on both sides splits one id into two; the chunk is named as written. */
+export const verifyComma: GateRule['check'] = (snapshot, id) =>
+  tasksOf(snapshot, id).flatMap((task) => {
+    const verify = fieldLines(task.lines).verify;
+    if (verify === undefined) return [];
+    return verify.value
+      .trim()
+      .split(/\s+/)
+      .filter((chunk) => /\S,\S/.test(chunk))
+      .map((chunk) => ({
+        file: planFile(id),
+        line: verify.line,
+        reason: `task ${task.n} verify id "${chunk}" holds a comma, which splits it into two ids; name the test without a comma`,
+      }));
+  });
+
 /** D-03..D-06: a warning that asks; the question is answered only at the plan stage's baseline tests step. */
 export const testsBaselineMissing: GateRule['check'] = (snapshot, id) => {
   if (laneTicket(snapshot, id) === undefined) return [];

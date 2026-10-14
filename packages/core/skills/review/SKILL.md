@@ -3,7 +3,7 @@ name: accord-review
 description: Use when every task of a lane M ticket has a ledger line and the work needs review. Dispatches reviewers on the review package, fixes patch findings through fresh executors until no Must or Should is left, runs one final reviewer, and records each round in review.md.
 license: MIT
 kind: skill
-loads: [review/record.md]
+loads: [review/record.md, shared/ask.md]
 ---
 
 This stage reviews the built work against the ticket until it converges.

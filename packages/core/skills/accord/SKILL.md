@@ -3,6 +3,7 @@ name: accord
 description: Use when starting any work in an accord repository, when seeing where work stands, or when continuing a ticket. Shows the dashboard, continues or picks up a ticket, and classifies a new request into a lane.
 license: MIT
 kind: skill
+loads: [shared/ask.md]
 ---
 
 `/accord` is the entry point. It routes to the stage skills, so nobody has to

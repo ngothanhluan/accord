@@ -3,6 +3,7 @@ name: accord-intent
 description: Use when a lane M ticket needs its intent captured, or when /accord routes a new request here. Runs the intent interview that writes the ticket's Intent, acceptance criteria, Vetoes, Decisions, and Corrections, so later stages cannot drift from what the owner meant.
 license: MIT
 kind: skill
+loads: [shared/ask.md]
 ---
 
 This stage writes down what the owner means, in the ticket, before anyone

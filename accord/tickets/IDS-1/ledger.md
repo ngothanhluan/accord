@@ -37,5 +37,6 @@
 - Ruling: a sixth plan revision round, again with a diff-only critic — the owner answered "Critic đọc diff thêm lần nữa (Recommended)" — cost if wrong: about 65k tokens.
 - Ruling: `title` also carries over on a type change; it describes the work, the test the owner chose in "Chuyển key mô tả công việc (Recommended)", and the six keys named there were an example list (plan critic round 7, Should 1) — cost if wrong: one word in `ids.md`.
 - Ruling: the plan stage ends after one more diff-only critic: a Must stops and asks the owner; a Should that one sentence fixes, or a Nice, is fixed by the planner, recorded here, and build starts with no further critic — the owner answered "Diff cuối, Should nhỏ thì vào build (Recommended)" — cost if wrong: a fault in that last fix is caught at review.
+- Ruling: a type change always runs `accord new ticket --type <the other type> --lane <lane>` (the dropped ticket's lane, L for a new epic, M for a story or bug made from an epic), so the lane template is used and `lane` is never copied; fixed after the last diff-only critic under the owner's stop rule, with no further critic (plan critic round 8, Should 1) — cost if wrong: a type change writes a ticket lint rejects, found at review or first use.
 
 ## Deferred

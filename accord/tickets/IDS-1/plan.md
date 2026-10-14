@@ -1,6 +1,6 @@
 ---
 baseline: 3be1c058edab354ab449e75c966f0c6797dd4813
-plan_hash: "fnv1a64:bc057580b693ef95"
+plan_hash: "fnv1a64:3425f0af7a494f38"
 ---
 
 Review mode `outcome`: one branch, no slices. Report case ids follow the JUnit id shape in
@@ -310,10 +310,12 @@ Text, naming no other tool:
   (D-03).
 - `skills/accord/ids.md` (new) also holds the drop rule: a ticket's type never changes; to change it, set
   `status: dropped` with its `## Dropped` reason, commit and merge that, and create a new ticket with
-  `accord new ticket --type <the other type>`. Into the new ticket copy the dropped ticket's frontmatter keys
-  `title`, `lane`, `ui`, `design`, `parent`, `depends_on` and `tracker`, where present, and every section below
-  its frontmatter except `## Dropped`. When the change is between an epic and a story or bug, do not copy `lane`
-  or `parent`; the new ticket keeps the values `accord new ticket` wrote. In the copied sections, remove every
+  `accord new ticket --type <the other type> --lane <lane>`, always passing `--lane`: the dropped ticket's lane,
+  except `L` for a new epic and `M` for a story or bug made from an epic. Into the new ticket copy the dropped
+  ticket's frontmatter keys `title`, `ui`, `design`, `parent`, `depends_on` and `tracker`, where present, and
+  every section below its frontmatter except `## Dropped`; the copied sections replace the template's sections.
+  `lane` is never copied, since the flag sets it; when the change is between an epic and a story or bug,
+  `parent` is not copied either. In the copied sections, remove every
   `@test:<id>` tag from the scenarios and change the gherkin `Feature: <old id>` line to the new id. Never copy
   `id`, `type`, `status`, `approved_hash`, `ac_hash`, `verified`, `verified_hash` or `verified_commit`. Then the owner approves the new ticket again (D-02, ledger Rulings on
   the owner's answers "Chép nội dung sang" and "Chuyển key mô tả công việc"). Never delete a `t/` branch to drop

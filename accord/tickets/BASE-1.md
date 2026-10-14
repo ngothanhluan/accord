@@ -22,8 +22,8 @@ ui: false
 # The AC hash and the commit the ticks were made against.
 # verified_hash:
 # verified_commit:
-approved_hash: "fnv1a64:dd541c3309b07fea"
-ac_hash: "fnv1a64:2d668511f03b8ac5"
+approved_hash: "fnv1a64:b169da01c59467fe"
+ac_hash: "fnv1a64:047fc0836aa259b2"
 ---
 
 ## Intent
@@ -71,7 +71,7 @@ Feature: BASE-1
     When the owner reads step 7, "Baseline tests", of the accord-plan skill
     Then it says to ask the owner before running accord tests baseline when accord/tests-baseline.txt is absent
     And to ask only after the owner has decided every failing case at the baseline
-    And to commit the file with the plan: <id> ready commit on a yes
+    And to commit the file in a commit of its own on a yes
     And to stop and tell the owner when tests.full wrote no report
 
   @ac-5
@@ -97,6 +97,7 @@ Feature: BASE-1
 - D-06 Approach critic Must: the warning asks rather than orders, the plan skill's gate step says the baseline is asked at step 7 and never created earlier, and the planner says the same — "Dùng bản sửa (Recommended)"
 - D-07 `accord tests baseline` refuses a report written before the HEAD commit, as `accord task-done` does; this replaces the earlier non-goal — "Thêm kiểm trong CLI (Recommended)"
 - D-08 Teams: the baseline is committed on its own and reaches the main branch in its own pull request before other tickets plan; a merge conflict on it keeps only the lines both sides hold, never the union — "ok theo bạn đề xuất"
+- D-09 @ac-4 follows D-08: on a yes the baseline is committed in a commit of its own, not with the `plan: <id> ready` commit, so it can be picked onto its own pull request — "A"
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
@@ -113,8 +114,8 @@ no `testsBaseline`. Its reason asks the owner whether to run `accord tests basel
 stage's baseline tests step, before the first build commit (D-06). `accord tests baseline` refuses a report older
 than HEAD through task-done's stale check, exported and shared; with no commit there is no check (D-07).
 Plan skill: step 4 says the baseline is asked at step 7, never earlier; step 7 points to a new
-`plan/baseline.md` (keeps SKILL.md under 5120 bytes); step 8 commits the file whenever `git status` shows it
-new. `baseline.md`: after every failing case is decided, ask create / don't create / stop, with the count and
+`plan/baseline.md` (keeps SKILL.md under 5120 bytes); step 8 commits the file on its own whenever `git status`
+shows it new. `baseline.md`: after every failing case is decided, ask create / don't create / stop, with the count and
 samples from `accord lint`'s untraced-test lines; on a stale refusal with nothing changed outside `accord/`,
 re-run `tests.full` once and retry; a missing report, or changed product code, stops and tells the owner;
 the file is committed on its own, ships to the main branch in its own pull request, and a merge conflict

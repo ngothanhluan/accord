@@ -4,12 +4,13 @@
 // write (an existing ticket, an id that has no business reaching the filesystem, a repository whose pin
 // does not match — D-95). Every case runs in its own mkdtemp sandbox, so no test can reach the fixture
 // directory it was copied from.
-import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadSnapshot } from '@accord-dev/accord-core';
 import { afterEach, describe, expect, it } from 'vitest';
 import { loadFromFs } from '../src/load/fs.js';
-import { cleanup, makeRepo, run } from './helpers/repo.js';
+import { cleanup, commitAll, gitRun, makeEmptyRepo, makeRepo, run, writeFiles } from './helpers/repo.js';
+import { CONFIG, laneTicket } from '../../../test/helpers/lane.js';
 
 const ticket = (repo: string, id: string): string => join(repo, 'accord', 'tickets', id + '.md');
 const bytes = (file: string): string => readFileSync(file, 'latin1'); // byte-exact, no encoding fixups
@@ -172,5 +173,73 @@ describe('accord new ticket — what it refuses', () => {
     expect(code).toBe(2);
     expect(err).toContain('config.yml pins accord 9.9.9');
     expect(existsSync(ticket(repo, 'TCK-1'))).toBe(false);
+  });
+});
+
+/** Append the `people` table to the sandbox config.yml. */
+function addPeople(repo: string): void {
+  const file = join(repo, 'accord', 'config.yml');
+  const text = readFileSync(file, 'utf8');
+  writeFileSync(file, text + (text.endsWith('\n') ? '' : '\n') + 'people:\n  "an@example.com": AN\n');
+}
+
+describe('accord new ticket - ids assigned from people', () => {
+  it('ac-1 new ticket assigns the creators next number for its type', async () => {
+    const repo = sandbox();
+    addPeople(repo);
+    writeFiles(repo, {
+      'accord/tickets/ST-AN-1.md': laneTicket('ST-AN-1'),
+      'accord/tickets/ST-LN-9.md': laneTicket('ST-LN-9'),
+    });
+    commitAll(repo);
+    gitRun(repo, 'update-ref', 'refs/remotes/origin/t/ST-AN-3', 'HEAD');
+    gitRun(repo, 'remote', 'add', 'origin', 'https://unreachable.invalid/accord.git');
+    gitRun(repo, 'config', 'user.email', 'an@example.com');
+    const { code, out } = await run(['new', 'ticket', '--type', 'story'], repo);
+    expect(code).toBe(0);
+    expect(out).toBe('accord/tickets/ST-AN-4.md\n');
+    const text = readFileSync(ticket(repo, 'ST-AN-4'), 'utf8');
+    expect(text).toContain('id: "ST-AN-4"');
+    expect(text.split('\n').find((l) => l.startsWith('type:'))).toContain('"story"');
+    expect(existsSync(ticket(repo, 'ST-AN-2'))).toBe(false);
+  });
+
+  it('risk:complex-branching without people and without an id new ticket exits 2 and writes nothing', async () => {
+    const repo = sandbox();
+    const before = listing(repo);
+    const { code, err } = await run(['new', 'ticket'], repo);
+    expect(code).toBe(2);
+    expect(err).toContain('a ticket id is required');
+    expect(listing(repo)).toEqual(before);
+  });
+
+  it('risk:complex-branching the first ticket in a repository with no commit gets number 1', async () => {
+    const repo = makeEmptyRepo();
+    repos.push(repo);
+    writeFiles(repo, { 'accord/config.yml': CONFIG + 'people:\n  "an@example.com": AN\n' });
+    gitRun(repo, 'config', 'user.email', 'an@example.com');
+    const { code, out } = await run(['new', 'ticket', '--type', 'story'], repo);
+    expect(code).toBe(0);
+    expect(out).toBe('accord/tickets/ST-AN-1.md\n');
+    expect(existsSync(ticket(repo, 'ST-AN-1'))).toBe(true);
+  });
+
+  it('risk:complex-branching a ticket added and deleted on a merged and deleted branch keeps its number', async () => {
+    const repo = sandbox();
+    addPeople(repo);
+    gitRun(repo, 'config', 'user.email', 'an@example.com');
+    commitAll(repo);
+    const main = gitRun(repo, 'branch', '--show-current').trim();
+    gitRun(repo, 'checkout', '-q', '-b', 'side');
+    writeFiles(repo, { 'accord/tickets/ST-AN-2.md': laneTicket('ST-AN-2') });
+    commitAll(repo);
+    rmSync(ticket(repo, 'ST-AN-2'));
+    commitAll(repo);
+    gitRun(repo, 'checkout', '-q', main);
+    gitRun(repo, '-c', 'user.email=fixture@example.invalid', '-c', 'user.name=fixture', '-c', 'commit.gpgsign=false', 'merge', '-q', '--no-ff', '--no-edit', '--no-verify', 'side');
+    gitRun(repo, 'branch', '-D', 'side');
+    const { code, out } = await run(['new', 'ticket', '--type', 'story'], repo);
+    expect(code).toBe(0);
+    expect(out).toBe('accord/tickets/ST-AN-3.md\n');
   });
 });

@@ -74,6 +74,16 @@
       "required": ["fix_round_tier_up"],
       "properties": { "fix_round_tier_up": { "type": "string", "pattern": "^[1-5]$" } }
     },
-    "stale_days": { "type": "string", "pattern": "^[1-9][0-9]{0,3}$" }
+    "stale_days": { "type": "string", "pattern": "^[1-9][0-9]{0,3}$" },
+    "people": {
+      "type": "object",
+      "propertyNames": { "pattern": "^[^@\\s]+@[^@\\s]+$" },
+      "additionalProperties": { "type": "string", "pattern": "^[A-Z]{2,4}$" }
+    },
+    "legacy_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" }
+    }
   }
 }

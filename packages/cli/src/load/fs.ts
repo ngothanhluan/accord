@@ -281,3 +281,35 @@ export function loadFromFs(root: string): SnapshotInput {
     ...(Object.keys(recordsSince).length === 0 ? {} : { recordsSince }),
   };
 }
+
+/** IDS-1: `git config user.email`, trimmed; '' when unset (git exits 1). */
+export function gitUserEmail(root: string): string {
+  try {
+    return execFileSync('git', ['config', 'user.email'], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * IDS-1 D-10/D-11: every ticket id that ever appeared under accord/tickets in any ref already in the clone.
+ * No fetch. --full-history keeps a side branch that added and deleted a ticket visible after a --no-ff merge.
+ * Known limit: a treeless clone lacks the trees --name-only needs, so this throws.
+ */
+export function gitTicketIdsInHistory(root: string): string[] {
+  const opts = { cwd: root, encoding: 'utf8' as const, stdio: ['ignore', 'pipe', 'pipe'] as ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024, env: { ...process.env, GIT_NO_LAZY_FETCH: '1' } };
+  if (execFileSync('git', ['for-each-ref', '--count=1', '--format=%(refname)'], opts).trim() === '') return [];
+  let raw: string;
+  try {
+    raw = execFileSync('git', ['log', '--all', '--full-history', '--no-renames', '--format=', '--name-only', '--', 'accord/tickets'], opts);
+  } catch (err) {
+    const stderr = String((err as { stderr?: string }).stderr ?? '').trim();
+    throw new UsageError('git log failed reading ticket ids' + (stderr === '' ? '' : '\n' + stderr));
+  }
+  const ids = new Set<string>();
+  for (const line of raw.split('\n')) {
+    const id = /^accord\/tickets\/([^/]+?)(?:\.md$|\/)/.exec(line.trim())?.[1];
+    if (id !== undefined) ids.add(id);
+  }
+  return [...ids];
+}

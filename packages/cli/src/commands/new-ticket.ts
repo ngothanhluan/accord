@@ -6,8 +6,8 @@
 // nothing to generate — only to substitute.
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setFrontmatterKey, templates } from '@accord-dev/accord-core';
-import { UsageError } from '../load/fs.js';
+import { initialsOf, nextTicketId, setFrontmatterKey, templates } from '@accord-dev/accord-core';
+import { gitTicketIdsInHistory, gitUserEmail, UsageError } from '../load/fs.js';
 import type { CommandContext } from '../run.js';
 
 // The ticket schema's own id pattern (packages/core/schemas/ticket.schema.json). Duplicated as a
@@ -17,9 +17,26 @@ const PLACEHOLDER = 'TICKET-ID';
 
 export function newTicket(
   ctx: CommandContext,
-  id: string,
+  givenId: string | undefined,
   options: { type: 'epic' | 'story' | 'bug'; lane?: 'M' | 'L' | 'P' },
 ): number {
+  const people = ctx.snapshot.config?.people;
+  let id: string;
+  if (givenId !== undefined) id = givenId;
+  else if (people === undefined) throw new UsageError('a ticket id is required: accord new ticket <id>');
+  else {
+    const email = gitUserEmail(ctx.root);
+    const initials = initialsOf(people, email);
+    if (initials === undefined) throw new UsageError('no initials registered for git user.email "' + email + '" in accord/config.yml people');
+    const seen = [
+      ...Object.keys(ctx.snapshot.tickets),
+      ...Object.keys(ctx.snapshot.work ?? {}),
+      ...Object.keys(ctx.snapshot.claims ?? {}),
+      ...gitTicketIdsInHistory(ctx.root),
+    ];
+    id = nextTicketId(options.type, initials, seen);
+  }
+
   // T-05-14: this is the only guard between an argv string and a filesystem write, so it runs before
   // anything else touches a path. The pattern admits no slash, no backslash, no leading dot and no
   // space, so no traversal sequence survives it.

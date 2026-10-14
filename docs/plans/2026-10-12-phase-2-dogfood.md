@@ -485,6 +485,7 @@ completion notice.
 | 12 | plan | planner (resumed, fixes) | opus, medium | 152,336 cumulative | 3 | 16s | round 3 Should fixed (third and last revision); gate plan passed |
 | 13 | plan | critic (round 4) | opus, high | 127,967 | 70 | 453s | no Must; 1 Should (`git log --all` without `--no-renames` likely dies in a blobless clone), 2 Nice (init header says every key is required; `ids.md` append onto `people: {}`); round limit reached, owner asked |
 | 14 | plan | planner (resumed, fixes) | opus, medium | 157,739 cumulative | 8 | 35s | round 4 Should and 2 Nice fixed in a fourth round the owner allowed; 1 Ruling (treeless clone limit); gate plan passed |
+| 15 | plan | critic (round 5) | opus, high | 169,372 | 72 | 669s | no Must; 1 Should (D-02 "clone" read as a blank new ticket in `ids.md`), 3 Nice (`--full-history` for never-reuse, lazy fetch in the `-S` registration lookup, `people` merge conflict); owner asked |
 
 Baseline suite at 3be1c05: 55 files, 1182 tests pass, 62s.
 

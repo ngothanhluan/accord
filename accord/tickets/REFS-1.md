@@ -70,7 +70,7 @@ Feature: REFS-1
     Then the result carries exactly one gate.reference-unknown warning for that block, and its message holds "../x.md"
     And no gate.evidence-unresolved error for that block
 
-  @ac-5
+  @ac-5 @test:packages/core/test/agents.test.ts#ac-5-the-verifier-states-how-to-cite-a-file
   Scenario: the verifier states how to cite a file
     Given one rendered output of the verifier agent
     When a reader looks for the rule on citing a file

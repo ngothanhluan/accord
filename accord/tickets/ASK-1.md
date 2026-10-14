@@ -46,7 +46,7 @@ Feature: ASK-1
     When a reader opens the ask.md beside the SKILL.md of each of accord, intent, approach, plan, build, review, verify, and debug
     Then each ask.md holds the sentence "Every question to the owner stands alone, because the owner may see only the question and its options: it says in one or two plain sentences what is being decided and why now, with an example; each option says what happens if it is chosen; the recommended option comes first; every id such as ac-2 or D-03 carries a short gloss." verbatim, a line break counting as one space
 
-  @ac-2
+  @ac-2 @test:packages/core/test/stage-skills.test.ts#ac-2-every-stage-skill-points-to-the-shared-ask-rule-from-its-intent-paragraph
   Scenario: every stage skill that asks the owner points to the shared rule
     Given the files `accord skills sync` writes for a config that enables every runtime, in every target directory
     When a reader opens the SKILL.md of each of accord, intent, approach, plan, build, review, verify, and debug

@@ -1,6 +1,6 @@
 ---
 id: "REFS-1"                            # equals the file name: tickets/<id>.md
-title: "Short title in business language"
+title: "Gate done reads dot-led paths and line ranges in citations"
 type: "story" # story | bug. An epic uses its own template
 status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
@@ -26,6 +26,11 @@ ui: false
 
 ## Intent
 <!-- At most five lines: why, for whom, how success is measured, and what this does not do. -->
+`gate done` trims a leading `.` from each citation and keeps a `:n-m` line range, so the verifier's ordinary
+citations (`.claude/x.md`, `./x.md`, `path:12-14`) name nothing and the gate warns or fails (dogfood item 27).
+For the owner and the verifier at the verify stage. Done when such citations resolve, a `../` citation is still
+reported as written, and the verifier states how to cite. Not: `path#L12` forms, a root dotfile without `/` or
+a known extension, the `docs/design.md` "path or symbol" sentence.
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.
@@ -34,17 +39,55 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 Feature: REFS-1
 
   @ac-1
-  Scenario: <observable outcome>
-    Given ...
-    When ...
-    Then ...
+  Scenario: a citation under a dot-led directory resolves
+    Given the snapshot tree holds .claude/skills/x.md
+    And a verification.md evidence block whose only citation is `.claude/skills/x.md`, in backticks
+    When gate done runs for that ticket
+    Then the result carries neither gate.evidence-unresolved nor gate.reference-unknown for that block
+
+  @ac-2
+  Scenario: a citation starting with ./ resolves
+    Given the snapshot tree holds docs/x.md
+    And a verification.md evidence block whose only citation is ./docs/x.md, a bare token in prose
+    When gate done runs for that ticket
+    Then the result carries neither gate.evidence-unresolved nor gate.reference-unknown for that block
+
+  @ac-3
+  Scenario: a citation with a line range resolves
+    Given the snapshot tree holds packages/core/src/x.ts
+    And a verification.md evidence block whose only citation is packages/core/src/x.ts:12-14, a bare token in prose
+    When gate done runs for that ticket
+    Then the result carries neither gate.evidence-unresolved nor gate.reference-unknown for that block
+    And no line count of packages/core/src/x.ts is read
+
+  @ac-4
+  Scenario: a citation starting with ../ is still reported, as written
+    Given the snapshot tree holds docs/x.md and no path outside the repository
+    And a verification.md evidence block citing docs/x.md and ../x.md, both bare tokens in prose
+    When gate done runs for that ticket
+    Then the result carries exactly one gate.reference-unknown warning for that block, and its message holds "../x.md"
+    And no gate.evidence-unresolved error for that block
+
+  @ac-5
+  Scenario: the verifier states how to cite a file
+    Given one rendered output of the verifier agent
+    When a reader looks for the rule on citing a file
+    Then it holds the sentence "Cite a file by its path from the repository root, with `:n` or `:n-m` after it for a line or a range of lines." verbatim
 ```
 
 ## Vetoes
 <!-- What the owner forbids, in the owner's own words, one item per line. -->
+(none)
 
 ## Decisions
 <!-- Settled answers, one per line: - D-01 <decision> — "<the owner's sentence>" -->
+- D-01 Three parts: the citation reader stops trimming a leading `.` (a trailing one still goes); it removes a `:n-m` line range as it removes `:n` and `:n:m`; the verifier holds a rule on citing a file. Not: `path#L12` forms, which collide with `file#name` test ids; the `docs/design.md:111` sentence, fixed in the docs PR — "Đúng (Recommended)"
+- D-02 A `../x` citation is still reported, because the tree is repo-relative and a file outside the repository is not evidence; the finding names it as written, `../x.md`, not `/x.md` — "Vẫn báo (Recommended)"
+- D-03 The verifier holds one fixed sentence, checked verbatim by a test over the rendered agent — "Câu cố định, test bản render (Recommended)"
+- D-04 The smallest version is all three parts — "Cả ba phần (Recommended)"
+- D-05 (audit) ac-1 cites in backticks, ac-2 to ac-4 as bare tokens in prose; the reader already treats both alike, so each form is held by one criterion — "Đồng ý cả 4 (Recommended)"
+- D-06 (audit) A `:n-m` citation resolves when its file is in the tree, whatever the file's length; core holds no source text (D-84), and `:n-m` goes as `:n` goes (D-01) — "Đồng ý cả 4 (Recommended)"
+- D-07 (audit) ac-4 yields exactly one `gate.reference-unknown` warning for the block, its message holding `"../x.md"`, none for `docs/x.md`; ac-5 reads one render of the verifier, because every runtime renders from the same source — "Đồng ý cả 4 (Recommended)"
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->

@@ -87,3 +87,4 @@ session and orchestrate: executors write the code.
   interface stops the run and asks the owner. Every other decision is a
   Ruling in `accord/tickets/<id>/ledger.md` under `## Rulings`:
   `Ruling: <what> — <why> — <cost if wrong>`.
+  Read `./ask.md` before any question to the owner.

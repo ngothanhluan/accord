@@ -73,3 +73,26 @@ it('ac-1 the shared ask rule holds the fixed sentence beside every stage skill',
   }
   expect(bad).toEqual([]);
 });
+
+it('ac-2 every stage skill points to the shared ask rule from its intent paragraph', () => {
+  const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
+  const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
+  const bad: string[] = [];
+  for (const dir of skillDirs(all)) {
+    for (const stage of STAGES) {
+      const path = dir + '/' + installedName(stage) + '/SKILL.md';
+      const text = everyFile.get(path) ?? '';
+      if (!text) { bad.push(path + ' missing'); continue; }
+      const blocks: string[][] = [];
+      for (const line of text.split('\n')) {
+        if (!line.trim()) blocks.push([]);
+        else if (/^\s*(?:[-*+]|\d+\.)\s/.test(line) || !blocks.length) blocks.push([line.trim()]);
+        else blocks[blocks.length - 1].push(line.trim());
+      }
+      const hits = blocks.map((b) => b.join(' ').replace(/^(?:[-*+]|\d+\.)\s+/, '')).filter((b) => b.startsWith('Anything touching intent'));
+      if (hits.length !== 1) { bad.push(path + ' found ' + hits.length + ' blocks'); continue; }
+      for (const p of ['stops the run and asks the owner', './ask.md']) if (!hits[0].includes(p)) bad.push(path + ' lacks ' + p);
+    }
+  }
+  expect(bad).toEqual([]);
+});

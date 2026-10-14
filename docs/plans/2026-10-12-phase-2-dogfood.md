@@ -500,6 +500,8 @@ completion notice.
 | 27 | build | executor (task 4) | sonnet, medium | 78,430 | 9 | 161s | bb53cb9; suite 1196 pass; task 4 recorded first time |
 | 28 | build | executor (task 5) | sonnet, medium | 73,301 | 10 | 156s | 34d8842; suite 1197 pass; guard test red shown by mutation; task 5 recorded first time |
 | 29 | build | executor (task 6) | sonnet, medium | 78,327 | 8 | 121s | 01455d0; suite 1197 pass; SKILL.md 5035 of 5120 bytes; task 6 recorded first time. Build total: 7 executor runs for 6 tasks, one retry (describe-prefixed verify ids) |
+| 30 | review | reviewer (round 1, intent) | sonnet, high | 62,963 | 16 | 210s | no Must or Should; 2 Nice (tag strip had no Ruling; cat-file tree header) |
+| 31 | review | reviewer (round 1, quality) | sonnet, high | 91,064 | 14 | 171s | no Must; 1 Should (shallow clone reuses a number, D-11), 7 Nice deferred |
 
 Baseline suite at 3be1c05: 55 files, 1182 tests pass, 62s.
 

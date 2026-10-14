@@ -50,6 +50,11 @@ roles: [ba, dev, designer]
 # cursor and copilot -> both.
 runtimes: [claude, codex]
 
+# Who creates tickets: git user.email -> initials, 2 to 4 capital letters, such as "an@example.com": AN.
+# While this key exists, accord new ticket assigns every id (ST-AN-7, BUG-AN-1, EP-AN-2) and lint checks them.
+# Unlike the keys above it is optional: deleting it turns the id convention off.
+people: {}
+
 # Where the test report lands. \`accord gate done\` reads it to check that the test behind each
 # @test: tag really passed; without it there is no Done.
 # Before the first ticket carrying an @test: scenario, remove the "# " from the two lines below and

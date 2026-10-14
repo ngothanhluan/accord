@@ -4,10 +4,10 @@
 // because accord records human intent and never synthesises it. The `@ac-1` tag scaffolding ROADMAP
 // criterion 1 asks for already ships inside ticket-build.md and ticket-maintain.md, so there is
 // nothing to generate — only to substitute.
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setFrontmatterKey, templates } from '@accord-dev/accord-core';
-import { UsageError } from '../load/fs.js';
+import { initialsHolder, initialsOf, nextTicketId, setFrontmatterKey, templates } from '@accord-dev/accord-core';
+import { gitIsShallow, gitPeopleOnRefs, gitTicketIdsInHistory, gitUserEmail, UsageError } from '../load/fs.js';
 import type { CommandContext } from '../run.js';
 
 // The ticket schema's own id pattern (packages/core/schemas/ticket.schema.json). Duplicated as a
@@ -17,9 +17,61 @@ const PLACEHOLDER = 'TICKET-ID';
 
 export function newTicket(
   ctx: CommandContext,
-  id: string,
+  givenId: string | undefined,
   options: { type: 'epic' | 'story' | 'bug'; lane?: 'M' | 'L' | 'P' },
 ): number {
+  // An invalid `people` value leaves config undefined, which would read as the convention being off.
+  let raw = '';
+  try {
+    raw = readFileSync(join(ctx.root, 'accord', 'config.yml'), 'utf8');
+  } catch {
+    // absent counts as empty
+  }
+  const bad = /^people\s*:/m.test(raw)
+    ? ctx.snapshot.errors.find((f) => f.file === 'accord/config.yml' && f.rule !== 'load.config-missing')
+    : undefined;
+  if (bad !== undefined) {
+    const where = [bad.line === undefined ? '' : ':' + bad.line, bad.pointer ? ' ' + bad.pointer : ''].join('');
+    throw new UsageError('accord/config.yml' + where + ' ' + bad.reason + ' - fix accord/config.yml before creating a ticket');
+  }
+  const people = ctx.snapshot.config?.people;
+  let id: string;
+  if (people !== undefined && givenId !== undefined) {
+    throw new UsageError(
+      givenId + ' was typed by hand; accord assigns ids while accord/config.yml has people - run accord new ticket --type ' + options.type + ' without an id',
+    );
+  } else if (givenId !== undefined) id = givenId;
+  else if (people === undefined) throw new UsageError('a ticket id is required: accord new ticket <id>');
+  else {
+    const email = gitUserEmail(ctx.root);
+    if (email === '') {
+      throw new UsageError('git user.email is not set - set it with git config user.email <you@example.com>, then register it under people in accord/config.yml');
+    }
+    const initials = initialsOf(people, email);
+    if (initials === undefined) {
+      throw new UsageError(
+        email + ' is not registered - add "' + email + '": <INITIALS> (2 to 4 capital letters) under people in accord/config.yml, or ask /accord to register you',
+      );
+    }
+    if (gitIsShallow(ctx.root)) {
+      throw new UsageError('this clone is shallow, so ticket numbers already used cannot be seen - run git fetch --unshallow, then try again');
+    }
+    const { byRef, defaultRef } = gitPeopleOnRefs(ctx.root);
+    const holder = initialsHolder(initials, email, byRef, defaultRef);
+    if (holder !== undefined) {
+      throw new UsageError(
+        'initials ' + initials + ' already belong to ' + holder + ' on another branch - choose other initials for ' + email + ' in accord/config.yml',
+      );
+    }
+    const seen = [
+      ...Object.keys(ctx.snapshot.tickets),
+      ...Object.keys(ctx.snapshot.work ?? {}),
+      ...Object.keys(ctx.snapshot.claims ?? {}),
+      ...gitTicketIdsInHistory(ctx.root),
+    ];
+    id = nextTicketId(options.type, initials, seen);
+  }
+
   // T-05-14: this is the only guard between an argv string and a filesystem write, so it runs before
   // anything else touches a path. The pattern admits no slash, no backslash, no leading dot and no
   // space, so no traversal sequence survives it.

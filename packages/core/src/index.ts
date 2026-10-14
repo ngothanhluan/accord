@@ -34,6 +34,7 @@ export { approvedHash } from './gate/hash.js';
 export type { GateResult } from './gate/index.js';
 export { taskVerdict } from './gate/task.js';
 export { planFile, undeclaredFiles, workOf } from './gate/work.js';
+export { ID_PREFIX, initialsHolder, initialsOf, nextTicketId, peopleOf } from './lint/ids.js';
 export { untracedTests } from './lint/tests.js';
 export type { TaskVerdict } from './gate/task.js';
 export { recordTaskDone } from './write/ledger.js';

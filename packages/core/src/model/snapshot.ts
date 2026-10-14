@@ -148,6 +148,8 @@ export interface AccordConfig {
   models?: Partial<Record<RouteKey, { model: string; effort?: Effort }>>; // absent entries use the default routing
   escalation?: { fix_round_tier_up: string }; // '1'..'5'; YAML numerics stay strings
   stale_days?: string; // digits; YAML numerics stay strings
+  people?: Record<string, string>; // email -> 2 to 4 capital letters (IDS-1)
+  legacy_ids?: string[]; // ticket ids exempt from the id convention (IDS-1)
 }
 
 export interface RepoSnapshot {

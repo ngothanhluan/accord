@@ -134,13 +134,15 @@ TypeScript, distributed via npx, so it fits how AI-tool users already install th
 
 ```
 accord init                 # create the folder, config, templates, skill files
-accord new ticket <id>      # scaffold tickets/<id>.md from the template
+accord new ticket [id]      # scaffold tickets/<id>.md; id assigned as <ST|BUG|EP>-<initials>-<n> under people, else required
 accord new feature <slug>   # scaffold features/<slug>.md
 accord lint                 # frontmatter schema, EARS, Gherkin, prototype token rule
 accord gate ready <id>      # PASS or FAIL with reasons; exit code for CI and skills
 accord gate done <id>       # checks verification.md and ticked scenarios
 accord status               # table of features and tickets with gate state
 ```
+
+When `config.yml` holds `people` (email to initials), `new ticket` assigns the id and refuses a typed one; `legacy_ids` exempts existing tickets, and `lint.id-convention` and `lint.initials-duplicate` check the rest.
 
 Why a CLI and not just templates and prompts: templates are suggestions and prompts are advice. Both can be ignored by an agent, which is the dominant failure mode. The CLI gives the same deterministic answer on a BA's laptop, inside an agent session, in CI, and later in the hub, from one implementation.
 

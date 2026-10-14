@@ -3,7 +3,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { isSha, loadSnapshot } from '@accord-dev/accord-core';
+import { isSha, loadSnapshot, peopleOf } from '@accord-dev/accord-core';
 import type { SnapshotInput } from '@accord-dev/accord-core';
 
 /** Environment problem the user must fix (no git, not a repository, no accord/ folder); exit 2 in Phase 5. */
@@ -280,4 +280,96 @@ export function loadFromFs(root: string): SnapshotInput {
     ...(Object.keys(baselineFiles).length === 0 ? {} : { baselineFiles }),
     ...(Object.keys(recordsSince).length === 0 ? {} : { recordsSince }),
   };
+}
+
+/** IDS-1: `git config user.email`, trimmed; '' when unset (git exits 1). */
+export function gitUserEmail(root: string): string {
+  try {
+    return execFileSync('git', ['config', 'user.email'], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+  } catch {
+    return '';
+  }
+}
+
+/** IDS-1 D-11: a shallow clone hides deleted tickets behind its boundary commit, so used numbers cannot be seen. */
+export function gitIsShallow(root: string): boolean {
+  try {
+    return execFileSync('git', ['rev-parse', '--is-shallow-repository'], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim() === 'true';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * IDS-1 D-10/D-11: every ticket id that ever appeared under accord/tickets in any ref already in the clone.
+ * No fetch. --full-history keeps a side branch that added and deleted a ticket visible after a --no-ff merge.
+ * Known limit: a treeless clone lacks the trees --name-only needs, so this throws.
+ */
+export function gitTicketIdsInHistory(root: string): string[] {
+  const opts = { cwd: root, encoding: 'utf8' as const, stdio: ['ignore', 'pipe', 'pipe'] as ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024, env: { ...process.env, GIT_NO_LAZY_FETCH: '1' } };
+  if (execFileSync('git', ['for-each-ref', '--count=1', '--format=%(refname)'], opts).trim() === '') return [];
+  let raw: string;
+  try {
+    raw = execFileSync('git', ['log', '--all', '--full-history', '--no-renames', '--format=', '--name-only', '--', 'accord/tickets'], opts);
+  } catch (err) {
+    const stderr = String((err as { stderr?: string }).stderr ?? '').trim();
+    throw new UsageError('git log failed reading ticket ids' + (stderr === '' ? '' : '\n' + stderr));
+  }
+  const ids = new Set<string>();
+  for (const line of raw.split('\n')) {
+    const id = /^accord\/tickets\/([^/]+?)(?:\.md$|\/)/.exec(line.trim())?.[1];
+    if (id !== undefined) ids.add(id);
+  }
+  return [...ids];
+}
+
+/**
+ * IDS-1 D-17/D-18: `people` from accord/config.yml on every local and fetched branch, read without the network.
+ * `defaultRef` is origin/HEAD's target, else origin/main or origin/master, whichever exists.
+ */
+export function gitPeopleOnRefs(root: string): { byRef: Record<string, Record<string, string>>; defaultRef?: string } {
+  const opts = { cwd: root, stdio: ['pipe', 'pipe', 'pipe'] as ['pipe', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024, env: { ...process.env, GIT_NO_LAZY_FETCH: '1' } };
+  const fail = (what: string, err: unknown): never => {
+    const stderr = String((err as { stderr?: string }).stderr ?? '').trim();
+    throw new UsageError('git failed ' + what + (stderr === '' ? '' : '\n' + stderr));
+  };
+  let refs: string[] = [];
+  try {
+    refs = execFileSync('git', ['for-each-ref', '--format=%(refname)', 'refs/heads', 'refs/remotes'], { ...opts, encoding: 'utf8' })
+      .split('\n')
+      .filter((r) => r !== '' && !r.endsWith('/HEAD'));
+  } catch (err) {
+    fail('listing refs to read people', err);
+  }
+  const byRef: Record<string, Record<string, string>> = {};
+  if (refs.length === 0) return { byRef };
+  let out: Buffer;
+  try {
+    out = execFileSync('git', ['cat-file', '--batch'], { ...opts, input: refs.map((r) => r + ':accord/config.yml\n').join('') });
+  } catch (err) {
+    return fail('reading accord/config.yml on every ref', err);
+  }
+  let at = 0;
+  for (const ref of refs) {
+    const nl = out.indexOf(10, at);
+    if (nl < 0) break;
+    const m = /^[0-9a-f]+ blob (\d+)$/.exec(out.toString('utf8', at, nl));
+    if (m === null) {
+      at = nl + 1; // `<name> missing`
+      continue;
+    }
+    const size = Number(m[1]);
+    const people = peopleOf(out.toString('utf8', nl + 1, nl + 1 + size));
+    if (people !== undefined) byRef[ref] = people;
+    at = nl + 1 + size + 1;
+  }
+  let defaultRef: string | undefined;
+  try {
+    const head = execFileSync('git', ['symbolic-ref', '-q', 'refs/remotes/origin/HEAD'], { ...opts, encoding: 'utf8' }).trim();
+    if (refs.includes(head)) defaultRef = head;
+  } catch {
+    // no origin/HEAD
+  }
+  defaultRef ??= ['refs/remotes/origin/main', 'refs/remotes/origin/master'].find((r) => refs.includes(r));
+  return defaultRef === undefined ? { byRef } : { byRef, defaultRef };
 }

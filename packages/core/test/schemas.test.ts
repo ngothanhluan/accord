@@ -143,7 +143,7 @@ describe('config.schema.json', () => {
 
   it('top-level properties are the six D-16 keys plus optional tests (D-72) review (spec §7), models, escalation, and stale_days', () => {
     const keys = ['accord', 'profile', 'tracker', 'design', 'roles', 'runtimes'];
-    expect(Object.keys(configSchema.properties)).toEqual([...keys, 'tests', 'review', 'models', 'escalation', 'stale_days']);
+    expect(Object.keys(configSchema.properties)).toEqual([...keys, 'tests', 'review', 'models', 'escalation', 'stale_days', 'people', 'legacy_ids']);
     expect(configSchema.required).toEqual(keys);
     for (const key of Object.keys(configSchema.properties)) {
       expect(key).not.toMatch(/key|token|secret|password/i);
@@ -316,4 +316,19 @@ describe('phase 2 config keys', () => {
     expect(validate('config', { ...base, stale_days: 'soon' }).length).toBeGreaterThan(0);
     expect(validate('config', { ...base, escalation: { fix_round_tier_up: '9' } }).length).toBeGreaterThan(0);
   });
+});
+
+const idsBase = { ...minimal.config };
+const at = (cfg: object) => validate('config', cfg).map((f) => `${f.rule}@${f.pointer}`);
+it('risk:parsing people maps an email to 2 to 4 capital letters', () => {
+  for (const ok of [{ 'an@example.com': 'AN' }, { 'an@example.com': 'ABCD' }, {}]) expect(validate('config', { ...idsBase, people: ok })).toEqual([]);
+  for (const bad of ['A', 'ABCDE', 'an', 'A1']) {
+    expect(at({ ...idsBase, people: { 'an@example.com': bad } })).toContain('schema.pattern@/people/an@example.com');
+  }
+  expect(at({ ...idsBase, people: { 'not-an-email': 'AN' } }).some((s) => s.endsWith('@/people'))).toBe(true);
+});
+it('risk:parsing legacy_ids is a list of distinct ticket ids', () => {
+  expect(validate('config', { ...idsBase, legacy_ids: ['SHOW-1', 'ASK-1'] })).toEqual([]);
+  expect(at({ ...idsBase, legacy_ids: ['SHOW-1', 'SHOW-1'] })).toContain('schema.uniqueItems@/legacy_ids');
+  expect(at({ ...idsBase, legacy_ids: ['a b'] })).toContain('schema.pattern@/legacy_ids/0');
 });

@@ -405,3 +405,54 @@ Then the deferred-to-backlog ticket (item 22), the researcher ticket, and phase 
 - The approach critic's Must caught that a pointer tied to the intent clause would leave most questions,
   the approach yes and the verify approve among them, without the rule; both criteria would still have passed.
 - The final review's mutation reasoning (drop a stage, stay green) found the one gap three earlier readers missed.
+
+# Seventh ticket: SHOW-1
+
+SHOW-1 ("The owner approves the ticket's text, not a summary") fixed item 38 above, through `/accord` on this
+repository, in its own branch and pull request.
+
+## How it ran
+
+- Stages: intent (3 Decisions; 1 audit, its readings settled in one answer as D-04 to D-06; the owner saw
+  Intent and the criteria verbatim and said yes before the architect) → approach (architect, five critic
+  rounds, stopped by the owner; D-07 widened the approach yes to every approved section) → plan (critic, no
+  findings) → build (2 tasks, no retry) → review (round 1 four Nice, final review one Nice, all deferred) →
+  verify (2 of 2 pass, owner approved) → `gate done` 0 errors. Suite 1180 → 1182 tests. Merged as PR #14.
+- Both owner yeses in the run were given on the ticket's text shown verbatim, ahead of the rule it ships.
+
+## Recurred
+
+- **Item 11.** The session anchor on the blank ticket said "next: the owner approves the ticket", a sixth time.
+- **Item 37.** Told never to cite a glob, the verifier cited directories instead: `.agents/skills`,
+  `.claude/skills` and `packages/core` each drew `gate.reference-unknown`. The fix must cover directories too.
+
+## New findings
+
+40. **A task's prose pointed to another task's text, and the brief dropped it.** The plan's Task 2 said "the
+    shared setup above" and "the normalisation above", both written in Task 1; `accord brief` copies one
+    task, so each executor met a reference to nothing. Task 1's executor guessed right; Task 2's brief was
+    patched by hand. Fix: the planner writes each task to stand alone, never pointing to another task.
+41. **The approach critic has no round cap.** The plan stage stops after three revision rounds and asks the
+    owner; the approach stage loops until the critic is satisfied. SHOW-1 ran five rounds, each fix to how
+    "the sections changed since the intent yes" was found through commit subjects opening a new hole, until
+    the owner stopped it and chose to show every section. Fix: the approach stage takes the plan stage's
+    cap of three rounds, then asks the owner.
+
+## Deferred from SHOW-1
+
+- The new ac-1 and ac-2 tests repeat the eight-stage `STAGES` assertion; adding a stage turns them red.
+- §7 item 4 of the spec still says the owner receives a brief, above the clause SHOW-1 added.
+- Intent step 9 wraps at about 110 columns, and approach step 5 has a short line, "yes, run".
+- Sentence B's "any section changed" may be followed over the next line's "Treat every approved section as
+  changed" (accepted by D-07).
+- Any no at the approach yes returns to the audit without saying to rewrite the touched sections first, so
+  the owner may repeat the no at intent step 9.
+- Not checked: a session that compacts after the intent yes but before `## Approach` is written re-enters the
+  intent stage (accepted in the Approach's risks).
+
+## What worked
+
+- Showing the text verbatim found what summaries had hidden: at the approach yes the owner read every locked
+  section, so `accord approve` hashed exactly what was read.
+- The plan critic's round 1 found nothing, and the review's reader, told to check the plan's prose against
+  the tests, confirmed every named assertion; item 39 did not recur.

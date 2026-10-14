@@ -51,5 +51,14 @@
 - Ruling: the `peopleOf` test uses `true` as its non-string value, since the YAML parse keeps `5` a string (stringNumerics) (executor, task 3) — cost if wrong: a numeric `people` value passes `peopleOf`, and the schema refuses it first, as task 2 does.
 - Ruling: `defaultRef` is origin/HEAD's target, else origin/main, else origin/master, else none; `initialsHolder` takes the default ref's map only when it holds the initials (D-18) and otherwise scans the other refs in sorted order (executor, task 3) — cost if wrong: a repository whose default branch has another name on another remote falls back to scanning every ref.
 - Ruling: `lint.id-convention` skips a ticket whose type is not story, bug or epic, since no prefix exists for it and the schema already flags it (executor, task 4) — cost if wrong: such an id gets no convention finding.
+- Ruling: a type change strips every `@test:<id>` tag from the copied scenarios and renames the `Feature:` line to the new id, since those tags name tests tied to the dropped ticket and would collide on the first `task-done` (plan critic round 7, Nice; review round 1 intent Nice 1) — cost if wrong: one sentence in `ids.md`.
 
 ## Deferred
+- A real branch named `feature/HEAD` is dropped by the `!r.endsWith('/HEAD')` filter, so its `people` is never read for D-17; match `refs/remotes/<remote>/HEAD` exactly (packages/cli/src/load/fs.ts:331).
+- The `cat-file --batch` parser knows only `blob` and `missing`; a ref where `accord/config.yml` is a directory prints `<sha> tree <n>` plus a body and misaligns every later ref; skip `size` bytes whenever the header carries one (packages/cli/src/load/fs.ts:337-355).
+- `gitUserEmail` catches every error, so git missing from PATH reads as "set user.email"; test `err.status === 1` (packages/cli/src/load/fs.ts:286-292).
+- `ID_PREFIX` is exported from core but used only inside `lint/ids.ts` (packages/core/src/index.ts:37).
+- The unwrapped `for-each-ref` in `gitTicketIdsInHistory` cannot be reached as an error path, since `gitPeopleOnRefs` runs first (packages/cli/src/load/fs.ts:301).
+- Test labels: the "no people and no id" case is argument validation labelled risk:complex-branching (new-ticket.test.ts:206); the two risk:parsing schema cases restate the schema regexes (schemas.test.ts:321-334); the invalid-config case bundles three behaviours (new-ticket.test.ts:270).
+- Three or more case-only duplicate emails read "a and b and c differ only in case" (packages/core/src/lint/ids.ts:85-88).
+- No test creates an `EP-` id with `--type epic` or lints an epic.

@@ -524,6 +524,11 @@ measurements, and re-run when new models ship.
   and whether a plan may pass with only unlikely Should findings left. Evidence: IDS-1 needed four plan
   revision rounds (4, 1, 1, 1 Should, no Must), while each planner fix cost under 70 s and each critic round
   115k to 150k tokens.
+- **A runtime advisor, if it is still offered.** Some runtimes let the main model consult a stronger model
+  mid-task, with the whole conversation in view. One cell: the executor with and without such an advisor, on
+  the same fixtures, scored and costed like any other cell. Measured only when the feature is still offered
+  and no longer experimental at benchmark time; accord never depends on it, since it exists in one runtime
+  only, and it does not replace the critic or reviewer, whose value is a fresh context.
 - **Executor by risk kind.** Each executor fixture task is labelled with the risk kinds of section 9 by their
   triggers. Executor results are reported per kind as well as overall, using the existing `models.executor`
   key for the cells. A kind whose quality differs beyond the noise between executor cells is routed: a plan

@@ -465,25 +465,26 @@ the work into IDS-1 (ids), a branch-name ticket, a dashboard ticket, and a panel
 
 ## Run log
 
-Kept live, one row per agent run, as evidence for the Phase 3 benchmark. Model `inherit` is the main session's
-model, Opus 5.5; the runtime reports no effort level. Tokens, tool calls and time come from each agent's
+Kept live, one row per agent run, as evidence for the Phase 3 benchmark. Model is the agent definition's `model, effort`
+frontmatter (no dispatch override; `opus` is Opus 5.5); the runtime reports neither per run. Tokens, tool calls and time come from each agent's
 completion notice.
 
 | # | Stage | Agent | Model | Tokens | Tool calls | Time | Outcome |
 |---|---|---|---|---|---|---|---|
-| 1 | intent | scout | inherit | 62,924 | 20 | 56s | 10 questions answered with file:line; flagged `fs.ts:145` claim-author order |
-| 2 | intent | auditor | inherit | 20,191 | 2 | 32s | 3 of 5 criteria read two ways → 4 owner questions (D-10..D-13) |
-| 3 | approach | architect | inherit | 76,809 | 40 | 180s | 2 options, Option 1 recommended; 3 public-interface points to the owner (D-14..D-16) |
-| 4 | approach | critic (round 1) | inherit | 67,121 | 24 | 220s | 2 Must (number reuse after prune, D-11; shared initials across branches, D-04), 3 Should, 2 Nice → owner chose D-17 |
-| 5 | approach | critic (round 2) | inherit | 65,973 | 18 | 231s | no Must; 7 Should, 3 Nice → 1 owner question (D-18), the rest Rulings |
-| 6 | plan | planner | inherit | 133,625 | 56 | 360s | 6 tasks, all ac and D-01..D-18 covered; 4 Rulings; `gate plan` passed first time |
-| 7 | plan | critic (round 1) | inherit | 149,281 | 55 | 462s | no Must; 4 Should (invalid-config message, no-table behaviour, git output size and lazy fetch, skill byte limit) |
-| 8 | plan | planner (resumed, fixes) | inherit | 143,383 cumulative | 7 | 66s | 4 Should fixed; 2 Rulings; gate plan passed |
-| 9 | plan | critic (round 2) | inherit | 127,974 | 61 | 418s | no Must; 1 Should (no-commit `git log --all` untested; main session ran it on git 2.56: exit 0), 3 Nice |
-| 10 | plan | planner (resumed, fixes) | inherit | 150,785 cumulative | 11 | 58s | Should and 3 Nice fixed; 2 Rulings; gate plan passed |
-| 11 | plan | critic (round 3) | inherit | 113,696 | 54 | 376s | no Must; 1 Should (refusal order: invalid `people` before "id required"), 1 Nice (GIT_NO_LAZY_FETCH needs git 2.44, recorded as a limit) |
-| 12 | plan | planner (resumed, fixes) | inherit | 152,336 cumulative | 3 | 16s | round 3 Should fixed (third and last revision); gate plan passed |
-| 13 | plan | critic (round 4) | inherit | 127,967 | 70 | 453s | no Must; 1 Should (`git log --all` without `--no-renames` likely dies in a blobless clone), 2 Nice (init header says every key is required; `ids.md` append onto `people: {}`); round limit reached, owner asked |
+| 1 | intent | scout | haiku, low | 62,924 | 20 | 56s | 10 questions answered with file:line; flagged `fs.ts:145` claim-author order |
+| 2 | intent | auditor | opus, medium | 20,191 | 2 | 32s | 3 of 5 criteria read two ways → 4 owner questions (D-10..D-13) |
+| 3 | approach | architect | opus, high | 76,809 | 40 | 180s | 2 options, Option 1 recommended; 3 public-interface points to the owner (D-14..D-16) |
+| 4 | approach | critic (round 1) | opus, high | 67,121 | 24 | 220s | 2 Must (number reuse after prune, D-11; shared initials across branches, D-04), 3 Should, 2 Nice → owner chose D-17 |
+| 5 | approach | critic (round 2) | opus, high | 65,973 | 18 | 231s | no Must; 7 Should, 3 Nice → 1 owner question (D-18), the rest Rulings |
+| 6 | plan | planner | opus, medium | 133,625 | 56 | 360s | 6 tasks, all ac and D-01..D-18 covered; 4 Rulings; `gate plan` passed first time |
+| 7 | plan | critic (round 1) | opus, high | 149,281 | 55 | 462s | no Must; 4 Should (invalid-config message, no-table behaviour, git output size and lazy fetch, skill byte limit) |
+| 8 | plan | planner (resumed, fixes) | opus, medium | 143,383 cumulative | 7 | 66s | 4 Should fixed; 2 Rulings; gate plan passed |
+| 9 | plan | critic (round 2) | opus, high | 127,974 | 61 | 418s | no Must; 1 Should (no-commit `git log --all` untested; main session ran it on git 2.56: exit 0), 3 Nice |
+| 10 | plan | planner (resumed, fixes) | opus, medium | 150,785 cumulative | 11 | 58s | Should and 3 Nice fixed; 2 Rulings; gate plan passed |
+| 11 | plan | critic (round 3) | opus, high | 113,696 | 54 | 376s | no Must; 1 Should (refusal order: invalid `people` before "id required"), 1 Nice (GIT_NO_LAZY_FETCH needs git 2.44, recorded as a limit) |
+| 12 | plan | planner (resumed, fixes) | opus, medium | 152,336 cumulative | 3 | 16s | round 3 Should fixed (third and last revision); gate plan passed |
+| 13 | plan | critic (round 4) | opus, high | 127,967 | 70 | 453s | no Must; 1 Should (`git log --all` without `--no-renames` likely dies in a blobless clone), 2 Nice (init header says every key is required; `ids.md` append onto `people: {}`); round limit reached, owner asked |
+| 14 | plan | planner (resumed, fixes) | opus, medium | 157,739 cumulative | 8 | 35s | round 4 Should and 2 Nice fixed in a fourth round the owner allowed; 1 Ruling (treeless clone limit); gate plan passed |
 
 Baseline suite at 3be1c05: 55 files, 1182 tests pass, 62s.
 

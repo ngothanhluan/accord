@@ -456,3 +456,58 @@ repository, in its own branch and pull request.
   section, so `accord approve` hashed exactly what was read.
 - The plan critic's round 1 found nothing, and the review's reader, told to check the plan's prose against
   the tests, confirmed every named assertion; item 39 did not recur.
+
+# Eighth ticket: IDS-1
+
+IDS-1 ("Ticket ids follow a per-type, per-person convention") came out of a dashboard brainstorm: `/accord`
+showed "0 in progress, 0 ready" while the approved queue lived only outside `accord/tickets/`. The owner split
+the work into IDS-1 (ids), a branch-name ticket, a dashboard ticket, and a panel ticket, in that order.
+
+## Run log
+
+Kept live, one row per agent run, as evidence for the Phase 3 benchmark. Model is the agent definition's `model, effort`
+frontmatter (no dispatch override; `opus` is Opus 5.5); the runtime reports neither per run. Tokens, tool calls and time come from each agent's
+completion notice.
+
+| # | Stage | Agent | Model | Tokens | Tool calls | Time | Outcome |
+|---|---|---|---|---|---|---|---|
+| 1 | intent | scout | haiku, low | 62,924 | 20 | 56s | 10 questions answered with file:line; flagged `fs.ts:145` claim-author order |
+| 2 | intent | auditor | opus, medium | 20,191 | 2 | 32s | 3 of 5 criteria read two ways → 4 owner questions (D-10..D-13) |
+| 3 | approach | architect | opus, high | 76,809 | 40 | 180s | 2 options, Option 1 recommended; 3 public-interface points to the owner (D-14..D-16) |
+| 4 | approach | critic (round 1) | opus, high | 67,121 | 24 | 220s | 2 Must (number reuse after prune, D-11; shared initials across branches, D-04), 3 Should, 2 Nice → owner chose D-17 |
+| 5 | approach | critic (round 2) | opus, high | 65,973 | 18 | 231s | no Must; 7 Should, 3 Nice → 1 owner question (D-18), the rest Rulings |
+| 6 | plan | planner | opus, medium | 133,625 | 56 | 360s | 6 tasks, all ac and D-01..D-18 covered; 4 Rulings; `gate plan` passed first time |
+| 7 | plan | critic (round 1) | opus, high | 149,281 | 55 | 462s | no Must; 4 Should (invalid-config message, no-table behaviour, git output size and lazy fetch, skill byte limit) |
+| 8 | plan | planner (resumed, fixes) | opus, medium | 143,383 cumulative | 7 | 66s | 4 Should fixed; 2 Rulings; gate plan passed |
+| 9 | plan | critic (round 2) | opus, high | 127,974 | 61 | 418s | no Must; 1 Should (no-commit `git log --all` untested; main session ran it on git 2.56: exit 0), 3 Nice |
+| 10 | plan | planner (resumed, fixes) | opus, medium | 150,785 cumulative | 11 | 58s | Should and 3 Nice fixed; 2 Rulings; gate plan passed |
+| 11 | plan | critic (round 3) | opus, high | 113,696 | 54 | 376s | no Must; 1 Should (refusal order: invalid `people` before "id required"), 1 Nice (GIT_NO_LAZY_FETCH needs git 2.44, recorded as a limit) |
+| 12 | plan | planner (resumed, fixes) | opus, medium | 152,336 cumulative | 3 | 16s | round 3 Should fixed (third and last revision); gate plan passed |
+| 13 | plan | critic (round 4) | opus, high | 127,967 | 70 | 453s | no Must; 1 Should (`git log --all` without `--no-renames` likely dies in a blobless clone), 2 Nice (init header says every key is required; `ids.md` append onto `people: {}`); round limit reached, owner asked |
+| 14 | plan | planner (resumed, fixes) | opus, medium | 157,739 cumulative | 8 | 35s | round 4 Should and 2 Nice fixed in a fourth round the owner allowed; 1 Ruling (treeless clone limit); gate plan passed |
+| 15 | plan | critic (round 5) | opus, high | 169,372 | 72 | 669s | no Must; 1 Should (D-02 "clone" read as a blank new ticket in `ids.md`), 3 Nice (`--full-history` for never-reuse, lazy fetch in the `-S` registration lookup, `people` merge conflict); owner asked |
+| 16 | plan | planner (resumed, fixes) | opus, medium | 161,502 cumulative | 5 | 35s | round 5 Should (D-02 clone copies sections, owner answered) and 3 Nice fixed in a fifth round the owner allowed; gate plan passed |
+| 17 | plan | critic (round 6, diff only) | opus, high | 65,416 | 27 | 263s | no Must; 2 Should (keep-every-entry duplicates a key and breaks config.yml; clone drops frontmatter such as `ui`, `parent`, `depends_on`), 2 Nice (`## Dropped` copied; no test pins `--full-history`); owner asked |
+| 18 | plan | planner (resumed, fixes) | opus, medium | 167,158 cumulative | 6 | 39s | round 6 two Should and two Nice fixed in a sixth round the owner allowed; gate plan passed |
+| 19 | plan | critic (round 7, diff only) | opus, high | 64,151 | 24 | 161s | no Must; 1 Should (`title` missing from the type-change carry-over list), 5 Nice (epic lane/parent copy, copied `@test:` tags and Feature line, case-insensitive emails and shared initials in a conflict, two test-setup details); owner asked |
+| 20 | plan | planner (resumed, fixes) | opus, medium | 171,867 cumulative | 7 | 29s | round 7 Should (`title`) and 5 Nice fixed; owner set the stop rule: one last diff-only critic; gate plan passed |
+| 21 | plan | critic (round 8, diff only, last) | opus, high | 57,113 | 24 | 140s | no Must; 1 Should, one sentence (`new ticket` without `--lane` on a type change writes a non-lane template); fixed under the owner's stop rule, no further critic |
+| 22 | plan | planner (resumed, fixes) | opus, medium | 173,128 cumulative | 2 | 16s | round 8 Should fixed (`--lane` always passed on a type change); gate plan passed; `plan: IDS-1 ready`. Plan stage total: 8 critic rounds (5 full, 3 diff-only), 9 planner runs |
+| 23 | build | executor (task 1) | sonnet, medium | 109,949 | 34 | 429s | task 1 built (32707dd), full suite 1188 pass; `task-done` refused: verify cases inside a `describe`, so their JUnit ids carry the describe prefix |
+| 24 | build | executor (task 1 retry) | sonnet, medium | 71,574 | 13 | 249s | verify cases moved to top level (501be00); suite 1188 pass; task 1 recorded |
+| 25 | build | executor (task 2) | sonnet, medium | 81,879 | 10 | 129s | ab0aa8a; suite 1190 pass; task 2 recorded first time |
+| 26 | build | executor (task 3) | sonnet, medium | 105,390 | 29 | 451s | 3e324dd; suite 1193 pass; task 3 recorded first time |
+| 27 | build | executor (task 4) | sonnet, medium | 78,430 | 9 | 161s | bb53cb9; suite 1196 pass; task 4 recorded first time |
+| 28 | build | executor (task 5) | sonnet, medium | 73,301 | 10 | 156s | 34d8842; suite 1197 pass; guard test red shown by mutation; task 5 recorded first time |
+| 29 | build | executor (task 6) | sonnet, medium | 78,327 | 8 | 121s | 01455d0; suite 1197 pass; SKILL.md 5035 of 5120 bytes; task 6 recorded first time. Build total: 7 executor runs for 6 tasks, one retry (describe-prefixed verify ids) |
+| 30 | review | reviewer (round 1, intent) | sonnet, high | 62,963 | 16 | 210s | no Must or Should; 2 Nice (tag strip had no Ruling; cat-file tree header) |
+| 31 | review | reviewer (round 1, quality) | sonnet, high | 91,064 | 14 | 171s | no Must; 1 Should (shallow clone reuses a number, D-11), 7 Nice deferred |
+| 32 | review | executor (round 1 fix) | sonnet, medium | 80,030 | 11 | 207s | 1 try; shallow-clone refusal, test failed first; 1198 tests pass; commit carried a Co-Authored-By trailer, removed before push |
+| 33 | review | reviewer (round 2, both, fix diff only) | sonnet, high | 36,475 | 7 | 56s | no findings; converged after 2 rounds |
+| 34 | review | final reviewer (both, whole ticket) | opus, high | 104,512 | 22 | 160s | no Must or Should; 1 Nice deferred (case-sensitive registration search); verdict converged |
+| 35 | verify | verifier | sonnet, medium | 47,174 | 10 | 48s | 5/5 criteria pass at 669aa48; skill text ids.md not checked as behaviour |
+
+Baseline suite at 3be1c05: 55 files, 1182 tests pass, 62s.
+
+Owner side so far: 13 interview answers, 7 approach answers (D-14..D-18), 1 correction (prefixes fixed, not configured), 2 scope splits
+(branch names, epic grouping to the dashboard ticket).

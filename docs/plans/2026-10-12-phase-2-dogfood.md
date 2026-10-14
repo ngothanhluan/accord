@@ -456,3 +456,25 @@ repository, in its own branch and pull request.
   section, so `accord approve` hashed exactly what was read.
 - The plan critic's round 1 found nothing, and the review's reader, told to check the plan's prose against
   the tests, confirmed every named assertion; item 39 did not recur.
+
+# Eighth ticket: IDS-1
+
+IDS-1 ("Ticket ids follow a per-type, per-person convention") came out of a dashboard brainstorm: `/accord`
+showed "0 in progress, 0 ready" while the approved queue lived only outside `accord/tickets/`. The owner split
+the work into IDS-1 (ids), a branch-name ticket, a dashboard ticket, and a panel ticket, in that order.
+
+## Run log
+
+Kept live, one row per agent run, as evidence for the Phase 3 benchmark. Model `inherit` is the main session's
+model, Opus 5.5; the runtime reports no effort level. Tokens, tool calls and time come from each agent's
+completion notice.
+
+| # | Stage | Agent | Model | Tokens | Tool calls | Time | Outcome |
+|---|---|---|---|---|---|---|---|
+| 1 | intent | scout | inherit | 62,924 | 20 | 56s | 10 questions answered with file:line; flagged `fs.ts:145` claim-author order |
+| 2 | intent | auditor | inherit | 20,191 | 2 | 32s | 3 of 5 criteria read two ways → 4 owner questions (D-10..D-13) |
+| 3 | approach | architect | inherit | 76,809 | 40 | 180s | 2 options, Option 1 recommended; 3 public-interface points to the owner (D-14..D-16) |
+| 4 | approach | critic (round 1) | inherit | 67,121 | 24 | 220s | 2 Must (number reuse after prune, D-11; shared initials across branches, D-04), 3 Should, 2 Nice → owner chose D-17 |
+
+Owner side so far: 13 interview answers, 1 correction (prefixes fixed, not configured), 2 scope splits
+(branch names, epic grouping to the dashboard ticket).

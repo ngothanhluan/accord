@@ -3,6 +3,7 @@
 ## Tasks
 - task 1 done 80908e67edf1
 - task 2 done 56cb13124f75
+- task 3 done 7f22d7ea14cd
 
 ## Rulings
 
@@ -16,6 +17,7 @@
 - Ruling: baseline tests at 9464130: 1163 passed, 0 failed; `accord/tests-baseline.txt` already exists, so step 7 asks no baseline question — cost if wrong: none.
 - Ruling: (planner) the file check in the CLI tests matches a line of rendered `out` that starts with `accord/tickets/T-1/plan.md:` and contains the rule id — the CLI tests only see text output, and the renderer's `file[:line]:` prefix is established — cost if wrong: three assertions change if the prefix changes.
 - Ruling: (planner) ac-4's positive control sits inside the ac-4 test, not in a separate risk test — it makes ac-4 observe the rule id, and a separate test would repeat ac-3 at the core layer — cost if wrong: ac-4 asserts absence and one presence.
+- Ruling: (executor, task 3) the executor bullet's first source line is longer than the wrapped lines around it — the D-06 sentence must sit whole on one source line for the verbatim test — cost if wrong: cosmetic only.
 
 ## Deferred
 

@@ -71,7 +71,7 @@ Feature: VID-1
     When the owner runs accord gate plan for that ticket
     Then the result carries neither the at sign error nor the comma error
 
-  @ac-5
+  @ac-5 @test:packages/core/test/agents.test.ts#ac-5-the-planner-and-the-executor-say-a-test-name-holds-no-at-sign-and-no-comma
   Scenario: the planner and the executor say a test name holds no at sign and no comma
     Given the rendered output of the planner and executor agents
     When a reader looks for the rule on test names

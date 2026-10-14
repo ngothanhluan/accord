@@ -523,3 +523,4 @@ First ticket created under the id convention: `accord new ticket --type story --
 | 3 | approach | architect | opus, high | 61,875 | 24 | 145s | 2 options; recommended: template regex in the CLI loader reading every ref, D-06 fallback free from the loader; 3 Rulings |
 | 4 | approach | critic (round 1) | opus, high | 59,867 | 20 | 197s | 2 Must (stale working-tree template hides new claims; t/ not reserved), 5 Should, 2 Nice; option amended: templates read from every ref, narrow scan |
 | 5 | approach | critic (round 2) | opus, high | 60,721 | 17 | 221s | 1 Must (templates from every ref: a stray branch sets a template, breaks ac-4), 5 Should, 2 Nice; owner asked which refs set the template |
+| 6 | approach | critic (round 3) | opus, high | 71,630 | 22 | 253s | 1 Must (working-tree template names claims teammates never count; owner chose D-09), 4 Should, 4 Nice; all taken as Rulings |

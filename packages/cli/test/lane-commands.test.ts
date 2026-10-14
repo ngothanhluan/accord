@@ -982,3 +982,40 @@ it('risk:complex-branching tests baseline writes from a report newer than the la
     cleanup(repo);
   }
 }, 30000);
+
+async function gatePlanWith(verify: string): Promise<{ code: number; out: string }> {
+  const repo = makeLaneRepo();
+  try {
+    await run(['approve', 'T-1'], repo);
+    const first = commitAll(repo);
+    writeFiles(repo, {
+      'accord/tickets/T-1/plan.md': PLAN.replace('abc1234', first).replace(
+        'verify: export#escapes-commas (@ac-2)',
+        verify,
+      ),
+    });
+    commitAll(repo);
+    return await run(['gate', 'plan', 'T-1'], repo);
+  } finally {
+    cleanup(repo);
+  }
+}
+
+const atLine = (out: string) =>
+  out.split('\n').some((l) => l.startsWith('accord/tickets/T-1/plan.md:') && l.includes('gate.plan-verify-at'));
+
+it('ac-1 gate plan fails on a verify id whose test name holds an at sign', async () => {
+  const r = await gatePlanWith('verify: export#escapes-commas (@ac-2), src/x.test.ts#@test-ac-1-writes');
+  expect(r.code).toBe(1);
+  expect(r.out).toContain('gate.plan-verify-at');
+  expect(r.out).toContain('src/x.test.ts#@test-ac-1-writes');
+  expect(atLine(r.out)).toBe(true);
+}, 30000);
+
+it('ac-2 gate plan fails on a verify id whose path holds an at sign', async () => {
+  const r = await gatePlanWith('verify: export#escapes-commas (@ac-2), packages/@scope/x.test.ts#writes');
+  expect(r.code).toBe(1);
+  expect(r.out).toContain('gate.plan-verify-at');
+  expect(r.out).toContain('packages/@scope/x.test.ts#writes');
+  expect(atLine(r.out)).toBe(true);
+}, 30000);

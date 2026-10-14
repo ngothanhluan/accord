@@ -1,7 +1,7 @@
 # Ledger
 
 ## Tasks
-- task 1 done a4a3ab22c627
+- task 1 done f7a781283397
 
 ## Rulings
 
@@ -12,5 +12,7 @@
 - Ruling: (planner) the risk tests for `...packages/x.ts` and `."packages/x.ts"` are guards that pass before and after — today's code already strips those dots; they pin D-08 — cost if wrong: none.
 - Ruling: (planner) @ac-3 is its own task, split from the dot rule — the `POSITION` change is independent — cost if wrong: one extra task record.
 - Ruling: (plan) baseline suite at 982ad34 green, 1169 passed, before the first build commit — cost if wrong: none.
+- Ruling: (executor, task 1 retry) the two `describe` wrappers are removed, bodies and names unchanged — a case's full junit name must equal the verify id's test name — cost if wrong: the test files lose grouping only.
+- Ruling: (orchestrator) the retry executor ran the published `task-done` itself and recorded task 1 at a4a3ab2, before its fix; that line is replaced by a local `task-done` at f7a7812 — the record names the commit whose tests pass — cost if wrong: none; the @test tags it wrote are the ones the local run writes.
 
 ## Deferred

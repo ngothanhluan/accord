@@ -35,5 +35,7 @@
 - Ruling: a type change carries over the frontmatter keys that describe the work, `lane`, `ui`, `design`, `parent`, `depends_on`, `tracker`, and never `id`, `type`, `status`, `approved_hash`, `ac_hash`, `verified*`, or the `## Dropped` section — the owner answered "Chuyển key mô tả công việc (Recommended)" (plan critic round 6, Should 2) — cost if wrong: one sentence in `ids.md`.
 - Ruling: a merge conflict under `people` keeps each email once and asks the owner when the two sides give one email different initials, because a duplicate YAML key makes config.yml unreadable for every command (plan critic round 6, Should 1) — cost if wrong: one sentence in `ids.md`.
 - Ruling: a sixth plan revision round, again with a diff-only critic — the owner answered "Critic đọc diff thêm lần nữa (Recommended)" — cost if wrong: about 65k tokens.
+- Ruling: `title` also carries over on a type change; it describes the work, the test the owner chose in "Chuyển key mô tả công việc (Recommended)", and the six keys named there were an example list (plan critic round 7, Should 1) — cost if wrong: one word in `ids.md`.
+- Ruling: the plan stage ends after one more diff-only critic: a Must stops and asks the owner; a Should that one sentence fixes, or a Nice, is fixed by the planner, recorded here, and build starts with no further critic — the owner answered "Diff cuối, Should nhỏ thì vào build (Recommended)" — cost if wrong: a fault in that last fix is caught at review.
 
 ## Deferred

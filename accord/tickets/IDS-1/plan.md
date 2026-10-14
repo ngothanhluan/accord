@@ -1,6 +1,6 @@
 ---
 baseline: 3be1c058edab354ab449e75c966f0c6797dd4813
-plan_hash: "fnv1a64:4ac9f0ee405a72b0"
+plan_hash: "fnv1a64:bc057580b693ef95"
 ---
 
 Review mode `outcome`: one branch, no slices. Report case ids follow the JUnit id shape in
@@ -47,10 +47,11 @@ Tests first.
   `it('risk:complex-branching a ticket added and deleted on a merged and deleted branch keeps its number')`
   (pins `--full-history`, D-11): `sandbox()`, `people:` / `  "an@example.com": AN` appended to config.yml,
   user.email `an@example.com`, `commitAll`; note the current branch with `gitRun(repo, 'branch',
-  '--show-current')`. `gitRun(repo, 'checkout', '-q', '-b', 'side')`; write `accord/tickets/ST-AN-2.md` as
-  `laneTicket('ST-AN-2')`, `commitAll`; delete that file, `commitAll`; checkout the noted branch;
-  `gitRun(repo, '-c', 'user.email=fixture@example.invalid', '-c', 'user.name=fixture', '-c', 'commit.gpgsign=false', 'merge', '-q',
-  '--no-ff', '--no-edit', 'side')`; `gitRun(repo, 'branch', '-D', 'side')`. `['new', 'ticket', '--type',
+  '--show-current').trim()` (the helper returns raw stdout). `gitRun(repo, 'checkout', '-q', '-b', 'side')`;
+  write `accord/tickets/ST-AN-2.md` as `laneTicket('ST-AN-2')`, `commitAll`; delete that file, `commitAll`;
+  checkout the noted branch; `gitRun(repo, '-c', 'user.email=fixture@example.invalid', '-c',
+  'user.name=fixture', '-c', 'commit.gpgsign=false', 'merge', '-q', '--no-ff', '--no-edit', '--no-verify',
+  'side')` (`--no-verify` as `commitAll` passes it, so a global hooks path cannot fail the merge); `gitRun(repo, 'branch', '-D', 'side')`. `['new', 'ticket', '--type',
   'story']`: code 0, stdout `accord/tickets/ST-AN-3.md\n`.
 - `packages/core/test/schemas.test.ts`, top-level, using its `minimal.config` and `has` helpers:
   - `risk:parsing people maps an email to 2 to 4 capital letters`: `{ 'an@example.com': 'AN' }`,
@@ -310,13 +311,16 @@ Text, naming no other tool:
 - `skills/accord/ids.md` (new) also holds the drop rule: a ticket's type never changes; to change it, set
   `status: dropped` with its `## Dropped` reason, commit and merge that, and create a new ticket with
   `accord new ticket --type <the other type>`. Into the new ticket copy the dropped ticket's frontmatter keys
-  `lane`, `ui`, `design`, `parent`, `depends_on` and `tracker`, where present, and every section below its
-  frontmatter except `## Dropped`. Never copy `id`, `type`, `status`, `approved_hash`, `ac_hash`, `verified`,
-  `verified_hash` or `verified_commit`. Then the owner approves the new ticket again (D-02, ledger Rulings on
+  `title`, `lane`, `ui`, `design`, `parent`, `depends_on` and `tracker`, where present, and every section below
+  its frontmatter except `## Dropped`. When the change is between an epic and a story or bug, do not copy `lane`
+  or `parent`; the new ticket keeps the values `accord new ticket` wrote. In the copied sections, remove every
+  `@test:<id>` tag from the scenarios and change the gherkin `Feature: <old id>` line to the new id. Never copy
+  `id`, `type`, `status`, `approved_hash`, `ac_hash`, `verified`, `verified_hash` or `verified_commit`. Then the owner approves the new ticket again (D-02, ledger Rulings on
   the owner's answers "Chép nội dung sang" and "Chuyển key mô tả công việc"). Never delete a `t/` branch to drop
-  a ticket (D-02, ledger Ruling). On a merge conflict under `people`, keep each email once; when the two sides
-  give one email different initials, ask the owner which to keep (ledger Ruling: a duplicate key makes
-  config.yml unreadable). It also says: fetch first with
+  a ticket (D-02, ledger Ruling). On a merge conflict under `people`, keep each email once, comparing emails
+  without regard to case; when the two sides give one email different initials, or give two different emails
+  the same initials, ask the owner which to keep (ledger Ruling: a duplicate key makes config.yml unreadable,
+  and shared initials fail `lint.initials-duplicate`). It also says: fetch first with
   `git -c credential.interactive=never -c core.sshCommand="ssh -o BatchMode=yes" fetch`; on failure say so and
   continue, since only refs already in the clone are read (D-10). Register only when `people` exists, never
   create it. When `accord new ticket` says your email is not registered: look for it on other branches with

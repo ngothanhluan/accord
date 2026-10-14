@@ -478,6 +478,7 @@ completion notice.
 | 5 | approach | critic (round 2) | inherit | 65,973 | 18 | 231s | no Must; 7 Should, 3 Nice → 1 owner question (D-18), the rest Rulings |
 | 6 | plan | planner | inherit | 133,625 | 56 | 360s | 6 tasks, all ac and D-01..D-18 covered; 4 Rulings; `gate plan` passed first time |
 | 7 | plan | critic (round 1) | inherit | 149,281 | 55 | 462s | no Must; 4 Should (invalid-config message, no-table behaviour, git output size and lazy fetch, skill byte limit) |
+| 8 | plan | planner (resumed, fixes) | inherit | 143,383 cumulative | 7 | 66s | 4 Should fixed; 2 Rulings; gate plan passed |
 
 Baseline suite at 3be1c05: 55 files, 1182 tests pass, 62s.
 

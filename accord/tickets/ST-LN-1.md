@@ -40,7 +40,7 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: ST-LN-1
 
-  @ac-1
+  @ac-1 @test:packages/cli/test/lane-commands.test.ts#ac-1-anchor-finds-the-active-ticket-from-a-branch-named-by-the-template
   Scenario: The active ticket is found from a branch named by the template
     Given config.yml has `branch: "feature/{id}"` and ticket ST-AN-2 exists
     When `accord anchor` runs with no id on branch feature/ST-AN-2

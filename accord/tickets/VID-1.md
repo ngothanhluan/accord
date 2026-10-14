@@ -1,6 +1,6 @@
 ---
 id: "VID-1"                            # equals the file name: tickets/<id>.md
-title: "Short title in business language"
+title: "Gate plan rejects verify ids holding an at sign or a comma"
 type: "story" # story | bug. An epic uses its own template
 status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project

@@ -18,6 +18,7 @@
 - Ruling: (planner) the file check in the CLI tests matches a line of rendered `out` that starts with `accord/tickets/T-1/plan.md:` and contains the rule id — the CLI tests only see text output, and the renderer's `file[:line]:` prefix is established — cost if wrong: three assertions change if the prefix changes.
 - Ruling: (planner) ac-4's positive control sits inside the ac-4 test, not in a separate risk test — it makes ac-4 observe the rule id, and a separate test would repeat ac-3 at the core layer — cost if wrong: ac-4 asserts absence and one presence.
 - Ruling: (executor, task 3) the executor bullet's first source line is longer than the wrapped lines around it — the D-06 sentence must sit whole on one source line for the verbatim test — cost if wrong: cosmetic only.
+- Ruling: title set from the template placeholder to "Gate plan rejects verify ids holding an at sign or a comma", found by the final review — `approved_hash` covers sections only, not the title, so no new approval is needed — cost if wrong: one frontmatter line.
 
 ## Deferred
 

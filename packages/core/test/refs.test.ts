@@ -236,18 +236,16 @@ describe('linear time (T-04-16)', () => {
   });
 });
 
-describe('REFS-1 leading dot', () => {
-  it('risk:parsing a dot extension word in prose is not a candidate', () => {
-    expect(candidates('the .md file and the .ts one', snap([]))).toEqual([]);
-    expect(candidates('.eslintrc.json', snap([]))).toEqual(['.eslintrc.json']);
-  });
-  it('risk:parsing a run of three dots before a path is stripped', () => {
-    expect(candidates('...packages/x.ts', snap([]))).toEqual(['packages/x.ts']);
-  });
-  it('risk:parsing a dot before a quote is stripped with the quote', () => {
-    expect(candidates('."packages/x.ts"', snap([]))).toEqual(['packages/x.ts']);
-  });
-  it('risk:parsing a backslash parent path is named as written', () => {
-    expect(unresolvedRefs('..\\x.md', snap([]))).toEqual(['..\\x.md']);
-  });
+it('risk:parsing a dot extension word in prose is not a candidate', () => {
+  expect(candidates('the .md file and the .ts one', snap([]))).toEqual([]);
+  expect(candidates('.eslintrc.json', snap([]))).toEqual(['.eslintrc.json']);
+});
+it('risk:parsing a run of three dots before a path is stripped', () => {
+  expect(candidates('...packages/x.ts', snap([]))).toEqual(['packages/x.ts']);
+});
+it('risk:parsing a dot before a quote is stripped with the quote', () => {
+  expect(candidates('."packages/x.ts"', snap([]))).toEqual(['packages/x.ts']);
+});
+it('risk:parsing a backslash parent path is named as written', () => {
+  expect(unresolvedRefs('..\\x.md', snap([]))).toEqual(['..\\x.md']);
 });

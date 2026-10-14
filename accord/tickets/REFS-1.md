@@ -40,14 +40,14 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: REFS-1
 
-  @ac-1
+  @ac-1 @test:packages/core/test/gate.test.ts#ac-1-a-citation-under-a-dot-led-directory-resolves
   Scenario: a citation under a dot-led directory resolves
     Given the snapshot tree holds .claude/skills/x.md
     And a verification.md evidence block whose only citation is `.claude/skills/x.md`, in backticks
     When gate done runs for that ticket
     Then the result carries neither gate.evidence-unresolved nor gate.reference-unknown for that block
 
-  @ac-2
+  @ac-2 @test:packages/core/test/gate.test.ts#ac-2-a-citation-starting-with-dot-slash-resolves
   Scenario: a citation starting with ./ resolves
     Given the snapshot tree holds docs/x.md
     And a verification.md evidence block whose only citation is ./docs/x.md, a bare token in prose
@@ -62,7 +62,7 @@ Feature: REFS-1
     Then the result carries neither gate.evidence-unresolved nor gate.reference-unknown for that block
     And no line count of packages/core/src/x.ts is read
 
-  @ac-4
+  @ac-4 @test:packages/core/test/gate.test.ts#ac-4-a-parent-directory-citation-is-reported-as-written
   Scenario: a citation starting with ../ is still reported, as written
     Given the snapshot tree holds docs/x.md and no path outside the repository
     And a verification.md evidence block citing docs/x.md and ../x.md, both bare tokens in prose

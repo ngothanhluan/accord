@@ -183,63 +183,61 @@ function addPeople(repo: string): void {
   writeFileSync(file, text + (text.endsWith('\n') ? '' : '\n') + 'people:\n  "an@example.com": AN\n');
 }
 
-describe('accord new ticket - ids assigned from people', () => {
-  it('ac-1 new ticket assigns the creators next number for its type', async () => {
-    const repo = sandbox();
-    addPeople(repo);
-    writeFiles(repo, {
-      'accord/tickets/ST-AN-1.md': laneTicket('ST-AN-1'),
-      'accord/tickets/ST-LN-9.md': laneTicket('ST-LN-9'),
-    });
-    commitAll(repo);
-    gitRun(repo, 'update-ref', 'refs/remotes/origin/t/ST-AN-3', 'HEAD');
-    gitRun(repo, 'remote', 'add', 'origin', 'https://unreachable.invalid/accord.git');
-    gitRun(repo, 'config', 'user.email', 'an@example.com');
-    const { code, out } = await run(['new', 'ticket', '--type', 'story'], repo);
-    expect(code).toBe(0);
-    expect(out).toBe('accord/tickets/ST-AN-4.md\n');
-    const text = readFileSync(ticket(repo, 'ST-AN-4'), 'utf8');
-    expect(text).toContain('id: "ST-AN-4"');
-    expect(text.split('\n').find((l) => l.startsWith('type:'))).toContain('"story"');
-    expect(existsSync(ticket(repo, 'ST-AN-2'))).toBe(false);
+it('ac-1 new ticket assigns the creators next number for its type', async () => {
+  const repo = sandbox();
+  addPeople(repo);
+  writeFiles(repo, {
+    'accord/tickets/ST-AN-1.md': laneTicket('ST-AN-1'),
+    'accord/tickets/ST-LN-9.md': laneTicket('ST-LN-9'),
   });
+  commitAll(repo);
+  gitRun(repo, 'update-ref', 'refs/remotes/origin/t/ST-AN-3', 'HEAD');
+  gitRun(repo, 'remote', 'add', 'origin', 'https://unreachable.invalid/accord.git');
+  gitRun(repo, 'config', 'user.email', 'an@example.com');
+  const { code, out } = await run(['new', 'ticket', '--type', 'story'], repo);
+  expect(code).toBe(0);
+  expect(out).toBe('accord/tickets/ST-AN-4.md\n');
+  const text = readFileSync(ticket(repo, 'ST-AN-4'), 'utf8');
+  expect(text).toContain('id: "ST-AN-4"');
+  expect(text.split('\n').find((l) => l.startsWith('type:'))).toContain('"story"');
+  expect(existsSync(ticket(repo, 'ST-AN-2'))).toBe(false);
+});
 
-  it('risk:complex-branching without people and without an id new ticket exits 2 and writes nothing', async () => {
-    const repo = sandbox();
-    const before = listing(repo);
-    const { code, err } = await run(['new', 'ticket'], repo);
-    expect(code).toBe(2);
-    expect(err).toContain('a ticket id is required');
-    expect(listing(repo)).toEqual(before);
-  });
+it('risk:complex-branching without people and without an id new ticket exits 2 and writes nothing', async () => {
+  const repo = sandbox();
+  const before = listing(repo);
+  const { code, err } = await run(['new', 'ticket'], repo);
+  expect(code).toBe(2);
+  expect(err).toContain('a ticket id is required');
+  expect(listing(repo)).toEqual(before);
+});
 
-  it('risk:complex-branching the first ticket in a repository with no commit gets number 1', async () => {
-    const repo = makeEmptyRepo();
-    repos.push(repo);
-    writeFiles(repo, { 'accord/config.yml': CONFIG + 'people:\n  "an@example.com": AN\n' });
-    gitRun(repo, 'config', 'user.email', 'an@example.com');
-    const { code, out } = await run(['new', 'ticket', '--type', 'story'], repo);
-    expect(code).toBe(0);
-    expect(out).toBe('accord/tickets/ST-AN-1.md\n');
-    expect(existsSync(ticket(repo, 'ST-AN-1'))).toBe(true);
-  });
+it('risk:complex-branching the first ticket in a repository with no commit gets number 1', async () => {
+  const repo = makeEmptyRepo();
+  repos.push(repo);
+  writeFiles(repo, { 'accord/config.yml': CONFIG + 'people:\n  "an@example.com": AN\n' });
+  gitRun(repo, 'config', 'user.email', 'an@example.com');
+  const { code, out } = await run(['new', 'ticket', '--type', 'story'], repo);
+  expect(code).toBe(0);
+  expect(out).toBe('accord/tickets/ST-AN-1.md\n');
+  expect(existsSync(ticket(repo, 'ST-AN-1'))).toBe(true);
+});
 
-  it('risk:complex-branching a ticket added and deleted on a merged and deleted branch keeps its number', async () => {
-    const repo = sandbox();
-    addPeople(repo);
-    gitRun(repo, 'config', 'user.email', 'an@example.com');
-    commitAll(repo);
-    const main = gitRun(repo, 'branch', '--show-current').trim();
-    gitRun(repo, 'checkout', '-q', '-b', 'side');
-    writeFiles(repo, { 'accord/tickets/ST-AN-2.md': laneTicket('ST-AN-2') });
-    commitAll(repo);
-    rmSync(ticket(repo, 'ST-AN-2'));
-    commitAll(repo);
-    gitRun(repo, 'checkout', '-q', main);
-    gitRun(repo, '-c', 'user.email=fixture@example.invalid', '-c', 'user.name=fixture', '-c', 'commit.gpgsign=false', 'merge', '-q', '--no-ff', '--no-edit', '--no-verify', 'side');
-    gitRun(repo, 'branch', '-D', 'side');
-    const { code, out } = await run(['new', 'ticket', '--type', 'story'], repo);
-    expect(code).toBe(0);
-    expect(out).toBe('accord/tickets/ST-AN-3.md\n');
-  });
+it('risk:complex-branching a ticket added and deleted on a merged and deleted branch keeps its number', async () => {
+  const repo = sandbox();
+  addPeople(repo);
+  gitRun(repo, 'config', 'user.email', 'an@example.com');
+  commitAll(repo);
+  const main = gitRun(repo, 'branch', '--show-current').trim();
+  gitRun(repo, 'checkout', '-q', '-b', 'side');
+  writeFiles(repo, { 'accord/tickets/ST-AN-2.md': laneTicket('ST-AN-2') });
+  commitAll(repo);
+  rmSync(ticket(repo, 'ST-AN-2'));
+  commitAll(repo);
+  gitRun(repo, 'checkout', '-q', main);
+  gitRun(repo, '-c', 'user.email=fixture@example.invalid', '-c', 'user.name=fixture', '-c', 'commit.gpgsign=false', 'merge', '-q', '--no-ff', '--no-edit', '--no-verify', 'side');
+  gitRun(repo, 'branch', '-D', 'side');
+  const { code, out } = await run(['new', 'ticket', '--type', 'story'], repo);
+  expect(code).toBe(0);
+  expect(out).toBe('accord/tickets/ST-AN-3.md\n');
 });

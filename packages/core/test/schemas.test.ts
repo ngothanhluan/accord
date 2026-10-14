@@ -318,19 +318,17 @@ describe('phase 2 config keys', () => {
   });
 });
 
-describe('ids config keys', () => {
-  const base = { ...minimal.config };
-  const at = (cfg: object) => validate('config', cfg).map((f) => `${f.rule}@${f.pointer}`);
-  it('risk:parsing people maps an email to 2 to 4 capital letters', () => {
-    for (const ok of [{ 'an@example.com': 'AN' }, { 'an@example.com': 'ABCD' }, {}]) expect(validate('config', { ...base, people: ok })).toEqual([]);
-    for (const bad of ['A', 'ABCDE', 'an', 'A1']) {
-      expect(at({ ...base, people: { 'an@example.com': bad } })).toContain('schema.pattern@/people/an@example.com');
-    }
-    expect(at({ ...base, people: { 'not-an-email': 'AN' } }).some((s) => s.endsWith('@/people'))).toBe(true);
-  });
-  it('risk:parsing legacy_ids is a list of distinct ticket ids', () => {
-    expect(validate('config', { ...base, legacy_ids: ['SHOW-1', 'ASK-1'] })).toEqual([]);
-    expect(at({ ...base, legacy_ids: ['SHOW-1', 'SHOW-1'] })).toContain('schema.uniqueItems@/legacy_ids');
-    expect(at({ ...base, legacy_ids: ['a b'] })).toContain('schema.pattern@/legacy_ids/0');
-  });
+const idsBase = { ...minimal.config };
+const at = (cfg: object) => validate('config', cfg).map((f) => `${f.rule}@${f.pointer}`);
+it('risk:parsing people maps an email to 2 to 4 capital letters', () => {
+  for (const ok of [{ 'an@example.com': 'AN' }, { 'an@example.com': 'ABCD' }, {}]) expect(validate('config', { ...idsBase, people: ok })).toEqual([]);
+  for (const bad of ['A', 'ABCDE', 'an', 'A1']) {
+    expect(at({ ...idsBase, people: { 'an@example.com': bad } })).toContain('schema.pattern@/people/an@example.com');
+  }
+  expect(at({ ...idsBase, people: { 'not-an-email': 'AN' } }).some((s) => s.endsWith('@/people'))).toBe(true);
+});
+it('risk:parsing legacy_ids is a list of distinct ticket ids', () => {
+  expect(validate('config', { ...idsBase, legacy_ids: ['SHOW-1', 'ASK-1'] })).toEqual([]);
+  expect(at({ ...idsBase, legacy_ids: ['SHOW-1', 'SHOW-1'] })).toContain('schema.uniqueItems@/legacy_ids');
+  expect(at({ ...idsBase, legacy_ids: ['a b'] })).toContain('schema.pattern@/legacy_ids/0');
 });

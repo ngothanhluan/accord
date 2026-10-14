@@ -6,6 +6,7 @@
 - task 3 done 3e324dd90507
 - task 4 done bb53cb946207
 - task 5 done 34d884229f86
+- task 6 done 01455d0cf06f
 
 ## Rulings
 

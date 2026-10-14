@@ -499,6 +499,7 @@ completion notice.
 | 26 | build | executor (task 3) | sonnet, medium | 105,390 | 29 | 451s | 3e324dd; suite 1193 pass; task 3 recorded first time |
 | 27 | build | executor (task 4) | sonnet, medium | 78,430 | 9 | 161s | bb53cb9; suite 1196 pass; task 4 recorded first time |
 | 28 | build | executor (task 5) | sonnet, medium | 73,301 | 10 | 156s | 34d8842; suite 1197 pass; guard test red shown by mutation; task 5 recorded first time |
+| 29 | build | executor (task 6) | sonnet, medium | 78,327 | 8 | 121s | 01455d0; suite 1197 pass; SKILL.md 5035 of 5120 bytes; task 6 recorded first time. Build total: 7 executor runs for 6 tasks, one retry (describe-prefixed verify ids) |
 
 Baseline suite at 3be1c05: 55 files, 1182 tests pass, 62s.
 

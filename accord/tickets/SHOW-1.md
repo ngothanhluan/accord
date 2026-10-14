@@ -1,0 +1,108 @@
+---
+id: "SHOW-1"                            # equals the file name: tickets/<id>.md
+title: "The owner approves the ticket's text, not a summary"
+type: "story" # story | bug. An epic uses its own template
+status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
+lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
+# Tickets that must reach done before this one can start.
+# depends_on: ["OTHER-ID"]
+# The epic this ticket belongs to.
+# parent: "EPIC-ID"
+# Ids in the tracker, a map keyed by adapter name; values are strings.
+# tracker: { github-issues: "1234" }
+ui: false
+# Optional design reference URL.
+# design: "https://example.com/design/..."
+# Written by `accord approve` after the owner says yes; never edit by hand.
+# approved_hash:
+# Written by `gate ready`; never edit by hand.
+# ac_hash:
+# Self-test ticks, e.g. [ac-1, ac-2]. Always the last key.
+# verified: []
+# The AC hash and the commit the ticks were made against.
+# verified_hash:
+# verified_commit:
+approved_hash: "fnv1a64:9309d50e6aefacea"
+ac_hash: "fnv1a64:edc0bb8eab6a9256"
+verified_hash: "fnv1a64:edc0bb8eab6a9256"
+verified_commit: "3bcfa7dee916e5b87b425fb97009c090072c1858"
+verified:
+  - "ac-1"
+  - "ac-2"
+---
+
+## Intent
+<!-- At most five lines: why, for whom, how success is measured, and what this does not do. -->
+The owner approves Intent and the acceptance criteria through a summary the orchestrator writes, while
+`accord approve` hashes the file, so the text locked may not be the text approved (dogfood item 38). For the
+owner. Done when the intent stage shows Intent and the criteria verbatim and takes a yes before the
+architect, the approach yes shows Approach verbatim, and the spec's interview says so. Not: a new hash,
+field, or gate for the intent yes; any change to what `approved_hash` covers.
+
+## Acceptance criteria
+<!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.
+A scenario that is not @ui also carries one @test:<id> tag naming the one test that proves it; `accord task-done` writes it from the plan's `(@ac-n)` marker, not by hand; it is outside the AC hash. -->
+```gherkin
+Feature: SHOW-1
+
+  @ac-1 @test:packages/core/test/stage-skills.test.ts#ac-1-the-intent-skill-shows-intent-and-the-criteria-verbatim-before-the-architect
+  Scenario: the intent stage shows Intent and the criteria verbatim and takes a yes before the architect
+    Given the files `accord skills sync` writes for a config that enables every runtime, in every target directory
+    When a reader opens each rendered `accord-intent/SKILL.md`
+    Then it holds the sentence "Show the owner the `## Intent` section and the acceptance criteria block verbatim, copied from the ticket file and never summarised, ask for an explicit yes, and on yes commit the ticket with the owner's answer quoted in the commit message." verbatim, a line break and the indentation around it counting as one space
+    And that sentence sits in a numbered step of its own, after the numbered step that dispatches `accord-auditor` and before the numbered step that names `accord-approach` as next
+
+  @ac-2 @test:packages/core/test/stage-skills.test.ts#ac-2-the-approach-skill-shows-approach-verbatim-instead-of-a-brief
+  Scenario: the approach yes shows Approach verbatim instead of a brief
+    Given the files `accord skills sync` writes for a config that enables every runtime, in every target directory
+    When a reader opens each rendered `accord-approach/SKILL.md`
+    Then it holds the sentence "Show the owner the `## Approach` section verbatim, copied from the ticket file and never summarised, together with any section changed since the owner's yes at the intent stage, and ask for an explicit yes." verbatim, a line break and the indentation around it counting as one space
+    And it does not hold "Show the owner the brief"
+```
+
+## Vetoes
+<!-- What the owner forbids, in the owner's own words, one item per line. -->
+(none)
+
+## Decisions
+<!-- Settled answers, one per line: - D-01 <decision> — "<the owner's sentence>" -->
+- D-01 Four parts: the intent skill gains a step after the audit that shows `## Intent` and the criteria block verbatim and takes a yes, a no becoming a Correction; the approach yes shows `## Approach` verbatim instead of a brief, plus any section changed since the intent yes, and `approved_hash` is unchanged; the intent yes is recorded by quoting the owner's answer in the commit message, with no new field or gate; a test checks the two sentences verbatim on the render, and the spec's interview is updated — "Đúng 4 phần (Recommended)"
+- D-02 The two sentences. In the intent skill: "Show the owner the `## Intent` section and the acceptance criteria block verbatim, copied from the ticket file and never summarised, ask for an explicit yes, and on yes commit the ticket with the owner's answer quoted in the commit message." In the approach skill, replacing "Show the owner the brief and ask for an explicit yes.": "Show the owner the `## Approach` section verbatim, copied from the ticket file and never summarised, together with any section changed since the owner's yes at the intent stage, and ask for an explicit yes." The sentence saying the yes also approves the other sections as written stays — "Bản đề xuất (Recommended)"
+- D-03 The smallest version is all four parts, the spec update included — "Cả 4 phần (Recommended)"
+- D-04 (audit) A line break and the indentation around it count as one space; a blank line inside a sentence fails, as ASK-1 D-05 — "Đồng ý cả 4 (Recommended)"
+- D-05 (audit) Sentence A sits in a numbered step of its own, after the one step that dispatches `accord-auditor` (step 8 today) and before the step "Next: `accord-approach`"; the criteria read the rendered `accord-intent/SKILL.md` and `accord-approach/SKILL.md` — "Đồng ý cả 4 (Recommended)"
+- D-06 (audit) The ac-1 scenario says "before the architect", as the Intent does — "Đồng ý cả 4 (Recommended)"
+- D-07 (approach critic) D-01 widened: the approach yes shows every approved section verbatim (Intent, the criteria, Vetoes, Decisions, Corrections, Approach), because every rule that located "the sections changed since the intent yes" through a commit let a section reach `accord approve` unseen; sentence B stays; the critic rounds stop after round 5 — "Nhận D-07, sửa 4 lỗi, dừng (Recommended)"
+
+## Corrections
+<!-- Every correction the owner makes, verbatim, appended and never edited. -->
+
+## Open questions
+<!-- `- [ ]` items; Ready stays blocked while any is unchecked. -->
+
+## Approach
+<!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
+**Chosen: prose in the two skills, every section shown at the approach yes.** Intent step 8 (audit, commit)
+is unchanged. A new step 9 "The owner's yes" holds sentence A; that commit holds `accord/tickets/<id>.md`
+with the ledger if it changed, `--allow-empty` when nothing did; on a no, the owner's words go under
+`## Corrections`, the touched sections are rewritten, a changed criterion goes back to step 8, and the text
+is shown again. "Next: `accord-approach`" becomes step 10. Approach step 5 swaps "Show the owner the brief and
+ask for an explicit yes." for sentence B plus "Treat every approved section as changed: show Intent, the
+criteria, Vetoes, Decisions, and Corrections verbatim too." (D-07); the question names the text above it and
+`accord/tickets/<id>.md`; any no is written under `## Corrections` first, empties `## Approach` below its
+heading, goes back to `accord-intent` step 8, and the approach restarts at step 2; the guard reads "a yes to
+the sections as shown". The spec interview gains step 8, and §7 step 4 one clause.
+**Rejected:** locating the intent yes by commit subject (`intent: <id>`, then `intent-yes: <id>`): five critic
+rounds found collisions across tickets, commits made by the old skill, approach-stage commits under the same
+prefix, an empty commit that could not be made, and a loop back to the audit.
+**Affected:** `packages/core/skills/intent/SKILL.md`, `packages/core/skills/approach/SKILL.md`,
+`packages/core/test/stage-skills.test.ts`, `packages/core/src/generated/skills.ts`, the two
+`.claude/skills/accord-{intent,approach}/SKILL.md`, `docs/specs/2026-10-12-workflow-layer-design.md`.
+**Risks (critic, rounds stopped by the owner):** the final question is long (40 to 60 lines), so the owner may
+skim; on a runtime whose dialog hides earlier text the owner opens the file the question names; an agent may
+follow sentence B's "any section changed" over the line after it; a session that compacts after the intent
+yes but before `## Approach` re-runs the intent stage; one corrected word at the approach yes re-runs the
+audit, the architect and the critic.
+**Tests:** ac-1 and ac-2 top-level in `packages/core/test/stage-skills.test.ts` over every runtime directory,
+`[ \t]*\n[ \t]*` to one space on step text that keeps its raw newlines, so a blank line inside a sentence fails;
+ac-1 splits numbered steps at `^\d+\. ` and checks sentence A's step against the one auditor step and "Next".

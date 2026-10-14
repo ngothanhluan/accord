@@ -48,15 +48,23 @@ the owner's yes before anyone plans. You run it in the main session.
 
    Commit `accord/tickets/<id>.md`.
 
-5. **The owner's yes.** Show the owner the brief and ask for an explicit
-   yes. Say that the yes also approves the ticket's Intent, acceptance
-   criteria, Vetoes, Decisions, and Corrections as written: the approval
-   covers them all. On yes, run `accord approve <id>`, then
-   `accord gate ready <id>` and work from what it prints. Then commit the
-   ticket, with `approved_hash:` and `ac_hash:` in it. If the owner picks
-   another option, go back to step 3 with that option, rewrite the brief,
-   and ask again.
-   `accord approve` runs only on a yes to the brief as shown. Never run
+5. **The owner's yes.** Show the owner the `## Approach` section verbatim,
+   copied from the ticket file and never summarised, together with any
+   section changed since the owner's yes at the intent stage, and ask for an
+   explicit yes. Treat every approved section as changed: show Intent, the
+   criteria, Vetoes, Decisions, and Corrections verbatim too. The question
+   names the text above it and `accord/tickets/<id>.md`. Say that the yes
+   also approves the ticket's Intent, acceptance criteria, Vetoes,
+   Decisions, and Corrections as written: the approval covers them all. On
+   yes, run
+   `accord approve <id>`, then `accord gate ready <id>` and work from what it
+   prints. Then commit the ticket, with `approved_hash:` and `ac_hash:` in
+   it. If the owner picks another option, go back to step 3 with that
+   option, rewrite `## Approach`, and ask again. On any other no, write the
+   owner's words under `## Corrections` first, empty `## Approach` below its
+   heading, go back to `accord-intent` step 8, and restart this stage at
+   step 2.
+   `accord approve` runs only on a yes to the sections as shown. Never run
    `accord approve` without the owner's yes in this conversation.
 
 6. Next: `accord-plan`.

@@ -92,6 +92,11 @@ Feature: IDS-1
 - D-11 The next number is the creator's highest existing number for that type plus one; a number is never reused — "Lớn nhất + 1 = ST-AN-4 (Recommended)"
 - D-12 While the convention is on, every hand-typed id is refused, including one in the right form — "Từ chối mọi mã gõ tay (Recommended)"
 - D-13 Lint checks an id's form and that its prefix matches its type, never that its initials are in the table, so a person removed from the table leaves valid tickets behind — "Không đòi (Recommended)"
+- D-14 The email → initials table is the config.yml key `people`, e.g. `people: { "an@example.com": AN }` — "people (Recommended)"
+- D-15 Initials are 2 to 4 uppercase letters, with no digits — "2–4 chữ in hoa (Recommended)"
+- D-16 Whoever turns the convention on in an existing repository writes `legacy_ids` by hand; the lint error for each old id says to add it to `legacy_ids` if it predates the convention, and no command is added for this — "Người dùng, lỗi lint chỉ cách (Recommended)"
+- D-17 Before assigning an id, `accord new ticket` reads `people` from config.yml on every ref already in the clone and refuses when the creator's initials belong to another email anywhere; if both register before either fetch, both first ids collide, the later claim push is rejected, and the re-run after fetch is refused — "CLI đọc config mọi nhánh đã fetch (Recommended)"
+- D-18 D-17 is narrowed: when the fetched default branch's `people` holds the creator's initials, only it decides (same email passes, another email is refused); only when it lacks them are the other refs checked, so initials a departed person held can be given to someone new on the default branch — "Nhánh mặc định là chuẩn (Recommended)"
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
@@ -103,3 +108,15 @@ Feature: IDS-1
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
+**Chosen: Option 1, amended — extend the existing seams; the /accord skill edits config.yml.** A pure core helper takes every id visible in the clone (ticket files, work folders, local and fetched `t/` refs, ticket paths in `git log --all` over accord/tickets) and returns `<ST|BUG|EP>-<initials>-<max+1>`; no network call (D-10, D-11). `new ticket [id]`: with `people` it refuses any typed id (D-12) and an unregistered or unset email, checks initials against the fetched default branch and then the other refs (D-17, D-18); without `people` it is today's path, and a missing id exits 2. Schema gains `people` (email → `^[A-Z]{2,4}$`) and `legacy_ids`. Lint gains `lint.id-convention` and `lint.initials-duplicate`, both off without `people` (D-08, D-13). `init` writes an empty `people`. The skill registers only when `people` exists, commits the entry with the ticket on `t/<id>`, and fetches first without ever prompting.
+**Rejected:** Option 2 (`accord register`) adds a public command no criterion needs; schema and lint already catch a bad hand edit. Registering on the default branch first would block new people behind a PR on a protected branch. A pushed ref per initials would change D-06.
+**Affected:** cli `run.ts` (`ticket [id]`), `commands/new-ticket.ts`, `load/fs.ts` (one `git cat-file --batch` read of config.yml per ref, `git log --all`); core `model/snapshot.ts`, `schemas/config.schema.json`, a new `lint/ids.ts` plus two rows in `lint/rules.ts`, `index.ts` exports, `scaffold/init.ts`; `skills/accord/SKILL.md` and the generated skills; `docs/design.md`.
+**Risks, critic round 2 (no Must; round 1's two Musts fixed by the `--all` read and D-17/D-18):**
+- Should: config.yml present but invalid would switch the convention off silently → `new ticket` exits 2 naming the schema finding.
+- Should: a person registered only on another ref is asked again → the skill reuses that entry instead of asking, and lint flags one email mapped to two initials.
+- Should: an unreadable config.yml on some ref → only `people` is parsed, the ref is skipped, nothing throws.
+- Should: deleting an unmerged claim branch and pruning it frees its number again → the skill drops a ticket by committing `status: dropped` and merging it (D-02), never by deleting the branch; deleting one anyway is a known limit.
+- Should: `GIT_TERMINAL_PROMPT=0` is not shell-neutral and does not stop the Windows credential dialog → `git -c credential.interactive=never -c core.sshCommand="ssh -o BatchMode=yes" fetch`.
+- Migration A (in-flight branch at turn-on fails lint): undone by adding its id to `legacy_ids`, as the D-16 message says. Migration B (one invalid `people` value): refused by name, fixed by correcting the value. Migration C (CI pinned to an older CLI rejects `people`): undone by bumping the pin with the config change.
+- Nice, taken: lint flags emails differing only in case; `<n>` is `[1-9][0-9]*`.
+**Tests:** ac-1, ac-2, ac-5 in `packages/cli/test/new-ticket.test.ts` on a sandbox repo (local `user.email`, `update-ref` for `origin/t/ST-AN-3`, an unreachable remote URL); ac-3, ac-4 in core lint tests on an in-memory snapshot. Risk tests: one schema case per new key (risk:schema), D-18's default-branch precedence (risk:regression).

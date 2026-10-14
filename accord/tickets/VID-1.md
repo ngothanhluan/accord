@@ -56,7 +56,7 @@ Feature: VID-1
     Then the result carries an error naming that id
     And the verdict is fail with exit code 1
 
-  @ac-3
+  @ac-3 @test:packages/cli/test/lane-commands.test.ts#ac-3-gate-plan-fails-on-a-comma-inside-a-verify-id
   Scenario: gate plan fails on a comma inside a verify id
     Given a lane ticket whose plan passes every plan rule
     And one task's verify line reads src/x.test.ts#refuses-x,-exit-2
@@ -64,7 +64,7 @@ Feature: VID-1
     Then the result carries an error naming src/x.test.ts#refuses-x,-exit-2 whole, as written
     And the verdict is fail with exit code 1
 
-  @ac-4
+  @ac-4 @test:packages/core/test/lane-plan.test.ts#ac-4-a-marker-and-a-comma-between-ids-raise-neither-verify-id-error
   Scenario: a marker and a comma between ids are accepted
     Given a lane ticket whose plan passes every plan rule
     And one task's verify line reads src/x.test.ts#writes (@ac-1), src/y.test.ts#risk:data-loss-quotes

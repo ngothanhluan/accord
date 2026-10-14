@@ -24,10 +24,6 @@ export const POINTER_FILES: readonly string[] = ['AGENTS.md', 'CLAUDE.md'];
 //
 // T-07-20: fixed text with no interpolation. No repository content, no config value and no argument reaches
 // it, so nothing in a repository can smuggle an instruction into the context of an agent that reads it.
-//
-// `.claude/skills` and `.agents/skills` are directory paths, which is the one naming the "no other tools
-// named" constraint permits — the same carve-out `test/helpers/denied.ts` makes for the rendered skill
-// bodies, for the same reason: a shipped text has to be able to say where it installs.
 const BLOCK = `${POINTER_START}
 
 ## accord

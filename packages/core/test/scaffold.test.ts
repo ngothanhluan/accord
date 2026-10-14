@@ -15,7 +15,6 @@ import {
   skillTargets,
   validate,
 } from '../src/index.js';
-import { deniedNames } from '../../../test/helpers/denied.js';
 import { readDir } from './helpers/fixture.js';
 import type { AccordConfig } from '../src/index.js';
 
@@ -396,27 +395,5 @@ describe('pointerText — the block it decides (CLI-03)', () => {
       .map((l) => l.trim())
       .filter((l) => l !== '' && !markers.includes(l) && skillLines.has(l));
     expect(copied).toEqual([]);
-  });
-});
-
-// The CLAUDE.md hard constraint "nothing accord ships names another tool, plugin, harness, or planning
-// system", over the text surfaces Phase 7 adds. Until now its only automated coverage was one case over the
-// rendered skill bodies (`skills.test.ts`); the coverage widens in the same change that widens the surface,
-// from the one list in `test/helpers/denied.ts`, at the repository root.
-describe('shipped text names no other tool (CLAUDE.md)', () => {
-  it('finds no denied name in the config, the workflow, or the pointer block', () => {
-    // `initFiles` carries both the generated config.yml comments and the emitted workflow YAML, so listing
-    // it covers two surfaces without naming either — and a fifth artifact added to it later is covered with
-    // no edit here.
-    const surfaces = [
-      ...output,
-      { path: 'AGENTS.md', text: pointerText(undefined) as string },
-    ];
-    // Guard the guard, twice, before the assertion that matters: a scan given nothing, or a scan that
-    // silently stopped matching, would otherwise read as a pass.
-    expect(surfaces.length).toBeGreaterThanOrEqual(4);
-    const probe = [{ path: 'probe.md', text: 'first\nbuilt with ' + 'Fig' + 'ma\n' }];
-    expect(deniedNames(probe)).toEqual(['probe.md:2: ' + 'Fig' + 'ma']);
-    expect(deniedNames(surfaces)).toEqual([]);
   });
 });

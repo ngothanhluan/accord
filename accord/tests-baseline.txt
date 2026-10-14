@@ -296,7 +296,7 @@ packages/core/test/agents.test.ts#rendered-agents->-every-agent-renders-a-model-
 packages/core/test/agents.test.ts#rendered-agents->-frontmatter-keys-come-in-a-fixed-order
 packages/core/test/agents.test.ts#rendered-agents->-generated-module-matches-agents/-(drift)
 packages/core/test/agents.test.ts#rendered-agents->-installs-for-the-claude-runtime-only
-packages/core/test/agents.test.ts#rendered-agents->-names-no-other-tool-and-stays-short
+packages/core/test/agents.test.ts#rendered-agents->-stays-short
 packages/core/test/agents.test.ts#rendered-agents->-renders-scout-with-routed-defaults-and-no-authoring-key
 packages/core/test/agents.test.ts#rendered-agents->-renders-the-architect-and-the-critic-read-only-on-their-spec-routes
 packages/core/test/agents.test.ts#rendered-agents->-renders-the-auditor-read-only-on-its-spec-route

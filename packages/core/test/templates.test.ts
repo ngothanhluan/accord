@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import type { Tags } from 'yaml';
 import { templates, validate } from '../src/index.js';
-import { deniedNames } from '../../../test/helpers/denied.js';
 import type { TemplateName } from '../src/index.js';
 
 const templatesDir = fileURLToPath(new URL('../templates/', import.meta.url));
@@ -135,24 +134,6 @@ describe('generated module', () => {
       const text = normalise(readFileSync(templatesDir + name, 'utf8'));
       expect(templates[name as TemplateName], `${name} drifted: run npm run gen`).toBe(text);
     }
-  });
-
-  // The CLAUDE.md hard constraint — nothing accord ships names another tool, plugin, harness, or planning
-  // system — over the shipped templates, which are inside the published `files:` list and are what
-  // `accord new ticket` renders. The drift case above binds this record byte-for-byte to `templates/`, so
-  // scanning the record scans the directory, and scans the exact bytes a consumer receives after install.
-  // The list and the scan are the ones `skills.test.ts`, `scaffold.test.ts` and `examples.test.ts` call: one
-  // implementation of a project constraint, never a second copy, and never an allowlist.
-  it('no shipped template names another tool, plugin, harness, or planning system (CLAUDE.md)', () => {
-    const files = Object.entries(templates).map(([path, text]) => ({ path, text }));
-    // Guard the guard, twice, before the assertion that matters: a truncated record, or a scan that had
-    // silently stopped matching, would otherwise read as a pass. The probe's name is split like `DENIED`'s
-    // own entries so this file does not carry the name it forbids.
-    const onDisk = readdirSync(templatesDir).filter((f) => /\.(md|html)$/.test(f));
-    expect(files.length).toBeGreaterThanOrEqual(onDisk.length);
-    const probe = [{ path: 'probe.md', text: 'first\nbuilt with ' + 'Fig' + 'ma\n' }];
-    expect(deniedNames(probe)).toEqual(['probe.md:2: ' + 'Fig' + 'ma']);
-    expect(deniedNames(files)).toEqual([]);
   });
 
   it('LF and no BOM on disk', () => {

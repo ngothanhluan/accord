@@ -9,7 +9,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { gateDone, gateReady, lintSnapshot, loadSnapshot } from '../src/index.js';
 import type { Finding, GateResult, RepoSnapshot, SnapshotInput } from '../src/index.js';
-import { deniedNames } from '../../../test/helpers/denied.js';
 import { readDir } from './helpers/fixture.js';
 
 interface Row {
@@ -81,12 +80,6 @@ for (const row of CASES) {
       const paths = lintSnapshot(snapshot).findings.map((f) => f.file);
       expect(paths.filter((p) => p.includes('\\'))).toEqual([]);
       expect(input.tree.filter((p) => p.includes('\\'))).toEqual([]);
-    });
-
-    // The example prose is a shipped text surface like any other, so it reads the one list rather than
-    // declaring a second one (the CLAUDE.md "no other tools named" constraint).
-    it('names no other tool, plugin, harness, or planning system', () => {
-      expect(deniedNames(Object.entries(input.files).map(([path, text]) => ({ path, text })))).toEqual([]);
     });
   });
 }

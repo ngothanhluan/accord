@@ -304,3 +304,15 @@ it('risk:parsing new ticket reads people on every ref and refuses initials anoth
   expect(err).toContain('bo@example.com');
   expect(listing(repo)).toEqual(before);
 });
+
+it('ac-5 without the initials table nothing changes', async () => {
+  const repo = sandbox();
+  const created = await run(['new', 'ticket', 'FOO-1'], repo);
+  expect(created.code).toBe(0);
+  expect(created.out).toBe('accord/tickets/FOO-1.md\n');
+  expect(readFileSync(ticket(repo, 'FOO-1'), 'utf8')).toContain('id: "FOO-1"');
+  const lint = await run(['lint', '--json'], repo);
+  const rules = (JSON.parse(lint.out).findings as { rule: string }[]).map((f) => f.rule);
+  expect(rules).not.toContain('lint.id-convention');
+  expect(rules).not.toContain('lint.initials-duplicate');
+});

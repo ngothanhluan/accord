@@ -511,3 +511,11 @@ Baseline suite at 3be1c05: 55 files, 1182 tests pass, 62s.
 
 Owner side so far: 13 interview answers, 7 approach answers (D-14..D-18), 1 correction (prefixes fixed, not configured), 2 scope splits
 (branch names, epic grouping to the dashboard ticket).
+
+## Run log: ST-LN-1 (branch name template)
+
+First ticket created under the id convention: `accord new ticket --type story --lane M` assigned ST-LN-1.
+
+| # | Stage | Agent | Model | Tokens | Tool calls | Time | Outcome |
+|---|---|---|---|---|---|---|---|
+| 1 | intent | scout | haiku, low | 61,511 | 25 | 53s | `t/` hardcoded in anchor.ts:28, fs.ts:130/143, /accord skill text; CI and commit messages never read it |

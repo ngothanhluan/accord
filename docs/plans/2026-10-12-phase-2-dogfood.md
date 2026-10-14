@@ -502,6 +502,7 @@ completion notice.
 | 29 | build | executor (task 6) | sonnet, medium | 78,327 | 8 | 121s | 01455d0; suite 1197 pass; SKILL.md 5035 of 5120 bytes; task 6 recorded first time. Build total: 7 executor runs for 6 tasks, one retry (describe-prefixed verify ids) |
 | 30 | review | reviewer (round 1, intent) | sonnet, high | 62,963 | 16 | 210s | no Must or Should; 2 Nice (tag strip had no Ruling; cat-file tree header) |
 | 31 | review | reviewer (round 1, quality) | sonnet, high | 91,064 | 14 | 171s | no Must; 1 Should (shallow clone reuses a number, D-11), 7 Nice deferred |
+| 32 | review | executor (round 1 fix) | sonnet, medium | 80,030 | 11 | 207s | 1 try; shallow-clone refusal, test failed first; 1198 tests pass; commit carried a Co-Authored-By trailer, removed before push |
 
 Baseline suite at 3be1c05: 55 files, 1182 tests pass, 62s.
 

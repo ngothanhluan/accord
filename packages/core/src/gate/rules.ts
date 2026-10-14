@@ -30,6 +30,7 @@ import {
   decisionUncited,
   deferral,
   testsBaselineMissing,
+  verifyComma,
   laneMissing,
   mapInvalid,
   planBaselineMissing,
@@ -42,6 +43,7 @@ import {
   taskVerifyMissing,
   testRepeated,
   testUnmapped,
+  verifyAt,
 } from './plan.js';
 import {
   approachEmpty,
@@ -126,6 +128,8 @@ export const PLAN_RULES: readonly GateRule[] = [
   { id: 'gate.plan-test-repeated', level: 'error', profiles: ['build', 'maintain'], check: testRepeated },
   { id: 'gate.plan-map-invalid', level: 'error', profiles: ['build', 'maintain'], check: mapInvalid },
   { id: 'gate.plan-deferral', level: 'error', profiles: ['build', 'maintain'], check: deferral },
+  { id: 'gate.plan-verify-at', level: 'error', profiles: ['build', 'maintain'], check: verifyAt },
+  { id: 'gate.plan-verify-comma', level: 'error', profiles: ['build', 'maintain'], check: verifyComma },
   { id: 'gate.tests-baseline-missing', level: 'warning', profiles: ['build', 'maintain'], check: testsBaselineMissing },
 ];
 

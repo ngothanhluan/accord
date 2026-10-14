@@ -2,7 +2,7 @@
 // nothing. Mechanical only — whether the plan is good is the critic's question; this gate answers whether
 // it is complete. Levels live in rules.ts (D-57).
 import { headingKey, LIST_MARKER, stripHtmlComments } from '../load/sections.js';
-import { FIELD, tokens } from '../load/work.js';
+import { FIELD, fieldLines, tokens } from '../load/work.js';
 import type { PlanTask, RepoSnapshot, Ticket } from '../model/snapshot.js';
 import { isSha } from './done.js';
 import type { GateRule } from './rules.js';
@@ -205,6 +205,34 @@ export const deferral: GateRule['check'] = (snapshot, id) =>
       word === undefined ? [] : [{ file: planFile(id), line, reason: `task ${x.n} defers work: "${word}"` }],
     ),
   );
+
+/** An `@` in a verify id splits its `@test:` tag; the `(@ac-n)` marker never reaches `verify`. */
+export const verifyAt: GateRule['check'] = (snapshot, id) =>
+  tasksOf(snapshot, id).flatMap((task) =>
+    task.verify
+      .filter((verifyId) => verifyId.includes('@'))
+      .map((verifyId) => ({
+        file: planFile(id),
+        line: fieldLines(task.lines).verify?.line ?? task.line,
+        reason: `task ${task.n} verify id "${verifyId}" holds @, which splits its @test: tag; name the test and its path without @`,
+      })),
+  );
+
+/** D-05: a comma touching text on both sides splits one id into two; the chunk is named as written. */
+export const verifyComma: GateRule['check'] = (snapshot, id) =>
+  tasksOf(snapshot, id).flatMap((task) => {
+    const verify = fieldLines(task.lines).verify;
+    if (verify === undefined) return [];
+    return verify.value
+      .trim()
+      .split(/\s+/)
+      .filter((chunk) => /\S,\S/.test(chunk))
+      .map((chunk) => ({
+        file: planFile(id),
+        line: verify.line,
+        reason: `task ${task.n} verify id "${chunk}" holds a comma, which splits it into two ids; name the test without a comma`,
+      }));
+  });
 
 /** D-03..D-06: a warning that asks; the question is answered only at the plan stage's baseline tests step. */
 export const testsBaselineMissing: GateRule['check'] = (snapshot, id) => {

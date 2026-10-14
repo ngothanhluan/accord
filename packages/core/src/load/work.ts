@@ -2,7 +2,7 @@
 // review.md under accord/tickets/<id>/, and accord/tests-baseline.txt. Pure string work; every parser
 // normalises BOM and CRLF itself (D-38), so every encoding variant parses to one value.
 import type { LoadFinding } from '../model/finding.js';
-import type { Ledger, Plan, PlanTask, Review } from '../model/snapshot.js';
+import type { Ledger, Line, Plan, PlanTask, Review } from '../model/snapshot.js';
 import { fnv1a64 } from '../gate/hash.js';
 import { normaliseText, splitFrontmatter } from './frontmatter.js';
 import { headingKey, LIST_MARKER, scan, stripHtmlComments } from './sections.js';
@@ -22,6 +22,21 @@ type Field = 'covers' | 'files' | 'verify';
 /** A field value: tokens separated by whitespace or commas, empty tokens dropped. */
 export const tokens = (v: string): string[] => v.split(/[\s,]+/).filter((x) => x !== '');
 
+/** The parser's own field rule: first `covers:`/`files:`/`verify:` line per field, outside a fence, list marker stripped. */
+export function fieldLines(lines: Line[]): Partial<Record<Field, { line: number; value: string }>> {
+  if (lines.length === 0) return {};
+  const { fences } = scan(lines.map((l) => l.text).join('\n'), lines[0].line - 1);
+  const out: Partial<Record<Field, { line: number; value: string }>> = {};
+  for (const l of lines) {
+    if (fences.some((f) => l.line >= f.open && l.line <= f.close)) continue;
+    const f = FIELD.exec(l.text.replace(LIST_MARKER, '').trim());
+    if (f === null) continue;
+    const key = f[1] as Field;
+    if (out[key] === undefined) out[key] = { line: l.line, value: f[2] };
+  }
+  return out;
+}
+
 /**
  * One task per `## Task <n>: <title>` section; any other section is prose and is skipped. A field is the
  * first `covers:`, `files:`, or `verify:` line in the section, outside a fence, with an optional list
@@ -29,8 +44,7 @@ export const tokens = (v: string): string[] => v.split(/[\s,]+/).filter((x) => x
  */
 export function parsePlan(file: string, text: string): { plan: Plan; findings: LoadFinding[] } {
   const { yaml, body, bodyOffset } = splitFrontmatter(text);
-  const { sections, fences } = scan(body, bodyOffset);
-  const inFence = (n: number) => fences.some((f) => n >= f.open && n <= f.close);
+  const { sections } = scan(body, bodyOffset);
   const findings: LoadFinding[] = [];
   const tasks: PlanTask[] = [];
   for (const s of sections) {
@@ -46,13 +60,11 @@ export function parsePlan(file: string, text: string): { plan: Plan; findings: L
       });
       continue;
     }
+    const found = fieldLines(s.lines);
     const fields: Partial<Record<Field, string[]>> = {};
-    for (const l of s.lines) {
-      if (inFence(l.line)) continue;
-      const f = FIELD.exec(l.text.replace(LIST_MARKER, '').trim());
-      if (f === null) continue;
-      const key = f[1] as Field;
-      if (fields[key] === undefined) fields[key] = tokens(f[2]);
+    for (const k of ['covers', 'files', 'verify'] as const) {
+      const v = found[k];
+      if (v !== undefined) fields[k] = tokens(v.value);
     }
     // `(new)` marks the path before it; a leading one marks nothing.
     const files: string[] = [];

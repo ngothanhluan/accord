@@ -35,6 +35,14 @@ describe('agents name what the spec requires', () => {
   }
 });
 
+it('ac-5 the planner and the executor say a test name holds no at sign and no comma', () => {
+  for (const role of ['planner', 'executor']) {
+    const text = agentTargets(config()).find((f) => f.path === `.claude/agents/accord-${role}.md`)?.text ?? '';
+    expect(text.length, `accord-${role}.md is missing from the render output`).toBeGreaterThan(0);
+    expect(text, role).toContain('A test name never holds `@` or a comma.');
+  }
+});
+
 describe('rendered agents', () => {
   it('renders scout with routed defaults and no authoring key', () => {
     const fm = frontmatter(scout(config()));

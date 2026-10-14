@@ -210,3 +210,33 @@ it('ac-3 gate plan is silent when no report is configured', () => {
   const r = plan({ ...base(), 'accord/config.yml': CONFIG.replace(/tests:\n {2}report: .*\n/, '') }, PLAN);
   expect(reasons(r, 'gate.tests-baseline-missing')).toEqual([]);
 });
+
+const VERIFY2 = 'verify: export#escapes-commas (@ac-2)';
+const commaFindings = (r: GateResult) => r.findings.filter((f) => f.rule === 'gate.plan-verify-comma');
+
+it('ac-4 a marker and a comma between ids raise neither verify id error', () => {
+  const ok = plan(base(), PLAN.replace('verify: export#writes-csv (@ac-1)', 'verify: src/x.test.ts#writes (@ac-1), src/y.test.ts#risk:data-loss-quotes'));
+  expect(reasons(ok, 'gate.plan-verify-at')).toEqual([]);
+  expect(reasons(ok, 'gate.plan-verify-comma')).toEqual([]);
+  expect(errors(ok)).toEqual([]);
+  const bad = plan(base(), PLAN.replace('verify: export#writes-csv (@ac-1)', 'verify: src/x.test.ts#writes (@ac-1),src/y.test.ts#risk:data-loss-quotes'));
+  const found = commaFindings(bad);
+  expect(found).toHaveLength(1);
+  expect(found[0].reason).toContain('(@ac-1),src/y.test.ts#risk:data-loss-quotes');
+  expect(found[0].file).toBe('accord/tickets/T-1/plan.md');
+});
+
+it('risk:parsing the comma check reads the first verify line outside a fence', () => {
+  const text = (id: string) =>
+    PLAN.replace(
+      VERIFY2,
+      ['```', 'verify: q#r,s', '```', `- verify: export#escapes-commas (@ac-2), ${id}`, 'verify: x#y,z'].join('\n'),
+    );
+  const t = text('a#b,c');
+  const line = t.split('\n').findIndex((l) => l.startsWith('- verify:')) + 1;
+  const found = commaFindings(plan(base(), t)).map((f) => [f.line, f.reason]);
+  expect(found).toHaveLength(1);
+  expect(found[0][0]).toBe(line);
+  expect(found[0][1]).toContain('a#b,c');
+  expect(commaFindings(plan(base(), text('a#b')))).toEqual([]);
+});

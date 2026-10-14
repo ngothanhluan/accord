@@ -23,7 +23,7 @@ Each of these made `gate done` or `task-done` unreachable on the documented path
    edit the ticket; build and verify say nothing. Every lane M ticket fails `gate done`. Workaround used:
    the main session wrote each tag after `task-done`. Fix: `accord-build` step 3 writes the scenario's tag
    from the task's `verify:` id once `task-done` passes.
-2. **No step creates `accord/tests-baseline.txt` (note 14).** A repository adopting phase 2 without it gets
+2. **No step creates `accord/tests-baseline.txt` (note 14).** Fixed by BASE-1 (PR #6): `gate plan` warns and the plan stage asks. A repository adopting phase 2 without it gets
    `gate.test-untraced` on every pre-existing test at Done. Workaround: ran `accord tests baseline` at the
    plan baseline (1137 ids). Fix: `accord-plan` runs it when the file is absent.
 3. **A test name starting with `@` breaks the tag (note 16).** A name like `@test:ac-1 …` puts a second `@`
@@ -176,3 +176,61 @@ item 22 gives them a home:
 - Plan critic round 1 caught a shared test fixture whose ticket tags and plan maps had to agree.
 - Six owner decisions during intent (D-01 to D-06) settled the gate rules before planning; one reading of
   D-05 came back to the owner during review, and the owner ruled on it.
+
+# Third ticket: BASE-1
+
+BASE-1 ("The plan stage asks for the tests baseline") fixed item 2 above, through `/accord` on this
+repository, in its own branch and pull request.
+
+## How it ran
+
+- Stages: intent (9 Decisions, 1 owner correction) → approach (architect, critic with 1 Must, owner's yes,
+  then a re-approve after the planner found @ac-4 contradicting D-08) → plan (3 critic rounds, 2 revisions)
+  → build (3 tasks, no retry) → review (round 1 no findings, final review no findings) → verify (5 of 5
+  pass, owner approved) → `gate done` 0 errors after one fix to the verifier's citations.
+- `gate plan` now warns while `accord/tests-baseline.txt` is absent; the plan skill asks the owner before
+  `accord tests baseline`, which refuses a stale report. Suite 1157 → 1163 tests. Merged as PR #6.
+
+## Recurred
+
+- **Item 11, third time.** `accord anchor` on the blank ticket said "next: the owner approves".
+- **Item 8.** `gate done` misread citation text; see item 27, which is a real error, not only noise.
+- **Item 25.** An executor wrote CRLF into skill sources; the render invariant caught it this time.
+
+## New findings
+
+26. **A warning that names a command reads as an order.** The approach critic's Must: a `gate plan`
+    warning saying "run `accord tests baseline`" would have the agent create the file at step 4, unasked.
+    Fixed in BASE-1 by wording the warning as a question for step 7. Any future rule message that names a
+    command needs the same care.
+27. **`gate done` strips a leading `.` from a citation.** `packages/core/src/gate/refs.ts` trims punctuation,
+    `.` included, from both ends of each token, so `.claude/skills/x.md` resolves as `claude/skills/x.md`
+    and `./baseline.md` as `/baseline.md`; a `path:312-313` range is not removed as a position. The verifier
+    wrote citations that way, the @ac-3 block resolved to nothing, and `gate done` failed with
+    `gate.evidence-unresolved`. Fix: keep a leading `.` that starts a path segment, accept `:n-m`, and have
+    the verifier cite source paths.
+28. **Executors add a commit trailer.** Task 1's commit carried a co-author trailer against the repository
+    rule; it was reworded before `task-done`, and later briefs carried a one-line rule. Fix: the executor
+    body states the repository's commit-message rule, or the brief carries it from config.
+29. **A file the orchestrator creates on the ticket branch shows as undeclared.** Plan critic round 1: a
+    baseline created at step 7 is in no task's `files:` line, so review lists it as Extra. Fixed in BASE-1
+    by a ledger Ruling that `baseline.md` tells the orchestrator to write.
+30. **The plan skill is near its size cap.** The rendered `accord-plan/SKILL.md` is 5047 of 5120 bytes. The
+    next addition to the plan stage must go into a loaded reference file, as `baseline.md` did.
+
+## Deferred from BASE-1
+
+The two Nice findings in `accord/tickets/BASE-1/ledger.md` under `## Deferred`, carried here until item 22
+gives them a home:
+
+- A run that stops after the baseline commit and before its ledger Ruling never adds the Ruling on resume;
+  step 8 fires only while the file is new (`packages/core/skills/plan/baseline.md`).
+- The stale check runs before the `wx` write, so with a commit, an existing baseline plus a stale report
+  says "run the tests again" before "already exists" (`packages/cli/src/commands/tests-baseline.ts`).
+
+## What worked
+
+- The owner's correction (accord serves teams) turned an accepted risk into D-08: the baseline ships alone
+  and a conflict keeps only the lines both sides hold.
+- The planner caught a contradiction between @ac-4 and D-08 before any code; the owner re-approved.
+- Every task passed `task-done` on the first try; review found nothing to fix.

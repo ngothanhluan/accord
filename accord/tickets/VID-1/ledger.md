@@ -24,3 +24,5 @@
 - Nice (plan critic round 1): `verify: a#x (@ac-1),b#y` names `(@ac-1),b#y` with "name the test without a comma", when the fix is a space after the separating comma; rejecting it follows D-01, the advice misleads.
 - Nice (plan critic round 1): nothing fails when `skills sync` is skipped after gen and build; the committed `.claude/agents` copies would lack the D-06 sentence while ac-5 reads the in-memory render.
 - Nice (plan critic round 2): a mistyped marker such as `(@ac-01)` stays a verify id and gets the at-sign error telling the planner to rename a test, when the fix is the marker; rejecting it follows D-03, the advice misleads.
+- Nice (review round 1): `verifyAt` in `packages/core/src/gate/plan.ts` calls `fieldLines(task.lines)` once per flagged id inside the map; it could be hoisted, same result.
+- Nice (review round 1): `verifyComma` sits out of alphabetical order in the import list of `packages/core/src/gate/rules.ts`.

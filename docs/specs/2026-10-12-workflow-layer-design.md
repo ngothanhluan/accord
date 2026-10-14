@@ -227,6 +227,8 @@ The intent therefore never has to be remembered; it is re-read.
    For a ticket that touches auth, money, migration, or data deletion, the risks include the critic's three
    failure scenarios and how each is undone. If the owner picks another option, the critic runs on it
    (step 3) and the brief is rewritten before the owner is asked again.
+   The owner's yes is asked on `## Approach` and every other approved section, each shown verbatim from
+   the ticket file and never summarised.
    Approval runs `accord approve`; `accord gate ready` then requires intent, criteria, and approach.
 
 ### Plan (machine-facing; the owner does not need to read it)

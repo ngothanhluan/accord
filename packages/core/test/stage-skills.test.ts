@@ -126,3 +126,21 @@ it('ac-1 the intent skill shows intent and the criteria verbatim before the arch
   }
   expect(bad).toEqual([]);
 });
+
+it('ac-2 the approach skill shows approach verbatim instead of a brief', () => {
+  const SENTENCE_B = "Show the owner the `## Approach` section verbatim, copied from the ticket file and never summarised, together with any section changed since the owner's yes at the intent stage, and ask for an explicit yes.";
+  const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
+  expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
+  expect([...STAGES]).toEqual(['accord', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
+  const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
+  const bad: string[] = [];
+  for (const dir of skillDirs(all)) {
+    const path = dir + '/' + installedName('approach') + '/SKILL.md';
+    const raw = everyFile.get(path) ?? '';
+    if (!raw) { bad.push(path + ' missing'); continue; }
+    const text = raw.replace(/[ \t]*\n[ \t]*/g, ' ');
+    if (!text.includes(SENTENCE_B)) bad.push(path + ' lacks sentence B');
+    if (text.includes('Show the owner the brief')) bad.push(path + ' still shows the brief');
+  }
+  expect(bad).toEqual([]);
+});

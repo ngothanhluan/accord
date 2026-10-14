@@ -1,6 +1,7 @@
 # Ledger
 
 ## Tasks
+- task 1 done 80908e67edf1
 
 ## Rulings
 

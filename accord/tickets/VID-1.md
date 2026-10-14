@@ -40,7 +40,7 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: VID-1
 
-  @ac-1
+  @ac-1 @test:packages/cli/test/lane-commands.test.ts#ac-1-gate-plan-fails-on-a-verify-id-whose-test-name-holds-an-at-sign
   Scenario: gate plan fails on a verify id whose test name holds an at sign
     Given a lane ticket whose plan passes every plan rule
     And one task's verify line names the id src/x.test.ts#@test-ac-1-writes
@@ -48,7 +48,7 @@ Feature: VID-1
     Then the result carries an error naming that id
     And the verdict is fail with exit code 1
 
-  @ac-2
+  @ac-2 @test:packages/cli/test/lane-commands.test.ts#ac-2-gate-plan-fails-on-a-verify-id-whose-path-holds-an-at-sign
   Scenario: gate plan fails on a verify id whose path holds an at sign
     Given a lane ticket whose plan passes every plan rule
     And one task's verify line names the id packages/@scope/x.test.ts#writes

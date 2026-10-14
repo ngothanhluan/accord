@@ -40,7 +40,7 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: IDS-1
 
-  @ac-1
+  @ac-1 @test:packages/cli/test/new-ticket.test.ts#ac-1-new-ticket-assigns-the-creators-next-number-for-its-type
   Scenario: A new ticket gets the creator's next number for its type
     Given config.yml maps "an@example.com" to initials "AN" and git user.email is "an@example.com"
     And tickets ST-AN-1 and ST-LN-9 exist in accord/tickets, the already fetched ref origin/t/ST-AN-3 exists, and no ST-AN-2 exists anywhere

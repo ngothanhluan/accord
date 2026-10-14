@@ -97,3 +97,21 @@ Feature: VID-1
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
+**Chosen: two gate checks over data the gate already has.** `gate.plan-verify-at` flags each parsed verify id
+holding `@`, path included; markers never reach it (D-01, D-03). `gate.plan-verify-comma` finds the raw verify
+line by the parser's own rule (fenced lines skipped, list marker stripped, `FIELD`, first match), splits it on
+whitespace, and names every chunk whose comma touches a non-space character on both sides, as written (D-05).
+Both are error rows in `PLAN_RULES` on both profiles, placed before the tests-baseline warning row (D-02). Pure
+string work in `gate/`; no model or loader shape change.
+**Rejected:** storing the raw verify value on `PlanTask`: it widens an exported core type for an edge case the
+shared fence rule already covers.
+**Affected:** `packages/core/src/gate/plan.ts`, `rules.ts`; `load/work.ts` only to share its fence and field
+helpers; `agents/executor.md` (the D-06 sentence replaces "never starts with `@`") and `agents/planner.md`;
+generated and synced agent copies; spec §7.
+**Risks (critic):** Should 1, kept and fixed: ac-1..ac-3 end in exit code 1, so their tests run `accord gate
+plan` through the CLI. Nice: a plan gated before this change keeps its `plan_hash:` and never meets the new
+rules, as on a teammate's parallel branch; `gate done` still fails it, no worse than today, until its plan is
+gated again. Nice items 2 to 4 are folded in above and below.
+**Tests:** ac-1..ac-3 in `packages/cli/test/lane-commands.test.ts` (exit 1 and the id in the output); ac-4 in
+`packages/core/test/lane-plan.test.ts`; ac-5 one dedicated test reading both rendered agents, not two
+`AGENT_REQUIRED` rows.

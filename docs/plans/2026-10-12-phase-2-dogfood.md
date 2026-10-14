@@ -497,6 +497,7 @@ completion notice.
 | 24 | build | executor (task 1 retry) | sonnet, medium | 71,574 | 13 | 249s | verify cases moved to top level (501be00); suite 1188 pass; task 1 recorded |
 | 25 | build | executor (task 2) | sonnet, medium | 81,879 | 10 | 129s | ab0aa8a; suite 1190 pass; task 2 recorded first time |
 | 26 | build | executor (task 3) | sonnet, medium | 105,390 | 29 | 451s | 3e324dd; suite 1193 pass; task 3 recorded first time |
+| 27 | build | executor (task 4) | sonnet, medium | 78,430 | 9 | 161s | bb53cb9; suite 1196 pass; task 4 recorded first time |
 
 Baseline suite at 3be1c05: 55 files, 1182 tests pass, 62s.
 

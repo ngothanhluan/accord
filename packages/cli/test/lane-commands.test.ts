@@ -951,3 +951,34 @@ it('risk:complex-branching a re-run on a recorded task fills a missing tag', asy
     cleanup(repo);
   }
 }, 30000);
+
+const baselineRepo = () =>
+  makeLaneRepo({ [REPORT]: junit({ 'export#writes-csv': 'passed', 'export#escapes-commas': 'passed', 'util#formats-dates': 'passed' }) });
+
+it('ac-5 tests baseline refuses a report older than the last commit', async () => {
+  const repo = baselineRepo();
+  try {
+    commitAll(repo);
+    utimesSync(REPORT_PATH(repo), OLD, OLD);
+    const r = await run(['tests', 'baseline'], repo);
+    expect(r.code).toBe(2);
+    expect(r.err).toContain('run the tests again');
+    expect(existsSync(join(repo, 'accord', 'tests-baseline.txt'))).toBe(false);
+  } finally {
+    cleanup(repo);
+  }
+}, 30000);
+
+it('risk:complex-branching tests baseline writes from a report newer than the last commit', async () => {
+  const repo = baselineRepo();
+  try {
+    commitAll(repo);
+    freshen(repo);
+    const r = await run(['tests', 'baseline'], repo);
+    expect(r.code).toBe(0);
+    expect(r.out).toBe('wrote 1 case id to accord/tests-baseline.txt\n');
+    expect(existsSync(join(repo, 'accord', 'tests-baseline.txt'))).toBe(true);
+  } finally {
+    cleanup(repo);
+  }
+}, 30000);

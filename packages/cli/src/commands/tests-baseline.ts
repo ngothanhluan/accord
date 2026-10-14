@@ -1,11 +1,12 @@
 // Spec §9 `accord tests baseline`: lists the untraced cases that exist when a project adopts the test
 // policy, once. It refuses when the file exists — the baseline only shrinks, so it can never become a
-// way past gate.test-untraced.
+// way past gate.test-untraced. It refuses a report older than HEAD, as `accord task-done` does.
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { normaliseKey, untracedTests } from '@accord-dev/accord-core';
 import { UsageError } from '../load/fs.js';
 import type { CommandContext } from '../run.js';
+import { staleReport } from './task-done.js';
 
 const REL = 'accord/tests-baseline.txt';
 const HEADER =
@@ -17,6 +18,10 @@ export function testsBaseline(ctx: CommandContext): number {
   if (report === undefined) throw new UsageError('no tests.report in accord/config.yml; the baseline is read from the report');
   if (ctx.snapshot.tests === undefined) {
     throw new UsageError(`tests.report "${normaliseKey(report)}" was not found; run the tests first`);
+  }
+  if (ctx.snapshot.git?.commit !== undefined) {
+    const stale = staleReport(ctx);
+    if (stale !== undefined) throw new UsageError(stale);
   }
   const file = join(ctx.root, 'accord', 'tests-baseline.txt');
   const all = untracedTests(ctx.snapshot);

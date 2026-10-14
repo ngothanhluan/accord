@@ -291,6 +291,15 @@ export function gitUserEmail(root: string): string {
   }
 }
 
+/** IDS-1 D-11: a shallow clone hides deleted tickets behind its boundary commit, so used numbers cannot be seen. */
+export function gitIsShallow(root: string): boolean {
+  try {
+    return execFileSync('git', ['rev-parse', '--is-shallow-repository'], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim() === 'true';
+  } catch {
+    return false;
+  }
+}
+
 /**
  * IDS-1 D-10/D-11: every ticket id that ever appeared under accord/tickets in any ref already in the clone.
  * No fetch. --full-history keeps a side branch that added and deleted a ticket visible after a --no-ff merge.

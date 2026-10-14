@@ -4,8 +4,10 @@
 // write (an existing ticket, an id that has no business reaching the filesystem, a repository whose pin
 // does not match — D-95). Every case runs in its own mkdtemp sandbox, so no test can reach the fixture
 // directory it was copied from.
-import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { loadSnapshot } from '@accord-dev/accord-core';
 import { afterEach, describe, expect, it } from 'vitest';
 import { loadFromFs } from '../src/load/fs.js';
@@ -315,4 +317,21 @@ it('ac-5 without the initials table nothing changes', async () => {
   const rules = (JSON.parse(lint.out).findings as { rule: string }[]).map((f) => f.rule);
   expect(rules).not.toContain('lint.id-convention');
   expect(rules).not.toContain('lint.initials-duplicate');
+});
+
+it('risk:complex-branching a shallow clone refuses new ticket and writes nothing', async () => {
+  const origin = sandbox();
+  addPeople(origin);
+  commitAll(origin);
+  writeFiles(origin, { 'accord/notes.txt': 'later\n' });
+  commitAll(origin);
+  const clone = mkdtempSync(join(tmpdir(), 'accord-shallow-'));
+  repos.push(clone);
+  gitRun(origin, 'clone', '-q', '--depth', '1', pathToFileURL(origin).href, clone);
+  gitRun(clone, 'config', 'user.email', 'an@example.com');
+  const before = listing(clone);
+  const { code, err } = await run(['new', 'ticket', '--type', 'story'], clone);
+  expect(code).toBe(2);
+  expect(err).toContain('--unshallow');
+  expect(listing(clone)).toEqual(before);
 });

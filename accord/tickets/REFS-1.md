@@ -54,7 +54,7 @@ Feature: REFS-1
     When gate done runs for that ticket
     Then the result carries neither gate.evidence-unresolved nor gate.reference-unknown for that block
 
-  @ac-3
+  @ac-3 @test:packages/core/test/gate.test.ts#ac-3-a-citation-with-a-line-range-resolves
   Scenario: a citation with a line range resolves
     Given the snapshot tree holds packages/core/src/x.ts
     And a verification.md evidence block whose only citation is packages/core/src/x.ts:12-14, a bare token in prose

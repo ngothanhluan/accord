@@ -22,6 +22,8 @@ ui: false
 # The AC hash and the commit the ticks were made against.
 # verified_hash:
 # verified_commit:
+approved_hash: "fnv1a64:dd541c3309b07fea"
+ac_hash: "fnv1a64:2d668511f03b8ac5"
 ---
 
 ## Intent
@@ -94,9 +96,11 @@ Feature: BASE-1
 - D-05 "Sets tests.report" means the key is present in `accord/config.yml`, whatever its value, as `lint.test-untraced` and `accord tests baseline` already read it — "A"
 - D-06 Approach critic Must: the warning asks rather than orders, the plan skill's gate step says the baseline is asked at step 7 and never created earlier, and the planner says the same — "Dùng bản sửa (Recommended)"
 - D-07 `accord tests baseline` refuses a report written before the HEAD commit, as `accord task-done` does; this replaces the earlier non-goal — "Thêm kiểm trong CLI (Recommended)"
+- D-08 Teams: the baseline is committed on its own and reaches the main branch in its own pull request before other tickets plan; a merge conflict on it keeps only the lines both sides hold, never the union — "ok theo bạn đề xuất"
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
+- "khoan, việc bạn nói tôi làm một mình là ko đúng. vì target là support cho team làm cùng nữa mà?" (on the Approach risk that accepted two branches creating the baseline because the owner works alone)
 
 ## Open questions
 <!-- `- [ ]` items; Ready stays blocked while any is unchecked. -->
@@ -112,7 +116,9 @@ Plan skill: step 4 says the baseline is asked at step 7, never earlier; step 7 p
 `plan/baseline.md` (keeps SKILL.md under 5120 bytes); step 8 commits the file whenever `git status` shows it
 new. `baseline.md`: after every failing case is decided, ask create / don't create / stop, with the count and
 samples from `accord lint`'s untraced-test lines; on a stale refusal with nothing changed outside `accord/`,
-re-run `tests.full` once and retry; a missing report, or changed product code, stops and tells the owner.
+re-run `tests.full` once and retry; a missing report, or changed product code, stops and tells the owner;
+the file is committed on its own, ships to the main branch in its own pull request, and a merge conflict
+keeps only the lines both sides hold (D-08).
 `planner.md` and the build skill's plan-changed step each say the baseline is never created there.
 **Rejected:** the skill following the gate warning instead of checking the file (a rule rename silently moves
 its trigger); skill text alone (loses D-03's CLI evidence).
@@ -123,8 +129,10 @@ copies, spec sections 7 and 9.
 (r2 Should) the warning sorts first, so `lane-plan.test.ts:86,97` must filter by rule; a commit between the
 test run and the question makes the report stale, hence the one re-run; build re-running `gate plan` could
 relay the question, hence the build-skill line; the count must come from `accord lint`, not a hand count.
-Two tickets planned at once on separate branches both create the file and conflict on merge: accepted, solo
-owner, plans run one at a time.
+Two teammates planning on separate branches both create the file (D-08): `baseline.md` commits it alone and
+says it reaches the main branch in its own small pull request before others plan; on a merge conflict keep
+only the lines both sides hold, never the union, so a dropped case fails `gate.test-untraced` loudly instead
+of being exempted silently. A CLI check that the baseline never gains lines is out of scope.
 **Tests:** @ac-1..3 in `core/test/lane-plan.test.ts` (`gatePlan` result), plus @ac-1's exit 0 asserted in the
 CLI `gate plan` test; @ac-4 over the rendered plan skill and `baseline.md` in `core/test/stage-skills.test.ts`;
 @ac-5 in `cli/test/lane-commands.test.ts`.

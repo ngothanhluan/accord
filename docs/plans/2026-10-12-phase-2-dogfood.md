@@ -496,6 +496,7 @@ completion notice.
 | 23 | build | executor (task 1) | sonnet, medium | 109,949 | 34 | 429s | task 1 built (32707dd), full suite 1188 pass; `task-done` refused: verify cases inside a `describe`, so their JUnit ids carry the describe prefix |
 | 24 | build | executor (task 1 retry) | sonnet, medium | 71,574 | 13 | 249s | verify cases moved to top level (501be00); suite 1188 pass; task 1 recorded |
 | 25 | build | executor (task 2) | sonnet, medium | 81,879 | 10 | 129s | ab0aa8a; suite 1190 pass; task 2 recorded first time |
+| 26 | build | executor (task 3) | sonnet, medium | 105,390 | 29 | 451s | 3e324dd; suite 1193 pass; task 3 recorded first time |
 
 Baseline suite at 3be1c05: 55 files, 1182 tests pass, 62s.
 

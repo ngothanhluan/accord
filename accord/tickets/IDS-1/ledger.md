@@ -4,6 +4,7 @@
 - task 1 done 501be00fdb30
 - task 2 done ab0aa8a18baa
 - task 3 done 3e324dd90507
+- task 4 done bb53cb946207
 
 ## Rulings
 
@@ -47,5 +48,6 @@
 - Ruling: the invalid-config refusal of `new ticket` prints `accord/config.yml:<line> <pointer> <reason>`, leaving out the line or pointer when absent, as the brief specified (executor, task 2) — cost if wrong: message wording only.
 - Ruling: the `peopleOf` test uses `true` as its non-string value, since the YAML parse keeps `5` a string (stringNumerics) (executor, task 3) — cost if wrong: a numeric `people` value passes `peopleOf`, and the schema refuses it first, as task 2 does.
 - Ruling: `defaultRef` is origin/HEAD's target, else origin/main, else origin/master, else none; `initialsHolder` takes the default ref's map only when it holds the initials (D-18) and otherwise scans the other refs in sorted order (executor, task 3) — cost if wrong: a repository whose default branch has another name on another remote falls back to scanning every ref.
+- Ruling: `lint.id-convention` skips a ticket whose type is not story, bug or epic, since no prefix exists for it and the schema already flags it (executor, task 4) — cost if wrong: such an id gets no convention finding.
 
 ## Deferred

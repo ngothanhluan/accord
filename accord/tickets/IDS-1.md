@@ -56,14 +56,14 @@ Feature: IDS-1
     Then each exits 2 and writes no file
     And the first message names "bo@example.com" and how to register, and the second names "ST-AN-9" and says that accord assigns ids
 
-  @ac-3
+  @ac-3 @test:packages/core/test/lane-lint.test.ts#ac-3-lint-rejects-an-id-that-breaks-the-convention-and-spares-the-legacy-list
   Scenario: Lint rejects an id that breaks the convention and spares the legacy list
     Given the initials table exists without "AN", and legacy_ids lists SHOW-1
     And tickets SHOW-1, FOO-1 with type story, ST-AN-4 with type bug, and BUG-AN-1 with type bug exist
     When `accord lint` runs
     Then FOO-1 gets an error naming the form `ST-<initials>-<n>`, ST-AN-4 gets an error naming `BUG-<initials>-<n>`, and SHOW-1 and BUG-AN-1 get none
 
-  @ac-4
+  @ac-4 @test:packages/core/test/lane-lint.test.ts#ac-4-lint-rejects-two-people-with-the-same-initials
   Scenario: Lint rejects two people with the same initials
     Given the initials table maps both "an@example.com" and "anh@example.com" to "AN"
     When `accord lint` runs

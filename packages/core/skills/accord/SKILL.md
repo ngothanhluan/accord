@@ -3,7 +3,7 @@ name: accord
 description: Use when starting any work in an accord repository, when seeing where work stands, or when continuing a ticket. Shows the dashboard, continues or picks up a ticket, and classifies a new request into a lane.
 license: MIT
 kind: skill
-loads: [shared/ask.md]
+loads: [accord/ids.md, shared/ask.md]
 ---
 
 `/accord` is the entry point. It routes to the stage skills, so nobody has to
@@ -92,8 +92,10 @@ plausible reading; more than about three files expected.
   the change into a file outside the working tree, dispatch
   one fresh `accord-reviewer`, lens `both`, with its path, and give a short
   report in chat.
-- **M.** Run `accord new ticket <id> --lane M`, create branch `t/<id>`,
-  commit the new ticket file on it, and
+- **M.** Run `accord new ticket <id> --lane M`; when config.yml has
+  `people`, follow `./ids.md` and run `accord new ticket --type <story|bug>
+  --lane M` with no id instead. Create branch `t/<id>`, commit the
+  ticket file and any `people` edit on it, and
   push it (the pushed branch is the claim), then load `accord-intent`.
 - **L and P.** Not built yet. Say so, and propose splitting the work into
   lane M tickets linked by `depends_on`.

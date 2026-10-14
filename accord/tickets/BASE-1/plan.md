@@ -1,6 +1,6 @@
 ---
 baseline: d364a6dafa215f460f16775abe71d30073d15464
-plan_hash: "fnv1a64:753860c64d2a8b84"
+plan_hash: "fnv1a64:b109103e360de284"
 ---
 
 Review mode `outcome`: one branch, no slices. Report case ids follow the JUnit id shape in
@@ -127,8 +127,9 @@ Test first, top-level in `packages/core/test/stage-skills.test.ts`, below the ex
   `after the owner has decided every failing case`,
   `in a commit of its own`,
   `Ruling: accord/tests-baseline.txt`,
-  `` `tests.full` wrote no report ``,
-  `stop and tell the owner`.
+  `` `tests.full` wrote no report ``.
+- The line of `ref` holding `` `tests.full` wrote no report `` (found with `ref.split('\n').find(...)`, asserted
+  defined) also contains `stop and tell the owner`, so the stop belongs to the missing-report case.
 - `ref.indexOf('after the owner has decided every failing case')` is less than
   `` ref.indexOf('ask the owner before running `accord tests baseline`') ``: the failing cases are decided first.
 It fails until `baseline.md` exists and step 7 points to it.
@@ -149,7 +150,8 @@ Interface (text; it names no other tool, and none of it holds the word for a fin
      or stop. Not creating it is allowed: `accord gate plan` keeps asking on every run and nothing records the
      choice (D-04).
   4. When `` `tests.full` wrote no report ``, stop and tell the owner; never write a report or run
-     `accord tests baseline` against an old one.
+     `accord tests baseline` against an old one. Write this sentence on one line, unwrapped, so the test
+     finds both phrases on the same line.
   5. When `accord tests baseline` refuses because the report is older than the last commit: if
      `git diff --stat <baseline> HEAD` shows no change outside `accord/`, run `tests.full` once more and retry
      once; otherwise stop and tell the owner.
@@ -160,7 +162,9 @@ Interface (text; it names no other tool, and none of it holds the word for a fin
      `Ruling: accord/tests-baseline.txt created at the plan baseline on the owner's yes — no task's files: line names it, so review would otherwise list it as undeclared — cost if wrong: review reports it as Extra`.
      The ledger is committed with the `plan: <id> ready` commit, which step 8 already makes when the ledger
      changed, so the baseline commit still holds that file alone. Write the phrase
-     `Ruling: accord/tests-baseline.txt` verbatim.
+     `Ruling: accord/tests-baseline.txt` verbatim. A resumed run that finds the file written but not committed
+     does both here at step 8: commit the file alone, then add the Ruling when the ledger lacks it, before the
+     `plan: <id> ready` commit.
   7. Teams (D-08): the file reaches the main branch in its own small pull request, holding that file alone,
      before other tickets plan. On a merge conflict in it, keep only the lines both sides hold, never the
      union: a dropped case then fails loudly at the gate instead of being exempted silently.
@@ -172,8 +176,10 @@ Interface (text; it names no other tool, and none of it holds the word for a fin
     never create `accord/tests-baseline.txt` earlier (D-06).
   - step 7 gains one sentence at its end: when `tests.report` is set and `` `accord/tests-baseline.txt` `` is
     absent, follow `./baseline.md` once the failing cases are decided.
-  - step 8 gains one short clause: `accord/tests-baseline.txt` is never part of the `plan: <id> ready` commit;
-    step 7 committed it in a commit of its own (D-09).
+  - step 8 gains one short sentence before its commit: when `git status` shows `accord/tests-baseline.txt` new,
+    commit it in a commit of its own and add its Ruling to the ledger if absent, as `./baseline.md` says, before
+    the `plan: <id> ready` commit (D-09). This covers a run that stopped between `accord tests baseline` and
+    its commit; the detail lives in `baseline.md`.
   The rendered file stays at or under 5120 bytes (`MAX_SKILL_BYTES`; it is 4699 today, so the additions get
   about 420 bytes) and 120 lines; shorten the new sentences, never the existing ones, to fit. Keep every phrase
   the `plan` row of `REQUIRED` in `stage-skills.test.ts` asserts, `tests.full`, `step 7 does not re-run` and

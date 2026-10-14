@@ -1,6 +1,6 @@
 ---
 baseline: 3be1c058edab354ab449e75c966f0c6797dd4813
-plan_hash: "fnv1a64:9897c5712ab5f37a"
+plan_hash: "fnv1a64:3036e95f9f90727f"
 ---
 
 Review mode `outcome`: one branch, no slices. Report case ids follow the JUnit id shape in
@@ -111,11 +111,14 @@ Tests first, top-level in `packages/cli/test/new-ticket.test.ts`:
   `people:` / `  "an@example.com": an` appended (lowercase fails the pattern, so `config` is undefined and the
   convention would silently read as off). `['new', 'ticket', 'TCK-1']` exits 2, stderr contains
   `accord/config.yml` and `/people`, and `TCK-1.md` does not exist (ledger Ruling, critic round 2 Should 1).
-  In the same test, a second sandbox whose config.yml has no `people` key and an unrelated schema error
+  In the same sandbox, `['new', 'ticket', '--type', 'story']` with no id also exits 2 with stderr containing
+  `/people` and not `a ticket id is required`, and `listing(repo)` is unchanged. In the same test, a second sandbox whose config.yml has no `people` key and an unrelated schema error
   (`profile: build` rewritten to `profile: other` with the file's `setConfig` helper) still writes `TCK-1.md`
   and exits 0, as today.
 
-Interface, in `newTicket`, in this order, each a `UsageError` (exit 2) before any path is built:
+Interface, in `newTicket`, in this order, each a `UsageError` (exit 2) before any path is built. Step 1 is the
+first check in `newTicket`: it runs before Task 1's `people === undefined && id === undefined` refusal
+(`a ticket id is required`), because an invalid `people` value leaves `config`, and so `people`, undefined:
 1. Only when the raw `accord/config.yml` text (read with `readFileSync(join(ctx.root, 'accord',
    'config.yml'), 'utf8')`, absent counts as empty) matches `/^people\s*:/m`, and `ctx.snapshot.errors` holds
    an entry with `file === 'accord/config.yml'` and a rule other than `load.config-missing`: the message is

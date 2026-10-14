@@ -1,6 +1,6 @@
 ---
 baseline: 3be1c058edab354ab449e75c966f0c6797dd4813
-plan_hash: "fnv1a64:e8fae38e1a34d19b"
+plan_hash: "fnv1a64:b6b59b166d5a957e"
 ---
 
 Review mode `outcome`: one branch, no slices. Report case ids follow the JUnit id shape in
@@ -67,9 +67,11 @@ Interface:
     one; `1` when none (D-11). Pure; no other input.
 - `packages/cli/src/load/fs.ts`, two exports, each one spawn with a literal argument array:
   - `gitUserEmail(root: string): string`: `git config user.email`, trimmed; `''` when git exits 1 (unset).
-  - `gitTicketIdsInHistory(root: string): string[]`: `git log --all --no-renames --format= --name-only --
-    accord/tickets` (`--no-renames` as `gitRecordsSince` passes it: rename detection would need blobs a partial
-    clone lacks, and listing both the old and the new path keeps every id ever used, as D-11 wants),
+  - `gitTicketIdsInHistory(root: string): string[]`: `git log --all --full-history --no-renames --format=
+    --name-only -- accord/tickets` (`--no-renames` as `gitRecordsSince` passes it: rename detection would need
+    blobs a partial clone lacks, and listing both the old and the new path keeps every id ever used, as D-11
+    wants; `--full-history` so a `--no-ff` merge that is TREESAME on accord/tickets does not hide a side branch
+    that added and then deleted a ticket, whose number would otherwise be reissued after the branch is pruned),
     each path through the same `^accord\/tickets\/([^/]+?)(?:\.md$|\/)` match `gitFacts` uses, de-duplicated
     (ledger Rulings on `git log --all`). It first runs `git for-each-ref --count=1 --format=%(refname)`; empty
     output (an unborn HEAD and no other ref) returns `[]` without running `git log`, so a git version that exits
@@ -298,13 +300,17 @@ Text, naming no other tool:
   (D-03).
 - `skills/accord/ids.md` (new) also holds the drop rule: a ticket's type never changes; to change it, set
   `status: dropped` with its `## Dropped` reason, commit and merge that, and create a new ticket with
-  `accord new ticket --type <the other type>`; never delete a `t/` branch to drop a ticket (D-02, ledger
-  Ruling). It also says: fetch first with
+  `accord new ticket --type <the other type>`; copy into the new ticket every section below the dropped
+  ticket's frontmatter (Intent, Acceptance criteria, Vetoes, Decisions, Corrections and the rest), never its
+  `approved_hash` or `ac_hash`, and then the owner approves the new ticket again (D-02, owner's answer "Chép
+  nội dung sang"); never delete a `t/` branch to drop a ticket (D-02, ledger Ruling). On a merge conflict under
+  `people`, keep every entry. It also says: fetch first with
   `git -c credential.interactive=never -c core.sshCommand="ssh -o BatchMode=yes" fetch`; on failure say so and
   continue, since only refs already in the clone are read (D-10). Register only when `people` exists, never
   create it. When `accord new ticket` says your email is not registered: look for it on other branches with
-  `git log --all -S "<email>" --oneline -- accord/config.yml` and `git show <commit>:accord/config.yml`, and
-  reuse those initials; otherwise ask the owner for initials, 2 to 4 capital letters, suggested from
+  `git -c credential.interactive=never -c core.sshCommand="ssh -o BatchMode=yes" log --all -S "<email>"
+  --oneline -- accord/config.yml` and `git show <commit>:accord/config.yml` (the same prefix, since reading
+  blobs can fetch in a partial clone), and reuse those initials; if that lookup fails, or finds nothing, ask the owner for initials, 2 to 4 capital letters, suggested from
   `git config user.name`, and add `"<email>": <INITIALS>` under `people`, writing `people:` with the entry on
   the next line, indented two spaces, in place of `people: {}` when the file has that form (D-06). Recognition names tickets and
   is never a gate. When it says the initials belong to someone else, ask for other initials. Never retry

@@ -519,3 +519,4 @@ First ticket created under the id convention: `accord new ticket --type story --
 | # | Stage | Agent | Model | Tokens | Tool calls | Time | Outcome |
 |---|---|---|---|---|---|---|---|
 | 1 | intent | scout | haiku, low | 61,511 | 25 | 53s | `t/` hardcoded in anchor.ts:28, fs.ts:130/143, /accord skill text; CI and commit messages never read it |
+| 2 | intent | auditor | opus, medium | 19,570 | 2 | 32s | 4 of 5 criteria read two ways (author vs committer email, lint finding vs load refusal, local t/ claim, per-step skill text); 3 settled from code, 1 back to the owner |

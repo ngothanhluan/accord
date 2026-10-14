@@ -2,6 +2,7 @@
 
 ## Tasks
 - task 1 done a02fc8c6b484
+- task 2 done 9ec5bf8579e6
 
 ## Rulings
 

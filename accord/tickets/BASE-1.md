@@ -74,7 +74,7 @@ Feature: BASE-1
     And to commit the file in a commit of its own on a yes
     And to stop and tell the owner when tests.full wrote no report
 
-  @ac-5
+  @ac-5 @test:packages/cli/test/lane-commands.test.ts#ac-5-tests-baseline-refuses-a-report-older-than-the-last-commit
   Scenario: tests baseline refuses a report older than the last commit
     Given accord/config.yml sets tests.report
     And the report file was written before the HEAD commit

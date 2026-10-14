@@ -522,4 +522,4 @@ First ticket created under the id convention: `accord new ticket --type story --
 | 2 | intent | auditor | opus, medium | 19,570 | 2 | 32s | 4 of 5 criteria read two ways (author vs committer email, lint finding vs load refusal, local t/ claim, per-step skill text); 3 settled from code, 1 back to the owner |
 | 3 | approach | architect | opus, high | 61,875 | 24 | 145s | 2 options; recommended: template regex in the CLI loader reading every ref, D-06 fallback free from the loader; 3 Rulings |
 | 4 | approach | critic (round 1) | opus, high | 59,867 | 20 | 197s | 2 Must (stale working-tree template hides new claims; t/ not reserved), 5 Should, 2 Nice; option amended: templates read from every ref, narrow scan |
-| 5 | approach | critic (round 2) | opus, high | — | — | — | 1 Must (templates from every ref: a stray branch sets a template, breaks ac-4), 5 Should, 2 Nice; owner asked which refs set the template |
+| 5 | approach | critic (round 2) | opus, high | 60,721 | 17 | 221s | 1 Must (templates from every ref: a stray branch sets a template, breaks ac-4), 5 Should, 2 Nice; owner asked which refs set the template |

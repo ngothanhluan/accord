@@ -47,7 +47,7 @@ Feature: SHOW-1
     Then it holds the sentence "Show the owner the `## Intent` section and the acceptance criteria block verbatim, copied from the ticket file and never summarised, ask for an explicit yes, and on yes commit the ticket with the owner's answer quoted in the commit message." verbatim, a line break and the indentation around it counting as one space
     And that sentence sits in a numbered step of its own, after the numbered step that dispatches `accord-auditor` and before the numbered step that names `accord-approach` as next
 
-  @ac-2
+  @ac-2 @test:packages/core/test/stage-skills.test.ts#ac-2-the-approach-skill-shows-approach-verbatim-instead-of-a-brief
   Scenario: the approach yes shows Approach verbatim instead of a brief
     Given the files `accord skills sync` writes for a config that enables every runtime, in every target directory
     When a reader opens each rendered `accord-approach/SKILL.md`

@@ -934,3 +934,36 @@ describe('gate done: the author check', () => {
     }
   });
 });
+
+// REFS-1: citations the verifier writes in ordinary form resolve against the tree.
+function citing(evidence: string, paths: string[]): GateResult {
+  const raw = input('gate-done', GIT);
+  raw.tree.push(...paths);
+  const f = 'accord/tickets/PASS/verification.md';
+  raw.files[f] = raw.files[f].replace('Evidence: test/login.spec.ts#ok1', 'Evidence: ' + evidence);
+  return gateDone(loadSnapshot(raw), 'PASS');
+}
+const onAc1 = (r: GateResult, rule: string) => r.findings.filter((f) => f.rule === rule && f.reason.includes('"@ac-1"'));
+
+describe('REFS-1 citations', () => {
+  it('ac-1 a citation under a dot-led directory resolves', () => {
+    const r = citing('the rule is in `.claude/skills/x.md` now', ['.claude/skills/x.md']);
+    expect(onAc1(r, 'gate.evidence-unresolved')).toEqual([]);
+    expect(onAc1(r, 'gate.reference-unknown')).toEqual([]);
+  });
+
+  it('ac-2 a citation starting with dot slash resolves', () => {
+    const r = citing('see ./docs/x.md for the rule', ['docs/x.md']);
+    expect(onAc1(r, 'gate.evidence-unresolved')).toEqual([]);
+    expect(onAc1(r, 'gate.reference-unknown')).toEqual([]);
+  });
+
+  it('ac-4 a parent directory citation is reported as written', () => {
+    const r = citing('docs/x.md holds it and ../x.md does not', ['docs/x.md']);
+    const w = onAc1(r, 'gate.reference-unknown');
+    expect(w).toHaveLength(1);
+    expect(w[0].level).toBe('warning');
+    expect(w[0].reason).toContain('"../x.md"');
+    expect(onAc1(r, 'gate.evidence-unresolved')).toEqual([]);
+  });
+});

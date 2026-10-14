@@ -29,12 +29,25 @@ const notesOptional = (snapshot: RepoSnapshot, t: Ticket): boolean =>
   t.frontmatter?.lane !== undefined && snapshot.config?.review?.mode === 'outcome';
 
 /** One whitespace-delimited token reduced to the thing that might be a path: punctuation off both ends,
- * then the position suffix. Returns '' when nothing is left. */
+ * then the position suffix. A leading dot run is kept only where it starts a path (`./x`, `../x`,
+ * `.claude/x`); any other run of dots is stripped (D-08). Returns '' when nothing is left. */
 function token(raw: string): string {
   let a = 0;
   let b = raw.length;
-  while (a < b && PUNCT.includes(raw[a])) a++;
   while (b > a && PUNCT.includes(raw[b - 1])) b--;
+  while (a < b) {
+    if (raw[a] !== '.') {
+      if (!PUNCT.includes(raw[a])) break;
+      a++;
+      continue;
+    }
+    let r = a;
+    while (r < b && raw[r] === '.') r++;
+    const next = r < b ? raw[r] : undefined;
+    const sep = next === '/' || next === '\\';
+    if ((r - a <= 2 && sep) || (r - a === 1 && next !== undefined && !sep && !PUNCT.includes(next))) break;
+    a = r;
+  }
   return raw.slice(a, b).replace(POSITION, '');
 }
 
@@ -42,6 +55,7 @@ function token(raw: string): string {
  * is a test id the report already named. `Object.hasOwn`, never `in`: an id called `toString` would
  * otherwise read as a known test through the prototype chain (T-04-17). */
 function shaped(t: string, snapshot: RepoSnapshot): boolean {
+  if (t.startsWith('.') && EXT.has(t.slice(1))) return false;
   if (t.includes('/')) return true;
   const dot = t.lastIndexOf('.');
   if (dot >= 0 && EXT.has(t.slice(dot + 1))) return true;

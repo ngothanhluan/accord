@@ -25,5 +25,8 @@
 - Ruling: Task 6 relies on the existing stage-skills phrase, size and drift tests, as in the TAGS-1 plan (planner) — cost if wrong: the reviewer may want a `risk:` test there.
 - Ruling: with no `people` key, an invalid config.yml keeps today's `new ticket` behaviour; the Task 2 refusal is gated on the raw key (plan critic round 1, Should 2; Intent) — cost if wrong: an invalid `people` value under another spelling of the key goes unrefused.
 - Ruling: the D-02 drop rule lives only in `ids.md`, which /accord reads only when `people` exists, because of the 5120-byte skill limit (plan critic round 1, Should 4) — cost if wrong: a repository without `people` gets no drop-instead-of-rename guidance, where ids are not assigned anyway.
+- Ruling: a repository with no ref at all is detected with `git for-each-ref --count=1` before `git log --all` runs and yields no ids, covering git versions that exit 128 on an unborn HEAD (plan critic round 2, Should 1) — cost if wrong: one extra local spawn per `new ticket`.
+- Ruling: the SKILL-04 "restates a rule" case is not on Task 6's verify line because its report id holds a comma, which the verify line splits on (as in TAGS-1); Task 6 tells the executor to run it — cost if wrong: that case is checked only in the full suite.
+- Ruling: `GIT_NO_LAZY_FETCH` needs git 2.44 or later; on older git in a partial clone, reading another ref's config.yml may fetch the missing blob, a recorded limit of D-10 (plan critic round 3, Nice 2) — cost if wrong: on that setup `new ticket` may contact the remote or wait on credentials.
 
 ## Deferred

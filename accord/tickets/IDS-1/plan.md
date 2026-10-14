@@ -1,6 +1,6 @@
 ---
 baseline: 3be1c058edab354ab449e75c966f0c6797dd4813
-plan_hash: "fnv1a64:99f33349e58a24d8"
+plan_hash: "fnv1a64:9897c5712ab5f37a"
 ---
 
 Review mode `outcome`: one branch, no slices. Report case ids follow the JUnit id shape in
@@ -19,7 +19,7 @@ compare case-insensitively (ledger Ruling).
 ## Task 1: Wiring: new ticket assigns the creator's next id from refs already in the clone
 covers: @ac-1, D-01, D-04, D-05, D-08, D-09, D-10, D-11, D-14, D-15
 files: packages/core/schemas/config.schema.json, packages/core/src/model/snapshot.ts, packages/core/src/lint/ids.ts (new), packages/core/src/index.ts, packages/cli/src/load/fs.ts, packages/cli/src/commands/new-ticket.ts, packages/cli/src/run.ts, packages/core/test/schemas.test.ts, packages/cli/test/new-ticket.test.ts
-verify: packages/cli/test/new-ticket.test.ts#ac-1-new-ticket-assigns-the-creators-next-number-for-its-type (@ac-1), packages/cli/test/new-ticket.test.ts#risk:complex-branching-without-people-and-without-an-id-new-ticket-exits-2-and-writes-nothing, packages/core/test/schemas.test.ts#risk:parsing-people-maps-an-email-to-2-to-4-capital-letters, packages/core/test/schemas.test.ts#risk:parsing-legacy_ids-is-a-list-of-distinct-ticket-ids
+verify: packages/cli/test/new-ticket.test.ts#ac-1-new-ticket-assigns-the-creators-next-number-for-its-type (@ac-1), packages/cli/test/new-ticket.test.ts#risk:complex-branching-without-people-and-without-an-id-new-ticket-exits-2-and-writes-nothing, packages/cli/test/new-ticket.test.ts#risk:complex-branching-the-first-ticket-in-a-repository-with-no-commit-gets-number-1, packages/core/test/schemas.test.ts#risk:parsing-people-maps-an-email-to-2-to-4-capital-letters, packages/core/test/schemas.test.ts#risk:parsing-legacy_ids-is-a-list-of-distinct-ticket-ids
 
 Tests first.
 - `packages/cli/test/new-ticket.test.ts`, top-level
@@ -36,6 +36,13 @@ Tests first.
   `it('risk:complex-branching without people and without an id new ticket exits 2 and writes nothing')`:
   valid-build as copied, `['new', 'ticket']` exits 2, stderr names that an id is required, and `listing(repo)` is
   unchanged (no `undefined.md`; ledger Ruling).
+- `packages/cli/test/new-ticket.test.ts`, top-level
+  `it('risk:complex-branching the first ticket in a repository with no commit gets number 1')`:
+  `makeEmptyRepo()` from `./helpers/repo.js` (push it onto `repos` for cleanup), `writeFiles` with
+  `accord/config.yml` as `CONFIG` from `../../../test/helpers/lane.js` plus `people:` /
+  `  "an@example.com": AN`, `gitRun(repo, 'config', 'user.email', 'an@example.com')`, no commit. Run
+  `['new', 'ticket', '--type', 'story']`: code 0, stdout `accord/tickets/ST-AN-1.md\n`, the file exists. Once
+  Task 3 lands, the same case also covers its ref read on an unborn HEAD.
 - `packages/core/test/schemas.test.ts`, top-level, using its `minimal.config` and `has` helpers:
   - `risk:parsing people maps an email to 2 to 4 capital letters`: `{ 'an@example.com': 'AN' }`,
     `{ 'an@example.com': 'ABCD' }` and `{}` are valid; values `'A'`, `'ABCDE'`, `'an'`, `'A1'` each give a
@@ -62,9 +69,11 @@ Interface:
   - `gitUserEmail(root: string): string`: `git config user.email`, trimmed; `''` when git exits 1 (unset).
   - `gitTicketIdsInHistory(root: string): string[]`: `git log --all --format= --name-only -- accord/tickets`,
     each path through the same `^accord\/tickets\/([^/]+?)(?:\.md$|\/)` match `gitFacts` uses, de-duplicated
-    (ledger Rulings on `git log --all`). A repository with no commit prints nothing and yields `[]`; any other
-    failure throws `UsageError('git log failed reading ticket ids' + stderr)`, because silently dropping ids
-    could reuse a number. No `fetch`, no remote is contacted (D-10). The spawn passes
+    (ledger Rulings on `git log --all`). It first runs `git for-each-ref --count=1 --format=%(refname)`; empty
+    output (an unborn HEAD and no other ref) returns `[]` without running `git log`, so a git version that exits
+    128 on `log --all` with no ref is never reached. After that, any `git log` failure throws
+    `UsageError('git log failed reading ticket ids' + stderr)`, because silently dropping ids could reuse a
+    number. No `fetch`, no remote is contacted (D-10). The spawn passes
     `maxBuffer: 64 * 1024 * 1024`, as `gitBaselineFiles` does, and
     `env: { ...process.env, GIT_NO_LAZY_FETCH: '1' }`, so a partial clone never fetches a missing object from
     the remote.
@@ -111,7 +120,8 @@ Interface, in `newTicket`, in this order, each a `UsageError` (exit 2) before an
    'config.yml'), 'utf8')`, absent counts as empty) matches `/^people\s*:/m`, and `ctx.snapshot.errors` holds
    an entry with `file === 'accord/config.yml'` and a rule other than `load.config-missing`: the message is
    `accord/config.yml:<line> <pointer> <reason>` of the first such finding (`pointer` is the finding's own
-   field; ajv's text alone does not carry it), then ` - fix accord/config.yml before creating a ticket`. Without
+   field; ajv's text alone does not carry it). When the finding has no `pointer` (a `load.yaml-syntax`
+   finding) or no `line`, that part and its space are left out, so the message never prints `undefined`. Then ` - fix accord/config.yml before creating a ticket`. Without
    a `people` key an invalid config.yml keeps today's behaviour (Intent: no table keeps today's behaviour).
 2. With `people` defined and `id` given: `<id> was typed by hand; accord assigns ids while accord/config.yml has
    people - run accord new ticket --type <type> without an id` (D-12, any form).
@@ -167,7 +177,9 @@ Interface:
   split by each header's byte size (`<sha> blob <size>`), a `missing` line skipped. The cat-file spawn passes
   `maxBuffer: 64 * 1024 * 1024` and `env: { ...process.env, GIT_NO_LAZY_FETCH: '1' }`, so many refs never
   overflow the buffer and a partial clone never reaches the network for another ref's blob (D-10); an object
-  that lazy fetch would have supplied reads as missing and is skipped. Each blob goes through
+  that lazy fetch would have supplied reads as missing and is skipped. With no ref at all (an unborn HEAD),
+  cat-file is not spawned and `byRef` is `{}`, which Task 1's no-commit case then exercises. Each blob goes
+  through
   `peopleOf`, an `undefined` result skipped (ledger Ruling). `defaultRef`: the target of `git symbolic-ref -q
   refs/remotes/origin/HEAD`, else `refs/remotes/origin/main`, else `refs/remotes/origin/master`, whichever is
   in the list; none leaves it undefined (ledger Ruling). A failed for-each-ref or cat-file throws a
@@ -176,7 +188,7 @@ Interface:
   byRef, defaultRef)`; when defined, `UsageError('initials <AN> already belong to <holder> on another branch -
   choose other initials for <email> in accord/config.yml')`.
 
-Must not change: Tasks 1 and 2 cases; in the ac-1 sandbox the HEAD branch maps `an@example.com` to AN and
+Must not change: Tasks 1 and 2 cases, including the no-commit case; in the ac-1 sandbox the HEAD branch maps `an@example.com` to AN and
 `origin/t/ST-AN-3` has the same config, so ac-1 still assigns `ST-AN-4`.
 
 End by running `npm run build`.
@@ -222,7 +234,7 @@ End by running `npm run build`.
 ## Task 5: Without people nothing changes, and init starts a repository with the convention on
 covers: @ac-5, D-08
 files: packages/core/src/scaffold/init.ts, packages/cli/test/new-ticket.test.ts
-verify: packages/cli/test/new-ticket.test.ts#ac-5-without-the-initials-table-nothing-changes (@ac-5), packages/core/test/scaffold.test.ts#initFiles-—-the-config-it-plans->-validates-against-config.schema.json-with-no-finding
+verify: packages/cli/test/new-ticket.test.ts#ac-5-without-the-initials-table-nothing-changes (@ac-5), packages/core/test/scaffold.test.ts#initFiles-—-the-config-it-plans->-validates-against-config.schema.json-with-no-finding, packages/core/test/scaffold.test.ts#initFiles-—-the-config-it-plans->-copies-the-example's-two-tests:-comment-lines-word-for-word-(A-33)
 
 Test first, top-level in `packages/cli/test/new-ticket.test.ts`:
 `ac-5 without the initials table nothing changes`: valid-build as copied (no `people`). `['new', 'ticket',
@@ -231,15 +243,22 @@ its `findings` hold no rule `lint.id-convention` or `lint.initials-duplicate`. T
 as soon as it is written. Its red step is a mutation check: drop the `people === undefined` early return in
 `idConvention`, see it fail, and restore it.
 
-Interface: the `CONFIG` text in `scaffold/init.ts` gains, after `runtimes:`, a comment and `people: {}`:
-`# Who creates tickets: git user.email -> initials, 2 to 4 capital letters, such as "an@example.com": AN.`
-`# While this key exists, accord new ticket assigns every id (ST-AN-7, BUG-AN-1, EP-AN-2) and lint checks them.`
-(D-08). The existing scaffold case `validates against config.schema.json with no finding` proves it validates.
+Interface: the `CONFIG` text in `scaffold/init.ts` gains three lines and one blank line, placed exactly here:
+directly after the line `runtimes: [claude, codex]` and the blank line that follows it, and before the line
+`# Where the test report lands. ...`, which must keep its blank line above it. The inserted block is:
+```
+# Who creates tickets: git user.email -> initials, 2 to 4 capital letters, such as "an@example.com": AN.
+# While this key exists, accord new ticket assigns every id (ST-AN-7, BUG-AN-1, EP-AN-2) and lint checks them.
+people: {}
+
+```
+(D-08). So the four lines directly above `# tests:` (the copied pair at `key - 4` and `key - 3` and the two
+instruction lines at `key - 2` and `key - 1`) are byte-identical to today, and the A-33 case keeps passing. The
+existing scaffold case `validates against config.schema.json with no finding` proves the config validates.
 
 Must not change: `init` output paths and the skip-if-exists contract; the init CLI case asserting `lint` is
 clean on a fresh repository (no ticket exists, so the convention reports nothing); the `tests:` comment block
-and the WR-01 and A-33 offsets in `scaffold.test.ts`, which are anchored on `# tests:` and the lines just
-above it, so the new lines go before the `tests:` comment, after `runtimes:`.
+and the WR-01 and A-33 offsets in `scaffold.test.ts`.
 
 End by running `npm run build`.
 
@@ -280,8 +299,8 @@ Text, naming no other tool:
   `git log --all -S "<email>" --oneline -- accord/config.yml` and `git show <commit>:accord/config.yml`, and
   reuse those initials; otherwise ask the owner for initials, 2 to 4 capital letters, suggested from
   `git config user.name`, and add `"<email>": <INITIALS>` under `people` (D-06). Recognition names tickets and
-  is never a gate. When it says the initials belong to someone else, ask for other initials. A typed id is
-  refused while `people` exists; never retry with one.
+  is never a gate. When it says the initials belong to someone else, ask for other initials. Never retry
+  with an id.
 - `docs/design.md` §7: the `new ticket` line becomes `accord new ticket [id]` with the note that the id is
   assigned as `<ST|BUG|EP>-<initials>-<n>` when `config.yml` holds `people`, and is required otherwise; one
   sentence after the block naming `people`, `legacy_ids`, and the two lint rules.
@@ -290,7 +309,9 @@ Then run, in order: `npm run gen`, `npm run build`, and `node packages/cli/dist/
 rewrites `.claude/skills/accord/SKILL.md` and writes `.claude/skills/accord/ids.md`. The rendered SKILL.md stays
 at or under 5120 bytes; detail goes in `ids.md`, not in SKILL.md. The case `no rendered text restates a rule the
 CLI enforces (SKILL-04, D-148)` in `skills.test.ts` must also pass: the skill names commands and what to do on a
-refusal, never a list of what `new ticket` or lint checks.
+refusal, never a list of what `new ticket` or lint checks. That case is not on the verify line because its
+report id holds a comma (`(SKILL-04, D-148)`), and the verify line splits tokens on commas; run it with the
+skills tests and confirm it passes.
 
 Must not change: every phrase already in the `accord` row of `REQUIRED` (including `--lane M`, `t/<id>`,
 `push it (the pushed branch is the claim)` and `claim: <id>`); the Dashboard, Continue and Pick up sections; the

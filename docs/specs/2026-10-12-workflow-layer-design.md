@@ -124,6 +124,10 @@ the contract that is tested and verified. `## Plan` moves out of the ticket into
 6. **Write back** the understanding, separating what the owner said from what the agent assumed.
 7. **Audit once.** `accord-auditor`, in a fresh context reading only the ticket, tries to find two
    different readings of each acceptance criterion. A criterion with two readings goes back to the owner.
+8. **The owner's yes.** The agent shows `## Intent` and the acceptance criteria block verbatim, copied from the
+   ticket file and never summarised, and takes an explicit yes before `accord-architect` runs. The yes is recorded
+   by quoting the owner's answer in the ticket's commit message, with no new field or gate; a no is written under
+   `## Corrections` and the text is shown again.
 
 ### Keeping intent binding
 

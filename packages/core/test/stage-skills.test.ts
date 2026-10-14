@@ -100,3 +100,29 @@ it('ac-2 every stage skill points to the shared ask rule from its intent paragra
   }
   expect(bad).toEqual([]);
 });
+
+it('ac-1 the intent skill shows intent and the criteria verbatim before the architect', () => {
+  const SENTENCE_A = "Show the owner the `## Intent` section and the acceptance criteria block verbatim, copied from the ticket file and never summarised, ask for an explicit yes, and on yes commit the ticket with the owner's answer quoted in the commit message.";
+  const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
+  expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
+  expect([...STAGES]).toEqual(['accord', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
+  const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
+  const bad: string[] = [];
+  for (const dir of skillDirs(all)) {
+    const path = dir + '/' + installedName('intent') + '/SKILL.md';
+    const text = everyFile.get(path) ?? '';
+    if (!text) { bad.push(path + ' missing'); continue; }
+    const steps = text.split(/^(?=\d+\. )/m).filter((c) => /^\d+\. /.test(c)).map((c) => c.replace(/[ \t]*\n[ \t]*/g, ' '));
+    const idx = (f: (s: string) => boolean) => steps.flatMap((s, i) => (f(s) ? [i] : []));
+    const lists = {
+      sentence: idx((s) => s.includes(SENTENCE_A)),
+      auditor: idx((s) => s.includes('Dispatch `accord-auditor`')),
+      next: idx((s) => /^\d+\. Next: `accord-approach`/.test(s)),
+    };
+    const off = Object.entries(lists).filter(([, l]) => l.length !== 1);
+    for (const [name, l] of off) bad.push(path + ' ' + name + ' found ' + l.length + ' steps');
+    if (off.length) continue;
+    if (!(lists.auditor[0] < lists.sentence[0] && lists.sentence[0] < lists.next[0])) bad.push(path + ' out of order');
+  }
+  expect(bad).toEqual([]);
+});

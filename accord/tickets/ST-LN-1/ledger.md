@@ -18,6 +18,8 @@
 - Ruling: `activeTicket` takes the snapshot instead of reading the templates again, one source for the templates in force (planner) — cost if wrong: a signature change on one internal export.
 - Ruling: Task 1 adds `branch` as a plain string and Task 4 adds the D-04 rules, so the ac-3 test is red before its task (planner) — cost if wrong: between Tasks 1 and 4 on the branch, an invalid template is briefly accepted.
 - Ruling: the /accord Dashboard paragraph on `idleDays` is shortened to keep the skill within 5120 bytes; it still names `idleDays`, `idle <n>d` and the `accord status --json` row (planner) — cost if wrong: the hint that `next --json` never carries `idleDays` is lost.
+- Ruling: `gitClaims` keeps per-id winners in a `Map`, then builds `claims` and `branches` as `Object.create(null)` objects, and the row reads `claimBranches` only through `Object.hasOwn`, so ids like `constructor` never read `Object.prototype` (planner, plan critic round 2 Nice 1) — cost if wrong: a one-line plan change if plain objects are preferred.
+- Ruling: plan critic round 2 found no Must or Should; its two Nice were fixed in Task 3 by the planner with no further critic round — cost if wrong: a fault in that small fix is caught at review.
 
 ## Deferred
 - The docs still describe only `t/<id>` claims: docs/specs/2026-10-12-workflow-layer-design.md:148 and :193 say a claim is "pushing a branch `t/<id>`", and docs/design.md never mentions `branch` (plan critic round 1, Nice).

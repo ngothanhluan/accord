@@ -1,6 +1,6 @@
 ---
 baseline: d364a6dafa215f460f16775abe71d30073d15464
-plan_hash: "fnv1a64:2b17a1663e78dda0"
+plan_hash: "fnv1a64:753860c64d2a8b84"
 ---
 
 Review mode `outcome`: one branch, no slices. Report case ids follow the JUnit id shape in
@@ -126,6 +126,7 @@ Test first, top-level in `packages/core/test/stage-skills.test.ts`, below the ex
   `` `accord/tests-baseline.txt` is absent ``,
   `after the owner has decided every failing case`,
   `in a commit of its own`,
+  `Ruling: accord/tests-baseline.txt`,
   `` `tests.full` wrote no report ``,
   `stop and tell the owner`.
 - `ref.indexOf('after the owner has decided every failing case')` is less than
@@ -154,7 +155,12 @@ Interface (text; it names no other tool, and none of it holds the word for a fin
      once; otherwise stop and tell the owner.
   6. On a yes, run `accord tests baseline` and commit `accord/tests-baseline.txt` in a commit of its own,
      holding that file alone, never with the `plan: <id> ready` commit of step 8, so it can be picked onto its
-     own pull request (D-09). Write the phrase `in a commit of its own` verbatim.
+     own pull request (D-09). Write the phrase `in a commit of its own` verbatim. Then write into
+     `accord/tickets/<id>/ledger.md`, under `## Rulings`, the line
+     `Ruling: accord/tests-baseline.txt created at the plan baseline on the owner's yes — no task's files: line names it, so review would otherwise list it as undeclared — cost if wrong: review reports it as Extra`.
+     The ledger is committed with the `plan: <id> ready` commit, which step 8 already makes when the ledger
+     changed, so the baseline commit still holds that file alone. Write the phrase
+     `Ruling: accord/tests-baseline.txt` verbatim.
   7. Teams (D-08): the file reaches the main branch in its own small pull request, holding that file alone,
      before other tickets plan. On a merge conflict in it, keep only the lines both sides hold, never the
      union: a dropped case then fails loudly at the gate instead of being exempted silently.

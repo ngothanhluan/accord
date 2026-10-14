@@ -23,5 +23,7 @@
 - Ruling: the skill detail goes in a new reference `packages/core/skills/accord/ids.md` loaded by /accord, since the skill file must stay within 5120 bytes (planner) — cost if wrong: one extra file.
 - Ruling: Task 5 adds no test of `init` writing `people: {}`; the existing scaffold test validating the init config against the schema is its check (planner) — cost if wrong: nothing fails if `people: {}` is later removed from init.
 - Ruling: Task 6 relies on the existing stage-skills phrase, size and drift tests, as in the TAGS-1 plan (planner) — cost if wrong: the reviewer may want a `risk:` test there.
+- Ruling: with no `people` key, an invalid config.yml keeps today's `new ticket` behaviour; the Task 2 refusal is gated on the raw key (plan critic round 1, Should 2; Intent) — cost if wrong: an invalid `people` value under another spelling of the key goes unrefused.
+- Ruling: the D-02 drop rule lives only in `ids.md`, which /accord reads only when `people` exists, because of the 5120-byte skill limit (plan critic round 1, Should 4) — cost if wrong: a repository without `people` gets no drop-instead-of-rename guidance, where ids are not assigned anyway.
 
 ## Deferred

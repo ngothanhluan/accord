@@ -1,6 +1,6 @@
 ---
 baseline: 3be1c058edab354ab449e75c966f0c6797dd4813
-plan_hash: "fnv1a64:d23080129cc8758d"
+plan_hash: "fnv1a64:99f33349e58a24d8"
 ---
 
 Review mode `outcome`: one branch, no slices. Report case ids follow the JUnit id shape in
@@ -64,7 +64,10 @@ Interface:
     each path through the same `^accord\/tickets\/([^/]+?)(?:\.md$|\/)` match `gitFacts` uses, de-duplicated
     (ledger Rulings on `git log --all`). A repository with no commit prints nothing and yields `[]`; any other
     failure throws `UsageError('git log failed reading ticket ids' + stderr)`, because silently dropping ids
-    could reuse a number. No `fetch`, no remote is contacted (D-10).
+    could reuse a number. No `fetch`, no remote is contacted (D-10). The spawn passes
+    `maxBuffer: 64 * 1024 * 1024`, as `gitBaselineFiles` does, and
+    `env: { ...process.env, GIT_NO_LAZY_FETCH: '1' }`, so a partial clone never fetches a missing object from
+    the remote.
 - `run.ts`: the command becomes `ticket [id]` and the action passes `id: string | undefined`; the description
   says the id is assigned when config.yml holds `people`.
 - `newTicket(ctx, id: string | undefined, options)`. When `ctx.snapshot.config?.people` is defined and `id` is
@@ -99,11 +102,17 @@ Tests first, top-level in `packages/cli/test/new-ticket.test.ts`:
   `people:` / `  "an@example.com": an` appended (lowercase fails the pattern, so `config` is undefined and the
   convention would silently read as off). `['new', 'ticket', 'TCK-1']` exits 2, stderr contains
   `accord/config.yml` and `/people`, and `TCK-1.md` does not exist (ledger Ruling, critic round 2 Should 1).
+  In the same test, a second sandbox whose config.yml has no `people` key and an unrelated schema error
+  (`profile: build` rewritten to `profile: other` with the file's `setConfig` helper) still writes `TCK-1.md`
+  and exits 0, as today.
 
 Interface, in `newTicket`, in this order, each a `UsageError` (exit 2) before any path is built:
-1. Any `ctx.snapshot.errors` entry with `file === 'accord/config.yml'` and a rule other than
-   `load.config-missing`: `accord/config.yml:<line> <reason>` of the first such finding, then
-   ` - fix accord/config.yml before creating a ticket`.
+1. Only when the raw `accord/config.yml` text (read with `readFileSync(join(ctx.root, 'accord',
+   'config.yml'), 'utf8')`, absent counts as empty) matches `/^people\s*:/m`, and `ctx.snapshot.errors` holds
+   an entry with `file === 'accord/config.yml'` and a rule other than `load.config-missing`: the message is
+   `accord/config.yml:<line> <pointer> <reason>` of the first such finding (`pointer` is the finding's own
+   field; ajv's text alone does not carry it), then ` - fix accord/config.yml before creating a ticket`. Without
+   a `people` key an invalid config.yml keeps today's behaviour (Intent: no table keeps today's behaviour).
 2. With `people` defined and `id` given: `<id> was typed by hand; accord assigns ids while accord/config.yml has
    people - run accord new ticket --type <type> without an id` (D-12, any form).
 3. With `people` defined and `gitUserEmail` returning `''`: `git user.email is not set - set it with git config
@@ -155,7 +164,10 @@ Interface:
 - `fs.ts` export `gitPeopleOnRefs(root: string): { byRef: Record<string, Record<string, string>>; defaultRef?:
   string }`: one `git for-each-ref --format=%(refname) refs/heads refs/remotes`, dropping names ending in
   `/HEAD`; then one `git cat-file --batch` with `input` the lines `<ref>:accord/config.yml`, read as a Buffer and
-  split by each header's byte size (`<sha> blob <size>`), a `missing` line skipped; each blob through
+  split by each header's byte size (`<sha> blob <size>`), a `missing` line skipped. The cat-file spawn passes
+  `maxBuffer: 64 * 1024 * 1024` and `env: { ...process.env, GIT_NO_LAZY_FETCH: '1' }`, so many refs never
+  overflow the buffer and a partial clone never reaches the network for another ref's blob (D-10); an object
+  that lazy fetch would have supplied reads as missing and is skipped. Each blob goes through
   `peopleOf`, an `undefined` result skipped (ledger Ruling). `defaultRef`: the target of `git symbolic-ref -q
   refs/remotes/origin/HEAD`, else `refs/remotes/origin/main`, else `refs/remotes/origin/master`, whichever is
   in the list; none leaves it undefined (ledger Ruling). A failed for-each-ref or cat-file throws a
@@ -237,17 +249,31 @@ files: packages/core/skills/accord/SKILL.md, packages/core/skills/accord/ids.md 
 verify: packages/core/test/stage-skills.test.ts#stage-skills-name-what-the-spec-requires->-accord-names-every-required-phrase, packages/core/test/skills.test.ts#render-output-invariants->-every-SKILL.md-is-at-most-MAX_SKILL_BYTES-bytes-(spec-§2), packages/core/test/skills.test.ts#generated-module->-generated-module-matches-skills/-(drift)
 
 Test first: in `packages/core/test/stage-skills.test.ts`, the `accord` row of `REQUIRED` gains
-`'accord new ticket --type'`, `'./ids.md'` and `'status: dropped'`. It fails until the skill text below lands.
+`'accord new ticket --type'` and `'./ids.md'`. It fails until the skill text below lands. The drop rule lives
+in `ids.md`, which `REQUIRED` does not read, so no phrase of it is added there.
+
+Size budget, measured by the critic: the rendered `.claude/skills/accord/SKILL.md` (what the size test
+measures, marker included; `loads` is stripped on render) is 4889 bytes against 5120, and the source is 112
+lines against `MAX_SKILL_LINES` 120. The only SKILL.md edits are the `loads` line and the lane M bullet below,
+about +150 bytes and +2 lines; no Rules line is added and no other prose is touched.
 
 Text, naming no other tool:
-- `skills/accord/SKILL.md`: frontmatter `loads: [accord/ids.md, shared/ask.md]`. Lane M becomes: when
-  `accord/config.yml` has `people`, follow `./ids.md`, then run `accord new ticket --type <story|bug> --lane M`
-  without an id, and the printed path's file stem is the id; otherwise `accord new ticket <id> --lane M` as
-  today. Then create branch `t/<id>` (D-03), commit the new ticket file, and any `people` edit, on it, and push
-  it. A Rules line: a ticket's type never changes; to change it, set `status: dropped` with its `## Dropped`
-  reason, commit and merge that, and create a new ticket; never delete a `t/` branch to drop a ticket (D-02,
-  ledger Ruling).
-- `skills/accord/ids.md` (new): fetch first with
+- `skills/accord/SKILL.md`: frontmatter `loads: [accord/ids.md, shared/ask.md]`. The lane M bullet (today
+  three lines, from `- **M.** Run` to `then load `accord-intent`.`) is replaced with exactly:
+  ```
+  - **M.** Run `accord new ticket <id> --lane M`; when config.yml has
+    `people`, follow `./ids.md` and run `accord new ticket --type <story|bug>
+    --lane M` with no id instead. Create branch `t/<id>`, commit the
+    ticket file and any `people` edit on it, and
+    push it (the pushed branch is the claim), then load `accord-intent`.
+  ```
+  `--lane M` and `push it (the pushed branch is the claim)` each stay whole on one line, and
+  `accord new ticket --type` sits on one line, so every `REQUIRED` phrase matches. The branch stays `t/<id>`
+  (D-03).
+- `skills/accord/ids.md` (new) also holds the drop rule: a ticket's type never changes; to change it, set
+  `status: dropped` with its `## Dropped` reason, commit and merge that, and create a new ticket with
+  `accord new ticket --type <the other type>`; never delete a `t/` branch to drop a ticket (D-02, ledger
+  Ruling). It also says: fetch first with
   `git -c credential.interactive=never -c core.sshCommand="ssh -o BatchMode=yes" fetch`; on failure say so and
   continue, since only refs already in the clone are read (D-10). Register only when `people` exists, never
   create it. When `accord new ticket` says your email is not registered: look for it on other branches with

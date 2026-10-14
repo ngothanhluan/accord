@@ -12,5 +12,11 @@
 - Ruling: (planner) the finding messages are "...holds @, which splits its @test: tag; name the test and its path without @" and "...holds a comma, which splits it into two ids; name the test without a comma" — cost if wrong: message text and test strings change.
 - Ruling: (planner) the spec §7 edit sits in Task 3, not with the code — cost if wrong: only which commit carries the doc change.
 - Ruling: baseline tests at 9464130: 1163 passed, 0 failed; `accord/tests-baseline.txt` already exists, so step 7 asks no baseline question — cost if wrong: none.
+- Ruling: (planner) the file check in the CLI tests matches a line of rendered `out` that starts with `accord/tickets/T-1/plan.md:` and contains the rule id — the CLI tests only see text output, and the renderer's `file[:line]:` prefix is established — cost if wrong: three assertions change if the prefix changes.
+- Ruling: (planner) ac-4's positive control sits inside the ac-4 test, not in a separate risk test — it makes ac-4 observe the rule id, and a separate test would repeat ac-3 at the core layer — cost if wrong: ac-4 asserts absence and one presence.
 
 ## Deferred
+
+- Nice (plan critic round 1): `verify: a#x (@ac-1),b#y` names `(@ac-1),b#y` with "name the test without a comma", when the fix is a space after the separating comma; rejecting it follows D-01, the advice misleads.
+- Nice (plan critic round 1): nothing fails when `skills sync` is skipped after gen and build; the committed `.claude/agents` copies would lack the D-06 sentence while ac-5 reads the in-memory render.
+- Nice (plan critic round 2): a mistyped marker such as `(@ac-01)` stays a verify id and gets the at-sign error telling the planner to rename a test, when the fix is the marker; rejecting it follows D-03, the advice misleads.

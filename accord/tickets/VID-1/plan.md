@@ -1,6 +1,6 @@
 ---
 baseline: 94641301972e4277b38d36716525ebeb08158e35
-plan_hash: "fnv1a64:49610924f1124130"
+plan_hash: "fnv1a64:c5bcfa6ebda5355b"
 ---
 
 Review mode `outcome`: one branch, no slices. Report case ids follow the JUnit id shape in
@@ -27,9 +27,11 @@ Tests first, in `packages/cli/test/lane-commands.test.ts`, at the end of the fil
   `finally`. Every other plan rule passes on this plan, as the existing `plan contract checks` tests show.
 - `it('ac-1 gate plan fails on a verify id whose test name holds an at sign')`: with
   `verify: export#escapes-commas (@ac-2), src/x.test.ts#@test-ac-1-writes`, the result has code 1 and `out`
-  contains `gate.plan-verify-at` and `src/x.test.ts#@test-ac-1-writes`.
+  contains `gate.plan-verify-at` and `src/x.test.ts#@test-ac-1-writes`, and some line of `out` starts with
+  `accord/tickets/T-1/plan.md:` and contains `gate.plan-verify-at` (the text renderer prints
+  `file[:line]: level rule reason`, so a finding filed under the verify id's path fails here).
 - `it('ac-2 gate plan fails on a verify id whose path holds an at sign')`: the same with
-  `packages/@scope/x.test.ts#writes`.
+  `packages/@scope/x.test.ts#writes`, the same file assertion included.
 Show both failing (no such rule), then build and show them passing.
 
 Code:
@@ -42,10 +44,12 @@ Code:
   lines. `parsePlan` builds its fields as `tokens(value)` from `fieldLines(s.lines)` and drops its own `inFence`
   and the `fences` binding. `Line` is imported from `../model/snapshot.js`; no exported model type changes and
   `packages/core/src/index.ts` is untouched.
-- `packages/core/src/gate/plan.ts`: `verifyAt: GateRule['check']` returns, for each task from `tasksOf`, one
-  draft per id in `task.verify` that includes `@` (markers never reach `verify`), with
-  `file: planFile(id)`, `line: fieldLines(task.lines).verify?.line ?? task.line`, and reason
-  `task <n> verify id "<id>" holds @, which splits its @test: tag; name the test and its path without @`.
+- `packages/core/src/gate/plan.ts`: `verifyAt: GateRule['check']` takes the ticket id as its parameter `id`,
+  as the other plan checks in this file do. For each task from `tasksOf`, it returns one draft per verify id
+  `verifyId` in `task.verify` that includes `@` (markers never reach `verify`); the loop variable is named
+  `verifyId`, never `id`, so it does not shadow the ticket id. Each draft has `file: planFile(id)` (the ticket's
+  plan, `accord/tickets/<ticket id>/plan.md`), `line: fieldLines(task.lines).verify?.line ?? task.line`, and
+  reason `task <n> verify id "<verifyId>" holds @, which splits its @test: tag; name the test and its path without @`.
 - `packages/core/src/gate/rules.ts`: import `verifyAt`; add
   `{ id: 'gate.plan-verify-at', level: 'error', profiles: ['build', 'maintain'], check: verifyAt }` to
   `PLAN_RULES` directly after `gate.plan-deferral`, so `gate.tests-baseline-missing` stays the last row.
@@ -63,21 +67,29 @@ Consumes `fieldLines` from Task 1. Tests first:
 - `packages/cli/test/lane-commands.test.ts`:
   `it('ac-3 gate plan fails on a comma inside a verify id')`: `gatePlanWith` from Task 1 with
   `verify: export#escapes-commas (@ac-2), src/x.test.ts#refuses-x,-exit-2` gives code 1, and `out` contains
-  `gate.plan-verify-comma` and `src/x.test.ts#refuses-x,-exit-2` whole, as written.
+  `gate.plan-verify-comma` and `src/x.test.ts#refuses-x,-exit-2` whole, as written, and some line of `out`
+  starts with `accord/tickets/T-1/plan.md:` and contains `gate.plan-verify-comma`.
 - `packages/core/test/lane-plan.test.ts`, top level, using the file's `plan`, `base`, `reasons`, and `errors`:
   - `it('ac-4 a marker and a comma between ids raise neither verify id error')`: `PLAN` with
     `verify: export#writes-csv (@ac-1)` replaced by
     `verify: src/x.test.ts#writes (@ac-1), src/y.test.ts#risk:data-loss-quotes` gives
     `reasons(r, 'gate.plan-verify-at')` and `reasons(r, 'gate.plan-verify-comma')` both `[]`, and `errors(r)` `[]`.
+    Positive control in the same test, so it observes the rule id: the same plan with the separating comma's
+    space removed (`verify: src/x.test.ts#writes (@ac-1),src/y.test.ts#risk:data-loss-quotes`) gives exactly
+    one `gate.plan-verify-comma` finding, whose reason names `(@ac-1),src/y.test.ts#risk:data-loss-quotes` and
+    whose `file` is `accord/tickets/T-1/plan.md`. The absence half alone passes before any code exists; the
+    positive control is what fails first.
   - `it('risk:parsing the comma check reads the first verify line outside a fence')`: in `PLAN`, task 2's verify
     line becomes `- verify: export#escapes-commas (@ac-2), a#b,c`, preceded by a fenced block holding
     `verify: q#r,s` and followed by a second line `verify: x#y,z`; the `gate.plan-verify-comma` findings, as
     `[line, reason]`, are exactly one, at the list-marker line's number, naming `a#b,c`. The same plan with
     `a#b,c` replaced by `a#b` has no such finding.
-Show them failing, then write the code, build, and show them passing.
+Show them failing (ac-3 for want of the rule, ac-4 on its positive control, the risk test on its one expected
+finding), then write the code, build, and show them passing.
 
 Code:
-- `packages/core/src/gate/plan.ts`: `verifyComma: GateRule['check']` takes, per task, `fieldLines(task.lines).verify`;
+- `packages/core/src/gate/plan.ts`: `verifyComma: GateRule['check']` takes the ticket id as its parameter `id`
+  and, per task, `fieldLines(task.lines).verify`;
   when present it splits `value` on whitespace runs, keeps each chunk matching `/\S,\S/` (a comma touching a
   non-space character on both sides; a chunk ending in a separating comma, such as `(@ac-1),`, does not match),
   and returns one draft per kept chunk, as written, with `file: planFile(id)`, `line` the verify line's number,

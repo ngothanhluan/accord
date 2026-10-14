@@ -319,7 +319,11 @@ touching `plan.md` carries it, and otherwise the plan stage resumes (phase 2).
   commits what is finished, and returns `BLOCKED: context` with what remains. The orchestrator dispatches a
   fresh executor with the verbatim brief plus the diff and ledger so far. A fresh context that re-reads the
   brief is more faithful than a compacted one.
-- Lane M runs one executor at a time. Lane L runs independent stories in parallel worktrees.
+- Lane M runs one executor at a time. Lane L runs independent stories in parallel worktrees. Tasks inside
+  one ticket stay sequential: they share one working tree, one test report path, and a stale check tied to
+  HEAD, and in the dogfood tickets their `files:` lines overlapped on shared tests and the spec, so a wave
+  would save minutes and add merge conflicts and integration failures found only after merging. Speed comes
+  from running tickets and stories in parallel, each with its own branch, gates, and review.
 - `tickets/<id>/ledger.md` (committed) holds task lines, Rulings, and deferred items. The dashboard and
   Continue read it.
 
@@ -337,6 +341,22 @@ touching `plan.md` carries it, and otherwise the plan stage resumes (phase 2).
 
 A bug ticket's criterion is the reproduction, so a bug fix starts with a failing reproduction test under
 the same rules.
+
+**Risk kinds.** The slugs are `parsing`, `money`, `security`, `concurrency`, `data-loss`,
+`complex-branching`, and `regression`. A kind applies when the work does what its trigger says:
+
+| Kind | Trigger |
+|---|---|
+| `parsing` | turns text into structure: a regex, split, tokenizer, a YAML, Gherkin or Markdown reader, id normalisation |
+| `money` | computes a number a user relies on: totals, rates, dates and durations, rounding |
+| `security` | touches auth, tokens, secrets, user-supplied paths, process spawning, permission checks |
+| `concurrency` | writes state more than one process or async path touches: locks, ordering, retries |
+| `data-loss` | overwrites, deletes, renames, or migrates a user's files or records |
+| `complex-branching` | a function with three or more interacting conditions, a state machine, an ordered set of refusals |
+| `regression` | fixes a bug seen in real use |
+
+Moving data without transforming it, tests alone, documentation, and workflow text are none of these; workflow
+text has its own guards in the critic, the phrase tests, and the size cap. When unsure, a kind applies.
 
 ## 10. Review
 
@@ -493,6 +513,14 @@ measurements, and re-run when new models ship.
   Executor: hidden tests passed, lines of code, tests written, test-policy compliance, and quality against
   task size, which sets the "half an executor's context" budget of section 7 from measurement. Then critic
   (plans with planted gaps) and auditor (deliberately ambiguous criteria).
+- **Executor by risk kind.** Each executor fixture task is labelled with the risk kinds of section 9 by their
+  triggers. Executor results are reported per kind as well as overall, using the existing `models.executor`
+  key for the cells. A kind whose quality differs beyond the noise between executor cells is routed: a plan
+  task gains a `risk: <kind>` line checked against the slugs by `gate plan`, the critic flags a task whose
+  files or interface meet a trigger without the kind, and such a task goes to a second executor render routed
+  by its own `models` key, on the agent's frontmatter rather than on the dispatch. Until then every task uses
+  one executor. In the dogfood tickets the executor retried only on test layout and review found at most one
+  Should, which points at the plan stage as the source of quality.
 - **Matrix.** Each role tries only plausible cells. Cells for xhigh are included for the critic, final and
   security reviewers, architect in lane P, and debugger; the hypothesis is that longer reasoning pays there
   and may hurt executors (more code and tests) and ordinary reviewers (more false findings). Three runs per
@@ -548,7 +576,8 @@ The `.planning/` directory of the previous planning process is archived when pha
    ruleset hooks; `status: dropped`, `stale_days`, the plan `baseline:`, the critic's goal-backward
    question, the plan's file and hash checks, and the review package's undeclared files (sections 3, 7,
    8, and 10). Dogfood: run one lane M ticket of accord through accord.
-3. **Benchmark.** Reviewer and executor fixtures; replace the default routing.
+3. **Benchmark.** Reviewer and executor fixtures; replace the default routing; answer whether the executor's
+   model matters per risk kind (section 13).
 4. **Lanes L and P.** Waves, worktrees, slicing for `review: human`, epic gate, epic readiness, retro, and
    UI tickets with design skills by role (sections 3 and 11).
    The plan for a story reads the Corrections and Rulings of its finished sibling stories, and two stories

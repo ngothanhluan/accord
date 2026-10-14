@@ -481,6 +481,7 @@ completion notice.
 | 8 | plan | planner (resumed, fixes) | inherit | 143,383 cumulative | 7 | 66s | 4 Should fixed; 2 Rulings; gate plan passed |
 | 9 | plan | critic (round 2) | inherit | 127,974 | 61 | 418s | no Must; 1 Should (no-commit `git log --all` untested; main session ran it on git 2.56: exit 0), 3 Nice |
 | 10 | plan | planner (resumed, fixes) | inherit | 150,785 cumulative | 11 | 58s | Should and 3 Nice fixed; 2 Rulings; gate plan passed |
+| 11 | plan | critic (round 3) | inherit | 113,696 | 54 | 376s | no Must; 1 Should (refusal order: invalid `people` before "id required"), 1 Nice (GIT_NO_LAZY_FETCH needs git 2.44, recorded as a limit) |
 
 Baseline suite at 3be1c05: 55 files, 1182 tests pass, 62s.
 

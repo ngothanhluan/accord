@@ -505,6 +505,7 @@ completion notice.
 | 32 | review | executor (round 1 fix) | sonnet, medium | 80,030 | 11 | 207s | 1 try; shallow-clone refusal, test failed first; 1198 tests pass; commit carried a Co-Authored-By trailer, removed before push |
 | 33 | review | reviewer (round 2, both, fix diff only) | sonnet, high | 36,475 | 7 | 56s | no findings; converged after 2 rounds |
 | 34 | review | final reviewer (both, whole ticket) | opus, high | 104,512 | 22 | 160s | no Must or Should; 1 Nice deferred (case-sensitive registration search); verdict converged |
+| 35 | verify | verifier | sonnet, medium | 47,174 | 10 | 48s | 5/5 criteria pass at 669aa48; skill text ids.md not checked as behaviour |
 
 Baseline suite at 3be1c05: 55 files, 1182 tests pass, 62s.
 

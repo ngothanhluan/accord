@@ -30,7 +30,7 @@ A repository that adopts lane tickets with an existing suite and no `accord/test
 `gate.test-untraced` on every pre-existing test at Done, and no step creates the file (dogfood item 2).
 For the owner running the first lane M ticket in a repository that already has tests.
 Done when `accord gate plan` warns while the file is absent and the plan stage asks the owner before it
-runs `accord tests baseline`. Not: `accord init`, a staleness check in `tests baseline`, a config key.
+runs `accord tests baseline`, which refuses a stale report. Not: `accord init`, a config key.
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.
@@ -44,7 +44,7 @@ Feature: BASE-1
     And accord/config.yml sets tests.report
     And accord/tests-baseline.txt does not exist
     When the owner runs accord gate plan for that ticket
-    Then the result carries a warning that names accord tests baseline
+    Then the result carries a warning that asks the owner whether to run accord tests baseline
     And the verdict is pass with exit code 0
 
   @ac-2
@@ -71,6 +71,15 @@ Feature: BASE-1
     And to ask only after the owner has decided every failing case at the baseline
     And to commit the file with the plan: <id> ready commit on a yes
     And to stop and tell the owner when tests.full wrote no report
+
+  @ac-5
+  Scenario: tests baseline refuses a report older than the last commit
+    Given accord/config.yml sets tests.report
+    And the report file was written before the HEAD commit
+    And accord/tests-baseline.txt does not exist
+    When the owner runs accord tests baseline
+    Then it exits 2 and accord/tests-baseline.txt still does not exist
+    And the message says to run the tests again
 ```
 
 ## Vetoes
@@ -83,6 +92,8 @@ Feature: BASE-1
 - D-03 Evidence: `accord gate plan` warns when a lane ticket exists, `tests.report` is set, and the baseline file is absent; plus a test that the rendered plan skill carries the step — "ok b kết hợp A"
 - D-04 When the owner declines the baseline, the `gate plan` warning stays on every run; no config key records the choice — "1"
 - D-05 "Sets tests.report" means the key is present in `accord/config.yml`, whatever its value, as `lint.test-untraced` and `accord tests baseline` already read it — "A"
+- D-06 Approach critic Must: the warning asks rather than orders, the plan skill's gate step says the baseline is asked at step 7 and never created earlier, and the planner says the same — "Dùng bản sửa (Recommended)"
+- D-07 `accord tests baseline` refuses a report written before the HEAD commit, as `accord task-done` does; this replaces the earlier non-goal — "Thêm kiểm trong CLI (Recommended)"
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
@@ -92,3 +103,28 @@ Feature: BASE-1
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
+**Chosen: warning row in `PLAN_RULES`, a plan-skill baseline file, a stale check in `tests baseline`.** One pure
+check in `gate/plan.ts`, rule `gate.tests-baseline-missing` (warning): lane ticket, `tests.report` key present,
+no `testsBaseline`. Its reason asks the owner whether to run `accord tests baseline`, answered only at the plan
+stage's baseline tests step, before the first build commit (D-06). `accord tests baseline` refuses a report older
+than HEAD through task-done's stale check, exported and shared; with no commit there is no check (D-07).
+Plan skill: step 4 says the baseline is asked at step 7, never earlier; step 7 points to a new
+`plan/baseline.md` (keeps SKILL.md under 5120 bytes); step 8 commits the file whenever `git status` shows it
+new. `baseline.md`: after every failing case is decided, ask create / don't create / stop, with the count and
+samples from `accord lint`'s untraced-test lines; on a stale refusal with nothing changed outside `accord/`,
+re-run `tests.full` once and retry; a missing report, or changed product code, stops and tells the owner.
+`planner.md` and the build skill's plan-changed step each say the baseline is never created there.
+**Rejected:** the skill following the gate warning instead of checking the file (a rule rename silently moves
+its trigger); skill text alone (loses D-03's CLI evidence).
+**Affected:** `gate/plan.ts`, `gate/rules.ts`, `commands/tests-baseline.ts`, `commands/task-done.ts`,
+`skills/plan/` (SKILL.md, new baseline.md), `skills/build/SKILL.md`, `agents/planner.md`, generated and synced
+copies, spec sections 7 and 9.
+**Risks:** (critic r1 Must, fixed by D-06) the warning read at step 4 as an order to create the file unasked;
+(r2 Should) the warning sorts first, so `lane-plan.test.ts:86,97` must filter by rule; a commit between the
+test run and the question makes the report stale, hence the one re-run; build re-running `gate plan` could
+relay the question, hence the build-skill line; the count must come from `accord lint`, not a hand count.
+Two tickets planned at once on separate branches both create the file and conflict on merge: accepted, solo
+owner, plans run one at a time.
+**Tests:** @ac-1..3 in `core/test/lane-plan.test.ts` (`gatePlan` result), plus @ac-1's exit 0 asserted in the
+CLI `gate plan` test; @ac-4 over the rendered plan skill and `baseline.md` in `core/test/stage-skills.test.ts`;
+@ac-5 in `cli/test/lane-commands.test.ts`.

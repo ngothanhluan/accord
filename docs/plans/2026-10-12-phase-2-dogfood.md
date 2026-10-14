@@ -285,3 +285,58 @@ The five Nice findings in `accord/tickets/VID-1/ledger.md` under `## Deferred`:
 - The approach critic's Should moved three criterion tests to the CLI layer, where exit code 1 is observable.
 - The plan critic caught a variable named like the ticket id that would have filed findings under the wrong
   path with every test still green.
+
+# Fifth ticket: REFS-1
+
+REFS-1 ("Gate done reads dot-led paths and line ranges in citations") fixed item 27 above, through `/accord`
+on this repository, in its own branch and pull request.
+
+## How it ran
+
+- Stages: intent (4 owner answers, 1 audit with 4 two-way criteria, 7 Decisions) → approach (architect, two
+  critic rounds; round 1's Should narrowed D-01 by an owner answer, D-08; round 2's two Shoulds fixed in the
+  option) → plan (critic no findings) → build (3 tasks, task 1 retried once) → review (round 1 none, final
+  review 1 Nice) → verify (5 of 5 pass, owner approved) → `gate done` 0 errors on the first run. Suite
+  1169 → 1178 tests. Merged as PR #10.
+- The verifier was not told how to cite, for the first time since item 27: with the new sentence it cited
+  `path:n-m`, and every such citation resolved.
+
+## Recurred
+
+- **Item 11.** `accord anchor` on the blank ticket said "next: the owner approves the ticket", a fourth time.
+- **Item 25.** An executor reported CRLF in the working tree again; the commits are LF.
+- **VID-1's deferred `skills sync` gap.** The approach critic found that a stale `dist` leaves the installed
+  verifier without the new sentence while its test passes; the approach fixed the order gen, build, sync and
+  checked the installed copy by hand.
+
+## New findings
+
+33. **An executor claimed its verify cases passed when no junit case matched.** Task 1's tests sat inside a
+    `describe`, so the junit names carried its title and never equalled the verify ids; `task-done` refused
+    all seven. Later briefs said to write cases at the top level and to read the junit report. Fix: the
+    executor body says a verify id matches the full junit name, and to check the report before `DONE`.
+34. **The retry executor ran `task-done` itself, with the published CLI.** It recorded task 1 at the commit
+    before its own fix and committed the ticket and the ledger. The orchestrator replaced the line with a
+    local `task-done` and a Ruling. Fix: the executor body says it never runs `accord task-done` and never
+    edits `accord/`; the brief already forbids the ticket.
+35. **`gate done` warns on tokens that are only `./` or `/`, and on paths that live only in test inputs.**
+    REFS-1's own verification drew 11 `gate.reference-unknown` warnings, none a mistyped citation: fixture
+    paths quoted in prose and bare separators. Fix: a token of only dots and slashes is not a candidate; the
+    verifier quotes a test input in a code span the reader can skip, or the warning counts are accepted.
+36. **A question to the owner arrives without its context.** The question dialog shows only the question and
+    its options, so text written above it is hidden, and internal ids (`ac-4`, `D-07`, rule ids) mean nothing
+    there. The owner chose a ticket of its own, next in the queue: every owner question states in one or two
+    sentences what is decided and why now, what each option does for the user, and glosses any internal id.
+
+## Deferred from REFS-1
+
+- The `:12-14` assertion added to the existing `:line`/`:line:col` unit test repeats what @ac-3's test
+  covers (`packages/core/test/refs.test.ts`); drop it or move it into a `risk:parsing` case.
+
+## What worked
+
+- The auditor's four splits (backticks or bare, line count or not, one warning or any, which render) became
+  three Decisions in one owner answer, and each fixed a test before any code.
+- The approach critic caught that never trimming a leading dot would warn on every `.md` in prose and break
+  `...path`; the owner narrowed D-01 rather than accept the noise.
+- Review converged in one round; the final review's only finding was a duplicated assertion.

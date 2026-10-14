@@ -29,6 +29,7 @@ import {
   acUncovered,
   decisionUncited,
   deferral,
+  testsBaselineMissing,
   laneMissing,
   mapInvalid,
   planBaselineMissing,
@@ -105,7 +106,7 @@ export const READY_RULES: readonly GateRule[] = [
   APPROVAL_STALE,
 ];
 
-/** Spec §7: the plan gate. Every row is an error: an incomplete plan never reaches an executor. */
+/** Spec §7: the plan gate. Every row is an error except the last, which only asks: an incomplete plan never reaches an executor. */
 export const PLAN_RULES: readonly GateRule[] = [
   TICKET_UNKNOWN,
   { id: 'gate.lane-missing', level: 'error', profiles: ['build', 'maintain'], check: laneMissing },
@@ -125,6 +126,7 @@ export const PLAN_RULES: readonly GateRule[] = [
   { id: 'gate.plan-test-repeated', level: 'error', profiles: ['build', 'maintain'], check: testRepeated },
   { id: 'gate.plan-map-invalid', level: 'error', profiles: ['build', 'maintain'], check: mapInvalid },
   { id: 'gate.plan-deferral', level: 'error', profiles: ['build', 'maintain'], check: deferral },
+  { id: 'gate.tests-baseline-missing', level: 'warning', profiles: ['build', 'maintain'], check: testsBaselineMissing },
 ];
 
 /** GATE-02/GATE-03/GATE-11 (docs/design.md §5). Every row is an error on both profiles: Done is the

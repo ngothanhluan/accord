@@ -308,7 +308,9 @@ describe('plan baseline', () => {
       const first = commitAll(repo);
       writeFiles(repo, { 'accord/tickets/T-1/plan.md': withBaseline(first) });
       commitAll(repo);
-      expect((await run(['gate', 'plan', 'T-1'], repo)).code).toBe(0);
+      const ok = await run(['gate', 'plan', 'T-1'], repo);
+      expect(ok.code).toBe(0);
+      expect(ok.out).toContain('gate.tests-baseline-missing');
       writeFiles(repo, { 'accord/tickets/T-1/plan.md': withBaseline('0000000') });
       const r = await run(['gate', 'plan', 'T-1'], repo);
       expect(r.code).toBe(1);
@@ -945,6 +947,37 @@ it('risk:complex-branching a re-run on a recorded task fills a missing tag', asy
     expect(r.out).toContain('task 1 of T-1 is already recorded');
     expect(ticketText(repo)).toContain('\n  @ac-1 @test:export#writes-csv\n');
     expect(ledger(repo)).toBe(ledgerText);
+  } finally {
+    cleanup(repo);
+  }
+}, 30000);
+
+const baselineRepo = () =>
+  makeLaneRepo({ [REPORT]: junit({ 'export#writes-csv': 'passed', 'export#escapes-commas': 'passed', 'util#formats-dates': 'passed' }) });
+
+it('ac-5 tests baseline refuses a report older than the last commit', async () => {
+  const repo = baselineRepo();
+  try {
+    commitAll(repo);
+    utimesSync(REPORT_PATH(repo), OLD, OLD);
+    const r = await run(['tests', 'baseline'], repo);
+    expect(r.code).toBe(2);
+    expect(r.err).toContain('run the tests again');
+    expect(existsSync(join(repo, 'accord', 'tests-baseline.txt'))).toBe(false);
+  } finally {
+    cleanup(repo);
+  }
+}, 30000);
+
+it('risk:complex-branching tests baseline writes from a report newer than the last commit', async () => {
+  const repo = baselineRepo();
+  try {
+    commitAll(repo);
+    freshen(repo);
+    const r = await run(['tests', 'baseline'], repo);
+    expect(r.code).toBe(0);
+    expect(r.out).toBe('wrote 1 case id to accord/tests-baseline.txt\n');
+    expect(existsSync(join(repo, 'accord', 'tests-baseline.txt'))).toBe(true);
   } finally {
     cleanup(repo);
   }

@@ -20,7 +20,7 @@ export function commitSeconds(out: string): number {
  * shortcut: compares whole seconds (git's %ct), so a report written in the same second as the commit, but
  * before it, counts as fresh; upgrade to a content check if that ever lets a stale report through.
  */
-function staleReport(ctx: CommandContext): string | undefined {
+export function staleReport(ctx: CommandContext): string | undefined {
   const report = ctx.snapshot.config?.tests?.report;
   if (report === undefined || ctx.snapshot.tests === undefined) return undefined; // taskVerdict reports this
   // D-51: the raw config value may carry a backslash; the loader read the file under the slashed key.

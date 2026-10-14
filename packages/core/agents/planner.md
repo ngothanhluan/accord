@@ -40,4 +40,6 @@ verify: src/export.test.ts#writes-the-csv (@ac-1), src/csv.test.ts#risk:data-los
 
 When you finish, reply with the path of `plan.md` and the number of tasks.
 
+You never create `accord/tests-baseline.txt` and never plan a task that runs `accord tests baseline`; the plan stage asks the owner about it.
+
 You never write code, never edit the ticket, and never run a command.

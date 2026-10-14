@@ -35,3 +35,26 @@ describe('stage skills name what the spec requires', () => {
     });
   }
 });
+
+it('ac-4 the plan skill asks the owner before it creates the tests baseline', () => {
+  const read = (p: string) => files.find((f) => f.path === p)?.text ?? '';
+  const skill = read('.claude/skills/accord-plan/SKILL.md');
+  const ref = read('.claude/skills/accord-plan/baseline.md');
+  expect(skill.length, 'accord-plan/SKILL.md is missing').toBeGreaterThan(0);
+  expect(ref.length, 'accord-plan/baseline.md is missing').toBeGreaterThan(0);
+  const from = skill.indexOf('7. **Baseline tests.**');
+  const to = skill.indexOf('8. **Finish.**');
+  expect(from).toBeGreaterThanOrEqual(0);
+  expect(to).toBeGreaterThan(from);
+  const step7 = skill.slice(from, to);
+  expect(step7).toContain('./baseline.md');
+  expect(step7).toContain('`accord/tests-baseline.txt`');
+  const ask = 'ask the owner before running `accord tests baseline`';
+  const decided = 'after the owner has decided every failing case';
+  const phrases = [ask, '`accord/tests-baseline.txt` is absent', decided, 'in a commit of its own', 'Ruling: accord/tests-baseline.txt', '`tests.full` wrote no report'];
+  expect(phrases.filter((p) => !ref.includes(p))).toEqual([]);
+  const stop = ref.split('\n').find((l) => l.includes('`tests.full` wrote no report'));
+  expect(stop).toBeDefined();
+  expect(stop).toContain('stop and tell the owner');
+  expect(ref.indexOf(decided)).toBeLessThan(ref.indexOf(ask));
+});

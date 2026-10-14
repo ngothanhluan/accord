@@ -242,6 +242,9 @@ is foreign to the ticket; no "TODO", "TBD", "placeholder", "v1", "for now", "lat
 path in `files:` exists at `baseline:` unless it is marked `(new)` (`gate.task-file-unknown`, phase 2); every scenario that is
 not `@ui` is mapped by exactly one marker across the plan (`gate.plan-test-unmapped`, `gate.plan-test-repeated`); a marker
 naming a scenario the ticket lacks, or a `@ui` scenario, fails.
+For a lane ticket, while `tests.report` is set in `accord/config.yml` and `accord/tests-baseline.txt` does not exist, it adds
+`gate.tests-baseline-missing`, a warning that asks the owner whether to run `accord tests baseline`, answered at the plan
+stage's baseline step.
 On a pass it writes `plan_hash:`, the hash of the plan below its frontmatter, into `plan.md`, as
 `gate ready` writes `ac_hash` (phase 2).
 `accord-critic` checks meaning: no veto violated, nothing beyond the criteria, the approved approach
@@ -261,7 +264,10 @@ highest, keeps `(new)` relative to the baseline, and does not re-run the baselin
 `gate plan` run as usual (phase 2).
 
 Before build, `tests.full` runs on the baseline. Any failing case is shown to the owner, who decides
-whether it is fixed first or tracked as its own ticket; the agent never ignores it on its own. The plan
+whether it is fixed first or tracked as its own ticket; the agent never ignores it on its own. When `tests.report` is set and `accord/tests-baseline.txt` is absent, the plan
+stage then asks the owner, after every failing case is decided, whether to run `accord tests baseline`; on a yes it commits
+the file in a commit of its own, never with `plan: <id> ready`, and it stops when `tests.full` wrote no report. The file
+ships to the main branch in its own pull request; a conflict in it keeps only the lines both sides hold. The plan
 stage then ends with a commit whose subject is `plan: <id> ready`; build starts only when the last commit
 touching `plan.md` carries it, and otherwise the plan stage resumes (phase 2).
 
@@ -324,7 +330,7 @@ touching `plan.md` carries it, and otherwise the plan stage resumes (phase 2).
 | **Forbidden** | tests that restate the implementation, getter or setter tests, tests that only assert on mocks, a second test of behaviour a criterion test already covers at another layer |
 | **Speed** | during build only `tests.affected` runs (a command template in config, for example `vitest related {files}` or `dotnet test --filter …`, added in phase 2 with its consumer); `tests.full` runs at Done and writes the report `tests.report` names; the verify report lists slow tests |
 | **Enforced** | a test case in the report that is not named by any scenario's `@test:<id>`, does not carry `risk:` in its name, and is not listed in `accord/tests-baseline.txt` is `lint.test-untraced` (a warning in `accord lint`, once any lane ticket exists) and `gate.test-untraced` (an error at Done for lane tickets). Any failed case in the report is `gate.suite-not-passed` |
-| **Baseline** | `accord tests baseline` (new) writes `accord/tests-baseline.txt` once, listing the untraced cases that exist when a project adopts the policy. It refuses when the file exists: the baseline only shrinks, by hand or through the test diet, so it cannot become a way past the gate. A legacy case that is edited keeps its id and stays in the baseline; that is the known limit of a report-based check |
+| **Baseline** | `accord tests baseline` (new) writes `accord/tests-baseline.txt` once, listing the untraced cases that exist when a project adopts the policy. It also refuses, writing nothing, a report written before the HEAD commit, as `accord task-done` does. It refuses when the file exists: the baseline only shrinks, by hand or through the test diet, so it cannot become a way past the gate. A legacy case that is edited keeps its id and stays in the baseline; that is the known limit of a report-based check |
 | **Legacy** | not retroactive. `accord-test-diet` maps an existing suite to behaviours, finds duplicates, restating tests, and trivial tests, and **proposes** deletions backed by a mutation check showing the reduced suite catches the same injected faults. The owner approves before anything is deleted |
 
 A bug ticket's criterion is the reproduction, so a bug fix starts with a failing reproduction test under

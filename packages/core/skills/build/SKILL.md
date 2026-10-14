@@ -72,7 +72,8 @@ session and orchestrate: executors write the code.
    never run `accord gate plan` to clear it. Show the owner the diff of
    `plan.md`. If the owner made the change, `accord-plan` reviews it
    (critic, then `accord gate plan`); otherwise restore `plan.md` with the
-   owner's yes and dispatch again. Only `accord-plan` changes the plan.
+   owner's yes and dispatch again. Only `accord-plan` changes the plan. Never run
+   `accord tests baseline` here; only the plan stage asks the owner about it.
 
 8. When every task has a ledger line, next: `accord-review`.
 

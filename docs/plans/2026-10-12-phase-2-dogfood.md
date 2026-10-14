@@ -477,6 +477,9 @@ completion notice.
 | 4 | approach | critic (round 1) | inherit | 67,121 | 24 | 220s | 2 Must (number reuse after prune, D-11; shared initials across branches, D-04), 3 Should, 2 Nice → owner chose D-17 |
 | 5 | approach | critic (round 2) | inherit | 65,973 | 18 | 231s | no Must; 7 Should, 3 Nice → 1 owner question (D-18), the rest Rulings |
 | 6 | plan | planner | inherit | 133,625 | 56 | 360s | 6 tasks, all ac and D-01..D-18 covered; 4 Rulings; `gate plan` passed first time |
+| 7 | plan | critic (round 1) | inherit | 149,281 | 55 | 462s | no Must; 4 Should (invalid-config message, no-table behaviour, git output size and lazy fetch, skill byte limit) |
+
+Baseline suite at 3be1c05: 55 files, 1182 tests pass, 62s.
 
 Owner side so far: 13 interview answers, 7 approach answers (D-14..D-18), 1 correction (prefixes fixed, not configured), 2 scope splits
 (branch names, epic grouping to the dashboard ticket).

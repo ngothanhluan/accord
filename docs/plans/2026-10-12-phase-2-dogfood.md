@@ -26,7 +26,7 @@ Each of these made `gate done` or `task-done` unreachable on the documented path
 2. **No step creates `accord/tests-baseline.txt` (note 14).** Fixed by BASE-1 (PR #6): `gate plan` warns and the plan stage asks. A repository adopting phase 2 without it gets
    `gate.test-untraced` on every pre-existing test at Done. Workaround: ran `accord tests baseline` at the
    plan baseline (1137 ids). Fix: `accord-plan` runs it when the file is absent.
-3. **A test name starting with `@` breaks the tag (note 16).** A name like `@test:ac-1 …` puts a second `@`
+3. **A test name starting with `@` breaks the tag (note 16).** Fixed by VID-1 (PR #8): `gate plan` rejects `@` and an in-id comma. A name like `@test:ac-1 …` puts a second `@`
    in the report id, so the scenario tag splits into two Gherkin tags and `gate done` can never pass. The
    planner invented the convention from the policy wording. Fix: lint rejects a `verify:` id containing
    `@`; the planner and executor say a test name never begins with `@`.
@@ -234,3 +234,54 @@ gives them a home:
   and a conflict keeps only the lines both sides hold.
 - The planner caught a contradiction between @ac-4 and D-08 before any code; the owner re-approved.
 - Every task passed `task-done` on the first try; review found nothing to fix.
+
+# Fourth ticket: VID-1
+
+VID-1 ("Gate plan rejects verify ids holding an at sign or a comma") fixed items 3 and 20 above, through
+`/accord` on this repository, in its own branch and pull request.
+
+## How it ran
+
+- Stages: intent (4 owner answers, 1 audit with 2 two-way criteria, 6 Decisions) → approach (architect,
+  critic with 1 Should, owner's yes) → plan (2 critic rounds, 1 revision) → build (3 tasks, no retry) →
+  review (round 1 no Must or Should, final review none) → verify (5 of 5 pass, owner approved) → `gate done`
+  0 errors on the first run. Suite 1163 → 1169 tests. Merged as PR #8.
+- The plan stage's new baseline step (BASE-1) ran for the first time: the file existed, so nothing was asked.
+
+## Recurred
+
+- **Item 27.** The verifier, told to avoid them, still cited `.claude/` paths; `gate done` passed with nine
+  `gate.reference-unknown` warnings. Item 27 is the next ticket.
+- **Item 25.** Executors again left CRLF in the working tree; the commits are LF.
+
+## New findings
+
+31. **The ticket title stays the template placeholder.** No intent step writes `title:` and nothing flags
+    "Short title in business language"; the final review noticed it after verify was dispatched. It was set
+    by a Ruling, since `approved_hash` covers sections only. Fix: the intent skill writes the title with the
+    Intent, and lint warns on the template's placeholder title.
+32. **Fan-out inside a ticket was weighed and rejected.** Asked whether tasks can run in parallel, the four
+    dogfood plans showed overlapping `files:` lines on shared tests and the spec, and executors with no
+    capability retries. The owner chose to measure first: spec sections 8, 9, 13 and 16 now hold the reasons,
+    the risk kinds with their triggers, and the benchmark question of whether the executor's model matters
+    per kind.
+
+## Deferred from VID-1
+
+The five Nice findings in `accord/tickets/VID-1/ledger.md` under `## Deferred`:
+
+- The comma error's advice is wrong for a missing space after a separating comma (`(@ac-1),b#y`): the fix is
+  a space, not a rename.
+- A mistyped marker such as `(@ac-01)` gets the at-sign error's advice to rename a test.
+- Nothing fails when `skills sync` is skipped after gen and build; the committed agent copies were checked by
+  hand.
+- `verifyAt` recomputes `fieldLines` per flagged id (`packages/core/src/gate/plan.ts`).
+- An import out of alphabetical order (`packages/core/src/gate/rules.ts`).
+
+## What worked
+
+- The auditor found the two criteria a test could read two ways (what the comma error names, what "says"
+  means for the agents); both became Decisions before any code.
+- The approach critic's Should moved three criterion tests to the CLI layer, where exit code 1 is observable.
+- The plan critic caught a variable named like the ticket id that would have filed findings under the wrong
+  path with every test still green.

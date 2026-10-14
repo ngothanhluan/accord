@@ -65,6 +65,7 @@ Feature: SHOW-1
 - D-04 (audit) A line break and the indentation around it count as one space; a blank line inside a sentence fails, as ASK-1 D-05 — "Đồng ý cả 4 (Recommended)"
 - D-05 (audit) Sentence A sits in a numbered step of its own, after the one step that dispatches `accord-auditor` (step 8 today) and before the step "Next: `accord-approach`"; the criteria read the rendered `accord-intent/SKILL.md` and `accord-approach/SKILL.md` — "Đồng ý cả 4 (Recommended)"
 - D-06 (audit) The ac-1 scenario says "before the architect", as the Intent does — "Đồng ý cả 4 (Recommended)"
+- D-07 (approach critic) D-01 widened: the approach yes shows every approved section verbatim (Intent, the criteria, Vetoes, Decisions, Corrections, Approach), because every rule that located "the sections changed since the intent yes" through a commit let a section reach `accord approve` unseen; sentence B stays; the critic rounds stop after round 5 — "Nhận D-07, sửa 4 lỗi, dừng (Recommended)"
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
@@ -74,3 +75,28 @@ Feature: SHOW-1
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
+**Chosen: prose in the two skills, every section shown at the approach yes.** Intent step 8 (audit, commit)
+is unchanged. A new step 9 "The owner's yes" holds sentence A; that commit holds `accord/tickets/<id>.md`
+with the ledger if it changed, `--allow-empty` when nothing did; on a no, the owner's words go under
+`## Corrections`, the touched sections are rewritten, a changed criterion goes back to step 8, and the text
+is shown again. "Next: `accord-approach`" becomes step 10. Approach step 5 swaps "Show the owner the brief and
+ask for an explicit yes." for sentence B plus "Treat every approved section as changed: show Intent, the
+criteria, Vetoes, Decisions, and Corrections verbatim too." (D-07); the question names the text above it and
+`accord/tickets/<id>.md`; any no is written under `## Corrections` first, empties `## Approach` below its
+heading, goes back to `accord-intent` step 8, and the approach restarts at step 2; the guard reads "a yes to
+the sections as shown". The spec interview gains step 8, and §7 step 4 one clause.
+**Rejected:** locating the intent yes by commit subject (`intent: <id>`, then `intent-yes: <id>`): five critic
+rounds found collisions across tickets, commits made by the old skill, approach-stage commits under the same
+prefix, an empty commit that could not be made, and a loop back to the audit.
+**Affected:** `packages/core/skills/intent/SKILL.md`, `packages/core/skills/approach/SKILL.md`,
+`packages/core/test/stage-skills.test.ts`, `packages/core/src/generated/skills.ts`, the two
+`.claude/skills/accord-{intent,approach}/SKILL.md`, `docs/specs/2026-10-12-workflow-layer-design.md`.
+**Risks (critic, rounds stopped by the owner):** the final question is long (40 to 60 lines), so the owner may
+skim; on a runtime whose dialog hides earlier text the owner opens the file the question names; an agent may
+follow sentence B's "any section changed" over the line after it; a session that compacts after the intent
+yes but before `## Approach` re-runs the intent stage; one corrected word at the approach yes re-runs the
+audit, the architect and the critic.
+**Tests:** ac-1 and ac-2 top-level in `packages/core/test/stage-skills.test.ts` over every runtime directory,
+`[ 	]*
+[ 	]*` to one space on step text that keeps its raw newlines, so a blank line inside a sentence fails;
+ac-1 splits numbered steps at `^\d+\. ` and checks sentence A's step against the one auditor step and "Next".

@@ -965,3 +965,9 @@ it('ac-4 a parent directory citation is reported as written', () => {
   expect(w[0].reason).toContain('"../x.md"');
   expect(onAc1(r, 'gate.evidence-unresolved')).toEqual([]);
 });
+
+it('ac-3 a citation with a line range resolves', () => {
+  const r = citing('packages/core/src/x.ts:9000-9001 holds the branch', ['packages/core/src/x.ts']);
+  expect(onAc1(r, 'gate.evidence-unresolved')).toEqual([]);
+  expect(onAc1(r, 'gate.reference-unknown')).toEqual([]);
+});

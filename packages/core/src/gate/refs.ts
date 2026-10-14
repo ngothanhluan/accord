@@ -19,8 +19,8 @@ const EXT = new Set(
 // Stripped from both ends of a token: writers wrap a path in backticks, quotes, or brackets and end the
 // sentence with a comma or a full stop.
 const PUNCT = '`\'"“”‘’()[]{}<>,;:.!?';
-// An editor-style `path:42` or `path:42:7` names a line inside a file, not a different file.
-const POSITION = /:\d+(?::\d+)?$/;
+// An editor-style `path:42`, `path:42:7` or `path:12-14` names lines inside a file, not a different file.
+const POSITION = /:\d+(?:[:-]\d+)?$/;
 const NOTE_BLOCK = /^###\s+@(ac-[1-9][0-9]*)\b/;
 const NOTES = 'verification notes';
 

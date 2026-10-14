@@ -46,6 +46,7 @@ describe('candidates (D-82 extraction)', () => {
   it('strips an editor-style :line and :line:col suffix', () => {
     expect(candidates('src/auth/login.ts:42', S)).toEqual(['src/auth/login.ts']);
     expect(candidates('src/auth/login.ts:42:7', S)).toEqual(['src/auth/login.ts']);
+    expect(candidates('src/auth/login.ts:12-14', S)).toEqual(['src/auth/login.ts']);
   });
 
   it('never accepts an identifier-shaped word (D-84)', () => {

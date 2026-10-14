@@ -69,7 +69,7 @@ Feature: IDS-1
     When `accord lint` runs
     Then one error names "AN" and both emails
 
-  @ac-5
+  @ac-5 @test:packages/cli/test/new-ticket.test.ts#ac-5-without-the-initials-table-nothing-changes
   Scenario: Without the initials table nothing changes
     Given config.yml has no initials table
     When `accord new ticket FOO-1` runs and then `accord lint` runs

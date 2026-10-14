@@ -63,3 +63,4 @@
 - Test labels: the "no people and no id" case is argument validation labelled risk:complex-branching (new-ticket.test.ts:206); the two risk:parsing schema cases restate the schema regexes (schemas.test.ts:321-334); the invalid-config case bundles three behaviours (new-ticket.test.ts:270).
 - Three or more case-only duplicate emails read "a and b and c differ only in case" (packages/core/src/lint/ids.ts:85-88).
 - No test creates an `EP-` id with `--type epic` or lints an epic.
+- The /accord skill's registration search `git log --all -S "<email>"` matches case exactly while accord compares emails without case, so `An@Example.com` on another ref is missed and the owner is asked for new initials; add `-i` (packages/core/skills/accord/ids.md:20).

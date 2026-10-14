@@ -3,6 +3,7 @@ name: accord-debug
 description: Use when a lane M ticket's work behaves unexpectedly, a test fails for a reason nobody has shown, or a fix did not work. Finds the root cause with a debugger before any fix, fixes it once through a fresh executor test first, and keeps its state in debug.md.
 license: MIT
 kind: skill
+loads: [shared/ask.md]
 ---
 
 This stage finds a root cause before anything is fixed. You run it in the
@@ -88,3 +89,4 @@ main session and orchestrate: debuggers investigate, executors fix.
   interface stops the run and asks the owner. Every other decision is a
   Ruling in `accord/tickets/<id>/ledger.md` under `## Rulings`:
   `Ruling: <what> — <why> — <cost if wrong>`.
+  Read `./ask.md` before any question to the owner.

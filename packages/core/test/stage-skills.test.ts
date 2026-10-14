@@ -1,7 +1,7 @@
 // Spec §3 to §12: what each stage skill must name, asserted over the RENDERED SKILL.md a runtime loads. One
 // row per stage; a stage whose definition is not authored yet has no row and renders nothing to check.
 import { describe, expect, it } from 'vitest';
-import { installedName, skillTargets } from '../src/index.js';
+import { installedName, skillDirs, skillTargets, STAGES } from '../src/index.js';
 import type { AccordConfig } from '../src/index.js';
 
 const config: AccordConfig = {
@@ -57,4 +57,46 @@ it('ac-4 the plan skill asks the owner before it creates the tests baseline', ()
   expect(stop).toBeDefined();
   expect(stop).toContain('stop and tell the owner');
   expect(ref.indexOf(decided)).toBeLessThan(ref.indexOf(ask));
+});
+
+it('ac-1 the shared ask rule holds the fixed sentence beside every stage skill', () => {
+  const SENTENCE = 'Every question to the owner stands alone, because the owner may see only the question and its options: it says in one or two plain sentences what is being decided and why now, with an example; each option says what happens if it is chosen; the recommended option comes first; every id such as ac-2 or D-03 carries a short gloss.';
+  const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
+  expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
+  expect([...STAGES]).toEqual(['accord', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
+  const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
+  const bad: string[] = [];
+  for (const dir of skillDirs(all)) {
+    for (const stage of STAGES) {
+      const path = dir + '/' + installedName(stage) + '/ask.md';
+      const text = (everyFile.get(path) ?? '').replace(/[ \t]*\n[ \t]*/g, ' ');
+      if (!text.includes(SENTENCE)) bad.push(path);
+    }
+  }
+  expect(bad).toEqual([]);
+});
+
+it('ac-2 every stage skill points to the shared ask rule from its intent paragraph', () => {
+  const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
+  expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
+  expect([...STAGES]).toEqual(['accord', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
+  const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
+  const bad: string[] = [];
+  for (const dir of skillDirs(all)) {
+    for (const stage of STAGES) {
+      const path = dir + '/' + installedName(stage) + '/SKILL.md';
+      const text = everyFile.get(path) ?? '';
+      if (!text) { bad.push(path + ' missing'); continue; }
+      const blocks: string[][] = [];
+      for (const line of text.split('\n')) {
+        if (!line.trim()) blocks.push([]);
+        else if (/^\s*(?:[-*+]|\d+\.)\s/.test(line) || !blocks.length) blocks.push([line.trim()]);
+        else blocks[blocks.length - 1].push(line.trim());
+      }
+      const hits = blocks.map((b) => b.join(' ').replace(/^(?:[-*+]|\d+\.)\s+/, '')).filter((b) => b.startsWith('Anything touching intent'));
+      if (hits.length !== 1) { bad.push(path + ' found ' + hits.length + ' blocks'); continue; }
+      for (const p of ['stops the run and asks the owner', './ask.md']) if (!hits[0].includes(p)) bad.push(path + ' lacks ' + p);
+    }
+  }
+  expect(bad).toEqual([]);
 });

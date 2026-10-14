@@ -3,7 +3,7 @@ name: accord-plan
 description: Use when a lane M ticket has an approved approach and needs a plan. Has the planner write plan.md task by task, checks it with accord gate plan and the critic, and runs the full test suite on the baseline before build.
 license: MIT
 kind: skill
-loads: [plan/baseline.md]
+loads: [plan/baseline.md, shared/ask.md]
 ---
 
 This stage turns the approved approach into tasks an executor can finish
@@ -91,3 +91,4 @@ read the plan.
   interface stops the run and asks the owner. Every other decision is a
   Ruling in `accord/tickets/<id>/ledger.md` under `## Rulings`:
   `Ruling: <what> — <why> — <cost if wrong>`.
+  Read `./ask.md` before any question to the owner.

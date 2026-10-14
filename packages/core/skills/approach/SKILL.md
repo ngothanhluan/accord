@@ -3,6 +3,7 @@ name: accord-approach
 description: Use when a lane M ticket has its intent and acceptance criteria and needs an approach. Chooses the lightest approach that works, has a critic argue against it, and takes the owner's explicit yes before accord approve.
 license: MIT
 kind: skill
+loads: [shared/ask.md]
 ---
 
 This stage chooses how the ticket will be built, lightest first, and takes
@@ -70,3 +71,4 @@ the owner's yes before anyone plans. You run it in the main session.
   interface stops the run and asks the owner. Every other decision is a
   Ruling in `accord/tickets/<id>/ledger.md` under `## Rulings`:
   `Ruling: <what> — <why> — <cost if wrong>`.
+  Read `./ask.md` before any question to the owner.

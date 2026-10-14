@@ -3,6 +3,7 @@ name: accord
 description: Use when starting any work in an accord repository, when seeing where work stands, or when continuing a ticket. Shows the dashboard, continues or picks up a ticket, and classifies a new request into a lane.
 license: MIT
 kind: skill
+loads: [shared/ask.md]
 ---
 
 `/accord` is the entry point. It routes to the stage skills, so nobody has to
@@ -107,3 +108,4 @@ plausible reading; more than about three files expected.
 - Anything touching intent, a veto, an acceptance criterion, or a public
   interface stops the run and asks the owner. Every other decision on a
   ticket is a Ruling in `accord/tickets/<id>/ledger.md` under `## Rulings`.
+  Read `./ask.md` before any question to the owner.

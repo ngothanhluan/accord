@@ -1,6 +1,6 @@
 ---
 baseline: 3be1c058edab354ab449e75c966f0c6797dd4813
-plan_hash: "fnv1a64:3036e95f9f90727f"
+plan_hash: "fnv1a64:e8fae38e1a34d19b"
 ---
 
 Review mode `outcome`: one branch, no slices. Report case ids follow the JUnit id shape in
@@ -67,7 +67,9 @@ Interface:
     one; `1` when none (D-11). Pure; no other input.
 - `packages/cli/src/load/fs.ts`, two exports, each one spawn with a literal argument array:
   - `gitUserEmail(root: string): string`: `git config user.email`, trimmed; `''` when git exits 1 (unset).
-  - `gitTicketIdsInHistory(root: string): string[]`: `git log --all --format= --name-only -- accord/tickets`,
+  - `gitTicketIdsInHistory(root: string): string[]`: `git log --all --no-renames --format= --name-only --
+    accord/tickets` (`--no-renames` as `gitRecordsSince` passes it: rename detection would need blobs a partial
+    clone lacks, and listing both the old and the new path keeps every id ever used, as D-11 wants),
     each path through the same `^accord\/tickets\/([^/]+?)(?:\.md$|\/)` match `gitFacts` uses, de-duplicated
     (ledger Rulings on `git log --all`). It first runs `git for-each-ref --count=1 --format=%(refname)`; empty
     output (an unborn HEAD and no other ref) returns `[]` without running `git log`, so a git version that exits
@@ -76,7 +78,8 @@ Interface:
     number. No `fetch`, no remote is contacted (D-10). The spawn passes
     `maxBuffer: 64 * 1024 * 1024`, as `gitBaselineFiles` does, and
     `env: { ...process.env, GIT_NO_LAZY_FETCH: '1' }`, so a partial clone never fetches a missing object from
-    the remote.
+    the remote. Known limit: in a treeless clone (`--filter=tree:0`) the trees `--name-only` needs are missing
+    too, so this read fails and `new ticket` exits 2 naming it; a blobless clone works.
 - `run.ts`: the command becomes `ticket [id]` and the action passes `id: string | undefined`; the description
   says the id is assigned when config.yml holds `people`.
 - `newTicket(ctx, id: string | undefined, options)`. When `ctx.snapshot.config?.people` is defined and `id` is
@@ -246,12 +249,13 @@ its `findings` hold no rule `lint.id-convention` or `lint.initials-duplicate`. T
 as soon as it is written. Its red step is a mutation check: drop the `people === undefined` early return in
 `idConvention`, see it fail, and restore it.
 
-Interface: the `CONFIG` text in `scaffold/init.ts` gains three lines and one blank line, placed exactly here:
+Interface: the `CONFIG` text in `scaffold/init.ts` gains four lines and one blank line, placed exactly here:
 directly after the line `runtimes: [claude, codex]` and the blank line that follows it, and before the line
 `# Where the test report lands. ...`, which must keep its blank line above it. The inserted block is:
 ```
 # Who creates tickets: git user.email -> initials, 2 to 4 capital letters, such as "an@example.com": AN.
 # While this key exists, accord new ticket assigns every id (ST-AN-7, BUG-AN-1, EP-AN-2) and lint checks them.
+# Unlike the keys above it is optional: deleting it turns the id convention off.
 people: {}
 
 ```
@@ -301,7 +305,8 @@ Text, naming no other tool:
   create it. When `accord new ticket` says your email is not registered: look for it on other branches with
   `git log --all -S "<email>" --oneline -- accord/config.yml` and `git show <commit>:accord/config.yml`, and
   reuse those initials; otherwise ask the owner for initials, 2 to 4 capital letters, suggested from
-  `git config user.name`, and add `"<email>": <INITIALS>` under `people` (D-06). Recognition names tickets and
+  `git config user.name`, and add `"<email>": <INITIALS>` under `people`, writing `people:` with the entry on
+  the next line, indented two spaces, in place of `people: {}` when the file has that form (D-06). Recognition names tickets and
   is never a gate. When it says the initials belong to someone else, ask for other initials. Never retry
   with an id.
 - `docs/design.md` §7: the `new ticket` line becomes `accord new ticket [id]` with the note that the id is

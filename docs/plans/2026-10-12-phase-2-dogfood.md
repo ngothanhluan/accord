@@ -526,3 +526,4 @@ First ticket created under the id convention: `accord new ticket --type story --
 | 6 | approach | critic (round 3) | opus, high | 71,630 | 22 | 253s | 1 Must (working-tree template names claims teammates never count; owner chose D-09), 4 Should, 4 Nice; all taken as Rulings |
 | 7 | plan | planner | opus, medium | 165,950 | 63 | 556s | 5 tasks, 6 Rulings; gate plan passed first try |
 | 8 | plan | critic (plan round 1) | opus, high | 124,255 | 47 | 442s | 0 Must, 2 Should (preamble definitions missing from briefs; core helper the Approach rejected), 1 Nice deferred (docs) |
+| 9 | plan | planner (round 1 fixes) | opus, medium | 60,705 | 16 | 157s | definitions inlined per task; ticketOfBranch moved to the CLI; gate plan passed |

@@ -519,6 +519,11 @@ measurements, and re-run when new models ship.
   Executor: hidden tests passed, lines of code, tests written, test-policy compliance, and quality against
   task size, which sets the "half an executor's context" budget of section 7 from measurement. Then critic
   (plans with planted gaps) and auditor (deliberately ambiguous criteria).
+- **Planner effort and the critic's stop rule.** Planner `medium` against `high` on the same tickets,
+  scored by critic rounds to a clean plan and Should findings per round, with each round's tokens and time;
+  and whether a plan may pass with only unlikely Should findings left. Evidence: IDS-1 needed four plan
+  revision rounds (4, 1, 1, 1 Should, no Must), while each planner fix cost under 70 s and each critic round
+  115k to 150k tokens.
 - **Executor by risk kind.** Each executor fixture task is labelled with the risk kinds of section 9 by their
   triggers. Executor results are reported per kind as well as overall, using the existing `models.executor`
   key for the cells. A kind whose quality differs beyond the noise between executor cells is routed: a plan

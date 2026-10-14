@@ -483,6 +483,7 @@ completion notice.
 | 10 | plan | planner (resumed, fixes) | inherit | 150,785 cumulative | 11 | 58s | Should and 3 Nice fixed; 2 Rulings; gate plan passed |
 | 11 | plan | critic (round 3) | inherit | 113,696 | 54 | 376s | no Must; 1 Should (refusal order: invalid `people` before "id required"), 1 Nice (GIT_NO_LAZY_FETCH needs git 2.44, recorded as a limit) |
 | 12 | plan | planner (resumed, fixes) | inherit | 152,336 cumulative | 3 | 16s | round 3 Should fixed (third and last revision); gate plan passed |
+| 13 | plan | critic (round 4) | inherit | 127,967 | 70 | 453s | no Must; 1 Should (`git log --all` without `--no-renames` likely dies in a blobless clone), 2 Nice (init header says every key is required; `ids.md` append onto `people: {}`); round limit reached, owner asked |
 
 Baseline suite at 3be1c05: 55 files, 1182 tests pass, 62s.
 

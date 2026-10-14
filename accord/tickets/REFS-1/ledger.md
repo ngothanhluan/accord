@@ -18,3 +18,5 @@
 - Ruling: (orchestrator) the retry executor ran the published `task-done` itself and recorded task 1 at a4a3ab2, before its fix; that line is replaced by a local `task-done` at f7a7812 — the record names the commit whose tests pass — cost if wrong: none; the @test tags it wrote are the ones the local run writes.
 
 ## Deferred
+
+- (final review, Nice) the `:12-14` line in the existing `:line`/`:line:col` unit test (packages/core/test/refs.test.ts:49) repeats what @ac-3's test covers; drop it or move it into a `risk:parsing` case.

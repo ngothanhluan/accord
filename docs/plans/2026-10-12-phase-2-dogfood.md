@@ -487,6 +487,7 @@ completion notice.
 | 14 | plan | planner (resumed, fixes) | opus, medium | 157,739 cumulative | 8 | 35s | round 4 Should and 2 Nice fixed in a fourth round the owner allowed; 1 Ruling (treeless clone limit); gate plan passed |
 | 15 | plan | critic (round 5) | opus, high | 169,372 | 72 | 669s | no Must; 1 Should (D-02 "clone" read as a blank new ticket in `ids.md`), 3 Nice (`--full-history` for never-reuse, lazy fetch in the `-S` registration lookup, `people` merge conflict); owner asked |
 | 16 | plan | planner (resumed, fixes) | opus, medium | 161,502 cumulative | 5 | 35s | round 5 Should (D-02 clone copies sections, owner answered) and 3 Nice fixed in a fifth round the owner allowed; gate plan passed |
+| 17 | plan | critic (round 6, diff only) | opus, high | 65,416 | 27 | 263s | no Must; 2 Should (keep-every-entry duplicates a key and breaks config.yml; clone drops frontmatter such as `ui`, `parent`, `depends_on`), 2 Nice (`## Dropped` copied; no test pins `--full-history`); owner asked |
 
 Baseline suite at 3be1c05: 55 files, 1182 tests pass, 62s.
 

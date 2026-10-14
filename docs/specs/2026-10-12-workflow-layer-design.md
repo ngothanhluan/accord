@@ -242,6 +242,9 @@ is foreign to the ticket; no "TODO", "TBD", "placeholder", "v1", "for now", "lat
 path in `files:` exists at `baseline:` unless it is marked `(new)` (`gate.task-file-unknown`, phase 2); every scenario that is
 not `@ui` is mapped by exactly one marker across the plan (`gate.plan-test-unmapped`, `gate.plan-test-repeated`); a marker
 naming a scenario the ticket lacks, or a `@ui` scenario, fails.
+For a lane ticket, while `tests.report` is set in `accord/config.yml` and `accord/tests-baseline.txt` does not exist, it adds
+`gate.tests-baseline-missing`, a warning that asks the owner whether to run `accord tests baseline`, answered at the plan
+stage's baseline step.
 On a pass it writes `plan_hash:`, the hash of the plan below its frontmatter, into `plan.md`, as
 `gate ready` writes `ac_hash` (phase 2).
 `accord-critic` checks meaning: no veto violated, nothing beyond the criteria, the approved approach

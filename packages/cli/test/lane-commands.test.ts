@@ -308,7 +308,9 @@ describe('plan baseline', () => {
       const first = commitAll(repo);
       writeFiles(repo, { 'accord/tickets/T-1/plan.md': withBaseline(first) });
       commitAll(repo);
-      expect((await run(['gate', 'plan', 'T-1'], repo)).code).toBe(0);
+      const ok = await run(['gate', 'plan', 'T-1'], repo);
+      expect(ok.code).toBe(0);
+      expect(ok.out).toContain('gate.tests-baseline-missing');
       writeFiles(repo, { 'accord/tickets/T-1/plan.md': withBaseline('0000000') });
       const r = await run(['gate', 'plan', 'T-1'], repo);
       expect(r.code).toBe(1);

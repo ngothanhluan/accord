@@ -83,7 +83,7 @@ describe('gate plan', () => {
   it('a plan without a baseline fails on gate.plan-baseline-missing, saying what to write', () => {
     const r = plan(base(), PLAN.replace(/^---\n[\s\S]*?\n---\n\n/, ''));
     expect(errors(r)).toEqual(['gate.plan-baseline-missing']);
-    expect(r.findings[0].reason).toContain('git rev-parse HEAD');
+    expect(reasons(r, 'gate.plan-baseline-missing')[0]).toContain('git rev-parse HEAD');
   });
 
   it('checks the baseline against the host ancestry facts only when they are supplied', () => {
@@ -94,7 +94,7 @@ describe('gate plan', () => {
     expect(errors(gate({ '3f2a9c1': true }))).toEqual([]);
     const bad = gate({ '3f2a9c1': false });
     expect(errors(bad)).toEqual(['gate.plan-baseline-unknown']);
-    expect(bad.findings[0].reason).toBe('baseline 3f2a9c1 is not a commit on the history of HEAD');
+    expect(reasons(bad, 'gate.plan-baseline-unknown')[0]).toBe('baseline 3f2a9c1 is not a commit on the history of HEAD');
     expect(errors(gate({}))).toEqual(['gate.plan-baseline-unknown']);
   });
 
@@ -188,4 +188,25 @@ describe('gate plan', () => {
   it('an unknown ticket fails on gate.ticket-unknown alone', () => {
     expect(errors(plan(base(), PLAN, 'NOPE'))).toEqual(['gate.ticket-unknown']);
   });
+});
+
+it('ac-1 gate plan asks about the tests baseline while the file is absent', () => {
+  const r = plan(base(), PLAN);
+  const f = r.findings.filter((x) => x.rule === 'gate.tests-baseline-missing');
+  expect(f).toHaveLength(1);
+  expect(f[0].level).toBe('warning');
+  expect(f[0].file).toBe('accord/tests-baseline.txt');
+  expect(f[0].reason).toContain('ask the owner');
+  expect(f[0].reason).toContain('accord tests baseline');
+  expect(r.verdict).toBe('pass');
+});
+
+it('ac-2 gate plan is silent once the tests baseline exists', () => {
+  const r = plan({ ...base(), 'accord/tests-baseline.txt': '' }, PLAN);
+  expect(reasons(r, 'gate.tests-baseline-missing')).toEqual([]);
+});
+
+it('ac-3 gate plan is silent when no report is configured', () => {
+  const r = plan({ ...base(), 'accord/config.yml': CONFIG.replace(/tests:\n {2}report: .*\n/, '') }, PLAN);
+  expect(reasons(r, 'gate.tests-baseline-missing')).toEqual([]);
 });

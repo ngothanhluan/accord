@@ -205,3 +205,16 @@ export const deferral: GateRule['check'] = (snapshot, id) =>
       word === undefined ? [] : [{ file: planFile(id), line, reason: `task ${x.n} defers work: "${word}"` }],
     ),
   );
+
+/** D-03..D-06: a warning that asks; the question is answered only at the plan stage's baseline tests step. */
+export const testsBaselineMissing: GateRule['check'] = (snapshot, id) => {
+  if (laneTicket(snapshot, id) === undefined) return [];
+  if (snapshot.config?.tests?.report === undefined || snapshot.testsBaseline !== undefined) return [];
+  return [
+    {
+      file: 'accord/tests-baseline.txt',
+      reason:
+        "accord/tests-baseline.txt does not exist, so every test case already in the suite counts as untraced at the Done gate; ask the owner, at the plan stage's baseline tests step and never before it, whether to run accord tests baseline",
+    },
+  ];
+};

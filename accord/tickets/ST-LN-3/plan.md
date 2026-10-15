@@ -1,6 +1,6 @@
 ---
 baseline: 1d635b5277fa10c77b89c3eba8108cb877065060
-plan_hash: "fnv1a64:3df13cae794a5e35"
+plan_hash: "fnv1a64:bc70e1163d9397fd"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -56,8 +56,9 @@ Definitions shared by every task:
   isFocused, isPlaced }`, `isPlaced` taken from `host.placed` (default `true`); `$.ui.toast(text, options?)` is a
   `vi.fn` returning `undefined`; the pane is drawn by firing `ui.render` with
   `{ component: 'Pane', requestId: 'accord-panel', surface: 'terminal' }` only on `$.ui.open` and on
-  `$.ui.invalidate('ui.render')`; a drawn `Input` with a `value` prop resets the field to it, one without keeps what
-  was typed.
+  `$.ui.invalidate('ui.render')`; as interface.md:647 and `InputProps.value` say, a drawn `Input` holds its `value`
+  (empty when drawn without one), and `host.type(text)` replaces the field's text only until the next draw;
+  `host.field()` is the field's current text.
 
 ## Task 1: Wiring: the generated mod opens a pane that shows the dashboard JSON and refreshes after each turn
 covers: @ac-1, D-01, D-04, D-06, D-09
@@ -266,8 +267,10 @@ Tests first, in `packages/core/test/panel.test.ts`:
   'login' }`. Calling the `Input`'s `onSubmit('login', {})` adds no `$.command.run` call. `host.type('st-2')`: a text
   holds `ST-2`, none holds `ST-1`.
 - `it('risk:concurrency a redraw from a finished run keeps what the owner typed')`: after the first settle,
-  `host.type('log')`: the `Input` drawn next has no `value` key. `fire('turn.complete', { reason: 'answer' })` and
-  settle the same JSON: the `Input` drawn then has `value` `log`, and a text still holds `ST-1` and none `ST-2`.
+  `host.type('log')`: after the redraw that typing causes, `host.field()` is `log`. `fire('turn.complete', { reason:
+  'answer' })` and settle the same JSON: after that redraw `host.field()` is still `log`, the drawn `Input` has
+  `value` `log`, and a text still holds `ST-1` and none `ST-2`. (An `Input` drawn without `value` empties the field
+  in the fake, so this fails.)
 
 Interface:
 - `view(state, query)`: `q` is `query.trim().toLowerCase()`. When `q` is non-empty, a row is kept when its id or
@@ -276,10 +279,9 @@ Interface:
   'pick-up:<id>', label: 'Pick up', args: 'pick-up <id>' }`; TEAM and EPICS rows none. The dashboard result gains
   `newRequest: { key: 'new-request', label: 'New request', args: query.trim() }`, present only when the trimmed
   text is non-empty (Button has no `disabled` prop).
-- `register.js`: module state `query = ''` and `typed = false`. The dashboard tree starts with `Input({ key:
-  'search', label: 'Search', onInput, onSubmit })`, carrying `value: query` only when `typed` is false; `onInput`
-  sets `query`, sets `typed = true` and invalidates `ui.render`; `onSubmit` does nothing; each render ends by setting
-  `typed = false`. A row with an action is a row `Box` of its `Text` and `Button({ key, label, onPress })` whose
+- `register.js`: module state `query = ''`. The dashboard tree starts with `Input({ key: 'search', label: 'Search',
+  value: query, onInput, onSubmit })`, always carrying `value: query`; `onInput` sets `query` to the typed text and
+  invalidates `ui.render`; `onSubmit` does nothing. A row with an action is a row `Box` of its `Text` and `Button({ key, label, onPress })` whose
   `onPress` is `() => void $.command.run({ command: 'accord', args })`. `New request`, when present, is a `Button`
   after the `Input`. A message tree draws no `Input` and no `Button`.
 
@@ -306,7 +308,9 @@ Tests first, in `packages/core/test/panel.test.ts`:
   pending); fire `turn.complete` twice: still one `$.process.run` call; settle: exactly one more call follows (the
   queued rerun); settle it: no further call. `turn.complete` with `agentId: 'a1'`: no call. `host.close('accord-panel')`
   then `turn.complete`: no call. `fire('command.run', { command: 'accord-panel', args: '' })`: `$.ui.open` was
-  called with `focus: true` and one new run starts.
+  called with `focus: true` and one new run starts. Then `host.placed = false`: `turn.complete` starts no run (an
+  unplaced pane does not count as open), and `fire('command.run', { command: 'accord-panel', args: '' })` calls
+  `$.ui.toast` with `The terminal is too narrow for the accord pane: it needs 110 columns`.
 - `it('risk:security a title cannot put control characters into the pane')`: settle YOURS with one row titled
   `'Đặt\u001b[31m lại\u202e x\u2028y'`: no text holds U+001B, U+202E or U+2028, and a text contains
   `Đặt [31m lại x y`.
@@ -330,7 +334,10 @@ Interface:
 - `register.js` `refresh($)`: module flags `running` and `again`. A call while `running` sets `again` and returns.
   Otherwise it loops: clear `again`; `state = outcome(await $.process.run(...))`, or `failure(err)` when it rejects;
   invalidate `ui.render`; repeat while `again` is set; then clear `running`. `turn.complete` runs it only when
-  `e.agentId` is absent and `(await $.ui.panes()).some((p) => p.id === 'accord-panel')`.
+  `e.agentId` is absent and `(await $.ui.panes()).some((p) => p.id === 'accord-panel' && p.isPlaced === true)`.
+- The `command.run` hook for `accord-panel`, after `await $.ui.open(...)`, reads `await $.ui.panes()`; when the
+  `accord-panel` entry has `isPlaced === false` it calls `$.ui.toast('The terminal is too narrow for the accord
+  pane: it needs 110 columns')` (an asked-for pane needs 110 columns, d.ts:2159-2160). It still runs `refresh($)`.
 
 Must not change: the ac-1, ac-2 and the other risk cases; the `Loading…` text before the first result; no timer.
 
@@ -351,7 +358,8 @@ Test first, in `packages/core/test/stage-skills.test.ts`:
   `named` is the slice from `## A ticket named` to `## Continue`, non-empty, and it comes after `## Dashboard`.
   `named` contains `` `/accord pick-up <id>` `` before `` `/accord continue <id>` ``, and contains `the whole text
   after it is exactly one ticket id`, `without showing the dashboard first`, `nobody has claimed`, `offers Pick up`,
-  `never claims it`, `the whole text after`, `` `continue the refactor` `` and `` `/accord continue ST-2 now` ``.
+  `never claims it`, `the whole text after`, `` `continue the refactor` ``, `` `/accord continue ST-2 now` `` and
+  `` `/accord continue ST-99` is a New request ``.
 
 Text: in `packages/core/skills/accord/SKILL.md`, between the Dashboard section and `## Continue`, insert exactly
 (each code span on one line):
@@ -359,8 +367,9 @@ Text: in `packages/core/skills/accord/SKILL.md`, between the Dashboard section a
 ## A ticket named: `/accord pick-up <id>`, `/accord continue <id>`
 
 An action applies only when the whole text after it is exactly one
-ticket id. Then run Pick up or Continue below on that ticket, without
-showing the dashboard first. Continue on a ticket nobody has claimed
+ticket id, the id of a ticket in `accord/tickets/`; with no such ticket,
+`/accord continue ST-99` is a New request. Then run Pick up or
+Continue below on that ticket, without showing the dashboard first. Continue on a ticket nobody has claimed
 says so, offers Pick up, and never claims it. Any other text starts a
 New request whose text is the whole text after `/accord`: for
 `/accord continue the refactor` it is `continue the refactor`, and
@@ -368,9 +377,8 @@ New request whose text is the whole text after `/accord`: for
 ```
 Then `npm run gen`.
 
-Size, counted from the source at the baseline: `packages/core/skills/accord/SKILL.md` is 89 lines and about 4,000
-bytes of body; rendered with its frontmatter and marker it is about 4,400 bytes and 90 lines. The inserted section
-is 10 lines and about 520 bytes, so the render is about 100 lines and 4,920 bytes, inside 120 and 5120. If
+Size: the rendered `.claude/skills/accord/SKILL.md` is 4,273 bytes and about 90 lines at the baseline. The inserted
+section is 12 lines and about 640 bytes, so the render is about 102 lines and 4,915 bytes, inside 120 and 5120. If
 `every SKILL.md is at most MAX_SKILL_BYTES bytes` fails, shorten only this new section (never another section), keeping
 every phrase the ac-4 test names.
 

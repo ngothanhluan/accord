@@ -5,6 +5,7 @@
 - task 2 done e78a55d04f91
 - task 3 done c80b394f5571
 - task 4 done 3a76217388a4
+- task 5 done 797dc16432c2
 
 ## Rulings
 - Ruling: only open lane tickets that are not epics enter YOURS, TEAM, READY, UP NEXT and the summary's counts; open means not done, not archived, not dropped — `claimedBy` and `stage` exist only on lane rows, and an epic is never planned so it would sit in UP NEXT forever — cost if wrong: a 0.1.0 ticket is only counted, never listed.

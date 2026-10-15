@@ -88,9 +88,22 @@ export function resolves(candidate: string, snapshot: RepoSnapshot): boolean {
   return snapshot.tree.includes(key) || snapshot.tree.some((p) => p.endsWith('/' + key));
 }
 
-/** The candidates that name nothing in the snapshot, de-duplicated in first-appearance order (D-83). */
+/** True when an unresolved candidate is shaped like a file path: no scheme, no glob, a last segment with a
+ * real extension, not an existing directory, and not a line anchor on a file that exists (D-02). */
+function fileShaped(c: string, snapshot: RepoSnapshot): boolean {
+  const hash = c.indexOf('#');
+  const head = normaliseKey(hash < 0 ? c : c.slice(0, hash));
+  const last = head.slice(head.lastIndexOf('/') + 1);
+  if (head.includes('://') || /[*?[\]{}]/.test(head)) return false;
+  if (last.includes('..') || !/\.[A-Za-z][A-Za-z0-9]*$/.test(last)) return false;
+  if (snapshot.tree.some((p) => p.startsWith(head + '/') || p.includes('/' + head + '/'))) return false;
+  return !(hash >= 0 && /^L\d+(?:-L\d+)?$/.test(c.slice(hash + 1)) && resolves(head, snapshot));
+}
+
+/** The candidates that name nothing in the snapshot and are shaped like a file path, de-duplicated in
+ * first-appearance order (D-83, D-02). */
 export function unresolvedRefs(text: string, snapshot: RepoSnapshot): string[] {
-  return candidates(text, snapshot).filter((c) => !resolves(c, snapshot));
+  return candidates(text, snapshot).filter((c) => !resolves(c, snapshot) && fileShaped(c, snapshot));
 }
 
 /** Every resolving reference removed whole — its backticks and its trailing comma go with it, because

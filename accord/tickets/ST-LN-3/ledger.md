@@ -44,6 +44,7 @@
 - Ruling: the fake host gained an `inflight()` helper so the concurrency test can drain pending runs — test-only — cost if wrong: none.
 - Ruling: `clean` also applies to ids, so `continue <id>` carries the cleaned id — ids are CLI-validated — cost if wrong: an id with unprintable characters would be submitted altered.
 - Ruling: the MENTION comment in the skill-commands test gets two sentences, not one as planned — it names the `/accord` exclusion and why — cost if wrong: none, a comment only.
+- Ruling: task 7 ran build, lint, typecheck and the full suite one by one instead of `npm run check`, which runs those same four — cost if wrong: none.
 
 ## Deferred
 
@@ -54,3 +55,4 @@
 - task 4 done f1eb1fc10612
 - task 5 done c095aa2d98cc
 - task 6 done 3dd054e9142b
+- task 7 done 6e6607e94adc

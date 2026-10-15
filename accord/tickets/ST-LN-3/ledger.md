@@ -27,4 +27,6 @@
 - Ruling: `plugin.json` `version` is the CLI version, so a release changes Claude Code's plugin cache key — cost if wrong: a stale cached pane.
 - Ruling: no separate drift test for `generated/panel.ts`; the panel tests run the generated text and every task runs `npm run gen` — cost if wrong: a source edit made without gen goes untested.
 
+- Ruling: a pane reload (`/reload-plugins`) after a sync is not handled; the pane shows Loading until the next turn — plan critic round 3, Nice — cost if wrong: one turn of Loading after a reload.
+
 ## Deferred

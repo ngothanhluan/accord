@@ -117,7 +117,7 @@ it('risk:security a title cannot inject control characters or overflow its cell'
   const empty = { rows: [], more: 0 };
   const d: Dashboard = {
     epics: empty,
-    yours: { rows: [row('A-1', 'Đặt lại\u001b[31m mật‮ khẩu x'), row('A-2', 'Ư'.repeat(70))], more: 0 },
+    yours: { rows: [row('A-1', 'Đặt lại\u001b[31m mật\u202e khẩu\u2028x'), row('A-2', 'Ư'.repeat(70))], more: 0 },
     team: empty, ready: empty,
     summary: { inProgress: 0, ready: 0, blocked: 0, backlog: 0, done: 0, withoutLane: 0, withSchemaErrors: 0 },
   };

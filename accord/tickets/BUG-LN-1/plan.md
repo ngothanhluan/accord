@@ -1,6 +1,6 @@
 ---
 baseline: 4e2aff9d0fef0d85449bfbd1e6905e0824a5c4ea
-plan_hash: "fnv1a64:b539dc50b510da66"
+plan_hash: "fnv1a64:8d8b8d423d11040c"
 ---
 
 Review mode `outcome`: one branch, no slices. Each task below states every rule and definition it uses, so it can
@@ -106,8 +106,8 @@ Tests first.
 - `packages/core/test/refs.test.ts`, top-level `it('risk:parsing a dotted directory in the tree draws no warning')`:
   `unresolvedRefs('config/app.d and src/nope.ts', snap(['config/app.d/x.conf']))` is `['src/nope.ts']`.
 - Top-level `it('risk:parsing a line anchor on a real file draws no warning and a heading anchor still does')`:
-  `unresolvedRefs('src/auth/login.ts#L12 src/auth/login.ts#L3-L9 README.md#intro src/nope.ts#L3', S)` is
-  `['README.md#intro', 'src/nope.ts#L3']`.
+  `unresolvedRefs('src/auth/login.ts#L12 src/auth/login.ts#L3-L9 src/auth/login.ts#intro src/nope.ts#L3', S)` is
+  `['src/auth/login.ts#intro', 'src/nope.ts#L3']`.
 - Top-level `it('risk:parsing a URL with a scheme draws no warning')`:
   `unresolvedRefs('https://example.com/docs/x.md', snap([]))` is `[]`; `unresolvedRefs('example.com/docs/x.md',
   snap([]))` is `['example.com/docs/x.md']` (no scheme still warns).
@@ -131,5 +131,8 @@ is named as written` and the 200 kB linear-time case) and in `gate.test.ts` (inc
 nothing real fails; a mistyped path only warns`); the golden `packages/core/test/__golden__/gate-done.EVIDENCE.done.json`
 (its one warning, `src/nope.ts`, stays). One warning per unknown token, as today (D-06).
 
-End by running `npm run build`, the core test suite, and `node packages/cli/dist/cli.js gate done ST-LN-1`, whose
-output must hold no `gate.reference-unknown` line.
+End by running `npm run build`, the core test suite, and `node packages/cli/dist/cli.js gate done ST-LN-1 --json`
+from the repository root. To prove the gate actually ran, it must exit 0 or 1, never 2 (a version-pin or usage
+refusal exits 2 and evaluates nothing), and its JSON must hold a `verdict` and a `findings` array. That array must
+hold no finding whose `rule` is `gate.reference-unknown`. Run the same command at the baseline first and record
+the count of those findings it shows, so the drop is visible.

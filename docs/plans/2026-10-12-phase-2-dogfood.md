@@ -539,3 +539,4 @@ Finding (ST-LN-1 plan round 1): `accord brief <id> <n>` prints the ticket and th
 | 17 | build | executor (task 5) | sonnet, medium | 71,682 | 10 | 122s | 1 try; ac-5 skill check red then green; 1206/1206 pass; skill 5026 of 5120 bytes; no trailer |
 | 18 | review | reviewer (round 1, both) | sonnet, high | 138,708 | 23 | 231s | 0 Must, 0 Should, 6 Nice deferred; Nice 1 (holder order without the key) asked, owner kept it |
 | 19 | review | final-reviewer (both) | opus, high | 110,573 | 25 | 276s | no findings; converged |
+| 20 | verify | verifier | sonnet, medium | 36,159 | 9 | 53s | ac-1 to ac-5 pass at four levels; owner approved; gate done 0 errors, 18 false reference-unknown warnings on branch names with braces |

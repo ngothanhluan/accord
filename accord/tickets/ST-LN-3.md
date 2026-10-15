@@ -41,7 +41,7 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: ST-LN-3
 
-  @ac-1
+  @ac-1 @test:packages/core/test/panel.test.ts#ac-1-the-pane-shows-the-dashboard-json-on-open-and-after-each-turn
   Scenario: The pane shows the dashboard as the CLI prints it, on open and after each turn
     Given a repository where `accord dashboard --json` puts ST-1 under yours and ST-2 under ready, with ready.more equal to 3
     When the pane opens

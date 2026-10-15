@@ -30,5 +30,12 @@
 - Ruling: a pane reload (`/reload-plugins`) after a sync is not handled; the pane shows Loading until the next turn — plan critic round 3, Nice — cost if wrong: one turn of Loading after a reload.
 
 - Ruling: on a cold npm cache the pane's npx run and the SessionStart hook's npx run may install the same package at once and the pane may show `accord exited 1` until the next run — self-healing, plan critic round 4 Nice — cost if wrong: one failed first open on a fresh machine.
+- Ruling: panel.test.ts starts with an eslint-disable of no-explicit-any for the fake host — the host mirrors an untyped mod API — cost if wrong: lint is silent on `any` in that one test file.
+- Ruling: the MARKER regex writes the JSON indent as ` {2}` — eslint no-regex-spaces rejects two literal spaces; the match is the same — cost if wrong: none.
+- Ruling: after task 1, view.js parses stdout only and ignores exitCode, and `view` ignores `query` — tasks 4 and 5 add the search filter and failure paths — cost if wrong: none once those tasks land.
+- Ruling: after task 1, register.js draws the pane through `view(state, '')` with no Input or buttons — the ac-2 and ac-3 tasks add them — cost if wrong: none once those tasks land.
 
 ## Deferred
+
+## Tasks
+- task 1 done 4d590c7316ca

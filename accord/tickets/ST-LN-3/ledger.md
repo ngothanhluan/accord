@@ -48,6 +48,8 @@
 - Ruling: review round 1 runs intent, quality and security reviewers in parallel — the source diff (excluding generated copies) is about 1640 lines, at the 1500 split edge, and sync deletes orphan plugin files and merges the user's settings.json — cost if wrong: one extra reviewer's tokens.
 - Ruling: the task 5 Ruling "ids are CLI-validated" was wrong — a ticket id is its file stem, which arrives through git unchecked; since 14c0ace a row gets a Continue or Pick up button only when its id matches `^[A-Za-z0-9][A-Za-z0-9._-]*$` (the pattern new-ticket.ts uses), else it shows as plain text — cost if wrong: a legitimate ticket whose file name holds a space has no button.
 - Ruling: review round 1's reformat fix rebuilt skills.ts and skills-sync.test.ts from the 1d635b5 baseline plus the panel edits, with no formatter — the diff against the baseline is now 37 and 129 lines — cost if wrong: none.
+- Ruling: a panel row's stage text keeps the CLI's ` idle Nd` suffix — the fix copies the CLI renderer — cost if wrong: one extra word on a row.
+- Ruling: an open but unplaced pane marks itself stale on turn.complete and refreshes on its next draw, so the CLI still never runs while nothing is drawn (c3b0f08) — cost if wrong: the first draw after widening shows the old JSON until one run finishes.
 
 ## Deferred
 - Review round 1 (Nice): the orphan report tells the user to `rm -rf .claude/accord-panel` and remove the `accord` marketplace keys without checking for the generated marker, so it can point at a user-owned folder or a foreign marketplace (skills.ts orphans).
@@ -55,6 +57,7 @@
 - Review round 1 (Nice): `mergePanel` in scaffold/panel.ts has two stacked JSDoc blocks (the first orphaned) and a redundant `m !== undefined` check.
 - Review round 1 (Nice): two tests carry `risk:` names without a matching risk — `risk:regression the committed panel and settings carry the plugin` (skills-sync.test.ts) and `risk:parsing every panel file carries one marker…` (panel.test.ts); fold into ac-5 or rename.
 - Review round 1 (Nice): `clean` is exported from panel/view.js; check whether a test needs the export before removing it.
+- Final review (Nice): in the /accord skill named-ticket section, the "Then run Pick up or Continue below on that ticket" sentence follows the no-such-ticket sentence, so "that ticket" can read as the missing id; move it right after "exactly one ticket id" and re-wrap line 26 (packages/core/skills/accord/SKILL.md:24-26).
 
 ## Tasks
 - task 1 done 4d590c7316ca

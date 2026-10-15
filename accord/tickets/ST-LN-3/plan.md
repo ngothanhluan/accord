@@ -1,6 +1,6 @@
 ---
 baseline: 1d635b5277fa10c77b89c3eba8108cb877065060
-plan_hash: "fnv1a64:573eecc9f9aa0bc6"
+plan_hash: "fnv1a64:3df13cae794a5e35"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -51,8 +51,10 @@ Definitions shared by every task:
 - The fake host (Task 1, in `packages/core/test/panel.test.ts`) follows `claude-code.d.ts`: `on(event, matcher?,
   handler)` hooks; `fire(event, e)` runs the hooks of `event` whose matcher keys all equal the same keys of `e`, in
   registration order, each `next` calling the one after and the last resolving to `e`; `$.ui.resolve()` gives `Box`,
-  `Text`, `Button`, `Input` factories returning `{ type, props }`; `$.ui.open` resolves `host.placed` (default
-  `{ isPlaced: true }`); `$.ui.toast` is a `vi.fn`; the pane is drawn by firing `ui.render` with
+  `Text`, `Button`, `Input` factories returning `{ type, props }`; `$.ui.open` resolves `undefined` (it is
+  `Promise<void>`, d.ts:2170); `$.ui.panes()` resolves every open pane as a `UiPane` `{ id, title, isShown,
+  isFocused, isPlaced }`, `isPlaced` taken from `host.placed` (default `true`); `$.ui.toast(text, options?)` is a
+  `vi.fn` returning `undefined`; the pane is drawn by firing `ui.render` with
   `{ component: 'Pane', requestId: 'accord-panel', surface: 'terminal' }` only on `$.ui.open` and on
   `$.ui.invalidate('ui.render')`; a drawn `Input` with a `value` prop resets the field to it, one without keeps what
   was typed.
@@ -74,8 +76,9 @@ and `contentHash` from `../src/index.js`:
   `afterEach` removes the directories.
 - `host(mod)`: the fake host of the preamble. `$.process.run` is a `vi.fn` returning a promise the test settles
   through `host.settle({ exitCode, stdout, stderr })` (the oldest unsettled call first) or `host.fail(err)`;
-  `$.command.register`, `$.command.run`, `$.ui.open` are `vi.fn`s resolving `{}` (`ui.open` also adds the id to an
-  open set and draws); `$.ui.panes` resolves the open set as `[{ id }]`; `host.close(id)` removes an id; `host.texts()`
+  `$.command.register` and `$.command.run` are `vi.fn`s resolving `{}`; `$.ui.open` is a `vi.fn` that adds the id
+  to an open set, draws, and resolves `undefined`; `$.ui.panes` resolves the open set as `UiPane` objects (preamble);
+  `host.close(id)` removes an id; `host.texts()`
   is every `Text`'s `children` joined, in tree order; `host.buttons()` is every `Button`'s `props`; `host.input()` is
   the `Input`'s `props` or `undefined`; `host.type(text)` calls the `Input`'s `onInput(text, {})`.
 - A `board(over)` builder: `{ yours: { rows: [], more: 0 }, team: { rows: [], more: 0 }, ready: { rows: [], more: 0
@@ -101,9 +104,8 @@ and `contentHash` from `../src/index.js`:
 - `it('risk:complex-branching the pane opens only in an interactive terminal and an unplaced pane names its
   command')`, one fresh panel each: `session.start` with `isInteractive: false, surface: null`, and one with
   `isInteractive: true, surface: 'desktop'`: no `$.command.register`, `$.ui.open` or `$.process.run` call. With
-  `host.placed = { isPlaced: false, reason: 'narrow' }` and `isInteractive: true, surface: 'terminal'`: `$.ui.toast`
-  was called once with `Run /accord-panel to show the accord dashboard`; with the default `{ isPlaced: true }` it
-  was not called.
+  `host.placed = false` and `isInteractive: true, surface: 'terminal'`: `$.ui.toast` was called once with
+  `Run /accord-panel to show the accord dashboard`; with the default `host.placed = true` it was not called.
 
 Interface:
 - `render.ts`: `stamp(head, body, form: 'html' | 'js' | 'json' = 'html')`. The marker line per form: `html` as
@@ -140,10 +142,10 @@ Interface:
   `$.ui.invalidate('ui.render')`. `register(on)` hooks: `session.start`, only when `e.isInteractive` is true
   and `e.surface === 'terminal'` (`RenderSurface` is `'terminal' | 'desktop' | 'mobile' | 'vscode'`; D-09, and
   `$.process.run` is CLI only): `$.command.register({ name: 'accord-panel', description: 'Open the accord dashboard
-  pane' })`, `const placed = await $.ui.open({ id: 'accord-panel', title: 'accord' })`, and when
-  `placed?.isPlaced === false` (an unasked pane waits below 144 columns, interface.md "When a pane waits for a wider
-  terminal") `$.ui.toast('Run /accord-panel to show the accord dashboard')`; then `void refresh($)`; always
-  `return next(e)`. `command.run` with matcher `{
+  pane' })`, `await $.ui.open({ id: 'accord-panel', title: 'accord' })` (it resolves nothing), then when the entry
+  of `await $.ui.panes()` whose `id` is `accord-panel` has `isPlaced === false` (a pane the mod opens unasked waits
+  undrawn below 144 columns, d.ts:2159-2160 and `UiPane.isPlaced`, d.ts:11160)
+  `$.ui.toast('Run /accord-panel to show the accord dashboard')`; then `void refresh($)`; always `return next(e)`. `command.run` with matcher `{
   command: 'accord-panel' }`: `$.ui.open({ id: 'accord-panel', title: 'accord', focus: true })`, `void
   refresh($)`, `return {}`. `turn.complete`: when `e.agentId` is absent, `void refresh($)`; `return next(e)`.
   `ui.render` with matcher `{ component: 'Pane' }`: `next(e)` unless `e.requestId === 'accord-panel'`; else from
@@ -306,17 +308,21 @@ Tests first, in `packages/core/test/panel.test.ts`:
   then `turn.complete`: no call. `fire('command.run', { command: 'accord-panel', args: '' })`: `$.ui.open` was
   called with `focus: true` and one new run starts.
 - `it('risk:security a title cannot put control characters into the pane')`: settle YOURS with one row titled
-  `'Đặt\u001b[31m lại\u202e x\u2028y'`: no text holds U+001B, U+202E or U+2028, and a text contains `Đặt [31m lại
-  x y`.
+  `'Đặt\u001b[31m lại\u202e x\u2028y'`: no text holds U+001B, U+202E or U+2028, and a text contains
+  `Đặt [31m lại x y`.
+- In `risk:complex-branching a rejected run an unparsable stdout and an empty stderr each show a message`, two more
+  fresh panels: exit 0 with the JSON of `board({ yours: { rows: ['ST-1'], more: 0 } })`, and with
+  `board({ upNext: { more: 0 } })`, each give texts `['accord dashboard --json printed no dashboard']`.
 
 Interface:
 - `view.js` `outcome(result)`: exit code 0 and stdout that parses to an object whose `yours`, `team`, `ready` and
-  `epics` each have a `rows` array and whose `summary` is an object gives `{ dashboard }`; exit 0 otherwise gives `{
+  `epics` each have a `rows` array of plain objects, whose `upNext`, when present, has a `rows` array of plain
+  objects too, and whose `summary` is an object gives `{ dashboard }`; exit 0 otherwise gives `{
   message: 'accord dashboard --json printed no dashboard' }`; a non-zero exit gives `{ message }` of the stderr
   lines that do not start with `npm ` (any case), trimmed, or `accord exited <code>` when none is left.
   `failure(err)` gives `{ message: 'accord did not finish: ' + (err?.message ?? String(err)) }`. `view` turns a
   message state into `{ message: <its lines> }`. A row whose `id` is not a string is skipped; a title that is not a
-  string is `''`.
+  string is `''`. Nothing in the render hook throws on output `outcome` accepted.
 - `clean(text)` in `view.js`, applied to every id, title and message line: each code point below U+0020, U+007F to
   U+009F, U+061C, U+200E, U+200F, U+2028, U+2029, U+202A to U+202E and U+2066 to U+2069 becomes a space; space runs
   collapse to one; the result is trimmed. Code points are scanned, never matched by a regular expression holding a
@@ -329,29 +335,44 @@ Interface:
 Must not change: the ac-1, ac-2 and the other risk cases; the `Loading…` text before the first result; no timer.
 
 ## Task 6: The /accord skill acts on a named ticket
-covers: @ac-4, D-01, D-05
+covers: @ac-4, D-01, D-05, D-10
 files: packages/core/skills/accord/SKILL.md, packages/core/src/generated/skills.ts, packages/core/test/stage-skills.test.ts, packages/cli/test/skill-commands.test.ts
-verify: packages/core/test/stage-skills.test.ts#ac-4-the-accord-skill-runs-continue-or-pick-up-on-a-ticket-id-and-anything-else-as-a-new-request (@ac-4)
+verify: packages/core/test/stage-skills.test.ts#ac-4-the-accord-skill-picks-up-then-continues-a-named-ticket-and-treats-any-other-text-as-a-new-request (@ac-4)
+
+The ticket's @ac-4 is one sequence (D-10): `/accord pick-up ST-2` picks up the ready ST-2, then `/accord continue
+ST-2` continues the ST-2 it claimed, then `/accord continue the refactor` starts a new request whose text is
+`continue the refactor`, each without showing the dashboard first. An action applies only when the whole text
+after it is exactly one ticket id, so `/accord continue ST-2 now` is a new request too. `continue` on a ticket
+nobody has claimed says so, offers Pick up, and never claims it.
 
 Test first, in `packages/core/test/stage-skills.test.ts`:
-- `it('ac-4 the accord skill runs continue or pick-up on a ticket id and anything else as a new request')`: `text` is
-  the rendered `.claude/skills/accord/SKILL.md` from `files` with whitespace runs collapsed to one space; `named` is
-  the slice from `## A ticket named` to `## Continue`, non-empty, and it comes after `## Dashboard`. `named`
-  contains `` `/accord continue <id>` ``, `` `/accord pick-up <id>` ``, `ticket ids only`, `without showing the
-  dashboard`, `New request`, `` `continue the refactor` `` and `offers Pick up`.
+- `it('ac-4 the accord skill picks up then continues a named ticket and treats any other text as a new request')`:
+  `text` is the rendered `.claude/skills/accord/SKILL.md` from `files` with whitespace runs collapsed to one space;
+  `named` is the slice from `## A ticket named` to `## Continue`, non-empty, and it comes after `## Dashboard`.
+  `named` contains `` `/accord pick-up <id>` `` before `` `/accord continue <id>` ``, and contains `the whole text
+  after it is exactly one ticket id`, `without showing the dashboard first`, `nobody has claimed`, `offers Pick up`,
+  `never claims it`, `the whole text after`, `` `continue the refactor` `` and `` `/accord continue ST-2 now` ``.
 
-Text: in `packages/core/skills/accord/SKILL.md`, between the Dashboard section and `## Continue`, insert exactly:
+Text: in `packages/core/skills/accord/SKILL.md`, between the Dashboard section and `## Continue`, insert exactly
+(each code span on one line):
 ```
-## A ticket named: `/accord continue <id>`, `/accord pick-up <id>`
+## A ticket named: `/accord pick-up <id>`, `/accord continue <id>`
 
-When `/accord` is followed by `continue` or `pick-up` and one word that is
-the id of a ticket in `accord/tickets/`, run Continue or Pick up below on
-it at once, without showing the dashboard. The word is compared with
-ticket ids only. Continue on a ticket nobody has claimed says so and
-offers Pick up. Any other text is a New request, `continue the refactor`
-included.
+An action applies only when the whole text after it is exactly one
+ticket id. Then run Pick up or Continue below on that ticket, without
+showing the dashboard first. Continue on a ticket nobody has claimed
+says so, offers Pick up, and never claims it. Any other text starts a
+New request whose text is the whole text after `/accord`: for
+`/accord continue the refactor` it is `continue the refactor`, and
+`/accord continue ST-2 now` is a new request too.
 ```
 Then `npm run gen`.
+
+Size, counted from the source at the baseline: `packages/core/skills/accord/SKILL.md` is 89 lines and about 4,000
+bytes of body; rendered with its frontmatter and marker it is about 4,400 bytes and 90 lines. The inserted section
+is 10 lines and about 520 bytes, so the render is about 100 lines and 4,920 bytes, inside 120 and 5120. If
+`every SKILL.md is at most MAX_SKILL_BYTES bytes` fails, shorten only this new section (never another section), keeping
+every phrase the ac-4 test names.
 
 `packages/cli/test/skill-commands.test.ts`: `MENTION` becomes `/(?<!\/)\baccord((?:\s+[a-z][a-z-]*)+)/g`, so a
 `/accord` slash command is not read as an `accord` CLI command; the comment above it gains that one sentence.

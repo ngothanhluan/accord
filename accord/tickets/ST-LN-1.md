@@ -68,7 +68,7 @@ Feature: ST-LN-1
     When `accord anchor` runs with no id, and `accord status --json` runs
     Then the anchor is that of ST-AN-2, ST-AN-2 is claimed, and ST-AN-3 is not claimed
 
-  @ac-5
+  @ac-5 @test:packages/core/test/stage-skills.test.ts#ac-5-the-accord-skill-takes-the-claim-branch-from-the-CLI-in-Continue-Pick-up-and-New-request
   Scenario: The /accord skill uses the template
     Given the /accord skill as shipped
     When its Continue, Pick up and New request steps are read

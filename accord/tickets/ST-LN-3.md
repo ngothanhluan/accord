@@ -61,7 +61,7 @@ Feature: ST-LN-3
     When the pane opens
     Then the pane shows only that message: no section, no search box and no button
 
-  @ac-4
+  @ac-4 @test:packages/core/test/stage-skills.test.ts#ac-4-the-accord-skill-picks-up-then-continues-a-named-ticket-and-treats-any-other-text-as-a-new-request
   Scenario: The /accord skill acts on a named ticket
     Given ST-2 is a ready ticket, no ticket has the id "the refactor", and an action applies only when the whole text after it is exactly one ticket id
     When the owner enters "/accord pick-up ST-2", then "/accord continue ST-2", then "/accord continue the refactor"

@@ -43,6 +43,7 @@
 - Ruling: task 5 added its tests and code to the files tasks 1 and 4 created, since the brief still marked them `(new)` — cost if wrong: none.
 - Ruling: the fake host gained an `inflight()` helper so the concurrency test can drain pending runs — test-only — cost if wrong: none.
 - Ruling: `clean` also applies to ids, so `continue <id>` carries the cleaned id — ids are CLI-validated — cost if wrong: an id with unprintable characters would be submitted altered.
+- Ruling: the MENTION comment in the skill-commands test gets two sentences, not one as planned — it names the `/accord` exclusion and why — cost if wrong: none, a comment only.
 
 ## Deferred
 
@@ -52,3 +53,4 @@
 - task 3 done 64f5c2bd5cce
 - task 4 done f1eb1fc10612
 - task 5 done c095aa2d98cc
+- task 6 done 3dd054e9142b

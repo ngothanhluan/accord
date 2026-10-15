@@ -53,7 +53,7 @@ Feature: ST-LN-2
     Then the status row of ST-AN-1 has `title` "Password reset"
     And the dashboard's READY section prints a line naming the columns id and title, and the line right after it holds "ST-AN-1" and "Password reset"
 
-  @ac-3
+  @ac-3 @test:packages/cli/test/dashboard.test.ts#ac-3-up-next-shows-the-viewer-what-to-pick-up-when-nothing-is-ready
   Scenario: UP NEXT shows the viewer what to pick up when nothing is ready
     Given git `user.email` is "an@example.com", who holds no claim, and "bo@example.com" holds a claim on ST-AN-9, which is in build
     And ST-AN-1 has not passed `gate ready`, ST-AN-2 with `priority: high` has `depends_on: [ST-AN-1]`, and ST-AN-3 is done; none of the three is claimed

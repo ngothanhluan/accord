@@ -22,6 +22,7 @@ export interface StatusRow {
   ticksBinding: 'none' | 'bound' | 'stale'; // frontmatter verified_hash against acHash(scenarios) (D-76)
   tracker?: Record<string, string>; // adapter-keyed ids, values always strings
   // Spec §3-§6: set on lane tickets only, so a 0.1.0 ticket's row is byte-identical to 0.1.0.
+  title?: string; // ST-LN-2 D-07: lane rows only, so a 0.1.0 row stays byte-identical
   lane?: 'M' | 'L' | 'P';
   stage?: Stage;
   tasksDone?: number;
@@ -80,6 +81,7 @@ export function statusRows(snapshot: RepoSnapshot, now?: number): StatusRow[] {
         ...(fm?.lane === undefined || progress === undefined
           ? {}
           : {
+              title: fm.title,
               lane: fm.lane,
               stage: progress.stage,
               tasksDone: progress.tasksDone,

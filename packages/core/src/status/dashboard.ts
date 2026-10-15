@@ -1,0 +1,83 @@
+// ST-LN-2 `accord dashboard`: the sections, the rank and the caps, computed once so every runtime and the
+// panel show the same thing (D-02, D-06). Pure: reads the snapshot, returns data, no display text.
+import type { RepoSnapshot } from '../model/snapshot.js';
+import { nextRows, statusRows } from './rows.js';
+import type { StatusRow } from './rows.js';
+import { isDone } from './stage.js';
+
+export interface DashboardSection {
+  rows: StatusRow[];
+  more: number; // rows left out by the cap
+}
+export interface DashboardSummary {
+  inProgress: number;
+  ready: number;
+  blocked: number;
+  backlog: number;
+  done: number;
+  withoutLane: number;
+  withSchemaErrors: number;
+}
+export interface Dashboard {
+  yours: DashboardSection;
+  team: DashboardSection;
+  ready: DashboardSection;
+  summary: DashboardSummary;
+}
+
+const TEAM_CAP = 10;
+const READY_CAP = 20;
+
+const closed = (r: StatusRow) => r.status === 'archived' || r.status === 'dropped';
+const isWork = (r: StatusRow) => r.lane !== undefined && r.type !== 'epic';
+const isOpen = (r: StatusRow) => isWork(r) && !closed(r) && r.stage !== 'done';
+const blocked = (r: StatusRow) => (r.blockedBy ?? []).length > 0;
+
+const cmp = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
+// Digit runs by value (leading zeros stripped, shorter is smaller), anything else in code-point order.
+function cmpRun(a: string, b: string): number {
+  if (/^\d/.test(a) && /^\d/.test(b)) {
+    const x = a.replace(/^0+/, '');
+    const y = b.replace(/^0+/, '');
+    return x.length - y.length || cmp(x, y);
+  }
+  return cmp(a, b);
+}
+function cmpId(a: string, b: string): number {
+  const ra = a.match(/\d+|\D+/g) ?? [];
+  const rb = b.match(/\d+|\D+/g) ?? [];
+  for (let i = 0; i < Math.min(ra.length, rb.length); i++) {
+    const c = cmpRun(ra[i], rb[i]);
+    if (c !== 0) return c;
+  }
+  return ra.length - rb.length || cmp(a, b);
+}
+const rank = (a: StatusRow, b: StatusRow): number => Number(blocked(a)) - Number(blocked(b)) || cmpId(a.id, b.id);
+
+function section(rows: StatusRow[], cap: number): DashboardSection {
+  const sorted = [...rows].sort(rank);
+  return { rows: sorted.slice(0, cap), more: Math.max(0, sorted.length - cap) };
+}
+
+export function dashboard(snapshot: RepoSnapshot, viewer: string, now?: number): Dashboard {
+  const all = statusRows(snapshot, now);
+  const open = all.filter(isOpen);
+  const mine = (r: StatusRow) => r.claimedBy !== undefined && r.claimedBy.toLowerCase() === viewer.toLowerCase();
+  const claimed = open.filter((r) => r.claimedBy !== undefined);
+  const readyAll = nextRows(open);
+  const unclaimed = open.filter((r) => r.claimedBy === undefined);
+  return {
+    yours: section(claimed.filter(mine), Infinity),
+    team: section(claimed.filter((r) => !mine(r)), TEAM_CAP),
+    ready: section(readyAll, READY_CAP),
+    summary: {
+      inProgress: claimed.length,
+      ready: readyAll.length,
+      blocked: unclaimed.filter(blocked).length,
+      backlog: unclaimed.filter((r) => !blocked(r) && !readyAll.includes(r)).length,
+      done: all.filter((r) => isWork(r) && !closed(r) && r.stage === 'done').length,
+      withoutLane: all.filter((r) => r.type !== undefined && r.type !== 'epic' && r.lane === undefined && !closed(r) && !isDone(snapshot, r.id)).length,
+      withSchemaErrors: all.filter((r) => r.type === undefined).length,
+    },
+  };
+}

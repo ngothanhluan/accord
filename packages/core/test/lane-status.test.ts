@@ -13,7 +13,7 @@ const readied = (files: Record<string, string>): Record<string, string> => {
   const hash = acHash(loadSnapshot({ files, tree: [] }).tickets['T-1'].scenarios) as string;
   return { ...files, [T1]: setFrontmatterKey(files[T1], 'ac_hash', hash) };
 };
-const LANE_KEYS = ['lane', 'stage', 'tasksDone', 'tasksTotal', 'dependsOn', 'blockedBy', 'claimedBy', 'branch'];
+const LANE_KEYS = ['lane', 'stage', 'tasksDone', 'tasksTotal', 'dependsOn', 'blockedBy', 'claimedBy', 'branch', 'title'];
 
 describe('stage (spec §6)', () => {
   it('walks intent, plan, build, review, verify, done', () => {

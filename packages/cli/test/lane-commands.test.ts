@@ -618,7 +618,7 @@ describe('status, claims, and next', () => {
       expect(after).toEqual(before);
       expect(before[0].out.split('\n')[0]).not.toContain('stage');
       const row = (JSON.parse(before[1].out) as Record<string, unknown>[])[0];
-      for (const key of ['lane', 'stage', 'tasksDone', 'tasksTotal', 'dependsOn', 'blockedBy', 'claimedBy', 'branch']) {
+      for (const key of ['lane', 'stage', 'tasksDone', 'tasksTotal', 'dependsOn', 'blockedBy', 'claimedBy', 'branch', 'title']) {
         expect(row).not.toHaveProperty(key);
       }
     } finally {

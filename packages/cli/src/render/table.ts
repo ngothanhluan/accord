@@ -80,7 +80,7 @@ const isPrintable = (ch: string): boolean => {
   const cp = ch.codePointAt(0) ?? 0;
   return cp >= 0x20 && cp <= 0x7e;
 };
-const sanitise = (v: string): string =>
+export const sanitise = (v: string): string =>
   [...v]
     .map((ch) => (isPrintable(ch) ? ch : ' '))
     .join('')
@@ -91,7 +91,7 @@ const sanitise = (v: string): string =>
 // the cut visible. Only ever called on a sanitised value, and the ordering is load-bearing: `slice`
 // cuts by UTF-16 unit, so on unsanitised input it could halve a surrogate pair. Nothing above 0x7e
 // survives `sanitise`, which is what makes that unreachable rather than merely unlikely.
-const fit = (v: string, budget: number): string => (v.length <= budget ? v : v.slice(0, budget - 3) + '...');
+export const fit = (v: string, budget: number): string => (v.length <= budget ? v : v.slice(0, budget - 3) + '...');
 
 /**
  * One header line, one hyphen separator, one line per row, in the order `statusRows` returned them

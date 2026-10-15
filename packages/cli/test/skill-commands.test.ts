@@ -55,9 +55,10 @@ const SPAN = /`([^`]+)`/g;
  * A command mention is a run of lowercase words after `accord ` inside code formatting — an inline
  * span or a fenced block. Prose is deliberately not scanned: `shared/prototype.md` says "the header
  * accord ships", which is English and not a command, and every real invocation in every definition is
- * already inside backticks because that is how a command is written in Markdown.
+ * already inside backticks because that is how a command is written in Markdown. A `/accord` slash
+ * command is not an `accord` CLI command, so a mention preceded by `/` is skipped.
  */
-const MENTION = /\baccord((?:\s+[a-z][a-z-]*)+)/g;
+const MENTION = /(?<!\/)\baccord((?:\s+[a-z][a-z-]*)+)/g;
 
 interface Mention {
   where: string; // '.claude/skills/accord-dev/SKILL.md:16'

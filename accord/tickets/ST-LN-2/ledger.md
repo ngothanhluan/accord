@@ -1,6 +1,7 @@
 # Ledger
 
 ## Tasks
+- task 1 done c224145a7470
 
 ## Rulings
 - Ruling: only open lane tickets that are not epics enter YOURS, TEAM, READY, UP NEXT and the summary's counts; open means not done, not archived, not dropped — `claimedBy` and `stage` exist only on lane rows, and an epic is never planned so it would sit in UP NEXT forever — cost if wrong: a 0.1.0 ticket is only counted, never listed.
@@ -23,3 +24,5 @@
 - Ruling: in Task 3's sandbox test, an empty local `user.email` stands in for an unset one — the host's global git config would otherwise fill it in — cost if wrong: a truly unset `user.email` is not tested.
 - Ruling: a done, archived or dropped dependent passes priority through without lifting with its own — this matches the critic's A <- B (dropped) <- C case — cost if wrong: a dropped link hides urgency.
 - Ruling: `epics` is always present in `dashboard --json` (`{ rows: [], more: 0 }` with no epic), while the text omits an empty EPICS section; D-06's "a section that does not apply" is read as UP NEXT, the only section whose presence depends on the viewer — a stable key is simpler for the panel — cost if wrong: a reader expecting the key absent with no epics.
+- Ruling: summary `withoutLane` uses the core `isDone` (not `stage`) to exclude finished laneless tickets — the brief says "not isDone" and laneless rows have no stage — cost if wrong: a laneless ticket with bound ticks is not counted.
+- Ruling: `inProgress` counts every open work ticket with a claim, and `done` counts work tickets at stage done whose status is not archived or dropped, as the preamble defines them — cost if wrong: @ac-4's counts differ.

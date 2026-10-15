@@ -46,7 +46,7 @@ Feature: ST-LN-2
     Then the rows of its `ready` section are ST-AN-1, ST-AN-4, ST-AN-3, in that order, and nothing else
     And with `priority: urgent` on ST-AN-3, `accord lint` reports a schema error on `priority` and exits 1
 
-  @ac-2
+  @ac-2 @test:packages/cli/test/dashboard.test.ts#ac-2-rows-carry-titles-and-sections-carry-column-headers
   Scenario: Rows carry titles and sections carry column headers
     Given an unclaimed ticket ST-AN-1 with `title: "Password reset"` that passes `gate ready` with no task done
     When `accord status --json` and `accord dashboard` run
@@ -61,7 +61,7 @@ Feature: ST-LN-2
     Then `ready` has no rows, the rows of `upNext` are ST-AN-1 then ST-AN-2 and nothing else, and `upNext` suggests `{ "action": "pick-up", "id": "ST-AN-1" }`
     And once "an@example.com" holds a claim on ST-AN-1, the JSON has no `upNext` key and the text has no UP NEXT section
 
-  @ac-4
+  @ac-4 @test:packages/cli/test/dashboard.test.ts#ac-4-sections-are-capped-on-a-large-backlog
   Scenario: Sections are capped on a large backlog
     Given git `user.email` is "an@example.com", who holds claims on 3 tickets that are not done
     And teammates hold claims on 12 tickets that are not done and 4 tickets that are done, and 25 unclaimed tickets pass `gate ready` with no task done

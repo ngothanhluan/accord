@@ -54,14 +54,14 @@ Feature: ST-LN-1
     Then ST-AN-2 is claimed by "an@example.com" with branch "feature/ST-AN-2", and ST-AN-3 by "bo@example.com" with branch "t/ST-AN-3"
     And next lists ST-AN-4 with branch "feature/ST-AN-4" and lists neither ST-AN-2 nor ST-AN-3
 
-  @ac-3
+  @ac-3 @test:packages/cli/test/lane-commands.test.ts#ac-3-lint-rejects-an-invalid-template-and-anchor-still-reads-the-t-branch
   Scenario: Lint rejects an invalid template and other commands fall back to t/{id}
     Given config.yml has `branch` set in turn to "{id}", "feature/{id}/{id}", "feature/x", "feature {id}", and "feature/..{id}"
     When `accord lint` runs, and `accord anchor` runs with no id on branch t/ST-AN-2
     Then lint reports a schema error on `branch` and exits 1 for each, and the anchor is that of ST-AN-2
     And with "feature/{id}" lint reports no finding on `branch`
 
-  @ac-4
+  @ac-4 @test:packages/cli/test/lane-commands.test.ts#ac-4-without-the-branch-key-t-branches-count-and-template-branches-do-not
   Scenario: Without the key nothing changes
     Given config.yml has no `branch` key and tickets ST-AN-2 and ST-AN-3 exist
     And the local branch t/ST-AN-2 is checked out, and the fetched ref origin/feature/ST-AN-3 exists with no t/ST-AN-3 anywhere

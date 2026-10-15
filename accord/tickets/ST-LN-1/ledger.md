@@ -4,6 +4,7 @@
 - task 1 done 6749d38068f3
 - task 2 done 115e1afc0a39
 - task 3 done 3babcd2e085e
+- task 4 done 81feaa7dc82d
 
 ## Rulings
 
@@ -24,6 +25,7 @@
 - Ruling: `gitClaims` keeps per-id winners in a `Map`, then builds `claims` and `branches` as `Object.create(null)` objects, and the row reads `claimBranches` only through `Object.hasOwn`, so ids like `constructor` never read `Object.prototype` (planner, plan critic round 2 Nice 1) — cost if wrong: a one-line plan change if plain objects are preferred.
 - Ruling: plan critic round 2 found no Must or Should; its two Nice were fixed in Task 3 by the planner with no further critic round — cost if wrong: a fault in that small fix is caught at review.
 - Ruling: Task 2 was finished by a second executor from the first one's uncommitted draft after a laptop reset; the draft was checked against the brief and kept, and the test `a template on a ref other than the default branch sets nothing` is a negative guard that stays green without the change (executor, task 2) — cost if wrong: a fault in the draft is caught at review.
+- Ruling: the ac-3 test asserts at least one `/branch` finding, all `schema.*`, since `feature/..{id}` breaks two rules (`..` and a segment starting with `.`) and lint names both; ac-3 asks for a schema error on `branch`, which two findings meet (executor, task 4) — cost if wrong: merging patterns or de-duplicating findings if one finding per template is wanted.
 
 ## Deferred
 - The docs still describe only `t/<id>` claims: docs/specs/2026-10-12-workflow-layer-design.md:148 and :193 say a claim is "pushing a branch `t/<id>`", and docs/design.md never mentions `branch` (plan critic round 1, Nice).

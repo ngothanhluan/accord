@@ -11,10 +11,20 @@
 - Ruling: the mod runs the CLI by the package spec spliced at render, not by the pin read from config.yml — reading config.yml would break D-04 (the pane reads only the CLI output) — cost if wrong: a worktree whose pin differs from the main checkout shows the pin message.
 - Ruling: New request is left out of the pane while the trimmed search text is empty, rather than drawn disabled — Button has no `disabled` prop in the mods API — cost if wrong: the owner may expect a greyed button.
 - Ruling: Enter in the search box does nothing — D-05 ties New request to a button, and Enter while searching would start an unwanted request — cost if wrong: one extra press.
-- Ruling: the pane opens at an interactive session start and the host places it (docked in fullscreen, inline otherwise); `/accord-panel` reopens it and runs the CLI again — `session.start` carries no viewport — cost if wrong: an inline pane above the prompt in a main-screen terminal.
+- Ruling: the pane opens at an interactive terminal session start; the host shows it only at 144 columns or more (interface.md), otherwise `$.ui.open` resolves unplaced and a toast names `/accord-panel` (corrected after plan critic round 1); `/accord-panel` reopens it and runs the CLI again — `session.start` carries no viewport — cost if wrong: an inline pane above the prompt in a main-screen terminal.
 - Ruling: the CLI runs only while the pane is open, never for a subagent's turn, with one run in flight and at most one queued rerun — a run per turn costs an npx start each — cost if wrong: the pane lags one run behind during a burst of turns.
 - Ruling: `$.process.run` gets a 120 s timeout, and a rejection, an unparsable stdout or an empty stderr shows a message as in ac-3 — a first npx fetch can be slow and the CLI output is a trust boundary — cost if wrong: a slow first open shows a message instead of the dashboard.
 - Ruling: an existing `extraKnownMarketplaces.accord` with another source is refused with the by-hand message, never overwritten — overwriting would drop the owner's entry — cost if wrong: a team with its own marketplace named accord must rename it by hand.
 - Ruling: `/accord continue <id>` on an id with no claim branch says so and offers Pick up — Continue switches to an existing claim branch — cost if wrong: one extra step in chat.
+- Ruling: the marketplace path in settings is `./.claude/accord-panel`, relative to the repository — the spike loaded a relative path — cost if wrong: one string changes.
+- Ruling: `view.js` never receives `$`; `register.js` builds the elements — the loader's static rules forbid passing `$` to an imported function — cost if wrong: none known.
+- Ruling: the source `register.js` holds the literal `ACCORD_PACKAGE_SPEC`, which rendering replaces, and `pluginTargets` throws when it is missing — so a renamed token cannot ship silently — cost if wrong: one constant.
+- Ruling: `planHooks` and `writeHooks` keep their names although they now also plan the panel keys — smallest diff — cost if wrong: a misleading function name.
+- Ruling: before each run the pane checks it is still open with `$.ui.panes()`, not through a `ui.close` hook — a documented call; a `ui.close` hook is unverified — cost if wrong: one extra call per turn.
+- Ruling: the messages read `accord exited N`, `accord did not finish: <message>` and `accord dashboard --json printed no dashboard`; npm's own lines are stderr lines starting with `npm `, ignoring case — cost if wrong: wording.
+- Ruling: YOURS, TEAM and READY always show (`none` when empty), UP NEXT when present, EPICS only with rows; while searching, a section with no match is left out — mirrors the CLI text — cost if wrong: layout.
+- Ruling: titles and message lines are stripped of control and bidi characters, the same set as the dashboard text — the CLI output is a trust boundary — cost if wrong: none known.
+- Ruling: `plugin.json` `version` is the CLI version, so a release changes Claude Code's plugin cache key — cost if wrong: a stale cached pane.
+- Ruling: no separate drift test for `generated/panel.ts`; the panel tests run the generated text and every task runs `npm run gen` — cost if wrong: a source edit made without gen goes untested.
 
 ## Deferred

@@ -250,3 +250,15 @@ it('risk:parsing a dot before a quote is stripped with the quote', () => {
 it('risk:parsing a backslash parent path is named as written', () => {
   expect(unresolvedRefs('..\\x.md', snap([]))).toEqual(['..\\x.md']);
 });
+it('risk:parsing a dotted directory in the tree draws no warning', () => {
+  expect(unresolvedRefs('config/app.d and src/nope.ts', snap(['config/app.d/x.conf']))).toEqual(['src/nope.ts']);
+});
+it('risk:parsing a line anchor on a real file draws no warning and a heading anchor still does', () => {
+  expect(
+    unresolvedRefs('src/auth/login.ts#L12 src/auth/login.ts#L3-L9 src/auth/login.ts#intro src/nope.ts#L3', S),
+  ).toEqual(['src/auth/login.ts#intro', 'src/nope.ts#L3']);
+});
+it('risk:parsing a URL with a scheme draws no warning', () => {
+  expect(unresolvedRefs('https://example.com/docs/x.md', snap([]))).toEqual([]);
+  expect(unresolvedRefs('example.com/docs/x.md', snap([]))).toEqual(['example.com/docs/x.md']);
+});

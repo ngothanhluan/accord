@@ -971,3 +971,35 @@ it('ac-3 a citation with a line range resolves', () => {
   expect(onAc1(r, 'gate.evidence-unresolved')).toEqual([]);
   expect(onAc1(r, 'gate.reference-unknown')).toEqual([]);
 });
+
+const B = '\x60';
+const q = (s: string) => B + s + B;
+
+it('ac-3 evidence tokens that are not files draw no warning', () => {
+  const r = citing(
+    ['ran test/login.spec.ts#ok1 on', q('feature/{id}'), q('origin/t/ST-AN-3'), q('refs/heads/t/'), '1/2', '//', 't/', '/branch',
+      q('packages/core/skills/*/SKILL.md'), q('.claude/skills')].join(' '),
+    ['.claude/skills/accord/SKILL.md'],
+  );
+  expect(onAc1(r, 'gate.reference-unknown')).toEqual([]);
+  expect(onAc1(r, 'gate.evidence-unresolved')).toEqual([]);
+});
+
+it('ac-4 a mistyped file path still warns once per token', () => {
+  const r = citing('test/login.spec.ts#ok1 passes but ' + q('src/nope.ts') + ' and ../x.md are not here', []);
+  const w = onAc1(r, 'gate.reference-unknown');
+  // the gate sorts findings by reason, so compare as sets of two
+  expect(w.map((f) => f.reason).sort()).toEqual([
+    'evidence block "@ac-1" names "../x.md", which is not in the snapshot',
+    'evidence block "@ac-1" names "src/nope.ts", which is not in the snapshot',
+  ]);
+  expect(w.every((f) => f.level === 'warning')).toBe(true);
+});
+
+it('ac-5 the error gate still needs a file or a test', () => {
+  const r = citing('the skills live in ' + q('.claude/skills') + ' on ' + q('feature/{id}'), ['.claude/skills/accord/SKILL.md']);
+  const e = onAc1(r, 'gate.evidence-unresolved');
+  expect(e).toHaveLength(1);
+  expect(e[0].level).toBe('error');
+  expect(r.verdict).toBe('fail');
+});

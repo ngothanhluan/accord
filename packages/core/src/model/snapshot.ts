@@ -113,6 +113,7 @@ export interface PlanTask {
 export interface Plan {
   file: string; // 'accord/tickets/LOGIN-1/plan.md'
   tasks: PlanTask[];
+  preamble: string; // the plan body above the first '## Task n' heading, verbatim
   baseline?: string; // frontmatter `baseline:`, a string as written; absent when there is none
   planHash?: string; // frontmatter `plan_hash:` as written, recorded by `gate plan`; absent when there is none
   bodyHash: string; // fnv1a64 of the normalised text below the frontmatter

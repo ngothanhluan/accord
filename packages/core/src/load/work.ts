@@ -37,8 +37,16 @@ export function fieldLines(lines: Line[]): Partial<Record<Field, { line: number;
   return out;
 }
 
+// The body lines above the first task heading (1-based Markdown line), or the whole body when there is none.
+function preamble(body: string, bodyOffset: number, taskLine: number | undefined): string {
+  if (taskLine === undefined) return body;
+  const above = body.split('\n').slice(0, taskLine - bodyOffset - 1);
+  return above.length > 0 ? above.join('\n') + '\n' : '';
+}
+
 /**
- * One task per `## Task <n>: <title>` section; any other section is prose and is skipped. A field is the
+ * One task per `## Task <n>: <title>` section; any other section is prose and is skipped. `preamble` is the
+ * body above the first task heading, verbatim. A field is the
  * first `covers:`, `files:`, or `verify:` line in the section, outside a fence, with an optional list
  * marker. `baseline:` in the frontmatter names the commit the plan was written against. A repeated task number keeps the first section and reports the second.
  */
@@ -98,6 +106,7 @@ export function parsePlan(file: string, text: string): { plan: Plan; findings: L
   const plan: Plan = {
     file,
     tasks,
+    preamble: preamble(body, bodyOffset, sections.find((s) => TASK.test(s.heading))?.line),
     bodyHash: fnv1a64(body),
     ...(typeof baseline === 'string' ? { baseline } : {}),
     ...(typeof planHash === 'string' ? { planHash } : {}),

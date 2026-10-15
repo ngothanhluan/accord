@@ -231,7 +231,7 @@ describe('accord brief', () => {
       const r = await run(['brief', 'T-1', '2'], repo);
       expect(r.code).toBe(0);
       expect(r.out.startsWith('---\nid: "T-1"\n')).toBe(true);
-      expect(r.out).toContain('\n---\n\n## Task 2: Escaping\ncovers: @ac-2\n');
+      expect(r.out).toContain('\n---\n\n# Plan\n\n## Task 2: Escaping\ncovers: @ac-2\n');
       expect(r.out).not.toContain('Task 1: Writer');
     } finally {
       cleanup(repo);
@@ -248,6 +248,37 @@ describe('accord brief', () => {
       cleanup(repo);
     }
   });
+});
+
+const BRIEF_RULE = 'Shared rule: run the build first.';
+
+it('ac-1 a brief carries the plan preamble', async () => {
+  const repo = makeLaneRepo({
+    'accord/tickets/T-1/plan.md': '---\nbaseline: abc1234\n---\n\n' + BRIEF_RULE + '\n\n## Task 1: A\ncovers: @ac-1\n\n## Task 2: B\ncovers: @ac-2\n',
+  });
+  try {
+    const ticket = readFileSync(join(repo, 'accord/tickets/T-1.md'), 'utf8');
+    const r = await run(['brief', 'T-1', '2'], repo);
+    expect(r.code).toBe(0);
+    expect(r.out).toBe(ticket.replace(/\n*$/, '\n') + '\n---\n\n' + BRIEF_RULE + '\n\n## Task 2: B\ncovers: @ac-2\n');
+    expect(r.out).not.toContain('Task 1');
+  } finally {
+    cleanup(repo);
+  }
+});
+
+it('ac-2 a plan with no preamble gives the same brief as before', async () => {
+  const repo = makeLaneRepo({
+    'accord/tickets/T-1/plan.md': '---\nbaseline: abc1234\n---\n\n  \n\n## Task 1: A\ncovers: @ac-1\n',
+  });
+  try {
+    const ticket = readFileSync(join(repo, 'accord/tickets/T-1.md'), 'utf8');
+    const r = await run(['brief', 'T-1', '1'], repo);
+    expect(r.code).toBe(0);
+    expect(r.out).toBe(ticket.replace(/\n*$/, '\n') + '\n---\n\n## Task 1: A\ncovers: @ac-1\n');
+  } finally {
+    cleanup(repo);
+  }
 });
 
 describe('accord review-package', () => {

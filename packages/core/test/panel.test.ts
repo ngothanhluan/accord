@@ -186,3 +186,58 @@ it('risk:complex-branching the pane opens only in an interactive terminal and an
   await placed.fire('session.start', start);
   expect(placed.$.ui.toast).not.toHaveBeenCalled();
 });
+
+const twoRows = JSON.stringify(
+  board({
+    yours: { rows: [{ id: 'ST-1', title: 'Login form' }], more: 0 },
+    ready: { rows: [{ id: 'ST-2', title: 'Export' }], more: 0 },
+  }),
+);
+const press = (h: Awaited<ReturnType<typeof host>>, key: string): void => {
+  (h.buttons().find((b) => b.key === key) as { onPress: () => void }).onPress();
+};
+
+it('ac-2 search narrows the rows and each button runs its accord command', async () => {
+  const h = await host(await loadPanel());
+  await h.fire('session.start', start);
+  h.settle({ stdout: twoRows });
+  await vi.waitFor(() => expect(h.texts().some((x) => x.includes('ST-2'))).toBe(true));
+  expect(h.buttons().some((b) => b.label === 'New request')).toBe(false);
+  press(h, 'continue:ST-1');
+  expect(h.$.command.run).toHaveBeenLastCalledWith({ command: 'accord', args: 'continue ST-1' });
+  press(h, 'pick-up:ST-2');
+  expect(h.$.command.run).toHaveBeenLastCalledWith({ command: 'accord', args: 'pick-up ST-2' });
+  h.$.command.run.mockClear();
+  h.type('login');
+  await vi.waitFor(() => {
+    expect(h.texts().some((x) => x.includes('ST-1'))).toBe(true);
+    expect(h.texts().some((x) => x.includes('ST-2'))).toBe(false);
+  });
+  press(h, 'new-request');
+  expect(h.$.command.run).toHaveBeenCalledTimes(1);
+  expect(h.$.command.run).toHaveBeenLastCalledWith({ command: 'accord', args: 'login' });
+  h.input()?.onSubmit('login', {});
+  expect(h.$.command.run).toHaveBeenCalledTimes(1);
+  h.type('st-2');
+  await vi.waitFor(() => {
+    expect(h.texts().some((x) => x.includes('ST-2'))).toBe(true);
+    expect(h.texts().some((x) => x.includes('ST-1'))).toBe(false);
+  });
+});
+
+it('risk:concurrency a redraw from a finished run keeps what the owner typed', async () => {
+  const h = await host(await loadPanel());
+  await h.fire('session.start', start);
+  h.settle({ stdout: twoRows });
+  await vi.waitFor(() => expect(h.texts().some((x) => x.includes('ST-2'))).toBe(true));
+  h.type('log');
+  await vi.waitFor(() => expect(h.texts().some((x) => x.includes('ST-2'))).toBe(false));
+  expect(h.field()).toBe('log');
+  await h.fire('turn.complete', { reason: 'answer' });
+  h.settle({ stdout: twoRows });
+  await vi.waitFor(() => expect(h.$.ui.invalidate.mock.calls.length).toBeGreaterThanOrEqual(3));
+  expect(h.field()).toBe('log');
+  expect(h.input()?.value).toBe('log');
+  expect(h.texts().some((x) => x.includes('ST-1'))).toBe(true);
+  expect(h.texts().some((x) => x.includes('ST-2'))).toBe(false);
+});

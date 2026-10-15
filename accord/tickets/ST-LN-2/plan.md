@@ -1,6 +1,6 @@
 ---
 baseline: a3f781ff5f9f4290bc5c6bfcc296098c5cb5cb27
-plan_hash: "fnv1a64:c1b9eda0feee1ea3"
+plan_hash: "fnv1a64:a792fac09c97c08e"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -35,7 +35,8 @@ Definitions shared by every task (from the ticket's Approach and the ledger's Ru
   failed the schema, is `medium`. A ticket's effective priority is the highest of its own and the own priority
   of every ticket that depends on it through `depends_on`, directly or through other tickets, found by a walk
   over the whole snapshot with a visited set. A dependent whose `status` is `archived` or `dropped`, or that
-  `isDone`, does not lift.
+  `isDone`, does not lift with its own priority, but the walk still passes through it to the tickets that
+  depend on it, and those open ones do lift: with A <- B (dropped) <- C (high), A is high.
 - Section caps: YOURS none, TEAM 10, READY 20, UP NEXT 20, EPICS 20. A section is `{ rows, more }`: `rows` the
   first `cap` ranked rows, `more` the count left out (0 when none).
 - Summary counts, all over open work tickets unless said: `inProgress` (claimed), `ready` (the READY total
@@ -140,18 +141,20 @@ Interface:
   claimed by anyone else. READY: `nextRows(rows)` limited to open work tickets. Each ranked as the preamble says
   (in this task: unblocked first, then id), then capped. Task 3 adds `upNext` after `ready` and Task 4 adds
   `epics` before `summary`.
-- `packages/cli/src/render/table.ts`: `sanitise` gains `export`; nothing else changes.
+- `packages/cli/src/render/table.ts`: `sanitise` and `fit` gain `export`; nothing else changes.
 - `packages/cli/src/render/dashboard.ts` (new): `renderDashboard(d: Dashboard): string`, ending in a newline.
   YOURS, TEAM and READY in that order, each with columns `id`, `title` (the title cell), `stage` (`build
   <tasksDone>/<tasksTotal>` in build, else the stage, then ` idle <n>d` when `idleDays` is set, as the table's
   stage cell does), `who` (`claimedBy`, else `EMPTY_CELL`) and `blocked by` (`blockedBy` joined by a space,
-  else `EMPTY_CELL`). The summary line is `<inProgress> in progress, <ready> ready, <blocked> blocked, <backlog>
+  else `EMPTY_CELL`); `who` and `blocked by` go through `fit(sanitise(v), 28)`, the table's budget for those
+  columns (T-05-12). The summary line is `<inProgress> in progress, <ready> ready, <blocked> blocked, <backlog>
   backlog, <done> done`, then `, <n> without lane` and `, <n> with schema errors, run accord lint` when each is
   above 0.
 - `packages/cli/src/commands/dashboard.ts` (new): `dashboardCommand(ctx: CommandContext, options: { json?:
   boolean }): number`. `viewer = gitUserEmail(ctx.root)`; when it is `''`, throw `UsageError('git user.email is
   not set - set it with git config user.email <you@example.com>')` (exit 2). Otherwise `d =
-  dashboard(ctx.snapshot, viewer, Math.floor(Date.now() / 1000))`; write `JSON.stringify(d, null, 2)` plus a
+  dashboard(ctx.snapshot, viewer, Math.floor(Date.now() / 1000))` — `now` passed as `status` passes it, so
+  `statusRows` sets `idleDays`; write `JSON.stringify(d, null, 2)` plus a
   newline under `--json`, else `renderDashboard(d)`; return 0.
 - `run.ts`: `program.command('dashboard')`, description `print the ranked and capped sections for the viewer`,
   option `--json` (`print the Dashboard object instead of text`), through `preflight`, registered after `next`.
@@ -185,8 +188,11 @@ Tests first, in `packages/cli/test/dashboard.test.ts`:
 - `it('risk:complex-branching a depends_on cycle ends and a dropped dependent does not lift')`, in memory, every
   ticket claimed by `bo@example.com`: `ST-AN-1` (`priority: low`, `depends_on: ["ST-AN-2"]`), `ST-AN-2`
   (`priority: low`, `depends_on: ["ST-AN-1"]`), `ST-AN-3` (no priority), `ST-AN-4` (`priority: high`,
-  `status: dropped`, `depends_on: ["ST-AN-1"]`). `board(...)` returns, and `team.rows` ids are `['ST-AN-3',
-  'ST-AN-1', 'ST-AN-2']`.
+  `status: dropped`, `depends_on: ["ST-AN-1"]`), `ST-AN-5` (`priority: low`), `ST-AN-6` (`status: dropped`,
+  `depends_on: ["ST-AN-5"]`), `ST-AN-7` (`priority: high`, `depends_on: ["ST-AN-6"]`). `board(...)` returns,
+  and `team.rows` ids are `['ST-AN-5', 'ST-AN-7', 'ST-AN-3', 'ST-AN-1', 'ST-AN-2']`: `ST-AN-5` is lifted to high
+  through the dropped `ST-AN-6`, `ST-AN-7` is high but blocked by the dropped ticket, and the dropped `ST-AN-4`
+  lifts nothing.
 - `packages/core/test/schemas.test.ts`, case `D-04/D-05: dropped and tracker-owned keys are rejected;
   assumptions are shaped`: `{ priority: 'high' }` leaves the rejected list, and the case gains
   `expect(ticket({ priority: 'high' })).toEqual([])` and `expect(has(ticket({ priority: 'urgent' }),
@@ -238,7 +244,7 @@ Tests first, in `packages/cli/test/dashboard.test.ts`:
 - `it('risk:complex-branching the viewer comes from git user.email without case and an empty one exits 2')`, a
   git sandbox through `runCli`: `makeLaneRepo({ [P('ST-AN-1')]: laneTicket('ST-AN-1') })`, `commitAll(repo)`
   (add `commitAll` to the import from `./helpers/repo.js` if it is not there); `sha = gitRun(repo, '-c',
-  'user.email=An@Example.com', '-c', 'user.name=x', 'commit-tree', 'HEAD^{tree}', '-p', 'HEAD', '-m',
+  'user.email=An@Example.com', '-c', 'user.name=x', '-c', 'commit.gpgsign=false', 'commit-tree', 'HEAD^{tree}', '-p', 'HEAD', '-m',
   'claim').trim()`; `gitRun(repo, 'update-ref', 'refs/remotes/origin/t/ST-AN-1', sha)`; `gitRun(repo, 'config',
   'user.email', 'an@example.com')`. `run(['dashboard', '--json'])` exits 0 and the ids of `yours.rows` are
   `['ST-AN-1']`, `team.rows` holds no `ST-AN-1`, and the JSON has no `upNext` key. Then `gitRun(repo, 'config',
@@ -262,7 +268,7 @@ End by running `npm run build`.
 ## Task 4: Epics show their children done over all their children
 covers: @ac-5, D-03
 files: packages/core/src/status/dashboard.ts (new), packages/cli/src/render/dashboard.ts (new), packages/cli/test/dashboard.test.ts (new)
-verify: packages/cli/test/dashboard.test.ts#ac-5-epics-show-their-children-done-over-all-their-children (@ac-5)
+verify: packages/cli/test/dashboard.test.ts#ac-5-epics-show-their-children-done-over-all-their-children (@ac-5), packages/cli/test/dashboard.test.ts#risk:regression-an-idle-ticket-shows-idle-days-in-the-dashboard-text-and-the-json-keeps-every-key
 
 From Tasks 1 to 3: `dashboard(snapshot, viewer, now?)` returns `{ yours, team, ready, upNext?, summary }`;
 `renderDashboard(d)` prints the sections, the summary line and the action line last. The test builders `P`,
@@ -277,6 +283,16 @@ Test first, in `packages/cli/test/dashboard.test.ts`:
   more: 0 }`. In `renderDashboard(d)`, the lines from the `EPICS` line up to the next empty line hold one line
   containing `EP-AN-1` and `3/7 done`, and none containing `EP-AN-2` or `ST-AN-20`. With both epics removed,
   `d.epics` equals `{ rows: [], more: 0 }` and no line of the text is `EPICS`.
+- `it('risk:regression an idle ticket shows idle days in the dashboard text and the json keeps every key')`, a git
+  sandbox through `runCli` (this replaces the idle check Task 5 removes from the skill): `makeLaneRepo()`;
+  `run(['approve', 'T-1'])` (T-1 has its two-task plan, so stage `build`, 0 of 2);
+  `commitAllAt(repo, new Date('2000-01-01T00:00:00Z'))` (add `commitAllAt` to the import from
+  `./helpers/repo.js`); `gitRun(repo, 'config', 'user.email', 'an@example.com')`. `run(['dashboard'])` exits 0
+  and the line holding `T-1` (under UP NEXT, since nothing is the viewer's or ready) matches
+  `/build 0\/2 idle \d+d/`. `run(['dashboard', '--json'])`: the parsed object's keys are exactly `['yours', 'team',
+  'ready', 'upNext', 'epics', 'summary']` in that order; `Object.keys(summary)` is `['inProgress', 'ready',
+  'blocked', 'backlog', 'done', 'withoutLane', 'withSchemaErrors']`; `epics` equals `{ rows: [], more: 0 }`; the
+  `upNext` row of `T-1` has a numeric `idleDays`. `cleanup` in `finally`.
 
 Interface:
 - `Dashboard` gains `epics: { rows: EpicRow[]; more: number }` before `summary`; `EpicRow` is `{ id: string;

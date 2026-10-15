@@ -30,3 +30,9 @@
 
 ## Deferred
 - The docs still describe only `t/<id>` claims: docs/specs/2026-10-12-workflow-layer-design.md:148 and :193 say a claim is "pushing a branch `t/<id>`", and docs/design.md never mentions `branch` (plan critic round 1, Nice).
+- Holder order for two pushed `t/<id>` refs on different remotes changes even with no `branch` key: before, the last ref in refname order won; now the newest tip wins (packages/cli/src/load/fs.ts `gitClaims`; review round 1, Nice 1, asked of the owner).
+- `config.yml` written by `init` documents `people` but not `branch`, so a new team cannot discover the key (packages/core/src/scaffold/init.ts; review round 1, Nice 2).
+- Stale comment: packages/core/src/model/snapshot.ts:12 still says claims are the "author of the tip of branch t/<id>" (review round 1, Nice 3).
+- `gitDefaultBranch` calls `branchTemplateOf(config.body)` twice on one line (packages/cli/src/load/fs.ts; review round 1, Nice 4).
+- Whitespace: a blank line lost before the baseline doc comment in fs.ts, a long one-line header comment in packages/cli/src/commands/anchor.ts:3, and no final newline in lane-commands.test.ts, branch.test.ts and schemas.test.ts (review round 1, Nice 5).
+- `risk:parsing branch refuses a template that breaks any one rule` in schemas.test.ts overlaps ac-3 at the schema layer; kept because it names the failed rule, as the Approach chose (review round 1, Nice 6).

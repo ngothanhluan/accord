@@ -55,6 +55,7 @@ export type { TemplateName } from './generated/templates.js';
 export { setFrontmatterKey } from './write/frontmatter.js';
 export type { FrontmatterValue } from './write/frontmatter.js';
 export { contentHash, markerHash, renderSkill, withoutMarker } from './skills/render.js';
+export { pluginDir, pluginTargets } from './skills/plugin.js';
 export { AGENT_DEFAULTS, agentDir, agentTargets, renderAgent } from './skills/agents.js';
 export { allSkillDirs, installedName, skillDirs, skillTargets, STAGES } from './skills/targets.js';
 export type { SkillFile } from './skills/targets.js';

@@ -4,6 +4,7 @@
 - task 1 done c224145a7470
 - task 2 done e78a55d04f91
 - task 3 done c80b394f5571
+- task 4 done 3a76217388a4
 
 ## Rulings
 - Ruling: only open lane tickets that are not epics enter YOURS, TEAM, READY, UP NEXT and the summary's counts; open means not done, not archived, not dropped — `claimedBy` and `stage` exist only on lane rows, and an epic is never planned so it would sit in UP NEXT forever — cost if wrong: a 0.1.0 ticket is only counted, never listed.
@@ -31,3 +32,5 @@
 - Ruling: effective priority is computed once per call from a breadth-first walk with a visited set over the reverse depends_on edges; a closed or done dependent adds no weight but the walk continues through it — as the brief defines — cost if wrong: only the rank order changes.
 - Ruling: with YOURS and READY empty and no unblocked ticket, `upNext` is present with rows and no `suggest` key — as the brief says — cost if wrong: a reader expects a suggestion that cannot exist.
 - Ruling: "Pick up" on the action line prefers `ready.rows[0]` over `upNext.suggest.id`; the action line is printed even when every section is empty (`[New request]` alone) — brief order — cost if wrong: one line of noise on an empty repository.
+- Ruling: `packages/core/src/index.ts` (outside Task 4's files) exports the new `EpicRow` type — the brief's Interface names it as exported — cost if wrong: none.
+- Ruling: epics list unfinished first, finished meaning total > 0 and done == total, then by id; the 20-epic cap and its `more` line are rendered but not tested — the brief's order — cost if wrong: only the order of epics changes, and a broken epic cap goes unseen.

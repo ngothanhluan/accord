@@ -70,7 +70,7 @@ Feature: ST-LN-2
     And its summary counts 15 in progress, 25 ready, 0 blocked and 4 done
     And the text prints "+2 more" under TEAM, "+5 more" under READY, and one summary line with those four counts
 
-  @ac-5
+  @ac-5 @test:packages/cli/test/dashboard.test.ts#ac-5-epics-show-their-children-done-over-all-their-children
   Scenario: Epics show their children done over all their children
     Given epic EP-AN-1 with 8 child tickets by `parent`: 3 done, 1 with `status: dropped`, and 4 not done
     And epic EP-AN-2 with `status: archived`, and ticket ST-AN-20 with no `parent`

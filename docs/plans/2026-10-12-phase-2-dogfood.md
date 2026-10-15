@@ -535,3 +535,4 @@ Finding (ST-LN-1 plan round 1): `accord brief <id> <n>` prints the ticket and th
 | 13 | build | executor (task 2, first try) | sonnet, medium | unknown (lost in laptop reset) | unknown | unknown | wrote most of the task, no commit; transcript output empty |
 | 14 | build | executor (task 2, finish from draft) | sonnet, medium | 71,294 | 7 | 97s | draft checked against the brief and kept; CRLF fixed; default-branch test red then green; 1196 tests pass; no trailer |
 | 15 | build | executor (task 3) | sonnet, medium | 105,632 | 22 | 338s | 1 try; ac-2, 2 risk tests and the core row test red then green; 1185 pass, 15 bash tests skipped (Bash hook broken, ran in PowerShell); no trailer |
+| 16 | build | executor (task 4) | sonnet, medium | 76,621 | 10 | 140s | 1 try; schema cases and ac-3 red then green; 1190 pass, 15 skipped (PowerShell); main session reran in bash: 1205/1205; no trailer |

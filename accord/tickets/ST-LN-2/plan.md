@@ -1,6 +1,6 @@
 ---
 baseline: a3f781ff5f9f4290bc5c6bfcc296098c5cb5cb27
-plan_hash: "fnv1a64:edd7712420ae0a02"
+plan_hash: "fnv1a64:c1b9eda0feee1ea3"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -17,7 +17,8 @@ Rules for every task:
 - Files are LF with no BOM. No new dependency. Strings are compared in code-point order, never with
   `localeCompare`. Optional JSON fields are omitted, never set to `undefined` (D-54).
 - No control character appears in a regular expression (eslint `no-control-regex`); scan code points instead, as
-  `packages/cli/src/render/table.ts` does.
+  `packages/cli/src/render/table.ts` does. No source or test file holds a raw control, bidi or line-separator
+  character; tests write them as JavaScript escape sequences.
 
 Definitions shared by every task (from the ticket's Approach and the ledger's Rulings):
 - A work ticket is a status row with `lane` set and `type` not `epic`. An open work ticket is a work ticket whose
@@ -47,7 +48,8 @@ Definitions shared by every task (from the ticket's Approach and the ledger's Ru
   then, indented two spaces, either the line `none` or a header line naming the columns followed directly by
   one line per row (no separator line), then `+<more> more` when `more` is above 0. Cells are padded to the
   widest cell of their column counted in code points, joined by two spaces, each line `trimEnd()`ed. Sections
-  are separated by one blank line; a blank line then the summary line follow the last section.
+  are separated by one blank line; a blank line then the summary line follow the last section. The summary
+  line is the one line containing ` in progress, `; from Task 3 on, the action line follows it.
 - Title cell: every code point below 0x20, 0x7F to 0x9F, U+061C, U+200E, U+200F, U+2028, U+2029, U+202A to
   U+202E and U+2066 to U+2069 becomes a space; space runs collapse to one; the result is trimmed; a title
   longer than 60 code points becomes its first 57 code points plus `...`. Every other Unicode character is kept.
@@ -61,10 +63,10 @@ verify: packages/cli/test/dashboard.test.ts#ac-2-rows-carry-titles-and-sections-
 Test helpers available: from `./helpers/repo.js`, `makeLaneRepo(extra)` (a git sandbox with no commit holding
 `accord/config.yml` as `CONFIG`, lane ticket `T-1` titled `Export` with a two-task plan, and a green report, each
 overridden or extended by the `extra` path-to-text map), `run(argv, cwd)` giving `{ code, out, err }`,
-`gitRun(repo, ...args)`, `writeFiles(repo, files)`, `cleanup(repo)`; from `../../../test/helpers/lane.js`,
-`CONFIG`, `PLAN` (two tasks) and `laneTicket(id, { lane?, frontmatter?, body? })` (a lane M story titled
-`Export`, `status: open`; `lane: ''` omits the lane; `frontmatter` lines are added, a `status:` line replacing the
-default). Every `laneTicket` shares one set of scenarios, so one AC hash.
+`gitRun(repo, ...args)`, `writeFiles(repo, files)`, `commitAll(repo)`, `cleanup(repo)`; from
+`../../../test/helpers/lane.js`, `CONFIG`, `PLAN` (two tasks) and `laneTicket(id, { lane?, frontmatter?, body? })`
+(a lane M story titled `Export`, `status: open`; `lane: ''` omits the lane; `frontmatter` lines are added, a
+`status:` line replacing the default). Every `laneTicket` shares one set of scenarios, so one AC hash.
 
 Tests first, in `packages/cli/test/dashboard.test.ts` (new). Module-level builders, using only core's public API
 (`approvedHash`, `gateReady`, `loadSnapshot`, `setFrontmatterKey`, `dashboard`) from `@accord-dev/accord-core`,
@@ -78,11 +80,12 @@ and `renderDashboard` from `../src/render/dashboard.js`:
   (stage `plan`, passed Ready, no task done).
 - `building(files, id, opts?)`: `laneTicket`, `approve`, and `accord/tickets/<id>/plan.md` as `PLAN` (stage
   `build`, 0 of 2).
-- `done(files, id, opts?)`: `building`, then `accord/tickets/<id>/ledger.md` as
-  `'## Tasks\n- task 1 done abc1234\n- task 2 done abc1234\n'`, `accord/tickets/<id>/review.md` as
-  `'verdict: converged\n'`, then `verified` set to `['ac-1', 'ac-2']` and `verified_hash` to `AC` (stage `done`).
+- `done(files, id, opts?)`: `building`, then `accord/tickets/<id>/ledger.md` with the two lines `- task 1 done
+  abc1234` and `- task 2 done abc1234` under `## Tasks`, `accord/tickets/<id>/review.md` as the line
+  `verdict: converged`, then `verified` set to `['ac-1', 'ac-2']` and `verified_hash` to `AC` (stage `done`).
 - `board(files, claims = {}, viewer = 'an@example.com')` is `dashboard(loadSnapshot({ files, tree: [], claims }),
   viewer)`.
+- `summaryLine(text)` is the one line of `text` containing ` in progress, `; it is never taken as the last line.
 
 Cases, each a top-level `it`:
 - `it('ac-2 rows carry titles and sections carry column headers')`: `makeLaneRepo({ [P('ST-AN-1')]:
@@ -107,16 +110,18 @@ Cases, each a top-level `it`:
 - `it('risk:complex-branching a laneless and a schema-broken ticket are counted and never listed')`: `ready` for
   `ST-AN-1`; `laneTicket('L-1', { lane: '' })`; `laneTicket('B-1', { frontmatter: ['owner: x'] })` (fails the
   schema), claimed by `an@example.com`. `d.summary` matches `{ withoutLane: 1, withSchemaErrors: 1 }`; no row in
-  any section has id `L-1` or `B-1`; the summary line of `renderDashboard(d)` contains `1 without lane` and
-  `1 with schema errors, run accord lint`. With `L-1` and `B-1` removed, the summary line contains neither
-  `without lane` nor `schema errors` and `d.summary` has both at 0.
+  any section has id `L-1` or `B-1`; `summaryLine(renderDashboard(d))` contains `1 without lane` and
+  `1 with schema errors, run accord lint`. With `L-1` and `B-1` removed, `summaryLine(renderDashboard(d))`
+  contains neither `without lane` nor `schema errors`, and `d.summary` has both at 0.
 - `it('risk:security a title cannot inject control characters or overflow its cell')`: a hand-built `Dashboard`
   whose `yours.rows` holds two rows typed as `StatusRow` (`ui: false`, `errors: 0`, `warnings: 0`, `ready:
   'ok'`, `ticksVerified: 0`, `ticksTagged: 0`, `ticksBinding: 'none'`, `lane: 'M'`, `stage: 'plan'`,
-  `tasksDone: 0`, `tasksTotal: 0`), titled `'Đặt lại\u001b[31m mật‮ khẩu x'` and `'Ư'.repeat(70)`,
-  the other sections empty and every summary count 0. The rendered text holds no code point below 0x20 other
-  than `\n`, and none of U+001B, U+202E, U+2028; it contains `Đặt lại [31m mật khẩu x` and `'Ư'.repeat(57) +
-  '...'`, and not `'Ư'.repeat(58)`.
+  `tasksDone: 0`, `tasksTotal: 0`), the other sections empty and every summary count 0. The first title is the
+  concatenation of `Đặt lại`, ESC (U+001B), `[31m mật`, RIGHT-TO-LEFT OVERRIDE (U+202E), ` khẩu`, LINE
+  SEPARATOR (U+2028) and `x`, written in the test source with the escape sequences for those three code points;
+  the second is `'Ư'.repeat(70)`. The rendered text holds no code point below 0x20 other than the newline, and
+  none of U+001B, U+202E, U+2028; it contains `Đặt lại [31m mật khẩu x` and `'Ư'.repeat(57) + '...'`, and not
+  `'Ư'.repeat(58)`.
 - `packages/core/test/lane-status.test.ts`: `LANE_KEYS` gains `'title'`. `packages/cli/test/lane-commands.test.ts`:
   in the case `a ticket without lane is unchanged by a t/<id> branch, in the table and under --json`, the array
   of its `for (const key of [...])` loop gains `'title'` after `'branch'`; nothing else in that case changes.
@@ -146,8 +151,8 @@ Interface:
 - `packages/cli/src/commands/dashboard.ts` (new): `dashboardCommand(ctx: CommandContext, options: { json?:
   boolean }): number`. `viewer = gitUserEmail(ctx.root)`; when it is `''`, throw `UsageError('git user.email is
   not set - set it with git config user.email <you@example.com>')` (exit 2). Otherwise `d =
-  dashboard(ctx.snapshot, viewer, Math.floor(Date.now() / 1000))`; write `JSON.stringify(d, null, 2) + '\n'`
-  under `--json`, else `renderDashboard(d)`; return 0.
+  dashboard(ctx.snapshot, viewer, Math.floor(Date.now() / 1000))`; write `JSON.stringify(d, null, 2)` plus a
+  newline under `--json`, else `renderDashboard(d)`; return 0.
 - `run.ts`: `program.command('dashboard')`, description `print the ranked and capped sections for the viewer`,
   option `--json` (`print the Dashboard object instead of text`), through `preflight`, registered after `next`.
 
@@ -162,9 +167,9 @@ files: packages/core/schemas/ticket.schema.json, packages/core/src/model/snapsho
 verify: packages/cli/test/dashboard.test.ts#ac-1-ready-tickets-are-ranked-by-inherited-priority-then-by-id (@ac-1), packages/cli/test/dashboard.test.ts#risk:complex-branching-a-depends_on-cycle-ends-and-a-dropped-dependent-does-not-lift
 
 From Task 1: `packages/cli/test/dashboard.test.ts` holds the builders `P`, `AC`, `approve`, `ready`,
-`building`, `done` and `board` described there, and imports `run`, `gitRun`, `writeFiles`, `makeLaneRepo`,
-`cleanup`. `dashboard()` in `packages/core/src/status/dashboard.ts` ranks every section by unblocked first, then
-id.
+`building`, `done`, `board` and `summaryLine` described there, and imports `run`, `gitRun`, `writeFiles`,
+`makeLaneRepo`, `cleanup`. `dashboard()` in `packages/core/src/status/dashboard.ts` ranks every section by
+unblocked first, then id.
 
 Tests first, in `packages/cli/test/dashboard.test.ts`:
 - `it('ac-1 ready tickets are ranked by inherited priority then by id')`: `makeLaneRepo` with
@@ -173,9 +178,9 @@ Tests first, in `packages/cli/test/dashboard.test.ts`:
   'depends_on: ["ST-AN-1"]'] })` and `laneTicket('ST-AN-6', { frontmatter: ['priority: high', 'depends_on:
   ["ST-AN-2"]'] })`; `gitRun(repo, 'config', 'user.email', 'an@example.com')`. For each of the five ids, `run`
   `['approve', id]` then `['gate', 'ready', id]`, each gate exiting 0. `run(['dashboard', '--json'])` exits 0 and
-  the ids of `ready.rows` are exactly `['ST-AN-1', 'ST-AN-4', 'ST-AN-3']`. `run(['lint', '--json'])`: no
-  finding has `pointer === '/priority'`. Then rewrite `accord/tickets/ST-AN-3.md` with `writeFiles`, its text
-  with `'ui: false\n'` replaced by `'ui: false\npriority: urgent\n'`: `run(['lint', '--json'])` exits 1 and its
+  the ids of `ready.rows` are exactly `['ST-AN-1', 'ST-AN-4', 'ST-AN-3']`. `run(['lint', '--json'])` exits 0 and
+  no finding has `pointer === '/priority'`. Then rewrite `accord/tickets/ST-AN-3.md` with `writeFiles`, its text
+  with the line `ui: false` followed by a new line `priority: urgent`: `run(['lint', '--json'])` exits 1 and its
   `findings` hold one with `pointer === '/priority'` and a `rule` starting `schema.`. `cleanup` in `finally`.
 - `it('risk:complex-branching a depends_on cycle ends and a dropped dependent does not lift')`, in memory, every
   ticket claimed by `bo@example.com`: `ST-AN-1` (`priority: low`, `depends_on: ["ST-AN-2"]`), `ST-AN-2`
@@ -204,12 +209,14 @@ End by running `npm run build`.
 ## Task 3: UP NEXT shows the viewer what to pick up when nothing is ready, and the action line
 covers: @ac-3, D-04
 files: packages/core/src/status/dashboard.ts (new), packages/cli/src/render/dashboard.ts (new), packages/cli/test/dashboard.test.ts (new)
-verify: packages/cli/test/dashboard.test.ts#ac-3-up-next-shows-the-viewer-what-to-pick-up-when-nothing-is-ready (@ac-3), packages/cli/test/dashboard.test.ts#risk:complex-branching-an-archived-claimed-ticket-is-in-no-section-and-no-count, packages/cli/test/dashboard.test.ts#risk:complex-branching-the-action-line-names-only-the-actions-that-apply
+verify: packages/cli/test/dashboard.test.ts#ac-3-up-next-shows-the-viewer-what-to-pick-up-when-nothing-is-ready (@ac-3), packages/cli/test/dashboard.test.ts#risk:complex-branching-an-archived-claimed-ticket-is-in-no-section-and-no-count, packages/cli/test/dashboard.test.ts#risk:complex-branching-the-action-line-names-only-the-actions-that-apply, packages/cli/test/dashboard.test.ts#risk:complex-branching-the-viewer-comes-from-git-user.email-without-case-and-an-empty-one-exits-2
 
 From Tasks 1 and 2: `dashboard(snapshot, viewer, now?)` returns `{ yours, team, ready, summary }`, every
 section ranked by effective priority, unblocked first, then id; `renderDashboard(d)` prints YOURS, TEAM, READY
-and the summary line. The test builders `P`, `ready`, `building`, `done`, `board` exist in
-`packages/cli/test/dashboard.test.ts`.
+and the summary line; `accord dashboard` reads the viewer with `gitUserEmail` and exits 2 when it is empty. The
+test builders `P`, `ready`, `building`, `done`, `board`, `summaryLine` exist in
+`packages/cli/test/dashboard.test.ts`, which imports `makeLaneRepo`, `run`, `gitRun`, `cleanup` from
+`./helpers/repo.js`.
 
 Tests first, in `packages/cli/test/dashboard.test.ts`:
 - `it('ac-3 up next shows the viewer what to pick up when nothing is ready')`: `building` for `ST-AN-9`, claimed
@@ -226,7 +233,17 @@ Tests first, in `packages/cli/test/dashboard.test.ts`:
   objects with rows built as in Task 1's title case: the last non-empty line of `renderDashboard` is
   `-> [Continue ST-AN-1]  [Pick up ST-AN-2]  [New request]` when `yours.rows` starts with `ST-AN-1` and
   `ready.rows` with `ST-AN-2`; `-> [Pick up ST-AN-3]  [New request]` when only `upNext` has rows and `suggest`
-  `{ action: 'pick-up', id: 'ST-AN-3' }`; `-> [New request]` when `upNext` has rows and no `suggest`.
+  `{ action: 'pick-up', id: 'ST-AN-3' }`; `-> [New request]` when `upNext` has rows and no `suggest`. In each,
+  `summaryLine` of the text is the line directly before the action line.
+- `it('risk:complex-branching the viewer comes from git user.email without case and an empty one exits 2')`, a
+  git sandbox through `runCli`: `makeLaneRepo({ [P('ST-AN-1')]: laneTicket('ST-AN-1') })`, `commitAll(repo)`
+  (add `commitAll` to the import from `./helpers/repo.js` if it is not there); `sha = gitRun(repo, '-c',
+  'user.email=An@Example.com', '-c', 'user.name=x', 'commit-tree', 'HEAD^{tree}', '-p', 'HEAD', '-m',
+  'claim').trim()`; `gitRun(repo, 'update-ref', 'refs/remotes/origin/t/ST-AN-1', sha)`; `gitRun(repo, 'config',
+  'user.email', 'an@example.com')`. `run(['dashboard', '--json'])` exits 0 and the ids of `yours.rows` are
+  `['ST-AN-1']`, `team.rows` holds no `ST-AN-1`, and the JSON has no `upNext` key. Then `gitRun(repo, 'config',
+  'user.email', '')`: `run(['dashboard'])` exits 2, `out` is `''`, and `err` contains `git user.email is not
+  set - set it with git config user.email <you@example.com>`. `cleanup` in `finally`.
 
 Interface:
 - `Dashboard` gains `upNext?: DashboardSection & { suggest?: { action: 'pick-up'; id: string } }`, placed after
@@ -234,9 +251,9 @@ Interface:
   unclaimed open work tickets, ranked, capped at 20; `suggest` names the first unblocked ticket of the whole
   ranked list, and is omitted when none is unblocked.
 - `renderDashboard`: an `UP NEXT` section after READY when `upNext` is present, same columns as the others. Its
-  last line is the action line: `-> ` then, joined by two spaces, `[Continue <yours.rows[0].id>]` when YOURS has
-  a row, `[Pick up <ready.rows[0].id, else upNext.suggest.id>]` when either exists, and `[New request]` always.
-  ASCII only.
+  last line is the action line, directly after the summary line: `-> ` then, joined by two spaces,
+  `[Continue <yours.rows[0].id>]` when YOURS has a row, `[Pick up <ready.rows[0].id, else upNext.suggest.id>]`
+  when either exists, and `[New request]` always. ASCII only.
 
 Must not change: Tasks 1 and 2 cases; YOURS, TEAM, READY and the summary.
 
@@ -258,15 +275,19 @@ Test first, in `packages/cli/test/dashboard.test.ts`:
   `laneTicket` for `ST-AN-5`..`ST-AN-8`; epic `EP-AN-2` built the same way with `status: archived`; and
   `laneTicket('ST-AN-20')`. `d.epics` equals `{ rows: [{ id: 'EP-AN-1', title: 'Export', done: 3, total: 7 }],
   more: 0 }`. In `renderDashboard(d)`, the lines from the `EPICS` line up to the next empty line hold one line
-  containing `EP-AN-1` and `3/7 done`, and none containing `EP-AN-2` or `ST-AN-20`.
+  containing `EP-AN-1` and `3/7 done`, and none containing `EP-AN-2` or `ST-AN-20`. With both epics removed,
+  `d.epics` equals `{ rows: [], more: 0 }` and no line of the text is `EPICS`.
 
 Interface:
 - `Dashboard` gains `epics: { rows: EpicRow[]; more: number }` before `summary`; `EpicRow` is `{ id: string;
-  title: string; done: number; total: number }`, exported. An epic is a ticket whose frontmatter has `type:
-  epic` and a `status` other than `archived` or `dropped`, with or without `lane`. Its children are the tickets
-  whose frontmatter `parent` is its id and whose `status` is not `dropped`; `total` counts them, `done` counts
-  those that `isDone`. Epics rank unfinished (`done < total`, or `total` 0) before finished, then by id as the
-  preamble says; cap 20.
+  title: string; done: number; total: number }`, exported. `epics` is always present in the JSON, `{ rows: [],
+  more: 0 }` when there is no epic, while the text leaves out an empty EPICS section; the asymmetry is intended:
+  the JSON keeps one shape for its readers, the text drops a heading with nothing under it.
+- An epic is a ticket whose frontmatter has `type: epic` and a `status` other than `archived` or `dropped`, with
+  or without `lane`. `EpicRow.title` is `snapshot.tickets[id].frontmatter.title`, never the status row's
+  `title`, which D-07 keeps off rows without `lane`. Its children are the tickets whose frontmatter `parent` is
+  its id and whose `status` is not `dropped`; `total` counts them, `done` counts those that `isDone`. Epics rank
+  unfinished (`done < total`, or `total` 0) before finished, then by id as the preamble says; cap 20.
 - `renderDashboard`: an `EPICS` section after UP NEXT (or READY), only when `epics.rows` is non-empty, with
   columns `id`, `title` (the title cell) and `progress` (`<done>/<total> done`), and `+<more> more` when above 0.
 - Every hand-built `Dashboard` already in `packages/cli/test/dashboard.test.ts` (Task 1's title case, Task 3's

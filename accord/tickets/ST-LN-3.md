@@ -48,7 +48,7 @@ Feature: ST-LN-3
     Then it shows ST-1 in a YOURS section, ST-2 in a READY section followed by "+3 more", and the summary counts as the JSON gives them, counting nothing itself
     And when the dashboard JSON changes and a turn completes, the pane shows the new JSON
 
-  @ac-2
+  @ac-2 @test:packages/core/test/panel.test.ts#ac-2-search-narrows-the-rows-and-each-button-runs-its-accord-command
   Scenario: Search narrows the rows and each button submits its /accord command
     Given the pane shows ST-1 titled "Login form" under YOURS and ST-2 titled "Export" under READY
     When the owner types "login" in the search box

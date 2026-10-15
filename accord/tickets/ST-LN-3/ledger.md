@@ -38,6 +38,8 @@
 - Ruling: init's `refusals` parameter is renamed from `agents` to `extra` and carries agent and plugin targets on the greenfield path — the brief's interface says so — cost if wrong: none.
 - Ruling: the foreign-marketplace refusal runs only when `extraKnownMarketplaces.accord` exists, and an entry with the same directory source passes, so a second sync reports `unchanged` — the brief compares field by field and never overwrites — cost if wrong: a re-sync refuses its own output.
 - Ruling: the orphan suffix is appended only when the orphan path is `pluginDir`; skill-directory and agent-file orphan lines are unchanged — cost if wrong: none.
+- Ruling: a section whose rows the search filters out entirely is dropped only while the query is non-empty; an empty section still shows "none" with an empty box — keeps ac-1 unchanged — cost if wrong: a section heading disappears while searching.
+- Ruling: the task 4 executor stalled once in a full vitest run; resumed, the full suite finished in 105s with no hang, and no test file was found to hang — likely a killed slow gen+build run — cost if wrong: an intermittent hang returns in CI.
 
 ## Deferred
 
@@ -45,3 +47,4 @@
 - task 1 done 4d590c7316ca
 - task 2 done 2cbef036a8f5
 - task 3 done 64f5c2bd5cce
+- task 4 done f1eb1fc10612

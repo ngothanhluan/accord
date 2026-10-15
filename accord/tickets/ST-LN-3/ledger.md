@@ -36,9 +36,12 @@
 - Ruling: after task 1, register.js draws the pane through `view(state, '')` with no Input or buttons — the ac-2 and ac-3 tasks add them — cost if wrong: none once those tasks land.
 - Ruling: mergePanel spreads existing keys over the defaults, so an owner's `false` and a foreign `accord` marketplace stay untouched — the lightest merge that keeps an existing key's value; task 3 refuses a foreign `accord` source before the merge — cost if wrong: none here.
 - Ruling: init's `refusals` parameter is renamed from `agents` to `extra` and carries agent and plugin targets on the greenfield path — the brief's interface says so — cost if wrong: none.
+- Ruling: the foreign-marketplace refusal runs only when `extraKnownMarketplaces.accord` exists, and an entry with the same directory source passes, so a second sync reports `unchanged` — the brief compares field by field and never overwrites — cost if wrong: a re-sync refuses its own output.
+- Ruling: the orphan suffix is appended only when the orphan path is `pluginDir`; skill-directory and agent-file orphan lines are unchanged — cost if wrong: none.
 
 ## Deferred
 
 ## Tasks
 - task 1 done 4d590c7316ca
 - task 2 done 2cbef036a8f5
+- task 3 done 64f5c2bd5cce

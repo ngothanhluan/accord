@@ -11,38 +11,12 @@ remember their names.
 
 ## Dashboard: `/accord` with no argument
 
-1. Run `accord status --json`, and `accord next --json` for the tickets ready
-   to pick up. Read the name to greet from `git config user.name`, and your
-   email from `git config user.email`.
-2. Show the dashboard built from that JSON. You format it; you never infer a
-   state the JSON does not hold.
-
-   ```
-   Hello <name>
-
-   YOURS IN PROGRESS
-     T-12  Login API          build 3/5
-
-   TEAM
-     T-15  Session store      done
-     T-19  Export CSV         in progress · binh
-     T-18  Login UI           blocked by T-12
-     T-22  Audit log          build 1/4 idle 18d · an
-
-   READY TO PICK UP
-     T-21  Password reset     M
-
-   → [Continue T-12]  [Pick up T-21]  [New request]
-   ```
-
-   Every section, READY TO PICK UP included, shows `idle <n>d` after the
-   stage of a ticket whose `accord status --json` row has `idleDays`.
-
-   Yours are the tickets whose `claimedBy` is your `user.email`, each with
-   its `stage` and tasks (`tasksDone`/`tasksTotal`). The ones to pick up are
-   those `accord next` lists. The team's are the rest, other than those
-   `accord next` lists, with who holds them and their `blockedBy`.
-3. Offer Continue, Pick up, and New request.
+1. Run `accord dashboard`. It reads you from `git config user.email` and
+   prints every section ranked and capped, one count line, and the actions
+   that apply. When it exits 2, show its message and stop.
+2. Show its output verbatim in a code block. Never reorder, cut, merge, or
+   add to it, and never build a section from `accord status --json`.
+3. Offer the actions its last line names: Continue, Pick up, New request.
 
 ## Continue
 
@@ -64,7 +38,7 @@ remember their names.
 
 ## Pick up
 
-Create its `branch` from `accord next --json`, commit `claim: <id>` on it
+Create its `branch` from `accord status --json`, commit `claim: <id>` on it
 with `--allow-empty`, and push it: the pushed branch is the claim. Then
 continue as above.
 

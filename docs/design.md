@@ -40,7 +40,7 @@ accord/
 
 Flat files, not nested folders. Epics, stories, and bugs share one file type (`type: epic | story | bug`); a story or bug names its epic with `parent:`. An epic holds intent and requirements for its children and is linted but never gated. This mirrors every tracker's model and keeps indexing trivial.
 
-Every ticket has YAML frontmatter validated against `ticket.schema.json`: `id`, `title`, `type`, `status` (`draft | open | archived`, document lifecycle only; work status stays in the tracker), optional `parent`, `tracker` (map keyed by adapter), `ui`, `design`, `assumptions`, `ac_hash`, and `verified` (always the last key). Unknown keys are errors, so tracker-owned data cannot leak into git.
+Every ticket has YAML frontmatter validated against `ticket.schema.json`: `id`, `title`, `type`, `status` (`draft | open | archived`, document lifecycle only; work status stays in the tracker), optional `parent`, `tracker` (map keyed by adapter), `ui`, `design`, `assumptions`, `ac_hash`, `priority` (`high | medium | low`, absent means medium), and `verified` (always the last key). Unknown keys are errors, so tracker-owned data cannot leak into git; `priority` is the one such key accord reads, because the dashboard ranks by it.
 
 The body has fixed headings in fixed order: `## Intent`, `## Requirements`, `## Acceptance criteria`, `## Open questions` (BA-owned), then `## Plan` and `## Verification notes` (developer-owned, last). Epics omit Acceptance criteria, Plan, and Verification notes.
 
@@ -140,6 +140,7 @@ accord lint                 # frontmatter schema, EARS, Gherkin, prototype token
 accord gate ready <id>      # PASS or FAIL with reasons; exit code for CI and skills
 accord gate done <id>       # checks verification.md and ticked scenarios
 accord status               # table of features and tickets with gate state
+accord dashboard            # ranked, capped sections for the viewer; --json for the data
 ```
 
 When `config.yml` holds `people` (email to initials), `new ticket` assigns the id and refuses a typed one; `legacy_ids` exempts existing tickets, and `lint.id-convention` and `lint.initials-duplicate` check the rest.
@@ -156,7 +157,7 @@ Why a CLI and not just templates and prompts: templates are suggestions and prom
 
 The contract above says what must be true before and after a ticket. The workflow layer is how a coding agent gets there without drifting from the owner's intent. The full rules are in the [workflow layer spec](specs/2026-10-12-workflow-layer-design.md); this is the map.
 
-**Entry point.** `/accord` with no argument shows a dashboard built from `accord status --json`: your tickets in progress with each one's stage and tasks done, the team's, and what is ready to pick up (`accord next`). The model formats it and never infers state. `/accord <request>` proposes a lane, says why, and starts the intent stage.
+**Entry point.** `/accord` with no argument runs `accord dashboard` and shows its output verbatim: YOURS, TEAM, READY, UP NEXT when nothing of yours is in progress and nothing is ready, EPICS with children done over all children, one count line, and the actions that apply. The CLI ranks and caps every section; the model never reorders or adds to it. `/accord <request>` proposes a lane, says why, and starts the intent stage.
 
 **Lanes.** The size of the work decides how much each stage does; no lane skips a stage.
 

@@ -182,14 +182,14 @@ const MAX_SKILL_LINES = 120;
 
 /** The commands the CLI actually registers, longest path first so `gate ready` wins over a bare `gate`. */
 const COMMAND =
-  /\baccord (gate ready|gate done|gate plan|new ticket|skills sync|tests baseline|review-package|task-done|approve|anchor|brief|status|next|lint|hook)\b/g;
+  /\baccord (gate ready|gate done|gate plan|new ticket|skills sync|tests baseline|review-package|task-done|approve|anchor|brief|dashboard|status|next|lint|hook)\b/g;
 
 /** Spec §2: each skill targets under 5 KB. */
 const MAX_SKILL_BYTES = 5120;
 
 /** The first command a SKILL.md names: `/accord` opens on the dashboard, a stage re-anchors, designer gates. */
 const firstCommand = (dir: string): string =>
-  dir === 'accord' ? 'status' : dir === 'accord-designer' ? 'gate ready' : 'anchor';
+  dir === 'accord' ? 'dashboard' : dir === 'accord-designer' ? 'gate ready' : 'anchor';
 
 /** The rendered text with its frontmatter block and its marker line removed — the prose a reader receives. */
 const bodyOf = (text: string) => withoutMarker(text).replace(FRONTMATTER, '');

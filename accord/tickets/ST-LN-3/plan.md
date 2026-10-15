@@ -1,6 +1,6 @@
 ---
 baseline: 1d635b5277fa10c77b89c3eba8108cb877065060
-plan_hash: "fnv1a64:bc70e1163d9397fd"
+plan_hash: "fnv1a64:815561457547d320"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -308,8 +308,9 @@ Tests first, in `packages/core/test/panel.test.ts`:
   pending); fire `turn.complete` twice: still one `$.process.run` call; settle: exactly one more call follows (the
   queued rerun); settle it: no further call. `turn.complete` with `agentId: 'a1'`: no call. `host.close('accord-panel')`
   then `turn.complete`: no call. `fire('command.run', { command: 'accord-panel', args: '' })`: `$.ui.open` was
-  called with `focus: true` and one new run starts. Then `host.placed = false`: `turn.complete` starts no run (an
-  unplaced pane does not count as open), and `fire('command.run', { command: 'accord-panel', args: '' })` calls
+  called with `focus: true` and one new run starts. Settle that run (and any queued rerun) until no run is in flight,
+  noting the `$.process.run` call count. Then `host.placed = false` and fire `turn.complete`: the call count is
+  unchanged (an unplaced pane does not count as open), and `fire('command.run', { command: 'accord-panel', args: '' })` calls
   `$.ui.toast` with `The terminal is too narrow for the accord pane: it needs 110 columns`.
 - `it('risk:security a title cannot put control characters into the pane')`: settle YOURS with one row titled
   `'Đặt\u001b[31m lại\u202e x\u2028y'`: no text holds U+001B, U+202E or U+2028, and a text contains

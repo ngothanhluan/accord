@@ -29,4 +29,6 @@
 
 - Ruling: a pane reload (`/reload-plugins`) after a sync is not handled; the pane shows Loading until the next turn — plan critic round 3, Nice — cost if wrong: one turn of Loading after a reload.
 
+- Ruling: on a cold npm cache the pane's npx run and the SessionStart hook's npx run may install the same package at once and the pane may show `accord exited 1` until the next run — self-healing, plan critic round 4 Nice — cost if wrong: one failed first open on a fresh machine.
+
 ## Deferred

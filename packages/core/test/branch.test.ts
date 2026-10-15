@@ -8,3 +8,8 @@ it('risk:parsing branchTemplateOf reads only branch and never throws', () => {
   expect(branchTemplateOf('profile: build\n')).toBeUndefined();
   expect(branchTemplateOf('branch: "feature/{id}"\nunknown: 1\n')).toBe('feature/{id}');
 });
+
+it('risk:parsing branchTemplateOf drops a template the schema refuses', () => {
+  expect(branchTemplateOf('branch: "{id}"\n')).toBeUndefined();
+  expect(branchTemplateOf('branch: "feature/..{id}"\n')).toBeUndefined();
+});

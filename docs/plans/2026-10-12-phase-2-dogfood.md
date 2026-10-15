@@ -511,3 +511,32 @@ Baseline suite at 3be1c05: 55 files, 1182 tests pass, 62s.
 
 Owner side so far: 13 interview answers, 7 approach answers (D-14..D-18), 1 correction (prefixes fixed, not configured), 2 scope splits
 (branch names, epic grouping to the dashboard ticket).
+
+## Run log: ST-LN-1 (branch name template)
+
+First ticket created under the id convention: `accord new ticket --type story --lane M` assigned ST-LN-1.
+
+| # | Stage | Agent | Model | Tokens | Tool calls | Time | Outcome |
+|---|---|---|---|---|---|---|---|
+| 1 | intent | scout | haiku, low | 61,511 | 25 | 53s | `t/` hardcoded in anchor.ts:28, fs.ts:130/143, /accord skill text; CI and commit messages never read it |
+| 2 | intent | auditor | opus, medium | 19,570 | 2 | 32s | 4 of 5 criteria read two ways (author vs committer email, lint finding vs load refusal, local t/ claim, per-step skill text); 3 settled from code, 1 back to the owner |
+| 3 | approach | architect | opus, high | 61,875 | 24 | 145s | 2 options; recommended: template regex in the CLI loader reading every ref, D-06 fallback free from the loader; 3 Rulings |
+| 4 | approach | critic (round 1) | opus, high | 59,867 | 20 | 197s | 2 Must (stale working-tree template hides new claims; t/ not reserved), 5 Should, 2 Nice; option amended: templates read from every ref, narrow scan |
+| 5 | approach | critic (round 2) | opus, high | 60,721 | 17 | 221s | 1 Must (templates from every ref: a stray branch sets a template, breaks ac-4), 5 Should, 2 Nice; owner asked which refs set the template |
+| 6 | approach | critic (round 3) | opus, high | 71,630 | 22 | 253s | 1 Must (working-tree template names claims teammates never count; owner chose D-09), 4 Should, 4 Nice; all taken as Rulings |
+| 7 | plan | planner | opus, medium | 165,950 | 63 | 556s | 5 tasks, 6 Rulings; gate plan passed first try |
+| 8 | plan | critic (plan round 1) | opus, high | 124,255 | 47 | 442s | 0 Must, 2 Should (preamble definitions missing from briefs; core helper the Approach rejected), 1 Nice deferred (docs) |
+| 9 | plan | planner (round 1 fixes) | opus, medium | 60,705 | 16 | 157s | definitions inlined per task; ticketOfBranch moved to the CLI; gate plan passed |
+
+Finding (ST-LN-1 plan round 1): `accord brief <id> <n>` prints the ticket and that task's section only, so anything a planner writes in a shared preamble never reaches the executor (packages/cli/src/commands/brief.ts:17-19). Either the planner agent's instructions forbid a preamble, or `brief` includes the text above `## Task 1`. Worth its own ticket.
+| 10 | plan | critic (plan round 2) | opus, high | 113,745 | 38 | 351s | 0 Must, 0 Should, 2 Nice (inherited-key lookup; Task 3 contradicts its own key-list edit); Nice fixed by the planner with no further critic |
+| 11 | plan | planner (round 2 Nice fixes) | opus, medium | 28,275 | 9 | 45s | Task 3 only: Object.hasOwn and Map for claims; the 0.1.0 key-list case exempted; gate plan passed |
+| 12 | build | executor (task 1) | sonnet, medium | 94,730 | 13 | 122s | 1 try; ac-1 and the parsing risk test red then green; 1193 tests pass; no trailer |
+| 13 | build | executor (task 2, first try) | sonnet, medium | unknown (lost in laptop reset) | unknown | unknown | wrote most of the task, no commit; transcript output empty |
+| 14 | build | executor (task 2, finish from draft) | sonnet, medium | 71,294 | 7 | 97s | draft checked against the brief and kept; CRLF fixed; default-branch test red then green; 1196 tests pass; no trailer |
+| 15 | build | executor (task 3) | sonnet, medium | 105,632 | 22 | 338s | 1 try; ac-2, 2 risk tests and the core row test red then green; 1185 pass, 15 bash tests skipped (Bash hook broken, ran in PowerShell); no trailer |
+| 16 | build | executor (task 4) | sonnet, medium | 76,621 | 10 | 140s | 1 try; schema cases and ac-3 red then green; 1190 pass, 15 skipped (PowerShell); main session reran in bash: 1205/1205; no trailer |
+| 17 | build | executor (task 5) | sonnet, medium | 71,682 | 10 | 122s | 1 try; ac-5 skill check red then green; 1206/1206 pass; skill 5026 of 5120 bytes; no trailer |
+| 18 | review | reviewer (round 1, both) | sonnet, high | 138,708 | 23 | 231s | 0 Must, 0 Should, 6 Nice deferred; Nice 1 (holder order without the key) asked, owner kept it |
+| 19 | review | final-reviewer (both) | opus, high | 110,573 | 25 | 276s | no findings; converged |
+| 20 | verify | verifier | sonnet, medium | 36,159 | 9 | 53s | ac-1 to ac-5 pass at four levels; owner approved; gate done 0 errors, 18 false reference-unknown warnings on branch names with braces |

@@ -18,16 +18,24 @@ export interface DashboardSummary {
   withoutLane: number;
   withSchemaErrors: number;
 }
+export interface EpicRow {
+  id: string;
+  title: string;
+  done: number;
+  total: number;
+}
 export interface Dashboard {
   yours: DashboardSection;
   team: DashboardSection;
   ready: DashboardSection;
   upNext?: DashboardSection & { suggest?: { action: 'pick-up'; id: string } };
+  epics: { rows: EpicRow[]; more: number };
   summary: DashboardSummary;
 }
 
 const TEAM_CAP = 10;
 const READY_CAP = 20;
+const EPIC_CAP = 20;
 
 const closed = (r: StatusRow) => r.status === 'archived' || r.status === 'dropped';
 const isWork = (r: StatusRow) => r.lane !== undefined && r.type !== 'epic';
@@ -93,6 +101,19 @@ function section(rows: StatusRow[], cap: number, prio: Map<string, number>): Das
   return { rows: sorted.slice(0, cap), more: Math.max(0, sorted.length - cap) };
 }
 
+// D-03: children by frontmatter `parent`, dropped children left out of both counts; unfinished epics first.
+function epicsSection(snapshot: RepoSnapshot): Dashboard['epics'] {
+  const tickets = Object.entries(snapshot.tickets);
+  const rows: EpicRow[] = tickets
+    .filter(([, t]) => t.frontmatter?.type === 'epic' && t.frontmatter.status !== 'archived' && t.frontmatter.status !== 'dropped')
+    .map(([id, t]) => {
+      const kids = tickets.filter(([, k]) => k.frontmatter?.parent === id && k.frontmatter.status !== 'dropped');
+      return { id, title: t.frontmatter?.title ?? '', done: kids.filter(([k]) => isDone(snapshot, k)).length, total: kids.length };
+    })
+    .sort((a, b) => Number(a.total > 0 && a.done === a.total) - Number(b.total > 0 && b.done === b.total) || cmpId(a.id, b.id));
+  return { rows: rows.slice(0, EPIC_CAP), more: Math.max(0, rows.length - EPIC_CAP) };
+}
+
 export function dashboard(snapshot: RepoSnapshot, viewer: string, now?: number): Dashboard {
   const all = statusRows(snapshot, now);
   const prio = effectivePriorities(snapshot);
@@ -107,6 +128,7 @@ export function dashboard(snapshot: RepoSnapshot, viewer: string, now?: number):
     yours,
     team: section(claimed.filter((r) => !mine(r)), TEAM_CAP, prio),
     ready,
+    epics: epicsSection(snapshot),
     summary: {
       inProgress: claimed.length,
       ready: readyAll.length,
@@ -122,7 +144,7 @@ export function dashboard(snapshot: RepoSnapshot, viewer: string, now?: number):
     const all = section(unclaimed, Infinity, prio).rows;
     const first = all.find((r) => !blocked(r));
     const up = { rows: all.slice(0, READY_CAP), more: Math.max(0, all.length - READY_CAP), ...(first ? { suggest: { action: 'pick-up' as const, id: first.id } } : {}) };
-    return { yours: out.yours, team: out.team, ready: out.ready, upNext: up, summary: out.summary };
+    return { yours: out.yours, team: out.team, ready: out.ready, upNext: up, epics: out.epics, summary: out.summary };
   }
   return out;
 }

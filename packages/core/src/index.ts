@@ -44,7 +44,7 @@ export { anchorText } from './status/anchor.js';
 export { rulesetText, sessionLine } from './status/session.js';
 export { nextRows, statusRows } from './status/rows.js';
 export { dashboard } from './status/dashboard.js';
-export type { Dashboard, DashboardSection, DashboardSummary } from './status/dashboard.js';
+export type { Dashboard, DashboardSection, DashboardSummary, EpicRow } from './status/dashboard.js';
 export type { Stage } from './status/stage.js';
 export type { StatusRow } from './status/rows.js';
 export { renderText } from './lint/render.js';

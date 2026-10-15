@@ -28,6 +28,14 @@ const cells = (r: StatusRow): string[] => [
   fit(sanitise((r.blockedBy ?? []).join(' ') || EMPTY_CELL), 28),
 ];
 
+function epicBlock(e: Dashboard['epics']): string[] {
+  const table = [['id', 'title', 'progress'], ...e.rows.map((r) => [sanitise(r.id), titleCell(r.title), `${r.done}/${r.total} done`])];
+  const widths = [0, 1, 2].map((i) => Math.max(...table.map((row) => [...row[i]].length)));
+  const out = ['EPICS', ...table.map((row) => '  ' + row.map((v, i) => v + ' '.repeat(widths[i] - [...v].length)).join('  ').trimEnd())];
+  if (e.more > 0) out.push(`  +${e.more} more`);
+  return out;
+}
+
 function block(name: string, s: DashboardSection): string[] {
   const out = [name];
   if (s.rows.length === 0) out.push('  none');
@@ -48,7 +56,7 @@ export function renderDashboard(d: Dashboard): string {
     `${m.inProgress} in progress, ${m.ready} ready, ${m.blocked} blocked, ${m.backlog} backlog, ${m.done} done` +
     (m.withoutLane > 0 ? `, ${m.withoutLane} without lane` : '') +
     (m.withSchemaErrors > 0 ? `, ${m.withSchemaErrors} with schema errors, run accord lint` : '');
-  const sections = [block('YOURS', d.yours), block('TEAM', d.team), block('READY', d.ready), ...(d.upNext ? [block('UP NEXT', d.upNext)] : [])];
+  const sections = [block('YOURS', d.yours), block('TEAM', d.team), block('READY', d.ready), ...(d.upNext ? [block('UP NEXT', d.upNext)] : []), ...(d.epics.rows.length ? [epicBlock(d.epics)] : [])];
   const pick = d.ready.rows[0]?.id ?? d.upNext?.suggest?.id;
   const actions = [d.yours.rows[0] ? `[Continue ${d.yours.rows[0].id}]` : '', pick ? `[Pick up ${pick}]` : '', '[New request]'].filter(Boolean);
   return [...sections.map((s) => s.join('\n')), summary + '\n-> ' + actions.join('  ')].join('\n\n') + '\n';

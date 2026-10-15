@@ -16,5 +16,5 @@
 
 ## Deferred
 - Executors that fix review or debug findings get the ticket plus the findings, not the plan's preamble (D-08); a later ticket.
-- The `brief` help text in packages/cli/src/run.ts, packages/core/agents/executor.md and packages/core/agents/critic.md still describe the brief as ticket plus one task.
+- The `brief` help text in packages/cli/src/run.ts, packages/core/agents/executor.md, packages/core/agents/critic.md and docs/design.md:182 still describe the brief as ticket plus one task.
 - `gate.reference-unknown` still warns on: a branch like `release/2.x`, a heading anchor on a real file, a cited gitignored file (the junit report), a dotted directory outside the tree, a URL without a scheme ending in a file name.

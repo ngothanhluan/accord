@@ -3,7 +3,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { DEFAULT_BRANCH_TEMPLATE, isSha, loadSnapshot, peopleOf } from '@accord-dev/accord-core';
+import { branchTemplateOf, DEFAULT_BRANCH_TEMPLATE, isSha, loadSnapshot, peopleOf } from '@accord-dev/accord-core';
 import type { SnapshotInput } from '@accord-dev/accord-core';
 
 /** Environment problem the user must fix (no git, not a repository, no accord/ folder); exit 2 in Phase 5. */
@@ -249,6 +249,44 @@ export function ticketOfBranch(name: string, templates: readonly string[], known
   return ids.find(known) ?? ids[0];
 }
 
+/** D-07: the default branch is the first of origin/HEAD, origin/main, origin/master naming a commit; its valid `branch` is a template in force. */
+function gitDefaultBranch(root: string): { exists: boolean; template?: string } {
+  const refs = ['refs/remotes/origin/HEAD', 'refs/remotes/origin/main', 'refs/remotes/origin/master'];
+  let out: Buffer;
+  try {
+    out = execFileSync('git', ['-c', 'credential.interactive=never', 'cat-file', '--batch'], {
+      cwd: root,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      maxBuffer: 64 * 1024 * 1024,
+      env: { ...process.env, GIT_NO_LAZY_FETCH: '1', GIT_TERMINAL_PROMPT: '0', GCM_INTERACTIVE: 'never' },
+      input: refs.map((r) => r + '\n' + r + ':accord/config.yml\n').join(''),
+    });
+  } catch {
+    return { exists: true };
+  }
+  let at = 0;
+  const next = (): { type: string; body: string } | undefined => {
+    const nl = out.indexOf(10, at);
+    if (nl < 0) return undefined;
+    const m = /^[0-9a-f]+ (\w+) (\d+)$/.exec(out.toString('utf8', at, nl));
+    if (m === null) {
+      at = nl + 1; // `<name> missing`
+      return { type: 'missing', body: '' };
+    }
+    const size = Number(m[2]);
+    const body = out.toString('utf8', nl + 1, nl + 1 + size);
+    at = nl + 1 + size + 1;
+    return { type: m[1] as string, body };
+  };
+  for (let i = 0; i < refs.length; i++) {
+    const head = next();
+    const config = next();
+    if (head === undefined || config === undefined) break;
+    if (head.type === 'commit') return { exists: true, ...(config.type === 'blob' && branchTemplateOf(config.body) !== undefined ? { template: branchTemplateOf(config.body) as string } : {}) };
+  }
+  return { exists: false };
+}
+
 export function loadFromFs(root: string): SnapshotInput {
   const tree = gitTree(root);
   const files = accordFiles(root);
@@ -287,7 +325,7 @@ export function loadFromFs(root: string): SnapshotInput {
     ),
   ];
   const recordsSince = recorded.length === 0 ? {} : gitRecordsSince(root, recorded);
-  const branchTemplates = [...new Set([DEFAULT_BRANCH_TEMPLATE, ...(config?.branch === undefined ? [] : [config.branch])])];
+  const branchTemplates = [...new Set([DEFAULT_BRANCH_TEMPLATE, gitDefaultBranch(root).template, config?.branch].filter((t): t is string => t !== undefined))];
   return {
     files,
     tree,

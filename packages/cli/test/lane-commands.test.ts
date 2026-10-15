@@ -1046,3 +1046,38 @@ it('ac-1 anchor finds the active ticket from a branch named by the template', as
     cleanup(repo);
   }
 });
+
+it('risk:complex-branching a template on the default branch is in force without the key in the working tree', async () => {
+  const repo = makeLaneRepo({ 'accord/config.yml': BRANCHED, 'accord/tickets/ST-AN-2.md': laneTicket('ST-AN-2') });
+  try {
+    commitAll(repo);
+    gitRun(repo, 'update-ref', 'refs/remotes/origin/main', 'HEAD');
+    gitRun(repo, 'symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main');
+    writeFiles(repo, { 'accord/config.yml': CONFIG });
+    commitAll(repo);
+    gitRun(repo, 'checkout', '-q', '-b', 'feature/ST-AN-2');
+    const r = await run(['anchor'], repo);
+    expect(r.out.startsWith('# Anchor: ST-AN-2 "Export"\n')).toBe(true);
+    gitRun(repo, 'symbolic-ref', '--delete', 'refs/remotes/origin/HEAD');
+    const r2 = await run(['anchor'], repo);
+    expect(r2.out.startsWith('# Anchor: ST-AN-2 "Export"\n')).toBe(true);
+  } finally {
+    cleanup(repo);
+  }
+});
+
+it('risk:complex-branching a template on a ref other than the default branch sets nothing', async () => {
+  const repo = makeLaneRepo({ 'accord/config.yml': BRANCHED, 'accord/tickets/ST-AN-2.md': laneTicket('ST-AN-2') });
+  try {
+    commitAll(repo);
+    gitRun(repo, 'update-ref', 'refs/remotes/origin/other', 'HEAD');
+    writeFiles(repo, { 'accord/config.yml': CONFIG });
+    commitAll(repo);
+    gitRun(repo, 'checkout', '-q', '-b', 'feature/ST-AN-2');
+    const r = await run(['anchor'], repo);
+    expect(r.code).toBe(0);
+    expect(r.out).toBe('');
+  } finally {
+    cleanup(repo);
+  }
+});

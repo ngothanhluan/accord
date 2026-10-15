@@ -39,7 +39,7 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: ST-LN-2
 
-  @ac-1
+  @ac-1 @test:packages/cli/test/dashboard.test.ts#ac-1-ready-tickets-are-ranked-by-inherited-priority-then-by-id
   Scenario: Ready tickets are ranked by inherited priority, then by id
     Given five unclaimed tickets, each passing `gate ready` with no task done: ST-AN-1 with `priority: low`, ST-AN-3 with no `priority`, ST-AN-4 with `priority: high`, ST-AN-2 with `priority: medium` and `depends_on: [ST-AN-1]`, and ST-AN-6 with `priority: high` and `depends_on: [ST-AN-2]`
     When `accord dashboard --json` runs

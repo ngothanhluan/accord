@@ -2,6 +2,7 @@
 
 ## Tasks
 - task 1 done c224145a7470
+- task 2 done e78a55d04f91
 
 ## Rulings
 - Ruling: only open lane tickets that are not epics enter YOURS, TEAM, READY, UP NEXT and the summary's counts; open means not done, not archived, not dropped — `claimedBy` and `stage` exist only on lane rows, and an epic is never planned so it would sit in UP NEXT forever — cost if wrong: a 0.1.0 ticket is only counted, never listed.
@@ -26,3 +27,4 @@
 - Ruling: `epics` is always present in `dashboard --json` (`{ rows: [], more: 0 }` with no epic), while the text omits an empty EPICS section; D-06's "a section that does not apply" is read as UP NEXT, the only section whose presence depends on the viewer — a stable key is simpler for the panel — cost if wrong: a reader expecting the key absent with no epics.
 - Ruling: summary `withoutLane` uses the core `isDone` (not `stage`) to exclude finished laneless tickets — the brief says "not isDone" and laneless rows have no stage — cost if wrong: a laneless ticket with bound ticks is not counted.
 - Ruling: `inProgress` counts every open work ticket with a claim, and `done` counts work tickets at stage done whose status is not archived or dropped, as the preamble defines them — cost if wrong: @ac-4's counts differ.
+- Ruling: effective priority is computed once per call from a breadth-first walk with a visited set over the reverse depends_on edges; a closed or done dependent adds no weight but the walk continues through it — as the brief defines — cost if wrong: only the rank order changes.

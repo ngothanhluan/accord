@@ -42,3 +42,6 @@
 - `dashboard()` shadows `all` and builds the result literal twice to place `upNext`; a conditional spread does it once (round 1, quality Nice 3).
 - `priority: urgent` is tested both in `schemas.test.ts` and in ac-1's lint half (round 1, quality Nice 4).
 - The EPICS cap of 20 and its `+N more` line have no test; the cap and the unfinished-first order rest on Rulings, not on an owner sentence (round 1, intent Nices 3 and 4).
+- docs/specs/2026-10-12-workflow-layer-design.md:159-177 still describes the dashboard as built by the model from `accord status --json`, with the old mock-up (final review, Nice 2).
+- The session-start line counts unclaimed tickets at plan to verify as "in progress" (session.ts:16), while the dashboard counts only claimed ones, so the two lines can disagree (final review, Nice 3).
+- UP NEXT's `suggest` is the first unblocked ticket of the whole uncapped list, so with more than 20 higher-ranked blocked tickets it names a ticket the 20-row cap hides (final review, Nice 4; reproduced by scratchpad/upnext.mjs).

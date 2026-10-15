@@ -46,7 +46,7 @@ Feature: ST-LN-1
     When `accord anchor` runs with no id on branch feature/ST-AN-2
     Then it prints the anchor of ST-AN-2 and exits 0
 
-  @ac-2
+  @ac-2 @test:packages/cli/test/lane-commands.test.ts#ac-2-template-branches-and-t-branches-both-count-as-claims
   Scenario: Branches named by the template and t/ branches both count as claims
     Given config.yml has `branch: "feature/{id}"` and tickets ST-AN-2, ST-AN-3 and ST-AN-4 exist
     And the tip commit of the fetched ref origin/feature/ST-AN-2 is authored by "an@example.com", and that of origin/t/ST-AN-3 by "bo@example.com"

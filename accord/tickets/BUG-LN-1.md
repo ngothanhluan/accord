@@ -39,14 +39,14 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: BUG-LN-1
 
-  @ac-1
+  @ac-1 @test:packages/cli/test/lane-commands.test.ts#ac-1-a-brief-carries-the-plan-preamble
   Scenario: A brief carries the plan's preamble
     Given a lane ticket whose plan.md has the line "Shared rule: run the build first." between its frontmatter and `## Task 1`, and a `## Task 2`
     When `accord brief <id> 2` runs
     Then it prints exactly the ticket file verbatim, the line `---`, a blank line, "Shared rule: run the build first.", a blank line, and the Task 2 section, with no heading or label added, and exits 0
     And it prints nothing of the Task 1 section
 
-  @ac-2
+  @ac-2 @test:packages/cli/test/lane-commands.test.ts#ac-2-a-plan-with-no-preamble-gives-the-same-brief-as-before
   Scenario: A plan with no preamble gives the same brief as before
     Given a lane ticket whose plan.md has nothing but blank lines between its frontmatter and `## Task 1`
     When `accord brief <id> 1` runs

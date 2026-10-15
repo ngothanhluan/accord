@@ -23,6 +23,10 @@ export interface SnapshotInput {
   recordsSince?: Record<string, string[]>;
   // Claim branch templates in force ('t/{id}', 'feature/{id}'). Absent when only the default applies.
   branchTemplates?: string[];
+  // Ticket id -> short name of the winning claim ref ('feature/ST-AN-2'). Absent when no claim exists.
+  claimBranches?: Record<string, string>;
+  // The template a new claim is named by; absent when it is 't/{id}'.
+  claimTemplate?: string;
 }
 
 export interface Line {
@@ -174,4 +178,6 @@ export interface RepoSnapshot {
   baselineFiles?: Record<string, string[]>; // carried through from SnapshotInput
   recordsSince?: Record<string, string[]>; // carried through from SnapshotInput
   branchTemplates?: string[]; // carried through from SnapshotInput
+  claimBranches?: Record<string, string>; // carried through from SnapshotInput
+  claimTemplate?: string; // carried through from SnapshotInput
 }

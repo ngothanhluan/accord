@@ -13,7 +13,7 @@ const readied = (files: Record<string, string>): Record<string, string> => {
   const hash = acHash(loadSnapshot({ files, tree: [] }).tickets['T-1'].scenarios) as string;
   return { ...files, [T1]: setFrontmatterKey(files[T1], 'ac_hash', hash) };
 };
-const LANE_KEYS = ['lane', 'stage', 'tasksDone', 'tasksTotal', 'dependsOn', 'blockedBy', 'claimedBy'];
+const LANE_KEYS = ['lane', 'stage', 'tasksDone', 'tasksTotal', 'dependsOn', 'blockedBy', 'claimedBy', 'branch'];
 
 describe('stage (spec §6)', () => {
   it('walks intent, plan, build, review, verify, done', () => {
@@ -161,4 +161,17 @@ it('ac-4 finished and closed tickets are never idle', () => {
   expect(r.map((x) => x.id).sort()).toEqual([...ids].sort());
   expect(byId(r, 'T-DONE')?.stage).toBe('done');
   expect(r.filter((x) => x.idleDays !== undefined)).toEqual([]);
+});
+
+it('risk:complex-branching a lane row carries its claim branch or the name a new claim would use', () => {
+  const files = { 'accord/config.yml': CONFIG, [T1]: laneTicket('T-1'), 'accord/tickets/L-1.md': laneTicket('L-1', { lane: '' }) };
+  const of = (extra: Record<string, unknown>) => {
+    const all = statusRows(loadSnapshot({ files, tree: [], ...extra }));
+    return [all.find((r) => r.id === 'T-1'), all.find((r) => r.id === 'L-1')];
+  };
+  const [t, l] = of({});
+  expect(t?.branch).toBe('t/T-1');
+  expect(l).not.toHaveProperty('branch');
+  expect(of({ claimTemplate: 'feature/{id}' })[0]?.branch).toBe('feature/T-1');
+  expect(of({ claimTemplate: 'feature/{id}', claims: { 'T-1': 'an@example.test' }, claimBranches: { 'T-1': 't/T-1' } })[0]?.branch).toBe('t/T-1');
 });

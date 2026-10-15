@@ -115,40 +115,59 @@ function gitFacts(root: string): { commit: string; authors: Record<string, strin
 }
 
 /**
- * Spec §5: a branch named t/<id>, local or on any remote, claims ticket <id> for the author of its tip.
- * One spawn, literal arguments. for-each-ref sorts by refname, so refs/remotes/... is read after
- * refs/heads/... and the pushed claim, the one teammates see, wins.
+ * Spec §5: a branch named by a template in force (`t/{id}` always), local or on any remote, claims its ticket for
+ * the author of its tip. One spawn, literal arguments, one narrow pattern pair per template. Per ticket the winner is
+ * a pushed ref over a local one (the one teammates see), then the newest tip.
  *
  * A failure throws: `gitTree` has already proved git and the repository, so a failed for-each-ref is a
  * broken ref store, and silently dropping claims would offer held tickets as free. No match exits 0.
  */
-function gitClaims(root: string): { claims: Record<string, string>; activity: Record<string, number> } {
+function gitClaims(
+  root: string,
+  templates: readonly string[],
+  known: (id: string) => boolean,
+): { claims: Record<string, string>; branches: Record<string, string>; activity: Record<string, number> } {
+  const patterns = templates.flatMap((t) => {
+    const parts = t.split('{id}');
+    return parts.length === 2 ? ['refs/heads/' + parts[0] + '*' + parts[1], 'refs/remotes/*/' + parts[0] + '*' + parts[1]] : [];
+  });
   let out: string;
   try {
     // for-each-ref globs with WM_PATHNAME, so `*` stays within one segment.
     // shortcut: a remote whose name contains `/` is not matched; widen the pattern if one ever must be.
-    out = execFileSync('git', ['for-each-ref', '--format=%(refname)%00%(authoremail)%00%(committerdate:unix)', 'refs/heads/t/', 'refs/remotes/*/t/*'], {
+    out = execFileSync('git', ['for-each-ref', '--format=%(refname)%00%(authoremail)%00%(committerdate:unix)', ...patterns], {
       cwd: root,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
     });
   } catch (err) {
     const stderr = String((err as { stderr?: string }).stderr ?? '').trim();
-    throw new UsageError('git for-each-ref failed reading the t/<id> claim branches' + (stderr === '' ? '' : '\n' + stderr));
+    throw new UsageError('git for-each-ref failed reading the claim branches' + (stderr === '' ? '' : '\n' + stderr));
   }
-  const claims: Record<string, string> = {};
+  // A Map, so an inherited key such as `constructor` never counts as an earlier winner.
+  const winners = new Map<string, { email: string; short: string; pushed: boolean; when: number }>();
   const activity: Record<string, number> = {};
   for (const line of out.split('\n')) {
-    const [ref, email, when] = line.split('\0');
-    const m = /^refs\/(?:heads|remotes\/[^/]+)\/t\/([^/]+)$/.exec(ref ?? '');
+    const [ref, email, whenText] = line.split('\0');
+    const m = /^refs\/(?:(heads)|remotes\/[^/]+)\/(.+)$/.exec(ref ?? '');
     if (m === null || email === undefined) continue;
-    claims[m[1]] = email.replace(/^<|>$/g, '');
-    // Local and remote-tracking tips both count; the newest wins.
-    if (Number(when) > (activity[m[1]] ?? 0)) activity[m[1]] = Number(when);
+    const id = ticketOfBranch(m[2], templates, known);
+    if (id === undefined) continue;
+    const when = Number(whenText);
+    // Local and remote-tracking tips both count towards activity.
+    if (when > (activity[id] ?? 0)) activity[id] = when;
+    const cur = { email: email.replace(/^<|>$/g, ''), short: m[2], pushed: m[1] === undefined, when };
+    const prev = winners.get(id);
+    if (prev === undefined || (cur.pushed && !prev.pushed) || (cur.pushed === prev.pushed && cur.when > prev.when)) winners.set(id, cur);
   }
-  return { claims, activity };
+  const claims: Record<string, string> = Object.create(null);
+  const branches: Record<string, string> = Object.create(null);
+  for (const [id, w] of winners) {
+    claims[id] = w.email;
+    branches[id] = w.short;
+  }
+  return { claims, branches, activity };
 }
-
 /**
  * Spec §7: is each lane plan's baseline an ancestor of HEAD? Per sha, `git merge-base --is-ancestor`:
  * exit 0 is true and every other outcome is false (an unknown sha exits 128, a spawn failure throws).
@@ -303,7 +322,11 @@ export function loadFromFs(root: string): SnapshotInput {
   const shas = [
     ...new Set(Object.values(first.work ?? {}).flatMap((w) => (w.plan?.baseline !== undefined && isSha(w.plan.baseline) ? [w.plan.baseline] : []))),
   ];
-  const { claims, activity: branchActivity } = gitClaims(root);
+  const defaultBranch = gitDefaultBranch(root);
+  const branchTemplates = [...new Set([DEFAULT_BRANCH_TEMPLATE, defaultBranch.template, config?.branch].filter((t): t is string => t !== undefined))];
+  const { claims, branches: claimBranches, activity: branchActivity } = gitClaims(root, branchTemplates, (id) => Object.hasOwn(first.tickets, id));
+  // D-09: a new claim is named by the default branch's template; only a repository with no default branch uses the working tree's.
+  const claimTemplate = (defaultBranch.exists ? defaultBranch.template : config?.branch) ?? DEFAULT_BRANCH_TEMPLATE;
   const lastActivity: Record<string, number> = { ...facts?.activity };
   for (const [id, t] of Object.entries(branchActivity)) if (t > (lastActivity[id] ?? 0)) lastActivity[id] = t;
   const ancestors = shas.length === 0 ? undefined : gitAncestors(root, shas);
@@ -325,14 +348,14 @@ export function loadFromFs(root: string): SnapshotInput {
     ),
   ];
   const recordsSince = recorded.length === 0 ? {} : gitRecordsSince(root, recorded);
-  const branchTemplates = [...new Set([DEFAULT_BRANCH_TEMPLATE, gitDefaultBranch(root).template, config?.branch].filter((t): t is string => t !== undefined))];
   return {
     files,
     tree,
     ...(branchTemplates.length === 1 ? {} : { branchTemplates }),
     ...(git === undefined ? {} : { git }),
     // Omitted when empty, so a repository with no ticket branch loads exactly as before.
-    ...(Object.keys(claims).length === 0 ? {} : { claims }),
+    ...(Object.keys(claims).length === 0 ? {} : { claims, claimBranches }),
+    ...(claimTemplate === DEFAULT_BRANCH_TEMPLATE ? {} : { claimTemplate }),
     ...(Object.keys(lastActivity).length === 0 ? {} : { lastActivity }),
     ...(ancestors === undefined ? {} : { ancestors }),
     ...(Object.keys(baselineFiles).length === 0 ? {} : { baselineFiles }),

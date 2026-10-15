@@ -67,7 +67,7 @@ Feature: ST-LN-3
     When the owner enters "/accord pick-up ST-2", then "/accord continue ST-2", then "/accord continue the refactor"
     Then the first picks up ST-2, the second continues the ST-2 it claimed, and the third starts a new request whose text is "continue the refactor", each without showing the dashboard first
 
-  @ac-5
+  @ac-5 @test:packages/cli/test/skills-sync.test.ts#ac-5-skills-sync-installs-and-enables-the-panel-for-claude-code-only
   Scenario: skills sync installs and enables the panel for Claude Code only
     Given a repository whose config.yml declares runtimes [claude] and another that declares [codex]
     When `accord skills sync` runs in each

@@ -34,8 +34,11 @@
 - Ruling: the MARKER regex writes the JSON indent as ` {2}` — eslint no-regex-spaces rejects two literal spaces; the match is the same — cost if wrong: none.
 - Ruling: after task 1, view.js parses stdout only and ignores exitCode, and `view` ignores `query` — tasks 4 and 5 add the search filter and failure paths — cost if wrong: none once those tasks land.
 - Ruling: after task 1, register.js draws the pane through `view(state, '')` with no Input or buttons — the ac-2 and ac-3 tasks add them — cost if wrong: none once those tasks land.
+- Ruling: mergePanel spreads existing keys over the defaults, so an owner's `false` and a foreign `accord` marketplace stay untouched — the lightest merge that keeps an existing key's value; task 3 refuses a foreign `accord` source before the merge — cost if wrong: none here.
+- Ruling: init's `refusals` parameter is renamed from `agents` to `extra` and carries agent and plugin targets on the greenfield path — the brief's interface says so — cost if wrong: none.
 
 ## Deferred
 
 ## Tasks
 - task 1 done 4d590c7316ca
+- task 2 done 2cbef036a8f5

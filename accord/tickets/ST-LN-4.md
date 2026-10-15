@@ -53,6 +53,7 @@ Feature: ST-LN-4
 
 ## Open questions
 <!-- `- [ ]` items; Ready stays blocked while any is unchecked. -->
+- [ ] The owner asked (2026-10-15) what Must, Should and Nice mean when every Must and Should gets fixed anyway: "cái critic chia làm must, should, nice, nhưng lần nào tôi thấy must và should cũng đều phải xử lý, vậy phân ra có ý nghĩa gì?" Proposal to confirm at intent: only a Must blocks convergence and starts another critic or review round; a Should is fixed in the same round without a re-read, or declined with a Ruling. It touches accord-plan, accord-approach and accord-review; the measured catch rate of Should findings in past tickets is unknown.
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->

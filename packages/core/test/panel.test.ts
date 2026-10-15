@@ -47,6 +47,7 @@ async function host(mod: { register: (on: Handler) => void }) {
     },
     settle: (r: Partial<Result>) => (pending.shift() as (r: Result) => void)({ exitCode: 0, stdout: '', stderr: '', ...r }),
     fail: (err: unknown) => (failers.shift() as (e: unknown) => void)(err),
+    inflight: () => pending.length,
     close: (id: string) => open.delete(id),
     nodes: (type: string): El[] => {
       const out: El[] = [];
@@ -240,4 +241,76 @@ it('risk:concurrency a redraw from a finished run keeps what the owner typed', a
   expect(h.input()?.value).toBe('log');
   expect(h.texts().some((x) => x.includes('ST-1'))).toBe(true);
   expect(h.texts().some((x) => x.includes('ST-2'))).toBe(false);
+});
+
+it('ac-3 a failing cli shows its message instead of a dashboard', async () => {
+  const h = await host(await loadPanel());
+  await h.fire('session.start', start);
+  h.settle({ exitCode: 2, stderr: 'npm warn exec The following package was not found and will be installed\nset git config user.email\n' });
+  await vi.waitFor(() => expect(h.texts()).toEqual(['set git config user.email']));
+  expect(h.buttons()).toEqual([]);
+  expect(h.input()).toBeUndefined();
+});
+
+it('risk:complex-branching a rejected run an unparsable stdout and an empty stderr each show a message', async () => {
+  const cases: [(h: Awaited<ReturnType<typeof host>>) => void, string][] = [
+    [(h) => h.fail(new Error('timed out')), 'accord did not finish: timed out'],
+    [(h) => h.settle({ stdout: 'not json' }), 'accord dashboard --json printed no dashboard'],
+    [(h) => h.settle({ stdout: '{}' }), 'accord dashboard --json printed no dashboard'],
+    [(h) => h.settle({ exitCode: 3, stderr: 'npm notice x\n' }), 'accord exited 3'],
+    [(h) => h.settle({ stdout: JSON.stringify(board({ yours: { rows: ['ST-1'], more: 0 } })) }), 'accord dashboard --json printed no dashboard'],
+    [(h) => h.settle({ stdout: JSON.stringify(board({ upNext: { more: 0 } })) }), 'accord dashboard --json printed no dashboard'],
+  ];
+  for (const [run, text] of cases) {
+    const h = await host(await loadPanel());
+    await h.fire('session.start', start);
+    run(h);
+    await vi.waitFor(() => expect(h.texts()).toEqual([text]));
+  }
+});
+
+it('risk:concurrency one accord run at a time and none for a subagent turn or a closed pane', async () => {
+  const h = await host(await loadPanel());
+  const calls = (): number => h.$.process.run.mock.calls.length;
+  const drain = async (): Promise<void> => {
+    while (h.inflight() > 0) {
+      h.settle({});
+      await new Promise((r) => setTimeout(r, 0));
+    }
+  };
+  await h.fire('session.start', start);
+  expect(calls()).toBe(1);
+  await h.fire('turn.complete', { reason: 'answer' });
+  await h.fire('turn.complete', { reason: 'answer' });
+  expect(calls()).toBe(1);
+  h.settle({});
+  await vi.waitFor(() => expect(calls()).toBe(2));
+  h.settle({});
+  await new Promise((r) => setTimeout(r, 10));
+  expect(calls()).toBe(2);
+  await h.fire('turn.complete', { reason: 'answer', agentId: 'a1' });
+  expect(calls()).toBe(2);
+  h.close('accord-panel');
+  await h.fire('turn.complete', { reason: 'answer' });
+  expect(calls()).toBe(2);
+  await h.fire('command.run', { command: 'accord-panel', args: '' });
+  expect(h.$.ui.open).toHaveBeenLastCalledWith(expect.objectContaining({ focus: true }));
+  expect(calls()).toBe(3);
+  await drain();
+  const settled = calls();
+  h.placed = false;
+  await h.fire('turn.complete', { reason: 'answer' });
+  expect(calls()).toBe(settled);
+  await h.fire('command.run', { command: 'accord-panel', args: '' });
+  expect(h.$.ui.toast).toHaveBeenCalledWith('The terminal is too narrow for the accord pane: it needs 110 columns');
+});
+
+it('risk:security a title cannot put control characters into the pane', async () => {
+  const h = await host(await loadPanel());
+  await h.fire('session.start', start);
+  h.settle({ stdout: JSON.stringify(board({ yours: { rows: [{ id: 'ST-1', title: 'Đặt\u001b[31m lại\u202e x\u2028y' }], more: 0 } })) });
+  await vi.waitFor(() => expect(h.texts().some((x) => x.includes('ST-1'))).toBe(true));
+  const bad = [0x1b, 0x202e, 0x2028];
+  for (const t of h.texts()) for (const c of t) expect(bad).not.toContain(c.codePointAt(0));
+  expect(h.texts().some((x) => x.includes('Đặt [31m lại x y'))).toBe(true);
 });

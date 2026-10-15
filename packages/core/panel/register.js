@@ -1,12 +1,30 @@
-import { outcome, view } from './view.js';
+import { failure, outcome, view } from './view.js';
 
 let state;
 let query = '';
 
+let running = false;
+let again = false;
+
 async function refresh($) {
-  const result = await $.process.run(['npx', '--yes', 'ACCORD_PACKAGE_SPEC', 'dashboard', '--json'], { timeoutMs: 120000 });
-  state = outcome(result);
-  $.ui.invalidate('ui.render');
+  if (running) {
+    again = true;
+    return;
+  }
+  running = true;
+  try {
+    do {
+      again = false;
+      try {
+        state = outcome(await $.process.run(['npx', '--yes', 'ACCORD_PACKAGE_SPEC', 'dashboard', '--json'], { timeoutMs: 120000 }));
+      } catch (err) {
+        state = failure(err);
+      }
+      await $.ui.invalidate('ui.render');
+    } while (again);
+  } finally {
+    running = false;
+  }
 }
 
 async function start($) {
@@ -25,12 +43,14 @@ export function register(on) {
 
   on('command.run', { command: 'accord-panel' }, async ($) => {
     await $.ui.open({ id: 'accord-panel', title: 'accord', focus: true });
+    const pane = (await $.ui.panes()).find((p) => p.id === 'accord-panel');
+    if (pane && pane.isPlaced === false) $.ui.toast('The terminal is too narrow for the accord pane: it needs 110 columns');
     void refresh($);
     return {};
   });
 
   on('turn.complete', async ($, e, next) => {
-    if (!e.agentId) void refresh($);
+    if (!e.agentId && (await $.ui.panes()).some((p) => p.id === 'accord-panel' && p.isPlaced === true)) void refresh($);
     return next(e);
   });
 

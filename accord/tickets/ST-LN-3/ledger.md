@@ -46,8 +46,15 @@
 - Ruling: the MENTION comment in the skill-commands test gets two sentences, not one as planned — it names the `/accord` exclusion and why — cost if wrong: none, a comment only.
 - Ruling: task 7 ran build, lint, typecheck and the full suite one by one instead of `npm run check`, which runs those same four — cost if wrong: none.
 - Ruling: review round 1 runs intent, quality and security reviewers in parallel — the source diff (excluding generated copies) is about 1640 lines, at the 1500 split edge, and sync deletes orphan plugin files and merges the user's settings.json — cost if wrong: one extra reviewer's tokens.
+- Ruling: the task 5 Ruling "ids are CLI-validated" was wrong — a ticket id is its file stem, which arrives through git unchecked; since 14c0ace a row gets a Continue or Pick up button only when its id matches `^[A-Za-z0-9][A-Za-z0-9._-]*$` (the pattern new-ticket.ts uses), else it shows as plain text — cost if wrong: a legitimate ticket whose file name holds a space has no button.
+- Ruling: review round 1's reformat fix rebuilt skills.ts and skills-sync.test.ts from the 1d635b5 baseline plus the panel edits, with no formatter — the diff against the baseline is now 37 and 129 lines — cost if wrong: none.
 
 ## Deferred
+- Review round 1 (Nice): the orphan report tells the user to `rm -rf .claude/accord-panel` and remove the `accord` marketplace keys without checking for the generated marker, so it can point at a user-owned folder or a foreign marketplace (skills.ts orphans).
+- Review round 1 (Nice): `MARKER` in skills/render.ts now uses one regex with an optional tail for three marker forms, looser than the exact html-only match it replaced.
+- Review round 1 (Nice): `mergePanel` in scaffold/panel.ts has two stacked JSDoc blocks (the first orphaned) and a redundant `m !== undefined` check.
+- Review round 1 (Nice): two tests carry `risk:` names without a matching risk — `risk:regression the committed panel and settings carry the plugin` (skills-sync.test.ts) and `risk:parsing every panel file carries one marker…` (panel.test.ts); fold into ac-5 or rename.
+- Review round 1 (Nice): `clean` is exported from panel/view.js; check whether a test needs the export before removing it.
 
 ## Tasks
 - task 1 done 4d590c7316ca

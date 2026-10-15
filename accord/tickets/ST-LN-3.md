@@ -63,9 +63,9 @@ Feature: ST-LN-3
 
   @ac-4
   Scenario: The /accord skill acts on a named ticket
-    Given ST-2 is a ready ticket, no ticket has the id "the", and the word after the action is compared with ticket ids only
-    When the owner enters "/accord pick-up ST-2", "/accord continue ST-2" or "/accord continue the refactor"
-    Then the skill picks up ST-2, continues ST-2, or treats "continue the refactor" as a new request, in that order, without showing the dashboard first
+    Given ST-2 is a ready ticket, no ticket has the id "the refactor", and an action applies only when the whole text after it is exactly one ticket id
+    When the owner enters "/accord pick-up ST-2", then "/accord continue ST-2", then "/accord continue the refactor"
+    Then the first picks up ST-2, the second continues the ST-2 it claimed, and the third starts a new request whose text is "continue the refactor", each without showing the dashboard first
 
   @ac-5
   Scenario: skills sync installs and enables the panel for Claude Code only
@@ -89,6 +89,7 @@ Feature: ST-LN-3
 - D-07 Search keeps a row when the box text appears anywhere in its id or title, ignoring case — "Chứa chuỗi, không phân biệt hoa thường (Recommended)"
 - D-08 When the CLI fails, its message replaces the whole pane: no search box, no button — "Chỉ hiện thông báo (Recommended)"
 - D-09 The pane is for the Claude Code terminal only; Desktop is left out, since the mods API documents running a command as CLI only and nothing here proves Desktop — "Thu hẹp về terminal (Recommended)"
+- D-10 ac-4 is one sequence: pick-up claims ST-2 before continue continues it; `continue` on a ticket nobody has claimed says so and offers Pick up, and never claims it — "Sửa câu chữ thành chuỗi (Recommended)"
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->

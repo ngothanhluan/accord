@@ -859,3 +859,36 @@ it("risk:data-loss a dropped claude runtime reports the panel as an orphan and d
   ).toBe(true);
   expect(readFileSync(at(a, ".claude/settings.json"), "utf8")).toBe(before);
 });
+
+it("risk:regression the committed panel and settings carry the plugin", () => {
+  const read = (p: string): string =>
+    readFileSync(new URL(`../../../${p}`, import.meta.url), "utf8");
+  const files = [
+    ".claude/accord-panel/.claude-plugin/marketplace.json",
+    ".claude/accord-panel/plugin/.claude-plugin/plugin.json",
+    ".claude/accord-panel/plugin/hooks/hooks.json",
+    ".claude/accord-panel/plugin/hooks/register.js",
+    ".claude/accord-panel/plugin/hooks/view.js",
+  ];
+  for (const p of files) {
+    const text = read(p);
+    expect(markerHash(text), p).toBe(
+      contentHash(withoutMarker(normaliseText(text))),
+    );
+  }
+  expect(read(files[3] as string)).toContain(
+    `@accord-dev/accord@${pkg.version}`,
+  );
+  const s = JSON.parse(read(".claude/settings.json")) as Record<
+    string,
+    Record<string, unknown>
+  >;
+  expect(s.enabledPlugins?.["accord-panel@accord"]).toBe(true);
+  expect(s.extraKnownMarketplaces?.accord).toEqual(PANEL);
+  const cmds = JSON.stringify(s.hooks);
+  for (const h of ["session-start", "session-resume", "subagent-start"])
+    expect(cmds).toContain(`hook ${h}`);
+  expect(read(".claude/skills/accord/SKILL.md")).toContain(
+    "`/accord continue <id>`",
+  );
+});

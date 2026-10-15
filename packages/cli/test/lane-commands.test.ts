@@ -3,7 +3,7 @@
 import { existsSync, readFileSync, rmSync, statSync, utimesSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { cleanup, commitAll, gitRun, makeEmptyRepo, makeLaneRepo, makeRepo, run, writeFiles } from './helpers/repo.js';
+import { cleanup, commitAll, commitAllAt, gitRun, makeEmptyRepo, makeLaneRepo, makeRepo, run, writeFiles } from './helpers/repo.js';
 import { CONFIG, junit, LANE_BODY, laneTicket, PLAN, REPORT } from '../../../test/helpers/lane.js';
 import { commitSeconds } from '../src/commands/task-done.js';
 
@@ -587,7 +587,7 @@ describe('status, claims, and next', () => {
       expect(after).toEqual(before);
       expect(before[0].out.split('\n')[0]).not.toContain('stage');
       const row = (JSON.parse(before[1].out) as Record<string, unknown>[])[0];
-      for (const key of ['lane', 'stage', 'tasksDone', 'tasksTotal', 'dependsOn', 'blockedBy', 'claimedBy']) {
+      for (const key of ['lane', 'stage', 'tasksDone', 'tasksTotal', 'dependsOn', 'blockedBy', 'claimedBy', 'branch']) {
         expect(row).not.toHaveProperty(key);
       }
     } finally {
@@ -1029,3 +1029,183 @@ it('ac-3 gate plan fails on a comma inside a verify id', async () => {
     r.out.split('\n').some((l) => l.startsWith('accord/tickets/T-1/plan.md:') && l.includes('gate.plan-verify-comma')),
   ).toBe(true);
 }, 30000);
+
+const BRANCHED = CONFIG + 'branch: "feature/{id}"\n';
+
+it('ac-1 anchor finds the active ticket from a branch named by the template', async () => {
+  const repo = makeLaneRepo({ 'accord/config.yml': BRANCHED, 'accord/tickets/ST-AN-2.md': laneTicket('ST-AN-2') });
+  try {
+    commitAll(repo);
+    gitRun(repo, 'checkout', '-q', '-b', 'feature/ST-AN-2');
+    const r = await run(['anchor'], repo);
+    expect(r.code).toBe(0);
+    expect(r.out.startsWith('# Anchor: ST-AN-2 "Export"\n')).toBe(true);
+    const h = await run(['hook', 'session-resume'], repo);
+    expect(h.out).toContain('# Anchor: ST-AN-2 "Export"');
+  } finally {
+    cleanup(repo);
+  }
+});
+
+it('risk:complex-branching a template on the default branch is in force without the key in the working tree', async () => {
+  const repo = makeLaneRepo({ 'accord/config.yml': BRANCHED, 'accord/tickets/ST-AN-2.md': laneTicket('ST-AN-2') });
+  try {
+    commitAll(repo);
+    gitRun(repo, 'update-ref', 'refs/remotes/origin/main', 'HEAD');
+    gitRun(repo, 'symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main');
+    writeFiles(repo, { 'accord/config.yml': CONFIG });
+    commitAll(repo);
+    gitRun(repo, 'checkout', '-q', '-b', 'feature/ST-AN-2');
+    const r = await run(['anchor'], repo);
+    expect(r.out.startsWith('# Anchor: ST-AN-2 "Export"\n')).toBe(true);
+    gitRun(repo, 'symbolic-ref', '--delete', 'refs/remotes/origin/HEAD');
+    const r2 = await run(['anchor'], repo);
+    expect(r2.out.startsWith('# Anchor: ST-AN-2 "Export"\n')).toBe(true);
+  } finally {
+    cleanup(repo);
+  }
+});
+
+it('risk:complex-branching a template on a ref other than the default branch sets nothing', async () => {
+  const repo = makeLaneRepo({ 'accord/config.yml': BRANCHED, 'accord/tickets/ST-AN-2.md': laneTicket('ST-AN-2') });
+  try {
+    commitAll(repo);
+    gitRun(repo, 'update-ref', 'refs/remotes/origin/other', 'HEAD');
+    writeFiles(repo, { 'accord/config.yml': CONFIG });
+    commitAll(repo);
+    gitRun(repo, 'checkout', '-q', '-b', 'feature/ST-AN-2');
+    const r = await run(['anchor'], repo);
+    expect(r.code).toBe(0);
+    expect(r.out).toBe('');
+  } finally {
+    cleanup(repo);
+  }
+});
+
+it('ac-2 template branches and t branches both count as claims', async () => {
+  const repo = makeLaneRepo({
+    'accord/config.yml': BRANCHED,
+    'accord/tickets/ST-AN-2.md': laneTicket('ST-AN-2'),
+    'accord/tickets/ST-AN-3.md': laneTicket('ST-AN-3'),
+    'accord/tickets/ST-AN-4.md': laneTicket('ST-AN-4'),
+  });
+  try {
+    for (const id of ['ST-AN-2', 'ST-AN-3', 'ST-AN-4']) {
+      expect((await run(['approve', id], repo)).code).toBe(0);
+      expect((await run(['gate', 'ready', id], repo)).code).toBe(0);
+    }
+    commitAll(repo);
+    for (const [email, ref] of [
+      ['an@example.com', 'refs/remotes/origin/feature/ST-AN-2'],
+      ['bo@example.com', 'refs/remotes/origin/t/ST-AN-3'],
+    ]) {
+      const sha = gitRun(repo, '-c', 'user.email=' + email, '-c', 'user.name=x', 'commit-tree', 'HEAD^{tree}', '-p', 'HEAD', '-m', 'claim').trim();
+      gitRun(repo, 'update-ref', ref, sha);
+    }
+    const rows = JSON.parse((await run(['status', '--json'], repo)).out) as { id: string; claimedBy?: string; branch?: string }[];
+    const row = (id: string) => rows.find((r) => r.id === id);
+    expect(row('ST-AN-2')).toMatchObject({ claimedBy: 'an@example.com', branch: 'feature/ST-AN-2' });
+    expect(row('ST-AN-3')).toMatchObject({ claimedBy: 'bo@example.com', branch: 't/ST-AN-3' });
+    expect(row('ST-AN-4')).not.toHaveProperty('claimedBy');
+    const next = JSON.parse((await run(['next', '--json'], repo)).out) as { id: string; branch?: string }[];
+    expect(next.map((r) => r.id)).toEqual(['ST-AN-4']);
+    expect(next[0].branch).toBe('feature/ST-AN-4');
+  } finally {
+    cleanup(repo);
+  }
+}, 60000);
+
+it('risk:complex-branching among claim refs for one ticket a pushed ref wins and then the newest tip', async () => {
+  const repo = makeLaneRepo({ 'accord/config.yml': BRANCHED, 'accord/tickets/ST-AN-2.md': laneTicket('ST-AN-2') });
+  try {
+    commitAllAt(repo, OLD);
+    gitRun(repo, 'update-ref', 'refs/remotes/origin/t/ST-AN-2', 'HEAD');
+    writeFiles(repo, { 'src/a.ts': 'export const a = 1;\n' });
+    commitAllAt(repo, new Date('2010-01-01T00:00:00Z'));
+    gitRun(repo, 'update-ref', 'refs/remotes/origin/feature/ST-AN-2', 'HEAD');
+    writeFiles(repo, { 'src/b.ts': 'export const b = 1;\n' });
+    commitAll(repo);
+    gitRun(repo, 'branch', 't/ST-AN-2');
+    const rows = JSON.parse((await run(['status', '--json'], repo)).out) as { id: string; branch?: string }[];
+    expect(rows.find((r) => r.id === 'ST-AN-2')?.branch).toBe('feature/ST-AN-2');
+  } finally {
+    cleanup(repo);
+  }
+});
+
+it('risk:complex-branching a new claim is named by the default branch template before the working tree one', async () => {
+  const repo = makeLaneRepo({ 'accord/config.yml': CONFIG, 'accord/tickets/ST-AN-4.md': laneTicket('ST-AN-4') });
+  const branchOf = async () =>
+    (JSON.parse((await run(['status', '--json'], repo)).out) as { id: string; branch?: string }[]).find((r) => r.id === 'ST-AN-4')?.branch;
+  try {
+    commitAll(repo);
+    gitRun(repo, 'update-ref', 'refs/remotes/origin/main', 'HEAD');
+    writeFiles(repo, { 'accord/config.yml': BRANCHED });
+    expect(await branchOf()).toBe('t/ST-AN-4');
+    writeFiles(repo, { 'accord/config.yml': CONFIG + 'branch: "team/{id}"\n' });
+    commitAll(repo);
+    gitRun(repo, 'update-ref', 'refs/remotes/origin/main', 'HEAD');
+    writeFiles(repo, { 'accord/config.yml': BRANCHED });
+    expect(await branchOf()).toBe('team/ST-AN-4');
+    gitRun(repo, 'update-ref', '-d', 'refs/remotes/origin/main');
+    expect(await branchOf()).toBe('feature/ST-AN-4');
+  } finally {
+    cleanup(repo);
+  }
+}, 60000);
+
+it('ac-3 lint rejects an invalid template and anchor still reads the t branch', async () => {
+  const repo = makeLaneRepo({ 'accord/tickets/ST-AN-2.md': laneTicket('ST-AN-2') });
+  try {
+    commitAll(repo);
+    gitRun(repo, 'checkout', '-q', '-b', 't/ST-AN-2');
+    for (const value of ['{id}', 'feature/{id}/{id}', 'feature/x', 'feature {id}', 'feature/..{id}']) {
+      writeFiles(repo, { 'accord/config.yml': CONFIG + 'branch: "' + value + '"\n' });
+      const l = await run(['lint', '--json'], repo);
+      expect(l.code, value).toBe(1);
+      const f = (JSON.parse(l.out).findings as { pointer?: string; rule: string }[]).filter((x) => x.pointer === '/branch');
+      expect(f.length, value).toBeGreaterThan(0);
+      expect(f.every((x) => x.rule.startsWith('schema.'))).toBe(true);
+      const a = await run(['anchor'], repo);
+      expect(a.code).toBe(0);
+      expect(a.out.startsWith('# Anchor: ST-AN-2 "Export"\n')).toBe(true);
+    }
+    writeFiles(repo, { 'accord/config.yml': BRANCHED });
+    const ok = await run(['lint', '--json'], repo);
+    expect((JSON.parse(ok.out).findings as { pointer?: string }[]).filter((x) => x.pointer === '/branch')).toEqual([]);
+  } finally {
+    cleanup(repo);
+  }
+}, 60000);
+
+it('ac-4 without the branch key t branches count and template branches do not', async () => {
+  const repo = makeLaneRepo({ 'accord/tickets/ST-AN-2.md': laneTicket('ST-AN-2'), 'accord/tickets/ST-AN-3.md': laneTicket('ST-AN-3') });
+  try {
+    commitAll(repo);
+    gitRun(repo, 'update-ref', 'refs/remotes/origin/feature/ST-AN-3', 'HEAD');
+    gitRun(repo, 'checkout', '-q', '-b', 't/ST-AN-2');
+    const a = await run(['anchor'], repo);
+    expect(a.out.startsWith('# Anchor: ST-AN-2 "Export"\n')).toBe(true);
+    const rows = JSON.parse((await run(['status', '--json'], repo)).out) as { id: string; claimedBy?: string }[];
+    expect(rows.find((r) => r.id === 'ST-AN-2')?.claimedBy).toBeTruthy();
+    expect(rows.find((r) => r.id === 'ST-AN-3')?.claimedBy).toBeUndefined();
+  } finally {
+    cleanup(repo);
+  }
+}, 60000);
+
+it('risk:complex-branching an invalid template names no claim', async () => {
+  const repo = makeLaneRepo({ 'accord/config.yml': CONFIG + 'branch: "{id}"\n', 'accord/tickets/ST-AN-2.md': laneTicket('ST-AN-2') });
+  try {
+    commitAll(repo);
+    gitRun(repo, 'update-ref', 'refs/remotes/origin/main', 'HEAD');
+    gitRun(repo, 'branch', 'ST-AN-2');
+    gitRun(repo, 'update-ref', 'refs/remotes/origin/ST-AN-2', 'HEAD');
+    const rows = JSON.parse((await run(['status', '--json'], repo)).out) as { id: string; claimedBy?: string; branch?: string }[];
+    const row = rows.find((r) => r.id === 'ST-AN-2');
+    expect(row?.claimedBy).toBeUndefined();
+    expect(row?.branch).toBe('t/ST-AN-2');
+  } finally {
+    cleanup(repo);
+  }
+}, 60000);

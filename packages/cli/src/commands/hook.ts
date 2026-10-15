@@ -19,7 +19,7 @@ export function hook(ctx: CommandContext, event: HookEvent): number {
   let body = line + '\n';
   if (event === 'session-resume') {
     try {
-      const id = activeTicket(ctx.root);
+      const id = activeTicket(ctx.root, ctx.snapshot);
       body = (id === undefined ? undefined : anchorText(ctx.snapshot, id)) ?? body;
     } catch (e) {
       ctx.stderr.write((e as Error).message + '\n');

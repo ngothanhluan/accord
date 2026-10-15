@@ -143,7 +143,7 @@ describe('config.schema.json', () => {
 
   it('top-level properties are the six D-16 keys plus optional tests (D-72) review (spec §7), models, escalation, and stale_days', () => {
     const keys = ['accord', 'profile', 'tracker', 'design', 'roles', 'runtimes'];
-    expect(Object.keys(configSchema.properties)).toEqual([...keys, 'tests', 'review', 'models', 'escalation', 'stale_days', 'people', 'legacy_ids']);
+    expect(Object.keys(configSchema.properties)).toEqual([...keys, 'tests', 'review', 'models', 'escalation', 'stale_days', 'people', 'legacy_ids', 'branch']);
     expect(configSchema.required).toEqual(keys);
     for (const key of Object.keys(configSchema.properties)) {
       expect(key).not.toMatch(/key|token|secret|password/i);
@@ -331,4 +331,10 @@ it('risk:parsing legacy_ids is a list of distinct ticket ids', () => {
   expect(validate('config', { ...idsBase, legacy_ids: ['SHOW-1', 'ASK-1'] })).toEqual([]);
   expect(at({ ...idsBase, legacy_ids: ['SHOW-1', 'SHOW-1'] })).toContain('schema.uniqueItems@/legacy_ids');
   expect(at({ ...idsBase, legacy_ids: ['a b'] })).toContain('schema.pattern@/legacy_ids/0');
+});
+
+it('risk:parsing branch refuses a template that breaks any one rule', () => {
+  for (const ok of ['feature/{id}', 't/{id}', 'team.x/{id}-wip']) expect(validate('config', { ...idsBase, branch: ok })).toEqual([]);
+  for (const bad of ['{id}', 'a/x', 'a/{id}/{id}', 'a {id}', 'a/{name}/{id}', '-a/{id}', '/a/{id}', 'a/{id}/', 'a/{id}.', 'a/..{id}', 'a//{id}', '.a/{id}', 'a/.x/{id}', 'a.lock/{id}', 't/x/{id}', 't/{id}-x'])
+    expect(at({ ...idsBase, branch: bad }), bad).toContain('schema.pattern@/branch');
 });

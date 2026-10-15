@@ -35,9 +35,8 @@ remember their names.
    → [Continue T-12]  [Pick up T-21]  [New request]
    ```
 
-   Every section, READY TO PICK UP included, looks up each ticket's `idleDays`
-   by id in the `accord status --json` rows (`accord next --json` never carries
-   it); a ticket whose row has `idleDays` shows `idle <n>d` after its stage.
+   Every section, READY TO PICK UP included, shows `idle <n>d` after the
+   stage of a ticket whose `accord status --json` row has `idleDays`.
 
    Yours are the tickets whose `claimedBy` is your `user.email`, each with
    its `stage` and tasks (`tasksDone`/`tasksTotal`). The ones to pick up are
@@ -47,8 +46,8 @@ remember their names.
 
 ## Continue
 
-1. Switch to branch `t/<id>`. The active ticket is the branch, read from git,
-   never from memory.
+1. Switch to its `branch` from `accord status --json`. The active ticket is
+   the branch, read from git, never from memory.
 2. Run `accord anchor`. It prints the stage and the position from the ledger,
    then the owner's words verbatim.
 3. If `accord/tickets/<id>/debug.md` exists and its last `## ` heading is
@@ -65,8 +64,9 @@ remember their names.
 
 ## Pick up
 
-Create branch `t/<id>`, commit `claim: <id>` on it with `--allow-empty`,
-and push it: the pushed branch is the claim. Then continue as above.
+Create its `branch` from `accord next --json`, commit `claim: <id>` on it
+with `--allow-empty`, and push it: the pushed branch is the claim. Then
+continue as above.
 
 ## New request: `/accord <request>`
 
@@ -94,9 +94,10 @@ plausible reading; more than about three files expected.
   report in chat.
 - **M.** Run `accord new ticket <id> --lane M`; when config.yml has
   `people`, follow `./ids.md` and run `accord new ticket --type <story|bug>
-  --lane M` with no id instead. Create branch `t/<id>`, commit the
-  ticket file and any `people` edit on it, and
-  push it (the pushed branch is the claim), then load `accord-intent`.
+  --lane M` with no id instead. Create the ticket's `branch` from
+  `accord status --json`, commit the ticket file and any `people` edit on
+  it, and push it (the pushed branch is the claim), then load
+  `accord-intent`.
 - **L and P.** Not built yet. Say so, and propose splitting the work into
   lane M tickets linked by `depends_on`.
 

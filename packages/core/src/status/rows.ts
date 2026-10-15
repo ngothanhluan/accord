@@ -4,6 +4,7 @@ import type { RepoSnapshot } from '../model/snapshot.js';
 import { lintSnapshot } from '../lint/index.js';
 import { scoped } from '../gate/index.js';
 import { acHash } from '../gate/hash.js';
+import { DEFAULT_BRANCH_TEMPLATE } from './branch.js';
 import { isDone, progressOf } from './stage.js';
 import type { Stage } from './stage.js';
 
@@ -27,7 +28,8 @@ export interface StatusRow {
   tasksTotal?: number;
   dependsOn?: string[]; // spec §5, as written
   blockedBy?: string[]; // dependsOn entries whose ticket is not done; an unknown id blocks
-  claimedBy?: string; // host-supplied author of branch t/<id>
+  claimedBy?: string; // host-supplied author of the claim branch
+  branch?: string; // the claim branch, or the name a new claim would use
   idleDays?: number; // whole days since the newest activity, present only when greater than stale_days
 }
 
@@ -84,6 +86,10 @@ export function statusRows(snapshot: RepoSnapshot, now?: number): StatusRow[] {
               tasksTotal: progress.tasksTotal,
               ...(deps === undefined ? {} : { dependsOn: deps, blockedBy: deps.filter((d) => !isDone(snapshot, d)) }),
               ...(claims !== undefined && Object.hasOwn(claims, ticket.id) ? { claimedBy: claims[ticket.id] } : {}),
+              branch:
+                snapshot.claimBranches !== undefined && Object.hasOwn(snapshot.claimBranches, ticket.id)
+                  ? snapshot.claimBranches[ticket.id]
+                  : (snapshot.claimTemplate ?? DEFAULT_BRANCH_TEMPLATE).replace('{id}', ticket.id),
               ...(open && idle !== undefined && idle > Number(snapshot.config?.stale_days ?? '14') ? { idleDays: idle } : {}),
             }),
       };

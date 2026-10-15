@@ -19,3 +19,8 @@ tests:
 review:
   mode: outcome
 stale_days: "14"
+# Ticket ids: accord assigns ST-/BUG-/EP-<initials>-<n> to the creator's git user.email (IDS-1).
+people:
+  "luan.ngothanh@zenenterprise.com.au": LN
+# Ids created before the convention.
+legacy_ids: [ASK-1, BASE-1, IDS-1, README-1, REFS-1, SHOW-1, STALE-1, TAGS-1, VID-1]

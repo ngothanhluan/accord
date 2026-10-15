@@ -169,3 +169,13 @@ it('risk:parsing verify markers map the test id before them and stay out of veri
     { test: 'c#z', ac: '@ac-3' },
   ]);
 });
+
+it('risk:parsing the preamble keeps a Context section and a title above Task 1', () => {
+  const F = '~~~';
+  const pre = '# Title\n\n## Context\nrule\n' + F + '\n## Task 9: fenced\n' + F + '\n\n';
+  const text = '---\nbaseline: x\n---\n' + pre + '## Task 1: A\ncovers: @ac-1\n';
+  expect(parsePlan('p', text).plan.preamble).toBe(pre);
+  expect(parsePlan('p', '## Task 1: A\n').plan.preamble).toBe('');
+  expect(parsePlan('p', 'only prose\n').plan.preamble).toBe('only prose\n');
+  expect(parsePlan('p', '\uFEFF' + text.replace(/\n/g, '\r\n')).plan.preamble).toBe(pre);
+});

@@ -22,6 +22,7 @@ export interface Dashboard {
   yours: DashboardSection;
   team: DashboardSection;
   ready: DashboardSection;
+  upNext?: DashboardSection & { suggest?: { action: 'pick-up'; id: string } };
   summary: DashboardSummary;
 }
 
@@ -100,10 +101,12 @@ export function dashboard(snapshot: RepoSnapshot, viewer: string, now?: number):
   const claimed = open.filter((r) => r.claimedBy !== undefined);
   const readyAll = nextRows(open);
   const unclaimed = open.filter((r) => r.claimedBy === undefined);
-  return {
-    yours: section(claimed.filter(mine), Infinity, prio),
+  const yours = section(claimed.filter(mine), Infinity, prio);
+  const ready = section(readyAll, READY_CAP, prio);
+  const out: Dashboard = {
+    yours,
     team: section(claimed.filter((r) => !mine(r)), TEAM_CAP, prio),
-    ready: section(readyAll, READY_CAP, prio),
+    ready,
     summary: {
       inProgress: claimed.length,
       ready: readyAll.length,
@@ -114,4 +117,12 @@ export function dashboard(snapshot: RepoSnapshot, viewer: string, now?: number):
       withSchemaErrors: all.filter((r) => r.type === undefined).length,
     },
   };
+  // D-04: only when the viewer has nothing in progress and nothing is ready; key order puts it after ready.
+  if (yours.rows.length === 0 && ready.rows.length === 0) {
+    const all = section(unclaimed, Infinity, prio).rows;
+    const first = all.find((r) => !blocked(r));
+    const up = { rows: all.slice(0, READY_CAP), more: Math.max(0, all.length - READY_CAP), ...(first ? { suggest: { action: 'pick-up' as const, id: first.id } } : {}) };
+    return { yours: out.yours, team: out.team, ready: out.ready, upNext: up, summary: out.summary };
+  }
+  return out;
 }

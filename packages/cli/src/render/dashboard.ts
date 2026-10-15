@@ -48,6 +48,8 @@ export function renderDashboard(d: Dashboard): string {
     `${m.inProgress} in progress, ${m.ready} ready, ${m.blocked} blocked, ${m.backlog} backlog, ${m.done} done` +
     (m.withoutLane > 0 ? `, ${m.withoutLane} without lane` : '') +
     (m.withSchemaErrors > 0 ? `, ${m.withSchemaErrors} with schema errors, run accord lint` : '');
-  const sections = [block('YOURS', d.yours), block('TEAM', d.team), block('READY', d.ready)];
-  return [...sections.map((s) => s.join('\n')), summary].join('\n\n') + '\n';
+  const sections = [block('YOURS', d.yours), block('TEAM', d.team), block('READY', d.ready), ...(d.upNext ? [block('UP NEXT', d.upNext)] : [])];
+  const pick = d.ready.rows[0]?.id ?? d.upNext?.suggest?.id;
+  const actions = [d.yours.rows[0] ? `[Continue ${d.yours.rows[0].id}]` : '', pick ? `[Pick up ${pick}]` : '', '[New request]'].filter(Boolean);
+  return [...sections.map((s) => s.join('\n')), summary + '\n-> ' + actions.join('  ')].join('\n\n') + '\n';
 }

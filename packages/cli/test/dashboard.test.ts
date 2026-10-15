@@ -5,7 +5,7 @@ import type { Dashboard, StatusRow } from '@accord-dev/accord-core';
 import { renderDashboard } from '../src/render/dashboard.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { cleanup, gitRun, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
+import { cleanup, commitAll, gitRun, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
 import { CONFIG, laneTicket, PLAN } from '../../../test/helpers/lane.js';
 
 type Files = Record<string, string>;
@@ -173,4 +173,75 @@ it('risk:complex-branching a depends_on cycle ends and a dropped dependent does 
   add('ST-AN-6', ['status: dropped', 'depends_on: ["ST-AN-5"]']);
   add('ST-AN-7', ['priority: high', 'depends_on: ["ST-AN-6"]']);
   expect(board(files, claims).team.rows.map((r) => r.id)).toEqual(['ST-AN-5', 'ST-AN-7', 'ST-AN-3', 'ST-AN-1', 'ST-AN-2']);
+});
+
+it('ac-3 up next shows the viewer what to pick up when nothing is ready', () => {
+  const files: Files = { 'accord/config.yml': CONFIG };
+  building(files, 'ST-AN-9');
+  files[P('ST-AN-1')] = laneTicket('ST-AN-1');
+  files[P('ST-AN-2')] = laneTicket('ST-AN-2', { frontmatter: ['priority: high', 'depends_on: ["ST-AN-1"]'] });
+  done(files, 'ST-AN-3');
+  const d = board(files, { 'ST-AN-9': 'bo@example.com' });
+  expect(d.ready.rows).toEqual([]);
+  expect(d.upNext?.rows.map((r) => r.id)).toEqual(['ST-AN-1', 'ST-AN-2']);
+  expect(d.upNext?.suggest).toEqual({ action: 'pick-up', id: 'ST-AN-1' });
+  const d2 = board(files, { 'ST-AN-9': 'bo@example.com', 'ST-AN-1': 'an@example.com' });
+  expect(d2).not.toHaveProperty('upNext');
+  expect(renderDashboard(d2).split('\n')).not.toContain('UP NEXT');
+});
+
+it('risk:complex-branching an archived claimed ticket is in no section and no count', () => {
+  const files: Files = { 'accord/config.yml': CONFIG };
+  files[P('ST-AN-1')] = laneTicket('ST-AN-1', { frontmatter: ['status: archived'] });
+  files[P('ST-AN-2')] = laneTicket('ST-AN-2', { frontmatter: ['status: archived'] });
+  const d = board(files, { 'ST-AN-1': 'an@example.com' });
+  expect([d.yours.rows, d.team.rows, d.ready.rows]).toEqual([[], [], []]);
+  expect(d.upNext).toEqual({ rows: [], more: 0 });
+  expect(d.summary.inProgress).toBe(0);
+  expect(d.summary.backlog).toBe(0);
+});
+
+it('risk:complex-branching the action line names only the actions that apply', () => {
+  const row = (id: string): StatusRow => ({
+    id, title: 'T', ui: false, errors: 0, warnings: 0, ready: 'ok', ticksVerified: 0, ticksTagged: 0,
+    ticksBinding: 'none', lane: 'M', stage: 'plan', tasksDone: 0, tasksTotal: 0,
+  });
+  const empty = { rows: [], more: 0 };
+  const summary = { inProgress: 0, ready: 0, blocked: 0, backlog: 0, done: 0, withoutLane: 0, withSchemaErrors: 0 };
+  const lastTwo = (d: Dashboard) => {
+    const lines = renderDashboard(d).split('\n').filter((l) => l !== '');
+    return [lines[lines.length - 2], lines[lines.length - 1]];
+  };
+  const a = lastTwo({ yours: { rows: [row('ST-AN-1')], more: 0 }, team: empty, ready: { rows: [row('ST-AN-2')], more: 0 }, summary });
+  expect(a[1]).toBe('-> [Continue ST-AN-1]  [Pick up ST-AN-2]  [New request]');
+  expect(a[0]).toContain(' in progress, ');
+  const b = lastTwo({ yours: empty, team: empty, ready: empty, upNext: { rows: [row('ST-AN-3')], more: 0, suggest: { action: 'pick-up', id: 'ST-AN-3' } }, summary });
+  expect(b[1]).toBe('-> [Pick up ST-AN-3]  [New request]');
+  expect(b[0]).toContain(' in progress, ');
+  const c = lastTwo({ yours: empty, team: empty, ready: empty, upNext: { rows: [row('ST-AN-3')], more: 0 }, summary });
+  expect(c[1]).toBe('-> [New request]');
+  expect(c[0]).toContain(' in progress, ');
+});
+
+it('risk:complex-branching the viewer comes from git user.email without case and an empty one exits 2', async () => {
+  const repo = makeLaneRepo({ [P('ST-AN-1')]: laneTicket('ST-AN-1') });
+  try {
+    commitAll(repo);
+    const sha = gitRun(repo, '-c', 'user.email=An@Example.com', '-c', 'user.name=x', '-c', 'commit.gpgsign=false', 'commit-tree', 'HEAD^{tree}', '-p', 'HEAD', '-m', 'claim').trim();
+    gitRun(repo, 'update-ref', 'refs/remotes/origin/t/ST-AN-1', sha);
+    gitRun(repo, 'config', 'user.email', 'an@example.com');
+    const res = await run(['dashboard', '--json'], repo);
+    expect(res.code).toBe(0);
+    const j = JSON.parse(res.out) as Dashboard;
+    expect(j.yours.rows.map((r) => r.id)).toEqual(['ST-AN-1']);
+    expect(j.team.rows.some((r) => r.id === 'ST-AN-1')).toBe(false);
+    expect(j).not.toHaveProperty('upNext');
+    gitRun(repo, 'config', 'user.email', '');
+    const bad = await run(['dashboard'], repo);
+    expect(bad.code).toBe(2);
+    expect(bad.out).toBe('');
+    expect(bad.err).toContain('git user.email is not set - set it with git config user.email <you@example.com>');
+  } finally {
+    cleanup(repo);
+  }
 });

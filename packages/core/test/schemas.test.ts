@@ -279,9 +279,11 @@ describe('ticket.schema.json decisions D-01..D-05, D-21..D-25', () => {
   });
 
   it('D-04/D-05: dropped and tracker-owned keys are rejected; assumptions are shaped', () => {
-    for (const extra of [{ owner: 'x' }, { qa: { ticks: [] } }, { feature: 'x' }, { sprint: 3 }, { priority: 'high' }]) {
+    for (const extra of [{ owner: 'x' }, { qa: { ticks: [] } }, { feature: 'x' }, { sprint: 3 }]) {
       expect(has(ticket(extra), '', 'schema.additionalProperties')).toBe(true);
     }
+    expect(ticket({ priority: 'high' })).toEqual([]);
+    expect(has(ticket({ priority: 'urgent' }), '/priority', 'schema.enum')).toBe(true);
     expect(has(ticket({ assumptions: [{ text: 'a' }] }), '/assumptions/0', 'schema.required')).toBe(true);
     expect(
       has(ticket({ assumptions: [{ text: 'a', confirmed: 'yes' }] }), '/assumptions/0/confirmed', 'schema.type'),

@@ -1,0 +1,47 @@
+# Ledger
+
+## Tasks
+- task 1 done c224145a7470
+- task 2 done e78a55d04f91
+- task 3 done c80b394f5571
+- task 4 done 3a76217388a4
+- task 5 done 797dc16432c2
+
+## Rulings
+- Ruling: only open lane tickets that are not epics enter YOURS, TEAM, READY, UP NEXT and the summary's counts; open means not done, not archived, not dropped — `claimedBy` and `stage` exist only on lane rows, and an epic is never planned so it would sit in UP NEXT forever — cost if wrong: a 0.1.0 ticket is only counted, never listed.
+- Ruling: the summary counts in progress (open, claimed), ready (READY total), blocked (open, unclaimed, blockedBy non-empty), backlog (open, unclaimed, not ready, not blocked) and done; it adds "without lane" and "with schema errors, run accord lint" only when above 0 — so no ticket is invisible while YOURS or READY hides UP NEXT, and a lane ticket that loses its lane to a schema error is named as such — cost if wrong: one more number on the line.
+- Ruling: every section uses one rank: effective priority, then unblocked before blocked, then id with digit runs compared by value (ST-AN-9 before ST-AN-10); YOURS is ranked too — D-01's order, and code-point order would hide the oldest tickets under a cap — cost if wrong: an order a reader finds odd.
+- Ruling: effective priority walks `depends_on` of every snapshot ticket with a visited set, and done, archived and dropped dependents do not lift — a cycle only lint reports cannot loop, and finished work does not raise its blockers — cost if wrong: a stale dependent's priority lingers or vanishes.
+- Ruling: EPICS ranks unfinished epics (done < total, or total 0) before finished ones, then id, capped at 20 with `more`; an epic with no non-dropped child is 0/0 — the Intent says every section is ranked and capped — cost if wrong: finished epics crowd the section until archived.
+- Ruling: the viewer is `git config user.email`, compared lower-cased with claim emails; unset, `accord dashboard` exits 2 with a message, as `accord new ticket` does — matches `initialsOf` and gate/done.ts — cost if wrong: a person with no `user.email` sees no dashboard.
+- Ruling: titles in the text keep Unicode; control characters, bidi controls and line separators become a space; a title is cut to 60 code points with `...`; widths pad by code points — the table sanitiser blanks everything above 0x7E, which makes Vietnamese titles unreadable — cost if wrong: wide CJK titles misalign.
+- Ruling: the text's last line holds at most three actions, `-> [Continue <first YOURS row>]  [Pick up <READY's first row, else UP NEXT's suggestion>]  [New request]`, each only when it applies; ASCII only apart from titles — a question widget takes few options, and legacy consoles break on Unicode arrows — cost if wrong: Continue for another own ticket needs the id typed.
+- Ruling: Pick up takes `branch` from the ticket's `accord status --json` row, not `accord next --json`, and the ST-LN-1 ac-5 test at packages/core/test/stage-skills.test.ts:156 changes its expected phrase accordingly while keeping its claim that no step builds a branch name — an UP NEXT ticket is never in `next` — cost if wrong: a verified ticket's test is edited.
+- Ruling: dashboard section rows are the full `StatusRow` objects, with no new row type — the approved Approach rejected a slim row type — cost if wrong: the JSON is larger than the panel needs.
+- Ruling: the summary JSON always holds all seven counts as numbers, including `withoutLane` and `withSchemaErrors` at 0; only the text leaves those two out at 0 — it keeps the shape stable for the panel — cost if wrong: two zero fields.
+- Ruling: `withoutLane` counts laneless story and bug tickets that are not archived, dropped or done — otherwise every finished 0.1.0 ticket would sit in the count forever — cost if wrong: a finished laneless ticket goes uncounted.
+- Ruling: EPICS lists epics with or without `lane:` that are not archived or dropped; children count whatever their lane, archived children included; the text omits the EPICS section when it has no rows — D-03 leaves out only dropped children — cost if wrong: one more line of noise, or one fewer.
+- Ruling: the dashboard tests live in `packages/cli/test/dashboard.test.ts` and build snapshots in memory with core's public API (the AC hash returned by `gateReady`, plus `approvedHash`); ac-1 and ac-2 run through `runCli` in a git sandbox — the Approach puts the text renderer in the CLI and core does not export `acHash` — cost if wrong: core has no unit test of its own for `dashboard()`.
+- Ruling: STALE-1's test `risk:drift the committed /accord copy carries the idle wording` is renamed to `risk:regression the committed /accord copy shows accord dashboard and builds no section` — the skill no longer formats idle (the CLI text prints `idle <n>d`), and `risk:` tests never count as untraced — cost if wrong: a verified ticket's plan names a test id that no longer exists.
+- Ruling: in the text, each section heading is followed by a two-space-indented header line and then the rows, with no separator line; an empty section prints `none`; cells other than the title use the table's ASCII `sanitise`, now exported from `render/table.ts` — ac-2 needs the rows directly under the header line — cost if wrong: a layout someone finds odd.
+- Ruling: `accord dashboard` with an empty `user.email` throws exit 2 with `git user.email is not set - set it with git config user.email <you@example.com>` — the same wording `accord new ticket` uses — cost if wrong: the wording reads oddly.
+- Ruling: in Task 3's sandbox test, an empty local `user.email` stands in for an unset one — the host's global git config would otherwise fill it in — cost if wrong: a truly unset `user.email` is not tested.
+- Ruling: a done, archived or dropped dependent passes priority through without lifting with its own — this matches the critic's A <- B (dropped) <- C case — cost if wrong: a dropped link hides urgency.
+- Ruling: `epics` is always present in `dashboard --json` (`{ rows: [], more: 0 }` with no epic), while the text omits an empty EPICS section; D-06's "a section that does not apply" is read as UP NEXT, the only section whose presence depends on the viewer — a stable key is simpler for the panel — cost if wrong: a reader expecting the key absent with no epics.
+- Ruling: summary `withoutLane` uses the core `isDone` (not `stage`) to exclude finished laneless tickets — the brief says "not isDone" and laneless rows have no stage — cost if wrong: a laneless ticket with bound ticks is not counted.
+- Ruling: `inProgress` counts every open work ticket with a claim, and `done` counts work tickets at stage done whose status is not archived or dropped, as the preamble defines them — cost if wrong: @ac-4's counts differ.
+- Ruling: effective priority is computed once per call from a breadth-first walk with a visited set over the reverse depends_on edges; a closed or done dependent adds no weight but the walk continues through it — as the brief defines — cost if wrong: only the rank order changes.
+- Ruling: with YOURS and READY empty and no unblocked ticket, `upNext` is present with rows and no `suggest` key — as the brief says — cost if wrong: a reader expects a suggestion that cannot exist.
+- Ruling: "Pick up" on the action line prefers `ready.rows[0]` over `upNext.suggest.id`; the action line is printed even when every section is empty (`[New request]` alone) — brief order — cost if wrong: one line of noise on an empty repository.
+- Ruling: `packages/core/src/index.ts` (outside Task 4's files) exports the new `EpicRow` type — the brief's Interface names it as exported — cost if wrong: none.
+- Ruling: epics list unfinished first, finished meaning total > 0 and done == total, then by id; the 20-epic cap and its `more` line are rendered but not tested — the brief's order — cost if wrong: only the order of epics changes, and a broken epic cap goes unseen.
+
+## Deferred
+- README.md:35 lists the CLI commands without `accord dashboard` (review round 1, quality Nice 1).
+- `render/dashboard.ts` builds a header-plus-rows table twice, in `block` and `epicBlock`; one helper would serve both (round 1, quality Nice 2).
+- `dashboard()` shadows `all` and builds the result literal twice to place `upNext`; a conditional spread does it once (round 1, quality Nice 3).
+- `priority: urgent` is tested both in `schemas.test.ts` and in ac-1's lint half (round 1, quality Nice 4).
+- The EPICS cap of 20 and its `+N more` line have no test; the cap and the unfinished-first order rest on Rulings, not on an owner sentence (round 1, intent Nices 3 and 4).
+- docs/specs/2026-10-12-workflow-layer-design.md:159-177 still describes the dashboard as built by the model from `accord status --json`, with the old mock-up (final review, Nice 2).
+- The session-start line counts unclaimed tickets at plan to verify as "in progress" (session.ts:16), while the dashboard counts only claimed ones, so the two lines can disagree (final review, Nice 3).
+- UP NEXT's `suggest` is the first unblocked ticket of the whole uncapped list, so with more than 20 higher-ranked blocked tickets it names a ticket the 20-row cap hides (final review, Nice 4; reproduced by scratchpad/upnext.mjs).

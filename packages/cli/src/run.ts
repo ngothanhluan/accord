@@ -16,6 +16,7 @@ import { init } from './commands/init.js';
 import { lint } from './commands/lint.js';
 import { newTicket } from './commands/new-ticket.js';
 import { next } from './commands/next.js';
+import { dashboardCommand } from './commands/dashboard.js';
 import { reviewPackage } from './commands/review-package.js';
 import { skills } from './commands/skills.js';
 import { status } from './commands/status.js';
@@ -206,6 +207,14 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .option('--json', 'print the StatusRow array instead of the table')
     .action((options: { json?: boolean }) => {
       setCode(next(preflight(opts), options));
+    });
+
+  program
+    .command('dashboard')
+    .description('print the ranked and capped sections for the viewer')
+    .option('--json', 'print the Dashboard object instead of text')
+    .action((options: { json?: boolean }) => {
+      setCode(dashboardCommand(preflight(opts), options));
     });
 
   program

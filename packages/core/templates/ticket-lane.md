@@ -6,6 +6,8 @@ status: draft                              # draft | open | archived | dropped. 
 lane: M                                    # M: one feature | L: a story of an epic | P: part of a whole project
 # Tickets that must reach done before this one can start.
 # depends_on: ["OTHER-ID"]
+# How the dashboard ranks this ticket: high | medium | low; absent means medium.
+# priority: medium
 # The epic this ticket belongs to.
 # parent: "EPIC-ID"
 # Ids in the tracker, a map keyed by adapter name; values are strings.

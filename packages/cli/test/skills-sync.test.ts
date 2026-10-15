@@ -591,10 +591,11 @@ describe('accord skills sync - settings refusal comes first', () => {
   });
 });
 
-it('risk:drift the committed /accord copy carries the idle wording', () => {
+it('risk:regression the committed /accord copy shows accord dashboard and builds no section', () => {
   const copy = readFileSync(new URL('../../../.claude/skills/accord/SKILL.md', import.meta.url), 'utf8');
-  expect(copy).toContain('idleDays');
-  expect(copy).toContain('idle <n>d');
+  expect(copy).toContain('`accord dashboard`');
+  expect(copy).toContain('verbatim');
+  for (const gone of ['accord next', 'claimedBy', 'idleDays']) expect(copy).not.toContain(gone);
 });
 
 it('risk:drift the committed plan and build copies carry the marker wording', () => {

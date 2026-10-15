@@ -55,7 +55,7 @@ Feature: ST-LN-3
     Then only ST-1 is shown, as "login" appears in its title ignoring case, and pressing New request starts a turn with "/accord login"
     And with the box empty New request cannot be pressed, Continue on ST-1 starts a turn with "/accord continue ST-1", and Pick up on ST-2 starts a turn with "/accord pick-up ST-2"
 
-  @ac-3
+  @ac-3 @test:packages/core/test/panel.test.ts#ac-3-a-failing-cli-shows-its-message-instead-of-a-dashboard
   Scenario: A failing CLI shows its message instead of a dashboard
     Given `accord dashboard --json` exits 2 with "set git config user.email" on stderr
     When the pane opens

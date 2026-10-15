@@ -16,7 +16,9 @@ import {
   hookEntries,
   markerHash,
   mergeHooks,
+  mergePanel,
   normaliseText,
+  pluginTargets,
   skillTargets,
   withoutMarker,
 } from '@accord-dev/accord-core';
@@ -91,13 +93,13 @@ export function planHooks(root: string, config: Pick<AccordConfig, 'runtimes'>):
   const entries = hookEntries(pkg);
   const file = join(root, ...SETTINGS.split('/'));
   if (lstatSync(file, { throwIfNoEntry: false }) === undefined) {
-    return { status: 'created', text: JSON.stringify(mergeHooks({}, entries), null, 2) + '\n' };
+    return { status: 'created', text: JSON.stringify(mergePanel(mergeHooks({}, entries)), null, 2) + '\n' };
   }
   let parsed: unknown;
   let merged: Record<string, unknown>;
   try {
     parsed = JSON.parse(readFileSync(file, 'utf8'));
-    merged = mergeHooks(parsed, entries);
+    merged = mergePanel(mergeHooks(parsed, entries));
   } catch (err) {
     if (!(err instanceof SyntaxError || err instanceof TypeError)) throw err;
     throw new UsageError(
@@ -187,7 +189,7 @@ export function skills(ctx: CommandContext): number {
     throw new UsageError('accord/config.yml is missing or failed its schema; run accord lint');
   }
 
-  const targets = [...skillTargets(config), ...agentTargets(config)];
+  const targets = [...skillTargets(config), ...agentTargets(config), ...pluginTargets(config, pkg)];
   // T-06-03: refuse before the first byte, over every destination. The loop below writes as it iterates, so
   // a guard inside it leaves everything sorted ahead of the bad path on disk while the message claims
   // "nothing was written" — a false report is worse than either outcome on its own.

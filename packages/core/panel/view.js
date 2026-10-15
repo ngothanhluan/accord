@@ -45,7 +45,16 @@ export const failure = (err) => ({ message: 'accord did not finish: ' + (err?.me
 const rowsOf = (s) =>
   s.rows.filter((r) => typeof r.id === 'string').map((r) => ({ ...r, id: clean(r.id), title: typeof r.title === 'string' ? clean(r.title) : '' }));
 
-const row = (r) => ({ text: r.title ? `${r.id}  ${r.title}` : r.id });
+// Same cells as the CLI text renderer, only those present; every value goes through clean.
+const extras = (r) => {
+  const stage = typeof r.stage === 'string' ? (r.stage === 'build' ? `build ${r.tasksDone ?? 0}/${r.tasksTotal ?? 0}` : r.stage) : '';
+  return [
+    clean(stage + (r.idleDays === undefined ? '' : ` idle ${r.idleDays}d`)),
+    typeof r.claimedBy === 'string' ? clean(r.claimedBy) : '',
+    Array.isArray(r.blockedBy) ? clean(r.blockedBy.join(' ')) : '',
+  ];
+};
+const row = (r) => ({ text: [r.id, r.title, ...extras(r)].filter((x) => x).join('  ') });
 const act = (key, label, id) => ({ key: `${key}:${id}`, label, args: `${key} ${id}` });
 // same id pattern as cli new-ticket.ts: a file stem with spaces must never reach /accord as text
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;

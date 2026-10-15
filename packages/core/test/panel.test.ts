@@ -301,6 +301,14 @@ it('risk:concurrency one accord run at a time and none for a subagent turn or a 
   h.placed = false;
   await h.fire('turn.complete', { reason: 'answer' });
   expect(calls()).toBe(settled);
+  h.placed = true;
+  await h.$.ui.invalidate('ui.render');
+  expect(calls()).toBe(settled + 1);
+  await h.$.ui.invalidate('ui.render');
+  expect(calls()).toBe(settled + 1);
+  h.settle({ stdout: JSON.stringify(board({ yours: { rows: [{ id: 'ST-5', title: 'Fresh' }], more: 0 } })) });
+  await vi.waitFor(() => expect(h.texts().some((x) => x.includes('ST-5'))).toBe(true));
+  h.placed = false;
   await h.fire('command.run', { command: 'accord-panel', args: '' });
   expect(h.$.ui.toast).toHaveBeenCalledWith('The terminal is too narrow for the accord pane: it needs 110 columns');
 });
@@ -322,4 +330,23 @@ it('risk:security a row whose id has spaces or a pipe is shown with no button', 
   h.settle({ stdout: JSON.stringify(board({ yours: { rows: [{ id: evil, title: 'x' }, { id: 'ST-1', title: 'ok' }], more: 0 } })) });
   await vi.waitFor(() => expect(h.texts().some((x) => x.includes('evil.sh'))).toBe(true));
   expect(h.buttons().map((b) => b.key)).toEqual(['continue:ST-1']);
+});
+
+it('risk:parsing a row also shows its stage, who holds it and what blocks it, cleaned', async () => {
+  const h = await host(await loadPanel());
+  await h.fire('session.start', start);
+  h.settle({
+    stdout: JSON.stringify(
+      board({
+        team: { rows: [{ id: 'ST-3', title: 'Mine', stage: 'build', tasksDone: 2, tasksTotal: 5, claimedBy: 'an[1m@x' }], more: 0 },
+        upNext: { rows: [{ id: 'ST-7', title: 'Blocked', blockedBy: ['ST-6', 'ST-4'] }, { id: 'ST-8' }], more: 0 },
+      }),
+    ),
+  });
+  await vi.waitFor(() => expect(h.texts().some((x) => x.includes('ST-7'))).toBe(true));
+  const t = h.texts();
+  expect(t).toContain('ST-3  Mine  build 2/5  an [1m@x');
+  expect(t).toContain('ST-7  Blocked  ST-6 ST-4');
+  expect(t).toContain('ST-8');
+  expect(h.buttons().map((b) => b.key)).toEqual(['pick-up:ST-7', 'pick-up:ST-8']);
 });

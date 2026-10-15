@@ -5,6 +5,8 @@ let query = '';
 
 let running = false;
 let again = false;
+// set when a turn completes while the pane is open but not drawn; the next draw refreshes
+let stale = false;
 
 async function refresh($) {
   if (running) {
@@ -50,12 +52,18 @@ export function register(on) {
   });
 
   on('turn.complete', async ($, e, next) => {
-    if (!e.agentId && (await $.ui.panes()).some((p) => p.id === 'accord-panel' && p.isPlaced === true)) void refresh($);
+    const pane = e.agentId ? undefined : (await $.ui.panes()).find((p) => p.id === 'accord-panel');
+    if (pane?.isPlaced === true) void refresh($);
+    else if (pane) stale = true;
     return next(e);
   });
 
   on('ui.render', { component: 'Pane' }, async ($, e, next) => {
     if (e.requestId !== 'accord-panel') return next(e);
+    if (stale) {
+      stale = false;
+      void refresh($);
+    }
     const { Box, Text, Button, Input } = $.ui.resolve(e);
     const v = view(state, query);
     const children = [];

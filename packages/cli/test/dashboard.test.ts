@@ -3,7 +3,9 @@ import { expect, it } from 'vitest';
 import { approvedHash, dashboard, gateReady, loadSnapshot, setFrontmatterKey } from '@accord-dev/accord-core';
 import type { Dashboard, StatusRow } from '@accord-dev/accord-core';
 import { renderDashboard } from '../src/render/dashboard.js';
-import { cleanup, gitRun, makeLaneRepo, run } from './helpers/repo.js';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { cleanup, gitRun, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
 import { CONFIG, laneTicket, PLAN } from '../../../test/helpers/lane.js';
 
 type Files = Record<string, string>;
@@ -127,4 +129,48 @@ it('risk:security a title cannot inject control characters or overflow its cell'
   expect(text).toContain('Đặt lại [31m mật khẩu x');
   expect(text).toContain('Ư'.repeat(57) + '...');
   expect(text).not.toContain('Ư'.repeat(58));
+});
+
+it('ac-1 ready tickets are ranked by inherited priority then by id', async () => {
+  const lt = (id: string, fm: string[] = []) => laneTicket(id, { frontmatter: fm });
+  const repo = makeLaneRepo({
+    [P('ST-AN-1')]: lt('ST-AN-1', ['priority: low']),
+    [P('ST-AN-3')]: lt('ST-AN-3'),
+    [P('ST-AN-4')]: lt('ST-AN-4', ['priority: high']),
+    [P('ST-AN-2')]: lt('ST-AN-2', ['priority: medium', 'depends_on: ["ST-AN-1"]']),
+    [P('ST-AN-6')]: lt('ST-AN-6', ['priority: high', 'depends_on: ["ST-AN-2"]']),
+  });
+  try {
+    gitRun(repo, 'config', 'user.email', 'an@example.com');
+    for (const id of ['ST-AN-1', 'ST-AN-3', 'ST-AN-4', 'ST-AN-2', 'ST-AN-6']) {
+      await run(['approve', id], repo);
+      expect((await run(['gate', 'ready', id], repo)).code).toBe(0);
+    }
+    const d = JSON.parse((await run(['dashboard', '--json'], repo)).out) as Dashboard;
+    expect(d.ready.rows.map((r) => r.id)).toEqual(['ST-AN-1', 'ST-AN-4', 'ST-AN-3']);
+    const ok = await run(['lint', '--json'], repo);
+    expect(ok.code).toBe(0);
+    expect((JSON.parse(ok.out).findings as { pointer?: string }[]).some((f) => f.pointer === '/priority')).toBe(false);
+    const f3 = join(repo, P('ST-AN-3'));
+    writeFiles(repo, { [P('ST-AN-3')]: readFileSync(f3, 'utf8').replace('ui: false', 'ui: false' + String.fromCharCode(10) + 'priority: urgent') });
+    const bad = await run(['lint', '--json'], repo);
+    expect(bad.code).toBe(1);
+    expect((JSON.parse(bad.out).findings as { pointer?: string; rule: string }[]).some((f) => f.pointer === '/priority' && f.rule.startsWith('schema.'))).toBe(true);
+  } finally {
+    cleanup(repo);
+  }
+});
+
+it('risk:complex-branching a depends_on cycle ends and a dropped dependent does not lift', () => {
+  const files: Files = { 'accord/config.yml': CONFIG };
+  const claims: Record<string, string> = {};
+  const add = (id: string, fm: string[]) => { files[P(id)] = laneTicket(id, { frontmatter: fm }); claims[id] = 'bo@example.com'; };
+  add('ST-AN-1', ['priority: low', 'depends_on: ["ST-AN-2"]']);
+  add('ST-AN-2', ['priority: low', 'depends_on: ["ST-AN-1"]']);
+  add('ST-AN-3', []);
+  add('ST-AN-4', ['priority: high', 'status: dropped', 'depends_on: ["ST-AN-1"]']);
+  add('ST-AN-5', ['priority: low']);
+  add('ST-AN-6', ['status: dropped', 'depends_on: ["ST-AN-5"]']);
+  add('ST-AN-7', ['priority: high', 'depends_on: ["ST-AN-6"]']);
+  expect(board(files, claims).team.rows.map((r) => r.id)).toEqual(['ST-AN-5', 'ST-AN-7', 'ST-AN-3', 'ST-AN-1', 'ST-AN-2']);
 });

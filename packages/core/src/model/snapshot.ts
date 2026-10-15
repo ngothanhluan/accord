@@ -61,6 +61,7 @@ export interface TicketFrontmatter {
   assumptions?: { text: string; confirmed: boolean }[];
   lane?: 'M' | 'L' | 'P'; // spec §3: present opts the ticket into the workflow-layer contract
   depends_on?: string[]; // spec §5: ticket ids that must reach done first
+  priority?: 'high' | 'medium' | 'low'; // how the dashboard ranks this ticket; absent means medium
   approved_hash?: string; // spec §4: written by `accord approve`, 'fnv1a64:<16 hex>'
   ac_hash?: string;
   verified?: string[]; // ['ac-1']

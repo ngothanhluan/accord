@@ -36,6 +36,7 @@
       "uniqueItems": true,
       "items": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" }
     },
+    "priority": { "type": "string", "enum": ["high", "medium", "low"] },
     "approved_hash": { "type": "string", "pattern": "^fnv1a64:[0-9a-f]{16}$" },
     "ac_hash": { "type": "string", "minLength": 1 },
     "verified_hash": { "type": "string", "pattern": "^fnv1a64:[0-9a-f]{16}$" },

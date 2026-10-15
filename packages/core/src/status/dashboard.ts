@@ -52,24 +52,58 @@ function cmpId(a: string, b: string): number {
   }
   return ra.length - rb.length || cmp(a, b);
 }
-const rank = (a: StatusRow, b: StatusRow): number => Number(blocked(a)) - Number(blocked(b)) || cmpId(a.id, b.id);
 
-function section(rows: StatusRow[], cap: number): DashboardSection {
+const WEIGHT: Record<string, number> = { high: 3, medium: 2, low: 1 };
+
+// Highest own priority among a ticket and everything that depends on it, directly or not. A closed or done
+// dependent adds no weight of its own but the walk passes through it. Visited set ends cycles.
+function effectivePriorities(snapshot: RepoSnapshot): Map<string, number> {
+  const own = (id: string) => WEIGHT[snapshot.tickets[id]?.frontmatter?.priority ?? 'medium'] ?? 2;
+  const dependents = new Map<string, string[]>();
+  for (const [id, t] of Object.entries(snapshot.tickets))
+    for (const dep of t.frontmatter?.depends_on ?? []) dependents.set(dep, [...(dependents.get(dep) ?? []), id]);
+  const lifts = (id: string) => {
+    const fm = snapshot.tickets[id]?.frontmatter;
+    return fm?.status !== 'archived' && fm?.status !== 'dropped' && !isDone(snapshot, id);
+  };
+  const out = new Map<string, number>();
+  for (const id of Object.keys(snapshot.tickets)) {
+    let best = own(id);
+    const seen = new Set([id]);
+    const stack = [id];
+    while (stack.length) {
+      for (const d of dependents.get(stack.pop() as string) ?? []) {
+        if (seen.has(d)) continue;
+        seen.add(d);
+        if (lifts(d)) best = Math.max(best, own(d));
+        stack.push(d);
+      }
+    }
+    out.set(id, best);
+  }
+  return out;
+}
+
+function section(rows: StatusRow[], cap: number, prio: Map<string, number>): DashboardSection {
+  const p = (r: StatusRow) => prio.get(r.id) ?? 2;
+  const rank = (a: StatusRow, b: StatusRow): number =>
+    p(b) - p(a) || Number(blocked(a)) - Number(blocked(b)) || cmpId(a.id, b.id);
   const sorted = [...rows].sort(rank);
   return { rows: sorted.slice(0, cap), more: Math.max(0, sorted.length - cap) };
 }
 
 export function dashboard(snapshot: RepoSnapshot, viewer: string, now?: number): Dashboard {
   const all = statusRows(snapshot, now);
+  const prio = effectivePriorities(snapshot);
   const open = all.filter(isOpen);
   const mine = (r: StatusRow) => r.claimedBy !== undefined && r.claimedBy.toLowerCase() === viewer.toLowerCase();
   const claimed = open.filter((r) => r.claimedBy !== undefined);
   const readyAll = nextRows(open);
   const unclaimed = open.filter((r) => r.claimedBy === undefined);
   return {
-    yours: section(claimed.filter(mine), Infinity),
-    team: section(claimed.filter((r) => !mine(r)), TEAM_CAP),
-    ready: section(readyAll, READY_CAP),
+    yours: section(claimed.filter(mine), Infinity, prio),
+    team: section(claimed.filter((r) => !mine(r)), TEAM_CAP, prio),
+    ready: section(readyAll, READY_CAP, prio),
     summary: {
       inProgress: claimed.length,
       ready: readyAll.length,

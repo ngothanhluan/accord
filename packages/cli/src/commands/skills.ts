@@ -6,8 +6,14 @@
 // `overwrote local edits` when the copy's hash does not match its own contents. The last one is the whole
 // point — overwriting is the contract the file itself states, and git is a hard precondition of the CLI, so
 // nothing is unrecoverable; losing someone's work *without saying so* is what this report prevents.
-import { lstatSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import {
+  lstatSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
+import { dirname, join } from "node:path";
 import {
   agentDir,
   agentTargets,
@@ -18,24 +24,30 @@ import {
   mergeHooks,
   mergePanel,
   normaliseText,
+  panelSettings,
+  pluginDir,
   pluginTargets,
   skillTargets,
   withoutMarker,
-} from '@accord-dev/accord-core';
-import pkg from '../../package.json' with { type: 'json' };
-import { assertNoLink } from '../guard.js';
-import { UsageError } from '../load/fs.js';
-import type { AccordConfig, SkillFile } from '@accord-dev/accord-core';
-import type { CommandContext } from '../run.js';
+} from "@accord-dev/accord-core";
+import pkg from "../../package.json" with { type: "json" };
+import { assertNoLink } from "../guard.js";
+import { UsageError } from "../load/fs.js";
+import type { AccordConfig, SkillFile } from "@accord-dev/accord-core";
+import type { CommandContext } from "../run.js";
 
-export type SkillStatus = 'created' | 'unchanged' | 'updated' | 'overwrote local edits';
+export type SkillStatus =
+  "created" | "unchanged" | "updated" | "overwrote local edits";
 
 /**
  * One row of the report a command prints. Wider than this file's four states on purpose: `init` prints
  * the same list for its scaffold half, and a union spelled inline at both ends is a union the two ends
  * can drift apart on.
  */
-export type ReportRow = { status: SkillStatus | 'skipped' | 'appended'; path: string };
+export type ReportRow = {
+  status: SkillStatus | "skipped" | "appended";
+  path: string;
+};
 
 /**
  * D-131: the one place accord writes a skill copy. `sync` and `init` both call it, so the marker-and-hash
@@ -50,71 +62,102 @@ export type ReportRow = { status: SkillStatus | 'skipped' | 'appended'; path: st
  * declared row type is wider than anything this function can produce: the element type belongs to the
  * report `init` prints, not to this function's own four states.
  */
-export function writeSkillFiles(root: string, targets: SkillFile[], out: ReportRow[] = []): ReportRow[] {
+export function writeSkillFiles(
+  root: string,
+  targets: SkillFile[],
+  out: ReportRow[] = [],
+): ReportRow[] {
   for (const { path, text } of targets) {
-    const file = join(root, ...path.split('/'));
+    const file = join(root, ...path.split("/"));
     const found = lstatSync(file, { throwIfNoEntry: false });
     if (found === undefined) {
       mkdirSync(dirname(file), { recursive: true });
       writeFileSync(file, text); // no encoding argument: Node defaults to utf8 and writes no BOM (FMT-08)
-      out.push({ status: 'created', path });
+      out.push({ status: "created", path });
       continue;
     }
     // RESEARCH.md Pitfall 1: git may have rewritten the line endings between the write and this read, so the
     // text is normalised exactly as the renderer's input was before either comparison is made.
-    const onDisk = normaliseText(readFileSync(file, 'utf8'));
+    const onDisk = normaliseText(readFileSync(file, "utf8"));
     const stored = markerHash(onDisk);
-    const intact = stored !== undefined && stored === contentHash(withoutMarker(onDisk));
+    const intact =
+      stored !== undefined && stored === contentHash(withoutMarker(onDisk));
     if (intact && onDisk === text) {
       // D-112: not touched at all. "A second run is a no-op" means no write and no mtime change, not merely
       // the same bytes afterwards.
-      out.push({ status: 'unchanged', path });
+      out.push({ status: "unchanged", path });
       continue;
     }
     writeFileSync(file, text);
-    out.push({ status: intact ? 'updated' : 'overwrote local edits', path });
+    out.push({ status: intact ? "updated" : "overwrote local edits", path });
   }
   return out;
 }
 
-export const SETTINGS = '.claude/settings.json';
+export const SETTINGS = ".claude/settings.json";
 
 /** What `writeHooks` will do, decided before any file is written; `text` is absent when nothing changes. */
-export type HooksPlan = { status: 'created' | 'unchanged' | 'updated'; text?: string };
+export type HooksPlan = {
+  status: "created" | "unchanged" | "updated";
+  text?: string;
+};
 
 /**
  * The pre-pass half: the link guard, then read, parse and merge `.claude/settings.json` for the claude runtime
  * only. The file is the owner's: anything that is not a JSON object is refused here, with the hooks printed to
  * add by hand, so the refusal lands before the first byte of the run. Writes nothing.
  */
-export function planHooks(root: string, config: Pick<AccordConfig, 'runtimes'>): HooksPlan | undefined {
-  if (!config.runtimes.includes('claude')) return undefined;
+export function planHooks(
+  root: string,
+  config: Pick<AccordConfig, "runtimes">,
+): HooksPlan | undefined {
+  if (!config.runtimes.includes("claude")) return undefined;
   assertNoLink(root, SETTINGS);
   const entries = hookEntries(pkg);
-  const file = join(root, ...SETTINGS.split('/'));
+  const file = join(root, ...SETTINGS.split("/"));
   if (lstatSync(file, { throwIfNoEntry: false }) === undefined) {
-    return { status: 'created', text: JSON.stringify(mergePanel(mergeHooks({}, entries)), null, 2) + '\n' };
+    return {
+      status: "created",
+      text: JSON.stringify(mergePanel(mergeHooks({}, entries)), null, 2) + "\n",
+    };
   }
   let parsed: unknown;
   let merged: Record<string, unknown>;
   try {
-    parsed = JSON.parse(readFileSync(file, 'utf8'));
+    parsed = JSON.parse(readFileSync(file, "utf8"));
     merged = mergePanel(mergeHooks(parsed, entries));
   } catch (err) {
+    const keys = JSON.stringify(panelSettings, null, 2);
+    if (err instanceof RangeError) {
+      throw new UsageError(
+        SETTINGS +
+          " already declares a marketplace named accord with another source; nothing was written. Rename it, then add these keys for the accord panel by hand:\n" +
+          keys,
+      );
+    }
     if (!(err instanceof SyntaxError || err instanceof TypeError)) throw err;
     throw new UsageError(
-      SETTINGS + ' is not a JSON object; nothing was written. Add these hooks by hand:\n' + JSON.stringify({ hooks: entries }, null, 2),
+      SETTINGS +
+        " is not a JSON object; nothing was written. Add these hooks by hand:\n" +
+        JSON.stringify({ hooks: entries }, null, 2) +
+        "\nand these keys for the accord panel:\n" +
+        keys,
     );
   }
-  if (JSON.stringify(merged) === JSON.stringify(parsed)) return { status: 'unchanged' };
-  return { status: 'updated', text: JSON.stringify(merged, null, 2) + '\n' };
+  if (JSON.stringify(merged) === JSON.stringify(parsed))
+    return { status: "unchanged" };
+  return { status: "updated", text: JSON.stringify(merged, null, 2) + "\n" };
 }
 
 /** The write half: applies a plan that is already known to be valid. */
-export function writeHooks(root: string, plan: HooksPlan | undefined, out: ReportRow[]): void {
+export function writeHooks(
+  root: string,
+  plan: HooksPlan | undefined,
+  out: ReportRow[],
+): void {
   if (plan === undefined) return;
   if (plan.text !== undefined) {
-    const file = join(root, ...SETTINGS.split('/'));
+    const file = join(root, ...SETTINGS.split("/"));
     mkdirSync(dirname(file), { recursive: true });
     writeFileSync(file, plan.text);
   }
@@ -135,24 +178,41 @@ export function writeHooks(root: string, plan: HooksPlan | undefined, out: Repor
  * accord's boundary.
  */
 function orphans(root: string, config: AccordConfig): string[] {
-  const rendered = new Set(skillTargets(config).map((t) => t.path.slice(0, t.path.lastIndexOf('/'))));
+  const rendered = new Set(
+    skillTargets(config).map((t) => t.path.slice(0, t.path.lastIndexOf("/"))),
+  );
   const found: string[] = [];
   for (const dir of allSkillDirs()) {
-    const abs = join(root, ...dir.split('/'));
+    const abs = join(root, ...dir.split("/"));
     if (!scannable(root, dir)) continue;
     for (const entry of readdirSync(abs, { withFileTypes: true })) {
-      if (!entry.isDirectory() || !(entry.name === 'accord' || entry.name.startsWith('accord-'))) continue;
-      if (!rendered.has(dir + '/' + entry.name)) found.push(dir + '/' + entry.name);
+      if (
+        !entry.isDirectory() ||
+        !(entry.name === "accord" || entry.name.startsWith("accord-"))
+      )
+        continue;
+      if (!rendered.has(dir + "/" + entry.name))
+        found.push(dir + "/" + entry.name);
     }
   }
   // Agent files: an `accord-*.md` the render no longer produces (a dropped runtime, a renamed definition).
   if (scannable(root, agentDir)) {
     const rendered = new Set(agentTargets(config).map((t) => t.path));
-    for (const entry of readdirSync(join(root, ...agentDir.split('/')), { withFileTypes: true })) {
-      const path = agentDir + '/' + entry.name;
-      if (entry.isFile() && entry.name.startsWith('accord-') && entry.name.endsWith('.md') && !rendered.has(path)) found.push(path);
+    for (const entry of readdirSync(join(root, ...agentDir.split("/")), {
+      withFileTypes: true,
+    })) {
+      const path = agentDir + "/" + entry.name;
+      if (
+        entry.isFile() &&
+        entry.name.startsWith("accord-") &&
+        entry.name.endsWith(".md") &&
+        !rendered.has(path)
+      )
+        found.push(path);
     }
   }
+  if (scannable(root, pluginDir) && pluginTargets(config, pkg).length === 0)
+    found.push(pluginDir);
   return found.sort();
 }
 
@@ -172,9 +232,11 @@ function orphans(root: string, config: AccordConfig): string[] {
  * link-following call answered before.
  */
 function scannable(root: string, dir: string): boolean {
-  const parts = dir.split('/');
+  const parts = dir.split("/");
   for (let i = 0; i < parts.length; i++) {
-    const found = lstatSync(join(root, ...parts.slice(0, i + 1)), { throwIfNoEntry: false });
+    const found = lstatSync(join(root, ...parts.slice(0, i + 1)), {
+      throwIfNoEntry: false,
+    });
     if (found?.isDirectory() !== true) return false;
   }
   return true;
@@ -186,10 +248,16 @@ export function skills(ctx: CommandContext): number {
   // meaningless; the pin check in `preflight` has already run for the same reason.
   const config = ctx.snapshot.config;
   if (config === undefined) {
-    throw new UsageError('accord/config.yml is missing or failed its schema; run accord lint');
+    throw new UsageError(
+      "accord/config.yml is missing or failed its schema; run accord lint",
+    );
   }
 
-  const targets = [...skillTargets(config), ...agentTargets(config), ...pluginTargets(config, pkg)];
+  const targets = [
+    ...skillTargets(config),
+    ...agentTargets(config),
+    ...pluginTargets(config, pkg),
+  ];
   // T-06-03: refuse before the first byte, over every destination. The loop below writes as it iterates, so
   // a guard inside it leaves everything sorted ahead of the bad path on disk while the message claims
   // "nothing was written" — a false report is worse than either outcome on its own.
@@ -203,11 +271,24 @@ export function skills(ctx: CommandContext): number {
   // Scanned after the writes, so a directory this run created is already on disk when it is judged.
   const stale = orphans(ctx.root, config);
 
-  ctx.stdout.write(results.map((r) => r.status + ' ' + r.path + '\n').join(''));
+  ctx.stdout.write(results.map((r) => r.status + " " + r.path + "\n").join(""));
   // stderr, like status's advisory line: an orphan is something to tell the reader about, not part of
   // the report of what was written — and it must not change the exit code (D-113).
   ctx.stderr.write(
-    stale.map((d) => 'orphan ' + d + ' - no longer declared; accord never deletes - remove it with: rm -rf ' + d + '\n').join(''),
+    stale
+      .map(
+        (d) =>
+          "orphan " +
+          d +
+          " - no longer declared; accord never deletes - remove it with: rm -rf " +
+          d +
+          (d === pluginDir
+            ? ' - then remove extraKnownMarketplaces.accord and enabledPlugins["accord-panel@accord"] from ' +
+              SETTINGS
+            : "") +
+          "\n",
+      )
+      .join(""),
   );
   return 0;
 }

@@ -22,7 +22,7 @@ ui: false
 # The AC hash and the commit the ticks were made against.
 # verified_hash:
 # verified_commit:
-approved_hash: "fnv1a64:64c52eae3d09652a"
+approved_hash: "fnv1a64:e4bca3fc8da8a322"
 ac_hash: "fnv1a64:8b1e67cd41949e9a"
 ---
 
@@ -91,6 +91,8 @@ Feature: ST-LN-2
 - D-05 All six parts are the smallest version that counts as done — "Cả 6 phần (Recommended)"
 - D-06 `accord dashboard --json` holds data, not display text: overflow as a number (`more: 2`), epic progress as `done` and `total`, the suggested action as `{ action, id }`, the summary as counts; a section that does not apply is absent from the JSON; only the text output prints "+2 more" and "3/7 done" — "Số và id, text tự định dạng (Recommended)"
 - D-07 `title` is added to the status rows of lane tickets only, so rows of tickets without `lane:` stay byte-identical to 0.1.0; this narrows D-01's "`title` in each status row" — "Chỉ dòng có lane (Recommended)"
+- D-08 `epics` is always present in `dashboard --json`, `{ "rows": [], "more": 0 }` when there is no epic; only `upNext` is absent when it does not apply; the text omits an empty EPICS section — "Luôn có `epics` (Recommended)"
+- D-09 The summary carries a fifth count, `backlog`: open, unclaimed tickets that are neither ready nor blocked, so they stay counted while YOURS or READY hides UP NEXT — "Giữ `backlog` (Recommended)"
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->

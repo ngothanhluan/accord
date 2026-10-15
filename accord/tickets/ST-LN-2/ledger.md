@@ -35,3 +35,10 @@
 - Ruling: "Pick up" on the action line prefers `ready.rows[0]` over `upNext.suggest.id`; the action line is printed even when every section is empty (`[New request]` alone) — brief order — cost if wrong: one line of noise on an empty repository.
 - Ruling: `packages/core/src/index.ts` (outside Task 4's files) exports the new `EpicRow` type — the brief's Interface names it as exported — cost if wrong: none.
 - Ruling: epics list unfinished first, finished meaning total > 0 and done == total, then by id; the 20-epic cap and its `more` line are rendered but not tested — the brief's order — cost if wrong: only the order of epics changes, and a broken epic cap goes unseen.
+
+## Deferred
+- README.md:35 lists the CLI commands without `accord dashboard` (review round 1, quality Nice 1).
+- `render/dashboard.ts` builds a header-plus-rows table twice, in `block` and `epicBlock`; one helper would serve both (round 1, quality Nice 2).
+- `dashboard()` shadows `all` and builds the result literal twice to place `upNext`; a conditional spread does it once (round 1, quality Nice 3).
+- `priority: urgent` is tested both in `schemas.test.ts` and in ac-1's lint half (round 1, quality Nice 4).
+- The EPICS cap of 20 and its `+N more` line have no test; the cap and the unfinished-first order rest on Rulings, not on an owner sentence (round 1, intent Nices 3 and 4).

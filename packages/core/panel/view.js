@@ -47,7 +47,9 @@ const rowsOf = (s) =>
 
 const row = (r) => ({ text: r.title ? `${r.id}  ${r.title}` : r.id });
 const act = (key, label, id) => ({ key: `${key}:${id}`, label, args: `${key} ${id}` });
-const withAction = (key, label) => (r) => ({ ...row(r), action: act(key, label, r.id) });
+// same id pattern as cli new-ticket.ts: a file stem with spaces must never reach /accord as text
+const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+const withAction = (key, label) => (r) => (SAFE_ID.test(r.id) ? { ...row(r), action: act(key, label, r.id) } : row(r));
 
 export function view(state, query) {
   const q = query.trim().toLowerCase();

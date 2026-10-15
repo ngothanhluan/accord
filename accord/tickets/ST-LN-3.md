@@ -28,10 +28,10 @@ ui: false
 
 ## Intent
 <!-- At most five lines: why, for whom, how success is measured, and what this does not do. -->
-For whoever works on an accord repository in Claude Code, terminal or Desktop: a pane beside the transcript shows the /accord dashboard and acts on a ticket without typing a command.
+For whoever works on an accord repository in the Claude Code terminal: a pane beside the transcript shows the /accord dashboard and acts on a ticket without typing a command.
 Success: the pane shows what `accord dashboard --json` prints, finds a ticket by id or title, and one press submits Continue, Pick up or a new request to the session.
 The pane ranks, gates and decides nothing: the CLI builds the dashboard, the /accord skill carries out the action.
-Not in this ticket: Cursor, Codex, Copilot or the VS Code chat panel; a public marketplace; reading an older CLI's JSON; a timer refresh.
+Not in this ticket: Claude Code Desktop, Cursor, Codex, Copilot or the VS Code chat panel; a public marketplace; reading an older CLI's JSON; a timer refresh.
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.
@@ -86,6 +86,7 @@ Feature: ST-LN-3
 - D-06 The smallest done version is all six parts; the pane reads the dashboard when it opens and after each turn, with no timer — "Đủ 6 phần, refresh khi mở và sau mỗi lượt (Recommended)"
 - D-07 Search keeps a row when the box text appears anywhere in its id or title, ignoring case — "Chứa chuỗi, không phân biệt hoa thường (Recommended)"
 - D-08 When the CLI fails, its message replaces the whole pane: no search box, no button — "Chỉ hiện thông báo (Recommended)"
+- D-09 The pane is for the Claude Code terminal only; Desktop is left out, since the mods API documents running a command as CLI only and nothing here proves Desktop — "Thu hẹp về terminal (Recommended)"
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
@@ -96,3 +97,8 @@ Feature: ST-LN-3
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
+**Chosen:** a pure view module plus a thin mod, both plain ESM in `packages/core/panel/`, embedded by a new gen script and written by a new core `pluginTargets` (claude in `runtimes` only) as a directory marketplace `.claude/accord-panel/` holding the plugin `accord-panel`; one settings plan over one parse of `.claude/settings.json` merges the existing hooks and `extraKnownMarketplaces.accord` plus `enabledPlugins["accord-panel@accord"]`, in skills sync and both init paths. Render splices the package spec `@accord-dev/accord@` plus the package's own version into the mod, which the pin check makes equal to the pin, so the pane reads nothing but the CLI output (D-04). `view.js` turns the CLI result and the trimmed search text into sections, keyed buttons and `$.command.run` args, or a message (stderr without npm's own lines; "accord exited N" when empty; "Loading…" before the first result). `register.js` opens the pane at an interactive session start (the host places it), registers `/accord-panel` to reopen and refresh it, runs the CLI only while the pane is open and never for a subagent's turn, one run in flight, and a press calls `$.command.run({ command: "accord", args })`. The /accord skill gains `continue <id>` and `pick-up <id>`, ids only, anything else a New request. Verified by running on 2026-10-15: a plugin declared only in a trusted repository's settings loads, and `$.command.run` runs a skill as a slash command.
+**Rejected:** `$.prompt.submit` (Claude reads the text; `command.run` is deterministic); reading the pin from config.yml (breaks D-04); the view module tested alone (the refresh and the press would have no @test); `claude plugin test` in CI (installs Claude Code in CI, and gate done reads only the JUnit report); a public marketplace and a JSON shape version (D-03).
+**Affected:** packages/core/panel/ (new), packages/core/scripts/ (new gen script; root `gen`), core skills/render.ts (marker in `//` and JSON `description` forms), a new core plugin-targets module and a settings merge beside scaffold/hooks.ts, core index.ts exports, cli commands/skills.ts (targets, link check, settings plan, refusal text, orphans naming the two keys) and init.ts, packages/core/skills/accord/SKILL.md, and in this repository the generated `.claude/accord-panel/` and `.claude/settings.json`.
+**Risks:** (1) the pane drawing, typing and a press are proved only on a fake host; the real pane is checked by the owner at verify, with `claude plugin validate --strict`; (2) a worktree loads the plugin from the main checkout (Claude Code resolves a relative marketplace path there): a main checkout older than the panel gives no pane, one with another pin shows the pin message; (3) other repositories get a working pane only after a release with `dashboard` (npm 0.1.0 has none); (4) search sees only the rows the dashboard returns (READY 20, TEAM 10); (5) typing fast may lose a keystroke if a late redraw resets the box: `value` is set only on redraws not caused by typing; (6) an existing `extraKnownMarketplaces.accord` with another source is refused by hand, never overwritten.
+**Tests:** vitest throughout, so gate done finds each @test: ac-1..ac-3 drive the real `register.js` through a fake `$` whose events and element props follow claude-code.d.ts and which redraws only on `invalidate`; ac-4 is a text test on the rendered /accord skill, as stage-skills does, since no model runs in a test; ac-5 is a skills-sync test on the written files, the spliced package spec and the merged settings, for runtimes [claude] and [codex].

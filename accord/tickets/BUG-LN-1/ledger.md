@@ -2,6 +2,7 @@
 
 ## Tasks
 - task 1 done 003814fb1094
+- task 2 done a2fcd3cad380
 
 ## Rulings
 - Ruling: the preamble ends at the first `## Task n` heading in file order, so any non-task `##` section before it goes into the brief — the ticket says "text before `## Task 1`" — cost if wrong: briefs get longer.
@@ -11,6 +12,7 @@
 - Ruling: the blank line between the ticket and `---` stays, as ac-2 requires byte-identity with today's output, and the ac-1 test expects it too — cost if wrong: ac-1 and ac-2 read as contradicting each other.
 - Ruling: the new `gate.test.ts` titles are worded apart from REFS-1's `ac-1`…`ac-4` titles so no report id repeats — cost if wrong: none.
 - Ruling: the preamble slicing sits in a small `preamble()` helper in work.ts rather than inline in `parsePlan` — readability — cost if wrong: none.
+- Ruling: the ac-4 test compares the two warning reasons sorted, not in the brief's order — the gate sorts findings by reason, so "../x.md" comes first, and ac-4 names no order — cost if wrong: the order of the warnings is not asserted.
 
 ## Deferred
 - Executors that fix review or debug findings get the ticket plus the findings, not the plan's preamble (D-08); a later ticket.

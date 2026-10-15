@@ -52,19 +52,19 @@ Feature: BUG-LN-1
     When `accord brief <id> 1` runs
     Then its output is byte-identical to the output before this ticket
 
-  @ac-3
+  @ac-3 @test:packages/core/test/gate.test.ts#ac-3-evidence-tokens-that-are-not-files-draw-no-warning
   Scenario: Evidence tokens that are not files draw no warning
     Given a verification.md evidence block that cites a real test and also holds `feature/{id}`, `origin/t/ST-AN-3`, `refs/heads/t/`, `1/2`, `//`, `t/`, `/branch`, `packages/core/skills/*/SKILL.md`, and `.claude/skills`, a directory in the repository
     When `accord gate done <id>` runs
     Then it reports no `gate.reference-unknown` warning for that block
 
-  @ac-4
+  @ac-4 @test:packages/core/test/gate.test.ts#ac-4-a-mistyped-file-path-still-warns-once-per-token
   Scenario: A mistyped file path still warns
     Given a verification.md evidence block that cites a real test and also holds `src/nope.ts` and `../x.md`, neither in the repository
     When `accord gate done <id>` runs
     Then it reports exactly two `gate.reference-unknown` warnings for that block, one naming only "src/nope.ts" and one naming only "../x.md"
 
-  @ac-5
+  @ac-5 @test:packages/core/test/gate.test.ts#ac-5-the-error-gate-still-needs-a-file-or-a-test
   Scenario: The error gate still needs a file or a test
     Given a verification.md evidence block that holds prose, `.claude/skills`, a directory in the repository, and `feature/{id}`, and cites no file, test or test id in any form
     When `accord gate done <id>` runs

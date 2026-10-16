@@ -41,7 +41,7 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: ST-LN-6
 
-  @ac-1
+  @ac-1 @test:packages/cli/test/show.test.ts#ac-1-accord-show-prints-the-full-detail-as-text
   Scenario: accord show prints a ticket's full detail as text
     Given a lane M ticket whose title is longer than 60 characters, with an Intent and two criteria, no holder, and no blocking ticket
     When `accord show <id>` runs
@@ -50,7 +50,7 @@ Feature: ST-LN-6
     And under each criterion it prints the criterion's state label, then a labelled line each for its @test tag, that test's result, whether it is ticked in `verified:`, and its verification.md result, an absent one reading `none`
     And no text in the output is cut or ends with "..." or "…"
 
-  @ac-2
+  @ac-2 @test:packages/cli/test/show.test.ts#ac-2-accord-show-json-gives-the-same-detail-as-data
   Scenario: accord show --json gives the same detail as JSON
     Given the ticket of @ac-1
     When `accord show <id> --json` runs

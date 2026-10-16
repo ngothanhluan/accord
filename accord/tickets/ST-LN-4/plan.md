@@ -1,6 +1,6 @@
 ---
 baseline: d71eb4e6e3ceb6f8847807dcb8b4448aecf57af9
-plan_hash: "fnv1a64:ca24f93b7dea5058"
+plan_hash: "fnv1a64:2fb940053f0d887e"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -37,8 +37,8 @@ Rules for every task:
   - `Should: left as is, a defect ships or an executor is blocked, which a later stage would catch at a higher cost.`
   - `Nice: no defect, only a clearer or smaller way.`
 
-## Task 1: Wiring: the plan loop sizes its first critique and sends each critic after the first only the fix diff after a round that leaves no Must open
-covers: @ac-1, D-01, D-04, D-05
+## Task 1: Wiring: the plan loop sizes its first critique and sends each critic after the first only the fix diff after a round that reports no Must and leaves none open
+covers: @ac-1, D-01, D-04, D-05, D-06
 files: packages/core/skills/plan/SKILL.md, packages/core/skills/plan/critique.md (new), packages/core/agents/critic.md, packages/core/agents/planner.md, packages/core/src/generated/skills.ts, packages/core/src/generated/agents.ts, .claude/skills/accord-plan/SKILL.md, .claude/skills/accord-plan/critique.md (new), .claude/agents/accord-critic.md, .claude/agents/accord-planner.md, docs/specs/2026-10-12-workflow-layer-design.md, packages/core/test/stage-skills.test.ts
 verify: packages/core/test/stage-skills.test.ts#ac-1-the-first-plan-critique-is-sized-by-the-plan-and-a-should-only-round-reads-the-fix-diff (@ac-1)
 
@@ -63,20 +63,23 @@ Test first, in `packages/core/test/stage-skills.test.ts`:
     `` two critics for a plan of four or more tasks, lens `criteria`, which checks that the plan reaches the criteria and the Intent, and lens `build`, which checks that an executor can build each task ``;
     `` one more critic, lens `security`, for a plan of any size whose ticket touches auth, money, migration, or data deletion, so at most three ``;
     `Merge and de-duplicate their findings into one round, numbered within it, before the planner gets them.`;
-    `` Every round after a round whose commit counts a Must, `<m>` above zero in step 5, is `whole` ``;
-    `` Every round after a round whose `<m>` is zero is `diff` ``;
+    `After a round that reports a Must, or that leaves a Must from an earlier round open or unverified`;
+    `` its section holds a Must, or `<m>` is above zero in step 5 ``;
+    `` the next round is `whole`, even when the owner dropped that Must ``;
+    `` After any other round the next is `diff` ``;
     `` `git diff <that round's commit> -- accord/tickets/<id>/plan.md`, which holds the planner's fix ``;
     `` A `diff` critic never reads the whole plan. ``;
     `` every Must and Should that is `open` or `unverified`, never a Nice ``;
     `The planner fixes every one.`;
     `` A Nice goes to the ledger under `## Deferred`, marked `deferred`, and never to the planner. ``;
-    `The loop ends only on a round that reported no Must and no Should`;
-    `` and the last `accord gate plan <id>` passed ``;
+    `The loop ends only on a round that reports no Must and no Should and leaves no Must or Should open or unverified`;
+    `` and only when the last `accord gate plan <id>` passed ``;
+    `` A finding stays `open` or `unverified` until a critic lists it after `fixed:` or `withdrawn:`, or the owner drops it; the planner's word alone closes nothing. ``;
     `` mark that earlier finding `repeated as <this round>.<n>` ``;
     `` `<m>` and `<s>` count the Musts and the Shoulds after the last `## Closed` line that are `open` or `unverified` once this round is recorded ``.
   - `critic` contains `` Mode `diff`: ``, `` `fixed: <round>.<n>, <round>.<n>` ``, `` `criteria` runs only the first, second, third and fifth checks ``,
     `` On the changed hunks, check that no Veto is violated and that nothing goes beyond the acceptance criteria. ``,
-    `` and at the task each `open` or `unverified` finding names; never read the whole plan. ``,
+    `` and at the task or section each `open` or `unverified` finding names; never read the whole plan. ``,
     `` a new numbered finding that starts `repeats <round>.<n>:` `` and `` `withdrawn: <round>.<n>, <round>.<n>` ``.
 
 Text:
@@ -94,11 +97,14 @@ The main session keeps every critic finding in
 `## Round <n> (diff)` section per round, each finding on one line as
 `<n>. <Must|Should|Nice> — <finding> — <state>`. The state is `open`,
 `fixed`, `deferred` for a Nice, `unverified: <reason>`, `withdrawn`,
-`repeated as <round>.<n>`,
+`repeated as <round>.<n>` when a critic carries it on under that number,
 `open, owner: "<the owner's words>"` for a fix the owner said to apply,
-or `owner: "<the owner's words>"` for one the owner dropped. A round
-with no findings says `No findings`. Only the sections after the last
-`## Closed` line count; step 8 of the skill appends that line.
+or `owner: "<the owner's words>"` for one the owner dropped. A finding
+stays `open` or `unverified` until a critic lists it after `fixed:` or
+`withdrawn:`, or the owner drops it; the planner's word alone closes
+nothing. A round with no findings says `No findings`. Only the sections
+after the last `## Closed` line count; step 8 of the skill appends that
+line.
 
 1. **Read.** Round 1 is `whole` and sized by the plan. Count the
    `## Task` sections of `plan.md` and judge from the ticket and the plan
@@ -114,11 +120,13 @@ with no findings says `No findings`. Only the sections after the last
      three.
 
    Merge and de-duplicate their findings into one round, numbered within
-   it, before the planner gets them. Every round after a round whose
-   commit counts a Must, `<m>` above zero in step 5, is `whole`: one
+   it, before the planner gets them. After a round that reports a Must,
+   or that leaves a Must from an earlier round open or unverified (its
+   section holds a Must, or `<m>` is above zero in step 5), the next
+   round is `whole`, even when the owner dropped that Must: one
    `accord-critic` in a fresh context, no lens, mode `plan`, with the
-   paths of the ticket, `plan.md`, and `plan-review.md`. Every round
-   after a round whose `<m>` is zero is `diff`: write
+   paths of the ticket, `plan.md`, and `plan-review.md`. After any other
+   round the next is `diff`: write
    `git diff <that round's commit> -- accord/tickets/<id>/plan.md`, which
    holds the planner's fix, into a file outside the working tree, and
    dispatch one `accord-critic` in a fresh context, mode `diff`, with the
@@ -138,10 +146,10 @@ with no findings says `No findings`. Only the sections after the last
    those words, which confirm the API, and closes only when a critic
    lists it after `fixed:`. On drop its state becomes
    `owner: "<the owner's words>"`, which closes it.
-4. **Converged.** The loop ends only on a round that reported no Must
-   and no Should, when no Must or Should after the last `## Closed` line
-   is `open` or `unverified`, and the last `accord gate plan <id>`
-   passed: go to step 7 of the skill.
+4. **Converged.** The loop ends only on a round that reports no Must
+   and no Should and leaves no Must or Should open or unverified, and
+   only when the last `accord gate plan <id>` passed: go to step 7 of
+   the skill.
 5. **Fix.** Otherwise commit `plan.md` and `plan-review.md` with the
    subject `plan: <id> round <n>, <m> Must, <s> Should`, where `<m>` and
    `<s>` count the Musts and the Shoulds after the last `## Closed` line
@@ -191,7 +199,7 @@ with no findings says `No findings`. Only the sections after the last
     - Check each finding `plan-review.md` holds as `open` or `unverified` against the diff.
     - Check that no hunk breaks what it touches: its task's `covers:`, `files:` and `verify:` lines, and every task that cites what it changes.
     - On the changed hunks, check that no Veto is violated and that nothing goes beyond the acceptance criteria.
-    - Open `plan.md` only at the tasks the hunks change or that cite them, and at the task each `open` or `unverified` finding names; never read the whole plan.
+    - Open `plan.md` only at the tasks the hunks change or that cite them, and at the task or section each `open` or `unverified` finding names; never read the whole plan.
     ```
 - `packages/core/agents/planner.md`:
   - The revision sentence `On a revision you also get the critic's findings or what `accord gate plan` printed;
@@ -206,12 +214,14 @@ with no findings says `No findings`. Only the sections after the last
   tasks; two in parallel for four or more, one on the criteria and the Intent, one on whether an executor can build
   each task; one more, a security critic, when the ticket touches auth, money, migration, or data deletion; their
   findings are merged and de-duplicated. The main session keeps every finding and its state in
-  `tickets/<id>/plan-review.md`. A round after one whose commit counts a Must still open or
-  unverified reads the whole plan; a round after one that counts none reads only `git diff` of `plan.md` from the
-  round commit, and the tasks its open or unverified findings name. Every Must and Should is fixed; a Nice goes to
-  the ledger as deferred. The next critic repeats an unverified finding with the citation or fix it lacked, or
-  withdraws it. The loop ends on a round with no Must and no Should, when none is open or unverified and the plan gate
-  passes. A fix whose API is cited only by a URL goes to the owner at once.` Its rest stays.
+  `tickets/<id>/plan-review.md`. After a round that reports a Must, or leaves a Must from an earlier round open
+  or unverified, the next critic reads the whole plan, even when the owner dropped that Must; after any other round
+  it reads only `git diff` of `plan.md` from the round commit, and the task or section each open or unverified
+  finding names. Every Must and Should is fixed; a Nice goes to the ledger as deferred. A finding stays open or
+  unverified until a critic reports it fixed or withdrawn, or the owner drops it; the planner's word alone closes
+  nothing. The next critic repeats an unverified finding with the citation or fix it lacked, or withdraws it. The
+  loop ends only on a round that reports no Must and no Should and leaves none open or unverified, and when the plan
+  gate passes. A fix whose API is cited only by a URL goes to the owner at once.` Its rest stays.
 
 Must not change: the critic's `approach` mode and its six `Mode `plan`:` check lines; every `AGENT_REQUIRED` phrase
 of the critic and planner, the planner's `A test name never holds `@` or a comma.` and its `(@ac-` marker wording

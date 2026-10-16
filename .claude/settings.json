@@ -31,5 +31,16 @@
         ]
       }
     ]
+  },
+  "extraKnownMarketplaces": {
+    "accord": {
+      "source": {
+        "source": "directory",
+        "path": "./.claude/accord-panel"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "accord-panel@accord": true
   }
 }

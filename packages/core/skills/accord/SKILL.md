@@ -18,6 +18,17 @@ remember their names.
    add to it, and never build a section from `accord status --json`.
 3. Offer the actions its last line names: Continue, Pick up, New request.
 
+## A ticket named: `/accord pick-up <id>`, `/accord continue <id>`
+
+An action applies only when the whole text after it is exactly one
+ticket id, the id of a ticket in `accord/tickets/`; with no such ticket,
+`/accord continue ST-99` is a New request. Then run Pick up or
+Continue below on that ticket, without showing the dashboard first. Continue on a ticket nobody has claimed
+says so, offers Pick up, and never claims it. Any other text starts a
+New request whose text is the whole text after `/accord`: for
+`/accord continue the refactor` it is `continue the refactor`, and
+`/accord continue ST-2 now` is a new request too.
+
 ## Continue
 
 1. Switch to its `branch` from `accord status --json`. The active ticket is

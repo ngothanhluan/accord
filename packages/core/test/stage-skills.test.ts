@@ -160,3 +160,24 @@ it('ac-5 the accord skill takes the claim branch from the CLI in Continue Pick u
     expect(s).not.toContain('{id}');
   }
 });
+
+it('ac-4 the accord skill picks up then continues a named ticket and treats any other text as a new request', () => {
+  const text = (files.find((f) => f.path === '.claude/skills/accord/SKILL.md')?.text ?? '').replace(/\s+/g, ' ');
+  const named = text.slice(text.indexOf('## A ticket named'), text.indexOf('## Continue'));
+  expect(named.length).toBeGreaterThan(0);
+  expect(text.indexOf('## A ticket named')).toBeGreaterThan(text.indexOf('## Dashboard'));
+  expect(named.indexOf('`/accord pick-up <id>`')).toBeGreaterThanOrEqual(0);
+  expect(named.indexOf('`/accord continue <id>`')).toBeGreaterThan(named.indexOf('`/accord pick-up <id>`'));
+  for (const p of [
+    'the whole text after it is exactly one ticket id',
+    'without showing the dashboard first',
+    'nobody has claimed',
+    'offers Pick up',
+    'never claims it',
+    'the whole text after',
+    '`continue the refactor`',
+    '`/accord continue ST-2 now`',
+    '`/accord continue ST-99` is a New request',
+  ])
+    expect(named).toContain(p);
+});

@@ -41,6 +41,8 @@ export { recordTaskDone } from './write/ledger.js';
 export { writeTestTags } from './write/testtag.js';
 export { branchTemplateOf, DEFAULT_BRANCH_TEMPLATE } from './status/branch.js';
 export { anchorText } from './status/anchor.js';
+export { ticketDetail } from './status/show.js';
+export type { CriterionDetail, CriterionLabel, TicketDetail } from './status/show.js';
 export { rulesetText, sessionLine } from './status/session.js';
 export { nextRows, statusRows } from './status/rows.js';
 export { dashboard } from './status/dashboard.js';

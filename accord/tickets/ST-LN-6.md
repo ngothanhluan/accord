@@ -67,6 +67,7 @@ Feature: ST-LN-6
     Given the panel shows the dashboard with a ticket row that offers Continue
     When the owner presses that row
     Then the panel shows the ticket's detail read from `accord show <id> --json`, and submits no command
+    And the row's id is drawn underlined, and no other cell of the dashboard table is underlined
     And the row itself holds no Continue button; that button and a Back button are in the detail view
     And pressing that button submits the same `/accord` command the row submitted before this ticket, and pressing Back shows the dashboard already loaded without running any command
 
@@ -91,9 +92,11 @@ Feature: ST-LN-6
 - D-06 The detail starts with the full title and the facts the dashboard row already has: stage, lane, tasks done of total, branch, who holds it, and the tickets blocking it — "Tiêu đề đủ + dữ kiện của hàng (Khuyên)" (2026-10-16)
 - D-07 The smallest version that still counts as done is all of D-01 to D-06; nothing is cut — "option 1" (2026-10-16)
 - D-08 After the audit: an empty fact prints `none` under its label; steps keep their Gherkin keyword; the JSON holds data, not display text; a tick is bound by the ticket-level `verified_hash`; test results come from config.yml `tests.report`, and a missing report makes a tagged criterion not run; the row loses its button to the detail view; Back shows the loaded dashboard without a new run; the panel wraps text itself with no inserted line breaks — "Đồng ý cả 8 (Khuyên)" (2026-10-16)
+- D-09 The id that opens the detail is drawn so a user can tell it is pressable — "duyệt nhưng Id phải highlight hoặc sao đó để user biết mà click." (2026-10-16)
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
+- 2026-10-16, on the Approach (id cell as the press target): "duyệt nhưng Id phải highlight hoặc sao đó để user biết mà click."
 
 ## Open questions
 <!-- `- [ ]` items; Ready stays blocked while any is unchecked. -->
@@ -101,7 +104,7 @@ Feature: ST-LN-6
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
-Chosen: the id cell is the press target, everything else reused. A pure core `ticketDetail(snapshot, id)` (new `packages/core/src/status/show.ts`) takes the lane row from `statusRows`, the Intent as `anchor` reads it, the stored scenario steps, `snapshot.tests`, the verification.md results, and `acHash` against `verified_hash`, and gives each criterion its label with one first-match chain (D-04); absent values are mapped to null explicitly. A new `accord show <id> [--json]` (`packages/cli/src/commands/show.ts`, registered in `run.ts`, lane tickets only, an unknown id exits 2) prints it as text or JSON. In the panel each lane row's id becomes a `plain` Button, which draws the id alone, that runs `show <id> --json`; the row loses its Continue and Pick up button; the detail view, with Continue or Pick up and Back, lives in the existing `view.js` and `register.js`, so the plugin's file list does not change.
+Chosen: the id cell is the press target, everything else reused. A pure core `ticketDetail(snapshot, id)` (new `packages/core/src/status/show.ts`) takes the lane row from `statusRows`, the Intent as `anchor` reads it, the stored scenario steps, `snapshot.tests`, the verification.md results, and `acHash` against `verified_hash`, and gives each criterion its label with one first-match chain (D-04); absent values are mapped to null explicitly. A new `accord show <id> [--json]` (`packages/cli/src/commands/show.ts`, registered in `run.ts`, lane tickets only, an unknown id exits 2) prints it as text or JSON. In the panel each lane row's id becomes a `plain` Button, which draws the id alone, underlined and in the accent colour so it reads as pressable (D-09), that runs `show <id> --json`; the row loses its Continue and Pick up button; the detail view, with Continue or Pick up and Back, lives in the existing `view.js` and `register.js`, so the plugin's file list does not change.
 Rejected: the whole row as one Button. The host's Button takes only strings and `Text` as children, while the row's columns are `Box` cells (`register.js:89-94`), so the table's columns would break.
 Affected: `core/src/status/show.ts` (new), `core/src/index.ts`, `cli/src/commands/show.ts` (new), `cli/src/run.ts`, `cli/src/render/dashboard.ts` (export the unsafe-character scan, the table cut stays), `core/panel/view.js` and `register.js`, `core/src/generated/panel.ts`, `.claude/accord-panel/` by `accord skills sync`, `cli/test/skill-commands.test.ts`, `docs/design.md`.
 Risks the option keeps, from the critic, all Should:

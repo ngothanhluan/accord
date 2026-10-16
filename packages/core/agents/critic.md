@@ -31,6 +31,11 @@ Mode `diff`: you get the paths of `plan.md`, of a file holding `git diff` of `pl
 - On the changed hunks, check that no Veto is violated and that nothing goes beyond the acceptance criteria.
 - Open `plan.md` only at the tasks the hunks change or that cite them, and at the task or section each `open` or `unverified` finding names; never read the whole plan.
 
+Severity, by what happens if the finding is left:
+- Must: left as is, the Intent does not hold, a criterion is not reached, or a Veto, Decision or Correction is broken.
+- Should: left as is, a defect ships or an executor is blocked, which a later stage would catch at a higher cost.
+- Nice: no defect, only a clearer or smaller way.
+
 Findings:
 - Numbered, each with a severity `Must`, `Should`, or `Nice`, and a concrete failing case: the input, step, or state, and what goes wrong.
 - No failing case, no finding.

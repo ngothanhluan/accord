@@ -124,3 +124,17 @@ describe('rendered agents', () => {
     }
   });
 });
+
+it('ac-3 the critic and both reviewers define must should and nice by consequence', () => {
+  const sentences = [
+    'Must: left as is, the Intent does not hold, a criterion is not reached, or a Veto, Decision or Correction is broken.',
+    'Should: left as is, a defect ships or an executor is blocked, which a later stage would catch at a higher cost.',
+    'Nice: no defect, only a clearer or smaller way.',
+  ];
+  for (const role of ['critic', 'reviewer', 'final-reviewer']) {
+    const path = `.claude/agents/accord-${role}.md`;
+    const text = (agentTargets(config()).find((f) => f.path === path)?.text ?? '').replace(/\s+/g, ' ');
+    expect(text, `${path} is empty`).not.toBe('');
+    for (const s of sentences) expect(text, `${path} lacks: ${s}`).toContain(s);
+  }
+});

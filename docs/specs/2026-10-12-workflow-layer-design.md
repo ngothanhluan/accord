@@ -378,7 +378,7 @@ undeclared file only against a reason the ledger records as a Ruling; any other 
   policy of section 9, and the repository's written conventions and `product/` rules. Anything a configured
   linter or type check already enforces is skipped.
 
-**Findings.** `Must | Should | Nice`, numbered. No concrete failing case, no finding.
+**Findings.** `Must | Should | Nice`, numbered. Must: left as is, the Intent does not hold, a criterion is not reached, or a Veto, Decision or Correction is broken. Should: left as is, a defect ships or an executor is blocked, which a later stage would catch at a higher cost. Nice: no defect, only a clearer or smaller way. No concrete failing case, no finding.
 
 **Split by diff size and risk** (thresholds in config, tuned by the benchmark):
 

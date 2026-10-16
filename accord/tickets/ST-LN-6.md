@@ -101,3 +101,15 @@ Feature: ST-LN-6
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
+Chosen: the id cell is the press target, everything else reused. A pure core `ticketDetail(snapshot, id)` (new `packages/core/src/status/show.ts`) takes the lane row from `statusRows`, the Intent as `anchor` reads it, the stored scenario steps, `snapshot.tests`, the verification.md results, and `acHash` against `verified_hash`, and gives each criterion its label with one first-match chain (D-04); absent values are mapped to null explicitly. A new `accord show <id> [--json]` (`packages/cli/src/commands/show.ts`, registered in `run.ts`, lane tickets only, an unknown id exits 2) prints it as text or JSON. In the panel each lane row's id becomes a `plain` Button, which draws the id alone, that runs `show <id> --json`; the row loses its Continue and Pick up button; the detail view, with Continue or Pick up and Back, lives in the existing `view.js` and `register.js`, so the plugin's file list does not change.
+Rejected: the whole row as one Button. The host's Button takes only strings and `Text` as children, while the row's columns are `Box` cells (`register.js:89-94`), so the table's columns would break.
+Affected: `core/src/status/show.ts` (new), `core/src/index.ts`, `cli/src/commands/show.ts` (new), `cli/src/run.ts`, `cli/src/render/dashboard.ts` (export the unsafe-character scan, the table cut stays), `core/panel/view.js` and `register.js`, `core/src/generated/panel.ts`, `.claude/accord-panel/` by `accord skills sync`, `cli/test/skill-commands.test.ts`, `docs/design.md`.
+Risks the option keeps, from the critic, all Should:
+- the pane's response check reads only a dashboard: `show` gets its own parser, every string goes through `clean`, its state is kept apart from the dashboard, and a failed run shows its message with Back.
+- the `statusRows` row omits absent keys, so `ticketDetail` maps holder to null and blocking tickets to `[]`, and the text prints `none` for both.
+- ST-LN-3's `@ac-2` panel test and four row-button assertions break; the test keeps its name and now presses the id, then Continue.
+- the id Button's width: drawn `plain`, it takes the id's own width, which the id column already measures.
+- EPICS rows and tickets without `lane:` get no id Button, since `show` takes lane tickets only.
+- an open detail goes stale after a turn, so `turn.complete` re-runs `show` for the open ticket.
+- the live check of ac-4 and ac-5 needs the pane's plugin cache refreshed, because the plugin version is the CLI version.
+Tests: @ac-3 in `core/test/show.test.ts` on a snapshot built in memory; @ac-1 and @ac-2 in `cli/test/show.test.ts` through `runCli` on a fixture repository; @ac-4 and @ac-5 in `core/test/panel.test.ts` on the fake host.

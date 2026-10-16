@@ -65,7 +65,11 @@ const epicCells = (r) => ({ id: r.id, stage: clean(`${r.done}/${r.total} done`),
 const act = (key, label, id) => ({ key: `${key}:${id}`, label, args: `${key} ${id}` });
 // same id pattern as cli new-ticket.ts: a file stem with spaces must never reach /accord as text
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
-const withAction = (key, label) => (r) => (SAFE_ID.test(r.id) ? { ...cells(r), action: act(key, label, r.id) } : cells(r));
+// A lane row opens its detail; the row's own button (if any) moves into the detail view.
+const withOpen = (key, label) => (r) =>
+  SAFE_ID.test(r.id)
+    ? { ...cells(r), open: { key: `show:${r.id}`, id: r.id, ...(key ? { action: act(key, label, r.id) } : {}) } }
+    : cells(r);
 
 export function view(state, query) {
   const q = query.trim().toLowerCase();
@@ -78,10 +82,10 @@ export function view(state, query) {
     const rows = rowsOf(s).filter(keep).map(f);
     if (!q || rows.length > 0) sections.push({ heading, rows, more: s.more });
   };
-  section('YOURS', d.yours, (r) => ({ ...withAction('continue', 'Continue')(r), who: '' }));
-  section('TEAM', d.team);
-  section('READY', d.ready, withAction('pick-up', 'Pick up'));
-  if (d.upNext) section('UP NEXT', d.upNext, withAction('pick-up', 'Pick up'));
+  section('YOURS', d.yours, (r) => ({ ...withOpen('continue', 'Continue')(r), who: '' }));
+  section('TEAM', d.team, withOpen());
+  section('READY', d.ready, withOpen('pick-up', 'Pick up'));
+  if (d.upNext) section('UP NEXT', d.upNext, withOpen('pick-up', 'Pick up'));
   if (d.epics.rows.length > 0) {
     section('EPICS', d.epics, epicCells);
   }
@@ -101,4 +105,59 @@ export function view(state, query) {
   if (s.withSchemaErrors > 0) summary += `, ${s.withSchemaErrors} with schema errors, run accord lint`;
   const args = query.trim();
   return { sections, summary, widths, ...(args ? { newRequest: { key: 'new-request', label: 'New request', args } } : {}) };
+}
+
+// The action a row of the current dashboard offers for id, read at draw time so it follows the latest run.
+export function actionFor(state, id) {
+  if (!state?.dashboard) return undefined;
+  for (const sec of view(state, '').sections ?? []) for (const r of sec.rows) if (r.id === id && r.open?.action) return r.open.action;
+  return undefined;
+}
+
+const NL = String.fromCharCode(10);
+const NO_DETAIL = 'accord show --json printed no ticket';
+const strs = (a) => Array.isArray(a) && a.every((x) => typeof x === 'string');
+const critOk = (c) => plain(c) && (c.id === null || typeof c.id === 'string') && typeof c.title === 'string' && strs(c.steps) && typeof c.label === 'string';
+const ticketOk = (d) =>
+  plain(d) && typeof d.id === 'string' && typeof d.title === 'string' && strs(d.blockedBy) && strs(d.intent) && Array.isArray(d.criteria) && d.criteria.every(critOk);
+
+export function detailOutcome({ exitCode, stdout, stderr }) {
+  if (exitCode !== 0) return outcome({ exitCode, stdout, stderr });
+  let d;
+  try {
+    d = JSON.parse(stdout);
+  } catch {
+    return { message: NO_DETAIL };
+  }
+  return ticketOk(d) ? { ticket: d } : { message: NO_DETAIL };
+}
+
+const orNone = (v) => (v === null || v === undefined || v === '' ? 'none' : v);
+
+// Every string is whole and cleaned, never cut: the panel wraps it.
+export function detailView({ action, state }) {
+  const back = { key: 'back', label: 'Back' };
+  if (state === undefined) return { back, action, message: ['Loading…'] };
+  if (state.message !== undefined) return { back, action, message: state.message.split(NL).map(clean).filter((l) => l) };
+  const t = state.ticket;
+  const facts = [
+    `Stage: ${t.stage}`,
+    `Lane: ${t.lane}`,
+    `Tasks: ${t.tasksDone}/${t.tasksTotal}`,
+    `Branch: ${orNone(t.branch)}`,
+    `Holder: ${orNone(t.holder)}`,
+    `Blocked by: ${t.blockedBy.length > 0 ? t.blockedBy.join(' ') : 'none'}`,
+  ].map(clean);
+  const criteria = t.criteria.map((c) => ({
+    head: clean(c.id === null ? c.title : `${c.id} ${c.title}`),
+    steps: c.steps.map(clean),
+    facts: [
+      `State: ${c.label}`,
+      `Test: ${orNone(c.test)}`,
+      `Test result: ${orNone(c.testResult)}`,
+      `Ticked: ${c.ticked === true ? 'yes' : 'no'}`,
+      `Verification: ${orNone(c.verification)}`,
+    ].map(clean),
+  }));
+  return { back, action, title: clean(t.title), facts, intent: t.intent.map(clean), criteria };
 }

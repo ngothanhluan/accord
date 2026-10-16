@@ -1,7 +1,9 @@
-import { failure, outcome, view } from './view.js';
+import { actionFor, detailOutcome, detailView, failure, outcome, view } from './view.js';
 
 let state;
 let query = '';
+// the open ticket detail, undefined while the dashboard shows
+let detail;
 
 let running = false;
 let again = false;
@@ -27,6 +29,24 @@ async function refresh($) {
   } finally {
     running = false;
   }
+}
+
+async function openDetail($, open) {
+  const mine = { id: open.id };
+  detail = mine;
+  // start the run before the first redraw so a press runs it at once
+  const run = $.process.run(['npx', '--yes', 'ACCORD_PACKAGE_SPEC', 'show', open.id, '--json'], { timeoutMs: 120000 });
+  run.catch(() => {}); // the rejection is handled below; this only avoids an unhandled one during the redraw
+  await $.ui.invalidate('ui.render');
+  let result;
+  try {
+    result = detailOutcome(await run);
+  } catch (err) {
+    result = failure(err);
+  }
+  if (detail !== mine) return; // closed or replaced while running
+  mine.state = result;
+  await $.ui.invalidate('ui.render');
 }
 
 async function start($) {
@@ -65,9 +85,41 @@ export function register(on) {
       void refresh($);
     }
     const { Box, Text, Button, Input } = $.ui.resolve(e);
-    const v = view(state, query);
     const children = [];
     const run = (args) => () => void $.command.run({ command: 'accord', args });
+    if (detail) {
+      const d = detailView({ ...detail, action: actionFor(state, detail.id) });
+      const bar = [
+        Button({
+          key: d.back.key,
+          label: d.back.label,
+          onPress: () => {
+            detail = undefined;
+            void $.ui.invalidate('ui.render');
+          },
+        }),
+      ];
+      if (d.action) bar.push(Button({ key: d.action.key, label: d.action.label, onPress: run(d.action.args) }));
+      children.push(Box({ flexDirection: 'row', columnGap: 2, children: bar }));
+      const wrapped = (props, text) => Text({ wrap: 'wrap', ...props, children: [text] });
+      if (d.message) {
+        for (const line of d.message) children.push(wrapped({}, line));
+      } else {
+        children.push(wrapped({ bold: true }, d.title));
+        for (const f of d.facts) children.push(wrapped({}, f));
+        children.push(Box({ marginTop: 1, children: [wrapped({ bold: true, color: 'cyan' }, 'Intent'), ...d.intent.map((l) => wrapped({}, l))] }));
+        for (const c of d.criteria) {
+          children.push(
+            Box({
+              marginTop: 1,
+              children: [wrapped({ bold: true }, c.head), ...c.steps.map((st) => wrapped({}, st)), ...c.facts.map((f) => wrapped({ dimColor: true }, f))],
+            }),
+          );
+        }
+      }
+      return Box({ flexDirection: 'column', children });
+    }
+    const v = view(state, query);
     if (v.message) {
       for (const line of v.message) children.push(Text({ children: [line] }));
     } else {
@@ -99,8 +151,16 @@ export function register(on) {
         }
         for (const r of s.rows) {
           const stage = Text({ children: [r.stage], ...(r.stageColor ? { color: r.stageColor } : {}) });
-          const kids = cellBoxes(Text({ bold: true, children: [r.id] }), stage, Text({ wrap: 'truncate', children: [r.title] }));
-          if (r.action) kids.push(Box({ flexShrink: 0, children: [Button({ key: r.action.key, label: r.action.label, onPress: run(r.action.args) })] }));
+          const idCell = r.open
+            ? Button({
+                key: r.open.key,
+                label: r.open.id,
+                plain: true,
+                onPress: () => void openDetail($, r.open),
+                children: [Text({ bold: true, underline: true, color: 'suggestion', children: [r.id] })],
+              })
+            : Text({ bold: true, children: [r.id] });
+          const kids = cellBoxes(idCell, stage, Text({ wrap: 'truncate', children: [r.title] }));
           children.push(line(kids));
           if (r.blockedBy || r.who) {
             const sub = [Box({ width: widths.id, flexShrink: 0 })];

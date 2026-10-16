@@ -1,6 +1,6 @@
 ---
 baseline: 1d635b5277fa10c77b89c3eba8108cb877065060
-plan_hash: "fnv1a64:a480930a1296d2d2"
+plan_hash: "fnv1a64:9720f92f803d22a9"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -427,8 +427,14 @@ branch already (Tasks 1, 4, 5 and 7 created it); the marker is relative to the b
 `Text` takes `color` (a colour name such as `'red'`), `bold`, `dimColor` and `wrap` (`'truncate'` cuts at the
 width of its box, d.ts:9937); `Box` takes `width`, `columnGap`, `marginTop`, `flexDirection`, `flexGrow`,
 `flexShrink` and `minWidth` (d.ts:704-716), laid out by Ink/Yoga; there is no Table element. The title column is
-sized by flex, so the view never reads the pane width. No emoji in any cell, since a two-column glyph shifts the
-columns.
+sized by flex, so the view never reads the pane width: the change note names `e.props.bodyColumns`, the body width
+the pane hook receives (d.ts:8384), but a title box with `flexGrow: 1, flexShrink: 1` and no `minWidth` already
+takes exactly the cells the fixed boxes leave, which is the "cut to the width left" of D-11, with no width sum in
+`view.js` and no redraw on a resize. The title box carries no `minWidth`, so in a narrow pane the title shrinks to
+nothing before any other cell moves; only a pane narrower than the id, stage and button cells with their gaps
+pushes a row past the right edge. `$.ui.open` keeps its arguments (no `columns`): `columns` is a request the dock
+may ignore and the inline pane always ignores (d.ts:6062-6069), and the ac tests assert the open calls. No emoji in
+any cell, since a two-column glyph shifts the columns.
 
 Test first, in `packages/core/test/panel.test.ts`:
 - Fake host: `draw` is unchanged. `h.cell(s)` walks the tree keeping each node's parent and returns `{ text, box,
@@ -445,15 +451,19 @@ Test first, in `packages/core/test/panel.test.ts`:
   'me@x' }], more: 0 }, team: { rows: [{ id: 'ST-3', title: 'Mine', stage: 'build', tasksDone: 2, tasksTotal: 5,
   claimedBy: 'an\u001b[1m@x' }, { id: 'ST-11', title: 'Odd', stage: 'constructor' }], more: 0 }, upNext: { rows: [{
   id: 'ST-7', title: 'Blocked', stage: 'plan', idleDays: 3, blockedBy: ['ST-6', 'ST-4'] }, { id: 'ST-8' }], more: 2
-  } })`, where `LONG` is `'Title '.repeat(30).trim()`. The stage cells are `review`, `build 2/5`, `constructor` and
-  `plan idle 3d`; the longest is `plan idle 3d`, 12 code points. Under `vi.waitFor` a text holds `ST-7`. Then:
-  - `YOURS`, `TEAM`, `READY` and `UP NEXT` each: `cell(heading).text` has `bold: true` and `color: 'cyan'`, and
-    `cell(heading).box.marginTop` is `1`.
-  - Texts `ID`, `STAGE` and `TITLE` each appear three times (YOURS, TEAM, UP NEXT; READY has no row), each with
-    `dimColor: true`. `none` (READY), `+2 more` and the summary text each have `dimColor: true`.
+  }, epics: { rows: [{ id: 'EP-1', title: 'E', done: 1, total: 3 }], more: 0 } })`, where `LONG` is
+  `'Title '.repeat(30).trim()`. The stage cells are `review`, `build 2/5`, `constructor`, `plan idle 3d` and
+  `1/3 done`; the longest is `plan idle 3d`, 12 code points. Under `vi.waitFor` a text holds `ST-7`. Then:
+  - `YOURS`, `TEAM`, `READY`, `UP NEXT` and `EPICS` each: `cell(heading).text` has `bold: true` and `color: 'cyan'`,
+    and `cell(heading).box.marginTop` is `1`.
+  - Texts `ID`, `STAGE` and `TITLE` each appear four times (YOURS, TEAM, UP NEXT, EPICS; READY has no row), each
+    with `dimColor: true`. `none` (READY), `+2 more` and the summary text each have `dimColor: true`.
+  - The epic row: `cell('EP-1').text.bold` is `true`; `cell('1/3 done').text.color` is `undefined` and
+    `cell('1/3 done').box` equals the stage box below; `cell('E').box` equals the title box below; `cell('EP-1').row`
+    has exactly three children (no button box).
   - `cell('ST-3').text.bold` is `true`; `cell('ST-3').row` has `flexDirection: 'row'` and `columnGap: 2`; its first
     two child boxes are `{ width: 5, flexShrink: 0 }` (`ST-10`) and `{ width: 12, flexShrink: 0 }` (`plan idle 3d`),
-    and its third is `{ flexGrow: 1, flexShrink: 1, minWidth: 10 }` with no `width` key. `cell('ID').box` and
+    and its third is `{ flexGrow: 1, flexShrink: 1 }` with no `width` and no `minWidth` key. `cell('ID').box` and
     `cell('STAGE').box` equal the first two, and `cell('TITLE').box` and `cell(LONG).box` equal the third.
     `cell(LONG).text.wrap` is `'truncate'` and its children hold the whole of `LONG` (the host cuts, the view does
     not).
@@ -464,7 +474,7 @@ Test first, in `packages/core/test/panel.test.ts`:
   - `cell('blocked by ST-6 ST-4').text.color` is `'red'`; `cell('an [1m@x').text.dimColor` is `true`; no text
     contains `me@x` (YOURS shows no holder); exactly one text starts with `blocked by`, and the texts that equal
     `an [1m@x` number one (ST-8, ST-10 and ST-11 have no second line).
-  - `h.buttons().map((b) => b.key)` equals `['continue:ST-10', 'pick-up:ST-7', 'pick-up:ST-8']`.
+  - `h.buttons().map((b) => b.key)` equals `['continue:ST-10', 'pick-up:ST-7', 'pick-up:ST-8']` (EP-1 has none).
 
 The ac-1, ac-2 and ac-3 tests and every other risk test stay byte-identical: each finds a row by
 `texts().some((x) => x.includes(id))` or a title substring, and the id and the whole cleaned title each stay in one
@@ -481,13 +491,14 @@ Interface:
   (a stage named `constructor` must not pick up an inherited value), else `undefined`; `blockedBy` is `'blocked by '`
   plus the cleaned ids joined by a space when `r.blockedBy` is a non-empty array, else `''`; `who` is the cleaned
   `claimedBy` outside YOURS, `''` in YOURS. The dashboard result gains `widths: { id, stage }`: each the longest of
-  the header word (`ID`, `STAGE`) and every shown row's value, in code points, across all sections, so the columns
+  the header word (`ID`, `STAGE`) and every shown row's value, in code points, across all sections (EPICS
+  included), so the columns
   line up between sections. There is no title width: flex sizes the title.
 - `register.js` `ui.render` calls `view(state, query)` as today. Per section: `Box({ marginTop: 1, children:
   [Text({ bold: true, color: 'cyan', children: [heading] })] })`; when the section has rows, a header row; per row a
   row `Box({ flexDirection: 'row', columnGap: 2, children })` of `Box({ width: widths.id, flexShrink: 0 })` holding
   `Text({ bold: true })` of the id, `Box({ width: widths.stage, flexShrink: 0 })` holding `Text` of the stage with
-  `color: stageColor` (the key left out when undefined), `Box({ flexGrow: 1, flexShrink: 1, minWidth: 10 })`
+  `color: stageColor` (the key left out when undefined), `Box({ flexGrow: 1, flexShrink: 1 })`
   holding `Text({ wrap: 'truncate' })` of the title, then, when the row has an action, `Box({ flexShrink: 0 })`
   holding the row's `Button` as today. The header row is the same three boxes holding `Text({ dimColor: true })` of
   `ID`, `STAGE`, `TITLE`. When `blockedBy` or `who` is non-empty, a second row `Box({ flexDirection: 'row',

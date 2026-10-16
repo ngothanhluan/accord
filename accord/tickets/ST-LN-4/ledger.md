@@ -30,8 +30,11 @@
 - Ruling: the cost line of the Ruling on diff critics opening finding tasks no longer applies, because the critic now also opens the section a finding names — cost if wrong: none.
 - Ruling: the Ruling that "one cheap diff round still runs" after the owner drops the last finding holds only for a dropped Should; after a dropped Must the next round reads the whole plan (D-06) — plan critic round 5 found the two records disagree — cost if wrong: none to behaviour, the plan text is explicit.
 - Ruling: the ac-5 test matches the rendered quoted tools line (`tools: "Read, Grep, Glob, Write, Edit"`) — rendered frontmatter quotes values, so the unquoted form in the brief could never match — cost if wrong: none, the check still pins the same tool lists.
+- Ruling: the `<round>.<n>` label travels in `critique.md` step 5 and the planner reply line, not in the plan `SKILL.md` — `SKILL.md` stays at 5049 of 5120 bytes — cost if wrong: none.
 
 ## Deferred
 - Two critics in parallel in plan round 1 was deferred, then taken into this ticket as D-05 on 2026-10-16 ("Chốt, gộp vào ST-LN-4 (Recommended)").
 - The architect's impact analysis (callers, file:line, tests, generated files) lives only in its chat report; the planner reads the code again to write `files:` lines. Keep it as `accord/tickets/<id>/impact.md` and have the planner read it. The owner (2026-10-16): "ok đưa vào đi". Judge it with the benchmark after ST-LN-4, measuring architect and planner tokens first.
 - When the owner drops the last open finding, plan step 5 still dispatches the planner with an empty list before the next critic round: one wasted dispatch, no defect (plan critic rounds 4 and 5, 2026-10-16).
+- The ac-1 test pins about 27 exact phrases, some of them internal mechanics @ac-1 does not state (`repeated as <this round>.<n>`, the `<m>`/`<s>` sentence, the critic `withdrawn:` line); rewording any fails the test with no behaviour change. Asserting only the @ac-1 sentences would hold up better (review round 1, Nice).
+- `docs/specs/2026-10-12-workflow-layer-design.md:262` holds one 1356-character line from the plan-loop addition; wrap it at about 110 characters like the nearby review-loop edits (review round 1, Nice).

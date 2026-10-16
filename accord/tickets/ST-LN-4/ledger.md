@@ -7,6 +7,13 @@
 - Ruling: whole-plan rounds after round 1 also get `plan-review.md`, and the critic lists the findings now fixed in either mode; a finding the planner reports fixed stays `open` until a critic confirms it — otherwise a finding open before a Must round could never close, and the planner would grade its own fix — cost if wrong: one extra line of critic output per round.
 - Ruling: `plan-review.md` separates plan runs with a marker line appended at step 8, and only the sections after the last one count — a re-plan must not reopen findings from an earlier plan — cost if wrong: on resume, findings from an earlier run read as still open.
 - Ruling: the spec updates are folded into tasks 1 to 3 rather than given a task of their own — a docs-only task would have no test for its `verify:` line — cost if wrong: none to behaviour.
+- Ruling: the run marker in `plan-review.md` is `## Closed`, not `## Ready` — the `skills.test.ts:407` scan fails any rendered reference line holding `Ready` — cost if wrong: a rename of one marker word.
+- Ruling: an owner "apply" is recorded as `open, owner: "<words>"` and a "drop" as `owner: "<words>"` — this keeps the four states and still sends an applied fix to the planner — cost if wrong: the state format is reworded in `critique.md`.
+- Ruling: the round-1 lenses are named `criteria` (plan checks 1, 2, 3 and 5), `build` (checks 4 and 6) and `security` — D-05 names what each lens checks but not the names — cost if wrong: renamed in critique.md and critic.md.
+- Ruling: the loop ends only after a round that reported no Must and no Should, with nothing open or unverified; if the owner drops the last finding, one cheap diff round still runs — this follows @ac-1 "ends only on a round with no Must and no Should" — cost if wrong: one extra diff read in that case.
+- Ruling: a Nice gets the state `deferred` in `plan-review.md` — otherwise it has no state from the list — cost if wrong: none to behaviour.
+- Ruling: the ac-5 test also reads the rendered `critique.md` — "goes to the owner at once" is done by the main session, not by either agent — cost if wrong: the test reads one more file than @ac-5 Given names.
+- Ruling: the ac-1 test also checks the critic agent diff, lens and fixed-list text — that is the wiring the skill relies on, and no other test guards it — cost if wrong: the test is broader than @ac-1 Given.
 
 ## Deferred
 - Two critics in parallel in plan round 1 was deferred, then taken into this ticket as D-05 on 2026-10-16 ("Chốt, gộp vào ST-LN-4 (Recommended)").

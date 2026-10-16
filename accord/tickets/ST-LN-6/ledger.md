@@ -21,6 +21,10 @@
 - Ruling: a `show` result for a detail that was closed or replaced is dropped — cost if wrong: one comparison.
 - Ruling: the detail's Continue or Pick up button is worked out from the current dashboard state each time it draws, not stored when the detail opens — `turn.complete` already re-runs the dashboard, so the button follows it with no extra run — cost if wrong: one lookup in `register.js`.
 - Ruling: the detail's message lines also take `wrap: 'wrap'` — plan round 1.1 asks for every detail `Text` — cost if wrong: one prop.
+- Ruling: each brief gets a one-line header naming the worktree C:/Work/accord-sev and branch t/ST-LN-6 before the `accord brief` output — this session's cwd C:/Work/accord holds another ticket's branch, and an executor without the header would edit there — cost if wrong: none to the code; ST-LN-7 removes the need.
 
 ## Deferred
 - plan round 1.4 (Nice): Tasks 3 and 4 disagree on what the Loading state draws; Task 4 should say "a failed-run message state".
+
+## Tasks
+- task 1 done c8e60485ddd2

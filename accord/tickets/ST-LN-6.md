@@ -56,7 +56,7 @@ Feature: ST-LN-6
     When `accord show <id> --json` runs
     Then it prints one JSON object holding every value the text output of @ac-1 prints, each in full, as data rather than display text: tasks done and tasks total as two numbers, the tick as true or false, each step as one string holding its keyword and text, an absent single value as null, and no blocking ticket as an empty list
 
-  @ac-3
+  @ac-3 @test:packages/core/test/show.test.ts#ac-3-each-criterion-takes-the-first-label-that-matches-top-down
   Scenario: A criterion's label is the first rule that matches, top down
     Given criteria whose facts match more than one rule, among them one ticked in `verified:` whose test result is failed
     When `accord show <id>` runs

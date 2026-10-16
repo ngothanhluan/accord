@@ -56,6 +56,8 @@
 - Ruling: id and stage cells have fixed widths with `flexShrink: 0`, the button sits in `Box({flexShrink:0})`, and the widths are the longest value or header word over every dashboard row before the search filter — the columns line up across sections and hold still while typing — cost if wrong: one long id or stage widens the column for every row.
 - Ruling: EPICS rows put `<done>/<total> done` in the stage column with no colour; an empty section shows its heading and a dim `none` with no header row; blocked-by is red, not dimmed; the stage colour lookup uses `Object.hasOwn` — cost if wrong: a style differs from what the owner pictured; seen at verify.
 - Ruling: the risk test finds second-line rows as a row Box whose first child is an empty Box, plus the text each holds — the check least tied to the tree's incidental shape — cost if wrong: a correct render with the spacer elsewhere fails the test.
+- Ruling: the second-line check expects the two second lines in document order (TEAM's holder first, then UP NEXT's `blocked by ST-6 ST-4`) — the brief says only "exactly two", and TEAM renders before UP NEXT — cost if wrong: a one-line reorder of that assertion.
+- Ruling: task 8 removed the `risk:parsing a row also shows its stage...` test as the plan says; the new risk test carries its fixture and the button assertion — cost if wrong: none.
 
 ## Deferred
 - Review round 1 (Nice): the orphan report tells the user to `rm -rf .claude/accord-panel` and remove the `accord` marketplace keys without checking for the generated marker, so it can point at a user-owned folder or a foreign marketplace (skills.ts orphans).
@@ -81,3 +83,4 @@
 - task 5 done c095aa2d98cc
 - task 6 done 3dd054e9142b
 - task 7 done 6e6607e94adc
+- task 8 done ac8249519f07

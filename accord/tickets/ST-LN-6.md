@@ -64,7 +64,7 @@ Feature: ST-LN-6
     And the criterion ticked with a failed test is labelled failing
     And when config.yml sets no `tests.report`, or no file exists at it, every criterion with an @test tag that no earlier rule matches is labelled not run
 
-  @ac-4
+  @ac-4 @test:packages/core/test/panel.test.ts#ac-4-pressing-a-row-id-opens-its-detail-view-with-its-button-and-back
   Scenario: Pressing a ticket row in the panel opens its detail view
     Given the panel shows the dashboard with a ticket row that offers Continue
     When the owner presses that row's id, the row's only press target

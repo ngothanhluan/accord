@@ -23,6 +23,11 @@
 - Ruling: the detail's message lines also take `wrap: 'wrap'` — plan round 1.1 asks for every detail `Text` — cost if wrong: one prop.
 - Ruling: each brief gets a one-line header naming the worktree C:/Work/accord-sev and branch t/ST-LN-6 before the `accord brief` output — this session's cwd C:/Work/accord holds another ticket's branch, and an executor without the header would edit there — cost if wrong: none to the code; ST-LN-7 removes the need.
 - Ruling: `accord show` throws a plain Error when `ticketDetail` returns undefined, a branch `requireLaneTicket` makes unreachable — a guard, not a user path — cost if wrong: an internal error message instead of exit 2 if that check ever changes.
+- Ruling: `openDetail` calls `$.process.run` before it awaits the first redraw — the press runs `show` at once, and the test asserts the call right after the press — cost if wrong: swap two lines.
+- Ruling: the detail view's message state (Loading, a failed run) also draws Back and the action button — Back must always be reachable — cost if wrong: one condition.
+- Ruling: `register.js` adds `run.catch(() => {})` on the show promise — a run that rejects during the first redraw is not reported as unhandled, and the rejection is still handled when awaited — cost if wrong: one line.
+- Ruling: `view.js` builds the newline in `detailView` as `String.fromCharCode(10)` — the executor reports `npm run gen` broke an escaped `'
+'` literal there; the review should check whether the generator or the literal is at fault — cost if wrong: one odd-looking constant.
 
 ## Deferred
 - plan round 1.4 (Nice): Tasks 3 and 4 disagree on what the Loading state draws; Task 4 should say "a failed-run message state".
@@ -30,3 +35,4 @@
 ## Tasks
 - task 1 done c8e60485ddd2
 - task 2 done 31f687fdf78f
+- task 3 done 34962b5e49a0

@@ -24,4 +24,13 @@ Nice 1 [patch]: the first draw after widening shows the old dashboard until the 
 Nice 2 [patch]: an explicit `/accord-panel` refresh does not clear `stale`, so one redundant sequential run follows — packages/core/panel/register.js:50 — deferred
 Nice 3 [patch]: the row-format test is named `risk:parsing` and never covers `idleDays` — packages/core/test/panel.test.ts — deferred
 
+## Round 5
+
+Must 1 [patch]: TEAM rows after the first lose their holder line, because `.map(f)` passes the row index as `cells`' `inYours` parameter, against D-11 — packages/core/panel/view.js:46 — fixed in b71695f
+Nice 2 [patch]: the `inYours` parameter of `cells` is dead code — packages/core/panel/view.js:46 — fixed in b71695f
+
+## Round 6
+
+No findings
+
 verdict: converged

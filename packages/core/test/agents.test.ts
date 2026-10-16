@@ -185,3 +185,12 @@ it('ac-5 an api a finding relies on carries a citation the planner confirms', ()
   expect(plannerRaw).toMatch(/^tools: "Read, Grep, Glob, Write, Edit"$/m);
   expect(criticRaw).toMatch(/^tools: "Read, Grep, Glob"$/m);
 });
+
+it('risk:regression-of-a-real-bug a false-positive open finding can be withdrawn by the critic', () => {
+  const flat = (s: string): string => s.replace(/\s+/g, ' ');
+  const agent = (path: string): string => flat(agentTargets(config()).find((f) => f.path === path)?.text ?? '');
+  const critic = agent('.claude/agents/accord-critic.md');
+  const planner = agent('.claude/agents/accord-planner.md');
+  expect(critic).toContain('A finding it holds as `open` or `unverified` that no longer holds, whether or not the plan changed, goes on one line');
+  expect(planner).toContain('A finding you cannot fix without failing one of the checks below is reported as `unverified: <reason>` naming the check, not applied.');
+});

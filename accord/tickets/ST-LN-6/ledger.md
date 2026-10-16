@@ -13,3 +13,12 @@
 - Ruling: the id Button, and the detail's Continue and Pick up buttons, appear only for ids that pass the pane's `SAFE_ID` check, as row actions do today — cost if wrong: a ticket whose id fails that check cannot be opened from the pane.
 - Ruling: Background steps are printed under every criterion, as the snapshot stores them — cost if wrong: the steps are split by origin.
 - Ruling: second audit splits closed to match the code and D-08 — the step keyword as written (`load/gherkin.ts:23-33` stores it so), every fact line printed with `none` when absent, each step one JSON string, no blocking ticket `[]`, the tick compared with the hash of the criteria now (`gate/hash.ts:40`, as `status/rows.ts:77` does), `<error>` counted as failed (`load/junit.ts:36`), no `tests.report` treated as no report, the id the row's only press target — cost if wrong: one criterion line reworded; the owner approves the text as shown.
+- Ruling: ST-LN-6's plan, build and review follow the workflow this session loaded, the accord skills and agents of `C:/Work/accord` on t/ST-LN-4 (the plan critique loop of `accord-plan/critique.md`, not yet on main), not the copies in this worktree — the session's agents come from that checkout and cannot be switched, so following main's skill text would pair it with ST-LN-4's critic and planner — cost if wrong: ST-LN-6 runs one unmerged loop early; its records still pass `gate plan`.
+- Ruling: the id's colour is the theme key `suggestion`, the Approach's "accent colour" — the host's `ThemeKey` has no `accent` key — cost if wrong: one colour value.
+- Ruling: a scenario with no `@ac-n` tag is still listed, with `id: null` — cost if wrong: one filter.
+- Ruling: the text output starts with the line `<id> <title>` — cost if wrong: one line reworded.
+- Ruling: while a detail is open, a turn re-runs both the dashboard and `show` — cost if wrong: one extra `npx` run per turn.
+- Ruling: a `show` result for a detail that was closed or replaced is dropped — cost if wrong: one comparison.
+
+## Deferred
+- plan round 1.4 (Nice): Tasks 3 and 4 disagree on what the Loading state draws; Task 4 should say "a failed-run message state".

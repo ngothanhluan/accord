@@ -48,11 +48,12 @@ Feature: ST-LN-4
     And two critics in parallel for a plan of four or more tasks, one checking that the plan reaches the criteria and the Intent, one checking that an executor can build each task
     And one more critic, a security lens, for a plan of any size whose ticket touches auth, money, migration, or data deletion, as the main session judges from the ticket and the plan, so at most three
     And their findings are merged and de-duplicated before the planner gets them
-    When a critic round reports at least one Should and no Must
+    When a critic round reports at least one Should and no Must, and no Must from an earlier round is still open or unverified
     Then the skill has the planner fix every Should
     And the next round's critic is dispatched with the `git diff` of `plan.md` between that round's commit and the planner's fix, not the whole plan
-    And after a round that reports a Must, the next round's critic reads the whole plan
-    And the loop ends only on a round with no Must and no Should
+    And after a round that reports a Must, or that leaves a Must from an earlier round open or unverified, the next round's critic reads the whole plan
+    And a finding stays open or unverified until a critic reports it fixed or withdrawn, or the owner drops it; the planner's word alone closes nothing
+    And the loop ends only on a round that reports no Must and no Should and leaves no Must or Should open or unverified
     And at the existing three-round cap with a Must or Should still open, the run stops and tells the owner, as it does today
     And no Nice finding is passed to the planner
 
@@ -99,6 +100,7 @@ Feature: ST-LN-4
 - D-03 The critic relies on a host or library API only with a file:line citation, and the planner checks a fix the critic proposes against the code before applying it — "API phải có trích dẫn (Recommended)"
 - D-04 No agent gains a web tool: a critic-proposed fix whose API is cited only by a URL outside the repository goes to the owner at once, who applies or drops it — "Không thêm WebFetch, hỏi anh (Recommended)"
 - D-05 The plan's first critic round is sized by the plan: one critic for one to three tasks, two in parallel (criteria and Intent; buildability) for four or more, plus a security critic when the ticket touches auth, money, migration, or data deletion, at most three; quality comes before speed, speed before cost — "Chốt, gộp vào ST-LN-4 (Recommended)", after "quality>speed>cost" and "có khi nào cần 3 con ko? hoặc 4 con?"
+- D-06 After a round that reports a Must, or that leaves a Must from an earlier round open or unverified, the next critic reads the whole plan; only a round with no Must reported and none still open is followed by a diff read; the plan gets one revision and one critic round past the cap to settle this — "Đọc toàn bộ, sửa @ac-1 (Recommended)", after plan critique round 4, 2026-10-16
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->

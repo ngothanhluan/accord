@@ -65,7 +65,7 @@ Feature: ST-LN-4
     And no reviewer is dispatched again for that fix
     And converged means no Must is open and every Should is fixed with that command passing
 
-  @ac-3
+  @ac-3 @test:packages/core/test/agents.test.ts#ac-3-the-critic-and-both-reviewers-define-must-should-and-nice-by-consequence
   Scenario: Must, Should and Nice are defined by what happens if the finding is left
     Given the critic, reviewer and final reviewer agents as `accord skills sync` renders them
     Then each holds these three sentences word for word:

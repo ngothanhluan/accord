@@ -44,28 +44,28 @@ Feature: ST-LN-6
     Given a lane M ticket whose title is longer than 60 characters, with an Intent and two criteria, no holder, and no blocking ticket
     When `accord show <id>` runs
     Then it prints the full title, then a labelled line each for the stage, lane, tasks done of total, branch, holder, and blocking tickets, the holder and blocking tickets reading `none`
-    And it prints the Intent, and each criterion's id, title, and every step with its Gherkin keyword, each in full
-    And under each criterion it prints the criterion's state label, its @test tag, that test's result, whether it is ticked in `verified:`, and its verification.md result
+    And it prints the Intent, and each criterion's id, title, and every step with its Gherkin keyword as written in the file (an "And" stays "And"), each in full
+    And under each criterion it prints the criterion's state label, then a labelled line each for its @test tag, that test's result, whether it is ticked in `verified:`, and its verification.md result, an absent one reading `none`
     And no text in the output is cut or ends with "..." or "…"
 
   @ac-2
   Scenario: accord show --json gives the same detail as JSON
     Given the ticket of @ac-1
     When `accord show <id> --json` runs
-    Then it prints one JSON object holding every value the text output of @ac-1 prints, each in full, as data rather than display text: tasks done and tasks total as two numbers, the tick as true or false, and an absent value as null
+    Then it prints one JSON object holding every value the text output of @ac-1 prints, each in full, as data rather than display text: tasks done and tasks total as two numbers, the tick as true or false, each step as one string holding its keyword and text, an absent single value as null, and no blocking ticket as an empty list
 
   @ac-3
   Scenario: A criterion's label is the first rule that matches, top down
     Given criteria whose facts match more than one rule, among them one ticked in `verified:` whose test result is failed
     When `accord show <id>` runs
-    Then each criterion's label is the first that matches of: failing (its test failed, or verification.md says fail), blocked (verification.md says blocked), verified (ticked, and the ticket's `verified_hash` equals the hash of its current criteria), passing (its test passed), not run (an @test tag with no result in the JUnit report at config.yml `tests.report`, or a skipped test), untested (no @test tag)
+    Then each criterion's label is the first that matches of: failing (its test failed, or verification.md says fail), blocked (verification.md says blocked), verified (ticked, and the ticket's `verified_hash` equals the hash of the criteria as they are in the file now, not the stored `ac_hash`), passing (its test passed), not run (an @test tag with no result in the JUnit report at config.yml `tests.report`, or a skipped test), untested (no @test tag); a test whose JUnit case holds a `<failure>` or an `<error>` counts as failed
     And the criterion ticked with a failed test is labelled failing
-    And when no file exists at `tests.report`, every criterion with an @test tag that no earlier rule matches is labelled not run
+    And when config.yml sets no `tests.report`, or no file exists at it, every criterion with an @test tag that no earlier rule matches is labelled not run
 
   @ac-4
   Scenario: Pressing a ticket row in the panel opens its detail view
     Given the panel shows the dashboard with a ticket row that offers Continue
-    When the owner presses that row
+    When the owner presses that row's id, the row's only press target
     Then the panel shows the ticket's detail read from `accord show <id> --json`, and submits no command
     And the row's id is drawn underlined, and no other cell of the dashboard table is underlined
     And the row itself holds no Continue button; that button and a Back button are in the detail view
@@ -75,7 +75,7 @@ Feature: ST-LN-6
   Scenario: The detail view wraps long text and never cuts it, while the table keeps its cuts
     Given a ticket whose title and one step are each wider than the pane
     When its detail view is shown
-    Then the full title and the full step are each passed to the panel as one whole string that the panel wraps across lines, with no line break inserted, nothing cut, and no "..." or "…" added
+    Then the full title, and the full step with its keyword, are each passed to the panel as one whole string that the panel wraps across lines, with no line break inserted, nothing cut, and no "..." or "…" added
     And the same ticket's row in the dashboard table still shows its title cut
 ```
 

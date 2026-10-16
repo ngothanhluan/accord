@@ -94,6 +94,7 @@ Feature: ST-LN-3
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
 - 2026-10-15, on the proposed `schema` field and the public marketplace: "đừng lo phiên bản cũ. vì cái này chỉ có mình tôi xài thôi."
+- 2026-10-16, at verify, on the real pane: "tôi thấy có vài chỗ chưa ổn. nhất là bố cục, format của panel, khá khó đọc. nên thêm chút màu sắc để phân biệt. chia column dạng table cho dễ nhìn dc ko? brainstorm chỗ này đi"
 
 ## Open questions
 <!-- `- [ ]` items; Ready stays blocked while any is unchecked. -->

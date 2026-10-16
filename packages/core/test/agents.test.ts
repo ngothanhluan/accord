@@ -138,3 +138,21 @@ it('ac-3 the critic and both reviewers define must should and nice by consequenc
     for (const s of sentences) expect(text, `${path} lacks: ${s}`).toContain(s);
   }
 });
+
+it('ac-4 the planner runs every plan check of the critic before it replies', () => {
+  const text = (path: string): string => agentTargets(config()).find((f) => f.path === path)?.text ?? '';
+  const critic = text('.claude/agents/accord-critic.md').split('\n');
+  const planner = text('.claude/agents/accord-planner.md').split('\n');
+  expect(critic.join(''), 'critic is empty').not.toBe('');
+  expect(planner.join(''), 'planner is empty').not.toBe('');
+  const from = critic.indexOf('Mode `plan`:');
+  expect(from).toBeGreaterThanOrEqual(0);
+  const rest = critic.slice(from + 1);
+  const run = rest.slice(0, rest.indexOf(''));
+  const checks = run.filter((l) => l.startsWith('- Check'));
+  expect(checks).toHaveLength(6);
+  expect(checks).toEqual(run);
+  const intro = planner.indexOf("Before you reply, run these checks of the critic's plan mode on your plan and fix what fails:");
+  expect(intro).toBeGreaterThanOrEqual(0);
+  for (const c of checks) expect(planner.indexOf(c), `planner lacks: ${c}`).toBeGreaterThan(intro);
+});

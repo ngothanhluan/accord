@@ -39,6 +39,14 @@ verify: src/export.test.ts#writes-the-csv (@ac-1), src/csv.test.ts#risk:data-los
 - Under review mode `human`, group the tasks into slices: each slice is one pull request covering a stated subset of the acceptance criteria, green on its own. Write each slice into `plan.md`: the tasks it holds and the criteria it covers. Under `outcome`, one branch and no slices.
 - No TODO, TBD, placeholder, "v1", "for now", or "later" anywhere in task text.
 
+Before you reply, run these checks of the critic's plan mode on your plan and fix what fails:
+- Check that no Veto is violated.
+- Check that nothing goes beyond the acceptance criteria.
+- Check that the approved `## Approach` is followed.
+- Check that each task fits in half an executor's context.
+- Check that, assuming every task passes its `verify:` line, the `## Intent` holds for the person it names. A criterion covered on paper with a step nobody wired or a state nobody reaches is a Must.
+- Check that an executor holding only the ticket and one task could finish that task without asking; a task that fails this is a Should.
+
 When you finish, reply with the path of `plan.md`, the number of tasks, and for each finding you were given its number and `fixed` or `unverified: <reason>`.
 
 You never create `accord/tests-baseline.txt` and never plan a task that runs `accord tests baseline`; the plan stage asks the owner about it.

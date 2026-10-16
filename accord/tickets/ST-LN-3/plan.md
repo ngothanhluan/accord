@@ -1,6 +1,6 @@
 ---
 baseline: 1d635b5277fa10c77b89c3eba8108cb877065060
-plan_hash: "fnv1a64:815561457547d320"
+plan_hash: "fnv1a64:99a0ea7b4ba338d3"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -414,3 +414,92 @@ step, not a test). Commit those generated files with the task. Then `npm run che
 
 Must not change: every other file under `.claude/` (the sync reports them `unchanged`); the hook entries in
 `.claude/settings.json`; `accord/config.yml`.
+
+## Task 8: Each section draws as a table of fixed-width cells coloured by stage
+covers: D-11, D-12
+files: packages/core/panel/view.js (new), packages/core/panel/register.js (new), packages/core/test/panel.test.ts (new), packages/core/src/generated/panel.ts (new), .claude/accord-panel/plugin/hooks/register.js (new), .claude/accord-panel/plugin/hooks/view.js (new)
+verify: packages/core/test/panel.test.ts#risk:regression-each-row-draws-as-fixed-width-cells-with-stage-colours-a-red-blocked-by-line-and-a-truncated-title
+
+The change note of 2026-10-16 (ticket `## Approach`, D-11, D-12): on the real pane each row was one run-on string
+that wrapped, the title pushed the stage onto the next line, YOURS repeated the owner's own email, and sections ran
+together uncoloured. This task changes only how a dashboard is drawn. Every path below marked `(new)` exists on the
+branch already (Tasks 1, 4, 5 and 7 created it); the marker is relative to the baseline. Mods facts this task uses:
+`Text` takes `color` (a colour name such as `'red'`), `bold`, `dimColor` and `wrap` (`'truncate'` cuts at the
+width of its box); `Box` takes flex layout, `width`, `columnGap` and `marginTop`; the `ui.render` event for a Pane
+carries `e.props.bodyColumns`, the pane's body width; there is no Table element. No emoji in any cell, since a
+two-column glyph shifts the columns.
+
+Test first, in `packages/core/test/panel.test.ts`:
+- Fake host: `h.columns` (default `80`); `draw` fires `ui.render` with `{ component: 'Pane', requestId:
+  'accord-panel', surface: 'terminal', props: { bodyColumns: h.columns } }`. `h.cell(s)` walks the tree keeping
+  each node's parent and returns `{ text, box, row }` for the first `Text` whose joined `children` equal `s`: `text`
+  its props, `box` its direct parent `Box`'s props, `row` the props of that box's parent. `h.texts()`, `h.buttons()`,
+  `h.input()`, `h.field()` and `h.type()` keep their meaning.
+- Remove `it('risk:parsing a row also shows its stage, who holds it and what blocks it, cleaned')`: its two
+  joined-string assertions describe the one-line row this task replaces, and the new test below carries its fixture
+  (the cleaned `claimedBy`, `build 2/5`, the blockers, the row with no title) and its button assertion. This also
+  settles the Deferred note that the test covers formatting, not parsing.
+- `it('risk:regression each row draws as fixed-width cells with stage colours a red blocked-by line and a truncated
+  title')`: open and settle with `board({ yours: { rows: [{ id: 'ST-10', title: LONG, stage: 'review', claimedBy:
+  'me@x' }], more: 0 }, team: { rows: [{ id: 'ST-3', title: 'Mine', stage: 'build', tasksDone: 2, tasksTotal: 5,
+  claimedBy: 'an\u001b[1m@x' }, { id: 'ST-11', title: 'Odd', stage: 'constructor' }], more: 0 }, upNext: { rows: [{
+  id: 'ST-7', title: 'Blocked', stage: 'plan', blockedBy: ['ST-6', 'ST-4'] }, { id: 'ST-8' }], more: 2 } })`, where
+  `LONG` is `'Title '.repeat(30).trim()`. Under `vi.waitFor` a text holds `ST-7`. Then:
+  - `YOURS`, `TEAM`, `READY` and `UP NEXT` each: `cell(heading).text` has `bold: true` and `color: 'cyan'`, and
+    `cell(heading).box.marginTop` is `1`.
+  - Texts `ID`, `STAGE` and `TITLE` each appear three times (YOURS, TEAM, UP NEXT; READY has no row), each with
+    `dimColor: true`. `none` (READY), `+2 more` and the summary text each have `dimColor: true`.
+  - `cell('ST-3').text.bold` is `true`; `cell('ST-3').row` has `flexDirection: 'row'` and `columnGap: 2`, and the
+    `width` of its first three child boxes is `[5, 9, 48]`: id 5 (`ST-10`), stage 9 (`build 2/5`), title
+    `80 - 5 - 9 - 12 - 3 * 2`. `cell('Mine').box.width` and `cell(LONG).box.width` are both `48`;
+    `cell(LONG).text.wrap` is `'truncate'` and its children hold the whole of `LONG` (the host cuts, the view does not).
+  - Stage colours: `build 2/5` `yellow`, `review` `magenta`, `plan` `cyan`; `cell('constructor').text.color` is
+    `undefined`.
+  - `cell('blocked by ST-6 ST-4').text.color` is `'red'`; `cell('an [1m@x').text.dimColor` is `true`; no text
+    contains `me@x` (YOURS shows no holder); exactly one text starts with `blocked by`, and the texts that equal
+    `an [1m@x` number one (ST-8, ST-10 and ST-11 have no second line).
+  - `h.buttons().map((b) => b.key)` equals `['continue:ST-10', 'pick-up:ST-7', 'pick-up:ST-8']`.
+  - Narrow pane: `h.columns = 40`, `await h.$.ui.invalidate('ui.render')`: `cell('Mine').box.width` is `10` (the
+    floor; `40 - 5 - 9 - 12 - 6` is below it).
+
+The ac-1, ac-2 and ac-3 tests and every other risk test stay byte-identical: each finds a row by
+`texts().some((x) => x.includes(id))` or a title substring, and the id and the whole cleaned title each stay in one
+`Text`; headings, `+N more`, `none`, the summary string, the message lines and the button keys and args keep their
+text. If any of those assertions fails, stop and report it instead of editing it, because changing an ac test
+needs the owner's yes.
+
+Interface:
+- `view.js` `view(state, query, columns)`: `columns` is the pane width, `80` when it is not a positive integer.
+  Loading, message, search, the section order and visibility, `newRequest`, `summary`, `clean` and `SAFE_ID` stay as
+  they are. A row becomes `{ id, stage, stageColor, title, blockedBy, who, action? }`, every string cleaned:
+  `stage` is today's stage cell (`build <done>/<total>`, the ` idle Nd` suffix kept); an EPICS row's `stage` is
+  `<done>/<total> done` and it has no `stageColor`; `stageColor` comes from `{ intent: 'blue', plan: 'cyan', build:
+  'yellow', review: 'magenta', verify: 'green', ready: 'green' }` read with `Object.hasOwn` on the raw `r.stage`
+  (a stage named `constructor` must not pick up an inherited value), else `undefined`; `blockedBy` is `'blocked by '`
+  plus the cleaned ids joined by a space when `r.blockedBy` is a non-empty array, else `''`; `who` is the cleaned
+  `claimedBy` outside YOURS, `''` in YOURS. The dashboard result gains `widths: { id, stage, title }`: `id` and
+  `stage` are the longest of the header word (`ID`, `STAGE`) and every shown row's value, in code points, across all
+  sections, so the columns line up between sections; `title` is `Math.max(10, columns - id - stage - BUTTON - 3 *
+  GAP)` with `GAP = 2` and `BUTTON = 12`, the latter carrying the comment `shortcut: assumes a button draws in at
+  most 12 columns, measure on the real pane at verify and change this constant if it does not`.
+- `register.js` `ui.render` passes `e.props?.bodyColumns` to `view`. Per section: `Box({ marginTop: 1, children:
+  [Text({ bold: true, color: 'cyan', children: [heading] })] })`; when the section has rows, a header row; per row a
+  row `Box({ flexDirection: 'row', columnGap: 2, children })` of `Box({ width: widths.id })` holding
+  `Text({ bold: true })` of the id, `Box({ width: widths.stage })` holding `Text` of the stage with `color:
+  stageColor` (the key left out when undefined), `Box({ width: widths.title })` holding `Text({ wrap: 'truncate' })`
+  of the title, then the row's `Button` as today when it has an action. The header row is the same three boxes
+  holding `Text({ dimColor: true })` of `ID`, `STAGE`, `TITLE`. When `blockedBy` or `who` is non-empty, a second
+  row `Box({ flexDirection: 'row', columnGap: 2 })` follows: an empty `Box({ width: widths.id })`, then
+  `Text({ color: 'red' })` of `blockedBy` when non-empty, then `Text({ dimColor: true })` of `who` when non-empty.
+  `none`, `+N more` and the summary are `Text({ dimColor: true })`. The message tree and the Input stay as they are.
+
+Then run, in order: `npm run gen`, `npm run build`, and from the repository root `node packages/cli/dist/cli.js
+skills sync`, which rewrites `.claude/accord-panel/plugin/hooks/register.js` and `view.js` and reports every other
+path `unchanged`. Then `claude plugin validate --strict .claude/accord-panel/plugin` must pass (a build step, not a
+test). Then `npm run lint`, `npm run typecheck`, `npx vitest run packages/core/test/panel.test.ts` and `npx vitest
+run packages/cli/test/skills-sync.test.ts` (its committed-panel case reads the two rewritten hook files). Commit the
+generated files with the task.
+
+Must not change: the CLI command each refresh runs, one run in flight, the stale-pane refresh, the toasts; button
+keys, labels and `$.command.run` args; the search filter and the Input carrying `value: query`; the failure and
+`Loading…` messages; `clean` and `SAFE_ID`; `pluginTargets`, the marker and every other generated file.

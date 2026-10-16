@@ -1,7 +1,7 @@
 // Spec §3 to §12: what each stage skill must name, asserted over the RENDERED SKILL.md a runtime loads. One
 // row per stage; a stage whose definition is not authored yet has no row and renders nothing to check.
 import { describe, expect, it } from 'vitest';
-import { installedName, skillDirs, skillTargets, STAGES } from '../src/index.js';
+import { agentTargets, installedName, skillDirs, skillTargets, STAGES } from '../src/index.js';
 import type { AccordConfig } from '../src/index.js';
 
 const config: AccordConfig = {
@@ -180,4 +180,52 @@ it('ac-4 the accord skill picks up then continues a named ticket and treats any 
     '`/accord continue ST-99` is a New request',
   ])
     expect(named).toContain(p);
+});
+
+it('ac-1 the first plan critique is sized by the plan and a should only round reads the fix diff', () => {
+  const flat = (t: string) => t.replace(/\s+/g, ' ');
+  const skill = flat(files.find((f) => f.path === '.claude/skills/accord-plan/SKILL.md')?.text ?? '');
+  const loop = flat(files.find((f) => f.path === '.claude/skills/accord-plan/critique.md')?.text ?? '');
+  const critic = flat(agentTargets(config).find((f) => f.path === '.claude/agents/accord-critic.md')?.text ?? '');
+  expect(skill.length, 'accord-plan/SKILL.md is missing').toBeGreaterThan(0);
+  expect(loop.length, 'accord-plan/critique.md is missing').toBeGreaterThan(0);
+  expect(critic.length, 'accord-critic.md is missing').toBeGreaterThan(0);
+  const step5 = skill.slice(skill.indexOf('5. **Critique.**'), skill.indexOf('6. **Rounds.**'));
+  expect(step5.length).toBeGreaterThan(0);
+  expect(['`./critique.md`', '`accord-critic`'].filter((p) => !step5.includes(p))).toEqual([]);
+  expect(['three revision rounds', 'stop and tell the owner', '`accord gate plan <id>` still fails, after the third'].filter((p) => !skill.includes(p))).toEqual([]);
+  expect(skill).not.toContain('have the planner fix every Must and every Should');
+  const loopPhrases = [
+    'Round 1 is `whole` and sized by the plan.',
+    'Count the `## Task` sections of `plan.md` and judge from the ticket and the plan whether the ticket touches auth, money, migration, or data deletion.',
+    'one `accord-critic`, no lens, for a plan of one to three tasks',
+    'two critics for a plan of four or more tasks, lens `criteria`, which checks that the plan reaches the criteria and the Intent, and lens `build`, which checks that an executor can build each task',
+    'one more critic, lens `security`, for a plan of any size whose ticket touches auth, money, migration, or data deletion, so at most three',
+    'Merge and de-duplicate their findings into one round, numbered within it, before the planner gets them.',
+    'After a round that reports a Must, or that leaves a Must from an earlier round open or unverified',
+    'its section holds a Must, or `<m>` is above zero in step 5',
+    'the next round is `whole`, even when the owner dropped that Must',
+    'After any other round the next is `diff`',
+    "`git diff <that round's commit> -- accord/tickets/<id>/plan.md`, which holds the planner's fix",
+    'A `diff` critic never reads the whole plan.',
+    'every Must and Should that is `open` or `unverified`, never a Nice',
+    'The planner fixes every one.',
+    'A Nice goes to the ledger under `## Deferred`, marked `deferred`, and never to the planner.',
+    'The loop ends only on a round that reports no Must and no Should and leaves no Must or Should open or unverified',
+    'and only when the last `accord gate plan <id>` passed',
+    "A finding stays `open` or `unverified` until a critic lists it after `fixed:` or `withdrawn:`, or the owner drops it; the planner's word alone closes nothing.",
+    'mark that earlier finding `repeated as <this round>.<n>`',
+    '`<m>` and `<s>` count the Musts and the Shoulds after the last `## Closed` line that are `open` or `unverified` once this round is recorded',
+  ];
+  expect(loopPhrases.filter((p) => !loop.includes(p))).toEqual([]);
+  const criticPhrases = [
+    'Mode `diff`:',
+    '`fixed: <round>.<n>, <round>.<n>`',
+    '`criteria` runs only the first, second, third and fifth checks',
+    'On the changed hunks, check that no Veto is violated and that nothing goes beyond the acceptance criteria.',
+    'and at the task or section each `open` or `unverified` finding names; never read the whole plan.',
+    'a new numbered finding that starts `repeats <round>.<n>:`',
+    '`withdrawn: <round>.<n>, <round>.<n>`',
+  ];
+  expect(criticPhrases.filter((p) => !critic.includes(p))).toEqual([]);
 });

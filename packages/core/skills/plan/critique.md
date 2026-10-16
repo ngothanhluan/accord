@@ -1,0 +1,75 @@
+---
+kind: reference
+---
+
+# The critique loop
+
+The main session keeps every critic finding in
+`accord/tickets/<id>/plan-review.md`: one `## Round <n> (whole)` or
+`## Round <n> (diff)` section per round, each finding on one line as
+`<n>. <Must|Should|Nice> — <finding> — <state>`. The state is `open`,
+`fixed`, `deferred` for a Nice, `unverified: <reason>`, `withdrawn`,
+`repeated as <round>.<n>` when a critic carries it on under that number,
+`open, owner: "<the owner's words>"` for a fix the owner said to apply,
+or `owner: "<the owner's words>"` for one the owner dropped. A finding
+stays `open` or `unverified` until a critic lists it after `fixed:` or
+`withdrawn:`, or the owner drops it; the planner's word alone closes
+nothing. A round with no findings says `No findings`. Only the sections
+after the last `## Closed` line count; step 8 of the skill appends that
+line.
+
+1. **Read.** Round 1 is `whole` and sized by the plan. Count the
+   `## Task` sections of `plan.md` and judge from the ticket and the plan
+   whether the ticket touches auth, money, migration, or data deletion.
+   Dispatch in parallel, each in a fresh context, mode `plan`, with the
+   paths of the ticket and `plan.md`, naming its lens:
+   - one `accord-critic`, no lens, for a plan of one to three tasks;
+   - two critics for a plan of four or more tasks, lens `criteria`,
+     which checks that the plan reaches the criteria and the Intent, and
+     lens `build`, which checks that an executor can build each task;
+   - one more critic, lens `security`, for a plan of any size whose
+     ticket touches auth, money, migration, or data deletion, so at most
+     three.
+
+   Merge and de-duplicate their findings into one round, numbered within
+   it, before the planner gets them. After a round that reports a Must,
+   or that leaves a Must from an earlier round open or unverified (its
+   section holds a Must, or `<m>` is above zero in step 5), the next
+   round is `whole`, even when the owner dropped that Must: one
+   `accord-critic` in a fresh context, no lens, mode `plan`, with the
+   paths of the ticket, `plan.md`, and `plan-review.md`. After any other
+   round the next is `diff`: write
+   `git diff <that round's commit> -- accord/tickets/<id>/plan.md`, which
+   holds the planner's fix, into a file outside the working tree, and
+   dispatch one `accord-critic` in a fresh context, mode `diff`, with the
+   paths of the ticket, `plan.md`, that file, and `plan-review.md`. A
+   `diff` critic never reads the whole plan.
+2. **Record.** Append the round's section to `plan-review.md` and mark
+   each new finding `open`. Mark `fixed` each finding a critic lists
+   after `fixed:`, and `withdrawn` each one it lists after `withdrawn:`.
+   When a new finding starts `repeats <round>.<n>:`, mark that earlier
+   finding `repeated as <this round>.<n>`. A Nice goes to the ledger
+   under `## Deferred`, marked `deferred`, and never to the planner.
+3. **Owner.** A finding whose proposed fix relies on an API cited only
+   by a URL outside the repository goes to the owner at once, as
+   `./ask.md` says: show the finding, the fix, and the URL, and ask
+   whether to apply or drop it. On apply its state becomes
+   `open, owner: "<the owner's words>"`: it goes to the planner with
+   those words, which confirm the API, and closes only when a critic
+   lists it after `fixed:`. On drop its state becomes
+   `owner: "<the owner's words>"`, which closes it.
+4. **Converged.** The loop ends only on a round that reports no Must
+   and no Should and leaves no Must or Should open or unverified, and
+   only when the last `accord gate plan <id>` passed: go to step 7 of
+   the skill.
+5. **Fix.** Otherwise commit `plan.md` and `plan-review.md` with the
+   subject `plan: <id> round <n>, <m> Must, <s> Should`, where `<m>` and
+   `<s>` count the Musts and the Shoulds after the last `## Closed` line
+   that are `open` or `unverified` once this round is recorded; the next
+   `diff` round reads from that commit. Dispatch `accord-planner` with the
+   ticket path, the baseline, the mode, the path of `plan-review.md`, and
+   every Must and Should that is `open` or `unverified`, never a Nice,
+   each with the owner's words it holds. The planner fixes every one.
+   Write each `unverified: <reason>` it replies into that finding's
+   state; a finding it reports fixed stays `open` until a critic lists it
+   after `fixed:`. Then go back to step 4 of the skill.

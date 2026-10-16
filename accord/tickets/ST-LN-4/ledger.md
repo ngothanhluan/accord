@@ -5,6 +5,7 @@
 - task 2 done e7ead5c18008
 - task 3 done 91c2f3c7fc2d
 - task 4 done 4154519cd1c1
+- task 5 done 74f6896f68b8
 
 ## Rulings
 - Ruling: the plan loop goes in a new loaded reference, `packages/core/skills/plan/critique.md`, and `SKILL.md` step 5 points to it — the Approach named `SKILL.md`, but the rendered `SKILL.md` has a 5120-byte cap and the loop text is about 1.5 KB — cost if wrong: the loop moves back into `SKILL.md` if it fits.
@@ -28,6 +29,7 @@
 - Ruling: `repeated as <round>.<n>` means a critic carries the finding on under a new number, so it stays open and only a critic or the owner closes it — this squares the repeat route with the amended @ac-1 — cost if wrong: the repeat route is reworded as a withdrawal plus a new finding.
 - Ruling: the cost line of the Ruling on diff critics opening finding tasks no longer applies, because the critic now also opens the section a finding names — cost if wrong: none.
 - Ruling: the Ruling that "one cheap diff round still runs" after the owner drops the last finding holds only for a dropped Should; after a dropped Must the next round reads the whole plan (D-06) — plan critic round 5 found the two records disagree — cost if wrong: none to behaviour, the plan text is explicit.
+- Ruling: the ac-5 test matches the rendered quoted tools line (`tools: "Read, Grep, Glob, Write, Edit"`) — rendered frontmatter quotes values, so the unquoted form in the brief could never match — cost if wrong: none, the check still pins the same tool lists.
 
 ## Deferred
 - Two critics in parallel in plan round 1 was deferred, then taken into this ticket as D-05 on 2026-10-16 ("Chốt, gộp vào ST-LN-4 (Recommended)").

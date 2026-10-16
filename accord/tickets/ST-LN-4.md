@@ -81,7 +81,7 @@ Feature: ST-LN-4
     Then the planner's agent file holds every item of the critic's plan-mode check list, word for word
     And the planner is told to run those checks on its plan before it replies
 
-  @ac-5
+  @ac-5 @test:packages/core/test/agents.test.ts#ac-5-an-api-a-finding-relies-on-carries-a-citation-the-planner-confirms
   Scenario: An API a finding relies on carries a citation
     Given the critic and planner agents as `accord skills sync` renders them
     Then the critic cites where any host or library API its finding or proposed fix relies on is defined: a file and line in the working tree, `node_modules` included, or the URL of the document outside it

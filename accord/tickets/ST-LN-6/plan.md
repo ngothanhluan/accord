@@ -1,6 +1,6 @@
 ---
 baseline: 517937f0ec0b2a0c287abe0078b381ceafd26233
-plan_hash: "fnv1a64:fd2ae1e039cbdc62"
+plan_hash: "fnv1a64:0f8cdba60ad18030"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -42,8 +42,9 @@ Rules for every task:
   alone (d.ts:1056, d.ts:1099-1100); its children may be strings and `Text`, drawn in the label's place, one press
   wherever it lands, and any other element is refused (d.ts:1070-1074); `key` is its address (d.ts:1062-1068).
   `Text` takes `color`, `bold`, `dimColor` and `underline` (d.ts:12572-12577) and `wrap` from `'wrap' | 'end' |
-  'middle' | 'truncate' | 'truncate-start' | 'truncate-middle' | 'truncate-end'` (d.ts:12580), `'wrap'` continuing a
-  long line on the rows under it (d.ts:1667-1668).
+  'middle' | 'truncate' | 'truncate-start' | 'truncate-middle' | 'truncate-end'` (d.ts:12580). The `Text` props state
+  no default for `wrap`; d.ts:1667-1668 describes `'wrap'` in that vocabulary as continuing a long line on the rows
+  under it (said there of the code view). So every `Text` the detail view draws sets `wrap: 'wrap'` explicitly.
 
 Definitions shared by every task:
 - `TicketDetail` (Task 1, `packages/core/src/status/show.ts`), the one shape the text output, the JSON and the panel
@@ -253,20 +254,24 @@ Interface:
 - `view.js`: the YOURS, TEAM, READY and UP NEXT row mappers give a row whose id passes `SAFE_ID` an `open: { key:
   'show:<id>', id, action? }` instead of `action`: `action` is today's `act('continue', 'Continue', id)` in YOURS and
   `act('pick-up', 'Pick up', id)` in READY and UP NEXT, absent in TEAM. EPICS rows and ids failing `SAFE_ID` get no
-  `open`. YOURS still clears `who`. New export `detailView(detail)` where `detail` is `{ id, action?, state? }`:
+  `open`. YOURS still clears `who`. New export `actionFor(state, id)`: `undefined` unless `state?.dashboard` is set;
+  else the `open.action` of the first row with that `id` in `view(state, '').sections`, or `undefined` when no such row
+  has one. The detail's action is always read through `actionFor` from the current dashboard state at draw time, never
+  stored when the detail opens, so it follows the latest dashboard run. New export `detailView(detail)` where `detail`
+  is `{ id, action?, state? }`:
   `state` `undefined` gives `{ back, action, message: ['Loading…'] }`; `state.ticket` gives `{ back, action, title,
   facts, intent, criteria }` with `back` `{ key: 'back', label: 'Back' }`, `facts` the six preamble fact lines, each
   criterion `{ head: '<id> <title>' (the title alone when id is null), steps, facts: ['State: <label>', ...the four
   criterion fact lines] }`, every string through `clean`. New export `detailOutcome(result)`: exit 0 gives `{ ticket:
   JSON.parse(stdout) }`.
 - `register.js`: module state `detail` (`undefined` while the dashboard shows). A top-level `async function
-  openDetail($, open)` sets `detail = { id: open.id, action: open.action }`, invalidates `ui.render`, then sets
+  openDetail($, open)` sets `detail = { id: open.id }`, invalidates `ui.render`, then sets
   `detail.state = detailOutcome(await $.process.run(['npx', '--yes', 'ACCORD_PACKAGE_SPEC', 'show', open.id,
   '--json'], { timeoutMs: 120000 }))` and invalidates again. In a dashboard row the id box holds `Button({ key:
   open.key, label: open.id, plain: true, onPress: () => void openDetail($, r.open), children: [Text({ bold: true,
   underline: true, color: 'suggestion', children: [r.id] })] })`; a row without `open` keeps `Text({ bold: true,
-  children: [r.id] })`; no row draws an action Button. With `detail` set, the render hook draws `detailView(detail)`
-  instead of the dashboard: a row `Box({ flexDirection: 'row', columnGap: 2 })` of `Button({ key: 'back', label:
+  children: [r.id] })`; no row draws an action Button. With `detail` set, the render hook draws `detailView({
+  ...detail, action: actionFor(state, detail.id) })` instead of the dashboard: a row `Box({ flexDirection: 'row', columnGap: 2 })` of `Button({ key: 'back', label:
   'Back', onPress })`, whose `onPress` sets `detail = undefined` and invalidates `ui.render` (no run), then the action
   `Button({ key, label, onPress: run(args) })` when present; then `Text({ bold: true })` of the title, a `Text` per
   fact, a `Box({ marginTop: 1 })` holding `Text({ bold: true, color: 'cyan' })` of `Intent`, a `Text` per intent line,
@@ -283,16 +288,23 @@ covers: @ac-5, D-08
 files: packages/core/panel/view.js, packages/core/panel/register.js, packages/core/src/generated/panel.ts, packages/core/test/panel.test.ts
 verify: packages/core/test/panel.test.ts#ac-5-the-detail-view-wraps-long-text-whole-while-the-table-keeps-its-cut (@ac-5), packages/core/test/panel.test.ts#risk:complex-branching-a-failed-or-malformed-show-run-shows-a-message-with-back, packages/core/test/panel.test.ts#risk:concurrency-an-open-detail-reruns-show-after-a-turn-and-drops-a-result-for-a-closed-one, packages/core/test/panel.test.ts#risk:security-detail-text-cannot-put-control-characters-into-the-pane
 
-From Task 3: `view.js` exports `detailView` and `detailOutcome`; `register.js` holds `detail` and `openDetail($,
+From Task 3: `view.js` exports `actionFor`, `detailView` and `detailOutcome`; `register.js` holds `detail` and `openDetail($,
 open)`; the test file has `detailOf`, `h.row` and the `show:<id>` keys.
 
 Tests first, in `packages/core/test/panel.test.ts`:
-- `it('ac-5 the detail view wraps long text whole while the table keeps its cut')`: `LONG = 'Title '.repeat(40).trim()`
-  and `STEP = 'Given ' + 'word '.repeat(40).trim()` (each wider than the 110-column pane). Settle a dashboard whose
-  YOURS row is `{ id: 'ST-1', title: LONG }`; press `show:ST-1`; settle `detailOf({ title: LONG, criteria: [{
-  ...detailOf().criteria[0], steps: [STEP] }] })`. The `Text` nodes whose children join to `LONG` and to `STEP` are
-  each exactly one, each has `children` equal to `[LONG]` (or `[STEP]`), one string, and `wrap: 'wrap'`; no text
-  holds `\n`, `...` or `…`. Press `back`: `h.cell(LONG).text.wrap` is `'truncate'`.
+- Fake host, changed first: `pending` and `failers` become one queue `runs: { res, rej }[]`; `$.process.run` pushes
+  one `{ res, rej }` pair, `settle` shifts the oldest pair and calls its `res`, `fail` shifts the oldest pair and
+  calls its `rej`, and `inflight()` is `runs.length`. Each existing caller keeps its order (every existing test
+  settles or fails the oldest run, as now); today `settle` shifts only `pending` and `fail` only `failers`
+  (lines 36-37, 48-49, 95), so a `fail` after a settled dashboard run would reject that stale promise instead of the
+  `show` run.
+- `it('ac-5 the detail view wraps long text whole while the table keeps its cut')`: `LONG = 'Title '.repeat(40).trim()`,
+  `STEP = 'Given ' + 'word '.repeat(40).trim()` and `TEST = 'a#' + 'x'.repeat(118)` (each wider than the 110-column
+  pane). Settle a dashboard whose YOURS row is `{ id: 'ST-1', title: LONG }`; press `show:ST-1`; settle `detailOf({
+  title: LONG, criteria: [{ ...detailOf().criteria[0], steps: [STEP], test: TEST }] })`. The `Text` nodes whose
+  children join to `LONG`, to `STEP` and to `'Test: ' + TEST` are each exactly one, each has `children` equal to one
+  string (`[LONG]`, `[STEP]`, `['Test: ' + TEST]`) and `wrap: 'wrap'`; every `Text` node drawn in the detail has `wrap:
+  'wrap'`; no text holds `\n`, `...` or `…`. Press `back`: `h.cell(LONG).text.wrap` is `'truncate'`.
 - `it('risk:complex-branching a failed or malformed show run shows a message with back')`, one fresh panel per case,
   each opened from `show:ST-1` of `twoRows`: exit 2 with stderr `npm warn x\nno ticket ST-1 in accord/tickets/\n`
   shows texts holding `no ticket ST-1 in accord/tickets/` and buttons exactly `back`; a rejected run
@@ -306,7 +318,9 @@ Tests first, in `packages/core/test/panel.test.ts`:
   `back` before settling, settle both: the dashboard is shown and no text holds `Renamed` or `Stage: build`. Open
   ST-1 again, press `back` and open ST-2 while ST-1's run is pending; settling ST-1's run with `detailOf({ title:
   'Old' })` leaves no text holding `Old`, and settling ST-2's with `detailOf({ id: 'ST-2', title: 'Export' })` shows
-  `Export` with the button `pick-up:ST-2`.
+  `Export` with the button `pick-up:ST-2`. Last, the action follows the refreshed dashboard: fire `turn.complete`,
+  settle the dashboard run with `board({ yours: { rows: [{ id: 'ST-2', title: 'Export' }], more: 0 } })` and the show
+  run with `detailOf({ id: 'ST-2', title: 'Export' })`: the button keys are exactly `['back', 'continue:ST-2']`.
 - `it('risk:security detail text cannot put control characters into the pane')`: settle a detail whose title,
   one intent line, one step and `holder` each hold `\u001b[31m`, `\u202e` and `\u2028`: no text holds U+001B, U+202E
   or U+2028.
@@ -325,9 +339,11 @@ Interface:
   = detail?.id`, stops when it is `undefined`, runs `show <id> --json`, catches a rejection into `failure(err)`, and
   stores the result only when `detail?.id === id` still holds, then invalidates `ui.render`. `turn.complete` on a
   placed pane, with no `agentId`, runs `refresh($)` and, when `detail` is set, `loadDetail($)`; a stale pane does
-  both on its next draw. Every detail `Text` of the title, an intent line, a criterion head and a step carries `wrap:
-  'wrap'` and its string as the one child, with no line break added. A message state draws its lines and the Back
-  button only.
+  both on its next draw. Every `Text` the detail view draws (the title, each fact, `Intent`, each intent line, each
+  criterion head, step and fact, and each message line) carries `wrap: 'wrap'` and its string as the one child, with
+  no line break added. A message state draws its lines and the Back button only. The action Button stays read through
+  `actionFor(state, detail.id)` at each draw (Task 3), so after `refresh` stores a new dashboard the open detail shows
+  that dashboard's Continue or Pick up, or none.
 - Then `npm run gen` and `npm run build -w packages/core`.
 
 Must not change: everything Task 3 lists, the ac-4 test, and the table title's `wrap: 'truncate'`.

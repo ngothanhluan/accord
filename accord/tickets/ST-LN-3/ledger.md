@@ -58,6 +58,9 @@
 - Review round 1 (Nice): two tests carry `risk:` names without a matching risk — `risk:regression the committed panel and settings carry the plugin` (skills-sync.test.ts) and `risk:parsing every panel file carries one marker…` (panel.test.ts); fold into ac-5 or rename.
 - Review round 1 (Nice): `clean` is exported from panel/view.js; check whether a test needs the export before removing it.
 - Final review (Nice): in the /accord skill named-ticket section, the "Then run Pick up or Continue below on that ticket" sentence follows the no-such-ticket sentence, so "that ticket" can read as the missing id; move it right after "exactly one ticket id" and re-wrap line 26 (packages/core/skills/accord/SKILL.md:24-26).
+- Final re-review (Nice): the first draw after widening shows the old dashboard until the refresh run finishes, with no loading marker (panel/register.js:63-66).
+- Final re-review (Nice): an explicit `/accord-panel` refresh does not clear `stale`, so one redundant sequential CLI run follows (panel/register.js:50,63).
+- Final re-review (Nice): the test `risk:parsing a row also shows its stage, who holds it and what blocks it, cleaned` covers formatting, not parsing, and never exercises `idleDays` (panel.test.ts).
 
 ## Tasks
 - task 1 done 4d590c7316ca

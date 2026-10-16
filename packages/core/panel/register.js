@@ -85,16 +85,34 @@ export function register(on) {
         }),
       );
       if (v.newRequest) children.push(Button({ key: v.newRequest.key, label: v.newRequest.label, onPress: run(v.newRequest.args) }));
+      const { widths } = v;
+      const cellBoxes = (id, stage, title) => [
+        Box({ width: widths.id, flexShrink: 0, children: [id] }),
+        Box({ width: widths.stage, flexShrink: 0, children: [stage] }),
+        Box({ flexGrow: 1, flexShrink: 1, children: [title] }),
+      ];
+      const line = (kids) => Box({ flexDirection: 'row', columnGap: 2, children: kids });
       for (const s of v.sections) {
-        children.push(Text({ children: [s.heading] }));
-        for (const r of s.rows) {
-          const t = Text({ children: [r.text] });
-          children.push(r.action ? Box({ flexDirection: 'row', children: [t, Button({ key: r.action.key, label: r.action.label, onPress: run(r.action.args) })] }) : t);
+        children.push(Box({ marginTop: 1, children: [Text({ bold: true, color: 'cyan', children: [s.heading] })] }));
+        if (s.rows.length > 0) {
+          children.push(line(cellBoxes(...['ID', 'STAGE', 'TITLE'].map((w) => Text({ dimColor: true, children: [w] })))));
         }
-        if (s.rows.length === 0) children.push(Text({ children: ['none'] }));
-        if (s.more > 0) children.push(Text({ children: ['+' + s.more + ' more'] }));
+        for (const r of s.rows) {
+          const stage = Text({ children: [r.stage], ...(r.stageColor ? { color: r.stageColor } : {}) });
+          const kids = cellBoxes(Text({ bold: true, children: [r.id] }), stage, Text({ wrap: 'truncate', children: [r.title] }));
+          if (r.action) kids.push(Box({ flexShrink: 0, children: [Button({ key: r.action.key, label: r.action.label, onPress: run(r.action.args) })] }));
+          children.push(line(kids));
+          if (r.blockedBy || r.who) {
+            const sub = [Box({ width: widths.id, flexShrink: 0 })];
+            if (r.blockedBy) sub.push(Text({ color: 'red', children: [r.blockedBy] }));
+            if (r.who) sub.push(Text({ dimColor: true, children: [r.who] }));
+            children.push(line(sub));
+          }
+        }
+        if (s.rows.length === 0) children.push(Text({ dimColor: true, children: ['none'] }));
+        if (s.more > 0) children.push(Text({ dimColor: true, children: ['+' + s.more + ' more'] }));
       }
-      children.push(Text({ children: [v.summary] }));
+      children.push(Text({ dimColor: true, children: [v.summary] }));
     }
     return Box({ flexDirection: 'column', children });
   });

@@ -59,6 +59,27 @@ async function host(mod: { register: (on: Handler) => void }) {
       walk(tree);
       return out;
     },
+    // first Text whose joined children equal s: its props, its direct parent Box's props, and that box's parent's props
+    cell: (s: string): { text: Record<string, any>; box: Record<string, any>; row: Record<string, any> } => {
+      let found: any;
+      const walk = (n: any, parent?: any, grand?: any): void => {
+        if (!n || typeof n !== 'object' || found) return;
+        if (n.type === 'Text' && (n.props.children as unknown[]).join('') === s) found = { text: n.props, box: parent?.props, row: grand?.props };
+        for (const c of n.props?.children ?? []) walk(c, n, parent);
+      };
+      walk(tree);
+      return found;
+    },
+    buttonBox: (key: string): Record<string, any> | undefined => {
+      let found: any;
+      const walk = (n: any, parent?: any): void => {
+        if (!n || typeof n !== 'object' || found) return;
+        if (n.type === 'Button' && n.props.key === key) found = parent?.props;
+        for (const c of n.props?.children ?? []) walk(c, n);
+      };
+      walk(tree);
+      return found && { ...found, children: undefined };
+    },
     texts: () => h.nodes('Text').map((n) => (n.props.children as unknown[]).join('')),
     buttons: () => h.nodes('Button').map((n) => n.props),
     input: () => h.nodes('Input')[0]?.props,
@@ -332,21 +353,92 @@ it('risk:security a row whose id has spaces or a pipe is shown with no button', 
   expect(h.buttons().map((b) => b.key)).toEqual(['continue:ST-1']);
 });
 
-it('risk:parsing a row also shows its stage, who holds it and what blocks it, cleaned', async () => {
+it('risk:regression each row draws as fixed-width cells with stage colours a red blocked-by line and a truncated title', async () => {
+  const LONG = 'Title '.repeat(30).trim();
   const h = await host(await loadPanel());
   await h.fire('session.start', start);
   h.settle({
     stdout: JSON.stringify(
       board({
-        team: { rows: [{ id: 'ST-3', title: 'Mine', stage: 'build', tasksDone: 2, tasksTotal: 5, claimedBy: 'an[1m@x' }], more: 0 },
-        upNext: { rows: [{ id: 'ST-7', title: 'Blocked', blockedBy: ['ST-6', 'ST-4'] }, { id: 'ST-8' }], more: 0 },
+        yours: { rows: [{ id: 'ST-10', title: LONG, stage: 'review', claimedBy: 'me@x' }], more: 0 },
+        team: {
+          rows: [
+            { id: 'ST-3', title: 'Mine', stage: 'build', tasksDone: 2, tasksTotal: 5, claimedBy: 'an[1m@x' },
+            { id: 'ST-11', title: 'Odd', stage: 'constructor' },
+          ],
+          more: 0,
+        },
+        upNext: { rows: [{ id: 'ST-7', title: 'Blocked', stage: 'plan', idleDays: 3, blockedBy: ['ST-6', 'ST-4'] }, { id: 'ST-8' }], more: 2 },
+        epics: { rows: [{ id: 'EP-1', title: 'E', done: 1, total: 3 }], more: 0 },
       }),
     ),
   });
   await vi.waitFor(() => expect(h.texts().some((x) => x.includes('ST-7'))).toBe(true));
-  const t = h.texts();
-  expect(t).toContain('ST-3  Mine  build 2/5  an [1m@x');
-  expect(t).toContain('ST-7  Blocked  ST-6 ST-4');
-  expect(t).toContain('ST-8');
-  expect(h.buttons().map((b) => b.key)).toEqual(['pick-up:ST-7', 'pick-up:ST-8']);
+  const bare = (p: Record<string, any> | undefined): Record<string, any> => {
+    const rest = { ...p };
+    delete rest.children;
+    return rest;
+  };
+  const idBox = { width: 5, flexShrink: 0 };
+  const stageBox = { width: 12, flexShrink: 0 };
+  const titleBox = { flexGrow: 1, flexShrink: 1 };
+  for (const heading of ['YOURS', 'TEAM', 'READY', 'UP NEXT', 'EPICS']) {
+    expect(h.cell(heading).text).toMatchObject({ bold: true, color: 'cyan' });
+    expect(h.cell(heading).box.marginTop).toBe(1);
+  }
+  for (const w of ['ID', 'STAGE', 'TITLE']) {
+    const hs = h.nodes('Text').filter((n) => (n.props.children as unknown[]).join('') === w);
+    expect(hs).toHaveLength(4);
+    for (const n of hs) expect(n.props.dimColor).toBe(true);
+  }
+  for (const w of ['none', '+2 more', '0 in progress, 0 ready, 0 blocked, 0 backlog, 0 done']) expect(h.cell(w).text.dimColor).toBe(true);
+  expect(h.cell('EP-1').text.bold).toBe(true);
+  expect(h.cell('1/3 done').text.color).toBeUndefined();
+  expect(bare(h.cell('1/3 done').box)).toEqual(stageBox);
+  expect(bare(h.cell('E').box)).toEqual(titleBox);
+  expect(h.cell('EP-1').row.children).toHaveLength(3);
+  const widthsHold = (): void => {
+    const kids = h.cell('ST-3').row.children as { props: Record<string, any> }[];
+    expect(bare(kids[0].props)).toEqual(idBox);
+    expect(bare(kids[1].props)).toEqual(stageBox);
+  };
+  expect(h.cell('ST-3').text.bold).toBe(true);
+  expect(h.cell('ST-3').row).toMatchObject({ flexDirection: 'row', columnGap: 2 });
+  widthsHold();
+  const kids = h.cell('ST-3').row.children as { props: Record<string, any> }[];
+  expect(bare(kids[2].props)).toEqual(titleBox);
+  expect(Object.keys(kids[2].props)).not.toContain('width');
+  expect(Object.keys(kids[2].props)).not.toContain('minWidth');
+  expect(bare(h.cell('ID').box)).toEqual(idBox);
+  expect(bare(h.cell('STAGE').box)).toEqual(stageBox);
+  expect(bare(h.cell('TITLE').box)).toEqual(titleBox);
+  expect(bare(h.cell(LONG).box)).toEqual(titleBox);
+  expect(h.cell('ID').row).toMatchObject({ flexDirection: 'row', columnGap: 2 });
+  expect(h.cell(LONG).text.wrap).toBe('truncate');
+  expect(h.buttonBox('continue:ST-10')).toEqual({ flexShrink: 0, children: undefined });
+  expect(h.buttonBox('pick-up:ST-7')).toEqual({ flexShrink: 0, children: undefined });
+  expect(h.cell('build 2/5').text.color).toBe('yellow');
+  expect(h.cell('review').text.color).toBe('magenta');
+  expect(h.cell('plan idle 3d').text.color).toBe('cyan');
+  expect(h.cell('constructor').text.color).toBeUndefined();
+  expect(h.cell('blocked by ST-6 ST-4').text.color).toBe('red');
+  expect(h.cell('an [1m@x').text.dimColor).toBe(true);
+  expect(h.texts().some((x) => x.includes('me@x'))).toBe(false);
+  expect(h.texts().filter((x) => x.startsWith('blocked by'))).toHaveLength(1);
+  expect(h.texts().filter((x) => x === 'an [1m@x')).toHaveLength(1);
+  const second: string[][] = [];
+  const walk = (n: any): void => {
+    if (!n || typeof n !== 'object') return;
+    const first = n.props?.children?.[0];
+    if (n.type === 'Box' && n.props.flexDirection === 'row' && first?.type === 'Box' && !(first.props.children?.length > 0)) {
+      second.push((n.props.children as any[]).slice(1).map((c) => c.props.children.join('')));
+    }
+    for (const c of n.props?.children ?? []) walk(c);
+  };
+  walk(h.tree());
+  expect(second).toEqual([['an [1m@x'], ['blocked by ST-6 ST-4']]); // document order: TEAM before UP NEXT
+  expect(h.buttons().map((b) => b.key)).toEqual(['continue:ST-10', 'pick-up:ST-7', 'pick-up:ST-8']);
+  h.type('st-3');
+  await vi.waitFor(() => expect(h.texts().some((x) => x.includes('ST-7'))).toBe(false));
+  widthsHold();
 });

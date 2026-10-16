@@ -28,6 +28,10 @@ ui: false
 
 ## Intent
 <!-- At most five lines: why, for whom, how success is measured, and what this does not do. -->
+The panel table cuts each title and shows no criteria, so to learn what a ticket is for and how far it is proved the owner has to open its file.
+For anyone on the team: in the Claude Code panel, and in any runtime through `accord show <id>`.
+Success: pressing a ticket shows its full title, its row facts, its Intent, and every criterion in full with one state label and the facts behind it, with no text cut; `accord show` prints the same.
+Not in scope: editing anything from the view; which tickets the dashboard can see (a separate bug ticket); the dashboard table, which keeps its cuts.
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.
@@ -36,10 +40,42 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 Feature: ST-LN-6
 
   @ac-1
-  Scenario: <observable outcome>
-    Given ...
-    When ...
-    Then ...
+  Scenario: accord show prints a ticket's full detail as text
+    Given a lane M ticket whose title is longer than 60 characters, with an Intent and two criteria, no holder, and no blocking ticket
+    When `accord show <id>` runs
+    Then it prints the full title, then a labelled line each for the stage, lane, tasks done of total, branch, holder, and blocking tickets, the holder and blocking tickets reading `none`
+    And it prints the Intent, and each criterion's id, title, and every step with its Gherkin keyword, each in full
+    And under each criterion it prints the criterion's state label, its @test tag, that test's result, whether it is ticked in `verified:`, and its verification.md result
+    And no text in the output is cut or ends with "..." or "…"
+
+  @ac-2
+  Scenario: accord show --json gives the same detail as JSON
+    Given the ticket of @ac-1
+    When `accord show <id> --json` runs
+    Then it prints one JSON object holding every value the text output of @ac-1 prints, each in full, as data rather than display text: tasks done and tasks total as two numbers, the tick as true or false, and an absent value as null
+
+  @ac-3
+  Scenario: A criterion's label is the first rule that matches, top down
+    Given criteria whose facts match more than one rule, among them one ticked in `verified:` whose test result is failed
+    When `accord show <id>` runs
+    Then each criterion's label is the first that matches of: failing (its test failed, or verification.md says fail), blocked (verification.md says blocked), verified (ticked, and the ticket's `verified_hash` equals the hash of its current criteria), passing (its test passed), not run (an @test tag with no result in the JUnit report at config.yml `tests.report`, or a skipped test), untested (no @test tag)
+    And the criterion ticked with a failed test is labelled failing
+    And when no file exists at `tests.report`, every criterion with an @test tag that no earlier rule matches is labelled not run
+
+  @ac-4
+  Scenario: Pressing a ticket row in the panel opens its detail view
+    Given the panel shows the dashboard with a ticket row that offers Continue
+    When the owner presses that row
+    Then the panel shows the ticket's detail read from `accord show <id> --json`, and submits no command
+    And the row itself holds no Continue button; that button and a Back button are in the detail view
+    And pressing that button submits the same `/accord` command the row submitted before this ticket, and pressing Back shows the dashboard already loaded without running any command
+
+  @ac-5
+  Scenario: The detail view wraps long text and never cuts it, while the table keeps its cuts
+    Given a ticket whose title and one step are each wider than the pane
+    When its detail view is shown
+    Then the full title and the full step are each passed to the panel as one whole string that the panel wraps across lines, with no line break inserted, nothing cut, and no "..." or "…" added
+    And the same ticket's row in the dashboard table still shows its title cut
 ```
 
 ## Vetoes
@@ -47,13 +83,21 @@ Feature: ST-LN-6
 
 ## Decisions
 <!-- Settled answers, one per line: - D-01 <decision> — "<the owner's sentence>" -->
+- D-01 The request has four parts: a new `accord show <id> --json` with the Intent, every criterion's title and steps, and each criterion's state; core code that works out that state; a panel detail view opened by pressing a ticket that draws that JSON; full text with no cut in the detail view while the dashboard table keeps its cuts — "ok option 1" (2026-10-16)
+- D-02 Pressing a ticket row opens its detail view; the view holds the Continue or Pick up button and a Back button, so running a ticket takes two presses — "Mở chi tiết, nút ở trong (Khuyên)" (2026-10-16)
+- D-03 Each criterion shows one state label worked out in core, and under it every fact the label came from: its @test tag, that test's result, whether it is ticked in `verified:`, and its verification.md result — "Một nhãn + các dữ kiện (Khuyên)" (2026-10-16)
+- D-04 A criterion's label is the first that matches, top down: failing (its @test result failed, or verification.md says fail); blocked (verification.md says blocked); verified (in `verified:` and the tick still bound to the current criteria); passing (its test passed); not run (it has an @test tag but the report has no result for it, or the test was skipped); untested (no @test tag) — "Dùng thứ tự này (Khuyên)" (2026-10-16)
+- D-05 `accord show <id>` prints readable text, everything in full with no cut, and `--json` gives the same content for the panel, so runtimes without the panel see the detail too — "Có cả chữ và JSON (Khuyên)" (2026-10-16)
+- D-06 The detail starts with the full title and the facts the dashboard row already has: stage, lane, tasks done of total, branch, who holds it, and the tickets blocking it — "Tiêu đề đủ + dữ kiện của hàng (Khuyên)" (2026-10-16)
+- D-07 The smallest version that still counts as done is all of D-01 to D-06; nothing is cut — "option 1" (2026-10-16)
+- D-08 After the audit: an empty fact prints `none` under its label; steps keep their Gherkin keyword; the JSON holds data, not display text; a tick is bound by the ticket-level `verified_hash`; test results come from config.yml `tests.report`, and a missing report makes a tagged criterion not run; the row loses its button to the detail view; Back shows the loaded dashboard without a new run; the panel wraps text itself with no inserted line breaks — "Đồng ý cả 8 (Khuyên)" (2026-10-16)
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
 
 ## Open questions
 <!-- `- [ ]` items; Ready stays blocked while any is unchecked. -->
-- [ ] Scope from ST-LN-3 verify (2026-10-16). Owner, asked what a pressed ticket should show: "ok option 1, nhưng phải đảm bảo là hiện đủ thông tin, ko elipsis" — option 1 was: the detail view shows the Intent, the acceptance criteria and each criterion's state, read from a new `accord show <id> --json` so the pane still reads only CLI output (ST-LN-3 D-04). Then, on whether the no-ellipsis rule covers the table: "ko áp dụng cho bảng. khi xem details thì phải details chứ".
+- [x] Scope from ST-LN-3 verify (2026-10-16). Owner, asked what a pressed ticket should show: "ok option 1, nhưng phải đảm bảo là hiện đủ thông tin, ko elipsis" — option 1 was: the detail view shows the Intent, the acceptance criteria and each criterion's state, read from a new `accord show <id> --json` so the pane still reads only CLI output (ST-LN-3 D-04). Then, on whether the no-ellipsis rule covers the table: "ko áp dụng cho bảng. khi xem details thì phải details chứ".
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->

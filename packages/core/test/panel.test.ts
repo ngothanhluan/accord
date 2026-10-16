@@ -364,7 +364,7 @@ it('risk:regression each row draws as fixed-width cells with stage colours a red
         team: {
           rows: [
             { id: 'ST-3', title: 'Mine', stage: 'build', tasksDone: 2, tasksTotal: 5, claimedBy: 'an[1m@x' },
-            { id: 'ST-11', title: 'Odd', stage: 'constructor' },
+            { id: 'ST-11', title: 'Odd', stage: 'constructor', claimedBy: 'bob@x' },
           ],
           more: 0,
         },
@@ -436,7 +436,7 @@ it('risk:regression each row draws as fixed-width cells with stage colours a red
     for (const c of n.props?.children ?? []) walk(c);
   };
   walk(h.tree());
-  expect(second).toEqual([['an [1m@x'], ['blocked by ST-6 ST-4']]); // document order: TEAM before UP NEXT
+  expect(second).toEqual([['an [1m@x'], ['bob@x'], ['blocked by ST-6 ST-4']]); // document order: TEAM before UP NEXT
   expect(h.buttons().map((b) => b.key)).toEqual(['continue:ST-10', 'pick-up:ST-7', 'pick-up:ST-8']);
   h.type('st-3');
   await vi.waitFor(() => expect(h.texts().some((x) => x.includes('ST-7'))).toBe(false));

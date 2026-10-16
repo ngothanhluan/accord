@@ -2,6 +2,7 @@
 
 ## Tasks
 - task 1 done cfe49572a4ff
+- task 2 done e7ead5c18008
 
 ## Rulings
 - Ruling: the plan loop goes in a new loaded reference, `packages/core/skills/plan/critique.md`, and `SKILL.md` step 5 points to it — the Approach named `SKILL.md`, but the rendered `SKILL.md` has a 5120-byte cap and the loop text is about 1.5 KB — cost if wrong: the loop moves back into `SKILL.md` if it fits.

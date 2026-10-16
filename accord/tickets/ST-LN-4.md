@@ -57,7 +57,7 @@ Feature: ST-LN-4
     And at the existing three-round cap with a Must or Should still open, the run stops and tells the owner, as it does today
     And no Nice finding is passed to the planner
 
-  @ac-2
+  @ac-2 @test:packages/core/test/stage-skills.test.ts#ac-2-a-review-round-with-only-should-findings-converges-without-a-re-review
   Scenario: A review round with only Should findings converges without a re-review
     Given the accord-review skill as `accord skills sync` renders it
     When a review round, or the final review, reports at least one Should and no Must

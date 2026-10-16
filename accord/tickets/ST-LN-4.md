@@ -31,9 +31,9 @@ ac_hash: "fnv1a64:ce34eac8ca6c466c"
 ## Intent
 <!-- At most five lines: why, for whom, how success is measured, and what this does not do. -->
 Plan critique takes 4 to 8 rounds (IDS-1 8, ST-LN-3 8); 21 of 29 past plan rounds ran on Should findings alone, yet 20 of 43 Should findings were real defects, so the cost is the re-reading, not the fixing.
-For whoever runs a lane M ticket: a Should is still fixed, but a round with no Must ends in a cheap read of the fix diff, a Nice is never fixed in the plan, and the planner catches what the critic would before the first read.
+For whoever runs a lane M ticket: a Should is still fixed, but a round with no Must ends in a cheap read of the fix diff, a Nice is never fixed in the plan, the planner catches what the critic would before the first read, and a large or risky plan gets two or three critics, one per lens, in its first round; quality comes before speed, and speed before cost.
 Success: in the next three lane M tickets after this ships, each has at most three plan rounds and at most one critic read of the whole plan after the first, counted with `scripts/benchmark.mjs`; this measure never blocks merging.
-Not in scope: the approach-stage critic, round caps, any CLI code that counts severities, two critics in parallel (deferred in the ledger).
+Not in scope: the approach-stage critic, round caps, any CLI code that counts severities.
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.
@@ -42,26 +42,31 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 Feature: ST-LN-4
 
   @ac-1
-  Scenario: After a plan round with only Should findings the next critic reads only the fix diff
+  Scenario: The plan's first critique is sized by the plan, and a round with only Should findings is followed by a read of the fix diff
     Given the accord-plan skill as `accord skills sync` renders it
+    Then the first round dispatches one critic for a plan of one to three tasks
+    And two critics in parallel for a plan of four or more tasks, one checking that the plan reaches the criteria and the Intent, one checking that an executor can build each task
+    And one more critic, a security lens, for a plan of any size whose ticket touches auth, money, migration, or data deletion, as the main session judges from the ticket and the plan, so at most three
+    And their findings are merged and de-duplicated before the planner gets them
     When a critic round reports at least one Should and no Must
     Then the skill has the planner fix every Should
-    And the next round's critic is dispatched with `git diff` of `plan.md` from that round's commit, not the whole plan
+    And the next round's critic is dispatched with the `git diff` of `plan.md` between that round's commit and the planner's fix, not the whole plan
     And after a round that reports a Must, the next round's critic reads the whole plan
-    And the loop ends only on a round with no Must and no Should, within the existing three-round cap
+    And the loop ends only on a round with no Must and no Should
+    And at the existing three-round cap with a Must or Should still open, the run stops and tells the owner, as it does today
     And no Nice finding is passed to the planner
 
   @ac-2
   Scenario: A review round with only Should findings converges without a re-review
     Given the accord-review skill as `accord skills sync` renders it
     When a review round, or the final review, reports at least one Should and no Must
-    Then every Should is fixed and the `tests.affected` command over the files the fix touched passes
+    Then every Should is fixed and the `tests.affected` command over the files the fix touched passes, or `tests.full` when `tests.affected` is not configured or finds no test file
     And no reviewer is dispatched again for that fix
     And converged means no Must is open and every Should is fixed with that command passing
 
   @ac-3
   Scenario: Must, Should and Nice are defined by what happens if the finding is left
-    Given the critic and reviewer agents as `accord skills sync` renders them
+    Given the critic, reviewer and final reviewer agents as `accord skills sync` renders them
     Then each holds these three sentences word for word:
       """
       Must: left as is, the Intent does not hold, a criterion is not reached, or a Veto, Decision or Correction is broken.
@@ -72,15 +77,16 @@ Feature: ST-LN-4
   @ac-4
   Scenario: The planner checks its plan against the critic's checklist before handing it over
     Given the planner and critic agents as `accord skills sync` renders them
-    Then the planner's agent file holds every check of the critic's plan mode, word for word
+    Then the planner's agent file holds every item of the critic's plan-mode check list, word for word
     And the planner is told to run those checks on its plan before it replies
 
   @ac-5
   Scenario: An API a finding relies on carries a citation
     Given the critic and planner agents as `accord skills sync` renders them
-    Then the critic cites where any host or library API its finding or proposed fix relies on is defined: a file and line in the repository, or the URL of the document outside it
+    Then the critic cites where any host or library API its finding or proposed fix relies on is defined: a file and line in the working tree, `node_modules` included, or the URL of the document outside it
     And the planner applies a fix the critic proposes only when reading the cited place confirms that API
     And a fix with no citation, an unreadable citation, or a citation that does not confirm the API is reported as unverified, not applied
+    And a fix whose API is cited only by a URL goes to the owner at once, and is applied only on the owner's "apply"
 ```
 
 ## Vetoes
@@ -92,6 +98,7 @@ Feature: ST-LN-4
 - D-02 Before handing over a plan, the planner checks it against the same checklist the critic uses — "Planner tự soát checklist (Recommended)"
 - D-03 The critic relies on a host or library API only with a file:line citation, and the planner checks a fix the critic proposes against the code before applying it — "API phải có trích dẫn (Recommended)"
 - D-04 No agent gains a web tool: a critic-proposed fix whose API is cited only by a URL outside the repository goes to the owner at once, who applies or drops it — "Không thêm WebFetch, hỏi anh (Recommended)"
+- D-05 The plan's first critic round is sized by the plan: one critic for one to three tasks, two in parallel (criteria and Intent; buildability) for four or more, plus a security critic when the ticket touches auth, money, migration, or data deletion, at most three; quality comes before speed, speed before cost — "Chốt, gộp vào ST-LN-4 (Recommended)", after "quality>speed>cost" and "có khi nào cần 3 con ko? hoặc 4 con?"
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
@@ -102,12 +109,13 @@ Feature: ST-LN-4
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
-**Chosen: Option 1, amended over two critic rounds — skill and agent text, one test per criterion, no product code.**
+**Chosen: Option 1, amended over two approach critiques and one plan critique — skill and agent text, one test per criterion, no product code.**
+- **First round** (D-05): the main session counts the plan's `## Task` sections and reads the ticket for auth, money, migration, or data deletion, then dispatches one, two, or three critics in parallel, each told its lens; a lens-split critic runs only its lens's plan-mode checks. Their findings are merged and de-duplicated into one round. Later rounds use one critic.
 - **Plan loop** (`packages/core/skills/plan/SKILL.md`): the main session keeps every critic finding in `accord/tickets/<id>/plan-review.md`, one `## Round <n> (whole|diff)` per round, each finding with its state: `open`, `fixed`, `unverified: <reason>`, or `owner: "<words>"`, committed with the round. The planner gets every open Must and Should, never a Nice (a Nice goes to the ledger's `## Deferred`), and replies per finding: fixed, or unverified with the reason. After a round with no Must the critic gets a `git diff` of `plan.md` from the round commit, written to a file outside the tree, plus `plan-review.md`; after a Must it reads the whole plan. The loop ends when no Must or Should in `plan-review.md` is open or unverified, within the three-round cap. Resume reads `plan-review.md` and round subjects since the last `plan: <id> ready` only.
-- **D-04**: a fix whose API is cited only by a URL goes to the owner at once; the answer is written as `owner: "<words>"`, and an owner's "apply" is the confirmation the planner needs.
-- **Critic** (`packages/core/agents/critic.md`): the three severity sentences word for word; the citation rule for API-reliant findings only; a diff mode kept outside the plan-mode check list: check each open finding against the diff, report fixed ones as `fixed: <n>, ...` (not a numbered line), check that the hunks break nothing they touch, and open `plan.md` only at tasks the hunks change or that cite them.
+- **D-04**: a fix whose API is cited only by a URL goes to the owner at once and the answer is written beside the finding as `owner: "<words>"`. On "drop" the finding is closed; on "apply" it stays `open`, goes to the planner with the owner's words as the confirmation it needs, and closes only when a critic finds it fixed.
+- **Critic** (`packages/core/agents/critic.md`): the three severity sentences word for word; the citation rule for API-reliant findings only; a diff mode kept outside the plan-mode check list: check each open finding against the diff, report fixed ones as `fixed: <n>, ...` (not a numbered line), check that the hunks break nothing they touch and, on the changed hunks, that no Veto is violated and nothing goes beyond the acceptance criteria, and open `plan.md` only at tasks the hunks change or that cite them.
 - **Planner** (`packages/core/agents/planner.md`): the critic's six plan-mode checks word for word, run before replying; an API-reliant fix applied only when the cited place or the owner confirms it.
-- **Review** (`packages/core/skills/review/SKILL.md`, `record.md`): a round or final review with only Should findings is fixed and checked by `tests.affected`, or by `tests.full` when that is not configured or finds no test file; no re-review. The reviewer, and the final reviewer rendered from it, gains the three severity sentences.
+- **Review** (`packages/core/skills/review/SKILL.md`, `record.md`): a round or final review with only Should findings is fixed and checked by `tests.affected`, or by `tests.full` when that is not configured or finds no test file; no re-review; `record.md` names "that command", not `tests.affected` alone. The reviewer, and the final reviewer rendered from it, gains the three severity sentences.
 - **Docs**: `docs/specs/2026-10-12-workflow-layer-design.md` §7 plan loop, severity line and review loop updated to match.
 - **Rejected**: Option 2, one shared checklist included at render time — new render code and a change to every agent's marker hash, for nothing the ac-4 test does not already guard. Option 3, WebFetch for critic and planner — ruled out by D-04. Findings kept only in the round commit body or the conversation — the second critique showed it loses an unverified Must after a whole-plan round, and the owner's answer.
 - **Risks**: the amendments answer the second critique's two Musts (an unverified fix lost after a Must round; an owner "apply" the planner could not carry out) and its Shoulds, but no critic has read this amended text; the plan critic reads it next. The rendered planner and critic must stay within the 60-line body cap. The Intent's success measure is counted by hand: a whole-plan read is round 1 and every round after one with a Must.

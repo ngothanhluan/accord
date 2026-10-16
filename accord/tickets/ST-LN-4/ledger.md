@@ -9,5 +9,5 @@
 - Ruling: the spec updates are folded into tasks 1 to 3 rather than given a task of their own — a docs-only task would have no test for its `verify:` line — cost if wrong: none to behaviour.
 
 ## Deferred
-- Two critics in parallel in plan round 1, one per lens (does the plan reach the criteria; can an executor build each task as written): costs one more opus run per ticket. The owner: "ok option 3 note lại đi. đánh giá sau." Judge it from the benchmark after this ticket ships.
+- Two critics in parallel in plan round 1 was deferred, then taken into this ticket as D-05 on 2026-10-16 ("Chốt, gộp vào ST-LN-4 (Recommended)").
 - The architect's impact analysis (callers, file:line, tests, generated files) lives only in its chat report; the planner reads the code again to write `files:` lines. Keep it as `accord/tickets/<id>/impact.md` and have the planner read it. The owner (2026-10-16): "ok đưa vào đi". Judge it with the benchmark after ST-LN-4, measuring architect and planner tokens first.

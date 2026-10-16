@@ -17,6 +17,8 @@
 - Ruling: the next critic closes an `unverified` finding, by repeating it as a new numbered finding with the missing citation or a different fix, or by withdrawing it; the owner is asked only on the URL-only route — the critic is the one who can supply a citation, the owner never reads the plan, and the planner applies only confirmed fixes — cost if wrong: a real finding the critic wrongly withdraws is dropped, as if never raised.
 - Ruling: open or unverified findings still go to the planner each round, unchanged, and the critic resolves every unverified finding before the next planner dispatch — cost if wrong: one redundant `unverified` reply when a critic skips a resolution.
 - Ruling: a gate that still fails blocks convergence in critique.md step 4 as well as the cap in step 6 — step 6 alone does not stop a clean round from reaching step 8 — cost if wrong: one more sentence in critique.md.
+- Ruling: D-01 "a plan round with only Should findings" is read as a round after which only Shoulds are still open or unverified (`<m>` = 0); a round that reports only Shoulds while an earlier Must is still open is followed by a whole round — so D-01 and @ac-1 both hold and the round subject matches the choice — cost if wrong: one extra whole-plan read in that case.
+- Ruling: a diff critic also opens the task each open or unverified finding names, and still never reads the whole plan — enough to judge an unverified finding while staying a diff read — cost if wrong: a finding that names no task gets only the hunk context.
 
 ## Deferred
 - Two critics in parallel in plan round 1 was deferred, then taken into this ticket as D-05 on 2026-10-16 ("Chốt, gộp vào ST-LN-4 (Recommended)").

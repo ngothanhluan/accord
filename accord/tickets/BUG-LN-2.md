@@ -77,6 +77,8 @@ Feature: BUG-LN-2
 <!-- Settled answers, one per line: - D-01 <decision> — "<the owner's sentence>" -->
 - D-01 For a claimed ticket, the dashboard and status read the ticket, its plan, ledger, review, verification and the plan's ready commit from the claim branch, even when the current branch holds an older copy — "Luôn từ nhánh claim (Recommended)"
 - D-02 All three parts are in scope and none is cut: claimed tickets on other branches show, `build` only after `plan: <id> ready`, an unwritten intent points to the interview — "Đúng cả 3 (Recommended)", then "Cả 3 phần, không cắt (Recommended)"
+- D-03 A lane ticket row at stage intent gains a `next` field in `accord status --json` and `accord dashboard --json`, and the dashboard prints it after the stage; no field is removed; spec §6 line 179 is updated to match — "Thêm field next (Recommended)"
+- D-04 A dependency counts as done only in the tree the command runs on, as spec §5 says: a ticket done only on its unmerged claim branch still blocks its dependents on the dashboard, while its own row shows the stage its branch holds — "Vẫn bị chặn, giữ spec §5 (Recommended)"
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
@@ -86,3 +88,37 @@ Feature: BUG-LN-2
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
+**Chosen: a claim view in the CLI loader, with dependency checks kept on the current tree.**
+- Only `status` and `dashboard` overlay claim-branch files. `gitClaims` keeps the full refname.
+- A claim is overlaid when it is not the current branch's own ticket (`ticketOfBranch(current)`) and its tip is not an ancestor of HEAD. Then:
+  - one `git cat-file --batch` reads the ticket, plan, ledger, review and verification, even when the checkout has no ticket file;
+  - one `git log -1 <ref>` reads the plan's last commit subject.
+- Every stage-deriving command gives each plan.md a fact: last commit subject plus clean flag. The working tree uses `git --no-optional-locks status --porcelain -z -uall -- accord/tickets`.
+- A plan.md that was never committed is not ready. A host that supplies no facts keeps today's stage.
+- `progressOf` holds `plan` until the subject is exactly `plan: <id> ready` and the plan is clean.
+- The next-step text moves into core's stage module. It reads the intent interview when Intent is empty or missing, or when no scenario other than the placeholder exists (zero counts).
+- StatusRow gains `next` at stage intent (D-03).
+- `statusRows` and `dashboard` take the plain snapshot as an optional trailing parameter, used only for `isDone` (D-04).
+- Every new git call sets `GIT_NO_LAZY_FETCH=1`.
+
+**Rejected:**
+- Overlay everywhere: dependencies would count as done on unmerged branches, against spec §5 and D-04.
+- Overlay in pure core: no criterion needs it.
+
+**Affected:**
+- CLI: `load/fs.ts` and `load/snapshot.ts`, the status and dashboard commands.
+- Core: `model/snapshot.ts`, `status/stage.ts`, `status/anchor.ts`, `status/rows.ts`, `render/dashboard.ts`.
+- The `/accord` skill's id check: an id listed with a `branch` counts.
+- Spec §5 lines 148-150 and §6 line 179.
+- Tests that commit a plan with no ready commit (`test/helpers/repo.ts`, `lane-commands.test.ts`, `lane-flow.test.ts`, `status.test.ts`).
+
+**Risks:** the critic found no Must. All ten Should findings are folded in above.
+- In a blobless clone the overlay reads nothing and reports nothing (Nice).
+- The summary's done count and an epic's `d/t done` can differ under D-04 (Nice).
+- In-flight tickets with no `plan: <id> ready` commit show `plan` after the merge.
+- Lint counts on an overlaid row come from the checkout.
+
+**Tests:**
+- AC-1, AC-2: CLI tests in `status.test.ts` and `dashboard.test.ts`, with refs made by `git update-ref refs/remotes/origin/t/X`.
+- AC-3: a core stage test, plus CLI tests for untracked, staged and unstaged plans, and a claim ref against a dirty tree.
+- AC-4: a core next-step test, plus one CLI check each for `anchor` and `dashboard`.

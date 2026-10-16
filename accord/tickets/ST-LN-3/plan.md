@@ -1,6 +1,6 @@
 ---
 baseline: 1d635b5277fa10c77b89c3eba8108cb877065060
-plan_hash: "fnv1a64:9bd198254e0ec46f"
+plan_hash: "fnv1a64:6b1b8a6871b524ab"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -465,6 +465,8 @@ Test first, in `packages/core/test/panel.test.ts`:
     two child boxes are `{ width: 5, flexShrink: 0 }` (`ST-10`) and `{ width: 12, flexShrink: 0 }` (`plan idle 3d`),
     and its third is `{ flexGrow: 1, flexShrink: 1 }` with no `width` and no `minWidth` key. `cell('ID').box` and
     `cell('STAGE').box` equal the first two, and `cell('TITLE').box` and `cell(LONG).box` equal the third.
+    `cell('ID').row` has `flexDirection: 'row'` and `columnGap: 2`, the same as `cell('ST-3').row`, so the header
+    words sit over their columns.
     `cell(LONG).text.wrap` is `'truncate'` and its children hold the whole of `LONG` (the host cuts, the view does
     not).
   - `h.buttonBox('continue:ST-10')` and `h.buttonBox('pick-up:ST-7')` each equal `{ flexShrink: 0 }`.
@@ -507,8 +509,9 @@ Interface:
   `Text({ bold: true })` of the id, `Box({ width: widths.stage, flexShrink: 0 })` holding `Text` of the stage with
   `color: stageColor` (the key left out when undefined), `Box({ flexGrow: 1, flexShrink: 1 })`
   holding `Text({ wrap: 'truncate' })` of the title, then, when the row has an action, `Box({ flexShrink: 0 })`
-  holding the row's `Button` as today. The header row is the same three boxes holding `Text({ dimColor: true })` of
-  `ID`, `STAGE`, `TITLE`. When `blockedBy` or `who` is non-empty, a second row `Box({ flexDirection: 'row',
+  holding the row's `Button` as today. The header row is a row `Box({ flexDirection: 'row', columnGap: 2, children })`,
+  the same container as a data row, of the same three boxes holding `Text({ dimColor: true })` of `ID`, `STAGE`,
+  `TITLE`. When `blockedBy` or `who` is non-empty, a second row `Box({ flexDirection: 'row',
   columnGap: 2 })` follows: an empty `Box({ width: widths.id, flexShrink: 0 })`, then
   `Text({ color: 'red' })` of `blockedBy` when non-empty, then `Text({ dimColor: true })` of `who` when non-empty.
   `none`, `+N more` and the summary are `Text({ dimColor: true })`. The message tree and the Input stay as they are.

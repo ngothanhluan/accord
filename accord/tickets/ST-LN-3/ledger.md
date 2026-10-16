@@ -50,6 +50,12 @@
 - Ruling: review round 1's reformat fix rebuilt skills.ts and skills-sync.test.ts from the 1d635b5 baseline plus the panel edits, with no formatter — the diff against the baseline is now 37 and 129 lines — cost if wrong: none.
 - Ruling: a panel row's stage text keeps the CLI's ` idle Nd` suffix — the fix copies the CLI renderer — cost if wrong: one extra word on a row.
 - Ruling: an open but unplaced pane marks itself stale on turn.complete and refreshes on its next draw, so the CLI still never runs while nothing is drawn (c3b0f08) — cost if wrong: the first draw after widening shows the old JSON until one run finishes.
+- Ruling: the plan stage ran a fourth critic revision past the three-round cap, for one Should on the header row's container — the owner chose "Cho sửa thêm 1 vòng" — cost if wrong: none.
+- Ruling: the title column is sized by Yoga flex (`flexGrow: 1, flexShrink: 1`) instead of the change note's `e.props.bodyColumns` — the flex box takes exactly the width left after the fixed cells, D-11's "cut to the width left", with no width arithmetic and no redraw on resize — cost if wrong: if the host does not shrink a flex box the title wraps instead of being cut; seen at verify, fixed with a title width from `bodyColumns`.
+- Ruling: no `minWidth` on the title box and no `columns` on `$.ui.open` — dropping minWidth leaves the title the only cell cut, and `columns` is a request the dock may ignore (d.ts:6062-6069) — cost if wrong: a pane narrower than the id, stage and button cells plus gaps (about 38 cells) clips or wraps the button.
+- Ruling: id and stage cells have fixed widths with `flexShrink: 0`, the button sits in `Box({flexShrink:0})`, and the widths are the longest value or header word over every dashboard row before the search filter — the columns line up across sections and hold still while typing — cost if wrong: one long id or stage widens the column for every row.
+- Ruling: EPICS rows put `<done>/<total> done` in the stage column with no colour; an empty section shows its heading and a dim `none` with no header row; blocked-by is red, not dimmed; the stage colour lookup uses `Object.hasOwn` — cost if wrong: a style differs from what the owner pictured; seen at verify.
+- Ruling: the risk test finds second-line rows as a row Box whose first child is an empty Box, plus the text each holds — the check least tied to the tree's incidental shape — cost if wrong: a correct render with the spacer elsewhere fails the test.
 
 ## Deferred
 - Review round 1 (Nice): the orphan report tells the user to `rm -rf .claude/accord-panel` and remove the `accord` marketplace keys without checking for the generated marker, so it can point at a user-owned folder or a foreign marketplace (skills.ts orphans).
@@ -61,6 +67,11 @@
 - Final re-review (Nice): the first draw after widening shows the old dashboard until the refresh run finishes, with no loading marker (panel/register.js:63-66).
 - Final re-review (Nice): an explicit `/accord-panel` refresh does not clear `stale`, so one redundant sequential CLI run follows (panel/register.js:50,63).
 - Final re-review (Nice): the test `risk:parsing a row also shows its stage, who holds it and what blocks it, cleaned` covers formatting, not parsing, and never exercises `idleDays` (panel.test.ts).
+- Plan round 2 (Nice): id and stage widths count code points, not display cells, so a double-width id such as `機能-1` wraps inside its box and the columns no longer line up.
+- Plan round 4 (Nice): nothing checks the second line spacer is `{ width: widths.id, flexShrink: 0 }`; a bare `Box({})` starts blocked-by at column 0 and the test stays green.
+- Plan round 4 (Nice): the intent, verify and ready stage colours (D-12) are not asserted.
+- Plan round 4 (Nice): one long stage (`build 10/12 idle 120d`) or a long unsafe id widens a fixed column for every row in every section, leaving titles little room in a narrow dock.
+- Plan round 4 (Nice): Task 8 keeps plugin.json at 0.1.0; re-verify the pane in a new session or after `/reload-plugins` so a cached copy is not checked.
 
 ## Tasks
 - task 1 done 4d590c7316ca

@@ -6,7 +6,7 @@ import { EMPTY_CELL, fit, sanitise } from './table.js';
 const TITLE_MAX = 60;
 
 // Control, bidi and line-separator code points become a space (T-05-11 for non-ASCII text). Scanned, not a regexp (no-control-regex).
-const isUnsafe = (cp: number): boolean =>
+export const isUnsafe = (cp: number): boolean =>
   cp < 0x20 || (cp >= 0x7f && cp <= 0x9f) || cp === 0x61c || cp === 0x200e || cp === 0x200f || cp === 0x2028 || cp === 0x2029 ||
   (cp >= 0x202a && cp <= 0x202e) || (cp >= 0x2066 && cp <= 0x2069);
 

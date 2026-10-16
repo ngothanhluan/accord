@@ -41,7 +41,7 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: ST-LN-4
 
-  @ac-1
+  @ac-1 @test:packages/core/test/stage-skills.test.ts#ac-1-the-first-plan-critique-is-sized-by-the-plan-and-a-should-only-round-reads-the-fix-diff
   Scenario: The plan's first critique is sized by the plan, and a round with only Should findings is followed by a read of the fix diff
     Given the accord-plan skill as `accord skills sync` renders it
     Then the first round dispatches one critic for a plan of one to three tasks

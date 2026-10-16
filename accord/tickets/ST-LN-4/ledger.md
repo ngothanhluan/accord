@@ -14,6 +14,9 @@
 - Ruling: a Nice gets the state `deferred` in `plan-review.md` — otherwise it has no state from the list — cost if wrong: none to behaviour.
 - Ruling: the ac-5 test also reads the rendered `critique.md` — "goes to the owner at once" is done by the main session, not by either agent — cost if wrong: the test reads one more file than @ac-5 Given names.
 - Ruling: the ac-1 test also checks the critic agent diff, lens and fixed-list text — that is the wiring the skill relies on, and no other test guards it — cost if wrong: the test is broader than @ac-1 Given.
+- Ruling: the next critic closes an `unverified` finding, by repeating it as a new numbered finding with the missing citation or a different fix, or by withdrawing it; the owner is asked only on the URL-only route — the critic is the one who can supply a citation, the owner never reads the plan, and the planner applies only confirmed fixes — cost if wrong: a real finding the critic wrongly withdraws is dropped, as if never raised.
+- Ruling: open or unverified findings still go to the planner each round, unchanged, and the critic resolves every unverified finding before the next planner dispatch — cost if wrong: one redundant `unverified` reply when a critic skips a resolution.
+- Ruling: a gate that still fails blocks convergence in critique.md step 4 as well as the cap in step 6 — step 6 alone does not stop a clean round from reaching step 8 — cost if wrong: one more sentence in critique.md.
 
 ## Deferred
 - Two critics in parallel in plan round 1 was deferred, then taken into this ticket as D-05 on 2026-10-16 ("Chốt, gộp vào ST-LN-4 (Recommended)").

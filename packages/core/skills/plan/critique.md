@@ -69,7 +69,8 @@ line.
    `diff` round reads from that commit. Dispatch `accord-planner` with the
    ticket path, the baseline, the mode, the path of `plan-review.md`, and
    every Must and Should that is `open` or `unverified`, never a Nice,
-   each with the owner's words it holds. The planner fixes every one.
-   Write each `unverified: <reason>` it replies into that finding's
-   state; a finding it reports fixed stays `open` until a critic lists it
+   each labelled `<round>.<n>` and listed with the owner's words it holds.
+   The planner fixes every one and replies by that label. Write each
+   `unverified: <reason>` it replies into the state of the finding with that
+   label; a finding it reports fixed stays `open` until a critic lists it
    after `fixed:`. Then go back to step 4 of the skill.

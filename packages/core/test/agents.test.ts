@@ -179,6 +179,7 @@ it('ac-5 an api a finding relies on carries a citation the planner confirms', ()
     'A fix with no citation, a citation you cannot read, or a citation that does not confirm the API is reported as `unverified: <reason>`, not applied.',
     "A fix whose API is cited only by a URL is applied only when you are given the owner's words saying to apply it.",
   ]) expect(planner, `planner lacks: ${s}`).toContain(s);
+  expect(planner).toContain('its `<round>.<n>` label, which you reply with');
   expect(loop).toContain('goes to the owner at once');
   expect(loop).toContain('On apply its state becomes `open, owner: "<the owner\'s words>"`');
   expect(plannerRaw).toMatch(/^tools: "Read, Grep, Glob, Write, Edit"$/m);

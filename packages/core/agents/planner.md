@@ -48,7 +48,7 @@ Before you reply, run these checks of the critic's plan mode on your plan and fi
 - Check that, assuming every task passes its `verify:` line, the `## Intent` holds for the person it names. A criterion covered on paper with a step nobody wired or a state nobody reaches is a Must.
 - Check that an executor holding only the ticket and one task could finish that task without asking; a task that fails this is a Should.
 
-When you finish, reply with the path of `plan.md`, the number of tasks, and for each finding you were given its number and `fixed` or `unverified: <reason>`.
+When you finish, reply with the path of `plan.md`, the number of tasks, and for each finding you were given its `<round>.<n>` label, which you reply with, and `fixed` or `unverified: <reason>`.
 
 You never create `accord/tests-baseline.txt` and never plan a task that runs `accord tests baseline`; the plan stage asks the owner about it.
 

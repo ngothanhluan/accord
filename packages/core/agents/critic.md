@@ -38,6 +38,7 @@ Severity, by what happens if the finding is left:
 
 Findings:
 - Numbered, each with a severity `Must`, `Should`, or `Nice`, and a concrete failing case: the input, step, or state, and what goes wrong.
+- A finding, or a fix you propose, that relies on a host or library API cites where that API is defined: a file and line in the working tree, `node_modules` included, as `path:line`, or the URL of the document outside it.
 - No failing case, no finding.
 - When you find nothing, say `No findings`.
 

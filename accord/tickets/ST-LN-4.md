@@ -89,6 +89,7 @@ Feature: ST-LN-4
 - D-01 A Should is still fixed; after a plan round with only Should findings the critic reads only the fix diff, never the whole plan again; the plan never fixes a Nice; in review a Should fix is checked by the affected tests, without a re-review; Must, Should and Nice are defined by their consequence — "option 1" (to: "Đọc lại gọn hơn (Recommended)", after the history review of 43 critic Should findings, 2026-10-16)
 - D-02 Before handing over a plan, the planner checks it against the same checklist the critic uses — "Planner tự soát checklist (Recommended)"
 - D-03 The critic relies on a host or library API only with a file:line citation, and the planner checks a fix the critic proposes against the code before applying it — "API phải có trích dẫn (Recommended)"
+- D-04 No agent gains a web tool: a critic-proposed fix whose API is cited only by a URL outside the repository goes to the owner at once, who applies or drops it — "Không thêm WebFetch, hỏi anh (Recommended)"
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->

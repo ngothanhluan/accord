@@ -75,7 +75,7 @@ Feature: ST-LN-4
       Nice: no defect, only a clearer or smaller way.
       """
 
-  @ac-4
+  @ac-4 @test:packages/core/test/agents.test.ts#ac-4-the-planner-runs-every-plan-check-of-the-critic-before-it-replies
   Scenario: The planner checks its plan against the critic's checklist before handing it over
     Given the planner and critic agents as `accord skills sync` renders them
     Then the planner's agent file holds every item of the critic's plan-mode check list, word for word

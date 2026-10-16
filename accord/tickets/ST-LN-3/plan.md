@@ -1,6 +1,6 @@
 ---
 baseline: 1d635b5277fa10c77b89c3eba8108cb877065060
-plan_hash: "fnv1a64:9720f92f803d22a9"
+plan_hash: "fnv1a64:9bd198254e0ec46f"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -473,8 +473,15 @@ Test first, in `packages/core/test/panel.test.ts`:
     stage cell and the colour comes from the raw stage); `cell('constructor').text.color` is `undefined`.
   - `cell('blocked by ST-6 ST-4').text.color` is `'red'`; `cell('an [1m@x').text.dimColor` is `true`; no text
     contains `me@x` (YOURS shows no holder); exactly one text starts with `blocked by`, and the texts that equal
-    `an [1m@x` number one (ST-8, ST-10 and ST-11 have no second line).
+    `an [1m@x` number one.
+  - Second lines only where a row has one: walk the tree and collect every `Box` with `flexDirection: 'row'` whose
+    first child is a `Box` with no `children` key or an empty `children` array. There are exactly two: one holds
+    the text `blocked by ST-6 ST-4` (ST-7) and the other the text `an [1m@x` (ST-3). ST-8, ST-10, ST-11 and EP-1
+    have neither, so a second line drawn under every row fails here.
   - `h.buttons().map((b) => b.key)` equals `['continue:ST-10', 'pick-up:ST-7', 'pick-up:ST-8']` (EP-1 has none).
+  - Last, the columns hold still while typing: `h.type('st-3')`; under `vi.waitFor` no text holds `ST-7`; then
+    `cell('ST-3').row`'s first two child boxes are still `{ width: 5, flexShrink: 0 }` and `{ width: 12, flexShrink:
+    0 }` (measured over the shown rows they would be 4 and 9).
 
 The ac-1, ac-2 and ac-3 tests and every other risk test stay byte-identical: each finds a row by
 `texts().some((x) => x.includes(id))` or a title substring, and the id and the whole cleaned title each stay in one
@@ -491,9 +498,9 @@ Interface:
   (a stage named `constructor` must not pick up an inherited value), else `undefined`; `blockedBy` is `'blocked by '`
   plus the cleaned ids joined by a space when `r.blockedBy` is a non-empty array, else `''`; `who` is the cleaned
   `claimedBy` outside YOURS, `''` in YOURS. The dashboard result gains `widths: { id, stage }`: each the longest of
-  the header word (`ID`, `STAGE`) and every shown row's value, in code points, across all sections (EPICS
-  included), so the columns
-  line up between sections. There is no title width: flex sizes the title.
+  the header word (`ID`, `STAGE`) and the cleaned value of every row of the dashboard before the search filter
+  (a row whose `id` is not a string is skipped, as today), in code points, across all sections (EPICS included),
+  so the columns line up between sections and do not move while the owner types. There is no title width: flex sizes the title.
 - `register.js` `ui.render` calls `view(state, query)` as today. Per section: `Box({ marginTop: 1, children:
   [Text({ bold: true, color: 'cyan', children: [heading] })] })`; when the section has rows, a header row; per row a
   row `Box({ flexDirection: 'row', columnGap: 2, children })` of `Box({ width: widths.id, flexShrink: 0 })` holding

@@ -229,3 +229,28 @@ it('ac-1 the first plan critique is sized by the plan and a should only round re
   ];
   expect(criticPhrases.filter((p) => !critic.includes(p))).toEqual([]);
 });
+
+it('ac-2 a review round with only should findings converges without a re-review', () => {
+  const flat = (t: string) => t.replace(/\s+/g, ' ');
+  const skill = flat(files.find((f) => f.path === '.claude/skills/accord-review/SKILL.md')?.text ?? '');
+  const record = flat(files.find((f) => f.path === '.claude/skills/accord-review/record.md')?.text ?? '');
+  expect(skill.length, 'accord-review/SKILL.md is missing').toBeGreaterThan(0);
+  expect(record.length, 'accord-review/record.md is missing').toBeGreaterThan(0);
+  const step4 = skill.slice(skill.indexOf('4. **Classify.**'), skill.indexOf('5. **Converged**'));
+  const step7 = skill.slice(skill.indexOf('7. **Final review.**'), skill.indexOf('8. **Record.**'));
+  expect(step4.length).toBeGreaterThan(0);
+  expect(step7.length).toBeGreaterThan(0);
+  expect(
+    [
+      'run the `tests.affected` command over the files the fix touched, or `tests.full` when `tests.affected` is not configured or finds no test file.',
+      'When the round reported a Must, re-review only the fix diff',
+      'When it reported only Should findings, no reviewer is dispatched again for that fix: that command passing checks it.',
+    ].filter((p) => !step4.includes(p)),
+  ).toEqual([]);
+  expect(skill).toContain('**Converged** means no Must is open and every Should is fixed with that command passing.');
+  expect(skill).not.toContain('zero Must and zero Should');
+  expect(step7).toContain('If it finds only Should findings, fix them and run that command as in step 4, with no re-review.');
+  expect(record).toContain('every Should is fixed with that command passing');
+  expect(record).toContain('or `tests.full` when `tests.affected` is not configured or finds no test file');
+  expect(record).not.toContain('zero Must and zero Should');
+});

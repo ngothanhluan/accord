@@ -399,15 +399,17 @@ merges and de-duplicates findings before the fix loop.
 - Before fixing, each finding is marked `patch`, `plan-gap`, or `intent-gap`. Only patches enter the fix
   loop. A plan gap goes back to the plan stage, where the critic runs again. An intent gap stops the run
   and asks the owner.
-- Fix every Must and Should marked `patch`, then re-review only the fix diff, with one reviewer.
-- Converged means zero Must and zero Should. Nice findings go to the ledger as deferred, not fixed.
+- Fix every Must and Should marked `patch`. After a round with a Must, re-review only the fix diff, with one
+  reviewer; after a round with only Should findings, the affected tests over the fixed files, or the full suite
+  when none apply, check the fix, with no re-review.
+- Converged means no Must is open and every Should is fixed with that test command passing. Nice findings go to the ledger as deferred, not fixed.
 - If round three still finds a new Must, the orchestrator says whether it traces to the ticket or the
   plan; if it does, the owner is asked before round four.
 - At most five rounds. Rounds four and five use a fresh executor one model tier higher.
 - At the cap the run stops and reports the open findings to the owner. It never reports done.
 - After convergence, one fresh final reviewer on the strongest configured model reads the whole diff once
-  (for diffs over about 1500 lines the integration reviewer takes this role). One fix and one scoped
-  re-review follow if needed, then stop.
+  (for diffs over about 1500 lines the integration reviewer takes this role). A Must gets one fix and one scoped
+  re-review; a Should gets a fix checked by that test command; then stop.
 - `tickets/<id>/review.md` records each round and ends with `verdict: converged` or, after the cap,
   `verdict: accepted-by-owner` with the owner's sentence quoted.
 

@@ -16,7 +16,11 @@ import {
   hookEntries,
   markerHash,
   mergeHooks,
+  mergePanel,
   normaliseText,
+  panelSettings,
+  pluginDir,
+  pluginTargets,
   skillTargets,
   withoutMarker,
 } from '@accord-dev/accord-core';
@@ -91,17 +95,29 @@ export function planHooks(root: string, config: Pick<AccordConfig, 'runtimes'>):
   const entries = hookEntries(pkg);
   const file = join(root, ...SETTINGS.split('/'));
   if (lstatSync(file, { throwIfNoEntry: false }) === undefined) {
-    return { status: 'created', text: JSON.stringify(mergeHooks({}, entries), null, 2) + '\n' };
+    return { status: 'created', text: JSON.stringify(mergePanel(mergeHooks({}, entries)), null, 2) + '\n' };
   }
   let parsed: unknown;
   let merged: Record<string, unknown>;
   try {
     parsed = JSON.parse(readFileSync(file, 'utf8'));
-    merged = mergeHooks(parsed, entries);
+    merged = mergePanel(mergeHooks(parsed, entries));
   } catch (err) {
+    const keys = JSON.stringify(panelSettings, null, 2);
+    if (err instanceof RangeError) {
+      throw new UsageError(
+        SETTINGS +
+          ' already declares a marketplace named accord with another source; nothing was written. Rename it, then add these keys for the accord panel by hand:\n' +
+          keys,
+      );
+    }
     if (!(err instanceof SyntaxError || err instanceof TypeError)) throw err;
     throw new UsageError(
-      SETTINGS + ' is not a JSON object; nothing was written. Add these hooks by hand:\n' + JSON.stringify({ hooks: entries }, null, 2),
+      SETTINGS +
+        ' is not a JSON object; nothing was written. Add these hooks by hand:\n' +
+        JSON.stringify({ hooks: entries }, null, 2) +
+        '\nand these keys for the accord panel:\n' +
+        keys,
     );
   }
   if (JSON.stringify(merged) === JSON.stringify(parsed)) return { status: 'unchanged' };
@@ -151,6 +167,7 @@ function orphans(root: string, config: AccordConfig): string[] {
       if (entry.isFile() && entry.name.startsWith('accord-') && entry.name.endsWith('.md') && !rendered.has(path)) found.push(path);
     }
   }
+  if (scannable(root, pluginDir) && pluginTargets(config, pkg).length === 0) found.push(pluginDir);
   return found.sort();
 }
 
@@ -187,7 +204,7 @@ export function skills(ctx: CommandContext): number {
     throw new UsageError('accord/config.yml is missing or failed its schema; run accord lint');
   }
 
-  const targets = [...skillTargets(config), ...agentTargets(config)];
+  const targets = [...skillTargets(config), ...agentTargets(config), ...pluginTargets(config, pkg)];
   // T-06-03: refuse before the first byte, over every destination. The loop below writes as it iterates, so
   // a guard inside it leaves everything sorted ahead of the bad path on disk while the message claims
   // "nothing was written" — a false report is worse than either outcome on its own.
@@ -205,7 +222,17 @@ export function skills(ctx: CommandContext): number {
   // stderr, like status's advisory line: an orphan is something to tell the reader about, not part of
   // the report of what was written — and it must not change the exit code (D-113).
   ctx.stderr.write(
-    stale.map((d) => 'orphan ' + d + ' - no longer declared; accord never deletes - remove it with: rm -rf ' + d + '\n').join(''),
+    stale
+      .map(
+        (d) =>
+          'orphan ' +
+          d +
+          ' - no longer declared; accord never deletes - remove it with: rm -rf ' +
+          d +
+          (d === pluginDir ? ' - then remove extraKnownMarketplaces.accord and enabledPlugins["accord-panel@accord"] from ' + SETTINGS : '') +
+          '\n',
+      )
+      .join(''),
   );
   return 0;
 }

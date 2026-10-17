@@ -32,6 +32,7 @@
 - Ruling: Task 7 goes after Task 6 in the file — anchor names the lowest-numbered open task, and Task 7 does not depend on Task 6 — cost if wrong: the spec and skill edit lands before the `show` fix.
 - Ruling: the blockers test copies the `done` helpers from `dashboard.test.ts` lines 11-35 (leaving out the unused `ready`) instead of adding a shared helper file — no file outside the four listed is touched — cost if wrong: about 15 duplicated lines in two test files.
 - Ruling: D-05 extends the Ruling that only `status` and `dashboard` overlay claims; `show` now does too, and the panel runs it after each turn through the same lock-free `git --no-optional-locks status` — cost if wrong: none.
+- Ruling: the review package is built with `--base 8d0642d` (origin/main, the commit merged at 08dc3a4) instead of the plan baseline — the baseline diff carries 17 files ST-LN-6 brought in through that merge, already reviewed on their own ticket, while the diff against main is exactly this branch's change with no undeclared file — cost if wrong: none, main has not moved since the merge.
 
 ## Deferred
 - plan round 1.3: Task 4's AC-3 test checks `anchor` only for the round, ready, unstaged and claim-ref cases, not for staged and untracked plan.md.

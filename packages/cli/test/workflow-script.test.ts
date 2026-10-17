@@ -174,6 +174,14 @@ const GATED: Array<Case & { id: string }> = [
       );
     },
   },
+  {
+    // Same rename without padding: git sees delete plus add, so only the deleted approved ticket gates it.
+    id: 'REN-2',
+    change: (r) => {
+      rmSync(join(r, 'accord', 'tickets', 'OLD-1.md'));
+      write(r, 'accord/tickets/REN-2.md', APPROVED_TICKET.replace('OLD-1', 'REN-2').replace(/approved_hash.*\n/, ''));
+    },
+  },
   { id: 'NEW-1', change: (r) => write(r, 'accord/tickets/NEW-1.md', APPROVED_TICKET.replace('OLD-1', 'NEW-1')) },
   { id: 'OLD-1', change: (r) => write(r, 'accord/tickets/OLD-1.md', NO_KEY_TICKET) },
   { id: 'OLD-1', change: (r) => write(r, 'accord/tickets/OLD-1.md', NO_KEY_TICKET), fail: 'OLD-1' },

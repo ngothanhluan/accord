@@ -52,7 +52,8 @@ jobs:
           fi
           # A pull request that changes anything outside accord/ gates every ticket it touches. One that
           # changes only accord/ skips a ticket that is unapproved or dropped, so a backlog can land. A failing
-          # diff counts as code, and so does a deletion, so every doubt is resolved toward gating.
+          # diff counts as code, and so does a deletion, so every doubt is resolved toward gating. Below, the
+          # deletion or rename-away of an approved ticket turns an accord-only pull request into one with code.
           has_code=0
           if ! changed=$(git -c core.quotePath=false diff --name-only --no-renames "$BASE"...HEAD); then
             has_code=1
@@ -86,12 +87,20 @@ jobs:
             fm_at HEAD "$file" || return 1
             grep -Eq "^${qc}?status${qc}?[[:space:]]*:[[:space:]]*${qc}?dropped${qc}?[[:space:]]*(#.*)?$" <<< "$fm"
           }
-          # A renamed ticket is read at its old path in the base commit, so a rename cannot skip the gate.
-          renames=$(git -c core.quotePath=false diff --name-status -M --diff-filter=R "$BASE"...HEAD || true)
+          # An approved ticket deleted or renamed away counts as code, whether or not git pairs the rename, so
+          # a rename that drops approved_hash cannot skip the gate. A failing diff counts as code too.
+          if [ "$has_code" -eq 0 ]; then
+            if ! gone=$(git -c core.quotePath=false diff --name-only --no-renames --diff-filter=D "$BASE"...HEAD); then
+              has_code=1
+            else
+              while IFS= read -r old; do
+                [[ "$old" =~ ^accord/tickets/[^/]+[.]md$ ]] || continue
+                if approved_at "$BASE" "$old"; then has_code=1; fi
+              done <<< "$gone"
+            fi
+          fi
           # A here-string, not a pipe: the loop body runs in this shell, so its assignment to code survives.
           while IFS= read -r file; do
-            base_file=$(awk -v f="$file" '$1 ~ /^R/ && $3 == f { print $2 }' <<< "$renames")
-            base_file=${base_file:-$file}
             id=${file#accord/tickets/}
             id=${id%.md}
             if [ "$has_code" -eq 0 ]; then
@@ -99,7 +108,7 @@ jobs:
                 echo "not gating $id - dropped and this pull request changes nothing outside accord/"
                 continue
               fi
-              if ! approved_at HEAD "$file" && ! approved_at "$BASE" "$base_file"; then
+              if ! approved_at HEAD "$file" && ! approved_at "$BASE" "$file"; then
                 echo "not gating $id - not approved and this pull request changes nothing outside accord/"
                 continue
               fi

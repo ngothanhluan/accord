@@ -31,6 +31,7 @@ ui: false
 Queued 2026-10-17, not approved; the intent interview replaces this:
 - Phase 3 benchmark: a script (not shipped) reads Claude Code subagent transcripts and git to compare agent runs by model, effort, outcome, tokens and time; it answers whether the executor model matters per risk kind.
 - Run before 2026-11-11, when the 30-day transcript retention drops the first dogfood runs.
+- Owner, 2026-10-17, after the main session forgot the review tier-up (BUG-LN-3 round 4 executor dispatched on sonnet, not opus): "làm sao để ko thể nào quên chuyện này? tôi nghĩ phần benchmark phải đánh giá thật kỹ mới dc." So the benchmark also scores process compliance from the transcripts: each dispatch against the skill rules (model tier at `escalation.fix_round_tier_up`, the five-round cap, a fresh agent per brief, the ticket copied byte for byte into a brief, commits without trailers), with that missed tier-up as a known case it must find.
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.

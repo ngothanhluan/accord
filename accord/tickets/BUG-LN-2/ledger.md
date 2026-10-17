@@ -12,5 +12,13 @@
 - Ruling: a claim ref whose tip is an ancestor of HEAD is not overlaid — its records are already in the checkout, which may hold newer edits such as an archive — cost if wrong: a ticket re-opened under a merged branch name shows the checkout copy.
 - Ruling: plan facts are spawned only by commands that derive a stage (status, dashboard, anchor, next, the hook), with `git --no-optional-locks status`, and the claim overlay only by status and dashboard — the panel runs `dashboard --json` on every turn and must not take the index lock while an agent commits; lint and the gates in CI pay nothing — cost if wrong: a stage-deriving command added later forgets the facts and shows `build` early.
 - Ruling: the `/accord` skill accepts `continue <id>` and `pick-up <id>` for an id that `accord status --json` lists with a `branch`, not only an id in `accord/tickets/` — the dashboard now offers Continue on tickets whose file lives only on their branch — cost if wrong: `/accord continue <id>` on main becomes a New request and may scaffold a duplicate.
+- Ruling: the plan edits `packages/core/src/status/dashboard.ts` and `packages/cli/src/render/dashboard.ts`, the real modules, where the Approach names `load/snapshot.ts` in the CLI and `render/dashboard.ts` in core, which do not exist at the baseline — cost if wrong: none in behaviour, a naming mismatch with the Approach.
+- Ruling: a host that supplies plan facts with no entry for a ticket's plan means not ready; only a missing facts key keeps today's stage — a never-committed plan.md must read plan — cost if wrong: a host that drops one entry shows `plan` early.
+- Ruling: the dashboard stage cell reads `intent, next: <text>` before the idle suffix, the wording `anchor` uses — cost if wrong: the cell layout changes again.
 
 ## Deferred
+- plan round 1.3: Task 4's AC-3 test checks `anchor` only for the round, ready, unstaged and claim-ref cases, not for staged and untracked plan.md.
+- plan round 1.4: the plan does not say whether an overlaid row's lint counts come from the claim branch or the checkout; the Approach's Risks say the checkout.
+- plan round 1.5: Task 1 does not say what the overlay does when `currentBranch(root)` returns undefined.
+- plan round 1.6: Task 4's AC-3 test runs about 13 CLI commands with no explicit timeout over the 30 s default; Windows CI may time out.
+- plan skill step 8 can make a `plan: <id> ready` commit that does not touch plan.md when the last round left it unchanged; AC-3 then keeps that ticket at `plan` (build critic, outside this plan).

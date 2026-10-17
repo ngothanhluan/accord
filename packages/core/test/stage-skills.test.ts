@@ -255,3 +255,10 @@ it('ac-2 a review round with only should findings converges without a re-review'
   expect(record).toContain('or `tests.full` when `tests.affected` is not configured or finds no test file');
   expect(record).not.toContain('zero Must and zero Should');
 });
+
+it('risk:regression the accord skill takes an id that accord status lists with a branch', () => {
+  const text = (files.find((f) => f.path === '.claude/skills/accord/SKILL.md')?.text ?? '').replace(/\s+/g, ' ');
+  const named = text.slice(text.indexOf('## A ticket named'), text.indexOf('## Continue'));
+  expect(named).toContain('an id that `accord status --json` lists with a `branch`');
+  expect(named).toContain('`/accord continue ST-99` is a New request');
+});

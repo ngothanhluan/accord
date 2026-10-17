@@ -22,6 +22,7 @@ const cells = (r: StatusRow): string[] => [
   titleCell(r.title),
   sanitise(
     (r.stage === undefined ? EMPTY_CELL : r.stage === 'build' ? `build ${r.tasksDone ?? 0}/${r.tasksTotal ?? 0}` : r.stage) +
+      (r.next === undefined ? '' : `, next: ${r.next}`) +
       (r.idleDays === undefined ? '' : ` idle ${r.idleDays}d`),
   ),
   fit(sanitise(r.claimedBy ?? EMPTY_CELL), 28),

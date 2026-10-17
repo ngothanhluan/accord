@@ -47,7 +47,7 @@ describe('lane ticket flow', () => {
       const baseline = commitAll(repo);
       writeFiles(repo, { 'accord/tickets/T-1/plan.md': PLAN.replace('abc1234', baseline) });
       expect((await run(['gate', 'plan', 'T-1'], repo)).code).toBe(0);
-      commitAll(repo);
+      commitAll(repo, 'plan: T-1 ready');
       freshReport(repo);
       expect((await run(['task-done', 'T-1', '1'], repo)).code).toBe(0);
       expect((await run(['task-done', 'T-1', '1'], repo)).out).toContain('already recorded');

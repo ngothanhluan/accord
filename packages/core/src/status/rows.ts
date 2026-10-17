@@ -5,7 +5,7 @@ import { lintSnapshot } from '../lint/index.js';
 import { scoped } from '../gate/index.js';
 import { acHash } from '../gate/hash.js';
 import { DEFAULT_BRANCH_TEMPLATE } from './branch.js';
-import { isDone, progressOf } from './stage.js';
+import { isDone, nextStep, progressOf } from './stage.js';
 import type { Stage } from './stage.js';
 
 export interface StatusRow {
@@ -25,6 +25,7 @@ export interface StatusRow {
   title?: string; // ST-LN-2 D-07: lane rows only, so a 0.1.0 row stays byte-identical
   lane?: 'M' | 'L' | 'P';
   stage?: Stage;
+  next?: string; // what follows an unwritten or unapproved intent; set only at stage intent
   tasksDone?: number;
   tasksTotal?: number;
   dependsOn?: string[]; // spec §5, as written
@@ -47,9 +48,10 @@ const compare = <T extends string>(recorded: string | undefined, current: string
  * in-flight tickets would render fail: accurate and useless.
  *
  * Every ticket is returned, archived included; the D-93 filter and the `—` glyphs are the caller's.
+ * `plain` is the checkout-only snapshot: a dependency counts as done only there (spec §5, BUG-LN-2 D-04).
  * Pure: reads the snapshot only, never mutates it, and returns the same result on every call.
  */
-export function statusRows(snapshot: RepoSnapshot, now?: number): StatusRow[] {
+export function statusRows(snapshot: RepoSnapshot, now?: number, plain?: RepoSnapshot): StatusRow[] {
   const { findings } = lintSnapshot(snapshot);
   return Object.values(snapshot.tickets)
     .map((ticket): StatusRow => {
@@ -84,9 +86,10 @@ export function statusRows(snapshot: RepoSnapshot, now?: number): StatusRow[] {
               title: fm.title,
               lane: fm.lane,
               stage: progress.stage,
+              ...(progress.stage === 'intent' ? { next: nextStep(ticket, 'intent') } : {}),
               tasksDone: progress.tasksDone,
               tasksTotal: progress.tasksTotal,
-              ...(deps === undefined ? {} : { dependsOn: deps, blockedBy: deps.filter((d) => !isDone(snapshot, d)) }),
+              ...(deps === undefined ? {} : { dependsOn: deps, blockedBy: deps.filter((d) => !isDone(plain ?? snapshot, d)) }),
               ...(claims !== undefined && Object.hasOwn(claims, ticket.id) ? { claimedBy: claims[ticket.id] } : {}),
               branch:
                 snapshot.claimBranches !== undefined && Object.hasOwn(snapshot.claimBranches, ticket.id)
@@ -108,7 +111,8 @@ export function statusRows(snapshot: RepoSnapshot, now?: number): StatusRow[] {
 export function nextRows(rows: StatusRow[]): StatusRow[] {
   return rows.filter(
     (r) =>
-      (r.stage === 'plan' || (r.stage === 'build' && r.tasksDone === 0)) &&
+      (r.stage === 'plan' || r.stage === 'build') &&
+      r.tasksDone === 0 &&
       r.ready === 'ok' &&
       (r.blockedBy ?? []).length === 0 &&
       r.claimedBy === undefined &&

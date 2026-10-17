@@ -30,12 +30,12 @@ export interface TicketDetail {
   criteria: CriterionDetail[];
 }
 
-/** undefined unless `id` is a lane ticket in the snapshot. */
-export function ticketDetail(snapshot: RepoSnapshot, id: string): TicketDetail | undefined {
+/** undefined unless `id` is a lane ticket in the snapshot. `plain` is the checkout-only snapshot whose done tickets decide `blockedBy` (BUG-LN-2 D-04, D-05). */
+export function ticketDetail(snapshot: RepoSnapshot, id: string, plain?: RepoSnapshot): TicketDetail | undefined {
   if (!Object.hasOwn(snapshot.tickets, id)) return undefined;
   const ticket = snapshot.tickets[id];
   const fm = ticket.frontmatter;
-  const row = statusRows(snapshot).find((r) => r.id === id);
+  const row = statusRows(snapshot, undefined, plain).find((r) => r.id === id);
   if (fm === undefined || row?.lane === undefined || row.stage === undefined) return undefined;
   const section = ticket.sections.find((x) => headingKey(x.heading) === headingKey('Intent'));
   const intent = section === undefined ? [] : stripHtmlComments(section.lines).map((l) => l.text).filter((t) => t.trim() !== '');

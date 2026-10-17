@@ -6,7 +6,7 @@ import { renderDashboard } from '../src/render/dashboard.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanup, commitAll, commitAllAt, gitRun, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
-import { CONFIG, laneTicket, PLAN } from '../../../test/helpers/lane.js';
+import { CONFIG, LANE_BODY, laneTicket, PLAN } from '../../../test/helpers/lane.js';
 
 type Files = Record<string, string>;
 type Opts = { lane?: string; frontmatter?: string[] };
@@ -277,7 +277,7 @@ it('risk:regression an idle ticket shows idle days in the dashboard text and the
   const repo = makeLaneRepo();
   try {
     expect((await run(['approve', 'T-1'], repo)).code).toBe(0);
-    commitAllAt(repo, new Date('2000-01-01T00:00:00Z'));
+    commitAllAt(repo, new Date('2000-01-01T00:00:00Z'), 'plan: T-1 ready');
     gitRun(repo, 'config', 'user.email', 'an@example.com');
     const res = await run(['dashboard'], repo);
     expect(res.code).toBe(0);
@@ -287,6 +287,56 @@ it('risk:regression an idle ticket shows idle days in the dashboard text and the
     expect(Object.keys(j.summary)).toEqual(['inProgress', 'ready', 'blocked', 'backlog', 'done', 'withoutLane', 'withSchemaErrors']);
     expect(j.epics).toEqual({ rows: [], more: 0 });
     expect(typeof j.upNext.rows.find((r: { id: string }) => r.id === 'T-1').idleDays).toBe('number');
+  } finally {
+    cleanup(repo);
+  }
+});
+
+it('risk:complex-branching a dependency done only on its claim branch still blocks its dependent', async () => {
+  const repo = makeLaneRepo({ [P('T-1')]: laneTicket('T-1'), [P('T-2')]: laneTicket('T-2', { frontmatter: ['depends_on: ["T-1"]'] }) });
+  try {
+    gitRun(repo, 'config', 'user.email', 'an@example.com');
+    commitAll(repo);
+    const base = gitRun(repo, 'rev-parse', '--abbrev-ref', 'HEAD').trim();
+    gitRun(repo, 'checkout', '-b', 't/T-1');
+    const files: Files = {};
+    done(files, 'T-1');
+    writeFiles(repo, files);
+    commitAll(repo);
+    gitRun(repo, 'update-ref', 'refs/remotes/origin/t/T-1', 'HEAD');
+    gitRun(repo, 'checkout', base);
+    gitRun(repo, 'branch', '-D', 't/T-1');
+    const rows = JSON.parse((await run(['status', '--json'], repo)).out) as { id: string; stage?: string; blockedBy?: string[] }[];
+    expect(rows.find((r) => r.id === 'T-1')?.stage).toBe('done');
+    expect(rows.find((r) => r.id === 'T-2')?.blockedBy).toEqual(['T-1']);
+    const j = JSON.parse((await run(['dashboard', '--json'], repo)).out);
+    expect(j.summary.blocked).toBe(1);
+  } finally {
+    cleanup(repo);
+  }
+});
+
+it('ac-4 an unwritten intent points anchor and dashboard to the intent interview', async () => {
+  const INTERVIEW = 'the intent interview (accord-intent)';
+  const APPROVE = 'the owner approves the ticket (accord approve)';
+  const repo = makeLaneRepo({
+    [P('T-2')]: laneTicket('T-2', { body: LANE_BODY.replace('Owners can export their report as CSV.', '<!-- why, for whom -->\n') }),
+    [P('T-3')]: laneTicket('T-3', {
+      body: LANE_BODY.replace(/```gherkin[\s\S]*?```/, '```gherkin\nFeature: T-3\n\n  @ac-1\n  Scenario: <observable outcome>\n    Given ...\n    When ...\n    Then ...\n```'),
+    }),
+  });
+  try {
+    gitRun(repo, 'config', 'user.email', 'an@example.com');
+    expect((await run(['anchor', 'T-2'], repo)).out).toContain(`Stage: intent, next: ${INTERVIEW}`);
+    expect((await run(['anchor', 'T-3'], repo)).out).toContain(`Stage: intent, next: ${INTERVIEW}`);
+    expect((await run(['anchor', 'T-1'], repo)).out).toContain(`Stage: intent, next: ${APPROVE}`);
+    const text = (await run(['dashboard'], repo)).out.split('\n');
+    expect(text.find((l) => l.includes('T-2'))).toContain(`intent, next: ${INTERVIEW}`);
+    expect(text.find((l) => l.includes('T-3'))).toContain(`intent, next: ${INTERVIEW}`);
+    expect(text.find((l) => l.includes('T-1'))).toContain(`intent, next: ${APPROVE}`);
+    const j = JSON.parse((await run(['dashboard', '--json'], repo)).out);
+    const all = [j.yours, j.team, j.ready, j.upNext].flatMap((s) => s?.rows ?? []) as { id: string; next?: string }[];
+    expect(all.find((r) => r.id === 'T-2')?.next).toBe(INTERVIEW);
   } finally {
     cleanup(repo);
   }

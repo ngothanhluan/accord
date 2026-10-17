@@ -1,7 +1,8 @@
 // ST-LN-6 task 2: `accord show <id> [--json]`, in-process through runCli on a fixture repository.
 import { expect, it } from 'vitest';
-import { cleanup, makeLaneRepo, run } from './helpers/repo.js';
-import { LANE_BODY, laneTicket } from '../../../test/helpers/lane.js';
+import { approvedHash, gateReady, loadSnapshot, setFrontmatterKey } from '@accord-dev/accord-core';
+import { cleanup, commitAll, gitRun, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
+import { CONFIG, LANE_BODY, laneTicket, PLAN } from '../../../test/helpers/lane.js';
 
 const LONG = 'Export every report of the month as one CSV file with quoted cells';
 const STEP = 'And the file name is the report name followed by the month and the extension csv';
@@ -92,5 +93,100 @@ it('risk:security show text turns control and bidi characters into spaces', asyn
   } finally {
     cleanup(repo);
     cleanup(noLane);
+  }
+});
+
+type Files = Record<string, string>;
+type Opts = { lane?: string; frontmatter?: string[] };
+const P = (id: string) => 'accord/tickets/' + id + '.md';
+const AC = gateReady(loadSnapshot({ files: { 'accord/config.yml': CONFIG, [P('X-1')]: laneTicket('X-1') }, tree: [] }), 'X-1').acHash as string;
+const approve = (files: Files, id: string) => {
+  const t = loadSnapshot({ files: { 'accord/config.yml': CONFIG, [P(id)]: files[P(id)] }, tree: [] }).tickets[id];
+  files[P(id)] = setFrontmatterKey(files[P(id)], 'approved_hash', approvedHash(t));
+};
+const building = (files: Files, id: string, opts?: Opts) => {
+  files[P(id)] = laneTicket(id, opts);
+  approve(files, id);
+  files['accord/tickets/' + id + '/plan.md'] = PLAN;
+};
+const done = (files: Files, id: string, opts?: Opts) => {
+  building(files, id, opts);
+  files['accord/tickets/' + id + '/ledger.md'] = '## Tasks\n- task 1 done abc1234\n- task 2 done abc1234\n';
+  files['accord/tickets/' + id + '/review.md'] = 'verdict: converged\n';
+  files[P(id)] = setFrontmatterKey(files[P(id)], 'verified', ['ac-1', 'ac-2']);
+  files[P(id)] = setFrontmatterKey(files[P(id)], 'verified_hash', AC);
+};
+
+it('risk:regression show finds a ticket filed only on its claim branch at that branch stage', async () => {
+  const repo = makeLaneRepo();
+  try {
+    commitAll(repo);
+    const base = gitRun(repo, 'rev-parse', '--abbrev-ref', 'HEAD').trim();
+    gitRun(repo, 'checkout', '-q', '-b', 't/T-2');
+    writeFiles(repo, { 'accord/tickets/T-2.md': laneTicket('T-2') });
+    await run(['approve', 'T-2'], repo);
+    writeFiles(repo, { 'accord/tickets/T-2/plan.md': PLAN });
+    commitAll(repo, 'plan: T-2 ready');
+    writeFiles(repo, { 'accord/tickets/T-2/ledger.md': '## Tasks\n- task 1 done abc1234\n' });
+    const tip = commitAll(repo, 'task 1');
+    gitRun(repo, 'update-ref', 'refs/remotes/origin/t/T-2', tip);
+    gitRun(repo, 'checkout', '-q', base);
+    gitRun(repo, 'branch', '-q', '-D', 't/T-2');
+    const j = await run(['show', 'T-2', '--json'], repo);
+    expect(j.code).toBe(0);
+    expect(JSON.parse(j.out)).toMatchObject({
+      id: 'T-2', stage: 'build', tasksDone: 1, tasksTotal: 2, branch: 't/T-2', holder: 'fixture@example.invalid', blockedBy: [],
+      intent: ['Owners can export their report as CSV.'],
+    });
+    const t = await run(['show', 'T-2'], repo);
+    expect(t.code).toBe(0);
+    expect(t.out.split('\n')).toEqual(expect.arrayContaining(['Stage: build', 'Tasks: 1/2']));
+  } finally {
+    cleanup(repo);
+  }
+});
+
+it('risk:complex-branching show holds a plan at stage plan until its ready commit', async () => {
+  const repo = makeLaneRepo();
+  try {
+    await run(['approve', 'T-1'], repo);
+    commitAll(repo, 'plan: T-1 round 1, 1 Must, 0 Should');
+    const stage = async () => {
+      const d = JSON.parse((await run(['show', 'T-1', '--json'], repo)).out);
+      const row = (JSON.parse((await run(['status', '--json'], repo)).out) as { id: string; stage?: string }[]).find((r) => r.id === 'T-1');
+      return { d, row };
+    };
+    const first = await stage();
+    expect(first.d).toMatchObject({ stage: 'plan', tasksDone: 0, tasksTotal: 2 });
+    expect(first.row?.stage).toBe('plan');
+    writeFiles(repo, { 'accord/tickets/T-1/plan.md': PLAN + '\n' });
+    commitAll(repo, 'plan: T-1 ready');
+    const second = await stage();
+    expect(second.d.stage).toBe('build');
+    expect(second.row?.stage).toBe('build');
+  } finally {
+    cleanup(repo);
+  }
+});
+
+it('risk:complex-branching show takes blockers from the checkout not the claim branch', async () => {
+  const repo = makeLaneRepo({ [P('T-1')]: laneTicket('T-1'), [P('T-2')]: laneTicket('T-2', { frontmatter: ['depends_on: ["T-1"]'] }) });
+  try {
+    gitRun(repo, 'config', 'user.email', 'an@example.com');
+    commitAll(repo);
+    const base = gitRun(repo, 'rev-parse', '--abbrev-ref', 'HEAD').trim();
+    gitRun(repo, 'checkout', '-b', 't/T-1');
+    const files: Files = {};
+    done(files, 'T-1');
+    writeFiles(repo, files);
+    commitAll(repo);
+    gitRun(repo, 'update-ref', 'refs/remotes/origin/t/T-1', 'HEAD');
+    gitRun(repo, 'checkout', base);
+    gitRun(repo, 'branch', '-D', 't/T-1');
+    expect(JSON.parse((await run(['show', 'T-1', '--json'], repo)).out).stage).toBe('done');
+    expect(JSON.parse((await run(['show', 'T-2', '--json'], repo)).out).blockedBy).toEqual(['T-1']);
+    expect((await run(['show', 'T-2'], repo)).out.split('\n')).toContain('Blocked by: T-1');
+  } finally {
+    cleanup(repo);
   }
 });

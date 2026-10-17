@@ -190,5 +190,6 @@ export function loadSnapshot(input: SnapshotInput): RepoSnapshot {
     ...(input.branchTemplates === undefined ? {} : { branchTemplates: input.branchTemplates }),
     ...(input.claimBranches === undefined ? {} : { claimBranches: input.claimBranches }),
     ...(input.claimTemplate === undefined ? {} : { claimTemplate: input.claimTemplate }),
+    ...(input.planFacts === undefined ? {} : { planFacts: input.planFacts }),
   };
 }

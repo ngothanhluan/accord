@@ -38,7 +38,7 @@ function text(d: TicketDetail): string {
 
 export function show(ctx: CommandContext, id: string, options: { json?: boolean }): number {
   requireLaneTicket(ctx, id);
-  const d = ticketDetail(ctx.snapshot, id);
+  const d = ticketDetail(ctx.snapshot, id, ctx.plain);
   if (d === undefined) throw new Error('no detail for ' + id); // unreachable after requireLaneTicket
   ctx.stdout.write(options.json === true ? JSON.stringify(d, null, 2) + '\n' : text(d));
   return 0;

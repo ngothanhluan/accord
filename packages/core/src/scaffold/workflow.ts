@@ -23,6 +23,11 @@
 // and `staleReview` both fail a review that is not stale. Stated positively, which is accord's actual rule:
 // the review has to be of the code being gated, and what a fresh-context review read is the branch.
 //
+// `gate done` is skipped for a ticket only when the diff changes nothing outside `accord/` and the ticket is
+// unapproved in both its HEAD and base versions, or dropped in HEAD. Any read the script cannot settle counts
+// as approved, so a doubt gates. `.github/workflows/accord.yml` carries the same script and must be changed
+// with it; `cli/test/workflow-script.test.ts` fails when the two drift.
+//
 // The script is written out as a block scalar rather than assembled from an object: a YAML serialiser
 // round-trip would lose the comment and the block-scalar shape, which are what make this file readable in
 // someone else's repository.

@@ -105,6 +105,67 @@ function sandbox(
   return { repo, base };
 }
 
+// The stub-run fixtures of the gating cases, at module level so the test for the workflow of this
+// repository replays the very cases the tests of the emitted script run.
+interface Case {
+  change: (repo: string) => void;
+  seed?: (repo: string) => void;
+  fail?: string;
+}
+const DROPPED_TICKET = '---\nid: OLD-1\nstatus: dropped\n---\n\n## Intent\nold\n\n## Dropped\nno longer needed\n';
+const NO_KEY_TICKET = '---\nid: OLD-1\nstatus: open\n---\n\n## Intent\nold\n';
+const addDrafts = (r: string): void => {
+  write(r, 'accord/tickets/ST-8.md', DRAFT_TICKET);
+  write(r, 'accord/tickets/ST-9.md', DRAFT_TICKET);
+};
+const UNAPPROVED: Case[] = [
+  { change: addDrafts },
+  {
+    change: (r) => write(r, 'accord/tickets/DRAFT-1.md', DRAFT_TICKET + 'more\n'),
+    seed: (r) => write(r, 'accord/tickets/DRAFT-1.md', DRAFT_TICKET),
+  },
+  { change: addDrafts, fail: 'lint' },
+];
+const droppedText = (statusLine: string): string =>
+  `---\nid: OLD-1\n${statusLine}\napproved_hash: "fnv1a64:0000000000000000"\n---\n\n## Intent\nold\n\n## Dropped\nsuperseded by NEW-2\n`;
+// `* -text` keeps the CR byte through `git add -A` under core.autocrlf=true.
+const keepCr = (r: string): void => write(r, '.gitattributes', '* -text\n');
+const DROPPED: Case[] = ['status: "dropped"   # superseded by NEW-2\r', 'status:\tdropped '].map((line) => ({
+  change: (r: string) => write(r, 'accord/tickets/OLD-1.md', droppedText(line)),
+  seed: keepCr,
+}));
+// A nested status under another key is not the ticket's status: the approved ticket is still gated.
+const NESTED_STATUS: Case = {
+  change: (r) =>
+    write(r, 'accord/tickets/OLD-1.md', APPROVED_TICKET.replace('---\n\n', 'notes:\n  status: dropped\n---\n\n')),
+};
+const GATED: Array<Case & { id: string }> = [
+  {
+    id: 'ST-8',
+    change: (r) => {
+      write(r, 'accord/tickets/ST-8.md', DRAFT_TICKET);
+      write(r, 'src/app.ts', CODE);
+    },
+  },
+  {
+    id: 'OLD-1',
+    change: (r) => {
+      write(r, 'accord/tickets/OLD-1.md', DROPPED_TICKET);
+      write(r, 'src/app.ts', CODE);
+    },
+  },
+  {
+    id: 'ST-8',
+    change: (r) => {
+      rmSync(join(r, 'docs', 'readme.md'));
+      write(r, 'accord/tickets/ST-8.md', DRAFT_TICKET);
+    },
+  },
+  { id: 'NEW-1', change: (r) => write(r, 'accord/tickets/NEW-1.md', APPROVED_TICKET.replace('OLD-1', 'NEW-1')) },
+  { id: 'OLD-1', change: (r) => write(r, 'accord/tickets/OLD-1.md', NO_KEY_TICKET) },
+  { id: 'OLD-1', change: (r) => write(r, 'accord/tickets/OLD-1.md', NO_KEY_TICKET), fail: 'OLD-1' },
+];
+
 interface Run {
   code: number;
   out: string;
@@ -253,62 +314,38 @@ describe.skipIf(noBash)('the emitted workflow script — executed', { timeout: 6
   });
 
   it('unapproved tickets in an accord-only diff: lint runs and no gate done runs and the exit follows lint', () => {
-    const add = (r: string): void => {
-      write(r, 'accord/tickets/ST-8.md', DRAFT_TICKET);
-      write(r, 'accord/tickets/ST-9.md', DRAFT_TICKET);
-    };
-    const added = sandbox(add);
+    const [add, edit, failing] = UNAPPROVED;
+    const added = sandbox(add.change, add.seed);
     const r1 = runScript(added.repo, { base: added.base });
     expect(r1.code, r1.err).toBe(0);
     expect(r1.calls.length, r1.calls.join(' | ')).toBe(1);
     expect(r1.calls[0].endsWith(' lint')).toBe(true);
     expect(r1.calls.join(' ')).not.toContain(' gate done ');
 
-    const edited = sandbox(
-      (r) => write(r, 'accord/tickets/DRAFT-1.md', DRAFT_TICKET + 'more\n'),
-      (r) => write(r, 'accord/tickets/DRAFT-1.md', DRAFT_TICKET),
-    );
+    const edited = sandbox(edit.change, edit.seed);
     const r2 = runScript(edited.repo, { base: edited.base });
     expect(r2.code, r2.err).toBe(0);
     expect(r2.calls.length, r2.calls.join(' | ')).toBe(1);
     expect(r2.calls[0].endsWith(' lint')).toBe(true);
 
-    const failing = sandbox(add);
-    const r3 = runScript(failing.repo, { base: failing.base, fail: 'lint' });
+    const bad = sandbox(failing.change, failing.seed);
+    const r3 = runScript(bad.repo, { base: bad.base, fail: failing.fail });
     expect(r3.code).toBe(1);
     expect(r3.calls.length, r3.calls.join(' | ')).toBe(1);
     expect(r3.calls[0].endsWith(' lint')).toBe(true);
   });
 
   it('code in the diff or an approved ticket: gate done runs and its failure fails the job', () => {
-    const dropped =
-      '---\nid: OLD-1\nstatus: dropped\n---\n\n## Intent\nold\n\n## Dropped\nno longer needed\n';
-    const noKey = '---\nid: OLD-1\nstatus: open\n---\n\n## Intent\nold\n';
-    const gated = (id: string, change: (r: string) => void, fail?: string): Run => {
-      const s = sandbox(change);
-      const r = runScript(s.repo, { base: s.base, fail });
+    const codes = GATED.map((c) => {
+      const s = sandbox(c.change, c.seed);
+      const r = runScript(s.repo, { base: s.base, fail: c.fail });
       expect(r.calls.length, r.calls.join(' | ')).toBe(2);
       expect(r.calls[0].endsWith(' lint')).toBe(true);
-      expect(r.calls[1].endsWith(` gate done ${id}`)).toBe(true);
-      return r;
-    };
-    expect(
-      gated('ST-8', (r) => {
-        write(r, 'accord/tickets/ST-8.md', DRAFT_TICKET);
-        write(r, 'src/app.ts', CODE);
-      }).code,
-    ).toBe(0);
-    gated('OLD-1', (r) => {
-      write(r, 'accord/tickets/OLD-1.md', dropped);
-      write(r, 'src/app.ts', CODE);
+      expect(r.calls[1].endsWith(` gate done ${c.id}`)).toBe(true);
+      return r.code;
     });
-    gated('ST-8', (r) => {
-      rmSync(join(r, 'docs', 'readme.md'));
-      write(r, 'accord/tickets/ST-8.md', DRAFT_TICKET);
-    });
-    gated('NEW-1', (r) => write(r, 'accord/tickets/NEW-1.md', APPROVED_TICKET.replace('OLD-1', 'NEW-1')));
-    gated('OLD-1', (r) => write(r, 'accord/tickets/OLD-1.md', noKey));
-    expect(gated('OLD-1', (r) => write(r, 'accord/tickets/OLD-1.md', noKey), 'OLD-1').code).toBe(1);
+    expect(codes[0]).toBe(0);
+    expect(codes[codes.length - 1]).toBe(1);
   });
 
   it('risk:parsing BOM and CRLF frontmatter and unreadable blocks and large files read as approved', () => {
@@ -345,6 +382,25 @@ describe.skipIf(noBash)('the emitted workflow script — executed', { timeout: 6
         ),
       ),
     );
+  });
+
+  it('the workflow of this repository gates the same tickets with the same exit as the emitted one', () => {
+    const yml = readFileSync(fileURLToPath(new URL('../../../.github/workflows/accord.yml', import.meta.url)), 'utf8');
+    const named = (parse(yml) as unknown as { jobs: { accord: { steps: Array<Step & { name?: string }> } } }).jobs
+      .accord.steps.filter((s) => s.name === 'lint and gate');
+    expect(named.length, 'exactly one step is named lint and gate').toBe(1);
+    const own = named[0].run as string;
+    const gatedIds = (calls: string[]): string[] =>
+      calls.filter((c) => c.includes('gate done ')).map((c) => c.slice(c.indexOf('gate done ') + 'gate done '.length));
+    const all: Case[] = [...UNAPPROVED, ...DROPPED, NESTED_STATUS, ...GATED];
+    for (const c of all) {
+      const results = [SCRIPT, own].map((script) => {
+        const s = sandbox(c.change, c.seed);
+        return runScript(s.repo, { base: s.base, script, fail: c.fail });
+      });
+      expect(results[1].code, results[1].calls.join(' | ')).toBe(results[0].code);
+      expect(gatedIds(results[1].calls)).toEqual(gatedIds(results[0].calls));
+    }
   });
 
   // Task 2. Without this, "the test passes" and "the test would fail if the script were wrong" are two
@@ -422,21 +478,15 @@ describe.skipIf(noBash)('the emitted workflow script — against the real CLI', 
   });
 
   it('dropped ticket in an accord-only diff: no gate done on it and a missing Dropped reason fails through lint', () => {
-    const dropped = (statusLine: string): string =>
-      `---\nid: OLD-1\n${statusLine}\napproved_hash: "fnv1a64:0000000000000000"\n---\n\n## Intent\nold\n\n## Dropped\nsuperseded by NEW-2\n`;
-    // `* -text` keeps the CR byte through `git add -A` under core.autocrlf=true.
-    const keepCr = (r: string): void => write(r, '.gitattributes', '* -text\n');
-    for (const line of ['status: "dropped"   # superseded by NEW-2\r', 'status:\tdropped ']) {
-      const { repo, base } = sandbox((r) => write(r, 'accord/tickets/OLD-1.md', dropped(line)), keepCr);
+    for (const c of DROPPED) {
+      const { repo, base } = sandbox(c.change, c.seed);
       const r = runScript(repo, { base });
       expect(r.code, r.err).toBe(0);
       expect(r.calls.length, r.calls.join(' | ')).toBe(1);
       expect(r.calls.join(' ')).not.toContain(' gate done ');
     }
 
-    // A nested status under another key is not the ticket's status: the approved ticket is still gated.
-    const nestedText = APPROVED_TICKET.replace('---\n\n', 'notes:\n  status: dropped\n---\n\n');
-    const nested = sandbox((r) => write(r, 'accord/tickets/OLD-1.md', nestedText));
+    const nested = sandbox(NESTED_STATUS.change);
     const rn = runScript(nested.repo, { base: nested.base });
     expect(rn.calls.length, rn.calls.join(' | ')).toBe(2);
     expect(rn.calls[1].endsWith(' gate done OLD-1')).toBe(true);

@@ -1,6 +1,6 @@
 ---
 baseline: a9b6094ec87cf13f49d69f77ee5a8d115f48bfcd
-plan_hash: "fnv1a64:b998338393b4237b"
+plan_hash: "fnv1a64:9d923556b436190c"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -48,8 +48,9 @@ Tests first, each a new top-level `it` in `packages/cli/test/dashboard.test.ts`:
   frontmatter: ['status: draft', 'depends_on: ["ST-AN-1"]'] })`; claims `{ 'ST-AN-9': 'an@example.com' }`. The
   ids of `j.yours.rows` are `['ST-AN-9']`; the ids of `j.upNext.rows` are exactly `['ST-AN-1', 'ST-AN-2']`, and
   `j.upNext.rows[1].blockedBy` equals `['ST-AN-1']`. With `lines = text.split('\n')` and `u =
-  lines.indexOf('UP NEXT')`, `u` is at least 0 and the lines from `u` up to the next `''` hold one line containing
-  `ST-AN-1` and one containing `ST-AN-2`. `lastLine` is `-> [Continue ST-AN-9]  [Pick up ST-AN-1]  [New request]`.
+  lines.indexOf('UP NEXT')`, `u` is at least 0 and among the lines from `u` up to the next `''` some line starts with
+  `  ST-AN-1` and some line starts with `  ST-AN-2` (not a count of lines containing `ST-AN-1`: the ST-AN-2 row
+  also prints `ST-AN-1` in its `blocked by` column). `lastLine` is `-> [Continue ST-AN-9]  [Pick up ST-AN-1]  [New request]`.
 - `it('ac-2 up next leaves out the ready tickets and caps the rest at 20')`: `laneTicket('ST-AN-9')` claimed by
   `an@example.com`; `ready(files, 'ST-AN-50')`, unclaimed; `laneTicket('ST-BO-' + i, { frontmatter: ['status:
   draft'] })` for `i` 1 to 22, unclaimed. The ids of `j.ready.rows` are `['ST-AN-50']`; `j.upNext.rows` has 20

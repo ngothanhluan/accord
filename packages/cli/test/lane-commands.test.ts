@@ -647,8 +647,7 @@ describe('status, claims, and next', () => {
       const listed = await run(['next'], repo);
       expect(listed.code).toBe(0);
       expect(listed.out).toContain('T-1');
-      expect(listed.out.split('
-').find((l) => l.includes('T-1'))).toContain('plan');
+      expect(listed.out.split('\n').find((l) => l.includes('T-1'))).toContain('plan');
       const json = JSON.parse((await run(['next', '--json'], repo)).out) as { id: string }[];
       expect(json.map((r) => r.id)).toEqual(['T-1']);
       commitAll(repo);

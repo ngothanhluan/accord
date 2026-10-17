@@ -8,6 +8,7 @@ import type { RepoSnapshot } from '@accord-dev/accord-core';
 import { Command, CommanderError, Option } from 'commander';
 import pkg from '../package.json' with { type: 'json' };
 import { anchor } from './commands/anchor.js';
+import { show } from './commands/show.js';
 import { approve } from './commands/approve.js';
 import { brief } from './commands/brief.js';
 import { gate } from './commands/gate.js';
@@ -225,6 +226,14 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .description("print the active ticket's intent, vetoes, decisions, corrections, and position")
     .action((id: string | undefined) => {
       setCode(anchor(preflight(opts, 'stage'), id));
+    });
+
+  program
+    .command('show <id>')
+    .description('print one lane ticket in full: its row facts, Intent, and each criterion with its state')
+    .option('--json', 'print the TicketDetail object instead of text')
+    .action((id: string, options: { json?: boolean }) => {
+      setCode(show(preflight(opts), id, options));
     });
 
   program

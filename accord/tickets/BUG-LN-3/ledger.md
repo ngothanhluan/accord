@@ -23,6 +23,7 @@
 
 - Ruling: review round 2: in a pull request that changes nothing outside accord/, deleting or renaming away a ticket file approved in the base commit gates every ticket the pull request touches, whether or not git detects the rename; a delete-only pull request touching no other ticket stays BUG-LN-4 — owner: "Close it in BUG-LN-3 (Recommended)" — a docs-only rename of an approved ticket is gated, which it should be anyway
 - Ruling: review round 2 fix: the round 1 rename lookup (renames, awk base_file) is removed, since the deletion rule covers every rename, so the round 1 awk-split Ruling no longer applies — deletion beats addition — none
+- Ruling: final review fix: the script's fence tracking for the Dropped section is approximate (fence length ignored), and a reading it cannot settle answers not dropped — lint's scanner is stricter and still fails the job on a reason it rejects — one edge ticket wrongly gated, or a reason lint rejects accepted while lint fails the job
 
 ## Deferred
 - plan round 1.5: rule line 14 cites a test "finds no denied name in the config, the workflow, or the pointer block" that does not exist in the tree.
@@ -32,3 +33,4 @@
 - review round 2 Nice 3: the comment in the @ac-4 test sits after its last statement, before the timeout argument; it belongs above the `it(` line.
 - review round 3 Nice 1: no test covers the fail-closed branch of the deletion check (a deleted ticket whose base frontmatter cannot be read, beside an added draft).
 - review round 3 Nice 2: the round 2 owner decision on deletes and renames is a ledger Ruling, not a Decision or an Approach note in the ticket.
+- final review: GitHub runs `shell: bash` with -eo pipefail while the script says it avoids -e, and the tests run plain bash; filed as BUG-LN-5.

@@ -41,7 +41,7 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: ST-LN-18
 
-  @ac-1
+  @ac-1 @test:packages/cli/test/dashboard.test.ts#ac-1-up-next-lists-the-backlog-and-the-blocked-tickets-while-the-viewer-holds-work
   Scenario: UP NEXT lists the backlog and the blocked tickets while the viewer holds work
     Given git `user.email` is "an@example.com", who holds a claim on ST-AN-9, which is in intent
     And ST-AN-1 and ST-AN-2, both `status: draft` and in intent, are unclaimed, and ST-AN-2 has `depends_on: [ST-AN-1]`
@@ -49,7 +49,7 @@ Feature: ST-LN-18
     Then the JSON's `yours` rows are ST-AN-9, and the rows of `upNext` are ST-AN-1 then ST-AN-2 and nothing else, with ST-AN-2 blocked by ST-AN-1
     And the text prints an UP NEXT section holding "ST-AN-1" and "ST-AN-2", and its last line offers "[Continue ST-AN-9]", then "[Pick up ST-AN-1]", then "[New request]"
 
-  @ac-2
+  @ac-2 @test:packages/cli/test/dashboard.test.ts#ac-2-up-next-leaves-out-the-ready-tickets-and-caps-the-rest-at-20
   Scenario: UP NEXT leaves out the READY tickets and caps the rest at 20
     Given git `user.email` is "an@example.com", who holds a claim on ST-AN-9, which is in intent
     And ST-AN-50, unclaimed, passes `gate ready` with no task done, and 22 other unclaimed tickets, each `status: draft` and in intent, have no `depends_on`
@@ -57,7 +57,7 @@ Feature: ST-LN-18
     Then the JSON's `ready` rows are ST-AN-50, `upNext` has 20 rows and `more` 2, and ST-AN-50 is not among the `upNext` rows
     And the text prints "+2 more" under UP NEXT, and its last line offers "[Pick up ST-AN-50]"
 
-  @ac-3
+  @ac-3 @test:packages/cli/test/dashboard.test.ts#ac-3-up-next-is-present-when-nothing-is-left-to-pick-up
   Scenario: UP NEXT is present when nothing is left to pick up
     Given git `user.email` is "an@example.com", who holds a claim on ST-AN-9, and every other ticket is done
     When `accord dashboard --json` and `accord dashboard` run

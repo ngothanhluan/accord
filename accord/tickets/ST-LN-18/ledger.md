@@ -13,3 +13,6 @@
 
 ## Deferred
 - Plan review 1.2 (Nice): the ST-LN-2 ledger pointer could also name D-06's absent-section clause as no longer holding for `upNext`.
+
+## Tasks
+- task 1 done 20d87c7c8764

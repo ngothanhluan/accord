@@ -64,7 +64,7 @@ Feature: ST-LN-18
     Then the JSON's `upNext` is `{ "rows": [], "more": 0 }`
     And the text prints the UP NEXT heading with "none" under it, and its last line offers no "[Pick up"
 
-  @ac-4
+  @ac-4 @test:packages/core/test/panel.test.ts#ac-4-the-panel-shows-up-next-while-the-viewer-holds-work
   Scenario: The panel shows UP NEXT while the viewer holds work
     Given the panel reads a dashboard whose `yours` has one row, ST-AN-9, and whose `upNext` has the rows ST-AN-1 and ST-AN-2
     When the panel renders it

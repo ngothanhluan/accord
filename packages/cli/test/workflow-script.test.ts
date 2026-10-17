@@ -161,6 +161,19 @@ const GATED: Array<Case & { id: string }> = [
       write(r, 'accord/tickets/ST-8.md', DRAFT_TICKET);
     },
   },
+  {
+    // A rename that changes the id and drops approved_hash: the base version lives at the old path.
+    id: 'REN-2',
+    seed: (r) => write(r, 'accord/tickets/OLD-1.md', APPROVED_TICKET + 'body line\n'.repeat(30)),
+    change: (r) => {
+      rmSync(join(r, 'accord', 'tickets', 'OLD-1.md'));
+      write(
+        r,
+        'accord/tickets/REN-2.md',
+        APPROVED_TICKET.replace('OLD-1', 'REN-2').replace(/approved_hash.*\n/, '') + 'body line\n'.repeat(30),
+      );
+    },
+  },
   { id: 'NEW-1', change: (r) => write(r, 'accord/tickets/NEW-1.md', APPROVED_TICKET.replace('OLD-1', 'NEW-1')) },
   { id: 'OLD-1', change: (r) => write(r, 'accord/tickets/OLD-1.md', NO_KEY_TICKET) },
   { id: 'OLD-1', change: (r) => write(r, 'accord/tickets/OLD-1.md', NO_KEY_TICKET), fail: 'OLD-1' },
@@ -401,7 +414,8 @@ describe.skipIf(noBash)('the emitted workflow script — executed', { timeout: 6
       expect(results[1].code, results[1].calls.join(' | ')).toBe(results[0].code);
       expect(gatedIds(results[1].calls)).toEqual(gatedIds(results[0].calls));
     }
-  });
+    // 24+ sandboxes of git work: its own budget so load cannot time it out.
+  }, 300_000);
 
   // Task 2. Without this, "the test passes" and "the test would fail if the script were wrong" are two
   // different claims, and only the first is evidenced.

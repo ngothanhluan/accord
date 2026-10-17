@@ -100,33 +100,37 @@ jobs:
             [ -n "$outside" ] && has_code=1
           fi
           qc="['"'"]'
-          # Frontmatter of $file at revision $1 into fm. Returns 0 when found, 1 when the file is absent at
+          # Frontmatter of path $2 at revision $1 into fm. Returns 0 when found, 1 when the file is absent at
           # that revision, 2 when the read cannot be settled (no opening or closing line, or a git error).
           # Read from a variable through a here-string, never a pipe: pipefail plus SIGPIPE returns 141.
           fm_at() {
             local listed text
-            if ! listed=$(git ls-tree --name-only "$1" -- "$file"); then return 2; fi
+            if ! listed=$(git ls-tree --name-only "$1" -- "$2"); then return 2; fi
             if [ -z "$listed" ]; then return 1; fi
-            if ! text=$(git show "$1:$file"); then return 2; fi
+            if ! text=$(git show "$1:$2"); then return 2; fi
             fm=$(awk 'NR==1 { if ($0 !~ /---[[:space:]]*$/) exit 3; next } /^---[[:space:]]*$/ { found=1; exit } { print } END { if (!found) exit 3 }' <<< "$text")
             local rc=$?
             if [ "$rc" -ne 0 ]; then return 2; fi
             return 0
           }
-          # Approved means an approved_hash key in that version. An unsettled read counts as approved.
+          # Approved means an approved_hash key in that version of path $2. An unsettled read counts as approved.
           approved_at() {
-            fm_at "$1"
+            fm_at "$1" "$2"
             local rc=$?
             if [ "$rc" -eq 1 ]; then return 1; fi
             if [ "$rc" -ne 0 ]; then return 0; fi
             grep -Eq "^[[:space:]]*\${qc}?approved_hash\${qc}?[[:space:]]*:" <<< "$fm"
           }
           is_dropped() {
-            fm_at HEAD || return 1
+            fm_at HEAD "$file" || return 1
             grep -Eq "^\${qc}?status\${qc}?[[:space:]]*:[[:space:]]*\${qc}?dropped\${qc}?[[:space:]]*(#.*)?$" <<< "$fm"
           }
+          # A renamed ticket is read at its old path in the base commit, so a rename cannot skip the gate.
+          renames=$(git -c core.quotePath=false diff --name-status -M --diff-filter=R "$BASE"...HEAD || true)
           # A here-string, not a pipe: the loop body runs in this shell, so its assignment to code survives.
           while IFS= read -r file; do
+            base_file=$(awk -v f="$file" '$1 ~ /^R/ && $3 == f { print $2 }' <<< "$renames")
+            base_file=\${base_file:-$file}
             id=\${file#accord/tickets/}
             id=\${id%.md}
             if [ "$has_code" -eq 0 ]; then
@@ -134,7 +138,7 @@ jobs:
                 echo "not gating $id - dropped and this pull request changes nothing outside accord/"
                 continue
               fi
-              if ! approved_at HEAD && ! approved_at "$BASE"; then
+              if ! approved_at HEAD "$file" && ! approved_at "$BASE" "$base_file"; then
                 echo "not gating $id - not approved and this pull request changes nothing outside accord/"
                 continue
               fi

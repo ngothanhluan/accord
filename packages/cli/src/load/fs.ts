@@ -360,6 +360,7 @@ function loadParts(root: string, stage = false): {
   claimRefs: Record<string, string>;
   templates: string[];
   known: (id: string) => boolean;
+  statusOf: (id: string) => string | undefined;
 } {
   const tree = gitTree(root);
   const files = accordFiles(root);
@@ -428,7 +429,7 @@ function loadParts(root: string, stage = false): {
     ...(Object.keys(baselineFiles).length === 0 ? {} : { baselineFiles }),
     ...(Object.keys(recordsSince).length === 0 ? {} : { recordsSince }),
   };
-  return { input, claimRefs, templates: branchTemplates, known };
+  return { input, claimRefs, templates: branchTemplates, known, statusOf: (id) => first.tickets[id]?.frontmatter?.status };
 }
 
 export function loadFromFs(root: string, options: { stage?: boolean } = {}): SnapshotInput {
@@ -447,7 +448,7 @@ const recordPaths = (id: string): string[] => [
  * One `git cat-file --batch`, no network (`GIT_NO_LAZY_FETCH`). A blob not present locally reads as absent.
  */
 export function loadClaimView(root: string): { checkout: SnapshotInput; view: SnapshotInput } {
-  const { input: checkout, claimRefs, templates, known } = loadParts(root, true);
+  const { input: checkout, claimRefs, templates, known, statusOf } = loadParts(root, true);
   const env = { ...process.env, GIT_NO_LAZY_FETCH: '1' };
   const current = currentBranch(root);
   const own = current === undefined || current === '' ? undefined : ticketOfBranch(current, templates, known);
@@ -468,7 +469,7 @@ export function loadClaimView(root: string): { checkout: SnapshotInput; view: Sn
     }
   }
   // A squash or rebase merge leaves the claim tip unmerged: a terminal checkout copy is never superseded.
-  const terminal = (id: string) => /^status:\s*["']?(archived|dropped)["']?\s*$/m.test(checkout.files['accord/tickets/' + id + '.md']?.split(/\r?\n---/)[0] ?? '');
+  const terminal = (id: string) => ['archived', 'dropped'].includes(statusOf(id) ?? '');
   const candidates = Object.entries(claimRefs).filter(([id, ref]) => id !== own && !merged.has(ref) && !terminal(id));
   if (candidates.length === 0) return { checkout, view: checkout };
   const wanted = candidates.flatMap(([id, ref]) => recordPaths(id).map((path) => ref + ':' + path));

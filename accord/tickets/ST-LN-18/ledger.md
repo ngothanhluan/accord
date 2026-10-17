@@ -10,3 +10,6 @@
 - Ruling: the @ac-1..3 tests treat `JSON.parse(JSON.stringify(d))` and `renderDashboard(d)` as what `accord dashboard --json` and `accord dashboard` print, in memory rather than in a git sandbox — the Approach chose this layer and the command wiring is already tested (planner) — cost if wrong: a broken `--json` wiring shows only in the existing sandbox tests.
 - Ruling: the ST-LN-2 pointer goes at the end of its ledger's `## Rulings` as a line that does not start with `Ruling:` — `accord anchor` prints that section, and the line is not counted as a Ruling (planner) — cost if wrong: a reader of ST-LN-2 looks one section further.
 - Ruling: the @ac-4 panel test's title starts with `ac-4` although `panel.test.ts` already holds another ticket's `ac-4 pressing a row id…` — full titles differ, so ids are unique, as in `dashboard.test.ts` (planner) — cost if wrong: matching by prefix alone finds two tests.
+
+## Deferred
+- Plan review 1.2 (Nice): the ST-LN-2 ledger pointer could also name D-06's absent-section clause as no longer holding for `upNext`.

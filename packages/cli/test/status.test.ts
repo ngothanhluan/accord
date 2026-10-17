@@ -3,11 +3,14 @@
 // only way to pin a table), the character-set invariants that make that table safe on a legacy Windows
 // console — ASCII only, no escape, one row per line (PITFALLS section 12, T-05-11) — and the D-93
 // archived filter with its never-silent hidden count.
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { StatusRow } from '@accord-dev/accord-core';
-import { cleanup, commitAllAt, gitRun, makeLaneRepo, makeRepo, run, writeFiles } from './helpers/repo.js';
+import { laneTicket, PLAN } from '../../../test/helpers/lane.js';
+import { cleanup, commitAll, commitAllAt, gitRun, makeLaneRepo, makeRepo, run, writeFiles } from './helpers/repo.js';
 
 const ESC = String.fromCharCode(27);
 
@@ -298,6 +301,113 @@ it('ac-2 a recent commit on the claim branch keeps the ticket active', async () 
     gitRun(repo, 'update-ref', 'refs/remotes/origin/t/T-1', tip);
     gitRun(repo, 'branch', '-q', '-D', 't/T-1');
     await expectActive(); // remote-tracking only
+  } finally {
+    cleanup(repo);
+  }
+});
+
+const PLAN3 = PLAN + '## Task 3: Docs\ncovers: @ac-1\nfiles: src/export.ts\nverify: export#writes-csv\nWrite the docs.\n';
+
+it('ac-1 a ticket filed only on its pushed claim branch shows at that branch stage without a fetch', async () => {
+  const repo = makeLaneRepo();
+  let clone: string | undefined;
+  try {
+    commitAll(repo);
+    const base = gitRun(repo, 'rev-parse', '--abbrev-ref', 'HEAD').trim();
+    gitRun(repo, 'checkout', '-q', '-b', 't/T-2');
+    writeFiles(repo, { 'accord/tickets/T-2.md': laneTicket('T-2') });
+    await run(['approve', 'T-2'], repo);
+    writeFiles(repo, { 'accord/tickets/T-2/plan.md': PLAN3 });
+    commitAll(repo, 'plan: T-2 ready');
+    writeFiles(repo, { 'accord/tickets/T-2/ledger.md': '## Tasks\n- task 1 done abc1234\n' });
+    const tip = commitAll(repo, 'task 1');
+    gitRun(repo, 'checkout', '-q', base);
+    // A blobless clone whose promisor remote stays reachable: a spawn that lazily fetches would fill the blob.
+    gitRun(repo, 'config', 'uploadpack.allowFilter', 'true');
+    gitRun(repo, 'config', 'uploadpack.allowAnySHA1InWant', 'true');
+    clone = mkdtempSync(join(tmpdir(), 'accord-cli-'));
+    gitRun(repo, 'clone', '-q', '--filter=blob:none', pathToFileURL(repo).href, clone);
+    gitRun(clone, 'config', 'user.email', 'an@example.com');
+    const sha = gitRun(clone, 'rev-parse', 'refs/remotes/origin/t/T-2:accord/tickets/T-2.md').trim();
+    const absent = () => gitRun(clone as string, '--no-lazy-fetch', 'cat-file', '-e', sha);
+    expect(absent).toThrow();
+    expect((await run(['status', '--json'], clone)).code).toBe(0);
+    expect((await run(['dashboard'], clone)).code).toBe(0);
+    expect(absent).toThrow();
+
+    gitRun(repo, 'update-ref', 'refs/remotes/origin/t/T-2', tip);
+    gitRun(repo, 'branch', '-q', '-D', 't/T-2');
+    gitRun(repo, 'remote', 'add', 'origin', join(repo, 'no-such-remote'));
+    gitRun(repo, 'config', 'user.email', 'an@example.com');
+    const json = await run(['status', '--json'], repo);
+    expect(json.code).toBe(0);
+    const row = (JSON.parse(json.out) as StatusRow[]).find((r) => r.id === 'T-2');
+    expect(row).toMatchObject({ claimedBy: 'fixture@example.invalid', stage: 'build', tasksDone: 1, tasksTotal: 3, branch: 't/T-2' });
+    const dash = await run(['dashboard'], repo);
+    expect(dash.code).toBe(0);
+    const line = dash.out.split('\n').find((l) => l.includes('T-2'));
+    expect(line).toContain('build 1/3');
+    expect(line).toContain('fixture@example.invalid');
+    expect(dash.out).toMatch(/^1 in progress/m);
+    expect(existsSync(join(repo, '.git', 'FETCH_HEAD'))).toBe(false);
+    expect(gitRun(repo, 'rev-parse', 'refs/remotes/origin/t/T-2').trim()).toBe(tip);
+  } finally {
+    cleanup(repo);
+    if (clone !== undefined) cleanup(clone);
+  }
+});
+
+it('ac-2 the claim branch copy wins over an older checkout copy', async () => {
+  const repo = makeLaneRepo({ 'accord/tickets/T-2.md': laneTicket('T-2') });
+  try {
+    commitAll(repo);
+    const base = gitRun(repo, 'rev-parse', '--abbrev-ref', 'HEAD').trim();
+    gitRun(repo, 'checkout', '-q', '-b', 't/T-2');
+    await run(['approve', 'T-2'], repo);
+    writeFiles(repo, { 'accord/tickets/T-2/plan.md': PLAN });
+    const tip = commitAll(repo, 'plan: T-2 ready');
+    gitRun(repo, 'update-ref', 'refs/remotes/origin/t/T-2', tip);
+    gitRun(repo, 'checkout', '-q', base);
+    gitRun(repo, 'branch', '-q', '-D', 't/T-2');
+    const row = (JSON.parse((await run(['status', '--json'], repo)).out) as StatusRow[]).find((r) => r.id === 'T-2');
+    expect(row).toMatchObject({ stage: 'build', tasksDone: 0, tasksTotal: 2 });
+  } finally {
+    cleanup(repo);
+  }
+});
+
+it('risk:complex-branching a merged or checked out or ticketless claim branch keeps the checkout copy', async () => {
+  const repo = makeLaneRepo({
+    'accord/tickets/T-3.md': laneTicket('T-3'),
+    'accord/tickets/T-4.md': laneTicket('T-4'),
+  });
+  try {
+    commitAll(repo);
+    const base = gitRun(repo, 'rev-parse', '--abbrev-ref', 'HEAD').trim();
+    // merged: the claim tip is an ancestor of HEAD, so the later archived copy on the base wins.
+    gitRun(repo, 'branch', 't/T-3');
+    writeFiles(repo, { 'accord/tickets/T-3.md': laneTicket('T-3', { frontmatter: ['status: archived'] }) });
+    commitAll(repo, 'archive T-3');
+    // ticketless: the claim ref holds no T-4 file.
+    gitRun(repo, 'checkout', '-q', '-b', 'side');
+    rmSync(join(repo, 'accord', 'tickets', 'T-4.md'));
+    const side = commitAll(repo, 'drop T-4');
+    gitRun(repo, 'update-ref', 'refs/remotes/origin/t/T-4', side);
+    // checked out: the claim ref differs, but the current branch is t/T-1, so the working tree wins.
+    gitRun(repo, 'checkout', '-q', base);
+    gitRun(repo, 'checkout', '-q', '-b', 'side2');
+    writeFiles(repo, { 'accord/tickets/T-1.md': laneTicket('T-1').replace('title: "Export"', 'title: "Other"') });
+    const other = commitAll(repo, 'retitle T-1');
+    gitRun(repo, 'update-ref', 'refs/remotes/origin/t/T-1', other);
+    gitRun(repo, 'checkout', '-q', base);
+    gitRun(repo, 'checkout', '-q', '-b', 't/T-1');
+    await run(['approve', 'T-1'], repo);
+    const rows = JSON.parse((await run(['status', '--json', '--all'], repo)).out) as StatusRow[];
+    const by = (id: string) => rows.find((r) => r.id === id);
+    expect(by('T-3')).toMatchObject({ status: 'archived' });
+    expect(by('T-4')).toMatchObject({ stage: 'intent' });
+    expect(by('T-1')?.stage).not.toBe('intent');
+    expect(by('T-1')).toMatchObject({ title: 'Export' });
   } finally {
     cleanup(repo);
   }

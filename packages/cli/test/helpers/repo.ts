@@ -60,12 +60,12 @@ export function makeEmptyRepo(): string {
  * verdict would be unreachable from the CLI. Identity and signing are supplied per invocation so the
  * host's global git config cannot change the result; the `gitIn` guard still applies.
  */
-export function commitAll(repo: string): string {
-  return commitAllAt(repo);
+export function commitAll(repo: string, message = 'fixture'): string {
+  return commitAllAt(repo, undefined, message);
 }
 
 /** `commitAll` with author and committer date set to `when`, so a test can age a commit. */
-export function commitAllAt(repo: string, when?: Date): string {
+export function commitAllAt(repo: string, when?: Date, message = 'fixture'): string {
   const stamp = when === undefined ? undefined : `@${Math.floor(when.getTime() / 1000)} +0000`;
   const git = gitIn(repo, stamp === undefined ? undefined : { GIT_COMMITTER_DATE: stamp, GIT_AUTHOR_DATE: stamp });
   git('add', '-A');
@@ -73,7 +73,7 @@ export function commitAllAt(repo: string, when?: Date): string {
     '-c', 'user.email=fixture@example.invalid',
     '-c', 'user.name=fixture',
     '-c', 'commit.gpgsign=false',
-    'commit', '-q', '--no-verify', '-m', 'fixture',
+    'commit', '-q', '--no-verify', '-m', message,
   );
   return git('rev-parse', 'HEAD').trim();
 }

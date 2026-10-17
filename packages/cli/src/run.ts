@@ -22,7 +22,7 @@ import { skills } from './commands/skills.js';
 import { status } from './commands/status.js';
 import { taskDone } from './commands/task-done.js';
 import { testsBaseline } from './commands/tests-baseline.js';
-import { loadFromFs, UsageError } from './load/fs.js';
+import { loadClaimView, loadFromFs, UsageError } from './load/fs.js';
 import { pinMessage } from './pin.js';
 import { repoRoot } from './root.js';
 
@@ -47,9 +47,9 @@ export interface CommandContext {
  * Root, snapshot, pin — in that order, once per command (D-95, D-103). A repository with no `accord/`
  * folder throws the loader's own UsageError before the pin is ever consulted.
  */
-function preflight(opts: RunOptions): CommandContext {
+function preflight(opts: RunOptions, mode: 'checkout' | 'claims' = 'checkout'): CommandContext {
   const root = repoRoot(opts.cwd);
-  const snapshot = loadSnapshot(loadFromFs(root));
+  const snapshot = loadSnapshot(mode === 'claims' ? loadClaimView(root).view : loadFromFs(root));
   // D-94: a hard refusal, no flag and no environment variable that skips it. `config` is undefined
   // when config.yml is missing or failed the schema (D-31); those repositories must report their
   // schema findings through lint rather than a pin error, so the check is guarded rather than global.
@@ -198,7 +198,7 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     // The only async action: `status` may ask the tracker what it knows (INTG-01). `parseAsync`
     // awaits it, so the exit code is still settled before runCli returns.
     .action(async (options: { json?: boolean; all?: boolean }) => {
-      setCode(await status(preflight(opts), options));
+      setCode(await status(preflight(opts, 'claims'), options));
     });
 
   program
@@ -214,7 +214,7 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .description('print the ranked and capped sections for the viewer')
     .option('--json', 'print the Dashboard object instead of text')
     .action((options: { json?: boolean }) => {
-      setCode(dashboardCommand(preflight(opts), options));
+      setCode(dashboardCommand(preflight(opts, 'claims'), options));
     });
 
   program

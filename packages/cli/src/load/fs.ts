@@ -126,7 +126,7 @@ function gitClaims(
   root: string,
   templates: readonly string[],
   known: (id: string) => boolean,
-): { claims: Record<string, string>; branches: Record<string, string>; activity: Record<string, number> } {
+): { claims: Record<string, string>; branches: Record<string, string>; refs: Record<string, string>; activity: Record<string, number> } {
   const patterns = templates.flatMap((t) => {
     const parts = t.split('{id}');
     return parts.length === 2 ? ['refs/heads/' + parts[0] + '*' + parts[1], 'refs/remotes/*/' + parts[0] + '*' + parts[1]] : [];
@@ -145,7 +145,7 @@ function gitClaims(
     throw new UsageError('git for-each-ref failed reading the claim branches' + (stderr === '' ? '' : '\n' + stderr));
   }
   // A Map, so an inherited key such as `constructor` never counts as an earlier winner.
-  const winners = new Map<string, { email: string; short: string; pushed: boolean; when: number }>();
+  const winners = new Map<string, { email: string; short: string; ref: string; pushed: boolean; when: number }>();
   const activity: Record<string, number> = {};
   for (const line of out.split('\n')) {
     const [ref, email, whenText] = line.split('\0');
@@ -156,17 +156,19 @@ function gitClaims(
     const when = Number(whenText);
     // Local and remote-tracking tips both count towards activity.
     if (when > (activity[id] ?? 0)) activity[id] = when;
-    const cur = { email: email.replace(/^<|>$/g, ''), short: m[2], pushed: m[1] === undefined, when };
+    const cur = { email: email.replace(/^<|>$/g, ''), short: m[2], ref: ref as string, pushed: m[1] === undefined, when };
     const prev = winners.get(id);
     if (prev === undefined || (cur.pushed && !prev.pushed) || (cur.pushed === prev.pushed && cur.when > prev.when)) winners.set(id, cur);
   }
   const claims: Record<string, string> = Object.create(null);
   const branches: Record<string, string> = Object.create(null);
+  const refs: Record<string, string> = Object.create(null);
   for (const [id, w] of winners) {
     claims[id] = w.email;
     branches[id] = w.short;
+    refs[id] = w.ref;
   }
-  return { claims, branches, activity };
+  return { claims, branches, refs, activity };
 }
 /**
  * Spec §7: is each lane plan's baseline an ancestor of HEAD? Per sha, `git merge-base --is-ancestor`:
@@ -306,7 +308,27 @@ function gitDefaultBranch(root: string): { exists: boolean; template?: string } 
   return { exists: false };
 }
 
-export function loadFromFs(root: string): SnapshotInput {
+/** The branch name; '' for a detached HEAD; undefined when git could not say. */
+export function currentBranch(root: string): string | undefined {
+  try {
+    // symbolic-ref answers on an unborn branch too, where rev-parse fails.
+    return execFileSync('git', ['symbolic-ref', '--short', '-q', 'HEAD'], {
+      cwd: root,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }).trim();
+  } catch (e) {
+    const { status, stdout } = e as { status?: number | null; stdout?: string };
+    return status === 1 && (stdout ?? '').trim() === '' ? '' : undefined;
+  }
+}
+
+function loadParts(root: string): {
+  input: SnapshotInput;
+  claimRefs: Record<string, string>;
+  templates: string[];
+  known: (id: string) => boolean;
+} {
   const tree = gitTree(root);
   const files = accordFiles(root);
   // First pass reads the config; the tokens file and the test report are read the same way,
@@ -324,7 +346,8 @@ export function loadFromFs(root: string): SnapshotInput {
   ];
   const defaultBranch = gitDefaultBranch(root);
   const branchTemplates = [...new Set([DEFAULT_BRANCH_TEMPLATE, defaultBranch.template, config?.branch].filter((t): t is string => t !== undefined))];
-  const { claims, branches: claimBranches, activity: branchActivity } = gitClaims(root, branchTemplates, (id) => Object.hasOwn(first.tickets, id));
+  const known = (id: string) => Object.hasOwn(first.tickets, id);
+  const { claims, branches: claimBranches, refs: claimRefs, activity: branchActivity } = gitClaims(root, branchTemplates, known);
   // D-09: a new claim is named by the default branch's template; only a repository with no default branch uses the working tree's.
   const claimTemplate = (defaultBranch.exists ? defaultBranch.template : config?.branch) ?? DEFAULT_BRANCH_TEMPLATE;
   const lastActivity: Record<string, number> = { ...facts?.activity };
@@ -348,7 +371,7 @@ export function loadFromFs(root: string): SnapshotInput {
     ),
   ];
   const recordsSince = recorded.length === 0 ? {} : gitRecordsSince(root, recorded);
-  return {
+  const input: SnapshotInput = {
     files,
     tree,
     ...(branchTemplates.length === 1 ? {} : { branchTemplates }),
@@ -361,6 +384,77 @@ export function loadFromFs(root: string): SnapshotInput {
     ...(Object.keys(baselineFiles).length === 0 ? {} : { baselineFiles }),
     ...(Object.keys(recordsSince).length === 0 ? {} : { recordsSince }),
   };
+  return { input, claimRefs, templates: branchTemplates, known };
+}
+
+export function loadFromFs(root: string): SnapshotInput {
+  return loadParts(root).input;
+}
+
+/** The five records of a ticket, as repository paths. */
+const recordPaths = (id: string): string[] => [
+  'accord/tickets/' + id + '.md',
+  ...['plan', 'ledger', 'review', 'verification'].map((n) => 'accord/tickets/' + id + '/' + n + '.md'),
+];
+
+/**
+ * BUG-LN-2: the claim view. `checkout` is the working tree alone; `view` overlays, for each claimed ticket that is not
+ * the current branch's own and whose claim ref is not merged into HEAD, the ticket's five records as that ref holds them.
+ * One `git cat-file --batch`, no network (`GIT_NO_LAZY_FETCH`). A blob not present locally reads as absent.
+ */
+export function loadClaimView(root: string): { checkout: SnapshotInput; view: SnapshotInput } {
+  const { input: checkout, claimRefs, templates, known } = loadParts(root);
+  const env = { ...process.env, GIT_NO_LAZY_FETCH: '1' };
+  const current = currentBranch(root);
+  const own = current === undefined || current === '' ? undefined : ticketOfBranch(current, templates, known);
+  const candidates = Object.entries(claimRefs).filter(([id, ref]) => {
+    if (id === own) return false;
+    try {
+      execFileSync('git', ['merge-base', '--is-ancestor', ref, 'HEAD'], { cwd: root, stdio: 'ignore', env });
+      return false;
+    } catch {
+      return true;
+    }
+  });
+  if (candidates.length === 0) return { checkout, view: checkout };
+  const wanted = candidates.flatMap(([id, ref]) => recordPaths(id).map((path) => ref + ':' + path));
+  let out: Buffer;
+  try {
+    out = execFileSync('git', ['cat-file', '--batch'], {
+      cwd: root,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      maxBuffer: 64 * 1024 * 1024,
+      env,
+      input: wanted.map((spec) => spec + '\n').join(''),
+    });
+  } catch (err) {
+    const stderr = String((err as { stderr?: string }).stderr ?? '').trim();
+    throw new UsageError('git cat-file failed reading the claim branches' + (stderr === '' ? '' : '\n' + stderr));
+  }
+  let at = 0;
+  const read = new Map<string, string | undefined>();
+  for (const spec of wanted) {
+    const nl = out.indexOf(10, at);
+    if (nl < 0) break;
+    const m = /^[0-9a-f]+ blob (\d+)$/.exec(out.toString('utf8', at, nl));
+    if (m === null) {
+      at = nl + 1; // `<name> missing`
+      continue;
+    }
+    const size = Number(m[1]);
+    read.set(spec, out.toString('utf8', nl + 1, nl + 1 + size));
+    at = nl + 1 + size + 1;
+  }
+  const files = { ...checkout.files };
+  for (const [id, ref] of candidates) {
+    if (read.get(ref + ':' + recordPaths(id)[0]) === undefined) continue;
+    for (const path of recordPaths(id)) {
+      const text = read.get(ref + ':' + path);
+      if (text === undefined) delete files[path];
+      else files[path] = text;
+    }
+  }
+  return { checkout, view: { ...checkout, files } };
 }
 
 /** IDS-1: `git config user.email`, trimmed; '' when unset (git exits 1). */

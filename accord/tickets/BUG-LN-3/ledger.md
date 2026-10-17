@@ -21,8 +21,11 @@
 - Ruling: review round 1: a ticket renamed in the pull request is read at its old path in the base commit, and deleting a ticket file outright stays ungated (A-09), filed as BUG-LN-4 — owner: "Vá đổi tên, xóa file để ticket riêng (Recommended)" — a deleted approved ticket in a docs-only pull request is not gated until BUG-LN-4
 - Ruling: review round 1 fix: rename lines are parsed with awk's default whitespace split — the no-backslash rule rules out a tab separator — a ticket path with a space would read as unapproved; ticket ids have none
 
+- Ruling: review round 2: in a pull request that changes nothing outside accord/, deleting or renaming away a ticket file approved in the base commit gates every ticket the pull request touches, whether or not git detects the rename; a delete-only pull request touching no other ticket stays BUG-LN-4 — owner: "Close it in BUG-LN-3 (Recommended)" — a docs-only rename of an approved ticket is gated, which it should be anyway
+- Ruling: review round 2 fix: the round 1 rename lookup (renames, awk base_file) is removed, since the deletion rule covers every rename, so the round 1 awk-split Ruling no longer applies — deletion beats addition — none
 ## Deferred
 - plan round 1.5: rule line 14 cites a test "finds no denied name in the config, the workflow, or the pointer block" that does not exist in the tree.
 - plan round 1.6: Task 4 does not say whether Task 3's `risk:parsing` cases join the shared @ac-4 case array.
 - plan round 1.7: `risk:parsing` case 3 (approved, 2 MB) passes even with the forbidden `git show | awk` pipeline; a large unapproved draft expecting "not gated" would catch it.
 - review round 1 Nice 3: the script exists twice, in workflow.ts and .github/workflows/accord.yml, kept in step only by the @ac-4 replay test.
+- review round 2 Nice 3: the comment in the @ac-4 test sits after its last statement, before the timeout argument; it belongs above the `it(` line.

@@ -18,7 +18,11 @@
 - Ruling: build task 3: the new tests use the brief's exact titles, and their failing-first proof is one coarse mutation (always skip) that failed 8 of 15 cases, since tasks 1 and 2 already held the rule — keeps ids stable for the baseline — a sub-case that no single mutation fails is not shown to bite
 - Ruling: build task 4: the @ac-4 comparison also replays the nested-status case beside the two dropped cases, and reads the task 3 cases from the module-level array — more coverage of the same fixtures — none
 
+- Ruling: review round 1: a ticket renamed in the pull request is read at its old path in the base commit, and deleting a ticket file outright stays ungated (A-09), filed as BUG-LN-4 — owner: "Vá đổi tên, xóa file để ticket riêng (Recommended)" — a deleted approved ticket in a docs-only pull request is not gated until BUG-LN-4
+- Ruling: review round 1 fix: rename lines are parsed with awk's default whitespace split — the no-backslash rule rules out a tab separator — a ticket path with a space would read as unapproved; ticket ids have none
+
 ## Deferred
 - plan round 1.5: rule line 14 cites a test "finds no denied name in the config, the workflow, or the pointer block" that does not exist in the tree.
 - plan round 1.6: Task 4 does not say whether Task 3's `risk:parsing` cases join the shared @ac-4 case array.
 - plan round 1.7: `risk:parsing` case 3 (approved, 2 MB) passes even with the forbidden `git show | awk` pipeline; a large unapproved draft expecting "not gated" would catch it.
+- review round 1 Nice 3: the script exists twice, in workflow.ts and .github/workflows/accord.yml, kept in step only by the @ac-4 replay test.

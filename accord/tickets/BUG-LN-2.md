@@ -41,7 +41,7 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: BUG-LN-2
 
-  @ac-1
+  @ac-1 @test:packages/cli/test/status.test.ts#ac-1-a-ticket-filed-only-on-its-pushed-claim-branch-shows-at-that-branch-stage-without-a-fetch
   Scenario: A ticket whose file exists only on its claim branch shows at the stage that branch holds
     Given a repository whose current branch has no file for ticket X
     And a remote-tracking branch `origin/t/X`, with no local `t/X`, whose tip holds X approved, a plan whose last commit subject is exactly `plan: X ready`, and one of its three tasks recorded in the ledger
@@ -49,7 +49,7 @@ Feature: BUG-LN-2
     Then X is listed as claimed by the author of that tip commit, at stage `build 1/3`
     And neither command fetches
 
-  @ac-2
+  @ac-2 @test:packages/cli/test/status.test.ts#ac-2-the-claim-branch-copy-wins-over-an-older-checkout-copy
   Scenario: The claim branch's copy wins over an older copy on the current branch
     Given the current branch holds ticket X unapproved
     And the claim branch `origin/t/X` holds X approved, with a plan whose last commit subject is exactly `plan: X ready` and no task recorded

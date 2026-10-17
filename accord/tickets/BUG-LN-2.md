@@ -81,6 +81,7 @@ Feature: BUG-LN-2
 - D-02 All three parts are in scope and none is cut: claimed tickets on other branches show, `build` only after `plan: <id> ready`, an unwritten intent points to the interview — "Đúng cả 3 (Recommended)", then "Cả 3 phần, không cắt (Recommended)"
 - D-03 A lane ticket row at stage intent gains a `next` field in `accord status --json` and `accord dashboard --json`, and the dashboard prints it after the stage; no field is removed; spec §6 line 179 is updated to match — "Thêm field next (Recommended)"
 - D-04 A dependency counts as done only in the tree the command runs on, as spec §5 says: a ticket done only on its unmerged claim branch still blocks its dependents on the dashboard, while its own row shows the stage its branch holds — "Vẫn bị chặn, giữ spec §5 (Recommended)"
+- D-05 `accord show`, the panel's ticket detail added by ST-LN-6, reads a claimed ticket the way the dashboard does: from its claim branch, with plan facts, and with blockers from the checkout — "Như dashboard (Recommended)"
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
@@ -124,3 +125,11 @@ Feature: BUG-LN-2
 - AC-1, AC-2: CLI tests in `status.test.ts` and `dashboard.test.ts`, with refs made by `git update-ref refs/remotes/origin/t/X`.
 - AC-3: a core stage test, plus CLI tests for untracked, staged and unstaged plans, and a claim ref against a dirty tree.
 - AC-4: a core next-step test, plus one CLI check each for `anchor` and `dashboard`.
+
+**Change note (2026-10-17), after ST-LN-6 merged `accord show` into main.**
+- What changed: `show` derives a stage, a branch and a holder through `ticketDetail` → `statusRows`, but loads only the checkout. On main, a ticket that exists only on its claim branch shows on the dashboard but fails in `show`, and a row reading `plan` opens as `build` in the panel.
+- Tasks 1-4 still hold unchanged.
+- New approach for `show` (D-05):
+  - it loads through the claim view, like `status` and `dashboard`, so it gets the overlay and plan facts;
+  - `ticketDetail` gains the plain snapshot as an optional trailing parameter, the same shape as `statusRows` and `dashboard`, so blockers come from the checkout (D-04).
+- Affected: `packages/cli/src/commands/show.ts`, its preflight mode in `run.ts`, `packages/core/src/status/show.ts`, `packages/cli/test/show.test.ts`.

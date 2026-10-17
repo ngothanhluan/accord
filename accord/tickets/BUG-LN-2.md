@@ -56,7 +56,7 @@ Feature: BUG-LN-2
     When `accord status --json` runs on the current branch
     Then X is at stage `build 0/n`, the stage `origin/t/X` holds, not at stage `intent`
 
-  @ac-3
+  @ac-3 @test:packages/cli/test/status.test.ts#ac-3-a-plan-reaches-build-only-after-its-ready-commit-and-while-clean
   Scenario: A plan that has not reached its ready commit is still at stage plan
     Given ticket X approved, with a plan.md holding tasks
     When the last commit that touched plan.md has the subject `plan: X round 1, 1 Must, 0 Should`, or X is read from the working tree and its plan.md is untracked or has staged or unstaged changes

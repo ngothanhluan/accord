@@ -4,6 +4,7 @@
 - task 1 done 55db9415d184
 - task 2 done af39d748516d
 - task 3 done 1902080bad33
+- task 4 done 147192bc9995
 
 ## Rulings
 - Ruling: on the claim branch itself the working tree is read, not the branch tip — the claimant must see uncommitted work, and the spec reads the active ticket from the current branch — cost if wrong: the claimant's own dashboard lags its last commit.
@@ -22,6 +23,8 @@
 - Ruling: the claim-ref ancestor check is a new `git merge-base --is-ancestor` spawn with `GIT_NO_LAZY_FETCH` set, rather than reusing `gitAncestors`, which sets no env — every new git call sets it — cost if wrong: none.
 - Ruling: preflight sets `plain` to the snapshot itself when the checkout and the claim view are the same object — no second load when nothing is overlaid — cost if wrong: none.
 - Ruling: the `plain` parameters on the internal `effectivePriorities` and `epicsSection` are required, and `dashboard()` fills them from `plain ?? snapshot` — neither is exported from core — cost if wrong: none.
+- Ruling: an overlaid plan's subject comes from `git log -1 --format=%s <ref> -- <plan>`; when that spawn fails the subject is omitted, so the plan reads as not ready — fails closed, never shows build wrongly — cost if wrong: such a claim shows at plan.
+- Ruling: planFacts is `{}` when no plan exists, the key present, so a host that supplies facts keeps the ready rule on — cost if wrong: none.
 
 ## Deferred
 - plan round 1.3: Task 4's AC-3 test checks `anchor` only for the round, ready, unstaged and claim-ref cases, not for staged and untracked plan.md.

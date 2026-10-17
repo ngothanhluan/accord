@@ -24,6 +24,9 @@
 - Ruling: review round 2: in a pull request that changes nothing outside accord/, deleting or renaming away a ticket file approved in the base commit gates every ticket the pull request touches, whether or not git detects the rename; a delete-only pull request touching no other ticket stays BUG-LN-4 — owner: "Close it in BUG-LN-3 (Recommended)" — a docs-only rename of an approved ticket is gated, which it should be anyway
 - Ruling: review round 2 fix: the round 1 rename lookup (renames, awk base_file) is removed, since the deletion rule covers every rename, so the round 1 awk-split Ruling no longer applies — deletion beats addition — none
 - Ruling: final review fix: the script's fence tracking for the Dropped section is approximate (fence length ignored), and a reading it cannot settle answers not dropped — lint's scanner is stricter and still fails the job on a reason it rejects — one edge ticket wrongly gated, or a reason lint rejects accepted while lint fails the job
+- Ruling: review past the cap: one more fix round and one re-review after round 5 — owner: "One more fix round (Recommended)" — none
+- Ruling: allowlist fix: the parsing cases use the odd spelling in both the base and the pull request version with a body-only edit, since a base read as approved already gates — a pull-request-only rewrite is not a separate case, and that path is gated by the base read — none
+- Ruling: allowlist fix: a fourth parsing case, a whole mapping indented — the brief named it as missed — one extra sandbox
 
 ## Deferred
 - plan round 1.5: rule line 14 cites a test "finds no denied name in the config, the workflow, or the pointer block" that does not exist in the tree.

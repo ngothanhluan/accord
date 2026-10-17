@@ -61,7 +61,7 @@ Feature: BUG-LN-3
     Then `accord gate done` does not run on X, and the script exits 0 when lint has no error
     And when X's `## Dropped` section is missing or empty, lint reports an error and the script exits 1
 
-  @ac-3
+  @ac-3 @test:packages/cli/test/workflow-script.test.ts#the-emitted-workflow-script-—-executed->-code-in-the-diff-or-an-approved-ticket:-gate-done-runs-and-its-failure-fails-the-job
   Scenario: A pull request that carries code, or touches an approved ticket, still gates it
     Given a pull request that changes ticket X
     And either its diff changes any file outside `accord/`, whatever X says, or its diff changes only files under `accord/` while X is approved in its own version or in the base commit's and is not dropped

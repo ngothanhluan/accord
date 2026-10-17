@@ -73,7 +73,7 @@ Feature: ST-LN-6
     And the row itself holds no Continue button; that button and a Back button are in the detail view
     And pressing that button submits the same `/accord` command the row submitted before this ticket, and pressing Back shows the dashboard already loaded without running any command
 
-  @ac-5
+  @ac-5 @test:packages/core/test/panel.test.ts#ac-5-the-detail-view-wraps-long-text-whole-while-the-table-keeps-its-cut
   Scenario: The detail view wraps long text and never cuts it, while the table keeps its cuts
     Given a ticket whose title and one step are each wider than the pane
     When its detail view is shown

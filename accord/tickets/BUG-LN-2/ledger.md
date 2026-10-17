@@ -7,6 +7,7 @@
 - task 4 done 147192bc9995
 - task 5 done caaf7c652b13
 - task 6 done 30790e557421
+- task 7 done 3813feb1f238
 
 ## Rulings
 - Ruling: on the claim branch itself the working tree is read, not the branch tip — the claimant must see uncommitted work, and the spec reads the active ticket from the current branch — cost if wrong: the claimant's own dashboard lags its last commit.

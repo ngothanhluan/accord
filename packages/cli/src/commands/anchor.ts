@@ -1,27 +1,11 @@
 // Spec §6 `accord anchor [id]`: the active ticket's intent, vetoes, decisions, corrections, and position,
 // for the SessionStart hook after compaction and for the first step of every stage skill. Without an id
 // the active ticket is the current branch named by a template in force (t/{id} or config `branch`); on any other branch there is nothing to anchor.
-import { execFileSync } from 'node:child_process';
 import { anchorText, DEFAULT_BRANCH_TEMPLATE } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
-import { ticketOfBranch } from '../load/fs.js';
+import { currentBranch, ticketOfBranch } from '../load/fs.js';
 import type { CommandContext } from '../run.js';
 import { requireLaneTicket } from './lane-args.js';
-
-/** The branch name; '' for a detached HEAD; undefined when git could not say. */
-function currentBranch(root: string): string | undefined {
-  try {
-    // symbolic-ref answers on an unborn branch too, where rev-parse fails.
-    return execFileSync('git', ['symbolic-ref', '--short', '-q', 'HEAD'], {
-      cwd: root,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-    }).trim();
-  } catch (e) {
-    const { status, stdout } = e as { status?: number | null; stdout?: string };
-    return status === 1 && (stdout ?? '').trim() === '' ? '' : undefined;
-  }
-}
 
 /** The id the current branch carries under a template in force; undefined on any other branch. Throws when git could not say. */
 export function activeTicket(root: string, snapshot: RepoSnapshot): string | undefined {

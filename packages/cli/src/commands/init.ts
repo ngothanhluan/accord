@@ -9,7 +9,7 @@
 // a document stays a manual act, and the version pin is what makes the mismatch visible.
 import { lstatSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { agentTargets, initFiles, loadConfig, loadSnapshot, POINTER_FILES, pointerText, skillTargets } from '@accord-dev/accord-core';
+import { agentTargets, initFiles, loadConfig, loadSnapshot, pluginTargets, POINTER_FILES, pointerText, skillTargets } from '@accord-dev/accord-core';
 import pkg from '../../package.json' with { type: 'json' };
 import { assertNoLink } from '../guard.js';
 import { loadFromFs, UsageError } from '../load/fs.js';
@@ -45,7 +45,7 @@ export function init(ctx: InitContext): number {
    * Returns the skill targets it guarded and the settings plan, which refuses before any write: the roster is the config on disk's to decide (D-131), and
    * reaching them from the snapshot loaded here is what keeps the config parsed exactly once (A-07).
    */
-  const refusals = (agents?: SkillFile[]): { targets: SkillFile[]; hooks: HooksPlan | undefined } => {
+  const refusals = (extra?: SkillFile[]): { targets: SkillFile[]; hooks: HooksPlan | undefined } => {
     // One config parser and one schema application for the whole CLI (A-07) — the alternative is a second
     // YAML parse here that can disagree with the first.
     const snapshot = loadSnapshot(loadFromFs(ctx.root));
@@ -63,7 +63,7 @@ export function init(ctx: InitContext): number {
     // config on disk declares — the defaults this run wrote on a greenfield repository, the human's
     // existing roster on a D-132 one. The orphan scan is deliberately not run: D-113 scopes that advisory
     // to `sync`, and a repository being initialised has no history to have orphaned anything.
-    const targets = [...skillTargets(snapshot.config), ...(agents ?? agentTargets(snapshot.config))];
+    const targets = [...skillTargets(snapshot.config), ...(extra ?? [...agentTargets(snapshot.config), ...pluginTargets(snapshot.config, pkg)])];
     for (const { path } of targets) assertNoLink(ctx.root, path);
     return { targets, hooks: planHooks(ctx.root, snapshot.config) };
   };
@@ -86,7 +86,7 @@ export function init(ctx: InitContext): number {
   const written = loadConfig('accord/config.yml', configText).config;
   // Agent targets come from this same config, not from a re-read of the disk, and join the link pre-pass
   // before the scaffold loop writes anything.
-  const greenfieldAgents = guarded === undefined && written !== undefined ? agentTargets(written) : [];
+  const greenfieldAgents = guarded === undefined && written !== undefined ? [...agentTargets(written), ...pluginTargets(written, pkg)] : [];
   for (const { path } of greenfieldAgents) assertNoLink(ctx.root, path);
   const greenfieldHooks =
     guarded === undefined ? planHooks(ctx.root, { runtimes: written?.runtimes ?? [] }) : undefined;

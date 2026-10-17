@@ -41,6 +41,8 @@ export { recordTaskDone } from './write/ledger.js';
 export { writeTestTags } from './write/testtag.js';
 export { branchTemplateOf, DEFAULT_BRANCH_TEMPLATE } from './status/branch.js';
 export { anchorText } from './status/anchor.js';
+export { ticketDetail } from './status/show.js';
+export type { CriterionDetail, CriterionLabel, TicketDetail } from './status/show.js';
 export { rulesetText, sessionLine } from './status/session.js';
 export { nextRows, statusRows } from './status/rows.js';
 export { dashboard } from './status/dashboard.js';
@@ -55,6 +57,7 @@ export type { TemplateName } from './generated/templates.js';
 export { setFrontmatterKey } from './write/frontmatter.js';
 export type { FrontmatterValue } from './write/frontmatter.js';
 export { contentHash, markerHash, renderSkill, withoutMarker } from './skills/render.js';
+export { pluginDir, pluginTargets } from './skills/plugin.js';
 export { AGENT_DEFAULTS, agentDir, agentTargets, renderAgent } from './skills/agents.js';
 export { allSkillDirs, installedName, skillDirs, skillTargets, STAGES } from './skills/targets.js';
 export type { SkillFile } from './skills/targets.js';
@@ -66,6 +69,7 @@ export type { ScaffoldFile } from './scaffold/init.js';
 // CLI-03: not a `ScaffoldFile`, deliberately. The pointer's text depends on what the file already holds
 // (D-142), which is the one thing the skip-if-exists write contract above never looks at.
 export { POINTER_END, POINTER_FILES, POINTER_START, pointerText } from './scaffold/pointer.js';
+export { mergePanel, panelSettings } from './scaffold/panel.js';
 export { hookEntries, isAccordHookCommand, mergeHooks } from './scaffold/hooks.js';
 export type { HookEntries } from './scaffold/hooks.js';
 export { skills } from './generated/skills.js';

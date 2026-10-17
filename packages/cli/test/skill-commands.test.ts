@@ -55,9 +55,10 @@ const SPAN = /`([^`]+)`/g;
  * A command mention is a run of lowercase words after `accord ` inside code formatting — an inline
  * span or a fenced block. Prose is deliberately not scanned: `shared/prototype.md` says "the header
  * accord ships", which is English and not a command, and every real invocation in every definition is
- * already inside backticks because that is how a command is written in Markdown.
+ * already inside backticks because that is how a command is written in Markdown. A `/accord` slash
+ * command is not an `accord` CLI command, so a mention preceded by `/` is skipped.
  */
-const MENTION = /\baccord((?:\s+[a-z][a-z-]*)+)/g;
+const MENTION = /(?<!\/)\baccord((?:\s+[a-z][a-z-]*)+)/g;
 
 interface Mention {
   where: string; // '.claude/skills/accord-dev/SKILL.md:16'
@@ -88,7 +89,7 @@ function mentions(files: SkillFile[]): Mention[] {
 
 describe('the commands a skill may name (SKILL-08, D-110)', () => {
   it('reads the real paths off the commander tree the CLI runs', () => {
-    expect(REAL).toEqual(['anchor', 'approve', 'brief', 'dashboard', 'gate done', 'gate plan', 'gate ready', 'hook', 'init', 'lint', 'new ticket', 'next', 'review-package', 'skills sync', 'status', 'task-done', 'tests baseline']);
+    expect(REAL).toEqual(['anchor', 'approve', 'brief', 'dashboard', 'gate done', 'gate plan', 'gate ready', 'hook', 'init', 'lint', 'new ticket', 'next', 'review-package', 'show', 'skills sync', 'status', 'task-done', 'tests baseline']);
   });
 
   it('treats a namespace with no action of its own as not a command', () => {

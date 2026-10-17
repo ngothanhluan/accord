@@ -637,7 +637,7 @@ describe('status, claims, and next', () => {
     }
   });
 
-  // makeLaneRepo always writes a plan, so the approved ticket sits at build 0/2: approved, nothing recorded.
+  // makeLaneRepo always writes a plan, but it is never committed, so the approved ticket sits at stage plan.
   it('next lists an approved, Ready, unclaimed ticket, and nothing once it is claimed', async () => {
     const repo = makeLaneRepo();
     try {
@@ -647,7 +647,7 @@ describe('status, claims, and next', () => {
       const listed = await run(['next'], repo);
       expect(listed.code).toBe(0);
       expect(listed.out).toContain('T-1');
-      expect(listed.out).toContain('build 0/2');
+      expect(listed.out.split('\n').find((l) => l.includes('T-1'))).toContain('plan');
       const json = JSON.parse((await run(['next', '--json'], repo)).out) as { id: string }[];
       expect(json.map((r) => r.id)).toEqual(['T-1']);
       commitAll(repo);

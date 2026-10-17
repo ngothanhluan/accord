@@ -8,6 +8,7 @@ import type { RepoSnapshot } from '@accord-dev/accord-core';
 import { Command, CommanderError, Option } from 'commander';
 import pkg from '../package.json' with { type: 'json' };
 import { anchor } from './commands/anchor.js';
+import { show } from './commands/show.js';
 import { approve } from './commands/approve.js';
 import { brief } from './commands/brief.js';
 import { gate } from './commands/gate.js';
@@ -22,7 +23,7 @@ import { skills } from './commands/skills.js';
 import { status } from './commands/status.js';
 import { taskDone } from './commands/task-done.js';
 import { testsBaseline } from './commands/tests-baseline.js';
-import { loadFromFs, UsageError } from './load/fs.js';
+import { loadClaimView, loadFromFs, UsageError } from './load/fs.js';
 import { pinMessage } from './pin.js';
 import { repoRoot } from './root.js';
 
@@ -38,6 +39,7 @@ export interface RunOptions {
 export interface CommandContext {
   root: string;
   snapshot: RepoSnapshot;
+  plain?: RepoSnapshot; // checkout-only snapshot, set under 'claims' (BUG-LN-2 D-04)
   stdout: NodeJS.WritableStream;
   stderr: NodeJS.WritableStream;
   env: NodeJS.ProcessEnv;
@@ -47,9 +49,11 @@ export interface CommandContext {
  * Root, snapshot, pin — in that order, once per command (D-95, D-103). A repository with no `accord/`
  * folder throws the loader's own UsageError before the pin is ever consulted.
  */
-function preflight(opts: RunOptions): CommandContext {
+function preflight(opts: RunOptions, mode: 'checkout' | 'stage' | 'claims' = 'checkout'): CommandContext {
   const root = repoRoot(opts.cwd);
-  const snapshot = loadSnapshot(loadFromFs(root));
+  const parts = mode === 'claims' ? loadClaimView(root) : undefined;
+  const snapshot = loadSnapshot(parts?.view ?? loadFromFs(root, mode === 'stage' ? { stage: true } : {}));
+  const plain = parts === undefined ? undefined : parts.checkout === parts.view ? snapshot : loadSnapshot(parts.checkout);
   // D-94: a hard refusal, no flag and no environment variable that skips it. `config` is undefined
   // when config.yml is missing or failed the schema (D-31); those repositories must report their
   // schema findings through lint rather than a pin error, so the check is guarded rather than global.
@@ -57,7 +61,7 @@ function preflight(opts: RunOptions): CommandContext {
     const message = pinMessage(snapshot.config.accord, pkg.version);
     if (message !== undefined) throw new UsageError(message);
   }
-  return { root, snapshot, stdout: opts.stdout, stderr: opts.stderr, env: opts.env ?? {} };
+  return { root, snapshot, ...(plain === undefined ? {} : { plain }), stdout: opts.stdout, stderr: opts.stderr, env: opts.env ?? {} };
 }
 
 /**
@@ -198,7 +202,7 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     // The only async action: `status` may ask the tracker what it knows (INTG-01). `parseAsync`
     // awaits it, so the exit code is still settled before runCli returns.
     .action(async (options: { json?: boolean; all?: boolean }) => {
-      setCode(await status(preflight(opts), options));
+      setCode(await status(preflight(opts, 'claims'), options));
     });
 
   program
@@ -206,7 +210,7 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .description('list lane tickets that passed Ready, have no task recorded, and are unblocked and unclaimed')
     .option('--json', 'print the StatusRow array instead of the table')
     .action((options: { json?: boolean }) => {
-      setCode(next(preflight(opts), options));
+      setCode(next(preflight(opts, 'stage'), options));
     });
 
   program
@@ -214,14 +218,22 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .description('print the ranked and capped sections for the viewer')
     .option('--json', 'print the Dashboard object instead of text')
     .action((options: { json?: boolean }) => {
-      setCode(dashboardCommand(preflight(opts), options));
+      setCode(dashboardCommand(preflight(opts, 'claims'), options));
     });
 
   program
     .command('anchor [id]')
     .description("print the active ticket's intent, vetoes, decisions, corrections, and position")
     .action((id: string | undefined) => {
-      setCode(anchor(preflight(opts), id));
+      setCode(anchor(preflight(opts, 'stage'), id));
+    });
+
+  program
+    .command('show <id>')
+    .description('print one lane ticket in full: its row facts, Intent, and each criterion with its state')
+    .option('--json', 'print the TicketDetail object instead of text')
+    .action((id: string, options: { json?: boolean }) => {
+      setCode(show(preflight(opts, 'claims'), id, options));
     });
 
   program
@@ -231,7 +243,7 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
       if (!(HOOK_EVENTS as readonly string[]).includes(event)) {
         throw new UsageError('unknown hook event ' + event + '; expected one of ' + HOOK_EVENTS.join(', '));
       }
-      setCode(hook(preflight(opts), event as (typeof HOOK_EVENTS)[number]));
+      setCode(hook(preflight(opts, 'stage'), event as (typeof HOOK_EVENTS)[number]));
     });
 
   return program;

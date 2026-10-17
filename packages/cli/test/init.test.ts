@@ -5,7 +5,7 @@
 // accord repository it runs in.
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
-import { agentTargets, POINTER_FILES, POINTER_START, skillTargets, validate } from '@accord-dev/accord-core';
+import { agentTargets, pluginTargets, POINTER_FILES, POINTER_START, skillTargets, validate } from '@accord-dev/accord-core';
 import { afterEach, describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import type { AccordConfig } from '@accord-dev/accord-core';
@@ -49,7 +49,11 @@ const HAND_WRITTEN = (pin: string): string =>
  * asserting the test's opinion of the roster instead of the command's.
  */
 const skillPaths = (repo: string): string[] =>
-  [...skillTargets(parsed(repo) as unknown as AccordConfig), ...agentTargets(parsed(repo) as unknown as AccordConfig)].map((t) => t.path);
+  [
+    ...skillTargets(parsed(repo) as unknown as AccordConfig),
+    ...agentTargets(parsed(repo) as unknown as AccordConfig),
+    ...pluginTargets(parsed(repo) as unknown as AccordConfig, pkg),
+  ].map((t) => t.path);
 
 /**
  * Every path under both target directories, repo-relative and sorted — the whole of what a run may have

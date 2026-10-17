@@ -13,7 +13,7 @@ const readied = (files: Record<string, string>): Record<string, string> => {
   const hash = acHash(loadSnapshot({ files, tree: [] }).tickets['T-1'].scenarios) as string;
   return { ...files, [T1]: setFrontmatterKey(files[T1], 'ac_hash', hash) };
 };
-const LANE_KEYS = ['lane', 'stage', 'tasksDone', 'tasksTotal', 'dependsOn', 'blockedBy', 'claimedBy', 'branch', 'title'];
+const LANE_KEYS = ['lane', 'stage', 'tasksDone', 'tasksTotal', 'dependsOn', 'blockedBy', 'claimedBy', 'branch', 'title', 'next'];
 
 describe('stage (spec §6)', () => {
   it('walks intent, plan, build, review, verify, done', () => {
@@ -193,4 +193,22 @@ it('risk:complex-branching the ready commit decides only plan versus build', () 
   expect(row).toMatchObject({ stage: 'plan', tasksDone: 1 });
   expect(nextRows([{ ...row, ready: 'ok' }])).toEqual([]);
   expect(nextRows([{ ...stage({}), ready: 'ok' }])).toHaveLength(1);
+});
+
+it('risk:parsing an intent of comments or a template scenario only criteria block reads as unwritten', () => {
+  const INTERVIEW = 'the intent interview (accord-intent)';
+  const APPROVE = 'the owner approves the ticket (accord approve)';
+  const TPL = ['```gherkin', 'Feature: T-1', '', '  @ac-1', '  Scenario: <observable outcome>', '    Given ...', '    When ...', '    Then ...'];
+  const OTHER = ['', '  @ac-2', '  Scenario: another', '    Given a', '    When b', '    Then c'];
+  const withBody = (body: string) => rows({ 'accord/config.yml': CONFIG, [T1]: laneTicket('T-1', { body }) })[0];
+  const body = (intent: string[] | undefined, gherkin: string[]) =>
+    [...(intent === undefined ? [] : ['## Intent', ...intent, '']), '## Acceptance criteria', ...gherkin, '```', ''].join('\n');
+  expect(withBody(body(['<!-- why, for whom -->', ''], [...TPL, ...OTHER])).next).toBe(INTERVIEW);
+  expect(withBody(body(undefined, [...TPL, ...OTHER])).next).toBe(INTERVIEW);
+  expect(withBody(body(['Real intent.'], ['```gherkin', 'Feature: T-1'])).next).toBe(INTERVIEW);
+  expect(withBody(body(['Real intent.'], TPL)).next).toBe(INTERVIEW);
+  expect(withBody(body(['Real intent.'], [...TPL, ...OTHER])).next).toBe(APPROVE);
+  expect(rows({ 'accord/config.yml': CONFIG, [T1]: laneTicket('T-1') })[0].next).toBe(APPROVE);
+  const ap = approved({ 'accord/config.yml': CONFIG, [T1]: laneTicket('T-1') }, 'T-1');
+  expect(rows(ap)[0]).not.toHaveProperty('next');
 });

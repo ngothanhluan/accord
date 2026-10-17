@@ -2,6 +2,7 @@
 // `gate ready` decides Ready and only `gate done` decides Done.
 import { acHash, approvedHash } from '../gate/hash.js';
 import { VERDICTS, workOf } from '../gate/work.js';
+import { headingKey, stripHtmlComments } from '../load/sections.js';
 import type { RepoSnapshot, Ticket } from '../model/snapshot.js';
 
 export type Stage = 'intent' | 'plan' | 'build' | 'review' | 'verify' | 'done';
@@ -21,6 +22,22 @@ const ticksBound = (ticket: Ticket): boolean => {
 
 const planReady = (facts: NonNullable<RepoSnapshot['planFacts']>, id: string): boolean =>
   Object.hasOwn(facts, id) && facts[id].clean && facts[id].subject === `plan: ${id} ready`;
+
+const NEXT: Record<Exclude<Stage, 'build' | 'intent'>, string> = {
+  plan: 'write the plan and pass accord gate plan',
+  review: 'review to convergence',
+  verify: "verification and the owner's tick",
+  done: 'nothing; run accord gate done',
+};
+
+/** Spec §6: what comes after `stage`. An unwritten intent (no Intent text, or only the template's scenario) points to the interview. */
+export function nextStep(ticket: Ticket, stage: Exclude<Stage, 'build'>): string {
+  if (stage !== 'intent') return NEXT[stage];
+  const intent = ticket.sections.find((s) => headingKey(s.heading) === 'intent');
+  const written = intent !== undefined && stripHtmlComments(intent.lines).some((l) => l.text.trim() !== '');
+  const scenario = ticket.scenarios.some((s) => s.name !== '<observable outcome>');
+  return written && scenario ? 'the owner approves the ticket (accord approve)' : 'the intent interview (accord-intent)';
+}
 
 /** undefined for a ticket without lane, or whose frontmatter failed the schema. */
 export function progressOf(snapshot: RepoSnapshot, ticket: Ticket): Progress | undefined {

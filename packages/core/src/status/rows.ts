@@ -5,7 +5,7 @@ import { lintSnapshot } from '../lint/index.js';
 import { scoped } from '../gate/index.js';
 import { acHash } from '../gate/hash.js';
 import { DEFAULT_BRANCH_TEMPLATE } from './branch.js';
-import { isDone, progressOf } from './stage.js';
+import { isDone, nextStep, progressOf } from './stage.js';
 import type { Stage } from './stage.js';
 
 export interface StatusRow {
@@ -25,6 +25,7 @@ export interface StatusRow {
   title?: string; // ST-LN-2 D-07: lane rows only, so a 0.1.0 row stays byte-identical
   lane?: 'M' | 'L' | 'P';
   stage?: Stage;
+  next?: string; // what follows an unwritten or unapproved intent; set only at stage intent
   tasksDone?: number;
   tasksTotal?: number;
   dependsOn?: string[]; // spec §5, as written
@@ -85,6 +86,7 @@ export function statusRows(snapshot: RepoSnapshot, now?: number, plain?: RepoSna
               title: fm.title,
               lane: fm.lane,
               stage: progress.stage,
+              ...(progress.stage === 'intent' ? { next: nextStep(ticket, 'intent') } : {}),
               tasksDone: progress.tasksDone,
               tasksTotal: progress.tasksTotal,
               ...(deps === undefined ? {} : { dependsOn: deps, blockedBy: deps.filter((d) => !isDone(plain ?? snapshot, d)) }),

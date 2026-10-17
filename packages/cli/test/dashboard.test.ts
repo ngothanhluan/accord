@@ -6,7 +6,7 @@ import { renderDashboard } from '../src/render/dashboard.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanup, commitAll, commitAllAt, gitRun, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
-import { CONFIG, laneTicket, PLAN } from '../../../test/helpers/lane.js';
+import { CONFIG, LANE_BODY, laneTicket, PLAN } from '../../../test/helpers/lane.js';
 
 type Files = Record<string, string>;
 type Opts = { lane?: string; frontmatter?: string[] };
@@ -311,6 +311,32 @@ it('risk:complex-branching a dependency done only on its claim branch still bloc
     expect(rows.find((r) => r.id === 'T-2')?.blockedBy).toEqual(['T-1']);
     const j = JSON.parse((await run(['dashboard', '--json'], repo)).out);
     expect(j.summary.blocked).toBe(1);
+  } finally {
+    cleanup(repo);
+  }
+});
+
+it('ac-4 an unwritten intent points anchor and dashboard to the intent interview', async () => {
+  const INTERVIEW = 'the intent interview (accord-intent)';
+  const APPROVE = 'the owner approves the ticket (accord approve)';
+  const repo = makeLaneRepo({
+    [P('T-2')]: laneTicket('T-2', { body: LANE_BODY.replace('Owners can export their report as CSV.', '<!-- why, for whom -->\n') }),
+    [P('T-3')]: laneTicket('T-3', {
+      body: LANE_BODY.replace(/```gherkin[\s\S]*?```/, '```gherkin\nFeature: T-3\n\n  @ac-1\n  Scenario: <observable outcome>\n    Given ...\n    When ...\n    Then ...\n```'),
+    }),
+  });
+  try {
+    gitRun(repo, 'config', 'user.email', 'an@example.com');
+    expect((await run(['anchor', 'T-2'], repo)).out).toContain(`Stage: intent, next: ${INTERVIEW}`);
+    expect((await run(['anchor', 'T-3'], repo)).out).toContain(`Stage: intent, next: ${INTERVIEW}`);
+    expect((await run(['anchor', 'T-1'], repo)).out).toContain(`Stage: intent, next: ${APPROVE}`);
+    const text = (await run(['dashboard'], repo)).out.split('\n');
+    expect(text.find((l) => l.includes('T-2'))).toContain(`intent, next: ${INTERVIEW}`);
+    expect(text.find((l) => l.includes('T-3'))).toContain(`intent, next: ${INTERVIEW}`);
+    expect(text.find((l) => l.includes('T-1'))).toContain(`intent, next: ${APPROVE}`);
+    const j = JSON.parse((await run(['dashboard', '--json'], repo)).out);
+    const all = [j.yours, j.team, j.ready, j.upNext].flatMap((s) => s?.rows ?? []) as { id: string; next?: string }[];
+    expect(all.find((r) => r.id === 'T-2')?.next).toBe(INTERVIEW);
   } finally {
     cleanup(repo);
   }

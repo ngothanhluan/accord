@@ -4,17 +4,9 @@ import { workOf } from '../gate/work.js';
 import { headingKey, stripHtmlComments } from '../load/sections.js';
 import { RULING } from '../load/work.js';
 import type { RepoSnapshot } from '../model/snapshot.js';
-import { progressOf } from './stage.js';
-import type { Stage } from './stage.js';
+import { nextStep, progressOf } from './stage.js';
 
 const SECTIONS = ['Intent', 'Vetoes', 'Decisions', 'Corrections'];
-const NEXT: Record<Exclude<Stage, 'build'>, string> = {
-  intent: 'the owner approves the ticket (accord approve)',
-  plan: 'write the plan and pass accord gate plan',
-  review: 'review to convergence',
-  verify: "verification and the owner's tick",
-  done: 'nothing; run accord gate done',
-};
 
 /** undefined when `id` is not a lane ticket in the snapshot. */
 export function anchorText(snapshot: RepoSnapshot, id: string): string | undefined {
@@ -29,7 +21,7 @@ export function anchorText(snapshot: RepoSnapshot, id: string): string | undefin
     where =
       `build ${progress.tasksDone}/${progress.tasksTotal}` + (task === undefined ? '' : `, next: task ${task.n} "${task.title}"`);
   } else {
-    where = `${progress.stage}, next: ${NEXT[progress.stage]}`;
+    where = `${progress.stage}, next: ${nextStep(ticket, progress.stage)}`;
   }
   const out = [`# Anchor: ${id} "${ticket.frontmatter?.title ?? ''}"`, '', `Stage: ${where}`];
   for (const name of SECTIONS) {

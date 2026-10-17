@@ -78,6 +78,8 @@ const DRAFT_TICKET = '---\nid: DRAFT-1\nstatus: draft\n# approved_hash:\n# ac_ha
 const APPROVED_TICKET =
   '---\nid: OLD-1\nstatus: open\napproved_hash: "fnv1a64:0000000000000000"\n---\n\n## Intent\nold\n';
 const CODE = 'export const a = 1;\n';
+const FLOW_TICKET =
+  '---\n{id: OLD-1, status: open, approved_hash: "fnv1a64:0000000000000000"}\n---\n\n## Intent\nold\n';
 
 function write(repo: string, path: string, text: string): void {
   const file = join(repo, ...path.split('/'));
@@ -184,6 +186,17 @@ const GATED: Array<Case & { id: string }> = [
   },
   { id: 'NEW-1', change: (r) => write(r, 'accord/tickets/NEW-1.md', APPROVED_TICKET.replace('OLD-1', 'NEW-1')) },
   { id: 'OLD-1', change: (r) => write(r, 'accord/tickets/OLD-1.md', NO_KEY_TICKET) },
+  {
+    // Dropped with no ## Dropped section is not dropped as lint defines it: the approved ticket is gated.
+    id: 'OLD-1',
+    change: (r) => write(r, 'accord/tickets/OLD-1.md', APPROVED_TICKET.replace('status: open', 'status: dropped')),
+  },
+  {
+    // A reason that is only a comment is no reason.
+    id: 'OLD-1',
+    change: (r) =>
+      write(r, 'accord/tickets/OLD-1.md', APPROVED_TICKET.replace('status: open', 'status: dropped') + '\n## Dropped\n<!-- why -->\n'),
+  },
   { id: 'OLD-1', change: (r) => write(r, 'accord/tickets/OLD-1.md', NO_KEY_TICKET), fail: 'OLD-1' },
 ];
 
@@ -391,6 +404,13 @@ describe.skipIf(noBash)('the emitted workflow script — executed', { timeout: 6
       sandbox(
         (r) => write(r, 'accord/tickets/OLD-1.md', DRAFT_TICKET),
         (r) => write(r, 'accord/tickets/OLD-1.md', '---\nid: OLD-1\nstatus: open\n\n## Intent\nold\n'),
+      ),
+    );
+    expectGated(
+      'OLD-1',
+      sandbox(
+        (r) => write(r, 'accord/tickets/OLD-1.md', FLOW_TICKET + 'edited\n'),
+        (r) => write(r, 'accord/tickets/OLD-1.md', FLOW_TICKET),
       ),
     );
     expectGated(

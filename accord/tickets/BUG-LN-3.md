@@ -45,7 +45,7 @@ Feature: BUG-LN-3
   # version or in the base commit's version of the file; a commented `# approved_hash:` line is not a key.
   # "Dropped" means `status: dropped` in the pull request's version, with a `## Dropped` section `accord lint` accepts.
 
-  @ac-1
+  @ac-1 @test:packages/cli/test/workflow-script.test.ts#the-emitted-workflow-script-—-executed->-unapproved-tickets-in-an-accord-only-diff:-lint-runs-and-no-gate-done-runs-and-the-exit-follows-lint
   Scenario: A pull request that adds or edits only unapproved tickets passes without gate done
     Given a pull request whose diff changes only files under `accord/`
     And no ticket file `accord/tickets/<id>.md` it adds or changes is approved, in its own version or in the base commit's

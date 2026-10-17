@@ -90,3 +90,22 @@ Feature: ST-LN-5
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
+Chosen: edit the two sources and repoint the ASK-1 test. `shared/ask.md` loses the ASK-1 paragraph and holds the
+four fixed sentences of ac-1 to ac-3 (frontmatter and heading kept). Intent step 5 becomes "One question per
+message, aimed at the dimension with the highest score; which kind of question to ask, and how, follows
+`./ask.md`." Its option-ordering clause goes, since an open question has no options (D-01) and ask.md already
+puts the recommended option first. The ASK-1 test `ac-1 the shared ask rule holds the fixed sentence beside every
+stage skill` keeps its name, so ASK-1's `@test` tag still resolves (renaming fails `testIdUnknown`; editing
+ASK-1.md makes CI run `gate done ASK-1` on a stale commit), checks the two ac-1 sentences, and gets a one-line
+comment that it proves ST-LN-5 ac-1 and ASK-1 ac-1 is superseded by D-06.
+Rejected: four new tests with the ASK-1 test cut to a presence check; more test code, and the ASK-1 test then
+proves less than its own scenario, for clearer ownership no criterion asks for.
+Affected: `packages/core/skills/shared/ask.md`, `packages/core/skills/intent/SKILL.md`, `stage-skills.test.ts`,
+the regenerated `src/generated/skills.ts`, and the nine synced `.claude/skills` copies, written by
+`node packages/cli/dist/cli.js skills sync` built in this worktree, never by another checkout's build.
+Risks: ASK-1's ac-1 text still quotes the old sentence while its test checks the new one (accepted by D-06, no
+gate sees it); the negative checks in ac-3 and ac-4 must turn line breaks into spaces before lowercasing, since
+both old phrases are wrapped today and a raw check passes before any edit; step 5 is bold, so the ac-4 test
+strips `**` before matching its opening words.
+Tests: ac-1 to ac-4 each one string test in `stage-skills.test.ts` on the in-memory render for all four
+runtimes, written first and failing on today's text.

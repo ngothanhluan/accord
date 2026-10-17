@@ -544,6 +544,9 @@ it('ac-5 the detail view wraps long text whole while the table keeps its cut', a
     expect(ns[0].props.children).toEqual(kids);
     expect(ns[0].props.wrap).toBe('wrap');
   }
+  const blocks = h.nodes('Box').filter((n) => n.props.marginTop === 1);
+  expect(blocks).toHaveLength(2);
+  for (const n of blocks) expect(n.props.flexDirection).toBe('column');
   for (const n of h.nodes('Text')) expect(n.props.wrap).toBe('wrap');
   for (const t of h.texts()) for (const bad of ['\n', '...', '…']) expect(t).not.toContain(bad);
   press(h, 'back');

@@ -128,11 +128,12 @@ export function register(on) {
       } else {
         children.push(wrapped({ bold: true }, d.title));
         for (const f of d.facts) children.push(wrapped({}, f));
-        children.push(Box({ marginTop: 1, children: [wrapped({ bold: true, color: 'cyan' }, 'Intent'), ...d.intent.map((l) => wrapped({}, l))] }));
+        children.push(Box({ marginTop: 1, flexDirection: 'column', children: [wrapped({ bold: true, color: 'cyan' }, 'Intent'), ...d.intent.map((l) => wrapped({}, l))] }));
         for (const c of d.criteria) {
           children.push(
             Box({
               marginTop: 1,
+              flexDirection: 'column',
               children: [wrapped({ bold: true }, c.head), ...c.steps.map((st) => wrapped({}, st)), ...c.facts.map((f) => wrapped({ dimColor: true }, f))],
             }),
           );

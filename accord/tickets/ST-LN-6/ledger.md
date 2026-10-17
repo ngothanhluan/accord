@@ -31,6 +31,7 @@
 - Ruling: the failed-run message state draws only Back, per Task 4, replacing task 3's ruling for that state; the Loading state still draws the action button, the Task 3/Task 4 disagreement deferred as plan round 1.4 — cost if wrong: one condition.
 - Ruling: the first executor's "backslashes lost" note was raw U+202E and U+2028 characters in the new security test, restored as escapes; `npm run gen` broke nothing in task 4 — cost if wrong: none.
 - Ruling: the resumed executor never saw task 4's tests fail, so the main session ran them against task 3's code (34962b5) in a throwaway worktree: the failed-run and concurrency tests failed there (2 of 16), while the ac-5 and security tests already passed, because task 3 already set `wrap: 'wrap'` on every detail `Text` and `clean` predates this ticket; the ac-5 test asserts whole strings, `wrap`, no newline or ellipsis, and the table's `truncate` — cost if wrong: an ac-5 test that guards behaviour task 3 built.
+- Ruling: the line "tag v9.9.9 names 9.9.9, packages/cli/package.json names 7.7.7-fixture" that `npm run check` prints comes from the fixture in `packages/cli/test/publish-workflow.test.ts`, not from this ticket — every test passed — cost if wrong: none.
 
 ## Deferred
 - plan round 1.4 (Nice): Tasks 3 and 4 disagree on what the Loading state draws; Task 4 should say "a failed-run message state".
@@ -40,3 +41,4 @@
 - task 2 done 31f687fdf78f
 - task 3 done 34962b5e49a0
 - task 4 done 73a1818c04f3
+- task 5 done 5974603fbf9f

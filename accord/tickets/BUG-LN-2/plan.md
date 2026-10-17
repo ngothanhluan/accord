@@ -1,6 +1,6 @@
 ---
 baseline: 8066285a95ba5f2af083b30d92a49e5f2ab413b4
-plan_hash: "fnv1a64:fc27e7ca8e4ed63f"
+plan_hash: "fnv1a64:2fdfcd85e73e917b"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -68,6 +68,24 @@ Tests first, in `packages/cli/test/status.test.ts`, each a top-level `it` that b
   `dashboard` exits 0, the line holding `T-2` contains `build 1/3` and `fixture@example.invalid`, and the summary
   line starts `1 in progress`; afterwards `.git/FETCH_HEAD` does not exist and
   `git rev-parse refs/remotes/origin/t/T-2` still prints the tip.
+  The same `it` then proves "neither command fetches" with a check that fails if a new spawn omits
+  `GIT_NO_LAZY_FETCH`: the full sandbox above can never lazily fetch, so a second sandbox is a blobless clone whose
+  promisor remote stays reachable. Build it right after `commitAll(repo, 'task 1')` and before the steps that
+  delete `t/T-2`: check out the base in `repo` (so the clone checks out the base, and the `T-2` record blobs exist
+  only on `t/T-2`), run `git config uploadpack.allowFilter true` and `git config uploadpack.allowAnySHA1InWant true`
+  in `repo`, make `clone = mkdtempSync(join(tmpdir(), 'accord-cli-'))`, then
+  `gitRun(repo, 'clone', '-q', '--filter=blob:none', pathToFileURL(repo).href, clone)` (a `file://` URL, because a
+  plain-path clone is local and ignores the filter; `pathToFileURL` from `node:url`), then
+  `gitRun(clone, 'config', 'user.email', 'an@example.com')`. Read
+  `sha = gitRun(clone, 'rev-parse', 'refs/remotes/origin/t/T-2:accord/tickets/T-2.md').trim()` (a tree lookup, no
+  blob read). Assert `gitRun(clone, '--no-lazy-fetch', 'cat-file', '-e', sha)` throws (the blob is absent); run
+  `status --json` and `dashboard` in `clone`, each exits 0; then assert the same `cat-file -e` call still throws. A
+  spawn without `GIT_NO_LAZY_FETCH=1` that reads `<ref>:accord/tickets/T-2.md` would fetch that blob from `repo`,
+  and the last assertion would fail. Do not assert the `T-2` row in `clone`: with its blobs absent the overlay reads
+  nothing (the Approach's Risks). `cleanup(clone)` in the same `finally`. Chosen over a code-reading check because
+  it runs with plain git on Windows and POSIX (git documents `uploadpack.allowFilter`, `--filter=blob:none`,
+  `--no-lazy-fetch` with `cat-file -e`, and `GIT_NO_LAZY_FETCH`), and over deleting the source because a fetch
+  attempt against a deleted remote leaves no trace the test can read reliably, while a fetched blob does.
 - `ac-2 ...`: base commit holds `T-2` as `laneTicket('T-2')`, unapproved, no plan. On `t/T-2`: approve `T-2`,
   write `accord/tickets/T-2/plan.md` as `PLAN`, `commitAll(repo, 'plan: T-2 ready')`; push it as
   `refs/remotes/origin/t/T-2`, return to the base, delete the local branch. `status --json` row `T-2` matches
@@ -130,7 +148,7 @@ Must not change: every call with no `plain` returns exactly what it returns toda
 
 ## Task 3: Core holds a plan at stage plan until its ready commit
 covers: @ac-3, D-02
-files: packages/core/src/model/snapshot.ts, packages/core/src/load/snapshot.ts, packages/core/src/status/stage.ts, packages/core/test/lane-status.test.ts
+files: packages/core/src/model/snapshot.ts, packages/core/src/load/snapshot.ts, packages/core/src/status/stage.ts, packages/core/src/status/rows.ts, packages/core/test/lane-status.test.ts
 verify: packages/core/test/lane-status.test.ts#risk:complex-branching-the-ready-commit-decides-only-plan-versus-build
 
 Test first, top-level in `packages/core/test/lane-status.test.ts`, building snapshots with
@@ -139,7 +157,9 @@ no `planFacts` key gives `build` 0/2; `planFacts: {}` gives `plan`; `{ 'T-1': { 
 Must, 0 Should', clean: true } }` gives `plan`; `{ subject: 'plan: T-1 ready', clean: false }` gives `plan`;
 `{ subject: 'plan: T-1 ready ', clean: true }` (trailing space) gives `plan`; `{ subject: 'plan: T-1 ready', clean:
 true }` gives `build` with `tasksDone: 0, tasksTotal: 2`; with both tasks in the ledger and `planFacts: {}` the
-stage is `review`, not `plan`.
+stage is `review`, not `plan`. With task 1 in the ledger and `planFacts: {}`, the `statusRows` row `T-1` has
+`stage: 'plan'` and `tasksDone: 1`, and `nextRows([{ ...row, ready: 'ok' }])` is empty, while the same row with
+`tasksDone: 0` gives one row.
 
 Interface:
 - `SnapshotInput.planFacts?: Record<string, { subject?: string; clean: boolean }>`, ticket id to plan fact,
@@ -148,9 +168,13 @@ Interface:
 - `progressOf`: when tasks remain open and `snapshot.planFacts` is defined, the stage is `plan` (with the same
   counts and no `next`) unless `planFacts` has an own entry for the ticket that is ready by the definition; with
   `planFacts` undefined, or with no task open, the result is today's.
+- `nextRows` (`packages/core/src/status/rows.ts`) admits a row only when `r.tasksDone === 0` and its stage is
+  `plan` or `build`, so a `plan` row with a task recorded is not offered, matching its doc comment "have no task
+  recorded yet". Every lane row carries a numeric `tasksDone` (0 when the ticket has no plan).
 
 Must not change: every result when `planFacts` is absent (every core golden, `isDone`, `anchorText`), and the
-`review`, `verify` and `done` stages.
+`review`, `verify` and `done` stages; `nextRows` still admits every `plan` or `build` row with no task recorded,
+and its other conditions.
 
 ## Task 4: The CLI supplies plan facts to every stage-deriving command
 covers: @ac-3, D-02

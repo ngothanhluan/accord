@@ -22,3 +22,4 @@
 - plan round 1.5: Task 1 does not say what the overlay does when `currentBranch(root)` returns undefined.
 - plan round 1.6: Task 4's AC-3 test runs about 13 CLI commands with no explicit timeout over the 30 s default; Windows CI may time out.
 - plan skill step 8 can make a `plan: <id> ready` commit that does not touch plan.md when the last round left it unchanged; AC-3 then keeps that ticket at `plan` (build critic, outside this plan).
+- plan round 2.1: Task 1's no-fetch check accepts any non-zero exit from `git --no-lazy-fetch cat-file -e`, so on git older than 2.44 a usage error (129) passes it; assert status 1.

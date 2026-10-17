@@ -26,8 +26,11 @@
 - Ruling: `openDetail` calls `$.process.run` before it awaits the first redraw — the press runs `show` at once, and the test asserts the call right after the press — cost if wrong: swap two lines.
 - Ruling: the detail view's message state (Loading, a failed run) also draws Back and the action button — Back must always be reachable — cost if wrong: one condition.
 - Ruling: `register.js` adds `run.catch(() => {})` on the show promise — a run that rejects during the first redraw is not reported as unhandled, and the rejection is still handled when awaited — cost if wrong: one line.
-- Ruling: `view.js` builds the newline in `detailView` as `String.fromCharCode(10)` — the executor reports `npm run gen` broke an escaped `'
-'` literal there; the review should check whether the generator or the literal is at fault — cost if wrong: one odd-looking constant.
+- Ruling: `view.js` builds the newline in `detailView` as `String.fromCharCode(10)` — the executor reports `npm run gen` broke an escaped newline literal there; the review should check whether the generator or the literal is at fault — cost if wrong: one odd-looking constant.
+- Ruling: task 4's first executor stalled with no report; a fresh executor got the same brief plus its uncommitted diff and the ledger, and kept that partial work (shared `failed()`, `detailOutcome` validation, `loadDetail` with `detailRunning`/`detailAgain`) as matching the brief — cost if wrong: a rewrite of those spots.
+- Ruling: the failed-run message state draws only Back, per Task 4, replacing task 3's ruling for that state; the Loading state still draws the action button, the Task 3/Task 4 disagreement deferred as plan round 1.4 — cost if wrong: one condition.
+- Ruling: the first executor's "backslashes lost" note was raw U+202E and U+2028 characters in the new security test, restored as escapes; `npm run gen` broke nothing in task 4 — cost if wrong: none.
+- Ruling: the resumed executor never saw task 4's tests fail, so the main session ran them against task 3's code (34962b5) in a throwaway worktree: the failed-run and concurrency tests failed there (2 of 16), while the ac-5 and security tests already passed, because task 3 already set `wrap: 'wrap'` on every detail `Text` and `clean` predates this ticket; the ac-5 test asserts whole strings, `wrap`, no newline or ellipsis, and the table's `truncate` — cost if wrong: an ac-5 test that guards behaviour task 3 built.
 
 ## Deferred
 - plan round 1.4 (Nice): Tasks 3 and 4 disagree on what the Loading state draws; Task 4 should say "a failed-run message state".

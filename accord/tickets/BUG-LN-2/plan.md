@@ -1,6 +1,6 @@
 ---
 baseline: 8066285a95ba5f2af083b30d92a49e5f2ab413b4
-plan_hash: "fnv1a64:1fa4462fe71c8b59"
+plan_hash: "fnv1a64:fa3d2a9e19fc6918"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -265,7 +265,7 @@ Must not change: no field is removed from any row; rows at other stages are byte
 stage but an unwritten `intent`; the `build` cell and the `idle` suffix.
 
 ## Task 6: The spec and the /accord skill follow the claim view
-covers: D-01, D-03, D-04
+covers: D-01, D-03, D-04, D-05
 files: packages/core/skills/accord/SKILL.md, packages/core/src/generated/skills.ts, .claude/skills/accord/SKILL.md, packages/core/test/stage-skills.test.ts, docs/specs/2026-10-12-workflow-layer-design.md
 verify: packages/core/test/stage-skills.test.ts#risk:regression-the-accord-skill-takes-an-id-that-accord-status-lists-with-a-branch
 
@@ -280,7 +280,7 @@ Edits:
   and `with no such ticket` becomes `with neither`.
 - `docs/specs/2026-10-12-workflow-layer-design.md` §5, the Claim bullet (lines 148-151): after `to show who holds
   what.` add: `` For a ticket claimed on a branch that is neither the current one nor merged into it, `accord
-  status` and `accord dashboard` read its ticket, plan, ledger, review and verification from that branch, without
+  status`, `accord dashboard` and `accord show` read its ticket, plan, ledger, review and verification from that branch, without
   fetching; a dependency still counts as done only in the tree the command runs on. ``
 - Same file §6, line 179: `The dashboard shows no position;` becomes `` The dashboard shows each ticket's stage:
   `build d/t` only once the plan's last commit is `plan: <id> ready` and the plan has no uncommitted change, and at

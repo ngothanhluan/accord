@@ -15,7 +15,13 @@ fixed: 1.1, 1.2
 ## Closed
 
 ## Round 1 (whole)
-1. Should — Task 6's new spec §5 Claim sentence names only `accord status` and `accord dashboard` as reading a claimed ticket from its branch, but after Task 7 (D-05) `accord show` does too, so the spec is out of date on the day it ships; Task 6's `covers:` also omits D-05. Fix: write "`accord status`, `accord dashboard` and `accord show`" and add D-05 to Task 6's `covers:` (lens criteria; lens build as a Nice) — open
+1. Should — Task 6's new spec §5 Claim sentence names only `accord status` and `accord dashboard` as reading a claimed ticket from its branch, but after Task 7 (D-05) `accord show` does too, so the spec is out of date on the day it ships; Task 6's `covers:` also omits D-05. Fix: write "`accord status`, `accord dashboard` and `accord show`" and add D-05 to Task 6's `covers:` (lens criteria; lens build as a Nice) — fixed
 2. Nice — The panel builds its own stage cell from `dashboard --json` (`packages/core/panel/view.js:55`) and its detail prints `Stage: ${t.stage}` (`view.js:157`), so it never shows the intent-interview pointer; AC-4, D-03 and the Intent's panel-layout non-goal keep it out of scope (lens criteria) — deferred
 3. Nice — Task 5's AC-4 CLI test does not say T-2's row is in `upNext.rows` (nothing is claimed or ready), and the text output's action line `-> [Pick up T-1]  [New request]` also holds `T-1`; name the `upNext.rows` entry and the table row (lens build) — deferred
 4. Nice — Task 5's core test asks for "an approved ticket at stage `plan`" without saying how to build one; adding `PLAN` without `planFacts` gives `build` (lens build) — deferred
+
+## Round 2 (diff)
+fixed: 1.1
+No findings
+
+## Closed

@@ -1,6 +1,6 @@
 ---
 baseline: 3a7bdb8a77b0ea067b3a2ab925d1dd9f6d49a4d7
-plan_hash: "fnv1a64:fa5e64536a886c4a"
+plan_hash: "fnv1a64:f299d34340fa9742"
 ---
 
 # Plan: BUG-LN-3
@@ -22,6 +22,8 @@ verify: packages/cli/test/workflow-script.test.ts#the-emitted-workflow-script-â€
 
 This is the failing reproduction (PR #28: only draft tickets, and the script gated each one) and the wiring of the whole rule. Run it at the baseline first and see it fail, because the current script calls `gate done` on every ticket it finds.
 
+Build before running any case in the file: `workflow-script.test.ts` imports `initFiles` from `@accord-dev/accord-core` (line 24), which resolves to the built `dist/index.js`, so an edit to `workflowYml` reaches no test until `npm run build` has run. Run `npm run build` after every script change and before every test run.
+
 **Test first**, in the describe `the emitted workflow script â€” executed` of `packages/cli/test/workflow-script.test.ts`. Title: `unapproved tickets in an accord-only diff: lint runs and no gate done runs and the exit follows lint`.
 
 Test helper changes in the same file:
@@ -37,7 +39,7 @@ Cases inside the one test. Each case gets its own `sandbox` and only `accord/` p
 
 **Script change**, in `workflowYml` in `packages/core/src/scaffold/workflow.ts`, inside the `run: |` body:
 - After the `tickets=$(...)` line and the no-ticket `if` block, before the loop, set a code flag `has_code=0`. Then: `if ! changed=$(git -c core.quotePath=false diff --name-only --no-renames "$BASE"...HEAD); then has_code=1; else outside=$(grep -v '^accord/' <<< "$changed" || true); [ -n "$outside" ] && has_code=1; fi`. Deletions count as code because there is no diff filter here. A failing diff counts as code, which fails closed.
-- Add a shell function that prints the frontmatter of `"$file"` at a revision `$1`. Return 0 when it found a block, 1 when the path is absent at that revision, and 2 when it cannot settle the read. Absent: `git ls-tree --name-only "$1" -- "$file"` succeeds with empty output. Unsettled: `ls-tree` or `git show "$1:$file"` fails, or the text has no closing `---`. Hold the `git show` output in a variable and read it with `awk` through a here-string, never a pipeline (pipefail plus SIGPIPE returns 141 on a large file). The first line matches `---[[:space:]]*$` with no `^`, so a BOM is absorbed and `[[:space:]]` absorbs a CR. The block ends at the first line after it matching `^---[[:space:]]*$`. Assign `fm=$(...)` and read `$?` on its own line, never `local fm=$(...)`, because `local` masks the status.
+- Add a shell function that prints the frontmatter of `"$file"` at a revision `$1`. Return 0 when it found a block, 1 when the path is absent at that revision, and 2 when it cannot settle the read. Absent: `git ls-tree --name-only "$1" -- "$file"` succeeds with empty output. Unsettled: `ls-tree` or `git show "$1:$file"` fails, the first line of the text is not an opening `---` line, or the text has no closing `---`. A present file with no opening line returns 2 exactly like a missing closing line. The existing `mutation probe` case relies on this: its nested `accord/tickets/SIGNUP-1/verification.md` holds `v` and no frontmatter, so it must read as unsettled (approved) and be gated, keeping `calls.length` at 2. Hold the `git show` output in a variable and read it with `awk` through a here-string, never a pipeline (pipefail plus SIGPIPE returns 141 on a large file). The first line matches `---[[:space:]]*$` with no `^`, so a BOM is absorbed and `[[:space:]]` absorbs a CR. The block ends at the first line after it matching `^---[[:space:]]*$`. Assign `fm=$(...)` and read `$?` on its own line, never `local fm=$(...)`, because `local` masks the status.
 - Approved: in either version, a block line matches `"^[[:space:]]*${qc}?approved_hash${qc}?[[:space:]]*:"` with `grep -Eq ... <<< "$fm"`. Build the quote class with no backslash by joining a double-quoted and a single-quoted bash segment: `qc="['"'"]'`, which yields `['"]`. A commented `# approved_hash:` line does not match, because `#` is neither space nor quote. A version that returned 2 counts as approved.
 - Per ticket in the loop, after `id` is derived: if `has_code` is 0 and the ticket is not approved (HEAD and `$BASE` both checked, D-03), print one line such as `echo "not gating $id - not approved and this pull request changes nothing outside accord/"` and `continue`. Otherwise run `${accord} gate done "$id" || code=1` as today.
 
@@ -61,11 +63,15 @@ verify: packages/cli/test/workflow-script.test.ts#the-emitted-workflow-script-â€
 **Test first**, in the describe `the emitted workflow script â€” against the real CLI`. It goes there because it needs `exampleRepo` and the real `lint`. Title: `dropped ticket in an accord-only diff: no gate done on it and a missing Dropped reason fails through lint`.
 
 Cases inside the one test:
-1. Stub, using the top-level `sandbox`. The base OLD-1 is approved (Task 1). `change` rewrites OLD-1 with `approved_hash` kept and the status line `status: "dropped"   # superseded by NEW-2` followed by a CR (`\r\n` line end in that line only), plus a `## Dropped` section with a reason. Expect exit 0, one call (lint), and no ` gate done ` call.
+1. Stub, using the top-level `sandbox`. The base OLD-1 is approved (Task 1). `seed` writes `.gitattributes` holding `* -text\n` before the base commit, so the CR byte survives `git add -A` under `core.autocrlf=true` (the Git for Windows and `windows-latest` default). `change` rewrites OLD-1 with `approved_hash` kept and the status line `status: "dropped"   # superseded by NEW-2` followed by a CR (`\r\n` line end in that line only), plus a `## Dropped` section with a reason. Expect exit 0, one call (lint), and no ` gate done ` call.
 2. Stub, same as case 1 with the status line written `status:	dropped ` (a tab before the value and a trailing space). Expect the same.
 3. Real CLI (`exampleRepo`, `forward: true`). `change` rewrites `accord/tickets/SIGNUP-1.md` with `status: dropped`, an added `approved_hash: "fnv1a64:0000000000000000"` line, and a `## Dropped` section holding one line of reason. Expect exit 0, `calls.length` 1, and the output not containing `a dropped ticket needs a "## Dropped" section saying why` (the reason text of `lint.dropped-reason` in `packages/core/src/lint/dropped.ts`).
-4. Real CLI, same as case 3 but with no `## Dropped` section. Expect exit 1, `calls.length` 1 (lint only, no gate done), and the output containing that reason text.
-5. Real CLI, same as case 3 but `## Dropped` holds only an HTML comment. Expect the same as case 4.
+4. Real CLI, same as case 3 but with no `## Dropped` section and no `approved_hash` line, so SIGNUP-1 is unapproved in both versions. Expect exit 1, `calls.length` 1 (lint only, no gate done), and the output containing that reason text.
+5. Real CLI, same as case 4 (no `approved_hash` line) but with a `## Dropped` section holding only an HTML comment. Expect the same as case 4.
+
+Case 3 keeps its `approved_hash` line to prove a dropped ticket is skipped whether or not it is approved. Cases 4 and 5 drop it because a ticket that is approved and has no valid `## Dropped` reason must be gated under @ac-3.
+
+Build before running any case in the file (`npm run build`), as Task 1 says: the stub cases read the built core through `@accord-dev/accord-core`, and the real-CLI cases run the built CLI.
 
 **Script change**: in the per-ticket decision from Task 1, a ticket is also skipped when `has_code` is 0 and its HEAD frontmatter (return 0 only, never an unsettled read) has a line matching `"^status[[:space:]]*:[[:space:]]*${qc}?dropped${qc}?[[:space:]]*(#.*)?$"`. The match is anchored at column 0, so a nested `status:` under another key cannot mark a ticket dropped. `[[:space:]]` absorbs tabs and a trailing CR, and `(#.*)?` absorbs a comment. A dropped ticket is skipped whether or not it is approved, and an unsettled base read does not stop the skip. Print a skip line such as `echo "not gating $id - dropped and this pull request changes nothing outside accord/"`.
 
@@ -90,11 +96,13 @@ Title `code-in-the-diff...` in full: `code in the diff or an approved ticket: ga
 6. Case 5 with `fail: 'OLD-1'`. Exit 1.
 
 Title `risk:parsing...` in full: `risk:parsing BOM and CRLF frontmatter and unreadable blocks and large files read as approved`. Every case is accord-only, and each expects the ticket gated:
-1. `seed` writes OLD-1 approved with a UTF-8 BOM and CRLF line ends throughout. `change` removes `approved_hash` in HEAD.
+1. `seed` writes `.gitattributes` holding `* -text\n`, so the CR bytes survive `git add -A` under `core.autocrlf=true`, and writes OLD-1 approved with a UTF-8 BOM and CRLF line ends throughout. `change` removes `approved_hash` in HEAD.
 2. `seed` writes a ticket whose `---` block never closes. `change` edits it into a draft (an unsettled base counts as approved).
 3. A new ticket with `approved_hash` near the top of its frontmatter and a body of about 2 MB. This guards the pipefail and SIGPIPE regression.
 
 Interface: tests only, consuming `sandbox`, `runScript` and the ticket constants from Task 1.
+
+Build before running any case in the file (`npm run build`), as Task 1 says: the stub cases read the built core through `@accord-dev/accord-core`, and a script fix in `workflow.ts` reaches no test until the build.
 
 ## Task 4: Give this repository's workflow the same rule, and prove both scripts agree
 

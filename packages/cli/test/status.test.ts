@@ -269,7 +269,7 @@ it('ac-1 a ticket untouched past the window shows its idle days', async () => {
   try {
     await run(['approve', 'T-1'], repo);
     writeFiles(repo, { 'accord/tickets/T-1/ledger.md': '## Tasks\n- task 1 done abc1234\n' });
-    commitAllAt(repo, new Date(Date.now() - (18 * 24 + 1) * 3600 * 1000));
+    commitAllAt(repo, new Date(Date.now() - (18 * 24 + 1) * 3600 * 1000), 'plan: T-1 ready');
     const json = await run(['status', '--json'], repo);
     expect((JSON.parse(json.out) as StatusRow[])[0]).toMatchObject({ id: 'T-1', stage: 'build', idleDays: 18 });
     const text = await run(['status'], repo);
@@ -284,7 +284,7 @@ it('ac-2 a recent commit on the claim branch keeps the ticket active', async () 
   try {
     await run(['approve', 'T-1'], repo);
     writeFiles(repo, { 'accord/tickets/T-1/ledger.md': '## Tasks\n- task 1 done abc1234\n' });
-    commitAllAt(repo, new Date(Date.now() - (18 * 24 + 1) * 3600 * 1000));
+    commitAllAt(repo, new Date(Date.now() - (18 * 24 + 1) * 3600 * 1000), 'plan: T-1 ready');
     const base = gitRun(repo, 'rev-parse', '--abbrev-ref', 'HEAD').trim();
     gitRun(repo, 'checkout', '-q', '-b', 't/T-1');
     writeFiles(repo, { 'src/other.ts': 'export const x = 1;\n' });
@@ -408,6 +408,57 @@ it('risk:complex-branching a merged or checked out or ticketless claim branch ke
     expect(by('T-4')).toMatchObject({ stage: 'intent' });
     expect(by('T-1')?.stage).not.toBe('intent');
     expect(by('T-1')).toMatchObject({ title: 'Export' });
+  } finally {
+    cleanup(repo);
+  }
+});
+
+it('ac-3 a plan reaches build only after its ready commit and while clean', async () => {
+  const repo = makeLaneRepo();
+  const plan = 'accord/tickets/T-1/plan.md';
+  const row = async (id = 'T-1') =>
+    (JSON.parse((await run(['status', '--json'], repo)).out) as StatusRow[]).find((r) => r.id === id);
+  const stageOf = async (id = 'T-1') => (await run(['anchor', id], repo)).out;
+  try {
+    await run(['approve', 'T-1'], repo);
+    commitAll(repo, 'plan: T-1 round 1, 1 Must, 0 Should');
+    expect(await row()).toMatchObject({ stage: 'plan' });
+    expect(await stageOf()).toContain('Stage: plan');
+
+    writeFiles(repo, { [plan]: PLAN + '\n' });
+    commitAll(repo, 'plan: T-1 ready');
+    expect(await row()).toMatchObject({ stage: 'build', tasksDone: 0, tasksTotal: 2 });
+    expect(await stageOf()).toContain('Stage: build 0/2');
+
+    writeFiles(repo, { [plan]: PLAN + '\n\n' }); // unstaged
+    expect(await row()).toMatchObject({ stage: 'plan' });
+    expect(await stageOf()).toContain('Stage: plan');
+    gitRun(repo, 'checkout', '--', plan);
+
+    writeFiles(repo, { [plan]: PLAN + '\n\n' }); // staged
+    gitRun(repo, 'add', plan);
+    expect(await row()).toMatchObject({ stage: 'plan' });
+    expect(await stageOf()).toContain('Stage: plan');
+    gitRun(repo, 'reset', '-q', '--hard', 'HEAD');
+    expect(await row()).toMatchObject({ stage: 'build' });
+
+    writeFiles(repo, { 'accord/tickets/T-2.md': laneTicket('T-2'), 'accord/tickets/T-2/plan.md': PLAN }); // untracked
+    await run(['approve', 'T-2'], repo);
+    expect(await row('T-2')).toMatchObject({ stage: 'plan' });
+    expect(await row()).toMatchObject({ stage: 'build' });
+    rmSync(join(repo, 'accord/tickets/T-2.md'));
+    rmSync(join(repo, 'accord/tickets/T-2'), { recursive: true });
+
+    const base = gitRun(repo, 'rev-parse', '--abbrev-ref', 'HEAD').trim();
+    gitRun(repo, 'checkout', '-q', '-b', 'side');
+    writeFiles(repo, { [plan]: PLAN + '\n\n\n' });
+    const tip = commitAll(repo, 'plan: T-1 ready');
+    gitRun(repo, 'update-ref', 'refs/remotes/origin/t/T-1', tip);
+    gitRun(repo, 'checkout', '-q', base);
+    gitRun(repo, 'branch', '-q', '-D', 'side');
+    writeFiles(repo, { [plan]: PLAN + 'dirty\n' });
+    expect(await row()).toMatchObject({ stage: 'build' }); // claim ref: only its commits decide
+    expect(await stageOf()).toContain('Stage: plan'); // checkout: the dirty plan
   } finally {
     cleanup(repo);
   }

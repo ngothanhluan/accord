@@ -48,10 +48,10 @@ export interface CommandContext {
  * Root, snapshot, pin — in that order, once per command (D-95, D-103). A repository with no `accord/`
  * folder throws the loader's own UsageError before the pin is ever consulted.
  */
-function preflight(opts: RunOptions, mode: 'checkout' | 'claims' = 'checkout'): CommandContext {
+function preflight(opts: RunOptions, mode: 'checkout' | 'stage' | 'claims' = 'checkout'): CommandContext {
   const root = repoRoot(opts.cwd);
   const parts = mode === 'claims' ? loadClaimView(root) : undefined;
-  const snapshot = loadSnapshot(parts?.view ?? loadFromFs(root));
+  const snapshot = loadSnapshot(parts?.view ?? loadFromFs(root, mode === 'stage' ? { stage: true } : {}));
   const plain = parts === undefined ? undefined : parts.checkout === parts.view ? snapshot : loadSnapshot(parts.checkout);
   // D-94: a hard refusal, no flag and no environment variable that skips it. `config` is undefined
   // when config.yml is missing or failed the schema (D-31); those repositories must report their
@@ -209,7 +209,7 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .description('list lane tickets that passed Ready, have no task recorded, and are unblocked and unclaimed')
     .option('--json', 'print the StatusRow array instead of the table')
     .action((options: { json?: boolean }) => {
-      setCode(next(preflight(opts), options));
+      setCode(next(preflight(opts, 'stage'), options));
     });
 
   program
@@ -224,7 +224,7 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .command('anchor [id]')
     .description("print the active ticket's intent, vetoes, decisions, corrections, and position")
     .action((id: string | undefined) => {
-      setCode(anchor(preflight(opts), id));
+      setCode(anchor(preflight(opts, 'stage'), id));
     });
 
   program
@@ -234,7 +234,7 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
       if (!(HOOK_EVENTS as readonly string[]).includes(event)) {
         throw new UsageError('unknown hook event ' + event + '; expected one of ' + HOOK_EVENTS.join(', '));
       }
-      setCode(hook(preflight(opts), event as (typeof HOOK_EVENTS)[number]));
+      setCode(hook(preflight(opts, 'stage'), event as (typeof HOOK_EVENTS)[number]));
     });
 
   return program;

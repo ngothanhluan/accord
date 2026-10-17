@@ -68,7 +68,9 @@ function containedPath(root: string, rel: string | undefined): string | undefine
  * Returns undefined when the repository has no commit, so `loadFromFs` omits the key rather than emit
  * `undefined` and move the D-54 goldens; Done then fails cleanly with `gate.commit-missing`.
  */
-function gitFacts(root: string): { commit: string; authors: Record<string, string>; activity: Record<string, number> } | undefined {
+function gitFacts(
+  root: string,
+): { commit: string; authors: Record<string, string>; activity: Record<string, number>; planSubjects: Record<string, string> } | undefined {
   const git = (args: string[]) =>
     execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   let head: string;
@@ -84,34 +86,64 @@ function gitFacts(root: string): { commit: string; authors: Record<string, strin
   const authors: Record<string, string> = {};
   // Ticket id -> newest committer time over its records; empty when the log fails, so nothing is idle.
   const activity: Record<string, number> = {};
+  // Ticket id -> subject of the newest commit that touched its plan.md (BUG-LN-2).
+  const planSubjects: Record<string, string> = {};
   let log: string;
   try {
     // One bounded walk over one subtree in one spawn (T-04-23).
-    log = git(['log', '--format=%x01%ae%x00%ct','--name-only', '--', 'accord/tickets']);
+    log = git(['log', '--format=%x01%ae%x00%ct%x00%s', '--name-only', '--', 'accord/tickets']);
   } catch {
     log = '';
   }
   let author: string | undefined;
   let time = 0;
+  let subject = '';
   for (const line of log.split('\n')) {
     const text = line.trim();
     if (text === '') continue;
     if (text.startsWith('')) {
-      const [email, ct] = text.slice(1).split('\0');
+      // The subject is read from the untrimmed line: a trailing space must not make a subject match.
+      const [email, ct, ...rest] = line.slice(line.indexOf(text[0] as string) + 1).split('\0');
       author = email;
       time = Number(ct);
+      subject = rest.join('\0');
     }
     // git log emits the most recent commit first, so the first author seen for a path is the latest.
     else if (author !== undefined) {
       const key = text.split(sep).join('/');
       if (!Object.hasOwn(authors, key)) authors[key] = author;
+      const planId = /^accord\/tickets\/([^/]+)\/plan\.md$/.exec(key)?.[1];
+      if (planId !== undefined && !Object.hasOwn(planSubjects, planId)) planSubjects[planId] = subject;
       const id = /^accord\/tickets\/([^/]+?)(?:\.md$|\/)/.exec(key)?.[1];
       if (id !== undefined && time > (activity[id] ?? 0)) activity[id] = time;
     }
   }
   // D-78: the gated commit's author rides under a key equal to the sha, which cannot collide with a path.
   authors[commit] = commitAuthor;
-  return { commit, authors, activity };
+  return { commit, authors, activity, planSubjects };
+}
+
+/** BUG-LN-2: the paths under accord/tickets with an uncommitted change: staged, unstaged or untracked. */
+function gitDirty(root: string): Set<string> {
+  let out: string;
+  try {
+    out = execFileSync('git', ['--no-optional-locks', 'status', '--porcelain', '-z', '-uall', '--', 'accord/tickets'], {
+      cwd: root,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      maxBuffer: 64 * 1024 * 1024,
+      env: { ...process.env, GIT_NO_LAZY_FETCH: '1' },
+    });
+  } catch (err) {
+    const stderr = String((err as { stderr?: string }).stderr ?? '').trim();
+    throw new UsageError('git status failed reading the plan files' + (stderr === '' ? '' : '\n' + stderr));
+  }
+  const dirty = new Set<string>();
+  for (const token of out.split('\0')) {
+    if (token === '') continue;
+    dirty.add(/^.. /.test(token) ? token.slice(3) : token); // a rename's source is a bare path
+  }
+  return dirty;
 }
 
 /**
@@ -323,7 +355,7 @@ export function currentBranch(root: string): string | undefined {
   }
 }
 
-function loadParts(root: string): {
+function loadParts(root: string, stage = false): {
   input: SnapshotInput;
   claimRefs: Record<string, string>;
   templates: string[];
@@ -371,9 +403,21 @@ function loadParts(root: string): {
     ),
   ];
   const recordsSince = recorded.length === 0 ? {} : gitRecordsSince(root, recorded);
+  let planFacts: Record<string, { subject?: string; clean: boolean }> | undefined;
+  if (stage) {
+    const dirty = gitDirty(root);
+    planFacts = {};
+    for (const path of Object.keys(files)) {
+      const id = /^accord\/tickets\/([^/]+)\/plan\.md$/.exec(path)?.[1];
+      if (id === undefined) continue;
+      const subject = facts?.planSubjects[id];
+      planFacts[id] = { ...(subject === undefined ? {} : { subject }), clean: !dirty.has(path) };
+    }
+  }
   const input: SnapshotInput = {
     files,
     tree,
+    ...(planFacts === undefined ? {} : { planFacts }),
     ...(branchTemplates.length === 1 ? {} : { branchTemplates }),
     ...(git === undefined ? {} : { git }),
     // Omitted when empty, so a repository with no ticket branch loads exactly as before.
@@ -387,8 +431,8 @@ function loadParts(root: string): {
   return { input, claimRefs, templates: branchTemplates, known };
 }
 
-export function loadFromFs(root: string): SnapshotInput {
-  return loadParts(root).input;
+export function loadFromFs(root: string, options: { stage?: boolean } = {}): SnapshotInput {
+  return loadParts(root, options.stage === true).input;
 }
 
 /** The five records of a ticket, as repository paths. */
@@ -403,7 +447,7 @@ const recordPaths = (id: string): string[] => [
  * One `git cat-file --batch`, no network (`GIT_NO_LAZY_FETCH`). A blob not present locally reads as absent.
  */
 export function loadClaimView(root: string): { checkout: SnapshotInput; view: SnapshotInput } {
-  const { input: checkout, claimRefs, templates, known } = loadParts(root);
+  const { input: checkout, claimRefs, templates, known } = loadParts(root, true);
   const env = { ...process.env, GIT_NO_LAZY_FETCH: '1' };
   const current = currentBranch(root);
   const own = current === undefined || current === '' ? undefined : ticketOfBranch(current, templates, known);
@@ -446,15 +490,32 @@ export function loadClaimView(root: string): { checkout: SnapshotInput; view: Sn
     at = nl + 1 + size + 1;
   }
   const files = { ...checkout.files };
+  const planFacts = { ...checkout.planFacts };
   for (const [id, ref] of candidates) {
     if (read.get(ref + ':' + recordPaths(id)[0]) === undefined) continue;
+    const planPath = 'accord/tickets/' + id + '/plan.md';
+    if (read.get(ref + ':' + planPath) === undefined) delete planFacts[id];
+    else {
+      let subject = '';
+      try {
+        subject = execFileSync('git', ['log', '-1', '--format=%s', ref, '--', planPath], {
+          cwd: root,
+          encoding: 'utf8',
+          stdio: ['ignore', 'pipe', 'ignore'],
+          env,
+        }).replace(/\r?\n$/, '');
+      } catch {
+        // a commit not present locally reads as no subject, so the plan is not ready
+      }
+      planFacts[id] = { ...(subject === '' ? {} : { subject }), clean: true };
+    }
     for (const path of recordPaths(id)) {
       const text = read.get(ref + ':' + path);
       if (text === undefined) delete files[path];
       else files[path] = text;
     }
   }
-  return { checkout, view: { ...checkout, files } };
+  return { checkout, view: { ...checkout, files, planFacts } };
 }
 
 /** IDS-1: `git config user.email`, trimmed; '' when unset (git exits 1). */

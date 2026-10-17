@@ -277,7 +277,7 @@ it('risk:regression an idle ticket shows idle days in the dashboard text and the
   const repo = makeLaneRepo();
   try {
     expect((await run(['approve', 'T-1'], repo)).code).toBe(0);
-    commitAllAt(repo, new Date('2000-01-01T00:00:00Z'));
+    commitAllAt(repo, new Date('2000-01-01T00:00:00Z'), 'plan: T-1 ready');
     gitRun(repo, 'config', 'user.email', 'an@example.com');
     const res = await run(['dashboard'], repo);
     expect(res.code).toBe(0);

@@ -53,7 +53,7 @@ Feature: BUG-LN-3
     Then `accord gate done` runs on none of those tickets, `accord lint` runs, and the script exits 0 when lint has no error
     And the script exits 1 when lint reports an error
 
-  @ac-2
+  @ac-2 @test:packages/cli/test/workflow-script.test.ts#the-emitted-workflow-script-—-against-the-real-CLI->-dropped-ticket-in-an-accord-only-diff:-no-gate-done-on-it-and-a-missing-Dropped-reason-fails-through-lint
   Scenario: A pull request that drops a ticket, or edits a dropped one, passes without gate done
     Given a pull request whose diff changes only files under `accord/`
     And it changes ticket X, which is dropped in the pull request's version, approved or not

@@ -2,6 +2,7 @@
 
 ## Tasks
 - task 1 done 55db9415d184
+- task 2 done af39d748516d
 
 ## Rulings
 - Ruling: on the claim branch itself the working tree is read, not the branch tip — the claimant must see uncommitted work, and the spec reads the active ticket from the current branch — cost if wrong: the claimant's own dashboard lags its last commit.
@@ -18,6 +19,8 @@
 - Ruling: the dashboard stage cell reads `intent, next: <text>` before the idle suffix, the wording `anchor` uses — cost if wrong: the cell layout changes again.
 - Ruling: a claim whose ticket blob is not readable locally (blobless clone) is skipped whole, so the checkout copy stays — the overlay reads nothing there — cost if wrong: such a ticket stays missing from the dashboard until its blobs are fetched.
 - Ruling: the claim-ref ancestor check is a new `git merge-base --is-ancestor` spawn with `GIT_NO_LAZY_FETCH` set, rather than reusing `gitAncestors`, which sets no env — every new git call sets it — cost if wrong: none.
+- Ruling: preflight sets `plain` to the snapshot itself when the checkout and the claim view are the same object — no second load when nothing is overlaid — cost if wrong: none.
+- Ruling: the `plain` parameters on the internal `effectivePriorities` and `epicsSection` are required, and `dashboard()` fills them from `plain ?? snapshot` — neither is exported from core — cost if wrong: none.
 
 ## Deferred
 - plan round 1.3: Task 4's AC-3 test checks `anchor` only for the round, ready, unstaged and claim-ref cases, not for staged and untracked plan.md.

@@ -66,14 +66,14 @@ const WEIGHT: Record<string, number> = { high: 3, medium: 2, low: 1 };
 
 // Highest own priority among a ticket and everything that depends on it, directly or not. A closed or done
 // dependent adds no weight of its own but the walk passes through it. Visited set ends cycles.
-function effectivePriorities(snapshot: RepoSnapshot): Map<string, number> {
+function effectivePriorities(snapshot: RepoSnapshot, plain: RepoSnapshot): Map<string, number> {
   const own = (id: string) => WEIGHT[snapshot.tickets[id]?.frontmatter?.priority ?? 'medium'] ?? 2;
   const dependents = new Map<string, string[]>();
   for (const [id, t] of Object.entries(snapshot.tickets))
     for (const dep of t.frontmatter?.depends_on ?? []) dependents.set(dep, [...(dependents.get(dep) ?? []), id]);
   const lifts = (id: string) => {
     const fm = snapshot.tickets[id]?.frontmatter;
-    return fm?.status !== 'archived' && fm?.status !== 'dropped' && !isDone(snapshot, id);
+    return fm?.status !== 'archived' && fm?.status !== 'dropped' && !isDone(plain, id);
   };
   const out = new Map<string, number>();
   for (const id of Object.keys(snapshot.tickets)) {
@@ -102,21 +102,22 @@ function section(rows: StatusRow[], cap: number, prio: Map<string, number>): Das
 }
 
 // D-03: children by frontmatter `parent`, dropped children left out of both counts; unfinished epics first.
-function epicsSection(snapshot: RepoSnapshot): Dashboard['epics'] {
+function epicsSection(snapshot: RepoSnapshot, plain: RepoSnapshot): Dashboard['epics'] {
   const tickets = Object.entries(snapshot.tickets);
   const rows: EpicRow[] = tickets
     .filter(([, t]) => t.frontmatter?.type === 'epic' && t.frontmatter.status !== 'archived' && t.frontmatter.status !== 'dropped')
     .map(([id, t]) => {
       const kids = tickets.filter(([, k]) => k.frontmatter?.parent === id && k.frontmatter.status !== 'dropped');
-      return { id, title: t.frontmatter?.title ?? '', done: kids.filter(([k]) => isDone(snapshot, k)).length, total: kids.length };
+      return { id, title: t.frontmatter?.title ?? '', done: kids.filter(([k]) => isDone(plain, k)).length, total: kids.length };
     })
     .sort((a, b) => Number(a.total > 0 && a.done === a.total) - Number(b.total > 0 && b.done === b.total) || cmpId(a.id, b.id));
   return { rows: rows.slice(0, EPIC_CAP), more: Math.max(0, rows.length - EPIC_CAP) };
 }
 
-export function dashboard(snapshot: RepoSnapshot, viewer: string, now?: number): Dashboard {
-  const all = statusRows(snapshot, now);
-  const prio = effectivePriorities(snapshot);
+export function dashboard(snapshot: RepoSnapshot, viewer: string, now?: number, plainSnapshot?: RepoSnapshot): Dashboard {
+  const plain = plainSnapshot ?? snapshot;
+  const all = statusRows(snapshot, now, plain);
+  const prio = effectivePriorities(snapshot, plain);
   const open = all.filter(isOpen);
   const mine = (r: StatusRow) => r.claimedBy !== undefined && r.claimedBy.toLowerCase() === viewer.toLowerCase();
   const claimed = open.filter((r) => r.claimedBy !== undefined);
@@ -128,14 +129,14 @@ export function dashboard(snapshot: RepoSnapshot, viewer: string, now?: number):
     yours,
     team: section(claimed.filter((r) => !mine(r)), TEAM_CAP, prio),
     ready,
-    epics: epicsSection(snapshot),
+    epics: epicsSection(snapshot, plain),
     summary: {
       inProgress: claimed.length,
       ready: readyAll.length,
       blocked: unclaimed.filter(blocked).length,
       backlog: unclaimed.filter((r) => !blocked(r) && !readyAll.includes(r)).length,
       done: all.filter((r) => isWork(r) && !closed(r) && r.stage === 'done').length,
-      withoutLane: all.filter((r) => r.type !== undefined && r.type !== 'epic' && r.lane === undefined && !closed(r) && !isDone(snapshot, r.id)).length,
+      withoutLane: all.filter((r) => r.type !== undefined && r.type !== 'epic' && r.lane === undefined && !closed(r) && !isDone(plain, r.id)).length,
       withSchemaErrors: all.filter((r) => r.type === undefined).length,
     },
   };

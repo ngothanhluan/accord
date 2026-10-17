@@ -291,3 +291,27 @@ it('risk:regression an idle ticket shows idle days in the dashboard text and the
     cleanup(repo);
   }
 });
+
+it('risk:complex-branching a dependency done only on its claim branch still blocks its dependent', async () => {
+  const repo = makeLaneRepo({ [P('T-1')]: laneTicket('T-1'), [P('T-2')]: laneTicket('T-2', { frontmatter: ['depends_on: ["T-1"]'] }) });
+  try {
+    gitRun(repo, 'config', 'user.email', 'an@example.com');
+    commitAll(repo);
+    const base = gitRun(repo, 'rev-parse', '--abbrev-ref', 'HEAD').trim();
+    gitRun(repo, 'checkout', '-b', 't/T-1');
+    const files: Files = {};
+    done(files, 'T-1');
+    writeFiles(repo, files);
+    commitAll(repo);
+    gitRun(repo, 'update-ref', 'refs/remotes/origin/t/T-1', 'HEAD');
+    gitRun(repo, 'checkout', base);
+    gitRun(repo, 'branch', '-D', 't/T-1');
+    const rows = JSON.parse((await run(['status', '--json'], repo)).out) as { id: string; stage?: string; blockedBy?: string[] }[];
+    expect(rows.find((r) => r.id === 'T-1')?.stage).toBe('done');
+    expect(rows.find((r) => r.id === 'T-2')?.blockedBy).toEqual(['T-1']);
+    const j = JSON.parse((await run(['dashboard', '--json'], repo)).out);
+    expect(j.summary.blocked).toBe(1);
+  } finally {
+    cleanup(repo);
+  }
+});

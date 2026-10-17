@@ -47,9 +47,10 @@ const compare = <T extends string>(recorded: string | undefined, current: string
  * in-flight tickets would render fail: accurate and useless.
  *
  * Every ticket is returned, archived included; the D-93 filter and the `—` glyphs are the caller's.
+ * `plain` is the checkout-only snapshot: a dependency counts as done only there (spec §5, BUG-LN-2 D-04).
  * Pure: reads the snapshot only, never mutates it, and returns the same result on every call.
  */
-export function statusRows(snapshot: RepoSnapshot, now?: number): StatusRow[] {
+export function statusRows(snapshot: RepoSnapshot, now?: number, plain?: RepoSnapshot): StatusRow[] {
   const { findings } = lintSnapshot(snapshot);
   return Object.values(snapshot.tickets)
     .map((ticket): StatusRow => {
@@ -86,7 +87,7 @@ export function statusRows(snapshot: RepoSnapshot, now?: number): StatusRow[] {
               stage: progress.stage,
               tasksDone: progress.tasksDone,
               tasksTotal: progress.tasksTotal,
-              ...(deps === undefined ? {} : { dependsOn: deps, blockedBy: deps.filter((d) => !isDone(snapshot, d)) }),
+              ...(deps === undefined ? {} : { dependsOn: deps, blockedBy: deps.filter((d) => !isDone(plain ?? snapshot, d)) }),
               ...(claims !== undefined && Object.hasOwn(claims, ticket.id) ? { claimedBy: claims[ticket.id] } : {}),
               branch:
                 snapshot.claimBranches !== undefined && Object.hasOwn(snapshot.claimBranches, ticket.id)

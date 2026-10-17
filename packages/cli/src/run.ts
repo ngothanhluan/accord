@@ -38,6 +38,7 @@ export interface RunOptions {
 export interface CommandContext {
   root: string;
   snapshot: RepoSnapshot;
+  plain?: RepoSnapshot; // checkout-only snapshot, set under 'claims' (BUG-LN-2 D-04)
   stdout: NodeJS.WritableStream;
   stderr: NodeJS.WritableStream;
   env: NodeJS.ProcessEnv;
@@ -49,7 +50,9 @@ export interface CommandContext {
  */
 function preflight(opts: RunOptions, mode: 'checkout' | 'claims' = 'checkout'): CommandContext {
   const root = repoRoot(opts.cwd);
-  const snapshot = loadSnapshot(mode === 'claims' ? loadClaimView(root).view : loadFromFs(root));
+  const parts = mode === 'claims' ? loadClaimView(root) : undefined;
+  const snapshot = loadSnapshot(parts?.view ?? loadFromFs(root));
+  const plain = parts === undefined ? undefined : parts.checkout === parts.view ? snapshot : loadSnapshot(parts.checkout);
   // D-94: a hard refusal, no flag and no environment variable that skips it. `config` is undefined
   // when config.yml is missing or failed the schema (D-31); those repositories must report their
   // schema findings through lint rather than a pin error, so the check is guarded rather than global.
@@ -57,7 +60,7 @@ function preflight(opts: RunOptions, mode: 'checkout' | 'claims' = 'checkout'): 
     const message = pinMessage(snapshot.config.accord, pkg.version);
     if (message !== undefined) throw new UsageError(message);
   }
-  return { root, snapshot, stdout: opts.stdout, stderr: opts.stderr, env: opts.env ?? {} };
+  return { root, snapshot, ...(plain === undefined ? {} : { plain }), stdout: opts.stdout, stderr: opts.stderr, env: opts.env ?? {} };
 }
 
 /**

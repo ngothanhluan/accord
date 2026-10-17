@@ -141,6 +141,7 @@ accord gate ready <id>      # PASS or FAIL with reasons; exit code for CI and sk
 accord gate done <id>       # checks verification.md and ticked scenarios
 accord status               # table of features and tickets with gate state
 accord dashboard            # ranked, capped sections for the viewer; --json for the data
+accord show <id>            # one lane ticket in full: row facts, Intent, each criterion and its state; --json for the data
 ```
 
 When `config.yml` holds `people` (email to initials), `new ticket` assigns the id and refuses a typed one; `legacy_ids` exempts existing tickets, and `lint.id-convention` and `lint.initials-duplicate` check the rest.

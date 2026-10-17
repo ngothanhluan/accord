@@ -32,6 +32,7 @@ Queued 2026-10-17, not approved; the intent interview replaces this:
 - In BUG-LN-3 the main session dispatched the round 4 fix executor on sonnet; accord-review step 6 says a round at or after `escalation.fix_round_tier_up` (default 4) goes one tier up. The round count lived only in the session's memory, because review.md is written once, at step 8.
 - Owner: "làm sao để ko thể nào quên chuyện này?", then chose "Create ticket: CLI computes it (Recommended)": the review skill writes each round to review.md as it happens, and the CLI reads it and prints the round, the cap and the model to dispatch the fix executor with, refusing past the cap; no tool-specific hook, so Claude Code, Cursor and Codex behave the same.
 - ST-LN-14 scores the same rule from transcripts.
+- Also in scope (owner: "ok đề xuất hợp lệ", 2026-10-17): past a round threshold, or when the findings keep hitting a risk the Approach held an option in reserve for, the CLI says to ask the owner about a change of course (accord-build step 6). In BUG-LN-3 four rounds of YAML-reading fixes ran while the Approach held `accord gate pr` "in reserve if the grep reading proves too fragile", and nobody asked.
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.

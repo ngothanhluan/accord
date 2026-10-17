@@ -353,4 +353,49 @@ describe.skipIf(noBash)('the emitted workflow script — against the real CLI', 
     // reported as gate.ticket-unknown instead.
     expect(result.out + result.err).not.toContain('gate.ticket-unknown');
   });
+
+  it('dropped ticket in an accord-only diff: no gate done on it and a missing Dropped reason fails through lint', () => {
+    const dropped = (statusLine: string): string =>
+      `---\nid: OLD-1\n${statusLine}\napproved_hash: "fnv1a64:0000000000000000"\n---\n\n## Intent\nold\n\n## Dropped\nsuperseded by NEW-2\n`;
+    // `* -text` keeps the CR byte through `git add -A` under core.autocrlf=true.
+    const keepCr = (r: string): void => write(r, '.gitattributes', '* -text\n');
+    for (const line of ['status: "dropped"   # superseded by NEW-2\r', 'status:\tdropped ']) {
+      const { repo, base } = sandbox((r) => write(r, 'accord/tickets/OLD-1.md', dropped(line)), keepCr);
+      const r = runScript(repo, { base });
+      expect(r.code, r.err).toBe(0);
+      expect(r.calls.length, r.calls.join(' | ')).toBe(1);
+      expect(r.calls.join(' ')).not.toContain(' gate done ');
+    }
+
+    // A nested status under another key is not the ticket's status: the approved ticket is still gated.
+    const nestedText = APPROVED_TICKET.replace('---\n\n', 'notes:\n  status: dropped\n---\n\n');
+    const nested = sandbox((r) => write(r, 'accord/tickets/OLD-1.md', nestedText));
+    const rn = runScript(nested.repo, { base: nested.base });
+    expect(rn.calls.length, rn.calls.join(' | ')).toBe(2);
+    expect(rn.calls[1].endsWith(' gate done OLD-1')).toBe(true);
+
+    const ticket = 'accord/tickets/SIGNUP-1.md';
+    const reason = 'a dropped ticket needs a "## Dropped" section saying why';
+    const drop = (r: string, approved: boolean, section: string): void => {
+      const text = readFileSync(join(r, ...ticket.split('/')), 'utf8');
+      const fm = /^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/.exec(text);
+      const lines = (fm?.[1] ?? '').split(/\r?\n/).filter((l) => !/^(status|approved_hash)\s*:/.test(l));
+      lines.push('status: dropped');
+      if (approved) lines.push('approved_hash: "fnv1a64:0000000000000000"');
+      write(r, ticket, `---\n${lines.join('\n')}\n---\n${fm?.[2] ?? ''}${section}`);
+    };
+    const withReason = exampleRepo((r) => drop(r, true, '\n## Dropped\nsuperseded by another ticket\n'));
+    const ok = runScript(withReason.repo, { base: withReason.base, forward: true });
+    expect(ok.code, ok.out + ok.err).toBe(0);
+    expect(ok.calls.length, ok.calls.join(' | ')).toBe(1);
+    expect(ok.out + ok.err).not.toContain(reason);
+
+    for (const section of ['', '\n## Dropped\n<!-- why -->\n']) {
+      const bad = exampleRepo((r) => drop(r, false, section));
+      const res = runScript(bad.repo, { base: bad.base, forward: true });
+      expect(res.code, res.out + res.err).toBe(1);
+      expect(res.calls.length, res.calls.join(' | ')).toBe(1);
+      expect(res.out + res.err).toContain(reason);
+    }
+  });
 });

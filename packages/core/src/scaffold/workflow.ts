@@ -118,7 +118,7 @@ jobs:
           }
           is_dropped() {
             fm_at HEAD || return 1
-            grep -Eq "^[[:space:]]*\${qc}?status\${qc}?[[:space:]]*:[[:space:]]*\${qc}?dropped\${qc}?[[:space:]]*(#.*)?$" <<< "$fm"
+            grep -Eq "^\${qc}?status\${qc}?[[:space:]]*:[[:space:]]*\${qc}?dropped\${qc}?[[:space:]]*(#.*)?$" <<< "$fm"
           }
           # A here-string, not a pipe: the loop body runs in this shell, so its assignment to code survives.
           while IFS= read -r file; do

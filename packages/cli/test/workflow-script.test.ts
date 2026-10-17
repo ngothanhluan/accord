@@ -73,6 +73,12 @@ afterEach(() => {
   for (const repo of repos.splice(0)) cleanup(repo);
 });
 
+// Ticket texts shared by the cases. The draft carries a commented `# approved_hash:` line and no key.
+const DRAFT_TICKET = '---\nid: DRAFT-1\nstatus: draft\n# approved_hash:\n# ac_hash:\n---\n\n## Intent\nwhy\n';
+const APPROVED_TICKET =
+  '---\nid: OLD-1\nstatus: open\napproved_hash: "fnv1a64:0000000000000000"\n---\n\n## Intent\nold\n';
+const CODE = 'export const a = 1;\n';
+
 function write(repo: string, path: string, text: string): void {
   const file = join(repo, ...path.split('/'));
   mkdirSync(dirname(file), { recursive: true });
@@ -84,11 +90,15 @@ function write(repo: string, path: string, text: string): void {
  * committed. Both shas come from `commitAll`, so no test body calls git itself — the helper's refusal
  * to run git outside a temporary directory is what keeps a missing `cwd` off the author's tree (T-07-31).
  */
-function sandbox(change: (repo: string) => void): { repo: string; base: string } {
+function sandbox(
+  change: (repo: string) => void,
+  seed?: (repo: string) => void,
+): { repo: string; base: string } {
   const repo = makeEmptyRepo();
   repos.push(repo);
-  write(repo, 'accord/tickets/OLD-1.md', 'id: OLD-1\n');
+  write(repo, 'accord/tickets/OLD-1.md', APPROVED_TICKET);
   write(repo, 'docs/readme.md', 'base\n');
+  seed?.(repo);
   const base = commitAll(repo);
   change(repo);
   commitAll(repo);
@@ -191,7 +201,10 @@ describe.skipIf(noBash)('the emitted workflow script — executed', { timeout: 6
   });
 
   it('ticket-adding diff: gates that ticket by the id in its file name (D-137)', () => {
-    const { repo, base } = sandbox((r) => write(r, 'accord/tickets/SIGNUP-1.md', 'id: SIGNUP-1\n'));
+    const { repo, base } = sandbox((r) => {
+      write(r, 'accord/tickets/SIGNUP-1.md', 'id: SIGNUP-1\n');
+      write(r, 'src/app.ts', CODE);
+    });
     const result = runScript(repo, { base });
     expect(result.code, result.err).toBe(0);
     expect(result.calls.length, result.calls.join(' | ')).toBe(2);
@@ -218,7 +231,10 @@ describe.skipIf(noBash)('the emitted workflow script — executed', { timeout: 6
   });
 
   it('a failing gate exits 1 and lint still ran first (A-10)', () => {
-    const { repo, base } = sandbox((r) => write(r, 'accord/tickets/SIGNUP-1.md', 'id: SIGNUP-1\n'));
+    const { repo, base } = sandbox((r) => {
+      write(r, 'accord/tickets/SIGNUP-1.md', 'id: SIGNUP-1\n');
+      write(r, 'src/app.ts', CODE);
+    });
     const result = runScript(repo, { base, fail: 'SIGNUP-1' });
     expect(result.code).toBe(1);
     expect(result.calls.length, result.calls.join(' | ')).toBe(2);
@@ -226,11 +242,42 @@ describe.skipIf(noBash)('the emitted workflow script — executed', { timeout: 6
   });
 
   it('a failing lint exits 1 and the gates still ran (A-10, the other direction)', () => {
-    const { repo, base } = sandbox((r) => write(r, 'accord/tickets/SIGNUP-1.md', 'id: SIGNUP-1\n'));
+    const { repo, base } = sandbox((r) => {
+      write(r, 'accord/tickets/SIGNUP-1.md', 'id: SIGNUP-1\n');
+      write(r, 'src/app.ts', CODE);
+    });
     const result = runScript(repo, { base, fail: 'lint' });
     expect(result.code).toBe(1);
     expect(result.calls.length, result.calls.join(' | ')).toBe(2);
     expect(result.calls[1].endsWith(' gate done SIGNUP-1')).toBe(true);
+  });
+
+  it('unapproved tickets in an accord-only diff: lint runs and no gate done runs and the exit follows lint', () => {
+    const add = (r: string): void => {
+      write(r, 'accord/tickets/ST-8.md', DRAFT_TICKET);
+      write(r, 'accord/tickets/ST-9.md', DRAFT_TICKET);
+    };
+    const added = sandbox(add);
+    const r1 = runScript(added.repo, { base: added.base });
+    expect(r1.code, r1.err).toBe(0);
+    expect(r1.calls.length, r1.calls.join(' | ')).toBe(1);
+    expect(r1.calls[0].endsWith(' lint')).toBe(true);
+    expect(r1.calls.join(' ')).not.toContain(' gate done ');
+
+    const edited = sandbox(
+      (r) => write(r, 'accord/tickets/DRAFT-1.md', DRAFT_TICKET + 'more\n'),
+      (r) => write(r, 'accord/tickets/DRAFT-1.md', DRAFT_TICKET),
+    );
+    const r2 = runScript(edited.repo, { base: edited.base });
+    expect(r2.code, r2.err).toBe(0);
+    expect(r2.calls.length, r2.calls.join(' | ')).toBe(1);
+    expect(r2.calls[0].endsWith(' lint')).toBe(true);
+
+    const failing = sandbox(add);
+    const r3 = runScript(failing.repo, { base: failing.base, fail: 'lint' });
+    expect(r3.code).toBe(1);
+    expect(r3.calls.length, r3.calls.join(' | ')).toBe(1);
+    expect(r3.calls[0].endsWith(' lint')).toBe(true);
   });
 
   // Task 2. Without this, "the test passes" and "the test would fail if the script were wrong" are two

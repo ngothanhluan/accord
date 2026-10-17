@@ -4,6 +4,7 @@
 - task 1 done 31187911dcc6
 - task 2 done 4fd0c4fc6a3b
 - task 3 done 4a0e93d72972
+- task 4 done ba0d5da8347d
 
 ## Rulings
 - Ruling: approach: approved detection is a loose key match and dropped detection a stricter `status` match, and every unsettled read counts as approved — a check that cannot tell should run the gate, not skip it — a ticket with odd frontmatter is gated, the original symptom, never a bypass
@@ -15,6 +16,7 @@
 - Ruling: build task 1: the script also skips a dropped ticket (is_dropped) in task 1, though the dropped case is task 2's test — the brief listed the whole rule and task 2 would otherwise rewrite the same lines — task 2's dropped case is the only check of that branch
 - Ruling: build task 2: a nested-status case was added to the dropped test beyond the brief's five — task 1 already held the dropped skip, so only the nested case could fail first; it caught an unanchored regex that let an indented status: dropped skip the gate — one assertion block, easy to remove
 - Ruling: build task 3: the new tests use the brief's exact titles, and their failing-first proof is one coarse mutation (always skip) that failed 8 of 15 cases, since tasks 1 and 2 already held the rule — keeps ids stable for the baseline — a sub-case that no single mutation fails is not shown to bite
+- Ruling: build task 4: the @ac-4 comparison also replays the nested-status case beside the two dropped cases, and reads the task 3 cases from the module-level array — more coverage of the same fixtures — none
 
 ## Deferred
 - plan round 1.5: rule line 14 cites a test "finds no denied name in the config, the workflow, or the pointer block" that does not exist in the tree.

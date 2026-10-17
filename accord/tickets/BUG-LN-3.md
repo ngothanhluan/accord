@@ -69,7 +69,7 @@ Feature: BUG-LN-3
     Then it runs `accord gate done X`, and exits 1 when that gate fails
     And removing `approved_hash` from X in the pull request does not stop `accord gate done X` from running when the base commit's X has it
 
-  @ac-4
+  @ac-4 @test:packages/cli/test/workflow-script.test.ts#the-emitted-workflow-script-—-executed->-the-workflow-of-this-repository-gates-the-same-tickets-with-the-same-exit-as-the-emitted-one
   Scenario: This repository's workflow gates by the same rule as the one `accord init` writes
     Given the workflow `accord init` writes and this repository's `.github/workflows/accord.yml`
     When the cases of @ac-1, @ac-2 and @ac-3 run against the lint-and-gate script of each

@@ -21,15 +21,17 @@ const plain = (o) => typeof o === 'object' && o !== null && !Array.isArray(o);
 const sectionOk = (s) => plain(s) && Array.isArray(s.rows) && s.rows.every(plain);
 const NONE = 'accord dashboard --json printed no dashboard';
 
+const failed = ({ exitCode, stderr }) => {
+  const message = String(stderr ?? '')
+    .split('\n')
+    .filter((l) => !/^npm /i.test(l))
+    .join('\n')
+    .trim();
+  return { message: message || `accord exited ${exitCode}` };
+};
+
 export function outcome({ exitCode, stdout, stderr }) {
-  if (exitCode !== 0) {
-    const message = String(stderr ?? '')
-      .split('\n')
-      .filter((l) => !/^npm /i.test(l))
-      .join('\n')
-      .trim();
-    return { message: message || `accord exited ${exitCode}` };
-  }
+  if (exitCode !== 0) return failed({ exitCode, stderr });
   let d;
   try {
     d = JSON.parse(stdout);
@@ -117,12 +119,23 @@ export function actionFor(state, id) {
 const NL = String.fromCharCode(10);
 const NO_DETAIL = 'accord show --json printed no ticket';
 const strs = (a) => Array.isArray(a) && a.every((x) => typeof x === 'string');
-const critOk = (c) => plain(c) && (c.id === null || typeof c.id === 'string') && typeof c.title === 'string' && strs(c.steps) && typeof c.label === 'string';
+const str = (v) => typeof v === 'string';
+const strOrNull = (v) => v === null || str(v);
+const critOk = (c) =>
+  plain(c) && str(c.title) && str(c.label) && strs(c.steps) && [c.id, c.test, c.testResult, c.verification].every(strOrNull) && typeof c.ticked === 'boolean';
 const ticketOk = (d) =>
-  plain(d) && typeof d.id === 'string' && typeof d.title === 'string' && strs(d.blockedBy) && strs(d.intent) && Array.isArray(d.criteria) && d.criteria.every(critOk);
+  plain(d) &&
+  [d.id, d.title, d.stage, d.lane, d.branch].every(str) &&
+  typeof d.tasksDone === 'number' &&
+  typeof d.tasksTotal === 'number' &&
+  strOrNull(d.holder) &&
+  strs(d.blockedBy) &&
+  strs(d.intent) &&
+  Array.isArray(d.criteria) &&
+  d.criteria.every(critOk);
 
 export function detailOutcome({ exitCode, stdout, stderr }) {
-  if (exitCode !== 0) return outcome({ exitCode, stdout, stderr });
+  if (exitCode !== 0) return failed({ exitCode, stderr });
   let d;
   try {
     d = JSON.parse(stdout);
@@ -138,7 +151,7 @@ const orNone = (v) => (v === null || v === undefined || v === '' ? 'none' : v);
 export function detailView({ action, state }) {
   const back = { key: 'back', label: 'Back' };
   if (state === undefined) return { back, action, message: ['Loading…'] };
-  if (state.message !== undefined) return { back, action, message: state.message.split(NL).map(clean).filter((l) => l) };
+  if (state.message !== undefined) return { back, message: state.message.split(NL).map(clean).filter((l) => l) };
   const t = state.ticket;
   const facts = [
     `Stage: ${t.stage}`,

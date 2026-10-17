@@ -33,8 +33,7 @@ async function host(mod: { register: (on: Handler) => void }) {
   const hooks: Hook[] = [];
   mod.register((event: string, a: any, b?: any) => hooks.push(b ? { event, matcher: a, fn: b } : { event, matcher: {}, fn: a }));
   const open = new Set<string>();
-  const pending: ((r: Result) => void)[] = [];
-  const failers: ((e: unknown) => void)[] = [];
+  const runs: { res: (r: Result) => void; rej: (e: unknown) => void }[] = [];
   let tree: El | undefined;
   let inputText = '';
   const h = {
@@ -45,9 +44,9 @@ async function host(mod: { register: (on: Handler) => void }) {
       const run = (i: number): Promise<any> => (i >= chain.length ? Promise.resolve(e) : Promise.resolve(chain[i].fn($, e, () => run(i + 1))));
       return run(0);
     },
-    settle: (r: Partial<Result>) => (pending.shift() as (r: Result) => void)({ exitCode: 0, stdout: '', stderr: '', ...r }),
-    fail: (err: unknown) => (failers.shift() as (e: unknown) => void)(err),
-    inflight: () => pending.length,
+    settle: (r: Partial<Result>) => (runs.shift() as { res: (r: Result) => void }).res({ exitCode: 0, stdout: '', stderr: '', ...r }),
+    fail: (err: unknown) => (runs.shift() as { rej: (e: unknown) => void }).rej(err),
+    inflight: () => runs.length,
     close: (id: string) => open.delete(id),
     nodes: (type: string): El[] => {
       const out: El[] = [];
@@ -106,7 +105,7 @@ async function host(mod: { register: (on: Handler) => void }) {
     inputText = h.input()?.value ?? '';
   };
   const $: any = {
-    process: { run: vi.fn(() => new Promise<Result>((res, rej) => (pending.push(res), failers.push(rej)))) },
+    process: { run: vi.fn(() => new Promise<Result>((res, rej) => runs.push({ res, rej }))) },
     command: { register: vi.fn(async () => ({})), run: vi.fn(async () => ({})) },
     ui: {
       open: vi.fn(async ({ id }: { id: string }) => {
@@ -525,4 +524,115 @@ it('risk:regression each row draws as fixed-width cells with stage colours a red
   h.type('st-3');
   await vi.waitFor(() => expect(h.texts().some((x) => x.includes('ST-7'))).toBe(false));
   widthsHold();
+});
+
+const LONG = 'Title '.repeat(40).trim();
+const STEP = 'Given ' + 'word '.repeat(40).trim();
+const TEST = 'a#' + 'x'.repeat(118);
+
+it('ac-5 the detail view wraps long text whole while the table keeps its cut', async () => {
+  const h = await host(await loadPanel());
+  await h.fire('session.start', start);
+  h.settle({ stdout: JSON.stringify(board({ yours: { rows: [{ id: 'ST-1', title: LONG }], more: 0 } })) });
+  await vi.waitFor(() => expect(h.buttons().map((b) => b.key)).toEqual(['show:ST-1']));
+  press(h, 'show:ST-1');
+  h.settle({ stdout: JSON.stringify(detailOf({ title: LONG, criteria: [{ ...(detailOf().criteria as any[])[0], steps: [STEP], test: TEST }] })) });
+  await vi.waitFor(() => expect(h.texts()).toContain(STEP));
+  for (const [s, kids] of [[LONG, [LONG]], [STEP, [STEP]], ['Test: ' + TEST, ['Test: ' + TEST]]] as [string, string[]][]) {
+    const ns = h.nodes('Text').filter((n) => (n.props.children as unknown[]).join('') === s);
+    expect(ns, s).toHaveLength(1);
+    expect(ns[0].props.children).toEqual(kids);
+    expect(ns[0].props.wrap).toBe('wrap');
+  }
+  for (const n of h.nodes('Text')) expect(n.props.wrap).toBe('wrap');
+  for (const t of h.texts()) for (const bad of ['\n', '...', '…']) expect(t).not.toContain(bad);
+  press(h, 'back');
+  await vi.waitFor(() => expect(h.input()).toBeDefined());
+  expect(h.cell(LONG).text.wrap).toBe('truncate');
+});
+
+it('risk:complex-branching a failed or malformed show run shows a message with back', async () => {
+  const cases: [(h: Awaited<ReturnType<typeof host>>) => void, string][] = [
+    [(h) => h.settle({ exitCode: 2, stderr: 'npm warn x\nno ticket ST-1 in accord/tickets/\n' }), 'no ticket ST-1 in accord/tickets/'],
+    [(h) => h.fail(new Error('timed out')), 'accord did not finish: timed out'],
+    [(h) => h.settle({ stdout: 'not json' }), 'accord show --json printed no ticket'],
+    [(h) => h.settle({ stdout: '{}' }), 'accord show --json printed no ticket'],
+    [(h) => h.settle({ stdout: JSON.stringify(detailOf({ criteria: [{ steps: 'x' }] })) }), 'accord show --json printed no ticket'],
+  ];
+  for (const [run, text] of cases) {
+    const h = await host(await loadPanel());
+    await h.fire('session.start', start);
+    h.settle({ stdout: twoRows });
+    await vi.waitFor(() => expect(h.buttons().map((b) => b.key)).toContain('show:ST-1'));
+    press(h, 'show:ST-1');
+    run(h);
+    await vi.waitFor(() => expect(h.texts().join("|"), text).toContain(text));
+    expect(h.buttons().map((b) => b.key)).toEqual(['back']);
+    const calls = h.$.process.run.mock.calls.length;
+    press(h, 'back');
+    await vi.waitFor(() => expect(h.texts()).toContain('ST-2'));
+    expect(h.$.process.run.mock.calls.length).toBe(calls);
+  }
+});
+
+it('risk:concurrency an open detail reruns show after a turn and drops a result for a closed one', async () => {
+  const h = await host(await loadPanel());
+  const calls = (): number => h.$.process.run.mock.calls.length;
+  const argv = (i: number): string[] => h.$.process.run.mock.calls[i][0];
+  await h.fire('session.start', start);
+  h.settle({ stdout: twoRows });
+  await vi.waitFor(() => expect(h.buttons().map((b) => b.key)).toContain('show:ST-1'));
+  press(h, 'show:ST-1');
+  h.settle({ stdout: JSON.stringify(detailOf()) });
+  await vi.waitFor(() => expect(h.texts()).toContain('Stage: build'));
+  let n = calls();
+  await h.fire('turn.complete', { reason: 'answer' });
+  expect(calls()).toBe(n + 2);
+  expect(argv(n).slice(3)).toEqual(['dashboard', '--json']);
+  expect(argv(n + 1).slice(3)).toEqual(['show', 'ST-1', '--json']);
+  h.settle({ stdout: twoRows });
+  h.settle({ stdout: JSON.stringify(detailOf({ title: 'Renamed' })) });
+  await vi.waitFor(() => expect(h.texts()).toContain('Renamed'));
+  n = calls();
+  await h.fire('turn.complete', { reason: 'answer', agentId: 'a1' });
+  expect(calls()).toBe(n);
+  await h.fire('turn.complete', { reason: 'answer' });
+  press(h, 'back');
+  h.settle({ stdout: twoRows });
+  h.settle({ stdout: JSON.stringify(detailOf({ title: 'Late' })) });
+  await vi.waitFor(() => expect(h.texts()).toContain('ST-2'));
+  await new Promise((r) => setTimeout(r, 10));
+  expect(h.texts().some((x) => x.includes('Late') || x.includes('Stage: build'))).toBe(false);
+  // ST-1 pending, back, open ST-2: ST-1's result is dropped, ST-2's is shown
+  press(h, 'show:ST-1');
+  await vi.waitFor(() => expect(h.buttons().map((b) => b.key)).toContain('back'));
+  press(h, 'back');
+  await vi.waitFor(() => expect(h.buttons().map((b) => b.key)).toContain('show:ST-2'));
+  press(h, 'show:ST-2');
+  h.settle({ stdout: JSON.stringify(detailOf({ title: 'Old' })) });
+  await vi.waitFor(() => expect(h.inflight()).toBe(1));
+  expect(h.texts().some((x) => x.includes('Old'))).toBe(false);
+  h.settle({ stdout: JSON.stringify(detailOf({ id: 'ST-2', title: 'Export' })) });
+  await vi.waitFor(() => expect(h.texts()).toContain('Export'));
+  expect(h.buttons().map((b) => b.key)).toEqual(['back', 'pick-up:ST-2']);
+  await h.fire('turn.complete', { reason: 'answer' });
+  h.settle({ stdout: JSON.stringify(board({ yours: { rows: [{ id: 'ST-2', title: 'Export' }], more: 0 } })) });
+  h.settle({ stdout: JSON.stringify(detailOf({ id: 'ST-2', title: 'Export' })) });
+  await vi.waitFor(() => expect(h.buttons().map((b) => b.key)).toEqual(['back', 'continue:ST-2']));
+});
+
+it('risk:security detail text cannot put control characters into the pane', async () => {
+  const h = await host(await loadPanel());
+  await h.fire('session.start', start);
+  h.settle({ stdout: twoRows });
+  await vi.waitFor(() => expect(h.buttons().map((b) => b.key)).toContain('show:ST-1'));
+  press(h, 'show:ST-1');
+  const dirty = (s: string): string => s + '\u001b[31m x\u202e y\u2028z';
+  const base = detailOf().criteria as any[];
+  h.settle({
+    stdout: JSON.stringify(detailOf({ title: dirty('T'), holder: dirty('H'), intent: [dirty('I')], criteria: [{ ...base[0], steps: [dirty('Given')] }] })),
+  });
+  await vi.waitFor(() => expect(h.texts().some((x) => x.startsWith('Holder: H'))).toBe(true));
+  const bad = [0x1b, 0x202e, 0x2028];
+  for (const t of h.texts()) for (const c of t) expect(bad).not.toContain(c.codePointAt(0));
 });

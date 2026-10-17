@@ -31,22 +31,40 @@ async function refresh($) {
   }
 }
 
-async function openDetail($, open) {
-  const mine = { id: open.id };
-  detail = mine;
-  // start the run before the first redraw so a press runs it at once
-  const run = $.process.run(['npx', '--yes', 'ACCORD_PACKAGE_SPEC', 'show', open.id, '--json'], { timeoutMs: 120000 });
-  run.catch(() => {}); // the rejection is handled below; this only avoids an unhandled one during the redraw
-  await $.ui.invalidate('ui.render');
-  let result;
-  try {
-    result = detailOutcome(await run);
-  } catch (err) {
-    result = failure(err);
+let detailRunning = false;
+let detailAgain = false;
+
+// Runs `show` for the open ticket; a result for a ticket no longer open is dropped.
+async function loadDetail($) {
+  if (detailRunning) {
+    detailAgain = true;
+    return;
   }
-  if (detail !== mine) return; // closed or replaced while running
-  mine.state = result;
+  detailRunning = true;
+  try {
+    do {
+      detailAgain = false;
+      const id = detail?.id;
+      if (id === undefined) break;
+      let result;
+      try {
+        result = detailOutcome(await $.process.run(['npx', '--yes', 'ACCORD_PACKAGE_SPEC', 'show', id, '--json'], { timeoutMs: 120000 }));
+      } catch (err) {
+        result = failure(err);
+      }
+      if (detail?.id === id) detail.state = result;
+      await $.ui.invalidate('ui.render');
+    } while (detailAgain);
+  } finally {
+    detailRunning = false;
+  }
+}
+
+async function openDetail($, open) {
+  detail = { id: open.id };
+  const loading = loadDetail($); // starts the run before the first redraw so a press runs it at once
   await $.ui.invalidate('ui.render');
+  await loading;
 }
 
 async function start($) {
@@ -73,8 +91,10 @@ export function register(on) {
 
   on('turn.complete', async ($, e, next) => {
     const pane = e.agentId ? undefined : (await $.ui.panes()).find((p) => p.id === 'accord-panel');
-    if (pane?.isPlaced === true) void refresh($);
-    else if (pane) stale = true;
+    if (pane?.isPlaced === true) {
+      void refresh($);
+      if (detail) void loadDetail($);
+    } else if (pane) stale = true;
     return next(e);
   });
 
@@ -83,6 +103,7 @@ export function register(on) {
     if (stale) {
       stale = false;
       void refresh($);
+      if (detail) void loadDetail($);
     }
     const { Box, Text, Button, Input } = $.ui.resolve(e);
     const children = [];

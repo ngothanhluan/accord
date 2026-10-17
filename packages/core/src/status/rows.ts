@@ -109,7 +109,8 @@ export function statusRows(snapshot: RepoSnapshot, now?: number, plain?: RepoSna
 export function nextRows(rows: StatusRow[]): StatusRow[] {
   return rows.filter(
     (r) =>
-      (r.stage === 'plan' || (r.stage === 'build' && r.tasksDone === 0)) &&
+      (r.stage === 'plan' || r.stage === 'build') &&
+      r.tasksDone === 0 &&
       r.ready === 'ok' &&
       (r.blockedBy ?? []).length === 0 &&
       r.claimedBy === undefined &&

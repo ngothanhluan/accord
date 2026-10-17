@@ -19,6 +19,9 @@ const ticksBound = (ticket: Ticket): boolean => {
   return fm !== undefined && (fm.verified ?? []).length > 0 && hash !== undefined && fm.verified_hash === hash;
 };
 
+const planReady = (facts: NonNullable<RepoSnapshot['planFacts']>, id: string): boolean =>
+  Object.hasOwn(facts, id) && facts[id].clean && facts[id].subject === `plan: ${id} ready`;
+
 /** undefined for a ticket without lane, or whose frontmatter failed the schema. */
 export function progressOf(snapshot: RepoSnapshot, ticket: Ticket): Progress | undefined {
   const fm = ticket.frontmatter;
@@ -30,6 +33,8 @@ export function progressOf(snapshot: RepoSnapshot, ticket: Ticket): Progress | u
   const counts = { tasksDone: tasks.length - open.length, tasksTotal: tasks.length };
   if (fm.approved_hash === undefined || fm.approved_hash !== approvedHash(ticket)) return { stage: 'intent', ...counts };
   if (tasks.length === 0) return { stage: 'plan', ...counts };
+  // BUG-LN-2: a host that supplies plan facts holds the ticket at plan until plan.md's ready commit.
+  if (open.length > 0 && snapshot.planFacts !== undefined && !planReady(snapshot.planFacts, ticket.id)) return { stage: 'plan', ...counts };
   if (open.length > 0) return { stage: 'build', ...counts, next: open[0].n };
   if (!VERDICTS.includes(work?.review?.verdict ?? '')) return { stage: 'review', ...counts };
   return { stage: ticksBound(ticket) ? 'done' : 'verify', ...counts };

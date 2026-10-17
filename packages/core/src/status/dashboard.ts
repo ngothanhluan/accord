@@ -28,7 +28,7 @@ export interface Dashboard {
   yours: DashboardSection;
   team: DashboardSection;
   ready: DashboardSection;
-  upNext?: DashboardSection & { suggest?: { action: 'pick-up'; id: string } };
+  upNext: DashboardSection & { suggest?: { action: 'pick-up'; id: string } };
   epics: { rows: EpicRow[]; more: number };
   summary: DashboardSummary;
 }
@@ -125,10 +125,14 @@ export function dashboard(snapshot: RepoSnapshot, viewer: string, now?: number, 
   const unclaimed = open.filter((r) => r.claimedBy === undefined);
   const yours = section(claimed.filter(mine), Infinity, prio);
   const ready = section(readyAll, READY_CAP, prio);
-  const out: Dashboard = {
+  // D-03, D-04: always present; every ready ticket is READY's, so UP NEXT is the backlog and the blocked.
+  const rest = section(unclaimed.filter((r) => !readyAll.includes(r)), Infinity, prio).rows;
+  const first = rest.find((r) => !blocked(r));
+  return {
     yours,
     team: section(claimed.filter((r) => !mine(r)), TEAM_CAP, prio),
     ready,
+    upNext: { rows: rest.slice(0, READY_CAP), more: Math.max(0, rest.length - READY_CAP), ...(first ? { suggest: { action: 'pick-up' as const, id: first.id } } : {}) },
     epics: epicsSection(snapshot, plain),
     summary: {
       inProgress: claimed.length,
@@ -140,12 +144,4 @@ export function dashboard(snapshot: RepoSnapshot, viewer: string, now?: number, 
       withSchemaErrors: all.filter((r) => r.type === undefined).length,
     },
   };
-  // D-04: only when the viewer has nothing in progress and nothing is ready; key order puts it after ready.
-  if (yours.rows.length === 0 && ready.rows.length === 0) {
-    const all = section(unclaimed, Infinity, prio).rows;
-    const first = all.find((r) => !blocked(r));
-    const up = { rows: all.slice(0, READY_CAP), more: Math.max(0, all.length - READY_CAP), ...(first ? { suggest: { action: 'pick-up' as const, id: first.id } } : {}) };
-    return { yours: out.yours, team: out.team, ready: out.ready, upNext: up, epics: out.epics, summary: out.summary };
-  }
-  return out;
 }

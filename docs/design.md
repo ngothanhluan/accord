@@ -158,7 +158,7 @@ Why a CLI and not just templates and prompts: templates are suggestions and prom
 
 The contract above says what must be true before and after a ticket. The workflow layer is how a coding agent gets there without drifting from the owner's intent. The full rules are in the [workflow layer spec](specs/2026-10-12-workflow-layer-design.md); this is the map.
 
-**Entry point.** `/accord` with no argument runs `accord dashboard` and shows its output verbatim: YOURS, TEAM, READY, UP NEXT when nothing of yours is in progress and nothing is ready, EPICS with children done over all children, one count line, and the actions that apply. The CLI ranks and caps every section; the model never reorders or adds to it. `/accord <request>` proposes a lane, says why, and starts the intent stage.
+**Entry point.** `/accord` with no argument runs `accord dashboard` and shows its output verbatim: YOURS, TEAM, READY, UP NEXT with the unclaimed open tickets that are not ready, EPICS with children done over all children, one count line, and the actions that apply. The CLI ranks and caps every section; the model never reorders or adds to it. `/accord <request>` proposes a lane, says why, and starts the intent stage.
 
 **Lanes.** The size of the work decides how much each stage does; no lane skips a stage.
 

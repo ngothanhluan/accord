@@ -639,3 +639,29 @@ it('risk:security detail text cannot put control characters into the pane', asyn
   const bad = [0x1b, 0x202e, 0x2028];
   for (const t of h.texts()) for (const c of t) expect(bad).not.toContain(c.codePointAt(0));
 });
+
+it('ac-4 the panel shows up next while the viewer holds work', async () => {
+  const h = await host(await loadPanel());
+  await h.fire('session.start', start);
+  h.settle({
+    stdout: JSON.stringify(
+      board({
+        yours: { rows: [{ id: 'ST-AN-9', title: 'Audit' }], more: 0 },
+        upNext: {
+          rows: [
+            { id: 'ST-AN-1', title: 'Export' },
+            { id: 'ST-AN-2', title: 'Import' },
+          ],
+          more: 0,
+        },
+      }),
+    ),
+  });
+  await vi.waitFor(() => {
+    const t = h.texts();
+    const at = (s: string): number => t.findIndex((x) => x.includes(s));
+    const order = [at('YOURS'), at('ST-AN-9'), at('UP NEXT'), at('ST-AN-1'), at('ST-AN-2')];
+    expect(order.every((i) => i >= 0)).toBe(true);
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+  });
+});

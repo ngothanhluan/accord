@@ -118,7 +118,7 @@ it('risk:security a title cannot inject control characters or overflow its cell'
   const d: Dashboard = {
     epics: empty,
     yours: { rows: [row('A-1', 'Đặt lại\u001b[31m mật\u202e khẩu\u2028x'), row('A-2', 'Ư'.repeat(70))], more: 0 },
-    team: empty, ready: empty,
+    team: empty, ready: empty, upNext: empty,
     summary: { inProgress: 0, ready: 0, blocked: 0, backlog: 0, done: 0, withoutLane: 0, withSchemaErrors: 0 },
   };
   const text = renderDashboard(d);
@@ -184,11 +184,70 @@ it('ac-3 up next shows the viewer what to pick up when nothing is ready', () => 
   done(files, 'ST-AN-3');
   const d = board(files, { 'ST-AN-9': 'bo@example.com' });
   expect(d.ready.rows).toEqual([]);
-  expect(d.upNext?.rows.map((r) => r.id)).toEqual(['ST-AN-1', 'ST-AN-2']);
-  expect(d.upNext?.suggest).toEqual({ action: 'pick-up', id: 'ST-AN-1' });
-  const d2 = board(files, { 'ST-AN-9': 'bo@example.com', 'ST-AN-1': 'an@example.com' });
-  expect(d2).not.toHaveProperty('upNext');
-  expect(renderDashboard(d2).split('\n')).not.toContain('UP NEXT');
+  expect(d.upNext.rows.map((r) => r.id)).toEqual(['ST-AN-1', 'ST-AN-2']);
+  expect(d.upNext.suggest).toEqual({ action: 'pick-up', id: 'ST-AN-1' });
+});
+
+const MINE = { 'ST-AN-9': 'an@example.com' };
+const view = (files: Files, claims: Record<string, string>) => {
+  const d = board(files, claims);
+  const text = renderDashboard(d);
+  const lines = text.split('\n');
+  return { d, j: JSON.parse(JSON.stringify(d)), text, lines, u: lines.indexOf('UP NEXT'), lastLine: lines.filter((l) => l !== '').pop() as string };
+};
+
+it('ac-1 up next lists the backlog and the blocked tickets while the viewer holds work', () => {
+  const files: Files = { 'accord/config.yml': CONFIG };
+  files[P('ST-AN-9')] = laneTicket('ST-AN-9');
+  files[P('ST-AN-1')] = laneTicket('ST-AN-1', { frontmatter: ['status: draft'] });
+  files[P('ST-AN-2')] = laneTicket('ST-AN-2', { frontmatter: ['status: draft', 'depends_on: ["ST-AN-1"]'] });
+  const { j, lines, u, lastLine } = view(files, MINE);
+  expect(j.yours.rows.map((r: StatusRow) => r.id)).toEqual(['ST-AN-9']);
+  expect(j.upNext.rows.map((r: StatusRow) => r.id)).toEqual(['ST-AN-1', 'ST-AN-2']);
+  expect(j.upNext.rows[1].blockedBy).toEqual(['ST-AN-1']);
+  expect(u).toBeGreaterThanOrEqual(0);
+  const block = lines.slice(u, u + lines.slice(u).indexOf(''));
+  expect(block.some((l) => l.startsWith('  ST-AN-1'))).toBe(true);
+  expect(block.some((l) => l.startsWith('  ST-AN-2'))).toBe(true);
+  expect(lastLine).toBe('-> [Continue ST-AN-9]  [Pick up ST-AN-1]  [New request]');
+});
+
+it('ac-2 up next leaves out the ready tickets and caps the rest at 20', () => {
+  const files: Files = { 'accord/config.yml': CONFIG };
+  files[P('ST-AN-9')] = laneTicket('ST-AN-9');
+  ready(files, 'ST-AN-50');
+  for (let i = 1; i <= 22; i++) files[P('ST-BO-' + i)] = laneTicket('ST-BO-' + i, { frontmatter: ['status: draft'] });
+  const { j, lines, u, lastLine } = view(files, MINE);
+  expect(j.ready.rows.map((r: StatusRow) => r.id)).toEqual(['ST-AN-50']);
+  expect(j.upNext.rows).toHaveLength(20);
+  expect(j.upNext.more).toBe(2);
+  expect(j.upNext.rows.map((r: StatusRow) => r.id)).not.toContain('ST-AN-50');
+  expect(u).toBeGreaterThanOrEqual(0);
+  expect(lines.indexOf('  +2 more')).toBeGreaterThan(u);
+  expect(lastLine).toContain('[Pick up ST-AN-50]');
+});
+
+it('ac-3 up next is present when nothing is left to pick up', () => {
+  const files: Files = { 'accord/config.yml': CONFIG };
+  files[P('ST-AN-9')] = laneTicket('ST-AN-9');
+  done(files, 'ST-AN-1');
+  done(files, 'ST-AN-2');
+  const { j, text, lines, u } = view(files, MINE);
+  expect(j.upNext).toEqual({ rows: [], more: 0 });
+  expect(u).toBeGreaterThanOrEqual(0);
+  expect(lines[u + 1]).toBe('  none');
+  expect(text).not.toContain('[Pick up');
+});
+
+it('risk:complex-branching a ready ticket past the ready cap is not in up next', () => {
+  const files: Files = { 'accord/config.yml': CONFIG };
+  files[P('ST-AN-9')] = laneTicket('ST-AN-9');
+  for (let i = 1; i <= 21; i++) ready(files, 'ST-CY-' + i);
+  files[P('ST-BO-1')] = laneTicket('ST-BO-1');
+  const { d } = view(files, MINE);
+  expect([d.ready.rows.length, d.ready.more]).toEqual([20, 1]);
+  expect(d.upNext.rows.map((r) => r.id)).toEqual(['ST-BO-1']);
+  expect(d.upNext.more).toBe(0);
 });
 
 it('risk:complex-branching an archived claimed ticket is in no section and no count', () => {
@@ -213,7 +272,7 @@ it('risk:complex-branching the action line names only the actions that apply', (
     const lines = renderDashboard(d).split('\n').filter((l) => l !== '');
     return [lines[lines.length - 2], lines[lines.length - 1]];
   };
-  const a = lastTwo({ epics: empty, yours: { rows: [row('ST-AN-1')], more: 0 }, team: empty, ready: { rows: [row('ST-AN-2')], more: 0 }, summary });
+  const a = lastTwo({ epics: empty, yours: { rows: [row('ST-AN-1')], more: 0 }, team: empty, ready: { rows: [row('ST-AN-2')], more: 0 }, upNext: empty, summary });
   expect(a[1]).toBe('-> [Continue ST-AN-1]  [Pick up ST-AN-2]  [New request]');
   expect(a[0]).toContain(' in progress, ');
   const b = lastTwo({ epics: empty, yours: empty, team: empty, ready: empty, upNext: { rows: [row('ST-AN-3')], more: 0, suggest: { action: 'pick-up', id: 'ST-AN-3' } }, summary });
@@ -236,7 +295,7 @@ it('risk:complex-branching the viewer comes from git user.email without case and
     const j = JSON.parse(res.out) as Dashboard;
     expect(j.yours.rows.map((r) => r.id)).toEqual(['ST-AN-1']);
     expect(j.team.rows.some((r) => r.id === 'ST-AN-1')).toBe(false);
-    expect(j).not.toHaveProperty('upNext');
+    expect(j).toHaveProperty('upNext');
     gitRun(repo, 'config', 'user.email', '');
     const bad = await run(['dashboard'], repo);
     expect(bad.code).toBe(2);

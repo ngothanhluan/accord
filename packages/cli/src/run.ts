@@ -233,7 +233,7 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .description('print one lane ticket in full: its row facts, Intent, and each criterion with its state')
     .option('--json', 'print the TicketDetail object instead of text')
     .action((id: string, options: { json?: boolean }) => {
-      setCode(show(preflight(opts), id, options));
+      setCode(show(preflight(opts, 'claims'), id, options));
     });
 
   program

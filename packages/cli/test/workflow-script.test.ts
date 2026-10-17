@@ -413,6 +413,21 @@ describe.skipIf(noBash)('the emitted workflow script — executed', { timeout: 6
         (r) => write(r, 'accord/tickets/OLD-1.md', FLOW_TICKET),
       ),
     );
+    // Approved in YAML spellings the line greps cannot read: a body-only edit stays gated.
+    for (const fm of [
+      'id: OLD-1\n?\n  approved_hash\n: "x"\n',
+      'id: OLD-1\n? approved_hash\n: "x"\n',
+      '!!map {id: OLD-1, approved_hash: "x"}\n',
+      '  id: OLD-1\n  approved_hash: "x"\n',
+    ]) {
+      expectGated(
+        'OLD-1',
+        sandbox(
+          (r) => write(r, 'accord/tickets/OLD-1.md', '---\n' + fm + '---\n\n## Intent\nedited\n'),
+          (r) => write(r, 'accord/tickets/OLD-1.md', '---\n' + fm + '---\n\n## Intent\nold\n'),
+        ),
+      );
+    }
     expectGated(
       'BIG-1',
       sandbox((r) =>

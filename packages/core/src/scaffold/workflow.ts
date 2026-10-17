@@ -112,9 +112,11 @@ jobs:
             fm=$(awk 'NR==1 { if ($0 !~ /---[[:space:]]*$/) exit 3; next } /^---[[:space:]]*$/ { found=1; exit } { print } END { if (!found) exit 3 }' <<< "$text")
             local rc=$?
             if [ "$rc" -ne 0 ]; then return 2; fi
-            # A flow mapping or an explicit key is YAML the line greps below cannot read: unsettled.
+            # Settled only when every column-0 line is blank, a comment, a sequence item or a plain key line, and
+            # the first content line is not indented; any other YAML (flow, tag, anchor, explicit key) is unsettled.
             first=$(grep -m1 -Ev '^[[:space:]]*(#|$)' <<< "$fm")
-            if grep -Eq '^[[:space:]]*[{[]' <<< "$first" || grep -Eq '^[?][[:space:]]' <<< "$fm"; then return 2; fi
+            if grep -Eq '^[[:space:]]' <<< "$first"; then return 2; fi
+            if grep -Evq "^([[:space:]]|#|-([[:space:]]|$)|\${qc}?[[:alnum:]_-]+\${qc}?[[:space:]]*:([[:space:]]|#|$)|$)" <<< "$fm"; then return 2; fi
             return 0
           }
           # Approved means an approved_hash key in that version of path $2. An unsettled read counts as approved.

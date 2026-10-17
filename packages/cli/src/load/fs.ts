@@ -451,15 +451,25 @@ export function loadClaimView(root: string): { checkout: SnapshotInput; view: Sn
   const env = { ...process.env, GIT_NO_LAZY_FETCH: '1' };
   const current = currentBranch(root);
   const own = current === undefined || current === '' ? undefined : ticketOfBranch(current, templates, known);
-  const candidates = Object.entries(claimRefs).filter(([id, ref]) => {
-    if (id === own) return false;
+  // One spawn for the merged set; a failure (an unborn HEAD) leaves it empty, as a non-ancestor.
+  let merged = new Set<string>();
+  const refNames = Object.values(claimRefs);
+  if (refNames.length > 0) {
     try {
-      execFileSync('git', ['merge-base', '--is-ancestor', ref, 'HEAD'], { cwd: root, stdio: 'ignore', env });
-      return false;
+      const listed = execFileSync('git', ['for-each-ref', '--merged', 'HEAD', '--format=%(refname)', ...refNames], {
+        cwd: root,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+        env,
+      });
+      merged = new Set(listed.split('\n').filter((l) => l !== ''));
     } catch {
-      return true;
+      // unborn HEAD or git failure: nothing is merged
     }
-  });
+  }
+  // A squash or rebase merge leaves the claim tip unmerged: a terminal checkout copy is never superseded.
+  const terminal = (id: string) => /^status:\s*["']?(archived|dropped)["']?\s*$/m.test(checkout.files['accord/tickets/' + id + '.md']?.split(/\r?\n---/)[0] ?? '');
+  const candidates = Object.entries(claimRefs).filter(([id, ref]) => id !== own && !merged.has(ref) && !terminal(id));
   if (candidates.length === 0) return { checkout, view: checkout };
   const wanted = candidates.flatMap(([id, ref]) => recordPaths(id).map((path) => ref + ':' + path));
   let out: Buffer;

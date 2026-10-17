@@ -413,6 +413,28 @@ it('risk:complex-branching a merged or checked out or ticketless claim branch ke
   }
 });
 
+it('risk:complex-branching an archived ticket on the checkout is not overlaid by an unmerged claim ref', async () => {
+  const repo = makeLaneRepo({ 'accord/tickets/T-2.md': laneTicket('T-2') });
+  try {
+    commitAll(repo);
+    const base = gitRun(repo, 'rev-parse', '--abbrev-ref', 'HEAD').trim();
+    gitRun(repo, 'checkout', '-q', '-b', 't/T-2');
+    await run(['approve', 'T-2'], repo);
+    writeFiles(repo, { 'accord/tickets/T-2/plan.md': PLAN });
+    const tip = commitAll(repo, 'plan: T-2 ready');
+    gitRun(repo, 'update-ref', 'refs/remotes/origin/t/T-2', tip);
+    gitRun(repo, 'checkout', '-q', base);
+    gitRun(repo, 'branch', '-q', '-D', 't/T-2');
+    // a squash merge: the checkout holds the final copy, the claim tip is not an ancestor of HEAD.
+    writeFiles(repo, { 'accord/tickets/T-2.md': laneTicket('T-2', { frontmatter: ['status: archived'] }) });
+    commitAll(repo, 'archive T-2');
+    const rows = JSON.parse((await run(['status', '--json', '--all'], repo)).out) as StatusRow[];
+    expect(rows.find((r) => r.id === 'T-2')).toMatchObject({ status: 'archived', stage: 'intent' });
+  } finally {
+    cleanup(repo);
+  }
+});
+
 it('ac-3 a plan reaches build only after its ready commit and while clean', async () => {
   const repo = makeLaneRepo();
   const plan = 'accord/tickets/T-1/plan.md';

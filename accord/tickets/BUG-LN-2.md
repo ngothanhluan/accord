@@ -64,7 +64,7 @@ Feature: BUG-LN-2
     And once the last commit that touched plan.md has the subject exactly `plan: X ready`, and plan.md has no uncommitted change when X is read from the working tree, X is at stage `build 0/n`
     And for X read from a claim branch that is not checked out, only that branch's commits decide, never the current working tree
 
-  @ac-4
+  @ac-4 @test:packages/cli/test/dashboard.test.ts#ac-4-an-unwritten-intent-points-anchor-and-dashboard-to-the-intent-interview
   Scenario: A ticket whose intent is not written yet points to the intent interview
     Given ticket X whose `## Intent` section holds nothing but HTML comments and blank lines, or whose acceptance criteria block holds no scenario other than the template's placeholder one
     When `accord anchor` and `accord dashboard` show X

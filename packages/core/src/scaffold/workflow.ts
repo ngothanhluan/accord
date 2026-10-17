@@ -23,6 +23,11 @@
 // and `staleReview` both fail a review that is not stale. Stated positively, which is accord's actual rule:
 // the review has to be of the code being gated, and what a fresh-context review read is the branch.
 //
+// `gate done` is skipped for a ticket only when the diff changes nothing outside `accord/` and the ticket is
+// unapproved in both its HEAD and base versions, or dropped in HEAD. Any read the script cannot settle counts
+// as approved, so a doubt gates. `.github/workflows/accord.yml` carries the same script and must be changed
+// with it; `cli/test/workflow-script.test.ts` fails when the two drift.
+//
 // The script is written out as a block scalar rather than assembled from an object: a YAML serialiser
 // round-trip would lose the comment and the block-scalar shape, which are what make this file readable in
 // someone else's repository.
@@ -84,10 +89,79 @@ jobs:
             echo "no ticket file changed in this pull request - nothing to gate"
             exit $code
           fi
+          # A pull request that changes anything outside accord/ gates every ticket it touches. One that
+          # changes only accord/ skips a ticket that is unapproved or dropped, so a backlog can land. A failing
+          # diff counts as code, and so does a deletion, so every doubt is resolved toward gating. Below, the
+          # deletion or rename-away of an approved ticket turns an accord-only pull request into one with code.
+          has_code=0
+          if ! changed=$(git -c core.quotePath=false diff --name-only --no-renames "$BASE"...HEAD); then
+            has_code=1
+          else
+            outside=$(grep -v '^accord/' <<< "$changed" || true)
+            [ -n "$outside" ] && has_code=1
+          fi
+          qc="['"'"]'
+          # Frontmatter of path $2 at revision $1 into fm. Returns 0 when found, 1 when the file is absent at
+          # that revision, 2 when the read cannot be settled (no opening or closing line, or a git error).
+          # Read from a variable through a here-string, never a pipe: pipefail plus SIGPIPE returns 141.
+          fm_at() {
+            local listed text
+            if ! listed=$(git ls-tree --name-only "$1" -- "$2"); then return 2; fi
+            if [ -z "$listed" ]; then return 1; fi
+            if ! text=$(git show "$1:$2"); then return 2; fi
+            fm=$(awk 'NR==1 { if ($0 !~ /---[[:space:]]*$/) exit 3; next } /^---[[:space:]]*$/ { found=1; exit } { print } END { if (!found) exit 3 }' <<< "$text")
+            local rc=$?
+            if [ "$rc" -ne 0 ]; then return 2; fi
+            # Settled only when every column-0 line is blank, a comment, a sequence item or a plain key line, and
+            # the first content line is not indented; any other YAML (flow, tag, anchor, explicit key) is unsettled.
+            first=$(grep -m1 -Ev '^[[:space:]]*(#|$)' <<< "$fm")
+            if grep -Eq '^[[:space:]]' <<< "$first"; then return 2; fi
+            if grep -Evq "^([[:space:]]|#|-([[:space:]]|$)|\${qc}?[[:alnum:]_-]+\${qc}?[[:space:]]*:([[:space:]]|#|$)|$)" <<< "$fm"; then return 2; fi
+            return 0
+          }
+          # Approved means an approved_hash key in that version of path $2. An unsettled read counts as approved.
+          approved_at() {
+            fm_at "$1" "$2"
+            local rc=$?
+            if [ "$rc" -eq 1 ]; then return 1; fi
+            if [ "$rc" -ne 0 ]; then return 0; fi
+            grep -Eq "^[[:space:]]*\${qc}?approved_hash\${qc}?[[:space:]]*:" <<< "$fm"
+          }
+          # Dropped needs status: dropped and a reason under ## Dropped, as lint reads it. Where this reading
+          # cannot match lint (a comment spanning lines, a stray fence) the answer is not dropped: fail closed.
+          is_dropped() {
+            local text
+            fm_at HEAD "$file" || return 1
+            grep -Eq "^\${qc}?status\${qc}?[[:space:]]*:[[:space:]]*\${qc}?dropped\${qc}?[[:space:]]*(#.*)?$" <<< "$fm" || return 1
+            text=$(git show "HEAD:$file") || return 1
+            awk '{ sub(/[[:space:]]+$/, "") } d < 2 { if (NR == 1) d = 1; else if ($0 == "---") d = 2; next } { if (fc == "") { if ($0 ~ /^(\`\`\`|~~~)/) fc = substr($0, 1, 1); else if (!s && tolower($0) ~ /^##[[:space:]]+dropped$/) { s = 1; next } else if (s && $0 ~ /^##[[:space:]]/) exit } else if (substr($0, 1, 3) == fc fc fc) fc = "" } s { t = $0; gsub(/<!--[^>]*-->/, "", t); if (t ~ /<!--|-->/) bad = 1; if (t ~ /[^[:space:]]/) said = 1 } END { exit (said && !bad) ? 0 : 3 }' <<< "$text"
+          }
+          # An approved ticket deleted or renamed away counts as code, whether or not git pairs the rename, so
+          # a rename that drops approved_hash cannot skip the gate. A failing diff counts as code too.
+          if [ "$has_code" -eq 0 ]; then
+            if ! gone=$(git -c core.quotePath=false diff --name-only --no-renames --diff-filter=D "$BASE"...HEAD); then
+              has_code=1
+            else
+              while IFS= read -r old; do
+                [[ "$old" =~ ^accord/tickets/[^/]+[.]md$ ]] || continue
+                if approved_at "$BASE" "$old"; then has_code=1; fi
+              done <<< "$gone"
+            fi
+          fi
           # A here-string, not a pipe: the loop body runs in this shell, so its assignment to code survives.
           while IFS= read -r file; do
             id=\${file#accord/tickets/}
             id=\${id%.md}
+            if [ "$has_code" -eq 0 ]; then
+              if is_dropped; then
+                echo "not gating $id - dropped and this pull request changes nothing outside accord/"
+                continue
+              fi
+              if ! approved_at HEAD "$file" && ! approved_at "$BASE" "$file"; then
+                echo "not gating $id - not approved and this pull request changes nothing outside accord/"
+                continue
+              fi
+            fi
             ${accord} gate done "$id" || code=1
           done <<< "$tickets"
           exit $code

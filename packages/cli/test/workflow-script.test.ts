@@ -280,6 +280,73 @@ describe.skipIf(noBash)('the emitted workflow script — executed', { timeout: 6
     expect(r3.calls[0].endsWith(' lint')).toBe(true);
   });
 
+  it('code in the diff or an approved ticket: gate done runs and its failure fails the job', () => {
+    const dropped =
+      '---\nid: OLD-1\nstatus: dropped\n---\n\n## Intent\nold\n\n## Dropped\nno longer needed\n';
+    const noKey = '---\nid: OLD-1\nstatus: open\n---\n\n## Intent\nold\n';
+    const gated = (id: string, change: (r: string) => void, fail?: string): Run => {
+      const s = sandbox(change);
+      const r = runScript(s.repo, { base: s.base, fail });
+      expect(r.calls.length, r.calls.join(' | ')).toBe(2);
+      expect(r.calls[0].endsWith(' lint')).toBe(true);
+      expect(r.calls[1].endsWith(` gate done ${id}`)).toBe(true);
+      return r;
+    };
+    expect(
+      gated('ST-8', (r) => {
+        write(r, 'accord/tickets/ST-8.md', DRAFT_TICKET);
+        write(r, 'src/app.ts', CODE);
+      }).code,
+    ).toBe(0);
+    gated('OLD-1', (r) => {
+      write(r, 'accord/tickets/OLD-1.md', dropped);
+      write(r, 'src/app.ts', CODE);
+    });
+    gated('ST-8', (r) => {
+      rmSync(join(r, 'docs', 'readme.md'));
+      write(r, 'accord/tickets/ST-8.md', DRAFT_TICKET);
+    });
+    gated('NEW-1', (r) => write(r, 'accord/tickets/NEW-1.md', APPROVED_TICKET.replace('OLD-1', 'NEW-1')));
+    gated('OLD-1', (r) => write(r, 'accord/tickets/OLD-1.md', noKey));
+    expect(gated('OLD-1', (r) => write(r, 'accord/tickets/OLD-1.md', noKey), 'OLD-1').code).toBe(1);
+  });
+
+  it('risk:parsing BOM and CRLF frontmatter and unreadable blocks and large files read as approved', () => {
+    const expectGated = (id: string, s: { repo: string; base: string }): void => {
+      const r = runScript(s.repo, { base: s.base });
+      expect(r.calls.length, r.calls.join(' | ')).toBe(2);
+      expect(r.calls[1].endsWith(` gate done ${id}`)).toBe(true);
+    };
+    const crlf = (t: string): string => '﻿' + t.replace(/\n/g, '\r\n');
+    expectGated(
+      'OLD-1',
+      sandbox(
+        (r) => write(r, 'accord/tickets/OLD-1.md', crlf('---\nid: OLD-1\nstatus: open\n---\n\n## Intent\nold\n')),
+        (r) => {
+          write(r, '.gitattributes', '* -text\n');
+          write(r, 'accord/tickets/OLD-1.md', crlf(APPROVED_TICKET));
+        },
+      ),
+    );
+    expectGated(
+      'OLD-1',
+      sandbox(
+        (r) => write(r, 'accord/tickets/OLD-1.md', DRAFT_TICKET),
+        (r) => write(r, 'accord/tickets/OLD-1.md', '---\nid: OLD-1\nstatus: open\n\n## Intent\nold\n'),
+      ),
+    );
+    expectGated(
+      'BIG-1',
+      sandbox((r) =>
+        write(
+          r,
+          'accord/tickets/BIG-1.md',
+          '---\nid: BIG-1\napproved_hash: "x"\n---\n\n' + 'filler line\n'.repeat(160_000),
+        ),
+      ),
+    );
+  });
+
   // Task 2. Without this, "the test passes" and "the test would fail if the script were wrong" are two
   // different claims, and only the first is evidenced.
   it('mutation probe: the deletion filter and the level bound are what cause those two results', () => {

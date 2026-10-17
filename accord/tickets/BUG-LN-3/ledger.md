@@ -23,9 +23,12 @@
 
 - Ruling: review round 2: in a pull request that changes nothing outside accord/, deleting or renaming away a ticket file approved in the base commit gates every ticket the pull request touches, whether or not git detects the rename; a delete-only pull request touching no other ticket stays BUG-LN-4 — owner: "Close it in BUG-LN-3 (Recommended)" — a docs-only rename of an approved ticket is gated, which it should be anyway
 - Ruling: review round 2 fix: the round 1 rename lookup (renames, awk base_file) is removed, since the deletion rule covers every rename, so the round 1 awk-split Ruling no longer applies — deletion beats addition — none
+
 ## Deferred
 - plan round 1.5: rule line 14 cites a test "finds no denied name in the config, the workflow, or the pointer block" that does not exist in the tree.
 - plan round 1.6: Task 4 does not say whether Task 3's `risk:parsing` cases join the shared @ac-4 case array.
 - plan round 1.7: `risk:parsing` case 3 (approved, 2 MB) passes even with the forbidden `git show | awk` pipeline; a large unapproved draft expecting "not gated" would catch it.
 - review round 1 Nice 3: the script exists twice, in workflow.ts and .github/workflows/accord.yml, kept in step only by the @ac-4 replay test.
 - review round 2 Nice 3: the comment in the @ac-4 test sits after its last statement, before the timeout argument; it belongs above the `it(` line.
+- review round 3 Nice 1: no test covers the fail-closed branch of the deletion check (a deleted ticket whose base frontmatter cannot be read, beside an added draft).
+- review round 3 Nice 2: the round 2 owner decision on deletes and renames is a ledger Ruling, not a Decision or an Approach note in the ticket.

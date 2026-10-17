@@ -32,9 +32,12 @@
 - Ruling: the first executor's "backslashes lost" note was raw U+202E and U+2028 characters in the new security test, restored as escapes; `npm run gen` broke nothing in task 4 — cost if wrong: none.
 - Ruling: the resumed executor never saw task 4's tests fail, so the main session ran them against task 3's code (34962b5) in a throwaway worktree: the failed-run and concurrency tests failed there (2 of 16), while the ac-5 and security tests already passed, because task 3 already set `wrap: 'wrap'` on every detail `Text` and `clean` predates this ticket; the ac-5 test asserts whole strings, `wrap`, no newline or ellipsis, and the table's `truncate` — cost if wrong: an ac-5 test that guards behaviour task 3 built.
 - Ruling: the line "tag v9.9.9 names 9.9.9, packages/cli/package.json names 7.7.7-fixture" that `npm run check` prints comes from the fixture in `packages/cli/test/publish-workflow.test.ts`, not from this ticket — every test passed — cost if wrong: none.
+- Ruling: review round 1 answered the task 3 newline question — the generator is not at fault (`gen-panel.mjs` uses `JSON.stringify`), so the `NL` constant is a deferred Nice; and the task 3 ruling on `run.catch(() => {})` is stale, since the final `openDetail` (`register.js:63-68`) has no such call — the ledger is append-only, so this line supersedes both — cost if wrong: none.
 
 ## Deferred
 - plan round 1.4 (Nice): Tasks 3 and 4 disagree on what the Loading state draws; Task 4 should say "a failed-run message state".
+- review round 1.1 (Nice): `packages/core/panel/view.js:119` `NL = String.fromCharCode(10)` is unneeded — `gen-panel.mjs` emits the text with `JSON.stringify`, so `'\n'` round-trips, as `view.js:26` and `view.js:79` show; use `'\n'` at `view.js:154`, drop `NL`, and share the message-splitting expression of lines 79 and 154.
+- review round 1.2 (Nice): `packages/cli/test/show.test.ts:82` `risk:security …` also asserts the exit-2 cases (unknown id, ticket without a lane); move them into a `risk:regression` test so a failure reads under an honest name.
 
 ## Tasks
 - task 1 done c8e60485ddd2

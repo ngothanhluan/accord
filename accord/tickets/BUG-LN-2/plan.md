@@ -1,6 +1,6 @@
 ---
 baseline: 8066285a95ba5f2af083b30d92a49e5f2ab413b4
-plan_hash: "fnv1a64:2fdfcd85e73e917b"
+plan_hash: "fnv1a64:1fa4462fe71c8b59"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -293,3 +293,59 @@ Then run, in order: `npm run gen`, `npm run build`, and `node packages/cli/dist/
 
 Must not change: every other sentence of the `/accord` skill, every `REQUIRED` phrase, and every other line of the
 spec.
+
+## Task 7: show reads a claimed ticket through the claim view, with blockers from the checkout
+covers: D-05
+files: packages/cli/src/run.ts, packages/cli/src/commands/show.ts (new), packages/core/src/status/show.ts (new), packages/cli/test/show.test.ts (new)
+verify: packages/cli/test/show.test.ts#risk:regression-show-finds-a-ticket-filed-only-on-its-claim-branch-at-that-branch-stage, packages/cli/test/show.test.ts#risk:complex-branching-show-holds-a-plan-at-stage-plan-until-its-ready-commit, packages/cli/test/show.test.ts#risk:complex-branching-show-takes-blockers-from-the-checkout-not-the-claim-branch
+
+This task follows the Approach's change note (2026-10-17) and D-05. The three paths marked `(new)` above are absent
+at the plan's `baseline:` and present at HEAD: ST-LN-6 added them, and the merge of `origin/main` at 08dc3a4 brought
+them onto this branch. `(new)` is relative to the baseline only. Edit each file in place; never create, replace or
+rewrite it whole. Today `accord show` loads only the checkout (`preflight(opts)` in `run.ts`), so on main a ticket
+filed only on its claim branch fails with `no ticket <id> in accord/tickets/`, and an approved ticket whose plan has
+no ready commit reads `build` in the panel while its dashboard row reads `plan`.
+
+Tests first, appended to `packages/cli/test/show.test.ts`, each a top-level `it` that builds its own sandbox and
+cleans up in `finally`. Each fails before this task's code change. Add `commitAll`, `gitRun` and `writeFiles` to the
+`./helpers/repo.js` import and `PLAN` to the `../../../test/helpers/lane.js` import.
+- `risk:regression show finds a ticket filed only on its claim branch ...`: `makeLaneRepo()`, `commitAll(repo)`, note
+  the base with `git rev-parse --abbrev-ref HEAD`. `git checkout -q -b t/T-2`; write `accord/tickets/T-2.md` as
+  `laneTicket('T-2')`; `run(['approve', 'T-2'])`; write `accord/tickets/T-2/plan.md` as `PLAN`;
+  `commitAll(repo, 'plan: T-2 ready')`; write `accord/tickets/T-2/ledger.md` as `'## Tasks\n- task 1 done abc1234\n'`;
+  `tip = commitAll(repo, 'task 1')`. `git update-ref refs/remotes/origin/t/T-2 <tip>`, check out the base,
+  `git branch -q -D t/T-2`. Assert: `show T-2 --json` exits 0 and its object matches `{ id: 'T-2', stage: 'build',
+  tasksDone: 1, tasksTotal: 2, branch: 't/T-2', holder: 'fixture@example.invalid', blockedBy: [] }` with
+  `intent` equal to `['Owners can export their report as CSV.']`; `show T-2` exits 0 and its lines include
+  `Stage: build` and `Tasks: 1/2`. Today the first call exits 2.
+- `risk:complex-branching show holds a plan at stage plan ...`: `makeLaneRepo()`, `run(['approve', 'T-1'])`,
+  `commitAll(repo, 'plan: T-1 round 1, 1 Must, 0 Should')`: `show T-1 --json` has `stage: 'plan'`, `tasksDone: 0`,
+  `tasksTotal: 2`, and the `status --json` row `T-1` has the same stage. Then write `accord/tickets/T-1/plan.md` as
+  `PLAN + '\n'` and `commitAll(repo, 'plan: T-1 ready')`: `show T-1 --json` has `stage: 'build'` and the row agrees.
+  Today the first `show` reads `build`.
+- `risk:complex-branching show takes blockers from the checkout ...`: the setup of
+  `risk:complex-branching a dependency done only on its claim branch still blocks its dependent` in
+  `packages/cli/test/dashboard.test.ts` (base holds `T-1` unapproved and `T-2` with `depends_on: ["T-1"]`; `T-1` done
+  only on `refs/remotes/origin/t/T-1`; local `t/T-1` deleted). To build the done state, copy into `show.test.ts` the
+  `Files`, `Opts`, `P`, `AC`, `approve`, `building` and `done` definitions from lines 11-35 of
+  `packages/cli/test/dashboard.test.ts`, byte for byte, leaving out `ready` (lines 19-23), which this file does not
+  use, with the core imports they use (`approvedHash`, `gateReady`,
+  `loadSnapshot`, `setFrontmatterKey` from `@accord-dev/accord-core`) and `CONFIG` from the lane helpers. Assert:
+  `show T-1 --json` has `stage: 'done'` (read from the claim branch); `show T-2 --json` has `blockedBy: ['T-1']`;
+  `show T-2` has the line `Blocked by: T-1`. Today `T-1` reads `intent`; with the claim view but no checkout
+  snapshot, `T-2` would read `blockedBy: []`.
+
+Interface:
+- `packages/core/src/status/show.ts`: `ticketDetail(snapshot: RepoSnapshot, id: string, plain?: RepoSnapshot):
+  TicketDetail | undefined`. Its row comes from `statusRows(snapshot, undefined, plain)`; nothing else reads `plain`.
+  `TicketDetail` gains no field. Update the doc comment to say `plain` is the checkout-only snapshot whose done
+  tickets decide `blockedBy` (BUG-LN-2 D-04, D-05).
+- `packages/cli/src/commands/show.ts`: `show` calls `ticketDetail(ctx.snapshot, id, ctx.plain)`.
+- `packages/cli/src/run.ts`: the `show <id>` action calls `show(preflight(opts, 'claims'), id, options)`, so it gets
+  the overlay, the plan facts and `ctx.plain` from the same `loadClaimView` call as `status` and `dashboard`.
+  `requireLaneTicket` then finds a claim-only ticket in the claim view.
+
+Must not change: every `ticketDetail` call without `plain` (every test in `packages/core/test/show.test.ts`); the
+`TicketDetail` shape and the text layout, sanitising and exit codes of `show` (every existing test in
+`packages/cli/test/show.test.ts`); the `requireLaneTicket` refusals; `status`, `dashboard` and every other action's
+preflight mode; the panel, which keeps calling `show <id> --json`.

@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { execFileSync } from 'node:child_process';
+import { parsePlanReview } from './plan-review.mjs';
 
 const repo = process.cwd();
 const projectsRoot = path.join(os.homedir(), '.claude', 'projects');
@@ -103,12 +104,15 @@ function reviewRounds(id) {
 }
 
 function planRounds(id) {
+  const p = path.join(ticketsDir, id, 'plan-review.md');
+  if (fs.existsSync(p)) return { ...parsePlanReview(fs.readFileSync(p, 'utf8')), source: 'plan-review.md' };
+  // Older tickets: the subject counts what the round reported, not what stayed open.
   let must = 0, should = 0, rounds = 0;
   for (const s of subjects) {
     const m = s.match(new RegExp(`^plan: ${id} round \\d+, (\\d+) Must, (\\d+) Should`));
     if (m) { rounds++; must += Number(m[1]); should += Number(m[2]); }
   }
-  return { rounds, must, should };
+  return { rounds, must, should, wholeAfterFirst: null, source: 'subjects' };
 }
 
 // ---- report ------------------------------------------------------------------
@@ -129,7 +133,7 @@ for (const [agent, rs] of Object.entries(byAgent).sort((a, b) => b[1].length - a
 }
 
 out.push('', '## By ticket', '');
-row('ticket', 'accord runs', 'executor runs', 'critic runs', 'agent min', '~output tok', 'plan rounds (Must/Should)', 'review rounds (Must/Should/Nice)');
+row('ticket', 'accord runs', 'executor runs', 'critic runs', 'agent min', '~output tok', 'plan rounds (Must/Should first reported; whole reads after round 1; source)', 'review rounds (Must/Should/Nice)');
 row('---', '---:', '---:', '---:', '---:', '---:', '---', '---');
 for (const id of ticketIds) {
   const rs = accordRuns.filter((r) => r.ticket === id);
@@ -137,7 +141,7 @@ for (const id of ticketIds) {
   if (!rs.length && !pr.rounds && !rv) continue;
   row(id, rs.length, rs.filter((r) => r.agent === 'accord-executor').length, rs.filter((r) => r.agent === 'accord-critic').length,
     min(rs.reduce((s, r) => s + r.ms, 0)), k(rs.reduce((s, r) => s + r.output, 0)),
-    `${pr.rounds} (${pr.must}/${pr.should})`, rv ? `${rv.rounds} (${rv.must}/${rv.should}/${rv.nice})` : '-');
+    `${pr.rounds} (${pr.must}/${pr.should}; ${pr.wholeAfterFirst ?? '?'}; ${pr.source})`, rv ? `${rv.rounds} (${rv.must}/${rv.should}/${rv.nice})` : '-');
 }
 
 out.push('', '## Executor runs per plan task', '');

@@ -1,6 +1,6 @@
 ---
 name: accord-review
-description: Use when every task of a lane M ticket has a ledger line and the work needs review. Dispatches reviewers on the review package, fixes patch findings through fresh executors until no Must or Should is left, runs one final reviewer, and records each round in review.md.
+description: Use when every task of a lane M ticket has a ledger line and the work needs review. Dispatches reviewers on the review package, fixes patch findings through fresh executors until no Must is open and every Should is fixed, runs one final reviewer, and records each round in review.md.
 license: MIT
 kind: skill
 loads: [review/record.md, shared/ask.md]
@@ -41,20 +41,24 @@ fix.
      then append the findings to fix. Dispatch a fresh `accord-executor`
      with its path, and route its stops as `accord-build` does.
    - When it reports, run the `tests.affected` command over the files the
-     fix touched. If it fails, dispatch a fresh executor with the same
+     fix touched, or `tests.full` when `tests.affected` is not configured or
+     finds no test file. If it fails, dispatch a fresh executor with the same
      brief plus the failing output, in the same round.
    - Copy every Ruling in its report, and each file outside the plan you
      accept as a Ruling naming the file and its reason, into
      `accord/tickets/<id>/ledger.md` under `## Rulings`; commit the ledger.
-   - Re-review only the fix diff: `accord review-package <id> --base
-     <the noted sha>` into a file outside the working tree, one reviewer,
-     lens `both`.
+   - When the round reported a Must, re-review only the fix diff:
+     `accord review-package <id> --base <the noted sha>` into a file
+     outside the working tree, one reviewer, lens `both`. When it reported
+     only Should findings, no reviewer is dispatched again for that fix:
+     that command passing checks it.
    - A plan gap goes back to `accord-plan` as a re-plan, where the critic
      runs again.
    - An intent gap stops the run and asks the owner.
    - Nice findings go to the ledger under `## Deferred`, not fixed.
 
-5. **Converged** means zero Must and zero Should. If round 3 still finds
+5. **Converged** means no Must is open and every Should is fixed with that
+   command passing. If round 3 still finds
    a new Must, say whether it traces to the ticket or the plan; if it
    does, ask the owner before round 4.
 
@@ -67,8 +71,10 @@ fix.
 
 7. **Final review.** After convergence, one fresh `accord-final-reviewer`
    reads the whole review package once (over about 1500 changed lines,
-   dispatch it with lens `integration`). If it finds a Must or Should:
-   one fix and one scoped re-review, as in step 4. If a Must is still
+   dispatch it with lens `integration`). If it finds a Must:
+   one fix and one scoped re-review, as in step 4. If it finds only Should
+   findings, fix them and run that command as in step 4, with no
+   re-review. If a Must is still
    open after that, stop and ask the owner.
 
 8. **Record.** Write every round to `accord/tickets/<id>/review.md` as

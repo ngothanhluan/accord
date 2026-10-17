@@ -259,7 +259,7 @@ On a pass it writes `plan_hash:`, the hash of the plan below its frontmatter, in
 followed. It checks that an executor holding only the ticket and one task could finish that task without
 asking; a task that fails this is a Should. It also argues goal-backward: assuming every task passes its
 `verify:` line, does the `## Intent` hold for the person it names? A plan that covers each criterion on
-paper but leaves the intent unmet (a step nobody wired, a state nobody reaches) is a Must (phase 2). At
+paper but leaves the intent unmet (a step nobody wired, a state nobody reaches) is a Must (phase 2). The first critic round is sized by the plan: one critic for one to three tasks; two in parallel for four or more, one on the criteria and the Intent, one on whether an executor can build each task; one more, a security critic, when the ticket touches auth, money, migration, or data deletion; their findings are merged and de-duplicated. The main session keeps every finding and its state in `tickets/<id>/plan-review.md`. After a round that reports a Must, or leaves a Must from an earlier round open or unverified, the next critic reads the whole plan, even when the owner dropped that Must; after any other round it reads only `git diff` of `plan.md` from the round commit, and the task or section each open or unverified finding names. Every Must and Should is fixed; a Nice goes to the ledger as deferred. A finding stays open or unverified until a critic reports it fixed or withdrawn, or the owner drops it; the planner's word alone closes nothing. The next critic repeats an unverified finding with the citation or fix it lacked, or withdraws it. The loop ends only on a round that reports no Must and no Should and leaves none open or unverified, and when the plan gate passes. A fix whose API is cited only by a URL goes to the owner at once. At
 most three revision rounds, then the owner is told, and is shown the revision with the fewest Must
 findings and the round it came from; the run does not continue on a failing plan.
 
@@ -378,7 +378,7 @@ undeclared file only against a reason the ledger records as a Ruling; any other 
   policy of section 9, and the repository's written conventions and `product/` rules. Anything a configured
   linter or type check already enforces is skipped.
 
-**Findings.** `Must | Should | Nice`, numbered. No concrete failing case, no finding.
+**Findings.** `Must | Should | Nice`, numbered. Must: left as is, the Intent does not hold, a criterion is not reached, or a Veto, Decision or Correction is broken. Should: left as is, a defect ships or an executor is blocked, which a later stage would catch at a higher cost. Nice: no defect, only a clearer or smaller way. No concrete failing case, no finding.
 
 **Split by diff size and risk** (thresholds in config, tuned by the benchmark):
 
@@ -399,15 +399,17 @@ merges and de-duplicates findings before the fix loop.
 - Before fixing, each finding is marked `patch`, `plan-gap`, or `intent-gap`. Only patches enter the fix
   loop. A plan gap goes back to the plan stage, where the critic runs again. An intent gap stops the run
   and asks the owner.
-- Fix every Must and Should marked `patch`, then re-review only the fix diff, with one reviewer.
-- Converged means zero Must and zero Should. Nice findings go to the ledger as deferred, not fixed.
+- Fix every Must and Should marked `patch`. After a round with a Must, re-review only the fix diff, with one
+  reviewer; after a round with only Should findings, the affected tests over the fixed files, or the full suite
+  when none apply, check the fix, with no re-review.
+- Converged means no Must is open and every Should is fixed with that test command passing. Nice findings go to the ledger as deferred, not fixed.
 - If round three still finds a new Must, the orchestrator says whether it traces to the ticket or the
   plan; if it does, the owner is asked before round four.
 - At most five rounds. Rounds four and five use a fresh executor one model tier higher.
 - At the cap the run stops and reports the open findings to the owner. It never reports done.
 - After convergence, one fresh final reviewer on the strongest configured model reads the whole diff once
-  (for diffs over about 1500 lines the integration reviewer takes this role). One fix and one scoped
-  re-review follow if needed, then stop.
+  (for diffs over about 1500 lines the integration reviewer takes this role). A Must gets one fix and one scoped
+  re-review; a Should gets a fix checked by that test command; then stop.
 - `tickets/<id>/review.md` records each round and ends with `verdict: converged` or, after the cap,
   `verdict: accepted-by-owner` with the owner's sentence quoted.
 

@@ -120,6 +120,7 @@ Feature: ST-LN-7
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
+- "tạm thời chỉ support cho claude thôi" (2026-10-18, after the first plan, on D-14's hands-on check in Cursor, Copilot and Codex)
 
 ## Open questions
 <!-- `- [ ]` items; Ready stays blocked while any is unchecked. -->

@@ -106,7 +106,8 @@ export function view(state, query) {
   if (s.withoutLane > 0) summary += `, ${s.withoutLane} without lane`;
   if (s.withSchemaErrors > 0) summary += `, ${s.withSchemaErrors} with schema errors, run accord lint`;
   const args = query.trim();
-  return { sections, summary, widths, ...(args ? { newRequest: { key: 'new-request', label: 'New request', args } } : {}) };
+  const noMatch = args && sections.length === 0 ? 'No ticket shown here matches. Press New request to send this text to /accord.' : undefined;
+  return { sections, summary, widths, ...(noMatch ? { noMatch } : {}), ...(args ? { newRequest: { key: 'new-request', label: 'New request', args } } : {}) };
 }
 
 // The action a row of the current dashboard offers for id, read at draw time so it follows the latest run.

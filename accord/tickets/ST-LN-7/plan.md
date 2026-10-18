@@ -1,6 +1,6 @@
 ---
 baseline: 8a67291ea2a2581c4c75d7b35fc250140a08d9a3
-plan_hash: "fnv1a64:eecaf1394befa4c9"
+plan_hash: "fnv1a64:c66e4e387a2609f0"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -68,33 +68,51 @@ covers: D-12, D-17
 files: packages/cli/src/load/proc.ts (new), packages/cli/test/proc.test.ts (new), packages/cli/test/spawn-surface.test.ts
 verify: packages/cli/test/proc.test.ts#risk:parsing-the-real-process-table-holds-this-process-and-its-parent-with-a-stable-start-time, packages/cli/test/proc.test.ts#risk:complex-branching-a-claude-code-session-is-its-marker-or-its-process-and-a-partial-table-is-refused
 
-Approach risk 2 leaves unchecked whether `CLAUDE_CODE_SESSION_ID` stays the same across a resume, a compaction
-and the subagents of one session, and whether a sandboxed command sees `CLAUDE_PID` in the process table. This
-task makes the hold safe whichever way they fall: two sessions are the same when their markers are equal or when
-their process (pid and start time) is the same, so a marker that changes inside one running claude process, or a
-process that changes under one resumed marker, never refuses its own session; and a table in which the command
-cannot see its own claude process among its parents is refused before any hold is judged, so a partial table
-(a sandbox's own PID namespace) never makes a live holder look dead. D-12: the hold belongs to the claude
-process, never to the short-lived command.
+Approach risk 2 leaves unchecked whether `CLAUDE_CODE_SESSION_ID` stays the same across a resume and a
+compaction, and whether a sandboxed command sees `CLAUDE_PID` in the process table. Checked by the main session
+on the author's Windows machine (Claude Code CLI, Git Bash), 2026-10-18: a subagent of a session sees the same
+`CLAUDE_CODE_SESSION_ID` and the same `CLAUDE_PID` as the main session, so a subagent's command is the same
+session as its parent's; and the `CLAUDE_PID` row (`claude.exe`) is in the table `processTable()` reads. This
+task makes the hold safe whichever way the unchecked facts fall: two sessions are the same when their markers are
+equal or when their process (pid and start time) is the same, so a marker that changes inside one running claude
+process, or a process that changes under one resumed marker, never refuses its own session; and a table that has
+no `CLAUDE_PID` row with a start time is refused before any hold is judged, so a partial table (a sandbox's own
+PID namespace) never makes a live holder look dead. D-12: the hold belongs to the claude process, never to the
+short-lived command.
+
+The `CLAUDE_PID` row is looked up by pid alone, never by walking parent ids from the command (ledger Ruling on
+the process-table guard, replacing the parent-chain one): on Windows an intermediate msys `bash.exe` exits after
+spawning its child, so through `npm exec -- node` (the shape of `npx vitest` and of an `npx accord` call) the walk
+from the command reaches node, cmd, node, bash, bash and then a parent id with no row, before `claude.exe`, and
+which bash is gone depends on the command's shape. No check of the row's process name is made: Claude Code runs as
+`claude.exe` here, as `node` when installed through npm, and under other names elsewhere, so a name check would
+refuse a real session; a stale `CLAUDE_PID` whose claude has ended has no row and is refused.
+
+The previous executor left uncommitted, in `C:/Work/accord-ln7`, `packages/cli/src/load/proc.ts`,
+`packages/cli/test/proc.test.ts` and the `ALLOWED` change in `packages/cli/test/spawn-surface.test.ts`. Keep them
+or rewrite them; either way they must end as this section says (its `sessionIn` walks parent ids and must
+change).
 
 Tests first, in `packages/cli/test/proc.test.ts` (new):
 - `it('risk:parsing the real process table holds this process and its parent with a stable start time')`:
   `processTable()` (the real one, no mock) returns more than one row; the row whose `pid` is `process.pid` has
   `ppid` equal to `process.ppid` and a non-empty `start`; a row whose `pid` is `process.ppid` exists; a second call
   gives the same `start` for `process.pid`. When `process.env.CLAUDE_PID` is set (this test run from a Claude Code
-  session), `sessionIn(claudeEnv(process.env)!, table, process.pid).pid` equals `Number(process.env.CLAUDE_PID)`:
-  this is the check, on this machine, that a command Claude Code runs sees its claude process. If that part fails,
-  report BLOCKED with the output; never weaken it. It runs on both CI systems, where that part is skipped.
+  session), `sessionIn(claudeEnv(process.env)!, table).pid` equals `Number(process.env.CLAUDE_PID)` and its
+  `start` is non-empty: this is the check, on this machine, that a command Claude Code runs sees its claude process.
+  If that part fails, report BLOCKED with the output; never weaken it. It runs on both CI systems, where that part
+  is skipped.
 - `it('risk:complex-branching a claude code session is its marker or its process and a partial table is refused')`,
   pure, with a table `[{ pid: 10, ppid: 20, start: 's10' }, { pid: 20, ppid: 30, start: 's20' }, { pid: 30, ppid:
   1, start: 's30' }]` and `self` 10:
   - `claudeEnv({})` is `undefined`; `claudeEnv({ CLAUDECODE: '1' })` throws a `UsageError` whose message contains
     `CLAUDE_CODE_SESSION_ID`; `claudeEnv({ CLAUDE_CODE_SESSION_ID: 'm', CLAUDE_PID: 'abc' })` throws one containing
     `CLAUDE_PID`.
-  - `sessionIn({ marker: 'm', pid: 30 }, table, 10)` is `{ tool: 'Claude Code', marker: 'm', pid: 30, start: 's30' }`.
-  - `sessionIn` with `pid: 99` (no such row), and with the table holding `{ pid: 30, ... }` but row 20's `ppid`
-    set to 1 (30 present but not a parent), each throws a `UsageError` containing `cannot see this Claude Code
-    session`.
+  - `sessionIn({ marker: 'm', pid: 30 }, table)` is `{ tool: 'Claude Code', marker: 'm', pid: 30, start: 's30' }`.
+  - With row 20's `ppid` set to 55, a pid with no row (the Windows case: an msys bash between the command and
+    claude has exited), `sessionIn({ marker: 'm', pid: 30 }, table)` is still that same session.
+  - `sessionIn` with `pid: 99` (no such row), and with row 30's `start` set to `''`, each throws a `UsageError`
+    containing `cannot see this Claude Code session`.
   - `sameSession` is true for equal markers with different pids (a resume in a new process), true for different
     markers with equal pid and start (a compaction or a subagent in one process), false when both differ, and
     false for equal pid with a different start (a reused pid).
@@ -120,22 +138,17 @@ Interface, `packages/cli/src/load/proc.ts` (new):
   not a process id: ' + value)`) and the result is `{ marker, pid }`. When either is missing and `CLAUDECODE` is
   `'1'`, `UsageError('this Claude Code session sets no ' + <the missing names joined by ' or '> + ', so its hold
   cannot be taken - update Claude Code')`. Otherwise `undefined`: another tool (D-17).
-- `sessionIn(claude, table, self): Session`, pure: walk from `self`'s row up through `ppid` (stop at a missing
-  row, pid 0, a repeat, or 64 steps); the row with `claude.pid` reached on that walk gives `{ tool: 'Claude Code',
-  marker: claude.marker, pid, start: row.start }`. Not reached throws `UsageError('cannot see this Claude Code
-  session (CLAUDE_PID ' + pid + ') among the parents of this command in the process table, so no hold can be
-  judged - run it outside a sandbox')`.
+- `sessionIn(claude: { marker: string; pid: number }, table: ProcRow[]): Session`, pure: the row whose `pid` is
+  `claude.pid`, when it exists and its `start` is non-empty, gives `{ tool: 'Claude Code', marker: claude.marker,
+  pid: claude.pid, start: row.start }`; no parent ids are read. Otherwise it throws `UsageError('cannot see this
+  Claude Code session (CLAUDE_PID ' + pid + ') in the process table, so no hold can be judged - run it outside a
+  sandbox')`.
 - `sameSession(a, b)`: `a.marker === b.marker || (a.pid === b.pid && a.start === b.start)`.
 - `isLive(h, table)`: a row with `h.pid` and `h.start` exists (ledger Ruling 4: never `process.kill(pid, 0)`).
 - `describeSession(h)`: `Claude Code session <marker> (pid <pid>)`.
 
 `spawn-surface.test.ts`: `ALLOWED` becomes `['git', 'gh', 'ps', 'powershell']`, and the comment above it says
 `ps` and `powershell` read the process table for the hold (D-17). Must not change: every other case in that file.
-
-After the tests pass, report the values of `CLAUDE_CODE_SESSION_ID` and `CLAUDE_PID` your own shell sees
-(`node -e "console.log(process.env.CLAUDE_CODE_SESSION_ID, process.env.CLAUDE_PID)"`), so the main session can
-compare them with its own and record in the ledger whether a subagent shares them. Nothing about them is
-committed.
 
 ## Task 2: Wiring: Pick up from the main checkout adds the ticket's worktree, runs setup, and points to a session there
 covers: @ac-1, @ac-2, D-02, D-06, D-07, D-11, D-15
@@ -355,7 +368,7 @@ Tests first, in `packages/cli/test/worktree.test.ts`:
 Interface, `worktree.ts` case 2 (the entry at `ctx.root` has the ticket's branch):
 1. `claude = claudeEnv(ctx.env)` (its `UsageError` propagates). When `undefined` (D-17): no table is read, no holds
    file is touched; when the setup marker is missing, `prepare(ctx.root)`; then print the no-hold line; return 0.
-2. `session = sessionIn(claude, processTable(), process.pid)`; its `UsageError` propagates before the holds file
+2. `session = sessionIn(claude, processTable())`; its `UsageError` propagates before the holds file
    is read, so a partial table never judges a holder (finding 1.7).
 3. Under the lock, read the holds file (absent is `{}`; a file that is not a JSON object throws a `UsageError`
    naming it and is never rewritten). When the entry for `id` exists, is not `sameSession` with `session` and

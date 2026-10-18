@@ -168,8 +168,8 @@ async function viewOf(fence: string[]): Promise<string[]> {
 }
 
 it('risk:parsing approval shares only steps before the first then in a language vi fence', async () => {
-  const sc = (n: number, then: string): string[] => [
-    '', `  @ac-${n}`, '  Tình huống: t' + n, '    Cho một báo cáo', '    Khi chủ xuất nó', '    Và chọn csv', `    Thì ${then}`, '    Và tệp được lưu',
+  const sc = (n: number, last: string): string[] => [
+    '', `  @ac-${n}`, '  Tình huống: t' + n, '    Cho một báo cáo', '    Khi chủ xuất nó', '    Và chọn csv', '    Thì tệp được ghi', '    Và tệp được lưu', `    Và ${last}`,
   ];
   const block = await viewOf(['# language: vi', 'Tính năng: X', ...sc(1, 'a'), ...sc(2, 'b')]);
   expect(block).toEqual([
@@ -178,19 +178,42 @@ it('risk:parsing approval shares only steps before the first then in a language 
     '- Và chọn csv (ac-1, ac-2)',
     '',
     '**ac-1 t1**',
-    '- Thì a',
+    '- Thì tệp được ghi',
     '- Và tệp được lưu',
+    '- Và a',
     '',
     '**ac-2 t2**',
-    '- Thì b',
+    '- Thì tệp được ghi',
     '- Và tệp được lưu',
+    '- Và b',
+    '',
+  ]);
+});
+
+it('risk:parsing approval prints identical steps after the first then under each scenario in English', async () => {
+  const sc = (n: number, last: string): string[] => [
+    '', `  @ac-${n}`, '  Scenario: s' + n, '    Given A', '    Then B', '    And C', `    And ${last}`,
+  ];
+  const block = await viewOf(['Feature: X', ...sc(1, 'D'), ...sc(2, 'E')]);
+  expect(block).toEqual([
+    '- Given A (ac-1, ac-2)',
+    '',
+    '**ac-1 s1**',
+    '- Then B',
+    '- And C',
+    '- And D',
+    '',
+    '**ac-2 s2**',
+    '- Then B',
+    '- And C',
+    '- And E',
     '',
   ]);
 });
 
 it('risk:parsing approval gives a star step the phase of the step before it', async () => {
-  const sc = (n: number, then: string): string[] => [
-    '', `  @ac-${n}`, '  Scenario: s' + n, '    * a report', '    When the owner exports it', '    * the owner confirms', `    Then ${then}`, '    * the file is kept',
+  const sc = (n: number, last: string): string[] => [
+    '', `  @ac-${n}`, '  Scenario: s' + n, '    * a report', '    When the owner exports it', '    * the owner confirms', '    Then it is written', '    * the file is kept', `    * ${last}`,
   ];
   const block = await viewOf(['Feature: X', ...sc(1, 'a'), ...sc(2, 'b')]);
   expect(block).toEqual([
@@ -199,12 +222,14 @@ it('risk:parsing approval gives a star step the phase of the step before it', as
     '- * the owner confirms (ac-1, ac-2)',
     '',
     '**ac-1 s1**',
-    '- Then a',
+    '- Then it is written',
     '- * the file is kept',
+    '- * a',
     '',
     '**ac-2 s2**',
-    '- Then b',
+    '- Then it is written',
     '- * the file is kept',
+    '- * b',
     '',
   ]);
 });

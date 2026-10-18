@@ -31,4 +31,8 @@ One critic, no lens, on plan commit 328f4b8. fixed: 1.1, 1.2, 1.4, 1.5, 1.7, 1.8
 
 ## Round 3 (diff)
 One critic, mode diff, on the fix in commit 48a7d6b. fixed: 2.1, 2.2, 2.3, 2.4, 2.5.
-1. Should — `worktrees(root)` runs `git worktree prune` silently on any `prunable` entry, and git gives a folder moved by hand the same reason as a deleted one: Continue or `clean` then deletes `.git/worktrees/<name>` (its HEAD and index), so `git worktree repair <new path>` can no longer reconnect the moved folder, and nothing names what was pruned; print one line per pruned entry with its path, git's reason, and "if you moved it, run git worktree repair <new path>" — open, owner: "Tự prune, in 1 dòng (Khuyên)" (prune as planned and print one line per pruned entry, `pruned <path>: <git's reason>`, with no repair advice; a folder renamed by hand loses its git record, its files stay; checked on git 2.56.0.windows.1: `repair` works before `prune`, fails after it, and `worktree add` of the branch fails while the entry is prunable)
+1. Should — `worktrees(root)` runs `git worktree prune` silently on any `prunable` entry, and git gives a folder moved by hand the same reason as a deleted one: Continue or `clean` then deletes `.git/worktrees/<name>` (its HEAD and index), so `git worktree repair <new path>` can no longer reconnect the moved folder, and nothing names what was pruned; print one line per pruned entry with its path, git's reason, and "if you moved it, run git worktree repair <new path>" — fixed, owner: "Tự prune, in 1 dòng (Khuyên)" (prune as planned and print one line per pruned entry, `pruned <path>: <git's reason>`, with no repair advice; a folder renamed by hand loses its git record, its files stay; checked on git 2.56.0.windows.1: `repair` works before `prune`, fails after it, and `worktree add` of the branch fails while the entry is prunable)
+
+## Round 4 (diff)
+One critic, mode diff, on the owner's fix in commit ac8cd87. fixed: 3.1.
+No findings

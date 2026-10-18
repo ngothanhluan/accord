@@ -48,6 +48,9 @@ Feature: ST-LN-7
 ## Decisions
 <!-- Settled answers, one per line: - D-01 <decision> — "<the owner's sentence>" -->
 - D-01 Split with ST-LN-20: deleting a merged ticket's local branch (`git branch -d`) and pruning stale remote-tracking refs (`git fetch --prune`) move to ST-LN-20 "A merged ticket's branch is cleaned up after its pull request merges", which depends on this ticket; this ticket keeps removing the worktree (`git worktree remove`) and the dashboard naming worktrees whose ticket is done, so the third Open question below narrows to those — "Ticket mới: dọn branch; ST-LN-7: worktree (Recommended)" (2026-10-18, asked in the ST-LN-18 session)
+- D-02 The ticket holds all four parts of the request: each ticket in its own worktree; preparing that worktree; the Continue guard; removing the worktree once the ticket is done — "1. Worktree mỗi ticket, 2. Chuẩn bị worktree, 3. Chặn Continue song song, 4. Xoá worktree khi xong" (2026-10-18)
+- D-03 The Continue guard is enforced by the CLI: Continue holds a lock on the ticket's worktree, a second session entering the same worktree exits 2 naming the holder, and a session mid-way through another ticket asks before switching; the lock is released when its session dies — "option 1" (2026-10-18)
+- D-04 Split with ST-LN-24: detecting that two tickets in flight will edit the same files moves to ST-LN-24 "Two tickets in flight that will edit the same file are flagged before they collide", which depends on this ticket; blocking between tickets already exists through `depends_on` and `blockedBy` — "Ticket mới phụ thuộc ST-LN-7 (Khuyên)" (2026-10-18)
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->

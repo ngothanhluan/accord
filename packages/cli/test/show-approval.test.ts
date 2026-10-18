@@ -1,8 +1,9 @@
 // ST-LN-19 `accord show <id> --approval`: the compact approval view, in-process through runCli.
 import { readdirSync, readFileSync } from 'node:fs';
+import { stripVTControlCharacters } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { loadSnapshot } from '@accord-dev/accord-core';
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { cleanup, makeEmptyRepo, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
 import { CONFIG, laneTicket } from '../../../test/helpers/lane.js';
 
@@ -279,6 +280,49 @@ it('risk:security approval turns control characters into spaces on each line', a
     expect(out.split('\n')).toContain('Why: a [31mb c.');
     expect(out.split('\n').length).toBeGreaterThan(10);
   } finally {
+    cleanup(repo);
+  }
+});
+
+it('ac-5 the approval view is laid out for a person and coloured in a terminal', async () => {
+  const repo = makeLaneRepo({ 'accord/tickets/T-1.md': laneTicket('T-1', { body: FOUR }) });
+  const NAMES = ['Intent', 'Acceptance criteria', 'Vetoes', 'Decisions', 'Corrections', 'Approach'];
+  const part = (lines: string[], name: string): string[] => {
+    const from = lines.indexOf('## ' + name) + 1;
+    const next = lines.findIndex((l, i) => i >= from && l.startsWith('## '));
+    return lines.slice(from, next === -1 ? undefined : next);
+  };
+  try {
+    vi.stubEnv('FORCE_COLOR', undefined);
+    vi.stubEnv('NO_COLOR', '1');
+    const off = (await run(['show', 'T-1', '--approval'], repo)).out;
+    expect(off).not.toContain('\u001b');
+    const offLines = off.split('\n');
+    const crit = part(offLines, 'Acceptance criteria');
+    crit.forEach((l, i) => {
+      if (l.startsWith('**')) expect(crit[i - 1]).toBe('');
+      else if (l !== '') expect(l.startsWith('- ')).toBe(true);
+    });
+    expect(crit.filter((l) => /^\*\*ac-\d+ \S/.test(l))).toHaveLength(4);
+    for (const n of NAMES.filter((x) => x !== 'Acceptance criteria')) {
+      const lines = part(offLines, n);
+      lines.forEach((l, i) => {
+        if (l !== '' && !/^\s*(?:[-*+]|\d+\.)\s+/.test(l)) expect(lines[i + 1]).toBe('');
+      });
+    }
+    vi.stubEnv('NO_COLOR', undefined);
+    vi.stubEnv('FORCE_COLOR', '1');
+    const on = (await run(['show', 'T-1', '--approval'], repo)).out;
+    for (const n of NAMES) expect(on).toContain('\u001b[36m## ' + n + '\u001b[39m');
+    const onCrit = part(on.split('\n'), 'Acceptance criteria').join('\n');
+    expect(onCrit.match(/\u001b\[33mac-\d+\u001b\[39m/g)).toHaveLength(crit.join('\n').match(/\bac-\d+\b/g)?.length ?? -1);
+    for (const l of crit.filter((x) => /^- (Given|When|Then|And|But) /.test(x))) {
+      const kw = /^- (\w+)/.exec(l)?.[1] ?? '';
+      expect(onCrit).toContain('- \u001b[32m' + kw + '\u001b[39m');
+    }
+    expect(stripVTControlCharacters(on)).toBe(off);
+  } finally {
+    vi.unstubAllEnvs();
     cleanup(repo);
   }
 });

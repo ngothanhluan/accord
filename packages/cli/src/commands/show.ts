@@ -1,6 +1,7 @@
 // ST-LN-6 `accord show <id> [--json]`: one lane ticket in full, as text or as the TicketDetail object.
 import { approvalView, ticketDetail } from '@accord-dev/accord-core';
 import type { TicketDetail } from '@accord-dev/accord-core';
+import { colourApproval } from '../render/color.js';
 import { isUnsafe } from '../render/dashboard.js';
 import type { CommandContext } from '../run.js';
 import { requireLaneTicket, requireTicket } from './lane-args.js';
@@ -47,7 +48,7 @@ export function show(ctx: CommandContext, id: string, options: { json?: boolean;
       ctx.stderr.write(ticket.file + ' has load findings; run accord lint\n');
       return 1;
     }
-    ctx.stdout.write(approvalView(ticket).split('\n').map(clean).join('\n'));
+    ctx.stdout.write(colourApproval(approvalView(ticket).split('\n').map(clean).join('\n'), ctx.stdout));
     return 0;
   }
   requireLaneTicket(ctx, id);

@@ -11,5 +11,6 @@
 - Ruling: the no-match line is plain text below the Input and above the New request button — ac-2 fixes neither colour nor order — cost if wrong: one prop or one line moves.
 - Ruling: the Input is drawn under "Loading…" too — the approach critic showed /accord-panel opened before the first dashboard run ends takes the keyboard with no Input, so the cursor misses the field — cost if wrong: the field shows before data, and typing filters nothing until the dashboard loads.
 - Ruling: the session-start open keeps no `focus` — taking focus there would take keys from the prompt the owner is typing in — cost if wrong: at session start the cursor reaches the field only after Ctrl+X Tab or a click.
+- Ruling: the re-audit's four split readings are settled in the wording and shown to the owner at the yes — ac-1: the hint is the field's own dim hint drawn by the host; ac-2: New request stays shown while some ticket matches, as ST-LN-3 built it; ac-3: the cursor lands in the field whenever the pane takes the keyboard, which rules out marking only the first draw; ac-4: the redraw is checked while a running reply finishes with the pane focused, since sending a message leaves the pane — cost if wrong: the owner rewords a criterion at the yes.
 
 ## Deferred

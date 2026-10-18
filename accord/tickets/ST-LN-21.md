@@ -44,28 +44,29 @@ Feature: ST-LN-21
   Scenario: The empty search field says what it is for
     Given the panel shows ST-1 titled "Login form" under YOURS
     When the panel draws its search field and the field is empty
-    Then the field's label is still "Search", which the terminal draws as "Search: ", and the field shows the dim hint "ticket id or title, or a new request" verbatim
+    Then the field's label is still "Search", which the terminal draws as "Search: ", and the field's own dim hint, which the host draws inside the empty field, is "ticket id or title, or a new request" verbatim
 
   @ac-2
   Scenario: Text that matches no ticket says so and points to New request
     Given the panel shows ST-1 titled "Login form" under YOURS and ST-2 titled "Export" under READY
     When the owner types "zzz" in the search field
     Then no section heading and no ticket row is shown, the line "No ticket shown here matches. Press New request to send this text to /accord." is shown verbatim, and the New request button is shown
-    And when the owner types "login" instead, only the YOURS heading and ST-1 are shown, and that line is not
+    And when the owner types "login" instead, the only section heading and ticket row shown are YOURS and ST-1, the New request button is still shown, and that line is not
 
   @ac-3
   Scenario: The cursor is in the search field when the panel opens
     Given the panel shows a dashboard with at least one ticket
     When the pane opens
-    Then the search field is the one control marked to take focus when the pane opens, so the cursor is in it, and a later redraw, such as after typing or a refreshed dashboard, does not move focus back to it
+    Then the search field is the one control marked to take focus, so whenever the pane takes the keyboard, by /accord-panel, Ctrl+X then Tab, or a click, the cursor lands in it
+    And a redraw while the pane keeps the keyboard, such as after typing or a refreshed dashboard, does not move focus back to it
 
   @ac-4 @ui
   Scenario: The owner reads the real panel as a place to search and to start a request
     Given the panel built from this ticket's branch, open in a Claude Code terminal session
     When the owner opens /accord-panel, looks at the empty field, and types text that matches no ticket
-    And then clears the field, presses Tab to move to a ticket button, sends any message to Claude, and waits for the reply to finish
+    And then clears the field, sends Claude a message that takes a while to answer, and while the reply is still running presses Ctrl+X then Tab to focus the pane, presses Tab to reach a ticket button, and waits without leaving the pane
     Then the owner says the field reads as a place to search tickets and to start a new request, without asking what it is for
-    And the cursor is still on that ticket button after the reply finishes
+    And the cursor is still on that ticket button after the reply finishes and the panel has refreshed
 ```
 
 ## Vetoes

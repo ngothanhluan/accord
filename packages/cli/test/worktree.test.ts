@@ -478,18 +478,89 @@ it('risk:regression this repository setup builds before it relinks the accord bi
   expect(config?.setup).toEqual(['npm ci', 'npm run build', 'npm rebuild @accord-dev/accord --ignore-scripts']);
 });
 
+/** A recorder git can run as an ssh program: appends its arguments to a log and fails; named `ssh` so it counts as OpenSSH. */
+function recorder(c: Clone, name = 'ssh') {
+  const dir = `${c.root}/.git/rec-${name}`;
+  mkdirSync(dir, { recursive: true });
+  const log = `${dir}/log`;
+  const file = `${dir}/${name}`;
+  writeFileSync(file, `#!/usr/bin/env node
+require('node:fs').appendFileSync(${JSON.stringify(log)}, process.argv.slice(2).join(' ') + '\\n'); process.exit(1);
+`);
+  chmodSync(file, 0o755);
+  return { file, seen: () => (existsSync(log) ? readFileSync(log, 'utf8') : '') };
+}
+function worktreeAndSshRemote(c: Clone) {
+  c.git('worktree', 'add', '-q', '-b', 't/ST-9', c.sibling('ST-9'), 'origin/main');
+  c.git('remote', 'set-url', 'origin', 'ssh://example.invalid/repo.git');
+}
+
 it('risk:security a configured core.sshCommand survives the fetch in clean and gains BatchMode', async () => {
   const c = clone();
-  c.git('worktree', 'add', '-q', '-b', 't/ST-9', c.sibling('ST-9'), 'origin/main');
-  const log = `${c.root}/.git/ssh.log`;
-  const rec = `${c.root}/.git/rec.js`;
-  writeFileSync(rec, `require('node:fs').appendFileSync(${JSON.stringify(log)}, process.argv.slice(2).join(' ')); process.exit(1);`);
-  c.git('config', 'core.sshCommand', `node "${rec}" mykey`);
-  c.git('remote', 'set-url', 'origin', 'ssh://example.invalid/repo.git');
+  worktreeAndSshRemote(c);
+  const rec = recorder(c);
+  c.git('config', 'core.sshCommand', `"${rec.file}" mykey`);
   const { code } = await run(['worktree', 'clean'], c.root, {});
   expect(code).toBe(0);
-  const seen = readFileSync(log, 'utf8');
-  expect(seen).toMatch(/^mykey -o BatchMode=yes /);
+  expect(rec.seen()).toMatch(/^mykey -o BatchMode=yes /);
+});
+
+it('risk:security a GIT_SSH program is still the one the fetch in clean calls', async () => {
+  const c = clone();
+  worktreeAndSshRemote(c);
+  const rec = recorder(c, 'plink');
+  vi.stubEnv('GIT_SSH', rec.file);
+  vi.stubEnv('GIT_SSH_COMMAND', undefined);
+  try {
+    expect((await run(['worktree', 'clean'], c.root, {})).code).toBe(0);
+  } finally {
+    vi.unstubAllEnvs();
+  }
+  expect(rec.seen()).toContain('example.invalid');
+  expect(rec.seen()).not.toContain('BatchMode');
+});
+
+it('risk:security a core.sshCommand that is not OpenSSH is called without BatchMode', async () => {
+  const c = clone();
+  worktreeAndSshRemote(c);
+  const rec = recorder(c, 'wrapper');
+  c.git('config', 'core.sshCommand', `"${rec.file}" mykey`);
+  expect((await run(['worktree', 'clean'], c.root, {})).code).toBe(0);
+  expect(rec.seen()).toMatch(/^mykey .*example\.invalid/);
+  expect(rec.seen()).not.toContain('BatchMode');
+});
+
+it('risk:data-loss new ticket worktree refuses a ticket that exists only on origin main', async () => {
+  const c = clone({ tickets: [] });
+  const other = c.otherClone();
+  writeFiles(other, { 'accord/tickets/ST-9.md': 'teammate wrote this\n' });
+  gitRun(other, 'add', '-A');
+  gitRun(other, 'commit', '-q', '-m', 'ticket');
+  gitRun(other, 'push', '-q', 'origin', 'main');
+  c.git('fetch', '-q', 'origin');
+  const { code, err } = await run(['new', 'ticket', 'ST-9', '--lane', 'M', '--worktree'], c.root);
+  expect(code).toBe(2);
+  expect(err).toContain('accord/tickets/ST-9.md already exists on origin/main - nothing was written');
+  expect(existsSync(c.sibling('ST-9'))).toBe(false);
+  expect(c.git('branch', '--list', 't/ST-9').trim()).toBe('');
+  expect(gitRun(c.remote, 'show', 'main:accord/tickets/ST-9.md')).toBe('teammate wrote this\n');
+});
+
+it('risk:parsing an invalid config in the new worktree stops setup, writes no done marker, exits 2', async () => {
+  const c = clone({ tickets: ['ST-9'] });
+  const other = c.otherClone();
+  writeFiles(other, { 'accord/config.yml': readFileSync(`${c.root}/accord/config.yml`, 'utf8') + 'setup: npm ci\n' });
+  gitRun(other, 'add', '-A');
+  gitRun(other, 'commit', '-q', '-m', 'bad config');
+  gitRun(other, 'push', '-q', 'origin', 'main');
+  c.git('fetch', '-q', 'origin');
+  const { code, out, err } = await run(['worktree', 'open', 'ST-9'], c.root);
+  expect(code).toBe(2);
+  expect(err).toContain('accord/config.yml');
+  expect(out + err).not.toContain('/accord continue');
+  expect(existsSync(c.sibling('ST-9'))).toBe(true);
+  const dir = gitRun(c.sibling('ST-9'), 'rev-parse', '--path-format=absolute', '--git-dir').trim();
+  expect(existsSync(`${dir}/accord-setup-done`)).toBe(false);
 });
 
 it('risk:data-loss a stale holds lock keeps a merged clean worktree, names it, and clean exits 0', async () => {

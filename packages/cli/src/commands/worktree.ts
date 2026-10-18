@@ -79,13 +79,23 @@ export function siblingOf(mainPath: string, id: string): string {
 
 /** D-07: run the worktree's own `setup`; a failing command keeps the worktree and exits 2. */
 export function prepare(path: string): void {
-  let text = '';
+  let text: string | undefined;
   try {
     text = readFileSync(path + '/accord/config.yml', 'utf8');
   } catch {
     // no config: nothing to run
   }
-  const failed = runSetup(loadConfig('accord/config.yml', text).config?.setup ?? [], path).failed;
+  let setup: string[] = [];
+  if (text !== undefined) {
+    const loaded = loadConfig('accord/config.yml', text);
+    if (loaded.config === undefined) {
+      throw new UsageError(
+        `accord/config.yml in the new worktree is invalid, so setup did not run: ${loaded.findings[0]?.reason ?? 'unreadable'}\nthe worktree is kept; fix the file, then continue the ticket again`,
+      );
+    }
+    setup = loaded.config.setup ?? [];
+  }
+  const failed = runSetup(setup, path).failed;
   if (failed !== undefined) {
     throw new UsageError(
       `setup command failed in the new worktree: ${failed.command} (exit ${failed.code})\n${failed.tail}\nthe worktree is kept; fix the command, then continue the ticket again`,
@@ -223,7 +233,13 @@ export function worktreeOpen(ctx: CommandContext, id: string, opts: { continue?:
   return 0;
 }
 
-/** Run a network git command with prompts off, keeping the user's own ssh command (git prefers GIT_SSH_COMMAND over core.sshCommand) and adding BatchMode. */
+/** The first word of a shell command line, quotes removed. */
+const firstWord = (cmd: string) => (/^\s*(?:"([^"]*)"|'([^']*)'|(\S+))/.exec(cmd) ?? []).slice(1).find((w) => w !== undefined) ?? '';
+
+/**
+ * Run a network git command with prompts off. ssh gets BatchMode only when it is OpenSSH: git reads core.sshCommand before GIT_SSH, and
+ * GIT_SSH_COMMAND before both, so the user's own program is never replaced and a non-OpenSSH command is passed through unchanged.
+ */
 function gitNoPrompt(cwd: string, args: string[]): void {
   let configured = '';
   try {
@@ -231,12 +247,17 @@ function gitNoPrompt(cwd: string, args: string[]): void {
   } catch {
     // not set
   }
-  const ssh = (process.env.GIT_SSH_COMMAND ?? '') !== '' ? process.env.GIT_SSH_COMMAND : configured !== '' ? configured : 'ssh';
-  execFileSync('git', ['-c', 'credential.interactive=never', '-c', `core.sshCommand=${ssh} -o BatchMode=yes`, ...args], {
+  const fromEnv = (process.env.GIT_SSH_COMMAND ?? '') !== '';
+  const cmd = fromEnv ? process.env.GIT_SSH_COMMAND! : configured;
+  const base = firstWord(cmd).split(/[\\/]/).pop()!.toLowerCase();
+  let ssh: string | undefined; // the core.sshCommand to inject
+  if (cmd !== '') ssh = base === 'ssh' || base === 'ssh.exe' ? cmd + ' -o BatchMode=yes' : undefined;
+  else if ((process.env.GIT_SSH ?? '') === '') ssh = 'ssh -o BatchMode=yes';
+  execFileSync('git', ['-c', 'credential.interactive=never', ...(ssh === undefined ? [] : ['-c', 'core.sshCommand=' + ssh]), ...args], {
     cwd,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
-    env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_SSH_COMMAND: undefined },
+    env: { ...process.env, GIT_TERMINAL_PROMPT: '0', ...(ssh !== undefined && fromEnv ? { GIT_SSH_COMMAND: undefined } : {}) },
   });
 }
 
@@ -346,6 +367,9 @@ export function newTicketWorktree(ctx: CommandContext, id: string, rel: string, 
   if (exists) throw new UsageError(`${branch} already exists - nothing was written`);
   const ref = gitDefaultRef(ctx.root);
   if (ref === undefined) throw new UsageError('no origin/main in this clone - run git fetch origin, then try again');
+  if (gitOk(ctx.root, ['cat-file', '-e', `${ref}:${rel}`])) {
+    throw new UsageError(`${rel} already exists on ${ref.replace('refs/remotes/', '')} - nothing was written`);
+  }
   const path = siblingOf(list[0].path, id);
   git(ctx.root, ['worktree', 'add', '--no-track', '-b', branch, path, ref]);
   mkdirSync(path + '/accord/tickets', { recursive: true });

@@ -469,3 +469,11 @@ it('risk:data-loss a failed push keeps the claim commit and names the quoted pus
   expect(r.code).toBe(0);
   expect(r.out.split('\n').slice(0, 3)).toEqual(stopLines(c.sibling('ST-9'), 'ST-9'));
 });
+
+it('risk:regression this repository setup builds before it relinks the accord bin', async () => {
+  const { loadConfig } = await import('@accord-dev/accord-core');
+  const text = readFileSync(new URL('../../../accord/config.yml', import.meta.url), 'utf8');
+  const { config, findings } = loadConfig('accord/config.yml', text);
+  expect(findings).toEqual([]);
+  expect(config?.setup).toEqual(['npm ci', 'npm run build', 'npm rebuild @accord-dev/accord --ignore-scripts']);
+});

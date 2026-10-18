@@ -4,6 +4,7 @@
 - task 1 done 1d395a2da9c7
 - task 2 done 37b3cf63373d
 - task 3 done 58bd5ed3308d
+- task 4 done f5313b31116e
 
 ## Rulings
 
@@ -37,3 +38,5 @@
 - Ruling: task 2's three tests passed on their first run, with no red run shown, because task 1 already built the view — the executor did not break task 1's code to force one — cost if wrong: a test that cannot fail; review checks that each one fails on a broken view.
 - Ruling: task 3's load-finding check reads `(ctx.plain ?? ctx.snapshot).errors`, the snapshot `requireTicket` reads — the checked snapshot and the printed ticket stay the same — cost if wrong: a finding on the other snapshot is missed.
 - Ruling: task 3's parse-error risk test uses a stray prose line between steps, not a step directly under `Feature:`, which the parser reads as description text and does not fail — the test changed before it ever passed — cost if wrong: none.
+- Ruling: task 4's `colourApproval` colours ac-n ids after wrapping the step keywords, which is safe because no escape code holds "ac-"; the ac-5 test checks that stripping the codes gives the colour-off output — cost if wrong: a stray colour code in the view.
+- Ruling: task 4 is checked with FORCE_COLOR=1 on a PassThrough stream, not a real terminal — `styleText` with `{ stream }` decides colour from the same env and isTTY rules in both — cost if wrong: a real terminal shows no colour, which the owner sees at the first yes.

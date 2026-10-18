@@ -75,7 +75,7 @@ Feature: ST-LN-19
     And the same step holds the literal texts "horizontal rule", "In plain words", and "one line per scenario that begins with its ac-n"
     And the same step does not hold the text "from the ticket file" in any letter case
 
-  @ac-5
+  @ac-5 @test:packages/cli/test/show-approval.test.ts#ac-5-the-approval-view-is-laid-out-for-a-person-and-coloured-in-a-terminal
   Scenario: the view is laid out for a person to read, and coloured in a terminal
     Given the ticket of @ac-2
     When `accord show <id> --approval` runs with colour off, because NO_COLOR is set or the output is not a terminal

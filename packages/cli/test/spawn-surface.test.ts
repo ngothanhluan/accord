@@ -14,7 +14,8 @@ import { describe, expect, it } from 'vitest';
 import { cleanup, makeRepo, run } from './helpers/repo.js';
 
 const srcDir = fileURLToPath(new URL('../src/', import.meta.url));
-const ALLOWED = ['git', 'gh'];
+// `ps` and `powershell` read the process table for the hold (D-17).
+const ALLOWED = ['git', 'gh', 'ps', 'powershell'];
 const SPAWN = /\b(?:execFileSync|execFile|spawnSync|spawn)\s*\(/g;
 const FIRST_ARG = /^\s*(['"])([^'"]*)\1\s*[,)]/;
 

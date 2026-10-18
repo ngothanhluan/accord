@@ -1,10 +1,11 @@
 // ST-LN-7 `accord worktree`: each ticket works in its own git worktree, a sibling folder of the main checkout.
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { DEFAULT_BRANCH_TEMPLATE, loadConfig } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
 import { gitDefaultRef, UsageError } from '../load/fs.js';
-import { runSetup } from '../load/proc.js';
+import { claudeEnv, describeSession, isLive, processTable, runSetup, sameSession, sessionIn } from '../load/proc.js';
+import type { Session } from '../load/proc.js';
 import type { CommandContext } from '../run.js';
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
@@ -90,6 +91,86 @@ export function prepare(path: string): void {
       `setup command failed in the new worktree: ${failed.command} (exit ${failed.code})\n${failed.tail}\nthe worktree is kept; fix the command, then continue the ticket again`,
     );
   }
+  writeFileSync(setupMarker(path), '');
+}
+
+/** D-15: the file in the worktree's own git dir that says `setup` finished there. */
+function setupMarker(path: string): string {
+  return git(path, ['rev-parse', '--path-format=absolute', '--git-dir']).trim() + '/accord-setup-done';
+}
+
+interface Hold extends Session {
+  taken: string;
+}
+
+/** D-14: run `fn` on the holds file under an exclusive lock; `fn` returns the new object or undefined for no write. */
+export function withHolds(root: string, fn: (holds: Record<string, Hold>) => Record<string, Hold> | undefined): void {
+  const dir = git(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim() + '/accord';
+  const file = dir + '/holds';
+  const lock = file + '.lock';
+  mkdirSync(dir, { recursive: true });
+  const stop = Date.now() + 2000;
+  let fd: number | undefined;
+  while (fd === undefined) {
+    try {
+      fd = openSync(lock, 'wx');
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e;
+      if (Date.now() > stop) {
+        throw new UsageError('the hold file is locked by another accord command: ' + lock + ' - if none is running, delete that file');
+      }
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
+    }
+  }
+  try {
+    let holds: Record<string, Hold> = {};
+    if (existsSync(file)) {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(readFileSync(file, 'utf8'));
+      } catch {
+        parsed = undefined;
+      }
+      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+        throw new UsageError(file + ' is not a JSON object - fix or delete it; accord does not rewrite it');
+      }
+      holds = parsed as Record<string, Hold>;
+    }
+    const next = fn(holds);
+    if (next !== undefined) {
+      const tmp = `${file}.${process.pid}.tmp`;
+      writeFileSync(tmp, JSON.stringify(next, null, 2) + '\n');
+      renameSync(tmp, file);
+    }
+  } finally {
+    closeSync(fd);
+    rmSync(lock, { force: true });
+  }
+}
+
+const norm = (p: string) => (process.platform === 'win32' ? p.replaceAll('\\', '/').toLowerCase() : p);
+
+/** Inside the ticket's worktree: take the hold (Claude Code only, D-17), then make sure `setup` finished. */
+function hold(ctx: CommandContext, id: string, path: string): number {
+  const claude = claudeEnv(ctx.env);
+  if (claude === undefined) {
+    if (!existsSync(setupMarker(path))) prepare(path);
+    ctx.stdout.write(`not held: ${id} - a second session in this worktree is not refused in this tool yet\n`);
+    return 0;
+  }
+  const table = processTable();
+  const session = sessionIn(claude, table, process.pid);
+  withHolds(path, (holds) => {
+    const h = Object.hasOwn(holds, id) ? holds[id] : undefined;
+    if (h !== undefined && !sameSession(h, session) && isLive(h, table)) {
+      throw new UsageError(`${id} is held by another session: ${describeSession(h)} since ${h.taken} - work it there, or close that session first`);
+    }
+    const same = h !== undefined && sameSession(h, session);
+    return { ...holds, [id]: { ...session, taken: same ? h.taken : new Date().toISOString() } };
+  });
+  if (!existsSync(setupMarker(path))) prepare(path);
+  ctx.stdout.write(`held: ${id} by this session\n`);
+  return 0;
 }
 
 /** D-11, D-12: exactly three lines, naming no tool. */
@@ -105,6 +186,7 @@ export function worktreeOpen(ctx: CommandContext, id: string, opts: { continue?:
   // D-15: a worktree already holding the branch is only found, nothing runs there.
   const held = list.find((w) => w.branch === branch);
   if (held !== undefined) {
+    if (norm(held.path) === norm(ctx.root)) return hold(ctx, id, held.path);
     printStop(ctx, held.path, id);
     return 0;
   }

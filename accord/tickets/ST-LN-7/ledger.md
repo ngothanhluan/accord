@@ -40,6 +40,9 @@
 - Ruling: the walk keeps no check that a parent started before its child — the Windows chains seen top out at a gap, not at System — cost if wrong: a reused parent pid can refuse a real session on Windows.
 - Ruling: `proc.ts` uses a mutable stdio array with `encoding: 'utf8' as const` for its exec options — the earlier draft's readonly `as const` stdio failed the typecheck (Task 1 executor) — cost if wrong: none.
 - Ruling: each executor is also told "commit with no Co-Authored-By trailer" — CLAUDE.md: commits authored solely by the author; the Task 1 commit 0496cf0 carries one, and rewriting it was refused by this session's permission check, so it waits for the owner — cost if wrong: one commit to reword before merge.
+- Ruling: `gitDefaultRef` is called once from `gitPeopleOnRefs`, which keeps its old rule that the ref must be among the refs it read — every existing ids test passed unchanged (Task 2 executor) — cost if wrong: none seen.
+- Ruling: `worktreeOpen` takes the main checkout from the first `git worktree list` entry and builds the sibling path from it — the sibling-path Ruling above — cost if wrong: none; a run from a linked worktree is Task 4's case.
+- Ruling: the Task 2 test `risk:parsing setup is a list of non-empty command strings` moved out of `describe('config.schema.json')` to top level (5d27f18) — its verify id names the bare test, as the file's other verify-id tests do — cost if wrong: none.
 
 ## Deferred
 - Plan critique 1.14 (Nice): the main checkout has no setup done-marker, so Continue rooted there reruns the whole setup in the owner's checkout — deferred.
@@ -53,3 +56,4 @@
 
 ## Tasks
 - task 1 done 0496cf0300af
+- task 2 done 5d27f188fb48

@@ -41,7 +41,7 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: ST-LN-7
 
-  @ac-1
+  @ac-1 @test:packages/cli/test/worktree.test.ts#ac-1-pick-up-adds-the-ticket-worktree-from-origin-main-runs-setup-in-order-and-prints-where-to-continue
   Scenario: Pick up prepares the ticket's own worktree and points to a session there
     Given a repository at "C:/Work/accord" whose config.yml lists the setup commands "npm ci" and "npm run build"
     And the ticket "ST-9" has no branch and no worktree
@@ -52,7 +52,7 @@ Feature: ST-LN-7
     And the accord CLI command prints the path "C:/Work/accord-st-9" and the line "/accord continue ST-9" to type in a session opened there, naming no agent's own command, and the session stops
     And the branch checked out in "C:/Work/accord" is the one it had before
 
-  @ac-2
+  @ac-2 @test:packages/cli/test/worktree.test.ts#ac-2-a-failing-setup-command-exits-2-naming-it-and-keeps-the-worktree
   Scenario: A failing setup command stops the run and keeps the worktree
     Given config.yml lists the setup commands "npm ci" and "npm run build", and "npm run build" fails
     When "/accord pick-up ST-9" runs in a session rooted at "C:/Work/accord"

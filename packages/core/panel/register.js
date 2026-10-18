@@ -161,6 +161,7 @@ export function register(on) {
       for (const line of v.message) children.push(Text({ children: [line] }));
     } else {
       children.push(search());
+      if (v.noMatch) children.push(Text({ children: [v.noMatch] }));
       if (v.newRequest) children.push(Button({ key: v.newRequest.key, label: v.newRequest.label, onPress: run(v.newRequest.args) }));
       const { widths } = v;
       const cellBoxes = (id, stage, title) => [

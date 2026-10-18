@@ -404,6 +404,32 @@ it('ac-3 the search field is the one control marked to take focus on every draw 
   onlySearch();
 });
 
+it('ac-2 text that matches no ticket shows the no-match line and New request', async () => {
+  const LINE = 'No ticket shown here matches. Press New request to send this text to /accord.';
+  const HEADINGS = ['YOURS', 'TEAM', 'READY', 'UP NEXT', 'EPICS'];
+  const h = await host(await loadPanel());
+  await h.fire('session.start', start);
+  h.settle({ stdout: twoRows });
+  await vi.waitFor(() => expect(h.texts().some((x) => x.includes('ST-2'))).toBe(true));
+  h.type('zzz');
+  await vi.waitFor(() => {
+    expect(h.texts().filter((x) => HEADINGS.includes(x))).toEqual([]);
+    expect(h.texts().some((x) => x.includes('ST-1') || x.includes('ST-2'))).toBe(false);
+    expect(h.buttons().some((b) => b.key.startsWith('show:'))).toBe(false);
+    expect(h.texts()).toContain(LINE);
+    expect(h.buttons().some((b) => b.key === 'new-request' && b.label === 'New request')).toBe(true);
+  });
+  h.type('login');
+  await vi.waitFor(() => {
+    expect(h.texts().filter((x) => HEADINGS.includes(x))).toEqual(['YOURS']);
+    expect(h.texts().some((x) => x.includes('ST-1'))).toBe(true);
+    expect(h.texts().some((x) => x.includes('ST-2'))).toBe(false);
+    expect(h.buttons().filter((b) => b.key.startsWith('show:')).map((b) => b.key)).toEqual(['show:ST-1']);
+    expect(h.buttons().some((b) => b.key === 'new-request')).toBe(true);
+    expect(h.texts()).not.toContain(LINE);
+  });
+});
+
 it('risk:complex-branching a rejected run an unparsable stdout and an empty stderr each show a message', async () => {
   const cases: [(h: Awaited<ReturnType<typeof host>>) => void, string][] = [
     [(h) => h.fail(new Error('timed out')), 'accord did not finish: timed out'],

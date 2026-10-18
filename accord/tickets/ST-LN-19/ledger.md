@@ -1,6 +1,7 @@
 # Ledger
 
 ## Tasks
+- task 1 done 1d395a2da9c7
 
 ## Rulings
 
@@ -29,3 +30,4 @@
 - Ruling: the main session added `(new)` after the two new files in tasks 2 to 4's `files:` lines, which `accord gate plan` asked for — the gate reads each task against the baseline — cost if wrong: none, no path changed.
 - Ruling: Task 3's verify: names packages/cli/test/show.test.ts's existing ac-1, ac-2, and risk:security cases without `(@ac-n)` markers — they prove ac-3's "still pass every test written for them before this ticket" and are already named by ST-LN-6's `@test:` tags; `accord gate plan` passed with them — cost if wrong: none, the gate accepted them.
 - Ruling: the baseline suite is 1293 of 1293 passing at 48665d5 after rebuilding core and cli; a first run had one failure (skills-sync.test.ts, the committed panel hooks) because the worktree's dist was built before origin/main was merged — cost if wrong: none, the rerun after the rebuild is the baseline.
+- Ruling: task 1's test compares the criteria block as an array of lines, checking ac-3's backtick step and ac-4's own When — the brief fixed the expected lines — cost if wrong: only a stricter assertion to relax.

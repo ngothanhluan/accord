@@ -50,7 +50,7 @@ Feature: ST-LN-19
     And no scenario rebuilt from the output has a step that the scenario in the file does not have
     And every shared line is a step that comes, in each scenario it names, before that scenario's first Then and after only other shared lines, so it is a Given, a When, or an And or But that continues one
 
-  @ac-2
+  @ac-2 @test:packages/cli/test/show-approval.test.ts#ac-2-a-step-several-scenarios-repeat-is-printed-once-naming-them
   Scenario: a step that several scenarios repeat is printed once, naming them
     Given a ticket whose four scenarios, ac-1 to ac-4, share the same first Given, and whose ac-1, ac-2, and ac-3 share the same When while ac-4 has a different When
     When `accord show <id> --approval` runs

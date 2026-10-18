@@ -100,6 +100,7 @@ Feature: ST-LN-19
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
 - 2026-10-18, at the intent yes, after approving the Intent and the four criteria: "A đồng ý. nhưng khi print ra cho user đọc. hơi khó đọc. cần format lại cho dễ đọc. break line, bolding, header, color cho human đọc mà"
+- 2026-10-18, at the second intent yes: "sao intent ko break line ra? ví dụ Success, Done, cần skill copy-writing ko vậy?"
 
 ## Open questions
 <!-- `- [ ]` items; Ready stays blocked while any is unchecked. -->

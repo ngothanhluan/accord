@@ -46,7 +46,7 @@ Feature: ST-LN-5
   Scenario: the shared rule sends a question that needs context to plain chat
     Given the files `accord skills sync` writes for a config that enables every runtime, in every target directory, each read with every line break and the spaces or tabs around it as one space
     When a reader opens the ask.md beside the SKILL.md of each of accord, intent, approach, plan, build, review, verify, and debug
-    Then each ask.md holds the sentence "A question that needs context to be understood is asked in plain chat, never in a question dialog, because the dialog hides the chat written before it: a few plain sentences of context, then the question, then lettered options, each saying what happens if it is chosen, the recommended one first." verbatim
+    Then each ask.md holds the sentence "A question that needs context to be understood is asked in plain chat, never in a question dialog, because the dialog hides the chat written before it: a few plain sentences of context, then the question, then lettered options, each saying what happens if it is chosen, the recommended one first, with one sentence on why it is recommended." verbatim
     And each ask.md holds the sentence "A question dialog is used only when the question and its options are understood on their own in one line, such as 'Commit now?'." verbatim
 
   @ac-2
@@ -82,9 +82,11 @@ Feature: ST-LN-5
 - D-05 Success: after reading a question once, the owner can answer it without asking back what it is about; the owner works through a terminal and does not read the code, so the context must be enough to choose or give feedback — "tôi nghĩ là A, vì chủ yếu tôi prompt với AI qua terminal, nên thường sẽ ko có cái nhìn trực quan vì ko đọc code. nên tôi cần context phải đủ hiểu để tôi có thể đưa ra lựa chọn hoặc feedback."
 - D-06 Scope: ask.md takes the rules of D-01 and D-03 plus "explain in plain words; a file path is only a pointer, never the explanation"; step 5 of the intent skill ("multiple choice where possible") is aligned with D-01; the ASK-1 test follows the new text; the design documents under docs/, the panel, and the benchmark are out of scope — "A"
 - D-07 The smallest version that counts as done is the whole of D-06: all three rules in ask.md (D-03, D-01, plain words) and the intent skill aligned — "A"
+- D-08 The recommended option carries one sentence on why it is recommended, because the owner reads no code and checks the advice by its reason; ac-1's first sentence says so — "tất nhiên là phải kèm lý do rồi"
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
+- 2026-10-18, after plan: the approach dropped intent step 5's "the recommended option first with its reason" and ac-1 asks only for "the recommended one first"; asked whether the reason must stay, the owner said: "tất nhiên là phải kèm lý do rồi"
 
 ## Open questions
 <!-- `- [ ]` items; Ready stays blocked while any is unchecked. -->
@@ -96,7 +98,7 @@ Chosen: edit the two sources and repoint the ASK-1 test. `shared/ask.md` loses t
 four fixed sentences of ac-1 to ac-3 (frontmatter and heading kept). Intent step 5 becomes "One question per
 message, aimed at the dimension with the highest score; which kind of question to ask, and how, follows
 `./ask.md`." Its option-ordering clause goes, since an open question has no options (D-01) and ask.md already
-puts the recommended option first. The ASK-1 test `ac-1 the shared ask rule holds the fixed sentence beside every
+puts the recommended option first with its reason (D-08). The ASK-1 test `ac-1 the shared ask rule holds the fixed sentence beside every
 stage skill` keeps its name, so ASK-1's `@test` tag still resolves (renaming fails `testIdUnknown`; editing
 ASK-1.md makes CI run `gate done ASK-1` on a stale commit), checks the two ac-1 sentences, and gets a one-line
 comment that it proves ST-LN-5 ac-1 and ASK-1 ac-1 is superseded by D-06.
@@ -111,3 +113,6 @@ both old phrases are wrapped today and a raw check passes before any edit; step 
 strips `**` before matching its opening words.
 Tests: ac-1 to ac-4 each one string test in `stage-skills.test.ts` on the in-memory render for all four
 runtimes, written first and failing on today's text.
+Change 2026-10-18 (D-08, after plan, before any task was built): ac-1's first sentence now ends "the recommended
+one first, with one sentence on why it is recommended." The approach holds; only plan Task 1's `CONTEXT` sentence
+and the matching ask.md text change.

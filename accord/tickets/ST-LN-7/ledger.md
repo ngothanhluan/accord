@@ -65,6 +65,7 @@
 - Ruling: SKILL.md is not changed for `claimed:`; the rule not to push after it lives in worktree.md, which the Pick up paragraph already defers to — SKILL.md stays under its 5,120-byte limit (re-plan, Task 9) — cost if wrong: an agent that pushes before reading worktree.md reaches a push that fails or pushes nothing new.
 - Ruling: no skill-text test for the `claimed:` sentence — review round 1 deferred restating skill phrases in tests (re-plan, Task 9) — cost if wrong: that sentence could be removed without a test failing.
 - Ruling: re-plan critique 2 and 3 (rated Nice) are fixed as Should — 2 brings back the silent join Task 9 exists to stop, in the flow ST-LN-20 will make common, and 3 can push the user's unpushed commits onto a teammate's branch — quality ranks first and both fixes are small — cost if wrong: one more planner pass.
+- Ruling: SKILL.md's Pick up paragraph is changed in Task 9 after all, to end "Follow `./worktree.md`; it says when to push it (the pushed branch is the claim).", superseding the earlier ruling that SKILL.md stays unchanged — re-plan critique 1.3 needs the push after the worktree.md step, at 8 bytes more (re-plan planner) — cost if wrong: SKILL.md passes 5,120 bytes and Task 9 stops BLOCKED with the count.
 
 ## Deferred
 - Plan critique 1.14 (Nice): the main checkout has no setup done-marker, so Continue rooted there reruns the whole setup in the owner's checkout — deferred.

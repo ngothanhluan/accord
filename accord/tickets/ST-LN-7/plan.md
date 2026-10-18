@@ -1,6 +1,6 @@
 ---
 baseline: 8a67291ea2a2581c4c75d7b35fc250140a08d9a3
-plan_hash: "fnv1a64:c85d58ff2504f566"
+plan_hash: "fnv1a64:fef1cc19c28d33d7"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -689,7 +689,7 @@ other bullets and its pinned run line; `readme.test.ts` stays green.
 
 ## Task 9: Pick up refuses a ticket another person claimed and reuses a claim of the user's own
 covers: D-08, D-18
-files: packages/cli/src/commands/worktree.ts (new), packages/cli/test/worktree.test.ts (new), packages/core/skills/accord/worktree.md (new), packages/core/src/generated/skills.ts, .claude/skills/accord/worktree.md (new)
+files: packages/cli/src/commands/worktree.ts (new), packages/cli/test/worktree.test.ts (new), packages/core/skills/accord/SKILL.md, packages/core/skills/accord/worktree.md (new), packages/core/src/generated/skills.ts, .claude/skills/accord/SKILL.md, .claude/skills/accord/worktree.md (new)
 verify: packages/cli/test/worktree.test.ts#risk:complex-branching-pick-up-refuses-a-branch-another-person-claimed-and-reuses-one-claimed-by-the-same-email
 
 The gap (final review 2, ledger Ruling of 2026-10-18, owner: "Từ chối nếu người khác claim (Khuyên)"): Task 3's
@@ -708,19 +708,25 @@ dashboard credits.
 
 Test first, in `packages/cli/test/worktree.test.ts`, a top-level
 `it('risk:complex-branching pick up refuses a branch another person claimed and reuses one claimed by the same email')`:
-- `c = makeClone({ tickets: ['ST-9', 'ST-10', 'ST-11'] })`; `o = c.otherClone()`, then in `o` `git config
-  user.email y@example.invalid` (the teammate). In `o`, each from `main`:
+- `c = makeClone({ tickets: ['ST-9', 'ST-10', 'ST-11', 'ST-12'] })`; `o = c.otherClone()`, then in `o` `git config
+  user.email y@example.invalid` (the teammate). In `o`, first on `main`: `git -c user.email=fixture@example.invalid
+  commit -q --allow-empty -m "claim: ST-12"` and `git push -q origin main` (the user's old claim of ST-12, merged
+  to main and its branch since deleted). Then, each from `main`:
   - `git switch -q -c t/ST-9 main`, `git commit -q --allow-empty -m "claim: ST-9"`;
   - `git switch -q -c t/ST-10 main`, `git -c user.email=fixture@example.invalid commit -q --allow-empty -m
     "claim: ST-10"` (the user's own claim from another machine), then `git commit -q --allow-empty -m help` by
     `y` on top, so the tip's author is not the claimant;
   - `git switch -q -c t/ST-11 main`, one commit adding `x.txt` with the subject `work` (no claim commit);
-  - `git push -q origin t/ST-9 t/ST-10 t/ST-11`. In `root`, `git fetch -q origin`.
+  - `git switch -q -c t/ST-12 main`, one commit adding `y.txt` with the subject `work` (the teammate's hand-made
+    branch, whose history holds only the user's old claim on main);
+  - `git push -q origin t/ST-9 t/ST-10 t/ST-11 t/ST-12`. In `root`, `git fetch -q origin`.
 - `worktree open ST-9` from `root`: exit 2; `err` starts with `claimed: ST-9 by y@example.invalid` and contains
   `/accord continue ST-9`; `out` holds no `stop:` line; `git worktree list --porcelain` has one entry; `git
   rev-parse --verify -q refs/heads/t/ST-9` fails; `sibling('ST-9')` does not exist.
 - `worktree open ST-11` from `root`: exit 2; `err` starts with `claimed: ST-11 by y@example.invalid` (no claim
   commit, so the tip's author, as the dashboard credits it).
+- `worktree open ST-12` from `root`: exit 2; `err` starts with `claimed: ST-12 by y@example.invalid` (the claim
+  on `origin/main` is not this branch's claim); `sibling('ST-12')` does not exist.
 - `worktree open ST-10` from `root`: exit 0; `out` split on `\n` holds the three stop lines naming
   `sibling('ST-10')`; `git -C <sibling('ST-10')> rev-parse HEAD` equals `git rev-parse origin/t/ST-10`; `git log
   --all --format=%s` in `root` holds exactly one line `claim: ST-10` (no second claim commit).
@@ -734,10 +740,17 @@ compute `local` and `remote` there (the two `rev-parse --verify -q` checks case 
 for those cases). When `opts.continue !== true` and the branch exists (`held !== undefined`, `local` or `remote`;
 a worktree entry with the branch implies `local`), run `claimantOf(ctx, id, local ? 'refs/heads/' + branch :
 'refs/remotes/origin/' + branch)`:
-- The claimant is the author email (`%ae`) of the newest commit reachable from that ref whose subject is exactly
-  `claim: <id>`, read with one `git log --format=%ae%x00%s <ref>` (first line, newest first, whose subject after the
-  `\0` equals `'claim: ' + id`). When no such commit exists, it is `ctx.snapshot.claims[id]` when `claims` is
-  defined and `Object.hasOwn(ctx.snapshot.claims, id)`; otherwise there is no claimant and Pick up goes on as today.
+- The claimant is the author email (`%ae`) of the newest commit reachable from that ref and not from the default
+  ref whose subject is exactly `claim: <id>`. Read it with one call,
+  `git(ctx.root, ['log', '--fixed-strings', '--grep=claim: ' + id, '--format=%ae%x00%s', ref, '--not', def])`,
+  where `def = gitDefaultRef(ctx.root)` (already imported from `load/fs.ts`); when `def` is `undefined` the last
+  two arguments are left out. Git does the search, so the output holds only the commits whose
+  message contains `claim: <id>`, never the ref's whole history (`git()` sets no `maxBuffer`; `--fixed-strings` and
+  `--not` are documented in `git log --help`). Take the first line, newest first, whose subject after the `\0`
+  equals `'claim: ' + id` exactly (`--grep` also matches `claim: ST-10` for `ST-1`, and matches in a body). `--not
+  <def>` leaves out every claim already on the main branch: an old claim of the user's, merged and its branch
+  deleted, never credits the user a teammate's new branch of the same name. When no such commit exists, it is
+  `ctx.snapshot.claims[id]` when `claims` is defined and `Object.hasOwn(ctx.snapshot.claims, id)`; otherwise there is no claimant and Pick up goes on as today.
 - `me = gitUserEmail(ctx.root)`; when it is `''`, throw `UsageError('git user.email is not set - set it with git
   config user.email <you@example.com>')` (the dashboard's message), so a claim is never judged against nobody.
 - When the claimant and `me` differ after trimming and lower-casing both, throw `UsageError('claimed: ' + id + '
@@ -747,20 +760,38 @@ a worktree entry with the branch implies `local`), run `claimantOf(ctx, id, loca
 - Otherwise cases 1 to 4 run exactly as before.
 
 Skill text, `packages/core/skills/accord/worktree.md`: the paragraph `After Pick up's ...` becomes, wrapped at the
-file's width:
+file's width, the refusal first so an agent reading in order meets it before the push:
 ```
-After Pick up's `accord worktree open <id>`, push the claim with `git push -u origin <branch>` before
-anything else, even when a setup command failed. When it exits 2 with a line starting `claimed:`,
-another person holds the claim: push nothing, show the message and stop. Offer `/accord continue <id>`
-only when the owner means to work on the ticket with them.
+When Pick up's `accord worktree open <id>` exits 2 with a line starting `claimed:`, another person
+holds the claim: push nothing, show the message and stop. Offer `/accord continue <id>` only when the
+owner means to work on the ticket with them. Otherwise push the claim with
+`git push -u origin <branch>` before anything else, even when a setup command failed.
 ```
-SKILL.md is not changed (its 5,120-byte limit; its Pick up paragraph already says to follow `./worktree.md`).
+
+`packages/core/skills/accord/SKILL.md`, the Pick up paragraph only, so it sends the agent to `./worktree.md` before
+any push (this replaces the re-plan Ruling that SKILL.md is not changed). Its last two lines,
+``on it. Then`` / ``push it (the pushed branch is the claim) and follow `./worktree.md`.``, become
+``on it. Follow`` / `` `./worktree.md`; it says when to push it (the pushed branch is the claim). ``, so the
+paragraph is exactly:
+```
+Run `accord worktree open <id>`: it makes its `branch` from
+`accord status --json` and commits `claim: <id>` on it. Follow
+`./worktree.md`; it says when to push it (the pushed branch is the claim).
+```
+That is 8 bytes more. `push it (the pushed branch is the claim)`, `claim: <id>`, `push it`, `` `branch` ``, ``
+`accord status --json` ``, `` `accord worktree open <id>` `` and `./worktree.md` stay in the Pick up slice, each on
+one line, as `REQUIRED.accord` and the `ac-5 the accord skill takes the claim branch...` and `risk:regression the
+accord skill opens each ticket...` cases of `stage-skills.test.ts` check. No other line of SKILL.md changes. If
+`every SKILL.md is at most MAX_SKILL_BYTES bytes` in `skills.test.ts` fails, report BLOCKED with the rendered byte
+count; never cut another passage.
+
 Then `npm run gen`, `npm run build`, and from the repository root `node packages/cli/dist/cli.js skills sync`,
-which rewrites `.claude/skills/accord/worktree.md`; commit it with `packages/core/src/generated/skills.ts`. Then
-run `npx vitest run packages/core/test/stage-skills.test.ts packages/core/test/skills.test.ts`.
+which rewrites `.claude/skills/accord/SKILL.md` and `.claude/skills/accord/worktree.md`; commit both with the two
+sources and `packages/core/src/generated/skills.ts`. Then run `npx vitest run packages/core/test/stage-skills.test.ts
+packages/core/test/skills.test.ts`.
 
 Must not change: Continue (`--continue`) in every case; the claim path when no branch exists (Task 2's ac-1, ac-2
 and risk cases, Task 4's cases that pick up first, the bad-config case); the stop output's three lines; every
 phrase `risk:regression the accord skill opens each ticket in its own worktree...` checks in `worktree.md`
 (`` `git push -u origin <branch>` `` and `even when a setup command failed` stay); the skill copies `skills sync`
-reports `unchanged` besides `worktree.md`.
+reports `unchanged` besides `SKILL.md` and `worktree.md`; every line of SKILL.md outside the Pick up paragraph.

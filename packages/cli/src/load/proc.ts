@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { UsageError } from './fs.js';
 
 export interface ProcRow {
@@ -106,4 +106,23 @@ export function isLive(h: { pid: number; start: string }, table: ProcRow[]): boo
 
 export function describeSession(h: { marker: string; pid: number }): string {
   return `Claude Code session ${h.marker} (pid ${h.pid})`;
+}
+
+/**
+ * D-07: each `setup` command, in order, through the platform shell (`npm` is a `.cmd` shim on Windows).
+ * The only shell site: `setup` is committed repository content, trusted as `tests.affected` is.
+ * Output is shown only on failure; the first failing command stops the run.
+ */
+export function runSetup(
+  commands: readonly string[],
+  cwd: string,
+): { failed?: { command: string; code: number | null; tail: string } } {
+  for (const command of commands) {
+    const r = spawnSync(command, { cwd, shell: true, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 });
+    if (r.status !== 0) {
+      const text = (r.stderr.trim() !== '' ? r.stderr : r.stdout).trimEnd();
+      return { failed: { command, code: r.status, tail: text.split('\n').slice(-20).join('\n') } };
+    }
+  }
+  return {};
 }

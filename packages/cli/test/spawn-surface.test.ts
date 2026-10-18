@@ -68,21 +68,17 @@ describe('spawn surface', () => {
     // A silently empty scan would make both assertions below vacuous.
     expect(sites.length).toBeGreaterThan(0);
   });
+});
 
-  it('spawns only git and gh, named as a string literal (T-05-01)', () => {
-    const offenders = sites
-      .filter((s) => {
-        const m = FIRST_ARG.exec(s.args);
-        return m === null || !ALLOWED.includes(m[2]);
-      })
-      .map((s) => `${s.where}: ${s.args.split('\n')[0].trim()}`);
-    expect(offenders).toEqual([]);
+it('risk:security only git gh ps and powershell are spawned by name and one setup site uses the shell', () => {
+  const sites = spawnSites();
+  const unnamed = sites.filter((s) => {
+    const m = FIRST_ARG.exec(s.args);
+    return m === null || !ALLOWED.includes(m[2]);
   });
-
-  it('passes no shell option to any spawn site', () => {
-    const offenders = sites.filter((s) => /\bshell\s*:/.test(s.args)).map((s) => s.where);
-    expect(offenders).toEqual([]);
-  });
+  expect(unnamed.map((s) => s.where.split(':')[0])).toEqual(['load/proc.ts']);
+  expect(unnamed[0].args).toContain('shell: true');
+  expect(sites.filter((s) => /\bshell\s*:/.test(s.args)).map((s) => s.where)).toEqual(unnamed.map((s) => s.where));
 });
 
 describe('printed paths', () => {

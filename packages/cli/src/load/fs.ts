@@ -404,6 +404,26 @@ export function gitTicketIdsInHistory(root: string): string[] {
   return [...ids];
 }
 
+/** D-15: origin/HEAD's target when it resolves, else origin/main or origin/master; never fetched, never the local main. */
+export function gitDefaultRef(root: string): string | undefined {
+  const opts = { cwd: root, encoding: 'utf8' as const, stdio: ['ignore', 'pipe', 'pipe'] as ['ignore', 'pipe', 'pipe'] };
+  const resolves = (ref: string): boolean => {
+    try {
+      execFileSync('git', ['rev-parse', '--verify', '-q', ref], opts);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  try {
+    const head = execFileSync('git', ['symbolic-ref', '-q', 'refs/remotes/origin/HEAD'], opts).trim();
+    if (resolves(head)) return head;
+  } catch {
+    // no origin/HEAD
+  }
+  return ['refs/remotes/origin/main', 'refs/remotes/origin/master'].find(resolves);
+}
+
 /**
  * IDS-1 D-17/D-18: `people` from accord/config.yml on every local and fetched branch, read without the network.
  * `defaultRef` is origin/HEAD's target, else origin/main or origin/master, whichever exists.
@@ -444,13 +464,7 @@ export function gitPeopleOnRefs(root: string): { byRef: Record<string, Record<st
     if (people !== undefined) byRef[ref] = people;
     at = nl + 1 + size + 1;
   }
-  let defaultRef: string | undefined;
-  try {
-    const head = execFileSync('git', ['symbolic-ref', '-q', 'refs/remotes/origin/HEAD'], { ...opts, encoding: 'utf8' }).trim();
-    if (refs.includes(head)) defaultRef = head;
-  } catch {
-    // no origin/HEAD
-  }
-  defaultRef ??= ['refs/remotes/origin/main', 'refs/remotes/origin/master'].find((r) => refs.includes(r));
+  const found = gitDefaultRef(root);
+  const defaultRef = found !== undefined && refs.includes(found) ? found : undefined;
   return defaultRef === undefined ? { byRef } : { byRef, defaultRef };
 }

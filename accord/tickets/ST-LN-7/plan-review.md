@@ -39,3 +39,8 @@ No findings
 
 ## Closed
 Converged at round 4 (no Must, no Should open); `accord gate plan ST-LN-7` passed after the owner re-approved the ticket ("Duyệt (Khuyên)"); baseline tests at fd9798e: 60 files, 1245 tests passed.
+
+## Round 1 (diff)
+Re-plan after the Task 1 build gap (no parent walk), commit bdff57d; one critic, mode diff.
+1. Should — the Windows fix also drops the fail-closed check on POSIX, where orphans are reparented and a walk never stops at a missing pid: a sandbox in its own PID namespace can hold a process numbered `CLAUDE_PID`, so a live holder outside is read as dead and its hold taken; and a stale `CLAUDE_PID` reused by a daemon is recorded as holder, refusing every real session; keep the row check and walk from the command: refuse when the walk reaches a row with ppid 0 or pid 1 without meeting `CLAUDE_PID`, accept when it meets it or stops at a parent id with no row (the msys gap), and add that pure case — open
+2. Nice — plan.md still says the pure test's table has "`self` 10" though `sessionIn` takes no `self` — deferred

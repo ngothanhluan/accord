@@ -43,3 +43,4 @@
 - Plan critique 1.16 (Nice): the setup-source Ruling's reason did not hold for an existing ticket branch; its reason is corrected — deferred.
 - Plan critique 1.17 (Nice): the lock must be released before `prepare`, or a killed setup leaves `holds.lock` behind — deferred.
 - Plan critique 1.18 (Nice): `loadConfig(file, text)` takes the file's text, not a URL — deferred.
+- Re-plan critique 1.2 (Nice): plan.md still names `self` 10 in the pure test though `sessionIn` takes no `self` — deferred.

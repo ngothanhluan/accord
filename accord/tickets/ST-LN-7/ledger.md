@@ -28,6 +28,9 @@
 - Ruling: `worktrees(root)` runs `git worktree prune` when an entry is `prunable` — it drops only git's records of missing folders; branches and locked worktrees are untouched (plan critique 2.2) — cost if wrong: a worktree folder moved by hand can no longer be reattached with `git worktree repair`.
 - Ruling: the intro paragraph of the `accord` SKILL.md is deleted to fit the 5,120-byte limit — the frontmatter `description` says the same (plan critique 2.4) — cost if wrong: a reader loses one orienting sentence.
 - Ruling: in `ids.md`, the `## Dropping instead of renaming` steps get no `--worktree` — a replacement ticket is made inside the dropped ticket's own session — cost if wrong: a lane M replacement ticket is written in that session's checkout.
+- Ruling: a bare `prunable` with no reason prints `pruned <path>: no reason given` — every pruned entry gets one line of one shape (plan critique 3.1) — cost if wrong: one wording change.
+- Ruling: `new ticket --worktree` also passes `ctx.stdout` to `worktrees`, so a lane M request never prunes silently — named in Task 3's caller list only — cost if wrong: the Task 6 executor learns it from Task 3 or the compiler.
+- Ruling: the prunable tests compare against the reason git prints in the porcelain list, not a fixed string — so another git version on CI does not break them — cost if wrong: none found.
 
 ## Deferred
 - Plan critique 1.14 (Nice): the main checkout has no setup done-marker, so Continue rooted there reruns the whole setup in the owner's checkout — deferred.

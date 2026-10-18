@@ -38,7 +38,8 @@ Definitions shared by every task:
   (`branch` is the short name after `refs/heads/`; a `detached` entry has none), in the order git prints them. The
   first entry is the main worktree. From Task 3 on, an entry carrying a `prunable` line (its folder was deleted or
   moved by hand; `git worktree list` documents the attribute) is never returned: `worktrees(root)` runs `git
-  worktree prune` once and lists again when any entry has one. Two paths are the same when they are equal, compared case-insensitively on
+  worktree prune` once and lists again when any entry has one, writing one line `pruned <path>: <git's reason>`
+  per entry the prune removed. Two paths are the same when they are equal, compared case-insensitively on
   win32.
 - The sibling path of a ticket (D-06, ledger Ruling 7): the main worktree's path up to and including its last
   `/`, then its folder name, `-`, and the id in lower case. For `C:/Work/accord` and `ST-9`:
@@ -270,16 +271,21 @@ Tests first, in `packages/cli/test/worktree.test.ts`:
   sibling folder exists.
 - `it('risk:complex-branching continue prunes a worktree whose folder was deleted by hand')`: `makeClone({ setup:
   ['node setup-step.js ci'] })`; `git worktree add -b t/ST-9 <sibling> origin/main`, then `rmSync(sibling('ST-9'),
-  { recursive: true, force: true })`, so `git worktree list --porcelain` shows that entry with a `prunable` line.
-  `worktree open ST-9 --continue` from `root` exits 0; `out` holds the three stop lines naming `sibling('ST-9')`;
-  the folder exists again with `setup.log` equal to `ci\n` (case 3 below re-added it); `git worktree list
+  { recursive: true, force: true })`, so `git worktree list --porcelain` shows that entry with a `prunable` line;
+  `reason` is the text after `prunable ` on that line, read before the run. `worktree open ST-9 --continue` from
+  `root` exits 0; `out` split on `\n`, empty lines dropped, is exactly `pruned <sibling('ST-9')>: <reason>` followed
+  by the three stop lines naming `sibling('ST-9')`, and no line holds `repair`; the folder exists again with `setup.log` equal to `ci\n` (case 3 below re-added it); `git worktree list
   --porcelain` has an entry at `sibling('ST-9')` with `branch refs/heads/t/ST-9` and no line starting `prunable`.
 
-`worktrees(root)` (preamble): parse a line `prunable` or `prunable <reason>` into `prunable: true`; when any entry
-has it, run `git worktree prune` once (it drops only the records of missing folders; branches are untouched, and a
-locked worktree is never prunable) and parse the list again; return no entry that is still prunable. Every caller,
-Task 5's `clean` included, then never prints a missing path, never runs a command in a missing folder, and `git
-worktree add` is not blocked by a stale record of the branch.
+`worktrees(root, out: NodeJS.WritableStream)` (preamble): parse a line `prunable` or `prunable <reason>` into
+`prunable: true` and its reason; when any entry has it, run `git worktree prune` once (it drops only the records
+of missing folders; branches are untouched, and a locked worktree is never prunable) and parse the list again; for
+each prunable entry absent from the second list, in the first list's order, write `pruned <path>: <reason>\n` to
+`out` (`<reason>` is git's text after `prunable `, or `no reason given` when git prints none; no repair advice:
+a folder moved by hand loses its git record, its files stay); return no entry that is still prunable. Every caller
+(Pick up and Continue in `worktreeOpen`, Task 5's `clean`, Task 6's `newTicket --worktree`) passes `ctx.stdout`.
+Every caller then never prints a missing path, never runs a command in a missing folder, and `git worktree add`
+is not blocked by a stale record of the branch (git refuses to add a branch whose entry is still prunable).
 
 Interface, in `worktreeOpen`, after the id check and before the claim path, in this order:
 1. A worktree entry other than the one at `ctx.root` has `branch`: print the stop output with that entry's path and
@@ -411,12 +417,14 @@ Tests first, in `packages/cli/test/worktree.test.ts`:
 - `it('risk:complex-branching clean prunes a worktree whose folder was deleted by hand')`: `makeClone({ tickets:
   ['ST-9', 'ST-10'] })`; `git worktree add -b t/<id> <sibling> origin/main` for both, with no commit of their own,
   so both are merged; then `rmSync(sibling('ST-9'), { recursive: true, force: true })`. `worktree clean` from
-  `root` with env `{}` exits 0 and its non-empty lines are exactly `removed <sibling ST-10>`; no line names
-  `sibling('ST-9')`; `git worktree list --porcelain` has only the main entry and no line starting `prunable`;
+  `root` with env `{}` exits 0 and its non-empty lines are exactly, in this order, `pruned <sibling ST-9>:
+  <reason>` (`reason` the text after `prunable ` on that entry's line of `git worktree list --porcelain`, read
+  before the run) and `removed <sibling ST-10>`; no line holds `repair`; `git worktree list --porcelain` has only the main entry and no line starting `prunable`;
   `git rev-parse --verify -q refs/heads/t/ST-9` still succeeds (D-01: branches are ST-LN-20's).
 
 Interface: `worktreeClean(ctx: CommandContext): number`, always 0 unless git cannot run:
-1. The entries of `worktrees(ctx.root)` (which has already pruned and dropped every `prunable` entry, Task 3) after
+1. The entries of `worktrees(ctx.root, ctx.stdout)` (which has already pruned, printed one `pruned` line per pruned
+   entry, and dropped every `prunable` entry, Task 3) after
    the first (the main worktree is never removed) whose `branch` gives
    an id through `ticketOfBranch(branch, ctx.snapshot.branchTemplates ?? [DEFAULT_BRANCH_TEMPLATE], (id) =>
    Object.hasOwn(ctx.snapshot.tickets, id))` are the candidates, whatever the folder is called (D-16), in the
@@ -514,7 +522,7 @@ Test first, in `packages/core/test/stage-skills.test.ts`:
   `./worktree.md`; the Pick up slice (`## Pick up` to `## New request`) contains `` `accord worktree open <id>` ``
   and `./worktree.md`; the M slice (`- **M.**` to `- **L and P.**`) contains `--lane M --worktree` twice and
   `./worktree.md`. No slice but the Dashboard's contains `worktree clean`, and `text` contains no `git switch`.
-  `ref` contains `` `stop:` ``, `` `held: <id> by this session` ``, `` `not held:` ``, `` `not a ticket:` ``, ``
+  `ref` contains `` `pruned <path>: <reason>` ``, `` `stop:` ``, `` `held: <id> by this session` ``, `` `not held:` ``, `` `not a ticket:` ``, ``
   `not claimed:` ``, `Never change directory into the worktree`, `except the people entry below`, `editing
   nothing`, `runs every setup command again`, `the longest timeout`, `` `git push -u origin <branch>` ``, `even
   when a setup command failed`, `git -C "<path>" push -u origin <branch>`, `and only that entry`, ``only from
@@ -579,6 +587,8 @@ anything else, even when a setup command failed.
 
 What `accord worktree open <id>` and `accord new ticket --worktree` print:
 
+- A line `pruned <path>: <reason>`: git dropped its record of a worktree whose folder is gone; show the
+  line verbatim and go on with the other lines.
 - A line `stop:`: show the two lines after it verbatim, the worktree's path and the line to type in a
   session opened in that folder, then stop. Never change directory into the worktree, never edit a file
   there except the people entry below, and never start the next stage from this session.

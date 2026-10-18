@@ -48,7 +48,7 @@ Feature: ST-LN-21
     When the panel draws its search field and the field is empty
     Then the field's label is still "Search", which the terminal draws as "Search: ", and the field's own dim hint, which the host draws inside the empty field, is "ticket id or title, or a new request" verbatim
 
-  @ac-2
+  @ac-2 @test:packages/core/test/panel.test.ts#ac-2-text-that-matches-no-ticket-shows-the-no-match-line-and-New-request
   Scenario: Text that matches no ticket says so and points to New request
     Given the panel shows ST-1 titled "Login form" under YOURS and ST-2 titled "Export" under READY
     When the owner types "zzz" in the search field

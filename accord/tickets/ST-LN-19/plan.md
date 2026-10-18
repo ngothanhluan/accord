@@ -1,6 +1,6 @@
 ---
 baseline: 48665d50ccf38ddae200c5c6dd476335389ff3d0
-plan_hash: "fnv1a64:ae0f456f36298b61"
+plan_hash: "fnv1a64:d8e8410d29a457f6"
 ---
 
 Review mode `outcome`: one branch, no slices.
@@ -62,25 +62,34 @@ body of a lane M ticket `T-1` built with `laneTicket('T-1', { body: FOUR })`, wh
 on `makeLaneRepo({ 'accord/tickets/T-1.md': laneTicket('T-1', { body: FOUR }) })`; expect exit 0; the Given text
 occurs exactly once in the output, on the line `- Given a report of the month with three hundred rows (ac-1, ac-2, ac-3, ac-4)`;
 the csv When occurs exactly once, on `- When the owner exports it as csv (ac-1, ac-2, ac-3)`; `When the owner prints it`
-appears under `**ac-4 ...**` as `- When the owner prints it`; and the criteria part (from `## Acceptance criteria`
-to `## Vetoes`) equals, line for line, the shared block, a blank line, then each scenario's bold line, its own
-`- ` steps from its first `Then` to its last step word for word (ac-3's backticks kept), and a blank line.
+appears under `**ac-4 ...**` as `- When the owner prints it`; and the compared block equals, line for line, the
+two shared lines, a blank line, then per scenario in order its bold line, one `- <step>` line for every step after
+its shared prefix, word for word (ac-3's backticks kept), and a blank line. So ac-1 and ac-3 get their `Then`,
+ac-2 its `Then` and `And`, and ac-4 `- When the owner prints it` followed by its `Then`. The compared block is the
+output lines after the `## Acceptance criteria` heading line and the one blank line that follows it, up to and
+excluding the `## Vetoes` line; it ends with ac-4's trailing blank line. The heading and its blank line are not in
+the compared block.
 Fails today: commander rejects the unknown option with exit 2.
 
 Interface:
 - `packages/core/src/load/gherkin.ts`: move the prelude of `extractScenarios` (dialect lookup, the prepended
-  `Feature:` line, `toMarkdown`, the parse) into a private `parseFence(ticketId, fence)` that returns the parsed
-  document, its language, and `toMarkdown`, and throws as `parser.parse` does; `extractScenarios` calls it inside
-  its existing `try`. Add `export function leadSteps(ticketId: string, fence: Fence): Record<number, number>`:
+  `Feature:` line, `toMarkdown`, the parse) into a private `parseFence(ticketId, fence)` that never throws: it
+  returns `{ toMarkdown, doc }` when `parser.parse` succeeds and `{ toMarkdown, error }` (the caught value) when it
+  throws, so `toMarkdown` is in scope on both paths. `extractScenarios` calls it, and on `error` builds its
+  findings from it exactly as its `catch` does today (`CompositeParserException` errors, each line through
+  `toMarkdown`, the `(l:c):` prefix stripped); on `doc` it walks as today with `doc.feature.language`. Add `export function leadSteps(ticketId: string, fence: Fence): Record<number, number>`:
   keyed by each scenario's Markdown line (the same `toMarkdown(sc.location.line)` that `scenarioRef` stores as
   `line`), the value is the number of entries of that scenario's `steps` (Background steps first, as `walk`
   builds them, Rule nesting included) before the first step whose phase is `Outcome`, or the number of
   Background plus scenario steps when none is. The phase is the step's `keywordType` when it is `Context`,
   `Action`, or `Outcome`; `Conjunction` and `Unknown` (And, But, `*`) take the phase of the step before, and a
-  first step with no phase counts as `Context`. A parse error returns `{}`.
+  first step with no phase counts as `Context`. When `parseFence` returns `error`, or `doc` has no feature,
+  `leadSteps` returns `{}`.
 - `packages/core/src/status/approval.ts`: `export function approvalView(ticket: Ticket): string`, the view
   described above the tasks. The criteria part re-scans the `## Acceptance criteria` section: `scan` its lines
-  joined with `\n` at offset `section.lines[0].line - 1`, keep fences whose info's first word is `gherkin`, merge
+  joined with `\n` at offset `section.line` (the heading's line, so the first body line gets `section.line + 1`, as
+  `scan` numbers `bodyOffset + i + 1` at `sections.ts:50`; a section with no lines scans `''`, finds no fence, and
+  prints `none`), keep fences whose info's first word is `gherkin`, merge
   `leadSteps(ticket.id, fence)` over them, and read each scenario's lead as `leads[s.line] ?? 0`. Shared lines
   are a prefix trie over each lead (exact string match on `steps` entries), built only from scenarios whose
   `acTag` no other scenario carries; a node reached by two or more of them is shared; shared nodes print
@@ -123,7 +132,10 @@ records how many shared steps it got.
    title, steps and keywords, nothing extra); and for each scenario the shared steps it got are fewer than or
    equal to the index of its first step starting `Then ` (its step count when it has none), and each shared
    step it got sits before all of its own steps, which the rebuild order already gives. Collect every offender as `<id> <reason>` into one
-   `bad` list and end with `expect(bad).toEqual([])`.
+   `bad` list and end with `expect(bad).toEqual([])`. The case runs one in-process `show --approval` per selected
+   ticket, each spawning git, so it passes an explicit timeout as `it`'s third argument, `}, 300_000);`, the way
+   `packages/cli/test/lane-flow.test.ts:96` passes `120_000`, above the cli project's 30 s `testTimeout`
+   (`packages/cli/vitest.config.ts:5`).
 2. `it('risk:parsing approval shares only steps before the first then in a language vi fence')`: a lane ticket
    whose fence starts `# language: vi`, then `Tính năng: X`, two `Tình huống:` scenarios `@ac-1` and `@ac-2`, each
    `Cho một báo cáo`, `Khi chủ xuất nó`, `Và chọn csv`, then a different `Thì ...` and an identical
@@ -144,7 +156,7 @@ Must not change: every case Task 1 wrote; the files under `accord/tickets/` (the
 ## Task 3: The view prints the six approved sections, and refuses what it cannot show
 covers: @ac-3, D-05
 files: packages/cli/test/show-approval.test.ts (new), packages/cli/src/commands/show.ts, packages/cli/src/run.ts
-verify: packages/cli/test/show-approval.test.ts#ac-3-the-approval-view-prints-the-six-approved-sections-and-nothing-else (@ac-3), packages/cli/test/show-approval.test.ts#risk:data-loss-approval-refuses-a-ticket-whose-gherkin-does-not-parse, packages/cli/test/show-approval.test.ts#risk:complex-branching-approval-needs-a-ticket-but-no-lane-and-refuses-json, packages/cli/test/show-approval.test.ts#risk:security-approval-turns-control-characters-into-spaces-on-each-line
+verify: packages/cli/test/show-approval.test.ts#ac-3-the-approval-view-prints-the-six-approved-sections-and-nothing-else (@ac-3), packages/cli/test/show-approval.test.ts#risk:data-loss-approval-refuses-a-ticket-whose-gherkin-does-not-parse, packages/cli/test/show-approval.test.ts#risk:complex-branching-approval-needs-a-ticket-but-no-lane-and-refuses-json, packages/cli/test/show-approval.test.ts#risk:security-approval-turns-control-characters-into-spaces-on-each-line, packages/cli/test/show.test.ts#ac-1-accord-show-prints-the-full-detail-as-text, packages/cli/test/show.test.ts#ac-2-accord-show-json-gives-the-same-detail-as-data, packages/cli/test/show.test.ts#risk:security-show-text-turns-control-and-bidi-characters-into-spaces
 
 Tests first.
 1. `it('ac-3 the approval view prints the six approved sections and nothing else')`: a lane M ticket with two
@@ -175,6 +187,10 @@ Interface:
   ticket's file; when any exists, write one line per finding as `<file>[:<line>]: <rule> <reason>`, then
   `<file> has load findings; run accord lint`, to stderr and return 1 without writing stdout. A schema error in
   the frontmatter is such a finding, so no frontmatter check is added.
+
+The three `packages/cli/test/show.test.ts` ids on the `verify:` line are that file's existing cases at lines 15, 63,
+and 83, which prove ac-3's last Then (`accord show <id>` and `--json` unchanged); this task neither writes nor edits
+them, and they must pass as they stand.
 
 Then `npm run build` and `npx vitest run packages/cli` must pass, Task 2's ac-1 case included.
 
@@ -215,7 +231,7 @@ asserts.
 ## Task 5: The intent and approach skills show the view at the owner's yes
 covers: @ac-4, D-06, D-07, D-08
 files: packages/core/skills/intent/SKILL.md, packages/core/skills/approach/SKILL.md, packages/core/test/stage-skills.test.ts, packages/core/src/generated/skills.ts, .claude/skills/accord-intent/SKILL.md, .claude/skills/accord-approach/SKILL.md, docs/design.md, docs/specs/2026-10-12-workflow-layer-design.md
-verify: packages/core/test/stage-skills.test.ts#ac-4-the-intent-and-approach-skills-show-the-approval-view-at-the-owners-yes (@ac-4)
+verify: packages/core/test/stage-skills.test.ts#ac-4-the-intent-and-approach-skills-show-the-approval-view-at-the-owners-yes (@ac-4), packages/core/test/stage-skills.test.ts#risk:regression-the-owners-yes-steps-still-ask-for-an-explicit-yes-and-commit-the-answer
 
 Test first, a new top-level case in `packages/core/test/stage-skills.test.ts` after the last case:
 `it('ac-4 the intent and approach skills show the approval view at the owners yes')`. Shared shape as the cases
@@ -228,15 +244,31 @@ each line starting `\d+\. ` or `#` (`text.split(/^(?=\d+\. |#)/m)`), keep the ch
 `not inside a code block`, `horizontal rule`, `In plain words`, `one line per scenario that begins with its ac-n`,
 and its lowercase form must not contain `from the ticket file`; each miss goes to `bad` with its phrase.
 
+Second new top-level case, after it:
+`it('risk:regression the owners yes steps still ask for an explicit yes and commit the answer')`, same shape and
+the same chunk, found and normalised the same way, for both stages in every `dir`. The chunk of each stage must
+contain `ask for an explicit yes`; the intent chunk must also contain
+`on yes commit the ticket with the owner's answer quoted in the commit message`. Each miss goes to `bad` as
+`<dir> <stage> <phrase>`.
+
 Interface, in `packages/core/skills/intent/SKILL.md` step 9 and `packages/core/skills/approach/SKILL.md` step 5,
-each still opening `**The owner's yes.**` and wrapped at about 80 columns: replace the show sentence(s) with:
-run `accord show <id> --approval` and paste its output unchanged, as Markdown, not inside a code block; if the
-command fails, stop and tell the owner; below it put a horizontal rule, a heading "In plain words" written in the
-chat language, and one line per scenario that begins with its ac-n and says in plain words what it means. In the
-approach step this replaces "Show the owner the `## Approach` section verbatim, copied from the ticket file ..."
-through "... and Corrections verbatim too."; add that the view holds every approved section. Every other sentence
-of both steps stays, including "Decisions, and Corrections as written", `approved_hash:`, and the commit and
-`--allow-empty` text. The approach SKILL.md render must stay at most 5120 bytes (`packages/core/test/skills.test.ts:255`);
+each still opening `**The owner's yes.**` and wrapped at about 80 columns. The new text, written once per skill:
+Run `accord show <id> --approval`; if it fails, stop and tell the owner. Paste its output unchanged, as Markdown,
+not inside a code block; below it put a horizontal rule, a heading "In plain words" written in the chat language,
+and one line per scenario that begins with its ac-n and says in plain words what it means.
+
+- Intent step 9: the replaced span is exactly
+  "Show the owner the `## Intent` section and the acceptance criteria block verbatim, copied from the ticket file
+  and never summarised," (from `Show` through the comma after `summarised`). The step then reads
+  `**The owner's yes.**`, the new text with its final period turned into `;`, then the kept clause
+  "ask for an explicit yes, and on yes commit the ticket with the owner's answer quoted in the commit message."
+  word for word, then every sentence after it unchanged ("That commit holds ...", `--allow-empty`, "On a no, ...").
+- Approach step 5: the replaced span is exactly from "Show the owner the `## Approach` section verbatim," through
+  "Decisions, and Corrections verbatim too." (both sentences, ending before "The question names"). The step then
+  reads `**The owner's yes.**`, the new text with "Paste its output" written as "Paste its output, which holds
+  every approved section," and its final period turned into `;`, then the kept clause "and ask for an explicit yes."
+  word for word, then every sentence after it unchanged from "The question names the text above it" on, including
+  "Decisions, and Corrections as written", `approved_hash:`, and the go-back text. The approach SKILL.md render must stay at most 5120 bytes (`packages/core/test/skills.test.ts:255`);
 shorten the new sentence, never another step, if it does not fit.
 
 Trim SHOW-1's two cases, keeping their names (their `@test` tags in `accord/tickets/SHOW-1.md` still resolve):
@@ -252,7 +284,7 @@ Docs: `docs/design.md:144` adds `; --approval prints the approved sections for t
 verbatim from the ticket file.
 
 Then run `npm run gen`, `npm run build`, `node packages/cli/dist/cli.js skills sync` (rewrites the two
-`.claude/skills/` copies above), and `npx vitest run packages/core`: the new case, the two trimmed cases, the
+`.claude/skills/` copies above), and `npx vitest run packages/core`: the two new cases, the two trimmed cases, the
 `intent` and `approach` rows of `stage skills name what the spec requires` (`stage-skills.test.ts:18-19`), the drift
 case (`packages/core/test/skills.test.ts:152`), and every `render output invariants` case must pass. Then
 `npx vitest run packages/cli` (`packages/cli/test/skill-commands.test.ts` checks that `accord show` exists).

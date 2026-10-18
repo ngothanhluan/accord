@@ -31,6 +31,8 @@
 - Ruling: a bare `prunable` with no reason prints `pruned <path>: no reason given` — every pruned entry gets one line of one shape (plan critique 3.1) — cost if wrong: one wording change.
 - Ruling: `new ticket --worktree` also passes `ctx.stdout` to `worktrees`, so a lane M request never prunes silently — named in Task 3's caller list only — cost if wrong: the Task 6 executor learns it from Task 3 or the compiler.
 - Ruling: the prunable tests compare against the reason git prints in the porcelain list, not a fixed string — so another git version on CI does not break them — cost if wrong: none found.
+- Ruling: build starts though `git log -1 -- plan.md` prints the approval commit, not `plan: ST-LN-7 ready` — the plan_hash rewrite was committed with the owner's re-approval (fd9798e), plan.md is unchanged since, and `plan: ST-LN-7 ready` (1548f19) follows it — cost if wrong: none; the plan is the gated one.
+- Ruling: each executor gets, besides the brief's path, the line "work in C:/Work/accord-ln7, branch t/ST-LN-7; never touch C:/Work/accord" — the brief names no folder and the session's primary folder is the main checkout on t/ST-LN-20 — cost if wrong: none; it is not chat history.
 
 ## Deferred
 - Plan critique 1.14 (Nice): the main checkout has no setup done-marker, so Continue rooted there reruns the whole setup in the owner's checkout — deferred.

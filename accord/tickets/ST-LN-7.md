@@ -46,7 +46,7 @@ Feature: ST-LN-7
     When "/accord pick-up ST-9" runs in a session rooted at "C:/Work/accord"
     Then "git worktree list" shows the branch "t/ST-9" checked out at "C:/Work/accord-st-9"
     And "npm ci" then "npm run build" ran in "C:/Work/accord-st-9", in that order
-    And the session prints the path "C:/Work/accord-st-9" and the line "/accord continue ST-9" to type in a session opened there, names no agent's own command, and stops
+    And the accord CLI command prints the path "C:/Work/accord-st-9" and the line "/accord continue ST-9" to type in a session opened there, naming no agent's own command, and the session stops
     And the branch checked out in "C:/Work/accord" is the one it had before
 
   @ac-2
@@ -62,21 +62,21 @@ Feature: ST-LN-7
     Given the branch "t/ST-9" is checked out in the worktree "C:/Work/accord-ln9", a name made by hand
     When "/accord continue ST-9" runs in a session rooted at "C:/Work/accord"
     Then no new worktree is added and the branch checked out in "C:/Work/accord" is unchanged
-    And the session prints the path "C:/Work/accord-ln9" and the line "/accord continue ST-9" to type in a session opened there, names no agent's own command, and stops
+    And the accord CLI command prints the path "C:/Work/accord-ln9" and the line "/accord continue ST-9" to type in a session opened there, naming no agent's own command, and the session stops
 
   @ac-4
   Scenario: A second session in a held worktree is refused while the holder runs, and a dead holder's hold is taken over
-    Given a session rooted at "C:/Work/accord-st-9" holds the ticket "ST-9" and is still running
+    Given an agent session rooted at "C:/Work/accord-st-9" holds the ticket "ST-9" and is still running, though the command that took its hold has exited
     When "/accord continue ST-9" runs in a second session rooted at "C:/Work/accord-st-9"
-    Then the accord CLI command that takes the hold exits 2 with a message naming the holding session, and the second session edits nothing
-    And once the holding session has stopped without releasing its hold, as after a crash, "/accord continue ST-9" in a new session there takes the hold and resumes the ticket
+    Then the accord CLI command that takes the hold exits 2 with a message naming the holding agent session, and the second session edits nothing
+    And once the holding agent session has stopped without releasing its hold, as after a crash, "/accord continue ST-9" in a new session there takes the hold and resumes the ticket
 
   @ac-5
-  Scenario: Each /accord run fetches, removes the worktrees of merged tickets, and names what it keeps
+  Scenario: /accord with no argument fetches, removes the worktrees of merged tickets, and names what it keeps
     Given on the remote the main branch contains the tips of "t/ST-9", "t/ST-10" and "t/ST-12", which the local clone has not fetched, and not the tip of "t/ST-11"
     And "C:/Work/accord-st-9" is clean, "C:/Work/accord-st-10" holds an uncommitted file, "C:/Work/accord-st-11" is clean, and "C:/Work/accord-st-12" is clean and held by a running session
-    When "/accord" runs in a session rooted at "C:/Work/accord"
-    Then it fetches from the remote before it judges which tickets merged
+    When "/accord" with no argument runs in a session rooted at "C:/Work/accord"
+    Then it fetches from the remote, then judges a ticket merged when its branch tip is an ancestor of the fetched remote main branch
     And "C:/Work/accord-st-9" is removed with "git worktree remove" and named as removed
     And "C:/Work/accord-st-10" and its uncommitted file are kept, named with the reason "uncommitted work"
     And "C:/Work/accord-st-12" is kept, named with the reason "held by another session"
@@ -100,6 +100,7 @@ Feature: ST-LN-7
 - D-09 Showing another ticket's stage as it stands on that ticket's branch is not this ticket: it goes to ST-LN-16 "The dashboard shows tickets a teammate has pushed without a manual git fetch…" as an open question (PR #37) — "ok 1. xem có gộp dc vào ticket nào khác ko" (2026-10-18)
 - D-10 The two failures found during ST-LN-21 happen only in the accord repository itself, so this ticket adds nothing for them: `npx` there resolves `@accord-dev/accord` to the repository's own unbuilt workspace package (outside it, and in a user repository with no `node_modules`, `npx --yes @accord-dev/accord@0.1.0 --version` prints 0.1.0), and only there does a ticket change the panel, so the main checkout's panel and a worktree's differ; this repository's `setup` carries `npm rebuild @accord-dev/accord --ignore-scripts` — "đồng ý" (2026-10-18)
 - D-11 The audit's six double readings, settled as recommended: the open-a-session output is tool-neutral, the worktree path and the line `/accord continue <id>`, never one agent's own command; an accord CLI command adds the worktree and runs `setup`, exiting 2 on a failing command; a hold is taken over when its holder is found no longer running, which covers a crash; `/accord` fetches with prompts off (as ids.md does) before judging merges, and on a failed fetch says so and judges against the refs already in the clone; a worktree whose ticket has not merged is kept and not named; a merged worktree held by another session is kept and named with that reason — "Theo cả 6 khuyên (Khuyên)" (2026-10-18)
+- D-12 The second audit's four double readings, settled as recommended: the accord CLI command prints the worktree path and the `/accord continue <id>` line, not the agent in chat; the hold belongs to the long-lived agent session, never to the short-lived process that ran the hold command; merged means an ancestor of the remote-tracking main branch just fetched, never the local `main`; only `/accord` with no argument fetches and removes worktrees, while Pick up and Continue do not — "Theo cả 4 khuyên (Khuyên)" (2026-10-18)
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->

@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { DEFAULT_BRANCH_TEMPLATE, loadConfig } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
-import { gitDefaultRef, UsageError } from '../load/fs.js';
+import { gitDefaultRef, ticketOfBranch, UsageError } from '../load/fs.js';
 import { claudeEnv, describeSession, isLive, processTable, runSetup, sameSession, sessionIn } from '../load/proc.js';
 import type { Session } from '../load/proc.js';
 import type { CommandContext } from '../run.js';
@@ -220,5 +220,80 @@ export function worktreeOpen(ctx: CommandContext, id: string, opts: { continue?:
   git(path, ['commit', '--allow-empty', '-q', '-m', 'claim: ' + id]);
   prepare(path);
   printStop(ctx, path, id);
+  return 0;
+}
+
+const firstLine = (e: unknown) => String((e as { stderr?: string }).stderr ?? e).trim().split('\n')[0];
+
+/** D-05, D-16: fetch, then remove each merged ticket worktree with plain `git worktree remove`, naming what is removed or kept. */
+export function worktreeClean(ctx: CommandContext): number {
+  const list = worktrees(ctx.root, ctx.stdout);
+  const templates = ctx.snapshot.branchTemplates ?? [DEFAULT_BRANCH_TEMPLATE];
+  const cands = list.slice(1).flatMap((w) => {
+    const id = w.branch === undefined ? undefined : ticketOfBranch(w.branch, templates, (i) => Object.hasOwn(ctx.snapshot.tickets, i));
+    return id === undefined ? [] : [{ w, id }];
+  });
+  if (cands.length === 0 || !gitOk(ctx.root, ['remote', 'get-url', 'origin'])) return 0;
+  try {
+    execFileSync('git', ['-c', 'credential.interactive=never', '-c', 'core.sshCommand=ssh -o BatchMode=yes', 'fetch', 'origin'], {
+      cwd: ctx.root,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+    });
+  } catch (e) {
+    ctx.stdout.write(`fetch from origin failed, judging against the refs already in this clone: ${firstLine(e)}
+`);
+  }
+  const ref = gitDefaultRef(ctx.root);
+  if (ref === undefined) return 0;
+  let holds: Record<string, Hold> | undefined;
+  let table: ReturnType<typeof processTable> | undefined;
+  for (const { w, id } of cands) {
+    if (!gitOk(ctx.root, ['merge-base', '--is-ancestor', w.head, ref])) continue;
+    if (norm(w.path) === norm(ctx.root)) {
+      ctx.stdout.write(`kept ${w.path}: this session's worktree
+`);
+      continue;
+    }
+    if (git(w.path, ['status', '--porcelain', '--untracked-files=normal', '--ignore-submodules=none']).trim() !== '') {
+      ctx.stdout.write(`kept ${w.path}: uncommitted work
+`);
+      continue;
+    }
+    if (holds === undefined) withHolds(ctx.root, (h) => ((holds = h), undefined));
+    const h = holds !== undefined && Object.hasOwn(holds, id) ? holds[id] : undefined;
+    if (h !== undefined) {
+      let mine: Session | undefined;
+      try {
+        table ??= processTable();
+        const claude = claudeEnv(ctx.env);
+        if (claude !== undefined) mine = sessionIn(claude, table, process.pid);
+      } catch {
+        ctx.stdout.write(`kept ${w.path}: cannot tell whether the session holding it still runs
+`);
+        continue;
+      }
+      if (isLive(h, table) && !(mine !== undefined && sameSession(h, mine))) {
+        ctx.stdout.write(`kept ${w.path}: held by another session
+`);
+        continue;
+      }
+    }
+    let failure: string | undefined;
+    try {
+      execFileSync('git', ['worktree', 'remove', w.path], { cwd: ctx.root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    } catch (e) {
+      failure = firstLine(e);
+    }
+    const gone = failure === undefined || !worktrees(ctx.root, ctx.stdout).some((x) => x.path === w.path);
+    if (failure === undefined) ctx.stdout.write(`removed ${w.path}
+`);
+    else if (gone) ctx.stdout.write(`removed ${w.path} in part: git worktree remove failed: ${failure} - delete what is left of the folder by hand
+`);
+    else ctx.stdout.write(`kept ${w.path}: git worktree remove failed: ${failure}
+`);
+    if (gone && h !== undefined) withHolds(ctx.root, (all) => (Object.hasOwn(all, id) ? Object.fromEntries(Object.entries(all).filter(([k]) => k !== id)) : undefined));
+  }
   return 0;
 }

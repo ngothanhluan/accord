@@ -22,7 +22,7 @@ import { skills } from './commands/skills.js';
 import { status } from './commands/status.js';
 import { taskDone } from './commands/task-done.js';
 import { testsBaseline } from './commands/tests-baseline.js';
-import { worktreeOpen } from './commands/worktree.js';
+import { worktreeClean, worktreeOpen } from './commands/worktree.js';
 import { loadFromFs, UsageError } from './load/fs.js';
 import { pinMessage } from './pin.js';
 import { repoRoot } from './root.js';
@@ -191,9 +191,14 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
       setCode(testsBaseline(preflight(opts)));
     });
 
-  program
-    .command('worktree')
-    .description('work each ticket in its own git worktree')
+  const worktree = program.command('worktree').description('work each ticket in its own git worktree');
+  worktree
+    .command('clean')
+    .description('fetch, then remove the worktrees of merged tickets and name the ones kept')
+    .action(() => {
+      setCode(worktreeClean(preflight(opts)));
+    });
+  worktree
     .command('open <id>')
     .description("find or prepare the ticket's worktree, or take its hold from inside it")
     .option('--continue', 'continue a claimed ticket: never claim, refuse when it has no branch')

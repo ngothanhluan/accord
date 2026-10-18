@@ -56,6 +56,10 @@
 - Ruling: a failed read of the holds file is cached for one `worktree clean` run, so a stale lock costs one 2 s wait, not one per worktree (review round 1 executor) — cost if wrong: a lock cleared mid-run is noticed only on the next run.
 - Ruling: final review 2 (Pick up of a ticket a teammate claimed joins that branch silently) is a plan gap — Task 3 cases 3 and 4 reuse an existing branch for Pick up as well as Continue, and the executor built that — and goes to a re-plan of one new task; the owner chose that Pick up keeps reusing a branch whose claim commit is the user's own and exits 2 with `claimed: <id> by <author>` and a pointer to `/accord continue <id>` when the claim is someone else's — "Từ chối nếu người khác claim (Khuyên)" (2026-10-18) — cost if wrong: one refusal to relax.
 - Ruling: commit 0496cf0 is rewritten to drop its Co-Authored-By trailer after review converges and before accord-verify, then t/ST-LN-7 is force-pushed and the ledger and review.md SHAs are remapped in one commit, as ST-LN-18 did in 88bf4d1 — `gate done` needs `verified_commit` reachable from main, so a rewrite after verify would orphan it; the earlier advice to rewrite at merge time was wrong — owner: "Cho phép, làm trước verify (Khuyên)" (2026-10-18) — cost if wrong: none; the branch is the owner's alone.
+- Ruling: `gitNoPrompt` appends `-o BatchMode=yes` to `GIT_SSH_COMMAND` or `core.sshCommand` only when its first word's basename is `ssh` or `ssh.exe`, injects nothing when only `GIT_SSH` is set, and injects `ssh -o BatchMode=yes` when none is set — appending to plink or a wrapper can break it, and a `core.sshCommand` injection hides `GIT_SSH` (final review 4) — cost if wrong: a non-OpenSSH command that prompts can still wait on a terminal.
+- Ruling: the round-1 `core.sshCommand` test keeps its title and assertion with its recorder renamed `ssh` (a node-shebang script), so it still counts as OpenSSH under the new rule (final review executor) — cost if wrong: the test relies on Git for Windows running shebang scripts, as it did here.
+- Ruling: a worktree with no `accord/config.yml` still runs no setup; only a file that exists and fails to load throws (final review executor) — cost if wrong: a worktree without a config skips setup silently.
+- Ruling: an empty `GIT_SSH_COMMAND` counts as unset, as before (final review executor) — cost if wrong: none seen.
 
 ## Deferred
 - Plan critique 1.14 (Nice): the main checkout has no setup done-marker, so Continue rooted there reruns the whole setup in the owner's checkout — deferred.
@@ -71,6 +75,8 @@
 - Review round 1 quality, aside: worktree.md carries a new `people` entry into the worktree with four hand-run git and edit steps, the most fragile part of the skill text — deferred.
 - Review round 1 security 1, out of this ticket: `ids.md` also passes `-c core.sshCommand=ssh -o BatchMode=yes`, replacing a user's own `core.sshCommand` — deferred to its own ticket.
 - Review round 1 executor, aside (Nice): the ac-6 test has the same local-equals-origin blind spot as ac-1 had; @ac-6 does not state the start commit, and `newTicketWorktree` uses the same `gitDefaultRef` call that the strengthened ac-1 test now covers — deferred.
+- Final review 5 (Nice): the ac-5 test makes every worktree at its sibling name, so a mapping by folder name instead of branch would still pass — deferred.
+- Final review 6 (Nice): `siblingOf` slices the path and joins it back unchanged; it is `mainPath + '-' + id.toLowerCase()` — deferred.
 
 ## Tasks
 - task 1 done 0496cf0300af

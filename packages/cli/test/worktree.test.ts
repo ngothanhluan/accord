@@ -477,3 +477,38 @@ it('risk:regression this repository setup builds before it relinks the accord bi
   expect(findings).toEqual([]);
   expect(config?.setup).toEqual(['npm ci', 'npm run build', 'npm rebuild @accord-dev/accord --ignore-scripts']);
 });
+
+it('risk:security a configured core.sshCommand survives the fetch in clean and gains BatchMode', async () => {
+  const c = clone();
+  c.git('worktree', 'add', '-q', '-b', 't/ST-9', c.sibling('ST-9'), 'origin/main');
+  const log = `${c.root}/.git/ssh.log`;
+  const rec = `${c.root}/.git/rec.js`;
+  writeFileSync(rec, `require('node:fs').appendFileSync(${JSON.stringify(log)}, process.argv.slice(2).join(' ')); process.exit(1);`);
+  c.git('config', 'core.sshCommand', `node "${rec}" mykey`);
+  c.git('remote', 'set-url', 'origin', 'ssh://example.invalid/repo.git');
+  const { code } = await run(['worktree', 'clean'], c.root, {});
+  expect(code).toBe(0);
+  const seen = readFileSync(log, 'utf8');
+  expect(seen).toMatch(/^mykey -o BatchMode=yes /);
+});
+
+it('risk:data-loss a stale holds lock keeps a merged clean worktree, names it, and clean exits 0', async () => {
+  const c = clone({ tickets: ['ST-9', 'ST-10'] });
+  ticketWorktree(c, 'ST-9');
+  ticketWorktree(c, 'ST-10');
+  mergeOnRemote(c, 'ST-9', 'ST-10');
+  mkdirSync(`${c.root}/.git/accord`, { recursive: true });
+  writeFileSync(`${c.root}/.git/accord/holds.lock`, '');
+  const { code, out } = await run(['worktree', 'clean'], c.root, {});
+  expect(code).toBe(0);
+  expect(existsSync(c.sibling('ST-9'))).toBe(true);
+  expect(existsSync(c.sibling('ST-10'))).toBe(true);
+  expect(lines(out)).toHaveLength(2);
+  for (const id of ['ST-9', 'ST-10']) expect(out).toContain(`kept ${c.sibling(id)}: `);
+  expect(out).toContain('holds.lock');
+  rmSync(`${c.root}/.git/accord/holds.lock`);
+  writeFileSync(`${c.root}/.git/accord/holds`, '[]');
+  const r = await run(['worktree', 'clean'], c.root, {});
+  expect(r.code).toBe(0);
+  expect(existsSync(c.sibling('ST-9'))).toBe(true);
+});

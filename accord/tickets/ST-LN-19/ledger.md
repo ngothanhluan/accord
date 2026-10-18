@@ -3,6 +3,7 @@
 ## Tasks
 - task 1 done 1d395a2da9c7
 - task 2 done 37b3cf63373d
+- task 3 done 58bd5ed3308d
 
 ## Rulings
 
@@ -34,3 +35,5 @@
 - Ruling: task 1's test compares the criteria block as an array of lines, checking ac-3's backtick step and ac-4's own When — the brief fixed the expected lines — cost if wrong: only a stricter assertion to relax.
 - Ruling: task 2's ac-1 case selects tickets whose acceptance-criteria section holds a gherkin fence line, matching the heading by a case-insensitive substring rather than core's unexported `headingKey`, and requires at least ten tickets — cost if wrong: a differently named heading is skipped; the floor stops a vacuous pass.
 - Ruling: task 2's three tests passed on their first run, with no red run shown, because task 1 already built the view — the executor did not break task 1's code to force one — cost if wrong: a test that cannot fail; review checks that each one fails on a broken view.
+- Ruling: task 3's load-finding check reads `(ctx.plain ?? ctx.snapshot).errors`, the snapshot `requireTicket` reads — the checked snapshot and the printed ticket stay the same — cost if wrong: a finding on the other snapshot is missed.
+- Ruling: task 3's parse-error risk test uses a stray prose line between steps, not a step directly under `Feature:`, which the parser reads as description text and does not fail — the test changed before it ever passed — cost if wrong: none.

@@ -58,7 +58,7 @@ Feature: ST-LN-19
     And the shared When appears exactly once, on one line that also holds the ids ac-1, ac-2, and ac-3 and not ac-4
     And each scenario's title, and every step from its first Then to its last step, appear in full, word for word, under that scenario's id, read with the markup the view adds removed as in @ac-1
 
-  @ac-3
+  @ac-3 @test:packages/cli/test/show-approval.test.ts#ac-3-the-approval-view-prints-the-six-approved-sections-and-nothing-else
   Scenario: the view prints the six approved sections and nothing else
     Given a lane M ticket with an Intent, criteria, Vetoes, and Decisions, and with Corrections and Approach sections that hold no line other than a template comment
     When `accord show <id> --approval` runs

@@ -433,3 +433,39 @@ it('risk:complex-branching clean prunes a worktree whose folder was deleted by h
   expect(c.git('worktree', 'list', '--porcelain')).not.toMatch(/^prunable/m);
   expect(c.git('rev-parse', '--verify', '-q', 'refs/heads/t/ST-9').trim()).not.toBe('');
 });
+
+it('ac-6 a new lane m ticket gets its own worktree with the ticket committed and pushed', async () => {
+  const plain = clone({ tickets: [] });
+  expect((await run(['new', 'ticket', 'ST-9', '--lane', 'M'], plain.root)).code).toBe(0);
+  const text = readFileSync(`${plain.root}/accord/tickets/ST-9.md`, 'utf8');
+  const c = clone({ setup: ['node setup-step.js ci'], tickets: [] });
+  const base = c.git('rev-parse', 'origin/main').trim();
+  const { code, out } = await run(['new', 'ticket', 'ST-9', '--lane', 'M', '--worktree'], c.root);
+  expect(code).toBe(0);
+  expect(c.git('worktree', 'list', '--porcelain')).toContain(`worktree ${c.sibling('ST-9')}\n`);
+  expect(c.git('worktree', 'list', '--porcelain')).toContain('branch refs/heads/t/ST-9');
+  expect(readFileSync(`${c.sibling('ST-9')}/setup.log`, 'utf8')).toBe('ci\n');
+  expect(gitRun(c.remote, 'rev-parse', 'refs/heads/t/ST-9').trim()).toBe(gitRun(c.sibling('ST-9'), 'rev-parse', 'HEAD').trim());
+  expect(c.git('show', 't/ST-9:accord/tickets/ST-9.md')).toBe(text);
+  expect(c.git('rev-parse', 't/ST-9^').trim()).toBe(base);
+  expect(out.split('\n').slice(0, 4)).toEqual(['accord/tickets/ST-9.md', ...stopLines(c.sibling('ST-9'), 'ST-9')]);
+  expect(c.git('branch', '--show-current').trim()).toBe('main');
+  expect(existsSync(`${c.root}/accord/tickets/ST-9.md`)).toBe(false);
+});
+
+it('risk:data-loss a failed push keeps the claim commit and names the quoted push to run', async () => {
+  const c = clone({ setup: ['node setup-step.js ci'], tickets: [] });
+  c.git('remote', 'set-url', '--push', 'origin', `${c.remote}-missing`);
+  const { code, out, err } = await run(['new', 'ticket', 'ST-9', '--lane', 'M', '--worktree'], c.root);
+  expect(code).toBe(2);
+  expect(err).toContain(`git -C "${c.sibling('ST-9')}" push -u origin t/ST-9`);
+  expect(gitRun(c.sibling('ST-9'), 'log', '-1', '--format=%s').trim()).toBe('claim: ST-9');
+  expect(existsSync(`${c.sibling('ST-9')}/accord/tickets/ST-9.md`)).toBe(true);
+  expect(existsSync(`${c.sibling('ST-9')}/setup.log`)).toBe(false);
+  expect(out + err).not.toContain('stop:');
+  c.git('remote', 'set-url', '--push', 'origin', c.remote);
+  gitRun(c.sibling('ST-9'), 'push', '-u', 'origin', 't/ST-9');
+  const r = await run(['worktree', 'open', 'ST-9', '--continue'], c.root);
+  expect(r.code).toBe(0);
+  expect(r.out.split('\n').slice(0, 3)).toEqual(stopLines(c.sibling('ST-9'), 'ST-9'));
+});

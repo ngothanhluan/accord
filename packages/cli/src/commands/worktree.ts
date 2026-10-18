@@ -16,7 +16,7 @@ export interface WorktreeEntry {
   branch?: string;
 }
 
-function git(cwd: string, args: string[]): string {
+export function git(cwd: string, args: string[]): string {
   try {
     return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   } catch (err) {
@@ -24,7 +24,7 @@ function git(cwd: string, args: string[]): string {
   }
 }
 
-function gitOk(cwd: string, args: string[]): boolean {
+export function gitOk(cwd: string, args: string[]): boolean {
   try {
     execFileSync('git', args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
     return true;
@@ -296,4 +296,36 @@ export function worktreeClean(ctx: CommandContext): number {
     if (gone && h !== undefined) withHolds(ctx.root, (all) => (Object.hasOwn(all, id) ? Object.fromEntries(Object.entries(all).filter(([k]) => k !== id)) : undefined));
   }
   return 0;
+}
+
+/** D-13: write the new ticket in its own worktree on its claim branch, commit and push it, then run setup there. */
+export function newTicketWorktree(ctx: CommandContext, id: string, rel: string, text: string): void {
+  const branch = branchOf(ctx.snapshot, id);
+  const list = worktrees(ctx.root, ctx.stdout);
+  const exists =
+    list.some((w) => w.branch === branch) ||
+    gitOk(ctx.root, ['rev-parse', '--verify', '-q', 'refs/heads/' + branch]) ||
+    gitOk(ctx.root, ['rev-parse', '--verify', '-q', 'refs/remotes/origin/' + branch]);
+  if (exists) throw new UsageError(`${branch} already exists - nothing was written`);
+  const ref = gitDefaultRef(ctx.root);
+  if (ref === undefined) throw new UsageError('no origin/main in this clone - run git fetch origin, then try again');
+  const path = siblingOf(list[0].path, id);
+  git(ctx.root, ['worktree', 'add', '--no-track', '-b', branch, path, ref]);
+  mkdirSync(path + '/accord/tickets', { recursive: true });
+  writeFileSync(path + '/' + rel, text);
+  git(path, ['add', '--', rel]);
+  git(path, ['commit', '-q', '-m', 'claim: ' + id]);
+  try {
+    execFileSync('git', ['-c', 'credential.interactive=never', '-c', 'core.sshCommand=ssh -o BatchMode=yes', 'push', '-u', 'origin', branch], {
+      cwd: path,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+    });
+  } catch (e) {
+    throw new UsageError(`the ticket is committed in ${path} but the push failed: ${firstLine(e)} - push it with git -C "${path}" push -u origin ${branch}`);
+  }
+  prepare(path);
+  ctx.stdout.write(rel + '\n');
+  printStop(ctx, path, id);
 }

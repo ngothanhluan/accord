@@ -66,6 +66,8 @@
 - Ruling: no skill-text test for the `claimed:` sentence — review round 1 deferred restating skill phrases in tests (re-plan, Task 9) — cost if wrong: that sentence could be removed without a test failing.
 - Ruling: re-plan critique 2 and 3 (rated Nice) are fixed as Should — 2 brings back the silent join Task 9 exists to stop, in the flow ST-LN-20 will make common, and 3 can push the user's unpushed commits onto a teammate's branch — quality ranks first and both fixes are small — cost if wrong: one more planner pass.
 - Ruling: SKILL.md's Pick up paragraph is changed in Task 9 after all, to end "Follow `./worktree.md`; it says when to push it (the pushed branch is the claim).", superseding the earlier ruling that SKILL.md stays unchanged — re-plan critique 1.3 needs the push after the worktree.md step, at 8 bytes more (re-plan planner) — cost if wrong: SKILL.md passes 5,120 bytes and Task 9 stops BLOCKED with the count.
+- Ruling: Pick up judges the local branch and `refs/remotes/origin/<branch>` each when it exists, by the same claim-commit rule and fallback, and refuses with the same `claimed:` text when either is claimed by someone else (Task 9 review executor) — cost if wrong: two ref checks per Pick up.
+- Ruling: worktree.md says "When `accord worktree open <id>` did not refuse with `claimed:`, push the claim…" rather than "After a successful run", since a failed setup exits 2 and is still pushed (Task 9 review executor) — cost if wrong: one sentence to reword.
 
 ## Deferred
 - Plan critique 1.14 (Nice): the main checkout has no setup done-marker, so Continue rooted there reruns the whole setup in the owner's checkout — deferred.
@@ -83,6 +85,7 @@
 - Review round 1 executor, aside (Nice): the ac-6 test has the same local-equals-origin blind spot as ac-1 had; @ac-6 does not state the start commit, and `newTicketWorktree` uses the same `gitDefaultRef` call that the strengthened ac-1 test now covers — deferred.
 - Final review 5 (Nice): the ac-5 test makes every worktree at its sibling name, so a mapping by folder name instead of branch would still pass — deferred.
 - Final review 6 (Nice): `siblingOf` slices the path and joins it back unchanged; it is `mainPath + '-' + id.toLowerCase()` — deferred.
+- Task 9 review 3 (Nice): no test pins the exact-subject guard (`claim: ST-1` against `claim: ST-10`) or the empty `user.email` branch — deferred.
 
 ## Tasks
 - task 1 done 0496cf0300af

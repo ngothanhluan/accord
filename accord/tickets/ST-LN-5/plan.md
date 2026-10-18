@@ -1,6 +1,6 @@
 ---
 baseline: fa318ea52704b580ede4518225f9deec1a98ac96
-plan_hash: "fnv1a64:f3385a1a88eeb3cf"
+plan_hash: "fnv1a64:421a6c96ed83f5ef"
 ---
 
 Review mode `outcome`: one branch, no slices. Report case ids follow the JUnit id shape in
@@ -30,7 +30,7 @@ another checkout's build. `accord/config.yml:13` enables `claude` only, so sync 
 alone; the tests cover every runtime through the in-memory render. Then run `npx vitest run packages/core`.
 
 ## Task 1: Wiring: the shared ask rule holds the three new rules beside every stage skill
-covers: @ac-1, @ac-2, @ac-3, D-01, D-02, D-03, D-04, D-05
+covers: @ac-1, @ac-2, @ac-3, D-01, D-02, D-03, D-04, D-05, D-08
 files: packages/core/skills/shared/ask.md, packages/core/test/stage-skills.test.ts, packages/core/src/generated/skills.ts, .claude/skills/accord/ask.md, .claude/skills/accord-intent/ask.md, .claude/skills/accord-approach/ask.md, .claude/skills/accord-plan/ask.md, .claude/skills/accord-build/ask.md, .claude/skills/accord-review/ask.md, .claude/skills/accord-verify/ask.md, .claude/skills/accord-debug/ask.md
 verify: packages/core/test/stage-skills.test.ts#ac-1-the-shared-ask-rule-holds-the-fixed-sentence-beside-every-stage-skill (@ac-1), packages/core/test/stage-skills.test.ts#ac-2-the-shared-ask-rule-says-when-to-ask-multiple-choice-and-when-to-ask-an-open-question (@ac-2), packages/core/test/stage-skills.test.ts#ac-3-the-shared-ask-rule-asks-for-plain-words-and-drops-the-old-sentence (@ac-3)
 
@@ -41,7 +41,7 @@ Tests first, all failing on today's text.
    still resolves. Directly above the `it(` line add the one-line comment
    `// Proves ST-LN-5 ac-1; the sentence ASK-1 ac-1 quotes is superseded by ST-LN-5 D-06.`
    Replace the one `SENTENCE` constant with two, each on one source line, copied from the ticket's ac-1:
-   - `CONTEXT`: `A question that needs context to be understood is asked in plain chat, never in a question dialog, because the dialog hides the chat written before it: a few plain sentences of context, then the question, then lettered options, each saying what happens if it is chosen, the recommended one first.`
+   - `CONTEXT`: `A question that needs context to be understood is asked in plain chat, never in a question dialog, because the dialog hides the chat written before it: a few plain sentences of context, then the question, then lettered options, each saying what happens if it is chosen, the recommended one first, with one sentence on why it is recommended.`
    - `DIALOG`: `A question dialog is used only when the question and its options are understood on their own in one line, such as 'Commit now?'.`
    Write the constants in double-quoted or template strings so the single quotes around `Commit now?` stay
    literal. A path goes to `bad` when its normalised text lacks either constant. Every other line of the case
@@ -60,7 +60,7 @@ Interface: `packages/core/skills/shared/ask.md` keeps lines 1-6 (frontmatter `ki
 `# Asking the owner`, a blank line). The paragraph at lines 7-11 is deleted and replaced by three paragraphs,
 separated by one blank line, each wrapped at about 80 columns at spaces only, with no blank line inside a
 sentence:
-- paragraph 1: the `CONTEXT` sentence, then the `DIALOG` sentence (D-03, D-02);
+- paragraph 1: the `CONTEXT` sentence, then the `DIALOG` sentence (D-03, D-02, D-08);
 - paragraph 2: the ac-2 sentence (D-01);
 - paragraph 3: the ac-3 sentence (D-05, D-06's plain-words rule).
 Nothing else goes in the file. The text names no runtime product, no `packages/` path, no `./` reference, no
@@ -105,7 +105,7 @@ Interface: in `packages/core/skills/intent/SKILL.md`, step 5 at lines 35-37 beco
 ```
 
 The clause "the recommended option first with its reason" goes with the old text: an open question has no options
-(D-01), and `ask.md` already puts the recommended option first.
+(D-01), and `ask.md` already puts the recommended option first with one sentence on why (D-08).
 
 Then run `npm run gen`, `npm run build`, and `node packages/cli/dist/cli.js skills sync`, which rewrites
 `.claude/skills/accord-intent/SKILL.md` and reports every `ask.md` unchanged. Then the new case, the drift case

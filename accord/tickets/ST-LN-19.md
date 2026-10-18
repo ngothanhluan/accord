@@ -67,7 +67,7 @@ Feature: ST-LN-19
     And the output holds no line that begins, after any spaces, with one of the labels `Stage:`, `Lane:`, `Tasks:`, `Branch:`, `Holder:`, `Blocked by:`, `State:`, `Test:`, `Test result:`, `Ticked:`, or `Verification:` that `accord show <id>` prints, and no scenario's `@test:` tag
     And `accord show <id>` and `accord show <id> --json` still pass every test written for them before this ticket, unchanged
 
-  @ac-4
+  @ac-4 @test:packages/core/test/stage-skills.test.ts#ac-4-the-intent-and-approach-skills-show-the-approval-view-at-the-owners-yes
   Scenario: the intent and approach skills show the view at the owner's yes
     Given the files `accord skills sync` writes for a config that enables every runtime, in every target directory, each read with every line break and the spaces or tabs around it as one space
     When a reader opens the SKILL.md of the intent skill and of the approach skill

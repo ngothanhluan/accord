@@ -5,6 +5,7 @@
 - task 2 done 37b3cf63373d
 - task 3 done 58bd5ed3308d
 - task 4 done f5313b31116e
+- task 5 done 5e99c35fe86d
 
 ## Rulings
 
@@ -40,3 +41,5 @@
 - Ruling: task 3's parse-error risk test uses a stray prose line between steps, not a step directly under `Feature:`, which the parser reads as description text and does not fail — the test changed before it ever passed — cost if wrong: none.
 - Ruling: task 4's `colourApproval` colours ac-n ids after wrapping the step keywords, which is safe because no escape code holds "ac-"; the ac-5 test checks that stripping the codes gives the colour-off output — cost if wrong: a stray colour code in the view.
 - Ruling: task 4 is checked with FORCE_COLOR=1 on a PassThrough stream, not a real terminal — `styleText` with `{ stream }` decides colour from the same env and isTTY rules in both — cost if wrong: a real terminal shows no colour, which the owner sees at the first yes.
+- Ruling: task 5's risk:regression test shares the `yesSteps` helper with the ac-4 test instead of repeating the chunking code — the helper is test-only — cost if wrong: none.
+- Ruling: once merged, the synced skills run `accord show <id> --approval`, which the published 0.1.0 lacks, so a session running accord through npx 0.1.0 stops at the owner's yes until the next release; both skills say to stop and tell the owner when the command fails — release timing is the owner's (after the whole queue) — cost if wrong: the yes falls back to the owner reading the ticket file until release.

@@ -150,18 +150,18 @@ describe('config.schema.json', () => {
     }
   });
 
-  it('risk:parsing setup is a list of non-empty command strings', () => {
-    expect(validate('config', { ...minimal.config, setup: ['npm ci', 'npm run build'] })).toEqual([]);
-    expect(validate('config', { ...minimal.config, setup: [] })).toEqual([]);
-    expect(has(validate('config', { ...minimal.config, setup: 'npm ci' }), '/setup', 'schema.type')).toBe(true);
-    expect(has(validate('config', { ...minimal.config, setup: [''] }), '/setup/0', 'schema.minLength')).toBe(true);
-  });
-
   it('accord is a quoted semver string', () => {
     expect(validate('config', { ...minimal.config, accord: '0.1.0-rc.1' })).toEqual([]);
     expect(has(validate('config', { ...minimal.config, accord: 1 }), '/accord', 'schema.type')).toBe(true);
     expect(has(validate('config', { ...minimal.config, accord: 'v0.1.0' }), '/accord', 'schema.pattern')).toBe(true);
   });
+});
+
+it('risk:parsing setup is a list of non-empty command strings', () => {
+  expect(validate('config', { ...minimal.config, setup: ['npm ci', 'npm run build'] })).toEqual([]);
+  expect(validate('config', { ...minimal.config, setup: [] })).toEqual([]);
+  expect(has(validate('config', { ...minimal.config, setup: 'npm ci' }), '/setup', 'schema.type')).toBe(true);
+  expect(has(validate('config', { ...minimal.config, setup: [''] }), '/setup/0', 'schema.minLength')).toBe(true);
 });
 
 describe('verification.schema.json', () => {

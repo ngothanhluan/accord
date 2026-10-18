@@ -5,7 +5,7 @@ type: "story" # story | bug. An epic uses its own template
 status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
 # Tickets that must reach done before this one can start.
-depends_on: ["ST-LN-8", "ST-LN-9", "ST-LN-10", "ST-LN-11", "ST-LN-12", "ST-LN-13", "ST-LN-14", "ST-LN-16", "ST-LN-17", "BUG-LN-4", "BUG-LN-5"]
+depends_on: ["ST-LN-8", "ST-LN-10", "ST-LN-11", "ST-LN-12", "ST-LN-13", "ST-LN-14", "ST-LN-16", "ST-LN-17", "BUG-LN-4"]
 # How the dashboard ranks this ticket: high | medium | low; absent means medium.
 # priority: medium
 # The epic this ticket belongs to.

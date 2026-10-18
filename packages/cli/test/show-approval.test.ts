@@ -7,6 +7,7 @@ import { expect, it, vi } from 'vitest';
 import { cleanup, makeEmptyRepo, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
 import { CONFIG, laneTicket } from '../../../test/helpers/lane.js';
 
+const ESC = String.fromCharCode(27);
 const GIVEN = 'Given a report of the month with three hundred rows';
 const FOUR = [
   '## Intent',
@@ -315,7 +316,7 @@ it('ac-5 the approval view is laid out for a person and coloured in a terminal',
     const on = (await run(['show', 'T-1', '--approval'], repo)).out;
     for (const n of NAMES) expect(on).toContain('\u001b[36m## ' + n + '\u001b[39m');
     const onCrit = part(on.split('\n'), 'Acceptance criteria').join('\n');
-    expect(onCrit.match(/\u001b\[33mac-\d+\u001b\[39m/g)).toHaveLength(crit.join('\n').match(/\bac-\d+\b/g)?.length ?? -1);
+    expect(onCrit.match(new RegExp(ESC + '\\[33mac-\\d+' + ESC + '\\[39m', 'g'))).toHaveLength(crit.join('\n').match(/\bac-\d+\b/g)?.length ?? -1);
     for (const l of crit.filter((x) => /^- (Given|When|Then|And|But) /.test(x))) {
       const kw = /^- (\w+)/.exec(l)?.[1] ?? '';
       expect(onCrit).toContain('- \u001b[32m' + kw + '\u001b[39m');
@@ -323,6 +324,18 @@ it('ac-5 the approval view is laid out for a person and coloured in a terminal',
     expect(stripVTControlCharacters(on)).toBe(off);
   } finally {
     vi.unstubAllEnvs();
+    cleanup(repo);
+  }
+});
+
+it('risk:parsing approval prints a fenced block in a prose section byte for byte', async () => {
+  const fenced = ['```', 'x', '', 'y', '```'];
+  const body = PROSE(SCEN).replace('- D-02 two', ['- D-02 two', ...fenced].join('\n'));
+  const repo = makeLaneRepo({ 'accord/tickets/T-1.md': laneTicket('T-1', { body }) });
+  try {
+    const { out } = await run(['show', 'T-1', '--approval'], repo);
+    expect(out).toContain('\n' + fenced.join('\n') + '\n\n## Corrections');
+  } finally {
     cleanup(repo);
   }
 });

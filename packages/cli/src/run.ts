@@ -230,7 +230,7 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
 
   program
     .command('show <id>')
-    .description('print one lane ticket in full: its row facts, Intent, and each criterion with its state')
+    .description('print one ticket: with --approval its approved sections, otherwise the row facts of a lane ticket, Intent, and each criterion with its state')
     .option('--json', 'print the TicketDetail object instead of text')
     .addOption(new Option('--approval', "print the approved sections for the owner's yes, criteria compacted").conflicts('json'))
     .action((id: string, options: { json?: boolean; approval?: boolean }) => {

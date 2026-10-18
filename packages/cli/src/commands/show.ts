@@ -1,4 +1,4 @@
-// ST-LN-6 `accord show <id> [--json]`: one lane ticket in full, as text or as the TicketDetail object.
+// ST-LN-6 `accord show <id> [--json|--approval]`: one lane ticket in full as text or TicketDetail; --approval needs no lane.
 import { approvalView, ticketDetail } from '@accord-dev/accord-core';
 import type { TicketDetail } from '@accord-dev/accord-core';
 import { colourApproval } from '../render/color.js';

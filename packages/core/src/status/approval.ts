@@ -15,9 +15,15 @@ interface Node {
 
 function prose(ticket: Ticket, key: string): string[] {
   const s = ticket.sections.find((x) => headingKey(x.heading) === key);
-  const lines = (s === undefined ? [] : stripHtmlComments(s.lines)).map((l) => l.text.trimEnd()).filter((t) => t !== '');
+  const raw = s === undefined ? [] : stripHtmlComments(s.lines);
+  // Fenced blocks print as the file holds them: blank lines kept, no blank added inside.
+  const { fences } = scan(raw.map((l) => l.text).join('\n'), (raw[0]?.line ?? 1) - 1);
+  const inFence = (n: number): boolean => fences.some((f) => n >= f.open && n < f.close);
+  const lines = raw.map((l) => ({ t: l.text.trimEnd(), fenced: inFence(l.line) })).filter((l) => l.fenced || l.t !== '');
   if (lines.length === 0) return ['none', ''];
-  return lines.flatMap((t, i) => (LIST_MARKER.test(t) && i + 1 < lines.length && LIST_MARKER.test(lines[i + 1]) ? [t] : [t, '']));
+  return lines.flatMap((l, i) =>
+    l.fenced || (LIST_MARKER.test(l.t) && i + 1 < lines.length && LIST_MARKER.test(lines[i + 1].t)) ? [l.t] : [l.t, ''],
+  );
 }
 
 function criteria(ticket: Ticket): string[] {

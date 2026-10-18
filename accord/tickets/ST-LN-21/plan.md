@@ -1,6 +1,6 @@
 ---
 baseline: 385361f43127e6110c285effba93fa6bd6700883
-plan_hash: "fnv1a64:8a2c385290e30992"
+plan_hash: "fnv1a64:a1087727cc662dac"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -42,7 +42,7 @@ files: packages/core/panel/register.js, packages/core/src/generated/panel.ts, .c
 verify: packages/core/test/panel.test.ts#ac-1-the-empty-search-field-keeps-its-Search-label-and-shows-the-dim-hint (@ac-1), packages/core/test/panel.test.ts#ac-3-the-search-field-is-the-one-control-marked-to-take-focus-on-every-draw-and-while-loading (@ac-3)
 
 Consumes: the fake host in `panel.test.ts` (`host`, `loadPanel`, `board`, `twoRows`, `start`, `h.input()`,
-`h.nodes(type)`, `h.type(text)`, `h.settle`, `h.fire`, `h.$.ui.open`). Produces: on every draw that shows the
+`h.nodes(type)`, `h.texts()`, `h.type(text)`, `h.settle`, `h.inflight()`, `h.fire`, `h.$.ui.open`). Produces: on every draw that shows the
 dashboard or "Loading…", one `Input` with `key: 'search'`, `label: 'Search'`, the dim-hint prop set to
 `'ticket id or title, or a new request'`, and `autoFocus: true`.
 
@@ -60,11 +60,17 @@ a dashboard` test:
      (`expect(h.$.ui.open.mock.calls[0][0]).not.toHaveProperty('focus')`).
   2. Settle `twoRows`; wait for a text holding `ST-2`; `marked()` is again exactly the one search `Input`; the row
      `show:ST-1` and `show:ST-2` buttons carry no `autoFocus`.
-  3. Record `h.$.ui.open.mock.calls.length`; `h.type('log')`; fire `turn.complete` with `{ reason: 'answer' }` and
-     settle `twoRows`; wait until a text holds `ST-1`. `marked()` is still exactly the one search `Input`, and
-     `h.$.ui.open` has no new call (a redraw never reopens the pane to take the keyboard).
-  4. Fire `command.run` with `{ command: 'accord-panel' }`: the last `h.$.ui.open` call carries `focus: true`, and after
-     settling its dashboard run `marked()` is exactly the one search `Input`.
+  3. Record `h.$.ui.open.mock.calls.length`; `h.type('log')`; fire `turn.complete` with `{ reason: 'answer' }`; wait
+     until `h.inflight()` is 1 (the refresh may still be finishing the previous run's `$.ui.invalidate` with `running`
+     set, `register.js` `refresh`, so its run can be pushed after the fire returns); settle
+     `JSON.stringify(board({ yours: { rows: [{ id: 'ST-1', title: 'Login form' }], more: 0 }, team: { rows: [{ id: 'ST-3', title: 'Logout' }], more: 0 }, ready: { rows: [{ id: 'ST-2', title: 'Export' }], more: 0 } }))`;
+     wait until a text holds `ST-3` (only the redraw from this refresh can show it: `twoRows` has no ST-3, and
+     `Logout` matches `log`). Then `marked()` is still exactly the one search `Input`, and `h.$.ui.open` has no new
+     call (a redraw never reopens the pane to take the keyboard).
+  4. Fire `command.run` with `{ command: 'accord-panel' }`: the last `h.$.ui.open` call carries `focus: true`. Wait
+     until `h.inflight()` is 1, then settle
+     `JSON.stringify(board({ yours: { rows: [{ id: 'ST-4', title: 'Logbook' }], more: 0 } }))`; wait until a text holds
+     `ST-4` (the query `log` still stands and `Logbook` matches it). Then `marked()` is exactly the one search `Input`.
 
 Change in `packages/core/panel/register.js`, inside the `ui.render` hook's dashboard branch:
 - Build the search `Input` in one local function (for example `const search = () => Input({ ... })`) holding

@@ -43,6 +43,7 @@
 - Ruling: `gitDefaultRef` is called once from `gitPeopleOnRefs`, which keeps its old rule that the ref must be among the refs it read — every existing ids test passed unchanged (Task 2 executor) — cost if wrong: none seen.
 - Ruling: `worktreeOpen` takes the main checkout from the first `git worktree list` entry and builds the sibling path from it — the sibling-path Ruling above — cost if wrong: none; a run from a linked worktree is Task 4's case.
 - Ruling: the Task 2 test `risk:parsing setup is a list of non-empty command strings` moved out of `describe('config.schema.json')` to top level (5d27f18) — its verify id names the bare test, as the file's other verify-id tests do — cost if wrong: none.
+- Ruling: the Continue refusal for an unknown id reads `not a ticket: <id> is not in accord/tickets and has no branch <b> here or on origin - nothing was created` — the brief's Interface text (`not a ticket: no ticket <id> ...`) contradicted its own test, which expects the message to start `not a ticket: ST-77`; the test was followed (Task 3 executor) — cost if wrong: one wording change; the skill reads only the first two words.
 
 ## Deferred
 - Plan critique 1.14 (Nice): the main checkout has no setup done-marker, so Continue rooted there reruns the whole setup in the owner's checkout — deferred.

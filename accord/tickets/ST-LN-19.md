@@ -28,11 +28,11 @@ ui: false
 
 ## Intent
 <!-- At most five lines: why, for whom, how success is measured, and what this does not do. -->
-At the intent and approach yes the owner reads the ticket pasted verbatim (SHOW-1), and the criteria repeat one long Given or
-When in scenario after scenario, so the owner finds it hard to read (Open questions). For the owner, at every intent and approach
-yes. Success: the owner reads a shorter view that drops no fact, proven by rebuilding every scenario of every real ticket from it
-(D-02), laid out with headings, bold, and line breaks, and coloured in a terminal (D-08). Done when `accord show <id> --approval` prints that view and both skills show it (D-07). Not: changing what
-`accord approve` hashes, the text or JSON of `accord show` without the flag, the verify report, compacting any prose section.
+Why: at the intent and approach yes the owner reads the ticket pasted verbatim (SHOW-1), and the criteria repeat one long Given or When in scenario after scenario, so the owner finds it hard to read (Open questions).
+For whom: the owner, at every intent and approach yes.
+Success: the owner reads a shorter view that drops no fact, proven by rebuilding every scenario of every real ticket from it (D-02), laid out with headings, bold, and line breaks, and coloured in a terminal (D-08).
+Done when: `accord show <id> --approval` prints that view and both the intent and the approach skills show it (D-07).
+Not: changing what `accord approve` hashes, the text or JSON of `accord show` without the flag, the verify report, compacting any prose section.
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.
@@ -46,7 +46,7 @@ Feature: ST-LN-19
     When `accord show <id> --approval` runs for each of them
     Then each scenario rebuilt from the output's criteria part, read with the markup the view adds removed (its `## `, `**`, and `- ` and the id list on each shared line, while backticks inside a step stay), as the shared lines that name it in the order printed followed by the lines printed under its own id, has the same @ac-n tag, the same title, and the same steps with the same keywords, in the same order, as the scenario parsed from the file
     And no scenario rebuilt from the output has a step that the scenario in the file does not have
-    And every shared line is a Given or When step that comes, in each scenario it names, before that scenario's first Then and after only other shared lines
+    And every shared line is a step that comes, in each scenario it names, before that scenario's first Then and after only other shared lines, so it is a Given, a When, or an And or But that continues one
 
   @ac-2
   Scenario: a step that several scenarios repeat is printed once, naming them
@@ -58,18 +58,18 @@ Feature: ST-LN-19
 
   @ac-3
   Scenario: the view prints the six approved sections and nothing else
-    Given a lane M ticket with an Intent, criteria, Vetoes, and Decisions, and with empty Corrections and Approach sections
+    Given a lane M ticket with an Intent, criteria, Vetoes, and Decisions, and with Corrections and Approach sections that hold no line other than a template comment
     When `accord show <id> --approval` runs
-    Then it prints Intent, the criteria, Vetoes, Decisions, Corrections, and Approach, in that order, each under its own Markdown heading line that begins with "## "
+    Then it prints the headings "## Intent", "## Acceptance criteria", "## Vetoes", "## Decisions", "## Corrections", and "## Approach", in that order, each as a line of its own, with that section under it
     And every non-comment line of the Intent, Vetoes, Decisions, Corrections, and Approach sections in the file appears in full, word for word and in order, under its heading, and the empty Corrections and Approach each read `none`
-    And the output holds none of the stage, lane, tasks, branch, holder, blocked by, state, test, test result, ticked, or verification lines that `accord show <id>` prints, and no scenario's `@test:` tag
+    And the output holds no line that begins, after any spaces, with one of the labels `Stage:`, `Lane:`, `Tasks:`, `Branch:`, `Holder:`, `Blocked by:`, `State:`, `Test:`, `Test result:`, `Ticked:`, or `Verification:` that `accord show <id>` prints, and no scenario's `@test:` tag
     And `accord show <id>` and `accord show <id> --json` still pass every test written for them before this ticket, unchanged
 
   @ac-4
   Scenario: the intent and approach skills show the view at the owner's yes
     Given the files `accord skills sync` writes for a config that enables every runtime, in every target directory, each read with every line break and the spaces or tabs around it as one space
     When a reader opens the SKILL.md of the intent skill and of the approach skill
-    Then the numbered step headed "The owner's yes", up to the next numbered step, holds the literal texts `accord show <id> --approval`, "unchanged", and "not inside a code block"
+    Then the numbered list item that begins "**The owner's yes", up to the next numbered list item or the next heading, whichever comes first, holds the literal texts `accord show <id> --approval`, "unchanged", and "not inside a code block"
     And the same step holds the literal texts "horizontal rule", "In plain words", and "one line per scenario that begins with its ac-n"
     And the same step does not hold the text "from the ticket file" in any letter case
 
@@ -78,8 +78,9 @@ Feature: ST-LN-19
     Given the ticket of @ac-2
     When `accord show <id> --approval` runs with colour off, because NO_COLOR is set or the output is not a terminal
     Then each scenario begins with a bold line that holds its ac-n and its title, each step, shared or not, sits on its own Markdown list line, and a blank line separates one scenario from the next
+    And each line of the Intent, Vetoes, Decisions, Corrections, and Approach sections that is not a Markdown list line is followed by a blank line, so that a Markdown reader shows it on a line of its own
     And the output holds no terminal colour codes
-    And when it runs with colour on, the section headings, every ac-n id in the criteria part, and the step keywords Given, When, Then, And, and But are coloured, and the output with its colour codes removed equals the output with colour off
+    And when it runs with colour on, because FORCE_COLOR is set to 1, the section headings, every ac-n id in the criteria part, and the step keywords Given, When, Then, And, and But are coloured, and the output with its colour codes removed equals the output with colour off
 ```
 
 ## Vetoes

@@ -85,7 +85,7 @@ Feature: ST-LN-7
     And "C:/Work/accord-st-12" is kept, named with the reason "held by another session"
     And "C:/Work/accord-st-11" is kept and not named
 
-  @ac-6
+  @ac-6 @test:packages/cli/test/worktree.test.ts#ac-6-a-new-lane-m-ticket-gets-its-own-worktree-with-the-ticket-committed-and-pushed
   Scenario: A new request prepares the new ticket's worktree and points to a session there
     Given a repository at "C:/Work/accord" on the branch "main", whose config.yml lists the setup command "npm ci"
     When "/accord add an export flag" runs in a session rooted at "C:/Work/accord" and is taken as lane M with the new ticket "ST-9"

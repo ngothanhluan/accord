@@ -33,8 +33,7 @@ plans or builds. You run it in the main session.
    into `accord/tickets/<id>/ledger.md` under `## Rulings`.
 
 5. **One question per message**, aimed at the dimension with the highest
-   score. Multiple
-   choice where possible, the recommended option first with its reason.
+   score; which kind of question to ask, and how, follows `./ask.md`.
 
 6. **Write the ticket** `accord/tickets/<id>.md`, each section as follows:
 

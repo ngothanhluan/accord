@@ -113,6 +113,26 @@ it('ac-3 the shared ask rule asks for plain words and drops the old sentence', (
   expect(bad).toEqual([]);
 });
 
+it('ac-4 the intent skill takes the kind of question from the shared ask rule', () => {
+  const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
+  expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
+  expect([...STAGES]).toEqual(['accord', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
+  const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
+  const flat = (s: string) => s.replace(/[ \t]*\n[ \t]*/g, ' ');
+  const bad: string[] = [];
+  for (const dir of skillDirs(all)) {
+    const path = dir + '/' + installedName('intent') + '/SKILL.md';
+    const raw = everyFile.get(path) ?? '';
+    if (!raw) { bad.push(path + ' missing'); continue; }
+    const steps = raw.split(/^(?=\d+\. )/m).filter((c) => /^\d+\. /.test(c)).map((c) => flat(c).replace(/\*\*/g, ''));
+    const hits = steps.filter((c) => /^\d+\. One question per message/.test(c));
+    if (hits.length !== 1) bad.push(path + ' found ' + hits.length + ' steps');
+    else if (!hits[0].includes('./ask.md')) bad.push(path + ' lacks ./ask.md');
+    if (flat(raw).toLowerCase().includes('multiple choice where possible')) bad.push(path + ' still asks multiple choice where possible');
+  }
+  expect(bad).toEqual([]);
+});
+
 it('ac-2 every stage skill points to the shared ask rule from its intent paragraph', () => {
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);

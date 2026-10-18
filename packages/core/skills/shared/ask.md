@@ -4,8 +4,20 @@ kind: reference
 
 # Asking the owner
 
-Every question to the owner stands alone, because the owner may see only the
-question and its options: it says in one or two plain sentences what is being
-decided and why now, with an example; each option says what happens if it is
-chosen; the recommended option comes first; every id such as ac-2 or D-03
+A question that needs context to be understood is asked in plain chat, never in
+a question dialog, because the dialog hides the chat written before it: a few
+plain sentences of context, then the question, then lettered options, each
+saying what happens if it is chosen, the recommended one first, with one
+sentence on why it is recommended. A question dialog is used only when the
+question and its options are understood on their own in one line, such as
+'Commit now?'.
+
+Ask multiple choice when you can list two to four exclusive options, each with
+a consequence drawn from the code or the ticket; ask an open question, with no
+options, when the answer is in the owner's head, such as why, for whom, what
+success looks like, or what hurts today; offer a short menu only when the owner
+is stuck on an open question.
+
+Explain in plain words for an owner who reads no code: a file path or a symbol
+is only a pointer, never the explanation, and every id such as ac-2 or D-03
 carries a short gloss.

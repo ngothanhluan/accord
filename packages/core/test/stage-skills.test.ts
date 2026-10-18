@@ -59,8 +59,10 @@ it('ac-4 the plan skill asks the owner before it creates the tests baseline', ()
   expect(ref.indexOf(decided)).toBeLessThan(ref.indexOf(ask));
 });
 
+// Proves ST-LN-5 ac-1; the sentence ASK-1 ac-1 quotes is superseded by ST-LN-5 D-06.
 it('ac-1 the shared ask rule holds the fixed sentence beside every stage skill', () => {
-  const SENTENCE = 'Every question to the owner stands alone, because the owner may see only the question and its options: it says in one or two plain sentences what is being decided and why now, with an example; each option says what happens if it is chosen; the recommended option comes first; every id such as ac-2 or D-03 carries a short gloss.';
+  const CONTEXT = "A question that needs context to be understood is asked in plain chat, never in a question dialog, because the dialog hides the chat written before it: a few plain sentences of context, then the question, then lettered options, each saying what happens if it is chosen, the recommended one first, with one sentence on why it is recommended.";
+  const DIALOG = "A question dialog is used only when the question and its options are understood on their own in one line, such as 'Commit now?'.";
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
   expect([...STAGES]).toEqual(['accord', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
@@ -70,8 +72,63 @@ it('ac-1 the shared ask rule holds the fixed sentence beside every stage skill',
     for (const stage of STAGES) {
       const path = dir + '/' + installedName(stage) + '/ask.md';
       const text = (everyFile.get(path) ?? '').replace(/[ \t]*\n[ \t]*/g, ' ');
-      if (!text.includes(SENTENCE)) bad.push(path);
+      if (!text.includes(CONTEXT) || !text.includes(DIALOG)) bad.push(path);
     }
+  }
+  expect(bad).toEqual([]);
+});
+
+it('ac-2 the shared ask rule says when to ask multiple choice and when to ask an open question', () => {
+  const KIND = "Ask multiple choice when you can list two to four exclusive options, each with a consequence drawn from the code or the ticket; ask an open question, with no options, when the answer is in the owner's head, such as why, for whom, what success looks like, or what hurts today; offer a short menu only when the owner is stuck on an open question.";
+  const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
+  expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
+  expect([...STAGES]).toEqual(['accord', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
+  const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
+  const bad: string[] = [];
+  for (const dir of skillDirs(all)) {
+    for (const stage of STAGES) {
+      const path = dir + '/' + installedName(stage) + '/ask.md';
+      const text = (everyFile.get(path) ?? '').replace(/[ \t]*\n[ \t]*/g, ' ');
+      if (!text.includes(KIND)) bad.push(path);
+    }
+  }
+  expect(bad).toEqual([]);
+});
+
+it('ac-3 the shared ask rule asks for plain words and drops the old sentence', () => {
+  const PLAIN = 'Explain in plain words for an owner who reads no code: a file path or a symbol is only a pointer, never the explanation, and every id such as ac-2 or D-03 carries a short gloss.';
+  const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
+  expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
+  expect([...STAGES]).toEqual(['accord', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
+  const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
+  const bad: string[] = [];
+  for (const dir of skillDirs(all)) {
+    for (const stage of STAGES) {
+      const path = dir + '/' + installedName(stage) + '/ask.md';
+      const text = (everyFile.get(path) ?? '').replace(/[ \t]*\n[ \t]*/g, ' ');
+      if (!text.includes(PLAIN)) bad.push(path + ' lacks plain words');
+      if (text.toLowerCase().includes('may see only the question and its options')) bad.push(path + ' holds the old sentence');
+    }
+  }
+  expect(bad).toEqual([]);
+});
+
+it('ac-4 the intent skill takes the kind of question from the shared ask rule', () => {
+  const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
+  expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
+  expect([...STAGES]).toEqual(['accord', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
+  const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
+  const flat = (s: string) => s.replace(/[ \t]*\n[ \t]*/g, ' ');
+  const bad: string[] = [];
+  for (const dir of skillDirs(all)) {
+    const path = dir + '/' + installedName('intent') + '/SKILL.md';
+    const raw = everyFile.get(path) ?? '';
+    if (!raw) { bad.push(path + ' missing'); continue; }
+    const steps = raw.split(/^(?=\d+\. )/m).filter((c) => /^\d+\. /.test(c)).map((c) => flat(c).replace(/\*\*/g, ''));
+    const hits = steps.filter((c) => /^\d+\. One question per message/.test(c));
+    if (hits.length !== 1) bad.push(path + ' found ' + hits.length + ' steps');
+    else if (!hits[0].includes('./ask.md')) bad.push(path + ' lacks ./ask.md');
+    if (flat(raw).toLowerCase().includes('multiple choice where possible')) bad.push(path + ' still asks multiple choice where possible');
   }
   expect(bad).toEqual([]);
 });

@@ -2,7 +2,7 @@
 id: "BUG-LN-5"                            # equals the file name: tickets/<id>.md
 title: "The accord check runs its lint-and-gate script under bash -e, which the script says it avoids, and no test runs it that way"
 type: "bug" # story | bug. An epic uses its own template
-status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
+status: dropped                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
 # Tickets that must reach done before this one can start.
 # depends_on: ["OTHER-ID"]
@@ -59,3 +59,6 @@ Feature: BUG-LN-5
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
+
+## Dropped
+Merged into BUG-LN-4, which carries its notes (owner, 2026-10-18, after the main session proposed merging tickets that touch the same code: "ok gộp đi").

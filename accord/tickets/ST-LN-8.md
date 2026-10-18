@@ -1,13 +1,13 @@
 ---
 id: "ST-LN-8"                            # equals the file name: tickets/<id>.md
-title: "The executor brief carries the repository conventions, and the executor stays out of accord/"
+title: "The executor brief carries the repository conventions, and the executor stays out of accord/ and adds no commit trailer"
 type: "story" # story | bug. An epic uses its own template
 status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
 # Tickets that must reach done before this one can start.
 # depends_on: ["OTHER-ID"]
 # How the dashboard ranks this ticket: high | medium | low; absent means medium.
-# priority: medium
+priority: high
 # The epic this ticket belongs to.
 # parent: "EPIC-ID"
 # Ids in the tracker, a map keyed by adapter name; values are strings.
@@ -32,6 +32,9 @@ Queued 2026-10-17, not approved; the intent interview replaces this:
 - Dogfood findings 33 and 34: a `verify:` id matches the full JUnit test name; the executor never runs `accord task-done` and never edits `accord/`.
 - Adds `accord/product/conventions.md` (engineering rules, one per line, with `Rejected:` lines) that `accord brief` appends to every brief; planner and executor read `accord/product/`.
 - Verify offers to promote a Ruling or Correction that holds across tickets into conventions.md.
+- Merged from ST-LN-9 (owner, 2026-10-18, after the main session proposed merging tickets that touch the same code: "ok gộp đi"): both say what an executor is told and may do.
+- Every build executor in BUG-LN-2 added a Co-Authored-By trailer, against the repository rule that commits are authored by the owner alone; the main session fixed each by amending before push.
+- Executor (and every agent that commits) instructions forbid trailers of any kind; a check catches one before push.
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.

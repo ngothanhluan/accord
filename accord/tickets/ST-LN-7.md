@@ -67,7 +67,7 @@ Feature: ST-LN-7
     Then no new worktree is added, no setup command runs in "C:/Work/accord-ln9", and the branch checked out in "C:/Work/accord" is unchanged
     And the accord CLI command prints the path "C:/Work/accord-ln9" and the line "/accord continue ST-9" to type in a session opened there, naming no agent's own command, and the session stops
 
-  @ac-4
+  @ac-4 @test:packages/cli/test/worktree.test.ts#ac-4-a-live-holder-refuses-a-second-session-and-a-dead-holder-is-taken-over
   Scenario: A second session in a held worktree is refused while the holder runs, and a dead holder's hold is taken over
     Given a Claude Code session rooted at "C:/Work/accord-st-9" holds the ticket "ST-9" and is still running, though the command that took its hold has exited
     When "/accord continue ST-9" runs in a second Claude Code session rooted at "C:/Work/accord-st-9"

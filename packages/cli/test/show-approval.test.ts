@@ -206,3 +206,79 @@ it('risk:parsing approval gives a star step the phase of the step before it', as
     '',
   ]);
 });
+
+const PROSE = (b: string[]): string =>
+  ['## Intent', 'Why: a.', 'For whom: b.', '', '## Acceptance criteria', '```gherkin', ...b, '```', '', '## Vetoes', '- No new dependency.', '', '## Decisions', '- D-01 one', '- D-02 two', '', '## Corrections', '<!-- Every correction the owner makes, verbatim, appended and never edited. -->', '', '## Open questions', '- [ ] Secret open question', '', '## Approach', '<!-- About fifteen lines: the chosen option and why. -->', ''].join('\n');
+const SCEN = ['Feature: X', '', '  @ac-1 @test:x#one', '  Scenario: one', '    Given a', '    Then b', '', '  @ac-2 @test:x#two', '  Scenario: two', '    Given a', '    Then c'];
+
+it('ac-3 the approval view prints the six approved sections and nothing else', async () => {
+  const repo = makeLaneRepo({ 'accord/tickets/T-1.md': laneTicket('T-1', { body: PROSE(SCEN) }) });
+  try {
+    const { code, out } = await run(['show', 'T-1', '--approval'], repo);
+    expect(code).toBe(0);
+    const lines = out.split('\n');
+    const heads = ['## Intent', '## Acceptance criteria', '## Vetoes', '## Decisions', '## Corrections', '## Approach'];
+    expect(lines.filter((l) => l.startsWith('## '))).toEqual(heads);
+    const at = (h: string): string[] => {
+      const from = lines.indexOf(h) + 1;
+      const next = lines.findIndex((l, i) => i >= from && l.startsWith('## '));
+      return lines.slice(from, next === -1 ? undefined : next).filter((l) => l !== '');
+    };
+    expect(at('## Intent')).toEqual(['Why: a.', 'For whom: b.']);
+    expect(at('## Vetoes')).toEqual(['- No new dependency.']);
+    expect(at('## Decisions')).toEqual(['- D-01 one', '- D-02 two']);
+    expect(at('## Corrections')).toEqual(['none']);
+    expect(at('## Approach')).toEqual(['none']);
+    expect(lines.some((l) => /^\s*(Stage|Lane|Tasks|Branch|Holder|Blocked by|State|Test|Test result|Ticked|Verification):/.test(l))).toBe(false);
+    expect(out).not.toContain('@test:');
+    expect(out).not.toContain('Secret open question');
+  } finally {
+    cleanup(repo);
+  }
+});
+
+it('risk:data-loss approval refuses a ticket whose gherkin does not parse', async () => {
+  const repo = makeLaneRepo({ 'accord/tickets/T-1.md': laneTicket('T-1', { body: PROSE(['Feature: X', '  Scenario: s', '    Given a', '    stray words', '    Then b']) }) });
+  try {
+    const { code, out, err } = await run(['show', 'T-1', '--approval'], repo);
+    expect(code).toBe(1);
+    expect(out).toBe('');
+    expect(err).toContain('load.gherkin-parse');
+    expect(err).toContain('accord/tickets/T-1.md');
+  } finally {
+    cleanup(repo);
+  }
+});
+
+it('risk:complex-branching approval needs a ticket but no lane and refuses json', async () => {
+  const repo = makeLaneRepo({ 'accord/tickets/T-2.md': laneTicket('T-2', { lane: '' }) });
+  try {
+    const ok = await run(['show', 'T-2', '--approval'], repo);
+    expect(ok.code).toBe(0);
+    expect(ok.out).toContain('## Acceptance criteria');
+    const nope = await run(['show', 'NOPE', '--approval'], repo);
+    expect(nope.code).toBe(2);
+    expect(nope.err).toContain('no ticket NOPE in accord/tickets/');
+    const both = await run(['show', 'T-1', '--approval', '--json'], repo);
+    expect(both.code).toBe(2);
+    expect(both.out).toBe('');
+  } finally {
+    cleanup(repo);
+  }
+});
+
+it('risk:security approval turns control characters into spaces on each line', async () => {
+  const bad = '\u001b[31m';
+  const body = PROSE(['Feature: X', '', '  @ac-1 @test:x#one', `  Scenario: ti${bad}tle\u202e`, '    Given a', '    Then b']).replace('Why: a.', `Why: a${bad}b\u202ec.`);
+  const repo = makeLaneRepo({ 'accord/tickets/T-1.md': laneTicket('T-1', { body }) });
+  try {
+    const { code, out } = await run(['show', 'T-1', '--approval'], repo);
+    expect(code).toBe(0);
+    expect(out).not.toContain('\u001b');
+    expect(out).not.toContain('\u202e');
+    expect(out.split('\n')).toContain('Why: a [31mb c.');
+    expect(out.split('\n').length).toBeGreaterThan(10);
+  } finally {
+    cleanup(repo);
+  }
+});

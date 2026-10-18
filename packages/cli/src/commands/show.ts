@@ -40,6 +40,13 @@ export function show(ctx: CommandContext, id: string, options: { json?: boolean;
   if (options.approval === true) {
     // The checkout, as `accord approve` reads it; no lane needed.
     const ticket = requireTicket(ctx.plain ?? ctx.snapshot, id);
+    // A load finding (a gherkin parse error) would print `none` and be approved: refuse instead.
+    const found = (ctx.plain ?? ctx.snapshot).errors.filter((f) => f.file === ticket.file);
+    if (found.length > 0) {
+      for (const f of found) ctx.stderr.write(f.file + (f.line === undefined ? '' : ':' + f.line) + ': ' + f.rule + ' ' + f.reason + '\n');
+      ctx.stderr.write(ticket.file + ' has load findings; run accord lint\n');
+      return 1;
+    }
     ctx.stdout.write(approvalView(ticket).split('\n').map(clean).join('\n'));
     return 0;
   }

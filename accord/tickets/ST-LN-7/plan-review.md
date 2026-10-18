@@ -36,3 +36,6 @@ One critic, mode diff, on the fix in commit 48a7d6b. fixed: 2.1, 2.2, 2.3, 2.4, 
 ## Round 4 (diff)
 One critic, mode diff, on the owner's fix in commit ac8cd87. fixed: 3.1.
 No findings
+
+## Closed
+Converged at round 4 (no Must, no Should open); `accord gate plan ST-LN-7` passed after the owner re-approved the ticket ("Duyệt (Khuyên)"); baseline tests at fd9798e: 60 files, 1245 tests passed.

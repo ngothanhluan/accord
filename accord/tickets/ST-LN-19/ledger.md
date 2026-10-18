@@ -2,6 +2,7 @@
 
 ## Tasks
 - task 1 done 1d395a2da9c7
+- task 2 done 37b3cf63373d
 
 ## Rulings
 
@@ -31,3 +32,5 @@
 - Ruling: Task 3's verify: names packages/cli/test/show.test.ts's existing ac-1, ac-2, and risk:security cases without `(@ac-n)` markers — they prove ac-3's "still pass every test written for them before this ticket" and are already named by ST-LN-6's `@test:` tags; `accord gate plan` passed with them — cost if wrong: none, the gate accepted them.
 - Ruling: the baseline suite is 1293 of 1293 passing at 48665d5 after rebuilding core and cli; a first run had one failure (skills-sync.test.ts, the committed panel hooks) because the worktree's dist was built before origin/main was merged — cost if wrong: none, the rerun after the rebuild is the baseline.
 - Ruling: task 1's test compares the criteria block as an array of lines, checking ac-3's backtick step and ac-4's own When — the brief fixed the expected lines — cost if wrong: only a stricter assertion to relax.
+- Ruling: task 2's ac-1 case selects tickets whose acceptance-criteria section holds a gherkin fence line, matching the heading by a case-insensitive substring rather than core's unexported `headingKey`, and requires at least ten tickets — cost if wrong: a differently named heading is skipped; the floor stops a vacuous pass.
+- Ruling: task 2's three tests passed on their first run, with no red run shown, because task 1 already built the view — the executor did not break task 1's code to force one — cost if wrong: a test that cannot fail; review checks that each one fails on a broken view.

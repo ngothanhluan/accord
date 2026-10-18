@@ -42,7 +42,7 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: ST-LN-19
 
-  @ac-1
+  @ac-1 @test:packages/cli/test/show-approval.test.ts#ac-1-every-scenario-of-every-real-ticket-is-rebuilt-exactly-from-the-approval-view
   Scenario: every scenario of every real ticket can be rebuilt exactly from the view
     Given every ticket file in the repository's accord/tickets folder that holds a gherkin block under Acceptance criteria
     When `accord show <id> --approval` runs for each of them

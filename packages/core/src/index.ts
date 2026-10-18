@@ -42,6 +42,7 @@ export { writeTestTags } from './write/testtag.js';
 export { branchTemplateOf, DEFAULT_BRANCH_TEMPLATE } from './status/branch.js';
 export { anchorText } from './status/anchor.js';
 export { ticketDetail } from './status/show.js';
+export { approvalView } from './status/approval.js';
 export type { CriterionDetail, CriterionLabel, TicketDetail } from './status/show.js';
 export { rulesetText, sessionLine } from './status/session.js';
 export { nextRows, statusRows } from './status/rows.js';

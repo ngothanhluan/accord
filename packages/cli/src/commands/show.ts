@@ -1,9 +1,10 @@
-// ST-LN-6 `accord show <id> [--json]`: one lane ticket in full, as text or as the TicketDetail object.
-import { ticketDetail } from '@accord-dev/accord-core';
+// ST-LN-6 `accord show <id> [--json|--approval]`: one lane ticket in full as text or TicketDetail; --approval needs no lane.
+import { approvalView, ticketDetail } from '@accord-dev/accord-core';
 import type { TicketDetail } from '@accord-dev/accord-core';
+import { colourApproval } from '../render/color.js';
 import { isUnsafe } from '../render/dashboard.js';
 import type { CommandContext } from '../run.js';
-import { requireLaneTicket } from './lane-args.js';
+import { requireLaneTicket, requireTicket } from './lane-args.js';
 
 // Control, bidi and line-separator code points become one space each; nothing is cut or collapsed.
 const clean = (s: string): string => [...s].map((ch) => (isUnsafe(ch.codePointAt(0) ?? 0) ? ' ' : ch)).join('');
@@ -36,7 +37,20 @@ function text(d: TicketDetail): string {
   return lines.map(clean).join('\n') + '\n';
 }
 
-export function show(ctx: CommandContext, id: string, options: { json?: boolean }): number {
+export function show(ctx: CommandContext, id: string, options: { json?: boolean; approval?: boolean }): number {
+  if (options.approval === true) {
+    // The checkout, as `accord approve` reads it; no lane needed.
+    const ticket = requireTicket(ctx.plain ?? ctx.snapshot, id);
+    // A load finding (a gherkin parse error) would print `none` and be approved: refuse instead.
+    const found = (ctx.plain ?? ctx.snapshot).errors.filter((f) => f.file === ticket.file);
+    if (found.length > 0) {
+      for (const f of found) ctx.stderr.write(f.file + (f.line === undefined ? '' : ':' + f.line) + ': ' + f.rule + ' ' + f.reason + '\n');
+      ctx.stderr.write(ticket.file + ' has load findings; run accord lint\n');
+      return 1;
+    }
+    ctx.stdout.write(colourApproval(approvalView(ticket).split('\n').map(clean).join('\n'), ctx.stdout));
+    return 0;
+  }
   requireLaneTicket(ctx, id);
   const d = ticketDetail(ctx.snapshot, id, ctx.plain);
   if (d === undefined) throw new Error('no detail for ' + id); // unreachable after requireLaneTicket

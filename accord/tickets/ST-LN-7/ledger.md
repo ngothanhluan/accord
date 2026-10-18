@@ -39,10 +39,10 @@
 - Ruling: a hold is judged only when a walk up the parent ids from the command's own process meets `CLAUDE_PID`, or stops at a parent id with no row while the `CLAUDE_PID` row exists with a non-empty start; the walk refuses at a row with pid 1 or ppid 0, at a missing row for the command itself, and at a parent loop; this replaces the Ruling that looked the `CLAUDE_PID` row up by pid alone (re-plan critique 1.1) — on POSIX orphans are reparented, so the walk ends at `CLAUDE_PID` or the root and fails closed against a PID namespace and a reused pid; on Windows a short-lived msys bash leaves a gap (seen through `npm exec`) — cost if wrong: on Windows, a stale `CLAUDE_PID` reached through the gap is recorded as holder until that process ends, and a dead parent's pid reused by an unrelated process can lead the walk to pid 0 and refuse a real session.
 - Ruling: the walk keeps no check that a parent started before its child — the Windows chains seen top out at a gap, not at System — cost if wrong: a reused parent pid can refuse a real session on Windows.
 - Ruling: `proc.ts` uses a mutable stdio array with `encoding: 'utf8' as const` for its exec options — the earlier draft's readonly `as const` stdio failed the typecheck (Task 1 executor) — cost if wrong: none.
-- Ruling: each executor is also told "commit with no Co-Authored-By trailer" — CLAUDE.md: commits authored solely by the author; the Task 1 commit 0496cf0 carries one, and rewriting it was refused by this session's permission check, so it waits for the owner — cost if wrong: one commit to reword before merge.
+- Ruling: each executor is also told "commit with no Co-Authored-By trailer" — CLAUDE.md: commits authored solely by the author; the Task 1 commit 1c4dcff carries one, and rewriting it was refused by this session's permission check, so it waits for the owner — cost if wrong: one commit to reword before merge.
 - Ruling: `gitDefaultRef` is called once from `gitPeopleOnRefs`, which keeps its old rule that the ref must be among the refs it read — every existing ids test passed unchanged (Task 2 executor) — cost if wrong: none seen.
 - Ruling: `worktreeOpen` takes the main checkout from the first `git worktree list` entry and builds the sibling path from it — the sibling-path Ruling above — cost if wrong: none; a run from a linked worktree is Task 4's case.
-- Ruling: the Task 2 test `risk:parsing setup is a list of non-empty command strings` moved out of `describe('config.schema.json')` to top level (5d27f18) — its verify id names the bare test, as the file's other verify-id tests do — cost if wrong: none.
+- Ruling: the Task 2 test `risk:parsing setup is a list of non-empty command strings` moved out of `describe('config.schema.json')` to top level (d1600e4) — its verify id names the bare test, as the file's other verify-id tests do — cost if wrong: none.
 - Ruling: the Continue refusal for an unknown id reads `not a ticket: <id> is not in accord/tickets and has no branch <b> here or on origin - nothing was created` — the brief's Interface text (`not a ticket: no ticket <id> ...`) contradicted its own test, which expects the message to start `not a ticket: ST-77`; the test was followed (Task 3 executor) — cost if wrong: one wording change; the skill reads only the first two words.
 - Ruling: when the holder is the same session, the hold entry is rewritten with the current marker, pid and start time, keeping the old `taken` — a resumed session (same marker, new pid) stays recognised, and a different holder is not wrongly taken over while that session lives (Task 4 executor) — cost if wrong: the risk test restores the first hold file before each of its three re-entry cases, since they cannot run one after another.
 - Ruling: "in the ticket's worktree" is a path comparison of `ctx.root` with the `git worktree list` entry, case-insensitive and backslash-folded on win32 only (Task 4 executor) — cost if wrong: a root spelled differently on POSIX is read as another checkout.
@@ -55,7 +55,7 @@
 - Ruling: the ac-1 test is strengthened in review (local `main` made to differ from `origin/main`), its title kept — it then checks what @ac-1 states; the test is not weakened — cost if wrong: none.
 - Ruling: a failed read of the holds file is cached for one `worktree clean` run, so a stale lock costs one 2 s wait, not one per worktree (review round 1 executor) — cost if wrong: a lock cleared mid-run is noticed only on the next run.
 - Ruling: final review 2 (Pick up of a ticket a teammate claimed joins that branch silently) is a plan gap — Task 3 cases 3 and 4 reuse an existing branch for Pick up as well as Continue, and the executor built that — and goes to a re-plan of one new task; the owner chose that Pick up keeps reusing a branch whose claim commit is the user's own and exits 2 with `claimed: <id> by <author>` and a pointer to `/accord continue <id>` when the claim is someone else's — "Từ chối nếu người khác claim (Khuyên)" (2026-10-18) — cost if wrong: one refusal to relax.
-- Ruling: commit 0496cf0 is rewritten to drop its Co-Authored-By trailer after review converges and before accord-verify, then t/ST-LN-7 is force-pushed and the ledger and review.md SHAs are remapped in one commit, as ST-LN-18 did in 88bf4d1 — `gate done` needs `verified_commit` reachable from main, so a rewrite after verify would orphan it; the earlier advice to rewrite at merge time was wrong — owner: "Cho phép, làm trước verify (Khuyên)" (2026-10-18) — cost if wrong: none; the branch is the owner's alone.
+- Ruling: commit 1c4dcff is rewritten to drop its Co-Authored-By trailer after review converges and before accord-verify, then t/ST-LN-7 is force-pushed and the ledger and review.md SHAs are remapped in one commit, as ST-LN-18 did in 88bf4d1 — `gate done` needs `verified_commit` reachable from main, so a rewrite after verify would orphan it; the earlier advice to rewrite at merge time was wrong — owner: "Cho phép, làm trước verify (Khuyên)" (2026-10-18) — cost if wrong: none; the branch is the owner's alone.
 - Ruling: `gitNoPrompt` appends `-o BatchMode=yes` to `GIT_SSH_COMMAND` or `core.sshCommand` only when its first word's basename is `ssh` or `ssh.exe`, injects nothing when only `GIT_SSH` is set, and injects `ssh -o BatchMode=yes` when none is set — appending to plink or a wrapper can break it, and a `core.sshCommand` injection hides `GIT_SSH` (final review 4) — cost if wrong: a non-OpenSSH command that prompts can still wait on a terminal.
 - Ruling: the round-1 `core.sshCommand` test keeps its title and assertion with its recorder renamed `ssh` (a node-shebang script), so it still counts as OpenSSH under the new rule (final review executor) — cost if wrong: the test relies on Git for Windows running shebang scripts, as it did here.
 - Ruling: a worktree with no `accord/config.yml` still runs no setup; only a file that exists and fails to load throws (final review executor) — cost if wrong: a worktree without a config skips setup silently.
@@ -88,12 +88,12 @@
 - Task 9 review 3 (Nice): no test pins the exact-subject guard (`claim: ST-1` against `claim: ST-10`) or the empty `user.email` branch — deferred.
 
 ## Tasks
-- task 1 done 0496cf0300af
-- task 2 done 5d27f188fb48
-- task 3 done cbdcd1a8a598
-- task 4 done d6c0e760f934
-- task 5 done 82d151a20705
-- task 6 done cc1518a6ecbb
-- task 7 done 982f20f64d09
-- task 8 done 3278c355ce25
-- task 9 done b57df05f96e5
+- task 1 done 1c4dcffed697
+- task 2 done d1600e4e1fa4
+- task 3 done fb384722d9ee
+- task 4 done 3aebed42f801
+- task 5 done 467ca0b6cced
+- task 6 done b2c754357016
+- task 7 done b062e52430ab
+- task 8 done 173fd0d04a0b
+- task 9 done 0cc3dfc43c3a

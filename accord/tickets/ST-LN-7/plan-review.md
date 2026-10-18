@@ -60,7 +60,7 @@ Re-plan after the final review's Pick up gap (Task 9).
 3. Should (critic: Nice, raised by a Ruling) — SKILL.md's Pick up paragraph says to push before it says to follow worktree.md, so an agent reading in order pushes after a `claimed:` refusal, which can push the user's unpushed commits onto a teammate's branch; order it "follow ./worktree.md, which says when to push" at about the same byte count — fixed
 
 ## Round 2 (diff)
-One critic, mode diff, on the fix since commit eb6b4de. fixed: 1.1, 1.2, 1.3. No new findings.
+One critic, mode diff, on the fix since commit 64e6f3e. fixed: 1.1, 1.2, 1.3. No new findings.
 
 ## Closed
 Re-plan after the final review's Pick up gap converged at round 2 (no Must, no Should open); `accord gate plan ST-LN-7` passed with plan_hash fnv1a64:fef1cc19c28d33d7.

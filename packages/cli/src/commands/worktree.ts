@@ -218,7 +218,11 @@ export function worktreeOpen(ctx: CommandContext, id: string, opts: { continue?:
   const held = list.find((w) => w.branch === branch);
   const local = held !== undefined || gitOk(ctx.root, ['rev-parse', '--verify', '-q', 'refs/heads/' + branch]);
   const remote = gitOk(ctx.root, ['rev-parse', '--verify', '-q', 'refs/remotes/origin/' + branch]);
-  if (opts.continue !== true && (local || remote)) checkClaimant(ctx, id, local ? 'refs/heads/' + branch : 'refs/remotes/origin/' + branch);
+  if (opts.continue !== true) {
+    // judge every ref that exists: the dashboard credits the pushed claim too
+    if (local) checkClaimant(ctx, id, 'refs/heads/' + branch);
+    if (remote) checkClaimant(ctx, id, 'refs/remotes/origin/' + branch);
+  }
   // D-15: a worktree already holding the branch is only found, nothing runs there.
   if (held !== undefined) {
     if (norm(held.path) === norm(ctx.root)) return hold(ctx, id, held.path);

@@ -585,7 +585,7 @@ it('risk:data-loss a stale holds lock keeps a merged clean worktree, names it, a
 });
 
 it('risk:complex-branching pick up refuses a branch another person claimed and reuses one claimed by the same email', async () => {
-  const c = clone({ tickets: ['ST-9', 'ST-10', 'ST-11', 'ST-12'] });
+  const c = clone({ tickets: ['ST-9', 'ST-10', 'ST-11', 'ST-12', 'ST-13'] });
   const o = c.otherClone();
   const me = ['-c', 'user.email=fixture@example.invalid'];
   gitRun(o, 'config', 'user.email', 'y@example.invalid');
@@ -602,8 +602,12 @@ it('risk:complex-branching pick up refuses a branch another person claimed and r
     gitRun(o, 'add', '-A');
     gitRun(o, 'commit', '-q', '-m', 'work');
   }
-  gitRun(o, 'push', '-q', 'origin', 't/ST-9', 't/ST-10', 't/ST-11', 't/ST-12');
+  gitRun(o, 'switch', '-q', '-c', 't/ST-13', 'main');
+  gitRun(o, 'commit', '-q', '--allow-empty', '-m', 'claim: ST-13');
+  gitRun(o, 'push', '-q', 'origin', 't/ST-9', 't/ST-10', 't/ST-11', 't/ST-12', 't/ST-13');
   c.git('fetch', '-q', 'origin');
+  // the user's own unpushed claim on a local branch must not hide the teammate's pushed one
+  c.git('branch', 't/ST-13', c.git('-c', 'user.email=fixture@example.invalid', 'commit-tree', 'main^{tree}', '-p', 'main', '-m', 'claim: ST-13').trim());
 
   let r = await run(['worktree', 'open', 'ST-9'], c.root);
   expect(r.code).toBe(2);
@@ -620,6 +624,11 @@ it('risk:complex-branching pick up refuses a branch another person claimed and r
     expect(r.err.startsWith(`claimed: ${id} by y@example.invalid`), id).toBe(true);
     expect(existsSync(c.sibling(id)), id).toBe(false);
   }
+
+  r = await run(['worktree', 'open', 'ST-13'], c.root);
+  expect(r.code).toBe(2);
+  expect(r.err.startsWith('claimed: ST-13 by y@example.invalid')).toBe(true);
+  expect(existsSync(c.sibling('ST-13'))).toBe(false);
 
   r = await run(['worktree', 'open', 'ST-10'], c.root);
   expect(r.code).toBe(0);

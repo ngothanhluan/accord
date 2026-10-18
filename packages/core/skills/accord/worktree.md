@@ -13,7 +13,7 @@ never claim it.
 
 When Pick up's `accord worktree open <id>` exits 2 with a line starting `claimed:`, another person
 holds the claim: push nothing, show the message and stop. Offer `/accord continue <id>` only when the
-owner means to work on the ticket with them. Otherwise push the claim with
+owner means to work on the ticket with them. When `accord worktree open <id>` did not refuse with `claimed:`, push the claim with
 `git push -u origin <branch>` before anything else, even when a setup command failed.
 
 What `accord worktree open <id>` and `accord new ticket --worktree` print:

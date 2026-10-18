@@ -43,3 +43,9 @@
 - Ruling: task 4 is checked with FORCE_COLOR=1 on a PassThrough stream, not a real terminal — `styleText` with `{ stream }` decides colour from the same env and isTTY rules in both — cost if wrong: a real terminal shows no colour, which the owner sees at the first yes.
 - Ruling: task 5's risk:regression test shares the `yesSteps` helper with the ac-4 test instead of repeating the chunking code — the helper is test-only — cost if wrong: none.
 - Ruling: once merged, the synced skills run `accord show <id> --approval`, which the published 0.1.0 lacks, so a session running accord through npx 0.1.0 stops at the owner's yes until the next release; both skills say to stop and tell the owner when the command fails — release timing is the owner's (after the whole queue) — cost if wrong: the yes falls back to the owner reading the ticket file until release.
+- Ruling: review round 1 raises three of the quality reviewer's Nice findings to Should and fixes them — the lint error fails `npm run check`, a fenced block in a prose section broke ac-3's "verbatim", and the help text claimed a lane `--approval` does not need — the owner ranks quality first — cost if wrong: one fix round.
+- Ruling: in the review fix, a list line directly before a fence opener still gets a blank line after it, by the existing list rule — cost if wrong: one extra blank line before a fence, no lost fact.
+
+## Deferred
+
+- Nice (review round 1): the `risk:regression` test in packages/core/test/stage-skills.test.ts that the owner's yes still asks for an explicit yes and commits the answer checks two literal phrases and guards no shipped bug; rewording the skill without changing behaviour would fail it.

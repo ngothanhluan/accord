@@ -16,6 +16,14 @@
 - Ruling: `worktree clean` fetches and prints nothing when there is no `origin` remote or no ticket worktree besides the main one — the Veto forbids friction — cost if wrong: none known.
 - Ruling: `worktree clean` never removes the main worktree, and drops the hold entry of each worktree it removes — cost if wrong: none known.
 - Ruling: the session probe writes only filtered environment variables (names holding TOKEN, KEY, SECRET, PASS, AUTH or CRED left out) and keeps command lines only for `node` rows, with the home folder as `~` — the fixtures go into a public repository — cost if wrong: a non-`node` host whose command line must be matched is captured again.
+- Ruling: Task 1 is the hold reader, not the wiring — the Approach keeps risk 2 open until the first task — cost if wrong: the end-to-end proof comes one task later.
+- Ruling: two sessions are the same when their markers are equal, or when their pid and start time are equal — a session is then never refused by its own hold, whether or not the marker survives a resume, a compaction, or a subagent — cost if wrong: a new marker in one claude process (after `/clear`) counts as the same session.
+- Ruling: a hold is judged only when `CLAUDE_PID` appears among the command's parent processes; otherwise exit 2 — fails closed against a partial process table (plan critique 1.7) — cost if wrong: a sandboxed command cannot continue until it runs outside the sandbox.
+- Ruling: `CLAUDECODE=1` without both `CLAUDE_CODE_SESSION_ID` and `CLAUDE_PID` exits 2 and asks for a newer Claude Code — in Claude Code the hold is promised (D-17) — cost if wrong: anyone on an older Claude Code is blocked.
+- Ruling: `worktree clean` run from another tool trusts the process table as it reads it — there is no reference process to check it against — cost if wrong: a holder hidden by a partial table is read as dead.
+- Ruling: Continue is `accord worktree open <id> --continue`, and the skill tells its two refusals apart by their first words `not a ticket:` and `not claimed:` — as the distinct-first-line Ruling — cost if wrong: one option to rename.
+- Ruling: the Continue lookup (D-18) reads only refs already in the clone and fetches nothing — D-12 — cost if wrong: a teammate's branch not yet fetched is taken as a New request until a bare `/accord` fetches.
+- Ruling: the session-probe Ruling no longer applies; the probe and its fixtures are dropped after D-17 — cost if wrong: none.
 
 ## Deferred
 - Plan critique 1.14 (Nice): the main checkout has no setup done-marker, so Continue rooted there reruns the whole setup in the owner's checkout — deferred.

@@ -11,8 +11,10 @@ branch, here or on `origin`. When it exits 2 with a line starting `not a ticket:
 request. A line starting `not claimed:` means nobody has claimed the ticket: say so, offer Pick up, and
 never claim it.
 
-After Pick up's `accord worktree open <id>`, push the claim with `git push -u origin <branch>` before
-anything else, even when a setup command failed.
+When Pick up's `accord worktree open <id>` exits 2 with a line starting `claimed:`, another person
+holds the claim: push nothing, show the message and stop. Offer `/accord continue <id>` only when the
+owner means to work on the ticket with them. Otherwise push the claim with
+`git push -u origin <branch>` before anything else, even when a setup command failed.
 
 What `accord worktree open <id>` and `accord new ticket --worktree` print:
 

@@ -583,3 +583,63 @@ it('risk:data-loss a stale holds lock keeps a merged clean worktree, names it, a
   expect(r.code).toBe(0);
   expect(existsSync(c.sibling('ST-9'))).toBe(true);
 });
+
+it('risk:complex-branching pick up refuses a branch another person claimed and reuses one claimed by the same email', async () => {
+  const c = clone({ tickets: ['ST-9', 'ST-10', 'ST-11', 'ST-12'] });
+  const o = c.otherClone();
+  const me = ['-c', 'user.email=fixture@example.invalid'];
+  gitRun(o, 'config', 'user.email', 'y@example.invalid');
+  gitRun(o, ...me, 'commit', '-q', '--allow-empty', '-m', 'claim: ST-12');
+  gitRun(o, 'push', '-q', 'origin', 'main');
+  gitRun(o, 'switch', '-q', '-c', 't/ST-9', 'main');
+  gitRun(o, 'commit', '-q', '--allow-empty', '-m', 'claim: ST-9');
+  gitRun(o, 'switch', '-q', '-c', 't/ST-10', 'main');
+  gitRun(o, ...me, 'commit', '-q', '--allow-empty', '-m', 'claim: ST-10');
+  gitRun(o, 'commit', '-q', '--allow-empty', '-m', 'help');
+  for (const [id, f] of [['ST-11', 'x.txt'], ['ST-12', 'y.txt']]) {
+    gitRun(o, 'switch', '-q', '-c', 't/' + id, 'main');
+    writeFiles(o, { [f]: 'x\n' });
+    gitRun(o, 'add', '-A');
+    gitRun(o, 'commit', '-q', '-m', 'work');
+  }
+  gitRun(o, 'push', '-q', 'origin', 't/ST-9', 't/ST-10', 't/ST-11', 't/ST-12');
+  c.git('fetch', '-q', 'origin');
+
+  let r = await run(['worktree', 'open', 'ST-9'], c.root);
+  expect(r.code).toBe(2);
+  expect(r.err.startsWith('claimed: ST-9 by y@example.invalid')).toBe(true);
+  expect(r.err).toContain('/accord continue ST-9');
+  expect(r.out).not.toContain('stop:');
+  expect(entries(c)).toHaveLength(1);
+  expect(() => c.git('rev-parse', '--verify', '-q', 'refs/heads/t/ST-9')).toThrow();
+  expect(existsSync(c.sibling('ST-9'))).toBe(false);
+
+  for (const id of ['ST-11', 'ST-12']) {
+    r = await run(['worktree', 'open', id], c.root);
+    expect(r.code, id).toBe(2);
+    expect(r.err.startsWith(`claimed: ${id} by y@example.invalid`), id).toBe(true);
+    expect(existsSync(c.sibling(id)), id).toBe(false);
+  }
+
+  r = await run(['worktree', 'open', 'ST-10'], c.root);
+  expect(r.code).toBe(0);
+  expect(r.out.split('\n').slice(0, 3)).toEqual([
+    'stop: open a session in this folder and type the line below it',
+    c.sibling('ST-10'),
+    '/accord continue ST-10',
+  ]);
+  expect(gitRun(c.sibling('ST-10'), 'rev-parse', 'HEAD').trim()).toBe(c.git('rev-parse', 'origin/t/ST-10').trim());
+  expect(c.git('log', '--all', '--format=%s').split('\n').filter((s) => s === 'claim: ST-10')).toHaveLength(1);
+
+  r = await run(['worktree', 'open', 'ST-9', '--continue'], c.root);
+  expect(r.code).toBe(0);
+  expect(r.out.split('\n').slice(0, 3)).toEqual([
+    'stop: open a session in this folder and type the line below it',
+    c.sibling('ST-9'),
+    '/accord continue ST-9',
+  ]);
+  r = await run(['worktree', 'open', 'ST-9'], c.root);
+  expect(r.code).toBe(2);
+  expect(r.err.startsWith('claimed: ST-9 by y@example.invalid')).toBe(true);
+  expect(entries(c)).toHaveLength(3);
+});

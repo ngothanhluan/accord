@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { DEFAULT_BRANCH_TEMPLATE, loadConfig } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
-import { gitDefaultRef, ticketOfBranch, UsageError } from '../load/fs.js';
+import { gitDefaultRef, gitUserEmail, ticketOfBranch, UsageError } from '../load/fs.js';
 import { claudeEnv, describeSession, isLive, processTable, runSetup, sameSession, sessionIn } from '../load/proc.js';
 import type { Session } from '../load/proc.js';
 import type { CommandContext } from '../run.js';
@@ -188,20 +188,43 @@ export function printStop(ctx: CommandContext, path: string, id: string): void {
   ctx.stdout.write(`stop: open a session in this folder and type the line below it\n${path}\n/accord continue ${id}\n`);
 }
 
+/** Pick up reuses an existing branch only when its claim is the user's own (same email); otherwise exit 2, nothing created. */
+function checkClaimant(ctx: CommandContext, id: string, ref: string): void {
+  const def = gitDefaultRef(ctx.root);
+  const log = git(ctx.root, ['log', '--fixed-strings', '--grep=claim: ' + id, '--format=%ae%x00%s', ref, ...(def === undefined ? [] : ['--not', def])]);
+  let claimant: string | undefined;
+  for (const line of log.split('\n')) {
+    const [email, subject] = line.split('\0');
+    if (subject === 'claim: ' + id) {
+      claimant = email;
+      break;
+    }
+  }
+  const claims = ctx.snapshot.claims;
+  claimant ??= claims !== undefined && Object.hasOwn(claims, id) ? claims[id] : undefined;
+  if (claimant === undefined) return;
+  const me = gitUserEmail(ctx.root);
+  if (me === '') throw new UsageError('git user.email is not set - set it with git config user.email <you@example.com>');
+  if (claimant.trim().toLowerCase() !== me.trim().toLowerCase()) {
+    throw new UsageError(`claimed: ${id} by ${claimant} - nothing was created; to work on it with them, type /accord continue ${id}`);
+  }
+}
+
 export function worktreeOpen(ctx: CommandContext, id: string, opts: { continue?: boolean } = {}): number {
   if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id);
   const branch = branchOf(ctx.snapshot, id);
   const list = worktrees(ctx.root, ctx.stdout);
   const mainPath = list[0].path;
-  // D-15: a worktree already holding the branch is only found, nothing runs there.
   const held = list.find((w) => w.branch === branch);
+  const local = held !== undefined || gitOk(ctx.root, ['rev-parse', '--verify', '-q', 'refs/heads/' + branch]);
+  const remote = gitOk(ctx.root, ['rev-parse', '--verify', '-q', 'refs/remotes/origin/' + branch]);
+  if (opts.continue !== true && (local || remote)) checkClaimant(ctx, id, local ? 'refs/heads/' + branch : 'refs/remotes/origin/' + branch);
+  // D-15: a worktree already holding the branch is only found, nothing runs there.
   if (held !== undefined) {
     if (norm(held.path) === norm(ctx.root)) return hold(ctx, id, held.path);
     printStop(ctx, held.path, id);
     return 0;
   }
-  const local = gitOk(ctx.root, ['rev-parse', '--verify', '-q', 'refs/heads/' + branch]);
-  const remote = gitOk(ctx.root, ['rev-parse', '--verify', '-q', 'refs/remotes/origin/' + branch]);
   if (local || remote) {
     const path = siblingOf(mainPath, id);
     git(ctx.root, local ? ['worktree', 'add', path, branch] : ['worktree', 'add', '--track', '-b', branch, path, 'origin/' + branch]);

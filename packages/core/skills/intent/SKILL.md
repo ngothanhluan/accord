@@ -54,8 +54,10 @@ plans or builds. You run it in the main session.
    question. Then commit `accord/tickets/<id>.md`, with the ledger if it
    changed.
 
-9. **The owner's yes.** Show the owner the `## Intent` section and the acceptance criteria block verbatim,
-   copied from the ticket file and never summarised, ask for an explicit yes, and on yes commit the ticket with
+9. **The owner's yes.** Run `accord show <id> --approval`; if it fails, stop and tell the
+   owner. Paste its output unchanged, as Markdown, not inside a code block; below it put a horizontal rule, a
+   heading "In plain words" written in the chat language, and one line per scenario that begins with its ac-n
+   and says in plain words what it means; ask for an explicit yes, and on yes commit the ticket with
    the owner's answer quoted in the commit message. That commit holds `accord/tickets/<id>.md`, with the ledger
    if it changed, and uses `--allow-empty` when nothing changed. On a no, write the owner's words under
    `## Corrections` first, rewrite the sections they touch, take a changed criterion back to step 8, and show

@@ -158,8 +158,8 @@ it('ac-2 every stage skill points to the shared ask rule from its intent paragra
   expect(bad).toEqual([]);
 });
 
+// SHOW-1's verbatim paste is superseded by ST-LN-19 D-01; ST-LN-19 ac-4 proves the new step.
 it('ac-1 the intent skill shows intent and the criteria verbatim before the architect', () => {
-  const SENTENCE_A = "Show the owner the `## Intent` section and the acceptance criteria block verbatim, copied from the ticket file and never summarised, ask for an explicit yes, and on yes commit the ticket with the owner's answer quoted in the commit message.";
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
   expect([...STAGES]).toEqual(['accord', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
@@ -172,7 +172,7 @@ it('ac-1 the intent skill shows intent and the criteria verbatim before the arch
     const steps = text.split(/^(?=\d+\. )/m).filter((c) => /^\d+\. /.test(c)).map((c) => c.replace(/[ \t]*\n[ \t]*/g, ' '));
     const idx = (f: (s: string) => boolean) => steps.flatMap((s, i) => (f(s) ? [i] : []));
     const lists = {
-      sentence: idx((s) => s.includes(SENTENCE_A)),
+      sentence: idx((s) => /^\d+\. \*\*The owner's yes/.test(s)),
       auditor: idx((s) => s.includes('Dispatch `accord-auditor`')),
       next: idx((s) => /^\d+\. Next: `accord-approach`/.test(s)),
     };
@@ -184,8 +184,8 @@ it('ac-1 the intent skill shows intent and the criteria verbatim before the arch
   expect(bad).toEqual([]);
 });
 
+// SHOW-1's verbatim paste is superseded by ST-LN-19 D-01; ST-LN-19 ac-4 proves the new step.
 it('ac-2 the approach skill shows approach verbatim instead of a brief', () => {
-  const SENTENCE_B = "Show the owner the `## Approach` section verbatim, copied from the ticket file and never summarised, together with any section changed since the owner's yes at the intent stage, and ask for an explicit yes.";
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
   expect([...STAGES]).toEqual(['accord', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
@@ -196,7 +196,6 @@ it('ac-2 the approach skill shows approach verbatim instead of a brief', () => {
     const raw = everyFile.get(path) ?? '';
     if (!raw) { bad.push(path + ' missing'); continue; }
     const text = raw.replace(/[ \t]*\n[ \t]*/g, ' ');
-    if (!text.includes(SENTENCE_B)) bad.push(path + ' lacks sentence B');
     if (text.includes('Show the owner the brief')) bad.push(path + ' still shows the brief');
   }
   expect(bad).toEqual([]);
@@ -318,4 +317,43 @@ it('risk:regression the accord skill takes an id that accord status lists with a
   const named = text.slice(text.indexOf('## A ticket named'), text.indexOf('## Continue'));
   expect(named).toContain('an id that `accord status --json` lists with a `branch`');
   expect(named).toContain('`/accord continue ST-99` is a New request');
+});
+
+function yesSteps(): { dir: string; stage: string; step: string; bad?: string }[] {
+  const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
+  expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
+  expect([...STAGES]).toEqual(['accord', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
+  const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
+  const out: { dir: string; stage: string; step: string; bad?: string }[] = [];
+  for (const dir of skillDirs(all)) {
+    for (const stage of ['intent', 'approach']) {
+      const text = everyFile.get(dir + '/' + installedName(stage) + '/SKILL.md') ?? '';
+      if (!text) { out.push({ dir, stage, step: '', bad: 'missing' }); continue; }
+      const hits = text.split(/^(?=\d+\. |#)/m).filter((c) => /^\d+\. \*\*The owner's yes/.test(c));
+      if (hits.length !== 1) { out.push({ dir, stage, step: '', bad: 'found ' + hits.length + ' steps' }); continue; }
+      out.push({ dir, stage, step: hits[0].replace(/[ \t]*\n[ \t]*/g, ' ') });
+    }
+  }
+  return out;
+}
+
+it('ac-4 the intent and approach skills show the approval view at the owners yes', () => {
+  const bad: string[] = [];
+  for (const { dir, stage, step, bad: b } of yesSteps()) {
+    if (b) { bad.push(dir + ' ' + stage + ' ' + b); continue; }
+    for (const p of ['`accord show <id> --approval`', 'unchanged', 'not inside a code block', 'horizontal rule', 'In plain words', 'one line per scenario that begins with its ac-n'])
+      if (!step.includes(p)) bad.push(dir + ' ' + stage + ' lacks ' + p);
+    if (step.toLowerCase().includes('from the ticket file')) bad.push(dir + ' ' + stage + ' still says from the ticket file');
+  }
+  expect(bad).toEqual([]);
+});
+
+it('risk:regression the owners yes steps still ask for an explicit yes and commit the answer', () => {
+  const bad: string[] = [];
+  for (const { dir, stage, step, bad: b } of yesSteps()) {
+    if (b) { bad.push(dir + ' ' + stage + ' ' + b); continue; }
+    if (!step.includes('ask for an explicit yes')) bad.push(dir + ' ' + stage + ' ask for an explicit yes');
+    if (stage === 'intent' && !step.includes("on yes commit the ticket with the owner's answer quoted in the commit message")) bad.push(dir + ' ' + stage + ' commit');
+  }
+  expect(bad).toEqual([]);
 });

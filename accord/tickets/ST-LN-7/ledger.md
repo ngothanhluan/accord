@@ -24,6 +24,10 @@
 - Ruling: Continue is `accord worktree open <id> --continue`, and the skill tells its two refusals apart by their first words `not a ticket:` and `not claimed:` — as the distinct-first-line Ruling — cost if wrong: one option to rename.
 - Ruling: the Continue lookup (D-18) reads only refs already in the clone and fetches nothing — D-12 — cost if wrong: a teammate's branch not yet fetched is taken as a New request until a bare `/accord` fetches.
 - Ruling: the session-probe Ruling no longer applies; the probe and its fixtures are dropped after D-17 — cost if wrong: none.
+- Ruling: Pick up claims only a ticket whose file is on the default ref (`git cat-file -e`) as well as in the checkout — the worktree is built from that ref, so a claim with no ticket file would follow (plan critique 2.1) — cost if wrong: a ticket that exists only in the checkout must merge to main before Pick up.
+- Ruling: `worktrees(root)` runs `git worktree prune` when an entry is `prunable` — it drops only git's records of missing folders; branches and locked worktrees are untouched (plan critique 2.2) — cost if wrong: a worktree folder moved by hand can no longer be reattached with `git worktree repair`.
+- Ruling: the intro paragraph of the `accord` SKILL.md is deleted to fit the 5,120-byte limit — the frontmatter `description` says the same (plan critique 2.4) — cost if wrong: a reader loses one orienting sentence.
+- Ruling: in `ids.md`, the `## Dropping instead of renaming` steps get no `--worktree` — a replacement ticket is made inside the dropped ticket's own session — cost if wrong: a lane M replacement ticket is written in that session's checkout.
 
 ## Deferred
 - Plan critique 1.14 (Nice): the main checkout has no setup done-marker, so Continue rooted there reruns the whole setup in the owner's checkout — deferred.

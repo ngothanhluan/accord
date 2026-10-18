@@ -36,7 +36,9 @@ Definitions shared by every task:
   default template it is `t/<id>`. It needs no ticket file for `id`.
 - The worktree list: `git worktree list --porcelain` from the root, parsed into entries `{ path, head, branch? }`
   (`branch` is the short name after `refs/heads/`; a `detached` entry has none), in the order git prints them. The
-  first entry is the main worktree. Two paths are the same when they are equal, compared case-insensitively on
+  first entry is the main worktree. From Task 3 on, an entry carrying a `prunable` line (its folder was deleted or
+  moved by hand; `git worktree list` documents the attribute) is never returned: `worktrees(root)` runs `git
+  worktree prune` once and lists again when any entry has one. Two paths are the same when they are equal, compared case-insensitively on
   win32.
 - The sibling path of a ticket (D-06, ledger Ruling 7): the main worktree's path up to and including its last
   `/`, then its folder name, `-`, and the id in lower case. For `C:/Work/accord` and `ST-9`:
@@ -137,7 +139,7 @@ committed.
 ## Task 2: Wiring: Pick up from the main checkout adds the ticket's worktree, runs setup, and points to a session there
 covers: @ac-1, @ac-2, D-02, D-06, D-07, D-11, D-15
 files: packages/core/schemas/config.schema.json, packages/core/src/model/snapshot.ts, packages/core/test/schemas.test.ts, packages/cli/src/load/fs.ts, packages/cli/src/load/proc.ts (new), packages/cli/src/commands/worktree.ts (new), packages/cli/src/run.ts, packages/cli/test/helpers/worktree.ts (new), packages/cli/test/worktree.test.ts (new), packages/cli/test/spawn-surface.test.ts, packages/cli/test/skill-commands.test.ts
-verify: packages/cli/test/worktree.test.ts#ac-1-pick-up-adds-the-ticket-worktree-from-origin-main-runs-setup-in-order-and-prints-where-to-continue (@ac-1), packages/cli/test/worktree.test.ts#ac-2-a-failing-setup-command-exits-2-naming-it-and-keeps-the-worktree (@ac-2), packages/cli/test/worktree.test.ts#risk:security-a-ticket-id-cannot-place-a-worktree-outside-its-sibling-folder, packages/cli/test/spawn-surface.test.ts#risk:security-only-git-gh-ps-and-powershell-are-spawned-by-name-and-one-setup-site-uses-the-shell, packages/core/test/schemas.test.ts#risk:parsing-setup-is-a-list-of-non-empty-command-strings
+verify: packages/cli/test/worktree.test.ts#ac-1-pick-up-adds-the-ticket-worktree-from-origin-main-runs-setup-in-order-and-prints-where-to-continue (@ac-1), packages/cli/test/worktree.test.ts#ac-2-a-failing-setup-command-exits-2-naming-it-and-keeps-the-worktree (@ac-2), packages/cli/test/worktree.test.ts#risk:security-a-ticket-id-cannot-place-a-worktree-outside-its-sibling-folder, packages/cli/test/worktree.test.ts#risk:complex-branching-pick-up-refuses-a-ticket-that-origin-main-lacks, packages/cli/test/spawn-surface.test.ts#risk:security-only-git-gh-ps-and-powershell-are-spawned-by-name-and-one-setup-site-uses-the-shell, packages/core/test/schemas.test.ts#risk:parsing-setup-is-a-list-of-non-empty-command-strings
 
 From Task 1: `load/proc.ts` and the `ALLOWED` list.
 
@@ -176,6 +178,11 @@ Tests first, in `packages/cli/test/worktree.test.ts` (new), driving the CLI with
 - `it('risk:security a ticket id cannot place a worktree outside its sibling folder')`: `worktree open ../x`,
   `worktree open a/b` and `worktree open ST-99` (no such ticket, no branch) each exit 2; `git worktree list
   --porcelain` still has one entry and no branch other than `main` exists.
+- `it('risk:complex-branching pick up refuses a ticket that origin main lacks')`: `makeClone()`, then
+  `writeFiles(root, { 'accord/tickets/ST-30.md': laneTicket('ST-30') })`, not committed, so the checkout has the
+  ticket and `origin/main` does not. `worktree open ST-30` from `root` exits 2; `err` contains `ST-30 is not on
+  origin/main`; `git worktree list --porcelain` still has one entry; `git rev-parse --verify -q
+  refs/heads/t/ST-30` fails; `sibling('ST-30')` does not exist; `git log --all --format=%s` holds no `claim:` line.
 
 In `packages/core/test/schemas.test.ts`:
 - `it('risk:parsing setup is a list of non-empty command strings')`: `setup: ['npm ci', 'npm run build']` and
@@ -212,8 +219,11 @@ Interface:
   resolves) or a worktree entry has it, exit 2 with `<branch> already exists` (Task 3 replaces this refusal).
   Otherwise the claim path: the ticket must be in `ctx.snapshot.tickets`, else `UsageError('no ticket ' + id + '
   in accord/tickets - nothing was created')`; the default ref must exist, else `UsageError('no origin/main in this
-  clone - run git fetch origin, then try again')`; then `git worktree add --no-track -b <branch> <sibling> <default
-  ref>`, then in the new worktree `git commit --allow-empty -m "claim: <id>"` at once (ledger Ruling 1), then
+  clone - run git fetch origin, then try again')`; the ticket file must be on the default ref, checked with `git
+  cat-file -e <default ref>:accord/tickets/<id>.md`, else `UsageError(id + ' is not on ' + <the default ref without
+  its leading refs/remotes/> + ' - merge accord/tickets/' + id + '.md into the main branch, run git fetch origin,
+  then try again; nothing was created')`, so the new worktree, built from that ref, always holds the ticket it
+  claims; then `git worktree add --no-track -b <branch> <sibling> <default ref>`, then in the new worktree `git commit --allow-empty -m "claim: <id>"` at once (ledger Ruling 1), then
   `prepare(path)`, then the stop output. `prepare(path)` reads the worktree's own setup (preamble) and calls
   `runSetup`; a failure throws `UsageError('setup command failed in the new worktree: ' + command + ' (exit ' +
   code + ')\n' + tail + '\nthe worktree is kept; fix the command, then continue the ticket again')`, which names
@@ -229,7 +239,7 @@ options of every existing command; the printed-paths cases in `spawn-surface.tes
 ## Task 3: Continue from another checkout finds the worktree that holds the branch, reaches a ticket whose file is only on its branch, and never claims
 covers: @ac-3, D-08, D-15, D-18
 files: packages/cli/src/commands/worktree.ts (new), packages/cli/src/run.ts, packages/cli/test/worktree.test.ts (new)
-verify: packages/cli/test/worktree.test.ts#ac-3-continue-from-another-checkout-reuses-the-worktree-holding-the-branch (@ac-3), packages/cli/test/worktree.test.ts#risk:complex-branching-continue-reaches-a-ticket-whose-file-is-only-on-its-branch-here-or-on-origin, packages/cli/test/worktree.test.ts#risk:complex-branching-continue-never-claims-a-ticket
+verify: packages/cli/test/worktree.test.ts#ac-3-continue-from-another-checkout-reuses-the-worktree-holding-the-branch (@ac-3), packages/cli/test/worktree.test.ts#risk:complex-branching-continue-reaches-a-ticket-whose-file-is-only-on-its-branch-here-or-on-origin, packages/cli/test/worktree.test.ts#risk:complex-branching-continue-never-claims-a-ticket, packages/cli/test/worktree.test.ts#risk:complex-branching-continue-prunes-a-worktree-whose-folder-was-deleted-by-hand
 
 From Task 2: `worktreeOpen`, `branchOf`, `worktrees`, `siblingOf`, `prepare`, `printStop`; `makeClone` with
 `otherClone()`; the `<branch> already exists` refusal this task replaces. D-18: after @ac-6 the ticket file
@@ -258,6 +268,18 @@ Tests first, in `packages/cli/test/worktree.test.ts`:
   --continue` (no ticket, no branch) exits 2, `err` starts with `not a ticket: ST-77`. After both: the worktree list
   has one entry, no branch other than `main` exists, `git log --all --format=%s` holds no `claim:` line, and no
   sibling folder exists.
+- `it('risk:complex-branching continue prunes a worktree whose folder was deleted by hand')`: `makeClone({ setup:
+  ['node setup-step.js ci'] })`; `git worktree add -b t/ST-9 <sibling> origin/main`, then `rmSync(sibling('ST-9'),
+  { recursive: true, force: true })`, so `git worktree list --porcelain` shows that entry with a `prunable` line.
+  `worktree open ST-9 --continue` from `root` exits 0; `out` holds the three stop lines naming `sibling('ST-9')`;
+  the folder exists again with `setup.log` equal to `ci\n` (case 3 below re-added it); `git worktree list
+  --porcelain` has an entry at `sibling('ST-9')` with `branch refs/heads/t/ST-9` and no line starting `prunable`.
+
+`worktrees(root)` (preamble): parse a line `prunable` or `prunable <reason>` into `prunable: true`; when any entry
+has it, run `git worktree prune` once (it drops only the records of missing folders; branches are untouched, and a
+locked worktree is never prunable) and parse the list again; return no entry that is still prunable. Every caller,
+Task 5's `clean` included, then never prints a missing path, never runs a command in a missing folder, and `git
+worktree add` is not blocked by a stale record of the branch.
 
 Interface, in `worktreeOpen`, after the id check and before the claim path, in this order:
 1. A worktree entry other than the one at `ctx.root` has `branch`: print the stop output with that entry's path and
@@ -348,7 +370,7 @@ Must not change: the outside cases 1, 3, 4, 5, 6 of Task 3; the ac-1 to ac-3 cas
 ## Task 5: `accord worktree clean` fetches, removes the worktrees of merged tickets, and names what it keeps
 covers: @ac-5, D-01, D-05, D-11, D-12, D-16
 files: packages/cli/src/commands/worktree.ts (new), packages/cli/src/run.ts, packages/cli/test/worktree.test.ts (new), packages/cli/test/skill-commands.test.ts
-verify: packages/cli/test/worktree.test.ts#ac-5-bare-accord-fetches-then-removes-merged-worktrees-and-names-what-it-keeps (@ac-5), packages/cli/test/worktree.test.ts#risk:complex-branching-a-failed-fetch-is-said-and-the-refs-in-the-clone-are-judged, packages/cli/test/worktree.test.ts#risk:data-loss-clean-keeps-unpushed-commits-and-new-files-that-git-status-config-would-hide, packages/cli/test/worktree.test.ts#risk:complex-branching-a-worktree-remove-that-fails-is-named-truthfully
+verify: packages/cli/test/worktree.test.ts#ac-5-bare-accord-fetches-then-removes-merged-worktrees-and-names-what-it-keeps (@ac-5), packages/cli/test/worktree.test.ts#risk:complex-branching-a-failed-fetch-is-said-and-the-refs-in-the-clone-are-judged, packages/cli/test/worktree.test.ts#risk:data-loss-clean-keeps-unpushed-commits-and-new-files-that-git-status-config-would-hide, packages/cli/test/worktree.test.ts#risk:complex-branching-a-worktree-remove-that-fails-is-named-truthfully, packages/cli/test/worktree.test.ts#risk:complex-branching-clean-prunes-a-worktree-whose-folder-was-deleted-by-hand
 
 From Tasks 2 to 4: `worktrees`, `gitDefaultRef`, `withHolds`, `claudeEnv`, `sessionIn`, `isLive`, `sameSession`,
 the mocked `processTable`, `makeClone` with `otherClone()`. `ticketOfBranch` is in `load/fs.ts`.
@@ -386,9 +408,16 @@ Tests first, in `packages/cli/test/worktree.test.ts`:
   fails on `sub/f.txt` and unregisters the worktree; the line is `removed <sibling ST-9> in part: git worktree remove
   failed: <git's first stderr line> - delete what is left of the folder by hand`, the worktree is no longer listed,
   and the holds entry for `ST-9` is gone. The test restores `0o755` in a `finally` before `cleanupAll`.
+- `it('risk:complex-branching clean prunes a worktree whose folder was deleted by hand')`: `makeClone({ tickets:
+  ['ST-9', 'ST-10'] })`; `git worktree add -b t/<id> <sibling> origin/main` for both, with no commit of their own,
+  so both are merged; then `rmSync(sibling('ST-9'), { recursive: true, force: true })`. `worktree clean` from
+  `root` with env `{}` exits 0 and its non-empty lines are exactly `removed <sibling ST-10>`; no line names
+  `sibling('ST-9')`; `git worktree list --porcelain` has only the main entry and no line starting `prunable`;
+  `git rev-parse --verify -q refs/heads/t/ST-9` still succeeds (D-01: branches are ST-LN-20's).
 
 Interface: `worktreeClean(ctx: CommandContext): number`, always 0 unless git cannot run:
-1. The entries of `worktrees(ctx.root)` after the first (the main worktree is never removed) whose `branch` gives
+1. The entries of `worktrees(ctx.root)` (which has already pruned and dropped every `prunable` entry, Task 3) after
+   the first (the main worktree is never removed) whose `branch` gives
    an id through `ticketOfBranch(branch, ctx.snapshot.branchTemplates ?? [DEFAULT_BRANCH_TEMPLATE], (id) =>
    Object.hasOwn(ctx.snapshot.tickets, id))` are the candidates, whatever the folder is called (D-16), in the
    list's order. None, or no `origin` remote (`git remote get-url origin` fails): print nothing, return 0.
@@ -428,8 +457,8 @@ covers: @ac-6, D-13, D-15
 files: packages/cli/src/commands/new-ticket.ts, packages/cli/src/commands/worktree.ts (new), packages/cli/src/run.ts, packages/cli/test/worktree.test.ts (new)
 verify: packages/cli/test/worktree.test.ts#ac-6-a-new-lane-m-ticket-gets-its-own-worktree-with-the-ticket-committed-and-pushed (@ac-6), packages/cli/test/worktree.test.ts#risk:data-loss-a-failed-push-keeps-the-claim-commit-and-names-the-quoted-push-to-run
 
-From Tasks 2 and 4: `branchOf`, `siblingOf`, `worktrees`, `gitDefaultRef`, `prepare` (writing the setup marker),
-`printStop`.
+From Tasks 2 to 4: `branchOf`, `siblingOf`, `worktrees`, `gitDefaultRef`, `prepare` (writing the setup marker),
+`printStop`; `worktree open --continue` (Task 3).
 
 Tests first, in `packages/cli/test/worktree.test.ts`:
 - `it('ac-6 a new lane m ticket gets its own worktree with the ticket committed and pushed')`: `makeClone({ setup:
@@ -443,7 +472,10 @@ Tests first, in `packages/cli/test/worktree.test.ts`:
 - `it('risk:data-loss a failed push keeps the claim commit and names the quoted push to run')`: as above with
   `origin`'s push URL set to a missing path (`git remote set-url --push origin <missing>`): exit 2; `err` contains
   `git -C "` + `sibling('ST-9')` + `" push -u origin t/ST-9`; the sibling exists with the ticket committed;
-  `setup.log` does not exist (setup runs after the push).
+  `setup.log` does not exist (setup runs after the push); neither `out` nor `err` holds the `stop:` line. Then the
+  recovery the skill follows (Task 7): `git remote set-url --push origin <remote>`, the push named in `err` run with
+  `git -C <sibling> push -u origin t/ST-9`, and `worktree open ST-9 --continue` from `root` exits 0 with `out`
+  holding the three stop lines naming `sibling('ST-9')` (Task 3's case 1, which needs no ticket file in `root`).
 
 Interface:
 - `newTicket` options gain `worktree?: boolean`. Everything up to the id check and the `existsSync` refusal on
@@ -465,7 +497,7 @@ checkout's `accord/config.yml`.
 
 ## Task 7: The /accord skill works each ticket in its own worktree and cleans only from the bare dashboard
 covers: D-02, D-04, D-08, D-09, D-11, D-12, D-13, D-17, D-18
-files: packages/core/skills/accord/SKILL.md, packages/core/skills/accord/worktree.md (new), packages/core/src/generated/skills.ts, packages/core/test/stage-skills.test.ts, .claude/skills/accord/SKILL.md, .claude/skills/accord/worktree.md (new)
+files: packages/core/skills/accord/SKILL.md, packages/core/skills/accord/worktree.md (new), packages/core/skills/accord/ids.md, packages/core/src/generated/skills.ts, packages/core/test/stage-skills.test.ts, .claude/skills/accord/SKILL.md, .claude/skills/accord/worktree.md (new), .claude/skills/accord/ids.md
 verify: packages/core/test/stage-skills.test.ts#risk:regression-the-accord-skill-opens-each-ticket-in-its-own-worktree-and-cleans-only-from-the-bare-dashboard
 
 The real bug this guards: Continue ran `git switch` in the one checkout, moving the branch under another session
@@ -474,53 +506,76 @@ The real bug this guards: Continue ran `git switch` in the one checkout, moving 
 Test first, in `packages/core/test/stage-skills.test.ts`:
 - `it('risk:regression the accord skill opens each ticket in its own worktree and cleans only from the bare
   dashboard')`: `text` is the rendered `.claude/skills/accord/SKILL.md` from `files` with whitespace runs
-  collapsed; `ref` is the rendered `.claude/skills/accord/worktree.md`, non-empty, collapsed the same way. The
-  Dashboard slice (`## Dashboard` to `## A ticket named`) has `` `accord worktree clean` `` before `` `accord
-  dashboard` ``. The named slice (`## A ticket named` to `## Continue`) contains `` `accord worktree open <id>
-  --continue` ``, `` `not a ticket:` `` and `` `not claimed:` ``. The Continue slice (`## Continue` to `## Pick
-  up`) contains `` `accord worktree open <id> --continue` `` and `./worktree.md`; the Pick up slice (`## Pick up` to
-  `## New request`) contains `` `accord worktree open <id>` ``, `./worktree.md`, `` `git push -u origin <branch>`
-  `` and `even when a setup command failed`; the M slice (`- **M.**` to `- **L and P.**`) contains `--worktree`
-  and `./worktree.md`. No slice but the Dashboard's contains `worktree clean`, and `text` contains no `git switch`.
-  `ref` contains `` `stop:` ``, `` `held: <id> by this session` ``, `` `not held:` ``, `Never change directory into
-  the worktree`, `except the people entry below`, `editing nothing`, `runs every setup command again`, `the longest
-  timeout`, `git -C "<path>" push`, `and only that entry` and ``only from `/accord` with no argument``, and
-  contains neither `git restore` nor `git checkout`.
+  collapsed; `ref` is the rendered `.claude/skills/accord/worktree.md`, non-empty, collapsed the same way; `ids` is
+  the rendered `.claude/skills/accord/ids.md`, collapsed the same way. The Dashboard slice (`## Dashboard` to `## A
+  ticket named`) has `` `accord worktree clean` `` before `` `accord dashboard` `` and contains `both outputs`. The
+  named slice (`## A ticket named` to `## Continue`) contains `` `accord worktree open <id> --continue` finds ``.
+  The Continue slice (`## Continue` to `## Pick up`) contains `` `accord worktree open <id> --continue` `` and
+  `./worktree.md`; the Pick up slice (`## Pick up` to `## New request`) contains `` `accord worktree open <id>` ``
+  and `./worktree.md`; the M slice (`- **M.**` to `- **L and P.**`) contains `--lane M --worktree` twice and
+  `./worktree.md`. No slice but the Dashboard's contains `worktree clean`, and `text` contains no `git switch`.
+  `ref` contains `` `stop:` ``, `` `held: <id> by this session` ``, `` `not held:` ``, `` `not a ticket:` ``, ``
+  `not claimed:` ``, `Never change directory into the worktree`, `except the people entry below`, `editing
+  nothing`, `runs every setup command again`, `the longest timeout`, `` `git push -u origin <branch>` ``, `even
+  when a setup command failed`, `git -C "<path>" push -u origin <branch>`, `and only that entry`, ``only from
+  `/accord` with no argument`` and ``once it succeeds, run `accord worktree open <id> --continue` ``, and contains
+  neither `git restore` nor `git checkout`. The `ids` slice `## Assigning` to `## When your email` contains
+  `` adding `--worktree` when the lane is M ``.
 
 Text, in `packages/core/skills/accord/SKILL.md`; every code span stays on one line, and each phrase in
 `REQUIRED.accord` and in the cases `ac-4 the accord skill picks up...` and `ac-5 the accord skill takes the claim
-branch...` stays on one line:
+branch...` stays on one line.
+
+The size budget sets this wording (finding 2.4). `skills.test.ts:188` and `:255-259` hold every rendered SKILL.md
+to 5120 bytes. Measured at the baseline: the source `packages/core/skills/accord/SKILL.md` is 4,864 bytes and the
+rendered `.claude/skills/accord/SKILL.md` 4,902 bytes, so 218 bytes are free. Rendering strips `kind` and `loads`
+from the frontmatter, so the `loads:` change costs nothing rendered. Counted by hand, the passages below add about
+210 bytes and the deletion in the second bullet saves 97, about 110 net, leaving about 100 free: every detail that
+is not routing lives in `worktree.md`, never in SKILL.md. Use the wording exactly, wrapped at the file's width with
+the file's indentation:
 - frontmatter `loads:` becomes `[accord/ids.md, accord/worktree.md, shared/ask.md]`.
-- Dashboard step 1 becomes: ``1. Run `accord worktree clean` and show its lines verbatim; it removes the
-  worktrees of merged tickets and names what it keeps. Then run `accord dashboard`. It reads you from `git config
+- The paragraph `` `/accord` is the entry point. It routes to the stage skills, so nobody has to remember their
+  names. `` and the blank line after it are deleted (97 bytes; the frontmatter `description` says the same, and no
+  test names it).
+- Dashboard step 1 becomes ``1. Run `accord worktree clean`, then `accord dashboard`. It reads you from `git config
   user.email` and prints every section ranked and capped, one count line, and the actions that apply. When it
-  exits 2, show its message and stop.`` (wrapped as the file wraps).
-- The `## A ticket named` paragraph becomes: ``An action applies only when the whole text after it is exactly one
-  ticket id. For Pick up it is the id of a ticket in `accord/tickets/`. For Continue run `accord worktree open
-  <id> --continue` at once: it also finds a ticket whose file is only on its claim branch, here or on `origin`.
-  When it exits 2 with a line starting `not a ticket:`, `/accord continue ST-99` is a New request. Then run Pick up
-  or Continue below on that ticket, without showing the dashboard first. Continue on a ticket nobody has claimed
-  (a line starting `not claimed:`) says so, offers Pick up, and never claims it. Any other text starts a New
-  request whose text is the whole text after `/accord`: for `/accord continue the refactor` it is `continue the
-  refactor`, and `/accord continue ST-2 now` is a new request too.``
-- Continue step 1 becomes: ``1. Use the output of `accord worktree open <id> --continue` (run it when it has not
-  run yet) and follow `./worktree.md`: only a session rooted in the worktree holding its `branch` from `accord
-  status --json` works the ticket. The active ticket is the branch, read from git, never from memory.``
-- Pick up becomes: ``Run `accord worktree open <id>`: it creates its `branch` from `accord status --json` in the
-  ticket's own worktree and commits `claim: <id>` on it. Then push it (the pushed branch is the claim) with `git
-  push -u origin <branch>`, even when a setup command failed, and follow `./worktree.md`.`` with `push it (the
-  pushed branch is the claim)` on one line.
-- The M bullet becomes: ``**M.** Run `accord new ticket <id> --lane M --worktree`; when config.yml has `people`,
-  follow `./ids.md` and run `accord new ticket --type <story|bug> --lane M --worktree` with no id instead. It
-  writes the ticket on its `branch` (the one `accord status --json` names) in the ticket's own worktree, commits
-  it and pushes it; when it says the push failed, push it as it says. Follow `./worktree.md`: `accord-intent`
-  runs in the session opened there.``
+  exits 2, show its message and stop.``, and in step 2 only `Show its output verbatim` becomes `Show both outputs
+  verbatim`.
+- In the `## A ticket named` paragraph only ``ticket id, the id of a ticket in `accord/tickets/`; with no such
+  ticket,`` changes, to ``ticket id, the id of a ticket in `accord/tickets/`, or for Continue of a ticket `accord
+  worktree open <id> --continue` finds; with no such ticket,``. Every other word of the paragraph stays.
+- Continue step 1 becomes ``1. Run `accord worktree open <id> --continue` unless it just ran; follow
+  `./worktree.md`. The active ticket is its `branch` from `accord status --json`, read from git, never from
+  memory.``
+- The Pick up paragraph becomes ``Run `accord worktree open <id>`: it makes its `branch` from `accord status
+  --json` and commits `claim: <id>` on it. Then push it (the pushed branch is the claim) and follow
+  `./worktree.md`.`` with `push it (the pushed branch is the claim)` on one line.
+- In the M bullet, both commands gain ` --worktree` after `--lane M`, and the text after `with no id instead.`
+  becomes ``It writes the ticket on its `branch` from `accord status --json`, commits it and pushes it; follow
+  `./worktree.md`, and push it as that file says when the push fails.``
+
+No other passage of SKILL.md is cut, shortened or moved. If `every SKILL.md is at most MAX_SKILL_BYTES bytes`
+still fails, report BLOCKED with the rendered byte count; never cut another section.
+
+`packages/core/skills/accord/ids.md`, line 14 only, becomes ``Then run `accord new ticket --type <story|bug> --lane
+<lane>` with no id, adding `--worktree` when the lane is M, and use the id it prints.``, still one line in the file
+(finding 2.3, @ac-6). The
+`## Dropping instead of renaming` steps stay as they are: a replacement ticket is made inside the dropped ticket's
+own session.
 
 `packages/core/skills/accord/worktree.md` (new), frontmatter `kind: reference`, then:
 ```
 # Working a ticket in its own worktree
 
 Only a session rooted in a ticket's worktree works that ticket, so no session ever switches tickets.
+
+For Continue, `accord worktree open <id> --continue` also finds a ticket whose file is only on its claim
+branch, here or on `origin`. When it exits 2 with a line starting `not a ticket:`, the text is a New
+request. A line starting `not claimed:` means nobody has claimed the ticket: say so, offer Pick up, and
+never claim it.
+
+After Pick up's `accord worktree open <id>`, push the claim with `git push -u origin <branch>` before
+anything else, even when a setup command failed.
 
 What `accord worktree open <id>` and `accord new ticket --worktree` print:
 
@@ -539,18 +594,22 @@ Setup commands can take minutes: run these commands with the longest timeout you
 
 When `./ids.md` had you add an entry under `people` before `accord new ticket --worktree`, carry it to the
 worktree before you stop: add the same entry to `<path>/accord/config.yml`, run
-`git -C "<path>" commit -m "people: <email>" -- accord/config.yml` and `git -C "<path>" push`, then remove
-that entry, and only that entry, from `accord/config.yml` here, leaving every other line of the file as it is.
+`git -C "<path>" commit -m "people: <email>" -- accord/config.yml` and
+`git -C "<path>" push -u origin <branch>`, then remove that entry, and only that entry, from
+`accord/config.yml` here, leaving every other line of the file as it is.
 
-`accord worktree clean` runs only from `/accord` with no argument, never from Pick up or Continue.
+When `accord new ticket --worktree` says the push failed, it prints no `stop:` line: carry any people
+entry as above, run the push it names, and once it succeeds, run `accord worktree open <id> --continue`
+and follow the `stop:` line it prints. When that push fails again, show git's message and stop.
+
+`accord worktree clean` runs only from `/accord` with no argument, never from Pick up or Continue. At the
+dashboard its lines are shown verbatim with the dashboard's.
 ```
 
 Then `npm run gen`, `npm run build`, and from the repository root `node packages/cli/dist/cli.js skills sync`,
-which rewrites `.claude/skills/accord/SKILL.md` and writes `.claude/skills/accord/worktree.md`; commit both.
-
-Size: `skills.test.ts` holds every SKILL.md to 120 lines and 5120 bytes. If either fails, move sentences of these
-edited passages into `worktree.md`, keeping every phrase this test, `REQUIRED.accord`, `ac-5 the accord skill
-takes the claim branch...` and `ac-4 the accord skill picks up...` name; never shorten another section.
+which rewrites `.claude/skills/accord/SKILL.md` and `.claude/skills/accord/ids.md` and writes
+`.claude/skills/accord/worktree.md`; commit all three. Then run `npx vitest run packages/core/test/skills.test.ts`
+for the size and line limits (120 lines; the passages above add about two net).
 
 Must not change: every phrase `ac-4 the accord skill picks up...` checks in the `## A ticket named` section,
 Continue steps 2 to 4, the S, L and P bullets and `## Rules`; every existing case in `stage-skills.test.ts`,

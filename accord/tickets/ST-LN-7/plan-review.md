@@ -52,3 +52,9 @@ One critic, mode diff, on the fix in commit 12e348f. fixed: 1.1.
 
 ## Closed
 Re-plan after the Task 1 build gap converged at round 2 (no Must, no Should open); `accord gate plan ST-LN-7` passed at 12e348f.
+
+## Round 1 (diff)
+Re-plan after the final review's Pick up gap (Task 9).
+1. Should — the claimant read runs `git log` over the ref's whole history through `git()`, which sets no `maxBuffer`, so in a repository past about 1 MiB of log Pick up of an existing branch exits 2 with no `claimed:` line; let git search with `--fixed-strings --grep`, or set `maxBuffer` as fs.ts:390-394 does — open
+2. Should (critic: Nice, raised by a Ruling) — the claim search walks main's history too, so after ST-LN-20 deletes a merged `t/ST-9`, an old `claim: ST-9` of mine on main credits me a teammate's hand-made `t/ST-9` and Pick up joins it silently, the case Task 9 exists to stop; exclude the default ref — open
+3. Should (critic: Nice, raised by a Ruling) — SKILL.md's Pick up paragraph says to push before it says to follow worktree.md, so an agent reading in order pushes after a `claimed:` refusal, which can push the user's unpushed commits onto a teammate's branch; order it "follow ./worktree.md, which says when to push" at about the same byte count — open

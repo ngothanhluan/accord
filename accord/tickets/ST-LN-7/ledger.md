@@ -50,6 +50,7 @@
 - Ruling: in the ac-5 test, ST-9 also gets a dead-holder entry in the holds file, so "no ST-9 entry" proves clean dropped it rather than restating a fact already true (Task 5 executor) — cost if wrong: none; the assertion is stronger.
 - Ruling: case (b) of the "remove that fails" test, a folder made read-only with chmod, returns early on win32 and as root, so only CI on POSIX runs it; case (a), a locked worktree, runs everywhere (Task 5 executor) — cost if wrong: a partial removal on Windows is checked only by case (a).
 - Ruling: `git` and `gitOk` are exported from worktree.ts for `newTicketWorktree`, kept in the same file as the other worktree git calls — no new module (Task 6 executor) — cost if wrong: a rename or move.
+- Ruling: the Pick up paragraph of SKILL.md is rewrapped so `push it (the pushed branch is the claim)` stays on one line, as the existing required-phrase test reads it; the brief's wrap split it (Task 7 executor) — cost if wrong: none; only a line break differs.
 
 ## Deferred
 - Plan critique 1.14 (Nice): the main checkout has no setup done-marker, so Continue rooted there reruns the whole setup in the owner's checkout — deferred.
@@ -68,3 +69,4 @@
 - task 4 done d6c0e760f934
 - task 5 done 82d151a20705
 - task 6 done cc1518a6ecbb
+- task 7 done 982f20f64d09

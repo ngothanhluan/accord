@@ -38,6 +38,7 @@
 - Ruling: a subagent of a Claude Code session sees the same `CLAUDE_CODE_SESSION_ID` and `CLAUDE_PID` as its main session — checked on this machine 2026-10-18 (Task 1 executor: 4c922939-…, 25356) — cost if wrong: none; pid and start time also match a session to itself.
 - Ruling: a hold is judged only when a walk up the parent ids from the command's own process meets `CLAUDE_PID`, or stops at a parent id with no row while the `CLAUDE_PID` row exists with a non-empty start; the walk refuses at a row with pid 1 or ppid 0, at a missing row for the command itself, and at a parent loop; this replaces the Ruling that looked the `CLAUDE_PID` row up by pid alone (re-plan critique 1.1) — on POSIX orphans are reparented, so the walk ends at `CLAUDE_PID` or the root and fails closed against a PID namespace and a reused pid; on Windows a short-lived msys bash leaves a gap (seen through `npm exec`) — cost if wrong: on Windows, a stale `CLAUDE_PID` reached through the gap is recorded as holder until that process ends, and a dead parent's pid reused by an unrelated process can lead the walk to pid 0 and refuse a real session.
 - Ruling: the walk keeps no check that a parent started before its child — the Windows chains seen top out at a gap, not at System — cost if wrong: a reused parent pid can refuse a real session on Windows.
+- Ruling: `proc.ts` uses a mutable stdio array with `encoding: 'utf8' as const` for its exec options — the earlier draft's readonly `as const` stdio failed the typecheck (Task 1 executor) — cost if wrong: none.
 
 ## Deferred
 - Plan critique 1.14 (Nice): the main checkout has no setup done-marker, so Continue rooted there reruns the whole setup in the owner's checkout — deferred.
@@ -48,3 +49,6 @@
 - Re-plan critique 1.2 (Nice): plan.md still names `self` 10 in the pure test though `sessionIn` takes no `self` — deferred.
 - Re-plan critique 2.1 (Nice): on Windows a reused gap pid can lead the walk to a refusal that names a sandbox; a parent started after its child could count as the gap — deferred.
 - Re-plan critique 2.2 (Nice): the pure-test bullet says the refused cases "return" — deferred.
+
+## Tasks
+- task 1 done 0496cf0300af

@@ -28,6 +28,10 @@ ui: false
 
 ## Intent
 <!-- At most five lines: why, for whom, how success is measured, and what this does not do. -->
+Why: today Pick up and Continue switch the branch in the one checkout, so a second ticket run in parallel moves the branch under the first session, and worktrees made by hand miss their setup and pile up after their ticket merges.
+For whom: anyone, solo or on a team, running two or more tickets at once through Claude Code, Cursor, Codex, or Copilot.
+Success: each ticket runs in its own prepared worktree, worked only by the one session rooted there; a second session there is refused; a merged ticket's worktree is removed by the next `/accord` with nobody hunting for it.
+Not this ticket: deleting merged branches and pruning remote-tracking refs (ST-LN-20); flagging two tickets that will edit the same file (ST-LN-24).
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.
@@ -36,14 +40,50 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 Feature: ST-LN-7
 
   @ac-1
-  Scenario: <observable outcome>
-    Given ...
-    When ...
-    Then ...
+  Scenario: Pick up prepares the ticket's own worktree and points to a session there
+    Given a repository at "C:/Work/accord" whose config.yml lists the setup commands "npm ci" and "npm run build"
+    And the ticket "ST-9" has no branch and no worktree
+    When "/accord pick-up ST-9" runs in a session rooted at "C:/Work/accord"
+    Then "git worktree list" shows the branch "t/ST-9" checked out at "C:/Work/accord-st-9"
+    And "npm ci" then "npm run build" ran in "C:/Work/accord-st-9", in that order
+    And the session prints the command that opens a session in "C:/Work/accord-st-9" with "/accord continue ST-9", and stops
+    And the branch checked out in "C:/Work/accord" is the one it had before
+
+  @ac-2
+  Scenario: A failing setup command stops the run and keeps the worktree
+    Given config.yml lists the setup commands "npm ci" and "npm run build", and "npm run build" fails
+    When "/accord pick-up ST-9" runs in a session rooted at "C:/Work/accord"
+    Then the worktree "C:/Work/accord-st-9" still exists and "npm ci" ran in it
+    And the run exits 2 with a message naming "npm run build"
+    And no command to open a session is printed
+
+  @ac-3
+  Scenario: Continue from another checkout reuses the worktree that holds the branch
+    Given the branch "t/ST-9" is checked out in the worktree "C:/Work/accord-ln9", a name made by hand
+    When "/accord continue ST-9" runs in a session rooted at "C:/Work/accord"
+    Then no new worktree is added and the branch checked out in "C:/Work/accord" is unchanged
+    And the session prints the command that opens a session in "C:/Work/accord-ln9" with "/accord continue ST-9", and stops
+
+  @ac-4
+  Scenario: A second session in a held worktree is refused until the holder dies
+    Given a live session rooted at "C:/Work/accord-st-9" holds the ticket "ST-9"
+    When "/accord continue ST-9" runs in a second session rooted at "C:/Work/accord-st-9"
+    Then the second session's run exits 2 with a message naming the holding session, and edits nothing
+    And once the holding session has ended, "/accord continue ST-9" in a new session there takes the hold and resumes the ticket
+
+  @ac-5
+  Scenario: Each /accord run removes the worktrees of merged tickets and names what it skips
+    Given after a fetch the tips of "t/ST-9" and "t/ST-10" are ancestors of the main branch and the tip of "t/ST-11" is not
+    And "C:/Work/accord-st-9" is clean, "C:/Work/accord-st-10" holds an uncommitted file, and "C:/Work/accord-st-11" is clean
+    When "/accord" runs in a session rooted at "C:/Work/accord"
+    Then "C:/Work/accord-st-9" is removed with "git worktree remove" and named as removed
+    And "C:/Work/accord-st-10" and its uncommitted file are kept, named with the reason "uncommitted work"
+    And "C:/Work/accord-st-11" is kept
 ```
 
 ## Vetoes
 <!-- What the owner forbids, in the owner's own words, one item per line. -->
+- "ko dc thêm rườm rà cho user" (2026-10-18, on the panel question)
 
 ## Decisions
 <!-- Settled answers, one per line: - D-01 <decision> — "<the owner's sentence>" -->
@@ -51,16 +91,23 @@ Feature: ST-LN-7
 - D-02 The ticket holds all four parts of the request: each ticket in its own worktree; preparing that worktree; the Continue guard; removing the worktree once the ticket is done — "1. Worktree mỗi ticket, 2. Chuẩn bị worktree, 3. Chặn Continue song song, 4. Xoá worktree khi xong" (2026-10-18)
 - D-03 The Continue guard is enforced by the CLI: Continue holds a lock on the ticket's worktree, a second session entering the same worktree exits 2 naming the holder, and a session mid-way through another ticket asks before switching; the lock is released when its session dies — "option 1" (2026-10-18)
 - D-04 Split with ST-LN-24: detecting that two tickets in flight will edit the same files moves to ST-LN-24 "Two tickets in flight that will edit the same file are flagged before they collide", which depends on this ticket; blocking between tickets already exists through `depends_on` and `blockedBy` — "Ticket mới phụ thuộc ST-LN-7 (Khuyên)" (2026-10-18)
+- D-05 Every `/accord` run removes, with plain `git worktree remove`, the worktree of each ticket whose pull request has merged, read as: after a fetch, the tip of the ticket's branch is an ancestor of the main branch (`git merge-base --is-ancestor`, no `gh`, no tracker); it skips a worktree holding uncommitted work, one locked by another session, and the one the session stands in, and names each worktree removed or skipped with the reason — "/accord tự dọn (Khuyên)" (2026-10-18)
+- D-06 A ticket's worktree is the sibling folder named after the repository's folder, a hyphen, and the id in lower case (for ST-LN-7 opened from `C:/Work/accord`, `C:/Work/accord-st-ln-7`), fixed, with no config field — "Cạnh repo, theo id (Khuyên)" (2026-10-18)
+- D-07 Preparing a worktree runs config.yml's new `setup` field, a list of commands run in order in the new worktree right after `git worktree add`; with no field nothing runs; a failing command stops the run, keeps the worktree, names the command, and exits 2 so the owner fixes it and continues again; this repository declares `npm ci`, `npm run build`, `npm rebuild @accord-dev/accord --ignore-scripts` — "Field `setup` trong config (Khuyên)" (2026-10-18)
+- D-08 Only a session rooted in a ticket's worktree works that ticket: Pick up or Continue from any other checkout prepares the worktree (or finds the one holding the branch with `git worktree list`), prints the command to open a session there with `/accord continue <id>`, and stops; so no session ever switches tickets mid-way, and D-03's lock is held by the session rooted in the worktree — "Mở session mới ở worktree (Khuyên)" (2026-10-18)
+- D-09 Showing another ticket's stage as it stands on that ticket's branch is not this ticket: it goes to ST-LN-16 "The dashboard shows tickets a teammate has pushed without a manual git fetch…" as an open question (PR #37) — "ok 1. xem có gộp dc vào ticket nào khác ko" (2026-10-18)
+- D-10 The two failures found during ST-LN-21 happen only in the accord repository itself, so this ticket adds nothing for them: `npx` there resolves `@accord-dev/accord` to the repository's own unbuilt workspace package (outside it, and in a user repository with no `node_modules`, `npx --yes @accord-dev/accord@0.1.0 --version` prints 0.1.0), and only there does a ticket change the panel, so the main checkout's panel and a worktree's differ; this repository's `setup` carries `npm rebuild @accord-dev/accord --ignore-scripts` — "đồng ý" (2026-10-18)
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
 
 ## Open questions
 <!-- `- [ ]` items; Ready stays blocked while any is unchecked. -->
-- [ ] Scope from ST-LN-6 intent (2026-10-16). The owner asked: "sao khi bắt đầu làm ticket chúng ta ko tạo worktree riêng, checkout branch riêng nhỉ?" Today `/accord` Pick up creates the claim branch and Continue switches to it in the current checkout, so a second ticket run in parallel switches the branch under the first session; ST-LN-6 ran in a worktree made by hand (`C:/Work/accord-sev`), which had no `accord` bin installed. Proposal to confirm at intent: Pick up and Continue use plain `git worktree add` (so Cursor, Codex and Copilot behave as Claude Code does) and prepare the new worktree's dependencies. Owner, on adding this ticket: "ok thêm ticket cho việc handle worktree di. code song song cũng là ưu tiên".
-- [ ] Guard for Continue when tickets run in parallel, added 2026-10-16. The owner asked, looking at the panel's Continue button: "khi làm nhiều ticket song song, thì bấm vào continue thì chuyện gì happen? có nên có gate chặn ở đây ko?" Today the panel submits `/accord continue <id>` into the session that owns the panel, and the skill's `git switch` either fails because the branch is checked out in another worktree (the skill says nothing about that case, so an agent may `cd` there and two sessions then edit one worktree), carries uncommitted work of another ticket across, or cuts into a stage still running. Proposal to confirm at intent: Continue finds the worktree holding the ticket's branch (`git worktree list`) and works there, or adds one; one session per worktree, held by a lock the CLI checks, so a second Continue exits 2 naming the holder; a session mid-way through another ticket asks before switching. Owner chose to put this here: "Thêm vào ST-LN-7 (Khuyên)".
-- [ ] Removing the worktree when the ticket is done, added 2026-10-17. After BUG-LN-3 merged, the hand-made worktrees `C:/Work/accord-backlog` and `C:/Work/accord-sev` (ST-LN-6, merged days earlier) were still on disk and had to be found and removed by hand. The owner: "ok clean up. tôi nghĩ nên thêm rule này vào accord workflow phải ko?" Proposal to confirm at intent: once the ticket's pull request has merged, the workflow removes its worktree (plain `git worktree remove`, refusing when it holds uncommitted work) and deletes the merged local branch with `git branch -d`; the dashboard can name worktrees whose ticket is done.
-- [ ] What a prepared worktree means, found 2026-10-18 during ST-LN-21. Two failures in the hand-made worktree `C:/Work/accord-search`: (1) `npm ci` ran before `npm run build`, so no `node_modules/.bin/accord` was linked (the workspace's own bin points at `packages/cli/dist/cli.js`, missing at install time); in this repository `npx --yes @accord-dev/accord@0.1.0` resolves to the workspace package, so the SessionStart hooks and the panel failed with "'accord' is not recognized" until `npm rebuild @accord-dev/accord --ignore-scripts` after the build; (2) a plain `claude` started in the worktree drew the panel from `C:/Work/accord/.claude/accord-panel`, because the user-level marketplace `accord` in `~/.claude/plugins/known_marketplaces.json` points at the main checkout and wins over the worktree's relative `extraKnownMarketplaces` path, so the owner's hand check of ac-4 first saw the old panel; the branch's panel loaded only with `claude --plugin-dir <worktree>/.claude/accord-panel/plugin --settings <file setting accord-panel@accord to false>`. Proposal to confirm at intent: preparing a worktree runs the repository's own setup in an order that links its bins (a setup command named in config, since only this repository depends on itself), and the try-this steps for a ticket that changes the panel say how to load the branch's panel. Owner, on these two findings: "còn 2 việc phát sinh thì mở một ticket xử lý, hoặc xem có ticket nào dc thì gộp vào luôn".
+- [x] (answered by D-02, D-06, D-07, D-08) Scope from ST-LN-6 intent (2026-10-16). The owner asked: "sao khi bắt đầu làm ticket chúng ta ko tạo worktree riêng, checkout branch riêng nhỉ?" Today `/accord` Pick up creates the claim branch and Continue switches to it in the current checkout, so a second ticket run in parallel switches the branch under the first session; ST-LN-6 ran in a worktree made by hand (`C:/Work/accord-sev`), which had no `accord` bin installed. Proposal to confirm at intent: Pick up and Continue use plain `git worktree add` (so Cursor, Codex and Copilot behave as Claude Code does) and prepare the new worktree's dependencies. Owner, on adding this ticket: "ok thêm ticket cho việc handle worktree di. code song song cũng là ưu tiên".
+- [x] (answered by D-03, D-08) Guard for Continue when tickets run in parallel, added 2026-10-16. The owner asked, looking at the panel's Continue button: "khi làm nhiều ticket song song, thì bấm vào continue thì chuyện gì happen? có nên có gate chặn ở đây ko?" Today the panel submits `/accord continue <id>` into the session that owns the panel, and the skill's `git switch` either fails because the branch is checked out in another worktree (the skill says nothing about that case, so an agent may `cd` there and two sessions then edit one worktree), carries uncommitted work of another ticket across, or cuts into a stage still running. Proposal to confirm at intent: Continue finds the worktree holding the ticket's branch (`git worktree list`) and works there, or adds one; one session per worktree, held by a lock the CLI checks, so a second Continue exits 2 naming the holder; a session mid-way through another ticket asks before switching. Owner chose to put this here: "Thêm vào ST-LN-7 (Khuyên)".
+- [x] (answered by D-05; branch deletion moved to ST-LN-20 by D-01) Removing the worktree when the ticket is done, added 2026-10-17. After BUG-LN-3 merged, the hand-made worktrees `C:/Work/accord-backlog` and `C:/Work/accord-sev` (ST-LN-6, merged days earlier) were still on disk and had to be found and removed by hand. The owner: "ok clean up. tôi nghĩ nên thêm rule này vào accord workflow phải ko?" Proposal to confirm at intent: once the ticket's pull request has merged, the workflow removes its worktree (plain `git worktree remove`, refusing when it holds uncommitted work) and deletes the merged local branch with `git branch -d`; the dashboard can name worktrees whose ticket is done.
+- [x] (finding 1 answered by D-07; finding 2 is the open question below) What a prepared worktree means, found 2026-10-18 during ST-LN-21. Two failures in the hand-made worktree `C:/Work/accord-search`: (1) `npm ci` ran before `npm run build`, so no `node_modules/.bin/accord` was linked (the workspace's own bin points at `packages/cli/dist/cli.js`, missing at install time); in this repository `npx --yes @accord-dev/accord@0.1.0` resolves to the workspace package, so the SessionStart hooks and the panel failed with "'accord' is not recognized" until `npm rebuild @accord-dev/accord --ignore-scripts` after the build; (2) a plain `claude` started in the worktree drew the panel from `C:/Work/accord/.claude/accord-panel`, because the user-level marketplace `accord` in `~/.claude/plugins/known_marketplaces.json` points at the main checkout and wins over the worktree's relative `extraKnownMarketplaces` path, so the owner's hand check of ac-4 first saw the old panel; the branch's panel loaded only with `claude --plugin-dir <worktree>/.claude/accord-panel/plugin --settings <file setting accord-panel@accord to false>`. Proposal to confirm at intent: preparing a worktree runs the repository's own setup in an order that links its bins (a setup command named in config, since only this repository depends on itself), and the try-this steps for a ticket that changes the panel say how to load the branch's panel. Owner, on these two findings: "còn 2 việc phát sinh thì mở một ticket xử lý, hoặc xem có ticket nào dc thì gộp vào luôn".
+- [x] (answered by D-10) Which panel a session rooted in a worktree shows, added 2026-10-18. D-08 makes the session rooted in the worktree the only one that works the ticket, but a plain `claude` started there still draws the panel from `C:/Work/accord/.claude/accord-panel`, because the user-level marketplace `accord` in `~/.claude/plugins/known_marketplaces.json` points at the main checkout and wins over the worktree's relative `extraKnownMarketplaces` path (.claude/settings.json:35-45). Open: does this ticket make the printed open-a-session command load the worktree's own panel, only say so in the try-this steps of a ticket that changes the panel, or leave it out.
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->

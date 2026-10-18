@@ -1,9 +1,9 @@
 // ST-LN-6 `accord show <id> [--json]`: one lane ticket in full, as text or as the TicketDetail object.
-import { ticketDetail } from '@accord-dev/accord-core';
+import { approvalView, ticketDetail } from '@accord-dev/accord-core';
 import type { TicketDetail } from '@accord-dev/accord-core';
 import { isUnsafe } from '../render/dashboard.js';
 import type { CommandContext } from '../run.js';
-import { requireLaneTicket } from './lane-args.js';
+import { requireLaneTicket, requireTicket } from './lane-args.js';
 
 // Control, bidi and line-separator code points become one space each; nothing is cut or collapsed.
 const clean = (s: string): string => [...s].map((ch) => (isUnsafe(ch.codePointAt(0) ?? 0) ? ' ' : ch)).join('');
@@ -36,7 +36,13 @@ function text(d: TicketDetail): string {
   return lines.map(clean).join('\n') + '\n';
 }
 
-export function show(ctx: CommandContext, id: string, options: { json?: boolean }): number {
+export function show(ctx: CommandContext, id: string, options: { json?: boolean; approval?: boolean }): number {
+  if (options.approval === true) {
+    // The checkout, as `accord approve` reads it; no lane needed.
+    const ticket = requireTicket(ctx.plain ?? ctx.snapshot, id);
+    ctx.stdout.write(approvalView(ticket).split('\n').map(clean).join('\n'));
+    return 0;
+  }
   requireLaneTicket(ctx, id);
   const d = ticketDetail(ctx.snapshot, id, ctx.plain);
   if (d === undefined) throw new Error('no detail for ' + id); // unreachable after requireLaneTicket

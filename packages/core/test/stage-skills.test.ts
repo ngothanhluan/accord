@@ -181,3 +181,40 @@ it('ac-4 the accord skill picks up then continues a named ticket and treats any 
   ])
     expect(named).toContain(p);
 });
+
+it('risk:regression the accord skill opens each ticket in its own worktree and cleans only from the bare dashboard', () => {
+  const get = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
+  const text = get('.claude/skills/accord/SKILL.md');
+  const ref = get('.claude/skills/accord/worktree.md');
+  const ids = get('.claude/skills/accord/ids.md');
+  const slice = (s: string, a: string, b: string) => s.slice(s.indexOf(a), s.indexOf(b));
+  const dash = slice(text, '## Dashboard', '## A ticket named');
+  const named = slice(text, '## A ticket named', '## Continue');
+  const cont = slice(text, '## Continue', '## Pick up');
+  const pick = slice(text, '## Pick up', '## New request');
+  const m = slice(text, '- **M.**', '- **L and P.**');
+  expect(dash.indexOf('`accord worktree clean`')).toBeGreaterThanOrEqual(0);
+  expect(dash.indexOf('`accord dashboard`')).toBeGreaterThan(dash.indexOf('`accord worktree clean`'));
+  expect(dash).toContain('both outputs');
+  expect(named).toContain('`accord worktree open <id> --continue` finds');
+  expect(cont).toContain('`accord worktree open <id> --continue`');
+  expect(cont).toContain('./worktree.md');
+  expect(pick).toContain('`accord worktree open <id>`');
+  expect(pick).toContain('./worktree.md');
+  expect(m.split('--lane M --worktree').length - 1).toBe(2);
+  expect(m).toContain('./worktree.md');
+  for (const s of [named, cont, pick, m]) expect(s).not.toContain('worktree clean');
+  expect(text).not.toContain('git switch');
+  expect(ref.length).toBeGreaterThan(0);
+  for (const p of [
+    '`pruned <path>: <reason>`', '`stop:`', '`held: <id> by this session`', '`not held:`', '`not a ticket:`',
+    '`not claimed:`', 'Never change directory into the worktree', 'except the people entry below', 'editing nothing',
+    'runs every setup command again', 'the longest timeout', '`git push -u origin <branch>`',
+    'even when a setup command failed', 'git -C "<path>" push -u origin <branch>', 'and only that entry',
+    'only from `/accord` with no argument', 'once it succeeds, run `accord worktree open <id> --continue`',
+  ])
+    expect(ref).toContain(p);
+  expect(ref).not.toContain('git restore');
+  expect(ref).not.toContain('git checkout');
+  expect(slice(ids, '## Assigning', '## When your email')).toContain('adding `--worktree` when the lane is M');
+});

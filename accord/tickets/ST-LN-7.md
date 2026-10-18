@@ -60,7 +60,7 @@ Feature: ST-LN-7
     And the worktree "C:/Work/accord-st-9" still exists and "npm ci" ran in it
     And no path or line to open a session is printed
 
-  @ac-3
+  @ac-3 @test:packages/cli/test/worktree.test.ts#ac-3-continue-from-another-checkout-reuses-the-worktree-holding-the-branch
   Scenario: Continue from another checkout reuses the worktree that holds the branch
     Given the branch "t/ST-9" is checked out in the worktree "C:/Work/accord-ln9", a name made by hand
     When "/accord continue ST-9" runs in a session rooted at "C:/Work/accord"

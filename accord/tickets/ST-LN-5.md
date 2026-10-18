@@ -42,20 +42,20 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: ST-LN-5
 
-  @ac-1
+  @ac-1 @test:packages/core/test/stage-skills.test.ts#ac-1-the-shared-ask-rule-holds-the-fixed-sentence-beside-every-stage-skill
   Scenario: the shared rule sends a question that needs context to plain chat
     Given the files `accord skills sync` writes for a config that enables every runtime, in every target directory, each read with every line break and the spaces or tabs around it as one space
     When a reader opens the ask.md beside the SKILL.md of each of accord, intent, approach, plan, build, review, verify, and debug
     Then each ask.md holds the sentence "A question that needs context to be understood is asked in plain chat, never in a question dialog, because the dialog hides the chat written before it: a few plain sentences of context, then the question, then lettered options, each saying what happens if it is chosen, the recommended one first, with one sentence on why it is recommended." verbatim
     And each ask.md holds the sentence "A question dialog is used only when the question and its options are understood on their own in one line, such as 'Commit now?'." verbatim
 
-  @ac-2
+  @ac-2 @test:packages/core/test/stage-skills.test.ts#ac-2-the-shared-ask-rule-says-when-to-ask-multiple-choice-and-when-to-ask-an-open-question
   Scenario: the shared rule says when to ask multiple choice and when to ask an open question
     Given the files `accord skills sync` writes for a config that enables every runtime, in every target directory, each read with every line break and the spaces or tabs around it as one space
     When a reader opens the ask.md beside the SKILL.md of each of accord, intent, approach, plan, build, review, verify, and debug
     Then each ask.md holds the sentence "Ask multiple choice when you can list two to four exclusive options, each with a consequence drawn from the code or the ticket; ask an open question, with no options, when the answer is in the owner's head, such as why, for whom, what success looks like, or what hurts today; offer a short menu only when the owner is stuck on an open question." verbatim
 
-  @ac-3
+  @ac-3 @test:packages/core/test/stage-skills.test.ts#ac-3-the-shared-ask-rule-asks-for-plain-words-and-drops-the-old-sentence
   Scenario: the shared rule asks for plain words and drops the ASK-1 sentence
     Given the files `accord skills sync` writes for a config that enables every runtime, in every target directory, each read with every line break and the spaces or tabs around it as one space
     When a reader opens the ask.md beside the SKILL.md of each of accord, intent, approach, plan, build, review, verify, and debug

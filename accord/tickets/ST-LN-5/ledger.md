@@ -1,6 +1,7 @@
 # Ledger
 
 ## Tasks
+- task 1 done 81c368590136
 
 ## Rulings
 
@@ -11,6 +12,7 @@
 - Ruling: the approach critic's three Should findings are answered in `## Approach` before the owner's yes (negative checks normalise line breaks first; sync runs from this worktree's build; step 5 loses its option-ordering clause) and its two Nice findings are taken as written (a comment on the repointed test; strip `**` before matching step 5) — none touches a Decision — cost if wrong: none, each only narrows how the tests are written.
 - Ruling: the D-08 re-plan keeps Task 1 at its number — no task has a ledger line, so no number exists to put a changed task after, and Task 1 stays the wiring task — cost if wrong: Task 1 becomes Task 3 and the wiring task runs after Task 2.
 - Ruling: the D-08 re-plan also rewords Task 2's reason for dropping step 5's ordering clause to "ask.md already puts the recommended option first with one sentence on why (D-08)" — the old wording read as if the reason were dropped, and the Approach already says this — cost if wrong: none, it changes no test or file.
+- Ruling: each executor brief file gets one line prepended naming the worktree C:/Work/accord-ln5 and forbidding commit trailers — `accord brief` names no working tree and the executor starts in C:/Work/accord, which another session holds on another branch — cost if wrong: none, the line only restates where the plan already says to run.
 
 ## Deferred
 - plan re-plan round 1, Nice: the plan preamble cites packages/core/src/load/junit.ts:16 for the whole `<file>#<name>` id shape; the `#` join is at :40. The four verify ids are already correct.

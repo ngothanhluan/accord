@@ -62,7 +62,7 @@ Feature: ST-LN-5
     Then each ask.md holds the sentence "Explain in plain words for an owner who reads no code: a file path or a symbol is only a pointer, never the explanation, and every id such as ac-2 or D-03 carries a short gloss." verbatim
     And no ask.md holds the text "may see only the question and its options" in any letter case
 
-  @ac-4
+  @ac-4 @test:packages/core/test/stage-skills.test.ts#ac-4-the-intent-skill-takes-the-kind-of-question-from-the-shared-ask-rule
   Scenario: the intent skill takes the kind of question from the shared rule
     Given the files `accord skills sync` writes for a config that enables every runtime, in every target directory, each read with every line break and the spaces or tabs around it as one space
     When a reader opens the SKILL.md of the intent skill in each target directory

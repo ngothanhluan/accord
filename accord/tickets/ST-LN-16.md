@@ -56,6 +56,7 @@ Feature: ST-LN-16
 
 ## Open questions
 <!-- `- [ ]` items; Ready stays blocked while any is unchecked. -->
+- [ ] The dashboard shows another ticket's stage as it stands on that ticket's branch, found 2026-10-18 during the ST-LN-7 intent. The dashboard reads each ticket's file, ledger, and plan from the checkout it runs in; from another ticket's branch it reads only the claimer and the last activity (packages/cli/src/load/fs.ts:117-140). Seen the same minute: from `C:/Work/accord` (branch t/ST-LN-20) ST-LN-7 showed "intent, next: the intent interview" with 1 criterion, while its worktree `C:/Work/accord-ln7` showed "next: the owner approves the ticket" with 5. Committed and pushed progress on a ticket's branch stays invisible to every other session until it merges; the panel draws from the same `dashboard --json`. This predates worktrees and grows with tickets run in parallel (ST-LN-7). The owner asked: "ý là có 2 worktree đang làm việc, thì cái dashboard của một accord session thứ 3 ko cập nhật dc status của 2 session kia hả/", then chose a separate ticket, "ok 1. xem có gộp dc vào ticket nào khác ko". Proposal to confirm at intent: the dashboard reads each claimed ticket's records from the tip of its claim branch.
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->

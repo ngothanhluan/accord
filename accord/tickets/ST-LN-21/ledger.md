@@ -22,3 +22,4 @@
 
 ## Deferred
 - Plan review 1.2 (Nice): the test may read `h.input()?.placeholder` directly; the deferral-word rule scans only plan task lines (packages/core/src/gate/plan.ts:13, :193-207), so the string-built prop name in Task 1 is not needed.
+- Final review Nice 1: in the ac-3 test, the assertion at packages/core/test/panel.test.ts:509 repeats `onlySearch()` on line 508, which already requires the search Input to be the only node with autoFocus; it can be deleted.

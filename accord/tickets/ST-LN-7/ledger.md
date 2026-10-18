@@ -53,6 +53,7 @@
 - Ruling: the Pick up paragraph of SKILL.md is rewrapped so `push it (the pushed branch is the claim)` stays on one line, as the existing required-phrase test reads it; the brief's wrap split it (Task 7 executor) — cost if wrong: none; only a line break differs.
 - Ruling: review round 1 fixes a failure inside `worktree clean` (stale holds.lock, bad holds file, a throwing `git status`) as a Should, though both the intent and quality reviewers rated it Nice — it touches the Veto "ko dc thêm rườm rà cho user": every bare `/accord` would stop before the dashboard until the owner deletes a file by hand, and an agent command killed by a timeout leaves that lock — cost if wrong: one more fix in this round.
 - Ruling: the ac-1 test is strengthened in review (local `main` made to differ from `origin/main`), its title kept — it then checks what @ac-1 states; the test is not weakened — cost if wrong: none.
+- Ruling: a failed read of the holds file is cached for one `worktree clean` run, so a stale lock costs one 2 s wait, not one per worktree (review round 1 executor) — cost if wrong: a lock cleared mid-run is noticed only on the next run.
 
 ## Deferred
 - Plan critique 1.14 (Nice): the main checkout has no setup done-marker, so Continue rooted there reruns the whole setup in the owner's checkout — deferred.
@@ -67,6 +68,7 @@
 - Review round 1 quality 4 (Nice): two `risk:regression` tests restate content (this repository's setup list, about 17 skill phrases) rather than guard a behaviour — deferred.
 - Review round 1 quality, aside: worktree.md carries a new `people` entry into the worktree with four hand-run git and edit steps, the most fragile part of the skill text — deferred.
 - Review round 1 security 1, out of this ticket: `ids.md` also passes `-c core.sshCommand=ssh -o BatchMode=yes`, replacing a user's own `core.sshCommand` — deferred to its own ticket.
+- Review round 1 executor, aside (Nice): the ac-6 test has the same local-equals-origin blind spot as ac-1 had; @ac-6 does not state the start commit, and `newTicketWorktree` uses the same `gitDefaultRef` call that the strengthened ac-1 test now covers — deferred.
 
 ## Tasks
 - task 1 done 0496cf0300af

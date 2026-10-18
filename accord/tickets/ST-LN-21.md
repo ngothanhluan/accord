@@ -42,7 +42,7 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: ST-LN-21
 
-  @ac-1
+  @ac-1 @test:packages/core/test/panel.test.ts#ac-1-the-empty-search-field-keeps-its-Search-label-and-shows-the-dim-hint
   Scenario: The empty search field says what it is for
     Given the panel shows ST-1 titled "Login form" under YOURS
     When the panel draws its search field and the field is empty
@@ -55,7 +55,7 @@ Feature: ST-LN-21
     Then no section heading and no ticket row is shown, the line "No ticket shown here matches. Press New request to send this text to /accord." is shown verbatim, and the New request button is shown
     And when the owner types "login" instead, the only section heading and ticket row shown are YOURS and ST-1, the New request button is still shown, and that line is not
 
-  @ac-3
+  @ac-3 @test:packages/core/test/panel.test.ts#ac-3-the-search-field-is-the-one-control-marked-to-take-focus-on-every-draw-and-while-loading
   Scenario: The cursor is in the search field when the panel opens
     Given the panel shows a dashboard with at least one ticket
     When the pane opens

@@ -1,6 +1,7 @@
 # Ledger
 
 ## Tasks
+- task 1 done 1cdd2ab6f371
 
 ## Rulings
 
@@ -17,5 +18,6 @@
 - Ruling: the plan-review 1.1 fix also waits for `h.inflight()` before settling in step 3, not only step 4 — the turn.complete refresh can still be inside the previous run's `$.ui.invalidate` with `running` set, so the same `runs.shift()` throw at panel.test.ts:47 can happen there — cost if wrong: one redundant wait line.
 - Ruling: step 4 of the ac-3 test settles a board with ST-4 "Logbook" and waits for it, not twoRows — only a row never drawn before proves the step 4 run drew, and "Logbook" matches the query `log` still set — cost if wrong: one fixture line.
 
+- Ruling: each executor brief starts with a line naming the worktree C:/Work/accord-search and forbidding commit trailers — `accord brief` names no working tree, so an executor would start in C:/Work/accord on another branch — cost if wrong: one extra line per brief.
 ## Deferred
 - Plan review 1.2 (Nice): the test may read `h.input()?.placeholder` directly; the deferral-word rule scans only plan task lines (packages/core/src/gate/plan.ts:13, :193-207), so the string-built prop name in Task 1 is not needed.

@@ -1,6 +1,6 @@
 ---
 id: "BUG-LN-4"                            # equals the file name: tickets/<id>.md
-title: "Deleting an approved ticket file in a pull request without code skips the accord check"
+title: "The accord check in CI misses a deleted approved ticket, and runs its script under bash -e"
 type: "bug" # story | bug. An epic uses its own template
 status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
@@ -31,6 +31,9 @@ ui: false
 Queued 2026-10-17, not approved; the intent interview replaces this:
 - Found in BUG-LN-3 review round 1. The accord workflow does not gate a deleted ticket file (A-09, so obsolete tickets can be removed). An accord-only pull request can therefore delete an approved ticket and add a new unapproved one with other content, and pass without `gate done`; no code can land this way, but the approved or done record is lost. BUG-LN-3 closes only the rename variant.
 - Owner chose to keep this as its own ticket: "Vá đổi tên, xóa file để ticket riêng (Recommended)". The question is whether to change A-09 so that removing an approved ticket must go through `status: dropped`.
+- Merged from BUG-LN-5 (owner, 2026-10-18, after the main session proposed merging tickets that touch the same code: "ok gộp đi"): the same script and the same test file.
+- Found in BUG-LN-3 final review. The lint-and-gate step of the workflow `accord init` writes (packages/core/src/scaffold/workflow.ts:75) and this repository's .github/workflows/accord.yml:36 set `shell: bash`, which GitHub runs as `bash --noprofile --norc -eo pipefail {0}`. The script's own comment says "Deliberately not -e: a lint failure and a gate failure should both be reported on one push". Under `-e` a failing command outside a condition can end the script before every ticket is gated or reported. packages/cli/test/workflow-script.test.ts runs the script with plain `bash`, so the flags CI uses are never tested.
+- Owner: "tạo ticket riêng đi". Open: whether to set `shell: bash --noprofile --norc {0}` (or `set +e`) so the comment holds, and to run the tests under the CI flags.
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.

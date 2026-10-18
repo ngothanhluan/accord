@@ -46,6 +46,9 @@
 - Ruling: review round 1 raises three of the quality reviewer's Nice findings to Should and fixes them — the lint error fails `npm run check`, a fenced block in a prose section broke ac-3's "verbatim", and the help text claimed a lane `--approval` does not need — the owner ranks quality first — cost if wrong: one fix round.
 - Ruling: in the review fix, a list line directly before a fence opener still gets a blank line after it, by the existing list rule — cost if wrong: one extra blank line before a fence, no lost fact.
 
+- Ruling: the final review fix keeps the `*` risk test's differing line as another `*` step, the same fixture shape — cost if wrong: none.
+- Ruling: the final review fix was proved by two mutations of `leadSteps` (full step count: 3 tests fail; English-only `Then ` split: the vi test fails), with gherkin.ts restored and rebuilt before the commit — cost if wrong: none, the mutations were reverted and `git diff 39a7965 HEAD -- packages/core` is empty.
+
 ## Deferred
 
 - Nice (review round 1): the `risk:regression` test in packages/core/test/stage-skills.test.ts that the owner's yes still asks for an explicit yes and commits the answer checks two literal phrases and guards no shipped bug; rewording the skill without changing behaviour would fail it.

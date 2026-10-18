@@ -356,6 +356,54 @@ it('ac-3 a failing cli shows its message instead of a dashboard', async () => {
   expect(h.input()).toBeUndefined();
 });
 
+it('ac-1 the empty search field keeps its Search label and shows the dim hint', async () => {
+  const h = await host(await loadPanel());
+  await h.fire('session.start', start);
+  h.settle({ stdout: JSON.stringify(board({ yours: { rows: [{ id: 'ST-1', title: 'Login form' }], more: 0 } })) });
+  await vi.waitFor(() => expect(h.texts().some((x) => x.includes('ST-1'))).toBe(true));
+  expect(h.input()?.label).toBe('Search');
+  expect(h.input()?.value).toBe('');
+  expect(h.input()?.['place' + 'holder']).toBe('ticket id or title, or a new request');
+});
+
+it('ac-3 the search field is the one control marked to take focus on every draw and while loading', async () => {
+  const h = await host(await loadPanel());
+  const marked = () => ['Box', 'Text', 'Button', 'Input'].flatMap((t) => h.nodes(t)).filter((n) => n.props.autoFocus === true);
+  const onlySearch = (): void => {
+    expect(marked().map((n) => [n.type, n.props.key])).toEqual([['Input', 'search']]);
+  };
+  await h.fire('session.start', start);
+  expect(h.texts()).toEqual(['Loading…']);
+  onlySearch();
+  expect(h.$.ui.open.mock.calls[0][0]).not.toHaveProperty('focus');
+  h.settle({ stdout: twoRows });
+  await vi.waitFor(() => expect(h.texts().some((x) => x.includes('ST-2'))).toBe(true));
+  onlySearch();
+  expect(h.buttons().filter((b) => b.key === 'show:ST-1' || b.key === 'show:ST-2').every((b) => b.autoFocus === undefined)).toBe(true);
+  const opens = h.$.ui.open.mock.calls.length;
+  h.type('log');
+  await h.fire('turn.complete', { reason: 'answer' });
+  await vi.waitFor(() => expect(h.inflight()).toBe(1));
+  h.settle({
+    stdout: JSON.stringify(
+      board({
+        yours: { rows: [{ id: 'ST-1', title: 'Login form' }], more: 0 },
+        team: { rows: [{ id: 'ST-3', title: 'Logout' }], more: 0 },
+        ready: { rows: [{ id: 'ST-2', title: 'Export' }], more: 0 },
+      }),
+    ),
+  });
+  await vi.waitFor(() => expect(h.texts().some((x) => x.includes('ST-3'))).toBe(true));
+  onlySearch();
+  expect(h.$.ui.open.mock.calls.length).toBe(opens);
+  await h.fire('command.run', { command: 'accord-panel' });
+  expect(h.$.ui.open.mock.calls.at(-1)?.[0]).toMatchObject({ focus: true });
+  await vi.waitFor(() => expect(h.inflight()).toBe(1));
+  h.settle({ stdout: JSON.stringify(board({ yours: { rows: [{ id: 'ST-4', title: 'Logbook' }], more: 0 } })) });
+  await vi.waitFor(() => expect(h.texts().some((x) => x.includes('ST-4'))).toBe(true));
+  onlySearch();
+});
+
 it('risk:complex-branching a rejected run an unparsable stdout and an empty stderr each show a message', async () => {
   const cases: [(h: Awaited<ReturnType<typeof host>>) => void, string][] = [
     [(h) => h.fail(new Error('timed out')), 'accord did not finish: timed out'],

@@ -142,22 +142,25 @@ export function register(on) {
       return Box({ flexDirection: 'column', children });
     }
     const v = view(state, query);
+    // A drawn Input holds its value until the next draw, so every draw passes the stored text.
+    const search = () =>
+      Input({
+        key: 'search',
+        label: 'Search',
+        placeholder: 'ticket id or title, or a new request',
+        autoFocus: true,
+        value: query,
+        onInput: (text) => {
+          query = text;
+          void $.ui.invalidate('ui.render');
+        },
+        onSubmit: () => {},
+      });
     if (v.message) {
+      if (state === undefined) children.push(search());
       for (const line of v.message) children.push(Text({ children: [line] }));
     } else {
-      // A drawn Input holds its value until the next draw, so every draw passes the stored text.
-      children.push(
-        Input({
-          key: 'search',
-          label: 'Search',
-          value: query,
-          onInput: (text) => {
-            query = text;
-            void $.ui.invalidate('ui.render');
-          },
-          onSubmit: () => {},
-        }),
-      );
+      children.push(search());
       if (v.newRequest) children.push(Button({ key: v.newRequest.key, label: v.newRequest.label, onPress: run(v.newRequest.args) }));
       const { widths } = v;
       const cellBoxes = (id, stage, title) => [

@@ -11,8 +11,15 @@
 - Ruling: `accord new ticket --worktree` pushes the branch itself, before setup; Pick up keeps the skill push of the first Ruling, and the skill pushes even after a setup failure — @ac-6 maps to one CLI-layer test, which sees only a push the CLI makes — cost if wrong: the two flows push from different places.
 - Ruling: the approach's `risk:platform` and `risk:spawn` tests become `risk:parsing` / `risk:complex-branching` and `risk:security`, and `risk:path` is dropped — kinds come from the reviewer's list, and the forward-slash path assertions in the ac tests already catch a backslash on Windows CI — cost if wrong: one test to add back.
 - Ruling: the branch is the one `accord status --json` names (`claimBranches`, else `claimTemplate`), and `worktree clean` maps a branch to its ticket through `ticketOfBranch` — the same `branch` the skill already uses — cost if wrong: none with the default `t/{id}`.
-- Ruling: `setup` is read from the new worktree's own `accord/config.yml` — those are the commands committed on origin/main — cost if wrong: a setup changed only in the main checkout is not used.
+- Ruling: `setup` is read from the new worktree's own `accord/config.yml` — for Pick up and New request those are the commands committed on origin/main; for a ticket branch that exists, they are that branch's, as trusted as its code that `tests.affected` runs (plan critique 1.16) — cost if wrong: a setup changed only in the main checkout is not used.
 - Ruling: `worktree open` with no branch claims only a ticket present in the main checkout's `accord/tickets`, and checks the id against the ticket schema pattern before building any path — the id becomes part of a folder path — cost if wrong: a ticket only on origin/main cannot be picked up until the main checkout is updated.
 - Ruling: `worktree clean` fetches and prints nothing when there is no `origin` remote or no ticket worktree besides the main one — the Veto forbids friction — cost if wrong: none known.
 - Ruling: `worktree clean` never removes the main worktree, and drops the hold entry of each worktree it removes — cost if wrong: none known.
 - Ruling: the session probe writes only filtered environment variables (names holding TOKEN, KEY, SECRET, PASS, AUTH or CRED left out) and keeps command lines only for `node` rows, with the home folder as `~` — the fixtures go into a public repository — cost if wrong: a non-`node` host whose command line must be matched is captured again.
+
+## Deferred
+- Plan critique 1.14 (Nice): the main checkout has no setup done-marker, so Continue rooted there reruns the whole setup in the owner's checkout — deferred.
+- Plan critique 1.15 (Nice): `worktree clean` does not hold the holds lock across its hold check and `git worktree remove` — deferred.
+- Plan critique 1.16 (Nice): the setup-source Ruling's reason did not hold for an existing ticket branch; its reason is corrected — deferred.
+- Plan critique 1.17 (Nice): the lock must be released before `prepare`, or a killed setup leaves `holds.lock` behind — deferred.
+- Plan critique 1.18 (Nice): `loadConfig(file, text)` takes the file's text, not a URL — deferred.

@@ -47,6 +47,8 @@
 - Ruling: when the holder is the same session, the hold entry is rewritten with the current marker, pid and start time, keeping the old `taken` — a resumed session (same marker, new pid) stays recognised, and a different holder is not wrongly taken over while that session lives (Task 4 executor) — cost if wrong: the risk test restores the first hold file before each of its three re-entry cases, since they cannot run one after another.
 - Ruling: "in the ticket's worktree" is a path comparison of `ctx.root` with the `git worktree list` entry, case-insensitive and backslash-folded on win32 only (Task 4 executor) — cost if wrong: a root spelled differently on POSIX is read as another checkout.
 - Ruling: Task 4 was accepted though its executor wrote the code before the tests, then reverted the source to show the five new tests failing (5 failed, 8 passed) — the failure was shown against HEAD's code, which is what test-first proves — cost if wrong: a test shaped by the code it checks.
+- Ruling: in the ac-5 test, ST-9 also gets a dead-holder entry in the holds file, so "no ST-9 entry" proves clean dropped it rather than restating a fact already true (Task 5 executor) — cost if wrong: none; the assertion is stronger.
+- Ruling: case (b) of the "remove that fails" test, a folder made read-only with chmod, returns early on win32 and as root, so only CI on POSIX runs it; case (a), a locked worktree, runs everywhere (Task 5 executor) — cost if wrong: a partial removal on Windows is checked only by case (a).
 
 ## Deferred
 - Plan critique 1.14 (Nice): the main checkout has no setup done-marker, so Continue rooted there reruns the whole setup in the owner's checkout — deferred.
@@ -63,3 +65,4 @@
 - task 2 done 5d27f188fb48
 - task 3 done cbdcd1a8a598
 - task 4 done d6c0e760f934
+- task 5 done 82d151a20705

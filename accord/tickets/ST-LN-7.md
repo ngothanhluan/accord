@@ -74,7 +74,7 @@ Feature: ST-LN-7
     Then the accord CLI command that takes the hold exits 2 with a message naming the holding agent session by its tool, its session marker or process id, and the time it took the hold, and the second session edits nothing
     And once the holding agent session has stopped without releasing its hold, as after a crash, "/accord continue ST-9" in a new Claude Code session there takes the hold and resumes the ticket
 
-  @ac-5
+  @ac-5 @test:packages/cli/test/worktree.test.ts#ac-5-bare-accord-fetches-then-removes-merged-worktrees-and-names-what-it-keeps
   Scenario: /accord with no argument fetches, removes the worktrees of merged tickets, and names what it keeps
     Given on the remote the main branch contains the tips of "t/ST-9", "t/ST-10" and "t/ST-12", which the local clone has not fetched, and not the tip of "t/ST-11"
     And "C:/Work/accord-st-9" is clean apart from files ignored by .gitignore, "C:/Work/accord-st-10" holds a new file not yet added to git, "C:/Work/accord-st-11" is clean, and "C:/Work/accord-st-12" is clean and held by a running session

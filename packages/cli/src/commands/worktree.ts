@@ -39,20 +39,35 @@ export function branchOf(snapshot: RepoSnapshot, id: string): string {
     : (snapshot.claimTemplate ?? DEFAULT_BRANCH_TEMPLATE).replace('{id}', id);
 }
 
-/** `git worktree list --porcelain`, in git's order; the first entry is the main worktree. */
-export function worktrees(root: string): WorktreeEntry[] {
+export interface PrunableEntry extends WorktreeEntry {
+  prunable?: string;
+}
+
+function listWorktrees(root: string): PrunableEntry[] {
   return git(root, ['worktree', 'list', '--porcelain'])
     .split('\n\n')
     .filter((block) => block.trim() !== '')
     .map((block) => {
-      const entry: WorktreeEntry = { path: '', head: '' };
+      const entry: PrunableEntry = { path: '', head: '' };
       for (const line of block.split('\n')) {
         if (line.startsWith('worktree ')) entry.path = line.slice(9);
         else if (line.startsWith('HEAD ')) entry.head = line.slice(5);
         else if (line.startsWith('branch refs/heads/')) entry.branch = line.slice(18);
+        else if (line === 'prunable' || line.startsWith('prunable ')) entry.prunable = line.slice(9) || 'no reason given';
       }
       return entry;
     });
+}
+
+/** `git worktree list --porcelain` in git's order (the first is the main worktree), after pruning records of folders deleted by hand, each named on `out`. */
+export function worktrees(root: string, out: NodeJS.WritableStream): WorktreeEntry[] {
+  let list = listWorktrees(root);
+  const stale = list.filter((w) => w.prunable !== undefined);
+  if (stale.length === 0) return list;
+  git(root, ['worktree', 'prune']);
+  list = listWorktrees(root);
+  for (const w of stale) if (!list.some((x) => x.path === w.path)) out.write(`pruned ${w.path}: ${w.prunable}\n`);
+  return list.filter((w) => w.prunable === undefined);
 }
 
 /** D-06: the main checkout's folder name, a hyphen, the id in lower case, beside the main checkout. */
@@ -82,19 +97,35 @@ export function printStop(ctx: CommandContext, path: string, id: string): void {
   ctx.stdout.write(`stop: open a session in this folder and type the line below it\n${path}\n/accord continue ${id}\n`);
 }
 
-export function worktreeOpen(ctx: CommandContext, id: string): number {
+export function worktreeOpen(ctx: CommandContext, id: string, opts: { continue?: boolean } = {}): number {
   if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id);
   const branch = branchOf(ctx.snapshot, id);
-  if (
-    gitOk(ctx.root, ['rev-parse', '--verify', '-q', 'refs/heads/' + branch]) ||
-    gitOk(ctx.root, ['rev-parse', '--verify', '-q', 'refs/remotes/origin/' + branch]) ||
-    worktrees(ctx.root).some((w) => w.branch === branch)
-  ) {
-    throw new UsageError(branch + ' already exists');
+  const list = worktrees(ctx.root, ctx.stdout);
+  const mainPath = list[0].path;
+  // D-15: a worktree already holding the branch is only found, nothing runs there.
+  const held = list.find((w) => w.branch === branch);
+  if (held !== undefined) {
+    printStop(ctx, held.path, id);
+    return 0;
   }
-  if (!Object.hasOwn(ctx.snapshot.tickets, id)) {
-    throw new UsageError('no ticket ' + id + ' in accord/tickets - nothing was created');
+  const local = gitOk(ctx.root, ['rev-parse', '--verify', '-q', 'refs/heads/' + branch]);
+  const remote = gitOk(ctx.root, ['rev-parse', '--verify', '-q', 'refs/remotes/origin/' + branch]);
+  if (local || remote) {
+    const path = siblingOf(mainPath, id);
+    git(ctx.root, local ? ['worktree', 'add', path, branch] : ['worktree', 'add', '--track', '-b', branch, path, 'origin/' + branch]);
+    prepare(path);
+    printStop(ctx, path, id);
+    return 0;
   }
+  const isTicket = Object.hasOwn(ctx.snapshot.tickets, id);
+  if (opts.continue === true) {
+    throw new UsageError(
+      isTicket
+        ? `not claimed: ${id} has no branch ${branch} here or on origin - nothing was created; pick it up first`
+        : `not a ticket: ${id} is not in accord/tickets and has no branch ${branch} here or on origin - nothing was created`,
+    );
+  }
+  if (!isTicket) throw new UsageError('no ticket ' + id + ' in accord/tickets - nothing was created');
   const ref = gitDefaultRef(ctx.root);
   if (ref === undefined) throw new UsageError('no origin/main in this clone - run git fetch origin, then try again');
   if (!gitOk(ctx.root, ['cat-file', '-e', `${ref}:accord/tickets/${id}.md`])) {
@@ -102,7 +133,7 @@ export function worktreeOpen(ctx: CommandContext, id: string): number {
       `${id} is not on ${ref.replace('refs/remotes/', '')} - merge accord/tickets/${id}.md into the main branch, run git fetch origin, then try again; nothing was created`,
     );
   }
-  const path = siblingOf(worktrees(ctx.root)[0].path, id);
+  const path = siblingOf(mainPath, id);
   git(ctx.root, ['worktree', 'add', '--no-track', '-b', branch, path, ref]);
   git(path, ['commit', '--allow-empty', '-q', '-m', 'claim: ' + id]);
   prepare(path);

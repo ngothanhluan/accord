@@ -196,8 +196,9 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .description('work each ticket in its own git worktree')
     .command('open <id>')
     .description("find or prepare the ticket's worktree, or take its hold from inside it")
-    .action((id: string) => {
-      setCode(worktreeOpen(preflight(opts), id));
+    .option('--continue', 'continue a claimed ticket: never claim, refuse when it has no branch')
+    .action((id: string, o: { continue?: boolean }) => {
+      setCode(worktreeOpen(preflight(opts), id, { continue: o.continue === true }));
     });
 
   program

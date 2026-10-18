@@ -46,39 +46,41 @@ Feature: ST-LN-7
     When "/accord pick-up ST-9" runs in a session rooted at "C:/Work/accord"
     Then "git worktree list" shows the branch "t/ST-9" checked out at "C:/Work/accord-st-9"
     And "npm ci" then "npm run build" ran in "C:/Work/accord-st-9", in that order
-    And the session prints the command that opens a session in "C:/Work/accord-st-9" with "/accord continue ST-9", and stops
+    And the session prints the path "C:/Work/accord-st-9" and the line "/accord continue ST-9" to type in a session opened there, names no agent's own command, and stops
     And the branch checked out in "C:/Work/accord" is the one it had before
 
   @ac-2
   Scenario: A failing setup command stops the run and keeps the worktree
     Given config.yml lists the setup commands "npm ci" and "npm run build", and "npm run build" fails
     When "/accord pick-up ST-9" runs in a session rooted at "C:/Work/accord"
-    Then the worktree "C:/Work/accord-st-9" still exists and "npm ci" ran in it
-    And the run exits 2 with a message naming "npm run build"
-    And no command to open a session is printed
+    Then the accord CLI command that adds the worktree and runs the setup commands exits 2 with a message naming "npm run build"
+    And the worktree "C:/Work/accord-st-9" still exists and "npm ci" ran in it
+    And no path or line to open a session is printed
 
   @ac-3
   Scenario: Continue from another checkout reuses the worktree that holds the branch
     Given the branch "t/ST-9" is checked out in the worktree "C:/Work/accord-ln9", a name made by hand
     When "/accord continue ST-9" runs in a session rooted at "C:/Work/accord"
     Then no new worktree is added and the branch checked out in "C:/Work/accord" is unchanged
-    And the session prints the command that opens a session in "C:/Work/accord-ln9" with "/accord continue ST-9", and stops
+    And the session prints the path "C:/Work/accord-ln9" and the line "/accord continue ST-9" to type in a session opened there, names no agent's own command, and stops
 
   @ac-4
-  Scenario: A second session in a held worktree is refused until the holder dies
-    Given a live session rooted at "C:/Work/accord-st-9" holds the ticket "ST-9"
+  Scenario: A second session in a held worktree is refused while the holder runs, and a dead holder's hold is taken over
+    Given a session rooted at "C:/Work/accord-st-9" holds the ticket "ST-9" and is still running
     When "/accord continue ST-9" runs in a second session rooted at "C:/Work/accord-st-9"
-    Then the second session's run exits 2 with a message naming the holding session, and edits nothing
-    And once the holding session has ended, "/accord continue ST-9" in a new session there takes the hold and resumes the ticket
+    Then the accord CLI command that takes the hold exits 2 with a message naming the holding session, and the second session edits nothing
+    And once the holding session has stopped without releasing its hold, as after a crash, "/accord continue ST-9" in a new session there takes the hold and resumes the ticket
 
   @ac-5
-  Scenario: Each /accord run removes the worktrees of merged tickets and names what it skips
-    Given after a fetch the tips of "t/ST-9" and "t/ST-10" are ancestors of the main branch and the tip of "t/ST-11" is not
-    And "C:/Work/accord-st-9" is clean, "C:/Work/accord-st-10" holds an uncommitted file, and "C:/Work/accord-st-11" is clean
+  Scenario: Each /accord run fetches, removes the worktrees of merged tickets, and names what it keeps
+    Given on the remote the main branch contains the tips of "t/ST-9", "t/ST-10" and "t/ST-12", which the local clone has not fetched, and not the tip of "t/ST-11"
+    And "C:/Work/accord-st-9" is clean, "C:/Work/accord-st-10" holds an uncommitted file, "C:/Work/accord-st-11" is clean, and "C:/Work/accord-st-12" is clean and held by a running session
     When "/accord" runs in a session rooted at "C:/Work/accord"
-    Then "C:/Work/accord-st-9" is removed with "git worktree remove" and named as removed
+    Then it fetches from the remote before it judges which tickets merged
+    And "C:/Work/accord-st-9" is removed with "git worktree remove" and named as removed
     And "C:/Work/accord-st-10" and its uncommitted file are kept, named with the reason "uncommitted work"
-    And "C:/Work/accord-st-11" is kept
+    And "C:/Work/accord-st-12" is kept, named with the reason "held by another session"
+    And "C:/Work/accord-st-11" is kept and not named
 ```
 
 ## Vetoes
@@ -97,6 +99,7 @@ Feature: ST-LN-7
 - D-08 Only a session rooted in a ticket's worktree works that ticket: Pick up or Continue from any other checkout prepares the worktree (or finds the one holding the branch with `git worktree list`), prints the command to open a session there with `/accord continue <id>`, and stops; so no session ever switches tickets mid-way, and D-03's lock is held by the session rooted in the worktree — "Mở session mới ở worktree (Khuyên)" (2026-10-18)
 - D-09 Showing another ticket's stage as it stands on that ticket's branch is not this ticket: it goes to ST-LN-16 "The dashboard shows tickets a teammate has pushed without a manual git fetch…" as an open question (PR #37) — "ok 1. xem có gộp dc vào ticket nào khác ko" (2026-10-18)
 - D-10 The two failures found during ST-LN-21 happen only in the accord repository itself, so this ticket adds nothing for them: `npx` there resolves `@accord-dev/accord` to the repository's own unbuilt workspace package (outside it, and in a user repository with no `node_modules`, `npx --yes @accord-dev/accord@0.1.0 --version` prints 0.1.0), and only there does a ticket change the panel, so the main checkout's panel and a worktree's differ; this repository's `setup` carries `npm rebuild @accord-dev/accord --ignore-scripts` — "đồng ý" (2026-10-18)
+- D-11 The audit's six double readings, settled as recommended: the open-a-session output is tool-neutral, the worktree path and the line `/accord continue <id>`, never one agent's own command; an accord CLI command adds the worktree and runs `setup`, exiting 2 on a failing command; a hold is taken over when its holder is found no longer running, which covers a crash; `/accord` fetches with prompts off (as ids.md does) before judging merges, and on a failed fetch says so and judges against the refs already in the clone; a worktree whose ticket has not merged is kept and not named; a merged worktree held by another session is kept and named with that reason — "Theo cả 6 khuyên (Khuyên)" (2026-10-18)
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->

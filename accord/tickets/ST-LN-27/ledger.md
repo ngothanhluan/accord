@@ -33,6 +33,8 @@
 - Ruling: Task 1, when `enter` is true the callers skip a separate `prepare` and `enterOrStop` runs it only if the setup marker is missing — keeps the order hold, pin check, setup, with the same result as the plan's order — cost if wrong: none.
 - Ruling: Task 1's executor wrote code before tests; the main session ran the 4 new tests against the plan-ready worktree.ts and all 4 failed on their assertions, so the red run is shown after the fact — cost if wrong: a test that passes for the wrong reason, caught at review.
 - Ruling: Task 3 `worksTicket` takes `ctx.root` as the folder — it is already the git top-level from `repoRoot`, so a subfolder resolves to the worktree top, the same result as the plan's `repoRoot(cwd)` — cost if wrong: none.
+- Ruling: Task 4 touched `packages/cli/src/commands/worktree.ts`, outside its `files:`, to extract `guardAllowsContinue` from `guardTicketSession` with no change in behaviour — the hook must apply the same continue rule as the CLI guard, and one function keeps them from drifting — cost if wrong: none; the worktree tests still pass.
+- Ruling: Task 4, the prompt-expansion catch in run.ts writes its own stderr line (backslashes as /) and `{}` with exit 0 — a pin or repo failure never blocks `/accord`, as the plan says — cost if wrong: a broken repo lets a typed `/accord` through; the CLI refusals remain the backstop.
 
 ## Deferred
 - plan-review 1.9 (Nice): worktree.md:7 "Only a session rooted in a ticket's worktree works that ticket" becomes false beside Task 7's new line.
@@ -47,3 +49,4 @@
 - task 1 done deaf58bacd26
 - task 2 done f93527783dfa
 - task 3 done a72df00d19b6
+- task 4 done 2ffd8aaeb73d

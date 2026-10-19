@@ -28,6 +28,10 @@ ui: false
 
 ## Intent
 <!-- At most five lines: why, for whom, how success is measured, and what this does not do. -->
+Why: after a ticket's pull request merges, its local branch and the stale `origin/t/<id>` ref stay behind and must be found and deleted by hand; `git branch -d` even refuses the merged branch once its upstream is gone.
+For whom: anyone, solo or on a team, who runs tickets through accord and merges them with a merge commit.
+Success: the next bare `/accord` after a merge deletes every merged ticket branch in the clone and prunes the stale remote-tracking refs, naming each branch it deletes or keeps, and never loses a commit that is not on the remote main branch.
+Not this ticket: squash or rebase merges, whose branches are never judged merged and stay (D-03); deleting a local branch not named by the ticket branch template; deleting branches on the remote; removing worktrees (ST-LN-7).
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.
@@ -36,10 +40,34 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 Feature: ST-LN-20
 
   @ac-1
-  Scenario: <observable outcome>
-    Given ...
-    When ...
-    Then ...
+  Scenario: /accord with no argument deletes merged ticket branches, with or without a worktree, and names what it keeps
+    Given the remote main branch contains the tips of the local branches "t/ST-9", "t/ST-10" and "t/ST-12", and not the tip of the local branch "t/ST-11"
+    And "t/ST-9" has no worktree, "t/ST-10" is checked out in the worktree "C:/Work/accord-st-10", which "/accord" removes as merged, and "t/ST-12" is checked out in "C:/Work/accord", the checkout the session runs in
+    When "/accord" with no argument runs in a session rooted at "C:/Work/accord"
+    Then the local branches "t/ST-9" and "t/ST-10" are deleted, each named as deleted
+    And "t/ST-12" is kept, named with the reason that it is checked out in "C:/Work/accord"
+    And "t/ST-11" is kept and not named
+
+  @ac-2
+  Scenario: A merged branch whose remote branch was deleted on merge is deleted from whatever branch the session stands on
+    Given the pull request of "t/ST-9" merged with a merge commit and the remote deleted the branch "t/ST-9"
+    And the local branch "t/ST-9" tracks "origin/t/ST-9", has no worktree, and "C:/Work/accord" has the branch "t/ST-20" checked out, which does not contain the tip of "t/ST-9"
+    And the local branch "main" has not been updated since before the merge, so it does not contain the tip of "t/ST-9" either
+    When "/accord" with no argument runs in a session rooted at "C:/Work/accord"
+    Then the local branch "t/ST-9" is deleted and named as deleted
+
+  @ac-3
+  Scenario: A local commit that is not on the remote main branch keeps its branch
+    Given the remote main branch contains the merged tip of "t/ST-9", and the local branch "t/ST-9" has one more commit made after the merge, with no worktree
+    When "/accord" with no argument runs in a session rooted at "C:/Work/accord"
+    Then the local branch "t/ST-9" and its extra commit are kept, and the branch is not named
+
+  @ac-4
+  Scenario: Stale remote-tracking refs are pruned, and a failed fetch prunes nothing
+    Given the remote deleted the branches "t/ST-9" and "backlog/notes", and the clone still has the refs "origin/t/ST-9" and "origin/backlog/notes"
+    When "/accord" with no argument runs in a session rooted at "C:/Work/accord" and the fetch from the remote succeeds
+    Then "git branch -r" lists neither "origin/t/ST-9" nor "origin/backlog/notes", since every remote-tracking ref of the remote whose branch is gone is pruned, whether or not it is named by the ticket branch template
+    And when the fetch fails instead, the failure is said in one line, no ref is pruned, and branches are judged against the remote main branch as the clone last fetched it
 ```
 
 ## Vetoes
@@ -48,14 +76,17 @@ Feature: ST-LN-20
 ## Decisions
 <!-- Settled answers, one per line: - D-01 <decision> — "<the owner's sentence>" -->
 - D-01 Split with ST-LN-7: this ticket owns cleaning up a ticket's branch once its pull request has merged (delete the merged local branch with `git branch -d` and prune stale remote-tracking refs with `git fetch --prune`); ST-LN-7 keeps removing the ticket's worktree; this ticket depends on ST-LN-7, since a branch checked out in a worktree cannot be deleted — "Ticket mới: dọn branch; ST-LN-7: worktree (Recommended)" (2026-10-18)
+- D-02 The cleanup runs in `accord worktree clean`, the step bare `/accord` already runs, and walks every local branch named by the ticket branch template, with or without a worktree, not only the branch of a worktree removed in the same run; a branch checked out anywhere is kept and named with the reason — "A" (2026-10-19)
+- D-03 A ticket branch is judged merged only when its local tip is an ancestor of the remote main branch just fetched, as ST-LN-7 judges worktrees; there is no second signal, so with squash or rebase merges a branch is never deleted, and a merged branch is then deleted with `git branch -D`, since `-d` judges against the branch checked out or a pruned upstream — "A" (2026-10-19)
+- D-04 The audit's two double readings, settled as recommended: @ac-2 is proved by its outcome, with the local `main` also missing the merged tip, never by recording the git calls; @ac-4 prunes with a plain `git fetch --prune`, so every stale remote-tracking ref of the remote goes, ticket or not, while a local branch not named by the ticket branch template is never deleted — "theo đề xuất" (2026-10-19)
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
 
 ## Open questions
 <!-- `- [ ]` items; Ready stays blocked while any is unchecked. -->
-- [ ] Scope from ST-LN-18 (2026-10-18). After PR #31 merged, GitHub deleted `t/ST-LN-18` on the remote (`delete_branch_on_merge: true`), but the local branch and the stale `origin/t/ST-LN-18` ref stayed until removed by hand; no skill, lint or gate asks for it. The owner asked: "vậy có ticket nào hoặc rule nào check là phải luôn clean up branch sau khi merge ko?", then, since ST-LN-7 is running in another session: "LN-7 đang làm ở session khác rồi, nếu vậy gom vào LN-19 dc ko?" (the CLI assigned ST-LN-20). To settle at intent: which step runs the cleanup (after `gate done`, on `/accord`, or a CLI command), how it learns the pull request merged, and that it never deletes an unmerged branch (`ids.md`: "Never delete a claim branch to drop a ticket").
-- [ ] Found on 2026-10-18, deleting the merged `backlog/st-ln-14-runs-2026-10-18` (PR #39): `git branch -d` refused it as "not fully merged" because its upstream had been deleted on the remote and pruned, so git judged it against the current HEAD (`t/ST-LN-20`), not `origin/main`; it went only with `git branch -D` after `git merge-base --is-ancestor <branch> origin/main` passed. D-01's `git branch -d` therefore fails in the very case this ticket targets (remote branch deleted on merge, cleanup run from another branch). To settle at intent: judge merged with `merge-base --is-ancestor` against the fetched remote main, as ST-LN-7's `worktree clean` does, then delete with `-D`; or run `git branch -d` from a checkout of main; or another rule. The owner asked for this to be added: "thêm issue vào ST-LN-20 luôn đi".
+- [x] (answered by D-02, D-03) Scope from ST-LN-18 (2026-10-18). After PR #31 merged, GitHub deleted `t/ST-LN-18` on the remote (`delete_branch_on_merge: true`), but the local branch and the stale `origin/t/ST-LN-18` ref stayed until removed by hand; no skill, lint or gate asks for it. The owner asked: "vậy có ticket nào hoặc rule nào check là phải luôn clean up branch sau khi merge ko?", then, since ST-LN-7 is running in another session: "LN-7 đang làm ở session khác rồi, nếu vậy gom vào LN-19 dc ko?" (the CLI assigned ST-LN-20). To settle at intent: which step runs the cleanup (after `gate done`, on `/accord`, or a CLI command), how it learns the pull request merged, and that it never deletes an unmerged branch (`ids.md`: "Never delete a claim branch to drop a ticket").
+- [x] (answered by D-03) Found on 2026-10-18, deleting the merged `backlog/st-ln-14-runs-2026-10-18` (PR #39): `git branch -d` refused it as "not fully merged" because its upstream had been deleted on the remote and pruned, so git judged it against the current HEAD (`t/ST-LN-20`), not `origin/main`; it went only with `git branch -D` after `git merge-base --is-ancestor <branch> origin/main` passed. D-01's `git branch -d` therefore fails in the very case this ticket targets (remote branch deleted on merge, cleanup run from another branch). To settle at intent: judge merged with `merge-base --is-ancestor` against the fetched remote main, as ST-LN-7's `worktree clean` does, then delete with `-D`; or run `git branch -d` from a checkout of main; or another rule. The owner asked for this to be added: "thêm issue vào ST-LN-20 luôn đi".
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->

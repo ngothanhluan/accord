@@ -608,12 +608,20 @@ export function newTicketWorktree(ctx: CommandContext, id: string, rel: string, 
   writeFileSync(path + '/' + rel, text);
   git(path, ['add', '--', rel]);
   git(path, ['commit', '-q', '-m', 'claim: ' + id]);
-  if (enter) takeHold(ctx, id);
+  let holdError: unknown;
+  if (enter) {
+    try {
+      takeHold(ctx, id);
+    } catch (e) {
+      holdError = e; // push anyway so the claim is not stranded locally; rethrown below
+    }
+  }
   try {
     gitNoPrompt(path, ['push', '-u', 'origin', branch]);
   } catch (e) {
     throw new UsageError(`the ticket is committed in ${path} but the push failed: ${firstLine(e)} - push it with git -C "${path}" push -u origin ${branch}`);
   }
+  if (holdError !== undefined) throw holdError;
   if (enter) checkPin(ctx, id, path, branch, list[0].path);
   prepare(path);
   ctx.stdout.write(rel + '\n');

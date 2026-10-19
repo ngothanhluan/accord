@@ -981,6 +981,15 @@ it('ac-3 in claude code a new lane m ticket is committed pushed and held and pri
   expect(a.out).toContain('Stage: intent');
 });
 
+it('risk:data-loss in claude code a new ticket whose hold cannot be taken is still pushed and exits 2', async () => {
+  const c = clone({ tickets: [] });
+  setTable(tableOf(A));
+  const { code, err } = await run(['new', 'ticket', 'ST-9', '--lane', 'M', '--worktree'], c.root, { CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: 'sess-X', CLAUDE_PID: '1' });
+  expect(code).toBe(2);
+  expect(err).toContain('CLAUDE_PID 1');
+  expect(c.git('ls-remote', 'origin', 'refs/heads/t/ST-9')).toContain('refs/heads/t/ST-9');
+});
+
 const C3 = { pid: 7003, start: 'S-C', marker: 'sess-C' };
 const WORKS = ['this session works ST-9', 'open a new session in the main checkout', 'without "/accord"'];
 

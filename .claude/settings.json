@@ -42,5 +42,9 @@
   },
   "enabledPlugins": {
     "accord-panel@accord": true
+  },
+  "attribution": {
+    "commit": "",
+    "pr": ""
   }
 }

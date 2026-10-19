@@ -1,6 +1,6 @@
 // The argument checks every workflow-layer command shares, so each refuses a bad task number or a
 // non-lane ticket with the same words and exit 2.
-import type { Ticket } from '@accord-dev/accord-core';
+import type { RepoSnapshot, Ticket } from '@accord-dev/accord-core';
 import { UsageError } from '../load/fs.js';
 import type { CommandContext } from '../run.js';
 
@@ -12,11 +12,16 @@ export function taskNumber(arg: string): number {
   return Number(arg);
 }
 
+/** The ticket when the snapshot holds it; a UsageError otherwise. */
+export function requireTicket(snapshot: RepoSnapshot, id: string): Ticket {
+  // `Object.hasOwn`, never `in`: the id is caller-supplied.
+  if (!Object.hasOwn(snapshot.tickets, id)) throw new UsageError('no ticket ' + id + ' in accord/tickets/');
+  return snapshot.tickets[id];
+}
+
 /** The ticket when it exists, its frontmatter loaded, and it carries `lane:`; a UsageError otherwise. */
 export function requireLaneTicket(ctx: CommandContext, id: string): Ticket {
-  // `Object.hasOwn`, never `in`: the id is caller-supplied.
-  if (!Object.hasOwn(ctx.snapshot.tickets, id)) throw new UsageError('no ticket ' + id + ' in accord/tickets/');
-  const ticket = ctx.snapshot.tickets[id];
+  const ticket = requireTicket(ctx.snapshot, id);
   if (ticket.frontmatter === undefined) {
     throw new UsageError(ticket.file + ' has frontmatter errors; run accord lint');
   }

@@ -35,6 +35,7 @@
 - Ruling: "Pick up" on the action line prefers `ready.rows[0]` over `upNext.suggest.id`; the action line is printed even when every section is empty (`[New request]` alone) — brief order — cost if wrong: one line of noise on an empty repository.
 - Ruling: `packages/core/src/index.ts` (outside Task 4's files) exports the new `EpicRow` type — the brief's Interface names it as exported — cost if wrong: none.
 - Ruling: epics list unfinished first, finished meaning total > 0 and done == total, then by id; the 20-epic cap and its `more` line are rendered but not tested — the brief's order — cost if wrong: only the order of epics changes, and a broken epic cap goes unseen.
+- Superseded by ST-LN-18 D-01 and D-04: UP NEXT and the `upNext` key appear on every run, also while the viewer holds a claim; this replaces ST-LN-2 D-04, D-08 and the last clause of its @ac-3.
 
 ## Deferred
 - README.md:35 lists the CLI commands without `accord dashboard` (review round 1, quality Nice 1).

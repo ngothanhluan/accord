@@ -19,8 +19,9 @@ loads: [accord/ids.md, accord/worktree.md, shared/ask.md]
 ## A ticket named: `/accord pick-up <id>`, `/accord continue <id>`
 
 An action applies only when the whole text after it is exactly one
-ticket id, the id of a ticket in `accord/tickets/`, or for Continue of a
-ticket `accord worktree open <id> --continue` finds; with no such ticket,
+ticket id, the id of a ticket in `accord/tickets/`, an id that
+`accord status --json` lists with a `branch`, or for Continue a ticket
+`accord worktree open <id> --continue` finds; with none,
 `/accord continue ST-99` is a New request. Then run Pick up or
 Continue below on that ticket, without showing the dashboard first. Continue on a ticket nobody has claimed
 says so, offers Pick up, and never claims it. Any other text starts a

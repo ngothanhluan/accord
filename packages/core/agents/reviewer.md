@@ -28,6 +28,11 @@ Lens `integration`: only the interfaces and the links between areas.
 
 Undeclared files: each path under `## Undeclared files` in the review package is accepted only when the ledger holds a Ruling naming it with a reason. Any other is an Extra finding.
 
+Severity, by what happens if the finding is left:
+- Must: left as is, the Intent does not hold, a criterion is not reached, or a Veto, Decision or Correction is broken.
+- Should: left as is, a defect ships or an executor is blocked, which a later stage would catch at a higher cost.
+- Nice: no defect, only a clearer or smaller way.
+
 Findings:
 - Numbered, each with a severity `Must`, `Should`, or `Nice`, the lens it comes from, its file and line, and a concrete failing case: the input, step, or state, and what goes wrong.
 - No failing case, no finding.

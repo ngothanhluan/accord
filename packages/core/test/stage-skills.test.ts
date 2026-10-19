@@ -1,7 +1,7 @@
 // Spec §3 to §12: what each stage skill must name, asserted over the RENDERED SKILL.md a runtime loads. One
 // row per stage; a stage whose definition is not authored yet has no row and renders nothing to check.
 import { describe, expect, it } from 'vitest';
-import { installedName, skillDirs, skillTargets, STAGES } from '../src/index.js';
+import { agentTargets, installedName, skillDirs, skillTargets, STAGES } from '../src/index.js';
 import type { AccordConfig } from '../src/index.js';
 
 const config: AccordConfig = {
@@ -59,8 +59,10 @@ it('ac-4 the plan skill asks the owner before it creates the tests baseline', ()
   expect(ref.indexOf(decided)).toBeLessThan(ref.indexOf(ask));
 });
 
+// Proves ST-LN-5 ac-1; the sentence ASK-1 ac-1 quotes is superseded by ST-LN-5 D-06.
 it('ac-1 the shared ask rule holds the fixed sentence beside every stage skill', () => {
-  const SENTENCE = 'Every question to the owner stands alone, because the owner may see only the question and its options: it says in one or two plain sentences what is being decided and why now, with an example; each option says what happens if it is chosen; the recommended option comes first; every id such as ac-2 or D-03 carries a short gloss.';
+  const CONTEXT = "A question that needs context to be understood is asked in plain chat, never in a question dialog, because the dialog hides the chat written before it: a few plain sentences of context, then the question, then lettered options, each saying what happens if it is chosen, the recommended one first, with one sentence on why it is recommended.";
+  const DIALOG = "A question dialog is used only when the question and its options are understood on their own in one line, such as 'Commit now?'.";
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
   expect([...STAGES]).toEqual(['accord', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
@@ -70,8 +72,63 @@ it('ac-1 the shared ask rule holds the fixed sentence beside every stage skill',
     for (const stage of STAGES) {
       const path = dir + '/' + installedName(stage) + '/ask.md';
       const text = (everyFile.get(path) ?? '').replace(/[ \t]*\n[ \t]*/g, ' ');
-      if (!text.includes(SENTENCE)) bad.push(path);
+      if (!text.includes(CONTEXT) || !text.includes(DIALOG)) bad.push(path);
     }
+  }
+  expect(bad).toEqual([]);
+});
+
+it('ac-2 the shared ask rule says when to ask multiple choice and when to ask an open question', () => {
+  const KIND = "Ask multiple choice when you can list two to four exclusive options, each with a consequence drawn from the code or the ticket; ask an open question, with no options, when the answer is in the owner's head, such as why, for whom, what success looks like, or what hurts today; offer a short menu only when the owner is stuck on an open question.";
+  const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
+  expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
+  expect([...STAGES]).toEqual(['accord', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
+  const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
+  const bad: string[] = [];
+  for (const dir of skillDirs(all)) {
+    for (const stage of STAGES) {
+      const path = dir + '/' + installedName(stage) + '/ask.md';
+      const text = (everyFile.get(path) ?? '').replace(/[ \t]*\n[ \t]*/g, ' ');
+      if (!text.includes(KIND)) bad.push(path);
+    }
+  }
+  expect(bad).toEqual([]);
+});
+
+it('ac-3 the shared ask rule asks for plain words and drops the old sentence', () => {
+  const PLAIN = 'Explain in plain words for an owner who reads no code: a file path or a symbol is only a pointer, never the explanation, and every id such as ac-2 or D-03 carries a short gloss.';
+  const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
+  expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
+  expect([...STAGES]).toEqual(['accord', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
+  const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
+  const bad: string[] = [];
+  for (const dir of skillDirs(all)) {
+    for (const stage of STAGES) {
+      const path = dir + '/' + installedName(stage) + '/ask.md';
+      const text = (everyFile.get(path) ?? '').replace(/[ \t]*\n[ \t]*/g, ' ');
+      if (!text.includes(PLAIN)) bad.push(path + ' lacks plain words');
+      if (text.toLowerCase().includes('may see only the question and its options')) bad.push(path + ' holds the old sentence');
+    }
+  }
+  expect(bad).toEqual([]);
+});
+
+it('ac-4 the intent skill takes the kind of question from the shared ask rule', () => {
+  const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
+  expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
+  expect([...STAGES]).toEqual(['accord', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
+  const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
+  const flat = (s: string) => s.replace(/[ \t]*\n[ \t]*/g, ' ');
+  const bad: string[] = [];
+  for (const dir of skillDirs(all)) {
+    const path = dir + '/' + installedName('intent') + '/SKILL.md';
+    const raw = everyFile.get(path) ?? '';
+    if (!raw) { bad.push(path + ' missing'); continue; }
+    const steps = raw.split(/^(?=\d+\. )/m).filter((c) => /^\d+\. /.test(c)).map((c) => flat(c).replace(/\*\*/g, ''));
+    const hits = steps.filter((c) => /^\d+\. One question per message/.test(c));
+    if (hits.length !== 1) bad.push(path + ' found ' + hits.length + ' steps');
+    else if (!hits[0].includes('./ask.md')) bad.push(path + ' lacks ./ask.md');
+    if (flat(raw).toLowerCase().includes('multiple choice where possible')) bad.push(path + ' still asks multiple choice where possible');
   }
   expect(bad).toEqual([]);
 });
@@ -101,8 +158,8 @@ it('ac-2 every stage skill points to the shared ask rule from its intent paragra
   expect(bad).toEqual([]);
 });
 
+// SHOW-1's verbatim paste is superseded by ST-LN-19 D-01; ST-LN-19 ac-4 proves the new step.
 it('ac-1 the intent skill shows intent and the criteria verbatim before the architect', () => {
-  const SENTENCE_A = "Show the owner the `## Intent` section and the acceptance criteria block verbatim, copied from the ticket file and never summarised, ask for an explicit yes, and on yes commit the ticket with the owner's answer quoted in the commit message.";
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
   expect([...STAGES]).toEqual(['accord', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
@@ -115,7 +172,7 @@ it('ac-1 the intent skill shows intent and the criteria verbatim before the arch
     const steps = text.split(/^(?=\d+\. )/m).filter((c) => /^\d+\. /.test(c)).map((c) => c.replace(/[ \t]*\n[ \t]*/g, ' '));
     const idx = (f: (s: string) => boolean) => steps.flatMap((s, i) => (f(s) ? [i] : []));
     const lists = {
-      sentence: idx((s) => s.includes(SENTENCE_A)),
+      sentence: idx((s) => /^\d+\. \*\*The owner's yes/.test(s)),
       auditor: idx((s) => s.includes('Dispatch `accord-auditor`')),
       next: idx((s) => /^\d+\. Next: `accord-approach`/.test(s)),
     };
@@ -127,8 +184,8 @@ it('ac-1 the intent skill shows intent and the criteria verbatim before the arch
   expect(bad).toEqual([]);
 });
 
+// SHOW-1's verbatim paste is superseded by ST-LN-19 D-01; ST-LN-19 ac-4 proves the new step.
 it('ac-2 the approach skill shows approach verbatim instead of a brief', () => {
-  const SENTENCE_B = "Show the owner the `## Approach` section verbatim, copied from the ticket file and never summarised, together with any section changed since the owner's yes at the intent stage, and ask for an explicit yes.";
   const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
   expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
   expect([...STAGES]).toEqual(['accord', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
@@ -139,7 +196,6 @@ it('ac-2 the approach skill shows approach verbatim instead of a brief', () => {
     const raw = everyFile.get(path) ?? '';
     if (!raw) { bad.push(path + ' missing'); continue; }
     const text = raw.replace(/[ \t]*\n[ \t]*/g, ' ');
-    if (!text.includes(SENTENCE_B)) bad.push(path + ' lacks sentence B');
     if (text.includes('Show the owner the brief')) bad.push(path + ' still shows the brief');
   }
   expect(bad).toEqual([]);
@@ -217,4 +273,124 @@ it('risk:regression the accord skill opens each ticket in its own worktree and c
   expect(ref).not.toContain('git restore');
   expect(ref).not.toContain('git checkout');
   expect(slice(ids, '## Assigning', '## When your email')).toContain('adding `--worktree` when the lane is M');
+});
+
+it('ac-1 the first plan critique is sized by the plan and a should only round reads the fix diff', () => {
+  const flat = (t: string) => t.replace(/\s+/g, ' ');
+  const skill = flat(files.find((f) => f.path === '.claude/skills/accord-plan/SKILL.md')?.text ?? '');
+  const loop = flat(files.find((f) => f.path === '.claude/skills/accord-plan/critique.md')?.text ?? '');
+  const critic = flat(agentTargets(config).find((f) => f.path === '.claude/agents/accord-critic.md')?.text ?? '');
+  expect(skill.length, 'accord-plan/SKILL.md is missing').toBeGreaterThan(0);
+  expect(loop.length, 'accord-plan/critique.md is missing').toBeGreaterThan(0);
+  expect(critic.length, 'accord-critic.md is missing').toBeGreaterThan(0);
+  const step5 = skill.slice(skill.indexOf('5. **Critique.**'), skill.indexOf('6. **Rounds.**'));
+  expect(step5.length).toBeGreaterThan(0);
+  expect(['`./critique.md`', '`accord-critic`'].filter((p) => !step5.includes(p))).toEqual([]);
+  expect(['three revision rounds', 'stop and tell the owner', '`accord gate plan <id>` still fails, after the third'].filter((p) => !skill.includes(p))).toEqual([]);
+  expect(skill).not.toContain('have the planner fix every Must and every Should');
+  const loopPhrases = [
+    'Round 1 is `whole` and sized by the plan.',
+    'Count the `## Task` sections of `plan.md` and judge from the ticket and the plan whether the ticket touches auth, money, migration, or data deletion.',
+    'one `accord-critic`, no lens, for a plan of one to three tasks',
+    'two critics for a plan of four or more tasks, lens `criteria`, which checks that the plan reaches the criteria and the Intent, and lens `build`, which checks that an executor can build each task',
+    'one more critic, lens `security`, for a plan of any size whose ticket touches auth, money, migration, or data deletion, so at most three',
+    'Merge and de-duplicate their findings into one round, numbered within it, before the planner gets them.',
+    'After a round that reports a Must, or that leaves a Must from an earlier round open or unverified',
+    'its section holds a Must, or `<m>` is above zero in step 5',
+    'the next round is `whole`, even when the owner dropped that Must',
+    'After any other round the next is `diff`',
+    "`git diff <that round's commit> -- accord/tickets/<id>/plan.md`, which holds the planner's fix",
+    'A `diff` critic never reads the whole plan.',
+    'every Must and Should that is `open` or `unverified`, never a Nice',
+    'The planner fixes every one and replies by that label.',
+    "each labelled `<round>.<n>` and listed with the owner's words it holds",
+    'A Nice goes to the ledger under `## Deferred`, marked `deferred`, and never to the planner.',
+    'The loop ends only on a round that reports no Must and no Should and leaves no Must or Should open or unverified',
+    'and only when the last `accord gate plan <id>` passed',
+    "A finding stays `open` or `unverified` until a critic lists it after `fixed:` or `withdrawn:`, or the owner drops it; the planner's word alone closes nothing.",
+    'mark that earlier finding `repeated as <this round>.<n>`',
+    '`<m>` and `<s>` count the Musts and the Shoulds after the last `## Closed` line that are `open` or `unverified` once this round is recorded',
+  ];
+  expect(loopPhrases.filter((p) => !loop.includes(p))).toEqual([]);
+  const criticPhrases = [
+    'Mode `diff`:',
+    '`fixed: <round>.<n>, <round>.<n>`',
+    '`criteria` runs only the first, second, third and fifth checks',
+    'On the changed hunks, check that no Veto is violated and that nothing goes beyond the acceptance criteria.',
+    'and at the task or section each `open` or `unverified` finding names; never read the whole plan.',
+    'a new numbered finding that starts `repeats <round>.<n>:`',
+    '`withdrawn: <round>.<n>, <round>.<n>`',
+  ];
+  expect(criticPhrases.filter((p) => !critic.includes(p))).toEqual([]);
+});
+
+it('ac-2 a review round with only should findings converges without a re-review', () => {
+  const flat = (t: string) => t.replace(/\s+/g, ' ');
+  const skill = flat(files.find((f) => f.path === '.claude/skills/accord-review/SKILL.md')?.text ?? '');
+  const record = flat(files.find((f) => f.path === '.claude/skills/accord-review/record.md')?.text ?? '');
+  expect(skill.length, 'accord-review/SKILL.md is missing').toBeGreaterThan(0);
+  expect(record.length, 'accord-review/record.md is missing').toBeGreaterThan(0);
+  const step4 = skill.slice(skill.indexOf('4. **Classify.**'), skill.indexOf('5. **Converged**'));
+  const step7 = skill.slice(skill.indexOf('7. **Final review.**'), skill.indexOf('8. **Record.**'));
+  expect(step4.length).toBeGreaterThan(0);
+  expect(step7.length).toBeGreaterThan(0);
+  expect(
+    [
+      'run the `tests.affected` command over the files the fix touched, or `tests.full` when `tests.affected` is not configured or finds no test file.',
+      'When the round reported a Must, re-review only the fix diff',
+      'When it reported only Should findings, no reviewer is dispatched again for that fix: that command passing checks it.',
+    ].filter((p) => !step4.includes(p)),
+  ).toEqual([]);
+  expect(skill).toContain('**Converged** means no Must is open and every Should is fixed with that command passing.');
+  expect(skill).not.toContain('zero Must and zero Should');
+  expect(step7).toContain('If it finds only Should findings, fix them and run that command as in step 4, with no re-review.');
+  expect(record).toContain('every Should is fixed with that command passing');
+  expect(record).toContain('or `tests.full` when `tests.affected` is not configured or finds no test file');
+  expect(record).not.toContain('zero Must and zero Should');
+});
+
+it('risk:regression the accord skill takes an id that accord status lists with a branch', () => {
+  const text = (files.find((f) => f.path === '.claude/skills/accord/SKILL.md')?.text ?? '').replace(/\s+/g, ' ');
+  const named = text.slice(text.indexOf('## A ticket named'), text.indexOf('## Continue'));
+  expect(named).toContain('an id that `accord status --json` lists with a `branch`');
+  expect(named).toContain('`/accord continue ST-99` is a New request');
+});
+
+function yesSteps(): { dir: string; stage: string; step: string; bad?: string }[] {
+  const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
+  expect(skillDirs(all)).toEqual(['.agents/skills', '.claude/skills']);
+  expect([...STAGES]).toEqual(['accord', 'intent', 'approach', 'plan', 'build', 'review', 'verify', 'debug']);
+  const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
+  const out: { dir: string; stage: string; step: string; bad?: string }[] = [];
+  for (const dir of skillDirs(all)) {
+    for (const stage of ['intent', 'approach']) {
+      const text = everyFile.get(dir + '/' + installedName(stage) + '/SKILL.md') ?? '';
+      if (!text) { out.push({ dir, stage, step: '', bad: 'missing' }); continue; }
+      const hits = text.split(/^(?=\d+\. |#)/m).filter((c) => /^\d+\. \*\*The owner's yes/.test(c));
+      if (hits.length !== 1) { out.push({ dir, stage, step: '', bad: 'found ' + hits.length + ' steps' }); continue; }
+      out.push({ dir, stage, step: hits[0].replace(/[ \t]*\n[ \t]*/g, ' ') });
+    }
+  }
+  return out;
+}
+
+it('ac-4 the intent and approach skills show the approval view at the owners yes', () => {
+  const bad: string[] = [];
+  for (const { dir, stage, step, bad: b } of yesSteps()) {
+    if (b) { bad.push(dir + ' ' + stage + ' ' + b); continue; }
+    for (const p of ['`accord show <id> --approval`', 'unchanged', 'not inside a code block', 'horizontal rule', 'In plain words', 'one line per scenario that begins with its ac-n'])
+      if (!step.includes(p)) bad.push(dir + ' ' + stage + ' lacks ' + p);
+    if (step.toLowerCase().includes('from the ticket file')) bad.push(dir + ' ' + stage + ' still says from the ticket file');
+  }
+  expect(bad).toEqual([]);
+});
+
+it('risk:regression the owners yes steps still ask for an explicit yes and commit the answer', () => {
+  const bad: string[] = [];
+  for (const { dir, stage, step, bad: b } of yesSteps()) {
+    if (b) { bad.push(dir + ' ' + stage + ' ' + b); continue; }
+    if (!step.includes('ask for an explicit yes')) bad.push(dir + ' ' + stage + ' ask for an explicit yes');
+    if (stage === 'intent' && !step.includes("on yes commit the ticket with the owner's answer quoted in the commit message")) bad.push(dir + ' ' + stage + ' commit');
+  }
+  expect(bad).toEqual([]);
 });

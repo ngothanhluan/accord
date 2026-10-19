@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
-import { agents, agentTargets, contentHash, markerHash, renderAgent, withoutMarker } from '../src/index.js';
+import { agents, agentTargets, contentHash, markerHash, renderAgent, skillTargets, withoutMarker } from '../src/index.js';
 import type { AccordConfig, AgentKey } from '../src/index.js';
 
 const agentsDir = fileURLToPath(new URL('../agents/', import.meta.url));
@@ -123,4 +123,74 @@ describe('rendered agents', () => {
       expect(agents[name as AgentKey], `${name} drifted: run npm run gen`).toBe(text);
     }
   });
+});
+
+it('ac-3 the critic and both reviewers define must should and nice by consequence', () => {
+  const sentences = [
+    'Must: left as is, the Intent does not hold, a criterion is not reached, or a Veto, Decision or Correction is broken.',
+    'Should: left as is, a defect ships or an executor is blocked, which a later stage would catch at a higher cost.',
+    'Nice: no defect, only a clearer or smaller way.',
+  ];
+  for (const role of ['critic', 'reviewer', 'final-reviewer']) {
+    const path = `.claude/agents/accord-${role}.md`;
+    const text = (agentTargets(config()).find((f) => f.path === path)?.text ?? '').replace(/\s+/g, ' ');
+    expect(text, `${path} is empty`).not.toBe('');
+    for (const s of sentences) expect(text, `${path} lacks: ${s}`).toContain(s);
+  }
+});
+
+it('ac-4 the planner runs every plan check of the critic before it replies', () => {
+  const text = (path: string): string => agentTargets(config()).find((f) => f.path === path)?.text ?? '';
+  const critic = text('.claude/agents/accord-critic.md').split('\n');
+  const planner = text('.claude/agents/accord-planner.md').split('\n');
+  expect(critic.join(''), 'critic is empty').not.toBe('');
+  expect(planner.join(''), 'planner is empty').not.toBe('');
+  const from = critic.indexOf('Mode `plan`:');
+  expect(from).toBeGreaterThanOrEqual(0);
+  const rest = critic.slice(from + 1);
+  const run = rest.slice(0, rest.indexOf(''));
+  const checks = run.filter((l) => l.startsWith('- Check'));
+  expect(checks).toHaveLength(6);
+  expect(checks).toEqual(run);
+  const intro = planner.indexOf("Before you reply, run these checks of the critic's plan mode on your plan and fix what fails:");
+  expect(intro).toBeGreaterThanOrEqual(0);
+  for (const c of checks) expect(planner.indexOf(c), `planner lacks: ${c}`).toBeGreaterThan(intro);
+});
+
+it('ac-5 an api a finding relies on carries a citation the planner confirms', () => {
+  const cfg = config();
+  const agent = (path: string): string => agentTargets(cfg).find((f) => f.path === path)?.text ?? '';
+  const flat = (s: string): string => s.replace(/\s+/g, ' ');
+  const criticRaw = agent('.claude/agents/accord-critic.md');
+  const plannerRaw = agent('.claude/agents/accord-planner.md');
+  const loopPath = '.claude/skills/accord-plan/critique.md';
+  const loopRaw = skillTargets(cfg).find((f) => f.path === loopPath)?.text ?? '';
+  expect(criticRaw, 'critic is empty').not.toBe('');
+  expect(plannerRaw, 'planner is empty').not.toBe('');
+  expect(loopRaw, `${loopPath} is empty`).not.toBe('');
+  const critic = flat(criticRaw);
+  const planner = flat(plannerRaw);
+  const loop = flat(loopRaw);
+  expect(critic).toContain(
+    'A finding, or a fix you propose, that relies on a host or library API cites where that API is defined: a file and line in the working tree, `node_modules` included, as `path:line`, or the URL of the document outside it.',
+  );
+  for (const s of [
+    'A fix the critic proposes that relies on a host or library API is applied only when reading the cited place confirms that API.',
+    'A fix with no citation, a citation you cannot read, or a citation that does not confirm the API is reported as `unverified: <reason>`, not applied.',
+    "A fix whose API is cited only by a URL is applied only when you are given the owner's words saying to apply it.",
+  ]) expect(planner, `planner lacks: ${s}`).toContain(s);
+  expect(planner).toContain('its `<round>.<n>` label, which you reply with');
+  expect(loop).toContain('goes to the owner at once');
+  expect(loop).toContain('On apply its state becomes `open, owner: "<the owner\'s words>"`');
+  expect(plannerRaw).toMatch(/^tools: "Read, Grep, Glob, Write, Edit"$/m);
+  expect(criticRaw).toMatch(/^tools: "Read, Grep, Glob"$/m);
+});
+
+it('risk:regression-of-a-real-bug a false-positive open finding can be withdrawn by the critic', () => {
+  const flat = (s: string): string => s.replace(/\s+/g, ' ');
+  const agent = (path: string): string => flat(agentTargets(config()).find((f) => f.path === path)?.text ?? '');
+  const critic = agent('.claude/agents/accord-critic.md');
+  const planner = agent('.claude/agents/accord-planner.md');
+  expect(critic).toContain('A finding it holds as `open` or `unverified` that no longer holds, whether or not the plan changed, goes on one line');
+  expect(planner).toContain('A finding you cannot fix without failing one of the checks below is reported as `unverified: <reason>` naming the check, not applied.');
 });

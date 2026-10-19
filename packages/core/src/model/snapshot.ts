@@ -27,6 +27,9 @@ export interface SnapshotInput {
   claimBranches?: Record<string, string>;
   // The template a new claim is named by; absent when it is 't/{id}'.
   claimTemplate?: string;
+  // Ticket id -> the subject of the last commit that touched its plan.md and whether plan.md has no uncommitted
+  // change. A plan is ready when clean and the subject is exactly `plan: <id> ready`. Absent when the host supplies none.
+  planFacts?: Record<string, { subject?: string; clean: boolean }>;
 }
 
 export interface Line {
@@ -183,4 +186,5 @@ export interface RepoSnapshot {
   branchTemplates?: string[]; // carried through from SnapshotInput
   claimBranches?: Record<string, string>; // carried through from SnapshotInput
   claimTemplate?: string; // carried through from SnapshotInput
+  planFacts?: Record<string, { subject?: string; clean: boolean }>; // carried through from SnapshotInput
 }

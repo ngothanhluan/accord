@@ -6,7 +6,7 @@ import { EMPTY_CELL, fit, sanitise } from './table.js';
 const TITLE_MAX = 60;
 
 // Control, bidi and line-separator code points become a space (T-05-11 for non-ASCII text). Scanned, not a regexp (no-control-regex).
-const isUnsafe = (cp: number): boolean =>
+export const isUnsafe = (cp: number): boolean =>
   cp < 0x20 || (cp >= 0x7f && cp <= 0x9f) || cp === 0x61c || cp === 0x200e || cp === 0x200f || cp === 0x2028 || cp === 0x2029 ||
   (cp >= 0x202a && cp <= 0x202e) || (cp >= 0x2066 && cp <= 0x2069);
 
@@ -22,6 +22,7 @@ const cells = (r: StatusRow): string[] => [
   titleCell(r.title),
   sanitise(
     (r.stage === undefined ? EMPTY_CELL : r.stage === 'build' ? `build ${r.tasksDone ?? 0}/${r.tasksTotal ?? 0}` : r.stage) +
+      (r.next === undefined ? '' : `, next: ${r.next}`) +
       (r.idleDays === undefined ? '' : ` idle ${r.idleDays}d`),
   ),
   fit(sanitise(r.claimedBy ?? EMPTY_CELL), 28),
@@ -56,8 +57,8 @@ export function renderDashboard(d: Dashboard): string {
     `${m.inProgress} in progress, ${m.ready} ready, ${m.blocked} blocked, ${m.backlog} backlog, ${m.done} done` +
     (m.withoutLane > 0 ? `, ${m.withoutLane} without lane` : '') +
     (m.withSchemaErrors > 0 ? `, ${m.withSchemaErrors} with schema errors, run accord lint` : '');
-  const sections = [block('YOURS', d.yours), block('TEAM', d.team), block('READY', d.ready), ...(d.upNext ? [block('UP NEXT', d.upNext)] : []), ...(d.epics.rows.length ? [epicBlock(d.epics)] : [])];
-  const pick = d.ready.rows[0]?.id ?? d.upNext?.suggest?.id;
+  const sections = [block('YOURS', d.yours), block('TEAM', d.team), block('READY', d.ready), block('UP NEXT', d.upNext), ...(d.epics.rows.length ? [epicBlock(d.epics)] : [])];
+  const pick = d.ready.rows[0]?.id ?? d.upNext.suggest?.id;
   const actions = [d.yours.rows[0] ? `[Continue ${d.yours.rows[0].id}]` : '', pick ? `[Pick up ${pick}]` : '', '[New request]'].filter(Boolean);
   return [...sections.map((s) => s.join('\n')), summary + '\n-> ' + actions.join('  ')].join('\n\n') + '\n';
 }

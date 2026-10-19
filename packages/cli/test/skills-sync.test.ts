@@ -730,3 +730,13 @@ it('risk:regression the committed panel and settings carry the plugin', () => {
   for (const h of ['session-start', 'session-resume', 'subagent-start']) expect(cmds).toContain(`hook ${h}`);
   expect(read('.claude/skills/accord/SKILL.md')).toContain('`/accord continue <id>`');
 });
+
+it('risk:regression the committed panel hooks match what skills sync renders', () => {
+  const targets = pluginTargets({ runtimes: ['claude'] }, pkg);
+  for (const p of ['.claude/accord-panel/plugin/hooks/register.js', '.claude/accord-panel/plugin/hooks/view.js']) {
+    const text = readFileSync(new URL(`../../../${p}`, import.meta.url), 'utf8');
+    const t = targets.find((x) => x.path === p);
+    expect(t, p).toBeDefined();
+    expect(withoutMarker(normaliseText(text)), p).toBe(withoutMarker((t as { text: string }).text));
+  }
+});

@@ -28,6 +28,7 @@
 - Ruling: the start hook records the worked line only when `inClaude(ctx.env)` is defined — D-01: other runtimes are refused nothing — cost if wrong: none for other runtimes; the hook is a Claude Code hook.
 - Ruling: Task 1's pin test is renamed to `...refuses-before-setup-and-prints-no-enter` — its old title is false once Pick up holds before the pin check — cost if wrong: one id differs from the round-2 plan.
 - Ruling: plan-review 3.1 is graded Should though cross-folder `--resume` and whether `/clear` gives a new session id were not probed — the veto is at stake and the fix is one call — cost if wrong: one extra revision on a gap Claude Code does not open.
+- Ruling: the session-resume hook records the worked line but takes no hold — 3.1 asks only for the record, and a hold on resume would change Task 6's tested resume behaviour — cost if wrong: a session resumed in a worktree holds nothing until its next `worktree open`, but the folder rule and the record still keep it on its ticket.
 
 ## Deferred
 - plan-review 1.9 (Nice): worktree.md:7 "Only a session rooted in a ticket's worktree works that ticket" becomes false beside Task 7's new line.
@@ -36,3 +37,4 @@
 - plan-review 2.5 (Nice): Task 4's `risk:security…` hook test should pass a 120_000 timeout.
 - plan-review 2.6 (Nice): the session-resume hook prints `enter:` without `checkPin`.
 - plan-review 2.7 (Nice): the PR description must carry the `npm run build` after merge line (Ruling on the rebuild); no task writes it.
+- plan-review 4.1 (Nice): session-resume can write two stderr lines for one bad stdin `cwd`; Task 6's lookup should reuse the `root` the record block computed.

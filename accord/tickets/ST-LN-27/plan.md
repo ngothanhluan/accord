@@ -1,6 +1,6 @@
 ---
 baseline: 769ed1da753d4f122e4b819570bc3aaef44cf94d
-plan_hash: "fnv1a64:a226e94bac5fe6a7"
+plan_hash: "fnv1a64:de2e2ad1e819a838"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -55,7 +55,7 @@ Definitions shared by every task:
   table is read for this rule (ledger Ruling on session identity).
 - The worked record (ledger Ruling on plan-review 1.1): the file `<git-common-dir>/accord/worked`, one line
   `<id>\t<marker>\n` per ticket a session marker took a hold on or was started in. `takeHold` appends it, and so
-  does the session-start hook whenever it resolves a ticket worktree, hold or not (Task 8); nothing ever removes a
+  do the session-start and session-resume hooks whenever they resolve a ticket worktree, hold or not (Task 8); nothing ever removes a
   line, so neither `worktree clean` nor a takeover makes a session forget its ticket.
 - The refusal message (D-02, D-06, @ac-4), built by `worksMessage` (Task 3). When A is known:
   `this session works <A>: open a new session in the main checkout <mainPath> for other work, or type a request about <A> without "/accord" - nothing was changed`.
@@ -637,7 +637,9 @@ after either would find no hold and no worktree folder of its own, and could pic
 works A for its whole life, even after A is done or merged) and the Veto. The worked record (preamble) keeps that
 fact. A session started in A's worktree (D-04) whose start hook took no hold, because another live session holds
 A or the hook's env lacks the session variables, would have no hold to record; the start hook records it from the
-marker it has (plan-review 2.4).
+marker it has (plan-review 2.4). A session whose start in A's worktree has source `resume`, `clear` or `compact`
+runs `hook session-resume` instead (`.claude/settings.json:14-18`), so that hook records it the same way
+(plan-review 3.1).
 
 Consumes: `takeHold` (Task 1), `inClaude`, `worksTicket` and `guardTicketSession` (Task 3), `hookInput`, the
 `prompt-expansion` hook and the stdin `run` helper (Task 4), and the session-start block of Task 6. Produces:
@@ -685,7 +687,14 @@ Test first, in `packages/cli/test/worktree.test.ts`, appended at the end:
   - Missing variables: `start({ CLAUDECODE: '1' }, 'sess-E')` exits 0, `out` starts `# accord rules\n`, `err` is
     one line containing `no hold taken on ST-9`, and `lines(worked())` contains `'ST-9\tsess-E'`.
   - Another runtime: `start({}, 'sess-O')` exits 0 and no line of `worked()` ends with `sess-O` (D-01).
+  - Resume in the worktree (plan-review 3.1): `resume(env, marker)` is `run(['hook', 'session-resume'], sib, env,
+    JSON.stringify({ session_id: marker, cwd: sib, source: 'resume' }))`. With `setTable(tableOf(C))`,
+    `resume(envOf(C), 'sess-C')` exits 0, `out` contains `# Anchor: ST-9` and no `enter:`, `err` is empty, the
+    holds bytes are unchanged, and `lines(worked())` contains `'ST-9\tsess-C'`. `resume({}, 'sess-P')` exits 0 and
+    no line of `worked()` ends with `sess-P` (D-01).
   - Resumed in the main checkout after the folder is gone: `c.git('worktree', 'remove', sib)`. With
+    `setTable(tableOf(C))`, `worktree open ST-10` from `c.root` with `envOf(C)` exits 2 with `err` containing
+    `this session works ST-9`. With
     `setTable(tableOf(B))`, `worktree check` from `c.root` with `envOf(B)` exits 2 with `err` containing
     `this session works ST-9`. `worktree open ST-10` from `c.root` with
     `{ CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: 'sess-E' }` exits 2 with `err` containing `this session works ST-9`,
@@ -700,6 +709,16 @@ defined, take `marker = input?.session_id || s.marker`; when `marker` is a non-e
 runs as Task 6 says, so a live holder or missing variables still write their one `no hold taken` line, and that
 throw never undoes the record. When `s` is undefined (another runtime) nothing is recorded. stdout is unchanged and
 the hook exits 0.
+
+Interface, `packages/cli/src/commands/hook.ts`, `session-resume` (plan-review 3.1): before Task 6's held-id lookup,
+inside one `try` of its own, so no throw reaches runCli or changes the output: read `input = hookInput(ctx)` and
+`root` as in session-start. When `isLinked(root)` is true, the branch of `root` names a ticket `id` through
+`ticketOfBranch`, and `s = inClaude(ctx.env)` is defined, take `marker = input?.session_id || s.marker`; when
+`marker` is a non-empty string, call `recordWorked(root, id, marker)`. A throw writes one stderr line
+`accord: no record of <id>: <first line of the message>` (or `accord: no record: <first line>` before `id` is
+known), with every `\` turned into `/`. No hold is taken here. Everything else in session-resume stays as Task 6
+leaves it: the held-id `enter:` body in the main checkout, the `activeTicket` fallback, its stdout and its error
+rule.
 
 Interface, `packages/cli/src/commands/worktree.ts`:
 - `export function recordWorked(root: string, id: string, marker: string): void`: `dir` is the same
@@ -717,5 +736,6 @@ Interface, `packages/cli/src/commands/worktree.ts`:
 
 Must not change: `worktreeClean` never reads or writes the record; every existing hold and clean case; the
 holds file's shape and its lock; Task 3's tests, where every session that holds a ticket also has it recorded,
-so each refusal names the same ticket; Task 6's tests, whose session-start runs keep their stdout, stderr and
-holds bytes (a record line is written under `.git/accord/worked` only, which none of them reads).
+so each refusal names the same ticket; Task 6's tests, whose session-start and session-resume runs keep their stdout,
+stderr and holds bytes (a record line is written under `.git/accord/worked` only, which none of them reads); and
+`hook.test.ts`'s session-resume cases.

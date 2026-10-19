@@ -23,4 +23,9 @@
 7. Nice — the 1.8 fix rests on a PR-description line that no task's `files:` or `verify:` carries and no later stage is told to write — deferred
 
 ## Round 3 (diff)
-1. Should — Task 8 records the worked line only in `hook session-start`, which runs on the `startup` matcher (.claude/settings.json:5, :14-18); a session whose start in A's worktree has source `resume` or `clear` runs `hook session-resume`, which records nothing, so after the folder is cleaned it can be resumed in the main checkout and pick up another ticket, against ac-4 and the veto; record the worked line in `session-resume` too when it runs in a linked ticket worktree, and assert it with `source: 'resume'` — open
+1. Should — Task 8 records the worked line only in `hook session-start`, which runs on the `startup` matcher (.claude/settings.json:5, :14-18); a session whose start in A's worktree has source `resume` or `clear` runs `hook session-resume`, which records nothing, so after the folder is cleaned it can be resumed in the main checkout and pick up another ticket, against ac-4 and the veto; record the worked line in `session-resume` too when it runs in a linked ticket worktree, and assert it with `source: 'resume'` — fixed
+
+## Round 4 (diff)
+1. Nice — the new session-resume block and Task 6's held-id lookup each compute `root` from stdin `cwd` and each write a stderr line when it fails, so one failure gives two lines against Task 6's one-line rule — deferred
+
+## Closed

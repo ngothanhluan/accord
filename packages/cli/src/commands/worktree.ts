@@ -7,6 +7,7 @@ import { gitDefaultRef, gitUserEmail, ticketOfBranch, UsageError } from '../load
 import { claudeEnv, describeSession, isLive, processTable, runSetup, sameSession, sessionIn } from '../load/proc.js';
 import type { Session } from '../load/proc.js';
 import type { CommandContext } from '../run.js';
+import pkg from '../../package.json' with { type: 'json' };
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
@@ -160,17 +161,12 @@ export function withHolds(root: string, fn: (holds: Record<string, Hold>) => Rec
 
 const norm = (p: string) => (process.platform === 'win32' ? p.replaceAll('\\', '/').toLowerCase() : p);
 
-/** Inside the ticket's worktree: take the hold (Claude Code only, D-17), then make sure `setup` finished. */
-function hold(ctx: CommandContext, id: string, path: string): number {
-  const claude = claudeEnv(ctx.env);
-  if (claude === undefined) {
-    if (!existsSync(setupMarker(path))) prepare(path);
-    ctx.stdout.write(`not held: ${id} - a second session in this worktree is not refused in this tool yet\n`);
-    return 0;
-  }
+/** D-17: take (or keep) this session's hold on `id`; a live other session holding it refuses. Claude Code sessions only. */
+export function takeHold(ctx: CommandContext, id: string): void {
+  const claude = claudeEnv(ctx.env)!;
   const table = processTable();
   const session = sessionIn(claude, table, process.pid);
-  withHolds(path, (holds) => {
+  withHolds(ctx.root, (holds) => {
     const h = Object.hasOwn(holds, id) ? holds[id] : undefined;
     if (h !== undefined && !sameSession(h, session) && isLive(h, table)) {
       throw new UsageError(`${id} is held by another session: ${describeSession(h)} since ${h.taken} - work it there, or close that session first`);
@@ -178,9 +174,63 @@ function hold(ctx: CommandContext, id: string, path: string): number {
     const same = h !== undefined && sameSession(h, session);
     return { ...holds, [id]: { ...session, taken: same ? h.taken : new Date().toISOString() } };
   });
+}
+
+/** Inside the ticket's worktree: take the hold (Claude Code only, D-17), then make sure `setup` finished. */
+function hold(ctx: CommandContext, id: string, path: string): number {
+  if (claudeEnv(ctx.env) === undefined) {
+    if (!existsSync(setupMarker(path))) prepare(path);
+    ctx.stdout.write(`not held: ${id} - a second session in this worktree is not refused in this tool yet
+`);
+    return 0;
+  }
+  takeHold(ctx, id);
   if (!existsSync(setupMarker(path))) prepare(path);
-  ctx.stdout.write(`held: ${id} by this session\n`);
+  ctx.stdout.write(`held: ${id} by this session
+`);
   return 0;
+}
+
+export function isLinked(root: string): boolean {
+  return norm(git(root, ['rev-parse', '--path-format=absolute', '--git-dir']).trim()) !== norm(git(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim());
+}
+
+/** A Claude Code session in the main checkout can move into the worktree; a session missing its variables gets the stop lines. */
+export function canEnter(ctx: CommandContext): boolean {
+  let c;
+  try {
+    c = claudeEnv(ctx.env);
+  } catch {
+    return false;
+  }
+  return c !== undefined && !isLinked(ctx.root);
+}
+
+/** The session runs the launch folder's accord, so a worktree pinned to another version must be fixed before the session moves. */
+export function checkPin(ctx: CommandContext, id: string, path: string, branch: string, mainPath: string): void {
+  const file = path + '/accord/config.yml';
+  if (!existsSync(file)) return;
+  const pinned = loadConfig('accord/config.yml', readFileSync(file, 'utf8')).config?.accord;
+  if (pinned === undefined || pinned === pkg.version) return;
+  const ref = gitDefaultRef(ctx.root);
+  const def = ref === undefined ? 'the default branch' : ref.replace('refs/remotes/', '');
+  let defPin: string | undefined;
+  if (ref !== undefined && gitOk(ctx.root, ['cat-file', '-e', `${ref}:accord/config.yml`])) {
+    defPin = loadConfig('accord/config.yml', git(ctx.root, ['show', `${ref}:accord/config.yml`])).config?.accord;
+  }
+  throw new UsageError(
+    defPin === pinned
+      ? `${file} pins accord ${pinned} as ${def} does, but the main checkout ${mainPath} runs ${pkg.version} - update the main checkout to ${def} (git pull there), then type /accord continue ${id}; this session did not move`
+      : `${file} pins accord ${pinned}, running ${pkg.version} - merge ${def} into ${branch}, then type /accord continue ${id}; this session did not move`,
+  );
+}
+
+export function enterOrStop(ctx: CommandContext, id: string, path: string, branch: string, enter: boolean): void {
+  if (!enter) return printStop(ctx, path, id);
+  takeHold(ctx, id);
+  if (!existsSync(setupMarker(path))) prepare(path);
+  ctx.stdout.write(`enter: ${path}
+`);
 }
 
 /** D-11, D-12: exactly three lines, naming no tool. */
@@ -212,6 +262,8 @@ function checkClaimant(ctx: CommandContext, id: string, ref: string): void {
 
 export function worktreeOpen(ctx: CommandContext, id: string, opts: { continue?: boolean } = {}): number {
   if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id);
+  const enter = canEnter(ctx);
+  const pick = opts.continue !== true;
   const branch = branchOf(ctx.snapshot, id);
   const list = worktrees(ctx.root, ctx.stdout);
   const mainPath = list[0].path;
@@ -226,14 +278,18 @@ export function worktreeOpen(ctx: CommandContext, id: string, opts: { continue?:
   // D-15: a worktree already holding the branch is only found, nothing runs there.
   if (held !== undefined) {
     if (norm(held.path) === norm(ctx.root)) return hold(ctx, id, held.path);
-    printStop(ctx, held.path, id);
+    if (enter) checkPin(ctx, id, held.path, branch, mainPath);
+    enterOrStop(ctx, id, held.path, branch, enter);
     return 0;
   }
   if (local || remote) {
     const path = siblingOf(mainPath, id);
     git(ctx.root, local ? ['worktree', 'add', path, branch] : ['worktree', 'add', '--track', '-b', branch, path, 'origin/' + branch]);
-    prepare(path);
-    printStop(ctx, path, id);
+    if (enter) {
+      if (pick) takeHold(ctx, id);
+      checkPin(ctx, id, path, branch, mainPath);
+    } else prepare(path);
+    enterOrStop(ctx, id, path, branch, enter);
     return 0;
   }
   const isTicket = Object.hasOwn(ctx.snapshot.tickets, id);
@@ -255,8 +311,11 @@ export function worktreeOpen(ctx: CommandContext, id: string, opts: { continue?:
   const path = siblingOf(mainPath, id);
   git(ctx.root, ['worktree', 'add', '--no-track', '-b', branch, path, ref]);
   git(path, ['commit', '--allow-empty', '-q', '-m', 'claim: ' + id]);
-  prepare(path);
-  printStop(ctx, path, id);
+  if (enter) {
+    takeHold(ctx, id);
+    checkPin(ctx, id, path, branch, mainPath);
+  } else prepare(path);
+  enterOrStop(ctx, id, path, branch, enter);
   return 0;
 }
 

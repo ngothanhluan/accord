@@ -870,3 +870,95 @@ it('risk:data-loss a local-only tag that the fetch refspecs map is named with it
   expect(code).toBe(0);
   expect(lines(out)).toEqual([`pruned refs/tags/mine (was ${tip})`]);
 });
+
+const C = { pid: 7003, start: 'S-C', marker: 'sess-C' };
+
+it('ac-1 in claude code pick up from the main checkout takes the hold and prints enter instead of stop', async () => {
+  const c = clone({ setup: ['node setup-step.js ci'] });
+  setTable(tableOf(A));
+  const { code, out } = await run(['worktree', 'open', 'ST-9'], c.root, envOf(A));
+  expect(code).toBe(0);
+  expect(lines(out)).toEqual([`enter: ${c.sibling('ST-9')}`]);
+  expect(out).not.toContain('stop:');
+  expect(c.git('log', '-1', '--format=%s', 't/ST-9').trim()).toBe('claim: ST-9');
+  expect(c.git('rev-parse', 't/ST-9^').trim()).toBe(c.git('rev-parse', 'origin/main').trim());
+  expect(readFileSync(`${c.sibling('ST-9')}/setup.log`, 'utf8')).toBe('ci\n');
+  expect(readHolds(c)['ST-9']).toMatchObject({ tool: 'Claude Code', marker: 'sess-A', pid: 7001, start: 'S-A' });
+  expect(c.git('branch', '--show-current').trim()).toBe('main');
+  const moved = await run(['anchor'], c.sibling('ST-9'));
+  expect(moved.out.startsWith('# Anchor: ST-9')).toBe(true);
+  expect(moved.out).toBe((await run(['anchor', 'ST-9'], c.root)).out);
+  expect((await run(['worktree', 'open', 'ST-9', '--continue'], c.sibling('ST-9'), envOf(A))).out).toBe(HELD);
+});
+
+it('ac-2 in claude code continue from the main checkout enters a claimed worktree whose session ended with or without a worktree here', async () => {
+  const c = clone({ tickets: ['ST-9', 'ST-10'] });
+  await run(['worktree', 'open', 'ST-9'], c.root);
+  writeHolds(c, { 'ST-9': DEAD });
+  setTable(tableOf(A));
+  const a = await run(['worktree', 'open', 'ST-9', '--continue'], c.root, envOf(A));
+  expect(a.code).toBe(0);
+  expect(lines(a.out)).toEqual([`enter: ${c.sibling('ST-9')}`]);
+  expect((readHolds(c)['ST-9'] as { marker: string }).marker).toBe('sess-A');
+  expect((await run(['anchor'], c.sibling('ST-9'))).out).toBe((await run(['anchor', 'ST-9'], c.root)).out);
+
+  const o = c.otherClone();
+  gitRun(o, 'config', 'user.email', 'y@example.invalid');
+  gitRun(o, 'switch', '-q', '-c', 't/ST-10', 'main');
+  gitRun(o, 'commit', '--allow-empty', '-q', '-m', 'claim: ST-10');
+  gitRun(o, 'push', '-q', 'origin', 't/ST-10');
+  c.git('fetch', '-q', 'origin');
+  setTable(tableOf(C));
+  const b = await run(['worktree', 'open', 'ST-10', '--continue'], c.root, envOf(C));
+  expect(b.code).toBe(0);
+  expect(lines(b.out)).toEqual([`enter: ${c.sibling('ST-10')}`]);
+  expect(gitRun(c.sibling('ST-10'), 'rev-parse', 'HEAD').trim()).toBe(c.git('rev-parse', 'origin/t/ST-10').trim());
+  expect((readHolds(c)['ST-10'] as { marker: string }).marker).toBe('sess-C');
+});
+
+it('risk:complex-branching in claude code a worktree pinned to another accord version refuses before setup and prints no enter', async () => {
+  const c = clone();
+  c.git('worktree', 'add', '-q', '-b', 't/ST-9', c.sibling('ST-9'), 'origin/main');
+  const cfg = `${c.sibling('ST-9')}/accord/config.yml`;
+  writeFileSync(cfg, readFileSync(cfg, 'utf8').replace('accord: "0.1.0"', 'accord: "0.0.9"'));
+  gitRun(c.sibling('ST-9'), 'commit', '-q', '-am', 'pin');
+  setTable(tableOf(A));
+  const a = await run(['worktree', 'open', 'ST-9', '--continue'], c.root, envOf(A));
+  expect(a.code).toBe(2);
+  expect(a.err).toContain('pins accord 0.0.9');
+  expect(a.err).toContain('merge origin/main into t/ST-9');
+  expect(a.out).not.toContain('enter:');
+  expect(existsSync(holdsFile(c))).toBe(false);
+  const plain = await run(['worktree', 'open', 'ST-9', '--continue'], c.root);
+  expect(plain.code).toBe(0);
+  expect(lines(plain.out)).toEqual(stopLines(c.sibling('ST-9'), 'ST-9'));
+
+  const d = clone({ setup: ['node setup-step.js ci'] });
+  const o = d.otherClone();
+  gitRun(o, 'config', 'user.email', 'y@example.invalid');
+  writeFileSync(`${o}/accord/config.yml`, readFileSync(`${o}/accord/config.yml`, 'utf8').replace('accord: "0.1.0"', 'accord: "0.0.9"'));
+  gitRun(o, 'commit', '-q', '-am', 'pin');
+  gitRun(o, 'push', '-q', 'origin', 'main');
+  d.git('fetch', '-q', 'origin');
+  const b = await run(['worktree', 'open', 'ST-9'], d.root, envOf(A));
+  expect(b.code).toBe(2);
+  expect(b.err).toContain('pins accord 0.0.9');
+  expect(b.err).toContain('update the main checkout');
+  expect(b.err).not.toContain('merge');
+  expect(b.out).not.toContain('enter:');
+  expect(existsSync(`${d.sibling('ST-9')}/setup.log`)).toBe(false);
+  expect((readHolds(d)['ST-9'] as { marker: string }).marker).toBe('sess-A');
+}, 120_000);
+
+it('risk:concurrency in claude code continue from the main checkout refuses a ticket another live session holds and prints no enter', async () => {
+  const c = clone();
+  await run(['worktree', 'open', 'ST-9'], c.root);
+  writeHolds(c, { 'ST-9': LIVE });
+  setTable(tableOf(A, { pid: 4242, start: 'S2' }));
+  const before = readFileSync(holdsFile(c), 'utf8');
+  const r = await run(['worktree', 'open', 'ST-9', '--continue'], c.root, envOf(A));
+  expect(r.code).toBe(2);
+  expect(r.err).toContain('sess-H');
+  expect(r.out).not.toContain('enter:');
+  expect(readFileSync(holdsFile(c), 'utf8')).toBe(before);
+});

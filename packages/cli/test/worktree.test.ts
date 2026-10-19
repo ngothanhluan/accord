@@ -438,7 +438,7 @@ it('risk:complex-branching a worktree remove that fails is named truthfully', as
     expect(lines(q.out)).toHaveLength(2);
     expect(lines(q.out)[1]).toBe(`deleted t/ST-9 (was ${sha9d})`);
     expect(q.out.startsWith(`removed ${d.sibling('ST-9')} in part: git worktree remove failed: `)).toBe(true);
-    expect(q.out.trimEnd().endsWith(' - delete what is left of the folder by hand')).toBe(true);
+    expect(lines(q.out)[0]!.endsWith(' - delete what is left of the folder by hand')).toBe(true);
     expect(d.git('worktree', 'list', '--porcelain')).not.toContain(d.sibling('ST-9'));
     expect(Object.keys(readHolds(d))).toEqual([]);
   } finally {

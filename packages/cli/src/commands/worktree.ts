@@ -488,6 +488,7 @@ export function worktreeClean(ctx: CommandContext): number {
 
 /** D-13: write the new ticket in its own worktree on its claim branch, commit and push it, then run setup there. */
 export function newTicketWorktree(ctx: CommandContext, id: string, rel: string, text: string): void {
+  const enter = canEnter(ctx);
   const branch = branchOf(ctx.snapshot, id);
   const list = worktrees(ctx.root, ctx.stdout);
   const exists =
@@ -506,12 +507,14 @@ export function newTicketWorktree(ctx: CommandContext, id: string, rel: string, 
   writeFileSync(path + '/' + rel, text);
   git(path, ['add', '--', rel]);
   git(path, ['commit', '-q', '-m', 'claim: ' + id]);
+  if (enter) takeHold(ctx, id);
   try {
     gitNoPrompt(path, ['push', '-u', 'origin', branch]);
   } catch (e) {
     throw new UsageError(`the ticket is committed in ${path} but the push failed: ${firstLine(e)} - push it with git -C "${path}" push -u origin ${branch}`);
   }
+  if (enter) checkPin(ctx, id, path, branch, list[0].path);
   prepare(path);
   ctx.stdout.write(rel + '\n');
-  printStop(ctx, path, id);
+  enterOrStop(ctx, id, path, branch, enter);
 }

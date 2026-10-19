@@ -962,3 +962,21 @@ it('risk:concurrency in claude code continue from the main checkout refuses a ti
   expect(r.out).not.toContain('enter:');
   expect(readFileSync(holdsFile(c), 'utf8')).toBe(before);
 });
+
+it('ac-3 in claude code a new lane m ticket is committed pushed and held and prints enter instead of stop', async () => {
+  const c = clone({ setup: ['node setup-step.js ci'], tickets: [] });
+  setTable(tableOf(A));
+  const { code, out } = await run(['new', 'ticket', 'ST-9', '--lane', 'M', '--worktree'], c.root, envOf(A));
+  expect(code).toBe(0);
+  expect(lines(out)).toEqual(['accord/tickets/ST-9.md', `enter: ${c.sibling('ST-9')}`]);
+  expect(out).not.toContain('stop:');
+  expect(c.git('ls-remote', 'origin', 'refs/heads/t/ST-9').split('\t')[0]).toBe(gitRun(c.sibling('ST-9'), 'rev-parse', 'HEAD').trim());
+  expect(gitRun(c.sibling('ST-9'), 'log', '-1', '--format=%s').trim()).toBe('claim: ST-9');
+  expect(readFileSync(`${c.sibling('ST-9')}/setup.log`, 'utf8')).toBe('ci\n');
+  expect((readHolds(c)['ST-9'] as { marker: string }).marker).toBe('sess-A');
+  expect(existsSync(`${c.root}/accord/tickets/ST-9.md`)).toBe(false);
+  const a = await run(['anchor'], c.sibling('ST-9'));
+  expect(a.code).toBe(0);
+  expect(a.out.startsWith('# Anchor: ST-9')).toBe(true);
+  expect(a.out).toContain('Stage: intent');
+});

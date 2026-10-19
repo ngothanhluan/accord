@@ -20,3 +20,6 @@
 ## Deferred
 - Plan round 2.1 (Nice): Task 1 step 2 cites "ledger Ruling 7" for fetching whenever `origin` exists; it is the 4th Ruling.
 - Plan round 2.2 (Nice): the prune-failure line in Task 2 says "stale remote refs are kept", which contradicts the `pruned` lines printed after a part-way failure; the ledger Ruling's `prune of origin failed: <git's first line>` is the wording to build.
+
+## Tasks
+- task 1 done 23f2b24f3c28

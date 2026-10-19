@@ -41,7 +41,7 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: ST-LN-20
 
-  @ac-1
+  @ac-1 @test:packages/cli/test/worktree.test.ts#ac-1-bare-accord-deletes-merged-ticket-branches-with-or-without-a-worktree-and-names-the-checked-out-one-it-keeps
   Scenario: /accord with no argument deletes merged ticket branches, with or without a worktree, and names what it keeps
     Given the remote main branch contains the tips of the local branches "t/ST-9", "t/ST-10" and "t/ST-12", and not the tip of the local branch "t/ST-11"
     And "t/ST-9" has no worktree, "t/ST-10" is checked out in the worktree "C:/Work/accord-st-10", which "/accord" removes as merged, and "t/ST-12" is checked out in "C:/Work/accord", the checkout the session runs in
@@ -50,7 +50,7 @@ Feature: ST-LN-20
     And "t/ST-12" is kept, named with the reason that it is checked out in "C:/Work/accord"
     And "t/ST-11" is kept and not named
 
-  @ac-2
+  @ac-2 @test:packages/cli/test/worktree.test.ts#ac-2-a-merged-branch-whose-remote-branch-is-gone-is-deleted-from-another-ticket-branch-with-a-stale-local-main
   Scenario: A merged branch whose remote branch was deleted on merge is deleted from whatever branch the session stands on
     Given the pull request of "t/ST-9" merged with a merge commit and the remote deleted the branch "t/ST-9"
     And the local branch "t/ST-9" tracks "origin/t/ST-9", has no worktree, and "C:/Work/accord" has the branch "t/ST-20" checked out, which does not contain the tip of "t/ST-9"
@@ -58,7 +58,7 @@ Feature: ST-LN-20
     When "/accord" with no argument runs in a session rooted at "C:/Work/accord"
     Then the local branch "t/ST-9" is deleted and named as deleted
 
-  @ac-3
+  @ac-3 @test:packages/cli/test/worktree.test.ts#ac-3-a-ticket-branch-with-a-commit-not-on-the-remote-main-is-kept-and-not-named
   Scenario: A local commit that is not on the remote main branch keeps its branch
     Given the remote main branch contains the merged tip of "t/ST-9", and the local branch "t/ST-9" has one more commit made after the merge, with no worktree
     When "/accord" with no argument runs in a session rooted at "C:/Work/accord"

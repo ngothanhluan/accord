@@ -66,14 +66,14 @@ Feature: ST-LN-27
     And the same session's working directory becomes the new ticket's worktree folder and the session starts its intent interview
     And no "stop:" line is shown and the owner opens no folder
 
-  @ac-4
+  @ac-4 @test:packages/cli/test/worktree.test.ts#ac-4-in-claude-code-a-session-that-works-a-ticket-refuses-other-tickets-and-new-tickets-and-changes-nothing
   Scenario: A Claude Code session that works a ticket refuses a second ticket
     Given a Claude Code session that picked up, continued or created ticket A, or that was started in A's worktree folder or a folder inside it, at any later point in its life, even after A is done or merged
     When the owner types "/accord pick-up B", "/accord continue B", or "/accord <request>" in any lane, even a request about A
     Then accord refuses, naming A, saying to open a new session in the main checkout for other work, and saying to type a request about A without "/accord"
     And no ticket file, branch, worktree, claim or file change is made for the other work
 
-  @ac-5
+  @ac-5 @test:packages/cli/test/worktree.test.ts#ac-5-outside-claude-code-pick-up-continue-and-new-ticket-print-the-stop-lines-and-nothing-is-refused
   Scenario: Sessions other than Claude Code keep today's behaviour
     Given a session that is not Claude Code, started in the main checkout
     When the owner picks up, continues, or creates a lane M ticket

@@ -32,6 +32,7 @@
 - Ruling: Task 1 `takeHold` calls `withHolds(ctx.root, ...)`, not the worktree path — `withHolds` resolves the git common dir, so any root reaches the same holds file — cost if wrong: none.
 - Ruling: Task 1, when `enter` is true the callers skip a separate `prepare` and `enterOrStop` runs it only if the setup marker is missing — keeps the order hold, pin check, setup, with the same result as the plan's order — cost if wrong: none.
 - Ruling: Task 1's executor wrote code before tests; the main session ran the 4 new tests against the plan-ready worktree.ts and all 4 failed on their assertions, so the red run is shown after the fact — cost if wrong: a test that passes for the wrong reason, caught at review.
+- Ruling: Task 3 `worksTicket` takes `ctx.root` as the folder — it is already the git top-level from `repoRoot`, so a subfolder resolves to the worktree top, the same result as the plan's `repoRoot(cwd)` — cost if wrong: none.
 
 ## Deferred
 - plan-review 1.9 (Nice): worktree.md:7 "Only a session rooted in a ticket's worktree works that ticket" becomes false beside Task 7's new line.
@@ -45,3 +46,4 @@
 ## Tasks
 - task 1 done deaf58bacd26
 - task 2 done f93527783dfa
+- task 3 done a72df00d19b6

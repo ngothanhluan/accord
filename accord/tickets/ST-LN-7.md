@@ -27,7 +27,7 @@ ui: false
 approved_hash: "fnv1a64:4b969089e621ba14"
 ac_hash: "fnv1a64:9da0ba20e817ea73"
 verified_hash: "fnv1a64:9da0ba20e817ea73"
-verified_commit: "648778589fbb41c7ee70c15e7359df17103a10e7"
+verified_commit: "f77e8183c999177e1ca83d4e98828b10fc3b4906"
 verified:
   - "ac-1"
   - "ac-2"

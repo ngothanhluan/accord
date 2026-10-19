@@ -38,6 +38,7 @@
 - Ruling: Task 6's resume risk test matches its last line with `\naccord: `, not the plan's `\/accord: ` — the real session line is "accord: N in progress, ..." with no leading slash, so the plan's regex could never match — cost if wrong: none; the line itself is unchanged.
 - Ruling: Task 6 session-resume calls `activeTicket` with the root from stdin `cwd`, not `ctx.root` — the plan's case of resuming from the sibling folder needs it to print the anchor — cost if wrong: a resume hook whose stdin cwd differs from the process cwd anchors the stdin folder.
 - Ruling: Task 8, the session-start hook records the worked ticket before its own `claudeEnv` check, so a session missing its variables is still recorded and the hold attempt then writes its one `no hold taken` line — as the brief says — cost if wrong: such a session is kept on its ticket by the record without holding it.
+- Ruling: final review fix, `newTicketWorktree` catches a hold error, runs the push with its existing failure handling and hint, then rethrows the hold error (exit 2, its own message); a push failure takes precedence over the hold error — the claim must reach the remote, and the push hint is the one step the owner must act on first — cost if wrong: after a failed push the owner sees only the push hint and meets the hold error on the next try.
 
 ## Deferred
 - plan-review 1.9 (Nice): worktree.md:7 "Only a session rooted in a ticket's worktree works that ticket" becomes false beside Task 7's new line.

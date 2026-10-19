@@ -1,6 +1,6 @@
 ---
 id: "ST-LN-26"                            # equals the file name: tickets/<id>.md
-title: "Short title in business language"
+title: "A failure found after verify is routed to a fix and verified again"
 type: "story" # story | bug. An epic uses its own template
 status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project

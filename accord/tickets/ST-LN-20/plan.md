@@ -1,6 +1,6 @@
 ---
 baseline: 73c095ab7c6ac84089019f7a9cad04f5a49f3119
-plan_hash: "fnv1a64:99cd1d23ff30cc98"
+plan_hash: "fnv1a64:e9eb2ecf0e58f14e"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -68,9 +68,12 @@ Tests first, in `packages/cli/test/worktree.test.ts`:
 - `it('ac-2 a merged branch whose remote branch is gone is deleted from another ticket branch with a stale local main')`:
   `clone()`; `ticketBranch(c, 'ST-9')`; `git switch -q -c t/ST-20 main`, commit one file `ST-20.txt` there (so
   `t/ST-20` is not merged and prints nothing); `mergeOnRemote(c, 'ST-9')`; `gitRun(c.remote, 'branch', '-D',
-  't/ST-9')`; read `sha9` and `mainBefore = git rev-parse main`. Preconditions, before the run: `git rev-parse
-  --abbrev-ref t/ST-9@{upstream}` is `origin/t/ST-9`; `git merge-base --is-ancestor <sha9> main` throws, and so
-  does `git merge-base --is-ancestor <sha9> HEAD`. `worktree clean` from `c.root` exits 0; `lines(out)` equals
+  't/ST-9')`; then `c.git('update-ref', '-d', 'refs/remotes/origin/t/ST-9')`, the upstream pruned as a clone that
+  fetched with pruning would have it, so `git branch -d` would judge against `HEAD` and refuse; read `sha9` and
+  `mainBefore = git rev-parse main`. Preconditions, before the run: `git config branch.t/ST-9.merge` is
+  `refs/heads/t/ST-9` and `git config branch.t/ST-9.remote` is `origin` (it still tracks `origin/t/ST-9`); `git
+  rev-parse --verify -q refs/remotes/origin/t/ST-9` throws; `git merge-base --is-ancestor <sha9> main` throws, and
+  so does `git merge-base --is-ancestor <sha9> HEAD`. `worktree clean` from `c.root` exits 0; `lines(out)` equals
   exactly [`deleted t/ST-9 (was <sha9>)`]; `refs/heads/t/ST-9` no longer resolves; `git rev-parse main` is still
   `mainBefore`; `git branch --show-current` is `t/ST-20`. The proof is the outcome, never the git calls (D-04).
 - `it('ac-3 a ticket branch with a commit not on the remote main is kept and not named')`: `clone()`;
@@ -89,14 +92,15 @@ Tests first, in `packages/cli/test/worktree.test.ts`:
   deletes `t/ST-1` despite the lock file, report BLOCKED with the output; never weaken the test.
 
 Interface, `worktreeClean(ctx)` in this order:
-1. No `origin` remote (`gitOk(ctx.root, ['remote', 'get-url', 'origin'])` is false): print nothing, return 0.
-   This check no longer depends on the candidates (ledger Ruling 7: fetch whenever `origin` exists, @ac-2 has no
-   worktree).
-2. The fetch as at the baseline: `gitNoPrompt(ctx.root, ['fetch', 'origin'])`; on failure print the baseline's
+1. As at the baseline, first: `list = worktrees(ctx.root, ctx.stdout)` (which prunes stale worktree records and
+   names them) and the candidates (entries after the first whose `branch` is a ticket branch).
+2. No `origin` remote (`gitOk(ctx.root, ['remote', 'get-url', 'origin'])` is false): return 0, after step 1 has
+   run. This check no longer depends on the candidates (ledger Ruling 7: fetch whenever `origin` exists, @ac-2 has
+   no worktree), so `cands.length === 0 ||` is dropped from the baseline's early return.
+3. The fetch as at the baseline: `gitNoPrompt(ctx.root, ['fetch', 'origin'])`; on failure print the baseline's
    `fetch from origin failed, judging against the refs already in this clone: <first line>` and go on.
-3. `ref = gitDefaultRef(ctx.root)`; none: return 0.
-4. The candidates (as at the baseline: entries after the first whose `branch` is a ticket branch) and the
-   worktree loop, unchanged; an empty candidate list skips the loop.
+4. `ref = gitDefaultRef(ctx.root)`; none: return 0.
+   The worktree loop over the candidates, unchanged; an empty candidate list skips the loop.
 5. The branch pass:
    - `after = worktrees(ctx.root, ctx.stdout)`, listed again so a worktree removed in step 4 no longer holds its
      branch.
@@ -139,14 +143,16 @@ Existing tests in `worktree.test.ts` whose expected output changes, and how (rea
 
 Must not change: every reason, line text and order of the worktree loop; the fetch-failure line; `gitNoPrompt`
 and the three `risk:security` ssh cases, which still pass unedited; `worktree open`, `new ticket --worktree` and
-every test of them; no `origin` remote prints nothing.
+every test of them; `worktrees()` still runs before any other git call, so a clone with no `origin` remote still
+prunes and names its stale worktree records and prints nothing else.
 
 ## Task 2: Prune stale remote-tracking refs only after a successful fetch, and describe the command
-covers: @ac-4, D-01, D-04
+covers: @ac-4, D-01, D-04, D-05
 files: packages/cli/src/commands/worktree.ts, packages/cli/src/run.ts, packages/cli/test/worktree.test.ts
-verify: packages/cli/test/worktree.test.ts#ac-4-stale-remote-refs-are-pruned-after-a-good-fetch-and-a-failed-fetch-prunes-nothing (@ac-4)
+verify: packages/cli/test/worktree.test.ts#ac-4-stale-remote-refs-are-pruned-after-a-good-fetch-and-a-failed-fetch-prunes-nothing (@ac-4), packages/cli/test/worktree.test.ts#risk:data-loss-a-prune-setting-cannot-prune-before-the-fetch-and-the-pruned-ref-is-named-with-its-sha
 
-Consumes: Task 1's `worktreeClean` with the fetch in step 2. Produces: a prune between the fetch and step 3.
+Consumes: Task 1's `worktreeClean` with the fetch in step 3. Produces: the fetch with `--no-prune`, and a prune
+that names each ref it removes, between the fetch and step 4.
 
 Test first, in `packages/cli/test/worktree.test.ts`:
 - `it('ac-4 stale remote refs are pruned after a good fetch and a failed fetch prunes nothing')`:
@@ -154,26 +160,47 @@ Test first, in `packages/cli/test/worktree.test.ts`:
     'main:refs/heads/backlog/notes')`, then `c.git('fetch', '-q', 'origin')`; precondition: `git branch -r`
     contains `origin/t/ST-9` and `origin/backlog/notes`. `gitRun(c.remote, 'branch', '-D', 't/ST-9',
     'backlog/notes')`. `worktree clean` exits 0; `git branch -r` contains neither `origin/t/ST-9` nor
-    `origin/backlog/notes` and still contains `origin/main`; `lines(out)` is `[]` (no local ticket branch).
+    `origin/backlog/notes` and still contains `origin/main`; `lines(out)` equals exactly [`pruned
+    refs/remotes/origin/backlog/notes (was <main sha>)`, `pruned refs/remotes/origin/t/ST-9 (was <main sha>)`],
+    `<main sha>` the full `git rev-parse main` read before the run (D-05; no local ticket branch, so no branch line).
   - Failed fetch: a second `clone()` `d`, the same push, fetch and remote deletion; then `d.git('branch', 't/ST-9',
     'origin/t/ST-9')` (merged into the `origin/main` the clone last fetched) and `d.git('remote', 'set-url',
     'origin', d.remote + '-missing')`. `worktree clean` from `d.root` exits 0; `lines(out)` has length 2, the first
     starts with `fetch from origin failed, judging against the refs already in this clone` and is the only line
     about the fetch, the second is `deleted t/ST-9 (was <origin/main sha>)`; `git branch -r` still contains
     `origin/t/ST-9` and `origin/backlog/notes`.
+- `it('risk:data-loss a prune setting cannot prune before the fetch and the pruned ref is named with its sha')`:
+  `clone()`; `c.git('switch', '-q', '-c', 't/ST-9', 'main')`, commit one file `ST-9.txt`, `c.git('push', '-q',
+  'origin', 't/ST-9')`, read `tip = git rev-parse HEAD`, `c.git('switch', '-q', 'main')`, `c.git('branch', '-D',
+  't/ST-9')`, so `origin/t/ST-9` holds the clone's last copy of an unmerged commit; `c.git('config',
+  'remote.origin.prune', 'true')`; `gitRun(c.remote, 'branch', '-D', 't/ST-9')`. `worktree clean` exits 0;
+  `lines(out)` equals exactly [`pruned refs/remotes/origin/t/ST-9 (was <tip>)`]; `git cat-file -e <tip>` still
+  succeeds. A fetch without `--no-prune` would prune the ref itself, before the transfer and before the listing,
+  so no `pruned` line would appear and this test fails.
 
-Interface, in `worktreeClean` step 2: when `gitNoPrompt(ctx.root, ['fetch', 'origin'])` succeeds, run
-`gitNoPrompt(ctx.root, ['remote', 'prune', 'origin'])` (it contacts the remote, so it goes through the same
-no-prompt wrapper). A plain fetch first and the prune only after it, never `git fetch --prune`, because git prunes
-before the transfer (ledger Ruling 8). A prune that fails prints `prune of origin failed, stale remote refs are
-kept: <firstLine(e)>` and the command goes on; it removes only names the remote no longer lists (Approach,
-failure scenario B). The prune is silent on success, so no existing test's output changes. It prunes every stale
-ref of `origin`, ticket or not, while the branch pass still deletes only ticket branches (D-04).
+Interface, in `worktreeClean` step 3:
+- The fetch becomes `gitNoPrompt(ctx.root, ['fetch', '--no-prune', 'origin'])`: the flag overrides a `fetch.prune`
+  or `remote.origin.prune` setting, so the fetch itself never prunes (D-05). Its failure line is unchanged.
+- When that fetch succeeds: `before` = the lines of `git(ctx.root, ['for-each-ref', '--format=%(objectname)
+  %(refname)', 'refs/remotes/origin'])`, each split at its first space into `sha` and full ref name; then
+  `gitNoPrompt(ctx.root, ['remote', 'prune', 'origin'])` (it contacts the remote, so it goes through the same
+  no-prompt wrapper); a throw prints `prune of origin failed, stale remote refs are kept: <firstLine(e)>` (ledger
+  Ruling) and the command goes on. Then, whether the prune succeeded or failed, `after` = the same listing, and
+  each ref in `before` that is not in `after`, in `before`'s order (git's ref-name order), prints `pruned <full ref
+  name> (was <sha>)` with the full sha `for-each-ref` printed (D-05, Approach failure scenario B: a prune that fails
+  part-way names what it removed).
+- A plain fetch first and the prune only after it, never `git fetch --prune`, because git prunes before the
+  transfer. It prunes every stale ref of `origin`, ticket or not, while the branch pass still deletes only ticket
+  branches (D-04).
+- No existing test, and no Task 1 test, has a remote-tracking ref whose remote branch is gone when the command runs
+  (the ac-2 test deletes `refs/remotes/origin/t/ST-9` by hand before the run), so no expected output written before
+  this task changes.
 
 `packages/cli/src/run.ts`: the `worktree clean` description becomes `fetch, then remove the worktrees of merged
 tickets, delete merged ticket branches and prune stale remote refs, naming what is removed or kept`. Update the
 doc comment above `worktreeClean` to name the prune.
 
-Must not change: the fetch-failure line and that no prune runs after it; Task 1's tests and the existing cases it
+Must not change: the `--no-prune` flag on the fetch; the fetch-failure line and that no prune runs after it; Task
+1's tests and the existing cases it
 updated; the three `risk:security` ssh cases (their fetch fails, so the prune never runs); the order and options of
 every command in `run.ts`.

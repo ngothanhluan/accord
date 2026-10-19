@@ -35,8 +35,7 @@
 - Ruling: Task 3 `worksTicket` takes `ctx.root` as the folder — it is already the git top-level from `repoRoot`, so a subfolder resolves to the worktree top, the same result as the plan's `repoRoot(cwd)` — cost if wrong: none.
 - Ruling: Task 4 touched `packages/cli/src/commands/worktree.ts`, outside its `files:`, to extract `guardAllowsContinue` from `guardTicketSession` with no change in behaviour — the hook must apply the same continue rule as the CLI guard, and one function keeps them from drifting — cost if wrong: none; the worktree tests still pass.
 - Ruling: Task 4, the prompt-expansion catch in run.ts writes its own stderr line (backslashes as /) and `{}` with exit 0 — a pin or repo failure never blocks `/accord`, as the plan says — cost if wrong: a broken repo lets a typed `/accord` through; the CLI refusals remain the backstop.
-- Ruling: Task 6's resume risk test matches its last line with `
-accord: `, not the plan's `\/accord: ` — the real session line is "accord: N in progress, ..." with no leading slash, so the plan's regex could never match — cost if wrong: none; the line itself is unchanged.
+- Ruling: Task 6's resume risk test matches its last line with `\naccord: `, not the plan's `\/accord: ` — the real session line is "accord: N in progress, ..." with no leading slash, so the plan's regex could never match — cost if wrong: none; the line itself is unchanged.
 - Ruling: Task 6 session-resume calls `activeTicket` with the root from stdin `cwd`, not `ctx.root` — the plan's case of resuming from the sibling folder needs it to print the anchor — cost if wrong: a resume hook whose stdin cwd differs from the process cwd anchors the stdin folder.
 
 ## Deferred

@@ -47,6 +47,13 @@
 - plan-review 2.6 (Nice): the session-resume hook prints `enter:` without `checkPin`.
 - plan-review 2.7 (Nice): the PR description must carry the `npm run build` after merge line (Ruling on the rebuild); no task writes it.
 - plan-review 4.1 (Nice): session-resume can write two stderr lines for one bad stdin `cwd`; Task 6's lookup should reuse the `root` the record block computed.
+- review 1.1 (Nice): Pick up and a lane M new ticket call `takeHold` twice (`worktreeOpen`/`newTicketWorktree`, then `enterOrStop`), reading the process table twice, about 1 s more on Windows.
+- review 1.2 (Nice): the ticket-of-worktree lookup and the stderr formatting are copied in hook.ts `record`, `recordResume` and `startHold`, and `hookInput` parses stdin up to three times; one helper each would delete about 20 lines.
+- review 1.3 (Nice): SKILL.md "First run the session check in `./worktree.md`." carries no scope; only worktree.md says "never before Pick up or Continue on a named ticket" — a model that skips that line refuses `/accord continue A` in A's own session; checked by hand at verify, and the 5120-byte cap leaves 14 bytes.
+- review 1.4 (Nice): index.ts reads stdin to EOF for every `hook` run, with no size or time limit, so a parent that keeps the pipe open hangs even `hook subagent-start`; read it only for the hooks that use it.
+- review 1.5 (Nice): `recordWorked` writes the stdin `session_id` as is; a marker holding a tab or newline writes an extra worked line nothing removes; reject `/[\t\r\n]/`.
+- final review 3 (Nice): worktree.ts `readHoldsFile` repeats the parse and "is not a JSON object" error of `withHolds`, and the `<git-common-dir>/accord` path is built in 4 places.
+- final review 5 (Nice): worktree.test.ts declares `C3` with the same value as the module-level `C`, both meant as the third session.
 
 ## Tasks
 - task 1 done deaf58bacd26

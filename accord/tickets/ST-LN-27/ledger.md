@@ -54,3 +54,4 @@
 - task 4 done 2ffd8aaeb73d
 - task 5 done 227f0104f818
 - task 6 done 31be4f1fc93d
+- task 7 done d50407224854

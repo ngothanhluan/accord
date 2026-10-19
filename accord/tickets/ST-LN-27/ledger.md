@@ -23,6 +23,11 @@
 - Ruling: when `worktree check` on the dashboard exits 2 for a reason other than `this session works`, the message is shown and the dashboard goes on — the CLI refusals stay as the backstop — cost if wrong: a dashboard shown beside an error.
 - Ruling: the ac-4 test compares repository state once per group of runs, not once per run — a write by a refusal stays on disk, so the group check still catches it — cost if wrong: a write undone within the same group goes unseen.
 - Ruling: the rebuild after merge is named in the PR description rather than a hook command that fails open — the hook command carries no shell syntax and `isAccordHookCommand` must still recognise it; probed 2026-10-19 (Claude Code 2.1.303): a UserPromptExpansion hook that exits 2 blocks the typed `/accord` prompt and shows its stderr — cost if wrong: a checkout whose build predates this ticket has every typed `/accord` blocked until `npm run build`.
+- Ruling: Task 7's `verify:` names two existing baseline cases in skills.test.ts (the SKILL.md byte cap and D-109), with ids copied from `accord/tests-baseline.txt` — so `task-done` enforces both; the risk-name rule applies to tests the plan writes — cost if wrong: a critic asks for a new `risk:` test that duplicates them.
+- Ruling: only Pick up and a new ticket take the hold before the pin check and setup; a Continue refused by the pin check holds nothing — that session made no claim — cost if wrong: a session refused on Continue can work another ticket before retrying.
+- Ruling: the start hook records the worked line only when `inClaude(ctx.env)` is defined — D-01: other runtimes are refused nothing — cost if wrong: none for other runtimes; the hook is a Claude Code hook.
+- Ruling: Task 1's pin test is renamed to `...refuses-before-setup-and-prints-no-enter` — its old title is false once Pick up holds before the pin check — cost if wrong: one id differs from the round-2 plan.
+- Ruling: plan-review 3.1 is graded Should though cross-folder `--resume` and whether `/clear` gives a new session id were not probed — the veto is at stake and the fix is one call — cost if wrong: one extra revision on a gap Claude Code does not open.
 
 ## Deferred
 - plan-review 1.9 (Nice): worktree.md:7 "Only a session rooted in a ticket's worktree works that ticket" becomes false beside Task 7's new line.

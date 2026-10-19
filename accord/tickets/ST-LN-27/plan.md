@@ -1,6 +1,6 @@
 ---
 baseline: 769ed1da753d4f122e4b819570bc3aaef44cf94d
-plan_hash: "fnv1a64:54c1dff65d98fbd3"
+plan_hash: "fnv1a64:a226e94bac5fe6a7"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -11,13 +11,16 @@ take the hold and print `enter: <path>`, the line the skill moves on. Task 2 doe
 Task 3 adds the rule that a session works one ticket, and the CLI refusals. Tasks 4 and 5 add the
 UserPromptExpansion hook and register it. Task 6 covers the session hooks and `worktree clean`. Task 7 is the
 skill text. Task 8 runs last: it adds the record of the ticket each session worked, which keeps a session on its
-ticket after `worktree clean` or another session's takeover drops its hold; it needs Tasks 1, 3 and 4.
+ticket after `worktree clean` or another session's takeover drops its hold, and after a start in a ticket worktree
+that took no hold; it needs Tasks 1, 3, 4 and 6.
 
 Rules for every task:
-- Test ids: every test named on a `verify:` line is a top-level `it(...)` with no `describe` around it. Its report
-  id is the test file's path, then `#`, then the `it` title with each whitespace run turned into `-`. No test title
-  holds `@` or a comma. No existing test is renamed. That includes the ST-LN-7 and ST-LN-20 cases in
-  `packages/cli/test/worktree.test.ts` and every case listed in `accord/tests-baseline.txt`.
+- Test ids: every test this plan writes and names on a `verify:` line is a top-level `it(...)` with no `describe`
+  around it. Its report id is the test file's path, then `#`, then the `it` title with each whitespace run turned
+  into `-`. No test title holds `@` or a comma. No existing test is renamed. That includes the ST-LN-7 and ST-LN-20
+  cases in `packages/cli/test/worktree.test.ts` and every case listed in `accord/tests-baseline.txt`. The two
+  existing `packages/core/test/skills.test.ts` cases on Task 7's `verify:` line sit inside a `describe`; their ids
+  are copied verbatim from `accord/tests-baseline.txt` (lines 905 and 915).
 - CLI tests import core from `packages/core/dist`. After changing anything under `packages/core/`, run `npm run gen`
   when a file under `packages/core/skills/` changed, then `npm run build -w packages/core`, before running any CLI
   test. Run one file with `npx vitest run <path>`. End every task with `npm run build`, `npm run lint` and
@@ -51,7 +54,8 @@ Definitions shared by every task:
   linked worktree whose branch is detached or unreadable is a worktree whose ticket cannot be named. No process
   table is read for this rule (ledger Ruling on session identity).
 - The worked record (ledger Ruling on plan-review 1.1): the file `<git-common-dir>/accord/worked`, one line
-  `<id>\t<marker>\n` per ticket a session marker took a hold on. `takeHold` appends it; nothing ever removes a
+  `<id>\t<marker>\n` per ticket a session marker took a hold on or was started in. `takeHold` appends it, and so
+  does the session-start hook whenever it resolves a ticket worktree, hold or not (Task 8); nothing ever removes a
   line, so neither `worktree clean` nor a takeover makes a session forget its ticket.
 - The refusal message (D-02, D-06, @ac-4), built by `worksMessage` (Task 3). When A is known:
   `this session works <A>: open a new session in the main checkout <mainPath> for other work, or type a request about <A> without "/accord" - nothing was changed`.
@@ -61,7 +65,7 @@ Definitions shared by every task:
 ## Task 1: Wiring: in Claude Code, Pick up and Continue from the main checkout take the hold and print enter instead of stop
 covers: @ac-1, @ac-2, D-08
 files: packages/cli/src/commands/worktree.ts, packages/cli/test/worktree.test.ts
-verify: packages/cli/test/worktree.test.ts#ac-1-in-claude-code-pick-up-from-the-main-checkout-takes-the-hold-and-prints-enter-instead-of-stop (@ac-1), packages/cli/test/worktree.test.ts#ac-2-in-claude-code-continue-from-the-main-checkout-enters-a-claimed-worktree-whose-session-ended-with-or-without-a-worktree-here (@ac-2), packages/cli/test/worktree.test.ts#risk:complex-branching-in-claude-code-a-worktree-pinned-to-another-accord-version-refuses-before-the-hold-and-prints-no-enter, packages/cli/test/worktree.test.ts#risk:concurrency-in-claude-code-continue-from-the-main-checkout-refuses-a-ticket-another-live-session-holds-and-prints-no-enter
+verify: packages/cli/test/worktree.test.ts#ac-1-in-claude-code-pick-up-from-the-main-checkout-takes-the-hold-and-prints-enter-instead-of-stop (@ac-1), packages/cli/test/worktree.test.ts#ac-2-in-claude-code-continue-from-the-main-checkout-enters-a-claimed-worktree-whose-session-ended-with-or-without-a-worktree-here (@ac-2), packages/cli/test/worktree.test.ts#risk:complex-branching-in-claude-code-a-worktree-pinned-to-another-accord-version-refuses-before-setup-and-prints-no-enter, packages/cli/test/worktree.test.ts#risk:concurrency-in-claude-code-continue-from-the-main-checkout-refuses-a-ticket-another-live-session-holds-and-prints-no-enter
 
 Consumes: `worktreeOpen`, `hold`, `prepare`, `setupMarker`, `printStop`, `withHolds`, `claudeEnv`, `sessionIn`,
 `processTable`, `sameSession`, `isLive` and `describeSession`, all as they are at the baseline.
@@ -90,8 +94,9 @@ Tests first, in `packages/cli/test/worktree.test.ts`, appended at the end:
   session works one ticket (Task 3). `worktree open ST-10 --continue` from `c.root` with `envOf(C)` exits 0, and
   `lines(out)` is `[`enter: ${c.sibling('ST-10')}`]`. The sibling's HEAD equals `origin/t/ST-10`, and
   `readHolds(c)['ST-10'].marker` is `sess-C`.
-- `it('risk:complex-branching in claude code a worktree pinned to another accord version refuses before the hold and prints no enter')`:
-  The test passes `120_000` as the third argument of `it`.
+- `it('risk:complex-branching in claude code a worktree pinned to another accord version refuses before setup and prints no enter')`:
+  The test passes `120_000` as the third argument of `it`. (Plan-review 2.3 renamed it from `...refuses before the
+  hold...`: a Pick up now holds its ticket before the pin check, so that title would be false for case (b).)
   (a) The ticket branch is behind. `c = clone()`, then
   `c.git('worktree', 'add', '-q', '-b', 't/ST-9', c.sibling('ST-9'), 'origin/main')`. In the
   sibling, replace `accord: "0.1.0"` in `accord/config.yml` with `accord: "0.0.9"` and commit it. With
@@ -103,7 +108,8 @@ Tests first, in `packages/cli/test/worktree.test.ts`, appended at the end:
   `accord/config.yml`, commit it and `push origin main`. In `d`, run `git fetch -q origin` only, so `d.root` still
   pins `0.1.0`. With `setTable(tableOf(A))`, `worktree open ST-9` (Pick up) from `d.root` with `envOf(A)` exits 2.
   `err` contains `pins accord 0.0.9` and `update the main checkout`, and does not contain `merge`. `out` holds no
-  `enter:`, the holds file does not exist, and `${d.sibling('ST-9')}/setup.log` does not exist: setup did not run.
+  `enter:`, and `${d.sibling('ST-9')}/setup.log` does not exist: setup did not run. Pick up made the claim, so the
+  session holds it: `(readHolds(d)['ST-9'] as { marker: string }).marker` is `sess-A`.
 - `it('risk:concurrency in claude code continue from the main checkout refuses a ticket another live session holds and prints no enter')`:
   `c = clone()`. Run `worktree open ST-9` from `c.root` with no env. Then `writeHolds(c, { 'ST-9': LIVE })` and
   `setTable(tableOf(A, { pid: 4242, start: 'S2' }))`. `worktree open ST-9 --continue` from `c.root` with
@@ -142,11 +148,19 @@ Interface, `packages/cli/src/commands/worktree.ts`:
   2. `prepare(path)` when `setupMarker(path)` does not exist.
   3. Write `enter: <path>\n`.
   Its callers run `checkPin` first, as below.
-- `worktreeOpen`: after the id check and before `worktrees(...)`, compute `const enter = canEnter(ctx)`. When
-  `enter` is true, `checkPin(ctx, id, X, branch, mainPath)` runs on every path before that path's first `prepare`
-  or `enterOrStop`: on the worktree found elsewhere just before `enterOrStop`; on the local or remote branch case
-  and on the claim path right after `git worktree add` (and the claim commit), before `prepare`, so a refusal costs
-  no setup run and keeps the worktree, as a setup failure does. Each `printStop(ctx, X, id); return 0;` becomes
+- `worktreeOpen`: after the id check and before `worktrees(...)`, compute `const enter = canEnter(ctx)` and
+  `const pick = opts.continue !== true`. When `enter` is true, each path runs, in this order:
+  - The claim path (Pick up, no branch yet): `git worktree add`, the claim commit, then `takeHold(ctx, id)`, then
+    `checkPin(ctx, id, path, branch, mainPath)`, then `prepare(path)`.
+  - The local or remote branch path: `git worktree add`, then `takeHold(ctx, id)` only when `pick`, then
+    `checkPin`, then `prepare`.
+  - The worktree found elsewhere: `checkPin` just before `enterOrStop`.
+  So a Pick up holds its ticket, as `hold()` does at `worktree.ts:171-181` before its `prepare`, before a pin
+  refusal or a setup failure can stop it, and the same session is then refused any other ticket (Task 3's
+  `risk:complex-branching in claude code a pick up whose setup failed...` test). A Continue refused by the pin
+  check holds nothing, as test (a) shows. A refusal costs no setup run and keeps the worktree, as a setup failure
+  does. `enterOrStop`'s own `takeHold` then finds this session's hold and keeps its `taken`. When `enter` is false,
+  nothing here changes. Each `printStop(ctx, X, id); return 0;` becomes
   `enterOrStop(ctx, id, X, branch, enter); return 0;`. On the worktree found elsewhere no setup runs unless its
   marker is missing and `enter` is true (D-15). The case `norm(held.path) === norm(ctx.root)` still calls
   `hold()`.
@@ -163,7 +177,7 @@ covers: @ac-3
 files: packages/cli/src/commands/worktree.ts, packages/cli/test/worktree.test.ts
 verify: packages/cli/test/worktree.test.ts#ac-3-in-claude-code-a-new-lane-m-ticket-is-committed-pushed-and-held-and-prints-enter-instead-of-stop (@ac-3)
 
-Consumes: `canEnter`, `checkPin` and `enterOrStop` from Task 1, and `newTicketWorktree`.
+Consumes: `canEnter`, `takeHold`, `checkPin` and `enterOrStop` from Task 1, and `newTicketWorktree`.
 
 Test first, in `packages/cli/test/worktree.test.ts`:
 - `it('ac-3 in claude code a new lane m ticket is committed pushed and held and prints enter instead of stop')`:
@@ -175,11 +189,14 @@ Test first, in `packages/cli/test/worktree.test.ts`:
   sibling, `run(['anchor'], c.sibling('ST-9'))` exits 0, its `out` starts `# Anchor: ST-9` and contains
   `Stage: intent` (the intent interview is the stage it starts).
 
-Interface: `newTicketWorktree` computes `const enter = canEnter(ctx)` as its first statement. Right after the push
+Interface: `newTicketWorktree` computes `const enter = canEnter(ctx)` as its first statement. Right after the
+`claim: <id>` commit and before the push, `if (enter) takeHold(ctx, id);`, so a failed push, a pin refusal or a
+setup failure leaves this session holding the new ticket (plan-review 2.3; Task 3's
+`risk:complex-branching in claude code a pick up whose setup failed...` test proves it). Right after the push
 succeeds and before `prepare(path)`, `if (enter) checkPin(ctx, id, path, branch, list[0].path);`. Its last two
 lines become `ctx.stdout.write(rel + '\n'); enterOrStop(ctx, id, path, branch, enter);`. Everything else stays as
 it is: the branch refusals, the commit, the push and its failure message (which prints no `stop:` and no
-`enter:`), and `prepare`.
+`enter:`), and `prepare`. When `enter` is false, nothing is held, as today.
 
 Must not change: the ST-LN-7 `ac-6` and `risk:data-loss a failed push...` cases (no env), and `new ticket` without
 `--worktree`.
@@ -187,7 +204,7 @@ Must not change: the ST-LN-7 `ac-6` and `risk:data-loss a failed push...` cases 
 ## Task 3: A Claude Code session that works a ticket is refused other tickets, new tickets, and the worktree check
 covers: @ac-4, @ac-5, D-01, D-02, D-04, D-09
 files: packages/cli/src/commands/worktree.ts, packages/cli/src/commands/new-ticket.ts, packages/cli/src/run.ts, packages/cli/test/worktree.test.ts, packages/cli/test/skill-commands.test.ts
-verify: packages/cli/test/worktree.test.ts#ac-4-in-claude-code-a-session-that-works-a-ticket-refuses-other-tickets-and-new-tickets-and-changes-nothing (@ac-4), packages/cli/test/worktree.test.ts#ac-5-outside-claude-code-pick-up-continue-and-new-ticket-print-the-stop-lines-and-nothing-is-refused (@ac-5), packages/cli/test/worktree.test.ts#risk:complex-branching-a-linked-worktree-on-a-detached-head-refuses-all-but-continue-of-its-own-ticket, packages/cli/test/worktree.test.ts#risk:complex-branching-a-claude-code-session-that-sets-no-session-variables-keeps-the-main-checkout-flows-and-only-the-folder-rule-refuses-it
+verify: packages/cli/test/worktree.test.ts#ac-4-in-claude-code-a-session-that-works-a-ticket-refuses-other-tickets-and-new-tickets-and-changes-nothing (@ac-4), packages/cli/test/worktree.test.ts#ac-5-outside-claude-code-pick-up-continue-and-new-ticket-print-the-stop-lines-and-nothing-is-refused (@ac-5), packages/cli/test/worktree.test.ts#risk:complex-branching-a-linked-worktree-on-a-detached-head-refuses-all-but-continue-of-its-own-ticket, packages/cli/test/worktree.test.ts#risk:complex-branching-a-claude-code-session-that-sets-no-session-variables-keeps-the-main-checkout-flows-and-only-the-folder-rule-refuses-it, packages/cli/test/worktree.test.ts#risk:complex-branching-in-claude-code-a-pick-up-whose-setup-failed-and-a-new-ticket-whose-push-failed-still-hold-their-ticket-and-refuse-a-second-one
 
 Consumes: everything from Task 1. Also `ticketOfBranch` and `currentBranch` from `load/fs.ts` and `repoRoot` from
 `../root.js`. Produces: `inClaude`, `worksTicket`, `worksMessage`, `readHoldsFile`, `listWorktrees` (exported),
@@ -253,6 +270,24 @@ Tests first, in `packages/cli/test/worktree.test.ts`:
   - No output holds `enter:`. The holds file does not exist, and `processTable` was not called.
   From `c.sibling('ST-9')` with env `E`, `worktree open ST-10` exits 2 with `err` containing
   `this session works ST-9` (D-04, the folder rule).
+- `it('risk:complex-branching in claude code a pick up whose setup failed and a new ticket whose push failed still hold their ticket and refuse a second one')`,
+  with `120_000` as the third argument of `it`. It proves Task 1's and Task 2's hold-before-setup order
+  (plan-review 2.3, the Veto).
+  (a) Pick up, setup fails: `c = clone({ setup: ['node setup-step.js fail'], tickets: ['ST-9', 'ST-10'] })` and
+  `setTable(tableOf(A))`. `worktree open ST-9` from `c.root` with `envOf(A)` exits 2, `err` contains
+  `setup command failed` and `out` holds no `enter:`. `git log -1 --format=%s t/ST-9` is `claim: ST-9` and
+  `(readHolds(c)['ST-9'] as { marker: string }).marker` is `sess-A`. Then `worktree open ST-10` and
+  `new ticket ST-11 --lane M --worktree` from `c.root` with `envOf(A)` each exit 2 with `err` containing
+  `this session works ST-9`. After both, `c.sibling('ST-10')` and `c.sibling('ST-11')` do not exist and
+  `c.git('branch', '--list', 't/ST-10', 't/ST-11')` is empty. Last, `worktree open ST-9 --continue` from `c.root`
+  with `envOf(A)` is not refused by this rule: it exits 2 with `setup command failed` (the retry runs setup again)
+  and its `err` does not contain `this session works`.
+  (b) New ticket, push fails: `d = clone({ tickets: ['ST-10'] })`, then
+  `d.git('remote', 'set-url', '--push', 'origin', `${d.remote}-missing`)` (as the ST-LN-7 failed-push case does) and
+  `setTable(tableOf(C))`. `new ticket ST-11 --lane M --worktree` from `d.root` with `envOf(C)` exits 2, `err`
+  contains `the push failed` and `out` holds no `enter:`. `(readHolds(d)['ST-11'] as { marker: string }).marker` is
+  `sess-C`. Then `worktree open ST-10` from `d.root` with `envOf(C)` exits 2 with `err` containing
+  `this session works ST-11`, and `d.sibling('ST-10')` does not exist.
 
 Interface, `packages/cli/src/commands/worktree.ts`:
 - `export function inClaude(env: NodeJS.ProcessEnv): { marker: string | undefined } | undefined`: `try { const c =
@@ -495,11 +530,23 @@ Must not change: `hook.test.ts`'s cases, the `subagent-start` output, and every 
 ## Task 7: The /accord skill moves into the worktree on enter and refuses other work in a ticket session
 covers: D-03, D-05, D-06, D-09
 files: packages/core/skills/accord/SKILL.md, packages/core/skills/accord/worktree.md, packages/core/skills/accord/ids.md, packages/core/src/generated/skills.ts, packages/core/test/stage-skills.test.ts, .claude/skills/accord/SKILL.md, .claude/skills/accord/worktree.md, .claude/skills/accord/ids.md
-verify: packages/core/test/stage-skills.test.ts#risk:complex-branching-the-accord-skill-pushes-then-enters-the-worktree-on-enter-and-refuses-other-work-in-a-ticket-session
+verify: packages/core/test/stage-skills.test.ts#risk:complex-branching-the-accord-skill-pushes-then-enters-the-worktree-on-enter-and-refuses-other-work-in-a-ticket-session, packages/core/test/skills.test.ts#render-output-invariants->-every-SKILL.md-is-at-most-MAX_SKILL_BYTES-bytes-(spec-§2), packages/core/test/skills.test.ts#render-output-invariants->-no-rendered-skill-or-agent-names-a-runtime-product-(D-109)
 
 Consumes: the `enter:` line (Tasks 1 and 2), the refusal message (Task 3) and `accord worktree check` (Task 3,
 already in `REAL`). Ledger Ruling: the claim push and the people carry happen before EnterWorktree, because after
 the move Claude Code refuses `git -C` aimed at the main checkout.
+
+Two limits of `packages/core/test/skills.test.ts` bind this task's text, and both cases are on `verify:`:
+- `MAX_SKILL_BYTES = 5120` (`skills.test.ts:188`, checked at `:255-259`) caps every rendered SKILL.md. Counted by
+  hand from the files at the baseline (UTF-8, `→` and `…` 3 bytes each, LF): `packages/core/skills/accord/SKILL.md`
+  is 5039 bytes and the rendered `.claude/skills/accord/SKILL.md` is 5057 bytes, so the budget is 63 bytes. Before
+  editing, confirm both with
+  `node -e "for (const f of process.argv.slice(1)) console.log(f, require('fs').statSync(f).size)" packages/core/skills/accord/SKILL.md .claude/skills/accord/SKILL.md`.
+  The only SKILL.md change below is one 47-character line and one blank line, 49 bytes, about 5106 after it. All
+  other wording goes into `worktree.md`, which has no byte cap. Run the same command after the regeneration.
+- D-109 (`skills.test.ts:316-332`): no rendered skill or reference names a runtime product, `Claude Code`
+  included. Every line below is keyed on the `enter:` and `stop:` lines the CLI prints, never on a product name.
+  `EnterWorktree` is a tool name the Approach requires and is not on that list.
 
 Test first, in `packages/core/test/stage-skills.test.ts`, top-level:
 - `it('risk:complex-branching the accord skill pushes then enters the worktree on enter and refuses other work in a ticket session')`:
@@ -513,39 +560,51 @@ Test first, in `packages/core/test/stage-skills.test.ts`, top-level:
   - `ref` contains ``Exit 2 starting `this session works` ``.
   - `slice(ref, 'Exit 2 naming a setup command', 'Any other exit 2')` contains
     `` type `/accord continue <id>` again in this same session `` and `in a session opened there`.
-  - The Dashboard slice (`## Dashboard` to `## A ticket named`) contains `` `accord worktree check` ``,
-    ``exited 2 with a message that starts `this session works` `` and `offer only Continue on that ticket`.
-  - `slice(text, '## New request', '## Rules')` has `` `accord worktree check` `` before `Propose a lane` and
-    contains `in every lane`.
+  - `i = text.indexOf('First run the session check in `./worktree.md`.')` is greater than -1 and less than
+    `text.indexOf('## Dashboard')`.
+  - `check = ref.slice(ref.indexOf('## Session check'))`, with `ref.indexOf('## Session check')` greater than -1,
+    contains `` `accord worktree check` ``, `before the dashboard and before every New request`, `in every lane`,
+    ``a message that starts `this session works` ``, `offer only Continue on that ticket` and
+    `write, create, claim and edit nothing`.
   - `ids.slice(ids.indexOf('## Dropping instead of renaming'))` contains `` `accord new ticket` is refused `` and
     `open a new session in the main checkout`.
 
 Text, every code span on one line:
-- `packages/core/skills/accord/SKILL.md`:
-  - Dashboard step 1 becomes: "Run `accord worktree check`, then `accord worktree clean`, then `accord
-    dashboard`." The rest of the step stays, and its "When it exits 2" becomes "When `accord dashboard` exits 2".
-  - Step 3 gains: "When `accord worktree check` exited 2 with a message that starts `this session works`, this
-    session works the ticket it names: show its message, and offer only Continue on that ticket. When it exited 2
-    with any other message, show that message and go on with the dashboard."
-  - `## New request`, before "Propose a lane": "First run `accord worktree check`, in every lane, also when the
-    request comes from the dashboard. When it exits 2, show its message and stop: write, create, claim and edit
-    nothing."
+- `packages/core/skills/accord/SKILL.md`: one line, `First run the session check in `./worktree.md`.`, and a blank
+  line after it, inserted between the blank line that follows the frontmatter and `## Dashboard: `/accord` with no
+  argument`. Nothing else in SKILL.md changes. The line names no `accord <command>`, so the case
+  `every SKILL.md opens on its first command` still finds `accord dashboard` first.
 - `packages/core/skills/accord/worktree.md`:
-  - After the first line add: "In Claude Code, a session that picks up, continues or creates a ticket moves into
-    its worktree and works only that ticket from then on."
-  - After the `stop:` bullet add: "- `enter: <path>` (printed only in Claude Code): this session moves into the
-    worktree. First, when Pick up made the claim, push it with `git push -u origin <branch>` as above, and carry
-    any people entry as below; then call EnterWorktree with `path` set to `<path>`, and go on at Continue step 2
-    (`accord anchor`) without asking. From then on every command, path and edit is in the worktree. When
-    EnterWorktree fails, show `<path>`, say "type `/accord continue <id>` to retry, or close this session and open
-    one in that folder", and stop, editing nothing."
+  - After the first line add: "A session that follows an `enter:` line moves into the ticket's worktree and works
+    only that ticket from then on."
+  - After the `stop:` bullet add: "- `enter: <path>` (printed instead of `stop:` when this session can move into
+    the worktree): this session moves into the worktree. First, when Pick up made the claim, push it with
+    `git push -u origin <branch>` as above, and carry any people entry as below; then call EnterWorktree with
+    `path` set to `<path>`, and go on at Continue step 2 (`accord anchor`) without asking. From then on every
+    command, path and edit is in the worktree. When EnterWorktree fails, show `<path>`, say "type
+    `/accord continue <id>` to retry, or close this session and open one in that folder", and stop, editing
+    nothing."
   - The bullet "Exit 2 naming a setup command" becomes: "- Exit 2 naming a setup command: show the message and
-    stop. The worktree is kept; once the owner fixes the command, in Claude Code they type
-    `/accord continue <id>` again in this same session, and in another tool they type it in a session opened
-    there; either runs every setup command again." In Claude Code a setup failure comes before any hold or
-    `enter:` line, and Continue from the main checkout reruns setup when its done marker is missing (Task 1).
+    stop. The worktree is kept; once the owner fixes the command, they type `/accord continue <id>` again in this
+    same session and follow the `enter:` or `stop:` line it prints. The run that prints `enter:` has already run
+    every setup command again; after a `stop:` line, `/accord continue <id>` in a session opened there runs every
+    setup command again." In a session that gets `enter:` lines, Pick up and a new ticket hold the ticket before
+    setup runs (Tasks 1 and 2), so the retry is that session's own Continue, and Continue from the main checkout
+    reruns setup when its done marker is missing (Task 1).
   - Before "Any other exit 2" add: "- Exit 2 starting `this session works`: this session works another ticket;
     show the message and stop, editing nothing."
+  - At the end of the file add a section, its heading on its own line:
+    "## Session check
+
+    Run it before the dashboard and before every New request, in every lane, also a New request picked from the
+    dashboard; never before Pick up or Continue on a named ticket. Run `accord worktree check`.
+
+    - Exit 0: go on.
+    - Exit 2 with a message that starts `this session works`: this session works the ticket it names. Show the
+      message. For the dashboard, go on with it, and offer only Continue on that ticket. For a New request, stop:
+      write, create, claim and edit nothing.
+    - Any other exit 2: show the message. For the dashboard, go on with it; for a New request, stop, editing
+      nothing."
   - In the people paragraph, "before you stop:" becomes "before you stop or move into it:".
   - In the failed-push paragraph, "follow the `stop:` line it prints" becomes "follow the `stop:` or `enter:`
     line it prints".
@@ -569,18 +628,21 @@ Dashboard's names `worktree clean`. No skill names `git switch`. The setup bulle
 
 ## Task 8: A session keeps its ticket after clean drops its hold or another session takes it over
 covers: @ac-4
-files: packages/cli/src/commands/worktree.ts, packages/cli/test/worktree.test.ts
-verify: packages/cli/test/worktree.test.ts#risk:complex-branching-a-session-whose-hold-was-cleaned-or-taken-over-still-works-its-ticket-when-resumed-in-the-main-checkout
+files: packages/cli/src/commands/worktree.ts, packages/cli/src/commands/hook.ts, packages/cli/test/worktree.test.ts
+verify: packages/cli/test/worktree.test.ts#risk:complex-branching-a-session-whose-hold-was-cleaned-or-taken-over-still-works-its-ticket-when-resumed-in-the-main-checkout, packages/cli/test/worktree.test.ts#risk:complex-branching-a-session-started-in-a-ticket-worktree-is-recorded-as-working-it-when-the-start-hook-takes-no-hold
 
 Why: `worktree clean` drops a dead session's hold (`worktree.ts:390-396`) and a Continue takeover rewrites the
 holds entry's marker (`worktree.ts:175-179`). A session that worked A, closed, and was resumed in the main checkout
 after either would find no hold and no worktree folder of its own, and could pick up B, against @ac-4 (a session
 works A for its whole life, even after A is done or merged) and the Veto. The worked record (preamble) keeps that
-fact.
+fact. A session started in A's worktree (D-04) whose start hook took no hold, because another live session holds
+A or the hook's env lacks the session variables, would have no hold to record; the start hook records it from the
+marker it has (plan-review 2.4).
 
-Consumes: `takeHold` (Task 1), `worksTicket` and `guardTicketSession` (Task 3), the `prompt-expansion` hook and the
-stdin `run` helper (Task 4). Produces: `recordWorked` and `workedBy` in `worktree.ts`. The hook, `worktree check`,
-`worktree open` and `new ticket` all reach the record through `worksTicket`, so none of them changes.
+Consumes: `takeHold` (Task 1), `inClaude`, `worksTicket` and `guardTicketSession` (Task 3), `hookInput`, the
+`prompt-expansion` hook and the stdin `run` helper (Task 4), and the session-start block of Task 6. Produces:
+`recordWorked` (exported) and `workedBy` in `worktree.ts`. The hook, `worktree check`, `worktree open` and
+`new ticket` all reach the record through `worksTicket`, so none of them changes.
 
 Test first, in `packages/cli/test/worktree.test.ts`, appended at the end:
 - `it('risk:complex-branching a session whose hold was cleaned or taken over still works its ticket when resumed in the main checkout')`,
@@ -609,9 +671,38 @@ Test first, in `packages/cli/test/worktree.test.ts`, appended at the end:
     `${c.root}/accord/tickets/ST-12.md` do not exist, and `worked()` equals `w`.
   - Last: `worktree open ST-10 --continue` from `c.root` with `envOf(C)` is not refused by this rule: its `err`
     does not contain `this session works`.
+- `it('risk:complex-branching a session started in a ticket worktree is recorded as working it when the start hook takes no hold')`,
+  with `120_000` as the third argument of `it`.
+  - Setup: `c = clone({ tickets: ['ST-9', 'ST-10'] })`, `sib = c.sibling('ST-9')`,
+    `c.git('worktree', 'add', '-q', '-b', 't/ST-9', sib, 'origin/main')`. `worked` and `hook(s, args)` are defined
+    inside this test exactly as in the test above.
+    `start(env, marker)` is `run(['hook', 'session-start'], sib, env, JSON.stringify({ session_id: marker, cwd: sib,
+    source: 'startup' }))`.
+  - Another live holder: `writeHolds(c, { 'ST-9': LIVE })` and `setTable(tableOf(B, { pid: 4242, start: 'S2' }))`.
+    `start(envOf(B), 'sess-B')` exits 0, `out` starts `# accord rules\n`, `err` is one line containing `sess-H`,
+    and `(readHolds(c)['ST-9'] as { marker: string }).marker` is still `sess-H`. `lines(worked())` contains
+    `'ST-9\tsess-B'`.
+  - Missing variables: `start({ CLAUDECODE: '1' }, 'sess-E')` exits 0, `out` starts `# accord rules\n`, `err` is
+    one line containing `no hold taken on ST-9`, and `lines(worked())` contains `'ST-9\tsess-E'`.
+  - Another runtime: `start({}, 'sess-O')` exits 0 and no line of `worked()` ends with `sess-O` (D-01).
+  - Resumed in the main checkout after the folder is gone: `c.git('worktree', 'remove', sib)`. With
+    `setTable(tableOf(B))`, `worktree check` from `c.root` with `envOf(B)` exits 2 with `err` containing
+    `this session works ST-9`. `worktree open ST-10` from `c.root` with
+    `{ CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: 'sess-E' }` exits 2 with `err` containing `this session works ST-9`,
+    and `c.sibling('ST-10')` does not exist. `hook({ marker: 'sess-E' }, 'pick-up ST-10')` exits 0 and
+    `JSON.parse(out)` has `decision: 'block'` and a `reason` containing `this session works ST-9`.
+
+Interface, `packages/cli/src/commands/hook.ts`, `session-start` (the block Task 6 added): once the linked worktree
+`root` and its ticket `id` are known, and before the hold attempt, compute `s = inClaude(ctx.env)`. When `s` is
+defined, take `marker = input?.session_id || s.marker`; when `marker` is a non-empty string, call
+`recordWorked(root, id, marker)` inside its own `try`, whose failure writes one stderr line
+`accord: no record of <id>: <first line of the message>`, with every `\` turned into `/`. The hold attempt then
+runs as Task 6 says, so a live holder or missing variables still write their one `no hold taken` line, and that
+throw never undoes the record. When `s` is undefined (another runtime) nothing is recorded. stdout is unchanged and
+the hook exits 0.
 
 Interface, `packages/cli/src/commands/worktree.ts`:
-- `function recordWorked(root: string, id: string, marker: string): void`: `dir` is the same
+- `export function recordWorked(root: string, id: string, marker: string): void`: `dir` is the same
   `<git-common-dir>/accord` folder `withHolds` uses, `file = dir + '/worked'`. `mkdirSync(dir, { recursive: true })`.
   Read `file` as UTF-8, an absent file being `''`. When no line equals `${id}\t${marker}`,
   `appendFileSync(file, `${id}\t${marker}\n`)`. It never rewrites or truncates the file.
@@ -626,4 +717,5 @@ Interface, `packages/cli/src/commands/worktree.ts`:
 
 Must not change: `worktreeClean` never reads or writes the record; every existing hold and clean case; the
 holds file's shape and its lock; Task 3's tests, where every session that holds a ticket also has it recorded,
-so each refusal names the same ticket.
+so each refusal names the same ticket; Task 6's tests, whose session-start runs keep their stdout, stderr and
+holds bytes (a record line is written under `.git/accord/worked` only, which none of them reads).

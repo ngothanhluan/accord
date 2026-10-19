@@ -27,5 +27,5 @@
 - Final review 2 (Nice): the test `risk:data-loss a failed prune says only that the prune failed and still names each ref it removed` never reaches a part-way prune, since git 2.56 removes its refs in one transaction and a lock makes it remove none; rename it to what it proves or drop that half of the title.
 
 ## Tasks
-- task 1 done 23f2b24f3c28
-- task 2 done a08e9d414959
+- task 1 done 76af86feda5d
+- task 2 done 238898dd66d1

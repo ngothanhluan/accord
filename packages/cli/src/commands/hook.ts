@@ -7,7 +7,7 @@ import { claudeEnv } from '../load/proc.js';
 import { repoRoot } from '../root.js';
 import type { CommandContext } from '../run.js';
 import { activeTicket } from './anchor.js';
-import { branchOf, guardAllowsContinue, isLinked, listWorktrees, readHoldsFile, takeHold, worksMessage, worksTicket } from './worktree.js';
+import { branchOf, guardAllowsContinue, inClaude, isLinked, listWorktrees, readHoldsFile, recordWorked, takeHold, worksMessage, worksTicket } from './worktree.js';
 
 export const HOOK_EVENTS = ['session-start', 'session-resume', 'subagent-start', 'prompt-expansion'] as const;
 export type HookEvent = (typeof HOOK_EVENTS)[number];
@@ -23,6 +23,7 @@ export function hook(ctx: CommandContext, event: HookEvent): number {
   const line = sessionLine(statusRows(ctx.snapshot));
   let body = line + '\n';
   if (event === 'session-resume') {
+    recordResume(ctx);
     try {
       const input = hookInput(ctx);
       const root = input?.cwd !== undefined ? repoRoot(input.cwd) : ctx.root;
@@ -54,6 +55,33 @@ function heldEntry(root: string, marker: string, ctx: CommandContext): { id: str
   return path === undefined ? undefined : { id, path };
 }
 
+/** Record that a Claude Code session works `id`; a failure is one stderr line. */
+function record(ctx: CommandContext, root: string, id: string, sessionId: string | undefined): void {
+  try {
+    const s = inClaude(ctx.env);
+    const marker = sessionId || s?.marker;
+    if (s !== undefined && marker) recordWorked(root, id, marker);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    ctx.stderr.write(`accord: no record of ${id}: ${msg.split('\n')[0]}`.replace(/\\/g, '/') + '\n');
+  }
+}
+
+/** A resumed session in a ticket worktree is recorded too; no hold is taken and nothing is thrown. */
+function recordResume(ctx: CommandContext): void {
+  try {
+    const input = hookInput(ctx);
+    const root = input?.cwd !== undefined ? repoRoot(input.cwd) : ctx.root;
+    if (!isLinked(root)) return;
+    const branch = currentBranch(root);
+    const id = branch === undefined ? undefined : ticketOfBranch(branch, ctx.snapshot.branchTemplates ?? [DEFAULT_BRANCH_TEMPLATE], (i) => Object.hasOwn(ctx.snapshot.tickets, i));
+    if (id !== undefined) record(ctx, root, id, input?.session_id);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    ctx.stderr.write(`accord: no record: ${msg.split('\n')[0]}`.replace(/\\/g, '/') + '\n');
+  }
+}
+
 /** A session that starts in a ticket worktree takes a free hold; any failure is one stderr line, never a failed start. */
 function startHold(ctx: CommandContext): void {
   let id: string | undefined;
@@ -63,7 +91,9 @@ function startHold(ctx: CommandContext): void {
     if (!isLinked(root)) return;
     const branch = currentBranch(root);
     id = branch === undefined ? undefined : ticketOfBranch(branch, ctx.snapshot.branchTemplates ?? [DEFAULT_BRANCH_TEMPLATE], (i) => Object.hasOwn(ctx.snapshot.tickets, i));
-    if (id === undefined || claudeEnv(ctx.env) === undefined) return;
+    if (id === undefined) return;
+    record(ctx, root, id, input?.session_id);
+    if (claudeEnv(ctx.env) === undefined) return;
     takeHold({ ...ctx, root }, id);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

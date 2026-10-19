@@ -1203,3 +1203,123 @@ it('risk:complex-branching the resume hook in the main checkout prints the ancho
   expect(s.out).toContain('# Anchor: ST-9');
   expect(s.out).not.toContain('enter:');
 }, 60_000);
+
+
+it('risk:complex-branching a session whose hold was cleaned or taken over still works its ticket when resumed in the main checkout', async () => {
+  const c = clone({ tickets: ['ST-9', 'ST-10', 'ST-11'] });
+  const sib = c.sibling('ST-9');
+  const worked = () => readFileSync(`${c.root}/.git/accord/worked`, 'utf8');
+  const hook = (s: { marker: string }, args: string) =>
+    run(['hook', 'prompt-expansion'], c.root, {}, JSON.stringify({ session_id: s.marker, command_name: 'accord', command_args: args, cwd: c.root }));
+  setTable(tableOf(A));
+  const o = await run(['worktree', 'open', 'ST-9'], c.root, envOf(A));
+  expect(o.code).toBe(0);
+  expect(o.out).toContain('enter:');
+  expect((await run(['worktree', 'open', 'ST-9', '--continue'], sib, envOf(A))).out).toBe(HELD);
+  expect(worked()).toBe('ST-9\tsess-A\n');
+
+  gitRun(sib, 'push', '-q', '-u', 'origin', 't/ST-9');
+  mergeOnRemote(c, 'ST-9');
+  setTable(tableOf(B));
+  const cl = await run(['worktree', 'clean'], c.root, envOf(B));
+  expect(cl.code).toBe(0);
+  expect(cl.out).toContain(`removed ${sib}`);
+  expect(existsSync(sib)).toBe(false);
+  expect(Object.hasOwn(readHolds(c), 'ST-9')).toBe(false);
+  expect(worked()).toBe('ST-9\tsess-A\n');
+  setTable(tableOf(A));
+  for (const args of [['worktree', 'open', 'ST-10'], ['worktree', 'check']]) {
+    const r = await run(args, c.root, envOf(A));
+    expect(r.code).toBe(2);
+    expect(r.err).toContain('this session works ST-9');
+  }
+  const h = await hook(A, 'pick-up ST-10');
+  expect(h.code).toBe(0);
+  expect(JSON.parse(h.out)).toMatchObject({ decision: 'block', reason: expect.stringContaining('this session works ST-9') });
+  expect(existsSync(c.sibling('ST-10'))).toBe(false);
+
+  setTable(tableOf(C));
+  const oc = await run(['worktree', 'open', 'ST-10'], c.root, envOf(C));
+  expect(oc.code).toBe(0);
+  expect(oc.out).toContain('enter:');
+  setTable(tableOf(B));
+  const tk = await run(['worktree', 'open', 'ST-10', '--continue'], c.root, envOf(B));
+  expect(tk.code).toBe(0);
+  expect(lines(tk.out)).toEqual([`enter: ${c.sibling('ST-10')}`]);
+  expect((readHolds(c)['ST-10'] as { marker: string }).marker).toBe('sess-B');
+  expect(Object.values(readHolds(c)).some((x) => (x as { marker: string }).marker === 'sess-C')).toBe(false);
+  setTable(tableOf(C));
+  const w = worked();
+  for (const args of [['worktree', 'open', 'ST-11'], ['new', 'ticket', 'ST-12', '--lane', 'M']]) {
+    const r = await run(args, c.root, envOf(C));
+    expect(r.code).toBe(2);
+    expect(r.err).toContain('this session works ST-10');
+  }
+  const hc = await hook(C, 'pick-up ST-11');
+  expect(JSON.parse(hc.out)).toMatchObject({ decision: 'block', reason: expect.stringContaining('this session works ST-10') });
+  expect(existsSync(c.sibling('ST-11'))).toBe(false);
+  expect(existsSync(`${c.root}/accord/tickets/ST-12.md`)).toBe(false);
+  expect(worked()).toBe(w);
+  expect((await run(['worktree', 'open', 'ST-10', '--continue'], c.root, envOf(C))).err).not.toContain('this session works');
+}, 120_000);
+
+it('risk:complex-branching a session started in a ticket worktree is recorded as working it when the start hook takes no hold', async () => {
+  const c = clone({ tickets: ['ST-9', 'ST-10'] });
+  const sib = c.sibling('ST-9');
+  c.git('worktree', 'add', '-q', '-b', 't/ST-9', sib, 'origin/main');
+  const worked = () => readFileSync(`${c.root}/.git/accord/worked`, 'utf8');
+  const hook = (s: { marker: string }, args: string) =>
+    run(['hook', 'prompt-expansion'], c.root, {}, JSON.stringify({ session_id: s.marker, command_name: 'accord', command_args: args, cwd: c.root }));
+  const start = (env: NodeJS.ProcessEnv, marker: string) =>
+    run(['hook', 'session-start'], sib, env, JSON.stringify({ session_id: marker, cwd: sib, source: 'startup' }));
+  writeHolds(c, { 'ST-9': LIVE });
+  setTable(tableOf(B, { pid: 4242, start: 'S2' }));
+  const b = await start(envOf(B), 'sess-B');
+  expect(b.code).toBe(0);
+  expect(b.out.startsWith('# accord rules\n')).toBe(true);
+  expect(lines(b.err)).toHaveLength(1);
+  expect(b.err).toContain('sess-H');
+  expect((readHolds(c)['ST-9'] as { marker: string }).marker).toBe('sess-H');
+  expect(lines(worked())).toContain('ST-9\tsess-B');
+
+  const e = await start({ CLAUDECODE: '1' }, 'sess-E');
+  expect(e.code).toBe(0);
+  expect(e.out.startsWith('# accord rules\n')).toBe(true);
+  expect(lines(e.err)).toHaveLength(1);
+  expect(e.err).toContain('no hold taken on ST-9');
+  expect(lines(worked())).toContain('ST-9\tsess-E');
+
+  expect((await start({}, 'sess-O')).code).toBe(0);
+  expect(lines(worked()).some((l) => l.endsWith('sess-O'))).toBe(false);
+
+  const resume = (env: NodeJS.ProcessEnv, marker: string) =>
+    run(['hook', 'session-resume'], sib, env, JSON.stringify({ session_id: marker, cwd: sib, source: 'resume' }));
+  setTable(tableOf(C));
+  const bytes = readFileSync(holdsFile(c), 'utf8');
+  const r = await resume(envOf(C), 'sess-C');
+  expect(r.code).toBe(0);
+  expect(r.out).toContain('# Anchor: ST-9');
+  expect(r.out).not.toContain('enter:');
+  expect(r.err).toBe('');
+  expect(readFileSync(holdsFile(c), 'utf8')).toBe(bytes);
+  expect(lines(worked())).toContain('ST-9\tsess-C');
+  expect((await resume({}, 'sess-P')).code).toBe(0);
+  expect(lines(worked()).some((l) => l.endsWith('sess-P'))).toBe(false);
+
+  c.git('worktree', 'remove', sib);
+  setTable(tableOf(C));
+  const o = await run(['worktree', 'open', 'ST-10'], c.root, envOf(C));
+  expect(o.code).toBe(2);
+  expect(o.err).toContain('this session works ST-9');
+  setTable(tableOf(B));
+  const k = await run(['worktree', 'check'], c.root, envOf(B));
+  expect(k.code).toBe(2);
+  expect(k.err).toContain('this session works ST-9');
+  const oe = await run(['worktree', 'open', 'ST-10'], c.root, { CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: 'sess-E' });
+  expect(oe.code).toBe(2);
+  expect(oe.err).toContain('this session works ST-9');
+  expect(existsSync(c.sibling('ST-10'))).toBe(false);
+  const h = await hook({ marker: 'sess-E' }, 'pick-up ST-10');
+  expect(h.code).toBe(0);
+  expect(JSON.parse(h.out)).toMatchObject({ decision: 'block', reason: expect.stringContaining('this session works ST-9') });
+}, 120_000);

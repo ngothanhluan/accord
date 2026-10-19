@@ -1,6 +1,6 @@
 // ST-LN-7 `accord worktree`: each ticket works in its own git worktree, a sibling folder of the main checkout.
 import { execFileSync } from 'node:child_process';
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { DEFAULT_BRANCH_TEMPLATE, loadConfig } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
 import { currentBranch, gitDefaultRef, gitUserEmail, ticketOfBranch, UsageError } from '../load/fs.js';
@@ -176,6 +176,26 @@ export function readHoldsFile(root: string): Record<string, Hold> {
   return parsed as Record<string, Hold>;
 }
 
+/** The worked record: one `<id>\t<marker>` line per ticket a session took a hold on or started in; never rewritten. */
+export function recordWorked(root: string, id: string, marker: string): void {
+  const dir = git(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim() + '/accord';
+  const file = dir + '/worked';
+  mkdirSync(dir, { recursive: true });
+  const line = `${id}\t${marker}`;
+  if (!(existsSync(file) ? readFileSync(file, 'utf8') : '').split('\n').includes(line)) appendFileSync(file, line + '\n');
+}
+
+/** The first ticket the record names for this marker; reads without a lock and writes nothing. */
+export function workedBy(root: string, marker: string): string | undefined {
+  const file = git(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim() + '/accord/worked';
+  if (!existsSync(file)) return undefined;
+  for (const l of readFileSync(file, 'utf8').split('\n')) {
+    const t = l.indexOf('\t');
+    if (t > 0 && l.slice(t + 1) === marker) return l.slice(0, t);
+  }
+  return undefined;
+}
+
 const norm = (p: string) => (process.platform === 'win32' ? p.replaceAll('\\', '/').toLowerCase() : p);
 
 /** D-17: take (or keep) this session's hold on `id`; a live other session holding it refuses. Claude Code sessions only. */
@@ -191,6 +211,7 @@ export function takeHold(ctx: CommandContext, id: string): void {
     const same = h !== undefined && sameSession(h, session);
     return { ...holds, [id]: { ...session, taken: same ? h.taken : new Date().toISOString() } };
   });
+  recordWorked(ctx.root, id, session.marker);
 }
 
 /** Inside the ticket's worktree: take the hold (Claude Code only, D-17), then make sure `setup` finished. */
@@ -302,6 +323,8 @@ export function worksTicket(cwd: string, marker: string | undefined, snapshot: R
     const holds = readHoldsFile(top);
     const key = Object.keys(holds).sort().find((k) => holds[k]?.marker === marker);
     if (key !== undefined) return { id: key, top };
+    const id = workedBy(top, marker);
+    if (id !== undefined) return { id, top };
   }
   return undefined;
 }

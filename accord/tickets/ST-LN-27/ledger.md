@@ -17,8 +17,17 @@
 - Ruling: the rule for which ticket a session works reads the holds file without the lock — writes are an atomic rename, and the rule must write nothing, not even the `.git/accord` folder — cost if wrong: a read racing a write sees the old holds.
 - Ruling: the hook allows a prompt by printing `{}` and blocks with `{"decision":"block","reason":…}` — the probe confirmed `decision: block`; `reason` and `{}` are assumed — cost if wrong: the owner sees no reason text, caught at the hand check at verify.
 - Ruling: plan-review 1.1 is fixed in the plan by a record of which ticket each session marker worked that neither `worktree clean` nor a hold takeover removes, read by the works-ticket rule, rather than by settling with the owner that a resumed session starts a new life — ac-4 says "at any later point in its life" and the veto forbids two tickets in one session, so the plan meets them as written; the record is internal state under the git common dir, not a public interface — cost if wrong: one more file under `<git-common-dir>/accord` that grows by one line per session that works a ticket.
+- Ruling: the pin message names the fix by comparing the worktree's pin with `origin/main`'s pin: equal says update the main checkout, unequal says merge `origin/main` into the ticket branch — a no-op merge can never fix it — cost if wrong: one extra retry when both are behind.
+- Ruling: a Claude Code session with `CLAUDECODE=1` but no session variables is refused inside a linked ticket worktree by the folder rule (D-04) and never in the main checkout — cost if wrong: such a session in a worktree gets the refusal where today it gets stop lines.
+- Ruling: the worked record is a tab-separated file appended outside the holds lock after a check for an existing line — a duplicate from a race is harmless since the first match wins — cost if wrong: a duplicate line now and then.
+- Ruling: when `worktree check` on the dashboard exits 2 for a reason other than `this session works`, the message is shown and the dashboard goes on — the CLI refusals stay as the backstop — cost if wrong: a dashboard shown beside an error.
+- Ruling: the ac-4 test compares repository state once per group of runs, not once per run — a write by a refusal stays on disk, so the group check still catches it — cost if wrong: a write undone within the same group goes unseen.
+- Ruling: the rebuild after merge is named in the PR description rather than a hook command that fails open — the hook command carries no shell syntax and `isAccordHookCommand` must still recognise it; probed 2026-10-19 (Claude Code 2.1.303): a UserPromptExpansion hook that exits 2 blocks the typed `/accord` prompt and shows its stderr — cost if wrong: a checkout whose build predates this ticket has every typed `/accord` blocked until `npm run build`.
 
 ## Deferred
 - plan-review 1.9 (Nice): worktree.md:7 "Only a session rooted in a ticket's worktree works that ticket" becomes false beside Task 7's new line.
 - plan-review 1.10 (Nice): Task 1's `takeHold` range should read lines 171-180 with `withHolds(ctx.root, …)`.
 - plan-review 1.11 (Nice): Tasks 1 and 2 index `readHolds(c)['ST-9'].marker` on `Record<string, unknown>`; type it or cast.
+- plan-review 2.5 (Nice): Task 4's `risk:security…` hook test should pass a 120_000 timeout.
+- plan-review 2.6 (Nice): the session-resume hook prints `enter:` without `checkPin`.
+- plan-review 2.7 (Nice): the PR description must carry the `npm run build` after merge line (Ruling on the rebuild); no task writes it.

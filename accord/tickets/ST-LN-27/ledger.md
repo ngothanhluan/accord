@@ -1,0 +1,6 @@
+# Ledger
+
+## Rulings
+
+- Ruling: the four audits' split readings that today's behaviour or the owner's earlier answers settle are settled in the criteria's wording and shown to the owner at the yes — ac-1 and ac-2: the stage a moved session starts is the one `accord anchor` prints, as Continue does today; ac-2: Continue makes the worktree from the claim branch when this machine has none, and does not check who made the claim, both as `accord worktree open --continue` does today; ac-2: "ended" covers closed or crashed, mid-stage or between stages; ac-3: only "/accord <request>" counts as a new request; ac-4: a session works A for its whole life, even after A is done, per the veto "ko dc làm 2 ticket trong cùng 1 sessino", and a folder inside A's worktree counts as A's worktree; ac-5: Cursor, Codex and Copilot keep today's behaviour whole, per D-01 — cost if wrong: the owner rewords a criterion at the yes.
+- Ruling: whether a session is Claude Code is decided at run time or when the skills are rendered is left to the approach — ac-5 states only what the owner sees, and skills render one text for every runtime today (packages/core/src/skills/targets.ts:17-21) — cost if wrong: none at intent; the approach chooses.

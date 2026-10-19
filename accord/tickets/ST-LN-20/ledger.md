@@ -24,6 +24,7 @@
 - Plan round 2.2 (Nice): the prune-failure line in Task 2 says "stale remote refs are kept", which contradicts the `pruned` lines printed after a part-way failure; the ledger Ruling's `prune of origin failed: <git's first line>` is the wording to build.
 - Review round 1.2 (Nice): when the remote's main branch is deleted and HEAD moved, `git remote prune origin` leaves `refs/remotes/origin/HEAD` dangling, `for-each-ref` skips it, and a false `pruned refs/remotes/origin/HEAD (was <sha>)` line prints; no data is lost and the branch pass then finds no remote main and deletes nothing.
 - Review round 1.3 (Nice): `pruneStale` runs inside the fetch's `try`, so a `for-each-ref refs/remotes/origin` failure after a good fetch prints the fetch-failure line and drops the `pruned` lines.
+- Final review 2 (Nice): the test `risk:data-loss a failed prune says only that the prune failed and still names each ref it removed` never reaches a part-way prune, since git 2.56 removes its refs in one transaction and a lock makes it remove none; rename it to what it proves or drop that half of the title.
 
 ## Tasks
 - task 1 done 23f2b24f3c28

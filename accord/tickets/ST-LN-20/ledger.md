@@ -16,6 +16,7 @@
 - Ruling: the `pruned` line names the full ref name (`refs/remotes/origin/t/ST-9`), not the short one — the same reasoning as reading branches by full name, so a same-named tag cannot make it ambiguous — cost if wrong: longer lines and test strings to reword.
 - Ruling: the before/after listing and the `pruned` lines run whether the prune succeeds or fails — Approach scenario B says a prune that fails part-way names what it removed — cost if wrong: none known.
 - Ruling: the `--no-prune` flag and the test that locks it both go in Task 2, next to the prune, not in Task 1 — the test needs the `pruned` line to see the difference — cost if wrong: between Task 1 and Task 2 on the branch, a clone with a prune setting still prunes during the fetch.
+- Ruling: pruneStale runs inside the fetch's try block — its own try/catch handles a prune failure, so only a fetch failure reaches the fetch-failure line — cost if wrong: none.
 
 ## Deferred
 - Plan round 2.1 (Nice): Task 1 step 2 cites "ledger Ruling 7" for fetching whenever `origin` exists; it is the 4th Ruling.
@@ -23,3 +24,4 @@
 
 ## Tasks
 - task 1 done 23f2b24f3c28
+- task 2 done a08e9d414959

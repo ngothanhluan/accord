@@ -64,7 +64,7 @@ Feature: ST-LN-20
     When "/accord" with no argument runs in a session rooted at "C:/Work/accord"
     Then the local branch "t/ST-9" and its extra commit are kept, and the branch is not named
 
-  @ac-4
+  @ac-4 @test:packages/cli/test/worktree.test.ts#ac-4-stale-remote-refs-are-pruned-after-a-good-fetch-and-a-failed-fetch-prunes-nothing
   Scenario: Stale remote-tracking refs are pruned, and a failed fetch prunes nothing
     Given the remote deleted the branches "t/ST-9" and "backlog/notes", and the clone still has the refs "origin/t/ST-9" and "origin/backlog/notes"
     When "/accord" with no argument runs in a session rooted at "C:/Work/accord" and the fetch from the remote succeeds

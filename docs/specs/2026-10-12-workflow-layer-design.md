@@ -124,8 +124,8 @@ the contract that is tested and verified. `## Plan` moves out of the ticket into
 6. **Write back** the understanding, separating what the owner said from what the agent assumed.
 7. **Audit once.** `accord-auditor`, in a fresh context reading only the ticket, tries to find two
    different readings of each acceptance criterion. A criterion with two readings goes back to the owner.
-8. **The owner's yes.** The agent shows `## Intent` and the acceptance criteria block verbatim, copied from the
-   ticket file and never summarised, and takes an explicit yes before `accord-architect` runs. The yes is recorded
+8. **The owner's yes.** The agent shows the output of `accord show <id> --approval`, pasted unchanged, followed by its
+   plain-words lines, instead of text copied verbatim from the ticket file, and takes an explicit yes before `accord-architect` runs. The yes is recorded
    by quoting the owner's answer in the ticket's commit message, with no new field or gate; a no is written under
    `## Corrections` and the text is shown again.
 
@@ -227,8 +227,8 @@ The intent therefore never has to be remembered; it is re-read.
    For a ticket that touches auth, money, migration, or data deletion, the risks include the critic's three
    failure scenarios and how each is undone. If the owner picks another option, the critic runs on it
    (step 3) and the brief is rewritten before the owner is asked again.
-   The owner's yes is asked on `## Approach` and every other approved section, each shown verbatim from
-   the ticket file and never summarised.
+   The owner's yes is asked on `## Approach` and every other approved section, shown as the output of
+   `accord show <id> --approval`, pasted unchanged and followed by the agent's plain-words lines.
    Approval runs `accord approve`; `accord gate ready` then requires intent, criteria, and approach.
 
 ### Plan (machine-facing; the owner does not need to read it)

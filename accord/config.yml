@@ -24,3 +24,8 @@ people:
   "luan.ngothanh@zenenterprise.com.au": LN
 # Ids created before the convention.
 legacy_ids: [ASK-1, BASE-1, IDS-1, README-1, REFS-1, SHOW-1, STALE-1, TAGS-1, VID-1]
+# Run in order in each new ticket worktree (ST-LN-7 D-07): the build links the workspace bin the hooks call.
+setup:
+  - npm ci
+  - npm run build
+  - npm rebuild @accord-dev/accord --ignore-scripts

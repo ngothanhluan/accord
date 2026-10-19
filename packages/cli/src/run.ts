@@ -23,6 +23,7 @@ import { skills } from './commands/skills.js';
 import { status } from './commands/status.js';
 import { taskDone } from './commands/task-done.js';
 import { testsBaseline } from './commands/tests-baseline.js';
+import { worktreeClean, worktreeOpen } from './commands/worktree.js';
 import { loadClaimView, loadFromFs, UsageError } from './load/fs.js';
 import { pinMessage } from './pin.js';
 import { repoRoot } from './root.js';
@@ -168,7 +169,8 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
         .default('story'),
     )
     .addOption(new Option('--lane <lane>', 'write a lane ticket (M, L, or P)').choices(['M', 'L', 'P']))
-    .action((id: string | undefined, options: { type: 'epic' | 'story' | 'bug'; lane?: 'M' | 'L' | 'P' }) => {
+    .option('--worktree', 'write the ticket in its own new worktree on its claim branch, commit and push it, then run setup there')
+    .action((id: string | undefined, options: { type: 'epic' | 'story' | 'bug'; lane?: 'M' | 'L' | 'P'; worktree?: boolean }) => {
       setCode(newTicket(preflight(opts), id, options));
     });
 
@@ -192,6 +194,21 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .description('write accord/tests-baseline.txt from the untraced cases in the report, once')
     .action(() => {
       setCode(testsBaseline(preflight(opts)));
+    });
+
+  const worktree = program.command('worktree').description('work each ticket in its own git worktree');
+  worktree
+    .command('clean')
+    .description('fetch, then remove the worktrees of merged tickets and name the ones kept')
+    .action(() => {
+      setCode(worktreeClean(preflight(opts)));
+    });
+  worktree
+    .command('open <id>')
+    .description("find or prepare the ticket's worktree, or take its hold from inside it")
+    .option('--continue', 'continue a claimed ticket: never claim, refuse when it has no branch')
+    .action((id: string, o: { continue?: boolean }) => {
+      setCode(worktreeOpen(preflight(opts), id, { continue: o.continue === true }));
     });
 
   program
@@ -230,9 +247,10 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
 
   program
     .command('show <id>')
-    .description('print one lane ticket in full: its row facts, Intent, and each criterion with its state')
+    .description('print one ticket: with --approval its approved sections, otherwise the row facts of a lane ticket, Intent, and each criterion with its state')
     .option('--json', 'print the TicketDetail object instead of text')
-    .action((id: string, options: { json?: boolean }) => {
+    .addOption(new Option('--approval', "print the approved sections for the owner's yes, criteria compacted").conflicts('json'))
+    .action((id: string, options: { json?: boolean; approval?: boolean }) => {
       setCode(show(preflight(opts, 'claims'), id, options));
     });
 

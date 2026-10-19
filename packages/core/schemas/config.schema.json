@@ -99,6 +99,10 @@
         { "pattern": "^(?!.*\\.lock(?:/|$))" },
         { "pattern": "^(?:t/\\{id\\}$|(?!t/))" }
       ]
+    },
+    "setup": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
     }
   }
 }

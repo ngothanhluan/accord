@@ -19,3 +19,25 @@ export function colourFindings(text: string, stream: NodeJS.WritableStream): str
     })
     .join('\n');
 }
+
+const STEP = /^- (Given|When|Then|And|But)(?= )/;
+
+// Headings cyan; in the criteria part, step keywords green and ac-n ids yellow. Escapes only wrap text, so
+// stripping them gives back the colour-off view.
+export function colourApproval(text: string, stream: NodeJS.WritableStream): string {
+  let criteria = false;
+  return text
+    .split('\n')
+    .map((line) => {
+      if (line.startsWith('## ')) {
+        criteria = line === '## Acceptance criteria';
+        return styleText('cyan', line, { stream });
+      }
+      if (!criteria) return line;
+      const m = STEP.exec(line);
+      const rest = m === null ? line : '- ' + styleText('green', m[1] ?? '', { stream }) + line.slice(m[0].length);
+      // The id pattern must skip the escape codes just added: they hold no "ac-".
+      return rest.replace(/\bac-[1-9][0-9]*\b/g, (id) => styleText('yellow', id, { stream }));
+    })
+    .join('\n');
+}

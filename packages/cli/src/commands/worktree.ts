@@ -290,7 +290,26 @@ function gitNoPrompt(cwd: string, args: string[]): void {
 
 const firstLine = (e: unknown) => String((e as { stderr?: string }).stderr ?? e).trim().split('\n')[0];
 
-/** D-05, D-16: fetch, then remove each merged ticket worktree with plain `git worktree remove`, naming what is removed or kept. */
+/** ST-LN-20 D-05: after a good fetch, prune origin's stale refs (remote-tracking, and tags a fetch refspec maps), naming each with its full sha (it can be the last copy of an unmerged branch). */
+function pruneStale(ctx: CommandContext): void {
+  const refs = () => git(ctx.root, ['for-each-ref', '--format=%(objectname) %(refname)']).split('\n').filter((r) => r !== '');
+  const before = refs();
+  try {
+    gitNoPrompt(ctx.root, ['remote', 'prune', 'origin']);
+  } catch (e) {
+    ctx.stdout.write(`prune of origin failed: ${firstLine(e)}
+`);
+  }
+  const left = new Set(refs());
+  for (const r of before) {
+    if (left.has(r)) continue;
+    const cut = r.indexOf(' ');
+    ctx.stdout.write(`pruned ${r.slice(cut + 1)} (was ${r.slice(0, cut)})
+`);
+  }
+}
+
+/** D-05, D-16: fetch, prune stale remote refs, then remove each merged ticket worktree with plain `git worktree remove`, then (ST-LN-20 D-02, D-03) delete every merged ticket branch, naming what is removed, deleted or kept. */
 export function worktreeClean(ctx: CommandContext): number {
   const list = worktrees(ctx.root, ctx.stdout);
   const templates = ctx.snapshot.branchTemplates ?? [DEFAULT_BRANCH_TEMPLATE];
@@ -298,9 +317,10 @@ export function worktreeClean(ctx: CommandContext): number {
     const id = w.branch === undefined ? undefined : ticketOfBranch(w.branch, templates, (i) => Object.hasOwn(ctx.snapshot.tickets, i));
     return id === undefined ? [] : [{ w, id }];
   });
-  if (cands.length === 0 || !gitOk(ctx.root, ['remote', 'get-url', 'origin'])) return 0;
+  if (!gitOk(ctx.root, ['remote', 'get-url', 'origin'])) return 0;
   try {
-    gitNoPrompt(ctx.root, ['fetch', 'origin']);
+    gitNoPrompt(ctx.root, ['fetch', '--no-prune', 'origin']);
+    pruneStale(ctx);
   } catch (e) {
     ctx.stdout.write(`fetch from origin failed, judging against the refs already in this clone: ${firstLine(e)}
 `);
@@ -377,6 +397,30 @@ export function worktreeClean(ctx: CommandContext): number {
       }
     } catch (e) {
       ctx.stdout.write(`kept ${w.path}: could not be judged: ${firstLine(e instanceof UsageError ? e.message : e)}
+`);
+    }
+  }
+  // ST-LN-20: a branch is merged when its tip is an ancestor of the fetched remote main (never local main or HEAD), so -D is safe.
+  const after = worktrees(ctx.root, ctx.stdout);
+  for (const row of git(ctx.root, ['for-each-ref', '--format=%(objectname) %(refname)', 'refs/heads']).split('\n')) {
+    const cut = row.indexOf(' ');
+    if (cut < 0) continue;
+    const sha = row.slice(0, cut);
+    const name = row.slice(cut + 1 + 'refs/heads/'.length);
+    if (ticketOfBranch(name, templates, (i) => Object.hasOwn(ctx.snapshot.tickets, i)) === undefined) continue;
+    if (!gitOk(ctx.root, ['merge-base', '--is-ancestor', sha, ref])) continue;
+    const at = after.find((x) => x.branch === name);
+    if (at !== undefined) {
+      ctx.stdout.write(`kept ${name}: checked out in ${at.path}
+`);
+      continue;
+    }
+    try {
+      execFileSync('git', ['branch', '-D', name], { cwd: ctx.root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+      ctx.stdout.write(`deleted ${name} (was ${sha})
+`);
+    } catch (e) {
+      ctx.stdout.write(`kept ${name}: could not be judged: ${firstLine(e)}
 `);
     }
   }

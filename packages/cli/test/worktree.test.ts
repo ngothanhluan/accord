@@ -317,6 +317,17 @@ function mergeOnRemote(c: Clone, ...ids: string[]) {
   gitRun(other, 'push', '-q', 'origin', 'main');
 }
 
+/** A branch `t/<id>` with one commit, pushed and tracking `origin/t/<id>`, no worktree. */
+function ticketBranch(c: Clone, id: string) {
+  c.git('switch', '-q', '-c', `t/${id}`, 'main');
+  writeFiles(c.root, { [`${id}.txt`]: id + '\n' });
+  c.git('add', '-A');
+  c.git('commit', '-q', '-m', id);
+  c.git('push', '-q', '-u', 'origin', `t/${id}`);
+  c.git('switch', '-q', 'main');
+}
+const sha = (c: Clone, ref: string) => c.git('rev-parse', ref).trim();
+
 it('ac-5 bare accord fetches then removes merged worktrees and names what it keeps', async () => {
   const c = clone({ tickets: ['ST-9', 'ST-10', 'ST-11', 'ST-12'] });
   for (const id of ['ST-9', 'ST-10', 'ST-11', 'ST-12']) ticketWorktree(c, id);
@@ -330,13 +341,21 @@ it('ac-5 bare accord fetches then removes merged worktrees and names what it kee
     { pid: 4242, ppid: 1, start: 'S2' },
   ]);
   const before = c.git('rev-parse', 'origin/main').trim();
+  const sha9 = sha(c, 't/ST-9');
   const { code, out } = await run(['worktree', 'clean'], c.root, {});
   expect(code).toBe(0);
   expect(c.git('rev-parse', 'origin/main').trim()).not.toBe(before);
   expect(c.git('rev-parse', 'origin/main').trim()).toBe(gitRun(c.remote, 'rev-parse', 'main').trim());
   expect(existsSync(c.sibling('ST-9'))).toBe(false);
   expect(lines(out).sort()).toEqual(
-    [`removed ${c.sibling('ST-9')}`, `kept ${c.sibling('ST-10')}: uncommitted work`, `kept ${c.sibling('ST-12')}: held by another session`].sort(),
+    [
+      `removed ${c.sibling('ST-9')}`,
+      `kept ${c.sibling('ST-10')}: uncommitted work`,
+      `kept ${c.sibling('ST-12')}: held by another session`,
+      `deleted t/ST-9 (was ${sha9})`,
+      `kept t/ST-10: checked out in ${c.sibling('ST-10')}`,
+      `kept t/ST-12: checked out in ${c.sibling('ST-12')}`,
+    ].sort(),
   );
   expect(existsSync(`${c.sibling('ST-10')}/new.txt`)).toBe(true);
   expect(existsSync(c.sibling('ST-11'))).toBe(true);
@@ -353,7 +372,8 @@ it('risk:complex-branching a failed fetch is said and the refs in the clone are 
   const l = lines(out);
   expect(l[0].startsWith('fetch from origin failed, judging against the refs already in this clone')).toBe(true);
   expect(l[1]).toBe(`removed ${c.sibling('ST-9')}`);
-  expect(l).toHaveLength(2);
+  expect(l).toHaveLength(3);
+  expect(l[2]).toBe(`deleted t/ST-9 (was ${sha(c, 'origin/main')})`);
 
   const d = clone();
   d.git('worktree', 'add', '-q', '-b', 't/ST-9', d.sibling('ST-9'), 'origin/main');
@@ -361,7 +381,9 @@ it('risk:complex-branching a failed fetch is said and the refs in the clone are 
   expect((await run(['worktree', 'clean'], d.root, {})).out).toBe('');
   const e = clone();
   e.git('remote', 'set-url', 'origin', e.remote + '-missing');
-  expect((await run(['worktree', 'clean'], e.root, {})).out).toBe('');
+  const eOut = lines((await run(['worktree', 'clean'], e.root, {})).out);
+  expect(eOut).toHaveLength(1);
+  expect(eOut[0].startsWith('fetch from origin failed, judging against the refs already in this clone')).toBe(true);
 });
 
 it('risk:data-loss clean keeps unpushed commits and new files that git status config would hide', async () => {
@@ -376,7 +398,7 @@ it('risk:data-loss clean keeps unpushed commits and new files that git status co
   writeFileSync(`${c.sibling('ST-10')}/new.txt`, 'new');
   const { code, out } = await run(['worktree', 'clean'], c.root, {});
   expect(code).toBe(0);
-  expect(lines(out)).toEqual([`kept ${c.sibling('ST-10')}: uncommitted work`]);
+  expect(lines(out)).toEqual([`kept ${c.sibling('ST-10')}: uncommitted work`, `kept t/ST-10: checked out in ${c.sibling('ST-10')}`]);
   expect(existsSync(`${c.sibling('ST-10')}/new.txt`)).toBe(true);
   expect(existsSync(c.sibling('ST-9'))).toBe(true);
 
@@ -384,7 +406,7 @@ it('risk:data-loss clean keeps unpushed commits and new files that git status co
   ticketWorktree(d, 'ST-9');
   mergeOnRemote(d, 'ST-9');
   const r = await run(['worktree', 'clean'], d.sibling('ST-9'), {});
-  expect(lines(r.out)).toEqual([`kept ${d.sibling('ST-9')}: this session's worktree`]);
+  expect(lines(r.out)).toEqual([`kept ${d.sibling('ST-9')}: this session's worktree`, `kept t/ST-9: checked out in ${d.sibling('ST-9')}`]);
   expect(existsSync(d.sibling('ST-9'))).toBe(true);
 });
 
@@ -397,8 +419,9 @@ it('risk:complex-branching a worktree remove that fails is named truthfully', as
   c.git('worktree', 'lock', c.sibling('ST-9'));
   const r = await run(['worktree', 'clean'], c.root, {});
   expect(r.code).toBe(0);
-  expect(lines(r.out)).toHaveLength(1);
+  expect(lines(r.out)).toHaveLength(2);
   expect(r.out.startsWith(`kept ${c.sibling('ST-9')}: git worktree remove failed: `)).toBe(true);
+  expect(lines(r.out)[1]).toBe(`kept t/ST-9: checked out in ${c.sibling('ST-9')}`);
   expect(c.git('worktree', 'list', '--porcelain')).toContain(`worktree ${c.sibling('ST-9')}\n`);
   expect(Object.keys(readHolds(c))).toEqual(['ST-9']);
 
@@ -409,11 +432,13 @@ it('risk:complex-branching a worktree remove that fails is named truthfully', as
   writeHolds(d, { 'ST-9': DEAD });
   vi.mocked(proc.processTable).mockReturnValue([{ pid: process.pid, ppid: 1, start: 'self' }]);
   chmodSync(`${d.sibling('ST-9')}/sub`, 0o555);
+  const sha9d = sha(d, 't/ST-9');
   try {
     const q = await run(['worktree', 'clean'], d.root, {});
-    expect(lines(q.out)).toHaveLength(1);
+    expect(lines(q.out)).toHaveLength(2);
+    expect(lines(q.out)[1]).toBe(`deleted t/ST-9 (was ${sha9d})`);
     expect(q.out.startsWith(`removed ${d.sibling('ST-9')} in part: git worktree remove failed: `)).toBe(true);
-    expect(q.out.trimEnd().endsWith(' - delete what is left of the folder by hand')).toBe(true);
+    expect(lines(q.out)[0]!.endsWith(' - delete what is left of the folder by hand')).toBe(true);
     expect(d.git('worktree', 'list', '--porcelain')).not.toContain(d.sibling('ST-9'));
     expect(Object.keys(readHolds(d))).toEqual([]);
   } finally {
@@ -426,12 +451,18 @@ it('risk:complex-branching clean prunes a worktree whose folder was deleted by h
   for (const id of ['ST-9', 'ST-10']) c.git('worktree', 'add', '-q', '-b', `t/${id}`, c.sibling(id), 'origin/main');
   rmSync(c.sibling('ST-9'), { recursive: true, force: true });
   const reason = /^prunable (.*)$/m.exec(c.git('worktree', 'list', '--porcelain'))?.[1] ?? 'no reason given';
+  const base = sha(c, 'origin/main');
   const { code, out } = await run(['worktree', 'clean'], c.root, {});
   expect(code).toBe(0);
-  expect(lines(out)).toEqual([`pruned ${c.sibling('ST-9')}: ${reason}`, `removed ${c.sibling('ST-10')}`]);
+  expect(lines(out)).toEqual([
+    `pruned ${c.sibling('ST-9')}: ${reason}`,
+    `removed ${c.sibling('ST-10')}`,
+    `deleted t/ST-10 (was ${base})`,
+    `deleted t/ST-9 (was ${base})`,
+  ]);
   expect(out).not.toContain('repair');
   expect(c.git('worktree', 'list', '--porcelain')).not.toMatch(/^prunable/m);
-  expect(c.git('rev-parse', '--verify', '-q', 'refs/heads/t/ST-9').trim()).not.toBe('');
+  expect(() => c.git('rev-parse', '--verify', '-q', 'refs/heads/t/ST-9')).toThrow();
 });
 
 it('ac-6 a new lane m ticket gets its own worktree with the ticket committed and pushed', async () => {
@@ -574,8 +605,11 @@ it('risk:data-loss a stale holds lock keeps a merged clean worktree, names it, a
   expect(code).toBe(0);
   expect(existsSync(c.sibling('ST-9'))).toBe(true);
   expect(existsSync(c.sibling('ST-10'))).toBe(true);
-  expect(lines(out)).toHaveLength(2);
-  for (const id of ['ST-9', 'ST-10']) expect(out).toContain(`kept ${c.sibling(id)}: `);
+  expect(lines(out)).toHaveLength(4);
+  for (const id of ['ST-9', 'ST-10']) {
+    expect(out).toContain(`kept ${c.sibling(id)}: `);
+    expect(out).toContain(`kept t/${id}: checked out in ${c.sibling(id)}`);
+  }
   expect(out).toContain('holds.lock');
   rmSync(`${c.root}/.git/accord/holds.lock`);
   writeFileSync(`${c.root}/.git/accord/holds`, '[]');
@@ -651,4 +685,188 @@ it('risk:complex-branching pick up refuses a branch another person claimed and r
   expect(r.code).toBe(2);
   expect(r.err.startsWith('claimed: ST-9 by y@example.invalid')).toBe(true);
   expect(entries(c)).toHaveLength(3);
+});
+
+it('ac-1 bare accord deletes merged ticket branches with or without a worktree and names the checked out one it keeps', async () => {
+  const c = clone({ tickets: ['ST-9', 'ST-10', 'ST-11', 'ST-12'] });
+  for (const id of ['ST-9', 'ST-11', 'ST-12']) ticketBranch(c, id);
+  ticketWorktree(c, 'ST-10');
+  mergeOnRemote(c, 'ST-9', 'ST-10', 'ST-12');
+  c.git('switch', '-q', 't/ST-12');
+  const sha9 = sha(c, 't/ST-9');
+  const sha10 = sha(c, 't/ST-10');
+  const { code, out } = await run(['worktree', 'clean'], c.root, {});
+  expect(code).toBe(0);
+  expect(lines(out).sort()).toEqual(
+    [`removed ${c.sibling('ST-10')}`, `deleted t/ST-9 (was ${sha9})`, `deleted t/ST-10 (was ${sha10})`, `kept t/ST-12: checked out in ${c.root}`].sort(),
+  );
+  expect(() => c.git('rev-parse', '--verify', '-q', 'refs/heads/t/ST-9')).toThrow();
+  expect(() => c.git('rev-parse', '--verify', '-q', 'refs/heads/t/ST-10')).toThrow();
+  expect(sha(c, 't/ST-11')).not.toBe('');
+  expect(sha(c, 't/ST-12')).not.toBe('');
+  expect(out).not.toContain('t/ST-11');
+  expect(c.git('branch', '--show-current').trim()).toBe('t/ST-12');
+});
+
+it('ac-2 a merged branch whose remote branch is gone is deleted from another ticket branch with a stale local main', async () => {
+  const c = clone();
+  ticketBranch(c, 'ST-9');
+  c.git('switch', '-q', '-c', 't/ST-20', 'main');
+  writeFiles(c.root, { 'ST-20.txt': 'x\n' });
+  c.git('add', '-A');
+  c.git('commit', '-q', '-m', 'ST-20');
+  mergeOnRemote(c, 'ST-9');
+  gitRun(c.remote, 'branch', '-D', 't/ST-9');
+  c.git('update-ref', '-d', 'refs/remotes/origin/t/ST-9');
+  const sha9 = sha(c, 't/ST-9');
+  const mainBefore = sha(c, 'main');
+  expect(c.git('config', 'branch.t/ST-9.merge').trim()).toBe('refs/heads/t/ST-9');
+  expect(c.git('config', 'branch.t/ST-9.remote').trim()).toBe('origin');
+  expect(() => c.git('rev-parse', '--verify', '-q', 'refs/remotes/origin/t/ST-9')).toThrow();
+  expect(() => c.git('merge-base', '--is-ancestor', sha9, 'main')).toThrow();
+  expect(() => c.git('merge-base', '--is-ancestor', sha9, 'HEAD')).toThrow();
+  const { code, out } = await run(['worktree', 'clean'], c.root, {});
+  expect(code).toBe(0);
+  expect(lines(out)).toEqual([`deleted t/ST-9 (was ${sha9})`]);
+  expect(() => c.git('rev-parse', '--verify', '-q', 'refs/heads/t/ST-9')).toThrow();
+  expect(sha(c, 'main')).toBe(mainBefore);
+  expect(c.git('branch', '--show-current').trim()).toBe('t/ST-20');
+});
+
+it('ac-3 a ticket branch with a commit not on the remote main is kept and not named', async () => {
+  const c = clone();
+  ticketBranch(c, 'ST-9');
+  mergeOnRemote(c, 'ST-9');
+  c.git('switch', '-q', 't/ST-9');
+  writeFiles(c.root, { 'after.txt': 'x\n' });
+  c.git('add', '-A');
+  c.git('commit', '-q', '-m', 'after');
+  const extra = sha(c, 'HEAD');
+  c.git('switch', '-q', 'main');
+  const { code, out } = await run(['worktree', 'clean'], c.root, {});
+  expect(code).toBe(0);
+  expect(lines(out)).toEqual([]);
+  expect(sha(c, 't/ST-9')).toBe(extra);
+});
+
+it('risk:data-loss a merged branch the ticket branch template does not name is never deleted', async () => {
+  const c = clone();
+  c.git('branch', 'backlog/notes', 'main');
+  c.git('branch', 't/ST-9', 'main');
+  const base = sha(c, 'main');
+  const { code, out } = await run(['worktree', 'clean'], c.root, {});
+  expect(code).toBe(0);
+  expect(lines(out)).toEqual([`deleted t/ST-9 (was ${base})`]);
+  expect(sha(c, 'backlog/notes')).toBe(base);
+  expect(sha(c, 'main')).toBe(base);
+});
+
+it('risk:complex-branching a branch git refuses to delete is kept with git message and the others still go', async () => {
+  const c = clone();
+  c.git('branch', 't/ST-1', 'main');
+  c.git('branch', 't/ST-2', 'main');
+  const base = sha(c, 'main');
+  mkdirSync(`${c.root}/.git/refs/heads/t`, { recursive: true });
+  writeFileSync(`${c.root}/.git/refs/heads/t/ST-1.lock`, '');
+  const { code, out } = await run(['worktree', 'clean'], c.root, {});
+  expect(code).toBe(0);
+  const l = lines(out);
+  expect(l).toHaveLength(2);
+  expect(l[0].startsWith('kept t/ST-1: could not be judged: ')).toBe(true);
+  expect(l[0].length).toBeGreaterThan('kept t/ST-1: could not be judged: '.length);
+  expect(l[1]).toBe(`deleted t/ST-2 (was ${base})`);
+  expect(sha(c, 't/ST-1')).toBe(base);
+});
+
+it('ac-4 stale remote refs are pruned after a good fetch and a failed fetch prunes nothing', async () => {
+  const stale = (c: Clone) => {
+    c.git('push', '-q', 'origin', 'main:refs/heads/t/ST-9', 'main:refs/heads/backlog/notes');
+    c.git('fetch', '-q', 'origin');
+    const r = c.git('branch', '-r');
+    expect(r).toContain('origin/t/ST-9');
+    expect(r).toContain('origin/backlog/notes');
+    gitRun(c.remote, 'branch', '-D', 't/ST-9', 'backlog/notes');
+  };
+  const c = clone();
+  stale(c);
+  const main = sha(c, 'main');
+  const good = await run(['worktree', 'clean'], c.root, {});
+  expect(good.code).toBe(0);
+  const r = c.git('branch', '-r');
+  expect(r).not.toContain('origin/t/ST-9');
+  expect(r).not.toContain('origin/backlog/notes');
+  expect(r).toContain('origin/main');
+  expect(lines(good.out)).toEqual([
+    `pruned refs/remotes/origin/backlog/notes (was ${main})`,
+    `pruned refs/remotes/origin/t/ST-9 (was ${main})`,
+  ]);
+
+  const d = clone();
+  stale(d);
+  d.git('branch', 't/ST-9', 'origin/t/ST-9');
+  const tip = sha(d, 'origin/main');
+  d.git('remote', 'set-url', 'origin', d.remote + '-missing');
+  const bad = await run(['worktree', 'clean'], d.root, {});
+  expect(bad.code).toBe(0);
+  const l = lines(bad.out);
+  expect(l).toHaveLength(2);
+  expect(l[0].startsWith('fetch from origin failed, judging against the refs already in this clone')).toBe(true);
+  expect(l[1]).toBe(`deleted t/ST-9 (was ${tip})`);
+  const r2 = d.git('branch', '-r');
+  expect(r2).toContain('origin/t/ST-9');
+  expect(r2).toContain('origin/backlog/notes');
+});
+
+it('risk:data-loss a prune setting cannot prune before the fetch and the pruned ref is named with its sha', async () => {
+  const c = clone();
+  c.git('switch', '-q', '-c', 't/ST-9', 'main');
+  writeFiles(c.root, { 'ST-9.txt': 'x\n' });
+  c.git('add', '-A');
+  c.git('commit', '-q', '-m', 'ST-9');
+  c.git('push', '-q', 'origin', 't/ST-9');
+  const tip = sha(c, 'HEAD');
+  c.git('switch', '-q', 'main');
+  c.git('branch', '-D', 't/ST-9');
+  c.git('config', 'remote.origin.prune', 'true');
+  gitRun(c.remote, 'branch', '-D', 't/ST-9');
+  const { code, out } = await run(['worktree', 'clean'], c.root, {});
+  expect(code).toBe(0);
+  expect(lines(out)).toEqual([`pruned refs/remotes/origin/t/ST-9 (was ${tip})`]);
+  c.git('cat-file', '-e', tip);
+});
+
+it('risk:data-loss a failed prune says only that the prune failed and still names each ref it removed', async () => {
+  const c = clone();
+  c.git('push', '-q', 'origin', 'main:refs/heads/t/ST-9', 'main:refs/heads/backlog/notes');
+  c.git('fetch', '-q', 'origin');
+  gitRun(c.remote, 'branch', '-D', 't/ST-9', 'backlog/notes');
+  writeFiles(c.root, { '.git/refs/remotes/origin/t/ST-9.lock': '' });
+  const main = sha(c, 'main');
+  const { code, out } = await run(['worktree', 'clean'], c.root, {});
+  expect(code).toBe(0);
+  const l = lines(out);
+  const failed = l.filter((x) => x.startsWith('prune of origin failed'));
+  expect(failed).toHaveLength(1);
+  expect(failed[0].startsWith('prune of origin failed: ')).toBe(true);
+  expect(failed[0]).not.toContain('stale remote refs are kept');
+  const left = c.git('branch', '-r');
+  for (const [b, ref] of [['t/ST-9', 'refs/remotes/origin/t/ST-9'], ['backlog/notes', 'refs/remotes/origin/backlog/notes']] as const) {
+    const named = l.includes(`pruned ${ref} (was ${main})`);
+    expect(named).toBe(!left.includes(`origin/${b}`));
+  }
+});
+
+it('risk:data-loss a local-only tag that the fetch refspecs map is named with its sha when the prune removes it', async () => {
+  const c = clone();
+  c.git('config', '--add', 'remote.origin.fetch', '+refs/tags/*:refs/tags/*');
+  c.git('switch', '-q', '--detach', 'main');
+  writeFiles(c.root, { 'mine.txt': 'x\n' });
+  c.git('add', '-A');
+  c.git('commit', '-q', '-m', 'mine');
+  c.git('tag', 'mine');
+  const tip = sha(c, 'mine');
+  c.git('switch', '-q', 'main');
+  const { code, out } = await run(['worktree', 'clean'], c.root, {});
+  expect(code).toBe(0);
+  expect(lines(out)).toEqual([`pruned refs/tags/mine (was ${tip})`]);
 });

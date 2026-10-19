@@ -92,10 +92,11 @@ export async function run(
   argv: string[],
   cwd: string,
   env: NodeJS.ProcessEnv = {},
+  stdin?: string,
 ): Promise<{ code: number; out: string; err: string }> {
   const stdout = new PassThrough();
   const stderr = new PassThrough();
-  const code = await runCli(argv, { cwd, stdout, stderr, env });
+  const code = await runCli(argv, { cwd, stdout, stderr, env, ...(stdin === undefined ? {} : { stdin }) });
   return { code, out: String(stdout.read() ?? ''), err: String(stderr.read() ?? '') };
 }
 

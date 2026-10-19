@@ -312,6 +312,11 @@ export function worksMessage(w: Works, mainPath: string): string {
     : `this session works ${w.id}: open a new session in the main checkout ${mainPath} for other work, or type a request about ${w.id} without "/accord" - nothing was changed`;
 }
 
+/** The continue a session that works `w` may run: its own ticket, or, with no readable branch, the ticket whose sibling folder it is in. */
+export function guardAllowsContinue(w: Works, mainPath: string, cont: string): boolean {
+  return w.id === cont || (w.id === undefined && norm(siblingOf(mainPath, cont)) === norm(w.top));
+}
+
 /** D-02, D-06, D-09: a Claude Code session that works a ticket is refused any other; `cont` names the ticket a continue asks for. */
 export function guardTicketSession(ctx: CommandContext, cont?: string): void {
   const s = inClaude(ctx.env);
@@ -319,7 +324,7 @@ export function guardTicketSession(ctx: CommandContext, cont?: string): void {
   const w = worksTicket(ctx.root, s.marker, ctx.snapshot);
   if (w === undefined) return;
   const mainPath = listWorktrees(ctx.root)[0].path;
-  if (cont !== undefined && (w.id === cont || (w.id === undefined && norm(siblingOf(mainPath, cont)) === norm(w.top)))) return;
+  if (cont !== undefined && guardAllowsContinue(w, mainPath, cont)) return;
   throw new UsageError(worksMessage(w, mainPath));
 }
 

@@ -35,6 +35,7 @@ export interface RunOptions {
   // Declared now although only the tracker adapter reads it, so adding that adapter does not reopen
   // this file or change the shape every test constructs.
   env?: NodeJS.ProcessEnv;
+  stdin?: string; // only `hook` reads it (index.ts)
 }
 
 export interface CommandContext {
@@ -44,6 +45,7 @@ export interface CommandContext {
   stdout: NodeJS.WritableStream;
   stderr: NodeJS.WritableStream;
   env: NodeJS.ProcessEnv;
+  stdin?: string;
 }
 
 /**
@@ -62,7 +64,7 @@ function preflight(opts: RunOptions, mode: 'checkout' | 'stage' | 'claims' = 'ch
     const message = pinMessage(snapshot.config.accord, pkg.version);
     if (message !== undefined) throw new UsageError(message);
   }
-  return { root, snapshot, ...(plain === undefined ? {} : { plain }), stdout: opts.stdout, stderr: opts.stderr, env: opts.env ?? {} };
+  return { root, snapshot, ...(plain === undefined ? {} : { plain }), stdout: opts.stdout, stderr: opts.stderr, env: opts.env ?? {}, ...(opts.stdin === undefined ? {} : { stdin: opts.stdin }) };
 }
 
 /**
@@ -266,6 +268,21 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .action((event: string) => {
       if (!(HOOK_EVENTS as readonly string[]).includes(event)) {
         throw new UsageError('unknown hook event ' + event + '; expected one of ' + HOOK_EVENTS.join(', '));
+      }
+      if (event === 'prompt-expansion') {
+        // The hook never blocks a prompt because of a broken repository (ledger Ruling): any failure to build
+        // the context is one stderr line and an allow.
+        let ctx: CommandContext;
+        try {
+          ctx = preflight(opts, 'stage');
+        } catch (e) {
+          opts.stderr.write(`accord hook prompt-expansion: ${(e instanceof Error ? e.message : String(e)).split('\n')[0]}; allowed`.replace(/\\/g, '/') + '\n');
+          opts.stdout.write('{}\n');
+          setCode(0);
+          return;
+        }
+        setCode(hook(ctx, event));
+        return;
       }
       setCode(hook(preflight(opts, 'stage'), event as (typeof HOOK_EVENTS)[number]));
     });

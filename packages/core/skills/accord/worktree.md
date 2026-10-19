@@ -1,0 +1,47 @@
+---
+kind: reference
+---
+
+# Working a ticket in its own worktree
+
+Only a session rooted in a ticket's worktree works that ticket, so no session ever switches tickets.
+
+For Continue, `accord worktree open <id> --continue` also finds a ticket whose file is only on its claim
+branch, here or on `origin`. When it exits 2 with a line starting `not a ticket:`, the text is a New
+request. A line starting `not claimed:` means nobody has claimed the ticket: say so, offer Pick up, and
+never claim it.
+
+When Pick up's `accord worktree open <id>` exits 2 with a line starting `claimed:`, another person
+holds the claim: push nothing, show the message and stop. Offer `/accord continue <id>` only when the
+owner means to work on the ticket with them. When `accord worktree open <id>` did not refuse with `claimed:`, push the claim with
+`git push -u origin <branch>` before anything else, even when a setup command failed.
+
+What `accord worktree open <id>` and `accord new ticket --worktree` print:
+
+- A line `pruned <path>: <reason>`: git dropped its record of a worktree whose folder is gone; show the
+  line verbatim and go on with the other lines.
+- A line `stop:`: show the two lines after it verbatim, the worktree's path and the line to type in a
+  session opened in that folder, then stop. Never change directory into the worktree, never edit a file
+  there except the people entry below, and never start the next stage from this session.
+- `held: <id> by this session`: this session holds the ticket; go on with the next step.
+- `not held:`: this tool does not refuse a second session yet; say so in one line and go on with the
+  next step.
+- Exit 2 naming the session that holds the ticket: show the message and stop, editing nothing.
+- Exit 2 naming a setup command: show the message and stop. The worktree is kept; once the owner fixes
+  the command, `/accord continue <id>` in a session opened there runs every setup command again.
+- Any other exit 2: show the message and stop.
+
+Setup commands can take minutes: run these commands with the longest timeout your tool allows.
+
+When `./ids.md` had you add an entry under `people` before `accord new ticket --worktree`, carry it to the
+worktree before you stop: add the same entry to `<path>/accord/config.yml`, run
+`git -C "<path>" commit -m "people: <email>" -- accord/config.yml` and
+`git -C "<path>" push -u origin <branch>`, then remove that entry, and only that entry, from
+`accord/config.yml` here, leaving every other line of the file as it is.
+
+When `accord new ticket --worktree` says the push failed, it prints no `stop:` line: carry any people
+entry as above, run the push it names, and once it succeeds, run `accord worktree open <id> --continue`
+and follow the `stop:` line it prints. When that push fails again, show git's message and stop.
+
+`accord worktree clean` runs only from `/accord` with no argument, never from Pick up or Continue. At the
+dashboard its lines are shown verbatim with the dashboard's.

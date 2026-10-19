@@ -143,7 +143,7 @@ describe('config.schema.json', () => {
 
   it('top-level properties are the six D-16 keys plus optional tests (D-72) review (spec §7), models, escalation, and stale_days', () => {
     const keys = ['accord', 'profile', 'tracker', 'design', 'roles', 'runtimes'];
-    expect(Object.keys(configSchema.properties)).toEqual([...keys, 'tests', 'review', 'models', 'escalation', 'stale_days', 'people', 'legacy_ids', 'branch']);
+    expect(Object.keys(configSchema.properties)).toEqual([...keys, 'tests', 'review', 'models', 'escalation', 'stale_days', 'people', 'legacy_ids', 'branch', 'setup']);
     expect(configSchema.required).toEqual(keys);
     for (const key of Object.keys(configSchema.properties)) {
       expect(key).not.toMatch(/key|token|secret|password/i);
@@ -155,6 +155,13 @@ describe('config.schema.json', () => {
     expect(has(validate('config', { ...minimal.config, accord: 1 }), '/accord', 'schema.type')).toBe(true);
     expect(has(validate('config', { ...minimal.config, accord: 'v0.1.0' }), '/accord', 'schema.pattern')).toBe(true);
   });
+});
+
+it('risk:parsing setup is a list of non-empty command strings', () => {
+  expect(validate('config', { ...minimal.config, setup: ['npm ci', 'npm run build'] })).toEqual([]);
+  expect(validate('config', { ...minimal.config, setup: [] })).toEqual([]);
+  expect(has(validate('config', { ...minimal.config, setup: 'npm ci' }), '/setup', 'schema.type')).toBe(true);
+  expect(has(validate('config', { ...minimal.config, setup: [''] }), '/setup/0', 'schema.minLength')).toBe(true);
 });
 
 describe('verification.schema.json', () => {

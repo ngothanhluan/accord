@@ -162,6 +162,7 @@ export interface AccordConfig {
   people?: Record<string, string>; // email -> 2 to 4 capital letters (IDS-1)
   legacy_ids?: string[]; // ticket ids exempt from the id convention (IDS-1)
   branch?: string; // claim branch template with exactly one {id}; absent means 't/{id}'
+  setup?: string[]; // D-07: commands run in order in a new worktree
 }
 
 export interface RepoSnapshot {

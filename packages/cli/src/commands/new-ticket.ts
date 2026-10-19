@@ -8,6 +8,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { initialsHolder, initialsOf, nextTicketId, setFrontmatterKey, templates } from '@accord-dev/accord-core';
 import { gitIsShallow, gitPeopleOnRefs, gitTicketIdsInHistory, gitUserEmail, UsageError } from '../load/fs.js';
+import { newTicketWorktree } from './worktree.js';
 import type { CommandContext } from '../run.js';
 
 // The ticket schema's own id pattern (packages/core/schemas/ticket.schema.json). Duplicated as a
@@ -18,7 +19,7 @@ const PLACEHOLDER = 'TICKET-ID';
 export function newTicket(
   ctx: CommandContext,
   givenId: string | undefined,
-  options: { type: 'epic' | 'story' | 'bug'; lane?: 'M' | 'L' | 'P' },
+  options: { type: 'epic' | 'story' | 'bug'; lane?: 'M' | 'L' | 'P'; worktree?: boolean },
 ): number {
   // An invalid `people` value leaves config undefined, which would read as the convention being off.
   let raw = '';
@@ -109,6 +110,10 @@ export function newTicket(
   // T-05-15: refusing is the behaviour, not an afterthought — a BA-authored ticket can never be
   // destroyed by a second `new ticket`. Exit 2: this is a usage error, not a gate verdict.
   if (existsSync(file)) throw new UsageError(rel + ' already exists - nothing was written');
+  if (options.worktree === true) {
+    newTicketWorktree(ctx, id, rel, text);
+    return 0;
+  }
   mkdirSync(join(ctx.root, 'accord', 'tickets'), { recursive: true });
   writeFileSync(file, text);
   ctx.stdout.write(rel + '\n');

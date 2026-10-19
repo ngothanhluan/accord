@@ -37,6 +37,7 @@
 - Ruling: Task 4, the prompt-expansion catch in run.ts writes its own stderr line (backslashes as /) and `{}` with exit 0 — a pin or repo failure never blocks `/accord`, as the plan says — cost if wrong: a broken repo lets a typed `/accord` through; the CLI refusals remain the backstop.
 - Ruling: Task 6's resume risk test matches its last line with `\naccord: `, not the plan's `\/accord: ` — the real session line is "accord: N in progress, ..." with no leading slash, so the plan's regex could never match — cost if wrong: none; the line itself is unchanged.
 - Ruling: Task 6 session-resume calls `activeTicket` with the root from stdin `cwd`, not `ctx.root` — the plan's case of resuming from the sibling folder needs it to print the anchor — cost if wrong: a resume hook whose stdin cwd differs from the process cwd anchors the stdin folder.
+- Ruling: Task 8, the session-start hook records the worked ticket before its own `claudeEnv` check, so a session missing its variables is still recorded and the hold attempt then writes its one `no hold taken` line — as the brief says — cost if wrong: such a session is kept on its ticket by the record without holding it.
 
 ## Deferred
 - plan-review 1.9 (Nice): worktree.md:7 "Only a session rooted in a ticket's worktree works that ticket" becomes false beside Task 7's new line.
@@ -55,3 +56,4 @@
 - task 5 done 227f0104f818
 - task 6 done 31be4f1fc93d
 - task 7 done d50407224854
+- task 8 done 1178222a2033

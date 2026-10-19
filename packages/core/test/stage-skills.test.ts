@@ -275,6 +275,41 @@ it('risk:regression the accord skill opens each ticket in its own worktree and c
   expect(slice(ids, '## Assigning', '## When your email')).toContain('adding `--worktree` when the lane is M');
 });
 
+it('risk:complex-branching the accord skill pushes then enters the worktree on enter and refuses other work in a ticket session', () => {
+  const get = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
+  const text = get('.claude/skills/accord/SKILL.md');
+  const ref = get('.claude/skills/accord/worktree.md');
+  const ids = get('.claude/skills/accord/ids.md');
+  const slice = (s: string, a: string, b: string) => s.slice(s.indexOf(a), s.indexOf(b));
+  const enter = slice(ref, '`enter: <path>`', '`held: <id> by this session`');
+  expect(enter.length).toBeGreaterThan(0);
+  const p = enter.indexOf('`git push -u origin <branch>`');
+  const q = enter.indexOf('people entry');
+  const e = enter.indexOf('EnterWorktree');
+  expect(p).toBeGreaterThan(-1);
+  expect(q).toBeGreaterThan(-1);
+  expect(e).toBeGreaterThan(-1);
+  expect(p).toBeLessThan(e);
+  expect(q).toBeLessThan(e);
+  for (const x of ['Continue step 2', '`/accord continue <id>` to retry', 'or close this session and open one in that folder', 'editing nothing'])
+    expect(enter).toContain(x);
+  expect(ref).toContain('Exit 2 starting `this session works`');
+  const setup = slice(ref, 'Exit 2 naming a setup command', 'Any other exit 2');
+  expect(setup).toContain('type `/accord continue <id>` again in this same session');
+  expect(setup).toContain('in a session opened there');
+  const i = text.indexOf('First run the session check in `./worktree.md`.');
+  expect(i).toBeGreaterThan(-1);
+  expect(i).toBeLessThan(text.indexOf('## Dashboard'));
+  expect(ref.indexOf('## Session check')).toBeGreaterThan(-1);
+  const check = ref.slice(ref.indexOf('## Session check'));
+  for (const x of ['`accord worktree check`', 'before the dashboard and before every New request', 'in every lane',
+    'a message that starts `this session works`', 'offer only Continue on that ticket', 'write, create, claim and edit nothing'])
+    expect(check).toContain(x);
+  const drop = ids.slice(ids.indexOf('## Dropping instead of renaming'));
+  expect(drop).toContain('`accord new ticket` is refused');
+  expect(drop).toContain('open a new session in the main checkout');
+});
+
 it('ac-1 the first plan critique is sized by the plan and a should only round reads the fix diff', () => {
   const flat = (t: string) => t.replace(/\s+/g, ' ');
   const skill = flat(files.find((f) => f.path === '.claude/skills/accord-plan/SKILL.md')?.text ?? '');

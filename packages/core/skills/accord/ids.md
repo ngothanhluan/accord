@@ -45,3 +45,6 @@ A ticket's type never changes and its id is never renamed. To change the type:
 5. In the copied sections, remove every `@test:<id>` tag from the scenarios and change the gherkin
    `Feature: <old id>` line to the new id.
 6. The owner approves the new ticket again.
+
+In a session that works the dropped ticket, `accord new ticket` is refused: commit step 1 there, then say to
+open a new session in the main checkout and do steps 2 to 6 there.

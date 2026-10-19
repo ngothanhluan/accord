@@ -6,6 +6,8 @@ kind: skill
 loads: [accord/ids.md, accord/worktree.md, shared/ask.md]
 ---
 
+First run the session check in `./worktree.md`.
+
 ## Dashboard: `/accord` with no argument
 
 1. Run `accord worktree clean`, then `accord dashboard`. It reads you from

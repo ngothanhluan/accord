@@ -58,7 +58,7 @@ Feature: ST-LN-27
     Then the same session's working directory becomes X's worktree folder and the session resumes X at the stage and step that "accord anchor" prints for X
     And no "stop:" line is shown and the owner opens no folder
 
-  @ac-3
+  @ac-3 @test:packages/cli/test/worktree.test.ts#ac-3-in-claude-code-a-new-lane-m-ticket-is-committed-pushed-and-held-and-prints-enter-instead-of-stop
   Scenario: A lane M new request moves the Claude Code session into the new ticket's worktree and goes on
     Given a Claude Code session started in the main checkout that works no ticket
     When the owner types "/accord <request>" and the request is classified lane M

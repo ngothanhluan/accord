@@ -41,7 +41,7 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: ST-LN-27
 
-  @ac-1
+  @ac-1 @test:packages/cli/test/worktree.test.ts#ac-1-in-claude-code-pick-up-from-the-main-checkout-takes-the-hold-and-prints-enter-instead-of-stop
   Scenario: Pick up moves the Claude Code session into the ticket's worktree and goes on
     Given a Claude Code session started in the main checkout that works no ticket
     And ticket X is ready to pick up
@@ -50,7 +50,7 @@ Feature: ST-LN-27
     And the same session's working directory becomes X's worktree folder and the session starts X at the stage and step that "accord anchor" prints for X
     And no "stop:" line is shown and the owner opens no folder
 
-  @ac-2
+  @ac-2 @test:packages/cli/test/worktree.test.ts#ac-2-in-claude-code-continue-from-the-main-checkout-enters-a-claimed-worktree-whose-session-ended-with-or-without-a-worktree-here
   Scenario: Continue moves the Claude Code session into a claimed ticket's worktree and goes on
     Given a Claude Code session started in the main checkout that works no ticket
     And ticket X is claimed, by anyone as today, whether or not its worktree exists on this machine, and the session that worked it has ended, closed or crashed, mid-stage or between stages

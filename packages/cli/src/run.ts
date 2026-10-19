@@ -199,7 +199,7 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
   const worktree = program.command('worktree').description('work each ticket in its own git worktree');
   worktree
     .command('clean')
-    .description('fetch, then remove the worktrees of merged tickets and name the ones kept')
+    .description('fetch, then remove the worktrees of merged tickets, delete merged ticket branches and prune stale remote refs, naming what is removed or kept')
     .action(() => {
       setCode(worktreeClean(preflight(opts)));
     });

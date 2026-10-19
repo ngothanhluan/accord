@@ -777,3 +777,60 @@ it('risk:complex-branching a branch git refuses to delete is kept with git messa
   expect(l[1]).toBe(`deleted t/ST-2 (was ${base})`);
   expect(sha(c, 't/ST-1')).toBe(base);
 });
+
+it('ac-4 stale remote refs are pruned after a good fetch and a failed fetch prunes nothing', async () => {
+  const stale = (c: Clone) => {
+    c.git('push', '-q', 'origin', 'main:refs/heads/t/ST-9', 'main:refs/heads/backlog/notes');
+    c.git('fetch', '-q', 'origin');
+    const r = c.git('branch', '-r');
+    expect(r).toContain('origin/t/ST-9');
+    expect(r).toContain('origin/backlog/notes');
+    gitRun(c.remote, 'branch', '-D', 't/ST-9', 'backlog/notes');
+  };
+  const c = clone();
+  stale(c);
+  const main = sha(c, 'main');
+  const good = await run(['worktree', 'clean'], c.root, {});
+  expect(good.code).toBe(0);
+  const r = c.git('branch', '-r');
+  expect(r).not.toContain('origin/t/ST-9');
+  expect(r).not.toContain('origin/backlog/notes');
+  expect(r).toContain('origin/main');
+  expect(lines(good.out)).toEqual([
+    `pruned refs/remotes/origin/backlog/notes (was ${main})`,
+    `pruned refs/remotes/origin/t/ST-9 (was ${main})`,
+  ]);
+
+  const d = clone();
+  stale(d);
+  d.git('branch', 't/ST-9', 'origin/t/ST-9');
+  const tip = sha(d, 'origin/main');
+  d.git('remote', 'set-url', 'origin', d.remote + '-missing');
+  const bad = await run(['worktree', 'clean'], d.root, {});
+  expect(bad.code).toBe(0);
+  const l = lines(bad.out);
+  expect(l).toHaveLength(2);
+  expect(l[0].startsWith('fetch from origin failed, judging against the refs already in this clone')).toBe(true);
+  expect(l[1]).toBe(`deleted t/ST-9 (was ${tip})`);
+  const r2 = d.git('branch', '-r');
+  expect(r2).toContain('origin/t/ST-9');
+  expect(r2).toContain('origin/backlog/notes');
+});
+
+it('risk:data-loss a prune setting cannot prune before the fetch and the pruned ref is named with its sha', async () => {
+  const c = clone();
+  c.git('switch', '-q', '-c', 't/ST-9', 'main');
+  writeFiles(c.root, { 'ST-9.txt': 'x\n' });
+  c.git('add', '-A');
+  c.git('commit', '-q', '-m', 'ST-9');
+  c.git('push', '-q', 'origin', 't/ST-9');
+  const tip = sha(c, 'HEAD');
+  c.git('switch', '-q', 'main');
+  c.git('branch', '-D', 't/ST-9');
+  c.git('config', 'remote.origin.prune', 'true');
+  gitRun(c.remote, 'branch', '-D', 't/ST-9');
+  const { code, out } = await run(['worktree', 'clean'], c.root, {});
+  expect(code).toBe(0);
+  expect(lines(out)).toEqual([`pruned refs/remotes/origin/t/ST-9 (was ${tip})`]);
+  c.git('cat-file', '-e', tip);
+});

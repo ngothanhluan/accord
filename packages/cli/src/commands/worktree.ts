@@ -290,7 +290,26 @@ function gitNoPrompt(cwd: string, args: string[]): void {
 
 const firstLine = (e: unknown) => String((e as { stderr?: string }).stderr ?? e).trim().split('\n')[0];
 
-/** D-05, D-16: fetch, then remove each merged ticket worktree with plain `git worktree remove`, then (ST-LN-20 D-02, D-03) delete every merged ticket branch, naming what is removed, deleted or kept. */
+/** ST-LN-20 D-05: after a good fetch, prune origin's stale remote-tracking refs, naming each with its full sha (it can be the last copy of an unmerged branch). */
+function pruneStale(ctx: CommandContext): void {
+  const refs = () => git(ctx.root, ['for-each-ref', '--format=%(objectname) %(refname)', 'refs/remotes/origin']).split('\n').filter((r) => r !== '');
+  const before = refs();
+  try {
+    gitNoPrompt(ctx.root, ['remote', 'prune', 'origin']);
+  } catch (e) {
+    ctx.stdout.write(`prune of origin failed, stale remote refs are kept: ${firstLine(e)}
+`);
+  }
+  const left = new Set(refs());
+  for (const r of before) {
+    if (left.has(r)) continue;
+    const cut = r.indexOf(' ');
+    ctx.stdout.write(`pruned ${r.slice(cut + 1)} (was ${r.slice(0, cut)})
+`);
+  }
+}
+
+/** D-05, D-16: fetch, prune stale remote refs, then remove each merged ticket worktree with plain `git worktree remove`, then (ST-LN-20 D-02, D-03) delete every merged ticket branch, naming what is removed, deleted or kept. */
 export function worktreeClean(ctx: CommandContext): number {
   const list = worktrees(ctx.root, ctx.stdout);
   const templates = ctx.snapshot.branchTemplates ?? [DEFAULT_BRANCH_TEMPLATE];
@@ -300,7 +319,8 @@ export function worktreeClean(ctx: CommandContext): number {
   });
   if (!gitOk(ctx.root, ['remote', 'get-url', 'origin'])) return 0;
   try {
-    gitNoPrompt(ctx.root, ['fetch', 'origin']);
+    gitNoPrompt(ctx.root, ['fetch', '--no-prune', 'origin']);
+    pruneStale(ctx);
   } catch (e) {
     ctx.stdout.write(`fetch from origin failed, judging against the refs already in this clone: ${firstLine(e)}
 `);

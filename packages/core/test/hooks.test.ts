@@ -42,3 +42,13 @@ describe('mergeHooks', () => {
     }
   });
 });
+
+it('risk:data-loss a re-sync replaces an older prompt expansion hook and keeps a foreign one', () => {
+  const entries = hookEntries({ name: '@accord-dev/accord', version: '0.2.0' });
+  const fresh = { matcher: 'accord', hooks: [{ type: 'command', command: 'npx --yes @accord-dev/accord@0.2.0 hook prompt-expansion' }] };
+  expect(entries.UserPromptExpansion).toEqual([fresh]);
+  const old = { hooks: { UserPromptExpansion: [{ matcher: 'accord', hooks: [{ type: 'command', command: 'npx --yes @accord-dev/accord@0.0.9 hook prompt-expansion' }, { type: 'command', command: 'echo hi' }] }] } };
+  const once = mergeHooks(old, entries);
+  expect((once.hooks as Record<string, unknown>).UserPromptExpansion).toEqual([{ matcher: 'accord', hooks: [{ type: 'command', command: 'echo hi' }] }, fresh]);
+  expect(mergeHooks(once, entries)).toEqual(once);
+});

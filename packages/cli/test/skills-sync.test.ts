@@ -538,7 +538,7 @@ describe('accord skills sync - hooks in .claude/settings.json', () => {
     const repo = sandbox();
     const first = await run(['skills', 'sync'], repo);
     expect(first.out).toContain('created ' + SETTINGS + '\n');
-    expect(commands(repo)).toHaveLength(3);
+    expect(commands(repo)).toHaveLength(4);
     const before = statSync(at(repo, SETTINGS)).mtimeMs;
     const second = await run(['skills', 'sync'], repo);
     expect(second.out).toContain('unchanged ' + SETTINGS + '\n');
@@ -556,7 +556,7 @@ describe('accord skills sync - hooks in .claude/settings.json', () => {
     const json = JSON.parse(bytes(at(repo, SETTINGS)));
     expect(json.model).toBe('x');
     expect(json.hooks.SessionStart[0]).toEqual(foreign);
-    expect(commands(repo)).toHaveLength(3);
+    expect(commands(repo)).toHaveLength(4);
   });
 
   it('refuses a file that is not JSON, prints the hooks to add, and leaves it byte-identical', async () => {
@@ -626,7 +626,7 @@ it('ac-5 skills sync installs and enables the panel for claude code only', async
   const settings = readJson(a, '.claude/settings.json');
   expect(settings.extraKnownMarketplaces.accord).toEqual(PANEL);
   expect(settings.enabledPlugins['accord-panel@accord']).toBe(true);
-  expect(JSON.stringify(settings.hooks).match(/ hook (session-start|session-resume|subagent-start)"/g)).toHaveLength(3);
+  expect(JSON.stringify(settings.hooks).match(/ hook (session-start|session-resume|subagent-start|prompt-expansion)"/g)).toHaveLength(4);
   const second = await run(['skills', 'sync'], a);
   for (const path of [...paths, '.claude/settings.json']) expect(second.out).toContain('unchanged ' + path);
 
@@ -727,7 +727,7 @@ it('risk:regression the committed panel and settings carry the plugin', () => {
   expect(s.enabledPlugins?.['accord-panel@accord']).toBe(true);
   expect(s.extraKnownMarketplaces?.accord).toEqual(PANEL);
   const cmds = JSON.stringify(s.hooks);
-  for (const h of ['session-start', 'session-resume', 'subagent-start']) expect(cmds).toContain(`hook ${h}`);
+  for (const h of ['session-start', 'session-resume', 'subagent-start', 'prompt-expansion']) expect(cmds).toContain(`hook ${h}`);
   expect(read('.claude/skills/accord/SKILL.md')).toContain('`/accord continue <id>`');
 });
 

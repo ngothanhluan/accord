@@ -1136,3 +1136,70 @@ it('risk:complex-branching in claude code a pick up whose setup failed and a new
   expect(o.err).toContain('this session works ST-11');
   expect(existsSync(d.sibling('ST-10'))).toBe(false);
 }, 120_000);
+
+it('risk:data-loss clean keeps a merged worktree this session holds when run from the main checkout', async () => {
+  const c = clone();
+  ticketWorktree(c, 'ST-9');
+  mergeOnRemote(c, 'ST-9');
+  writeHolds(c, { 'ST-9': { tool: 'Claude Code', ...A, taken: '2026-10-18T00:00:00.000Z' } });
+  setTable(tableOf(A));
+  vi.mocked(proc.processTable).mockClear();
+  const { code, out } = await run(['worktree', 'clean'], c.root, envOf(A));
+  expect(code).toBe(0);
+  expect(lines(out)).toContain(`kept ${c.sibling('ST-9')}: this session's worktree`);
+  expect(lines(out)).toContain('kept t/ST-9: checked out in ' + c.sibling('ST-9'));
+  expect(existsSync(c.sibling('ST-9'))).toBe(true);
+  expect(Object.keys(readHolds(c))).toEqual(['ST-9']);
+  expect(proc.processTable).not.toHaveBeenCalled();
+}, 60_000);
+
+it('risk:concurrency the session start hook takes a free hold in a ticket worktree and never a live one', async () => {
+  const c = clone();
+  c.git('worktree', 'add', '-q', '-b', 't/ST-9', c.sibling('ST-9'), 'origin/main');
+  const sib = c.sibling('ST-9');
+  const start = (s: { marker: string; pid: number }, cwd: string, env: NodeJS.ProcessEnv = envOf(s)) =>
+    run(['hook', 'session-start'], cwd, env, JSON.stringify({ session_id: s.marker, cwd, source: 'startup' }));
+  setTable(tableOf(A));
+  const a = await start(A, sib);
+  expect(a.code).toBe(0);
+  expect(a.out.startsWith('# accord rules\n')).toBe(true);
+  expect((readHolds(c)['ST-9'] as { marker: string }).marker).toBe('sess-A');
+  const bytes = readFileSync(holdsFile(c), 'utf8');
+  setTable(tableOf(B, A));
+  const b = await start(B, sib);
+  expect(b.code).toBe(0);
+  expect(b.out.startsWith('# accord rules\n')).toBe(true);
+  expect(lines(b.err)).toHaveLength(1);
+  expect(b.err).toContain('sess-A');
+  expect(readFileSync(holdsFile(c), 'utf8')).toBe(bytes);
+  setTable(tableOf(B));
+  await start(B, c.root);
+  expect(readFileSync(holdsFile(c), 'utf8')).toBe(bytes);
+  await start(B, sib, {});
+  expect(readFileSync(holdsFile(c), 'utf8')).toBe(bytes);
+  const n = await start(B, sib, { CLAUDECODE: '1' });
+  expect(n.code).toBe(0);
+  expect(n.out.startsWith('# accord rules\n')).toBe(true);
+  expect(lines(n.err)).toHaveLength(1);
+  expect(n.err).toContain('no hold taken on ST-9');
+  expect(readFileSync(holdsFile(c), 'utf8')).toBe(bytes);
+}, 60_000);
+
+it('risk:complex-branching the resume hook in the main checkout prints the anchor and the enter line of the held worktree', async () => {
+  const c = clone();
+  setTable(tableOf(A));
+  expect((await run(['worktree', 'open', 'ST-9'], c.root, envOf(A))).code).toBe(0);
+  const resume = (s: { marker: string; pid: number }, cwd: string) =>
+    run(['hook', 'session-resume'], c.root, envOf(s), JSON.stringify({ session_id: s.marker, cwd, source: 'resume' }));
+  const a = await resume(A, c.root);
+  expect(a.out).toContain('# Anchor: ST-9');
+  const al = lines(a.out);
+  expect(al.at(-1)).toBe(`enter: ${c.sibling('ST-9')}`);
+  expect(al.at(-2)).toContain('EnterWorktree');
+  const b = await resume(B, c.root);
+  expect(b.out).not.toContain('enter:');
+  expect(b.out).toMatch(/\naccord: \d+ in progress, \d+ ready to pick up · type \/accord\n$/);
+  const s = await resume(A, c.sibling('ST-9'));
+  expect(s.out).toContain('# Anchor: ST-9');
+  expect(s.out).not.toContain('enter:');
+}, 60_000);

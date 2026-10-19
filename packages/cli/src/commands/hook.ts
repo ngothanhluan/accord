@@ -1,10 +1,13 @@
 // Spec §17 `accord hook <event>`: the text Claude Code's SessionStart and SubagentStart hooks inject.
 // Nothing here fails a session over the anchor: a git problem is one stderr line and the session line.
-import { anchorText, rulesetText, sessionLine, statusRows } from '@accord-dev/accord-core';
+import { anchorText, DEFAULT_BRANCH_TEMPLATE, rulesetText, sessionLine, statusRows } from '@accord-dev/accord-core';
 import pkg from '../../package.json' with { type: 'json' };
+import { currentBranch, ticketOfBranch } from '../load/fs.js';
+import { claudeEnv } from '../load/proc.js';
+import { repoRoot } from '../root.js';
 import type { CommandContext } from '../run.js';
 import { activeTicket } from './anchor.js';
-import { guardAllowsContinue, listWorktrees, worksMessage, worksTicket } from './worktree.js';
+import { branchOf, guardAllowsContinue, isLinked, listWorktrees, readHoldsFile, takeHold, worksMessage, worksTicket } from './worktree.js';
 
 export const HOOK_EVENTS = ['session-start', 'session-resume', 'subagent-start', 'prompt-expansion'] as const;
 export type HookEvent = (typeof HOOK_EVENTS)[number];
@@ -21,14 +24,51 @@ export function hook(ctx: CommandContext, event: HookEvent): number {
   let body = line + '\n';
   if (event === 'session-resume') {
     try {
-      const id = activeTicket(ctx.root, ctx.snapshot);
-      body = (id === undefined ? undefined : anchorText(ctx.snapshot, id)) ?? body;
+      const input = hookInput(ctx);
+      const root = input?.cwd !== undefined ? repoRoot(input.cwd) : ctx.root;
+      const marker = input?.session_id ?? ctx.env.CLAUDE_CODE_SESSION_ID;
+      const held = marker && !isLinked(root) ? heldEntry(root, marker, ctx) : undefined;
+      if (held !== undefined) {
+        body =
+          (anchorText(ctx.snapshot, held.id) ?? '') +
+          `this session works ${held.id}: call EnterWorktree with the path on the next line, then run accord anchor there and go on at the stage it prints\nenter: ${held.path}\n`;
+      } else {
+        const id = activeTicket(root, ctx.snapshot);
+        body = (id === undefined ? undefined : anchorText(ctx.snapshot, id)) ?? body;
+      }
     } catch (e) {
       ctx.stderr.write((e as Error).message + '\n');
     }
   }
   ctx.stdout.write(rules + '\n' + body);
+  if (event === 'session-start') startHold(ctx);
   return 0;
+}
+
+/** The first held id (code-point order) of this marker whose worktree exists here, with that worktree's path. */
+function heldEntry(root: string, marker: string, ctx: CommandContext): { id: string; path: string } | undefined {
+  const holds = readHoldsFile(root);
+  const id = Object.keys(holds).sort().find((k) => holds[k]?.marker === marker);
+  if (id === undefined) return undefined;
+  const path = listWorktrees(root).slice(1).find((w) => w.branch === branchOf(ctx.snapshot, id))?.path;
+  return path === undefined ? undefined : { id, path };
+}
+
+/** A session that starts in a ticket worktree takes a free hold; any failure is one stderr line, never a failed start. */
+function startHold(ctx: CommandContext): void {
+  let id: string | undefined;
+  try {
+    const input = hookInput(ctx);
+    const root = input?.cwd !== undefined ? repoRoot(input.cwd) : ctx.root;
+    if (!isLinked(root)) return;
+    const branch = currentBranch(root);
+    id = branch === undefined ? undefined : ticketOfBranch(branch, ctx.snapshot.branchTemplates ?? [DEFAULT_BRANCH_TEMPLATE], (i) => Object.hasOwn(ctx.snapshot.tickets, i));
+    if (id === undefined || claudeEnv(ctx.env) === undefined) return;
+    takeHold({ ...ctx, root }, id);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    ctx.stderr.write(`accord: no hold taken${id === undefined ? '' : ' on ' + id}: ${msg.split('\n')[0]}`.replace(/\\/g, '/') + '\n');
+  }
 }
 
 export function hookInput(ctx: CommandContext): { session_id?: string; command_name?: string; command_args?: string; cwd?: string } | undefined {

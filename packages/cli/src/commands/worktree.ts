@@ -493,8 +493,12 @@ export function worktreeClean(ctx: CommandContext): number {
       if (h !== undefined) {
         let mine: Session | undefined;
         try {
-          table ??= processTable();
           const claude = claudeEnv(ctx.env);
+          if (claude !== undefined && h.marker === claude.marker) {
+            ctx.stdout.write(`kept ${w.path}: this session's worktree\n`);
+            continue;
+          }
+          table ??= processTable();
           if (claude !== undefined) mine = sessionIn(claude, table, process.pid);
         } catch {
           ctx.stdout.write(`kept ${w.path}: cannot tell whether the session holding it still runs

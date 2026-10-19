@@ -297,7 +297,7 @@ function pruneStale(ctx: CommandContext): void {
   try {
     gitNoPrompt(ctx.root, ['remote', 'prune', 'origin']);
   } catch (e) {
-    ctx.stdout.write(`prune of origin failed, stale remote refs are kept: ${firstLine(e)}
+    ctx.stdout.write(`prune of origin failed: ${firstLine(e)}
 `);
   }
   const left = new Set(refs());

@@ -834,3 +834,24 @@ it('risk:data-loss a prune setting cannot prune before the fetch and the pruned 
   expect(lines(out)).toEqual([`pruned refs/remotes/origin/t/ST-9 (was ${tip})`]);
   c.git('cat-file', '-e', tip);
 });
+
+it('risk:data-loss a failed prune says only that the prune failed and still names each ref it removed', async () => {
+  const c = clone();
+  c.git('push', '-q', 'origin', 'main:refs/heads/t/ST-9', 'main:refs/heads/backlog/notes');
+  c.git('fetch', '-q', 'origin');
+  gitRun(c.remote, 'branch', '-D', 't/ST-9', 'backlog/notes');
+  writeFiles(c.root, { '.git/refs/remotes/origin/t/ST-9.lock': '' });
+  const main = sha(c, 'main');
+  const { code, out } = await run(['worktree', 'clean'], c.root, {});
+  expect(code).toBe(0);
+  const l = lines(out);
+  const failed = l.filter((x) => x.startsWith('prune of origin failed'));
+  expect(failed).toHaveLength(1);
+  expect(failed[0].startsWith('prune of origin failed: ')).toBe(true);
+  expect(failed[0]).not.toContain('stale remote refs are kept');
+  const left = c.git('branch', '-r');
+  for (const [b, ref] of [['t/ST-9', 'refs/remotes/origin/t/ST-9'], ['backlog/notes', 'refs/remotes/origin/backlog/notes']] as const) {
+    const named = l.includes(`pruned ${ref} (was ${main})`);
+    expect(named).toBe(!left.includes(`origin/${b}`));
+  }
+});

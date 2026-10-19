@@ -69,6 +69,7 @@
 - Ruling: Pick up judges the local branch and `refs/remotes/origin/<branch>` each when it exists, by the same claim-commit rule and fallback, and refuses with the same `claimed:` text when either is claimed by someone else (Task 9 review executor) — cost if wrong: two ref checks per Pick up.
 - Ruling: worktree.md says "When `accord worktree open <id>` did not refuse with `claimed:`, push the claim…" rather than "After a successful run", since a failed setup exits 2 and is still pushed (Task 9 review executor) — cost if wrong: one sentence to reword.
 - Ruling: verification.md names the commit after the ledger wording fix that restores 0496cf0 in two Rulings (the SHA remap had turned it into its rewrite); that commit differs from the verified ec14d90 in ledger.md text only — re-running the verifier for two words of ledger prose adds nothing — cost if wrong: none; product code and tests are identical.
+- Ruling: merging origin/main (ST-LN-19, PR #38) after verify, the "A ticket named" sentence of SKILL.md accepts an id in `accord/tickets/`, one `accord status --json` lists with a `branch`, or for Continue one `accord worktree open <id> --continue` finds; run.ts, skill-commands and stage-skills keep both sides (merge executor) — full suite 66 files, 1337 tests passed at the merge — cost if wrong: one sentence of wording, checked by the skill text tests.
 
 ## Deferred
 - Plan critique 1.14 (Nice): the main checkout has no setup done-marker, so Continue rooted there reruns the whole setup in the owner's checkout — deferred.

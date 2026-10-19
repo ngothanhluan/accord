@@ -3,10 +3,11 @@ import { execFileSync } from 'node:child_process';
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { DEFAULT_BRANCH_TEMPLATE, loadConfig } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
-import { gitDefaultRef, gitUserEmail, ticketOfBranch, UsageError } from '../load/fs.js';
+import { currentBranch, gitDefaultRef, gitUserEmail, ticketOfBranch, UsageError } from '../load/fs.js';
 import { claudeEnv, describeSession, isLive, processTable, runSetup, sameSession, sessionIn } from '../load/proc.js';
 import type { Session } from '../load/proc.js';
 import type { CommandContext } from '../run.js';
+import { repoRoot } from '../root.js';
 import pkg from '../../package.json' with { type: 'json' };
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
@@ -45,7 +46,7 @@ export interface PrunableEntry extends WorktreeEntry {
   prunable?: string;
 }
 
-function listWorktrees(root: string): PrunableEntry[] {
+export function listWorktrees(root: string): PrunableEntry[] {
   return git(root, ['worktree', 'list', '--porcelain'])
     .split('\n\n')
     .filter((block) => block.trim() !== '')
@@ -159,6 +160,22 @@ export function withHolds(root: string, fn: (holds: Record<string, Hold>) => Rec
   }
 }
 
+/** The holds file read without the lock (writes are a rename), so the works rule writes nothing. */
+export function readHoldsFile(root: string): Record<string, Hold> {
+  const file = git(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim() + '/accord/holds';
+  if (!existsSync(file)) return {};
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(readFileSync(file, 'utf8'));
+  } catch {
+    parsed = undefined;
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    throw new UsageError(file + ' is not a JSON object - fix or delete it; accord does not rewrite it');
+  }
+  return parsed as Record<string, Hold>;
+}
+
 const norm = (p: string) => (process.platform === 'win32' ? p.replaceAll('\\', '/').toLowerCase() : p);
 
 /** D-17: take (or keep) this session's hold on `id`; a live other session holding it refuses. Claude Code sessions only. */
@@ -260,8 +277,60 @@ function checkClaimant(ctx: CommandContext, id: string, ref: string): void {
   }
 }
 
+/** D-04: the Claude Code session, or undefined for another runtime; never throws. */
+export function inClaude(env: NodeJS.ProcessEnv): { marker: string | undefined } | undefined {
+  try {
+    const c = claudeEnv(env);
+    return c === undefined ? undefined : { marker: c.marker };
+  } catch {
+    return { marker: env.CLAUDE_CODE_SESSION_ID || undefined };
+  }
+}
+
+export type Works = { id: string | undefined; top: string };
+
+/** D-04: the ticket this session works: its linked worktree's branch, else a hold carrying its marker. */
+export function worksTicket(cwd: string, marker: string | undefined, snapshot: RepoSnapshot): Works | undefined {
+  const top = repoRoot(cwd);
+  if (isLinked(top)) {
+    const b = currentBranch(top);
+    if (b === undefined || b === '') return { id: undefined, top };
+    const id = ticketOfBranch(b, snapshot.branchTemplates ?? [DEFAULT_BRANCH_TEMPLATE], (i) => Object.hasOwn(snapshot.tickets, i));
+    if (id !== undefined) return { id, top };
+  }
+  if (marker !== undefined) {
+    const holds = readHoldsFile(top);
+    const key = Object.keys(holds).sort().find((k) => holds[k]?.marker === marker);
+    if (key !== undefined) return { id: key, top };
+  }
+  return undefined;
+}
+
+export function worksMessage(w: Works, mainPath: string): string {
+  return w.id === undefined
+    ? `this session works the ticket worktree ${w.top}, whose branch cannot be read: open a new session in the main checkout ${mainPath} for other work, or type a request about that ticket without "/accord" - nothing was changed`
+    : `this session works ${w.id}: open a new session in the main checkout ${mainPath} for other work, or type a request about ${w.id} without "/accord" - nothing was changed`;
+}
+
+/** D-02, D-06, D-09: a Claude Code session that works a ticket is refused any other; `cont` names the ticket a continue asks for. */
+export function guardTicketSession(ctx: CommandContext, cont?: string): void {
+  const s = inClaude(ctx.env);
+  if (s === undefined) return;
+  const w = worksTicket(ctx.root, s.marker, ctx.snapshot);
+  if (w === undefined) return;
+  const mainPath = listWorktrees(ctx.root)[0].path;
+  if (cont !== undefined && (w.id === cont || (w.id === undefined && norm(siblingOf(mainPath, cont)) === norm(w.top)))) return;
+  throw new UsageError(worksMessage(w, mainPath));
+}
+
+export function worktreeCheck(ctx: CommandContext): number {
+  guardTicketSession(ctx);
+  return 0;
+}
+
 export function worktreeOpen(ctx: CommandContext, id: string, opts: { continue?: boolean } = {}): number {
   if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id);
+  guardTicketSession(ctx, opts.continue === true ? id : undefined);
   const enter = canEnter(ctx);
   const pick = opts.continue !== true;
   const branch = branchOf(ctx.snapshot, id);

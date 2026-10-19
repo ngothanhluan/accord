@@ -23,7 +23,7 @@ import { skills } from './commands/skills.js';
 import { status } from './commands/status.js';
 import { taskDone } from './commands/task-done.js';
 import { testsBaseline } from './commands/tests-baseline.js';
-import { worktreeClean, worktreeOpen } from './commands/worktree.js';
+import { worktreeCheck, worktreeClean, worktreeOpen } from './commands/worktree.js';
 import { loadClaimView, loadFromFs, UsageError } from './load/fs.js';
 import { pinMessage } from './pin.js';
 import { repoRoot } from './root.js';
@@ -202,6 +202,12 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .description('fetch, then remove the worktrees of merged tickets, delete merged ticket branches and prune stale remote refs, naming what is removed or kept')
     .action(() => {
       setCode(worktreeClean(preflight(opts)));
+    });
+  worktree
+    .command('check')
+    .description('exit 2 naming the ticket this Claude Code session works, before any other work starts')
+    .action(() => {
+      setCode(worktreeCheck(preflight(opts)));
     });
   worktree
     .command('open <id>')

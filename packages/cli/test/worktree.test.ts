@@ -1,5 +1,5 @@
 // ST-LN-7: `accord worktree open` against real git in tmp sandboxes with a bare remote.
-import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { afterEach, expect, it, vi } from 'vitest';
 import * as proc from '../src/load/proc.js';
 import { laneTicket } from '../../../test/helpers/lane.js';
@@ -980,3 +980,159 @@ it('ac-3 in claude code a new lane m ticket is committed pushed and held and pri
   expect(a.out.startsWith('# Anchor: ST-9')).toBe(true);
   expect(a.out).toContain('Stage: intent');
 });
+
+const C3 = { pid: 7003, start: 'S-C', marker: 'sess-C' };
+const WORKS = ['this session works ST-9', 'open a new session in the main checkout', 'without "/accord"'];
+
+it('ac-4 in claude code a session that works a ticket refuses other tickets and new tickets and changes nothing', async () => {
+  const c = clone({ tickets: ['ST-9', 'ST-10'] });
+  const sib = c.sibling('ST-9');
+  setTable(tableOf(A));
+  expect((await run(['worktree', 'open', 'ST-9'], c.root, envOf(A))).code).toBe(0);
+  gitRun(sib, 'push', '-q', '-u', 'origin', 't/ST-9');
+  mergeOnRemote(c, 'ST-9');
+  c.git('fetch', '-q', 'origin');
+  mkdirSync(`${sib}/sub`);
+  const state = () =>
+    [c.root, sib]
+      .flatMap((d) => [
+        gitRun(d, 'worktree', 'list', '--porcelain'),
+        gitRun(d, 'for-each-ref', '--format=%(refname) %(objectname)'),
+        gitRun(d, 'log', '--all', '--format=%H %s'),
+        gitRun(d, 'status', '--porcelain', '--untracked-files=all'),
+        readdirSync(`${d}/accord/tickets`).sort().join(','),
+      ])
+      .concat(readFileSync(holdsFile(c), 'utf8'));
+  const before = state();
+  const argvs = [
+    ['worktree', 'open', 'ST-10'],
+    ['worktree', 'open', 'ST-10', '--continue'],
+    ['worktree', 'open', 'ST-9'],
+    ['new', 'ticket', 'ST-11', '--lane', 'M', '--worktree'],
+    ['new', 'ticket', 'ST-11', '--lane', 'M'],
+    ['worktree', 'check'],
+  ];
+  for (const dir of [sib, `${sib}/sub`, c.root]) {
+    for (const argv of argvs) {
+      const r = await run(argv, dir, envOf(A));
+      expect(r.code, `${dir} ${argv.join(' ')}`).toBe(2);
+      for (const w of WORKS) expect(r.err).toContain(w);
+    }
+    expect(state()).toEqual(before);
+    expect(existsSync(c.sibling('ST-10'))).toBe(false);
+    expect(existsSync(c.sibling('ST-11'))).toBe(false);
+  }
+  setTable(tableOf(B, A));
+  for (const argv of [['worktree', 'open', 'ST-10'], ['new', 'ticket', 'ST-11', '--lane', 'M']]) {
+    const r = await run(argv, `${sib}/sub`, envOf(B));
+    expect(r.code).toBe(2);
+    expect(r.err).toContain('ST-9');
+  }
+  expect(state()).toEqual(before);
+  setTable(tableOf(A));
+  const same = await run(['worktree', 'open', 'ST-9', '--continue'], sib, envOf(A));
+  expect([same.code, same.out]).toEqual([0, HELD]);
+  const back = await run(['worktree', 'open', 'ST-9', '--continue'], c.root, envOf(A));
+  expect(back.code).toBe(0);
+  expect(lines(back.out)).toEqual([`enter: ${sib}`]);
+}, 180_000);
+
+it('ac-5 outside claude code pick up continue and new ticket print the stop lines and nothing is refused', async () => {
+  const c = clone({ tickets: ['ST-9', 'ST-10'] });
+  vi.mocked(proc.processTable).mockClear();
+  const outs: string[] = [];
+  const go = async (argv: string[], dir: string) => {
+    const r = await run(argv, dir, {});
+    expect(r.code, argv.join(' ')).toBe(0);
+    outs.push(r.out, r.err);
+    return r;
+  };
+  expect((await go(['worktree', 'open', 'ST-9'], c.root)).out.split('\n').slice(0, 3)).toEqual(stopLines(c.sibling('ST-9'), 'ST-9'));
+  expect((await go(['new', 'ticket', 'ST-11', '--lane', 'M', '--worktree'], c.root)).out.split('\n').slice(0, 4)).toEqual([
+    'accord/tickets/ST-11.md',
+    ...stopLines(c.sibling('ST-11'), 'ST-11'),
+  ]);
+  const s9 = c.sibling('ST-9');
+  expect((await go(['worktree', 'open', 'ST-10'], s9)).out.split('\n').slice(0, 3)).toEqual(stopLines(c.sibling('ST-10'), 'ST-10'));
+  expect((await go(['worktree', 'open', 'ST-9', '--continue'], s9)).out).toContain('not held:');
+  const chk = await go(['worktree', 'check'], s9);
+  expect([chk.out, chk.err]).toEqual(['', '']);
+  const n = await go(['new', 'ticket', 'ST-12', '--lane', 'M', '--worktree'], s9);
+  expect(n.out.trimEnd().split('\n').slice(-3)).toEqual(stopLines(c.sibling('ST-12'), 'ST-12'));
+  for (const o of outs) expect(o).not.toMatch(/enter:|this session works/);
+  expect(existsSync(holdsFile(c))).toBe(false);
+  expect(proc.processTable).not.toHaveBeenCalled();
+});
+
+it('risk:complex-branching a linked worktree on a detached head refuses all but continue of its own ticket', async () => {
+  const c = clone({ tickets: ['ST-9', 'ST-10'] });
+  c.git('worktree', 'add', '-q', '--detach', c.sibling('ST-10'), 'origin/main');
+  setTable(tableOf(A));
+  for (const argv of [['worktree', 'open', 'ST-9', '--continue'], ['worktree', 'check']]) {
+    const r = await run(argv, c.sibling('ST-10'), envOf(A));
+    expect(r.code).toBe(2);
+    expect(r.err).toContain('whose branch cannot be read');
+    expect(r.err).toContain('open a new session in the main checkout');
+  }
+  const own = await run(['worktree', 'open', 'ST-10', '--continue'], c.sibling('ST-10'), envOf(A));
+  expect(own.err).not.toContain('this session works');
+});
+
+it('risk:complex-branching a claude code session that sets no session variables keeps the main checkout flows and only the folder rule refuses it', async () => {
+  const c = clone({ tickets: ['ST-9', 'ST-10'] });
+  const E = { CLAUDECODE: '1' };
+  vi.mocked(proc.processTable).mockClear();
+  const chk = await run(['worktree', 'check'], c.root, E);
+  expect([chk.code, chk.out, chk.err]).toEqual([0, '', '']);
+  const o = await run(['worktree', 'open', 'ST-9'], c.root, E);
+  expect(o.code).toBe(0);
+  expect(o.out.split('\n').slice(0, 3)).toEqual(stopLines(c.sibling('ST-9'), 'ST-9'));
+  const n = await run(['new', 'ticket', 'ST-11', '--lane', 'M'], c.root, E);
+  expect(n.code).toBe(0);
+  expect(existsSync(`${c.root}/accord/tickets/ST-11.md`)).toBe(true);
+  const w = await run(['new', 'ticket', 'ST-12', '--lane', 'M', '--worktree'], c.root, E);
+  expect(w.code).toBe(0);
+  expect(w.out.trimEnd().split('\n').slice(-3)).toEqual(stopLines(c.sibling('ST-12'), 'ST-12'));
+  for (const s of [chk.out, o.out, n.out, w.out]) expect(s).not.toContain('enter:');
+  expect(existsSync(holdsFile(c))).toBe(false);
+  expect(proc.processTable).not.toHaveBeenCalled();
+  const r = await run(['worktree', 'open', 'ST-10'], c.sibling('ST-9'), E);
+  expect(r.code).toBe(2);
+  expect(r.err).toContain('this session works ST-9');
+});
+
+it('risk:complex-branching in claude code a pick up whose setup failed and a new ticket whose push failed still hold their ticket and refuse a second one', async () => {
+  const c = clone({ setup: ['node setup-step.js fail'], tickets: ['ST-9', 'ST-10'] });
+  setTable(tableOf(A));
+  const p = await run(['worktree', 'open', 'ST-9'], c.root, envOf(A));
+  expect(p.code).toBe(2);
+  expect(p.err).toContain('setup command failed');
+  expect(p.out).not.toContain('enter:');
+  expect(c.git('log', '-1', '--format=%s', 't/ST-9').trim()).toBe('claim: ST-9');
+  expect((readHolds(c)['ST-9'] as { marker: string }).marker).toBe('sess-A');
+  for (const argv of [['worktree', 'open', 'ST-10'], ['new', 'ticket', 'ST-11', '--lane', 'M', '--worktree']]) {
+    const r = await run(argv, c.root, envOf(A));
+    expect(r.code).toBe(2);
+    expect(r.err).toContain('this session works ST-9');
+  }
+  expect(existsSync(c.sibling('ST-10'))).toBe(false);
+  expect(existsSync(c.sibling('ST-11'))).toBe(false);
+  expect(c.git('branch', '--list', 't/ST-10', 't/ST-11').trim()).toBe('');
+  const again = await run(['worktree', 'open', 'ST-9', '--continue'], c.root, envOf(A));
+  expect(again.code).toBe(2);
+  expect(again.err).toContain('setup command failed');
+  expect(again.err).not.toContain('this session works');
+
+  const d = clone({ tickets: ['ST-10'] });
+  d.git('remote', 'set-url', '--push', 'origin', `${d.remote}-missing`);
+  setTable(tableOf(C3));
+  const n = await run(['new', 'ticket', 'ST-11', '--lane', 'M', '--worktree'], d.root, envOf(C3));
+  expect(n.code).toBe(2);
+  expect(n.err).toContain('the push failed');
+  expect(n.out).not.toContain('enter:');
+  expect((readHolds(d)['ST-11'] as { marker: string }).marker).toBe('sess-C');
+  const o = await run(['worktree', 'open', 'ST-10'], d.root, envOf(C3));
+  expect(o.code).toBe(2);
+  expect(o.err).toContain('this session works ST-11');
+  expect(existsSync(d.sibling('ST-10'))).toBe(false);
+}, 120_000);

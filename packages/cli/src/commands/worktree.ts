@@ -290,9 +290,9 @@ function gitNoPrompt(cwd: string, args: string[]): void {
 
 const firstLine = (e: unknown) => String((e as { stderr?: string }).stderr ?? e).trim().split('\n')[0];
 
-/** ST-LN-20 D-05: after a good fetch, prune origin's stale remote-tracking refs, naming each with its full sha (it can be the last copy of an unmerged branch). */
+/** ST-LN-20 D-05: after a good fetch, prune origin's stale refs (remote-tracking, and tags a fetch refspec maps), naming each with its full sha (it can be the last copy of an unmerged branch). */
 function pruneStale(ctx: CommandContext): void {
-  const refs = () => git(ctx.root, ['for-each-ref', '--format=%(objectname) %(refname)', 'refs/remotes/origin']).split('\n').filter((r) => r !== '');
+  const refs = () => git(ctx.root, ['for-each-ref', '--format=%(objectname) %(refname)']).split('\n').filter((r) => r !== '');
   const before = refs();
   try {
     gitNoPrompt(ctx.root, ['remote', 'prune', 'origin']);

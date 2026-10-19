@@ -855,3 +855,18 @@ it('risk:data-loss a failed prune says only that the prune failed and still name
     expect(named).toBe(!left.includes(`origin/${b}`));
   }
 });
+
+it('risk:data-loss a local-only tag that the fetch refspecs map is named with its sha when the prune removes it', async () => {
+  const c = clone();
+  c.git('config', '--add', 'remote.origin.fetch', '+refs/tags/*:refs/tags/*');
+  c.git('switch', '-q', '--detach', 'main');
+  writeFiles(c.root, { 'mine.txt': 'x\n' });
+  c.git('add', '-A');
+  c.git('commit', '-q', '-m', 'mine');
+  c.git('tag', 'mine');
+  const tip = sha(c, 'mine');
+  c.git('switch', '-q', 'main');
+  const { code, out } = await run(['worktree', 'clean'], c.root, {});
+  expect(code).toBe(0);
+  expect(lines(out)).toEqual([`pruned refs/tags/mine (was ${tip})`]);
+});

@@ -97,6 +97,7 @@ Feature: ST-LN-26
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
+- 2026-10-21, on the proposed approach option "two CI rounds: wait before the tick, push the tick and wait again": "tại sao phải 2 lượt chờ nhỉ? tiêu chí fast đâu? brainstorm và propose lại solution đi"
 
 ## Open questions
 <!-- `- [ ]` items; Ready stays blocked while any is unchecked. -->

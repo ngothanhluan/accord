@@ -1,5 +1,5 @@
 // ST-LN-7: `accord worktree open` against real git in tmp sandboxes with a bare remote.
-import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { afterEach, expect, it, vi } from 'vitest';
 import * as proc from '../src/load/proc.js';
 import { laneTicket } from '../../../test/helpers/lane.js';
@@ -317,6 +317,17 @@ function mergeOnRemote(c: Clone, ...ids: string[]) {
   gitRun(other, 'push', '-q', 'origin', 'main');
 }
 
+/** A branch `t/<id>` with one commit, pushed and tracking `origin/t/<id>`, no worktree. */
+function ticketBranch(c: Clone, id: string) {
+  c.git('switch', '-q', '-c', `t/${id}`, 'main');
+  writeFiles(c.root, { [`${id}.txt`]: id + '\n' });
+  c.git('add', '-A');
+  c.git('commit', '-q', '-m', id);
+  c.git('push', '-q', '-u', 'origin', `t/${id}`);
+  c.git('switch', '-q', 'main');
+}
+const sha = (c: Clone, ref: string) => c.git('rev-parse', ref).trim();
+
 it('ac-5 bare accord fetches then removes merged worktrees and names what it keeps', async () => {
   const c = clone({ tickets: ['ST-9', 'ST-10', 'ST-11', 'ST-12'] });
   for (const id of ['ST-9', 'ST-10', 'ST-11', 'ST-12']) ticketWorktree(c, id);
@@ -330,13 +341,21 @@ it('ac-5 bare accord fetches then removes merged worktrees and names what it kee
     { pid: 4242, ppid: 1, start: 'S2' },
   ]);
   const before = c.git('rev-parse', 'origin/main').trim();
+  const sha9 = sha(c, 't/ST-9');
   const { code, out } = await run(['worktree', 'clean'], c.root, {});
   expect(code).toBe(0);
   expect(c.git('rev-parse', 'origin/main').trim()).not.toBe(before);
   expect(c.git('rev-parse', 'origin/main').trim()).toBe(gitRun(c.remote, 'rev-parse', 'main').trim());
   expect(existsSync(c.sibling('ST-9'))).toBe(false);
   expect(lines(out).sort()).toEqual(
-    [`removed ${c.sibling('ST-9')}`, `kept ${c.sibling('ST-10')}: uncommitted work`, `kept ${c.sibling('ST-12')}: held by another session`].sort(),
+    [
+      `removed ${c.sibling('ST-9')}`,
+      `kept ${c.sibling('ST-10')}: uncommitted work`,
+      `kept ${c.sibling('ST-12')}: held by another session`,
+      `deleted t/ST-9 (was ${sha9})`,
+      `kept t/ST-10: checked out in ${c.sibling('ST-10')}`,
+      `kept t/ST-12: checked out in ${c.sibling('ST-12')}`,
+    ].sort(),
   );
   expect(existsSync(`${c.sibling('ST-10')}/new.txt`)).toBe(true);
   expect(existsSync(c.sibling('ST-11'))).toBe(true);
@@ -353,7 +372,8 @@ it('risk:complex-branching a failed fetch is said and the refs in the clone are 
   const l = lines(out);
   expect(l[0].startsWith('fetch from origin failed, judging against the refs already in this clone')).toBe(true);
   expect(l[1]).toBe(`removed ${c.sibling('ST-9')}`);
-  expect(l).toHaveLength(2);
+  expect(l).toHaveLength(3);
+  expect(l[2]).toBe(`deleted t/ST-9 (was ${sha(c, 'origin/main')})`);
 
   const d = clone();
   d.git('worktree', 'add', '-q', '-b', 't/ST-9', d.sibling('ST-9'), 'origin/main');
@@ -361,7 +381,9 @@ it('risk:complex-branching a failed fetch is said and the refs in the clone are 
   expect((await run(['worktree', 'clean'], d.root, {})).out).toBe('');
   const e = clone();
   e.git('remote', 'set-url', 'origin', e.remote + '-missing');
-  expect((await run(['worktree', 'clean'], e.root, {})).out).toBe('');
+  const eOut = lines((await run(['worktree', 'clean'], e.root, {})).out);
+  expect(eOut).toHaveLength(1);
+  expect(eOut[0].startsWith('fetch from origin failed, judging against the refs already in this clone')).toBe(true);
 });
 
 it('risk:data-loss clean keeps unpushed commits and new files that git status config would hide', async () => {
@@ -376,7 +398,7 @@ it('risk:data-loss clean keeps unpushed commits and new files that git status co
   writeFileSync(`${c.sibling('ST-10')}/new.txt`, 'new');
   const { code, out } = await run(['worktree', 'clean'], c.root, {});
   expect(code).toBe(0);
-  expect(lines(out)).toEqual([`kept ${c.sibling('ST-10')}: uncommitted work`]);
+  expect(lines(out)).toEqual([`kept ${c.sibling('ST-10')}: uncommitted work`, `kept t/ST-10: checked out in ${c.sibling('ST-10')}`]);
   expect(existsSync(`${c.sibling('ST-10')}/new.txt`)).toBe(true);
   expect(existsSync(c.sibling('ST-9'))).toBe(true);
 
@@ -384,7 +406,7 @@ it('risk:data-loss clean keeps unpushed commits and new files that git status co
   ticketWorktree(d, 'ST-9');
   mergeOnRemote(d, 'ST-9');
   const r = await run(['worktree', 'clean'], d.sibling('ST-9'), {});
-  expect(lines(r.out)).toEqual([`kept ${d.sibling('ST-9')}: this session's worktree`]);
+  expect(lines(r.out)).toEqual([`kept ${d.sibling('ST-9')}: this session's worktree`, `kept t/ST-9: checked out in ${d.sibling('ST-9')}`]);
   expect(existsSync(d.sibling('ST-9'))).toBe(true);
 });
 
@@ -397,8 +419,9 @@ it('risk:complex-branching a worktree remove that fails is named truthfully', as
   c.git('worktree', 'lock', c.sibling('ST-9'));
   const r = await run(['worktree', 'clean'], c.root, {});
   expect(r.code).toBe(0);
-  expect(lines(r.out)).toHaveLength(1);
+  expect(lines(r.out)).toHaveLength(2);
   expect(r.out.startsWith(`kept ${c.sibling('ST-9')}: git worktree remove failed: `)).toBe(true);
+  expect(lines(r.out)[1]).toBe(`kept t/ST-9: checked out in ${c.sibling('ST-9')}`);
   expect(c.git('worktree', 'list', '--porcelain')).toContain(`worktree ${c.sibling('ST-9')}\n`);
   expect(Object.keys(readHolds(c))).toEqual(['ST-9']);
 
@@ -409,11 +432,13 @@ it('risk:complex-branching a worktree remove that fails is named truthfully', as
   writeHolds(d, { 'ST-9': DEAD });
   vi.mocked(proc.processTable).mockReturnValue([{ pid: process.pid, ppid: 1, start: 'self' }]);
   chmodSync(`${d.sibling('ST-9')}/sub`, 0o555);
+  const sha9d = sha(d, 't/ST-9');
   try {
     const q = await run(['worktree', 'clean'], d.root, {});
-    expect(lines(q.out)).toHaveLength(1);
+    expect(lines(q.out)).toHaveLength(2);
+    expect(lines(q.out)[1]).toBe(`deleted t/ST-9 (was ${sha9d})`);
     expect(q.out.startsWith(`removed ${d.sibling('ST-9')} in part: git worktree remove failed: `)).toBe(true);
-    expect(q.out.trimEnd().endsWith(' - delete what is left of the folder by hand')).toBe(true);
+    expect(lines(q.out)[0]!.endsWith(' - delete what is left of the folder by hand')).toBe(true);
     expect(d.git('worktree', 'list', '--porcelain')).not.toContain(d.sibling('ST-9'));
     expect(Object.keys(readHolds(d))).toEqual([]);
   } finally {
@@ -426,12 +451,18 @@ it('risk:complex-branching clean prunes a worktree whose folder was deleted by h
   for (const id of ['ST-9', 'ST-10']) c.git('worktree', 'add', '-q', '-b', `t/${id}`, c.sibling(id), 'origin/main');
   rmSync(c.sibling('ST-9'), { recursive: true, force: true });
   const reason = /^prunable (.*)$/m.exec(c.git('worktree', 'list', '--porcelain'))?.[1] ?? 'no reason given';
+  const base = sha(c, 'origin/main');
   const { code, out } = await run(['worktree', 'clean'], c.root, {});
   expect(code).toBe(0);
-  expect(lines(out)).toEqual([`pruned ${c.sibling('ST-9')}: ${reason}`, `removed ${c.sibling('ST-10')}`]);
+  expect(lines(out)).toEqual([
+    `pruned ${c.sibling('ST-9')}: ${reason}`,
+    `removed ${c.sibling('ST-10')}`,
+    `deleted t/ST-10 (was ${base})`,
+    `deleted t/ST-9 (was ${base})`,
+  ]);
   expect(out).not.toContain('repair');
   expect(c.git('worktree', 'list', '--porcelain')).not.toMatch(/^prunable/m);
-  expect(c.git('rev-parse', '--verify', '-q', 'refs/heads/t/ST-9').trim()).not.toBe('');
+  expect(() => c.git('rev-parse', '--verify', '-q', 'refs/heads/t/ST-9')).toThrow();
 });
 
 it('ac-6 a new lane m ticket gets its own worktree with the ticket committed and pushed', async () => {
@@ -574,8 +605,11 @@ it('risk:data-loss a stale holds lock keeps a merged clean worktree, names it, a
   expect(code).toBe(0);
   expect(existsSync(c.sibling('ST-9'))).toBe(true);
   expect(existsSync(c.sibling('ST-10'))).toBe(true);
-  expect(lines(out)).toHaveLength(2);
-  for (const id of ['ST-9', 'ST-10']) expect(out).toContain(`kept ${c.sibling(id)}: `);
+  expect(lines(out)).toHaveLength(4);
+  for (const id of ['ST-9', 'ST-10']) {
+    expect(out).toContain(`kept ${c.sibling(id)}: `);
+    expect(out).toContain(`kept t/${id}: checked out in ${c.sibling(id)}`);
+  }
   expect(out).toContain('holds.lock');
   rmSync(`${c.root}/.git/accord/holds.lock`);
   writeFileSync(`${c.root}/.git/accord/holds`, '[]');
@@ -652,3 +686,649 @@ it('risk:complex-branching pick up refuses a branch another person claimed and r
   expect(r.err.startsWith('claimed: ST-9 by y@example.invalid')).toBe(true);
   expect(entries(c)).toHaveLength(3);
 });
+
+it('ac-1 bare accord deletes merged ticket branches with or without a worktree and names the checked out one it keeps', async () => {
+  const c = clone({ tickets: ['ST-9', 'ST-10', 'ST-11', 'ST-12'] });
+  for (const id of ['ST-9', 'ST-11', 'ST-12']) ticketBranch(c, id);
+  ticketWorktree(c, 'ST-10');
+  mergeOnRemote(c, 'ST-9', 'ST-10', 'ST-12');
+  c.git('switch', '-q', 't/ST-12');
+  const sha9 = sha(c, 't/ST-9');
+  const sha10 = sha(c, 't/ST-10');
+  const { code, out } = await run(['worktree', 'clean'], c.root, {});
+  expect(code).toBe(0);
+  expect(lines(out).sort()).toEqual(
+    [`removed ${c.sibling('ST-10')}`, `deleted t/ST-9 (was ${sha9})`, `deleted t/ST-10 (was ${sha10})`, `kept t/ST-12: checked out in ${c.root}`].sort(),
+  );
+  expect(() => c.git('rev-parse', '--verify', '-q', 'refs/heads/t/ST-9')).toThrow();
+  expect(() => c.git('rev-parse', '--verify', '-q', 'refs/heads/t/ST-10')).toThrow();
+  expect(sha(c, 't/ST-11')).not.toBe('');
+  expect(sha(c, 't/ST-12')).not.toBe('');
+  expect(out).not.toContain('t/ST-11');
+  expect(c.git('branch', '--show-current').trim()).toBe('t/ST-12');
+});
+
+it('ac-2 a merged branch whose remote branch is gone is deleted from another ticket branch with a stale local main', async () => {
+  const c = clone();
+  ticketBranch(c, 'ST-9');
+  c.git('switch', '-q', '-c', 't/ST-20', 'main');
+  writeFiles(c.root, { 'ST-20.txt': 'x\n' });
+  c.git('add', '-A');
+  c.git('commit', '-q', '-m', 'ST-20');
+  mergeOnRemote(c, 'ST-9');
+  gitRun(c.remote, 'branch', '-D', 't/ST-9');
+  c.git('update-ref', '-d', 'refs/remotes/origin/t/ST-9');
+  const sha9 = sha(c, 't/ST-9');
+  const mainBefore = sha(c, 'main');
+  expect(c.git('config', 'branch.t/ST-9.merge').trim()).toBe('refs/heads/t/ST-9');
+  expect(c.git('config', 'branch.t/ST-9.remote').trim()).toBe('origin');
+  expect(() => c.git('rev-parse', '--verify', '-q', 'refs/remotes/origin/t/ST-9')).toThrow();
+  expect(() => c.git('merge-base', '--is-ancestor', sha9, 'main')).toThrow();
+  expect(() => c.git('merge-base', '--is-ancestor', sha9, 'HEAD')).toThrow();
+  const { code, out } = await run(['worktree', 'clean'], c.root, {});
+  expect(code).toBe(0);
+  expect(lines(out)).toEqual([`deleted t/ST-9 (was ${sha9})`]);
+  expect(() => c.git('rev-parse', '--verify', '-q', 'refs/heads/t/ST-9')).toThrow();
+  expect(sha(c, 'main')).toBe(mainBefore);
+  expect(c.git('branch', '--show-current').trim()).toBe('t/ST-20');
+});
+
+it('ac-3 a ticket branch with a commit not on the remote main is kept and not named', async () => {
+  const c = clone();
+  ticketBranch(c, 'ST-9');
+  mergeOnRemote(c, 'ST-9');
+  c.git('switch', '-q', 't/ST-9');
+  writeFiles(c.root, { 'after.txt': 'x\n' });
+  c.git('add', '-A');
+  c.git('commit', '-q', '-m', 'after');
+  const extra = sha(c, 'HEAD');
+  c.git('switch', '-q', 'main');
+  const { code, out } = await run(['worktree', 'clean'], c.root, {});
+  expect(code).toBe(0);
+  expect(lines(out)).toEqual([]);
+  expect(sha(c, 't/ST-9')).toBe(extra);
+});
+
+it('risk:data-loss a merged branch the ticket branch template does not name is never deleted', async () => {
+  const c = clone();
+  c.git('branch', 'backlog/notes', 'main');
+  c.git('branch', 't/ST-9', 'main');
+  const base = sha(c, 'main');
+  const { code, out } = await run(['worktree', 'clean'], c.root, {});
+  expect(code).toBe(0);
+  expect(lines(out)).toEqual([`deleted t/ST-9 (was ${base})`]);
+  expect(sha(c, 'backlog/notes')).toBe(base);
+  expect(sha(c, 'main')).toBe(base);
+});
+
+it('risk:complex-branching a branch git refuses to delete is kept with git message and the others still go', async () => {
+  const c = clone();
+  c.git('branch', 't/ST-1', 'main');
+  c.git('branch', 't/ST-2', 'main');
+  const base = sha(c, 'main');
+  mkdirSync(`${c.root}/.git/refs/heads/t`, { recursive: true });
+  writeFileSync(`${c.root}/.git/refs/heads/t/ST-1.lock`, '');
+  const { code, out } = await run(['worktree', 'clean'], c.root, {});
+  expect(code).toBe(0);
+  const l = lines(out);
+  expect(l).toHaveLength(2);
+  expect(l[0].startsWith('kept t/ST-1: could not be judged: ')).toBe(true);
+  expect(l[0].length).toBeGreaterThan('kept t/ST-1: could not be judged: '.length);
+  expect(l[1]).toBe(`deleted t/ST-2 (was ${base})`);
+  expect(sha(c, 't/ST-1')).toBe(base);
+});
+
+it('ac-4 stale remote refs are pruned after a good fetch and a failed fetch prunes nothing', async () => {
+  const stale = (c: Clone) => {
+    c.git('push', '-q', 'origin', 'main:refs/heads/t/ST-9', 'main:refs/heads/backlog/notes');
+    c.git('fetch', '-q', 'origin');
+    const r = c.git('branch', '-r');
+    expect(r).toContain('origin/t/ST-9');
+    expect(r).toContain('origin/backlog/notes');
+    gitRun(c.remote, 'branch', '-D', 't/ST-9', 'backlog/notes');
+  };
+  const c = clone();
+  stale(c);
+  const main = sha(c, 'main');
+  const good = await run(['worktree', 'clean'], c.root, {});
+  expect(good.code).toBe(0);
+  const r = c.git('branch', '-r');
+  expect(r).not.toContain('origin/t/ST-9');
+  expect(r).not.toContain('origin/backlog/notes');
+  expect(r).toContain('origin/main');
+  expect(lines(good.out)).toEqual([
+    `pruned refs/remotes/origin/backlog/notes (was ${main})`,
+    `pruned refs/remotes/origin/t/ST-9 (was ${main})`,
+  ]);
+
+  const d = clone();
+  stale(d);
+  d.git('branch', 't/ST-9', 'origin/t/ST-9');
+  const tip = sha(d, 'origin/main');
+  d.git('remote', 'set-url', 'origin', d.remote + '-missing');
+  const bad = await run(['worktree', 'clean'], d.root, {});
+  expect(bad.code).toBe(0);
+  const l = lines(bad.out);
+  expect(l).toHaveLength(2);
+  expect(l[0].startsWith('fetch from origin failed, judging against the refs already in this clone')).toBe(true);
+  expect(l[1]).toBe(`deleted t/ST-9 (was ${tip})`);
+  const r2 = d.git('branch', '-r');
+  expect(r2).toContain('origin/t/ST-9');
+  expect(r2).toContain('origin/backlog/notes');
+});
+
+it('risk:data-loss a prune setting cannot prune before the fetch and the pruned ref is named with its sha', async () => {
+  const c = clone();
+  c.git('switch', '-q', '-c', 't/ST-9', 'main');
+  writeFiles(c.root, { 'ST-9.txt': 'x\n' });
+  c.git('add', '-A');
+  c.git('commit', '-q', '-m', 'ST-9');
+  c.git('push', '-q', 'origin', 't/ST-9');
+  const tip = sha(c, 'HEAD');
+  c.git('switch', '-q', 'main');
+  c.git('branch', '-D', 't/ST-9');
+  c.git('config', 'remote.origin.prune', 'true');
+  gitRun(c.remote, 'branch', '-D', 't/ST-9');
+  const { code, out } = await run(['worktree', 'clean'], c.root, {});
+  expect(code).toBe(0);
+  expect(lines(out)).toEqual([`pruned refs/remotes/origin/t/ST-9 (was ${tip})`]);
+  c.git('cat-file', '-e', tip);
+});
+
+it('risk:data-loss a failed prune says only that the prune failed and still names each ref it removed', async () => {
+  const c = clone();
+  c.git('push', '-q', 'origin', 'main:refs/heads/t/ST-9', 'main:refs/heads/backlog/notes');
+  c.git('fetch', '-q', 'origin');
+  gitRun(c.remote, 'branch', '-D', 't/ST-9', 'backlog/notes');
+  writeFiles(c.root, { '.git/refs/remotes/origin/t/ST-9.lock': '' });
+  const main = sha(c, 'main');
+  const { code, out } = await run(['worktree', 'clean'], c.root, {});
+  expect(code).toBe(0);
+  const l = lines(out);
+  const failed = l.filter((x) => x.startsWith('prune of origin failed'));
+  expect(failed).toHaveLength(1);
+  expect(failed[0].startsWith('prune of origin failed: ')).toBe(true);
+  expect(failed[0]).not.toContain('stale remote refs are kept');
+  const left = c.git('branch', '-r');
+  for (const [b, ref] of [['t/ST-9', 'refs/remotes/origin/t/ST-9'], ['backlog/notes', 'refs/remotes/origin/backlog/notes']] as const) {
+    const named = l.includes(`pruned ${ref} (was ${main})`);
+    expect(named).toBe(!left.includes(`origin/${b}`));
+  }
+});
+
+it('risk:data-loss a local-only tag that the fetch refspecs map is named with its sha when the prune removes it', async () => {
+  const c = clone();
+  c.git('config', '--add', 'remote.origin.fetch', '+refs/tags/*:refs/tags/*');
+  c.git('switch', '-q', '--detach', 'main');
+  writeFiles(c.root, { 'mine.txt': 'x\n' });
+  c.git('add', '-A');
+  c.git('commit', '-q', '-m', 'mine');
+  c.git('tag', 'mine');
+  const tip = sha(c, 'mine');
+  c.git('switch', '-q', 'main');
+  const { code, out } = await run(['worktree', 'clean'], c.root, {});
+  expect(code).toBe(0);
+  expect(lines(out)).toEqual([`pruned refs/tags/mine (was ${tip})`]);
+});
+
+const C = { pid: 7003, start: 'S-C', marker: 'sess-C' };
+
+it('ac-1 in claude code pick up from the main checkout takes the hold and prints enter instead of stop', async () => {
+  const c = clone({ setup: ['node setup-step.js ci'] });
+  setTable(tableOf(A));
+  const { code, out } = await run(['worktree', 'open', 'ST-9'], c.root, envOf(A));
+  expect(code).toBe(0);
+  expect(lines(out)).toEqual([`enter: ${c.sibling('ST-9')}`]);
+  expect(out).not.toContain('stop:');
+  expect(c.git('log', '-1', '--format=%s', 't/ST-9').trim()).toBe('claim: ST-9');
+  expect(c.git('rev-parse', 't/ST-9^').trim()).toBe(c.git('rev-parse', 'origin/main').trim());
+  expect(readFileSync(`${c.sibling('ST-9')}/setup.log`, 'utf8')).toBe('ci\n');
+  expect(readHolds(c)['ST-9']).toMatchObject({ tool: 'Claude Code', marker: 'sess-A', pid: 7001, start: 'S-A' });
+  expect(c.git('branch', '--show-current').trim()).toBe('main');
+  const moved = await run(['anchor'], c.sibling('ST-9'));
+  expect(moved.out.startsWith('# Anchor: ST-9')).toBe(true);
+  expect(moved.out).toBe((await run(['anchor', 'ST-9'], c.root)).out);
+  expect((await run(['worktree', 'open', 'ST-9', '--continue'], c.sibling('ST-9'), envOf(A))).out).toBe(HELD);
+});
+
+it('ac-2 in claude code continue from the main checkout enters a claimed worktree whose session ended with or without a worktree here', async () => {
+  const c = clone({ tickets: ['ST-9', 'ST-10'] });
+  await run(['worktree', 'open', 'ST-9'], c.root);
+  writeHolds(c, { 'ST-9': DEAD });
+  setTable(tableOf(A));
+  const a = await run(['worktree', 'open', 'ST-9', '--continue'], c.root, envOf(A));
+  expect(a.code).toBe(0);
+  expect(lines(a.out)).toEqual([`enter: ${c.sibling('ST-9')}`]);
+  expect((readHolds(c)['ST-9'] as { marker: string }).marker).toBe('sess-A');
+  expect((await run(['anchor'], c.sibling('ST-9'))).out).toBe((await run(['anchor', 'ST-9'], c.root)).out);
+
+  const o = c.otherClone();
+  gitRun(o, 'config', 'user.email', 'y@example.invalid');
+  gitRun(o, 'switch', '-q', '-c', 't/ST-10', 'main');
+  gitRun(o, 'commit', '--allow-empty', '-q', '-m', 'claim: ST-10');
+  gitRun(o, 'push', '-q', 'origin', 't/ST-10');
+  c.git('fetch', '-q', 'origin');
+  setTable(tableOf(C));
+  const b = await run(['worktree', 'open', 'ST-10', '--continue'], c.root, envOf(C));
+  expect(b.code).toBe(0);
+  expect(lines(b.out)).toEqual([`enter: ${c.sibling('ST-10')}`]);
+  expect(gitRun(c.sibling('ST-10'), 'rev-parse', 'HEAD').trim()).toBe(c.git('rev-parse', 'origin/t/ST-10').trim());
+  expect((readHolds(c)['ST-10'] as { marker: string }).marker).toBe('sess-C');
+});
+
+it('risk:complex-branching in claude code a worktree pinned to another accord version refuses before setup and prints no enter', async () => {
+  const c = clone();
+  c.git('worktree', 'add', '-q', '-b', 't/ST-9', c.sibling('ST-9'), 'origin/main');
+  const cfg = `${c.sibling('ST-9')}/accord/config.yml`;
+  writeFileSync(cfg, readFileSync(cfg, 'utf8').replace('accord: "0.1.0"', 'accord: "0.0.9"'));
+  gitRun(c.sibling('ST-9'), 'commit', '-q', '-am', 'pin');
+  setTable(tableOf(A));
+  const a = await run(['worktree', 'open', 'ST-9', '--continue'], c.root, envOf(A));
+  expect(a.code).toBe(2);
+  expect(a.err).toContain('pins accord 0.0.9');
+  expect(a.err).toContain('merge origin/main into t/ST-9');
+  expect(a.out).not.toContain('enter:');
+  expect(existsSync(holdsFile(c))).toBe(false);
+  const plain = await run(['worktree', 'open', 'ST-9', '--continue'], c.root);
+  expect(plain.code).toBe(0);
+  expect(lines(plain.out)).toEqual(stopLines(c.sibling('ST-9'), 'ST-9'));
+
+  const d = clone({ setup: ['node setup-step.js ci'] });
+  const o = d.otherClone();
+  gitRun(o, 'config', 'user.email', 'y@example.invalid');
+  writeFileSync(`${o}/accord/config.yml`, readFileSync(`${o}/accord/config.yml`, 'utf8').replace('accord: "0.1.0"', 'accord: "0.0.9"'));
+  gitRun(o, 'commit', '-q', '-am', 'pin');
+  gitRun(o, 'push', '-q', 'origin', 'main');
+  d.git('fetch', '-q', 'origin');
+  const b = await run(['worktree', 'open', 'ST-9'], d.root, envOf(A));
+  expect(b.code).toBe(2);
+  expect(b.err).toContain('pins accord 0.0.9');
+  expect(b.err).toContain('update the main checkout');
+  expect(b.err).not.toContain('merge');
+  expect(b.out).not.toContain('enter:');
+  expect(existsSync(`${d.sibling('ST-9')}/setup.log`)).toBe(false);
+  expect((readHolds(d)['ST-9'] as { marker: string }).marker).toBe('sess-A');
+}, 120_000);
+
+it('risk:concurrency in claude code continue from the main checkout refuses a ticket another live session holds and prints no enter', async () => {
+  const c = clone();
+  await run(['worktree', 'open', 'ST-9'], c.root);
+  writeHolds(c, { 'ST-9': LIVE });
+  setTable(tableOf(A, { pid: 4242, start: 'S2' }));
+  const before = readFileSync(holdsFile(c), 'utf8');
+  const r = await run(['worktree', 'open', 'ST-9', '--continue'], c.root, envOf(A));
+  expect(r.code).toBe(2);
+  expect(r.err).toContain('sess-H');
+  expect(r.out).not.toContain('enter:');
+  expect(readFileSync(holdsFile(c), 'utf8')).toBe(before);
+});
+
+it('ac-3 in claude code a new lane m ticket is committed pushed and held and prints enter instead of stop', async () => {
+  const c = clone({ setup: ['node setup-step.js ci'], tickets: [] });
+  setTable(tableOf(A));
+  const { code, out } = await run(['new', 'ticket', 'ST-9', '--lane', 'M', '--worktree'], c.root, envOf(A));
+  expect(code).toBe(0);
+  expect(lines(out)).toEqual(['accord/tickets/ST-9.md', `enter: ${c.sibling('ST-9')}`]);
+  expect(out).not.toContain('stop:');
+  expect(c.git('ls-remote', 'origin', 'refs/heads/t/ST-9').split('\t')[0]).toBe(gitRun(c.sibling('ST-9'), 'rev-parse', 'HEAD').trim());
+  expect(gitRun(c.sibling('ST-9'), 'log', '-1', '--format=%s').trim()).toBe('claim: ST-9');
+  expect(readFileSync(`${c.sibling('ST-9')}/setup.log`, 'utf8')).toBe('ci\n');
+  expect((readHolds(c)['ST-9'] as { marker: string }).marker).toBe('sess-A');
+  expect(existsSync(`${c.root}/accord/tickets/ST-9.md`)).toBe(false);
+  const a = await run(['anchor'], c.sibling('ST-9'));
+  expect(a.code).toBe(0);
+  expect(a.out.startsWith('# Anchor: ST-9')).toBe(true);
+  expect(a.out).toContain('Stage: intent');
+});
+
+it('risk:data-loss in claude code a new ticket whose hold cannot be taken is still pushed and exits 2', async () => {
+  const c = clone({ tickets: [] });
+  setTable(tableOf(A));
+  const { code, err } = await run(['new', 'ticket', 'ST-9', '--lane', 'M', '--worktree'], c.root, { CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: 'sess-X', CLAUDE_PID: '1' });
+  expect(code).toBe(2);
+  expect(err).toContain('CLAUDE_PID 1');
+  expect(c.git('ls-remote', 'origin', 'refs/heads/t/ST-9')).toContain('refs/heads/t/ST-9');
+});
+
+const C3 = { pid: 7003, start: 'S-C', marker: 'sess-C' };
+const WORKS = ['this session works ST-9', 'open a new session in the main checkout', 'without "/accord"'];
+
+it('ac-4 in claude code a session that works a ticket refuses other tickets and new tickets and changes nothing', async () => {
+  const c = clone({ tickets: ['ST-9', 'ST-10'] });
+  const sib = c.sibling('ST-9');
+  setTable(tableOf(A));
+  expect((await run(['worktree', 'open', 'ST-9'], c.root, envOf(A))).code).toBe(0);
+  gitRun(sib, 'push', '-q', '-u', 'origin', 't/ST-9');
+  mergeOnRemote(c, 'ST-9');
+  c.git('fetch', '-q', 'origin');
+  mkdirSync(`${sib}/sub`);
+  const state = () =>
+    [c.root, sib]
+      .flatMap((d) => [
+        gitRun(d, 'worktree', 'list', '--porcelain'),
+        gitRun(d, 'for-each-ref', '--format=%(refname) %(objectname)'),
+        gitRun(d, 'log', '--all', '--format=%H %s'),
+        gitRun(d, 'status', '--porcelain', '--untracked-files=all'),
+        readdirSync(`${d}/accord/tickets`).sort().join(','),
+      ])
+      .concat(readFileSync(holdsFile(c), 'utf8'));
+  const before = state();
+  const argvs = [
+    ['worktree', 'open', 'ST-10'],
+    ['worktree', 'open', 'ST-10', '--continue'],
+    ['worktree', 'open', 'ST-9'],
+    ['new', 'ticket', 'ST-11', '--lane', 'M', '--worktree'],
+    ['new', 'ticket', 'ST-11', '--lane', 'M'],
+    ['worktree', 'check'],
+  ];
+  for (const dir of [sib, `${sib}/sub`, c.root]) {
+    for (const argv of argvs) {
+      const r = await run(argv, dir, envOf(A));
+      expect(r.code, `${dir} ${argv.join(' ')}`).toBe(2);
+      for (const w of WORKS) expect(r.err).toContain(w);
+    }
+    expect(state()).toEqual(before);
+    expect(existsSync(c.sibling('ST-10'))).toBe(false);
+    expect(existsSync(c.sibling('ST-11'))).toBe(false);
+  }
+  setTable(tableOf(B, A));
+  for (const argv of [['worktree', 'open', 'ST-10'], ['new', 'ticket', 'ST-11', '--lane', 'M']]) {
+    const r = await run(argv, `${sib}/sub`, envOf(B));
+    expect(r.code).toBe(2);
+    expect(r.err).toContain('ST-9');
+  }
+  expect(state()).toEqual(before);
+  setTable(tableOf(A));
+  const same = await run(['worktree', 'open', 'ST-9', '--continue'], sib, envOf(A));
+  expect([same.code, same.out]).toEqual([0, HELD]);
+  const back = await run(['worktree', 'open', 'ST-9', '--continue'], c.root, envOf(A));
+  expect(back.code).toBe(0);
+  expect(lines(back.out)).toEqual([`enter: ${sib}`]);
+}, 180_000);
+
+it('ac-5 outside claude code pick up continue and new ticket print the stop lines and nothing is refused', async () => {
+  const c = clone({ tickets: ['ST-9', 'ST-10'] });
+  vi.mocked(proc.processTable).mockClear();
+  const outs: string[] = [];
+  const go = async (argv: string[], dir: string) => {
+    const r = await run(argv, dir, {});
+    expect(r.code, argv.join(' ')).toBe(0);
+    outs.push(r.out, r.err);
+    return r;
+  };
+  expect((await go(['worktree', 'open', 'ST-9'], c.root)).out.split('\n').slice(0, 3)).toEqual(stopLines(c.sibling('ST-9'), 'ST-9'));
+  expect((await go(['new', 'ticket', 'ST-11', '--lane', 'M', '--worktree'], c.root)).out.split('\n').slice(0, 4)).toEqual([
+    'accord/tickets/ST-11.md',
+    ...stopLines(c.sibling('ST-11'), 'ST-11'),
+  ]);
+  const s9 = c.sibling('ST-9');
+  expect((await go(['worktree', 'open', 'ST-10'], s9)).out.split('\n').slice(0, 3)).toEqual(stopLines(c.sibling('ST-10'), 'ST-10'));
+  expect((await go(['worktree', 'open', 'ST-9', '--continue'], s9)).out).toContain('not held:');
+  const chk = await go(['worktree', 'check'], s9);
+  expect([chk.out, chk.err]).toEqual(['', '']);
+  const n = await go(['new', 'ticket', 'ST-12', '--lane', 'M', '--worktree'], s9);
+  expect(n.out.trimEnd().split('\n').slice(-3)).toEqual(stopLines(c.sibling('ST-12'), 'ST-12'));
+  for (const o of outs) expect(o).not.toMatch(/enter:|this session works/);
+  expect(existsSync(holdsFile(c))).toBe(false);
+  expect(proc.processTable).not.toHaveBeenCalled();
+});
+
+it('risk:complex-branching a linked worktree on a detached head refuses all but continue of its own ticket', async () => {
+  const c = clone({ tickets: ['ST-9', 'ST-10'] });
+  c.git('worktree', 'add', '-q', '--detach', c.sibling('ST-10'), 'origin/main');
+  setTable(tableOf(A));
+  for (const argv of [['worktree', 'open', 'ST-9', '--continue'], ['worktree', 'check']]) {
+    const r = await run(argv, c.sibling('ST-10'), envOf(A));
+    expect(r.code).toBe(2);
+    expect(r.err).toContain('whose branch cannot be read');
+    expect(r.err).toContain('open a new session in the main checkout');
+  }
+  const own = await run(['worktree', 'open', 'ST-10', '--continue'], c.sibling('ST-10'), envOf(A));
+  expect(own.err).not.toContain('this session works');
+});
+
+it('risk:complex-branching a claude code session that sets no session variables keeps the main checkout flows and only the folder rule refuses it', async () => {
+  const c = clone({ tickets: ['ST-9', 'ST-10'] });
+  const E = { CLAUDECODE: '1' };
+  vi.mocked(proc.processTable).mockClear();
+  const chk = await run(['worktree', 'check'], c.root, E);
+  expect([chk.code, chk.out, chk.err]).toEqual([0, '', '']);
+  const o = await run(['worktree', 'open', 'ST-9'], c.root, E);
+  expect(o.code).toBe(0);
+  expect(o.out.split('\n').slice(0, 3)).toEqual(stopLines(c.sibling('ST-9'), 'ST-9'));
+  const n = await run(['new', 'ticket', 'ST-11', '--lane', 'M'], c.root, E);
+  expect(n.code).toBe(0);
+  expect(existsSync(`${c.root}/accord/tickets/ST-11.md`)).toBe(true);
+  const w = await run(['new', 'ticket', 'ST-12', '--lane', 'M', '--worktree'], c.root, E);
+  expect(w.code).toBe(0);
+  expect(w.out.trimEnd().split('\n').slice(-3)).toEqual(stopLines(c.sibling('ST-12'), 'ST-12'));
+  for (const s of [chk.out, o.out, n.out, w.out]) expect(s).not.toContain('enter:');
+  expect(existsSync(holdsFile(c))).toBe(false);
+  expect(proc.processTable).not.toHaveBeenCalled();
+  const r = await run(['worktree', 'open', 'ST-10'], c.sibling('ST-9'), E);
+  expect(r.code).toBe(2);
+  expect(r.err).toContain('this session works ST-9');
+});
+
+it('risk:complex-branching in claude code a pick up whose setup failed and a new ticket whose push failed still hold their ticket and refuse a second one', async () => {
+  const c = clone({ setup: ['node setup-step.js fail'], tickets: ['ST-9', 'ST-10'] });
+  setTable(tableOf(A));
+  const p = await run(['worktree', 'open', 'ST-9'], c.root, envOf(A));
+  expect(p.code).toBe(2);
+  expect(p.err).toContain('setup command failed');
+  expect(p.out).not.toContain('enter:');
+  expect(c.git('log', '-1', '--format=%s', 't/ST-9').trim()).toBe('claim: ST-9');
+  expect((readHolds(c)['ST-9'] as { marker: string }).marker).toBe('sess-A');
+  for (const argv of [['worktree', 'open', 'ST-10'], ['new', 'ticket', 'ST-11', '--lane', 'M', '--worktree']]) {
+    const r = await run(argv, c.root, envOf(A));
+    expect(r.code).toBe(2);
+    expect(r.err).toContain('this session works ST-9');
+  }
+  expect(existsSync(c.sibling('ST-10'))).toBe(false);
+  expect(existsSync(c.sibling('ST-11'))).toBe(false);
+  expect(c.git('branch', '--list', 't/ST-10', 't/ST-11').trim()).toBe('');
+  const again = await run(['worktree', 'open', 'ST-9', '--continue'], c.root, envOf(A));
+  expect(again.code).toBe(2);
+  expect(again.err).toContain('setup command failed');
+  expect(again.err).not.toContain('this session works');
+
+  const d = clone({ tickets: ['ST-10'] });
+  d.git('remote', 'set-url', '--push', 'origin', `${d.remote}-missing`);
+  setTable(tableOf(C3));
+  const n = await run(['new', 'ticket', 'ST-11', '--lane', 'M', '--worktree'], d.root, envOf(C3));
+  expect(n.code).toBe(2);
+  expect(n.err).toContain('the push failed');
+  expect(n.out).not.toContain('enter:');
+  expect((readHolds(d)['ST-11'] as { marker: string }).marker).toBe('sess-C');
+  const o = await run(['worktree', 'open', 'ST-10'], d.root, envOf(C3));
+  expect(o.code).toBe(2);
+  expect(o.err).toContain('this session works ST-11');
+  expect(existsSync(d.sibling('ST-10'))).toBe(false);
+}, 120_000);
+
+it('risk:data-loss clean keeps a merged worktree this session holds when run from the main checkout', async () => {
+  const c = clone();
+  ticketWorktree(c, 'ST-9');
+  mergeOnRemote(c, 'ST-9');
+  writeHolds(c, { 'ST-9': { tool: 'Claude Code', ...A, taken: '2026-10-18T00:00:00.000Z' } });
+  setTable(tableOf(A));
+  vi.mocked(proc.processTable).mockClear();
+  const { code, out } = await run(['worktree', 'clean'], c.root, envOf(A));
+  expect(code).toBe(0);
+  expect(lines(out)).toContain(`kept ${c.sibling('ST-9')}: this session's worktree`);
+  expect(lines(out)).toContain('kept t/ST-9: checked out in ' + c.sibling('ST-9'));
+  expect(existsSync(c.sibling('ST-9'))).toBe(true);
+  expect(Object.keys(readHolds(c))).toEqual(['ST-9']);
+  expect(proc.processTable).not.toHaveBeenCalled();
+}, 60_000);
+
+it('risk:concurrency the session start hook takes a free hold in a ticket worktree and never a live one', async () => {
+  const c = clone();
+  c.git('worktree', 'add', '-q', '-b', 't/ST-9', c.sibling('ST-9'), 'origin/main');
+  const sib = c.sibling('ST-9');
+  const start = (s: { marker: string; pid: number }, cwd: string, env: NodeJS.ProcessEnv = envOf(s)) =>
+    run(['hook', 'session-start'], cwd, env, JSON.stringify({ session_id: s.marker, cwd, source: 'startup' }));
+  setTable(tableOf(A));
+  const a = await start(A, sib);
+  expect(a.code).toBe(0);
+  expect(a.out.startsWith('# accord rules\n')).toBe(true);
+  expect((readHolds(c)['ST-9'] as { marker: string }).marker).toBe('sess-A');
+  const bytes = readFileSync(holdsFile(c), 'utf8');
+  setTable(tableOf(B, A));
+  const b = await start(B, sib);
+  expect(b.code).toBe(0);
+  expect(b.out.startsWith('# accord rules\n')).toBe(true);
+  expect(lines(b.err)).toHaveLength(1);
+  expect(b.err).toContain('sess-A');
+  expect(readFileSync(holdsFile(c), 'utf8')).toBe(bytes);
+  setTable(tableOf(B));
+  await start(B, c.root);
+  expect(readFileSync(holdsFile(c), 'utf8')).toBe(bytes);
+  await start(B, sib, {});
+  expect(readFileSync(holdsFile(c), 'utf8')).toBe(bytes);
+  const n = await start(B, sib, { CLAUDECODE: '1' });
+  expect(n.code).toBe(0);
+  expect(n.out.startsWith('# accord rules\n')).toBe(true);
+  expect(lines(n.err)).toHaveLength(1);
+  expect(n.err).toContain('no hold taken on ST-9');
+  expect(readFileSync(holdsFile(c), 'utf8')).toBe(bytes);
+}, 60_000);
+
+it('risk:complex-branching the resume hook in the main checkout prints the anchor and the enter line of the held worktree', async () => {
+  const c = clone();
+  setTable(tableOf(A));
+  expect((await run(['worktree', 'open', 'ST-9'], c.root, envOf(A))).code).toBe(0);
+  const resume = (s: { marker: string; pid: number }, cwd: string) =>
+    run(['hook', 'session-resume'], c.root, envOf(s), JSON.stringify({ session_id: s.marker, cwd, source: 'resume' }));
+  const a = await resume(A, c.root);
+  expect(a.out).toContain('# Anchor: ST-9');
+  const al = lines(a.out);
+  expect(al.at(-1)).toBe(`enter: ${c.sibling('ST-9')}`);
+  expect(al.at(-2)).toContain('EnterWorktree');
+  const b = await resume(B, c.root);
+  expect(b.out).not.toContain('enter:');
+  expect(b.out).toMatch(/\naccord: \d+ in progress, \d+ ready to pick up · type \/accord\n$/);
+  const s = await resume(A, c.sibling('ST-9'));
+  expect(s.out).toContain('# Anchor: ST-9');
+  expect(s.out).not.toContain('enter:');
+}, 60_000);
+
+
+it('risk:complex-branching a session whose hold was cleaned or taken over still works its ticket when resumed in the main checkout', async () => {
+  const c = clone({ tickets: ['ST-9', 'ST-10', 'ST-11'] });
+  const sib = c.sibling('ST-9');
+  const worked = () => readFileSync(`${c.root}/.git/accord/worked`, 'utf8');
+  const hook = (s: { marker: string }, args: string) =>
+    run(['hook', 'prompt-expansion'], c.root, {}, JSON.stringify({ session_id: s.marker, command_name: 'accord', command_args: args, cwd: c.root }));
+  setTable(tableOf(A));
+  const o = await run(['worktree', 'open', 'ST-9'], c.root, envOf(A));
+  expect(o.code).toBe(0);
+  expect(o.out).toContain('enter:');
+  expect((await run(['worktree', 'open', 'ST-9', '--continue'], sib, envOf(A))).out).toBe(HELD);
+  expect(worked()).toBe('ST-9\tsess-A\n');
+
+  gitRun(sib, 'push', '-q', '-u', 'origin', 't/ST-9');
+  mergeOnRemote(c, 'ST-9');
+  setTable(tableOf(B));
+  const cl = await run(['worktree', 'clean'], c.root, envOf(B));
+  expect(cl.code).toBe(0);
+  expect(cl.out).toContain(`removed ${sib}`);
+  expect(existsSync(sib)).toBe(false);
+  expect(Object.hasOwn(readHolds(c), 'ST-9')).toBe(false);
+  expect(worked()).toBe('ST-9\tsess-A\n');
+  setTable(tableOf(A));
+  for (const args of [['worktree', 'open', 'ST-10'], ['worktree', 'check']]) {
+    const r = await run(args, c.root, envOf(A));
+    expect(r.code).toBe(2);
+    expect(r.err).toContain('this session works ST-9');
+  }
+  const h = await hook(A, 'pick-up ST-10');
+  expect(h.code).toBe(0);
+  expect(JSON.parse(h.out)).toMatchObject({ decision: 'block', reason: expect.stringContaining('this session works ST-9') });
+  expect(existsSync(c.sibling('ST-10'))).toBe(false);
+
+  setTable(tableOf(C));
+  const oc = await run(['worktree', 'open', 'ST-10'], c.root, envOf(C));
+  expect(oc.code).toBe(0);
+  expect(oc.out).toContain('enter:');
+  setTable(tableOf(B));
+  const tk = await run(['worktree', 'open', 'ST-10', '--continue'], c.root, envOf(B));
+  expect(tk.code).toBe(0);
+  expect(lines(tk.out)).toEqual([`enter: ${c.sibling('ST-10')}`]);
+  expect((readHolds(c)['ST-10'] as { marker: string }).marker).toBe('sess-B');
+  expect(Object.values(readHolds(c)).some((x) => (x as { marker: string }).marker === 'sess-C')).toBe(false);
+  setTable(tableOf(C));
+  const w = worked();
+  for (const args of [['worktree', 'open', 'ST-11'], ['new', 'ticket', 'ST-12', '--lane', 'M']]) {
+    const r = await run(args, c.root, envOf(C));
+    expect(r.code).toBe(2);
+    expect(r.err).toContain('this session works ST-10');
+  }
+  const hc = await hook(C, 'pick-up ST-11');
+  expect(JSON.parse(hc.out)).toMatchObject({ decision: 'block', reason: expect.stringContaining('this session works ST-10') });
+  expect(existsSync(c.sibling('ST-11'))).toBe(false);
+  expect(existsSync(`${c.root}/accord/tickets/ST-12.md`)).toBe(false);
+  expect(worked()).toBe(w);
+  expect((await run(['worktree', 'open', 'ST-10', '--continue'], c.root, envOf(C))).err).not.toContain('this session works');
+}, 120_000);
+
+it('risk:complex-branching a session started in a ticket worktree is recorded as working it when the start hook takes no hold', async () => {
+  const c = clone({ tickets: ['ST-9', 'ST-10'] });
+  const sib = c.sibling('ST-9');
+  c.git('worktree', 'add', '-q', '-b', 't/ST-9', sib, 'origin/main');
+  const worked = () => readFileSync(`${c.root}/.git/accord/worked`, 'utf8');
+  const hook = (s: { marker: string }, args: string) =>
+    run(['hook', 'prompt-expansion'], c.root, {}, JSON.stringify({ session_id: s.marker, command_name: 'accord', command_args: args, cwd: c.root }));
+  const start = (env: NodeJS.ProcessEnv, marker: string) =>
+    run(['hook', 'session-start'], sib, env, JSON.stringify({ session_id: marker, cwd: sib, source: 'startup' }));
+  writeHolds(c, { 'ST-9': LIVE });
+  setTable(tableOf(B, { pid: 4242, start: 'S2' }));
+  const b = await start(envOf(B), 'sess-B');
+  expect(b.code).toBe(0);
+  expect(b.out.startsWith('# accord rules\n')).toBe(true);
+  expect(lines(b.err)).toHaveLength(1);
+  expect(b.err).toContain('sess-H');
+  expect((readHolds(c)['ST-9'] as { marker: string }).marker).toBe('sess-H');
+  expect(lines(worked())).toContain('ST-9\tsess-B');
+
+  const e = await start({ CLAUDECODE: '1' }, 'sess-E');
+  expect(e.code).toBe(0);
+  expect(e.out.startsWith('# accord rules\n')).toBe(true);
+  expect(lines(e.err)).toHaveLength(1);
+  expect(e.err).toContain('no hold taken on ST-9');
+  expect(lines(worked())).toContain('ST-9\tsess-E');
+
+  expect((await start({}, 'sess-O')).code).toBe(0);
+  expect(lines(worked()).some((l) => l.endsWith('sess-O'))).toBe(false);
+
+  const resume = (env: NodeJS.ProcessEnv, marker: string) =>
+    run(['hook', 'session-resume'], sib, env, JSON.stringify({ session_id: marker, cwd: sib, source: 'resume' }));
+  setTable(tableOf(C));
+  const bytes = readFileSync(holdsFile(c), 'utf8');
+  const r = await resume(envOf(C), 'sess-C');
+  expect(r.code).toBe(0);
+  expect(r.out).toContain('# Anchor: ST-9');
+  expect(r.out).not.toContain('enter:');
+  expect(r.err).toBe('');
+  expect(readFileSync(holdsFile(c), 'utf8')).toBe(bytes);
+  expect(lines(worked())).toContain('ST-9\tsess-C');
+  expect((await resume({}, 'sess-P')).code).toBe(0);
+  expect(lines(worked()).some((l) => l.endsWith('sess-P'))).toBe(false);
+
+  c.git('worktree', 'remove', sib);
+  setTable(tableOf(C));
+  const o = await run(['worktree', 'open', 'ST-10'], c.root, envOf(C));
+  expect(o.code).toBe(2);
+  expect(o.err).toContain('this session works ST-9');
+  setTable(tableOf(B));
+  const k = await run(['worktree', 'check'], c.root, envOf(B));
+  expect(k.code).toBe(2);
+  expect(k.err).toContain('this session works ST-9');
+  const oe = await run(['worktree', 'open', 'ST-10'], c.root, { CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: 'sess-E' });
+  expect(oe.code).toBe(2);
+  expect(oe.err).toContain('this session works ST-9');
+  expect(existsSync(c.sibling('ST-10'))).toBe(false);
+  const h = await hook({ marker: 'sess-E' }, 'pick-up ST-10');
+  expect(h.code).toBe(0);
+  expect(JSON.parse(h.out)).toMatchObject({ decision: 'block', reason: expect.stringContaining('this session works ST-9') });
+}, 120_000);

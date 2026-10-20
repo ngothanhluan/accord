@@ -23,7 +23,7 @@ import { skills } from './commands/skills.js';
 import { status } from './commands/status.js';
 import { taskDone } from './commands/task-done.js';
 import { testsBaseline } from './commands/tests-baseline.js';
-import { worktreeClean, worktreeOpen } from './commands/worktree.js';
+import { worktreeCheck, worktreeClean, worktreeOpen } from './commands/worktree.js';
 import { loadClaimView, loadFromFs, UsageError } from './load/fs.js';
 import { pinMessage } from './pin.js';
 import { repoRoot } from './root.js';
@@ -35,6 +35,7 @@ export interface RunOptions {
   // Declared now although only the tracker adapter reads it, so adding that adapter does not reopen
   // this file or change the shape every test constructs.
   env?: NodeJS.ProcessEnv;
+  stdin?: string; // only `hook` reads it (index.ts)
 }
 
 export interface CommandContext {
@@ -44,6 +45,7 @@ export interface CommandContext {
   stdout: NodeJS.WritableStream;
   stderr: NodeJS.WritableStream;
   env: NodeJS.ProcessEnv;
+  stdin?: string;
 }
 
 /**
@@ -62,7 +64,7 @@ function preflight(opts: RunOptions, mode: 'checkout' | 'stage' | 'claims' = 'ch
     const message = pinMessage(snapshot.config.accord, pkg.version);
     if (message !== undefined) throw new UsageError(message);
   }
-  return { root, snapshot, ...(plain === undefined ? {} : { plain }), stdout: opts.stdout, stderr: opts.stderr, env: opts.env ?? {} };
+  return { root, snapshot, ...(plain === undefined ? {} : { plain }), stdout: opts.stdout, stderr: opts.stderr, env: opts.env ?? {}, ...(opts.stdin === undefined ? {} : { stdin: opts.stdin }) };
 }
 
 /**
@@ -199,9 +201,15 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
   const worktree = program.command('worktree').description('work each ticket in its own git worktree');
   worktree
     .command('clean')
-    .description('fetch, then remove the worktrees of merged tickets and name the ones kept')
+    .description('fetch, then remove the worktrees of merged tickets, delete merged ticket branches and prune stale remote refs, naming what is removed or kept')
     .action(() => {
       setCode(worktreeClean(preflight(opts)));
+    });
+  worktree
+    .command('check')
+    .description('exit 2 naming the ticket this Claude Code session works, before any other work starts')
+    .action(() => {
+      setCode(worktreeCheck(preflight(opts)));
     });
   worktree
     .command('open <id>')
@@ -260,6 +268,21 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .action((event: string) => {
       if (!(HOOK_EVENTS as readonly string[]).includes(event)) {
         throw new UsageError('unknown hook event ' + event + '; expected one of ' + HOOK_EVENTS.join(', '));
+      }
+      if (event === 'prompt-expansion') {
+        // The hook never blocks a prompt because of a broken repository (ledger Ruling): any failure to build
+        // the context is one stderr line and an allow.
+        let ctx: CommandContext;
+        try {
+          ctx = preflight(opts, 'stage');
+        } catch (e) {
+          opts.stderr.write(`accord hook prompt-expansion: ${(e instanceof Error ? e.message : String(e)).split('\n')[0]}; allowed`.replace(/\\/g, '/') + '\n');
+          opts.stdout.write('{}\n');
+          setCode(0);
+          return;
+        }
+        setCode(hook(ctx, event));
+        return;
       }
       setCode(hook(preflight(opts, 'stage'), event as (typeof HOOK_EVENTS)[number]));
     });

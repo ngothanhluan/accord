@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import pkg from '../package.json' with { type: 'json' };
+import { makeClone } from './helpers/worktree.js';
 
 const cli = fileURLToPath(new URL('../dist/cli.js', import.meta.url));
 
@@ -49,4 +50,19 @@ describe('accord bin', () => {
     const text = readFileSync(cli, 'utf8');
     expect(text).not.toMatch(/from ['"]@accord-dev\/accord-core['"]/);
   });
+});
+
+it('risk:parsing the built cli hands hook input on stdin to the prompt expansion hook', () => {
+  const c = makeClone();
+  try {
+    c.git('worktree', 'add', '-q', '-b', 't/ST-9', c.sibling('ST-9'), 'origin/main');
+    const out = execFileSync(process.execPath, [cli, 'hook', 'prompt-expansion'], {
+      cwd: c.root,
+      encoding: 'utf8',
+      input: JSON.stringify({ session_id: 's', command_name: 'accord', command_args: 'pick-up ST-10', cwd: c.sibling('ST-9') }),
+    });
+    expect(JSON.parse(out).decision).toBe('block');
+  } finally {
+    c.cleanupAll();
+  }
 });

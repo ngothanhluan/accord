@@ -23,6 +23,7 @@ import { skills } from './commands/skills.js';
 import { status } from './commands/status.js';
 import { taskDone } from './commands/task-done.js';
 import { testsBaseline } from './commands/tests-baseline.js';
+import { worktreeCheck, worktreeClean, worktreeOpen } from './commands/worktree.js';
 import { loadClaimView, loadFromFs, UsageError } from './load/fs.js';
 import { pinMessage } from './pin.js';
 import { repoRoot } from './root.js';
@@ -34,6 +35,7 @@ export interface RunOptions {
   // Declared now although only the tracker adapter reads it, so adding that adapter does not reopen
   // this file or change the shape every test constructs.
   env?: NodeJS.ProcessEnv;
+  stdin?: string; // only `hook` reads it (index.ts)
 }
 
 export interface CommandContext {
@@ -43,6 +45,7 @@ export interface CommandContext {
   stdout: NodeJS.WritableStream;
   stderr: NodeJS.WritableStream;
   env: NodeJS.ProcessEnv;
+  stdin?: string;
 }
 
 /**
@@ -61,7 +64,7 @@ function preflight(opts: RunOptions, mode: 'checkout' | 'stage' | 'claims' = 'ch
     const message = pinMessage(snapshot.config.accord, pkg.version);
     if (message !== undefined) throw new UsageError(message);
   }
-  return { root, snapshot, ...(plain === undefined ? {} : { plain }), stdout: opts.stdout, stderr: opts.stderr, env: opts.env ?? {} };
+  return { root, snapshot, ...(plain === undefined ? {} : { plain }), stdout: opts.stdout, stderr: opts.stderr, env: opts.env ?? {}, ...(opts.stdin === undefined ? {} : { stdin: opts.stdin }) };
 }
 
 /**
@@ -168,7 +171,8 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
         .default('story'),
     )
     .addOption(new Option('--lane <lane>', 'write a lane ticket (M, L, or P)').choices(['M', 'L', 'P']))
-    .action((id: string | undefined, options: { type: 'epic' | 'story' | 'bug'; lane?: 'M' | 'L' | 'P' }) => {
+    .option('--worktree', 'write the ticket in its own new worktree on its claim branch, commit and push it, then run setup there')
+    .action((id: string | undefined, options: { type: 'epic' | 'story' | 'bug'; lane?: 'M' | 'L' | 'P'; worktree?: boolean }) => {
       setCode(newTicket(preflight(opts), id, options));
     });
 
@@ -192,6 +196,27 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .description('write accord/tests-baseline.txt from the untraced cases in the report, once')
     .action(() => {
       setCode(testsBaseline(preflight(opts)));
+    });
+
+  const worktree = program.command('worktree').description('work each ticket in its own git worktree');
+  worktree
+    .command('clean')
+    .description('fetch, then remove the worktrees of merged tickets, delete merged ticket branches and prune stale remote refs, naming what is removed or kept')
+    .action(() => {
+      setCode(worktreeClean(preflight(opts)));
+    });
+  worktree
+    .command('check')
+    .description('exit 2 naming the ticket this Claude Code session works, before any other work starts')
+    .action(() => {
+      setCode(worktreeCheck(preflight(opts)));
+    });
+  worktree
+    .command('open <id>')
+    .description("find or prepare the ticket's worktree, or take its hold from inside it")
+    .option('--continue', 'continue a claimed ticket: never claim, refuse when it has no branch')
+    .action((id: string, o: { continue?: boolean }) => {
+      setCode(worktreeOpen(preflight(opts), id, { continue: o.continue === true }));
     });
 
   program
@@ -230,9 +255,10 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
 
   program
     .command('show <id>')
-    .description('print one lane ticket in full: its row facts, Intent, and each criterion with its state')
+    .description('print one ticket: with --approval its approved sections, otherwise the row facts of a lane ticket, Intent, and each criterion with its state')
     .option('--json', 'print the TicketDetail object instead of text')
-    .action((id: string, options: { json?: boolean }) => {
+    .addOption(new Option('--approval', "print the approved sections for the owner's yes, criteria compacted").conflicts('json'))
+    .action((id: string, options: { json?: boolean; approval?: boolean }) => {
       setCode(show(preflight(opts, 'claims'), id, options));
     });
 
@@ -242,6 +268,21 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .action((event: string) => {
       if (!(HOOK_EVENTS as readonly string[]).includes(event)) {
         throw new UsageError('unknown hook event ' + event + '; expected one of ' + HOOK_EVENTS.join(', '));
+      }
+      if (event === 'prompt-expansion') {
+        // The hook never blocks a prompt because of a broken repository (ledger Ruling): any failure to build
+        // the context is one stderr line and an allow.
+        let ctx: CommandContext;
+        try {
+          ctx = preflight(opts, 'stage');
+        } catch (e) {
+          opts.stderr.write(`accord hook prompt-expansion: ${(e instanceof Error ? e.message : String(e)).split('\n')[0]}; allowed`.replace(/\\/g, '/') + '\n');
+          opts.stdout.write('{}\n');
+          setCode(0);
+          return;
+        }
+        setCode(hook(ctx, event));
+        return;
       }
       setCode(hook(preflight(opts, 'stage'), event as (typeof HOOK_EVENTS)[number]));
     });

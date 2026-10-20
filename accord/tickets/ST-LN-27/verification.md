@@ -1,0 +1,41 @@
+---
+ticket: "ST-LN-27"
+commit: "9536f0cb4a29045f1f688cd6557fa732ba4c7549"
+reviewed_on: "2026-10-19"
+---
+
+## @ac-1 Pick up moves the Claude Code session into the ticket's worktree and goes on
+
+Result: pass
+
+Evidence: Exists/substantive: packages/cli/src/commands/worktree.ts:266-270 (`enterOrStop`) prints `enter: <path>` under a Claude env. The test at packages/cli/test/worktree.test.ts:876 asserts stdout is exactly `enter: <sibling>`, no `stop:`, a `claim: ST-9` commit on t/ST-9, the hold taken, and the worktree anchor equal to the anchor from main. packages/cli/test/worktree.test.ts passed at this commit (junit node_modules/.cache/accord/junit.xml: 53 tests, 0 failures). Wired: packages/core/skills/accord/worktree.md:28-34 tells the session to push the claim, call EnterWorktree with the path, then go on at Continue step 2; phrase test at packages/core/test/stage-skills.test.ts:284. Data flows, live (sandbox C:\Work\accord-verify, Claude Code started in its main checkout): the owner typed `/accord pick-up ST-LN-12`. The owner saw the approval prompt, no `stop:` line, the session moved into C:\Work\accord-verify-st-ln-12 and the intent interview started; owner: "bước 1-3 đều ok". I read git there: `git worktree list` shows C:/Work/accord-verify-st-ln-12 on t/ST-LN-12; origin/t/ST-LN-12 exists on the sandbox remote (the worktree is at c547f0c, the claim commit), so the claim was pushed; `.git/accord/holds` holds ST-LN-12 with tool "Claude Code", marker d82b6a49-c720-4a99-ad59-fbc0807c7f2b; `.git/accord/worked` has the same marker. That the session's cwd moved rests on the owner's report, not on anything I observed.
+
+## @ac-2 Continue moves the Claude Code session into a claimed ticket's worktree and goes on
+
+Result: pass
+
+Evidence: Exists/substantive: the test at packages/cli/test/worktree.test.ts:894 passes (junit node_modules/.cache/accord/junit.xml). It covers a dead holder with the worktree present (hold taken over, `enter:` printed) and a claim by someone else with no local worktree (worktree created from origin/t/ST-10). Refusals: version pin at :919, live holder at :953. Code: `enterOrStop` at packages/cli/src/commands/worktree.ts:266-270. Wired: packages/core/skills/accord/worktree.md:28-34 is one shared `enter:` bullet that Pick up, Continue and New request all reach (the same bullet was exercised live under ac-1). Data flows, live: a second Claude Code session ran Continue ST-LN-27 from the sandbox main checkout (C:\Work\accord-verify). I read git there: C:/Work/accord-verify-st-ln-27 is a linked worktree on t/ST-LN-27 at 9536f0c, clean, created from origin/t/ST-LN-27 with no earlier local worktree; `.git/accord/holds` holds ST-LN-27, tool "Claude Code", marker 8a2e10d3-0785-4d68-82d8-fc5289ce1d0d, taken 2026-10-19T12:24:44Z; `.git/accord/worked` has the same marker. Asked "có hộp duyệt không? phiên có vào accord-verify-st-ln-27, không có stop:, dừng ở bước verify không?", the owner answered: "1. có hộp duyệt." That approval prompt is what Claude Code shows when EnterWorktree is called with a path outside .claude/worktrees, and the skill calls it only after the CLI printed `enter:` (so no `stop:`). The owner answered only item 1; the cwd move after approval, the absence of `stop:` and resuming at the verify stage were not separately reported. I accept the prompt as proof the enter branch was reached on a Continue run (it cannot appear otherwise), and the resume step is the same shared Continue step 2 that ran live under ac-1. Earlier steps: the typed `/accord sửa typo` was blocked, `/accord continue ST-LN-12` and compaction were ok (owner). Residual risk: the resumed stage was not observed directly.
+
+## @ac-3 A lane M new request moves the Claude Code session into the new ticket's worktree and goes on
+
+Result: pass
+
+Evidence: Exists/substantive: the test at packages/cli/test/worktree.test.ts:966 passes (junit node_modules/.cache/accord/junit.xml). `new ticket ST-9 --lane M --worktree` under a Claude env prints `accord/tickets/ST-9.md` then `enter: <sibling>`; ls-remote sha equals the worktree HEAD; commit `claim: ST-9`; hold taken; ticket absent from the main checkout; anchor says `Stage: intent`. Push-failure and hold-failure paths at :984. Wired: the shared bullet at packages/core/skills/accord/worktree.md:28-34 (also reached live under ac-1 and ac-2). Data flows, live (sandbox C:\Work\accord-verify, new Claude Code session in its main checkout): the owner typed `/accord thêm cờ --quiet cho dashboard`, lane M, and saw the approval prompt ("có hộp duyệt rồi. A", answer A = approve), which Claude Code shows only when EnterWorktree is called with a path outside .claude/worktrees, so the enter branch was reached after the CLI printed `enter:`. I read git there: `git worktree list` shows C:/Work/accord-verify-st-ln-28 on t/ST-LN-28 at 9e7a59a, clean; `git show --stat 9e7a59a` is commit "claim: ST-LN-28" adding only accord/tickets/ST-LN-28.md (58 lines), dated 2026-10-19 19:35:31 +0700 (12:35:31Z); `git ls-remote origin` shows refs/heads/t/ST-LN-28 at 9e7a59a, so it is pushed; `.git/accord/holds` holds ST-LN-28 for tool "Claude Code", marker 631df834-c189-4569-ad51-c859f7e3c4a2, taken 12:35:31Z; `.git/accord/worked` has `ST-LN-28` with the same marker; the main checkout's accord/tickets has no ST-LN-28.md and its status is clean, so the ticket exists only in the worktree.
+
+Not observed: the ticket in the worktree is still the unfilled template (title "Short title in business language", empty Intent and gherkin), so there is no trace in files that the intent interview started, and the session's cwd move after approval rests on the owner's report, as under ac-1. I accept it: the interview is the same shared Continue/step-2 path that ran live under ac-1, and the template-only file is what a claim commit holds before the interview writes anything. Residual risk: the interview start for this entry point was not separately reported.
+
+## @ac-4 A Claude Code session that works a ticket refuses a second ticket
+
+Result: pass
+
+Evidence: The test at packages/cli/test/worktree.test.ts:996 passes. After a merged ticket ST-9 it runs `worktree open ST-10`, `worktree open ST-10 --continue`, `worktree open ST-9`, `new ticket --worktree`, `new ticket` and `worktree check` from the worktree, a subfolder and the main checkout. Each exits 2 naming ST-9 with the three required phrases. Worktree list, refs, `log --all`, status, tickets dirs and holds are unchanged; no ST-10 or ST-11 worktree exists. A detached-head worktree is covered at :1076, and `continue ST-9` for the same ticket is allowed. Wired: `promptExpansion` in packages/cli/src/commands/hook.ts:121-143 blocks any `/accord <args>` except `continue <same id>`, exits 0 with `decision: block` JSON; registered as UserPromptExpansion with matcher `accord` at packages/core/src/scaffold/hooks.ts:17 and .claude/settings.json:34; the skill runs `worktree check` before the dashboard and every New request (packages/core/skills/accord/worktree.md:64). Live: in the sandbox session working ST-LN-12, the typed `/accord sửa typo` was blocked by the hook naming ST-LN-12 (owner, step 2: ok). That shows the hook firing with real session data. The live pick-up/continue/new-request refusals by the CLI were not typed; the CLI refusals are covered by the test above.
+
+## @ac-5 Sessions other than Claude Code keep today's behaviour
+
+Result: pass
+
+Evidence: The test at packages/cli/test/worktree.test.ts:1049 passes. With an empty env it runs `worktree open`, `new ticket --worktree` and `worktree open --continue` from the main checkout and from inside a worktree: stop lines unchanged, exit 0, no `enter:` or `this session works`, no holds file written, `processTable` never called, `worktree check` prints nothing. Code: the `claudeEnv(ctx.env) === undefined` branch at packages/cli/src/commands/worktree.ts:219 and `enterOrStop` at :266. No live run of a non-Claude runtime; none is needed beyond the in-process env test.
+
+Interactive exit (step 4) was run: `/exit` asked nothing and C:\Work\accord-verify-st-ln-12 still exists with a clean status (read by me), so the keep/remove risk did not occur. Step 7 (lane M new request) was run, see ac-3.
+
+Not checked: resume (`claude --resume`, which fires the session-resume hook) is a different path from Continue; nobody ran it.

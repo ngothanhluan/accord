@@ -1,0 +1,66 @@
+# Plan review: ST-LN-7
+
+## Round 1 (whole)
+Three critics, lenses `criteria`, `build`, `security`, on plan commit e4cce9b. After the round the owner narrowed hold support to Claude Code (D-17) and widened Continue (D-18).
+1. Must — Continue from the main checkout cannot reach a ticket whose file exists only on its branch, as after @ac-6: `/accord continue ST-9` in `C:/Work/accord` becomes a New request and starts a second ticket — fixed, owner: "Nhận cả id có branch t/<id> (Khuyên)"
+2. Must — `worktree clean` judges uncommitted work with plain `git status --porcelain`, which follows `status.showUntrackedFiles=no`, so a file never added to git is deleted by `git worktree remove`; use `--untracked-files=normal --ignore-submodules=none` and cover it in the data-loss test — fixed
+3. Must — one probe capture per tool cannot tell two Cursor or VS Code windows apart, so two windows count as one session — owner: "tạm thời chỉ support cho claude thôi"
+4. Should — Continue runs `worktree open`, whose no-branch path claims the ticket, so Continue on an unclaimed or merged-and-pruned ticket adds a worktree, commits `claim:` and runs setup; no "never claims" case is tested — fixed
+5. Should — `worktree.md` (Task 8) both forbids editing the worktree on `stop:` and tells the agent to commit the `people` edit there, and its `git restore accord/config.yml` in the main checkout drops the owner's other uncommitted edits to that file — fixed
+6. Should — the Claude Code capture is committed without the owner reading it; the env filter is a denylist that misses names such as `*_JWT` or a URL with credentials, and `~` replaces the home folder only in command lines, not env values — withdrawn
+7. Should — a process table that reads but shows only part of the system (a sandbox's own PID namespace) makes a live holder look dead, so a second session takes its hold — fixed
+8. Should — `ps -o lstart` prints local time, so the recorded start depends on each caller's `TZ` and a live holder reads as dead; set `TZ=UTC` with `LC_ALL=C` — fixed
+9. Should — on Windows `git worktree remove` can delete part of the tree, fail, and still unregister the worktree; "kept with git's message" is then false and the holds entry is orphaned — fixed
+10. Should — the ac-5 test expects `removed …st-9` first, but `git worktree list` sorts by path and gives st-10, st-11, st-12, st-9 — fixed
+11. Should — Task 5's fake process table takes `CLAUDE.names[0]`, undefined when the Claude Code entry is matched by command line — fixed
+12. Should — Tasks 4 and 6 need a second clone of the remote with local `user.email`, `user.name`, `commit.gpgsign false`, removed by `cleanupAll`; `makeClone` gives none and neither task lists the helper file — fixed
+13. Should — the recovery push command in Task 7 and in `worktree.md` leaves the path unquoted, so a path with a space (`C:/Users/Luan Ngo/...`) breaks `git -C` — fixed
+14. Nice — the main checkout has no setup done-marker, so Continue there reruns the whole setup in the owner's checkout — deferred
+15. Nice — the holds lock is not held across the hold check and `git worktree remove` in `clean` — deferred
+16. Nice — the setup-source Ruling's reason does not hold for an existing ticket branch pushed by a teammate — deferred
+17. Nice — the lock's `finally` must end before `prepare`, or a killed setup leaves `holds.lock` behind — deferred
+18. Nice — `loadConfig(file, text)` takes the text, not a URL — deferred
+
+## Round 2 (whole)
+One critic, no lens, on plan commit 328f4b8. fixed: 1.1, 1.2, 1.4, 1.5, 1.7, 1.8, 1.9, 1.10, 1.11, 1.12, 1.13; withdrawn: 1.6 (the probe is dropped after D-17).
+1. Should — the claim path checks the ticket file only in the current checkout, then builds the worktree from `origin/main`, which may lack it (a ticket committed only on another ticket's branch): the claim is pushed and `accord anchor` then finds no ticket; check `git cat-file -e <default ref>:accord/tickets/<id>.md` before `git worktree add` and refuse — fixed
+2. Should — a `prunable` worktree (folder deleted by hand) still lists its branch: Continue prints a path that does not exist and git blocks re-adding the branch, and `clean` spawns `git status` in a missing cwd (ENOENT); parse `prunable` and treat the entry as absent — fixed
+3. Should — `packages/core/skills/accord/ids.md:14` still says `accord new ticket --type <story|bug> --lane <lane>` with no `--worktree`, so a lane M ticket following ids.md lands in the main checkout against @ac-6; add ids.md to Task 7 and its test — fixed
+4. Should — the rendered `accord` SKILL.md is near 4,900 bytes against a 5,120 limit; Task 7 adds about 700, and what may move to `worktree.md` is about 450, so the task ends BLOCKED; measure now and name the passage that moves or the shorter wording — fixed
+5. Should — after Task 6's failed push the skill has no path or `/accord continue <id>` line to show; after a push by hand the skill should run `accord worktree open <id> --continue`, whose case 1 prints them — fixed
+
+## Round 3 (diff)
+One critic, mode diff, on the fix in commit 48a7d6b. fixed: 2.1, 2.2, 2.3, 2.4, 2.5.
+1. Should — `worktrees(root)` runs `git worktree prune` silently on any `prunable` entry, and git gives a folder moved by hand the same reason as a deleted one: Continue or `clean` then deletes `.git/worktrees/<name>` (its HEAD and index), so `git worktree repair <new path>` can no longer reconnect the moved folder, and nothing names what was pruned; print one line per pruned entry with its path, git's reason, and "if you moved it, run git worktree repair <new path>" — fixed, owner: "Tự prune, in 1 dòng (Khuyên)" (prune as planned and print one line per pruned entry, `pruned <path>: <git's reason>`, with no repair advice; a folder renamed by hand loses its git record, its files stay; checked on git 2.56.0.windows.1: `repair` works before `prune`, fails after it, and `worktree add` of the branch fails while the entry is prunable)
+
+## Round 4 (diff)
+One critic, mode diff, on the owner's fix in commit ac8cd87. fixed: 3.1.
+No findings
+
+## Closed
+Converged at round 4 (no Must, no Should open); `accord gate plan ST-LN-7` passed after the owner re-approved the ticket ("Duyệt (Khuyên)"); baseline tests at fd9798e: 60 files, 1245 tests passed.
+
+## Round 1 (diff)
+Re-plan after the Task 1 build gap (no parent walk), commit bdff57d; one critic, mode diff.
+1. Should — the Windows fix also drops the fail-closed check on POSIX, where orphans are reparented and a walk never stops at a missing pid: a sandbox in its own PID namespace can hold a process numbered `CLAUDE_PID`, so a live holder outside is read as dead and its hold taken; and a stale `CLAUDE_PID` reused by a daemon is recorded as holder, refusing every real session; keep the row check and walk from the command: refuse when the walk reaches a row with ppid 0 or pid 1 without meeting `CLAUDE_PID`, accept when it meets it or stops at a parent id with no row (the msys gap), and add that pure case — open
+2. Nice — plan.md still says the pure test's table has "`self` 10" though `sessionIn` takes no `self` — deferred
+
+## Round 2 (diff)
+One critic, mode diff, on the fix in commit 12e348f. fixed: 1.1.
+1. Nice — on Windows a real session refused by the root or loop rule (a reused gap pid) is told to "run it outside a sandbox"; treating a parent that started after its child as the gap would prevent it — deferred
+2. Nice — the pure-test bullet says the refused cases "return", though each only throws — deferred
+
+## Closed
+Re-plan after the Task 1 build gap converged at round 2 (no Must, no Should open); `accord gate plan ST-LN-7` passed at 12e348f.
+
+## Round 1 (diff)
+Re-plan after the final review's Pick up gap (Task 9).
+1. Should — the claimant read runs `git log` over the ref's whole history through `git()`, which sets no `maxBuffer`, so in a repository past about 1 MiB of log Pick up of an existing branch exits 2 with no `claimed:` line; let git search with `--fixed-strings --grep`, or set `maxBuffer` as fs.ts:390-394 does — fixed
+2. Should (critic: Nice, raised by a Ruling) — the claim search walks main's history too, so after ST-LN-20 deletes a merged `t/ST-9`, an old `claim: ST-9` of mine on main credits me a teammate's hand-made `t/ST-9` and Pick up joins it silently, the case Task 9 exists to stop; exclude the default ref — fixed
+3. Should (critic: Nice, raised by a Ruling) — SKILL.md's Pick up paragraph says to push before it says to follow worktree.md, so an agent reading in order pushes after a `claimed:` refusal, which can push the user's unpushed commits onto a teammate's branch; order it "follow ./worktree.md, which says when to push" at about the same byte count — fixed
+
+## Round 2 (diff)
+One critic, mode diff, on the fix since commit 64e6f3e. fixed: 1.1, 1.2, 1.3. No new findings.
+
+## Closed
+Re-plan after the final review's Pick up gap converged at round 2 (no Must, no Should open); `accord gate plan ST-LN-7` passed with plan_hash fnv1a64:fef1cc19c28d33d7.

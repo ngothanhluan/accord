@@ -31,6 +31,8 @@ ui: false
 Queued 2026-10-17, not approved; the intent interview replaces this:
 - Dogfood items 4/4a: config keys, `accord init` CI runs `tests.full`.
 - One accord-verify step: git fetch, merge origin/main when behind, then `tests.full`; never rebase.
+- Added 2026-10-19 at the owner's "ok theo bạn đề xuất đi. miễn sao vẫn tốt mà ko impact gì mà vẫn nhanh hơn là dc": this repository's `ci.yml` runs two jobs on a pull request, ubuntu with Node 22 (the engines floor) and windows with Node 24 (the author's OS and the current LTS), and the full os x node matrix on a push to main. Why: a PR waits about 5 minutes, almost all of it the two windows jobs (`npm test` 198 s on Node 24, 254 s on Node 22, against 32-36 s on ubuntu); OS bugs and Node-version bugs are mostly independent, so two jobs cover both kinds. Cost: a bug only on windows with Node 22 shows after merge, on main, not on the PR. Rejected: skipping `ci` for PRs that touch only `accord/**`, since tests read this repository's own tickets and workflow (`show-approval.test.ts` "every real ticket", `workflow-script.test.ts`).
+- Decision to confirm at intent, same answer: `engines` stays `>=22.12.0`; the floor rises to Node 24 when Node 22 reaches end of life on 2027-04-30, or at the first npm release if that lands near it, and then the CLI checks the running Node version at start and exits 2 naming the version needed, since `engines` only warns.
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.

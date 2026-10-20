@@ -11,7 +11,7 @@ Read this when config.yml has `people`. Register only when `people` exists, neve
 Fetch first with
 `git -c credential.interactive=never -c core.sshCommand="ssh -o BatchMode=yes" fetch`;
 on failure say so and continue, since only refs already in the clone are read.
-Then run `accord new ticket --type <story|bug> --lane <lane>` with no id, and use the id it prints.
+Then run `accord new ticket --type <story|bug> --lane <lane>` with no id, adding `--worktree` when the lane is M, and use the id it prints.
 Never retry with an id.
 
 ## When your email is not registered
@@ -45,3 +45,6 @@ A ticket's type never changes and its id is never renamed. To change the type:
 5. In the copied sections, remove every `@test:<id>` tag from the scenarios and change the gherkin
    `Feature: <old id>` line to the new id.
 6. The owner approves the new ticket again.
+
+In a session that works the dropped ticket, `accord new ticket` is refused: commit step 1 there, then say to
+open a new session in the main checkout and do steps 2 to 6 there.

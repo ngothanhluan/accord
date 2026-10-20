@@ -30,6 +30,17 @@
           }
         ]
       }
+    ],
+    "UserPromptExpansion": [
+      {
+        "matcher": "accord",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx --yes @accord-dev/accord@0.1.0 hook prompt-expansion"
+          }
+        ]
+      }
     ]
   },
   "extraKnownMarketplaces": {
@@ -42,5 +53,9 @@
   },
   "enabledPlugins": {
     "accord-panel@accord": true
+  },
+  "attribution": {
+    "commit": "",
+    "pr": ""
   }
 }

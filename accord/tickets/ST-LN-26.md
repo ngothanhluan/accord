@@ -49,14 +49,15 @@ Feature: ST-LN-26
     And the session itself neither judges the cause nor dispatches a fix outside the debug stage
 
   @ac-2
-  Scenario: Verify waits for the pull request's CI before the owner's report
-    Given verify for ticket X has written verification.md
-    And X's repository has a GitHub remote and the gh command works
-    When verify continues
-    Then X's branch is pushed and a pull request for it is opened when none is open, and it is not merged
+  Scenario: Verify runs the pull request's CI alongside its own checks and reports it before the owner's tick
+    Given X's repository has a GitHub remote and the gh command works
+    When verify for ticket X starts
+    Then X's branch is pushed and a draft pull request for it is opened when none is open, before the full test run and the verifier, and it is not merged
     And the owner's report is shown only after the checks that push started have appeared and every one has finished, and it gives each check's result
-    And when a check failed, the failure goes to a debug episode as in @ac-1 instead of to the owner's tick
-    And a check that was cancelled or skipped is reported by name as CI not checked, and goes to no debug episode
+    And the check that runs "accord gate done" for X is reported as waiting for the tick, and goes to no debug episode
+    And when any other check failed, the failure goes to a debug episode as in @ac-1 instead of to the owner's tick
+    And a check that was cancelled or skipped, or no check appearing within ten minutes of the push, is reported as CI not checked, by name where there is one, and goes to no debug episode
+    And after the owner's tick is committed, it is pushed and the pull request is marked ready for review, without waiting for CI again
     And when there is no GitHub remote or gh does not work, the owner's report says CI was not checked and why
 
   @ac-3
@@ -94,6 +95,7 @@ Feature: ST-LN-26
 - D-05 The smallest version that counts as done: parts one to three in full; part four is a written rule for executors and reviewers, a reviewer finding for a test that returns early on the operating system, and this repository's early returns turned into real skips; no automatic check in `accord lint` — "A"
 - D-06 Verify pushes the branch and opens the pull request when none is open, waits for every check to finish, and only then gives the owner's report; merging still waits for the owner — "A"
 - D-07 The auditor's six readings, as the owner accepted them: any failure report opens debug and the debugger fetches the command and output itself; verify waits for the push's checks to appear before waiting for them to finish; only a failed check goes to debug, a cancelled or skipped one is reported as not checked; any commit outside the ticket's own records takes the ticket back from done, a fix through review then verify, a merge from main through verify only; skipped means what the test runner reports as skipped; every assertion that runs only on some operating systems sits in its own test skipped by the runner, early return and if/else alike — "đồng ý"
+- D-08 One CI wait only: verify pushes and opens a draft pull request at its start, so CI runs while the full suite and the verifier run; the check that runs `accord gate done` for the ticket is left out, since the local `accord gate done` on the same commit replaces it; after the tick, verify pushes and marks the pull request ready without waiting again — "A"
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->

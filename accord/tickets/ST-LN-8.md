@@ -44,35 +44,39 @@ Feature: ST-LN-8
   Scenario: The executor is told how verify ids match, what it must not touch, and to read the conventions
     Given `accord skills sync` has rendered the executor agent
     When the rendered executor instructions are read
-    Then they say a `verify:` id must equal, character for character, the id accord builds from the JUnit report: the testcase's classname, then `#`, then its name (which already carries every enclosing describe title), where the whole classname and the whole name are each trimmed and each run of whitespace in them becomes `-`; or that name alone when the classname is empty
+    Then they say a `verify:` id must equal, character for character, the id accord builds from the JUnit report: the testcase's classname, then `#`, then its name (which already carries every enclosing describe title), where the whole classname and the whole name are each trimmed and each run of whitespace in them becomes `-`; or that name alone when the classname attribute is missing or is the empty string before trimming
     And they say the executor reads the JUnit report and finds each verify id in it before reporting done
-    And they say the executor never runs `accord task-done` and never edits any file under `accord/`
+    And they say the executor never runs `accord task-done` and never creates, changes, deletes or renames any file under the repository's top-level `accord/` folder (an `accord/` folder inside a test fixture or an example is not it)
     And they say the executor reads `accord/product/` and follows `accord/product/conventions.md`, and the rendered planner instructions say the planner reads `accord/product/`
+    And the accord rules every session receives at its start say that every commit, by the main session or any agent, follows `accord/product/conventions.md` when that file exists
 
   @ac-2
   Scenario: Every brief ends with the repository's conventions
     Given `accord init` has written `accord/product/conventions.md` from its template
     And the file's text has been replaced with "- Never add a commit trailer."
     When `accord brief <id> <n>` runs for a planned task
-    Then its output is the brief it prints today, then a blank line, a line `---` and a blank line, then the file's text byte for byte
-    And when the file is absent, or holds only whitespace, the output is exactly the brief it prints today, with no `---` line added
+    Then its output is the brief it prints today (which ends in exactly one newline), then the characters `\n---\n\n`, then the file's text byte for byte, with nothing after it
+    And when the file is absent, or holds nothing but whitespace and byte order marks, the output is exactly the brief it prints today, with no `---` line added
 
   @ac-3
-  Scenario: task-done refuses a task whose commit carries a trailer when the repository forbids trailers
+  Scenario: task-done refuses a task whose commit carries a forbidden line (D-07) when the repository forbids trailers
     Given `config.yml` sets `commits.trailers: forbid`
-    And a commit after the commit the ledger records for task n-1 (for task 1, after the point where the ticket branch left the default branch, which is origin/HEAD's target, else origin/main or origin/master) ends with the paragraph "Co-Authored-By: Bot <bot@example.com>"
+    And a commit reached from HEAD by first parents that is neither on the default branch (origin/HEAD's target, else origin/main, else origin/master) nor reachable from the commit the ledger records for the highest recorded task below n has the body "Adds the parser.\nCo-Authored-By: Bot <bot@example.com>", with no blank line before the Co-Authored-By line
     When `accord task-done <id> <n>` runs
-    Then it exits 1, prints that commit's 12-character sha and that line, and records nothing in the ledger
+    Then it exits 1, prints that commit's 12-character sha and that line with its leading and trailing whitespace removed, and records nothing in the ledger
+    And it refuses in the same way for every other forbidden line D-07 defines, a "Generated with" line among them
     And when `commits.trailers` is absent or `allow`, the same task is recorded
     And when the check is on and none of origin/HEAD, origin/main and origin/master exists, it exits 2 and says to run `git fetch origin`
 
   @ac-4
-  Scenario: gate done refuses a ticket branch holding any trailer when the repository forbids trailers
+  Scenario: gate done refuses a ticket branch holding any forbidden line when the repository forbids trailers
     Given `config.yml` sets `commits.trailers: forbid`
-    And one commit on the ticket branch that is not on the default branch (origin/HEAD's target, else origin/main or origin/master, never the local main) has the line "🤖 Generated with [Claude Code](https://claude.com/claude-code)" in its body
+    And `accord gate done <id>` checks the commits reached from HEAD by first parents, as run in the ticket's worktree
+    And one of those commits that is not on the default branch (origin/HEAD's target, else origin/main, else origin/master, never the local main) has the line "🤖 Generated with [Claude Code](https://claude.com/claude-code)" in its body
     When `accord gate done <id>` runs
-    Then it exits 1 and prints that commit's 12-character sha and that line
-    And when no commit on the branch has a git trailer or a line containing "Generated with", in any letter case, this check passes
+    Then it exits 1 and prints that commit's 12-character sha and that line with its leading and trailing whitespace removed
+    And when no commit on the branch has a forbidden line as D-07 defines it, this check passes
+    And a commit reached only through the second parent of a merge on the ticket branch is not checked
     And when the check is on and none of origin/HEAD, origin/main and origin/master exists, it exits 2 and says to run `git fetch origin`
 
   @ac-5
@@ -94,6 +98,7 @@ Feature: ST-LN-8
 - D-04 `accord/product/conventions.md` is free text like its siblings: `accord init` writes it from a short template (one rule per line, `Rejected:` lines for what was tried and refused), lint does not check it, and `accord brief` appends it verbatim, printing nothing for it when the file is absent — "A" (answering: like glossary and business-rules vs a fixed shape lint checks vs not scaffolded until verify first promotes a rule)
 - D-05 Promotion is a step in the accord-verify skill with no new command: the main session reads the ticket's Rulings and Corrections, asks the owner about each one it judges to hold across tickets, and on a yes writes it as a rule line in `conventions.md`, committed with `verification.md` — "A" (answering: a skill step vs a new `accord promote <id>` command)
 - D-06 A "Generated with" line is any line of the commit message that contains "Generated with" anywhere in it — "A" (answering: contains anywhere vs starts with vs starts with after leading non-letters)
+- D-07 Replaces D-03 and narrows D-06 to the body: a forbidden line is any line of the commit body (every line after the subject) that, after leading whitespace, starts with a token of one or more ASCII letters, digits or hyphens that ends in `-by:` (Co-Authored-By, Signed-off-by, Reviewed-by, Acked-by), or that contains "Generated with"; letter case is ignored in both tests, accord reads the body itself and never git's trailer parser, so the result does not depend on the git version or git config, and the subject is never checked — "A" (answering, after the critic showed git's parser misses a Co-Authored-By line sharing a paragraph with prose and flags bodies such as `build: …` and `Owner: "có"`: `-by:` lines anywhere plus "Generated with" in the body vs git's parser plus any Co-Authored-By line vs only Co-Authored-By plus "Generated with")
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
@@ -103,3 +108,11 @@ Feature: ST-LN-8
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
+Chosen: a pure core rule over raw commit bodies, read by one `git log` in the cli. A core function takes a message, drops the subject, and returns each body line D-07 forbids. A cli loader runs `git -c log.showSignature=false log --no-show-signature --first-parent --format=%H%x00%B%x01 HEAD ^<defaultRef> [^<task sha>]` with a 64 MiB buffer; the default ref reuses `gitDefaultRef` (origin/HEAD, else origin/main, else origin/master) and its absence is exit 2. task-done adds offenders to its refusal reasons before any tag or ledger write; gate done gets them through a new core rule `gate.commit-trailer`, so `--json` carries the finding (D-87).
+Rejected: git's own trailer parser through `%(trailers)` (misses a Co-Authored-By line sharing a paragraph with prose, flags `build: …` and `Owner: "…"` bodies, and reads trailer.* config; D-07 replaced it); a core re-implementation of git's trailer rules (drifts from git and no criterion needs it); the check in the cli only (breaks D-87 and drops the finding from `--json`).
+Affected: agents/executor.md and planner.md, skills/verify/SKILL.md, templates/ruleset.md and a new templates/conventions.md, scaffold/init.ts, cli brief.ts, task-done.ts, gate.ts and load/fs.ts, core gate/done.ts and rules.ts, config.schema.json and the config type, generated maps and rendered copies; then, by the main session, this repository's accord/config.yml (`commits: { trailers: forbid }`) and accord/product/conventions.md.
+Risks, kept from the critic:
+- Should: a repository that turns forbid on while ticket branches are open has their older offending commits refused by gate done, and the only fix is rewriting that branch's history; this ticket's own branch has none today (its approval commit was reworded before push).
+- Should: the verify commit is made after gate done passes, so no local check sees it; only CI does, after the push. The ruleset line and conventions.md are what prevent it.
+- Nice: a CRLF conventions.md prints byte for byte, CRLF included, because brief reads it from disk (ac-2 says byte for byte).
+Tests: ac-1 and ac-5 in core, by rendering the executor, planner, ruleset and verify skill and checking each rule's key phrases; ac-2 a cli brief case (present, absent, whitespace-only); ac-3 a cli task-done case in a temp repo with `refs/remotes/origin/main` made by update-ref (forbid refuses, allow records, no origin ref exits 2); ac-4 a cli gate case (the robot line refuses, a clean branch passes, a second-parent commit is skipped, no origin ref exits 2). The core detector's letter-case and leading-whitespace cases carry `risk:parsing`.

@@ -43,10 +43,8 @@ New request whose text is the whole text after `/accord`: for
    `accord-approach` at step 5, the owner's yes, when the ticket's
    `## Approach` is already written, otherwise `accord-intent`; `plan` →
    `accord-plan`, `build` → `accord-build`, `review` → `accord-review`,
-   `verify` → `accord-verify`; `done` → `accord-verify` at step 6 when
-   `git status --porcelain` on the ticket file or its `verification.md`
-   prints anything, otherwise say the ticket is done and offer the
-   dashboard. Resume at the step the anchor names. Never re-run a task
+   `verify` → `accord-verify`; `done` → `accord-verify` at step 6.
+   Resume at the step the anchor names. Never re-run a task
    the ledger records.
 
 ## Pick up

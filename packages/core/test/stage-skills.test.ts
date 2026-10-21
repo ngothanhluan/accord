@@ -512,3 +512,56 @@ it('risk:complex-branching the fix review after verify reads only the changes af
   expect(step2).toContain('`accord review-package <id> --base <sha>`');
   expect(rv.slice(rv.indexOf('6. **Cap.**'), rv.indexOf('7. **Final review.**'))).toContain('after verify counted from the first round after it');
 });
+
+const flatText = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
+const verifySteps = () => {
+  const v = flatText('.claude/skills/accord-verify/SKILL.md');
+  return {
+    v,
+    s2: v.slice(v.indexOf('2. **Suite.**'), v.indexOf('3. **Verifier.**')),
+    s4: v.slice(v.indexOf('4. **Report.**'), v.indexOf('5. **Owner.**')),
+  };
+};
+
+it('ac-2 verify starts ci before the suite and shows the owners report only after every check finished', () => {
+  const { v, s2, s4 } = verifySteps();
+  expect(s2.indexOf('Start CI as `./ci.md` says')).toBeGreaterThan(-1);
+  expect(s2.indexOf('Start CI as `./ci.md` says')).toBeLessThan(s2.indexOf('run the `tests.full` command'));
+  for (const p of ['Wait for CI as `./ci.md` says', 'a failed check goes to `./failure.md` instead of this report', "CI: each check's result, or CI not checked and why"])
+    expect(s4, p).toContain(p);
+  expect(v.slice(v.indexOf('6. Run'))).toContain('finish CI as `./ci.md` says');
+  const ci = flatText('.claude/skills/accord-verify/ci.md');
+  const [a, b, c] = ['## Start', '## Wait', '## Finish'].map((h) => ci.indexOf(h));
+  expect(a).toBeGreaterThan(-1);
+  expect(a).toBeLessThan(b);
+  expect(b).toBeLessThan(c);
+  for (const p of ['no GitHub remote', '`gh auth status`', '`gh pr create --draft --fill`', 'A pull request already open is left as it is', 'Never merge it',
+    'A push that changed nothing still counts', 'gh run list --commit <sha> --json', '`.github/workflows/accord.yml`', 'never wait for it and never send it to debug',
+    'ten minutes', 'thirty minutes', '`cancelled` and `skipped`', 'goes to no debug', 'CI failed on `<sha>`', 'Do not wait for CI again'])
+    expect(ci, p).toContain(p);
+  const wait = ci.slice(b, c);
+  const idx = ["When Start was skipped, skip Wait; the report gives Start's reason.", "no workflow other than accord's", 'gh run list'].map((p) => wait.indexOf(p));
+  expect(idx[0]).toBeGreaterThan(-1);
+  expect(idx[0]).toBeLessThan(idx[1]);
+  expect(idx[1]).toBeLessThan(idx[2]);
+  for (const p of ['`gh run view <run-id> --json jobs`', 'each job is one check', "the failed checks' names", 'append `## Resolved`', 'was not seen passing on the other operating system'])
+    expect(wait, p).toContain(p);
+  const fin = ci.slice(c);
+  expect(fin.indexOf('`accord lint`')).toBeGreaterThan(-1);
+  expect(fin.indexOf('`accord lint`')).toBeLessThan(fin.indexOf('`gh pr ready`'));
+  for (const p of ['`accord gate done <t>` for every ticket file', '`origin/master`', '`accord gate done <id>` alone', "the owner's decision: ticked with CI not checked",
+    '`git status --porcelain --branch`', 'shows the branch ahead', '`gh pr view --json isDraft --jq .isDraft`'])
+    expect(fin, p).toContain(p);
+  expect(fin.indexOf('## Resolved')).toBeGreaterThan(-1);
+  expect(fin.indexOf('## Resolved')).toBeLessThan(fin.indexOf('`accord lint`'));
+  const acc = flatText('.claude/skills/accord/SKILL.md');
+  expect(acc).toContain('`done` → `accord-verify` at step 6.');
+  expect(acc).not.toContain('on the ticket file or its');
+  expect(files.find((f) => f.path === '.claude/skills/accord-verify/failure.md')?.text.length).toBeGreaterThan(0);
+});
+
+it('risk:regression the owners report lists every test the verify run skipped by name with its operating system', () => {
+  const { s2, s4 } = verifySteps();
+  expect(s2.indexOf('run `accord tests skipped`')).toBeGreaterThan(s2.indexOf('run the `tests.full` command'));
+  expect(s4).toContain('every test `accord tests skipped` printed, by name, with the operating system it names');
+});

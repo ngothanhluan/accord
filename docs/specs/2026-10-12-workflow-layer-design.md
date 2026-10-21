@@ -178,6 +178,7 @@ READY TO PICK UP
 
 - The dashboard shows each ticket's stage: `build d/t` only once the plan's last commit is `plan: <id> ready` and the plan has no uncommitted change, and at `intent` the next step, the intent interview (accord-intent) while Intent or the criteria are unwritten, otherwise the owner's approval (accord approve). It shows no task position; on **Continue**, `accord anchor` reads it from the ledger, so it resumes at the exact step after compaction or in a
   new session, and never re-runs completed tasks.
+- After verify, any commit on the ticket's branch that the default branch does not hold, made after the verified commit (before the first tick, the commit `verification.md` names), and that changes a path outside the ticket's own records takes the stage back from `done`, or holds it at `verify`: to `review` for a hand-made change, with `accord anchor` printing the review base, the commit before the first unreviewed change, until a review round of those changes is recorded in `review.md`; to `verify` for a merge from the default branch alone. A ticket whose verified commit is on the default branch keeps its stage.
 - The anchored stage `intent` covers the approach too: Continue resumes at the owner's yes in
   `accord-approach` when `## Approach` is written, otherwise in `accord-intent`; at `done` it says so and
   offers the dashboard (phase 2).
@@ -440,6 +441,8 @@ The owner's report:
 - deferred items;
 - what was not checked;
 - slow tests.
+
+A failure found after verify (someone reports one, or a check on the pull request fails) goes to `accord-debug`; the main session never judges the cause or fixes it outside that stage. Verify pushes the branch and opens a draft pull request before the full suite, waits for every check (each job of each workflow run) on the pushed commit other than the accord workflow's before the owner's report, and after the tick runs `accord lint` and `accord gate done` for every ticket the pull request touches, pushes, and marks the pull request ready without waiting again. The report names every test `accord tests skipped` lists, with the operating system. An assertion that runs only on some operating systems sits in its own test, skipped through the test runner's own skip.
 
 **UI tickets** (`ui: true` in frontmatter, phase 4).
 - *Intent.* Each screen the ticket touches gets `@ui` scenarios for its states, not only the happy path:

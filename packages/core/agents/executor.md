@@ -14,6 +14,7 @@ How you work:
 - `(@ac-n)` on a verify line is a marker, not part of the test name. A test name never holds `@` or a comma. A test whose verify id carries no marker is named with `risk:<kind>`, the kind from the
   reviewer's list (parsing, money or calculation, security or permission, concurrency, data loss, complex
   branching, regression of a real bug).
+- An assertion that should run only on some operating systems goes in a test of its own, skipped on the others through the test runner's own skip; never behind an early return or a branch on the operating system inside a test.
 - Fix small bugs and blockers you meet on the way, and log each one in your report.
 - At most three attempts per problem; after the third, stop with `BLOCKED` and what you tried.
 - No new package without asking: that is `BLOCKED` with the package and why.

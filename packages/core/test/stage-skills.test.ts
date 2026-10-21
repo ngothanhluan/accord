@@ -1,5 +1,8 @@
 // Spec §3 to §12: what each stage skill must name, asserted over the RENDERED SKILL.md a runtime loads. One
 // row per stage; a stage whose definition is not authored yet has no row and renders nothing to check.
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { agentTargets, installedName, skillDirs, skillTargets, STAGES } from '../src/index.js';
 import type { AccordConfig } from '../src/index.js';
@@ -428,4 +431,36 @@ it('risk:regression the owners yes steps still ask for an explicit yes and commi
     if (stage === 'intent' && !step.includes("on yes commit the ticket with the owner's answer quoted in the commit message")) bad.push(dir + ' ' + stage + ' commit');
   }
   expect(bad).toEqual([]);
+});
+
+it('ac-5 an assertion that runs only on some operating systems sits in a test the runner skips', () => {
+  const flat = (t: string) => t.replace(/\s+/g, ' ');
+  const agents = agentTargets(config);
+  const exec = flat(agents.find((f) => f.path === '.claude/agents/accord-executor.md')?.text ?? '');
+  const rev = flat(agents.find((f) => f.path === '.claude/agents/accord-reviewer.md')?.text ?? '');
+  expect(exec.length, 'accord-executor.md is missing').toBeGreaterThan(0);
+  expect(rev.length, 'accord-reviewer.md is missing').toBeGreaterThan(0);
+  for (const p of ['goes in a test of its own', "the test runner's own skip", 'never behind an early return or a branch on the operating system inside a test'])
+    expect(exec).toContain(p);
+  for (const p of ['An early return or a branch on the operating system inside a test', 'leaves an assertion unrun on some operating system is a finding'])
+    expect(rev).toContain(p);
+  const root = fileURLToPath(new URL('../../../', import.meta.url));
+  const needle = 'process.' + 'platform';
+  const offenders: string[] = [];
+  let seen = 0;
+  for (const dir of ['packages/core/test', 'packages/cli/test', 'test']) {
+    let entries;
+    try { entries = readdirSync(join(root, dir), { recursive: true, withFileTypes: true }); } catch { continue; }
+    for (const e of entries) {
+      if (!e.isFile() || !e.name.endsWith('.ts')) continue;
+      const path = join(e.parentPath, e.name);
+      readFileSync(path, 'utf8').split('\n').forEach((line, i) => {
+        if (!line.includes(needle)) return;
+        seen++;
+        if (!/\.(skipIf|runIf)\(/.test(line)) offenders.push(`${path.slice(root.length).replace(/\\/g, '/')}:${i + 1}`);
+      });
+    }
+  }
+  expect(seen).toBeGreaterThanOrEqual(3);
+  expect(offenders).toEqual([]);
 });

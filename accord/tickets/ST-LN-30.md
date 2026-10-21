@@ -43,7 +43,7 @@ Feature: ST-LN-30
   Scenario Outline: A new ticket branch starts at the remote's latest default branch
     Given the remote's default branch, the one accord resolves today (origin/HEAD, else main, else master), has a commit this clone has not fetched
     When I run "<command>"
-    Then the ticket branch starts at that commit
+    Then the ticket branch is cut from that commit: the first commit accord makes on it (the claim, or the new ticket file) has that commit as its parent
 
     Examples:
       | command                                   |
@@ -54,12 +54,12 @@ Feature: ST-LN-30
   Scenario: Continue says when the ticket branch is behind the default branch
     Given a claimed ticket whose branch lacks 2 commits that are on the remote's default branch, not yet fetched
     When I run "accord worktree open <id> --continue"
-    Then it prints that the branch is 2 commits behind the default branch and names the command that merges it, such as "git merge origin/main"
+    Then it prints that the branch is 2 commits behind the default branch and names the merge command built from the default branch accord resolved, "git merge origin/main" when that branch is main
     And the ticket branch is unchanged
 
   @ac-3
   Scenario: Verify runs on the ticket merged with the latest default branch
-    Given a ticket whose review.md ends with a verdict and whose branch lacks a commit on the remote's default branch
+    Given a ticket whose review.md ends with a verdict and whose branch lacks a commit on the remote's default branch, not yet fetched
     When the verify stage of /accord starts
     Then the ticket branch gains a merge commit whose parents are its previous head and that commit, with no rebase
     And the full test suite and the verification run on that merge commit
@@ -69,13 +69,14 @@ Feature: ST-LN-30
     Given a ticket whose review.md ends with a verdict, and the ticket branch and the remote's default branch change the same line of one file
     When the verify stage of /accord starts
     Then the merge is aborted, and the branch head and the working tree are as they were before it
-    And the conflicting file is named, and verify stops; nothing is stored, and the next start of verify tries the merge again
+    And the conflicting file is named, and verify stops
+    And no merge commit and no merge in progress are left, nothing marks verify as blocked, and the next start of verify tries the merge again
 
   @ac-5
   Scenario: A failed fetch is reported and the work goes on
-    Given the remote cannot be reached
+    Given the remote cannot be reached, or does not answer within the fetch's time limit
     When I pick up a ticket, create a lane M ticket with --worktree, continue a ticket, or start its verify
-    Then one line says the fetch failed
+    Then exactly one line, accord's own, says the fetch failed and quotes git's first error line, as `accord worktree clean` does today
     And the work goes on with the refs already in the clone
 ```
 
@@ -91,6 +92,7 @@ Feature: ST-LN-30
 - D-05 This ticket owns the merge before verify; the matching line leaves ST-LN-11's queued notes, which keep `tests.full`, the two-job CI matrix and the Node floor — "A" (to the options: A this ticket does the merge before verify and ST-LN-11 drops it; B the merge stays with ST-LN-11)
 - D-06 A failed fetch, at Pick up, `new ticket --worktree`, Continue or before verify, prints one line and the work goes on with the refs already in the clone — "A" (to the options: A one line and go on everywhere; B stop verify until a fetch succeeds; C stop everywhere)
 - D-07 The smallest version that still counts as done is the fetch before a new branch, the merge before verify and the conflict stop; the Continue notice could go — "đồng ý" (to the proposal: parts 1, 3 and 4 are the core, part 2 only tells the owner mid-ticket)
+- D-08 The fetch has a time limit, about 30 seconds, the exact figure chosen at the approach; a fetch that runs past it counts as a failed fetch under D-06 — "A" (to the options: A a time limit, past it the fetch counts as failed; B no limit, wait for git's own error as `worktree clean` does today)
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->

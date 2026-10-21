@@ -32,6 +32,8 @@
 - Ruling: the README sentence on the merge before verify goes after the bullet's first sentence, "One worktree per ticket." (task 6) — cost if wrong: one sentence moves.
 - Ruling: the conflicted-file list (`diff --diff-filter=U`) is read NUL-separated too, since the same quoting would print escaped names in the conflict message (review 1.1, 3034c30) — cost if wrong: none, only the message's file names change.
 - Ruling: the ac-5 test's hanging-remote timing is widened, criterion and assertions unchanged — sleeper 8 s → 30 s, bound 6 s → 15 s, trailing wait 9 s → 31 s, mocked limit still 2 s — since the 6 s bound timed a whole Pick up and failed at 6.2 s with 20 files in parallel; with the limit raised to 60 s the bound still fails (review 1.1 follow-up, 73268ed) — cost if wrong: the test takes about 40 s under load, inside its 60 s timeout, and a slower runner could reach that timeout.
+- Ruling: the overwrite check takes its clash list from git, `git ls-files --others -z -- :(literal)<path>` over the added paths present on disk, instead of `existsSync` plus `ls-files --error-unmatch`, so git's own `core.ignorecase` handling lets a case-only rename on main through on Windows and macOS (final review 1, 76bb847) — cost if wrong: an ignored file git does not list as untracked is missed; the ASCII, rename-target and `node_modules/é.txt` cases still refuse.
+- Ruling: only added paths present on disk go to that `ls-files` call, and none means no call, so a main that added hundreds of files cannot overrun Windows' 32 767-character command line; the case uses 500 files with 70-character names under `big/` (found by the main session while recording final review 1, 8bf23c4, tests only, no re-review since the finding was a Should) — cost if wrong: a future temp path near MAX_PATH fails that case at setup, not in product code.
 
 ## Deferred
 - Nice (plan review 1.3): Task 4's pin test could assert `expect(err).not.toContain('is as it was')`, so a `checkPin` error wrapped as a failed merge is caught.
@@ -39,6 +41,7 @@
 - Nice (review 1.2): in `worktreeMerge`'s catch, `git diff --diff-filter=U` runs before the MERGE_HEAD check and `git()` throws, so a failing diff leaves the merge in progress; check MERGE_HEAD and abort first, reading the file list only when it exists.
 - Nice (review 1.3): the `/** ST-LN-20 D-05 … */` comment now sits above `worktreeMerge`'s comment; move it back to `function pruneStale`.
 - Nice (review 1.4): `worktreeMerge` checks `remote get-url origin` and then `fetchOrigin` checks it again and reloads a snapshot that is discarded — one extra git spawn and snapshot load per verify.
+- Nice (final review 2): `worktreeMerge`'s overwrite refusal calls any untracked file "an ignored file", even one that is not ignored; "an untracked file here" is true in both cases.
 
 ## Tasks
 - task 1 done f6072a2a4600

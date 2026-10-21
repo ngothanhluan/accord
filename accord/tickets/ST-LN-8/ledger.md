@@ -19,5 +19,5 @@
 - Ruling: promotion sits inside verify step 6, after gate done passes and before the commit — the accord skill resumes `done` at step 6, so the numbering must stay — none
 
 ## Deferred
-- plan round 1.5: Task 3 carries literal U+FEFF characters; write `﻿` escapes so the BOM cases survive a filter — deferred
+- plan round 1.5: Task 3 carries literal byte order mark characters; spell each one as a JavaScript escape so the BOM cases survive a filter — deferred
 - plan round 1.6: Task 1's "Must not change" names every case in schemas.test.ts while its Interface edits the key list at :146 — deferred

@@ -46,7 +46,7 @@ export function reviewPackage(ctx: CommandContext, id: string, options: { base?:
     parts = [
       `# Review package: ${id} (${range})`,
       '## Commits',
-      git(['log', '--no-color', '--format=%h %s', base + '..HEAD', '--']).trimEnd() || '(none)',
+      git(['-c', 'log.showSignature=false', 'log', '--no-show-signature', '--no-color', '--format=%h %s', base + '..HEAD', '--']).trimEnd() || '(none)',
       '## Stat',
       git(['diff', '--no-color', '--no-ext-diff', '--stat', range, '--']).trimEnd() || '(no changes)',
       '## Diff',

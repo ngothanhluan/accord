@@ -243,6 +243,51 @@ describe('loadFromFs', () => {
     }
   });
 
+  it('risk:git-config log.showSignature=true leaves ticket authors and activity unchanged', () => {
+    const { tmp, git } = makeCommittedRepo();
+    // Re-sign HEAD with a placeholder SSH signature; with no allowed signers git prints "No signature" for it.
+    const signHead = () => {
+      const object = join(tmp, '.git', 'signed-commit');
+      writeFileSync(
+        object,
+        git('cat-file', 'commit', 'HEAD').replace(/^(committer .*\n)/m, '$1gpgsig -----BEGIN SSH SIGNATURE-----\n AAAA\n -----END SSH SIGNATURE-----\n'),
+      );
+      git('update-ref', 'HEAD', git('hash-object', '-t', 'commit', '-w', '--no-filters', object).trim());
+    };
+    try {
+      // The signed seed's line lands inside the log walk, because a newer commit follows it.
+      signHead();
+      const seedTime = Number(git('show', '-s', '--format=%ct', 'HEAD').trim());
+      git('config', 'log.showSignature', 'true');
+      writeFileSync(join(tmp, 'accord/tickets/LOGIN-1.md'), readFileSync(join(tmp, 'accord/tickets/LOGIN-1.md'), 'utf8') + '\n');
+      git('add', '-A');
+      const message = join(tmp, '.git', 'next-message');
+      writeFileSync(message, 'next\n');
+      execFileSync(
+        'git',
+        ['-c', 'user.email=next@example.test', '-c', 'user.name=Next', '-c', 'commit.gpgsign=false', 'commit', '-q', '-F', message, '--cleanup=verbatim'],
+        { cwd: realpathSync.native(tmp), stdio: 'ignore', env: { ...process.env, GIT_COMMITTER_DATE: '@' + (seedTime + 60) + ' +0000' } },
+      );
+      // A signed HEAD reaches the `git show` that reads the gated commit.
+      signHead();
+
+      const input = loadFromFs(tmp);
+      const facts = input.git;
+      if (facts === undefined) throw new Error('expected loadFromFs to supply git facts');
+      expect(facts.commit).toBe(git('rev-parse', 'HEAD').trim());
+      expect(facts.authors[facts.commit]).toBe('next@example.test');
+      expect(Object.keys(facts.authors).sort()).toEqual(
+        [facts.commit, 'accord/tickets/EPIC-1.md', 'accord/tickets/LOGIN-1.md', 'accord/tickets/LOGIN-1/verification.md'].sort(),
+      );
+      expect(facts.authors['accord/tickets/LOGIN-1.md']).toBe('next@example.test');
+      expect(facts.authors['accord/tickets/EPIC-1.md']).toBe('dev@example.test');
+      expect(input.lastActivity?.['LOGIN-1']).toBe(seedTime + 60);
+      expect(input.lastActivity?.['EPIC-1']).toBe(seedTime);
+    } finally {
+      cleanup(tmp);
+    }
+  });
+
   it('exposes exit code 2 on UsageError', () => {
     const dir = makeTmp();
     try {

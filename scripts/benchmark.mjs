@@ -16,7 +16,7 @@ const dirs = process.argv.length > 2
   ? process.argv.slice(2)
   : fs.readdirSync(projectsRoot).filter((d) => d.startsWith(encoded)).map((d) => path.join(projectsRoot, d));
 
-const git = (...args) => execFileSync('git', args, { cwd: repo, encoding: 'utf8' });
+const git = (...args) => execFileSync('git', args, { cwd: repo, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
 const ID = /\b([A-Z]+(?:-[A-Z]+)?-\d+)\b/;
 const median = (xs) => { if (!xs.length) return 0; const s = [...xs].sort((a, b) => a - b); return s[Math.floor(s.length / 2)]; };
 const min = (ms) => (ms / 60000).toFixed(1);
@@ -77,7 +77,7 @@ for (const dir of dirs) {
 const accordRuns = runs.filter((r) => r.agent?.startsWith('accord-'));
 
 // ---- git ---------------------------------------------------------------------
-const subjects = git('log', '--format=%s', 'HEAD').split('\n');
+const subjects = git('-c', 'log.showSignature=false', 'log', '--no-show-signature', '--format=%s', 'HEAD').split('\n');
 const ticketsDir = path.join(repo, 'accord', 'tickets');
 const ticketIds = fs.readdirSync(ticketsDir).filter((f) => f.endsWith('.md')).map((f) => f.slice(0, -3));
 

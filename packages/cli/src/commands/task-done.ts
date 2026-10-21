@@ -4,8 +4,8 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { normaliseKey, recordTaskDone, taskVerdict, workOf, writeTestTags } from '@accord-dev/accord-core';
-import { UsageError } from '../load/fs.js';
+import { forbiddenLines, normaliseKey, recordTaskDone, taskVerdict, trailerReason, workOf, writeTestTags } from '@accord-dev/accord-core';
+import { gitBranchCommits, UsageError } from '../load/fs.js';
 import type { CommandContext } from '../run.js';
 import { requireLaneTicket, taskNumber } from './lane-args.js';
 
@@ -54,6 +54,12 @@ export function taskDone(ctx: CommandContext, id: string, task: string): number 
   // A recorded task is re-checked only for tags: the committed ledger makes HEAD newer than the report.
   const stale = next !== undefined && verdict.verdict === 'pass' ? staleReport(ctx) : undefined;
   const reasons = [...verdict.reasons, ...(stale === undefined ? [] : [stale])];
+  if (next !== undefined && ctx.snapshot.config?.commits?.trailers === 'forbid') {
+    const done = workOf(ctx.snapshot, id)?.ledger?.done ?? {};
+    const below = Object.keys(done).map(Number).filter((k) => k < n);
+    const since = below.length === 0 ? undefined : done[String(Math.max(...below))];
+    for (const c of gitBranchCommits(ctx.root, since)) for (const l of forbiddenLines(c.message)) reasons.push(trailerReason(c.sha, l));
+  }
   const refuse = (lines: string[]): number => {
     ctx.stdout.write(`task ${n} of ${id} is not done:\n` + lines.map((r) => '  ' + r + '\n').join(''));
     return 1;

@@ -163,6 +163,7 @@ export interface AccordConfig {
   legacy_ids?: string[]; // ticket ids exempt from the id convention (IDS-1)
   branch?: string; // claim branch template with exactly one {id}; absent means 't/{id}'
   setup?: string[]; // D-07: commands run in order in a new worktree
+  commits?: { trailers?: 'allow' | 'forbid' }; // ST-LN-8 D-01: absent or allow is off
 }
 
 export interface RepoSnapshot {

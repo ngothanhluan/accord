@@ -5,7 +5,7 @@ type: "story" # story | bug. An epic uses its own template
 status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
 # Tickets that must reach done before this one can start.
-# depends_on: ["OTHER-ID"]
+depends_on: ["ST-LN-34"]
 # How the dashboard ranks this ticket: high | medium | low; absent means medium.
 # priority: medium
 # The epic this ticket belongs to.
@@ -95,9 +95,11 @@ Feature: ST-LN-31
 - D-06 All four parts ship in this ticket; the benchmark counts lane S work by ticket id as it does today and is not changed; the main session's own tokens on lane S work are not measured — "A"
 - D-07 Audit readings: the lift list names four conditions and leaves "new user-visible behaviour" out; lint reports no error on a lane S ticket, empty or filled; gate ready names each empty section; affected tests are the existing tests the change touches, plus a reproducing test first for a bug; a drop sets the lane M ticket to dropped and a new lane S ticket with a new id is made; a lane S ticket needs no `accord approve`; lane S review runs rounds, a fresh reviewer each, until no Must is open, with no final reviewer; lint refuses a drop to lane S on a ticket that has approved_hash — "ok"
 - D-08 Second audit readings: a section holding only HTML comments is empty; the title is checked as for lane M today; the dashboard gets a lane column on every ticket row; a lane S ticket passes gate ready before any change; affected tests are the `tests.affected` command over the changed files; lane S review keeps the five-round cap, stops and reports at it, with no model tier-up as it has no executor; Pick up on a lane S ticket runs `accord worktree open`; the drop reason is the `## Dropped` section, the lane S ticket gets its own worktree, and the dropped one is cleaned by `accord worktree clean` — "làm tiếp đi"
+- D-09 A lane S ticket lifted to lane M keeps its id, branch and worktree: its `lane: S` becomes `lane: M`, the lane M sections are added, its lane S review.md is removed, and it starts at the intent interview; a lint rule stops a lane M ticket whose review.md was left from lane S — "tôi nghĩ là B"
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
+- On the lift from lane S to M, after answering "A": "tôi nghĩ là B" (lift in place: the same id, `lane: S` becomes `lane: M`, the lane M sections are added, review.md is removed)
 
 ## Open questions
 <!-- `- [ ]` items; Ready stays blocked while any is unchecked. -->

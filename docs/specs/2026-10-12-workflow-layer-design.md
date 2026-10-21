@@ -425,7 +425,8 @@ merges and de-duplicates findings before the fix loop.
 
 The commit match (`commit:` in `verification.md`, `verified_commit:` in the ticket) passes when the recorded
 commit equals the gated commit, or when it is an ancestor of the gated commit and every file changed since
-is the ticket's own record (`accord/tickets/<id>.md` or a file under `accord/tickets/<id>/`). A commit
+is the ticket's own record (`accord/tickets/<id>.md` or a file under `accord/tickets/<id>/`)
+or `accord/product/conventions.md` (ST-LN-8 D-08). A commit
 cannot hold its own sha, so without this the records could never be committed and still pass on the branch
 (phase 2).
 

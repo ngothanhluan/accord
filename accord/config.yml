@@ -29,3 +29,6 @@ setup:
   - npm ci
   - npm run build
   - npm rebuild @accord-dev/accord --ignore-scripts
+# ST-LN-8 D-01: task-done and gate done refuse a commit body with a -by: line or a "Generated with" line.
+commits:
+  trailers: forbid

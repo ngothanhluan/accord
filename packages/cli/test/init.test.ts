@@ -16,7 +16,13 @@ import { cleanup, makeEmptyRepo, run } from './helpers/repo.js';
 const CONFIG = 'accord/config.yml';
 const WORKFLOW = '.github/workflows/accord.yml';
 // Code-point order, the order `initFiles` returns and the report prints: '.' sorts before 'a'.
-const SCAFFOLD = [WORKFLOW, CONFIG, 'accord/product/business-rules.md', 'accord/product/glossary.md'];
+const SCAFFOLD = [
+  WORKFLOW,
+  CONFIG,
+  'accord/product/business-rules.md',
+  'accord/product/conventions.md',
+  'accord/product/glossary.md',
+];
 const at = (repo: string, path: string): string => join(repo, ...path.split('/'));
 const bytes = (file: string): string => readFileSync(file, 'latin1'); // byte-exact, no encoding fixups
 /** The report as a list of lines, so a case can assert a slice of it without re-splitting. */
@@ -231,6 +237,7 @@ describe('accord init — running it again', () => {
       'skipped ' + WORKFLOW,
       'skipped ' + CONFIG,
       'skipped accord/product/business-rules.md',
+      'skipped accord/product/conventions.md',
       'created accord/product/glossary.md',
     ]);
     expect(bytes(at(repo, 'accord/product/glossary.md'))).toBe(first);

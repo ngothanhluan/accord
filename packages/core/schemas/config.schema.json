@@ -103,6 +103,11 @@
     "setup": {
       "type": "array",
       "items": { "type": "string", "minLength": 1 }
+    },
+    "commits": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": { "trailers": { "type": "string", "enum": ["allow", "forbid"] } }
     }
   }
 }

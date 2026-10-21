@@ -1,6 +1,9 @@
 // Spec §5-§6: where each lane ticket stands, what blocks it, and who holds it.
 import { describe, expect, it } from 'vitest';
 import { loadSnapshot, nextRows, setFrontmatterKey, statusRows } from '../src/index.js';
+import type { AfterVerifyCommit } from '../src/model/snapshot.js';
+import { anchorText } from '../src/status/anchor.js';
+import { isDone } from '../src/status/stage.js';
 import { acHash } from '../src/gate/hash.js';
 import { approved } from './helpers/approve.js';
 import { CONFIG, LANE_BODY, laneTicket, PLAN } from '../../../test/helpers/lane.js';
@@ -211,4 +214,77 @@ it('risk:parsing an intent of comments or a template scenario only criteria bloc
   expect(rows({ 'accord/config.yml': CONFIG, [T1]: laneTicket('T-1') })[0].next).toBe(APPROVE);
   const ap = approved({ 'accord/config.yml': CONFIG, [T1]: laneTicket('T-1') }, 'T-1');
   expect(rows(ap)[0]).not.toHaveProperty('next');
+});
+
+it('ac-3 a change after verify takes the ticket back from done until it is verified again', () => {
+  const C = 'c'.repeat(40);
+  const F = 'f'.repeat(40);
+  const R = 'e'.repeat(40);
+  const G = 'd'.repeat(40);
+  const M = 'b'.repeat(40);
+  const X = 'a'.repeat(40);
+  const T = '9'.repeat(40);
+  const base = approved({ 'accord/config.yml': CONFIG, [T1]: laneTicket('T-1') }, 'T-1');
+  const built: Record<string, string> = {
+    ...base,
+    'accord/tickets/T-1/plan.md': PLAN,
+    'accord/tickets/T-1/ledger.md': '## Tasks\n- task 1 done abc1234\n- task 2 done abc1234\n',
+    'accord/tickets/T-1/review.md': 'verdict: converged\n',
+  };
+  const hash = acHash(loadSnapshot({ files: built, tree: [] }).tickets['T-1'].scenarios) as string;
+  const done: Record<string, string> = {
+    ...built,
+    [T1]: setFrontmatterKey(
+      setFrontmatterKey(setFrontmatterKey(built[T1], 'verified', ['ac-1', 'ac-2']), 'verified_hash', hash),
+      'verified_commit',
+      C,
+    ),
+  };
+  const evidence = (sha: string) =>
+    ['---', 'ticket: "T-1"', `commit: "${sha}"`, 'reviewed_on: "2026-10-12"', '---', '', '## @ac-1 export writes a csv', '', 'Result: pass', '', 'Evidence: x', ''].join('\n');
+  const VER = 'accord/tickets/T-1/verification.md';
+  const at = (after?: AfterVerifyCommit[], extra: Record<string, string> = {}, files = done) =>
+    loadSnapshot({ files: { ...files, ...extra }, tree: [], ...(after === undefined ? {} : { afterVerify: { 'T-1': after } }) });
+  const stage = (after?: AfterVerifyCommit[], extra: Record<string, string> = {}, files = done) =>
+    statusRows(at(after, extra, files))[0].stage;
+  const fix: AfterVerifyCommit = { sha: F, parents: [C], files: ['src/export.ts'] };
+  const reviewed: AfterVerifyCommit = { sha: R, parents: [F], files: ['accord/tickets/T-1/review.md'] };
+
+  expect(stage(undefined)).toBe('done');
+  expect(stage([])).toBe('done');
+  expect(stage([{ sha: T, parents: [C], files: ['accord/tickets/T-1.md', 'accord/tickets/T-1/debug.md'] }])).toBe('done');
+
+  expect(stage([fix])).toBe('review');
+  expect(anchorText(at([fix]), 'T-1')).toContain('Stage: review, next: review to convergence\nReview base: ' + C + '\n');
+  expect(isDone(at([fix]), 'T-1')).toBe(false);
+
+  expect(stage([fix, reviewed])).toBe('verify');
+  expect(anchorText(at([fix, reviewed]), 'T-1')).not.toContain('Review base:');
+  const trailing = { 'accord/tickets/T-1/review.md': 'verdict: converged\n\n## Round 6\n\nMust 1 patch: x — a.ts:1 — open\n' };
+  expect(stage([fix, reviewed], trailing)).toBe('review');
+
+  const second: AfterVerifyCommit = { sha: G, parents: [R], files: ['src/b.ts'] };
+  expect(stage([fix, reviewed, second])).toBe('review');
+  expect(anchorText(at([fix, reviewed, second]), 'T-1')).toContain('Review base: ' + R);
+
+  expect(stage([{ sha: M, parents: [C, X], files: [] }])).toBe('verify');
+  expect(stage([{ sha: M, parents: [C, X], files: ['accord/tickets/T-1/ledger.md'] }])).toBe('verify');
+  expect(stage([{ sha: M, parents: [C, X] }])).toBe('review');
+  expect(anchorText(at([{ sha: M, parents: [C, X] }]), 'T-1')).toContain('Review base: ' + C);
+  expect(stage([{ sha: M, parents: [C, X], files: ['src/export.ts'] }])).toBe('review');
+
+  expect(stage([fix], { [VER]: evidence(F) })).toBe('verify');
+  const afterF = [fix, { ...second, parents: [F] }];
+  expect(stage(afterF, { [VER]: evidence(F) })).toBe('review');
+  expect(anchorText(at(afterF, { [VER]: evidence(F) }), 'T-1')).toContain('Review base: ' + F);
+
+  const unbound = { [T1]: setFrontmatterKey(done[T1], 'verified_hash', 'fnv1a64:0000000000000000') };
+  expect(stage([fix], unbound)).toBe('review');
+
+  // The first verify, before any tick.
+  const first = { ...built, [VER]: evidence(C) };
+  expect(stage([], {}, first)).toBe('verify');
+  expect(stage([fix], {}, first)).toBe('review');
+  expect(anchorText(at([fix], {}, first), 'T-1')).toContain('Review base: ' + C);
+  expect(stage([fix, reviewed], {}, first)).toBe('verify');
 });

@@ -24,6 +24,7 @@ export function anchorText(snapshot: RepoSnapshot, id: string): string | undefin
     where = `${progress.stage}, next: ${nextStep(ticket, progress.stage)}`;
   }
   const out = [`# Anchor: ${id} "${ticket.frontmatter?.title ?? ''}"`, '', `Stage: ${where}`];
+  if (progress.base !== undefined) out.push(`Review base: ${progress.base}`);
   for (const name of SECTIONS) {
     const s = ticket.sections.find((x) => headingKey(x.heading) === headingKey(name));
     const lines = s === undefined ? [] : stripHtmlComments(s.lines).map((l) => l.text).filter((t) => t.trim() !== '');

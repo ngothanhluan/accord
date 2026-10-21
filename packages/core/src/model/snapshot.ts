@@ -184,6 +184,7 @@ export interface RepoSnapshot {
   ancestors?: Record<string, boolean>; // carried through from SnapshotInput
   baselineFiles?: Record<string, string[]>; // carried through from SnapshotInput
   recordsSince?: Record<string, string[]>; // carried through from SnapshotInput
+  commits?: { sha: string; message: string }[]; // ST-LN-8: host-supplied by gate done when commits.trailers is forbid
   branchTemplates?: string[]; // carried through from SnapshotInput
   claimBranches?: Record<string, string>; // carried through from SnapshotInput
   claimTemplate?: string; // carried through from SnapshotInput

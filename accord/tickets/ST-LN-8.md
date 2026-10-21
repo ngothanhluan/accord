@@ -52,7 +52,7 @@ Feature: ST-LN-8
     And they say the executor reads `accord/product/` and follows `accord/product/conventions.md`, and the rendered planner instructions say the planner reads `accord/product/`
     And the accord rules every session receives at its start say that every commit, by the main session or any agent, follows `accord/product/conventions.md` when that file exists
 
-  @ac-2
+  @ac-2 @test:packages/cli/test/lane-commands.test.ts#ac-2-every-brief-ends-with-the-repository-conventions
   Scenario: Every brief ends with the repository's conventions
     Given `accord init` has written `accord/product/conventions.md` from its template
     And the file's text has been replaced with "- Never add a commit trailer."

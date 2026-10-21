@@ -26,6 +26,7 @@
 - Ruling: clean's dropped path deletes the local branch with `git update-ref -d refs/heads/<b> <L>` after re-reading `L` once the guards pass, and prints `kept <b>: git update-ref failed: <first line>` when git refuses — a commit made during clean must not be lost — cost if wrong: one line's wording.
 - Ruling: clean keeps a dropped ticket's branch that any worktree with no branch is rebasing, according to `rebase-merge/head-name` or `rebase-apply/head-name`, and prints `kept <b>: being rebased in <path>` — such a worktree has no `branch` line, so the other guards miss it (verified on git 2.56.0: `rebase --force-rebase --exec false HEAD~1` leaves the worktree detached with `rebase-merge/head-name` naming the branch, and pre-push runs on a delete push) — cost if wrong: one clean waits for the rebase to finish.
 - Ruling: ids.md step 1 writes the push as `git push -u origin <claim branch>` — `<branch>` already means the printed drop branch in the same step — cost if wrong: a placeholder rename.
+- Ruling: the baseline full run at d5586db failed one case, `hook.test.ts > risk:security the prompt expansion hook blocks every accord text but the dashboard and continue of the worked ticket`, a 30 s timeout under full-suite load (passes alone in 8 s; the hook slowdown noted after ST-LN-26). The owner chose to fix it first in its own ticket — "Sửa trước rồi mới build" — so build starts only after that fix is on main, merged into t/ST-LN-34, and a fresh full run is clean — cost if wrong: ST-LN-34 waits one ticket.
 
 ## Deferred
 
@@ -33,3 +34,4 @@
 - Nice (plan round 1.6): test sha helpers should return trimmed output.
 - Nice (plan round 1.7): pin `removeWorktree`'s `failed` for partial removal and where `isAncestor` and `firstLine` live.
 - Nice (plan round 2.2): the D-05 worktree lookup in `accord drop` should skip a prunable worktree, or prune first.
+- Nice (plan round 3.1): condition ids.md step 1's close-this-session sentence on the session running in the ticket's worktree.

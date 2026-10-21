@@ -12,5 +12,11 @@
 
 ## Round 2 (whole)
 
-1. Should — the session that ran `accord drop` still holds the ticket's worktree, and ids.md tells the owner to open a new session but not to close the old one, so the clean after the drop merges prints "held by another session" and keeps the worktree and both branches; Task 6's step 1 should tell the agent to say to close this session once the pull request is opened, and the ac-5 test checks that phrase — open
+1. Should — the session that ran `accord drop` still holds the ticket's worktree, and ids.md tells the owner to open a new session but not to close the old one, so the clean after the drop merges prints "held by another session" and keeps the worktree and both branches; Task 6's step 1 should tell the agent to say to close this session once the pull request is opened, and the ac-5 test checks that phrase — fixed
 2. Nice — Task 2's D-05 lookup uses `listWorktrees`, which keeps a hand-deleted (prunable) worktree, so `git status` runs in a missing folder and drop exits 2 with an unexplained message; use `worktrees()`, which prunes first, or skip `prunable` entries — deferred
+
+## Round 3 (diff)
+
+1. Nice — the close-this-session sentence in ids.md step 1 has no condition, so a session running step 1 from the main checkout (no claim branch, or a worktree no session holds) is told to close for nothing; condition it on running in the ticket's worktree — deferred
+
+## Closed

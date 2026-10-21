@@ -1,6 +1,6 @@
 ---
 baseline: d5586db44dabc62b93ae03f969c12c4dbcfaad3f
-plan_hash: "fnv1a64:6c8cd53165044004"
+plan_hash: "fnv1a64:27b4eae86e5e752c"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -532,7 +532,8 @@ Test first, appended at the end of `packages/core/test/stage-skills.test.ts`:
     `` `git push -u origin <claim branch>` ``, and the index of the second is below the index of `` `accord drop <id> ``.
   - `step1` contains: `` `accord drop <id> --reason "<reason>"` ``, `` `branch:`, `base:` and `title:` ``,
     `` `gh pr create --head <branch> --base <base> --title "<title>" --body "<reason>"` ``,
-    `otherwise ask the owner to open it`, `waits for the owner's merge`, `Never delete a claim branch` and
+    `otherwise ask the owner to open it`, `waits for the owner's merge`,
+    `Tell the owner to close this session once the pull request is opened`, `Never delete a claim branch` and
     `` `accord worktree clean` ``.
   - `step1` contains neither `` Set `status: dropped` `` nor `commit and merge that`.
   - `drop` contains `run step 1 there` and does not contain `commit step 1`.
@@ -547,7 +548,9 @@ Text, `packages/core/skills/accord/ids.md`:
   branch that holds only the ticket file, set to dropped with that reason, and prints `branch:`, `base:` and `title:`
   lines. Open that pull request with
   `gh pr create --head <branch> --base <base> --title "<title>" --body "<reason>"` when `gh` is available, otherwise
-  ask the owner to open it; it waits for the owner's merge like other ticket work. Never delete a claim branch to
+  ask the owner to open it; it waits for the owner's merge like other ticket work. Tell the owner to close this
+  session once the pull request is opened, because `accord worktree clean` keeps a worktree that a live session
+  holds. Never delete a claim branch to
   drop a ticket: once the pull request is merged, `accord worktree clean` deletes it and its worktree."
 - Line 49: "commit step 1 there" becomes "run step 1 there". Nothing else in that sentence changes (D-11).
 - Nothing else in the file changes.

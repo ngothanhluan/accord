@@ -1610,6 +1610,24 @@ it('risk:data-loss worktree merge never overwrites an ignored file and quotes th
   expect(kr.err).toBe('');
   expect(kr.code).toBe(0);
   expect(gitRun(kSib, 'rev-parse', 'HEAD^1').trim()).toBe(kHead);
+
+  // a main that adds so many files that the pathspec list alone passes the Windows command-line limit of 32767 characters
+  const m = clone();
+  ticketWorktree(m, 'ST-9');
+  const mSib = m.sibling('ST-9');
+  verifyStage(mSib, 'ST-9');
+  const mHead = gitRun(mSib, 'rev-parse', 'HEAD').trim();
+  const many: Record<string, string> = {};
+  for (let i = 0; i < 500; i++) many[`big/${'n'.repeat(70)}-${i}.txt`] = 'x\n';
+  const mo = m.otherClone();
+  writeFiles(mo, many);
+  gitRun(mo, 'add', '-A');
+  gitRun(mo, 'commit', '-q', '-m', 'many');
+  gitRun(mo, 'push', '-q', 'origin', 'main');
+  const mr = await run(['worktree', 'merge', 'ST-9'], mSib);
+  expect(mr.err).toBe('');
+  expect(mr.code).toBe(0);
+  expect(gitRun(mSib, 'rev-parse', 'HEAD^1').trim()).toBe(mHead);
 }, 120_000);
 
 it('risk:complex-branching a merge that changes the pinned accord version keeps the merge and names the pin', async () => {

@@ -501,7 +501,8 @@ export function worktreeMerge(ctx: CommandContext, id: string): number {
   // git 2.56 ort ignores --no-overwrite-ignore: refuse by hand when the merge adds a path that is an untracked (ignored) file here
   const mine = git(ctx.root, ['diff', '--name-only', '--no-renames', '--diff-filter=A', '-z', 'HEAD', ref]).split('\0').filter((l) => l !== '');
   // git itself says which of those paths are untracked here, so a tracked file under another case is no clash; the pathspecs keep it from walking node_modules
-  const clash = mine.length === 0 ? undefined : git(ctx.root, ['ls-files', '--others', '-z', '--', ...mine.map((f) => ':(literal)' + f)]).split(' ').find((l) => l !== '');
+  const here = mine.filter((f) => existsSync(ctx.root + '/' + f)); // keeps the command line short: a big merged PR adds hundreds of paths, none normally on disk
+  const clash = here.length === 0 ? undefined : git(ctx.root, ['ls-files', '--others', '-z', '--', ...here.map((f) => ':(literal)' + f)]).split('\0').find((l) => l !== '');
   if (clash !== undefined) {
     throw new UsageError(`merge of ${def} into ${branch} failed: ${clash} is an ignored file here that the merge would overwrite - move it, then start verify again - ${branch} is as it was`);
   }

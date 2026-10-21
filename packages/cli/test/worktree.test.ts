@@ -1467,3 +1467,107 @@ it('risk:data-loss clean keeps everything of a dropped ticket that a guard keeps
   for (const id of ['ST-9', 'ST-10', 'ST-12']) expect(existsSync(c.sibling(id))).toBe(true);
   c.git('worktree', 'unlock', c.sibling('ST-10'));
 }, 120_000);
+
+it('risk:data-loss a failed fetch keeps every dropped ticket and says so once', async () => {
+  const c = clone({ tickets: ['ST-9', 'ST-10'] });
+  claimWorktree(c, 'ST-9');
+  claimWorktree(c, 'ST-10');
+  dropOnRemote(c, ['ST-9', 'ST-10']);
+  c.git('fetch', '-q', 'origin');
+  c.git('remote', 'set-url', 'origin', c.remote + '-missing');
+  const r = await run(['worktree', 'clean'], c.root);
+  expect(r.code).toBe(0);
+  const l = lines(r.out);
+  expect(l).toHaveLength(2);
+  expect(l[0].startsWith('fetch from origin failed, judging against the refs already in this clone')).toBe(true);
+  expect(l[1]).toBe('kept dropped tickets: fetch from origin failed');
+  for (const id of ['ST-9', 'ST-10']) {
+    expect(existsSync(c.sibling(id))).toBe(true);
+    expect(has(c.root, `refs/heads/t/${id}`)).toBe(true);
+  }
+  expect(has(c.remote, 'refs/heads/t/ST-9')).toBe(true);
+}, 120_000);
+
+it('risk:data-loss a stale lease keeps the local branch of a dropped ticket and names the origin branch', async () => {
+  const c = clone();
+  const S = claimWorktree(c, 'ST-9');
+  dropOnRemote(c, ['ST-9']);
+  const o = c.otherClone();
+  gitRun(o, 'switch', '-q', '-c', 'elsewhere');
+  writeFiles(o, { 'e.txt': 'e\n' });
+  const S2 = commitMsg(o, 'elsewhere');
+  gitRun(o, 'push', '-q', 'origin', 'elsewhere');
+  const hook = `${c.root}/.git/hooks/pre-push`;
+  writeFileSync(hook, `#!/bin/sh\ngit --git-dir="${c.remote.replaceAll('\\', '/')}" update-ref refs/heads/t/ST-9 ${S2}\nexit 0\n`);
+  chmodSync(hook, 0o755);
+  const r = await run(['worktree', 'clean'], c.root);
+  expect(r.code).toBe(0);
+  const l = lines(r.out);
+  expect(l).toHaveLength(3);
+  expect(l[0]).toBe(`removed ${c.sibling('ST-9')}`);
+  expect(l[1].startsWith('kept origin/t/ST-9: git push failed: ')).toBe(true);
+  expect(l[2]).toBe('kept t/ST-9: its origin branch was not deleted');
+  expect(sha(c, 't/ST-9')).toBe(S);
+  expect(gitRun(c.remote, 'rev-parse', 't/ST-9').trim()).toBe(S2);
+}, 120_000);
+
+it('risk:data-loss a second clone deletes its local branch of a dropped ticket another clone cleaned', async () => {
+  const c = clone();
+  const S = claimWorktree(c, 'ST-9');
+  const o2 = c.otherClone();
+  gitRun(o2, 'branch', 't/ST-9', 'origin/t/ST-9');
+  const o3 = c.otherClone();
+  gitRun(o3, 'switch', '-q', 't/ST-9');
+  writeFiles(o3, { 'x.txt': 'x\n' });
+  commitMsg(o3, 'mine');
+  gitRun(o3, 'switch', '-q', 'main');
+  dropOnRemote(c, ['ST-9']);
+  expect((await run(['worktree', 'clean'], c.root)).code).toBe(0);
+  expect(has(c.remote, 'refs/heads/t/ST-9')).toBe(false);
+  expect(lines((await run(['worktree', 'clean'], o2)).out)).toEqual([`pruned refs/remotes/origin/t/ST-9 (was ${S})`, `deleted t/ST-9 (was ${S})`]);
+  expect(has(o2, 'refs/heads/t/ST-9')).toBe(false);
+  expect(lines((await run(['worktree', 'clean'], o3)).out)).toEqual([`pruned refs/remotes/origin/t/ST-9 (was ${S})`, 'kept t/ST-9: 2 commits not on origin']);
+  expect(has(o3, 'refs/heads/t/ST-9')).toBe(true);
+}, 120_000);
+
+it('risk:data-loss clean keeps the local branch of a dropped ticket that moved after clean read it', async () => {
+  const c = clone();
+  const S = claimWorktree(c, 'ST-9');
+  dropOnRemote(c, ['ST-9']);
+  const o = c.otherClone();
+  gitRun(o, 'switch', '-q', '-c', 'elsewhere');
+  writeFiles(o, { 'e.txt': 'e\n' });
+  const S2 = commitMsg(o, 'elsewhere');
+  gitRun(o, 'push', '-q', 'origin', 'elsewhere');
+  const hook = `${c.root}/.git/hooks/pre-push`;
+  writeFileSync(hook, `#!/bin/sh\ngit update-ref refs/heads/t/ST-9 ${S2}\nexit 0\n`);
+  chmodSync(hook, 0o755);
+  const r = await run(['worktree', 'clean'], c.root);
+  expect(r.code).toBe(0);
+  const l = lines(r.out);
+  expect(l).toHaveLength(3);
+  expect(l[0]).toBe(`removed ${c.sibling('ST-9')}`);
+  expect(l[1]).toBe(`deleted origin/t/ST-9 (was ${S})`);
+  expect(l[2].startsWith('kept t/ST-9: git update-ref failed: ')).toBe(true);
+  expect(sha(c, 't/ST-9')).toBe(S2);
+  expect(has(c.remote, 'refs/heads/t/ST-9')).toBe(false);
+}, 120_000);
+
+it('risk:data-loss clean keeps a dropped ticket branch that a detached worktree is rebasing', async () => {
+  const c = clone();
+  claimWorktree(c, 'ST-9');
+  try {
+    gitRun(c.sibling('ST-9'), 'rebase', '-q', '--force-rebase', '--exec', 'false', 'HEAD~1');
+  } catch {
+    // the exec line fails on purpose, leaving the rebase stopped
+  }
+  expect(gitRun(c.sibling('ST-9'), 'branch', '--show-current').trim()).toBe('');
+  dropOnRemote(c, ['ST-9']);
+  const r = await run(['worktree', 'clean'], c.root);
+  expect(r.code).toBe(0);
+  expect(lines(r.out)).toEqual([`kept t/ST-9: being rebased in ${c.sibling('ST-9')}`]);
+  expect(existsSync(c.sibling('ST-9'))).toBe(true);
+  expect(has(c.root, 'refs/heads/t/ST-9')).toBe(true);
+  expect(has(c.remote, 'refs/heads/t/ST-9')).toBe(true);
+  gitRun(c.sibling('ST-9'), 'rebase', '--abort');
+}, 120_000);

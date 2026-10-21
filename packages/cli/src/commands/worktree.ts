@@ -447,7 +447,7 @@ export function gitNoPrompt(cwd: string, args: string[]): string {
 const firstLine = (e: unknown) => String((e as { stderr?: string }).stderr ?? e).trim().split('\n')[0];
 
 /** ST-LN-20 D-05: after a good fetch, prune origin's stale refs (remote-tracking, and tags a fetch refspec maps), naming each with its full sha (it can be the last copy of an unmerged branch). */
-function pruneStale(ctx: CommandContext): void {
+function pruneStale(ctx: CommandContext): Map<string, string> {
   const refs = () => git(ctx.root, ['for-each-ref', '--format=%(objectname) %(refname)']).split('\n').filter((r) => r !== '');
   const before = refs();
   try {
@@ -457,12 +457,15 @@ function pruneStale(ctx: CommandContext): void {
 `);
   }
   const left = new Set(refs());
+  const pruned = new Map<string, string>();
   for (const r of before) {
     if (left.has(r)) continue;
     const cut = r.indexOf(' ');
     ctx.stdout.write(`pruned ${r.slice(cut + 1)} (was ${r.slice(0, cut)})
 `);
+    pruned.set(r.slice(cut + 1), r.slice(0, cut));
   }
+  return pruned;
 }
 
 interface GuardState {
@@ -555,10 +558,13 @@ export function worktreeClean(ctx: CommandContext): number {
     return id === undefined ? [] : [{ w, id }];
   });
   if (!gitOk(ctx.root, ['remote', 'get-url', 'origin'])) return 0;
+  let pruned = new Map<string, string>();
+  let fetchFailed = false;
   try {
     gitNoPrompt(ctx.root, ['fetch', '--no-prune', 'origin']);
-    pruneStale(ctx);
+    pruned = pruneStale(ctx);
   } catch (e) {
+    fetchFailed = true;
     ctx.stdout.write(`fetch from origin failed, judging against the refs already in this clone: ${firstLine(e)}
 `);
   }
@@ -601,12 +607,26 @@ export function worktreeClean(ctx: CommandContext): number {
 `);
     }
   }
-  cleanDropped(ctx, ref, templates, state);
+  cleanDropped(ctx, ref, templates, state, pruned, fetchFailed);
   return 0;
 }
 
+/** The branch a worktree's stopped rebase is rebuilding, or undefined. */
+function rebaseBranch(path: string): string | undefined {
+  const dir = git(path, ['rev-parse', '--path-format=absolute', '--git-dir']).trim();
+  for (const d of ['rebase-merge', 'rebase-apply']) {
+    try {
+      const h = readFileSync(`${dir}/${d}/head-name`, 'utf8').trim();
+      if (h.startsWith('refs/heads/')) return h.slice('refs/heads/'.length);
+    } catch {
+      // no rebase of this kind
+    }
+  }
+  return undefined;
+}
+
 /** ST-LN-34: for each ticket branch whose ticket is dropped on `ref`, delete the worktree, the origin branch and the local branch when nothing beyond origin is lost. */
-function cleanDropped(ctx: CommandContext, ref: string, templates: readonly string[], s: GuardState): void {
+function cleanDropped(ctx: CommandContext, ref: string, templates: readonly string[], s: GuardState, pruned: Map<string, string>, fetchFailed: boolean): void {
   const known = (i: string) => Object.hasOwn(ctx.snapshot.tickets, i);
   const tips = new Map<string, { L?: string; R?: string }>();
   for (const row of git(ctx.root, ['for-each-ref', '--format=%(objectname) %(refname)', 'refs/heads', 'refs/remotes/origin']).split('\n')) {
@@ -627,11 +647,22 @@ function cleanDropped(ctx: CommandContext, ref: string, templates: readonly stri
   }
   if (ids.size === 0) return;
   const dropped = droppedOn(ctx.root, ref, [...new Set(ids.values())]);
+  if (fetchFailed && [...ids.keys()].some((n) => dropped.has(ids.get(n)!))) {
+    ctx.stdout.write('kept dropped tickets: fetch from origin failed\n');
+    return;
+  }
   const after = worktrees(ctx.root, ctx.stdout);
   for (const b of [...ids.keys()].filter((n) => dropped.has(ids.get(n)!)).sort()) {
     const id = ids.get(b)!;
     try {
       const W = after.find((x) => x.branch === b);
+      // A worktree mid-rebase has a detached HEAD and shows no branch; its rebase still owns the branch.
+      const rebasing = after.find((x) => x.branch === undefined && rebaseBranch(x.path) === b);
+      if (rebasing !== undefined) {
+        ctx.stdout.write(`kept ${b}: being rebased in ${rebasing.path}
+`);
+        continue;
+      }
       if (W !== undefined && W === after[0]) {
         ctx.stdout.write(`kept ${b}: checked out in ${W.path}\n`);
         continue;
@@ -651,7 +682,7 @@ function cleanDropped(ctx: CommandContext, ref: string, templates: readonly stri
         } else ctx.stdout.write(`kept ${b}: origin/${b} has commits not here\n`);
         continue;
       }
-      if (L !== undefined && R === undefined) {
+      if (L !== undefined && R === undefined && pruned.get('refs/remotes/origin/' + b) !== L) {
         const n = Number(git(ctx.root, ['rev-list', '--count', L, '--not', '--remotes=origin']).trim());
         if (n > 0) {
           ctx.stdout.write(`kept ${b}: ${n} commits not on origin\n`);
@@ -661,7 +692,15 @@ function cleanDropped(ctx: CommandContext, ref: string, templates: readonly stri
       // git refuses to delete a branch checked out in a worktree, and a branch must not lose its folder after its origin copy is gone.
       if (W !== undefined && removeWorktree(ctx, W, id, g!.h).failed) continue;
       if (R !== undefined) {
-        gitNoPrompt(ctx.root, ['push', `--force-with-lease=refs/heads/${b}:${R}`, 'origin', ':refs/heads/' + b]);
+        try {
+          gitNoPrompt(ctx.root, ['push', `--force-with-lease=refs/heads/${b}:${R}`, 'origin', ':refs/heads/' + b]);
+        } catch (e) {
+          ctx.stdout.write(`kept origin/${b}: git push failed: ${firstLine(e)}
+`);
+          if (L !== undefined) ctx.stdout.write(`kept ${b}: its origin branch was not deleted
+`);
+          continue;
+        }
         ctx.stdout.write(`deleted origin/${b} (was ${R})\n`);
       }
       if (L !== undefined) {

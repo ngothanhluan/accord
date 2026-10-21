@@ -55,9 +55,15 @@ judges, the owner decides.
 6. Run `accord gate done <id>` and work from what it prints. Leave
    `verification.md` and the tick uncommitted until it passes;
    the notice that the review file has no author yet is expected and no
-   reason to commit earlier. When it passes, commit only
-   `accord/tickets/<id>.md` and `accord/tickets/<id>/verification.md`;
-   under `review: outcome` the commit message quotes the owner's answer.
+   reason to commit earlier. When it passes, read the ticket's
+   `## Corrections` and the Rulings under the ledger's `## Rulings`. For
+   each one you judge to hold across tickets, ask the owner whether it
+   becomes a rule of this repository; on a yes, write it as one rule
+   line in `accord/product/conventions.md`. Without the owner's yes,
+   write nothing to `conventions.md`. Then commit only
+   `accord/tickets/<id>.md`, `accord/tickets/<id>/verification.md` and,
+   when a rule was written, `accord/product/conventions.md`; under
+   `review: outcome` the commit message quotes the owner's answer.
 
 7. Next: `/accord`, for the next ticket.
 

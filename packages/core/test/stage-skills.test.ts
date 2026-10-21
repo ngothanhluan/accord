@@ -429,3 +429,29 @@ it('risk:regression the owners yes steps still ask for an explicit yes and commi
   }
   expect(bad).toEqual([]);
 });
+
+it('ac-5 the verify skill offers to promote a ruling or correction into the conventions', () => {
+  const text = (files.find((f) => f.path === '.claude/skills/accord-verify/SKILL.md')?.text ?? '').replace(/\s+/g, ' ');
+  expect(text.length).toBeGreaterThan(0);
+  const from = text.indexOf('6. Run `accord gate done <id>`');
+  const to = text.indexOf('7. Next:');
+  expect(from).toBeGreaterThan(-1);
+  expect(to).toBeGreaterThan(-1);
+  const step = text.slice(from, to);
+  const phrases = [
+    "read the ticket's `## Corrections` and the Rulings under the ledger's `## Rulings`.",
+    'judge to hold across tickets',
+    'ask the owner whether it becomes a rule of this repository',
+    'write it as one rule line in `accord/product/conventions.md`.',
+    "Without the owner's yes, write nothing to `conventions.md`.",
+  ];
+  expect(phrases.filter((p) => !step.includes(p))).toEqual([]);
+  const a = step.indexOf('ask the owner whether');
+  const w = step.indexOf('write it as one rule line');
+  const c = step.indexOf('Then commit only');
+  expect(a).toBeGreaterThan(-1);
+  expect(w).toBeGreaterThan(a);
+  expect(c).toBeGreaterThan(w);
+  expect(step.slice(c)).toContain('accord/tickets/<id>/verification.md');
+  expect(step.slice(c)).toContain('accord/product/conventions.md');
+});

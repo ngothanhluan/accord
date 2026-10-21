@@ -41,7 +41,7 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: ST-LN-33
 
-  @ac-1
+  @ac-1 @test:packages/core/test/stage-skills.test.ts#ac-1-every-rendered-ask.md-holds-the-writing-rule-for-the-owner-and-keeps-its-old-lines
   Scenario: every rendered ask.md holds the writing rule for the owner
     Given the files `accord skills sync` writes for a config that enables every runtime, in every target directory, each read with every line break and the spaces or tabs around it as one space
     When a reader opens each stage's ask.md

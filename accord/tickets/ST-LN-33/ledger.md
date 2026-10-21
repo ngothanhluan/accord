@@ -10,6 +10,10 @@
 - Ruling: an approval view with no closing `---` is skipped to the end of its text block — the scenario leaves this case open — cost if wrong: low, a stray "## Intent" heading hides the rest of that block from the count
 - Ruling: the D-06 comparison runs the benchmark once with two folder arguments, each holding one copied comparison session — one report the owner reads side by side — cost if wrong: medium, the owner needs two runs to compare
 - Ruling: the plan round 2 commit holds the planner's round 1 and round 2 fixes together, and the round 3 diff was rebuilt from the round 1 commit plus the round 1 diff — the round 2 record commit failed before the planner ran; a later commit put plan.md back to its round 1 state so that `plan: ST-LN-33 ready` carries the 2.1 fix, as the stage check needs — cost if wrong: low, git log shows two extra plan commits
+- Ruling: the @ac-1 test strips the line-1 marker and compares the 16 old lines as an in-order subsequence of the raw lines — the brief's exact method (task 1 executor) — cost if wrong: none named
 
 ## Deferred
 - Plan round 1.3 (Nice): Task 4 says "Date.parse(o.timestamp) is a number"; the intended test is not NaN, as readRun does at scripts/benchmark.mjs:50 — deferred
+
+## Tasks
+- task 1 done 12ef32f018d6

@@ -265,7 +265,8 @@ it('risk:concurrency a locked hold file is never overwritten', async () => {
   setTable(tableOf(A));
   const t0 = Date.now();
   const r = await run(['worktree', 'open', 'ST-9', '--continue'], sib, envOf(A));
-  expect(Date.now() - t0).toBeLessThan(5000);
+  // 2 s lock wait plus the fetch Continue now runs first; a hang never returns, so 15 s still proves it
+  expect(Date.now() - t0).toBeLessThan(15000);
   expect(r.code).toBe(2);
   expect(r.err).toContain('holds.lock');
   expect(existsSync(holdsFile(c))).toBe(false);

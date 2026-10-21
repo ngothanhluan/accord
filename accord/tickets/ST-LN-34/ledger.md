@@ -31,6 +31,7 @@
 - Ruling: task 1's drop.ts already wraps fetch and push failures in a UsageError (first stderr line), though Task 2 was meant to add that — a raw git error would have been a stack trace — cost if wrong: Task 2 may change the wording.
 - Ruling: task 3's `removeWorktree` returns failed only when the worktree is still listed afterwards; a "removed in part" result counts as gone, so clean goes on to delete the branches — a half-removed folder must not block them, and the printed line already tells the owner to delete the rest by hand — cost if wrong: a branch is deleted while a leftover folder remains.
 - Ruling: task 3's test helpers (claimWorktree, dropOnRemote, has) and a small dropAndMerge helper sit at the end of worktree.test.ts, as the plan says; dropAndMerge lets ac-3 and ac-4 share their setup — cost if wrong: none.
+- Ruling: `.vitest/junit/output.xml`, listed under the review package's Undeclared files, is accepted with no net change: a vitest JUnit report committed by mistake in 6d85985 and e1fc496 and removed in 7880617, so it is absent at HEAD and at the baseline; the branch is pushed, so its history is not rewritten — cost if wrong: two commits on main carry a report nobody uses.
 - Ruling: task 4's rebase check (`rebaseBranch`) runs before any guard, so a branch held by a stopped rebase is kept with "kept <b>: being rebased in <path>" — as the brief says — cost if wrong: a rebase in a worktree whose git dir cannot be read throws and falls into the existing "could not be judged" line, so the branch is kept.
 
 ## Deferred
@@ -42,6 +43,7 @@
 - Nice (plan round 3.1): condition ids.md step 1's close-this-session sentence on the session running in the ticket's worktree.
 - Nice (review round 1.2): clean's `git update-ref -d` leaves the deleted branch's `branch.<b>.remote` and `branch.<b>.merge` config entries; run `git config --remove-section branch.<b>` after the delete, tolerating failure — packages/cli/src/commands/worktree.ts:712.
 - Nice (review round 1.3): a one-line `--reason` that is `# Intent` or a fence passes lint and lands in the last section (`## ` duplicates are caught by `load.heading-duplicate`); reject a reason starting with `#`, a fence or `<!--` — packages/cli/src/commands/drop.ts:34.
+- Nice (final review 2.1): `.vitest/junit/output.xml` stays in the history of 6d85985 and e1fc496 though absent at HEAD; accepted by the Ruling above, not rewritten.
 
 ## Tasks
 - task 1 done 6d8598562879

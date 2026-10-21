@@ -41,7 +41,7 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: ST-LN-26
 
-  @ac-1
+  @ac-1 @test:packages/core/test/stage-skills.test.ts#ac-1-a-failure-reported-after-verify-goes-to-the-debug-stage-before-any-fix
   Scenario: A failure someone reports after verify goes to debug before any fix
     Given ticket X has reached verify or done and its pull request is not merged
     And a session works X after "/accord continue X"

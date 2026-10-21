@@ -39,6 +39,8 @@
 - Ruling: hook.test.ts "the prompt expansion hook blocks every accord text…" timed out at 33s once in task 3's affected run (5.4s alone, and the rerun of the same 413 tests passed); counted as load on this machine, not a regression — cost if wrong: task 2's extra git process per claimed ticket makes the prompt-expansion hook slow enough to time out, and the review or verify suite shows it again.
 - Ruling: `accord tests skipped` copies its three refusals from `testsBaseline` rather than sharing them, so the "baseline is read from the report" wording also appears in its error — the brief says the same words — executor, task 4 — cost if wrong: one message edit in two places, and a skipped-tests error that mentions the baseline.
 - Ruling: task 5 accepts `.claude/agents/accord-final-reviewer.md` outside its `files:` line — `accord skills sync` renders it from reviewer.md, so the rule line reaches it (plan review 1.12 named the gap) — cost if wrong: none found.
+- Ruling: task 6 accepts `packages/core/skills/debug/SKILL.md` loading `accord/ids.md` and `accord/worktree.md`, which adds `.claude/skills/accord-debug/worktree.md` and `ids.md` outside its `files:` line — `failure.md`, copied into accord-debug, names `./worktree.md`, which names `./ids.md`, and skills.test.ts "every relative reference resolves" requires them; they are reference files under no byte cap — executor, task 6 — cost if wrong: two more rendered copies to keep in sync.
+- Ruling: accord-review step 2 reads "When `accord anchor` prints `Review base: <sha>`, run `accord review-package <id> --base <sha>` instead.", step 3 drops "; the approach is the ticket's `## Approach`" and step 4 reads "De-duplicate the findings, then mark each one" — the plan's wording left the rendered SKILL.md at 5200 bytes, over the 5120 cap; now accord 5095, accord-debug 4867, accord-review 5106 — executor, task 6 — cost if wrong: a reviewer is not told where the approach is, though the ticket is passed in full.
 
 ## Deferred
 
@@ -52,3 +54,4 @@
 - task 3 done e2fca8aeba2a
 - task 4 done 98d6c5cff2b0
 - task 5 done 40a6ebcca3c1
+- task 6 done 1fd23492038b

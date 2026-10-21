@@ -12,6 +12,12 @@ vi.mock('../src/load/proc.js', async (orig) => {
   return { ...real, processTable: vi.fn(real.processTable) };
 });
 
+import * as limit from '../src/commands/fetch-limit.js';
+vi.mock('../src/commands/fetch-limit.js', async (orig) => {
+  const real = await orig<typeof import('../src/commands/fetch-limit.js')>();
+  return { ...real, fetchLimitMs: vi.fn(real.fetchLimitMs) };
+});
+
 const clones: Clone[] = [];
 const clone = (opts?: Parameters<typeof makeClone>[0]) => {
   const c = makeClone(opts);
@@ -20,6 +26,7 @@ const clone = (opts?: Parameters<typeof makeClone>[0]) => {
 };
 afterEach(() => {
   vi.mocked(proc.processTable).mockReset();
+  vi.mocked(limit.fetchLimitMs).mockReset();
   for (const c of clones.splice(0)) c.cleanupAll();
 });
 
@@ -1589,3 +1596,61 @@ it('risk:complex-branching a merge that changes the pinned accord version keeps 
   expect(gitRun(sib, 'rev-parse', 'HEAD^1').trim()).toBe(head);
   expect(gitRun(sib, 'rev-parse', 'HEAD^2').trim()).toBe(tip);
 }, 120_000);
+
+it('ac-5 a failed or silent fetch is one accord line at pick up new ticket continue and merge and the work goes on', async () => {
+  const P = 'fetch from origin failed, going on with the refs already in this clone: ';
+  const one = (out: string, err: string) => {
+    const all = lines(out + err);
+    const f = all.filter((l) => l.includes('fetch'));
+    expect(f).toHaveLength(1);
+    expect(f[0].startsWith(P)).toBe(true);
+    expect(f[0].length).toBeGreaterThan(P.length);
+    expect(all.some((l) => l.startsWith('fatal:'))).toBe(false);
+    return f[0];
+  };
+  const missing = (c: Clone) => c.git('remote', 'set-url', 'origin', c.remote + '-missing');
+
+  const c = clone();
+  missing(c);
+  const base = sha(c, 'origin/main');
+  const rc = await run(['worktree', 'open', 'ST-9'], c.root);
+  expect(rc.code).toBe(0);
+  one(rc.out, rc.err);
+  expect(sha(c, 't/ST-9^')).toBe(base);
+
+  const d = clone({ tickets: [] });
+  missing(d);
+  d.git('remote', 'set-url', '--push', 'origin', d.remote);
+  const rd = await run(['new', 'ticket', 'ST-9', '--lane', 'M', '--worktree'], d.root);
+  expect(rd.code).toBe(0);
+  one(rd.out, rd.err);
+
+  const e = clone();
+  ticketWorktree(e, 'ST-9');
+  missing(e);
+  const re = await run(['worktree', 'open', 'ST-9', '--continue'], e.root);
+  expect(re.code).toBe(0);
+  one(re.out, re.err);
+  expect(lines(re.out).slice(-3)).toEqual(stopLines(e.sibling('ST-9'), 'ST-9'));
+
+  const f = clone();
+  ticketWorktree(f, 'ST-9');
+  verifyStage(f.sibling('ST-9'), 'ST-9');
+  missing(f);
+  const head = gitRun(f.sibling('ST-9'), 'rev-parse', 'HEAD').trim();
+  const rf = await run(['worktree', 'merge', 'ST-9'], f.sibling('ST-9'));
+  expect(rf.code).toBe(0);
+  one(rf.out, rf.err);
+  expect(gitRun(f.sibling('ST-9'), 'rev-parse', 'HEAD').trim()).toBe(head);
+
+  const g = clone();
+  g.git('config', 'remote.origin.uploadpack', 'cd / && sleep 8 >/dev/null 2>&1; :');
+  vi.mocked(limit.fetchLimitMs).mockReturnValue(2000);
+  const t0 = Date.now();
+  const rg = await run(['worktree', 'open', 'ST-9'], g.root);
+  expect(rg.code).toBe(0);
+  expect(Date.now() - t0).toBeLessThan(6000);
+  expect(one(rg.out, rg.err)).toBe(P + 'no answer within 2 seconds');
+  expect(sha(g, 't/ST-9^')).toBe(sha(g, 'origin/main'));
+  await new Promise((r) => setTimeout(r, Math.max(0, t0 + 9000 - Date.now())));
+}, 60_000);

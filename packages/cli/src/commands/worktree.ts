@@ -4,6 +4,7 @@ import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSyn
 import { DEFAULT_BRANCH_TEMPLATE, loadConfig, loadSnapshot, statusRows } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
 import { currentBranch, gitDefaultRef, gitUserEmail, loadFromFs, ticketOfBranch, UsageError } from '../load/fs.js';
+import { fetchLimitMs } from './fetch-limit.js';
 import { claudeEnv, describeSession, isLive, processTable, runSetup, sameSession, sessionIn } from '../load/proc.js';
 import type { Session } from '../load/proc.js';
 import type { CommandContext } from '../run.js';
@@ -433,7 +434,7 @@ const firstWord = (cmd: string) => (/^\s*(?:"([^"]*)"|'([^']*)'|(\S+))/.exec(cmd
  * Run a network git command with prompts off. ssh gets BatchMode only when it is OpenSSH: git reads core.sshCommand before GIT_SSH, and
  * GIT_SSH_COMMAND before both, so the user's own program is never replaced and a non-OpenSSH command is passed through unchanged.
  */
-function gitNoPrompt(cwd: string, args: string[]): void {
+function gitNoPrompt(cwd: string, args: string[], timeout?: number): void {
   let configured = '';
   try {
     configured = execFileSync('git', ['config', '--get', 'core.sshCommand'], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
@@ -450,6 +451,7 @@ function gitNoPrompt(cwd: string, args: string[]): void {
     cwd,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
+    ...(timeout === undefined ? {} : { timeout }),
     env: { ...process.env, GIT_TERMINAL_PROMPT: '0', ...(ssh !== undefined && fromEnv ? { GIT_SSH_COMMAND: undefined } : {}) },
   });
 }
@@ -459,10 +461,12 @@ const firstLine = (e: unknown) => String((e as { stderr?: string }).stderr ?? e)
 /** ST-LN-30 D-01, D-06: fetch origin so a branch is cut and a claim judged from the latest refs; a failed fetch prints one line and the work goes on. */
 export function fetchOrigin(ctx: CommandContext): CommandContext {
   if (!gitOk(ctx.root, ['remote', 'get-url', 'origin'])) return ctx;
+  const ms = fetchLimitMs();
   try {
-    gitNoPrompt(ctx.root, ['fetch', '--no-prune', 'origin']);
+    gitNoPrompt(ctx.root, ['fetch', '--no-prune', 'origin'], ms);
   } catch (e) {
-    ctx.stdout.write(`fetch from origin failed, going on with the refs already in this clone: ${firstLine(e)}\n`);
+    const why = (e as NodeJS.ErrnoException).code === 'ETIMEDOUT' ? `no answer within ${ms / 1000} seconds` : firstLine(e);
+    ctx.stdout.write(`fetch from origin failed, going on with the refs already in this clone: ${why}\n`);
     return ctx;
   }
   return { ...ctx, snapshot: loadSnapshot(loadFromFs(ctx.root)) };

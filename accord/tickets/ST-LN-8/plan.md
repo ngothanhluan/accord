@@ -1,6 +1,6 @@
 ---
 baseline: 6ead1b6a5e34315768ab998a450701e2283a766b
-plan_hash: "fnv1a64:c77a009a35d0dff2"
+plan_hash: "fnv1a64:740220841e19bd1f"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -8,16 +8,18 @@ preamble, the ticket and its ledger.
 
 Order: Task 1 is the wiring. It adds the D-07 forbidden-line rule in core, the `commits.trailers` key, the one
 `git log` loader in the CLI, and the `accord task-done` refusal, so a repository that sets `commits.trailers:
-forbid` refuses a trailer end to end. Task 2 adds the same check to `accord gate done` as a core rule. Task 3
+forbid` refuses a trailer end to end. Task 2 adds the same check to `accord gate done` as a core rule and lets
+a later change to `accord/product/conventions.md` count as one of the ticket's own records (D-08). Task 3
 scaffolds `accord/product/conventions.md` and appends it to every brief. Task 4 is the executor, planner and
-ruleset text. Task 5, the polish, is the promotion step in the verify skill.
+ruleset text. Task 5 is the promotion step in the verify skill. Task 6, the polish, is the build skill's route
+for a task-done refusal over a forbidden line (D-09).
 
 Rules for every task:
 - Commits carry no trailer of any kind: no `Co-Authored-By:` line, no `Signed-off-by:` or other `-by:` line,
   and no "Generated with" line, in the subject or the body.
 - No task touches any file under the repository's top-level `accord/` folder. This repository's
-  `accord/config.yml` (`commits: { trailers: forbid }`) and `accord/product/conventions.md` are written by the
-  main session after the last task is recorded, not by any task here (ledger Ruling).
+  `accord/config.yml` and `accord/product/conventions.md` are written by the main session, as the section
+  `After the last task` below says, never by an executor or a task here (ledger Ruling).
 - Test ids: every test this plan writes and names on a `verify:` line is a top-level `it(...)` with no
   `describe` around it. Its report id is the test file's path from the repository root, then `#`, then the `it`
   title with each whitespace run turned into `-` (`packages/core/src/load/junit.ts:40`; vitest's JUnit reporter
@@ -55,6 +57,32 @@ Definitions shared by every task:
 - The default ref: `gitDefaultRef(root)` (`packages/cli/src/load/fs.ts:574`), origin/HEAD's target, else
   `refs/remotes/origin/main`, else `refs/remotes/origin/master`; never the local main.
 - The check is on when `snapshot.config?.commits?.trailers === 'forbid'`. Absent or `allow` is off (D-01).
+
+After the last task (the main session only, never an executor): once Task 6 has its ledger line committed and
+before `accord-review` starts, the main session turns the check on for this repository, which the Intent's
+success needs.
+1. Append these three lines, exactly, to the end of `accord/config.yml`, after the `setup:` list:
+   ```
+   # ST-LN-8 D-01: task-done and gate done refuse a commit body with a -by: line or a "Generated with" line.
+   commits:
+     trailers: forbid
+   ```
+2. Create `accord/product/conventions.md` with exactly this text, LF line ends, no BOM, one trailing newline.
+   Its first three lines are `packages/core/templates/conventions.md` from Task 3, byte for byte:
+   ```
+   # Conventions
+
+   <!-- One rule per line, followed by every commit and every agent in this repository. Record an option that was tried and refused as `Rejected: <option> — <reason>`. accord brief appends this file to every executor brief. -->
+
+   - Never add a commit trailer: no `Co-Authored-By:` line, no other line whose first word ends in `-by:` (such as `Signed-off-by:`), and no line containing "Generated with", in any commit by the main session or any agent.
+   ```
+3. Commit both files in one commit whose whole message is the single line
+   `config: ST-LN-8 turn on the commit trailer check for this repository`, with no body.
+4. The check: `npm run build`, `git fetch origin`, then `node packages/cli/dist/cli.js gate done ST-LN-8 --json`
+   prints no finding whose `rule` is `gate.commit-trailer` (the command still exits 1 at this point, for the
+   ticks and the review not made yet), and `node packages/cli/dist/cli.js lint` reports no error. A
+   `gate.commit-trailer` finding names a commit on this branch to reword before `accord-review`; a lint error
+   is fixed in these two files before `accord-review`.
 
 ## Task 1: Wiring: task-done refuses a commit with a forbidden line when the repository forbids trailers
 covers: @ac-3, D-01, D-02, D-03, D-06, D-07
@@ -161,13 +189,15 @@ messages and its order are unchanged); every other loader in `load/fs.ts`; `load
 `gitBranchCommits`.
 
 ## Task 2: gate done refuses a ticket branch holding a forbidden line when the repository forbids trailers
-covers: @ac-4, D-02
+covers: @ac-4, D-02, D-08
 files: packages/core/src/gate/done.ts, packages/core/src/gate/rules.ts, packages/core/src/model/snapshot.ts, packages/core/test/gate.test.ts, packages/cli/src/commands/gate.ts, packages/cli/test/gate.test.ts
-verify: packages/cli/test/gate.test.ts#ac-4-gate-done-refuses-a-ticket-branch-holding-any-forbidden-line-when-the-repository-forbids-trailers (@ac-4), packages/core/test/gate.test.ts#risk:security-gate-done-under-forbid-fails-closed-when-the-host-loaded-no-commits
+verify: packages/cli/test/gate.test.ts#ac-4-gate-done-refuses-a-ticket-branch-holding-any-forbidden-line-when-the-repository-forbids-trailers (@ac-4), packages/core/test/gate.test.ts#risk:security-gate-done-under-forbid-fails-closed-when-the-host-loaded-no-commits, packages/core/test/gate.test.ts#risk:complex-branching-a-subsequent-commit-touching-only-its-own-records-and-the-conventions-file-passes-both-commit-rules
 
 Consumes: `forbiddenLines`, `trailerReason` and `AccordConfig.commits` from Task 1, and `gitBranchCommits`
 from Task 1. Produces: `RepoSnapshot.commits`, the core check `commitTrailer` and the Done row
-`gate.commit-trailer`, so `gate done --json` carries the finding (D-87).
+`gate.commit-trailer`, so `gate done --json` carries the finding (D-87); and `onlyOwnRecords` accepting
+`accord/product/conventions.md`, so the promotion commit of Task 5 (D-05) made after the ticks and the review
+fails neither `gate.tick-stale-commit` nor `gate.stale-review` (D-08).
 
 Tests first.
 - `packages/core/test/gate.test.ts`, appended at the end, top-level, adding
@@ -184,6 +214,21 @@ Tests first.
     `pick({ ...snap, commits: [{ sha, message: 'build: x\n\nAdds.\nCo-Authored-By: Bot <bot@example.com>\n' }] })`
     has one finding whose `reason` contains `0123456789ab` and `Co-Authored-By: Bot <bot@example.com>`.
   - With `config.yml` set to `CONFIG` (no `commits` key), `pick` of that snapshot, with no `commits`, is `[]`.
+- `packages/core/test/gate.test.ts`, appended after the test above, top-level, using the module-level `input`
+  and `GIT` of that file and the `gate-done` fixture tickets `COMMIT` and `REVIEW`, exactly as the existing case
+  the existing own-records case at line 434 does:
+  `it('risk:complex-branching a subsequent commit touching only its own records and the conventions file passes both commit rules')`:
+  - `own = (id: string, paths: string[]) => gateDone(loadSnapshot({ ...input('gate-done', GIT), recordsSince:
+    { '9999999': paths } }), id).findings.filter((f) => f.rule === 'gate.tick-stale-commit' || f.rule ===
+    'gate.stale-review').map((f) => f.rule)`, `mine = (id: string) => ['accord/tickets/' + id + '.md',
+    'accord/tickets/' + id + '/verification.md']` and `conv = 'accord/product/conventions.md'`.
+  - `own('COMMIT', [...mine('COMMIT'), conv])`, `own('REVIEW', [...mine('REVIEW'), conv])` and
+    `own('COMMIT', [conv])` are each `[]`.
+  - `own('COMMIT', [...mine('COMMIT'), conv, 'src/a.ts'])` is `['gate.tick-stale-commit']` and
+    `own('REVIEW', [...mine('REVIEW'), conv, 'src/a.ts'])` is `['gate.stale-review']`.
+  - `own('COMMIT', [conv, 'accord/product/glossary.md'])` and
+    `own('COMMIT', ['accord/product/conventions.md.bak'])` are each `['gate.tick-stale-commit']` (only that one
+    exact path is a record).
 - `packages/cli/test/gate.test.ts`, appended at the end, top-level, adding `gitRun` and `makeLaneRepo` to the
   `./helpers/repo.js` import and `import { CONFIG } from '../../../test/helpers/lane.js';`, with the local
   `commitMessage` helper of the preamble and `rows = (out: string) => (JSON.parse(out) as { findings: { rule:
@@ -221,6 +266,10 @@ Interface:
   draft `{ file: CONFIG, pointer: '/commits/trailers', reason: 'commits.trailers is forbid, but the host loaded
   no commits of this branch, so they cannot be checked' }`. Otherwise one draft per forbidden line, in commit
   order, `{ file: CONFIG, pointer: '/commits/trailers', reason: trailerReason(c.sha, line) }`.
+- `packages/core/src/gate/done.ts`, `onlyOwnRecords` (line 202): its `every` callback also accepts
+  `p === 'accord/product/conventions.md'`, beside the ticket's own file and folder, and its doc comment says a
+  subsequent commit that changed only the ticket's own records or `accord/product/conventions.md` (ST-LN-8 D-08) is
+  the same reviewed code. Nothing else in `tickStaleCommit` or `staleReview` changes.
 - `packages/core/src/gate/rules.ts`: import `commitTrailer` and add
   `{ id: 'gate.commit-trailer', level: 'error', profiles: ['build', 'maintain'], check: commitTrailer }` to
   `DONE_RULES` right after `gate.stale-review`.
@@ -233,7 +282,10 @@ Interface:
 
 Must not change: every Done golden under `packages/core/test/__golden__/` and every existing case in both
 `gate.test.ts` files (no fixture sets `commits.trailers`, so the new row returns nothing and no git spawn is
-added); `gate ready` and `gate plan`; the `ac_hash` and `plan_hash` writes in `gate.ts`.
+added), the line 434 case among them: a subsequent commit touching any path other than the ticket's own records and
+`accord/product/conventions.md` still fails both commit rules, and another ticket whose id starts with this
+one's id is still not its record; `gate ready` and `gate plan`; the `ac_hash` and `plan_hash` writes in
+`gate.ts`; `gitRecordsSince` in `packages/cli/src/load/fs.ts`.
 
 ## Task 3: init writes the conventions file and every brief ends with it
 covers: @ac-2, D-04
@@ -300,16 +352,36 @@ Test first, in `packages/core/test/agents.test.ts`, appended at the end, top-lev
 `flat(s)` is `s.replace(/\s+/g, ' ')`; `executor` and `planner` are the flattened texts of
 `.claude/agents/accord-executor.md` and `.claude/agents/accord-planner.md` from `agentTargets(config())`, each
 non-empty; `rules` is `flat(rulesetText('npx --yes @x/accord@1.2.3'))`.
-- `executor` contains each of: ``A `verify:` id must equal, character for character, the id accord builds from
-  the JUnit report``, ``the testcase's classname, then `#`, then its name``, `every enclosing describe title`,
-  `are each trimmed`, ``each run of whitespace in them becomes `-` ``,
-  `missing or is the empty string before trimming`, `read the JUnit report and find each verify id`,
-  ``never run `accord task-done` ``, `create, change, delete or rename`,
-  ``the repository's top-level `accord/` folder``, ``An `accord/` folder inside a test fixture or an example is
-  not it``, ``Read `accord/product/` ``, ``follow `accord/product/conventions.md` ``.
-- `planner` contains ``Read `accord/product/` ``.
-- `rules` contains ``Every commit, by the main session or any agent, follows `accord/product/conventions.md`
-  when that file exists.``
+- The phrases are written below as JavaScript string literals, one per line; each phrase is exactly the text
+  between its double quotes, so it begins at the character after the opening quote and ends at the character
+  before the closing quote, with no space at either end. Each one is checked with `toContain` on the flattened
+  text named before its list.
+- `executor` contains each of:
+  ```
+  "A `verify:` id must equal, character for character, the id accord builds from the JUnit report"
+  "the testcase's classname, then `#`, then its name"
+  "every enclosing describe title"
+  "are each trimmed"
+  "each run of whitespace in them becomes `-`."
+  "missing or is the empty string before trimming"
+  "read the JUnit report and find each verify id"
+  "never run `accord task-done`, and you never create, change, delete or rename"
+  "the repository's top-level `accord/` folder"
+  "An `accord/` folder inside a test fixture or an example is not it"
+  "Read `accord/product/` before you start"
+  "follow `accord/product/conventions.md` in every commit"
+  ```
+  The fifth phrase ends in the period after the closing backtick of `` `-` ``; the eighth ends at the word
+  `rename`.
+- `planner` contains:
+  ```
+  "Read `accord/product/` before you plan"
+  ```
+- `rules` contains:
+  ```
+  "Every commit, by the main session or any agent, follows `accord/product/conventions.md` when that file exists."
+  ```
+  This phrase ends in the period after `exists`.
 
 Interface (text):
 - `packages/core/agents/executor.md`, after the bullet `- You read, write code, run commands, and commit.`, two
@@ -353,13 +425,21 @@ Test first, in `packages/core/test/stage-skills.test.ts`, appended at the end, t
 - `text` is the rendered `.claude/skills/accord-verify/SKILL.md` from `files`, non-empty, with every whitespace
   run collapsed to one space. `step = text.slice(text.indexOf('6. Run `accord gate done <id>`'),
   text.indexOf('7. Next:'))`, and both indexes are greater than -1.
-- `step` contains ``read the ticket's `## Corrections` and the Rulings under the ledger's `## Rulings` ``,
-  `judge to hold across tickets`, `ask the owner whether it becomes a rule of this repository`,
-  ``write it as one rule line in `accord/product/conventions.md` `` and
-  ``Without the owner's yes, write nothing to `conventions.md` ``.
+- `step` contains each of these phrases, written as JavaScript string literals, one per line; each phrase is
+  exactly the text between its double quotes, with no space at either end:
+  ```
+  "read the ticket's `## Corrections` and the Rulings under the ledger's `## Rulings`."
+  "judge to hold across tickets"
+  "ask the owner whether it becomes a rule of this repository"
+  "write it as one rule line in `accord/product/conventions.md`."
+  "Without the owner's yes, write nothing to `conventions.md`."
+  ```
+  The first, fourth and fifth phrases each end in the period that follows their last closing backtick in the
+  step text below.
 - `a = step.indexOf('ask the owner whether')`, `w = step.indexOf('write it as one rule line')` and
-  `c = step.indexOf('Then commit only')` satisfy `-1 < a < w < c`, and `step.slice(c)` contains
-  ``accord/tickets/<id>/verification.md`` and ``accord/product/conventions.md``.
+  `c = step.indexOf('Then commit only')` satisfy `-1 < a < w < c`, and `step.slice(c)` contains the strings
+  `"accord/tickets/<id>/verification.md"` and `"accord/product/conventions.md"` (the text between the double
+  quotes).
 
 Interface (text), `packages/core/skills/verify/SKILL.md`, step 6 becomes:
 ```
@@ -387,3 +467,54 @@ under 5120 bytes.
 Must not change: steps 1 to 5 and 7 of the verify skill and its `## Rules`; every phrase in the `verify` row of
 `REQUIRED` in `stage-skills.test.ts`; `exactly one rendered file tells its reader about ticking verified` in
 `skills.test.ts`; every other stage skill.
+
+## Task 6: The build skill routes a task-done refusal over a forbidden commit line
+covers: D-09
+files: packages/core/skills/build/SKILL.md, packages/core/src/generated/skills.ts, packages/core/test/stage-skills.test.ts, .claude/skills/accord-build/SKILL.md
+verify: packages/core/test/stage-skills.test.ts#risk:complex-branching-the-build-skill-routes-a-task-done-refusal-over-a-forbidden-commit-line, packages/core/test/skills.test.ts#render-output-invariants->-every-SKILL.md-is-at-most-MAX_SKILL_BYTES-bytes-(spec-§2), packages/core/test/stage-skills.test.ts#stage-skills-name-what-the-spec-requires->-build-names-every-required-phrase
+
+Consumes: `skillTargets` and the `files` constant of `stage-skills.test.ts`, as they are at the baseline, and
+the refusal reason Task 1 prints (`commit <sha> carries the forbidden line ...`) and its exit 2 that says to run
+`git fetch origin`. Produces: the route for those two outcomes in step 3 of the rendered `accord-build` skill
+(D-09). No criterion names this route, so its test carries `risk:complex-branching`.
+
+Test first, in `packages/core/test/stage-skills.test.ts`, appended at the end, top-level:
+`it('risk:complex-branching the build skill routes a task-done refusal over a forbidden commit line')`:
+- `text` is the rendered `.claude/skills/accord-build/SKILL.md` from `files`, non-empty, with every whitespace
+  run collapsed to one space (`s.replace(/\s+/g, ' ')`). `step = text.slice(text.indexOf('3. **Record.**'),
+  text.indexOf('4. **Blocked.**'))`, and both indexes are greater than -1.
+- `step` contains each of these phrases, written as JavaScript string literals, one per line; each phrase is
+  exactly the text between its double quotes, with no space at either end:
+  ```
+  "It refuses because a commit carries a forbidden line"
+  "reword that commit yourself if you made it"
+  "if an executor made it, dispatch a fresh executor with the same brief plus the reasons it printed"
+  "It exits 2 and says to run `git fetch origin`: run that"
+  "Either way, run `accord task-done <id> <n>` again."
+  ```
+  The fourth phrase ends at the word `that`; the fifth ends in the period after `again`.
+- `r = step.indexOf('reword that commit')`, `e = step.indexOf('if an executor made it')`,
+  `f = step.indexOf('It exits 2')` and `g = step.indexOf('Either way')` satisfy `-1 < r < e < f < g`.
+
+Interface (text), `packages/core/skills/build/SKILL.md`, step 3: after the bullet that begins
+`- It refuses because the report is missing or older than the commit:` and ends `Tell the owner; do not loop.`,
+insert this bullet, exactly, indented as its siblings are:
+```
+   - It refuses because a commit carries a forbidden line: reword that
+     commit yourself if you made it; if an executor made it, dispatch a
+     fresh executor with the same brief plus the reasons it printed. It
+     exits 2 and says to run `git fetch origin`: run that. Either way,
+     run `accord task-done <id> <n>` again.
+```
+The text names no gate state word (`Ready`, `Done`), no finding level and no rule id, so
+`no rendered text restates a rule the CLI enforces` in `skills.test.ts` stays green. Run `npm run gen`, then
+`npm run build` and `node packages/cli/dist/cli.js skills sync`, which rewrites
+`.claude/skills/accord-build/SKILL.md`. The size budget is `MAX_SKILL_BYTES` (5120) in
+`packages/core/test/skills.test.ts:188`; counted by hand, the rendered build skill is about 4610 bytes at the
+baseline and about 4950 after the bullet. Check it with
+`node -e "console.log(require('fs').statSync('.claude/skills/accord-build/SKILL.md').size)"`; if it is over
+5120, stop with `BLOCKED` and the byte count, without shortening any other text of the skill.
+
+Must not change: every other bullet of step 3 and steps 1, 2 and 4 to 8 of the build skill, and its `## Rules`;
+every phrase in the `build` row of `REQUIRED` in `stage-skills.test.ts`; every other stage skill and its
+rendered copy.

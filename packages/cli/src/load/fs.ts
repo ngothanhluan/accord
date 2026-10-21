@@ -463,7 +463,7 @@ export function currentBranch(root: string): string | undefined {
   }
 }
 
-function loadParts(root: string, stage = false): {
+function loadParts(root: string, stage = false, light = false): {
   input: SnapshotInput;
   claimRefs: Record<string, string>;
   templates: string[];
@@ -480,14 +480,17 @@ function loadParts(root: string, stage = false): {
     const key = containedPath(root, value);
     if (key !== undefined) files[key] = readFileSync(join(root, key), 'utf8');
   }
+  const defaultBranch = gitDefaultBranch(root);
+  const branchTemplates = [...new Set([DEFAULT_BRANCH_TEMPLATE, defaultBranch.template, config?.branch].filter((t): t is string => t !== undefined))];
+  const known = (id: string) => Object.hasOwn(first.tickets, id);
+  const statusOf = (id: string) => first.tickets[id]?.frontmatter?.status;
+  // The prompt-expansion hook reads only the tickets, the config and the branch templates; each git spawn it skips is ~50 ms on Windows.
+  if (light) return { input: { files, tree, ...(branchTemplates.length === 1 ? {} : { branchTemplates }) }, claimRefs: {}, templates: branchTemplates, known, statusOf };
   const facts = gitFacts(root);
   const git = facts === undefined ? undefined : { commit: facts.commit, authors: facts.authors };
   const shas = [
     ...new Set(Object.values(first.work ?? {}).flatMap((w) => (w.plan?.baseline !== undefined && isSha(w.plan.baseline) ? [w.plan.baseline] : []))),
   ];
-  const defaultBranch = gitDefaultBranch(root);
-  const branchTemplates = [...new Set([DEFAULT_BRANCH_TEMPLATE, defaultBranch.template, config?.branch].filter((t): t is string => t !== undefined))];
-  const known = (id: string) => Object.hasOwn(first.tickets, id);
   const { claims, branches: claimBranches, refs: claimRefs, activity: branchActivity } = gitClaims(root, branchTemplates, known);
   // D-09: a new claim is named by the default branch's template; only a repository with no default branch uses the working tree's.
   const claimTemplate = (defaultBranch.exists ? defaultBranch.template : config?.branch) ?? DEFAULT_BRANCH_TEMPLATE;
@@ -514,12 +517,17 @@ function loadParts(root: string, stage = false): {
   const recordsSince = recorded.length === 0 ? {} : gitRecordsSince(root, recorded);
   // ST-LN-26: the commits after verify, for the ticket on this branch (HEAD) and for each claimed ticket (its tips).
   const afterWanted: Record<string, { commit: string; tips: string[] }> = {};
-  const current = currentBranch(root);
+  // Only a ticket with a start commit or a review.md needs its tips, so the branch and the claim tips are read for those alone.
+  const starts = Object.keys(first.tickets).flatMap((id) => {
+    const start = startOf(first, id);
+    return start === undefined && !Object.hasOwn(files, `accord/tickets/${id}/review.md`) ? [] : [{ id, start }];
+  });
+  const current = starts.length === 0 ? undefined : currentBranch(root);
   const own = current === undefined || current === '' ? undefined : ticketOfBranch(current, branchTemplates, known);
-  for (const id of Object.keys(first.tickets)) {
+  for (const { id, start } of starts) {
     const tips = id === own ? ['HEAD'] : Object.hasOwn(claimRefs, id) ? claimTips(root, id, claimRefs[id], claimBranches) : undefined;
     if (tips === undefined) continue;
-    const commit = startOf(first, id) ?? (Object.hasOwn(files, `accord/tickets/${id}/review.md`) ? reviewStartOf(root, id, tips) : undefined);
+    const commit = start ?? reviewStartOf(root, id, tips);
     if (commit !== undefined) afterWanted[id] = { commit, tips };
   }
   const afterVerify = gitAfterVerify(root, afterWanted);
@@ -549,11 +557,11 @@ function loadParts(root: string, stage = false): {
     ...(Object.keys(recordsSince).length === 0 ? {} : { recordsSince }),
     ...(Object.keys(afterVerify).length === 0 ? {} : { afterVerify }),
   };
-  return { input, claimRefs, templates: branchTemplates, known, statusOf: (id) => first.tickets[id]?.frontmatter?.status };
+  return { input, claimRefs, templates: branchTemplates, known, statusOf };
 }
 
-export function loadFromFs(root: string, options: { stage?: boolean } = {}): SnapshotInput {
-  return loadParts(root, options.stage === true).input;
+export function loadFromFs(root: string, options: { stage?: boolean; light?: boolean } = {}): SnapshotInput {
+  return loadParts(root, options.stage === true, options.light === true).input;
 }
 
 /** The five records of a ticket, as repository paths. */

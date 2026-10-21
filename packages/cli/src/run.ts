@@ -53,10 +53,10 @@ export interface CommandContext {
  * Root, snapshot, pin — in that order, once per command (D-95, D-103). A repository with no `accord/`
  * folder throws the loader's own UsageError before the pin is ever consulted.
  */
-function preflight(opts: RunOptions, mode: 'checkout' | 'stage' | 'claims' = 'checkout'): CommandContext {
+function preflight(opts: RunOptions, mode: 'checkout' | 'stage' | 'claims' | 'light' = 'checkout'): CommandContext {
   const root = repoRoot(opts.cwd);
   const parts = mode === 'claims' ? loadClaimView(root) : undefined;
-  const snapshot = loadSnapshot(parts?.view ?? loadFromFs(root, mode === 'stage' ? { stage: true } : {}));
+  const snapshot = loadSnapshot(parts?.view ?? loadFromFs(root, { stage: mode === 'stage', light: mode === 'light' }));
   const plain = parts === undefined ? undefined : parts.checkout === parts.view ? snapshot : loadSnapshot(parts.checkout);
   // D-94: a hard refusal, no flag and no environment variable that skips it. `config` is undefined
   // when config.yml is missing or failed the schema (D-31); those repositories must report their
@@ -280,7 +280,7 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
         // the context is one stderr line and an allow.
         let ctx: CommandContext;
         try {
-          ctx = preflight(opts, 'stage');
+          ctx = preflight(opts, 'light');
         } catch (e) {
           opts.stderr.write(`accord hook prompt-expansion: ${(e instanceof Error ? e.message : String(e)).split('\n')[0]}; allowed`.replace(/\\/g, '/') + '\n');
           opts.stdout.write('{}\n');

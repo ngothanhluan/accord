@@ -62,7 +62,7 @@ export function reviewPackage(ctx: CommandContext, id: string, options: { base?:
   // Each git log is tried with --remerge-diff first and once more without it (git < 2.36).
   const log = (args: string[]): string => {
     const r = ['^' + def];
-    const full = (extra: string[]) => git(['log', ...args, ...extra, base + '..HEAD', ...r, '--']);
+    const full = (extra: string[]) => gitLog([...args, ...extra, base + '..HEAD', ...r, '--']);
     try {
       return full(['--remerge-diff']);
     } catch {
@@ -75,7 +75,7 @@ export function reviewPackage(ctx: CommandContext, id: string, options: { base?:
       ? [
           `# Review package: ${id} (${base}..HEAD, without ${short})`,
           '## Commits',
-          git(['log', '--no-color', '--format=%h %s', base + '..HEAD', '^' + def, '--']).trimEnd() || '(none)',
+          gitLog(['--no-color', '--format=%h %s', base + '..HEAD', '^' + def, '--']).trimEnd() || '(none)',
           '## Stat',
           log(['--reverse', '--no-color', '--no-ext-diff', '--stat', '--format=%h %s']).trimEnd() || '(no changes)',
           '## Diff',

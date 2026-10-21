@@ -329,7 +329,7 @@ function gitAfterVerify(root: string, wanted: Record<string, { commit: string; t
   }
   for (const [id, w] of entries) {
     const args = (remerge: boolean) => [
-      '-c', 'core.quotePath=false', 'log', '-z', '--topo-order', '--reverse', '--format=%x01%H%x00%P', '--name-only', '--no-renames',
+      '-c', 'core.quotePath=false', '-c', 'log.showSignature=false', 'log', '--no-show-signature', '-z', '--topo-order', '--reverse', '--format=%x01%H%x00%P', '--name-only', '--no-renames',
       ...(remerge ? ['--remerge-diff'] : []), ...w.tips, '^' + w.commit, ...(def === undefined ? [] : ['^' + def]), '--',
     ];
     let raw: string;
@@ -373,7 +373,7 @@ function startOf(snapshot: { tickets: RepoSnapshot['tickets']; verifications: Re
 /** A ticket not yet verified starts at the last commit on the tip that touched its review.md; undefined when none. */
 function reviewStartOf(root: string, id: string, tips: string[]): string | undefined {
   try {
-    const sha = execFileSync('git', ['log', '-1', '--format=%H', ...tips, '--', `accord/tickets/${id}/review.md`], { cwd: root, ...GIT_QUIET, encoding: 'utf8', env: { ...process.env, GIT_NO_LAZY_FETCH: '1' } }).trim();
+    const sha = execFileSync('git', ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '-1', '--format=%H', ...tips, '--', `accord/tickets/${id}/review.md`], { cwd: root, ...GIT_QUIET, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, env: { ...process.env, GIT_NO_LAZY_FETCH: '1' } }).trim();
     return isSha(sha) ? sha : undefined;
   } catch {
     return undefined;

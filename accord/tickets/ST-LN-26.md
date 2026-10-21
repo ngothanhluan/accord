@@ -62,7 +62,7 @@ Feature: ST-LN-26
     And after the owner's tick is committed and those local checks pass, it is pushed and the pull request is marked ready for review, without waiting for CI again
     And when there is no GitHub remote, or gh is not logged in or cannot reach the repository, the owner's report says CI was not checked and why
 
-  @ac-3
+  @ac-3 @test:packages/core/test/lane-status.test.ts#ac-3-a-change-after-verify-takes-the-ticket-back-from-done-until-it-is-verified-again
   Scenario: A change after verify takes the ticket back from done until it is verified again
     Given ticket X was verified at commit C
     When a commit after C changes a file outside X's ticket file and X's ticket folder

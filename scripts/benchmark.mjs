@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Benchmark of accord agent runs: reads Claude Code subagent transcripts plus git, prints Markdown.
+// Benchmark of accord agent runs: reads Claude Code subagent and main-session transcripts plus git, prints Markdown.
 // Not shipped; the prototype of a future `accord runs`. Numbers only, no model call.
 // Usage: node scripts/benchmark.mjs [projectsDir ...] > report.md
 // Default projectsDir: every ~/.claude/projects/<dir> whose name starts with this repo's encoded path.
@@ -8,6 +8,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { execFileSync } from 'node:child_process';
 import { parsePlanReview } from './plan-review.mjs';
+import { ownerSentences } from './sentences.mjs';
 
 const repo = process.cwd();
 const projectsRoot = path.join(os.homedir(), '.claude', 'projects');
@@ -23,8 +24,9 @@ const min = (ms) => (ms / 60000).toFixed(1);
 const k = (n) => (n / 1000).toFixed(0) + 'k';
 
 // ---- transcripts -------------------------------------------------------------
+const records = (file) => fs.readFileSync(file, 'utf8').split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
 function readRun(jsonl, meta) {
-  const lines = fs.readFileSync(jsonl, 'utf8').split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+  const lines = records(jsonl);
   const seen = new Set();
   let input = 0, output = 0, tools = 0, model = '', effort = '', branch = '', lastText = '';
   for (const o of lines) {
@@ -74,6 +76,14 @@ for (const dir of dirs) {
     }
   }
 }
+const sessions = [];
+for (const dir of dirs) {
+  for (const f of fs.readdirSync(dir).filter((f) => f.endsWith('.jsonl'))) {
+    const rs = records(path.join(dir, f));
+    const t = rs.map((o) => Date.parse(o.timestamp)).find((x) => !Number.isNaN(x));
+    sessions.push({ start: t === undefined ? '?' : new Date(t).toISOString().slice(0, 10), branch: rs.find((o) => o.gitBranch)?.gitBranch ?? '?', sentences: ownerSentences(rs) });
+  }
+}
 const accordRuns = runs.filter((r) => r.agent?.startsWith('accord-'));
 
 // ---- git ---------------------------------------------------------------------
@@ -118,9 +128,11 @@ function planRounds(id) {
 // ---- report ------------------------------------------------------------------
 const out = [];
 const row = (...cells) => out.push('| ' + cells.join(' | ') + ' |');
-const first = Math.min(...runs.map((r) => r.start)), last = Math.max(...runs.map((r) => r.start));
+const day = (ms) => new Date(ms).toISOString().slice(0, 10);
 out.push('# accord agent benchmark', '');
-out.push(`${runs.length} subagent runs (${accordRuns.length} accord agents) from ${new Date(first).toISOString().slice(0, 10)} to ${new Date(last).toISOString().slice(0, 10)}, read from ${dirs.length} transcript folder(s).`, '');
+out.push(runs.length
+  ? `${runs.length} subagent runs (${accordRuns.length} accord agents) from ${day(Math.min(...runs.map((r) => r.start)))} to ${day(Math.max(...runs.map((r) => r.start)))}, read from ${dirs.length} transcript folder(s).`
+  : `0 subagent runs (0 accord agents), read from ${dirs.length} transcript folder(s).`, '');
 
 out.push('## By agent', '');
 row('agent', 'runs', 'model', 'effort', 'median min', 'total min', 'median tools', '~output tok', 'input tok');
@@ -170,5 +182,16 @@ for (const agent of ['accord-critic', 'accord-reviewer', 'accord-final-reviewer'
   row(agent, rs.length, rs.filter((r) => r.findings.Must).length, sum('Must'), sum('Should'), sum('Nice'));
 }
 out.push('', 'Counts come from numbered `n. Must|Should|Nice` lines in each run\'s last message, so a report in another shape counts as zero.');
+
+out.push('', '## Sentence length in owner-facing text', '');
+out.push("Sentences of the assistant's chat text in each main session, outside code fences, tables, and pasted approval views; a sentence of more than 25 words is long.", '');
+row('start (UTC)', 'branch', 'sentences', 'over 25 words', '% over 25', 'longest (words)');
+row('---', '---', '---:', '---:', '---:', '---:');
+for (const m of sessions.sort((a, b) => a.start.localeCompare(b.start))) {
+  const long = m.sentences.filter((x) => x.long).length;
+  row(m.start, m.branch, m.sentences.length, long, `${m.sentences.length ? Math.round(100 * long / m.sentences.length) : 0}%`, Math.max(0, ...m.sentences.map((x) => x.words)));
+}
+out.push('', 'Longest sentences:');
+for (const x of sessions.flatMap((m) => m.sentences).sort((a, b) => b.words - a.words).slice(0, 3)) out.push(`- ${x.words} words: "${x.text}"`);
 
 process.stdout.write(out.join('\n') + '\n');

@@ -66,7 +66,7 @@ Feature: ST-LN-33
   Scenario: the benchmark report shows the sentence lengths of each main session
     Given a transcript folder that holds two main sessions, each recorded on its own branch, and one subagent run
     When `node scripts/benchmark.mjs` runs in the repository with that folder as its one argument
-    Then the report holds a section "## Sentence length in owner-facing text" with one row per main session, holding its start date, the UTC date of its first transcript record, its branch, its sentence count, the count and percent of sentences longer than 25 words, and the word count of its longest sentence
+    Then the report holds a section "## Sentence length in owner-facing text" with one row per main session, holding its start date as the UTC date of its first transcript record, its branch, its sentence count, the count and percent of sentences longer than 25 words, and the word count of its longest sentence
     And under that table it quotes the three longest sentences across those sessions, each with its word count
     And outside the quoted sentences, that section holds neither "pass" nor "fail" as a whole word
 ```

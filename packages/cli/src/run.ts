@@ -24,6 +24,7 @@ import { status } from './commands/status.js';
 import { taskDone } from './commands/task-done.js';
 import { testsBaseline } from './commands/tests-baseline.js';
 import { testsSkipped } from './commands/tests-skipped.js';
+import { drop } from './commands/drop.js';
 import { worktreeCheck, worktreeClean, worktreeOpen } from './commands/worktree.js';
 import { loadClaimView, loadFromFs, UsageError } from './load/fs.js';
 import { pinMessage } from './pin.js';
@@ -202,6 +203,14 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .description('print every case the test report records as skipped, with the operating system it ran on')
     .action(() => {
       setCode(testsSkipped(preflight(opts)));
+    });
+
+  program
+    .command('drop <id>')
+    .description("put the ticket file, set to dropped with its reason, on a new branch drop/<id> from origin's default branch and push it, printing the pull request to open")
+    .option('--reason <reason>', 'why the ticket is dropped; replaces the ## Dropped section')
+    .action((id: string, o: { reason?: string }) => {
+      setCode(drop(preflight(opts), id, o));
     });
 
   const worktree = program.command('worktree').description('work each ticket in its own git worktree');

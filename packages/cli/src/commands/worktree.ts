@@ -10,7 +10,7 @@ import type { CommandContext } from '../run.js';
 import { repoRoot } from '../root.js';
 import pkg from '../../package.json' with { type: 'json' };
 
-const ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+export const ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 export interface WorktreeEntry {
   path: string;
@@ -423,7 +423,7 @@ const firstWord = (cmd: string) => (/^\s*(?:"([^"]*)"|'([^']*)'|(\S+))/.exec(cmd
  * Run a network git command with prompts off. ssh gets BatchMode only when it is OpenSSH: git reads core.sshCommand before GIT_SSH, and
  * GIT_SSH_COMMAND before both, so the user's own program is never replaced and a non-OpenSSH command is passed through unchanged.
  */
-function gitNoPrompt(cwd: string, args: string[]): void {
+export function gitNoPrompt(cwd: string, args: string[]): void {
   let configured = '';
   try {
     configured = execFileSync('git', ['config', '--get', 'core.sshCommand'], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();

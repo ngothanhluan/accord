@@ -276,10 +276,11 @@ describe('the emitted workflow script — what is under test', () => {
     expect(SCRIPT.length).toBeGreaterThan(0);
     expect(SCRIPT.split('\n').length).toBeGreaterThan(1);
     expect(NOTHING_TO_GATE.length, 'no echoed line found in the script').toBeGreaterThan(0);
-    if (process.platform !== 'win32') {
-      expect(noBash, `${BASH} did not run on a POSIX host; set ACCORD_BASH`).toBe(false);
-    }
   });
+});
+
+it.skipIf(process.platform === 'win32')('risk:regression bash runs on a posix host so the executed workflow script cases are not skipped there', () => {
+  expect(noBash, `${BASH} did not run on a POSIX host; set ACCORD_BASH`).toBe(false);
 });
 
 // Each case spawns git twice and bash once; on Windows, under a full parallel `npm test`, that

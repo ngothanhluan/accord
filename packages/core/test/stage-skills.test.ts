@@ -1,5 +1,8 @@
 // Spec §3 to §12: what each stage skill must name, asserted over the RENDERED SKILL.md a runtime loads. One
 // row per stage; a stage whose definition is not authored yet has no row and renders nothing to check.
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { agentTargets, installedName, skillDirs, skillTargets, STAGES } from '../src/index.js';
 import type { AccordConfig } from '../src/index.js';
@@ -428,6 +431,143 @@ it('risk:regression the owners yes steps still ask for an explicit yes and commi
     if (stage === 'intent' && !step.includes("on yes commit the ticket with the owner's answer quoted in the commit message")) bad.push(dir + ' ' + stage + ' commit');
   }
   expect(bad).toEqual([]);
+});
+
+it('ac-5 an assertion that runs only on some operating systems sits in a test the runner skips', () => {
+  const flat = (t: string) => t.replace(/\s+/g, ' ');
+  const agents = agentTargets(config);
+  const exec = flat(agents.find((f) => f.path === '.claude/agents/accord-executor.md')?.text ?? '');
+  const rev = flat(agents.find((f) => f.path === '.claude/agents/accord-reviewer.md')?.text ?? '');
+  expect(exec.length, 'accord-executor.md is missing').toBeGreaterThan(0);
+  expect(rev.length, 'accord-reviewer.md is missing').toBeGreaterThan(0);
+  for (const p of ['goes in a test of its own', "the test runner's own skip", 'never behind an early return or a branch on the operating system inside a test'])
+    expect(exec).toContain(p);
+  for (const p of ['An early return or a branch on the operating system inside a test', 'leaves an assertion unrun on some operating system is a finding'])
+    expect(rev).toContain(p);
+  const root = fileURLToPath(new URL('../../../', import.meta.url));
+  const needle = 'process.' + 'platform';
+  const offenders: string[] = [];
+  let seen = 0;
+  for (const dir of ['packages/core/test', 'packages/cli/test', 'test']) {
+    let entries;
+    try { entries = readdirSync(join(root, dir), { recursive: true, withFileTypes: true }); } catch { continue; }
+    for (const e of entries) {
+      if (!e.isFile() || !e.name.endsWith('.ts')) continue;
+      const path = join(e.parentPath, e.name);
+      readFileSync(path, 'utf8').split('\n').forEach((line, i) => {
+        if (!line.includes(needle)) return;
+        seen++;
+        if (!/\.(skipIf|runIf)\(/.test(line)) offenders.push(`${path.slice(root.length).replace(/\\/g, '/')}:${i + 1}`);
+      });
+    }
+  }
+  expect(seen).toBeGreaterThanOrEqual(3);
+  expect(offenders).toEqual([]);
+});
+
+it('ac-1 a failure reported after verify goes to the debug stage before any fix', () => {
+  const flat = (t: string) => t.replace(/\s+/g, ' ');
+  const get = (p: string) => flat(files.find((f) => f.path === p)?.text ?? '');
+  const text = get('.claude/skills/accord/SKILL.md');
+  const i = text.indexOf('A failure reported in a ticket that has reached verify follows `./failure.md`.');
+  expect(i).toBeGreaterThan(-1);
+  expect(i).toBeLessThan(text.indexOf('## Dashboard'));
+  const a = get('.claude/skills/accord/failure.md');
+  const d = get('.claude/skills/accord-debug/failure.md');
+  expect(a.length).toBeGreaterThan(0);
+  expect(d).toBe(a);
+  for (const p of [
+    'has reached verify', '`accord anchor` prints `verify` or `done`',
+    'a `verified_commit:` or an `accord/tickets/<id>/verification.md`', 'its pull request is not merged',
+    'with or without the failing command and its output', 'Never judge the cause yourself',
+    'never dispatch a fix outside `accord-debug`', 'load `accord-debug` for that ticket',
+    'the debugger finds them itself', '`gh run view <run-id> --log-failed`', 'keeps its count of failed fixes',
+    'a new bug ticket', "the failing check's log as the failing output",
+    'say the reproduction test is skipped on this operating system',
+    "first run `accord worktree open <id> --continue` and follow the accord skill's `./worktree.md`, then Continue's step 2 only",
+    'ask the owner to type, in the session opened there, `/accord <id> ` followed by the report, in place of the line it prints, and stop here',
+    'When it printed `enter:`, or this session is already in that worktree,',
+    "in place of Continue's steps 3 and 4",
+    '(`done`: `accord-verify` at step 6, whose Finish closes the episode)',
+  ]) expect(a, p).toContain(p);
+  expect(a).not.toContain("first run the accord skill's Continue on it");
+  const dbg = get('.claude/skills/accord-debug/SKILL.md');
+  for (const p of ['For a failure found after verify, read `./failure.md`.', 'or the report alone when it gives neither', 'run `accord anchor` again and go to the stage it prints now'])
+    expect(dbg, p).toContain(p);
+  expect(dbg).not.toContain('The stage it prints is the one this returns to');
+  const wt = get('.claude/skills/accord/worktree.md');
+  expect(wt.slice(wt.indexOf('## Session check'))).toContain(
+    'write, create, claim and edit nothing, except a New request that reports a failure in a ticket that has reached verify: follow `./failure.md`.');
+  const agents = agentTargets(config);
+  const dbgr = flat(agents.find((f) => f.path === '.claude/agents/accord-debugger.md')?.text ?? '');
+  for (const p of ['find the failing command and its output yourself', '`gh run view <run-id> --log-failed`', 'is reproduced by its CI log'])
+    expect(dbgr, p).toContain(p);
+  const exec = flat(agents.find((f) => f.path === '.claude/agents/accord-executor.md')?.text ?? '');
+  expect(exec).toContain('the CI log the brief gives is its failing output');
+});
+
+it('risk:complex-branching the fix review after verify reads only the changes after the review base and counts its own five rounds', () => {
+  const rv = (files.find((f) => f.path === '.claude/skills/accord-review/SKILL.md')?.text ?? '').replace(/\s+/g, ' ');
+  const step2 = rv.slice(rv.indexOf('2. **Package.**'), rv.indexOf('3. **Reviewers.**'));
+  expect(step2).toContain('`Review base: <sha>`');
+  expect(step2).toContain('`accord review-package <id> --base <sha>`');
+  expect(rv.slice(rv.indexOf('6. **Cap.**'), rv.indexOf('7. **Final review.**'))).toContain('after verify counted from the first round after it');
+});
+
+const flatText = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
+const verifySteps = () => {
+  const v = flatText('.claude/skills/accord-verify/SKILL.md');
+  return {
+    v,
+    s2: v.slice(v.indexOf('2. **Suite.**'), v.indexOf('3. **Verifier.**')),
+    s4: v.slice(v.indexOf('4. **Report.**'), v.indexOf('5. **Owner.**')),
+  };
+};
+
+it('ac-2 verify starts ci before the suite and shows the owners report only after every check finished', () => {
+  const { v, s2, s4 } = verifySteps();
+  expect(s2.indexOf('Start CI as `./ci.md` says')).toBeGreaterThan(-1);
+  expect(s2.indexOf('Start CI as `./ci.md` says')).toBeLessThan(s2.indexOf('run the `tests.full` command'));
+  for (const p of ['Wait for CI as `./ci.md` says', 'a failed check goes to `./failure.md` instead of this report', "CI: each check's result, or CI not checked and why"])
+    expect(s4, p).toContain(p);
+  expect(v.slice(v.indexOf('6. Run'))).toContain('finish CI as `./ci.md` says');
+  expect(flatText('.claude/skills/accord-verify/SKILL.md')).toContain(
+    'A `fail` criterion, or a failure the owner names in answer, goes to `./failure.md`, never to `accord-build` directly',
+  );
+  const ci = flatText('.claude/skills/accord-verify/ci.md');
+  const [a, b, c] = ['## Start', '## Wait', '## Finish'].map((h) => ci.indexOf(h));
+  expect(a).toBeGreaterThan(-1);
+  expect(a).toBeLessThan(b);
+  expect(b).toBeLessThan(c);
+  for (const p of ['no GitHub remote', '`gh auth status`', '`gh pr create --draft --fill`', 'A pull request already open is left as it is', 'Never merge it',
+    'A push that changed nothing still counts', 'gh run list --commit <sha> --json', '`.github/workflows/accord.yml`', 'never wait for it and never send it to debug',
+    'ten minutes', 'thirty minutes', '`cancelled` and `skipped`', 'goes to no debug', 'CI failed on `<sha>`', 'Do not wait for CI again'])
+    expect(ci, p).toContain(p);
+  const wait = ci.slice(b, c);
+  const idx = ["When Start was skipped, skip Wait; the report gives Start's reason.", "no workflow other than accord's", 'gh run list'].map((p) => wait.indexOf(p));
+  expect(idx[0]).toBeGreaterThan(-1);
+  expect(idx[0]).toBeLessThan(idx[1]);
+  expect(idx[1]).toBeLessThan(idx[2]);
+  for (const p of ['`gh run view <run-id> --json jobs`', 'each job is one check', "the failed checks' names", 'append `## Resolved`', 'was not seen passing on the other operating system'])
+    expect(wait, p).toContain(p);
+  const fin = ci.slice(c);
+  expect(fin.indexOf('`accord lint`')).toBeGreaterThan(-1);
+  expect(fin.indexOf('`accord lint`')).toBeLessThan(fin.indexOf('`gh pr ready`'));
+  for (const p of ['`accord gate done <t>` for every ticket file', '`origin/master`', '`accord gate done <id>` alone', "the owner's decision: ticked with CI not checked",
+    '`git status --porcelain --branch`', 'shows the branch ahead', '`gh pr view --json isDraft --jq .isDraft`'])
+    expect(fin, p).toContain(p);
+  expect(fin.indexOf('## Resolved')).toBeGreaterThan(-1);
+  expect(fin.indexOf('## Resolved')).toBeLessThan(fin.indexOf('`accord lint`'));
+  const acc = flatText('.claude/skills/accord/SKILL.md');
+  expect(acc).toContain('`done` → `accord-verify` at step 6.');
+  expect(acc).not.toContain('on the ticket file or its');
+  expect(files.find((f) => f.path === '.claude/skills/accord-verify/failure.md')?.text.length).toBeGreaterThan(0);
+});
+
+it('risk:regression the owners report lists every test the verify run skipped by name with its operating system', () => {
+  const { s2, s4 } = verifySteps();
+  expect(s2.indexOf('run `accord tests skipped`')).toBeGreaterThan(s2.indexOf('run the `tests.full` command'));
+  expect(s4).toContain('every test `accord tests skipped` printed, by name, with the operating system it names');
 });
 
 it('ac-5 the verify skill offers to promote a ruling or correction into the conventions', () => {

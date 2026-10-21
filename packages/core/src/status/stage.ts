@@ -1,9 +1,10 @@
 // Spec §6: where a lane ticket stands, read from its records. A trace, never a verdict (D-91): only
 // `gate ready` decides Ready and only `gate done` decides Done.
+import { ownRecordsOnly, shaEqual } from '../gate/done.js';
 import { acHash, approvedHash } from '../gate/hash.js';
 import { VERDICTS, workOf } from '../gate/work.js';
 import { headingKey, stripHtmlComments } from '../load/sections.js';
-import type { RepoSnapshot, Ticket } from '../model/snapshot.js';
+import type { AfterVerifyCommit, RepoSnapshot, Ticket } from '../model/snapshot.js';
 
 export type Stage = 'intent' | 'plan' | 'build' | 'review' | 'verify' | 'done';
 
@@ -12,6 +13,7 @@ export interface Progress {
   tasksDone: number;
   tasksTotal: number;
   next?: number; // the lowest task number without a completion line, during build
+  base?: string; // during review of changes made after verify: the commit before the first hand-made one
 }
 
 const ticksBound = (ticket: Ticket): boolean => {
@@ -39,6 +41,22 @@ export function nextStep(ticket: Ticket, stage: Exclude<Stage, 'build'>): string
   return written && scenario ? 'the owner approves the ticket (accord approve)' : 'the intent interview (accord-intent)';
 }
 
+/** A commit that changes a path outside the ticket's own records, or a merge whose own changes git could not show. */
+const isHand = (id: string, c: AfterVerifyCommit): boolean => c.files === undefined || !ownRecordsOnly(id, c.files);
+
+/** The parent of the first hand-made commit after the last recorded review round; undefined when none is unreviewed. */
+function reviewBase(snapshot: RepoSnapshot, id: string, after: AfterVerifyCommit[]): string | undefined {
+  const work = workOf(snapshot, id);
+  const recorded = snapshot.verifications[id]?.frontmatter?.commit;
+  const at = recorded === undefined ? -1 : after.findIndex((c) => shaEqual(c.sha, recorded));
+  let first: AfterVerifyCommit | undefined;
+  for (const c of after.slice(at + 1)) {
+    if (isHand(id, c)) first ??= c;
+    if (work?.review?.trailing !== true && c.files?.includes(`accord/tickets/${id}/review.md`)) first = undefined;
+  }
+  return first?.parents[0];
+}
+
 /** undefined for a ticket without lane, or whose frontmatter failed the schema. */
 export function progressOf(snapshot: RepoSnapshot, ticket: Ticket): Progress | undefined {
   const fm = ticket.frontmatter;
@@ -54,6 +72,11 @@ export function progressOf(snapshot: RepoSnapshot, ticket: Ticket): Progress | u
   if (open.length > 0 && snapshot.planFacts !== undefined && !planReady(snapshot.planFacts, ticket.id)) return { stage: 'plan', ...counts };
   if (open.length > 0) return { stage: 'build', ...counts, next: open[0].n };
   if (!VERDICTS.includes(work?.review?.verdict ?? '')) return { stage: 'review', ...counts };
+  const after = snapshot.afterVerify !== undefined && Object.hasOwn(snapshot.afterVerify, ticket.id) ? snapshot.afterVerify[ticket.id] : undefined;
+  if (after !== undefined && after.some((c) => c.parents.length > 1 || isHand(ticket.id, c))) {
+    const base = reviewBase(snapshot, ticket.id, after);
+    return base === undefined ? { stage: 'verify', ...counts } : { stage: 'review', ...counts, base };
+  }
   return { stage: ticksBound(ticket) ? 'done' : 'verify', ...counts };
 }
 

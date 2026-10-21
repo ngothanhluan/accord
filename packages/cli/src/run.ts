@@ -23,6 +23,7 @@ import { skills } from './commands/skills.js';
 import { status } from './commands/status.js';
 import { taskDone } from './commands/task-done.js';
 import { testsBaseline } from './commands/tests-baseline.js';
+import { testsSkipped } from './commands/tests-skipped.js';
 import { worktreeCheck, worktreeClean, worktreeOpen } from './commands/worktree.js';
 import { loadClaimView, loadFromFs, UsageError } from './load/fs.js';
 import { pinMessage } from './pin.js';
@@ -189,13 +190,18 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
       setCode(skills(preflight(opts)));
     });
 
-  program
-    .command('tests')
-    .description('manage the test policy records')
+  const tests = program.command('tests').description('manage the test policy records');
+  tests
     .command('baseline')
     .description('write accord/tests-baseline.txt from the untraced cases in the report, once')
     .action(() => {
       setCode(testsBaseline(preflight(opts)));
+    });
+  tests
+    .command('skipped')
+    .description('print every case the test report records as skipped, with the operating system it ran on')
+    .action(() => {
+      setCode(testsSkipped(preflight(opts)));
     });
 
   const worktree = program.command('worktree').description('work each ticket in its own git worktree');

@@ -199,11 +199,15 @@ export const tickStaleHash: GateRule['check'] = (snapshot, id) => {
   ];
 };
 
-/** A later commit that changed only this ticket's own records (its file and folder) or accord/product/conventions.md (ST-LN-8 D-08) is the same reviewed code. */
+/** Every path is the ticket's own file, lies in its folder (spec §11), or is accord/product/conventions.md (ST-LN-8 D-08). */
+export const ownRecordsOnly = (id: string, paths: readonly string[]): boolean =>
+  paths.every((p) => p === ticketFile(id) || p === 'accord/product/conventions.md' || p.startsWith('accord/tickets/' + id + '/'));
+
+/** A later commit that changed only this ticket's own records (its file and folder) or accord/product/conventions.md is the same reviewed code. */
 const onlyOwnRecords = (snapshot: RepoSnapshot, id: string, recorded: string): boolean => {
   const since = snapshot.recordsSince;
   if (since === undefined || !Object.hasOwn(since, recorded)) return false;
-  return since[recorded].every((p) => p === ticketFile(id) || p === 'accord/product/conventions.md' || p.startsWith('accord/tickets/' + id + '/'));
+  return ownRecordsOnly(id, since[recorded]);
 };
 
 /** GATE-11: the ticks were made against a different commit. Both values are guarded on `isSha` first,

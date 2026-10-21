@@ -3,7 +3,7 @@ name: accord-debug
 description: Use when a lane M ticket's work behaves unexpectedly, a test fails for a reason nobody has shown, or a fix did not work. Finds the root cause with a debugger before any fix, fixes it once through a fresh executor test first, and keeps its state in debug.md.
 license: MIT
 kind: skill
-loads: [shared/ask.md]
+loads: [accord/ids.md, accord/worktree.md, shared/ask.md, shared/failure.md]
 ---
 
 This stage finds a root cause before anything is fixed. You run it in the
@@ -11,7 +11,7 @@ main session and orchestrate: debuggers investigate, executors fix.
 
 ## Steps
 
-1. Run `accord anchor`. The stage it prints is the one this returns to.
+1. Run `accord anchor`. For a failure found after verify, read `./failure.md`.
 
 2. **State.** Everything this stage learns lives in
    `accord/tickets/<id>/debug.md`: the symptom, the hypotheses, the
@@ -22,7 +22,7 @@ main session and orchestrate: debuggers investigate, executors fix.
 
 3. **Root cause.** No fix before a root cause. Dispatch a fresh
    `accord-debugger` with the path of the ticket file and the failing
-   command and its output. It writes `debug.md`:
+   command and its output, or the report alone when it gives neither. It writes `debug.md`:
    - competing hypotheses, each with evidence for and against, ranked
      before any is tested;
    - one hypothesis is always that the test or measurement itself is
@@ -71,7 +71,7 @@ main session and orchestrate: debuggers investigate, executors fix.
 8. **Resolved.** Append `## Resolved` to `debug.md`, one line: the root
    cause and the fix commit, or the owner's decision. Commit it.
 
-9. Next: return to the stage `accord anchor` prints. When that is
+9. Next: run `accord anchor` again and go to the stage it prints now. When that is
    `accord-build`, start at its step 3 for the task that entered debug:
    run the affected tests and `accord task-done` before dispatching
    anything.

@@ -3,10 +3,10 @@ name: accord
 description: Use when starting any work in an accord repository, when seeing where work stands, or when continuing a ticket. Shows the dashboard, continues or picks up a ticket, and classifies a new request into a lane.
 license: MIT
 kind: skill
-loads: [accord/ids.md, accord/worktree.md, shared/ask.md]
+loads: [accord/ids.md, accord/worktree.md, shared/ask.md, shared/failure.md]
 ---
 
-First run the session check in `./worktree.md`.
+First run the session check in `./worktree.md`. A failure reported in a ticket that has reached verify follows `./failure.md`.
 
 ## Dashboard: `/accord` with no argument
 
@@ -36,18 +36,15 @@ New request whose text is the whole text after `/accord`: for
 1. Run `accord worktree open <id> --continue` unless it just ran; follow
    `./worktree.md`. The active ticket is its `branch` from
    `accord status --json`, read from git, never from memory.
-2. Run `accord anchor`. It prints the stage and the position from the ledger,
-   then the owner's words verbatim.
+2. Run `accord anchor`.
 3. If `accord/tickets/<id>/debug.md` exists and its last `## ` heading is
    not `## Resolved`, load `accord-debug` and resume there.
 4. Otherwise load the stage skill for the stage it prints: `intent` →
    `accord-approach` at step 5, the owner's yes, when the ticket's
    `## Approach` is already written, otherwise `accord-intent`; `plan` →
    `accord-plan`, `build` → `accord-build`, `review` → `accord-review`,
-   `verify` → `accord-verify`; `done` → `accord-verify` at step 6 when
-   `git status --porcelain` on the ticket file or its `verification.md`
-   prints anything, otherwise say the ticket is done and offer the
-   dashboard. Resume at the step the anchor names. Never re-run a task
+   `verify` → `accord-verify`; `done` → `accord-verify` at step 6.
+   Resume at the step the anchor names. Never re-run a task
    the ledger records.
 
 ## Pick up

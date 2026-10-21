@@ -424,8 +424,9 @@ it('risk:complex-branching a worktree remove that fails is named truthfully', as
   expect(lines(r.out)[1]).toBe(`kept t/ST-9: checked out in ${c.sibling('ST-9')}`);
   expect(c.git('worktree', 'list', '--porcelain')).toContain(`worktree ${c.sibling('ST-9')}\n`);
   expect(Object.keys(readHolds(c))).toEqual(['ST-9']);
+});
 
-  if (process.platform === 'win32' || process.getuid?.() === 0) return;
+it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)('risk:complex-branching a worktree remove that fails part way removes it in part and names what is left', async () => {
   const d = clone();
   ticketWorktree(d, 'ST-9', 'sub/f.txt');
   mergeOnRemote(d, 'ST-9');

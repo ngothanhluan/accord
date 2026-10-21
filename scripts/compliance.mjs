@@ -1,6 +1,6 @@
 // Process-compliance rules over parsed transcripts and git (ST-LN-14). Pure: no file, no spawn, no import.
 // The rules are general; none names a ticket, a task or a commit.
-export const RULES = ['tier-up', 'trailer', 'test-first', 'verify-id'];
+export const RULES = ['tier-up', 'trailer', 'test-first', 'verify-id', 'round-cap', 'reassigned', 'brief-quote'];
 
 const TIERS = ['haiku', 'sonnet', 'opus'];
 const lower = (p) => String(p).replace(/\\/g, '/').toLowerCase();
@@ -21,7 +21,7 @@ export function describeOf(text, slug) {
   return undefined;
 }
 
-export function compliance({ runs, refusals, commits, tickets, settings, commitInfo, testFile }) {
+export function compliance({ runs, refusals, commits, tickets, settings, commitInfo, testFile, ticketAt }) {
   const out = Object.fromEntries(RULES.map((r) => [r, []]));
   const kept = runs.filter((r) => r.agent?.startsWith('accord-') && !r.desc.startsWith('bench r'));
   const label = (r) => `${r.ticket || '?'} task ${r.task ?? '?'}`;
@@ -93,6 +93,77 @@ export function compliance({ runs, refusals, commits, tickets, settings, commitI
       const d = describeOf(testFile(m[1], f.ts), m[2]);
       out['verify-id'].push(`- verify-id: ${f.ticket} task ${f.task}: accord task-done refused: ${m[1]}#${m[2]} is not in ${m[3]}${d ? `; the test sits inside describe('${d}')` : ''} — ${f.file}`);
     }
+  }
+  for (const [id, t] of Object.entries(tickets)) {
+    const n = Math.max(0, ...[...t.review.matchAll(/^## Round (\d+)/gm)].map((m) => Number(m[1])));
+    const allowed = t.ledger.split('\n').some((l) => l.startsWith('- Ruling:') && /(past|beyond|over) the (round )?cap|round cap/i.test(l));
+    if (n >= 6 && !allowed) out['round-cap'].push(`- round-cap: ${id} review: reached round ${n} with no Ruling that allows going past the round cap — accord/tickets/${id}/review.md`);
+  }
+
+  for (const r of execs) {
+    for (const s of r.sends) {
+      const before = r.handbacks.filter((h) => h.ts !== null && s.ts !== null && h.ts <= s.ts).sort((a, b) => a.ts - b.ts).at(-1);
+      // A send after BLOCKED or NEEDS_CONTEXT, or before any handback, is a clarifying reply.
+      if (before && /^\s*DONE/.test(before.text)) out.reassigned.push(`- reassigned: ${label(r)}: got another assignment through SendMessage ("${s.summary ?? String(s.message ?? '').slice(0, 80)}") after it reported DONE, instead of a fresh agent — ${r.file}`);
+    }
+  }
+
+  if (ticketAt) {
+    const memo = new Map();
+    const committedAt = (id, ts) => { const key = `${id}@${ts}`; if (!memo.has(key)) memo.set(key, ticketAt(id, ts)); return memo.get(key); };
+    for (const r of kept) {
+      if (!r.dispatch || !r.ticket) continue;
+      const prompt = String(r.dispatch.prompt ?? '');
+      const flat = lower(prompt);
+      const quoted = r.reads.filter((x) => flat.includes(lower(x.path)) && !lower(x.path).endsWith(`accord/tickets/${r.ticket}.md`));
+      for (const text of [prompt, ...quoted.map((x) => x.text)]) {
+        const p = quoteProblem(text, r.ticket, committedAt(r.ticket, r.dispatch.ts));
+        if (!p) continue;
+        const tail = p.missing ? `no committed accord/tickets/${r.ticket}.md existed when it was dispatched` : `the brief's copy of the ticket differs from accord/tickets/${r.ticket}.md as committed when it was dispatched, first at line ${p.line}: "${p.text.slice(0, 120)}"`;
+        out['brief-quote'].push(`- brief-quote: ${label(r)}: ${tail} — ${r.file}`);
+      }
+    }
+  }
+  return out;
+}
+
+export function quoteProblem(text, id, committed) {
+  const norm = (x) => x.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n');
+  const t = norm(text).split('\n');
+  const c = committed === undefined ? undefined : norm(committed).replace(/\n+$/, '').split('\n');
+  const idRe = new RegExp(`^id:\\s*"?${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"?(\\s|#|$)`);
+  const at = t.findIndex((l) => idRe.test(l));
+  let start = at < 0 ? -1 : t.slice(0, at).lastIndexOf('---');
+  let from = 0;
+  if (start < 0) {
+    start = t.indexOf('## Intent');
+    if (start < 0) return undefined;
+    from = c ? Math.max(0, c.indexOf('## Intent')) : 0;
+  }
+  if (!c) return { missing: true };
+  for (let i = 0; from + i < c.length; i++) if (t[start + i] !== c[from + i]) return { line: i + 1, text: t[start + i] ?? '' };
+  return undefined;
+}
+
+export function parseCompliance(text) {
+  const out = Object.fromEntries(RULES.map((r) => [r, []]));
+  let rule = null;
+  for (const l of text.split('\n')) {
+    const h = l.match(/^#{1,6} (.*)$/);
+    if (h) rule = RULES.includes(h[1].trim()) ? h[1].trim() : null;
+    else if (rule && l.startsWith('- ')) out[rule].push(l);
+  }
+  return out;
+}
+
+export function mergeCompliance(earlier, newer) {
+  const key = (rule, l) => (rule === 'trailer' ? l.match(/commit [0-9a-f]{7} carries "[^"]*"/)?.[0] : rule === 'round-cap' ? l.match(/^- round-cap: \S+ review:/)?.[0] : undefined) ?? l;
+  const out = {};
+  for (const r of RULES) {
+    const lines = [...(earlier[r] ?? [])];
+    const keys = new Set(lines.map((l) => key(r, l)));
+    for (const l of newer[r] ?? []) if (!keys.has(key(r, l))) { keys.add(key(r, l)); lines.push(l); }
+    out[r] = lines;
   }
   return out;
 }

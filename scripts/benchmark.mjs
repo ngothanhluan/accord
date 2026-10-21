@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { parse as parseYaml } from 'yaml';
 import { parsePlanReview } from './plan-review.mjs';
-import { compliance, render as renderCompliance } from './compliance.mjs';
+import { compliance, render as renderCompliance, parseCompliance, mergeCompliance } from './compliance.mjs';
 
 const projectsRoot = path.join(os.homedir(), '.claude', 'projects');
 const defaultDirs = (repo) => {
@@ -354,12 +354,52 @@ export function complianceSettings(repo) {
   };
 }
 
+const resolves = (repo, ref) => { try { gitIn(repo, ['rev-parse', '--verify', '-q', ref]); return true; } catch { return false; } };
+
+export function defaultRef(repo) {
+  return ['refs/remotes/origin/HEAD', 'refs/remotes/origin/main', 'refs/heads/main', 'refs/heads/master'].find((r) => resolves(repo, r));
+}
+
+export function ticketAt(repo, id, ms) {
+  const file = `accord/tickets/${id}.md`;
+  const refs = [`refs/heads/t/${id}`, `refs/remotes/origin/t/${id}`, defaultRef(repo)].filter((r) => r && resolves(repo, r));
+  if (!refs.length) return undefined;
+  try {
+    const rows = gitIn(repo, ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '--format=%H %at', ...refs, '--', file]).split('\n').filter(Boolean).map((l) => l.split(' '));
+    const best = rows.filter(([, at]) => Number(at) * 1000 <= ms).sort((a, b) => Number(b[1]) - Number(a[1]))[0];
+    return best ? gitIn(repo, ['-c', 'log.showSignature=false', 'show', '--no-show-signature', `${best[0]}:${file}`]) : undefined;
+  } catch { return undefined; }
+}
+
+export function branchCommits(repo) {
+  const refs = gitIn(repo, ['for-each-ref', '--format=%(refname)', 'refs/heads/main', 'refs/heads/t', 'refs/remotes/origin/main', 'refs/remotes/origin/t']).split('\n').filter(Boolean);
+  if (!refs.length) return [];
+  const seen = new Map();
+  for (const row of gitIn(repo, ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '--format=%H%x1f%at%x1f%B%x1e', ...refs, '--']).split('\x1e')) {
+    const [sha, at, ...rest] = row.replace(/^\n/, '').split('\x1f');
+    if (sha && !seen.has(sha)) seen.set(sha, { sha, at: Number(at) * 1000, message: rest.join('\x1f').replace(/\n+$/, '') });
+  }
+  return [...seen.values()];
+}
+
 export function ticketRecords(repo) {
   const dir = path.join(repo, 'accord', 'tickets');
   const read = (f) => (fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : '');
+  const show = (ref, file) => { try { return gitIn(repo, ['-c', 'log.showSignature=false', 'show', '--no-show-signature', `${ref}:${file}`]); } catch { return ''; } };
   const found = {};
   for (const e of fs.existsSync(dir) ? fs.readdirSync(dir, { withFileTypes: true }) : []) {
     if (e.isDirectory() && fs.existsSync(path.join(dir, e.name, 'review.md'))) found[e.name] = { review: read(path.join(dir, e.name, 'review.md')), ledger: read(path.join(dir, e.name, 'ledger.md')) };
+  }
+  const branches = gitIn(repo, ['for-each-ref', '--format=%(refname)', 'refs/heads/t', 'refs/remotes/origin/t']).split('\n').filter(Boolean);
+  // A local branch comes first in the list, so its copy wins over the remote one.
+  const done = new Set();
+  for (const ref of branches) {
+    const id = ref.replace(/^refs\/(heads|remotes\/origin)\/t\//, '');
+    if (done.has(id)) continue;
+    const review = show(ref, `accord/tickets/${id}/review.md`);
+    if (!review) continue;
+    done.add(id);
+    found[id] = { review, ledger: show(ref, `accord/tickets/${id}/ledger.md`) };
   }
   return found;
 }
@@ -367,12 +407,15 @@ export function ticketRecords(repo) {
 function runCompliance(folders, repo) {
   if (!folders.length) { process.stderr.write('--compliance needs the transcript folders to read\n'); return 2; }
   const s = readSessions(folders);
-  const text = renderCompliance(compliance({
-    runs: s.runs, refusals: s.refusals, commits: [], tickets: ticketRecords(repo), settings: complianceSettings(repo),
-    commitInfo: (short) => commitInfo(repo, short), testFile: (p, ts) => testFileAt(repo, p, ts),
-  }));
+  const result = compliance({
+    runs: s.runs, refusals: s.refusals, commits: branchCommits(repo), tickets: ticketRecords(repo), settings: complianceSettings(repo),
+    commitInfo: (short) => commitInfo(repo, short), testFile: (p, ts) => testFileAt(repo, p, ts), ticketAt: (id, ms) => ticketAt(repo, id, ms),
+  });
+  const file = path.join(benchRoot(repo), 'compliance.md');
+  // A newer read never overwrites an earlier one: a transcript that has expired since keeps its lines.
+  const text = renderCompliance(fs.existsSync(file) ? mergeCompliance(parseCompliance(fs.readFileSync(file, 'utf8')), result) : result);
   fs.mkdirSync(benchRoot(repo), { recursive: true });
-  fs.writeFileSync(path.join(benchRoot(repo), 'compliance.md'), text);
+  fs.writeFileSync(file, text);
   process.stdout.write(text);
   return 0;
 }

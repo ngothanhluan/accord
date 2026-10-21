@@ -35,6 +35,8 @@
 - Ruling: Task 3 runs `--compliance` on the real folders and reports the four ac-4 rules' lines without requiring them — ac-4 is proven by the fixture test, and the real run exists to read the transcripts before they expire — a real-data mismatch shows only in the handback
 - Ruling: a `tool_use` is deduplicated by `id` within one file, not across files — the blob repeats seen are within one file — a repeat across files would still count twice
 - Ruling: Task 12's committed-list test is a `risk:data-loss` test — the list and its snapshots are the only lasting record of the samples once the transcripts expire — one extra test if it is only data
+- Ruling: Task 3's last step deletes an existing `<bench root>/compliance.md` before the first real read — only a run on other folders, such as the fixtures, can have written it then, and merging would carry its lines into the real read — an earlier real read is deleted, but Task 3 reads the same transcripts again before 2026-11-11
+- Ruling: when two compliance reads give lines with the same merge key, the earlier line is kept — it was read while more transcripts existed — a round-cap line keeps the earlier round number, for example 6 where a later read shows 7; the breach is still listed
 
 ## Deferred
 - plan-review 1.15: the approach says `--plan` rewrites only the brief's working-tree header lines; Task 5 rewrites the root everywhere outside the ticket
@@ -47,3 +49,6 @@
 - plan-review 2.7: no check confirms that what a read-only run read under `root` at dispatch matched `base`, so a run that read uncommitted text is re-run on base's older text
 - plan-review 3.5: Task 12 takes an executor's base from the first sha of `run.commits` with no time window, so a `git log` before the commit can give an older commit
 - plan-review 3.6: Task 6 step 8 compares only a `brief` with the text the run read; a `review-package` rebuilt at base is used unchecked
+- plan-review 4.1: Task 1 lists `end` among a run's fields without defining it; Task 2's commit window needs the run's last timestamp, not `start + ms`
+- plan-review 4.2: Task 11's "Must not change … modes" contradicts its own `live` addition to `--plan` and stop in `--judge` and `--round 1`
+- plan-review 4.3: `parseCompliance` takes only lines starting with `- `, so a `reassigned` line whose summary holds a newline is re-added on every re-read

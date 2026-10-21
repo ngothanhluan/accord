@@ -1,6 +1,6 @@
 ---
 baseline: 7cb7635a69bd8d5c570c6c9a32cc4688d768e363
-plan_hash: "fnv1a64:cbeccf4e274fdb82"
+plan_hash: "fnv1a64:9ae54b0f6dccdc73"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -20,7 +20,9 @@ Task 11 makes `--judge` and `--round 1` stop when a round run escaped its worktr
 
 How the round is run once the tasks are done (this is the verify evidence for @ac-1 to @ac-3; no task runs it
 except the `--compliance` step Task 3 names and the `--samples` step Task 12 names):
-`node scripts/benchmark.mjs --compliance <folders>` first (again, so it also reads the runs since Task 3), then
+`node scripts/benchmark.mjs --compliance <folders>` first (again, so it also reads the runs since Task 3; it merges
+its lines into the `<bench root>/compliance.md` Task 3 wrote, so a run whose transcript has expired since then
+keeps its lines, Task 3), then
 `--round 1 --samples` (it keeps every snapshot already written), then `--round 1 --plan`; the main session
 dispatches every row `--plan` printed; then `--round 1 --judge`, the session dispatches every judge row it
 printed; then `--round 1` writes `docs/benchmark/round-1.md`; `--clean` removes the round's worktrees once that
@@ -332,11 +334,12 @@ Must not change: the legacy report and Task 1's test.
 ## Task 3: The compliance check scores every run against the round cap, reassignment, brief and trailer rules
 covers: @ac-5, D-06
 files: scripts/compliance.mjs (new), scripts/benchmark.mjs, packages/core/test/benchmark-compliance.test.ts (new)
-verify: packages/core/test/benchmark-compliance.test.ts#ac-5-the-compliance-check-scores-every-run-against-the-other-rules (@ac-5)
+verify: packages/core/test/benchmark-compliance.test.ts#ac-5-the-compliance-check-scores-every-run-against-the-other-rules (@ac-5), packages/core/test/benchmark-compliance.test.ts#risk:data-loss-a-newer-compliance-read-keeps-every-line-of-an-earlier-one
 
 Consumes: Task 2's `compliance`, `render` and `--compliance`. Produces: the rules `round-cap`, `reassigned`,
-`brief-quote`, the branch commits for `trailer`, `ticketAt`, `defaultRef` (which Task 12 also uses), and the
-first real `<bench root>/compliance.md`.
+`brief-quote`, the branch commits for `trailer`, `ticketAt`, `defaultRef` (which Task 12 also uses),
+`parseCompliance` and `mergeCompliance` (a newer `--compliance` merges into the file instead of overwriting it),
+and the first real `<bench root>/compliance.md`.
 
 Test first, appended to `packages/core/test/benchmark-compliance.test.ts`:
 - `it('ac-5 the compliance check scores every run against the other rules')`:
@@ -375,6 +378,21 @@ Test first, appended to `packages/core/test/benchmark-compliance.test.ts`:
     `Co-Authored-By`, one holding `T-2 task 3` and `Generated with`.
   - Counts: the table holds exactly the rows `| tier-up | 0 |`, `| trailer | 2 |`, `| test-first | 0 |`,
     `| verify-id | 0 |`, `| round-cap | 1 |`, `| reassigned | 1 |`, `| brief-quote | 2 |`, in that order.
+- `it('risk:data-loss a newer compliance read keeps every line of an earlier one')` (pure, no git):
+  - `first` is a result (every rule of `RULES`, `[]` unless set) with `tier-up: ['- tier-up: T-1 review round 4:
+    the fix executor asked for sonnet where escalation.fix_round_tier_up asks for opus — a.jsonl']`, `trailer:
+    ['- trailer: T-1 task 1: commit abc1234 carries "Co-Authored-By: X" — commit abc1234, shown in a.jsonl']` and
+    `round-cap: ['- round-cap: T-9 review: reached round 6 with no Ruling that allows going past the round cap —
+    accord/tickets/T-9/review.md']`.
+  - `newer` (the transcript `a.jsonl` gone) has `tier-up: []`, `trailer: ['- trailer: T-1 task 1: commit abc1234
+    carries "Co-Authored-By: X" — commit abc1234']`, `round-cap: [<the same line with round 7>]` and `test-first:
+    ['- test-first: T-2 task 1: its first edit to a source file (src/a.ts) came before its first edit to a test
+    file — b.jsonl']`.
+  - `parseCompliance(render(first))` deep-equals `first`; `parseCompliance('')` gives `[]` for every rule.
+  - `out = render(mergeCompliance(parseCompliance(render(first)), newer))`: the count table holds
+    `| tier-up | 1 |`, `| trailer | 1 |`, `| round-cap | 1 |`, `| test-first | 1 |`; the `tier-up` line, the
+    `trailer` line with `shown in a.jsonl`, the round 6 line and the `test-first` line are each in `out`; the
+    round 7 line and the `trailer` line without `shown in` are not.
 
 Interface, `scripts/compliance.mjs`:
 - `RULES` gains `'round-cap'`, `'reassigned'`, `'brief-quote'`, in that order; `compliance` takes `ticketAt` too.
@@ -399,6 +417,15 @@ Interface, `scripts/compliance.mjs`:
   trailing newlines dropped, must be a prefix of the brief from the quote's start; otherwise return
   `{ line: k, text }`, the first differing line (1-based within the quote). An undefined `committed` with a quote
   returns `{ missing: true }`.
+- `export function parseCompliance(text)`: the inverse of `render`: for every rule of `RULES`, the lines starting
+  `- ` under its `### <rule>` heading up to the next heading (`None.` gives `[]`); a rule with no heading, or an
+  empty `text`, gives `[]`.
+- `export function mergeCompliance(earlier, newer)`: per rule of `RULES`, every line of `earlier` in its order,
+  then every line of `newer` whose key no earlier line of that rule has; the earlier line wins on an equal key (it
+  was read while more transcripts existed). A line's key: for `trailer`, its match of
+  `/commit [0-9a-f]{7} carries "[^"]*"/` (the same commit, whether labelled by its run or by its subject); for
+  `round-cap`, its match of `/^- round-cap: \S+ review:/` (one line per ticket); for every other rule, the whole
+  line. Counts come from `render` over the merged lines, so they are recomputed.
 
 Interface, `scripts/benchmark.mjs`:
 - `export function defaultRef(repo)`: the first of `refs/remotes/origin/HEAD`, `refs/remotes/origin/main`,
@@ -412,12 +439,19 @@ Interface, `scripts/benchmark.mjs`:
 - `ticketRecords(repo)` also reads, for every `refs/heads/t/<id>` and `refs/remotes/origin/t/<id>`,
   `accord/tickets/<id>/review.md` and `ledger.md` through `git show <ref>:<path>`; a ticket branch's copy wins
   over the working tree's.
-- `--compliance` passes `commits: branchCommits(repo)` and `ticketAt` bound to the repository.
+- `--compliance` passes `commits: branchCommits(repo)` and `ticketAt` bound to the repository. It never
+  overwrites what an earlier read found: when `<bench root>/compliance.md` exists, the result written to it and to
+  stdout is `render(mergeCompliance(parseCompliance(<that file's text>), <this read's result>))`; otherwise
+  `render(<this read's result>)` as in Task 2. A run read again gives the same line, so a rerun on the same
+  folders changes nothing; a run whose transcript has expired keeps the lines the earlier read gave it, and the
+  report Task 9 writes appends this file.
 
 Last step of the task, after its tests pass (the Intent's "the compliance read runs before 2026-11-11"): list
 every directory directly under `<projects root>` whose name starts `C--Work-accord` and run, from the repository
 root, `node scripts/benchmark.mjs --compliance <each of those directories as its own argument>` (the shell does
-not expand a `*` for node on Windows, so the folders are named one by one). It must return 0 and write
+not expand a `*` for node on Windows, so the folders are named one by one). Before the first such run, delete
+`<bench root>/compliance.md` if it exists (only a run of `--compliance` on other folders, such as the fixtures,
+can have written it before this step, and its lines would be merged into the real read). It must return 0 and write
 `<bench root>/compliance.md`, outside the repository; nothing it writes is committed. Report in the handback the
 folders passed, the count table it printed, and the lines of the `tier-up`, `trailer`, `test-first` and
 `verify-id` sections. A rule that throws on a real line is a bug of this task's code: fix it and run again.
@@ -585,12 +619,19 @@ Test first, in `packages/core/test/benchmark-samples.test.ts` (new):
     `run = { dispatch: { prompt: 'Work in ' + root + '. Brief: ' + brief + '. Read ' + root + '/src/a.ts.', cwd:
     root, ts: Date.now() + 60_000 }, reads: [{ path: brief, text: 'line one' }] }`.
   - `snapshotSample(repo, sample, run, bench)` is `{ problems: [], kept: false }`, and
-    `<bench>/samples/executor-1/sample.json` parses to `{ prompt: run.dispatch.prompt, cwd: root, ts:
-    run.dispatch.ts, reads: { [brief]: 'line one' } }`.
+    `<bench>/samples/executor-1/sample.json` parses to `{ transcript: sample.transcript, prompt:
+    run.dispatch.prompt, cwd: root, ts: run.dispatch.ts, reads: { [brief]: 'line one' } }`.
   - The original is gone: after `rmSync(brief)`, `snapshotSample(repo, sample, undefined, bench)` is
     `{ problems: [], kept: true }` and `sample.json` keeps its bytes.
+  - A slot taken by another run: with `transcript: 'X/S/subagents/agent-2.jsonl'` and the same bench folder,
+    `snapshotSample(repo, { ...sample, transcript: 'X/S/subagents/agent-2.jsonl' }, run, bench)` returns `kept: true`
+    and one problem containing `is of X/S/subagents/agent-1.jsonl`, and `sample.json` keeps its bytes.
+  - Backslash paths (recent prompts write them, for example `C:\Work\accord-st-ln-30\accord\tickets\ST-LN-30.md`):
+    against a fresh bench folder, the prompt with `' Read ' + root.replaceAll('/', '\\') + '\\src\\a.ts.'` appended
+    gives `{ problems: [], kept: false }`.
   - Each of these, against a fresh bench folder, gives a problem containing the quoted text and writes no
     `sample.json` there: `kind: 'plain'` (`risk`); the prompt also naming `root + '/src/missing.ts'`
+    (`src/missing.ts`); the prompt also naming `root.replaceAll('/', '\\') + '\\src\\missing.ts'`
     (`src/missing.ts`); `brief` written again and the dispatch `ts` one hour before now (`modified after the
     dispatch`); the prompt also naming `C:/Elsewhere/x.txt` (`outside the bench root`); `files` also holding
     `{ path: tmp + '/b2.md', from: 'brief', task: '1' }`, the prompt also naming that path and the run's `reads`
@@ -599,9 +640,11 @@ Test first, in `packages/core/test/benchmark-samples.test.ts` (new):
 
 Interface, `scripts/benchmark.mjs`:
 - `export function snapshotSample(repo, sample, run, bench)` returns `{ problems, kept }`. `dir` is
-  `<bench>/samples/<agent without accord->-<n>`. When `dir/sample.json` exists, nothing is read or written and it
-  returns `{ problems: [], kept: true }` (a snapshot is never overwritten: once the transcripts expire it is the
-  only copy). Otherwise every check below runs, and `sample.json` is written (creating `dir`) only when none
+  `<bench>/samples/<agent without accord->-<n>`. When `dir/sample.json` exists, nothing is written and only that
+  file is read: it returns `{ problems: [], kept: true }` when its `transcript` equals `sample.transcript`, else
+  `{ problems: ['<agent> <n>: the snapshot in <dir> is of <its transcript>, not <sample.transcript>'], kept: true }`
+  (a snapshot is never overwritten: once the transcripts expire it is the only copy, and a slot holding another
+  run's snapshot must not be combined with this sample's `base`, `root`, `files` and `pairs`). Otherwise every check below runs, and `sample.json` is written (creating `dir`) only when none
   failed:
   - `run` undefined or without a dispatch: `no run for <agent> <n> in <transcript>`.
   - Executor: the `verify:` line of the `## Task <task>:` section of `git show <base>:accord/tickets/<ticket>/plan.md`
@@ -610,7 +653,8 @@ Interface, `scripts/benchmark.mjs`:
   - The ticket at base, `git show <base>:accord/tickets/<ticket>.md`, exists.
   - Every occurrence in the prompt of `root` (either slash form, case folded) followed by `/` or `\` and a
     relative path (up to whitespace, a quote, a backtick, `,`, `;` or `)`, a trailing `.` dropped) names a path
-    that `git cat-file -e <base>:<relative path>` finds; otherwise `<relative path> does not exist at base`.
+    that `git cat-file -e <base>:<relative path>` finds, the relative path having every `\` turned into `/` before
+    it is passed to git and shown; otherwise `<relative path> does not exist at base`.
   - Each `copy` file exists, its `mtimeMs` is at most the dispatch `ts`, and its text, trailing newlines dropped,
     equals the run's `reads` entry for that path (slashes turned, case folded); otherwise `<path> is missing`,
     `<path> was modified after the dispatch` or `<path> differs from what the run read`. Each `brief` and
@@ -622,12 +666,13 @@ Interface, `scripts/benchmark.mjs`:
     entry, whatever its `from` (`copy`, `brief` and `review-package` alike), passes the same call with
     `check.refs` false, so a named file that holds a live checkout's path is refused here, while the transcripts
     still exist, and not first at `--plan`. Each problem is returned as `<agent> <n>: <problem>`.
-  - `sample.json`: `{ prompt, cwd, ts, reads }`, the dispatch's prompt, `cwd` and `ts`, and `reads` mapping each
-    `files` path to the run's read text of it.
+  - `sample.json`: `{ transcript, prompt, cwd, ts, reads }`, the sample's `transcript`, the dispatch's prompt,
+    `cwd` and `ts`, and `reads` mapping each `files` path to the run's read text of it.
 - `main`, `--round 1 --samples`: the sample list's `checkSamples` problems: each to stderr, return 2. Per sample
   whose snapshot does not exist, its run is the run of `readSessions([<projects root>/<first segment of
-  transcript>])` whose `file` equals `transcript` (each folder read once); `snapshotSample(repo, sample, run,
-  benchRoot(repo))`. Every problem to stderr, then return 2 when any; else print `<w> written, <k> kept` and
+  transcript>])` whose `file` equals `transcript` (each folder read once); for a sample whose snapshot exists, `run`
+  is undefined. Every sample gets `snapshotSample(repo, sample, run, benchRoot(repo))`, so a kept snapshot of
+  another run is named. Every problem to stderr, then return 2 when any; else print `<w> written, <k> kept` and
   return 0. A missing `scripts/benchmark-samples.json` writes `no sample list: scripts/benchmark-samples.json` to
   stderr and returns 2.
 
@@ -670,9 +715,11 @@ whole transcripts into context. The algorithm:
    session's `gitBranch` names the main checkout's branch, not the tree the run read), else `gitBranch`. The tips
    are `refs/heads/<b>` and `refs/remotes/origin/<b>` when they resolve, plus `<merge>^2` of every commit of
    `git log --first-parent --merges --format=%H%x1f%s <defaultRef>` whose subject holds `<b>` as a whole word;
-   `base` is the commit with the newest author time at or before the dispatch among `git log --format=%H %at
-   <tips>` (a rewritten branch's commits keep their author times, so this is the rewrite's matching commit); no
-   tip, or two different commits at that second, drop the candidate.
+   `base` is the commit with the newest author time at or before the dispatch among `git log --first-parent
+   --format=%H %at <tips>` (a rewritten branch's commits keep their author times, so this is the rewrite's
+   matching commit; `--first-parent` keeps out the `main` commits a subsequent merge of `origin/main` into `t/<id>`
+   brings in, `accord/tickets/ST-LN-6/ledger.md:37`, whose author times can fall after the branch's last commit
+   and before the dispatch); no tip, or two different commits at that second, drop the candidate.
 4. `main`: `git rev-list -1 --first-parent --before=<dispatch seconds> <defaultRef>`.
 5. `files`: each absolute path (Definitions) in the prompt not under `root` or an `elsewhere` entry, with `path`
    exactly as the prompt writes it: `copy` when the file exists, its modification time is before the dispatch and
@@ -690,9 +737,12 @@ whole transcripts into context. The algorithm:
    1 to 5 in pick order.
 
 Last step of the task, run from the repository root once the list is committed:
-`node scripts/benchmark.mjs --round 1 --samples`. It must return 0; when it names a sample, replace that sample by
-the next candidate the walk of step 8 gives (keeping the executor's two `plain` and two `risk`), commit the list
-again, and run it again. A problem that names no sample, or a candidate walk that runs out, stops the task
+`node scripts/benchmark.mjs --round 1 --samples`. It must return 0; when it names a sample, replace only that
+sample: the replacement is the newest candidate of the same agent not already in the list (a ticket not yet taken
+by that agent first, and for the executor one that keeps two `plain` and two `risk`), and it takes the failed
+sample's `agent` and `n`; every other sample keeps its entry and its `n` (the walk of step 8 is never re-run, so
+no sample moves to another slot and meets a snapshot written for another run). Commit the list again and run it
+again. A problem that names no sample, or a candidate walk that runs out, stops the task
 `BLOCKED` with the output. Report its final output in the handback. This writes the snapshots under
 `<bench root>/samples/` (outside the repository, never committed) before 2026-11-11.
 
@@ -749,8 +799,9 @@ Interface, `scripts/benchmark.mjs`:
   2. The sample list, `checkSamples` problems: each to stderr, return 2. `rows = runMatrix(list,
      agentSettings(repo))`.
   3. Per sample, its snapshot is `<bench root>/samples/<agent without accord->-<n>/sample.json` (Tasks 10 and 12); a
-     missing one returns 2 with `run --round 1 --samples first: no snapshot for <agent> <n>`. No transcript is
-     read. The ticket at base is `git show <base>:accord/tickets/<ticket>.md`.
+     missing one returns 2 with `run --round 1 --samples first: no snapshot for <agent> <n>`, and one whose
+     `transcript` differs from the sample's returns 2 with `<agent> <n>: the snapshot in <dir> is of <its
+     transcript>, not <sample transcript>`. No transcript is read. The ticket at base is `git show <base>:accord/tickets/<ticket>.md`.
   4. Worktrees under `<bench root>/wt/`: a writing agent's row (`WRITERS`) gets `<tag>` on branch `bench/<tag>`; a
      read-only agent's sample gets one detached `<agent without accord->-<n>` (`critic-1`, `reviewer-1`) shared by
      its rows. A path already in `round-1.json` is reused; otherwise `addWorktree`, and the record is written to

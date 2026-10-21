@@ -455,3 +455,30 @@ it('ac-5 the verify skill offers to promote a ruling or correction into the conv
   expect(step.slice(c)).toContain('accord/tickets/<id>/verification.md');
   expect(step.slice(c)).toContain('accord/product/conventions.md');
 });
+
+it('risk:complex-branching the build skill routes a task-done refusal over a forbidden commit line', () => {
+  const raw = files.find((f) => f.path === '.claude/skills/accord-build/SKILL.md')?.text ?? '';
+  expect(raw).not.toBe('');
+  const text = raw.replace(/\s+/g, ' ');
+  const from = text.indexOf('3. **Record.**');
+  const to = text.indexOf('4. **Blocked.**');
+  expect(from).toBeGreaterThan(-1);
+  expect(to).toBeGreaterThan(-1);
+  const step = text.slice(from, to);
+  const phrases = [
+    'It refuses because a commit carries a forbidden line',
+    'reword that commit yourself if you made it',
+    'if an executor made it, dispatch a fresh executor with the same brief plus the reasons it printed',
+    'It exits 2 and says to run `git fetch origin`: run that',
+    'Either way, run `accord task-done <id> <n>` again.',
+  ];
+  expect(phrases.filter((p) => !step.includes(p))).toEqual([]);
+  const r = step.indexOf('reword that commit');
+  const e = step.indexOf('if an executor made it');
+  const f = step.indexOf('It exits 2');
+  const g = step.indexOf('Either way');
+  expect(r).toBeGreaterThan(-1);
+  expect(e).toBeGreaterThan(r);
+  expect(f).toBeGreaterThan(e);
+  expect(g).toBeGreaterThan(f);
+});

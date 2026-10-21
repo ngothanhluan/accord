@@ -1575,6 +1575,24 @@ it('risk:data-loss worktree merge never overwrites an ignored file and quotes th
   expect(rr.err).toContain('node_modules/moved.txt');
   expect(readFileSync(dSib + '/node_modules/moved.txt', 'utf8').replace(/\r/g, '')).toBe('mine\n');
   expect(gitRun(dSib, 'rev-parse', 'HEAD').trim()).toBe(dHead);
+
+  // a non-ASCII path, which git quotes and octal-escapes by default
+  const u = clone();
+  ticketWorktree(u, 'ST-9');
+  const uSib = u.sibling('ST-9');
+  verifyStage(uSib, 'ST-9');
+  const uHead = gitRun(uSib, 'rev-parse', 'HEAD').trim();
+  writeFiles(uSib, { 'node_modules/é.txt': 'mine\n' });
+  const q = u.otherClone();
+  writeFiles(q, { 'node_modules/é.txt': 'theirs\n' });
+  gitRun(q, 'add', '-f', 'node_modules/é.txt');
+  gitRun(q, 'commit', '-q', '-m', 'theirs');
+  gitRun(q, 'push', '-q', 'origin', 'main');
+  const ur = await run(['worktree', 'merge', 'ST-9'], uSib);
+  expect(ur.code).toBe(2);
+  expect(ur.err).toContain('node_modules/é.txt');
+  expect(readFileSync(uSib + '/node_modules/é.txt', 'utf8').replace(/\r/g, '')).toBe('mine\n');
+  expect(gitRun(uSib, 'rev-parse', 'HEAD').trim()).toBe(uHead);
 }, 120_000);
 
 it('risk:complex-branching a merge that changes the pinned accord version keeps the merge and names the pin', async () => {

@@ -499,8 +499,8 @@ export function worktreeMerge(ctx: CommandContext, id: string): number {
   const def = ref.replace('refs/remotes/', '');
   if (gitOk(ctx.root, ['merge-base', '--is-ancestor', ref, 'HEAD'])) return 0;
   // git 2.56 ort ignores --no-overwrite-ignore: refuse by hand when the merge adds a path that is an untracked (ignored) file here
-  const mine = git(ctx.root, ['diff', '--name-only', '--no-renames', '--diff-filter=A', 'HEAD', ref]).split('\n').filter((l) => l !== '');
-  const clash = mine.find((f) => existsSync(ctx.root + '/' + f) && !gitOk(ctx.root, ['ls-files', '--error-unmatch', '--', f]));
+  const mine = git(ctx.root, ['diff', '--name-only', '--no-renames', '--diff-filter=A', '-z', 'HEAD', ref]).split('\0').filter((l) => l !== '');
+  const clash = mine.find((f) => existsSync(ctx.root + '/' + f) && !gitOk(ctx.root, ['ls-files', '--error-unmatch', '--', ':(literal)' + f]));
   if (clash !== undefined) {
     throw new UsageError(`merge of ${def} into ${branch} failed: ${clash} is an ignored file here that the merge would overwrite - move it, then start verify again - ${branch} is as it was`);
   }
@@ -508,7 +508,7 @@ export function worktreeMerge(ctx: CommandContext, id: string): number {
     // the full ref: a short origin/main would resolve to a local branch or tag of that name first
     execFileSync('git', ['merge', '--no-ff', '--no-edit', '--no-overwrite-ignore', ref], { cwd: ctx.root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   } catch (e) {
-    const files = git(ctx.root, ['diff', '--name-only', '--diff-filter=U']).split('\n').filter((l) => l !== '');
+    const files = git(ctx.root, ['diff', '--name-only', '-z', '--diff-filter=U']).split('\0').filter((l) => l !== '');
     if (gitOk(ctx.root, ['rev-parse', '-q', '--verify', 'MERGE_HEAD'])) git(ctx.root, ['merge', '--abort']);
     if (files.length > 0) {
       throw new UsageError(`merge of ${def} into ${branch} stopped on a conflict in ${files.join(', ')} - the merge was aborted and ${branch} is as it was; resolve the conflict, then start verify again`);

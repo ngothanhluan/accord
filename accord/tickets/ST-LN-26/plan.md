@@ -1,6 +1,6 @@
 ---
 baseline: 1dfe65bb70644e25776735c1f7296c83570c140d
-plan_hash: "fnv1a64:a1a90af6592e5060"
+plan_hash: "fnv1a64:79cbda6c51f542dd"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -353,7 +353,7 @@ agent body stays within 60 lines (`agents.test.ts:101`). No `accord lint` rule i
 
 ## Task 6: A failure found after verify goes to accord-debug, and its fix gets its own review round
 covers: @ac-1, @ac-3, D-01, D-02, D-03, D-07
-files: packages/core/skills/shared/failure.md (new), packages/core/skills/accord/SKILL.md, packages/core/skills/debug/SKILL.md, packages/core/skills/review/SKILL.md, packages/core/agents/debugger.md, packages/core/agents/executor.md, packages/core/src/generated/skills.ts, packages/core/src/generated/agents.ts, .claude/skills/accord/SKILL.md, .claude/skills/accord/failure.md (new), .claude/skills/accord-debug/SKILL.md, .claude/skills/accord-debug/failure.md (new), .claude/skills/accord-review/SKILL.md, .claude/agents/accord-debugger.md, .claude/agents/accord-executor.md, packages/core/test/stage-skills.test.ts
+files: packages/core/skills/shared/failure.md (new), packages/core/skills/accord/SKILL.md, packages/core/skills/accord/worktree.md, .claude/skills/accord/worktree.md, packages/core/skills/debug/SKILL.md, packages/core/skills/review/SKILL.md, packages/core/agents/debugger.md, packages/core/agents/executor.md, packages/core/src/generated/skills.ts, packages/core/src/generated/agents.ts, .claude/skills/accord/SKILL.md, .claude/skills/accord/failure.md (new), .claude/skills/accord-debug/SKILL.md, .claude/skills/accord-debug/failure.md (new), .claude/skills/accord-review/SKILL.md, .claude/agents/accord-debugger.md, .claude/agents/accord-executor.md, packages/core/test/stage-skills.test.ts
 verify: packages/core/test/stage-skills.test.ts#ac-1-a-failure-reported-after-verify-goes-to-the-debug-stage-before-any-fix (@ac-1), packages/core/test/stage-skills.test.ts#risk:complex-branching-the-fix-review-after-verify-reads-only-the-changes-after-the-review-base-and-counts-its-own-five-rounds
 
 Consumes: the `Review base:` anchor line (Task 1) and the review package (Task 3). Produces: `failure.md`, which
@@ -380,6 +380,12 @@ that collapses whitespace:
     and does not contain `The stage it prints is the one this returns to`.
   - `a` also contains `the failing check's log as the failing output` and
     `say the reproduction test is skipped on this operating system`.
+  - `a` also contains `` first run `accord worktree open <id> --continue` and follow the accord skill's `./worktree.md`, then Continue's step 2 only ``,
+    `report the failure again in the session opened there` and `in place of Continue's steps 3 and 4`, and
+    `` (`done`: `accord-verify` at step 6, whose Finish closes the episode) ``; `a` does not contain
+    `first run the accord skill's Continue on it`.
+  - `wt` = flat `.claude/skills/accord/worktree.md`; `wt.slice(wt.indexOf('## Session check'))` contains
+    `` write, create, claim and edit nothing, except a New request that reports a failure in a ticket that has reached verify: follow `./failure.md`. ``
   - The rendered `.claude/agents/accord-debugger.md` from `agentTargets(config)`, flat, contains
     `find the failing command and its output yourself`, `` `gh run view <run-id> --log-failed` `` and
     `is reproduced by its CI log`.
@@ -414,9 +420,13 @@ Text, each code span on one line:
   1. Never judge the cause yourself, and never dispatch a fix outside
      `accord-debug`: no executor, no edit, and no Ruling in place of a
      root cause.
-  2. When this session is not in that ticket's worktree, first run the
-     accord skill's Continue on it. Then load `accord-debug` for that
-     ticket: a new episode, or the open one when the last `## ` heading of
+  2. When this session is not in that ticket's worktree, first run
+     `accord worktree open <id> --continue` and follow the accord skill's
+     `./worktree.md`, then Continue's step 2 only; after a `stop:` line,
+     ask the owner to report the failure again in the session opened
+     there. Then, in place of Continue's steps 3 and 4, load
+     `accord-debug` for that ticket: a new episode, or the open one when
+     the last `## ` heading of
      `debug.md` is not `## Resolved`. Pass the debugger the report as given;
      when it names no failing command or output, say so, and the debugger
      finds them itself, for a failed check with
@@ -426,8 +436,9 @@ Text, each code span on one line:
      passing at the next verify. Give the debugger, and the executor in
      its brief, the failing check's log as the failing output, and say
      the reproduction test is skipped on this operating system. After
-     the fix, go on to the stage
-     `accord anchor` prints without `## Resolved`. The episode stays open
+     the fix, go on to the stage `accord anchor` prints, without
+     `## Resolved` (`done`: `accord-verify` at step 6, whose Finish
+     closes the episode). The episode stays open
      across that verify and keeps its count of failed fixes: the check
      passing there resolves it, the check failing there counts one failed
      fix in it.
@@ -439,6 +450,11 @@ Text, each code span on one line:
   `First run the session check in `./worktree.md`. A failure reported in a ticket that has reached verify follows `./failure.md`.`
   Continue step 2 becomes `2. Run `accord anchor`.` (its second sentence is dropped to stay under the cap; the
   anchor prints the same). Nothing else changes.
+- `packages/core/skills/accord/worktree.md`, `## Session check`, the `this session works` bullet: its last sentence
+  "For a New request, stop: write, create, claim and edit nothing." becomes "For a New request, stop: write,
+  create, claim and edit nothing, except a New request that reports a failure in a ticket that has reached verify:
+  follow `./failure.md`." (`./failure.md` sits beside it in the rendered accord skill folder.) Nothing else in the
+  file changes; it is a reference file, not under the cap.
 - `packages/core/skills/debug/SKILL.md`: `loads` becomes `[shared/ask.md, shared/failure.md]`. Step 1 becomes
   `1. Run `accord anchor`. For a failure found after verify, read `./failure.md`.` In step 3, "and the failing
   command and its output." becomes "and the failing command and its output, or the report alone when it gives
@@ -460,7 +476,8 @@ Text, each code span on one line:
 
 Must not change: every phrase `REQUIRED` and the existing accord, review and debug cases in `stage-skills.test.ts`
 assert (`First run the session check in `./worktree.md`.` stays a substring; `its step 3 for the task that entered
-debug` and `five` stay); `agents.test.ts`'s debugger and executor phrases, Task 5's executor bullet and its ac-5
+debug` and `five` stay; every `## Session check` phrase the existing accord case asserts at
+`stage-skills.test.ts:305-306` stays, `write, create, claim and edit nothing` included); `agents.test.ts`'s debugger and executor phrases, Task 5's executor bullet and its ac-5
 test, and each agent body within 60 lines; the accord skill's first command stays
 `accord dashboard` (`failure.md` is not a SKILL.md, and the new line names no command); no rendered text names a
 runtime product or a `packages/` path.

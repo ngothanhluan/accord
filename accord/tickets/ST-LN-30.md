@@ -52,7 +52,7 @@ Feature: ST-LN-30
       | accord worktree open <id>                 |
       | accord new ticket <id> --lane M --worktree |
 
-  @ac-2
+  @ac-2 @test:packages/cli/test/worktree.test.ts#ac-2-continue-says-the-ticket-branch-is-2-commits-behind-the-remote-main-and-leaves-the-branch-unchanged
   Scenario: Continue says when the ticket branch is behind the default branch
     Given a claimed ticket whose branch lacks 2 commits that are on the remote's default branch, not yet fetched
     When I run "accord worktree open <id> --continue"

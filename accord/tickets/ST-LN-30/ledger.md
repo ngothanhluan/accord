@@ -25,6 +25,7 @@
 - Ruling: `fetchOrigin` is exported and called from `worktreeOpen` right after `guardTicketSession`, so Continue fetches too, and from `newTicket` only when `--worktree` is set (task 1) — cost if wrong: an extra fetch on Continue.
 - Ruling: the hold-lock test's bound goes from 5000 to 15000 ms, since Continue now runs a fetch and snapshot reload before the 2 s lock wait; a real hang never returns, so 15 s still proves no hang (task 1) — cost if wrong: a lock-wait regression between 5 s and 15 s passes that test.
 - Ruling: the `worktree clean` data-loss test is left unchanged — clean does not call `fetchOrigin`, the test passes alone in 7.7 s, and its 30 s timeout came from 20 files in parallel (task 1) — cost if wrong: the test stays flaky on a loaded machine.
+- Ruling: the existing ac-4 claude-code Continue test is updated in place to expect the behind line first on both Continue calls (1 commit behind), per the plan's rule for tests whose output changes (task 2) — cost if wrong: none, nothing weakened.
 
 ## Deferred
 - Nice (plan review 1.3): Task 4's pin test could assert `expect(err).not.toContain('is as it was')`, so a `checkPin` error wrapped as a failed merge is caught.
@@ -32,3 +33,4 @@
 
 ## Tasks
 - task 1 done f6072a2a4600
+- task 2 done fde7e582cbfe

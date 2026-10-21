@@ -40,6 +40,8 @@
 - Nice (plan round 1.7): pin `removeWorktree`'s `failed` for partial removal and where `isAncestor` and `firstLine` live.
 - Nice (plan round 2.2): the D-05 worktree lookup in `accord drop` should skip a prunable worktree, or prune first.
 - Nice (plan round 3.1): condition ids.md step 1's close-this-session sentence on the session running in the ticket's worktree.
+- Nice (review round 1.2): clean's `git update-ref -d` leaves the deleted branch's `branch.<b>.remote` and `branch.<b>.merge` config entries; run `git config --remove-section branch.<b>` after the delete, tolerating failure — packages/cli/src/commands/worktree.ts:712.
+- Nice (review round 1.3): a one-line `--reason` that is `# Intent` or a fence passes lint and lands in the last section (`## ` duplicates are caught by `load.heading-duplicate`); reject a reason starting with `#`, a fence or `<!--` — packages/cli/src/commands/drop.ts:34.
 
 ## Tasks
 - task 1 done 6d8598562879

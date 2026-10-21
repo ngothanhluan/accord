@@ -14,9 +14,14 @@
 - Ruling: the @ac-2 test takes the invocation from packages/cli/package.json, and hook.ts builds the same string (task 2 executor) — cost if wrong: none named
 - Ruling: task 3 accepted although its executor wrote scripts/sentences.mjs before running the test, and showed red only by moving the module away — the test was written from the plan's fixture, which fixes every expected value — cost if wrong: medium, the red run proves only that the module is needed, so review must judge whether the test can fail on a wrong counter
 - Ruling: task 4 ran no wider suite and no real transcript folder, since the brief names only its two tests (task 4 executor); the main session then ran the benchmark on this worktree's real transcripts, exit 0, one row for this session — cost if wrong: an existing benchmark use could break unseen
+- Ruling: the review fix adds "Plain words: ac-1 means this." (5 words) after `---` in the @ac-3 fixture (review fix executor) — cost if wrong: only the test's expected arrays change
+- Ruling: the full suite after build had 3 timeouts (status ac-3, workflow-script risk:parsing, worktree risk:complex-branching) while a reviewer ran a second full suite at the same time; the three files re-run alone passed 92 of 92 — load, not this change, which touches none of them — cost if wrong: a real slowdown is missed until verify's full run
 
 ## Deferred
 - Plan round 1.3 (Nice): Task 4 says "Date.parse(o.timestamp) is a number"; the intended test is not NaN, as readRun does at scripts/benchmark.mjs:50 — deferred
+- Review round 2.2 (Nice): the @ac-2 test repeats the older rulesetText checks, which still measure `@x/accord@1.2.3`; the old describe block could go — packages/core/test/session.test.ts:11-22
+- Review round 2.3 (Nice): docs/design.md:201 lists only seven session rules; rule 8 is missing
+- Final review risk, no finding (follows @ac-3's wording): pasted ticket text without a "## Intent" heading (a "- D-01 …" line of 91 words, a quoted "> **Risks …**" passage of 81) and a bold option ending ".**" are counted as long sentences, which raises the long share on real data; changing it changes @ac-3
 
 ## Tasks
 - task 1 done 12ef32f018d6

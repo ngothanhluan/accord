@@ -495,7 +495,7 @@ export function worktreeMerge(ctx: CommandContext, id: string): number {
   const def = ref.replace('refs/remotes/', '');
   if (gitOk(ctx.root, ['merge-base', '--is-ancestor', ref, 'HEAD'])) return 0;
   // git 2.56 ort ignores --no-overwrite-ignore: refuse by hand when the merge adds a path that is an untracked (ignored) file here
-  const mine = git(ctx.root, ['diff', '--name-only', '--no-renames', '--diff-filter=A', `HEAD...${ref}`]).split('\n').filter((l) => l !== '');
+  const mine = git(ctx.root, ['diff', '--name-only', '--no-renames', '--diff-filter=A', 'HEAD', ref]).split('\n').filter((l) => l !== '');
   const clash = mine.find((f) => existsSync(ctx.root + '/' + f) && !gitOk(ctx.root, ['ls-files', '--error-unmatch', '--', f]));
   if (clash !== undefined) {
     throw new UsageError(`merge of ${def} into ${branch} failed: ${clash} is an ignored file here that the merge would overwrite - move it, then start verify again - ${branch} is as it was`);

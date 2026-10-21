@@ -1549,6 +1549,25 @@ it('risk:data-loss worktree merge never overwrites an ignored file and quotes th
   expect(readFileSync(sib + '/node_modules/keep.txt', 'utf8').replace(/\r/g, '')).toBe('mine\n');
   expect(gitRun(sib, 'rev-parse', 'HEAD').trim()).toBe(head);
   expect(() => gitRun(sib, 'rev-parse', '-q', '--verify', 'MERGE_HEAD')).toThrow();
+
+  // a rename on main whose target is an ignored file present here
+  const d = clone();
+  pushMain(d, 'old.txt', 'old\n');
+  ticketWorktree(d, 'ST-9');
+  const dSib = d.sibling('ST-9');
+  verifyStage(dSib, 'ST-9');
+  const dHead = gitRun(dSib, 'rev-parse', 'HEAD').trim();
+  writeFiles(dSib, { 'node_modules/moved.txt': 'mine\n' });
+  const p = d.otherClone();
+  mkdirSync(p + '/node_modules');
+  gitRun(p, 'mv', 'old.txt', 'node_modules/moved.txt');
+  gitRun(p, 'commit', '-q', '-m', 'rename');
+  gitRun(p, 'push', '-q', 'origin', 'main');
+  const rr = await run(['worktree', 'merge', 'ST-9'], dSib);
+  expect(rr.code).toBe(2);
+  expect(rr.err).toContain('node_modules/moved.txt');
+  expect(readFileSync(dSib + '/node_modules/moved.txt', 'utf8').replace(/\r/g, '')).toBe('mine\n');
+  expect(gitRun(dSib, 'rev-parse', 'HEAD').trim()).toBe(dHead);
 }, 120_000);
 
 it('risk:complex-branching a merge that changes the pinned accord version keeps the merge and names the pin', async () => {

@@ -180,8 +180,8 @@ READY TO PICK UP
   new session, and never re-runs completed tasks.
 - After verify, any commit on the ticket's branch that the default branch does not hold, made after the verified commit (before the first tick, the commit `verification.md` names), and that changes a path outside the ticket's own records takes the stage back from `done`, or holds it at `verify`: to `review` for a hand-made change, with `accord anchor` printing the review base, the commit before the first unreviewed change, until a review round of those changes is recorded in `review.md`; to `verify` for a merge from the default branch alone. A ticket whose verified commit is on the default branch keeps its stage.
 - The anchored stage `intent` covers the approach too: Continue resumes at the owner's yes in
-  `accord-approach` when `## Approach` is written, otherwise in `accord-intent`; at `done` it says so and
-  offers the dashboard (phase 2).
+  `accord-approach` when `## Approach` is written, otherwise in `accord-intent`; at `done` it re-enters
+  `accord-verify` at step 6.
 - `/accord <request>` goes straight to lane classification and the intent stage.
 - `accord next` lists tickets that passed Ready, are unblocked, and are unclaimed.
 - Session start prints one line ("1 in progress, 1 ready · type /accord"), not the dashboard.

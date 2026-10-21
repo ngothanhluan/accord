@@ -485,7 +485,8 @@ it('ac-1 a failure reported after verify goes to the debug stage before any fix'
     'a new bug ticket', "the failing check's log as the failing output",
     'say the reproduction test is skipped on this operating system',
     "first run `accord worktree open <id> --continue` and follow the accord skill's `./worktree.md`, then Continue's step 2 only",
-    'ask the owner to type, in the session opened there, `/accord <id> ` followed by the report, and stop here',
+    'ask the owner to type, in the session opened there, `/accord <id> ` followed by the report, in place of the line it prints, and stop here',
+    'When it printed `enter:`, or this session is already in that worktree,',
     "in place of Continue's steps 3 and 4",
     '(`done`: `accord-verify` at step 6, whose Finish closes the episode)',
   ]) expect(a, p).toContain(p);

@@ -531,6 +531,9 @@ it('ac-2 verify starts ci before the suite and shows the owners report only afte
   for (const p of ['Wait for CI as `./ci.md` says', 'a failed check goes to `./failure.md` instead of this report', "CI: each check's result, or CI not checked and why"])
     expect(s4, p).toContain(p);
   expect(v.slice(v.indexOf('6. Run'))).toContain('finish CI as `./ci.md` says');
+  expect(flatText('.claude/skills/accord-verify/SKILL.md')).toContain(
+    'A `fail` criterion, or a failure the owner names in answer, goes to `./failure.md`, never to `accord-build` directly',
+  );
   const ci = flatText('.claude/skills/accord-verify/ci.md');
   const [a, b, c] = ['## Start', '## Wait', '## Finish'].map((h) => ci.indexOf(h));
   expect(a).toBeGreaterThan(-1);

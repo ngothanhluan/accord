@@ -211,3 +211,30 @@ it('risk:complex-branching review-package leaves out what a merge from the defau
     c.cleanupAll();
   }
 }, 120_000);
+
+it('risk:regression of a real bug: a fix made at verify, before any verification.md, gets a review round', async () => {
+  const c = makeClone();
+  try {
+    c.git('switch', '-c', 't/ST-9');
+    expect((await run(['approve', 'ST-9'], c.root)).code).toBe(0);
+    expect((await run(['gate', 'ready', 'ST-9'], c.root)).code).toBe(0);
+    writeFiles(c.root, {
+      'accord/tickets/ST-9/plan.md': PLAN,
+      'accord/tickets/ST-9/ledger.md': '## Tasks\n- task 1 done abc1234\n- task 2 done abc1234\n',
+      'accord/tickets/ST-9/review.md': '## Round 1\nverdict: converged\n',
+      'src/a.ts': 'a\n',
+    });
+    const R = commit(c.root, 'work and review');
+    const quiet = await run(['anchor'], c.root);
+    expect(quiet.out).toContain('Stage: verify');
+    expect(quiet.out).not.toContain('Review base:');
+
+    writeFiles(c.root, { 'src/fix.ts': 'f\n' });
+    commit(c.root, 'fix');
+    const fixed = await run(['anchor'], c.root);
+    expect(fixed.out).toContain('Stage: review');
+    expect(fixed.out).toContain(`Review base: ${R}`);
+  } finally {
+    c.cleanupAll();
+  }
+}, 120_000);

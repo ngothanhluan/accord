@@ -370,6 +370,16 @@ function startOf(snapshot: { tickets: RepoSnapshot['tickets']; verifications: Re
   return [own, recorded].find((c): c is string => typeof c === 'string' && isSha(c));
 }
 
+/** A ticket not yet verified starts at the last commit on the tip that touched its review.md; undefined when none. */
+function reviewStartOf(root: string, id: string, tips: string[]): string | undefined {
+  try {
+    const sha = execFileSync('git', ['log', '-1', '--format=%H', ...tips, '--', `accord/tickets/${id}/review.md`], { cwd: root, ...GIT_QUIET, encoding: 'utf8', env: { ...process.env, GIT_NO_LAZY_FETCH: '1' } }).trim();
+    return isSha(sha) ? sha : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** A claim's tip: its ref, plus the local branch when that is another ref, since `gitClaims` prefers the pushed one. */
 function claimTips(root: string, id: string, ref: string, claimBranches: Record<string, string>): string[] {
   const local = Object.hasOwn(claimBranches, id) ? 'refs/heads/' + claimBranches[id] : undefined;
@@ -503,18 +513,14 @@ function loadParts(root: string, stage = false): {
   ];
   const recordsSince = recorded.length === 0 ? {} : gitRecordsSince(root, recorded);
   // ST-LN-26: the commits after verify, for the ticket on this branch (HEAD) and for each claimed ticket (its tips).
-  const starts = Object.keys(first.tickets).flatMap((id) => {
-    const commit = startOf(first, id);
-    return commit === undefined ? [] : [[id, commit] as const];
-  });
   const afterWanted: Record<string, { commit: string; tips: string[] }> = {};
-  if (starts.length > 0) {
-    const current = currentBranch(root);
-    const own = current === undefined || current === '' ? undefined : ticketOfBranch(current, branchTemplates, known);
-    for (const [id, commit] of starts) {
-      if (id === own) afterWanted[id] = { commit, tips: ['HEAD'] };
-      else if (Object.hasOwn(claimRefs, id)) afterWanted[id] = { commit, tips: claimTips(root, id, claimRefs[id], claimBranches) };
-    }
+  const current = currentBranch(root);
+  const own = current === undefined || current === '' ? undefined : ticketOfBranch(current, branchTemplates, known);
+  for (const id of Object.keys(first.tickets)) {
+    const tips = id === own ? ['HEAD'] : Object.hasOwn(claimRefs, id) ? claimTips(root, id, claimRefs[id], claimBranches) : undefined;
+    if (tips === undefined) continue;
+    const commit = startOf(first, id) ?? (Object.hasOwn(files, `accord/tickets/${id}/review.md`) ? reviewStartOf(root, id, tips) : undefined);
+    if (commit !== undefined) afterWanted[id] = { commit, tips };
   }
   const afterVerify = gitAfterVerify(root, afterWanted);
   let planFacts: Record<string, { subject?: string; clean: boolean }> | undefined;
@@ -646,11 +652,11 @@ export function loadClaimView(root: string): { checkout: SnapshotInput; view: Sn
     const t = files[recordPaths(id)[0]];
     const v = files[recordPaths(id)[4]];
     if (t === undefined) continue;
-    const commit = startOf(
-      loadSnapshot({ files: { [recordPaths(id)[0]]: t, ...(v === undefined ? {} : { [recordPaths(id)[4]]: v }) }, tree: [] }),
-      id,
-    );
-    if (commit !== undefined) afterWanted[id] = { commit, tips: claimTips(root, id, ref, checkout.claimBranches ?? {}) };
+    const tips = claimTips(root, id, ref, checkout.claimBranches ?? {});
+    const commit =
+      startOf(loadSnapshot({ files: { [recordPaths(id)[0]]: t, ...(v === undefined ? {} : { [recordPaths(id)[4]]: v }) }, tree: [] }), id) ??
+      (files[recordPaths(id)[3]] === undefined ? undefined : reviewStartOf(root, id, tips));
+    if (commit !== undefined) afterWanted[id] = { commit, tips };
   }
   const afterVerify: Record<string, AfterVerify> = { ...checkout.afterVerify };
   for (const [id] of candidates) delete afterVerify[id];

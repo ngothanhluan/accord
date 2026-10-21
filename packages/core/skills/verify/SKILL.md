@@ -55,9 +55,9 @@ judges, the owner decides.
    - Under `review: human` the 0.1.0 human layer stays: a person ticks
      `verified:` by hand, with the same two values, and writes
      `## Verification notes`. You never write any of them.
-   - A `fail` or `blocked` criterion: show the owner. A failing criterion
-     goes back to `accord-build` as a fix, or the owner decides; it is
-     never ticked past.
+   - A `blocked` criterion: show the owner, who decides. A `fail` criterion,
+     or a failure the owner names in answer, goes to `./failure.md`, never
+     to `accord-build` directly; it is never ticked past.
 
 6. Run `accord gate done <id>` and work from what it prints. Leave
    `verification.md` and the tick uncommitted until it passes;

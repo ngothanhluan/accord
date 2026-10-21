@@ -13,6 +13,7 @@
 - Ruling: the @ac-1 test strips the line-1 marker and compares the 16 old lines as an in-order subsequence of the raw lines — the brief's exact method (task 1 executor) — cost if wrong: none named
 - Ruling: the @ac-2 test takes the invocation from packages/cli/package.json, and hook.ts builds the same string (task 2 executor) — cost if wrong: none named
 - Ruling: task 3 accepted although its executor wrote scripts/sentences.mjs before running the test, and showed red only by moving the module away — the test was written from the plan's fixture, which fixes every expected value — cost if wrong: medium, the red run proves only that the module is needed, so review must judge whether the test can fail on a wrong counter
+- Ruling: task 4 ran no wider suite and no real transcript folder, since the brief names only its two tests (task 4 executor); the main session then ran the benchmark on this worktree's real transcripts, exit 0, one row for this session — cost if wrong: an existing benchmark use could break unseen
 
 ## Deferred
 - Plan round 1.3 (Nice): Task 4 says "Date.parse(o.timestamp) is a number"; the intended test is not NaN, as readRun does at scripts/benchmark.mjs:50 — deferred
@@ -21,3 +22,4 @@
 - task 1 done 12ef32f018d6
 - task 2 done 4bc423810bd7
 - task 3 done 818f906ba8d2
+- task 4 done b1424588d8c7

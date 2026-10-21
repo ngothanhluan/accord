@@ -64,7 +64,7 @@ Feature: ST-LN-33
     And a word is a run of characters without spaces that holds at least one letter or digit, so "—", "|", "-", and "**" are not words
     And it marks the 26-word sentence as long and does not mark the 25-word sentence
 
-  @ac-4
+  @ac-4 @test:packages/core/test/benchmark.test.ts#ac-4-the-benchmark-report-shows-the-sentence-lengths-of-each-main-session
   Scenario: the benchmark report shows the sentence lengths of each main session
     Given a transcript folder that holds two main sessions, each recorded on its own branch, and one subagent run
     When `node scripts/benchmark.mjs` runs in the repository with that folder as its one argument

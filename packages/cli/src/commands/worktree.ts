@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { DEFAULT_BRANCH_TEMPLATE, loadConfig } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
-import { currentBranch, gitDefaultRef, gitUserEmail, ticketOfBranch, UsageError } from '../load/fs.js';
+import { currentBranch, droppedOn, gitDefaultRef, gitUserEmail, ticketOfBranch, UsageError } from '../load/fs.js';
 import { claudeEnv, describeSession, isLive, processTable, runSetup, sameSession, sessionIn } from '../load/proc.js';
 import type { Session } from '../load/proc.js';
 import type { CommandContext } from '../run.js';
@@ -465,7 +465,88 @@ function pruneStale(ctx: CommandContext): void {
   }
 }
 
-/** D-05, D-16: fetch, prune stale remote refs, then remove each merged ticket worktree with plain `git worktree remove`, then (ST-LN-20 D-02, D-03) delete every merged ticket branch, naming what is removed, deleted or kept. */
+interface GuardState {
+  holds?: Record<string, Hold>;
+  holdsError?: string;
+  table?: ReturnType<typeof processTable>;
+}
+
+/** The guards every worktree removal passes; undefined (after a kept line) when one keeps the worktree, else the hold it may drop. */
+function passGuards(ctx: CommandContext, w: WorktreeEntry, id: string, s: GuardState): { h: Hold | undefined } | undefined {
+  if (norm(w.path) === norm(ctx.root)) {
+    ctx.stdout.write(`kept ${w.path}: this session's worktree
+`);
+    return undefined;
+  }
+  if (git(w.path, ['status', '--porcelain', '--untracked-files=normal', '--ignore-submodules=none']).trim() !== '') {
+    ctx.stdout.write(`kept ${w.path}: uncommitted work
+`);
+    return undefined;
+  }
+  if (s.holds === undefined && s.holdsError === undefined) {
+    try {
+      withHolds(ctx.root, (h) => ((s.holds = h), undefined));
+    } catch (e) {
+      s.holdsError = firstLine(e instanceof UsageError ? e.message : e);
+    }
+  }
+  if (s.holds === undefined) {
+    ctx.stdout.write(`kept ${w.path}: its hold could not be read: ${s.holdsError}
+`);
+    return undefined;
+  }
+  const h = Object.hasOwn(s.holds, id) ? s.holds[id] : undefined;
+  if (h !== undefined) {
+    let mine: Session | undefined;
+    try {
+      const claude = claudeEnv(ctx.env);
+      if (claude !== undefined && h.marker === claude.marker) {
+        ctx.stdout.write(`kept ${w.path}: this session's worktree\n`);
+        return undefined;
+      }
+      s.table ??= processTable();
+      if (claude !== undefined) mine = sessionIn(claude, s.table, process.pid);
+    } catch {
+      ctx.stdout.write(`kept ${w.path}: cannot tell whether the session holding it still runs
+`);
+      return undefined;
+    }
+    if (isLive(h, s.table) && !(mine !== undefined && sameSession(h, mine))) {
+      ctx.stdout.write(`kept ${w.path}: held by another session
+`);
+      return undefined;
+    }
+  }
+  return { h };
+}
+
+/** `git worktree remove` with its three printed outcomes; the hold goes with a worktree that is gone. `failed` means the folder is still a worktree. */
+function removeWorktree(ctx: CommandContext, w: WorktreeEntry, id: string, h: Hold | undefined): { failed: boolean } {
+  let failure: string | undefined;
+  try {
+    execFileSync('git', ['worktree', 'remove', w.path], { cwd: ctx.root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  } catch (e) {
+    failure = firstLine(e);
+  }
+  const gone = failure === undefined || !worktrees(ctx.root, ctx.stdout).some((x) => x.path === w.path);
+  if (failure === undefined) ctx.stdout.write(`removed ${w.path}
+`);
+  else if (gone) ctx.stdout.write(`removed ${w.path} in part: git worktree remove failed: ${failure} - delete what is left of the folder by hand
+`);
+  else ctx.stdout.write(`kept ${w.path}: git worktree remove failed: ${failure}
+`);
+  if (gone && h !== undefined) {
+    try {
+      withHolds(ctx.root, (all) => (Object.hasOwn(all, id) ? Object.fromEntries(Object.entries(all).filter(([k]) => k !== id)) : undefined));
+    } catch (e) {
+      ctx.stdout.write(`note ${id}: the hold of the removed worktree could not be dropped: ${firstLine(e instanceof UsageError ? e.message : e)}
+`);
+    }
+  }
+  return { failed: !gone };
+}
+
+/** D-05, D-16: fetch, prune stale remote refs, then remove each merged ticket worktree with plain `git worktree remove`, then (ST-LN-20 D-02, D-03) delete every merged ticket branch, then (ST-LN-34) the worktree and branches of dropped tickets, naming what is removed, deleted or kept. */
 export function worktreeClean(ctx: CommandContext): number {
   const list = worktrees(ctx.root, ctx.stdout);
   const templates = ctx.snapshot.branchTemplates ?? [DEFAULT_BRANCH_TEMPLATE];
@@ -483,78 +564,14 @@ export function worktreeClean(ctx: CommandContext): number {
   }
   const ref = gitDefaultRef(ctx.root);
   if (ref === undefined) return 0;
-  let holds: Record<string, Hold> | undefined;
-  let holdsError: string | undefined;
-  let table: ReturnType<typeof processTable> | undefined;
+  const state: GuardState = {};
   for (const { w, id } of cands) {
     // One worktree that cannot be judged is kept and named; the loop goes on (the Veto: no hand-fix before every /accord).
     try {
       if (!gitOk(ctx.root, ['merge-base', '--is-ancestor', w.head, ref])) continue;
-      if (norm(w.path) === norm(ctx.root)) {
-        ctx.stdout.write(`kept ${w.path}: this session's worktree
-`);
-        continue;
-      }
-      if (git(w.path, ['status', '--porcelain', '--untracked-files=normal', '--ignore-submodules=none']).trim() !== '') {
-        ctx.stdout.write(`kept ${w.path}: uncommitted work
-`);
-        continue;
-      }
-      if (holds === undefined && holdsError === undefined) {
-        try {
-          withHolds(ctx.root, (h) => ((holds = h), undefined));
-        } catch (e) {
-          holdsError = firstLine(e instanceof UsageError ? e.message : e);
-        }
-      }
-      if (holds === undefined) {
-        ctx.stdout.write(`kept ${w.path}: its hold could not be read: ${holdsError}
-`);
-        continue;
-      }
-      const h = Object.hasOwn(holds, id) ? holds[id] : undefined;
-      if (h !== undefined) {
-        let mine: Session | undefined;
-        try {
-          const claude = claudeEnv(ctx.env);
-          if (claude !== undefined && h.marker === claude.marker) {
-            ctx.stdout.write(`kept ${w.path}: this session's worktree\n`);
-            continue;
-          }
-          table ??= processTable();
-          if (claude !== undefined) mine = sessionIn(claude, table, process.pid);
-        } catch {
-          ctx.stdout.write(`kept ${w.path}: cannot tell whether the session holding it still runs
-`);
-          continue;
-        }
-        if (isLive(h, table) && !(mine !== undefined && sameSession(h, mine))) {
-          ctx.stdout.write(`kept ${w.path}: held by another session
-`);
-          continue;
-        }
-      }
-      let failure: string | undefined;
-      try {
-        execFileSync('git', ['worktree', 'remove', w.path], { cwd: ctx.root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
-      } catch (e) {
-        failure = firstLine(e);
-      }
-      const gone = failure === undefined || !worktrees(ctx.root, ctx.stdout).some((x) => x.path === w.path);
-      if (failure === undefined) ctx.stdout.write(`removed ${w.path}
-`);
-      else if (gone) ctx.stdout.write(`removed ${w.path} in part: git worktree remove failed: ${failure} - delete what is left of the folder by hand
-`);
-      else ctx.stdout.write(`kept ${w.path}: git worktree remove failed: ${failure}
-`);
-      if (gone && h !== undefined) {
-        try {
-          withHolds(ctx.root, (all) => (Object.hasOwn(all, id) ? Object.fromEntries(Object.entries(all).filter(([k]) => k !== id)) : undefined));
-        } catch (e) {
-          ctx.stdout.write(`note ${id}: the hold of the removed worktree could not be dropped: ${firstLine(e instanceof UsageError ? e.message : e)}
-`);
-        }
-      }
+      const g = passGuards(ctx, w, id, state);
+      if (g === undefined) continue;
+      removeWorktree(ctx, w, id, g.h);
     } catch (e) {
       ctx.stdout.write(`kept ${w.path}: could not be judged: ${firstLine(e instanceof UsageError ? e.message : e)}
 `);
@@ -584,7 +601,81 @@ export function worktreeClean(ctx: CommandContext): number {
 `);
     }
   }
+  cleanDropped(ctx, ref, templates, state);
   return 0;
+}
+
+/** ST-LN-34: for each ticket branch whose ticket is dropped on `ref`, delete the worktree, the origin branch and the local branch when nothing beyond origin is lost. */
+function cleanDropped(ctx: CommandContext, ref: string, templates: readonly string[], s: GuardState): void {
+  const known = (i: string) => Object.hasOwn(ctx.snapshot.tickets, i);
+  const tips = new Map<string, { L?: string; R?: string }>();
+  for (const row of git(ctx.root, ['for-each-ref', '--format=%(objectname) %(refname)', 'refs/heads', 'refs/remotes/origin']).split('\n')) {
+    const cut = row.indexOf(' ');
+    if (cut < 0) continue;
+    const sha = row.slice(0, cut);
+    const full = row.slice(cut + 1);
+    const local = full.startsWith('refs/heads/');
+    const name = full.slice(local ? 'refs/heads/'.length : 'refs/remotes/origin/'.length);
+    if (name === 'HEAD' && !local) continue;
+    tips.set(name, { ...tips.get(name), [local ? 'L' : 'R']: sha });
+  }
+  // A merged ticket stays on the merged path above; a merged origin branch is left to the host.
+  const ids = new Map<string, string>();
+  for (const [name, t] of tips) {
+    const id = ticketOfBranch(name, templates, known);
+    if (id !== undefined && !gitOk(ctx.root, ['merge-base', '--is-ancestor', (t.L ?? t.R)!, ref])) ids.set(name, id);
+  }
+  if (ids.size === 0) return;
+  const dropped = droppedOn(ctx.root, ref, [...new Set(ids.values())]);
+  const after = worktrees(ctx.root, ctx.stdout);
+  for (const b of [...ids.keys()].filter((n) => dropped.has(ids.get(n)!)).sort()) {
+    const id = ids.get(b)!;
+    try {
+      const W = after.find((x) => x.branch === b);
+      if (W !== undefined && W === after[0]) {
+        ctx.stdout.write(`kept ${b}: checked out in ${W.path}\n`);
+        continue;
+      }
+      let g: { h: Hold | undefined } | undefined;
+      if (W !== undefined) {
+        g = passGuards(ctx, W, id, s);
+        if (g === undefined) continue;
+      }
+      // Re-read the local tip: a commit made in the worktree while the guards ran counts, and the printed sha is the deleted one.
+      const args = ['rev-parse', '--verify', '-q', 'refs/heads/' + b];
+      const L = gitOk(ctx.root, args) ? git(ctx.root, args).trim() : undefined;
+      const R = tips.get(b)!.R;
+      if (L !== undefined && R !== undefined && L !== R) {
+        if (gitOk(ctx.root, ['merge-base', '--is-ancestor', R, L])) {
+          ctx.stdout.write(`kept ${b}: ${git(ctx.root, ['rev-list', '--count', `${R}..${L}`]).trim()} commits not on origin\n`);
+        } else ctx.stdout.write(`kept ${b}: origin/${b} has commits not here\n`);
+        continue;
+      }
+      if (L !== undefined && R === undefined) {
+        const n = Number(git(ctx.root, ['rev-list', '--count', L, '--not', '--remotes=origin']).trim());
+        if (n > 0) {
+          ctx.stdout.write(`kept ${b}: ${n} commits not on origin\n`);
+          continue;
+        }
+      }
+      // git refuses to delete a branch checked out in a worktree, and a branch must not lose its folder after its origin copy is gone.
+      if (W !== undefined && removeWorktree(ctx, W, id, g!.h).failed) continue;
+      if (R !== undefined) {
+        gitNoPrompt(ctx.root, ['push', `--force-with-lease=refs/heads/${b}:${R}`, 'origin', ':refs/heads/' + b]);
+        ctx.stdout.write(`deleted origin/${b} (was ${R})\n`);
+      }
+      if (L !== undefined) {
+        try {
+          execFileSync('git', ['update-ref', '-d', 'refs/heads/' + b, L], { cwd: ctx.root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+          ctx.stdout.write(`deleted ${b} (was ${L})\n`);
+        } catch (e) {
+          ctx.stdout.write(`kept ${b}: git update-ref failed: ${firstLine(e)}\n`);
+        }
+      }
+    } catch (e) {
+      ctx.stdout.write(`kept ${b}: could not be judged: ${firstLine(e instanceof UsageError ? e.message : e)}\n`);
+    }
+  }
 }
 
 /** D-13: write the new ticket in its own worktree on its claim branch, commit and push it, then run setup there. */

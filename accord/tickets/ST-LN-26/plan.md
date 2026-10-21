@@ -1,6 +1,6 @@
 ---
 baseline: 1dfe65bb70644e25776735c1f7296c83570c140d
-plan_hash: "fnv1a64:12ef90ec5ef66ef8"
+plan_hash: "fnv1a64:a1a90af6592e5060"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -42,7 +42,8 @@ Definitions shared by every task:
   seen). A ticket with neither has no start commit and no commits after verify.
 - The commits after verify of ticket X: the commits reachable from X's own tip and not from X's start commit nor
   from the default ref, oldest first in graph order. X's own tip is `HEAD` when the current branch names X, and
-  X's claim ref (its entry in `claimRefs`, as `gitClaims` returns it) otherwise. A commit is hand-made when it
+  X's claim ref (its entry in `claimRefs`, as `gitClaims` returns it) together with the local branch
+  `refs/heads/<X's claim branch>` when that exists, otherwise. A commit is hand-made when it
   changes a path outside X's own records, or when it is a merge whose own changes git could not show. A merge whose
   remerge diff shows only X's own records (usually nothing) is a merge from the default branch.
 
@@ -175,8 +176,10 @@ is removed with `cleanupAll()` in a `finally`. Both tests pass `120_000` as the 
     `push -q -u origin t/ST-9`.
   - `row = async () => JSON.parse((await run(['status', '--json'], c.root)).out).find((r) => r.id === 'ST-9').stage`.
     After `switch main`, `row()` is `done`.
-  - `switch t/ST-9`, write `src/fix.ts`, commit, `push -q`. `run(['anchor'], c.root)` (on the ticket branch)
-    contains `Stage: review` and `Review base: ${T}`. After `switch main`, `row()` is `review`.
+  - `switch t/ST-9`, write `src/fix.ts`, commit, and do not push. `switch main`: `row()` is `review` (the fix is
+    only on `refs/heads/t/ST-9`, while `origin/t/ST-9`, the claim ref `gitClaims` prefers, is still at T).
+  - `switch t/ST-9`, `push -q`. `run(['anchor'], c.root)` (on the ticket branch) contains `Stage: review` and
+    `Review base: ${T}`. After `switch main`, `row()` is `review`.
   - Still on `main`, `c.git('merge', '-q', '--ff-only', T)` (local only, never pushed: the checkout's copy of ST-9
     now holds the ticks at `C`, the branch holds the fix). `run(['anchor', 'ST-9'], c.root)`, which loads in
     `stage` mode, exits 0 and its `out` contains `Stage: review` and `Review base: ${T}`. Then
@@ -187,7 +190,7 @@ is removed with `cleanupAll()` in a `finally`. Both tests pass `120_000` as the 
 Interface, `packages/cli/src/load/fs.ts`:
 - `defaultRefOf(root)`: `gitDefaultRef(root)`, else the first of `refs/heads/main`, `refs/heads/master` that
   `git rev-parse --verify -q` resolves (spawned with `stdio: ['ignore', 'pipe', 'pipe']`).
-- `function gitAfterVerify(root: string, wanted: Record<string, { commit: string; tip: string }>): Record<string, AfterVerify>`,
+- `function gitAfterVerify(root: string, wanted: Record<string, { commit: string; tips: string[] }>): Record<string, AfterVerify>`,
   where `AfterVerify` is `NonNullable<SnapshotInput['afterVerify']>[string]`. With no entry it spawns nothing.
   Every spawn below passes `stdio: ['ignore', 'pipe', 'pipe']`, as `gitRecordsSince` does (`fs.ts:275`), so git's
   stderr (`unrecognized argument: --remerge-diff` on old git, `bad revision`) never reaches the user.
@@ -196,7 +199,7 @@ Interface, `packages/cli/src/load/fs.ts`:
      listed sha starts with (lowercased) is on the default ref, or unknown, and is dropped. A failing spawn drops
      every entry.
   3. Per remaining id: `git -c core.quotePath=false log -z --topo-order --reverse --format=%H%x00%P --name-only
-     --no-renames --remerge-diff <tip> ^<commit> [^<def>] --`, with `env: { ...process.env, GIT_NO_LAZY_FETCH: '1' }`
+     --no-renames --remerge-diff <every tip> ^<commit> [^<def>] --`, with `env: { ...process.env, GIT_NO_LAZY_FETCH: '1' }`
      and `maxBuffer: 64 * 1024 * 1024`. When it fails, run it again without `--remerge-diff`; when that fails, the
      id is dropped. Never a UsageError (ledger Ruling).
   4. Parse into `{ sha, parents, files }`. Before writing the parser, run the command once in the test's
@@ -206,16 +209,20 @@ Interface, `packages/cli/src/load/fs.ts`:
 - `startOf(snapshot, id)`: the start commit (Definitions) read from `snapshot.tickets[id]?.frontmatter?.verified_commit`,
   else `snapshot.verifications[id]?.frontmatter?.commit` (both through `Object.hasOwn`), each kept only when it
   passes `isSha`.
+- `claimTips(root, id, ref, claimBranches)`: `[ref]`, plus `refs/heads/<claimBranches[id]>` when that differs from
+  `ref` and `git rev-parse --verify -q` resolves it (spawned as `gitDefaultRef`'s `resolves` does, `fs.ts:578`).
+  `gitClaims` prefers the pushed ref (`fs.ts:193`), so without the local branch a fix committed on the ticket branch
+  and not yet pushed would be missed and the ticket would read `done` in the main checkout.
 - `loadParts`: when any ticket of `first` has a start commit, read `currentBranch(root)` and `own` through
-  `ticketOfBranch`. `wanted` holds `own` with `{ commit: startOf(first, own), tip: 'HEAD' }` when `own` has a start
-  commit, and every other `[id, ref]` of `claimRefs` whose ticket has a start commit in `first`, with
-  `{ commit, tip: ref }`. This is what `accord anchor <id>` and `accord next` read, since they load in `stage` mode
+  `ticketOfBranch`. `wanted` holds `own` with `{ commit: startOf(first, own), tips: ['HEAD'] }` when `own` has a
+  start commit, and every other `[id, ref]` of `claimRefs` whose ticket has a start commit in `first`, with
+  `{ commit, tips: claimTips(root, id, ref, claimBranches) }`. This is what `accord anchor <id>` and `accord next` read, since they load in `stage` mode
   (`run.ts:238,253`) without the claim view. One `gitAfterVerify(root, wanted)`; the input gains `afterVerify` only
   when the result has a key.
 - `loadClaimView`: for each candidate (`:473`), take its start commit from the overlaid records: load
   `loadSnapshot({ files: { [ticket path]: text, [verification path]: text }, tree: [] })` from the two overlaid
-  texts that are present and apply `startOf`. One `gitAfterVerify` call with `{ commit, tip: ref }` for every
-  candidate that has one. `view.afterVerify` is the checkout's entries with every candidate id removed, plus these,
+  texts that are present and apply `startOf`. One `gitAfterVerify` call with
+  `{ commit, tips: claimTips(root, id, ref, checkout.claimBranches ?? {}) }` for every candidate that has one. `view.afterVerify` is the checkout's entries with every candidate id removed, plus these,
   left out when empty. `checkout` is unchanged.
 
 Must not change: every existing loader, `load.test.ts` and golden case (none has a ticket branch with a start
@@ -346,7 +353,7 @@ agent body stays within 60 lines (`agents.test.ts:101`). No `accord lint` rule i
 
 ## Task 6: A failure found after verify goes to accord-debug, and its fix gets its own review round
 covers: @ac-1, @ac-3, D-01, D-02, D-03, D-07
-files: packages/core/skills/shared/failure.md (new), packages/core/skills/accord/SKILL.md, packages/core/skills/debug/SKILL.md, packages/core/skills/review/SKILL.md, packages/core/agents/debugger.md, packages/core/src/generated/skills.ts, packages/core/src/generated/agents.ts, .claude/skills/accord/SKILL.md, .claude/skills/accord/failure.md (new), .claude/skills/accord-debug/SKILL.md, .claude/skills/accord-debug/failure.md (new), .claude/skills/accord-review/SKILL.md, .claude/agents/accord-debugger.md, packages/core/test/stage-skills.test.ts
+files: packages/core/skills/shared/failure.md (new), packages/core/skills/accord/SKILL.md, packages/core/skills/debug/SKILL.md, packages/core/skills/review/SKILL.md, packages/core/agents/debugger.md, packages/core/agents/executor.md, packages/core/src/generated/skills.ts, packages/core/src/generated/agents.ts, .claude/skills/accord/SKILL.md, .claude/skills/accord/failure.md (new), .claude/skills/accord-debug/SKILL.md, .claude/skills/accord-debug/failure.md (new), .claude/skills/accord-review/SKILL.md, .claude/agents/accord-debugger.md, .claude/agents/accord-executor.md, packages/core/test/stage-skills.test.ts
 verify: packages/core/test/stage-skills.test.ts#ac-1-a-failure-reported-after-verify-goes-to-the-debug-stage-before-any-fix (@ac-1), packages/core/test/stage-skills.test.ts#risk:complex-branching-the-fix-review-after-verify-reads-only-the-changes-after-the-review-base-and-counts-its-own-five-rounds
 
 Consumes: the `Review base:` anchor line (Task 1) and the review package (Task 3). Produces: `failure.md`, which
@@ -371,8 +378,13 @@ that collapses whitespace:
   - `dbg` = flat `.claude/skills/accord-debug/SKILL.md`: contains `For a failure found after verify, read `./failure.md`.`,
     `or the report alone when it gives neither` and `run `accord anchor` again and go to the stage it prints now`,
     and does not contain `The stage it prints is the one this returns to`.
+  - `a` also contains `the failing check's log as the failing output` and
+    `say the reproduction test is skipped on this operating system`.
   - The rendered `.claude/agents/accord-debugger.md` from `agentTargets(config)`, flat, contains
-    `find the failing command and its output yourself` and `` `gh run view <run-id> --log-failed` ``.
+    `find the failing command and its output yourself`, `` `gh run view <run-id> --log-failed` `` and
+    `is reproduced by its CI log`.
+  - The rendered `.claude/agents/accord-executor.md` from `agentTargets(config)`, flat, contains
+    `the CI log the brief gives is its failing output`.
 - `it('risk:complex-branching the fix review after verify reads only the changes after the review base and counts its own five rounds')`:
   `rv` = flat `.claude/skills/accord-review/SKILL.md`. `step2 = rv.slice(rv.indexOf('2. **Package.**'), rv.indexOf('3. **Reviewers.**'))`
   contains `` `Review base: <sha>` `` and `` `accord review-package <id> --base <sha>` ``;
@@ -411,7 +423,10 @@ Text, each code span on one line:
      `gh run view <run-id> --log-failed`.
   3. A failure only another operating system shows (a CI check, or a test
      skipped here): its red is the CI log, and its green is that check
-     passing at the next verify. After the fix, go on to the stage
+     passing at the next verify. Give the debugger, and the executor in
+     its brief, the failing check's log as the failing output, and say
+     the reproduction test is skipped on this operating system. After
+     the fix, go on to the stage
      `accord anchor` prints without `## Resolved`. The episode stays open
      across that verify and keeps its count of failed fixes: the check
      passing there resolves it, the check failing there counts one failed
@@ -434,22 +449,31 @@ Text, each code span on one line:
   "At most five rounds." becomes "At most five rounds, after verify counted from the first round after it."
 - `packages/core/agents/debugger.md`, the input bullet: "the failing command with its output" becomes "the failing
   command with its output, or a failure report that gives neither: then find the failing command and its output
-  yourself, for a failed CI check with `gh run view <run-id> --log-failed`".
+  yourself, for a failed CI check with `gh run view <run-id> --log-failed`". In step 1, "Read the error completely
+  and reproduce it." becomes "Read the error completely and reproduce it; a failure that only another operating
+  system shows is reproduced by its CI log."
+- `packages/core/agents/executor.md`, the failing-test bullet (line 13, as Task 5 leaves it): after "Show it
+  failing, then write the code and show it passing." insert "When the brief says the reproduction test is skipped
+  on this operating system, the CI log the brief gives is its failing output, and the run that skips it here is
+  its passing output." The rest of the bullet stays.
 - Regenerate as the preamble says, then measure the three rendered SKILL.md files.
 
 Must not change: every phrase `REQUIRED` and the existing accord, review and debug cases in `stage-skills.test.ts`
 assert (`First run the session check in `./worktree.md`.` stays a substring; `its step 3 for the task that entered
-debug` and `five` stay); `agents.test.ts`'s debugger phrases; the accord skill's first command stays
+debug` and `five` stay); `agents.test.ts`'s debugger and executor phrases, Task 5's executor bullet and its ac-5
+test, and each agent body within 60 lines; the accord skill's first command stays
 `accord dashboard` (`failure.md` is not a SKILL.md, and the new line names no command); no rendered text names a
 runtime product or a `packages/` path.
 
 ## Task 7: Verify runs the pull request's CI beside its own checks and reports skipped tests; the spec says so
 covers: @ac-2, @ac-4, D-01, D-06, D-07, D-08, D-09
-files: packages/core/skills/verify/SKILL.md, packages/core/skills/verify/ci.md (new), packages/core/src/generated/skills.ts, .claude/skills/accord-verify/SKILL.md, .claude/skills/accord-verify/ci.md (new), .claude/skills/accord-verify/failure.md (new), packages/core/test/stage-skills.test.ts, docs/specs/2026-10-12-workflow-layer-design.md
+files: packages/core/skills/verify/SKILL.md, packages/core/skills/verify/ci.md (new), packages/core/skills/accord/SKILL.md, packages/core/src/generated/skills.ts, .claude/skills/accord/SKILL.md, .claude/skills/accord-verify/SKILL.md, .claude/skills/accord-verify/ci.md (new), .claude/skills/accord-verify/failure.md (new), packages/core/test/stage-skills.test.ts, docs/specs/2026-10-12-workflow-layer-design.md
 verify: packages/core/test/stage-skills.test.ts#ac-2-verify-starts-ci-before-the-suite-and-shows-the-owners-report-only-after-every-check-finished (@ac-2), packages/core/test/stage-skills.test.ts#risk:regression-the-owners-report-lists-every-test-the-verify-run-skipped-by-name-with-its-operating-system
 
 Consumes: `accord tests skipped` (Task 4, already registered, so the command check in `skill-commands.test.ts`
-passes) and `shared/failure.md` (Task 6). The rendered verify SKILL.md is about 3830 bytes; this adds about 500.
+passes) and `shared/failure.md` (Task 6). Byte budget: the rendered verify SKILL.md is about 3830 bytes and this
+adds about 560, ending near 4390; the rendered accord SKILL.md, about 5095 after Task 6, loses about 125, ending
+near 4970. Both must end at most 5120; `ci.md` is a reference file, not under the cap.
 
 Tests first, in `packages/core/test/stage-skills.test.ts`, top-level, with the same `flat` helper:
 - `it('ac-2 verify starts ci before the suite and shows the owners report only after every check finished')`:
@@ -470,9 +494,15 @@ Tests first, in `packages/core/test/stage-skills.test.ts`, top-level, with the s
     of `gh run list` are each greater than -1 and in that order. `wait` contains
     `` `gh run view <run-id> --json jobs` ``, `each job is one check`, `the failed checks' names` and
     `` append `## Resolved` ``.
+    `wait` also contains `was not seen passing on the other operating system`.
     `fin = ci.slice(ci.indexOf('## Finish'))` has `fin.indexOf('`accord lint`')` > -1, less than
     `fin.indexOf('`gh pr ready`')`, and contains `` `accord gate done <t>` for every ticket file ``,
-    `` `origin/master` `` and `` `accord gate done <id>` alone ``.
+    `` `origin/master` ``, `` `accord gate done <id>` alone ``,
+    `the owner's decision: ticked with CI not checked`, `` `git status --porcelain --branch` ``,
+    `shows the branch ahead` and `` `gh pr view --json isDraft --jq .isDraft` ``; and
+    `fin.indexOf('## Resolved')` is greater than -1 and less than `fin.indexOf('`accord lint`')`.
+  - `acc` = flat `.claude/skills/accord/SKILL.md` contains `` `done` → `accord-verify` at step 6. `` and does not
+    contain `on the ticket file or its`.
   - `.claude/skills/accord-verify/failure.md` exists in `files` and is non-empty.
 - `it('risk:regression the owners report lists every test the verify run skipped by name with its operating system')`:
   in `s2`, `s2.indexOf('run `accord tests skipped`')` is greater than `s2.indexOf('run the `tests.full` command')`;
@@ -489,7 +519,13 @@ Text:
     and the "what was not checked" bullet becomes "- what was not checked, including every criterion the verifier
     recorded as `blocked`, every check CI did not check, and every test `accord tests skipped` printed, by name,
     with the operating system it names;".
-  - Step 6 gains, at its end, "Then finish CI as `./ci.md` says."
+  - Step 6 gains, at its end, "When both files are already committed, commit nothing. Then finish CI as
+    `./ci.md` says."
+- `packages/core/skills/accord/SKILL.md`, Continue step 4: "`done` → `accord-verify` at step 6 when
+  `git status --porcelain` on the ticket file or its `verification.md` prints anything, otherwise say the ticket
+  is done and offer the dashboard." becomes "`done` → `accord-verify` at step 6." Verify step 6 then commits what
+  is left, ci.md Finish pushes what is unpushed and marks a draft ready, and verify step 7 offers the dashboard,
+  so a session that stopped between the tick commit and Finish is finished on Continue. Nothing else changes.
 - `packages/core/skills/verify/ci.md` (new), exactly:
 
   ```
@@ -523,6 +559,10 @@ Text:
 
   ## Wait: step 4, before the report
 
+  - When `accord/tickets/<id>/debug.md` has an open episode (its last
+    `## ` heading is not `## Resolved`) and Wait is skipped or ends with
+    its checks not checked, the report's not-checked line says "the fix
+    for episode <n> was not seen passing on the other operating system".
   - When Start was skipped, skip Wait; the report gives Start's reason.
   - When `.github/workflows/` holds no workflow file other than
     `accord.yml`: CI not checked, "no workflow other than accord's"; skip
@@ -558,15 +598,22 @@ Text:
 
   ## Finish: step 6, after the tick is committed
 
-  1. Run `accord lint`. `<def>` is the first of `origin/HEAD`,
+  1. When `debug.md` still has an open episode, append `## Resolved`
+     with one line, "the owner's decision: ticked with CI not checked",
+     and commit `debug.md` alone.
+  2. Run `accord lint`. `<def>` is the first of `origin/HEAD`,
      `origin/main` and `origin/master` that `git rev-parse --verify -q`
      resolves. Run `accord gate done <t>` for every ticket file
      `git diff --name-only --diff-filter=d <def>...HEAD` lists as
      `accord/tickets/<t>.md`; when none resolves, run
      `accord gate done <id>` alone. Any failure: show it and stop; nothing
      is pushed.
-  2. When Start pushed, run `git push`, then `gh pr ready`. Do not wait for
-     CI again.
+  3. Run `git status --porcelain --branch`. When it names an upstream on
+     `origin` and `origin` is a GitHub remote: when it shows the branch
+     ahead, run `git push`; then, unless
+     `gh pr view --json isDraft --jq .isDraft` prints `false`, run
+     `gh pr ready`. Do not wait for CI again. This step also finishes a
+     session that stopped after the tick commit.
   ```
 - `docs/specs/2026-10-12-workflow-layer-design.md`:
   - §6, after the bullet ending "never re-runs completed tasks." add: "- After verify, any commit on the ticket's
@@ -585,7 +632,8 @@ Text:
     request ready without waiting again. The report names every test `accord tests skipped` lists, with the
     operating system. An assertion that runs only on some operating systems sits in its own test, skipped through
     the test runner's own skip."
-- Regenerate as the preamble says, then measure the rendered verify SKILL.md.
+- Regenerate as the preamble says, then measure the rendered verify and accord SKILL.md files.
 
-Must not change: every `REQUIRED.verify` phrase; steps 3 and 5 of verify; verify's first command stays
+Must not change: every `REQUIRED.verify` and `REQUIRED.accord` phrase (`` `done` → `accord-verify` at step 6 `` stays);
+Task 6's accord skill lines and its ac-1 test; the rest of the accord skill's Continue; steps 3 and 5 of verify; verify's first command stays
 `accord anchor`; no rendered text names a runtime product or a `packages/` path.

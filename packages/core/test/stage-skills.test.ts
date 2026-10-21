@@ -429,3 +429,23 @@ it('risk:regression the owners yes steps still ask for an explicit yes and commi
   }
   expect(bad).toEqual([]);
 });
+
+it('risk:regression the verify skill merges the remote main after the review commit and before the full suite', () => {
+  const get = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
+  const text = get('.claude/skills/accord-verify/SKILL.md');
+  const ref = get('.claude/skills/accord/worktree.md');
+  const slice = (s: string, a: string, b: string) => s.slice(s.indexOf(a), s.indexOf(b));
+  const step = slice(text, '2. **Merge and suite.**', '3. **Verifier.**');
+  expect(step.length).toBeGreaterThan(0);
+  const c = step.indexOf('commit everything');
+  const m = step.indexOf('`accord worktree merge <id>`');
+  const t = step.indexOf('`tests.full`');
+  expect(c).toBeGreaterThan(-1);
+  expect(m).toBeGreaterThan(c);
+  expect(t).toBeGreaterThan(m);
+  for (const p of ['exits 2', 'stop', 'never a rebase', '`fetch from origin failed`', 'that commit is the one verified'])
+    expect(step).toContain(p);
+  expect(text.indexOf('`accord worktree merge <id>`')).toBeLessThan(text.indexOf('accord-verifier'));
+  for (const p of ['A line starting `fetch from origin failed`', 'A line starting `behind:`', 'Never merge here'])
+    expect(ref).toContain(p);
+});

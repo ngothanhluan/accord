@@ -14,10 +14,17 @@ judges, the owner decides.
 
 1. Run `accord anchor`.
 
-2. **Suite.** First commit everything, `review.md` included, so the
-   working tree is clean: that commit is the one verified. Run the
-   `tests.full` command from `accord/config.yml` at it, so the report
-   `tests.report` names is fresh.
+2. **Merge and suite.** First commit everything, `review.md` included, so
+   the working tree is clean. Then run
+   `accord worktree merge <id>`. It fetches, and when the ticket branch
+   lacks commits of the remote's default branch it merges them with a
+   merge commit, never a rebase. Show a line starting
+   `fetch from origin failed` verbatim and go on. When it exits 2 (a
+   conflict it aborted, a failed merge, or a refusal), show the message
+   and stop. The owner resolves a conflict, or you do when the owner says
+   so, and then this stage starts again. Then run the `tests.full`
+   command from `accord/config.yml` at the commit now checked out, so the
+   report `tests.report` names is fresh: that commit is the one verified.
 
 3. **Verifier.** Dispatch `accord-verifier` in a fresh context with the
    path of `accord/tickets/<id>.md`. It writes

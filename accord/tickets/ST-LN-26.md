@@ -70,7 +70,7 @@ Feature: ST-LN-26
     And after a fix of a failure found after verify, the stage is review until a review round of the changes made after C is recorded in review.md, then verify
     And after a merge from the main branch that holds no other change, the stage is verify
 
-  @ac-4
+  @ac-4 @test:packages/cli/test/lane-commands.test.ts#ac-4-tests-skipped-prints-every-case-the-report-records-as-skipped-with-the-operating-system
   Scenario: The owner's report names the tests the verify run skipped
     Given the full test run during verify had tests that the test runner reports as skipped
     When the owner's report is shown

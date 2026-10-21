@@ -9,5 +9,10 @@
 6. Nice — Task 1's "Must not change" names every case in packages/core/test/schemas.test.ts while its Interface edits the key list at :146 — deferred
 
 ## Round 2 (diff)
-1. Should — Task 2 changes onlyOwnRecords (D-08) but docs/design.md:199 and docs/specs/2026-10-12-workflow-layer-design.md:428 still say only the ticket's own file and folder count, and its files: line names neither, so a reader sees the engine break its spec and may revert the fix — open
+1. Should — Task 2 changes onlyOwnRecords (D-08) but docs/design.md:199 and docs/specs/2026-10-12-workflow-layer-design.md:428 still say only the ticket's own file and folder count, and its files: line names neither, so a reader sees the engine break its spec and may revert the fix — fixed
 2. Nice — Task 2's test bullet says "the existing case the existing own-records case at line 434" — deferred
+
+## Round 3 (diff)
+No findings
+
+## Closed

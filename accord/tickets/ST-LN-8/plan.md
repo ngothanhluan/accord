@@ -1,6 +1,6 @@
 ---
 baseline: 6ead1b6a5e34315768ab998a450701e2283a766b
-plan_hash: "fnv1a64:740220841e19bd1f"
+plan_hash: "fnv1a64:64f1563e621fd649"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -9,7 +9,7 @@ preamble, the ticket and its ledger.
 Order: Task 1 is the wiring. It adds the D-07 forbidden-line rule in core, the `commits.trailers` key, the one
 `git log` loader in the CLI, and the `accord task-done` refusal, so a repository that sets `commits.trailers:
 forbid` refuses a trailer end to end. Task 2 adds the same check to `accord gate done` as a core rule and lets
-a later change to `accord/product/conventions.md` count as one of the ticket's own records (D-08). Task 3
+a subsequent change to `accord/product/conventions.md` count as one of the ticket's own records (D-08). Task 3
 scaffolds `accord/product/conventions.md` and appends it to every brief. Task 4 is the executor, planner and
 ruleset text. Task 5 is the promotion step in the verify skill. Task 6, the polish, is the build skill's route
 for a task-done refusal over a forbidden line (D-09).
@@ -190,7 +190,7 @@ messages and its order are unchanged); every other loader in `load/fs.ts`; `load
 
 ## Task 2: gate done refuses a ticket branch holding a forbidden line when the repository forbids trailers
 covers: @ac-4, D-02, D-08
-files: packages/core/src/gate/done.ts, packages/core/src/gate/rules.ts, packages/core/src/model/snapshot.ts, packages/core/test/gate.test.ts, packages/cli/src/commands/gate.ts, packages/cli/test/gate.test.ts
+files: packages/core/src/gate/done.ts, packages/core/src/gate/rules.ts, packages/core/src/model/snapshot.ts, packages/core/test/gate.test.ts, packages/cli/src/commands/gate.ts, packages/cli/test/gate.test.ts, docs/design.md, docs/specs/2026-10-12-workflow-layer-design.md
 verify: packages/cli/test/gate.test.ts#ac-4-gate-done-refuses-a-ticket-branch-holding-any-forbidden-line-when-the-repository-forbids-trailers (@ac-4), packages/core/test/gate.test.ts#risk:security-gate-done-under-forbid-fails-closed-when-the-host-loaded-no-commits, packages/core/test/gate.test.ts#risk:complex-branching-a-subsequent-commit-touching-only-its-own-records-and-the-conventions-file-passes-both-commit-rules
 
 Consumes: `forbiddenLines`, `trailerReason` and `AccordConfig.commits` from Task 1, and `gitBranchCommits`
@@ -270,6 +270,16 @@ Interface:
   `p === 'accord/product/conventions.md'`, beside the ticket's own file and folder, and its doc comment says a
   subsequent commit that changed only the ticket's own records or `accord/product/conventions.md` (ST-LN-8 D-08) is
   the same reviewed code. Nothing else in `tickStaleCommit` or `staleReview` changes.
+- The two documents that state the commit match name the new path. In each, the sentence says every file
+  changed since the recorded commit is the ticket's own record, followed by the parenthetical
+  ``(`accord/tickets/<id>.md` or a file under `accord/tickets/<id>/`)``. Directly after that closing parenthesis,
+  insert exactly `` or `accord/product/conventions.md` (ST-LN-8 D-08)``, a leading space included:
+  - `docs/design.md:199`, the **Done gate.** paragraph: the sentence that begins `Its commit match also accepts`;
+    the text after the insertion, `, so committing the records does not make them stale.`, stays as it is.
+  - `docs/specs/2026-10-12-workflow-layer-design.md:426-430`, the paragraph that begins `The commit match`: the
+    parenthetical sits on line 428; the period after it and the sentence that begins `A commit cannot hold its
+    own sha` stay as they are. Keep the paragraph's line wrapping near its current width.
+  No other text in either document changes.
 - `packages/core/src/gate/rules.ts`: import `commitTrailer` and add
   `{ id: 'gate.commit-trailer', level: 'error', profiles: ['build', 'maintain'], check: commitTrailer }` to
   `DONE_RULES` right after `gate.stale-review`.

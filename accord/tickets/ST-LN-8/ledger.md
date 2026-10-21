@@ -21,6 +21,7 @@
 - Ruling: the D-08 and D-09 tests carry `risk:complex-branching` — they guard which branch a path or a refusal takes, and no criterion names them — a reviewer may prefer another kind, which only renames the tests
 - Ruling: this repository's conventions.md holds one rule line covering Co-Authored-By, every other `-by:` line and "Generated with" — round 1.2 asks for at least that, and more goes beyond the ticket — none
 - Ruling: the main session's config commit is the single line `config: ST-LN-8 turn on the commit trailer check for this repository` with no body — it must not carry a forbidden line itself — none
+- Ruling: the docs name conventions.md after the ticket's-own-record parenthetical, not inside it — conventions.md is not a record of the ticket — one wording change in two docs
 
 ## Deferred
 - plan round 1.5: Task 3 carries literal byte order mark characters; spell each one as a JavaScript escape so the BOM cases survive a filter — deferred

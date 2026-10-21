@@ -39,6 +39,10 @@
 - Ruling: when two compliance reads give lines with the same merge key, the earlier line is kept — it was read while more transcripts existed — a round-cap line keeps the earlier round number, for example 6 where a later read shows 7; the breach is still listed
 - Ruling: task 1 wraps the top-level legacy code in legacyReport without re-indenting it — smallest diff, and the legacy output stays byte-identical — a style nit only; lint passes
 - Ruling: task 1's main() treats every `--` flag as unknown (usage, exit 2) until later tasks add --compliance, --round and --clean — the brief names only unknown flags as exit 2 — none, later tasks extend main
+- Ruling: task 2's fixtures were extracted through Read and Grep only, after the auto-mode classifier denied a script over the transcripts and the owner added `Read(~/.claude/projects/C--Work-accord/**)`; each fixture keeps only the lines the rules read (first assistant line, Edit/Write, commit Bash and result, handback cut to its first lines, Agent dispatch, task-done and its refusal) with their real usage — hand-copying about 530 other lines adds nothing the rules read — a later rule that reads other lines, such as a Read result, finds none in these fixtures
+- Ruling: task 2's first executor committed 0f340d8 before any test; the owner chose a test-first redo, so e567d8d reverts it and c383193 rebuilds it after the failing test — the owner ranks quality over speed — none
+- Ruling: the ST-LN-7 task 1 fixture run also gives a test-first line (its only Edit is proc.ts); the test checks only the task 4 line — test edits made through Bash are not seen, so whether it is a true breach is unknown — a false test-first line in the real report
+- Ruling: `user.name="Luan Ngo"` stays in one fixture's commit command — it is the public author name on every commit — none
 
 ## Deferred
 - plan-review 1.15: the approach says `--plan` rewrites only the brief's working-tree header lines; Task 5 rewrites the root everywhere outside the ticket
@@ -57,3 +61,4 @@
 
 ## Tasks
 - task 1 done cfd797751f01
+- task 2 done c3831935a521

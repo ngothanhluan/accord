@@ -72,7 +72,7 @@ Feature: ST-LN-14
     And it names every sample where the higher effort did better than the current effort: a finding role reported a Must the current run missed, or the judge found fewer Must findings in an executor's or planner's result
     And no agent definition under .claude/agents or packages/core changes
 
-  @ac-4
+  @ac-4 @test:packages/core/test/benchmark-compliance.test.ts#ac-4-the-compliance-check-finds-the-four-known-breaches
   Scenario: The compliance check finds the four known breaches
     Given the transcripts and git history of BUG-LN-3 and ST-LN-7
     When the benchmark script runs its general compliance rules, which name no ticket, task or commit

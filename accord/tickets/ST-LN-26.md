@@ -50,7 +50,7 @@ Feature: ST-LN-26
     And the debugger finds the failing command and its output itself when the report does not give them
     And the session itself neither judges the cause nor dispatches a fix outside the debug stage
 
-  @ac-2
+  @ac-2 @test:packages/core/test/stage-skills.test.ts#ac-2-verify-starts-ci-before-the-suite-and-shows-the-owners-report-only-after-every-check-finished
   Scenario: Verify runs the pull request's CI alongside its own checks and reports it before the owner's tick
     Given X's repository has a GitHub remote and gh is logged in and can reach the repository's pull requests
     When verify for ticket X starts

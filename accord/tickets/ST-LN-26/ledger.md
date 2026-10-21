@@ -41,6 +41,7 @@
 - Ruling: task 5 accepts `.claude/agents/accord-final-reviewer.md` outside its `files:` line — `accord skills sync` renders it from reviewer.md, so the rule line reaches it (plan review 1.12 named the gap) — cost if wrong: none found.
 - Ruling: task 6 accepts `packages/core/skills/debug/SKILL.md` loading `accord/ids.md` and `accord/worktree.md`, which adds `.claude/skills/accord-debug/worktree.md` and `ids.md` outside its `files:` line — `failure.md`, copied into accord-debug, names `./worktree.md`, which names `./ids.md`, and skills.test.ts "every relative reference resolves" requires them; they are reference files under no byte cap — executor, task 6 — cost if wrong: two more rendered copies to keep in sync.
 - Ruling: accord-review step 2 reads "When `accord anchor` prints `Review base: <sha>`, run `accord review-package <id> --base <sha>` instead.", step 3 drops "; the approach is the ticket's `## Approach`" and step 4 reads "De-duplicate the findings, then mark each one" — the plan's wording left the rendered SKILL.md at 5200 bytes, over the 5120 cap; now accord 5095, accord-debug 4867, accord-review 5106 — executor, task 6 — cost if wrong: a reviewer is not told where the approach is, though the ticket is passed in full.
+- Ruling: task 7 accepts the verify skill loading `accord/ids.md` and `accord/worktree.md`, which adds `.claude/skills/accord-verify/worktree.md` and `ids.md` outside its `files:` line — the relative-reference invariant in skills.test.ts needs them next to `failure.md`, as in accord-debug — executor, task 7 — cost if wrong: two extra reference copies in the verify folder, no effect on the byte cap (accord 4941, accord-verify 4080).
 
 ## Deferred
 
@@ -55,3 +56,4 @@
 - task 4 done 98d6c5cff2b0
 - task 5 done 40a6ebcca3c1
 - task 6 done 1fd23492038b
+- task 7 done 8979a9544643

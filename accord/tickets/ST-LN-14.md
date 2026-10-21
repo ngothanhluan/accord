@@ -42,7 +42,7 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: ST-LN-14
 
-  @ac-1
+  @ac-1 @test:packages/core/test/benchmark-round.test.ts#ac-1-every-agent-sample-runs-at-its-current-effort-and-one-step-either-side-and-each-differing-turn-is-flagged
   Scenario: Every agent's samples run at its current effort and one step either side
     Given 9 accord agents, every one but the debugger, each with 5 past samples
     And at least two of the executor's 5 samples are plain tasks and at least two are tasks whose verify line names a risk:<kind>

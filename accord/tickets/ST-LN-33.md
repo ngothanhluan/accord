@@ -44,7 +44,7 @@ Feature: ST-LN-33
     Given the files `accord skills sync` writes for a config that enables every runtime, in every target directory, each read with every line break and the spaces or tabs around it as one space
     When a reader opens each stage's ask.md
     Then it holds the literal texts "every text written for the owner", "in any language", "at most 25 words", "separated by spaces", "one idea", "active voice", "one word for one concept", and "no idioms"
-    And every line that is not blank in the ask.md it rendered before this ticket is still in it, word for word and in the same order
+    And every line that is not blank, other than the generated marker line, in the ask.md it rendered before this ticket is still in it, word for word and in the same order
 
   @ac-2
   Scenario: the session rules carry the sentence limit
@@ -55,9 +55,9 @@ Feature: ST-LN-33
 
   @ac-3
   Scenario: the benchmark counts only the owner-facing sentences of a main session
-    Given a main-session transcript whose assistant text blocks hold a sentence of 25 words, a sentence of 26 words, a list line without a full stop, a fenced code block of 40 words on one line, a table line of 30 words whose first character that is not a space is "|", and a sentence of 10 words that holds a "|" after its first word, and whose user messages, thinking blocks, and tool calls each hold a sentence of 30 words
+    Given a main-session transcript whose assistant text blocks hold a sentence of 25 words, a sentence of 26 words, a list line without a full stop, a fenced code block of 40 words on one line, a table line of 30 words whose first character that is not a space is "|", a sentence of 10 words that holds a "|" after its first word, and a pasted approval view, from a line "## Intent" to the next line "---", that holds a sentence of 40 words, and whose user messages, thinking blocks, and tool calls each hold a sentence of 30 words
     When the benchmark's sentence counter reads it
-    Then it counts the four sentences from the assistant text outside the fence and the table line, and no sentence from the fence, the table, the user messages, the thinking blocks, or the tool calls
+    Then it counts the four sentences from the assistant text outside the fence, the table line, and the approval view, and no sentence from the fence, the table, the approval view, the user messages, the thinking blocks, or the tool calls
     And it ends a sentence at a ".", "?", or "!" followed by a space or a line end, and at every line end
     And a word is a run of characters without spaces that holds at least one letter or digit, so "—", "|", "-", and "**" are not words
     And it marks the 26-word sentence as long and does not mark the 25-word sentence
@@ -66,7 +66,7 @@ Feature: ST-LN-33
   Scenario: the benchmark report shows the sentence lengths of each main session
     Given a transcript folder that holds two main sessions, each recorded on its own branch, and one subagent run
     When `node scripts/benchmark.mjs` runs in the repository with that folder as its one argument
-    Then the report holds a section "## Sentence length in owner-facing text" with one row per main session, holding its start date as the UTC date of its first transcript record, its branch, its sentence count, the count and percent of sentences longer than 25 words, and the word count of its longest sentence
+    Then the report holds a section "## Sentence length in owner-facing text" with one row per main session, holding its start date as the UTC date of its first transcript record that carries a timestamp, its branch, its sentence count, the count and percent of sentences longer than 25 words, and the word count of its longest sentence
     And under that table it quotes the three longest sentences across those sessions, each with its word count
     And outside the quoted sentences, that section holds neither "pass" nor "fail" as a whole word
 ```
@@ -83,6 +83,7 @@ Feature: ST-LN-33
 - D-04 Sentence length is counted as space-separated tokens, with one limit of 25 for every chat language; this settles "about 20 words" in D-01 — "A"
 - D-05 The smallest done: the rule in ask.md plus one short line in the session rules, and a benchmark that reports per session the share of sentences longer than 25 with the longest as examples, with no pass or fail threshold — "A"
 - D-06 Verify holds a human test: the same request is run once without the new rule and once with it, and the owner compares the two side by side before approving — "nghĩa là chạy một bản khi chưa apply rule mới, và một bản rule mới. đối chiếu so sánh."
+- D-07 After the approach critique, @ac-1 skips the generated marker line, @ac-3 skips a pasted approval view from "## Intent" to the next "---", and @ac-4 dates a session by its first record that carries a timestamp — "A"
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
@@ -94,3 +95,11 @@ Feature: ST-LN-33
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
+Chosen: the rule as one paragraph appended to shared/ask.md, rule 8 in templates/ruleset.md ("8. Write text for the owner in sentences of at most 25 words, as ask.md says.", 2029 bytes filled), and the pointer line in all 8 stage SKILL.md files widened from "before any question to the owner" to any question or report to the owner, so the rule is read before the verify report, the yes lines, and open findings too (D-03).
+Counter: new scripts/sentences.mjs, side-effect free like scripts/plan-review.mjs; scripts/benchmark.mjs imports it, also reads the top-level <session>.jsonl main transcripts, and prints the new section with the existing row() helper.
+Rejected: the same without the 8 pointer edits — ask.md is then read only before a question, so the report and yes lines get only rule 8 (breaks D-03).
+Affected: packages/core/skills/shared/ask.md, the 8 stage SKILL.md, templates/ruleset.md, src/generated/{skills,templates}.ts (npm run gen), rendered .claude/.agents skills (build, then skills sync), scripts/benchmark.mjs, scripts/sentences.mjs.
+D-06 at verify: a read-only request (for example "explain where ticket X stands") typed in a fresh session on main and in one on the ticket branch; then the branch's benchmark run with both transcript folders as arguments; the owner reads both side by side. It reaches verify through `accord anchor` (Decisions) and the top Ruling in the ledger.
+Risks (critic, all kept and handled): Must — D-06 was not wired to anything verify reads (fixed above); Must — @ac-1 could not pass with the marker line (D-07); Should — a new request would create real tickets in the comparison (read-only request); Should — benchmark with no argument misses the main folder (both folders passed); Should — real transcripts open with records without a timestamp (D-07); Should — pasted approval views skew the score (D-07); Should — Vietnamese letters need the Unicode letter class; Should — rule 8 must name the owner so executors do not apply it to code or Gherkin; Nice — the @ac-2 test reads the cli package's name and version, which the hook injects.
+Also: a folder with zero subagent runs makes benchmark throw today (Math.min of nothing); main-session reading makes that case real, so the report guards it.
+Tests: @ac-1 in packages/core/test/stage-skills.test.ts (every-runtime render, old lines frozen as literals in the test); @ac-2 in packages/core/test/session.test.ts; @ac-3 unit test of sentences.mjs and @ac-4 spawn test of benchmark.mjs on a temp folder (process.execPath, cwd the repository), both in packages/core/test.

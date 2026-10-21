@@ -38,6 +38,7 @@
 - Ruling: review-package falls back to today's package when the `rev-list` count that decides the exclusion fails — a failed count should not make review-package fail — executor, task 3 — cost if wrong: a fix's review package includes merged-in main work until the git error is fixed.
 - Ruling: hook.test.ts "the prompt expansion hook blocks every accord text…" timed out at 33s once in task 3's affected run (5.4s alone, and the rerun of the same 413 tests passed); counted as load on this machine, not a regression — cost if wrong: task 2's extra git process per claimed ticket makes the prompt-expansion hook slow enough to time out, and the review or verify suite shows it again.
 - Ruling: `accord tests skipped` copies its three refusals from `testsBaseline` rather than sharing them, so the "baseline is read from the report" wording also appears in its error — the brief says the same words — executor, task 4 — cost if wrong: one message edit in two places, and a skipped-tests error that mentions the baseline.
+- Ruling: task 5 accepts `.claude/agents/accord-final-reviewer.md` outside its `files:` line — `accord skills sync` renders it from reviewer.md, so the rule line reaches it (plan review 1.12 named the gap) — cost if wrong: none found.
 
 ## Deferred
 
@@ -50,3 +51,4 @@
 - task 2 done a3a1dcdc5b53
 - task 3 done e2fca8aeba2a
 - task 4 done 98d6c5cff2b0
+- task 5 done 40a6ebcca3c1

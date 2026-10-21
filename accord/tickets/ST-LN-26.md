@@ -76,7 +76,7 @@ Feature: ST-LN-26
     When the owner's report is shown
     Then it lists every one of them by name under what was not checked, with the operating system the run was on
 
-  @ac-5
+  @ac-5 @test:packages/core/test/stage-skills.test.ts#ac-5-an-assertion-that-runs-only-on-some-operating-systems-sits-in-a-test-the-runner-skips
   Scenario: An assertion that runs only on some operating systems sits in a test the runner skips
     Given an assertion that should run only on some operating systems
     When an executor writes it or a reviewer reviews a change that holds it

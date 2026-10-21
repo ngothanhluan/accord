@@ -53,9 +53,10 @@
 - Plan review 1.12 (Nice): Task 3's `(new)` marks a file Task 2 creates (the gate needs it relative to the baseline); Task 5's `files:` leaves out `.claude/agents/accord-final-reviewer.md`, rendered from reviewer.md; Task 1's `isDone` import path (`../src/status/stage.js`) is not named.
 - Plan review 3.4 (Nice): ci.md Finish step 3 does not say what to do when gh fails after the push (not logged in, no pull request); proposed line: "When gh fails, show its message; the report already said CI was not checked."
 - Plan review 5.3 (Nice): a session opened in the worktree that takes `/accord <id> <report>` never runs `accord worktree open <id> --continue`, so it skips the setup re-run and the Claude Code hold; proposed: run it first in `failure.md` step 2 when this session has not.
-- Review round 1 Nice 3: `accord tests skipped` with no `tests.report` prints "…; the baseline is read from the report" (packages/cli/src/commands/tests-skipped.ts:12), naming a baseline this command never reads; one word to change.
-- Review round 1 Nice 4: two prose-pin tests in packages/core/test/stage-skills.test.ts (:508, :563) carry `risk:complex-branching` and `risk:regression` while they only pin skill text; relabel them as text pins or fold them into the ac-1 and ac-2 pins.
-- Review round 1 Nice 5: `loadClaimView` (packages/cli/src/load/fs.ts:2299-2305) builds a whole snapshot per claimed candidate only to read its start sha; parsing the frontmatter directly would be smaller.
+- Review round 1 Nice 4: `accord tests skipped` with no `tests.report` prints "…; the baseline is read from the report" (packages/cli/src/commands/tests-skipped.ts:12), naming a baseline this command never reads; one word to change.
+- Review round 1 Nice 5: two prose-pin tests in packages/core/test/stage-skills.test.ts (:508, :563) carry `risk:complex-branching` and `risk:regression` while they only pin skill text; relabel them as text pins or fold them into the ac-1 and ac-2 pins.
+- Review round 1 Nice 6: `loadClaimView` (packages/cli/src/load/fs.ts:2299-2305) builds a whole snapshot per claimed candidate only to read its start sha; parsing the frontmatter directly would be smaller.
+- Review round 3 Nice 1: `claimTips` (packages/cli/src/load/fs.ts:166, :196) now runs for every own or claimed ticket before its start commit is known, one more `git rev-parse` per such claimed ticket on each status, anchor, next and hook load; compute the tips only when `startOf` or the `review.md` fallback needs them.
 
 ## Tasks
 - task 1 done 825ca98550c1

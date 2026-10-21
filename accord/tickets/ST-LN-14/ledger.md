@@ -43,6 +43,8 @@
 - Ruling: task 2's first executor committed 0f340d8 before any test; the owner chose a test-first redo, so e567d8d reverts it and c383193 rebuilds it after the failing test — the owner ranks quality over speed — none
 - Ruling: the ST-LN-7 task 1 fixture run also gives a test-first line (its only Edit is proc.ts); the test checks only the task 4 line — test edits made through Bash are not seen, so whether it is a true breach is unknown — a false test-first line in the real report
 - Ruling: `user.name="Luan Ngo"` stays in one fixture's commit command — it is the public author name on every commit — none
+- Ruling: task 3's reassigned and brief-quote lines are reported unfiltered, as the plan says; the first real read (2026-10-22, 13 folders) gives 91 brief-quote lines, likely noisy (scratchpad brief copies, a ticket edited before dispatch) — the round 1 report could carry false positives — review samples of them before the report is trusted
+- Ruling: task 3's real read found that complianceSettings kept the quotes of `model: "sonnet"`, missing BUG-LN-3 round 4; 49e0cfd strips them and the stale compliance.md was deleted before the read was run again — an earlier read's lines win in a merge — none
 
 ## Deferred
 - plan-review 1.15: the approach says `--plan` rewrites only the brief's working-tree header lines; Task 5 rewrites the root everywhere outside the ticket
@@ -62,3 +64,4 @@
 ## Tasks
 - task 1 done cfd797751f01
 - task 2 done c3831935a521
+- task 3 done 49e0cfd2fd0f

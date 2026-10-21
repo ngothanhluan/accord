@@ -82,7 +82,7 @@ Feature: ST-LN-14
     And it lists ST-LN-7 Task 2's accord task-done refusal, found in the transcript, over a verify test placed inside a describe
     And each line names the ticket, the task, and the transcript file or commit it was found in
 
-  @ac-5
+  @ac-5 @test:packages/core/test/benchmark-compliance.test.ts#ac-5-the-compliance-check-scores-every-run-against-the-other-rules
   Scenario: The compliance check scores every run against the other rules
     Given every accord agent run in the transcripts, every commit on main or a t/* branch, and every commit an executor run made according to its transcript
     When the benchmark script runs

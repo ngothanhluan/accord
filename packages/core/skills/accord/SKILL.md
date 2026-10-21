@@ -98,4 +98,4 @@ plausible reading; more than about three files expected.
 - Anything touching intent, a veto, an acceptance criterion, or a public
   interface stops the run and asks the owner. Every other decision on a
   ticket is a Ruling in `accord/tickets/<id>/ledger.md` under `## Rulings`.
-  Read `./ask.md` before any question to the owner.
+  Read `./ask.md` before any question or report to the owner.

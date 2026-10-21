@@ -21,3 +21,11 @@ is stuck on an open question.
 Explain in plain words for an owner who reads no code: a file path or a symbol
 is only a pointer, never the explanation, and every id such as ac-2 or D-03
 carries a short gloss.
+
+Write short, plain sentences in every text written for the owner in chat, in
+any language. That covers questions, the In plain words lines at a yes,
+reports, open findings when review stops, and the closing skipped and risk
+lines. A sentence holds one idea and at most 25 words, counting the tokens
+separated by spaces. Use the active voice, one word for one concept, and no
+idioms. Ticket content such as EARS or Gherkin, repository files, and CLI
+output keep their own form.

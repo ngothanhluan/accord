@@ -28,10 +28,10 @@ ui: false
 
 ## Intent
 <!-- At most five lines: why, for whom, how success is measured, and what this does not do. -->
-Queued 2026-10-21, not approved; the intent interview replaces this:
-- Raised during ST-LN-30. Owner: "sao tôi thấy o có ticket nào lane S làm từ mấy hôm nay vậy? ngay cả ticket nay tôi nghĩ cũng là lane S thôi. sao bạn lại xếp vào lane M? lý do?", then "còn mở một ticket đánh giá lại cách sắp xếp lane đi."
-- Today: lane S has no ticket (`packages/core/skills/accord/SKILL.md`, New request, S: done in the main session with one reviewer), and the ticket template's `lane:` allows only M, L, P, so anything queued for later becomes lane M by construction. Any one of five conditions lifts S to M (SKILL.md:70), and "new user-visible behaviour" or "more than about three files" catches most changes to the CLI, whose skill text is rendered into several copies. A lane only rises (SKILL.md:93), so a queued M ticket whose scope narrows at intent cannot drop to S. ST-LN-30 is the example: its fetch part alone is close to lane S; its Continue notice is not.
-- To settle at intent: whether the lift conditions are too broad, and which; whether a queued ticket's lane is provisional until its intent is approved and may drop then; whether lane S gets a queued form (overlap with ST-LN-29, queue an idea mid-session); whether lane S work is recorded anywhere the benchmark can count; overlap with ST-LN-28 (lane L and P structure).
+Why: all 44 tickets so far are lane M: lane S has no ticket form, so anything queued becomes lane M; its lift conditions ("new user-visible behaviour", "more than about three files" counting generated copies) catch almost any change; and a queued ticket can never drop. Raised during ST-LN-30: "ngay cả ticket nay tôi nghĩ cũng là lane S thôi. sao bạn lại xếp vào lane M? lý do?"
+For whom: anyone sorting work into a lane in an accord repository, alone or on a team.
+Success: a small change goes through lane S on a lane S ticket in its own worktree, with the affected tests, one independent reviewer and a pull request; the D-02 samples sort as stated; a queued lane M ticket that fits lane S drops to S at intent on the owner's yes.
+Not this ticket: lane L and P (ST-LN-28); queuing an idea mid-session (ST-LN-29); measuring the main session's own tokens in the benchmark (D-06).
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.
@@ -40,10 +40,46 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 Feature: ST-LN-31
 
   @ac-1
-  Scenario: <observable outcome>
-    Given ...
-    When ...
-    Then ...
+  Scenario: A request is lifted from lane S to M only by the four conditions left
+    Given the /accord skill sorts a New request into a lane
+    When it reads the conditions that lift lane S to lane M
+    Then they are these four and no other: a public interface or schema changes; auth, money or data deletion is touched; more than one plausible reading; more than about five hand-written files expected, generated and rendered copies not counted
+    And "new user-visible behaviour" is not among them
+
+  @ac-2
+  Scenario: A lane S ticket is written and passes gate ready without acceptance criteria
+    Given an accord repository
+    When "accord new ticket <id> --lane S" runs
+    Then it writes accord/tickets/<id>.md with lane "S", a title, an empty "## Understood" section and an empty "## Done when" section, and no acceptance criteria, plan or verify section
+    And "accord lint" reports no error on it, with its sections empty or filled
+    And "accord gate ready <id>" passes once both sections are filled, with no "accord approve" needed
+    And while a section is empty, "accord gate ready <id>" fails naming each empty section, where a section holding only HTML comments is empty
+
+  @ac-3
+  Scenario: The dashboard lists a lane S ticket like any other ticket
+    Given a queued lane S ticket and a claimed lane S ticket
+    When "accord dashboard" runs
+    Then the queued one is listed among the tickets to pick up and the claimed one among those in progress
+    And every ticket row has a lane column, which reads "S" for both of them
+
+  @ac-4
+  Scenario: Every lane S change is worked from its own lane S ticket
+    Given a New request the /accord skill sorts into lane S, or "/accord pick-up <id>" on a lane S ticket
+    When the session starts the work
+    Then a New request first runs "accord new ticket --lane S --worktree", and Pick up runs "accord worktree open <id>", and the work happens in that ticket's worktree, never in the main checkout
+    And the session fills "## Understood" and "## Done when" and "accord gate ready <id>" passes before any change
+    And the work is the change made by the session itself; the "tests.affected" command runs over the changed files, and a bug gets a reproducing test written before the fix
+    And review runs in rounds, each a fresh accord-reviewer on the diff, until no Must finding is open, with no final reviewer and at most five rounds, after which the session stops and reports the open findings to the owner
+    And it ends in a pull request, with no intent interview, approval, approach, plan, executor or verify
+
+  @ac-5
+  Scenario: A queued lane M ticket that fits lane S drops to S at intent, and never after
+    Given a lane M ticket whose intent is not yet approved, and the interview shows it fits lane S
+    When the session proposes the drop and the owner says yes
+    Then the lane M ticket gets status dropped, its "## Dropped" section saying "moved to lane S", its lane field unchanged
+    And the work continues on a new lane S ticket with a new id, made by "accord new ticket --lane S --worktree" in its own worktree
+    And without the owner's yes the session never drops it
+    And "accord lint" reports an error on a ticket that has approved_hash and is dropped with the reason "moved to lane S"
 ```
 
 ## Vetoes
@@ -51,6 +87,14 @@ Feature: ST-LN-31
 
 ## Decisions
 <!-- Settled answers, one per line: - D-01 <decision> — "<the owner's sentence>" -->
+- D-01 Four parts in scope: the lift conditions, a queued ticket's lane dropping at intent, a queued form for lane S, recording lane S work for the benchmark; overlap with ST-LN-28 (lane L and P) is out of scope — "ok"
+- D-02 Lift conditions: drop "new user-visible behaviour"; keep public interface or schema change, auth/money/data deletion, more than one plausible reading; "more than about three files" becomes more than about five hand-written files, generated and rendered copies not counted. Lane S keeps the affected tests, one independent reviewer on the diff, and a reproducing test first for a bug. Samples: ST-LN-9, BUG-LN-5, VID-1, ST-LN-21, and ST-LN-30's fetch part alone sort to S; REFS-1 and ST-LN-32 sort to M — "tôi thấy những ticket sếp vào S là thay đổi nhanh nhỏ, ko đổi logic nhiều. ko break nhiều chỗ. đổi tầm 3-5 files.", then "A"
+- D-03 A queued ticket's lane is provisional until its intent is approved: during the interview, when it fits lane S, the main session proposes the drop and drops only on the owner's yes; the ticket is dropped with the reason "moved to lane S" and the work follows lane S; after intent approval a lane never drops — "A"
+- D-04 Lane S gets a ticket form: schema, template and `accord new ticket --lane S` accept S; a lane S ticket holds a title, an Understood line and a Done when line, no acceptance criteria, plan or verify; Pick up runs the lane S procedure (change, affected tests, one reviewer, pull request); the dashboard lists it like any ticket — "A"
+- D-05 Every lane S change has a lane S ticket, also one done at once: a lane S New request runs `accord new ticket --lane S --worktree` like lane M and is worked in that worktree, so it is recorded, shown on the dashboard, counted by the benchmark by its id, and never edits the main checkout — "A"
+- D-06 All four parts ship in this ticket; the benchmark counts lane S work by ticket id as it does today and is not changed; the main session's own tokens on lane S work are not measured — "A"
+- D-07 Audit readings: the lift list names four conditions and leaves "new user-visible behaviour" out; lint reports no error on a lane S ticket, empty or filled; gate ready names each empty section; affected tests are the existing tests the change touches, plus a reproducing test first for a bug; a drop sets the lane M ticket to dropped and a new lane S ticket with a new id is made; a lane S ticket needs no `accord approve`; lane S review runs rounds, a fresh reviewer each, until no Must is open, with no final reviewer; lint refuses a drop to lane S on a ticket that has approved_hash — "ok"
+- D-08 Second audit readings: a section holding only HTML comments is empty; the title is checked as for lane M today; the dashboard gets a lane column on every ticket row; a lane S ticket passes gate ready before any change; affected tests are the `tests.affected` command over the changed files; lane S review keeps the five-round cap, stops and reports at it, with no model tier-up as it has no executor; Pick up on a lane S ticket runs `accord worktree open`; the drop reason is the `## Dropped` section, the lane S ticket gets its own worktree, and the dropped one is cleaned by `accord worktree clean` — "làm tiếp đi"
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->

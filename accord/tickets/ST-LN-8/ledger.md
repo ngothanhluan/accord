@@ -5,6 +5,7 @@
 - task 2 done 23a2cd412108
 - task 3 done a8da3641406d
 - task 4 done 1b7fd5ceb97c
+- task 5 done f710ac340ed4
 
 ## Rulings
 - Ruling: the ac-1 and ac-5 tests check that the rendered text states each rule, by its key phrases (`classname`, `#`, `accord task-done`, `accord/`, `conventions.md`), not word for word — wording may be improved later without breaking the test — a test too loose to catch a dropped rule

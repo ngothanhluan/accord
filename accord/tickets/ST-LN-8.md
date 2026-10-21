@@ -81,7 +81,7 @@ Feature: ST-LN-8
     And a commit reached only through the second parent of a merge on the ticket branch is not checked
     And when the check is on and none of origin/HEAD, origin/main and origin/master exists, it exits 2 and says to run `git fetch origin`
 
-  @ac-5
+  @ac-5 @test:packages/core/test/stage-skills.test.ts#ac-5-the-verify-skill-offers-to-promote-a-ruling-or-correction-into-the-conventions
   Scenario: Verify offers to promote a Ruling or Correction into the conventions
     Given `accord skills sync` has rendered the accord-verify skill
     When its steps are read

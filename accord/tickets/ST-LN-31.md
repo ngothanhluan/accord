@@ -24,6 +24,7 @@ ui: false
 # The AC hash and the commit the ticks were made against.
 # verified_hash:
 # verified_commit:
+approved_hash: "fnv1a64:40dfe300005b0eed"
 ---
 
 ## Intent
@@ -98,7 +99,7 @@ Feature: ST-LN-31
 - D-09 A lane S ticket lifted to lane M keeps its id, branch and worktree: its `lane: S` becomes `lane: M`, the lane M sections are added, its lane S review.md is removed, and it starts at the intent interview; a lint rule stops a lane M ticket whose review.md was left from lane S — "tôi nghĩ là B"
 - D-10 A queued lane M ticket that another live ticket names in `depends_on` is not proposed for the drop to lane S: the session says why and the ticket stays lane M — "1A"
 - D-11 Lane S code committed before a lift to lane M stays on the branch; the lifted ticket's review baseline is the fork point from origin's default branch, so the lane M review reads the lane S code too, and plan asks the owner about the product code already changed — "2B"
-- D-12 When lane S review reaches the five-round cap with a Must open, the owner may accept: the session records `verdict: accepted-by-owner "<the owner's words>"` in review.md, as lane M does, and the ticket can pass `gate done` — "3A"
+- D-12 When lane S review reaches the five-round cap with a Must open, the owner may accept: the session records `verdict: accepted-by-owner` followed by the owner's words in quotes in review.md, as lane M does, and the ticket can pass `gate done` — "3A"
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->

@@ -96,6 +96,9 @@ Feature: ST-LN-31
 - D-07 Audit readings: the lift list names four conditions and leaves "new user-visible behaviour" out; lint reports no error on a lane S ticket, empty or filled; gate ready names each empty section; affected tests are the existing tests the change touches, plus a reproducing test first for a bug; a drop sets the lane M ticket to dropped and a new lane S ticket with a new id is made; a lane S ticket needs no `accord approve`; lane S review runs rounds, a fresh reviewer each, until no Must is open, with no final reviewer; lint refuses a drop to lane S on a ticket that has approved_hash — "ok"
 - D-08 Second audit readings: a section holding only HTML comments is empty; the title is checked as for lane M today; the dashboard gets a lane column on every ticket row; a lane S ticket passes gate ready before any change; affected tests are the `tests.affected` command over the changed files; lane S review keeps the five-round cap, stops and reports at it, with no model tier-up as it has no executor; Pick up on a lane S ticket runs `accord worktree open`; the drop reason is the `## Dropped` section, the lane S ticket gets its own worktree, and the dropped one is cleaned by `accord worktree clean` — "làm tiếp đi"
 - D-09 A lane S ticket lifted to lane M keeps its id, branch and worktree: its `lane: S` becomes `lane: M`, the lane M sections are added, its lane S review.md is removed, and it starts at the intent interview; a lint rule stops a lane M ticket whose review.md was left from lane S — "tôi nghĩ là B"
+- D-10 A queued lane M ticket that another live ticket names in `depends_on` is not proposed for the drop to lane S: the session says why and the ticket stays lane M — "1A"
+- D-11 Lane S code committed before a lift to lane M stays on the branch; the lifted ticket's review baseline is the fork point from origin's default branch, so the lane M review reads the lane S code too, and plan asks the owner about the product code already changed — "2B"
+- D-12 When lane S review reaches the five-round cap with a Must open, the owner may accept: the session records `verdict: accepted-by-owner "<the owner's words>"` in review.md, as lane M does, and the ticket can pass `gate done` — "3A"
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
@@ -106,3 +109,29 @@ Feature: ST-LN-31
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
+Chosen: lane S in the lane layer, with its own procedure, Ready record and Done table; a lift to lane M happens in place. `gate ready` on lane S names each empty section, needs no approval, and writes `ac_hash` as the hash of `## Understood` and `## Done when`, so lane S shows in READY and `accord next` like any ticket (D-04). `gate done` on lane S uses its own table: sections filled and unchanged since Ready, review.md committed and clean, its last verdict converged or accepted-by-owner with nothing after it, and no commit after the review, or in the review's own commit, outside the ticket's records. There are no plan, verify, suite or approval rules, so CI's `gate done` passes a reviewed lane S pull request.
+How it works: one procedure file, `skills/accord/lane-s.md`, serves New request, Pick up and Continue. The anchor prints `Lane: S`, a lane S next step naming that file, and Understood, Done when and Corrections. `accord approve` refuses a lane S ticket.
+Drop at intent (D-03, D-10): the drop is offered only when no ticket in `accord status --json` lists it in `depends_on` and its branch holds only its own records. The session pushes `t/<id>`, runs ST-LN-34's `accord drop <id> --reason "moved to lane S"`, and prints a one-line `/accord` request with Understood and Done when for a new session in the main checkout.
+Lift (D-09, D-11): a lane S ticket lifted to M keeps its id and branch. Its review baseline is the fork point from origin's default branch, so the lane M review also reads the lane S code.
+Rejected: without the Ready record, lane S would never show in READY or `accord next`, and an edit after Ready would go unseen. Refusing `brief` and `task-done` on lane S, and a lane S panel detail, are not needed by any criterion.
+Affected areas:
+- the schema, the lane type unions and `new ticket --lane S`, plus a new lane S template;
+- lint: `no-scenarios`, the required headings and `LANE_KEYS`, plus two new rules: the D-09 leftover review.md, and an approved ticket dropped as "moved to lane S";
+- `gate/ready`, `gate/done`, `gate/rules` and the hash;
+- status stage, `nextStep`, rows and the anchor;
+- the lane column on the dashboard and the panel;
+- `review-package` (base: origin's default ref), and `lint/tests` (lane S does not opt a repository into the test policy);
+- skills `accord/SKILL.md`, `lane-s.md`, `ids.md`, `intent/SKILL.md` and `shared/failure.md`, and the agent `reviewer.md`.
+Risks:
+- The drop flow is ST-LN-34's `accord drop`, still unbuilt, so this build waits for it.
+- The rule "never drop after approval" is checked by lint through `approved_hash`, which `accord approve` writes at approach. Between the intent yes and approve, only the skill text stops a drop.
+- `GateResult.acHash` carries a section hash for lane S. A lifted ticket's ready reads `stale` until its lane M Ready.
+- Lane S `gate done` adds a few git calls.
+Tests:
+- ac-1 and ac-4: core skill-text tests.
+- ac-2 and ac-3: cli runCli tests (`new ticket`, `lint`, `gate ready`, `dashboard`).
+- ac-5: one core test, on the skill text and lint.
+- Risk tests:
+  - the lane S anchor and stage;
+  - the D-09 lint rule;
+  - lane S `gate done`, which passes, then fails after a hand-made commit, with a dirty or uncommitted review.md, with lines after the verdict, and with Understood edited after Ready.

@@ -464,3 +464,51 @@ it('ac-5 an assertion that runs only on some operating systems sits in a test th
   expect(seen).toBeGreaterThanOrEqual(3);
   expect(offenders).toEqual([]);
 });
+
+it('ac-1 a failure reported after verify goes to the debug stage before any fix', () => {
+  const flat = (t: string) => t.replace(/\s+/g, ' ');
+  const get = (p: string) => flat(files.find((f) => f.path === p)?.text ?? '');
+  const text = get('.claude/skills/accord/SKILL.md');
+  const i = text.indexOf('A failure reported in a ticket that has reached verify follows `./failure.md`.');
+  expect(i).toBeGreaterThan(-1);
+  expect(i).toBeLessThan(text.indexOf('## Dashboard'));
+  const a = get('.claude/skills/accord/failure.md');
+  const d = get('.claude/skills/accord-debug/failure.md');
+  expect(a.length).toBeGreaterThan(0);
+  expect(d).toBe(a);
+  for (const p of [
+    'has reached verify', '`accord anchor` prints `verify` or `done`',
+    'a `verified_commit:` or an `accord/tickets/<id>/verification.md`', 'its pull request is not merged',
+    'with or without the failing command and its output', 'Never judge the cause yourself',
+    'never dispatch a fix outside `accord-debug`', 'load `accord-debug` for that ticket',
+    'the debugger finds them itself', '`gh run view <run-id> --log-failed`', 'keeps its count of failed fixes',
+    'a new bug ticket', "the failing check's log as the failing output",
+    'say the reproduction test is skipped on this operating system',
+    "first run `accord worktree open <id> --continue` and follow the accord skill's `./worktree.md`, then Continue's step 2 only",
+    'ask the owner to type, in the session opened there, `/accord <id> ` followed by the report, and stop here',
+    "in place of Continue's steps 3 and 4",
+    '(`done`: `accord-verify` at step 6, whose Finish closes the episode)',
+  ]) expect(a, p).toContain(p);
+  expect(a).not.toContain("first run the accord skill's Continue on it");
+  const dbg = get('.claude/skills/accord-debug/SKILL.md');
+  for (const p of ['For a failure found after verify, read `./failure.md`.', 'or the report alone when it gives neither', 'run `accord anchor` again and go to the stage it prints now'])
+    expect(dbg, p).toContain(p);
+  expect(dbg).not.toContain('The stage it prints is the one this returns to');
+  const wt = get('.claude/skills/accord/worktree.md');
+  expect(wt.slice(wt.indexOf('## Session check'))).toContain(
+    'write, create, claim and edit nothing, except a New request that reports a failure in a ticket that has reached verify: follow `./failure.md`.');
+  const agents = agentTargets(config);
+  const dbgr = flat(agents.find((f) => f.path === '.claude/agents/accord-debugger.md')?.text ?? '');
+  for (const p of ['find the failing command and its output yourself', '`gh run view <run-id> --log-failed`', 'is reproduced by its CI log'])
+    expect(dbgr, p).toContain(p);
+  const exec = flat(agents.find((f) => f.path === '.claude/agents/accord-executor.md')?.text ?? '');
+  expect(exec).toContain('the CI log the brief gives is its failing output');
+});
+
+it('risk:complex-branching the fix review after verify reads only the changes after the review base and counts its own five rounds', () => {
+  const rv = (files.find((f) => f.path === '.claude/skills/accord-review/SKILL.md')?.text ?? '').replace(/\s+/g, ' ');
+  const step2 = rv.slice(rv.indexOf('2. **Package.**'), rv.indexOf('3. **Reviewers.**'));
+  expect(step2).toContain('`Review base: <sha>`');
+  expect(step2).toContain('`accord review-package <id> --base <sha>`');
+  expect(rv.slice(rv.indexOf('6. **Cap.**'), rv.indexOf('7. **Final review.**'))).toContain('after verify counted from the first round after it');
+});

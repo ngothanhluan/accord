@@ -41,7 +41,7 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: ST-LN-34
 
-  @ac-1
+  @ac-1 @test:packages/cli/test/drop.test.ts#ac-1-dropping-a-ticket-pushes-a-branch-from-the-default-branch-whose-only-change-is-the-ticket-file-set-to-dropped
   Scenario: Dropping a ticket puts only its ticket file on a branch from main
     Given ticket X is claimed on branch t/X, which holds code commits and the only copy of X's ticket file
     When the owner runs `accord drop X --reason "no longer needed"`
@@ -49,7 +49,7 @@ Feature: ST-LN-34
     And that file has status dropped, a "## Dropped" section reading "no longer needed", and every other section as it is in the tip commit of t/X
     And the command prints the lines "branch: drop/X", "base: main" and "title: drop: X"
 
-  @ac-2
+  @ac-2 @test:packages/cli/test/drop.test.ts#ac-2-dropping-without-a-reason-is-refused-and-nothing-is-created-committed-or-pushed
   Scenario: Dropping without a reason is refused
     Given ticket X's file on t/X has no "## Dropped" section
     When the owner runs `accord drop X` without --reason

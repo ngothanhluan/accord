@@ -28,6 +28,7 @@
 - Ruling: ids.md step 1 writes the push as `git push -u origin <claim branch>` — `<branch>` already means the printed drop branch in the same step — cost if wrong: a placeholder rename.
 - Ruling: the baseline full run at d5586db failed one case, `hook.test.ts > risk:security the prompt expansion hook blocks every accord text but the dashboard and continue of the worked ticket`, a 30 s timeout under full-suite load (passes alone in 8 s; the hook slowdown noted after ST-LN-26). The owner chose to fix it first in its own ticket — "Sửa trước rồi mới build" — so build starts only after that fix is on main, merged into t/ST-LN-34, and a fresh full run is clean — cost if wrong: ST-LN-34 waits one ticket.
 - Ruling: build starts at 84d8623, the merge of origin/main (PR #57, the hook fix) into t/ST-LN-34; the fresh full run there passed, 69 files, 1390 passed, 3 skipped — the condition in the Ruling above is met — cost if wrong: none found.
+- Ruling: task 1's drop.ts already wraps fetch and push failures in a UsageError (first stderr line), though Task 2 was meant to add that — a raw git error would have been a stack trace — cost if wrong: Task 2 may change the wording.
 
 ## Deferred
 
@@ -36,3 +37,6 @@
 - Nice (plan round 1.7): pin `removeWorktree`'s `failed` for partial removal and where `isAncestor` and `firstLine` live.
 - Nice (plan round 2.2): the D-05 worktree lookup in `accord drop` should skip a prunable worktree, or prune first.
 - Nice (plan round 3.1): condition ids.md step 1's close-this-session sentence on the session running in the ticket's worktree.
+
+## Tasks
+- task 1 done 6d8598562879

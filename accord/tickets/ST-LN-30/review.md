@@ -10,4 +10,8 @@ Nice 4 [patch]: `worktreeMerge` checks `remote get-url origin` and `fetchOrigin`
 Should 1 [patch]: on a case-insensitive filesystem the overwrite check refuses a case-only rename on main (`README.md` to `Readme.md`) as an ignored file and every verify is refused again — packages/cli/src/commands/worktree.ts:503-504 — fixed in 8bf23c4
 Nice 2 [patch]: the overwrite refusal calls any untracked file "an ignored file", even one that is not ignored — packages/cli/src/commands/worktree.ts:505-506 — deferred
 
+## Round 3
+
+No findings
+
 verdict: converged

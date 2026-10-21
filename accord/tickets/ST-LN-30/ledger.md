@@ -36,6 +36,7 @@
 - Ruling: only added paths present on disk go to that `ls-files` call, and none means no call, so a main that added hundreds of files cannot overrun Windows' 32 767-character command line; the case uses 500 files with 70-character names under `big/` (found by the main session while recording final review 1, 8bf23c4, tests only, no re-review since the finding was a Should) — cost if wrong: a future temp path near MAX_PATH fails that case at setup, not in product code.
 - Ruling: the first `accord worktree merge ST-LN-30` at verify stopped on a conflict with origin/main (PRs #51 to #57, ST-LN-26's verify and CI steps and #57's hook speed-up among them) in seven files and aborted, as ac-4 says; per D-03 the session resolves it, keeping both sides, through a fresh executor that merges `origin/main` with `--no-ff`, regenerates the generated files, runs the full suite and commits the merge, and then verify starts again — owner: "A" (to the options: A the session resolves it, keeping both sides; B the owner resolves it by hand) — cost if wrong: a side of a conflict is lost, which the full suite and the verifier then catch.
 - Ruling: in the merge 9b36d8f, verify step 2 is named "Merge and suite" and main's `stage-skills` test slice marker moves from '2. **Suite.**' to '2. **Merge and suite.**', its assertions unchanged, since the merge comes first in that step; `npm run check` passed, 1401 tests, 3 skipped (merge executor) — cost if wrong: a later rename of the step also changes that test marker.
+- Ruling: the conflict resolution in the merge 9b36d8f is reviewed as round 3, scoped by `review-package --base 614b86d` (9 files, the same as `git show --remerge-diff`), because ST-LN-26's stage rule, merged from main, takes a merge with resolved conflicts back to review while a clean merge stays at verify; this keeps D-04 for a clean merge and puts the session's own resolution in front of a reviewer — cost if wrong: one extra review round for every verify whose merge needed a resolution.
 
 ## Deferred
 - Nice (plan review 1.3): Task 4's pin test could assert `expect(err).not.toContain('is as it was')`, so a `checkPin` error wrapped as a failed merge is caught.
@@ -44,6 +45,7 @@
 - Nice (review 1.3): the `/** ST-LN-20 D-05 … */` comment now sits above `worktreeMerge`'s comment; move it back to `function pruneStale`.
 - Nice (review 1.4): `worktreeMerge` checks `remote get-url origin` and then `fetchOrigin` checks it again and reloads a snapshot that is discarded — one extra git spawn and snapshot load per verify.
 - Nice (final review 2): `worktreeMerge`'s overwrite refusal calls any untracked file "an ignored file", even one that is not ignored; "an untracked file here" is true in both cases.
+- Nice (review 3): the verify merge-order test checks that the merge comes before `tests.full` and the verifier, but not that "Start CI" comes after the merge.
 
 ## Tasks
 - task 1 done f6072a2a4600

@@ -37,6 +37,8 @@
 - Ruling: Task 12's committed-list test is a `risk:data-loss` test — the list and its snapshots are the only lasting record of the samples once the transcripts expire — one extra test if it is only data
 - Ruling: Task 3's last step deletes an existing `<bench root>/compliance.md` before the first real read — only a run on other folders, such as the fixtures, can have written it then, and merging would carry its lines into the real read — an earlier real read is deleted, but Task 3 reads the same transcripts again before 2026-11-11
 - Ruling: when two compliance reads give lines with the same merge key, the earlier line is kept — it was read while more transcripts existed — a round-cap line keeps the earlier round number, for example 6 where a later read shows 7; the breach is still listed
+- Ruling: task 1 wraps the top-level legacy code in legacyReport without re-indenting it — smallest diff, and the legacy output stays byte-identical — a style nit only; lint passes
+- Ruling: task 1's main() treats every `--` flag as unknown (usage, exit 2) until later tasks add --compliance, --round and --clean — the brief names only unknown flags as exit 2 — none, later tasks extend main
 
 ## Deferred
 - plan-review 1.15: the approach says `--plan` rewrites only the brief's working-tree header lines; Task 5 rewrites the root everywhere outside the ticket
@@ -52,3 +54,6 @@
 - plan-review 4.1: Task 1 lists `end` among a run's fields without defining it; Task 2's commit window needs the run's last timestamp, not `start + ms`
 - plan-review 4.2: Task 11's "Must not change … modes" contradicts its own `live` addition to `--plan` and stop in `--judge` and `--round 1`
 - plan-review 4.3: `parseCompliance` takes only lines starting with `- `, so a `reassigned` line whose summary holds a newline is re-added on every re-read
+
+## Tasks
+- task 1 done cfd797751f01

@@ -288,3 +288,22 @@ it('ac-3 a change after verify takes the ticket back from done until it is verif
   expect(anchorText(at([fix], {}, first), 'T-1')).toContain('Review base: ' + C);
   expect(stage([fix, reviewed], {}, first)).toBe('verify');
 });
+
+it('risk:regression conventions.md counts with the ticket records, so a promoted rule keeps the stage done', () => {
+  const C = 'c'.repeat(40);
+  const base = approved({ 'accord/config.yml': CONFIG, [T1]: laneTicket('T-1') }, 'T-1');
+  const built: Record<string, string> = {
+    ...base,
+    'accord/tickets/T-1/plan.md': PLAN,
+    'accord/tickets/T-1/ledger.md': '## Tasks\n- task 1 done abc1234\n- task 2 done abc1234\n',
+    'accord/tickets/T-1/review.md': 'verdict: converged\n',
+  };
+  const hash = acHash(loadSnapshot({ files: built, tree: [] }).tickets['T-1'].scenarios) as string;
+  const key = (k: string, v: string | string[], s: string) => setFrontmatterKey(s, k, v);
+  const done = { ...built, [T1]: key('verified_commit', C, key('verified_hash', hash, key('verified', ['ac-1', 'ac-2'], built[T1]))) };
+  const stage = (files: string[]) =>
+    statusRows(loadSnapshot({ files: done, tree: [], afterVerify: { 'T-1': [{ sha: 'f'.repeat(40), parents: [C], files }] } }))[0].stage;
+  expect(stage(['accord/product/conventions.md'])).toBe('done');
+  expect(stage(['accord/product/conventions.md', 'accord/tickets/T-1.md'])).toBe('done');
+  expect(stage(['accord/product/conventions.md', 'src/export.ts'])).toBe('review');
+});

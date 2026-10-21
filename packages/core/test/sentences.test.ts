@@ -22,6 +22,7 @@ it('ac-3 the sentence counter counts only the owner-facing sentences of a main s
     '## Intent',
     `${w(40, 'i')}.`,
     '---',
+    'Plain words: ac-1 means this.',
   ].join('\n');
   const records = [
     { type: 'user', message: { content: `${w(30, 'u')}.` } },
@@ -32,8 +33,8 @@ it('ac-3 the sentence counter counts only the owner-facing sentences of a main s
     ),
   ];
   const out = ownerSentences(records);
-  expect(out.map((s) => s.words)).toEqual([25, 26, 3, 4, 5, 6, 10]);
-  expect(out.map((s) => s.long)).toEqual([false, true, false, false, false, false, false]);
+  expect(out.map((s) => s.words)).toEqual([25, 26, 3, 4, 5, 6, 10, 5]);
+  expect(out.map((s) => s.long)).toEqual([false, true, false, false, false, false, false, false]);
 });
 
 it('risk:parsing a Vietnamese sentence counts the words whose letters are outside ASCII', async () => {

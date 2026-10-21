@@ -1,73 +1,71 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<testsuites name="vitest tests" tests="31" failures="0" errors="0" time="23.4275518">
-    <testsuite name="packages/cli/test/drop.test.ts" timestamp="2026-10-21T15:22:00.017Z" hostname="LAPTOP-U73DGLD1" tests="4" failures="0" errors="0" skipped="0" time="17.7181671">
-        <testcase classname="packages/cli/test/drop.test.ts" name="ac-1 dropping a ticket pushes a branch from the default branch whose only change is the ticket file set to dropped" time="3.3874876">
+<testsuites name="vitest tests" tests="33" failures="0" errors="0" time="0.1373285">
+    <testsuite name="packages/core/test/stage-skills.test.ts" timestamp="2026-10-21T16:29:15.363Z" hostname="LAPTOP-U73DGLD1" tests="33" failures="0" errors="0" skipped="0" time="0.1373285">
+        <testcase classname="packages/core/test/stage-skills.test.ts" name="stage skills name what the spec requires &gt; accord names every required phrase" time="0.0015354">
         </testcase>
-        <testcase classname="packages/cli/test/drop.test.ts" name="ac-2 dropping without a reason is refused and nothing is created committed or pushed" time="3.0221955">
+        <testcase classname="packages/core/test/stage-skills.test.ts" name="stage skills name what the spec requires &gt; intent names every required phrase" time="0.0002043">
         </testcase>
-        <testcase classname="packages/cli/test/drop.test.ts" name="risk:data-loss drop pushes a crlf ticket file with a bom byte for byte outside the status value and the dropped section" time="2.5864543">
+        <testcase classname="packages/core/test/stage-skills.test.ts" name="stage skills name what the spec requires &gt; approach names every required phrase" time="0.0001738">
         </testcase>
-        <testcase classname="packages/cli/test/drop.test.ts" name="risk:complex-branching drop reads the claim tip that holds the other refuses diverged tips and falls back to the default branch" time="8.7207687">
+        <testcase classname="packages/core/test/stage-skills.test.ts" name="stage skills name what the spec requires &gt; plan names every required phrase" time="0.0001322">
         </testcase>
-    </testsuite>
-    <testsuite name="packages/cli/test/skill-commands.test.ts" timestamp="2026-10-21T15:22:00.020Z" hostname="LAPTOP-U73DGLD1" tests="8" failures="0" errors="0" skipped="0" time="0.0056015">
-        <testcase classname="packages/cli/test/skill-commands.test.ts" name="the commands a skill may name (SKILL-08, D-110) &gt; reads the real paths off the commander tree the CLI runs" time="0.0018498">
+        <testcase classname="packages/core/test/stage-skills.test.ts" name="stage skills name what the spec requires &gt; build names every required phrase" time="0.0001393">
         </testcase>
-        <testcase classname="packages/cli/test/skill-commands.test.ts" name="the commands a skill may name (SKILL-08, D-110) &gt; treats a namespace with no action of its own as not a command" time="0.000937">
+        <testcase classname="packages/core/test/stage-skills.test.ts" name="stage skills name what the spec requires &gt; review names every required phrase" time="0.0001259">
         </testcase>
-        <testcase classname="packages/cli/test/skill-commands.test.ts" name="the commands a skill may name (SKILL-08, D-110) &gt; roles: [ba, dev, designer] &gt; has files to scan" time="0.0002498">
+        <testcase classname="packages/core/test/stage-skills.test.ts" name="stage skills name what the spec requires &gt; verify names every required phrase" time="0.0001065">
         </testcase>
-        <testcase classname="packages/cli/test/skill-commands.test.ts" name="the commands a skill may name (SKILL-08, D-110) &gt; roles: [ba, dev, designer] &gt; found at least one command mention" time="0.0001359">
+        <testcase classname="packages/core/test/stage-skills.test.ts" name="stage skills name what the spec requires &gt; debug names every required phrase" time="0.0001247">
         </testcase>
-        <testcase classname="packages/cli/test/skill-commands.test.ts" name="the commands a skill may name (SKILL-08, D-110) &gt; roles: [ba, dev, designer] &gt; names no command the CLI does not register" time="0.0002329">
+        <testcase classname="packages/core/test/stage-skills.test.ts" name="ac-4 the plan skill asks the owner before it creates the tests baseline" time="0.0004913">
         </testcase>
-        <testcase classname="packages/cli/test/skill-commands.test.ts" name="the commands a skill may name (SKILL-08, D-110) &gt; roles: [ba, dev] &gt; has files to scan" time="0.0001781">
+        <testcase classname="packages/core/test/stage-skills.test.ts" name="ac-1 the shared ask rule holds the fixed sentence beside every stage skill" time="0.0104204">
         </testcase>
-        <testcase classname="packages/cli/test/skill-commands.test.ts" name="the commands a skill may name (SKILL-08, D-110) &gt; roles: [ba, dev] &gt; found at least one command mention" time="0.0001046">
+        <testcase classname="packages/core/test/stage-skills.test.ts" name="ac-2 the shared ask rule says when to ask multiple choice and when to ask an open question" time="0.0101177">
         </testcase>
-        <testcase classname="packages/cli/test/skill-commands.test.ts" name="the commands a skill may name (SKILL-08, D-110) &gt; roles: [ba, dev] &gt; names no command the CLI does not register" time="0.0002527">
+        <testcase classname="packages/core/test/stage-skills.test.ts" name="ac-3 the shared ask rule asks for plain words and drops the old sentence" time="0.0070081">
         </testcase>
-    </testsuite>
-    <testsuite name="packages/cli/test/spawn-surface.test.ts" timestamp="2026-10-21T15:22:00.022Z" hostname="LAPTOP-U73DGLD1" tests="18" failures="0" errors="0" skipped="0" time="5.6908335">
-        <testcase classname="packages/cli/test/spawn-surface.test.ts" name="spawn surface &gt; has spawn sites to check" time="0.0014296">
+        <testcase classname="packages/core/test/stage-skills.test.ts" name="ac-4 the intent skill takes the kind of question from the shared ask rule" time="0.0078068">
         </testcase>
-        <testcase classname="packages/cli/test/spawn-surface.test.ts" name="risk:security only git gh ps and powershell are spawned by name and one setup site uses the shell" time="0.0057694">
+        <testcase classname="packages/core/test/stage-skills.test.ts" name="ac-2 every stage skill points to the shared ask rule from its intent paragraph" time="0.0085861">
         </testcase>
-        <testcase classname="packages/cli/test/spawn-surface.test.ts" name="risk:git-config every git log and git show passes the flags that keep log.showSignature out of its output" time="0.0044701">
+        <testcase classname="packages/core/test/stage-skills.test.ts" name="ac-1 the intent skill shows intent and the criteria verbatim before the architect" time="0.0070578">
         </testcase>
-        <testcase classname="packages/cli/test/spawn-surface.test.ts" name="printed paths &gt; accord lint prints no backslash on any host (D-51, PITFALLS section 12)" time="0.4160283">
+        <testcase classname="packages/core/test/stage-skills.test.ts" name="ac-2 the approach skill shows approach verbatim instead of a brief" time="0.0068608">
         </testcase>
-        <testcase classname="packages/cli/test/spawn-surface.test.ts" name="printed paths &gt; accord gate ready prints no backslash on any host (D-51, PITFALLS section 12)" time="0.4043459">
+        <testcase classname="packages/core/test/stage-skills.test.ts" name="ac-5 the accord skill takes the claim branch from the CLI in Continue Pick up and New request" time="0.0004377">
         </testcase>
-        <testcase classname="packages/cli/test/spawn-surface.test.ts" name="printed paths &gt; accord gate done prints no backslash on any host (D-51, PITFALLS section 12)" time="0.4870063">
+        <testcase classname="packages/core/test/stage-skills.test.ts" name="ac-4 the accord skill picks up then continues a named ticket and treats any other text as a new request" time="0.000229">
         </testcase>
-        <testcase classname="packages/cli/test/spawn-surface.test.ts" name="printed paths &gt; accord status prints no backslash on any host (D-51, PITFALLS section 12)" time="0.497745">
+        <testcase classname="packages/core/test/stage-skills.test.ts" name="risk:regression the accord skill opens each ticket in its own worktree and cleans only from the bare dashboard" time="0.0006216">
         </testcase>
-        <testcase classname="packages/cli/test/spawn-surface.test.ts" name="printed paths &gt; accord new ticket prints no backslash on any host (D-51, PITFALLS section 12)" time="0.3371632">
+        <testcase classname="packages/core/test/stage-skills.test.ts" name="risk:complex-branching the accord skill pushes then enters the worktree on enter and refuses other work in a ticket session" time="0.0004185">
         </testcase>
-        <testcase classname="packages/cli/test/spawn-surface.test.ts" name="printed paths &gt; accord new ticket (refusal) prints no backslash on any host (D-51, PITFALLS section 12)" time="0.3740762">
+        <testcase classname="packages/core/test/stage-skills.test.ts" name="ac-1 the first plan critique is sized by the plan and a should only round reads the fix diff" time="0.0042596">
         </testcase>
-        <testcase classname="packages/cli/test/spawn-surface.test.ts" name="printed paths &gt; accord skills sync prints no backslash on any host (D-51, PITFALLS section 12)" time="0.3572223">
+        <testcase classname="packages/core/test/stage-skills.test.ts" name="ac-2 a review round with only should findings converges without a re-review" time="0.0003285">
         </testcase>
-        <testcase classname="packages/cli/test/spawn-surface.test.ts" name="printed paths &gt; accord init prints no backslash on any host (D-51, PITFALLS section 12)" time="0.4485706">
+        <testcase classname="packages/core/test/stage-skills.test.ts" name="risk:regression the accord skill takes an id that accord status lists with a branch" time="0.0001754">
         </testcase>
-        <testcase classname="packages/cli/test/spawn-surface.test.ts" name="printed paths &gt; accord gate plan prints no backslash on any host (D-51, PITFALLS section 12)" time="0.3791175">
+        <testcase classname="packages/core/test/stage-skills.test.ts" name="ac-4 the intent and approach skills show the approval view at the owners yes" time="0.0073354">
         </testcase>
-        <testcase classname="packages/cli/test/spawn-surface.test.ts" name="printed paths &gt; accord approve (refusal) prints no backslash on any host (D-51, PITFALLS section 12)" time="0.3160166">
+        <testcase classname="packages/core/test/stage-skills.test.ts" name="risk:regression the owners yes steps still ask for an explicit yes and commit the answer" time="0.0068417">
         </testcase>
-        <testcase classname="packages/cli/test/spawn-surface.test.ts" name="printed paths &gt; accord task-done (refusal) prints no backslash on any host (D-51, PITFALLS section 12)" time="0.2582637">
+        <testcase classname="packages/core/test/stage-skills.test.ts" name="ac-5 an assertion that runs only on some operating systems sits in a test the runner skips" time="0.048208">
         </testcase>
-        <testcase classname="packages/cli/test/spawn-surface.test.ts" name="printed paths &gt; accord brief (refusal) prints no backslash on any host (D-51, PITFALLS section 12)" time="0.3260903">
+        <testcase classname="packages/core/test/stage-skills.test.ts" name="ac-1 a failure reported after verify goes to the debug stage before any fix" time="0.0041089">
         </testcase>
-        <testcase classname="packages/cli/test/spawn-surface.test.ts" name="printed paths &gt; accord review-package (refusal) prints no backslash on any host (D-51, PITFALLS section 12)" time="0.365883">
+        <testcase classname="packages/core/test/stage-skills.test.ts" name="risk:complex-branching the fix review after verify reads only the changes after the review base and counts its own five rounds" time="0.0001691">
         </testcase>
-        <testcase classname="packages/cli/test/spawn-surface.test.ts" name="printed paths &gt; accord tests baseline (refusal) prints no backslash on any host (D-51, PITFALLS section 12)" time="0.343747">
+        <testcase classname="packages/core/test/stage-skills.test.ts" name="ac-2 verify starts ci before the suite and shows the owners report only after every check finished" time="0.0006921">
         </testcase>
-        <testcase classname="packages/cli/test/spawn-surface.test.ts" name="printed paths &gt; accord new ticket --lane prints no backslash on any host (D-51, PITFALLS section 12)" time="0.3642033">
+        <testcase classname="packages/core/test/stage-skills.test.ts" name="risk:regression the owners report lists every test the verify run skipped by name with its operating system" time="0.0001131">
         </testcase>
-    </testsuite>
-    <testsuite name="packages/core/test/dropped.test.ts" timestamp="2026-10-21T15:22:00.026Z" hostname="LAPTOP-U73DGLD1" tests="1" failures="0" errors="0" skipped="0" time="0.0129497">
-        <testcase classname="packages/core/test/dropped.test.ts" name="risk:parsing the dropped writer replaces or places the section and reads a reason already written" time="0.0119808">
+        <testcase classname="packages/core/test/stage-skills.test.ts" name="ac-5 the verify skill offers to promote a ruling or correction into the conventions" time="0.0001818">
+        </testcase>
+        <testcase classname="packages/core/test/stage-skills.test.ts" name="risk:complex-branching the build skill routes a task-done refusal over a forbidden commit line" time="0.000302">
+        </testcase>
+        <testcase classname="packages/core/test/stage-skills.test.ts" name="ac-5 the ids reference drops a ticket with accord drop" time="0.000405">
         </testcase>
     </testsuite>
 </testsuites>

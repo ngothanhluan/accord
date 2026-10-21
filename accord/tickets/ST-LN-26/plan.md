@@ -1,6 +1,6 @@
 ---
 baseline: 1dfe65bb70644e25776735c1f7296c83570c140d
-plan_hash: "fnv1a64:acb9771e17618e7d"
+plan_hash: "fnv1a64:12ef90ec5ef66ef8"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -36,11 +36,15 @@ Definitions shared by every task:
   `gate/done.ts:202-206` applies).
 - The default ref: `gitDefaultRef(root)` (`packages/cli/src/load/fs.ts:574`, origin's), else the first of
   `refs/heads/main` and `refs/heads/master` that resolves (ledger Ruling: "from the main branch").
-- The commits after verify of ticket X: the commits reachable from X's own tip and not from X's `verified_commit`
-  nor from the default ref, oldest first in graph order. X's own tip is `HEAD` when the current branch names X, and
-  X's claim ref otherwise (as `loadClaimView` picks it). A commit is hand-made when it changes a path outside X's
-  own records, or when it is a merge whose own changes git could not show. A merge whose remerge diff shows only
-  X's own records (usually nothing) is a merge from the default branch.
+- X's start commit: X's `verified_commit` when it passes `isSha`, else the `commit:` of
+  `accord/tickets/<X>/verification.md` when that passes `isSha` (the first verify writes `verification.md` before
+  any tick, and leaves it uncommitted until `accord gate done` passes; the loader reads the working tree, so it is
+  seen). A ticket with neither has no start commit and no commits after verify.
+- The commits after verify of ticket X: the commits reachable from X's own tip and not from X's start commit nor
+  from the default ref, oldest first in graph order. X's own tip is `HEAD` when the current branch names X, and
+  X's claim ref (its entry in `claimRefs`, as `gitClaims` returns it) otherwise. A commit is hand-made when it
+  changes a path outside X's own records, or when it is a merge whose own changes git could not show. A merge whose
+  remerge diff shows only X's own records (usually nothing) is a merge from the default branch.
 
 ## Task 1: Wiring: the stage reads the commits after verify and goes back from done to review or verify
 covers: @ac-3, D-03, D-07
@@ -81,15 +85,19 @@ Test first, in `packages/core/test/lane-status.test.ts`, appended at the end:
       `[fix, { sha: G, parents: [F], files: ['src/b.ts'] }]` and the same verification it is `review` with base F.
     - Unbound ticks with a fix (ticket `verified_hash` set to `'fnv1a64:0000000000000000'`) are `review`, not
       `verify`.
+    - The first verify, before any tick (a CI failure or a report found at it): the ticket without `verified`,
+      `verified_hash` and `verified_commit`, plus `accord/tickets/T-1/verification.md` written as above with
+      `commit: "<C>"`. `stage([])` is `verify`; `stage([fix])` is `review`, and its anchor text contains
+      `'Review base: ' + C`; `stage([fix, reviewed])` is `verify`.
 
 Interface:
 - `model/snapshot.ts`: export
   `interface AfterVerifyCommit { sha: string; parents: string[]; files?: string[] }` (full shas, first parent
   first; `files` are the paths the commit changes, for a merge the paths its remerge diff shows, absent for a merge
   whose own changes git could not show). `SnapshotInput` and `RepoSnapshot` gain
-  `afterVerify?: Record<string, AfterVerifyCommit[]>` with the comment "Ticket id -> the commits after its
-  verified_commit on its own tip that the default ref does not hold, oldest first. Present only for a ticket whose
-  verified_commit is not on the default ref." `Review` gains `trailing?: true` ("a non-blank line follows the last
+  `afterVerify?: Record<string, AfterVerifyCommit[]>` with the comment "Ticket id -> the commits after its start
+  commit (verified_commit, else verification.md's commit) on its own tip that the default ref does not hold, oldest
+  first. Present only for a ticket whose start commit is not on the default ref." `Review` gains `trailing?: true` ("a non-blank line follows the last
   verdict line").
 - `load/snapshot.ts`: carry `afterVerify` through as `planFacts` is carried (`load/snapshot.ts:193`), spread so an
   absent field stays absent.
@@ -152,6 +160,11 @@ is removed with `cleanupAll()` in a `finally`. Both tests pass `120_000` as the 
     (`M`). `fact()` shas equal `[T, M]` and `M`'s `files` are `[]` (the local default branch). Then
     `e.git('branch', '-m', 'main', 'trunk')`: the shas now include `Mn`, and `M`'s entry has no `files` key (no
     default ref, every merge counts, ledger Ruling).
+  - First verify, no tick yet: `f = makeClone()`, `switch -c t/ST-9`, write `src/a.ts`, `C = commit(f.root, 'work')`.
+    Write `accord/tickets/ST-9/verification.md` as `packages/cli/test/lane-flow.test.ts:16-36` builds it, with
+    `commit: "<C>"` and `ticket: "ST-9"`, and leave it uncommitted. Write `src/fix.ts`, then
+    `gitRun(f.root, 'add', 'src/fix.ts')`, `gitRun(f.root, 'commit', '-q', '-m', 'fix')`, `F = rev-parse HEAD`.
+    `loadFromFs(f.root).afterVerify?.['ST-9']` equals `[{ sha: F, parents: [C], files: ['src/fix.ts'] }]`.
 - `it('risk:complex-branching status in the main checkout takes a claimed ticket back from done when its branch holds a fix after verify')`:
   - `c = makeClone()`, `c.git('switch', '-c', 't/ST-9')`. `run(['approve', 'ST-9'], c.root)` and
     `run(['gate', 'ready', 'ST-9'], c.root)` each exit 0. Write `accord/tickets/ST-9/plan.md` as `PLAN`,
@@ -164,14 +177,20 @@ is removed with `cleanupAll()` in a `finally`. Both tests pass `120_000` as the 
     After `switch main`, `row()` is `done`.
   - `switch t/ST-9`, write `src/fix.ts`, commit, `push -q`. `run(['anchor'], c.root)` (on the ticket branch)
     contains `Stage: review` and `Review base: ${T}`. After `switch main`, `row()` is `review`.
+  - Still on `main`, `c.git('merge', '-q', '--ff-only', T)` (local only, never pushed: the checkout's copy of ST-9
+    now holds the ticks at `C`, the branch holds the fix). `run(['anchor', 'ST-9'], c.root)`, which loads in
+    `stage` mode, exits 0 and its `out` contains `Stage: review` and `Review base: ${T}`. Then
+    `c.git('reset', '-q', '--hard', 'origin/main')`.
   - `switch t/ST-9`, set `review.md` to `'## Round 1\nverdict: converged\n\n## Round 2\n\nNo findings\n\nverdict: converged\n'`,
     commit, `push -q`, `switch main`: `row()` is `verify`.
 
 Interface, `packages/cli/src/load/fs.ts`:
 - `defaultRefOf(root)`: `gitDefaultRef(root)`, else the first of `refs/heads/main`, `refs/heads/master` that
-  `git rev-parse --verify -q` resolves.
+  `git rev-parse --verify -q` resolves (spawned with `stdio: ['ignore', 'pipe', 'pipe']`).
 - `function gitAfterVerify(root: string, wanted: Record<string, { commit: string; tip: string }>): Record<string, AfterVerify>`,
   where `AfterVerify` is `NonNullable<SnapshotInput['afterVerify']>[string]`. With no entry it spawns nothing.
+  Every spawn below passes `stdio: ['ignore', 'pipe', 'pipe']`, as `gitRecordsSince` does (`fs.ts:275`), so git's
+  stderr (`unrecognized argument: --remerge-diff` on old git, `bad revision`) never reaches the user.
   1. `def = defaultRefOf(root)`.
   2. When `def` is defined: one `git rev-list --ignore-missing <every commit> ^<def> --`; an entry whose commit no
      listed sha starts with (lowercased) is on the default ref, or unknown, and is dropped. A failing spawn drops
@@ -184,17 +203,24 @@ Interface, `packages/cli/src/load/fs.ts`:
      repository and parse the byte layout it prints; the test's `files` assertions pin it. A merge (two or more
      parents) keeps `files` only when `--remerge-diff` was used and `def` is defined; otherwise its `files` key is
      left out.
-- `loadParts`: when any ticket's `verified_commit` passes `isSha`, read `currentBranch(root)`; when it names a
-  ticket `own` through `ticketOfBranch` and that ticket's `verified_commit` passes `isSha`, call `gitAfterVerify`
-  with `{ [own]: { commit, tip: 'HEAD' } }`. The input gains `afterVerify` only when the result has a key.
-- `loadClaimView`: for each candidate (`:473`) whose overlaid ticket file has a `verified_commit` that passes
-  `isSha` (read with `loadSnapshot({ files: { [path]: text }, tree: [] }).tickets[id]?.frontmatter?.verified_commit`),
-  call `gitAfterVerify` once with `{ commit, tip: ref }` for each. `view.afterVerify` is the checkout's entries plus
-  these, left out when empty. `checkout` is unchanged.
+- `startOf(snapshot, id)`: the start commit (Definitions) read from `snapshot.tickets[id]?.frontmatter?.verified_commit`,
+  else `snapshot.verifications[id]?.frontmatter?.commit` (both through `Object.hasOwn`), each kept only when it
+  passes `isSha`.
+- `loadParts`: when any ticket of `first` has a start commit, read `currentBranch(root)` and `own` through
+  `ticketOfBranch`. `wanted` holds `own` with `{ commit: startOf(first, own), tip: 'HEAD' }` when `own` has a start
+  commit, and every other `[id, ref]` of `claimRefs` whose ticket has a start commit in `first`, with
+  `{ commit, tip: ref }`. This is what `accord anchor <id>` and `accord next` read, since they load in `stage` mode
+  (`run.ts:238,253`) without the claim view. One `gitAfterVerify(root, wanted)`; the input gains `afterVerify` only
+  when the result has a key.
+- `loadClaimView`: for each candidate (`:473`), take its start commit from the overlaid records: load
+  `loadSnapshot({ files: { [ticket path]: text, [verification path]: text }, tree: [] })` from the two overlaid
+  texts that are present and apply `startOf`. One `gitAfterVerify` call with `{ commit, tip: ref }` for every
+  candidate that has one. `view.afterVerify` is the checkout's entries with every candidate id removed, plus these,
+  left out when empty. `checkout` is unchanged.
 
-Must not change: every existing loader, `load.test.ts` and golden case (none has a ticket branch with a
-`verified_commit`), the `lane-flow.test.ts` flow (its ticket sits on the repository's default branch, so no tip is
-read), and `gitDefaultRef`'s results. A repository where no ticket has a `verified_commit` spawns no new process.
+Must not change: every existing loader, `load.test.ts` and golden case (none has a ticket branch with a start
+commit), the `lane-flow.test.ts` flow (its ticket sits on the repository's default branch, so no tip is read), and
+`gitDefaultRef`'s results. A repository where no ticket has a start commit spawns no new process.
 
 ## Task 3: The review package of a fix leaves out what a merge from the default branch brought in
 covers: @ac-3, D-03
@@ -242,10 +268,13 @@ Test first, appended at the end of `packages/cli/test/lane-commands.test.ts`, wi
 - `it('ac-4 tests skipped prints every case the report records as skipped with the operating system')`:
   `repo = makeLaneRepo({ [REPORT]: junit({ 'export#writes-csv': 'passed', 'util#b': 'skipped', 'export#escapes-commas': 'skipped' }) })`,
   `commitAll(repo)`, `freshen(repo)`. `run(['tests', 'skipped'], repo)` exits 0 with `out` exactly
-  `` `skipped on ${process.platform}: 2\nexport#escapes-commas\nutil#b\n` ``. Then
+  `` `skipped on ${platform()}: 2\nexport#escapes-commas\nutil#b\n` ``, with `platform` imported from `node:os` (it
+  returns the same value as the property the command prints). Then
   `utimesSync(REPORT_PATH(repo), OLD, OLD)`: exit 2 and `err` contains `run the tests again`. With a report holding
-  no skipped case, freshened: `out` is `` `skipped on ${process.platform}: 0\n` ``. A repository whose config has no
+  no skipped case, freshened: `out` is `` `skipped on ${platform()}: 0\n` ``. A repository whose config has no
   `tests.report` (as the existing baseline case builds it): exit 2, `err` contains `no tests.report`.
+  No line of this test file names the `process` object's `platform` property: Task 5's ac-5 test reports every
+  such line under `packages/cli/test` that is not a runner skip.
 
 Interface:
 - `tests-skipped.ts`: `export function testsSkipped(ctx: CommandContext): number`. The same three refusals, in the
@@ -262,9 +291,17 @@ Must not change: `tests baseline`'s behaviour and every case of it; the other en
 ## Task 5: Assertions that run only on some operating systems sit in tests the runner skips
 covers: @ac-5, D-04, D-05
 files: packages/core/agents/executor.md, packages/core/agents/reviewer.md, packages/core/src/generated/agents.ts, .claude/agents/accord-executor.md, .claude/agents/accord-reviewer.md, packages/cli/test/worktree.test.ts, packages/cli/test/workflow-script.test.ts, packages/cli/test/publish-workflow.test.ts, packages/core/test/stage-skills.test.ts
-verify: packages/core/test/stage-skills.test.ts#ac-5-an-assertion-that-runs-only-on-some-operating-systems-sits-in-a-test-the-runner-skips (@ac-5), packages/cli/test/worktree.test.ts#risk:complex-branching-a-worktree-remove-that-fails-part-way-removes-it-in-part-and-names-what-is-left, packages/cli/test/workflow-script.test.ts#risk:regression-bash-runs-on-a-posix-host-so-the-executed-workflow-script-cases-are-not-skipped-there, packages/cli/test/publish-workflow.test.ts#risk:regression-bash-runs-on-a-posix-host-so-the-executed-version-check-cases-are-not-skipped-there
+verify: packages/core/test/stage-skills.test.ts#ac-5-an-assertion-that-runs-only-on-some-operating-systems-sits-in-a-test-the-runner-skips (@ac-5)
 
 Consumes: nothing from other tasks. Produces: the executor rule and reviewer finding Task 7's spec text names.
+
+The three runner-skip tests below are not on the `verify:` line: on Windows the report records them `skipped`, and
+`taskVerdict` (`packages/core/src/gate/task.ts:30-31`) fails any verify id not recorded `passed`. Their ids are
+`packages/cli/test/worktree.test.ts#risk:complex-branching-a-worktree-remove-that-fails-part-way-removes-it-in-part-and-names-what-is-left`,
+`packages/cli/test/workflow-script.test.ts#risk:regression-bash-runs-on-a-posix-host-so-the-executed-workflow-script-cases-are-not-skipped-there`
+and `packages/cli/test/publish-workflow.test.ts#risk:regression-bash-runs-on-a-posix-host-so-the-executed-version-check-cases-are-not-skipped-there`;
+they are proved passing on the ubuntu leg of the pull request's CI at verify, and on Windows `accord tests skipped`
+names them in the owner's report.
 
 Test first, in `packages/core/test/stage-skills.test.ts`, appended at the end (add `readdirSync`, `readFileSync`
 from `node:fs`, `join` from `node:path` and `fileURLToPath` from `node:url`):
@@ -316,16 +353,17 @@ Consumes: the `Review base:` anchor line (Task 1) and the review package (Task 3
 Task 7's verify skill also loads.
 
 Byte budget, measured on the rendered copies before editing: `.claude/skills/accord/SKILL.md` is about 5106
-bytes, `accord-debug` about 4800, `accord-review` about 4840. The edits below change them by about -17, +67 and
+bytes, `accord-debug` about 4800, `accord-review` about 4840. The edits below change them by about -11, +67 and
 +160 bytes. All three must end at most 5120.
 
 Tests first, in `packages/core/test/stage-skills.test.ts`, top-level, using the file's `files` and a `flat` helper
 that collapses whitespace:
 - `it('ac-1 a failure reported after verify goes to the debug stage before any fix')`:
-  - `text` = flat `.claude/skills/accord/SKILL.md`. `i = text.indexOf('A failure reported in a ticket at verify or done follows `./failure.md`.')`
+  - `text` = flat `.claude/skills/accord/SKILL.md`. `i = text.indexOf('A failure reported in a ticket that has reached verify follows `./failure.md`.')`
     is greater than -1 and less than `text.indexOf('## Dashboard')`.
   - `a` = flat `.claude/skills/accord/failure.md` and `d` = flat `.claude/skills/accord-debug/failure.md`: both
-    non-empty and equal. `a` contains: `its pull request is not merged`,
+    non-empty and equal. `a` contains: `has reached verify`, `` `accord anchor` prints `verify` or `done` ``,
+    `` a `verified_commit:` or an `accord/tickets/<id>/verification.md` ``, `its pull request is not merged`,
     `with or without the failing command and its output`, `Never judge the cause yourself`,
     `never dispatch a fix outside `accord-debug``, `load `accord-debug` for that ticket`,
     `the debugger finds them itself`, `` `gh run view <run-id> --log-failed` ``, `keeps its count of failed fixes`
@@ -351,9 +389,12 @@ Text, each code span on one line:
 
   # A failure found after verify
 
-  A failure is found after verify when ticket <id> is at `verify` or `done`
-  (`accord anchor` prints the stage), its pull request is not merged
-  (`gh pr view <branch> --json state` does not print `MERGED`), and either
+  A failure is found after verify when ticket <id> has reached verify
+  (`accord anchor` prints `verify` or `done`, or the ticket has
+  a `verified_commit:` or an `accord/tickets/<id>/verification.md`, so a
+  ticket back at `review` for an earlier fix counts), its pull request is
+  not merged (`gh pr view <branch> --json state` does not print `MERGED`),
+  and either
   someone reports a failure in its work, with or without the failing
   command and its output, or verify finds a failed check on that pull
   request. A failure after the merge is not one: it needs a new bug ticket.
@@ -380,7 +421,7 @@ Text, each code span on one line:
   ```
 - `packages/core/skills/accord/SKILL.md`: frontmatter `loads` gains `shared/failure.md`. The line
   `First run the session check in `./worktree.md`.` becomes
-  `First run the session check in `./worktree.md`. A failure reported in a ticket at verify or done follows `./failure.md`.`
+  `First run the session check in `./worktree.md`. A failure reported in a ticket that has reached verify follows `./failure.md`.`
   Continue step 2 becomes `2. Run `accord anchor`.` (its second sentence is dropped to stay under the cap; the
   anchor prints the same). Nothing else changes.
 - `packages/core/skills/debug/SKILL.md`: `loads` becomes `[shared/ask.md, shared/failure.md]`. Step 1 becomes
@@ -424,8 +465,14 @@ Tests first, in `packages/core/test/stage-skills.test.ts`, top-level, with the s
     `A push that changed nothing still counts`, `gh run list --commit <sha> --json`, `` `.github/workflows/accord.yml` ``,
     `never wait for it and never send it to debug`, `ten minutes`, `thirty minutes`, `` `cancelled` and `skipped` ``,
     `goes to no debug`, ``CI failed on `<sha>` `` and `Do not wait for CI again`.
+    `wait = ci.slice(ci.indexOf('## Wait'), ci.indexOf('## Finish'))`: the indexes in `wait` of
+    `When Start was skipped, skip Wait; the report gives Start's reason.`, of `no workflow other than accord's` and
+    of `gh run list` are each greater than -1 and in that order. `wait` contains
+    `` `gh run view <run-id> --json jobs` ``, `each job is one check`, `the failed checks' names` and
+    `` append `## Resolved` ``.
     `fin = ci.slice(ci.indexOf('## Finish'))` has `fin.indexOf('`accord lint`')` > -1, less than
-    `fin.indexOf('`gh pr ready`')`, and contains `` `accord gate done <t>` for every ticket file ``.
+    `fin.indexOf('`gh pr ready`')`, and contains `` `accord gate done <t>` for every ticket file ``,
+    `` `origin/master` `` and `` `accord gate done <id>` alone ``.
   - `.claude/skills/accord-verify/failure.md` exists in `files` and is non-empty.
 - `it('risk:regression the owners report lists every test the verify run skipped by name with its operating system')`:
   in `s2`, `s2.indexOf('run `accord tests skipped`')` is greater than `s2.indexOf('run the `tests.full` command')`;
@@ -476,6 +523,10 @@ Text:
 
   ## Wait: step 4, before the report
 
+  - When Start was skipped, skip Wait; the report gives Start's reason.
+  - When `.github/workflows/` holds no workflow file other than
+    `accord.yml`: CI not checked, "no workflow other than accord's"; skip
+    the rest of Wait.
   - Only runs on `<sha>` count:
     `gh run list --commit <sha> --json databaseId,workflowName,status,conclusion`.
     Leave out the workflow whose `name:` is in `.github/workflows/accord.yml`:
@@ -487,35 +538,49 @@ Text:
   - Then read it once a minute until every run is `completed`. A run not
     completed thirty minutes after it appeared: CI not checked for it, by
     name, "still running after thirty minutes".
+  - A check is a job: for each completed run,
+    `gh run view <run-id> --json jobs` lists its jobs, and each job is one
+    check, named `<workflowName> / <job name>`, with the job's
+    `conclusion`. A run with no jobs is one check under its workflow name,
+    with the run's `conclusion`.
   - Once every run has finished: `success` passed; `failure`, `timed_out`
     and `startup_failure` failed; any other conclusion, `cancelled` and
-    `skipped` among them, is CI not checked for that run, by name, and goes
-    to no debug.
-  - Any failed run: give the owner one line, "CI failed on `<sha>`:
-    <the failed runs' names>", show no report, ask for no tick, and follow
-    `./failure.md` with the failed runs' ids.
-  - Otherwise the report gives each run's name and result.
+    `skipped` among them, is CI not checked for that check, by name, and
+    goes to no debug.
+  - Any failed check: give the owner one line, "CI failed on `<sha>`:
+    <the failed checks' names>", show no report, ask for no tick, and
+    follow `./failure.md` with the ids of the runs those checks belong to.
+  - Every check passed and `accord/tickets/<id>/debug.md` has an open
+    episode (its last `## ` heading is not `## Resolved`): append
+    `## Resolved` with one line naming `<sha>` and the passing checks, and
+    commit `debug.md` alone.
+  - Otherwise the report gives each check's name and result.
 
   ## Finish: step 6, after the tick is committed
 
-  1. Run `accord lint`, then `accord gate done <t>` for every ticket file
-     `git diff --name-only --diff-filter=d origin/HEAD...HEAD` lists as
-     `accord/tickets/<t>.md` (`origin/main` when `origin/HEAD` is not
-     set). Any failure: show it and stop; nothing is pushed.
+  1. Run `accord lint`. `<def>` is the first of `origin/HEAD`,
+     `origin/main` and `origin/master` that `git rev-parse --verify -q`
+     resolves. Run `accord gate done <t>` for every ticket file
+     `git diff --name-only --diff-filter=d <def>...HEAD` lists as
+     `accord/tickets/<t>.md`; when none resolves, run
+     `accord gate done <id>` alone. Any failure: show it and stop; nothing
+     is pushed.
   2. When Start pushed, run `git push`, then `gh pr ready`. Do not wait for
      CI again.
   ```
 - `docs/specs/2026-10-12-workflow-layer-design.md`:
   - §6, after the bullet ending "never re-runs completed tasks." add: "- After verify, any commit on the ticket's
-    branch that the default branch does not hold and that changes a path outside the ticket's own records takes
-    the stage back from `done`: to `review` for a hand-made change, with `accord anchor` printing the review base,
-    the commit before the first unreviewed change, until a review round of those changes is recorded in
-    `review.md`; to `verify` for a merge from the default branch alone. A ticket whose verified commit is on the
-    default branch keeps its stage."
+    branch that the default branch does not hold, made after the verified commit (before the first tick, the
+    commit `verification.md` names), and that changes a path outside the ticket's own records takes the stage back
+    from `done`, or holds it at `verify`: to `review` for a hand-made change, with `accord anchor` printing the
+    review base, the commit before the first unreviewed change, until a review round of those changes is recorded
+    in `review.md`; to `verify` for a merge from the default branch alone. A ticket whose verified commit is on
+    the default branch keeps its stage."
   - §11, after the owner's report list, add a paragraph: "A failure found after verify (someone reports one, or a
     check on the pull request fails) goes to `accord-debug`; the main session never judges the cause or fixes it
     outside that stage. Verify pushes the branch and opens a draft pull request before the full suite, waits for
-    every check on the pushed commit other than the accord workflow's before the owner's report, and after the tick
+    every check (each job of each workflow run) on the pushed commit other than the accord workflow's before the
+    owner's report, and after the tick
     runs `accord lint` and `accord gate done` for every ticket the pull request touches, pushes, and marks the pull
     request ready without waiting again. The report names every test `accord tests skipped` lists, with the
     operating system. An assertion that runs only on some operating systems sits in its own test, skipped through

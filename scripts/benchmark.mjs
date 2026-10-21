@@ -6,17 +6,16 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { parsePlanReview } from './plan-review.mjs';
 
-const repo = process.cwd();
 const projectsRoot = path.join(os.homedir(), '.claude', 'projects');
-const encoded = repo.replace(/[:\\/]/g, '-');
-const dirs = process.argv.length > 2
-  ? process.argv.slice(2)
-  : fs.readdirSync(projectsRoot).filter((d) => d.startsWith(encoded)).map((d) => path.join(projectsRoot, d));
+const defaultDirs = (repo) => {
+  const encoded = repo.replace(/[:\\/]/g, '-');
+  return fs.readdirSync(projectsRoot).filter((d) => d.startsWith(encoded)).map((d) => path.join(projectsRoot, d));
+};
 
-const git = (...args) => execFileSync('git', args, { cwd: repo, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
 const ID = /\b([A-Z]+(?:-[A-Z]+)?-\d+)\b/;
 const median = (xs) => { if (!xs.length) return 0; const s = [...xs].sort((a, b) => a - b); return s[Math.floor(s.length / 2)]; };
 const min = (ms) => (ms / 60000).toFixed(1);
@@ -63,6 +62,9 @@ function readRun(jsonl, meta) {
   };
 }
 
+export function legacyReport(dirs) {
+const repo = process.cwd();
+const git = (...args) => execFileSync('git', args, { cwd: repo, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
 const runs = [];
 for (const dir of dirs) {
   for (const session of fs.readdirSync(dir)) {
@@ -171,4 +173,164 @@ for (const agent of ['accord-critic', 'accord-reviewer', 'accord-final-reviewer'
 }
 out.push('', 'Counts come from numbered `n. Must|Should|Nice` lines in each run\'s last message, so a report in another shape counts as zero.');
 
-process.stdout.write(out.join('\n') + '\n');
+return out.join('\n') + '\n';
+}
+
+// ---- readers shared by the compliance check and the round (ST-LN-14) ------------
+const slash = (p) => String(p).replace(/\\/g, '/');
+const readLines = (file) => fs.readFileSync(file, 'utf8').split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+const items = (o) => (Array.isArray(o.message?.content) ? o.message.content : []);
+const pick = (o, key) => o[key] ?? o.message?.[key];
+const stamp = (o) => { const t = Date.parse(o.timestamp); return Number.isNaN(t) ? null : t; };
+const resultText = (c) => (typeof c.content === 'string' ? c.content : Array.isArray(c.content) ? c.content.filter((x) => x.type === 'text').map((x) => x.text).join('\n') : '');
+const ownFiles = (p, ext) => (fs.existsSync(p) ? fs.readdirSync(p, { withFileTypes: true }).filter((e) => e.isFile() && e.name.endsWith(ext)).map((e) => e.name) : []);
+
+function refusalsIn(file, lines) {
+  const found = [];
+  for (const o of lines) {
+    if (o.type !== 'user') continue;
+    for (const c of items(o)) {
+      if (c.type !== 'tool_result') continue;
+      const rows = resultText(c).split('\n');
+      rows.forEach((row, i) => {
+        const m = row.match(/^task (\d+) of (\S+) is not done:$/);
+        if (!m) return;
+        const reasons = [];
+        for (let j = i + 1; j < rows.length && rows[j].startsWith('  '); j++) reasons.push(rows[j].trim());
+        found.push({ file, ts: stamp(o), ticket: m[2], task: Number(m[1]), reasons });
+      });
+    }
+  }
+  return found;
+}
+
+function parseRun(file, id, meta, lines, session) {
+  const turnsById = new Map();
+  const toolById = new Map();
+  const edits = [], reads = [], handbacks = [], commitRows = [];
+  const times = lines.map(stamp).filter((t) => t !== null).sort((a, b) => a - b);
+  let branch = '', lastText = '';
+  for (const o of lines) {
+    if (o.gitBranch && !branch) branch = o.gitBranch;
+    if (o.type === 'user') {
+      for (const c of items(o)) {
+        if (c.type !== 'tool_result') continue;
+        const use = toolById.get(c.tool_use_id);
+        if (!use) continue;
+        const text = resultText(c);
+        if (use.name === 'Read') {
+          const body = text.split('\n');
+          const cut = body.findIndex((l) => l.startsWith('<system-reminder>'));
+          reads.push({ path: use.path, text: (cut < 0 ? body : body.slice(0, cut)).map((l) => l.replace(/^\s*\d+\t/, '')).join('\n').replace(/\n+$/, ''), ts: use.ts });
+        } else if (use.name === 'Bash' && String(use.input?.command ?? '').includes('git commit')) {
+          for (const m of text.matchAll(/(?:^|\[\S+ )([0-9a-f]{7,40})\b/gm)) commitRows.push(m[1]);
+        }
+      }
+      continue;
+    }
+    if (o.type !== 'assistant' || !o.message) continue;
+    const m = o.message;
+    const mid = m.id ?? o.requestId ?? o.uuid;
+    let t = turnsById.get(mid);
+    if (!t && m.model !== '<synthetic>') {
+      t = { id: mid, ts: stamp(o), model: '', requestedModel: '', effort: '', perTurnEffort: '', u: { input: 0, cacheRead: 0, cacheWrite: 0, output: 0 }, chars: 0 };
+      turnsById.set(mid, t);
+    }
+    if (t) {
+      t.model ||= m.model ?? '';
+      t.requestedModel ||= pick(o, 'requestedModel') ?? '';
+      t.effort ||= pick(o, 'effort') ?? '';
+      t.perTurnEffort ||= pick(o, 'perTurnEffort') ?? '';
+      const u = m.usage ?? {};
+      t.u.input = Math.max(t.u.input, u.input_tokens ?? 0);
+      t.u.cacheRead = Math.max(t.u.cacheRead, u.cache_read_input_tokens ?? 0);
+      t.u.cacheWrite = Math.max(t.u.cacheWrite, u.cache_creation_input_tokens ?? 0);
+      t.u.output = Math.max(t.u.output, u.output_tokens ?? 0);
+    }
+    for (const c of items(o)) {
+      if (c.type === 'text' && c.text.trim()) lastText = c.text;
+      if (c.type === 'tool_use') {
+        if (toolById.has(c.id)) continue;
+        const input = c.input ?? {};
+        const p = slash(input.file_path ?? input.notebook_path ?? '');
+        toolById.set(c.id, { name: c.name, input, path: p, ts: stamp(o) });
+        if (['Edit', 'Write', 'MultiEdit', 'NotebookEdit'].includes(c.name)) edits.push({ path: p, ts: stamp(o) });
+        if (c.name === 'SubagentHandback') {
+          lastText = String(input.message ?? '');
+          handbacks.push({ ts: stamp(o), text: lastText });
+          for (const row of lastText.matchAll(/^commits:(.*)$/gm)) for (const h of row[1].matchAll(/\b[0-9a-f]{7,40}\b/g)) commitRows.push(h[0]);
+        }
+      }
+      if (t) t.chars += (c.text ?? c.thinking ?? (c.type === 'tool_use' ? JSON.stringify(c.input ?? '') : '')).length;
+    }
+  }
+  const usage = { input: 0, cacheRead: 0, cacheWrite: 0, output: 0, estimated: false };
+  for (const t of turnsById.values()) {
+    const est = Math.ceil(t.chars / 4);
+    if (est > t.u.output) { t.u.output = est; usage.estimated = true; }
+    for (const key of ['input', 'cacheRead', 'cacheWrite', 'output']) usage[key] += t.u[key];
+  }
+  const desc = meta.description ?? '';
+  const use = session.uses.get(meta.toolUseId);
+  return {
+    file, id, agent: meta.agentType, desc,
+    ticket: (desc.match(ID) ?? branch.match(ID) ?? [])[1] ?? '',
+    task: Number((desc.match(/\btask\s+(\d+)/i) ?? [])[1]) || null,
+    fix: /\bfix/i.test(desc), metaModel: meta.model ?? '', metaEffort: meta.effort ?? '',
+    start: times[0] ?? null, end: times.at(-1) ?? null,
+    // Active time: a gap over 10 minutes is an idle agent later resumed, not work.
+    ms: times.slice(1).reduce((sum, x, i) => sum + Math.min(x - times[i], 10 * 60000), 0),
+    dispatch: use ? { ...use.input, ts: use.ts, cwd: use.cwd } : null,
+    turns: [...turnsById.values()].map(({ id: tid, ts, model, requestedModel, effort, perTurnEffort }) => ({ id: tid, ts, model, requestedModel, effort, perTurnEffort })),
+    usage, edits, commits: [...new Set(commitRows)], reads, handbacks,
+    outcome: (lastText.match(/^\s*(DONE|BLOCKED[^\n]*|NEEDS_CONTEXT)/) ?? [])[1]?.slice(0, 40) ?? '',
+    lastText, sends: session.sends.filter((s) => s.to === id),
+  };
+}
+
+export function readSessions(dirs) {
+  const runs = [], refusals = [];
+  for (const dir of dirs) {
+    const name = path.basename(dir);
+    const sessions = ownFiles(dir, '.jsonl').map((f) => f.slice(0, -'.jsonl'.length));
+    const uses = new Map(), sends = [];
+    for (const s of sessions) {
+      const file = `${name}/${s}.jsonl`;
+      const lines = readLines(path.join(dir, `${s}.jsonl`));
+      for (const o of lines) {
+        if (o.type !== 'assistant') continue;
+        for (const c of items(o)) {
+          if (c.type !== 'tool_use' || uses.has(c.id)) continue;
+          uses.set(c.id, { input: c.input ?? {}, ts: stamp(o), cwd: o.cwd ?? o.message?.cwd });
+          if (c.name === 'SendMessage') sends.push({ ts: stamp(o), to: c.input?.to, summary: c.input?.summary, message: c.input?.message });
+        }
+      }
+      refusals.push(...refusalsIn(file, lines));
+    }
+    for (const s of sessions) {
+      const sub = path.join(dir, s, 'subagents');
+      for (const f of ownFiles(sub, '.meta.json')) {
+        const id = f.slice('agent-'.length, -'.meta.json'.length);
+        const jsonl = path.join(sub, `agent-${id}.jsonl`);
+        if (!fs.existsSync(jsonl)) continue;
+        const file = `${name}/${s}/subagents/agent-${id}.jsonl`;
+        const lines = readLines(jsonl);
+        refusals.push(...refusalsIn(file, lines));
+        runs.push(parseRun(file, id, JSON.parse(fs.readFileSync(path.join(sub, f), 'utf8')), lines, { uses, sends }));
+      }
+    }
+  }
+  const seen = new Set();
+  return { runs, refusals: refusals.filter((r) => { const key = JSON.stringify([r.file, r.ticket, r.task, r.reasons]); return seen.has(key) ? false : (seen.add(key), true); }) };
+}
+
+export function main(args) {
+  if (args.some((a) => a.startsWith('--'))) {
+    process.stderr.write('usage: node scripts/benchmark.mjs [--compliance | --round 1 [--samples | --plan | --judge] | --clean [--force]] [folder ...]\n');
+    return 2;
+  }
+  process.stdout.write(legacyReport(args.length ? args : defaultDirs(process.cwd())));
+  return 0;
+}
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) process.exitCode = main(process.argv.slice(2));

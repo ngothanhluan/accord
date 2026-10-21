@@ -6,4 +6,10 @@
 3. Nice — Task 4's "Date.parse(o.timestamp) is a number" reads true for NaN; say "not NaN, as readRun does at scripts/benchmark.mjs:50" — deferred
 
 ## Round 2 (diff)
-1. Should — no fixture word holds a ".", "?" or "!" inside it, so a split at every "." with no space after it still passes; put a token such as `benchmark.mjs` or `0.1.0` inside one fixture sentence and keep the expected arrays — open
+1. Should — no fixture word holds a ".", "?" or "!" inside it, so a split at every "." with no space after it still passes; put a token such as `benchmark.mjs` or `0.1.0` inside one fixture sentence and keep the expected arrays — fixed
+
+## Round 3 (diff)
+No findings
+
+## Closed
+Round 3 converged: no Must or Should open; gate plan passed; baseline suite 1367 passed.

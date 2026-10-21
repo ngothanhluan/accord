@@ -31,6 +31,7 @@
 - Ruling: task 1's drop.ts already wraps fetch and push failures in a UsageError (first stderr line), though Task 2 was meant to add that — a raw git error would have been a stack trace — cost if wrong: Task 2 may change the wording.
 - Ruling: task 3's `removeWorktree` returns failed only when the worktree is still listed afterwards; a "removed in part" result counts as gone, so clean goes on to delete the branches — a half-removed folder must not block them, and the printed line already tells the owner to delete the rest by hand — cost if wrong: a branch is deleted while a leftover folder remains.
 - Ruling: task 3's test helpers (claimWorktree, dropOnRemote, has) and a small dropAndMerge helper sit at the end of worktree.test.ts, as the plan says; dropAndMerge lets ac-3 and ac-4 share their setup — cost if wrong: none.
+- Ruling: task 4's rebase check (`rebaseBranch`) runs before any guard, so a branch held by a stopped rebase is kept with "kept <b>: being rebased in <path>" — as the brief says — cost if wrong: a rebase in a worktree whose git dir cannot be read throws and falls into the existing "could not be judged" line, so the branch is kept.
 
 ## Deferred
 
@@ -44,3 +45,4 @@
 - task 1 done 6d8598562879
 - task 2 done 19cb51433a29
 - task 3 done eb4104065ad8
+- task 4 done bbebb3268c78

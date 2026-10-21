@@ -60,6 +60,7 @@
 - Review round 1 Nice 5: two prose-pin tests in packages/core/test/stage-skills.test.ts (:508, :563) carry `risk:complex-branching` and `risk:regression` while they only pin skill text; relabel them as text pins or fold them into the ac-1 and ac-2 pins.
 - Review round 1 Nice 6: `loadClaimView` (packages/cli/src/load/fs.ts:2299-2305) builds a whole snapshot per claimed candidate only to read its start sha; parsing the frontmatter directly would be smaller.
 - Review round 3 Nice 1: `claimTips` (packages/cli/src/load/fs.ts:166, :196) now runs for every own or claimed ticket before its start commit is known, one more `git rev-parse` per such claimed ticket on each status, anchor, next and hook load; compute the tips only when `startOf` or the `review.md` fallback needs them.
+- Review round 4 Nice 3: `ownRecordsOnly`'s doc comment cites spec §11 beside `conventions.md`; it already names ST-LN-8 D-08 for that path, so it is left as it is.
 
 ## Tasks
 - task 1 done 825ca98550c1

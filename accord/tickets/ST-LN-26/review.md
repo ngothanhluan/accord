@@ -16,4 +16,10 @@ Should 2 [patch]: verify step 5 sends a failing criterion back to `accord-build`
 
 Nice 1 [patch]: `claimTips` now runs for every own or claimed ticket before its start commit is known, one more `git rev-parse` per such claimed ticket on each status, anchor, next and hook load — packages/cli/src/load/fs.ts:166 — deferred
 
+## Round 4
+
+Must 1 [intent-gap]: the merge of origin/main (d62a680) lets the stage, through the shared `ownRecordsOnly`, treat `accord/product/conventions.md` as the ticket's own record, against @ac-3's "outside X's ticket file and X's ticket folder"; the owner chose to widen @ac-3 (D-10) and approved it again — packages/core/src/gate/done.ts:203 — fixed in 32fc95c
+Nice 2 [patch]: no stage-level test pins the `conventions.md` case, and spec line 181 still names only the ticket's own records — packages/core/test/lane-status.test.ts — fixed in d02e6db
+Nice 3 [patch]: `ownRecordsOnly`'s doc comment cites spec §11 for a set that now holds `conventions.md` — packages/core/src/gate/done.ts:202 — deferred
+
 verdict: converged

@@ -29,6 +29,8 @@
 - Ruling: the baseline full run at d5586db failed one case, `hook.test.ts > risk:security the prompt expansion hook blocks every accord text but the dashboard and continue of the worked ticket`, a 30 s timeout under full-suite load (passes alone in 8 s; the hook slowdown noted after ST-LN-26). The owner chose to fix it first in its own ticket — "Sửa trước rồi mới build" — so build starts only after that fix is on main, merged into t/ST-LN-34, and a fresh full run is clean — cost if wrong: ST-LN-34 waits one ticket.
 - Ruling: build starts at 84d8623, the merge of origin/main (PR #57, the hook fix) into t/ST-LN-34; the fresh full run there passed, 69 files, 1390 passed, 3 skipped — the condition in the Ruling above is met — cost if wrong: none found.
 - Ruling: task 1's drop.ts already wraps fetch and push failures in a UsageError (first stderr line), though Task 2 was meant to add that — a raw git error would have been a stack trace — cost if wrong: Task 2 may change the wording.
+- Ruling: task 3's `removeWorktree` returns failed only when the worktree is still listed afterwards; a "removed in part" result counts as gone, so clean goes on to delete the branches — a half-removed folder must not block them, and the printed line already tells the owner to delete the rest by hand — cost if wrong: a branch is deleted while a leftover folder remains.
+- Ruling: task 3's test helpers (claimWorktree, dropOnRemote, has) and a small dropAndMerge helper sit at the end of worktree.test.ts, as the plan says; dropAndMerge lets ac-3 and ac-4 share their setup — cost if wrong: none.
 
 ## Deferred
 
@@ -41,3 +43,4 @@
 ## Tasks
 - task 1 done 6d8598562879
 - task 2 done 19cb51433a29
+- task 3 done eb4104065ad8

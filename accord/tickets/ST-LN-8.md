@@ -70,7 +70,7 @@ Feature: ST-LN-8
     And when `commits.trailers` is absent or `allow`, the same task is recorded
     And when the check is on and none of origin/HEAD, origin/main and origin/master exists, it exits 2 and says to run `git fetch origin`
 
-  @ac-4
+  @ac-4 @test:packages/cli/test/gate.test.ts#ac-4-gate-done-refuses-a-ticket-branch-holding-any-forbidden-line-when-the-repository-forbids-trailers
   Scenario: gate done refuses a ticket branch holding any forbidden line when the repository forbids trailers
     Given `config.yml` sets `commits.trailers: forbid`
     And `accord gate done <id>` checks the commits reached from HEAD by first parents, as run in the ticket's worktree

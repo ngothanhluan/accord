@@ -2,6 +2,7 @@
 
 ## Tasks
 - task 1 done 598055defb7e
+- task 2 done 23a2cd412108
 
 ## Rulings
 - Ruling: the ac-1 and ac-5 tests check that the rendered text states each rule, by its key phrases (`classname`, `#`, `accord task-done`, `accord/`, `conventions.md`), not word for word — wording may be improved later without breaking the test — a test too loose to catch a dropped rule
@@ -23,6 +24,8 @@
 - Ruling: this repository's conventions.md holds one rule line covering Co-Authored-By, every other `-by:` line and "Generated with" — round 1.2 asks for at least that, and more goes beyond the ticket — none
 - Ruling: the main session's config commit is the single line `config: ST-LN-8 turn on the commit trailer check for this repository` with no body — it must not carry a forbidden line itself — none
 - Ruling: the docs name conventions.md after the ticket's-own-record parenthetical, not inside it — conventions.md is not a record of the ticket — one wording change in two docs
+- Ruling: the spec doc's wrapped line starts with "or `accord/product/conventions.md` (ST-LN-8 D-08)." with no leading space — a Markdown continuation line need not begin with a space — one whitespace character
+- Ruling: task 2 was recorded with packages/cli/test/hook.test.ts "the prompt expansion hook blocks every accord text…" failing once in the affected run (33 s against the 30 s testTimeout; 13 s alone, and its file passes alone) — the hook does not reach this ticket's code and the baseline suite passed — a real regression would surface again in the verify full suite
 
 ## Deferred
 - plan round 1.5: Task 3 carries literal byte order mark characters; spell each one as a JavaScript escape so the BOM cases survive a filter — deferred

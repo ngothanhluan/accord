@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { parse as parseYaml } from 'yaml';
 import { parsePlanReview } from './plan-review.mjs';
+import { ROLES } from './round.mjs';
 import { compliance, render as renderCompliance, parseCompliance, mergeCompliance } from './compliance.mjs';
 
 const projectsRoot = path.join(os.homedir(), '.claude', 'projects');
@@ -324,6 +325,14 @@ export function readSessions(dirs) {
   }
   const seen = new Set();
   return { runs, refusals: refusals.filter((r) => { const key = JSON.stringify([r.file, r.ticket, r.task, r.reasons]); return seen.has(key) ? false : (seen.add(key), true); }) };
+}
+
+export function agentSettings(repo) {
+  return Object.fromEntries(Object.keys(ROLES).map((a) => {
+    const fm = fs.readFileSync(path.join(repo, '.claude', 'agents', `${a}.md`), 'utf8').match(/^---\r?\n([\s\S]*?)\r?\n---/)[1];
+    const { model, effort } = parseYaml(fm);
+    return [a, { model, effort }];
+  }));
 }
 
 export const benchRoot = (repo) => path.resolve(repo, '..', 'accord-bench');

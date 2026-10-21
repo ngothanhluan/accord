@@ -373,6 +373,15 @@ export function worktreeOpen(ctx: CommandContext, id: string, opts: { continue?:
     if (local) checkClaimant(ctx, id, 'refs/heads/' + branch);
     if (remote) checkClaimant(ctx, id, 'refs/remotes/origin/' + branch);
   }
+  if (opts.continue === true && (local || remote)) {
+    const def = gitDefaultRef(ctx.root);
+    if (def !== undefined) {
+      const tip = local ? 'refs/heads/' + branch : 'refs/remotes/origin/' + branch;
+      const n = Number(git(ctx.root, ['rev-list', '--count', `${tip}..${def}`]).trim());
+      const short = def.replace('refs/remotes/', '');
+      if (n > 0) ctx.stdout.write(`behind: ${branch} is ${n} commit${n === 1 ? '' : 's'} behind ${short}; merge them with git merge ${short}\n`);
+    }
+  }
   // D-15: a worktree already holding the branch is only found, nothing runs there.
   if (held !== undefined) {
     if (norm(held.path) === norm(ctx.root)) return hold(ctx, id, held.path);

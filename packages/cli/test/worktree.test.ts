@@ -1041,10 +1041,11 @@ it('ac-4 in claude code a session that works a ticket refuses other tickets and 
   expect(state()).toEqual(before);
   setTable(tableOf(A));
   const same = await run(['worktree', 'open', 'ST-9', '--continue'], sib, envOf(A));
-  expect([same.code, same.out]).toEqual([0, HELD]);
+  const BEHIND = 'behind: t/ST-9 is 1 commit behind origin/main; merge them with git merge origin/main\n';
+  expect([same.code, same.out]).toEqual([0, BEHIND + HELD]);
   const back = await run(['worktree', 'open', 'ST-9', '--continue'], c.root, envOf(A));
   expect(back.code).toBe(0);
-  expect(lines(back.out)).toEqual([`enter: ${sib}`]);
+  expect(lines(back.out)).toEqual([lines(BEHIND)[0], `enter: ${sib}`]);
 }, 180_000);
 
 it('ac-5 outside claude code pick up continue and new ticket print the stop lines and nothing is refused', async () => {
@@ -1373,4 +1374,27 @@ it('risk:concurrency pick up fetches before it judges the claim so a claim pushe
   expect(r.err).toContain('claimed: ST-9 by other@example.invalid');
   expect(existsSync(c.sibling('ST-9'))).toBe(false);
   expect(() => c.git('rev-parse', '--verify', '-q', 'refs/heads/t/ST-9')).toThrow();
+}, 120_000);
+
+it('ac-2 continue says the ticket branch is 2 commits behind the remote main and leaves the branch unchanged', async () => {
+  const c = clone();
+  ticketWorktree(c, 'ST-9');
+  const before = sha(c, 't/ST-9');
+  const o = c.otherClone();
+  for (const f of ['a.txt', 'b.txt']) {
+    writeFiles(o, { [f]: f + '\n' });
+    gitRun(o, 'add', '-A');
+    gitRun(o, 'commit', '-q', '-m', f);
+  }
+  gitRun(o, 'push', '-q', 'origin', 'main');
+  expect(sha(c, 'origin/main')).not.toBe(gitRun(o, 'rev-parse', 'HEAD').trim());
+  const r = await run(['worktree', 'open', 'ST-9', '--continue'], c.root);
+  expect(r.code).toBe(0);
+  const out = lines(r.out);
+  expect(out[0]).toBe('behind: t/ST-9 is 2 commits behind origin/main; merge them with git merge origin/main');
+  expect(out.slice(1, 4)).toEqual(stopLines(c.sibling('ST-9'), 'ST-9'));
+  expect(out.filter((l) => l.startsWith('behind:'))).toHaveLength(1);
+  expect(sha(c, 't/ST-9')).toBe(before);
+  expect(gitRun(c.sibling('ST-9'), 'rev-parse', 'HEAD').trim()).toBe(before);
+  expect(gitRun(c.sibling('ST-9'), 'status', '--porcelain')).toBe('');
 }, 120_000);

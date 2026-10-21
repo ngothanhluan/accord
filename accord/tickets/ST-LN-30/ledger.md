@@ -17,3 +17,11 @@
 - Ruling: `review-package` without `--base` after the merge lists main's merged files as undeclared; this only bites when a fix after verify goes back through review, which no criterion covers, so it goes to a follow-up ticket — cost if wrong: a reviewer after a post-verify fix sees main's files in the package.
 - Ruling: an offline `/accord` can wait on two fetches (the dashboard's clean, then Pick up), the second capped at 30 s (critic 9) — cost if wrong: up to 30 s of waiting before work goes on offline.
 - Ruling: the third audit's split readings are settled by the Decisions in the criteria's wording and shown at the yes — ac-3: the parents are ordered, first the ticket branch's previous head and second the default-branch commit, since D-04 merges `origin/main` into the ticket branch; ac-5: the timeout line names the limit's figure, since D-10 quotes "no answer within 30 seconds" — cost if wrong: the owner rewords a criterion at the yes.
+- Ruling: Continue re-reads the snapshot after its fetch, through the same helper as Pick up — one code path — cost if wrong: one extra snapshot load per Continue.
+- Ruling: a successful merge and a branch that is not behind both print nothing — no criterion asks for a confirmation line — cost if wrong: the owner's report cannot quote that a merge happened.
+- Ruling: after a merge that changes the version pin, `checkPin`'s error propagates and `worktree merge` exits 2 with the merge kept — preflight checked the pin before the merge, so only the merge can change it, and every later accord command would refuse anyway — cost if wrong: verify stops on a merge that succeeded.
+- Ruling: D-05's edit to ST-LN-11 is not made on this branch — PR #53 already rewrote ST-LN-11 line 33 on origin/main, and the merge before verify brings it here — cost if wrong: none; editing it here would only conflict at that merge.
+
+## Deferred
+- Nice (plan review 1.3): Task 4's pin test could assert `expect(err).not.toContain('is as it was')`, so a `checkPin` error wrapped as a failed merge is caught.
+- Nice (plan review 1.4): Task 3's ac-4 test should read `shared.txt` with `'utf8'`, since a Buffer never equals `'ST-9\n'`.

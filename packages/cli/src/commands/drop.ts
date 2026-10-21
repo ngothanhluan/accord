@@ -4,10 +4,10 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { markDropped } from '@accord-dev/accord-core';
-import { gitDefaultRef, UsageError } from '../load/fs.js';
+import { lintSnapshot, loadSnapshot, markDropped } from '@accord-dev/accord-core';
+import { droppedOn, gitDefaultRef, loadRefInput, UsageError } from '../load/fs.js';
 import type { CommandContext } from '../run.js';
-import { branchOf, git, gitNoPrompt, gitOk, ID } from './worktree.js';
+import { branchOf, git, gitNoPrompt, gitOk, ID, listWorktrees } from './worktree.js';
 
 const NOTHING = ' - nothing was created';
 
@@ -33,17 +33,26 @@ export function drop(ctx: CommandContext, id: string, opts: { reason?: string })
   const reason = opts.reason?.trim();
   if (reason !== undefined && (reason === '' || /[\r\n]/.test(reason))) throw new UsageError('--reason must be one line of text' + NOTHING);
   if (!gitOk(root, ['remote', 'get-url', 'origin'])) throw new UsageError('no origin remote - accord drop pushes the record there' + NOTHING);
+  const b = branchOf(ctx.snapshot, id);
+  const path = 'accord/tickets/' + id + '.md';
+  const held = listWorktrees(root).find((w) => w.branch === b);
+  if (held !== undefined && git(held.path, ['status', '--porcelain', '--untracked-files=all', '--', path]).trim() !== '') {
+    throw new UsageError(`${path} has uncommitted changes in ${held.path} - commit and push them on ${b} first` + NOTHING);
+  }
   try {
     gitNoPrompt(root, ['fetch', '--no-prune', 'origin']);
   } catch (err) {
-    throw new UsageError('git fetch origin failed: ' + String((err as { stderr?: string }).stderr ?? err).trim().split('\n')[0] + NOTHING);
+    throw new UsageError('fetch from origin failed: ' + String((err as { stderr?: string }).stderr ?? err).trim().split('\n')[0] + NOTHING);
   }
   const ref = gitDefaultRef(root);
   if (ref === undefined) throw new UsageError('no origin/main in this clone - run git fetch origin, then try again' + NOTHING);
   const short = ref.replace('refs/remotes/origin/', '');
   const base = git(root, ['rev-parse', ref]).trim();
 
-  const b = branchOf(ctx.snapshot, id);
+  if (droppedOn(root, ref, [id]).has(id)) throw new UsageError(`${id} is already dropped on ${short}` + NOTHING);
+  if (gitNoPrompt(root, ['ls-remote', 'origin', 'refs/heads/drop/' + id]).trim() !== '') {
+    throw new UsageError(`drop/${id} already exists on origin - delete it with git push origin --delete drop/${id}, then run accord drop again` + NOTHING);
+  }
   const L = resolve(root, 'refs/heads/' + b);
   const R = resolve(root, 'refs/remotes/origin/' + b);
   let tip: string;
@@ -55,7 +64,6 @@ export function drop(ctx: CommandContext, id: string, opts: { reason?: string })
     tip = L ?? R ?? base;
   }
 
-  const path = 'accord/tickets/' + id + '.md';
   if (!gitOk(root, ['cat-file', '-e', tip + ':' + path])) {
     throw new UsageError(`no ${path} on ${tip === base ? short : b} - nothing to drop` + NOTHING);
   }
@@ -67,6 +75,16 @@ export function drop(ctx: CommandContext, id: string, opts: { reason?: string })
     throw new UsageError(`${path}: ${(err as Error).message}` + NOTHING);
   }
   if (next === undefined) throw new UsageError(`${path} has no "## Dropped" reason - pass --reason "<why>"` + NOTHING);
+
+  const input = loadRefInput(root, ref);
+  input.files[path] = next;
+  if (!input.tree.includes(path)) input.tree.push(path);
+  const errors = lintSnapshot(loadSnapshot(input)).findings.filter((f) => f.level === 'error');
+  if (errors.length > 0) {
+    throw new UsageError(
+      `the drop record would fail lint on ${short}:\n` + errors.map((f) => `${f.file}: ${f.rule}: ${f.reason}`).join('\n') + `\nfix these on ${short} first` + NOTHING,
+    );
+  }
 
   const folder = mkdtempSync(join(tmpdir(), 'accord-drop-'));
   let sha: string;
@@ -83,7 +101,9 @@ export function drop(ctx: CommandContext, id: string, opts: { reason?: string })
   try {
     gitNoPrompt(root, ['push', 'origin', sha + ':refs/heads/drop/' + id]);
   } catch (err) {
-    throw new UsageError('git push origin drop/' + id + ' failed: ' + String((err as { stderr?: string }).stderr ?? err).trim().split('\n')[0]);
+    throw new UsageError(
+      `the drop commit ${sha} was made but the push failed: ${String((err as { stderr?: string }).stderr ?? err).trim().split('\n')[0]} - push it with git push origin ${sha}:refs/heads/drop/${id}`,
+    );
   }
   ctx.stdout.write(`branch: drop/${id}\nbase: ${short}\ntitle: drop: ${id}\n`);
   return 0;

@@ -1,7 +1,8 @@
+import { chmodSync, rmSync, writeFileSync } from 'node:fs';
 import { afterEach, expect, it } from 'vitest';
 import { makeClone } from './helpers/worktree.js';
 import type { Clone } from './helpers/worktree.js';
-import { commitMsg, gitRun, run, writeFiles } from './helpers/repo.js';
+import { commitMsg, gitRun, mergeMsg, run, writeFiles } from './helpers/repo.js';
 import { LANE_BODY, laneTicket } from '../../../test/helpers/lane.js';
 
 const clones: Clone[] = [];
@@ -136,4 +137,68 @@ it('risk:complex-branching drop reads the claim tip that holds the other refuses
   expect(r.code, r.err).toBe(0);
   expect(r.out).toContain('base: trunk\n');
   expect(gitRun(d.remote, 'rev-list', '--parents', '-n', '1', remoteDrop(d, 'ST-9')!).trim().split(' ')[1]).toBe(gitRun(d.remote, 'rev-parse', 'trunk').trim());
+}, 120_000);
+
+it('risk:data-loss drop refuses an uncommitted ticket file in the worktree holding its branch', async () => {
+  const c = clone();
+  const s = c.sibling('ST-10');
+  c.git('worktree', 'add', '-q', '-b', 't/ST-10', s, 'origin/main');
+  writeFiles(s, { 'accord/tickets/ST-10.md': laneTicket('ST-10') });
+  commitMsg(s, 'claim: ST-10');
+  gitRun(s, 'push', '-q', '-u', 'origin', 't/ST-10');
+  writeFileSync(s + '/accord/tickets/ST-10.md', laneTicket('ST-10') + '\nedited\n');
+  let r = await run(['drop', 'ST-10', '--reason', 'x'], c.root);
+  expect(r.code).toBe(2);
+  expect(r.err).toContain('accord/tickets/ST-10.md');
+  expect(r.err).toContain('uncommitted');
+  expect(remoteDrop(c, 'ST-10')).toBeUndefined();
+  commitMsg(s, 'edit');
+  r = await run(['drop', 'ST-10', '--reason', 'x'], c.root);
+  expect(r.code, r.err).toBe(0);
+}, 120_000);
+
+it('risk:complex-branching drop refuses a failed fetch an existing drop branch a ticket already dropped and names a failed push', async () => {
+  const c = clone();
+  claimOnBranch(c, 'A');
+  let r = await run(['drop', 'ST-10', '--reason', 'x'], c.root);
+  expect(r.code, r.err).toBe(0);
+  r = await run(['drop', 'ST-10', '--reason', 'x'], c.root);
+  expect(r.code).toBe(2);
+  expect(r.err).toContain('git push origin --delete drop/ST-10');
+
+  const o = c.otherClone();
+  mergeMsg(o, 'origin/drop/ST-10', 'merge drop/ST-10');
+  gitRun(o, 'push', '-q', 'origin', 'main');
+  c.git('push', '-q', 'origin', '--delete', 'drop/ST-10');
+  r = await run(['drop', 'ST-10', '--reason', 'x'], c.root);
+  expect(r.code).toBe(2);
+  expect(r.err).toContain('already dropped on main');
+
+  const hook = `${c.remote}/hooks/pre-receive`;
+  writeFileSync(hook, '#!/bin/sh\nexit 1\n');
+  chmodSync(hook, 0o755);
+  r = await run(['drop', 'ST-9', '--reason', 'gone'], c.root);
+  expect(r.code).toBe(2);
+  expect(r.err).toMatch(/git push origin [0-9a-f]{40}:refs\/heads\/drop\/ST-9/);
+  rmSync(hook);
+
+  c.git('remote', 'set-url', 'origin', c.remote + '-missing');
+  r = await run(['drop', 'ST-9', '--reason', 'gone'], c.root);
+  expect(r.code).toBe(2);
+  expect(r.err.startsWith('fetch from origin failed')).toBe(true);
+}, 120_000);
+
+it('risk:data-loss drop refuses a record the default branch would fail to lint', async () => {
+  const c = clone();
+  const o = c.otherClone();
+  writeFiles(o, { 'accord/tickets/ST-11.md': laneTicket('ST-11', { frontmatter: ['depends_on: ["ST-9"]'] }) });
+  commitMsg(o, 'ST-11');
+  gitRun(o, 'push', '-q');
+  c.git('pull', '-q');
+  const r = await run(['drop', 'ST-9', '--reason', 'gone'], c.root);
+  expect(r.code).toBe(2);
+  expect(r.err).toContain('lint.depends-dropped');
+  expect(r.err).toContain('accord/tickets/ST-11.md');
+  expect(r.err).toContain('nothing was created');
+  expect(remoteDrop(c, 'ST-9')).toBeUndefined();
 }, 120_000);

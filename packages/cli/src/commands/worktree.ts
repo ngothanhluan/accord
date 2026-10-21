@@ -423,7 +423,7 @@ const firstWord = (cmd: string) => (/^\s*(?:"([^"]*)"|'([^']*)'|(\S+))/.exec(cmd
  * Run a network git command with prompts off. ssh gets BatchMode only when it is OpenSSH: git reads core.sshCommand before GIT_SSH, and
  * GIT_SSH_COMMAND before both, so the user's own program is never replaced and a non-OpenSSH command is passed through unchanged.
  */
-export function gitNoPrompt(cwd: string, args: string[]): void {
+export function gitNoPrompt(cwd: string, args: string[]): string {
   let configured = '';
   try {
     configured = execFileSync('git', ['config', '--get', 'core.sshCommand'], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
@@ -436,7 +436,7 @@ export function gitNoPrompt(cwd: string, args: string[]): void {
   let ssh: string | undefined; // the core.sshCommand to inject
   if (cmd !== '') ssh = base === 'ssh' || base === 'ssh.exe' ? cmd + ' -o BatchMode=yes' : undefined;
   else if ((process.env.GIT_SSH ?? '') === '') ssh = 'ssh -o BatchMode=yes';
-  execFileSync('git', ['-c', 'credential.interactive=never', ...(ssh === undefined ? [] : ['-c', 'core.sshCommand=' + ssh]), ...args], {
+  return execFileSync('git', ['-c', 'credential.interactive=never', ...(ssh === undefined ? [] : ['-c', 'core.sshCommand=' + ssh]), ...args], {
     cwd,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],

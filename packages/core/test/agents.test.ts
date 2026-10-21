@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
-import { agents, agentTargets, contentHash, markerHash, renderAgent, skillTargets, withoutMarker } from '../src/index.js';
+import { agents, agentTargets, contentHash, markerHash, renderAgent, rulesetText, skillTargets, withoutMarker } from '../src/index.js';
 import type { AccordConfig, AgentKey } from '../src/index.js';
 
 const agentsDir = fileURLToPath(new URL('../agents/', import.meta.url));
@@ -193,4 +193,30 @@ it('risk:regression-of-a-real-bug a false-positive open finding can be withdrawn
   const planner = agent('.claude/agents/accord-planner.md');
   expect(critic).toContain('A finding it holds as `open` or `unverified` that no longer holds, whether or not the plan changed, goes on one line');
   expect(planner).toContain('A finding you cannot fix without failing one of the checks below is reported as `unverified: <reason>` naming the check, not applied.');
+});
+
+it('ac-1 the executor is told how verify ids match what it must not touch and to read the conventions', () => {
+  const flat = (s: string): string => s.replace(/\s+/g, ' ');
+  const agent = (path: string): string => flat(agentTargets(config()).find((f) => f.path === path)?.text ?? '');
+  const executor = agent('.claude/agents/accord-executor.md');
+  const planner = agent('.claude/agents/accord-planner.md');
+  const rules = flat(rulesetText('npx --yes @x/accord@1.2.3'));
+  expect(executor).not.toBe('');
+  expect(planner).not.toBe('');
+  for (const s of [
+    'A `verify:` id must equal, character for character, the id accord builds from the JUnit report',
+    "the testcase's classname, then `#`, then its name",
+    'every enclosing describe title',
+    'are each trimmed',
+    'each run of whitespace in them becomes `-`.',
+    'missing or is the empty string before trimming',
+    'read the JUnit report and find each verify id',
+    'never run `accord task-done`, and you never create, change, delete or rename',
+    "the repository's top-level `accord/` folder",
+    'An `accord/` folder inside a test fixture or an example is not it',
+    'Read `accord/product/` before you start',
+    'follow `accord/product/conventions.md` in every commit',
+  ]) expect(executor, `executor lacks: ${s}`).toContain(s);
+  expect(planner).toContain('Read `accord/product/` before you plan');
+  expect(rules).toContain('Every commit, by the main session or any agent, follows `accord/product/conventions.md` when that file exists.');
 });

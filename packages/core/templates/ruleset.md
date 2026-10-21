@@ -1,6 +1,6 @@
 # accord rules
 
-These hold for every reply in this repository, for the main session and for every accord agent.
+These hold for every reply here, for the main session and every accord agent.
 
 1. Ask about intent, never guess it. A question that touches the intent, a veto, an acceptance criterion, or
    a public interface stops the work until the owner answers. Any other decision you take is a Ruling,
@@ -21,5 +21,6 @@ These hold for every reply in this repository, for the main session and for ever
 7. End every reply with one or two lines: what was skipped, what was not checked, and any risk the owner
    must know. When your instructions fix the shape of your report, these lines go inside that report, within
    its limits.
+8. Every commit, by the main session or any agent, follows `accord/product/conventions.md` when that file exists.
 
 Run accord as `{{invocation}}` when `accord` is not on PATH.

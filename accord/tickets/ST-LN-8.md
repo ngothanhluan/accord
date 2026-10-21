@@ -60,7 +60,7 @@ Feature: ST-LN-8
     Then its output is the brief it prints today (which ends in exactly one newline), then the characters `\n---\n\n`, then the file's text byte for byte, with nothing after it
     And when the file is absent, or holds nothing but whitespace and byte order marks, the output is exactly the brief it prints today, with no `---` line added
 
-  @ac-3
+  @ac-3 @test:packages/cli/test/trailers.test.ts#ac-3-task-done-refuses-a-task-whose-commit-carries-a-forbidden-line-when-the-repository-forbids-trailers
   Scenario: task-done refuses a task whose commit carries a forbidden line (D-07) when the repository forbids trailers
     Given `config.yml` sets `commits.trailers: forbid`
     And a commit reached from HEAD by first parents that is neither on the default branch (origin/HEAD's target, else origin/main, else origin/master) nor reachable from the commit the ledger records for the highest recorded task below n has the body "Adds the parser.\nCo-Authored-By: Bot <bot@example.com>", with no blank line before the Co-Authored-By line

@@ -1,6 +1,6 @@
 ---
 baseline: b5678b55109cb1b8958aed77a3176cb337327459
-plan_hash: "fnv1a64:b2cf27f6b550dba1"
+plan_hash: "fnv1a64:69b6681aec286f65"
 ---
 
 Review mode `outcome`: one branch, no slices. Report case ids follow the shape the earlier plans use:
@@ -109,10 +109,8 @@ Test first, `packages/core/test/sentences.test.ts`, importing the module the way
 - `it('ac-3 the sentence counter counts only the owner-facing sentences of a main session')`. Records: a user
   record whose `message.content` is `w(30,'u') + '.'`; one assistant record whose `message.content` holds, in
   order, a `thinking` item `w(30,'t') + '.'`, a `tool_use` item with `input: { command: w(30,'c') + '.' }`, and
-  one `text` item whose lines are:
-  `w(12,'a') + ' — ** ' + w(13,'b') + '. ' + w(12,'d') + ' benchmark.mjs ' + w(12,'g') + ' 0.1.0.'` (a 25-word
-  sentence holding `—` and `**`, then a 26-word sentence on the same line whose words `benchmark.mjs` and
-  `0.1.0` hold a `.` with no space after it, so the sentence does not break there); `- check the build` (list line, no
+  one `text` item whose lines are: `w(12,'a') + ' — ** ' + w(13,'b') + '. ' + w(26,'d') + '.'` (a 25-word
+  sentence holding `—` and `**`, then a 26-word sentence on the same line); `- check the build` (list line, no
   full stop, 3 words); `w(4,'q') + '? ' + w(5,'x') + '! ' + w(6,'y') + '.'` (three sentences on one line,
   broken at `?` and at `!`); a fence line, `w(40,'f')`, a fence line; `'  | ' + w(30,'p') + ' |'`;
   `'first | ' + w(9,'e') + '.'` (10 words); `## Intent`, `w(40,'i') + '.'`, `---`. Assert

@@ -30,9 +30,15 @@
 - Ruling: the docs name conventions.md after the ticket's-own-record parenthetical, not inside it — conventions.md is not a record of the ticket — one wording change in two docs
 - Ruling: the spec doc's wrapped line starts with "or `accord/product/conventions.md` (ST-LN-8 D-08)." with no leading space — a Markdown continuation line need not begin with a space — one whitespace character
 - Ruling: task 2 was recorded with packages/cli/test/hook.test.ts "the prompt expansion hook blocks every accord text…" failing once in the affected run (33 s against the 30 s testTimeout; 13 s alone, and its file passes alone) — the hook does not reach this ticket's code and the baseline suite passed — a real regression would surface again in the verify full suite
+- Ruling: review round 1 uses an intent and a quality reviewer in parallel, not one `both` reviewer — the diff is about 490 changed lines, at the 500 boundary, and the owner ranks quality first — one more reviewer's tokens
 - Ruling: brief tests blankness with `conv.trim() === ''` — JS trim and `\s` already cover the byte order mark — none, the blank cases in the test cover it
 
 ## Deferred
 - plan round 1.5: Task 3 carries literal byte order mark characters; spell each one as a JavaScript escape so the BOM cases survive a filter — deferred
 - plan round 1.6: Task 1's "Must not change" names every case in schemas.test.ts while its Interface edits the key list at :146 — deferred
 - plan round 2.2: Task 2's test bullet repeats "the existing case the existing own-records case at line 434" — deferred
+- review round 1.1: the `commitMessage` test helper is copied into packages/cli/test/gate.test.ts and packages/cli/test/trailers.test.ts; one copy in packages/cli/test/helpers/repo.ts would keep them from drifting — deferred
+- review round 1.2: under forbid, task-done loads branch commits before its verify reasons print, so a missing origin ref exits 2 and hides a failing verify case until `git fetch origin` — deferred
+- final review 2: the commit loader splits git's output on `\x01`, so a body holding that control character hides every line after it; `%x00` alone with `-z` would remove it — deferred
+- final review 3: the `risk:security` core gate test re-asserts what ac-4 and ac-3's allow case cover; only its fail-closed `commits: undefined` part is a separate risk — deferred
+- final review 4: docs/design.md §9 "Hooks" lists seven ruleset items while templates/ruleset.md now has rule 8 — deferred

@@ -12,6 +12,7 @@
 - Ruling: the plan round 2 commit holds the planner's round 1 and round 2 fixes together, and the round 3 diff was rebuilt from the round 1 commit plus the round 1 diff — the round 2 record commit failed before the planner ran; a later commit put plan.md back to its round 1 state so that `plan: ST-LN-33 ready` carries the 2.1 fix, as the stage check needs — cost if wrong: low, git log shows two extra plan commits
 - Ruling: the @ac-1 test strips the line-1 marker and compares the 16 old lines as an in-order subsequence of the raw lines — the brief's exact method (task 1 executor) — cost if wrong: none named
 - Ruling: the @ac-2 test takes the invocation from packages/cli/package.json, and hook.ts builds the same string (task 2 executor) — cost if wrong: none named
+- Ruling: task 3 accepted although its executor wrote scripts/sentences.mjs before running the test, and showed red only by moving the module away — the test was written from the plan's fixture, which fixes every expected value — cost if wrong: medium, the red run proves only that the module is needed, so review must judge whether the test can fail on a wrong counter
 
 ## Deferred
 - Plan round 1.3 (Nice): Task 4 says "Date.parse(o.timestamp) is a number"; the intended test is not NaN, as readRun does at scripts/benchmark.mjs:50 — deferred
@@ -19,3 +20,4 @@
 ## Tasks
 - task 1 done 12ef32f018d6
 - task 2 done 4bc423810bd7
+- task 3 done 818f906ba8d2

@@ -55,7 +55,7 @@ Feature: ST-LN-33
     Then it holds the literal text "at most 25 words"
     And it is under 2048 bytes and still holds every text its tests checked before this ticket
 
-  @ac-3
+  @ac-3 @test:packages/core/test/sentences.test.ts#ac-3-the-sentence-counter-counts-only-the-owner-facing-sentences-of-a-main-session
   Scenario: the benchmark counts only the owner-facing sentences of a main session
     Given a main-session transcript whose assistant text blocks hold a sentence of 25 words, a sentence of 26 words, a list line without a full stop, a fenced code block of 40 words on one line, a table line of 30 words whose first character that is not a space is "|", a sentence of 10 words that holds a "|" after its first word, and a pasted approval view, from a line "## Intent" to the next line "---", that holds a sentence of 40 words, and whose user messages, thinking blocks, and tool calls each hold a sentence of 30 words
     When the benchmark's sentence counter reads it

@@ -72,7 +72,7 @@ Feature: ST-LN-34
     Then X's worktree, the local branch t/X and t/X on origin all remain
     And a printed line reads "kept t/X: 1 commits not on origin"
 
-  @ac-5
+  @ac-5 @test:packages/core/test/stage-skills.test.ts#ac-5-the-ids-reference-drops-a-ticket-with-accord-drop
   Scenario: The accord skills drop a ticket with the command
     Given the rendered accord skills
     When an agent reads the step of ids.md that drops a ticket before making one of the other type

@@ -469,6 +469,33 @@ export function fetchOrigin(ctx: CommandContext): CommandContext {
 }
 
 /** ST-LN-20 D-05: after a good fetch, prune origin's stale refs (remote-tracking, and tags a fetch refspec maps), naming each with its full sha (it can be the last copy of an unmerged branch). */
+/** ST-LN-30 D-03, D-04, D-09: fetch, then merge the remote default branch into the ticket branch with a merge commit; a conflict is aborted, named, and exits 2. */
+export function worktreeMerge(ctx: CommandContext, id: string): number {
+  if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id);
+  const branch = branchOf(ctx.snapshot, id);
+  if (!gitOk(ctx.root, ['remote', 'get-url', 'origin'])) return 0;
+  fetchOrigin(ctx);
+  const ref = gitDefaultRef(ctx.root);
+  if (ref === undefined) {
+    ctx.stdout.write('no origin/HEAD, origin/main or origin/master in this clone - nothing was merged\n');
+    return 0;
+  }
+  const def = ref.replace('refs/remotes/', '');
+  if (gitOk(ctx.root, ['merge-base', '--is-ancestor', ref, 'HEAD'])) return 0;
+  try {
+    // the full ref: a short origin/main would resolve to a local branch or tag of that name first
+    execFileSync('git', ['merge', '--no-ff', '--no-edit', ref], { cwd: ctx.root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  } catch (e) {
+    const files = git(ctx.root, ['diff', '--name-only', '--diff-filter=U']).split('\n').filter((l) => l !== '');
+    if (gitOk(ctx.root, ['rev-parse', '-q', '--verify', 'MERGE_HEAD'])) git(ctx.root, ['merge', '--abort']);
+    if (files.length > 0) {
+      throw new UsageError(`merge of ${def} into ${branch} stopped on a conflict in ${files.join(', ')} - the merge was aborted and ${branch} is as it was; resolve the conflict, then start verify again`);
+    }
+    throw new UsageError(`merge of ${def} into ${branch} failed: ${firstLine(e)} - ${branch} is as it was`);
+  }
+  return 0;
+}
+
 function pruneStale(ctx: CommandContext): void {
   const refs = () => git(ctx.root, ['for-each-ref', '--format=%(objectname) %(refname)']).split('\n').filter((r) => r !== '');
   const before = refs();

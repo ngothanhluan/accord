@@ -93,6 +93,7 @@ Feature: ST-LN-34
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
+- "tôi nhớ có ticket giảm nhiễu khi xong phần intent mà? đâu cần show lên hết. chỉ cần intent và phần nói đơn giản giống như trên để hiểu rõ những gì cần làm là dc."
 
 ## Open questions
 <!-- `- [ ]` items; Ready stays blocked while any is unchecked. -->

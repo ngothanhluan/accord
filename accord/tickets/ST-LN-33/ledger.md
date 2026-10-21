@@ -16,6 +16,7 @@
 - Ruling: task 4 ran no wider suite and no real transcript folder, since the brief names only its two tests (task 4 executor); the main session then ran the benchmark on this worktree's real transcripts, exit 0, one row for this session — cost if wrong: an existing benchmark use could break unseen
 - Ruling: the review fix adds "Plain words: ac-1 means this." (5 words) after `---` in the @ac-3 fixture (review fix executor) — cost if wrong: only the test's expected arrays change
 - Ruling: the full suite after build had 3 timeouts (status ac-3, workflow-script risk:parsing, worktree risk:complex-branching) while a reviewer ran a second full suite at the same time; the three files re-run alone passed 92 of 92 — load, not this change, which touches none of them — cost if wrong: a real slowdown is missed until verify's full run
+- Ruling: the D-06 "with" session ran as `claude -p` in this worktree (transcript ef0e9015, rule 8 present), the "without" session interactively on main (f09c3786); a second no-rule session on t/ST-LN-30 (d83de167) shows the run-to-run spread — the owner's two tries opened in the ST-LN-30 worktree and lacked rule 8 — cost if wrong: medium, headless and interactive replies may differ for reasons other than the rule
 
 ## Deferred
 - Plan round 1.3 (Nice): Task 4 says "Date.parse(o.timestamp) is a number"; the intended test is not NaN, as readRun does at scripts/benchmark.mjs:50 — deferred

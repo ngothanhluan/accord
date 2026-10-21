@@ -2,7 +2,7 @@
 id: "ST-LN-33"                            # equals the file name: tickets/<id>.md
 title: "Text for the owner is written in short, plain sentences, and the benchmark measures it"
 type: "story" # story | bug. An epic uses its own template
-status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
+status: dropped                            # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
 # Tickets that must reach done before this one can start.
 # depends_on: ["OTHER-ID"]
@@ -90,6 +90,7 @@ Feature: ST-LN-33
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
 - "A. phần verify cần human test" — then, on what that means: "nghĩa là chạy một bản khi chưa apply rule mới, và một bản rule mới. đối chiếu so sánh."
+- At verify, after the D-06 comparison showed the short reports dropping details: "những ý phụ có có quan trọng ko? vì mục đích là ngắn ngọn nhưng ko dc làm mất ý hoặc đổi ý"
 
 ## Open questions
 <!-- `- [ ]` items; Ready stays blocked while any is unchecked. -->
@@ -105,3 +106,6 @@ D-06 at verify: a read-only request (for example "explain where ticket X stands"
 Risks (critic, all kept and handled): Must — D-06 was not wired to anything verify reads (fixed above); Must — @ac-1 could not pass with the marker line (D-07); Should — a new request would create real tickets in the comparison (read-only request); Should — benchmark with no argument misses the main folder (both folders passed); Should — real transcripts open with records without a timestamp (D-07); Should — pasted approval views skew the score (D-07); Should — Vietnamese letters need the Unicode letter class; Should — rule 8 must name the owner so executors do not apply it to code or Gherkin; Nice — the @ac-2 test reads the cli package's name and version, which the hook injects.
 Also: a folder with zero subagent runs makes benchmark throw today (Math.min of nothing); main-session reading makes that case real, so the report guards it.
 Tests: @ac-1 in packages/core/test/stage-skills.test.ts (every-runtime render, old lines frozen as literals in the test); @ac-2 in packages/core/test/session.test.ts; @ac-3 unit test of sentences.mjs and @ac-4 spawn test of benchmark.mjs on a temp folder (process.execPath, cwd the repository), both in packages/core/test.
+
+## Dropped
+Not needed (owner, 2026-10-21). The build passed review and all four criteria verified at c286473, but the D-06 comparison weighed against the rule. Without it, 4% to 13% of owner-facing sentences ran over 25 words; with it, 0% to 1% (one session per side on a hook explanation, two per side on a verify report for ST-LN-19). On the hook explanation the owner could not tell which reply was better: "vấn dề là tôi ko biết cái nào tốt hôn". On the verify reports, the rule's version dropped details instead of splitting sentences: the verifier's own run of `show --approval`, and that ac-1 checks the raw output under the D-09 risk. The owner then set the goal: "mục đích là ngắn ngọn nhưng ko dc làm mất ý hoặc đổi ý". The gain is small, the cost falls on the evidence a verify report exists to carry, and what makes reports hard to read is the number of points, not sentence length. Asked to stop the ticket unmerged, keeping the branch t/ST-LN-33: "A".

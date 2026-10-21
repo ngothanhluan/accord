@@ -21,6 +21,7 @@
 - Ruling: a successful merge and a branch that is not behind both print nothing — no criterion asks for a confirmation line — cost if wrong: the owner's report cannot quote that a merge happened.
 - Ruling: after a merge that changes the version pin, `checkPin`'s error propagates and `worktree merge` exits 2 with the merge kept — preflight checked the pin before the merge, so only the merge can change it, and every later accord command would refuse anyway — cost if wrong: verify stops on a merge that succeeded.
 - Ruling: D-05's edit to ST-LN-11 is not made on this branch — PR #53 already rewrote ST-LN-11 line 33 on origin/main, and the merge before verify brings it here — cost if wrong: none; editing it here would only conflict at that merge.
+- Ruling: ac-5's "exactly one line" counts per accord command, one for each action its When names (Pick up, `new ticket --worktree`, Continue, `worktree merge`); one `/accord continue` on a ticket at verify runs Continue and then `worktree merge`, so offline it prints two fetch-failed lines and can wait up to 60 s, each fetch capped at 30 s (plan review 1.2), owner: "A" — cost if wrong: a repeated line and a second wait for one offline action at verify; the fix is for Continue to skip its fetch at verify, which narrows ac-2.
 
 ## Deferred
 - Nice (plan review 1.3): Task 4's pin test could assert `expect(err).not.toContain('is as it was')`, so a `checkPin` error wrapped as a failed merge is caught.

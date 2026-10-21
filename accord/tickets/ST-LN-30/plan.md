@@ -1,6 +1,6 @@
 ---
 baseline: 786f302801ab64684e1cc59e29044bcd7d0d9b80
-plan_hash: "fnv1a64:b819cb8897b602ee"
+plan_hash: "fnv1a64:f956d9f6b894722f"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -128,7 +128,7 @@ line as their first line, per the rules above.
 ## Task 3: accord worktree merge merges the remote main into the ticket branch with a merge commit and stops on a conflict
 covers: @ac-3, @ac-4, D-03, D-04, D-09
 files: packages/cli/src/commands/worktree.ts, packages/cli/src/run.ts, packages/cli/test/worktree.test.ts, packages/cli/test/skill-commands.test.ts
-verify: packages/cli/test/worktree.test.ts#ac-3-worktree-merge-at-verify-gives-the-ticket-branch-a-merge-commit-of-its-head-and-the-fetched-main-commit (@ac-3), packages/cli/test/worktree.test.ts#ac-4-a-merge-conflict-is-aborted-names-the-file-exits-2-and-the-next-merge-tries-again (@ac-4)
+verify: packages/cli/test/worktree.test.ts#ac-3-worktree-merge-at-verify-gives-the-ticket-branch-a-merge-commit-of-its-head-and-the-fetched-main-commit (@ac-3), packages/cli/test/worktree.test.ts#ac-4-a-merge-conflict-is-aborted-names-the-file-exits-2-and-the-next-merge-tries-again (@ac-4), packages/cli/test/worktree.test.ts#risk:complex-branching-worktree-merge-merges-the-remote-tracking-main-when-a-local-branch-has-its-short-name
 
 Consumes: `fetchOrigin` (Task 1), `gitDefaultRef`, `currentBranch` and `UsageError` from `../load/fs.js`,
 `branchOf`, `git`, `gitOk` and `firstLine`. Produces `export function worktreeMerge(ctx: CommandContext, id:
@@ -165,6 +165,14 @@ Tests first:
   `ST-9\n`; `git rev-parse -q --verify MERGE_HEAD` throws. Nothing under `accord/tickets/ST-9/` changed, which
   the clean status covers. A second run exits 2 again, its `err` contains `shared.txt`, and HEAD is still `head`.
   The next start tries again, and nothing is stored (D-03, ledger Ruling on ac-4).
+- `it('risk:complex-branching worktree merge merges the remote-tracking main when a local branch has its short name')`:
+  `c = clone()`; `ticketWorktree(c, 'ST-9')`; `sib = c.sibling('ST-9')`; `verifyStage(sib, 'ST-9')`. Read
+  `head = gitRun(sib, 'rev-parse', 'HEAD').trim()`, then in `sib` run `git branch origin/main HEAD`, a local
+  branch `refs/heads/origin/main` at `head`, which the short name `origin/main` resolves to before the
+  remote-tracking ref. In `o = c.otherClone()`, commit `next.txt` on `main`, push, and read `tip`.
+  `run(['worktree', 'merge', 'ST-9'], sib)` exits 0. In `sib`: `rev-parse HEAD^1` is `head`, `rev-parse HEAD^2`
+  is `tip`, and `rev-parse refs/heads/origin/main` is still `head`. This test never calls `sha(c, 'origin/main')`,
+  since that short name is ambiguous here.
 
 Interface, `worktreeMerge(ctx, id)` in this order:
 1. `if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id)`. `branch = branchOf(ctx.snapshot, id)`.
@@ -176,9 +184,11 @@ Interface, `worktreeMerge(ctx, id)` in this order:
    Otherwise `def` is its short name.
 5. When `gitOk(ctx.root, ['merge-base', '--is-ancestor', ref, 'HEAD'])` is true, the branch is not behind: return
    0, printing nothing (ledger Ruling on critic 2).
-6. `execFileSync('git', ['merge', '--no-ff', '--no-edit', def], { cwd: ctx.root, encoding: 'utf8', stdio:
+6. `execFileSync('git', ['merge', '--no-ff', '--no-edit', ref], { cwd: ctx.root, encoding: 'utf8', stdio:
    ['ignore', 'pipe', 'pipe'] })`. `--no-ff` always gives a two-parent merge commit whose first parent is the
-   old head (ac-3). There is never a rebase. On success return 0, printing nothing.
+   old head (ac-3). There is never a rebase. On success return 0, printing nothing. The merge is given the full
+   `refs/remotes/...` name, the same ref step 5 checks: a short `origin/main` would resolve to a local branch or
+   a tag of that name first. The short name `def` is used only in printed lines.
 7. On a throw: first read `files = git(ctx.root, ['diff', '--name-only', '--diff-filter=U'])` split into non-empty
    lines. Then, only when `gitOk(ctx.root, ['rev-parse', '-q', '--verify', 'MERGE_HEAD'])`, run
    `git(ctx.root, ['merge', '--abort'])`. Then throw a `UsageError` (exit 2):
@@ -244,12 +254,13 @@ Interface, in `worktreeMerge`, between step 1 and step 2 of Task 3, in this orde
 - Stage: `stage = statusRows(ctx.snapshot).find((r) => r.id === id)?.stage`. When `stage !== 'verify'`, throw
   `<id> is at stage <stage, or "none" when undefined>, and accord worktree merge runs only at verify, after review
   - nothing was merged` (D-04: the tool, not the session, holds "merge once, after review").
-- Step 6's arguments become `['merge', '--no-ff', '--no-edit', '--no-overwrite-ignore', def]`.
+- Step 6's arguments become `['merge', '--no-ff', '--no-edit', '--no-overwrite-ignore', ref]`, `ref` still the
+  full `refs/remotes/...` name.
 - After a successful merge in step 6, call `checkPin(ctx, id, ctx.root, branch, listWorktrees(ctx.root)[0].path)`
   and let its `UsageError` propagate. Preflight has already checked the pin before the merge, so it throws only
   when the merge changed the pinned version, and it prints the line `checkPin` already prints.
 
-Must not change: Task 3's two tests and its step order. The refusals run before `fetchOrigin`, so a refused
+Must not change: Task 3's three tests and its step order. The refusals run before `fetchOrigin`, so a refused
 command makes no network call. `checkPin`'s messages.
 
 ## Task 5: The fetch has a 30 s limit, and a failed or silent fetch is one line at all four points

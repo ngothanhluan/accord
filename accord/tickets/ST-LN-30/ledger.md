@@ -26,6 +26,8 @@
 - Ruling: the hold-lock test's bound goes from 5000 to 15000 ms, since Continue now runs a fetch and snapshot reload before the 2 s lock wait; a real hang never returns, so 15 s still proves no hang (task 1) — cost if wrong: a lock-wait regression between 5 s and 15 s passes that test.
 - Ruling: the `worktree clean` data-loss test is left unchanged — clean does not call `fetchOrigin`, the test passes alone in 7.7 s, and its 30 s timeout came from 20 files in parallel (task 1) — cost if wrong: the test stays flaky on a loaded machine.
 - Ruling: the existing ac-4 claude-code Continue test is updated in place to expect the behind line first on both Continue calls (1 commit behind), per the plan's rule for tests whose output changes (task 2) — cost if wrong: none, nothing weakened.
+- Ruling: task 3 is recorded from its commit f9214b6 without the executor's report, which the session that dispatched it lost before recording; its four files are all on the task's `files:` line, so no undeclared file is accepted, and any Ruling that report held is unknown (task 3) — cost if wrong: a choice the executor made is not in the ledger, which review then finds in the diff.
+- Ruling: the hook prompt-expansion security test timed out at 30 s in the affected run of 20 files in parallel and passes alone (7 of 7 in 15.8 s); it is the known hook test slowdown left from ST-LN-26, so task 3 is recorded over it (task 3) — cost if wrong: a slowdown this ticket added to the hook path goes unnoticed until review.
 
 ## Deferred
 - Nice (plan review 1.3): Task 4's pin test could assert `expect(err).not.toContain('is as it was')`, so a `checkPin` error wrapped as a failed merge is caught.
@@ -34,3 +36,4 @@
 ## Tasks
 - task 1 done f6072a2a4600
 - task 2 done fde7e582cbfe
+- task 3 done f9214b6196c9

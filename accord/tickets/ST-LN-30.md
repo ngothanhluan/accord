@@ -59,14 +59,14 @@ Feature: ST-LN-30
     Then it prints that the branch is 2 commits behind the default branch and names the merge command built from the default branch accord resolved, "git merge origin/main" when that branch is main
     And the ticket branch is unchanged
 
-  @ac-3
+  @ac-3 @test:packages/cli/test/worktree.test.ts#ac-3-worktree-merge-at-verify-gives-the-ticket-branch-a-merge-commit-of-its-head-and-the-fetched-main-commit
   Scenario: Verify runs on the ticket merged with the latest default branch
     Given a ticket whose review.md ends with a verdict and whose branch lacks a commit on the remote's default branch, not yet fetched
     When the verify stage of /accord starts
     Then the ticket branch gains a merge commit whose first parent is its previous head and whose second parent is that commit, with no rebase
     And the full test suite and the verification run on that merge commit
 
-  @ac-4
+  @ac-4 @test:packages/cli/test/worktree.test.ts#ac-4-a-merge-conflict-is-aborted-names-the-file-exits-2-and-the-next-merge-tries-again
   Scenario: A merge conflict leaves the branch as it was and stops verify
     Given a ticket whose review.md ends with a verdict, and the ticket branch and the remote's default branch change the same line of one file
     When the verify stage of /accord starts

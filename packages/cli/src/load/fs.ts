@@ -72,10 +72,10 @@ function gitFacts(
   root: string,
 ): { commit: string; authors: Record<string, string>; activity: Record<string, number>; planSubjects: Record<string, string> } | undefined {
   const git = (args: string[]) =>
-    execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 });
   let head: string;
   try {
-    head = git(['show', '-s', '--format=%H%x00%ae', 'HEAD']);
+    head = git(['-c', 'log.showSignature=false', 'show', '--no-show-signature', '-s', '--format=%H%x00%ae', 'HEAD']);
   } catch {
     // `gitTree` runs first, so a missing binary has already thrown the ENOENT UsageError; a failure
     // here means an unborn HEAD and nothing else.
@@ -91,7 +91,7 @@ function gitFacts(
   let log: string;
   try {
     // One bounded walk over one subtree in one spawn (T-04-23).
-    log = git(['log', '--format=%x01%ae%x00%ct%x00%s', '--name-only', '--', 'accord/tickets']);
+    log = git(['-c', 'log.showSignature=false', 'log', '--no-show-signature', '--format=%x01%ae%x00%ct%x00%s', '--name-only', '--', 'accord/tickets']);
   } catch {
     log = '';
   }
@@ -629,10 +629,11 @@ export function loadClaimView(root: string): { checkout: SnapshotInput; view: Sn
     else {
       let subject = '';
       try {
-        subject = execFileSync('git', ['log', '-1', '--format=%s', ref, '--', planPath], {
+        subject = execFileSync('git', ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '-1', '--format=%s', ref, '--', planPath], {
           cwd: root,
           encoding: 'utf8',
           stdio: ['ignore', 'pipe', 'ignore'],
+          maxBuffer: 64 * 1024 * 1024,
           env,
         }).replace(/\r?\n$/, '');
       } catch {
@@ -694,7 +695,7 @@ export function gitTicketIdsInHistory(root: string): string[] {
   if (execFileSync('git', ['for-each-ref', '--count=1', '--format=%(refname)'], opts).trim() === '') return [];
   let raw: string;
   try {
-    raw = execFileSync('git', ['log', '--all', '--full-history', '--no-renames', '--format=', '--name-only', '--', 'accord/tickets'], opts);
+    raw = execFileSync('git', ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '--all', '--full-history', '--no-renames', '--format=', '--name-only', '--', 'accord/tickets'], opts);
   } catch (err) {
     const stderr = String((err as { stderr?: string }).stderr ?? '').trim();
     throw new UsageError('git log failed reading ticket ids' + (stderr === '' ? '' : '\n' + stderr));

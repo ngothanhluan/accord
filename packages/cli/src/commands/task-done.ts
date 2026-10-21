@@ -27,10 +27,11 @@ export function staleReport(ctx: CommandContext): string | undefined {
   const rel = normaliseKey(report);
   const committed =
     commitSeconds(
-      execFileSync('git', ['show', '-s', '--format=%ct', 'HEAD'], {
+      execFileSync('git', ['-c', 'log.showSignature=false', 'show', '--no-show-signature', '-s', '--format=%ct', 'HEAD'], {
         cwd: ctx.root,
         encoding: 'utf8',
         stdio: ['ignore', 'pipe', 'pipe'],
+        maxBuffer: 64 * 1024 * 1024,
       }),
     ) * 1000;
   const written = Math.floor(statSync(join(ctx.root, ...rel.split('/'))).mtimeMs / 1000) * 1000;

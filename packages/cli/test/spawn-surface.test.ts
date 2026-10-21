@@ -81,6 +81,24 @@ it('risk:security only git gh ps and powershell are spawned by name and one setu
   expect(sites.filter((s) => /\bshell\s*:/.test(s.args)).map((s) => s.where)).toEqual(unnamed.map((s) => s.where));
 });
 
+it('risk:git-config every git log and git show passes the flags that keep log.showSignature out of its output', () => {
+  const sites: string[] = [];
+  const offenders: string[] = [];
+  for (const d of readdirSync(srcDir, { recursive: true, withFileTypes: true })) {
+    if (!d.isFile() || !d.name.endsWith('.ts')) continue;
+    const text = stripCommentLines(readFileSync(join(d.parentPath, d.name), 'utf8'));
+    for (const m of text.matchAll(/['"](?:log|show)['"]/g)) {
+      const where = `${relative(srcDir, join(d.parentPath, d.name)).split(sep).join('/')}:${text.slice(0, m.index).split('\n').length}`;
+      sites.push(where);
+      const flagged = text.slice(0, m.index).endsWith("'-c', 'log.showSignature=false', ") && text.startsWith(", '--no-show-signature',", m.index + m[0].length);
+      if (!flagged) offenders.push(where);
+    }
+  }
+  // A silently empty scan would make the assertion below vacuous.
+  expect(sites.length).toBeGreaterThan(0);
+  expect(offenders).toEqual([]);
+});
+
 describe('printed paths', () => {
   // Every repository-reading command shipped so far. A single command would leave the next one free to
   // print a `path.join` result; this is the assertion that fails on Windows CI the moment one does.

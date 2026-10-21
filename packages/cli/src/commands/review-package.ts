@@ -22,6 +22,8 @@ export function reviewPackage(ctx: CommandContext, id: string, options: { base?:
       stdio: ['ignore', 'pipe', 'pipe'],
       maxBuffer: 64 * 1024 * 1024,
     });
+  // Every git log passes the signature flags (conventions.md), so a signed HEAD never changes the output.
+  const gitLog = (args: string[]) => git(['-c', 'log.showSignature=false', 'log', '--no-show-signature', ...args]);
   const range = base + '...HEAD';
   // A short reason for the one failure that explains itself, else git's own first stderr line.
   const why = (e: unknown): string => {
@@ -82,7 +84,7 @@ export function reviewPackage(ctx: CommandContext, id: string, options: { base?:
       : [
           `# Review package: ${id} (${range})`,
           '## Commits',
-          git(['log', '--no-color', '--format=%h %s', base + '..HEAD', '--']).trimEnd() || '(none)',
+          gitLog(['--no-color', '--format=%h %s', base + '..HEAD', '--']).trimEnd() || '(none)',
           '## Stat',
           git(['diff', '--no-color', '--no-ext-diff', '--stat', range, '--']).trimEnd() || '(no changes)',
           '## Diff',

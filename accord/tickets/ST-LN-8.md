@@ -42,7 +42,7 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: ST-LN-8
 
-  @ac-1
+  @ac-1 @test:packages/core/test/agents.test.ts#ac-1-the-executor-is-told-how-verify-ids-match-what-it-must-not-touch-and-to-read-the-conventions
   Scenario: The executor is told how verify ids match, what it must not touch, and to read the conventions
     Given `accord skills sync` has rendered the executor agent
     When the rendered executor instructions are read

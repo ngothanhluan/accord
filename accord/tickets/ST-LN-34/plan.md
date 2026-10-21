@@ -1,6 +1,6 @@
 ---
 baseline: d5586db44dabc62b93ae03f969c12c4dbcfaad3f
-plan_hash: "fnv1a64:032e2ff508ebd1de"
+plan_hash: "fnv1a64:6c8cd53165044004"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -10,7 +10,7 @@ Order: Task 1 is the wiring. It adds the core section writer and `accord drop`, 
 record, commits it without a checkout, and pushes `drop/<id>`. ac-1 and ac-2 prove it end to end against a bare remote.
 Task 2 adds the refusals drop must make before it pushes anything. Task 3 adds the dropped-ticket path to
 `accord worktree clean` (ac-3, ac-4). Task 4 makes clean safe when its fetch failed, when the lease is stale, and when
-another clone already cleaned (D-13). Task 5 refuses pick-up of a dropped ticket (D-16). Task 6 rewrites step 1 of
+another clone already cleaned (D-13), and keeps a branch that moved during clean or that a detached worktree is rebasing. Task 5 refuses pick-up of a dropped ticket (D-16). Task 6 rewrites step 1 of
 `ids.md` (ac-5) and re-renders the skill copies.
 
 Rules for every task:
@@ -111,7 +111,7 @@ failure returns `undefined`.
     `''`, `c.git('rev-parse', 'HEAD')` equals `head`, and `c.git('status', '--porcelain')` is `''`.
 - `it('risk:data-loss drop pushes a crlf ticket file with a bom byte for byte outside the status value and the dropped section')`:
   - `c = makeClone()`, then `c.git('config', 'core.autocrlf', 'false')` and `c.git('switch', '-q', '-c', 't/ST-10')`.
-  - Write `accord/tickets/ST-10.md` as `crlf = '﻿' + laneTicket('ST-10').replaceAll('\n', '\r\n')`, then
+  - Write `accord/tickets/ST-10.md` as `crlf = '\uFEFF' + laneTicket('ST-10').replaceAll('\n', '\r\n')`, then
     `commitMsg` and `push -q -u origin t/ST-10`.
   - `run(['drop', 'ST-10', '--reason', 'no longer needed'], c.root)` exits 0.
   - The pushed blob, read with `cat-file blob`, is
@@ -137,7 +137,7 @@ failure returns `undefined`.
 Interface:
 - `packages/core/src/write/dropped.ts`:
   `export function markDropped(text: string, reason?: string): string | undefined`.
-  - `bom = text.startsWith('﻿')` and `crlf = text.includes('\r\n')`.
+  - `bom = text.startsWith('\uFEFF')` and `crlf = text.includes('\r\n')`.
   - `lf = setFrontmatterKey(normaliseText(text), 'status', 'dropped')`. That call throws when the file has no
     frontmatter block; let the error through.
   - `{ body, bodyOffset } = splitFrontmatter(lf)` and `{ sections } = scan(body, bodyOffset)`, so section lines are
@@ -153,7 +153,7 @@ Interface:
     `['## Dropped', reason, '']` before its heading line. Otherwise append at the end, after making sure the text ends
     with exactly one blank line: `\n## Dropped\n<reason>\n`.
   - The result ends with one `\n`. Restore the line endings at the end: replace every `\n` with `\r\n` when `crlf`,
-    then prefix `﻿` when `bom`. A file whose line endings are all CRLF therefore keeps every byte outside the
+    then prefix `'\uFEFF'` when `bom`. A file whose line endings are all CRLF therefore keeps every byte outside the
     status value and the `## Dropped` section.
   - Export it from `packages/core/src/index.ts`, next to `setFrontmatterKey`.
 - `worktree.ts`:
@@ -265,7 +265,7 @@ Interface:
 - `drop.ts`, with the step numbers of Task 1:
   - Before step 3 (D-05): when `listWorktrees(root).find((w) => w.branch === b)` exists, run
     `git(w.path, ['status', '--porcelain', '--untracked-files=all', '--', path])`. When it is non-empty, refuse with
-    `<path> has uncommitted changes in <w.path> - commit them on <b> first`.
+    `<path> has uncommitted changes in <w.path> - commit and push them on <b> first`.
   - Step 3: wrap the fetch. On failure, refuse with `fetch from origin failed: <first stderr line>`.
   - After step 4:
     - When `droppedOn(root, ref, [id]).has(id)`, refuse with `<id> is already dropped on <short>`.
@@ -382,6 +382,9 @@ Interface:
      1. `W = after.find((x) => x.branch === b)`. When `W` is `after[0]`, the main checkout, write
         `kept <b>: checked out in <W.path>` and stop.
      2. When `W` exists: `g = passGuards(ctx, W, id, s)`, and stop when it is undefined.
+     2a. Re-read `L` now: `args = ['rev-parse', '--verify', '-q', 'refs/heads/' + b]`, and `L` is
+        `git(ctx.root, args).trim()` when `gitOk(ctx.root, args)`, else undefined. Use that value for every step after it, so a commit made in the worktree before the guards
+        finished is counted and the printed sha is the deleted one.
      3. Loss check (D-03, D-07, D-09, ledger Ruling 13):
         - `L` and `R` both exist and differ, and `isAncestor(R, L)`: write
           `kept <b>: <git rev-list --count R..L> commits not on origin` and stop.
@@ -393,7 +396,10 @@ Interface:
         Ruling 16).
      5. When `R` exists: `gitNoPrompt(ctx.root, ['push', '--force-with-lease=refs/heads/' + b + ':' + R, 'origin', ':refs/heads/' + b])`,
         then write `deleted origin/<b> (was <R>)`.
-     6. When `L` exists: `git branch -D <b>`, spawned as the merged loop does, then write `deleted <b> (was <L>)`.
+     6. When `L` exists: `git update-ref -d refs/heads/<b> <L>`, spawned with `execFileSync` as the merged loop spawns
+        `branch -D`, then write `deleted <b> (was <L>)`. The old-value argument makes git refuse when the branch moved
+        after step 2a (ledger Ruling 25); on that failure write `kept <b>: git update-ref failed: <firstLine(e)>` instead,
+        and the branch stays. The merged loop keeps `git branch -D`.
   - `drop/<id>` never matches a ticket branch template (ledger Ruling 8), so it is never touched (D-12).
 - `run.ts`: the `worktree clean` description becomes
   `'fetch, then remove the worktrees of merged tickets, delete merged ticket branches, delete the worktree and branches of tickets dropped on the default branch when nothing is lost, and prune stale remote refs, naming what is removed, deleted or kept'`.
@@ -405,7 +411,7 @@ cases. Also unchanged: `worktree open`, `new ticket --worktree` and the hook cas
 ## Task 4: clean deletes nothing dropped after a failed fetch, keeps the local branch after a stale lease, and deletes a branch another clone already cleaned
 covers: D-03, D-13
 files: packages/cli/src/commands/worktree.ts, packages/cli/test/worktree.test.ts
-verify: packages/cli/test/worktree.test.ts#risk:data-loss-a-failed-fetch-keeps-every-dropped-ticket-and-says-so-once, packages/cli/test/worktree.test.ts#risk:data-loss-a-stale-lease-keeps-the-local-branch-of-a-dropped-ticket-and-names-the-origin-branch, packages/cli/test/worktree.test.ts#risk:data-loss-a-second-clone-deletes-its-local-branch-of-a-dropped-ticket-another-clone-cleaned
+verify: packages/cli/test/worktree.test.ts#risk:data-loss-a-failed-fetch-keeps-every-dropped-ticket-and-says-so-once, packages/cli/test/worktree.test.ts#risk:data-loss-a-stale-lease-keeps-the-local-branch-of-a-dropped-ticket-and-names-the-origin-branch, packages/cli/test/worktree.test.ts#risk:data-loss-a-second-clone-deletes-its-local-branch-of-a-dropped-ticket-another-clone-cleaned, packages/cli/test/worktree.test.ts#risk:data-loss-clean-keeps-the-local-branch-of-a-dropped-ticket-that-moved-after-clean-read-it, packages/cli/test/worktree.test.ts#risk:data-loss-clean-keeps-a-dropped-ticket-branch-that-a-detached-worktree-is-rebasing
 
 Consumes: Task 3's `cleanDropped`, `claimWorktree`, `dropOnRemote` and `has`. Produces: the final clean behaviour.
 
@@ -439,6 +445,27 @@ Tests first, appended to `packages/cli/test/worktree.test.ts`:
     is false.
   - `run(['worktree', 'clean'], o3)` gives exactly
     `[`pruned refs/remotes/origin/t/ST-9 (was ${S})`, 'kept t/ST-9: 2 commits not on origin']`, and the branch remains.
+- `it('risk:data-loss clean keeps the local branch of a dropped ticket that moved after clean read it')` (Task 3
+  steps 2a and 6, ledger Ruling 25):
+  - `c = clone()`, `S = claimWorktree(c, 'ST-9')`, `dropOnRemote(c, ['ST-9'])`.
+  - In `o = c.otherClone()`: `switch -q -c elsewhere`, write `e.txt`, `S2 = commitMsg(o, 'elsewhere')`, and
+    `push -q origin elsewhere`, so clean's fetch brings `S2` into `c`.
+  - Write `${c.root}/.git/hooks/pre-push` as `#!/bin/sh\ngit update-ref refs/heads/t/ST-9 ${S2}\nexit 0\n` and
+    `chmodSync` it `0o755`. The hook runs during the origin delete, after step 2a read `L`, and stands for a commit
+    made in that window.
+  - Clean exits 0 with exactly three lines: `removed ${c.sibling('ST-9')}`, `deleted origin/t/ST-9 (was ${S})`, then
+    one starting `kept t/ST-9: git update-ref failed: `.
+  - `sha(c, 't/ST-9')` is `S2`, and `has(c.remote, 'refs/heads/t/ST-9')` is false.
+- `it('risk:data-loss clean keeps a dropped ticket branch that a detached worktree is rebasing')` (ledger Ruling 25):
+  - `c = clone()` and `claimWorktree(c, 'ST-9')`. Start a rebase that stops with a detached HEAD in the sibling:
+    `gitRun(c.sibling('ST-9'), 'rebase', '-q', '--force-rebase', '--exec', 'false', 'HEAD~1')` inside a `try` whose
+    failure is ignored (`--force-rebase` makes git pick the commit even though the branch is up to date, then the
+    `exec` line fails, so the rebase stops with `rebase-merge/` in the worktree's git dir). Then assert
+    `gitRun(c.sibling('ST-9'), 'branch', '--show-current').trim()` is `''`.
+  - `dropOnRemote(c, ['ST-9'])`. Clean exits 0 and `lines(out)` equals
+    `[`kept t/ST-9: being rebased in ${c.sibling('ST-9')}`]`.
+  - The sibling, `refs/heads/t/ST-9` in `c` and `t/ST-9` on the remote all still exist.
+  - Finally run `gitRun(c.sibling('ST-9'), 'rebase', '--abort')` so that cleanup can remove the worktree.
 
 Interface, `worktree.ts`:
 - `pruneStale` returns `Map<string, string>`, mapping each removed refname to its sha (the pairs it already prints).
@@ -447,6 +474,11 @@ Interface, `worktree.ts`:
 - `cleanDropped`, after step 2: when `fetchFailed` and at least one dropped branch is left, write
   `kept dropped tickets: fetch from origin failed` once and return. Stale refs can show a revived ticket as dropped
   (ledger Ruling 17).
+- Step 3, before 3.1 (ledger Ruling 25): a worktree mid-rebase shows no `branch` line, so `W` misses it. For each
+  `x` of `after` with `x.branch === undefined`, take `dir = git(x.path, ['rev-parse', '--path-format=absolute', '--git-dir']).trim()`
+  and read `dir + '/rebase-merge/head-name'`, else `dir + '/rebase-apply/head-name'`, with `readFileSync(..., 'utf8').trim()`
+  in a `try` that treats a missing file as no rebase. When one reads `refs/heads/<b>`, write
+  `kept <b>: being rebased in <x.path>` and stop, before any guard or deletion.
 - Step 3, only `L`: count it as on origin, with no count taken, when
   `pruned.get('refs/remotes/origin/' + b) === L` (D-13).
 - Step 3.5: wrap the push. On failure write `kept origin/<b>: git push failed: <firstLine(e)>`. When `L` exists, also
@@ -496,6 +528,8 @@ Test first, appended at the end of `packages/core/test/stage-skills.test.ts`:
     non-empty.
   - `drop = ids.slice(ids.indexOf('## Dropping instead of renaming'))` and
     `step1 = drop.slice(drop.indexOf('1. '), drop.indexOf('2. Create the new ticket'))`, which is non-empty.
+  - `step1` contains `commit every change in the ticket's worktree on its claim branch` and
+    `` `git push -u origin <claim branch>` ``, and the index of the second is below the index of `` `accord drop <id> ``.
   - `step1` contains: `` `accord drop <id> --reason "<reason>"` ``, `` `branch:`, `base:` and `title:` ``,
     `` `gh pr create --head <branch> --base <base> --title "<title>" --body "<reason>"` ``,
     `otherwise ask the owner to open it`, `waits for the owner's merge`, `Never delete a claim branch` and
@@ -507,7 +541,9 @@ Test first, appended at the end of `packages/core/test/stage-skills.test.ts`:
 
 Text, `packages/core/skills/accord/ids.md`:
 - Step 1, line 37, becomes, wrapped like its neighbours, with each code span on one line:
-  "1. Run `accord drop <id> --reason "<reason>"` with the owner's reason. It pushes a branch made from the default
+  "1. When the ticket has a worktree, first commit every change in the ticket's worktree on its claim branch and
+  push it with `git push -u origin <claim branch>`, so that the next `accord worktree clean` finds nothing that exists
+  only there. Then run `accord drop <id> --reason "<reason>"` with the owner's reason. It pushes a branch made from the default
   branch that holds only the ticket file, set to dropped with that reason, and prints `branch:`, `base:` and `title:`
   lines. Open that pull request with
   `gh pr create --head <branch> --base <base> --title "<title>" --body "<reason>"` when `gh` is available, otherwise

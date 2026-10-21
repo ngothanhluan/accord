@@ -23,9 +23,13 @@
 - Ruling: the fixed new output lines are `deleted origin/<b> (was <sha>)`, `kept <b>: origin/<b> has commits not here`, `kept dropped tickets: fetch from origin failed`, `kept origin/<b>: git push failed: …` and `kept <b>: its origin branch was not deleted` — cost if wrong: line wording.
 - Ruling: new tests make commits only through `commitMsg` and `mergeMsg` (`-F` with `--cleanup=verbatim`) and do not use the existing `-m` helpers — conventions.md — cost if wrong: longer test setup.
 - Ruling: plan-review round 1 findings 2 and 3 rest on git behaviour verified locally on git 2.56.0.windows.1, not only on git-scm.com: `git update-ref -d refs/heads/t/X <old>` exits 1 with "cannot lock ref … is at <new> but expected <old>" and keeps the branch when it moved; a worktree mid `rebase -i` shows `detached` with no `branch` line in `worktree list --porcelain`, and `<its git dir>/rebase-merge/head-name` reads `refs/heads/t/X` — cost if wrong: an older git behaves differently and the guard test fails on CI.
+- Ruling: clean's dropped path deletes the local branch with `git update-ref -d refs/heads/<b> <L>` after re-reading `L` once the guards pass, and prints `kept <b>: git update-ref failed: <first line>` when git refuses — a commit made during clean must not be lost — cost if wrong: one line's wording.
+- Ruling: clean keeps a dropped ticket's branch that any worktree with no branch is rebasing, according to `rebase-merge/head-name` or `rebase-apply/head-name`, and prints `kept <b>: being rebased in <path>` — such a worktree has no `branch` line, so the other guards miss it (verified on git 2.56.0: `rebase --force-rebase --exec false HEAD~1` leaves the worktree detached with `rebase-merge/head-name` naming the branch, and pre-push runs on a delete push) — cost if wrong: one clean waits for the rebase to finish.
+- Ruling: ids.md step 1 writes the push as `git push -u origin <claim branch>` — `<branch>` already means the printed drop branch in the same step — cost if wrong: a placeholder rename.
 
 ## Deferred
 
 - Nice (plan round 1.5): drop.test.ts need not import `loadSnapshot`; drop the import if unused.
 - Nice (plan round 1.6): test sha helpers should return trimmed output.
 - Nice (plan round 1.7): pin `removeWorktree`'s `failed` for partial removal and where `isAncestor` and `firstLine` live.
+- Nice (plan round 2.2): the D-05 worktree lookup in `accord drop` should skip a prunable worktree, or prune first.

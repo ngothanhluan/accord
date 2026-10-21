@@ -350,7 +350,7 @@ export function complianceSettings(repo) {
   const agent = fs.readFileSync(path.join(repo, '.claude', 'agents', 'accord-executor.md'), 'utf8');
   return {
     tierUp: Number(cfg.escalation?.fix_round_tier_up ?? 4),
-    executorModel: cfg.models?.executor?.model ?? agent.match(/^model:\s*(\S+)/m)?.[1] ?? '',
+    executorModel: cfg.models?.executor?.model ?? agent.match(/^model:\s*["']?([^\s"']+)/m)?.[1] ?? '',
   };
 }
 

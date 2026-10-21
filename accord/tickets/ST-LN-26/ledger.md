@@ -35,6 +35,8 @@
 - Ruling: named risk for review, plan review 6.2 (Should): `failure.md` step 2's "Otherwise, in place of Continue's steps 3 and 4, load `accord-debug`" must apply only when `accord worktree open <id> --continue` printed `enter:` or this session is already in that worktree, never on its exit-2 outcomes (failed setup, holding session, `this session works`, any other exit 2), which worktree.md says to show and stop on; the review checks the built text reads "When it printed `enter:`, or this session is already in that worktree," — recorded per the stop after round 6, owner: "A" — cost if wrong: the main checkout writes debug.md on `main` and dispatches a debugger outside the ticket's worktree.
 - Ruling: task 1 test data: the "verifier already ran at the fix" case with a second fix uses `{ ...second, parents: [F] }`, since the plan names parents [F] for that commit and the shared `second` fixture has parents [R] — executor, task 1 — cost if wrong: none, test data only.
 - Ruling: `gitAfterVerify` reads `git log --format=%x01%H%x00%P`, a leading `%x01` marking each commit line — a path can be 40 hex characters and read as a sha, while `%x01` cannot start a path — executor, task 2 — cost if wrong: only the parser in gitAfterVerify changes; results are the same.
+- Ruling: review-package falls back to today's package when the `rev-list` count that decides the exclusion fails — a failed count should not make review-package fail — executor, task 3 — cost if wrong: a fix's review package includes merged-in main work until the git error is fixed.
+- Ruling: hook.test.ts "the prompt expansion hook blocks every accord text…" timed out at 33s once in task 3's affected run (5.4s alone, and the rerun of the same 413 tests passed); counted as load on this machine, not a regression — cost if wrong: task 2's extra git process per claimed ticket makes the prompt-expansion hook slow enough to time out, and the review or verify suite shows it again.
 
 ## Deferred
 
@@ -45,3 +47,4 @@
 ## Tasks
 - task 1 done 825ca98550c1
 - task 2 done a3a1dcdc5b53
+- task 3 done e2fca8aeba2a

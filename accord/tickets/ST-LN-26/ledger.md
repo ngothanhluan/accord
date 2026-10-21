@@ -34,6 +34,7 @@
 - Ruling: named risk for review, plan review 6.1 (Should): `failure.md` step 2 after a `stop:` line must say the line it asks for, `/accord <id> ` followed by the report, replaces the `/accord continue <id>` line `stop:` prints; the plan's text ends "and stop here" without "in place of the line it prints", so the review checks the built `failure.md` for "`/accord <id> ` followed by the report, in place of the line it prints, and stop here" and the ac-1 pin with it — recorded per the stop after round 6, owner: "A" — cost if wrong: in Cursor the owner types the printed Continue line and verify runs before any debug episode opens.
 - Ruling: named risk for review, plan review 6.2 (Should): `failure.md` step 2's "Otherwise, in place of Continue's steps 3 and 4, load `accord-debug`" must apply only when `accord worktree open <id> --continue` printed `enter:` or this session is already in that worktree, never on its exit-2 outcomes (failed setup, holding session, `this session works`, any other exit 2), which worktree.md says to show and stop on; the review checks the built text reads "When it printed `enter:`, or this session is already in that worktree," — recorded per the stop after round 6, owner: "A" — cost if wrong: the main checkout writes debug.md on `main` and dispatches a debugger outside the ticket's worktree.
 - Ruling: task 1 test data: the "verifier already ran at the fix" case with a second fix uses `{ ...second, parents: [F] }`, since the plan names parents [F] for that commit and the shared `second` fixture has parents [R] — executor, task 1 — cost if wrong: none, test data only.
+- Ruling: `gitAfterVerify` reads `git log --format=%x01%H%x00%P`, a leading `%x01` marking each commit line — a path can be 40 hex characters and read as a sha, while `%x01` cannot start a path — executor, task 2 — cost if wrong: only the parser in gitAfterVerify changes; results are the same.
 
 ## Deferred
 
@@ -43,3 +44,4 @@
 
 ## Tasks
 - task 1 done 825ca98550c1
+- task 2 done a3a1dcdc5b53

@@ -1593,6 +1593,23 @@ it('risk:data-loss worktree merge never overwrites an ignored file and quotes th
   expect(ur.err).toContain('node_modules/é.txt');
   expect(readFileSync(uSib + '/node_modules/é.txt', 'utf8').replace(/\r/g, '')).toBe('mine\n');
   expect(gitRun(uSib, 'rev-parse', 'HEAD').trim()).toBe(uHead);
+
+  // a case-only rename on main of a file this branch tracks is no overwrite, on either kind of filesystem
+  const k = clone();
+  pushMain(k, 'README.md', 'readme\n');
+  k.git('fetch', '-q', 'origin');
+  ticketWorktree(k, 'ST-9');
+  const kSib = k.sibling('ST-9');
+  verifyStage(kSib, 'ST-9');
+  const kHead = gitRun(kSib, 'rev-parse', 'HEAD').trim();
+  const w = k.otherClone();
+  gitRun(w, 'mv', 'README.md', 'Readme.md');
+  gitRun(w, 'commit', '-q', '-m', 'case rename');
+  gitRun(w, 'push', '-q', 'origin', 'main');
+  const kr = await run(['worktree', 'merge', 'ST-9'], kSib);
+  expect(kr.err).toBe('');
+  expect(kr.code).toBe(0);
+  expect(gitRun(kSib, 'rev-parse', 'HEAD^1').trim()).toBe(kHead);
 }, 120_000);
 
 it('risk:complex-branching a merge that changes the pinned accord version keeps the merge and names the pin', async () => {

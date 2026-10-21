@@ -1,0 +1,17 @@
+[
+  {
+    "sha": "ca75fa2bc6a92099a06fbd5f282251235c627dcb",
+    "at": 1792253185000,
+    "message": "BUG-LN-3: a dropped ticket needs its Dropped reason to skip the gate; a flow-mapping frontmatter reads as unsettled"
+  },
+  {
+    "sha": "0496cf0300af6cc3ee9f04bb46afb35969b14db2",
+    "at": 1792327810000,
+    "message": "ST-LN-7 task 1: process table and Claude Code session reader\n\nCo-Authored-By: Claude Sonnet 5.5 <<email>>"
+  },
+  {
+    "sha": "d6c0e760f93484df41c99a106c61d50c5805c14e",
+    "at": 1792329151000,
+    "message": "ST-LN-7 task 4: the Claude Code session in the worktree takes the hold; live holder refuses, dead hold taken over, other tools go unheld"
+  }
+]

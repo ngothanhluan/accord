@@ -8,7 +8,9 @@ import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
+import { parse as parseYaml } from 'yaml';
 import { parsePlanReview } from './plan-review.mjs';
+import { compliance, render as renderCompliance } from './compliance.mjs';
 
 const projectsRoot = path.join(os.homedir(), '.claude', 'projects');
 const defaultDirs = (repo) => {
@@ -324,7 +326,59 @@ export function readSessions(dirs) {
   return { runs, refusals: refusals.filter((r) => { const key = JSON.stringify([r.file, r.ticket, r.task, r.reasons]); return seen.has(key) ? false : (seen.add(key), true); }) };
 }
 
+export const benchRoot = (repo) => path.resolve(repo, '..', 'accord-bench');
+
+const gitIn = (repo, args) => execFileSync('git', args, { cwd: repo, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] });
+
+export function commitInfo(repo, short) {
+  try {
+    const [sha, at, ...rest] = gitIn(repo, ['-c', 'log.showSignature=false', 'show', '--no-show-signature', '-s', '--format=%H%x00%at%x00%B', `${short}^{commit}`]).split('\0');
+    return { sha: sha.trim(), at: Number(at) * 1000, message: rest.join('\0').replace(/\n+$/, '') };
+  } catch { return undefined; }
+}
+
+export function testFileAt(repo, file, ms) {
+  try {
+    const rows = gitIn(repo, ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '--all', '--format=%H %at', '--', file]).split('\n').filter(Boolean).map((l) => l.split(' '));
+    const best = rows.filter(([, at]) => Number(at) * 1000 <= ms).sort((a, b) => Number(b[1]) - Number(a[1]))[0];
+    return best ? gitIn(repo, ['-c', 'log.showSignature=false', 'show', '--no-show-signature', `${best[0]}:${file}`]) : undefined;
+  } catch { return undefined; }
+}
+
+export function complianceSettings(repo) {
+  const cfg = parseYaml(fs.readFileSync(path.join(repo, 'accord', 'config.yml'), 'utf8')) ?? {};
+  const agent = fs.readFileSync(path.join(repo, '.claude', 'agents', 'accord-executor.md'), 'utf8');
+  return {
+    tierUp: Number(cfg.escalation?.fix_round_tier_up ?? 4),
+    executorModel: cfg.models?.executor?.model ?? agent.match(/^model:\s*(\S+)/m)?.[1] ?? '',
+  };
+}
+
+export function ticketRecords(repo) {
+  const dir = path.join(repo, 'accord', 'tickets');
+  const read = (f) => (fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : '');
+  const found = {};
+  for (const e of fs.existsSync(dir) ? fs.readdirSync(dir, { withFileTypes: true }) : []) {
+    if (e.isDirectory() && fs.existsSync(path.join(dir, e.name, 'review.md'))) found[e.name] = { review: read(path.join(dir, e.name, 'review.md')), ledger: read(path.join(dir, e.name, 'ledger.md')) };
+  }
+  return found;
+}
+
+function runCompliance(folders, repo) {
+  if (!folders.length) { process.stderr.write('--compliance needs the transcript folders to read\n'); return 2; }
+  const s = readSessions(folders);
+  const text = renderCompliance(compliance({
+    runs: s.runs, refusals: s.refusals, commits: [], tickets: ticketRecords(repo), settings: complianceSettings(repo),
+    commitInfo: (short) => commitInfo(repo, short), testFile: (p, ts) => testFileAt(repo, p, ts),
+  }));
+  fs.mkdirSync(benchRoot(repo), { recursive: true });
+  fs.writeFileSync(path.join(benchRoot(repo), 'compliance.md'), text);
+  process.stdout.write(text);
+  return 0;
+}
+
 export function main(args) {
+  if (args[0] === '--compliance') return runCompliance(args.slice(1), process.cwd());
   if (args.some((a) => a.startsWith('--'))) {
     process.stderr.write('usage: node scripts/benchmark.mjs [--compliance | --round 1 [--samples | --plan | --judge] | --clean [--force]] [folder ...]\n');
     return 2;

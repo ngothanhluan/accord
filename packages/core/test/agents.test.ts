@@ -218,5 +218,8 @@ it('ac-1 the executor is told how verify ids match what it must not touch and to
     'follow `accord/product/conventions.md` in every commit',
   ]) expect(executor, `executor lacks: ${s}`).toContain(s);
   expect(planner).toContain('Read `accord/product/` before you plan');
+  expect(planner).toContain("You never put a file under the repository's top-level `accord/` folder on a task's `files:` line");
+  expect(planner).toContain('the main session writes those files');
+  expect(planner).toContain('An `accord/` folder inside a test fixture or an example is not it');
   expect(rules).toContain('Every commit, by the main session or any agent, follows `accord/product/conventions.md` when that file exists.');
 });

@@ -1489,3 +1489,84 @@ it('risk:complex-branching worktree merge merges the remote-tracking main when a
   expect(gitRun(sib, 'rev-parse', 'HEAD^2').trim()).toBe(tip);
   expect(gitRun(sib, 'rev-parse', 'refs/heads/origin/main').trim()).toBe(head);
 }, 120_000);
+
+it('risk:complex-branching worktree merge refuses before verify on another branch and over tracked changes and merges nothing', async () => {
+  const c = clone();
+  ticketWorktree(c, 'ST-9');
+  const sib = c.sibling('ST-9');
+  verifyStage(sib, 'ST-9', { review: false });
+  const head = gitRun(sib, 'rev-parse', 'HEAD').trim();
+  pushMain(c, 'next.txt', 'next\n');
+  const main0 = sha(c, 'origin/main');
+  const early = await run(['worktree', 'merge', 'ST-9'], sib);
+  expect(early.code).toBe(2);
+  expect(early.err).toContain('only at verify');
+  expect(early.err).toContain('nothing was merged');
+  expect(gitRun(sib, 'rev-parse', 'HEAD').trim()).toBe(head);
+  expect(sha(c, 'origin/main')).toBe(main0);
+
+  const d = clone();
+  ticketWorktree(d, 'ST-9');
+  verifyStage(d.sibling('ST-9'), 'ST-9');
+  const dHead = gitRun(d.sibling('ST-9'), 'rev-parse', 'HEAD').trim();
+  pushMain(d, 'next.txt', 'next\n');
+  const away = await run(['worktree', 'merge', 'ST-9'], d.root);
+  expect(away.code).toBe(2);
+  expect(away.err).toContain('t/ST-9');
+  expect(away.err).toContain('nothing was merged');
+  expect(gitRun(d.sibling('ST-9'), 'rev-parse', 'HEAD').trim()).toBe(dHead);
+
+  const e = clone();
+  ticketWorktree(e, 'ST-9');
+  const eSib = e.sibling('ST-9');
+  verifyStage(eSib, 'ST-9');
+  const eHead = gitRun(eSib, 'rev-parse', 'HEAD').trim();
+  pushMain(e, 'next.txt', 'next\n');
+  writeFiles(eSib, { 'ST-9.txt': 'changed\n' });
+  const dirty = await run(['worktree', 'merge', 'ST-9'], eSib);
+  expect(dirty.code).toBe(2);
+  expect(dirty.err).toContain('uncommitted changes');
+  expect(readFileSync(eSib + '/ST-9.txt', 'utf8').replace(/\r/g, '')).toBe('changed\n');
+  expect(gitRun(eSib, 'rev-parse', 'HEAD').trim()).toBe(eHead);
+}, 120_000);
+
+it('risk:data-loss worktree merge never overwrites an ignored file and quotes the git error that stopped it', async () => {
+  const c = clone();
+  ticketWorktree(c, 'ST-9');
+  const sib = c.sibling('ST-9');
+  verifyStage(sib, 'ST-9');
+  const head = gitRun(sib, 'rev-parse', 'HEAD').trim();
+  writeFiles(sib, { 'node_modules/keep.txt': 'mine\n' });
+  const o = c.otherClone();
+  writeFiles(o, { 'node_modules/keep.txt': 'theirs\n' });
+  gitRun(o, 'add', '-f', 'node_modules/keep.txt');
+  gitRun(o, 'commit', '-q', '-m', 'theirs');
+  gitRun(o, 'push', '-q', 'origin', 'main');
+  const r = await run(['worktree', 'merge', 'ST-9'], sib);
+  expect(r.code).toBe(2);
+  expect(r.err).toContain('merge of origin/main into t/ST-9 failed: ');
+  expect(r.err).not.toContain('conflict');
+  expect(readFileSync(sib + '/node_modules/keep.txt', 'utf8').replace(/\r/g, '')).toBe('mine\n');
+  expect(gitRun(sib, 'rev-parse', 'HEAD').trim()).toBe(head);
+  expect(() => gitRun(sib, 'rev-parse', '-q', '--verify', 'MERGE_HEAD')).toThrow();
+}, 120_000);
+
+it('risk:complex-branching a merge that changes the pinned accord version keeps the merge and names the pin', async () => {
+  const c = clone();
+  ticketWorktree(c, 'ST-9');
+  const sib = c.sibling('ST-9');
+  verifyStage(sib, 'ST-9');
+  const head = gitRun(sib, 'rev-parse', 'HEAD').trim();
+  const o = c.otherClone();
+  const cfg = o + '/accord/config.yml';
+  writeFileSync(cfg, readFileSync(cfg, 'utf8').replace('accord: "0.1.0"', 'accord: "9.9.9"'));
+  gitRun(o, 'add', '-A');
+  gitRun(o, 'commit', '-q', '-m', 'pin');
+  gitRun(o, 'push', '-q', 'origin', 'main');
+  const tip = gitRun(o, 'rev-parse', 'HEAD').trim();
+  const r = await run(['worktree', 'merge', 'ST-9'], sib);
+  expect(r.code).toBe(2);
+  expect(r.err).toContain('pins accord 9.9.9');
+  expect(gitRun(sib, 'rev-parse', 'HEAD^1').trim()).toBe(head);
+  expect(gitRun(sib, 'rev-parse', 'HEAD^2').trim()).toBe(tip);
+}, 120_000);

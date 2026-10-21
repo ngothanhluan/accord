@@ -1,7 +1,7 @@
 // ST-LN-7 `accord worktree`: each ticket works in its own git worktree, a sibling folder of the main checkout.
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
-import { DEFAULT_BRANCH_TEMPLATE, loadConfig, loadSnapshot } from '@accord-dev/accord-core';
+import { DEFAULT_BRANCH_TEMPLATE, loadConfig, loadSnapshot, statusRows } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
 import { currentBranch, gitDefaultRef, gitUserEmail, loadFromFs, ticketOfBranch, UsageError } from '../load/fs.js';
 import { claudeEnv, describeSession, isLive, processTable, runSetup, sameSession, sessionIn } from '../load/proc.js';
@@ -473,6 +473,18 @@ export function fetchOrigin(ctx: CommandContext): CommandContext {
 export function worktreeMerge(ctx: CommandContext, id: string): number {
   if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id);
   const branch = branchOf(ctx.snapshot, id);
+  // refusals first: a refused merge makes no network call
+  const cur = currentBranch(ctx.root);
+  if (cur !== branch) {
+    throw new UsageError(`${id} is merged on its branch ${branch}, and this checkout is on ${cur ? cur : 'a detached HEAD'} - run accord worktree merge ${id} in the ticket's worktree; nothing was merged`);
+  }
+  if (git(ctx.root, ['status', '--porcelain', '--untracked-files=no']).trim() !== '') {
+    throw new UsageError(`${ctx.root} has uncommitted changes to tracked files - commit them, then run accord worktree merge ${id} again; nothing was merged`);
+  }
+  const stage = statusRows(ctx.snapshot).find((r) => r.id === id)?.stage;
+  if (stage !== 'verify') {
+    throw new UsageError(`${id} is at stage ${stage ?? 'none'}, and accord worktree merge runs only at verify, after review - nothing was merged`);
+  }
   if (!gitOk(ctx.root, ['remote', 'get-url', 'origin'])) return 0;
   fetchOrigin(ctx);
   const ref = gitDefaultRef(ctx.root);
@@ -482,9 +494,15 @@ export function worktreeMerge(ctx: CommandContext, id: string): number {
   }
   const def = ref.replace('refs/remotes/', '');
   if (gitOk(ctx.root, ['merge-base', '--is-ancestor', ref, 'HEAD'])) return 0;
+  // git 2.56 ort ignores --no-overwrite-ignore: refuse by hand when the merge adds a path that is an untracked (ignored) file here
+  const mine = git(ctx.root, ['diff', '--name-only', '--no-renames', '--diff-filter=A', `HEAD...${ref}`]).split('\n').filter((l) => l !== '');
+  const clash = mine.find((f) => existsSync(ctx.root + '/' + f) && !gitOk(ctx.root, ['ls-files', '--error-unmatch', '--', f]));
+  if (clash !== undefined) {
+    throw new UsageError(`merge of ${def} into ${branch} failed: ${clash} is an ignored file here that the merge would overwrite - move it, then start verify again - ${branch} is as it was`);
+  }
   try {
     // the full ref: a short origin/main would resolve to a local branch or tag of that name first
-    execFileSync('git', ['merge', '--no-ff', '--no-edit', ref], { cwd: ctx.root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    execFileSync('git', ['merge', '--no-ff', '--no-edit', '--no-overwrite-ignore', ref], { cwd: ctx.root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   } catch (e) {
     const files = git(ctx.root, ['diff', '--name-only', '--diff-filter=U']).split('\n').filter((l) => l !== '');
     if (gitOk(ctx.root, ['rev-parse', '-q', '--verify', 'MERGE_HEAD'])) git(ctx.root, ['merge', '--abort']);
@@ -493,6 +511,8 @@ export function worktreeMerge(ctx: CommandContext, id: string): number {
     }
     throw new UsageError(`merge of ${def} into ${branch} failed: ${firstLine(e)} - ${branch} is as it was`);
   }
+  // preflight checked the pin before the merge, so this throws only when the merge changed it
+  checkPin(ctx, id, ctx.root, branch, listWorktrees(ctx.root)[0].path);
   return 0;
 }
 

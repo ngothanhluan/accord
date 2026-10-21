@@ -41,7 +41,7 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: ST-LN-30
 
-  @ac-1
+  @ac-1 @test:packages/cli/test/worktree.test.ts#ac-1-pick-up-and-a-new-worktree-ticket-cut-the-ticket-branch-from-a-main-commit-this-clone-had-not-fetched
   Scenario Outline: A new ticket branch starts at the remote's latest default branch
     Given the remote's default branch, the one accord resolves today (origin/HEAD, else main, else master), has a commit this clone has not fetched
     When I run "<command>"

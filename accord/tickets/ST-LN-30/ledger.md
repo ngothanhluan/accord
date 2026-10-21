@@ -22,7 +22,13 @@
 - Ruling: after a merge that changes the version pin, `checkPin`'s error propagates and `worktree merge` exits 2 with the merge kept — preflight checked the pin before the merge, so only the merge can change it, and every later accord command would refuse anyway — cost if wrong: verify stops on a merge that succeeded.
 - Ruling: D-05's edit to ST-LN-11 is not made on this branch — PR #53 already rewrote ST-LN-11 line 33 on origin/main, and the merge before verify brings it here — cost if wrong: none; editing it here would only conflict at that merge.
 - Ruling: ac-5's "exactly one line" counts per accord command, one for each action its When names (Pick up, `new ticket --worktree`, Continue, `worktree merge`); one `/accord continue` on a ticket at verify runs Continue and then `worktree merge`, so offline it prints two fetch-failed lines and can wait up to 60 s, each fetch capped at 30 s (plan review 1.2), owner: "A" — cost if wrong: a repeated line and a second wait for one offline action at verify; the fix is for Continue to skip its fetch at verify, which narrows ac-2.
+- Ruling: `fetchOrigin` is exported and called from `worktreeOpen` right after `guardTicketSession`, so Continue fetches too, and from `newTicket` only when `--worktree` is set (task 1) — cost if wrong: an extra fetch on Continue.
+- Ruling: the hold-lock test's bound goes from 5000 to 15000 ms, since Continue now runs a fetch and snapshot reload before the 2 s lock wait; a real hang never returns, so 15 s still proves no hang (task 1) — cost if wrong: a lock-wait regression between 5 s and 15 s passes that test.
+- Ruling: the `worktree clean` data-loss test is left unchanged — clean does not call `fetchOrigin`, the test passes alone in 7.7 s, and its 30 s timeout came from 20 files in parallel (task 1) — cost if wrong: the test stays flaky on a loaded machine.
 
 ## Deferred
 - Nice (plan review 1.3): Task 4's pin test could assert `expect(err).not.toContain('is as it was')`, so a `checkPin` error wrapped as a failed merge is caught.
 - Nice (plan review 1.4): Task 3's ac-4 test should read `shared.txt` with `'utf8'`, since a Buffer never equals `'ST-9\n'`.
+
+## Tasks
+- task 1 done f6072a2a4600

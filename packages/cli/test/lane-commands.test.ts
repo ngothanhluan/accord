@@ -1,8 +1,9 @@
 // The workflow-layer commands end to end, in-process through runCli (STACK Decision 7), each against its
 // own sandbox so a write can never reach a fixture.
-import { existsSync, readFileSync, rmSync, statSync, utimesSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { platform } from 'node:os';
 import { join } from 'node:path';
+import { templates } from '@accord-dev/accord-core';
 import { describe, expect, it } from 'vitest';
 import { cleanup, commitAll, commitAllAt, gitRun, makeEmptyRepo, makeLaneRepo, makeRepo, run, writeFiles } from './helpers/repo.js';
 import { CONFIG, junit, LANE_BODY, laneTicket, PLAN, REPORT } from '../../../test/helpers/lane.js';
@@ -1271,3 +1272,31 @@ it('ac-4 tests skipped prints every case the report records as skipped with the 
     cleanup(bare);
   }
 }, 30000);
+
+it('ac-2 every brief ends with the repository conventions', async () => {
+  const repo = makeLaneRepo();
+  const conv = join(repo, 'accord', 'product', 'conventions.md');
+  const brief = async () => (await run(['brief', 'T-1', '2'], repo)).out;
+  try {
+    const before = await brief();
+    expect(before.endsWith('\n')).toBe(true);
+    expect(before.endsWith('\n\n')).toBe(false);
+    expect(before).not.toContain('conventions');
+    expect((await run(['init'], repo)).code).toBe(0);
+    expect(readFileSync(conv, 'utf8')).toBe(templates['conventions.md']);
+    expect(await brief()).toBe(before + '\n---\n\n' + templates['conventions.md']);
+    writeFileSync(conv, '- Never add a commit trailer.');
+    expect(await brief()).toBe(before + '\n---\n\n- Never add a commit trailer.');
+    const crlf = '﻿- A\r\n- B\r\n';
+    writeFileSync(conv, crlf);
+    expect(await brief()).toBe(before + '\n---\n\n' + crlf);
+    for (const blank of ['', ' \n\t\r\n', '﻿', '﻿\n  ﻿\n']) {
+      writeFileSync(conv, blank);
+      expect(await brief()).toBe(before);
+    }
+    rmSync(conv);
+    expect(await brief()).toBe(before);
+  } finally {
+    cleanup(repo);
+  }
+}, 60_000);

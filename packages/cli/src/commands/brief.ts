@@ -1,6 +1,6 @@
 // Spec §8 `accord brief <id> <n>`: the whole brief an executor receives — the ticket verbatim, the plan's
 // preamble, then task n of the plan. Never chat history, never a summary.
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { normaliseText, planFile, workOf } from '@accord-dev/accord-core';
 import { UsageError } from '../load/fs.js';
@@ -21,6 +21,11 @@ export function brief(ctx: CommandContext, id: string, task: string): number {
   while (pre.length > 0 && pre[0].trim() === '') pre.shift();
   while (pre.length > 0 && pre[pre.length - 1].trim() === '') pre.pop();
   const rules = pre.length > 0 ? pre.join('\n') + '\n\n' : '';
-  ctx.stdout.write(text.replace(/\n*$/, '\n') + '\n---\n\n' + rules + section.replace(/\n*$/, '\n'));
+  // From disk, not the snapshot copy, so a BOM or CRLF reaches the brief as written (ST-LN-8 D-04).
+  const convPath = join(ctx.root, 'accord', 'product', 'conventions.md');
+  const conv = existsSync(convPath) ? readFileSync(convPath, 'utf8') : '';
+  // trim() strips whitespace and the byte order mark alike.
+  const tail = conv.trim() === '' ? '' : '\n---\n\n' + conv;
+  ctx.stdout.write(text.replace(/\n*$/, '\n') + '\n---\n\n' + rules + section.replace(/\n*$/, '\n') + tail);
   return 0;
 }

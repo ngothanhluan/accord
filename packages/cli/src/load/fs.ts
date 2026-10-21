@@ -728,6 +728,44 @@ export function gitDefaultRef(root: string): string | undefined {
 }
 
 /**
+ * ST-LN-8 D-02: the first-parent commits of HEAD that are neither on the default ref nor reachable from `since`.
+ * A `since` that does not resolve is left out, so the range falls back to the default ref alone.
+ */
+export function gitBranchCommits(root: string, since?: string): { sha: string; message: string }[] {
+  const ref = gitDefaultRef(root);
+  if (ref === undefined) {
+    throw new UsageError('commits.trailers is forbid in accord/config.yml, but none of origin/HEAD, origin/main and origin/master exists here; run `git fetch origin`');
+  }
+  const stop = ['^' + ref];
+  if (since !== undefined && isSha(since)) {
+    try {
+      execFileSync('git', ['rev-parse', '--verify', '-q', since + '^{commit}'], { cwd: root, stdio: 'ignore' });
+      stop.push('^' + since);
+    } catch {
+      // unresolved: default ref alone
+    }
+  }
+  let raw: string;
+  try {
+    raw = execFileSync('git', ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '--first-parent', '--format=%H%x00%B%x01', 'HEAD', ...stop], {
+      cwd: root,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      maxBuffer: 64 * 1024 * 1024,
+      env: { ...process.env, GIT_NO_LAZY_FETCH: '1' },
+    });
+  } catch (err) {
+    const stderr = String((err as { stderr?: string }).stderr ?? '').trim();
+    throw new UsageError('git log failed reading the commits of this branch' + (stderr === '' ? '' : '\n' + stderr));
+  }
+  return raw
+    .split('\x01')
+    .map((r) => r.replace(/^\n+/, ''))
+    .filter((r) => r.includes('\0'))
+    .map((r) => ({ sha: r.slice(0, r.indexOf('\0')), message: r.slice(r.indexOf('\0') + 1) }));
+}
+
+/**
  * IDS-1 D-17/D-18: `people` from accord/config.yml on every local and fetched branch, read without the network.
  * `defaultRef` is origin/HEAD's target, else origin/main or origin/master, whichever exists.
  */

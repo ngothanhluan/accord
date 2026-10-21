@@ -5,7 +5,7 @@
 // than instead of it (D-97). Under `--json` stdout carries the GateResult verbatim and every notice
 // goes to stderr, so `jq '.findings[]'` works with no unwrapping (D-98).
 import { gateDone, gatePlan, gateReady, renderText } from '@accord-dev/accord-core';
-import { UsageError } from '../load/fs.js';
+import { gitBranchCommits, UsageError } from '../load/fs.js';
 import { colourFindings } from '../render/color.js';
 import type { CommandContext } from '../run.js';
 import { writeKey } from '../write/key.js';
@@ -16,8 +16,13 @@ export function gate(
   id: string,
   options: { json?: boolean },
 ): number {
+  // ST-LN-8 D-02: under commits.trailers forbid the host loads the whole branch's commits; an unborn HEAD spawns no git log.
+  const withCommits =
+    which === 'done' && ctx.snapshot.config?.commits?.trailers === 'forbid' && ctx.snapshot.git !== undefined
+      ? { ...ctx.snapshot, commits: gitBranchCommits(ctx.root) }
+      : ctx.snapshot;
   const result =
-    which === 'ready' ? gateReady(ctx.snapshot, id) : which === 'plan' ? gatePlan(ctx.snapshot, id) : gateDone(ctx.snapshot, id);
+    which === 'ready' ? gateReady(ctx.snapshot, id) : which === 'plan' ? gatePlan(ctx.snapshot, id) : gateDone(withCommits, id);
   ctx.stdout.write(
     options.json ? JSON.stringify(result, null, 2) + '\n' : colourFindings(renderText(result), ctx.stdout),
   );

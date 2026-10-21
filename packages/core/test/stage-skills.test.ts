@@ -569,3 +569,56 @@ it('risk:regression the owners report lists every test the verify run skipped by
   expect(s2.indexOf('run `accord tests skipped`')).toBeGreaterThan(s2.indexOf('run the `tests.full` command'));
   expect(s4).toContain('every test `accord tests skipped` printed, by name, with the operating system it names');
 });
+
+it('ac-5 the verify skill offers to promote a ruling or correction into the conventions', () => {
+  const text = (files.find((f) => f.path === '.claude/skills/accord-verify/SKILL.md')?.text ?? '').replace(/\s+/g, ' ');
+  expect(text.length).toBeGreaterThan(0);
+  const from = text.indexOf('6. Run `accord gate done <id>`');
+  const to = text.indexOf('7. Next:');
+  expect(from).toBeGreaterThan(-1);
+  expect(to).toBeGreaterThan(-1);
+  const step = text.slice(from, to);
+  const phrases = [
+    "read the ticket's `## Corrections` and the Rulings under the ledger's `## Rulings`.",
+    'judge to hold across tickets',
+    'ask the owner whether it becomes a rule of this repository',
+    'write it as one rule line in `accord/product/conventions.md`.',
+    "Without the owner's yes, write nothing to `conventions.md`.",
+  ];
+  expect(phrases.filter((p) => !step.includes(p))).toEqual([]);
+  const a = step.indexOf('ask the owner whether');
+  const w = step.indexOf('write it as one rule line');
+  const c = step.indexOf('Then commit only');
+  expect(a).toBeGreaterThan(-1);
+  expect(w).toBeGreaterThan(a);
+  expect(c).toBeGreaterThan(w);
+  expect(step.slice(c)).toContain('accord/tickets/<id>/verification.md');
+  expect(step.slice(c)).toContain('accord/product/conventions.md');
+});
+
+it('risk:complex-branching the build skill routes a task-done refusal over a forbidden commit line', () => {
+  const raw = files.find((f) => f.path === '.claude/skills/accord-build/SKILL.md')?.text ?? '';
+  expect(raw).not.toBe('');
+  const text = raw.replace(/\s+/g, ' ');
+  const from = text.indexOf('3. **Record.**');
+  const to = text.indexOf('4. **Blocked.**');
+  expect(from).toBeGreaterThan(-1);
+  expect(to).toBeGreaterThan(-1);
+  const step = text.slice(from, to);
+  const phrases = [
+    'It refuses because a commit carries a forbidden line',
+    'reword that commit yourself if you made it',
+    'if an executor made it, dispatch a fresh executor with the same brief plus the reasons it printed',
+    'It exits 2 and says to run `git fetch origin`: run that',
+    'Either way, run `accord task-done <id> <n>` again.',
+  ];
+  expect(phrases.filter((p) => !step.includes(p))).toEqual([]);
+  const r = step.indexOf('reword that commit');
+  const e = step.indexOf('if an executor made it');
+  const f = step.indexOf('It exits 2');
+  const g = step.indexOf('Either way');
+  expect(r).toBeGreaterThan(-1);
+  expect(e).toBeGreaterThan(r);
+  expect(f).toBeGreaterThan(e);
+  expect(g).toBeGreaterThan(f);
+});

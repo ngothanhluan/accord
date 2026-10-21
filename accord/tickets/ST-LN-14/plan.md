@@ -1,24 +1,26 @@
 ---
 baseline: 7cb7635a69bd8d5c570c6c9a32cc4688d768e363
-plan_hash: "fnv1a64:a8bbf3eb492ac5f2"
+plan_hash: "fnv1a64:cbeccf4e274fdb82"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
 preamble, the ticket and its ledger.
 
-Order: tasks are built in the order their sections appear in this file, which is 1, 2, 3, 4, 5, 10, 6, 7, 8, 9,
-11 (Task 10 was split out of Task 4 and sits where it is consumed). Task 1 is the wiring: `scripts/benchmark.mjs`
-becomes importable and reads, from a transcript folder, everything every other task consumes. Tasks 2 and 3 build
-the compliance check (`--compliance`) first, because the 30-day retention starts dropping the dogfood transcripts
-on 2026-11-11 and Task 2 extracts the real ST-LN-7 and BUG-LN-3 lines into fixtures. Tasks 4, 5, 10 and 6 prepare
-round 1: the run matrix (Task 4), the brief rewrite (Task 5), the committed sample list with a snapshot of every
-sample's dispatch under the bench root (Task 10, which also runs `--round 1 --samples` on the real transcripts
-before they expire), and `--plan` / `--clean` with their worktrees (Task 6). Tasks 7 and 8 are the hold rules and
+Order: tasks are built in the order their sections appear in this file, which is 1, 2, 3, 4, 5, 10, 12, 6, 7, 8,
+9, 11 (Tasks 10 and 12 were split out of Task 4 and sit where they are consumed). Task 1 is the wiring:
+`scripts/benchmark.mjs` becomes importable and reads, from a transcript folder, everything every other task
+consumes. Tasks 2 and 3 build the compliance check (`--compliance`) first, because the 30-day retention starts
+dropping the dogfood transcripts on 2026-11-11: Task 2 extracts the real ST-LN-7 and BUG-LN-3 lines into fixtures,
+and Task 3 ends by running `--compliance` on the real transcript folders. Tasks 4, 5, 10, 12 and 6 prepare round 1:
+the run matrix (Task 4), the brief rewrite (Task 5), the snapshot of a sample's dispatch under the bench root and
+the mode `--round 1 --samples` (Task 10), the committed sample list, with `--round 1 --samples` run on the real
+transcripts before they expire (Task 12), and `--plan` / `--clean` with their worktrees (Task 6). Tasks 7 and 8 are the hold rules and
 the report. Task 9 matches finished runs by tag, adds `--judge`, and makes the default round run write the report.
 Task 11 makes `--judge` and `--round 1` stop when a round run escaped its worktree.
 
 How the round is run once the tasks are done (this is the verify evidence for @ac-1 to @ac-3; no task runs it
-except the `--samples` step Task 10 names): `node scripts/benchmark.mjs --compliance <folders>` first, then
+except the `--compliance` step Task 3 names and the `--samples` step Task 12 names):
+`node scripts/benchmark.mjs --compliance <folders>` first (again, so it also reads the runs since Task 3), then
 `--round 1 --samples` (it keeps every snapshot already written), then `--round 1 --plan`; the main session
 dispatches every row `--plan` printed; then `--round 1 --judge`, the session dispatches every judge row it
 printed; then `--round 1` writes `docs/benchmark/round-1.md`; `--clean` removes the round's worktrees once that
@@ -74,7 +76,7 @@ Definitions shared by every task:
   Every run whose description starts with `bench r` is a round run and never a compliance input.
 - Bench root: `path.resolve(repo, '..', 'accord-bench')`, where `repo` is the repository the script runs in (both
   `C:/Work/accord` and its sibling worktrees such as `C:/Work/accord-st-ln-14` give `C:/Work/accord-bench`). It
-  holds `compliance.md`, `samples/` (Task 10's snapshots), `round-1.json` (the round's state), `wt/` (worktrees),
+  holds `compliance.md`, `samples/` (the snapshots of Tasks 10 and 12), `round-1.json` (the round's state), `wt/` (worktrees),
   `briefs/` and `files/`. `absent/<k>` under it is a path the round writes into briefs and never creates.
 - A run's checkouts: its dispatch `cwd` (slashes turned) and every sibling folder named `<cwd>-<suffix>` with no
   `/` in the suffix (the worktree naming of `packages/cli/test/helpers/worktree.ts:53`). Paths compare with
@@ -113,7 +115,10 @@ Test first, in `packages/core/test/benchmark-reader.test.ts` (new):
     summary: 'one more fix', message: 'fix b too' } }`; (3) an assistant line with
     `tool_use { id: 'toolu_T', name: 'Bash', input: { command: 'accord task-done T-1 2' } }` and a user line at
     `2026-10-01T00:40:00Z` with its `tool_result` content
-    `'task 2 of T-1 is not done:\n  a.test.ts#b is not in r.xml\n'`.
+    `'task 2 of T-1 is not done:\n  a.test.ts#b is not in r.xml\n'`; (4) after (2), a line `{ type:
+    'api-request-blob', message: { role: 'assistant', content: [<the same toolu_S tool_use as (2)>] } }` (real
+    transcripts repeat earlier tool_use items on such lines, for example
+    `C--Work-accord/63c6d5ec-c764-4830-ad6f-e51b73107666.jsonl:1608,1612`).
   - `S1/subagents/agent-x1.meta.json`: `{ agentType: 'accord-executor', description: 'Build T-1 task 2',
     toolUseId: 'toolu_A' }`.
   - `S1/subagents/agent-x1.jsonl`, all with `perTurnEffort` and `requestedModel` on the line:
@@ -129,6 +134,8 @@ Test first, in `packages/core/test/benchmark-reader.test.ts` (new):
       then a user line with its `tool_result` `'     1\tline one\n     2\tline two\n<system-reminder>\nnote\n</system-reminder>'`.
     - message `m5` at `2026-10-01T00:20:00Z`, `usage { output_tokens: 50 }`: `tool_use { id: 'h1', name:
       'SubagentHandback', input: { message: 'DONE\ncommits: abc1234 T-1 task 2: work' } }`.
+    - after `m3`, a line `{ type: 'api-request-blob', message: { id: 'm9', role: 'assistant', content: [<the same
+      e1 tool_use as in m1>, <the same b1 tool_use as in m3>] } }`, with no `model` and no `usage`.
   - `S1/subagents/workflows/agent-zz.meta.json` and `.jsonl` (any content): never read.
   - `const s = readSessions([join(tmp, 'C--Work-x')])`. Each `expect`:
     - `s.runs.length` is 1; `run.file` is `C--Work-x/S1/subagents/agent-x1.jsonl`; `run.id` `x1`; `run.agent`
@@ -136,7 +143,8 @@ Test first, in `packages/core/test/benchmark-reader.test.ts` (new):
     - `run.dispatch` matches `{ model: 'sonnet', effort: 'low', prompt: 'Brief: C:/tmp/brief.md', cwd: 'C:\\Work\\x',
       ts: Date.parse('2026-10-01T00:00:00Z') }`.
     - `run.turns.map((t) => [t.id, t.model, t.requestedModel, t.perTurnEffort])` starts with
-      `['m1', 'claude-sonnet-5-5', 'claude-sonnet-5-5', 'low']` and its second entry has `perTurnEffort` `medium`.
+      `['m1', 'claude-sonnet-5-5', 'claude-sonnet-5-5', 'low']`, its second entry has `perTurnEffort` `medium`,
+      and `run.turns.map((t) => t.id)` equals `['m1', 'm2', 'm3', 'm4', 'm5']` (the blob line gives no turn).
     - `run.usage` equals `{ input: 6, cacheRead: 100, cacheWrite: 7, output: 302, estimated: true }`: `m1` gives
       40 (its larger line), `m2` gives its estimate 112 (`ceil(447 / 4)`, the length of
       `JSON.stringify(input)`, beating its `output_tokens: 1`), `m3`, `m4`, `m5` give 50 each (their estimates are
@@ -144,7 +152,8 @@ Test first, in `packages/core/test/benchmark-reader.test.ts` (new):
     - `run.edits.map((e) => e.path)` equals `['C:/Work/x/src/a.test.ts', 'C:/Work/x/src/a.ts']`.
     - `run.commits` equals `['abc1234']`; `run.reads` equals `[{ path: 'C:/tmp/brief.md', text: 'line one\nline two', ts }]`.
     - `run.handbacks` has one entry with text starting `DONE`, and `run.outcome` is `DONE`.
-    - `run.sends` equals `[{ ts: Date.parse('2026-10-01T00:30:00Z'), to: 'x1', summary: 'one more fix', message: 'fix b too' }]`.
+    - `run.sends` equals `[{ ts: Date.parse('2026-10-01T00:30:00Z'), to: 'x1', summary: 'one more fix', message: 'fix b too' }]`
+      (one entry: the blob line's copy is not read).
     - `s.refusals` equals `[{ file: 'C--Work-x/S1.jsonl', ts: Date.parse('2026-10-01T00:40:00Z'), ticket: 'T-1',
       task: 2, reasons: ['a.test.ts#b is not in r.xml'] }]`.
     - No field of any run counts advisor calls (D-03): `Object.keys(run)` contains no key matching `/advisor/i`.
@@ -159,7 +168,12 @@ Interface, `scripts/benchmark.mjs`:
 - `export function readSessions(dirs)` returns `{ runs, refusals }`:
   - Runs: every `<session>/subagents/agent-<id>.meta.json` with its `.jsonl`, as the Definitions say. Each run:
     `{ file, id, agent, desc, ticket, task, fix, metaModel, metaEffort, start, end, ms, dispatch, turns, usage,
-    edits, commits, reads, handbacks, outcome, lastText, sends }`. `ticket`, `task`, `fix`, `ms` (active time), `lastText`
+    edits, commits, reads, handbacks, outcome, lastText, sends }`.
+  - Which lines are read: `turns`, `usage` and every `tool_use` item (for `edits`, `reads`, `commits`,
+    `handbacks`, `sends` and the dispatch) come only from lines with `type: 'assistant'`; `tool_result` items only
+    from lines with `type: 'user'`. Any other line type (`api-request-blob` included, which repeats earlier items)
+    is skipped. Within one file, a `tool_use` whose `id` was already seen is skipped.
+  - `ticket`, `task`, `fix`, `ms` (active time), `lastText`
     and `outcome` follow today's `readRun` rules (`benchmark.mjs:38-61`); `task` is a number or null.
   - `turns`: one per `message.id` in order of first appearance, skipping `model === '<synthetic>'`, each
     `{ id, ts, model, requestedModel, effort, perTurnEffort }`, every value the first non-empty one among that
@@ -181,7 +195,7 @@ Interface, `scripts/benchmark.mjs`:
   - `handbacks`: each `SubagentHandback` `tool_use`, `{ ts, text: input.message }`.
   - `sends`: every `SendMessage` `tool_use` in any session file of the same folder whose `input.to` equals the
     run's id, `{ ts, to, summary, message }`.
-- Refusals: in every session and run file, each `tool_result` text matching `^task (\d+) of (\S+) is not done:$`
+- Refusals: in every session and run file, each `tool_result` text (from `type: 'user'` lines only) matching `^task (\d+) of (\S+) is not done:$`
   (multiline), with the following lines that start with two spaces as `reasons` (trimmed); `{ file, ts, ticket,
   task, reasons }`, unique by file, ticket, task and reasons.
 
@@ -321,7 +335,8 @@ files: scripts/compliance.mjs (new), scripts/benchmark.mjs, packages/core/test/b
 verify: packages/core/test/benchmark-compliance.test.ts#ac-5-the-compliance-check-scores-every-run-against-the-other-rules (@ac-5)
 
 Consumes: Task 2's `compliance`, `render` and `--compliance`. Produces: the rules `round-cap`, `reassigned`,
-`brief-quote`, the branch commits for `trailer`, `ticketAt`, and `defaultRef`, which Task 10 also uses.
+`brief-quote`, the branch commits for `trailer`, `ticketAt`, `defaultRef` (which Task 12 also uses), and the
+first real `<bench root>/compliance.md`.
 
 Test first, appended to `packages/core/test/benchmark-compliance.test.ts`:
 - `it('ac-5 the compliance check scores every run against the other rules')`:
@@ -345,6 +360,12 @@ Test first, appended to `packages/core/test/benchmark-compliance.test.ts`:
       `reassigned` line holding `T-1 task 3` and `one more fix`.
     - `r4`: handback `NEEDS_CONTEXT` then a send after it; `r5`: a send with no handback before it; `r6`: a run
       whose `desc` is `bench r1 executor-1-low` with a DONE handback and a send after it: no line for any of them.
+    - `r7`, an `accord-planner` run (`T-1`, `task: null`, file `p7.jsonl`): `dispatch.ts` `2026-01-02T12:00:00Z`,
+      `dispatch.prompt` `'Plan this ticket.\n' + TICKET_A`, no reads: one `brief-quote` line holding
+      `T-1 task ?`, `line 6`, `first` and `p7.jsonl` (the rule reads every accord agent's dispatch, not only the
+      executor's).
+    - `r8`, an `accord-critic` run (`T-1`, `task: null`) dispatched at `2026-01-02T12:00:00Z` with the prompt
+      `'Plan this ticket.\n' + TICKET_B`: no line.
   - `tickets`: `A` with a review holding `## Round 1` to `## Round 6` and a ledger with no Ruling about the cap;
     `B` the same with the ledger line `- Ruling: review past the cap: one more round — owner: "ok" — none`; `C` with
     five rounds. One `round-cap` line, holding `A review` and `round 6`.
@@ -353,7 +374,7 @@ Test first, appended to `packages/core/test/benchmark-compliance.test.ts`:
     ticketAt(repo, id, ms) }))`. The `trailer` section has two lines: one holding `T-1 task 1` and
     `Co-Authored-By`, one holding `T-2 task 3` and `Generated with`.
   - Counts: the table holds exactly the rows `| tier-up | 0 |`, `| trailer | 2 |`, `| test-first | 0 |`,
-    `| verify-id | 0 |`, `| round-cap | 1 |`, `| reassigned | 1 |`, `| brief-quote | 1 |`, in that order.
+    `| verify-id | 0 |`, `| round-cap | 1 |`, `| reassigned | 1 |`, `| brief-quote | 2 |`, in that order.
 
 Interface, `scripts/compliance.mjs`:
 - `RULES` gains `'round-cap'`, `'reassigned'`, `'brief-quote'`, in that order; `compliance` takes `ticketAt` too.
@@ -365,7 +386,8 @@ Interface, `scripts/compliance.mjs`:
 - `reassigned`: for each executor run, each send whose latest handback before it starts `DONE` (a send after a
   `BLOCKED` or `NEEDS_CONTEXT` handback, or before any handback, is a clarifying reply):
   `- reassigned: <label>: got another assignment through SendMessage ("<summary>") after it reported DONE, instead of a fresh agent — <run.file>`.
-- `brief-quote`: for each executor run with a dispatch, the texts are its prompt and every read whose `path`, with
+- `brief-quote`: for each run left after the drop (every accord agent, never a round run) with a dispatch and a
+  `ticket` (a run with no ticket is skipped), the texts are its prompt and every read whose `path`, with
   slashes turned, appears in the prompt and does not end with `accord/tickets/<ticket>.md`. For each text,
   `quoteProblem(text, run.ticket, ticketAt(run.ticket, run.dispatch.ts))`; a problem gives
   `- brief-quote: <label>: the brief's copy of the ticket differs from accord/tickets/<ticket>.md as committed when it was dispatched, first at line <k>: "<brief line>" — <run.file>`,
@@ -392,6 +414,14 @@ Interface, `scripts/benchmark.mjs`:
   over the working tree's.
 - `--compliance` passes `commits: branchCommits(repo)` and `ticketAt` bound to the repository.
 
+Last step of the task, after its tests pass (the Intent's "the compliance read runs before 2026-11-11"): list
+every directory directly under `<projects root>` whose name starts `C--Work-accord` and run, from the repository
+root, `node scripts/benchmark.mjs --compliance <each of those directories as its own argument>` (the shell does
+not expand a `*` for node on Windows, so the folders are named one by one). It must return 0 and write
+`<bench root>/compliance.md`, outside the repository; nothing it writes is committed. Report in the handback the
+folders passed, the count table it printed, and the lines of the `tier-up`, `trailer`, `test-first` and
+`verify-id` sections. A rule that throws on a real line is a bug of this task's code: fix it and run again.
+
 Must not change: Task 2's rules, lines and test; the legacy report.
 
 ## Task 4: The run matrix: current effort and one step either side, with each differing turn flagged
@@ -399,9 +429,9 @@ covers: @ac-1, D-02, D-04, D-07
 files: scripts/round.mjs (new), scripts/benchmark.mjs, packages/core/test/benchmark-round.test.ts (new)
 verify: packages/core/test/benchmark-round.test.ts#ac-1-every-agent-sample-runs-at-its-current-effort-and-one-step-either-side-and-each-differing-turn-is-flagged (@ac-1)
 
-Consumes: `readSessions` (Task 1). Produces: `scripts/round.mjs` with `checkSamples` and `runMatrix`, which Task 10
-(the committed sample list) and Tasks 6 to 9 use. The sample list itself is Task 10's; this task's test builds a
-synthetic one.
+Consumes: `readSessions` (Task 1). Produces: `scripts/round.mjs` with `checkSamples` and `runMatrix`, which Tasks
+10 and 12 (the snapshots and the committed sample list) and Tasks 6 to 9 use. The sample list itself is Task 12's;
+this task's test builds a synthetic one.
 
 The sample list's shape, which `checkSamples` enforces: `{ "round": 1, "samples": [ { "agent", "n",
 "transcript", "ticket", "task", "kind", "base", "main", "root", "elsewhere", "files": [...], "pairs": [...] } ] }`.
@@ -476,7 +506,7 @@ files: scripts/round.mjs (new), packages/core/test/benchmark-round.test.ts (new)
 verify: packages/core/test/benchmark-round.test.ts#risk:parsing-a-brief-keeps-the-ticket-text-byte-for-byte-while-its-root-and-refs-are-rewritten
 
 Consumes: `quoteProblem` (Task 3); the Definitions' absolute path, path boundary and ref positions. Produces:
-`rewriteBrief`, `stripReadPrefixes` and `dispatchTable`, which Tasks 10 and 6 use.
+`rewriteBrief`, `stripReadPrefixes` and `dispatchTable`, which Tasks 10, 12 and 6 use.
 
 Test first, appended to `packages/core/test/benchmark-round.test.ts`:
 - `it('risk:parsing a brief keeps the ticket text byte for byte while its root and refs are rewritten')`:
@@ -533,16 +563,16 @@ Interface, `scripts/round.mjs`:
 
 Must not change: Task 4's exports and test.
 
-## Task 10: The committed sample list, and --round 1 --samples snapshots every sample before the transcripts expire
+## Task 10: --round 1 --samples snapshots a sample's dispatch and every named file, and never overwrites one
 covers: D-01, D-04
-files: scripts/benchmark.mjs, scripts/benchmark-samples.json (new), packages/core/test/benchmark-samples.test.ts (new)
+files: scripts/benchmark.mjs, packages/core/test/benchmark-samples.test.ts (new)
 verify: packages/core/test/benchmark-samples.test.ts#risk:data-loss-a-sample-snapshot-keeps-the-dispatch-and-every-named-file-and-is-never-overwritten
 
-Built after Task 5 and before Task 6. Consumes: `readSessions` (Task 1), `benchRoot` (Task 2), `defaultRef`
-(Task 3), `checkSamples` (Task 4), `rewriteBrief` (Task 5). Produces:
-`scripts/benchmark-samples.json` in the shape Task 4 states, `export function snapshotSample(repo, sample, run,
-bench)`, the mode `--round 1 --samples`, and `<bench root>/samples/<agent without accord->-<n>/sample.json`,
-which Task 6 reads instead of the transcripts.
+Built after Task 5 and before Task 12. Consumes: `readSessions` (Task 1), `benchRoot` (Task 2), `checkSamples`
+(Task 4), `rewriteBrief` (Task 5), the sample shape Task 4 states. Produces: `export function
+snapshotSample(repo, sample, run, bench)`, the mode `--round 1 --samples` reading `scripts/benchmark-samples.json`,
+and `<bench root>/samples/<agent without accord->-<n>/sample.json`, which Task 6 reads instead of the transcripts.
+The committed list itself is Task 12's; this task's test builds its own sample and never reads the list.
 
 Test first, in `packages/core/test/benchmark-samples.test.ts` (new):
 - `it('risk:data-loss a sample snapshot keeps the dispatch and every named file and is never overwritten', ..., 120_000)`:
@@ -562,10 +592,10 @@ Test first, in `packages/core/test/benchmark-samples.test.ts` (new):
   - Each of these, against a fresh bench folder, gives a problem containing the quoted text and writes no
     `sample.json` there: `kind: 'plain'` (`risk`); the prompt also naming `root + '/src/missing.ts'`
     (`src/missing.ts`); `brief` written again and the dispatch `ts` one hour before now (`modified after the
-    dispatch`); the prompt also naming `C:/Elsewhere/x.txt` (`outside the bench root`); `run` undefined
-    (`no run`).
-  - The committed list passes its own checks: `checkSamples(JSON.parse(readFileSync(<repository
-    root>/scripts/benchmark-samples.json, 'utf8')))` equals `[]`.
+    dispatch`); the prompt also naming `C:/Elsewhere/x.txt` (`outside the bench root`); `files` also holding
+    `{ path: tmp + '/b2.md', from: 'brief', task: '1' }`, the prompt also naming that path and the run's `reads`
+    also holding `{ path: tmp + '/b2.md', text: 'Work in C:/Elsewhere/y' }` (`outside the bench root`: a generated
+    file's read text is checked as a copied file's is); `run` undefined (`no run`).
 
 Interface, `scripts/benchmark.mjs`:
 - `export function snapshotSample(repo, sample, run, bench)` returns `{ problems, kept }`. `dir` is
@@ -588,39 +618,62 @@ Interface, `scripts/benchmark.mjs`:
   - The prompt passes `rewriteBrief(prompt, { ticket, paths, pairs, check: { bench, allowed: [] } })` with
     `paths` = `[root, <bench>/wt/<agent without accord->-<n>]`, each `elsewhere[k]` to `<bench>/absent/<k + 1>`,
     and each file's `path` to `<bench>/files/<agent without accord->-<n>/<basename>`; `pairs` = each sample pair
-    with `main` resolved to the sample's `main` and `base` to its `base`. Each `copy` file's text passes the same
-    call with `check.refs` false. Each problem is returned as `<agent> <n>: <problem>`.
+    with `main` resolved to the sample's `main` and `base` to its `base`. The run's read text of every `files`
+    entry, whatever its `from` (`copy`, `brief` and `review-package` alike), passes the same call with
+    `check.refs` false, so a named file that holds a live checkout's path is refused here, while the transcripts
+    still exist, and not first at `--plan`. Each problem is returned as `<agent> <n>: <problem>`.
   - `sample.json`: `{ prompt, cwd, ts, reads }`, the dispatch's prompt, `cwd` and `ts`, and `reads` mapping each
     `files` path to the run's read text of it.
 - `main`, `--round 1 --samples`: the sample list's `checkSamples` problems: each to stderr, return 2. Per sample
   whose snapshot does not exist, its run is the run of `readSessions([<projects root>/<first segment of
   transcript>])` whose `file` equals `transcript` (each folder read once); `snapshotSample(repo, sample, run,
   benchRoot(repo))`. Every problem to stderr, then return 2 when any; else print `<w> written, <k> kept` and
-  return 0.
+  return 0. A missing `scripts/benchmark-samples.json` writes `no sample list: scripts/benchmark-samples.json` to
+  stderr and returns 2.
 
-The sample list, `scripts/benchmark-samples.json`, is built by a scratchpad script (never committed) that imports
-`readSessions`, `defaultRef` and `rewriteBrief` from this repository's scripts by file URL and reads every folder
-`<projects root>/C--Work-accord*`. It prints only one summary line per candidate; never read whole transcripts
-into context. The algorithm:
+Must not change: Tasks 1 to 5 and their tests; the legacy report.
+
+## Task 12: The committed sample list, snapshotted by --round 1 --samples before the transcripts expire
+covers: D-01, D-04
+files: scripts/benchmark-samples.json (new), packages/core/test/benchmark-samples.test.ts (new)
+verify: packages/core/test/benchmark-samples.test.ts#risk:data-loss-the-committed-sample-list-passes-its-checks-before-the-transcripts-expire
+
+Built after Task 10 and before Task 6. Consumes: `readSessions` (Task 1), `defaultRef` (Task 3), `ROLES` and
+`checkSamples` (Task 4), `rewriteBrief` (Task 5), `--round 1 --samples` and `snapshotSample` (Task 10). Produces:
+`scripts/benchmark-samples.json` in the shape Task 4 states, read by Tasks 6, 7 and 9, and the 45 snapshots under
+`<bench root>/samples/`. This task changes no script.
+
+Test first, appended to `packages/core/test/benchmark-samples.test.ts`:
+- `it('risk:data-loss the committed sample list passes its checks before the transcripts expire')`:
+  `list = JSON.parse(readFileSync(<repository root>/scripts/benchmark-samples.json, 'utf8'))`;
+  `checkSamples(list)` equals `[]`; `list.samples.length` is 45; no sample's `agent` is `accord-debugger`; every
+  sample's `transcript` starts with a folder name matching `^C--Work-accord` (the folders the round reads). It
+  fails until the list is written, which is this task's work.
+
+The sample list is built by a scratchpad script (never committed) that imports `readSessions`, `defaultRef` and
+`rewriteBrief` from this repository's scripts by file URL and reads every directory directly under
+`<projects root>` whose name starts `C--Work-accord`. It prints only one summary line per candidate; never read
+whole transcripts into context. The algorithm:
 1. Candidates, per agent of `ROLES` (never `accord-debugger`, ledger Ruling): runs with that `agent`, a `desc`
    not starting `bench r`, a dispatch at or after `2026-10-12T00:00:00Z`, and a non-empty `outcome` or `lastText`;
    newest dispatch first. Executor candidates also have a `task` and `fix` false. `gitBranch` is read from the
    session line that holds the dispatch.
-2. `base`. Executor: the first sha of `run.commits` that `git cat-file -e <sha>^{commit}` finds; `base` is
-   `git rev-parse <sha>^`. When `git for-each-ref --contains <base> --format=%(refname) refs/heads/main
-   refs/heads/t refs/remotes/origin` prints nothing (a rewritten branch), `base` becomes the one commit of
-   `git log --format=%H%x1f%at%x1f%s` over those refs with the same author time and subject; none or several
-   drop the candidate. Any other agent: the tips are `refs/heads/<gitBranch>` and `refs/remotes/origin/<gitBranch>`
-   when they resolve, plus `<merge>^2` of every commit of `git log --first-parent --merges --format=%H%x1f%s
-   <defaultRef>` whose subject holds `<gitBranch>` as a whole word; `base` is the commit with the newest author
-   time at or before the dispatch among `git log --format=%H %at <tips>` (a rewritten branch's commits keep their
-   author times, so this is the rewrite's matching commit); no tip, or two different commits at that second, drop
-   the candidate.
-3. `main`: `git rev-list -1 --first-parent --before=<dispatch seconds> <defaultRef>`.
-4. `root` and `elsewhere`: the run's checkouts (Definitions) named, as absolute paths or as prefixes of them, in
+2. `root` and `elsewhere`: the run's checkouts (Definitions) named, as absolute paths or as prefixes of them, in
    the prompt or in the run's read text of a file the prompt names. `root` is the first sibling checkout
    (`<cwd>-<suffix>`) found, else the dispatch `cwd`; `elsewhere` is every other checkout found (the `cwd` itself
    when `root` is a sibling and the prompt names it). Both with `/`.
+3. `base`. Executor: the first sha of `run.commits` that `git cat-file -e <sha>^{commit}` finds; `base` is
+   `git rev-parse <sha>^`. When `git for-each-ref --contains <base> --format=%(refname) refs/heads/main
+   refs/heads/t refs/remotes/origin` prints nothing (a rewritten branch), `base` becomes the one commit of
+   `git log --format=%H%x1f%at%x1f%s` over those refs with the same author time and subject; none or several
+   drop the candidate. Any other agent: its branch `b` is `t/<ticket>` when `root` is a sibling checkout (the
+   session's `gitBranch` names the main checkout's branch, not the tree the run read), else `gitBranch`. The tips
+   are `refs/heads/<b>` and `refs/remotes/origin/<b>` when they resolve, plus `<merge>^2` of every commit of
+   `git log --first-parent --merges --format=%H%x1f%s <defaultRef>` whose subject holds `<b>` as a whole word;
+   `base` is the commit with the newest author time at or before the dispatch among `git log --format=%H %at
+   <tips>` (a rewritten branch's commits keep their author times, so this is the rewrite's matching commit); no
+   tip, or two different commits at that second, drop the candidate.
+4. `main`: `git rev-list -1 --first-parent --before=<dispatch seconds> <defaultRef>`.
 5. `files`: each absolute path (Definitions) in the prompt not under `root` or an `elsewhere` entry, with `path`
    exactly as the prompt writes it: `copy` when the file exists, its modification time is before the dispatch and
    its text equals the run's read of it; else `brief` with `task` when a `Bash` command of the session before the
@@ -638,10 +691,12 @@ into context. The algorithm:
 
 Last step of the task, run from the repository root once the list is committed:
 `node scripts/benchmark.mjs --round 1 --samples`. It must return 0; when it names a sample, replace that sample by
-the next candidate, commit the list again, and run it again. Report its output in the handback. This writes the
-snapshots under `<bench root>/samples/` (outside the repository) before 2026-11-11.
+the next candidate the walk of step 8 gives (keeping the executor's two `plain` and two `risk`), commit the list
+again, and run it again. A problem that names no sample, or a candidate walk that runs out, stops the task
+`BLOCKED` with the output. Report its final output in the handback. This writes the snapshots under
+`<bench root>/samples/` (outside the repository, never committed) before 2026-11-11.
 
-Must not change: Tasks 1 to 5 and their tests; the legacy report.
+Must not change: Tasks 1 to 5 and 10, their exports and tests; the legacy report.
 
 ## Task 6: --plan prepares every run's worktree and brief, and --clean removes only the round's marked worktrees
 covers: D-01, D-02
@@ -649,7 +704,8 @@ files: scripts/benchmark.mjs, packages/core/test/benchmark-worktree.test.ts (new
 verify: packages/core/test/benchmark-worktree.test.ts#risk:data-loss-clean-removes-only-the-worktrees-the-round-marked
 
 Consumes: `benchRoot`, `agentSettings`, `checkSamples`, `runMatrix`, `WRITERS`,
-`rewriteBrief`, `dispatchTable`, the sample list and the snapshots under `<bench root>/samples/` (Task 10).
+`rewriteBrief`, `dispatchTable`, the sample list (Task 12) and the snapshots under `<bench root>/samples/`
+(Tasks 10 and 12).
 Produces: `<bench root>/round-1.json`, the worktrees, `briefs/<tag>.md` and `files/<tag>/`, which Tasks 9 and 11
 read.
 
@@ -692,7 +748,7 @@ Interface, `scripts/benchmark.mjs`:
   1. `<bench root>/compliance.md` missing: stderr `run --compliance first: the round adds commits`, return 2.
   2. The sample list, `checkSamples` problems: each to stderr, return 2. `rows = runMatrix(list,
      agentSettings(repo))`.
-  3. Per sample, its snapshot is `<bench root>/samples/<agent without accord->-<n>/sample.json` (Task 10); a
+  3. Per sample, its snapshot is `<bench root>/samples/<agent without accord->-<n>/sample.json` (Tasks 10 and 12); a
      missing one returns 2 with `run --round 1 --samples first: no snapshot for <agent> <n>`. No transcript is
      read. The ticket at base is `git show <base>:accord/tickets/<ticket>.md`.
   4. Worktrees under `<bench root>/wt/`: a writing agent's row (`WRITERS`) gets `<tag>` on branch `bench/<tag>`; a
@@ -713,8 +769,12 @@ Interface, `scripts/benchmark.mjs`:
   8. Files, per row into `<bench root>/files/<tag>/<basename>`: `copy` is the snapshot's `reads[path]`; `brief` is
      `node packages/cli/dist/cli.js brief <ticket> <task>` and `review-package` is
      `node packages/cli/dist/cli.js review-package <ticket> --base <base>`, both spawned with `process.execPath` in
-     the row's worktree. A `brief` file must equal, trailing newlines dropped, the snapshot's `reads[path]`; a
-     difference returns 2 naming the path. Each file's text then goes through `rewriteBrief(text, { ticket, paths,
+     the row's worktree. A `brief` file is checked against the snapshot's `reads[path]`, trailing newlines dropped:
+     when they differ (the brief was built by a CLI other than the one at base,
+     `packages/cli/src/commands/brief.ts`), the snapshot's `reads[path]` is written instead, the text the run
+     actually read, and stderr gets `notice: <tag>: <path> is built differently at base; the text the run read is
+     used`. The row is never refused for it, since the transcripts it would be redone from may be gone, and
+     `--samples` already passed that text through the same path and ref check. Each file's text then goes through `rewriteBrief(text, { ticket, paths,
      pairs, check: { bench: <bench root>, allowed, refs: false } })`; a problem returns 2.
   9. The prompt: `rewriteBrief(snapshot.prompt, { ticket, paths, pairs, check: { bench: <bench root>, allowed }
      })`; a problem (an unpinned ref, or an absolute path outside the bench root, such as a live checkout) returns
@@ -723,7 +783,7 @@ Interface, `scripts/benchmark.mjs`:
      the line `Dispatch every row: description, subagent_type, model and effort as shown, and the prompt file's
      text as the prompt. Judges are printed by --round 1 --judge once these runs finish.` Return 0.
 
-Must not change: Tasks 1 to 5 and 10 and their tests; the legacy report. No worktree outside `<bench root>/wt/` is ever
+Must not change: Tasks 1 to 5, 10 and 12 and their tests; the legacy report. No worktree outside `<bench root>/wt/` is ever
 created, and none without the marker is ever removed.
 
 ## Task 7: A run holds only when it is no worse than the current effort on the same sample
@@ -731,7 +791,7 @@ covers: @ac-2, D-08
 files: scripts/round.mjs (new), packages/core/test/benchmark-round.test.ts (new)
 verify: packages/core/test/benchmark-round.test.ts#ac-2-a-run-holds-only-when-it-is-no-worse-than-the-current-effort-on-the-same-sample (@ac-2)
 
-Consumes: `ROLES`, `runMatrix` (Task 4), the committed sample list (Task 10). Produces: `mustsOf`, `parseVerdict`, `holds`, `judgeBrief`, used by Task 9.
+Consumes: `ROLES`, `runMatrix` (Task 4), the committed sample list (Task 12). Produces: `mustsOf`, `parseVerdict`, `holds`, `judgeBrief`, used by Task 9.
 
 Test first, appended to `packages/core/test/benchmark-round.test.ts`:
 - `it('ac-2 a run holds only when it is no worse than the current effort on the same sample')`:
@@ -1013,4 +1073,4 @@ Interface, `scripts/benchmark.mjs`:
   made it`); return 2. With no problem, each moved ref is printed to stderr as `moved since --plan: <ref>` and the
   mode goes on.
 
-Must not change: Tasks 1 to 10's exports, modes and tests; the legacy report.
+Must not change: Tasks 1 to 10 and 12, their exports, modes and tests; the legacy report.

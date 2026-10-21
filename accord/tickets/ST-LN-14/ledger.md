@@ -25,12 +25,16 @@
 - Ruling: the verifier's hold check stays judge-ruled, not computed from the two verification.md files — a direct check would change Task 4's `runMatrix` judge assignment and the Task 4 and Task 7 tests; the judge brief asks exactly ac-2's verifier question — an extra judge run per verifier row, and a judge can misread a mark a direct comparison would not
 - Ruling: D-04's "so the result also shows whether executor effort should follow the risk kind" is read as part of the Decision, so the report names each not-held sample's kind — it is the stated purpose of keeping the executor's plain and risk mix — one more report section if the owner meant only the sample mix
 - Ruling: tasks are built in file order, so Task 10 sits after Task 5 and before Task 6 — work.ts and stage.ts keep and pick in file order — if a tool ever sorts by number, Task 10 would run after Tasks 6 to 9, whose Task 7 test reads the list
-- Ruling: the @ac-1 test uses a synthetic 9×5 list, and the committed list is checked by `checkSamples` in Task 10's risk test plus the real `--samples` run — the matrix rule is the behaviour and the list is data — a list that drifts after Task 10 is caught only when its test runs
+- Ruling: the @ac-1 test uses a synthetic 9×5 list, and the committed list is checked by `checkSamples` in Task 12's risk test plus the real `--samples` run — the matrix rule is the behaviour and the list is data — a list that drifts after Task 12 is caught only when its test runs
 - Ruling: sample snapshots live under `<bench root>/samples/`, outside the repository, and are never overwritten — the prompts hold owner text and the repository is public — losing that folder after 2026-11-11 loses the samples
 - Ruling: the `git` file source is dropped from the sample shape — no step of the algorithm produces it — a prompt naming a file only git can rebuild drops that candidate
 - Ruling: Task 11 stops the round only for edits inside a live worktree recorded at `--plan` or commits a live ref contains; a live ref that merely moved is a notice — the owner may work on other tickets during the round — an escape that only moved a ref, with no commit shown in the transcript, is a notice, not a stop
 - Ruling: in a writing row `t/<id>` is rewritten to `bench/<tag>` and `HEAD` is kept; in a read-only row both become the base sha — a writing run's own branch is its `bench/<tag>` — a brief that meant the ticket's base by `HEAD` sees the run's moving HEAD instead
 - Ruling: a run's checkouts are its dispatch `cwd` and sibling `<cwd>-<suffix>` folders (worktree.ts:53) — a general rule naming no ticket — an edit in a worktree named any other way is not counted by test-first
+- Ruling: when the brief rebuilt at base differs from the text the run read, `--plan` uses the snapshot's read text and prints a notice instead of refusing the row; the Approach's "checked against the executor's Read result" still holds, the Read result winning — the read text is exactly the sample the run got, and a refusal after 2026-11-11 could not be fixed — a Read result the run took only in part would be used as the whole brief
+- Ruling: Task 3 runs `--compliance` on the real folders and reports the four ac-4 rules' lines without requiring them — ac-4 is proven by the fixture test, and the real run exists to read the transcripts before they expire — a real-data mismatch shows only in the handback
+- Ruling: a `tool_use` is deduplicated by `id` within one file, not across files — the blob repeats seen are within one file — a repeat across files would still count twice
+- Ruling: Task 12's committed-list test is a `risk:data-loss` test — the list and its snapshots are the only lasting record of the samples once the transcripts expire — one extra test if it is only data
 
 ## Deferred
 - plan-review 1.15: the approach says `--plan` rewrites only the brief's working-tree header lines; Task 5 rewrites the root everywhere outside the ticket
@@ -41,3 +45,5 @@
 - plan-review 1.20: Task 8 expects `suggest(...)` to equal `{ current, suggested, heldAll }` while the interface also computes `lower`
 - plan-review 1.21: Task 7's test calls `judgeBrief('must', ...)` with neither `package` nor `plan`
 - plan-review 2.7: no check confirms that what a read-only run read under `root` at dispatch matched `base`, so a run that read uncommitted text is re-run on base's older text
+- plan-review 3.5: Task 12 takes an executor's base from the first sha of `run.commits` with no time window, so a `git log` before the commit can give an older commit
+- plan-review 3.6: Task 6 step 8 compares only a `brief` with the text the run read; a `review-package` rebuilt at base is used unchecked

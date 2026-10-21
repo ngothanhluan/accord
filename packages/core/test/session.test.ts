@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { rulesetText, sessionLine } from '../src/index.js';
 import type { StatusRow } from '../src/index.js';
@@ -18,6 +19,20 @@ describe('rulesetText', () => {
     expect(text).toContain('never writes the ledger unless its own instructions say so');
     expect(text).toContain('these lines go inside that report');
   });
+});
+
+it('ac-2 the session rules filled with the cli invocation carry the sentence limit', () => {
+  const pkg = JSON.parse(readFileSync(new URL('../../cli/package.json', import.meta.url), 'utf8')) as { name: string; version: string };
+  const invocation = `npx --yes ${pkg.name}@${pkg.version}`;
+  const text = rulesetText(invocation);
+  expect(text).toContain('at most 25 words');
+  expect(Buffer.byteLength(text)).toBeLessThan(2048);
+  expect(text).toContain(invocation);
+  expect(text).not.toContain('{{');
+  expect(text).toContain('never writes the ledger unless its own instructions say so');
+  expect(text).toContain('these lines go inside that report');
+  expect(text.startsWith('# accord rules\n')).toBe(true);
+  expect(text).toContain('Run accord as `npx --yes @accord-dev/accord@');
 });
 
 describe('sessionLine', () => {

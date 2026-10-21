@@ -21,5 +21,6 @@ These hold for every reply in this repository, for the main session and for ever
 7. End every reply with one or two lines: what was skipped, what was not checked, and any risk the owner
    must know. When your instructions fix the shape of your report, these lines go inside that report, within
    its limits.
+8. Write text for the owner in sentences of at most 25 words, as ask.md says.
 
 Run accord as `{{invocation}}` when `accord` is not on PATH.

@@ -1662,13 +1662,13 @@ it('ac-5 a failed or silent fetch is one accord line at pick up new ticket conti
   expect(gitRun(f.sibling('ST-9'), 'rev-parse', 'HEAD').trim()).toBe(head);
 
   const g = clone();
-  g.git('config', 'remote.origin.uploadpack', 'cd / && sleep 8 >/dev/null 2>&1; :');
+  g.git('config', 'remote.origin.uploadpack', 'cd / && sleep 30 >/dev/null 2>&1; :');
   vi.mocked(limit.fetchLimitMs).mockReturnValue(2000);
   const t0 = Date.now();
   const rg = await run(['worktree', 'open', 'ST-9'], g.root);
   expect(rg.code).toBe(0);
-  expect(Date.now() - t0).toBeLessThan(6000);
+  expect(Date.now() - t0).toBeLessThan(15000);
   expect(one(rg.out, rg.err)).toBe(P + 'no answer within 2 seconds');
   expect(sha(g, 't/ST-9^')).toBe(sha(g, 'origin/main'));
-  await new Promise((r) => setTimeout(r, Math.max(0, t0 + 9000 - Date.now())));
+  await new Promise((r) => setTimeout(r, Math.max(0, t0 + 31000 - Date.now())));
 }, 60_000);

@@ -30,10 +30,15 @@
 - Ruling: the hook prompt-expansion security test timed out at 30 s in the affected run of 20 files in parallel and passes alone (7 of 7 in 15.8 s); it is the known hook test slowdown left from ST-LN-26, so task 3 is recorded over it (task 3) — cost if wrong: a slowdown this ticket added to the hook path goes unnoticed until review.
 - Ruling: `--no-overwrite-ignore` stays on the merge but protects nothing on git 2.56, where ort, recursive and resolve all overwrite an ignored file with it (executor, shown by running it); before the merge `worktreeMerge` lists every path the default-branch ref has and HEAD lacks (`git diff --no-renames --name-only --diff-filter=A HEAD <ref>`, two trees, so a rename target and a path the ticket deleted are listed too) and refuses with exit 2, naming an ignored file present on disk, the branch untouched (task 4) — cost if wrong: an ignored file the merge writes some other way is overwritten; the path the ticket deleted has no test of its own.
 - Ruling: the README sentence on the merge before verify goes after the bullet's first sentence, "One worktree per ticket." (task 6) — cost if wrong: one sentence moves.
+- Ruling: the conflicted-file list (`diff --diff-filter=U`) is read NUL-separated too, since the same quoting would print escaped names in the conflict message (review 1.1, 3034c30) — cost if wrong: none, only the message's file names change.
+- Ruling: the ac-5 test's hanging-remote timing is widened, criterion and assertions unchanged — sleeper 8 s → 30 s, bound 6 s → 15 s, trailing wait 9 s → 31 s, mocked limit still 2 s — since the 6 s bound timed a whole Pick up and failed at 6.2 s with 20 files in parallel; with the limit raised to 60 s the bound still fails (review 1.1 follow-up, 73268ed) — cost if wrong: the test takes about 40 s under load, inside its 60 s timeout, and a slower runner could reach that timeout.
 
 ## Deferred
 - Nice (plan review 1.3): Task 4's pin test could assert `expect(err).not.toContain('is as it was')`, so a `checkPin` error wrapped as a failed merge is caught.
 - Nice (plan review 1.4): Task 3's ac-4 test should read `shared.txt` with `'utf8'`, since a Buffer never equals `'ST-9\n'`.
+- Nice (review 1.2): in `worktreeMerge`'s catch, `git diff --diff-filter=U` runs before the MERGE_HEAD check and `git()` throws, so a failing diff leaves the merge in progress; check MERGE_HEAD and abort first, reading the file list only when it exists.
+- Nice (review 1.3): the `/** ST-LN-20 D-05 … */` comment now sits above `worktreeMerge`'s comment; move it back to `function pruneStale`.
+- Nice (review 1.4): `worktreeMerge` checks `remote get-url origin` and then `fetchOrigin` checks it again and reloads a snapshot that is discarded — one extra git spawn and snapshot load per verify.
 
 ## Tasks
 - task 1 done f6072a2a4600

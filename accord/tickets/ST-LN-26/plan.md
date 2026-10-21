@@ -1,6 +1,6 @@
 ---
 baseline: 1dfe65bb70644e25776735c1f7296c83570c140d
-plan_hash: "fnv1a64:f4372a08c545c461"
+plan_hash: "fnv1a64:c5d7d238200cf2ae"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -381,7 +381,7 @@ that collapses whitespace:
   - `a` also contains `the failing check's log as the failing output` and
     `say the reproduction test is skipped on this operating system`.
   - `a` also contains `` first run `accord worktree open <id> --continue` and follow the accord skill's `./worktree.md`, then Continue's step 2 only ``,
-    `` ask the owner to type, in the session opened there, `/accord ` followed by the report, in place of the line it prints `` and `in place of Continue's steps 3 and 4`, and
+    `` ask the owner to type, in the session opened there, `/accord <id> ` followed by the report, and stop here `` and `in place of Continue's steps 3 and 4`, and
     `` (`done`: `accord-verify` at step 6, whose Finish closes the episode) ``; `a` does not contain
     `first run the accord skill's Continue on it`.
   - `wt` = flat `.claude/skills/accord/worktree.md`; `wt.slice(wt.indexOf('## Session check'))` contains
@@ -423,8 +423,8 @@ Text, each code span on one line:
   2. When this session is not in that ticket's worktree, first run
      `accord worktree open <id> --continue` and follow the accord skill's
      `./worktree.md`, then Continue's step 2 only; after a `stop:` line,
-     ask the owner to type, in the session opened there, `/accord `
-     followed by the report, in place of the line it prints. Then, in place of Continue's steps 3 and 4, load
+     ask the owner to type, in the session opened there, `/accord <id> `
+     followed by the report, and stop here. Otherwise, in place of Continue's steps 3 and 4, load
      `accord-debug` for that ticket: a new episode, or the open one when
      the last `## ` heading of
      `debug.md` is not `## Resolved`. Pass the debugger the report as given;

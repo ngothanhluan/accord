@@ -31,6 +31,7 @@
 - Ruling: the spec doc's wrapped line starts with "or `accord/product/conventions.md` (ST-LN-8 D-08)." with no leading space — a Markdown continuation line need not begin with a space — one whitespace character
 - Ruling: task 2 was recorded with packages/cli/test/hook.test.ts "the prompt expansion hook blocks every accord text…" failing once in the affected run (33 s against the 30 s testTimeout; 13 s alone, and its file passes alone) — the hook does not reach this ticket's code and the baseline suite passed — a real regression would surface again in the verify full suite
 - Ruling: review round 1 uses an intent and a quality reviewer in parallel, not one `both` reviewer — the diff is about 490 changed lines, at the 500 boundary, and the owner ranks quality first — one more reviewer's tokens
+- Ruling: the planner's top-level `accord/` rule is a bullet right after "You write only plan.md" — it is where the planner's own limits are stated — only the wording position
 - Ruling: brief tests blankness with `conv.trim() === ''` — JS trim and `\s` already cover the byte order mark — none, the blank cases in the test cover it
 
 ## Deferred

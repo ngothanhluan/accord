@@ -24,8 +24,8 @@ ui: false
 # The AC hash and the commit the ticks were made against.
 # verified_hash:
 # verified_commit:
-approved_hash: "fnv1a64:a33048c59fb169a8"
-ac_hash: "fnv1a64:6fa61550dc738a26"
+approved_hash: "fnv1a64:13250899f3ea64f5"
+ac_hash: "fnv1a64:8d78d843e8e3a3bf"
 ---
 
 ## Intent
@@ -56,7 +56,9 @@ Feature: ST-LN-14
     Given a round 1 run and the current-effort run on the same sample
     When the report judges the run
     Then an executor run holds when the whole test suite passes on its result and the judge reports no more Must findings than on the current-effort run
-    And a critic, reviewer, final-reviewer, auditor or verifier run holds when, for every Must the current-effort run reported on that sample, the judge rules that the run reported the same issue, whatever its wording
+    And a critic, reviewer or final-reviewer run holds when, for every Must the current-effort run reported on that sample, the judge rules that the run reported the same issue, whatever its wording
+    And an auditor run holds when, for every criterion the current-effort run read two ways, the judge rules that the run read it two ways too
+    And a verifier run holds when it marks fail or blocked every criterion the current-effort run marked fail or blocked
     And a planner run holds when accord gate plan passes and the judge reports no more Must findings than on the current-effort plan
     And an architect or scout run holds when the judge finds no wrong fact in it
     And the judge is a fresh reviewer or critic agent for each run, pinned to the same model and effort for every run of the round
@@ -103,6 +105,7 @@ Feature: ST-LN-14
 - D-05 Done is round 1, its report with a suggested effort per agent, and the compliance check finding the four known breaches; later tuning rounds are other tickets; this ticket changes no agent's model or effort, the owner decides from the report — "A"
 - D-06 The benchmark also scores process compliance from transcripts and git — "làm sao để ko thể nào quên chuyện này? tôi nghĩ phần benchmark phải đánh giá thật kỹ mới dc."
 - D-07 Model and effort are read for each turn, not once per run: each `"type":"assistant"` line of `<session>/subagents/agent-<id>.jsonl` carries `message.model`, `requestedModel`, `effort` and `perTurnEffort`, and `agent-<id>.meta.json` names `agentType` and the dispatch `description` (checked 2026-10-18; scripts/benchmark.mjs:31-35 keeps only the first effort and the last model) — "vậy làm sao để strictly biết dc model đang chạy cho từng agent là gì? effort bao nhiêu?"
+- D-08 The auditor and the verifier report no Must, so an auditor run holds when it still reads two ways every criterion the current effort did, and a verifier run when it still marks fail or blocked every criterion the current effort did; a sample with none of these holds at every effort, and the report says so — "A"
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->

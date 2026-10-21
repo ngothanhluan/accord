@@ -48,7 +48,7 @@ Feature: ST-LN-33
     Then it holds the literal texts "every text written for the owner", "in any language", "at most 25 words", "separated by spaces", "one idea", "active voice", "one word for one concept", and "no idioms"
     And every line that is not blank, other than the generated marker line, in the ask.md it rendered before this ticket is still in it, word for word and in the same order
 
-  @ac-2
+  @ac-2 @test:packages/core/test/session.test.ts#ac-2-the-session-rules-filled-with-the-cli-invocation-carry-the-sentence-limit
   Scenario: the session rules carry the sentence limit
     Given the rules text that the session-start hook injects
     When it is filled with the invocation `npx --yes @accord-dev/accord@` followed by the package's own version

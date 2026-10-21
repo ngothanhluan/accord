@@ -22,4 +22,8 @@ Must 1 [intent-gap]: the merge of origin/main (d62a680) lets the stage, through 
 Nice 2 [patch]: no stage-level test pins the `conventions.md` case, and spec line 181 still names only the ticket's own records — packages/core/test/lane-status.test.ts — fixed in d02e6db
 Nice 3 [patch]: `ownRecordsOnly`'s doc comment cites spec §11 for a set that now holds `conventions.md` — packages/core/src/gate/done.ts:202 — deferred
 
+## Round 5
+
+No findings
+
 verdict: converged

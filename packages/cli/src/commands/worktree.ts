@@ -1,9 +1,9 @@
 // ST-LN-7 `accord worktree`: each ticket works in its own git worktree, a sibling folder of the main checkout.
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
-import { DEFAULT_BRANCH_TEMPLATE, loadConfig } from '@accord-dev/accord-core';
+import { DEFAULT_BRANCH_TEMPLATE, loadConfig, loadSnapshot } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
-import { currentBranch, gitDefaultRef, gitUserEmail, ticketOfBranch, UsageError } from '../load/fs.js';
+import { currentBranch, gitDefaultRef, gitUserEmail, loadFromFs, ticketOfBranch, UsageError } from '../load/fs.js';
 import { claudeEnv, describeSession, isLive, processTable, runSetup, sameSession, sessionIn } from '../load/proc.js';
 import type { Session } from '../load/proc.js';
 import type { CommandContext } from '../run.js';
@@ -359,6 +359,7 @@ export function worktreeCheck(ctx: CommandContext): number {
 export function worktreeOpen(ctx: CommandContext, id: string, opts: { continue?: boolean } = {}): number {
   if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id);
   guardTicketSession(ctx, opts.continue === true ? id : undefined);
+  ctx = fetchOrigin(ctx);
   const enter = canEnter(ctx);
   const pick = opts.continue !== true;
   const branch = branchOf(ctx.snapshot, id);
@@ -445,6 +446,18 @@ function gitNoPrompt(cwd: string, args: string[]): void {
 }
 
 const firstLine = (e: unknown) => String((e as { stderr?: string }).stderr ?? e).trim().split('\n')[0];
+
+/** ST-LN-30 D-01, D-06: fetch origin so a branch is cut and a claim judged from the latest refs; a failed fetch prints one line and the work goes on. */
+export function fetchOrigin(ctx: CommandContext): CommandContext {
+  if (!gitOk(ctx.root, ['remote', 'get-url', 'origin'])) return ctx;
+  try {
+    gitNoPrompt(ctx.root, ['fetch', '--no-prune', 'origin']);
+  } catch (e) {
+    ctx.stdout.write(`fetch from origin failed, going on with the refs already in this clone: ${firstLine(e)}\n`);
+    return ctx;
+  }
+  return { ...ctx, snapshot: loadSnapshot(loadFromFs(ctx.root)) };
+}
 
 /** ST-LN-20 D-05: after a good fetch, prune origin's stale refs (remote-tracking, and tags a fetch refspec maps), naming each with its full sha (it can be the last copy of an unmerged branch). */
 function pruneStale(ctx: CommandContext): void {

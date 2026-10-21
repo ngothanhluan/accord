@@ -1332,3 +1332,44 @@ it('risk:complex-branching a session started in a ticket worktree is recorded as
   expect(h.code).toBe(0);
   expect(JSON.parse(h.out)).toMatchObject({ decision: 'block', reason: expect.stringContaining('this session works ST-9') });
 }, 120_000);
+
+const pushNext = (c: Clone) => {
+  const o = c.otherClone();
+  writeFiles(o, { 'next.txt': 'next\n' });
+  gitRun(o, 'add', '-A');
+  gitRun(o, 'commit', '-q', '-m', 'next');
+  gitRun(o, 'push', '-q', 'origin', 'main');
+  return gitRun(o, 'rev-parse', 'HEAD').trim();
+};
+
+it('ac-1 pick up and a new worktree ticket cut the ticket branch from a main commit this clone had not fetched', async () => {
+  const c = clone();
+  const tip = pushNext(c);
+  expect(sha(c, 'origin/main')).not.toBe(tip);
+  const r = await run(['worktree', 'open', 'ST-9'], c.root);
+  expect(r.code).toBe(0);
+  expect(c.git('rev-parse', 't/ST-9^').trim()).toBe(tip);
+  expect(c.git('log', '-1', '--format=%s', 't/ST-9').trim()).toBe('claim: ST-9');
+  expect(r.out).not.toContain('fetch from origin failed');
+
+  const d = clone({ tickets: [] });
+  const tip2 = pushNext(d);
+  const n = await run(['new', 'ticket', 'ST-9', '--lane', 'M', '--worktree'], d.root);
+  expect(n.code).toBe(0);
+  expect(d.git('rev-parse', 't/ST-9^').trim()).toBe(tip2);
+  expect(d.git('show', 't/ST-9:accord/tickets/ST-9.md')).not.toBe('');
+}, 120_000);
+
+it('risk:concurrency pick up fetches before it judges the claim so a claim pushed since the last fetch refuses', async () => {
+  const c = clone();
+  const o = c.otherClone();
+  gitRun(o, 'config', 'user.email', 'other@example.invalid');
+  gitRun(o, 'switch', '-q', '-c', 't/ST-9');
+  gitRun(o, 'commit', '-q', '--allow-empty', '-m', 'claim: ST-9');
+  gitRun(o, 'push', '-q', 'origin', 't/ST-9');
+  const r = await run(['worktree', 'open', 'ST-9'], c.root);
+  expect(r.code).toBe(2);
+  expect(r.err).toContain('claimed: ST-9 by other@example.invalid');
+  expect(existsSync(c.sibling('ST-9'))).toBe(false);
+  expect(() => c.git('rev-parse', '--verify', '-q', 'refs/heads/t/ST-9')).toThrow();
+}, 120_000);

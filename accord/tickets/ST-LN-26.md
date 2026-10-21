@@ -24,8 +24,8 @@ ui: false
 # The AC hash and the commit the ticks were made against.
 # verified_hash:
 # verified_commit:
-approved_hash: "fnv1a64:ca169b4c91d0bc79"
-ac_hash: "fnv1a64:432e60b0a0717c8a"
+approved_hash: "fnv1a64:be20a7d835f71b2d"
+ac_hash: "fnv1a64:2213e74d7ac9137e"
 ---
 
 ## Intent
@@ -65,7 +65,7 @@ Feature: ST-LN-26
   @ac-3 @test:packages/core/test/lane-status.test.ts#ac-3-a-change-after-verify-takes-the-ticket-back-from-done-until-it-is-verified-again
   Scenario: A change after verify takes the ticket back from done until it is verified again
     Given ticket X was verified at commit C
-    When a commit after C changes a file outside X's ticket file and X's ticket folder
+    When a commit after C changes a file outside X's ticket file, X's ticket folder and `accord/product/conventions.md`
     Then the stage is never done until X is verified again at a commit that holds that change
     And after a fix of a failure found after verify, the stage is review until a review round of the changes made after C is recorded in review.md, then verify
     And after a merge from the main branch that holds no other change, the stage is verify
@@ -99,6 +99,7 @@ Feature: ST-LN-26
 - D-07 The auditor's six readings, as the owner accepted them: any failure report opens debug and the debugger fetches the command and output itself; verify waits for the push's checks to appear before waiting for them to finish; only a failed check goes to debug, a cancelled or skipped one is reported as not checked; any commit outside the ticket's own records takes the ticket back from done, a fix through review then verify, a merge from main through verify only; skipped means what the test runner reports as skipped; every assertion that runs only on some operating systems sits in its own test skipped by the runner, early return and if/else alike — "đồng ý"
 - D-08 One CI wait only: verify pushes and opens a draft pull request at its start, so CI runs while the full suite and the verifier run; the check that runs `accord gate done` for the ticket is left out, since the local `accord gate done` on the same commit replaces it; after the tick, verify pushes and marks the pull request ready without waiting again — "A"
 - D-09 The auditor's readings of the one-wait @ac-2, as the owner accepted them: only checks on the pushed commit count; a push that changes nothing reuses that commit's results; the accord workflow's check is not waited for, and verify runs lint and gate done locally for every ticket the pull request touches in its place; a failed check gives the owner one line and goes to debug once all checks finished; a check still running after thirty minutes is reported as not checked; gh must be logged in and reach the repository; an open pull request is left as it is — "đồng ý"
+- D-10 After the merge of ST-LN-8, `accord/product/conventions.md` counts with X's ticket file and folder in @ac-3, as it does for `accord gate done`, so a rule the owner promotes at verify step 6 never takes X back from done — "A"
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->

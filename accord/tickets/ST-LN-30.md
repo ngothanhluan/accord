@@ -61,7 +61,7 @@ Feature: ST-LN-30
   Scenario: Verify runs on the ticket merged with the latest default branch
     Given a ticket whose review.md ends with a verdict and whose branch lacks a commit on the remote's default branch, not yet fetched
     When the verify stage of /accord starts
-    Then the ticket branch gains a merge commit whose parents are its previous head and that commit, with no rebase
+    Then the ticket branch gains a merge commit whose first parent is its previous head and whose second parent is that commit, with no rebase
     And the full test suite and the verification run on that merge commit
 
   @ac-4
@@ -76,7 +76,7 @@ Feature: ST-LN-30
   Scenario: A failed fetch is reported and the work goes on
     Given the remote cannot be reached, or does not answer within the fetch's time limit
     When I pick up a ticket, create a lane M ticket with --worktree, continue a ticket, or start its verify
-    Then exactly one line, accord's own, says the fetch failed and quotes git's first error line, as `accord worktree clean` does today
+    Then exactly one line, accord's own, says the fetch failed and either quotes git's first error line, as `accord worktree clean` does today, or, when the time limit ran out, says the remote did not answer within that limit and names the limit in seconds
     And the work goes on with the refs already in the clone
 ```
 
@@ -93,6 +93,8 @@ Feature: ST-LN-30
 - D-06 A failed fetch, at Pick up, `new ticket --worktree`, Continue or before verify, prints one line and the work goes on with the refs already in the clone — "A" (to the options: A one line and go on everywhere; B stop verify until a fetch succeeds; C stop everywhere)
 - D-07 The smallest version that still counts as done is the fetch before a new branch, the merge before verify and the conflict stop; the Continue notice could go — "đồng ý" (to the proposal: parts 1, 3 and 4 are the core, part 2 only tells the owner mid-ticket)
 - D-08 The fetch has a time limit, about 30 seconds, the exact figure chosen at the approach; a fetch that runs past it counts as a failed fetch under D-06 — "A" (to the options: A a time limit, past it the fetch counts as failed; B no limit, wait for git's own error as `worktree clean` does today)
+- D-09 The merge before verify is a new public command, `accord worktree merge <id>`, which the verify stage runs: it fetches, merges with a merge commit, refuses unless the ticket's stage is verify, and on a conflict aborts, names the files and exits 2 so the session shows the message and stops — "A" (to the options: A a new command the verify step calls; B fold the merge into `worktree open --continue` at the verify stage; C skill text only, the session runs git fetch and git merge itself)
+- D-10 When the fetch runs past its time limit, git has printed no error line, so the one line says the remote did not answer within the limit, "no answer within 30 seconds"; ac-5 says so — "A" (to the options: A reword ac-5 to quote git's first error line or, past the limit, say there was no answer within it; B keep the wording and quote whatever git printed before it was stopped; C add git's own stall settings so git reports "too slow" itself)
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
@@ -105,3 +107,13 @@ Feature: ST-LN-30
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
+Chosen: one fetch helper in `packages/cli/src/commands/worktree.ts` wraps the prompt-off fetch with a 30 s `execFileSync` timeout (D-08) and prints accord's one line on failure (D-06, D-10). Pick up and `new ticket --worktree` call it before any ref or the snapshot is read, then cut the branch from the resolved default ref; Continue calls it, then prints the behind count and `git merge <ref>` without touching the branch (D-02). A new `accord worktree merge <id>` (D-09) refuses outside the ticket's branch, on tracked changes, or unless the stage is verify, then fetches and runs `git merge --no-ff --no-edit --no-overwrite-ignore`; on failure it names the conflicted files, aborts when MERGE_HEAD exists, and exits 2 (D-03). Verify step 2 runs it after its commit and before `tests.full`. Why: the only option where every criterion has an in-process test and the tool, not the session, holds "merge only after review" (D-04).
+Rejected: the same without the stage guard, since D-04 would rest on the session's memory; adding git's low-speed settings, since they bound neither a hung connect nor ssh, so the timer stays; folding the merge into Continue (D-09 B), since verify usually starts from review without a Continue; skill text only (D-09 C), since it cannot print accord's line, enforce the limit, or be tested in-process.
+Affected: `worktree.ts` (fetch helper, `worktreeOpen`, `newTicketWorktree`, new `worktreeMerge`); a small module holding the limit; `run.ts` registers the subcommand; `skills/verify/SKILL.md` step 2 and `skills/accord/worktree.md` (the fetch-failed and behind lines, shown verbatim, work goes on) with the generated copies; `README.md` and `packages/cli/README.md`. `worktree clean`, `gitDefaultRef`, `gate done` and `gate plan` stay as they are: the merge keeps the baseline on its first parent and verify ticks the merge commit.
+Risks, from the critic and the architect, each settled by a Ruling in the ledger:
+- Should: on Windows a kill at 30 s can leave a stale ref lock, after which every fetch fails with one line; the timeout test must prove on windows-latest that the call returns on time.
+- Should: a slow fetch still downloading at 30 s counts as failed, as D-08 chose.
+- Should: after the merge, `review-package` without `--base` lists main's merged files as undeclared; only a fix after verify that goes back through review sees it, so it goes to a follow-up ticket.
+- Should (settled): fetching after the claim check could let two people claim one ticket; an ignored local file could be overwritten; a non-conflict merge failure could be reported as a conflict; a changed version pin could stop verify silently; the limit could not be mocked inside its own module; `worktree clean` keeps no limit.
+- Nice: an offline `/accord` can wait on two fetches, the second at most 30 s; existing exact-output tests of `--continue` gain the behind line and must be updated.
+Tests: ac-1 to ac-5 are in-process `run()` tests against real git in `packages/cli/test/worktree.test.ts`, with a second clone pushing commits this clone has not fetched; ac-1 covers both Examples rows; ac-5 covers an unreachable remote at each of the four points and a hanging remote under a mocked short limit. That the suite and the verification run on the merge commit is the order of verify step 2, held by a `risk:regression` text test in `packages/core/test/stage-skills.test.ts`.

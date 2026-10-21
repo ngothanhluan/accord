@@ -28,6 +28,7 @@
 - Ruling: the existing ac-4 claude-code Continue test is updated in place to expect the behind line first on both Continue calls (1 commit behind), per the plan's rule for tests whose output changes (task 2) — cost if wrong: none, nothing weakened.
 - Ruling: task 3 is recorded from its commit f9214b6 without the executor's report, which the session that dispatched it lost before recording; its four files are all on the task's `files:` line, so no undeclared file is accepted, and any Ruling that report held is unknown (task 3) — cost if wrong: a choice the executor made is not in the ledger, which review then finds in the diff.
 - Ruling: the hook prompt-expansion security test timed out at 30 s in the affected run of 20 files in parallel and passes alone (7 of 7 in 15.8 s); it is the known hook test slowdown left from ST-LN-26, so task 3 is recorded over it (task 3) — cost if wrong: a slowdown this ticket added to the hook path goes unnoticed until review.
+- Ruling: `--no-overwrite-ignore` stays on the merge but protects nothing on git 2.56, where ort, recursive and resolve all overwrite an ignored file with it (executor, shown by running it); before the merge `worktreeMerge` lists every path the default-branch ref has and HEAD lacks (`git diff --no-renames --name-only --diff-filter=A HEAD <ref>`, two trees, so a rename target and a path the ticket deleted are listed too) and refuses with exit 2, naming an ignored file present on disk, the branch untouched (task 4) — cost if wrong: an ignored file the merge writes some other way is overwritten; the path the ticket deleted has no test of its own.
 
 ## Deferred
 - Nice (plan review 1.3): Task 4's pin test could assert `expect(err).not.toContain('is as it was')`, so a `checkPin` error wrapped as a failed merge is caught.
@@ -37,3 +38,4 @@
 - task 1 done f6072a2a4600
 - task 2 done fde7e582cbfe
 - task 3 done f9214b6196c9
+- task 4 done 591243f00e8f

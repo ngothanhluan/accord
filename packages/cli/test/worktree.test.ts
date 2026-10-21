@@ -1571,3 +1571,23 @@ it('risk:data-loss clean keeps a dropped ticket branch that a detached worktree 
   expect(has(c.remote, 'refs/heads/t/ST-9')).toBe(true);
   gitRun(c.sibling('ST-9'), 'rebase', '--abort');
 }, 120_000);
+
+it('risk:complex-branching pick up refuses a ticket the default branch holds as dropped', async () => {
+  const c = clone({ tickets: ['ST-9', 'ST-10'] });
+  c.git('branch', 't/ST-10', 'origin/main');
+  dropOnRemote(c, ['ST-9', 'ST-10']);
+  c.git('fetch', '-q', 'origin');
+  const a = await run(['worktree', 'open', 'ST-9'], c.root);
+  expect(a.code).toBe(2);
+  expect(a.err).toContain('ST-9 is dropped on main');
+  expect(a.err).toContain('make a new ticket instead');
+  expect(existsSync(c.sibling('ST-9'))).toBe(false);
+  expect(has(c.root, 'refs/heads/t/ST-9')).toBe(false);
+  const b = await run(['worktree', 'open', 'ST-10'], c.root);
+  expect(b.code).toBe(2);
+  expect(b.err).toContain('ST-10 is dropped on main');
+  expect(existsSync(c.sibling('ST-10'))).toBe(false);
+  const k = await run(['worktree', 'open', 'ST-10', '--continue'], c.root);
+  expect(k.code).toBe(0);
+  expect(existsSync(c.sibling('ST-10'))).toBe(true);
+}, 120_000);

@@ -368,6 +368,10 @@ export function worktreeOpen(ctx: CommandContext, id: string, opts: { continue?:
   const local = held !== undefined || gitOk(ctx.root, ['rev-parse', '--verify', '-q', 'refs/heads/' + branch]);
   const remote = gitOk(ctx.root, ['rev-parse', '--verify', '-q', 'refs/remotes/origin/' + branch]);
   if (opts.continue !== true) {
+    const def = gitDefaultRef(ctx.root);
+    if (def !== undefined && droppedOn(ctx.root, def, [id]).has(id)) {
+      throw new UsageError(`${id} is dropped on ${def.replace('refs/remotes/origin/', '')} - make a new ticket instead (the drop reason is in accord/tickets/${id}.md there); nothing was created`);
+    }
     // judge every ref that exists: the dashboard credits the pushed claim too
     if (local) checkClaimant(ctx, id, 'refs/heads/' + branch);
     if (remote) checkClaimant(ctx, id, 'refs/remotes/origin/' + branch);

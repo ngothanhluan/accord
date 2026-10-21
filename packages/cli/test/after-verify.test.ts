@@ -175,3 +175,39 @@ it('risk:complex-branching status in the main checkout takes a claimed ticket ba
     c.cleanupAll();
   }
 }, 120_000);
+
+it('risk:complex-branching review-package leaves out what a merge from the default branch brought in', async () => {
+  const c = makeClone();
+  try {
+    const B0 = c.git('rev-parse', 'HEAD').trim();
+    c.git('switch', '-c', 't/ST-9');
+    writeFiles(c.root, { 'src/a.ts': 'a\n' });
+    commit(c.root, 'fix one');
+    const before = await run(['review-package', 'ST-9', '--base', B0], c.root);
+    expect(before.code).toBe(0);
+    expect(before.out.startsWith(`# Review package: ST-9 (${B0}...HEAD)`)).toBe(true);
+
+    const o = c.otherClone();
+    writeFiles(o, { 'src/main.ts': 'm\n' });
+    commit(o, 'main work');
+    gitRun(o, 'push', '-q', 'origin', 'main');
+    c.git('fetch', '-q', 'origin');
+    c.git('merge', '-q', '--no-edit', 'origin/main');
+    writeFiles(c.root, { 'src/b.ts': 'b\n' });
+    commit(c.root, 'fix two');
+    const after = await run(['review-package', 'ST-9', '--base', B0], c.root);
+    expect(after.code).toBe(0);
+    expect(after.out).toContain('without origin/main');
+    expect(after.out).toContain('fix one');
+    expect(after.out).toContain('fix two');
+    expect(after.out).not.toContain('main work');
+    const diff = after.out.slice(after.out.indexOf('## Diff'));
+    expect(diff).toContain('src/a.ts');
+    expect(diff).toContain('src/b.ts');
+    expect(diff).not.toContain('src/main.ts');
+    const stat = after.out.slice(after.out.indexOf('## Stat'), after.out.indexOf('## Undeclared files'));
+    expect(stat).not.toContain('src/main.ts');
+  } finally {
+    c.cleanupAll();
+  }
+}, 120_000);

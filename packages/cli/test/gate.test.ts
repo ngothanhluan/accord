@@ -7,7 +7,8 @@ import { chmodSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync }
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { cleanup, commitAll, makeRepo, run } from './helpers/repo.js';
+import { cleanup, commitAll, gitRun, makeLaneRepo, makeRepo, run } from './helpers/repo.js';
+import { CONFIG } from '../../../test/helpers/lane.js';
 
 const CLEAN_HASH = 'fnv1a64:8613b1c0604c6a56';
 const ticket = (repo: string, id: string): string => join(repo, 'accord', 'tickets', id + '.md');
@@ -284,3 +285,44 @@ describe('accord gate ready — the ac_hash write (D-96, D-97)', () => {
     },
   );
 });
+
+function commitMessage(repo: string, message: string): string {
+  writeFileSync(join(repo, '.git', 'ACCORD_MSG'), message);
+  gitRun(repo, 'add', '-A');
+  gitRun(repo, '-c', 'user.email=fixture@example.invalid', '-c', 'user.name=fixture', '-c', 'commit.gpgsign=false', 'commit', '-q', '--no-verify', '--allow-empty', '--cleanup=verbatim', '-F', join(repo, '.git', 'ACCORD_MSG'));
+  return gitRun(repo, 'rev-parse', 'HEAD').trim();
+}
+const rows = (out: string) =>
+  (JSON.parse(out) as { findings: { rule: string; level: string; reason: string }[] }).findings.filter((f) => f.rule === 'gate.commit-trailer');
+
+it('ac-4 gate done refuses a ticket branch holding any forbidden line when the repository forbids trailers', async () => {
+  const repo = makeLaneRepo({ 'accord/config.yml': CONFIG + 'commits:\n  trailers: forbid\n' });
+  try {
+    const base = commitAll(repo);
+    const none = await run(['gate', 'done', 'T-1'], repo);
+    expect(none.code).toBe(2);
+    expect(none.err).toContain('git fetch origin');
+    gitRun(repo, 'update-ref', 'refs/remotes/origin/main', base);
+    commitMessage(repo, 'build: clean\n\nAdds the parser.\n');
+    const clean = await run(['gate', 'done', 'T-1', '--json'], repo);
+    expect(clean.code).toBe(1);
+    expect(rows(clean.out)).toEqual([]);
+    gitRun(repo, 'switch', '-q', '-c', 'side', base);
+    commitMessage(repo, 'build: side\n\nCo-Authored-By: Bot <bot@example.com>\n');
+    gitRun(repo, 'switch', '-q', '-');
+    gitRun(repo, '-c', 'user.email=fixture@example.invalid', '-c', 'user.name=fixture', '-c', 'commit.gpgsign=false', 'merge', '-q', '--no-ff', '--no-verify', '-m', 'merge side', 'side');
+    expect(rows((await run(['gate', 'done', 'T-1', '--json'], repo)).out)).toEqual([]);
+    const r = commitMessage(repo, 'build: parser\n\nAdds the parser.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n');
+    const bad = await run(['gate', 'done', 'T-1'], repo);
+    expect(bad.code).toBe(1);
+    expect(bad.out).toContain(r.slice(0, 12));
+    expect(bad.out).toContain('🤖 Generated with [Claude Code](https://claude.com/claude-code)');
+    const j = rows((await run(['gate', 'done', 'T-1', '--json'], repo)).out);
+    expect(j).toHaveLength(1);
+    expect(j[0].level).toBe('error');
+    gitRun(repo, 'update-ref', 'refs/heads/main', 'HEAD');
+    expect(rows((await run(['gate', 'done', 'T-1', '--json'], repo)).out)).toHaveLength(1);
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);

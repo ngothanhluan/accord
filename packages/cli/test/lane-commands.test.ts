@@ -1,7 +1,9 @@
 // The workflow-layer commands end to end, in-process through runCli (STACK Decision 7), each against its
 // own sandbox so a write can never reach a fixture.
-import { existsSync, readFileSync, rmSync, statSync, utimesSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
+import { platform } from 'node:os';
 import { join } from 'node:path';
+import { templates } from '@accord-dev/accord-core';
 import { describe, expect, it } from 'vitest';
 import { cleanup, commitAll, commitAllAt, gitRun, makeEmptyRepo, makeLaneRepo, makeRepo, run, writeFiles } from './helpers/repo.js';
 import { CONFIG, junit, LANE_BODY, laneTicket, PLAN, REPORT } from '../../../test/helpers/lane.js';
@@ -1240,3 +1242,61 @@ it('risk:complex-branching an invalid template names no claim', async () => {
     cleanup(repo);
   }
 }, 60000);
+
+it('ac-4 tests skipped prints every case the report records as skipped with the operating system', async () => {
+  const repo = makeLaneRepo({ [REPORT]: junit({ 'export#writes-csv': 'passed', 'util#b': 'skipped', 'export#escapes-commas': 'skipped' }) });
+  try {
+    commitAll(repo);
+    freshen(repo);
+    const r = await run(['tests', 'skipped'], repo);
+    expect(r.code).toBe(0);
+    expect(r.out).toBe(`skipped on ${platform()}: 2\nexport#escapes-commas\nutil#b\n`);
+    utimesSync(REPORT_PATH(repo), OLD, OLD);
+    const stale = await run(['tests', 'skipped'], repo);
+    expect(stale.code).toBe(2);
+    expect(stale.err).toContain('run the tests again');
+    writeFiles(repo, { [REPORT]: junit({ 'export#writes-csv': 'passed' }) });
+    freshen(repo);
+    const none = await run(['tests', 'skipped'], repo);
+    expect(none.code).toBe(0);
+    expect(none.out).toBe(`skipped on ${platform()}: 0\n`);
+  } finally {
+    cleanup(repo);
+  }
+  const bare = makeLaneRepo({ 'accord/config.yml': CONFIG.replace(/tests:\n {2}report: .*\n/, '') });
+  try {
+    const r = await run(['tests', 'skipped'], bare);
+    expect(r.code).toBe(2);
+    expect(r.err).toContain('no tests.report');
+  } finally {
+    cleanup(bare);
+  }
+}, 30000);
+
+it('ac-2 every brief ends with the repository conventions', async () => {
+  const repo = makeLaneRepo();
+  const conv = join(repo, 'accord', 'product', 'conventions.md');
+  const brief = async () => (await run(['brief', 'T-1', '2'], repo)).out;
+  try {
+    const before = await brief();
+    expect(before.endsWith('\n')).toBe(true);
+    expect(before.endsWith('\n\n')).toBe(false);
+    expect(before).not.toContain('conventions');
+    expect((await run(['init'], repo)).code).toBe(0);
+    expect(readFileSync(conv, 'utf8')).toBe(templates['conventions.md']);
+    expect(await brief()).toBe(before + '\n---\n\n' + templates['conventions.md']);
+    writeFileSync(conv, '- Never add a commit trailer.');
+    expect(await brief()).toBe(before + '\n---\n\n- Never add a commit trailer.');
+    const crlf = '﻿- A\r\n- B\r\n';
+    writeFileSync(conv, crlf);
+    expect(await brief()).toBe(before + '\n---\n\n' + crlf);
+    for (const blank of ['', ' \n\t\r\n', '﻿', '﻿\n  ﻿\n']) {
+      writeFileSync(conv, blank);
+      expect(await brief()).toBe(before);
+    }
+    rmSync(conv);
+    expect(await brief()).toBe(before);
+  } finally {
+    cleanup(repo);
+  }
+}, 60_000);

@@ -36,6 +36,11 @@ session and orchestrate: executors write the code.
    - It refuses because the report is missing or older than the commit:
      the `tests.affected` command does not write the report `tests.report`
      names. Tell the owner; do not loop.
+   - It refuses because a commit carries a forbidden line: reword that
+     commit yourself if you made it; if an executor made it, dispatch a
+     fresh executor with the same brief plus the reasons it printed. It
+     exits 2 and says to run `git fetch origin`: run that. Either way,
+     run `accord task-done <id> <n>` again.
    - It writes the `@test:` tag of each scenario a `verify:` id marks
      with `(@ac-n)`. It refuses because a scenario already carries a
      different `@test:` tag: ask the owner; never an executor or `accord-debug`.

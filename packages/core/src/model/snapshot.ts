@@ -30,6 +30,17 @@ export interface SnapshotInput {
   // Ticket id -> the subject of the last commit that touched its plan.md and whether plan.md has no uncommitted
   // change. A plan is ready when clean and the subject is exactly `plan: <id> ready`. Absent when the host supplies none.
   planFacts?: Record<string, { subject?: string; clean: boolean }>;
+  // Ticket id -> the commits after its start commit (verified_commit, else verification.md's commit) on its own tip
+  // that the default ref does not hold, oldest first. Present only for a ticket whose start commit is not on the default ref.
+  afterVerify?: Record<string, AfterVerifyCommit[]>;
+}
+
+/** Full shas, first parent first; `files` are the paths the commit changes (for a merge, the paths its remerge diff
+ * shows), absent for a merge whose own changes git could not show. */
+export interface AfterVerifyCommit {
+  sha: string;
+  parents: string[];
+  files?: string[];
 }
 
 export interface Line {
@@ -134,6 +145,7 @@ export interface Review {
   file: string; // 'accord/tickets/LOGIN-1/review.md'
   verdict?: string; // the value of the last 'verdict:' line
   line?: number; // its Markdown line
+  trailing?: true; // a non-blank line follows the last verdict line
 }
 
 export interface TicketWork {
@@ -163,6 +175,7 @@ export interface AccordConfig {
   legacy_ids?: string[]; // ticket ids exempt from the id convention (IDS-1)
   branch?: string; // claim branch template with exactly one {id}; absent means 't/{id}'
   setup?: string[]; // D-07: commands run in order in a new worktree
+  commits?: { trailers?: 'allow' | 'forbid' }; // ST-LN-8 D-01: absent or allow is off
 }
 
 export interface RepoSnapshot {
@@ -183,8 +196,10 @@ export interface RepoSnapshot {
   ancestors?: Record<string, boolean>; // carried through from SnapshotInput
   baselineFiles?: Record<string, string[]>; // carried through from SnapshotInput
   recordsSince?: Record<string, string[]>; // carried through from SnapshotInput
+  commits?: { sha: string; message: string }[]; // ST-LN-8: host-supplied by gate done when commits.trailers is forbid
   branchTemplates?: string[]; // carried through from SnapshotInput
   claimBranches?: Record<string, string>; // carried through from SnapshotInput
   claimTemplate?: string; // carried through from SnapshotInput
   planFacts?: Record<string, { subject?: string; clean: boolean }>; // carried through from SnapshotInput
+  afterVerify?: Record<string, AfterVerifyCommit[]>; // carried through from SnapshotInput
 }

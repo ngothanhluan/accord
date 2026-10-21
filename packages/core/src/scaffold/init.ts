@@ -91,6 +91,8 @@ export function initFiles(pkg: { name: string; version: string }): ScaffoldFile[
     // note, for the same reason).
     { path: 'accord/product/glossary.md', text: templates['glossary.md'] },
     { path: 'accord/product/business-rules.md', text: templates['business-rules.md'] },
+    // ST-LN-8 D-04: conventions.md is free text like its siblings, unchecked by lint; `accord brief` appends it.
+    { path: 'accord/product/conventions.md', text: templates['conventions.md'] },
   ];
   return out.sort((a, b) => cmp(a.path, b.path));
 }

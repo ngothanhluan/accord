@@ -2,7 +2,7 @@
 // with ten lines of context. git only, literal argument arrays, no shell (CLI-07).
 import { execFileSync } from 'node:child_process';
 import { undeclaredFiles, workOf } from '@accord-dev/accord-core';
-import { UsageError } from '../load/fs.js';
+import { defaultRefOf, UsageError } from '../load/fs.js';
 import type { CommandContext } from '../run.js';
 import { requireLaneTicket } from './lane-args.js';
 
@@ -22,6 +22,8 @@ export function reviewPackage(ctx: CommandContext, id: string, options: { base?:
       stdio: ['ignore', 'pipe', 'pipe'],
       maxBuffer: 64 * 1024 * 1024,
     });
+  // Every git log passes the signature flags (conventions.md), so a signed HEAD never changes the output.
+  const gitLog = (args: string[]) => git(['-c', 'log.showSignature=false', 'log', '--no-show-signature', ...args]);
   const range = base + '...HEAD';
   // A short reason for the one failure that explains itself, else git's own first stderr line.
   const why = (e: unknown): string => {
@@ -41,18 +43,56 @@ export function reviewPackage(ctx: CommandContext, id: string, options: { base?:
     }
     throw new UsageError(headless ? 'the repository has no commit to review' : 'unknown base ref: ' + base);
   }
+  // ST-LN-26: a fix made after a merge from the default branch is reviewed without what that merge brought in.
+  const def = defaultRefOf(ctx.root);
+  const short = def?.replace(/^refs\/(remotes|heads)\//, '');
+  let excluded = false;
+  if (def !== undefined) {
+    try {
+      git(['merge-base', '--is-ancestor', 'HEAD', def]);
+    } catch {
+      try {
+        const count = (extra: string[]) => git(['rev-list', '--count', base + '..HEAD', ...extra, '--']).trim();
+        excluded = count(['^' + def]) !== count([]);
+      } catch {
+        // a count that fails leaves today's package
+      }
+    }
+  }
+  // Each git log is tried with --remerge-diff first and once more without it (git < 2.36).
+  const log = (args: string[]): string => {
+    const r = ['^' + def];
+    const full = (extra: string[]) => gitLog([...args, ...extra, base + '..HEAD', ...r, '--']);
+    try {
+      return full(['--remerge-diff']);
+    } catch {
+      return full([]);
+    }
+  };
   let parts: string[];
   try {
-    parts = [
-      `# Review package: ${id} (${range})`,
-      '## Commits',
-      git(['log', '--no-color', '--format=%h %s', base + '..HEAD', '--']).trimEnd() || '(none)',
-      '## Stat',
-      git(['diff', '--no-color', '--no-ext-diff', '--stat', range, '--']).trimEnd() || '(no changes)',
-      '## Diff',
-      git(['diff', '--no-color', '--no-ext-diff', '-U10', range, '--']).trimEnd() || '(no changes)',
-    ];
-    const changed = git(['diff', '--name-only', '-z', '--no-renames', range, '--']).split('\0').filter((p) => p !== '');
+    parts = excluded
+      ? [
+          `# Review package: ${id} (${base}..HEAD, without ${short})`,
+          '## Commits',
+          gitLog(['--no-color', '--format=%h %s', base + '..HEAD', '^' + def, '--']).trimEnd() || '(none)',
+          '## Stat',
+          log(['--reverse', '--no-color', '--no-ext-diff', '--stat', '--format=%h %s']).trimEnd() || '(no changes)',
+          '## Diff',
+          log(['--reverse', '--no-color', '--no-ext-diff', '-p', '-U10', '--format=%h %s']).trimEnd() || '(no changes)',
+        ]
+      : [
+          `# Review package: ${id} (${range})`,
+          '## Commits',
+          gitLog(['--no-color', '--format=%h %s', base + '..HEAD', '--']).trimEnd() || '(none)',
+          '## Stat',
+          git(['diff', '--no-color', '--no-ext-diff', '--stat', range, '--']).trimEnd() || '(no changes)',
+          '## Diff',
+          git(['diff', '--no-color', '--no-ext-diff', '-U10', range, '--']).trimEnd() || '(no changes)',
+        ];
+    const changed = excluded
+      ? [...new Set(log(['--no-renames', '--name-only', '-z', '--format=']).split(/[\0\n]/).filter((p) => p !== ''))]
+      : git(['diff', '--name-only', '-z', '--no-renames', range, '--']).split('\0').filter((p) => p !== '');
     const undeclared = undeclaredFiles(ctx.snapshot, id, changed);
     parts.splice(
       parts.indexOf('## Diff'),

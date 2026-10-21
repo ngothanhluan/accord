@@ -72,6 +72,7 @@ dashboard; never before Pick up or Continue on a named ticket. Run `accord workt
 - Exit 0: go on.
 - Exit 2 with a message that starts `this session works`: this session works the ticket it names. Show the
   message. For the dashboard, go on with it, and offer only Continue on that ticket. For a New request, stop:
-  write, create, claim and edit nothing.
+  write, create, claim and edit nothing, except a New request that reports a failure in a ticket that has
+  reached verify: follow `./failure.md`.
 - Any other exit 2: show the message. For the dashboard, go on with it; for a New request, stop, editing
   nothing.

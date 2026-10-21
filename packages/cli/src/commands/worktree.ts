@@ -21,7 +21,7 @@ export interface WorktreeEntry {
 
 export function git(cwd: string, args: string[]): string {
   try {
-    return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 });
   } catch (err) {
     throw new UsageError('git ' + args.join(' ') + ' failed\n' + String((err as { stderr?: string }).stderr ?? '').trim());
   }
@@ -255,7 +255,7 @@ export function checkPin(ctx: CommandContext, id: string, path: string, branch: 
   const def = ref === undefined ? 'the default branch' : ref.replace('refs/remotes/', '');
   let defPin: string | undefined;
   if (ref !== undefined && gitOk(ctx.root, ['cat-file', '-e', `${ref}:accord/config.yml`])) {
-    defPin = loadConfig('accord/config.yml', git(ctx.root, ['show', `${ref}:accord/config.yml`])).config?.accord;
+    defPin = loadConfig('accord/config.yml', git(ctx.root, ['-c', 'log.showSignature=false', 'show', '--no-show-signature', `${ref}:accord/config.yml`])).config?.accord;
   }
   throw new UsageError(
     defPin === pinned
@@ -280,7 +280,7 @@ export function printStop(ctx: CommandContext, path: string, id: string): void {
 /** Pick up reuses an existing branch only when its claim is the user's own (same email); otherwise exit 2, nothing created. */
 function checkClaimant(ctx: CommandContext, id: string, ref: string): void {
   const def = gitDefaultRef(ctx.root);
-  const log = git(ctx.root, ['log', '--fixed-strings', '--grep=claim: ' + id, '--format=%ae%x00%s', ref, ...(def === undefined ? [] : ['--not', def])]);
+  const log = git(ctx.root, ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '--fixed-strings', '--grep=claim: ' + id, '--format=%ae%x00%s', ref, ...(def === undefined ? [] : ['--not', def])]);
   let claimant: string | undefined;
   for (const line of log.split('\n')) {
     const [email, subject] = line.split('\0');

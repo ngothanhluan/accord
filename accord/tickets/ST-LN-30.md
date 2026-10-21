@@ -74,7 +74,7 @@ Feature: ST-LN-30
     And the conflicting file is named, and verify stops
     And no merge commit and no merge in progress are left, nothing marks verify as blocked, and the next start of verify tries the merge again
 
-  @ac-5
+  @ac-5 @test:packages/cli/test/worktree.test.ts#ac-5-a-failed-or-silent-fetch-is-one-accord-line-at-pick-up-new-ticket-continue-and-merge-and-the-work-goes-on
   Scenario: A failed fetch is reported and the work goes on
     Given the remote cannot be reached, or does not answer within the fetch's time limit
     When I pick up a ticket, create a lane M ticket with --worktree, continue a ticket, or start its verify

@@ -16,3 +16,16 @@
 - Ruling: replaces the order in the Ruling above: clean removes the worktree first and stops if that fails, then deletes the origin branch under the lease, then the local branch only when that succeeded or origin had none — git refuses to delete a branch checked out in a worktree, and a failed remove after the origin delete would strand the only copy (approach critique round 2, findings 1 and 3) — cost if wrong: none found; a failed lease still leaves the local branch.
 - Ruling: when clean's fetch failed, it deletes nothing for dropped tickets and prints one kept line — stale refs could show a revived ticket as dropped and still pass the lease (round 2, finding 2) — cost if wrong: one clean that waits for a working fetch.
 - Ruling: `accord drop` lints the default ref's tickets plus the new file at error level and refuses on any finding — the drop pull request would otherwise fail main's lint (approach critique 9) — cost if wrong: a drop refused for a finding the owner must fix first.
+- Ruling: clean's dropped path skips a branch whose tip is already on the default ref — merged tickets keep today's exact behaviour — cost if wrong: the origin branch of a dropped ticket that was also merged stays, as merged branches do today.
+- Ruling: the drop record's status is written through `setFrontmatterKey`, so it reads `status: "dropped"` — the D-45 quoting rule, and the CI `is_dropped` grep accepts quotes — cost if wrong: one changed byte style.
+- Ruling: line endings are restored as CRLF when the input contains any `\r\n` — exact for files that use CRLF throughout — cost if wrong: a file that mixes LF and CRLF comes back entirely CRLF.
+- Ruling: `--reason` is trimmed, and an empty or multi-line reason exits 2 naming `--reason` — this keeps a reason from injecting a `## ` heading — cost if wrong: one refusal.
+- Ruling: the fixed new output lines are `deleted origin/<b> (was <sha>)`, `kept <b>: origin/<b> has commits not here`, `kept dropped tickets: fetch from origin failed`, `kept origin/<b>: git push failed: …` and `kept <b>: its origin branch was not deleted` — cost if wrong: line wording.
+- Ruling: new tests make commits only through `commitMsg` and `mergeMsg` (`-F` with `--cleanup=verbatim`) and do not use the existing `-m` helpers — conventions.md — cost if wrong: longer test setup.
+- Ruling: plan-review round 1 findings 2 and 3 rest on git behaviour verified locally on git 2.56.0.windows.1, not only on git-scm.com: `git update-ref -d refs/heads/t/X <old>` exits 1 with "cannot lock ref … is at <new> but expected <old>" and keeps the branch when it moved; a worktree mid `rebase -i` shows `detached` with no `branch` line in `worktree list --porcelain`, and `<its git dir>/rebase-merge/head-name` reads `refs/heads/t/X` — cost if wrong: an older git behaves differently and the guard test fails on CI.
+
+## Deferred
+
+- Nice (plan round 1.5): drop.test.ts need not import `loadSnapshot`; drop the import if unused.
+- Nice (plan round 1.6): test sha helpers should return trimmed output.
+- Nice (plan round 1.7): pin `removeWorktree`'s `failed` for partial removal and where `isAncestor` and `firstLine` live.

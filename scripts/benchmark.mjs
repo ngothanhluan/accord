@@ -27,7 +27,7 @@ const k = (n) => (n / 1000).toFixed(0) + 'k';
 function readRun(jsonl, meta) {
   const lines = fs.readFileSync(jsonl, 'utf8').split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
   const seen = new Set();
-  let input = 0, output = 0, tools = 0, model = '', effort = '', branch = '', lastText = '';
+  let input = 0, output = 0, tools = 0, model = '', effort = '', branch = '', lastText = '', handedBack = false;
   for (const o of lines) {
     if (o.effort && !effort) effort = o.effort;
     if (o.gitBranch && !branch) branch = o.gitBranch;
@@ -36,8 +36,9 @@ function readRun(jsonl, meta) {
     if (m.model && m.model !== '<synthetic>') model = m.model;
     for (const c of Array.isArray(m.content) ? m.content : []) {
       if (c.type === 'tool_use') tools++;
-      if (c.type === 'text' && c.text.trim()) lastText = c.text;
-      if (c.type === 'tool_use' && c.name === 'SubagentHandback') lastText = String(c.input?.message ?? '');
+      // The report is the last hand-back; a text written after it (a woken run's reply) is not the report.
+      if (c.type === 'text' && c.text.trim() && !handedBack) lastText = c.text;
+      if (c.type === 'tool_use' && c.name === 'SubagentHandback') { lastText = String(c.input?.message ?? ''); handedBack = true; }
       // shortcut: the transcript keeps the usage from the stream's start, so output is estimated at 4 characters a token.
       output += (c.text ?? c.thinking ?? JSON.stringify(c.input ?? '')).length / 4;
     }
@@ -262,7 +263,8 @@ function parseRun(file, id, meta, lines, session) {
       t.u.output = Math.max(t.u.output, u.output_tokens ?? 0);
     }
     for (const c of items(o)) {
-      if (c.type === 'text' && c.text.trim()) lastText = c.text;
+      // The report is the last hand-back; a text written after it (a woken run's reply) is not the report.
+      if (c.type === 'text' && c.text.trim() && !handbacks.length) lastText = c.text;
       if (c.type === 'tool_use') {
         if (toolById.has(c.id)) continue;
         const input = c.input ?? {};
@@ -958,6 +960,13 @@ const readOr = (file, dflt = '') => (fs.existsSync(file) ? fs.readFileSync(file,
 const verificationOf = (row) => readOr(`${row.worktree}/accord/tickets/${row.ticket}/verification.md`);
 const kindOf = (agent) => ({ executor: 'must', planner: 'must', fact: 'fact' }[ROLES[agent]] ?? 'match');
 
+// Writes a judge brief and stamps the row when its text is new or changed: a judge dispatched before that time saw another brief.
+export function writeJudgeBrief(file, text, row, now = Date.now()) {
+  if (fs.existsSync(file) && fs.readFileSync(file, 'utf8') === text) return;
+  fs.writeFileSync(file, text);
+  row.judgeBriefAt = now;
+}
+
 function runRound(repo, { judge, extra }) {
   const ctx = loadRound(repo, extra);
   if (!ctx) return 2;
@@ -1002,9 +1011,12 @@ function runRound(repo, { judge, extra }) {
         args.report = run.lastText + (r.agent === 'accord-verifier' ? '\n' + verificationOf(r) : '');
       } else args.report = run.lastText;
       const prompt = `${bench}/briefs/${r.tag}-judge.md`;
-      fs.writeFileSync(prompt, judgeBrief(kind, args));
+      writeJudgeBrief(prompt, judgeBrief(kind, args), r);
       out.push({ tag: `${r.tag} judge`, ...r.judge, prompt, judge: null });
     }
+    const state = JSON.parse(fs.readFileSync(path.join(bench, 'round-1.json'), 'utf8'));
+    state.rows = rows;
+    fs.writeFileSync(path.join(bench, 'round-1.json'), JSON.stringify(state, null, 2) + '\n');
     process.stdout.write(dispatchTable(out));
     process.stdout.write("Dispatch every row: a fresh agent each, with the brief file's text as the prompt.\n");
     return 0;

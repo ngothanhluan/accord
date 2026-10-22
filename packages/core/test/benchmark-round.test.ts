@@ -402,3 +402,44 @@ it('risk:regression a run dispatched before its worktree was prepared is superse
   expect(matchRuns(rows, [old, fresh, run('bench r1 critic-1-low', 2000), unaffected[0]], { judges: false }).duplicate).toEqual(['bench r1 critic-1-low (2 runs)']);
   expect(matchRuns(rows, [fresh, ...unaffected], { judges: false }).duplicate).toEqual(['bench r1 critic-2-low (2 runs)']);
 });
+
+it('risk:regression a judge dispatched before its brief changed is superseded, and an unchanged brief keeps its judge counted', async () => {
+  type Run = { desc: string; dispatch: { ts: number }; sends: unknown[] };
+  const { matchRuns } = (await import(new URL('../../../scripts/round.mjs', import.meta.url).href)) as {
+    matchRuns: (rows: unknown[], runs: Run[], o: { judges: boolean }) => { judges: Map<string, Run>; duplicate: string[]; superseded: Run[] };
+  };
+  const { writeJudgeBrief } = (await import(new URL('../../../scripts/benchmark.mjs', import.meta.url).href)) as {
+    writeJudgeBrief: (file: string, text: string, row: { judgeBriefAt?: number }, now?: number) => void;
+  };
+  const judge = { agent: 'accord-reviewer', model: 'opus', effort: 'high' };
+  const run = (desc: string, ts: number): Run => ({ desc, dispatch: { ts }, sends: [] });
+
+  // (a) two judges for one row, the older dispatched before the brief changed
+  const older = run('bench r1 x-1-low judge', 1500);
+  const newer = run('bench r1 x-1-low judge', 2500);
+  const m = matchRuns([{ tag: 'x-1-low', judge, prepared: 1000, judgeBriefAt: 2000 }], [older, newer], { judges: true });
+  expect(m.judges.get('x-1-low')).toBe(newer);
+  expect(m.superseded).toEqual([older]);
+  expect(m.duplicate).toEqual([]);
+
+  const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'bench-')));
+  try {
+    const file = join(tmp, 'x-1-low-judge.md');
+    // (b) the same text twice: the stored time and the brief stay, so a judge dispatched between them stays counted
+    const row: { judgeBriefAt?: number } = {};
+    writeJudgeBrief(file, 'brief', row, 100);
+    writeJudgeBrief(file, 'brief', row, 200);
+    expect(row.judgeBriefAt).toBe(100);
+    expect(readFileSync(file, 'utf8')).toBe('brief');
+    expect(matchRuns([{ tag: 'x-1-low', judge, judgeBriefAt: 100 }], [run('bench r1 x-1-low judge', 150)], { judges: true }).judges.size).toBe(1);
+    writeJudgeBrief(file, 'changed', row, 300);
+    expect(row.judgeBriefAt).toBe(300);
+    // (c) a brief file already there with the same text and a row with no stored time: none is stored
+    const bare: { judgeBriefAt?: number } = {};
+    writeJudgeBrief(file, 'changed', bare, 400);
+    expect(bare.judgeBriefAt).toBeUndefined();
+    expect(matchRuns([{ tag: 'x-1-low', judge }], [run('bench r1 x-1-low judge', 1)], { judges: true }).judges.size).toBe(1);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+}, 120_000);

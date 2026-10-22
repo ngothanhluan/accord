@@ -319,7 +319,7 @@ export function matchRuns(rows, runs, { judges }) {
       out.extra.push(...runs.filter((r) => r.desc === judgeDescribe(row.tag)));
       continue;
     }
-    const j = find(judgeDescribe(row.tag), row.prepared);
+    const j = find(judgeDescribe(row.tag), row.prepared == null && row.judgeBriefAt == null ? undefined : Math.max(row.prepared ?? 0, row.judgeBriefAt ?? 0));
     if (!j) continue;
     out.judges.set(row.tag, j);
     if (j.sends?.length) out.notFresh.push(row.tag);

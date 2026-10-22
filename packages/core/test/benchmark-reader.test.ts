@@ -158,3 +158,35 @@ it('risk:parsing a read keeps its first line number, total lines, whole-file fla
     rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
   }
 }, 120_000);
+
+it("risk:parsing a run's report is its last hand-back, not a text written after a later notification", async () => {
+  const { readSessions } = (await import(new URL('../../../scripts/benchmark.mjs', import.meta.url).href)) as { readSessions: (dirs: string[]) => { runs: (Run & { lastText: string })[] } };
+  const { mustsOf } = (await import(new URL('../../../scripts/round.mjs', import.meta.url).href)) as { mustsOf: (a: string, t: string) => string[] };
+  const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'bench-')));
+  try {
+    const folder = join(tmp, 'C--Work-w');
+    const sub = join(folder, 'S1', 'subagents');
+    mkdirSync(sub, { recursive: true });
+    writeFileSync(join(folder, 'S1.jsonl'), jl({ type: 'assistant', timestamp: '2026-10-01T00:00:00Z', message: { content: [{ type: 'tool_use', id: 'toolu_A', name: 'Agent', input: { description: 'Review T-1', prompt: 'x' } }] } }));
+    writeFileSync(join(sub, 'agent-w1.meta.json'), JSON.stringify({ agentType: 'accord-reviewer', description: 'Review T-1', toolUseId: 'toolu_A' }));
+    const asst = (id: string, content: unknown[]) => ({ type: 'assistant', timestamp: '2026-10-01T00:01:00Z', message: { id, model: 'm', content } });
+    const text = (t: string) => ({ type: 'text', text: t });
+    const message = 'DONE\n1. Must — x';
+    writeFileSync(join(sub, 'agent-w1.jsonl'), jl(
+      asst('m1', [text('working')]),
+      asst('m2', [{ type: 'tool_use', id: 'h1', name: 'SubagentHandback', input: { message } }]),
+      { type: 'user', message: { content: '[SYSTEM NOTIFICATION - NOT USER INPUT] background task finished' } },
+      asst('m3', [text('The report was already delivered.')]),
+    ));
+    const run = readSessions([folder]).runs[0];
+    expect(run.lastText).toBe(message);
+    expect(run.outcome).toBe('DONE');
+    expect(mustsOf('accord-reviewer', run.lastText)).toHaveLength(1);
+
+    // no hand-back: the last text is the report
+    writeFileSync(join(sub, 'agent-w1.jsonl'), jl(asst('m1', [text('working')]), asst('m2', [text('DONE\nlast')])));
+    expect(readSessions([folder]).runs[0].lastText).toBe('DONE\nlast');
+  } finally {
+    rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+}, 120_000);

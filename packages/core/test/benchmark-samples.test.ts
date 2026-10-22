@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { expect, it } from 'vitest';
 
 type Run = { dispatch: { prompt: string; cwd: string; ts: number }; reads: { path: string; text: string }[] };
@@ -73,3 +74,15 @@ it('risk:data-loss a sample snapshot keeps the dispatch and every named file and
     rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
   }
 }, 120_000);
+
+it('risk:data-loss the committed sample list passes its checks before the transcripts expire', async () => {
+  const { checkSamples } = (await import(new URL('../../../scripts/round.mjs', import.meta.url).href)) as {
+    checkSamples: (list: unknown) => string[];
+  };
+  const root = fileURLToPath(new URL('../../../', import.meta.url));
+  const list = JSON.parse(readFileSync(join(root, 'scripts', 'benchmark-samples.json'), 'utf8')) as { samples: { agent: string; transcript: string }[] };
+  expect(checkSamples(list)).toEqual([]);
+  expect(list.samples).toHaveLength(45);
+  expect(list.samples.some((s) => s.agent === 'accord-debugger')).toBe(false);
+  expect(list.samples.every((s) => /^C--Work-accord/.test(s.transcript))).toBe(true);
+});

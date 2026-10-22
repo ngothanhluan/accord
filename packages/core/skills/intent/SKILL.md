@@ -3,7 +3,7 @@ name: accord-intent
 description: Use when a lane M ticket needs its intent captured, or when /accord routes a new request here. Runs the intent interview that writes the ticket's Intent, acceptance criteria, Vetoes, Decisions, and Corrections, so later stages cannot drift from what the owner meant.
 license: MIT
 kind: skill
-loads: [shared/ask.md]
+loads: [shared/ask.md, accord/ids.md]
 ---
 
 This stage writes down what the owner means, in the ticket, before anyone
@@ -76,3 +76,9 @@ plans or builds. You run it in the main session.
   Ruling in `accord/tickets/<id>/ledger.md` under `## Rulings`:
   `Ruling: <what> — <why> — <cost if wrong>`.
   Read `./ask.md` before any question to the owner.
+- **Lane S.** Before step 9, when the interview shows the request fits lane S (none of the accord skill's four
+  lift conditions holds), no ticket that `accord status --json` lists names this one in `depends_on`, and both
+  `git diff --name-only <origin's default branch>...HEAD` and `git status --porcelain --untracked-files=all` list
+  only `accord/tickets/<id>.md` and paths under `accord/tickets/<id>/`, propose dropping it to lane S, with the
+  reason. Drop it only on the owner's yes, as `## Moving to lane S` in `./ids.md` says; otherwise say why it stays
+  lane M. From step 9 on, a lane never drops.

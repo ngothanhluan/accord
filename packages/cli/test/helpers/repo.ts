@@ -92,16 +92,44 @@ export async function run(
   argv: string[],
   cwd: string,
   env: NodeJS.ProcessEnv = {},
+  stdin?: string,
 ): Promise<{ code: number; out: string; err: string }> {
   const stdout = new PassThrough();
   const stderr = new PassThrough();
-  const code = await runCli(argv, { cwd, stdout, stderr, env });
+  const code = await runCli(argv, { cwd, stdout, stderr, env, ...(stdin === undefined ? {} : { stdin }) });
   return { code, out: String(stdout.read() ?? ''), err: String(stderr.read() ?? '') };
 }
 
 /** Run git in a sandbox; the same guard as every other spawn in this file. */
 export function gitRun(repo: string, ...args: string[]): string {
   return gitIn(repo)(...args);
+}
+
+/** Commit everything with `-F <file> --cleanup=verbatim` (conventions.md), never `-m`; returns the new HEAD sha. */
+export function commitMsg(dir: string, text: string): string {
+  const folder = mkdtempSync(join(tmpdir(), 'accord-msg-'));
+  try {
+    const file = join(folder, 'msg.txt');
+    writeFileSync(file, text + '\n');
+    gitRun(dir, 'add', '-A');
+    gitRun(dir, 'commit', '-q', '-F', file, '--cleanup=verbatim');
+    return gitRun(dir, 'rev-parse', 'HEAD').trim();
+  } finally {
+    cleanup(folder);
+  }
+}
+
+/** Merge `ref` with `--no-ff` using `-F <file> --cleanup=verbatim`, never `-m`; returns the new HEAD sha. */
+export function mergeMsg(dir: string, ref: string, text: string): string {
+  const folder = mkdtempSync(join(tmpdir(), 'accord-msg-'));
+  try {
+    const file = join(folder, 'msg.txt');
+    writeFileSync(file, text + '\n');
+    gitRun(dir, 'merge', '-q', '--no-ff', '-F', file, '--cleanup=verbatim', ref);
+    return gitRun(dir, 'rev-parse', 'HEAD').trim();
+  } finally {
+    cleanup(folder);
+  }
 }
 
 /** Write repo-relative posix paths into the sandbox, creating folders. */

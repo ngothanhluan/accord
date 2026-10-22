@@ -16,12 +16,13 @@ function titleCell(title: string | undefined): string {
   return t.length > TITLE_MAX ? t.slice(0, TITLE_MAX - 3).join('') + '...' : t.join('');
 }
 
-const HEADS = ['id', 'title', 'stage', 'who', 'blocked by'];
+const HEADS = ['id', 'lane', 'title', 'stage', 'who', 'blocked by'];
 const cells = (r: StatusRow): string[] => [
   sanitise(r.id),
+  sanitise(r.lane ?? EMPTY_CELL),
   titleCell(r.title),
   sanitise(
-    (r.stage === undefined ? EMPTY_CELL : r.stage === 'build' ? `build ${r.tasksDone ?? 0}/${r.tasksTotal ?? 0}` : r.stage) +
+    (r.stage === undefined ? EMPTY_CELL : r.stage === 'build' && r.lane !== 'S' ? `build ${r.tasksDone ?? 0}/${r.tasksTotal ?? 0}` : r.stage) +
       (r.next === undefined ? '' : `, next: ${r.next}`) +
       (r.idleDays === undefined ? '' : ` idle ${r.idleDays}d`),
   ),
@@ -30,8 +31,8 @@ const cells = (r: StatusRow): string[] => [
 ];
 
 function epicBlock(e: Dashboard['epics']): string[] {
-  const table = [['id', 'title', 'progress'], ...e.rows.map((r) => [sanitise(r.id), titleCell(r.title), `${r.done}/${r.total} done`])];
-  const widths = [0, 1, 2].map((i) => Math.max(...table.map((row) => [...row[i]].length)));
+  const table = [['id', 'lane', 'title', 'progress'], ...e.rows.map((r) => [sanitise(r.id), sanitise(r.lane ?? EMPTY_CELL), titleCell(r.title), `${r.done}/${r.total} done`])];
+  const widths = [0, 1, 2, 3].map((i) => Math.max(...table.map((row) => [...row[i]].length)));
   const out = ['EPICS', ...table.map((row) => '  ' + row.map((v, i) => v + ' '.repeat(widths[i] - [...v].length)).join('  ').trimEnd())];
   if (e.more > 0) out.push(`  +${e.more} more`);
   return out;

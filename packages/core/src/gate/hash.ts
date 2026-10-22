@@ -51,17 +51,32 @@ export const APPROVED_SECTIONS = ['intent', 'acceptance criteria', 'vetoes', 'de
  * approval, exactly as it never stales `ac_hash`. The count keeps the join injective across sections.
  */
 export function approvedInput(ticket: Ticket): string {
-  return APPROVED_SECTIONS.flatMap((key) => {
-    if (key === 'acceptance criteria') return [key, hashInput(ticket.scenarios)];
-    const s = ticket.sections.find((x) => headingKey(x.heading) === key);
-    const lines =
-      s === undefined
-        ? []
-        : stripHtmlComments(s.lines)
-            .map((l) => l.text.trim())
-            .filter((t) => t !== '');
-    return [key, String(lines.length), ...lines];
-  }).join(SEP);
+  return APPROVED_SECTIONS.flatMap((key) =>
+    key === 'acceptance criteria' ? [key, hashInput(ticket.scenarios)] : sectionParts(ticket, key),
+  ).join(SEP);
+}
+
+function sectionParts(ticket: Ticket, key: string): string[] {
+  const s = ticket.sections.find((x) => headingKey(x.heading) === key);
+  const lines =
+    s === undefined
+      ? []
+      : stripHtmlComments(s.lines)
+          .map((l) => l.text.trim())
+          .filter((t) => t !== '');
+  return [key, String(lines.length), ...lines];
+}
+
+/** A lane S ticket has no criteria: its Ready record hashes the two sections it holds. */
+export const LANE_S_SECTIONS = ['understood', 'done when'] as const;
+
+export function laneSHash(ticket: Ticket): string {
+  return fnv1a64(LANE_S_SECTIONS.flatMap((k) => sectionParts(ticket, k)).join(SEP));
+}
+
+/** The hash `gate ready` records as `ac_hash`: the sections for lane S, the criteria otherwise. */
+export function readyHash(ticket: Ticket): string | undefined {
+  return ticket.frontmatter?.lane === 'S' ? laneSHash(ticket) : acHash(ticket.scenarios);
 }
 
 /** Spec §4: recorded by `accord approve`; Ready fails when the ticket no longer hashes to it. */

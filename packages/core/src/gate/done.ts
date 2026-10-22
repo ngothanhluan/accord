@@ -5,9 +5,10 @@
 // a reason (D-51).
 import { headingKey } from '../load/sections.js';
 import { normaliseKey } from '../load/snapshot.js';
-import type { RepoSnapshot, ScenarioRef, Ticket, TicketFrontmatter, Verification } from '../model/snapshot.js';
+import type { AfterVerifyCommit, RepoSnapshot, ScenarioRef, Ticket, TicketFrontmatter, Verification } from '../model/snapshot.js';
 import { acHash } from './hash.js';
 import type { GateRule } from './rules.js';
+import { forbiddenLines, trailerReason } from './trailers.js';
 
 const ticketFile = (id: string) => 'accord/tickets/' + id + '.md';
 const verificationFile = (id: string) => 'accord/tickets/' + id + '/verification.md';
@@ -198,11 +199,18 @@ export const tickStaleHash: GateRule['check'] = (snapshot, id) => {
   ];
 };
 
-/** A later commit that changed only this ticket's own records (its file and folder) is the same reviewed code. */
+/** Every path is the ticket's own file, lies in its folder (spec §11), or is accord/product/conventions.md (ST-LN-8 D-08). */
+export const ownRecordsOnly = (id: string, paths: readonly string[]): boolean =>
+  paths.every((p) => p === ticketFile(id) || p === 'accord/product/conventions.md' || p.startsWith('accord/tickets/' + id + '/'));
+
+/** A commit that changes a path outside the ticket's own records, or a merge whose own changes git could not show. */
+export const handMade = (id: string, c: AfterVerifyCommit): boolean => c.files === undefined || !ownRecordsOnly(id, c.files);
+
+/** A later commit that changed only this ticket's own records (its file and folder) or accord/product/conventions.md is the same reviewed code. */
 const onlyOwnRecords = (snapshot: RepoSnapshot, id: string, recorded: string): boolean => {
   const since = snapshot.recordsSince;
   if (since === undefined || !Object.hasOwn(since, recorded)) return false;
-  return since[recorded].every((p) => p === ticketFile(id) || p.startsWith('accord/tickets/' + id + '/'));
+  return ownRecordsOnly(id, since[recorded]);
 };
 
 /** GATE-11: the ticks were made against a different commit. Both values are guarded on `isSha` first,
@@ -239,6 +247,16 @@ export const staleReview: GateRule['check'] = (snapshot, id) => {
 // --- The Machine layer: does the report say the test that proves this scenario passed? (GATE-08, D-80) ---
 
 const CONFIG = 'accord/config.yml';
+
+/** ST-LN-8 D-02: under commits.trailers forbid, every commit the host loaded for this branch is read for forbidden lines; undefined commits fail closed. */
+export const commitTrailer: GateRule['check'] = (snapshot, id) => {
+  if (ticketOf(snapshot, id) === undefined || snapshot.config?.commits?.trailers !== 'forbid') return [];
+  const at = { file: CONFIG, pointer: '/commits/trailers' };
+  if (snapshot.commits === undefined) {
+    return [{ ...at, reason: 'commits.trailers is forbid, but the host loaded no commits of this branch, so they cannot be checked' }];
+  }
+  return snapshot.commits.flatMap((c) => forbiddenLines(c.message).map((l) => ({ ...at, reason: trailerReason(c.sha, l) })));
+};
 const isTest = (tag: string) => tag.startsWith('@test:');
 /** Every scenario the machine layer applies to: `@ui` leans on the human layer instead (D-90, GATE-09). */
 const machineScenarios = (snapshot: RepoSnapshot, id: string): ScenarioRef[] =>

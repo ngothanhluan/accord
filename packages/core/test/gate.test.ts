@@ -17,6 +17,7 @@ import {
 import { RULES } from '../src/lint/rules.js';
 import { renderText } from '../src/lint/render.js';
 import { readFixture, stableJson } from './helpers/fixture.js';
+import { CONFIG, laneTicket } from '../../../test/helpers/lane.js';
 
 type Git = { commit: string; authors: Record<string, string> };
 
@@ -514,6 +515,7 @@ const GATE01: Record<string, string[]> = {
     'gate.approval-missing',
     'gate.approval-stale',
   ],
+  'a lane S ticket: Understood and Done when written': ['gate.section-empty'],
   'at least one tagged scenario': ['lint.no-scenarios', 'lint.ac-tag-missing'],
   'no LINT-06 findings': [...READY_PROMOTE],
   'a design reference when the profile requires it': ['gate.design-missing'],
@@ -1002,4 +1004,40 @@ it('ac-5 the error gate still needs a file or a test', () => {
   expect(e).toHaveLength(1);
   expect(e[0].level).toBe('error');
   expect(r.verdict).toBe('fail');
+});
+
+it('risk:security gate done under forbid fails closed when the host loaded no commits', () => {
+  const files = { 'accord/config.yml': CONFIG + 'commits:\n  trailers: forbid\n', 'accord/tickets/T-1.md': laneTicket('T-1') };
+  const snap = loadSnapshot({ files, tree: Object.keys(files) });
+  const pick = (s: RepoSnapshot) => gateDone(s, 'T-1').findings.filter((f) => f.rule === 'gate.commit-trailer');
+  const miss = pick(snap);
+  expect(miss).toHaveLength(1);
+  expect(miss[0].level).toBe('error');
+  expect(miss[0].file).toBe('accord/config.yml');
+  expect(miss[0].reason).toContain('loaded no commits');
+  expect(gateDone(snap, 'T-1').verdict).toBe('fail');
+  expect(pick({ ...snap, commits: [] })).toEqual([]);
+  const sha = '0123456789abcdef0123456789abcdef01234567';
+  const bad = pick({ ...snap, commits: [{ sha, message: 'build: x\n\nAdds.\nCo-Authored-By: Bot <bot@example.com>\n' }] });
+  expect(bad).toHaveLength(1);
+  expect(bad[0].reason).toContain('0123456789ab');
+  expect(bad[0].reason).toContain('Co-Authored-By: Bot <bot@example.com>');
+  const off = { 'accord/config.yml': CONFIG, 'accord/tickets/T-1.md': laneTicket('T-1') };
+  expect(pick(loadSnapshot({ files: off, tree: Object.keys(off) }))).toEqual([]);
+});
+
+it('risk:complex-branching a subsequent commit touching only its own records and the conventions file passes both commit rules', () => {
+  const own = (id: string, paths: string[]) =>
+    gateDone(loadSnapshot({ ...input('gate-done', GIT), recordsSince: { '9999999': paths } }), id)
+      .findings.filter((f) => f.rule === 'gate.tick-stale-commit' || f.rule === 'gate.stale-review')
+      .map((f) => f.rule);
+  const mine = (id: string) => ['accord/tickets/' + id + '.md', 'accord/tickets/' + id + '/verification.md'];
+  const conv = 'accord/product/conventions.md';
+  expect(own('COMMIT', [...mine('COMMIT'), conv])).toEqual([]);
+  expect(own('REVIEW', [...mine('REVIEW'), conv])).toEqual([]);
+  expect(own('COMMIT', [conv])).toEqual([]);
+  expect(own('COMMIT', [...mine('COMMIT'), conv, 'src/a.ts'])).toEqual(['gate.tick-stale-commit']);
+  expect(own('REVIEW', [...mine('REVIEW'), conv, 'src/a.ts'])).toEqual(['gate.stale-review']);
+  expect(own('COMMIT', [conv, 'accord/product/glossary.md'])).toEqual(['gate.tick-stale-commit']);
+  expect(own('COMMIT', ['accord/product/conventions.md.bak'])).toEqual(['gate.tick-stale-commit']);
 });

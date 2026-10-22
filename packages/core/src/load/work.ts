@@ -144,6 +144,7 @@ export function parseReview(file: string, text: string): Review {
     .forEach((line, i) => {
       const m = VERDICT.exec(line.trim());
       if (m) review = { file, verdict: m[1], line: i + 1 };
+      else if (review.verdict !== undefined && line.trim() !== '') review = { ...review, trailing: true };
     });
   return review;
 }

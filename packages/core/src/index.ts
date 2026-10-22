@@ -9,6 +9,7 @@ export type {
   RepoSnapshot,
   Ticket,
   TicketFrontmatter,
+  Lane,
   ScenarioRef,
   Verification,
   VerificationFrontmatter,
@@ -33,6 +34,7 @@ export { isSha } from './gate/done.js';
 export { approvedHash } from './gate/hash.js';
 export type { GateResult } from './gate/index.js';
 export { taskVerdict } from './gate/task.js';
+export { forbiddenLines, trailerReason } from './gate/trailers.js';
 export { planFile, undeclaredFiles, workOf } from './gate/work.js';
 export { ID_PREFIX, initialsHolder, initialsOf, nextTicketId, peopleOf } from './lint/ids.js';
 export { untracedTests } from './lint/tests.js';
@@ -56,6 +58,7 @@ export type { SchemaId } from './validate/index.js';
 export { templates } from './generated/templates.js';
 export type { TemplateName } from './generated/templates.js';
 export { setFrontmatterKey } from './write/frontmatter.js';
+export { markDropped } from './write/dropped.js';
 export type { FrontmatterValue } from './write/frontmatter.js';
 export { contentHash, markerHash, renderSkill, withoutMarker } from './skills/render.js';
 export { pluginDir, pluginTargets } from './skills/plugin.js';

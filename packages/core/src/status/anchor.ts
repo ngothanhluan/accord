@@ -4,9 +4,11 @@ import { workOf } from '../gate/work.js';
 import { headingKey, stripHtmlComments } from '../load/sections.js';
 import { RULING } from '../load/work.js';
 import type { RepoSnapshot } from '../model/snapshot.js';
-import { nextStep, progressOf } from './stage.js';
+import { laneSNext, nextStep, progressOf } from './stage.js';
+import type { LaneSStage } from './stage.js';
 
 const SECTIONS = ['Intent', 'Vetoes', 'Decisions', 'Corrections'];
+const has = (ticket: { sections: { heading: string }[] }, name: string): boolean => ticket.sections.some((x) => headingKey(x.heading) === headingKey(name));
 
 /** undefined when `id` is not a lane ticket in the snapshot. */
 export function anchorText(snapshot: RepoSnapshot, id: string): string | undefined {
@@ -23,8 +25,13 @@ export function anchorText(snapshot: RepoSnapshot, id: string): string | undefin
   } else {
     where = `${progress.stage}, next: ${nextStep(ticket, progress.stage)}`;
   }
-  const out = [`# Anchor: ${id} "${ticket.frontmatter?.title ?? ''}"`, '', `Stage: ${where}`];
-  for (const name of SECTIONS) {
+  const lane = ticket.frontmatter?.lane === 'S';
+  const out = [`# Anchor: ${id} "${ticket.frontmatter?.title ?? ''}"`, ''];
+  if (lane) out.push('Lane: S', `Stage: ${progress.stage}, next: ${laneSNext(progress.stage as LaneSStage)}`);
+  else out.push(`Stage: ${where}`);
+  if (progress.base !== undefined) out.push(`Review base: ${progress.base}`);
+  const names = lane ? ['Understood', 'Done when', ...['Vetoes', 'Decisions', 'Corrections'].filter((n) => has(ticket, n))] : SECTIONS;
+  for (const name of names) {
     const s = ticket.sections.find((x) => headingKey(x.heading) === headingKey(name));
     const lines = s === undefined ? [] : stripHtmlComments(s.lines).map((l) => l.text).filter((t) => t.trim() !== '');
     out.push('', `## ${name}`, ...(lines.length === 0 ? ['(none)'] : lines));

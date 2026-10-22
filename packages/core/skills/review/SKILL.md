@@ -18,7 +18,9 @@ fix.
    working tree. It holds the commits, the stat, and the diff from the
    plan's `baseline:`, and lists under `## Undeclared files` every changed
    file no task's `files:` line names. The review unit is the whole
-   ticket, whatever `review.mode` in `accord/config.yml` says.
+   ticket, whatever `review.mode` in `accord/config.yml` says. When
+   `accord anchor` prints `Review base: <sha>`, run
+   `accord review-package <id> --base <sha>` instead.
 
 3. **Reviewers.** Choose by the unit's diff size and risk:
    - up to about 500 changed lines: one `accord-reviewer`, lens `both`;
@@ -29,12 +31,10 @@ fix.
      at any size.
 
    Name the lens in each dispatch. Every reviewer gets the paths of the
-   ticket file, the review package, and `accord/tickets/<id>/ledger.md`;
-   the approach is the ticket's `## Approach`. The executor's report is
-   context, never evidence.
+   ticket file, the review package, and `accord/tickets/<id>/ledger.md`.
+   The executor's report is context, never evidence.
 
-4. **Classify.** Merge and de-duplicate the findings. Before fixing, mark
-   each one `patch`, `plan-gap`, or `intent-gap`.
+4. **Classify.** De-duplicate the findings, then mark each one `patch`, `plan-gap`, or `intent-gap`.
    - Fix every Must and Should marked `patch` through `accord-build`'s
      executor path. Note the HEAD sha. Write a brief file outside the
      working tree: copy the ticket file byte for byte (never retype it),
@@ -62,7 +62,7 @@ fix.
    a new Must, say whether it traces to the ticket or the plan; if it
    does, ask the owner before round 4.
 
-6. **Cap.** At most five rounds. A round at or after
+6. **Cap.** At most five rounds, after verify counted from the first round after it. A round at or after
    `escalation.fix_round_tier_up` in `accord/config.yml` (default 4)
    dispatches a fresh executor one model tier above the executor's
    configured model, passed as `model` on the dispatch itself: `haiku`,

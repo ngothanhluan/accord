@@ -30,7 +30,7 @@
         }
       }
     },
-    "lane": { "type": "string", "enum": ["M", "L", "P"] },
+    "lane": { "type": "string", "enum": ["S", "M", "L", "P"] },
     "depends_on": {
       "type": "array",
       "uniqueItems": true,

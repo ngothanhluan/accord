@@ -1,5 +1,8 @@
 // Spec §3 to §12: what each stage skill must name, asserted over the RENDERED SKILL.md a runtime loads. One
 // row per stage; a stage whose definition is not authored yet has no row and renders nothing to check.
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { agentTargets, installedName, skillDirs, skillTargets, STAGES } from '../src/index.js';
 import type { AccordConfig } from '../src/index.js';
@@ -14,7 +17,7 @@ const config: AccordConfig = {
 };
 
 const REQUIRED: Record<string, readonly string[]> = {
-  accord: ['accord status --json', 'accord dashboard', 'accord new ticket', '--lane M', 'Understood:', 'Done when:', 'accord anchor', 'user.email', 'accord-debug', '## Resolved', 'accord-approach', 'last `## ` heading', '`done` → `accord-verify` at step 6', 'lens `both`', 'push it (the pushed branch is the claim)', 'claim: <id>', 'git add -N', 'accord new ticket --type', './ids.md'],
+  accord: ['accord status --json', 'accord dashboard', 'accord new ticket', '--lane M', 'Understood:', 'Done when:', 'accord anchor', 'user.email', 'accord-debug', '## Resolved', 'accord-approach', 'last `## ` heading', '`done` → `accord-verify` at step 6', 'push it (the pushed branch is the claim)', 'claim: <id>', 'accord new ticket --type', './ids.md', './lane-s.md', '--lane S --worktree'],
   intent: ['accord anchor', 'accord-scout', 'accord-auditor', '0.2', '## Corrections', '## Open questions', 'D-01', 'accord-approach', 'top-level parts', 'smallest version', 'commit `accord/tickets/<id>.md`'],
   approach: ['accord anchor', 'accord-architect', 'accord-critic', '## Approach', 'accord approve', 'accord gate ready', 'accord-plan', 'ladder order', 'text only', 'not yet ruled out', 'three concrete failure scenarios', 'undone', 'back to step 3', 'Commit `accord/tickets/<id>.md`', 'Decisions, and Corrections as written', 'approved_hash:'],
   plan: ['accord anchor', 'accord-planner', 'baseline:', 'covers:', 'verify:', 'accord gate plan', 'plan_hash:', 'accord-critic', 'three revision rounds', 'fewest Must', 'tests.full', 'accord-build', 'plan: <id> ready', 'Only the first', '**Re-plan**', '`baseline:` never changes', 'highest existing number', 'step 7 does not re-run', 'since the last `plan: <id> ready`'],
@@ -275,6 +278,56 @@ it('risk:regression the accord skill opens each ticket in its own worktree and c
   expect(slice(ids, '## Assigning', '## When your email')).toContain('adding `--worktree` when the lane is M');
 });
 
+it('risk:data-loss the move to lane S carries Vetoes Decisions and Corrections into the new lane S ticket', () => {
+  const get = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
+  const ids = get('.claude/skills/accord/ids.md');
+  const move = ids.slice(ids.indexOf('## Moving to lane S'));
+  const lane = get('.claude/skills/accord/lane-s.md');
+  const wt = get('.claude/skills/accord/worktree.md');
+  for (const h of ['## Vetoes', '## Decisions', '## Corrections']) {
+    expect(move, h).toContain(h);
+    expect(lane, h).toContain(h);
+  }
+  expect(move).toContain('verbatim');
+  expect(lane).toContain('`stop:`');
+  expect(wt).toContain('`## Vetoes`');
+});
+
+it('risk:complex-branching the accord skill pushes then enters the worktree on enter and refuses other work in a ticket session', () => {
+  const get = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
+  const text = get('.claude/skills/accord/SKILL.md');
+  const ref = get('.claude/skills/accord/worktree.md');
+  const ids = get('.claude/skills/accord/ids.md');
+  const slice = (s: string, a: string, b: string) => s.slice(s.indexOf(a), s.indexOf(b));
+  const enter = slice(ref, '`enter: <path>`', '`held: <id> by this session`');
+  expect(enter.length).toBeGreaterThan(0);
+  const p = enter.indexOf('`git push -u origin <branch>`');
+  const q = enter.indexOf('people entry');
+  const e = enter.indexOf('EnterWorktree');
+  expect(p).toBeGreaterThan(-1);
+  expect(q).toBeGreaterThan(-1);
+  expect(e).toBeGreaterThan(-1);
+  expect(p).toBeLessThan(e);
+  expect(q).toBeLessThan(e);
+  for (const x of ['Continue step 2', '`/accord continue <id>` to retry', 'or close this session and open one in that folder', 'editing nothing'])
+    expect(enter).toContain(x);
+  expect(ref).toContain('Exit 2 starting `this session works`');
+  const setup = slice(ref, 'Exit 2 naming a setup command', 'Any other exit 2');
+  expect(setup).toContain('type `/accord continue <id>` again in this same session');
+  expect(setup).toContain('in a session opened there');
+  const i = text.indexOf('First run the session check in `./worktree.md`.');
+  expect(i).toBeGreaterThan(-1);
+  expect(i).toBeLessThan(text.indexOf('## Dashboard'));
+  expect(ref.indexOf('## Session check')).toBeGreaterThan(-1);
+  const check = ref.slice(ref.indexOf('## Session check'));
+  for (const x of ['`accord worktree check`', 'before the dashboard and before every New request', 'in every lane',
+    'a message that starts `this session works`', 'offer only Continue on that ticket', 'write, create, claim and edit nothing'])
+    expect(check).toContain(x);
+  const drop = ids.slice(ids.indexOf('## Dropping instead of renaming'));
+  expect(drop).toContain('`accord new ticket` is refused');
+  expect(drop).toContain('open a new session in the main checkout');
+});
+
 it('ac-1 the first plan critique is sized by the plan and a should only round reads the fix diff', () => {
   const flat = (t: string) => t.replace(/\s+/g, ' ');
   const skill = flat(files.find((f) => f.path === '.claude/skills/accord-plan/SKILL.md')?.text ?? '');
@@ -393,4 +446,294 @@ it('risk:regression the owners yes steps still ask for an explicit yes and commi
     if (stage === 'intent' && !step.includes("on yes commit the ticket with the owner's answer quoted in the commit message")) bad.push(dir + ' ' + stage + ' commit');
   }
   expect(bad).toEqual([]);
+});
+
+it('risk:regression the verify skill merges the remote main after the review commit and before the full suite', () => {
+  const get = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
+  const text = get('.claude/skills/accord-verify/SKILL.md');
+  const ref = get('.claude/skills/accord/worktree.md');
+  const slice = (s: string, a: string, b: string) => s.slice(s.indexOf(a), s.indexOf(b));
+  const step = slice(text, '2. **Merge and suite.**', '3. **Verifier.**');
+  expect(step.length).toBeGreaterThan(0);
+  const c = step.indexOf('commit everything');
+  const m = step.indexOf('`accord worktree merge <id>`');
+  const t = step.indexOf('`tests.full`');
+  expect(c).toBeGreaterThan(-1);
+  expect(m).toBeGreaterThan(c);
+  expect(t).toBeGreaterThan(m);
+  for (const p of ['exits 2', 'stop', 'never a rebase', '`fetch from origin failed`', 'that commit is the one verified'])
+    expect(step).toContain(p);
+  expect(text.indexOf('`accord worktree merge <id>`')).toBeLessThan(text.indexOf('accord-verifier'));
+  for (const p of ['A line starting `fetch from origin failed`', 'A line starting `behind:`', 'Never merge here'])
+    expect(ref).toContain(p);
+});
+
+it('ac-5 an assertion that runs only on some operating systems sits in a test the runner skips', () => {
+  const flat = (t: string) => t.replace(/\s+/g, ' ');
+  const agents = agentTargets(config);
+  const exec = flat(agents.find((f) => f.path === '.claude/agents/accord-executor.md')?.text ?? '');
+  const rev = flat(agents.find((f) => f.path === '.claude/agents/accord-reviewer.md')?.text ?? '');
+  expect(exec.length, 'accord-executor.md is missing').toBeGreaterThan(0);
+  expect(rev.length, 'accord-reviewer.md is missing').toBeGreaterThan(0);
+  for (const p of ['goes in a test of its own', "the test runner's own skip", 'never behind an early return or a branch on the operating system inside a test'])
+    expect(exec).toContain(p);
+  for (const p of ['An early return or a branch on the operating system inside a test', 'leaves an assertion unrun on some operating system is a finding'])
+    expect(rev).toContain(p);
+  const root = fileURLToPath(new URL('../../../', import.meta.url));
+  const needle = 'process.' + 'platform';
+  const offenders: string[] = [];
+  let seen = 0;
+  for (const dir of ['packages/core/test', 'packages/cli/test', 'test']) {
+    let entries;
+    try { entries = readdirSync(join(root, dir), { recursive: true, withFileTypes: true }); } catch { continue; }
+    for (const e of entries) {
+      if (!e.isFile() || !e.name.endsWith('.ts')) continue;
+      const path = join(e.parentPath, e.name);
+      readFileSync(path, 'utf8').split('\n').forEach((line, i) => {
+        if (!line.includes(needle)) return;
+        seen++;
+        if (!/\.(skipIf|runIf)\(/.test(line)) offenders.push(`${path.slice(root.length).replace(/\\/g, '/')}:${i + 1}`);
+      });
+    }
+  }
+  expect(seen).toBeGreaterThanOrEqual(3);
+  expect(offenders).toEqual([]);
+});
+
+it('ac-1 a failure reported after verify goes to the debug stage before any fix', () => {
+  const flat = (t: string) => t.replace(/\s+/g, ' ');
+  const get = (p: string) => flat(files.find((f) => f.path === p)?.text ?? '');
+  const text = get('.claude/skills/accord/SKILL.md');
+  const i = text.indexOf('A failure reported in a ticket that has reached verify follows `./failure.md`.');
+  expect(i).toBeGreaterThan(-1);
+  expect(i).toBeLessThan(text.indexOf('## Dashboard'));
+  const a = get('.claude/skills/accord/failure.md');
+  const d = get('.claude/skills/accord-debug/failure.md');
+  expect(a.length).toBeGreaterThan(0);
+  expect(d).toBe(a);
+  for (const p of [
+    'has reached verify', '`accord anchor` prints `verify` or `done`',
+    'a `verified_commit:` or an `accord/tickets/<id>/verification.md`', 'its pull request is not merged',
+    'with or without the failing command and its output', 'Never judge the cause yourself',
+    'never dispatch a fix outside `accord-debug`', 'load `accord-debug` for that ticket',
+    'the debugger finds them itself', '`gh run view <run-id> --log-failed`', 'keeps its count of failed fixes',
+    'a new bug ticket', "the failing check's log as the failing output",
+    'say the reproduction test is skipped on this operating system',
+    "first run `accord worktree open <id> --continue` and follow the accord skill's `./worktree.md`, then Continue's step 2 only",
+    'ask the owner to type, in the session opened there, `/accord <id> ` followed by the report, in place of the line it prints, and stop here',
+    'When it printed `enter:`, or this session is already in that worktree,',
+    "in place of Continue's steps 3 and 4",
+    '(`done`: `accord-verify` at step 6, whose Finish closes the episode)',
+  ]) expect(a, p).toContain(p);
+  expect(a).not.toContain("first run the accord skill's Continue on it");
+  const dbg = get('.claude/skills/accord-debug/SKILL.md');
+  for (const p of ['For a failure found after verify, read `./failure.md`.', 'or the report alone when it gives neither', 'run `accord anchor` again and go to the stage it prints now'])
+    expect(dbg, p).toContain(p);
+  expect(dbg).not.toContain('The stage it prints is the one this returns to');
+  const wt = get('.claude/skills/accord/worktree.md');
+  expect(wt.slice(wt.indexOf('## Session check'))).toContain(
+    'write, create, claim and edit nothing, except a New request that reports a failure in a ticket that has reached verify: follow `./failure.md`.');
+  const agents = agentTargets(config);
+  const dbgr = flat(agents.find((f) => f.path === '.claude/agents/accord-debugger.md')?.text ?? '');
+  for (const p of ['find the failing command and its output yourself', '`gh run view <run-id> --log-failed`', 'is reproduced by its CI log'])
+    expect(dbgr, p).toContain(p);
+  const exec = flat(agents.find((f) => f.path === '.claude/agents/accord-executor.md')?.text ?? '');
+  expect(exec).toContain('the CI log the brief gives is its failing output');
+});
+
+it('risk:complex-branching the fix review after verify reads only the changes after the review base and counts its own five rounds', () => {
+  const rv = (files.find((f) => f.path === '.claude/skills/accord-review/SKILL.md')?.text ?? '').replace(/\s+/g, ' ');
+  const step2 = rv.slice(rv.indexOf('2. **Package.**'), rv.indexOf('3. **Reviewers.**'));
+  expect(step2).toContain('`Review base: <sha>`');
+  expect(step2).toContain('`accord review-package <id> --base <sha>`');
+  expect(rv.slice(rv.indexOf('6. **Cap.**'), rv.indexOf('7. **Final review.**'))).toContain('after verify counted from the first round after it');
+});
+
+const flatText = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
+const verifySteps = () => {
+  const v = flatText('.claude/skills/accord-verify/SKILL.md');
+  return {
+    v,
+    s2: v.slice(v.indexOf('2. **Merge and suite.**'), v.indexOf('3. **Verifier.**')),
+    s4: v.slice(v.indexOf('4. **Report.**'), v.indexOf('5. **Owner.**')),
+  };
+};
+
+it('ac-2 verify starts ci before the suite and shows the owners report only after every check finished', () => {
+  const { v, s2, s4 } = verifySteps();
+  expect(s2.indexOf('Start CI as `./ci.md` says')).toBeGreaterThan(-1);
+  expect(s2.indexOf('Start CI as `./ci.md` says')).toBeLessThan(s2.indexOf('run the `tests.full` command'));
+  for (const p of ['Wait for CI as `./ci.md` says', 'a failed check goes to `./failure.md` instead of this report', "CI: each check's result, or CI not checked and why"])
+    expect(s4, p).toContain(p);
+  expect(v.slice(v.indexOf('6. Run'))).toContain('finish CI as `./ci.md` says');
+  expect(flatText('.claude/skills/accord-verify/SKILL.md')).toContain(
+    'A `fail` criterion, or a failure the owner names in answer, goes to `./failure.md`, never to `accord-build` directly',
+  );
+  const ci = flatText('.claude/skills/accord-verify/ci.md');
+  const [a, b, c] = ['## Start', '## Wait', '## Finish'].map((h) => ci.indexOf(h));
+  expect(a).toBeGreaterThan(-1);
+  expect(a).toBeLessThan(b);
+  expect(b).toBeLessThan(c);
+  for (const p of ['no GitHub remote', '`gh auth status`', '`gh pr create --draft --fill`', 'A pull request already open is left as it is', 'Never merge it',
+    'A push that changed nothing still counts', 'gh run list --commit <sha> --json', '`.github/workflows/accord.yml`', 'never wait for it and never send it to debug',
+    'ten minutes', 'thirty minutes', '`cancelled` and `skipped`', 'goes to no debug', 'CI failed on `<sha>`', 'Do not wait for CI again'])
+    expect(ci, p).toContain(p);
+  const wait = ci.slice(b, c);
+  const idx = ["When Start was skipped, skip Wait; the report gives Start's reason.", "no workflow other than accord's", 'gh run list'].map((p) => wait.indexOf(p));
+  expect(idx[0]).toBeGreaterThan(-1);
+  expect(idx[0]).toBeLessThan(idx[1]);
+  expect(idx[1]).toBeLessThan(idx[2]);
+  for (const p of ['`gh run view <run-id> --json jobs`', 'each job is one check', "the failed checks' names", 'append `## Resolved`', 'was not seen passing on the other operating system'])
+    expect(wait, p).toContain(p);
+  const fin = ci.slice(c);
+  expect(fin.indexOf('`accord lint`')).toBeGreaterThan(-1);
+  expect(fin.indexOf('`accord lint`')).toBeLessThan(fin.indexOf('`gh pr ready`'));
+  for (const p of ['`accord gate done <t>` for every ticket file', '`origin/master`', '`accord gate done <id>` alone', "the owner's decision: ticked with CI not checked",
+    '`git status --porcelain --branch`', 'shows the branch ahead', '`gh pr view --json isDraft --jq .isDraft`'])
+    expect(fin, p).toContain(p);
+  expect(fin.indexOf('## Resolved')).toBeGreaterThan(-1);
+  expect(fin.indexOf('## Resolved')).toBeLessThan(fin.indexOf('`accord lint`'));
+  const acc = flatText('.claude/skills/accord/SKILL.md');
+  expect(acc).toContain('`done` → `accord-verify` at step 6.');
+  expect(acc).not.toContain('on the ticket file or its');
+  expect(files.find((f) => f.path === '.claude/skills/accord-verify/failure.md')?.text.length).toBeGreaterThan(0);
+});
+
+it('risk:regression the owners report lists every test the verify run skipped by name with its operating system', () => {
+  const { s2, s4 } = verifySteps();
+  expect(s2.indexOf('run `accord tests skipped`')).toBeGreaterThan(s2.indexOf('run the `tests.full` command'));
+  expect(s4).toContain('every test `accord tests skipped` printed, by name, with the operating system it names');
+});
+
+it('ac-5 the verify skill offers to promote a ruling or correction into the conventions', () => {
+  const text = (files.find((f) => f.path === '.claude/skills/accord-verify/SKILL.md')?.text ?? '').replace(/\s+/g, ' ');
+  expect(text.length).toBeGreaterThan(0);
+  const from = text.indexOf('6. Run `accord gate done <id>`');
+  const to = text.indexOf('7. Next:');
+  expect(from).toBeGreaterThan(-1);
+  expect(to).toBeGreaterThan(-1);
+  const step = text.slice(from, to);
+  const phrases = [
+    "read the ticket's `## Corrections` and the Rulings under the ledger's `## Rulings`.",
+    'judge to hold across tickets',
+    'ask the owner whether it becomes a rule of this repository',
+    'write it as one rule line in `accord/product/conventions.md`.',
+    "Without the owner's yes, write nothing to `conventions.md`.",
+  ];
+  expect(phrases.filter((p) => !step.includes(p))).toEqual([]);
+  const a = step.indexOf('ask the owner whether');
+  const w = step.indexOf('write it as one rule line');
+  const c = step.indexOf('Then commit only');
+  expect(a).toBeGreaterThan(-1);
+  expect(w).toBeGreaterThan(a);
+  expect(c).toBeGreaterThan(w);
+  expect(step.slice(c)).toContain('accord/tickets/<id>/verification.md');
+  expect(step.slice(c)).toContain('accord/product/conventions.md');
+});
+
+it('risk:complex-branching the build skill routes a task-done refusal over a forbidden commit line', () => {
+  const raw = files.find((f) => f.path === '.claude/skills/accord-build/SKILL.md')?.text ?? '';
+  expect(raw).not.toBe('');
+  const text = raw.replace(/\s+/g, ' ');
+  const from = text.indexOf('3. **Record.**');
+  const to = text.indexOf('4. **Blocked.**');
+  expect(from).toBeGreaterThan(-1);
+  expect(to).toBeGreaterThan(-1);
+  const step = text.slice(from, to);
+  const phrases = [
+    'It refuses because a commit carries a forbidden line',
+    'reword that commit yourself if you made it',
+    'if an executor made it, dispatch a fresh executor with the same brief plus the reasons it printed',
+    'It exits 2 and says to run `git fetch origin`: run that',
+    'Either way, run `accord task-done <id> <n>` again.',
+  ];
+  expect(phrases.filter((p) => !step.includes(p))).toEqual([]);
+  const r = step.indexOf('reword that commit');
+  const e = step.indexOf('if an executor made it');
+  const f = step.indexOf('It exits 2');
+  const g = step.indexOf('Either way');
+  expect(r).toBeGreaterThan(-1);
+  expect(e).toBeGreaterThan(r);
+  expect(f).toBeGreaterThan(e);
+  expect(g).toBeGreaterThan(f);
+});
+
+it('ac-5 the ids reference drops a ticket with accord drop', () => {
+  const flat = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
+  const ids = flat('.claude/skills/accord/ids.md');
+  expect(ids).not.toBe('');
+  const drop = ids.slice(ids.indexOf('## Dropping instead of renaming'));
+  const step1 = drop.slice(drop.indexOf('1. '), drop.indexOf('2. Create the new ticket'));
+  expect(step1).not.toBe('');
+  expect(step1).toContain("commit every change in the ticket's worktree on its claim branch");
+  expect(step1).toContain('`git push -u origin <claim branch>`');
+  expect(step1.indexOf('`git push -u origin <claim branch>`')).toBeLessThan(step1.indexOf('`accord drop <id>'));
+  for (const p of [
+    '`accord drop <id> --reason "<reason>"`',
+    '`branch:`, `base:` and `title:`',
+    '`gh pr create --head <branch> --base <base> --title "<title>" --body "<reason>"`',
+    'otherwise ask the owner to open it',
+    "waits for the owner's merge",
+    'Tell the owner to close this session once the pull request is opened',
+    'Never delete a claim branch',
+    '`accord worktree clean`',
+  ]) expect(step1).toContain(p);
+  expect(step1).not.toContain('Set `status: dropped`');
+  expect(step1).not.toContain('commit and merge that');
+  expect(drop).toContain('run step 1 there');
+  expect(drop).not.toContain('commit step 1');
+  expect(flat('.claude/skills/accord-debug/ids.md')).toBe(ids);
+  expect(flat('.claude/skills/accord-verify/ids.md')).toBe(ids);
+  expect(flat('.claude/skills/accord/SKILL.md')).not.toContain('accord drop');
+});
+
+const flatS = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
+const LIFT =
+  'Any of these lifts S to M, and nothing else: a public interface or schema changes; auth, money, or data deletion is touched; more than one plausible reading; more than about five hand-written files expected, generated and rendered copies not counted.';
+
+it('ac-1 the accord skill lifts lane S to M only by the four conditions left', () => {
+  const acc = flatS('.claude/skills/accord/SKILL.md');
+  expect(acc.split(LIFT).length - 1).toBe(1);
+  expect(acc.split('lifts S to M').length - 1).toBe(1);
+  expect(acc).not.toContain('user-visible');
+  expect(acc).not.toContain('about three files');
+  const ls = flatS('.claude/skills/accord/lane-s.md');
+  expect(ls).not.toBe('');
+  expect(ls).not.toContain('user-visible');
+  expect(ls).not.toContain('lifts S to M');
+});
+
+it('ac-4 every lane S change is worked from its own lane S ticket in its worktree', () => {
+  const acc = flatS('.claude/skills/accord/SKILL.md');
+  const s = acc.slice(acc.indexOf('- **S.**'), acc.indexOf('- **M.**'));
+  expect(s).toContain('`accord new ticket <id> --lane S --worktree`');
+  expect(s).toContain('`./lane-s.md`');
+  const cont = acc.slice(acc.indexOf('## Continue'), acc.indexOf('## Pick up'));
+  expect(cont).toContain('`Lane: S`');
+  expect(cont).toContain('`./lane-s.md`');
+  const ls = flatS('.claude/skills/accord/lane-s.md');
+  const phrases = [
+    'never in the main checkout', '`accord worktree open <id>`', '`## Understood`', '`## Done when`', '`accord gate ready <id>`',
+    'Make no other change before that', 'Never run `accord approve`', 'you make the change yourself', '`tests.affected`',
+    'over the changed files', 'first write a test that reproduces it', 'fresh `accord-reviewer`, lens `both`',
+    '`accord/tickets/<id>/ledger.md` when it exists', '`## Round <n>`', 'commit `review.md` alone at once',
+    'the round and its verdict are one commit', '`Short title in business language`', '`Keys: …`', 'no Must open',
+    'a fix no reviewer has seen never ships', 'There is no final reviewer', 'At most five rounds',
+    'stop and report the open findings to the owner', 'the next round is one after the last', '`verdict: converged`',
+    '`verdict: accepted-by-owner', '`git -C "<path>" commit', 'pull request',
+    'no intent interview, approval, approach, plan, executor or verify',
+  ];
+  expect(phrases.filter((p) => !ls.includes(p))).toEqual([]);
+  expect(ls.indexOf('`accord gate ready <id>`')).toBeLessThan(ls.indexOf('**Change.**'));
+  expect(ls.indexOf('reproduces it')).toBeLessThan(ls.indexOf('then fix it'));
+  expect(ls.indexOf('`## Round <n>`')).toBeLessThan(ls.indexOf('**Verdict.**'));
+  expect(flatS('.claude/skills/accord/worktree.md')).toContain(
+    "except the people entry below and, in a lane S ticket, its `title:`, the carried `Keys:` frontmatter lines, its `## Understood` and `## Done when` lines, its carried `## Vetoes`, `## Decisions` and `## Corrections` sections and the commit and push of that ticket file",
+  );
+  expect(flatS('.claude/skills/accord/lane-s.md')).toContain('run `tests.full` first');
+  expect(flatS('.claude/skills/accord/SKILL.md')).toContain('A lane never drops once its intent is approved');
+  const rev = (agentTargets(config).find((f) => f.path === '.claude/agents/accord-reviewer.md')?.text ?? '').replace(/\s+/g, ' ');
+  expect(rev).toContain('`## Understood` and `## Done when`');
+  expect(rev).toContain('a ledger only once a Ruling is written');
+  expect(rev).not.toContain('has no ticket, package, or ledger');
 });

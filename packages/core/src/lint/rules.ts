@@ -4,7 +4,7 @@ import type { Finding, Level } from '../model/finding.js';
 import type { RepoSnapshot } from '../model/snapshot.js';
 import { dependsCycle, dependsUnknown } from './depends.js';
 import { idConvention, initialsDuplicate } from './ids.js';
-import { dependsDropped, droppedReason } from './dropped.js';
+import { dependsDropped, droppedApproved, droppedReason } from './dropped.js';
 import { earsUnclassified } from './ears.js';
 import {
   acTagDuplicate,
@@ -22,6 +22,8 @@ import {
   assumptionUnconfirmed,
   headingMissing,
   idMismatch,
+  laneSLaneMRecords,
+  reviewWithoutPlan,
   intentOversize,
   noteOrphan,
   notesNotLast,
@@ -55,10 +57,13 @@ export const RULES: readonly Rule[] = [
   { id: 'lint.depends-cycle', level: 'error', profiles: ['build', 'maintain'], check: dependsCycle },
   { id: 'lint.depends-dropped', level: 'error', profiles: ['build', 'maintain'], check: dependsDropped },
   { id: 'lint.dropped-reason', level: 'error', profiles: ['build', 'maintain'], check: droppedReason },
+  { id: 'lint.dropped-approved', level: 'error', profiles: ['build', 'maintain'], check: droppedApproved },
   { id: 'lint.id-convention', level: 'error', profiles: ['build', 'maintain'], check: idConvention },
   { id: 'lint.initials-duplicate', level: 'error', profiles: ['build', 'maintain'], check: initialsDuplicate },
   { id: 'lint.test-tag-missing', level: 'warning', profiles: ['build', 'maintain'], check: testTagMissing },
   { id: 'lint.heading-missing', level: 'error', profiles: ['build', 'maintain'], check: headingMissing },
+  { id: 'lint.review-without-plan', level: 'error', profiles: ['build', 'maintain'], check: reviewWithoutPlan },
+  { id: 'lint.lane-s-lane-m-records', level: 'error', profiles: ['build', 'maintain'], check: laneSLaneMRecords },
   { id: 'lint.tracker-empty', level: 'warning', profiles: ['build', 'maintain'], check: trackerEmpty },
   { id: 'lint.tick-orphan', level: 'warning', profiles: ['build', 'maintain'], check: tickOrphan },
   { id: 'lint.assumption-unconfirmed', level: 'warning', profiles: ['build', 'maintain'], check: assumptionUnconfirmed },

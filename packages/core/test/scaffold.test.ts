@@ -78,6 +78,7 @@ describe('initFiles — the config it plans', () => {
       '.github/workflows/accord.yml',
       'accord/config.yml',
       'accord/product/business-rules.md',
+      'accord/product/conventions.md',
       'accord/product/glossary.md',
     ]);
   });

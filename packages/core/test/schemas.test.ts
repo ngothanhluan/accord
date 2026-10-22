@@ -143,7 +143,7 @@ describe('config.schema.json', () => {
 
   it('top-level properties are the six D-16 keys plus optional tests (D-72) review (spec §7), models, escalation, and stale_days', () => {
     const keys = ['accord', 'profile', 'tracker', 'design', 'roles', 'runtimes'];
-    expect(Object.keys(configSchema.properties)).toEqual([...keys, 'tests', 'review', 'models', 'escalation', 'stale_days', 'people', 'legacy_ids', 'branch', 'setup']);
+    expect(Object.keys(configSchema.properties)).toEqual([...keys, 'tests', 'review', 'models', 'escalation', 'stale_days', 'people', 'legacy_ids', 'branch', 'setup', 'commits']);
     expect(configSchema.required).toEqual(keys);
     for (const key of Object.keys(configSchema.properties)) {
       expect(key).not.toMatch(/key|token|secret|password/i);
@@ -257,7 +257,8 @@ describe('ticket.schema.json decisions D-01..D-05, D-21..D-25', () => {
     expect(ticket({ lane: 'M', depends_on: ['T-1', 'T-2'], approved_hash: 'fnv1a64:0123456789abcdef' })).toEqual([]);
     expect(ticket({ lane: 'L' })).toEqual([]);
     expect(ticket({ lane: 'P', depends_on: [] })).toEqual([]);
-    expect(has(ticket({ lane: 'S' }), '/lane', 'schema.enum')).toBe(true);
+    expect(ticket({ lane: 'S' })).toEqual([]);
+    expect(has(ticket({ lane: 'X' }), '/lane', 'schema.enum')).toBe(true);
     expect(has(ticket({ depends_on: ['T-1', 'T-1'] }), '/depends_on', 'schema.uniqueItems')).toBe(true);
     expect(has(ticket({ depends_on: ['-bad'] }), '/depends_on/0', 'schema.pattern')).toBe(true);
     expect(has(ticket({ depends_on: 'T-1' }), '/depends_on', 'schema.type')).toBe(true);

@@ -52,7 +52,7 @@ export const stepEmpty: Rule['check'] = (snapshot) =>
 export const noScenarios: Rule['check'] = (snapshot) =>
   Object.values(snapshot.tickets).flatMap((t) => {
     const type = t.frontmatter?.type;
-    if ((type !== 'story' && type !== 'bug') || t.scenarios.length > 0) return [];
+    if ((type !== 'story' && type !== 'bug') || t.scenarios.length > 0 || t.frontmatter?.lane === 'S') return [];
     const ac = t.sections.find((s) => headingKey(s.heading) === 'acceptance criteria');
     return [{ file: t.file, ...(ac === undefined ? {} : { line: ac.line }), reason: `a ${type} needs at least one tagged scenario` }];
   });

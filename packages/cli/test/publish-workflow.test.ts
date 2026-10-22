@@ -121,10 +121,11 @@ function runCheck(tag: string): Run {
 describe('the publish workflow version check — what is under test', () => {
   it('is a multi-line script lifted from the document, and bash resolved', () => {
     expect(SCRIPT.split('\n').length).toBeGreaterThan(1);
-    if (process.platform !== 'win32') {
-      expect(noBash, `${BASH} did not run on a POSIX host; set ACCORD_BASH`).toBe(false);
-    }
   });
+});
+
+it.skipIf(process.platform === 'win32')('risk:regression bash runs on a posix host so the executed version check cases are not skipped there', () => {
+  expect(noBash, `${BASH} did not run on a POSIX host; set ACCORD_BASH`).toBe(false);
 });
 
 describe.skipIf(noBash)('the publish workflow version check — executed', { timeout: 60_000 }, () => {

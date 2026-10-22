@@ -713,8 +713,10 @@ it('ac-4 every lane S change is worked from its own lane S ticket in its worktre
   expect(ls.indexOf('reproduces it')).toBeLessThan(ls.indexOf('then fix it'));
   expect(ls.indexOf('`## Round <n>`')).toBeLessThan(ls.indexOf('**Verdict.**'));
   expect(flatS('.claude/skills/accord/worktree.md')).toContain(
-    "except the people entry below and a lane S ticket's `## Understood` and `## Done when` lines",
+    "except the people entry below and, in a lane S ticket, its `title:`, the carried `Keys:` frontmatter lines, its `## Understood` and `## Done when` lines and the commit and push of that ticket file",
   );
+  expect(flatS('.claude/skills/accord/lane-s.md')).toContain('run `tests.full` first');
+  expect(flatS('.claude/skills/accord/SKILL.md')).toContain('A lane never drops once its intent is approved');
   const rev = (agentTargets(config).find((f) => f.path === '.claude/agents/accord-reviewer.md')?.text ?? '').replace(/\s+/g, ' ');
   expect(rev).toContain('`## Understood` and `## Done when`');
   expect(rev).toContain('a ledger only once a Ruling is written');

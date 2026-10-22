@@ -85,7 +85,8 @@ rendered copies not counted.
 ## Rules
 
 - A lane only rises. Complexity found mid-task lifts the lane: stop, say so,
-  and re-enter at the new lane's first incomplete stage. A lane never drops.
+  and re-enter at the new lane's first incomplete stage. A lane never drops once its intent is approved; before
+  that only the intent interview's move to lane S drops it.
 - A ticket without `lane:` follows the 0.1.0 contract. Offer to add `lane: M`
   and the lane headings; do it only on a yes.
 - In lane M the main session orchestrates and never edits product code.

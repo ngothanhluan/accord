@@ -53,7 +53,8 @@ no intent interview, approval, approach, plan, executor or verify: you make the 
    is committed alone, right after the fifth round's record. Nothing follows that line. `accord gate done` fails on
    any commit after the last round's record that changes more than the ticket's records: a change after it needs
    another round and a new verdict.
-6. **Pull request.** Run `accord gate done <id>` and fix what it prints. Push the branch with
+6. **Pull request.** When `tests.report` is set in `accord/config.yml` and `tests.affected` does not write it, run
+   `tests.full` first so the gate finds a fresh report. Run `accord gate done <id>` and fix what it prints. Push the branch with
    `git push -u origin <branch>` and open a pull request with `gh pr create --fill` when `gh` is available, otherwise
    ask the owner to open it. It waits for the owner's merge.
 

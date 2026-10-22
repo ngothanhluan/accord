@@ -383,6 +383,16 @@ describe.skipIf(noBash)('the emitted workflow script — executed', { timeout: 6
     expect(codes[codes.length - 1]).toBe(1);
   });
 
+  it('risk:security a ticket approved at the base and lane S at the head fails the job naming the ticket', () => {
+    const laneS = '---\nid: OLD-1\nstatus: open\nlane: "S"\nac_hash: "fnv1a64:0000000000000000"\n---\n\n## Understood\nx\n\n## Done when\ny\n';
+    const s = sandbox((r) => write(r, 'accord/tickets/OLD-1.md', laneS));
+    const r = runScript(s.repo, { base: s.base });
+    expect(r.code).toBe(1);
+    expect(r.out + r.err).toContain('OLD-1');
+    expect(r.out + r.err).toContain('lane cannot drop after approval');
+    expect(r.calls.some((c) => c.endsWith(' gate done OLD-1'))).toBe(false);
+  });
+
   it('risk:parsing BOM and CRLF frontmatter and unreadable blocks and large files read as approved', () => {
     const expectGated = (id: string, s: { repo: string; base: string }): void => {
       const r = runScript(s.repo, { base: s.base });

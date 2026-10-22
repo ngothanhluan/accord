@@ -736,6 +736,63 @@ export function gitDefaultRef(root: string): string | undefined {
   return ['refs/remotes/origin/main', 'refs/remotes/origin/master'].find(resolves);
 }
 
+/** The utf8 text of each existing `<ref>:<path>`, read with one `git cat-file --batch`; a missing path is left out. */
+export function gitFilesAt(root: string, ref: string, paths: readonly string[]): Record<string, string> {
+  if (paths.length === 0) return {};
+  let out: Buffer;
+  try {
+    out = execFileSync('git', ['cat-file', '--batch'], {
+      cwd: root,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      maxBuffer: 64 * 1024 * 1024,
+      env: { ...process.env, GIT_NO_LAZY_FETCH: '1' },
+      input: paths.map((p) => ref + ':' + p + '\n').join(''),
+    });
+  } catch (err) {
+    const stderr = String((err as { stderr?: string }).stderr ?? '').trim();
+    throw new UsageError('git cat-file failed reading ' + ref + (stderr === '' ? '' : '\n' + stderr));
+  }
+  const files: Record<string, string> = {};
+  let at = 0;
+  for (const path of paths) {
+    const nl = out.indexOf(10, at);
+    if (nl < 0) break;
+    const m = /^[0-9a-f]+ blob (\d+)$/.exec(out.toString('utf8', at, nl));
+    if (m === null) {
+      at = nl + 1; // `<name> missing`
+      continue;
+    }
+    const size = Number(m[1]);
+    files[path] = out.toString('utf8', nl + 1, nl + 1 + size);
+    at = nl + 1 + size + 1;
+  }
+  return files;
+}
+
+/** A SnapshotInput of `ref`'s config and tickets, read from the git tree with no checkout. */
+export function loadRefInput(root: string, ref: string): SnapshotInput {
+  let listed: string;
+  try {
+    listed = execFileSync('git', ['ls-tree', '-r', '-z', '--name-only', ref, '--', 'accord/config.yml', 'accord/tickets'], {
+      cwd: root,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      maxBuffer: 64 * 1024 * 1024,
+    });
+  } catch {
+    throw new UsageError('git ls-tree failed reading ' + ref);
+  }
+  const kept = listed.split('\0').filter((p) => p === 'accord/config.yml' || /^accord\/tickets\/[^/]+\.md$/.test(p));
+  return { files: gitFilesAt(root, ref, kept), tree: kept };
+}
+
+/** The ids of `ids` whose ticket file on `ref` has status dropped. */
+export function droppedOn(root: string, ref: string, ids: readonly string[]): Set<string> {
+  const files = gitFilesAt(root, ref, ids.map((i) => 'accord/tickets/' + i + '.md'));
+  const { tickets } = loadSnapshot({ files, tree: [] });
+  return new Set(ids.filter((id) => Object.hasOwn(tickets, id) && tickets[id]?.frontmatter?.status === 'dropped'));
+}
+
 /**
  * ST-LN-8 D-02: the first-parent commits of HEAD that are neither on the default ref nor reachable from `since`.
  * A `since` that does not resolve is left out, so the range falls back to the default ref alone.

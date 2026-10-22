@@ -9,3 +9,5 @@
 - Paths read from git output are read NUL-separated (`-z`, split on `\0`), never by line, and a path handed back to git as a pathspec carries `:(literal)`, so a non-ASCII, quoted or glob-like file name is never misread.
 - Never put an unbounded list of paths on one command line: filter it first (for example to the paths present on disk) or batch it, since Windows caps a command line at about 32 767 characters.
 - A test with a time bound sets it wide enough to pass with the whole suite running in parallel, and below the stall it guards, so it still fails without the fix.
+- vitest run with the JUnit reporter always passes `--outputFile.junit=` a path under `node_modules/.cache/`, and nothing under `.vitest/` is ever committed, since without it vitest writes `.vitest/junit/output.xml` into the working tree.
+- Code that deletes a local branch uses `git update-ref -d refs/heads/<b> <sha it checked>`, never `git branch -D`, so a commit made after the check makes git refuse the delete instead of losing it.

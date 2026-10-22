@@ -105,6 +105,33 @@ export function gitRun(repo: string, ...args: string[]): string {
   return gitIn(repo)(...args);
 }
 
+/** Commit everything with `-F <file> --cleanup=verbatim` (conventions.md), never `-m`; returns the new HEAD sha. */
+export function commitMsg(dir: string, text: string): string {
+  const folder = mkdtempSync(join(tmpdir(), 'accord-msg-'));
+  try {
+    const file = join(folder, 'msg.txt');
+    writeFileSync(file, text + '\n');
+    gitRun(dir, 'add', '-A');
+    gitRun(dir, 'commit', '-q', '-F', file, '--cleanup=verbatim');
+    return gitRun(dir, 'rev-parse', 'HEAD').trim();
+  } finally {
+    cleanup(folder);
+  }
+}
+
+/** Merge `ref` with `--no-ff` using `-F <file> --cleanup=verbatim`, never `-m`; returns the new HEAD sha. */
+export function mergeMsg(dir: string, ref: string, text: string): string {
+  const folder = mkdtempSync(join(tmpdir(), 'accord-msg-'));
+  try {
+    const file = join(folder, 'msg.txt');
+    writeFileSync(file, text + '\n');
+    gitRun(dir, 'merge', '-q', '--no-ff', '-F', file, '--cleanup=verbatim', ref);
+    return gitRun(dir, 'rev-parse', 'HEAD').trim();
+  } finally {
+    cleanup(folder);
+  }
+}
+
 /** Write repo-relative posix paths into the sandbox, creating folders. */
 export function writeFiles(repo: string, files: Record<string, string>): void {
   for (const [rel, text] of Object.entries(files)) {

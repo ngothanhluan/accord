@@ -642,3 +642,32 @@ it('risk:complex-branching the build skill routes a task-done refusal over a for
   expect(f).toBeGreaterThan(e);
   expect(g).toBeGreaterThan(f);
 });
+
+it('ac-5 the ids reference drops a ticket with accord drop', () => {
+  const flat = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
+  const ids = flat('.claude/skills/accord/ids.md');
+  expect(ids).not.toBe('');
+  const drop = ids.slice(ids.indexOf('## Dropping instead of renaming'));
+  const step1 = drop.slice(drop.indexOf('1. '), drop.indexOf('2. Create the new ticket'));
+  expect(step1).not.toBe('');
+  expect(step1).toContain("commit every change in the ticket's worktree on its claim branch");
+  expect(step1).toContain('`git push -u origin <claim branch>`');
+  expect(step1.indexOf('`git push -u origin <claim branch>`')).toBeLessThan(step1.indexOf('`accord drop <id>'));
+  for (const p of [
+    '`accord drop <id> --reason "<reason>"`',
+    '`branch:`, `base:` and `title:`',
+    '`gh pr create --head <branch> --base <base> --title "<title>" --body "<reason>"`',
+    'otherwise ask the owner to open it',
+    "waits for the owner's merge",
+    'Tell the owner to close this session once the pull request is opened',
+    'Never delete a claim branch',
+    '`accord worktree clean`',
+  ]) expect(step1).toContain(p);
+  expect(step1).not.toContain('Set `status: dropped`');
+  expect(step1).not.toContain('commit and merge that');
+  expect(drop).toContain('run step 1 there');
+  expect(drop).not.toContain('commit step 1');
+  expect(flat('.claude/skills/accord-debug/ids.md')).toBe(ids);
+  expect(flat('.claude/skills/accord-verify/ids.md')).toBe(ids);
+  expect(flat('.claude/skills/accord/SKILL.md')).not.toContain('accord drop');
+});

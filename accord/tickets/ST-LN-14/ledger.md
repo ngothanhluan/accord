@@ -70,6 +70,11 @@
 - Ruling: task 11 reads its "Must not change … modes" line as "no other behaviour change"; the `live` write and the stop are the required additions (deferred plan-review 4.2) — they are what the task names — none
 - Ruling: stopOnEscape exits 2 with "run --round 1 --plan first" when round-1.json has no `live` — with no recorded live checkouts an escape cannot be detected — the owner reruns --plan, which keeps existing worktrees and adds `live`
 - Ruling: task 11's stop paths in --judge and --round 1 are not run end to end by a test; escapes, liveState and onLiveRefs are; moved-ref notices include refs/remotes/origin — the first real round is the real check — a fetch during the round prints moved-ref notices
+- Ruling: review round 1's tier-up line names the fix executor's task from the fixing commit's subject, else "none, a fix assignment "<desc>"" — a fix assignment has no task of its own — a line reads "task none" for fix rounds
+- Ruling: the two brief-quote lines left after review round 1 (ST-LN-5 task 2, VID-1 task 3) stay listed — the `@test:` tag lines task-done writes into the working-tree ticket were not committed at dispatch, so the rule matches — two lines the owner may call noise
+- Ruling: review round 1's fix 6c7125e (a read of another ticket file is compared with that ticket) was found on the real read, and its test was not run red first — the same fault was seen in real data — test-first not shown for that one fix
+- Ruling: text after the committed ticket's last line in a brief is treated as the brief's own, so lines appended there are not flagged — briefs append their task text after the ticket — an appended line that alters the ticket is missed
+- Ruling: the compliance read was redone on 2026-10-22 after review round 1 (compliance.md deleted first): tier-up 3, trailer 44, test-first 28 (25 "no test edit seen"), verify-id 33, round-cap 0, reassigned 2, brief-quote 2 — an earlier read's lines win in a merge — none
 - Ruling: task 3's real read found that complianceSettings kept the quotes of `model: "sonnet"`, missing BUG-LN-3 round 4; 49e0cfd strips them and the stale compliance.md was deleted before the read was run again — an earlier read's lines win in a merge — none
 
 ## Deferred
@@ -86,6 +91,19 @@
 - plan-review 4.1: Task 1 lists `end` among a run's fields without defining it; Task 2's commit window needs the run's last timestamp, not `start + ms`
 - plan-review 4.2: Task 11's "Must not change … modes" contradicts its own `live` addition to `--plan` and stop in `--judge` and `--round 1`
 - plan-review 4.3: `parseCompliance` takes only lines starting with `- `, so a `reassigned` line whose summary holds a newline is re-added on every re-read
+- review 1.12: `--clean` guards only on `docs/benchmark/round-1.md` existing; once it is committed, a re-planned half round can be cleaned with its unjudged runs — scripts/benchmark.mjs:520
+- review 1.13: `benchRoot(process.cwd())` is `<cwd>/../accord-bench`, so running from a subfolder puts the bench root and its snapshots inside the working tree — scripts/benchmark.mjs:337
+- review 1.14: `live` is recorded once at the first `--plan`, so a worktree the owner adds after it is not watched by the escape stop — scripts/benchmark.mjs:575
+- review 1.15: a non-current executor or planner run whose suite or gate failed is held null, not false, when its judge verdict is unreadable, so it shows only under "Runs not judged" — scripts/round.mjs:224-229
+- review 1.16: a missing compliance.md is written as a bare "None." into the round report, with no count table — scripts/benchmark.mjs:734
+- review 1.17: matchRuns does not read `meta.finished`, so a run still in flight may be scored on a partial transcript — scripts/round.mjs:261-283
+- review 1.18: the default transcript folders come from the cwd's encoded path and the no-match error does not mention `--round 1 <folder>` — scripts/benchmark.mjs:18-20, 663
+- review 1.19: the trailer rule matches `generated with` anywhere on a body line, unanchored — scripts/compliance.mjs:65
+- review 1.20: the reader test's `/advisor/i` assertion restates D-03 as a test of something nobody wrote — packages/core/test/benchmark-reader.test.ts:72
+- review 1.21: `stripReadPrefixes` is exported and tested but never called; parseRun repeats it inline — scripts/round.mjs:179-183, scripts/benchmark.mjs:224-226
+- review 1.22: a duplicate run for one tag makes `--round 1` exit 2 on every call with no hint which transcript wins — scripts/benchmark.mjs:676-677
+- review 1.23: `suggest` keeps the current effort when only a higher effort held on all 5 samples; the sentence below the table names it — scripts/round.mjs:300-301
+- review 1.24: `scripts/round.mjs:2` still says "Imports nothing" though line 3 imports compliance.mjs
 
 ## Tasks
 - task 1 done cfd797751f01

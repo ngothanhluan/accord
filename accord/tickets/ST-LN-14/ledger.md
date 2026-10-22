@@ -118,6 +118,7 @@
 - review 1.24: `suggest` keeps the current effort when only a higher effort held on all 5 samples; the sentence below the table names it — scripts/round.mjs:300-301
 - review 1.25: `scripts/round.mjs:2` still says "Imports nothing" though line 3 imports compliance.mjs
 - review 2.2: brief-quote takes the ticket from the first Read of any ticket file ahead of the one the brief names, so an executor that first reads a depends_on ticket is compared with it — scripts/compliance.mjs
+- review 4.1: moving the entry line left two blank lines in a row after main() — scripts/benchmark.mjs:813-814
 - review 2.3: only an invalid current-effort run voids its sample, not an environment-failed one, and a row with an invalid judge and an invalid run is listed twice under "Runs not judged" — scripts/benchmark.mjs runRound
 
 ## Tasks

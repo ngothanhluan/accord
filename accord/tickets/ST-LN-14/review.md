@@ -39,4 +39,12 @@ Nice 3 [patch]: an environment-failed current run does not void its sample, and 
 Must 1 [patch]: two of the 45 samples (verifier 2, scout 1) were this ticket's effort-override probe runs, so those agents were measured on 4 real samples — scripts/benchmark-samples.json:522, :643 — fixed in 137de03
 Should 2 [patch]: `--plan` ran no setup for a base whose config predates the `setup:` key (reviewer 4, reviewer 5) — scripts/benchmark.mjs:582 — fixed in 137de03
 
+## Round 4
+
+Nice 1 [patch]: moving the entry line left two blank lines in a row after main() — scripts/benchmark.mjs:813-814 — deferred
+
+## Round 5
+
+No findings
+
 verdict: converged

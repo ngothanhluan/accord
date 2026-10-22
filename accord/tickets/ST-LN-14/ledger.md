@@ -150,6 +150,10 @@
 - review 9.1: `packageChunks` throws on a diff header git quotes (`diff --git "a/x y.ts" "b/x y.ts"`); no committed sample has such a path — scripts/benchmark.mjs packageChunks
 - review round 11 Nice 3: the moved-transcript process test expects `0 written, 45 kept`, the count of the shipped sample list; any change to scripts/benchmark-samples.json breaks it, where `list.samples.length` would not
 - review round 11 Nice 4: `--plan --rerun a b` (space-separated) reruns only `a` and ignores `b` without an error; no data is lost, the person running it may be surprised
+- review round 12 Nice 2: the `--plan --rerun` wiring test cannot tell rerun-before-prepare from rerun-after-prepare (the folder would be removed and not rebuilt, yet the test passes); asserting the worktree exists with HEAD at base would
+- review round 12 Nice 3: `--rerun` checks `git status --porcelain`, which omits ignored files, so a run's ignored output (a `*.log`, its own JUnit report under node_modules/.cache) is removed with the folder; the run's commits and tracked changes are what a rerun must keep, ignored output is rebuilt or rewritten
+- review round 12 Nice 4: a `--rerun a,b` refusal on `b` comes after `a` was kept and rebuilt, and is printed with the hint "(setup is repeated on the next --plan run)", which is wrong for a dirty-tree refusal; nothing is lost
+- review round 12 note: `rerunWorktree` skips its keep and refuse checks when the record has no branch; unreachable today, since `runPlan` gives every writer row a branch
 
 ## Tasks
 - task 1 done cfd797751f01

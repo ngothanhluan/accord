@@ -1,6 +1,6 @@
 ---
 baseline: 2b59feb1ada5bad9fac6ea087ea9604062512779
-plan_hash: "fnv1a64:7cbc4e6a9092a9aa"
+plan_hash: "fnv1a64:311a083eab034d58"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -56,9 +56,11 @@ Definitions shared by every task:
   `git rev-parse --verify -q <value>^{commit}` to a full sha; undefined when absent or unresolved (a clone that
   never fetched it).
 - Safe tip (Task 3, `function safeTip(root: string, id: string, tip: string, vc: string | undefined, ref: string):
-  boolean` in `worktree.ts`; Tasks 3 and 4 use it). Verify commits the tick, and may commit `debug.md`, after the
-  verified commit, so a real branch tip is past `vc`; after a squash or rebase merge it is not on main either. A
-  tip `T` is safe when any of these holds, each git call run through `gitOk()` or `git()` in `worktree.ts`:
+  'safe' | 'conflict' | 'unsafe'` in `worktree.ts`; Tasks 3 and 4 use it). Verify commits the tick, and may commit
+  `debug.md`, after the verified commit, so a real branch tip is past `vc`; after a squash or rebase merge it is
+  not on main either. `safeTip` returns `'safe'` when any of these holds, `'conflict'` only from rule 4's exit 1,
+  and `'unsafe'` otherwise. Each git call runs through `gitOk()` or `git()` in `worktree.ts`, except rule 4's
+  `merge-tree`, which needs its exit code:
   1. `git merge-base --is-ancestor <T> <ref>` succeeds: every commit of `T` is on main.
   2. `vc` is defined and `git merge-base --is-ancestor <T> <vc>` succeeds: `T` is `vc` or behind it, so every
      commit of `T` is in the verified commit main records as merged.
@@ -69,20 +71,27 @@ Definitions shared by every task:
      its content on main). Any other path, `accord/product/conventions.md` included, makes `T` not safe: a
      commit after verification whose content is not on main is never lost.
   4. `vc` is undefined (a lane S ticket, whose records hold no `verified_commit`, or a clone that cannot resolve
-     it): `out = git(root, ['merge-tree', '--write-tree', ref, T])` and `main = git(root, ['rev-parse', ref +
-     '^{tree}']).trim()`; `T` is safe when `out.split('\n')[0].trim() === main`. `git merge-tree --write-tree`
-     (git >= 2.38, https://git-scm.com/docs/git-merge-tree) merges `T` into `ref` from their merge base without
-     touching any index, worktree or ref, exits 0 on a clean merge and prints the merged tree's id as its first
-     line. Any throw from `git()` makes `T` not safe: exit 1 (a conflict) or any other non-zero exit (an older git
-     that does not know `--write-tree`), so such a branch is kept with its kept line. No path is exempt, the
-     ticket's own records included: the branch is removed only when merging it into main would change nothing,
-     so a squash or rebase merge of a lane S branch is cleaned even after main has since changed other hunks of
-     the same files, and a branch holding anything main does not is kept (ledger Ruling plan round 3, the owner
-     chose A).
+     it): in its own `try`, `out = execFileSync('git', ['merge-tree', '--write-tree', ref, T], { cwd: root,
+     encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })`; its `catch (e)` returns `'conflict'` when
+     `(e as { status?: number | null }).status === 1`, as `currentBranch` in `packages/cli/src/load/fs.ts:496`
+     reads a git exit code, and `'unsafe'` for any other failure (an older git that does not know `--write-tree`,
+     a bad ref, a spawn error). Neither escapes `safeTip`, so a conflict never reaches `cleanDone`'s
+     `could not be judged:` catch. After a clean exit, `main = git(root, ['rev-parse', ref + '^{tree}']).trim()`
+     (a throw there returns `'unsafe'`); `'safe'` when `out.split('\n')[0].trim() === main`, else `'unsafe'`.
+     `git merge-tree --write-tree` (git >= 2.38, https://git-scm.com/docs/git-merge-tree) merges `T` into `ref`
+     from their merge base without touching any index, worktree or ref, exits 0 on a clean merge and prints the
+     merged tree's id as its first line, exits 1 when the merge has conflicts, and exits with another status on
+     an error. A conflict is never resolved with `-X ours` or any other strategy option: it cannot be told apart
+     from real work not on main, so the branch is kept and the owner deletes it by hand (ledger Ruling plan
+     round 4, the owner chose A). No path is exempt, the ticket's own records included: the branch is removed
+     only when merging it into main would change nothing, so a squash or rebase merge of a lane S branch is
+     cleaned even after main has since changed other hunks of the same files, and a branch holding anything main
+     does not is kept (ledger Ruling plan round 3, the owner chose A).
   No other git command is used: no `log`, no `show`, no `rev-list` walk (ledger Ruling on critic 8, amended by
   the ledger Ruling plan round 3 for rule 4's `merge-tree` and `rev-parse`).
-- The kept line for an unsafe tip names what it measured: `it has commits after its verified commit` when `vc` is
-  defined, `it has changes not on <def>` when `vc` is undefined (no verified commit to name).
+- The kept line for a tip that is not `'safe'` names what it measured: `merging it into <def> conflicts` when
+  `safeTip` returned `'conflict'`; otherwise `it has commits after its verified commit` when `vc` is defined, and
+  `it has changes not on <def>` when `vc` is undefined (no verified commit to name).
 - Test helper `doneOnRemote(c, ids, opts: { squash?: boolean; local?: boolean } = {}): Record<string, string>`
   (Task 3, `worktree.test.ts`, beside `mergeOnRemote`, which stays as it is). It runs verify's commits on the
   ticket branch, then merges it, as a teammate's clone does: `o = c.otherClone()`. For each id:
@@ -341,6 +350,21 @@ Test first, at the end of `worktree.test.ts`:
     `deleted t/ST-12 (was <t12>)`, `kept t/ST-13: it has changes not on origin/main`. No line contains
     `verified commit`. ST-13's sibling and `t/ST-13` remain, `t/ST-12` is gone. `LANE_S_BODY` joins the existing
     import from `../../../test/helpers/lane.js`.
+  - Lane S, squashed, then main edits a file the branch added (ledger Ruling plan round 4): `g = clone()`;
+    `ticketWorktree(g, 'ST-14', 'added.txt')`, so the branch adds `added.txt` = `ST-14\n` and is pushed;
+    `sg = g.sibling('ST-14')`; in `sg` write `accord/tickets/ST-14.md` = `laneTicket('ST-14', { lane: 'S', body:
+    LANE_S_BODY })`; `run(['gate', 'ready', 'ST-14'], sg)` exits 0; write `accord/tickets/ST-14/review.md` =
+    `## Round 1\n\nNo findings\n\nverdict: converged\n`; `t14 = commitMsg(sg, 'review: ST-14')`;
+    `gitRun(sg, 'push', '-q', 'origin', 't/ST-14')`. In `o = g.otherClone()`: `gitRun(o, 'fetch', '-q', 'origin')`,
+    `gitRun(o, 'merge', '--squash', '-q', 'origin/t/ST-14')`, `commitMsg(o, 'merge ST-14')`; write `added.txt` =
+    `main\n`, `commitMsg(o, 'main edit')`; `gitRun(o, 'push', '-q', 'origin', 'main')`. Preconditions:
+    `run(['status', '--json'], o)` lists ST-14 with `stage` `done`; `execFileSync('git', ['merge-tree',
+    '--write-tree', 'main', 'origin/t/ST-14'], { cwd: o, stdio: 'pipe' })` throws an error whose `status` is 1 (a
+    real conflict, both sides added `added.txt` with different content). `run(['worktree', 'clean'], g.root)` exits
+    0 and `lines(out)` equals the one line `kept t/ST-14: merging it into origin/main conflicts`; no line contains
+    `could not be judged`, `removed` or `deleted`. `sg` exists, `sha(g, 't/ST-14')` is `t14`, and
+    `has(g.remote, 'refs/heads/t/ST-14')` is true: nothing is deleted. Add
+    `import { execFileSync } from 'node:child_process';` to the file's imports.
 
 Interface, `function cleanDone(ctx, ref, templates, s: GuardState, fetchFailed: boolean, skip?: string): void`, one
 doc line naming ST-LN-25 D-08:
@@ -354,14 +378,15 @@ doc line naming ST-LN-25 D-08:
      in the middle of a rebase has a detached HEAD, so no `W` matches it, and its rebase still owns the branch;
      nothing of `b`, local or origin, is touched.
    - `W = after.find((x) => x.branch === b)`. `W === after[0]`: write `kept <b>: checked out in <W.path>`, next.
-   - `vc` per the Definitions, read once per id from `snap`. `L` is the local tip. `L` defined and not
-     `safeTip(ctx.root, id, L, vc, ref)`: write `kept <b>: <reason>`, next, `<reason>` the kept line of the
-     Definitions (`it has commits after its verified commit` with `vc`, `it has changes not on <def>` without).
+   - `vc` per the Definitions, read once per id from `snap`. `L` is the local tip. `L` defined and
+     `safeTip(ctx.root, id, L, vc, ref)` not `'safe'`: write `kept <b>: <reason>`, next, `<reason>` the kept line
+     of the Definitions (`merging it into <def> conflicts` on `'conflict'`; else `it has commits after its
+     verified commit` with `vc`, `it has changes not on <def>` without).
    - `W` defined: `g = passGuards(ctx, W, id, s)`; undefined, or `removeWorktree(ctx, W, id, g.h).failed`: write
      `kept <b>: checked out in <W.path>`, next. Guards are kept as they are: uncommitted work, this session, a
      live hold (ledger Ruling on the guards).
-   - `L` defined: re-read it with `rev-parse --verify -q refs/heads/<b>`; a new tip that is not `safeTip` gets
-     the same kept line, next. Else `execFileSync('git', ['update-ref', '-d', 'refs/heads/' + b, L], ...)` and
+   - `L` defined: re-read it with `rev-parse --verify -q refs/heads/<b>`; a new tip whose `safeTip` is not
+     `'safe'` gets the kept line for that result, next. Else `execFileSync('git', ['update-ref', '-d', 'refs/heads/' + b, L], ...)` and
      write `deleted <b> (was <L>)`.
 3. `worktreeClean`: drop the `cands` computation, the merged-worktree loop and the merged-branch loop (with its
    `git branch -D`); after `ref` and `state`, call `cleanDone(ctx, ref, templates, state, fetchFailed)`, then
@@ -424,9 +449,9 @@ Test first, at the end of `worktree.test.ts`:
 
 Interface, appended to the per-branch step of `cleanDone`, after the local step:
 - Go on only when `L` was undefined or was deleted (ledger Ruling: a kept worktree keeps its upstream).
-- `R` (the origin tip read after the fetch) defined and `fetchFailed` false: not `safeTip(ctx.root, id, R, vc,
-  ref)` →
-  `kept origin/<b>: <reason>`, `<reason>` the kept line of the Definitions; safe →
+- `R` (the origin tip read after the fetch) defined and `fetchFailed` false: `safeTip(ctx.root, id, R, vc, ref)`
+  not `'safe'` → `kept origin/<b>: <reason>`, `<reason>` the kept line of the Definitions for that result
+  (`merging it into <def> conflicts` on `'conflict'`), nothing pushed; `'safe'` →
   `gitNoPrompt(ctx.root, ['push', '--force-with-lease=refs/heads/' + b + ':' + R, 'origin', ':refs/heads/' + b])`,
   then `deleted origin/<b> (was <R>)`; a failure writes `kept origin/<b>: git push failed: <firstLine(e)>`.
   With `fetchFailed` nothing is written for the origin branch (ledger Rulings on part 4 and critic 9).
@@ -446,7 +471,12 @@ Existing tests changed (the origin tip is the tick commit `doneOnRemote` returns
   `deleted t/ST-11 (was ...)`; ST-9's origin branch stays, since its local branch is kept. Its second part is
   unchanged: a branch being rebased keeps its origin branch. Its lane S part's expected list gains
   `deleted origin/t/ST-12 (was <t12>)` right after `deleted t/ST-12 (was <t12>)`, and the remote `t/ST-13` still
-  resolves.
+  resolves. Its conflict part keeps its one line (the local branch is kept, so its origin branch is not judged),
+  then gains the origin step's conflict line: `gitRun(g.root, 'worktree', 'remove', '--force', sg)` and
+  `g.git('update-ref', '-d', 'refs/heads/t/ST-14')`, so only `origin/t/ST-14` is left; `run(['worktree', 'clean'],
+  g.root)` exits 0 and `lines(out)` equals the one line `kept origin/t/ST-14: merging it into origin/main
+  conflicts`; no line contains `could not be judged` or `deleted`, and `gitRun(g.remote, 'rev-parse',
+  't/ST-14').trim()` is still `t14`.
 
 Must not change: `cleanDropped` (it deletes origin before local, as today), and every other test.
 

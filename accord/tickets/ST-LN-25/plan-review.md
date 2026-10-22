@@ -33,4 +33,12 @@
 
 ## Round 4 (diff)
 
-1. Should — Option A still keeps a squash-merged lane S branch forever when main later edits a file the branch added (add/add) or the same lines it changed: `merge-tree` exits 1, and every `/accord` in that clone prints the false `kept t/A: it has changes not on origin/main`; the round-3 Ruling names only old git as its cost. Add this case to that Ruling's cost, optionally a true kept line for exit 1 (`kept <b>: merging it into <def> conflicts`) with a test for the conflict path; never `-X ours` (Tasks 3, 4) — open
+1. Should — Option A still keeps a squash-merged lane S branch forever when main later edits a file the branch added (add/add) or the same lines it changed: `merge-tree` exits 1, and every `/accord` in that clone prints the false `kept t/A: it has changes not on origin/main`; the round-3 Ruling names only old git as its cost. Add this case to that Ruling's cost, optionally a true kept line for exit 1 (`kept <b>: merging it into <def> conflicts`) with a test for the conflict path; never `-X ours` (Tasks 3, 4) — fixed
+
+## Round 5 (diff)
+
+No findings.
+
+## Closed
+
+Round 5: no Must or Should open; `accord gate plan ST-LN-25` passed.

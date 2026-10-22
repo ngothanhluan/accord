@@ -38,6 +38,8 @@
 - Ruling: the CI workflow counts a lane S ticket carrying ac_hash as approved, so an accord-only lane S pull request runs gate done, while a queued lane S ticket with no ac_hash is still skipped — plan round 2.6 — cost if wrong: a pull request touching only a ready lane S ticket's records is gated.
 - Ruling: Task 9's test uses workflow-script.test.ts's own sandbox and runScript, not repoWith or commitMsg — every case in that file does, and its commits carry no message a convention reads — cost if wrong: none.
 - Ruling: `sectionParts` is a function declaration below `approvedInput` in hash.ts, hoisted, so `approvedInput`'s output and every approved_hash are unchanged — task 1 executor — cost if wrong: none.
+- Ruling: `nextStep` returns the lane S text for any stage of a lane S ticket; nothing calls it for a lane S build, as the row sets `next` only at intent and review — task 2 executor, the plan's `laneSNext(stage as LaneSStage)` — cost if wrong: none.
+- Ruling: the lane S anchor prints `Review base:` only when `progress.base` is set, which never happens for lane S — keeps the lane M code path unchanged — cost if wrong: none.
 
 ## Deferred
 - plan round 1.10 Nice — Understood/Done when can be rewritten after review and `gate ready` rerun unflagged
@@ -50,3 +52,4 @@
 
 ## Tasks
 - task 1 done 46c5a6864f6c
+- task 2 done 44ea3e0d8d7a

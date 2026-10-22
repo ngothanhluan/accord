@@ -45,6 +45,7 @@
 - Ruling: `DONE_S_RULES` is exported and the `DONE_RULES` row consts are not — Task 7's skills.test scan imports only `DONE_S_RULES` — cost if wrong: one export.
 - Ruling: the two new lint rules read `snapshot.work` through a local `workOf` helper using `Object.hasOwn` — task 5 executor, the brief asks for `Object.hasOwn` access — cost if wrong: none, it is local to lint/ticket.ts.
 - Ruling: approve reads the lane as `ticket.frontmatter?.lane` — task 6 executor, typecheck says frontmatter may be undefined — cost if wrong: none.
+- Ruling: task 7 also commits `.claude/agents/accord-final-reviewer.md`, outside its files line — `skills sync` renders it from the same `reviewer.md` source, so leaving it stale would fail the sync check — cost if wrong: none.
 
 ## Deferred
 - plan round 1.10 Nice — Understood/Done when can be rewritten after review and `gate ready` rerun unflagged
@@ -62,3 +63,4 @@
 - task 4 done 280794fde22c
 - task 5 done 399091c88bdc
 - task 6 done 45537889f4d3
+- task 7 done ba3714a3c0fd

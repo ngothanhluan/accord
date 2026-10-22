@@ -40,7 +40,7 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: ST-LN-31
 
-  @ac-1
+  @ac-1 @test:packages/core/test/stage-skills.test.ts#ac-1-the-accord-skill-lifts-lane-S-to-M-only-by-the-four-conditions-left
   Scenario: A request is lifted from lane S to M only by the four conditions left
     Given the /accord skill sorts a New request into a lane
     When it reads the conditions that lift lane S to lane M
@@ -63,7 +63,7 @@ Feature: ST-LN-31
     Then the queued one is listed among the tickets to pick up and the claimed one among those in progress
     And every ticket row has a lane column, which reads "S" for both of them
 
-  @ac-4
+  @ac-4 @test:packages/core/test/stage-skills.test.ts#ac-4-every-lane-S-change-is-worked-from-its-own-lane-S-ticket-in-its-worktree
   Scenario: Every lane S change is worked from its own lane S ticket
     Given a New request the /accord skill sorts into lane S, or "/accord pick-up <id>" on a lane S ticket
     When the session starts the work

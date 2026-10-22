@@ -25,6 +25,13 @@
 - Ruling: `failure.md` says a lane S ticket never reaches verify — its anchor prints `done` after review, which `failure.md` would otherwise route to accord-debug — cost if wrong: one sentence.
 - Ruling: `REQUIRED.accord` drops 'lens `both`' and 'git add -N' and adds './lane-s.md' and '--lane S --worktree'; the skills.test `VERDICT` regex lets the `## Done when` heading pass — the lane S text moved to `lane-s.md` — cost if wrong: two test lines.
 - Ruling: the lane S anchor prints the shared `## Rulings` block, and `## Corrections` only when that heading exists — the earlier Corrections Ruling — cost if wrong: one block.
+- Ruling: lane S `gate done` carries the lane M suite rule, reading the CI junit report, while a lane S session still runs only the affected tests locally — plan round 1.6; owner: "A" — cost if wrong: a lane S pull request fails CI on a test outside its change.
+- Ruling: the lane S records check is one lint rule, `lint.lane-s-lane-m-records`, with no `gate.` row — every gate already includes a ticket's lint errors — cost if wrong: one more rule id.
+- Ruling: lane S `gate done` reads the commits after review.md from HEAD, not from the status fact read off the claim ref; once the review commit is on the default branch the fact is missing and the gate fails closed — CI gates pull requests only — cost if wrong: a later pull request that touches a merged lane S ticket's file fails its gate.
+- Ruling: a lane S round's record is committed before that round's fixes — this makes "no unreviewed fix ships" something the gate can check — cost if wrong: one more commit per round.
+- Ruling: under `stop:`, the main session writes Understood and Done when into the new worktree's ticket, then commits and pushes it, the same way it carries the people entry — no new CLI flag is needed (plan round 1.8) — cost if wrong: one commit made from the main checkout.
+- Ruling: the plan skill drops "The owner does not need to read the plan." to make room for the fork-point text; this replaces the byte estimate in the earlier D-11 Ruling — cost if wrong: one sentence of guidance lost.
+- Ruling: moving to lane S refuses when `git status` lists paths outside the ticket's own records, and commits only those records — so no uncommitted product code is committed and later deleted — cost if wrong: the owner commits or cleans that work first.
 
 ## Deferred
 - plan round 1.10 Nice — Understood/Done when can be rewritten after review and `gate ready` rerun unflagged

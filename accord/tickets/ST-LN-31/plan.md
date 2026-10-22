@@ -1,6 +1,6 @@
 ---
 baseline: 8638f7779fa5374eeef13e4f0d3beeef42547d94
-plan_hash: "fnv1a64:6a920fd9850f8757"
+plan_hash: "fnv1a64:9690c8b366c32c3f"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this preamble,
@@ -9,10 +9,12 @@ the ticket and its ledger.
 Order: Task 1 is the wiring. It gives lane S its ticket form end to end: the schema, the template,
 `accord new ticket --lane S`, lint, and a `gate ready` that names each empty section, needs no approval and records
 `ac_hash` (ac-2). Task 2 reads that record into the stage, the status row and the anchor. Task 3 adds the lane column
-to the dashboard and the panel (ac-3). Task 4 gives lane S its own `gate done` table, fed by a new host fact about
-`review.md`. Task 5 adds the D-09 lint rule and keeps lane S out of the test policy. Task 6 makes `accord approve`
-refuse lane S and starts a lane S review package at the fork point. Task 7 writes the lane S procedure into the skills
-(ac-1, ac-4). Task 8 writes the drop at intent, the lifted plan baseline and the failure route (ac-5).
+to the dashboard and the panel (ac-3). Task 4 gives lane S its own `gate done` table, with the suite rule, fed by a
+new host fact about `review.md` and by the commits after it read from HEAD. Task 5 adds the D-09 lint rule, the lint
+rule that stops a lane S ticket holding lane M records, and keeps lane S out of the test policy. Task 6 makes
+`accord approve` refuse lane S and starts a lane S review package at the fork point. Task 7 writes the lane S
+procedure into the skills (ac-1, ac-4). Task 8 writes the drop at intent, the lifted plan baseline and the failure
+route (ac-5).
 
 Rules for every task:
 - Test ids: every test this plan writes is a top-level `it(...)` with no `describe` around it. Its report id is the
@@ -43,8 +45,8 @@ Rules for every task:
 - Files are LF with no BOM. Add no dependency. Every printed path uses `/`. Core (`packages/core/src`) imports no
   `node:` module.
 - Rendered skill limits (`packages/core/test/skills.test.ts`): each rendered `SKILL.md` is at most 5120 bytes and
-  120 lines; a bundled reference such as `lane-s.md` or `ids.md` has no limit. Counted from the committed rendered
-  copies at the baseline: `.claude/skills/accord/SKILL.md` is 4948 bytes and 98 lines,
+  120 lines; a bundled reference such as `lane-s.md`, `ids.md` or `worktree.md` has no limit. Counted from the
+  committed rendered copies at the baseline: `.claude/skills/accord/SKILL.md` is 4948 bytes and 98 lines,
   `.claude/skills/accord-intent/SKILL.md` 4133 bytes and 78 lines, `.claude/skills/accord-plan/SKILL.md` 5049 bytes and
   89 lines. Tasks 7 and 8 give the text that keeps each one under the limit.
 - Skill text never holds the words `Ready` or `Done` as whole words, except `Done when`; never `warning`; never a
@@ -182,6 +184,8 @@ Test first: `packages/core/test/lane-s.test.ts` (new), importing `loadSnapshot` 
   - No `ac_hash`: `row(snap({ 'accord/tickets/S-1.md': S() }))` matches `{ lane: 'S', stage: 'intent', ready: 'none', next: 'write ## Understood and ## Done when, then pass accord gate ready (lane-s.md)' }`.
   - `ready`: the row matches `{ stage: 'build', ready: 'ok', tasksDone: 0, tasksTotal: 0 }` and
     `nextRows(statusRows(snap(ready))).map((r) => r.id)` contains `S-1`.
+  - `{ ...ready, [R]: '## Round 1\n\nMust 1: x — src/a.ts:1\n' }` (a round recorded, no verdict yet): the row matches
+    `{ stage: 'review', next: 'the next review round, numbered after the last ## Round in review.md (lane-s.md)' }`.
   - `{ ...ready, [R]: '## Round 1\n\nNo findings\n\nverdict: converged\n' }`: stage `done`, and `isDone` of that
     snapshot for `S-1` is true. With `verdict: accepted-by-owner "ship it"` as the last line it is `done` too (D-12).
   - A line `x` after the verdict: stage `review`. `verdict: open`: stage `review`.
@@ -206,12 +210,12 @@ Interface:
   - `export type LaneSStage = 'intent' | 'build' | 'review' | 'done';`
   - `const LANE_S_NEXT: Record<LaneSStage, string>` = intent `'write ## Understood and ## Done when, then pass accord gate ready (lane-s.md)'`,
     build `'the change and the tests.affected command (lane-s.md)'`, review
-    `'review rounds until no Must is open, then review.md (lane-s.md)'`, done
+    `'the next review round, numbered after the last ## Round in review.md (lane-s.md)'`, done
     `'the pull request; run accord gate done (lane-s.md)'`; `export function laneSNext(stage: LaneSStage): string`.
   - `function laneSStage(snapshot, ticket): LaneSStage`: `intent` when `ticket.frontmatter?.ac_hash !== laneSHash(ticket)`;
     `build` when `workOf(snapshot, ticket.id)?.review` is undefined; `done` when the review's verdict is in `VERDICTS`,
     it has no `trailing`, and no commit of `snapshot.afterVerify[ticket.id]` (read with `Object.hasOwn`; absent
-    counts as none) is `handMade`; `review` otherwise.
+    counts as none) is `handMade`; `review` otherwise, which includes a review.md holding rounds and no verdict yet.
   - `progressOf`: right after the `fm?.lane === undefined` return, a ticket with `lane: S` returns
     `{ stage: laneSStage(snapshot, ticket), tasksDone: 0, tasksTotal: 0 }`.
   - `nextStep`: for a lane S ticket returns `laneSNext(stage as LaneSStage)`; lane M text unchanged.
@@ -282,22 +286,25 @@ Must not change: the section rules, ranks, caps, counts and action line (`dashbo
 apart from `EpicRow`); a lane M `build` cell `build n/m`; the panel's detail view, buttons, search, focus, colours and
 sanitising; every other `panel.test.ts` test.
 
-## Task 4: gate done on a lane S ticket uses its own table, fed by the commits after review.md and a fact about its commit
+## Task 4: gate done on a lane S ticket uses its own table with the suite rule, fed by the commits after review.md on HEAD and a fact about its commit
 covers: D-04, D-12
 files: packages/core/src/model/snapshot.ts, packages/core/src/load/snapshot.ts, packages/core/src/gate/lane-s.ts (new), packages/core/src/gate/rules.ts, packages/core/src/gate/index.ts, packages/cli/src/load/fs.ts, packages/cli/src/commands/gate.ts, packages/cli/test/lane-s.test.ts (new)
-verify: packages/cli/test/lane-s.test.ts#risk:complex-branching-lane-S-gate-done-passes-a-reviewed-change-and-fails-on-a-commit-after-it-an-unclean-review-lines-after-the-verdict-and-edited-sections
+verify: packages/cli/test/lane-s.test.ts#risk:complex-branching-lane-S-gate-done-passes-a-reviewed-change-and-fails-on-a-commit-after-it-an-unclean-review-lines-after-the-verdict-a-failed-suite-and-edited-sections
 
 Consumes: `SECTION_EMPTY` and `laneSHash` (Task 1), `handMade` and `ownRecordsOnly` (Task 2, `gate/done.ts`),
-`reviewMissing`, `reviewUnconverged` and `workOf` (`gate/work.ts`), `commitTrailer` (`gate/done.ts`), and the
-`afterVerify` fact `loadFromFs` already loads (ledger Ruling 8). Produces: `DONE_S_RULES`, the host fact
-`reviewFacts`, and `gitReviewFact`. Task 7 adds `DONE_S_RULES` to the rule-id scan in `skills.test.ts`.
+`reviewMissing`, `reviewUnconverged`, `suiteNotPassed` and `workOf` (`gate/work.ts`), `commitTrailer`
+(`gate/done.ts`), and the private `reviewStartOf` and `gitAfterVerify` of `packages/cli/src/load/fs.ts`. Produces:
+`DONE_S_RULES`, the host fact `reviewFacts`, `gitReviewFact` and `gitAfterReview`. Task 7 adds `DONE_S_RULES` to the
+rule-id scan in `skills.test.ts`.
 
-Test first, appended to `packages/cli/test/lane-s.test.ts`:
-- `it('risk:complex-branching lane S gate done passes a reviewed change and fails on a commit after it an unclean review lines after the verdict and edited sections', ..., 120_000)`.
-  `REVIEW = '## Round 1\n\nNo findings\n\nverdict: converged\n'`, `RP = 'accord/tickets/S-1/review.md'`, and
+Test first, appended to `packages/cli/test/lane-s.test.ts`; add `REPORT` and `junit` to its import from
+`../../../test/helpers/lane.js`:
+- `it('risk:complex-branching lane S gate done passes a reviewed change and fails on a commit after it an unclean review lines after the verdict a failed suite and edited sections', ..., 120_000)`.
+  `REVIEW = '## Round 1\n\nNo findings\n\nverdict: converged\n'`, `RP = 'accord/tickets/S-1/review.md'`,
+  `PASSED = junit({ 'a#b': 'passed' })`, and
   `fails = async (rule) => { const r = await run(['gate', 'done', 'S-1', '--json'], repo); expect(r.code).toBe(1); expect(JSON.parse(r.out).findings.map((f) => f.rule)).toContain(rule); }`.
   `hard = () => gitRun(repo, 'reset', '-q', '--hard', 'HEAD~1')`. Steps, in order:
-  1. `repo = repoWith({ 'accord/config.yml': CONFIG, 'accord/tickets/S-1.md': laneTicket('S-1', { lane: 'S', body: LANE_S_BODY }), 'src/a.ts': 'a\n' })`;
+  1. `repo = repoWith({ 'accord/config.yml': CONFIG, 'accord/tickets/S-1.md': laneTicket('S-1', { lane: 'S', body: LANE_S_BODY }), 'src/a.ts': 'a\n', [REPORT]: PASSED })`;
      `commitMsg(repo, 'base')`; `gitRun(repo, 'switch', '-q', '-c', 't/S-1')`.
   2. `gate ready S-1` exits 0; `commitMsg(repo, 'ready: S-1')`. Write `src/a.ts` as `'b\n'`; `commitMsg(repo, 'change')`.
   3. Write `RP` as `REVIEW`; `commitMsg(repo, 'review: S-1')`. `gate done S-1` exits 0.
@@ -305,16 +312,21 @@ Test first, appended to `packages/cli/test/lane-s.test.ts`:
      `hard()`.
   5. A code commit after it: write `src/b.ts`, `commitMsg(repo, 'after review')`;
      `fails('gate.commit-after-review')`; `hard()`.
-  6. Dirty: write `RP` as `REVIEW.replace('No findings', 'No findings here')` without committing;
+  6. A code commit after it on a detached HEAD, where the claim branch `t/S-1` still ends at the review commit:
+     `gitRun(repo, 'switch', '-q', '--detach')`, write `src/d.ts` as `'d\n'`, `commitMsg(repo, 'after review detached')`;
+     `fails('gate.commit-after-review')`; `gitRun(repo, 'switch', '-q', 't/S-1')`.
+  7. A failed suite: write `REPORT` as `junit({ 'a#b': 'failed' })` without committing;
+     `fails('gate.suite-not-passed')`; write `REPORT` as `PASSED` again.
+  8. Dirty: write `RP` as `REVIEW.replace('No findings', 'No findings here')` without committing;
      `fails('gate.review-uncommitted')`; write `RP` as `REVIEW` again.
-  7. Uncommitted: `gitRun(repo, 'reset', '-q', '--soft', 'HEAD~1')`; `fails('gate.review-uncommitted')`; then
+  9. Uncommitted: `gitRun(repo, 'reset', '-q', '--soft', 'HEAD~1')`; `fails('gate.review-uncommitted')`; then
      `commitMsg(repo, 'review: S-1')`.
-  8. Lines after the verdict: write `RP` as `REVIEW + 'x\n'`, `commitMsg`; `fails('gate.review-trailing')`; `hard()`.
-  9. Edited after Ready: change the Understood line of `accord/tickets/S-1.md` to
-     `The export button writes a tsv file.`, `commitMsg`; `fails('gate.sections-changed')`; `hard()`.
-  10. Code in the review's own commit: `hard()` (back to `change`), write `RP` as `REVIEW` and `src/c.ts` as `'c\n'`,
+  10. Lines after the verdict: write `RP` as `REVIEW + 'x\n'`, `commitMsg`; `fails('gate.review-trailing')`; `hard()`.
+  11. Edited after Ready: change the Understood line of `accord/tickets/S-1.md` to
+      `The export button writes a tsv file.`, `commitMsg`; `fails('gate.sections-changed')`; `hard()`.
+  12. Code in the review's own commit: `hard()` (back to `change`), write `RP` as `REVIEW` and `src/c.ts` as `'c\n'`,
       `commitMsg(repo, 'review: S-1')`; `fails('gate.review-commit-code')`; `hard()`.
-  11. D-12: write `RP` as `'## Round 5\n\nMust 1: x — src/a.ts:1 — open\n\nverdict: accepted-by-owner "ship it"\n'`,
+  13. D-12: write `RP` as `'## Round 5\n\nMust 1: x — src/a.ts:1 — open\n\nverdict: accepted-by-owner "ship it"\n'`,
       `commitMsg(repo, 'review: S-1')`; `gate done S-1` exits 0.
 
 Interface:
@@ -342,58 +354,94 @@ Interface:
       `the host could not list the commits after review.md, so a change after review cannot be ruled out`. Otherwise
       one finding per `handMade` commit:
       `commit <sha> after the review changes <its files outside the records, space-separated, or "what git could not show">; a change after review needs another round and a new review.md`.
-- `gate/rules.ts`: hoist the existing inline rows of `gate.review-missing`, `gate.review-unconverged` and
-  `gate.commit-trailer` into consts used by `DONE_RULES` at the same positions, so `DONE_RULES` is unchanged. Add
-  `export const DONE_S_RULES: readonly GateRule[] = [TICKET_UNKNOWN, SECTION_EMPTY, gate.ready-missing, gate.sections-changed, REVIEW_MISSING, REVIEW_UNCONVERGED, gate.review-trailing, gate.review-uncommitted, gate.review-commit-code, gate.commit-after-review, COMMIT_TRAILER]`,
-  each new row `level: 'error'` on both profiles with the check named above.
+- `gate/rules.ts`: hoist the existing inline rows of `gate.review-missing`, `gate.review-unconverged`,
+  `gate.suite-not-passed` and `gate.commit-trailer` into consts (`REVIEW_MISSING`, `REVIEW_UNCONVERGED`,
+  `SUITE_NOT_PASSED`, `COMMIT_TRAILER`) used by `DONE_RULES` at the same positions, so `DONE_RULES` is unchanged. Add
+  `export const DONE_S_RULES: readonly GateRule[] = [TICKET_UNKNOWN, SECTION_EMPTY, gate.ready-missing, gate.sections-changed, REVIEW_MISSING, REVIEW_UNCONVERGED, gate.review-trailing, gate.review-uncommitted, gate.review-commit-code, gate.commit-after-review, SUITE_NOT_PASSED, COMMIT_TRAILER]`,
+  each new row `level: 'error'` on both profiles with the check named above. `SUITE_NOT_PASSED` is the lane M suite
+  rule, reading the report `tests.report` names, which CI's full-suite step writes (ledger Ruling of plan round 1.6);
+  the lane S session still runs only the affected tests (Task 7).
 - `gate/index.ts` `gateDone`: runs `DONE_S_RULES` when the ticket exists with `lane: S`, else `DONE_RULES` as today.
-- `cli/src/load/fs.ts`: `export function gitReviewFact(root: string, id: string): { clean: boolean; files?: string[] }`,
-  with `p = ':(literal)accord/tickets/' + id + '/review.md'` and options
-  `{ cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 }`:
-  1. `dirty = execFileSync('git', ['status', '--porcelain', '-z', '--untracked-files=all', '--', p], o) !== ''`.
-  2. `sha = execFileSync('git', ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '-1', '--format=%H', 'HEAD', '--', p], o).trim()`.
-     Empty → `{ clean: false }`.
-  3. `files` = `execFileSync('git', ['-c', 'log.showSignature=false', 'show', '--no-show-signature', '-z', '--format=', '--name-only', '--no-renames', sha], o)`
-     split on `\0`, each token with one leading `\n` removed, empty tokens dropped.
-  4. Return `{ clean: !dirty, files }`. Any spawn that throws returns `{ clean: false }`: the gate then fails closed.
+  The ticket-scoped lint findings join either table as they do today (`gate/index.ts:69-74`).
+- `cli/src/load/fs.ts`:
+  - `export function gitReviewFact(root: string, id: string): { clean: boolean; files?: string[] }`,
+    with `p = ':(literal)accord/tickets/' + id + '/review.md'` and options
+    `{ cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 }`:
+    1. `dirty = execFileSync('git', ['status', '--porcelain', '-z', '--untracked-files=all', '--', p], o) !== ''`.
+    2. `sha = execFileSync('git', ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '-1', '--format=%H', 'HEAD', '--', p], o).trim()`.
+       Empty → `{ clean: false }`.
+    3. `files` = `execFileSync('git', ['-c', 'log.showSignature=false', 'show', '--no-show-signature', '-z', '--format=', '--name-only', '--no-renames', sha], o)`
+       split on `\0`, each token with one leading `\n` removed, empty tokens dropped.
+    4. Return `{ clean: !dirty, files }`. Any spawn that throws returns `{ clean: false }`: the gate then fails closed.
+  - `export function gitAfterReview(root: string, id: string): AfterVerify | undefined`: the commits after review.md
+    on HEAD, the commit being gated, whatever branch, claim ref or fork it came from.
+    `commit = reviewStartOf(root, id, ['HEAD'])`; undefined → undefined. Otherwise
+    `r = gitAfterVerify(root, { [id]: { commit, tips: ['HEAD'] } })` and return `Object.hasOwn(r, id) ? r[id] : undefined`.
+    Undefined makes `gate.commit-after-review` fail closed.
 - `cli/src/commands/gate.ts`: when `which === 'done'` and the ticket exists (`Object.hasOwn`) with `lane: S`, the
-  snapshot passed to `gateDone` also carries `reviewFacts: { [id]: gitReviewFact(ctx.root, id) }`, on top of
-  `withCommits`.
+  snapshot passed to `gateDone` is `withCommits` plus `reviewFacts: { [id]: gitReviewFact(ctx.root, id) }` and an
+  `afterVerify` whose entry for `id` is `gitAfterReview(ctx.root, id)`: build it as
+  `Object.fromEntries(Object.entries(ctx.snapshot.afterVerify ?? {}).filter(([k]) => k !== id))`, then set `[id]` only
+  when `gitAfterReview` returned a value. The entry the status loader read from the claim ref never reaches the lane S
+  gate.
 
 Must not change: `DONE_RULES` and `gateDone` for every lane M and 0.1.0 ticket (`lane-done.test.ts`, `gate.test.ts`);
-`gateReady`; the `ac_hash` and `plan_hash` writes in `gate.ts`; `afterVerify` loading.
+`gateReady`; the `ac_hash` and `plan_hash` writes in `gate.ts`; `afterVerify` loading in `loadParts`, and
+`reviewStartOf` and `gitAfterVerify` themselves (`after-verify.test.ts`).
 
-## Task 5: Lint stops a review left from lane S, and lane S keeps a repository out of the test policy
-covers: D-09
+## Task 5: Lint stops a review left from lane S and a lane S ticket holding lane M records, and lane S keeps a repository out of the test policy
+covers: D-03, D-09
 files: packages/core/src/lint/ticket.ts, packages/core/src/lint/tests.ts, packages/core/src/lint/rules.ts, packages/core/test/lane-s.test.ts (new)
-verify: packages/core/test/lane-s.test.ts#risk:complex-branching-a-lane-M-ticket-holding-a-review-left-from-lane-S-and-no-plan-is-a-lint-error, packages/core/test/lane-s.test.ts#risk:complex-branching-a-lane-S-ticket-alone-does-not-turn-on-the-test-policy
+verify: packages/core/test/lane-s.test.ts#risk:complex-branching-a-lane-M-ticket-holding-a-review-left-from-lane-S-and-no-plan-is-a-lint-error, packages/core/test/lane-s.test.ts#risk:security-a-lane-S-ticket-holding-an-approval-scenarios-or-a-plan-fails-lint-and-both-gates, packages/core/test/lane-s.test.ts#risk:complex-branching-a-lane-S-ticket-alone-does-not-turn-on-the-test-policy
 
-Consumes: `snapshot.work` (loaded only under lane tickets), `untracedTests`. Produces: the rule
-`lint.review-without-plan` (ledger Ruling 12) and the test-policy rule of ledger Ruling 9.
+Consumes: `snapshot.work` (loaded under every ticket with `lane:`), `t.scenarios`, `untracedTests`, and the gates'
+ticket-scoped lint findings (`gate/index.ts:69-74`). Produces: the rules `lint.review-without-plan` (ledger Ruling 12)
+and `lint.lane-s-lane-m-records`, and the test-policy rule of ledger Ruling 9.
 
-Tests first, appended to `packages/core/test/lane-s.test.ts`; add `lintSnapshot` from `../src/lint/index.js` and
-`PLAN`, `REPORT`, `junit` from `../../../test/helpers/lane.js`. `rules = (s) => lintSnapshot(s).findings.map((f) => [f.rule, f.file, f.level])`.
+Tests first, appended to `packages/core/test/lane-s.test.ts`; add `lintSnapshot` from `../src/lint/index.js`,
+`gateReady` and `gateDone` from `../src/gate/index.js`, and `LANE_BODY`, `PLAN`, `REPORT`, `junit` from
+`../../../test/helpers/lane.js`. `rules = (s) => lintSnapshot(s).findings.map((f) => [f.rule, f.file, f.level])`.
 - `it('risk:complex-branching a lane M ticket holding a review left from lane S and no plan is a lint error')`:
   - `laneTicket('T-1')` with `accord/tickets/T-1/review.md` `'verdict: converged\n'` and no plan: `rules` contains
     `['lint.review-without-plan', 'accord/tickets/T-1/review.md', 'error']`.
   - Adding `accord/tickets/T-1/plan.md` as `PLAN`: no `lint.review-without-plan` finding.
   - A lane S ticket `S-1` with that review and no plan, and a lane L ticket with a plan and a review: no such finding.
+- `it('risk:security a lane S ticket holding an approval scenarios or a plan fails lint and both gates')`
+  (an approved lane M ticket switched in place to `lane: S` must not skip approval, plan, verify and the suite):
+  - `A = 'approved_hash: "fnv1a64:0123456789abcdef"'`; `s1 = snap({ 'accord/tickets/S-1.md': S(LANE_S_BODY, [A]) })`.
+    `rules(s1)` contains `['lint.lane-s-lane-m-records', 'accord/tickets/S-1.md', 'error']`, its reason contains
+    `approved_hash`; `gateReady(s1, 'S-1')` and `gateDone(s1, 'S-1')` each have verdict `fail` and a finding with rule
+    `lint.lane-s-lane-m-records`.
+  - `S(LANE_S_BODY + '\n' + LANE_BODY)` (scenarios tagged `@ac-1` and `@ac-2`): the finding, its reason containing
+    `@ac-n scenarios`.
+  - `S()` with `accord/tickets/S-1/plan.md` as `PLAN`: the finding, its reason containing `plan.md`.
+  - `S()` alone, and `laneTicket('T-1', { frontmatter: [A] })` (lane M, approved): no such finding.
 - `it('risk:complex-branching a lane S ticket alone does not turn on the test policy')`:
   - Files: `CONFIG`, a lane S ticket `S-1`, and `[REPORT]: junit({ 'a#untraced': 'passed' })`. No finding has rule
     `lint.test-untraced`.
   - Adding `laneTicket('T-1')` (lane M): exactly one `lint.test-untraced` finding.
 
 Interface:
-- `lint/ticket.ts`: `export const reviewWithoutPlan: Rule['check']`: for each typed ticket whose `lane` is `M`, `L` or
-  `P`, with `workOf`-style access `snapshot.work?.[t.id]` (read with `Object.hasOwn`) having `review` and no `plan`:
-  `{ file: review.file, reason: 'review.md is left from lane S; a lane M ticket is reviewed after its plan, so remove it with git rm' }`.
+- `lint/ticket.ts`:
+  - `export const reviewWithoutPlan: Rule['check']`: for each typed ticket whose `lane` is `M`, `L` or `P`, with
+    `workOf`-style access `snapshot.work?.[t.id]` (read with `Object.hasOwn`) having `review` and no `plan`:
+    `{ file: review.file, reason: 'review.md is left from lane S; a lane M ticket is reviewed after its plan, so remove it with git rm' }`.
+  - `export const laneSLaneMRecords: Rule['check']`: for each typed ticket whose `lane` is `S`, the list, in this
+    order, of `approved_hash` when `frontmatter.approved_hash` is defined, `@ac-n scenarios` when some
+    `t.scenarios` entry has an `acTag`, and `plan.md` when `snapshot.work?.[t.id]` (read with `Object.hasOwn`) has a
+    `plan`. A non-empty list gives one draft:
+    `{ file: t.file, reason: 'a lane S ticket holds ' + list.join(' and ') + ', which only a lane M ticket has; an approved ticket never moves to lane S, and a ticket lifted from lane S changes its lane to M' }`.
+    The gates need no row of their own: `gateReady`, `gatePlan` and `gateDone` already add every ticket-scoped lint
+    error, so this rule fails lint, Ready and Done alike.
 - `lint/rules.ts`: `{ id: 'lint.review-without-plan', level: 'error', profiles: ['build', 'maintain'], check: reviewWithoutPlan }`
-  after `lint.heading-missing`.
+  and `{ id: 'lint.lane-s-lane-m-records', level: 'error', profiles: ['build', 'maintain'], check: laneSLaneMRecords }`,
+  in that order, after `lint.heading-missing`.
 - `lint/tests.ts` `testUntraced`: the repository opts in only when some ticket's `lane` is defined and not `S`
   (ledger Ruling 9). Update the comment above it to say so.
 
 Must not change: every other lint finding; `untracedTests`; `gate.test-untraced` at Done for lane M tickets; a lane
-M ticket with both a plan and a review (`lane-done.test.ts`, `lane-status.test.ts`, `work.test.ts`).
+M ticket with both a plan and a review (`lane-done.test.ts`, `lane-status.test.ts`, `work.test.ts`); every lane M,
+L, P and 0.1.0 ticket's lint result.
 
 ## Task 6: accord approve refuses a lane S ticket, and its review package starts at the fork point
 covers: D-04, D-11
@@ -431,12 +479,13 @@ Must not change: `approve` on lane M, L and P; `review-package` with `--base`, w
 
 ## Task 7: The accord skill lifts S to M by four conditions and works every lane S change from its own ticket
 covers: @ac-1, @ac-4, D-02, D-05, D-06, D-07, D-08, D-09, D-11, D-12
-files: packages/core/skills/accord/SKILL.md, packages/core/skills/accord/lane-s.md (new), packages/core/skills/accord/ids.md, packages/core/agents/reviewer.md, packages/core/src/generated/skills.ts, packages/core/src/generated/agents.ts, .claude/skills/accord/SKILL.md, .claude/skills/accord/lane-s.md (new), .claude/skills/accord/ids.md, .claude/skills/accord-debug/ids.md, .claude/skills/accord-verify/ids.md, .claude/agents/accord-reviewer.md, packages/core/test/skills.test.ts, packages/core/test/stage-skills.test.ts
+files: packages/core/skills/accord/SKILL.md, packages/core/skills/accord/lane-s.md (new), packages/core/skills/accord/ids.md, packages/core/skills/accord/worktree.md, packages/core/agents/reviewer.md, packages/core/src/generated/skills.ts, packages/core/src/generated/agents.ts, .claude/skills/accord/SKILL.md, .claude/skills/accord/lane-s.md (new), .claude/skills/accord/ids.md, .claude/skills/accord-debug/ids.md, .claude/skills/accord-verify/ids.md, .claude/skills/accord/worktree.md, .claude/skills/accord-debug/worktree.md, .claude/skills/accord-verify/worktree.md, .claude/agents/accord-reviewer.md, packages/core/test/skills.test.ts, packages/core/test/stage-skills.test.ts
 verify: packages/core/test/stage-skills.test.ts#ac-1-the-accord-skill-lifts-lane-S-to-M-only-by-the-four-conditions-left (@ac-1), packages/core/test/stage-skills.test.ts#ac-4-every-lane-S-change-is-worked-from-its-own-lane-S-ticket-in-its-worktree (@ac-4)
 
 Consumes: the commands of Tasks 1, 4 and 6 (`new ticket --lane S`, `gate ready`, `gate done`, `review-package`,
-`worktree open`), which `skill-commands.test.ts` checks exist. Produces: the lane S procedure every runtime receives.
-`scripts/benchmark.mjs` is not changed: it counts lane S work by ticket id as it does today (D-06).
+`worktree open`), which `skill-commands.test.ts` checks exist. Produces: the lane S procedure every runtime receives,
+whether `accord new ticket --worktree` prints `enter:` or `stop:`. `scripts/benchmark.mjs` is not changed: it counts
+lane S work by ticket id as it does today (D-06).
 
 Tests first, appended at the end of `packages/core/test/stage-skills.test.ts`, with
 `flat = (p) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ')`:
@@ -454,12 +503,17 @@ Tests first, appended at the end of `packages/core/test/stage-skills.test.ts`, w
     `` `accord worktree open <id>` ``, `` `## Understood` ``, `` `## Done when` ``, `` `accord gate ready <id>` ``,
     `Make no other change before that`, ``Never run `accord approve` ``, `you make the change yourself`,
     `` `tests.affected` ``, `over the changed files`, `first write a test that reproduces it`,
-    ``fresh `accord-reviewer`, lens `both` ``, `no Must open`, `There is no final reviewer`, `At most five rounds`,
-    `stop and report the open findings to the owner`, `` `verdict: converged` ``, `` `verdict: accepted-by-owner ``,
-    `pull request`, `no intent interview, approval, approach, plan, executor or verify`.
-  - In `ls`, `` `accord gate ready <id>` `` comes before `**Change.**`, and `reproduces it` before `then fix it`.
+    ``fresh `accord-reviewer`, lens `both` ``, `` `accord/tickets/<id>/ledger.md` when it exists ``,
+    `` `## Round <n>` ``, `commit `review.md` alone at once`, `no Must open`, `a fix no reviewer has seen never ships`,
+    `There is no final reviewer`, `At most five rounds`, `stop and report the open findings to the owner`,
+    `the next round is one after the last`, `` `verdict: converged` ``, `` `verdict: accepted-by-owner ``,
+    `` `git -C "<path>" commit ``, `pull request`, `no intent interview, approval, approach, plan, executor or verify`.
+  - In `ls`, `` `accord gate ready <id>` `` comes before `**Change.**`, `reproduces it` before `then fix it`, and
+    `` `## Round <n>` `` before `**Verdict.**`.
+  - `flat('.claude/skills/accord/worktree.md')` contains
+    ``except the people entry below and a lane S ticket's `## Understood` and `## Done when` lines``.
   - `flat` of `.claude/agents/accord-reviewer.md` (from `agentTargets(config)`) contains
-    `` `## Understood` and `## Done when` ``.
+    `` `## Understood` and `## Done when` `` and `a ledger only once a Ruling is written`, and not `has no ticket, package, or ledger`.
 - Existing tests to update:
   - `stage-skills.test.ts` `REQUIRED.accord`: remove `'lens `both`'` and `'git add -N'` (the lane S review moves to
     `lane-s.md` and reads committed work); add `'./lane-s.md'` and `'--lane S --worktree'`. Every other phrase stays.
@@ -487,6 +541,11 @@ Text, `packages/core/skills/accord/SKILL.md`:
 Text, `packages/core/skills/accord/ids.md`, `## Assigning`: "adding `--worktree` when the lane is M" becomes "adding
 `--worktree` when the lane is M or S". Nothing else in the file changes in this task.
 
+Text, `packages/core/skills/accord/worktree.md`, the `stop:` bullet: "never edit a file there except the people entry
+below, and never start the next stage from this session." becomes "never edit a file there except the people entry
+below and a lane S ticket's `## Understood` and `## Done when` lines, and never start the next stage from this
+session." Nothing else in the file changes.
+
 Text, `packages/core/skills/accord/lane-s.md` (new), exactly, each code span on one line:
 ```
 ---
@@ -500,34 +559,43 @@ no intent interview, approval, approach, plan, executor or verify: you make the 
 
 ## Start
 
-- New request: the accord skill ran `accord new ticket <id> --lane S --worktree` and followed `./worktree.md`. Go on
-  at step 1 in that worktree.
+- New request: the accord skill ran `accord new ticket <id> --lane S --worktree`. Before you follow the `enter:` or
+  `stop:` line it printed as `./worktree.md` says, write the two lines of step 1 into
+  `<path>/accord/tickets/<id>.md`, asking step 1's question first when it needs one, then run
+  `git -C "<path>" commit -m "ticket: <id> understood" -- accord/tickets/<id>.md` and
+  `git -C "<path>" push -u origin <branch>`. After `enter:`, go on at step 1 in that worktree; after `stop:`, the
+  session opened there finds the two lines in the ticket.
 - Pick up: run `accord worktree open <id>` and follow `./worktree.md`.
 - Continue: `accord anchor` prints `Lane: S` and the stage. Resume at step 1 for `intent`, step 2 for `build`, step 4
   for `review`, and step 6 for `done`.
 
 ## Steps
 
-1. **Understood.** Write one line under `## Understood` in `accord/tickets/<id>.md`: the change as you understood
-   it. Write one line under `## Done when`: the observable result that ends the work. When the request carried
-   `Understood: …` and `Done when: …`, use those lines. Go on without waiting only when the request has a concrete
-   anchor (file, symbol, error message, or expected behaviour) and one plausible reading; otherwise ask exactly one
-   question, as `./ask.md` says, and wait. Run `accord gate ready <id>` and fix what it prints until it exits 0, then
-   commit the ticket. Make no other change before that. Never run `accord approve`.
+1. **Understood.** When `## Understood` and `## Done when` in `accord/tickets/<id>.md` each hold a line, keep them.
+   Otherwise write one line under `## Understood`: the change as you understood it, and one line under
+   `## Done when`: the observable result that ends the work. When the request carried `Understood: …` and
+   `Done when: …`, use those lines. Go on without waiting only when the request has a concrete anchor (file, symbol,
+   error message, or expected behaviour) and one plausible reading; otherwise ask exactly one question, as
+   `./ask.md` says, and wait. Run `accord gate ready <id>` and fix what it prints until it exits 0, then commit the
+   ticket. Make no other change before that. Never run `accord approve`.
 2. **Change.** Make the change in this worktree. For a bug, first write a test that reproduces it and see it fail,
    then fix it. A test you add carries `risk:<kind>` in its name.
 3. **Tests.** Run the `tests.affected` command from `accord/config.yml` over the changed files, or `tests.full` when
    `tests.affected` is not configured or finds no test file. Fix what fails, then commit the change.
-4. **Review rounds.** Each round: run `accord review-package <id>` into a file outside the working tree and dispatch
-   one fresh `accord-reviewer`, lens `both`, with the paths of the ticket file and that file. Fix every Must and
-   Should it reports yourself, run step 3 again, commit, and start the next round with a new reviewer. Stop when a
-   round leaves no Must open. There is no final reviewer and no model tier-up. At most five rounds: when the fifth
-   still leaves a Must open, stop and report the open findings to the owner; never report the work finished.
-5. **Record.** Write `accord/tickets/<id>/review.md`: one `## Round <n>` section per round, each finding with its
-   severity, what it is, where it is, and `fixed in <sha>` or `open`, or `No findings`. The last line is
-   `verdict: converged` when no Must is open, or `verdict: accepted-by-owner "<the owner's words>"` when the owner
-   accepts the open findings at the cap. Nothing follows that line. Commit `review.md` alone: a change after it
-   needs another round and a new record.
+4. **Review rounds.** Round <n> runs `accord review-package <id>` into a file outside the working tree and
+   dispatches one fresh `accord-reviewer`, lens `both`, with the paths of the ticket file, that file, and
+   `accord/tickets/<id>/ledger.md` when it exists. Append what it reports to `accord/tickets/<id>/review.md` under
+   `## Round <n>`, each finding with its severity, what it is and where it is, or `No findings`, and commit
+   `review.md` alone at once. When the round reports a Must, fix every Must and Should yourself, run step 3 again,
+   commit, and start the next round with a new reviewer. When it reports no Must open, either go to step 5, leaving
+   its Shoulds open in the record, or fix them the same way and run another round: a fix no reviewer has seen never
+   ships. There is no final reviewer and no model tier-up. At most five rounds, counted from the `## Round <n>`
+   sections of `review.md`: when the fifth still reports a Must, stop and report the open findings to the owner;
+   never report the work finished. Resumed at `review`, the next round is one after the last `## Round <n>` in
+   `review.md`; when that round reported a Must whose fix is not yet committed, make and commit the fix first.
+5. **Verdict.** Append the last line of `review.md`: `verdict: converged` when the last round reported no Must
+   open, or `verdict: accepted-by-owner "<the owner's words>"` when the owner accepts the open findings at the cap.
+   Nothing follows that line. Commit `review.md` alone: a change after it needs another round and a new verdict.
 6. **Pull request.** Run `accord gate done <id>` and fix what it prints. Push the branch with
    `git push -u origin <branch>` and open a pull request with `gh pr create --fill` when `gh` is available, otherwise
    ask the owner to open it. It waits for the owner's merge.
@@ -553,42 +621,53 @@ ticket, branch and worktree:
   `Ruling: <what> — <why> — <cost if wrong>`.
 ```
 (The lift step 1 names the last two sections in words, so no paragraph pairs a heading `PROMOTED` lists with a
-command.)
+command. Step 4 commits each round's record before its fixes, so a fix made after the last round is a commit after
+`review.md`, which `accord gate done` and the stage already catch.)
 
 Text, `packages/core/agents/reviewer.md` line 11: the sentence "A lane S change has no ticket, package, or ledger: one
-file holds the request's two lines and the diff." becomes "A lane S ticket has no plan, ledger or acceptance
-criteria: its `## Understood` and `## Done when` are what the change must meet, and lens `intent` quotes them."
+file holds the request's two lines and the diff." becomes "A lane S ticket has no plan or acceptance criteria, and a
+ledger only once a Ruling is written, its path then given to you: its `## Understood` and `## Done when` are what the
+change must meet, and lens `intent` quotes them."
 
 Then re-render as the preamble says and run `npx vitest run packages/core/test/stage-skills.test.ts packages/core/test/skills.test.ts packages/core/test/agents.test.ts packages/cli/test/skill-commands.test.ts packages/cli/test/skills-sync.test.ts`.
 
 Must not change: every phrase `REQUIRED.accord` keeps and every other `stage-skills.test.ts` assertion on
 `.claude/skills/accord/SKILL.md` (the M bullet with two `--lane M --worktree`, Continue, Pick up, the named-ticket
-paragraph, `` `done` → `accord-verify` at step 6 ``); `accord/SKILL.md` never names `accord drop`
-(`stage-skills.test.ts:672`) or `accord next` (`skills-sync.test.ts:598`); the rest of `ids.md` and `reviewer.md`.
+paragraph, `` `done` → `accord-verify` at step 6 ``); every phrase `stage-skills.test.ts` asserts on `worktree.md`
+(`except the people entry below`, `Never change directory into the worktree`, `editing nothing`, the `enter:` bullet);
+`accord/SKILL.md` never names `accord drop` (`stage-skills.test.ts:672`) or `accord next` (`skills-sync.test.ts:598`);
+the rest of `ids.md`, `worktree.md` and `reviewer.md`.
 
 ## Task 8: A queued lane M ticket drops to lane S only at intent, on the owner's yes, and lint refuses it after approval
 covers: @ac-5, D-03, D-10, D-11
-files: packages/core/src/lint/dropped.ts, packages/core/src/lint/rules.ts, packages/core/skills/accord/ids.md, packages/core/skills/intent/SKILL.md, packages/core/skills/plan/SKILL.md, packages/core/skills/shared/failure.md, packages/core/src/generated/skills.ts, .claude/skills/accord/ids.md, .claude/skills/accord-debug/ids.md, .claude/skills/accord-verify/ids.md, .claude/skills/accord-intent/ids.md (new), .claude/skills/accord-intent/SKILL.md, .claude/skills/accord-plan/SKILL.md, .claude/skills/accord/failure.md, .claude/skills/accord-debug/failure.md, .claude/skills/accord-verify/failure.md, packages/core/test/lane-s.test.ts (new)
+files: packages/core/src/lint/dropped.ts, packages/core/src/lint/rules.ts, packages/core/skills/accord/ids.md, packages/core/skills/intent/SKILL.md, packages/core/skills/plan/SKILL.md, packages/core/skills/shared/failure.md, packages/core/agents/planner.md, packages/core/src/generated/skills.ts, packages/core/src/generated/agents.ts, .claude/skills/accord/ids.md, .claude/skills/accord-debug/ids.md, .claude/skills/accord-verify/ids.md, .claude/skills/accord-intent/ids.md (new), .claude/skills/accord-intent/SKILL.md, .claude/skills/accord-plan/SKILL.md, .claude/skills/accord/failure.md, .claude/skills/accord-debug/failure.md, .claude/skills/accord-verify/failure.md, .claude/agents/accord-planner.md, packages/core/test/lane-s.test.ts (new)
 verify: packages/core/test/lane-s.test.ts#ac-5-a-queued-lane-M-ticket-drops-to-lane-S-only-at-intent-on-the-owners-yes (@ac-5)
 
 Consumes: `accord drop` (ST-LN-34, `packages/cli/src/commands/drop.ts`), whose own lint check then refuses the drop
-of an approved ticket to lane S; Task 7's S bullet and `lane-s.md`. Produces: the rule `lint.dropped-approved`, the
-`## Moving to lane S` section of `ids.md`, the intent rule, the lifted plan baseline (D-11) and the lane S line of
-`failure.md`.
+of an approved ticket to lane S; Task 7's S bullet and `lane-s.md`, whose lift step writes the fork point Ruling.
+Produces: the rule `lint.dropped-approved`, the `## Moving to lane S` section of `ids.md`, the intent rule, the lifted
+plan baseline (D-11) in the plan skill and the planner, and the lane S line of `failure.md`.
 
-Test first, appended to `packages/core/test/lane-s.test.ts`; add `skillTargets` from `../src/index.js` and
-`LANE_BODY` from `../../../test/helpers/lane.js`.
-`files = skillTargets({ accord: '0.1.0', profile: 'build', tracker: { adapter: 'none' }, design: { tokens: '' }, roles: ['ba', 'dev'], runtimes: ['claude'] })`,
-`flat(p)` as in Task 7.
+Test first, appended to `packages/core/test/lane-s.test.ts`; add `skillTargets` and `agentTargets` from
+`../src/index.js` and `LANE_BODY` from `../../../test/helpers/lane.js` when Task 5 has not added it.
+`cfg = { accord: '0.1.0', profile: 'build', tracker: { adapter: 'none' }, design: { tokens: '' }, roles: ['ba', 'dev'], runtimes: ['claude'] }`,
+`files = skillTargets(cfg)`, `flat(p)` as in Task 7.
 - `it('ac-5 a queued lane M ticket drops to lane S only at intent on the owners yes')`:
   - `intent = flat('.claude/skills/accord-intent/SKILL.md')`; `rule = intent.slice(intent.indexOf('**Lane S.**'))`
     is non-empty and starts after `intent.indexOf('## Rules')`. `rule` contains `fits lane S`,
-    `` `accord status --json` ``, `` `depends_on` ``, `propose dropping it to lane S`, `only on the owner's yes`,
-    `` `## Moving to lane S` in `./ids.md` `` and `From step 9 on, a lane never drops`.
+    `` `accord status --json` ``, `` `depends_on` ``, `` `git status --porcelain --untracked-files=all` ``,
+    `propose dropping it to lane S`, `only on the owner's yes`, `` `## Moving to lane S` in `./ids.md` `` and
+    `From step 9 on, a lane never drops`.
   - `ids = flat('.claude/skills/accord-intent/ids.md')` equals `flat('.claude/skills/accord/ids.md')`;
-    `move = ids.slice(ids.indexOf('## Moving to lane S'))` contains `` `accord drop <id> --reason "moved to lane S"` ``,
-    `step 1 of`, `(lane S, moved from <id>)`, `` `accord new ticket --lane S --worktree` `` and `a new id`.
+    `move = ids.slice(ids.indexOf('## Moving to lane S'))` contains
+    `` `git status --porcelain --untracked-files=all` ``, `do not drop`, `commit only those records`,
+    `` `accord drop <id> --reason "moved to lane S"` ``, `step 1 of`, `(lane S, moved from <id>)`,
+    `` `accord new ticket --lane S --worktree` `` and `a new id`, and does not contain `commit every change`.
   - `flat('.claude/skills/accord/SKILL.md')` contains `lane S without asking again` and `--lane S --worktree`.
+  - Plan baseline of a lifted ticket: `flat('.claude/skills/accord-plan/SKILL.md')` contains
+    ``Run `git rev-parse HEAD` (lifted from lane S: the fork point in its ledger Ruling)`` and
+    `` `baseline: <that commit>` ``; `flat` of `.claude/agents/accord-planner.md` from `agentTargets(cfg)` contains
+    `or, for a ticket lifted from lane S, the fork point its ledger Ruling names`.
   - Lint: `T = (fm, reason) => laneTicket('M-1', { frontmatter: ['status: dropped', ...fm], body: LANE_BODY + '\n## Dropped\n' + reason + '\n' })`
     and `A = 'approved_hash: "fnv1a64:0123456789abcdef"'`. `lintSnapshot` of `T([A], 'moved to lane S')` has a finding
     `{ rule: 'lint.dropped-approved', file: 'accord/tickets/M-1.md', level: 'error' }`. `T([], 'moved to lane S')`
@@ -607,10 +686,14 @@ Text, `packages/core/skills/accord/ids.md`: append at the end of the file:
 
 ## Moving to lane S
 
-Only during the intent interview of a lane M ticket, on the owner's yes, as `accord-intent` says. Run step 1 of
-`## Dropping instead of renaming` with the reason `moved to lane S`, that is
-`accord drop <id> --reason "moved to lane S"`; steps 2 to 6 do not apply. Then print one line for the owner to type
-in a new session opened in the main checkout, filled from the interview:
+Only during the intent interview of a lane M ticket, on the owner's yes, as `accord-intent` says. In the ticket's
+worktree, run `git status --porcelain --untracked-files=all`. When it lists a path other than
+`accord/tickets/<id>.md` and paths under `accord/tickets/<id>/`, do not drop: name those paths, say the ticket stays
+lane M, and stop. Otherwise commit only those records, with `git add -- accord/tickets/<id>.md accord/tickets/<id>/`
+and `git commit -m "intent: <id> moved to lane S"` when anything is staged, push with
+`git push -u origin <claim branch>`, and run `accord drop <id> --reason "moved to lane S"`; open its pull request and
+close the session as step 1 of `## Dropping instead of renaming` says, and skip its first sentence and steps 2 to 6.
+Then print one line for the owner to type in a new session opened in the main checkout, filled from the interview:
 `/accord Understood: <one line> Done when: <one line> (lane S, moved from <id>)`. That session takes lane S without
 asking and makes the new ticket, with a new id, by `accord new ticket --lane S --worktree`.
 ```
@@ -619,30 +702,37 @@ Text, `packages/core/skills/intent/SKILL.md`:
 - Frontmatter `loads:` becomes `[shared/ask.md, accord/ids.md]`.
 - Append to `## Rules`:
   "- **Lane S.** Before step 9, when the interview shows the request fits lane S (none of the accord skill's four
-  lift conditions holds), no ticket that `accord status --json` lists names this one in `depends_on`, and
-  `git diff --name-only <origin's default branch>...HEAD` lists only `accord/tickets/<id>.md` and paths under
-  `accord/tickets/<id>/`, propose dropping it to lane S, with the reason. Drop it only on the owner's yes, as
-  `## Moving to lane S` in `./ids.md` says; otherwise say why it stays lane M. From step 9 on, a lane never drops."
-- Size after the edit: about 4700 bytes and 85 lines.
+  lift conditions holds), no ticket that `accord status --json` lists names this one in `depends_on`, and both
+  `git diff --name-only <origin's default branch>...HEAD` and `git status --porcelain --untracked-files=all` list
+  only `accord/tickets/<id>.md` and paths under `accord/tickets/<id>/`, propose dropping it to lane S, with the
+  reason. Drop it only on the owner's yes, as `## Moving to lane S` in `./ids.md` says; otherwise say why it stays
+  lane M. From step 9 on, a lane never drops."
+- Size after the edit: about 4790 bytes and 84 lines, under 5120 and 120.
 
 Text, `packages/core/skills/plan/SKILL.md` (D-11: the plan of a lifted ticket starts at the fork point that
 `lane-s.md`'s lift step writes into the ledger, and `accord anchor` prints that Ruling at plan step 1):
-- Step 2: "Run `git rev-parse HEAD`," becomes "Run `git rev-parse HEAD` (lifted from lane S: its Ruling's fork point),"
-  on the same line, with no rewrap.
+- Opening paragraph: delete the sentence "The owner does not need to read the plan.", so the paragraph ends
+  "You run it in the main session." and its third line is gone. No test names that sentence.
+- Step 2: "Run `git rev-parse HEAD`," becomes "Run `git rev-parse HEAD` (lifted from lane S: the fork point in its
+  ledger Ruling)," on the same line, with no rewrap.
 - Step 2: "`baseline: <git rev-parse HEAD>`" becomes "`baseline: <that commit>`".
-- Measured 5049 bytes before; after these two edits about 5088. When `skills.test.ts` reports more than 5120 bytes,
-  also delete the sentence "The owner does not need to read the plan." from the opening paragraph, which no test
-  names. Step 7 already asks the owner when product code changed since the baseline, which is how the plan asks
-  about the lane S code (D-11).
+- Size: 5049 bytes and 89 lines before; the deletion removes 42 bytes and one line, the parenthesis adds 58 bytes,
+  the baseline span removes 7: 5058 bytes and 88 lines, under 5120 and 120. Step 7 already asks the owner when product
+  code changed since the baseline, which is how the plan asks about the lane S code (D-11).
+
+Text, `packages/core/agents/planner.md` line 18: "- Frontmatter `baseline:` is the commit your caller gives you, the
+output of `git rev-parse HEAD`." becomes "- Frontmatter `baseline:` is the commit your caller gives you: the output of
+`git rev-parse HEAD`, or, for a ticket lifted from lane S, the fork point its ledger Ruling names."
 
 Text, `packages/core/skills/shared/failure.md`: after the first paragraph, a paragraph of its own: "A lane S ticket
 (`accord anchor` prints `Lane: S`) never reaches verify, so a failure in its work is not one: continue it as the
 accord skill's lane S steps say, and the fix gets another review round."
 
-Then re-render as the preamble says and run `npx vitest run packages/core/test/lane-s.test.ts packages/core/test/stage-skills.test.ts packages/core/test/skills.test.ts packages/core/test/lint.test.ts packages/cli/test/skill-commands.test.ts packages/cli/test/drop.test.ts`.
+Then re-render as the preamble says and run `npx vitest run packages/core/test/lane-s.test.ts packages/core/test/stage-skills.test.ts packages/core/test/skills.test.ts packages/core/test/agents.test.ts packages/core/test/lint.test.ts packages/cli/test/skill-commands.test.ts packages/cli/test/skills-sync.test.ts packages/cli/test/drop.test.ts`.
 
 Must not change: steps 1 to 6 of `## Dropping instead of renaming` and every phrase `stage-skills.test.ts` asserts on
 `ids.md` (ac-5 of ST-LN-34, `` `accord new ticket` is refused ``, `open a new session in the main checkout`,
 `adding `--worktree` when the lane is M`); the intent steps and the `9. **The owner's yes.**` step that `yesSteps()`
 reads; every `REQUIRED.plan` and `REQUIRED.intent` phrase; every phrase the `failure.md` test asserts
-(`stage-skills.test.ts:499-512`); `droppedReason` and `dependsDropped`.
+(`stage-skills.test.ts:499-512`); every planner phrase `agents.test.ts` asserts and the `(@ac-` marker wording
+(`skills-sync.test.ts:601`); `droppedReason` and `dependsDropped`.

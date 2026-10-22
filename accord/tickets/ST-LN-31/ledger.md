@@ -40,6 +40,7 @@
 - Ruling: `sectionParts` is a function declaration below `approvedInput` in hash.ts, hoisted, so `approvedInput`'s output and every approved_hash are unchanged — task 1 executor — cost if wrong: none.
 - Ruling: `nextStep` returns the lane S text for any stage of a lane S ticket; nothing calls it for a lane S build, as the row sets `next` only at intent and review — task 2 executor, the plan's `laneSNext(stage as LaneSStage)` — cost if wrong: none.
 - Ruling: the lane S anchor prints `Review base:` only when `progress.base` is set, which never happens for lane S — keeps the lane M code path unchanged — cost if wrong: none.
+- Ruling: an epic with no lane shows `-` in the text EPICS block's lane cell and an empty cell in the panel's epic rows — task 3 executor, following the plan's Interface; the text table marks an empty cell with `-` — cost if wrong: one column to remove.
 
 ## Deferred
 - plan round 1.10 Nice — Understood/Done when can be rewritten after review and `gate ready` rerun unflagged
@@ -53,3 +54,4 @@
 ## Tasks
 - task 1 done 46c5a6864f6c
 - task 2 done 44ea3e0d8d7a
+- task 3 done 12abb37ed409

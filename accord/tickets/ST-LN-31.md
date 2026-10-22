@@ -56,7 +56,7 @@ Feature: ST-LN-31
     And "accord gate ready <id>" passes once both sections are filled, with no "accord approve" needed
     And while a section is empty, "accord gate ready <id>" fails naming each empty section, where a section holding only HTML comments is empty
 
-  @ac-3
+  @ac-3 @test:packages/cli/test/lane-s.test.ts#ac-3-the-dashboard-lists-a-queued-and-a-claimed-lane-S-ticket-with-a-lane-column
   Scenario: The dashboard lists a lane S ticket like any other ticket
     Given a queued lane S ticket and a claimed lane S ticket
     When "accord dashboard" runs

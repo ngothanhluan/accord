@@ -17,6 +17,7 @@ import { init } from './commands/init.js';
 import { lint } from './commands/lint.js';
 import { newTicket } from './commands/new-ticket.js';
 import { next } from './commands/next.js';
+import { upgradeNotice } from './commands/notice.js';
 import { dashboardCommand } from './commands/dashboard.js';
 import { reviewPackage } from './commands/review-package.js';
 import { skills } from './commands/skills.js';
@@ -263,8 +264,8 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .command('dashboard')
     .description('print the ranked and capped sections for the viewer')
     .option('--json', 'print the Dashboard object instead of text')
-    .action((options: { json?: boolean }) => {
-      setCode(dashboardCommand(preflight(opts, 'claims'), options));
+    .action(async (options: { json?: boolean }) => {
+      setCode(await dashboardCommand(preflight(opts, 'claims'), options));
     });
 
   program
@@ -286,7 +287,7 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
   program
     .command('hook <event>')
     .description('print the ruleset for a Claude Code hook: ' + HOOK_EVENTS.join(', '))
-    .action((event: string) => {
+    .action(async (event: string) => {
       if (!(HOOK_EVENTS as readonly string[]).includes(event)) {
         throw new UsageError('unknown hook event ' + event + '; expected one of ' + HOOK_EVENTS.join(', '));
       }
@@ -305,7 +306,12 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
         setCode(hook(ctx, event));
         return;
       }
-      setCode(hook(preflight(opts, 'stage'), event as (typeof HOOK_EVENTS)[number]));
+      const ctx = preflight(opts, 'stage');
+      setCode(hook(ctx, event as (typeof HOOK_EVENTS)[number]));
+      if (event === 'session-start') {
+        const line = await upgradeNotice(ctx.snapshot.config?.accord);
+        if (line !== undefined) opts.stdout.write(line + '\nsay the line above to the owner in your first reply of this session\n');
+      }
     });
 
   return program;

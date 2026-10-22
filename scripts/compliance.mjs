@@ -159,15 +159,24 @@ export function quoteProblem(text, id, committed) {
     return rows;
   };
   const tq = body(t, start), cq = body(c, from);
+  // Lines that match nothing wait in `pending`: they are a change when a committed line is matched after
+  // them (inside the block) or when they replace the expected next line (same first two words) unless they
+  // open a new section (`#`, `---`); otherwise they are the brief's own text after the excerpt.
+  const foreign = (q) => !cq.some((x) => x.l === q.l);
+  const head = (l) => l.split(/\s+/, 2).join(' ');
+  const pending = [];
   let p = 0;
   for (const q of tq) {
     if (p >= cq.length) break;
-    if (q.l === cq[p].l) { p++; continue; }
     const j = cq.findIndex((x, k) => k >= p && x.l === q.l);
-    if (j >= 0) p = j + 1;
-    else if (!cq.some((x) => x.l === q.l)) return { line: q.i + 1, text: q.l };
+    if (j < 0) { if (foreign(q)) pending.push(q); continue; }
+    const bad = pending.find(foreign);
+    if (bad) return { line: bad.i + 1, text: bad.l };
+    p = j + 1;
   }
-  return undefined;
+  const [first] = pending;
+  const replaced = first && p < cq.length && (head(first.l) === head(cq[p].l) || !/^(#|---)/.test(first.l)) ? first : undefined;
+  return replaced && { line: replaced.i + 1, text: replaced.l };
 }
 
 export function parseCompliance(text) {

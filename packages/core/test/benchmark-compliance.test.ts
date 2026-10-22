@@ -190,6 +190,13 @@ it('risk:parsing a brief that quotes part of a ticket is flagged only for lines 
   expect(quoteProblem('## Intent\n- Why: CHANGED', 'T-1', COMMITTED)).toEqual({ line: 2, text: '- Why: CHANGED' });
 });
 
+it('risk:parsing a brief own text after a quoted excerpt is not a changed line, a changed line inside the excerpt is', async () => {
+  const { quoteProblem } = await load();
+  const c = '---\nid: "T-1"\n---\n\n## Intent\n- Why: x\n- Not: y\n\n## Decisions\n- D-01 z\n\n## Approach\n- a\n';
+  expect(quoteProblem('## Intent\n- Why: x\n- Not: y\n\n## Your task\nBuild it', 'T-1', c)).toBeUndefined();
+  expect(quoteProblem('## Intent\n- Why: CHANGED\n- Not: y\n\n## Decisions\n- D-01 z', 'T-1', c)).toEqual({ line: 2, text: '- Why: CHANGED' });
+});
+
 it('risk:regression brief-quote compares with the ticket the run read, not the session branch, and skips its own ticket read', async () => {
   const { compliance } = await load();
   const T2 = COMMITTED.replace('T-1', 'T-2').replace('- Why: x', '- Why: other');

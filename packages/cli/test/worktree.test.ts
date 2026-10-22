@@ -1,9 +1,10 @@
 // ST-LN-7: `accord worktree open` against real git in tmp sandboxes with a bare remote.
+import { execFileSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { afterEach, expect, it, vi } from 'vitest';
 import * as proc from '../src/load/proc.js';
-import { approvedHash, loadSnapshot, setFrontmatterKey } from '@accord-dev/accord-core';
-import { CONFIG, LANE_BODY, laneTicket, PLAN } from '../../../test/helpers/lane.js';
+import { approvedHash, gateReady, loadSnapshot, setFrontmatterKey } from '@accord-dev/accord-core';
+import { CONFIG, LANE_BODY, LANE_S_BODY, laneTicket, PLAN } from '../../../test/helpers/lane.js';
 import { commitMsg, gitRun, mergeMsg, run, writeFiles } from './helpers/repo.js';
 import { makeClone, type Clone } from './helpers/worktree.js';
 
@@ -326,6 +327,49 @@ function mergeOnRemote(c: Clone, ...ids: string[]) {
   gitRun(other, 'push', '-q', 'origin', 'main');
 }
 
+/** The ticket file as verify leaves it: every criterion ticked at verified commit `v`. */
+function doneTicket(id: string, v: string): string {
+  const t = loadSnapshot({ files: { 'accord/config.yml': CONFIG, ['accord/tickets/' + id + '.md']: laneTicket(id) }, tree: [] });
+  const a = approvedHash(t.tickets[id]);
+  const h = gateReady(t, id).acHash;
+  return laneTicket(id, {
+    frontmatter: ['approved_hash: "' + a + '"', 'ac_hash: "' + h + '"', 'verified: [ac-1, ac-2]', 'verified_hash: "' + h + '"', 'verified_commit: "' + v + '"'],
+  });
+}
+/** Verify's commits on each ticket branch, then its merge into the remote main, from a teammate's clone; returns each id's tick commit. */
+function doneOnRemote(c: Clone, ids: string[], opts: { squash?: boolean; local?: boolean } = {}): Record<string, string> {
+  const o = c.otherClone();
+  const out: Record<string, string> = {};
+  const onBranches: string[] = [];
+  for (const id of ids) {
+    const onBranch = has(o, `refs/remotes/origin/t/${id}`);
+    if (onBranch) gitRun(o, 'switch', '-q', '--detach', `origin/t/${id}`);
+    verifyStage(o, id);
+    const v = gitRun(o, 'rev-parse', 'HEAD').trim();
+    writeFiles(o, { [`accord/tickets/${id}.md`]: doneTicket(id, v) });
+    const tip = commitMsg(o, 'verify: ' + id);
+    if (onBranch) {
+      onBranches.push(id);
+      gitRun(o, 'push', '-q', 'origin', `HEAD:refs/heads/t/${id}`);
+      gitRun(o, 'switch', '-q', 'main');
+      if (opts.squash) {
+        gitRun(o, 'merge', '--squash', '-q', tip);
+        commitMsg(o, 'merge ' + id);
+      } else mergeMsg(o, tip, 'merge ' + id);
+    }
+    out[id] = tip;
+  }
+  gitRun(o, 'push', '-q', 'origin', 'main');
+  if (opts.local) {
+    for (const id of onBranches) {
+      c.git('fetch', '-q', 'origin', `t/${id}`);
+      if (existsSync(c.sibling(id))) gitRun(c.sibling(id), 'merge', '--ff-only', '-q', `origin/t/${id}`);
+      else c.git('update-ref', `refs/heads/t/${id}`, out[id]);
+    }
+  }
+  return out;
+}
+
 /** A branch `t/<id>` with one commit, pushed and tracking `origin/t/<id>`, no worktree. */
 function ticketBranch(c: Clone, id: string) {
   c.git('switch', '-q', '-c', `t/${id}`, 'main');
@@ -340,7 +384,7 @@ const sha = (c: Clone, ref: string) => c.git('rev-parse', ref).trim();
 it('ac-5 bare accord fetches then removes merged worktrees and names what it keeps', async () => {
   const c = clone({ tickets: ['ST-9', 'ST-10', 'ST-11', 'ST-12'] });
   for (const id of ['ST-9', 'ST-10', 'ST-11', 'ST-12']) ticketWorktree(c, id);
-  mergeOnRemote(c, 'ST-9', 'ST-10', 'ST-12');
+  doneOnRemote(c, ['ST-9', 'ST-10', 'ST-12']);
   mkdirSync(`${c.sibling('ST-9')}/node_modules`);
   writeFileSync(`${c.sibling('ST-9')}/node_modules/x`, 'x');
   writeFileSync(`${c.sibling('ST-10')}/new.txt`, 'new');
@@ -375,6 +419,9 @@ it('ac-5 bare accord fetches then removes merged worktrees and names what it kee
 it('risk:complex-branching a failed fetch is said and the refs in the clone are judged', async () => {
   const c = clone();
   c.git('worktree', 'add', '-q', '-b', 't/ST-9', c.sibling('ST-9'), 'origin/main');
+  const b9 = sha(c, 't/ST-9');
+  doneOnRemote(c, ['ST-9']);
+  c.git('fetch', '-q', 'origin');
   c.git('remote', 'set-url', 'origin', c.remote + '-missing');
   const { code, out } = await run(['worktree', 'clean'], c.root, {});
   expect(code).toBe(0);
@@ -382,7 +429,7 @@ it('risk:complex-branching a failed fetch is said and the refs in the clone are 
   expect(l[0].startsWith('fetch from origin failed, judging against the refs already in this clone')).toBe(true);
   expect(l[1]).toBe(`removed ${c.sibling('ST-9')}`);
   expect(l).toHaveLength(3);
-  expect(l[2]).toBe(`deleted t/ST-9 (was ${sha(c, 'origin/main')})`);
+  expect(l[2]).toBe(`deleted t/ST-9 (was ${b9})`);
 
   const d = clone();
   d.git('worktree', 'add', '-q', '-b', 't/ST-9', d.sibling('ST-9'), 'origin/main');
@@ -399,7 +446,7 @@ it('risk:data-loss clean keeps unpushed commits and new files that git status co
   const c = clone({ tickets: ['ST-9', 'ST-10'] });
   ticketWorktree(c, 'ST-9');
   ticketWorktree(c, 'ST-10');
-  mergeOnRemote(c, 'ST-9', 'ST-10');
+  doneOnRemote(c, ['ST-9', 'ST-10']);
   writeFiles(c.sibling('ST-9'), { 'more.txt': 'more\n' });
   gitRun(c.sibling('ST-9'), 'add', '-A');
   gitRun(c.sibling('ST-9'), 'commit', '-q', '-m', 'unpushed');
@@ -407,13 +454,13 @@ it('risk:data-loss clean keeps unpushed commits and new files that git status co
   writeFileSync(`${c.sibling('ST-10')}/new.txt`, 'new');
   const { code, out } = await run(['worktree', 'clean'], c.root, {});
   expect(code).toBe(0);
-  expect(lines(out)).toEqual([`kept ${c.sibling('ST-10')}: uncommitted work`, `kept t/ST-10: checked out in ${c.sibling('ST-10')}`]);
+  expect(lines(out)).toEqual([`kept ${c.sibling('ST-10')}: uncommitted work`, `kept t/ST-10: checked out in ${c.sibling('ST-10')}`, 'kept t/ST-9: it has commits after its verified commit']);
   expect(existsSync(`${c.sibling('ST-10')}/new.txt`)).toBe(true);
   expect(existsSync(c.sibling('ST-9'))).toBe(true);
 
   const d = clone();
   ticketWorktree(d, 'ST-9');
-  mergeOnRemote(d, 'ST-9');
+  doneOnRemote(d, ['ST-9']);
   const r = await run(['worktree', 'clean'], d.sibling('ST-9'), {});
   expect(lines(r.out)).toEqual([`kept ${d.sibling('ST-9')}: this session's worktree`, `kept t/ST-9: checked out in ${d.sibling('ST-9')}`]);
   expect(existsSync(d.sibling('ST-9'))).toBe(true);
@@ -422,7 +469,7 @@ it('risk:data-loss clean keeps unpushed commits and new files that git status co
 it('risk:complex-branching a worktree remove that fails is named truthfully', async () => {
   const c = clone();
   ticketWorktree(c, 'ST-9');
-  mergeOnRemote(c, 'ST-9');
+  doneOnRemote(c, ['ST-9']);
   writeHolds(c, { 'ST-9': DEAD });
   vi.mocked(proc.processTable).mockReturnValue([{ pid: process.pid, ppid: 1, start: 'self' }]);
   c.git('worktree', 'lock', c.sibling('ST-9'));
@@ -438,7 +485,7 @@ it('risk:complex-branching a worktree remove that fails is named truthfully', as
 it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)('risk:complex-branching a worktree remove that fails part way removes it in part and names what is left', async () => {
   const d = clone();
   ticketWorktree(d, 'ST-9', 'sub/f.txt');
-  mergeOnRemote(d, 'ST-9');
+  doneOnRemote(d, ['ST-9']);
   writeHolds(d, { 'ST-9': DEAD });
   vi.mocked(proc.processTable).mockReturnValue([{ pid: process.pid, ppid: 1, start: 'self' }]);
   chmodSync(`${d.sibling('ST-9')}/sub`, 0o555);
@@ -462,6 +509,7 @@ it('risk:complex-branching clean prunes a worktree whose folder was deleted by h
   rmSync(c.sibling('ST-9'), { recursive: true, force: true });
   const reason = /^prunable (.*)$/m.exec(c.git('worktree', 'list', '--porcelain'))?.[1] ?? 'no reason given';
   const base = sha(c, 'origin/main');
+  doneOnRemote(c, ['ST-9', 'ST-10']);
   const { code, out } = await run(['worktree', 'clean'], c.root, {});
   expect(code).toBe(0);
   expect(lines(out)).toEqual([
@@ -608,7 +656,7 @@ it('risk:data-loss a stale holds lock keeps a merged clean worktree, names it, a
   const c = clone({ tickets: ['ST-9', 'ST-10'] });
   ticketWorktree(c, 'ST-9');
   ticketWorktree(c, 'ST-10');
-  mergeOnRemote(c, 'ST-9', 'ST-10');
+  doneOnRemote(c, ['ST-9', 'ST-10']);
   mkdirSync(`${c.root}/.git/accord`, { recursive: true });
   writeFileSync(`${c.root}/.git/accord/holds.lock`, '');
   const { code, out } = await run(['worktree', 'clean'], c.root, {});
@@ -701,7 +749,7 @@ it('ac-1 bare accord deletes merged ticket branches with or without a worktree a
   const c = clone({ tickets: ['ST-9', 'ST-10', 'ST-11', 'ST-12'] });
   for (const id of ['ST-9', 'ST-11', 'ST-12']) ticketBranch(c, id);
   ticketWorktree(c, 'ST-10');
-  mergeOnRemote(c, 'ST-9', 'ST-10', 'ST-12');
+  doneOnRemote(c, ['ST-9', 'ST-10', 'ST-12']);
   c.git('switch', '-q', 't/ST-12');
   const sha9 = sha(c, 't/ST-9');
   const sha10 = sha(c, 't/ST-10');
@@ -725,7 +773,7 @@ it('ac-2 a merged branch whose remote branch is gone is deleted from another tic
   writeFiles(c.root, { 'ST-20.txt': 'x\n' });
   c.git('add', '-A');
   c.git('commit', '-q', '-m', 'ST-20');
-  mergeOnRemote(c, 'ST-9');
+  doneOnRemote(c, ['ST-9']);
   gitRun(c.remote, 'branch', '-D', 't/ST-9');
   c.git('update-ref', '-d', 'refs/remotes/origin/t/ST-9');
   const sha9 = sha(c, 't/ST-9');
@@ -764,6 +812,7 @@ it('risk:data-loss a merged branch the ticket branch template does not name is n
   c.git('branch', 'backlog/notes', 'main');
   c.git('branch', 't/ST-9', 'main');
   const base = sha(c, 'main');
+  doneOnRemote(c, ['ST-9']);
   const { code, out } = await run(['worktree', 'clean'], c.root, {});
   expect(code).toBe(0);
   expect(lines(out)).toEqual([`deleted t/ST-9 (was ${base})`]);
@@ -776,6 +825,7 @@ it('risk:complex-branching a branch git refuses to delete is kept with git messa
   c.git('branch', 't/ST-1', 'main');
   c.git('branch', 't/ST-2', 'main');
   const base = sha(c, 'main');
+  doneOnRemote(c, ['ST-1', 'ST-2']);
   mkdirSync(`${c.root}/.git/refs/heads/t`, { recursive: true });
   writeFileSync(`${c.root}/.git/refs/heads/t/ST-1.lock`, '');
   const { code, out } = await run(['worktree', 'clean'], c.root, {});
@@ -815,6 +865,8 @@ it('ac-4 stale remote refs are pruned after a good fetch and a failed fetch prun
   stale(d);
   d.git('branch', 't/ST-9', 'origin/t/ST-9');
   const tip = sha(d, 'origin/main');
+  doneOnRemote(d, ['ST-9']);
+  d.git('fetch', '-q', 'origin');
   d.git('remote', 'set-url', 'origin', d.remote + '-missing');
   const bad = await run(['worktree', 'clean'], d.root, {});
   expect(bad.code).toBe(0);
@@ -1161,7 +1213,7 @@ it('risk:complex-branching in claude code a pick up whose setup failed and a new
 it('risk:data-loss clean keeps a merged worktree this session holds when run from the main checkout', async () => {
   const c = clone();
   ticketWorktree(c, 'ST-9');
-  mergeOnRemote(c, 'ST-9');
+  doneOnRemote(c, ['ST-9']);
   writeHolds(c, { 'ST-9': { tool: 'Claude Code', ...A, taken: '2026-10-18T00:00:00.000Z' } });
   setTable(tableOf(A));
   vi.mocked(proc.processTable).mockClear();
@@ -1240,7 +1292,7 @@ it('risk:complex-branching a session whose hold was cleaned or taken over still 
   expect(worked()).toBe('ST-9\tsess-A\n');
 
   gitRun(sib, 'push', '-q', '-u', 'origin', 't/ST-9');
-  mergeOnRemote(c, 'ST-9');
+  doneOnRemote(c, ['ST-9']);
   setTable(tableOf(B));
   const cl = await run(['worktree', 'clean'], c.root, envOf(B));
   expect(cl.code).toBe(0);
@@ -2074,3 +2126,111 @@ it('risk:data-loss a continue merge that conflicts is aborted and a worktree wit
   expect(sha(h, 't/ST-9')).toBe(hHead);
   expect(gitRun(h.remote, 'rev-parse', 't/ST-9').trim()).toBe(hHead);
 }, 180_000);
+
+const REVIEWED = '## Round 1\n\nNo findings\n\nverdict: converged\n';
+/** A lane S ticket on `t/<id>`, ready and reviewed in its sibling and pushed; returns the review commit. */
+async function laneSBranch(c: Clone, id: string, file?: string, edit?: () => void): Promise<string> {
+  ticketWorktree(c, id, file);
+  const sx = c.sibling(id);
+  writeFiles(sx, { [`accord/tickets/${id}.md`]: laneTicket(id, { lane: 'S', body: LANE_S_BODY }) });
+  edit?.();
+  expect((await run(['gate', 'ready', id], sx)).code).toBe(0);
+  writeFiles(sx, { [`accord/tickets/${id}/review.md`]: REVIEWED });
+  const t = commitMsg(sx, 'review: ' + id);
+  gitRun(sx, 'push', '-q', 'origin', `t/${id}`);
+  return t;
+}
+
+it('risk:data-loss clean removes only a done ticket and keeps a branch with a commit after its verified commit', async () => {
+  const c = clone({ tickets: ['ST-9', 'ST-10', 'ST-11'] });
+  for (const x of ['ST-9', 'ST-10', 'ST-11']) ticketWorktree(c, x);
+  const t = doneOnRemote(c, ['ST-9', 'ST-11'], { squash: true, local: true });
+  mergeOnRemote(c, 'ST-10');
+  const sib9 = c.sibling('ST-9');
+  writeFiles(sib9, { 'late.txt': 'late\n' });
+  const late = commitMsg(sib9, 'late');
+  const r1 = await run(['worktree', 'clean'], c.root);
+  expect(r1.code).toBe(0);
+  expect(lines(r1.out)).toEqual([`removed ${c.sibling('ST-11')}`, `deleted t/ST-11 (was ${t['ST-11']})`, 'kept t/ST-9: it has commits after its verified commit']);
+  expect(existsSync(c.sibling('ST-11'))).toBe(false);
+  expect(has(c.root, 'refs/heads/t/ST-11')).toBe(false);
+  expect(existsSync(sib9)).toBe(true);
+  expect(existsSync(c.sibling('ST-10'))).toBe(true);
+  expect(sha(c, 't/ST-9')).toBe(late);
+  expect(has(c.root, 'refs/heads/t/ST-10')).toBe(true);
+
+  const e = clone();
+  ticketWorktree(e, 'ST-9');
+  doneOnRemote(e, ['ST-9'], { squash: true });
+  const esib = e.sibling('ST-9');
+  try {
+    gitRun(esib, 'rebase', '-q', '--force-rebase', '--exec', 'false', 'HEAD~1');
+  } catch {
+    // the exec line fails on purpose, leaving the rebase stopped
+  }
+  expect(gitRun(esib, 'branch', '--show-current').trim()).toBe('');
+  const r2 = await run(['worktree', 'clean'], e.root);
+  expect(r2.code).toBe(0);
+  expect(lines(r2.out)).toEqual([`kept t/ST-9: being rebased in ${esib}`]);
+  expect(existsSync(esib)).toBe(true);
+  expect(has(e.root, 'refs/heads/t/ST-9')).toBe(true);
+  expect(has(e.remote, 'refs/heads/t/ST-9')).toBe(true);
+  gitRun(esib, 'rebase', '--abort');
+
+  const f = clone();
+  writeFiles(f.root, { 'shared.txt': Array.from({ length: 10 }, (_, i) => `l${i + 1}\n`).join('') });
+  commitMsg(f.root, 'shared');
+  gitRun(f.root, 'push', '-q', 'origin', 'main');
+  const shared = (first: string, last: string) => Array.from({ length: 10 }, (_, i) => (i === 0 ? first : i === 9 ? last : `l${i + 1}`) + '\n').join('');
+  const t12 = await laneSBranch(f, 'ST-12', undefined, () => writeFiles(f.sibling('ST-12'), { 'shared.txt': shared('ST-12', 'l10') }));
+  await laneSBranch(f, 'ST-13');
+  const fo = f.otherClone();
+  gitRun(fo, 'fetch', '-q', 'origin');
+  for (const x of ['ST-12', 'ST-13']) {
+    gitRun(fo, 'merge', '--squash', '-q', `origin/t/${x}`);
+    commitMsg(fo, 'merge ' + x);
+  }
+  writeFiles(fo, { 'shared.txt': shared('ST-12', 'main') });
+  commitMsg(fo, 'main edit');
+  gitRun(fo, 'push', '-q', 'origin', 'main');
+  const rows = JSON.parse((await run(['status', '--json'], fo)).out) as { id: string; stage: string }[];
+  for (const x of ['ST-12', 'ST-13']) expect(rows.find((r) => r.id === x)?.stage).toBe('done');
+  expect(readFileSync(`${fo}/accord/tickets/ST-12.md`, 'utf8')).not.toContain('verified_commit:');
+  expect(readFileSync(`${fo}/accord/tickets/ST-13.md`, 'utf8')).not.toContain('verified_commit:');
+  expect(gitRun(fo, 'diff', '--name-only', 'origin/t/ST-12', 'main', '--', 'shared.txt').trim()).toBe('shared.txt');
+  writeFiles(f.sibling('ST-13'), { 'late.txt': 'late\n' });
+  commitMsg(f.sibling('ST-13'), 'late');
+  const r3 = await run(['worktree', 'clean'], f.root);
+  expect(r3.code).toBe(0);
+  expect(lines(r3.out)).toEqual([`removed ${f.sibling('ST-12')}`, `deleted t/ST-12 (was ${t12})`, 'kept t/ST-13: it has changes not on origin/main']);
+  expect(r3.out).not.toContain('verified commit');
+  expect(existsSync(f.sibling('ST-13'))).toBe(true);
+  expect(has(f.root, 'refs/heads/t/ST-13')).toBe(true);
+  expect(has(f.root, 'refs/heads/t/ST-12')).toBe(false);
+
+  const g = clone();
+  const t14 = await laneSBranch(g, 'ST-14', 'added.txt');
+  const sg = g.sibling('ST-14');
+  const go = g.otherClone();
+  gitRun(go, 'fetch', '-q', 'origin');
+  gitRun(go, 'merge', '--squash', '-q', 'origin/t/ST-14');
+  commitMsg(go, 'merge ST-14');
+  writeFiles(go, { 'added.txt': 'main\n' });
+  commitMsg(go, 'main edit');
+  gitRun(go, 'push', '-q', 'origin', 'main');
+  const grows = JSON.parse((await run(['status', '--json'], go)).out) as { id: string; stage: string }[];
+  expect(grows.find((r) => r.id === 'ST-14')?.stage).toBe('done');
+  let status: unknown;
+  try {
+    execFileSync('git', ['merge-tree', '--write-tree', 'main', 'origin/t/ST-14'], { cwd: go, stdio: 'pipe' });
+  } catch (err) {
+    status = (err as { status?: number }).status;
+  }
+  expect(status).toBe(1);
+  const r4 = await run(['worktree', 'clean'], g.root);
+  expect(r4.code).toBe(0);
+  expect(lines(r4.out)).toEqual(['kept t/ST-14: merging it into origin/main conflicts']);
+  expect(existsSync(sg)).toBe(true);
+  expect(sha(g, 't/ST-14')).toBe(t14);
+  expect(has(g.remote, 'refs/heads/t/ST-14')).toBe(true);
+}, 240_000);

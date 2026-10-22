@@ -57,6 +57,7 @@ export type { SchemaId } from './validate/index.js';
 export { templates } from './generated/templates.js';
 export type { TemplateName } from './generated/templates.js';
 export { setFrontmatterKey } from './write/frontmatter.js';
+export { markDropped } from './write/dropped.js';
 export type { FrontmatterValue } from './write/frontmatter.js';
 export { contentHash, markerHash, renderSkill, withoutMarker } from './skills/render.js';
 export { pluginDir, pluginTargets } from './skills/plugin.js';

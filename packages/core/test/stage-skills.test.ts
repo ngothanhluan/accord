@@ -433,6 +433,26 @@ it('risk:regression the owners yes steps still ask for an explicit yes and commi
   expect(bad).toEqual([]);
 });
 
+it('risk:regression the verify skill merges the remote main after the review commit and before the full suite', () => {
+  const get = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
+  const text = get('.claude/skills/accord-verify/SKILL.md');
+  const ref = get('.claude/skills/accord/worktree.md');
+  const slice = (s: string, a: string, b: string) => s.slice(s.indexOf(a), s.indexOf(b));
+  const step = slice(text, '2. **Merge and suite.**', '3. **Verifier.**');
+  expect(step.length).toBeGreaterThan(0);
+  const c = step.indexOf('commit everything');
+  const m = step.indexOf('`accord worktree merge <id>`');
+  const t = step.indexOf('`tests.full`');
+  expect(c).toBeGreaterThan(-1);
+  expect(m).toBeGreaterThan(c);
+  expect(t).toBeGreaterThan(m);
+  for (const p of ['exits 2', 'stop', 'never a rebase', '`fetch from origin failed`', 'that commit is the one verified'])
+    expect(step).toContain(p);
+  expect(text.indexOf('`accord worktree merge <id>`')).toBeLessThan(text.indexOf('accord-verifier'));
+  for (const p of ['A line starting `fetch from origin failed`', 'A line starting `behind:`', 'Never merge here'])
+    expect(ref).toContain(p);
+});
+
 it('ac-5 an assertion that runs only on some operating systems sits in a test the runner skips', () => {
   const flat = (t: string) => t.replace(/\s+/g, ' ');
   const agents = agentTargets(config);
@@ -519,7 +539,7 @@ const verifySteps = () => {
   const v = flatText('.claude/skills/accord-verify/SKILL.md');
   return {
     v,
-    s2: v.slice(v.indexOf('2. **Suite.**'), v.indexOf('3. **Verifier.**')),
+    s2: v.slice(v.indexOf('2. **Merge and suite.**'), v.indexOf('3. **Verifier.**')),
     s4: v.slice(v.indexOf('4. **Report.**'), v.indexOf('5. **Owner.**')),
   };
 };
@@ -621,4 +641,33 @@ it('risk:complex-branching the build skill routes a task-done refusal over a for
   expect(e).toBeGreaterThan(r);
   expect(f).toBeGreaterThan(e);
   expect(g).toBeGreaterThan(f);
+});
+
+it('ac-5 the ids reference drops a ticket with accord drop', () => {
+  const flat = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
+  const ids = flat('.claude/skills/accord/ids.md');
+  expect(ids).not.toBe('');
+  const drop = ids.slice(ids.indexOf('## Dropping instead of renaming'));
+  const step1 = drop.slice(drop.indexOf('1. '), drop.indexOf('2. Create the new ticket'));
+  expect(step1).not.toBe('');
+  expect(step1).toContain("commit every change in the ticket's worktree on its claim branch");
+  expect(step1).toContain('`git push -u origin <claim branch>`');
+  expect(step1.indexOf('`git push -u origin <claim branch>`')).toBeLessThan(step1.indexOf('`accord drop <id>'));
+  for (const p of [
+    '`accord drop <id> --reason "<reason>"`',
+    '`branch:`, `base:` and `title:`',
+    '`gh pr create --head <branch> --base <base> --title "<title>" --body "<reason>"`',
+    'otherwise ask the owner to open it',
+    "waits for the owner's merge",
+    'Tell the owner to close this session once the pull request is opened',
+    'Never delete a claim branch',
+    '`accord worktree clean`',
+  ]) expect(step1).toContain(p);
+  expect(step1).not.toContain('Set `status: dropped`');
+  expect(step1).not.toContain('commit and merge that');
+  expect(drop).toContain('run step 1 there');
+  expect(drop).not.toContain('commit step 1');
+  expect(flat('.claude/skills/accord-debug/ids.md')).toBe(ids);
+  expect(flat('.claude/skills/accord-verify/ids.md')).toBe(ids);
+  expect(flat('.claude/skills/accord/SKILL.md')).not.toContain('accord drop');
 });

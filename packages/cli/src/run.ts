@@ -24,7 +24,8 @@ import { status } from './commands/status.js';
 import { taskDone } from './commands/task-done.js';
 import { testsBaseline } from './commands/tests-baseline.js';
 import { testsSkipped } from './commands/tests-skipped.js';
-import { worktreeCheck, worktreeClean, worktreeOpen } from './commands/worktree.js';
+import { drop } from './commands/drop.js';
+import { worktreeCheck, worktreeClean, worktreeMerge, worktreeOpen } from './commands/worktree.js';
 import { loadClaimView, loadFromFs, UsageError } from './load/fs.js';
 import { pinMessage } from './pin.js';
 import { repoRoot } from './root.js';
@@ -53,10 +54,10 @@ export interface CommandContext {
  * Root, snapshot, pin — in that order, once per command (D-95, D-103). A repository with no `accord/`
  * folder throws the loader's own UsageError before the pin is ever consulted.
  */
-function preflight(opts: RunOptions, mode: 'checkout' | 'stage' | 'claims' = 'checkout'): CommandContext {
+function preflight(opts: RunOptions, mode: 'checkout' | 'stage' | 'claims' | 'light' = 'checkout'): CommandContext {
   const root = repoRoot(opts.cwd);
   const parts = mode === 'claims' ? loadClaimView(root) : undefined;
-  const snapshot = loadSnapshot(parts?.view ?? loadFromFs(root, mode === 'stage' ? { stage: true } : {}));
+  const snapshot = loadSnapshot(parts?.view ?? loadFromFs(root, { stage: mode === 'stage', light: mode === 'light' }));
   const plain = parts === undefined ? undefined : parts.checkout === parts.view ? snapshot : loadSnapshot(parts.checkout);
   // D-94: a hard refusal, no flag and no environment variable that skips it. `config` is undefined
   // when config.yml is missing or failed the schema (D-31); those repositories must report their
@@ -204,10 +205,18 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
       setCode(testsSkipped(preflight(opts)));
     });
 
+  program
+    .command('drop <id>')
+    .description("put the ticket file, set to dropped with its reason, on a new branch drop/<id> from origin's default branch and push it, printing the pull request to open")
+    .option('--reason <reason>', 'why the ticket is dropped; replaces the ## Dropped section')
+    .action((id: string, o: { reason?: string }) => {
+      setCode(drop(preflight(opts), id, o));
+    });
+
   const worktree = program.command('worktree').description('work each ticket in its own git worktree');
   worktree
     .command('clean')
-    .description('fetch, then remove the worktrees of merged tickets, delete merged ticket branches and prune stale remote refs, naming what is removed or kept')
+    .description('fetch, then remove the worktrees of merged tickets, delete merged ticket branches, delete the worktree and branches of tickets dropped on the default branch when nothing is lost, and prune stale remote refs, naming what is removed, deleted or kept')
     .action(() => {
       setCode(worktreeClean(preflight(opts)));
     });
@@ -223,6 +232,12 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .option('--continue', 'continue a claimed ticket: never claim, refuse when it has no branch')
     .action((id: string, o: { continue?: boolean }) => {
       setCode(worktreeOpen(preflight(opts), id, { continue: o.continue === true }));
+    });
+  worktree
+    .command('merge <id>')
+    .description("before verify: fetch, then merge the remote main into the ticket's branch with a merge commit; a conflict is aborted, named, and exits 2")
+    .action((id: string) => {
+      setCode(worktreeMerge(preflight(opts, 'stage'), id));
     });
 
   program
@@ -280,7 +295,7 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
         // the context is one stderr line and an allow.
         let ctx: CommandContext;
         try {
-          ctx = preflight(opts, 'stage');
+          ctx = preflight(opts, 'light');
         } catch (e) {
           opts.stderr.write(`accord hook prompt-expansion: ${(e instanceof Error ? e.message : String(e)).split('\n')[0]}; allowed`.replace(/\\/g, '/') + '\n');
           opts.stdout.write('{}\n');

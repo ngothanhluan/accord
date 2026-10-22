@@ -43,6 +43,9 @@
 - Ruling: plan round 1 — `/accord upgrade` takes the command only from the first line of a fresh `accord dashboard`, and checks its package against the session rules line when the session has one — the ledger forbids hard-coding the package name in a skill — cost if wrong: in a tool without the rules line, a tampered cache file could name another package.
 - Ruling: plan round 1 — accord/worktree.md names `/accord upgrade` in plain text instead of `./upgrade.md`, so verify and debug renders load nothing new — the smaller change — cost if wrong: one sentence changes.
 - Ruling: plan round 1 — the test helper `doneOnRemote` gains a `local` option that fast-forwards this clone's ticket branch — it covers the clone that ran verify — cost if wrong: a few test lines change.
+- Ruling: plan round 2 — when a done ticket has no resolvable verified commit (lane S, or a clone without it), measure from `git merge-base <T> <ref>` and exempt no path, the ticket's records included — only the same content on main proves nothing is lost — cost if wrong: a lane S branch whose records changed again after the merge is kept and deleted by hand.
+- Ruling: plan round 2 — the kept line without a verified commit reads `kept <b>: it has changes not on <def>` — the old wording named a commit that does not exist — cost if wrong: one more message variant for the skill text and README.
+- Ruling: plan round 2 — the setup-failure check after a Continue merge is a second part of the `ac-4` test — `ac-4` already covers setup running on the merge — cost if wrong: one more part in a scenario's test.
 
 ## Deferred
 

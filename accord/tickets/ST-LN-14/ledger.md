@@ -46,6 +46,9 @@
 - Ruling: task 3's reassigned and brief-quote lines are reported unfiltered, as the plan says; the first real read (2026-10-22, 13 folders) gives 91 brief-quote lines, likely noisy (scratchpad brief copies, a ticket edited before dispatch) — the round 1 report could carry false positives — review samples of them before the report is trusted
 - Ruling: task 4's round.mjs imports nothing, though the brief says it imports quoteProblem from compliance.mjs — nothing in Task 4 uses it — a later task adds the import
 - Ruling: the 130-row matrix holds only while no non-scout agent's current effort sits at an end of the scale, true of today's frontmatter — the count follows from D-02 — none, the matrix shrinks if an effort moves to an end
+- Ruling: task 5 rewrites and checks a brief's whole text when the ticket text is not in it byte for byte and quoteProblem finds no quote of it — there is no ticket span to protect — a brief quoting a ticket in a form quoteProblem cannot recognise is rewritten inside that quote
+- Ruling: task 5 treats a ref only as a whole ref word, and a trailing "." followed by a word character as part of a file name (main.ts is left alone) — follows the plan's Definitions — a ref ending a sentence like "origin/main.Next" is missed
+- Ruling: task 5's absolute-path match covers drive-letter paths only, with no test for 8.3 short or UNC paths — as the Definitions say — a brief naming the scratchpad by its 8.3 form (LUANNG~1) keeps pointing at the live path if the regex stops at `~`
 - Ruling: task 3's real read found that complianceSettings kept the quotes of `model: "sonnet"`, missing BUG-LN-3 round 4; 49e0cfd strips them and the stale compliance.md was deleted before the read was run again — an earlier read's lines win in a merge — none
 
 ## Deferred
@@ -68,3 +71,4 @@
 - task 2 done c3831935a521
 - task 3 done 49e0cfd2fd0f
 - task 4 done b02b5045c331
+- task 5 done 26a7b8f99263

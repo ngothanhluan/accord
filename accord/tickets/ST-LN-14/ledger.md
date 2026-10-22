@@ -90,6 +90,8 @@
 - Ruling: debug episode 1 moved the benchmark entry line to the last line of scripts/benchmark.mjs, so `notBench` (the only top-level const after it) exists before main() runs — fixes --plan, --round 1, --judge and onLiveRefs at once — none
 - Ruling: the episode 1 reproduction test copies the real sample list (bases rewritten to the fixture's one commit) and .claude/agents into a temporary repository, as checkSamples needs nine agents x 5; it asserts only that the run gets past liveState and saves round-1.json, since setup has no config there — fixture drift if the list format changes
 - Ruling: the owner chose "Sửa benchmark" for the base hook test that times out only under load (debug episode 2); `runSuite` re-runs a red suite once, only its failing files (from `tests.report`, through `tests.affected`), falling back to `tests.full` when a key is missing, the report is unreadable or names no failing file, and counts it red only if the re-run fails; the re-run is recorded in round-1.json `reruns` and on the run's result — a run re-run alone passes a file that fails only in the full run, which is the point — a real order-dependent failure would read as green
+- Ruling: review 6.1 — the narrow re-run is taken only when the report was written by the failed run (mtime at or after its start, 1 s slack for NTFS timestamps) and every failing classname is a file in the worktree, so `vitest unhandled errors` or a stale report go to the full re-run — a narrow pass would otherwise hide a real error — a leftover report written under 1 s before the run could be trusted
+- Ruling: review 6.3 — the round report lists every hold that rests on a re-run in its own section "## Holds that rest on a re-run" after "Samples not held", "None." when empty — each existing section covers one condition — one extra section in the report
 
 ## Deferred
 - plan-review 1.15: the approach says `--plan` rewrites only the brief's working-tree header lines; Task 5 rewrites the root everywhere outside the ticket
@@ -121,6 +123,7 @@
 - review 2.2: brief-quote takes the ticket from the first Read of any ticket file ahead of the one the brief names, so an executor that first reads a depends_on ticket is compared with it — scripts/compliance.mjs
 - review 4.1: moving the entry line left two blank lines in a row after main() — scripts/benchmark.mjs:813-814
 - review 2.3: only an invalid current-effort run voids its sample, not an environment-failed one, and a row with an invalid judge and an invalid run is listed twice under "Runs not judged" — scripts/benchmark.mjs runRound
+- review 6.4: the in-process `runSuite` test repeats what the two process-level re-run tests assert — packages/core/test/benchmark-worktree.test.ts
 
 ## Tasks
 - task 1 done cfd797751f01

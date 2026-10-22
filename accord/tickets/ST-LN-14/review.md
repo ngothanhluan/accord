@@ -47,4 +47,11 @@ Nice 1 [patch]: moving the entry line left two blank lines in a row after main()
 
 No findings
 
+## Round 6
+
+Should 1 [patch]: a failing test and an unhandled error in one run could read green after the narrow re-run, and an unhandled error alone skipped the full re-run — scripts/benchmark.mjs runSuite — fixed in be5dd72
+Should 2 [patch]: the narrow re-run path and its JUnit parsing had no test — packages/core/test/benchmark-worktree.test.ts — fixed in be5dd72
+Should 3 [patch]: a hold that rests on a re-run left no trace in the round report — scripts/benchmark.mjs runRound, scripts/round.mjs report — fixed in be5dd72
+Nice 4 [patch]: the in-process runSuite test repeats the two process-level tests — packages/core/test/benchmark-worktree.test.ts — deferred
+
 verdict: converged

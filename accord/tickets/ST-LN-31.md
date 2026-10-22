@@ -73,7 +73,7 @@ Feature: ST-LN-31
     And review runs in rounds, each a fresh accord-reviewer on the diff, until no Must finding is open, with no final reviewer and at most five rounds, after which the session stops and reports the open findings to the owner
     And it ends in a pull request, with no intent interview, approval, approach, plan, executor or verify
 
-  @ac-5
+  @ac-5 @test:packages/core/test/lane-s.test.ts#ac-5-a-queued-lane-M-ticket-drops-to-lane-S-only-at-intent-on-the-owners-yes
   Scenario: A queued lane M ticket that fits lane S drops to S at intent, and never after
     Given a lane M ticket whose intent is not yet approved, and the interview shows it fits lane S
     When the session proposes the drop and the owner says yes

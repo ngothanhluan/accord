@@ -94,3 +94,48 @@ it('ac-1 every agent sample runs at its current effort and one step either side 
     rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
   }
 }, 120_000);
+
+it('risk:parsing a brief keeps the ticket text byte for byte while its root and refs are rewritten', async () => {
+  const round = (await import(new URL('../../../scripts/round.mjs', import.meta.url).href)) as {
+    rewriteBrief: (text: string, o: Record<string, unknown>) => { text: string; problems: string[] };
+    stripReadPrefixes: (t: string) => string;
+    dispatchTable: (rows: Record<string, unknown>[]) => string;
+  };
+  const ticket = '---\nid: "T-1"\n---\n\n## Intent\nRun in C:/Work/accord on `main` and `t/T-1`.\n';
+  const tail = 'Work in C:\\Work\\accord-ln7\\src, branch t/T-1, and never touch C:/Work/accord. Run `git diff origin/main...HEAD`. The main session keeps function main( in domain.ts.\n';
+  const prompt = 'Repository root: C:/Work/accord-ln7\n' + ticket + '\n---\n\n' + tail;
+  const S = 'a'.repeat(40);
+  const W = 'C:/Work/accord-bench/wt/reviewer-1';
+  const A = 'C:/Work/accord-bench/absent/1';
+  const paths = [['C:/Work/accord-ln7', W], ['C:/Work/accord', A]];
+  const check = { bench: 'C:/Work/accord-bench', allowed: [] as string[] };
+  const pairs = [['origin/main', S], ['t/T-1', S], ['HEAD', S]];
+
+  const r = round.rewriteBrief(prompt, { ticket, paths, pairs, check });
+  expect(r.problems).toEqual([]);
+  const head = 'Repository root: ' + W + '\n';
+  expect(r.text.startsWith(head)).toBe(true);
+  expect(r.text.indexOf(ticket)).toBe(head.length);
+  expect(r.text.endsWith('Work in C:\\Work\\accord-bench\\wt\\reviewer-1\\src, branch ' + S + ', and never touch ' + A + '. Run `git diff ' + S + '...' + S + '`. The main session keeps function main( in domain.ts.\n')).toBe(true);
+
+  const none = round.rewriteBrief(prompt, { ticket, paths, pairs: [], check });
+  expect(none.problems).toHaveLength(3);
+  for (const w of ['origin/main', 'HEAD', 't/T-1']) expect(none.problems.filter((p) => p.includes(w))).toHaveLength(1);
+
+  const one = round.rewriteBrief(prompt, { ticket, paths: [paths[0]], pairs, check });
+  expect(one.problems).toEqual(['absolute path C:/Work/accord outside the bench root is left in the brief']);
+
+  const w = round.rewriteBrief(prompt, { ticket, paths, pairs: [['origin/main', S], ['t/T-1', 'bench/executor-1-low']], check: { bench: 'C:/Work/accord-bench', allowed: ['HEAD', 'bench/executor-1-low'] } });
+  expect(w.problems).toEqual([]);
+  expect(w.text).toContain('branch bench/executor-1-low,');
+  expect(w.text).toContain('git diff ' + S + '...HEAD`');
+
+  const changed = round.rewriteBrief(prompt.replace('## Intent', '## Intent!'), { ticket, paths, pairs, check });
+  expect(changed.problems).toHaveLength(1);
+  expect(changed.problems[0]).toContain('does not hold the ticket at base byte for byte');
+
+  expect(round.stripReadPrefixes('     1\tone\n     2\ttwo\n<system-reminder>\nx\n')).toBe('one\ntwo');
+  const t = round.dispatchTable([{ tag: 'executor-1-low', agent: 'accord-executor', model: 'sonnet', effort: 'low', prompt: 'C:/b/x.md', judge: { agent: 'accord-reviewer', model: 'opus', effort: 'high' } }]);
+  expect(t).toContain('| description | subagent_type | model | effort | prompt file | judge |');
+  expect(t).toContain('| bench r1 executor-1-low | accord-executor | sonnet | low | C:/b/x.md | accord-reviewer opus high |');
+});

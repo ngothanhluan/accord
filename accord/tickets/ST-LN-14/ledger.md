@@ -56,6 +56,9 @@
 - Ruling: task 12's sample list was built by a scratchpad script the owner ran by hand and committed by the owner (3fd784a), after the auto-mode classifier denied both the script and the commit to executors — reading transcripts into the repository needs the owner's own action here — none
 - Ruling: task 12's builder takes `base` for a `review-package` command with no `--base` from the 40-hex `baseline:` of the ticket's plan.md at the run's base commit — the CLI's own default is that baseline — a reviewer or final-reviewer package is rebuilt from a slightly different base than the run read
 - Ruling: a brief path in the sample list stays as the prompt wrote it (`C:/Users/LUANNG~1/...`); the list holds no email, author name or prompt text — the snapshot match needs the exact path — the short form of the owner's name is in the public repository
+- Ruling: task 6 uses a review-package rebuilt at base as built, with no comparison to the snapshot — the plan names that check only for a brief (deferred plan-review 3.6) — a review-package that changed at base drifts from what the run read, unnoticed
+- Ruling: task 6 detaches read-only agents' shared worktrees at the sample's base — the plan names only base — a reviewer meant to see a later state sees base
+- Ruling: task 6 tests only addWorktree and cleanWorktrees; runPlan (`--round 1 --plan`) is not run by any test — it needs the real bench root, snapshots and an npm ci per worktree — a fault in runPlan shows only at the first real `--plan`
 - Ruling: task 3's real read found that complianceSettings kept the quotes of `model: "sonnet"`, missing BUG-LN-3 round 4; 49e0cfd strips them and the stale compliance.md was deleted before the read was run again — an earlier read's lines win in a merge — none
 
 ## Deferred
@@ -81,3 +84,4 @@
 - task 5 done 26a7b8f99263
 - task 10 done 30914d53c5de
 - task 12 done 3fd784af23dc
+- task 6 done 0b2bbf976a21

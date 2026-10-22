@@ -87,3 +87,7 @@ The benchmark treats one full-suite run as final, but a test in the base suite d
     - `risk:regression a suite that fails on its re-run too is red`.
   - `npx vitest related --run scripts/benchmark.mjs packages/core/test/benchmark-worktree.test.ts` → 8 passed.
   - Failed fixes: 0.
+- Review rounds 6 and 7 fixed the fix's Should findings in be5dd72 and e4cb482: the narrow re-run only for a fresh report of real files the run did not change, and re-run holds listed in the report; `npx vitest run packages/core/test/benchmark-` → 32 passed.
+
+## Resolved
+Root cause: one full-suite run was taken as final while a base test (hook.test.ts at bases before dd4494b) times out only under load; fixed in af40b04, be5dd72 and e4cb482 by `runSuite`, which re-runs a red suite once and counts it red only if the re-run fails, as the owner chose ("Sửa benchmark").

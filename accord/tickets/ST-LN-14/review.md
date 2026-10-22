@@ -54,4 +54,9 @@ Should 2 [patch]: the narrow re-run path and its JUnit parsing had no test — p
 Should 3 [patch]: a hold that rests on a re-run left no trace in the round report — scripts/benchmark.mjs runRound, scripts/round.mjs report — fixed in be5dd72
 Nice 4 [patch]: the in-process runSuite test repeats the two process-level tests — packages/core/test/benchmark-worktree.test.ts — deferred
 
+## Round 7
+
+Should 1 [patch]: at scoring, a failing file the run itself added or changed was re-run alone, so a test of the run's own that times out only under load counted as held — scripts/benchmark.mjs runSuite, runRound — fixed in e4cb482
+Should 2 [patch]: "Holds that rest on a re-run" listed re-run results that did not hold — scripts/round.mjs report — fixed in e4cb482
+
 verdict: converged

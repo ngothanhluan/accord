@@ -367,3 +367,18 @@ export function report(results, settings, { flags, unjudged, compliance }) {
     compliance,
   ].join('\n');
 }
+
+// ---- a run that escaped its worktree ----
+export function escapes(rows, { runs, judges }, live) {
+  const out = [];
+  for (const row of rows) {
+    for (const [run, label] of [[runs.get(row.tag), row.tag], [judges.get(row.tag), `${row.tag} judge`]]) {
+      for (const e of run?.edits ?? []) {
+        const p = fold(e.path);
+        const home = live.find((l) => p === fold(l) || p.startsWith(fold(l) + '/'));
+        if (home) out.push(`${label}: edited ${e.path.replace(/\\/g, '/')} in the live checkout ${home}`);
+      }
+    }
+  }
+  return out;
+}

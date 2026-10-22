@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { execFileSync, execSync } from 'node:child_process';
 import { parse as parseYaml } from 'yaml';
 import { parsePlanReview } from './plan-review.mjs';
-import { median, ROLES, WRITERS, checkSamples, runMatrix, rewriteBrief, dispatchTable, matchRuns, mustsOf, judgeBrief, parseVerdict, holds, turnFlags, report } from './round.mjs';
+import { median, ROLES, WRITERS, checkSamples, runMatrix, rewriteBrief, dispatchTable, matchRuns, mustsOf, judgeBrief, parseVerdict, holds, turnFlags, report, escapes } from './round.mjs';
 import { compliance, render as renderCompliance, parseCompliance, mergeCompliance } from './compliance.mjs';
 
 const projectsRoot = path.join(os.homedir(), '.claude', 'projects');
@@ -572,6 +572,7 @@ function runPlan(repo) {
   const stateFile = path.join(bench, 'round-1.json');
   const state = fs.existsSync(stateFile) ? JSON.parse(fs.readFileSync(stateFile, 'utf8')) : {};
   state.worktrees ??= {};
+  state.live ??= liveState(repo);
   const save = () => { fs.mkdirSync(bench, { recursive: true }); fs.writeFileSync(stateFile, JSON.stringify(state, null, 2) + '\n'); };
   const sampleOf = (r) => list.samples.find((s) => s.agent === r.agent && s.n === r.n);
   for (const r of rows) {
@@ -674,6 +675,8 @@ function runRound(repo, { judge, extra }) {
   const m = matchRuns(rows, runs, { judges: !judge });
   const bad = [...m.missing, ...m.duplicate];
   if (bad.length) { for (const b of bad) process.stderr.write(`no run or more than one run for: ${b}\n`); return 2; }
+  const stop = stopOnEscape(repo, rows, m, bench);
+  if (stop) return stop;
   const sampleOf = (r) => list.samples.find((s) => s.agent === r.agent && s.n === r.n);
   const currentOf = (r) => rows.find((x) => x.agent === r.agent && x.n === r.n && x.current);
   const referenceOf = (r) => {
@@ -757,4 +760,53 @@ export function writeReport(root, text) {
   fs.mkdirSync(path.join(root, 'docs', 'benchmark'), { recursive: true });
   fs.writeFileSync(path.join(root, rel), text);
   return rel;
+}
+
+// ---- live checkouts ----
+const notBench = (r) => r && !r.startsWith('refs/heads/bench/');
+
+export function liveState(repo) {
+  const refs = {};
+  for (const l of gitIn(repo, ['for-each-ref', '--format=%(refname) %(objectname)', 'refs/heads', 'refs/remotes/origin']).split('\n').filter(Boolean)) {
+    const [name, sha] = l.split(' ');
+    if (notBench(name)) refs[name] = sha;
+  }
+  const worktrees = [];
+  for (const e of gitIn(repo, ['worktree', 'list', '--porcelain']).split(/\r?\n\r?\n+/).filter(Boolean)) {
+    const dir = /^worktree (.+)$/m.exec(e)?.[1]?.trim();
+    if (!dir) continue;
+    let marked = false;
+    try { marked = fs.existsSync(path.join(gitIn(dir, ['rev-parse', '--absolute-git-dir']).trim(), MARKER)); } catch { /* a removed worktree is not live */ }
+    if (!marked) worktrees.push({ path: slashed(dir), head: /^HEAD (\S+)/m.exec(e)?.[1] ?? '' });
+  }
+  return { refs, worktrees };
+}
+
+export function onLiveRefs(repo, sha) {
+  try {
+    return gitIn(repo, ['for-each-ref', '--contains', sha, '--format=%(refname)', 'refs/heads', 'refs/remotes/origin']).split('\n').filter(notBench);
+  } catch { return []; }
+}
+
+// Returns 2 after printing the problems and the undo when a round run touched a live checkout, else 0.
+function stopOnEscape(repo, rows, m, bench) {
+  const live = JSON.parse(fs.readFileSync(path.join(bench, 'round-1.json'), 'utf8')).live;
+  if (!live) { process.stderr.write('run --round 1 --plan first: no live checkouts recorded\n'); return 2; }
+  const problems = escapes(rows, m, live.worktrees.map((w) => w.path));
+  for (const [tag, run] of [...m.runs, ...[...m.judges].map(([t, r]) => [`${t} judge`, r])]) {
+    for (const sha of run.commits ?? []) {
+      const refs = onLiveRefs(repo, sha);
+      if (refs.length) problems.push(`${tag}: commit ${sha.slice(0, 7)} is on ${refs.join(', ')}`);
+    }
+  }
+  const now = liveState(repo).refs;
+  const moved = Object.keys(live.refs).filter((r) => now[r] && now[r] !== live.refs[r]);
+  if (!problems.length) {
+    for (const r of moved) process.stderr.write(`moved since --plan: ${r}\n`);
+    return 0;
+  }
+  process.stderr.write(problems.join('\n') + '\n');
+  for (const r of moved.filter((x) => x.startsWith('refs/heads/'))) process.stderr.write(`undo ${r}: check git reflog, then git reset --keep ${live.refs[r]} in its checkout when nobody committed since\n`);
+  for (const r of Object.keys(now).filter((x) => x.startsWith('refs/heads/') && !live.refs[x])) process.stderr.write(`undo ${r}: git branch -D ${r.slice('refs/heads/'.length)} if a round run made it\n`);
+  return 2;
 }

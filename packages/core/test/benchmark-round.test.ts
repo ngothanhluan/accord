@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -138,4 +138,74 @@ it('risk:parsing a brief keeps the ticket text byte for byte while its root and 
   const t = round.dispatchTable([{ tag: 'executor-1-low', agent: 'accord-executor', model: 'sonnet', effort: 'low', prompt: 'C:/b/x.md', judge: { agent: 'accord-reviewer', model: 'opus', effort: 'high' } }]);
   expect(t).toContain('| description | subagent_type | model | effort | prompt file | judge |');
   expect(t).toContain('| bench r1 executor-1-low | accord-executor | sonnet | low | C:/b/x.md | accord-reviewer opus high |');
+});
+
+it('ac-2 a run holds only when it is no worse than the current effort on the same sample', async () => {
+  const r = (await import(new URL('../../../scripts/round.mjs', import.meta.url).href)) as {
+    runMatrix: (l: unknown, s: unknown) => { agent: string; current: boolean; judge: { agent: string; model: string; effort: string } | null }[];
+    holds: (a: string, o: Record<string, unknown>) => boolean | null;
+    parseVerdict: (k: string, t: string, n: number) => unknown;
+    mustsOf: (a: string, report: string, verification?: string) => string[];
+    judgeBrief: (k: string, o: Record<string, unknown>) => string;
+  };
+  const { agentSettings } = (await import(new URL('../../../scripts/benchmark.mjs', import.meta.url).href)) as {
+    agentSettings: (repo: string) => Record<string, { model: string; effort: string }>;
+  };
+  const { holds } = r;
+  for (const [agent, key] of [['accord-executor', 'suite'], ['accord-planner', 'gate']] as const) {
+    expect(holds(agent, { current: false, [key]: true, verdict: { must: 1 }, currentVerdict: { must: 1 } })).toBe(true);
+    expect(holds(agent, { current: false, [key]: false, verdict: { must: 1 }, currentVerdict: { must: 1 } })).toBe(false);
+    expect(holds(agent, { current: false, [key]: true, verdict: { must: 2 }, currentVerdict: { must: 1 } })).toBe(false);
+    expect(holds(agent, { current: false, [key]: true, verdict: null, currentVerdict: { must: 1 } })).toBe(null);
+    expect(holds(agent, { current: true, [key]: true })).toBe(true);
+    expect(holds(agent, { current: true, [key]: false })).toBe(false);
+  }
+  for (const agent of ['accord-critic', 'accord-reviewer', 'accord-final-reviewer', 'accord-auditor', 'accord-verifier']) {
+    expect(holds(agent, { current: false, verdict: { same: [true, true], newMusts: 0 } })).toBe(true);
+    expect(holds(agent, { current: false, verdict: { same: [true, false], newMusts: 0 } })).toBe(false);
+    expect(holds(agent, { current: false, verdict: { same: [], newMusts: 3 } })).toBe(true);
+    expect(holds(agent, { current: false })).toBe(null);
+    expect(holds(agent, { current: true })).toBe(true);
+  }
+  for (const agent of ['accord-architect', 'accord-scout']) {
+    expect(holds(agent, { current: false, verdict: { wrongFacts: 0 } })).toBe(true);
+    expect(holds(agent, { current: false, verdict: { wrongFacts: 1 } })).toBe(false);
+    expect(holds(agent, { current: true, verdict: { wrongFacts: 1 } })).toBe(false);
+  }
+
+  expect(r.parseVerdict('must', 'findings\n1. Must — x\nMust findings: 1\n', 0)).toEqual({ must: 1 });
+  expect(r.parseVerdict('match', 'M1: same\nM2: missed\nnew Musts: 1\n', 2)).toEqual({ same: [true, false], newMusts: 1 });
+  expect(r.parseVerdict('match', 'M1: same\nnew Musts: 1\n', 2)).toBe(null);
+  expect(r.parseVerdict('fact', 'wrong facts: 0\n', 0)).toEqual({ wrongFacts: 0 });
+  for (const k of ['must', 'match', 'fact']) expect(r.parseVerdict(k, '', 0)).toBe(null);
+
+  expect(r.mustsOf('accord-critic', '1. Must — a\n2. Should — b\n3. **Must** — c\n')).toEqual(['1. Must — a', '3. **Must** — c']);
+  expect(r.mustsOf('accord-auditor', '@ac-1: one reading\n@ac-2: "x" or "y", split by "each"\n')).toEqual(['@ac-2: "x" or "y", split by "each"']);
+  expect(r.mustsOf('accord-verifier', '', '## @ac-1\nResult: pass\n\n## @ac-2\nResult: fail\n\n## @ac-3\nResult: blocked\n')).toEqual(['@ac-2 fail', '@ac-3 blocked']);
+
+  const list = JSON.parse(readFileSync(join(root, 'scripts', 'benchmark-samples.json'), 'utf8'));
+  const rows = r.runMatrix(list, agentSettings(root));
+  const finding = ['accord-critic', 'accord-reviewer', 'accord-final-reviewer', 'accord-auditor', 'accord-verifier'];
+  for (const row of rows) {
+    expect(row.judge === null).toBe(finding.includes(row.agent) && row.current);
+    if (row.judge) {
+      expect(row.judge.model).toBe('opus');
+      expect(row.judge.effort).toBe('high');
+      expect(row.judge.agent).toBe(row.agent === 'accord-executor' ? 'accord-reviewer' : 'accord-critic');
+    }
+  }
+
+  const base = { agent: 'accord-reviewer', ticket: 't.md', worktree: 'w', base: 'b', reference: ['1. Must — a'], report: 'r' };
+  const m = r.judgeBrief('match', base);
+  expect(m).toContain('M1: 1. Must — a');
+  expect(m).toContain('exactly `M<k>: same` or `M<k>: missed`');
+  expect(m).toContain('new Musts: <n>');
+  expect(r.judgeBrief('must', base)).toContain('Must findings: <n>');
+  expect(r.judgeBrief('fact', base)).toContain('wrong facts: <n>');
+  const a = r.judgeBrief('match', { ...base, agent: 'accord-auditor', reference: ['@ac-2: "x" or "y"'] });
+  expect(a).toContain('M1: @ac-2: "x" or "y"');
+  expect(a).toContain('read that criterion two ways too');
+  const v = r.judgeBrief('match', { ...base, agent: 'accord-verifier', reference: ['@ac-2 fail'] });
+  expect(v).toContain('M1: @ac-2 fail');
+  expect(v).toContain('marked that criterion fail or blocked');
 });

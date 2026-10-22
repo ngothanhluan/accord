@@ -189,3 +189,70 @@ export function dispatchTable(rows) {
     ...rows.map((r) => `| ${describe(r.tag)} | ${r.agent} | ${r.model} | ${r.effort} | ${r.prompt} | ${r.judge ? `${r.judge.agent} ${r.judge.model} ${r.judge.effort}` : '-'} |`),
   ].join('\n') + '\n';
 }
+
+// ---- hold rules and judge briefs ----
+export function mustsOf(agent, report, verification) {
+  const lines = String(report ?? '').split(/\r?\n/).map((l) => l.trim());
+  if (agent === 'accord-auditor') return lines.filter((l) => /^@ac-\d+:/.test(l) && !l.includes('one reading'));
+  if (agent === 'accord-verifier') {
+    return String(verification ?? '').split(/^(?=## @ac-\d+)/m).flatMap((b) => {
+      const id = /^## (@ac-\d+)/.exec(b)?.[1];
+      const res = /^\s*Result:\s*(fail|blocked)\b/m.exec(b)?.[1];
+      return id && res ? [`${id} ${res}`] : [];
+    });
+  }
+  return lines.filter((l) => /^\d+\.\s*\**\s*Must\b/.test(l));
+}
+
+export function parseVerdict(kind, text, expected) {
+  const lines = String(text ?? '').split(/\r?\n/);
+  const num = (re) => { const v = lines.map((l) => re.exec(l)?.[1]).filter((x) => x !== undefined); return v.length ? Number(v[v.length - 1]) : null; };
+  if (kind === 'must') { const must = num(/^Must findings:\s*(\d+)\s*$/); return must === null ? null : { must }; }
+  if (kind === 'fact') { const wrongFacts = num(/^wrong facts:\s*(\d+)\s*$/); return wrongFacts === null ? null : { wrongFacts }; }
+  const newMusts = num(/^new Musts:\s*(\d+)\s*$/);
+  const same = [];
+  for (let k = 1; k <= expected; k++) {
+    const v = lines.map((l) => new RegExp(`^M${k}:\\s*(same|missed)\\s*$`).exec(l)?.[1]).find(Boolean);
+    if (!v) return null;
+    same.push(v === 'same');
+  }
+  return newMusts === null ? null : { same, newMusts };
+}
+
+export function holds(agent, { current, suite, gate, verdict, currentVerdict }) {
+  const role = ROLES[agent];
+  if (role === 'executor' || role === 'planner') {
+    const ok = (role === 'executor' ? suite : gate) === true;
+    if (current) return ok;
+    if (!verdict || !currentVerdict) return null;
+    return ok && verdict.must <= currentVerdict.must;
+  }
+  if (role === 'finding') return current ? true : verdict ? verdict.same.every(Boolean) : null;
+  return verdict ? verdict.wrongFacts === 0 : null;
+}
+
+const MATCH = {
+  'accord-auditor': ['The reference run read these criteria two ways:', 'The reference run read no criterion two ways.', 'For each M<k>, decide whether the run read that criterion two ways too, whatever its wording.'],
+  'accord-verifier': ['The reference run marked these criteria fail or blocked:', 'The reference run marked no criterion fail or blocked.', 'For each M<k>, decide whether the run marked that criterion fail or blocked in its verification.md.'],
+};
+const MATCH_FINDINGS = ['The reference run reported these Must findings:', 'The reference run reported no Must finding.', 'For each M<k>, decide whether the run reported the same issue, whatever its wording; read the ticket and the code to decide.'];
+
+export function judgeBrief(kind, { agent, ticket, worktree, base, package: pkg, plan, report, reference }) {
+  const id = ticket.replace(/^.*[\\/]/, '').replace(/\.md$/, '');
+  if (kind === 'must') {
+    const last = 'Report your findings in your usual numbered format, then end with one line, exactly `Must findings: <n>`, the number of Must findings you reported.';
+    return (pkg
+      ? ['You judge one benchmark run. Review its work as you review any ticket, lens both.', `Ticket: ${ticket}`, `Review package: ${pkg}`, `Ledger: ${worktree}/accord/tickets/${id}/ledger.md`, `Repository root: ${worktree}`, last]
+      : ['You judge one benchmark run in plan mode: critique the plan as you critique any plan.', `Ticket: ${ticket}`, `Plan: ${plan}`, `Repository root: ${worktree}`, last]).join('\n');
+  }
+  if (kind === 'fact') {
+    return [`You judge one benchmark run of ${agent}: check every fact its report states against the ticket and the code under Repository root, which is at commit ${base}.`, `Ticket: ${ticket}`, `Repository root: ${worktree}`, 'Answer with one line, exactly `wrong facts: <n>`, then each wrong fact with the file and line that contradicts it.', '=== report ===', report, '=== end ==='].join('\n');
+  }
+  const [head, empty, question] = MATCH[agent] ?? MATCH_FINDINGS;
+  return [
+    `You judge one benchmark run of ${agent} against the reference run on the same input.`, `Ticket: ${ticket}`, `Repository root: ${worktree}`,
+    ...(reference.length ? [head, ...reference.map((x, i) => `M${i + 1}: ${x}`)] : [empty]), question,
+    'Answer one line per item, exactly `M<k>: same` or `M<k>: missed`, then one line `new Musts: <n>`: the items of the same kind the run reported that match none of the reference ones.',
+    '=== report ===', report, '=== end ===',
+  ].join('\n');
+}

@@ -193,9 +193,17 @@
 - review round 14 Nice 3: a link-only folder an earlier removal left, with no registration and no record, makes `--plan` refuse "already exists" and `--clean` never sees it; it is deleted by hand after checking it holds only links (done once for executor-1-low on 2026-10-22)
 - review round 14 Nice 4: when `cleanWorktrees`' leftover check throws after git unregistered the worktree, its branch stays and the next `--clean` never sees the folder; the printed undo (`git worktree remove --force <path>`) no longer applies
 - review round 14 Nice 5: `expect(r.status).toBe(2)` in "a suite that fails once and passes on its re-run does not stop --plan" comes only from its fixture lacking `tests.report`, so the test name now contradicts its assertion
-- review round 15 Nice 4 (intent): the suggestion table gives final-reviewer medium and verifier low though all their samples held only by default; the note is in a later section only — docs/benchmark/round-1.md "Suggested effort"
-- review round 15 Nice 5 (quality): two tests overlap on the link-only leftover removal (the process test through rebuild, `--rerun` and `--clean`, and the direct `removeLeftover` test) — packages/core/test/benchmark-worktree.test.ts:862, :942
-- review round 15 Nice 6 (quality): `--rerun` refuses over a tracked test report the run's own suite rewrote (`.vitest/junit/output.xml`), which was cleared by hand for two executors — scripts/benchmark.mjs `rerunWorktree`
+- review round 15 Nice 5 (intent): the suggestion table gives final-reviewer medium and verifier low though all their samples held only by default; the note is in a later section only — docs/benchmark/round-1.md "Suggested effort"
+- review round 15 Nice 7 (quality): two tests overlap on the link-only leftover removal (the process test through rebuild, `--rerun` and `--clean`, and the direct `removeLeftover` test) — packages/core/test/benchmark-worktree.test.ts:862, :942
+- review round 15 Nice 8 (quality): `--rerun` refuses over a tracked test report the run's own suite rewrote (`.vitest/junit/output.xml`), which was cleared by hand for two executors — scripts/benchmark.mjs `rerunWorktree`
+- review round 10 Nice 5: the read check covers only Read and a one-file `cat`, not Grep or other shell reads — scripts/benchmark.mjs parseRun
+- review round 10 Nice 6: a read one line short counts as whole, so an overlay can lack its last line — scripts/benchmark.mjs parseRun, scripts/round.mjs
+- review round 10 Nice 7: a failed `cat` (no such file, or output cut at the cap) is taken as file content — scripts/benchmark.mjs parseRun
+- review round 10 Nice 8: a whole read of a file ending in a blank line always counts as drift — scripts/round.mjs readDiffers
+- review round 10 Nice 9: a rebuild is not safe against uncommitted work or Windows locks, and its failure prints the wrong hint (parts came back as round 12 Nice 3 and 4 and round 14 Should 2) — scripts/benchmark.mjs removeWorktree
+- review round 10 Nice 10: `cat` with a relative or `/c/...` path is never under root and is not compared — scripts/benchmark.mjs parseRun
+- review round 10 Nice 11: `specs`/`sig` in `runPlan` is dead code, since rows sharing a worktree share sample, base and overlay — scripts/benchmark.mjs runPlan
+- review round 10 Nice 12: one assertion passes only because `git()` trims " M a.txt" to "M a.txt" — packages/core/test/benchmark-worktree.test.ts
 
 ## Tasks
 - task 1 done cfd797751f01

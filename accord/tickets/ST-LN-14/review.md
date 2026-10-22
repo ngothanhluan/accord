@@ -70,4 +70,58 @@ Nice 4 [patch]: `checkFileBases` reads every git failure as "not an ancestor" wi
 
 Nice 1 [patch]: `packageChunks` throws on a diff header git quotes, such as a path with a space or non-ASCII character — scripts/benchmark.mjs packageChunks — deferred
 
-verdict: converged
+
+## Round 10
+
+Must 1 [patch]: `--samples` exited 2 on the real list (executor 1 and final-reviewer 1 transcripts moved to the C--Work-accord folder), so no root-reads.json was written and `--plan` could never pass — scripts/benchmark.mjs runSamples, runPlan, runOf — fixed in 58f0b26
+Should 2 [patch]: a rebuild could delete a writer branch holding the run's commits when the worktree folder was gone or HEAD was back at base — scripts/benchmark.mjs removeWorktree — fixed in 58f0b26
+Should 3 [patch]: the new `parseRun` parsing (start, total, whole, cat, wrote, cut) had no test — scripts/benchmark.mjs parseRun, packages/core/test/benchmark-reader.test.ts — fixed in 58f0b26
+Should 4 [patch]: no process-level test of the `--samples` flow (backfill, stop on drift, missing run, `--plan` without root-reads.json) — packages/core/test/benchmark-worktree.test.ts, benchmark-samples.test.ts — fixed in 58f0b26
+Nice 5 [patch]: the read check covers only Read and a one-file `cat`, not Grep or other shell reads — scripts/benchmark.mjs parseRun — deferred
+Nice 6 [patch]: a read one line short counts as whole, so an overlay can lack its last line — scripts/benchmark.mjs parseRun, scripts/round.mjs — deferred
+Nice 7 [patch]: a failed `cat` (no such file, or output cut at the cap) is taken as file content — scripts/benchmark.mjs parseRun — deferred
+Nice 8 [patch]: a whole read of a file ending in a blank line always counts as drift — scripts/round.mjs readDiffers — deferred
+Nice 9 [patch]: a rebuild is not safe against uncommitted work or Windows locks, and its failure prints the wrong hint — scripts/benchmark.mjs removeWorktree — deferred
+Nice 10 [patch]: `cat` with a relative or `/c/...` path is never under root and is not compared — scripts/benchmark.mjs parseRun — deferred
+Nice 11 [patch]: `specs`/`sig` in `runPlan` is dead code — scripts/benchmark.mjs runPlan — deferred
+Nice 12 [patch]: one assertion passes only because `git()` trims " M a.txt" — packages/core/test/benchmark-worktree.test.ts — deferred
+
+## Round 11
+
+Should 1 [patch]: `--rerun` kept only the branch tip, so a commit on a detached HEAD was lost — scripts/benchmark.mjs rerunWorktree — fixed in 750bbe1
+Should 2 [patch]: no test reached the `--plan --rerun` wiring in `runPlan` — scripts/benchmark.mjs runPlan — fixed in 750bbe1
+Nice 3 [patch]: the moved-transcript process test hardcodes `0 written, 45 kept` — packages/core/test/benchmark-worktree.test.ts — deferred
+Nice 4 [patch]: `--plan --rerun a b` (space-separated) reruns only `a` and ignores `b` silently — scripts/benchmark.mjs — deferred
+
+## Round 12
+
+Should 1 [patch]: two `--rerun` data-loss paths (tip plus detached HEAD, unreadable HEAD) had no test that fails on a wrong implementation — packages/core/test/benchmark-worktree.test.ts — fixed in 434373d
+Nice 2 [patch]: the `--plan --rerun` wiring test cannot tell rerun-before-prepare from rerun-after-prepare — packages/core/test/benchmark-worktree.test.ts — deferred
+Nice 3 [patch]: `--rerun` checks `git status --porcelain`, which omits ignored files — scripts/benchmark.mjs rerunWorktree — deferred
+Nice 4 [patch]: a `--rerun a,b` refusal on `b` comes after `a` was rebuilt, with the wrong hint — scripts/benchmark.mjs runPlan — deferred
+Nice 5 [patch]: `rerunWorktree` skips its checks when the record has no branch (unreachable today) — scripts/benchmark.mjs rerunWorktree — deferred
+
+## Round 13
+
+Should 1 [patch]: the `tests.report` step sat outside any try block, so a verifier base without `tests.report` crashed with exit 1 instead of exit 2 — scripts/benchmark.mjs runPlan — fixed in 68c0cb2
+Should 2 [patch]: no test failed if the report step re-ran `tests.full` in every verifier worktree instead of copying — packages/core/test/benchmark-worktree.test.ts — fixed in 68c0cb2
+Nice 3 [patch]: a failed verifier rebuild said "(setup is repeated on the next --plan run)", wrong for a refusal — scripts/benchmark.mjs runPlan — fixed in 68c0cb2
+
+## Round 14
+
+Should 1 [patch]: the `onlyLinks` refusal branch had no test, so a folder holding a regular file could be deleted with all tests green — scripts/benchmark.mjs removeLeftover — fixed in 9cab86a
+Should 2 [patch]: the rebuild hint was one generic string, steering a plain setup failure to `--clean` or `--rerun` — scripts/benchmark.mjs planHint — fixed in 9cab86a
+Nice 3 [patch]: a link-only folder with no registration and no record makes `--plan` refuse and `--clean` never sees it — scripts/benchmark.mjs — deferred
+Nice 4 [patch]: when `cleanWorktrees`' leftover check throws after git unregistered the worktree, its branch stays — scripts/benchmark.mjs cleanWorktrees — deferred
+Nice 5 [patch]: a test name says a re-run does not stop `--plan` while its status 2 comes from the fixture lacking `tests.report` — packages/core/test/benchmark-worktree.test.ts — deferred
+
+## Round 15
+
+Should 1 [patch]: `judgeBriefAt` was lost on the next `--plan`, so a superseded judge counted again — scripts/benchmark.mjs runPlan, scripts/round.mjs matchRuns — fixed in d8b4a9c
+Should 2 [patch]: the round report gave times with no measurement notes, though hung runs and machine load inflated some — scripts/round.mjs report, docs/benchmark/round-1.md — fixed in d8b4a9c
+Should 3 [patch]: the round-cap rule took an unrelated Ruling as permission, so ST-LN-14 itself was not listed — scripts/compliance.mjs — fixed in d8b4a9c
+Should 4 [patch]: docs/benchmark/round-1.md is undeclared with no Ruling naming it — accord/tickets/ST-LN-14/ledger.md — fixed in 9ca6ed3
+Nice 5 [patch]: the suggestion table gives final-reviewer medium and verifier low from samples that held only by default — docs/benchmark/round-1.md — deferred
+Nice 6 [patch]: two Rulings were in the ledger twice — accord/tickets/ST-LN-14/ledger.md — fixed in 9ca6ed3
+Nice 7 [patch]: two tests overlap on the link-only leftover removal — packages/core/test/benchmark-worktree.test.ts — deferred
+Nice 8 [patch]: `--rerun` refuses over a tracked test report the run's own suite rewrote — scripts/benchmark.mjs rerunWorktree — deferred

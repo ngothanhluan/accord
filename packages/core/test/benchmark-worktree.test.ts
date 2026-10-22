@@ -193,7 +193,7 @@ it('risk:regression --round 1 --plan run as a process records live checkouts', (
     cpSync(join(root, '.claude', 'agents'), join(repo, '.claude', 'agents'), { recursive: true });
     const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repo, encoding: 'utf8' }).trim();
     // The first worktree add needs a base this repository has; it is what makes the run save its state.
-    const text = readFileSync(join(root, 'scripts', 'benchmark-samples.json'), 'utf8').replace(/"base": "[0-9a-f]{40}"/g, `"base": "${head}"`);
+    const text = readFileSync(join(root, 'scripts', 'benchmark-samples.json'), 'utf8').replace(/,\s*"overlay": \[[^\]]*\]/g, '').replace(/"base": "[0-9a-f]{40}"/g, `"base": "${head}"`);
     writeFileSync(join(repo, 'scripts', 'benchmark-samples.json'), text);
     const bench = join(tmp, 'accord-bench');
     mkdirSync(bench);
@@ -203,6 +203,7 @@ it('risk:regression --round 1 --plan run as a process records live checkouts', (
       const d = join(bench, 'samples', `${s.agent.slice('accord-'.length)}-${s.n}`);
       mkdirSync(d, { recursive: true });
       writeFileSync(join(d, 'sample.json'), JSON.stringify({ transcript: s.transcript }));
+      writeFileSync(join(d, 'root-reads.json'), '[]');
     }
     let stderr = '';
     try {
@@ -234,7 +235,7 @@ function planFixture(tmp: string, first: number, later: number) {
   execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'c'], { cwd: repo });
   cpSync(join(root, '.claude', 'agents'), join(repo, '.claude', 'agents'), { recursive: true });
   const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repo, encoding: 'utf8' }).trim();
-  const text = readFileSync(join(root, 'scripts', 'benchmark-samples.json'), 'utf8').replace(/"base": "[0-9a-f]{40}"/g, `"base": "${head}"`);
+  const text = readFileSync(join(root, 'scripts', 'benchmark-samples.json'), 'utf8').replace(/,\s*"overlay": \[[^\]]*\]/g, '').replace(/"base": "[0-9a-f]{40}"/g, `"base": "${head}"`);
   writeFileSync(join(repo, 'scripts', 'benchmark-samples.json'), text);
   const bench = join(tmp, 'accord-bench');
   mkdirSync(bench);
@@ -244,6 +245,7 @@ function planFixture(tmp: string, first: number, later: number) {
     const d = join(bench, 'samples', `${s.agent.slice('accord-'.length)}-${s.n}`);
     mkdirSync(d, { recursive: true });
     writeFileSync(join(d, 'sample.json'), JSON.stringify({ transcript: s.transcript }));
+    writeFileSync(join(d, 'root-reads.json'), '[]');
   }
   const plan = () => {
     try {
@@ -388,7 +390,7 @@ it('risk:regression --samples and --plan exit 2 on a review-package file base th
     const orphan = g('rev-parse', 'HEAD');
     g('checkout', '-q', 'main');
     cpSync(join(root, '.claude', 'agents'), join(repo, '.claude', 'agents'), { recursive: true });
-    const text = readFileSync(join(root, 'scripts', 'benchmark-samples.json'), 'utf8').replace(/"(base|main)": "[0-9a-f]{40}"/g, `"$1": "${head}"`);
+    const text = readFileSync(join(root, 'scripts', 'benchmark-samples.json'), 'utf8').replace(/,\s*"overlay": \[[^\]]*\]/g, '').replace(/"(base|main)": "[0-9a-f]{40}"/g, `"$1": "${head}"`);
     const list = JSON.parse(text) as { samples: { files: { from: string; base?: string }[] }[] };
     const pkgs = list.samples.flatMap((s) => s.files).filter((f) => f.from === 'review-package');
     for (const f of pkgs) f.base = head;
@@ -408,6 +410,65 @@ it('risk:regression --samples and --plan exit 2 on a review-package file base th
       expect(stderr).toContain(orphan);
       for (const d of ['wt', 'briefs', 'samples']) expect(existsSync(join(bench, d))).toBe(false);
     }
+  } finally {
+    rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+}, 120_000);
+
+it('risk:data-loss a prepared worktree gets its overlay uncommitted, and a recorded one whose base or overlay changed is rebuilt', async () => {
+  type Held = Rec & { preparedAt?: number; overlay?: unknown };
+  const { prepareWorktree } = (await import(new URL('../../../scripts/benchmark.mjs', import.meta.url).href)) as {
+    prepareWorktree: (repo: string, state: { worktrees: Record<string, Held> }, key: string, spec: Record<string, unknown>, setup: (d: string) => void) => string;
+  };
+  const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'bench-')));
+  const t = tmp.replaceAll('\\', '/');
+  try {
+    const repo = t + '/repo';
+    mkdirSync(repo);
+    const git = (cwd: string, ...a: string[]) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', '-c', 'commit.gpgsign=false', ...a], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+    git(repo, 'init', '-q');
+    writeFileSync(repo + '/a.txt', 'one\n');
+    git(repo, 'add', '.');
+    git(repo, 'commit', '-q', '-m', 'one');
+    const H1 = git(repo, 'rev-parse', 'HEAD');
+    writeFileSync(repo + '/a.txt', 'two\n');
+    git(repo, 'commit', '-q', '-am', 'two');
+    const H2 = git(repo, 'rev-parse', 'HEAD');
+    const state = { worktrees: {} as Record<string, Held> };
+    const dir = t + '/wt';
+    const spec = (base: string, overlay: unknown[]) => ({ path: dir, base, branch: 'bench/x-1-low', overlay });
+    const none = () => {};
+
+    const o1 = [{ path: 'a.txt', from: 'read', text: 'read text\n' }, { path: 'sub/b.txt', from: H2, text: 'from commit\n' }];
+    expect(prepareWorktree(repo, state, 'x', spec(H1, o1), none)).toBe(dir);
+    expect(readFileSync(dir + '/a.txt', 'utf8')).toBe('read text\n');
+    expect(readFileSync(dir + '/sub/b.txt', 'utf8')).toBe('from commit\n');
+    expect(git(dir, 'rev-parse', 'HEAD')).toBe(H1);
+    expect(git(dir, 'status', '--porcelain').split('\n').sort()).toEqual(['?? sub/', 'M a.txt']);
+    const first = state.worktrees.x.preparedAt;
+    expect(first).toBeGreaterThan(0);
+
+    // an equal spec reuses the worktree and keeps its preparation time
+    prepareWorktree(repo, state, 'x', spec(H1, o1), none);
+    expect(state.worktrees.x.preparedAt).toBe(first);
+
+    // a changed overlay, then a changed base, rebuild it
+    prepareWorktree(repo, state, 'x', spec(H1, [{ path: 'a.txt', from: 'read', text: 'other\n' }, { path: 'sub/b.txt', from: H1, text: 'x\n' }]), none);
+    expect(readFileSync(dir + '/sub/b.txt', 'utf8')).toBe('x\n');
+    expect(readFileSync(dir + '/a.txt', 'utf8')).toBe('other\n');
+    prepareWorktree(repo, state, 'x', spec(H2, []), none);
+    expect(git(dir, 'rev-parse', 'HEAD')).toBe(H2);
+    expect(readFileSync(dir + '/a.txt', 'utf8').trim()).toBe('two');
+    expect(existsSync(dir + '/sub')).toBe(false);
+    expect(state.worktrees.x.base).toBe(H2);
+    expect(state.worktrees.x.overlay).toBeUndefined();
+
+    // a worktree that holds a run's commits is not rebuilt
+    writeFileSync(dir + '/c.txt', 'run\n');
+    git(dir, 'add', '.');
+    git(dir, 'commit', '-q', '-m', 'run');
+    expect(() => prepareWorktree(repo, state, 'x', spec(H1, []), none)).toThrow('holds commits');
+    expect(existsSync(dir + '/c.txt')).toBe(true);
   } finally {
     rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
   }

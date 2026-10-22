@@ -53,6 +53,13 @@ export function checkSamples(list) {
       else if (f.from === 'review-package') { if (!SHA.test(f.base ?? '')) out.push(`${at}: file ${f.path} from review-package needs base`); }
       else if (f.from !== 'copy') out.push(`${at}: file ${f.path} from`);
     }
+    if (s.overlay !== undefined) {
+      if (!Array.isArray(s.overlay)) out.push(`${at}: overlay`);
+      else for (const o of s.overlay) {
+        if (typeof o?.path !== 'string' || !o.path || /^([A-Za-z]:)?[\\/]|\\|(^|\/)\.\.(\/|$)/.test(o.path)) out.push(`${at}: overlay path ${o?.path}`);
+        else if (o.from !== 'read' && !SHA.test(o.from ?? '')) out.push(`${at}: overlay ${o.path} from`);
+      }
+    }
     if (!Array.isArray(s.pairs)) out.push(`${at}: pairs`);
     else for (const p of s.pairs) if (!Array.isArray(p) || p.length !== 2 || !['main', 'base'].includes(p[1])) out.push(`${at}: pair to`);
     if (s.agent === 'accord-executor') {
@@ -63,6 +70,20 @@ export function checkSamples(list) {
   const ex = samples.filter((s) => s.agent === 'accord-executor');
   for (const kind of ['plain', 'risk']) if (ex.filter((s) => s.kind === kind).length < 2) out.push(`executor needs at least two ${kind} samples`);
   return out;
+}
+
+// The first line where a file read by a run differs from the text the replay worktree will hold, or null. A cut read is compared by its line numbers.
+export function readDiffers(read, text) {
+  const want = text.replace(/\r/g, '').split('\n');
+  if (want.at(-1) === '') want.pop();
+  const got = read.text.replace(/\r/g, '').split('\n');
+  if (read.whole) while (got.length > want.length && got.at(-1) === '') got.pop();
+  const off = (read.start ?? 1) - 1;
+  for (let i = 0; i < Math.max(got.length, read.whole ? want.length - off : 0); i++) {
+    if (got[i] !== want[i + off] && !(got[i] === '' && want[i + off] === undefined)) return `line ${i + off + 1}`;
+  }
+  if (read.total != null && read.total !== want.length && read.total !== want.length + 1) return `totalLines ${read.total} against ${want.length}`;
+  return null;
 }
 
 export function runMatrix(list, settings) {
@@ -280,22 +301,25 @@ export function judgeBrief(kind, { agent, ticket, worktree, base, package: pkg, 
 
 // ---- matching finished runs to rows ----
 export function matchRuns(rows, runs, { judges }) {
-  const out = { runs: new Map(), judges: new Map(), missing: [], duplicate: [], notFresh: [], extra: [] };
-  const find = (desc) => {
-    const hit = runs.filter((r) => r.desc === desc);
+  const out = { runs: new Map(), judges: new Map(), missing: [], duplicate: [], notFresh: [], extra: [], superseded: [] };
+  // A run dispatched before its worktree was last prepared (created or rebuilt) saw another state; a row with no preparation time counts every run.
+  const find = (desc, since) => {
+    const all = runs.filter((r) => r.desc === desc);
+    const hit = all.filter((r) => since == null || (r.dispatch?.ts ?? r.start ?? 0) >= since);
+    out.superseded.push(...all.filter((r) => !hit.includes(r)));
     if (!hit.length) out.missing.push(desc);
     else if (hit.length > 1) out.duplicate.push(`${desc} (${hit.length} runs)`);
     return hit[0];
   };
   for (const row of rows) {
-    const run = find(describe(row.tag));
+    const run = find(describe(row.tag), row.prepared);
     if (run) out.runs.set(row.tag, run);
     if (!judges) continue;
     if (!row.judge) {
       out.extra.push(...runs.filter((r) => r.desc === judgeDescribe(row.tag)));
       continue;
     }
-    const j = find(judgeDescribe(row.tag));
+    const j = find(judgeDescribe(row.tag), row.prepared);
     if (!j) continue;
     out.judges.set(row.tag, j);
     if (j.sends?.length) out.notFresh.push(row.tag);
@@ -355,7 +379,7 @@ export function notHeld(results) {
   }));
 }
 
-export function report(results, settings, { flags, unjudged, compliance }) {
+export function report(results, settings, { flags, unjudged, compliance, superseded = [] }) {
   const rows = [];
   for (const agent of agentsOf(results)) {
     for (const effort of triedOf(results, agent)) {
@@ -386,6 +410,7 @@ export function report(results, settings, { flags, unjudged, compliance }) {
     '## Holds that rest on a re-run', '', ...list(results.filter((r) => r.held && r.rerun).map((r) => `- ${r.tag}: re-ran ${r.rerun.files.length ? r.rerun.files.join(', ') : 'the full suite'}`)), '',
     flagSection(flags),
     '## Runs not judged', '', ...list(unjudged.map((u) => `- ${u.tag}: ${u.reason}`)), '',
+    ...(superseded.length ? ['## Superseded runs', '', 'Dispatched before their worktree was rebuilt; not counted.', '', ...superseded.map((s) => `- ${s}`), ''] : []),
     compliance,
   ].join('\n');
 }

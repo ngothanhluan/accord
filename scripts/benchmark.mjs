@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { execFileSync, execSync } from 'node:child_process';
 import { parse as parseYaml } from 'yaml';
 import { parsePlanReview } from './plan-review.mjs';
-import { median, ROLES, WRITERS, checkSamples, runMatrix, rewriteBrief, dispatchTable, matchRuns, mustsOf, judgeBrief, parseVerdict, holds, turnFlags, report, escapes, exitState, runProblem } from './round.mjs';
+import { median, ROLES, WRITERS, checkSamples, readDiffers, runMatrix, rewriteBrief, dispatchTable, matchRuns, mustsOf, judgeBrief, parseVerdict, holds, turnFlags, report, escapes, exitState, runProblem } from './round.mjs';
 import { compliance, render as renderCompliance, parseCompliance, mergeCompliance } from './compliance.mjs';
 
 const projectsRoot = path.join(os.homedir(), '.claude', 'projects');
@@ -226,7 +226,14 @@ function parseRun(file, id, meta, lines, session) {
         if (use.name === 'Read') {
           const body = text.split('\n');
           const cut = body.findIndex((l) => l.startsWith('<system-reminder>'));
-          reads.push({ path: use.path, text: (cut < 0 ? body : body.slice(0, cut)).map((l) => l.replace(/^\s*\d+\t/, '')).join('\n').replace(/\n+$/, ''), ts: use.ts });
+          const shown = cut < 0 ? body : body.slice(0, cut);
+          // The line numbers say which lines a cut read shows; without a numbered first line the read is not comparable.
+          const start = Number(shown[0]?.match(/^\s*(\d+)\t/)?.[1]) || null;
+          const total = o.toolUseResult?.file?.totalLines ?? null;
+          reads.push({ path: use.path, text: shown.map((l) => l.replace(/^\s*\d+\t/, '')).join('\n').replace(/\n+$/, ''), ts: use.ts, start, total, wrote: use.wrote, whole: start === 1 && (total === null ? use.whole : shown.filter(Boolean).length >= total - 1) });
+        } else if (use.name === 'Bash' && /^\s*cat\s+("[^"]+"|'[^']+'|\S+)\s*$/.test(String(use.input?.command ?? ''))) {
+          const file = slash(String(use.input.command).trim().replace(/^cat\s+/, '').replace(/^(["'])(.*)\1$/, '$2'));
+          reads.push({ path: file, text: text.replace(/\n+$/, ''), ts: use.ts, start: 1, total: null, wrote: edits.some((e) => sameFile(e.path, file)), whole: true });
         } else if (use.name === 'Bash' && GIT_COMMIT.test(String(use.input?.command ?? ''))) {
           // Only git's own summary line, `[<branch> <sha>] <subject>` or `[<branch> (root-commit) <sha>]`; a log line is an older commit.
           for (const m of text.matchAll(/^\[[^\]\n]* ([0-9a-f]{7,40})\]/gm)) commitRows.push(m[1]);
@@ -259,7 +266,7 @@ function parseRun(file, id, meta, lines, session) {
         if (toolById.has(c.id)) continue;
         const input = c.input ?? {};
         const p = slash(input.file_path ?? input.notebook_path ?? '');
-        toolById.set(c.id, { name: c.name, input, path: p, ts: stamp(o) });
+        toolById.set(c.id, { name: c.name, input, path: p, ts: stamp(o), whole: input.offset == null && input.limit == null, wrote: edits.some((e) => sameFile(e.path, p)) });
         if (['Edit', 'Write', 'MultiEdit', 'NotebookEdit'].includes(c.name)) edits.push({ path: p, ts: stamp(o) });
         if (c.name === 'SubagentHandback') {
           lastText = String(input.message ?? '');
@@ -422,6 +429,44 @@ const slashed = (p) => p.replace(/\\/g, '/');
 const sameFile = (a, b) => slashed(a).toLowerCase() === slashed(b).toLowerCase();
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+// What a run read under its root in its first assignment (before a later coordinator message and before it wrote the file), root-relative.
+export function rootReads(run, root) {
+  const low = slashed(root).toLowerCase() + '/';
+  const end = Math.min(Infinity, ...(run.sends ?? []).map((s) => s.ts ?? Infinity));
+  return run.reads
+    .filter((r) => r.start != null && !r.wrote && (r.ts ?? 0) < end && slashed(r.path).toLowerCase().startsWith(low))
+    .map((r) => ({ path: slashed(r.path).slice(low.length), start: r.start, total: r.total ?? null, whole: r.whole, text: r.text }));
+}
+
+// Problems for each stored read that differs from the file the replay worktree will hold: the file at base, or its overlay.
+export function sampleDrift(repo, sample, reads) {
+  const out = [], seen = new Set();
+  const textOf = (rel) => {
+    const o = (sample.overlay ?? []).find((x) => x.path === rel);
+    if (!o) return showAt(repo, sample.base, rel);
+    if (o.from !== 'read') return showAt(repo, o.from, rel);
+    return reads.find((r) => r.path === rel && r.whole)?.text;
+  };
+  for (const o of sample.overlay ?? []) {
+    if (o.from === 'read' && !reads.some((r) => r.path === o.path && r.whole)) out.push(`overlay ${o.path} is from the run's read, which is partial or missing`);
+    else if (o.from !== 'read' && showAt(repo, o.from, o.path) === undefined) out.push(`overlay ${o.path} does not exist at ${o.from}`);
+  }
+  for (const r of reads) {
+    const text = textOf(r.path);
+    const key = r.path + '\0' + r.start + '\0' + r.text;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    if (text === undefined) out.push(`${r.path} was read by the run and does not exist in the replay worktree`);
+    else { const d = readDiffers(r, text); if (d) out.push(`${r.path} differs from the file the replay worktree will hold, first at ${d}`); }
+  }
+  return out;
+}
+
+// The root reads sit beside sample.json, which is never rewritten; a snapshot older than this file gets it on the next --samples.
+const READS = 'root-reads.json';
+const storeReads = (dir, reads) => { const f = path.join(dir, READS); if (!fs.existsSync(f)) fs.writeFileSync(f, JSON.stringify(reads, null, 2) + '\n'); };
+const storedReads = (dir) => { const f = path.join(dir, READS); return fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8')) : null; };
+
 // A snapshot is never overwritten: once the transcripts expire it is the only copy of the dispatch.
 export function snapshotSample(repo, sample, run, bench) {
   const name = sample.agent.slice('accord-'.length) + '-' + sample.n;
@@ -461,6 +506,8 @@ export function snapshotSample(repo, sample, run, bench) {
     }
     if (!read(f.path)) problems.push(`${f.path} was never read by the run`);
   }
+  const seen = rootReads(run, sample.root);
+  problems.push(...sampleDrift(repo, sample, seen));
   if (ticket !== undefined) {
     const mine = slashed(bench);
     const paths = [
@@ -480,6 +527,7 @@ export function snapshotSample(repo, sample, run, bench) {
   fs.mkdirSync(dir, { recursive: true });
   const reads = Object.fromEntries(sample.files.map((f) => [f.path, read(f.path).text]));
   fs.writeFileSync(file, JSON.stringify({ transcript: sample.transcript, prompt, cwd: run.dispatch.cwd, ts: run.dispatch.ts, reads }, null, 2) + '\n');
+  storeReads(dir, seen);
   return { problems, kept: false };
 }
 
@@ -520,17 +568,27 @@ function runSamples(repo) {
   const folders = new Map();
   const problems = [];
   let written = 0, kept = 0;
+  const dirOf = (s) => path.join(bench, 'samples', `${s.agent.slice('accord-'.length)}-${s.n}`);
+  const runOf = (s) => {
+    const seg = s.transcript.split('/')[0];
+    if (!folders.has(seg)) folders.set(seg, readSessions([path.join(projectsRoot, seg)]).runs);
+    return folders.get(seg).find((r) => r.file === s.transcript);
+  };
+  // First every sample's root reads against its replay worktree: nothing is written while one drifts.
+  const reads = new Map();
   for (const s of list.samples) {
-    const exists = fs.existsSync(path.join(bench, 'samples', `${s.agent.slice('accord-'.length)}-${s.n}`, 'sample.json'));
-    let run;
-    if (!exists) {
-      const seg = s.transcript.split('/')[0];
-      if (!folders.has(seg)) folders.set(seg, readSessions([path.join(projectsRoot, seg)]).runs);
-      run = folders.get(seg).find((r) => r.file === s.transcript);
-    }
-    const out = snapshotSample(repo, s, run, bench);
+    const have = storedReads(dirOf(s));
+    const run = have ? null : runOf(s);
+    if (have || run?.dispatch) reads.set(s, have ?? rootReads(run, s.root));
+    else if (fs.existsSync(path.join(dirOf(s), 'sample.json'))) problems.push(`${s.agent} ${s.n}: no stored root reads and no run in ${s.transcript} to read them from`);
+    for (const p of sampleDrift(repo, s, reads.get(s) ?? [])) problems.push(`${s.agent} ${s.n}: ${p}`);
+  }
+  if (problems.length) { process.stderr.write(problems.join('\n') + '\n'); return 2; }
+  for (const s of list.samples) {
+    const exists = fs.existsSync(path.join(dirOf(s), 'sample.json'));
+    const out = snapshotSample(repo, s, exists ? undefined : runOf(s), bench);
     problems.push(...out.problems);
-    if (out.kept) kept++; else if (!out.problems.length) written++;
+    if (out.kept) { kept++; if (!out.problems.length && reads.has(s)) storeReads(dirOf(s), reads.get(s)); } else if (!out.problems.length) written++;
   }
   if (problems.length) { process.stderr.write(problems.join('\n') + '\n'); return 2; }
   process.stdout.write(`${written} written, ${kept} kept\n`);
@@ -550,15 +608,40 @@ export function addWorktree(repo, { path: dir, base, branch }) {
 }
 
 // The worktree is saved before its setup runs (so a failed setup can still be cleaned) but is `ready` only after setup succeeded; a re-run repeats a setup that never finished.
+// A recorded worktree whose base or overlay differs from the spec is rebuilt, and `preparedAt` is set only then: a run dispatched before it saw another state.
+// An overlay file is written after setup, uncommitted: the original run read a working tree.
+const overlayKey = (o) => JSON.stringify((o ?? []).map(({ path: p, from }) => [p, from]));
+
+function removeWorktree(repo, rec) {
+  if (fs.existsSync(rec.path)) {
+    if (!fs.existsSync(path.join(gitIn(rec.path, ['rev-parse', '--absolute-git-dir']).trim(), MARKER))) throw new Error(`${rec.path} is not a worktree this benchmark made; it is not rebuilt`);
+    if (rec.branch && gitIn(rec.path, ['rev-parse', 'HEAD']).trim() !== rec.base) throw new Error(`${rec.path} holds commits of a run; it is not rebuilt`);
+    gitIn(repo, ['worktree', 'remove', '--force', rec.path]);
+  } else gitIn(repo, ['worktree', 'prune']);
+  // update-ref -d with the checked sha: a commit made after the check makes git refuse instead of losing it.
+  if (rec.branch) { try { gitIn(repo, ['update-ref', '-d', `refs/heads/${rec.branch}`, gitIn(repo, ['rev-parse', `refs/heads/${rec.branch}`]).trim()]); } catch { /* already gone */ } }
+}
+
 export function prepareWorktree(repo, state, key, spec, setup, save = () => {}) {
   let rec = state.worktrees[key];
+  if (rec && (rec.base !== spec.base || overlayKey(rec.overlay) !== overlayKey(spec.overlay))) {
+    removeWorktree(repo, rec);
+    delete state.worktrees[key];
+    rec = undefined;
+  }
   if (!rec) {
-    rec = addWorktree(repo, spec);
+    const { overlay, ...at } = spec;
+    rec = { ...addWorktree(repo, at), ...(overlay?.length ? { overlay: overlay.map(({ path: p, from }) => ({ path: p, from })) } : {}), preparedAt: Date.now() };
     state.worktrees[key] = rec;
     save();
   }
   if (!rec.ready) {
     setup(rec.path);
+    for (const o of spec.overlay ?? []) {
+      const file = path.join(rec.path, o.path);
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, o.text);
+    }
     rec.ready = true;
     save();
   }
@@ -653,7 +736,7 @@ function runPlan(repo) {
   const bad = [...checkSamples(list), ...checkFileBases(repo, list)];
   if (bad.length) return err(bad.join('\n'));
   const rows = runMatrix(list, agentSettings(repo));
-  const snaps = new Map();
+  const snaps = new Map(), drifts = new Map();
   for (const s of list.samples) {
     const name = s.agent.slice('accord-'.length) + '-' + s.n;
     const file = path.join(bench, 'samples', name, 'sample.json');
@@ -661,6 +744,11 @@ function runPlan(repo) {
     const snap = JSON.parse(fs.readFileSync(file, 'utf8'));
     if (snap.transcript !== s.transcript) return err(`${s.agent} ${s.n}: the snapshot in ${slashed(path.dirname(file))} is of ${snap.transcript}, not ${s.transcript}`);
     snaps.set(name, snap);
+    const reads = storedReads(path.dirname(file));
+    if (!reads) return err(`run --round 1 --samples first: no stored root reads for ${s.agent} ${s.n}`);
+    const drift = sampleDrift(repo, s, reads);
+    if (drift.length) return err(drift.map((p) => `${s.agent} ${s.n}: ${p}`).join('\n'));
+    drifts.set(name, reads);
   }
   const stateFile = path.join(bench, 'round-1.json');
   const state = fs.existsSync(stateFile) ? JSON.parse(fs.readFileSync(stateFile, 'utf8')) : {};
@@ -668,14 +756,22 @@ function runPlan(repo) {
   state.live ??= liveState(repo);
   const save = () => { fs.mkdirSync(bench, { recursive: true }); fs.writeFileSync(stateFile, JSON.stringify(state, null, 2) + '\n'); };
   const sampleOf = (r) => list.samples.find((s) => s.agent === r.agent && s.n === r.n);
+  const specs = new Map();
   for (const r of rows) {
     const s = sampleOf(r);
     const key = WRITERS.includes(r.agent) ? r.tag : r.agent.slice('accord-'.length) + '-' + r.n;
     const dir = `${bench}/wt/${key}`;
+    const reads = drifts.get(r.agent.slice('accord-'.length) + '-' + r.n);
+    const overlay = (s.overlay ?? []).map((o) => ({ ...o, text: o.from === 'read' ? reads.find((x) => x.path === o.path && x.whole).text + '\n' : showAt(repo, o.from, o.path) }));
+    const spec = { path: dir, base: s.base, overlay, ...(WRITERS.includes(r.agent) ? { branch: `bench/${r.tag}` } : {}) };
+    // Rows share a worktree only with an equal spec.
+    const sig = JSON.stringify([spec.base, overlayKey(overlay)]);
+    if (specs.has(key) && specs.get(key) !== sig) return err(`${key}: two samples want different contents in one worktree`);
+    specs.set(key, sig);
     try {
-      r.worktree = prepareWorktree(repo, state, key, { path: dir, base: s.base, ...(WRITERS.includes(r.agent) ? { branch: `bench/${r.tag}` } : {}) },
-        (d) => { for (const c of setupAt(d, repo)) sh(c, d); }, save);
+      r.worktree = prepareWorktree(repo, state, key, spec, (d) => { for (const c of setupAt(d, repo)) sh(c, d); }, save);
     } catch (e) { return err(`${key}: ${e.message} (setup is repeated on the next --plan run)`); }
+    r.prepared = state.worktrees[key].preparedAt;
   }
   for (const s of list.samples.filter((x) => x.agent === 'accord-executor')) {
     const r = rows.find((x) => x.agent === s.agent && x.n === s.n && x.current);
@@ -852,7 +948,7 @@ function runRound(repo, { judge, extra }) {
     if (ROLES[r.agent] === 'finding' && r.current) result.reference = referenceOf(r).length;
     return result;
   });
-  const file = writeReport(repo, report(results, agentSettings(repo), { flags, unjudged, compliance: readOr(`${bench}/compliance.md`, '## Compliance\n\nNone.\n') }));
+  const file = writeReport(repo, report(results, agentSettings(repo), { flags, unjudged, superseded: m.superseded.map((r) => `${r.desc} (agent ${r.id})`), compliance: readOr(`${bench}/compliance.md`, '## Compliance\n\nNone.\n') }));
   process.stdout.write(file + '\n');
   return 0;
 }

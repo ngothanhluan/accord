@@ -149,3 +149,60 @@ it('risk:regression a review-package file base that is not an ancestor of the sa
     rmSync(tmp, { recursive: true, force: true });
   }
 });
+
+it('risk:regression a sample whose run read a file under root that differs from its base is refused before any snapshot', async () => {
+  type Read = { path: string; start: number; total: number | null; whole: boolean; text: string };
+  const { sampleDrift, snapshotSample } = (await import(new URL('../../../scripts/benchmark.mjs', import.meta.url).href)) as {
+    sampleDrift: (repo: string, s: Sample, reads: Read[]) => string[];
+    snapshotSample: (repo: string, s: Sample, run: unknown, bench: string) => { problems: string[]; kept: boolean };
+  };
+  const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'bench-')));
+  const t = tmp.replaceAll('\\', '/');
+  try {
+    const repo = t + '/repo';
+    mkdirSync(repo + '/accord/tickets/T-1', { recursive: true });
+    const git = (...a: string[]) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', '-c', 'commit.gpgsign=false', ...a], { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+    const plan = 'accord/tickets/T-1/plan.md';
+    writeFileSync(repo + '/accord/tickets/T-1.md', '---\nid: "T-1"\n---\n\n## Intent\nx\n');
+    writeFileSync(repo + '/' + plan, 'l1\nl2\nl3\n');
+    git('init', '-q');
+    git('add', '.');
+    git('commit', '-q', '-m', 'init');
+    const H = git('rev-parse', 'HEAD');
+    writeFileSync(repo + '/' + plan, 'v2\n');
+    git('commit', '-q', '-am', 'later');
+    const V2 = git('rev-parse', 'HEAD');
+    const sample: Sample = { agent: 'accord-critic', n: 1, transcript: 'X/S/subagents/agent-1.jsonl', ticket: 'T-1', base: H, main: H, root: repo, elsewhere: [], files: [], pairs: [] };
+    const read = (text: string, o: Partial<Read> = {}): Read => ({ path: plan, start: 1, total: null, whole: true, text, ...o });
+
+    const bad = sampleDrift(repo, sample, [read('v2')]);
+    expect(bad).toHaveLength(1);
+    expect(bad[0]).toContain(plan);
+    expect(bad[0]).toContain('line 1');
+    expect(sampleDrift(repo, sample, [read('l1\nl2\nl3')])).toEqual([]);
+    // a partial read is compared by its line numbers and its totalLines
+    expect(sampleDrift(repo, sample, [read('l2\nl3', { start: 2, whole: false, total: 3 })])).toEqual([]);
+    expect(sampleDrift(repo, sample, [read('l2\nX', { start: 2, whole: false, total: 3 })])[0]).toContain('line 3');
+    expect(sampleDrift(repo, sample, [read('l2', { start: 2, whole: false, total: 9 })])[0]).toContain('totalLines');
+
+    // an overlay holds what the run read
+    const over = (from: string) => ({ ...sample, overlay: [{ path: plan, from }] });
+    expect(sampleDrift(repo, over('read'), [read('v2')])).toEqual([]);
+    expect(sampleDrift(repo, over(V2), [read('v2')])).toEqual([]);
+    expect(sampleDrift(repo, over('read'), [read('v2', { start: 2, whole: false })])[0]).toContain('partial');
+
+    // the snapshot is refused and nothing is written
+    const prompt = 'Work in ' + repo + '.';
+    const run = { dispatch: { prompt, cwd: repo, ts: Date.now() }, sends: [], reads: [{ path: repo + '/' + plan, text: 'v2', ts: 1, start: 1, total: null, wrote: false, whole: true }] };
+    const out = snapshotSample(repo, sample, run, t + '/bench');
+    expect(out.problems.join('\n')).toContain(plan);
+    expect(existsSync(t + '/bench')).toBe(false);
+    // a read after a later coordinator message, or after the run wrote the file, is not drift
+    const late = { ...run, sends: [{ ts: 0 }] };
+    expect(snapshotSample(repo, sample, late, t + '/bench').problems).toEqual([]);
+    expect(snapshotSample(repo, sample, { ...run, reads: [{ ...run.reads[0], wrote: true }] }, t + '/bench2').problems).toEqual([]);
+    expect(JSON.parse(readFileSync(t + '/bench/samples/critic-1/root-reads.json', 'utf8'))).toEqual([]);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+}, 120_000);

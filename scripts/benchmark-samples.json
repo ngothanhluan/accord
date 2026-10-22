@@ -135,7 +135,13 @@
       "root": "C:/Work/accord-st-ln-33",
       "elsewhere": [],
       "files": [],
-      "pairs": []
+      "pairs": [],
+      "overlay": [
+        {
+          "path": "accord/tickets/ST-LN-33/plan.md",
+          "from": "read"
+        }
+      ]
     },
     {
       "agent": "accord-planner",
@@ -176,7 +182,17 @@
       "root": "C:/Work/accord-st-ln-34",
       "elsewhere": [],
       "files": [],
-      "pairs": []
+      "pairs": [],
+      "overlay": [
+        {
+          "path": "accord/tickets/ST-LN-34/plan.md",
+          "from": "read"
+        },
+        {
+          "path": "accord/tickets/ST-LN-34/ledger.md",
+          "from": "read"
+        }
+      ]
     },
     {
       "agent": "accord-critic",
@@ -195,7 +211,7 @@
       "n": 3,
       "transcript": "C--Work-accord/b9493812-421c-4d1c-a815-57d1c12ad28b/subagents/agent-addb1be4a5cd92960.jsonl",
       "ticket": "ST-LN-33",
-      "base": "6deb44126c0f44b5e6b452a2188bf79c2fed66a9",
+      "base": "0790ac285957ddd01609beda00ebfa320221e915",
       "main": "75de7febef87acc5fd6b6372d4f00346d4433f1e",
       "root": "C:/Work/accord-st-ln-33",
       "elsewhere": [],
@@ -222,7 +238,13 @@
           "from": "copy"
         }
       ],
-      "pairs": []
+      "pairs": [],
+      "overlay": [
+        {
+          "path": "accord/tickets/ST-LN-8/plan.md",
+          "from": "822b95e78a16966a682252b8c4105799a58b57f5"
+        }
+      ]
     },
     {
       "agent": "accord-critic",
@@ -283,6 +305,12 @@
           "t/ST-LN-8",
           "base"
         ]
+      ],
+      "overlay": [
+        {
+          "path": "accord/tickets/ST-LN-8/ledger.md",
+          "from": "read"
+        }
       ]
     },
     {
@@ -419,6 +447,12 @@
           "t/ST-LN-26",
           "base"
         ]
+      ],
+      "overlay": [
+        {
+          "path": "accord/tickets/ST-LN-26/ledger.md",
+          "from": "read"
+        }
       ]
     },
     {
@@ -442,6 +476,12 @@
           "t/ST-LN-8",
           "base"
         ]
+      ],
+      "overlay": [
+        {
+          "path": "accord/tickets/ST-LN-8/ledger.md",
+          "from": "read"
+        }
       ]
     },
     {
@@ -454,7 +494,13 @@
       "root": "C:/Work/accord-st-ln-14",
       "elsewhere": [],
       "files": [],
-      "pairs": []
+      "pairs": [],
+      "overlay": [
+        {
+          "path": "accord/tickets/ST-LN-14.md",
+          "from": "read"
+        }
+      ]
     },
     {
       "agent": "accord-auditor",
@@ -466,7 +512,13 @@
       "root": "C:/Work/accord-st-ln-31",
       "elsewhere": [],
       "files": [],
-      "pairs": []
+      "pairs": [],
+      "overlay": [
+        {
+          "path": "accord/tickets/ST-LN-31.md",
+          "from": "read"
+        }
+      ]
     },
     {
       "agent": "accord-auditor",
@@ -478,7 +530,13 @@
       "root": "C:/Work/accord-st-ln-34",
       "elsewhere": [],
       "files": [],
-      "pairs": []
+      "pairs": [],
+      "overlay": [
+        {
+          "path": "accord/tickets/ST-LN-34.md",
+          "from": "read"
+        }
+      ]
     },
     {
       "agent": "accord-auditor",
@@ -490,7 +548,13 @@
       "root": "C:/Work/accord-st-ln-33",
       "elsewhere": [],
       "files": [],
-      "pairs": []
+      "pairs": [],
+      "overlay": [
+        {
+          "path": "accord/tickets/ST-LN-33.md",
+          "from": "read"
+        }
+      ]
     },
     {
       "agent": "accord-auditor",
@@ -502,7 +566,13 @@
       "root": "C:/Work/accord-st-ln-30",
       "elsewhere": [],
       "files": [],
-      "pairs": []
+      "pairs": [],
+      "overlay": [
+        {
+          "path": "accord/tickets/ST-LN-30.md",
+          "from": "read"
+        }
+      ]
     },
     {
       "agent": "accord-verifier",

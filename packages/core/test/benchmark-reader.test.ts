@@ -63,7 +63,7 @@ it('risk:parsing turns usage dispatch sends commits edits reads and task-done re
     expect(run.usage).toEqual({ input: 6, cacheRead: 100, cacheWrite: 7, output: 302, estimated: true });
     expect(run.edits.map((e: { path: string }) => e.path)).toEqual(['C:/Work/x/src/a.test.ts', 'C:/Work/x/src/a.ts']);
     expect(run.commits).toEqual(['abc1234']);
-    expect(run.reads).toEqual([{ path: 'C:/tmp/brief.md', text: 'line one\nline two', ts: Date.parse('2026-10-01T00:05:00Z') }]);
+    expect(run.reads).toEqual([{ path: 'C:/tmp/brief.md', text: 'line one\nline two', ts: Date.parse('2026-10-01T00:05:00Z'), start: 1, total: null, wrote: false, whole: true }]);
     expect(run.handbacks.length).toBe(1);
     expect(run.handbacks[0].text.startsWith('DONE')).toBe(true);
     expect(run.outcome).toBe('DONE');

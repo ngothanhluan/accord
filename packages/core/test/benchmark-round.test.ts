@@ -378,3 +378,27 @@ it('risk:regression a run or judge dispatched under another agent or with anothe
   expect(runProblem(row, run('accord-critic', 'judge brief'), { read, judge: true })).toContain('accord-critic');
   expect(runProblem(row, run('accord-reviewer', 'brief'), { read, judge: true })).toContain('prompt');
 });
+
+it('risk:regression a run dispatched before its worktree was prepared is superseded, and a row with no preparation time counts every run', async () => {
+  type Run = { desc: string; dispatch: { ts: number }; sends: unknown[] };
+  const { matchRuns } = (await import(new URL('../../../scripts/round.mjs', import.meta.url).href)) as {
+    matchRuns: (rows: unknown[], runs: Run[], o: { judges: boolean }) => { runs: Map<string, Run>; missing: string[]; duplicate: string[]; superseded: Run[] };
+  };
+  const run = (desc: string, ts: number): Run => ({ desc, dispatch: { ts }, sends: [] });
+  const rows = [{ tag: 'critic-1-low', judge: null, prepared: 1000 }, { tag: 'critic-2-low', judge: null }];
+  const old = run('bench r1 critic-1-low', 500);
+  const fresh = run('bench r1 critic-1-low', 1500);
+  const unaffected = [run('bench r1 critic-2-low', 1), run('bench r1 critic-2-low', 9999)];
+
+  const a = matchRuns(rows, [old, fresh, unaffected[0]], { judges: false });
+  expect(a.runs.get('critic-1-low')).toBe(fresh);
+  expect(a.superseded).toEqual([old]);
+  expect(a.duplicate).toEqual([]);
+  expect(a.runs.get('critic-2-low')).toBe(unaffected[0]);
+
+  // only superseded runs: nothing counted yet
+  expect(matchRuns(rows, [old, unaffected[0]], { judges: false }).missing).toEqual(['bench r1 critic-1-low']);
+  // two counted runs for one tag, and two runs for a row with no time, are still a duplicate
+  expect(matchRuns(rows, [old, fresh, run('bench r1 critic-1-low', 2000), unaffected[0]], { judges: false }).duplicate).toEqual(['bench r1 critic-1-low (2 runs)']);
+  expect(matchRuns(rows, [fresh, ...unaffected], { judges: false }).duplicate).toEqual(['bench r1 critic-2-low (2 runs)']);
+});

@@ -5,7 +5,9 @@ import { laneSHash } from '../src/gate/hash.js';
 import { nextRows, statusRows } from '../src/status/rows.js';
 import { isDone } from '../src/status/stage.js';
 import { anchorText } from '../src/status/anchor.js';
-import { CONFIG, LANE_S_BODY, laneTicket } from '../../../test/helpers/lane.js';
+import { lintSnapshot } from '../src/lint/index.js';
+import { gateDone, gateReady } from '../src/gate/index.js';
+import { CONFIG, LANE_BODY, LANE_S_BODY, PLAN, REPORT, junit, laneTicket } from '../../../test/helpers/lane.js';
 
 const S = (body = LANE_S_BODY, fm: string[] = []) => laneTicket('S-1', { lane: 'S', body, frontmatter: fm });
 const snap = (files: Record<string, string>, extra = {}) => loadSnapshot({ files: { 'accord/config.yml': CONFIG, ...files }, tree: [], ...extra });
@@ -62,4 +64,45 @@ it('risk:complex-branching the lane S stage and anchor follow the ready record t
   expect(b.slice(i + 1).filter((l) => l !== '').slice(0, 3)).toEqual(['## Corrections', '- "no, the tsv one"', '## Rulings']);
 
   expect(anchorText(snap({ 'accord/tickets/T-1.md': laneTicket('T-1') }), 'T-1')!.split('\n').some((l) => l.startsWith('Lane:'))).toBe(false);
+});
+
+const rules = (s: ReturnType<typeof snap>) => lintSnapshot(s).findings.map((f) => [f.rule, f.file, f.level]);
+
+it('risk:complex-branching a lane M ticket holding a review left from lane S and no plan is a lint error', () => {
+  const rv = 'accord/tickets/T-1/review.md';
+  const base = { 'accord/tickets/T-1.md': laneTicket('T-1'), [rv]: 'verdict: converged\n' };
+  expect(rules(snap(base))).toContainEqual(['lint.review-without-plan', rv, 'error']);
+  const withPlan = { ...base, 'accord/tickets/T-1/plan.md': PLAN };
+  expect(rules(snap(withPlan)).some((r) => r[0] === 'lint.review-without-plan')).toBe(false);
+  const other = {
+    'accord/tickets/S-1.md': S(),
+    'accord/tickets/S-1/review.md': 'verdict: converged\n',
+    'accord/tickets/L-1.md': laneTicket('L-1', { lane: 'L' }),
+    'accord/tickets/L-1/plan.md': PLAN,
+    'accord/tickets/L-1/review.md': 'verdict: converged\n',
+  };
+  expect(rules(snap(other)).some((r) => r[0] === 'lint.review-without-plan')).toBe(false);
+});
+
+it('risk:security a lane S ticket holding an approval scenarios or a plan fails lint and both gates', () => {
+  const A = 'approved_hash: "fnv1a64:0123456789abcdef"';
+  const find = (s: ReturnType<typeof snap>) => lintSnapshot(s).findings.find((f) => f.rule === 'lint.lane-s-lane-m-records');
+  const s1 = snap({ 'accord/tickets/S-1.md': S(LANE_S_BODY, [A]) });
+  expect(rules(s1)).toContainEqual(['lint.lane-s-lane-m-records', 'accord/tickets/S-1.md', 'error']);
+  expect(find(s1)?.reason).toContain('approved_hash');
+  for (const g of [gateReady(s1, 'S-1'), gateDone(s1, 'S-1')]) {
+    expect(g.verdict).toBe('fail');
+    expect(g.findings.some((f) => f.rule === 'lint.lane-s-lane-m-records')).toBe(true);
+  }
+  expect(find(snap({ 'accord/tickets/S-1.md': S(LANE_S_BODY + '\n' + LANE_BODY) }))?.reason).toContain('@ac-n scenarios');
+  expect(find(snap({ 'accord/tickets/S-1.md': S(), 'accord/tickets/S-1/plan.md': PLAN }))?.reason).toContain('plan.md');
+  expect(find(snap({ 'accord/tickets/S-1.md': S() }))).toBeUndefined();
+  expect(find(snap({ 'accord/tickets/T-1.md': laneTicket('T-1', { frontmatter: [A] }) }))).toBeUndefined();
+});
+
+it('risk:complex-branching a lane S ticket alone does not turn on the test policy', () => {
+  const files = { 'accord/tickets/S-1.md': S(), [REPORT]: junit({ 'a#untraced': 'passed' }) };
+  const n = (s: ReturnType<typeof snap>) => lintSnapshot(s).findings.filter((f) => f.rule === 'lint.test-untraced').length;
+  expect(n(snap(files))).toBe(0);
+  expect(n(snap({ ...files, 'accord/tickets/T-1.md': laneTicket('T-1') }))).toBe(1);
 });

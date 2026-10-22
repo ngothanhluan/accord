@@ -96,6 +96,9 @@
 - Ruling: final review 7.2 — "Holds that rest on a re-run" lists only results with `held` true — a run that did not hold has no hold to rest on — none
 - Ruling: debug episode 3 — `checkFileBases` refuses, on every `--samples` and `--plan`, a review-package file base that is not an ancestor of its sample base, and reviewer 3's base becomes f67b830, the rewritten copy of fd80243 with the same tree — a base from before a history rewrite rebuilds a package of the whole branch, not what the run read — none
 - Ruling: debug episode 3 — `packageDrift` compares a rebuilt review package with the run's read only when that read is the package; a Read tool "exceeds maximum allowed size" error (reviewer 2, final-reviewer 1, 4, 5) is not compared and the rebuild is used — the brief says a Read error is not the package — those four rebuilt packages are not compared with what the run read, so one could still stop `--plan` at the brief path check
+- Ruling: review 8.2 — `packageDrift` compares the changed-file sets from the `diff --git` headers, not the whole text — a rebuild at a rewritten base differs from the read in its header and commit hashes by design — a rebuild with the same files but different content passes
+- Ruling: review 8.2 — a read cut short by the Read tool is judged on the files it shows: it counts as cut when its last file's diff chunk is a strict prefix of the rebuild's chunk for that file, and the rebuild's later files are then not drift; a file only in the read, or an extra file in the middle or after a complete last chunk, is refused naming the path — reviewer 3, final-reviewer 2 and 3 read 5, 4 and 10 of 8, 18 and 38 files, and a plain set comparison refused all three — an extra file after a read that stopped exactly at a chunk boundary passes
+- Ruling: review 8.3 — the test running `checkFileBases` over the committed sample list is removed, and a process-level test of `--samples` and `--plan` with an orphan file base covers the check — a depth-1 CI checkout lacks the commits, so that test failed on CI — the real list is checked only when `--samples` or `--plan` runs
 
 ## Deferred
 - plan-review 1.15: the approach says `--plan` rewrites only the brief's working-tree header lines; Task 5 rewrites the root everywhere outside the ticket
@@ -128,6 +131,7 @@
 - review 4.1: moving the entry line left two blank lines in a row after main() — scripts/benchmark.mjs:813-814
 - review 2.3: only an invalid current-effort run voids its sample, not an environment-failed one, and a row with an invalid judge and an invalid run is listed twice under "Runs not judged" — scripts/benchmark.mjs runRound
 - review 6.4: the in-process `runSuite` test repeats what the two process-level re-run tests assert — packages/core/test/benchmark-worktree.test.ts
+- review 8.4: `checkFileBases` reads every git failure, a missing object or no git, as "not an ancestor" with no reason — scripts/benchmark.mjs checkFileBases
 
 ## Tasks
 - task 1 done cfd797751f01

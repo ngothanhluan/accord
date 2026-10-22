@@ -91,3 +91,14 @@ The benchmark treats one full-suite run as final, but a test in the base suite d
 
 ## Resolved
 Root cause: one full-suite run was taken as final while a base test (hook.test.ts at bases before dd4494b) times out only under load; fixed in af40b04, be5dd72 and e4cb482 by `runSuite`, which re-runs a red suite once and counts it red only if the re-run fails, as the owner chose ("Sửa benchmark").
+
+## Episode 3
+
+## Symptom
+`node scripts/benchmark.mjs --round 1 --plan` from C:/Work/accord-st-ln-14 (bench root C:/Work/accord-bench), run 3, passes every base suite check (executor 2 and 4 green on their re-run, recorded in round-1.json `reruns`) and then exits 2 while writing briefs:
+
+```
+reviewer-3-medium: absolute path C:/Work/accord-st-9 outside the bench root is left in the brief; absolute path C:/Work/accord-ln9 outside the bench root is left in the brief; absolute path C:/Work/accord-st-10 outside the bench root is left in the brief; absolute path C:/Work/accord-st-11 outside the bench root is left in the brief; absolute path C:/Work/accord-st-12 outside the bench root is left in the brief
+```
+
+The check is scripts/round.mjs:171, reached from the review-package file rebuild in runPlan (scripts/benchmark.mjs:679-688). The `--samples` check, which reads the text the run read, passed for the same sample.

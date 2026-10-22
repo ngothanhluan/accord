@@ -811,7 +811,6 @@ export function main(args) {
   return 0;
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) process.exitCode = main(process.argv.slice(2));
 
 export function writeReport(root, text) {
   const rel = 'docs/benchmark/round-1.md';
@@ -869,3 +868,6 @@ function stopOnEscape(repo, rows, m, bench, list) {
   for (const r of Object.keys(now).filter((x) => x.startsWith('refs/heads/') && !live.refs[x])) process.stderr.write(`undo ${r}: git branch -D ${r.slice('refs/heads/'.length)} if a round run made it\n`);
   return 2;
 }
+
+// Last: the entry runs only once every top-level declaration above has been evaluated.
+if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) process.exitCode = main(process.argv.slice(2));

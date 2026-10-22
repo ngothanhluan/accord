@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
@@ -176,6 +177,40 @@ it("risk:regression only a commit made inside the run window and not at or under
     expect(ownCommits(repo, run, BASE)).toEqual([MINE]);
     expect(atBase(repo, BASE)).toBe(false);
     expect(atBase(repo, MINE)).toBe(true);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+}, 120_000);
+
+it('risk:regression --round 1 --plan run as a process records live checkouts', () => {
+  const root = fileURLToPath(new URL('../../../', import.meta.url));
+  const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'bench-')));
+  try {
+    const repo = join(tmp, 'repo');
+    mkdirSync(join(repo, 'scripts'), { recursive: true });
+    execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: repo });
+    execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'c'], { cwd: repo });
+    cpSync(join(root, '.claude', 'agents'), join(repo, '.claude', 'agents'), { recursive: true });
+    const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repo, encoding: 'utf8' }).trim();
+    // The first worktree add needs a base this repository has; it is what makes the run save its state.
+    const text = readFileSync(join(root, 'scripts', 'benchmark-samples.json'), 'utf8').replace(/"base": "[0-9a-f]{40}"/g, `"base": "${head}"`);
+    writeFileSync(join(repo, 'scripts', 'benchmark-samples.json'), text);
+    const bench = join(tmp, 'accord-bench');
+    mkdirSync(bench);
+    writeFileSync(join(bench, 'compliance.md'), 'x\n');
+    const list = JSON.parse(readFileSync(join(repo, 'scripts', 'benchmark-samples.json'), 'utf8')) as { samples: { agent: string; n: number; transcript: string }[] };
+    for (const s of list.samples) {
+      const d = join(bench, 'samples', `${s.agent.slice('accord-'.length)}-${s.n}`);
+      mkdirSync(d, { recursive: true });
+      writeFileSync(join(d, 'sample.json'), JSON.stringify({ transcript: s.transcript }));
+    }
+    let stderr = '';
+    try {
+      execFileSync(process.execPath, [join(root, 'scripts', 'benchmark.mjs'), '--round', '1', '--plan'], { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    } catch (e) { stderr = String((e as { stderr?: string }).stderr); }
+    expect(stderr).not.toContain('before initialization');
+    const state = JSON.parse(readFileSync(join(bench, 'round-1.json'), 'utf8')) as { live: { refs: object } };
+    expect(typeof state.live.refs).toBe('object');
   } finally {
     rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
   }

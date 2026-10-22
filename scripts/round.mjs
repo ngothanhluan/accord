@@ -256,3 +256,89 @@ export function judgeBrief(kind, { agent, ticket, worktree, base, package: pkg, 
     '=== report ===', report, '=== end ===',
   ].join('\n');
 }
+
+// ---- suggestion and report ----
+export const median = (xs) => { if (!xs.length) return 0; const s = [...xs].sort((a, b) => a - b); return s[Math.floor(s.length / 2)]; };
+
+const agentsOf = (results) => Object.keys(ROLES).filter((a) => results.some((r) => r.agent === a));
+const triedOf = (results, agent) => EFFORTS.filter((e) => results.some((r) => r.agent === agent && r.effort === e));
+const currentOf = (results, agent) => results.filter((r) => r.agent === agent && r.current);
+
+export function suggest(results, settings) {
+  const out = {};
+  for (const agent of agentsOf(results)) {
+    const cur = settings[agent].effort;
+    const heldAll = triedOf(results, agent).filter((e) => {
+      const rs = results.filter((r) => r.agent === agent && r.effort === e);
+      return rs.length === 5 && rs.every((r) => r.held === true);
+    });
+    const lower = steps(cur)[0];
+    out[agent] = { current: cur, suggested: lower !== cur && heldAll.includes(lower) ? lower : cur, heldAll };
+  }
+  return out;
+}
+
+export function better(results) {
+  const out = [];
+  for (const agent of agentsOf(results)) {
+    const role = ROLES[agent];
+    for (const cur of currentOf(results, agent).sort((a, b) => a.n - b.n)) {
+      const up = EFFORTS[EFFORTS.indexOf(cur.effort) + 1];
+      const hi = results.find((r) => r.agent === agent && r.n === cur.n && r.effort === up);
+      if (!hi?.verdict) continue;
+      if (role === 'finding' && hi.verdict.newMusts > 0) out.push(`- ${agent} sample ${cur.n} (${up}): reported ${hi.verdict.newMusts} Must the current run missed`);
+      if ((role === 'executor' || role === 'planner') && cur.verdict && hi.verdict.must < cur.verdict.must) {
+        out.push(`- ${agent} sample ${cur.n} (${up}): the judge found ${hi.verdict.must} Must findings where the current run had ${cur.verdict.must}`);
+      }
+    }
+  }
+  return out;
+}
+
+const NONE = { 'accord-auditor': 'read no criterion two ways', 'accord-verifier': 'marked no criterion fail or blocked' };
+export function byDefault(results) {
+  return agentsOf(results).filter((a) => ROLES[a] === 'finding').flatMap((agent) =>
+    currentOf(results, agent).filter((r) => r.reference === 0).sort((a, b) => a.n - b.n)
+      .map((r) => `- ${agent} sample ${r.n}: the current-effort run ${NONE[agent] ?? 'reported no Must'}, so every effort held there by default.`));
+}
+
+export function notHeld(results) {
+  return agentsOf(results).flatMap((agent) => triedOf(results, agent).flatMap((effort) => {
+    const bad = results.filter((r) => r.agent === agent && r.effort === effort && r.held === false).sort((a, b) => a.n - b.n);
+    return bad.length ? [`- ${agent} ${effort}: ${bad.map((r) => `sample ${r.n}${r.kind ? ` (${r.kind})` : ''}`).join(', ')}`] : [];
+  }));
+}
+
+export function report(results, settings, { flags, unjudged, compliance }) {
+  const rows = [];
+  for (const agent of agentsOf(results)) {
+    for (const effort of triedOf(results, agent)) {
+      const rs = results.filter((r) => r.agent === agent && r.effort === effort);
+      const med = (f) => Math.round(median(rs.map((r) => f(r.usage))));
+      rows.push(`| ${agent} | ${effort} | ${rs.length} | ${rs.filter((r) => r.held === true).length} | ${(median(rs.map((r) => r.ms)) / 60000).toFixed(1)} | ${med((u) => u.input)} | ${med((u) => u.cacheRead)} | ${med((u) => u.cacheWrite)} | ${rs.some((r) => r.usage.estimated) ? '~' : ''}${med((u) => u.output)} |`);
+    }
+  }
+  const sug = suggest(results, settings);
+  const sentences = Object.entries(sug).flatMap(([agent, s]) => {
+    const tried = triedOf(results, agent);
+    if (s.heldAll.length === tried.length) return [`${agent}: every effort tried held on all 5 samples; nothing below ${s.heldAll[0]} was measured.`];
+    if (!s.heldAll.length) return [`${agent}: no effort tried held on all 5 samples.`];
+    return s.heldAll.includes(s.suggested) ? [] : [`${agent}: held on all 5 samples only at ${s.heldAll.join(' and ')}.`];
+  });
+  const list = (lines) => (lines.length ? lines : ['None.']);
+  return [
+    '# Round 1 benchmark', '',
+    "Each sample ran on the agent's current model at its current effort and one step either side. Suggestions only: this report changes no agent definition.", '',
+    '## Runs by agent and effort', '',
+    '| agent | effort | runs | runs held | median min | median input | median cache read | median cache write | median output |',
+    '| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |', ...rows, '',
+    '## Suggested effort', '', '| agent | model | current | suggested |', '| --- | --- | --- | --- |',
+    ...Object.entries(sug).map(([agent, s]) => `| ${agent} | ${settings[agent].model} | ${s.current} | ${s.suggested} |`), '', ...sentences, '',
+    '## Higher effort did better', '', ...list(better(results)), '',
+    '## Samples that held at every effort by default', '', ...list(byDefault(results)), '',
+    '## Samples not held', '', ...list(notHeld(results)), '',
+    flagSection(flags),
+    '## Runs not judged', '', ...list(unjudged.map((u) => `- ${u.tag}: ${u.reason}`)), '',
+    compliance,
+  ].join('\n');
+}

@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -208,4 +208,75 @@ it('ac-2 a run holds only when it is no worse than the current effort on the sam
   const v = r.judgeBrief('match', { ...base, agent: 'accord-verifier', reference: ['@ac-2 fail'] });
   expect(v).toContain('M1: @ac-2 fail');
   expect(v).toContain('marked that criterion fail or blocked');
+});
+
+it('ac-3 the report suggests an effort for each agent and changes no agent definition', async () => {
+  type R = { tag: string; agent: string; n: number; kind: string | null; effort: string; current: boolean; held: boolean | null; ms: number; usage: Record<string, unknown>; verdict: unknown; reference?: number };
+  const round = (await import(new URL('../../../scripts/round.mjs', import.meta.url).href)) as {
+    suggest: (r: R[], s: unknown) => Record<string, { current: string; suggested: string; heldAll: string[] }>;
+    report: (r: R[], s: unknown, o: { flags: unknown[]; unjudged: unknown[]; compliance: string }) => string;
+  };
+  const { writeReport } = (await import(new URL('../../../scripts/benchmark.mjs', import.meta.url).href)) as { writeReport: (root: string, text: string) => string };
+  const settings = { 'accord-executor': { model: 'sonnet', effort: 'medium' }, 'accord-critic': { model: 'opus', effort: 'high' }, 'accord-scout': { model: 'haiku', effort: 'low' } };
+  const mk = (agent: string, effort: string, over: (n: number) => Partial<R> = () => ({})): R[] =>
+    [1, 2, 3, 4, 5].map((n) => ({
+      tag: `${agent}-${n}-${effort}`, agent, n, effort, current: effort === settings[agent as keyof typeof settings].effort,
+      kind: agent === 'accord-executor' ? ([1, 3, 5].includes(n) ? 'plain' : 'risk') : null, held: true, ms: 60_000,
+      usage: { input: 1, cacheRead: 1, cacheWrite: 1, output: 1, estimated: false }, verdict: null, ...over(n),
+    }));
+  const build = (low: (n: number) => Partial<R> = () => ({}), high: (n: number) => Partial<R> = () => ({})) => [
+    ...mk('accord-executor', 'low', (n) => ({ ms: 120_000, usage: { input: 100, cacheRead: 200, cacheWrite: 30, output: 40, estimated: n === 1 }, ...low(n) })),
+    ...mk('accord-executor', 'medium', () => ({ verdict: { must: 1 } })),
+    ...mk('accord-executor', 'high', (n) => ({ verdict: { must: n === 2 ? 0 : 1 } })),
+    ...mk('accord-critic', 'medium', (n) => ({ held: n !== 5 })),
+    ...mk('accord-critic', 'high', (n) => ({ reference: n === 4 ? 0 : 1, ...high(n) })),
+    ...mk('accord-critic', 'xhigh', (n) => (n === 3 ? { verdict: { same: [true], newMusts: 1 } } : { verdict: { same: [], newMusts: 0 } })),
+    ...mk('accord-scout', 'low'), ...mk('accord-scout', 'medium'),
+  ];
+  const section = (t: string, h: string) => t.split(/^(?=## )/m).find((s) => s.startsWith(h))!.split('\n').slice(1).filter(Boolean);
+  const out = { flags: [], unjudged: [], compliance: '## Compliance\n' };
+
+  const text = round.report(build(), settings, out);
+  expect(text).toContain('| agent | effort | runs | runs held | median min | median input | median cache read | median cache write | median output |');
+  expect(text).toContain('| accord-executor | low | 5 | 5 | 2.0 | 100 | 200 | 30 | ~40 |');
+  expect(text).toContain('| accord-critic | medium | 5 | 4 |');
+  for (const row of ['| accord-executor | sonnet | medium | low |', '| accord-critic | opus | high | high |', '| accord-scout | haiku | low | low |',
+    'accord-scout: every effort tried held on all 5 samples; nothing below low was measured.',
+    'accord-executor: every effort tried held on all 5 samples; nothing below low was measured.']) expect(text).toContain(row);
+  expect(section(text, '## Higher effort did better')).toEqual([
+    '- accord-executor sample 2 (high): the judge found 0 Must findings where the current run had 1',
+    '- accord-critic sample 3 (xhigh): reported 1 Must the current run missed']);
+  expect(section(text, '## Samples that held at every effort by default')).toEqual(['- accord-critic sample 4: the current-effort run reported no Must, so every effort held there by default.']);
+  expect(section(text, '## Samples not held')).toEqual(['- accord-critic medium: sample 5']);
+  expect(text).toContain('Turns that differ from the dispatched setting: 0');
+  expect(text).toContain('## Compliance');
+  const all1 = build(undefined, () => ({ reference: 1 }));
+  expect(section(round.report(all1, settings, out), '## Samples that held at every effort by default')).toEqual(['None.']);
+
+  const worse = round.report(build((n) => (n === 2 || n === 4 ? { held: false } : {})), settings, out);
+  expect(section(worse, '## Samples not held')).toEqual(['- accord-executor low: sample 2 (risk), sample 4 (risk)', '- accord-critic medium: sample 5']);
+
+  const noHigh = build(undefined, (n) => (n === 1 ? { held: false } : {}));
+  expect(round.suggest(noHigh, settings)['accord-critic']).toEqual({ current: 'high', suggested: 'high', heldAll: ['xhigh'] });
+  expect(round.report(noHigh, settings, out)).toContain('accord-critic: held on all 5 samples only at xhigh.');
+  const none = noHigh.map((r) => (r.agent === 'accord-critic' && r.effort === 'xhigh' && r.n === 1 ? { ...r, held: false } : r));
+  expect(round.report(none, settings, out)).toContain('accord-critic: no effort tried held on all 5 samples.');
+
+  const dir = realpathSync.native(mkdtempSync(join(tmpdir(), 'bench-')));
+  try {
+    mkdirSync(join(dir, '.claude', 'agents'), { recursive: true });
+    mkdirSync(join(dir, 'packages', 'core', 'agents'), { recursive: true });
+    writeFileSync(join(dir, '.claude', 'agents', 'accord-executor.md'), 'a');
+    writeFileSync(join(dir, 'packages', 'core', 'agents', 'executor.md'), 'b');
+    const list = () => readdirSync(dir, { recursive: true, withFileTypes: true }).filter((e) => e.isFile()).map((e) => join(e.parentPath, e.name).slice(dir.length + 1).replace(/\\/g, '/')).sort();
+    const before = list();
+    const written = writeReport(dir, text);
+    expect(written).toBe('docs/benchmark/round-1.md');
+    expect(list()).toEqual([...before, 'docs/benchmark/round-1.md'].sort());
+    expect(readFileSync(join(dir, '.claude', 'agents', 'accord-executor.md'), 'utf8')).toBe('a');
+    expect(readFileSync(join(dir, 'packages', 'core', 'agents', 'executor.md'), 'utf8')).toBe('b');
+    expect(readFileSync(join(dir, written), 'utf8')).toBe(text);
+  } finally {
+    rmSync(dir, { recursive: true, force: true, maxRetries: 5 });
+  }
 });

@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { execFileSync, execSync } from 'node:child_process';
 import { parse as parseYaml } from 'yaml';
 import { parsePlanReview } from './plan-review.mjs';
-import { ROLES, WRITERS, checkSamples, runMatrix, rewriteBrief, dispatchTable } from './round.mjs';
+import { median, ROLES, WRITERS, checkSamples, runMatrix, rewriteBrief, dispatchTable } from './round.mjs';
 import { compliance, render as renderCompliance, parseCompliance, mergeCompliance } from './compliance.mjs';
 
 const projectsRoot = path.join(os.homedir(), '.claude', 'projects');
@@ -20,7 +20,6 @@ const defaultDirs = (repo) => {
 };
 
 const ID = /\b([A-Z]+(?:-[A-Z]+)?-\d+)\b/;
-const median = (xs) => { if (!xs.length) return 0; const s = [...xs].sort((a, b) => a - b); return s[Math.floor(s.length / 2)]; };
 const min = (ms) => (ms / 60000).toFixed(1);
 const k = (n) => (n / 1000).toFixed(0) + 'k';
 
@@ -665,3 +664,10 @@ export function main(args) {
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) process.exitCode = main(process.argv.slice(2));
+
+export function writeReport(root, text) {
+  const rel = 'docs/benchmark/round-1.md';
+  fs.mkdirSync(path.join(root, 'docs', 'benchmark'), { recursive: true });
+  fs.writeFileSync(path.join(root, rel), text);
+  return rel;
+}

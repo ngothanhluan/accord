@@ -67,6 +67,9 @@
 - Ruling: with `judges: true`, a duplicate judge description is also reported as `<desc> (<n> runs)`, in row order — the brief shows only run duplicates — a one-line change
 - Ruling: task 9's judge row dispatch tag is `<tag> judge`, so dispatchTable prints judgeDescribe(tag) unchanged — cosmetic
 - Ruling: task 9's runRound paths (worktrees, review-package, gate plan, suite, report) are not run by any test; only matchRuns is, as the brief says, and `--round 1` and `--round 1 --judge` exit 2 with "run --round 1 --plan first" when round-1.json is absent — the first real round is the real check — a fault there shows only during the round
+- Ruling: task 11 reads its "Must not change … modes" line as "no other behaviour change"; the `live` write and the stop are the required additions (deferred plan-review 4.2) — they are what the task names — none
+- Ruling: stopOnEscape exits 2 with "run --round 1 --plan first" when round-1.json has no `live` — with no recorded live checkouts an escape cannot be detected — the owner reruns --plan, which keeps existing worktrees and adds `live`
+- Ruling: task 11's stop paths in --judge and --round 1 are not run end to end by a test; escapes, liveState and onLiveRefs are; moved-ref notices include refs/remotes/origin — the first real round is the real check — a fetch during the round prints moved-ref notices
 - Ruling: task 3's real read found that complianceSettings kept the quotes of `model: "sonnet"`, missing BUG-LN-3 round 4; 49e0cfd strips them and the stale compliance.md was deleted before the read was run again — an earlier read's lines win in a merge — none
 
 ## Deferred
@@ -96,3 +99,4 @@
 - task 7 done 55ee264b9c33
 - task 8 done 8025fa418b13
 - task 9 done 8f4cc00e6d7c
+- task 11 done 27402b47d9f4

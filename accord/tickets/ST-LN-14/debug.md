@@ -129,3 +129,15 @@ scripts/benchmark-samples.json, reviewer 3: the file `base` "fd80243ac273e1d2898
 
 ## Resolved
 Root cause: reviewer 3's review-package file base fd80243 predates ST-LN-7's history rewrite and is not an ancestor of its sample base, so `--plan` rebuilt a package of the whole branch; fixed in 35cb1ea and 60ac048 by moving it to its rewritten copy f67b830 and by `checkFileBases` and `packageDrift`, which refuse a stale file base and a rebuilt package whose changed files differ from what the run read.
+
+## Episode 4
+
+## Symptom
+Round 1 dispatch, after `--plan` run 4 exited 0. Both replayed runs of critic 3 (`bench r1 critic-3-medium`, `bench r1 critic-3-high`, brief C:/Work/accord-bench/briefs/critic-3-<effort>.md) report that the plan in their worktree does not hold the change the brief's diff describes:
+
+- C:/Work/accord-bench/wt/critic-3/accord/tickets/ST-LN-33/plan.md has `plan_hash: "fnv1a64:ec8cff4c1770af3b"` and the old line 112-113 (`w(26,'d')`); the diff C:/Work/accord-bench/files/critic-3-medium/plan-r2.diff goes from `fnv1a64:69b6681aec286f65` to `fnv1a64:b2cf27f6b550dba1`.
+- plan-review.md there holds only `## Round 1 (whole)`, while the brief names "finding 2.1".
+
+The sample (scripts/benchmark-samples.json, accord-critic n 3) has base 6deb441 ("plan: ST-LN-33 round 1, 0 Must, 2 Should"), root C:/Work/accord-st-ln-33, and one file, the diff. Its snapshot C:/Work/accord-bench/samples/critic-3/sample.json records only that diff under `reads`. The original run, in C:/Work/accord-st-ln-33, presumably read a working tree holding uncommitted planner edits (plan.md at 69b6681a, a round 2 in plan-review.md), which a worktree at the sample base cannot show. So the replayed run does not see what the original run saw, and its output cannot be compared with the reference.
+
+Critic 4 is also a diff-mode sample ("diff of plan.md since the round 2 commit") and may have the same gap; other samples whose original run read uncommitted files would too. Dispatch is paused after 14 of 130 runs (planner 1 all three, executor 1 low done; executor 1 medium and high, critic 1 and 2 all three running; critic 3 medium and high done on the gap).

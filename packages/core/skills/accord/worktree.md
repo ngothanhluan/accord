@@ -22,6 +22,12 @@ What `accord worktree open <id>` and `accord new ticket --worktree` print:
 
 - A line `pruned <path>: <reason>`: git dropped its record of a worktree whose folder is gone; show the
   line verbatim and go on with the other lines.
+- A line starting `fetch from origin failed`: the fetch before the work failed, or the remote did not
+  answer in time. Show the line verbatim and go on with the other lines; the work goes on with the refs
+  already in this clone.
+- A line starting `behind:` (Continue only): the ticket branch lacks commits that are on the remote's
+  default branch. Show the line verbatim and go on. Never merge here: `accord-verify` runs
+  `accord worktree merge <id>` once, after review.
 - A line `stop:`: show the two lines after it verbatim, the worktree's path and the line to type in a
   session opened in that folder, then stop. Never change directory into the worktree, never edit a file
   there except the people entry below, and never start the next stage from this session.

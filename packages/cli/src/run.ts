@@ -25,7 +25,7 @@ import { taskDone } from './commands/task-done.js';
 import { testsBaseline } from './commands/tests-baseline.js';
 import { testsSkipped } from './commands/tests-skipped.js';
 import { drop } from './commands/drop.js';
-import { worktreeCheck, worktreeClean, worktreeOpen } from './commands/worktree.js';
+import { worktreeCheck, worktreeClean, worktreeMerge, worktreeOpen } from './commands/worktree.js';
 import { loadClaimView, loadFromFs, UsageError } from './load/fs.js';
 import { pinMessage } from './pin.js';
 import { repoRoot } from './root.js';
@@ -232,6 +232,12 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .option('--continue', 'continue a claimed ticket: never claim, refuse when it has no branch')
     .action((id: string, o: { continue?: boolean }) => {
       setCode(worktreeOpen(preflight(opts), id, { continue: o.continue === true }));
+    });
+  worktree
+    .command('merge <id>')
+    .description("before verify: fetch, then merge the remote main into the ticket's branch with a merge commit; a conflict is aborted, named, and exits 2")
+    .action((id: string) => {
+      setCode(worktreeMerge(preflight(opts, 'stage'), id));
     });
 
   program

@@ -1,9 +1,10 @@
 // ST-LN-7 `accord worktree`: each ticket works in its own git worktree, a sibling folder of the main checkout.
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
-import { DEFAULT_BRANCH_TEMPLATE, loadConfig } from '@accord-dev/accord-core';
+import { DEFAULT_BRANCH_TEMPLATE, loadConfig, loadSnapshot, statusRows } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
-import { currentBranch, droppedOn, gitDefaultRef, gitUserEmail, ticketOfBranch, UsageError } from '../load/fs.js';
+import { currentBranch, droppedOn, gitDefaultRef, gitUserEmail, loadFromFs, ticketOfBranch, UsageError } from '../load/fs.js';
+import { fetchLimitMs } from './fetch-limit.js';
 import { claudeEnv, describeSession, isLive, processTable, runSetup, sameSession, sessionIn } from '../load/proc.js';
 import type { Session } from '../load/proc.js';
 import type { CommandContext } from '../run.js';
@@ -359,6 +360,7 @@ export function worktreeCheck(ctx: CommandContext): number {
 export function worktreeOpen(ctx: CommandContext, id: string, opts: { continue?: boolean } = {}): number {
   if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id);
   guardTicketSession(ctx, opts.continue === true ? id : undefined);
+  ctx = fetchOrigin(ctx);
   const enter = canEnter(ctx);
   const pick = opts.continue !== true;
   const branch = branchOf(ctx.snapshot, id);
@@ -375,6 +377,15 @@ export function worktreeOpen(ctx: CommandContext, id: string, opts: { continue?:
     // judge every ref that exists: the dashboard credits the pushed claim too
     if (local) checkClaimant(ctx, id, 'refs/heads/' + branch);
     if (remote) checkClaimant(ctx, id, 'refs/remotes/origin/' + branch);
+  }
+  if (opts.continue === true && (local || remote)) {
+    const def = gitDefaultRef(ctx.root);
+    if (def !== undefined) {
+      const tip = local ? 'refs/heads/' + branch : 'refs/remotes/origin/' + branch;
+      const n = Number(git(ctx.root, ['rev-list', '--count', `${tip}..${def}`]).trim());
+      const short = def.replace('refs/remotes/', '');
+      if (n > 0) ctx.stdout.write(`behind: ${branch} is ${n} commit${n === 1 ? '' : 's'} behind ${short}; merge them with git merge ${short}\n`);
+    }
   }
   // D-15: a worktree already holding the branch is only found, nothing runs there.
   if (held !== undefined) {
@@ -427,7 +438,7 @@ const firstWord = (cmd: string) => (/^\s*(?:"([^"]*)"|'([^']*)'|(\S+))/.exec(cmd
  * Run a network git command with prompts off. ssh gets BatchMode only when it is OpenSSH: git reads core.sshCommand before GIT_SSH, and
  * GIT_SSH_COMMAND before both, so the user's own program is never replaced and a non-OpenSSH command is passed through unchanged.
  */
-export function gitNoPrompt(cwd: string, args: string[]): string {
+export function gitNoPrompt(cwd: string, args: string[], timeout?: number): string {
   let configured = '';
   try {
     configured = execFileSync('git', ['config', '--get', 'core.sshCommand'], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
@@ -444,11 +455,75 @@ export function gitNoPrompt(cwd: string, args: string[]): string {
     cwd,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
+    ...(timeout === undefined ? {} : { timeout }),
     env: { ...process.env, GIT_TERMINAL_PROMPT: '0', ...(ssh !== undefined && fromEnv ? { GIT_SSH_COMMAND: undefined } : {}) },
   });
 }
 
 const firstLine = (e: unknown) => String((e as { stderr?: string }).stderr ?? e).trim().split('\n')[0];
+
+/** ST-LN-30 D-01, D-06: fetch origin so a branch is cut and a claim judged from the latest refs; a failed fetch prints one line and the work goes on. */
+export function fetchOrigin(ctx: CommandContext): CommandContext {
+  if (!gitOk(ctx.root, ['remote', 'get-url', 'origin'])) return ctx;
+  const ms = fetchLimitMs();
+  try {
+    gitNoPrompt(ctx.root, ['fetch', '--no-prune', 'origin'], ms);
+  } catch (e) {
+    const why = (e as NodeJS.ErrnoException).code === 'ETIMEDOUT' ? `no answer within ${ms / 1000} seconds` : firstLine(e);
+    ctx.stdout.write(`fetch from origin failed, going on with the refs already in this clone: ${why}\n`);
+    return ctx;
+  }
+  return { ...ctx, snapshot: loadSnapshot(loadFromFs(ctx.root)) };
+}
+
+/** ST-LN-30 D-03, D-04, D-09: fetch, then merge the remote default branch into the ticket branch with a merge commit; a conflict is aborted, named, and exits 2. */
+export function worktreeMerge(ctx: CommandContext, id: string): number {
+  if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id);
+  const branch = branchOf(ctx.snapshot, id);
+  // refusals first: a refused merge makes no network call
+  const cur = currentBranch(ctx.root);
+  if (cur !== branch) {
+    throw new UsageError(`${id} is merged on its branch ${branch}, and this checkout is on ${cur ? cur : 'a detached HEAD'} - run accord worktree merge ${id} in the ticket's worktree; nothing was merged`);
+  }
+  if (git(ctx.root, ['status', '--porcelain', '--untracked-files=no']).trim() !== '') {
+    throw new UsageError(`${ctx.root} has uncommitted changes to tracked files - commit them, then run accord worktree merge ${id} again; nothing was merged`);
+  }
+  const stage = statusRows(ctx.snapshot).find((r) => r.id === id)?.stage;
+  if (stage !== 'verify') {
+    throw new UsageError(`${id} is at stage ${stage ?? 'none'}, and accord worktree merge runs only at verify, after review - nothing was merged`);
+  }
+  if (!gitOk(ctx.root, ['remote', 'get-url', 'origin'])) return 0;
+  fetchOrigin(ctx);
+  const ref = gitDefaultRef(ctx.root);
+  if (ref === undefined) {
+    ctx.stdout.write('no origin/HEAD, origin/main or origin/master in this clone - nothing was merged\n');
+    return 0;
+  }
+  const def = ref.replace('refs/remotes/', '');
+  if (gitOk(ctx.root, ['merge-base', '--is-ancestor', ref, 'HEAD'])) return 0;
+  // git 2.56 ort ignores --no-overwrite-ignore: refuse by hand when the merge adds a path that is an untracked (ignored) file here
+  const mine = git(ctx.root, ['diff', '--name-only', '--no-renames', '--diff-filter=A', '-z', 'HEAD', ref]).split('\0').filter((l) => l !== '');
+  // git itself says which of those paths are untracked here, so a tracked file under another case is no clash; the pathspecs keep it from walking node_modules
+  const here = mine.filter((f) => existsSync(ctx.root + '/' + f)); // keeps the command line short: a big merged PR adds hundreds of paths, none normally on disk
+  const clash = here.length === 0 ? undefined : git(ctx.root, ['ls-files', '--others', '-z', '--', ...here.map((f) => ':(literal)' + f)]).split('\0').find((l) => l !== '');
+  if (clash !== undefined) {
+    throw new UsageError(`merge of ${def} into ${branch} failed: ${clash} is an ignored file here that the merge would overwrite - move it, then start verify again - ${branch} is as it was`);
+  }
+  try {
+    // the full ref: a short origin/main would resolve to a local branch or tag of that name first
+    execFileSync('git', ['merge', '--no-ff', '--no-edit', '--no-overwrite-ignore', ref], { cwd: ctx.root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  } catch (e) {
+    const files = git(ctx.root, ['diff', '--name-only', '-z', '--diff-filter=U']).split('\0').filter((l) => l !== '');
+    if (gitOk(ctx.root, ['rev-parse', '-q', '--verify', 'MERGE_HEAD'])) git(ctx.root, ['merge', '--abort']);
+    if (files.length > 0) {
+      throw new UsageError(`merge of ${def} into ${branch} stopped on a conflict in ${files.join(', ')} - the merge was aborted and ${branch} is as it was; resolve the conflict, then start verify again`);
+    }
+    throw new UsageError(`merge of ${def} into ${branch} failed: ${firstLine(e)} - ${branch} is as it was`);
+  }
+  // preflight checked the pin before the merge, so this throws only when the merge changed it
+  checkPin(ctx, id, ctx.root, branch, listWorktrees(ctx.root)[0].path);
+  return 0;
+}
 
 /** ST-LN-20 D-05: after a good fetch, prune origin's stale refs (remote-tracking, and tags a fetch refspec maps), naming each with its full sha (it can be the last copy of an unmerged branch). */
 function pruneStale(ctx: CommandContext): Map<string, string> {

@@ -2,13 +2,20 @@
 import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { afterEach, expect, it, vi } from 'vitest';
 import * as proc from '../src/load/proc.js';
-import { LANE_BODY, laneTicket } from '../../../test/helpers/lane.js';
+import { approvedHash, loadSnapshot, setFrontmatterKey } from '@accord-dev/accord-core';
+import { CONFIG, LANE_BODY, laneTicket, PLAN } from '../../../test/helpers/lane.js';
 import { commitMsg, gitRun, mergeMsg, run, writeFiles } from './helpers/repo.js';
 import { makeClone, type Clone } from './helpers/worktree.js';
 
 vi.mock('../src/load/proc.js', async (orig) => {
   const real = await orig<typeof import('../src/load/proc.js')>();
   return { ...real, processTable: vi.fn(real.processTable) };
+});
+
+import * as limit from '../src/commands/fetch-limit.js';
+vi.mock('../src/commands/fetch-limit.js', async (orig) => {
+  const real = await orig<typeof import('../src/commands/fetch-limit.js')>();
+  return { ...real, fetchLimitMs: vi.fn(real.fetchLimitMs) };
 });
 
 const clones: Clone[] = [];
@@ -19,6 +26,7 @@ const clone = (opts?: Parameters<typeof makeClone>[0]) => {
 };
 afterEach(() => {
   vi.mocked(proc.processTable).mockReset();
+  vi.mocked(limit.fetchLimitMs).mockReset();
   for (const c of clones.splice(0)) c.cleanupAll();
 });
 
@@ -265,7 +273,8 @@ it('risk:concurrency a locked hold file is never overwritten', async () => {
   setTable(tableOf(A));
   const t0 = Date.now();
   const r = await run(['worktree', 'open', 'ST-9', '--continue'], sib, envOf(A));
-  expect(Date.now() - t0).toBeLessThan(5000);
+  // 2 s lock wait plus the fetch Continue now runs first; a hang never returns, so 15 s still proves it
+  expect(Date.now() - t0).toBeLessThan(15000);
   expect(r.code).toBe(2);
   expect(r.err).toContain('holds.lock');
   expect(existsSync(holdsFile(c))).toBe(false);
@@ -1041,10 +1050,11 @@ it('ac-4 in claude code a session that works a ticket refuses other tickets and 
   expect(state()).toEqual(before);
   setTable(tableOf(A));
   const same = await run(['worktree', 'open', 'ST-9', '--continue'], sib, envOf(A));
-  expect([same.code, same.out]).toEqual([0, HELD]);
+  const BEHIND = 'behind: t/ST-9 is 1 commit behind origin/main; merge them with git merge origin/main\n';
+  expect([same.code, same.out]).toEqual([0, BEHIND + HELD]);
   const back = await run(['worktree', 'open', 'ST-9', '--continue'], c.root, envOf(A));
   expect(back.code).toBe(0);
-  expect(lines(back.out)).toEqual([`enter: ${sib}`]);
+  expect(lines(back.out)).toEqual([lines(BEHIND)[0], `enter: ${sib}`]);
 }, 180_000);
 
 it('ac-5 outside claude code pick up continue and new ticket print the stop lines and nothing is refused', async () => {
@@ -1591,3 +1601,368 @@ it('risk:complex-branching pick up refuses a ticket the default branch holds as 
   expect(k.code).toBe(0);
   expect(existsSync(c.sibling('ST-10'))).toBe(true);
 }, 120_000);
+
+const pushNext = (c: Clone) => {
+  const o = c.otherClone();
+  writeFiles(o, { 'next.txt': 'next\n' });
+  gitRun(o, 'add', '-A');
+  gitRun(o, 'commit', '-q', '-m', 'next');
+  gitRun(o, 'push', '-q', 'origin', 'main');
+  return gitRun(o, 'rev-parse', 'HEAD').trim();
+};
+
+it('ac-1 pick up and a new worktree ticket cut the ticket branch from a main commit this clone had not fetched', async () => {
+  const c = clone();
+  const tip = pushNext(c);
+  expect(sha(c, 'origin/main')).not.toBe(tip);
+  const r = await run(['worktree', 'open', 'ST-9'], c.root);
+  expect(r.code).toBe(0);
+  expect(c.git('rev-parse', 't/ST-9^').trim()).toBe(tip);
+  expect(c.git('log', '-1', '--format=%s', 't/ST-9').trim()).toBe('claim: ST-9');
+  expect(r.out).not.toContain('fetch from origin failed');
+
+  const d = clone({ tickets: [] });
+  const tip2 = pushNext(d);
+  const n = await run(['new', 'ticket', 'ST-9', '--lane', 'M', '--worktree'], d.root);
+  expect(n.code).toBe(0);
+  expect(d.git('rev-parse', 't/ST-9^').trim()).toBe(tip2);
+  expect(d.git('show', 't/ST-9:accord/tickets/ST-9.md')).not.toBe('');
+}, 120_000);
+
+it('risk:concurrency pick up fetches before it judges the claim so a claim pushed since the last fetch refuses', async () => {
+  const c = clone();
+  const o = c.otherClone();
+  gitRun(o, 'config', 'user.email', 'other@example.invalid');
+  gitRun(o, 'switch', '-q', '-c', 't/ST-9');
+  gitRun(o, 'commit', '-q', '--allow-empty', '-m', 'claim: ST-9');
+  gitRun(o, 'push', '-q', 'origin', 't/ST-9');
+  const r = await run(['worktree', 'open', 'ST-9'], c.root);
+  expect(r.code).toBe(2);
+  expect(r.err).toContain('claimed: ST-9 by other@example.invalid');
+  expect(existsSync(c.sibling('ST-9'))).toBe(false);
+  expect(() => c.git('rev-parse', '--verify', '-q', 'refs/heads/t/ST-9')).toThrow();
+}, 120_000);
+
+it('ac-2 continue says the ticket branch is 2 commits behind the remote main and leaves the branch unchanged', async () => {
+  const c = clone();
+  ticketWorktree(c, 'ST-9');
+  const before = sha(c, 't/ST-9');
+  const o = c.otherClone();
+  for (const f of ['a.txt', 'b.txt']) {
+    writeFiles(o, { [f]: f + '\n' });
+    gitRun(o, 'add', '-A');
+    gitRun(o, 'commit', '-q', '-m', f);
+  }
+  gitRun(o, 'push', '-q', 'origin', 'main');
+  expect(sha(c, 'origin/main')).not.toBe(gitRun(o, 'rev-parse', 'HEAD').trim());
+  const r = await run(['worktree', 'open', 'ST-9', '--continue'], c.root);
+  expect(r.code).toBe(0);
+  const out = lines(r.out);
+  expect(out[0]).toBe('behind: t/ST-9 is 2 commits behind origin/main; merge them with git merge origin/main');
+  expect(out.slice(1, 4)).toEqual(stopLines(c.sibling('ST-9'), 'ST-9'));
+  expect(out.filter((l) => l.startsWith('behind:'))).toHaveLength(1);
+  expect(sha(c, 't/ST-9')).toBe(before);
+  expect(gitRun(c.sibling('ST-9'), 'rev-parse', 'HEAD').trim()).toBe(before);
+  expect(gitRun(c.sibling('ST-9'), 'status', '--porcelain')).toBe('');
+}, 120_000);
+
+/** A ticket at the verify stage, committed in `dir`: approved, planned, both tasks done, review ended with a verdict. */
+function verifyStage(dir: string, id: string, opts: { review?: boolean } = {}) {
+  let text = laneTicket(id);
+  const hash = approvedHash(loadSnapshot({ files: { 'accord/config.yml': CONFIG, ['accord/tickets/' + id + '.md']: text }, tree: [] }).tickets[id]);
+  text = setFrontmatterKey(text, 'approved_hash', hash);
+  const files: Record<string, string> = {
+    ['accord/tickets/' + id + '.md']: text,
+    ['accord/tickets/' + id + '/plan.md']: PLAN,
+    ['accord/tickets/' + id + '/ledger.md']: '## Tasks\n- task 1 done abc1234\n- task 2 done abc1234\n',
+  };
+  if (opts.review !== false) files['accord/tickets/' + id + '/review.md'] = 'verdict: converged\n';
+  writeFiles(dir, files);
+  gitRun(dir, 'add', '-A');
+  gitRun(dir, 'commit', '-q', '-m', 'review: ' + id);
+}
+
+/** Commit a file on the remote main from a second clone, which `c` has not fetched; returns the new tip. */
+function pushMain(c: Clone, file: string, text: string): string {
+  const o = c.otherClone();
+  writeFiles(o, { [file]: text });
+  gitRun(o, 'add', '-A');
+  gitRun(o, 'commit', '-q', '-m', file);
+  gitRun(o, 'push', '-q', 'origin', 'main');
+  return gitRun(o, 'rev-parse', 'HEAD').trim();
+}
+
+it('ac-3 worktree merge at verify gives the ticket branch a merge commit of its head and the fetched main commit', async () => {
+  const c = clone();
+  ticketWorktree(c, 'ST-9');
+  const sib = c.sibling('ST-9');
+  verifyStage(sib, 'ST-9');
+  const rows = JSON.parse((await run(['status', '--json'], sib)).out) as { id: string; stage: string }[];
+  expect(rows.find((r) => r.id === 'ST-9')?.stage).toBe('verify');
+  const head = gitRun(sib, 'rev-parse', 'HEAD').trim();
+  const tip = pushMain(c, 'next.txt', 'next\n');
+  const r = await run(['worktree', 'merge', 'ST-9'], sib);
+  expect(r.code).toBe(0);
+  expect(gitRun(sib, 'rev-parse', 'HEAD^1').trim()).toBe(head);
+  expect(gitRun(sib, 'rev-parse', 'HEAD^2').trim()).toBe(tip);
+  expect(gitRun(sib, 'rev-list', '--parents', '-n', '1', 'HEAD').trim().split(' ')).toHaveLength(3);
+  expect(gitRun(sib, 'branch', '--show-current').trim()).toBe('t/ST-9');
+  expect(gitRun(sib, 'status', '--porcelain')).toBe('');
+  expect(existsSync(sib + '/next.txt')).toBe(true);
+  expect(gitRun(sib, 'reflog', '-n', '10')).not.toContain('rebase');
+  const merged = gitRun(sib, 'rev-parse', 'HEAD').trim();
+  const again = await run(['worktree', 'merge', 'ST-9'], sib);
+  expect(again.code).toBe(0);
+  expect(again.out).toBe('');
+  expect(again.err).toBe('');
+  expect(gitRun(sib, 'rev-parse', 'HEAD').trim()).toBe(merged);
+}, 120_000);
+
+it('ac-4 a merge conflict is aborted names the file exits 2 and the next merge tries again', async () => {
+  const c = clone();
+  writeFiles(c.root, { 'shared.txt': 'base\n' });
+  c.git('add', '-A');
+  c.git('commit', '-q', '-m', 'shared');
+  c.git('push', '-q', 'origin', 'main');
+  ticketWorktree(c, 'ST-9', 'shared.txt');
+  const sib = c.sibling('ST-9');
+  verifyStage(sib, 'ST-9');
+  pushMain(c, 'shared.txt', 'main\n');
+  const head = gitRun(sib, 'rev-parse', 'HEAD').trim();
+  for (let i = 0; i < 2; i++) {
+    const r = await run(['worktree', 'merge', 'ST-9'], sib);
+    expect(r.code).toBe(2);
+    expect(r.err).toContain('conflict');
+    expect(r.err).toContain('shared.txt');
+    expect(gitRun(sib, 'rev-parse', 'HEAD').trim()).toBe(head);
+    expect(gitRun(sib, 'status', '--porcelain')).toBe('');
+    expect(readFileSync(sib + '/shared.txt', 'utf8').replace(/\r/g, '')).toBe('ST-9\n');
+    expect(() => gitRun(sib, 'rev-parse', '-q', '--verify', 'MERGE_HEAD')).toThrow();
+  }
+}, 120_000);
+
+it('risk:complex-branching worktree merge merges the remote-tracking main when a local branch has its short name', async () => {
+  const c = clone();
+  ticketWorktree(c, 'ST-9');
+  const sib = c.sibling('ST-9');
+  verifyStage(sib, 'ST-9');
+  const head = gitRun(sib, 'rev-parse', 'HEAD').trim();
+  gitRun(sib, 'branch', 'origin/main', 'HEAD');
+  const tip = pushMain(c, 'next.txt', 'next\n');
+  const r = await run(['worktree', 'merge', 'ST-9'], sib);
+  expect(r.code).toBe(0);
+  expect(gitRun(sib, 'rev-parse', 'HEAD^1').trim()).toBe(head);
+  expect(gitRun(sib, 'rev-parse', 'HEAD^2').trim()).toBe(tip);
+  expect(gitRun(sib, 'rev-parse', 'refs/heads/origin/main').trim()).toBe(head);
+}, 120_000);
+
+it('risk:complex-branching worktree merge refuses before verify on another branch and over tracked changes and merges nothing', async () => {
+  const c = clone();
+  ticketWorktree(c, 'ST-9');
+  const sib = c.sibling('ST-9');
+  verifyStage(sib, 'ST-9', { review: false });
+  const head = gitRun(sib, 'rev-parse', 'HEAD').trim();
+  pushMain(c, 'next.txt', 'next\n');
+  const main0 = sha(c, 'origin/main');
+  const early = await run(['worktree', 'merge', 'ST-9'], sib);
+  expect(early.code).toBe(2);
+  expect(early.err).toContain('only at verify');
+  expect(early.err).toContain('nothing was merged');
+  expect(gitRun(sib, 'rev-parse', 'HEAD').trim()).toBe(head);
+  expect(sha(c, 'origin/main')).toBe(main0);
+
+  const d = clone();
+  ticketWorktree(d, 'ST-9');
+  verifyStage(d.sibling('ST-9'), 'ST-9');
+  const dHead = gitRun(d.sibling('ST-9'), 'rev-parse', 'HEAD').trim();
+  pushMain(d, 'next.txt', 'next\n');
+  const away = await run(['worktree', 'merge', 'ST-9'], d.root);
+  expect(away.code).toBe(2);
+  expect(away.err).toContain('t/ST-9');
+  expect(away.err).toContain('nothing was merged');
+  expect(gitRun(d.sibling('ST-9'), 'rev-parse', 'HEAD').trim()).toBe(dHead);
+
+  const e = clone();
+  ticketWorktree(e, 'ST-9');
+  const eSib = e.sibling('ST-9');
+  verifyStage(eSib, 'ST-9');
+  const eHead = gitRun(eSib, 'rev-parse', 'HEAD').trim();
+  pushMain(e, 'next.txt', 'next\n');
+  writeFiles(eSib, { 'ST-9.txt': 'changed\n' });
+  const dirty = await run(['worktree', 'merge', 'ST-9'], eSib);
+  expect(dirty.code).toBe(2);
+  expect(dirty.err).toContain('uncommitted changes');
+  expect(readFileSync(eSib + '/ST-9.txt', 'utf8').replace(/\r/g, '')).toBe('changed\n');
+  expect(gitRun(eSib, 'rev-parse', 'HEAD').trim()).toBe(eHead);
+}, 120_000);
+
+it('risk:data-loss worktree merge never overwrites an ignored file and quotes the git error that stopped it', async () => {
+  const c = clone();
+  ticketWorktree(c, 'ST-9');
+  const sib = c.sibling('ST-9');
+  verifyStage(sib, 'ST-9');
+  const head = gitRun(sib, 'rev-parse', 'HEAD').trim();
+  writeFiles(sib, { 'node_modules/keep.txt': 'mine\n' });
+  const o = c.otherClone();
+  writeFiles(o, { 'node_modules/keep.txt': 'theirs\n' });
+  gitRun(o, 'add', '-f', 'node_modules/keep.txt');
+  gitRun(o, 'commit', '-q', '-m', 'theirs');
+  gitRun(o, 'push', '-q', 'origin', 'main');
+  const r = await run(['worktree', 'merge', 'ST-9'], sib);
+  expect(r.code).toBe(2);
+  expect(r.err).toContain('merge of origin/main into t/ST-9 failed: ');
+  expect(r.err).not.toContain('conflict');
+  expect(readFileSync(sib + '/node_modules/keep.txt', 'utf8').replace(/\r/g, '')).toBe('mine\n');
+  expect(gitRun(sib, 'rev-parse', 'HEAD').trim()).toBe(head);
+  expect(() => gitRun(sib, 'rev-parse', '-q', '--verify', 'MERGE_HEAD')).toThrow();
+
+  // a rename on main whose target is an ignored file present here
+  const d = clone();
+  pushMain(d, 'old.txt', 'old\n');
+  ticketWorktree(d, 'ST-9');
+  const dSib = d.sibling('ST-9');
+  verifyStage(dSib, 'ST-9');
+  const dHead = gitRun(dSib, 'rev-parse', 'HEAD').trim();
+  writeFiles(dSib, { 'node_modules/moved.txt': 'mine\n' });
+  const p = d.otherClone();
+  mkdirSync(p + '/node_modules');
+  gitRun(p, 'mv', 'old.txt', 'node_modules/moved.txt');
+  gitRun(p, 'commit', '-q', '-m', 'rename');
+  gitRun(p, 'push', '-q', 'origin', 'main');
+  const rr = await run(['worktree', 'merge', 'ST-9'], dSib);
+  expect(rr.code).toBe(2);
+  expect(rr.err).toContain('node_modules/moved.txt');
+  expect(readFileSync(dSib + '/node_modules/moved.txt', 'utf8').replace(/\r/g, '')).toBe('mine\n');
+  expect(gitRun(dSib, 'rev-parse', 'HEAD').trim()).toBe(dHead);
+
+  // a non-ASCII path, which git quotes and octal-escapes by default
+  const u = clone();
+  ticketWorktree(u, 'ST-9');
+  const uSib = u.sibling('ST-9');
+  verifyStage(uSib, 'ST-9');
+  const uHead = gitRun(uSib, 'rev-parse', 'HEAD').trim();
+  writeFiles(uSib, { 'node_modules/é.txt': 'mine\n' });
+  const q = u.otherClone();
+  writeFiles(q, { 'node_modules/é.txt': 'theirs\n' });
+  gitRun(q, 'add', '-f', 'node_modules/é.txt');
+  gitRun(q, 'commit', '-q', '-m', 'theirs');
+  gitRun(q, 'push', '-q', 'origin', 'main');
+  const ur = await run(['worktree', 'merge', 'ST-9'], uSib);
+  expect(ur.code).toBe(2);
+  expect(ur.err).toContain('node_modules/é.txt');
+  expect(readFileSync(uSib + '/node_modules/é.txt', 'utf8').replace(/\r/g, '')).toBe('mine\n');
+  expect(gitRun(uSib, 'rev-parse', 'HEAD').trim()).toBe(uHead);
+
+  // a case-only rename on main of a file this branch tracks is no overwrite, on either kind of filesystem
+  const k = clone();
+  pushMain(k, 'README.md', 'readme\n');
+  k.git('fetch', '-q', 'origin');
+  ticketWorktree(k, 'ST-9');
+  const kSib = k.sibling('ST-9');
+  verifyStage(kSib, 'ST-9');
+  const kHead = gitRun(kSib, 'rev-parse', 'HEAD').trim();
+  const w = k.otherClone();
+  gitRun(w, 'mv', 'README.md', 'Readme.md');
+  gitRun(w, 'commit', '-q', '-m', 'case rename');
+  gitRun(w, 'push', '-q', 'origin', 'main');
+  const kr = await run(['worktree', 'merge', 'ST-9'], kSib);
+  expect(kr.err).toBe('');
+  expect(kr.code).toBe(0);
+  expect(gitRun(kSib, 'rev-parse', 'HEAD^1').trim()).toBe(kHead);
+
+  // a main that adds so many files that the pathspec list alone passes the Windows command-line limit of 32767 characters
+  const m = clone();
+  ticketWorktree(m, 'ST-9');
+  const mSib = m.sibling('ST-9');
+  verifyStage(mSib, 'ST-9');
+  const mHead = gitRun(mSib, 'rev-parse', 'HEAD').trim();
+  const many: Record<string, string> = {};
+  for (let i = 0; i < 500; i++) many[`big/${'n'.repeat(70)}-${i}.txt`] = 'x\n';
+  const mo = m.otherClone();
+  writeFiles(mo, many);
+  gitRun(mo, 'add', '-A');
+  gitRun(mo, 'commit', '-q', '-m', 'many');
+  gitRun(mo, 'push', '-q', 'origin', 'main');
+  const mr = await run(['worktree', 'merge', 'ST-9'], mSib);
+  expect(mr.err).toBe('');
+  expect(mr.code).toBe(0);
+  expect(gitRun(mSib, 'rev-parse', 'HEAD^1').trim()).toBe(mHead);
+}, 120_000);
+
+it('risk:complex-branching a merge that changes the pinned accord version keeps the merge and names the pin', async () => {
+  const c = clone();
+  ticketWorktree(c, 'ST-9');
+  const sib = c.sibling('ST-9');
+  verifyStage(sib, 'ST-9');
+  const head = gitRun(sib, 'rev-parse', 'HEAD').trim();
+  const o = c.otherClone();
+  const cfg = o + '/accord/config.yml';
+  writeFileSync(cfg, readFileSync(cfg, 'utf8').replace('accord: "0.1.0"', 'accord: "9.9.9"'));
+  gitRun(o, 'add', '-A');
+  gitRun(o, 'commit', '-q', '-m', 'pin');
+  gitRun(o, 'push', '-q', 'origin', 'main');
+  const tip = gitRun(o, 'rev-parse', 'HEAD').trim();
+  const r = await run(['worktree', 'merge', 'ST-9'], sib);
+  expect(r.code).toBe(2);
+  expect(r.err).toContain('pins accord 9.9.9');
+  expect(gitRun(sib, 'rev-parse', 'HEAD^1').trim()).toBe(head);
+  expect(gitRun(sib, 'rev-parse', 'HEAD^2').trim()).toBe(tip);
+}, 120_000);
+
+it('ac-5 a failed or silent fetch is one accord line at pick up new ticket continue and merge and the work goes on', async () => {
+  const P = 'fetch from origin failed, going on with the refs already in this clone: ';
+  const one = (out: string, err: string) => {
+    const all = lines(out + err);
+    const f = all.filter((l) => l.includes('fetch'));
+    expect(f).toHaveLength(1);
+    expect(f[0].startsWith(P)).toBe(true);
+    expect(f[0].length).toBeGreaterThan(P.length);
+    expect(all.some((l) => l.startsWith('fatal:'))).toBe(false);
+    return f[0];
+  };
+  const missing = (c: Clone) => c.git('remote', 'set-url', 'origin', c.remote + '-missing');
+
+  const c = clone();
+  missing(c);
+  const base = sha(c, 'origin/main');
+  const rc = await run(['worktree', 'open', 'ST-9'], c.root);
+  expect(rc.code).toBe(0);
+  one(rc.out, rc.err);
+  expect(sha(c, 't/ST-9^')).toBe(base);
+
+  const d = clone({ tickets: [] });
+  missing(d);
+  d.git('remote', 'set-url', '--push', 'origin', d.remote);
+  const rd = await run(['new', 'ticket', 'ST-9', '--lane', 'M', '--worktree'], d.root);
+  expect(rd.code).toBe(0);
+  one(rd.out, rd.err);
+
+  const e = clone();
+  ticketWorktree(e, 'ST-9');
+  missing(e);
+  const re = await run(['worktree', 'open', 'ST-9', '--continue'], e.root);
+  expect(re.code).toBe(0);
+  one(re.out, re.err);
+  expect(lines(re.out).slice(-3)).toEqual(stopLines(e.sibling('ST-9'), 'ST-9'));
+
+  const f = clone();
+  ticketWorktree(f, 'ST-9');
+  verifyStage(f.sibling('ST-9'), 'ST-9');
+  missing(f);
+  const head = gitRun(f.sibling('ST-9'), 'rev-parse', 'HEAD').trim();
+  const rf = await run(['worktree', 'merge', 'ST-9'], f.sibling('ST-9'));
+  expect(rf.code).toBe(0);
+  one(rf.out, rf.err);
+  expect(gitRun(f.sibling('ST-9'), 'rev-parse', 'HEAD').trim()).toBe(head);
+
+  const g = clone();
+  g.git('config', 'remote.origin.uploadpack', 'cd / && sleep 30 >/dev/null 2>&1; :');
+  vi.mocked(limit.fetchLimitMs).mockReturnValue(2000);
+  const t0 = Date.now();
+  const rg = await run(['worktree', 'open', 'ST-9'], g.root);
+  expect(rg.code).toBe(0);
+  expect(Date.now() - t0).toBeLessThan(15000);
+  expect(one(rg.out, rg.err)).toBe(P + 'no answer within 2 seconds');
+  expect(sha(g, 't/ST-9^')).toBe(sha(g, 'origin/main'));
+  await new Promise((r) => setTimeout(r, Math.max(0, t0 + 31000 - Date.now())));
+}, 60_000);

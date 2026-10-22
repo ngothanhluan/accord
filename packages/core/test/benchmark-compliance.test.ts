@@ -173,3 +173,60 @@ it('risk:data-loss a newer compliance read keeps every line of an earlier one', 
   expect(out).not.toContain(cap(7));
   expect(out).not.toContain(trailerNew + '\n');
 });
+
+type Cmp = (input: unknown) => Record<string, string[]>;
+const load = async () =>
+  (await import(new URL('../../../scripts/compliance.mjs', import.meta.url).href)) as {
+    compliance: Cmp;
+    quoteProblem: (text: string, id: string, committed: string | undefined) => { line: number; text: string } | { missing: true } | undefined;
+  };
+const COMMITTED = '---\nid: "T-1"\nstatus: open\n---\n\n## Intent\n<!-- a\nmulti-line comment -->\n- Why: x\n- Not: y\n\n## Decisions\n- D-01 z\n';
+
+it('risk:parsing a brief that quotes part of a ticket is flagged only for lines the committed file lacks', async () => {
+  const { quoteProblem } = await load();
+  expect(quoteProblem(COMMITTED.split('\n').slice(0, 6).join('\n'), 'T-1', COMMITTED)).toBeUndefined();
+  expect(quoteProblem('## Intent\n- Why: x\n- Not: y', 'T-1', COMMITTED)).toBeUndefined();
+  expect(quoteProblem(COMMITTED + '\n---\n# Task brief\n', 'T-1', COMMITTED)).toBeUndefined();
+  expect(quoteProblem('## Intent\n- Why: CHANGED', 'T-1', COMMITTED)).toEqual({ line: 2, text: '- Why: CHANGED' });
+});
+
+it('risk:regression brief-quote compares with the ticket the run read, not the session branch, and skips its own ticket read', async () => {
+  const { compliance } = await load();
+  const T2 = COMMITTED.replace('T-1', 'T-2').replace('- Why: x', '- Why: other');
+  const run = (o: Record<string, unknown>) => ({ agent: 'accord-critic', desc: 'Critic plan', ticket: 'T-2', task: null, fix: false, commits: [], edits: [], sends: [], handbacks: [], file: 'r.jsonl', ...o });
+  const common = { refusals: [], commits: [], tickets: {}, settings: { tierUp: 4, executorModel: 'sonnet' }, commitInfo: () => undefined, testFile: () => undefined, ticketAt: (id: string) => (id === 'T-1' ? COMMITTED : T2) };
+  const path = 'C:/w/accord/tickets/T-1.md';
+  const out = compliance({
+    ...common,
+    runs: [
+      // the branch says T-2, the brief named and the run read T-1: no false line
+      run({ file: 'a.jsonl', dispatch: { ts: 1, prompt: `Read ${path}\n${COMMITTED}` }, reads: [{ path, text: COMMITTED }] }),
+      // the agent's own read of its ticket (upper-case id) is not a quote
+      run({ file: 'b.jsonl', ticket: 'T-1', dispatch: { ts: 1, prompt: `Read ${path}` }, reads: [{ path, text: COMMITTED.replace('x', 'q') }] }),
+    ],
+  });
+  expect(out['brief-quote']).toEqual([]);
+});
+
+it('risk:parsing test-first words an order seen apart from no test edit seen', async () => {
+  const { compliance } = await load();
+  const run = (file: string, paths: string[]) => ({ agent: 'accord-executor', desc: 'Build T-1 task 1', ticket: 'T-1', task: 1, fix: false, commits: [], reads: [], sends: [], handbacks: [], file, dispatch: { cwd: 'C:/w', ts: 1 }, edits: paths.map((p) => ({ path: `C:/w/${p}` })) });
+  const out = compliance({ runs: [run('a.jsonl', ['src/a.ts', 'test/a.test.ts']), run('b.jsonl', ['src/a.ts'])], refusals: [], commits: [], tickets: {}, settings: { tierUp: 4, executorModel: 'sonnet' }, commitInfo: () => undefined, testFile: () => undefined });
+  const [a, b] = out['test-first'];
+  expect(a).toContain('first edit to a source file (src/a.ts) came before its first edit to a test file');
+  expect(a).toContain('a.jsonl');
+  expect(b).toContain('first edit to a source file (src/a.ts), no test edit seen through Edit or Write');
+  expect(b).not.toContain('came before');
+});
+
+it('risk:regression the tier-up line names the task of the fix executor', async () => {
+  const { compliance } = await load();
+  const out = compliance({
+    runs: [{ agent: 'accord-executor', desc: 'Fix T-1 final review', ticket: 'T-1', task: null, fix: true, commits: ['abc1234'], start: 0, end: 10, edits: [], reads: [], sends: [], handbacks: [], file: 'f.jsonl', dispatch: { model: 'sonnet' } }],
+    refusals: [], commits: [], tickets: { 'T-1': { review: '## Round 4\n\nShould 1: x — fixed in abc1234\n', ledger: '' } }, settings: { tierUp: 4, executorModel: 'sonnet' },
+    commitInfo: () => ({ sha: 'abc1234'.padEnd(40, '0'), at: 5, message: 'T-1 task 3: fix' }), testFile: () => undefined,
+  });
+  expect(out['tier-up']).toHaveLength(1);
+  expect(out['tier-up'][0]).toContain("task 3");
+  expect(out['tier-up'][0]).toContain('T-1 review round 4');
+});

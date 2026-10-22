@@ -206,6 +206,9 @@ function refusalsIn(file, lines) {
   return found;
 }
 
+// `git commit`, also with options between: git -c k=v commit, git -C dir commit.
+const GIT_COMMIT = /\bgit(?:\s+(?:-[cC]\s+(?:"[^"]*"|'[^']*'|\S+)|--?[\w-]+(?:=\S+)?))*\s+commit\b/;
+
 function parseRun(file, id, meta, lines, session) {
   const turnsById = new Map();
   const toolById = new Map();
@@ -224,8 +227,9 @@ function parseRun(file, id, meta, lines, session) {
           const body = text.split('\n');
           const cut = body.findIndex((l) => l.startsWith('<system-reminder>'));
           reads.push({ path: use.path, text: (cut < 0 ? body : body.slice(0, cut)).map((l) => l.replace(/^\s*\d+\t/, '')).join('\n').replace(/\n+$/, ''), ts: use.ts });
-        } else if (use.name === 'Bash' && String(use.input?.command ?? '').includes('git commit')) {
-          for (const m of text.matchAll(/(?:^|\[\S+ )([0-9a-f]{7,40})\b/gm)) commitRows.push(m[1]);
+        } else if (use.name === 'Bash' && GIT_COMMIT.test(String(use.input?.command ?? ''))) {
+          // Only git's own summary line, `[<branch> <sha>] <subject>` or `[<branch> (root-commit) <sha>]`; a log line is an older commit.
+          for (const m of text.matchAll(/^\[[^\]\n]* ([0-9a-f]{7,40})\]/gm)) commitRows.push(m[1]);
         }
       }
       continue;

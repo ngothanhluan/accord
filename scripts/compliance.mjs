@@ -47,7 +47,8 @@ export function compliance({ runs, refusals, commits, tickets, settings, commitI
         const base = TIERS.indexOf(settings.executorModel);
         const expected = base < 0 ? settings.executorModel : TIERS[Math.min(base + 1, TIERS.length - 1)];
         const asked = r.dispatch?.model || r.metaModel || settings.executorModel; // parseRun gives '' for an absent model
-        if (asked !== expected) out['tier-up'].push(`- tier-up: ${id} review round ${n}: the fix executor asked for ${asked} where escalation.fix_round_tier_up asks for ${expected} — ${r.file}`);
+        const task = r.task ?? mine.map((c) => c.message.match(/\btask (\d+)/i)?.[1]).find(Boolean) ?? `none, a fix assignment "${r.desc}"`;
+        if (asked !== expected) out['tier-up'].push(`- tier-up: ${id} review round ${n} (task ${task}): the fix executor asked for ${asked} where escalation.fix_round_tier_up asks for ${expected} — ${r.file}`);
       }
     }
   }
@@ -83,7 +84,7 @@ export function compliance({ runs, refusals, commits, tickets, settings, commitI
     const firstSrc = own.find((p) => !isTest(p) && /\.(ts|mts|cts|tsx|js|mjs|cjs|jsx)$/.test(p));
     const firstTest = own.findIndex(isTest);
     // shortcut: edits made through Bash are not seen.
-    if (firstSrc && (firstTest < 0 || own.indexOf(firstSrc) < firstTest)) out['test-first'].push(`- test-first: ${label(r)}: its first edit to a source file (${firstSrc}) came before its first edit to a test file — ${r.file}`);
+    if (firstSrc && (firstTest < 0 || own.indexOf(firstSrc) < firstTest)) out['test-first'].push(`- test-first: ${label(r)}: its ${firstTest < 0 ? `first edit to a source file (${firstSrc}), no test edit seen through Edit or Write` : `first edit to a source file (${firstSrc}) came before its first edit to a test file`} — ${r.file}`);
   }
 
   for (const f of refusals) {
@@ -112,15 +113,19 @@ export function compliance({ runs, refusals, commits, tickets, settings, commitI
     const memo = new Map();
     const committedAt = (id, ts) => { const key = `${id}@${ts}`; if (!memo.has(key)) memo.set(key, ticketAt(id, ts)); return memo.get(key); };
     for (const r of kept) {
-      if (!r.dispatch || !r.ticket) continue;
+      if (!r.dispatch) continue;
       const prompt = String(r.dispatch.prompt ?? '');
       const flat = lower(prompt);
-      const quoted = r.reads.filter((x) => flat.includes(lower(x.path)) && !lower(x.path).endsWith(`accord/tickets/${r.ticket}.md`));
+      // The ticket the run read or the brief named wins over the one in its description or session branch.
+      const named = (s) => s.match(/accord\/tickets\/([A-Za-z]+(?:-[A-Za-z]+)?-\d+)\.md/i)?.[1];
+      const ticket = (r.reads.map((x) => named(x.path)).find(Boolean) ?? named(prompt) ?? r.ticket)?.toUpperCase();
+      if (!ticket) continue;
+      const quoted = r.reads.filter((x) => flat.includes(lower(x.path)) && !lower(x.path).endsWith(`accord/tickets/${ticket.toLowerCase()}.md`));
       for (const text of [prompt, ...quoted.map((x) => x.text)]) {
-        const p = quoteProblem(text, r.ticket, committedAt(r.ticket, r.dispatch.ts));
+        const p = quoteProblem(text, ticket, committedAt(ticket, r.dispatch.ts));
         if (!p) continue;
-        const tail = p.missing ? `no committed accord/tickets/${r.ticket}.md existed when it was dispatched` : `the brief's copy of the ticket differs from accord/tickets/${r.ticket}.md as committed when it was dispatched, first at line ${p.line}: "${p.text.slice(0, 120)}"`;
-        out['brief-quote'].push(`- brief-quote: ${label(r)}: ${tail} — ${r.file}`);
+        const tail = p.missing ? `no committed accord/tickets/${ticket}.md existed when it was dispatched` : `the brief's copy of the ticket differs from accord/tickets/${ticket}.md as committed when it was dispatched, first at line ${p.line}: "${p.text.slice(0, 120)}"`;
+        out['brief-quote'].push(`- brief-quote: ${ticket} task ${r.task ?? '?'}: ${tail} — ${r.file}`);
       }
     }
   }
@@ -141,7 +146,26 @@ export function quoteProblem(text, id, committed) {
     from = c ? Math.max(0, c.indexOf('## Intent')) : 0;
   }
   if (!c) return { missing: true };
-  for (let i = 0; from + i < c.length; i++) if (t[start + i] !== c[from + i]) return { line: i + 1, text: t[start + i] ?? '' };
+  // Compare the quoted block with the committed ticket without HTML comments and blank lines; an excerpt
+  // may skip lines or stop early, and text after the committed ticket's last line is the brief's own.
+  const body = (ls, from0) => {
+    const rows = [];
+    let open = false;
+    ls.slice(from0).forEach((l, i) => {
+      if (open || l.trimStart().startsWith('<!--')) open = !l.includes('-->');
+      else if (l.trim()) rows.push({ l, i });
+    });
+    return rows;
+  };
+  const tq = body(t, start), cq = body(c, from);
+  let p = 0;
+  for (const q of tq) {
+    if (p >= cq.length) break;
+    if (q.l === cq[p].l) { p++; continue; }
+    const j = cq.findIndex((x, k) => k >= p && x.l === q.l);
+    if (j >= 0) p = j + 1;
+    else if (!cq.some((x) => x.l === q.l)) return { line: q.i + 1, text: q.l };
+  }
   return undefined;
 }
 

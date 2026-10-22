@@ -42,7 +42,7 @@ it('risk:parsing turns usage dispatch sends commits edits reads and task-done re
       m('m2', '2026-10-01T00:03:00Z', [{ type: 'tool_use', id: 'e2', name: 'Write', input: { file_path: 'C:/Work/x/src/a.ts', content: 'x'.repeat(400) } }], { input_tokens: 1, output_tokens: 1 }, 'medium'),
       m('m3', '2026-10-01T00:04:00Z', [bash], { output_tokens: 50 }),
       { type: 'api-request-blob', message: { id: 'm9', role: 'assistant', content: [edit, bash] } },
-      result('b1', 'abc1234 T-1 task 2: work'),
+      result('b1', '[main abc1234] T-1 task 2: work\n 1 file changed\nfff0000 older'),
       m('m4', '2026-10-01T00:05:00Z', [{ type: 'tool_use', id: 'r1', name: 'Read', input: { file_path: 'C:/tmp/brief.md' } }], { output_tokens: 50 }),
       result('r1', '     1\tline one\n     2\tline two\n<system-reminder>\nnote\n</system-reminder>'),
       m('m5', '2026-10-01T00:20:00Z', [{ type: 'tool_use', id: 'h1', name: 'SubagentHandback', input: { message: 'DONE\ncommits: abc1234 T-1 task 2: work' } }], { output_tokens: 50 }),
@@ -70,6 +70,31 @@ it('risk:parsing turns usage dispatch sends commits edits reads and task-done re
     expect(run.sends).toEqual([{ ts: Date.parse('2026-10-01T00:30:00Z'), to: 'x1', summary: 'one more fix', message: 'fix b too' }]);
     expect(s.refusals).toEqual([{ file: 'C--Work-x/S1.jsonl', ts: Date.parse('2026-10-01T00:40:00Z'), ticket: 'T-1', task: 2, reasons: ['a.test.ts#b is not in r.xml'] }]);
     expect(Object.keys(run).some((key) => /advisor/i.test(key))).toBe(false);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+}, 120_000);
+
+it('risk:parsing a commit sha comes only from git commit summary lines, whatever options sit before commit', async () => {
+  const { readSessions } = (await import(new URL('../../../scripts/benchmark.mjs', import.meta.url).href)) as { readSessions: (dirs: string[]) => { runs: Run[] } };
+  const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'bench-')));
+  try {
+    const folder = join(tmp, 'C--Work-y');
+    const sub = join(folder, 'S1', 'subagents');
+    mkdirSync(sub, { recursive: true });
+    writeFileSync(join(folder, 'S1.jsonl'), jl({ type: 'assistant', timestamp: '2026-10-01T00:00:00Z', message: { content: [{ type: 'tool_use', id: 'toolu_A', name: 'Agent', input: { description: 'Build T-1 task 2', prompt: 'x' } }] } }));
+    writeFileSync(join(sub, 'agent-y1.meta.json'), JSON.stringify({ agentType: 'accord-executor', description: 'Build T-1 task 2', toolUseId: 'toolu_A' }));
+    const bash = (id: string, command: string) => ({ type: 'assistant', timestamp: '2026-10-01T00:01:00Z', message: { id, model: 'm', content: [{ type: 'tool_use', id, name: 'Bash', input: { command } }] } });
+    const result = (id: string, content: string) => ({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: id, content }] } });
+    writeFileSync(join(sub, 'agent-y1.jsonl'), jl(
+      bash('b1', 'git -c user.name=t -c "user.email=a b" commit -q -F m.txt && git log --oneline -3'),
+      result('b1', '[t/T-1 aaaaaaa] one\n 1 file changed\nbbbbbbb older\nccccccc oldest'),
+      bash('b2', 'git -C ../wt commit -m two'),
+      result('b2', '[main (root-commit) ddddddd] two\n'),
+      bash('b3', 'git log --oneline -3'),
+      result('b3', 'eeeeeee not a commit command'),
+    ));
+    expect(readSessions([folder]).runs[0].commits).toEqual(['aaaaaaa', 'ddddddd']);
   } finally {
     rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
   }

@@ -5,7 +5,7 @@
 // a reason (D-51).
 import { headingKey } from '../load/sections.js';
 import { normaliseKey } from '../load/snapshot.js';
-import type { RepoSnapshot, ScenarioRef, Ticket, TicketFrontmatter, Verification } from '../model/snapshot.js';
+import type { AfterVerifyCommit, RepoSnapshot, ScenarioRef, Ticket, TicketFrontmatter, Verification } from '../model/snapshot.js';
 import { acHash } from './hash.js';
 import type { GateRule } from './rules.js';
 import { forbiddenLines, trailerReason } from './trailers.js';
@@ -202,6 +202,9 @@ export const tickStaleHash: GateRule['check'] = (snapshot, id) => {
 /** Every path is the ticket's own file, lies in its folder (spec §11), or is accord/product/conventions.md (ST-LN-8 D-08). */
 export const ownRecordsOnly = (id: string, paths: readonly string[]): boolean =>
   paths.every((p) => p === ticketFile(id) || p === 'accord/product/conventions.md' || p.startsWith('accord/tickets/' + id + '/'));
+
+/** A commit that changes a path outside the ticket's own records, or a merge whose own changes git could not show. */
+export const handMade = (id: string, c: AfterVerifyCommit): boolean => c.files === undefined || !ownRecordsOnly(id, c.files);
 
 /** A later commit that changed only this ticket's own records (its file and folder) or accord/product/conventions.md is the same reviewed code. */
 const onlyOwnRecords = (snapshot: RepoSnapshot, id: string, recorded: string): boolean => {

@@ -3,7 +3,7 @@
 import type { Lane, RepoSnapshot } from '../model/snapshot.js';
 import { lintSnapshot } from '../lint/index.js';
 import { scoped } from '../gate/index.js';
-import { acHash } from '../gate/hash.js';
+import { acHash, readyHash } from '../gate/hash.js';
 import { DEFAULT_BRANCH_TEMPLATE } from './branch.js';
 import { isDone, nextStep, progressOf } from './stage.js';
 import type { Stage } from './stage.js';
@@ -25,7 +25,7 @@ export interface StatusRow {
   title?: string; // ST-LN-2 D-07: lane rows only, so a 0.1.0 row stays byte-identical
   lane?: Lane;
   stage?: Stage;
-  next?: string; // what follows an unwritten or unapproved intent; set only at stage intent
+  next?: string; // what follows an unwritten or unapproved intent; set only at stage intent, and for lane S also at review
   tasksDone?: number;
   tasksTotal?: number;
   dependsOn?: string[]; // spec §5, as written
@@ -73,7 +73,7 @@ export function statusRows(snapshot: RepoSnapshot, now?: number, plain?: RepoSna
         ui: fm?.ui ?? false,
         errors: mine.filter((f) => f.level === 'error').length,
         warnings: mine.filter((f) => f.level === 'warning').length,
-        ready: compare(fm?.ac_hash, hash, 'ok'),
+        ready: compare(fm?.ac_hash, readyHash(ticket), 'ok'),
         ticksVerified: fm?.verified?.length ?? 0,
         ticksTagged: ticket.scenarios.filter((s) => s.acTag !== undefined).length,
         ticksBinding: compare(fm?.verified_hash, hash, 'bound'),
@@ -86,7 +86,7 @@ export function statusRows(snapshot: RepoSnapshot, now?: number, plain?: RepoSna
               title: fm.title,
               lane: fm.lane,
               stage: progress.stage,
-              ...(progress.stage === 'intent' ? { next: nextStep(ticket, 'intent') } : {}),
+              ...(progress.stage === 'intent' || (fm.lane === 'S' && progress.stage === 'review') ? { next: nextStep(ticket, progress.stage as 'intent' | 'review') } : {}),
               tasksDone: progress.tasksDone,
               tasksTotal: progress.tasksTotal,
               ...(deps === undefined ? {} : { dependsOn: deps, blockedBy: deps.filter((d) => !isDone(plain ?? snapshot, d)) }),

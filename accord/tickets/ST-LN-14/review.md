@@ -33,3 +33,10 @@ Nice 25 [patch]: a stale "Imports nothing" comment — scripts/round.mjs:2 — d
 Should 1 [patch]: quoteProblem still flagged a quoted excerpt followed by the brief's own text — scripts/compliance.mjs — fixed in 600a819
 Nice 2 [patch]: brief-quote takes the ticket from the first Read of any ticket file ahead of the one the brief names — scripts/compliance.mjs — deferred
 Nice 3 [patch]: an environment-failed current run does not void its sample, and an invalid judge plus invalid run is listed twice — scripts/benchmark.mjs runRound — deferred
+
+## Round 3
+
+Must 1 [patch]: two of the 45 samples (verifier 2, scout 1) were this ticket's effort-override probe runs, so those agents were measured on 4 real samples — scripts/benchmark-samples.json:522, :643 — fixed in 137de03
+Should 2 [patch]: `--plan` ran no setup for a base whose config predates the `setup:` key (reviewer 4, reviewer 5) — scripts/benchmark.mjs:582 — fixed in 137de03
+
+verdict: converged

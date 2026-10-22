@@ -215,3 +215,90 @@ it('risk:regression --round 1 --plan run as a process records live checkouts', (
     rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
   }
 }, 120_000);
+
+// A suite command that exits `first` on its first call and `later` after, counting calls in a file.
+function suiteScript(counter: string, first: number, later: number) {
+  return `const fs=require('fs');const f=${JSON.stringify(counter)};const n=(fs.existsSync(f)?+fs.readFileSync(f,'utf8'):0)+1;fs.writeFileSync(f,String(n));process.exit(n===1?${first}:${later});\n`;
+}
+
+function planFixture(tmp: string, first: number, later: number) {
+  const root = fileURLToPath(new URL('../../../', import.meta.url));
+  const repo = join(tmp, 'repo');
+  mkdirSync(join(repo, 'scripts'), { recursive: true });
+  mkdirSync(join(repo, 'accord'), { recursive: true });
+  const counter = join(tmp, 'count.txt').replaceAll('\\', '/');
+  writeFileSync(join(repo, 'suite.js'), suiteScript(counter, first, later));
+  writeFileSync(join(repo, 'accord', 'config.yml'), 'tests:\n  full: node suite.js\n');
+  execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: repo });
+  execFileSync('git', ['add', '.'], { cwd: repo });
+  execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'c'], { cwd: repo });
+  cpSync(join(root, '.claude', 'agents'), join(repo, '.claude', 'agents'), { recursive: true });
+  const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repo, encoding: 'utf8' }).trim();
+  const text = readFileSync(join(root, 'scripts', 'benchmark-samples.json'), 'utf8').replace(/"base": "[0-9a-f]{40}"/g, `"base": "${head}"`);
+  writeFileSync(join(repo, 'scripts', 'benchmark-samples.json'), text);
+  const bench = join(tmp, 'accord-bench');
+  mkdirSync(bench);
+  writeFileSync(join(bench, 'compliance.md'), 'x\n');
+  const list = JSON.parse(text) as { samples: { agent: string; n: number; transcript: string }[] };
+  for (const s of list.samples) {
+    const d = join(bench, 'samples', `${s.agent.slice('accord-'.length)}-${s.n}`);
+    mkdirSync(d, { recursive: true });
+    writeFileSync(join(d, 'sample.json'), JSON.stringify({ transcript: s.transcript }));
+  }
+  const plan = () => {
+    try {
+      execFileSync(process.execPath, [join(root, 'scripts', 'benchmark.mjs'), '--round', '1', '--plan'], { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+      return { status: 0, stderr: '' };
+    } catch (e) { return { status: (e as { status: number }).status, stderr: String((e as { stderr?: string }).stderr) }; }
+  };
+  const calls = () => Number(readFileSync(counter, 'utf8'));
+  return { bench, plan, calls };
+}
+
+it('risk:regression a suite that fails once and passes on its re-run does not stop --plan and the re-run is recorded', () => {
+  const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'bench-')));
+  try {
+    const f = planFixture(tmp, 1, 0);
+    const r = f.plan();
+    expect(r.stderr).not.toContain('suite red at base');
+    expect(f.calls()).toBeGreaterThanOrEqual(2);
+    expect(readFileSync(join(f.bench, 'round-1.json'), 'utf8')).toContain('reruns');
+  } finally {
+    rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+}, 120_000);
+
+it('risk:regression a suite that fails on its re-run too is red', () => {
+  const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'bench-')));
+  try {
+    const f = planFixture(tmp, 1, 1);
+    const r = f.plan();
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/suite red at base for accord-executor \d/);
+    expect(f.calls()).toBe(2);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+}, 120_000);
+
+it('risk:regression scoring a run re-runs a red suite once and records it', async () => {
+  const { runSuite } = (await import(new URL('../../../scripts/benchmark.mjs', import.meta.url).href)) as {
+    runSuite: (dir: string, repo: string) => { rerun?: { files: string[]; ok: boolean } };
+  };
+  const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'bench-')));
+  try {
+    const mk = (name: string, first: number, later: number) => {
+      const dir = join(tmp, name);
+      mkdirSync(join(dir, 'accord'), { recursive: true });
+      writeFileSync(join(dir, 'suite.js'), suiteScript(join(dir, 'n.txt').replaceAll('\\', '/'), first, later));
+      writeFileSync(join(dir, 'accord', 'config.yml'), 'tests:\n  full: node suite.js\n');
+      return dir;
+    };
+    const a = mk('a', 1, 0);
+    expect(runSuite(a, a).rerun?.ok).toBe(true);
+    const b = mk('b', 1, 1);
+    expect(() => runSuite(b, b)).toThrow();
+  } finally {
+    rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+}, 120_000);

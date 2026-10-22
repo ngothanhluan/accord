@@ -585,6 +585,21 @@ const configAt = (dir, repo) => parseYaml(fs.readFileSync(path.join(fs.existsSyn
 // A base older than the `setup:` key gets the repository's own.
 export const setupAt = (dir, repo) => configAt(dir, repo).setup ?? configAt(repo, repo).setup ?? [];
 const sh = (command, cwd) => execSync(command, { cwd, stdio: ['ignore', 2, 2] });
+// A red full suite gets one re-run of just its failing files (a load-dependent timeout passes alone); red again throws that second error.
+// Returns { rerun: { files, ok } } when it had to re-run, {} when green first time.
+export function runSuite(dir, repo) {
+  const tests = configAt(dir, repo).tests;
+  try { sh(tests.full, dir); return {}; } catch { /* re-run below */ }
+  let files = [];
+  try {
+    const xml = fs.readFileSync(path.join(dir, tests.report), 'utf8');
+    files = [...new Set([...xml.matchAll(/<testcase\b[^>]*?\bclassname="([^"]+)"[^>]*?(?:\/>|>([\s\S]*?)<\/testcase>)/g)]
+      .filter((m) => /<(failure|error)\b/.test(m[2] ?? '')).map((m) => m[1]))];
+  } catch { /* no readable report */ }
+  const narrow = files.length && tests.affected?.includes('{files}');
+  sh(narrow ? tests.affected.replace('{files}', files.map((f) => `"${f}"`).join(" ")) : tests.full, dir);
+  return { rerun: { files: narrow ? files : [], ok: true } };
+}
 const cli = (dir, args) => execFileSync(process.execPath, ['packages/cli/dist/cli.js', ...args], { cwd: dir, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] });
 const trimEnd = (t) => t.replace(/\n+$/, '');
 
@@ -626,7 +641,10 @@ function runPlan(repo) {
     const r = rows.find((x) => x.agent === s.agent && x.n === s.n && x.current);
     // After dispatch the worktree holds the run's commits: the base is no longer what it holds.
     if (!atBase(r.worktree, s.base)) continue;
-    try { sh(configAt(r.worktree, repo).tests.full, r.worktree); } catch { return err(`suite red at base for ${s.agent} ${s.n}`); }
+    try {
+      const out = runSuite(r.worktree, repo);
+      if (out.rerun) { (state.reruns ??= {})[`${s.agent.slice('accord-'.length)}-${s.n}`] = out.rerun; save(); }
+    } catch { return err(`suite red at base for ${s.agent} ${s.n}`); }
   }
   fs.mkdirSync(`${bench}/briefs`, { recursive: true });
   for (const r of rows) {
@@ -769,10 +787,10 @@ function runRound(repo, { judge, extra }) {
   const results = rows.map((r) => {
     const run = m.runs.get(r.tag);
     const cur = currentOf(r);
-    let suite, gate, env = invalid.get(r.tag) ?? (invalid.has(cur.tag) ? `the current-effort run ${invalid.get(cur.tag)}` : '');
+    let suite, gate, rerun, env = invalid.get(r.tag) ?? (invalid.has(cur.tag) ? `the current-effort run ${invalid.get(cur.tag)}` : '');
     if (!env && r.agent === 'accord-executor') {
       let st;
-      try { sh(configAt(r.worktree, repo).tests.full, r.worktree); } catch (e) { st = exitState(e, 'suite'); }
+      try { rerun = runSuite(r.worktree, repo).rerun; } catch (e) { st = exitState(e, 'suite'); }
       st ??= { ok: true };
       if (st.env) env = st.env; else suite = st.ok;
     }
@@ -786,6 +804,7 @@ function runRound(repo, { judge, extra }) {
     const verdict = verdicts.get(r.tag) ?? null;
     const held = env ? null : holds(r.agent, { current: r.current, suite, gate, verdict, currentVerdict: verdicts.get(cur.tag) ?? null, reference: ROLES[r.agent] === 'finding' ? referenceOf(r).length : undefined });
     const result = { tag: r.tag, agent: r.agent, n: r.n, kind: sampleOf(r).kind ?? null, effort: r.effort, current: r.current, held, ms: run.ms, usage: run.usage, verdict };
+    if (rerun) result.rerun = rerun;
     if (ROLES[r.agent] === 'finding' && r.current) result.reference = referenceOf(r).length;
     return result;
   });

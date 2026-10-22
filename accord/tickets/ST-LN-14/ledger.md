@@ -75,6 +75,11 @@
 - Ruling: review round 1's fix 6c7125e (a read of another ticket file is compared with that ticket) was found on the real read, and its test was not run red first — the same fault was seen in real data — test-first not shown for that one fix
 - Ruling: text after the committed ticket's last line in a brief is treated as the brief's own, so lines appended there are not flagged — briefs append their task text after the ticket — an appended line that alters the ticket is missed
 - Ruling: the compliance read was redone on 2026-10-22 after review round 1 (compliance.md deleted first): tier-up 3, trailer 44, test-first 28 (25 "no test edit seen"), verify-id 33, round-cap 0, reassigned 2, brief-quote 2 — an earlier read's lines win in a merge — none
+- Ruling: review round 1 part B's brief-file check accepts a dispatch prompt that names the brief path or equals the brief text — `--plan` tells the session to paste the text — a prompt that does something else with the file is still accepted
+- Ruling: "holds by default" (D-08) covers the finding roles only (critic, reviewer, final-reviewer, auditor, verifier); an executor or planner whose reference has 0 Musts still needs no more Musts than the reference — 0 is a real bound for them — an executor with no verdict stays null, not held
+- Ruling: a worktree record in a round-1.json written before review round 1 has no `ready` mark, so the next `--plan` re-runs its setup — the mark did not exist — a slow re-install in a worktree that already holds a run's commits
+- Ruling: a run whose current-effort run is invalid or had an environment failure is listed under "Runs not judged", since its reference is void; `parseVerdict` for `match` still returns null with no reference items and no `new Musts:` line — keeps the ac-2 test unchanged — none
+- Ruling: review round 1's ac-1 test rewrite (fixed settings, literal efforts, 125 rows with the reviewer at max and the scout at low) passed before and after, being a test change only — no behaviour changed — none
 - Ruling: task 3's real read found that complianceSettings kept the quotes of `model: "sonnet"`, missing BUG-LN-3 round 4; 49e0cfd strips them and the stale compliance.md was deleted before the read was run again — an earlier read's lines win in a merge — none
 
 ## Deferred

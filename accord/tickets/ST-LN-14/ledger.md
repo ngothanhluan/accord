@@ -49,6 +49,10 @@
 - Ruling: task 5 rewrites and checks a brief's whole text when the ticket text is not in it byte for byte and quoteProblem finds no quote of it — there is no ticket span to protect — a brief quoting a ticket in a form quoteProblem cannot recognise is rewritten inside that quote
 - Ruling: task 5 treats a ref only as a whole ref word, and a trailing "." followed by a word character as part of a file name (main.ts is left alone) — follows the plan's Definitions — a ref ending a sentence like "origin/main.Next" is missed
 - Ruling: task 5's absolute-path match covers drive-letter paths only, with no test for 8.3 short or UNC paths — as the Definitions say — a brief naming the scratchpad by its 8.3 form (LUANNG~1) keeps pointing at the live path if the regex stops at `~`
+- Ruling: `accord anchor` names task 6 after task 5, ordering by number; the build follows the file order already ruled, so task 10 and task 12 come before task 6 — task 6 reads the sample list task 12 commits — none, task-done accepted task 10 out of number order
+- Ruling: task 10 changed scripts/round.mjs, outside its files line: rewriteBrief cut a bench root containing a space (`C:/Users/Luan Ngo/...`) at the space and reported a false "outside the bench root"; a match that is a prefix of the bench root followed by a space is now accepted, and the Task 5 tests still pass — the owner's home path has a space — a real path outside the bench root that happens to share that prefix up to a space is accepted
+- Ruling: task 10 reports a plan.md or ticket missing at base as a problem — a snapshot is not built on an unverifiable base — one extra refusal, easy to relax
+- Ruling: task 10 prefixes the "no run" problem with "<agent> <n>:" like every other problem — uniform output — none
 - Ruling: task 3's real read found that complianceSettings kept the quotes of `model: "sonnet"`, missing BUG-LN-3 round 4; 49e0cfd strips them and the stale compliance.md was deleted before the read was run again — an earlier read's lines win in a merge — none
 
 ## Deferred
@@ -72,3 +76,4 @@
 - task 3 done 49e0cfd2fd0f
 - task 4 done b02b5045c331
 - task 5 done 26a7b8f99263
+- task 10 done 30914d53c5de

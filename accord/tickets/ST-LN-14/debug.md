@@ -32,6 +32,10 @@ Ranked: 1, 3, 2.
 - `npx vitest run packages/core/test/benchmark-worktree.test.ts` → 4 passed. The test imports the module, so `fileURLToPath(import.meta.url) === path.resolve(process.argv[1])` is false, main() never runs during evaluation, and `notBench` is initialized before the test calls `liveState`. `grep` of packages/core/test/benchmark-*.test.ts finds no test that spawns scripts/benchmark.mjs as a process. That explains why the suite missed the bug.
 
 ## Fixes
+- Fix 1 (cfd3e13): the entry line moved to the last line of scripts/benchmark.mjs. Reproduction test `risk:regression --round 1 --plan run as a process records live checkouts` failed before it ("expected stderr … not to contain 'before initialization'") and passes after; `npx vitest run packages/core/test/benchmark-` → 26 passed. Failed fixes: 0.
 
 ## Root cause
 scripts/benchmark.mjs:824 declares `const notBench = (r) => r && !r.startsWith('refs/heads/bench/');` after the entry line scripts/benchmark.mjs:814, which calls `main()` synchronously while the module is still evaluating. When the script runs as a process, `main` → `runPlan` (:613) → `liveState` (:830) reads `notBench` while it is still in its temporal dead zone and throws. The same happens through `--round 1` / `--judge` → `stopOnEscape` (:861) → `liveState`, and through `onLiveRefs` (:845). In each case it happens before anything is written to the bench root. `notBench` is the only top-level `const`/`let`/`class` after :814; all its users route through this one declaration. Unit tests import the module, so they never reach main() during evaluation and cannot see the bug. Evidence: probe copies a and b differ in only that one line's position; a throws and b passes.
+
+## Resolved
+Root cause: `const notBench` was declared after the entry line that runs main() while scripts/benchmark.mjs loads; fixed in cfd3e13 by moving the entry line to the end of the file.

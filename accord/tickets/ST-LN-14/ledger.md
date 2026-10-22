@@ -87,6 +87,8 @@
 - Ruling: final review Must 1 replaced only the two probe samples (verifier 2 → ST-LN-34 agent-a114d38231bc151a2, scout 1 → ST-LN-26 agent-ad758be168038f141), each the newest non-probe run of its agent not already listed, on a ticket other than its other four samples where one existed, chosen by a scratchpad copy of the builder restricted to those two slots — rebuilding all 45 would renumber entries and clash with the kept snapshots — two samples picked by a narrower rule than Task 12's
 - Ruling: the probe snapshots were renamed to `samples/verifier-2.probe` and `samples/scout-1.probe` in the bench root, never deleted, so the new snapshots could be written — a snapshot is the only copy once transcripts expire — none
 - Ruling: `snapshotSample` refuses a dispatch starting "Probe run" and `--plan` falls back to the repository's `setup:` when a base config has none (`setupAt`) — a base before the setup key otherwise runs with no install — a base whose own setup differs from today's gets today's
+- Ruling: debug episode 1 moved the benchmark entry line to the last line of scripts/benchmark.mjs, so `notBench` (the only top-level const after it) exists before main() runs — fixes --plan, --round 1, --judge and onLiveRefs at once — none
+- Ruling: the episode 1 reproduction test copies the real sample list (bases rewritten to the fixture's one commit) and .claude/agents into a temporary repository, as checkSamples needs nine agents x 5; it asserts only that the run gets past liveState and saves round-1.json, since setup has no config there — fixture drift if the list format changes
 
 ## Deferred
 - plan-review 1.15: the approach says `--plan` rewrites only the brief's working-tree header lines; Task 5 rewrites the root everywhere outside the ticket

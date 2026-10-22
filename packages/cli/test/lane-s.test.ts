@@ -186,3 +186,46 @@ it('risk:complex-branching lane S gate done passes a reviewed change and fails o
     cleanup(repo);
   }
 }, 120_000);
+
+it('risk:security approve refuses a lane S ticket and writes nothing', async () => {
+  const repo = makeLaneRepo({ 'accord/tickets/S-1.md': laneTicket('S-1', { lane: 'S', body: LANE_S_BODY }) });
+  try {
+    const file = join(repo, 'accord', 'tickets', 'S-1.md');
+    const before = readFileSync(file);
+    const r = await run(['approve', 'S-1'], repo);
+    expect(r.code).toBe(2);
+    expect(r.err).toContain('lane S');
+    expect(r.err).toContain('accord gate ready S-1');
+    expect(readFileSync(file).equals(before)).toBe(true);
+    expect((await run(['approve', 'T-1'], repo)).code).toBe(0);
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+it('risk:complex-branching the review package of a lane S ticket starts at the fork point from the default branch', async () => {
+  const repo = repoWith({
+    'accord/config.yml': CONFIG,
+    'accord/tickets/S-1.md': laneTicket('S-1', { lane: 'S', body: LANE_S_BODY }),
+    'src/a.ts': 'a\n',
+  });
+  try {
+    commitMsg(repo, 'base');
+    const main = gitRun(repo, 'branch', '--show-current').trim();
+    gitRun(repo, 'switch', '-q', '-c', 't/S-1');
+    writeFiles(repo, { 'src/b.ts': 'b\n' });
+    commitMsg(repo, 'change');
+    gitRun(repo, 'switch', '-q', main);
+    writeFiles(repo, { 'src/c.ts': 'c\n' });
+    commitMsg(repo, 'main moves');
+    gitRun(repo, 'switch', '-q', 't/S-1');
+    const r = await run(['review-package', 'S-1'], repo);
+    expect(r.code).toBe(0);
+    expect(r.out).toContain('src/b.ts');
+    expect(r.out).toContain('(no plan)');
+    expect(r.out).not.toContain('src/c.ts');
+    expect((await run(['review-package', 'S-1', '--base', 'HEAD~1'], repo)).code).toBe(0);
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);

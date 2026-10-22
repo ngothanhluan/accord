@@ -8,6 +8,9 @@ import { requireLaneTicket } from './lane-args.js';
 
 export function approve(ctx: CommandContext, id: string): number {
   const ticket = requireLaneTicket(ctx, id);
+  if (ticket.frontmatter?.lane === 'S') {
+    throw new UsageError(ticket.file + ' is a lane S ticket, which needs no approval: run accord gate ready ' + id);
+  }
   const hash = approvedHash(ticket);
   let wrote: boolean;
   try {

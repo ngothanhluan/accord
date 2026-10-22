@@ -135,19 +135,17 @@ it('risk:regression a review-package file base that is not an ancestor of the sa
 
     const f = { path: '/p/package.md' };
     const s = { agent: 'accord-reviewer', n: 3 };
-    expect(packageDrift(s, f, 'same\n', 'same')).toBeUndefined();
-    expect(packageDrift(s, f, 'same\n', 'wider')).toContain('accord-reviewer 3');
+    const pkg = (head: string, ...files: string[]) => `# Review package: T (${head})\n\n## Commits\n${head} x\n\n## Diff\n\n` + files.map((p) => `diff --git a/${p} b/${p}\n--- a/${p}\n+++ b/${p}\n+diff --git a/z b/z\n`).join('');
+    expect(packageDrift(s, f, pkg('fd80243...HEAD', 'a.ts', 'b.ts'), pkg('f67b830' + '0'.repeat(33) + '...HEAD', 'b.ts', 'a.ts'))).toBeUndefined();
+    const extra = packageDrift(s, f, pkg('fd80243...HEAD', 'a.ts'), pkg('f67b830...HEAD', 'a.ts', 'c.ts'));
+    expect(extra).toContain('accord-reviewer 3');
+    expect(extra).toContain('c.ts');
+    expect(extra).not.toContain('a.ts');
+    // a read cut short inside its last file leaves the later files of the rebuild unjudged
+    expect(packageDrift(s, f, pkg('fd80243...HEAD', 'a.ts', 'b.ts').slice(0, -12), pkg('f67b830...HEAD', 'a.ts', 'b.ts', 'c.ts'))).toBeUndefined();
+    expect(packageDrift(s, f, pkg('fd80243...HEAD', 'a.ts', 'b.ts').slice(0, -12), pkg('f67b830...HEAD', 'a.ts', 'x.ts', 'b.ts'))).toContain('x.ts');
     expect(packageDrift(s, f, 'File content (300KB) exceeds maximum allowed size (256KB)', 'wider')).toBeUndefined();
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
-});
-
-it('risk:regression every file base of the committed sample list lies in its sample history', async () => {
-  const { checkFileBases } = (await import(new URL('../../../scripts/benchmark.mjs', import.meta.url).href)) as {
-    checkFileBases: (repo: string, list: unknown) => string[];
-  };
-  const root = fileURLToPath(new URL('../../../', import.meta.url));
-  const list = JSON.parse(readFileSync(join(root, 'scripts', 'benchmark-samples.json'), 'utf8'));
-  expect(checkFileBases(root, list)).toEqual([]);
 });

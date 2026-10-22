@@ -495,17 +495,26 @@ export function checkFileBases(repo, list) {
   return out;
 }
 
-// A recorded read that is the package itself must match the rebuild; a Read tool error (too large) cannot be compared.
+// A recorded read that is the package itself must cover the same changed files as the rebuild; header and hashes differ by design after a history rewrite.
+// A Read tool error (too large) cannot be compared.
+// A read cut short by the Read tool's limit ends inside its last file's diff: files after that one are not drift.
+const packageChunks = (t) => new Map(t.split(/^(?=diff --git )/m).filter((c) => c.startsWith('diff --git ')).map((c) => [c.match(/^diff --git a\/.+ b\/(.+)$/m)[1], trimEnd(c)]));
 export function packageDrift(sample, f, read, built) {
   if (typeof read !== 'string' || /exceeds maximum allowed size/.test(read.slice(0, 300))) return undefined;
-  return trimEnd(read) === trimEnd(built) ? undefined : `${sample.agent} ${sample.n}: the review package ${f.path} rebuilt at base differs from the one the run read`;
+  const [a, b] = [packageChunks(read), packageChunks(built)];
+  const [ra, rb] = [[...a.keys()], [...b.keys()]];
+  const last = ra.at(-1);
+  const cut = last !== undefined && b.has(last) && b.get(last) !== a.get(last) && b.get(last).startsWith(a.get(last));
+  const skip = new Set(cut ? rb.slice(rb.indexOf(last) + 1) : []);
+  const only = [...ra.filter((p) => !b.has(p)).map((p) => `${p} (only in the run's read)`), ...rb.filter((p) => !a.has(p) && !skip.has(p)).map((p) => `${p} (only in the rebuild)`)];
+  return only.length ? `${sample.agent} ${sample.n}: the review package ${f.path} rebuilt at base changes other files than the one the run read: ${only.join(', ')}` : undefined;
 }
 
 function runSamples(repo) {
   const listFile = path.join(repo, 'scripts', 'benchmark-samples.json');
   if (!fs.existsSync(listFile)) { process.stderr.write('no sample list: scripts/benchmark-samples.json\n'); return 2; }
   const list = JSON.parse(fs.readFileSync(listFile, 'utf8'));
-  const bad = checkSamples(list);
+  const bad = [...checkSamples(list), ...checkFileBases(repo, list)];
   if (bad.length) { process.stderr.write(bad.join('\n') + '\n'); return 2; }
   const bench = benchRoot(repo);
   const folders = new Map();
@@ -641,7 +650,7 @@ function runPlan(repo) {
   const listFile = path.join(repo, 'scripts', 'benchmark-samples.json');
   if (!fs.existsSync(listFile)) return err('no sample list: scripts/benchmark-samples.json');
   const list = JSON.parse(fs.readFileSync(listFile, 'utf8'));
-  const bad = checkSamples(list);
+  const bad = [...checkSamples(list), ...checkFileBases(repo, list)];
   if (bad.length) return err(bad.join('\n'));
   const rows = runMatrix(list, agentSettings(repo));
   const snaps = new Map();

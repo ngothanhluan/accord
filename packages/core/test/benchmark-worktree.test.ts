@@ -372,3 +372,43 @@ it('risk:regression a failing file the run changed is re-run with the full suite
     rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
   }
 }, 120_000);
+
+it('risk:regression --samples and --plan exit 2 on a review-package file base that is no ancestor, before any worktree or brief', () => {
+  const root = fileURLToPath(new URL('../../../', import.meta.url));
+  const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'bench-')));
+  try {
+    const repo = join(tmp, 'repo');
+    mkdirSync(join(repo, 'scripts'), { recursive: true });
+    const g = (...a: string[]) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...a], { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+    g('init', '-q', '-b', 'main');
+    g('commit', '-q', '--allow-empty', '-m', 'c');
+    const head = g('rev-parse', 'HEAD');
+    g('checkout', '-q', '--orphan', 'other');
+    g('commit', '-q', '--allow-empty', '-m', 'o');
+    const orphan = g('rev-parse', 'HEAD');
+    g('checkout', '-q', 'main');
+    cpSync(join(root, '.claude', 'agents'), join(repo, '.claude', 'agents'), { recursive: true });
+    const text = readFileSync(join(root, 'scripts', 'benchmark-samples.json'), 'utf8').replace(/"(base|main)": "[0-9a-f]{40}"/g, `"$1": "${head}"`);
+    const list = JSON.parse(text) as { samples: { files: { from: string; base?: string }[] }[] };
+    const pkgs = list.samples.flatMap((s) => s.files).filter((f) => f.from === 'review-package');
+    for (const f of pkgs) f.base = head;
+    pkgs[0].base = orphan;
+    writeFileSync(join(repo, 'scripts', 'benchmark-samples.json'), JSON.stringify(list));
+    const bench = join(tmp, 'accord-bench');
+    mkdirSync(bench);
+    writeFileSync(join(bench, 'compliance.md'), 'x\n');
+    for (const arg of ['--samples', '--plan']) {
+      let code = 0;
+      let stderr = '';
+      try {
+        execFileSync(process.execPath, [join(root, 'scripts', 'benchmark.mjs'), '--round', '1', arg], { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+      } catch (e) { code = (e as { status: number }).status; stderr = String((e as { stderr?: string }).stderr); }
+      expect(code).toBe(2);
+      expect(stderr).toContain('is not an ancestor of the sample base');
+      expect(stderr).toContain(orphan);
+      for (const d of ['wt', 'briefs', 'samples']) expect(existsSync(join(bench, d))).toBe(false);
+    }
+  } finally {
+    rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+}, 120_000);

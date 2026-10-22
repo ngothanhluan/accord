@@ -63,6 +63,8 @@ export interface ScenarioRef {
   steps: string[]; // Background steps then scenario steps, whitespace-collapsed (D-47, D-48)
 }
 
+export type Lane = 'S' | 'M' | 'L' | 'P';
+
 export interface TicketFrontmatter {
   id: string; // 'LOGIN-1', kept verbatim (D-34)
   title: string;
@@ -73,7 +75,7 @@ export interface TicketFrontmatter {
   ui: boolean; // defaults to false in the loader, not the schema (D-21)
   design?: string; // 'https://www.figma.com/file/abc'
   assumptions?: { text: string; confirmed: boolean }[];
-  lane?: 'M' | 'L' | 'P'; // spec §3: present opts the ticket into the workflow-layer contract
+  lane?: Lane; // spec §3: present opts the ticket into the workflow-layer contract
   depends_on?: string[]; // spec §5: ticket ids that must reach done first
   priority?: 'high' | 'medium' | 'low'; // how the dashboard ranks this ticket; absent means medium
   approved_hash?: string; // spec §4: written by `accord approve`, 'fnv1a64:<16 hex>'

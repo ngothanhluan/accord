@@ -53,6 +53,7 @@ import {
   designMissing,
   earsMissing,
   intentEmpty,
+  sectionEmpty,
   ticketUnknown,
 } from './ready.js';
 import { reviewMissing, reviewUnconverged, suiteNotPassed, tasksIncomplete, testUntracedAtDone } from './work.js';
@@ -99,12 +100,20 @@ const APPROVAL_STALE: GateRule = {
   check: approvalStale,
 };
 
+export const SECTION_EMPTY: GateRule = {
+  id: 'gate.section-empty',
+  level: 'error',
+  profiles: ['build', 'maintain'],
+  check: sectionEmpty,
+};
+
 export const READY_RULES: readonly GateRule[] = [
   TICKET_UNKNOWN,
   { id: 'gate.design-missing', level: 'error', profiles: ['build', 'maintain'], check: designMissing },
   { id: 'gate.intent-empty', level: 'error', profiles: ['build', 'maintain'], check: intentEmpty },
   { id: 'gate.ears-missing', level: 'error', profiles: ['build', 'maintain'], check: earsMissing },
   { id: 'gate.approach-empty', level: 'error', profiles: ['build', 'maintain'], check: approachEmpty },
+  SECTION_EMPTY,
   APPROVAL_MISSING,
   APPROVAL_STALE,
 ];

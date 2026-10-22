@@ -1,6 +1,6 @@
 // CLI-05 status rows (D-91, D-92, D-93): document data plus the two cheap derived columns.
 // A row is a trace of what is written in the files, never a verdict — a verdict comes from `gate ready`.
-import type { RepoSnapshot } from '../model/snapshot.js';
+import type { Lane, RepoSnapshot } from '../model/snapshot.js';
 import { lintSnapshot } from '../lint/index.js';
 import { scoped } from '../gate/index.js';
 import { acHash } from '../gate/hash.js';
@@ -23,7 +23,7 @@ export interface StatusRow {
   tracker?: Record<string, string>; // adapter-keyed ids, values always strings
   // Spec §3-§6: set on lane tickets only, so a 0.1.0 ticket's row is byte-identical to 0.1.0.
   title?: string; // ST-LN-2 D-07: lane rows only, so a 0.1.0 row stays byte-identical
-  lane?: 'M' | 'L' | 'P';
+  lane?: Lane;
   stage?: Stage;
   next?: string; // what follows an unwritten or unapproved intent; set only at stage intent
   tasksDone?: number;

@@ -257,7 +257,8 @@ describe('ticket.schema.json decisions D-01..D-05, D-21..D-25', () => {
     expect(ticket({ lane: 'M', depends_on: ['T-1', 'T-2'], approved_hash: 'fnv1a64:0123456789abcdef' })).toEqual([]);
     expect(ticket({ lane: 'L' })).toEqual([]);
     expect(ticket({ lane: 'P', depends_on: [] })).toEqual([]);
-    expect(has(ticket({ lane: 'S' }), '/lane', 'schema.enum')).toBe(true);
+    expect(ticket({ lane: 'S' })).toEqual([]);
+    expect(has(ticket({ lane: 'X' }), '/lane', 'schema.enum')).toBe(true);
     expect(has(ticket({ depends_on: ['T-1', 'T-1'] }), '/depends_on', 'schema.uniqueItems')).toBe(true);
     expect(has(ticket({ depends_on: ['-bad'] }), '/depends_on/0', 'schema.pattern')).toBe(true);
     expect(has(ticket({ depends_on: 'T-1' }), '/depends_on', 'schema.type')).toBe(true);

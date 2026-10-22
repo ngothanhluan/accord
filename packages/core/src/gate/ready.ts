@@ -80,10 +80,20 @@ export const approachEmpty: GateRule['check'] = (snapshot, id) => {
   return [{ file: ticketFile(id), line: s.line, reason: '"## Approach" is empty; the owner approves an approach' }];
 };
 
+/** D-04: a lane S ticket is Ready when Understood and Done when are written; each empty one is named. */
+export const sectionEmpty: GateRule['check'] = (snapshot, id) => {
+  if (laneOf(snapshot, id) !== 'S') return [];
+  return ['Understood', 'Done when'].flatMap((name) => {
+    const s = section(snapshot, id, headingKey(name));
+    if (s === undefined || stripHtmlComments(s.lines).some((l) => l.text.trim() !== '')) return [];
+    return [{ file: ticketFile(id), line: s.line, reason: `"## ${name}" is empty; a lane S ticket needs it written before any change` }];
+  });
+};
+
 /** Spec §4: no approval recorded. */
 export const approvalMissing: GateRule['check'] = (snapshot, id) => {
   const fm = ticketOf(snapshot, id)?.frontmatter;
-  if (fm?.lane === undefined || fm.approved_hash !== undefined) return [];
+  if (fm?.lane === undefined || fm.lane === 'S' || fm.approved_hash !== undefined) return [];
   return [
     {
       file: ticketFile(id),
@@ -97,7 +107,7 @@ export const approvalMissing: GateRule['check'] = (snapshot, id) => {
 export const approvalStale: GateRule['check'] = (snapshot, id) => {
   const ticket = ticketOf(snapshot, id);
   const recorded = ticket?.frontmatter?.approved_hash;
-  if (ticket === undefined || ticket.frontmatter?.lane === undefined || recorded === undefined) return [];
+  if (ticket === undefined || ticket.frontmatter?.lane === undefined || ticket.frontmatter.lane === 'S' || recorded === undefined) return [];
   const now = approvedHash(ticket);
   if (recorded === now) return [];
   return [

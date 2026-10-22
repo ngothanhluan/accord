@@ -5,7 +5,7 @@
 import type { Finding } from '../model/finding.js';
 import type { RepoSnapshot } from '../model/snapshot.js';
 import { lintSnapshot } from '../lint/index.js';
-import { acHash } from './hash.js';
+import { readyHash } from './hash.js';
 import { downgradeMaintain, DONE_RULES, PLAN_RULES, READY_PROMOTE, READY_RULES } from './rules.js';
 import type { GateRule } from './rules.js';
 import { laneTicket, workOf } from './work.js';
@@ -16,7 +16,7 @@ export interface GateResult {
   verdict: 'pass' | 'fail';
   findings: Finding[]; // sorted by file, then line (line-less first), then rule, reason, pointer
   planHash?: string; // gate plan only: the plan's bodyHash, when the ticket has a plan
-  acHash?: string; // absent only when the ticket is unknown or carries no `@ac-n` scenario (D-86)
+  acHash?: string; // a lane S ticket: the hash of Understood and Done when. Absent only when the ticket is unknown or carries no `@ac-n` scenario (D-86)
 }
 
 // Code-point order, never a locale-aware compare, so the goldens are identical on every host.
@@ -72,7 +72,7 @@ function run(
       )
     : [];
   const findings = [...lint, ...gated].sort(byFileLineRule);
-  const hash = known ? acHash(snapshot.tickets[id].scenarios) : undefined;
+  const hash = known ? readyHash(snapshot.tickets[id]) : undefined;
   return {
     gate,
     ticket: id,

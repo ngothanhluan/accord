@@ -16,7 +16,7 @@ export function headingKey(heading: string): string {
 
 const D07_KEYS = new Set(['intent', 'requirements', 'acceptance criteria', 'open questions', 'plan']);
 // Spec §4: a ticket with `lane:` also tracks its four owner headings; a ticket without keeps the 0.1.0 set.
-const LANE_KEYS = new Set([...D07_KEYS, 'vetoes', 'decisions', 'corrections', 'approach']);
+const LANE_KEYS = new Set([...D07_KEYS, 'vetoes', 'decisions', 'corrections', 'approach', 'understood', 'done when']);
 
 /** Identity for ticket sections: one of the five D-07 headings, or undefined when untracked. */
 export const d07Key = (s: Section): string | undefined => {

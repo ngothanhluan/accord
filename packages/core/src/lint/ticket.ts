@@ -25,6 +25,12 @@ const LANE_REQUIRED: Record<'story' | 'bug' | 'epic', string[]> = {
   bug: ['Intent', 'Acceptance criteria', 'Vetoes', 'Decisions', 'Corrections', 'Open questions', 'Approach'],
   epic: ['Intent', 'Vetoes', 'Decisions', 'Corrections', 'Open questions', 'Approach'],
 };
+// D-04: a lane S ticket holds two sections whatever its type.
+const LANE_S_REQUIRED: Record<'story' | 'bug' | 'epic', string[]> = {
+  story: ['Understood', 'Done when'],
+  bug: ['Understood', 'Done when'],
+  epic: ['Understood', 'Done when'],
+};
 // D-73 sentinels: uppercase whole words, an angle-bracket placeholder outside HTML tags, a `...` step.
 const WORD = /(?:^|[^A-Za-z0-9_])(TODO|TBD|FIXME|TICKET-ID)(?![A-Za-z0-9_])/g;
 const PLACEHOLDER = /<[a-z][a-z]* [^<>="/]+>/g;
@@ -50,7 +56,7 @@ const typed = (snapshot: RepoSnapshot): Typed[] => tickets(snapshot).filter((t):
 /** D-71: every required heading for the ticket's type, in table order, no line. */
 export const headingMissing: Rule['check'] = (snapshot) =>
   typed(snapshot).flatMap((t) =>
-    (t.frontmatter.lane === undefined ? REQUIRED : LANE_REQUIRED)[t.frontmatter.type]
+    (t.frontmatter.lane === 'S' ? LANE_S_REQUIRED : t.frontmatter.lane === undefined ? REQUIRED : LANE_REQUIRED)[t.frontmatter.type]
       .filter((name) => section(t, headingKey(name)) === undefined)
       .map((name) => ({ file: t.file, reason: `missing "## ${name}"` })),
   );

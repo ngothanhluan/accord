@@ -149,11 +149,12 @@ describe('lane templates (spec §4)', () => {
   it.each<[TemplateName, string]>([
     ['ticket-lane.md', 'story'],
     ['epic-lane.md', 'epic'],
+    ['ticket-lane-s.md', 'story'],
   ])('%s validates and declares a lane', (name, type) => {
     const fm = frontmatter(templates[name]);
     expect(validate('ticket', fm)).toEqual([]);
     expect(fm).toMatchObject({ type, status: 'draft' });
-    expect(fm?.lane).toMatch(/^[MLP]$/);
+    expect(fm?.lane).toMatch(/^[SMLP]$/);
   });
 
   it('lane headings are in spec order', () => {
@@ -163,5 +164,6 @@ describe('lane templates (spec §4)', () => {
     expect(headings(templates['epic-lane.md'])).toEqual([
       '## Intent', '## Vetoes', '## Decisions', '## Corrections', '## Open questions', '## Approach',
     ]);
+    expect(headings(templates['ticket-lane-s.md'])).toEqual(['## Understood', '## Done when']);
   });
 });

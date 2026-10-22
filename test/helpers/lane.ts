@@ -21,6 +21,8 @@ export const CONFIG = [
   '',
 ].join('\n');
 
+export const LANE_S_BODY = ['## Understood', 'The export button writes a csv file.', '', '## Done when', 'Pressing export saves report.csv.', ''].join('\n');
+
 export const LANE_BODY = [
   '## Intent',
   'Owners can export their report as CSV.',

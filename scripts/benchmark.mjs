@@ -645,23 +645,31 @@ function removeWorktree(repo, rec, { kept = false } = {}) {
   if (tip) gitIn(repo, ['update-ref', '-d', `refs/heads/${rec.branch}`, tip]);
 }
 
-// Dispatching a writer row again: its branch is kept under refs/keep/bench/<tag>/<k>, then its worktree is removed so the next prepare rebuilds it at base.
+// Dispatching a writer row again: every commit its worktree can reach (the branch tip, and a HEAD that left the branch) is kept under refs/keep/bench/<tag>/<k>, then the worktree is removed so the next prepare rebuilds it at base.
+// Nothing changes when the folder has uncommitted work or its HEAD cannot be read. Returns the refs made, joined by ", ", or null.
 export function rerunWorktree(repo, state, key) {
   const rec = state.worktrees[key];
   if (!rec) return null;
-  let ref = null;
+  const tips = [];
   if (rec.branch) {
-    let tip = null;
-    try { tip = gitIn(repo, ['rev-parse', `refs/heads/${rec.branch}`]).trim(); } catch { /* no branch to keep */ }
-    if (tip) {
-      const used = gitIn(repo, ['for-each-ref', '--format=%(refname)', `refs/keep/${rec.branch}/`]).split('\n').filter(Boolean).map((r) => Number(r.split('/').pop())).filter(Number.isInteger);
-      ref = `refs/keep/${rec.branch}/${Math.max(0, ...used) + 1}`;
-      gitIn(repo, ['update-ref', ref, tip]);
+    try { const tip = gitIn(repo, ['rev-parse', `refs/heads/${rec.branch}`]).trim(); if (tip !== rec.base) tips.push(tip); } catch { /* no branch to keep */ }
+    if (fs.existsSync(rec.path)) {
+      let head;
+      try { head = gitIn(rec.path, ['rev-parse', 'HEAD']).trim(); } catch { throw new Error(`${rec.path}: its HEAD cannot be read; it is not rebuilt`); }
+      if (gitIn(rec.path, ['status', '--porcelain']).trim()) throw new Error(`${rec.path} has uncommitted changes of a run; it is not rebuilt`);
+      if (head !== rec.base && !tips.includes(head)) tips.push(head);
     }
+  }
+  const refs = [];
+  for (const tip of tips) {
+    const used = gitIn(repo, ['for-each-ref', '--format=%(refname)', `refs/keep/${rec.branch}/`]).split(/\r?\n/).filter(Boolean).map((r) => Number(r.split('/').pop())).filter(Number.isInteger);
+    const ref = `refs/keep/${rec.branch}/${Math.max(0, ...used) + 1}`;
+    gitIn(repo, ['update-ref', ref, tip]);
+    refs.push(ref);
   }
   removeWorktree(repo, rec, { kept: true });
   delete state.worktrees[key];
-  return ref;
+  return refs.length ? refs.join(', ') : null;
 }
 
 export function prepareWorktree(repo, state, key, spec, setup, save = () => {}) {

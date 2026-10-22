@@ -704,3 +704,60 @@ it('risk:data-loss --plan --rerun names a tag that is not a writer row of round-
     rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
   }
 }, 120_000);
+
+it('risk:data-loss --rerun keeps a commit made on a detached HEAD and refuses over uncommitted changes, changing nothing', async () => {
+  const { prepareWorktree, rerunWorktree } = await bench();
+  const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'bench-')));
+  const t = tmp.replaceAll('\\', '/');
+  try {
+    const { repo, git, H1 } = twoCommitRepo(t);
+    const state = { worktrees: {} as Record<string, Setup & { preparedAt?: number }> };
+    const dir = t + '/wt';
+    prepareWorktree(repo, state, 'x', { path: dir, base: H1, branch: 'bench/x-1-low' }, () => {});
+
+    // uncommitted work: refuse, nothing changed
+    writeFileSync(dir + '/dirty.txt', 'mine\n');
+    expect(() => rerunWorktree(repo, state, 'x')).toThrow('uncommitted');
+    expect(existsSync(dir + '/dirty.txt')).toBe(true);
+    expect(state.worktrees.x).toBeDefined();
+    expect(git(repo, 'for-each-ref', 'refs/keep')).toBe('');
+    rmSync(dir + '/dirty.txt');
+
+    // a commit on a detached HEAD, the branch still at base
+    git(dir, 'checkout', '-q', '--detach');
+    const E = runCommit(git, dir);
+    expect(git(repo, 'rev-parse', 'refs/heads/bench/x-1-low')).toBe(H1);
+    expect(rerunWorktree(repo, state, 'x')).toBe('refs/keep/bench/x-1-low/1');
+    expect(existsSync(dir)).toBe(false);
+    expect(git(repo, 'rev-parse', 'refs/keep/bench/x-1-low/1')).toBe(E);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+}, 120_000);
+
+it('risk:regression --plan --rerun keeps and rebuilds the named tag alone, before it prepares its worktree', () => {
+  const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'bench-')));
+  try {
+    const f = samplesFixture(tmp);
+    for (const s of f.list.samples) writeFileSync(join(f.dirOf(s), 'root-reads.json'), '[]');
+    const rows = [{ tag: 'executor-1-medium', agent: 'accord-executor' }, { tag: 'executor-2-medium', agent: 'accord-executor' }];
+    writeFileSync(join(f.bench, 'round-1.json'), JSON.stringify({ rows }));
+    // the first plan stops after the worktrees are made (the suite is red in the fixture), which is enough
+    mkdirSync(join(f.repo, 'accord'));
+    writeFileSync(join(f.repo, 'accord', 'config.yml'), 'setup: []\ntests:\n  full: node -e "process.exit(1)"\n  report: r.xml\n');
+    f.cmd('--plan');
+    const wt = (tag: string) => join(f.bench, 'wt', tag).replaceAll('\\', '/');
+    const g = (cwd: string, ...a: string[]) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...a], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+    const commits: Record<string, string> = {};
+    for (const r of rows) { expect(existsSync(wt(r.tag))).toBe(true); commits[r.tag] = runCommit(g, wt(r.tag)); }
+    const out = f.cmd('--plan', '--rerun', 'executor-1-medium');
+    expect(out.stdout).toContain('kept executor-1-medium');
+    // the named tag: kept, rebuilt clean at base; the other keeps its commit in its worktree
+    expect(g(f.repo, 'rev-parse', 'refs/keep/bench/executor-1-medium/1')).toBe(commits['executor-1-medium']);
+    expect(existsSync(wt('executor-1-medium') + '/run.txt')).toBe(false);
+    expect(existsSync(wt('executor-2-medium') + '/run.txt')).toBe(true);
+    expect(g(f.repo, 'for-each-ref', 'refs/keep')).not.toContain('executor-2-medium');
+  } finally {
+    rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+}, 180_000);

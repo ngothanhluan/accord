@@ -51,7 +51,7 @@ Feature: ST-LN-14
     And the scout, already at low, runs at low and medium only
     And the report flags each turn whose answering model (message.model), requested model (requestedModel) or effort (perTurnEffort), read from the run's transcript, differs from the setting the round dispatched it with, and says zero when none does
 
-  @ac-2
+  @ac-2 @test:packages/core/test/benchmark-round.test.ts#ac-2-a-run-holds-only-when-it-is-no-worse-than-the-current-effort-on-the-same-sample
   Scenario: A run holds only when it is no worse than the current effort on the same sample
     Given a round 1 run and the current-effort run on the same sample
     When the report judges the run

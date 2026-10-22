@@ -69,16 +69,17 @@ Feature: ST-LN-25
 
   @ac-4
   Scenario: Continue merges the latest main into a ticket branch that is behind
-    Given a claimed ticket whose branch lacks 2 commits that are on origin's main, not yet fetched, and that do not conflict with it
+    Given a claimed ticket at a stage before verify whose branch lacks 2 commits that are on origin's main, not yet fetched, and that do not conflict with it
     When I run "accord worktree open <id> --continue"
-    Then the ticket branch gains a merge commit whose first parent is its previous head and whose second parent is the tip of origin's main, with no rebase
+    Then the ticket branch gains a merge commit whose first parent is its previous head and whose second parent is the tip of origin's main, with no rebase and never a fast-forward
     And the worktree's setup commands run on that merge commit
     And the ticket branch is pushed to origin
 
   @ac-5
-  Scenario Outline: Any /accord command removes a merged ticket's worktree and branches
-    Given the tip of ticket "ST-9"'s branch is on origin's main, and its worktree has no uncommitted work and no session holds it
-    When I run "<command>"
+  Scenario Outline: Any /accord command removes a done and merged ticket's worktree and branches
+    Given ticket "ST-9" is done on origin's main, not yet fetched: its ticket file there is verified and passes "accord gate done"
+    And its branch holds no commit after the verified commit recorded there, and its worktree has no uncommitted work and no live session holds it
+    When I run "<command>" for another ticket than "ST-9"
     Then the worktree of "ST-9" is removed, its local branch is deleted, and its branch on origin is deleted
 
     Examples:
@@ -101,14 +102,23 @@ Feature: ST-LN-25
 - D-05 The automatic clean of D-02 runs whenever any `/accord` command runs (the dashboard, Continue, Pick up, a new request), in every tool, never at session start — "A" (to the options: A every /accord command; B every session start, Claude Code only; C both)
 - D-06 The `/accord` dashboard also shows the new-version line, in every tool, checking at most once a day, so users without a session-start hook (Cursor, Codex, Copilot) learn of it too; Claude Code still says it at session start per D-04 — "A" (to the options: A the dashboard shows it as well; B Claude Code only)
 - D-07 The smallest version that counts as done is all four parts: the notice, the upgrade, Continue merging main, and the automatic clean — "A" (to the options: A all four; B drop the dashboard line; C drop the automatic clean)
+- D-08 The automatic clean removes a ticket's worktree, local branch and origin branch only when the ticket is wholly done: verified and approved, and merged into origin's main; then it removes them whatever tool the worktree was worked from, keeping only a worktree with uncommitted work or one a live Claude Code session holds; a ticket merged but not done is kept — "ý tôi là chỉ xóa worktree khi ticket đó hoàn toàn done", then "A" (to the options: A done and merged, both; B merged is enough)
+- D-09 Continue merges `origin/main` only while the ticket is before verify (intent, approach, plan, build, review), narrowing D-01's "whatever the stage"; verify keeps its own merge at its start (ST-LN-30), and a ticket at verify or done is never merged by Continue, so an approved verification is never made stale — "A" (to the options: A only before verify; B at every stage, done included)
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
 - 2026-10-22: "pull latest từ main về đi sao kỳ vậy?"
 - 2026-10-22: "tôi chọn A, tự làm trong ticket này luôn đi. với lại tôi thấy vụ worktree rối rắm quá. những plugin khác tạo worktree đâu cần xin peermission, sau khi xong ticket thì tự dọn dẹp."
+- 2026-10-22, to the question "when the automatic clean cannot be sure no session is in a worktree, what should it do?" (A remove only when sure no one is in it; B remove whenever nothing is uncommitted; C give the other tools a hold too), after first answering "A": "ý tôi là chỉ xóa worktree khi ticket đó hoàn toàn done"
 
 ## Open questions
 <!-- `- [ ]` items; Ready stays blocked while any is unchecked. -->
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
+**Chosen: inline registry check, upgrade through a temporary index, shared merge helper, clean reused.** The hook and the dashboard `await fetch` the public registry with a 3 s abort, at most once per rolling 24 h, caching the time and answer in one per-machine file outside the repository; a failed request counts as the check; the line prints only for a `x.y.z` version newer than the pin, and names `npx --yes @accord-dev/accord@<new> upgrade`. `accord upgrade`, exempt from the pin check, follows `drop`: it reads config, settings and workflow at origin's main, rewrites the three pins to its own version, renders the files `skills sync` writes, lints the result, commits once through a temporary index and pushes `upgrade/<version>`; the checkout is never touched. Continue, before verify (D-09), with no uncommitted tracked change and after the hold, calls the merge body taken out of `worktreeMerge`, then setup, then push. `worktreeClean` judges done from the ticket file at origin's main (D-08), gains "fetched already" and "skip this id" options and deletes origin branches with a lease; `worktree open` and `new ticket --worktree` call it.
+**Rejected:** a temporary worktree for `upgrade` (whole-tree checkout, post-checkout hooks, a stray worktree record if killed, the worktree list changes against ac-3); a background registry check in a detached child (orphan and cache-race risk on Windows, and no criterion needs zero wait).
+**Affected:** packages/cli/src/run.ts, commands/hook.ts, dashboard.ts, worktree.ts, new-ticket.ts, a new registry module beside fetch-limit.ts, a new upgrade command reusing drop.ts's pattern and skills.ts's hook merge; core scaffold pin writers; skills `accord/SKILL.md`, `accord/worktree.md` and a new upgrade reference file (the 5120-byte cap), regenerated; README; tests in worktree, hook, dashboard, skill-commands and stage-skills; a vitest setup file that stubs the registry so no test calls npm.
+**Risks the option keeps (critic):** Must 1, removing a worktree under a live session of another tool, is settled by D-08 (only a wholly done ticket is cleaned). Should 2 to 12 are settled by Rulings in the ledger: merge only after the hold and with nothing uncommitted (2); verify and done are never merged (3, D-09); setup and push before the pin check (4); the `/accord upgrade` route and its exemptions (5); the stated pin exemption and no downgrade (6); lint before the upgrade commit (7); done read from main's ticket file, so squash merges clean too (8); leased origin deletes only after a fetch that succeeded, with prune (9); a proxy-only machine never sees the notice, a noted shortcut (10); the hook tells the agent to say the notice (11); the skill's "clean only from the bare `/accord`" rule replaced (12).
+**Data deletion, three failure scenarios and their undo:** (S1) a worktree removed while another tool's session is in it: only a done and merged ticket is removed (D-08), uncommitted work and live Claude holds are kept, and the branch's commits are on main, so `git worktree add` brings it back. (S2) Continue merging under another session's stale file: the merge needs no uncommitted change and the hold first, and a merge is undone with `git reset --hard ORIG_HEAD` before the push or a revert after. (S3) deleting an origin branch a teammate just pushed to: the lease against the fetched sha makes the push fail instead, and nothing is deleted after a failed fetch.
+**Tests:** ac-1 and ac-2 at the CLI layer with the registry module mocked, the time and request count observed; ac-3, ac-4 and ac-5 at the CLI layer against a real bare remote and clone, no git mock, as worktree.test.ts does; the Continue conflict, the dirty-worktree refusal and the lease each get a `risk:` test.

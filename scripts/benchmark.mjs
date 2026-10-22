@@ -467,6 +467,9 @@ const READS = 'root-reads.json';
 const storeReads = (dir, reads) => { const f = path.join(dir, READS); if (!fs.existsSync(f)) fs.writeFileSync(f, JSON.stringify(reads, null, 2) + '\n'); };
 const storedReads = (dir) => { const f = path.join(dir, READS); return fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8')) : null; };
 
+// A transcript is identified by its `<session>/subagents/<agent file>` tail; the project folder is only where Claude Code stored it.
+export const transcriptTail = (t) => t.split('/').slice(1).join('/');
+
 // A snapshot is never overwritten: once the transcripts expire it is the only copy of the dispatch.
 export function snapshotSample(repo, sample, run, bench) {
   const name = sample.agent.slice('accord-'.length) + '-' + sample.n;
@@ -475,7 +478,7 @@ export function snapshotSample(repo, sample, run, bench) {
   const at = `${sample.agent} ${sample.n}`;
   if (fs.existsSync(file)) {
     const have = JSON.parse(fs.readFileSync(file, 'utf8')).transcript;
-    return { problems: have === sample.transcript ? [] : [`${at}: the snapshot in ${slashed(dir)} is of ${have}, not ${sample.transcript}`], kept: true };
+    return { problems: transcriptTail(have) === transcriptTail(sample.transcript) ? [] : [`${at}: the snapshot in ${slashed(dir)} is of ${have}, not ${sample.transcript}`], kept: true };
   }
   const problems = [];
   if (!run?.dispatch) return { problems: [`${at}: no run for ${at} in ${sample.transcript}`], kept: false };
@@ -569,10 +572,25 @@ function runSamples(repo) {
   const problems = [];
   let written = 0, kept = 0;
   const dirOf = (s) => path.join(bench, 'samples', `${s.agent.slice('accord-'.length)}-${s.n}`);
+  const folderRuns = (seg) => { if (!folders.has(seg)) folders.set(seg, readSessions([path.join(projectsRoot, seg)]).runs); return folders.get(seg); };
+  // The listed path, else the one project folder that holds the same session tail; several is a problem.
+  const located = new Map(), ambiguous = new Set();
   const runOf = (s) => {
-    const seg = s.transcript.split('/')[0];
-    if (!folders.has(seg)) folders.set(seg, readSessions([path.join(projectsRoot, seg)]).runs);
-    return folders.get(seg).find((r) => r.file === s.transcript);
+    if (located.has(s)) return located.get(s);
+    const tail = transcriptTail(s.transcript);
+    let seg = s.transcript.split('/')[0];
+    if (!fs.existsSync(path.join(projectsRoot, s.transcript))) {
+      const where = fs.existsSync(projectsRoot) ? fs.readdirSync(projectsRoot).filter((d) => fs.existsSync(path.join(projectsRoot, d, tail))) : [];
+      if (where.length > 1) { problems.push(`${s.agent} ${s.n}: ${tail} is in more than one project folder: ${where.map((d) => `${d}/${tail}`).join(', ')}`); ambiguous.add(s); }
+      else if (where.length) {
+        seg = where[0];
+        process.stderr.write(`notice: ${s.agent} ${s.n}: ${s.transcript} is now ${seg}/${tail}\n`);
+      }
+      if (where.length !== 1) { located.set(s, undefined); return undefined; }
+    }
+    const run = folderRuns(seg).find((r) => transcriptTail(r.file) === tail);
+    located.set(s, run);
+    return run;
   };
   // First every sample's root reads against its replay worktree: nothing is written while one drifts.
   const reads = new Map();
@@ -580,7 +598,7 @@ function runSamples(repo) {
     const have = storedReads(dirOf(s));
     const run = have ? null : runOf(s);
     if (have || run?.dispatch) reads.set(s, have ?? rootReads(run, s.root));
-    else if (fs.existsSync(path.join(dirOf(s), 'sample.json'))) problems.push(`${s.agent} ${s.n}: no stored root reads and no run in ${s.transcript} to read them from`);
+    else if (fs.existsSync(path.join(dirOf(s), 'sample.json')) && !ambiguous.has(s)) problems.push(`${s.agent} ${s.n}: no stored root reads and no run in ${s.transcript} to read them from`);
     for (const p of sampleDrift(repo, s, reads.get(s) ?? [])) problems.push(`${s.agent} ${s.n}: ${p}`);
   }
   if (problems.length) { process.stderr.write(problems.join('\n') + '\n'); return 2; }
@@ -612,14 +630,38 @@ export function addWorktree(repo, { path: dir, base, branch }) {
 // An overlay file is written after setup, uncommitted: the original run read a working tree.
 const overlayKey = (o) => JSON.stringify((o ?? []).map(({ path: p, from }) => [p, from]));
 
-function removeWorktree(repo, rec) {
+// `kept`: the run's commits are already under a refs/keep ref, so a branch or HEAD past the base is not a loss.
+function removeWorktree(repo, rec, { kept = false } = {}) {
+  let tip = null;
+  if (rec.branch) { try { tip = gitIn(repo, ['rev-parse', `refs/heads/${rec.branch}`]).trim(); } catch { /* already gone */ } }
+  // The branch is the run's commits: compare it with the base before anything is removed, whatever the folder holds.
+  if (tip && tip !== rec.base && !kept) throw new Error(`${rec.path} holds commits of a run (${rec.branch} is at ${tip.slice(0, 7)}, not its base); it is not rebuilt`);
   if (fs.existsSync(rec.path)) {
     if (!fs.existsSync(path.join(gitIn(rec.path, ['rev-parse', '--absolute-git-dir']).trim(), MARKER))) throw new Error(`${rec.path} is not a worktree this benchmark made; it is not rebuilt`);
-    if (rec.branch && gitIn(rec.path, ['rev-parse', 'HEAD']).trim() !== rec.base) throw new Error(`${rec.path} holds commits of a run; it is not rebuilt`);
+    if (rec.branch && !kept && gitIn(rec.path, ['rev-parse', 'HEAD']).trim() !== rec.base) throw new Error(`${rec.path} holds commits of a run; it is not rebuilt`);
     gitIn(repo, ['worktree', 'remove', '--force', rec.path]);
   } else gitIn(repo, ['worktree', 'prune']);
   // update-ref -d with the checked sha: a commit made after the check makes git refuse instead of losing it.
-  if (rec.branch) { try { gitIn(repo, ['update-ref', '-d', `refs/heads/${rec.branch}`, gitIn(repo, ['rev-parse', `refs/heads/${rec.branch}`]).trim()]); } catch { /* already gone */ } }
+  if (tip) gitIn(repo, ['update-ref', '-d', `refs/heads/${rec.branch}`, tip]);
+}
+
+// Dispatching a writer row again: its branch is kept under refs/keep/bench/<tag>/<k>, then its worktree is removed so the next prepare rebuilds it at base.
+export function rerunWorktree(repo, state, key) {
+  const rec = state.worktrees[key];
+  if (!rec) return null;
+  let ref = null;
+  if (rec.branch) {
+    let tip = null;
+    try { tip = gitIn(repo, ['rev-parse', `refs/heads/${rec.branch}`]).trim(); } catch { /* no branch to keep */ }
+    if (tip) {
+      const used = gitIn(repo, ['for-each-ref', '--format=%(refname)', `refs/keep/${rec.branch}/`]).split('\n').filter(Boolean).map((r) => Number(r.split('/').pop())).filter(Number.isInteger);
+      ref = `refs/keep/${rec.branch}/${Math.max(0, ...used) + 1}`;
+      gitIn(repo, ['update-ref', ref, tip]);
+    }
+  }
+  removeWorktree(repo, rec, { kept: true });
+  delete state.worktrees[key];
+  return ref;
 }
 
 export function prepareWorktree(repo, state, key, spec, setup, save = () => {}) {
@@ -726,7 +768,7 @@ export function runSuite(dir, repo, base) {
 const cli = (dir, args) => execFileSync(process.execPath, ['packages/cli/dist/cli.js', ...args], { cwd: dir, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] });
 const trimEnd = (t) => t.replace(/\n+$/, '');
 
-function runPlan(repo) {
+function runPlan(repo, reruns = []) {
   const err = (m) => { process.stderr.write(m + '\n'); return 2; };
   const bench = slashed(benchRoot(repo));
   if (!fs.existsSync(path.join(bench, 'compliance.md'))) return err('run --compliance first: the round adds commits');
@@ -742,7 +784,7 @@ function runPlan(repo) {
     const file = path.join(bench, 'samples', name, 'sample.json');
     if (!fs.existsSync(file)) return err(`run --round 1 --samples first: no snapshot for ${s.agent} ${s.n}`);
     const snap = JSON.parse(fs.readFileSync(file, 'utf8'));
-    if (snap.transcript !== s.transcript) return err(`${s.agent} ${s.n}: the snapshot in ${slashed(path.dirname(file))} is of ${snap.transcript}, not ${s.transcript}`);
+    if (transcriptTail(snap.transcript) !== transcriptTail(s.transcript)) return err(`${s.agent} ${s.n}: the snapshot in ${slashed(path.dirname(file))} is of ${snap.transcript}, not ${s.transcript}`);
     snaps.set(name, snap);
     const reads = storedReads(path.dirname(file));
     if (!reads) return err(`run --round 1 --samples first: no stored root reads for ${s.agent} ${s.n}`);
@@ -752,6 +794,9 @@ function runPlan(repo) {
   }
   const stateFile = path.join(bench, 'round-1.json');
   const state = fs.existsSync(stateFile) ? JSON.parse(fs.readFileSync(stateFile, 'utf8')) : {};
+  // Named tags are checked before anything changes: only a writer row of the saved round can be dispatched again.
+  const unknown = reruns.filter((tag) => !WRITERS.includes((state.rows ?? []).find((r) => r.tag === tag)?.agent));
+  if (unknown.length) return err(`--rerun takes the tag of a writer row in round-1.json; not one: ${unknown.join(', ')}`);
   state.worktrees ??= {};
   state.live ??= liveState(repo);
   const save = () => { fs.mkdirSync(bench, { recursive: true }); fs.writeFileSync(stateFile, JSON.stringify(state, null, 2) + '\n'); };
@@ -769,6 +814,11 @@ function runPlan(repo) {
     if (specs.has(key) && specs.get(key) !== sig) return err(`${key}: two samples want different contents in one worktree`);
     specs.set(key, sig);
     try {
+      if (reruns.includes(r.tag)) {
+        const kept = rerunWorktree(repo, state, key);
+        save();
+        if (kept) process.stdout.write(`kept ${r.tag}'s earlier commits at ${kept}\n`);
+      }
       r.worktree = prepareWorktree(repo, state, key, spec, (d) => { for (const c of setupAt(d, repo)) sh(c, d); }, save);
     } catch (e) { return err(`${key}: ${e.message} (setup is repeated on the next --plan run)`); }
     r.prepared = state.worktrees[key].preparedAt;
@@ -961,9 +1011,13 @@ export function main(args) {
   }
   if (args[0] === '--clean') return runClean(process.cwd(), args.includes('--force'));
   if (args[0] === '--round' && args[1] === '1' && args[2] === '--samples') return runSamples(process.cwd());
-  if (args[0] === '--round' && args[1] === '1' && args[2] === '--plan') return runPlan(process.cwd());
+  if (args[0] === '--round' && args[1] === '1' && args[2] === '--plan') {
+    const at = args.indexOf('--rerun');
+    if (at >= 0 && !args[at + 1]) { process.stderr.write('--rerun needs a comma-separated list of tags\n'); return 2; }
+    return runPlan(process.cwd(), at >= 0 ? args[at + 1].split(',').filter(Boolean) : []);
+  }
   if (args.some((a) => a.startsWith('--'))) {
-    process.stderr.write('usage: node scripts/benchmark.mjs [--compliance | --round 1 [--samples | --plan | --judge] | --clean [--force]] [folder ...]\n');
+    process.stderr.write('usage: node scripts/benchmark.mjs [--compliance | --round 1 [--samples | --plan [--rerun <tag>[,<tag>]] | --judge] | --clean [--force]] [folder ...]\n');
     return 2;
   }
   process.stdout.write(legacyReport(args.length ? args : defaultDirs(process.cwd())));

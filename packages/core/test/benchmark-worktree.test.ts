@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
@@ -469,6 +469,237 @@ it('risk:data-loss a prepared worktree gets its overlay uncommitted, and a recor
     git(dir, 'commit', '-q', '-m', 'run');
     expect(() => prepareWorktree(repo, state, 'x', spec(H1, []), none)).toThrow('holds commits');
     expect(existsSync(dir + '/c.txt')).toBe(true);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+}, 120_000);
+
+// ---- --samples and --plan with a transcript Claude Code moved to another project folder ----
+type Listed = { agent: string; n: number; transcript: string; root: string };
+const OLD = 'P-old/S1/subagents/agent-x1.jsonl';
+const NEW = 'P-listed/S1/subagents/agent-x1.jsonl';
+
+function samplesFixture(tmp: string) {
+  const root = fileURLToPath(new URL('../../../', import.meta.url));
+  const repo = join(tmp, 'repo');
+  mkdirSync(join(repo, 'scripts'), { recursive: true });
+  writeFileSync(join(repo, 'pkg.txt'), 'one\ntwo\n');
+  const g = (...a: string[]) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...a], { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+  g('init', '-q', '-b', 'main');
+  g('add', '.');
+  g('commit', '-q', '-m', 'c');
+  cpSync(join(root, '.claude', 'agents'), join(repo, '.claude', 'agents'), { recursive: true });
+  const head = g('rev-parse', 'HEAD');
+  const text = readFileSync(join(root, 'scripts', 'benchmark-samples.json'), 'utf8').replace(/,\s*"overlay": \[[^\]]*\]/g, '').replace(/"(base|main)": "[0-9a-f]{40}"/g, `"$1": "${head}"`);
+  const list = JSON.parse(text) as { samples: Listed[] };
+  const moved = list.samples.find((s) => s.agent === 'accord-executor' && s.n === 1)!;
+  moved.transcript = NEW;
+  writeFileSync(join(repo, 'scripts', 'benchmark-samples.json'), JSON.stringify(list));
+  const bench = join(tmp, 'accord-bench');
+  mkdirSync(bench);
+  writeFileSync(join(bench, 'compliance.md'), 'x\n');
+  const dirOf = (s: Listed) => join(bench, 'samples', `${s.agent.slice('accord-'.length)}-${s.n}`);
+  for (const s of list.samples) {
+    mkdirSync(dirOf(s), { recursive: true });
+    writeFileSync(join(dirOf(s), 'sample.json'), JSON.stringify({ transcript: s === moved ? OLD : s.transcript }));
+    if (s !== moved) writeFileSync(join(dirOf(s), 'root-reads.json'), '[]');
+  }
+  const home = join(tmp, 'home');
+  const projects = join(home, '.claude', 'projects');
+  mkdirSync(projects, { recursive: true });
+  // The run of the moved sample, stored under a project folder the list does not name.
+  const putRun = (folder: string) => {
+    const d = join(projects, folder);
+    const sub = join(d, 'S1', 'subagents');
+    mkdirSync(sub, { recursive: true });
+    const line = (o: unknown) => JSON.stringify(o) + '\n';
+    writeFileSync(join(d, 'S1.jsonl'), line({ type: 'assistant', timestamp: '2026-10-01T00:00:00Z', message: { content: [{ type: 'tool_use', id: 'toolu_A', name: 'Agent', input: { description: 'Build T-1 task 1', prompt: 'x' } }] } }));
+    writeFileSync(join(sub, 'agent-x1.meta.json'), JSON.stringify({ agentType: 'accord-executor', description: 'Build T-1 task 1', toolUseId: 'toolu_A' }));
+    writeFileSync(join(sub, 'agent-x1.jsonl'),
+      line({ type: 'assistant', timestamp: '2026-10-01T00:01:00Z', message: { id: 'm1', model: 'm', content: [{ type: 'tool_use', id: 't1', name: 'Read', input: { file_path: `${moved.root}/pkg.txt` } }] } }) +
+      line({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 't1', content: '     1\tone\n     2\ttwo' }] }, toolUseResult: { file: { totalLines: 2 } } }));
+  };
+  const cmd = (...args: string[]) => {
+    const r = spawnSync(process.execPath, [join(root, 'scripts', 'benchmark.mjs'), '--round', '1', ...args], { cwd: repo, encoding: 'utf8', env: { ...process.env, HOME: home, USERPROFILE: home } });
+    return { status: r.status, stdout: r.stdout, stderr: r.stderr };
+  };
+  return { list, moved, bench, dirOf, putRun, cmd, repo };
+}
+
+it('risk:regression --samples finds a transcript Claude Code moved to another project folder by its session tail and backfills its root reads', () => {
+  const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'bench-')));
+  try {
+    const f = samplesFixture(tmp);
+    f.putRun('P-moved');
+    const out = f.cmd('--samples');
+    expect(out.stderr).toContain('P-moved/S1/subagents/agent-x1.jsonl');
+    expect(out.status).toBe(0);
+    expect(out.stdout).toBe('0 written, 45 kept\n');
+    expect(JSON.parse(readFileSync(join(f.dirOf(f.moved), 'root-reads.json'), 'utf8'))).toEqual([{ path: 'pkg.txt', start: 1, total: 2, whole: true, text: 'one\ntwo' }]);
+    // the snapshot keeps naming the path it was made from
+    expect(JSON.parse(readFileSync(join(f.dirOf(f.moved), 'sample.json'), 'utf8')).transcript).toBe(OLD);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+}, 120_000);
+
+it('risk:regression a moved transcript found under two project folders is a problem and nothing is stored', () => {
+  const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'bench-')));
+  try {
+    const f = samplesFixture(tmp);
+    f.putRun('P-moved');
+    f.putRun('P-moved-too');
+    const out = f.cmd('--samples');
+    expect(out.status).toBe(2);
+    expect(out.stderr).toContain('P-moved/S1/subagents');
+    expect(out.stderr).toContain('P-moved-too/S1/subagents');
+    expect(existsSync(join(f.dirOf(f.moved), 'root-reads.json'))).toBe(false);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+}, 120_000);
+
+it('risk:regression --samples stops before any write when one sample drifts from its replay worktree', () => {
+  const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'bench-')));
+  try {
+    const f = samplesFixture(tmp);
+    f.putRun('P-moved');
+    const other = f.list.samples.find((s) => s.agent === 'accord-critic' && s.n === 1)!;
+    writeFileSync(join(f.dirOf(other), 'root-reads.json'), JSON.stringify([{ path: 'pkg.txt', start: 1, total: 2, whole: true, text: 'one\nDIFFERENT' }]));
+    const out = f.cmd('--samples');
+    expect(out.status).toBe(2);
+    expect(out.stderr).toContain('accord-critic 1: pkg.txt differs from the file the replay worktree will hold, first at line 2');
+    expect(existsSync(join(f.dirOf(f.moved), 'root-reads.json'))).toBe(false);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+}, 120_000);
+
+it('risk:regression --plan accepts a snapshot of the old transcript path for a moved sample and then refuses while its root reads are missing', () => {
+  const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'bench-')));
+  try {
+    const f = samplesFixture(tmp);
+    const out = f.cmd('--plan');
+    expect(out.status).toBe(2);
+    expect(out.stderr).toBe('run --round 1 --samples first: no stored root reads for accord-executor 1\n');
+    expect(existsSync(join(f.bench, 'wt'))).toBe(false);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+}, 120_000);
+
+// ---- a branch that moved off its base is never deleted; --rerun keeps a run's commits ----
+async function bench() {
+  return (await import(new URL('../../../scripts/benchmark.mjs', import.meta.url).href)) as {
+    prepareWorktree: (repo: string, state: { worktrees: Record<string, Setup & { preparedAt?: number }> }, key: string, spec: Record<string, unknown>, setup: (d: string) => void) => string;
+    rerunWorktree: (repo: string, state: { worktrees: Record<string, Setup> }, key: string) => string | null;
+  };
+}
+function twoCommitRepo(t: string) {
+  const repo = t + '/repo';
+  mkdirSync(repo);
+  const git = (cwd: string, ...a: string[]) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', '-c', 'commit.gpgsign=false', ...a], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+  git(repo, 'init', '-q');
+  writeFileSync(repo + '/a.txt', 'one\n');
+  git(repo, 'add', '.');
+  git(repo, 'commit', '-q', '-m', 'one');
+  const H1 = git(repo, 'rev-parse', 'HEAD');
+  writeFileSync(repo + '/a.txt', 'two\n');
+  git(repo, 'commit', '-q', '-am', 'two');
+  return { repo, git, H1, H2: git(repo, 'rev-parse', 'HEAD') };
+}
+const runCommit = (git: (cwd: string, ...a: string[]) => string, dir: string) => {
+  writeFileSync(dir + '/run.txt', 'run\n');
+  git(dir, 'add', '.');
+  git(dir, 'commit', '-q', '-m', 'run');
+  return git(dir, 'rev-parse', 'HEAD');
+};
+
+it('risk:data-loss a rebuild refuses while the run branch is past its base, whether the folder is gone or its HEAD went back to the base', async () => {
+  const { prepareWorktree } = await bench();
+  const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'bench-')));
+  const t = tmp.replaceAll('\\', '/');
+  try {
+    const { repo, git, H1, H2 } = twoCommitRepo(t);
+    const state = { worktrees: {} as Record<string, Setup & { preparedAt?: number }> };
+    const dir = t + '/wt';
+    const spec = (base: string) => ({ path: dir, base, branch: 'bench/x-1-low' });
+    const none = () => {};
+    prepareWorktree(repo, state, 'x', spec(H1), none);
+    const E = runCommit(git, dir);
+
+    // HEAD detached back at the base while the branch holds the commit
+    git(dir, 'checkout', '-q', '--detach', H1);
+    expect(() => prepareWorktree(repo, state, 'x', spec(H2), none)).toThrow('holds commits');
+    expect(git(repo, 'rev-parse', 'refs/heads/bench/x-1-low')).toBe(E);
+    expect(existsSync(dir)).toBe(true);
+
+    // the folder is gone
+    git(dir, 'checkout', '-q', 'bench/x-1-low');
+    rmSync(dir, { recursive: true, force: true, maxRetries: 5 });
+    expect(() => prepareWorktree(repo, state, 'x', spec(H2), none)).toThrow('holds commits');
+    expect(git(repo, 'rev-parse', 'refs/heads/bench/x-1-low')).toBe(E);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+}, 120_000);
+
+it("risk:data-loss --rerun keeps the run's commits under a keep ref, rebuilds the worktree at base and supersedes the earlier run", async () => {
+  const { prepareWorktree, rerunWorktree } = await bench();
+  const { matchRuns, describe } = (await import(new URL('../../../scripts/round.mjs', import.meta.url).href)) as {
+    matchRuns: (rows: unknown[], runs: unknown[], o: { judges: boolean }) => { missing: string[]; superseded: unknown[] };
+    describe: (tag: string) => string;
+  };
+  const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'bench-')));
+  const t = tmp.replaceAll('\\', '/');
+  try {
+    const { repo, git, H1 } = twoCommitRepo(t);
+    const state = { worktrees: {} as Record<string, Setup & { preparedAt?: number }> };
+    const dir = t + '/wt';
+    const spec = { path: dir, base: H1, branch: 'bench/x-1-low' };
+    const none = () => {};
+    prepareWorktree(repo, state, 'x', spec, none);
+    const first = state.worktrees.x.preparedAt!;
+    expect(rerunWorktree(repo, state, 'nope')).toBeNull();
+    const E1 = runCommit(git, dir);
+    const run = { desc: describe('x-1-low'), dispatch: { ts: first + 1 } };
+    expect(matchRuns([{ tag: 'x-1-low', prepared: first }], [run], { judges: false }).missing).toEqual([]);
+    await new Promise((r) => setTimeout(r, 20));
+
+    expect(rerunWorktree(repo, state, 'x')).toBe('refs/keep/bench/x-1-low/1');
+    prepareWorktree(repo, state, 'x', spec, none);
+    expect(git(repo, 'rev-parse', 'refs/keep/bench/x-1-low/1')).toBe(E1);
+    expect(git(repo, 'merge-base', '--is-ancestor', E1, 'refs/keep/bench/x-1-low/1')).toBe('');
+    expect(git(dir, 'rev-parse', 'HEAD')).toBe(H1);
+    expect(git(dir, 'status', '--porcelain')).toBe('');
+    expect(git(repo, 'rev-parse', 'refs/heads/bench/x-1-low')).toBe(H1);
+    expect(state.worktrees.x.preparedAt!).toBeGreaterThan(first + 1);
+    const m = matchRuns([{ tag: 'x-1-low', prepared: state.worktrees.x.preparedAt }], [run], { judges: false });
+    expect(m.missing).toEqual([describe('x-1-low')]);
+    expect(m.superseded).toEqual([run]);
+
+    // a second --rerun takes the next number and keeps the first
+    const E2 = runCommit(git, dir);
+    expect(rerunWorktree(repo, state, 'x')).toBe('refs/keep/bench/x-1-low/2');
+    expect(git(repo, 'rev-parse', 'refs/keep/bench/x-1-low/2')).toBe(E2);
+    expect(git(repo, 'rev-parse', 'refs/keep/bench/x-1-low/1')).toBe(E1);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+}, 120_000);
+
+it('risk:data-loss --plan --rerun names a tag that is not a writer row of round-1.json and exits 2 before any worktree', () => {
+  const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'bench-')));
+  try {
+    const f = samplesFixture(tmp);
+    for (const s of f.list.samples) writeFileSync(join(f.dirOf(s), 'root-reads.json'), '[]');
+    writeFileSync(join(f.bench, 'round-1.json'), JSON.stringify({ rows: [{ tag: 'executor-2-low', agent: 'accord-executor' }, { tag: 'critic-1-high', agent: 'accord-critic' }] }));
+    const out = f.cmd('--plan', '--rerun', 'executor-2-low,critic-1-high,executor-9-low');
+    expect(out.status).toBe(2);
+    expect(out.stderr).toContain('critic-1-high, executor-9-low');
+    expect(out.stderr).not.toContain('executor-2-low');
+    expect(existsSync(join(f.bench, 'wt'))).toBe(false);
+    expect(readFileSync(join(f.bench, 'round-1.json'), 'utf8')).not.toContain('worktrees');
   } finally {
     rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
   }

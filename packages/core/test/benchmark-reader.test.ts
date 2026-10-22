@@ -99,3 +99,62 @@ it('risk:parsing a commit sha comes only from git commit summary lines, whatever
     rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
   }
 }, 120_000);
+
+it('risk:parsing a read keeps its first line number, total lines, whole-file flag and wrote flag, a cat of one file is a read, and a later coordinator message ends the root reads', async () => {
+  type Read = { path: string; text: string; start: number | null; total: number | null; wrote: boolean; whole: boolean };
+  const { readSessions, rootReads } = (await import(new URL('../../../scripts/benchmark.mjs', import.meta.url).href)) as {
+    readSessions: (dirs: string[]) => { runs: (Run & { reads: Read[] })[] };
+    rootReads: (run: unknown, root: string) => { path: string }[];
+  };
+  const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'bench-')));
+  try {
+    const folder = join(tmp, 'C--Work-z');
+    const sub = join(folder, 'S1', 'subagents');
+    mkdirSync(sub, { recursive: true });
+    const at = (n: number) => `2026-10-01T00:0${n}:00Z`;
+    const send = { type: 'tool_use', id: 'toolu_S', name: 'SendMessage', input: { to: 'z1', message: 'more' } };
+    writeFileSync(join(folder, 'S1.jsonl'), jl(
+      { type: 'assistant', timestamp: at(0), message: { content: [{ type: 'tool_use', id: 'toolu_A', name: 'Agent', input: { description: 'Build T-1 task 1', prompt: 'x' } }] } },
+      { type: 'assistant', timestamp: at(6), message: { content: [send] } },
+    ));
+    writeFileSync(join(sub, 'agent-z1.meta.json'), JSON.stringify({ agentType: 'accord-executor', description: 'Build T-1 task 1', toolUseId: 'toolu_A' }));
+    let n = 0;
+    const call = (name: string, input: unknown) => ({ type: 'assistant', timestamp: at(++n > 9 ? 9 : n), message: { id: `m${n}`, model: 'm', content: [{ type: 'tool_use', id: `t${n}`, name, input }] } });
+    const res = (content: string, total?: number) => ({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: `t${n}`, content }] }, ...(total === undefined ? {} : { toolUseResult: { file: { totalLines: total } } }) });
+    writeFileSync(join(sub, 'agent-z1.jsonl'), jl(
+      call('Read', { file_path: 'C:/r/whole.ts' }), res('     1\tl1\n     2\tl2\n<system-reminder>\nnote\n</system-reminder>', 2),
+      call('Read', { file_path: 'C:/r/cut.ts', offset: 5, limit: 2 }), res('     5\tx\n     6\ty', 100),
+      call('Read', { file_path: 'C:/r/short.ts' }), res('     1\tonly', 40),
+      call('Read', { file_path: 'C:/r/nototal.ts' }), res('     1\tn1\n     2\tn2'),
+      call('Read', { file_path: 'C:/r/error.ts' }), res('File does not exist.'),
+      call('Edit', { file_path: 'C:/r/edited.ts' }), res('ok'),
+      call('Read', { file_path: 'C:/r/EDITED.ts' }), res('     1\te1', 1),
+      call('Bash', { command: 'cat "C:/r/a b.txt"' }), res('quoted\n'),
+      call('Bash', { command: "cat 'C:/r/q.txt'" }), res('single\n'),
+      call('Bash', { command: String.raw`cat C:\r\u.txt` }), res('bare\n'),
+      call('Bash', { command: 'cat -n C:/r/f.txt' }), res('flag\n'),
+      call('Bash', { command: 'cat C:/r/a.txt C:/r/b.txt' }), res('two\n'),
+      call('Read', { file_path: 'C:/r/late.ts' }), res('     1\tlate', 1),
+    ));
+    const run = readSessions([folder]).runs[0];
+    const by = (p: string) => run.reads.find((r) => r.path === p);
+    expect(by('C:/r/whole.ts')).toMatchObject({ text: 'l1\nl2', start: 1, total: 2, wrote: false, whole: true });
+    expect(by('C:/r/cut.ts')).toMatchObject({ text: 'x\ny', start: 5, total: 100, whole: false });
+    expect(by('C:/r/short.ts')).toMatchObject({ start: 1, total: 40, whole: false });
+    expect(by('C:/r/nototal.ts')).toMatchObject({ start: 1, total: null, whole: true });
+    expect(by('C:/r/error.ts')).toMatchObject({ start: null, whole: false });
+    expect(by('C:/r/EDITED.ts')).toMatchObject({ wrote: true });
+    expect(by('C:/r/a b.txt')).toMatchObject({ text: 'quoted', start: 1, whole: true });
+    expect(by('C:/r/q.txt')).toMatchObject({ text: 'single' });
+    expect(by('C:/r/u.txt')).toMatchObject({ text: 'bare' });
+    expect(run.reads.some((r) => ['C:/r/f.txt', 'C:/r/a.txt', 'C:/r/b.txt'].includes(r.path))).toBe(false);
+    // The root reads drop a read with no numbered first line, one after a write, and one after the coordinator's next message.
+    const seen = rootReads(run, 'C:/r').map((r) => r.path);
+    expect(seen).toContain('whole.ts');
+    expect(seen).not.toContain('error.ts');
+    expect(seen).not.toContain('EDITED.ts');
+    expect(seen).not.toContain('late.ts');
+  } finally {
+    rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+}, 120_000);

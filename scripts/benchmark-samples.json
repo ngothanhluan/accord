@@ -4,7 +4,7 @@
     {
       "agent": "accord-executor",
       "n": 1,
-      "transcript": "C--Work-accord-st-ln-34/cfa22f34-30e9-4ecd-bbc6-b4338a414ecb/subagents/agent-a3c1f21d11f0dd2b9.jsonl",
+      "transcript": "C--Work-accord/cfa22f34-30e9-4ecd-bbc6-b4338a414ecb/subagents/agent-a3c1f21d11f0dd2b9.jsonl",
       "ticket": "ST-LN-34",
       "task": "6",
       "kind": "plain",
@@ -375,7 +375,7 @@
     {
       "agent": "accord-final-reviewer",
       "n": 1,
-      "transcript": "C--Work-accord-st-ln-34/cfa22f34-30e9-4ecd-bbc6-b4338a414ecb/subagents/agent-a46a45bcd9eaaab17.jsonl",
+      "transcript": "C--Work-accord/cfa22f34-30e9-4ecd-bbc6-b4338a414ecb/subagents/agent-a46a45bcd9eaaab17.jsonl",
       "ticket": "ST-LN-34",
       "base": "b7c43f8a990c707a7b2ba33f2fc7b3644711ac36",
       "main": "32f91987f44359c35d01289e3423f8e1268f53a5",

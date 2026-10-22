@@ -488,6 +488,31 @@ describe.skipIf(noBash)('the emitted workflow script — executed', { timeout: 6
   });
 });
 
+it.skipIf(noBash)('risk:security a lane S ticket that passed gate ready is gated in an accord-only diff and a queued one is not', () => {
+  const READY_S = '---\nid: LS-1\nstatus: open\nlane: S   # S: one small change\nac_hash: "fnv1a64:0000000000000000"\n---\n\n## Understood\nx\n';
+  const QUOTED_S = READY_S.replace('lane: S   # S: one small change', 'lane: "S"');
+  const QUEUED_S = READY_S.replace('ac_hash: "fnv1a64:0000000000000000"', '# ac_hash:');
+  const M_HASH = READY_S.replace('lane: S   # S: one small change', 'lane: M');
+  const yml = readFileSync(fileURLToPath(new URL('../../../.github/workflows/accord.yml', import.meta.url)), 'utf8');
+  const named = (parse(yml) as unknown as { jobs: { accord: { steps: Array<Step & { name?: string }> } } }).jobs
+    .accord.steps.filter((s) => s.name === 'lint and gate');
+  const own = named[0].run as string;
+  for (const script of [SCRIPT, own]) {
+    for (const text of [READY_S, QUOTED_S]) {
+      const s = sandbox((r) => write(r, 'accord/tickets/LS-1.md', text));
+      const r = runScript(s.repo, { base: s.base, script });
+      expect(r.calls.length, r.calls.join(' | ')).toBe(2);
+      expect(r.calls[1].endsWith(' gate done LS-1')).toBe(true);
+    }
+    for (const text of [QUEUED_S, M_HASH]) {
+      const s = sandbox((r) => write(r, 'accord/tickets/LS-1.md', text));
+      const r = runScript(s.repo, { base: s.base, script });
+      expect(r.calls.length, r.calls.join(' | ')).toBe(1);
+      expect(r.out).toContain('not gating LS-1');
+    }
+  }
+}, 300_000);
+
 // 07-03 F-3: the stub proves the shell logic, not that the real binary takes the arguments the script
 // gives it or returns the exit codes the script assumes. These two run the built CLI.
 describe.skipIf(noBash)('the emitted workflow script — against the real CLI', { timeout: 60_000 }, () => {

@@ -80,13 +80,15 @@ jobs:
             if grep -Evq "^([[:space:]]|#|-([[:space:]]|$)|${qc}?[[:alnum:]_-]+${qc}?[[:space:]]*:([[:space:]]|#|$)|$)" <<< "$fm"; then return 2; fi
             return 0
           }
-          # Approved means an approved_hash key in that version of path $2. An unsettled read counts as approved.
+          # Approved means an approved_hash key in that version of path $2, or, on a lane S ticket, an ac_hash key, since
+          # a lane S ticket needs no approval. An unsettled read counts as approved.
           approved_at() {
             fm_at "$1" "$2"
             local rc=$?
             if [ "$rc" -eq 1 ]; then return 1; fi
             if [ "$rc" -ne 0 ]; then return 0; fi
-            grep -Eq "^[[:space:]]*${qc}?approved_hash${qc}?[[:space:]]*:" <<< "$fm"
+            grep -Eq "^[[:space:]]*${qc}?approved_hash${qc}?[[:space:]]*:" <<< "$fm" && return 0
+            grep -Eq "^${qc}?lane${qc}?[[:space:]]*:[[:space:]]*${qc}?S${qc}?[[:space:]]*(#.*)?$" <<< "$fm" && grep -Eq "^[[:space:]]*${qc}?ac_hash${qc}?[[:space:]]*:" <<< "$fm"
           }
           # Dropped needs status: dropped and a reason under ## Dropped, as lint reads it. Where this reading
           # cannot match lint (a comment spanning lines, a stray fence) the answer is not dropped: fail closed.

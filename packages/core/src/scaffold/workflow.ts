@@ -24,7 +24,7 @@
 // the review has to be of the code being gated, and what a fresh-context review read is the branch.
 //
 // `gate done` is skipped for a ticket only when the diff changes nothing outside `accord/` and the ticket is
-// unapproved in both its HEAD and base versions, or dropped in HEAD. Any read the script cannot settle counts
+// unapproved in both its HEAD and base versions (a lane S ticket: no `ac_hash` in either), or dropped in HEAD. Any read the script cannot settle counts
 // as approved, so a doubt gates. `.github/workflows/accord.yml` carries the same script and must be changed
 // with it; `cli/test/workflow-script.test.ts` fails when the two drift.
 //
@@ -119,13 +119,15 @@ jobs:
             if grep -Evq "^([[:space:]]|#|-([[:space:]]|$)|\${qc}?[[:alnum:]_-]+\${qc}?[[:space:]]*:([[:space:]]|#|$)|$)" <<< "$fm"; then return 2; fi
             return 0
           }
-          # Approved means an approved_hash key in that version of path $2. An unsettled read counts as approved.
+          # Approved means an approved_hash key in that version of path $2, or, on a lane S ticket, an ac_hash key, since
+          # a lane S ticket needs no approval. An unsettled read counts as approved.
           approved_at() {
             fm_at "$1" "$2"
             local rc=$?
             if [ "$rc" -eq 1 ]; then return 1; fi
             if [ "$rc" -ne 0 ]; then return 0; fi
-            grep -Eq "^[[:space:]]*\${qc}?approved_hash\${qc}?[[:space:]]*:" <<< "$fm"
+            grep -Eq "^[[:space:]]*\${qc}?approved_hash\${qc}?[[:space:]]*:" <<< "$fm" && return 0
+            grep -Eq "^\${qc}?lane\${qc}?[[:space:]]*:[[:space:]]*\${qc}?S\${qc}?[[:space:]]*(#.*)?$" <<< "$fm" && grep -Eq "^[[:space:]]*\${qc}?ac_hash\${qc}?[[:space:]]*:" <<< "$fm"
           }
           # Dropped needs status: dropped and a reason under ## Dropped, as lint reads it. Where this reading
           # cannot match lint (a comment spanning lines, a stray fence) the answer is not dropped: fail closed.

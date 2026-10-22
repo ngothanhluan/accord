@@ -47,7 +47,7 @@ Feature: ST-LN-31
     Then they are these four and no other: a public interface or schema changes; auth, money or data deletion is touched; more than one plausible reading; more than about five hand-written files expected, generated and rendered copies not counted
     And "new user-visible behaviour" is not among them
 
-  @ac-2
+  @ac-2 @test:packages/cli/test/lane-s.test.ts#ac-2-a-lane-S-ticket-is-written-and-passes-gate-ready-without-acceptance-criteria
   Scenario: A lane S ticket is written and passes gate ready without acceptance criteria
     Given an accord repository
     When "accord new ticket <id> --lane S" runs

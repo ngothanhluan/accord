@@ -589,15 +589,21 @@ const sh = (command, cwd) => execSync(command, { cwd, stdio: ['ignore', 2, 2] })
 // Returns { rerun: { files, ok } } when it had to re-run, {} when green first time.
 export function runSuite(dir, repo) {
   const tests = configAt(dir, repo).tests;
+  const start = Date.now();
   try { sh(tests.full, dir); return {}; } catch { /* re-run below */ }
   let files = [];
   try {
-    const xml = fs.readFileSync(path.join(dir, tests.report), 'utf8');
-    files = [...new Set([...xml.matchAll(/<testcase\b[^>]*?\bclassname="([^"]+)"[^>]*?(?:\/>|>([\s\S]*?)<\/testcase>)/g)]
-      .filter((m) => /<(failure|error)\b/.test(m[2] ?? '')).map((m) => m[1]))];
+    const report = path.join(dir, tests.report);
+    // A report older than this run is a leftover; a classname that is no file here (`vitest unhandled errors`) is not a failing file.
+    if (fs.statSync(report).mtimeMs >= start - 1000) {
+      const xml = fs.readFileSync(report, 'utf8');
+      files = [...new Set([...xml.matchAll(/<testcase\b[^>]*?\bclassname="([^"]+)"[^>]*?(?:\/>|>([\s\S]*?)<\/testcase>)/g)]
+        .filter((m) => /<(failure|error)\b/.test(m[2] ?? '')).map((m) => m[1]))];
+      if (!files.every((f) => fs.existsSync(path.join(dir, f)))) files = [];
+    }
   } catch { /* no readable report */ }
   const narrow = files.length && tests.affected?.includes('{files}');
-  sh(narrow ? tests.affected.replace('{files}', files.map((f) => `"${f}"`).join(" ")) : tests.full, dir);
+  sh(narrow ? tests.affected.replace('{files}', () => files.map((f) => `"${f}"`).join(" ")) : tests.full, dir);
   return { rerun: { files: narrow ? files : [], ok: true } };
 }
 const cli = (dir, args) => execFileSync(process.execPath, ['packages/cli/dist/cli.js', ...args], { cwd: dir, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] });

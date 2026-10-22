@@ -302,3 +302,45 @@ it('risk:regression scoring a run re-runs a red suite once and records it', asyn
     rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
   }
 }, 120_000);
+
+it('risk:parsing a red suite re-runs only the failing files, and the full suite when the report is not about files or not from this run', async () => {
+  const { runSuite } = (await import(new URL('../../../scripts/benchmark.mjs', import.meta.url).href)) as {
+    runSuite: (dir: string, repo: string) => { rerun?: { files: string[]; ok: boolean } };
+  };
+  const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'bench-')));
+  try {
+    const failing = '<testcase classname="test/a.test.ts" name="x\n  y">\n<failure message="m">boom</failure>\n</testcase>\n<testcase classname="test/a.test.ts" name="z"><error message="e"/></testcase>';
+    const noise = '<testcase classname="test/b.test.ts" name="s"><skipped/></testcase>\n<testcase classname="test/b.test.ts" name="p"/>';
+    const unhandled = '<testcase classname="vitest unhandled errors" name="Unhandled error"><error message="u"/></testcase>';
+    const mk = (name: string, cases: string, stale = false) => {
+      const dir = join(tmp, name);
+      mkdirSync(join(dir, 'accord'), { recursive: true });
+      mkdirSync(join(dir, 'test'));
+      writeFileSync(join(dir, 'test', 'a.test.ts'), '');
+      const q = (s: string) => JSON.stringify(s.replaceAll('\\', '/'));
+      writeFileSync(join(dir, 'full.js'), `const fs=require('fs');const c=${q(join(dir, 'full.txt'))};const n=(fs.existsSync(c)?+fs.readFileSync(c,'utf8'):0)+1;fs.writeFileSync(c,String(n));` +
+        `if(n===1){fs.writeFileSync('r.xml',${JSON.stringify(`<testsuites><testsuite>${cases}</testsuite></testsuites>`)});${stale ? `fs.utimesSync('r.xml',1,1);` : ''}process.exit(1)}\n`);
+      writeFileSync(join(dir, 'affected.js'), `require('fs').appendFileSync(${q(join(dir, 'aff.txt'))},JSON.stringify(process.argv.slice(2))+'\\n');\n`);
+      writeFileSync(join(dir, 'accord', 'config.yml'), 'tests:\n  report: r.xml\n  full: node full.js\n  affected: node affected.js {files}\n');
+      return dir;
+    };
+    const read = (dir: string, f: string) => (existsSync(join(dir, f)) ? readFileSync(join(dir, f), 'utf8') : '');
+
+    const a = mk('a', `${failing}\n${noise}`);
+    expect(runSuite(a, a).rerun).toEqual({ files: ['test/a.test.ts'], ok: true });
+    expect(read(a, 'aff.txt')).toBe('["test/a.test.ts"]\n');
+    expect(read(a, 'full.txt')).toBe('1');
+
+    const u = mk('u', `${failing}\n${unhandled}`);
+    expect(runSuite(u, u).rerun).toEqual({ files: [], ok: true });
+    expect(read(u, 'aff.txt')).toBe('');
+    expect(read(u, 'full.txt')).toBe('2');
+
+    const s = mk('s', failing, true);
+    expect(runSuite(s, s).rerun).toEqual({ files: [], ok: true });
+    expect(read(s, 'aff.txt')).toBe('');
+    expect(read(s, 'full.txt')).toBe('2');
+  } finally {
+    rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+}, 120_000);

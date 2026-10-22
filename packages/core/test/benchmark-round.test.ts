@@ -214,6 +214,22 @@ it('ac-2 a run holds only when it is no worse than the current effort on the sam
   expect(v).toContain('marked that criterion fail or blocked');
 });
 
+it('risk:regression the report lists each run whose suite was green only after a re-run', async () => {
+  const round = (await import(new URL('../../../scripts/round.mjs', import.meta.url).href)) as {
+    report: (r: unknown[], s: unknown, o: { flags: unknown[]; unjudged: unknown[]; compliance: string }) => string;
+  };
+  const mk = (n: number, rerun?: { files: string[]; ok: boolean }) => ({
+    tag: `accord-executor-${n}-low`, agent: 'accord-executor', n, kind: 'plain', effort: 'low', current: true, held: true, ms: 1,
+    usage: { input: 1, cacheRead: 1, cacheWrite: 1, output: 1, estimated: false }, verdict: null, ...(rerun ? { rerun } : {}),
+  });
+  const settings = { 'accord-executor': { model: 'sonnet', effort: 'low' } };
+  const out = { flags: [], unjudged: [], compliance: '## Compliance\n' };
+  const text = round.report([mk(1), mk(2, { files: ['a.test.ts', 'b.test.ts'], ok: true }), mk(3, { files: [], ok: true })], settings, out);
+  const sec = text.split(/^(?=## )/m).find((s) => s.startsWith('## Holds that rest on a re-run'))!.split('\n').slice(1).filter(Boolean);
+  expect(sec).toEqual(['- accord-executor-2-low: re-ran a.test.ts, b.test.ts', '- accord-executor-3-low: re-ran the full suite']);
+  expect(round.report([mk(1)], settings, out)).toContain('## Holds that rest on a re-run\n\nNone.');
+});
+
 it('ac-3 the report suggests an effort for each agent and changes no agent definition', async () => {
   type R = { tag: string; agent: string; n: number; kind: string | null; effort: string; current: boolean; held: boolean | null; ms: number; usage: Record<string, unknown>; verdict: unknown; reference?: number };
   const round = (await import(new URL('../../../scripts/round.mjs', import.meta.url).href)) as {

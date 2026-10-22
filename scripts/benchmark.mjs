@@ -7,10 +7,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, execSync } from 'node:child_process';
 import { parse as parseYaml } from 'yaml';
 import { parsePlanReview } from './plan-review.mjs';
-import { ROLES, checkSamples, rewriteBrief } from './round.mjs';
+import { ROLES, WRITERS, checkSamples, runMatrix, rewriteBrief, dispatchTable } from './round.mjs';
 import { compliance, render as renderCompliance, parseCompliance, mergeCompliance } from './compliance.mjs';
 
 const projectsRoot = path.join(os.homedir(), '.claude', 'projects');
@@ -505,6 +505,136 @@ function runSamples(repo) {
   return 0;
 }
 
+// ---- worktrees ----------------------------------------------------------------
+const MARKER = 'accord-bench';
+
+export function addWorktree(repo, { path: dir, base, branch }) {
+  if (fs.existsSync(dir)) throw new Error(`${dir} already exists`);
+  try {
+    gitIn(repo, ['worktree', 'add', '-q', ...(branch ? ['-b', branch] : ['--detach']), dir, base]);
+  } catch (e) { throw new Error(String(e.stderr || e.message).trim(), { cause: e }); }
+  fs.writeFileSync(path.join(gitIn(dir, ['rev-parse', '--absolute-git-dir']).trim(), MARKER), dir);
+  return { path: dir, base, ...(branch ? { branch } : {}) };
+}
+
+export function cleanWorktrees(repo, { force } = {}) {
+  if (!force && !fs.existsSync(path.join(repo, 'docs', 'benchmark', 'round-1.md'))) return { refused: true, removed: [], failed: [] };
+  const entries = gitIn(repo, ['worktree', 'list', '--porcelain']).split(/\r?\n\r?\n+/).filter(Boolean).slice(1);
+  const removed = [], failed = [];
+  for (const e of entries) {
+    const dir = /^worktree (.+)$/m.exec(e)?.[1]?.trim();
+    const branch = /^branch (.+)$/m.exec(e)?.[1]?.trim();
+    if (!dir || !fs.existsSync(dir)) continue;
+    try {
+      if (!fs.existsSync(path.join(gitIn(dir, ['rev-parse', '--absolute-git-dir']).trim(), MARKER))) continue;
+      gitIn(repo, ['worktree', 'remove', '--force', dir]);
+      if (branch?.startsWith('refs/heads/bench/')) gitIn(repo, ['branch', '-D', branch.slice('refs/heads/'.length)]);
+      removed.push(slashed(dir));
+    } catch (err) { failed.push({ path: slashed(dir), message: String(err.stderr || err.message).trim() }); }
+  }
+  return { refused: false, removed, failed };
+}
+
+function runClean(repo, force) {
+  const out = cleanWorktrees(repo, { force });
+  if (out.refused) {
+    process.stderr.write("the round report docs/benchmark/round-1.md does not exist yet; --clean would delete every run's worktree and branch. Pass --force to clean anyway.\n");
+    return 2;
+  }
+  for (const p of out.removed) process.stdout.write(`removed ${p}\n`);
+  for (const f of out.failed) process.stderr.write(`failed ${f.path}: ${f.message}\nUndo: stop the node processes, git worktree remove --force ${f.path}, git worktree prune, delete the folder.\n`);
+  return out.failed.length ? 1 : 0;
+}
+
+const configAt = (dir, repo) => parseYaml(fs.readFileSync(path.join(fs.existsSync(path.join(dir, 'accord', 'config.yml')) ? dir : repo, 'accord', 'config.yml'), 'utf8'));
+const sh = (command, cwd) => execSync(command, { cwd, stdio: ['ignore', 2, 2] });
+const cli = (dir, args) => execFileSync(process.execPath, ['packages/cli/dist/cli.js', ...args], { cwd: dir, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] });
+const trimEnd = (t) => t.replace(/\n+$/, '');
+
+function runPlan(repo) {
+  const err = (m) => { process.stderr.write(m + '\n'); return 2; };
+  const bench = slashed(benchRoot(repo));
+  if (!fs.existsSync(path.join(bench, 'compliance.md'))) return err('run --compliance first: the round adds commits');
+  const listFile = path.join(repo, 'scripts', 'benchmark-samples.json');
+  if (!fs.existsSync(listFile)) return err('no sample list: scripts/benchmark-samples.json');
+  const list = JSON.parse(fs.readFileSync(listFile, 'utf8'));
+  const bad = checkSamples(list);
+  if (bad.length) return err(bad.join('\n'));
+  const rows = runMatrix(list, agentSettings(repo));
+  const snaps = new Map();
+  for (const s of list.samples) {
+    const name = s.agent.slice('accord-'.length) + '-' + s.n;
+    const file = path.join(bench, 'samples', name, 'sample.json');
+    if (!fs.existsSync(file)) return err(`run --round 1 --samples first: no snapshot for ${s.agent} ${s.n}`);
+    const snap = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (snap.transcript !== s.transcript) return err(`${s.agent} ${s.n}: the snapshot in ${slashed(path.dirname(file))} is of ${snap.transcript}, not ${s.transcript}`);
+    snaps.set(name, snap);
+  }
+  const stateFile = path.join(bench, 'round-1.json');
+  const state = fs.existsSync(stateFile) ? JSON.parse(fs.readFileSync(stateFile, 'utf8')) : {};
+  state.worktrees ??= {};
+  const save = () => { fs.mkdirSync(bench, { recursive: true }); fs.writeFileSync(stateFile, JSON.stringify(state, null, 2) + '\n'); };
+  const sampleOf = (r) => list.samples.find((s) => s.agent === r.agent && s.n === r.n);
+  for (const r of rows) {
+    const s = sampleOf(r);
+    const key = WRITERS.includes(r.agent) ? r.tag : r.agent.slice('accord-'.length) + '-' + r.n;
+    r.worktree = state.worktrees[key]?.path;
+    if (!r.worktree) {
+      const dir = `${bench}/wt/${key}`;
+      let rec;
+      try { rec = addWorktree(repo, { path: dir, base: s.base, ...(WRITERS.includes(r.agent) ? { branch: `bench/${r.tag}` } : {}) }); } catch (e) { return err(`${key}: ${e.message}`); }
+      state.worktrees[key] = rec;
+      save();
+      r.worktree = dir;
+      try { for (const c of configAt(dir, repo).setup ?? []) sh(c, dir); } catch { return err(`setup failed in ${dir}`); }
+    }
+  }
+  for (const s of list.samples.filter((x) => x.agent === 'accord-executor')) {
+    const r = rows.find((x) => x.agent === s.agent && x.n === s.n && x.current);
+    try { sh(configAt(r.worktree, repo).tests.full, r.worktree); } catch { return err(`suite red at base for ${s.agent} ${s.n}`); }
+  }
+  fs.mkdirSync(`${bench}/briefs`, { recursive: true });
+  for (const r of rows) {
+    const s = sampleOf(r);
+    const snap = snaps.get(r.agent.slice('accord-'.length) + '-' + r.n);
+    const ticket = gitIn(repo, ['-c', 'log.showSignature=false', 'show', '--no-show-signature', `${s.base}:accord/tickets/${s.ticket}.md`]);
+    const writing = WRITERS.includes(r.agent);
+    const own = `bench/${r.tag}`;
+    const dest = (f) => `${bench}/files/${r.tag}/${path.posix.basename(slashed(f.path))}`;
+    const paths = [[s.root, r.worktree], ...s.elsewhere.map((p, i) => [p, `${bench}/absent/${i + 1}`]), ...s.files.map((f) => [f.path, dest(f)])];
+    const pairs = s.pairs.flatMap(([from, to]) => {
+      if (writing && (from === `t/${s.ticket}` || from === `origin/t/${s.ticket}`)) return [[from, own]];
+      if (writing && from === 'HEAD') return [];
+      return [[from, s[to]]];
+    });
+    const allowed = writing ? ['HEAD', own] : [];
+    for (const f of s.files) {
+      let text = snap.reads[f.path];
+      if (f.from !== 'copy') {
+        const args = f.from === 'brief' ? ['brief', s.ticket, f.task] : ['review-package', s.ticket, '--base', f.base];
+        let built;
+        try { built = cli(r.worktree, args); } catch (e) { return err(`${r.tag}: ${args[0]} failed: ${String(e.stderr || e.message).trim()}`); }
+        if (f.from === 'review-package') text = built;
+        else if (trimEnd(built) === trimEnd(text)) text = built;
+        else process.stderr.write(`notice: ${r.tag}: ${f.path} is built differently at base; the text the run read is used\n`);
+      }
+      const out = rewriteBrief(text, { ticket, paths, pairs, check: { bench, allowed, refs: false } });
+      if (out.problems.length) return err(`${r.tag}: ${out.problems.join('; ')}`);
+      fs.mkdirSync(path.dirname(dest(f)), { recursive: true });
+      fs.writeFileSync(dest(f), out.text);
+    }
+    const out = rewriteBrief(snap.prompt, { ticket, paths, pairs, check: { bench, allowed } });
+    if (out.problems.length) return err(`${r.tag}: ${out.problems.join('; ')}`);
+    r.prompt = `${bench}/briefs/${r.tag}.md`;
+    fs.writeFileSync(r.prompt, out.text);
+  }
+  state.rows = rows;
+  save();
+  process.stdout.write(dispatchTable(rows));
+  process.stdout.write("Dispatch every row: description, subagent_type, model and effort as shown, and the prompt file's text as the prompt. Judges are printed by --round 1 --judge once these runs finish.\n");
+  return 0;
+}
+
 function runCompliance(folders, repo) {
   if (!folders.length) { process.stderr.write('--compliance needs the transcript folders to read\n'); return 2; }
   const s = readSessions(folders);
@@ -523,7 +653,9 @@ function runCompliance(folders, repo) {
 
 export function main(args) {
   if (args[0] === '--compliance') return runCompliance(args.slice(1), process.cwd());
+  if (args[0] === '--clean') return runClean(process.cwd(), args.includes('--force'));
   if (args[0] === '--round' && args[1] === '1' && args[2] === '--samples') return runSamples(process.cwd());
+  if (args[0] === '--round' && args[1] === '1' && args[2] === '--plan') return runPlan(process.cwd());
   if (args.some((a) => a.startsWith('--'))) {
     process.stderr.write('usage: node scripts/benchmark.mjs [--compliance | --round 1 [--samples | --plan | --judge] | --clean [--force]] [folder ...]\n');
     return 2;

@@ -938,3 +938,50 @@ it('risk:regression two --plan runs run tests.full once per verifier sample and 
     rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
   }
 }, 240_000);
+
+it('risk:data-loss a leftover folder holding a regular file is refused and the file survives, one holding only links is removed and a link target survives', async () => {
+  const { removeLeftover } = (await import(new URL('../../../scripts/benchmark.mjs', import.meta.url).href)) as { removeLeftover: (dir: string) => void };
+  const tmp = mkdtempSync(join(tmpdir(), 'bench-left-'));
+  try {
+    const outside = join(tmp, 'outside');
+    mkdirSync(outside);
+    writeFileSync(join(outside, 'keep.txt'), 'x');
+    const top = join(tmp, 'top');
+    mkdirSync(top);
+    writeFileSync(join(top, 'a.txt'), 'x');
+    expect(() => removeLeftover(top)).toThrow(/still holds files/);
+    expect(existsSync(join(top, 'a.txt'))).toBe(true);
+    const nested = join(tmp, 'nested');
+    mkdirSync(join(nested, 'plain'), { recursive: true });
+    writeFileSync(join(nested, 'plain', 'b.txt'), 'x');
+    expect(() => removeLeftover(nested)).toThrow(/still holds files/);
+    expect(existsSync(join(nested, 'plain', 'b.txt'))).toBe(true);
+    const links = join(tmp, 'links');
+    mkdirSync(join(links, 'node_modules', '@x'), { recursive: true });
+    symlinkSync(outside, join(links, 'node_modules', '@x', 'out'), 'junction');
+    removeLeftover(links);
+    expect(existsSync(links)).toBe(false);
+    expect(existsSync(join(outside, 'keep.txt'))).toBe(true);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+});
+
+it('risk:regression the --plan hint says setup is repeated for a setup failure and says look, then --clean or --rerun for a refusal', async () => {
+  const { planHint, addWorktree } = (await import(new URL('../../../scripts/benchmark.mjs', import.meta.url).href)) as {
+    planHint: (e: unknown) => string;
+    addWorktree: (repo: string, spec: { path: string; base: string }) => unknown;
+  };
+  expect(planHint(new Error('npm ci exited 1'))).toBe('(setup is repeated on the next --plan run)');
+  const tmp = mkdtempSync(join(tmpdir(), 'bench-hint-'));
+  try {
+    let caught: unknown;
+    try { addWorktree(tmp, { path: tmp, base: 'HEAD' }); } catch (e) { caught = e; }
+    const hint = planHint(caught);
+    expect(hint).toContain('look at it, then run --clean or --rerun');
+    expect(hint).toContain('deleted by hand after checking it holds only links');
+    expect(hint).not.toContain('setup is repeated');
+  } finally {
+    rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+});

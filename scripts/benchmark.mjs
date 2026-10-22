@@ -617,8 +617,14 @@ function runSamples(repo) {
 // ---- worktrees ----------------------------------------------------------------
 const MARKER = 'accord-bench';
 
+// A worktree the benchmark declines to touch; a setup failure is a plain Error, which --plan repeats.
+class Refusal extends Error {}
+export const planHint = (e) => e instanceof Refusal
+  ? "(the worktree holds a run's commits or uncommitted work, or something git did not remove; look at it, then run --clean or --rerun" + (/already exists/.test(e.message) ? '; a folder git no longer lists must be deleted by hand after checking it holds only links' : '') + ')'
+  : '(setup is repeated on the next --plan run)';
+
 export function addWorktree(repo, { path: dir, base, branch }) {
-  if (fs.existsSync(dir)) throw new Error(`${dir} already exists`);
+  if (fs.existsSync(dir)) throw new Refusal(`${dir} already exists`);
   try {
     gitIn(repo, ['worktree', 'add', '-q', ...(branch ? ['-b', branch] : ['--detach']), dir, base]);
   } catch (e) { throw new Error(String(e.stderr || e.message).trim(), { cause: e }); }
@@ -637,9 +643,12 @@ const onlyLinks = (dir) => fs.readdirSync(dir, { withFileTypes: true }).every((e
 // What is left is removed only when it holds nothing but links; rmSync does not follow a link into its target.
 function gitRemoveWorktree(repo, dir) {
   gitIn(repo, ['worktree', 'remove', '--force', dir]);
+  removeLeftover(dir);
+}
+export function removeLeftover(dir) {
   let left;
   try { left = fs.lstatSync(dir); } catch { return; }
-  if (!left.isDirectory() || !onlyLinks(dir)) throw new Error(`${dir} still holds files after git removed the worktree; nothing was deleted`);
+  if (!left.isDirectory() || !onlyLinks(dir)) throw new Refusal(`${dir} still holds files after git removed the worktree; nothing was deleted`);
   fs.rmSync(dir, { recursive: true, force: true });
 }
 
@@ -648,10 +657,10 @@ function removeWorktree(repo, rec, { kept = false } = {}) {
   let tip = null;
   if (rec.branch) { try { tip = gitIn(repo, ['rev-parse', `refs/heads/${rec.branch}`]).trim(); } catch { /* already gone */ } }
   // The branch is the run's commits: compare it with the base before anything is removed, whatever the folder holds.
-  if (tip && tip !== rec.base && !kept) throw new Error(`${rec.path} holds commits of a run (${rec.branch} is at ${tip.slice(0, 7)}, not its base); it is not rebuilt`);
+  if (tip && tip !== rec.base && !kept) throw new Refusal(`${rec.path} holds commits of a run (${rec.branch} is at ${tip.slice(0, 7)}, not its base); it is not rebuilt`);
   if (fs.existsSync(rec.path)) {
-    if (!fs.existsSync(path.join(gitIn(rec.path, ['rev-parse', '--absolute-git-dir']).trim(), MARKER))) throw new Error(`${rec.path} is not a worktree this benchmark made; it is not rebuilt`);
-    if (rec.branch && !kept && gitIn(rec.path, ['rev-parse', 'HEAD']).trim() !== rec.base) throw new Error(`${rec.path} holds commits of a run; it is not rebuilt`);
+    if (!fs.existsSync(path.join(gitIn(rec.path, ['rev-parse', '--absolute-git-dir']).trim(), MARKER))) throw new Refusal(`${rec.path} is not a worktree this benchmark made; it is not rebuilt`);
+    if (rec.branch && !kept && gitIn(rec.path, ['rev-parse', 'HEAD']).trim() !== rec.base) throw new Refusal(`${rec.path} holds commits of a run; it is not rebuilt`);
     gitRemoveWorktree(repo, rec.path);
   } else gitIn(repo, ['worktree', 'prune']);
   // update-ref -d with the checked sha: a commit made after the check makes git refuse instead of losing it.
@@ -668,8 +677,8 @@ export function rerunWorktree(repo, state, key) {
     try { const tip = gitIn(repo, ['rev-parse', `refs/heads/${rec.branch}`]).trim(); if (tip !== rec.base) tips.push(tip); } catch { /* no branch to keep */ }
     if (fs.existsSync(rec.path)) {
       let head;
-      try { head = gitIn(rec.path, ['rev-parse', 'HEAD']).trim(); } catch { throw new Error(`${rec.path}: its HEAD cannot be read; it is not rebuilt`); }
-      if (gitIn(rec.path, ['status', '--porcelain']).trim()) throw new Error(`${rec.path} has uncommitted changes of a run; it is not rebuilt`);
+      try { head = gitIn(rec.path, ['rev-parse', 'HEAD']).trim(); } catch { throw new Refusal(`${rec.path}: its HEAD cannot be read; it is not rebuilt`); }
+      if (gitIn(rec.path, ['status', '--porcelain']).trim()) throw new Refusal(`${rec.path} has uncommitted changes of a run; it is not rebuilt`);
       if (head !== rec.base && !tips.includes(head)) tips.push(head);
     }
   }
@@ -842,7 +851,7 @@ function runPlan(repo, reruns = []) {
         if (kept) process.stdout.write(`kept ${r.tag}'s earlier commits at ${kept}\n`);
       }
       r.worktree = prepareWorktree(repo, state, key, spec, (d) => { for (const c of setupAt(d, repo)) sh(c, d); }, save);
-    } catch (e) { return err(`${key}: ${e.message} (if this is a refusal, the worktree holds a run's commits or uncommitted work, or something git did not remove; look at it, then run --clean or --rerun)`); }
+    } catch (e) { return err(`${key}: ${e.message} ${planHint(e)}`); }
     r.prepared = state.worktrees[key].preparedAt;
   }
   for (const s of list.samples.filter((x) => x.agent === 'accord-executor')) {

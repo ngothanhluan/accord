@@ -63,7 +63,7 @@ Feature: ST-LN-14
     And an architect or scout run holds when the judge finds no wrong fact in it
     And the judge is a fresh reviewer or critic agent for each run, pinned to the same model and effort for every run of the round
 
-  @ac-3
+  @ac-3 @test:packages/core/test/benchmark-round.test.ts#ac-3-the-report-suggests-an-effort-for-each-agent-and-changes-no-agent-definition
   Scenario: The report suggests an effort for each agent and changes none
     Given the round 1 runs, each judged held or not
     When the report is written

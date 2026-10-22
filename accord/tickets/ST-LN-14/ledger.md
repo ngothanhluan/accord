@@ -60,6 +60,9 @@
 - Ruling: task 6 detaches read-only agents' shared worktrees at the sample's base — the plan names only base — a reviewer meant to see a later state sees base
 - Ruling: task 6 tests only addWorktree and cleanWorktrees; runPlan (`--round 1 --plan`) is not run by any test — it needs the real bench root, snapshots and an npm ci per worktree — a fault in runPlan shows only at the first real `--plan`
 - Ruling: task 7's test reads the committed scripts/benchmark-samples.json for its judge checks — the brief names the committed sample list — only the test's input changes
+- Ruling: task 8's `unjudged` entry is `{ tag, reason }` — the brief fixes only the printed `- <tag>: <reason>` line — Task 9 must pass that shape, a one-line change in report() otherwise
+- Ruling: task 8's "every effort tried" sentence compares heldAll with the efforts present in the results — gives the scout and executor sentences the brief lists — an agent whose suggested effort is in heldAll gets no such sentence
+- Ruling: task 8's report() throws on a result with no `usage` — Task 9 builds every result with usage — a run whose transcript has no usage stops the report instead of showing a gap
 - Ruling: task 3's real read found that complianceSettings kept the quotes of `model: "sonnet"`, missing BUG-LN-3 round 4; 49e0cfd strips them and the stale compliance.md was deleted before the read was run again — an earlier read's lines win in a merge — none
 
 ## Deferred
@@ -87,3 +90,4 @@
 - task 12 done 3fd784af23dc
 - task 6 done 0b2bbf976a21
 - task 7 done 55ee264b9c33
+- task 8 done 8025fa418b13

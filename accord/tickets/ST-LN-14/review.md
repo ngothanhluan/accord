@@ -59,4 +59,15 @@ Nice 4 [patch]: the in-process runSuite test repeats the two process-level tests
 Should 1 [patch]: at scoring, a failing file the run itself added or changed was re-run alone, so a test of the run's own that times out only under load counted as held — scripts/benchmark.mjs runSuite, runRound — fixed in e4cb482
 Should 2 [patch]: "Holds that rest on a re-run" listed re-run results that did not hold — scripts/round.mjs report — fixed in e4cb482
 
+## Round 8
+
+Must 1 [patch]: `checkFileBases` was defined but never called, so `--samples` and `--plan` let a stale review-package file base through — scripts/benchmark.mjs runSamples, runPlan — fixed in 60ac048
+Must 2 [patch]: `packageDrift` compared the whole package text, so it refused reviewer 3, whose rebuild at a rewritten base differs in header and commit hashes by design — scripts/benchmark.mjs packageDrift — fixed in 60ac048
+Should 3 [patch]: the test running `checkFileBases` over the committed sample list needs commits a depth-1 CI checkout lacks — packages/core/test/benchmark-samples.test.ts — fixed in 60ac048
+Nice 4 [patch]: `checkFileBases` reads every git failure as "not an ancestor" with no reason — scripts/benchmark.mjs checkFileBases — deferred
+
+## Round 9
+
+Nice 1 [patch]: `packageChunks` throws on a diff header git quotes, such as a path with a space or non-ASCII character — scripts/benchmark.mjs packageChunks — deferred
+
 verdict: converged

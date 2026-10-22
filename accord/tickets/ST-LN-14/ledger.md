@@ -132,6 +132,7 @@
 - review 2.3: only an invalid current-effort run voids its sample, not an environment-failed one, and a row with an invalid judge and an invalid run is listed twice under "Runs not judged" — scripts/benchmark.mjs runRound
 - review 6.4: the in-process `runSuite` test repeats what the two process-level re-run tests assert — packages/core/test/benchmark-worktree.test.ts
 - review 8.4: `checkFileBases` reads every git failure, a missing object or no git, as "not an ancestor" with no reason — scripts/benchmark.mjs checkFileBases
+- review 9.1: `packageChunks` throws on a diff header git quotes (`diff --git "a/x y.ts" "b/x y.ts"`); no committed sample has such a path — scripts/benchmark.mjs packageChunks
 
 ## Tasks
 - task 1 done cfd797751f01

@@ -1956,13 +1956,21 @@ it('ac-5 a failed or silent fetch is one accord line at pick up new ticket conti
   expect(gitRun(f.sibling('ST-9'), 'rev-parse', 'HEAD').trim()).toBe(head);
 
   const g = clone();
-  g.git('config', 'remote.origin.uploadpack', 'cd / && sleep 30 >/dev/null 2>&1; :');
+  const release = `${g.root}/.git/hang-release`;
+  const ended = `${g.root}/.git/hang-ended`;
+  // the remote stays silent until the test releases it, 60 s at most, then marks that it ended
+  g.git('config', 'remote.origin.uploadpack', `cd / && i=0; while [ ! -f '${release}' ] && [ $i -lt 60 ]; do sleep 1; i=$((i+1)); done; : > '${ended}'; :`);
   vi.mocked(limit.fetchLimitMs).mockReturnValue(2000);
-  const t0 = Date.now();
-  const rg = await run(['worktree', 'open', 'ST-9'], g.root);
-  expect(rg.code).toBe(0);
-  expect(Date.now() - t0).toBeLessThan(15000);
-  expect(one(rg.out, rg.err)).toBe(P + 'no answer within 2 seconds');
-  expect(sha(g, 't/ST-9^')).toBe(sha(g, 'origin/main'));
-  await new Promise((r) => setTimeout(r, Math.max(0, t0 + 31000 - Date.now())));
-}, 60_000);
+  try {
+    const t0 = Date.now();
+    const rg = await run(['worktree', 'open', 'ST-9'], g.root);
+    expect(rg.code).toBe(0);
+    expect(Date.now() - t0).toBeLessThan(15000);
+    expect(one(rg.out, rg.err)).toBe(P + 'no answer within 2 seconds');
+    expect(sha(g, 't/ST-9^')).toBe(sha(g, 'origin/main'));
+  } finally {
+    writeFileSync(release, '');
+    // the killed fetch leaves its upload-pack shell running, and on Windows it keeps the clone from being removed
+    for (let i = 0; i < 100 && !existsSync(ended); i++) await new Promise((r) => setTimeout(r, 100));
+  }
+}, 120_000);

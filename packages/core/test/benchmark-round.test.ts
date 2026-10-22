@@ -443,3 +443,21 @@ it('risk:regression a judge dispatched before its brief changed is superseded, a
     rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
   }
 }, 120_000);
+
+it('risk:data-loss a second --plan keeps the judge brief time a row already has', async () => {
+  const { carryJudgeBriefs } = (await import(new URL('../../../scripts/round.mjs', import.meta.url).href)) as {
+    carryJudgeBriefs: (rows: { tag: string; judgeBriefAt?: number }[], old: { tag: string; judgeBriefAt?: number }[]) => void;
+  };
+  const rows = [{ tag: 'a' }, { tag: 'b' }, { tag: 'c', judgeBriefAt: 7 }];
+  carryJudgeBriefs(rows, [{ tag: 'a', judgeBriefAt: 5 }, { tag: 'b' }, { tag: 'c', judgeBriefAt: 1 }]);
+  expect(rows).toEqual([{ tag: 'a', judgeBriefAt: 5 }, { tag: 'b' }, { tag: 'c', judgeBriefAt: 7 }]);
+});
+
+it('risk:regression the report appends the measurement notes verbatim, or None.', async () => {
+  const round = (await import(new URL('../../../scripts/round.mjs', import.meta.url).href)) as {
+    report: (r: unknown[], s: unknown, o: { flags: unknown[]; unjudged: unknown[]; compliance: string; notes?: string }) => string;
+  };
+  const out = { flags: [], unjudged: [], compliance: '## Compliance\n' };
+  expect(round.report([], {}, { ...out, notes: 'Two verifier-high runs hung.\n' })).toContain('## Measurement notes\n\nTwo verifier-high runs hung.\n');
+  expect(round.report([], {}, out)).toContain('## Measurement notes\n\nNone.');
+});

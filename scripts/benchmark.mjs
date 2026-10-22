@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { execFileSync, execSync } from 'node:child_process';
 import { parse as parseYaml } from 'yaml';
 import { parsePlanReview } from './plan-review.mjs';
-import { median, ROLES, WRITERS, checkSamples, readDiffers, runMatrix, rewriteBrief, dispatchTable, matchRuns, mustsOf, judgeBrief, parseVerdict, holds, turnFlags, report, escapes, exitState, runProblem } from './round.mjs';
+import { median, ROLES, WRITERS, checkSamples, readDiffers, runMatrix, rewriteBrief, dispatchTable, matchRuns, mustsOf, judgeBrief, parseVerdict, holds, turnFlags, report, carryJudgeBriefs, escapes, exitState, runProblem } from './round.mjs';
 import { compliance, render as renderCompliance, parseCompliance, mergeCompliance } from './compliance.mjs';
 
 const projectsRoot = path.join(os.homedir(), '.claude', 'projects');
@@ -920,6 +920,7 @@ function runPlan(repo, reruns = []) {
     r.prompt = `${bench}/briefs/${r.tag}.md`;
     fs.writeFileSync(r.prompt, out.text);
   }
+  carryJudgeBriefs(rows, state.rows ?? []);
   state.rows = rows;
   save();
   process.stdout.write(dispatchTable(rows));
@@ -1057,7 +1058,7 @@ function runRound(repo, { judge, extra }) {
     if (ROLES[r.agent] === 'finding' && r.current) result.reference = referenceOf(r).length;
     return result;
   });
-  const file = writeReport(repo, report(results, agentSettings(repo), { flags, unjudged, superseded: m.superseded.map((r) => `${r.desc} (agent ${r.id})`), compliance: readOr(`${bench}/compliance.md`, '## Compliance\n\nNone.\n') }));
+  const file = writeReport(repo, report(results, agentSettings(repo), { flags, unjudged, superseded: m.superseded.map((r) => `${r.desc} (agent ${r.id})`), compliance: readOr(`${bench}/compliance.md`, '## Compliance\n\nNone.\n'), notes: readOr(`${bench}/notes.md`) }));
   process.stdout.write(file + '\n');
   return 0;
 }

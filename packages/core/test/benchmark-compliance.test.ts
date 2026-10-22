@@ -239,3 +239,12 @@ it('risk:regression the tier-up line names the task of the fix executor', async 
   expect(out['tier-up'][0]).toContain("task 3");
   expect(out['tier-up'][0]).toContain('T-1 review round 4');
 });
+
+it('risk:parsing a Ruling allows going past the round cap only in its what part, and only by saying so', async () => {
+  const { allowsPastCap } = (await import(new URL('../../../scripts/compliance.mjs', import.meta.url).href)) as { allowsPastCap: (what: string) => boolean };
+  const what = (line: string) => line.slice('- Ruling:'.length).split(' — ')[0];
+  expect(allowsPastCap(what('- Ruling: general rules naming no known case, round 6 as past the cap — the owner approves the reading — none'))).toBe(false);
+  expect(allowsPastCap(what('- Ruling: the round cap stays at five — deferred — none'))).toBe(false);
+  expect(allowsPastCap(what('- Ruling: review continues past the round cap to round 6, by the owner\'s answer — owner: "ok" — none'))).toBe(true);
+  expect(allowsPastCap(what('- Ruling: review past the cap: one more round — owner: "ok" — none'))).toBe(true);
+});

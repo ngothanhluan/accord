@@ -379,7 +379,13 @@ export function notHeld(results) {
   }));
 }
 
-export function report(results, settings, { flags, unjudged, compliance, superseded = [] }) {
+// --plan rebuilds the rows; a judge brief time stamped earlier stays unless the rebuilt row already has one.
+export function carryJudgeBriefs(rows, old) {
+  for (const r of rows) r.judgeBriefAt ??= old.find((o) => o.tag === r.tag)?.judgeBriefAt;
+  for (const r of rows) if (r.judgeBriefAt === undefined) delete r.judgeBriefAt;
+}
+
+export function report(results, settings, { flags, unjudged, compliance, superseded = [], notes }) {
   const rows = [];
   for (const agent of agentsOf(results)) {
     for (const effort of triedOf(results, agent)) {
@@ -411,7 +417,8 @@ export function report(results, settings, { flags, unjudged, compliance, superse
     flagSection(flags),
     '## Runs not judged', '', ...list(unjudged.map((u) => `- ${u.tag}: ${u.reason}`)), '',
     ...(superseded.length ? ['## Superseded runs', '', 'Dispatched before their worktree was rebuilt; not counted.', '', ...superseded.map((s) => `- ${s}`), ''] : []),
-    compliance,
+    compliance, '',
+    '## Measurement notes', '', notes?.trim() ? notes.trimEnd() + '\n' : 'None.', '',
   ].join('\n');
 }
 

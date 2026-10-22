@@ -1,5 +1,7 @@
 // Process-compliance rules over parsed transcripts and git (ST-LN-14). Pure: no file, no spawn, no import.
 // The rules are general; none names a ticket, a task or a commit.
+// A Ruling allows going past the cap only in its <what> part, which says past/beyond/over the cap and is neither a negation nor a description ("as past the cap").
+export const allowsPastCap = (what) => /\b(past|beyond|over) the (round )?cap\b/i.test(what) && !/\bas (past|beyond|over)\b|\b(not|no|never|stays?|keeps?|kept)\b/i.test(what);
 export const RULES = ['tier-up', 'trailer', 'test-first', 'verify-id', 'round-cap', 'reassigned', 'brief-quote'];
 
 const TIERS = ['haiku', 'sonnet', 'opus'];
@@ -97,7 +99,7 @@ export function compliance({ runs, refusals, commits, tickets, settings, commitI
   }
   for (const [id, t] of Object.entries(tickets)) {
     const n = Math.max(0, ...[...t.review.matchAll(/^## Round (\d+)/gm)].map((m) => Number(m[1])));
-    const allowed = t.ledger.split('\n').some((l) => l.startsWith('- Ruling:') && /(past|beyond|over) the (round )?cap|round cap/i.test(l));
+    const allowed = t.ledger.split('\n').some((l) => l.startsWith('- Ruling:') && allowsPastCap(l.slice('- Ruling:'.length).split(' — ')[0]));
     if (n >= 6 && !allowed) out['round-cap'].push(`- round-cap: ${id} review: reached round ${n} with no Ruling that allows going past the round cap — accord/tickets/${id}/review.md`);
   }
 

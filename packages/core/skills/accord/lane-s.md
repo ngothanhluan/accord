@@ -13,7 +13,7 @@ no intent interview, approval, approach, plan, executor or verify: you make the 
   `stop:` line it printed as `./worktree.md` says, write the title and the two lines of step 1 into
   `<path>/accord/tickets/<id>.md`, asking step 1's question first when it needs one. A request moved from a lane M
   ticket carries `Title: …` and `Keys: …`: write that title, and each `Keys:` line into the frontmatter in place of
-  the template's line for that key, commented or not. Then run
+  the template's line for that key, commented or not, and each carried `## Vetoes`, `## Decisions` and `## Corrections` section verbatim under its heading after `## Done when`, in the `enter:` and the `stop:` path alike. Then run
   `git -C "<path>" commit -m "ticket: <id> understood" -- accord/tickets/<id>.md` and
   `git -C "<path>" push -u origin <branch>`. After `enter:`, go on at step 1 in that worktree; after `stop:`, the
   session opened there finds the two lines in the ticket.

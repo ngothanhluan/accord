@@ -69,6 +69,7 @@ lane M, and stop. Otherwise commit only those records: run `git add -A`, which t
 close the session as step 1 of `## Dropping instead of renaming` says, and skip its first sentence and steps 2 to 6.
 Then print one line for the owner to type in a new session opened in the main checkout, filled from the interview
 and the ticket:
-`/accord Understood: <one line> Done when: <one line> Title: <its title> Keys: <its depends_on, tracker, priority, ui and design lines, where present, joined by "; "> (lane S, moved from <id>)`.
+`/accord Understood: <one line> Done when: <one line> Title: <its title> Keys: <its depends_on, tracker, priority, ui and design lines, where present, joined by "; "> (lane S, moved from <id>)`,
+followed by the text of each non-empty `## Vetoes`, `## Decisions` and `## Corrections` section of the ticket, verbatim and under its heading: the owner's words never go missing once the claim branch is cleaned.
 That session takes lane S without asking and makes the new ticket, with a new id, by
-`accord new ticket --lane S --worktree`, carrying that title and those keys into it as the lane S steps say.
+`accord new ticket --lane S --worktree`, carrying that title, those keys and those sections into it as the lane S steps say.

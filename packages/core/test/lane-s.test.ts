@@ -101,6 +101,20 @@ it('risk:security a lane S ticket holding an approval scenarios or a plan fails 
   expect(find(snap({ 'accord/tickets/T-1.md': laneTicket('T-1', { frontmatter: [A] }) }))).toBeUndefined();
 });
 
+it('risk:data-loss a lane S ticket carrying Vetoes Decisions and Corrections lints clean passes gate ready and shows them in the anchor', () => {
+  const extra = '\n## Vetoes\n- "never touch the schema"\n\n## Decisions\n- D-01 csv only\n\n## Corrections\n- "no, the tsv one"\n';
+  const s = snap({ 'accord/tickets/S-1.md': S(LANE_S_BODY + extra, ['ac_hash: "' + H + '"']) });
+  expect(lintSnapshot(s).findings.filter((f) => f.level === 'error')).toEqual([]);
+  expect(gateReady(s, 'S-1').verdict).toBe('pass');
+  const a = anchorText(s, 'S-1')!.split('\n');
+  const at = (h: string) => a.indexOf(h);
+  expect(at('## Vetoes')).toBeGreaterThan(at('## Done when'));
+  expect(a[at('## Vetoes') + 1]).toBe('- "never touch the schema"');
+  expect(a[at('## Decisions') + 1]).toBe('- D-01 csv only');
+  expect(a[at('## Corrections') + 1]).toBe('- "no, the tsv one"');
+  expect(at('## Rulings')).toBeGreaterThan(at('## Corrections'));
+});
+
 it('risk:complex-branching a lane S ticket alone does not turn on the test policy', () => {
   const files = { 'accord/tickets/S-1.md': S(), [REPORT]: junit({ 'a#untraced': 'passed' }) };
   const n = (s: ReturnType<typeof snap>) => lintSnapshot(s).findings.filter((f) => f.rule === 'lint.test-untraced').length;

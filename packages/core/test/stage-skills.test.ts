@@ -278,6 +278,21 @@ it('risk:regression the accord skill opens each ticket in its own worktree and c
   expect(slice(ids, '## Assigning', '## When your email')).toContain('adding `--worktree` when the lane is M');
 });
 
+it('risk:data-loss the move to lane S carries Vetoes Decisions and Corrections into the new lane S ticket', () => {
+  const get = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
+  const ids = get('.claude/skills/accord/ids.md');
+  const move = ids.slice(ids.indexOf('## Moving to lane S'));
+  const lane = get('.claude/skills/accord/lane-s.md');
+  const wt = get('.claude/skills/accord/worktree.md');
+  for (const h of ['## Vetoes', '## Decisions', '## Corrections']) {
+    expect(move, h).toContain(h);
+    expect(lane, h).toContain(h);
+  }
+  expect(move).toContain('verbatim');
+  expect(lane).toContain('`stop:`');
+  expect(wt).toContain('`## Vetoes`');
+});
+
 it('risk:complex-branching the accord skill pushes then enters the worktree on enter and refuses other work in a ticket session', () => {
   const get = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
   const text = get('.claude/skills/accord/SKILL.md');
@@ -713,7 +728,7 @@ it('ac-4 every lane S change is worked from its own lane S ticket in its worktre
   expect(ls.indexOf('reproduces it')).toBeLessThan(ls.indexOf('then fix it'));
   expect(ls.indexOf('`## Round <n>`')).toBeLessThan(ls.indexOf('**Verdict.**'));
   expect(flatS('.claude/skills/accord/worktree.md')).toContain(
-    "except the people entry below and, in a lane S ticket, its `title:`, the carried `Keys:` frontmatter lines, its `## Understood` and `## Done when` lines and the commit and push of that ticket file",
+    "except the people entry below and, in a lane S ticket, its `title:`, the carried `Keys:` frontmatter lines, its `## Understood` and `## Done when` lines, its carried `## Vetoes`, `## Decisions` and `## Corrections` sections and the commit and push of that ticket file",
   );
   expect(flatS('.claude/skills/accord/lane-s.md')).toContain('run `tests.full` first');
   expect(flatS('.claude/skills/accord/SKILL.md')).toContain('A lane never drops once its intent is approved');

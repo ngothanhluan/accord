@@ -34,7 +34,16 @@ initials, or two different emails the same initials, ask the owner which to keep
 
 A ticket's type never changes and its id is never renamed. To change the type:
 
-1. Set `status: dropped` with a `## Dropped` reason, commit and merge that. Never delete a claim branch to drop a ticket.
+1. When the ticket has a worktree, first commit every change in the ticket's worktree on its claim branch and
+   push it with `git push -u origin <claim branch>`, so that the next `accord worktree clean` finds nothing that
+   exists only there. Then run `accord drop <id> --reason "<reason>"` with the owner's reason. It pushes a branch
+   made from the default branch that holds only the ticket file, set to dropped with that reason, and prints
+   `branch:`, `base:` and `title:` lines. Open that pull request with
+   `gh pr create --head <branch> --base <base> --title "<title>" --body "<reason>"` when `gh` is available,
+   otherwise ask the owner to open it; it waits for the owner's merge like other ticket work. Tell the owner to
+   close this session once the pull request is opened, because `accord worktree clean` keeps a worktree that a
+   live session holds. Never delete a claim branch to drop a ticket: once the pull request is merged,
+   `accord worktree clean` deletes it and its worktree.
 2. Create the new ticket with `accord new ticket --type <the other type> --lane <lane>`, always passing
    `--lane`: the dropped ticket's lane, except `L` for a new epic and `M` for a story or bug made from an epic.
 3. Copy into it the dropped ticket's frontmatter keys `title`, `ui`, `design`, `parent`, `depends_on` and
@@ -46,5 +55,5 @@ A ticket's type never changes and its id is never renamed. To change the type:
    `Feature: <old id>` line to the new id.
 6. The owner approves the new ticket again.
 
-In a session that works the dropped ticket, `accord new ticket` is refused: commit step 1 there, then say to
+In a session that works the dropped ticket, `accord new ticket` is refused: run step 1 there, then say to
 open a new session in the main checkout and do steps 2 to 6 there.

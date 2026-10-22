@@ -125,3 +125,11 @@ Nice 5 [patch]: the suggestion table gives final-reviewer medium and verifier lo
 Nice 6 [patch]: two Rulings were in the ledger twice — accord/tickets/ST-LN-14/ledger.md — fixed in 9ca6ed3
 Nice 7 [patch]: two tests overlap on the link-only leftover removal — packages/core/test/benchmark-worktree.test.ts — deferred
 Nice 8 [patch]: `--rerun` refuses over a tracked test report the run's own suite rewrote — scripts/benchmark.mjs rerunWorktree — deferred
+
+## Round 16
+
+Nice 1 [patch]: "Higher effort did better" says an auditor or verifier "reported N Must", though those roles report no Must — scripts/round.mjs better() — deferred
+Nice 2 [patch]: the "Superseded runs" heading gives one reason, wrong for a judge superseded because its brief changed — scripts/round.mjs report — deferred
+Nice 3 [patch]: the judgeBriefAt carry-over test is tagged risk:data-loss where nothing is deleted (a regression) — packages/core/test/benchmark-round.test.ts:447 — deferred
+
+verdict: converged

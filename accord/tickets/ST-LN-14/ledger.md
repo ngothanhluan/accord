@@ -204,6 +204,10 @@
 - review round 10 Nice 10: `cat` with a relative or `/c/...` path is never under root and is not compared — scripts/benchmark.mjs parseRun
 - review round 10 Nice 11: `specs`/`sig` in `runPlan` is dead code, since rows sharing a worktree share sample, base and overlay — scripts/benchmark.mjs runPlan
 - review round 10 Nice 12: one assertion passes only because `git()` trims " M a.txt" to "M a.txt" — packages/core/test/benchmark-worktree.test.ts
+- review round 16 Nice 1: "Higher effort did better" words an auditor or verifier result as "reported N Must", though D-08 says those roles report no Must; `byDefault` already uses `NONE` — scripts/round.mjs:359
+- review round 16 Nice 2: the "Superseded runs" heading says every entry was dispatched before its worktree was rebuilt, wrong for reviewer-1-medium judge, superseded through `judgeBriefAt` — scripts/round.mjs:419
+- review round 16 Nice 3: `risk:data-loss a second --plan keeps the judge brief time a row already has` names the wrong risk kind; losing the stamp deletes nothing, it counts an outdated judge — packages/core/test/benchmark-round.test.ts:447
+- review round 16 note: the round-cap line for ST-LN-14 says "reached round 9" though review.md reaches round 16, because a merged compliance read keeps the earlier line (Ruling: the earlier line is kept) — scripts/compliance.mjs mergeCompliance
 
 ## Tasks
 - task 1 done cfd797751f01

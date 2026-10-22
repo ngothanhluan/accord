@@ -76,3 +76,14 @@ Ranked: 1, 4 (with 1, the same defect seen from the benchmark side), 2, 3.
 
 ## Root cause
 The benchmark treats one full-suite run as final, but a test in the base suite does not give the same result under load. At scripts/benchmark.mjs:629 (the base check in `runPlan`) and :775 (scoring in `runRound`), `sh(configAt(...).tests.full, ...)` runs once (`sh` is `execSync`, :587), and its first nonzero exit is the verdict. At bases older than dd4494b, packages/cli/test/hook.test.ts:78 takes 4.8 s alone but 28-42 s inside the full parallel suite. Against the cli project's `testTimeout: 30_000`, it passes or fails depending on machine load. The evidence: base 87b424c failed at 42.5 s in run 1 and passed at 28.3 s in run 2; base 8cdf421 failed at 30.9 s and passes alone in 4.8 s. :629 and :775 are the only callers of `tests.full`, so both route through the one place where a suite run is judged.
+
+## Fixes
+- Fix 1 (af40b04): new `runSuite(dir, repo)` in scripts/benchmark.mjs.
+  - It is now the only caller of `tests.full`. The base check in `runPlan` and the scoring in `runRound` both use it.
+  - A red run re-runs its failing files once, read from the JUnit report and run through `tests.affected`, falling back to `tests.full`. The suite stays red only if the re-run fails too.
+  - Re-runs are recorded in round-1.json `reruns` and on the run's result.
+  - Two reproduction tests failed before the fix and pass after it:
+    - `risk:regression a suite that fails once and passes on its re-run does not stop --plan and the re-run is recorded`;
+    - `risk:regression a suite that fails on its re-run too is red`.
+  - `npx vitest related --run scripts/benchmark.mjs packages/core/test/benchmark-worktree.test.ts` → 8 passed.
+  - Failed fixes: 0.

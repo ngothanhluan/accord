@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { execFileSync, execSync } from 'node:child_process';
 import { parse as parseYaml } from 'yaml';
 import { parsePlanReview } from './plan-review.mjs';
-import { median, ROLES, WRITERS, checkSamples, runMatrix, rewriteBrief, dispatchTable, matchRuns, mustsOf, judgeBrief, parseVerdict, holds, turnFlags, report, escapes } from './round.mjs';
+import { median, ROLES, WRITERS, checkSamples, runMatrix, rewriteBrief, dispatchTable, matchRuns, mustsOf, judgeBrief, parseVerdict, holds, turnFlags, report, escapes, exitState, runProblem } from './round.mjs';
 import { compliance, render as renderCompliance, parseCompliance, mergeCompliance } from './compliance.mjs';
 
 const projectsRoot = path.join(os.homedir(), '.claude', 'projects');
@@ -520,6 +520,36 @@ export function addWorktree(repo, { path: dir, base, branch }) {
   return { path: dir, base, ...(branch ? { branch } : {}) };
 }
 
+// The worktree is saved before its setup runs (so a failed setup can still be cleaned) but is `ready` only after setup succeeded; a re-run repeats a setup that never finished.
+export function prepareWorktree(repo, state, key, spec, setup, save = () => {}) {
+  let rec = state.worktrees[key];
+  if (!rec) {
+    rec = addWorktree(repo, spec);
+    state.worktrees[key] = rec;
+    save();
+  }
+  if (!rec.ready) {
+    setup(rec.path);
+    rec.ready = true;
+    save();
+  }
+  return rec.path;
+}
+
+export const atBase = (dir, base) => { try { return gitIn(dir, ['rev-parse', 'HEAD']).trim() === base; } catch { return false; } };
+
+// The commits a run made: named in its transcript, committed inside its own window, and not the sample's base or one under it.
+export function ownCommits(repo, run, base) {
+  const out = [];
+  for (const short of run.commits ?? []) {
+    const c = commitInfo(repo, short);
+    if (!c || run.start === null || c.at < run.start - 60000 || c.at > run.end + 60000) continue;
+    try { gitIn(repo, ['merge-base', '--is-ancestor', c.sha, base]); continue; } catch { /* not at or under the base */ }
+    out.push(c.sha);
+  }
+  return out;
+}
+
 export function cleanWorktrees(repo, { force } = {}) {
   if (!force && !fs.existsSync(path.join(repo, 'docs', 'benchmark', 'round-1.md'))) return { refused: true, removed: [], failed: [] };
   const entries = gitIn(repo, ['worktree', 'list', '--porcelain']).split(/\r?\n\r?\n+/).filter(Boolean).slice(1);
@@ -582,19 +612,16 @@ function runPlan(repo) {
   for (const r of rows) {
     const s = sampleOf(r);
     const key = WRITERS.includes(r.agent) ? r.tag : r.agent.slice('accord-'.length) + '-' + r.n;
-    r.worktree = state.worktrees[key]?.path;
-    if (!r.worktree) {
-      const dir = `${bench}/wt/${key}`;
-      let rec;
-      try { rec = addWorktree(repo, { path: dir, base: s.base, ...(WRITERS.includes(r.agent) ? { branch: `bench/${r.tag}` } : {}) }); } catch (e) { return err(`${key}: ${e.message}`); }
-      state.worktrees[key] = rec;
-      save();
-      r.worktree = dir;
-      try { for (const c of configAt(dir, repo).setup ?? []) sh(c, dir); } catch { return err(`setup failed in ${dir}`); }
-    }
+    const dir = `${bench}/wt/${key}`;
+    try {
+      r.worktree = prepareWorktree(repo, state, key, { path: dir, base: s.base, ...(WRITERS.includes(r.agent) ? { branch: `bench/${r.tag}` } : {}) },
+        (d) => { for (const c of configAt(d, repo).setup ?? []) sh(c, d); }, save);
+    } catch (e) { return err(`${key}: ${e.message} (setup is repeated on the next --plan run)`); }
   }
   for (const s of list.samples.filter((x) => x.agent === 'accord-executor')) {
     const r = rows.find((x) => x.agent === s.agent && x.n === s.n && x.current);
+    // After dispatch the worktree holds the run's commits: the base is no longer what it holds.
+    if (!atBase(r.worktree, s.base)) continue;
     try { sh(configAt(r.worktree, repo).tests.full, r.worktree); } catch { return err(`suite red at base for ${s.agent} ${s.n}`); }
   }
   fs.mkdirSync(`${bench}/briefs`, { recursive: true });
@@ -679,15 +706,26 @@ function runRound(repo, { judge, extra }) {
   const m = matchRuns(rows, runs, { judges: !judge });
   const bad = [...m.missing, ...m.duplicate];
   if (bad.length) { for (const b of bad) process.stderr.write(`no run or more than one run for: ${b}\n`); return 2; }
-  const stop = stopOnEscape(repo, rows, m, bench);
+  const stop = stopOnEscape(repo, rows, m, bench, list);
   if (stop) return stop;
   const sampleOf = (r) => list.samples.find((s) => s.agent === r.agent && s.n === r.n);
   const currentOf = (r) => rows.find((x) => x.agent === r.agent && x.n === r.n && x.current);
+  const slurp = (p) => (fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : undefined);
+  // A run or judge under the wrong agent or with a hand-edited prompt is not the row it was matched to.
+  const invalid = new Map();
+  for (const r of rows) {
+    const p = runProblem(r, m.runs.get(r.tag), { read: slurp });
+    if (p) invalid.set(r.tag, p);
+    const jr = m.judges.get(r.tag);
+    const q = jr && runProblem(r, jr, { judge: true, read: slurp });
+    if (q) invalid.set(`${r.tag} judge`, q);
+  }
   const referenceOf = (r) => {
     const cur = currentOf(r);
     return mustsOf(r.agent, m.runs.get(cur.tag).lastText, verificationOf(cur));
   };
   if (judge) {
+    for (const [tag, why] of invalid) process.stderr.write(`notice: ${tag}: ${why}; the report will not judge it\n`);
     const out = [];
     fs.mkdirSync(`${bench}/briefs`, { recursive: true });
     for (const r of rows.filter((x) => x.judge)) {
@@ -719,18 +757,30 @@ function runRound(repo, { judge, extra }) {
     if (!r.judge) continue;
     flags.push({ tag: `${r.tag} judge`, flags: turnFlags(j.turns, r.judge) });
     const ref = ROLES[r.agent] === 'finding' ? referenceOf(r) : [];
-    const v = m.notFresh.includes(r.tag) ? null : parseVerdict(kindOf(r.agent), j.lastText, ref.length);
+    const jBad = invalid.get(`${r.tag} judge`);
+    const v = jBad || m.notFresh.includes(r.tag) ? null : parseVerdict(kindOf(r.agent), j.lastText, ref.length);
     verdicts.set(r.tag, v);
-    if (!v) unjudged.push({ tag: r.tag, reason: m.notFresh.includes(r.tag) ? 'judge was not fresh' : 'judge verdict unreadable' });
+    if (!v) unjudged.push({ tag: r.tag, reason: jBad ? `judge ${jBad}` : m.notFresh.includes(r.tag) ? 'judge was not fresh' : 'judge verdict unreadable' });
   }
   const results = rows.map((r) => {
     const run = m.runs.get(r.tag);
-    let suite, gate;
-    if (r.agent === 'accord-executor') { try { sh(configAt(r.worktree, repo).tests.full, r.worktree); suite = true; } catch { suite = false; } }
-    if (r.agent === 'accord-planner') { try { cli(r.worktree, ['gate', 'plan', r.ticket]); gate = true; } catch { gate = false; } }
-    const verdict = verdicts.get(r.tag) ?? null;
     const cur = currentOf(r);
-    const held = holds(r.agent, { current: r.current, suite, gate, verdict, currentVerdict: verdicts.get(cur.tag) ?? null });
+    let suite, gate, env = invalid.get(r.tag) ?? (invalid.has(cur.tag) ? `the current-effort run ${invalid.get(cur.tag)}` : '');
+    if (!env && r.agent === 'accord-executor') {
+      let st;
+      try { sh(configAt(r.worktree, repo).tests.full, r.worktree); } catch (e) { st = exitState(e, 'suite'); }
+      st ??= { ok: true };
+      if (st.env) env = st.env; else suite = st.ok;
+    }
+    if (!env && r.agent === 'accord-planner') {
+      let st;
+      try { cli(r.worktree, ['gate', 'plan', r.ticket]); } catch (e) { st = exitState(e, 'gate plan'); }
+      st ??= { ok: true };
+      if (st.env) env = st.env; else gate = st.ok;
+    }
+    if (env) unjudged.push({ tag: r.tag, reason: env });
+    const verdict = verdicts.get(r.tag) ?? null;
+    const held = env ? null : holds(r.agent, { current: r.current, suite, gate, verdict, currentVerdict: verdicts.get(cur.tag) ?? null, reference: ROLES[r.agent] === 'finding' ? referenceOf(r).length : undefined });
     const result = { tag: r.tag, agent: r.agent, n: r.n, kind: sampleOf(r).kind ?? null, effort: r.effort, current: r.current, held, ms: run.ms, usage: run.usage, verdict };
     if (ROLES[r.agent] === 'finding' && r.current) result.reference = referenceOf(r).length;
     return result;
@@ -793,12 +843,13 @@ export function onLiveRefs(repo, sha) {
 }
 
 // Returns 2 after printing the problems and the undo when a round run touched a live checkout, else 0.
-function stopOnEscape(repo, rows, m, bench) {
+function stopOnEscape(repo, rows, m, bench, list) {
   const live = JSON.parse(fs.readFileSync(path.join(bench, 'round-1.json'), 'utf8')).live;
   if (!live) { process.stderr.write('run --round 1 --plan first: no live checkouts recorded\n'); return 2; }
   const problems = escapes(rows, m, live.worktrees.map((w) => w.path));
+  const baseOf = (tag) => { const r = rows.find((x) => x.tag === tag.replace(/ judge$/, '')); return list.samples.find((s) => s.agent === r.agent && s.n === r.n).base; };
   for (const [tag, run] of [...m.runs, ...[...m.judges].map(([t, r]) => [`${t} judge`, r])]) {
-    for (const sha of run.commits ?? []) {
+    for (const sha of ownCommits(repo, run, baseOf(tag))) {
       const refs = onLiveRefs(repo, sha);
       if (refs.length) problems.push(`${tag}: commit ${sha.slice(0, 7)} is on ${refs.join(', ')}`);
     }

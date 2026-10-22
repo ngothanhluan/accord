@@ -118,3 +118,65 @@ it('risk:data-loss a round run that edits or commits in a live checkout stops th
     rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
   }
 }, 120_000);
+
+type Setup = Rec & { ready?: boolean };
+const commitIn = (repo: string, t: string, name: string, date?: string) => {
+  writeFileSync(`${repo}/${name}.txt`, name + '\n');
+  const g = (...a: string[]) => execFileSync('git', a, { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, ...(date ? { GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date } : {}) } }).trim();
+  g('add', '.');
+  writeFileSync(t + '/msg.txt', name + '\n');
+  g('-c', 'user.name=t', '-c', 'user.email=t@example.invalid', '-c', 'commit.gpgsign=false', 'commit', '-q', '--no-verify', '-F', t + '/msg.txt', '--cleanup=verbatim');
+  return g('rev-parse', 'HEAD');
+};
+
+it('risk:data-loss a worktree whose setup failed is set up again on a re-run and only then marked ready', async () => {
+  const { prepareWorktree } = (await import(new URL('../../../scripts/benchmark.mjs', import.meta.url).href)) as {
+    prepareWorktree: (repo: string, state: { worktrees: Record<string, Setup> }, key: string, spec: { path: string; base: string; branch?: string }, setup: (dir: string) => void) => string;
+  };
+  const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'bench-')));
+  const t = tmp.replaceAll('\\', '/');
+  try {
+    const repo = t + '/repo';
+    mkdirSync(repo);
+    execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: repo });
+    const H = commitIn(repo, t, 'h');
+    const state = { worktrees: {} as Record<string, Setup> };
+    const spec = { path: t + '/w', base: H, branch: 'bench/executor-1-low' };
+    let calls = 0;
+    let fail = true;
+    const setup = () => { calls++; if (fail) { fail = false; throw new Error('npm ci failed'); } };
+
+    expect(() => prepareWorktree(repo, state, 'executor-1-low', spec, setup)).toThrow('npm ci failed');
+    expect(state.worktrees['executor-1-low'].ready).toBeFalsy();
+    expect(prepareWorktree(repo, state, 'executor-1-low', spec, setup)).toBe(spec.path);
+    expect(calls).toBe(2);
+    expect(state.worktrees['executor-1-low'].ready).toBe(true);
+    prepareWorktree(repo, state, 'executor-1-low', spec, setup);
+    expect(calls).toBe(2);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+}, 120_000);
+
+it("risk:regression only a commit made inside the run window and not at or under the sample base counts as the run's own", async () => {
+  const { ownCommits, atBase } = (await import(new URL('../../../scripts/benchmark.mjs', import.meta.url).href)) as {
+    ownCommits: (repo: string, run: { commits: string[]; start: number; end: number }, base: string) => string[];
+    atBase: (dir: string, base: string) => boolean;
+  };
+  const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'bench-')));
+  const t = tmp.replaceAll('\\', '/');
+  try {
+    const repo = t + '/repo';
+    mkdirSync(repo);
+    execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: repo });
+    const OLD = commitIn(repo, t, 'old', '2026-10-01T10:00:00Z');
+    const BASE = commitIn(repo, t, 'base', '2026-10-01T12:00:00Z');
+    const MINE = commitIn(repo, t, 'mine', '2026-10-01T12:30:00Z');
+    const run = { commits: [OLD.slice(0, 7), BASE.slice(0, 7), MINE.slice(0, 7), 'f'.repeat(7)], start: Date.parse('2026-10-01T12:00:00Z'), end: Date.parse('2026-10-01T13:00:00Z') };
+    expect(ownCommits(repo, run, BASE)).toEqual([MINE]);
+    expect(atBase(repo, BASE)).toBe(false);
+    expect(atBase(repo, MINE)).toBe(true);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+}, 120_000);

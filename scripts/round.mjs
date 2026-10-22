@@ -216,10 +216,11 @@ export function parseVerdict(kind, text, expected) {
     if (!v) return null;
     same.push(v === 'same');
   }
-  return newMusts === null ? null : { same, newMusts };
+  // With no reference item the only thing to read is the new Musts line; with items, the M lines suffice.
+  return !expected && newMusts === null ? null : { same, newMusts };
 }
 
-export function holds(agent, { current, suite, gate, verdict, currentVerdict }) {
+export function holds(agent, { current, suite, gate, verdict, currentVerdict, reference }) {
   const role = ROLES[agent];
   if (role === 'executor' || role === 'planner') {
     const ok = (role === 'executor' ? suite : gate) === true;
@@ -227,8 +228,28 @@ export function holds(agent, { current, suite, gate, verdict, currentVerdict }) 
     if (!verdict || !currentVerdict) return null;
     return ok && verdict.must <= currentVerdict.must;
   }
-  if (role === 'finding') return current ? true : verdict ? verdict.same.every(Boolean) : null;
+  // A reference that holds nothing leaves nothing to miss (D-08): no verdict is read.
+  if (role === 'finding') return current || reference === 0 ? true : verdict ? verdict.same.every(Boolean) : null;
   return verdict ? verdict.wrongFacts === 0 : null;
+}
+
+// The check's contract: exit 1 is FAIL; anything else (exit 2, a missing command, a spawn failure) is the environment, not the run's quality.
+export function exitState(err, what) {
+  if (!err) return { ok: true };
+  if (err.status === 1) return { ok: false };
+  const text = String(err.stderr ?? '').trim();
+  return { env: typeof err.status === 'number' ? `${what} exited ${err.status}: ${text}` : `${what} could not run: ${err.message ?? err.code}` };
+}
+
+// A run or judge counts for its row only when it ran under the printed agent with the printed brief (named by path, or its text pasted).
+export function runProblem(row, run, { judge, read }) {
+  const want = judge ? row.judge.agent : row.agent;
+  if (run.agent !== want) return `dispatched as ${run.agent ?? 'no agent'} where the row names ${want}`;
+  const file = judge ? row.prompt.replace(/\.md$/, '-judge.md') : row.prompt;
+  const prompt = String(run.dispatch?.prompt ?? '');
+  const text = read(file);
+  const ok = prompt.length > 0 && (fold(prompt).includes(fold(file)) || (text !== undefined && prompt.replace(/\n+$/, '') === text.replace(/\n+$/, '')));
+  return ok ? null : `dispatch prompt is not the brief file ${file}`;
 }
 
 const MATCH = {

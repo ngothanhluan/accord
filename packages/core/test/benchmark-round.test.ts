@@ -29,34 +29,38 @@ it('ac-1 every agent sample runs at its current effort and one step either side 
   const round = (await import(new URL('../../../scripts/round.mjs', import.meta.url).href)) as {
     EFFORTS: string[]; ROLES: Record<string, string>;
     checkSamples: (l: unknown) => string[];
-    runMatrix: (l: unknown, s: unknown) => { agent: string; model: string; effort: string; current: boolean }[];
+    runMatrix: (l: unknown, s: unknown) => { agent: string; n: number; model: string; effort: string; current: boolean }[];
     turnFlags: (t: unknown[], w: { model: string; effort: string }) => { turn: number; field: string }[];
     flagSection: (e: unknown[]) => string;
   };
-  const { agentSettings, readSessions } = (await import(new URL('../../../scripts/benchmark.mjs', import.meta.url).href)) as {
-    agentSettings: (repo: string) => Record<string, { model: string; effort: string }>;
+  const { readSessions } = (await import(new URL('../../../scripts/benchmark.mjs', import.meta.url).href)) as {
     readSessions: (d: string[]) => { runs: { turns: unknown[] }[] };
   };
-  const { EFFORTS, ROLES } = round;
-  const agents = Object.keys(ROLES);
+  const agents = Object.keys(round.ROLES);
   const list = listOf(agents);
   expect(round.checkSamples(list)).toEqual([]);
-  const settings = agentSettings(root);
+  // Fixed settings, so a later change to an agent's frontmatter does not touch this test; reviewer sits at the top of the scale, scout at the bottom.
+  const settings: Record<string, { model: string; effort: string }> = {
+    'accord-executor': { model: 'sonnet', effort: 'medium' }, 'accord-planner': { model: 'sonnet', effort: 'medium' },
+    'accord-critic': { model: 'opus', effort: 'high' }, 'accord-reviewer': { model: 'opus', effort: 'max' },
+    'accord-final-reviewer': { model: 'opus', effort: 'high' }, 'accord-auditor': { model: 'sonnet', effort: 'medium' },
+    'accord-verifier': { model: 'sonnet', effort: 'xhigh' }, 'accord-architect': { model: 'opus', effort: 'high' },
+    'accord-scout': { model: 'haiku', effort: 'low' },
+  };
+  const want: Record<string, string[]> = {
+    'accord-executor': ['low', 'medium', 'high'], 'accord-planner': ['low', 'medium', 'high'],
+    'accord-critic': ['medium', 'high', 'xhigh'], 'accord-reviewer': ['xhigh', 'max'],
+    'accord-final-reviewer': ['medium', 'high', 'xhigh'], 'accord-auditor': ['low', 'medium', 'high'],
+    'accord-verifier': ['high', 'xhigh', 'max'], 'accord-architect': ['medium', 'high', 'xhigh'],
+    'accord-scout': ['low', 'medium'],
+  };
   const rows = round.runMatrix(list, settings);
-  expect(rows).toHaveLength(130);
+  expect(rows).toHaveLength(5 * Object.values(want).reduce((n, e) => n + e.length, 0));
   for (const s of list.samples) {
-    const own = rows.filter((r) => r.agent === s.agent);
-    const cfg = settings[s.agent];
-    const i = EFFORTS.indexOf(cfg.effort);
-    const want = s.agent === 'accord-scout' ? ['low', 'medium'] : EFFORTS.slice(Math.max(0, i - 1), i + 2);
-    const perSample = own.length / 5;
-    expect(perSample).toBe(want.length);
-    const first = own.slice((s.n - 1) * want.length, s.n * want.length);
-    expect(first.map((r) => r.effort)).toEqual(want);
-    expect(first.every((r) => r.model === cfg.model)).toBe(true);
-    const cur = first.filter((r) => r.current);
-    expect(cur).toHaveLength(1);
-    expect(cur[0].effort).toBe(cfg.effort);
+    const own = rows.filter((r) => r.agent === s.agent && r.n === s.n);
+    expect(own.map((r) => r.effort)).toEqual(want[s.agent]);
+    expect(own.every((r) => r.model === settings[s.agent].model)).toBe(true);
+    expect(own.filter((r) => r.current).map((r) => r.effort)).toEqual([settings[s.agent].effort]);
   }
   const exec = { ...list, samples: list.samples.map((s) => (s.agent === 'accord-executor' ? { ...s, kind: 'plain' } : s)) };
   expect(round.checkSamples(exec).join('\n')).toContain('risk');
@@ -315,4 +319,46 @@ it('risk:complex-branching runs and judges are matched by tag and every tag with
 
   const c = matchRuns(rows, runs.filter((r) => r !== jA), { judges: true });
   expect(c.missing).toEqual(['bench r1 executor-1-low judge', 'bench r1 critic-1-xhigh']);
+});
+
+it('risk:complex-branching a finding run holds by default when the reference holds nothing, and a verdict missing its new Musts line still gives same and missed', async () => {
+  const r = (await import(new URL('../../../scripts/round.mjs', import.meta.url).href)) as {
+    holds: (a: string, o: Record<string, unknown>) => boolean | null;
+    parseVerdict: (k: string, t: string, n: number) => unknown;
+  };
+  for (const agent of ['accord-critic', 'accord-reviewer', 'accord-final-reviewer', 'accord-auditor', 'accord-verifier']) {
+    expect(r.holds(agent, { current: false, reference: 0 })).toBe(true);
+    expect(r.holds(agent, { current: false, reference: 1 })).toBe(null);
+    expect(r.holds(agent, { current: false, reference: 1, verdict: { same: [false], newMusts: null } })).toBe(false);
+  }
+  expect(r.parseVerdict('match', 'M1: same\nM2: missed\n', 2)).toEqual({ same: [true, false], newMusts: null });
+});
+
+it('risk:complex-branching an exit 1 is a quality failure and any other failure of the check is not judged', async () => {
+  const { exitState } = (await import(new URL('../../../scripts/round.mjs', import.meta.url).href)) as {
+    exitState: (e: unknown, what: string) => { ok: boolean } | { env: string };
+  };
+  expect(exitState(null, 'suite')).toEqual({ ok: true });
+  expect(exitState({ status: 1 }, 'suite')).toEqual({ ok: false });
+  expect(exitState({ status: 2, stderr: 'no cli.js' }, 'gate plan')).toEqual({ env: 'gate plan exited 2: no cli.js' });
+  expect(exitState({ code: 'ENOENT', message: 'spawn x' }, 'suite')).toEqual({ env: 'suite could not run: spawn x' });
+  expect(exitState({ status: 127 }, 'suite')).toEqual({ env: 'suite exited 127: ' });
+});
+
+it('risk:regression a run or judge dispatched under another agent or with another prompt is not scored as the row', async () => {
+  const { runProblem } = (await import(new URL('../../../scripts/round.mjs', import.meta.url).href)) as {
+    runProblem: (row: unknown, run: unknown, o: { judge?: boolean; read: (p: string) => string | undefined }) => string | null;
+  };
+  const row = { tag: 'executor-1-low', agent: 'accord-executor', prompt: 'C:/b/briefs/executor-1-low.md', judge: { agent: 'accord-reviewer' } };
+  const files: Record<string, string> = { 'C:/b/briefs/executor-1-low.md': 'brief\n', 'C:/b/briefs/executor-1-low-judge.md': 'judge brief\n' };
+  const read = (p: string) => files[p];
+  const run = (agent: string, prompt: string) => ({ agent, dispatch: { prompt } });
+  expect(runProblem(row, run('accord-executor', 'brief'), { read })).toBe(null);
+  expect(runProblem(row, run('accord-executor', 'see C:\\b\\briefs\\executor-1-low.md'), { read })).toBe(null);
+  expect(runProblem(row, run('accord-reviewer', 'brief'), { read })).toContain('accord-reviewer');
+  expect(runProblem(row, run('accord-executor', 'brief, edited'), { read })).toContain('prompt');
+  expect(runProblem(row, { agent: 'accord-executor', dispatch: null }, { read })).toContain('prompt');
+  expect(runProblem(row, run('accord-reviewer', 'judge brief'), { read, judge: true })).toBe(null);
+  expect(runProblem(row, run('accord-critic', 'judge brief'), { read, judge: true })).toContain('accord-critic');
+  expect(runProblem(row, run('accord-reviewer', 'brief'), { read, judge: true })).toContain('prompt');
 });

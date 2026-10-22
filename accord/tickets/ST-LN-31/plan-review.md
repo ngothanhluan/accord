@@ -28,6 +28,16 @@
 
 ## Round 3 (diff)
 
-1. Should — With the verdict committed apart, `gitReviewFact` still reads the files of the last commit touching review.md (the verdict commit) and `gitAfterReview` starts after the round commit, so code committed in the same commit as the last round's record is never checked; plan lines 168-172 and the ledger Ruling claim the gate catches it — open
+1. Should — With the verdict committed apart, `gitReviewFact` still reads the files of the last commit touching review.md (the verdict commit) and `gitAfterReview` starts after the round commit, so code committed in the same commit as the last round's record is never checked; plan lines 168-172 and the ledger Ruling claim the gate catches it — fixed
 2. Nice — The stage starts at the last commit touching review.md while `gate done` starts at the last `## Round` commit, so the dashboard can read done where the gate fails; the ledger Ruling "stage and gate read one fact" is no longer true — deferred
 3. Nice — The Keys hand-off writes each key in place of the template's line, but the lane S template has no `design` line, so a moved ticket's design reference can be left out — deferred
+
+## Round 4 (diff)
+
+No findings
+
+fixed: 3.1
+
+## Closed
+
+Converged at round 4; full suite at 8638f77 + plan records: 1421 passed, 3 skipped.

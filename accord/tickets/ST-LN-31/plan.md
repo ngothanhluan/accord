@@ -1,6 +1,6 @@
 ---
 baseline: 8638f7779fa5374eeef13e4f0d3beeef42547d94
-plan_hash: "fnv1a64:db9a1f491beb4f58"
+plan_hash: "fnv1a64:ec7d8f59785579cc"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this preamble,
@@ -340,12 +340,20 @@ Test first, appended to `packages/cli/test/lane-s.test.ts`; add `REPORT` and `ju
       `fails('gate.commit-after-review')`.
   15. A verdict committed apart with nothing between: `gitRun(repo, 'reset', '-q', '--hard', 'HEAD~2')` (back to the
       round 1 record), write `RP` as `REVIEW`, `commitMsg(repo, 'review: S-1 verdict')`; `gate done S-1` exits 0.
+  16. Code in the last round's own commit, with the verdict committed apart:
+      `gitRun(repo, 'reset', '-q', '--hard', 'HEAD~2')` (back to `change`), write `RP` as `'## Round 1\n\nNo findings\n'`
+      and `src/e.ts` as `'e\n'`, `commitMsg(repo, 'review: S-1 round 1')`; write `RP` as `REVIEW`,
+      `commitMsg(repo, 'review: S-1 verdict')`; `fails('gate.review-commit-code')`. Then
+      `r = await run(['gate', 'done', 'S-1', '--json'], repo)`: the finding of `JSON.parse(r.out).findings` with rule
+      `gate.review-commit-code` has a reason containing `src/e.ts`, and no finding has rule `gate.commit-after-review`
+      (the verdict commit changes only records).
 
 Interface:
 - `model/snapshot.ts`: `SnapshotInput` and `RepoSnapshot` gain
   `reviewFacts?: Record<string, { clean: boolean; files?: string[] }>;` with the comment: ticket id to its
-  `review.md`; `clean` when the file is committed with no uncommitted change; `files`, every path the last commit
-  touching it changed; absent when the host supplies none. `load/snapshot.ts` carries it through exactly as it
+  `review.md`; `clean` when the file is committed with no uncommitted change; `files`, every path changed by the
+  review commit, the last commit whose change to review.md adds or removes a `## Round ` line; absent when the host
+  supplies none. `load/snapshot.ts` carries it through exactly as it
   carries `afterVerify` (`load/snapshot.ts:194`).
 - `gate/lane-s.ts` (new), every check `[]` unless the ticket exists with `lane: S`; `file` is the ticket file unless
   stated:
@@ -359,9 +367,9 @@ Interface:
       `a line follows the verdict in review.md; the verdict is its last line`.
     - `reviewUncommitted`: `f = snapshot.reviewFacts?.[id]` read with `Object.hasOwn`. Absent →
       `the host loaded no commit facts for review.md, so its commit cannot be checked`. `!f.clean` →
-      `review.md is not committed, or has uncommitted changes; commit it alone`.
+      `review.md is not committed, no commit of it records a ## Round line, or it has uncommitted changes; commit it alone`.
     - `reviewCommitCode`: `f.files` defined and not `ownRecordsOnly(id, f.files)` →
-      `the commit that records review.md also changes <paths outside the records, first five, space-separated>; commit the change before its review`.
+      `the commit that records the last review round also changes <paths outside the records, first five, space-separated>; commit the change before its review`.
     - `commitAfterReview`: `after = snapshot.afterVerify?.[id]` read with `Object.hasOwn`. Absent →
       `the host could not list the commits after review.md, so a change after review cannot be ruled out`. Otherwise
       one finding per `handMade` commit:
@@ -375,26 +383,30 @@ Interface:
   the lane S session still runs only the affected tests (Task 7).
 - `gate/index.ts` `gateDone`: runs `DONE_S_RULES` when the ticket exists with `lane: S`, else `DONE_RULES` as today.
   The ticket-scoped lint findings join either table as they do today (`gate/index.ts:69-74`).
-- `cli/src/load/fs.ts`:
-  - `export function gitReviewFact(root: string, id: string): { clean: boolean; files?: string[] }`,
-    with `p = ':(literal)accord/tickets/' + id + '/review.md'` and options
-    `{ cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 }`:
+- `cli/src/load/fs.ts`. Both functions below use `p = ':(literal)accord/tickets/' + id + '/review.md'` and options
+  `o = { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 }`, and both
+  anchor on one commit, the review commit:
+  - A private `function reviewCommit(root: string, id: string): string | undefined`, the last commit on HEAD whose
+    change to review.md adds or removes a `## Round ` line:
+    `sha = execFileSync('git', ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '-1', '-G', '^## Round ', '--format=%H', 'HEAD', '--', p], o).trim()`;
+    returns `sha` when `isSha(sha)` (already in `fs.ts`), else undefined; a spawn that throws returns undefined.
+    (`git log -G` matches each added or removed line of the diff restricted to the pathspec, so `^` anchors at the
+    line start.) Anchoring on the round commit, not on the last commit touching review.md, means that with a verdict
+    committed apart the code checked as the review's own commit is the round commit's, and the verdict commit falls
+    after the review, where it must change only the ticket's records (plan rounds 2.1 and 3.1).
+  - `export function gitReviewFact(root: string, id: string): { clean: boolean; files?: string[] }`:
     1. `dirty = execFileSync('git', ['status', '--porcelain', '-z', '--untracked-files=all', '--', p], o) !== ''`.
-    2. `sha = execFileSync('git', ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '-1', '--format=%H', 'HEAD', '--', p], o).trim()`.
-       Empty → `{ clean: false }`.
+    2. `sha = reviewCommit(root, id)`. Undefined → `{ clean: false }`.
     3. `files` = `execFileSync('git', ['-c', 'log.showSignature=false', 'show', '--no-show-signature', '-z', '--format=', '--name-only', '--no-renames', sha], o)`
        split on `\0`, each token with one leading `\n` removed, empty tokens dropped.
     4. Return `{ clean: !dirty, files }`. Any spawn that throws returns `{ clean: false }`: the gate then fails closed.
   - `export function gitAfterReview(root: string, id: string): AfterVerify | undefined`: the commits on HEAD, the
-    commit being gated whatever branch, claim ref or fork it came from, after the last commit that records a review
-    round, which is the last commit whose change to review.md adds or removes a `## Round ` line. Starting there,
-    not at the last commit touching review.md, makes a fix committed between the last round's record and a verdict
-    committed apart a commit after the review (plan round 2.1). With `p` and the options of `gitReviewFact`:
-    `commit = execFileSync('git', ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '-1', '-G', '^## Round ', '--format=%H', 'HEAD', '--', p], o).trim()`;
-    a spawn that throws, or an output `isSha` (already in `fs.ts`) rejects, returns undefined. Otherwise
-    `r = gitAfterVerify(root, { [id]: { commit, tips: ['HEAD'] } })` and return `Object.hasOwn(r, id) ? r[id] : undefined`.
-    Undefined makes `gate.commit-after-review` fail closed. (`git log -G` matches each added or removed line of the
-    diff restricted to the pathspec, so `^` anchors at the line start.)
+    commit being gated whatever branch, claim ref or fork it came from, after `commit = reviewCommit(root, id)`.
+    Undefined `commit` returns undefined. Otherwise `r = gitAfterVerify(root, { [id]: { commit, tips: ['HEAD'] } })`
+    and return `Object.hasOwn(r, id) ? r[id] : undefined`. Undefined makes `gate.commit-after-review` fail closed.
+    A fix committed between the last round's record and a verdict committed apart is then a `handMade` commit after
+    the review (step 14), the verdict commit itself changes only records (step 15), and code in the round commit is
+    `gate.review-commit-code`'s (step 16).
 - `cli/src/commands/gate.ts`: when `which === 'done'` and the ticket exists (`Object.hasOwn`) with `lane: S`, the
   snapshot passed to `gateDone` is `withCommits` plus `reviewFacts: { [id]: gitReviewFact(ctx.root, id) }` and an
   `afterVerify` whose entry for `id` is `gitAfterReview(ctx.root, id)`: build it as
@@ -648,9 +660,10 @@ ticket, branch and worktree:
 (The lift step 1 names the last two sections in words, so no paragraph pairs a heading `PROMOTED` lists with a
 command. Step 4 commits each round's record before its fixes and a converged verdict with the last round's record,
 so a fix made after the last round is a commit after `review.md`, which `accord gate done` and the stage both catch.
-When a verdict is committed apart anyway, `accord gate done` still catches a fix before it, because Task 4's
-`gitAfterReview` starts at the last commit that adds a `## Round` line; the stage, which starts at the last commit
-touching `review.md`, can then read `done` while the gate fails, and the gate is what CI runs.)
+When a verdict is committed apart anyway, `accord gate done` still catches a fix before it and code inside the last
+round's record, because Task 4's `gitReviewFact` and `gitAfterReview` both anchor on the last commit that adds or
+removes a `## Round` line; the stage, which starts at the last commit touching `review.md`, can then read `done`
+while the gate fails, and the gate is what CI runs.)
 
 Text, `packages/core/agents/reviewer.md` line 11: the sentence "A lane S change has no ticket, package, or ledger: one
 file holds the request's two lines and the diff." becomes "A lane S ticket has no plan or acceptance criteria, and a

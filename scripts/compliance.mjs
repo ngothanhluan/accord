@@ -121,11 +121,12 @@ export function compliance({ runs, refusals, commits, tickets, settings, commitI
       const ticket = (r.reads.map((x) => named(x.path)).find(Boolean) ?? named(prompt) ?? r.ticket)?.toUpperCase();
       if (!ticket) continue;
       const quoted = r.reads.filter((x) => flat.includes(lower(x.path)) && !lower(x.path).endsWith(`accord/tickets/${ticket.toLowerCase()}.md`));
-      for (const text of [prompt, ...quoted.map((x) => x.text)]) {
-        const p = quoteProblem(text, ticket, committedAt(ticket, r.dispatch.ts));
+      // A read of another ticket file is compared with that ticket, not with the run's own.
+      for (const [text, id] of [[prompt, ticket], ...quoted.map((x) => [x.text, (named(x.path) ?? ticket).toUpperCase()])]) {
+        const p = quoteProblem(text, id, committedAt(id, r.dispatch.ts));
         if (!p) continue;
-        const tail = p.missing ? `no committed accord/tickets/${ticket}.md existed when it was dispatched` : `the brief's copy of the ticket differs from accord/tickets/${ticket}.md as committed when it was dispatched, first at line ${p.line}: "${p.text.slice(0, 120)}"`;
-        out['brief-quote'].push(`- brief-quote: ${ticket} task ${r.task ?? '?'}: ${tail} — ${r.file}`);
+        const tail = p.missing ? `no committed accord/tickets/${id}.md existed when it was dispatched` : `the brief's copy of the ticket differs from accord/tickets/${id}.md as committed when it was dispatched, first at line ${p.line}: "${p.text.slice(0, 120)}"`;
+        out['brief-quote'].push(`- brief-quote: ${id} task ${r.task ?? '?'}: ${tail} — ${r.file}`);
       }
     }
   }

@@ -203,6 +203,8 @@ it('risk:regression brief-quote compares with the ticket the run read, not the s
       run({ file: 'a.jsonl', dispatch: { ts: 1, prompt: `Read ${path}\n${COMMITTED}` }, reads: [{ path, text: COMMITTED }] }),
       // the agent's own read of its ticket (upper-case id) is not a quote
       run({ file: 'b.jsonl', ticket: 'T-1', dispatch: { ts: 1, prompt: `Read ${path}` }, reads: [{ path, text: COMMITTED.replace('x', 'q') }] }),
+      // another ticket's file named in the brief is compared with that ticket
+      run({ file: 'c.jsonl', ticket: 'T-1', dispatch: { ts: 1, prompt: `Read ${path} and C:/w/accord/tickets/T-2.md` }, reads: [{ path, text: COMMITTED }, { path: 'C:/w/accord/tickets/T-2.md', text: T2 }] }),
     ],
   });
   expect(out['brief-quote']).toEqual([]);

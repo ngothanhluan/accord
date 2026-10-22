@@ -52,6 +52,8 @@
 - Ruling: the CI lane-drop check fails closed when the BASE frontmatter cannot be read and passes when the ticket is new at HEAD — new lane S tickets must work — cost if wrong: an unparseable base ticket fails the job until fixed by hand.
 - Ruling: `.github/workflows/accord.yml` gets the same `lane_dropped` function and call as the emitted script, inserted by hand — the repo file has its own npm ci, build and suite steps, so it is not a straight re-render — cost if wrong: the two copies drift; the replay test covers the shared cases.
 - Ruling: a move to lane S carries the interview's non-empty `## Vetoes`, `## Decisions` and `## Corrections` verbatim into the new lane S ticket, as optional sections the lane S form accepts and the lane S anchor prints — review round 1 security finding: the drop and the later branch clean otherwise lose them; owner: "A" — cost if wrong: a lane S ticket can carry up to three more sections.
+- Ruling: lint, the schema, the lane S template and gate ready are unchanged for the carried sections — fix E's test shows lane S already accepts them — cost if wrong: none seen.
+- Ruling: the move-to-S hand-off is the `/accord …` line followed by the carried sections verbatim under their headings — a one-line form cannot hold multi-line sections — cost if wrong: a session that reads only the first line drops the sections.
 
 ## Deferred
 - plan round 1.10 Nice — Understood/Done when can be rewritten after review and `gate ready` rerun unflagged

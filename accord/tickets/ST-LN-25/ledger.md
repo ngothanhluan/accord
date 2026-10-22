@@ -36,6 +36,13 @@
 - Ruling: plan — the registry endpoint is `https://registry.npmjs.org/-/package/<name, / as %2f>/dist-tags` (what `npm dist-tag ls` reads); the cache is `<LOCALAPPDATA | XDG_CACHE_HOME | ~/.cache>/accord/registry.json`; the notice reads `accord <new> is out, and this repository pins <pin>: type /accord upgrade to run npx --yes <pkg>@<new> upgrade` — cost if wrong: an endpoint, a path or one string changes.
 - Ruling: plan — the ac-3 test pins `0.0.9` on main and expects the running CLI's own version, since the version under test is fixed; the criterion's 0.1.0 → 0.2.0 is the same move by one step — cost if wrong: the test cannot show the literal versions.
 - Ruling: plan — the skill's "Any other text starts a New request" gains "but `upgrade`", routing `/accord upgrade` to the Upgrade action — cost if wrong: one skill line.
+- Ruling: plan round 1 — after the verified commit only the ticket's own file and folder count as safe even when they differ from main; every other path, `accord/product/conventions.md` included, must match main — verify commits only those records after the verified commit — cost if wrong: a branch whose only later change is an unmerged conventions rule is kept with a `kept` line.
+- Ruling: plan round 1 — a tip that is an ancestor of the verified commit is safe — all its commits are inside the commit main records as verified — cost if wrong: a clone loses an older copy of commits already inside the verified commit.
+- Ruling: plan round 1 — when the verified commit cannot be resolved in this clone, only "on main" counts as safe — nothing to compare against — cost if wrong: that clone keeps a stale local branch with a `kept` line.
+- Ruling: plan round 1 — Continue outside Claude Code reads the holds without the lock (`readHoldsFile`); a live hold, or a read that throws, means no merge — the read only decides whether to merge, as `passGuards` reads them — cost if wrong: a hold taken at the same instant is merged under once.
+- Ruling: plan round 1 — `/accord upgrade` takes the command only from the first line of a fresh `accord dashboard`, and checks its package against the session rules line when the session has one — the ledger forbids hard-coding the package name in a skill — cost if wrong: in a tool without the rules line, a tampered cache file could name another package.
+- Ruling: plan round 1 — accord/worktree.md names `/accord upgrade` in plain text instead of `./upgrade.md`, so verify and debug renders load nothing new — the smaller change — cost if wrong: one sentence changes.
+- Ruling: plan round 1 — the test helper `doneOnRemote` gains a `local` option that fast-forwards this clone's ticket branch — it covers the clone that ran verify — cost if wrong: a few test lines change.
 
 ## Deferred
 
@@ -45,3 +52,6 @@
 - plan round 1.13: `hooksPlanFor` must keep the claude check before `assertNoLink` in `planHooks` (Task 6).
 - plan round 1.14: `loadConfig(next)` is `loadConfig('accord/config.yml', next)` (Task 6).
 - plan round 1.15: "Before `- Any other exit 2`" is the bullet at accord/worktree.md:50, not :77 (Task 8).
+- plan round 2.4: SKILL.md:9 runs the session check before every action; add "except `/accord upgrade`" so it matches upgrade.md (Task 8).
+- plan round 2.5: the Task 5 risk test titled "pick up and continue never clean the ticket they open" runs only Continue; add a Pick up run or retitle (Task 5).
+- plan round 2.6: Task 8's `behind:` bullet omits the live Claude Code hold as a reason Continue did not merge (Task 8).

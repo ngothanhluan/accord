@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { parse as parseYaml } from 'yaml';
 import { parsePlanReview } from './plan-review.mjs';
-import { ROLES } from './round.mjs';
+import { ROLES, checkSamples, rewriteBrief } from './round.mjs';
 import { compliance, render as renderCompliance, parseCompliance, mergeCompliance } from './compliance.mjs';
 
 const projectsRoot = path.join(os.homedir(), '.claude', 'projects');
@@ -413,6 +413,98 @@ export function ticketRecords(repo) {
   return found;
 }
 
+const showAt = (repo, base, file) => { try { return gitIn(repo, ['-c', 'log.showSignature=false', 'show', '--no-show-signature', `${base}:${file}`]); } catch { return undefined; } };
+const existsAt = (repo, base, file) => { try { gitIn(repo, ['cat-file', '-e', `${base}:${file}`]); return true; } catch { return false; } };
+const slashed = (p) => p.replace(/\\/g, '/');
+const sameFile = (a, b) => slashed(a).toLowerCase() === slashed(b).toLowerCase();
+const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// A snapshot is never overwritten: once the transcripts expire it is the only copy of the dispatch.
+export function snapshotSample(repo, sample, run, bench) {
+  const name = sample.agent.slice('accord-'.length) + '-' + sample.n;
+  const dir = path.join(bench, 'samples', name);
+  const file = path.join(dir, 'sample.json');
+  const at = `${sample.agent} ${sample.n}`;
+  if (fs.existsSync(file)) {
+    const have = JSON.parse(fs.readFileSync(file, 'utf8')).transcript;
+    return { problems: have === sample.transcript ? [] : [`${at}: the snapshot in ${slashed(dir)} is of ${have}, not ${sample.transcript}`], kept: true };
+  }
+  const problems = [];
+  if (!run?.dispatch) return { problems: [`${at}: no run for ${at} in ${sample.transcript}`], kept: false };
+  const { prompt } = run.dispatch;
+  if (sample.agent === 'accord-executor') {
+    const plan = showAt(repo, sample.base, `accord/tickets/${sample.ticket}/plan.md`) ?? '';
+    const section = plan.split(/^## /m).find((s) => s.startsWith(`Task ${sample.task}:`)) ?? '';
+    const shows = /^verify:.*\brisk:/m.test(section) ? 'risk' : 'plain';
+    if (shows !== sample.kind) problems.push(`kind ${sample.kind} does not match the verify line of task ${sample.task}, which shows ${shows}`);
+  }
+  const ticket = showAt(repo, sample.base, `accord/tickets/${sample.ticket}.md`);
+  if (ticket === undefined) problems.push(`accord/tickets/${sample.ticket}.md does not exist at base`);
+  const rel = new RegExp(`(?<![A-Za-z0-9_])${slashed(sample.root).split('/').map(esc).join('[\\\\/]')}[\\\\/]([^\\s"'\`,;)]+)`, 'gi');
+  for (const m of prompt.matchAll(rel)) {
+    const r = slashed(m[1]).replace(/\.$/, '').replace(/\/$/, '');
+    if (r && !existsAt(repo, sample.base, r)) problems.push(`${r} does not exist at base`);
+  }
+  const read = (p) => run.reads.find((x) => sameFile(x.path, p));
+  for (const f of sample.files) {
+    if (f.from === 'copy') {
+      if (!fs.existsSync(f.path)) problems.push(`${f.path} is missing`);
+      else {
+        if (fs.statSync(f.path).mtimeMs > run.dispatch.ts) problems.push(`${f.path} was modified after the dispatch`);
+        if (read(f.path) && fs.readFileSync(f.path, 'utf8').replace(/\n+$/, '') !== read(f.path).text.replace(/\n+$/, '')) problems.push(`${f.path} differs from what the run read`);
+      }
+    }
+    if (!read(f.path)) problems.push(`${f.path} was never read by the run`);
+  }
+  if (ticket !== undefined) {
+    const mine = slashed(bench);
+    const paths = [
+      [sample.root, `${mine}/wt/${name}`],
+      ...sample.elsewhere.map((p, i) => [p, `${mine}/absent/${i + 1}`]),
+      ...sample.files.map((f) => [f.path, `${mine}/files/${name}/${path.posix.basename(slashed(f.path))}`]),
+    ];
+    const pairs = sample.pairs.map(([from, to]) => [from, sample[to]]);
+    const check = { bench: mine, allowed: [] };
+    problems.push(...rewriteBrief(prompt, { ticket, paths, pairs, check }).problems);
+    for (const f of sample.files) {
+      const r = read(f.path);
+      if (r) problems.push(...rewriteBrief(r.text, { ticket, paths, pairs, check: { ...check, refs: false } }).problems);
+    }
+  }
+  if (problems.length) return { problems: [...new Set(problems)].map((p) => `${at}: ${p}`), kept: false };
+  fs.mkdirSync(dir, { recursive: true });
+  const reads = Object.fromEntries(sample.files.map((f) => [f.path, read(f.path).text]));
+  fs.writeFileSync(file, JSON.stringify({ transcript: sample.transcript, prompt, cwd: run.dispatch.cwd, ts: run.dispatch.ts, reads }, null, 2) + '\n');
+  return { problems, kept: false };
+}
+
+function runSamples(repo) {
+  const listFile = path.join(repo, 'scripts', 'benchmark-samples.json');
+  if (!fs.existsSync(listFile)) { process.stderr.write('no sample list: scripts/benchmark-samples.json\n'); return 2; }
+  const list = JSON.parse(fs.readFileSync(listFile, 'utf8'));
+  const bad = checkSamples(list);
+  if (bad.length) { process.stderr.write(bad.join('\n') + '\n'); return 2; }
+  const bench = benchRoot(repo);
+  const folders = new Map();
+  const problems = [];
+  let written = 0, kept = 0;
+  for (const s of list.samples) {
+    const exists = fs.existsSync(path.join(bench, 'samples', `${s.agent.slice('accord-'.length)}-${s.n}`, 'sample.json'));
+    let run;
+    if (!exists) {
+      const seg = s.transcript.split('/')[0];
+      if (!folders.has(seg)) folders.set(seg, readSessions([path.join(projectsRoot, seg)]).runs);
+      run = folders.get(seg).find((r) => r.file === s.transcript);
+    }
+    const out = snapshotSample(repo, s, run, bench);
+    problems.push(...out.problems);
+    if (out.kept) kept++; else if (!out.problems.length) written++;
+  }
+  if (problems.length) { process.stderr.write(problems.join('\n') + '\n'); return 2; }
+  process.stdout.write(`${written} written, ${kept} kept\n`);
+  return 0;
+}
+
 function runCompliance(folders, repo) {
   if (!folders.length) { process.stderr.write('--compliance needs the transcript folders to read\n'); return 2; }
   const s = readSessions(folders);
@@ -431,6 +523,7 @@ function runCompliance(folders, repo) {
 
 export function main(args) {
   if (args[0] === '--compliance') return runCompliance(args.slice(1), process.cwd());
+  if (args[0] === '--round' && args[1] === '1' && args[2] === '--samples') return runSamples(process.cwd());
   if (args.some((a) => a.startsWith('--'))) {
     process.stderr.write('usage: node scripts/benchmark.mjs [--compliance | --round 1 [--samples | --plan | --judge] | --clean [--force]] [folder ...]\n');
     return 2;

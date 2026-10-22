@@ -165,7 +165,8 @@ export function rewriteBrief(text, { ticket, paths, pairs, check }) {
     for (const p of [before, after]) {
       for (const m of p.matchAll(ABS)) {
         const path = m[0].replace(/\.$/, '').replace(/\\/g, '/');
-        if (!fold(path).startsWith(bench) && !seenPaths.has(path)) {
+        // A bench root holding a space (C:/Users/Luan Ngo/...) is cut at the space by the path match: that prefix is still the bench.
+        if (!fold(path).startsWith(bench) && !bench.startsWith(fold(path) + ' ') && !seenPaths.has(path)) {
           seenPaths.add(path);
           problems.push(`absolute path ${path} outside the bench root is left in the brief`);
         }

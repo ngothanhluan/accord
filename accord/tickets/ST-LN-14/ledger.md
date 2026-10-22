@@ -120,6 +120,7 @@
 - Ruling: debug episode 4 root cause 3 — after `git worktree remove --force` succeeds, a folder still at the path is deleted with `fs.rmSync` only when it holds nothing but directory junctions, symlinks and directories of those (checked with lstat, never following a link); a regular file left there is an error naming the path, with nothing deleted — Git for Windows exits 0 but skips the junctions `npm ci` makes for workspaces, and git has already deleted every tracked, untracked and ignored file — a link-only leftover is never a run's output
 - Ruling: review round 13 — a verifier sample whose base config has no `tests.report` exits 2 naming the sample and the key; the report count test asserts one `tests.full` per verifier sample (five, not fifteen), since each effort is its own worktree and siblings get a copy — the count case passed on its first run, so it holds the copy rather than proving a past failure — a regression to one run per worktree fails it
 - Ruling: review round 13 — the root cause 3 test name has no commas or apostrophe (the verify-id rule forbids commas in a test name) — none
+- Ruling: debug episode 4 — the link-only folder the first `--plan --rerun` left at wt/executor-1-low (no files, three dangling workspace junctions, not in `git worktree list`, its commits at refs/keep/bench/executor-1-low/1) is deleted by hand by the main session after a walk found no regular entry — the old removal left it and the new code cannot reach an unregistered folder — none: nothing in it was a run's output
 
 ## Deferred
 - plan-review 1.15: the approach says `--plan` rewrites only the brief's working-tree header lines; Task 5 rewrites the root everywhere outside the ticket
@@ -160,6 +161,9 @@
 - review round 12 Nice 3: `--rerun` checks `git status --porcelain`, which omits ignored files, so a run's ignored output (a `*.log`, its own JUnit report under node_modules/.cache) is removed with the folder; the run's commits and tracked changes are what a rerun must keep, ignored output is rebuilt or rewritten
 - review round 12 Nice 4: a `--rerun a,b` refusal on `b` comes after `a` was kept and rebuilt, and is printed with the hint "(setup is repeated on the next --plan run)", which is wrong for a dirty-tree refusal; nothing is lost
 - review round 12 note: `rerunWorktree` skips its keep and refuse checks when the record has no branch; unreachable today, since `runPlan` gives every writer row a branch
+- review round 14 Nice 3: a link-only folder an earlier removal left, with no registration and no record, makes `--plan` refuse "already exists" and `--clean` never sees it; it is deleted by hand after checking it holds only links (done once for executor-1-low on 2026-10-22)
+- review round 14 Nice 4: when `cleanWorktrees`' leftover check throws after git unregistered the worktree, its branch stays and the next `--clean` never sees the folder; the printed undo (`git worktree remove --force <path>`) no longer applies
+- review round 14 Nice 5: `expect(r.status).toBe(2)` in "a suite that fails once and passes on its re-run does not stop --plan" comes only from its fixture lacking `tests.report`, so the test name now contradicts its assertion
 
 ## Tasks
 - task 1 done cfd797751f01

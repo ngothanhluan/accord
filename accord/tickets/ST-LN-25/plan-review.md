@@ -29,4 +29,8 @@
 
 ## Round 3 (diff)
 
-1. Should — Rule 4 compares the whole lane S branch, from its fork point, against main as it is now, so a squash-merged lane S branch is kept forever once main also changes a file the branch changed (a later ticket touching `src/a.ts`, or GitHub squashing a branch that was behind), and every clone prints a false `kept … it has changes not on origin/main` on each `/accord`. Fix: judge rule 4 with `git merge-tree --write-tree <ref> <T>` (git >= 2.38, https://git-scm.com/docs/git-merge-tree), safe when it exits 0 and its tree equals `<ref>^{tree}`; or keep such a branch with no line (Tasks 3, 4) — open
+1. Should — Rule 4 compares the whole lane S branch, from its fork point, against main as it is now, so a squash-merged lane S branch is kept forever once main also changes a file the branch changed (a later ticket touching `src/a.ts`, or GitHub squashing a branch that was behind), and every clone prints a false `kept … it has changes not on origin/main` on each `/accord`. Fix: judge rule 4 with `git merge-tree --write-tree <ref> <T>` (git >= 2.38, https://git-scm.com/docs/git-merge-tree), safe when it exits 0 and its tree equals `<ref>^{tree}`; or keep such a branch with no line (Tasks 3, 4) — fixed
+
+## Round 4 (diff)
+
+1. Should — Option A still keeps a squash-merged lane S branch forever when main later edits a file the branch added (add/add) or the same lines it changed: `merge-tree` exits 1, and every `/accord` in that clone prints the false `kept t/A: it has changes not on origin/main`; the round-3 Ruling names only old git as its cost. Add this case to that Ruling's cost, optionally a true kept line for exit 1 (`kept <b>: merging it into <def> conflicts`) with a test for the conflict path; never `-X ours` (Tasks 3, 4) — open

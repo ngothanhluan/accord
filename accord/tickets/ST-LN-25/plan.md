@@ -1,6 +1,6 @@
 ---
 baseline: 2b59feb1ada5bad9fac6ea087ea9604062512779
-plan_hash: "fnv1a64:45feffe994c2b189"
+plan_hash: "fnv1a64:7cbc4e6a9092a9aa"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -69,13 +69,18 @@ Definitions shared by every task:
      its content on main). Any other path, `accord/product/conventions.md` included, makes `T` not safe: a
      commit after verification whose content is not on main is never lost.
   4. `vc` is undefined (a lane S ticket, whose records hold no `verified_commit`, or a clone that cannot resolve
-     it): `m = git merge-base <T> <ref>` (through `git()`; a failure makes `T` not safe), and every path in
-     `A = git diff --name-only -z --no-renames <m> <T> --` is absent from
-     `B = git diff --name-only -z --no-renames <T> <ref> --`. No path is exempt here, the ticket's own records
-     included: with no verified commit to measure from, a branch is removed only when everything it changed since
-     it forked has the same content on main, so a squash or rebase merge of a lane S branch is cleaned and a
-     branch holding anything main does not is kept.
-  No other git command is used: no `log`, no `show`, no `rev-list` walk (ledger Ruling on critic 8).
+     it): `out = git(root, ['merge-tree', '--write-tree', ref, T])` and `main = git(root, ['rev-parse', ref +
+     '^{tree}']).trim()`; `T` is safe when `out.split('\n')[0].trim() === main`. `git merge-tree --write-tree`
+     (git >= 2.38, https://git-scm.com/docs/git-merge-tree) merges `T` into `ref` from their merge base without
+     touching any index, worktree or ref, exits 0 on a clean merge and prints the merged tree's id as its first
+     line. Any throw from `git()` makes `T` not safe: exit 1 (a conflict) or any other non-zero exit (an older git
+     that does not know `--write-tree`), so such a branch is kept with its kept line. No path is exempt, the
+     ticket's own records included: the branch is removed only when merging it into main would change nothing,
+     so a squash or rebase merge of a lane S branch is cleaned even after main has since changed other hunks of
+     the same files, and a branch holding anything main does not is kept (ledger Ruling plan round 3, the owner
+     chose A).
+  No other git command is used: no `log`, no `show`, no `rev-list` walk (ledger Ruling on critic 8, amended by
+  the ledger Ruling plan round 3 for rule 4's `merge-tree` and `rev-parse`).
 - The kept line for an unsafe tip names what it measured: `it has commits after its verified commit` when `vc` is
   defined, `it has changes not on <def>` when `vc` is undefined (no verified commit to name).
 - Test helper `doneOnRemote(c, ids, opts: { squash?: boolean; local?: boolean } = {}): Record<string, string>`
@@ -317,14 +322,22 @@ Test first, at the end of `worktree.test.ts`:
     `branch --show-current` there is `''`. Clean exits 0; `lines(out)` is the one line
     `kept t/ST-9: being rebased in <e.sibling('ST-9')>`; the sibling exists and `has(e.root,
     'refs/heads/t/ST-9')` and `has(e.remote, 'refs/heads/t/ST-9')` are true. Last, `rebase --abort` there.
-  - Lane S, squashed, no verified commit: `f = clone()`. For each of `ST-12` and `ST-13`: `ticketWorktree(f, x)`;
+  - Lane S, squashed, no verified commit, then main changes another hunk of a file the branch changed: `f = clone()`;
+    in `f.root` write `shared.txt` = the ten lines `l1\n` to `l10\n`, `commitMsg(f.root, 'shared')`,
+    `gitRun(f.root, 'push', '-q', 'origin', 'main')`, so both ticket branches fork after it. For each of `ST-12`
+    and `ST-13`: `ticketWorktree(f, x)`;
     in `sx = f.sibling(x)` write `accord/tickets/<x>.md` = `laneTicket(x, { lane: 'S', body: LANE_S_BODY })`;
+    for `ST-12` only, also write `shared.txt` with its first line `l1` replaced by `ST-12` (lines 2 to 10 as they were);
     `run(['gate', 'ready', x], sx)` exits 0 (it writes `ac_hash`); write `accord/tickets/<x>/review.md` =
     `## Round 1\n\nNo findings\n\nverdict: converged\n`; `tx = commitMsg(sx, 'review: <x>')` (`t12` is ST-12's);
     `gitRun(sx, 'push', '-q', 'origin', 't/<x>')`. In `o = f.otherClone()`: `gitRun(o, 'fetch', '-q', 'origin')`,
-    then for each id `gitRun(o, 'merge', '--squash', '-q', 'origin/t/<x>')` and `commitMsg(o, 'merge <x>')`; push
-    `main`. Precondition: `run(['status', '--json'], o)` lists both with `stage` `done` and neither ticket file on `o`'s main has a `verified_commit:` line. In ST-13's sibling write `late.txt`,
-    `commitMsg` (not pushed). Clean exits 0 and `lines(out)` equals, in this order: `removed <f.sibling('ST-12')>`,
+    then for each id `gitRun(o, 'merge', '--squash', '-q', 'origin/t/<x>')` and `commitMsg(o, 'merge <x>')`; then
+    write `shared.txt` in `o` with its last line `l10` replaced by `main` (line 1 stays `ST-12`) and
+    `commitMsg(o, 'main edit')`, a change on main after both merges to another hunk of the file ST-12 changed; push
+    `main`. Preconditions: `run(['status', '--json'], o)` lists both with `stage` `done` and neither ticket file on `o`'s main has a `verified_commit:` line;
+    `gitRun(o, 'diff', '--name-only', 'origin/t/ST-12', 'main', '--', 'shared.txt').trim()` is `shared.txt`, so
+    ST-12's tip and main differ in a file the branch changed (a per-path comparison would keep it). In ST-13's
+    sibling write `late.txt`, `commitMsg` (not pushed). Clean exits 0 and `lines(out)` equals, in this order: `removed <f.sibling('ST-12')>`,
     `deleted t/ST-12 (was <t12>)`, `kept t/ST-13: it has changes not on origin/main`. No line contains
     `verified commit`. ST-13's sibling and `t/ST-13` remain, `t/ST-12` is gone. `LANE_S_BODY` joins the existing
     import from `../../../test/helpers/lane.js`.

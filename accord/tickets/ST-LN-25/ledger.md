@@ -45,6 +45,9 @@
 - Ruling: plan round 1 — the test helper `doneOnRemote` gains a `local` option that fast-forwards this clone's ticket branch — it covers the clone that ran verify — cost if wrong: a few test lines change.
 - Ruling: plan round 2 — when a done ticket has no resolvable verified commit (lane S, or a clone without it), measure from `git merge-base <T> <ref>` and exempt no path, the ticket's records included — only the same content on main proves nothing is lost — cost if wrong: a lane S branch whose records changed again after the merge is kept and deleted by hand.
 - Ruling: plan round 2 — the kept line without a verified commit reads `kept <b>: it has changes not on <def>` — the old wording named a commit that does not exist — cost if wrong: one more message variant for the skill text and README.
+- Ruling: plan round 3 — the owner chose A ("A"): a done ticket without a resolvable verified commit is safe when `git merge-tree --write-tree <ref> <T>` (git >= 2.38) exits 0 and its tree equals `<ref>^{tree}`, amending critic 8's "no other git command"; when the command fails (older git, conflict) the branch is kept — merging it would add nothing to main, so nothing is lost — cost if wrong: a teammate on git older than 2.38 keeps such branches with a `kept` line.
+- Ruling: plan round 3 — rule 4 reads only the first line of `merge-tree` output and trusts its exit code — a clean merge prints only the tree id, and any non-zero exit means not safe — cost if wrong: one more output check in `safeTip`.
+- Ruling: plan round 3 — the squash-then-main-moved case goes into ST-12's existing lane S test part, so the expected lines stay as they are — ST-12 being removed is the proof — cost if wrong: a few test lines move into a separate part.
 - Ruling: plan round 2 — the setup-failure check after a Continue merge is a second part of the `ac-4` test — `ac-4` already covers setup running on the merge — cost if wrong: one more part in a scenario's test.
 
 ## Deferred

@@ -257,6 +257,31 @@ export function judgeBrief(kind, { agent, ticket, worktree, base, package: pkg, 
   ].join('\n');
 }
 
+// ---- matching finished runs to rows ----
+export function matchRuns(rows, runs, { judges }) {
+  const out = { runs: new Map(), judges: new Map(), missing: [], duplicate: [], notFresh: [], extra: [] };
+  const find = (desc) => {
+    const hit = runs.filter((r) => r.desc === desc);
+    if (!hit.length) out.missing.push(desc);
+    else if (hit.length > 1) out.duplicate.push(`${desc} (${hit.length} runs)`);
+    return hit[0];
+  };
+  for (const row of rows) {
+    const run = find(describe(row.tag));
+    if (run) out.runs.set(row.tag, run);
+    if (!judges) continue;
+    if (!row.judge) {
+      out.extra.push(...runs.filter((r) => r.desc === judgeDescribe(row.tag)));
+      continue;
+    }
+    const j = find(judgeDescribe(row.tag));
+    if (!j) continue;
+    out.judges.set(row.tag, j);
+    if (j.sends?.length) out.notFresh.push(row.tag);
+  }
+  return out;
+}
+
 // ---- suggestion and report ----
 export const median = (xs) => { if (!xs.length) return 0; const s = [...xs].sort((a, b) => a - b); return s[Math.floor(s.length / 2)]; };
 

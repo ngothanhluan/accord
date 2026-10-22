@@ -280,3 +280,39 @@ it('ac-3 the report suggests an effort for each agent and changes no agent defin
     rmSync(dir, { recursive: true, force: true, maxRetries: 5 });
   }
 });
+
+it('risk:complex-branching runs and judges are matched by tag and every tag with no run or two runs is named', async () => {
+  type Run = { desc: string; sends: unknown[] };
+  const { matchRuns } = (await import(new URL('../../../scripts/round.mjs', import.meta.url).href)) as {
+    matchRuns: (rows: unknown[], runs: Run[], o: { judges: boolean }) => {
+      runs: Map<string, Run>; judges: Map<string, Run>; missing: string[]; duplicate: string[]; notFresh: string[]; extra: Run[];
+    };
+  };
+  const judge = { agent: 'accord-reviewer', model: 'opus', effort: 'high' };
+  const rows = [
+    { tag: 'executor-1-low', judge },
+    { tag: 'critic-1-high', judge: null },
+    { tag: 'critic-1-xhigh', judge },
+  ];
+  const run = (desc: string, sends: unknown[] = []): Run => ({ desc, sends });
+  const first = run('bench r1 executor-1-low');
+  const jA = run('bench r1 executor-1-low judge');
+  const jC = run('bench r1 critic-1-xhigh judge', [{ message: 'again' }]);
+  const jB = run('bench r1 critic-1-high judge');
+  const runs = [first, run('bench r1 critic-1-high'), run('bench r1 critic-1-high'), jA, jC, jB];
+
+  const a = matchRuns(rows, runs, { judges: false });
+  expect(a.missing).toEqual(['bench r1 critic-1-xhigh']);
+  expect(a.duplicate).toEqual(['bench r1 critic-1-high (2 runs)']);
+  expect(a.runs.get('executor-1-low')).toBe(first);
+
+  const b = matchRuns(rows, runs, { judges: true });
+  expect(b.missing).toEqual(['bench r1 critic-1-xhigh']);
+  expect(b.duplicate).toEqual(['bench r1 critic-1-high (2 runs)']);
+  expect(b.judges.get('executor-1-low')).toBe(jA);
+  expect(b.notFresh).toEqual(['critic-1-xhigh']);
+  expect(b.extra).toEqual([jB]);
+
+  const c = matchRuns(rows, runs.filter((r) => r !== jA), { judges: true });
+  expect(c.missing).toEqual(['bench r1 executor-1-low judge', 'bench r1 critic-1-xhigh']);
+});

@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { execFileSync, execSync } from 'node:child_process';
 import { parse as parseYaml } from 'yaml';
 import { parsePlanReview } from './plan-review.mjs';
-import { median, ROLES, WRITERS, checkSamples, runMatrix, rewriteBrief, dispatchTable } from './round.mjs';
+import { median, ROLES, WRITERS, checkSamples, runMatrix, rewriteBrief, dispatchTable, matchRuns, mustsOf, judgeBrief, parseVerdict, holds, turnFlags, report } from './round.mjs';
 import { compliance, render as renderCompliance, parseCompliance, mergeCompliance } from './compliance.mjs';
 
 const projectsRoot = path.join(os.homedir(), '.claude', 'projects');
@@ -650,8 +650,95 @@ function runCompliance(folders, repo) {
   return 0;
 }
 
+// ---- judges and the round report ------------------------------------------------
+function loadRound(repo, extra) {
+  const err = (m) => { process.stderr.write(m + '\n'); return null; };
+  const bench = slashed(benchRoot(repo));
+  const stateFile = path.join(bench, 'round-1.json');
+  if (!fs.existsSync(stateFile)) return err('run --round 1 --plan first');
+  const rows = JSON.parse(fs.readFileSync(stateFile, 'utf8')).rows;
+  if (!rows) return err('run --round 1 --plan first');
+  const list = JSON.parse(fs.readFileSync(path.join(repo, 'scripts', 'benchmark-samples.json'), 'utf8'));
+  const dirs = [...new Set([...defaultDirs(repo), ...extra])];
+  return { bench, rows, list, runs: readSessions(dirs).runs };
+}
+
+const readOr = (file, dflt = '') => (fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : dflt);
+const verificationOf = (row) => readOr(`${row.worktree}/accord/tickets/${row.ticket}/verification.md`);
+const kindOf = (agent) => ({ executor: 'must', planner: 'must', fact: 'fact' }[ROLES[agent]] ?? 'match');
+
+function runRound(repo, { judge, extra }) {
+  const ctx = loadRound(repo, extra);
+  if (!ctx) return 2;
+  const { bench, rows, list, runs } = ctx;
+  const m = matchRuns(rows, runs, { judges: !judge });
+  const bad = [...m.missing, ...m.duplicate];
+  if (bad.length) { for (const b of bad) process.stderr.write(`no run or more than one run for: ${b}\n`); return 2; }
+  const sampleOf = (r) => list.samples.find((s) => s.agent === r.agent && s.n === r.n);
+  const currentOf = (r) => rows.find((x) => x.agent === r.agent && x.n === r.n && x.current);
+  const referenceOf = (r) => {
+    const cur = currentOf(r);
+    return mustsOf(r.agent, m.runs.get(cur.tag).lastText, verificationOf(cur));
+  };
+  if (judge) {
+    const out = [];
+    fs.mkdirSync(`${bench}/briefs`, { recursive: true });
+    for (const r of rows.filter((x) => x.judge)) {
+      const s = sampleOf(r), run = m.runs.get(r.tag), kind = kindOf(r.agent);
+      const ticket = `${r.worktree}/accord/tickets/${r.ticket}.md`;
+      const args = { agent: r.agent, ticket, worktree: r.worktree, base: s.base };
+      if (r.agent === 'accord-executor') {
+        const dir = `${bench}/files/${r.tag}`;
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(`${dir}/result.md`, cli(r.worktree, ['review-package', r.ticket, '--base', s.base]));
+        args.package = `${dir}/result.md`;
+      } else if (r.agent === 'accord-planner') args.plan = `${r.worktree}/accord/tickets/${r.ticket}/plan.md`;
+      else if (kind === 'match') {
+        args.reference = referenceOf(r);
+        args.report = run.lastText + (r.agent === 'accord-verifier' ? '\n' + verificationOf(r) : '');
+      } else args.report = run.lastText;
+      const prompt = `${bench}/briefs/${r.tag}-judge.md`;
+      fs.writeFileSync(prompt, judgeBrief(kind, args));
+      out.push({ tag: `${r.tag} judge`, ...r.judge, prompt, judge: null });
+    }
+    process.stdout.write(dispatchTable(out));
+    process.stdout.write("Dispatch every row: a fresh agent each, with the brief file's text as the prompt.\n");
+    return 0;
+  }
+  const flags = [], unjudged = [], verdicts = new Map();
+  for (const r of rows) {
+    const j = m.judges.get(r.tag);
+    flags.push({ tag: r.tag, flags: turnFlags(m.runs.get(r.tag).turns, r) });
+    if (!r.judge) continue;
+    flags.push({ tag: `${r.tag} judge`, flags: turnFlags(j.turns, r.judge) });
+    const ref = ROLES[r.agent] === 'finding' ? referenceOf(r) : [];
+    const v = m.notFresh.includes(r.tag) ? null : parseVerdict(kindOf(r.agent), j.lastText, ref.length);
+    verdicts.set(r.tag, v);
+    if (!v) unjudged.push({ tag: r.tag, reason: m.notFresh.includes(r.tag) ? 'judge was not fresh' : 'judge verdict unreadable' });
+  }
+  const results = rows.map((r) => {
+    const run = m.runs.get(r.tag);
+    let suite, gate;
+    if (r.agent === 'accord-executor') { try { sh(configAt(r.worktree, repo).tests.full, r.worktree); suite = true; } catch { suite = false; } }
+    if (r.agent === 'accord-planner') { try { cli(r.worktree, ['gate', 'plan', r.ticket]); gate = true; } catch { gate = false; } }
+    const verdict = verdicts.get(r.tag) ?? null;
+    const cur = currentOf(r);
+    const held = holds(r.agent, { current: r.current, suite, gate, verdict, currentVerdict: verdicts.get(cur.tag) ?? null });
+    const result = { tag: r.tag, agent: r.agent, n: r.n, kind: sampleOf(r).kind ?? null, effort: r.effort, current: r.current, held, ms: run.ms, usage: run.usage, verdict };
+    if (ROLES[r.agent] === 'finding' && r.current) result.reference = referenceOf(r).length;
+    return result;
+  });
+  const file = writeReport(repo, report(results, agentSettings(repo), { flags, unjudged, compliance: readOr(`${bench}/compliance.md`, '## Compliance\n\nNone.\n') }));
+  process.stdout.write(file + '\n');
+  return 0;
+}
+
 export function main(args) {
   if (args[0] === '--compliance') return runCompliance(args.slice(1), process.cwd());
+  if (args[0] === '--round' && args[1] === '1' && !['--samples', '--plan'].includes(args[2])) {
+    const judge = args[2] === '--judge';
+    return runRound(process.cwd(), { judge, extra: args.slice(judge ? 3 : 2).filter((a) => !a.startsWith('--')) });
+  }
   if (args[0] === '--clean') return runClean(process.cwd(), args.includes('--force'));
   if (args[0] === '--round' && args[1] === '1' && args[2] === '--samples') return runSamples(process.cwd());
   if (args[0] === '--round' && args[1] === '1' && args[2] === '--plan') return runPlan(process.cwd());

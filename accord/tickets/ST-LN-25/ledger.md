@@ -30,3 +30,18 @@
 - Ruling: critic 12 — the skill rule "`accord worktree clean` runs only from `/accord` with no argument" is replaced: Pick up, Continue and a new request clean through `worktree open` and `new ticket --worktree`, the bare `/accord` through `worktree clean`, and the Upgrade action runs `accord worktree clean` before it; a New request stopped by the session check cleans nothing, since it runs no command — cost if wrong: a stopped New request leaves cleaning to the next command.
 - Ruling: the second audit's splits are settled in the wording — ac-4: always a merge commit, never a fast-forward (`--no-ff`, as `worktree merge` does today); ac-5: the command fetches origin first and reads ST-9's ticket file at the fetched main; done on main is enough even for a squash merge, while a branch holding a commit after the recorded verified commit is kept; `<id>` is another ticket than ST-9 — cost if wrong: the owner rewords a criterion at the yes.
 - Ruling: the automatic clean (D-02) keeps every guard `accord worktree clean` has today: a worktree with uncommitted work or held by a live session is kept, with its one `kept` line (packages/cli/src/commands/worktree.ts:556-564) — losing work is never traded for tidiness — cost if wrong: a merged ticket's worktree with stray edits stays until the owner clears it.
+- Ruling: plan — the clean judges "done" by the stage `accord status` shows for the ticket file read at origin's main, not by running `gate done`, because main holds no test report — cost if wrong: the clean judges done differently from what `gate done` verifies.
+- Ruling: plan — a branch with a commit after its verified commit is kept with `kept <b>: it has commits after its verified commit`; a merged ticket that is not done is kept silently; a clean error inside `worktree open` or `new ticket` prints `clean failed, nothing more was removed: …` and never stops the command — cost if wrong: line wording changes.
+- Ruling: plan — in a Claude Code session missing its session variables Continue prints `behind:` and does not merge; when setup fails after a merge the push still runs and the setup error is raised after it; the conflict message names `git -C "<path>" merge <default branch>` — cost if wrong: one more Continue by hand.
+- Ruling: plan — the registry endpoint is `https://registry.npmjs.org/-/package/<name, / as %2f>/dist-tags` (what `npm dist-tag ls` reads); the cache is `<LOCALAPPDATA | XDG_CACHE_HOME | ~/.cache>/accord/registry.json`; the notice reads `accord <new> is out, and this repository pins <pin>: type /accord upgrade to run npx --yes <pkg>@<new> upgrade` — cost if wrong: an endpoint, a path or one string changes.
+- Ruling: plan — the ac-3 test pins `0.0.9` on main and expects the running CLI's own version, since the version under test is fixed; the criterion's 0.1.0 → 0.2.0 is the same move by one step — cost if wrong: the test cannot show the literal versions.
+- Ruling: plan — the skill's "Any other text starts a New request" gains "but `upgrade`", routing `/accord upgrade` to the Upgrade action — cost if wrong: one skill line.
+
+## Deferred
+
+- plan round 1.10: worktree.md's `behind:` reasons omit "a Claude Code session missing its variables" (Task 8).
+- plan round 1.11: the README sentence on which commands clean omits lane S's `new ticket --lane S --worktree` (Task 8).
+- plan round 1.12: hook.test.ts has no `lines` helper; Task 1's tests use one (Task 1).
+- plan round 1.13: `hooksPlanFor` must keep the claude check before `assertNoLink` in `planHooks` (Task 6).
+- plan round 1.14: `loadConfig(next)` is `loadConfig('accord/config.yml', next)` (Task 6).
+- plan round 1.15: "Before `- Any other exit 2`" is the bullet at accord/worktree.md:50, not :77 (Task 8).

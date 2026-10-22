@@ -164,8 +164,9 @@ export function register(on) {
       if (v.noMatch) children.push(Text({ children: [v.noMatch] }));
       if (v.newRequest) children.push(Button({ key: v.newRequest.key, label: v.newRequest.label, onPress: run(v.newRequest.args) }));
       const { widths } = v;
-      const cellBoxes = (id, stage, title) => [
+      const cellBoxes = (id, lane, stage, title) => [
         Box({ width: widths.id, flexShrink: 0, children: [id] }),
+        Box({ width: widths.lane, flexShrink: 0, children: [lane] }),
         Box({ width: widths.stage, flexShrink: 0, children: [stage] }),
         Box({ flexGrow: 1, flexShrink: 1, children: [title] }),
       ];
@@ -173,7 +174,7 @@ export function register(on) {
       for (const s of v.sections) {
         children.push(Box({ marginTop: 1, children: [Text({ bold: true, color: 'cyan', children: [s.heading] })] }));
         if (s.rows.length > 0) {
-          children.push(line(cellBoxes(...['ID', 'STAGE', 'TITLE'].map((w) => Text({ dimColor: true, children: [w] })))));
+          children.push(line(cellBoxes(...['ID', 'LANE', 'STAGE', 'TITLE'].map((w) => Text({ dimColor: true, children: [w] })))));
         }
         for (const r of s.rows) {
           const stage = Text({ children: [r.stage], ...(r.stageColor ? { color: r.stageColor } : {}) });
@@ -186,7 +187,7 @@ export function register(on) {
                 children: [Text({ bold: true, underline: true, color: 'suggestion', children: [r.id] })],
               })
             : Text({ bold: true, children: [r.id] });
-          const kids = cellBoxes(idCell, stage, Text({ wrap: 'truncate', children: [r.title] }));
+          const kids = cellBoxes(idCell, Text({ children: [r.lane] }), stage, Text({ wrap: 'truncate', children: [r.title] }));
           children.push(line(kids));
           if (r.blockedBy || r.who) {
             const sub = [Box({ width: widths.id, flexShrink: 0 })];

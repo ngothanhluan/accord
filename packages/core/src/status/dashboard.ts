@@ -1,6 +1,6 @@
 // ST-LN-2 `accord dashboard`: the sections, the rank and the caps, computed once so every runtime and the
 // panel show the same thing (D-02, D-06). Pure: reads the snapshot, returns data, no display text.
-import type { RepoSnapshot } from '../model/snapshot.js';
+import type { Lane, RepoSnapshot } from '../model/snapshot.js';
 import { nextRows, statusRows } from './rows.js';
 import type { StatusRow } from './rows.js';
 import { isDone } from './stage.js';
@@ -20,6 +20,7 @@ export interface DashboardSummary {
 }
 export interface EpicRow {
   id: string;
+  lane?: Lane;
   title: string;
   done: number;
   total: number;
@@ -108,7 +109,7 @@ function epicsSection(snapshot: RepoSnapshot, plain: RepoSnapshot): Dashboard['e
     .filter(([, t]) => t.frontmatter?.type === 'epic' && t.frontmatter.status !== 'archived' && t.frontmatter.status !== 'dropped')
     .map(([id, t]) => {
       const kids = tickets.filter(([, k]) => k.frontmatter?.parent === id && k.frontmatter.status !== 'dropped');
-      return { id, title: t.frontmatter?.title ?? '', done: kids.filter(([k]) => isDone(plain, k)).length, total: kids.length };
+      return { id, ...(t.frontmatter?.lane === undefined ? {} : { lane: t.frontmatter.lane }), title: t.frontmatter?.title ?? '', done: kids.filter(([k]) => isDone(plain, k)).length, total: kids.length };
     })
     .sort((a, b) => Number(a.total > 0 && a.done === a.total) - Number(b.total > 0 && b.done === b.total) || cmpId(a.id, b.id));
   return { rows: rows.slice(0, EPIC_CAP), more: Math.max(0, rows.length - EPIC_CAP) };

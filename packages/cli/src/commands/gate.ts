@@ -5,7 +5,7 @@
 // than instead of it (D-97). Under `--json` stdout carries the GateResult verbatim and every notice
 // goes to stderr, so `jq '.findings[]'` works with no unwrapping (D-98).
 import { gateDone, gatePlan, gateReady, renderText } from '@accord-dev/accord-core';
-import { gitBranchCommits, UsageError } from '../load/fs.js';
+import { gitAfterReview, gitBranchCommits, gitReviewFact, UsageError } from '../load/fs.js';
 import { colourFindings } from '../render/color.js';
 import type { CommandContext } from '../run.js';
 import { writeKey } from '../write/key.js';
@@ -21,8 +21,18 @@ export function gate(
     which === 'done' && ctx.snapshot.config?.commits?.trailers === 'forbid' && ctx.snapshot.git !== undefined
       ? { ...ctx.snapshot, commits: gitBranchCommits(ctx.root) }
       : ctx.snapshot;
+  // ST-LN-31: a lane S ticket's Done reads review.md's commit and the commits after it, loaded here from HEAD.
+  const isS = which === 'done' && Object.hasOwn(ctx.snapshot.tickets, id) && ctx.snapshot.tickets[id].frontmatter?.lane === 'S';
+  const forDone = !isS
+    ? withCommits
+    : (() => {
+        const after = Object.fromEntries(Object.entries(ctx.snapshot.afterVerify ?? {}).filter(([k]) => k !== id));
+        const found = gitAfterReview(ctx.root, id);
+        if (found !== undefined) after[id] = found;
+        return { ...withCommits, reviewFacts: { [id]: gitReviewFact(ctx.root, id) }, afterVerify: after };
+      })();
   const result =
-    which === 'ready' ? gateReady(ctx.snapshot, id) : which === 'plan' ? gatePlan(ctx.snapshot, id) : gateDone(withCommits, id);
+    which === 'ready' ? gateReady(ctx.snapshot, id) : which === 'plan' ? gatePlan(ctx.snapshot, id) : gateDone(forDone, id);
   ctx.stdout.write(
     options.json ? JSON.stringify(result, null, 2) + '\n' : colourFindings(renderText(result), ctx.stdout),
   );

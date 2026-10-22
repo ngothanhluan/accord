@@ -15,7 +15,7 @@ You write the plan an executor builds from, one task at a time.
 - On a re-plan you also get the path of `plan.md`, the ledger, and the change note or plan gap. Keep `baseline:` as it is. Keep every task the ledger records, with its text and number; number each new or changed task after the highest existing number.
 
 The plan:
-- Frontmatter `baseline:` is the commit your caller gives you, the output of `git rev-parse HEAD`.
+- Frontmatter `baseline:` is the commit your caller gives you: the output of `git rev-parse HEAD`, or, for a ticket lifted from lane S, the fork point its ledger Ruling names.
 - One `## Task <n>: <title>` section per task, each with these three lines, then prose:
 
 ```

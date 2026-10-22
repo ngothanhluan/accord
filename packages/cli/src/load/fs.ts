@@ -380,6 +380,41 @@ function reviewStartOf(root: string, id: string, tips: string[]): string | undef
   }
 }
 
+const REVIEW_OPTS = (root: string) => ({ cwd: root, encoding: 'utf8' as const, stdio: ['ignore', 'pipe', 'pipe'] as ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 });
+
+/** ST-LN-31: the last commit on HEAD whose change to the ticket's review.md adds or removes a `## Round ` line. */
+function reviewCommit(root: string, id: string): string | undefined {
+  try {
+    const sha = execFileSync('git', ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '-1', '-G', '^## Round ', '--format=%H', 'HEAD', '--', `:(literal)accord/tickets/${id}/review.md`], REVIEW_OPTS(root)).trim();
+    return isSha(sha) ? sha : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** ST-LN-31: whether review.md is committed and unchanged, and the paths its review commit changes; a git failure is `clean: false`, so the gate fails closed. */
+export function gitReviewFact(root: string, id: string): { clean: boolean; files?: string[] } {
+  try {
+    const o = REVIEW_OPTS(root);
+    const dirty = execFileSync('git', ['status', '--porcelain', '-z', '--untracked-files=all', '--', `:(literal)accord/tickets/${id}/review.md`], o) !== '';
+    const sha = reviewCommit(root, id);
+    if (sha === undefined) return { clean: false };
+    const raw = execFileSync('git', ['-c', 'log.showSignature=false', 'show', '--no-show-signature', '-z', '--format=', '--name-only', '--no-renames', sha], o);
+    const files = raw.split('\0').map((t) => (t.startsWith('\n') ? t.slice(1) : t)).filter((t) => t !== '');
+    return { clean: !dirty, files };
+  } catch {
+    return { clean: false };
+  }
+}
+
+/** ST-LN-31: the commits on HEAD after the ticket's review commit; undefined when there is none, so the gate fails closed. */
+export function gitAfterReview(root: string, id: string): AfterVerify | undefined {
+  const commit = reviewCommit(root, id);
+  if (commit === undefined) return undefined;
+  const r = gitAfterVerify(root, { [id]: { commit, tips: ['HEAD'] } });
+  return Object.hasOwn(r, id) ? r[id] : undefined;
+}
+
 /** A claim's tip: its ref, plus the local branch when that is another ref, since `gitClaims` prefers the pushed one. */
 function claimTips(root: string, id: string, ref: string, claimBranches: Record<string, string>): string[] {
   const local = Object.hasOwn(claimBranches, id) ? 'refs/heads/' + claimBranches[id] : undefined;

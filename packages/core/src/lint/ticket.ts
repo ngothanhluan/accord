@@ -25,6 +25,12 @@ const LANE_REQUIRED: Record<'story' | 'bug' | 'epic', string[]> = {
   bug: ['Intent', 'Acceptance criteria', 'Vetoes', 'Decisions', 'Corrections', 'Open questions', 'Approach'],
   epic: ['Intent', 'Vetoes', 'Decisions', 'Corrections', 'Open questions', 'Approach'],
 };
+// D-04: a lane S ticket holds two sections whatever its type.
+const LANE_S_REQUIRED: Record<'story' | 'bug' | 'epic', string[]> = {
+  story: ['Understood', 'Done when'],
+  bug: ['Understood', 'Done when'],
+  epic: ['Understood', 'Done when'],
+};
 // D-73 sentinels: uppercase whole words, an angle-bracket placeholder outside HTML tags, a `...` step.
 const WORD = /(?:^|[^A-Za-z0-9_])(TODO|TBD|FIXME|TICKET-ID)(?![A-Za-z0-9_])/g;
 const PLACEHOLDER = /<[a-z][a-z]* [^<>="/]+>/g;
@@ -50,7 +56,7 @@ const typed = (snapshot: RepoSnapshot): Typed[] => tickets(snapshot).filter((t):
 /** D-71: every required heading for the ticket's type, in table order, no line. */
 export const headingMissing: Rule['check'] = (snapshot) =>
   typed(snapshot).flatMap((t) =>
-    (t.frontmatter.lane === undefined ? REQUIRED : LANE_REQUIRED)[t.frontmatter.type]
+    (t.frontmatter.lane === 'S' ? LANE_S_REQUIRED : t.frontmatter.lane === undefined ? REQUIRED : LANE_REQUIRED)[t.frontmatter.type]
       .filter((name) => section(t, headingKey(name)) === undefined)
       .map((name) => ({ file: t.file, reason: `missing "## ${name}"` })),
   );
@@ -213,3 +219,29 @@ export const notesNotLast: Rule['check'] = (snapshot) =>
     if (s === undefined || s === t.sections[t.sections.length - 1]) return [];
     return [{ file: t.file, line: s.line, reason: '"## Verification notes" must be the last section' }];
   });
+
+const workOf = (snapshot: RepoSnapshot, id: string) => (Object.hasOwn(snapshot.work ?? {}, id) ? snapshot.work?.[id] : undefined);
+
+/** A review.md without a plan.md on a lane M, L or P ticket is left from lane S (lift in place). */
+export const reviewWithoutPlan: Rule['check'] = (snapshot) =>
+  typed(snapshot).flatMap((t) => {
+    const w = workOf(snapshot, t.id);
+    return t.frontmatter.lane !== undefined && t.frontmatter.lane !== 'S' && w?.review !== undefined && w.plan === undefined
+      ? [{ file: w.review.file, reason: 'review.md is left from lane S; a lane M ticket is reviewed after its plan, so remove it with git rm' }]
+      : [];
+  });
+
+/** A lane S ticket holds none of the lane M records; Ready, Plan and Done add this error through the ticket-scoped lint findings. */
+export const laneSLaneMRecords: Rule['check'] = (snapshot) =>
+  typed(snapshot)
+    .filter((t) => t.frontmatter.lane === 'S')
+    .flatMap((t) => {
+      const list = [
+        ...(t.frontmatter.approved_hash !== undefined ? ['approved_hash'] : []),
+        ...(t.scenarios.some((s) => s.acTag !== undefined) ? ['@ac-n scenarios'] : []),
+        ...(workOf(snapshot, t.id)?.plan !== undefined ? ['plan.md'] : []),
+      ];
+      return list.length === 0
+        ? []
+        : [{ file: t.file, reason: `a lane S ticket holds ${list.join(' and ')}, which only a lane M ticket has; an approved ticket never moves to lane S, and a ticket lifted from lane S changes its lane to M` }];
+    });

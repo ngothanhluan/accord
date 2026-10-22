@@ -53,8 +53,17 @@ import {
   designMissing,
   earsMissing,
   intentEmpty,
+  sectionEmpty,
   ticketUnknown,
 } from './ready.js';
+import {
+  commitAfterReview,
+  readyMissing,
+  reviewCommitCode,
+  reviewTrailing,
+  reviewUncommitted,
+  sectionsChanged,
+} from './lane-s.js';
 import { reviewMissing, reviewUnconverged, suiteNotPassed, tasksIncomplete, testUntracedAtDone } from './work.js';
 import {
   evidenceUnresolved,
@@ -99,12 +108,20 @@ const APPROVAL_STALE: GateRule = {
   check: approvalStale,
 };
 
+export const SECTION_EMPTY: GateRule = {
+  id: 'gate.section-empty',
+  level: 'error',
+  profiles: ['build', 'maintain'],
+  check: sectionEmpty,
+};
+
 export const READY_RULES: readonly GateRule[] = [
   TICKET_UNKNOWN,
   { id: 'gate.design-missing', level: 'error', profiles: ['build', 'maintain'], check: designMissing },
   { id: 'gate.intent-empty', level: 'error', profiles: ['build', 'maintain'], check: intentEmpty },
   { id: 'gate.ears-missing', level: 'error', profiles: ['build', 'maintain'], check: earsMissing },
   { id: 'gate.approach-empty', level: 'error', profiles: ['build', 'maintain'], check: approachEmpty },
+  SECTION_EMPTY,
   APPROVAL_MISSING,
   APPROVAL_STALE,
 ];
@@ -134,6 +151,11 @@ export const PLAN_RULES: readonly GateRule[] = [
   { id: 'gate.tests-baseline-missing', level: 'warning', profiles: ['build', 'maintain'], check: testsBaselineMissing },
 ];
 
+const REVIEW_MISSING: GateRule = { id: 'gate.review-missing', level: 'error', profiles: ['build', 'maintain'], check: reviewMissing };
+const REVIEW_UNCONVERGED: GateRule = { id: 'gate.review-unconverged', level: 'error', profiles: ['build', 'maintain'], check: reviewUnconverged };
+const SUITE_NOT_PASSED: GateRule = { id: 'gate.suite-not-passed', level: 'error', profiles: ['build', 'maintain'], check: suiteNotPassed };
+const COMMIT_TRAILER: GateRule = { id: 'gate.commit-trailer', level: 'error', profiles: ['build', 'maintain'], check: commitTrailer };
+
 /** GATE-02/GATE-03/GATE-11 (docs/design.md §5). Every row is an error on both profiles: Done is the
  * gate that must not be talked past, and GATE-06 forbids a level that depends on a flag. */
 export const DONE_RULES: readonly GateRule[] = [
@@ -150,7 +172,7 @@ export const DONE_RULES: readonly GateRule[] = [
   { id: 'gate.tick-stale-hash', level: 'error', profiles: ['build', 'maintain'], check: tickStaleHash },
   { id: 'gate.tick-stale-commit', level: 'error', profiles: ['build', 'maintain'], check: tickStaleCommit },
   { id: 'gate.stale-review', level: 'error', profiles: ['build', 'maintain'], check: staleReview },
-  { id: 'gate.commit-trailer', level: 'error', profiles: ['build', 'maintain'], check: commitTrailer },
+  COMMIT_TRAILER,
   { id: 'gate.evidence-unresolved', level: 'error', profiles: ['build', 'maintain'], check: evidenceUnresolved },
   { id: 'gate.reference-unknown', level: 'warning', profiles: ['build', 'maintain'], check: referenceUnknown },
   { id: 'gate.note-missing', level: 'error', profiles: ['build', 'maintain'], check: noteMissing },
@@ -164,14 +186,30 @@ export const DONE_RULES: readonly GateRule[] = [
   APPROVAL_MISSING,
   APPROVAL_STALE,
   { id: 'gate.task-incomplete', level: 'error', profiles: ['build', 'maintain'], check: tasksIncomplete },
-  { id: 'gate.review-missing', level: 'error', profiles: ['build', 'maintain'], check: reviewMissing },
-  { id: 'gate.review-unconverged', level: 'error', profiles: ['build', 'maintain'], check: reviewUnconverged },
-  { id: 'gate.suite-not-passed', level: 'error', profiles: ['build', 'maintain'], check: suiteNotPassed },
+  REVIEW_MISSING,
+  REVIEW_UNCONVERGED,
+  SUITE_NOT_PASSED,
   { id: 'gate.test-untraced', level: 'error', profiles: ['build', 'maintain'], check: testUntracedAtDone },
   // GATE-05 (D-79): warnings, and never more. docs/design.md §4 makes the reviewer not a role, so the
   // two identities match on nearly every honest ticket; an error here would block every solo developer.
   { id: 'gate.author-match', level: 'warning', profiles: ['build', 'maintain'], check: authorMatch },
   { id: 'gate.author-skipped', level: 'warning', profiles: ['build', 'maintain'], check: authorSkipped },
+];
+
+/** ST-LN-31 D-04, D-12: the lane S Done table, with the suite rule; no plan, task, criteria or approval rows. */
+export const DONE_S_RULES: readonly GateRule[] = [
+  TICKET_UNKNOWN,
+  SECTION_EMPTY,
+  { id: 'gate.ready-missing', level: 'error', profiles: ['build', 'maintain'], check: readyMissing },
+  { id: 'gate.sections-changed', level: 'error', profiles: ['build', 'maintain'], check: sectionsChanged },
+  REVIEW_MISSING,
+  REVIEW_UNCONVERGED,
+  { id: 'gate.review-trailing', level: 'error', profiles: ['build', 'maintain'], check: reviewTrailing },
+  { id: 'gate.review-uncommitted', level: 'error', profiles: ['build', 'maintain'], check: reviewUncommitted },
+  { id: 'gate.review-commit-code', level: 'error', profiles: ['build', 'maintain'], check: reviewCommitCode },
+  { id: 'gate.commit-after-review', level: 'error', profiles: ['build', 'maintain'], check: commitAfterReview },
+  SUITE_NOT_PASSED,
+  COMMIT_TRAILER,
 ];
 
 /** D-89: the three LINT-06 hygiene rules Ready promotes from warning to blocking. */

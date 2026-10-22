@@ -11,9 +11,15 @@ import { requireLaneTicket } from './lane-args.js';
 const REF = /^[A-Za-z0-9][A-Za-z0-9._/~^-]*$/;
 
 export function reviewPackage(ctx: CommandContext, id: string, options: { base?: string }): number {
-  requireLaneTicket(ctx, id);
-  const base = options.base ?? workOf(ctx.snapshot, id)?.plan?.baseline;
-  if (base === undefined) throw new UsageError('no --base given and plan.md records no baseline:');
+  const laneS = requireLaneTicket(ctx, id).frontmatter?.lane === 'S';
+  const base = options.base ?? (laneS ? defaultRefOf(ctx.root) : workOf(ctx.snapshot, id)?.plan?.baseline);
+  if (base === undefined) {
+    throw new UsageError(
+      laneS
+        ? 'no --base given and no default branch: none of origin/HEAD, origin/main, origin/master, main or master resolves'
+        : 'no --base given and plan.md records no baseline:',
+    );
+  }
   if (!REF.test(base)) throw new UsageError('not a git ref: ' + base);
   const git = (args: string[]) =>
     execFileSync('git', args, {

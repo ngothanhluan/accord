@@ -7,8 +7,7 @@ loads: [plan/baseline.md, plan/critique.md, shared/ask.md]
 ---
 
 This stage turns the approved approach into tasks an executor can finish
-one at a time. You run it in the main session. The owner does not need to
-read the plan.
+one at a time. You run it in the main session.
 
 ## Steps
 
@@ -18,11 +17,12 @@ read the plan.
    `plan: <id> round` commits in `git log` since the last
    `plan: <id> ready`, if any, and reading `plan-review.md` as `./critique.md` says.
 
-2. **Plan.** Run `git rev-parse HEAD`, read `review.mode` in
+2. **Plan.** Run `git rev-parse HEAD` (lifted from lane S: the fork point in its
+   ledger Ruling), read `review.mode` in
    `accord/config.yml` (absent counts as `human`), and dispatch
    `accord-planner` with the path of `accord/tickets/<id>.md`, that commit,
    and the mode. It writes `accord/tickets/<id>/plan.md` with frontmatter
-   `baseline: <git rev-parse HEAD>` and one `## Task <n>: <title>` section
+   `baseline: <that commit>` and one `## Task <n>: <title>` section
    per task. Each task carries a `covers:` line, a `files:` line, and a
    `verify:` line, then prose for the executor: the interface (consumes,
    produces) and the test written first. A task fits in about half an

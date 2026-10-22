@@ -9,6 +9,7 @@ export type {
   RepoSnapshot,
   Ticket,
   TicketFrontmatter,
+  Lane,
   ScenarioRef,
   Verification,
   VerificationFrontmatter,

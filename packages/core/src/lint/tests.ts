@@ -22,9 +22,9 @@ export function untracedTests(snapshot: RepoSnapshot): string[] {
 export const UNTRACED = (id: string): string =>
   `test "${id}" is named by no scenario's @test:, carries no risk:, and is not in accord/tests-baseline.txt`;
 
-/** Silent until the repository holds a lane ticket: the first lane ticket opts the repository into the policy. */
+/** Silent until the repository holds a lane M, L or P ticket: that ticket opts the repository into the policy, a lane S ticket alone does not. */
 export const testUntraced: Rule['check'] = (snapshot) => {
   const report = snapshot.config?.tests?.report;
-  if (report === undefined || !Object.values(snapshot.tickets).some((t) => t.frontmatter?.lane !== undefined)) return [];
+  if (report === undefined || !Object.values(snapshot.tickets).some((t) => t.frontmatter?.lane !== undefined && t.frontmatter.lane !== 'S')) return [];
   return untracedTests(snapshot).map((id) => ({ file: normaliseKey(report), reason: UNTRACED(id) }));
 };

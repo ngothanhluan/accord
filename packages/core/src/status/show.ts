@@ -1,7 +1,7 @@
 // ST-LN-6: the full detail of one lane ticket, the one shape the text output, the JSON and the panel read.
 import { acHash } from '../gate/hash.js';
 import { headingKey, stripHtmlComments } from '../load/sections.js';
-import type { RepoSnapshot } from '../model/snapshot.js';
+import type { Lane, RepoSnapshot } from '../model/snapshot.js';
 import { statusRows } from './rows.js';
 import type { Stage } from './stage.js';
 
@@ -20,7 +20,7 @@ export interface TicketDetail {
   id: string;
   title: string;
   stage: Stage;
-  lane: 'M' | 'L' | 'P';
+  lane: Lane;
   tasksDone: number;
   tasksTotal: number;
   branch: string;

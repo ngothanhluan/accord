@@ -10,7 +10,7 @@ import type { Tags } from 'yaml';
 import { agentTargets, allSkillDirs, contentHash, installedName, markerHash, renderSkill, skillDirs, skills, STAGES, skillTargets, withoutMarker } from '../src/index.js';
 import type { SkillKey } from '../src/index.js';
 import type { AccordConfig } from '../src/index.js';
-import { DONE_RULES, READY_RULES } from '../src/gate/rules.js';
+import { DONE_RULES, DONE_S_RULES, READY_RULES } from '../src/gate/rules.js';
 import { RULES } from '../src/lint/rules.js';
 
 const skillsDir = fileURLToPath(new URL('../skills/', import.meta.url));
@@ -395,7 +395,7 @@ describe('render output invariants', () => {
     // paraphrase in a skill body is a second, unversioned copy of the engine that nothing keeps in step.
     // The rule ids are computed from the live tables rather than listed, so a rule a later phase adds is
     // covered here with no edit. Line numbers are relative to the body, which is what the scan reads.
-    const ruleIds = [...new Set([...RULES, ...READY_RULES, ...DONE_RULES].map((r) => r.id))];
+    const ruleIds = [...new Set([...RULES, ...READY_RULES, ...DONE_RULES, ...DONE_S_RULES].map((r) => r.id))];
     // `warning` is a finding level, and reporting a level is the CLI's job. `error` is deliberately not
     // here (A-16): every occurrence in the definitions is about the reader's own software — an EARS
     // example, a review dimension, a stack trace — never about a finding level.
@@ -403,8 +403,8 @@ describe('render output invariants', () => {
     // A skill names `accord gate ready <id>` or `accord gate done <id>`, never the state the command
     // reports. Frontmatter is out of scope because the scan runs on the body: `description:` is how a
     // runtime decides whether to load the skill at all, and a code span there would not read as prose.
-    // Spec §3 requires the lane S write-back label `Done when:`, which names no gate state.
-    const VERDICT = /\b(?:Ready|Done)\b(?! when:)/;
+    // A `Done when` heading or label names no gate state.
+    const VERDICT = /\b(?:Ready|Done)\b(?! when\b)/;
     // The subjects the READY_PROMOTE rules read. Each is legitimate on its own — the offence is naming
     // one in the same paragraph as the command that checks it.
     const PROMOTED = ['## Open questions', 'assumptions:', 'status: draft', 'TODO'];

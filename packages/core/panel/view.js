@@ -50,12 +50,15 @@ const rowsOf = (s) =>
 const STAGE_COLOR = { intent: 'blue', plan: 'cyan', build: 'yellow', review: 'magenta', verify: 'green', ready: 'green' };
 const len = (t) => [...t].length;
 
+const laneOf = (r) => (typeof r.lane === 'string' ? clean(r.lane) : '');
 // One row's cells, every value through clean; stageColor reads the raw stage, own keys only.
 const cells = (r) => {
-  const stage = typeof r.stage === 'string' ? (r.stage === 'build' ? `build ${r.tasksDone ?? 0}/${r.tasksTotal ?? 0}` : r.stage) : '';
+  const lane = laneOf(r);
+  const stage = typeof r.stage === 'string' ? (r.stage === 'build' && r.lane !== 'S' ? `build ${r.tasksDone ?? 0}/${r.tasksTotal ?? 0}` : r.stage) : '';
   const blocked = Array.isArray(r.blockedBy) && r.blockedBy.length > 0 ? 'blocked by ' + clean(r.blockedBy.join(' ')) : '';
   return {
     id: r.id,
+    lane,
     stage: clean(stage + (r.idleDays === undefined ? '' : ` idle ${r.idleDays}d`)),
     stageColor: typeof r.stage === 'string' && Object.hasOwn(STAGE_COLOR, r.stage) ? STAGE_COLOR[r.stage] : undefined,
     title: r.title,
@@ -63,7 +66,7 @@ const cells = (r) => {
     who: typeof r.claimedBy === 'string' ? clean(r.claimedBy) : '',
   };
 };
-const epicCells = (r) => ({ id: r.id, stage: clean(`${r.done}/${r.total} done`), stageColor: undefined, title: r.title, blockedBy: '', who: '' });
+const epicCells = (r) => ({ id: r.id, lane: laneOf(r), stage: clean(`${r.done}/${r.total} done`), stageColor: undefined, title: r.title, blockedBy: '', who: '' });
 const act = (key, label, id) => ({ key: `${key}:${id}`, label, args: `${key} ${id}` });
 // same id pattern as cli new-ticket.ts: a file stem with spaces must never reach /accord as text
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
@@ -93,11 +96,12 @@ export function view(state, query) {
   }
   // longest cell over every row before the search filter, so columns neither differ between sections nor move while typing
   const all = [d.yours, d.team, d.ready, ...(d.upNext ? [d.upNext] : []), d.epics];
-  const widths = { id: len('ID'), stage: len('STAGE') };
+  const widths = { id: len('ID'), lane: len('LANE'), stage: len('STAGE') };
   for (const sec of all) {
     for (const r of rowsOf(sec)) {
       const c = sec === d.epics ? epicCells(r) : cells(r);
       widths.id = Math.max(widths.id, len(c.id));
+      widths.lane = Math.max(widths.lane, len(c.lane));
       widths.stage = Math.max(widths.stage, len(c.stage));
     }
   }

@@ -520,7 +520,7 @@ it('risk:regression each row draws as fixed-width cells with stage colours a red
         yours: { rows: [{ id: 'ST-10', title: LONG, stage: 'review', claimedBy: 'me@x' }], more: 0 },
         team: {
           rows: [
-            { id: 'ST-3', title: 'Mine', stage: 'build', tasksDone: 2, tasksTotal: 5, claimedBy: 'an[1m@x' },
+            { id: 'ST-3', lane: 'M', title: 'Mine', stage: 'build', tasksDone: 2, tasksTotal: 5, claimedBy: 'an[1m@x' },
             { id: 'ST-11', title: 'Odd', stage: 'constructor', claimedBy: 'bob@x' },
           ],
           more: 0,
@@ -537,13 +537,14 @@ it('risk:regression each row draws as fixed-width cells with stage colours a red
     return rest;
   };
   const idBox = { width: 5, flexShrink: 0 };
+  const laneBox = { width: 4, flexShrink: 0 };
   const stageBox = { width: 12, flexShrink: 0 };
   const titleBox = { flexGrow: 1, flexShrink: 1 };
   for (const heading of ['YOURS', 'TEAM', 'READY', 'UP NEXT', 'EPICS']) {
     expect(h.cell(heading).text).toMatchObject({ bold: true, color: 'cyan' });
     expect(h.cell(heading).box.marginTop).toBe(1);
   }
-  for (const w of ['ID', 'STAGE', 'TITLE']) {
+  for (const w of ['ID', 'LANE', 'STAGE', 'TITLE']) {
     const hs = h.nodes('Text').filter((n) => (n.props.children as unknown[]).join('') === w);
     expect(hs).toHaveLength(4);
     for (const n of hs) expect(n.props.dimColor).toBe(true);
@@ -553,19 +554,22 @@ it('risk:regression each row draws as fixed-width cells with stage colours a red
   expect(h.cell('1/3 done').text.color).toBeUndefined();
   expect(bare(h.cell('1/3 done').box)).toEqual(stageBox);
   expect(bare(h.cell('E').box)).toEqual(titleBox);
-  expect(h.row('EP-1').children).toHaveLength(3);
+  expect(h.row('EP-1').children).toHaveLength(4);
   const widthsHold = (): void => {
     const kids = h.row('ST-3').children as { props: Record<string, any> }[];
     expect(bare(kids[0].props)).toEqual(idBox);
-    expect(bare(kids[1].props)).toEqual(stageBox);
+    expect(bare(kids[1].props)).toEqual(laneBox);
+    expect(bare(kids[2].props)).toEqual(stageBox);
   };
   expect(h.cell('ST-3').text.bold).toBe(true);
   expect(h.row('ST-3')).toMatchObject({ flexDirection: 'row', columnGap: 2 });
   widthsHold();
   const kids = h.row('ST-3').children as { props: Record<string, any> }[];
-  expect(bare(kids[2].props)).toEqual(titleBox);
-  expect(Object.keys(kids[2].props)).not.toContain('width');
-  expect(Object.keys(kids[2].props)).not.toContain('minWidth');
+  expect(bare(kids[3].props)).toEqual(titleBox);
+  expect(Object.keys(kids[3].props)).not.toContain('width');
+  expect(Object.keys(kids[3].props)).not.toContain('minWidth');
+  expect((kids[1].props.children[0] as { props: { children: string[] } }).props.children).toEqual(['M']);
+  expect(bare(h.cell('LANE').box)).toEqual(laneBox);
   expect(bare(h.cell('ID').box)).toEqual(idBox);
   expect(bare(h.cell('STAGE').box)).toEqual(stageBox);
   expect(bare(h.cell('TITLE').box)).toEqual(titleBox);

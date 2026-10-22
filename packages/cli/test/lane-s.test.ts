@@ -1,7 +1,8 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
-import { cleanup, makeLaneRepo, run } from './helpers/repo.js';
+import { cleanup, commitMsg, gitRun, makeEmptyRepo, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
+import { CONFIG, LANE_S_BODY, laneTicket } from '../../../test/helpers/lane.js';
 
 type F = { rule: string; reason: string; file: string; level: string };
 
@@ -44,6 +45,50 @@ it('ac-2 a lane S ticket is written and passes gate ready without acceptance cri
     expect(after).toMatch(/^ac_hash: "?fnv1a64:[0-9a-f]{16}"?/m);
     expect(after).not.toMatch(/^approved_hash:/m);
     expect(await errorsOn()).toEqual([]);
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+function repoWith(files: Record<string, string>): string {
+  const repo = makeEmptyRepo();
+  gitRun(repo, 'config', 'user.email', 'an@example.com');
+  gitRun(repo, 'config', 'user.name', 'an');
+  gitRun(repo, 'config', 'commit.gpgsign', 'false');
+  writeFiles(repo, files);
+  return repo;
+}
+
+it('ac-3 the dashboard lists a queued and a claimed lane S ticket with a lane column', async () => {
+  const repo = repoWith({
+    'accord/config.yml': CONFIG,
+    'accord/tickets/S-1.md': laneTicket('S-1', { lane: 'S', body: LANE_S_BODY }),
+    'accord/tickets/S-2.md': laneTicket('S-2', { lane: 'S', body: LANE_S_BODY }),
+  });
+  try {
+    commitMsg(repo, 'base');
+    const main = gitRun(repo, 'branch', '--show-current').trim();
+    expect((await run(['gate', 'ready', 'S-1'], repo)).code).toBe(0);
+    commitMsg(repo, 'ready: S-1');
+    gitRun(repo, 'switch', '-q', '-c', 't/S-2');
+    writeFiles(repo, { 'src/s2.txt': 's2\n' });
+    commitMsg(repo, 'claim: S-2');
+    gitRun(repo, 'switch', '-q', main);
+    const j = JSON.parse((await run(['dashboard', '--json'], repo)).out);
+    const ids = (...secs: { rows: { id: string; lane?: string }[] }[]) => secs.flatMap((x) => x.rows.map((r) => r.id));
+    expect(ids(j.ready, j.upNext)).toContain('S-1');
+    expect(ids(j.yours, j.team)).toContain('S-2');
+    for (const sec of [j.yours, j.team, j.ready, j.upNext]) for (const r of sec.rows) expect(r.lane).toBe('S');
+    const text = (await run(['dashboard'], repo)).out.split('\n');
+    const cols = (l: string) => l.trim().split(/ {2,}/);
+    for (const h of ['YOURS', 'TEAM', 'READY', 'UP NEXT']) {
+      const next = text[text.indexOf(h) + 1];
+      if (next !== '  none') expect(cols(next)).toEqual(['id', 'lane', 'title', 'stage', 'who', 'blocked by']);
+    }
+    const s1 = cols(text.find((l) => l.startsWith('  S-1')) as string);
+    expect(s1[1]).toBe('S');
+    expect(s1[3]).toBe('build');
+    expect(cols(text.find((l) => l.startsWith('  S-2')) as string)[1]).toBe('S');
   } finally {
     cleanup(repo);
   }

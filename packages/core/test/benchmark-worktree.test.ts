@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, lstatSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -264,6 +264,7 @@ it('risk:regression a suite that fails once and passes on its re-run does not st
     const r = f.plan();
     expect(r.stderr).not.toContain('suite red at base');
     expect(f.calls()).toBeGreaterThanOrEqual(2);
+    expect(r.status).toBe(2);
     expect(readFileSync(join(f.bench, 'round-1.json'), 'utf8')).toContain('reruns');
   } finally {
     rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
@@ -856,3 +857,84 @@ it('risk:regression a recorded worktree prepared without the report flag is rebu
     rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
   }
 }, 120_000);
+
+// On Windows `git worktree remove` exits 0 but leaves directory junctions (what `npm ci` makes for workspaces) and the folders above them; on POSIX git removes symlinks too, so this passes there without the extra removal.
+it('risk:regression a rebuild and a --rerun and --clean remove a worktree whose node_modules holds workspace junctions and leave no folder and keep the outside target of a junction', async () => {
+  const b = (await import(new URL('../../../scripts/benchmark.mjs', import.meta.url).href)) as {
+    prepareWorktree: (repo: string, state: { worktrees: Record<string, Rec> }, key: string, spec: { path: string; base: string; branch?: string }, setup: (d: string) => void) => string;
+    rerunWorktree: (repo: string, state: { worktrees: Record<string, Rec> }, key: string) => string | null;
+    cleanWorktrees: (repo: string, o?: { force?: boolean }) => Clean;
+  };
+  const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'bench-')));
+  const t = tmp.replaceAll('\\', '/');
+  try {
+    const repo = t + '/repo';
+    mkdirSync(repo + '/packages/x', { recursive: true });
+    mkdirSync(repo + '/docs/benchmark', { recursive: true });
+    writeFileSync(repo + '/packages/x/a.txt', 'a\n');
+    writeFileSync(repo + '/docs/benchmark/round-1.md', 'report\n');
+    writeFileSync(repo + '/.gitignore', 'node_modules\n');
+    const git = (...a: string[]) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...a], { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+    git('init', '-q', '-b', 'main');
+    git('add', '.');
+    git('commit', '-q', '-m', 'one');
+    const H1 = git('rev-parse', 'HEAD');
+    writeFileSync(repo + '/packages/x/b.txt', 'b\n');
+    git('add', '.');
+    git('commit', '-q', '-m', 'two');
+    const H2 = git('rev-parse', 'HEAD');
+    const outside = t + '/outside';
+    mkdirSync(outside);
+    writeFileSync(outside + '/keep.txt', 'keep\n');
+    const setup = (d: string) => {
+      mkdirSync(d + '/node_modules/@x', { recursive: true });
+      symlinkSync(d + '/packages/x', d + '/node_modules/@x/x', 'junction');
+      symlinkSync(outside, d + '/node_modules/@x/out', 'junction');
+    };
+    const gone = (p: string) => { try { lstatSync(p); return false; } catch { return true; } };
+    const state = { worktrees: {} as Record<string, Rec> };
+    const wt = t + '/wt/e';
+    b.prepareWorktree(repo, state, 'e', { path: wt, base: H1, branch: 'bench/e' }, setup);
+    b.prepareWorktree(repo, state, 'e', { path: wt, base: H2, branch: 'bench/e' }, setup);
+    b.rerunWorktree(repo, state, 'e');
+    b.prepareWorktree(repo, state, 'e', { path: wt, base: H2, branch: 'bench/e' }, setup);
+    expect(b.cleanWorktrees(repo).failed).toEqual([]);
+    expect(gone(wt)).toBe(true);
+    expect(existsSync(outside + '/keep.txt')).toBe(true);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+}, 120_000);
+
+it('risk:regression --plan exits 2 naming tests.report when a verifier sample base config has none', () => {
+  const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'bench-')));
+  try {
+    const f = planFixture(tmp, 0, 0);
+    const r = f.plan();
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/verifier \d.*tests\.report/);
+    expect(r.stderr).not.toContain('ERR_INVALID_ARG_TYPE');
+  } finally {
+    rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+}, 180_000);
+
+it('risk:regression two --plan runs run tests.full once per verifier sample and its effort rows share the report', () => {
+  const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'bench-')));
+  try {
+    const log = join(tmp, 'verifier-runs.txt').replaceAll('\\', '/');
+    const script = `const fs=require('fs');if(/verifier/.test(process.cwd()))fs.appendFileSync(${JSON.stringify(log)},process.cwd()+'\\n');fs.mkdirSync('node_modules/.cache/accord',{recursive:true});fs.writeFileSync('${REPORT}','<testsuites/>');
+`;
+    const f = planFixture(tmp, 0, 0, { script, config: reportConfig });
+    // The fixture repository has no ticket files, so --plan stops after the report step; what it did up to there is what is counted.
+    f.plan();
+    f.plan();
+    const dirs = verifierDirs(f.bench);
+    expect(dirs.length).toBeGreaterThan(0);
+    expect(readFileSync(log, 'utf8').split(/\r?\n/).filter(Boolean)).toHaveLength(new Set(dirs.map((d) => d.split('-')[1])).size);
+    expect(dirs.length).toBeGreaterThan(new Set(dirs.map((d) => d.split('-')[1])).size);
+    for (const d of dirs) expect(readFileSync(join(f.bench, 'wt', d, REPORT), 'utf8')).toBe('<testsuites/>');
+  } finally {
+    rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+}, 240_000);

@@ -631,6 +631,18 @@ export function addWorktree(repo, { path: dir, base, branch }) {
 // An overlay file is written after setup, uncommitted: the original run read a working tree.
 const overlayKey = (o) => JSON.stringify((o ?? []).map(({ path: p, from }) => [p, from]));
 
+// True when nothing under `dir` is a regular file: only directories, junctions and symlinks (lstat, never followed).
+const onlyLinks = (dir) => fs.readdirSync(dir, { withFileTypes: true }).every((e) => e.isSymbolicLink() || (e.isDirectory() && onlyLinks(path.join(dir, e.name))));
+// On Windows `git worktree remove` exits 0 but skips directory junctions (npm ci's workspace links) and the folders above them.
+// What is left is removed only when it holds nothing but links; rmSync does not follow a link into its target.
+function gitRemoveWorktree(repo, dir) {
+  gitIn(repo, ['worktree', 'remove', '--force', dir]);
+  let left;
+  try { left = fs.lstatSync(dir); } catch { return; }
+  if (!left.isDirectory() || !onlyLinks(dir)) throw new Error(`${dir} still holds files after git removed the worktree; nothing was deleted`);
+  fs.rmSync(dir, { recursive: true, force: true });
+}
+
 // `kept`: the run's commits are already under a refs/keep ref, so a branch or HEAD past the base is not a loss.
 function removeWorktree(repo, rec, { kept = false } = {}) {
   let tip = null;
@@ -640,7 +652,7 @@ function removeWorktree(repo, rec, { kept = false } = {}) {
   if (fs.existsSync(rec.path)) {
     if (!fs.existsSync(path.join(gitIn(rec.path, ['rev-parse', '--absolute-git-dir']).trim(), MARKER))) throw new Error(`${rec.path} is not a worktree this benchmark made; it is not rebuilt`);
     if (rec.branch && !kept && gitIn(rec.path, ['rev-parse', 'HEAD']).trim() !== rec.base) throw new Error(`${rec.path} holds commits of a run; it is not rebuilt`);
-    gitIn(repo, ['worktree', 'remove', '--force', rec.path]);
+    gitRemoveWorktree(repo, rec.path);
   } else gitIn(repo, ['worktree', 'prune']);
   // update-ref -d with the checked sha: a commit made after the check makes git refuse instead of losing it.
   if (tip) gitIn(repo, ['update-ref', '-d', `refs/heads/${rec.branch}`, tip]);
@@ -724,7 +736,7 @@ export function cleanWorktrees(repo, { force } = {}) {
     if (!dir || !fs.existsSync(dir)) continue;
     try {
       if (!fs.existsSync(path.join(gitIn(dir, ['rev-parse', '--absolute-git-dir']).trim(), MARKER))) continue;
-      gitIn(repo, ['worktree', 'remove', '--force', dir]);
+      gitRemoveWorktree(repo, dir);
       if (branch?.startsWith('refs/heads/bench/')) gitIn(repo, ['branch', '-D', branch.slice('refs/heads/'.length)]);
       removed.push(slashed(dir));
     } catch (err) { failed.push({ path: slashed(dir), message: String(err.stderr || err.message).trim() }); }
@@ -830,7 +842,7 @@ function runPlan(repo, reruns = []) {
         if (kept) process.stdout.write(`kept ${r.tag}'s earlier commits at ${kept}\n`);
       }
       r.worktree = prepareWorktree(repo, state, key, spec, (d) => { for (const c of setupAt(d, repo)) sh(c, d); }, save);
-    } catch (e) { return err(`${key}: ${e.message} (setup is repeated on the next --plan run)`); }
+    } catch (e) { return err(`${key}: ${e.message} (if this is a refusal, the worktree holds a run's commits or uncommitted work, or something git did not remove; look at it, then run --clean or --rerun)`); }
     r.prepared = state.worktrees[key].preparedAt;
   }
   for (const s of list.samples.filter((x) => x.agent === 'accord-executor')) {
@@ -845,7 +857,9 @@ function runPlan(repo, reruns = []) {
   // A verifier's original ran after the verify stage's tests.full, and read the report it wrote (a red suite leaves one too). Run it once per sample; its effort siblings have the same base and overlay, so they get a copy.
   const reported = new Map();
   for (const r of rows.filter((x) => x.agent === 'accord-verifier')) {
-    const file = path.join(r.worktree, configAt(r.worktree, repo).tests.report);
+    const rel = configAt(r.worktree, repo).tests?.report;
+    if (typeof rel !== 'string') return err(`${r.agent} ${r.n}: the config at its base has no tests.report, which the verifier's worktree needs`);
+    const file = path.join(r.worktree, rel);
     try {
       if (!fs.existsSync(file)) {
         const first = reported.get(`${r.agent}-${r.n}`);

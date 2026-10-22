@@ -344,3 +344,31 @@ it('risk:parsing a red suite re-runs only the failing files, and the full suite 
     rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
   }
 }, 120_000);
+
+it('risk:regression a failing file the run changed is re-run with the full suite, not alone', async () => {
+  const { runSuite } = (await import(new URL('../../../scripts/benchmark.mjs', import.meta.url).href)) as {
+    runSuite: (dir: string, repo: string, base?: string) => { rerun?: { files: string[]; ok: boolean } };
+  };
+  const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'bench-')));
+  try {
+    const dir = join(tmp, 'w');
+    mkdirSync(join(dir, 'accord'), { recursive: true });
+    mkdirSync(join(dir, 'test'));
+    const g = (...a: string[]) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...a], { cwd: dir, encoding: 'utf8' });
+    const q = (x: string) => JSON.stringify(x.replaceAll('\\', '/'));
+    const xml = '<testsuites><testsuite><testcase classname="test/new.test.ts" name="x"><failure message="m"/></testcase></testsuite></testsuites>';
+    writeFileSync(join(dir, 'full.js'), `const fs=require('fs');const c=${q(join(dir, 'full.txt'))};const n=(fs.existsSync(c)?+fs.readFileSync(c,'utf8'):0)+1;fs.writeFileSync(c,String(n));if(n===1){fs.writeFileSync('r.xml',${JSON.stringify(xml)});process.exit(1)}\n`);
+    writeFileSync(join(dir, 'affected.js'), `require('fs').appendFileSync(${q(join(dir, 'aff.txt'))},'x');\n`);
+    writeFileSync(join(dir, 'accord', 'config.yml'), 'tests:\n  report: r.xml\n  full: node full.js\n  affected: node affected.js {files}\n');
+    g('init', '-q');
+    g('add', '-A');
+    g('commit', '-q', '-m', 'base');
+    const base = g('rev-parse', 'HEAD').trim();
+    writeFileSync(join(dir, 'test', 'new.test.ts'), '');
+    expect(runSuite(dir, dir, base).rerun).toEqual({ files: [], ok: true });
+    expect(existsSync(join(dir, 'aff.txt'))).toBe(false);
+    expect(readFileSync(join(dir, 'full.txt'), 'utf8')).toBe('2');
+  } finally {
+    rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+}, 120_000);

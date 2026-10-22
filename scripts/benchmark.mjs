@@ -587,7 +587,8 @@ export const setupAt = (dir, repo) => configAt(dir, repo).setup ?? configAt(repo
 const sh = (command, cwd) => execSync(command, { cwd, stdio: ['ignore', 2, 2] });
 // A red full suite gets one re-run of just its failing files (a load-dependent timeout passes alone); red again throws that second error.
 // Returns { rerun: { files, ok } } when it had to re-run, {} when green first time.
-export function runSuite(dir, repo) {
+// With a base (scoring), a failing file the run itself wrote or changed is not re-run alone: it gets the full suite again, under the same load.
+export function runSuite(dir, repo, base) {
   const tests = configAt(dir, repo).tests;
   const start = Date.now();
   try { sh(tests.full, dir); return {}; } catch { /* re-run below */ }
@@ -602,7 +603,13 @@ export function runSuite(dir, repo) {
       if (!files.every((f) => fs.existsSync(path.join(dir, f)))) files = [];
     }
   } catch { /* no readable report */ }
-  const narrow = files.length && tests.affected?.includes('{files}');
+  let changed = new Set();
+  if (base && files.length) {
+    const z = (args) => execFileSync('git', ['-c', 'log.showSignature=false', ...args], { cwd: dir, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] }).split('\0').filter(Boolean);
+    // diff covers committed and uncommitted edits to tracked files; ls-files adds files the run created and did not stage.
+    changed = new Set([...z(['diff', '--name-only', '-z', base]), ...z(['ls-files', '--others', '--exclude-standard', '-z'])]);
+  }
+  const narrow = files.length && !files.some((f) => changed.has(f)) && tests.affected?.includes('{files}');
   sh(narrow ? tests.affected.replace('{files}', () => files.map((f) => `"${f}"`).join(" ")) : tests.full, dir);
   return { rerun: { files: narrow ? files : [], ok: true } };
 }
@@ -796,7 +803,7 @@ function runRound(repo, { judge, extra }) {
     let suite, gate, rerun, env = invalid.get(r.tag) ?? (invalid.has(cur.tag) ? `the current-effort run ${invalid.get(cur.tag)}` : '');
     if (!env && r.agent === 'accord-executor') {
       let st;
-      try { rerun = runSuite(r.worktree, repo).rerun; } catch (e) { st = exitState(e, 'suite'); }
+      try { rerun = runSuite(r.worktree, repo, sampleOf(r).base).rerun; } catch (e) { st = exitState(e, 'suite'); }
       st ??= { ok: true };
       if (st.env) env = st.env; else suite = st.ok;
     }

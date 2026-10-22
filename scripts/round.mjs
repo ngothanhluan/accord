@@ -383,7 +383,7 @@ export function report(results, settings, { flags, unjudged, compliance }) {
     '## Higher effort did better', '', ...list(better(results)), '',
     '## Samples that held at every effort by default', '', ...list(byDefault(results)), '',
     '## Samples not held', '', ...list(notHeld(results)), '',
-    '## Holds that rest on a re-run', '', ...list(results.filter((r) => r.rerun).map((r) => `- ${r.tag}: re-ran ${r.rerun.files.length ? r.rerun.files.join(', ') : 'the full suite'}`)), '',
+    '## Holds that rest on a re-run', '', ...list(results.filter((r) => r.held && r.rerun).map((r) => `- ${r.tag}: re-ran ${r.rerun.files.length ? r.rerun.files.join(', ') : 'the full suite'}`)), '',
     flagSection(flags),
     '## Runs not judged', '', ...list(unjudged.map((u) => `- ${u.tag}: ${u.reason}`)), '',
     compliance,

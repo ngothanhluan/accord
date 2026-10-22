@@ -14,3 +14,4 @@
 - Ruling: lane S gets a `## Corrections` section on the owner's first correction, and the lane S anchor prints it when present — ruleset rule 2 needs corrections written down — cost if wrong: one optional section.
 - Ruling: `accord approve` refuses a lane S ticket with exit 2 — CI gates any pull request that carries `approved_hash` — cost if wrong: one line.
 - Ruling: the D-09 lint rule matches a ticket in lane M, L or P with review.md and no plan.md — a lane M review needs every plan task recorded first — cost if wrong: a hand-written early lane M review.md is flagged.
+- Ruling: origin/main (with ST-LN-34) is merged into t/ST-LN-31 before the plan, and the plan is written on the merged HEAD — the drop at intent (D-03) needs `accord drop`, which the old baseline lacked; owner: "A" — cost if wrong: none, no product code was on the branch.

@@ -104,3 +104,50 @@ it('risk:data-loss the committed sample list passes its checks before the transc
   expect(list.samples.some((s) => s.agent === 'accord-debugger')).toBe(false);
   expect(list.samples.every((s) => /^C--Work-accord/.test(s.transcript))).toBe(true);
 });
+
+it('risk:regression a review-package file base that is not an ancestor of the sample base is refused before any brief is written', async () => {
+  const { checkFileBases, packageDrift } = (await import(new URL('../../../scripts/benchmark.mjs', import.meta.url).href)) as {
+    checkFileBases: (repo: string, list: unknown) => string[];
+    packageDrift: (s: Sample, f: Sample, read: string | undefined, built: string) => string | undefined;
+  };
+  const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'bench-')));
+  try {
+    const git = (env: Record<string, string>, ...a: string[]) =>
+      execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', '-c', 'commit.gpgsign=false', ...a], { cwd: tmp, encoding: 'utf8', env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+    git({}, 'init', '-q');
+    const at = { GIT_AUTHOR_DATE: '2026-01-01T00:00:00Z' };
+    const tree = (name: string) => { writeFileSync(join(tmp, 'f.txt'), name); git({}, 'add', '.'); return git({}, 'write-tree'); };
+    const [tA, tB] = [tree('a'), tree('b')];
+    const mk = (t: string, committed: string, parent?: string) =>
+      git({ ...at, GIT_COMMITTER_DATE: committed }, 'commit-tree', t, ...(parent ? ['-p', parent] : []), '-m', 'x');
+    const A = mk(tA, '2026-01-01T00:00:00Z');
+    const B = mk(tB, '2026-01-01T00:00:00Z', A);
+    const A2 = mk(tA, '2026-02-01T00:00:00Z');
+    const B2 = mk(tB, '2026-02-01T00:00:00Z', A2);
+    expect(B).not.toBe(B2);
+    const list = (base: string) => ({ samples: [{ agent: 'accord-reviewer', n: 3, base: B2, files: [{ path: '/p/package.md', from: 'review-package', base }, { path: '/p/c.md', from: 'copy' }] }] });
+    const bad = checkFileBases(tmp, list(A));
+    expect(bad).toHaveLength(1);
+    expect(bad[0]).toContain('accord-reviewer 3');
+    expect(bad[0]).toContain('/p/package.md');
+    expect(bad[0]).toContain(A);
+    expect(checkFileBases(tmp, list(A2))).toEqual([]);
+
+    const f = { path: '/p/package.md' };
+    const s = { agent: 'accord-reviewer', n: 3 };
+    expect(packageDrift(s, f, 'same\n', 'same')).toBeUndefined();
+    expect(packageDrift(s, f, 'same\n', 'wider')).toContain('accord-reviewer 3');
+    expect(packageDrift(s, f, 'File content (300KB) exceeds maximum allowed size (256KB)', 'wider')).toBeUndefined();
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+it('risk:regression every file base of the committed sample list lies in its sample history', async () => {
+  const { checkFileBases } = (await import(new URL('../../../scripts/benchmark.mjs', import.meta.url).href)) as {
+    checkFileBases: (repo: string, list: unknown) => string[];
+  };
+  const root = fileURLToPath(new URL('../../../', import.meta.url));
+  const list = JSON.parse(readFileSync(join(root, 'scripts', 'benchmark-samples.json'), 'utf8'));
+  expect(checkFileBases(root, list)).toEqual([]);
+});

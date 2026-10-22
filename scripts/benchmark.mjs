@@ -483,6 +483,24 @@ export function snapshotSample(repo, sample, run, bench) {
   return { problems, kept: false };
 }
 
+// A review-package file base must lie in its sample's history, else the rebuilt package diffs from a merge-base and covers other work.
+export function checkFileBases(repo, list) {
+  const out = [];
+  for (const s of list.samples) for (const f of s.files) {
+    if (f.from !== 'review-package') continue;
+    let ok = true;
+    try { execFileSync('git', ['merge-base', '--is-ancestor', f.base, s.base], { cwd: repo, stdio: 'ignore' }); } catch { ok = false; }
+    if (!ok) out.push(`${s.agent} ${s.n}: ${f.path} base ${f.base} is not an ancestor of the sample base ${s.base}`);
+  }
+  return out;
+}
+
+// A recorded read that is the package itself must match the rebuild; a Read tool error (too large) cannot be compared.
+export function packageDrift(sample, f, read, built) {
+  if (typeof read !== 'string' || /exceeds maximum allowed size/.test(read.slice(0, 300))) return undefined;
+  return trimEnd(read) === trimEnd(built) ? undefined : `${sample.agent} ${sample.n}: the review package ${f.path} rebuilt at base differs from the one the run read`;
+}
+
 function runSamples(repo) {
   const listFile = path.join(repo, 'scripts', 'benchmark-samples.json');
   if (!fs.existsSync(listFile)) { process.stderr.write('no sample list: scripts/benchmark-samples.json\n'); return 2; }
@@ -680,7 +698,11 @@ function runPlan(repo) {
         const args = f.from === 'brief' ? ['brief', s.ticket, f.task] : ['review-package', s.ticket, '--base', f.base];
         let built;
         try { built = cli(r.worktree, args); } catch (e) { return err(`${r.tag}: ${args[0]} failed: ${String(e.stderr || e.message).trim()}`); }
-        if (f.from === 'review-package') text = built;
+        if (f.from === 'review-package') {
+          const drift = packageDrift(s, f, text, built);
+          if (drift) return err(drift);
+          text = built;
+        }
         else if (trimEnd(built) === trimEnd(text)) text = built;
         else process.stderr.write(`notice: ${r.tag}: ${f.path} is built differently at base; the text the run read is used\n`);
       }

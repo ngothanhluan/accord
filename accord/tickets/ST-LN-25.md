@@ -41,7 +41,7 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: ST-LN-25
 
-  @ac-1
+  @ac-1 @test:packages/cli/test/hook.test.ts#ac-1-a-newer-release-is-announced-by-the-session-start-hook-and-the-dashboard-and-the-registry-is-asked-once-in-24-hours
   Scenario Outline: A newer accord release is announced, and the registry is asked at most once in 24 hours
     Given accord/config.yml pins accord "0.1.0" and the npm registry's latest "@accord-dev/accord" is "0.2.0"
     And the registry has not been asked from this machine in the last 24 hours
@@ -54,7 +54,7 @@ Feature: ST-LN-25
       | accord hook session-start  |
       | accord dashboard           |
 
-  @ac-2
+  @ac-2 @test:packages/cli/test/hook.test.ts#ac-2-an-unreachable-registry-adds-no-line-is-given-up-after-3-seconds-and-is-not-asked-again
   Scenario: An unreachable registry is never seen and never waited on for long
     Given the npm registry does not answer and has not been asked from this machine in the last 24 hours
     When I run "accord hook session-start", and run it again a minute later

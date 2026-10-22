@@ -52,6 +52,7 @@
 - Ruling: plan round 3 — rule 4 reads only the first line of `merge-tree` output and trusts its exit code — a clean merge prints only the tree id, and any non-zero exit means not safe — cost if wrong: one more output check in `safeTip`.
 - Ruling: plan round 3 — the squash-then-main-moved case goes into ST-12's existing lane S test part, so the expected lines stay as they are — ST-12 being removed is the proof — cost if wrong: a few test lines move into a separate part.
 - Ruling: plan round 2 — the setup-failure check after a Continue merge is a second part of the `ac-4` test — `ac-4` already covers setup running on the merge — cost if wrong: one more part in a scenario's test.
+- Ruling: task 1 — the new hook tests are top-level `it`s appended at the end of hook.test.ts with their helpers, the file's existing `describe` untouched — the plan says no `describe` around them — cost if wrong: nothing is lost.
 
 ## Deferred
 
@@ -64,3 +65,6 @@
 - plan round 2.4: SKILL.md:9 runs the session check before every action; add "except `/accord upgrade`" so it matches upgrade.md (Task 8).
 - plan round 2.5: the Task 5 risk test titled "pick up and continue never clean the ticket they open" runs only Continue; add a Pick up run or retitle (Task 5).
 - plan round 2.6: Task 8's `behind:` bullet omits the live Claude Code hold as a reason Continue did not merge (Task 8).
+
+## Tasks
+- task 1 done 6f5f9058c030

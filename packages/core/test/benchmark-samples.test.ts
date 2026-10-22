@@ -70,10 +70,28 @@ it('risk:data-loss a sample snapshot keeps the dispatch and every named file and
     const two = { ...sample, files: [{ path: brief, from: 'copy' }, { path: t + '/b2.md', from: 'brief', task: '1' }] };
     refused(two, mk({ prompt: prompt + ' ' + t + '/b2.md' }, [{ path: brief, text: 'line one' }, { path: t + '/b2.md', text: 'Work in C:/Elsewhere/y' }]), 'outside the bench root');
     refused(sample, undefined, 'no run');
+    refused(sample, mk({ prompt: 'Probe run for a check. ' + prompt }), 'probe');
   } finally {
     rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
   }
 }, 120_000);
+
+it('risk:regression a base whose config predates the setup key gets the repository setup', async () => {
+  const { setupAt } = (await import(new URL('../../../scripts/benchmark.mjs', import.meta.url).href)) as {
+    setupAt: (dir: string, repo: string) => string[];
+  };
+  const tmp = mkdtempSync(join(tmpdir(), 'bench-setup-'));
+  try {
+    const put = (d: string, text: string) => { mkdirSync(join(tmp, d, 'accord'), { recursive: true }); writeFileSync(join(tmp, d, 'accord', 'config.yml'), text); };
+    put('repo', 'setup:\n  - npm ci\ntests:\n  full: x\n');
+    put('old', 'tests:\n  full: x\n');
+    put('new', 'setup:\n  - pnpm i\n');
+    expect(setupAt(join(tmp, 'old'), join(tmp, 'repo'))).toEqual(['npm ci']);
+    expect(setupAt(join(tmp, 'new'), join(tmp, 'repo'))).toEqual(['pnpm i']);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
 
 it('risk:data-loss the committed sample list passes its checks before the transcripts expire', async () => {
   const { checkSamples } = (await import(new URL('../../../scripts/round.mjs', import.meta.url).href)) as {

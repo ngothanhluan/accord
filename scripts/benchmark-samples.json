@@ -519,11 +519,11 @@
     {
       "agent": "accord-verifier",
       "n": 2,
-      "transcript": "C--Work-accord-st-ln-14/2c76daea-883d-4bcc-b318-c2e16eae0d09/subagents/agent-a232faa9b7524b155.jsonl",
-      "ticket": "ST-LN-14",
-      "base": "9489e82f344cc6b42f003431785efc2c0d4fa6e8",
-      "main": "996a55e2b725241c62395552eafda3c247b7ee5e",
-      "root": "C:/Work/accord-st-ln-14",
+      "transcript": "C--Work-accord/cfa22f34-30e9-4ecd-bbc6-b4338a414ecb/subagents/agent-a114d38231bc151a2.jsonl",
+      "ticket": "ST-LN-34",
+      "base": "619a2399a4712a943f8ae248a4408b4f40e1f337",
+      "main": "32f91987f44359c35d01289e3423f8e1268f53a5",
+      "root": "C:/Work/accord-st-ln-34",
       "elsewhere": [],
       "files": [],
       "pairs": []
@@ -640,11 +640,11 @@
     {
       "agent": "accord-scout",
       "n": 1,
-      "transcript": "C--Work-accord-st-ln-14/2c76daea-883d-4bcc-b318-c2e16eae0d09/subagents/agent-a9803c18dc8742490.jsonl",
-      "ticket": "ST-LN-14",
-      "base": "9489e82f344cc6b42f003431785efc2c0d4fa6e8",
-      "main": "996a55e2b725241c62395552eafda3c247b7ee5e",
-      "root": "C:/Work/accord-st-ln-14",
+      "transcript": "C--Work-accord-st-ln-26/c0a17689-483d-4eaa-873a-1b356e73e6f2/subagents/agent-ad758be168038f141.jsonl",
+      "ticket": "ST-LN-26",
+      "base": "159b018a3d5cfae5e7dc3da26deb13afe2a7c66a",
+      "main": "6c91fae55bbd0a0b2c66ebe50efea716687e990a",
+      "root": "C:/Work/accord-st-ln-26",
       "elsewhere": [],
       "files": [],
       "pairs": []

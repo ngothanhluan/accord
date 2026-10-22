@@ -435,6 +435,8 @@ export function snapshotSample(repo, sample, run, bench) {
   const problems = [];
   if (!run?.dispatch) return { problems: [`${at}: no run for ${at} in ${sample.transcript}`], kept: false };
   const { prompt } = run.dispatch;
+  // An effort-override probe is not past work to measure.
+  if (/^\s*Probe run/.test(prompt)) return { problems: [`${at}: the dispatch is a probe run, not past work`], kept: false };
   if (sample.agent === 'accord-executor') {
     const plan = showAt(repo, sample.base, `accord/tickets/${sample.ticket}/plan.md`) ?? '';
     const section = plan.split(/^## /m).find((s) => s.startsWith(`Task ${sample.task}:`)) ?? '';
@@ -580,6 +582,8 @@ function runClean(repo, force) {
 }
 
 const configAt = (dir, repo) => parseYaml(fs.readFileSync(path.join(fs.existsSync(path.join(dir, 'accord', 'config.yml')) ? dir : repo, 'accord', 'config.yml'), 'utf8'));
+// A base older than the `setup:` key gets the repository's own.
+export const setupAt = (dir, repo) => configAt(dir, repo).setup ?? configAt(repo, repo).setup ?? [];
 const sh = (command, cwd) => execSync(command, { cwd, stdio: ['ignore', 2, 2] });
 const cli = (dir, args) => execFileSync(process.execPath, ['packages/cli/dist/cli.js', ...args], { cwd: dir, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] });
 const trimEnd = (t) => t.replace(/\n+$/, '');
@@ -615,7 +619,7 @@ function runPlan(repo) {
     const dir = `${bench}/wt/${key}`;
     try {
       r.worktree = prepareWorktree(repo, state, key, { path: dir, base: s.base, ...(WRITERS.includes(r.agent) ? { branch: `bench/${r.tag}` } : {}) },
-        (d) => { for (const c of configAt(d, repo).setup ?? []) sh(c, d); }, save);
+        (d) => { for (const c of setupAt(d, repo)) sh(c, d); }, save);
     } catch (e) { return err(`${key}: ${e.message} (setup is repeated on the next --plan run)`); }
   }
   for (const s of list.samples.filter((x) => x.agent === 'accord-executor')) {

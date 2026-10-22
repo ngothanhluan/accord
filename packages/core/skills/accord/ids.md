@@ -11,7 +11,7 @@ Read this when config.yml has `people`. Register only when `people` exists, neve
 Fetch first with
 `git -c credential.interactive=never -c core.sshCommand="ssh -o BatchMode=yes" fetch`;
 on failure say so and continue, since only refs already in the clone are read.
-Then run `accord new ticket --type <story|bug> --lane <lane>` with no id, adding `--worktree` when the lane is M, and use the id it prints.
+Then run `accord new ticket --type <story|bug> --lane <lane>` with no id, adding `--worktree` when the lane is M or S, and use the id it prints.
 Never retry with an id.
 
 ## When your email is not registered

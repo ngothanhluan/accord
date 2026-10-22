@@ -3,7 +3,7 @@ name: accord
 description: Use when starting any work in an accord repository, when seeing where work stands, or when continuing a ticket. Shows the dashboard, continues or picks up a ticket, and classifies a new request into a lane.
 license: MIT
 kind: skill
-loads: [accord/ids.md, accord/worktree.md, shared/ask.md, shared/failure.md]
+loads: [accord/ids.md, accord/lane-s.md, accord/worktree.md, shared/ask.md, shared/failure.md]
 ---
 
 First run the session check in `./worktree.md`. A failure reported in a ticket that has reached verify follows `./failure.md`.
@@ -39,7 +39,8 @@ New request whose text is the whole text after `/accord`: for
 2. Run `accord anchor`.
 3. If `accord/tickets/<id>/debug.md` exists and its last `## ` heading is
    not `## Resolved`, load `accord-debug` and resume there.
-4. Otherwise load the stage skill for the stage it prints: `intent` →
+4. Otherwise, when it prints `Lane: S`, follow `./lane-s.md`. Else load the stage skill
+   for the stage it prints: `intent` →
    `accord-approach` at step 5, the owner's yes, when the ticket's
    `## Approach` is already written, otherwise `accord-intent`; `plan` →
    `accord-plan`, `build` → `accord-build`, `review` → `accord-review`,
@@ -64,19 +65,15 @@ Propose a lane with its reason, out loud. The owner may override.
 | L: epic | 3 to 10 related stories |
 | P: project | greenfield |
 
-Any of these lifts S to M: new user-visible behaviour; a public interface or
-schema changes; auth, money, or data deletion is touched; more than one
-plausible reading; more than about three files expected.
+Any of these lifts S to M, and nothing else: a public interface or schema
+changes; auth, money, or data deletion is touched; more than one plausible
+reading; more than about five hand-written files expected, generated and
+rendered copies not counted.
 
-- **S.** Write back two lines in chat, `Understood: …` and `Done when: …`.
-  Proceed without waiting only when the request has a concrete anchor (file,
-  symbol, error message, or expected behaviour) and one plausible reading;
-  otherwise ask exactly one question and wait. Do the change in the main
-  session and run the affected tests. Run `git add -N` on every new file
-  so the diff shows it, then write the two lines and the `git diff` of
-  the change into a file outside the working tree, dispatch
-  one fresh `accord-reviewer`, lens `both`, with its path, and give a short
-  report in chat.
+- **S.** Run `accord new ticket <id> --lane S --worktree`; when config.yml has
+  `people`, follow `./ids.md` and run it with `--type <story|bug>` and no id
+  instead. Then follow `./lane-s.md`. A request that carries `Understood: …`
+  and `Done when: …` from a drop is lane S without asking again.
 - **M.** Run `accord new ticket <id> --lane M --worktree`; when config.yml has
   `people`, follow `./ids.md` and run `accord new ticket --type <story|bug>
   --lane M --worktree` with no id instead. It writes the ticket on its

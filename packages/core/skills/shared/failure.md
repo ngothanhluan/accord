@@ -14,6 +14,9 @@ someone reports a failure in its work, with or without the failing
 command and its output, or verify finds a failed check on that pull
 request. A failure after the merge is not one: it needs a new bug ticket.
 
+A lane S ticket (`accord anchor` prints `Lane: S`) never reaches verify, so a failure in its work is not one: continue it as the
+accord skill's lane S steps say, and the fix gets another review round.
+
 1. Never judge the cause yourself, and never dispatch a fix outside
    `accord-debug`: no executor, no edit, and no Ruling in place of a
    root cause.

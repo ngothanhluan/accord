@@ -57,3 +57,18 @@ A ticket's type never changes and its id is never renamed. To change the type:
 
 In a session that works the dropped ticket, `accord new ticket` is refused: run step 1 there, then say to
 open a new session in the main checkout and do steps 2 to 6 there.
+
+## Moving to lane S
+
+Only during the intent interview of a lane M ticket, on the owner's yes, as `accord-intent` says. In the ticket's
+worktree, run `git status --porcelain --untracked-files=all`. When it lists a path other than
+`accord/tickets/<id>.md` and paths under `accord/tickets/<id>/`, do not drop: name those paths, say the ticket stays
+lane M, and stop. Otherwise commit only those records: run `git add -A`, which that check limits to them, and
+`git commit -m "intent: <id> moved to lane S"` when anything is staged, push with
+`git push -u origin <claim branch>`, and run `accord drop <id> --reason "moved to lane S"`; open its pull request and
+close the session as step 1 of `## Dropping instead of renaming` says, and skip its first sentence and steps 2 to 6.
+Then print one line for the owner to type in a new session opened in the main checkout, filled from the interview
+and the ticket:
+`/accord Understood: <one line> Done when: <one line> Title: <its title> Keys: <its depends_on, tracker, priority, ui and design lines, where present, joined by "; "> (lane S, moved from <id>)`.
+That session takes lane S without asking and makes the new ticket, with a new id, by
+`accord new ticket --lane S --worktree`, carrying that title and those keys into it as the lane S steps say.

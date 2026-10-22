@@ -125,3 +125,7 @@ scripts/benchmark-samples.json, reviewer 3: the file `base` "fd80243ac273e1d2898
 
 ## Fixes
 - Fix 1, 35cb1ea: `checkFileBases` refuses, on every `--samples` and `--plan` before any snapshot, worktree or brief, a review-package file base that is not an ancestor of its sample base; `packageDrift` refuses a rebuilt package that differs from the run's read when that read is the package; reviewer 3's file base is now f67b830. Reproduction test `risk:regression a review-package file base that is not an ancestor of the sample base is refused before any brief is written` failed before the fix ("checkFileBases is not a function"); `npx vitest run packages/core/test/benchmark-` → 5 files, 34 passed.
+- Review round 8 found Fix 1's check unwired and its whole-text package comparison refusing reviewer 3 itself; fixed in 60ac048 (wired in `runSamples` and `runPlan`, changed-file sets compared, a cut read judged on the files it shows); round 9 re-review found no Must or Should; `npx vitest run packages/core/test/benchmark-` → 34 passed.
+
+## Resolved
+Root cause: reviewer 3's review-package file base fd80243 predates ST-LN-7's history rewrite and is not an ancestor of its sample base, so `--plan` rebuilt a package of the whole branch; fixed in 35cb1ea and 60ac048 by moving it to its rewritten copy f67b830 and by `checkFileBases` and `packageDrift`, which refuse a stale file base and a rebuilt package whose changed files differ from what the run read.

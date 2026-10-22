@@ -63,6 +63,10 @@
 - Ruling: task 8's `unjudged` entry is `{ tag, reason }` — the brief fixes only the printed `- <tag>: <reason>` line — Task 9 must pass that shape, a one-line change in report() otherwise
 - Ruling: task 8's "every effort tried" sentence compares heldAll with the efforts present in the results — gives the scout and executor sentences the brief lists — an agent whose suggested effort is in heldAll gets no such sentence
 - Ruling: task 8's report() throws on a result with no `usage` — Task 9 builds every result with usage — a run whose transcript has no usage stops the report instead of showing a gap
+- Ruling: task 9's matchRuns `extra` holds the judge run objects, not tags — the brief says "listed" with no shape — a one-line change
+- Ruling: with `judges: true`, a duplicate judge description is also reported as `<desc> (<n> runs)`, in row order — the brief shows only run duplicates — a one-line change
+- Ruling: task 9's judge row dispatch tag is `<tag> judge`, so dispatchTable prints judgeDescribe(tag) unchanged — cosmetic
+- Ruling: task 9's runRound paths (worktrees, review-package, gate plan, suite, report) are not run by any test; only matchRuns is, as the brief says, and `--round 1` and `--round 1 --judge` exit 2 with "run --round 1 --plan first" when round-1.json is absent — the first real round is the real check — a fault there shows only during the round
 - Ruling: task 3's real read found that complianceSettings kept the quotes of `model: "sonnet"`, missing BUG-LN-3 round 4; 49e0cfd strips them and the stale compliance.md was deleted before the read was run again — an earlier read's lines win in a merge — none
 
 ## Deferred
@@ -91,3 +95,4 @@
 - task 6 done 0b2bbf976a21
 - task 7 done 55ee264b9c33
 - task 8 done 8025fa418b13
+- task 9 done 8f4cc00e6d7c

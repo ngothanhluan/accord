@@ -53,6 +53,9 @@
 - Ruling: task 10 changed scripts/round.mjs, outside its files line: rewriteBrief cut a bench root containing a space (`C:/Users/Luan Ngo/...`) at the space and reported a false "outside the bench root"; a match that is a prefix of the bench root followed by a space is now accepted, and the Task 5 tests still pass — the owner's home path has a space — a real path outside the bench root that happens to share that prefix up to a space is accepted
 - Ruling: task 10 reports a plan.md or ticket missing at base as a problem — a snapshot is not built on an unverifiable base — one extra refusal, easy to relax
 - Ruling: task 10 prefixes the "no run" problem with "<agent> <n>:" like every other problem — uniform output — none
+- Ruling: task 12's sample list was built by a scratchpad script the owner ran by hand and committed by the owner (3fd784a), after the auto-mode classifier denied both the script and the commit to executors — reading transcripts into the repository needs the owner's own action here — none
+- Ruling: task 12's builder takes `base` for a `review-package` command with no `--base` from the 40-hex `baseline:` of the ticket's plan.md at the run's base commit — the CLI's own default is that baseline — a reviewer or final-reviewer package is rebuilt from a slightly different base than the run read
+- Ruling: a brief path in the sample list stays as the prompt wrote it (`C:/Users/LUANNG~1/...`); the list holds no email, author name or prompt text — the snapshot match needs the exact path — the short form of the owner's name is in the public repository
 - Ruling: task 3's real read found that complianceSettings kept the quotes of `model: "sonnet"`, missing BUG-LN-3 round 4; 49e0cfd strips them and the stale compliance.md was deleted before the read was run again — an earlier read's lines win in a merge — none
 
 ## Deferred
@@ -77,3 +80,4 @@
 - task 4 done b02b5045c331
 - task 5 done 26a7b8f99263
 - task 10 done 30914d53c5de
+- task 12 done 3fd784af23dc

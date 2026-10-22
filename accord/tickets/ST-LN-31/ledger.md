@@ -27,11 +27,15 @@
 - Ruling: the lane S anchor prints the shared `## Rulings` block, and `## Corrections` only when that heading exists — the earlier Corrections Ruling — cost if wrong: one block.
 - Ruling: lane S `gate done` carries the lane M suite rule, reading the CI junit report, while a lane S session still runs only the affected tests locally — plan round 1.6; owner: "A" — cost if wrong: a lane S pull request fails CI on a test outside its change.
 - Ruling: the lane S records check is one lint rule, `lint.lane-s-lane-m-records`, with no `gate.` row — every gate already includes a ticket's lint errors — cost if wrong: one more rule id.
-- Ruling: lane S `gate done` reads the commits after review.md from HEAD, not from the status fact read off the claim ref; once the review commit is on the default branch the fact is missing and the gate fails closed — CI gates pull requests only — cost if wrong: a later pull request that touches a merged lane S ticket's file fails its gate.
-- Ruling: a lane S round's record is committed before that round's fixes — this makes "no unreviewed fix ships" something the gate can check — cost if wrong: one more commit per round.
+- Ruling: lane S `gate done` reads the commits after the last commit that adds a `## Round` line to review.md from HEAD, not from the status fact read off the claim ref; once the review commit is on the default branch the fact is missing and the gate fails closed — CI gates pull requests only — cost if wrong: a later pull request that touches a merged lane S ticket's file fails its gate.
+- Ruling: a lane S round's record is committed before that round's fixes, a converged verdict in the same commit as the last round's record, and lane S gate done reads the commits on HEAD after the last commit that adds a "## Round" line to review.md, so a fix committed between the last round and a verdict committed apart fails gate.commit-after-review — plan round 2.1 — cost if wrong: the status stage can read done where the gate fails.
 - Ruling: under `stop:`, the main session writes Understood and Done when into the new worktree's ticket, then commits and pushes it, the same way it carries the people entry — no new CLI flag is needed (plan round 1.8) — cost if wrong: one commit made from the main checkout.
 - Ruling: the plan skill drops "The owner does not need to read the plan." to make room for the fork-point text; this replaces the byte estimate in the earlier D-11 Ruling — cost if wrong: one sentence of guidance lost.
 - Ruling: moving to lane S refuses when `git status` lists paths outside the ticket's own records, and commits only those records — so no uncommitted product code is committed and later deleted — cost if wrong: the owner commits or cleans that work first.
+- Ruling: lane S status rows set next at intent and review only — the dashboard's lane S build cell must read "build" (Task 3) — cost if wrong: a review row's cell grows longer.
+- Ruling: the move to lane S hand-off carries Title and Keys (depends_on, tracker, priority, ui, design), which the new session writes into the lane S ticket's frontmatter — the move skips step 3 of Dropping instead of renaming, so nothing else carries them — cost if wrong: a longer hand-off line.
+- Ruling: the CI workflow counts a lane S ticket carrying ac_hash as approved, so an accord-only lane S pull request runs gate done, while a queued lane S ticket with no ac_hash is still skipped — plan round 2.6 — cost if wrong: a pull request touching only a ready lane S ticket's records is gated.
+- Ruling: Task 9's test uses workflow-script.test.ts's own sandbox and runScript, not repoWith or commitMsg — every case in that file does, and its commits carry no message a convention reads — cost if wrong: none.
 
 ## Deferred
 - plan round 1.10 Nice — Understood/Done when can be rewritten after review and `gate ready` rerun unflagged
@@ -39,3 +43,5 @@
 - plan round 1.12 Nice — the intent drop rule is not limited to a ticket queued on origin's default branch
 - plan round 1.13 Nice — `docs/specs/2026-10-12-workflow-layer-design.md:65-66` keeps the old lift conditions
 - plan round 1.14 Nice — Task 6's fork-point test assumes git's default branch is main or master
+- plan round 3.2 Nice — the lane S stage and gate done start at different commits; the Ruling "stage and gate read one fact" no longer holds
+- plan round 3.3 Nice — the lane S template has no `design` line for the Keys hand-off to replace

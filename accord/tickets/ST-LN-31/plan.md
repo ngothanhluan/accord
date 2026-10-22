@@ -1,6 +1,6 @@
 ---
 baseline: 8638f7779fa5374eeef13e4f0d3beeef42547d94
-plan_hash: "fnv1a64:9690c8b366c32c3f"
+plan_hash: "fnv1a64:db9a1f491beb4f58"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this preamble,
@@ -14,7 +14,7 @@ new host fact about `review.md` and by the commits after it read from HEAD. Task
 rule that stops a lane S ticket holding lane M records, and keeps lane S out of the test policy. Task 6 makes
 `accord approve` refuse lane S and starts a lane S review package at the fork point. Task 7 writes the lane S
 procedure into the skills (ac-1, ac-4). Task 8 writes the drop at intent, the lifted plan baseline and the failure
-route (ac-5).
+route (ac-5). Task 9 makes the CI workflow gate a lane S pull request that changes only `accord/`.
 
 Rules for every task:
 - Test ids: every test this plan writes is a top-level `it(...)` with no `describe` around it. Its report id is the
@@ -182,12 +182,13 @@ Test first: `packages/core/test/lane-s.test.ts` (new), importing `loadSnapshot` 
   `R = 'accord/tickets/S-1/review.md'`; `ready = { 'accord/tickets/S-1.md': S(LANE_S_BODY, ['ac_hash: "' + H + '"']) }`.
 - `it('risk:complex-branching the lane S stage and anchor follow the ready record the review record and the commits after it')`:
   - No `ac_hash`: `row(snap({ 'accord/tickets/S-1.md': S() }))` matches `{ lane: 'S', stage: 'intent', ready: 'none', next: 'write ## Understood and ## Done when, then pass accord gate ready (lane-s.md)' }`.
-  - `ready`: the row matches `{ stage: 'build', ready: 'ok', tasksDone: 0, tasksTotal: 0 }` and
+  - `ready`: the row matches `{ stage: 'build', ready: 'ok', tasksDone: 0, tasksTotal: 0 }`, its `next` is
+    undefined (so Task 3's dashboard cell reads `build`), and
     `nextRows(statusRows(snap(ready))).map((r) => r.id)` contains `S-1`.
   - `{ ...ready, [R]: '## Round 1\n\nMust 1: x — src/a.ts:1\n' }` (a round recorded, no verdict yet): the row matches
     `{ stage: 'review', next: 'the next review round, numbered after the last ## Round in review.md (lane-s.md)' }`.
-  - `{ ...ready, [R]: '## Round 1\n\nNo findings\n\nverdict: converged\n' }`: stage `done`, and `isDone` of that
-    snapshot for `S-1` is true. With `verdict: accepted-by-owner "ship it"` as the last line it is `done` too (D-12).
+  - `{ ...ready, [R]: '## Round 1\n\nNo findings\n\nverdict: converged\n' }`: stage `done`, its `next` is
+    undefined, and `isDone` of that snapshot for `S-1` is true. With `verdict: accepted-by-owner "ship it"` as the last line it is `done` too (D-12).
   - A line `x` after the verdict: stage `review`. `verdict: open`: stage `review`.
   - The converged files with
     `{ afterVerify: { 'S-1': [{ sha: 'a'.repeat(40), parents: ['b'.repeat(40)], files: ['src/a.ts'] }] } }`: stage
@@ -220,7 +221,12 @@ Interface:
     `{ stage: laneSStage(snapshot, ticket), tasksDone: 0, tasksTotal: 0 }`.
   - `nextStep`: for a lane S ticket returns `laneSNext(stage as LaneSStage)`; lane M text unchanged.
 - `status/rows.ts`: `ready: compare(fm?.ac_hash, readyHash(ticket), 'ok')`. `ticksBinding` still compares with
-  `acHash`.
+  `acHash`. `next` is set at stage `intent` for every lane ticket, as today, and also at stage `review` for a lane S
+  ticket; never at `build` or `done` for lane S, so the dashboard's lane S `build` cell stays `build` (Task 3). The
+  spread becomes
+  `...(progress.stage === 'intent' || (fm.lane === 'S' && progress.stage === 'review') ? { next: nextStep(ticket, progress.stage) } : {})`,
+  and the `next` field comment becomes
+  `// what follows an unwritten or unapproved intent; set only at stage intent, and for lane S also at review`.
 - `status/anchor.ts`: for a lane S ticket the lines after the title are `''`, `Lane: S`,
   `Stage: <stage>, next: <laneSNext(stage)>`, then the sections `Understood` and `Done when` printed as the lane M
   sections are (`(none)` when empty), then `Corrections` the same way only when the ticket has that heading (ledger
@@ -293,7 +299,7 @@ verify: packages/cli/test/lane-s.test.ts#risk:complex-branching-lane-S-gate-done
 
 Consumes: `SECTION_EMPTY` and `laneSHash` (Task 1), `handMade` and `ownRecordsOnly` (Task 2, `gate/done.ts`),
 `reviewMissing`, `reviewUnconverged`, `suiteNotPassed` and `workOf` (`gate/work.ts`), `commitTrailer`
-(`gate/done.ts`), and the private `reviewStartOf` and `gitAfterVerify` of `packages/cli/src/load/fs.ts`. Produces:
+(`gate/done.ts`), and the private `gitAfterVerify` and `isSha` of `packages/cli/src/load/fs.ts`. Produces:
 `DONE_S_RULES`, the host fact `reviewFacts`, `gitReviewFact` and `gitAfterReview`. Task 7 adds `DONE_S_RULES` to the
 rule-id scan in `skills.test.ts`.
 
@@ -328,6 +334,12 @@ Test first, appended to `packages/cli/test/lane-s.test.ts`; add `REPORT` and `ju
       `commitMsg(repo, 'review: S-1')`; `fails('gate.review-commit-code')`; `hard()`.
   13. D-12: write `RP` as `'## Round 5\n\nMust 1: x — src/a.ts:1 — open\n\nverdict: accepted-by-owner "ship it"\n'`,
       `commitMsg(repo, 'review: S-1')`; `gate done S-1` exits 0.
+  14. A fix between the last round's record and a verdict committed apart: `hard()` (back to `change`), write `RP`
+      as `'## Round 1\n\nNo findings\n'`, `commitMsg(repo, 'review: S-1 round 1')`; write `src/e.ts` as `'e\n'`,
+      `commitMsg(repo, 'fix after round')`; write `RP` as `REVIEW`, `commitMsg(repo, 'review: S-1 verdict')`;
+      `fails('gate.commit-after-review')`.
+  15. A verdict committed apart with nothing between: `gitRun(repo, 'reset', '-q', '--hard', 'HEAD~2')` (back to the
+      round 1 record), write `RP` as `REVIEW`, `commitMsg(repo, 'review: S-1 verdict')`; `gate done S-1` exits 0.
 
 Interface:
 - `model/snapshot.ts`: `SnapshotInput` and `RepoSnapshot` gain
@@ -373,11 +385,16 @@ Interface:
     3. `files` = `execFileSync('git', ['-c', 'log.showSignature=false', 'show', '--no-show-signature', '-z', '--format=', '--name-only', '--no-renames', sha], o)`
        split on `\0`, each token with one leading `\n` removed, empty tokens dropped.
     4. Return `{ clean: !dirty, files }`. Any spawn that throws returns `{ clean: false }`: the gate then fails closed.
-  - `export function gitAfterReview(root: string, id: string): AfterVerify | undefined`: the commits after review.md
-    on HEAD, the commit being gated, whatever branch, claim ref or fork it came from.
-    `commit = reviewStartOf(root, id, ['HEAD'])`; undefined → undefined. Otherwise
+  - `export function gitAfterReview(root: string, id: string): AfterVerify | undefined`: the commits on HEAD, the
+    commit being gated whatever branch, claim ref or fork it came from, after the last commit that records a review
+    round, which is the last commit whose change to review.md adds or removes a `## Round ` line. Starting there,
+    not at the last commit touching review.md, makes a fix committed between the last round's record and a verdict
+    committed apart a commit after the review (plan round 2.1). With `p` and the options of `gitReviewFact`:
+    `commit = execFileSync('git', ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '-1', '-G', '^## Round ', '--format=%H', 'HEAD', '--', p], o).trim()`;
+    a spawn that throws, or an output `isSha` (already in `fs.ts`) rejects, returns undefined. Otherwise
     `r = gitAfterVerify(root, { [id]: { commit, tips: ['HEAD'] } })` and return `Object.hasOwn(r, id) ? r[id] : undefined`.
-    Undefined makes `gate.commit-after-review` fail closed.
+    Undefined makes `gate.commit-after-review` fail closed. (`git log -G` matches each added or removed line of the
+    diff restricted to the pathspec, so `^` anchors at the line start.)
 - `cli/src/commands/gate.ts`: when `which === 'done'` and the ticket exists (`Object.hasOwn`) with `lane: S`, the
   snapshot passed to `gateDone` is `withCommits` plus `reviewFacts: { [id]: gitReviewFact(ctx.root, id) }` and an
   `afterVerify` whose entry for `id` is `gitAfterReview(ctx.root, id)`: build it as
@@ -504,7 +521,8 @@ Tests first, appended at the end of `packages/core/test/stage-skills.test.ts`, w
     `Make no other change before that`, ``Never run `accord approve` ``, `you make the change yourself`,
     `` `tests.affected` ``, `over the changed files`, `first write a test that reproduces it`,
     ``fresh `accord-reviewer`, lens `both` ``, `` `accord/tickets/<id>/ledger.md` when it exists ``,
-    `` `## Round <n>` ``, `commit `review.md` alone at once`, `no Must open`, `a fix no reviewer has seen never ships`,
+    `` `## Round <n>` ``, `commit `review.md` alone at once`, `the round and its verdict are one commit`,
+    `` `Short title in business language` ``, `` `Keys: …` ``, `no Must open`, `a fix no reviewer has seen never ships`,
     `There is no final reviewer`, `At most five rounds`, `stop and report the open findings to the owner`,
     `the next round is one after the last`, `` `verdict: converged` ``, `` `verdict: accepted-by-owner ``,
     `` `git -C "<path>" commit ``, `pull request`, `no intent interview, approval, approach, plan, executor or verify`.
@@ -560,8 +578,10 @@ no intent interview, approval, approach, plan, executor or verify: you make the 
 ## Start
 
 - New request: the accord skill ran `accord new ticket <id> --lane S --worktree`. Before you follow the `enter:` or
-  `stop:` line it printed as `./worktree.md` says, write the two lines of step 1 into
-  `<path>/accord/tickets/<id>.md`, asking step 1's question first when it needs one, then run
+  `stop:` line it printed as `./worktree.md` says, write the title and the two lines of step 1 into
+  `<path>/accord/tickets/<id>.md`, asking step 1's question first when it needs one. A request moved from a lane M
+  ticket carries `Title: …` and `Keys: …`: write that title, and each `Keys:` line into the frontmatter in place of
+  the template's line for that key, commented or not. Then run
   `git -C "<path>" commit -m "ticket: <id> understood" -- accord/tickets/<id>.md` and
   `git -C "<path>" push -u origin <branch>`. After `enter:`, go on at step 1 in that worktree; after `stop:`, the
   session opened there finds the two lines in the ticket.
@@ -576,8 +596,9 @@ no intent interview, approval, approach, plan, executor or verify: you make the 
    `## Done when`: the observable result that ends the work. When the request carried `Understood: …` and
    `Done when: …`, use those lines. Go on without waiting only when the request has a concrete anchor (file, symbol,
    error message, or expected behaviour) and one plausible reading; otherwise ask exactly one question, as
-   `./ask.md` says, and wait. Run `accord gate ready <id>` and fix what it prints until it exits 0, then commit the
-   ticket. Make no other change before that. Never run `accord approve`.
+   `./ask.md` says, and wait. When `title:` still reads `Short title in business language`, replace it with a few
+   words naming the change in business language. Run `accord gate ready <id>` and fix what it prints until it exits
+   0, then commit the ticket. Make no other change before that. Never run `accord approve`.
 2. **Change.** Make the change in this worktree. For a bug, first write a test that reproduces it and see it fail,
    then fix it. A test you add carries `risk:<kind>` in its name.
 3. **Tests.** Run the `tests.affected` command from `accord/config.yml` over the changed files, or `tests.full` when
@@ -586,16 +607,20 @@ no intent interview, approval, approach, plan, executor or verify: you make the 
    dispatches one fresh `accord-reviewer`, lens `both`, with the paths of the ticket file, that file, and
    `accord/tickets/<id>/ledger.md` when it exists. Append what it reports to `accord/tickets/<id>/review.md` under
    `## Round <n>`, each finding with its severity, what it is and where it is, or `No findings`, and commit
-   `review.md` alone at once. When the round reports a Must, fix every Must and Should yourself, run step 3 again,
-   commit, and start the next round with a new reviewer. When it reports no Must open, either go to step 5, leaving
-   its Shoulds open in the record, or fix them the same way and run another round: a fix no reviewer has seen never
-   ships. There is no final reviewer and no model tier-up. At most five rounds, counted from the `## Round <n>`
-   sections of `review.md`: when the fifth still reports a Must, stop and report the open findings to the owner;
-   never report the work finished. Resumed at `review`, the next round is one after the last `## Round <n>` in
-   `review.md`; when that round reported a Must whose fix is not yet committed, make and commit the fix first.
-5. **Verdict.** Append the last line of `review.md`: `verdict: converged` when the last round reported no Must
-   open, or `verdict: accepted-by-owner "<the owner's words>"` when the owner accepts the open findings at the cap.
-   Nothing follows that line. Commit `review.md` alone: a change after it needs another round and a new verdict.
+   `review.md` alone at once; when you stop after this round with no Must open, first append step 5's verdict, so
+   the round and its verdict are one commit. When the round reports a Must, fix every Must and Should yourself, run
+   step 3 again, commit, and start the next round with a new reviewer. When it reports no Must open, either stop
+   there, leaving its Shoulds open in the record, or fix them the same way and run another round: a fix no reviewer
+   has seen never ships. There is no final reviewer and no model tier-up. At most five rounds, counted from the
+   `## Round <n>` sections of `review.md`: when the fifth still reports a Must, commit its record, stop and report
+   the open findings to the owner; never report the work finished. Resumed at `review`, the next round is one after
+   the last `## Round <n>` in `review.md`; when that round reported a Must whose fix is not yet committed, make and
+   commit the fix first.
+5. **Verdict.** The last line of `review.md` is `verdict: converged` when the last round reported no Must open, or
+   `verdict: accepted-by-owner "<the owner's words>"` when the owner accepts the open findings at the cap; that one
+   is committed alone, right after the fifth round's record. Nothing follows that line. `accord gate done` fails on
+   any commit after the last round's record that changes more than the ticket's records: a change after it needs
+   another round and a new verdict.
 6. **Pull request.** Run `accord gate done <id>` and fix what it prints. Push the branch with
    `git push -u origin <branch>` and open a pull request with `gh pr create --fill` when `gh` is available, otherwise
    ask the owner to open it. It waits for the owner's merge.
@@ -621,8 +646,11 @@ ticket, branch and worktree:
   `Ruling: <what> — <why> — <cost if wrong>`.
 ```
 (The lift step 1 names the last two sections in words, so no paragraph pairs a heading `PROMOTED` lists with a
-command. Step 4 commits each round's record before its fixes, so a fix made after the last round is a commit after
-`review.md`, which `accord gate done` and the stage already catch.)
+command. Step 4 commits each round's record before its fixes and a converged verdict with the last round's record,
+so a fix made after the last round is a commit after `review.md`, which `accord gate done` and the stage both catch.
+When a verdict is committed apart anyway, `accord gate done` still catches a fix before it, because Task 4's
+`gitAfterReview` starts at the last commit that adds a `## Round` line; the stage, which starts at the last commit
+touching `review.md`, can then read `done` while the gate fails, and the gate is what CI runs.)
 
 Text, `packages/core/agents/reviewer.md` line 11: the sentence "A lane S change has no ticket, package, or ledger: one
 file holds the request's two lines and the diff." becomes "A lane S ticket has no plan or acceptance criteria, and a
@@ -660,8 +688,9 @@ Test first, appended to `packages/core/test/lane-s.test.ts`; add `skillTargets` 
     `From step 9 on, a lane never drops`.
   - `ids = flat('.claude/skills/accord-intent/ids.md')` equals `flat('.claude/skills/accord/ids.md')`;
     `move = ids.slice(ids.indexOf('## Moving to lane S'))` contains
-    `` `git status --porcelain --untracked-files=all` ``, `do not drop`, `commit only those records`,
+    `` `git status --porcelain --untracked-files=all` ``, `do not drop`, `commit only those records`, `` `git add -A` ``,
     `` `accord drop <id> --reason "moved to lane S"` ``, `step 1 of`, `(lane S, moved from <id>)`,
+    `Title: <its title> Keys: <its depends_on, tracker, priority, ui and design lines`,
     `` `accord new ticket --lane S --worktree` `` and `a new id`, and does not contain `commit every change`.
   - `flat('.claude/skills/accord/SKILL.md')` contains `lane S without asking again` and `--lane S --worktree`.
   - Plan baseline of a lifted ticket: `flat('.claude/skills/accord-plan/SKILL.md')` contains
@@ -689,13 +718,15 @@ Text, `packages/core/skills/accord/ids.md`: append at the end of the file:
 Only during the intent interview of a lane M ticket, on the owner's yes, as `accord-intent` says. In the ticket's
 worktree, run `git status --porcelain --untracked-files=all`. When it lists a path other than
 `accord/tickets/<id>.md` and paths under `accord/tickets/<id>/`, do not drop: name those paths, say the ticket stays
-lane M, and stop. Otherwise commit only those records, with `git add -- accord/tickets/<id>.md accord/tickets/<id>/`
-and `git commit -m "intent: <id> moved to lane S"` when anything is staged, push with
+lane M, and stop. Otherwise commit only those records: run `git add -A`, which that check limits to them, and
+`git commit -m "intent: <id> moved to lane S"` when anything is staged, push with
 `git push -u origin <claim branch>`, and run `accord drop <id> --reason "moved to lane S"`; open its pull request and
 close the session as step 1 of `## Dropping instead of renaming` says, and skip its first sentence and steps 2 to 6.
-Then print one line for the owner to type in a new session opened in the main checkout, filled from the interview:
-`/accord Understood: <one line> Done when: <one line> (lane S, moved from <id>)`. That session takes lane S without
-asking and makes the new ticket, with a new id, by `accord new ticket --lane S --worktree`.
+Then print one line for the owner to type in a new session opened in the main checkout, filled from the interview
+and the ticket:
+`/accord Understood: <one line> Done when: <one line> Title: <its title> Keys: <its depends_on, tracker, priority, ui and design lines, where present, joined by "; "> (lane S, moved from <id>)`.
+That session takes lane S without asking and makes the new ticket, with a new id, by
+`accord new ticket --lane S --worktree`, carrying that title and those keys into it as the lane S steps say.
 ```
 
 Text, `packages/core/skills/intent/SKILL.md`:
@@ -736,3 +767,54 @@ Must not change: steps 1 to 6 of `## Dropping instead of renaming` and every phr
 reads; every `REQUIRED.plan` and `REQUIRED.intent` phrase; every phrase the `failure.md` test asserts
 (`stage-skills.test.ts:499-512`); every planner phrase `agents.test.ts` asserts and the `(@ac-` marker wording
 (`skills-sync.test.ts:601`); `droppedReason` and `dependsDropped`.
+
+## Task 9: The CI workflow gates a lane S ticket that passed gate ready in a pull request that changes only accord/
+covers: D-04
+files: packages/core/src/scaffold/workflow.ts, .github/workflows/accord.yml, packages/cli/test/workflow-script.test.ts
+verify: packages/cli/test/workflow-script.test.ts#risk:security-a-lane-S-ticket-that-passed-gate-ready-is-gated-in-an-accord-only-diff-and-a-queued-one-is-not
+
+Consumes: the workflow script as it is, and the `ac_hash` that Task 1's `gate ready` writes on a lane S ticket.
+Produces: a workflow that runs `gate done` on a lane S ticket carrying `ac_hash` even when the pull request changes
+nothing outside `accord/`, so a lane S pull request with no converged review never goes green (D-04: CI's
+`gate done` is what holds a lane S pull request to its review). A queued lane S ticket, which has no `ac_hash`, is
+still skipped, so a backlog pull request lands as today.
+
+Test first, a new top-level test in `packages/cli/test/workflow-script.test.ts`, placed after the
+`describe.skipIf(noBash)('the emitted workflow script — executed', ...)` block. It uses this file's own `sandbox`,
+`runScript` and `afterEach` cleanup, as every case in the file does; the preamble's `repoWith`, `commitMsg` and
+`cleanup` rules do not apply to it, because the sandbox commits nothing a convention reads.
+- `it.skipIf(noBash)('risk:security a lane S ticket that passed gate ready is gated in an accord-only diff and a queued one is not', () => { ... }, 300_000)`:
+  - `READY_S = '---\nid: LS-1\nstatus: open\nlane: S   # S: one small change\nac_hash: "fnv1a64:0000000000000000"\n---\n\n## Understood\nx\n'`;
+    `QUOTED_S = READY_S.replace('lane: S   # S: one small change', 'lane: "S"')`;
+    `QUEUED_S = READY_S.replace('ac_hash: "fnv1a64:0000000000000000"', '# ac_hash:')`;
+    `M_HASH = READY_S.replace('lane: S   # S: one small change', 'lane: M')`.
+  - `own` is the `run` of the one step named `lint and gate` in `.github/workflows/accord.yml`, read exactly as the
+    test `the workflow of this repository gates the same tickets with the same exit as the emitted one` reads it.
+  - For each `script` of `[SCRIPT, own]`:
+    - For each text of `[READY_S, QUOTED_S]`: `s = sandbox((r) => write(r, 'accord/tickets/LS-1.md', text))`,
+      `r = runScript(s.repo, { base: s.base, script })`; `r.calls` has length 2 and `r.calls[1]` ends with
+      `' gate done LS-1'`.
+    - For each text of `[QUEUED_S, M_HASH]`: the same run has `r.calls` of length 1 and `r.out` contains
+      `not gating LS-1`.
+
+Interface, the same edit in both files. In `packages/core/src/scaffold/workflow.ts` every `$` of a `{qc}` reference
+is written `\$` as the lines around it are; in `.github/workflows/accord.yml` it is a plain `$`.
+- The comment above `approved_at` becomes:
+  `# Approved means an approved_hash key in that version of path $2, or, on a lane S ticket, an ac_hash key, since`
+  `# a lane S ticket needs no approval. An unsettled read counts as approved.`
+- The last line of `approved_at` becomes two lines:
+  ```
+  grep -Eq "^[[:space:]]*${qc}?approved_hash${qc}?[[:space:]]*:" <<< "$fm" && return 0
+  grep -Eq "^${qc}?lane${qc}?[[:space:]]*:[[:space:]]*${qc}?S${qc}?[[:space:]]*(#.*)?$" <<< "$fm" && grep -Eq "^[[:space:]]*${qc}?ac_hash${qc}?[[:space:]]*:" <<< "$fm"
+  ```
+- The header comment of `workflow.ts` (lines 26-27): "unapproved in both its HEAD and base versions" becomes
+  "unapproved in both its HEAD and base versions (a lane S ticket: no `ac_hash` in either)".
+- Neither file gains the text `gate ready` (`scaffold.test.ts` `runs lint and gate done, never gate ready (D-140)`),
+  a backslash in the emitted text, or a `$` followed by `{{` inside the `run:` body.
+
+Then run `npm run build`, and `npx vitest run packages/cli/test/workflow-script.test.ts packages/core/test/scaffold.test.ts packages/cli/test/init.test.ts`
+before the whole suite, as the preamble says.
+
+Must not change: every other case of `workflow-script.test.ts`, including the replay of the emitted cases through
+this repository's workflow; a lane M, 0.1.0 or epic ticket's gating; `fm_at`, `is_dropped`, the deletion check and the
+`not gating` messages.

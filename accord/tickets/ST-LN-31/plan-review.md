@@ -19,9 +19,15 @@
 
 ## Round 2 (whole)
 
-1. Should — repeats 1.3: the verdict is committed alone after the last round, and `gitAfterReview`/`gitReviewFact` start from the last review.md commit (the verdict commit), so a code fix committed between the last round's record and the verdict passes `gate done` unreviewed; plan.md and the ledger Ruling claim the gate catches it — open
-2. Should — Task 2's test expects `next` on a lane S review row, but its interface changes only `ready:` in rows.ts (`next` is set only at `intent`); setting `next` on every lane S stage breaks Task 3's dashboard assertion (`build, next: …`) — the interface must name the stages that get `next` — open
-3. Should — `## Moving to lane S` runs `git add -- accord/tickets/<id>.md accord/tickets/<id>/`, which fails with "pathspec did not match" when the ticket has no folder yet, so nothing is committed and `accord drop` refuses on uncommitted changes — open
-4. Should — A move to lane S loses the old ticket's `depends_on`, `tracker`, `priority`, `ui` and `design` (the hand-off carries only Understood and Done when, and step 3 of `## Dropping instead of renaming` is skipped); a lane S ticket can then be built before a ticket it depended on — open
-5. Should — No lane S step replaces the template's placeholder title, so every lane S ticket shows `Short title in business language` on the dashboard and panel (ac-3) — open
-6. Should — The CI workflow skips gating a ticket whose pull request changes only `accord/` and that has no `approved_hash`; a lane S ticket never has one, so a lane S pull request changing only `accord/config.yml` with no converged review goes green (packages/core/src/scaffold/workflow.ts:123-163, `.github/workflows/accord.yml`) — open
+1. Should — repeats 1.3: the verdict is committed alone after the last round, and `gitAfterReview`/`gitReviewFact` start from the last review.md commit (the verdict commit), so a code fix committed between the last round's record and the verdict passes `gate done` unreviewed; plan.md and the ledger Ruling claim the gate catches it — fixed
+2. Should — Task 2's test expects `next` on a lane S review row, but its interface changes only `ready:` in rows.ts (`next` is set only at `intent`); setting `next` on every lane S stage breaks Task 3's dashboard assertion (`build, next: …`) — the interface must name the stages that get `next` — fixed
+3. Should — `## Moving to lane S` runs `git add -- accord/tickets/<id>.md accord/tickets/<id>/`, which fails with "pathspec did not match" when the ticket has no folder yet, so nothing is committed and `accord drop` refuses on uncommitted changes — fixed
+4. Should — A move to lane S loses the old ticket's `depends_on`, `tracker`, `priority`, `ui` and `design` (the hand-off carries only Understood and Done when, and step 3 of `## Dropping instead of renaming` is skipped); a lane S ticket can then be built before a ticket it depended on — fixed
+5. Should — No lane S step replaces the template's placeholder title, so every lane S ticket shows `Short title in business language` on the dashboard and panel (ac-3) — fixed
+6. Should — The CI workflow skips gating a ticket whose pull request changes only `accord/` and that has no `approved_hash`; a lane S ticket never has one, so a lane S pull request changing only `accord/config.yml` with no converged review goes green (packages/core/src/scaffold/workflow.ts:123-163, `.github/workflows/accord.yml`) — fixed
+
+## Round 3 (diff)
+
+1. Should — With the verdict committed apart, `gitReviewFact` still reads the files of the last commit touching review.md (the verdict commit) and `gitAfterReview` starts after the round commit, so code committed in the same commit as the last round's record is never checked; plan lines 168-172 and the ledger Ruling claim the gate catches it — open
+2. Nice — The stage starts at the last commit touching review.md while `gate done` starts at the last `## Round` commit, so the dashboard can read done where the gate fails; the ledger Ruling "stage and gate read one fact" is no longer true — deferred
+3. Nice — The Keys hand-off writes each key in place of the template's line, but the lane S template has no `design` line, so a moved ticket's design reference can be left out — deferred

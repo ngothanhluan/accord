@@ -47,6 +47,10 @@
 - Ruling: approve reads the lane as `ticket.frontmatter?.lane` — task 6 executor, typecheck says frontmatter may be undefined — cost if wrong: none.
 - Ruling: task 7 also commits `.claude/agents/accord-final-reviewer.md`, outside its files line — `skills sync` renders it from the same `reviewer.md` source, so leaving it stale would fail the sync check — cost if wrong: none.
 - Ruling: the ac-5 test keeps the brief's `rule.length > 0` check and adds an explicit `**Lane S.**` position assert — task 8 executor, the length check alone can never fail — cost if wrong: none.
+- Ruling: review round 1 fixes A, B and C only reword skill sentences, each locked by a stage-skills.test.ts assertion — review fix executor — cost if wrong: a later rewording must update them.
+- Ruling: the CI lane-drop check runs per ticket before the existing gating and skips gate done for a ticket it fails — a ticket failing it must not also be gated — cost if wrong: one fewer gate message on that ticket.
+- Ruling: the CI lane-drop check fails closed when the BASE frontmatter cannot be read and passes when the ticket is new at HEAD — new lane S tickets must work — cost if wrong: an unparseable base ticket fails the job until fixed by hand.
+- Ruling: `.github/workflows/accord.yml` gets the same `lane_dropped` function and call as the emitted script, inserted by hand — the repo file has its own npm ci, build and suite steps, so it is not a straight re-render — cost if wrong: the two copies drift; the replay test covers the shared cases.
 
 ## Deferred
 - plan round 1.10 Nice — Understood/Done when can be rewritten after review and `gate ready` rerun unflagged
@@ -56,6 +60,18 @@
 - plan round 1.14 Nice — Task 6's fork-point test assumes git's default branch is main or master
 - plan round 3.2 Nice — the lane S stage and gate done start at different commits; the Ruling "stage and gate read one fact" no longer holds
 - plan round 3.3 Nice — the lane S template has no `design` line for the Keys hand-off to replace
+- review round 1 Nice — `new ticket --type epic --lane S` is refused with a message naming only M
+- review round 1 Nice — `accord status` and `accord show` print a lane S build ticket as `build 0/0` and `Tasks: 0/0`
+- review round 1 Nice — lane S gate done calls `reviewCommit` twice; the `forDone` IIFE in gate.ts could be a helper
+- review round 1 Nice — `LANE_S_REQUIRED` is a Record of three identical entries where an array would do
+- review round 1 Nice — the ac-5 test also asserts the D-11 fork-point text in the plan skill and planner
+- review round 1 Nice — the plan skill lost "The owner does not need to read the plan." to fit its byte cap
+- review round 1 Nice — lane-s.md and the intent skill leave `<origin's default branch>`, `<branch>` and the `{files}` set unresolved
+- review round 1 Nice — the move-to-S hand-off carries no ticket type, says "each `Keys:` line" for one joined line, and ids.md's header still says it is read only with `people`
+- review round 1 Nice — lane S review records define no per-finding status and no handling for Nice findings
+- review round 1 Nice — the skills.test `VERDICT` regex now also lets "Ready when" and "Done when" prose pass
+- review round 1 Nice — a `/accord` request worded as a drop hand-off is taken as lane S without checking the moved ticket or the lift conditions
+- review round 1 Nice — the move-to-S hand-off drops the `parent` key, so an epic loses the ticket from its counts
 
 ## Tasks
 - task 1 done 46c5a6864f6c

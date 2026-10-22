@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -222,14 +222,14 @@ function suiteScript(counter: string, first: number, later: number) {
   return `const fs=require('fs');const f=${JSON.stringify(counter)};const n=(fs.existsSync(f)?+fs.readFileSync(f,'utf8'):0)+1;fs.writeFileSync(f,String(n));process.exit(n===1?${first}:${later});\n`;
 }
 
-function planFixture(tmp: string, first: number, later: number) {
+function planFixture(tmp: string, first: number, later: number, own?: { script: string; config: string }) {
   const root = fileURLToPath(new URL('../../../', import.meta.url));
   const repo = join(tmp, 'repo');
   mkdirSync(join(repo, 'scripts'), { recursive: true });
   mkdirSync(join(repo, 'accord'), { recursive: true });
   const counter = join(tmp, 'count.txt').replaceAll('\\', '/');
-  writeFileSync(join(repo, 'suite.js'), suiteScript(counter, first, later));
-  writeFileSync(join(repo, 'accord', 'config.yml'), 'tests:\n  full: node suite.js\n');
+  writeFileSync(join(repo, 'suite.js'), own?.script ?? suiteScript(counter, first, later));
+  writeFileSync(join(repo, 'accord', 'config.yml'), own?.config ?? 'tests:\n  full: node suite.js\n');
   execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: repo });
   execFileSync('git', ['add', '.'], { cwd: repo });
   execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'c'], { cwd: repo });
@@ -269,6 +269,44 @@ it('risk:regression a suite that fails once and passes on its re-run does not st
     rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
   }
 }, 120_000);
+
+// What the verify stage leaves behind: tests.full has run in the checkout, so tests.report exists there.
+const REPORT = 'node_modules/.cache/accord/junit.xml';
+const reportConfig = `setup: []
+tests:
+  full: node suite.js
+  report: ${REPORT}
+`;
+const verifierDirs = (bench: string) => readdirSync(join(bench, 'wt')).filter((d) => d.startsWith('verifier-'));
+
+it('risk:regression --plan leaves the tests.report of tests.full in every verifier worktree, even from a red suite', () => {
+  const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'bench-')));
+  try {
+    // The suite writes its report where the config says; it is red in a verifier worktree, as the original suites could be.
+    const script = `const fs=require('fs');fs.mkdirSync('node_modules/.cache/accord',{recursive:true});fs.writeFileSync('${REPORT}','<testsuites>'+process.cwd().split(/[\\/]/).pop()+'</testsuites>');process.exit(/verifier/.test(process.cwd())?1:0);
+`;
+    const f = planFixture(tmp, 0, 0, { script, config: reportConfig });
+    f.plan();
+    const dirs = verifierDirs(f.bench);
+    expect(dirs.length).toBeGreaterThan(0);
+    for (const d of dirs) expect(readFileSync(join(f.bench, 'wt', d, REPORT), 'utf8')).toContain('<testsuites>');
+  } finally {
+    rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+}, 180_000);
+
+it('risk:regression --plan exits 2 naming the report file when tests.full leaves none in a verifier worktree', () => {
+  const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'bench-')));
+  try {
+    const f = planFixture(tmp, 0, 0, { script: 'process.exit(0)', config: reportConfig });
+    const r = f.plan();
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain(REPORT);
+    expect(r.stderr).toMatch(/verifier/);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+}, 180_000);
 
 it('risk:regression a suite that fails on its re-run too is red', () => {
   const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'bench-')));
@@ -735,6 +773,40 @@ it('risk:data-loss --rerun keeps a commit made on a detached HEAD and refuses ov
   }
 }, 120_000);
 
+it('risk:data-loss --rerun with a HEAD that is neither base nor branch tip keeps both under different refs, and a folder whose HEAD cannot be read changes nothing', async () => {
+  const { prepareWorktree, rerunWorktree } = await bench();
+  const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'bench-')));
+  const t = tmp.replaceAll('\\', '/');
+  try {
+    const { repo, git, H1 } = twoCommitRepo(t);
+    const state = { worktrees: {} as Record<string, Setup & { preparedAt?: number }> };
+    const dir = t + '/wt';
+    prepareWorktree(repo, state, 'x', { path: dir, base: H1, branch: 'bench/x-1-low' }, () => {});
+    const E = runCommit(git, dir);
+    git(dir, 'checkout', '-q', '--detach');
+    writeFileSync(dir + '/other.txt', 'other\n');
+    git(dir, 'add', '.');
+    git(dir, 'commit', '-q', '-m', 'detached');
+    const F = git(dir, 'rev-parse', 'HEAD');
+    expect(F).not.toBe(E);
+    expect(rerunWorktree(repo, state, 'x')).toBe('refs/keep/bench/x-1-low/1, refs/keep/bench/x-1-low/2');
+    const kept = [1, 2].map((n) => git(repo, 'rev-parse', `refs/keep/bench/x-1-low/${n}`));
+    expect([...kept].sort()).toEqual([E, F].sort());
+
+    // a partly removed folder: the HEAD cannot be read, so nothing is removed, kept or forgotten
+    prepareWorktree(repo, state, 'x', { path: dir, base: H1, branch: 'bench/x-1-low' }, () => {});
+    const E2 = runCommit(git, dir);
+    const record = JSON.stringify(state.worktrees.x);
+    rmSync(dir + '/.git', { force: true });
+    expect(() => rerunWorktree(repo, state, 'x')).toThrow('cannot be read');
+    expect(git(repo, 'rev-parse', 'refs/heads/bench/x-1-low')).toBe(E2);
+    expect(JSON.stringify(state.worktrees.x)).toBe(record);
+    expect(git(repo, 'for-each-ref', 'refs/keep')).not.toContain('/3');
+  } finally {
+    rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+}, 120_000);
+
 it('risk:regression --plan --rerun keeps and rebuilds the named tag alone, before it prepares its worktree', () => {
   const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'bench-')));
   try {
@@ -761,3 +833,26 @@ it('risk:regression --plan --rerun keeps and rebuilds the named tag alone, befor
     rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
   }
 }, 180_000);
+
+it('risk:regression a recorded worktree prepared without the report flag is rebuilt for a verifier row', async () => {
+  const { prepareWorktree } = await bench();
+  const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'bench-')));
+  const t = tmp.replaceAll('\\', '/');
+  try {
+    const { repo, H1 } = twoCommitRepo(t);
+    const state = { worktrees: {} as Record<string, Setup & { preparedAt?: number; report?: boolean }> };
+    const spec = { path: t + '/wt', base: H1 };
+    prepareWorktree(repo, state, 'v', spec, () => {});
+    const first = state.worktrees.v.preparedAt!;
+    expect(state.worktrees.v.report).toBeUndefined();
+    await new Promise((r) => setTimeout(r, 20));
+    prepareWorktree(repo, state, 'v', { ...spec, report: true }, () => {});
+    expect(state.worktrees.v.report).toBe(true);
+    expect(state.worktrees.v.preparedAt!).toBeGreaterThan(first);
+    const second = state.worktrees.v.preparedAt!;
+    prepareWorktree(repo, state, 'v', { ...spec, report: true }, () => {});
+    expect(state.worktrees.v.preparedAt).toBe(second);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+}, 120_000);

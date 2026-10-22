@@ -223,6 +223,7 @@ function parseRun(file, id, meta, lines, session) {
         const use = toolById.get(c.tool_use_id);
         if (!use) continue;
         const text = resultText(c);
+        // Only the Read tool and a bare one-file `cat` are compared with the replay (rootReads, sampleDrift): recovering the files a `grep`, `head` or `sed` read from its arguments is guesswork. Uncommitted state read that way, the verifiers' tests.report, is recreated by --plan instead.
         if (use.name === 'Read') {
           const body = text.split('\n');
           const cut = body.findIndex((l) => l.startsWith('<system-reminder>'));
@@ -674,14 +675,15 @@ export function rerunWorktree(repo, state, key) {
 
 export function prepareWorktree(repo, state, key, spec, setup, save = () => {}) {
   let rec = state.worktrees[key];
-  if (rec && (rec.base !== spec.base || overlayKey(rec.overlay) !== overlayKey(spec.overlay))) {
+  // `report`: the run reads the tests.report file the verify stage left, so a worktree recorded without it is rebuilt like one whose base changed.
+  if (rec && (rec.base !== spec.base || overlayKey(rec.overlay) !== overlayKey(spec.overlay) || Boolean(rec.report) !== Boolean(spec.report))) {
     removeWorktree(repo, rec);
     delete state.worktrees[key];
     rec = undefined;
   }
   if (!rec) {
-    const { overlay, ...at } = spec;
-    rec = { ...addWorktree(repo, at), ...(overlay?.length ? { overlay: overlay.map(({ path: p, from }) => ({ path: p, from })) } : {}), preparedAt: Date.now() };
+    const { overlay, report, ...at } = spec;
+    rec = { ...addWorktree(repo, at), ...(report ? { report: true } : {}), ...(overlay?.length ? { overlay: overlay.map(({ path: p, from }) => ({ path: p, from })) } : {}), preparedAt: Date.now() };
     state.worktrees[key] = rec;
     save();
   }
@@ -816,7 +818,7 @@ function runPlan(repo, reruns = []) {
     const dir = `${bench}/wt/${key}`;
     const reads = drifts.get(r.agent.slice('accord-'.length) + '-' + r.n);
     const overlay = (s.overlay ?? []).map((o) => ({ ...o, text: o.from === 'read' ? reads.find((x) => x.path === o.path && x.whole).text + '\n' : showAt(repo, o.from, o.path) }));
-    const spec = { path: dir, base: s.base, overlay, ...(WRITERS.includes(r.agent) ? { branch: `bench/${r.tag}` } : {}) };
+    const spec = { path: dir, base: s.base, overlay, ...(WRITERS.includes(r.agent) ? { branch: `bench/${r.tag}` } : {}), ...(r.agent === 'accord-verifier' ? { report: true } : {}) };
     // Rows share a worktree only with an equal spec.
     const sig = JSON.stringify([spec.base, overlayKey(overlay)]);
     if (specs.has(key) && specs.get(key) !== sig) return err(`${key}: two samples want different contents in one worktree`);
@@ -839,6 +841,20 @@ function runPlan(repo, reruns = []) {
       const out = runSuite(r.worktree, repo);
       if (out.rerun) { (state.reruns ??= {})[`${s.agent.slice('accord-'.length)}-${s.n}`] = out.rerun; save(); }
     } catch { return err(`suite red at base for ${s.agent} ${s.n}`); }
+  }
+  // A verifier's original ran after the verify stage's tests.full, and read the report it wrote (a red suite leaves one too). Run it once per sample; its effort siblings have the same base and overlay, so they get a copy.
+  const reported = new Map();
+  for (const r of rows.filter((x) => x.agent === 'accord-verifier')) {
+    const file = path.join(r.worktree, configAt(r.worktree, repo).tests.report);
+    try {
+      if (!fs.existsSync(file)) {
+        const first = reported.get(`${r.agent}-${r.n}`);
+        if (first && fs.existsSync(first)) { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.copyFileSync(first, file); }
+        else { try { sh(configAt(r.worktree, repo).tests.full, r.worktree); } catch { /* the original saw a red suite's report too */ } }
+      }
+    } catch (e) { return err(`${r.tag}: ${e.message} (repeated on the next --plan run)`); }
+    if (!fs.existsSync(file)) return err(`${r.tag}: tests.full left no report at ${slashed(file)} (repeated on the next --plan run)`);
+    if (!reported.has(`${r.agent}-${r.n}`)) reported.set(`${r.agent}-${r.n}`, file);
   }
   fs.mkdirSync(`${bench}/briefs`, { recursive: true });
   for (const r of rows) {

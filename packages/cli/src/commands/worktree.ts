@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { DEFAULT_BRANCH_TEMPLATE, loadConfig, loadSnapshot, statusRows } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
-import { currentBranch, droppedOn, gitDefaultRef, gitUserEmail, loadFromFs, ticketOfBranch, UsageError } from '../load/fs.js';
+import { currentBranch, droppedOn, gitDefaultRef, gitUserEmail, loadFromFs, snapshotAt, ticketOfBranch, UsageError } from '../load/fs.js';
 import { fetchLimitMs } from './fetch-limit.js';
 import { claudeEnv, describeSession, isLive, processTable, runSetup, sameSession, sessionIn } from '../load/proc.js';
 import type { Session } from '../load/proc.js';
@@ -378,17 +378,9 @@ export function worktreeOpen(ctx: CommandContext, id: string, opts: { continue?:
     if (local) checkClaimant(ctx, id, 'refs/heads/' + branch);
     if (remote) checkClaimant(ctx, id, 'refs/remotes/origin/' + branch);
   }
-  if (opts.continue === true && (local || remote)) {
-    const def = gitDefaultRef(ctx.root);
-    if (def !== undefined) {
-      const tip = local ? 'refs/heads/' + branch : 'refs/remotes/origin/' + branch;
-      const n = Number(git(ctx.root, ['rev-list', '--count', `${tip}..${def}`]).trim());
-      const short = def.replace('refs/remotes/', '');
-      if (n > 0) ctx.stdout.write(`behind: ${branch} is ${n} commit${n === 1 ? '' : 's'} behind ${short}; merge them with git merge ${short}\n`);
-    }
-  }
-  // D-15: a worktree already holding the branch is only found, nothing runs there.
+  // D-15: a worktree already holding the branch is only found, nothing runs there (Continue merges and sets up, ST-LN-25).
   if (held !== undefined) {
+    if (opts.continue === true) continueMerge(ctx, id, held.path, branch);
     if (norm(held.path) === norm(ctx.root)) return hold(ctx, id, held.path);
     if (enter) checkPin(ctx, id, held.path, branch, mainPath);
     enterOrStop(ctx, id, held.path, branch, enter);
@@ -397,10 +389,11 @@ export function worktreeOpen(ctx: CommandContext, id: string, opts: { continue?:
   if (local || remote) {
     const path = siblingOf(mainPath, id);
     git(ctx.root, local ? ['worktree', 'add', path, branch] : ['worktree', 'add', '--track', '-b', branch, path, 'origin/' + branch]);
+    if (opts.continue === true) continueMerge(ctx, id, path, branch);
     if (enter) {
       if (pick) takeHold(ctx, id);
       checkPin(ctx, id, path, branch, mainPath);
-    } else prepare(path);
+    } else if (!existsSync(setupMarker(path))) prepare(path);
     enterOrStop(ctx, id, path, branch, enter);
     return 0;
   }
@@ -476,6 +469,72 @@ export function fetchOrigin(ctx: CommandContext): CommandContext {
   return { ...ctx, snapshot: loadSnapshot(loadFromFs(ctx.root)) };
 }
 
+/** The merge of `ref` into the branch checked out in `root`, always `--no-ff`: a refused or conflicting merge is aborted, named, and leaves the branch as it was. */
+export function mergeDefault(root: string, ref: string, branch: string, again: { conflict: string; clash: string }): void {
+  const def = ref.replace('refs/remotes/', '');
+  // git 2.56 ort ignores --no-overwrite-ignore: refuse by hand when the merge adds a path that is an untracked (ignored) file here
+  const mine = git(root, ['diff', '--name-only', '--no-renames', '--diff-filter=A', '-z', 'HEAD', ref]).split('\0').filter((l) => l !== '');
+  // git itself says which of those paths are untracked here, so a tracked file under another case is no clash; the pathspecs keep it from walking node_modules
+  const here = mine.filter((f) => existsSync(root + '/' + f)); // keeps the command line short: a big merged PR adds hundreds of paths, none normally on disk
+  const clash = here.length === 0 ? undefined : git(root, ['ls-files', '--others', '-z', '--', ...here.map((f) => ':(literal)' + f)]).split('\0').find((l) => l !== '');
+  if (clash !== undefined) {
+    throw new UsageError(`merge of ${def} into ${branch} failed: ${clash} is an ignored file here that the merge would overwrite - ${again.clash} - ${branch} is as it was`);
+  }
+  try {
+    // the full ref: a short origin/main would resolve to a local branch or tag of that name first
+    execFileSync('git', ['merge', '--no-ff', '--no-edit', '--no-overwrite-ignore', ref], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  } catch (e) {
+    const files = git(root, ['diff', '--name-only', '-z', '--diff-filter=U']).split('\0').filter((l) => l !== '');
+    if (gitOk(root, ['rev-parse', '-q', '--verify', 'MERGE_HEAD'])) git(root, ['merge', '--abort']);
+    if (files.length > 0) {
+      throw new UsageError(`merge of ${def} into ${branch} stopped on a conflict in ${files.join(', ')} - the merge was aborted and ${branch} is as it was; ${again.conflict}`);
+    }
+    throw new UsageError(`merge of ${def} into ${branch} failed: ${firstLine(e)} - ${branch} is as it was`);
+  }
+}
+
+/** ST-LN-25 D-01, D-09: Continue merges the fetched default branch into a ticket branch that is behind and still before verify, then runs setup and pushes; any doubt leaves the branch alone and prints the behind line. */
+function continueMerge(ctx: CommandContext, id: string, path: string, branch: string): void {
+  const ref = gitDefaultRef(ctx.root);
+  if (ref === undefined) return;
+  const n = Number(git(path, ['rev-list', '--count', 'HEAD..' + ref]).trim());
+  if (n === 0) return;
+  const def = ref.replace('refs/remotes/', '');
+  const behind = (): void => void ctx.stdout.write(`behind: ${branch} is ${n} commit${n === 1 ? '' : 's'} behind ${def}; merge them with git merge ${def}\n`);
+  const stage = statusRows(snapshotAt(ctx.root, 'refs/heads/' + branch, [id])).find((r) => r.id === id)?.stage;
+  if (stage === undefined || !['intent', 'plan', 'build', 'review'].includes(stage)) return behind();
+  if (git(path, ['status', '--porcelain', '--untracked-files=no']).trim() !== '' || gitOk(path, ['rev-parse', '-q', '--verify', 'MERGE_HEAD'])) return behind();
+  try {
+    if (claudeEnv(ctx.env) !== undefined) takeHold(ctx, id);
+    else {
+      const holds = readHoldsFile(ctx.root);
+      const h = Object.hasOwn(holds, id) ? holds[id] : undefined;
+      if (h !== undefined && isLive(h, processTable())) return behind();
+    }
+  } catch {
+    return behind();
+  }
+  mergeDefault(path, ref, branch, {
+    conflict: `merge it by hand with git -C "${path}" merge ${def}, resolve the conflict and commit, then type /accord continue ${id}`,
+    clash: `move it, then type /accord continue ${id}`,
+  });
+  ctx.stdout.write(`merged: ${n} commit${n === 1 ? '' : 's'} of ${def} into ${branch}\n`);
+  // the marker of the pre-merge setup never stands for the merge commit
+  rmSync(setupMarker(path), { force: true });
+  let failure: unknown;
+  try {
+    prepare(path);
+  } catch (e) {
+    failure = e;
+  }
+  try {
+    gitNoPrompt(path, ['push', 'origin', 'HEAD:refs/heads/' + branch]);
+  } catch (e) {
+    ctx.stdout.write(`push of ${branch} failed: ${firstLine(e)} - push it with git -C "${path}" push origin ${branch}\n`);
+  }
+  if (failure !== undefined) throw failure;
+}
+
 /** ST-LN-30 D-03, D-04, D-09: fetch, then merge the remote default branch into the ticket branch with a merge commit; a conflict is aborted, named, and exits 2. */
 export function worktreeMerge(ctx: CommandContext, id: string): number {
   if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id);
@@ -499,27 +558,8 @@ export function worktreeMerge(ctx: CommandContext, id: string): number {
     ctx.stdout.write('no origin/HEAD, origin/main or origin/master in this clone - nothing was merged\n');
     return 0;
   }
-  const def = ref.replace('refs/remotes/', '');
   if (gitOk(ctx.root, ['merge-base', '--is-ancestor', ref, 'HEAD'])) return 0;
-  // git 2.56 ort ignores --no-overwrite-ignore: refuse by hand when the merge adds a path that is an untracked (ignored) file here
-  const mine = git(ctx.root, ['diff', '--name-only', '--no-renames', '--diff-filter=A', '-z', 'HEAD', ref]).split('\0').filter((l) => l !== '');
-  // git itself says which of those paths are untracked here, so a tracked file under another case is no clash; the pathspecs keep it from walking node_modules
-  const here = mine.filter((f) => existsSync(ctx.root + '/' + f)); // keeps the command line short: a big merged PR adds hundreds of paths, none normally on disk
-  const clash = here.length === 0 ? undefined : git(ctx.root, ['ls-files', '--others', '-z', '--', ...here.map((f) => ':(literal)' + f)]).split('\0').find((l) => l !== '');
-  if (clash !== undefined) {
-    throw new UsageError(`merge of ${def} into ${branch} failed: ${clash} is an ignored file here that the merge would overwrite - move it, then start verify again - ${branch} is as it was`);
-  }
-  try {
-    // the full ref: a short origin/main would resolve to a local branch or tag of that name first
-    execFileSync('git', ['merge', '--no-ff', '--no-edit', '--no-overwrite-ignore', ref], { cwd: ctx.root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
-  } catch (e) {
-    const files = git(ctx.root, ['diff', '--name-only', '-z', '--diff-filter=U']).split('\0').filter((l) => l !== '');
-    if (gitOk(ctx.root, ['rev-parse', '-q', '--verify', 'MERGE_HEAD'])) git(ctx.root, ['merge', '--abort']);
-    if (files.length > 0) {
-      throw new UsageError(`merge of ${def} into ${branch} stopped on a conflict in ${files.join(', ')} - the merge was aborted and ${branch} is as it was; resolve the conflict, then start verify again`);
-    }
-    throw new UsageError(`merge of ${def} into ${branch} failed: ${firstLine(e)} - ${branch} is as it was`);
-  }
+  mergeDefault(ctx.root, ref, branch, { conflict: 'resolve the conflict, then start verify again', clash: 'move it, then start verify again' });
   // preflight checked the pin before the merge, so this throws only when the merge changed it
   checkPin(ctx, id, ctx.root, branch, listWorktrees(ctx.root)[0].path);
   return 0;

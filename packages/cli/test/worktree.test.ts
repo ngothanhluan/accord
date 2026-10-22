@@ -1008,6 +1008,7 @@ it('ac-4 in claude code a session that works a ticket refuses other tickets and 
   const sib = c.sibling('ST-9');
   setTable(tableOf(A));
   expect((await run(['worktree', 'open', 'ST-9'], c.root, envOf(A))).code).toBe(0);
+  verifyStage(sib, 'ST-9');
   gitRun(sib, 'push', '-q', '-u', 'origin', 't/ST-9');
   mergeOnRemote(c, 'ST-9');
   c.git('fetch', '-q', 'origin');
@@ -1646,6 +1647,7 @@ it('risk:concurrency pick up fetches before it judges the claim so a claim pushe
 it('ac-2 continue says the ticket branch is 2 commits behind the remote main and leaves the branch unchanged', async () => {
   const c = clone();
   ticketWorktree(c, 'ST-9');
+  verifyStage(c.sibling('ST-9'), 'ST-9');
   const before = sha(c, 't/ST-9');
   const o = c.otherClone();
   for (const f of ['a.txt', 'b.txt']) {
@@ -1966,3 +1968,109 @@ it('ac-5 a failed or silent fetch is one accord line at pick up new ticket conti
   expect(sha(g, 't/ST-9^')).toBe(sha(g, 'origin/main'));
   await new Promise((r) => setTimeout(r, Math.max(0, t0 + 31000 - Date.now())));
 }, 60_000);
+
+it('ac-4 continue merges the latest origin main into a ticket branch before verify runs setup on the merge and pushes it', async () => {
+  const c = clone({ setup: ['node setup-step.js ci'] });
+  ticketWorktree(c, 'ST-9');
+  const sib = c.sibling('ST-9');
+  const before = sha(c, 't/ST-9');
+  const o = c.otherClone();
+  writeFiles(o, { 'setup-step.js': "require('node:fs').appendFileSync('setup.log', 'merged ' + process.argv[2] + '\\n');\n", 'a.txt': 'a\n' });
+  commitMsg(o, 'a');
+  writeFiles(o, { 'b.txt': 'b\n' });
+  const tip = commitMsg(o, 'b');
+  gitRun(o, 'push', '-q', 'origin', 'main');
+  expect(sha(c, 'origin/main')).not.toBe(tip);
+  const r = await run(['worktree', 'open', 'ST-9', '--continue'], c.root);
+  expect(r.code).toBe(0);
+  expect(gitRun(sib, 'rev-parse', 'HEAD^1').trim()).toBe(before);
+  expect(gitRun(sib, 'rev-parse', 'HEAD^2').trim()).toBe(tip);
+  expect(gitRun(sib, 'rev-list', '--parents', '-n', '1', 'HEAD').trim().split(' ')).toHaveLength(3);
+  expect(gitRun(sib, 'branch', '--show-current').trim()).toBe('t/ST-9');
+  expect(gitRun(sib, 'reflog', '-n', '10')).not.toContain('rebase');
+  const head = gitRun(sib, 'rev-parse', 'HEAD').trim();
+  expect(sha(c, 't/ST-9')).toBe(head);
+  expect(gitRun(c.remote, 'rev-parse', 't/ST-9').trim()).toBe(head);
+  expect(readFileSync(sib + '/setup.log', 'utf8')).toBe('merged ci\n');
+  const out = lines(r.out);
+  expect(out).toContain('merged: 2 commits of origin/main into t/ST-9');
+  expect(out.some((l) => l.startsWith('behind:'))).toBe(false);
+  expect(out.slice(-3)).toEqual(stopLines(sib, 'ST-9'));
+
+  const s = clone({ setup: ['node setup-step.js ci'] });
+  ticketWorktree(s, 'ST-9');
+  const ss = s.sibling('ST-9');
+  const marker = gitRun(ss, 'rev-parse', '--path-format=absolute', '--git-dir').trim() + '/accord-setup-done';
+  writeFileSync(marker, '');
+  const so = s.otherClone();
+  writeFiles(so, { 'setup-step.js': 'process.exit(3);\n' });
+  commitMsg(so, 'break setup');
+  gitRun(so, 'push', '-q', 'origin', 'main');
+  const bad = await run(['worktree', 'open', 'ST-9', '--continue'], s.root);
+  expect(bad.code).toBe(2);
+  expect(bad.err).toContain('setup command failed');
+  expect(existsSync(marker)).toBe(false);
+  expect(gitRun(s.remote, 'rev-parse', 't/ST-9').trim()).toBe(gitRun(ss, 'rev-parse', 'HEAD').trim());
+  const again = await run(['worktree', 'open', 'ST-9', '--continue'], ss);
+  expect(again.code).toBe(2);
+  expect(again.err).toContain('setup command failed');
+}, 120_000);
+
+it('risk:data-loss a continue merge that conflicts is aborted and a worktree with uncommitted changes or a live hold is not merged', async () => {
+  const c = clone();
+  writeFiles(c.root, { 'shared.txt': 'base\n' });
+  commitMsg(c.root, 'shared');
+  c.git('push', '-q', 'origin', 'main');
+  ticketWorktree(c, 'ST-9', 'shared.txt');
+  const sib = c.sibling('ST-9');
+  const head = sha(c, 't/ST-9');
+  const o = c.otherClone();
+  writeFiles(o, { 'shared.txt': 'main\n' });
+  commitMsg(o, 'shared main');
+  gitRun(o, 'push', '-q', 'origin', 'main');
+  const r = await run(['worktree', 'open', 'ST-9', '--continue'], c.root);
+  expect(r.code).toBe(2);
+  expect(r.err).toContain('conflict');
+  expect(r.err).toContain('shared.txt');
+  expect(r.err).toContain(`git -C "${sib}" merge origin/main`);
+  expect(gitRun(sib, 'rev-parse', 'HEAD').trim()).toBe(head);
+  expect(gitRun(sib, 'status', '--porcelain', '--untracked-files=no')).toBe('');
+  expect(readFileSync(sib + '/shared.txt', 'utf8').replaceAll('\r\n', '\n')).toBe('ST-9\n'); // autocrlf on Windows checks out CRLF
+  expect(() => gitRun(sib, 'rev-parse', '-q', '--verify', 'MERGE_HEAD')).toThrow();
+  expect(gitRun(c.remote, 'rev-parse', 't/ST-9').trim()).toBe(head);
+
+  const BEHIND = 'behind: t/ST-9 is 2 commits behind origin/main; merge them with git merge origin/main';
+  const twoOnMain = (k: Clone) => {
+    const x = k.otherClone();
+    for (const f of ['a.txt', 'b.txt']) {
+      writeFiles(x, { [f]: f + '\n' });
+      commitMsg(x, f);
+    }
+    gitRun(x, 'push', '-q', 'origin', 'main');
+  };
+  const d = clone();
+  ticketWorktree(d, 'ST-9');
+  const dSib = d.sibling('ST-9');
+  const dHead = gitRun(dSib, 'rev-parse', 'HEAD').trim();
+  writeFiles(dSib, { 'ST-9.txt': 'changed\n' });
+  twoOnMain(d);
+  const rd = await run(['worktree', 'open', 'ST-9', '--continue'], d.root);
+  expect(rd.code).toBe(0);
+  expect(lines(rd.out)[0]).toBe(BEHIND);
+  expect(lines(rd.out).some((l) => l.startsWith('merged:'))).toBe(false);
+  expect(gitRun(dSib, 'rev-parse', 'HEAD').trim()).toBe(dHead);
+  expect(readFileSync(dSib + '/ST-9.txt', 'utf8')).toBe('changed\n');
+
+  const h = clone();
+  ticketWorktree(h, 'ST-9');
+  const hHead = sha(h, 't/ST-9');
+  writeHolds(h, { 'ST-9': LIVE });
+  setTable(tableOf(LIVE));
+  twoOnMain(h);
+  const rh = await run(['worktree', 'open', 'ST-9', '--continue'], h.root, {});
+  expect(rh.code).toBe(0);
+  expect(lines(rh.out)[0]).toBe(BEHIND);
+  expect(lines(rh.out).some((l) => l.startsWith('merged:'))).toBe(false);
+  expect(sha(h, 't/ST-9')).toBe(hHead);
+  expect(gitRun(h.remote, 'rev-parse', 't/ST-9').trim()).toBe(hHead);
+}, 180_000);

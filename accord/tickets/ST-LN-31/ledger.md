@@ -44,6 +44,7 @@
 - Ruling: `reviewCommit`, `gitReviewFact` and `gitAfterReview` in fs.ts catch every git failure and return `{clean:false}` or undefined, so lane S gate done fails closed — task 4 executor, the brief's fail-closed reading for `gitReviewFact` applied to all three — cost if wrong: a git failure shows as a failed gate.
 - Ruling: `DONE_S_RULES` is exported and the `DONE_RULES` row consts are not — Task 7's skills.test scan imports only `DONE_S_RULES` — cost if wrong: one export.
 - Ruling: the two new lint rules read `snapshot.work` through a local `workOf` helper using `Object.hasOwn` — task 5 executor, the brief asks for `Object.hasOwn` access — cost if wrong: none, it is local to lint/ticket.ts.
+- Ruling: approve reads the lane as `ticket.frontmatter?.lane` — task 6 executor, typecheck says frontmatter may be undefined — cost if wrong: none.
 
 ## Deferred
 - plan round 1.10 Nice — Understood/Done when can be rewritten after review and `gate ready` rerun unflagged
@@ -60,3 +61,4 @@
 - task 3 done 12abb37ed409
 - task 4 done 280794fde22c
 - task 5 done 399091c88bdc
+- task 6 done 45537889f4d3

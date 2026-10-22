@@ -6,7 +6,7 @@ import type { Finding } from '../model/finding.js';
 import type { RepoSnapshot } from '../model/snapshot.js';
 import { lintSnapshot } from '../lint/index.js';
 import { readyHash } from './hash.js';
-import { downgradeMaintain, DONE_RULES, PLAN_RULES, READY_PROMOTE, READY_RULES } from './rules.js';
+import { downgradeMaintain, DONE_RULES, DONE_S_RULES, PLAN_RULES, READY_PROMOTE, READY_RULES } from './rules.js';
 import type { GateRule } from './rules.js';
 import { laneTicket, workOf } from './work.js';
 
@@ -99,5 +99,6 @@ export function gatePlan(snapshot: RepoSnapshot, id: string): GateResult {
  * stamped. No hygiene promotion and no design rule — Done does not re-run Ready (D-89 applied to Done).
  */
 export function gateDone(snapshot: RepoSnapshot, id: string): GateResult {
-  return run('done', DONE_RULES, [], snapshot, id);
+  const lane = Object.hasOwn(snapshot.tickets, id) ? snapshot.tickets[id].frontmatter?.lane : undefined;
+  return run('done', lane === 'S' ? DONE_S_RULES : DONE_RULES, [], snapshot, id);
 }

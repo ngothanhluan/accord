@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { cleanup, commitMsg, gitRun, makeEmptyRepo, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
-import { CONFIG, LANE_S_BODY, laneTicket } from '../../../test/helpers/lane.js';
+import { CONFIG, junit, LANE_S_BODY, laneTicket, REPORT } from '../../../test/helpers/lane.js';
 
 type F = { rule: string; reason: string; file: string; level: string };
 
@@ -89,6 +89,99 @@ it('ac-3 the dashboard lists a queued and a claimed lane S ticket with a lane co
     expect(s1[1]).toBe('S');
     expect(s1[3]).toBe('build');
     expect(cols(text.find((l) => l.startsWith('  S-2')) as string)[1]).toBe('S');
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+it('risk:complex-branching lane S gate done passes a reviewed change and fails on a commit after it an unclean review lines after the verdict a failed suite and edited sections', async () => {
+  const REVIEW = '## Round 1\n\nNo findings\n\nverdict: converged\n';
+  const RP = 'accord/tickets/S-1/review.md';
+  const PASSED = junit({ 'a#b': 'passed' });
+  const repo = repoWith({
+    'accord/config.yml': CONFIG,
+    'accord/tickets/S-1.md': laneTicket('S-1', { lane: 'S', body: LANE_S_BODY }),
+    'src/a.ts': 'a\n',
+    [REPORT]: PASSED,
+  });
+  try {
+    const fails = async (rule: string) => {
+      const r = await run(['gate', 'done', 'S-1', '--json'], repo);
+      expect(r.code).toBe(1);
+      expect((JSON.parse(r.out).findings as F[]).map((f) => f.rule)).toContain(rule);
+    };
+    const passes = async () => expect((await run(['gate', 'done', 'S-1'], repo)).code).toBe(0);
+    const hard = () => gitRun(repo, 'reset', '-q', '--hard', 'HEAD~1');
+    commitMsg(repo, 'base');
+    gitRun(repo, 'switch', '-q', '-c', 't/S-1');
+    expect((await run(['gate', 'ready', 'S-1'], repo)).code).toBe(0);
+    commitMsg(repo, 'ready: S-1');
+    writeFiles(repo, { 'src/a.ts': 'b\n' });
+    commitMsg(repo, 'change');
+    writeFiles(repo, { [RP]: REVIEW });
+    commitMsg(repo, 'review: S-1');
+    await passes();
+    writeFiles(repo, { 'accord/tickets/S-1/ledger.md': '## Rulings\n' });
+    commitMsg(repo, 'ledger');
+    await passes();
+    hard();
+    writeFiles(repo, { 'src/b.ts': 'b\n' });
+    commitMsg(repo, 'after review');
+    await fails('gate.commit-after-review');
+    hard();
+    gitRun(repo, 'switch', '-q', '--detach');
+    writeFiles(repo, { 'src/d.ts': 'd\n' });
+    commitMsg(repo, 'after review detached');
+    await fails('gate.commit-after-review');
+    gitRun(repo, 'switch', '-q', 't/S-1');
+    writeFiles(repo, { [REPORT]: junit({ 'a#b': 'failed' }) });
+    await fails('gate.suite-not-passed');
+    writeFiles(repo, { [REPORT]: PASSED });
+    writeFiles(repo, { [RP]: REVIEW.replace('No findings', 'No findings here') });
+    await fails('gate.review-uncommitted');
+    writeFiles(repo, { [RP]: REVIEW });
+    gitRun(repo, 'reset', '-q', '--soft', 'HEAD~1');
+    await fails('gate.review-uncommitted');
+    commitMsg(repo, 'review: S-1');
+    writeFiles(repo, { [RP]: REVIEW + 'x\n' });
+    commitMsg(repo, 'trailing');
+    await fails('gate.review-trailing');
+    hard();
+    const t = join(repo, 'accord', 'tickets', 'S-1.md');
+    writeFiles(repo, { 'accord/tickets/S-1.md': readFileSync(t, 'utf8').replace('writes a csv file', 'writes a tsv file') });
+    commitMsg(repo, 'edit');
+    await fails('gate.sections-changed');
+    hard();
+    hard();
+    writeFiles(repo, { [RP]: REVIEW, 'src/c.ts': 'c\n' });
+    commitMsg(repo, 'review: S-1');
+    await fails('gate.review-commit-code');
+    hard();
+    writeFiles(repo, { [RP]: '## Round 5\n\nMust 1: x — src/a.ts:1 — open\n\nverdict: accepted-by-owner "ship it"\n' });
+    commitMsg(repo, 'review: S-1');
+    await passes();
+    hard();
+    writeFiles(repo, { [RP]: '## Round 1\n\nNo findings\n' });
+    commitMsg(repo, 'review: S-1 round 1');
+    writeFiles(repo, { 'src/e.ts': 'e\n' });
+    commitMsg(repo, 'fix after round');
+    writeFiles(repo, { [RP]: REVIEW });
+    commitMsg(repo, 'review: S-1 verdict');
+    await fails('gate.commit-after-review');
+    gitRun(repo, 'reset', '-q', '--hard', 'HEAD~2');
+    writeFiles(repo, { [RP]: REVIEW });
+    commitMsg(repo, 'review: S-1 verdict');
+    await passes();
+    gitRun(repo, 'reset', '-q', '--hard', 'HEAD~2');
+    writeFiles(repo, { [RP]: '## Round 1\n\nNo findings\n', 'src/e.ts': 'e\n' });
+    commitMsg(repo, 'review: S-1 round 1');
+    writeFiles(repo, { [RP]: REVIEW });
+    commitMsg(repo, 'review: S-1 verdict');
+    await fails('gate.review-commit-code');
+    const r = await run(['gate', 'done', 'S-1', '--json'], repo);
+    const found = JSON.parse(r.out).findings as F[];
+    expect(found.find((f) => f.rule === 'gate.review-commit-code')?.reason).toContain('src/e.ts');
+    expect(found.some((f) => f.rule === 'gate.commit-after-review')).toBe(false);
   } finally {
     cleanup(repo);
   }

@@ -1973,4 +1973,4 @@ it('ac-5 a failed or silent fetch is one accord line at pick up new ticket conti
     // the killed fetch leaves its upload-pack shell running, and on Windows it keeps the clone from being removed
     for (let i = 0; i < 100 && !existsSync(ended); i++) await new Promise((r) => setTimeout(r, 100));
   }
-});
+}, 120_000);

@@ -69,7 +69,7 @@ Feature: ST-LN-25
     And that branch is pushed to origin
     And the branch and files of the checkout I ran it in are unchanged
 
-  @ac-4
+  @ac-4 @test:packages/cli/test/worktree.test.ts#ac-4-continue-merges-the-latest-origin-main-into-a-ticket-branch-before-verify-runs-setup-on-the-merge-and-pushes-it
   Scenario: Continue merges the latest main into a ticket branch that is behind
     Given a claimed ticket at a stage before verify whose branch lacks 2 commits that are on origin's main, not yet fetched, and that do not conflict with it
     When I run "accord worktree open <id> --continue"

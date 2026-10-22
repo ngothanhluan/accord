@@ -53,6 +53,8 @@
 - Ruling: plan round 3 — the squash-then-main-moved case goes into ST-12's existing lane S test part, so the expected lines stay as they are — ST-12 being removed is the proof — cost if wrong: a few test lines move into a separate part.
 - Ruling: plan round 2 — the setup-failure check after a Continue merge is a second part of the `ac-4` test — `ac-4` already covers setup running on the merge — cost if wrong: one more part in a scenario's test.
 - Ruling: task 1 — the new hook tests are top-level `it`s appended at the end of hook.test.ts with their helpers, the file's existing `describe` untouched — the plan says no `describe` around them — cost if wrong: nothing is lost.
+- Ruling: task 2 — the Continue conflict test compares shared.txt after turning CRLF into LF, since Windows autocrlf checks it out with CRLF while git status stays clean — cost if wrong: the test hides a real line-ending change, though it still checks HEAD, status and MERGE_HEAD.
+- Ruling: task 2 — Continue treats a ticket with no stage readable at its branch as not before verify and prints the `behind:` line — the merge is allowed only for the stages D-09 names — cost if wrong: a ticket with no records on its branch is not merged.
 
 ## Deferred
 
@@ -68,3 +70,4 @@
 
 ## Tasks
 - task 1 done 6f5f9058c030
+- task 2 done 1694ed37d889

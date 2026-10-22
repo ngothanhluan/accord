@@ -1,6 +1,6 @@
 ---
 id: "BUG-LN-6"                            # equals the file name: tickets/<id>.md
-title: "Short title in business language"
+title: "Windows CI no longer fails on slow worktree tests"
 type: "bug" # story | bug
 status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "S" # S: one small change, worked from this ticket alone
@@ -16,7 +16,7 @@ ui: false
 ---
 
 ## Understood
-<!-- One line: the change, as the request was understood. -->
+The worktree tests time out on slow Windows runners (`ac-5 a failed or silent fetch` spends 31 s of its 60 s budget in a fixed wait and hit 65 s in run 39784116057; `ac-5 bare accord fetches` hit 37 s of 30 s on PR #62): shorten that fixed wait and give the git-heavy worktree tests timeout headroom on Windows, changing no product code.
 
 ## Done when
-<!-- One line: the observable result that ends the work. -->
+The worktree tests keep every assertion, the silent-fetch test no longer waits a fixed 31 s, and both tests have a timeout with at least twice their slowest observed Windows time, with `npm test` passing.

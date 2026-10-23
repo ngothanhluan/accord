@@ -3,10 +3,10 @@ name: accord
 description: Use when starting any work in an accord repository, when seeing where work stands, or when continuing a ticket. Shows the dashboard, continues or picks up a ticket, and classifies a new request into a lane.
 license: MIT
 kind: skill
-loads: [accord/ids.md, accord/lane-s.md, accord/worktree.md, shared/ask.md, shared/failure.md]
+loads: [accord/ids.md, accord/lane-s.md, accord/upgrade.md, accord/worktree.md, shared/ask.md, shared/failure.md]
 ---
 
-First run the session check in `./worktree.md`. A failure reported in a ticket that has reached verify follows `./failure.md`.
+First run the session check in `./worktree.md`, except for `/accord upgrade`. A failure reported in a ticket that has reached verify follows `./failure.md`.
 
 ## Dashboard: `/accord` with no argument
 
@@ -26,7 +26,7 @@ ticket id, the id of a ticket in `accord/tickets/`, an id that
 `accord worktree open <id> --continue` finds; with none,
 `/accord continue ST-99` is a New request. Then run Pick up or
 Continue below on that ticket, without showing the dashboard first. Continue on a ticket nobody has claimed
-says so, offers Pick up, and never claims it. Any other text starts a
+says so, offers Pick up, and never claims it. Any other text, but `upgrade`, starts a
 New request whose text is the whole text after `/accord`: for
 `/accord continue the refactor` it is `continue the refactor`, and
 `/accord continue ST-2 now` is a new request too.
@@ -81,6 +81,10 @@ rendered copies not counted.
   `./worktree.md`, and push it as that file says when the push fails.
 - **L and P.** Not built yet. Say so, and propose splitting the work into
   lane M tickets linked by `depends_on`.
+
+## Upgrade: `/accord upgrade`
+
+Follow `./upgrade.md`.
 
 ## Rules
 

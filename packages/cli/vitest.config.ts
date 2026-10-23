@@ -5,5 +5,5 @@ import { defineConfig } from 'vitest/config';
 const limit = process.platform === 'win32' ? 90_000 : 30_000;
 
 export default defineConfig({
-  test: { name: 'cli', include: ['test/**/*.test.ts'], testTimeout: limit, hookTimeout: limit },
+  test: { name: 'cli', include: ['test/**/*.test.ts'], testTimeout: limit, hookTimeout: limit, setupFiles: ['test/setup.ts'] },
 });

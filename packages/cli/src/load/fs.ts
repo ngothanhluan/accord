@@ -828,6 +828,12 @@ export function droppedOn(root: string, ref: string, ids: readonly string[]): Se
   return new Set(ids.filter((id) => Object.hasOwn(tickets, id) && tickets[id]?.frontmatter?.status === 'dropped'));
 }
 
+/** ST-LN-25: a snapshot of `ref`'s config and the records of `ids`, read from the git tree with no checkout. */
+export function snapshotAt(root: string, ref: string, ids: readonly string[]): RepoSnapshot {
+  const paths = ['accord/config.yml', ...ids.flatMap((i) => ['accord/tickets/' + i + '.md', 'accord/tickets/' + i + '/plan.md', 'accord/tickets/' + i + '/ledger.md', 'accord/tickets/' + i + '/review.md'])];
+  return loadSnapshot({ files: gitFilesAt(root, ref, paths), tree: [] });
+}
+
 /**
  * ST-LN-8 D-02: the first-parent commits of HEAD that are neither on the default ref nor reachable from `since`.
  * A `since` that does not resolve is left out, so the range falls back to the default ref alone.

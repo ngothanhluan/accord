@@ -92,15 +92,21 @@ export type HooksPlan = { status: 'created' | 'unchanged' | 'updated'; text?: st
 export function planHooks(root: string, config: Pick<AccordConfig, 'runtimes'>): HooksPlan | undefined {
   if (!config.runtimes.includes('claude')) return undefined;
   assertNoLink(root, SETTINGS);
-  const entries = hookEntries(pkg);
   const file = join(root, ...SETTINGS.split('/'));
-  if (lstatSync(file, { throwIfNoEntry: false }) === undefined) {
+  return hooksPlanFor(lstatSync(file, { throwIfNoEntry: false }) === undefined ? undefined : readFileSync(file, 'utf8'), config);
+}
+
+/** ST-LN-25: the plan for a settings file whose body is `text` (undefined: it does not exist); `planHooks` minus the file read. */
+export function hooksPlanFor(text: string | undefined, config: Pick<AccordConfig, 'runtimes'>): HooksPlan | undefined {
+  if (!config.runtimes.includes('claude')) return undefined;
+  const entries = hookEntries(pkg);
+  if (text === undefined) {
     return { status: 'created', text: JSON.stringify(mergePanel(mergeHooks({}, entries)), null, 2) + '\n' };
   }
   let parsed: unknown;
   let merged: Record<string, unknown>;
   try {
-    parsed = JSON.parse(readFileSync(file, 'utf8'));
+    parsed = JSON.parse(text);
     merged = mergePanel(mergeHooks(parsed, entries));
   } catch (err) {
     const keys = JSON.stringify(panelSettings, null, 2);

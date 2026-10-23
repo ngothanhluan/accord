@@ -17,6 +17,7 @@ import { init } from './commands/init.js';
 import { lint } from './commands/lint.js';
 import { newTicket } from './commands/new-ticket.js';
 import { next } from './commands/next.js';
+import { upgradeNotice } from './commands/notice.js';
 import { dashboardCommand } from './commands/dashboard.js';
 import { reviewPackage } from './commands/review-package.js';
 import { skills } from './commands/skills.js';
@@ -25,6 +26,7 @@ import { taskDone } from './commands/task-done.js';
 import { testsBaseline } from './commands/tests-baseline.js';
 import { testsSkipped } from './commands/tests-skipped.js';
 import { drop } from './commands/drop.js';
+import { upgrade } from './commands/upgrade.js';
 import { worktreeCheck, worktreeClean, worktreeMerge, worktreeOpen } from './commands/worktree.js';
 import { loadClaimView, loadFromFs, UsageError } from './load/fs.js';
 import { pinMessage } from './pin.js';
@@ -213,10 +215,19 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
       setCode(drop(preflight(opts), id, o));
     });
 
+  // A stated exception to the pin check, like `--version` and `--help`: it runs as the newer accord against a
+  // repository that still pins the older one, so it takes no `preflight` (ST-LN-25).
+  program
+    .command('upgrade')
+    .description("run as the newer accord: push a branch upgrade/<version> from origin's default branch whose one commit pins this version in config.yml, the workflow and the hooks, with the skill files skills sync writes; the checkout is not touched")
+    .action(() => {
+      setCode(upgrade({ root: repoRoot(opts.cwd), stdout: opts.stdout, stderr: opts.stderr, env: opts.env ?? {} }));
+    });
+
   const worktree = program.command('worktree').description('work each ticket in its own git worktree');
   worktree
     .command('clean')
-    .description('fetch, then remove the worktrees of merged tickets, delete merged ticket branches, delete the worktree and branches of tickets dropped on the default branch when nothing is lost, and prune stale remote refs, naming what is removed, deleted or kept')
+    .description('fetch, then remove the worktree, the local branch and the origin branch of each ticket done on the default branch, delete the worktree and branches of tickets dropped there when nothing is lost, and prune stale remote refs, naming what is removed, deleted or kept')
     .action(() => {
       setCode(worktreeClean(preflight(opts)));
     });
@@ -263,8 +274,8 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .command('dashboard')
     .description('print the ranked and capped sections for the viewer')
     .option('--json', 'print the Dashboard object instead of text')
-    .action((options: { json?: boolean }) => {
-      setCode(dashboardCommand(preflight(opts, 'claims'), options));
+    .action(async (options: { json?: boolean }) => {
+      setCode(await dashboardCommand(preflight(opts, 'claims'), options));
     });
 
   program
@@ -286,7 +297,7 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
   program
     .command('hook <event>')
     .description('print the ruleset for a Claude Code hook: ' + HOOK_EVENTS.join(', '))
-    .action((event: string) => {
+    .action(async (event: string) => {
       if (!(HOOK_EVENTS as readonly string[]).includes(event)) {
         throw new UsageError('unknown hook event ' + event + '; expected one of ' + HOOK_EVENTS.join(', '));
       }
@@ -305,7 +316,12 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
         setCode(hook(ctx, event));
         return;
       }
-      setCode(hook(preflight(opts, 'stage'), event as (typeof HOOK_EVENTS)[number]));
+      const ctx = preflight(opts, 'stage');
+      setCode(hook(ctx, event as (typeof HOOK_EVENTS)[number]));
+      if (event === 'session-start') {
+        const line = await upgradeNotice(ctx.snapshot.config?.accord);
+        if (line !== undefined) opts.stdout.write(line + '\nsay the line above to the owner in your first reply of this session\n');
+      }
     });
 
   return program;

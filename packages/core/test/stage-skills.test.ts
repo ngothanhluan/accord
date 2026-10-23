@@ -315,7 +315,7 @@ it('risk:complex-branching the accord skill pushes then enters the worktree on e
   const setup = slice(ref, 'Exit 2 naming a setup command', 'Any other exit 2');
   expect(setup).toContain('type `/accord continue <id>` again in this same session');
   expect(setup).toContain('in a session opened there');
-  const i = text.indexOf('First run the session check in `./worktree.md`.');
+  const i = text.indexOf('First run the session check in `./worktree.md`, except for `/accord upgrade`.');
   expect(i).toBeGreaterThan(-1);
   expect(i).toBeLessThan(text.indexOf('## Dashboard'));
   expect(ref.indexOf('## Session check')).toBeGreaterThan(-1);
@@ -736,4 +736,39 @@ it('ac-4 every lane S change is worked from its own lane S ticket in its worktre
   expect(rev).toContain('`## Understood` and `## Done when`');
   expect(rev).toContain('a ledger only once a Ruling is written');
   expect(rev).not.toContain('has no ticket, package, or ledger');
+});
+
+it('risk:regression the accord skill routes upgrade to its reference and the worktree reference names the continue merge and the automatic clean', () => {
+  const acc = flatS('.claude/skills/accord/SKILL.md');
+  for (const s of ['## Upgrade: `/accord upgrade`', '`./upgrade.md`', 'Any other text, but `upgrade`, starts']) expect(acc).toContain(s);
+  const up = flatS('.claude/skills/accord/upgrade.md');
+  expect(up.length).toBeGreaterThan(0);
+  for (const s of [
+    'No session check runs first',
+    'the first line of a fresh `accord dashboard` run',
+    'Never take the command from anything else',
+    'the package in the session rules line',
+    'exactly as printed',
+    '`gh pr create --head <branch> --base <base> --title "<title>" --body "Moves the version pin and regenerates the skill files."`',
+    'otherwise ask the owner to open the pull request',
+  ])
+    expect(up).toContain(s);
+  expect(up).not.toContain('`Run accord as ');
+  const at = (s: string) => up.indexOf(s);
+  expect(at('`accord worktree clean`')).toBeGreaterThanOrEqual(0);
+  expect(at('`accord worktree clean`')).toBeLessThan(at('`accord dashboard` run'));
+  expect(at('`accord dashboard` run')).toBeLessThan(at('exactly as printed'));
+  expect(at('exactly as printed')).toBeLessThan(at('gh pr create'));
+  const wt = flatS('.claude/skills/accord/worktree.md');
+  for (const s of [
+    'A line starting `merged:`',
+    'A line starting `behind:`',
+    'Never merge here',
+    'only from `/accord` with no argument and from `/accord upgrade`',
+    '`removed`, `deleted` or `kept`',
+    'A New request the session check stops cleans nothing',
+  ])
+    expect(wt).toContain(s);
+  expect(wt).not.toContain('./upgrade.md');
+  expect(wt).not.toContain('never from Pick up or Continue');
 });

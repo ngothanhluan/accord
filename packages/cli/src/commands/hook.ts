@@ -130,6 +130,7 @@ function promptExpansion(ctx: CommandContext): number {
     if (i.command_name !== 'accord') return allow();
     const args = (i.command_args ?? '').trim();
     if (args === '') return allow();
+    if (args === 'upgrade') return allow(); // the upgrade never touches a checkout
     const w = worksTicket(i.cwd ?? ctx.root, i.session_id, ctx.snapshot);
     if (w === undefined) return allow();
     const mainPath = listWorktrees(w.top)[0].path;

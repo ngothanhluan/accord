@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { initialsHolder, initialsOf, nextTicketId, setFrontmatterKey, templates } from '@accord-dev/accord-core';
 import type { Lane } from '@accord-dev/accord-core';
 import { gitIsShallow, gitPeopleOnRefs, gitTicketIdsInHistory, gitUserEmail, UsageError } from '../load/fs.js';
-import { fetchOrigin, guardTicketSession, newTicketWorktree } from './worktree.js';
+import { cleanQuietly, fetchOrigin, guardTicketSession, newTicketWorktree } from './worktree.js';
 import type { CommandContext } from '../run.js';
 
 // The ticket schema's own id pattern (packages/core/schemas/ticket.schema.json). Duplicated as a
@@ -23,7 +23,11 @@ export function newTicket(
   options: { type: 'epic' | 'story' | 'bug'; lane?: Lane; worktree?: boolean },
 ): number {
   guardTicketSession(ctx);
-  if (options.worktree === true) ctx = fetchOrigin(ctx);
+  if (options.worktree === true) {
+    const f = fetchOrigin(ctx);
+    ctx = f.ctx;
+    cleanQuietly(ctx, f.fetched);
+  }
   // An invalid `people` value leaves config undefined, which would read as the convention being off.
   let raw = '';
   try {

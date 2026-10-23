@@ -360,7 +360,9 @@ export function worktreeCheck(ctx: CommandContext): number {
 export function worktreeOpen(ctx: CommandContext, id: string, opts: { continue?: boolean } = {}): number {
   if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id);
   guardTicketSession(ctx, opts.continue === true ? id : undefined);
-  ctx = fetchOrigin(ctx);
+  const f = fetchOrigin(ctx);
+  ctx = f.ctx;
+  cleanQuietly(ctx, f.fetched, id);
   const enter = canEnter(ctx);
   const pick = opts.continue !== true;
   const branch = branchOf(ctx.snapshot, id);
@@ -456,17 +458,17 @@ export function gitNoPrompt(cwd: string, args: string[], timeout?: number): stri
 const firstLine = (e: unknown) => String((e as { stderr?: string }).stderr ?? e).trim().split('\n')[0];
 
 /** ST-LN-30 D-01, D-06: fetch origin so a branch is cut and a claim judged from the latest refs; a failed fetch prints one line and the work goes on. */
-export function fetchOrigin(ctx: CommandContext): CommandContext {
-  if (!gitOk(ctx.root, ['remote', 'get-url', 'origin'])) return ctx;
+export function fetchOrigin(ctx: CommandContext): { ctx: CommandContext; fetched: 'ok' | 'failed' | 'none' } {
+  if (!gitOk(ctx.root, ['remote', 'get-url', 'origin'])) return { ctx, fetched: 'none' };
   const ms = fetchLimitMs();
   try {
     gitNoPrompt(ctx.root, ['fetch', '--no-prune', 'origin'], ms);
   } catch (e) {
     const why = (e as NodeJS.ErrnoException).code === 'ETIMEDOUT' ? `no answer within ${ms / 1000} seconds` : firstLine(e);
     ctx.stdout.write(`fetch from origin failed, going on with the refs already in this clone: ${why}\n`);
-    return ctx;
+    return { ctx, fetched: 'failed' };
   }
-  return { ...ctx, snapshot: loadSnapshot(loadFromFs(ctx.root)) };
+  return { ctx: { ...ctx, snapshot: loadSnapshot(loadFromFs(ctx.root)) }, fetched: 'ok' };
 }
 
 /** The merge of `ref` into the branch checked out in `root`, always `--no-ff`: a refused or conflicting merge is aborted, named, and leaves the branch as it was. */
@@ -669,15 +671,17 @@ function removeWorktree(ctx: CommandContext, w: WorktreeEntry, id: string, h: Ho
 }
 
 /** D-05, D-16: fetch, prune stale remote refs, then (ST-LN-25 D-08) remove the worktree and delete the local branch of each ticket that is done on origin's main, then (ST-LN-34) those of dropped tickets, naming what is removed, deleted or kept. */
-export function worktreeClean(ctx: CommandContext): number {
+export function worktreeClean(ctx: CommandContext, opts: { fetched?: 'ok' | 'failed' | 'none'; skip?: string } = {}): number {
   worktrees(ctx.root, ctx.stdout);
   const templates = ctx.snapshot.branchTemplates ?? [DEFAULT_BRANCH_TEMPLATE];
-  if (!gitOk(ctx.root, ['remote', 'get-url', 'origin'])) return 0;
+  if (opts.fetched === 'none' || !gitOk(ctx.root, ['remote', 'get-url', 'origin'])) return 0;
   let pruned = new Map<string, string>();
-  let fetchFailed = false;
+  let fetchFailed = opts.fetched === 'failed';
   try {
-    gitNoPrompt(ctx.root, ['fetch', '--no-prune', 'origin']);
-    pruned = pruneStale(ctx);
+    if (!fetchFailed) {
+      if (opts.fetched === undefined) gitNoPrompt(ctx.root, ['fetch', '--no-prune', 'origin']);
+      pruned = pruneStale(ctx);
+    }
   } catch (e) {
     fetchFailed = true;
     ctx.stdout.write(`fetch from origin failed, judging against the refs already in this clone: ${firstLine(e)}
@@ -686,9 +690,18 @@ export function worktreeClean(ctx: CommandContext): number {
   const ref = gitDefaultRef(ctx.root);
   if (ref === undefined) return 0;
   const state: GuardState = {};
-  cleanDone(ctx, ref, templates, state, fetchFailed);
-  cleanDropped(ctx, ref, templates, state, pruned, fetchFailed);
+  cleanDone(ctx, ref, templates, state, fetchFailed, opts.skip);
+  cleanDropped(ctx, ref, templates, state, pruned, fetchFailed, opts.skip);
   return 0;
+}
+
+/** D-02: the clean a command runs on the side; a failure is named and never stops that command. */
+export function cleanQuietly(ctx: CommandContext, fetched: 'ok' | 'failed' | 'none', skip?: string): void {
+  try {
+    worktreeClean(ctx, { fetched, skip });
+  } catch (e) {
+    ctx.stdout.write(`clean failed, nothing more was removed: ${firstLine(e instanceof UsageError ? e.message : e)}\n`);
+  }
 }
 
 /** The branch a worktree's stopped rebase is rebuilding, or undefined. */
@@ -834,7 +847,7 @@ function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[
 }
 
 /** ST-LN-34: for each ticket branch whose ticket is dropped on `ref`, delete the worktree, the origin branch and the local branch when nothing beyond origin is lost. */
-function cleanDropped(ctx: CommandContext, ref: string, templates: readonly string[], s: GuardState, pruned: Map<string, string>, fetchFailed: boolean): void {
+function cleanDropped(ctx: CommandContext, ref: string, templates: readonly string[], s: GuardState, pruned: Map<string, string>, fetchFailed: boolean, skip?: string): void {
   const known = (i: string) => Object.hasOwn(ctx.snapshot.tickets, i);
   const tips = new Map<string, { L?: string; R?: string }>();
   for (const row of git(ctx.root, ['for-each-ref', '--format=%(objectname) %(refname)', 'refs/heads', 'refs/remotes/origin']).split('\n')) {
@@ -851,7 +864,7 @@ function cleanDropped(ctx: CommandContext, ref: string, templates: readonly stri
   const ids = new Map<string, string>();
   for (const [name, t] of tips) {
     const id = ticketOfBranch(name, templates, known);
-    if (id !== undefined && !gitOk(ctx.root, ['merge-base', '--is-ancestor', (t.L ?? t.R)!, ref])) ids.set(name, id);
+    if (id !== undefined && id !== skip && !gitOk(ctx.root, ['merge-base', '--is-ancestor', (t.L ?? t.R)!, ref])) ids.set(name, id);
   }
   if (ids.size === 0) return;
   const dropped = droppedOn(ctx.root, ref, [...new Set(ids.values())]);

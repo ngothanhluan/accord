@@ -2307,3 +2307,47 @@ it('risk:data-loss an origin branch is deleted only with a lease and only after 
   expect(re).toContain(`deleted t/ST-9 (was ${tipE})`);
   expect(re.some((x) => x.startsWith('kept origin/') || x.startsWith('deleted origin/'))).toBe(false);
 }, 240_000);
+
+it('ac-5 clean pick up continue and a new worktree ticket remove the worktree and both branches of a done ticket', async () => {
+  const rows: { name: string; argv: string[]; prep?: (c: Clone) => void }[] = [
+    { name: 'clean', argv: ['worktree', 'clean'] },
+    { name: 'open', argv: ['worktree', 'open', 'ST-10'] },
+    { name: 'continue', argv: ['worktree', 'open', 'ST-10', '--continue'], prep: (c) => ticketWorktree(c, 'ST-10') },
+    { name: 'new ticket', argv: ['new', 'ticket', 'ST-11', '--lane', 'M', '--worktree'] },
+  ];
+  for (const row of rows) {
+    const c = clone({ tickets: ['ST-9', 'ST-10'] });
+    ticketWorktree(c, 'ST-9');
+    row.prep?.(c);
+    const t = doneOnRemote(c, ['ST-9'], { squash: true, local: true });
+    const tip = sha(c, 't/ST-9');
+    const sib9 = c.sibling('ST-9');
+    expect(tip, row.name).toBe(t['ST-9']);
+    expect(() => c.git('cat-file', '-e', 'origin/main:accord/tickets/ST-9/review.md'), row.name).toThrow();
+    const r = await run(row.argv, c.root);
+    expect(r.code, row.name + r.out).toBe(0);
+    const l = lines(r.out);
+    expect(l, row.name).toContain(`removed ${sib9}`);
+    expect(l, row.name).toContain(`deleted t/ST-9 (was ${tip})`);
+    expect(l, row.name).toContain(`deleted origin/t/ST-9 (was ${tip})`);
+    expect(existsSync(sib9), row.name).toBe(false);
+    expect(has(c.root, 'refs/heads/t/ST-9'), row.name).toBe(false);
+    expect(has(c.remote, 'refs/heads/t/ST-9'), row.name).toBe(false);
+  }
+}, 240_000);
+
+it('risk:complex-branching pick up and continue never clean the ticket they open', async () => {
+  const c = clone();
+  ticketWorktree(c, 'ST-9');
+  doneOnRemote(c, ['ST-9'], { local: true });
+  const st = await run(['status', '--json'], c.sibling('ST-9'));
+  expect(JSON.stringify(JSON.parse(st.out))).toMatch(/"id":"ST-9"[^}]*"stage":"done"/);
+  const r = await run(['worktree', 'open', 'ST-9', '--continue'], c.root);
+  expect(r.code).toBe(0);
+  expect(existsSync(c.sibling('ST-9'))).toBe(true);
+  expect(has(c.root, 'refs/heads/t/ST-9')).toBe(true);
+  expect(has(c.remote, 'refs/heads/t/ST-9')).toBe(true);
+  expect(r.out).not.toMatch(/^(removed|deleted) /m);
+  expect(r.out).not.toContain('merged:');
+  expect(lines(r.out)[0].startsWith('behind:')).toBe(true);
+}, 240_000);

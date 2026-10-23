@@ -150,6 +150,9 @@
 - Ruling: review round 15 — a Ruling allows going past the round cap only when its `<what>` (the text before its first " — ") says past, beyond or over the (round) cap with no negation (not, no, never, stays, keeps, kept) and not "as past/beyond/over" — keeps BUG-LN-3's "review past the cap: one more fix round…" allowed and rejects ST-LN-14 line 6 and "the round cap stays at five" — an oddly worded Ruling can be misread either way
 - Ruling: review round 15 — the `<bench root>/notes.md` read in `--round` is covered only by the pure report test, like compliance.md — it is one `readOr` line, and the real `--round 1` run that follows shows it — none
 - Ruling: review round 15 — the two Rulings copied twice into this ledger (the worktree lock and the eight executor re-dispatches) are kept once — a52739f appended pending items that were already here — none
+- Ruling: review round 17 — the fallback merge key is the whole line with the project-folder prefix before `<session>/subagents/` removed, not the tail alone — two different findings from one transcript (for example two brief-quote lines) stay separate — a line that differs only in its folder text elsewhere would still be listed twice
+- Ruling: review round 17 — the merge runs one dedupe pass over the earlier lines then the newer ones (first wins), which also collapses trailer or round-cap duplicates already in the earlier file — matches the keep-earlier Ruling, and the C--Work-accord-st-ln-14 folder is gone so the earlier file cannot be rebuilt — an earlier file's intended repeat lines would be lost on the next read
+- Ruling: review round 17 — after 524ca0f, `--compliance` was run again over every C--Work-accord* folder and its compliance.md replaced the `## Compliance` section of docs/benchmark/round-1.md, instead of a new `--round 1` (about 70 min re-running all 15 executor suites) — `report()` appends compliance.md verbatim (the old section equalled the old compliance.md byte for byte, checked), and the fix changes nothing else the round reads — the report would differ from what `--round 1` writes if the round read anything else that changed
 
 ## Deferred
 - plan-review 1.15: the approach says `--plan` rewrites only the brief's working-tree header lines; Task 5 rewrites the root everywhere outside the ticket
@@ -208,6 +211,7 @@
 - review round 16 Nice 2: the "Superseded runs" heading says every entry was dispatched before its worktree was rebuilt, wrong for reviewer-1-medium judge, superseded through `judgeBriefAt` — scripts/round.mjs:419
 - review round 16 Nice 3: `risk:data-loss a second --plan keeps the judge brief time a row already has` names the wrong risk kind; losing the stamp deletes nothing, it counts an outdated judge — packages/core/test/benchmark-round.test.ts:447
 - review round 16 note: the round-cap line for ST-LN-14 says "reached round 9" though review.md reaches round 16, because a merged compliance read keeps the earlier line (Ruling: the earlier line is kept) — scripts/compliance.mjs mergeCompliance
+- review round 17 Nice 2: the measurement notes do not say executor-1-high's 19 re-run files come from a machine sleep during its first suite run (cases timed at about 6.6 h) — C:/Work/accord-bench/notes.md
 
 ## Tasks
 - task 1 done cfd797751f01

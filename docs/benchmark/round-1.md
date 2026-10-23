@@ -140,7 +140,7 @@ Dispatched before their worktree was rebuilt; not counted.
 
 | rule | count |
 | --- | ---: |
-| tier-up | 6 |
+| tier-up | 12 |
 | trailer | 44 |
 | test-first | 31 |
 | verify-id | 33 |
@@ -156,6 +156,12 @@ Dispatched before their worktree was rebuilt; not counted.
 - tier-up: ST-LN-14 review round 6 (task none, a fix assignment "Fix review round 6 findings"): the fix executor asked for sonnet where escalation.fix_round_tier_up asks for opus — C--Work-accord/2c76daea-883d-4bcc-b318-c2e16eae0d09/subagents/agent-a16be6a412d626367.jsonl
 - tier-up: ST-LN-14 review round 7 (task none, a fix assignment "Fix final review findings"): the fix executor asked for sonnet where escalation.fix_round_tier_up asks for opus — C--Work-accord/2c76daea-883d-4bcc-b318-c2e16eae0d09/subagents/agent-a42fdce19e5384aab.jsonl
 - tier-up: ST-LN-14 review round 8 (task none, a fix assignment "Fix review round 8 findings"): the fix executor asked for sonnet where escalation.fix_round_tier_up asks for opus — C--Work-accord/2c76daea-883d-4bcc-b318-c2e16eae0d09/subagents/agent-ae1a242b9c71e5af4.jsonl
+- tier-up: ST-LN-14 review round 13 (task none, a fix assignment "Fix root cause 3 and round 13"): the fix executor asked for sonnet where escalation.fix_round_tier_up asks for opus — C--Work-accord/2c76daea-883d-4bcc-b318-c2e16eae0d09/subagents/agent-a05ad3d18e0a0e5ec.jsonl
+- tier-up: ST-LN-14 review round 15 (task none, a fix assignment "ST-LN-14 fix review round 15"): the fix executor asked for sonnet where escalation.fix_round_tier_up asks for opus — C--Work-accord/2c76daea-883d-4bcc-b318-c2e16eae0d09/subagents/agent-a346b749e7bb18403.jsonl
+- tier-up: ST-LN-14 review round 12 (task none, a fix assignment "Fix debug episode 4 root cause 2"): the fix executor asked for sonnet where escalation.fix_round_tier_up asks for opus — C--Work-accord/2c76daea-883d-4bcc-b318-c2e16eae0d09/subagents/agent-a5f007dc591cb0744.jsonl
+- tier-up: ST-LN-14 review round 10 (task none, a fix assignment "Fix review round 10"): the fix executor asked for sonnet where escalation.fix_round_tier_up asks for opus — C--Work-accord/2c76daea-883d-4bcc-b318-c2e16eae0d09/subagents/agent-a83dd500df5ea2961.jsonl
+- tier-up: ST-LN-14 review round 11 (task none, a fix assignment "Fix review round 11"): the fix executor asked for sonnet where escalation.fix_round_tier_up asks for opus — C--Work-accord/2c76daea-883d-4bcc-b318-c2e16eae0d09/subagents/agent-ab1a49cb21e02ab89.jsonl
+- tier-up: ST-LN-14 review round 14 (task none, a fix assignment "Fix review round 14"): the fix executor asked for sonnet where escalation.fix_round_tier_up asks for opus — C--Work-accord/2c76daea-883d-4bcc-b318-c2e16eae0d09/subagents/agent-af7e4a08aedc9be8c.jsonl
 
 ### trailer
 
@@ -234,9 +240,9 @@ Dispatched before their worktree was rebuilt; not counted.
 - test-first: ST-LN-27 task 8: its first edit to a source file (packages/cli/src/commands/worktree.ts), no test edit seen through Edit or Write — C--Work-accord-st-ln-27/534989db-2e8d-4ed8-aa14-256e70aeed28/subagents/agent-af2cff15161e82c1e.jsonl
 - test-first: ST-LN-30 task 5: its first edit to a source file (packages/cli/src/commands/fetch-limit.ts) came before its first edit to a test file — C--Work-accord-st-ln-30/27360965-f877-4d4a-b925-b29fb899d250/subagents/agent-aaf579c7c1593f1db.jsonl
 - test-first: ST-LN-8 task 2: its first edit to a source file (packages/cli/src/commands/gate.ts), no test edit seen through Edit or Write — C--Work-accord-st-ln-8/54bc8e69-8fa8-4bfb-86ca-a40e2e72a6a6/subagents/agent-a5a92e573cfc79ca7.jsonl
-- test-first: ST-LN-14 task 11: its first edit to a source file (scripts/benchmark.mjs), no test edit seen through Edit or Write — C--Work-accord/2c76daea-883d-4bcc-b318-c2e16eae0d09/subagents/agent-a456fef9414e80b47.jsonl
-- test-first: ST-LN-14 task 2: its first edit to a source file (scripts/compliance.mjs), no test edit seen through Edit or Write — C--Work-accord/2c76daea-883d-4bcc-b318-c2e16eae0d09/subagents/agent-ae7d492dd7802c1a9.jsonl
 - test-first: ST-LN-31 task 4: its first edit to a source file (packages/core/src/gate/lane-s.ts), no test edit seen through Edit or Write — C--Work-accord/6630d237-9633-47a4-9a06-d2d06bdcad82/subagents/agent-ac43042fb74739173.jsonl
+- test-first: ST-LN-25 task 4: its first edit to a source file (packages/cli/src/commands/worktree.ts) came before its first edit to a test file — C--Work-accord-st-ln-25/be3afed9-29df-4993-8231-1a073a154d36/subagents/agent-ab1c7406495b0bd5d.jsonl
+- test-first: ST-LN-25 task 1: its first edit to a source file (packages/cli/src/commands/registry.ts) came before its first edit to a test file — C--Work-accord-st-ln-25/be3afed9-29df-4993-8231-1a073a154d36/subagents/agent-ac27fb58fc0adce9d.jsonl
 
 ### verify-id
 

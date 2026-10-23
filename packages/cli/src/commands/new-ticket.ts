@@ -7,6 +7,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { initialsHolder, initialsOf, nextTicketId, setFrontmatterKey, templates } from '@accord-dev/accord-core';
+import type { Lane } from '@accord-dev/accord-core';
 import { gitIsShallow, gitPeopleOnRefs, gitTicketIdsInHistory, gitUserEmail, UsageError } from '../load/fs.js';
 import { fetchOrigin, guardTicketSession, newTicketWorktree } from './worktree.js';
 import type { CommandContext } from '../run.js';
@@ -19,7 +20,7 @@ const PLACEHOLDER = 'TICKET-ID';
 export function newTicket(
   ctx: CommandContext,
   givenId: string | undefined,
-  options: { type: 'epic' | 'story' | 'bug'; lane?: 'M' | 'L' | 'P'; worktree?: boolean },
+  options: { type: 'epic' | 'story' | 'bug'; lane?: Lane; worktree?: boolean },
 ): number {
   guardTicketSession(ctx);
   if (options.worktree === true) ctx = fetchOrigin(ctx);
@@ -87,7 +88,7 @@ export function newTicket(
   }
 
   // R14a: an epic groups stories, so lane M (one feature) is meaningless for it; refuse before any write.
-  if (options.type === 'epic' && options.lane === 'M') throw new UsageError('an epic is lane L or P, not M');
+  if (options.type === 'epic' && (options.lane === 'M' || options.lane === 'S')) throw new UsageError('an epic is lane L or P, not M');
 
   // The generated record on the core public API is the only template source: packages/core/templates/
   // is not shipped into a consumer's node_modules the way the generated module is. `epic` has its own
@@ -96,7 +97,9 @@ export function newTicket(
     options.lane !== undefined
       ? options.type === 'epic'
         ? ('epic-lane.md' as const)
-        : ('ticket-lane.md' as const)
+        : options.lane === 'S'
+          ? ('ticket-lane-s.md' as const)
+          : ('ticket-lane.md' as const)
       : options.type === 'epic'
         ? ('epic.md' as const)
         : (`ticket-${ctx.snapshot.config?.profile ?? 'build'}.md` as const);

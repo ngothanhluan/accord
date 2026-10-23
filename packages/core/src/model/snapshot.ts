@@ -33,6 +33,9 @@ export interface SnapshotInput {
   // Ticket id -> the commits after its start commit (verified_commit, else verification.md's commit) on its own tip
   // that the default ref does not hold, oldest first. Present only for a ticket whose start commit is not on the default ref.
   afterVerify?: Record<string, AfterVerifyCommit[]>;
+  // Ticket id -> its review.md: `clean` when the file is committed with no uncommitted change; `files`, every path changed by
+  // the review commit, the last commit whose change to review.md adds or removes a `## Round ` line; absent when the host supplies none.
+  reviewFacts?: Record<string, { clean: boolean; files?: string[] }>;
 }
 
 /** Full shas, first parent first; `files` are the paths the commit changes (for a merge, the paths its remerge diff
@@ -63,6 +66,8 @@ export interface ScenarioRef {
   steps: string[]; // Background steps then scenario steps, whitespace-collapsed (D-47, D-48)
 }
 
+export type Lane = 'S' | 'M' | 'L' | 'P';
+
 export interface TicketFrontmatter {
   id: string; // 'LOGIN-1', kept verbatim (D-34)
   title: string;
@@ -73,7 +78,7 @@ export interface TicketFrontmatter {
   ui: boolean; // defaults to false in the loader, not the schema (D-21)
   design?: string; // 'https://www.figma.com/file/abc'
   assumptions?: { text: string; confirmed: boolean }[];
-  lane?: 'M' | 'L' | 'P'; // spec §3: present opts the ticket into the workflow-layer contract
+  lane?: Lane; // spec §3: present opts the ticket into the workflow-layer contract
   depends_on?: string[]; // spec §5: ticket ids that must reach done first
   priority?: 'high' | 'medium' | 'low'; // how the dashboard ranks this ticket; absent means medium
   approved_hash?: string; // spec §4: written by `accord approve`, 'fnv1a64:<16 hex>'
@@ -202,4 +207,5 @@ export interface RepoSnapshot {
   claimTemplate?: string; // carried through from SnapshotInput
   planFacts?: Record<string, { subject?: string; clean: boolean }>; // carried through from SnapshotInput
   afterVerify?: Record<string, AfterVerifyCommit[]>; // carried through from SnapshotInput
+  reviewFacts?: Record<string, { clean: boolean; files?: string[] }>; // carried through from SnapshotInput
 }

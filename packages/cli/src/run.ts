@@ -4,7 +4,7 @@
 // nothing reaches `process.*` (STACK Decision 7). Exit codes follow STACK Decision 1: 0 pass,
 // 1 lint/gate failure, 2 usage or environment error.
 import { loadSnapshot } from '@accord-dev/accord-core';
-import type { RepoSnapshot } from '@accord-dev/accord-core';
+import type { Lane, RepoSnapshot } from '@accord-dev/accord-core';
 import { Command, CommanderError, Option } from 'commander';
 import pkg from '../package.json' with { type: 'json' };
 import { anchor } from './commands/anchor.js';
@@ -172,9 +172,9 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
         .choices(['epic', 'story', 'bug'])
         .default('story'),
     )
-    .addOption(new Option('--lane <lane>', 'write a lane ticket (M, L, or P)').choices(['M', 'L', 'P']))
+    .addOption(new Option('--lane <lane>', 'write a lane ticket (S, M, L, or P)').choices(['S', 'M', 'L', 'P']))
     .option('--worktree', 'write the ticket in its own new worktree on its claim branch, commit and push it, then run setup there')
-    .action((id: string | undefined, options: { type: 'epic' | 'story' | 'bug'; lane?: 'M' | 'L' | 'P'; worktree?: boolean }) => {
+    .action((id: string | undefined, options: { type: 'epic' | 'story' | 'bug'; lane?: Lane; worktree?: boolean }) => {
       setCode(newTicket(preflight(opts), id, options));
     });
 

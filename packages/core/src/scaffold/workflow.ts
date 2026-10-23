@@ -24,7 +24,7 @@
 // the review has to be of the code being gated, and what a fresh-context review read is the branch.
 //
 // `gate done` is skipped for a ticket only when the diff changes nothing outside `accord/` and the ticket is
-// unapproved in both its HEAD and base versions, or dropped in HEAD. Any read the script cannot settle counts
+// unapproved in both its HEAD and base versions (a lane S ticket: no `ac_hash` in either), or dropped in HEAD. Any read the script cannot settle counts
 // as approved, so a doubt gates. `.github/workflows/accord.yml` carries the same script and must be changed
 // with it; `cli/test/workflow-script.test.ts` fails when the two drift.
 //
@@ -119,13 +119,15 @@ jobs:
             if grep -Evq "^([[:space:]]|#|-([[:space:]]|$)|\${qc}?[[:alnum:]_-]+\${qc}?[[:space:]]*:([[:space:]]|#|$)|$)" <<< "$fm"; then return 2; fi
             return 0
           }
-          # Approved means an approved_hash key in that version of path $2. An unsettled read counts as approved.
+          # Approved means an approved_hash key in that version of path $2, or, on a lane S ticket, an ac_hash key, since
+          # a lane S ticket needs no approval. An unsettled read counts as approved.
           approved_at() {
             fm_at "$1" "$2"
             local rc=$?
             if [ "$rc" -eq 1 ]; then return 1; fi
             if [ "$rc" -ne 0 ]; then return 0; fi
-            grep -Eq "^[[:space:]]*\${qc}?approved_hash\${qc}?[[:space:]]*:" <<< "$fm"
+            grep -Eq "^[[:space:]]*\${qc}?approved_hash\${qc}?[[:space:]]*:" <<< "$fm" && return 0
+            grep -Eq "^\${qc}?lane\${qc}?[[:space:]]*:[[:space:]]*\${qc}?S\${qc}?[[:space:]]*(#.*)?$" <<< "$fm" && grep -Eq "^[[:space:]]*\${qc}?ac_hash\${qc}?[[:space:]]*:" <<< "$fm"
           }
           # Dropped needs status: dropped and a reason under ## Dropped, as lint reads it. Where this reading
           # cannot match lint (a comment spanning lines, a stray fence) the answer is not dropped: fail closed.
@@ -135,6 +137,18 @@ jobs:
             grep -Eq "^\${qc}?status\${qc}?[[:space:]]*:[[:space:]]*\${qc}?dropped\${qc}?[[:space:]]*(#.*)?$" <<< "$fm" || return 1
             text=$(git show "HEAD:$file") || return 1
             awk '{ sub(/[[:space:]]+$/, "") } d < 2 { if (NR == 1) d = 1; else if ($0 == "---") d = 2; next } { if (fc == "") { if ($0 ~ /^(\`\`\`|~~~)/) fc = substr($0, 1, 1); else if (!s && tolower($0) ~ /^##[[:space:]]+dropped$/) { s = 1; next } else if (s && $0 ~ /^##[[:space:]]/) exit } else if (substr($0, 1, 3) == fc fc fc) fc = "" } s { t = $0; gsub(/<!--[^>]*-->/, "", t); if (t ~ /<!--|-->/) bad = 1; if (t ~ /[^[:space:]]/) said = 1 } END { exit (said && !bad) ? 0 : 3 }' <<< "$text"
+          }
+          # A ticket that was approved or lane M, L or P at the base and is lane S at HEAD dropped its lane after
+          # approval (D-03). An unsettled base read fails closed; an absent base file is a new lane S ticket.
+          lane_dropped() {
+            fm_at HEAD "$file" || return 1
+            grep -Eq "^\${qc}?lane\${qc}?[[:space:]]*:[[:space:]]*\${qc}?S\${qc}?[[:space:]]*(#.*)?$" <<< "$fm" || return 1
+            fm_at "$BASE" "$file"
+            local rc=$?
+            if [ "$rc" -eq 1 ]; then return 1; fi
+            if [ "$rc" -ne 0 ]; then return 0; fi
+            grep -Eq "^[[:space:]]*\${qc}?approved_hash\${qc}?[[:space:]]*:" <<< "$fm" && return 0
+            grep -Eq "^\${qc}?lane\${qc}?[[:space:]]*:[[:space:]]*\${qc}?[MLP]\${qc}?[[:space:]]*(#.*)?$" <<< "$fm"
           }
           # An approved ticket deleted or renamed away counts as code, whether or not git pairs the rename, so
           # a rename that drops approved_hash cannot skip the gate. A failing diff counts as code too.
@@ -152,6 +166,11 @@ jobs:
           while IFS= read -r file; do
             id=\${file#accord/tickets/}
             id=\${id%.md}
+            if lane_dropped; then
+              echo "$id: its lane cannot drop after approval (lane S at HEAD, approved or lane M, L or P at the base)"
+              code=1
+              continue
+            fi
             if [ "$has_code" -eq 0 ]; then
               if is_dropped; then
                 echo "not gating $id - dropped and this pull request changes nothing outside accord/"

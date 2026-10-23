@@ -1,0 +1,88 @@
+# Ledger
+
+## Rulings
+
+- Ruling: ST-LN-31 depends on ST-LN-34, and a drop to lane S (D-03) goes through its `accord drop <id>`; a lift to lane M (D-09) happens in place, with no drop — D-08 needs the dropped ticket's worktree and branches cleaned, which only ST-LN-34 provides — cost if wrong: ST-LN-31's build waits for ST-LN-34.
+- Ruling: the lane column goes on the panel's rows as well as the text dashboard — ST-LN-2 D-06 makes every runtime and the panel show the same thing — cost if wrong: one more file changed.
+- Ruling: lane S has one procedure file, `skills/accord/lane-s.md`, for New request, Pick up and Continue; the anchor prints `Lane: S` and every lane S next step names that file, and `hook.ts` is unchanged — a resumed session follows the stage the anchor prints — cost if wrong: one more rendered file.
+- Ruling: the drop hand-off prints one `/accord <request>` line with `Understood: …`, `Done when: …` and "lane S, moved from <id>", and New request takes lane S without asking again when they are present — the interview's findings carry into the new session — cost if wrong: the owner pastes one line.
+- Ruling: the session pushes `t/<id>` before `accord drop` — ST-LN-34 keeps a dropped ticket whose branch is ahead of origin, so `accord worktree clean` would never remove it (D-08) — cost if wrong: one push.
+- Ruling: the D-10 check reads `depends_on` from `accord status --json`, which sees other claim branches, and the drop is not offered for a ticket whose branch holds commits outside its own records — a ticket lifted from lane S keeps its code on the branch (D-11), which clean would delete — cost if wrong: such a ticket stays lane M.
+- Ruling: lane S review.md uses the lane M record format, `## Round <n>` then `verdict: converged` or `verdict: accepted-by-owner "<words>"` (D-12) — the gate and stage already read it — cost if wrong: none.
+- Ruling: lane S `gate done` reads the commits after the review from the `afterVerify` fact status already uses, plus a clean flag for review.md, and fails closed when the fact is absent, when review.md is dirty or uncommitted, and when the review's own commit changes a path outside the ticket's records — stage and gate read one fact, and code committed with the verdict is not taken as reviewed — cost if wrong: one more review round.
+- Ruling: lane S does not turn on the test policy and has no `test-untraced` rule at Done; a new lane S test is named `risk:<kind>` — no lane S step creates `tests-baseline.txt` — cost if wrong: an unnamed lane S test is first caught at the next lane M Done.
+- Ruling: lane S gets a `## Corrections` section on the owner's first correction, and the lane S anchor prints it when present — ruleset rule 2 needs corrections written down — cost if wrong: one optional section.
+- Ruling: `accord approve` refuses a lane S ticket with exit 2 — CI gates any pull request that carries `approved_hash` — cost if wrong: one line.
+- Ruling: the D-09 lint rule matches a ticket in lane M, L or P with review.md and no plan.md — a lane M review needs every plan task recorded first — cost if wrong: a hand-written early lane M review.md is flagged.
+- Ruling: origin/main (with ST-LN-34) is merged into t/ST-LN-31 before the plan, and the plan is written on the merged HEAD — the drop at intent (D-03) needs `accord drop`, which the old baseline lacked; owner: "A" — cost if wrong: none, no product code was on the branch.
+- Ruling: lane S reuses the `Stage` type: intent (not Ready), build (Ready, no review.md), review (verdict missing, open, lines after it, or a hand-made commit after it), done — the dashboard, `accord next` and `depends_on` then read lane S like any ticket — cost if wrong: four next-step strings.
+- Ruling: the lane S hash goes in `ac_hash`, made in the approved-sections format over Understood and Done when (`laneSHash`, `readyHash`) — the Approach — cost if wrong: none.
+- Ruling: new rule ids are `gate.section-empty`, `gate.ready-missing`, `gate.sections-changed`, `gate.review-trailing`, `gate.review-uncommitted`, `gate.review-commit-code`, `gate.commit-after-review`, `lint.review-without-plan` and `lint.dropped-approved` — names had to be chosen — cost if wrong: a rename.
+- Ruling: the review commit's fact (`reviewFacts`: clean flag plus the files changed by the last commit recording a `## Round`, per the plan rounds 2.1 and 3.1 Ruling) is loaded by `gate done` only for lane S, fail-closed when absent — the earlier `gate done` Ruling — cost if wrong: three git calls per lane S gate done.
+- Ruling: the lane column sits right after id in text and panel rows, and epic rows get it too, empty when the epic has no lane — "every ticket row" in ac-3 — cost if wrong: one more column.
+- Ruling: the drop-to-S steps live in `ids.md` `## Moving to lane S`, which `accord-intent` now loads — `accord/SKILL.md` must never name `accord drop` (stage-skills.test.ts) — cost if wrong: one more rendered copy.
+- Ruling: for D-11, plan step 2 takes the fork point that the lift Ruling in the ledger names; `plan/SKILL.md` is edited although outside the Approach's list, as no other place sets the baseline — cost if wrong: about 39 bytes in a skill near its cap.
+- Ruling: `failure.md` says a lane S ticket never reaches verify — its anchor prints `done` after review, which `failure.md` would otherwise route to accord-debug — cost if wrong: one sentence.
+- Ruling: `REQUIRED.accord` drops 'lens `both`' and 'git add -N' and adds './lane-s.md' and '--lane S --worktree'; the skills.test `VERDICT` regex lets the `## Done when` heading pass — the lane S text moved to `lane-s.md` — cost if wrong: two test lines.
+- Ruling: the lane S anchor prints the shared `## Rulings` block, and `## Corrections` only when that heading exists — the earlier Corrections Ruling — cost if wrong: one block.
+- Ruling: lane S `gate done` carries the lane M suite rule, reading the CI junit report, while a lane S session still runs only the affected tests locally — plan round 1.6; owner: "A" — cost if wrong: a lane S pull request fails CI on a test outside its change.
+- Ruling: the lane S records check is one lint rule, `lint.lane-s-lane-m-records`, with no `gate.` row — every gate already includes a ticket's lint errors — cost if wrong: one more rule id.
+- Ruling: lane S `gate done` reads the commits after the last commit that adds a `## Round` line to review.md from HEAD, not from the status fact read off the claim ref; once the review commit is on the default branch the fact is missing and the gate fails closed — CI gates pull requests only — cost if wrong: a later pull request that touches a merged lane S ticket's file fails its gate.
+- Ruling: a lane S round's record is committed before that round's fixes, a converged verdict in the same commit as the last round's record, and lane S gate done anchors both its review-commit check and its after-review range on the last commit on HEAD whose change to review.md adds or removes a "## Round" line, so with a verdict committed apart, code in that round commit fails gate.review-commit-code, a fix committed between it and the verdict fails gate.commit-after-review, and the verdict commit itself must change only the ticket's records — plan rounds 2.1 and 3.1 — cost if wrong: the status stage, which starts at the last commit touching review.md, can read done where the gate fails.
+- Ruling: when no commit on HEAD adds or removes a "## Round" line in review.md, lane S gate done fails gate.review-uncommitted and gate.commit-after-review instead of falling back to the last commit touching review.md — every lane S review records at least one round, and failing closed never ships unreviewed code — cost if wrong: a review.md made of a bare verdict line gets a reason that names the missing round line rather than a missing commit.
+- Ruling: under `stop:`, the main session writes Understood and Done when into the new worktree's ticket, then commits and pushes it, the same way it carries the people entry — no new CLI flag is needed (plan round 1.8) — cost if wrong: one commit made from the main checkout.
+- Ruling: the plan skill drops "The owner does not need to read the plan." to make room for the fork-point text; this replaces the byte estimate in the earlier D-11 Ruling — cost if wrong: one sentence of guidance lost.
+- Ruling: moving to lane S refuses when `git status` lists paths outside the ticket's own records, and commits only those records — so no uncommitted product code is committed and later deleted — cost if wrong: the owner commits or cleans that work first.
+- Ruling: lane S status rows set next at intent and review only — the dashboard's lane S build cell must read "build" (Task 3) — cost if wrong: a review row's cell grows longer.
+- Ruling: the move to lane S hand-off carries Title and Keys (depends_on, tracker, priority, ui, design), which the new session writes into the lane S ticket's frontmatter — the move skips step 3 of Dropping instead of renaming, so nothing else carries them — cost if wrong: a longer hand-off line.
+- Ruling: the CI workflow counts a lane S ticket carrying ac_hash as approved, so an accord-only lane S pull request runs gate done, while a queued lane S ticket with no ac_hash is still skipped — plan round 2.6 — cost if wrong: a pull request touching only a ready lane S ticket's records is gated.
+- Ruling: Task 9's test uses workflow-script.test.ts's own sandbox and runScript, not repoWith or commitMsg — every case in that file does, and its commits carry no message a convention reads — cost if wrong: none.
+- Ruling: `sectionParts` is a function declaration below `approvedInput` in hash.ts, hoisted, so `approvedInput`'s output and every approved_hash are unchanged — task 1 executor — cost if wrong: none.
+- Ruling: `nextStep` returns the lane S text for any stage of a lane S ticket; nothing calls it for a lane S build, as the row sets `next` only at intent and review — task 2 executor, the plan's `laneSNext(stage as LaneSStage)` — cost if wrong: none.
+- Ruling: the lane S anchor prints `Review base:` only when `progress.base` is set, which never happens for lane S — keeps the lane M code path unchanged — cost if wrong: none.
+- Ruling: an epic with no lane shows `-` in the text EPICS block's lane cell and an empty cell in the panel's epic rows — task 3 executor, following the plan's Interface; the text table marks an empty cell with `-` — cost if wrong: one column to remove.
+- Ruling: `reviewCommit`, `gitReviewFact` and `gitAfterReview` in fs.ts catch every git failure and return `{clean:false}` or undefined, so lane S gate done fails closed — task 4 executor, the brief's fail-closed reading for `gitReviewFact` applied to all three — cost if wrong: a git failure shows as a failed gate.
+- Ruling: `DONE_S_RULES` is exported and the `DONE_RULES` row consts are not — Task 7's skills.test scan imports only `DONE_S_RULES` — cost if wrong: one export.
+- Ruling: the two new lint rules read `snapshot.work` through a local `workOf` helper using `Object.hasOwn` — task 5 executor, the brief asks for `Object.hasOwn` access — cost if wrong: none, it is local to lint/ticket.ts.
+- Ruling: approve reads the lane as `ticket.frontmatter?.lane` — task 6 executor, typecheck says frontmatter may be undefined — cost if wrong: none.
+- Ruling: task 7 also commits `.claude/agents/accord-final-reviewer.md`, outside its files line — `skills sync` renders it from the same `reviewer.md` source, so leaving it stale would fail the sync check — cost if wrong: none.
+- Ruling: the ac-5 test keeps the brief's `rule.length > 0` check and adds an explicit `**Lane S.**` position assert — task 8 executor, the length check alone can never fail — cost if wrong: none.
+- Ruling: review round 1 fixes A, B and C only reword skill sentences, each locked by a stage-skills.test.ts assertion — review fix executor — cost if wrong: a later rewording must update them.
+- Ruling: the CI lane-drop check runs per ticket before the existing gating and skips gate done for a ticket it fails — a ticket failing it must not also be gated — cost if wrong: one fewer gate message on that ticket.
+- Ruling: the CI lane-drop check fails closed when the BASE frontmatter cannot be read and passes when the ticket is new at HEAD — new lane S tickets must work — cost if wrong: an unparseable base ticket fails the job until fixed by hand.
+- Ruling: `.github/workflows/accord.yml` gets the same `lane_dropped` function and call as the emitted script, inserted by hand — the repo file has its own npm ci, build and suite steps, so it is not a straight re-render — cost if wrong: the two copies drift; the replay test covers the shared cases.
+- Ruling: a move to lane S carries the interview's non-empty `## Vetoes`, `## Decisions` and `## Corrections` verbatim into the new lane S ticket, as optional sections the lane S form accepts and the lane S anchor prints — review round 1 security finding: the drop and the later branch clean otherwise lose them; owner: "A" — cost if wrong: a lane S ticket can carry up to three more sections.
+- Ruling: lint, the schema, the lane S template and gate ready are unchanged for the carried sections — fix E's test shows lane S already accepts them — cost if wrong: none seen.
+- Ruling: the move-to-S hand-off is the `/accord …` line followed by the carried sections verbatim under their headings — a one-line form cannot hold multi-line sections — cost if wrong: a session that reads only the first line drops the sections.
+
+## Deferred
+- plan round 1.10 Nice — Understood/Done when can be rewritten after review and `gate ready` rerun unflagged
+- plan round 1.11 Nice — `lint.dropped-approved` matches only the exact reason `moved to lane S`
+- plan round 1.12 Nice — the intent drop rule is not limited to a ticket queued on origin's default branch
+- plan round 1.13 Nice — `docs/specs/2026-10-12-workflow-layer-design.md:65-66` keeps the old lift conditions
+- plan round 1.14 Nice — Task 6's fork-point test assumes git's default branch is main or master
+- plan round 3.2 Nice — the lane S stage and gate done start at different commits; the Ruling "stage and gate read one fact" no longer holds
+- plan round 3.3 Nice — the lane S template has no `design` line for the Keys hand-off to replace
+- review round 1 Nice — `new ticket --type epic --lane S` is refused with a message naming only M
+- review round 1 Nice — `accord status` and `accord show` print a lane S build ticket as `build 0/0` and `Tasks: 0/0`
+- review round 1 Nice — lane S gate done calls `reviewCommit` twice; the `forDone` IIFE in gate.ts could be a helper
+- review round 1 Nice — `LANE_S_REQUIRED` is a Record of three identical entries where an array would do
+- review round 1 Nice — the ac-5 test also asserts the D-11 fork-point text in the plan skill and planner
+- review round 1 Nice — the plan skill lost "The owner does not need to read the plan." to fit its byte cap
+- review round 1 Nice — lane-s.md and the intent skill leave `<origin's default branch>`, `<branch>` and the `{files}` set unresolved
+- review round 1 Nice — the move-to-S hand-off carries no ticket type, says "each `Keys:` line" for one joined line, and ids.md's header still says it is read only with `people`
+- review round 1 Nice — lane S review records define no per-finding status and no handling for Nice findings
+- review round 1 Nice — the skills.test `VERDICT` regex now also lets "Ready when" and "Done when" prose pass
+- review round 1 Nice — a `/accord` request worded as a drop hand-off is taken as lane S without checking the moved ticket or the lift conditions
+- review round 1 Nice — the move-to-S hand-off drops the `parent` key, so an epic loses the ticket from its counts
+
+## Tasks
+- task 1 done 46c5a6864f6c
+- task 2 done 44ea3e0d8d7a
+- task 3 done 12abb37ed409
+- task 4 done 280794fde22c
+- task 5 done 399091c88bdc
+- task 6 done 45537889f4d3
+- task 7 done ba3714a3c0fd
+- task 8 done 1934774a86c7
+- task 9 done 6056d6349964

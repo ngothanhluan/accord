@@ -2134,6 +2134,23 @@ it('risk:data-loss a continue merge that conflicts is aborted and a worktree wit
   expect(lines(rh.out).some((l) => l.startsWith('merged:'))).toBe(false);
   expect(sha(h, 't/ST-9')).toBe(hHead);
   expect(gitRun(h.remote, 'rev-parse', 't/ST-9').trim()).toBe(hHead);
+
+  // the remote branch has a commit this clone's branch lacks: no merge into the stale tip, nothing pushed
+  const m = clone();
+  ticketWorktree(m, 'ST-9');
+  const mHead = sha(m, 't/ST-9');
+  twoOnMain(m);
+  const mo = m.otherClone();
+  gitRun(mo, 'checkout', '-q', 't/ST-9');
+  writeFiles(mo, { 'mate.txt': 'mate\n' });
+  const mate = commitMsg(mo, 'mate');
+  gitRun(mo, 'push', '-q', 'origin', 't/ST-9');
+  const rm = await run(['worktree', 'open', 'ST-9', '--continue'], m.root);
+  expect(rm.code).toBe(0);
+  expect(lines(rm.out)[0]).toBe(BEHIND);
+  expect(lines(rm.out).some((l) => l.startsWith('merged:') || l.startsWith('push of'))).toBe(false);
+  expect(sha(m, 't/ST-9')).toBe(mHead);
+  expect(gitRun(m.remote, 'rev-parse', 't/ST-9').trim()).toBe(mate);
 }, 180_000);
 
 const REVIEWED = '## Round 1\n\nNo findings\n\nverdict: converged\n';

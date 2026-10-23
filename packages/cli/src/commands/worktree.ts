@@ -503,6 +503,9 @@ function continueMerge(ctx: CommandContext, id: string, path: string, branch: st
   if (n === 0) return;
   const def = ref.replace('refs/remotes/', '');
   const behind = (): void => void ctx.stdout.write(`behind: ${branch} is ${n} commit${n === 1 ? '' : 's'} behind ${def}; merge them with git merge ${def}\n`);
+  // a remote branch with commits this clone lacks (a teammate pushed): the stage here may be stale, and the push would be refused
+  const own = 'refs/remotes/origin/' + branch;
+  if (gitOk(path, ['rev-parse', '-q', '--verify', own]) && !gitOk(path, ['merge-base', '--is-ancestor', own, 'HEAD'])) return behind();
   const stage = statusRows(snapshotAt(ctx.root, 'refs/heads/' + branch, [id])).find((r) => r.id === id)?.stage;
   if (stage === undefined || !['intent', 'plan', 'build', 'review'].includes(stage)) return behind();
   if (git(path, ['status', '--porcelain', '--untracked-files=no']).trim() !== '' || gitOk(path, ['rev-parse', '-q', '--verify', 'MERGE_HEAD'])) return behind();

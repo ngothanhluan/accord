@@ -12,6 +12,8 @@ import {
   POINTER_FILES,
   POINTER_START,
   pointerText,
+  repinConfig,
+  repinWorkflow,
   skillTargets,
   validate,
 } from '../src/index.js';
@@ -397,4 +399,22 @@ describe('pointerText — the block it decides (CLI-03)', () => {
       .filter((l) => l !== '' && !markers.includes(l) && skillLines.has(l));
     expect(copied).toEqual([]);
   });
+});
+
+it('risk:parsing the pin rewrites change only the top level accord line and the exact workflow pin', () => {
+  const name = '@accord-dev/accord';
+  const old = initFiles({ name, version: '0.0.9' });
+  const now = initFiles({ name, version: '0.1.0' });
+  const text = (files: typeof old, path: string): string => files.find((f) => f.path === path)!.text;
+  expect(repinConfig(text(old, 'accord/config.yml'), '0.1.0')).toBe(text(now, 'accord/config.yml'));
+  expect(repinWorkflow(text(old, '.github/workflows/accord.yml'), name, '0.0.9', '0.1.0')).toBe(text(now, '.github/workflows/accord.yml'));
+  expect(repinConfig('accord: "0.0.9"  # pinned\n', '0.1.0')).toBe('accord: "0.1.0"  # pinned\n');
+  expect(repinConfig("accord: '0.0.9'\n", '0.1.0')).toBe('accord: "0.1.0"\n');
+  expect(repinConfig('accord: 0.0.9\n', '0.1.0')).toBe('accord: "0.1.0"\n');
+  expect(repinConfig('a: 1\r\naccord: "0.0.9"\r\n', '0.1.0')).toBe('a: 1\r\naccord: "0.1.0"\r\n');
+  expect(repinConfig('x:\n  accord: "0.0.9"\n', '0.1.0')).toBeUndefined();
+  expect(repinConfig('accord: "0.0.9"\naccord: "0.0.9"\n', '0.1.0')).toBeUndefined();
+  expect(repinConfig('accord: "0.0.9" extra\n', '0.1.0')).toBeUndefined();
+  const keep = `npx --yes ${name}@0.0.90 x && other@0.0.9`;
+  expect(repinWorkflow(keep, name, '0.0.9', '0.1.0')).toBe(keep);
 });

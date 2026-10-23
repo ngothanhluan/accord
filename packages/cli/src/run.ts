@@ -26,6 +26,7 @@ import { taskDone } from './commands/task-done.js';
 import { testsBaseline } from './commands/tests-baseline.js';
 import { testsSkipped } from './commands/tests-skipped.js';
 import { drop } from './commands/drop.js';
+import { upgrade } from './commands/upgrade.js';
 import { worktreeCheck, worktreeClean, worktreeMerge, worktreeOpen } from './commands/worktree.js';
 import { loadClaimView, loadFromFs, UsageError } from './load/fs.js';
 import { pinMessage } from './pin.js';
@@ -212,6 +213,15 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .option('--reason <reason>', 'why the ticket is dropped; replaces the ## Dropped section')
     .action((id: string, o: { reason?: string }) => {
       setCode(drop(preflight(opts), id, o));
+    });
+
+  // A stated exception to the pin check, like `--version` and `--help`: it runs as the newer accord against a
+  // repository that still pins the older one, so it takes no `preflight` (ST-LN-25).
+  program
+    .command('upgrade')
+    .description("run as the newer accord: push a branch upgrade/<version> from origin's default branch whose one commit pins this version in config.yml, the workflow and the hooks, with the skill files skills sync writes; the checkout is not touched")
+    .action(() => {
+      setCode(upgrade({ root: repoRoot(opts.cwd), stdout: opts.stdout, stderr: opts.stderr, env: opts.env ?? {} }));
     });
 
   const worktree = program.command('worktree').description('work each ticket in its own git worktree');

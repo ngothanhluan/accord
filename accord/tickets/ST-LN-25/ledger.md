@@ -60,6 +60,8 @@
 - Ruling: task 4 — the origin step reuses `cleanDone`'s own `reason()` on the origin tip, so its kept lines match the local step's — one code path — cost if wrong: an origin kept line differs from a wording the plan meant.
 - Ruling: task 4 — a done ticket's branch that exists only on origin now reaches the origin step and is deleted when `safeTip` says safe, under the lease — the plan goes on when the local branch is absent — cost if wrong: more origin branches are deleted, each only when safe.
 - Ruling: task 4 — the related-tests run timed out once on `risk:data-loss clean keeps unpushed commits and new files that git status config would hide` (30.8 s against the 30 s limit, 24 files in parallel while the machine was short of memory); alone it takes 9.8 s, and worktree.test.ts alone passed 79 with 0 failures, so the task is recorded on that file's report — the other 23 files had passed in the same run — cost if wrong: a slow machine or CI flakes on that test; review looks at its time.
+- Ruling: task 5 — `cleanDropped` takes the same `skip` id as `cleanDone`, filtered when it builds the id map — the brief's interface names it — cost if wrong: a dropped ticket being opened is not cleaned, which is harmless.
+- Ruling: task 5 — the related-tests run had 9 timeouts across 6 files (hook, lane-s, show-approval, status, workflow-script, worktree), several far from this task, in a 905 s run while the machine was short of memory; those 6 files re-run with `--maxWorkers=2` passed 147 with 0 failures, and the task's two verify cases passed in the first run — timeouts under memory pressure, not failures — cost if wrong: a real slowdown hides; review looks at test times.
 
 ## Deferred
 
@@ -78,3 +80,4 @@
 - task 2 done 1694ed37d889
 - task 3 done 7b72fd95227b
 - task 4 done 1209026233b9
+- task 5 done 43bb417e6f58

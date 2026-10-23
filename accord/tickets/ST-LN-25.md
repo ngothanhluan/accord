@@ -77,7 +77,7 @@ Feature: ST-LN-25
     And the worktree's setup commands run on that merge commit
     And the ticket branch is pushed to origin
 
-  @ac-5
+  @ac-5 @test:packages/cli/test/worktree.test.ts#ac-5-clean-pick-up-continue-and-a-new-worktree-ticket-remove-the-worktree-and-both-branches-of-a-done-ticket
   Scenario Outline: Any /accord command removes a done and merged ticket's worktree and branches
     Given ticket "ST-9" is done on origin's main, not yet fetched: its ticket file there is verified and passes "accord gate done"
     And its branch holds no commit after the verified commit recorded there, and its worktree has no uncommitted work and no live session holds it

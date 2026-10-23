@@ -20,3 +20,19 @@
 - Ruling: (critic) the Must (lines with only acute or grave accents, or none, slip past the search; gherkin-shapes RULE.md:15) breaks the Intent, not a Veto, Decision or Correction, so the option stays, amended to read each listed file whole and widen the search — cost if wrong: Vietnamese left on main, caught at review.
 - Ruling: (critic) Shoulds folded into the option: fingerprints taken on the cleaned branch after the last approve; the stage map computed with core, not `accord status`; EARS French lines asserted to hold a letter above U+007F; tracker, panel, hash and LOGIN-1 tests to French; a listed path missing on disk skipped; the red accord check listed as an expected risk — each costs a few lines — cost if wrong: none beyond those lines.
 - Ruling: (critic) its ST-LN-47 example is wrong (fe8fffe is in d5db8c3), but the point stands: `accord status` reads claim branches and git facts core does not, so the map is computed with core — cost if wrong: none.
+- Ruling: (planner) the `verify:` lines of Tasks 7 to 10 name existing golden tests without a `risk:` prefix — those tasks write no test, a new one would only repeat the ac-1 check, and renaming goldens would change dozens of ids in tests-baseline.txt — cost if wrong: a critic Should on those four lines.
+- Ruling: (planner) real tickets get `ac_hash`, `verified_hash` and `plan_hash` recomputed only where each matched at d5db8c3, not only `approved_hash` — otherwise a translated scenario would drop a done ticket to verify (ac-3) — cost if wrong: one extra key written where not needed, caught by the ac-3 test.
+- Ruling: (planner) the ac-3 fingerprints are SHA-256 over the five records (ticket, ledger.md, plan.md, review.md, verification.md) with node:crypto in the test only — core's fnv1a64 is not exported — cost if wrong: none, only this test reads them.
+- Ruling: (planner) the D-85 CONTEXT note tests move to French with LOGIN-1's French scenario, which they quote, and their describe is renamed "non-English" — cost if wrong: four test ids renamed in tests-baseline.txt.
+- Ruling: (planner) the @ac-1 test is added in the last task, not Task 1, so every earlier task keeps a green suite — cost if wrong: none.
+- Ruling: (planner) the check skips a listed path that is not a regular file (deleted path, submodule folder) via `statSync` — cost if wrong: none for committed files.
+- Ruling: Task 12's `files:` marks no-vietnamese.test.ts `(new)` although Task 1 creates it — `(new)` is relative to the baseline, which `gate plan` requires — cost if wrong: none.
+- Ruling: the plan critique adds a `security` lens — rewriting about 75 committed ticket records and their approval hashes is treated as a migration of approval data — cost if wrong: one extra critic's tokens.
+
+## Deferred
+
+- plan-review 1.8 (Nice): gherkin-shapes RULE.md:21 is unmarked Vietnamese; the read-whole-file rule covers it, review checks it.
+- plan-review 1.9 (Nice): this ticket's plan-review.md must also name check-set letters by code point.
+- plan-review 1.10 (Nice): the PR body must name gate.tick-stale-commit and gate.stale-review (Approach risk line); done when the PR opens.
+- plan-review 1.11 (Nice): 'Ba' at packages/core/test/verification.test.ts:40 and verification-edges A/verification.md:20 is unmarked Vietnamese; review checks it.
+- plan-review 1.12 (Nice): translations must not introduce the vague-wording phrases at packages/core/src/lint/ticket.ts:41.

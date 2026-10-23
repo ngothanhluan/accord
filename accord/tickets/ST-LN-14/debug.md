@@ -344,3 +344,16 @@ Fix 1: 113d631, the cast at benchmark-reader.test.ts:106 is `(Omit<Run, 'reads'>
 ## Resolved
 
 A test cast intersected `Run`'s `reads: unknown[]` with `Read[]`, so `find` and `some` typed `r` as `unknown`; fixed in 113d631.
+
+## Episode 7
+
+Symptom: at verify on 4046d5d, the `tests.full` command failed with 4 timeouts (3 files failed, 1496 passed, 3 skipped, 707 s), while the same suite on 53cae8a passed all (584 s) and CI `ci` on 4046d5d passed on ubuntu and windows, Node 22 and 24. The diff 53cae8a..4046d5d changes one type cast in packages/core/test/benchmark-reader.test.ts and files under accord/tickets/ST-LN-14/.
+
+```
+FAIL |cli| test/lane-s.test.ts > risk:complex-branching lane S gate done passes a reviewed change and fails on a commit after it ... — Test timed out in 120000ms (lane-s.test.ts:97)
+FAIL |cli| test/show-approval.test.ts > ac-1 every scenario of every real ticket is rebuilt exactly from the approval view — Test timed out in 300000ms (show-approval.test.ts:124)
+FAIL |cli| test/workflow-script.test.ts > the emitted workflow script — executed > unapproved tickets in an accord-only diff ... — Test timed out in 60000ms (workflow-script.test.ts:351)
+FAIL |cli| test/workflow-script.test.ts > the emitted workflow script — executed > code in the diff or an approved ticket ... — Test timed out in 60000ms (workflow-script.test.ts:373)
+```
+
+After the run: 9 node processes, CPU load 10%.

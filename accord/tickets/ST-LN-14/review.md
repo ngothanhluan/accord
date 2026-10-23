@@ -138,4 +138,11 @@ Nice 3 [patch]: the judgeBriefAt carry-over test is tagged risk:data-loss where 
 Should 1 [patch]: a run read under two project folders was listed twice in the merged compliance read, so test-first counted ST-LN-14 tasks 2 and 11 twice — scripts/compliance.mjs mergeCompliance — fixed in 524ca0f
 Nice 2 [patch]: the measurement notes do not say executor-1-high's 19 re-run files come from a machine sleep during its first suite run (cases timed at about 6.6 h) — C:/Work/accord-bench/notes.md, docs/benchmark/round-1.md — deferred
 
+
+## Round 18
+
+Scope: the debug episode 6 fix, 113d631 and 7cbd649 since 46a4e1a (CI typecheck failure on 53cae8a), one reviewer, lens both.
+
+No findings.
+
 verdict: converged

@@ -55,6 +55,8 @@
 - Ruling: task 1 — the new hook tests are top-level `it`s appended at the end of hook.test.ts with their helpers, the file's existing `describe` untouched — the plan says no `describe` around them — cost if wrong: nothing is lost.
 - Ruling: task 2 — the Continue conflict test compares shared.txt after turning CRLF into LF, since Windows autocrlf checks it out with CRLF while git status stays clean — cost if wrong: the test hides a real line-ending change, though it still checks HEAD, status and MERGE_HEAD.
 - Ruling: task 2 — Continue treats a ticket with no stage readable at its branch as not before verify and prints the `behind:` line — the merge is allowed only for the stages D-09 names — cost if wrong: a ticket with no records on its branch is not merged.
+- Ruling: task 3 — `cleanDone` takes no `fetchFailed` parameter yet, since nothing in Task 3 reads it; Task 4 adds it with the leased origin delete — an unused argument is lint noise — cost if wrong: one signature edit.
+- Ruling: task 3 — a done ticket's branch that exists only on origin is skipped silently until Task 4 adds the origin delete — origin deletion is Task 4's — cost if wrong: none once Task 4 is built.
 
 ## Deferred
 
@@ -71,3 +73,4 @@
 ## Tasks
 - task 1 done 6f5f9058c030
 - task 2 done 1694ed37d889
+- task 3 done 7b72fd95227b

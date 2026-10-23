@@ -310,3 +310,14 @@ Fix 1 (bfef2a4): `parseRun` and `readRun` take the last hand-back as the report;
 ## Resolved
 
 Episode 5: a run report was the text written after its hand-back (scripts/benchmark.mjs lastText); fixed in bfef2a4 (last hand-back is the report, `judgeBriefAt` supersedes judges of an older brief); reviewer-1-medium re-judged, `--round 1` exited 0.
+
+## Episode 6
+
+Symptom: CI failed on 53cae8a (runs 39882742652): `ci / check` on ubuntu-latest and windows-latest, Node 22 and 24, at `npm run typecheck`:
+
+```
+packages/core/test/benchmark-reader.test.ts(140,53): error TS18046: 'r' is of type 'unknown'.
+packages/core/test/benchmark-reader.test.ts(150,86): error TS18046: 'r' is of type 'unknown'.
+```
+
+`npm run typecheck` in the worktree prints the same two errors. The last green `ci` run on this branch was a2c75bb.

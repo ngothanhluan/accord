@@ -686,7 +686,7 @@ export function worktreeClean(ctx: CommandContext): number {
   const ref = gitDefaultRef(ctx.root);
   if (ref === undefined) return 0;
   const state: GuardState = {};
-  cleanDone(ctx, ref, templates, state);
+  cleanDone(ctx, ref, templates, state, fetchFailed);
   cleanDropped(ctx, ref, templates, state, pruned, fetchFailed);
   return 0;
 }
@@ -731,10 +731,11 @@ function safeTip(root: string, id: string, tip: string, vc: string | undefined, 
 }
 
 /** ST-LN-25 D-08: for each ticket branch whose ticket is done on `ref`, remove the worktree and delete the local branch when nothing beyond main is lost. */
-function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[], s: GuardState, skip?: string): void {
+function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[], s: GuardState, fetchFailed: boolean, skip?: string): void {
   const known = (i: string) => Object.hasOwn(ctx.snapshot.tickets, i);
   const def = ref.replace('refs/remotes/', '');
   const tips = new Map<string, string | undefined>();
+  const origin = new Map<string, string>();
   for (const row of git(ctx.root, ['for-each-ref', '--format=%(objectname) %(refname)', 'refs/heads', 'refs/remotes/origin']).split('\n')) {
     const cut = row.indexOf(' ');
     if (cut < 0) continue;
@@ -743,6 +744,7 @@ function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[
     const name = full.slice(local ? 'refs/heads/'.length : 'refs/remotes/origin/'.length);
     if (name === 'HEAD' && !local) continue;
     tips.set(name, local ? row.slice(0, cut) : tips.get(name));
+    if (!local) origin.set(name, row.slice(0, cut));
   }
   const ids = new Map<string, string>();
   for (const name of tips.keys()) {
@@ -793,17 +795,36 @@ function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[
           continue;
         }
       }
-      if (L === undefined) continue;
-      // A commit made while the guards ran counts: the delete names the sha it checked.
-      L = git(ctx.root, tipArgs).trim();
-      const again = reason(L);
-      if (again !== undefined) {
-        ctx.stdout.write(`kept ${b}: ${again}
+      if (L !== undefined) {
+        // A commit made while the guards ran counts: the delete names the sha it checked.
+        L = git(ctx.root, tipArgs).trim();
+        const again = reason(L);
+        if (again !== undefined) {
+          ctx.stdout.write(`kept ${b}: ${again}
+`);
+          continue;
+        }
+        execFileSync('git', ['update-ref', '-d', 'refs/heads/' + b, L], { cwd: ctx.root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+        ctx.stdout.write(`deleted ${b} (was ${L})
+`);
+      }
+      // The origin branch goes with a lease on the fetched sha; after a failed fetch it is not judged.
+      const R = origin.get(b);
+      if (R === undefined || fetchFailed) continue;
+      const why2 = reason(R);
+      if (why2 !== undefined) {
+        ctx.stdout.write(`kept origin/${b}: ${why2}
 `);
         continue;
       }
-      execFileSync('git', ['update-ref', '-d', 'refs/heads/' + b, L], { cwd: ctx.root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
-      ctx.stdout.write(`deleted ${b} (was ${L})
+      try {
+        gitNoPrompt(ctx.root, ['push', `--force-with-lease=refs/heads/${b}:${R}`, 'origin', ':refs/heads/' + b]);
+      } catch (e) {
+        ctx.stdout.write(`kept origin/${b}: git push failed: ${firstLine(e)}
+`);
+        continue;
+      }
+      ctx.stdout.write(`deleted origin/${b} (was ${R})
 `);
     } catch (e) {
       ctx.stdout.write(`kept ${b}: could not be judged: ${firstLine(e instanceof UsageError ? e.message : e)}

@@ -384,7 +384,7 @@ const sha = (c: Clone, ref: string) => c.git('rev-parse', ref).trim();
 it('ac-5 bare accord fetches then removes merged worktrees and names what it keeps', async () => {
   const c = clone({ tickets: ['ST-9', 'ST-10', 'ST-11', 'ST-12'] });
   for (const id of ['ST-9', 'ST-10', 'ST-11', 'ST-12']) ticketWorktree(c, id);
-  doneOnRemote(c, ['ST-9', 'ST-10', 'ST-12']);
+  const t = doneOnRemote(c, ['ST-9', 'ST-10', 'ST-12']);
   mkdirSync(`${c.sibling('ST-9')}/node_modules`);
   writeFileSync(`${c.sibling('ST-9')}/node_modules/x`, 'x');
   writeFileSync(`${c.sibling('ST-10')}/new.txt`, 'new');
@@ -406,6 +406,7 @@ it('ac-5 bare accord fetches then removes merged worktrees and names what it kee
       `kept ${c.sibling('ST-10')}: uncommitted work`,
       `kept ${c.sibling('ST-12')}: held by another session`,
       `deleted t/ST-9 (was ${sha9})`,
+      `deleted origin/t/ST-9 (was ${t['ST-9']})`,
       `kept t/ST-10: checked out in ${c.sibling('ST-10')}`,
       `kept t/ST-12: checked out in ${c.sibling('ST-12')}`,
     ].sort(),
@@ -485,15 +486,16 @@ it('risk:complex-branching a worktree remove that fails is named truthfully', as
 it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)('risk:complex-branching a worktree remove that fails part way removes it in part and names what is left', async () => {
   const d = clone();
   ticketWorktree(d, 'ST-9', 'sub/f.txt');
-  doneOnRemote(d, ['ST-9']);
+  const t = doneOnRemote(d, ['ST-9']);
   writeHolds(d, { 'ST-9': DEAD });
   vi.mocked(proc.processTable).mockReturnValue([{ pid: process.pid, ppid: 1, start: 'self' }]);
   chmodSync(`${d.sibling('ST-9')}/sub`, 0o555);
   const sha9d = sha(d, 't/ST-9');
   try {
     const q = await run(['worktree', 'clean'], d.root, {});
-    expect(lines(q.out)).toHaveLength(2);
+    expect(lines(q.out)).toHaveLength(3);
     expect(lines(q.out)[1]).toBe(`deleted t/ST-9 (was ${sha9d})`);
+    expect(lines(q.out)[2]).toBe(`deleted origin/t/ST-9 (was ${t['ST-9']})`);
     expect(q.out.startsWith(`removed ${d.sibling('ST-9')} in part: git worktree remove failed: `)).toBe(true);
     expect(lines(q.out)[0]!.endsWith(' - delete what is left of the folder by hand')).toBe(true);
     expect(d.git('worktree', 'list', '--porcelain')).not.toContain(d.sibling('ST-9'));
@@ -749,14 +751,21 @@ it('ac-1 bare accord deletes merged ticket branches with or without a worktree a
   const c = clone({ tickets: ['ST-9', 'ST-10', 'ST-11', 'ST-12'] });
   for (const id of ['ST-9', 'ST-11', 'ST-12']) ticketBranch(c, id);
   ticketWorktree(c, 'ST-10');
-  doneOnRemote(c, ['ST-9', 'ST-10', 'ST-12']);
+  const t = doneOnRemote(c, ['ST-9', 'ST-10', 'ST-12']);
   c.git('switch', '-q', 't/ST-12');
   const sha9 = sha(c, 't/ST-9');
   const sha10 = sha(c, 't/ST-10');
   const { code, out } = await run(['worktree', 'clean'], c.root, {});
   expect(code).toBe(0);
   expect(lines(out).sort()).toEqual(
-    [`removed ${c.sibling('ST-10')}`, `deleted t/ST-9 (was ${sha9})`, `deleted t/ST-10 (was ${sha10})`, `kept t/ST-12: checked out in ${c.root}`].sort(),
+    [
+      `removed ${c.sibling('ST-10')}`,
+      `deleted t/ST-9 (was ${sha9})`,
+      `deleted origin/t/ST-9 (was ${t['ST-9']})`,
+      `deleted t/ST-10 (was ${sha10})`,
+      `deleted origin/t/ST-10 (was ${t['ST-10']})`,
+      `kept t/ST-12: checked out in ${c.root}`,
+    ].sort(),
   );
   expect(() => c.git('rev-parse', '--verify', '-q', 'refs/heads/t/ST-9')).toThrow();
   expect(() => c.git('rev-parse', '--verify', '-q', 'refs/heads/t/ST-10')).toThrow();
@@ -2151,7 +2160,12 @@ it('risk:data-loss clean removes only a done ticket and keeps a branch with a co
   const late = commitMsg(sib9, 'late');
   const r1 = await run(['worktree', 'clean'], c.root);
   expect(r1.code).toBe(0);
-  expect(lines(r1.out)).toEqual([`removed ${c.sibling('ST-11')}`, `deleted t/ST-11 (was ${t['ST-11']})`, 'kept t/ST-9: it has commits after its verified commit']);
+  expect(lines(r1.out)).toEqual([
+    `removed ${c.sibling('ST-11')}`,
+    `deleted t/ST-11 (was ${t['ST-11']})`,
+    `deleted origin/t/ST-11 (was ${t['ST-11']})`,
+    'kept t/ST-9: it has commits after its verified commit',
+  ]);
   expect(existsSync(c.sibling('ST-11'))).toBe(false);
   expect(has(c.root, 'refs/heads/t/ST-11')).toBe(false);
   expect(existsSync(sib9)).toBe(true);
@@ -2202,7 +2216,13 @@ it('risk:data-loss clean removes only a done ticket and keeps a branch with a co
   commitMsg(f.sibling('ST-13'), 'late');
   const r3 = await run(['worktree', 'clean'], f.root);
   expect(r3.code).toBe(0);
-  expect(lines(r3.out)).toEqual([`removed ${f.sibling('ST-12')}`, `deleted t/ST-12 (was ${t12})`, 'kept t/ST-13: it has changes not on origin/main']);
+  expect(lines(r3.out)).toEqual([
+    `removed ${f.sibling('ST-12')}`,
+    `deleted t/ST-12 (was ${t12})`,
+    `deleted origin/t/ST-12 (was ${t12})`,
+    'kept t/ST-13: it has changes not on origin/main',
+  ]);
+  expect(has(f.remote, 'refs/heads/t/ST-13')).toBe(true);
   expect(r3.out).not.toContain('verified commit');
   expect(existsSync(f.sibling('ST-13'))).toBe(true);
   expect(has(f.root, 'refs/heads/t/ST-13')).toBe(true);
@@ -2233,4 +2253,57 @@ it('risk:data-loss clean removes only a done ticket and keeps a branch with a co
   expect(existsSync(sg)).toBe(true);
   expect(sha(g, 't/ST-14')).toBe(t14);
   expect(has(g.remote, 'refs/heads/t/ST-14')).toBe(true);
+  gitRun(g.root, 'worktree', 'remove', '--force', sg);
+  g.git('update-ref', '-d', 'refs/heads/t/ST-14');
+  const r5 = await run(['worktree', 'clean'], g.root);
+  expect(r5.code).toBe(0);
+  expect(lines(r5.out)).toEqual(['kept origin/t/ST-14: merging it into origin/main conflicts']);
+  expect(gitRun(g.remote, 'rev-parse', 't/ST-14').trim()).toBe(t14);
+}, 240_000);
+
+it('risk:data-loss an origin branch is deleted only with a lease and only after a fetch that succeeded', async () => {
+  const c = clone();
+  ticketWorktree(c, 'ST-9');
+  doneOnRemote(c, ['ST-9'], { squash: true, local: true });
+  const tip = sha(c, 't/ST-9');
+  const o = c.otherClone();
+  gitRun(o, 'switch', '-q', '-c', 'elsewhere');
+  writeFiles(o, { 'e.txt': 'e\n' });
+  const S2 = commitMsg(o, 'elsewhere');
+  gitRun(o, 'push', '-q', 'origin', 'elsewhere');
+  const hook = `${c.root}/.git/hooks/pre-push`;
+  writeFileSync(hook, `#!/bin/sh\ngit --git-dir="${c.remote.replaceAll('\\', '/')}" update-ref refs/heads/t/ST-9 ${S2}\nexit 0\n`);
+  chmodSync(hook, 0o755);
+  const r = await run(['worktree', 'clean'], c.root);
+  expect(r.code).toBe(0);
+  const l = lines(r.out);
+  expect(l).toHaveLength(3);
+  expect(l[0]).toBe(`removed ${c.sibling('ST-9')}`);
+  expect(l[1]).toBe(`deleted t/ST-9 (was ${tip})`);
+  expect(l[2].startsWith('kept origin/t/ST-9: git push failed: ')).toBe(true);
+  expect(gitRun(c.remote, 'rev-parse', 't/ST-9').trim()).toBe(S2);
+
+  const d = clone();
+  ticketWorktree(d, 'ST-9');
+  const tD = doneOnRemote(d, ['ST-9'], { squash: true, local: true });
+  const tipD = sha(d, 't/ST-9');
+  d.git('fetch', '-q', 'origin');
+  d.git('remote', 'set-url', 'origin', d.remote + '-missing');
+  const rd = lines((await run(['worktree', 'clean'], d.root)).out);
+  expect(rd).toHaveLength(3);
+  expect(rd[0].startsWith('fetch from origin failed')).toBe(true);
+  expect(rd[1]).toBe(`removed ${d.sibling('ST-9')}`);
+  expect(rd[2]).toBe(`deleted t/ST-9 (was ${tipD})`);
+  expect(gitRun(d.remote, 'rev-parse', 't/ST-9').trim()).toBe(tD['ST-9']);
+
+  const e = clone();
+  ticketWorktree(e, 'ST-9');
+  doneOnRemote(e, ['ST-9'], { squash: true, local: true });
+  const tipE = sha(e, 't/ST-9');
+  gitRun(e.remote, 'branch', '-D', 't/ST-9');
+  const re = lines((await run(['worktree', 'clean'], e.root)).out);
+  expect(re).toContain(`pruned refs/remotes/origin/t/ST-9 (was ${tipE})`);
+  expect(re).toContain(`removed ${e.sibling('ST-9')}`);
+  expect(re).toContain(`deleted t/ST-9 (was ${tipE})`);
+  expect(re.some((x) => x.startsWith('kept origin/') || x.startsWith('deleted origin/'))).toBe(false);
 }, 240_000);

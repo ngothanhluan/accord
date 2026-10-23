@@ -97,7 +97,9 @@ accord-scout: no effort tried held on all 5 samples.
 
 ## Holds that rest on a re-run
 
-None.
+- executor-1-high: re-ran packages/cli/test/after-verify.test.ts, packages/cli/test/dashboard.test.ts, packages/cli/test/drop.test.ts, packages/cli/test/gate.test.ts, packages/cli/test/hook.test.ts, packages/cli/test/init.test.ts, packages/cli/test/lane-commands.test.ts, packages/cli/test/lane-flow.test.ts, packages/cli/test/load.test.ts, packages/cli/test/new-ticket.test.ts, packages/cli/test/show-approval.test.ts, packages/cli/test/show.test.ts, packages/cli/test/skills-sync.test.ts, packages/cli/test/spawn-surface.test.ts, packages/cli/test/status.test.ts, packages/cli/test/tracker.test.ts, packages/cli/test/trailers.test.ts, packages/cli/test/workflow-script.test.ts, packages/cli/test/worktree.test.ts
+- executor-3-medium: re-ran packages/cli/test/hook.test.ts
+- executor-4-low: re-ran packages/cli/test/hook.test.ts
 
 ## Model and effort per turn
 
@@ -138,11 +140,11 @@ Dispatched before their worktree was rebuilt; not counted.
 
 | rule | count |
 | --- | ---: |
-| tier-up | 3 |
+| tier-up | 6 |
 | trailer | 44 |
-| test-first | 28 |
+| test-first | 31 |
 | verify-id | 33 |
-| round-cap | 0 |
+| round-cap | 2 |
 | reassigned | 2 |
 | brief-quote | 2 |
 
@@ -151,6 +153,9 @@ Dispatched before their worktree was rebuilt; not counted.
 - tier-up: ST-LN-3 review round 5 (task 8): the fix executor asked for sonnet where escalation.fix_round_tier_up asks for opus — C--Work-accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a12d36ee66fec99a6.jsonl
 - tier-up: BUG-LN-3 review round 4 (task none, a fix assignment "Fix BUG-LN-3 final review"): the fix executor asked for sonnet where escalation.fix_round_tier_up asks for opus — C--Work-accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-aae0cafc466e597f4.jsonl
 - tier-up: ST-LN-26 review round 4 (task none, a fix assignment "Fix merge review findings"): the fix executor asked for sonnet where escalation.fix_round_tier_up asks for opus — C--Work-accord-st-ln-26/c0a17689-483d-4eaa-873a-1b356e73e6f2/subagents/agent-adcb02059ae8e5731.jsonl
+- tier-up: ST-LN-14 review round 6 (task none, a fix assignment "Fix review round 6 findings"): the fix executor asked for sonnet where escalation.fix_round_tier_up asks for opus — C--Work-accord/2c76daea-883d-4bcc-b318-c2e16eae0d09/subagents/agent-a16be6a412d626367.jsonl
+- tier-up: ST-LN-14 review round 7 (task none, a fix assignment "Fix final review findings"): the fix executor asked for sonnet where escalation.fix_round_tier_up asks for opus — C--Work-accord/2c76daea-883d-4bcc-b318-c2e16eae0d09/subagents/agent-a42fdce19e5384aab.jsonl
+- tier-up: ST-LN-14 review round 8 (task none, a fix assignment "Fix review round 8 findings"): the fix executor asked for sonnet where escalation.fix_round_tier_up asks for opus — C--Work-accord/2c76daea-883d-4bcc-b318-c2e16eae0d09/subagents/agent-ae1a242b9c71e5af4.jsonl
 
 ### trailer
 
@@ -229,6 +234,9 @@ Dispatched before their worktree was rebuilt; not counted.
 - test-first: ST-LN-27 task 8: its first edit to a source file (packages/cli/src/commands/worktree.ts), no test edit seen through Edit or Write — C--Work-accord-st-ln-27/534989db-2e8d-4ed8-aa14-256e70aeed28/subagents/agent-af2cff15161e82c1e.jsonl
 - test-first: ST-LN-30 task 5: its first edit to a source file (packages/cli/src/commands/fetch-limit.ts) came before its first edit to a test file — C--Work-accord-st-ln-30/27360965-f877-4d4a-b925-b29fb899d250/subagents/agent-aaf579c7c1593f1db.jsonl
 - test-first: ST-LN-8 task 2: its first edit to a source file (packages/cli/src/commands/gate.ts), no test edit seen through Edit or Write — C--Work-accord-st-ln-8/54bc8e69-8fa8-4bfb-86ca-a40e2e72a6a6/subagents/agent-a5a92e573cfc79ca7.jsonl
+- test-first: ST-LN-14 task 11: its first edit to a source file (scripts/benchmark.mjs), no test edit seen through Edit or Write — C--Work-accord/2c76daea-883d-4bcc-b318-c2e16eae0d09/subagents/agent-a456fef9414e80b47.jsonl
+- test-first: ST-LN-14 task 2: its first edit to a source file (scripts/compliance.mjs), no test edit seen through Edit or Write — C--Work-accord/2c76daea-883d-4bcc-b318-c2e16eae0d09/subagents/agent-ae7d492dd7802c1a9.jsonl
+- test-first: ST-LN-31 task 4: its first edit to a source file (packages/core/src/gate/lane-s.ts), no test edit seen through Edit or Write — C--Work-accord/6630d237-9633-47a4-9a06-d2d06bdcad82/subagents/agent-ac43042fb74739173.jsonl
 
 ### verify-id
 
@@ -268,7 +276,8 @@ Dispatched before their worktree was rebuilt; not counted.
 
 ### round-cap
 
-None.
+- round-cap: ST-LN-14 review: reached round 9 with no Ruling that allows going past the round cap — accord/tickets/ST-LN-14/review.md
+- round-cap: ST-LN-3 review: reached round 6 with no Ruling that allows going past the round cap — accord/tickets/ST-LN-3/review.md
 
 ### reassigned
 
@@ -279,3 +288,14 @@ None.
 
 - brief-quote: ST-LN-5 task 2: the brief's copy of the ticket differs from accord/tickets/ST-LN-5.md as committed when it was dispatched, first at line 45: "  @ac-1 @test:packages/core/test/stage-skills.test.ts#ac-1-the-shared-ask-rule-holds-the-fixed-sentence-beside-every-sta" — C--Work-accord/2f15fc76-08e1-4f90-b4be-702481226959/subagents/agent-af8b638bf4912d287.jsonl
 - brief-quote: VID-1 task 3: the brief's copy of the ticket differs from accord/tickets/VID-1.md as committed when it was dispatched, first at line 59: "  @ac-3 @test:packages/cli/test/lane-commands.test.ts#ac-3-gate-plan-fails-on-a-comma-inside-a-verify-id" — C--Work-accord/cc17354f-112e-474f-be39-8636aa1d136a/subagents/agent-ad7ebb4815231bd0f.jsonl
+
+
+## Measurement notes
+
+- Times and tokens come from one machine running many runs at once: executors ran beside about 10 to 45 node processes, and executor-2 runs at low, medium and high saw packages/cli/test/worktree.test.ts time out at 30 s under that load. Compare efforts within a row with that in mind; the hold of every executor run rests on the round's own suite run in its worktree, which passed for all 15.
+- accord-verifier high: verifier-1-high (first dispatch) and verifier-2-high each left a hung bash call running `python3 - <<'E'` with an empty heredoc. The first verifier-1-high run is superseded and not counted; its re-dispatch hung the same way after its final report. verifier-2-high ended 1920 s after dispatch, only after the owner stopped its processes. Its final report came first, so both counted runs are judged on complete transcripts, but their minutes include the hang: the verifier high median of 9.1 min is not a measure of the work.
+- Twenty-two runs dispatched before their worktree was rebuilt or their judge brief changed are listed under "Superseded runs" and not counted; the eight executor runs first dispatched under a session worktree lock, which refused their commands, are among them and were dispatched again.
+- Judges count differently: some count wrong facts or new items per item, others per criterion, so counts compare within one judge's report, not across rows. Each sample has one run per effort.
+- Several judges read Claude Code session transcripts, or listed folders under the bench root, for evidence beyond the files their brief names; one judge ran copies of the scripts against a transcript folder. None of this changes a run under test, but those verdicts rest on more than the brief.
+- A run whose session went on after its hand-back once had its later text taken as its report; fixed before this report (the last hand-back is the report), and the one judge it misled (reviewer-1-medium) was dispatched again on the corrected brief.
+

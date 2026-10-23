@@ -132,4 +132,10 @@ Nice 1 [patch]: "Higher effort did better" says an auditor or verifier "reported
 Nice 2 [patch]: the "Superseded runs" heading gives one reason, wrong for a judge superseded because its brief changed — scripts/round.mjs report — deferred
 Nice 3 [patch]: the judgeBriefAt carry-over test is tagged risk:data-loss where nothing is deleted (a regression) — packages/core/test/benchmark-round.test.ts:447 — deferred
 
+
+## Round 17
+
+Should 1 [patch]: a run read under two project folders was listed twice in the merged compliance read, so test-first counted ST-LN-14 tasks 2 and 11 twice — scripts/compliance.mjs mergeCompliance — fixed in 524ca0f
+Nice 2 [patch]: the measurement notes do not say executor-1-high's 19 re-run files come from a machine sleep during its first suite run (cases timed at about 6.6 h) — C:/Work/accord-bench/notes.md, docs/benchmark/round-1.md — deferred
+
 verdict: converged

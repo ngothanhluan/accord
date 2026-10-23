@@ -74,6 +74,7 @@
 - Ruling: review round 1 fix — the kept line for a squash-merged branch carrying an unmerged ledger change reads "merging it into origin/main conflicts", since the squash adds the ticket file on main and `merge-tree` exits 1; it is kept with nothing deleted — cost if wrong: only the wording of the kept line.
 - Ruling: review round 1 fix — worktree.md names the reasons as "another session holds it" and "this session is missing the variables that identify it", without "Claude Code", because the D-109 test forbids naming a runtime product in rendered skills — cost if wrong: slightly less specific wording.
 - Ruling: review round 1 fix — `packages/core/test/stage-skills.test.ts` changed outside the fix's files: its assertion hard-codes SKILL.md's first line, which now ends "except for `/accord upgrade`" — cost if wrong: none beyond the one assertion.
+- Ruling: final review fix — Continue compares `origin/<branch>` to HEAD with `merge-base --is-ancestor`; a remote branch equal to or behind the local one does not block the merge, so a normal Continue still merges and pushes — cost if wrong: Continue prints `behind:` where it could have merged.
 
 ## Deferred
 
@@ -90,6 +91,10 @@
 - review round 1 (quality): `gitIn`, `NOTHING` and the temporary-index commit sequence in upgrade.ts are copies of drop.ts; share them.
 - review round 1 (quality): the `risk:regression the accord skill routes upgrade …` test in stage-skills.test.ts asserts prose substrings and fits no listed risk kind.
 - review round 1 (quality): `worktrees(ctx.root, ctx.stdout);` in `worktreeClean` discards its result with no comment; it exists only for the `pruned <path>` lines.
+- final review (integration): the `behind:` line still says "merge them with git merge origin/main" though it is now printed when Continue chose not to merge, at verify and done too; following it there makes the verification stale; name the reason instead of a command (worktree.ts `continueMerge`).
+- final review (integration): in a session in the main checkout, `continueMerge` takes the hold before the merge, so a conflict, or `checkPin` refusing after a merge that brings a new pin, leaves that session holding a ticket it never entered (worktree.ts `continueMerge`).
+- final review (integration): `cleanDone` counts a ticket as done only at stage `done`; a ticket without `lane:` (0.1.0 contract) has no stage, so a picked-up, verified and merged laneless ticket is never cleaned and no line says so (worktree.ts `cleanDone`).
+- final review (integration): Pick up, Continue and `new ticket --worktree` now run `git remote prune origin` and the leased origin deletes with no time limit after the 30-second fetch; a remote that stops answering after the fetch hangs them (worktree.ts `pruneStale`, origin delete).
 
 ## Tasks
 - task 1 done 6f5f9058c030

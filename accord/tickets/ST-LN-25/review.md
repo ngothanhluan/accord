@@ -18,4 +18,8 @@ Nice 2 [patch]: in a main-checkout session `continueMerge` takes the hold before
 Nice 3 [patch]: `cleanDone` counts a ticket done only at stage `done`, so a laneless (0.1.0 contract) ticket is never cleaned and no line says so — packages/cli/src/commands/worktree.ts:771 — deferred
 Nice 4 [patch]: Pick up, Continue and `new ticket --worktree` run `git remote prune origin` and the leased origin deletes with no time limit after the 30-second fetch — packages/cli/src/commands/worktree.ts:578 — deferred
 
+## Round 3
+
+No findings
+
 verdict: converged

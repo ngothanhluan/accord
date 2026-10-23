@@ -1,0 +1,771 @@
+{
+  "round": 1,
+  "samples": [
+    {
+      "agent": "accord-executor",
+      "n": 1,
+      "transcript": "C--Work-accord/cfa22f34-30e9-4ecd-bbc6-b4338a414ecb/subagents/agent-a3c1f21d11f0dd2b9.jsonl",
+      "ticket": "ST-LN-34",
+      "task": "6",
+      "kind": "plain",
+      "base": "70b6f5aa8f8c7935195cbac977a8e4c46601def5",
+      "main": "edab698d7becde5599029c7c55e400daa3f1f187",
+      "root": "C:/Work/accord-st-ln-34",
+      "elsewhere": [],
+      "files": [
+        {
+          "path": "C:\\Users\\LUANNG~1\\AppData\\Local\\Temp\\claude\\C--Work-accord\\cfa22f34-30e9-4ecd-bbc6-b4338a414ecb\\scratchpad\\brief-6.md",
+          "from": "copy"
+        }
+      ],
+      "pairs": []
+    },
+    {
+      "agent": "accord-executor",
+      "n": 2,
+      "transcript": "C--Work-accord-st-ln-30/27360965-f877-4d4a-b925-b29fb899d250/subagents/agent-afbc100f20ba7463b.jsonl",
+      "ticket": "ST-LN-30",
+      "task": "6",
+      "kind": "risk",
+      "base": "87b424c64da6735b7f8dc6de272005f4228d80f2",
+      "main": "996a55e2b725241c62395552eafda3c247b7ee5e",
+      "root": "C:/Work/accord-st-ln-30",
+      "elsewhere": [],
+      "files": [
+        {
+          "path": "C:/Users/LUANNG~1/AppData/Local/Temp/claude/C--Work-accord/27360965-f877-4d4a-b925-b29fb899d250/scratchpad/brief-ST-LN-30-6.md",
+          "from": "copy"
+        }
+      ],
+      "pairs": []
+    },
+    {
+      "agent": "accord-executor",
+      "n": 3,
+      "transcript": "C--Work-accord/b9493812-421c-4d1c-a815-57d1c12ad28b/subagents/agent-ae928bd608c8063d3.jsonl",
+      "ticket": "ST-LN-33",
+      "task": "4",
+      "kind": "risk",
+      "base": "4ef24055da5e0b9eed3b0bb5e8f799a49b4c1b8f",
+      "main": "75de7febef87acc5fd6b6372d4f00346d4433f1e",
+      "root": "C:/Work/accord-st-ln-33",
+      "elsewhere": [],
+      "files": [
+        {
+          "path": "C:/Users/LUANNG~1/AppData/Local/Temp/claude/C--Work-accord/b9493812-421c-4d1c-a815-57d1c12ad28b/scratchpad/brief-4.md",
+          "from": "copy"
+        }
+      ],
+      "pairs": []
+    },
+    {
+      "agent": "accord-executor",
+      "n": 4,
+      "transcript": "C--Work-accord-st-ln-26/c0a17689-483d-4eaa-873a-1b356e73e6f2/subagents/agent-a2a533dbdeb719c4d.jsonl",
+      "ticket": "ST-LN-26",
+      "task": "7",
+      "kind": "risk",
+      "base": "8cdf42188d16f2b7d44b16b8bc360045f4a17168",
+      "main": "836e206f266d85de6f5c12a6c248999e49e87f40",
+      "root": "C:/Work/accord-st-ln-26",
+      "elsewhere": [],
+      "files": [
+        {
+          "path": "C:\\Users\\LUANNG~1\\AppData\\Local\\Temp\\claude\\C--Work-accord\\c0a17689-483d-4eaa-873a-1b356e73e6f2\\scratchpad\\brief-7.md",
+          "from": "copy"
+        }
+      ],
+      "pairs": [
+        [
+          "t/ST-LN-26",
+          "base"
+        ]
+      ]
+    },
+    {
+      "agent": "accord-executor",
+      "n": 5,
+      "transcript": "C--Work-accord-st-ln-8/54bc8e69-8fa8-4bfb-86ca-a40e2e72a6a6/subagents/agent-a12cfbcf7cc1afc82.jsonl",
+      "ticket": "ST-LN-8",
+      "task": "5",
+      "kind": "plain",
+      "base": "bfc26b5eeac52042c256c3df1a68c62ea8d8e3c3",
+      "main": "836e206f266d85de6f5c12a6c248999e49e87f40",
+      "root": "C:/Work/accord-st-ln-8",
+      "elsewhere": [],
+      "files": [
+        {
+          "path": "C:/Users/LUANNG~1/AppData/Local/Temp/claude/C--Work-accord/54bc8e69-8fa8-4bfb-86ca-a40e2e72a6a6/scratchpad/st-ln-8-brief-5.md",
+          "from": "copy"
+        }
+      ],
+      "pairs": []
+    },
+    {
+      "agent": "accord-planner",
+      "n": 1,
+      "transcript": "C--Work-accord-st-ln-14/2c76daea-883d-4bcc-b318-c2e16eae0d09/subagents/agent-a95e18f4af712ea42.jsonl",
+      "ticket": "ST-LN-14",
+      "base": "e29e6c09a8e155b0eaf3766507598bcaced4b46d",
+      "main": "edab698d7becde5599029c7c55e400daa3f1f187",
+      "root": "C:/Work/accord-st-ln-14",
+      "elsewhere": [],
+      "files": [],
+      "pairs": []
+    },
+    {
+      "agent": "accord-planner",
+      "n": 2,
+      "transcript": "C--Work-accord-st-ln-34/2ff3a8b3-86f4-4b81-aec3-eab96066b55a/subagents/agent-ab482945581cf723b.jsonl",
+      "ticket": "ST-LN-34",
+      "base": "c5ed054ddccfc94ef51e74241d77cfafdf8b549d",
+      "main": "996a55e2b725241c62395552eafda3c247b7ee5e",
+      "root": "C:/Work/accord-st-ln-34",
+      "elsewhere": [],
+      "files": [],
+      "pairs": []
+    },
+    {
+      "agent": "accord-planner",
+      "n": 3,
+      "transcript": "C--Work-accord/b9493812-421c-4d1c-a815-57d1c12ad28b/subagents/agent-ad0a24107a3538ae8.jsonl",
+      "ticket": "ST-LN-33",
+      "base": "6deb44126c0f44b5e6b452a2188bf79c2fed66a9",
+      "main": "75de7febef87acc5fd6b6372d4f00346d4433f1e",
+      "root": "C:/Work/accord-st-ln-33",
+      "elsewhere": [],
+      "files": [],
+      "pairs": [],
+      "overlay": [
+        {
+          "path": "accord/tickets/ST-LN-33/plan.md",
+          "from": "read"
+        }
+      ]
+    },
+    {
+      "agent": "accord-planner",
+      "n": 4,
+      "transcript": "C--Work-accord/63c6d5ec-c764-4830-ad6f-e51b73107666/subagents/agent-ac8f8129027665610.jsonl",
+      "ticket": "ST-LN-30",
+      "base": "38b8b2c28543dc7a5bb92d509791a00f9859700e",
+      "main": "836e206f266d85de6f5c12a6c248999e49e87f40",
+      "root": "C:/Work/accord-st-ln-30",
+      "elsewhere": [],
+      "files": [],
+      "pairs": [
+        [
+          "origin/main",
+          "main"
+        ]
+      ]
+    },
+    {
+      "agent": "accord-planner",
+      "n": 5,
+      "transcript": "C--Work-accord-st-ln-8/54bc8e69-8fa8-4bfb-86ca-a40e2e72a6a6/subagents/agent-a4046dfa8dad354ea.jsonl",
+      "ticket": "ST-LN-8",
+      "base": "d82fa2b2c94f0143d5c513b76b269a258d78b9de",
+      "main": "836e206f266d85de6f5c12a6c248999e49e87f40",
+      "root": "C:/Work/accord-st-ln-8",
+      "elsewhere": [],
+      "files": [],
+      "pairs": []
+    },
+    {
+      "agent": "accord-critic",
+      "n": 1,
+      "transcript": "C--Work-accord-st-ln-34/2ff3a8b3-86f4-4b81-aec3-eab96066b55a/subagents/agent-a3e8c7cf46dc072fc.jsonl",
+      "ticket": "ST-LN-34",
+      "base": "8efa8fc4fa4eb6a46012f9cee140def35d8911a4",
+      "main": "996a55e2b725241c62395552eafda3c247b7ee5e",
+      "root": "C:/Work/accord-st-ln-34",
+      "elsewhere": [],
+      "files": [],
+      "pairs": [],
+      "overlay": [
+        {
+          "path": "accord/tickets/ST-LN-34/plan.md",
+          "from": "read"
+        },
+        {
+          "path": "accord/tickets/ST-LN-34/ledger.md",
+          "from": "read"
+        }
+      ]
+    },
+    {
+      "agent": "accord-critic",
+      "n": 2,
+      "transcript": "C--Work-accord-st-ln-31/021f7083-2de2-476e-b06d-bc94942efcf4/subagents/agent-a3a47d90de98b5982.jsonl",
+      "ticket": "ST-LN-31",
+      "base": "cfdeb498c164b7cd4acda103042ef7518dc60957",
+      "main": "996a55e2b725241c62395552eafda3c247b7ee5e",
+      "root": "C:/Work/accord-st-ln-31",
+      "elsewhere": [],
+      "files": [],
+      "pairs": []
+    },
+    {
+      "agent": "accord-critic",
+      "n": 3,
+      "transcript": "C--Work-accord/b9493812-421c-4d1c-a815-57d1c12ad28b/subagents/agent-addb1be4a5cd92960.jsonl",
+      "ticket": "ST-LN-33",
+      "base": "0790ac285957ddd01609beda00ebfa320221e915",
+      "main": "75de7febef87acc5fd6b6372d4f00346d4433f1e",
+      "root": "C:/Work/accord-st-ln-33",
+      "elsewhere": [],
+      "files": [
+        {
+          "path": "C:/Users/LUANNG~1/AppData/Local/Temp/claude/C--Work-accord/b9493812-421c-4d1c-a815-57d1c12ad28b/scratchpad/plan-r2.diff",
+          "from": "copy"
+        }
+      ],
+      "pairs": []
+    },
+    {
+      "agent": "accord-critic",
+      "n": 4,
+      "transcript": "C--Work-accord-st-ln-8/54bc8e69-8fa8-4bfb-86ca-a40e2e72a6a6/subagents/agent-a1e367fd904ec6239.jsonl",
+      "ticket": "ST-LN-8",
+      "base": "b8d77ca17c2f0dfa72e997a13ee7101d89cac517",
+      "main": "836e206f266d85de6f5c12a6c248999e49e87f40",
+      "root": "C:/Work/accord-st-ln-8",
+      "elsewhere": [],
+      "files": [
+        {
+          "path": "C:/Users/LUANNG~1/AppData/Local/Temp/claude/C--Work-accord/54bc8e69-8fa8-4bfb-86ca-a40e2e72a6a6/scratchpad/st-ln-8-plan-round3.diff",
+          "from": "copy"
+        }
+      ],
+      "pairs": [],
+      "overlay": [
+        {
+          "path": "accord/tickets/ST-LN-8/plan.md",
+          "from": "822b95e78a16966a682252b8c4105799a58b57f5"
+        }
+      ]
+    },
+    {
+      "agent": "accord-critic",
+      "n": 5,
+      "transcript": "C--Work-accord/63c6d5ec-c764-4830-ad6f-e51b73107666/subagents/agent-a0b4e51cded3ec7f0.jsonl",
+      "ticket": "ST-LN-30",
+      "base": "bef977f94bf68af8c934e952086d93c552ea7663",
+      "main": "836e206f266d85de6f5c12a6c248999e49e87f40",
+      "root": "C:/Work/accord-st-ln-30",
+      "elsewhere": [],
+      "files": [],
+      "pairs": []
+    },
+    {
+      "agent": "accord-reviewer",
+      "n": 1,
+      "transcript": "C--Work-accord-st-ln-26/c0a17689-483d-4eaa-873a-1b356e73e6f2/subagents/agent-aafe9d69e7321611e.jsonl",
+      "ticket": "ST-LN-26",
+      "base": "d62a680862eca3c646aba78c4b2f7ec65bb14765",
+      "main": "75de7febef87acc5fd6b6372d4f00346d4433f1e",
+      "root": "C:/Work/accord-st-ln-26",
+      "elsewhere": [],
+      "files": [
+        {
+          "path": "C:\\Users\\LUANNG~1\\AppData\\Local\\Temp\\claude\\C--Work-accord\\c0a17689-483d-4eaa-873a-1b356e73e6f2\\scratchpad\\merge-remerge-diff.txt",
+          "from": "copy"
+        }
+      ],
+      "pairs": [
+        [
+          "origin/main",
+          "main"
+        ],
+        [
+          "t/ST-LN-26",
+          "base"
+        ]
+      ]
+    },
+    {
+      "agent": "accord-reviewer",
+      "n": 2,
+      "transcript": "C--Work-accord-st-ln-8/54bc8e69-8fa8-4bfb-86ca-a40e2e72a6a6/subagents/agent-ac43060575f0d0a58.jsonl",
+      "ticket": "ST-LN-8",
+      "base": "6e1edf47ea0a16eca149dc7d19e34ce5a9a78de6",
+      "main": "836e206f266d85de6f5c12a6c248999e49e87f40",
+      "root": "C:/Work/accord-st-ln-8",
+      "elsewhere": [],
+      "files": [
+        {
+          "path": "C:/Users/LUANNG~1/AppData/Local/Temp/claude/C--Work-accord/54bc8e69-8fa8-4bfb-86ca-a40e2e72a6a6/scratchpad/st-ln-8-review-package.md",
+          "from": "review-package",
+          "base": "6ead1b6a5e34315768ab998a450701e2283a766b"
+        }
+      ],
+      "pairs": [
+        [
+          "t/ST-LN-8",
+          "base"
+        ]
+      ],
+      "overlay": [
+        {
+          "path": "accord/tickets/ST-LN-8/ledger.md",
+          "from": "read"
+        }
+      ]
+    },
+    {
+      "agent": "accord-reviewer",
+      "n": 3,
+      "transcript": "C--Work-accord/4c922939-083e-4f93-af28-1fbb994a4bf3/subagents/agent-a35bc5a13ec3c8406.jsonl",
+      "ticket": "ST-LN-7",
+      "base": "e711c9b4904e27f2fdba49af2d77d061e991054c",
+      "main": "2604afad1ed03be907fdc27ee442abfd8cbcdc05",
+      "root": "C:/Work/accord-ln7",
+      "elsewhere": [
+        "C:/Work/accord"
+      ],
+      "files": [
+        {
+          "path": "C:/Users/LUANNG~1/AppData/Local/Temp/claude/C--Work-accord/4c922939-083e-4f93-af28-1fbb994a4bf3/scratchpad/st-ln-7-review-task9.md",
+          "from": "review-package",
+          "base": "f67b8301d26e4d3665257897951354dff56318d1"
+        }
+      ],
+      "pairs": []
+    },
+    {
+      "agent": "accord-reviewer",
+      "n": 4,
+      "transcript": "C--Work-accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a1be2908e78deccd4.jsonl",
+      "ticket": "BUG-LN-3",
+      "base": "46554cbc8fe51fb53e2b7a01fe0337fbc25fa5ee",
+      "main": "6cd75c8f8972cfbfc82a35a643eb7621309fd70a",
+      "root": "C:/Work/accord",
+      "elsewhere": [],
+      "files": [
+        {
+          "path": "C:/Users/LUANNG~1/AppData/Local/Temp/claude/C--Work-accord/c3d77780-626d-4476-ae0d-3058eca7e240/scratchpad/bug3-review-f2.md",
+          "from": "copy"
+        }
+      ],
+      "pairs": []
+    },
+    {
+      "agent": "accord-reviewer",
+      "n": 5,
+      "transcript": "C--Work-accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-ac5f6613f963c6446.jsonl",
+      "ticket": "BUG-LN-2",
+      "base": "cc64cc2ff79449eedf0d8458c91f42d1e7365b27",
+      "main": "8d0642d8fcb6932bb09100f0c97a063c740db398",
+      "root": "C:/Work/accord",
+      "elsewhere": [],
+      "files": [
+        {
+          "path": "C:\\Users\\LUANNG~1\\AppData\\Local\\Temp\\claude\\C--Work-accord\\c3d77780-626d-4476-ae0d-3058eca7e240\\scratchpad\\review-bug2-fix2.md",
+          "from": "copy"
+        }
+      ],
+      "pairs": [
+        [
+          "t/BUG-LN-2",
+          "base"
+        ]
+      ]
+    },
+    {
+      "agent": "accord-final-reviewer",
+      "n": 1,
+      "transcript": "C--Work-accord/cfa22f34-30e9-4ecd-bbc6-b4338a414ecb/subagents/agent-a46a45bcd9eaaab17.jsonl",
+      "ticket": "ST-LN-34",
+      "base": "b7c43f8a990c707a7b2ba33f2fc7b3644711ac36",
+      "main": "32f91987f44359c35d01289e3423f8e1268f53a5",
+      "root": "C:/Work/accord-st-ln-34",
+      "elsewhere": [],
+      "files": [
+        {
+          "path": "C:\\Users\\LUANNG~1\\AppData\\Local\\Temp\\claude\\C--Work-accord\\cfa22f34-30e9-4ecd-bbc6-b4338a414ecb\\scratchpad\\review-final.md",
+          "from": "review-package",
+          "base": "d5586db44dabc62b93ae03f969c12c4dbcfaad3f"
+        }
+      ],
+      "pairs": []
+    },
+    {
+      "agent": "accord-final-reviewer",
+      "n": 2,
+      "transcript": "C--Work-accord-st-ln-30/27360965-f877-4d4a-b925-b29fb899d250/subagents/agent-a66af1cf7cb1a8004.jsonl",
+      "ticket": "ST-LN-30",
+      "base": "60e2640eef7332380f3cc9f060ae0708351c27e5",
+      "main": "996a55e2b725241c62395552eafda3c247b7ee5e",
+      "root": "C:/Work/accord-st-ln-30",
+      "elsewhere": [],
+      "files": [
+        {
+          "path": "C:/Users/LUANNG~1/AppData/Local/Temp/claude/C--Work-accord/27360965-f877-4d4a-b925-b29fb899d250/scratchpad/review-ST-LN-30-final.md",
+          "from": "review-package",
+          "base": "786f302801ab64684e1cc59e29044bcd7d0d9b80"
+        }
+      ],
+      "pairs": []
+    },
+    {
+      "agent": "accord-final-reviewer",
+      "n": 3,
+      "transcript": "C--Work-accord/b9493812-421c-4d1c-a815-57d1c12ad28b/subagents/agent-a7eb3887c226273fa.jsonl",
+      "ticket": "ST-LN-33",
+      "base": "f4b7aea74495e0cd50949d20e39b950b445a8488",
+      "main": "96f5f9070dc2aa140e2b71feacc6cbee87e08d82",
+      "root": "C:/Work/accord-st-ln-33",
+      "elsewhere": [],
+      "files": [
+        {
+          "path": "C:/Users/LUANNG~1/AppData/Local/Temp/claude/C--Work-accord/b9493812-421c-4d1c-a815-57d1c12ad28b/scratchpad/review-pkg.md",
+          "from": "review-package",
+          "base": "b5678b55109cb1b8958aed77a3176cb337327459"
+        }
+      ],
+      "pairs": []
+    },
+    {
+      "agent": "accord-final-reviewer",
+      "n": 4,
+      "transcript": "C--Work-accord-st-ln-26/c0a17689-483d-4eaa-873a-1b356e73e6f2/subagents/agent-ac080e54d82bbb0cb.jsonl",
+      "ticket": "ST-LN-26",
+      "base": "90b6a8f6ba60b8c89ee44bc7b49a8b74c0e63a8e",
+      "main": "836e206f266d85de6f5c12a6c248999e49e87f40",
+      "root": "C:/Work/accord-st-ln-26",
+      "elsewhere": [],
+      "files": [
+        {
+          "path": "C:\\Users\\LUANNG~1\\AppData\\Local\\Temp\\claude\\C--Work-accord\\c0a17689-483d-4eaa-873a-1b356e73e6f2\\scratchpad\\review-package-final.md",
+          "from": "review-package",
+          "base": "1dfe65bb70644e25776735c1f7296c83570c140d"
+        }
+      ],
+      "pairs": [
+        [
+          "t/ST-LN-26",
+          "base"
+        ]
+      ],
+      "overlay": [
+        {
+          "path": "accord/tickets/ST-LN-26/ledger.md",
+          "from": "read"
+        }
+      ]
+    },
+    {
+      "agent": "accord-final-reviewer",
+      "n": 5,
+      "transcript": "C--Work-accord-st-ln-8/54bc8e69-8fa8-4bfb-86ca-a40e2e72a6a6/subagents/agent-ab0f4fb6a219c6ef6.jsonl",
+      "ticket": "ST-LN-8",
+      "base": "6e1edf47ea0a16eca149dc7d19e34ce5a9a78de6",
+      "main": "836e206f266d85de6f5c12a6c248999e49e87f40",
+      "root": "C:/Work/accord-st-ln-8",
+      "elsewhere": [],
+      "files": [
+        {
+          "path": "C:/Users/LUANNG~1/AppData/Local/Temp/claude/C--Work-accord/54bc8e69-8fa8-4bfb-86ca-a40e2e72a6a6/scratchpad/st-ln-8-review-package.md",
+          "from": "review-package",
+          "base": "6ead1b6a5e34315768ab998a450701e2283a766b"
+        }
+      ],
+      "pairs": [
+        [
+          "t/ST-LN-8",
+          "base"
+        ]
+      ],
+      "overlay": [
+        {
+          "path": "accord/tickets/ST-LN-8/ledger.md",
+          "from": "read"
+        }
+      ]
+    },
+    {
+      "agent": "accord-auditor",
+      "n": 1,
+      "transcript": "C--Work-accord-st-ln-14/2c76daea-883d-4bcc-b318-c2e16eae0d09/subagents/agent-a1db35e759f09f22a.jsonl",
+      "ticket": "ST-LN-14",
+      "base": "7f46bbd4b38d8b2f7e2adbd58dc4925d729ba99f",
+      "main": "996a55e2b725241c62395552eafda3c247b7ee5e",
+      "root": "C:/Work/accord-st-ln-14",
+      "elsewhere": [],
+      "files": [],
+      "pairs": [],
+      "overlay": [
+        {
+          "path": "accord/tickets/ST-LN-14.md",
+          "from": "read"
+        }
+      ]
+    },
+    {
+      "agent": "accord-auditor",
+      "n": 2,
+      "transcript": "C--Work-accord-st-ln-31/021f7083-2de2-476e-b06d-bc94942efcf4/subagents/agent-a6f086a17eecd836e.jsonl",
+      "ticket": "ST-LN-31",
+      "base": "26051211dcee8ec95806ff58e2b03880b04f6d17",
+      "main": "996a55e2b725241c62395552eafda3c247b7ee5e",
+      "root": "C:/Work/accord-st-ln-31",
+      "elsewhere": [],
+      "files": [],
+      "pairs": [],
+      "overlay": [
+        {
+          "path": "accord/tickets/ST-LN-31.md",
+          "from": "read"
+        }
+      ]
+    },
+    {
+      "agent": "accord-auditor",
+      "n": 3,
+      "transcript": "C--Work-accord-st-ln-34/2ff3a8b3-86f4-4b81-aec3-eab96066b55a/subagents/agent-a240f15674221f058.jsonl",
+      "ticket": "ST-LN-34",
+      "base": "0821768af212ba987216d7c664e547be0e5121f6",
+      "main": "996a55e2b725241c62395552eafda3c247b7ee5e",
+      "root": "C:/Work/accord-st-ln-34",
+      "elsewhere": [],
+      "files": [],
+      "pairs": [],
+      "overlay": [
+        {
+          "path": "accord/tickets/ST-LN-34.md",
+          "from": "read"
+        }
+      ]
+    },
+    {
+      "agent": "accord-auditor",
+      "n": 4,
+      "transcript": "C--Work-accord/b9493812-421c-4d1c-a815-57d1c12ad28b/subagents/agent-a965d7b8f58b26842.jsonl",
+      "ticket": "ST-LN-33",
+      "base": "c1f34ddedd57e844fa3dd0ee697b79c272c4ddc4",
+      "main": "836e206f266d85de6f5c12a6c248999e49e87f40",
+      "root": "C:/Work/accord-st-ln-33",
+      "elsewhere": [],
+      "files": [],
+      "pairs": [],
+      "overlay": [
+        {
+          "path": "accord/tickets/ST-LN-33.md",
+          "from": "read"
+        }
+      ]
+    },
+    {
+      "agent": "accord-auditor",
+      "n": 5,
+      "transcript": "C--Work-accord/63c6d5ec-c764-4830-ad6f-e51b73107666/subagents/agent-aaf06efe54dae3040.jsonl",
+      "ticket": "ST-LN-30",
+      "base": "bef977f94bf68af8c934e952086d93c552ea7663",
+      "main": "836e206f266d85de6f5c12a6c248999e49e87f40",
+      "root": "C:/Work/accord-st-ln-30",
+      "elsewhere": [],
+      "files": [],
+      "pairs": [],
+      "overlay": [
+        {
+          "path": "accord/tickets/ST-LN-30.md",
+          "from": "read"
+        }
+      ]
+    },
+    {
+      "agent": "accord-verifier",
+      "n": 1,
+      "transcript": "C--Work-accord-st-ln-30/27360965-f877-4d4a-b925-b29fb899d250/subagents/agent-aba02efe65e7df99f.jsonl",
+      "ticket": "ST-LN-30",
+      "base": "9febb6a779b4056bd5a1fec5e6b1b4240608c058",
+      "main": "dd4494bae35ff5ec799caac1e5feee04ef357bda",
+      "root": "C:/Work/accord-st-ln-30",
+      "elsewhere": [],
+      "files": [],
+      "pairs": []
+    },
+    {
+      "agent": "accord-verifier",
+      "n": 2,
+      "transcript": "C--Work-accord/cfa22f34-30e9-4ecd-bbc6-b4338a414ecb/subagents/agent-a114d38231bc151a2.jsonl",
+      "ticket": "ST-LN-34",
+      "base": "619a2399a4712a943f8ae248a4408b4f40e1f337",
+      "main": "32f91987f44359c35d01289e3423f8e1268f53a5",
+      "root": "C:/Work/accord-st-ln-34",
+      "elsewhere": [],
+      "files": [],
+      "pairs": []
+    },
+    {
+      "agent": "accord-verifier",
+      "n": 3,
+      "transcript": "C--Work-accord/b9493812-421c-4d1c-a815-57d1c12ad28b/subagents/agent-a53d9e271a71fd37d.jsonl",
+      "ticket": "ST-LN-33",
+      "base": "c286473b2cae524169e8ebbef4a6509acb28911d",
+      "main": "96f5f9070dc2aa140e2b71feacc6cbee87e08d82",
+      "root": "C:/Work/accord-st-ln-33",
+      "elsewhere": [],
+      "files": [],
+      "pairs": []
+    },
+    {
+      "agent": "accord-verifier",
+      "n": 4,
+      "transcript": "C--Work-accord-st-ln-8/54bc8e69-8fa8-4bfb-86ca-a40e2e72a6a6/subagents/agent-aef7713387f513c06.jsonl",
+      "ticket": "ST-LN-8",
+      "base": "bc07c15ed14b184356a48ee5ec240957edd25fd6",
+      "main": "836e206f266d85de6f5c12a6c248999e49e87f40",
+      "root": "C:/Work/accord-st-ln-8",
+      "elsewhere": [],
+      "files": [],
+      "pairs": [
+        [
+          "t/ST-LN-8",
+          "base"
+        ]
+      ]
+    },
+    {
+      "agent": "accord-verifier",
+      "n": 5,
+      "transcript": "C--Work-accord/0faa2b47-22ec-4155-9819-74b1e6fabab9/subagents/agent-a7801d55423a08bd6.jsonl",
+      "ticket": "ST-LN-20",
+      "base": "70caf28bc41e360bb59e248011f400d295b33238",
+      "main": "d102e1632e4b1a9eb720c6b06c06e6a42f0f5026",
+      "root": "C:/Work/accord-clean-st-ln-20",
+      "elsewhere": [
+        "C:/Work/accord-st-10",
+        "C:/Work/accord"
+      ],
+      "files": [],
+      "pairs": []
+    },
+    {
+      "agent": "accord-architect",
+      "n": 1,
+      "transcript": "C--Work-accord-st-ln-31/021f7083-2de2-476e-b06d-bc94942efcf4/subagents/agent-a64cc9d1a44fae216.jsonl",
+      "ticket": "ST-LN-31",
+      "base": "cfdeb498c164b7cd4acda103042ef7518dc60957",
+      "main": "996a55e2b725241c62395552eafda3c247b7ee5e",
+      "root": "C:/Work/accord-st-ln-31",
+      "elsewhere": [],
+      "files": [],
+      "pairs": []
+    },
+    {
+      "agent": "accord-architect",
+      "n": 2,
+      "transcript": "C--Work-accord-st-ln-34/2ff3a8b3-86f4-4b81-aec3-eab96066b55a/subagents/agent-a5c15767f50aa4db0.jsonl",
+      "ticket": "ST-LN-34",
+      "base": "570480b8ff3e4257af0f97b501c28a9f3455c88e",
+      "main": "996a55e2b725241c62395552eafda3c247b7ee5e",
+      "root": "C:/Work/accord-st-ln-34",
+      "elsewhere": [],
+      "files": [],
+      "pairs": [
+        [
+          "origin/main",
+          "main"
+        ]
+      ]
+    },
+    {
+      "agent": "accord-architect",
+      "n": 3,
+      "transcript": "C--Work-accord/b9493812-421c-4d1c-a815-57d1c12ad28b/subagents/agent-a94c744e68944f686.jsonl",
+      "ticket": "ST-LN-33",
+      "base": "b49705ef0452e04f0f5368c016561502ebbb8b2d",
+      "main": "836e206f266d85de6f5c12a6c248999e49e87f40",
+      "root": "C:/Work/accord-st-ln-33",
+      "elsewhere": [],
+      "files": [],
+      "pairs": []
+    },
+    {
+      "agent": "accord-architect",
+      "n": 4,
+      "transcript": "C--Work-accord/63c6d5ec-c764-4830-ad6f-e51b73107666/subagents/agent-ad85bae9b7f4829ac.jsonl",
+      "ticket": "ST-LN-30",
+      "base": "bef977f94bf68af8c934e952086d93c552ea7663",
+      "main": "836e206f266d85de6f5c12a6c248999e49e87f40",
+      "root": "C:/Work/accord-st-ln-30",
+      "elsewhere": [],
+      "files": [],
+      "pairs": []
+    },
+    {
+      "agent": "accord-architect",
+      "n": 5,
+      "transcript": "C--Work-accord-st-ln-26/c0a17689-483d-4eaa-873a-1b356e73e6f2/subagents/agent-a1be6e9544704119e.jsonl",
+      "ticket": "ST-LN-26",
+      "base": "61a2ada7f89a6b6e589fedcb4f4ab5f9593bfc25",
+      "main": "a374304118d9dab822588cdf13ee04c659a3c2e3",
+      "root": "C:/Work/accord-st-ln-26",
+      "elsewhere": [],
+      "files": [],
+      "pairs": []
+    },
+    {
+      "agent": "accord-scout",
+      "n": 1,
+      "transcript": "C--Work-accord-st-ln-26/c0a17689-483d-4eaa-873a-1b356e73e6f2/subagents/agent-ad758be168038f141.jsonl",
+      "ticket": "ST-LN-26",
+      "base": "159b018a3d5cfae5e7dc3da26deb13afe2a7c66a",
+      "main": "6c91fae55bbd0a0b2c66ebe50efea716687e990a",
+      "root": "C:/Work/accord-st-ln-26",
+      "elsewhere": [],
+      "files": [],
+      "pairs": []
+    },
+    {
+      "agent": "accord-scout",
+      "n": 2,
+      "transcript": "C--Work-accord-st-ln-31/021f7083-2de2-476e-b06d-bc94942efcf4/subagents/agent-a5d113de6d1797047.jsonl",
+      "ticket": "ST-LN-31",
+      "base": "26051211dcee8ec95806ff58e2b03880b04f6d17",
+      "main": "996a55e2b725241c62395552eafda3c247b7ee5e",
+      "root": "C:/Work/accord-st-ln-31",
+      "elsewhere": [],
+      "files": [],
+      "pairs": []
+    },
+    {
+      "agent": "accord-scout",
+      "n": 3,
+      "transcript": "C--Work-accord/b9493812-421c-4d1c-a815-57d1c12ad28b/subagents/agent-a5f8a90da0622c845.jsonl",
+      "ticket": "ST-LN-33",
+      "base": "c1f34ddedd57e844fa3dd0ee697b79c272c4ddc4",
+      "main": "836e206f266d85de6f5c12a6c248999e49e87f40",
+      "root": "C:/Work/accord-st-ln-33",
+      "elsewhere": [],
+      "files": [],
+      "pairs": []
+    },
+    {
+      "agent": "accord-scout",
+      "n": 4,
+      "transcript": "C--Work-accord/63c6d5ec-c764-4830-ad6f-e51b73107666/subagents/agent-ac3505b169f29189e.jsonl",
+      "ticket": "ST-LN-30",
+      "base": "a5506c0a3b16b4b00c562462c95e9d89ce3a6a3d",
+      "main": "4ee89d4cd492beb8e573f13aecdda0f87acce7a6",
+      "root": "C:/Work/accord-st-ln-30",
+      "elsewhere": [],
+      "files": [],
+      "pairs": []
+    },
+    {
+      "agent": "accord-scout",
+      "n": 5,
+      "transcript": "C--Work-accord-st-ln-8/54bc8e69-8fa8-4bfb-86ca-a40e2e72a6a6/subagents/agent-aa1264e93349e5182.jsonl",
+      "ticket": "ST-LN-8",
+      "base": "e087a10bfdee26e2edfae450519d6d9b1370d629",
+      "main": "6c91fae55bbd0a0b2c66ebe50efea716687e990a",
+      "root": "C:/Work/accord-st-ln-8",
+      "elsewhere": [],
+      "files": [],
+      "pairs": []
+    }
+  ]
+}

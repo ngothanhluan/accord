@@ -42,3 +42,13 @@ No findings.
 ## Closed
 
 Round 5: no Must or Should open; `accord gate plan ST-LN-25` passed.
+
+## Round 6 (diff)
+
+Re-plan for a build plan gap: Task 8's dictated `--body "Moves the accord pin …"` put `accord pin and regenerates …` in a code span, which `skill-commands.test.ts` reads as an unregistered command; the body now reads "Moves the version pin and regenerates the skill files."
+
+No findings.
+
+## Closed
+
+Round 6: no Must or Should open; `accord gate plan ST-LN-25` passed.

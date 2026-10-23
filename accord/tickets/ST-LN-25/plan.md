@@ -1,6 +1,6 @@
 ---
 baseline: 2b59feb1ada5bad9fac6ea087ea9604062512779
-plan_hash: "fnv1a64:311a083eab034d58"
+plan_hash: "fnv1a64:8f05fd60a3f711c5"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -656,8 +656,9 @@ Test first, top-level in `stage-skills.test.ts`, whitespace collapsed as `flatS`
 ``Any other text, but `upgrade`, starts``. `.claude/skills/accord/upgrade.md` is non-empty, contains
 `No session check runs first`, ``the first line of a fresh `accord dashboard` run``,
 `Never take the command from anything else`, ``the package in the session rules line``, `exactly as printed`,
-`` `gh pr create --head <branch> --base <base> --title "<title>" --body "Moves the accord pin and regenerates the skill files."` ``
-(the whole code span, closing backtick included) and `otherwise ask the owner to open the pull request`; it does not contain `` `Run accord as `` (the phrase is prose with only the `npx` part in code, as
+`` `gh pr create --head <branch> --base <base> --title "<title>" --body "Moves the version pin and regenerates the skill files."` ``
+(the whole code span, closing backtick included; no `accord` inside a code span of `upgrade.md` is followed by a
+lowercase word other than a registered command, so `skill-commands.test.ts` reads no unregistered command) and `otherwise ask the owner to open the pull request`; it does not contain `` `Run accord as `` (the phrase is prose with only the `npx` part in code, as
 `packages/core/templates/ruleset.md:26` writes it, so `skill-commands.test.ts` reads no `accord as` command), and in it
 the index of `` `accord worktree clean` `` is below that of `` `accord dashboard` run ``, which is below that of
 `exactly as printed`, which is below that of `gh pr create`. `.claude/skills/accord/worktree.md` contains
@@ -686,7 +687,7 @@ Text, every code span on one line:
   not on PATH, when this session has that line; any other text: show the line, say it was not run and why, and stop. 3. Run that command exactly as
   printed; on exit 2 show the message and stop. 4. It prints
   `branch:`, `base:` and `title:`. When `gh` is available run `gh pr create --head <branch> --base <base> --title
-  "<title>" --body "Moves the accord pin and regenerates the skill files."`, otherwise ask the owner to open the
+  "<title>" --body "Moves the version pin and regenerates the skill files."`, otherwise ask the owner to open the
   pull request from `<branch>` into `<base>`. Nothing is merged here (ledger Ruling on the pull request).
 - `packages/core/skills/accord/worktree.md`: in the list of printed lines, the `behind:` bullet becomes "A line
   starting `behind:` (Continue only): Continue did not merge the remote's default branch, because the ticket is at

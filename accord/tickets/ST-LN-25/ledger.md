@@ -67,6 +67,8 @@
 - Ruling: task 6 — `repinWorkflow` replaces every `<pkg>@<old>` in the workflow, so a second occurrence of the old version there also moves — the plan's exact replacement of the pin — cost if wrong: an owner's own mention of the old version is rewritten.
 - Ruling: task 7 — the branch-exists check runs right after the origin fetch, before the default ref is resolved — nothing is written before it, the same effect as after step 3 — cost if wrong: none.
 - Ruling: task 7 — a failing `git ls-remote` in `upgrade` surfaces as a raw git error, not a one-line UsageError; the fetch just before it normally fails first — cost if wrong: an offline upgrade prints git's text instead of accord's.
+- Ruling: re-plan 1 — Task 8's dictated pull-request body becomes "Moves the version pin and regenerates the skill files.", because "Moves the accord pin …" inside a code span reads as the unregistered command `accord pin …` to `skill-commands.test.ts`; the test is kept as it is — cost if wrong: one sentence of PR text.
+- Ruling: re-plan 1 — the changed task keeps number 8 instead of 9, since it has no ledger line and nothing was recorded under it — cost if wrong: the ledger reads the edited task as the original Task 8.
 
 ## Deferred
 

@@ -1,0 +1,385 @@
+## Episode 1
+
+## Symptom
+`node scripts/benchmark.mjs --round 1 --plan` from C:/Work/accord-st-ln-14 (HEAD a2c75bb) exits 1:
+
+```
+file:///C:/Work/accord-st-ln-14/scripts/benchmark.mjs:830
+    if (notBench(name)) refs[name] = sha;
+    ^
+
+ReferenceError: Cannot access 'notBench' before initialization
+    at liveState (file:///C:/Work/accord-st-ln-14/scripts/benchmark.mjs:830:5)
+    at runPlan (file:///C:/Work/accord-st-ln-14/scripts/benchmark.mjs:613:18)
+    at main (file:///C:/Work/accord-st-ln-14/scripts/benchmark.mjs:805:80)
+    at file:///C:/Work/accord-st-ln-14/scripts/benchmark.mjs:814:109
+```
+
+Nothing was written to C:/Work/accord-bench (no round-1.json, no wt/).
+
+## Hypotheses
+1. Temporal dead zone: `const notBench` at scripts/benchmark.mjs:824 is declared after the entry line at :814 that calls `main()` synchronously during module evaluation, so `liveState` (:830) reads it before its declaration has run. Evidence for: the stack trace ends at :814 (module body) and the error is the TDZ ReferenceError. Evidence against: none found.
+2. The test or measurement is wrong (a stale or different copy of the script ran, or a Node quirk). Evidence for: none. Evidence against: the trace paths are this worktree's file and the line numbers match the current source.
+3. Some other top-level `const`/`let`/`class` that main() reaches is also declared after :814 and would fail next. Evidence for: the ordering pattern could repeat. Evidence against: see probe 1.
+
+Ranked: 1, 3, 2.
+
+## Probes
+- Read scripts/benchmark.mjs:797-831 → the entry guard at :814 runs `process.exitCode = main(...)`; `const notBench` is at :824; `liveState` is an `export function` at :826 (hoisted) and uses `notBench` at :830; `onLiveRefs` (:843) uses it at :845. `stopOnEscape` (:850) calls `liveState` at :861 → this supports 1.
+- `awk 'NR>814 && /^(export )?(const|let|var|class) /'` on scripts/benchmark.mjs → only line 824 `const notBench`; everything else after :814 is a function declaration (`writeReport`, `liveState`, `onLiveRefs`, `stopOnEscape`), which hoists → hypothesis 3 ruled out. `grep async|await` → none, so main() is fully synchronous and nothing after :814 runs before it. The imported modules (round.mjs, compliance.mjs, plan-review.mjs) are evaluated before this module's body runs, so they cannot have this ordering problem.
+- `git log -S notBench -- scripts/benchmark.mjs` → added in 27402b4 (task 11: "--judge and --round 1 stop when a round run edited or committed in a live checkout"), appended below the entry line.
+- Two scratch copies of scripts/*.mjs under the scratchpad (`iso/a`, `iso/b`). `yaml` is imported by its absolute file URL because the copies have no node_modules. In copy a, line 814 is replaced by a direct `liveState('C:/Work/accord-st-ln-14')` (read-only git) at the same point in module evaluation. Copy b is a with only the `notBench` line moved above line 814. → a: `ReferenceError: Cannot access 'notBench' before initialization` at :830; b: `ok 20 refs 9 worktrees`. With the declaration order as the only variable, this confirms 1 and rules out 2.
+- `npx vitest run packages/core/test/benchmark-worktree.test.ts` → 4 passed. The test imports the module, so `fileURLToPath(import.meta.url) === path.resolve(process.argv[1])` is false, main() never runs during evaluation, and `notBench` is initialized before the test calls `liveState`. `grep` of packages/core/test/benchmark-*.test.ts finds no test that spawns scripts/benchmark.mjs as a process. That explains why the suite missed the bug.
+
+## Fixes
+- Fix 1 (cfd3e13): the entry line moved to the last line of scripts/benchmark.mjs. Reproduction test `risk:regression --round 1 --plan run as a process records live checkouts` failed before it ("expected stderr … not to contain 'before initialization'") and passes after; `npx vitest run packages/core/test/benchmark-` → 26 passed. Failed fixes: 0.
+
+## Root cause
+scripts/benchmark.mjs:824 declares `const notBench = (r) => r && !r.startsWith('refs/heads/bench/');` after the entry line scripts/benchmark.mjs:814, which calls `main()` synchronously while the module is still evaluating. When the script runs as a process, `main` → `runPlan` (:613) → `liveState` (:830) reads `notBench` while it is still in its temporal dead zone and throws. The same happens through `--round 1` / `--judge` → `stopOnEscape` (:861) → `liveState`, and through `onLiveRefs` (:845). In each case it happens before anything is written to the bench root. `notBench` is the only top-level `const`/`let`/`class` after :814; all its users route through this one declaration. Unit tests import the module, so they never reach main() during evaluation and cannot see the bug. Evidence: probe copies a and b differ in only that one line's position; a throws and b passes.
+
+## Resolved
+Root cause: `const notBench` was declared after the entry line that runs main() while scripts/benchmark.mjs loads; fixed in cfd3e13 by moving the entry line to the end of the file.
+
+## Episode 2
+
+## Symptom
+`node scripts/benchmark.mjs --round 1 --plan` from C:/Work/accord-st-ln-14 (bench root C:/Work/accord-bench), run twice, exits 2 both times.
+- Run 1 ends `suite red at base for accord-executor 2`.
+- Run 2 ends `suite red at base for accord-executor 4`. In this run executor 2's base suite was green.
+
+The only failure in each run:
+
+```
+ FAIL  |cli| test/hook.test.ts > risk:security the prompt expansion hook blocks every accord text but the dashboard and continue of the worked ticket
+Error: Test timed out in 30000ms.
+ ❯ test/hook.test.ts:78:1
+ Test Files  1 failed | 65 passed (66)      (run 1, executor-2-medium, 332.23s)
+ Test Files  1 failed | 66 passed (67)      (run 2, executor-4-medium, 288.34s)
+```
+
+The check that stops is scripts/benchmark.mjs:629. The same single full-suite run scores every executor run at :775.
+
+## Hypotheses
+1. The test's run time depends on machine load. Inside a full parallel suite on Windows it reaches the cli project's 30 s `testTimeout`, and the benchmark takes one red run as final. Evidence for: the failure is a timeout, not an assertion; the same base passes in one run and fails in the other; the test passes alone. Evidence against: none found.
+2. Base 8cdf421 (and 87b424c) has a deterministic defect that makes the test hang. Evidence for: neither base contains dd4494b (PR #57, the hook slowdown fix). Evidence against: the test passes alone at 8cdf421, and the executor-2 base passed in run 2.
+3. The bench environment breaks the test: environment variables inherited from the Claude Code session, or state shared between bench worktrees. Evidence for: the test is about Claude Code sessions and holds. Evidence against: it fails by timing out, never on an assertion, and the same environment is green in the other run.
+4. The measurement itself is wrong. :629 runs the suite once and treats any throw as red, including an exit 2 or a spawn failure, while :775 uses `exitState`. Evidence for: :629 is `catch { return err(...) }` with no retry and no exit code check. Evidence against: here vitest really did exit 1 on a real test timeout, so the exit code was read correctly. What fails is that a single sample is treated as final.
+
+Ranked: 1, 4 (with 1, the same defect seen from the benchmark side), 2, 3.
+
+## Probes
+- Grep of the two stderr files for the test's duration. Run 1: executor-1 (base contains dd4494b) 19277 ms pass; executor-2 42473 ms FAIL. Run 2: executor-1 18728 ms pass; executor-2 28256 ms pass; executor-3 20902 ms pass; executor-4 30947 ms FAIL. The same test at the same base 87b424c takes 42.5 s in one run and 28.3 s in the other, so the result changes between runs with no change to code → separates 1 from 2.
+- `npx vitest run packages/cli/test/hook.test.ts --reporter=verbose` in C:/Work/accord-bench/wt/executor-4-medium → 7 passed; the test takes 4819 ms (another plain run: 7 passed, 8.79 s). It was run from the same session, so the environment was the same. Its time alone is about a sixth of its time in the full suite → the work is not stuck (rules out 2). The environment does not break it (rules out 3).
+- `git show 8cdf421:packages/cli/vitest.config.ts` → `testTimeout: 30_000` with the comment "Every test spawns git, which is slow on Windows hosts". The root vitest.config.ts runs the core and cli projects in parallel with `pool: 'forks'` → the limit is fixed and the load comes from parallel forks, which supports 1.
+- `git log --ancestry-path dd4494b..<base>` for the five executor bases → only 70b6f5a (executor 1) descends from dd4494b; 87b424c, 4ef2405, 8cdf421 and bfc26b5 do not. Bases without the fix spawn more git commands and sit closer to 30 s. This explains which samples fail, not the failure itself. The owner rules out editing base code.
+- Grep of `tests.full` in scripts/ → only scripts/benchmark.mjs:629 and :775. Both call `sh(...)` (:587, `execSync`) once. Neither re-runs the suite or reads the JUnit report that `tests.report` names → 4: the benchmark has no way to tell a slow test from a red one.
+
+## Root cause
+The benchmark treats one full-suite run as final, but a test in the base suite does not give the same result under load. At scripts/benchmark.mjs:629 (the base check in `runPlan`) and :775 (scoring in `runRound`), `sh(configAt(...).tests.full, ...)` runs once (`sh` is `execSync`, :587), and its first nonzero exit is the verdict. At bases older than dd4494b, packages/cli/test/hook.test.ts:78 takes 4.8 s alone but 28-42 s inside the full parallel suite. Against the cli project's `testTimeout: 30_000`, it passes or fails depending on machine load. The evidence: base 87b424c failed at 42.5 s in run 1 and passed at 28.3 s in run 2; base 8cdf421 failed at 30.9 s and passes alone in 4.8 s. :629 and :775 are the only callers of `tests.full`, so both route through the one place where a suite run is judged.
+
+## Fixes
+- Fix 1 (af40b04): new `runSuite(dir, repo)` in scripts/benchmark.mjs.
+  - It is now the only caller of `tests.full`. The base check in `runPlan` and the scoring in `runRound` both use it.
+  - A red run re-runs its failing files once, read from the JUnit report and run through `tests.affected`, falling back to `tests.full`. The suite stays red only if the re-run fails too.
+  - Re-runs are recorded in round-1.json `reruns` and on the run's result.
+  - Two reproduction tests failed before the fix and pass after it:
+    - `risk:regression a suite that fails once and passes on its re-run does not stop --plan and the re-run is recorded`;
+    - `risk:regression a suite that fails on its re-run too is red`.
+  - `npx vitest related --run scripts/benchmark.mjs packages/core/test/benchmark-worktree.test.ts` → 8 passed.
+  - Failed fixes: 0.
+- Review rounds 6 and 7 fixed the fix's Should findings in be5dd72 and e4cb482: the narrow re-run only for a fresh report of real files the run did not change, and re-run holds listed in the report; `npx vitest run packages/core/test/benchmark-` → 32 passed.
+
+## Resolved
+Root cause: one full-suite run was taken as final while a base test (hook.test.ts at bases before dd4494b) times out only under load; fixed in af40b04, be5dd72 and e4cb482 by `runSuite`, which re-runs a red suite once and counts it red only if the re-run fails, as the owner chose ("Sửa benchmark").
+
+## Episode 3
+
+## Symptom
+`node scripts/benchmark.mjs --round 1 --plan` from C:/Work/accord-st-ln-14 (bench root C:/Work/accord-bench), run 3, passes every base suite check (executor 2 and 4 green on their re-run, recorded in round-1.json `reruns`) and then exits 2 while writing briefs:
+
+```
+reviewer-3-medium: absolute path C:/Work/accord-st-9 outside the bench root is left in the brief; absolute path C:/Work/accord-ln9 outside the bench root is left in the brief; absolute path C:/Work/accord-st-10 outside the bench root is left in the brief; absolute path C:/Work/accord-st-11 outside the bench root is left in the brief; absolute path C:/Work/accord-st-12 outside the bench root is left in the brief
+```
+
+The check is scripts/round.mjs:171, reached from the review-package file rebuild in runPlan (scripts/benchmark.mjs:679-688). The `--samples` check, which reads the text the run read, passed for the same sample.
+
+## Hypotheses
+1. The sample list's file `base` for reviewer 3, fd80243, is a commit from before ST-LN-7's history was rewritten, and it is not an ancestor of the sample `base` e711c9b. `review-package --base fd80243` at e711c9b diffs `fd80243...HEAD` from their merge-base 1cfc803, so it covers the whole ST-LN-7 branch, not the two commits the run read, and the extra files hold the five paths. — for: the lead from the main session; reviewer 3 is the only sample whose package base belongs to a rewritten branch. — against: none found.
+2. The check at scripts/round.mjs:171 is wrong (a false "outside the bench root"). — for: the same sample passed `--samples`. — against: `--samples` checked a different text (the read); see the probes.
+3. The rebuild itself is wrong: the CLI at base, the default-ref exclusion, or the worktree not at its base. — for: the `review-package` text is used as rebuilt with no comparison (benchmark.mjs:683, ledger Ruling "task 6 uses a review-package rebuilt at base as built"). — against: see the probes.
+4. The measurement is wrong: a stale worktree or a stale round-1.json entry. — for: run 3 re-used the worktrees from runs 1 and 2. — against: see the probes.
+
+Ranked: 1, 3, 2, 4.
+
+## Probes
+- `git merge-base --is-ancestor fd80243 e711c9b` → exit 1. `git merge-base --is-ancestor f67b830 e711c9b` → exit 0. `git log -1 --format="%H %T %ci %s"` shows that fd80243 and f67b830 have the same tree 82520f3, the same date and the same subject "plan: ST-LN-7 ready". `git branch -a --contains fd80243` → nothing. `git merge-base fd80243 e711c9b` → 1cfc803 → fd80243 is the pre-rewrite copy of f67b830 → this supports 1.
+- The snapshot C:/Work/accord-bench/samples/reviewer-3/sample.json (Read). The prompt says "the review package (diff since fd80243, the plan-ready commit)". The package it read is headed `(fd80243...HEAD)` and lists 2 commits, 0125b0a and b57df05, with 8 files changed (104+, 16-). `git log fd80243..0125b0a` gives exactly those 2 commits. 0125b0a and e711c9b have the same author time (1792333196) and the same subject, and `git diff --quiet 0125b0a e711c9b` → no difference. So the sample base was mapped onto the rewritten history, but the file base was not.
+- `git diff --stat fd80243...e711c9b` → 29 files, 1743+. `git diff --stat f67b830...e711c9b` → 8 files, 104+/16-, the same as the read. `git diff -U10 fd80243...e711c9b | grep -o C:/Work/...` → accord-st-9 (10), accord-ln9 (3), accord-st-10/11/12 (2 each), and accord (12) and accord-ln7 (1), which are the sample's `elsewhere` and `root` and get rewritten. The same grep over `f67b830...e711c9b` → none. So the five paths in the symptom are exactly the paths in the rebuilt package that are not rewritten → 1 confirmed. The check at :171 is right to refuse → 2 ruled out.
+- `git show e711c9b:packages/cli/src/commands/review-package.ts` → a plain `base...HEAD` diff with no default-ref exclusion, so given its input the rebuild is what git defines. C:/Work/accord/.git/worktrees/reviewer-3/HEAD = e711c9b, and C:/Work/accord-bench/round-1.json `worktrees.reviewer-3.base` = e711c9b, ready → the worktree is at its base → 3 and 4 ruled out.
+- Where the bases came from: scripts/benchmark-samples.json is hand-built data (3fd784a, task 12). It was written by an uncommitted scratchpad builder that follows accord/tickets/ST-LN-14/plan.md Task 12. Step 3 (plan.md:710-722) maps a sample `base` onto a rewritten branch by author time and subject. Step 5 (plan.md:727-728) takes a `review-package` file's `base` from the command's `--base` value as is, and resolves only `main`/`origin/main`. fd80243 still resolves because the object is still in the store, so nothing failed.
+- Why `--samples` did not catch it: `checkSamples` (scripts/round.mjs:53) only checks that `f.base` is 40 hex characters. `snapshotSample` (scripts/benchmark.mjs:454-477) checks the text the run read, not a rebuild, and never relates `f.base` to `sample.base`. It also returns early at :431-434 once a snapshot exists, so a re-run of `--samples` checks nothing. `runPlan` (:679-686) compares a rebuilt `brief` with the read (:684-685) but takes a rebuilt `review-package` as is (:683). `f.base` has one consumer, benchmark.mjs:680. `grep review-package packages/core/test/benchmark-*.test.ts` → no test.
+- Other samples: `git merge-base --is-ancestor <f.base> <s.base>` → exit 0 for reviewer 2 and final-reviewer 5 (6ead1b6/6e1edf4), final-reviewer 1 (d5586db/b7c43f8), final-reviewer 2 (786f302/60e2640), final-reviewer 3 (b5678b5/f4b7aea) and final-reviewer 4 (1dfe65b/90b6a8f). For final-reviewer 2 and 3, the first commit of the read package is the sample base (60e2640, f4b7aea). Pairs only map to the sample's own `base`/`main`, and reviewer 3 has none. So reviewer 3 is the only sample hit this way. Separate finding: in the snapshots of reviewer 2 and final-reviewer 1, 4 and 5, the `reads` entry for the package is the Read tool's "File content (…KB) exceeds maximum allowed size (256KB)…" message, not the package. For those four, `--samples` checked no package text at all. Run 3 never reached their rebuilds, so whether those pass the :171 check is not shown.
+
+## Root cause
+scripts/benchmark-samples.json, reviewer 3: the file `base` "fd80243ac273e1d28989bc650d756eb692514147" is the pre-rewrite copy of f67b830 (same tree, subject and time). It is not an ancestor of the sample `base` e711c9b, which is the rewritten copy of the run's HEAD 0125b0a. So `review-package ST-LN-7 --base fd80243` (scripts/benchmark.mjs:680, used as is at :683) diffs from merge-base 1cfc803: 29 files instead of the 8 the run read. Those extra files hold C:/Work/accord-st-9, -ln9, -st-10, -st-11 and -st-12, and scripts/round.mjs:171 correctly refuses them. The value came from the Task 12 builder rule (plan.md:727-728), which copies `--base` as is but remaps the sample `base` onto rewritten history (plan.md:710-722). Nothing in code checks it: `checkSamples` (round.mjs:53) only checks the SHA form; `snapshotSample` (benchmark.mjs:454-477) checks only the read text and returns early for an existing snapshot (:431-434); `runPlan` (:683) uses the rebuilt package without comparing it.
+
+## Fixes
+- Fix 1, 35cb1ea: `checkFileBases` refuses, on every `--samples` and `--plan` before any snapshot, worktree or brief, a review-package file base that is not an ancestor of its sample base; `packageDrift` refuses a rebuilt package that differs from the run's read when that read is the package; reviewer 3's file base is now f67b830. Reproduction test `risk:regression a review-package file base that is not an ancestor of the sample base is refused before any brief is written` failed before the fix ("checkFileBases is not a function"); `npx vitest run packages/core/test/benchmark-` → 5 files, 34 passed.
+- Review round 8 found Fix 1's check unwired and its whole-text package comparison refusing reviewer 3 itself; fixed in 60ac048 (wired in `runSamples` and `runPlan`, changed-file sets compared, a cut read judged on the files it shows); round 9 re-review found no Must or Should; `npx vitest run packages/core/test/benchmark-` → 34 passed.
+
+## Resolved
+Root cause: reviewer 3's review-package file base fd80243 predates ST-LN-7's history rewrite and is not an ancestor of its sample base, so `--plan` rebuilt a package of the whole branch; fixed in 35cb1ea and 60ac048 by moving it to its rewritten copy f67b830 and by `checkFileBases` and `packageDrift`, which refuse a stale file base and a rebuilt package whose changed files differ from what the run read.
+
+## Episode 4
+
+## Symptom
+Round 1 dispatch, after `--plan` run 4 exited 0. Both replayed runs of critic 3 (`bench r1 critic-3-medium`, `bench r1 critic-3-high`, brief C:/Work/accord-bench/briefs/critic-3-<effort>.md) report that the plan in their worktree does not hold the change the brief's diff describes:
+
+- C:/Work/accord-bench/wt/critic-3/accord/tickets/ST-LN-33/plan.md has `plan_hash: "fnv1a64:ec8cff4c1770af3b"` and the old line 112-113 (`w(26,'d')`); the diff C:/Work/accord-bench/files/critic-3-medium/plan-r2.diff goes from `fnv1a64:69b6681aec286f65` to `fnv1a64:b2cf27f6b550dba1`.
+- plan-review.md there holds only `## Round 1 (whole)`, while the brief names "finding 2.1".
+
+The sample (scripts/benchmark-samples.json, accord-critic n 3) has base 6deb441 ("plan: ST-LN-33 round 1, 0 Must, 2 Should"), root C:/Work/accord-st-ln-33, and one file, the diff. Its snapshot C:/Work/accord-bench/samples/critic-3/sample.json records only that diff under `reads`. The original run, in C:/Work/accord-st-ln-33, presumably read a working tree holding uncommitted planner edits (plan.md at 69b6681a, a round 2 in plan-review.md), which a worktree at the sample base cannot show. So the replayed run does not see what the original run saw, and its output cannot be compared with the reference.
+
+Critic 4 is also a diff-mode sample ("diff of plan.md since the round 2 commit") and may have the same gap; other samples whose original run read uncommitted files would too. Dispatch is paused after 14 of 130 runs (planner 1 all three, executor 1 low done; executor 1 medium and high, critic 1 and 2 all three running; critic 3 medium and high done on the gap).
+
+## Hypotheses
+1. The run read a state that a commit made in the same main-session turn as the dispatch holds. The sample `base` misses it because the base rule takes the newest commit at or before the dispatch timestamp (plan.md:718), and that commit's author time is later than the dispatch line. — for: 0790ac2 "plan: ST-LN-33 round 2, 0 Must, 1 Should" was committed 16 s before the run's first record. — against: none found.
+2. The run read uncommitted working-tree edits that no commit holds; this is the symptom's presumption. — for: the planner fix and the round 2 review were made in the main session just before the dispatch. — against: see probes 2-3. For critic 3 a commit holds all of it. For other samples this one holds (probe 6).
+3. The replayed worktree is not at its sample base: a stale worktree, or `prepareWorktree` reused a wrong record. — for: run 4 re-used the worktrees from runs 1-3. — against: see probe 5.
+4. The measurement is wrong: the replayed critic misread its files, or the brief rewrite sent it to other files. — for: none. — against: the replayed run's quotes (plan_hash ec8cff4c, only `## Round 1`) are exactly `git show 6deb441:` of those paths.
+
+Ranked: 1, 2, 3, 4.
+
+## Probes
+- The critic 3 transcript (C--Work-accord/b9493812-…/subagents/agent-addb1be4a5cd92960.jsonl), its Read results (`toolUseResult.file`). The run read plan-r2.diff (whole), plan-review.md (whole, 10 lines: Round 1 marked "fixed" and `## Round 2 (diff)` 1. Should, "open"), ST-LN-33.md (whole) and plan.md lines 90-139. Lines 112-115 of that plan.md are the diff's after side (`w(12,'d') + ' benchmark.mjs ' …`). So the run saw plan_hash b2cf27f6 (the fixed plan), not 69b6681a. 69b6681a is the diff's before side. → the symptom's "plan.md at 69b6681a" is wrong. The run read the plan after the 2.1 fix.
+- `git show 6deb441:…/plan-review.md` → only `## Round 1 (whole)`, with findings 1.1 and 1.2 "open". `git grep plan_hash` → 6deb441 ec8cff4c (line 112 has `w(26,'d')`), 0790ac2 b2cf27f6, 821cb8b 69b6681a, be0902e and 9e22d52 b2cf27f6.
+- Scratch probe C:/Users/LUANNG~1/AppData/Local/Temp/claude/C--Work-accord/2c76daea-883d-4bcc-b318-c2e16eae0d09/scratchpad/readdrift.mjs. It compares every Read and `cat` result under `root` with `git show <base>:<rel>`, skipping reads made after the run's own Edit or Write of that file. It compares by the start line and line count the Read shows, plus `totalLines`. It then searches every commit from the base time to one hour after the dispatch for one that matches all the reads. For critic 3: plan-review.md and plan.md differ at 6deb441, and every read matches 0790ac2. Nothing else matches. → 2 is ruled out for critic 3.
+- Main session b9493812.jsonl:1150-1170. At 07:19:21.851Z it stages `git add plan.md plan-review.md ledger.md`. At 07:19:22.552Z it runs `git commit -q -m "plan: ST-LN-33 round 2, 0 Must, 1 Should"`. At 07:19:25.259Z the `Agent` tool_use dispatches critic 3. These are one turn, and the tools run after the turn is streamed. 0790ac2's author time is 1792567167 (07:19:27Z). The snapshot's dispatch `ts` is 1792567165259 (C:/Work/accord-bench/samples/critic-3/sample.json:5). Plan.md:718 takes "the newest author time at or before the dispatch", which gives 6deb441 (1792566877). → confirms 1.
+- C:/Work/accord/.git/worktrees/critic-3/HEAD = 6deb441, and round-1.json `worktrees.critic-3.base` = 6deb441. The worktree is at its sample base → 3 ruled out. The replayed reads equal `git show 6deb441:` → 4 ruled out.
+- readdrift.mjs over all 45 samples, then a per-file diff of each finding (rdiff.mjs) and the time of each drifted read (turns.mjs). Every drifted read below falls inside the first assignment, before any later coordinator message. Samples with a read under `root` that differs from `base`:
+  - critic 1 (8efa8fc, round 2 whole of ST-LN-34): plan.md, 563 lines against 526. This equals c5ed054's plan.md, which was committed 9 min later. ledger.md, 35 lines against 31: c5ed054's ledger without its last line, a round 2 deferred item. plan-review.md matches the base (round 1 open). No commit holds that combination. This confirms the main session's lead.
+  - critic 3 (6deb441): plan-review.md and plan.md. All the reads are at 0790ac2.
+  - critic 4 (b8d77ca, diff mode, ST-LN-8): plan.md lines 188-297 differ at 193. The diff's own `index 1b0bac5..d83a8d8` line names b8d77ca's blob before and 822b95e's blob after ("plan: ST-LN-8 ready", 09:12:39, after the run). plan-review.md and the ticket match only the base. No commit holds all the reads.
+  - planner 3 (6deb441, the 2.1 fix): plan.md read whole, 176 lines against 170 (the round 1 fixes). 821cb8b holds it, a commit made later, "round 2 base, plan.md before the 2.1 fix". Its plan-review.md already has round 3 and `## Closed`.
+  - reviewer 2 (6e1edf4): ST-LN-8 ledger.md has one more Ruling than the base ("review round 1 uses an intent and a quality reviewer in parallel …").
+  - final-reviewer 5 (6e1edf4): the same Ruling, plus the deferred review items 1.1 and 1.2 in ledger.md.
+  - final-reviewer 4 (90b6a8f): ST-LN-26 ledger.md has two more Rulings (the review lens choice and an unnumbered Should).
+  - auditor 1-5: the ticket each one audits differs from its base. Auditor 1 read ST-LN-14.md at 116 lines, base 66 (the old backlog draft). Auditor 2 read ST-LN-31.md at 104 lines, base 62. Auditor 3 read ST-LN-34.md at 98, base 58. Auditor 4 read ST-LN-33.md at 96, base 58. Auditor 5 read ST-LN-30.md at 110, base 107: @ac-5 is reworded and D-09/D-10 are added. No commit in the window matches any of the five.
+  - Not counted: planner 1. Its whole plan.md read was cut by the Read tool (551 of 1077 lines, then a read from line 552), and both parts match the base. Architect 1 differs only in reads after the coordinator's revision messages at 13:44 and 13:56 (ST-LN-31.md `depends_on`, ledger.md absent at base). Its dispatch-time reads match the base.
+  - The other 30 samples: no drift in their Read and `cat` results.
+- Why nothing caught it. `snapshotSample` (scripts/benchmark.mjs:448-452) checks only that each root path named in the prompt exists at base (`existsAt`), never its content. `reads` in the snapshot are kept only for `files` (:481). `parseRun` (:226-229) strips the Read line numbers, so a cut read cannot be told from a whole one. `runPlan` creates every worktree at `s.base` (:676) and writes nothing under `root`. `prepareWorktree` (:553-566) reuses an existing record without comparing `rec.base` with `spec.base`, so a changed sample base would be ignored by the existing wt/<key>. `matchRuns` (scripts/round.mjs:284-288) counts every run with the description `bench r1 <tag>`, so re-dispatching critic 1 or critic 3 gives a duplicate and `--round 1` exits 2 (benchmark.mjs:774).
+- Side finding: the transcripts of executor 1 and final-reviewer 1 are no longer at their listed paths (C--Work-accord-st-ln-34/cfa22f34-…). They are under C--Work-accord/cfa22f34-…/subagents/. Their snapshots exist, so `--plan` is not affected. I do not understand why the session folder moved.
+
+## Root cause
+The sample model assumes that the checkout the original run read equals a commit, the sample `base`. For 12 of the 45 samples it does not. The Task 12 builder rule (accord/tickets/ST-LN-14/plan.md:714-722) takes "the commit with the newest author time at or before the dispatch". Two things defeat it:
+- Same-turn commits. For critic 3 the main session ran `git commit` (0790ac2, author time 07:19:27Z) in the same turn as the `Agent` dispatch (07:19:25.259Z). The rule picks 6deb441, which lacks round 2 in plan-review.md and the 2.1 fix in plan.md. Every read of the run matches 0790ac2.
+- Uncommitted edits. For critic 1, critic 4, planner 3, reviewer 2, final-reviewer 4 and 5, and auditors 1-5, the run read working-tree edits that no single commit holds: plan fixes, ledger Rulings and deferred items, or the ticket being drafted.
+Code check: nothing compares what a run read under `root` with `base`. `snapshotSample` (scripts/benchmark.mjs:448-452) checks only that the files exist. `runPlan` (:676) builds every worktree at `s.base` and overlays nothing. All 45 samples go through these two functions, so that is where the check belongs.
+
+## Fixes
+- Fix 1, ecaab9c: `--samples` and `--plan` compare every root read of a run with its replay worktree (base plus overlay) and refuse a difference; the sample list gives the 12 drifted samples an `overlay` (critic 3 a new base, 0790ac2); a changed worktree is rebuilt and earlier runs on it are superseded. The executor`s 45-sample check, reading the transcripts directly: 33 of 45 pass before the data change, 45 of 45 after. `npx vitest related --run` over the changed files: 4 files, 29 passed; the executor`s `npx vitest run packages/core/test/benchmark-`: 5 files, 37 passed.
+- Fix 2, 58f0b26 (review round 10): a transcript is found by its `<session>/subagents/<agent file>` tail, so the two samples Claude Code moved to `C--Work-accord` resolve and `--samples` can write every root-reads.json; removeWorktree compares the run branch with its base before any deletion; `--round 1 --plan --rerun <tags>` keeps a writer`s run commits under `refs/keep/bench/<tag>/<k>`, rebuilds it and supersedes the earlier run. `npx vitest related --run` over the changed files: 2 files, 22 passed; the executor`s `npx vitest run packages/core/test/benchmark-`: 5 files, 45 passed. Its new tests failed against the old script (3 process tests and the removeWorktree test).
+
+## Symptom 2
+Round 1 replays of accord-verifier, 2026-10-22, after Fix 2 and a passing `--samples` (45 of 45 root-reads.json written). Every verifier brief says the full suite just ran and names its JUnit report at node_modules/.cache/accord/junit.xml (verifier 1: "69 files, 1401 passed, 3 skipped"), but none of the 15 verifier replay worktrees under C:/Work/accord-bench/wt/verifier-* holds that file. Two replays reported it: verifier-1-low ("The JUnit report at node_modules/.cache/accord/junit.xml does not exist in this worktree, so I did not check the 1401-passed claim") and verifier-3-low ("was not at node_modules/.cache/accord/junit.xml in this worktree, so I did not use it"); both then ran test files themselves. The original runs were dispatched by the verify stage right after `tests.full`, so their checkout held a fresh report. Neither `--samples` nor `--plan` flagged the difference. Unknown: whether the original verifier runs read the report (with Read, Grep or a shell command), why the root-read check passed, and whether other roles (reviewer, final-reviewer, executor) also saw a report or other ignored files the replays lack.
+
+## Hypotheses 2
+1. Out of scope: the original verifiers read the report only through shell commands, and the root-read check sees only the Read tool and a bare `cat <one file>`. `parseRun` (scripts/benchmark.mjs:226-236) records nothing else, so `rootReads` and `sampleDrift` never see the report. — for: verifier briefs give the path relative to the root, which suits `grep ... node_modules/.cache/accord/junit.xml` after `cd <root>`. — against: none found.
+2. Skipped as ignored: `rootReads` or `sampleDrift` leave out git-ignored paths, so a Read of the report was dropped. — for: node_modules/ is ignored. — against: `rootReads` (:433-439) filters only on `start`, `wrote`, `ts` and the root prefix. `sampleDrift` (:459) reports a read file that is missing at base as "does not exist in the replay worktree".
+3. Absent: the original verifiers never read the report, so no check could flag it. — for: the briefs only say it exists. — against: see probe 1.
+4. The measurement is fine as it is. Every effort of a sample replays without the report, so runs are compared like for like, and a verifier holds by its fail/blocked marks (D-08), which a missing report need not change. — for: probe 5, all replay verdicts so far equal the originals' (every criterion pass). — against: probe 5, every replay first fails on the report and then runs tests the original did not run. Also the brief states a fact that is false in the worktree.
+5. The symptom is wrong: the report is somewhere else in the worktree, or the replays looked in the wrong place. — for: none. — against: probe 3.
+
+Ranked: 1, 4, 2, 3, 5.
+
+## Probes 2
+Line numbers in scripts/benchmark.mjs are at 750bbe1. L<n> is a jsonl line of the transcript named.
+- Every tool use in the five original verifier transcripts, listed by a scratch script: C:/Users/LUANNG~1/AppData/Local/Temp/claude/C--Work-accord/2c76daea-883d-4bcc-b318-c2e16eae0d09/scratchpad/s2/tools.mjs. Every verifier read the report, always by Bash, always as the relative path `node_modules/.cache/accord/junit.xml`, and never by Read, Grep or Glob:
+  - verifier 1 (C--Work-accord-st-ln-30/27360965-…/agent-aba02efe65e7df99f.jsonl): L29, L38, L64, L73. For example `cd C:/Work/accord-st-ln-30 && … grep -c "testcase" node_modules/.cache/accord/junit.xml; grep -o '<testcase[^>]*ac-[1-5]-…'`.
+  - verifier 2 (C--Work-accord/cfa22f34-…/agent-a114d38231bc151a2.jsonl): L35, L60, L73. L45 was a `node -e` readFileSync of the report that the worktree guard refused.
+  - verifier 3 (C--Work-accord/b9493812-…/agent-a53d9e271a71fd37d.jsonl): L34, L43.
+  - verifier 4 (C--Work-accord-st-ln-8/54bc8e69-…/agent-aef7713387f513c06.jsonl): L29, L37, L46 (`head -c 600 $J` shows `tests="1376" failures="0"`), L59, L75. L67 was refused.
+  - verifier 5 (C--Work-accord/0faa2b47-…/agent-a7801d55423a08bd6.jsonl): L35, L44, L52.
+  The report was evidence, not a side look. The handbacks of verifiers 2, 3 and 4 say they ran no tests and took the pass results from the report ("I did not run the tests myself", "I did not run the suite again", "I did not re-run the suite. I relied on the JUnit report"). Verifier 5 cites junit.xml for all four tests. Verifier 1 cites the report and also started two test files, which finished after its handback (L52, L101). → rules out 3 and supports 1.
+- Read scripts/benchmark.mjs:226-236. A read is a `Read` result, or a Bash result whose whole command is `cat <one path>`. packages/core/test/benchmark-reader.test.ts:103-160 asserts that `cat -n` and a two-file `cat` are not reads. The stored C:/Work/accord-bench/samples/verifier-<n>/root-reads.json files hold only the ticket file, plus one source file for verifiers 1 and 2. None holds the report. `rootReads` (:433-439) has no ignore filter, so a Read of the report would have reached `sampleDrift` and been flagged at :459. `snapshotSample`'s prompt-path check (:496-500) matches only paths that begin with the root, and all five briefs name the report relative (samples/verifier-<n>/sample.json `prompt`). → confirms 1 and rules out 2. The same scope limit holds for tracked files: shell reads such as verifier 1's `sed -n 1340,1480p packages/cli/test/worktree.test.ts` are not compared with the replay worktree either.
+- Glob `*/node_modules/.cache/accord/junit.xml` under C:/Work/accord-bench/wt → only executor-1..5-medium. Those reports come from `runSuite` at base (:834-842), which runs for the current-effort executor row alone. Glob `verifier-*/packages/cli/dist/cli.js` → all 15 verifier worktrees. `setupAt` (:746) gives `npm ci`, `npm run build`, `npm rebuild @accord-dev/accord --ignore-scripts` at all five verifier bases (`git show <base>:accord/config.yml`). They rebuild node_modules and dist, and none writes the report. `tests.full` is the only command that writes it (accord/config.yml:16-18). `prepareWorktree` (:688-694) runs only setup and the overlay. → the replay does not recreate the report. Rules out 5.
+- Every one of the 45 sample transcripts scanned for any tool use that names an ignored or generated path (C:/Users/LUANNG~1/AppData/Local/Temp/claude/C--Work-accord/2c76daea-883d-4bcc-b318-c2e16eae0d09/scratchpad/s2/ignored.mjs):
+  - Executors 1-5 use dist through `npm run build` and `node packages/cli/dist/cli.js skills sync`. Executor 2 (L198) and executor 5 (L85) read a report only in the same command that writes it (`--outputFile.junit=node_modules/.cache/accord/junit.xml`). No executor reads a report it did not write. Side finding: only the current-effort executor worktrees hold a report from base time; low and high hold none.
+  - Reviewer 1 (L148, L201, L218), reviewer 2 (L203), reviewer 4 (L120) and final-reviewer 1 (L259-278) read or run packages/*/dist, which setup's `npm run build` rebuilds at base. The strings they checked are in the base sources (`git grep` at d62a680 and b7c43f8). I do not know whether the original dist was byte-identical to a build at base.
+  - Final-reviewer 1 (L56, L76, L373) saw an empty .vitest/junit folder. The committed file there was removed in 7880617, before base b7c43f8. Its finding comes from git history, which the replay has.
+  - Critic 5 (L161, L169) greps node_modules/@types/node, and scout 1 (L278-291) greps node_modules/vitest/dist. `npm ci` installs both from the base lockfile.
+  - Every other hit is a false match of the scan: a `!**/node_modules/**` exclusion glob, the tracked packages/core/src/load/junit.ts, or `console.log`. Planners, auditors, critics 2 and 3, reviewers 3 and 5, final-reviewer 5 and architect 4 have none.
+  - Conclusion: only the verifiers depend on state that only `tests.full` makes.
+- The replay transcripts, C--Work-accord/2c76daea-883d-4bcc-b318-c2e16eae0d09/subagents/: 8 runs so far (verifier 1 low, medium and high; 2 low; 3 low, medium and high; 5 low).
+  - Each one first tries the report and fails. Verifier-1-high L67: "grep: node_modules/.cache/accord/junit.xml: No such file or directory". Verifier-3-medium L34: a python Traceback on open(). Verifier-5-low L51: "ls: cannot access 'node_modules/.cache'".
+  - Each then runs test files itself. Verifier-1-medium L50: `npx vitest run packages/cli/test/worktree.test.ts -t …`, 5 passed, 59 skipped. Verifier-2-low L52 was moved to the background after its 300 s timeout and has no handback yet (81 lines).
+  - The 7 handbacks pass every criterion, as the originals did.
+  → for 4: the hold verdicts have not changed so far. Against 4: every replay does work its original did not do, so median minutes and tokens per effort (ac-3) measure another task. Under D-08, a run that marks a criterion blocked for want of the report would set the bar for the other efforts of that sample, so the result would depend on how a run treats the missing report, not on its effort.
+
+## Root cause 2
+What the original verifier read at dispatch included one file that is neither committed nor rebuilt: the verify stage runs `tests.full` right before the dispatch, and that writes the JUnit report node_modules/.cache/accord/junit.xml (accord/config.yml:16-18). All five originals read it as evidence, by Bash `grep`/`head` on the relative path. Verifiers 2-4 ran no tests and took every pass from it (probe 1).
+- The replay never recreates it. For a verifier row, `prepareWorktree` (scripts/benchmark.mjs:688-694, called from `runPlan` at :830) runs only `setupAt` (:746: `npm ci`, build, rebuild) and the overlay. `runSuite`, the only caller of `tests.full` in `--plan`, runs at :834-842 for the current executor row alone. Glob finds the report only in the executor-*-medium worktrees.
+- Nothing flags the gap. `parseRun` (:226-236) records a read only for the Read tool or a bare one-file `cat`, so shell reads never reach `rootReads` (:433) or `sampleDrift` (:442). The paths were not skipped because they are ignored: `rootReads` has no ignore filter. `snapshotSample`'s prompt-path check (:496-500) matches only paths under the root, and every brief names the report relative.
+- Of the 45 samples, only the 5 verifiers depend on such state (probe 4). Dist and node_modules reads by other roles are rebuilt by setup at base.
+- The measurement is not fine as it is. The hold verdicts are unchanged so far, but every replay hits the missing report and then runs tests its original did not run (probe 5).
+- Fix 3, 434373d (root cause 2, with review round 12): each accord-verifier replay worktree gets the `tests.report` of `tests.full` at its base (one run per sample, copied to its effort siblings), `--plan` exits 2 naming a missing report, and older verifier worktrees are rebuilt so their runs are superseded; two `risk:data-loss` tests now hold `--rerun`'s two-ref case and its unreadable-HEAD refusal. The reproduction test failed before the fix with `ENOENT ... wt\verifier-1-high\node_modules\.cache\accord\junit.xml`. `npx vitest related --run` over the changed files: 1 file, 25 passed; the executor's `npx vitest run packages/core/test/benchmark-`: 5 files, 51 passed.
+
+## Symptom 3
+`node scripts/benchmark.mjs --round 1 --plan --rerun executor-1-low,…,executor-3-medium` at 8ae914e, 2026-10-22, exit 2 after one row. stdout: `kept executor-1-low's earlier commits at refs/keep/bench/executor-1-low/1`. stderr: `executor-1-low: C:/Work/accord-bench/wt/executor-1-low already exists (setup is repeated on the next --plan run)`. Afterwards: the worktree is no longer in `git worktree list`, `refs/heads/bench/executor-1-low` is gone, `refs/keep/bench/executor-1-low/1` is eb49b8b, round-1.json has no `worktrees['executor-1-low']`, and the folder still exists holding only the empty directories node_modules/@accord-dev/{accord,accord-core,accord-mcp} (0 files). So `rerunWorktree` → `removeWorktree` (`git worktree remove --force`, scripts/benchmark.mjs:643) returned without error but left the folder, and `addWorktree` (:621) refused it. Every rebuild on this machine (`prepareWorktree` :679-683, the 27 changed worktrees of this `--plan`) goes through the same removal.
+
+## Hypotheses 3
+1. Git for Windows' `git worktree remove --force` deletes every regular file and folder but skips a directory junction and the folders above it, and still exits 0. `npm ci` in setup makes the workspace links node_modules/@accord-dev/{accord,accord-core,accord-mcp} as junctions to packages/{cli,core,mcp}. Git deletes the targets with the rest of the tree, so the junctions are left dangling, and Glob shows them as empty folders. — for: the three leftover names are exactly the three workspace links. This checkout's own links are `<JUNCTION>` (probe 1). — against: none found.
+2. A process holding the folder open (a vitest, node or esbuild process from setup or from the run) kept git from deleting it. — for: the ticket's Approach names this risk for Windows. — against: probe 4. A held folder makes git exit 255 with "failed to delete … Permission denied" and leaves the tracked files. In the symptom `removeWorktree` returned normally: `update-ref -d` ran and the branch is gone. Only the link folders remained.
+3. The measurement is wrong: something made the folder again after the removal, for example the overlay `mkdirSync` (scripts/benchmark.mjs:691) or setup, or Glob misreports it. — for: none. — against: `addWorktree` (:621) threw before `prepareWorktree` reached setup or the overlay (:689-693). The scratch reproduction gives the same leftover with no later step (probe 2).
+4. The removal went through the `worktree prune` branch (:644) because the folder looked missing, so git never deleted it. — for: `fs.existsSync` returns false for a dangling junction (probe 5). — against: `rec.path` itself is a real folder, so `existsSync(rec.path)` is true. The marker check and the HEAD check need a live `.git`, and the worktree is no longer in `git worktree list`, so `remove` ran.
+
+Ranked: 1, 2, 3, 4.
+
+## Probes 3
+Scratch: C:/Users/LUANNG~1/AppData/Local/Temp/claude/C--Work-accord/2c76daea-883d-4bcc-b318-c2e16eae0d09/scratchpad/s3. Versions: Node v24.21.0, git 2.56.0.windows.1. Nothing was run in or against C:/Work/accord-bench. Glob of C:/Work/accord-bench/wt/executor-1-low/** → no files.
+1. `dir /AL C:\Work\accord-st-ln-14\node_modules\@accord-dev` → `<JUNCTION> accord [C:\Work\accord-st-ln-14\packages\cli]`, and the same for accord-core and accord-mcp. npm workspaces on Windows link with junctions that point into the worktree's own packages/. → supports 1.
+2. A temporary repository with an npm workspace (packages/cli, packages/core, `node_modules/` ignored). `git worktree add --detach ../wt`, then `npm install --offline` in wt → node_modules/@x/{cli,core} are `<JUNCTION>`s to wt/packages/*. Then `git worktree remove --force ../wt` → exit 0, no stderr, and wt is gone from `git worktree list`. What remains: wt/node_modules/@x/cli and wt/node_modules/@x/core, still junctions to the deleted wt/packages/*, and no files. This is the symptom exactly. → confirms 1, rules out 3.
+3. Controls with one variable each:
+   - wt3: ignored node_modules/foo/.cache/r.xml plus an untracked file, no junction → `remove --force` exit 0 and the folder is gone.
+   - wt4: one junction at packages/lnk, outside node_modules, to a live folder outside → exit 0, and wt4/packages/lnk is left.
+   - wt2: a junction node_modules/@x/out to C:/…/s3/outside, which holds keep.txt → exit 0, the junction is left, and outside/keep.txt is still there.
+   The junction alone is the variable. Git does not follow it into its target. `fs.symlinkSync(target, p, 'junction')` gives the same leftover (sym.mjs).
+4. wt5: a `node -e setTimeout` process with its cwd in wt5/node_modules/held, then `git worktree remove --force` → `error: failed to delete '…/wt5': Permission denied`, exit 255. Tracked files (package.json, packages/cli/a.txt) are left, and the worktree is gone from `git worktree list` all the same. A held folder fails loudly and leaves tracked content. The symptom has neither. → rules out 2. A `mklink /D` symlink cannot be made here ("You do not have sufficient privilege"), so npm's junctions are the only links this machine makes.
+5. rm.mjs on Node v24.21.0, over the leftover folders of probes 2 and 3:
+   - `lstatSync(j).isSymbolicLink()` is true for a junction, and `isDirectory()` is false.
+   - `existsSync(j)` is false when the target is gone and true when it is live.
+   - `fs.rmSync(dir, { recursive: true, force: true })` removes the folder when the junctions dangle. It removes the folder when the target is live too, and outside/keep.txt survives.
+   rmSync removes the link and does not follow it. → shows what removes the leftover safely. Rules out 4 as a cause: `existsSync(rec.path)` is true because the root is a real folder.
+6. What can be in the leftover after a successful forced removal. Git has already deleted every regular file: tracked, untracked and ignored (probe 3, wt3). Only junctions and the folders above them can remain. A junction that a run made to a live folder survives as a link, and rmSync leaves its target alone (probe 5). The run's commits are kept or refused before the removal (:637-642, :654-670). So the leftover holds nothing a run made that rmSync would lose. One case does hold such data: a failed removal (probe 4) leaves tracked and untracked files with no `.git`. There `gitIn` throws before anything after :643 runs.
+7. The other callers (grep `worktree', 'remove`, removeWorktree, rerunWorktree, prepareWorktree, cleanWorktrees):
+   - `removeWorktree` (:643) is the one removal for `rerunWorktree` (:671) and for the rebuild in `prepareWorktree` (:679-683). Each is followed by `addWorktree` on the same path, and that refuses an existing folder (:621). So every rebuild on Windows fails at the first worktree whose setup ran `npm ci`, and setup runs for every row (:832).
+   - `cleanWorktrees` (:727) calls `git worktree remove --force` directly. It reports the path as `removed` and leaves the same folder behind.
+   - After the failure, round-1.json has no record for the key, so the next `--plan` goes straight to `addWorktree` and refuses again. The message's "setup is repeated on the next --plan run" is false here.
+   - No test creates a link in a worktree (benchmark-worktree.test.ts, every prepare and rerun test uses `() => {}` or `none` as setup), so CI never saw this. On POSIX, npm links are symlinks, which git unlinks, so the bug is Windows only. I did not run that on POSIX.
+8. C:/Work/accord-bench/round-1.json (Read) has no `preparedAt` in any record, and critic-3 is still at 6deb441. No rebuild through Fix 1's or Fix 3's code has finished on this machine. The `--rerun` run hit this bug at its first row.
+
+## Root cause 3
+`removeWorktree` (scripts/benchmark.mjs:643) and `cleanWorktrees` (:727) treat the exit 0 of `git worktree remove --force` as proof that the folder is gone. On Windows it is not. Git for Windows deletes the tree and unregisters the worktree, but it skips directory junctions and the folders above them, and still exits 0 (probes 2-3). Setup's `npm ci` (accord/config.yml `setup:`, run by `setupAt` :746-747 via :832) makes node_modules/@accord-dev/{accord,accord-core,accord-mcp} as junctions into the worktree's own packages/ (probe 1). After the removal those three links are left dangling under a real folder. Then `addWorktree` (:621) refuses the path with "already exists". It does so on this rerun, on every rebuild in `prepareWorktree` (:679-683), and on every later `--plan`, because the record is already deleted. The leftover holds only links. Node v24.21.0's `fs.rmSync(path, { recursive: true, force: true })` removes such a folder and does not follow a link into its target, whether the target is live or gone (probe 5). That is safe only after git's removal has succeeded: a failed removal leaves tracked files and throws first (probe 4). Ruled out: a process holding the folder (probe 4 fails loudly with exit 255 and leaves tracked files), a folder made again after the removal (probe 2 reproduces the leftover with no later step), and the prune branch (probe 5: the root is a real folder).
+- Fix 4, 68c0cb2 (root cause 3, with review round 13): one shared removal after `git worktree remove --force` deletes a leftover folder that holds only links (lstat, never following one) and refuses any regular file, used by `removeWorktree` and `cleanWorktrees`; a rebuild refusal now prints a matching hint; a verifier base without `tests.report` exits 2 naming it; a counted test holds one suite run per verifier sample. The reproduction test failed before the fix with `.../wt/e already exists` at addWorktree. `npx vitest related --run` over the changed files: 1 file, 28 passed; the executor's `npx vitest run packages/core/test/benchmark-`: 5 files, 54 passed.
+- Fix 4 follow-up, 9cab86a (review round 14): `removeLeftover` and `planHint` are separate, tested functions; a mutation run in a scratch copy failed every new test on its mutation. `npx vitest related --run` over the changed files: 1 file, 30 passed.
+
+## Episode 5
+
+## Symptom
+Round 1 judging, 2026-10-22 (the main session's report, not a failing command). `node scripts/benchmark.mjs --round 1 --judge "C:/Users/LUANNG~1/.claude/projects/C--Work-accord"` from C:/Work/accord-st-ln-14 wrote C:/Work/accord-bench/briefs/reviewer-1-medium-judge.md. Between `=== report ===` and `=== end ===` it holds only this text: "The report was already delivered, and this notification adds nothing new. The background run finished as I had already read it from the output file. `lane-commands.test.ts` passed 78 of 78. I never saw the `tsc` output because the command's `tail` swallowed it, so it is not part of what I checked.\n\nNothing in the three findings changes." Its judge (agent a157a16ef50a97573, dispatched 14:31:29Z) answered `M1: missed`, `new Musts: 0`, saying the report states no findings at all. The run (accord-reviewer, "bench r1 reviewer-1-medium", C--Work-accord/2c76daea-…/subagents/agent-a804bd7047bc69e91.jsonl) reported its findings by SubagentHandback. It was then woken by its own background task's notification and wrote that text.
+
+## Hypotheses
+1. `parseRun` lets a text written after the hand-back replace it. At scripts/benchmark.mjs:265, `lastText` is set by every non-empty text item. At :273 it is set only at a SubagentHandback. Items are read in transcript order, so a text in a later turn wins. `judgeBrief` gets `run.lastText` as `report` (:1002-1003). — for: the transcript has the hand-back at L182 and the notification at L187, then the text at L194. The brief's report is the L194 text. — against: none found.
+2. The measurement or the scan is wrong. Either the brief came from another run with the same description (a superseded or duplicate run, or a brief edited by hand), or the scan counts a text streamed in the same message as the hand-back as "after". — for: two meta files name "bench r1 reviewer-1-medium". — against: probes 1-2.
+3. The hand-back was not captured (no `message`, or a streamed copy without it), so the reader fell back to the last text. — for: a hand-back tool_use is streamed as more than one line. — against: probe 3.
+4. The judge was right anyway: the medium run reported the reference issue as a Should, not a Must, so `M1: missed` would stand on the right report. — for: the hand-back's finding 1 is "Should — intent — No Ruling records the conventions.md decision". — against: the judge said that the report states no findings. That is a verdict on the wrong text. The question asks about "the same issue, whatever its wording", and M1 is that issue.
+
+Ranked: 1, 3, 2, 4.
+
+## Probes
+Scratch: C:/Users/LUANNG~1/AppData/Local/Temp/claude/C--Work-accord/2c76daea-883d-4bcc-b318-c2e16eae0d09/scratchpad/s5. These scripts import the worktree's scripts/benchmark.mjs and round.mjs and read only. Nothing was run in or against C:/Work/accord-bench. That folder was read with Read and Grep only.
+- `grep -l '"bench r1 reviewer-1-medium'` over the session's *.meta.json → two files. a804bd7047bc69e91 is the accord-reviewer run, and a157a16ef50a97573 is its judge ("… judge", accord-critic). So there is one run of the row → rules out the duplicate in 2.
+- A dump of that transcript's text and tool items. L182 (10:31:17.571Z) is the SubagentHandback, with 2 Should and 1 Nice under `Findings:`. L187 (10:31:19Z) is a user string "[SYSTEM NOTIFICATION - NOT USER INPUT] … background-task event". L194 (10:31:36.218Z) is a text: the brief's report, word for word. The text is a separate turn after a notification, not part of the hand-back's message → rules out the scan half of 2.
+- after.mjs: `readSessions(['…/projects/C--Work-accord'])`. For every "bench r1" run, it compares `lastText` with `handbacks.at(-1).text`. 212 runs. Six differ, the same six as posthandback.mjs: reviewer-1-medium a804bd7; executor-2-low aa20a80 (counted: its dispatch is after its worktree's preparedAt 1792672109236) and af0bcdc (superseded); executor-4-medium af501fd; verifier-1-high acc0d39 (counted, after preparedAt 1792673097603) and afb732e (superseded). Each one has `handbacks: 1` holding the full report, and its `lastText` is the later text. `outcome` is '' for all six; three hand-backs start "DONE" or "DONE_WITH_CONCERNS". Judges with a later text: 0 of 61. Runs with no hand-back: only the three planner-5 judges, where the last text is the only report → confirms 1, rules out 3.
+- Read C:/Work/accord-bench/briefs/verifier-1-high-judge.md → its report is acc0d39's hand-back ("All five criteria of ST-LN-30 pass …"), not its later text. times.mjs: acc0d39's later text is at 14:26:46.692Z. The parseRun lines are unchanged since cfd7977 (2026-10-21, `git log -S`). So this brief was written before that text existed. It is right only because of timing, and the next `--round 1 --judge` would rewrite it with the later text. No judge has been dispatched for verifier-1-high yet.
+- Each caller of `lastText`, at HEAD 2d08756 (grep `lastText|handbacks|outcome` over scripts/):
+  - benchmark.mjs:984 `referenceOf`: `mustsOf(agent, <current-effort run>.lastText, …)` is the reference list of every finding row.
+  - :1002 and :1003: the judge brief's `report` for match and fact kinds. The verifier gets `lastText` + verification.md.
+  - :1020: `parseVerdict(…, j.lastText, …)`, the judge's own verdict.
+  - :300 `outcome`: no reader outside the run object (round.mjs and compliance.mjs never read it).
+  - compliance.mjs:106 reads `handbacks`, not `lastText`.
+  - The legacy `readRun` (:39-40) has the same overwrite. It feeds only `legacyReport`: findings (:58 → :173) and outcome (:62 → :161).
+  - Commits come from every hand-back (:275) and git summary lines, so the later text does not change them.
+- Which of the six change what the round scores:
+  - reviewer-1-medium: yes. The reviewer's current effort is high (.claude/agents/accord-reviewer.md:6), so medium is a judged non-current row. Its brief held the wrong report, and its verdict decides `holds` (round.mjs:253) and so `suggest`.
+  - verifier-1-high: the judge's input changes. The current effort is medium. The reference is read from verification.md ("marked no criterion fail or blocked"), so `holds` is true without a verdict (round.mjs:253, reference 0). `better` (round.mjs:356-359) still reads its verdict's `newMusts`. The trailing text replaces the hand-back but verification.md stays in the brief, so the marks the judge counts are still there. Whether the verdict changes is not shown.
+  - executor-2-low aa20a80 and executor-4-medium: no. Their judge brief is the review package (:994-998), their hold is the suite plus the judge's `Must findings` line, and `outcome` is not read.
+  - executor-2-low af0bcdc and verifier-1-high afb732e: no. Both are superseded (dispatched before their worktree's preparedAt), so matchRuns does not count them.
+  - No current-effort finding run is among the six, so no reference list changed this round.
+- judge.mjs: `matchRuns([row], runs, { judges: true })` for row reviewer-1-medium. Its worktree reviewer-1 has no `preparedAt` (round-1.json Grep), so `row.prepared` is undefined. With the run and the existing judge, the judge is a157a16 and there is no duplicate. Add a second judge with the same description, dispatched now → `duplicate: ["bench r1 reviewer-1-medium judge (2 runs)"]`, `superseded: []`. The old judge's prompt names the brief file by path ("Your brief is the file C:/Work/accord-bench/briefs/reviewer-1-medium-judge.md …"), so `runProblem` (round.mjs:272) still accepts it after the brief is rewritten.
+
+## Root cause
+scripts/benchmark.mjs:265, in `parseRun`: `if (c.type === 'text' && c.text.trim()) lastText = c.text;` runs for every text item in transcript order. The hand-back only sets `lastText` at its own item (:273). So a text an agent writes after its SubagentHandback, when Claude Code wakes it with a background-task notification, replaces the report it delivered. reviewer-1-medium's transcript has the hand-back at L182, the notification at L187 and the text at L194. `readSessions` gives `lastText` = the L194 text, which `runRound` --judge put into the judge brief (:1002-1003 → round.mjs:298). All `lastText` consumers route through this one assignment: `referenceOf` (:984), the judge briefs (:1002-1003), the judge verdicts (:1020) and `outcome` (:300). The legacy `readRun` (:39-40) has the same overwrite, and it feeds only `legacyReport`'s findings and outcome (:58, :62).
+
+Of the six affected round-1 runs, only reviewer-1-medium changes a score as things stand. verifier-1-high's judge input changes too. Its brief holds the hand-back only because it was written before the 14:26:46Z text, and its hold does not depend on a verdict (reference 0).
+
+Re-judging today: `--judge` calls `matchRuns(…, { judges: false })` (:965). It rewrites every judge brief (:990-1007) and records nothing in round-1.json. Once a second "bench r1 reviewer-1-medium judge" is dispatched, `--round 1` exits 2 at :967 with "no run or more than one run for: bench r1 reviewer-1-medium judge (2 runs)". The only way a run is superseded is a worktree `preparedAt` (round.mjs:306-309, benchmark.mjs:707, :855). `--rerun` takes writer rows only (:829-830). Rebuilding the shared reviewer-1 worktree would also supersede the low, medium and high reviewer runs and their judges.
+
+Fix 1 (bfef2a4): `parseRun` and `readRun` take the last hand-back as the report; `--judge` stamps `judgeBriefAt` per row when a brief changes and `matchRuns` supersedes judges dispatched before it. Reproduction tests failed with scripts/ stashed ("expected 'The report was already delivered.' to be 'DONE\n1. Must — x'"; older judge not superseded). After the fix, run by the main session: `npx vitest run packages/core/test/benchmark-` → 5 files, 58 tests passed. Still to do: re-run `--judge` and re-judge reviewer-1-medium on the real bench.
+
+## Resolved
+
+Episode 5: a run report was the text written after its hand-back (scripts/benchmark.mjs lastText); fixed in bfef2a4 (last hand-back is the report, `judgeBriefAt` supersedes judges of an older brief); reviewer-1-medium re-judged, `--round 1` exited 0.
+
+## Episode 6
+
+Symptom: CI failed on 53cae8a (runs 39882742652): `ci / check` on ubuntu-latest and windows-latest, Node 22 and 24, at `npm run typecheck`:
+
+```
+packages/core/test/benchmark-reader.test.ts(140,53): error TS18046: 'r' is of type 'unknown'.
+packages/core/test/benchmark-reader.test.ts(150,86): error TS18046: 'r' is of type 'unknown'.
+```
+
+`npm run typecheck` in the worktree prints the same two errors. The last green `ci` run on this branch was a2c75bb.
+
+## Hypotheses
+1. The cast added in 58f0b26 at packages/core/test/benchmark-reader.test.ts:106, `runs: (Run & { reads: Read[] })[]`, causes it because the shared `Run` type (:7) already declares `reads: unknown[]`; the intersection `unknown[] & Read[]` resolves `find`/`some` from the first constituent, so the callback parameter is `unknown`. — for: both errors sit on `run.reads.find((r) => …)` (:140) and `run.reads.some((r) => …)` (:150), the only callbacks over `reads` in that test; the lines date from 58f0b26 (2026-10-22 18:26), after the green a2c75bb. — against: none found.
+2. A change in scripts/benchmark.mjs (`readSessions`/`rootReads` shape) leaks a type into the test. — for: benchmark.mjs changed between a2c75bb and 53cae8a. — against: the test reaches the .mjs only through a dynamic `import()` cast `as {…}`, so its declared type comes from the cast alone; tsconfig.test.json includes `src`, `test`, `schemas/*.json`, not `scripts/`.
+3. The measurement is wrong: a toolchain or tsconfig difference (TypeScript version, tsconfig.base.json) makes CI report errors the code does not have. — for: none. — against: the same two errors reproduce locally with the worktree's tsc; tsconfig.test.json and the TypeScript pin did not change in a2c75bb..53cae8a.
+
+Ranked: 1, 2, 3.
+
+## Probes
+- `git log -L139,151:packages/core/test/benchmark-reader.test.ts` → the failing lines and the cast at :105-108 all come from 58f0b26; `git log -L7,7` → `Run.reads: unknown[]` dates from cfd7977 (task 1), unchanged since. → 1 over 2.
+- `gh run list --branch t/ST-LN-14 --workflow ci` → only two `ci` runs: a2c75bb (green) and 53cae8a (red); CI is `pull_request`-triggered and no push between them ran it, so 58f0b26 was never typechecked by CI. Vitest does not typecheck, so `npx vitest run` passed throughout. → explains why the red appears only now.
+- `npx tsc -p packages/core/tsconfig.test.json` in the worktree → exactly the two errors. → 3 ruled out.
+- Scratch probe (scratchpad probe.ts, `tsc --strict`): `declare const x: { reads: unknown[] } & { reads: Read[] }; x.reads.find((r) => r.path)` → TS18046 'r' is of type 'unknown'; the same with `Omit<A, 'reads'> & { reads: Read[] }` → no error. → confirms the intersection mechanism of 1, one variable changed.
+- `grep -rn "Run & {" packages/core/test/` → two intersections: :106 (`reads`, conflicts with `Run.reads`) and :163 (`lastText`, not on `Run`, no conflict). → the fault is only :106.
+
+## Root cause
+packages/core/test/benchmark-reader.test.ts:106 (added in 58f0b26): `readSessions: (dirs: string[]) => { runs: (Run & { reads: Read[] })[] }` intersects the file's `Run` type (:7, `reads: unknown[]`) with `{ reads: Read[] }`. For `unknown[] & Read[]`, TypeScript takes `find`/`some` from `unknown[]` first, so `r` is `unknown` at :140 (`run.reads.find((r) => r.path === p)`) and :150 (`run.reads.some((r) => [...].includes(r.path))`). The scratch probe reproduces it with only that intersection, and removing `reads` from the left side clears it. The fault is in the test's type cast only; scripts/benchmark.mjs and product code are not involved. It surfaced only at 53cae8a because no `ci` run happened between a2c75bb and 53cae8a, and vitest does not typecheck. Reproduction: the failing command itself, `npm run typecheck` (step `tsc -p packages/core/tsconfig.test.json`); no new test is needed.
+
+Fix 1: 113d631, the cast at benchmark-reader.test.ts:106 is `(Omit<Run, 'reads'> & { reads: Read[] })[]`. Result: `npm run typecheck` exit 0 (all three projects), `npx vitest run packages/core/test/benchmark-reader.test.ts` 4 passed, eslint on the file clean.
+
+## Resolved
+
+A test cast intersected `Run`'s `reads: unknown[]` with `Read[]`, so `find` and `some` typed `r` as `unknown`; fixed in 113d631.
+
+## Episode 7
+
+Symptom: at verify on 4046d5d, the `tests.full` command failed with 4 timeouts (3 files failed, 1496 passed, 3 skipped, 707 s), while the same suite on 53cae8a passed all (584 s) and CI `ci` on 4046d5d passed on ubuntu and windows, Node 22 and 24. The diff 53cae8a..4046d5d changes one type cast in packages/core/test/benchmark-reader.test.ts and files under accord/tickets/ST-LN-14/.
+
+```
+FAIL |cli| test/lane-s.test.ts > risk:complex-branching lane S gate done passes a reviewed change and fails on a commit after it ... — Test timed out in 120000ms (lane-s.test.ts:97)
+FAIL |cli| test/show-approval.test.ts > ac-1 every scenario of every real ticket is rebuilt exactly from the approval view — Test timed out in 300000ms (show-approval.test.ts:124)
+FAIL |cli| test/workflow-script.test.ts > the emitted workflow script — executed > unapproved tickets in an accord-only diff ... — Test timed out in 60000ms (workflow-script.test.ts:351)
+FAIL |cli| test/workflow-script.test.ts > the emitted workflow script — executed > code in the diff or an approved ticket ... — Test timed out in 60000ms (workflow-script.test.ts:373)
+```
+
+After the run: 9 node processes, CPU load 10%.
+
+## Hypotheses
+1. Load from other processes on this machine during the second run slowed every process-spawning test by about 1.5x. Four tests that already used 66-85% of their timeout on 53cae8a went over it. — for: the failures are timeouts, not assertion errors; CI on 4046d5d is green; see probes 1-3. — against: none found.
+2. The change 53cae8a..4046d5d makes these tests slower or makes them hang. — for: it is the only change between the two runs. — against: the diff is one type cast in packages/core/test/benchmark-reader.test.ts plus accord/tickets/ST-LN-14/{debug,review}.md. show-approval.test.ts:127 reads only the top-level accord/tickets/*.md, and the other three tests build their own repositories. See probe 4.
+3. The test or measurement is wrong: the explicit per-test timeouts are close to what these tests need inside a full parallel suite on Windows. workflow-script.test.ts:289 sets 60 s, below the cli project's 90 s Windows default (packages/cli/vitest.config.ts:5). show-approval.test.ts:155 sets 300 s for a test that took 250 s on the passing run. So the outcome depends on load. — for: probe 2 (the margins). — against: this is a weakness that lets 1 cause failures, not a change between the runs. Both runs had the same limits.
+4. State left by the first run (temp folders, git locks, fs cache) slowed the second. — for: the runs were 6 minutes apart in one worktree. — against: probe 3. The slowdown is the same across files that share no state, and pure core tests did not slow down.
+
+Ranked: 1, 3, 2, 4.
+
+## Probes
+1. `tasklist` and a CIM query of node.exe command lines, 08:44. A `vitest related --run packages/cli/src/commands/worktree.ts … packages/cli/test/worktree.test.ts` started at 08:29:32 in C:/Work/accord-st-ln-25 (pids 25644/41660, fork 35896 with 2:08 CPU). Its JUnit file C:/Work/accord-st-ln-25/node_modules/.cache/accord/junit.xml has been 0 bytes since 08:29:32, so that run was still going. A Playwright e2e run (`npm run e2e:kit`, worker 30008 with 3:04 CPU and 629 MB) and a `vite preview` server in C:/Work/zencore started at 08:28:32-08:28:37. Run 2 lasted 08:29:55-08:41:42, and both loads started 1-2 minutes before it. Run 1 (08:13:33-08:23:17) ended before either started. 20 logical CPUs. → supports 1.
+2. The four tests' own times in run 1 (passing, 53cae8a) against run 2: lane-s 88.3 s against 131.7 s (limit 120 s); show-approval 250.0 s against 356.7 s (limit 300 s); workflow-script "unapproved" 39.6 s against 71.8 s (limit 60 s) and "code in the diff" 50.9 s against 65.0 s (limit 60 s). On the passing run they already used 74%, 83%, 66% and 85% of their limits. → supports 3 as the margin that 1 crosses.
+3. Per-file time ratio, run 2 over run 1, for the 27 files above 5 s (a node script over both outputs): median 1.49, range 1.12-2.01 for every git- or process-spawning file, cli and core alike, including files the diff does not touch (hook 1.58, init 1.54, dashboard 1.57, cli 2.01). Pure core files did not slow down (core gate.test.ts 0.42). → a load on the whole machine, not one test's code or state. Rules out 4 and goes against 2.
+4. `npx vitest run` of the four failing tests alone at 4046d5d, 08:44:48-08:46:30, with the probe 1 loads still running: 4 passed. Lane-s 27.1 s, workflow "unapproved" 8.1 s, workflow "code" 22.5 s, show-approval 99.9 s. The code at 4046d5d completes every one well inside its limit, and CI run 39884274976 passed on four OS/Node pairs → rules out 2.
+5. `git diff --stat 53cae8a 4046d5d` → 3 files: benchmark-reader.test.ts (1 line), ST-LN-14/debug.md and review.md. show-approval.test.ts:125-127 reads `accord/tickets/*.md` with readdirSync, not the subfolder. → none of the failing tests reads the changed files.
+
+## Root cause
+No defect in the code at 4046d5d. The failure comes from the measurement: run 2 of `tests.full` overlapped other work on this machine. A `vitest related` run of packages/cli/test/worktree.test.ts in C:/Work/accord-st-ln-25 started at 08:29:32, and a Playwright e2e run with `vite preview` in C:/Work/zencore started at 08:28:32. Run 2 started at 08:29:55 (probe 1). Every spawning test file ran about 1.49x slower (probe 3). Four tests had explicit limits close to their normal full-suite times, and those went over:
+- lane-s.test.ts:97 `}, 120_000)`: 88 s before, now over the limit.
+- show-approval.test.ts:124 `}, 300_000)` at :155: 250 s before.
+- workflow-script.test.ts:351 and :373, `{ timeout: 60_000 }` at :289: 40 s and 51 s before. That limit is below the cli default of 90 s on Windows (packages/cli/vitest.config.ts:5).
+Alone at 4046d5d, under the same loads, they pass in 27 s, 100 s, 8 s and 22 s (probe 4). The diff touches no file these tests read (probe 5), and CI passed.
+
+## Resolved
+
+The measurement was wrong: the 4046d5d verify run overlapped a vitest run in another worktree and a Playwright run, and four tests with 15-34% headroom over their normal time went past their limits; alone they pass in 27 s, 100 s, 8 s and 22 s. No code fix; the verify suite runs again on a quiet machine, and the slow tests are ST-LN-44's.

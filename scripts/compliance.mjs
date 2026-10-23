@@ -193,12 +193,14 @@ export function parseCompliance(text) {
 }
 
 export function mergeCompliance(earlier, newer) {
-  const key = (rule, l) => (rule === 'trailer' ? l.match(/commit [0-9a-f]{7} carries "[^"]*"/)?.[0] : rule === 'round-cap' ? l.match(/^- round-cap: \S+ review:/)?.[0] : undefined) ?? l;
+  // A transcript read under two project folders is one run: key it by its `<session>/subagents/<file>` tail.
+  const key = (rule, l) => (rule === 'trailer' ? l.match(/commit [0-9a-f]{7} carries "[^"]*"/)?.[0] : rule === 'round-cap' ? l.match(/^- round-cap: \S+ review:/)?.[0] : undefined) ?? l.replace(/\S+\/(?=[^/\s]+\/subagents\/)/g, '');
   const out = {};
   for (const r of RULES) {
-    const lines = [...(earlier[r] ?? [])];
-    const keys = new Set(lines.map((l) => key(r, l)));
-    for (const l of newer[r] ?? []) if (!keys.has(key(r, l))) { keys.add(key(r, l)); lines.push(l); }
+    const lines = [];
+    const keys = new Set();
+    // Earlier lines first, so the earlier line wins, and duplicates already inside the earlier file collapse too.
+    for (const l of [...(earlier[r] ?? []), ...(newer[r] ?? [])]) if (!keys.has(key(r, l))) { keys.add(key(r, l)); lines.push(l); }
     out[r] = lines;
   }
   return out;

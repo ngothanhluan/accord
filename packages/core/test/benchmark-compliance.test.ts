@@ -174,6 +174,28 @@ it('risk:data-loss a newer compliance read keeps every line of an earlier one', 
   expect(out).not.toContain(trailerNew + '\n');
 });
 
+it('risk:regression a run read under two project folders is merged into one line, the earlier one', async () => {
+  const { RULES, render, parseCompliance, mergeCompliance } = (await import(new URL('../../../scripts/compliance.mjs', import.meta.url).href)) as {
+    RULES: string[];
+    render: (result: Record<string, string[]>) => string;
+    parseCompliance: (text: string) => Record<string, string[]>;
+    mergeCompliance: (a: Record<string, string[]>, b: Record<string, string[]>) => Record<string, string[]>;
+  };
+  const empty = () => Object.fromEntries(RULES.map((r) => [r, [] as string[]]));
+  const line = (dir: string, agent: string) => `- test-first: T-1 task 2: its first edit to a source file (src/a.ts), no test edit seen through Edit or Write — ${dir}/s1/subagents/agent-${agent}.jsonl`;
+  const earlier = line('C--Work-accord-t-1', 'aaa');
+  const out = render(mergeCompliance(parseCompliance(render({ ...empty(), 'test-first': [earlier] })), { ...empty(), 'test-first': [line('C--Work-accord', 'aaa'), line('C--Work-accord', 'bbb')] }));
+  expect(out).toContain('| test-first | 2 |');
+  expect(out).toContain(earlier);
+  expect(out).not.toContain(line('C--Work-accord', 'aaa'));
+  expect(out).toContain(line('C--Work-accord', 'bbb'));
+  // An earlier file that already holds the pair collapses to its first line on the next read.
+  const again = render(mergeCompliance(parseCompliance(render({ ...empty(), 'test-first': [earlier, line('C--Work-accord', 'aaa')] })), empty()));
+  expect(again).toContain('| test-first | 1 |');
+  expect(again).toContain(earlier);
+  expect(again).not.toContain(line('C--Work-accord', 'aaa'));
+});
+
 type Cmp = (input: unknown) => Record<string, string[]>;
 const load = async () =>
   (await import(new URL('../../../scripts/compliance.mjs', import.meta.url).href)) as {

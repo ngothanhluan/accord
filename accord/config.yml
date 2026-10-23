@@ -18,6 +18,12 @@ tests:
   full: npx vitest run --reporter=default --reporter=junit --outputFile.junit=node_modules/.cache/accord/junit.xml
 review:
   mode: outcome
+# ST-LN-47 D-01, D-02: benchmark round 1 raised the auditor and the critic; the scout moves to sonnet
+# unmeasured, and ST-LN-46 measures it before any default in AGENT_DEFAULTS changes.
+models:
+  auditor: { model: opus, effort: high }
+  critic: { model: opus, effort: xhigh }
+  scout: { model: sonnet, effort: low }
 stale_days: "14"
 # Ticket ids: accord assigns ST-/BUG-/EP-<initials>-<n> to the creator's git user.email (IDS-1).
 people:

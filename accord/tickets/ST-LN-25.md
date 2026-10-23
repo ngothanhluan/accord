@@ -61,7 +61,7 @@ Feature: ST-LN-25
     Then both runs print what they print today, with no line about a newer version, and exit 0
     And the request to the registry is given up after at most 3 seconds, and the second run sends none
 
-  @ac-3
+  @ac-3 @test:packages/cli/test/upgrade.test.ts#ac-3-upgrade-pushes-a-branch-from-the-latest-origin-main-whose-one-commit-moves-every-pin-and-the-checkout-is-unchanged
   Scenario: Upgrading moves every pin on a pushed branch and leaves the checkout alone
     Given accord/config.yml, .github/workflows/accord.yml and the accord hook commands in .claude/settings.json all pin accord "0.1.0"
     When I run "npx --yes @accord-dev/accord@0.2.0 upgrade", whose own version is 0.2.0

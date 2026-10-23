@@ -718,18 +718,17 @@ function rebaseBranch(path: string): string | undefined {
   return undefined;
 }
 
-/** ST-LN-25 D-08: is every commit of `tip` either on `ref`, in the verified commit `vc`, or (past `vc`) a change main already holds? */
-function safeTip(root: string, id: string, tip: string, vc: string | undefined, ref: string): 'safe' | 'conflict' | 'unsafe' {
+/** ST-LN-25 D-08: is every commit of `tip` either on `ref`, in the verified commit `vc`, or past `vc` touching only paths `ref` leaves alone, or else a branch whose merge into `ref` adds nothing? */
+function safeTip(root: string, tip: string, vc: string | undefined, ref: string): 'safe' | 'conflict' | 'unsafe' {
   if (gitOk(root, ['merge-base', '--is-ancestor', tip, ref])) return 'safe';
   if (vc !== undefined) {
     if (gitOk(root, ['merge-base', '--is-ancestor', tip, vc])) return 'safe';
     if (!gitOk(root, ['merge-base', '--is-ancestor', vc, tip])) return 'unsafe';
     const names = (x: string, y: string) => git(root, ['diff', '--name-only', '-z', '--no-renames', x, y, '--']).split('\0').filter((n) => n !== '');
     const onMain = new Set(names(tip, ref));
-    const own = (n: string) => n === `accord/tickets/${id}.md` || n.startsWith(`accord/tickets/${id}/`);
-    return names(vc, tip).every((n) => own(n) || !onMain.has(n)) ? 'safe' : 'unsafe';
+    if (names(vc, tip).every((n) => !onMain.has(n))) return 'safe';
   }
-  // No verified commit (lane S): the branch goes only when merging it into main would change nothing; a conflict is never resolved.
+  // Otherwise (no verified commit, or a later change main may hold): the branch goes only when merging it into main would change nothing; a conflict is never resolved.
   let out: string;
   try {
     out = execFileSync('git', ['merge-tree', '--write-tree', ref, tip], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
@@ -789,7 +788,7 @@ function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[
       const vc = typeof raw === 'string' && isSha(raw) && gitOk(ctx.root, vcArgs) ? git(ctx.root, vcArgs).trim() : undefined;
       const tipArgs = ['rev-parse', '--verify', '-q', 'refs/heads/' + b];
       const reason = (t: string) => {
-        const v = safeTip(ctx.root, id, t, vc, ref);
+        const v = safeTip(ctx.root, t, vc, ref);
         if (v === 'safe') return undefined;
         return v === 'conflict' ? `merging it into ${def} conflicts` : vc !== undefined ? 'it has commits after its verified commit' : `it has changes not on ${def}`;
       };

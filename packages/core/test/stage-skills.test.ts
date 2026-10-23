@@ -315,7 +315,7 @@ it('risk:complex-branching the accord skill pushes then enters the worktree on e
   const setup = slice(ref, 'Exit 2 naming a setup command', 'Any other exit 2');
   expect(setup).toContain('type `/accord continue <id>` again in this same session');
   expect(setup).toContain('in a session opened there');
-  const i = text.indexOf('First run the session check in `./worktree.md`.');
+  const i = text.indexOf('First run the session check in `./worktree.md`, except for `/accord upgrade`.');
   expect(i).toBeGreaterThan(-1);
   expect(i).toBeLessThan(text.indexOf('## Dashboard'));
   expect(ref.indexOf('## Session check')).toBeGreaterThan(-1);

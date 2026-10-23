@@ -2259,6 +2259,19 @@ it('risk:data-loss clean removes only a done ticket and keeps a branch with a co
   expect(r5.code).toBe(0);
   expect(lines(r5.out)).toEqual(['kept origin/t/ST-14: merging it into origin/main conflicts']);
   expect(gitRun(g.remote, 'rev-parse', 't/ST-14').trim()).toBe(t14);
+
+  const h = clone();
+  ticketWorktree(h, 'ST-15');
+  doneOnRemote(h, ['ST-15'], { squash: true, local: true });
+  const sh = h.sibling('ST-15');
+  writeFiles(sh, { 'accord/tickets/ST-15/ledger.md': 'Correction: not on main\n' });
+  const owner = commitMsg(sh, 'owner correction');
+  const r6 = await run(['worktree', 'clean'], h.root);
+  expect(r6.code).toBe(0);
+  expect(lines(r6.out)).toEqual(['kept t/ST-15: merging it into origin/main conflicts']);
+  expect(existsSync(sh)).toBe(true);
+  expect(sha(h, 't/ST-15')).toBe(owner);
+  expect(has(h.remote, 'refs/heads/t/ST-15')).toBe(true);
 }, 240_000);
 
 it('risk:data-loss an origin branch is deleted only with a lease and only after a fetch that succeeded', async () => {

@@ -6,7 +6,7 @@ kind: skill
 loads: [accord/ids.md, accord/lane-s.md, accord/upgrade.md, accord/worktree.md, shared/ask.md, shared/failure.md]
 ---
 
-First run the session check in `./worktree.md`. A failure reported in a ticket that has reached verify follows `./failure.md`.
+First run the session check in `./worktree.md`, except for `/accord upgrade`. A failure reported in a ticket that has reached verify follows `./failure.md`.
 
 ## Dashboard: `/accord` with no argument
 

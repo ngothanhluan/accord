@@ -25,9 +25,14 @@ What `accord worktree open <id>` and `accord new ticket --worktree` print:
 - A line starting `fetch from origin failed`: the fetch before the work failed, or the remote did not
   answer in time. Show the line verbatim and go on with the other lines; the work goes on with the refs
   already in this clone.
-- A line starting `behind:` (Continue only): the ticket branch lacks commits that are on the remote's
-  default branch. Show the line verbatim and go on. Never merge here: `accord-verify` runs
-  `accord worktree merge <id>` once, after review.
+- A line starting `behind:` (Continue only): Continue did not merge the remote's default branch, because the
+  ticket is at verify or done, or its worktree has uncommitted changes. Show the line verbatim and go on.
+  Never merge here: at verify `accord-verify` runs `accord worktree merge <id>` once, after review.
+- A line starting `merged:` (Continue only): Continue merged the remote's default branch into the ticket
+  branch with a merge commit, ran the setup commands on it and pushed it. Show it verbatim and go on; so for a
+  line starting `push of`.
+- Lines starting `removed`, `deleted` or `kept`, or `clean failed`: the clean of tickets done on the default
+  branch. Show them verbatim and go on.
 - A line `stop:`: show the two lines after it verbatim, the worktree's path and the line to type in a
   session opened in that folder, then stop. Never change directory into the worktree, never edit a file
   there except the people entry below and, in a lane S ticket, its `title:`, the carried `Keys:` frontmatter lines, its `## Understood` and `## Done when` lines, its carried `## Vetoes`, `## Decisions` and `## Corrections` sections and the commit and push of that ticket file, and never start the next stage from this session.
@@ -47,6 +52,8 @@ What `accord worktree open <id>` and `accord new ticket --worktree` print:
   `stop:` line, `/accord continue <id>` in a session opened there runs every setup command again.
 - Exit 2 starting `this session works`: this session works another ticket; show the message and stop,
   editing nothing.
+- Exit 2 starting `merge of`: Continue's merge stopped and was aborted; show the message and stop, editing
+  nothing.
 - Any other exit 2: show the message and stop.
 
 Setup commands can take minutes: run these commands with the longest timeout your tool allows.
@@ -61,8 +68,10 @@ When `accord new ticket --worktree` says the push failed, it prints no `stop:` l
 entry as above, run the push it names, and once it succeeds, run `accord worktree open <id> --continue`
 and follow the `stop:` or `enter:` line it prints. When that push fails again, show git's message and stop.
 
-`accord worktree clean` runs only from `/accord` with no argument, never from Pick up or Continue. At the
-dashboard its lines are shown verbatim with the dashboard's.
+This skill runs `accord worktree clean` itself only from `/accord` with no argument and from `/accord upgrade`;
+`accord worktree open` and `accord new ticket --worktree` clean the same way on their own, so a ticket done on
+the default branch loses its worktree and branches at any `/accord` command. A New request the session check
+stops cleans nothing. At the dashboard its lines are shown verbatim with the dashboard's.
 
 ## Session check
 

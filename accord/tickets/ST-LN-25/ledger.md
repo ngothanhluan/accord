@@ -69,18 +69,27 @@
 - Ruling: task 7 — a failing `git ls-remote` in `upgrade` surfaces as a raw git error, not a one-line UsageError; the fetch just before it normally fails first — cost if wrong: an offline upgrade prints git's text instead of accord's.
 - Ruling: re-plan 1 — Task 8's dictated pull-request body becomes "Moves the version pin and regenerates the skill files.", because "Moves the accord pin …" inside a code span reads as the unregistered command `accord pin …` to `skill-commands.test.ts`; the test is kept as it is — cost if wrong: one sentence of PR text.
 - Ruling: re-plan 1 — the changed task keeps number 8 instead of 9, since it has no ledger line and nothing was recorded under it — cost if wrong: the ledger reads the edited task as the original Task 8.
+- Ruling: review round 1 — supersedes plan round 1's record-files exemption: with a verified commit, every path changed after it must be absent from the diff against main, the ticket's own records included; when that fails, `safeTip` falls through to the `git merge-tree` check, so a record change main already holds is still cleaned and an unmerged one (an owner Correction, a ledger line) is kept with its `kept` line — the exemption could delete owner text with no line, against D-08 — cost if wrong: a squash-merged branch whose records main later edited is kept with a `conflicts` line and deleted by hand.
+- Ruling: review round 1 — the security finding is fixed as a patch with this Ruling rather than a re-plan: it narrows what the clean deletes, within D-08, and the plan's tasks are all recorded — cost if wrong: plan.md's Definitions still describe the old exemption.
+- Ruling: review round 1 fix — the kept line for a squash-merged branch carrying an unmerged ledger change reads "merging it into origin/main conflicts", since the squash adds the ticket file on main and `merge-tree` exits 1; it is kept with nothing deleted — cost if wrong: only the wording of the kept line.
+- Ruling: review round 1 fix — worktree.md names the reasons as "another session holds it" and "this session is missing the variables that identify it", without "Claude Code", because the D-109 test forbids naming a runtime product in rendered skills — cost if wrong: slightly less specific wording.
+- Ruling: review round 1 fix — `packages/core/test/stage-skills.test.ts` changed outside the fix's files: its assertion hard-codes SKILL.md's first line, which now ends "except for `/accord upgrade`" — cost if wrong: none beyond the one assertion.
 
 ## Deferred
 
-- plan round 1.10: worktree.md's `behind:` reasons omit "a Claude Code session missing its variables" (Task 8).
-- plan round 1.11: the README sentence on which commands clean omits lane S's `new ticket --lane S --worktree` (Task 8).
+- plan round 1.10 (fixed in review round 1, c58fdc0): worktree.md's `behind:` reasons omit "a Claude Code session missing its variables" (Task 8).
+- plan round 1.11 (fixed in review round 1, c58fdc0): the README sentence on which commands clean omits lane S's `new ticket --lane S --worktree` (Task 8).
 - plan round 1.12: hook.test.ts has no `lines` helper; Task 1's tests use one (Task 1).
 - plan round 1.13: `hooksPlanFor` must keep the claude check before `assertNoLink` in `planHooks` (Task 6).
 - plan round 1.14: `loadConfig(next)` is `loadConfig('accord/config.yml', next)` (Task 6).
 - plan round 1.15: "Before `- Any other exit 2`" is the bullet at accord/worktree.md:50, not :77 (Task 8).
-- plan round 2.4: SKILL.md:9 runs the session check before every action; add "except `/accord upgrade`" so it matches upgrade.md (Task 8).
+- plan round 2.4 (fixed in review round 1, c58fdc0): SKILL.md:9 runs the session check before every action; add "except `/accord upgrade`" so it matches upgrade.md (Task 8).
 - plan round 2.5: the Task 5 risk test titled "pick up and continue never clean the ticket they open" runs only Continue; add a Pick up run or retitle (Task 5).
-- plan round 2.6: Task 8's `behind:` bullet omits the live Claude Code hold as a reason Continue did not merge (Task 8).
+- plan round 2.6 (fixed in review round 1, c58fdc0): Task 8's `behind:` bullet omits the live Claude Code hold as a reason Continue did not merge (Task 8).
+- review round 1 (security): `upgrade` does not check the workflow pin moved; a workflow pin that drifted from config.yml is written back unchanged and the push reports success, and CI on the pull request then fails the pin check (upgrade.ts, `repinWorkflow`).
+- review round 1 (quality): `gitIn`, `NOTHING` and the temporary-index commit sequence in upgrade.ts are copies of drop.ts; share them.
+- review round 1 (quality): the `risk:regression the accord skill routes upgrade …` test in stage-skills.test.ts asserts prose substrings and fits no listed risk kind.
+- review round 1 (quality): `worktrees(ctx.root, ctx.stdout);` in `worktreeClean` discards its result with no comment; it exists only for the `pruned <path>` lines.
 
 ## Tasks
 - task 1 done 6f5f9058c030

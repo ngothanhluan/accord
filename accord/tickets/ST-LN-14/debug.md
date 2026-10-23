@@ -357,3 +357,29 @@ FAIL |cli| test/workflow-script.test.ts > the emitted workflow script — execut
 ```
 
 After the run: 9 node processes, CPU load 10%.
+
+## Hypotheses
+1. Load from other processes on this machine during the second run slowed every process-spawning test by about 1.5x. Four tests that already used 66-85% of their timeout on 53cae8a went over it. — for: the failures are timeouts, not assertion errors; CI on 4046d5d is green; see probes 1-3. — against: none found.
+2. The change 53cae8a..4046d5d makes these tests slower or makes them hang. — for: it is the only change between the two runs. — against: the diff is one type cast in packages/core/test/benchmark-reader.test.ts plus accord/tickets/ST-LN-14/{debug,review}.md. show-approval.test.ts:127 reads only the top-level accord/tickets/*.md, and the other three tests build their own repositories. See probe 4.
+3. The test or measurement is wrong: the explicit per-test timeouts are close to what these tests need inside a full parallel suite on Windows. workflow-script.test.ts:289 sets 60 s, below the cli project's 90 s Windows default (packages/cli/vitest.config.ts:5). show-approval.test.ts:155 sets 300 s for a test that took 250 s on the passing run. So the outcome depends on load. — for: probe 2 (the margins). — against: this is a weakness that lets 1 cause failures, not a change between the runs. Both runs had the same limits.
+4. State left by the first run (temp folders, git locks, fs cache) slowed the second. — for: the runs were 6 minutes apart in one worktree. — against: probe 3. The slowdown is the same across files that share no state, and pure core tests did not slow down.
+
+Ranked: 1, 3, 2, 4.
+
+## Probes
+1. `tasklist` and a CIM query of node.exe command lines, 08:44. A `vitest related --run packages/cli/src/commands/worktree.ts … packages/cli/test/worktree.test.ts` started at 08:29:32 in C:/Work/accord-st-ln-25 (pids 25644/41660, fork 35896 with 2:08 CPU). Its JUnit file C:/Work/accord-st-ln-25/node_modules/.cache/accord/junit.xml has been 0 bytes since 08:29:32, so that run was still going. A Playwright e2e run (`npm run e2e:kit`, worker 30008 with 3:04 CPU and 629 MB) and a `vite preview` server in C:/Work/zencore started at 08:28:32-08:28:37. Run 2 lasted 08:29:55-08:41:42, and both loads started 1-2 minutes before it. Run 1 (08:13:33-08:23:17) ended before either started. 20 logical CPUs. → supports 1.
+2. The four tests' own times in run 1 (passing, 53cae8a) against run 2: lane-s 88.3 s against 131.7 s (limit 120 s); show-approval 250.0 s against 356.7 s (limit 300 s); workflow-script "unapproved" 39.6 s against 71.8 s (limit 60 s) and "code in the diff" 50.9 s against 65.0 s (limit 60 s). On the passing run they already used 74%, 83%, 66% and 85% of their limits. → supports 3 as the margin that 1 crosses.
+3. Per-file time ratio, run 2 over run 1, for the 27 files above 5 s (a node script over both outputs): median 1.49, range 1.12-2.01 for every git- or process-spawning file, cli and core alike, including files the diff does not touch (hook 1.58, init 1.54, dashboard 1.57, cli 2.01). Pure core files did not slow down (core gate.test.ts 0.42). → a load on the whole machine, not one test's code or state. Rules out 4 and goes against 2.
+4. `npx vitest run` of the four failing tests alone at 4046d5d, 08:44:48-08:46:30, with the probe 1 loads still running: 4 passed. Lane-s 27.1 s, workflow "unapproved" 8.1 s, workflow "code" 22.5 s, show-approval 99.9 s. The code at 4046d5d completes every one well inside its limit, and CI run 39884274976 passed on four OS/Node pairs → rules out 2.
+5. `git diff --stat 53cae8a 4046d5d` → 3 files: benchmark-reader.test.ts (1 line), ST-LN-14/debug.md and review.md. show-approval.test.ts:125-127 reads `accord/tickets/*.md` with readdirSync, not the subfolder. → none of the failing tests reads the changed files.
+
+## Root cause
+No defect in the code at 4046d5d. The failure comes from the measurement: run 2 of `tests.full` overlapped other work on this machine. A `vitest related` run of packages/cli/test/worktree.test.ts in C:/Work/accord-st-ln-25 started at 08:29:32, and a Playwright e2e run with `vite preview` in C:/Work/zencore started at 08:28:32. Run 2 started at 08:29:55 (probe 1). Every spawning test file ran about 1.49x slower (probe 3). Four tests had explicit limits close to their normal full-suite times, and those went over:
+- lane-s.test.ts:97 `}, 120_000)`: 88 s before, now over the limit.
+- show-approval.test.ts:124 `}, 300_000)` at :155: 250 s before.
+- workflow-script.test.ts:351 and :373, `{ timeout: 60_000 }` at :289: 40 s and 51 s before. That limit is below the cli default of 90 s on Windows (packages/cli/vitest.config.ts:5).
+Alone at 4046d5d, under the same loads, they pass in 27 s, 100 s, 8 s and 22 s (probe 4). The diff touches no file these tests read (probe 5), and CI passed.
+
+## Resolved
+
+The measurement was wrong: the 4046d5d verify run overlapped a vitest run in another worktree and a Playwright run, and four tests with 15-34% headroom over their normal time went past their limits; alone they pass in 27 s, 100 s, 8 s and 22 s. No code fix; the verify suite runs again on a quiet machine, and the slow tests are ST-LN-44's.

@@ -66,3 +66,52 @@ it('ac-3 upgrade pushes a branch from the latest origin main whose one commit mo
   expect(s.code, s.err).toBe(0);
   expect(gitRun(p, 'status', '--porcelain')).toBe('');
 });
+
+it('risk:data-loss upgrade refuses and pushes nothing when the branch exists the pin is not older the settings are not an object or lint fails', async () => {
+  const c = makeClone();
+  clones.push(c);
+  const o = c.otherClone();
+  const cfg = readFileSync(join(o, 'accord/config.yml'), 'utf8');
+  const pin = (x: string) => {
+    writeFiles(o, { 'accord/config.yml': cfg.replace(/^accord: .*$/m, `accord: "${x}"`) });
+    commitMsg(o, 'pin ' + x);
+    gitRun(o, 'push', '-q', 'origin', 'main');
+  };
+  const head = c.git('rev-parse', 'HEAD');
+  const refused = async (text: string) => {
+    const r = await run(['upgrade'], c.root);
+    expect(r.code, r.err).toBe(2);
+    expect(r.err).toContain(text);
+    expect(c.git('rev-parse', 'HEAD')).toBe(head);
+    return r;
+  };
+  const noBranch = () => expect(gitRun(c.remote, 'for-each-ref', 'refs/heads/upgrade')).toBe('');
+
+  await refused(`which is not older than ${v}`);
+  noBranch();
+  pin('9.9.9');
+  await refused(`which is not older than ${v}`);
+  noBranch();
+
+  pin('0.0.9');
+  gitRun(o, 'push', '-q', 'origin', `HEAD:refs/heads/upgrade/${v}`);
+  const before = gitRun(c.remote, 'rev-parse', `upgrade/${v}`);
+  await refused('already exists on origin');
+  expect(gitRun(c.remote, 'rev-parse', `upgrade/${v}`)).toBe(before);
+  gitRun(o, 'push', '-q', 'origin', '--delete', `upgrade/${v}`);
+
+  writeFiles(o, { '.claude/settings.json': '[]\n' });
+  commitMsg(o, 'bad settings');
+  gitRun(o, 'push', '-q', 'origin', 'main');
+  await refused('is not a JSON object');
+  noBranch();
+  gitRun(o, 'rm', '-q', '.claude/settings.json');
+  commitMsg(o, 'no settings');
+
+  writeFiles(o, { 'accord/tickets/ST-9.md': '---\nid: "ST-9"\ntype: nonsense\n---\n' });
+  commitMsg(o, 'bad ticket');
+  gitRun(o, 'push', '-q', 'origin', 'main');
+  const r = await refused('would fail lint');
+  expect(r.err).toContain('accord/tickets/ST-9.md');
+  noBranch();
+});

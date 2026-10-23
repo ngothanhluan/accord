@@ -113,6 +113,23 @@ it('risk:security the prompt expansion hook blocks every accord text but the das
   }
 });
 
+it('risk:security the prompt expansion hook lets accord upgrade through in a session that works a ticket', async () => {
+  const c = makeClone({ tickets: ['ST-9'] });
+  try {
+    c.git('worktree', 'add', '-q', '-b', 't/ST-9', c.sibling('ST-9'), 'origin/main');
+    const wt = c.sibling('ST-9');
+    const hook = (a: string) => run(['hook', 'prompt-expansion'], c.root, {}, input({ cwd: wt, command_args: a }));
+    expect(JSON.parse((await hook('upgrade')).out)).toEqual({});
+    for (const a of ['upgrade now', 'upgrade ST-9']) {
+      const j = JSON.parse((await hook(a)).out);
+      expect(j.decision).toBe('block');
+      expect(j.reason).toContain('this session works ST-9');
+    }
+  } finally {
+    c.cleanupAll();
+  }
+});
+
 it('risk:complex-branching the prompt expansion hook allows with one stderr line when its input holds or git cannot be read', async () => {
   const c = makeClone({ tickets: ['ST-9', 'ST-10'] });
   const plain = mkdtempSync(`${tmpdir()}/accord-nogit-`);

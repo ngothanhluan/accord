@@ -6,9 +6,10 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { agentTargets, loadConfig, pluginTargets, repinConfig, repinWorkflow, skillTargets } from '@accord-dev/accord-core';
+import { agentTargets, lintSnapshot, loadConfig, loadSnapshot, pluginTargets, repinConfig, repinWorkflow, skillTargets } from '@accord-dev/accord-core';
 import pkg from '../../package.json' with { type: 'json' };
-import { gitDefaultRef, gitFilesAt, UsageError } from '../load/fs.js';
+import { gitDefaultRef, gitFilesAt, loadRefInput, UsageError } from '../load/fs.js';
+import { newer } from './notice.js';
 import { git, gitNoPrompt, gitOk } from './worktree.js';
 import { hooksPlanFor, SETTINGS } from './skills.js';
 import type { InitContext } from './init.js';
@@ -34,6 +35,9 @@ export function upgrade(ctx: InitContext): number {
   } catch (err) {
     throw new UsageError('fetch from origin failed: ' + String((err as { stderr?: string }).stderr ?? err).trim().split('\n')[0] + NOTHING);
   }
+  if (gitNoPrompt(root, ['ls-remote', 'origin', 'refs/heads/upgrade/' + v]).trim() !== '') {
+    throw new UsageError(`upgrade/${v} already exists on origin - delete it with git push origin --delete upgrade/${v}, then run accord upgrade again` + NOTHING);
+  }
   const ref = gitDefaultRef(root);
   if (ref === undefined) throw new UsageError('no origin/main in this clone - run git fetch origin, then try again' + NOTHING);
   const short = ref.replace('refs/remotes/origin/', '');
@@ -46,6 +50,9 @@ export function upgrade(ctx: InitContext): number {
   if (old.config === undefined) throw new UsageError(`${CONFIG} on ${short} is invalid: ${old.findings[0]?.reason ?? 'unreadable'}` + NOTHING);
   const pinned = old.config.accord;
 
+  if (!newer(v, pinned)) {
+    throw new UsageError(`${short} pins accord ${pinned}, which is not older than ${v}; accord upgrade never moves a pin back` + NOTHING);
+  }
   const next = repinConfig(text, v);
   const config = next === undefined ? undefined : loadConfig(CONFIG, next).config;
   if (next === undefined || config?.accord !== v) {
@@ -57,6 +64,14 @@ export function upgrade(ctx: InitContext): number {
   if (workflow !== undefined) writes.push({ path: WORKFLOW, text: repinWorkflow(workflow, pkg.name, pinned, v) });
   const hooks = hooksPlanFor(files[SETTINGS], config);
   if (hooks?.text !== undefined) writes.push({ path: SETTINGS, text: hooks.text });
+  const input = loadRefInput(root, ref);
+  input.files[CONFIG] = next;
+  const bad = lintSnapshot(loadSnapshot(input)).findings.filter((f) => f.level === 'error');
+  if (bad.length > 0) {
+    throw new UsageError(
+      `the upgrade would fail lint on ${short}:\n${bad.map((f) => `${f.file}: ${f.rule}: ${f.reason}`).join('\n')}\nfix these on ${short} first` + NOTHING,
+    );
+  }
   writes.push(...skillTargets(config), ...agentTargets(config), ...pluginTargets(config, pkg));
 
   const folder = mkdtempSync(join(tmpdir(), 'accord-upgrade-'));

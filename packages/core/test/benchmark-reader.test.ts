@@ -103,7 +103,7 @@ it('risk:parsing a commit sha comes only from git commit summary lines, whatever
 it('risk:parsing a read keeps its first line number, total lines, whole-file flag and wrote flag, a cat of one file is a read, and a later coordinator message ends the root reads', async () => {
   type Read = { path: string; text: string; start: number | null; total: number | null; wrote: boolean; whole: boolean };
   const { readSessions, rootReads } = (await import(new URL('../../../scripts/benchmark.mjs', import.meta.url).href)) as {
-    readSessions: (dirs: string[]) => { runs: (Run & { reads: Read[] })[] };
+    readSessions: (dirs: string[]) => { runs: (Omit<Run, 'reads'> & { reads: Read[] })[] };
     rootReads: (run: unknown, root: string) => { path: string }[];
   };
   const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'bench-')));

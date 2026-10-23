@@ -65,6 +65,8 @@
 - Ruling: task 6 — `upgrade` creates `.claude/settings.json` when main has none, since `hooksPlanFor(undefined)` returns a `created` plan with text, as `skills sync` would write — the plan writes the settings "when its text is defined" — cost if wrong: an extra settings file on the upgrade branch.
 - Ruling: task 6 — the executor wrote the code before running its two verify tests, so neither was seen failing; they pass and the related run (62 files, 1316 passed, `--maxWorkers=2`) is green — review checks that the ac-3 test and the pin-rewrite test fail without the code — cost if wrong: a test that cannot fail guards nothing.
 - Ruling: task 6 — `repinWorkflow` replaces every `<pkg>@<old>` in the workflow, so a second occurrence of the old version there also moves — the plan's exact replacement of the pin — cost if wrong: an owner's own mention of the old version is rewritten.
+- Ruling: task 7 — the branch-exists check runs right after the origin fetch, before the default ref is resolved — nothing is written before it, the same effect as after step 3 — cost if wrong: none.
+- Ruling: task 7 — a failing `git ls-remote` in `upgrade` surfaces as a raw git error, not a one-line UsageError; the fetch just before it normally fails first — cost if wrong: an offline upgrade prints git's text instead of accord's.
 
 ## Deferred
 
@@ -85,3 +87,4 @@
 - task 4 done 1209026233b9
 - task 5 done 43bb417e6f58
 - task 6 done ead12fbdd7c0
+- task 7 done d35d1cc769b0

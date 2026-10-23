@@ -57,6 +57,9 @@
 - Ruling: task 2 — Continue treats a ticket with no stage readable at its branch as not before verify and prints the `behind:` line — the merge is allowed only for the stages D-09 names — cost if wrong: a ticket with no records on its branch is not merged.
 - Ruling: task 3 — `cleanDone` takes no `fetchFailed` parameter yet, since nothing in Task 3 reads it; Task 4 adds it with the leased origin delete — an unused argument is lint noise — cost if wrong: one signature edit.
 - Ruling: task 3 — a done ticket's branch that exists only on origin is skipped silently until Task 4 adds the origin delete — origin deletion is Task 4's — cost if wrong: none once Task 4 is built.
+- Ruling: task 4 — the origin step reuses `cleanDone`'s own `reason()` on the origin tip, so its kept lines match the local step's — one code path — cost if wrong: an origin kept line differs from a wording the plan meant.
+- Ruling: task 4 — a done ticket's branch that exists only on origin now reaches the origin step and is deleted when `safeTip` says safe, under the lease — the plan goes on when the local branch is absent — cost if wrong: more origin branches are deleted, each only when safe.
+- Ruling: task 4 — the related-tests run timed out once on `risk:data-loss clean keeps unpushed commits and new files that git status config would hide` (30.8 s against the 30 s limit, 24 files in parallel while the machine was short of memory); alone it takes 9.8 s, and worktree.test.ts alone passed 79 with 0 failures, so the task is recorded on that file's report — the other 23 files had passed in the same run — cost if wrong: a slow machine or CI flakes on that test; review looks at its time.
 
 ## Deferred
 
@@ -74,3 +77,4 @@
 - task 1 done 6f5f9058c030
 - task 2 done 1694ed37d889
 - task 3 done 7b72fd95227b
+- task 4 done 1209026233b9

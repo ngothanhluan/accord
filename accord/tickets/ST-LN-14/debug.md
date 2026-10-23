@@ -321,3 +321,20 @@ packages/core/test/benchmark-reader.test.ts(150,86): error TS18046: 'r' is of ty
 ```
 
 `npm run typecheck` in the worktree prints the same two errors. The last green `ci` run on this branch was a2c75bb.
+
+## Hypotheses
+1. The cast added in 58f0b26 at packages/core/test/benchmark-reader.test.ts:106, `runs: (Run & { reads: Read[] })[]`, causes it because the shared `Run` type (:7) already declares `reads: unknown[]`; the intersection `unknown[] & Read[]` resolves `find`/`some` from the first constituent, so the callback parameter is `unknown`. — for: both errors sit on `run.reads.find((r) => …)` (:140) and `run.reads.some((r) => …)` (:150), the only callbacks over `reads` in that test; the lines date from 58f0b26 (2026-10-22 18:26), after the green a2c75bb. — against: none found.
+2. A change in scripts/benchmark.mjs (`readSessions`/`rootReads` shape) leaks a type into the test. — for: benchmark.mjs changed between a2c75bb and 53cae8a. — against: the test reaches the .mjs only through a dynamic `import()` cast `as {…}`, so its declared type comes from the cast alone; tsconfig.test.json includes `src`, `test`, `schemas/*.json`, not `scripts/`.
+3. The measurement is wrong: a toolchain or tsconfig difference (TypeScript version, tsconfig.base.json) makes CI report errors the code does not have. — for: none. — against: the same two errors reproduce locally with the worktree's tsc; tsconfig.test.json and the TypeScript pin did not change in a2c75bb..53cae8a.
+
+Ranked: 1, 2, 3.
+
+## Probes
+- `git log -L139,151:packages/core/test/benchmark-reader.test.ts` → the failing lines and the cast at :105-108 all come from 58f0b26; `git log -L7,7` → `Run.reads: unknown[]` dates from cfd7977 (task 1), unchanged since. → 1 over 2.
+- `gh run list --branch t/ST-LN-14 --workflow ci` → only two `ci` runs: a2c75bb (green) and 53cae8a (red); CI is `pull_request`-triggered and no push between them ran it, so 58f0b26 was never typechecked by CI. Vitest does not typecheck, so `npx vitest run` passed throughout. → explains why the red appears only now.
+- `npx tsc -p packages/core/tsconfig.test.json` in the worktree → exactly the two errors. → 3 ruled out.
+- Scratch probe (scratchpad probe.ts, `tsc --strict`): `declare const x: { reads: unknown[] } & { reads: Read[] }; x.reads.find((r) => r.path)` → TS18046 'r' is of type 'unknown'; the same with `Omit<A, 'reads'> & { reads: Read[] }` → no error. → confirms the intersection mechanism of 1, one variable changed.
+- `grep -rn "Run & {" packages/core/test/` → two intersections: :106 (`reads`, conflicts with `Run.reads`) and :163 (`lastText`, not on `Run`, no conflict). → the fault is only :106.
+
+## Root cause
+packages/core/test/benchmark-reader.test.ts:106 (added in 58f0b26): `readSessions: (dirs: string[]) => { runs: (Run & { reads: Read[] })[] }` intersects the file's `Run` type (:7, `reads: unknown[]`) with `{ reads: Read[] }`. For `unknown[] & Read[]`, TypeScript takes `find`/`some` from `unknown[]` first, so `r` is `unknown` at :140 (`run.reads.find((r) => r.path === p)`) and :150 (`run.reads.some((r) => [...].includes(r.path))`). The scratch probe reproduces it with only that intersection, and removing `reads` from the left side clears it. The fault is in the test's type cast only; scripts/benchmark.mjs and product code are not involved. It surfaced only at 53cae8a because no `ci` run happened between a2c75bb and 53cae8a, and vitest does not typecheck. Reproduction: the failing command itself, `npm run typecheck` (step `tsc -p packages/core/tsconfig.test.json`); no new test is needed.

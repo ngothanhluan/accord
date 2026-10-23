@@ -1,6 +1,6 @@
 ---
 id: "ST-LN-48"                            # equals the file name: tickets/<id>.md
-title: "Short title in business language"
+title: "Remove all Vietnamese from tracked files before 0.2.0"
 type: "story" # story | bug. An epic uses its own template
 status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
@@ -28,6 +28,10 @@ ui: false
 
 ## Intent
 <!-- At most five lines: why, for whom, how success is measured, and what this does not do. -->
+The repository is public, and the Vietnamese in its tracked files (owner quotes in ticket records, test fixtures, a doc) was never meant for its readers.
+For readers of the public repository, before the 0.2.0 release: main holds no Vietnamese, and a repository test keeps it out from now on.
+Success: the new test passes on main, every ticket keeps the stage it had, and tests that covered non-English text still cover it in another language.
+Not done: git history is not rewritten; `accord lint` gains no rule, so accord users are not affected.
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.
@@ -36,17 +40,49 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 Feature: ST-LN-48
 
   @ac-1
-  Scenario: <observable outcome>
-    Given ...
-    When ...
-    Then ...
+  Scenario: No tracked file holds a Vietnamese-only letter
+    Given the files `git ls-files` lists in the working tree of the cleaned branch, read whole, skipping only a file that holds a NUL byte anywhere
+    When the repository test suite runs
+    Then the check, reading each file's text in Unicode NFC form, finds in none of them a Vietnamese-only letter: a with breve (U+0102, U+0103), d with stroke (U+0110, U+0111), o with horn (U+01A0, U+01A1), u with horn (U+01AF, U+01B0), or any letter from U+1EA0 to U+1EF9
+
+  @ac-2
+  Scenario: The check fails when Vietnamese comes back
+    Given a temporary git repository with a committed file holding a d with stroke (U+0111) on its third line
+    When the check runs on that repository
+    Then it fails and names the file by its path relative to the repository root, and line 3
+
+  @ac-3
+  Scenario: Every ticket keeps its stage after the translation
+    Given the `stage` that `accord status --json --all` reports, on the main commit this ticket's branch was made from, for each ticket other than ST-LN-48
+    When the ticket records are translated and their hashes recomputed
+    Then `accord status --json --all` on the cleaned branch reports the same `stage` for each of those tickets
+
+  @ac-4
+  Scenario: Non-English coverage moves to another language
+    Given the tests that used Vietnamese for these five traits: a Gherkin dialect whose Feature and Scenario keywords hold non-ASCII letters, a word whose marked letter stays marked through the reference matcher's normalising, so it never equals the word spelt with the bare letter, a title of single-code-point capitals with a diacritic cut by code point, a ticket id holding a non-ASCII letter, and EARS keywords inside non-ASCII prose
+    When the cleanup is done
+    Then each of those tests keeps its trait with text in another language, which may differ from test to test, and the whole suite passes
+
+  @ac-5
+  Scenario: The conventions carry the English quote rule
+    Given accord/product/conventions.md after the cleanup
+    When an agent reads it
+    Then exactly one of its rule lines says that owner quotes in Decisions, Corrections and approval commit messages are written as a faithful English translation
 ```
 
 ## Vetoes
 <!-- What the owner forbids, in the owner's own words, one item per line. -->
+- "git history is not rewritten"
 
 ## Decisions
 <!-- Settled answers, one per line: - D-01 <decision> — "<the owner's sentence>" -->
+- D-01 Clean the files on main only; git history is not rewritten — "clean the files on main only, git history is not rewritten"
+- D-02 From now on owner quotes (Decisions, Corrections, approval commit messages) are recorded as a faithful English translation, as a rule in accord/product/conventions.md — "from now on owner quotes (Decisions, Corrections, approval commit messages) are recorded as a faithful English translation, added as a rule in accord/product/conventions.md"
+- D-03 Tests that use Vietnamese for non-English coverage move to another language — "Tests that use Vietnamese for non-English coverage move to another language"
+- D-04 The work has four parts: clean every tracked file on main, move Vietnamese test coverage to another language, add the English-quote rule, and a check that fails on Vietnamese-only letters — "ok"
+- D-05 Translated ticket records get their hashes recomputed to match the translation, so done tickets stay done; the original approvals stay in git history — "A"
+- D-06 The check is a test of this repository only, reading the files git tracks, run by `npm test` and CI; `accord lint` gains no rule and accord users are not affected — "A"
+- D-07 docs/plans/aidlc-vs-accord.html is translated into English and kept where it is — "A"
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->

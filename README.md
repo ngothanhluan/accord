@@ -6,19 +6,19 @@ Accord defines a small, conventional folder inside your repository where what a 
 
 BA, designer, developer, reviewer are four stages a ticket passes through, not four job titles. One person passes through all four in turn; four people on a team divide them. No gate reads who anyone is, so the same rules hold either way.
 
-**Released:** `@accord-dev/accord@0.1.0`, on npm. See [docs/design.md](docs/design.md) for the design and the reasoning behind it.
+**Released:** `@accord-dev/accord@0.2.0`, on npm. See [docs/design.md](docs/design.md) for the design and the reasoning behind it.
 
 ## Try it
 
 Nothing to install. Node 22.12 or newer, and:
 
 ```sh
-npx --yes @accord-dev/accord@0.1.0 --version
+npx --yes @accord-dev/accord@0.2.0 --version
 ```
 
 That prints the version back. `init` in place of `--version` writes the `accord/` folder, the workflow skills for the runtimes you name, and a CI workflow pinned to the same release, into whatever repository you run it in.
 
-**Unreleased, on `main`:** the workflow layer described below (lanes, `/accord`, the stage skills, the accord agents in `.claude/agents/`, and three session hooks in `.claude/settings.json`) is not in 0.1.0; it ships with the next release. To run it from a clone: `npm install`, `npm run build`, then `npm rebuild @accord-dev/accord` so the `accord` command exists for the hooks.
+**New in 0.2.0:** the workflow layer described below (lanes, `/accord`, the stage skills, the accord agents in `.claude/agents/`, and three session hooks in `.claude/settings.json`). A repository pinned to 0.1.0 moves with `npx --yes @accord-dev/accord@0.2.0 upgrade`; from 0.2.0 on, `/accord upgrade` does it. To run `main` from a clone: `npm install`, `npm run build`, then `npm rebuild @accord-dev/accord` so the `accord` command exists for the hooks.
 
 ## The problem
 

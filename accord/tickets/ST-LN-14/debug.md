@@ -338,3 +338,9 @@ Ranked: 1, 2, 3.
 
 ## Root cause
 packages/core/test/benchmark-reader.test.ts:106 (added in 58f0b26): `readSessions: (dirs: string[]) => { runs: (Run & { reads: Read[] })[] }` intersects the file's `Run` type (:7, `reads: unknown[]`) with `{ reads: Read[] }`. For `unknown[] & Read[]`, TypeScript takes `find`/`some` from `unknown[]` first, so `r` is `unknown` at :140 (`run.reads.find((r) => r.path === p)`) and :150 (`run.reads.some((r) => [...].includes(r.path))`). The scratch probe reproduces it with only that intersection, and removing `reads` from the left side clears it. The fault is in the test's type cast only; scripts/benchmark.mjs and product code are not involved. It surfaced only at 53cae8a because no `ci` run happened between a2c75bb and 53cae8a, and vitest does not typecheck. Reproduction: the failing command itself, `npm run typecheck` (step `tsc -p packages/core/tsconfig.test.json`); no new test is needed.
+
+Fix 1: 113d631, the cast at benchmark-reader.test.ts:106 is `(Omit<Run, 'reads'> & { reads: Read[] })[]`. Result: `npm run typecheck` exit 0 (all three projects), `npx vitest run packages/core/test/benchmark-reader.test.ts` 4 passed, eslint on the file clean.
+
+## Resolved
+
+A test cast intersected `Run`'s `reads: unknown[]` with `Read[]`, so `find` and `some` typed `r` as `unknown`; fixed in 113d631.

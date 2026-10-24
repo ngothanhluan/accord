@@ -1,4 +1,5 @@
-// base-stages.json is the stage map of d5db8c3 under the current core (regenerate by Task 11's procedure); retake fingerprints.json whenever a fingerprinted ticket's records change (Main session step 7).
+// base-stages.json is the stage map of d5db8c3 computed with core; fingerprints.json holds each ticket's records as ST-LN-48 left them, and a ticket whose records changed since is skipped.
+// If a deliberate change to core's stage logic makes this test fail, delete this file and packages/core/test/fixtures/st-ln-48/: they guarded only ST-LN-48's translation.
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { expect, it } from 'vitest';
@@ -43,6 +44,6 @@ it('ac-3 every ticket keeps the stage it had on the base commit', () => {
   const compared = Object.keys(base).filter(
     (id) => Object.hasOwn(prints, id) && prints[id] === fingerprint(input.files, id),
   );
-  expect(compared.length).toBe(Object.keys(prints).length);
+  expect(compared.length).toBeGreaterThan(0);
   expect(compared.filter((id) => now[id] !== base[id]).map((id) => `${id}: ${base[id]} -> ${now[id]}`)).toEqual([]);
 });

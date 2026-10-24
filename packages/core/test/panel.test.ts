@@ -494,11 +494,11 @@ it('risk:concurrency one accord run at a time and none for a subagent turn or a 
 it('risk:security a title cannot put control characters into the pane', async () => {
   const h = await host(await loadPanel());
   await h.fire('session.start', start);
-  h.settle({ stdout: JSON.stringify(board({ yours: { rows: [{ id: 'ST-1', title: 'Đặt\u001b[31m lại\u202e x\u2028y' }], more: 0 } })) });
+  h.settle({ stdout: JSON.stringify(board({ yours: { rows: [{ id: 'ST-1', title: 'Réglé\u001b[31m à\u202e x\u2028y' }], more: 0 } })) });
   await vi.waitFor(() => expect(h.texts().some((x) => x.includes('ST-1'))).toBe(true));
   const bad = [0x1b, 0x202e, 0x2028];
   for (const t of h.texts()) for (const c of t) expect(bad).not.toContain(c.codePointAt(0));
-  expect(h.texts().some((x) => x.includes('Đặt [31m lại x y'))).toBe(true);
+  expect(h.texts().some((x) => x.includes('Réglé [31m à x y'))).toBe(true);
 });
 
 it('risk:security a row whose id has spaces or a pipe is shown with no button', async () => {

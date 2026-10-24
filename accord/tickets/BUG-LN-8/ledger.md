@@ -14,3 +14,8 @@
 - Ruling: approach: critic finding 2 taken — an exactly-one step that cannot be spliced gets its own stderr line — the ac-3 advice would loop forever there — one more message to keep
 - Ruling: approach: critic finding 3 taken — the warning says to fix and rerun before merging the upgrade pull request — after the merge upgrade refuses the same version — a longer warning
 - Ruling: approach: critic finding 4 taken — @ac-1 compares the whole file to workflowYml — a span test would restate the implementation — none
+- Ruling: plan: Task 1 is both the reproduction and the fix, as BUG-LN-3's plan was — a red-only task could not pass its own verify line — Task 1 is larger
+- Ruling: plan: `refreshLintStep` returns `{ text }` or `{ refused: 'count' | 'shape' }` — the approach's risk 2 needs two different stderr lines — one more exported type in core
+- Ruling: plan: steps are counted across every `jobs.*.steps` list — the ticket names "the workflow's one step" — a team job copying the step gets only the repin and the warning
+- Ruling: plan: @ac-1's expected text is the fixture's lines before the step plus the current step, and the test also asserts it equals `workflowYml` — the 0.1.0 bytes before the step were unchecked by the planner — none
+- Ruling: plan: a security-lens critic reads the plan beside the plain one — the change overwrites user text (approach failure scenarios) — one more critic

@@ -61,6 +61,10 @@
 - Ruling: Main session step 4 replaced 12 renamed ids in place in accord/tests-baseline.txt (Tasks 3, 4, 6), each new id read from a JUnit run of ears, gherkin and refs tests; the show-approval rename of Task 6 had no baseline line — cost if wrong: an untraced-test warning on a renamed id.
 - Ruling: (executor, task 12) docs/plans/aidlc-vs-accord.html keeps its tags, classes, styles and layout; only its text and `<html lang>` (vi to en) changed (D-07) — cost if wrong: a wording difference in a doc no test reads, checked at review.
 - Ruling: Main session step 3 (first run, before Task 11) computed hashes with the branch's core at `B` = d5db8c3, or efdf4fb for BUG-LN-7, ST-LN-44, ST-LN-46, ST-LN-49 and ST-LN-50 (D-08; efdf4fb holds the same records of the four as 060a8a7): readyHash and acHash equal for all 64 tickets; no ticket off step 2's list changed approvedHash; `accord approve` ran on the 30 step 2 tickets whose approved_hash matched at B and changed; plan_hash set to the new bodyHash for IDS-1, ST-LN-2, ST-LN-3, ST-LN-7, ST-LN-8 and ST-LN-19; 25 changed tickets whose approved_hash did not match at B were left as written; a rerun found every key that matched at B matching on the branch — cost if wrong: a ticket's stage moves, caught by the ac-3 test and the step 5 status diff.
+- Ruling: review round 1 split the over-1500-line diff into six reviewers (new checks both; packages intent and quality; records intent; approval-data security; integration), the security lens per the plan critique's migration Ruling — cost if wrong: one reviewer's tokens.
+- Ruling: review finding "owner typos kept" (ST-LN-27 "sessino", ST-LN-25 "peermission") is not fixed — those words were English in the owner's original text, not translated, and the typo Ruling covers only Vietnamese rendered into English; correcting the owner's English would change an approved quote, not translate it — cost if wrong: two misspellings stay in English quotes.
+- Ruling: ST-LN-4 D-04's option "ask you" is rendered "ask the owner" (review round 1) — the agent-written label addressed the owner, and the Decision text names the owner; ST-LN-4 was re-approved and every key that matched at its base matches again (step 3 rerun, 64 checked, 0 bad) — cost if wrong: one quote reads in third person where the label used second.
+- Ruling: the show-approval ac-1 and workflow-script "gate done runs and its failure fails the job" timeouts in the integration reviewer's full runs were load timeouts (two full suites overlapping, about 1100 s each); each file passed alone (103 s and 112 s); the first is tracked in ST-LN-44 — cost if wrong: a real failure seen as load, caught by the verify full suite.
 
 ## Deferred
 
@@ -75,3 +79,8 @@
 - plan-review 3.6 (Nice): step 7 fires only on records of a ticket other than ST-LN-48.
 - plan-review 3.7 (Nice): step 3's revert rule exempts every ticket step 6 names as well as step 2's list.
 - plan-review 3.8 (Nice): stage-baseline.test.ts gets a one-line header comment saying it pins d5db8c3's stage map and how to regenerate base-stages.json.
+- review 1 (Nice): ST-LN-44 and ST-LN-46 are compared against efdf4fb only by the step 5 status diff, not pinned in stage-baseline.test.ts; a second small stage map would close it.
+- review 1 (Nice): the renamed ids now traced by `@test:` or carrying `risk:` (ears, gherkin, refs lines in accord/tests-baseline.txt) need no baseline line; the file's "only shrinks" header suggests dropping them.
+- review 1 (Nice): `vietnameseLines`, `accordInput`, `stagesOf` and `fingerprint` are exported from test files though nothing imports them.
+- review 1 (Nice): packages/core/src/lint/ears.ts:4's comment still names Vietnamese letters as its example; "accented letters" would match refs.ts and snapshot.ts.
+- review 1 (Nice): BUG-LN-2.md:85 reads better as "Yes, all 3 (Recommended)"; ST-LN-25.md:105 and :116 as "Just do it in this ticket too".

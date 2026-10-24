@@ -53,7 +53,7 @@ Feature: ST-LN-48
     When the check runs on that repository
     Then it fails and names the file by its path relative to the repository root, and line 3
 
-  @ac-3
+  @ac-3 @test:packages/core/test/stage-baseline.test.ts#ac-3-every-ticket-keeps-the-stage-it-had-on-the-base-commit
   Scenario: Every ticket keeps its stage after the translation
     Given the `stage` that `accord status --json --all` reports, on the main commit this ticket's branch was made from, for each ticket other than ST-LN-48
     When the ticket records are translated and their hashes recomputed

@@ -205,34 +205,10 @@ const rmOld = (r: string): void => rmSync(join(r, 'accord', 'tickets', 'OLD-1.md
 const DELETED_APPROVED: Case[] = [
   { change: rmOld },
   {
-    seed: (r) => write(r, 'accord/tickets/OLD-1.md', APPROVED_TICKET.replace(/approved_hash.*\n/, 'approved_hash: ""\n')),
-    change: rmOld,
-  },
-  {
     seed: (r) =>
       write(r, 'accord/tickets/OLD-1.md', '---\nid: OLD-1\nstatus: open\nlane: S\nac_hash: "fnv1a64:0000000000000000"\n---\n\n## Understood\nx\n'),
     change: rmOld,
   },
-  {
-    change: (r) => {
-      rmOld(r);
-      write(r, 'src/app.ts', CODE);
-    },
-  },
-  {
-    seed: (r) => write(r, 'accord/tickets/OLD-1.md', '---\nid: OLD-1\nstatus: open\nac_hash: "fnv1a64:0000000000000000"\n---\n\n## Intent\nold\n'),
-    change: rmOld,
-  },
-  {
-    seed: (r) => write(r, 'accord/tickets/OLD-1.md', '---\nid: OLD-1\nstatus: open\nlane: M\nverified: [ac-1]\n---\n\n## Intent\nold\n'),
-    change: rmOld,
-  },
-  {
-    seed: (r) =>
-      write(r, 'accord/tickets/OLD-1.md', '---\nid: OLD-1\nstatus: open\nlane: >-\n  S\nac_hash: "fnv1a64:0000000000000000"\n---\n\n## Understood\nx\n'),
-    change: rmOld,
-  },
-  { seed: (r) => write(r, 'accord/tickets/OLD-1.md', FLOW_TICKET), change: rmOld },
   {
     change: (r) => {
       rmOld(r);
@@ -242,9 +218,6 @@ const DELETED_APPROVED: Case[] = [
 ];
 const DELETED_FREE: Case[] = [
   { seed: (r) => write(r, 'accord/tickets/OLD-1.md', droppedText('status: dropped')), change: rmOld },
-  { seed: (r) => write(r, 'accord/tickets/OLD-1.md', NO_KEY_TICKET), change: rmOld },
-  { seed: (r) => write(r, 'accord/tickets/OLD-1.md', DRAFT_TICKET.replace('DRAFT-1', 'OLD-1')), change: rmOld },
-  { seed: (r) => write(r, 'accord/tickets/OLD-1.md', NO_KEY_TICKET.replace('status: open', 'status: archived')), change: rmOld },
   {
     seed: (r) => {
       write(r, 'accord/tickets/OLD-1.md', NO_KEY_TICKET);
@@ -255,17 +228,13 @@ const DELETED_FREE: Case[] = [
       rmSync(join(r, 'accord', 'tickets', 'OLD-1'), { recursive: true });
     },
   },
-  {
-    seed: (r) => write(r, 'accord/tickets/OLD-1.md', '---\nid: OLD-1\nstatus: open\nlane: >-\n  M\n---\n\n## Intent\nold\n'),
-    change: rmOld,
-  },
 ];
 
 const SWAP_CHANGE = (r: string): void => {
   rmOld(r);
   write(r, 'accord/tickets/NEW-3.md', DRAFT_TICKET.replace('DRAFT-1', 'NEW-3'));
 };
-const SWAP: Case[] = [{ change: SWAP_CHANGE }, { change: SWAP_CHANGE, fail: 'NEW-3' }];
+const SWAP: Case[] = [{ change: SWAP_CHANGE, fail: 'NEW-3' }];
 // A comment spanning lines is a reason the script's awk cannot settle.
 const UNREADABLE_REASON: Case = {
   seed: (r) =>

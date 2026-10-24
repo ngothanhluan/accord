@@ -54,7 +54,7 @@ const SCRIPT = scriptOf(
 
 // Read out of the script, never re-typed: the claim is "it prints the line it carries", and 07-03's
 // shape test already pins the wording.
-const NOTHING_TO_GATE = (/echo "([^"]+)"/.exec(SCRIPT) ?? [])[1] ?? '';
+const NOTHING_TO_GATE = (/echo "([^"]*nothing to gate)"/.exec(SCRIPT) ?? [])[1] ?? '';
 
 // A-25: one environment knob, because a Windows host whose PATH resolves `bash` to the WSL shim sees a
 // different filesystem and would fail for a reason that has nothing to do with the script.
@@ -200,6 +200,66 @@ const GATED: Array<Case & { id: string }> = [
   { id: 'OLD-1', change: (r) => write(r, 'accord/tickets/OLD-1.md', NO_KEY_TICKET), fail: 'OLD-1' },
 ];
 
+const rmOld = (r: string): void => rmSync(join(r, 'accord', 'tickets', 'OLD-1.md'));
+const DELETED_APPROVED: Case[] = [
+  { change: rmOld },
+  {
+    seed: (r) => write(r, 'accord/tickets/OLD-1.md', APPROVED_TICKET.replace(/approved_hash.*\n/, 'approved_hash: ""\n')),
+    change: rmOld,
+  },
+  {
+    seed: (r) =>
+      write(r, 'accord/tickets/OLD-1.md', '---\nid: OLD-1\nstatus: open\nlane: S\nac_hash: "fnv1a64:0000000000000000"\n---\n\n## Understood\nx\n'),
+    change: rmOld,
+  },
+  {
+    change: (r) => {
+      rmOld(r);
+      write(r, 'src/app.ts', CODE);
+    },
+  },
+  {
+    seed: (r) => write(r, 'accord/tickets/OLD-1.md', '---\nid: OLD-1\nstatus: open\nac_hash: "fnv1a64:0000000000000000"\n---\n\n## Intent\nold\n'),
+    change: rmOld,
+  },
+  {
+    seed: (r) => write(r, 'accord/tickets/OLD-1.md', '---\nid: OLD-1\nstatus: open\nlane: M\nverified: [ac-1]\n---\n\n## Intent\nold\n'),
+    change: rmOld,
+  },
+  {
+    seed: (r) =>
+      write(r, 'accord/tickets/OLD-1.md', '---\nid: OLD-1\nstatus: open\nlane: >-\n  S\nac_hash: "fnv1a64:0000000000000000"\n---\n\n## Understood\nx\n'),
+    change: rmOld,
+  },
+  { seed: (r) => write(r, 'accord/tickets/OLD-1.md', FLOW_TICKET), change: rmOld },
+  {
+    change: (r) => {
+      rmOld(r);
+      write(r, 'accord/archive/OLD-1.md', APPROVED_TICKET);
+    },
+  },
+];
+const DELETED_FREE: Case[] = [
+  { seed: (r) => write(r, 'accord/tickets/OLD-1.md', droppedText('status: dropped')), change: rmOld },
+  { seed: (r) => write(r, 'accord/tickets/OLD-1.md', NO_KEY_TICKET), change: rmOld },
+  { seed: (r) => write(r, 'accord/tickets/OLD-1.md', DRAFT_TICKET.replace('DRAFT-1', 'OLD-1')), change: rmOld },
+  { seed: (r) => write(r, 'accord/tickets/OLD-1.md', NO_KEY_TICKET.replace('status: open', 'status: archived')), change: rmOld },
+  {
+    seed: (r) => {
+      write(r, 'accord/tickets/OLD-1.md', NO_KEY_TICKET);
+      write(r, 'accord/tickets/OLD-1/plan.md', '# Plan\n');
+    },
+    change: (r) => {
+      rmOld(r);
+      rmSync(join(r, 'accord', 'tickets', 'OLD-1'), { recursive: true });
+    },
+  },
+  {
+    seed: (r) => write(r, 'accord/tickets/OLD-1.md', '---\nid: OLD-1\nstatus: open\nlane: >-\n  M\n---\n\n## Intent\nold\n'),
+    change: rmOld,
+  },
+];
+
 interface Run {
   code: number;
   out: string;
@@ -309,13 +369,34 @@ describe.skipIf(noBash)('the emitted workflow script — executed', { timeout: 6
     expect(result.out).not.toContain(NOTHING_TO_GATE);
   });
 
-  it('ticket-deleting diff: does not gate the ticket the pull request removes (A-09)', () => {
-    const { repo, base } = sandbox((r) => rmSync(join(r, 'accord', 'tickets', 'OLD-1.md')));
-    const result = runScript(repo, { base });
-    expect(result.code, result.err).toBe(0);
-    expect(result.calls.length, result.calls.join(' | ')).toBe(1);
-    expect(result.calls[0].endsWith(' lint')).toBe(true);
-    expect(result.out).toContain(NOTHING_TO_GATE);
+  it('a deleted approved ticket not dropped at the base fails naming the ticket and accord drop', () => {
+    for (const c of DELETED_APPROVED) {
+      const { repo, base } = sandbox(c.change, c.seed);
+      const result = runScript(repo, { base });
+      expect(result.code, result.out + result.err).toBe(1);
+      expect(result.calls.length, result.calls.join(' | ')).toBe(1);
+      expect(result.calls[0].endsWith(' lint')).toBe(true);
+      for (const part of [
+        'OLD-1: an approved or done ticket cannot be deleted before it is dropped',
+        "restore the file if this is the ticket's own branch",
+        'accord drop OLD-1',
+        'merge the pull request of the drop/OLD-1 branch it pushes',
+        'merge the default branch into this branch and push',
+      ])
+        expect(result.out, part).toContain(part);
+      expect(result.out).not.toContain(NOTHING_TO_GATE);
+    }
+  });
+
+  it('a deleted ticket dropped at the base or not approved there passes without gate done', () => {
+    for (const c of DELETED_FREE) {
+      const { repo, base } = sandbox(c.change, c.seed);
+      const result = runScript(repo, { base });
+      expect(result.code, result.out + result.err).toBe(0);
+      expect(result.calls.length, result.calls.join(' | ')).toBe(1);
+      expect(result.calls[0].endsWith(' lint')).toBe(true);
+      expect(result.out).toContain(NOTHING_TO_GATE);
+    }
   });
 
   it('nested-path diff: accord/tickets/<id>/verification.md is not a ticket ([^/]+)', () => {
@@ -459,7 +540,8 @@ describe.skipIf(noBash)('the emitted workflow script — executed', { timeout: 6
     const own = named[0].run as string;
     const gatedIds = (calls: string[]): string[] =>
       calls.filter((c) => c.includes('gate done ')).map((c) => c.slice(c.indexOf('gate done ') + 'gate done '.length));
-    const all: Case[] = [...UNAPPROVED, ...DROPPED, NESTED_STATUS, ...GATED];
+    const all: Case[] = [...UNAPPROVED, ...DROPPED, NESTED_STATUS, ...GATED, ...DELETED_APPROVED, ...DELETED_FREE];
+    const said = (out: string): string[] => out.split('\n').filter((l) => l !== '' && !l.startsWith('npx stub'));
     for (const c of all) {
       const results = [SCRIPT, own].map((script) => {
         const s = sandbox(c.change, c.seed);
@@ -467,9 +549,10 @@ describe.skipIf(noBash)('the emitted workflow script — executed', { timeout: 6
       });
       expect(results[1].code, results[1].calls.join(' | ')).toBe(results[0].code);
       expect(gatedIds(results[1].calls)).toEqual(gatedIds(results[0].calls));
+      expect(said(results[1].out)).toEqual(said(results[0].out));
     }
     // 24+ sandboxes of git work: its own budget so load cannot time it out.
-  }, 300_000);
+  }, 600_000);
 
   // Task 2. Without this, "the test passes" and "the test would fail if the script were wrong" are two
   // different claims, and only the first is evidenced.

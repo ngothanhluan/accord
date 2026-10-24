@@ -20,3 +20,9 @@
 2. Nice: section 8 says `npm rebuild` links the `accord` command "that the hooks call", but the hooks run npx; the skills call `accord` (README.md, section 8).
 3. Nice: the skills list omits `accord-designer`, which the default `roles: [ba, dev, designer]` writes (README.md, section 2).
 4. Nice: "Every command that reads the repository refuses with exit 2" is not true of `hook prompt-expansion`, which warns and exits 0 (README.md, section 7).
+
+## Round 4
+
+1. Nice: upgrading, a step of the Understood line, has no heading of its own; it sits inside "7. Version pin" (README.md, section 7).
+2. Nice: sections 1 and 6 show bare `accord …` commands without saying they need the global install, or the npx prefix otherwise (README.md, sections 1 and 6).
+3. Nice: "the `prompt-expansion` hook only warns, so a prompt is never blocked" reads as general, but that hook does block `/accord` prompts in a session that holds another ticket (README.md, section 7).

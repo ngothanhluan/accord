@@ -28,12 +28,10 @@ ui: false
 
 ## Intent
 <!-- At most five lines: why, for whom, how success is measured, and what this does not do. -->
-Queued 2026-10-17, not approved; the intent interview replaces this:
-- Found in BUG-LN-3 review round 1. The accord workflow does not gate a deleted ticket file (A-09, so obsolete tickets can be removed). An accord-only pull request can therefore delete an approved ticket and add a new unapproved one with other content, and pass without `gate done`; no code can land this way, but the approved or done record is lost. BUG-LN-3 closes only the rename variant.
-- Owner chose to keep this as its own ticket: "Vá đổi tên, xóa file để ticket riêng (Recommended)". The question is whether to change A-09 so that removing an approved ticket must go through `status: dropped`.
-- Merged from BUG-LN-5 (owner, 2026-10-18, after the main session proposed merging tickets that touch the same code: "ok gộp đi"): the same script and the same test file.
-- Found in BUG-LN-3 final review. The lint-and-gate step of the workflow `accord init` writes (packages/core/src/scaffold/workflow.ts:75) and this repository's .github/workflows/accord.yml:36 set `shell: bash`, which GitHub runs as `bash --noprofile --norc -eo pipefail {0}`. The script's own comment says "Deliberately not -e: a lint failure and a gate failure should both be reported on one push". Under `-e` a failing command outside a condition can end the script before every ticket is gated or reported. packages/cli/test/workflow-script.test.ts runs the script with plain `bash`, so the flags CI uses are never tested.
-- Owner: "tạo ticket riêng đi". Open: whether to set `shell: bash --noprofile --norc {0}` (or `set +e`) so the comment holds, and to run the tests under the CI flags.
+For teams that rely on the accord check in CI: an approved or done ticket must never disappear without a recorded reason, and the check must report every lint and gate failure on one push under the shell flags GitHub uses.
+Success: a pull request that deletes an approved ticket not yet `status: dropped` fails with a message naming the fix; deleting a dropped ticket or any unapproved ticket still passes (A-09 narrowed by D-01); under `bash -eo pipefail` a lint failure and a gate failure are both reported; the tests run the script with those flags.
+Found in BUG-LN-3 review round 1 and final review; the delete-and-add variant is already blocked by BUG-LN-3's code and only gets a test here.
+Not in scope: `gate done` itself, the `accord drop` command, and any change to which tickets count as approved.
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.
@@ -42,10 +40,32 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 Feature: BUG-LN-4
 
   @ac-1
-  Scenario: <observable outcome>
-    Given ...
-    When ...
-    Then ...
+  Scenario: Deleting an approved ticket that was not dropped fails the check
+    Given a ticket whose version at the base commit has an approved_hash key, whatever its value, or on lane S an ac_hash key, and is not status dropped
+    When a pull request deletes that ticket's file and the accord check runs
+    Then the check exits non-zero
+    And it prints the ticket id and says to drop the ticket with accord drop before deleting it
+
+  @ac-2
+  Scenario: Deleting a dropped ticket or an unapproved ticket still passes
+    Given a ticket that is status dropped at the base commit, and another that is not approved as in @ac-1 at the base commit, whatever its status
+    When a pull request deletes either ticket's file and changes nothing else, and the accord check runs
+    Then the check exits zero without running gate done
+
+  @ac-3
+  Scenario: Swapping an approved ticket for an unapproved one fails and still gates the new ticket
+    Given a ticket approved as in @ac-1 and not status dropped at the base commit
+    When a pull request that changes only accord/ deletes it and adds a new unapproved ticket, and the accord check runs
+    Then the check exits non-zero and names the deleted ticket as in @ac-1
+    And gate done still runs on the new ticket and its result is printed
+
+  @ac-4
+  Scenario: Every failure is reported on one push under the flags CI uses
+    Given the script the workflow runs, started as bash --noprofile --norc -eo pipefail
+    When lint fails and a gate fails in the same run
+    Then lint and every gate still run and their failures are printed
+    And the check exits non-zero
+    And every test in the file that runs the workflow script starts bash with those same flags
 ```
 
 ## Vetoes
@@ -53,6 +73,8 @@ Feature: BUG-LN-4
 
 ## Decisions
 <!-- Settled answers, one per line: - D-01 <decision> — "<the owner's sentence>" -->
+- D-01 Deleting an approved or done ticket passes only when its base version is already `status: dropped`; otherwise the pull request fails with a message saying how to fix it; an unapproved draft may still be deleted freely (A-09 narrowed) — owner chose option (a): "A"
+- D-02 An unapproved ticket may be deleted whatever its status (draft, open or archived); only an approved one must be dropped first — owner chose option (a): "A"
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->

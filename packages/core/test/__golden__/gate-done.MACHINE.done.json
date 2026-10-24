@@ -1,5 +1,5 @@
 {
-  "acHash": "fnv1a64:cf39577f15f434b9",
+  "acHash": "fnv1a64:f75d2f60b5606c77",
   "findings": [
     {
       "file": "accord/tickets/MACHINE.md",
@@ -33,14 +33,14 @@
       "file": "accord/tickets/MACHINE.md",
       "level": "error",
       "line": 43,
-      "reason": "scenario \"Kịch bản quên gắn thẻ kiểm thử\" carries no @test:<id> tag and is not @ui, so Done cannot check it against the report",
+      "reason": "scenario \"Scenario with no test tag\" carries no @test:<id> tag and is not @ui, so Done cannot check it against the report",
       "rule": "gate.test-tag-missing"
     },
     {
       "file": "accord/tickets/MACHINE.md",
       "level": "warning",
       "line": 43,
-      "reason": "scenario \"Kịch bản quên gắn thẻ kiểm thử\" has no @test:<id> tag and is not @ui",
+      "reason": "scenario \"Scenario with no test tag\" has no @test:<id> tag and is not @ui",
       "rule": "lint.test-tag-missing"
     }
   ],

@@ -12,12 +12,12 @@ Feature: RULE
 Background:
   Given fb
 
-Rule: Thanh toán
+Rule: Payment
 
   Background:
     Given rb
 
   @ac-1
-  Scenario: Trong rule
+  Scenario: In the rule
     Given s
 ```

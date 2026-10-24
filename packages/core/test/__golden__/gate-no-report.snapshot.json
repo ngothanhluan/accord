@@ -28,10 +28,10 @@
     "GONE": {
       "file": "accord/tickets/GONE.md",
       "frontmatter": {
-        "ac_hash": "fnv1a64:0e84e174c4cdc76b",
+        "ac_hash": "fnv1a64:d195ee776986de2f",
         "id": "GONE",
         "status": "open",
-        "title": "Đăng nhập đã được kiểm chứng",
+        "title": "Sign-in has been verified",
         "type": "story",
         "ui": false,
         "verified": [
@@ -39,13 +39,13 @@
           "ac-2"
         ],
         "verified_commit": "1234567",
-        "verified_hash": "fnv1a64:0e84e174c4cdc76b"
+        "verified_hash": "fnv1a64:d195ee776986de2f"
       },
       "id": "GONE",
       "requirements": [
         {
           "line": 19,
-          "text": "WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+          "text": "WHEN a user submits a valid email and password the system SHALL open the dashboard"
         }
       ],
       "scenarios": [
@@ -53,10 +53,10 @@
           "acTag": "ac-1",
           "keyword": "Scenario",
           "line": 26,
-          "name": "Đăng nhập thành công",
+          "name": "Sign-in succeeds",
           "steps": [
-            "When họ gửi email và mật khẩu hợp lệ",
-            "Then họ thấy bảng điều khiển"
+            "When they submit a valid email and password",
+            "Then they see the dashboard"
           ],
           "tags": [
             "@ac-1",
@@ -67,10 +67,10 @@
           "acTag": "ac-2",
           "keyword": "Scenario",
           "line": 31,
-          "name": "Mật khẩu sai",
+          "name": "Wrong password",
           "steps": [
-            "When họ gửi mật khẩu sai",
-            "Then họ thấy thông báo lỗi"
+            "When they submit a wrong password",
+            "Then they see an error message"
           ],
           "tags": [
             "@ac-2",
@@ -85,7 +85,7 @@
           "lines": [
             {
               "line": 16,
-              "text": "Người dùng đăng nhập bằng email để vào bảng điều khiển."
+              "text": "Users sign in with an email to reach the dashboard."
             },
             {
               "line": 17,
@@ -99,7 +99,7 @@
           "lines": [
             {
               "line": 19,
-              "text": "- WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+              "text": "- WHEN a user submits a valid email and password the system SHALL open the dashboard"
             },
             {
               "line": 20,
@@ -129,15 +129,15 @@
             },
             {
               "line": 26,
-              "text": "  Scenario: Đăng nhập thành công"
+              "text": "  Scenario: Sign-in succeeds"
             },
             {
               "line": 27,
-              "text": "    When họ gửi email và mật khẩu hợp lệ"
+              "text": "    When they submit a valid email and password"
             },
             {
               "line": 28,
-              "text": "    Then họ thấy bảng điều khiển"
+              "text": "    Then they see the dashboard"
             },
             {
               "line": 29,
@@ -149,15 +149,15 @@
             },
             {
               "line": 31,
-              "text": "  Scenario: Mật khẩu sai"
+              "text": "  Scenario: Wrong password"
             },
             {
               "line": 32,
-              "text": "    When họ gửi mật khẩu sai"
+              "text": "    When they submit a wrong password"
             },
             {
               "line": 33,
-              "text": "    Then họ thấy thông báo lỗi"
+              "text": "    Then they see an error message"
             },
             {
               "line": 34,
@@ -175,7 +175,7 @@
           "lines": [
             {
               "line": 37,
-              "text": "- [x] Đã rõ"
+              "text": "- [x] Clear"
             },
             {
               "line": 38,
@@ -189,11 +189,11 @@
           "lines": [
             {
               "line": 40,
-              "text": "- Làm màn hình đăng nhập @ac-1"
+              "text": "- Build the sign-in screen @ac-1"
             },
             {
               "line": 41,
-              "text": "- Trả lỗi khi xác thực hỏng @ac-2"
+              "text": "- Return an error on failed authentication @ac-2"
             },
             {
               "line": 42,
@@ -211,7 +211,7 @@
             },
             {
               "line": 45,
-              "text": "src/auth/login.ts mở phiên mới rồi chuyển hướng, đã xem lại bằng tay."
+              "text": "src/auth/login.ts opens a new session and redirects, checked by hand."
             },
             {
               "line": 46,
@@ -223,7 +223,7 @@
             },
             {
               "line": 48,
-              "text": "src/auth/login.ts dừng trước khi tạo phiên và ghi nhật ký lần thử hỏng."
+              "text": "src/auth/login.ts stops before it creates a session and logs the failed attempt."
             }
           ]
         }
@@ -242,16 +242,16 @@
       "blocks": [
         {
           "acTag": "ac-1",
-          "evidence": "test/login.spec.ts và src/auth/login.ts",
+          "evidence": "test/login.spec.ts and src/auth/login.ts",
           "line": 7,
-          "name": "Đăng nhập thành công",
+          "name": "Sign-in succeeds",
           "result": "pass"
         },
         {
           "acTag": "ac-2",
-          "evidence": "test/login.spec.ts và src/auth/login.ts",
+          "evidence": "test/login.spec.ts and src/auth/login.ts",
           "line": 13,
-          "name": "Mật khẩu sai",
+          "name": "Wrong password",
           "result": "pass"
         }
       ],

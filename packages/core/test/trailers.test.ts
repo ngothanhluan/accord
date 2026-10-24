@@ -8,5 +8,5 @@ it('risk:parsing a forbidden line is found by letter case and leading whitespace
   expect(forbiddenLines('feat: x\n\n   co-authored-BY: Bot <b@example.com>  \n')).toEqual(['co-authored-BY: Bot <b@example.com>']);
   expect(forbiddenLines('feat: x\n\n\tSigned-off-by: A\nReviewed-by: B\nAcked-by: C\nX2-by: D\n')).toEqual(['Signed-off-by: A', 'Reviewed-by: B', 'Acked-by: C', 'X2-by: D']);
   expect(forbiddenLines('feat: x\n\nsee 🤖 GENERATED WITH [Claude Code](https://claude.com/claude-code)\r\n')).toEqual(['see 🤖 GENERATED WITH [Claude Code](https://claude.com/claude-code)']);
-  expect(forbiddenLines('feat: x\n\nbuild: tidy\nOwner: "có"\nCo-Authored: x\nwritten by: me\nCo_Authored-By: x\nby: x\n')).toEqual([]);
+  expect(forbiddenLines('feat: x\n\nbuild: tidy\nOwner: "yes"\nCo-Authored: x\nwritten by: me\nCo_Authored-By: x\nby: x\n')).toEqual([]);
 });

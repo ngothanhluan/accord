@@ -4,26 +4,26 @@ commit: 1234567
 reviewed_on: 2026-09-10
 ---
 
-## @ac-1 Bài kiểm thử bị tắt tiếng
+## @ac-1 Muted test
 
 Result: pass
 
 Evidence: test/login.spec.ts#skip1
 
-## @ac-2 Bài kiểm thử hỏng
+## @ac-2 Failing test
 
 Result: pass
 
 Evidence: test/login.spec.ts#fail1
 
-## @ac-3 Mã kiểm thử không có trong báo cáo
+## @ac-3 Test id absent from the report
 
 Result: pass
 
-Evidence: test/login.spec.ts và src/auth/login.ts
+Evidence: test/login.spec.ts and src/auth/login.ts
 
-## @ac-4 Kịch bản quên gắn thẻ kiểm thử
+## @ac-4 Scenario with no test tag
 
 Result: pass
 
-Evidence: test/login.spec.ts và src/auth/login.ts
+Evidence: test/login.spec.ts and src/auth/login.ts

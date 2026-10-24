@@ -10,7 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { cleanup, commitAll, gitRun, makeLaneRepo, makeRepo, run } from './helpers/repo.js';
 import { CONFIG } from '../../../test/helpers/lane.js';
 
-const CLEAN_HASH = 'fnv1a64:8613b1c0604c6a56';
+const CLEAN_HASH = 'fnv1a64:a7cd583f043979d7';
 const ticket = (repo: string, id: string): string => join(repo, 'accord', 'tickets', id + '.md');
 const bytes = (file: string): string => readFileSync(file, 'latin1'); // byte-exact: no BOM or encoding fixups
 

@@ -1,6 +1,6 @@
 // D-82 to D-85: the one extraction-and-resolution rule GATE-04 and GATE-10 share, pinned here so every
 // later change to the extension set, the segment-boundary suffix, or the normaliser moves a case in this
-// file rather than a golden. The two CONTEXT Vietnamese notes are Test 7.
+// file rather than a golden. The two CONTEXT non-English notes are Test 7.
 import { describe, expect, it } from 'vitest';
 import { candidates, noteBlocks, normalise, resolves, stripRefs, unresolvedRefs } from '../src/gate/refs.js';
 import { scan } from '../src/load/sections.js';
@@ -115,11 +115,11 @@ describe('unresolvedRefs', () => {
   });
 
   it('returns nothing when there is no candidate at all', () => {
-    expect(unresolvedRefs('chạy npm test', S)).toEqual([]);
+    expect(unresolvedRefs('run npm test', S)).toEqual([]);
   });
 
   it('raises one entry for a token repeated twice (D-83)', () => {
-    expect(unresolvedRefs('src/nope.ts và src/nope.ts', S)).toEqual(['src/nope.ts']);
+    expect(unresolvedRefs('src/nope.ts and src/nope.ts', S)).toEqual(['src/nope.ts']);
   });
 });
 
@@ -138,9 +138,9 @@ describe('stripRefs', () => {
 });
 
 describe('normalise (D-85 encoding)', () => {
-  it('lower-cases and keeps Vietnamese diacritics', () => {
-    expect(normalise('Trả')).toBe('trả');
-    expect(normalise('Trả')).not.toBe('tra');
+  it('risk:parsing lower-cases and keeps French diacritics', () => {
+    expect(normalise('Où')).toBe('où');
+    expect(normalise('Où')).not.toBe('ou');
   });
 
   it('turns punctuation and symbols into a space and collapses whitespace', () => {
@@ -156,15 +156,15 @@ describe('noteBlocks', () => {
   const T = ticket(
     body(
       '## Plan',
-      '- Làm màn hình đăng nhập @ac-1',
+      '- Build the login screen @ac-1',
       '',
       '## Verification notes',
       '### @ac-1',
-      'src/auth/login.ts mở phiên mới. <!-- bỏ qua -->',
-      'dòng hai',
+      'src/auth/login.ts opens a new session. <!-- skip this -->',
+      'second line',
       '',
       '### @ac-2',
-      'src/auth/login.ts dừng trước khi tạo phiên.',
+      'src/auth/login.ts stops before creating a session.',
     ),
   );
 
@@ -175,34 +175,34 @@ describe('noteBlocks', () => {
   });
 
   it('carries the lines up to the next ### with HTML comments stripped', () => {
-    expect(noteBlocks(T)['ac-1'].text).toBe('src/auth/login.ts mở phiên mới. \ndòng hai');
+    expect(noteBlocks(T)['ac-1'].text).toBe('src/auth/login.ts opens a new session. \nsecond line');
   });
 
   it('returns an empty record when there is no ## Verification notes section', () => {
-    expect(noteBlocks(ticket(body('## Intent', 'chỉ có ý định')))).toEqual({});
+    expect(noteBlocks(ticket(body('## Intent', 'intent only')))).toEqual({});
   });
 
   it('returns an orphan block; a tag matching no scenario is lint.note-orphan business', () => {
-    const orphan = ticket(body('## Verification notes', '### @ac-3', 'ghi chú'));
+    const orphan = ticket(body('## Verification notes', '### @ac-3', 'a note'));
     expect(Object.keys(noteBlocks(orphan))).toEqual(['ac-3']);
   });
 
   it('keeps the first of two blocks carrying the same tag (D-40)', () => {
-    const dupe = ticket(body('## Verification notes', '### @ac-1', 'đầu tiên', '### @ac-1', 'thứ hai'));
-    expect(noteBlocks(dupe)['ac-1'].text).toBe('đầu tiên');
+    const dupe = ticket(body('## Verification notes', '### @ac-1', 'the first', '### @ac-1', 'the second'));
+    expect(noteBlocks(dupe)['ac-1'].text).toBe('the first');
   });
 });
 
-describe('the two CONTEXT Vietnamese cases (D-85)', () => {
+describe('the two CONTEXT non-English cases (D-85)', () => {
   // The scenario the note is about, exactly as 04-CONTEXT states it.
-  const name = 'Đăng nhập thành công';
-  const steps = ['họ gửi email và mật khẩu hợp lệ', 'họ thấy bảng điều khiển'];
+  const name = 'Connexion réussie';
+  const steps = ['il envoie un e-mail et un mot de passe valides', 'il voit le tableau de bord'];
   const scenario = normalise(name + ' ' + steps.join(' '));
   const remainder = (note: string) => normalise(stripRefs(note, S));
 
   it('a note that says something of its own passes', () => {
-    const r = remainder('src/auth/login.ts trả 401 trước khi hash');
-    expect(r).toBe('trả 401 trước khi hash');
+    const r = remainder('src/auth/login.ts renvoie 401 avant le hachage');
+    expect(r).toBe('renvoie 401 avant le hachage');
     expect(scenario.includes(r)).toBe(false);
   });
 
@@ -213,13 +213,13 @@ describe('the two CONTEXT Vietnamese cases (D-85)', () => {
   });
 
   it('a note that quotes the scenario and then explains passes (GATE-10 adjacency)', () => {
-    const r = remainder(name + ' ' + steps.join(' ') + ' nhưng phiên hết hạn sau 15 phút');
+    const r = remainder(name + ' ' + steps.join(' ') + ' mais la session expire après 15 minutes');
     expect(scenario.includes(r)).toBe(false);
   });
 
   it('one character decides both ways, and length never enters it (GATE-10 boundary)', () => {
     expect(scenario.includes(remainder('src/auth/login.ts z'))).toBe(false);
-    expect(scenario.includes(remainder('src/auth/login.ts h'))).toBe(true);
+    expect(scenario.includes(remainder('src/auth/login.ts x'))).toBe(true);
   });
 });
 

@@ -29,7 +29,7 @@ ui: false
 ## Intent
 <!-- At most five lines: why, for whom, how success is measured, and what this does not do. -->
 Queued 2026-10-22, not approved; the intent interview replaces this:
-- Owner, 2026-10-22, to a read-only audit of all 73 test files (~1,100 tests) by five agents: "cả 2 ticket đi". Make the slow tests below cheaper without losing coverage. Line numbers as of main 8a8ba6f; each item is an agent's reading, check it before changing. Windows CI times from run 39784116057 (windows-latest, Node 22).
+- Owner, 2026-10-22, to a read-only audit of all 73 test files (~1,100 tests) by five agents: "both tickets, go ahead". Make the slow tests below cheaper without losing coverage. Line numbers as of main 8a8ba6f; each item is an agent's reading, check it before changing. Windows CI times from run 39784116057 (windows-latest, Node 22).
 - cli show-approval.test.ts:124 ac-1 rebuild over every real ticket, 78.7 s: call core approvalView(snap.tickets[id]) and check snap.errors per ticket instead of one CLI run per ticket; CLI-only parts covered by :297, :313, :267.
   2026-10-24, ST-LN-48 plan baseline: it timed out at the 300 s limit under the full suite (1162 s run) and passed alone in 140 s; the owner chose to track it here.
 - cli workflow-script.test.ts:454, 59.9 s: run both scripts in one sandbox (runScript only adds untracked files), about 30 s saved; same for :501 (12.5 s), about 6 s. cli worktree.test.ts:1799, 23.5 s: the two merging cases (1857, 1874) share one clone. cli after-verify.test.ts:27, 22.6 s: sections d (71) and f (105) reuse a clone. cli worktree.test.ts:1006, 17.3 s: all six commands in one folder, one command in the other two.

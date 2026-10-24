@@ -30,7 +30,7 @@ ui: false
 <!-- At most five lines: why, for whom, how success is measured, and what this does not do. -->
 Queued 2026-10-17, not approved; the intent interview replaces this:
 - The planner names an existing model file for each `(new)` path in a task, so the executor follows the house pattern; no pattern-mapping agent.
-- Also (owner: "ok đề xuất hợp lệ", 2026-10-17): a task tagged `risk:parsing` lists the valid spellings of its input (YAML has several for one map) so the executor tests them first; BUG-LN-3 found flow mappings, a bare `?` key, tags and indented mappings only in review rounds 4 and 5.
+- Also (owner: "ok, the proposal is valid", 2026-10-17): a task tagged `risk:parsing` lists the valid spellings of its input (YAML has several for one map) so the executor tests them first; BUG-LN-3 found flow mappings, a bare `?` key, tags and indented mappings only in review rounds 4 and 5.
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.

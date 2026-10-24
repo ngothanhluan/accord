@@ -17,7 +17,7 @@ interface Case {
 const ARCHIVED_PATH = 'accord/tickets/OLD-1.md';
 const ARCHIVED_TICKET = `---
 id: OLD-1
-title: Đăng nhập bằng mạng xã hội
+title: Social sign-in
 type: story
 status: archived
 parent: EPIC-1
@@ -25,26 +25,26 @@ ui: false
 ---
 
 ## Intent
-Đã bỏ; giữ lại để tra cứu.
+Dropped; kept for reference.
 
 ## Requirements
-- WHEN người dùng chọn đăng nhập mạng xã hội the system SHALL mở nhà cung cấp
+- WHEN the user picks social sign-in the system SHALL open the provider
 
 ## Acceptance criteria
 \`\`\`gherkin
 Feature: OLD-1
 
   @ac-1
-  Scenario: Đăng nhập bằng Google
-    When họ chọn Google
-    Then họ thấy bảng điều khiển
+  Scenario: Sign in with Google
+    When they pick Google
+    Then they see the dashboard
 \`\`\`
 
 ## Open questions
-- [x] Có khôi phục không? Không.
+- [x] Restore it? No.
 
 ## Plan
-- [x] Đã gỡ bỏ
+- [x] Removed
 `;
 
 function withArchived(): SnapshotInput {

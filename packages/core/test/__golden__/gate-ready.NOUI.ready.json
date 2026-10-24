@@ -1,11 +1,11 @@
 {
-  "acHash": "fnv1a64:6d3a29c3e382ce96",
+  "acHash": "fnv1a64:ea4dfda1451a363c",
   "findings": [
     {
       "file": "accord/tickets/NOUI.md",
       "level": "warning",
       "line": 20,
-      "reason": "scenario \"Xoá phiên hết hạn\" has no @test:<id> tag and is not @ui",
+      "reason": "scenario \"Expired session is deleted\" has no @test:<id> tag and is not @ui",
       "rule": "lint.test-tag-missing"
     }
   ],

@@ -214,15 +214,15 @@ describe('accord status long values (T-05-12)', () => {
 
 // The ASCII invariant above runs against an all-ASCII fixture, so it holds whatever the sanitiser
 // does. These cases carry the characters the rule exists to stop — a box-drawing glyph, an em dash,
-// Vietnamese diacritics, an astral emoji — through the two columns a ticket author controls without
+// French diacritics, an astral emoji — through the two columns a ticket author controls without
 // the tracker adapter in the path: the id, which is the file stem, and a frontmatter tracker value.
 describe('accord status non-ASCII input (STACK Decision 5, T-05-11)', () => {
   let repo: string;
 
   beforeAll(() => {
     repo = makeRepo('valid-build');
-    addTicket(repo, 'UNI-1', 'status: open\nparent: EPIC-1\ntracker:\n  shortcut: "Đăng—█💩"');
-    addTicket(repo, 'Đ█-1', 'status: open\nparent: EPIC-1');
+    addTicket(repo, 'UNI-1', 'status: open\nparent: EPIC-1\ntracker:\n  shortcut: "Été—█💩"');
+    addTicket(repo, 'É█-1', 'status: open\nparent: EPIC-1');
   });
   afterAll(() => {
     cleanup(repo);

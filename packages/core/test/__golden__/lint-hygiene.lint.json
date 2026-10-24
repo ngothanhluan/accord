@@ -30,7 +30,7 @@
       "file": "accord/tickets/HYGIENE.md",
       "level": "warning",
       "pointer": "/assumptions/0/confirmed",
-      "reason": "assumption \"Người dùng đã có tài khoản\" is not confirmed",
+      "reason": "assumption \"The user already has an account\" is not confirmed",
       "rule": "lint.assumption-unconfirmed"
     },
     {
@@ -100,7 +100,7 @@
       "file": "accord/tickets/HYGIENE.md",
       "level": "warning",
       "line": 27,
-      "reason": "scenario \"Đăng nhập\" has a placeholder step \"When ...\"",
+      "reason": "scenario \"Sign-in\" has a placeholder step \"When ...\"",
       "rule": "lint.sentinel"
     },
     {

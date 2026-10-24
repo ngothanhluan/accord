@@ -24,7 +24,7 @@ ui: false
 # The AC hash and the commit the ticks were made against.
 # verified_hash:
 # verified_commit:
-approved_hash: "fnv1a64:60d2533623951f2b"
+approved_hash: "fnv1a64:6cfbe49a191dbb4d"
 ac_hash: "fnv1a64:48286978fa4617c2"
 verified_hash: "fnv1a64:48286978fa4617c2"
 verified_commit: "96223a26ac6c5214f82bd977cb78ee2cf8985932"
@@ -90,22 +90,22 @@ Feature: ST-LN-6
 ## Decisions
 <!-- Settled answers, one per line: - D-01 <decision> — "<the owner's sentence>" -->
 - D-01 The request has four parts: a new `accord show <id> --json` with the Intent, every criterion's title and steps, and each criterion's state; core code that works out that state; a panel detail view opened by pressing a ticket that draws that JSON; full text with no cut in the detail view while the dashboard table keeps its cuts — "ok option 1" (2026-10-16)
-- D-02 Pressing a ticket row opens its detail view; the view holds the Continue or Pick up button and a Back button, so running a ticket takes two presses — "Mở chi tiết, nút ở trong (Khuyên)" (2026-10-16)
-- D-03 Each criterion shows one state label worked out in core, and under it every fact the label came from: its @test tag, that test's result, whether it is ticked in `verified:`, and its verification.md result — "Một nhãn + các dữ kiện (Khuyên)" (2026-10-16)
-- D-04 A criterion's label is the first that matches, top down: failing (its @test result failed, or verification.md says fail); blocked (verification.md says blocked); verified (in `verified:` and the tick still bound to the current criteria); passing (its test passed); not run (it has an @test tag but the report has no result for it, or the test was skipped); untested (no @test tag) — "Dùng thứ tự này (Khuyên)" (2026-10-16)
-- D-05 `accord show <id>` prints readable text, everything in full with no cut, and `--json` gives the same content for the panel, so runtimes without the panel see the detail too — "Có cả chữ và JSON (Khuyên)" (2026-10-16)
-- D-06 The detail starts with the full title and the facts the dashboard row already has: stage, lane, tasks done of total, branch, who holds it, and the tickets blocking it — "Tiêu đề đủ + dữ kiện của hàng (Khuyên)" (2026-10-16)
+- D-02 Pressing a ticket row opens its detail view; the view holds the Continue or Pick up button and a Back button, so running a ticket takes two presses — "Open the detail, buttons inside (Recommended)" (2026-10-16)
+- D-03 Each criterion shows one state label worked out in core, and under it every fact the label came from: its @test tag, that test's result, whether it is ticked in `verified:`, and its verification.md result — "One label + the facts (Recommended)" (2026-10-16)
+- D-04 A criterion's label is the first that matches, top down: failing (its @test result failed, or verification.md says fail); blocked (verification.md says blocked); verified (in `verified:` and the tick still bound to the current criteria); passing (its test passed); not run (it has an @test tag but the report has no result for it, or the test was skipped); untested (no @test tag) — "Use this order (Recommended)" (2026-10-16)
+- D-05 `accord show <id>` prints readable text, everything in full with no cut, and `--json` gives the same content for the panel, so runtimes without the panel see the detail too — "Both text and JSON (Recommended)" (2026-10-16)
+- D-06 The detail starts with the full title and the facts the dashboard row already has: stage, lane, tasks done of total, branch, who holds it, and the tickets blocking it — "Full title + the row's facts (Recommended)" (2026-10-16)
 - D-07 The smallest version that still counts as done is all of D-01 to D-06; nothing is cut — "option 1" (2026-10-16)
-- D-08 After the audit: an empty fact prints `none` under its label; steps keep their Gherkin keyword; the JSON holds data, not display text; a tick is bound by the ticket-level `verified_hash`; test results come from config.yml `tests.report`, and a missing report makes a tagged criterion not run; the row loses its button to the detail view; Back shows the loaded dashboard without a new run; the panel wraps text itself with no inserted line breaks — "Đồng ý cả 8 (Khuyên)" (2026-10-16)
-- D-09 The id that opens the detail is drawn so a user can tell it is pressable — "duyệt nhưng Id phải highlight hoặc sao đó để user biết mà click." (2026-10-16)
+- D-08 After the audit: an empty fact prints `none` under its label; steps keep their Gherkin keyword; the JSON holds data, not display text; a tick is bound by the ticket-level `verified_hash`; test results come from config.yml `tests.report`, and a missing report makes a tagged criterion not run; the row loses its button to the detail view; Back shows the loaded dashboard without a new run; the panel wraps text itself with no inserted line breaks — "Agree to all 8 (Recommended)" (2026-10-16)
+- D-09 The id that opens the detail is drawn so a user can tell it is pressable — "approved, but the Id must be highlighted or something so the user knows to click it." (2026-10-16)
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
-- 2026-10-16, on the Approach (id cell as the press target): "duyệt nhưng Id phải highlight hoặc sao đó để user biết mà click."
+- 2026-10-16, on the Approach (id cell as the press target): "approved, but the Id must be highlighted or something so the user knows to click it."
 
 ## Open questions
 <!-- `- [ ]` items; Ready stays blocked while any is unchecked. -->
-- [x] Scope from ST-LN-3 verify (2026-10-16). Owner, asked what a pressed ticket should show: "ok option 1, nhưng phải đảm bảo là hiện đủ thông tin, ko elipsis" — option 1 was: the detail view shows the Intent, the acceptance criteria and each criterion's state, read from a new `accord show <id> --json` so the pane still reads only CLI output (ST-LN-3 D-04). Then, on whether the no-ellipsis rule covers the table: "ko áp dụng cho bảng. khi xem details thì phải details chứ".
+- [x] Scope from ST-LN-3 verify (2026-10-16). Owner, asked what a pressed ticket should show: "ok option 1, but make sure it shows all the information, no ellipsis" — option 1 was: the detail view shows the Intent, the acceptance criteria and each criterion's state, read from a new `accord show <id> --json` so the pane still reads only CLI output (ST-LN-3 D-04). Then, on whether the no-ellipsis rule covers the table: "it doesn't apply to the table. when viewing details it has to be detailed, of course".
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->

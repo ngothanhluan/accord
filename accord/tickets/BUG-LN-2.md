@@ -24,7 +24,7 @@ ui: false
 # The AC hash and the commit the ticks were made against.
 # verified_hash:
 # verified_commit:
-approved_hash: "fnv1a64:8ab7a7914640665c"
+approved_hash: "fnv1a64:f33b1e723090e899"
 ac_hash: "fnv1a64:9c911fa7ec3e52fd"
 verified_hash: "fnv1a64:9c911fa7ec3e52fd"
 verified_commit: "8b0f2fd69f98e3cdd221544643bcc07f54325f40"
@@ -80,11 +80,11 @@ Feature: BUG-LN-2
 
 ## Decisions
 <!-- Settled answers, one per line: - D-01 <decision> — "<the owner's sentence>" -->
-- D-01 For a claimed ticket, the dashboard and status read the ticket, its plan, ledger, review, verification and the plan's ready commit from the claim branch, even when the current branch holds an older copy — "Luôn từ nhánh claim (Recommended)"
-- D-02 All three parts are in scope and none is cut: claimed tickets on other branches show, `build` only after `plan: <id> ready`, an unwritten intent points to the interview — "Đúng cả 3 (Recommended)", then "Cả 3 phần, không cắt (Recommended)"
-- D-03 A lane ticket row at stage intent gains a `next` field in `accord status --json` and `accord dashboard --json`, and the dashboard prints it after the stage; no field is removed; spec §6 line 179 is updated to match — "Thêm field next (Recommended)"
-- D-04 A dependency counts as done only in the tree the command runs on, as spec §5 says: a ticket done only on its unmerged claim branch still blocks its dependents on the dashboard, while its own row shows the stage its branch holds — "Vẫn bị chặn, giữ spec §5 (Recommended)"
-- D-05 `accord show`, the panel's ticket detail added by ST-LN-6, reads a claimed ticket the way the dashboard does: from its claim branch, with plan facts, and with blockers from the checkout — "Như dashboard (Recommended)"
+- D-01 For a claimed ticket, the dashboard and status read the ticket, its plan, ledger, review, verification and the plan's ready commit from the claim branch, even when the current branch holds an older copy — "Always from the claim branch (Recommended)"
+- D-02 All three parts are in scope and none is cut: claimed tickets on other branches show, `build` only after `plan: <id> ready`, an unwritten intent points to the interview — "All 3, right (Recommended)", then "All 3 parts, no cuts (Recommended)"
+- D-03 A lane ticket row at stage intent gains a `next` field in `accord status --json` and `accord dashboard --json`, and the dashboard prints it after the stage; no field is removed; spec §6 line 179 is updated to match — "Add the next field (Recommended)"
+- D-04 A dependency counts as done only in the tree the command runs on, as spec §5 says: a ticket done only on its unmerged claim branch still blocks its dependents on the dashboard, while its own row shows the stage its branch holds — "Still blocked, keep spec §5 (Recommended)"
+- D-05 `accord show`, the panel's ticket detail added by ST-LN-6, reads a claimed ticket the way the dashboard does: from its claim branch, with plan facts, and with blockers from the checkout — "Like the dashboard (Recommended)"
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->

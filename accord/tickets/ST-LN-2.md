@@ -22,7 +22,7 @@ ui: false
 # The AC hash and the commit the ticks were made against.
 # verified_hash:
 # verified_commit:
-approved_hash: "fnv1a64:e4bca3fc8da8a322"
+approved_hash: "fnv1a64:658e579870d0b6cb"
 ac_hash: "fnv1a64:8b1e67cd41949e9a"
 verified_hash: "fnv1a64:8b1e67cd41949e9a"
 verified_commit: "35f4bde119ddd1355540d33d4abc6de589d4fcb9"
@@ -92,15 +92,15 @@ Feature: ST-LN-2
 
 ## Decisions
 <!-- Settled answers, one per line: - D-01 <decision> — "<the owner's sentence>" -->
-- D-01 Six parts: `title` in each status row and column headers on the dashboard; an optional `priority: high|medium|low` field, default medium; a ranking computed by the CLI (effective priority is the highest of the ticket and every ticket that depends on it, directly or not; unblocked before blocked; then id; done, archived and dropped left out); an UP NEXT section of at most 20 rows with one suggested action when nothing is in progress or ready; caps (YOURS none, TEAM 10, READY and UP NEXT 20 with `+N more`, one summary count line); an EPICS section grouping tickets by `parent` with a progress roll-up — "Đúng 6 phần (Recommended)"
-- D-02 The CLI builds the sections, the ranking and the caps (with `+N more`) and prints them as JSON, and may print text too; the /accord skill only shows what it prints, and the panel reads the same JSON — "CLI dựng sẵn (Recommended)"
-- D-03 An epic's progress is the count of its child tickets that are done over all its child tickets, dropped children left out of both, e.g. `3/7 done` — "Số ticket done (Recommended)"
-- D-04 UP NEXT is per viewer: it appears when the viewer (git `user.email`) has no ticket in progress and READY is empty, whatever teammates hold; it lists unclaimed tickets that are not done, archived or dropped, in rank order, at most 20, and its one suggested action is to pick up the first that is not blocked — "Theo từng người (Recommended)"
-- D-05 All six parts are the smallest version that counts as done — "Cả 6 phần (Recommended)"
-- D-06 `accord dashboard --json` holds data, not display text: overflow as a number (`more: 2`), epic progress as `done` and `total`, the suggested action as `{ action, id }`, the summary as counts; a section that does not apply is absent from the JSON; only the text output prints "+2 more" and "3/7 done" — "Số và id, text tự định dạng (Recommended)"
-- D-07 `title` is added to the status rows of lane tickets only, so rows of tickets without `lane:` stay byte-identical to 0.1.0; this narrows D-01's "`title` in each status row" — "Chỉ dòng có lane (Recommended)"
-- D-08 `epics` is always present in `dashboard --json`, `{ "rows": [], "more": 0 }` when there is no epic; only `upNext` is absent when it does not apply; the text omits an empty EPICS section — "Luôn có `epics` (Recommended)"
-- D-09 The summary carries a fifth count, `backlog`: open, unclaimed tickets that are neither ready nor blocked, so they stay counted while YOURS or READY hides UP NEXT — "Giữ `backlog` (Recommended)"
+- D-01 Six parts: `title` in each status row and column headers on the dashboard; an optional `priority: high|medium|low` field, default medium; a ranking computed by the CLI (effective priority is the highest of the ticket and every ticket that depends on it, directly or not; unblocked before blocked; then id; done, archived and dropped left out); an UP NEXT section of at most 20 rows with one suggested action when nothing is in progress or ready; caps (YOURS none, TEAM 10, READY and UP NEXT 20 with `+N more`, one summary count line); an EPICS section grouping tickets by `parent` with a progress roll-up — "Exactly 6 parts (Recommended)"
+- D-02 The CLI builds the sections, the ranking and the caps (with `+N more`) and prints them as JSON, and may print text too; the /accord skill only shows what it prints, and the panel reads the same JSON — "The CLI builds it (Recommended)"
+- D-03 An epic's progress is the count of its child tickets that are done over all its child tickets, dropped children left out of both, e.g. `3/7 done` — "Number of tickets done (Recommended)"
+- D-04 UP NEXT is per viewer: it appears when the viewer (git `user.email`) has no ticket in progress and READY is empty, whatever teammates hold; it lists unclaimed tickets that are not done, archived or dropped, in rank order, at most 20, and its one suggested action is to pick up the first that is not blocked — "Per person (Recommended)"
+- D-05 All six parts are the smallest version that counts as done — "All 6 parts (Recommended)"
+- D-06 `accord dashboard --json` holds data, not display text: overflow as a number (`more: 2`), epic progress as `done` and `total`, the suggested action as `{ action, id }`, the summary as counts; a section that does not apply is absent from the JSON; only the text output prints "+2 more" and "3/7 done" — "Numbers and ids; the text formats itself (Recommended)"
+- D-07 `title` is added to the status rows of lane tickets only, so rows of tickets without `lane:` stay byte-identical to 0.1.0; this narrows D-01's "`title` in each status row" — "Only rows with a lane (Recommended)"
+- D-08 `epics` is always present in `dashboard --json`, `{ "rows": [], "more": 0 }` when there is no epic; only `upNext` is absent when it does not apply; the text omits an empty EPICS section — "Always have `epics` (Recommended)"
+- D-09 The summary carries a fifth count, `backlog`: open, unclaimed tickets that are neither ready nor blocked, so they stay counted while YOURS or READY hides UP NEXT — "Keep `backlog` (Recommended)"
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->

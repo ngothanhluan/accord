@@ -1,6 +1,6 @@
 ---
 baseline: 6ead1b6a5e34315768ab998a450701e2283a766b
-plan_hash: "fnv1a64:64f1563e621fd649"
+plan_hash: "fnv1a64:e0216904a2d3c8ad"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -109,7 +109,7 @@ Tests first.
   - `forbiddenLines('feat: x\n\nsee 🤖 GENERATED WITH [Claude Code](https://claude.com/claude-code)\r\n')` is
     `['see 🤖 GENERATED WITH [Claude Code](https://claude.com/claude-code)']` (anywhere in the line, CR dropped by
     the trim).
-  - `forbiddenLines('feat: x\n\nbuild: tidy\nOwner: "có"\nCo-Authored: x\nwritten by: me\nCo_Authored-By: x\nby: x\n')`
+  - `forbiddenLines('feat: x\n\nbuild: tidy\nOwner: "yes"\nCo-Authored: x\nwritten by: me\nCo_Authored-By: x\nby: x\n')`
     is `[]` (the lines git's parser misread, and tokens that do not end in `-by:` or hold another character).
 - `packages/cli/test/trailers.test.ts`, top-level, importing `cleanup`, `commitAll`, `gitRun`, `makeLaneRepo`,
   `run` and `writeFiles` from `./helpers/repo.js` and `CONFIG` from `../../../test/helpers/lane.js`, with the

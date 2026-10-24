@@ -24,7 +24,7 @@ ui: false
 # The AC hash and the commit the ticks were made against.
 # verified_hash:
 # verified_commit:
-approved_hash: "fnv1a64:3fd9b972ca199053"
+approved_hash: "fnv1a64:d1fea9108e5f7216"
 ac_hash: "fnv1a64:d14f73ef46a3a5e4"
 verified_hash: "fnv1a64:d14f73ef46a3a5e4"
 verified_commit: "9d180e7cdeb711e7496255788237a38ab0b79c15"
@@ -33,7 +33,7 @@ verified: [ac-1, ac-2, ac-3, ac-4, ac-5]
 
 ## Intent
 <!-- At most five lines: why, for whom, how success is measured, and what this does not do. -->
-Why: a repository pins its accord version and nothing says a newer one exists; a ticket claimed long ago is worked on code far behind main (this ticket was 269 commits behind) until verify; a merged ticket's worktree stays until someone types a bare `/accord`. Owner: "pull latest từ main về đi sao kỳ vậy?", "sau khi xong ticket thì tự dọn dẹp."
+Why: a repository pins its accord version and nothing says a newer one exists; a ticket claimed long ago is worked on code far behind main (this ticket was 269 commits behind) until verify; a merged ticket's worktree stays until someone types a bare `/accord`. Owner: "pull the latest from main, why is it like this?", "after a ticket is finished, clean up on its own."
 For whom: everyone on a team that works through accord, in Claude Code, Cursor, Codex or Copilot.
 Success: a newer release is announced, asked of the registry at most once a day; one command gives a pushed branch that moves the pin everywhere, ready for a pull request; Continue leaves the ticket branch merged with the latest main; any `/accord` command removes merged tickets' worktrees and branches.
 Not this ticket: no per-machine self-update; no permission-prompt work (D-03); no rebase; a worktree with uncommitted work or a live session is never removed; the CLI never calls `gh`.
@@ -100,21 +100,21 @@ Feature: ST-LN-25
 
 ## Decisions
 <!-- Settled answers, one per line: - D-01 <decision> — "<the owner's sentence>" -->
-- D-01 This ticket also makes Continue merge `origin/main` into a ticket branch that is behind, whatever the stage (a merge commit, then the setup commands, then a push; a conflict stops and is reported), replacing ST-LN-30 D-04's report-only Continue — "tôi chọn A, tự làm trong ticket này luôn đi." (to the options: A Continue always merges when behind; B only before build; C keep report-only)
-- D-02 This ticket also removes a ticket's worktree and its branches on its own once the ticket's work is merged, with no command typed for it — "sau khi xong ticket thì tự dọn dẹp."
-- D-03 Permission prompts when working in a worktree are out of scope — "thôi bỏ qua vụ xin permission đi."
+- D-01 This ticket also makes Continue merge `origin/main` into a ticket branch that is behind, whatever the stage (a merge commit, then the setup commands, then a push; a conflict stops and is reported), replacing ST-LN-30 D-04's report-only Continue — "I choose A, do it in this ticket as well." (to the options: A Continue always merges when behind; B only before build; C keep report-only)
+- D-02 This ticket also removes a ticket's worktree and its branches on its own once the ticket's work is merged, with no command typed for it — "after a ticket is finished, clean up on its own."
+- D-03 Permission prompts when working in a worktree are out of scope — "never mind, skip the permission-asking matter."
 - D-04 The new-version notice reaches the owner through the agent: the session-start hook gives it to the agent, and the agent says it in its first reply of the session — "A" (to the options: A the agent says it in its first reply; B only the hook's existing line; C only the dashboard)
 - D-05 The automatic clean of D-02 runs whenever any `/accord` command runs (the dashboard, Continue, Pick up, a new request), in every tool, never at session start — "A" (to the options: A every /accord command; B every session start, Claude Code only; C both)
 - D-06 The `/accord` dashboard also shows the new-version line, in every tool, checking at most once a day, so users without a session-start hook (Cursor, Codex, Copilot) learn of it too; Claude Code still says it at session start per D-04 — "A" (to the options: A the dashboard shows it as well; B Claude Code only)
 - D-07 The smallest version that counts as done is all four parts: the notice, the upgrade, Continue merging main, and the automatic clean — "A" (to the options: A all four; B drop the dashboard line; C drop the automatic clean)
-- D-08 The automatic clean removes a ticket's worktree, local branch and origin branch only when the ticket is wholly done: verified and approved, and merged into origin's main; then it removes them whatever tool the worktree was worked from, keeping only a worktree with uncommitted work or one a live Claude Code session holds; a ticket merged but not done is kept — "ý tôi là chỉ xóa worktree khi ticket đó hoàn toàn done", then "A" (to the options: A done and merged, both; B merged is enough)
+- D-08 The automatic clean removes a ticket's worktree, local branch and origin branch only when the ticket is wholly done: verified and approved, and merged into origin's main; then it removes them whatever tool the worktree was worked from, keeping only a worktree with uncommitted work or one a live Claude Code session holds; a ticket merged but not done is kept — "what I mean is only delete the worktree when that ticket is wholly done", then "A" (to the options: A done and merged, both; B merged is enough)
 - D-09 Continue merges `origin/main` only while the ticket is before verify (intent, approach, plan, build, review), narrowing D-01's "whatever the stage"; verify keeps its own merge at its start (ST-LN-30), and a ticket at verify or done is never merged by Continue, so an approved verification is never made stale — "A" (to the options: A only before verify; B at every stage, done included)
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
-- 2026-10-22: "pull latest từ main về đi sao kỳ vậy?"
-- 2026-10-22: "tôi chọn A, tự làm trong ticket này luôn đi. với lại tôi thấy vụ worktree rối rắm quá. những plugin khác tạo worktree đâu cần xin peermission, sau khi xong ticket thì tự dọn dẹp."
-- 2026-10-22, to the question "when the automatic clean cannot be sure no session is in a worktree, what should it do?" (A remove only when sure no one is in it; B remove whenever nothing is uncommitted; C give the other tools a hold too), after first answering "A": "ý tôi là chỉ xóa worktree khi ticket đó hoàn toàn done"
+- 2026-10-22: "pull the latest from main, why is it like this?"
+- 2026-10-22: "I choose A, do it in this ticket as well. besides, I find the worktree matter too tangled. other plugins that create worktrees do not need to ask for peermission, after a ticket is finished, clean up on its own."
+- 2026-10-22, to the question "when the automatic clean cannot be sure no session is in a worktree, what should it do?" (A remove only when sure no one is in it; B remove whenever nothing is uncommitted; C give the other tools a hold too), after first answering "A": "what I mean is only delete the worktree when that ticket is wholly done"
 
 ## Open questions
 <!-- `- [ ]` items; Ready stays blocked while any is unchecked. -->

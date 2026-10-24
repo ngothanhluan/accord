@@ -24,7 +24,7 @@ ui: false
 # The AC hash and the commit the ticks were made against.
 # verified_hash:
 # verified_commit:
-approved_hash: "fnv1a64:9df3b6a1c936e862"
+approved_hash: "fnv1a64:20d5d957d8a81408"
 ac_hash: "fnv1a64:d4d4ce671ded68e3"
 verified_hash: "fnv1a64:d4d4ce671ded68e3"
 verified_commit: "bc07c15ed14b184356a48ee5ec240957edd25fd6"
@@ -37,7 +37,7 @@ Why: in dogfooding, executors added Co-Authored-By trailers against this reposit
 For whom: every team running accord; executors receive the repository's written conventions in every brief, and a repository that forbids trailers has the tools refuse them.
 Success: on the next ticket built in this repository, `git log` of its branch shows no Co-Authored-By line.
 Non-goals: no accord-wide trailer ban, no git hook, no lint rule for conventions.md, no new command.
-Merged from ST-LN-9 (owner, 2026-10-18: "ok gộp đi").
+Merged from ST-LN-9 (owner, 2026-10-18: "ok merge them").
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.
@@ -103,7 +103,7 @@ Feature: ST-LN-8
 - D-04 `accord/product/conventions.md` is free text like its siblings: `accord init` writes it from a short template (one rule per line, `Rejected:` lines for what was tried and refused), lint does not check it, and `accord brief` appends it verbatim, printing nothing for it when the file is absent — "A" (answering: like glossary and business-rules vs a fixed shape lint checks vs not scaffolded until verify first promotes a rule)
 - D-05 Promotion is a step in the accord-verify skill with no new command: the main session reads the ticket's Rulings and Corrections, asks the owner about each one it judges to hold across tickets, and on a yes writes it as a rule line in `conventions.md`, committed with `verification.md` — "A" (answering: a skill step vs a new `accord promote <id>` command)
 - D-06 A "Generated with" line is any line of the commit message that contains "Generated with" anywhere in it — "A" (answering: contains anywhere vs starts with vs starts with after leading non-letters)
-- D-07 Replaces D-03 and narrows D-06 to the body: a forbidden line is any line of the commit body (every line after the subject) that, after leading whitespace, starts with a token of one or more ASCII letters, digits or hyphens that ends in `-by:` (Co-Authored-By, Signed-off-by, Reviewed-by, Acked-by), or that contains "Generated with"; letter case is ignored in both tests, accord reads the body itself and never git's trailer parser, so the result does not depend on the git version or git config, and the subject is never checked — "A" (answering, after the critic showed git's parser misses a Co-Authored-By line sharing a paragraph with prose and flags bodies such as `build: …` and `Owner: "có"`: `-by:` lines anywhere plus "Generated with" in the body vs git's parser plus any Co-Authored-By line vs only Co-Authored-By plus "Generated with")
+- D-07 Replaces D-03 and narrows D-06 to the body: a forbidden line is any line of the commit body (every line after the subject) that, after leading whitespace, starts with a token of one or more ASCII letters, digits or hyphens that ends in `-by:` (Co-Authored-By, Signed-off-by, Reviewed-by, Acked-by), or that contains "Generated with"; letter case is ignored in both tests, accord reads the body itself and never git's trailer parser, so the result does not depend on the git version or git config, and the subject is never checked — "A" (answering, after the critic showed git's parser misses a Co-Authored-By line sharing a paragraph with prose and flags bodies such as `build: …` and `Owner: "yes"`: `-by:` lines anywhere plus "Generated with" in the body vs git's parser plus any Co-Authored-By line vs only Co-Authored-By plus "Generated with")
 - D-08 `gate done`'s check that the ticks and the review were made against the gated code treats a later change to `accord/product/conventions.md` like a change to the ticket's own records, so the promotion commit of D-05 does not fail `gate.tick-stale-commit` or `gate.stale-review` in CI — "1.a" (answering, after the plan critic showed the promotion commit lands after the ticks: accept conventions.md as a record vs move the promotion commit before the ticks and change ac-5)
 - D-09 The accord-build skill's task-done step gains a route for a commit-trailer refusal: the main session rewords a commit it made itself, re-dispatches the executor with the reasons for a commit the executor made, and on exit 2 runs `git fetch origin`, then runs task-done again — "2.a" (answering, after the plan critic showed build has no route for it: add the route vs leave it to the session)
 

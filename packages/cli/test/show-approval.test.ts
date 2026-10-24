@@ -167,25 +167,25 @@ async function viewOf(fence: string[]): Promise<string[]> {
   }
 }
 
-it('risk:parsing approval shares only steps before the first then in a language vi fence', async () => {
+it('risk:parsing approval shares only steps before the first then in a language fr fence', async () => {
   const sc = (n: number, last: string): string[] => [
-    '', `  @ac-${n}`, '  Tình huống: t' + n, '    Cho một báo cáo', '    Khi chủ xuất nó', '    Và chọn csv', '    Thì tệp được ghi', '    Và tệp được lưu', `    Và ${last}`,
+    '', `  @ac-${n}`, '  Scénario: t' + n, '    Soit un rapport', '    Quand le responsable exporte', '    Et choisit csv', '    Alors le fichier est écrit', '    Et le fichier est enregistré', `    Et ${last}`,
   ];
-  const block = await viewOf(['# language: vi', 'Tính năng: X', ...sc(1, 'a'), ...sc(2, 'b')]);
+  const block = await viewOf(['# language: fr', 'Fonctionnalité: X', ...sc(1, 'a'), ...sc(2, 'b')]);
   expect(block).toEqual([
-    '- Cho một báo cáo (ac-1, ac-2)',
-    '- Khi chủ xuất nó (ac-1, ac-2)',
-    '- Và chọn csv (ac-1, ac-2)',
+    '- Soit un rapport (ac-1, ac-2)',
+    '- Quand le responsable exporte (ac-1, ac-2)',
+    '- Et choisit csv (ac-1, ac-2)',
     '',
     '**ac-1 t1**',
-    '- Thì tệp được ghi',
-    '- Và tệp được lưu',
-    '- Và a',
+    '- Alors le fichier est écrit',
+    '- Et le fichier est enregistré',
+    '- Et a',
     '',
     '**ac-2 t2**',
-    '- Thì tệp được ghi',
-    '- Và tệp được lưu',
-    '- Và b',
+    '- Alors le fichier est écrit',
+    '- Et le fichier est enregistré',
+    '- Et b',
     '',
   ]);
 });

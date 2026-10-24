@@ -29,7 +29,7 @@ ui: false
 ## Intent
 <!-- At most five lines: why, for whom, how success is measured, and what this does not do. -->
 Queued 2026-10-22, not approved; the intent interview replaces this:
-- Audit item 6: "Review theo 2 bước như superpowers: trước hết kiểm tra code có đúng spec không và có làm thừa gì không, sau đó mới xét chất lượng code." Owner, 2026-10-22, to the proposal in chat: "ok queue hết di".
+- Audit item 6: "Review in 2 steps like superpowers: first check whether the code matches the spec and whether it does anything extra, and only after that judge the code quality." Owner, 2026-10-22, to the proposal in chat: "ok queue them all".
 - Checked 2026-10-22, most of it exists: lens `intent` checks the criteria and "Extra: anything nobody asked for"; about 500 to 1500 changed lines get an intent and a quality reviewer in parallel; only under about 500 does one reviewer with lens `both` do both (accord-review step 3).
 - Left to answer: does a `both` reviewer miss intent findings, and do quality fixes on work that fails intent cost rounds? Measure with ST-LN-14's benchmark data (findings by lens and round in `review.md`); only then change step 3 to run intent first and quality after it passes.
 - Kept out of ST-LN-14 itself, which is approved and at review on its own branch.

@@ -29,7 +29,7 @@ ui: false
 ## Intent
 <!-- At most five lines: why, for whom, how success is measured, and what this does not do. -->
 Queued 2026-10-21, not approved; the intent interview replaces this:
-- Raised during the ST-LN-14 build. Owner: "tôi nghĩ là nên có một cách nào đó để auto compact để chạm một limit nào đó", then chose "A": a separate ticket, after the ST-LN-14 round 1 report.
+- Raised during the ST-LN-14 build. Owner: "I think there should be some way to auto compact on reaching some limit", then chose "A": a separate ticket, after the ST-LN-14 round 1 report.
 - Today nothing measures a subagent's context: `~/.claude/hooks/gsd-context-monitor.js` reads statusline metrics that only the main session writes; `.claude/agents/accord-executor.md:32` asks the executor to return `BLOCKED: context` near its limit, which is recall, not enforced.
 - Proposal to confirm at intent: no compaction inside a subagent (it summarises the verbatim ticket away); instead, at a threshold below the window, the agent commits what is finished and hands back, and a fresh executor gets the brief, the diff and the ledger.
 - First measure: peak context per run (input + cache read + cache write per turn, from the transcript `usage`) against whether the run held in the ST-LN-14 round 1 report, to find where quality drops; only then pick the threshold.

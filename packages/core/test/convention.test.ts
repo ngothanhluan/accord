@@ -79,3 +79,14 @@ describe('documentation of the folder convention (FMT-01)', () => {
     expect(section4).not.toMatch(/^- \*\*Lead\*\*/m);
   });
 });
+
+it('ac-5 conventions.md holds exactly one rule line for English owner quotes', () => {
+  const rules = read('accord/product/conventions.md')
+    .split('\n')
+    .filter((l) => l.startsWith('- '));
+  const quote = rules.filter((l) => /owner quote/i.test(l));
+  expect(quote).toHaveLength(1);
+  for (const phrase of ['Decisions', 'Corrections', 'approval commit messages', 'faithful English translation']) {
+    expect(quote[0], phrase).toContain(phrase);
+  }
+});

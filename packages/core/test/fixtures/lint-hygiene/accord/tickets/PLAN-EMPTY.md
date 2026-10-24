@@ -1,24 +1,24 @@
 ---
 id: PLAN-EMPTY
-title: Kế hoạch trống
+title: Empty plan
 type: story
 status: draft
 ---
 
 ## Intent
-Kế hoạch chưa có bước nào dù đã có kịch bản.
+The plan has no steps although scenarios exist.
 
 ## Requirements
-- WHEN người dùng gửi form the system SHALL lưu dữ liệu
+- WHEN the user submits the form the system SHALL save the data
 
 ## Acceptance criteria
 ```gherkin
 Feature: PLAN-EMPTY
 
   @ac-1 @test:t#a
-  Scenario: Đăng nhập
-    Given một người dùng
-    Then thấy bảng điều khiển
+  Scenario: Sign-in
+    Given a user
+    Then they see the dashboard
 ```
 
 ## Open questions

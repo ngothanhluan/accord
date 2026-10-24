@@ -5,21 +5,21 @@
       "file": "accord/tickets/ACTAGS.md",
       "level": "error",
       "line": 19,
-      "reason": "scenario \"Không thẻ\" has no @ac-n tag",
+      "reason": "scenario \"No tag\" has no @ac-n tag",
       "rule": "lint.ac-tag-missing"
     },
     {
       "file": "accord/tickets/ACTAGS.md",
       "level": "error",
       "line": 23,
-      "reason": "scenario \"Hai thẻ\" carries more than one @ac-n tag",
+      "reason": "scenario \"Two tags\" carries more than one @ac-n tag",
       "rule": "lint.ac-tag-multiple"
     },
     {
       "file": "accord/tickets/ACTAGS.md",
       "level": "error",
       "line": 27,
-      "reason": "@ac-1 is already used by scenario \"Hai thẻ\"",
+      "reason": "@ac-1 is already used by scenario \"Two tags\"",
       "rule": "lint.ac-tag-duplicate"
     },
     {
@@ -33,42 +33,42 @@
       "file": "accord/tickets/STEPS.md",
       "level": "error",
       "line": 19,
-      "reason": "scenario \"Trống\" step 1 \"Given\" has no text",
+      "reason": "scenario \"Empty\" step 1 \"Given\" has no text",
       "rule": "lint.step-empty"
     },
     {
       "file": "accord/tickets/STEPS.md",
       "level": "error",
       "line": 23,
-      "reason": "scenario \"Không bước\" has no steps",
+      "reason": "scenario \"No steps\" has no steps",
       "rule": "lint.step-empty"
     },
     {
       "file": "accord/tickets/STEPS.md",
       "level": "warning",
       "line": 26,
-      "reason": "scenario \"Mẫu\" has a placeholder step \"Given ...\"",
+      "reason": "scenario \"Sample\" has a placeholder step \"Given ...\"",
       "rule": "lint.sentinel"
     },
     {
       "file": "accord/tickets/TESTTAGS.md",
       "level": "error",
       "line": 19,
-      "reason": "scenario \"Hai thẻ kiểm thử\" carries more than one @test: tag",
+      "reason": "scenario \"Two test tags\" carries more than one @test: tag",
       "rule": "lint.test-tag-duplicate"
     },
     {
       "file": "accord/tickets/TESTTAGS.md",
       "level": "warning",
       "line": 23,
-      "reason": "scenario \"Giao diện có thẻ kiểm thử\" is @ui and carries a @test: tag",
+      "reason": "scenario \"Interface with a test tag\" is @ui and carries a @test: tag",
       "rule": "lint.test-tag-on-ui"
     },
     {
       "file": "accord/tickets/TESTTAGS.md",
       "level": "warning",
       "line": 27,
-      "reason": "scenario \"Thiếu thẻ kiểm thử\" has no @test:<id> tag and is not @ui",
+      "reason": "scenario \"Missing test tag\" has no @test:<id> tag and is not @ui",
       "rule": "lint.test-tag-missing"
     }
   ],

@@ -294,15 +294,15 @@ describe('fixture lint-gherkin: pinned lint values', () => {
   it('STEPS: a keyword-only step and a step-less scenario are step-empty; a `...` step is a sentinel (LINT-03)', () => {
     expect(rulesOf('STEPS.md')).toEqual(['lint.sentinel', 'lint.step-empty', 'lint.step-empty']);
     expect(of('STEPS.md').map((f) => f.reason)).toEqual([
-      'scenario "Trống" step 1 "Given" has no text',
-      'scenario "Không bước" has no steps',
-      'scenario "Mẫu" has a placeholder step "Given ..."',
+      'scenario "Empty" step 1 "Given" has no text',
+      'scenario "No steps" has no steps',
+      'scenario "Sample" has a placeholder step "Given ..."',
     ]);
   });
 
   it('ACTAGS: missing, multiple, and duplicate @ac-n each have their own error (LINT-03, D-46)', () => {
     expect(rulesOf('ACTAGS.md')).toEqual(['lint.ac-tag-duplicate', 'lint.ac-tag-missing', 'lint.ac-tag-multiple']);
-    expect(of('ACTAGS.md').find((f) => f.rule === 'lint.ac-tag-duplicate')?.reason).toBe('@ac-1 is already used by scenario "Hai thẻ"');
+    expect(of('ACTAGS.md').find((f) => f.rule === 'lint.ac-tag-duplicate')?.reason).toBe('@ac-1 is already used by scenario "Two tags"');
     expect(of('ACTAGS.md').every((f) => f.level === 'error')).toBe(true);
   });
 
@@ -385,7 +385,7 @@ describe('fixture gherkin-shapes: pinned lint values', () => {
       ['lint.ac-tag-multiple', 17, 'error'],
       ['lint.ac-tag-duplicate', 25, 'error'],
     ]);
-    expect(ac[2].reason).toBe('@ac-1 is already used by scenario "Hai thẻ"');
+    expect(ac[2].reason).toBe('@ac-1 is already used by scenario "Two tags"');
   });
 });
 

@@ -6,6 +6,6 @@ status: open
 ---
 ## Acceptance criteria
 
-<!-- Viết các kịch bản Gherkin ở đây -->
+<!-- Write the Gherkin scenarios here -->
 
 ## Plan

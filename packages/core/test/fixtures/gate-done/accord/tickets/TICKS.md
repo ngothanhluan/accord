@@ -1,46 +1,46 @@
 ---
 id: TICKS
-title: Bản sao của PASS cho TICKS
+title: Copy of PASS for TICKS
 type: story
 status: open
 ui: false
-ac_hash: "fnv1a64:0e84e174c4cdc76b"
+ac_hash: "fnv1a64:d195ee776986de2f"
 verified:
   - ac-1
   - ac-2
 ---
 
 ## Intent
-Người dùng đăng nhập bằng email để vào bảng điều khiển.
+Users sign in with an email to reach the dashboard.
 
 ## Requirements
-- WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển
+- WHEN a user submits a valid email and password the system SHALL open the dashboard
 
 ## Acceptance criteria
 ```gherkin
 Feature: TICKS
 
   @ac-1 @test:test/login.spec.ts#ok1
-  Scenario: Đăng nhập thành công
-    When họ gửi email và mật khẩu hợp lệ
-    Then họ thấy bảng điều khiển
+  Scenario: Sign-in succeeds
+    When they submit a valid email and password
+    Then they see the dashboard
 
   @ac-2 @test:test/login.spec.ts#ok2
-  Scenario: Mật khẩu sai
-    When họ gửi mật khẩu sai
-    Then họ thấy thông báo lỗi
+  Scenario: Wrong password
+    When they submit a wrong password
+    Then they see an error message
 ```
 
 ## Open questions
-- [x] Đã rõ
+- [x] Clear
 
 ## Plan
-- Làm màn hình đăng nhập @ac-1
-- Trả lỗi khi xác thực hỏng @ac-2
+- Build the sign-in screen @ac-1
+- Return an error on failed authentication @ac-2
 
 ## Verification notes
 ### @ac-1
-src/auth/login.ts mở phiên mới rồi chuyển hướng, đã xem lại bằng tay.
+src/auth/login.ts opens a new session and redirects, checked by hand.
 
 ### @ac-2
-src/auth/login.ts dừng trước khi tạo phiên và ghi nhật ký lần thử hỏng.
+src/auth/login.ts stops before it creates a session and logs the failed attempt.

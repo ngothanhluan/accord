@@ -1,6 +1,6 @@
 ---
 baseline: a3f781ff5f9f4290bc5c6bfcc296098c5cb5cb27
-plan_hash: "fnv1a64:a792fac09c97c08e"
+plan_hash: "fnv1a64:c988d8b885b89e09"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -118,11 +118,11 @@ Cases, each a top-level `it`:
   whose `yours.rows` holds two rows typed as `StatusRow` (`ui: false`, `errors: 0`, `warnings: 0`, `ready:
   'ok'`, `ticksVerified: 0`, `ticksTagged: 0`, `ticksBinding: 'none'`, `lane: 'M'`, `stage: 'plan'`,
   `tasksDone: 0`, `tasksTotal: 0`), the other sections empty and every summary count 0. The first title is the
-  concatenation of `Đặt lại`, ESC (U+001B), `[31m mật`, RIGHT-TO-LEFT OVERRIDE (U+202E), ` khẩu`, LINE
+  concatenation of `Mot de`, ESC (U+001B), `[31m passe`, RIGHT-TO-LEFT OVERRIDE (U+202E), ` oublié`, LINE
   SEPARATOR (U+2028) and `x`, written in the test source with the escape sequences for those three code points;
-  the second is `'Ư'.repeat(70)`. The rendered text holds no code point below 0x20 other than the newline, and
-  none of U+001B, U+202E, U+2028; it contains `Đặt lại [31m mật khẩu x` and `'Ư'.repeat(57) + '...'`, and not
-  `'Ư'.repeat(58)`.
+  the second is `'É'.repeat(70)`. The rendered text holds no code point below 0x20 other than the newline, and
+  none of U+001B, U+202E, U+2028; it contains `Mot de [31m passe oublié x` and `'É'.repeat(57) + '...'`, and not
+  `'É'.repeat(58)`.
 - `packages/core/test/lane-status.test.ts`: `LANE_KEYS` gains `'title'`. `packages/cli/test/lane-commands.test.ts`:
   in the case `a ticket without lane is unchanged by a t/<id> branch, in the table and under --json`, the array
   of its `for (const key of [...])` loop gains `'title'` after `'branch'`; nothing else in that case changes.

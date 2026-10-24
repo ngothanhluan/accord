@@ -1,6 +1,6 @@
 ---
 id: LOGIN-1                       # equals the file name
-title: Đăng nhập bằng email
+title: Connexion par e-mail
 type: story
 status: open
 parent: EPIC-1
@@ -11,20 +11,20 @@ tracker:
 ui: true
 design: "https://www.figma.com/file/abc"
 assumptions:
-  - { text: "Người dùng đã có tài khoản", confirmed: true }
+  - { text: "L'utilisateur a déjà un compte", confirmed: true }
 ac_hash: "deadbeef"
 verified:
   - ac-1
 ---
 
 ## Intent
-Người dùng đăng nhập bằng email và mật khẩu để vào bảng điều khiển.
-Không hỗ trợ đăng nhập mạng xã hội trong phiên bản này.
+L'utilisateur se connecte avec son e-mail et son mot de passe pour accéder au tableau de bord.
+La connexion sociale n'est pas prise en charge dans cette version.
 
 ## Requirements
 <!-- BA. One EARS line per requirement. -->
-- WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển
-- IF mật khẩu sai THEN the system SHALL hiển thị thông báo lỗi
+- WHEN un utilisateur envoie un e-mail et un mot de passe valides the system SHALL donner accès au tableau de bord
+- IF le mot de passe est erroné THEN the system SHALL afficher une erreur
 
 ## Acceptance criteria
 <!-- BA. One fenced gherkin block; every scenario tagged @ac-n. -->
@@ -32,21 +32,21 @@ Không hỗ trợ đăng nhập mạng xã hội trong phiên bản này.
 Feature: LOGIN-1
 
   Background:
-    Given một người dùng đã đăng ký
+    Given un utilisateur déjà inscrit
 
   @ac-1
-  Scenario: Đăng nhập thành công
-    When họ gửi email và mật khẩu hợp lệ
-    Then họ thấy bảng điều khiển
+  Scenario: Connexion réussie
+    When il envoie un e-mail et un mot de passe valides
+    Then il voit le tableau de bord
 
   @ac-2
-  Scenario: Mật khẩu sai
-    When họ gửi mật khẩu sai
-    Then họ thấy thông báo lỗi
+  Scenario: Mot de passe erroné
+    When il envoie un mot de passe erroné
+    Then il voit une erreur
 ```
 
 ## Open questions
-- [x] Có cần ghi nhớ đăng nhập không? Không, để sau.
+- [x] Faut-il mémoriser la connexion ? Non, pas dans cette version.
 
 ## Plan
 <!-- Developer fills this in. BA leaves it empty. -->

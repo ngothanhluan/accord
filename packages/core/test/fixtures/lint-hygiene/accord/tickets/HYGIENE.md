@@ -1,41 +1,41 @@
 ---
 id: HYGIENE
-title: Vệ sinh phiếu
+title: Ticket hygiene
 type: story
 status: draft
 tracker: {}
 assumptions:
-  - { text: "Người dùng đã có tài khoản", confirmed: false }
-  - { text: "Đã có SSO", confirmed: true }
+  - { text: "The user already has an account", confirmed: false }
+  - { text: "SSO exists", confirmed: true }
 verified: [ac-1, ac-9]
 ---
 
 ## Intent
-Người dùng đăng nhập. TODO viết thêm. FIXME nữa.
-Kết quả: <observable outcome> cho người dùng.
+The user signs in. TODO write more. FIXME again.
+Result: <observable outcome> for the user.
 <!-- TODO - [ ] <placeholder text> TICKET-ID -->
 
 ## Requirements
-- WHEN người dùng gửi form the system SHALL lưu TBD
-- WHEN người dùng huỷ the system SHALL maybe đóng form
+- WHEN the user submits the form the system SHALL save TBD
+- WHEN the user cancels the system SHALL maybe close the form
 
 ## Acceptance criteria
 ```gherkin
 Feature: TICKET-ID
 
   @ac-1 @test:t#a
-  Scenario: Đăng nhập
-    Given probably một người dùng
+  Scenario: Sign-in
+    Given probably a user
     When ...
-    Then thấy bảng điều khiển
+    Then they see the dashboard
 ```
 
 ## Open questions
-- [ ] Chưa rõ luồng SSO
+- [ ] The SSO flow is unclear
 - [x] It depends on the tracker
-- [x] Đã rõ
+- [x] Clear
 
 ## Plan
-- Làm form @ac-1
-- Viết test
-- Nối tracker @ac-2
+- Build the form @ac-1
+- Write the test
+- Connect the tracker @ac-2

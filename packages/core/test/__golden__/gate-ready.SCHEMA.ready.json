@@ -1,5 +1,5 @@
 {
-  "acHash": "fnv1a64:26ff52c3b857dfed",
+  "acHash": "fnv1a64:2a92432300083bcf",
   "findings": [
     {
       "file": "accord/tickets/SCHEMA.md",
@@ -13,7 +13,7 @@
       "file": "accord/tickets/SCHEMA.md",
       "level": "warning",
       "line": 19,
-      "reason": "scenario \"Đổi mật khẩu\" has no @test:<id> tag and is not @ui",
+      "reason": "scenario \"Change password\" has no @test:<id> tag and is not @ui",
       "rule": "lint.test-tag-missing"
     }
   ],

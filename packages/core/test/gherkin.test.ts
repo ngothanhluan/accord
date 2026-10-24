@@ -106,30 +106,30 @@ describe('tags (D-46)', () => {
 });
 
 describe('dialects (D-50)', () => {
-  it('vi keywords normalise to English keyword values and step keywords stay Vietnamese', () => {
+  it('ac-4 fr keywords normalise to English keyword values and step keywords stay French', () => {
     const { scenarios, findings } = extract([
-      '# language: vi',
-      'Tính năng: T',
+      '# language: fr',
+      'Fonctionnalité: T',
       '@ac-1',
-      'Kịch bản: S',
-      '  Cho a',
+      'Scénario: S',
+      '  Soit a',
       '@ac-2',
-      'Khung kịch bản: O',
-      '  Cho <a>',
-      '  Dữ liệu:',
+      'Plan du scénario: O',
+      '  Soit <a>',
+      '  Exemples:',
       '    | a |',
       '    | 1 |',
     ]);
     expect(findings).toEqual([]);
     expect(scenarios.map((s) => s.keyword)).toEqual(['Scenario', 'Scenario Outline']);
-    expect(scenarios[0].steps).toEqual(['Cho a']);
+    expect(scenarios[0].steps).toEqual(['Soit a']);
     expect(scenarios[0].line).toBe(14);
   });
 
-  it('a vi fence without a feature line gets a Tính năng: line prepended', () => {
-    const { scenarios, findings } = extract(['# language: vi', '@ac-1', 'Kịch bản: S', '  Cho a']);
+  it('risk:parsing a fr fence without a feature line gets a Fonctionnalité: line prepended', () => {
+    const { scenarios, findings } = extract(['# language: fr', '@ac-1', 'Scénario: S', '  Soit a']);
     expect(findings).toEqual([]);
-    expect(scenarios[0]).toMatchObject({ keyword: 'Scenario', line: 13, acTag: 'ac-1', steps: ['Cho a'] });
+    expect(scenarios[0]).toMatchObject({ keyword: 'Scenario', line: 13, acTag: 'ac-1', steps: ['Soit a'] });
   });
 });
 
@@ -172,7 +172,7 @@ describe('gherkin-shapes fixture', () => {
   it('OUTLINE: one Scenario Outline with its Examples in steps', () => {
     expect(scenarios('OUTLINE')).toEqual([
       {
-        name: 'Nhiều giá trị',
+        name: 'Many values',
         keyword: 'Scenario Outline',
         line: 13,
         tags: ['@ac-1'],
@@ -182,25 +182,25 @@ describe('gherkin-shapes fixture', () => {
     ]);
   });
 
-  it('VI: English keyword values, Vietnamese step keywords, Background first in both', () => {
-    const [a, b] = scenarios('VI');
-    expect(scenarios('VI').map((s) => s.keyword)).toEqual(['Scenario', 'Scenario Outline']);
+  it('risk:parsing FR: English keyword values and French step keywords with Background first in both', () => {
+    const [a, b] = scenarios('FR');
+    expect(scenarios('FR').map((s) => s.keyword)).toEqual(['Scenario', 'Scenario Outline']);
     expect(a).toEqual({
-      name: 'Đăng nhập',
+      name: 'Connexion',
       keyword: 'Scenario',
       line: 17,
       tags: ['@ac-1'],
       acTag: 'ac-1',
-      steps: ['Cho một người dùng', 'Khi họ đăng nhập', 'Thì thấy bảng điều khiển'],
+      steps: ['Soit un utilisateur', 'Quand il se connecte', 'Alors il voit le tableau de bord'],
     });
-    expect(b).toMatchObject({ line: 22, acTag: 'ac-2', steps: ['Cho một người dùng', 'Cho <a>', 'Examples: | a | | 1 |'] });
+    expect(b).toMatchObject({ line: 22, acTag: 'ac-2', steps: ['Soit un utilisateur', 'Soit <a>', 'Examples: | a | | 1 |'] });
   });
 
   it('RULE: both Backgrounds precede the step; the Rule name is not in the result', () => {
     expect(scenarios('RULE')).toHaveLength(1);
     expect(scenarios('RULE')[0]).toMatchObject({ line: 21, steps: ['Given fb', 'Given rb', 'Given s'] });
     // sections[].lines[] keep the raw body verbatim, so the Rule name is only absent from scenarios.
-    expect(JSON.stringify(scenarios('RULE'))).not.toContain('Thanh toán');
+    expect(JSON.stringify(scenarios('RULE'))).not.toContain('Payment');
   });
 
   it('PARSE-ERROR: frontmatter kept, scenarios empty, one finding at the bad line', () => {

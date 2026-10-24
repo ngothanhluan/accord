@@ -1,6 +1,6 @@
 ---
 id: UILINK
-title: Phiếu giao diện chỉ có đường dẫn thiết kế
+title: Interface ticket with only a design link
 type: story
 status: open
 ui: true
@@ -8,23 +8,23 @@ design: "https://example.com/design/uilink"
 ---
 
 ## Intent
-Người dùng thấy trang cài đặt được dựng lại.
+Users see the rebuilt settings page.
 
 ## Requirements
-- WHEN người dùng mở trang cài đặt the system SHALL hiển thị bố cục mới
+- WHEN a user opens the settings page the system SHALL show the new layout
 
 ## Acceptance criteria
 ```gherkin
 Feature: UILINK
 
   @ac-1
-  Scenario: Mở trang cài đặt
-    When họ mở trang cài đặt
-    Then họ thấy bố cục mới
+  Scenario: Open the settings page
+    When they open the settings page
+    Then they see the new layout
 ```
 
 ## Open questions
-- [x] Đã rõ
+- [x] Clear
 
 ## Plan
-- Dựng lại trang cài đặt @ac-1
+- Rebuild the settings page @ac-1

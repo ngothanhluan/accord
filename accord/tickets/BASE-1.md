@@ -22,7 +22,7 @@ ui: false
 # The AC hash and the commit the ticks were made against.
 # verified_hash:
 # verified_commit:
-approved_hash: "fnv1a64:b169da01c59467fe"
+approved_hash: "fnv1a64:7e544a6c2e27024d"
 ac_hash: "fnv1a64:047fc0836aa259b2"
 verified_hash: "fnv1a64:047fc0836aa259b2"
 verified_commit: "34eda7e7571e8a00936df2dbc4ff800debe98b5e"
@@ -97,19 +97,19 @@ Feature: BASE-1
 
 ## Decisions
 <!-- Settled answers, one per line: - D-01 <decision> — "<the owner's sentence>" -->
-- D-01 The plan stage asks the owner before creating `accord/tests-baseline.txt`; it never creates it unasked — "tôi nghĩ là nên hỏi trước khi tạo"
-- D-02 No `tests.report` configured: skip, no question. `tests.full` ran but the report is missing: stop and tell the owner. Failing cases at the baseline: the existing step-7 decision comes first, then the baseline, failing cases included — "theo bạn đề xuất đi"
-- D-03 Evidence: `accord gate plan` warns when a lane ticket exists, `tests.report` is set, and the baseline file is absent; plus a test that the rendered plan skill carries the step — "ok b kết hợp A"
+- D-01 The plan stage asks the owner before creating `accord/tests-baseline.txt`; it never creates it unasked — "I think it should ask before creating it"
+- D-02 No `tests.report` configured: skip, no question. `tests.full` ran but the report is missing: stop and tell the owner. Failing cases at the baseline: the existing step-7 decision comes first, then the baseline, failing cases included — "go with what you proposed"
+- D-03 Evidence: `accord gate plan` warns when a lane ticket exists, `tests.report` is set, and the baseline file is absent; plus a test that the rendered plan skill carries the step — "ok, B combined with A"
 - D-04 When the owner declines the baseline, the `gate plan` warning stays on every run; no config key records the choice — "1"
 - D-05 "Sets tests.report" means the key is present in `accord/config.yml`, whatever its value, as `lint.test-untraced` and `accord tests baseline` already read it — "A"
-- D-06 Approach critic Must: the warning asks rather than orders, the plan skill's gate step says the baseline is asked at step 7 and never created earlier, and the planner says the same — "Dùng bản sửa (Recommended)"
-- D-07 `accord tests baseline` refuses a report written before the HEAD commit, as `accord task-done` does; this replaces the earlier non-goal — "Thêm kiểm trong CLI (Recommended)"
-- D-08 Teams: the baseline is committed on its own and reaches the main branch in its own pull request before other tickets plan; a merge conflict on it keeps only the lines both sides hold, never the union — "ok theo bạn đề xuất"
+- D-06 Approach critic Must: the warning asks rather than orders, the plan skill's gate step says the baseline is asked at step 7 and never created earlier, and the planner says the same — "Use the revised version (Recommended)"
+- D-07 `accord tests baseline` refuses a report written before the HEAD commit, as `accord task-done` does; this replaces the earlier non-goal — "Add the check in the CLI (Recommended)"
+- D-08 Teams: the baseline is committed on its own and reaches the main branch in its own pull request before other tickets plan; a merge conflict on it keeps only the lines both sides hold, never the union — "ok, as you proposed"
 - D-09 @ac-4 follows D-08: on a yes the baseline is committed in a commit of its own, not with the `plan: <id> ready` commit, so it can be picked onto its own pull request — "A"
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
-- "khoan, việc bạn nói tôi làm một mình là ko đúng. vì target là support cho team làm cùng nữa mà?" (on the Approach risk that accepted two branches creating the baseline because the owner works alone)
+- "wait, what you said about me working alone is not right. the target is to support teams working together too, isn't it?" (on the Approach risk that accepted two branches creating the baseline because the owner works alone)
 
 ## Open questions
 <!-- `- [ ]` items; Ready stays blocked while any is unchecked. -->

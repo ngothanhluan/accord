@@ -11,3 +11,4 @@
 - A test with a time bound sets it wide enough to pass with the whole suite running in parallel, and below the stall it guards, so it still fails without the fix.
 - vitest run with the JUnit reporter always passes `--outputFile.junit=` a path under `node_modules/.cache/`, and nothing under `.vitest/` is ever committed, since without it vitest writes `.vitest/junit/output.xml` into the working tree.
 - Code that deletes a local branch uses `git update-ref -d refs/heads/<b> <sha it checked>`, never `git branch -D`, so a commit made after the check makes git refuse the delete instead of losing it.
+- Owner quotes in a ticket's Decisions and Corrections and in approval commit messages are written as a faithful English translation that keeps the owner's meaning and drops nothing, whatever language the owner used.

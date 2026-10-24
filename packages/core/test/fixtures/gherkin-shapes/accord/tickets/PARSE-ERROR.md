@@ -12,5 +12,5 @@ Feature: PARSE-ERROR
 @ac-1
 Scenario: S
   Given a
-  Đây là dòng sai
+  This is a bad line
 ```

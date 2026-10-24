@@ -4,14 +4,14 @@ commit: 1234567
 reviewed_on: 2026-09-10
 ---
 
-## @ac-1 Đăng nhập thành công
+## @ac-1 Sign-in succeeds
 
 Result: pass
 
-Evidence: đã chạy thử bằng tay và mọi thứ đều ổn
+Evidence: tried by hand and everything was fine
 
-## @ac-2 Mật khẩu sai
+## @ac-2 Wrong password
 
 Result: pass
 
-Evidence: test/login.spec.ts cùng với src/nope.ts
+Evidence: test/login.spec.ts together with src/nope.ts

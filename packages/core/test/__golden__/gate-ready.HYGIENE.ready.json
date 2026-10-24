@@ -1,11 +1,11 @@
 {
-  "acHash": "fnv1a64:8613b1c0604c6a56",
+  "acHash": "fnv1a64:a7cd583f043979d7",
   "findings": [
     {
       "file": "accord/tickets/HYGIENE.md",
       "level": "error",
       "pointer": "/assumptions/0/confirmed",
-      "reason": "assumption \"Đã có SSO\" is not confirmed",
+      "reason": "assumption \"SSO exists\" is not confirmed",
       "rule": "lint.assumption-unconfirmed"
     },
     {
@@ -26,7 +26,7 @@
       "file": "accord/tickets/HYGIENE.md",
       "level": "warning",
       "line": 22,
-      "reason": "scenario \"Đăng nhập thành công\" has no @test:<id> tag and is not @ui",
+      "reason": "scenario \"Sign-in succeeds\" has no @test:<id> tag and is not @ui",
       "rule": "lint.test-tag-missing"
     },
     {

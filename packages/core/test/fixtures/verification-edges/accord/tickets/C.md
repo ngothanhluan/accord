@@ -1,2 +1,2 @@
 ## Intent
-Vé không có frontmatter nhưng vẫn có bản ghi kiểm chứng.
+A ticket without frontmatter that still has a verification record.

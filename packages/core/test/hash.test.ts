@@ -63,10 +63,10 @@ describe('acHash (D-75)', () => {
   });
 
   it('hashes the UTF-8 bytes, so diacritics change the value', () => {
-    const vi = acHash([sc('ac-1', ['họ thấy bảng điều khiển'])]);
-    const stripped = acHash([sc('ac-1', ['ho thay bang dieu khien'])]);
-    expect(vi).toMatch(HASH);
-    expect(vi).not.toBe(stripped);
+    const fr = acHash([sc('ac-1', ['il voit le tableau de bord à jour'])]);
+    const stripped = acHash([sc('ac-1', ['il voit le tableau de bord a jour'])]);
+    expect(fr).toMatch(HASH);
+    expect(fr).not.toBe(stripped);
   });
 
   it('is stable under a whole-scenario reorder and under a new @test: tag, but not under a tag swap (D-77)', () => {

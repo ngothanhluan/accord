@@ -6,7 +6,7 @@ reviewed_on: 2026-09-01
 
 <!-- written by the fresh review context -->
 
-## @ac-1 Đăng nhập thành công
+## @ac-1 Connexion réussie
 
 Result: pass
 <!-- pass | fail | blocked -->
@@ -14,7 +14,7 @@ Result: pass
 Evidence: npm test -- login.spec.ts
 test/login.spec.ts covers the happy path
 
-## @ac-2 Mật khẩu sai
+## @ac-2 Mot de passe erroné
 
 Result: fail
 Evidence:

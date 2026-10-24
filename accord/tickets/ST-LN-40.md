@@ -29,7 +29,7 @@ ui: false
 ## Intent
 <!-- At most five lines: why, for whom, how success is measured, and what this does not do. -->
 Queued 2026-10-22, not approved; the intent interview replaces this:
-- Audit item 4: "Thêm lệnh tự rút convention từ code có sẵn (giống /discover-standards của Agent OS), để team đang làm dự án cũ bắt đầu dùng được ngay." Owner, 2026-10-22, to the proposal in chat: "ok queue hết di".
+- Audit item 4: "Add a command that draws conventions out of existing code on its own (like Agent OS's /discover-standards), so a team working on an old project can start using it right away." Owner, 2026-10-22, to the proposal in chat: "ok queue them all".
 - Today `accord/product/conventions.md` is written by hand; nothing drafts it, and the executor brief carries it (ST-LN-8).
 - Proposal to confirm at intent: a skill step, not a CLI command, since accord never calls a model. Agents read the code and draft each convention with its evidence (file and line, how many places follow it, the counterexamples); the owner accepts or rejects line by line, and nothing is written without a yes.
 - Risk: an accidental pattern in old code becomes a rule; the counterexamples are what let the owner see it.

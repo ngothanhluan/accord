@@ -61,4 +61,4 @@ Feature: ST-LN-9
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
 
 ## Dropped
-Merged into ST-LN-8, which carries its notes (owner, 2026-10-18, after the main session proposed merging tickets that touch the same code: "ok gộp đi").
+Merged into ST-LN-8, which carries its notes (owner, 2026-10-18, after the main session proposed merging tickets that touch the same code: "ok merge them").

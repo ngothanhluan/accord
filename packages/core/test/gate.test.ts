@@ -170,8 +170,8 @@ describe('gate ready valid-build/LOGIN-1: pinned values', () => {
   it('renders through the existing renderer with no adapter (D-60, D-87)', () => {
     const text = renderText(result);
     expect(text).toBe(
-      'accord/tickets/LOGIN-1.md:37: warning lint.test-tag-missing scenario "Đăng nhập thành công" has no @test:<id> tag and is not @ui\n' +
-        'accord/tickets/LOGIN-1.md:42: warning lint.test-tag-missing scenario "Mật khẩu sai" has no @test:<id> tag and is not @ui\n' +
+      'accord/tickets/LOGIN-1.md:37: warning lint.test-tag-missing scenario "Connexion réussie" has no @test:<id> tag and is not @ui\n' +
+        'accord/tickets/LOGIN-1.md:42: warning lint.test-tag-missing scenario "Mot de passe erroné" has no @test:<id> tag and is not @ui\n' +
         'accord/tickets/LOGIN-1.md:50: warning lint.plan-empty ticket has scenarios but ## Plan has no step\n' +
         '0 errors, 3 warnings\n',
     );
@@ -392,7 +392,7 @@ describe('gate done gate-done: the identity layer (GATE-03, GATE-11, D-81)', () 
     expect(changed).toHaveLength(1);
     expect(changed[0].level).toBe('error');
     expect(changed[0].reason).toContain('fnv1a64:deadbeefdeadbeef');
-    expect(changed[0].reason).toContain('fnv1a64:0e84e174c4cdc76b');
+    expect(changed[0].reason).toContain('fnv1a64:d195ee776986de2f');
     expect(rules('STALE', 'gate.tick-stale-hash')).toHaveLength(1);
     expect(done.STALE.verdict).toBe('fail');
   });

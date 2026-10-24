@@ -1,4 +1,4 @@
-// ST-LN-48 ac-3: translating the ticket records must not move any ticket's stage.
+// base-stages.json is the stage map of d5db8c3 under the current core (regenerate by Task 11's procedure); retake fingerprints.json whenever a fingerprinted ticket's records change (Main session step 7).
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { expect, it } from 'vitest';
@@ -43,6 +43,6 @@ it('ac-3 every ticket keeps the stage it had on the base commit', () => {
   const compared = Object.keys(base).filter(
     (id) => Object.hasOwn(prints, id) && prints[id] === fingerprint(input.files, id),
   );
-  expect(compared.length).toBeGreaterThan(0);
+  expect(compared.length).toBe(Object.keys(prints).length);
   expect(compared.filter((id) => now[id] !== base[id]).map((id) => `${id}: ${base[id]} -> ${now[id]}`)).toEqual([]);
 });

@@ -30,9 +30,14 @@ it('ac-2 the check fails on a committed d with stroke and names its path and lin
     gitRun(repo, 'config', 'user.email', 'an@example.com');
     gitRun(repo, 'config', 'user.name', 'an');
     gitRun(repo, 'config', 'commit.gpgsign', 'false');
-    writeFiles(repo, { 'docs/notes/a.md': 'one\ntwo\nthree \u0111\n' });
+    // b.md: decomposed o + horn (only NFC finds it); c.md: a NUL byte hides its d with stroke.
+    writeFiles(repo, {
+      'docs/notes/a.md': 'one\ntwo\nthree \u0111\n',
+      'docs/notes/b.md': 'one\ntwo\nthree\nfour o\u031b\n',
+      'docs/notes/c.md': 'one\0\u0111\n',
+    });
     commitMsg(repo, 'add a');
-    expect(vietnameseLines(repo)).toEqual(['docs/notes/a.md:3']);
+    expect(vietnameseLines(repo)).toEqual(['docs/notes/a.md:3', 'docs/notes/b.md:4']);
   } finally {
     cleanup(repo);
   }

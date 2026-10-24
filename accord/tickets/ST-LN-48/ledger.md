@@ -7,6 +7,7 @@
 - task 4 done 8a85c4183c7c
 - task 5 done 455e0f3d4f0d
 - task 6 done 938232fe8ef9
+- task 7 done 9de7a1e3ffec
 
 ## Rulings
 
@@ -46,6 +47,7 @@
 - Ruling: (executor, task 1) the test and vietnameseLines were written together and the red step was shown by dropping U+0111 from the letter class (1 failed, Expected ['docs/notes/a.md:3'], Received []) — the brief gave both in one piece — cost if wrong: the red step is simulated, not a true red-first run.
 - Ruling: (executor, task 3) the hash.test.ts title "hashes the UTF-8 bytes, so diacritics change the value" is kept, as the plan says; no red step was possible, since normalise already keeps diacritics — cost if wrong: none.
 - Ruling: Task 6's affected run (4 files, 244 tests) failed only show-approval.test.ts "ac-1 every scenario of every real ticket is rebuilt exactly from the approval view", which passed alone in 213 s; it is the timeout the owner chose to track in ST-LN-44, not a Task 6 regression, so task 6 is recorded — cost if wrong: a real ac-1 break hidden as a timeout, caught by the full suite at verify.
+- Ruling: (executor, task 7) the gate-done and gate-no-report fixtures were translated by one phrase map applied line for line, keeping EARS and Gherkin keywords and adding no when/if/then/while/where/shall to prose, so the NOTES and UINOTE pasted-scenario notes still repeat their scenario — cost if wrong: only the English wording differs from what the owner expects.
 
 ## Deferred
 

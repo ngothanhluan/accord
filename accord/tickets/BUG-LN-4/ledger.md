@@ -25,6 +25,7 @@
 - Ruling: re-audit: @ac-2's "dropped" is what is_dropped reads (status dropped and a readable reason), matching the approved Approach's separate unreadable-reason line — a dropped ticket with an unreadable reason fails until the reason is fixed
 - Ruling: plan round 1: D-04's wider protection lives in a new protected_at used only by the deletion check, approved_at unchanged — keeps the per-ticket gating and BUG-LN-3's rule as they are — a second function to keep in step
 - Ruling: plan round 1: any verified: value other than [] counts as ticked — the script cannot read YAML, so it leans toward protection — a bare verified: line must be dropped before deletion
+- Ruling: debug fix 1: the 60 s describe bound stays, as D-05 cut cases and asked for no timeout change — the owner chose cutting cases — GATED (10 cases) can still time out on a heavily loaded machine; the replay keeps its own 600 s
 
 ## Deferred
 - plan round 1.6: probe this repository's copy for `set +e` too

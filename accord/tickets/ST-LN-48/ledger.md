@@ -9,6 +9,7 @@
 - task 6 done 938232fe8ef9
 - task 7 done 9de7a1e3ffec
 - task 8 done 527c6264bb93
+- task 9 done 2106868bd36e
 
 ## Rulings
 
@@ -50,6 +51,7 @@
 - Ruling: Task 6's affected run (4 files, 244 tests) failed only show-approval.test.ts "ac-1 every scenario of every real ticket is rebuilt exactly from the approval view", which passed alone in 213 s; it is the timeout the owner chose to track in ST-LN-44, not a Task 6 regression, so task 6 is recorded — cost if wrong: a real ac-1 break hidden as a timeout, caught by the full suite at verify.
 - Ruling: (executor, task 7) the gate-done and gate-no-report fixtures were translated by one phrase map applied line for line, keeping EARS and Gherkin keywords and adding no when/if/then/while/where/shall to prose, so the NOTES and UINOTE pasted-scenario notes still repeat their scenario — cost if wrong: only the English wording differs from what the owner expects.
 - Ruling: (executor, task 8) only CLEAN_HASH changed, since the gate-ready and gate-maintain fixtures carry no ac_hash or verified_hash; its new value fnv1a64:a7cd583f043979d7 was read from the failing run, which computes acHash of CLEAN's new scenarios through the gate itself — cost if wrong: only the CLI gate tests fail again.
+- Ruling: (executor, task 9) the status case frontmatter-errors golden did not change under -u and is left untouched; the trailing space after Given in the lint STEPS.md fixture is kept, since it draws lint.step-empty — cost if wrong: none, the findings would change if it were removed.
 
 ## Deferred
 

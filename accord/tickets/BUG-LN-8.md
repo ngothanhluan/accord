@@ -41,7 +41,7 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: BUG-LN-8
 
-  @ac-1
+  @ac-1 @test:packages/cli/test/upgrade.test.ts#ac-1-upgrade-replaces-the-lint-and-gate-step-of-a-0.1.0-workflow-with-the-step-accord-init-writes-now
   Scenario: Upgrade refreshes the lint-and-gate step of an older install
     Given a repository whose workflow is the one accord init wrote at release 0.1.0, and whose config.yml pins 0.1.0
     When accord upgrade runs with a newer release

@@ -24,7 +24,7 @@ ui: false
 # The AC hash and the commit the ticks were made against.
 # verified_hash:
 # verified_commit:
-approved_hash: "fnv1a64:0ff5e610d3d69c18"
+approved_hash: "fnv1a64:694f2790c866f730"
 ac_hash: "fnv1a64:540f1dd027a973a2"
 ---
 
@@ -80,6 +80,7 @@ Feature: BUG-LN-4
 - D-03 Repositories that already hold the workflow are out of scope; `accord upgrade` refreshing the script is its own ticket — owner chose option (a): "A"
 - D-04 A done ticket written before lanes existed (no lane key, with an ac_hash or verified ticks) is protected like an approved one and must be dropped before deletion — owner chose option (a): "A"
 - D-05 Each criterion test keeps the fewest cases that still prove it: @ac-1 a deleted approved ticket, a deleted lane S ticket with ac_hash, and a rename; @ac-2 a dropped ticket with a reason, and an unapproved ticket deleted with its folder; @ac-3 one swap; the other deletion cases are removed, so their readings stay untested — owner chose option (a): "A"
+- D-06 The BUG-LN-3 test "code in the diff or an approved ticket: gate done runs and its failure fails the job" keeps three of its ten cases: a draft ticket added with code, an approved ticket added in an accord-only diff, and the failing gate; the other seven gating readings stay untested — owner chose "Cut that test to 3 cases" (translated from Vietnamese)
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->

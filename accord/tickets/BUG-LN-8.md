@@ -55,7 +55,7 @@ Feature: BUG-LN-8
     Then the lint and gate step is replaced by the newer release's step and the hand edit is gone
     And every line outside that step is unchanged, except a version pin that today's upgrade already rewrites
 
-  @ac-3
+  @ac-3 @test:packages/cli/test/upgrade.test.ts#ac-3-a-workflow-with-no-or-two-lint-and-gate-steps-is-only-repinned-and-upgrade-warns-on-stderr
   Scenario: A workflow without exactly one lint and gate step is only repinned
     Given a workflow with no step named lint and gate, and another with two such steps
     When accord upgrade runs on each

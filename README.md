@@ -69,7 +69,7 @@ Then edit `accord/config.yml`. Before the first ticket that carries a `@test:` s
 
 ```sh
 git status   # check the list holds only what init printed
-git add accord .github .claude .agents AGENTS.md CLAUDE.md
+git add accord .github .claude .agents AGENTS.md CLAUDE.md   # leave out any of these init did not print
 git commit -m "accord init"
 git push
 ```
@@ -118,6 +118,8 @@ After you change `runtimes:`, write the copies again and commit what it prints:
 npx --yes @accord-dev/accord@0.2.0 skills sync
 ```
 
+`skills sync` never deletes. When you remove a runtime, it lists the copies it no longer writes, and you delete them yourself.
+
 ### 6. CLI commands for people and CI
 
 The skills call the CLI for you. These are the commands most useful to run by hand or in CI. Run `accord --help` for the full list, and `accord <command> --help` for each one.
@@ -144,7 +146,7 @@ The skills call the CLI for you. These are the commands most useful to run by ha
 npx --yes @accord-dev/accord@0.2.0 <command>
 ```
 
-There is no flag or environment variable that skips the check. Only `--version` and `--help` run regardless.
+There is no flag or environment variable that skips the check. Only `--version`, `--help` and `upgrade` run regardless.
 
 `/accord` says when a newer release is out. `/accord upgrade` runs `upgrade` as the newer version, which pushes a branch `upgrade/<version>` from the remote default branch with one commit that moves the pin and regenerates the skill files. Your checkout is not touched; merge the pull request to upgrade. A repository still pinned to 0.1.0 runs `npx --yes @accord-dev/accord@0.2.0 upgrade` once by hand.
 

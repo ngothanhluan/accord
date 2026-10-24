@@ -29,7 +29,7 @@ ui: false
 ## Intent
 <!-- At most five lines: why, for whom, how success is measured, and what this does not do. -->
 Queued 2026-10-22, not approved; the intent interview replaces this:
-- Audit item 7: "Cho Cursor, Copilot, Codex hỗ trợ ngang Claude Code ở việc khóa worktree theo ticket." Owner, 2026-10-22, to the proposal in chat: "ok queue hết di".
+- Audit item 7: "Give Cursor, Copilot, Codex support on par with Claude Code for locking a worktree per ticket." Owner, 2026-10-22, to the proposal in chat: "ok queue them all".
 - Today the hold reads `CLAUDE_CODE_SESSION_ID` (`packages/cli/src/commands/worktree.ts:302-310`, D-04); another runtime gets "not held: ... a second session in this worktree is not refused in this tool yet" (line 222).
 - Scope: a pushed claim branch already stops another person (`claimed:`); the hold only stops two sessions of the same person on one ticket.
 - Research first: for each tool, whether a session id reaches the shell, through an environment variable or hook input; fallback to the agent process's identity.

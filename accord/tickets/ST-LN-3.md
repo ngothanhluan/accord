@@ -88,23 +88,23 @@ Feature: ST-LN-3
 
 ## Decisions
 <!-- Settled answers, one per line: - D-01 <decision> — "<the owner's sentence>" -->
-- D-01 Six parts: a pane showing the dashboard sections from `accord dashboard --json` with no logic of its own; a search box filtering rows by id or title; selecting a ticket and pressing Continue, Pick up or New request submits the /accord command into the session; the /accord skill accepts an action with an id; packaging and install for a team; the pane refreshes after each turn — "Đủ 6 phần (Recommended)"
-- D-02 `accord init` and `accord skills sync` write the mod into the repository and enable it in the project settings when `runtimes` holds claude, the same version as the CLI — "ok option 1, nhưng có thể nào support cách cài như custom plugin cho claude code ko?"
-- D-03 No public marketplace and no shape-version field in the dashboard JSON; the mod is written by skills sync from the same package as the CLI, and stays a valid Claude Code plugin directory — "đừng lo phiên bản cũ. vì cái này chỉ có mình tôi xài thôi."
+- D-01 Six parts: a pane showing the dashboard sections from `accord dashboard --json` with no logic of its own; a search box filtering rows by id or title; selecting a ticket and pressing Continue, Pick up or New request submits the /accord command into the session; the /accord skill accepts an action with an id; packaging and install for a team; the pane refreshes after each turn — "All 6 parts (Recommended)"
+- D-02 `accord init` and `accord skills sync` write the mod into the repository and enable it in the project settings when `runtimes` holds claude, the same version as the CLI — "ok option 1, but could it support installing like a custom plugin for claude code?"
+- D-03 No public marketplace and no shape-version field in the dashboard JSON; the mod is written by skills sync from the same package as the CLI, and stays a valid Claude Code plugin directory — "don't worry about old versions. because only I use this."
 - D-04 The panel exists only in Claude Code, an accepted exception to the constraint that skill workflows behave identically in every runtime; it holds no logic or gate and reads only the CLI JSON — "C" (brainstorm, 2026-10-14)
-- D-05 A YOURS row has Continue, which submits `/accord continue <id>`; a READY or UP NEXT row has Pick up, which submits `/accord pick-up <id>`; TEAM and EPICS rows have no button; New request submits `/accord` followed by the search box text and is disabled while the box is empty — "Dùng chữ trong ô tìm (Recommended)"
-- D-06 The smallest done version is all six parts; the pane reads the dashboard when it opens and after each turn, with no timer — "Đủ 6 phần, refresh khi mở và sau mỗi lượt (Recommended)"
-- D-07 Search keeps a row when the box text appears anywhere in its id or title, ignoring case — "Chứa chuỗi, không phân biệt hoa thường (Recommended)"
-- D-08 When the CLI fails, its message replaces the whole pane: no search box, no button — "Chỉ hiện thông báo (Recommended)"
-- D-09 The pane is for the Claude Code terminal only; Desktop is left out, since the mods API documents running a command as CLI only and nothing here proves Desktop — "Thu hẹp về terminal (Recommended)"
-- D-10 ac-4 is one sequence: pick-up claims ST-2 before continue continues it; `continue` on a ticket nobody has claimed says so and offers Pick up, and never claims it — "Sửa câu chữ thành chuỗi (Recommended)"
-- D-11 Each section draws as a table: a dim header row `ID  STAGE  TITLE`, then one line per ticket with a bold id, its stage, its title cut to the width left, and its button; a dim second line under a row, only when it has one, holds `blocked by <ids>` (red) and, outside YOURS, who holds it; a blank line before each section heading. The cut applies to the table only; the full title belongs to a ticket detail view, which is ST-LN-6 — "Bảng gọn + dòng phụ (Recommended)", "ko áp dụng cho bảng. khi xem details thì phải details chứ"
-- D-12 Colour by stage: section headings bold cyan; the stage cell intent blue, plan cyan, build yellow, review magenta, verify and ready green, any other stage uncoloured; blocked-by red; header row, who, `none`, `+N more` and the summary line dim — "Màu theo stage (Recommended)"
+- D-05 A YOURS row has Continue, which submits `/accord continue <id>`; a READY or UP NEXT row has Pick up, which submits `/accord pick-up <id>`; TEAM and EPICS rows have no button; New request submits `/accord` followed by the search box text and is disabled while the box is empty — "Use the text in the search box (Recommended)"
+- D-06 The smallest done version is all six parts; the pane reads the dashboard when it opens and after each turn, with no timer — "All 6 parts, refresh on open and after each turn (Recommended)"
+- D-07 Search keeps a row when the box text appears anywhere in its id or title, ignoring case — "Contains the string, case-insensitive (Recommended)"
+- D-08 When the CLI fails, its message replaces the whole pane: no search box, no button — "Show only the message (Recommended)"
+- D-09 The pane is for the Claude Code terminal only; Desktop is left out, since the mods API documents running a command as CLI only and nothing here proves Desktop — "Narrow to the terminal (Recommended)"
+- D-10 ac-4 is one sequence: pick-up claims ST-2 before continue continues it; `continue` on a ticket nobody has claimed says so and offers Pick up, and never claims it — "Reword it as a sequence (Recommended)"
+- D-11 Each section draws as a table: a dim header row `ID  STAGE  TITLE`, then one line per ticket with a bold id, its stage, its title cut to the width left, and its button; a dim second line under a row, only when it has one, holds `blocked by <ids>` (red) and, outside YOURS, who holds it; a blank line before each section heading. The cut applies to the table only; the full title belongs to a ticket detail view, which is ST-LN-6 — "Compact table + secondary line (Recommended)", "it doesn't apply to the table. when viewing details it has to be detailed, of course"
+- D-12 Colour by stage: section headings bold cyan; the stage cell intent blue, plan cyan, build yellow, review magenta, verify and ready green, any other stage uncoloured; blocked-by red; header row, who, `none`, `+N more` and the summary line dim — "Colour by stage (Recommended)"
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
-- 2026-10-15, on the proposed `schema` field and the public marketplace: "đừng lo phiên bản cũ. vì cái này chỉ có mình tôi xài thôi."
-- 2026-10-16, at verify, on the real pane: "tôi thấy có vài chỗ chưa ổn. nhất là bố cục, format của panel, khá khó đọc. nên thêm chút màu sắc để phân biệt. chia column dạng table cho dễ nhìn dc ko? brainstorm chỗ này đi"
+- 2026-10-15, on the proposed `schema` field and the public marketplace: "don't worry about old versions. because only I use this."
+- 2026-10-16, at verify, on the real pane: "I see a few things that are not right yet. especially the layout and format of the panel, quite hard to read. should add some colour to tell things apart. can we split it into table columns so it is easier to read? brainstorm this"
 
 ## Open questions
 <!-- `- [ ]` items; Ready stays blocked while any is unchecked. -->

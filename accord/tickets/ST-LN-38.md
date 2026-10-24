@@ -29,7 +29,7 @@ ui: false
 ## Intent
 <!-- At most five lines: why, for whom, how success is measured, and what this does not do. -->
 Queued 2026-10-22, not approved; the intent interview replaces this:
-- Audit item 5: "Thêm một reviewer dùng model của hãng khác (GPT/Gemini), có model dự phòng. Bạn đã thấy Copilot GPT bắt được bug mà Claude bỏ sót." Owner, 2026-10-22, to the proposal in chat: "ok queue hết di".
+- Audit item 5: "Add a reviewer that uses another vendor's model (GPT/Gemini), with a backup model. You have seen Copilot GPT catch a bug that Claude missed." Owner, 2026-10-22, to the proposal in chat: "ok queue them all".
 - Within "No API keys": the main session runs a CLI the member is already signed into on a subscription (for example `codex exec`, `copilot -p`, `gemini -p`); the accord CLI itself never calls a model.
 - Proposal to confirm at intent: `config.yml` lists external reviewers in order; review uses the first that runs, with the same ticket, package, ledger and lens as `accord-reviewer`, and its findings go through the same classify step; when none runs, `review.md` records "external review not run: <reason>", never silently.
 - Research first (ST-LN-13's researcher, if it has landed): each CLI's non-interactive mode, passing files, output shape, sandbox and network (Codex), exit codes, time; and whether requesting GitHub's Copilot review on the pull request is lighter, given ticket pull requests open only at verify (`ci.md` Start step 4), so its findings would arrive after verify.

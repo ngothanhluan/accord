@@ -84,11 +84,11 @@ Feature: ST-LN-21
 ## Decisions
 <!-- Settled answers, one per line: - D-01 <decision> — "<the owner's sentence>" -->
 - D-01 The ticket has four parts: the empty search field says it searches (dim hint text); the screen says the same field also starts a new request; when nothing matches the panel says so; the cursor is in the field when the panel opens — "A"
-- D-02 Done is proven twice: tests fix every new piece of panel text verbatim in the criteria and check it through the panel test host; and at verify the owner opens the real panel once, looks at the empty field, types text that matches nothing, and confirms it reads as searchable — "chọn A"
+- D-02 Done is proven twice: tests fix every new piece of panel text verbatim in the criteria and check it through the panel test host; and at verify the owner opens the real panel once, looks at the empty field, types text that matches nothing, and confirms it reads as searchable — "choose A"
 - D-03 The search still matches only a ticket's id and title (ST-LN-3 D-07 stands); out of scope: matching stage or person, a search icon, a keyboard shortcut, the ticket detail view — "A"
 - D-04 The smallest version that counts as done is all four parts of D-01; none is cut — "A"
-- D-05 The search filters only the tickets the current dashboard shows, and the no-match line says so ("No ticket shown here matches."); finding an older, hidden, or done ticket is not the panel's job, since the agent finds it from the ticket files when asked — "câu 1. ok A, nhưng đúng là phải nói rõ là filter trên dashboard hiện tại thôi. nhưng nếu user muốn tìm lại ticket cũ thì sao nhỉ? thực tế khi làm với AI thì tôi thấy ko cần lắm. vì nếu cần thì AI tự tìm phải ko?"
-- D-06 The owner's check on the real panel (ac-4) also moves focus to a ticket button, lets a turn finish, and confirms the cursor stayed there, because the test host cannot see focus — "Câu 2. A"
+- D-05 The search filters only the tickets the current dashboard shows, and the no-match line says so ("No ticket shown here matches."); finding an older, hidden, or done ticket is not the panel's job, since the agent finds it from the ticket files when asked — "question 1. ok A, but indeed it has to say clearly that it filters only on the current dashboard. but what if the user wants to find an old ticket again? in practice, working with AI, I find it is not really needed. because if needed the AI finds it itself, right?"
+- D-06 The owner's check on the real panel (ac-4) also moves focus to a ticket button, lets a turn finish, and confirms the cursor stayed there, because the test host cannot see focus — "Question 2. A"
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->

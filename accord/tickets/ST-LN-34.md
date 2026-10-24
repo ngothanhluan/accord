@@ -87,7 +87,7 @@ Feature: ST-LN-34
 
 ## Decisions
 <!-- Settled answers, one per line: - D-01 <decision> — "<the owner's sentence>" -->
-- D-01 Option A: the dropped ticket's file and its `## Dropped` reason stay on main; only its worktree and branches are deleted — "D-01 đã chọn A: giữ file ticket và lý do trên main, chỉ xoá worktree và nhánh."
+- D-01 Option A: the dropped ticket's file and its `## Dropped` reason stay on main; only its worktree and branches are deleted — "D-01 chose A: keep the ticket file and the reason on main, delete only the worktree and the branch."
 - D-02 A new command `accord drop <id>` lands the drop record on main without code: it branches from `origin/main`, writes `status: dropped` and the reason into the ticket file, commits, pushes, and prints the pull request to open — "A"
 - D-03 `worktree clean` deletes a dropped ticket's worktree and branches only when nothing beyond what is on the remote is lost: the local and remote tips are equal, or only one exists; the remote branch is deleted only if it is still at the commit just fetched; otherwise it keeps them and prints why; the existing guards (uncommitted work, a session holding it, this session's worktree) stay — "A"
 - D-04 The drop record is the ticket file only, taken from its latest version on the claim branch, with `status: dropped`; the reason comes from `--reason "<reason>"`, or from the `## Dropped` section already in that file, when it has one; the `accord/tickets/<id>/` folder is not carried to main — "A"
@@ -99,15 +99,15 @@ Feature: ST-LN-34
 - D-10 Extends D-05: when the ticket has no claim branch, `accord drop` reads the ticket file from origin/main instead, and does everything else the same — "A"
 - D-11 Extends D-08: the sentence in `ids.md` that says to "commit step 1" in a session working the dropped ticket changes to "run step 1"; nothing else in it changes — "A"
 - D-12 The `drop/<id>` branch on origin is left to the host's delete-on-merge, like merged ticket branches today; clean does not delete it — "A"
-- D-13 Narrows D-09: a local-only branch whose tip equals the commit its origin branch pointed at just before this same clean pruned it counts as on origin and is deleted — "theo đề xuất"
-- D-14 D-11 stands: step 1 still runs in the session that works the dropped ticket; a worktree whose pin predates `accord drop` gets the usual pin refusal and its fix — "theo đề xuất"
-- D-15 Where D-02, D-06 and D-10 say main, `accord drop` uses origin's default branch, the same ref clean reads, and prints its short name in the `base:` line — "theo đề xuất"
+- D-13 Narrows D-09: a local-only branch whose tip equals the commit its origin branch pointed at just before this same clean pruned it counts as on origin and is deleted — "as proposed"
+- D-14 D-11 stands: step 1 still runs in the session that works the dropped ticket; a worktree whose pin predates `accord drop` gets the usual pin refusal and its fix — "as proposed"
+- D-15 Where D-02, D-06 and D-10 say main, `accord drop` uses origin's default branch, the same ref clean reads, and prints its short name in the `base:` line — "as proposed"
 - D-16 Picking up a ticket (`accord worktree open <id>`) is refused when the default branch on origin holds it as dropped; the message says to make a new ticket instead — "A"
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
-- "tôi nhớ có ticket giảm nhiễu khi xong phần intent mà? đâu cần show lên hết. chỉ cần intent và phần nói đơn giản giống như trên để hiểu rõ những gì cần làm là dc."
-- "tôi thấy có một vấn đề khi AI/accord respond thường hay gắn task như D-10, D-11, tôi đâu biết những thứ đó là gì? tôi làm trên terminal mà? làm sao để user đọc hiểu ngữ cảnh. chứ ko phải chỉ nêu task là dc. vì user có hiểu đâu"
+- "I remember there is a ticket that cuts the noise once the intent part is done, right? there is no need to show everything. just the intent and the plain-words part like above, to understand clearly what needs to be done, is enough."
+- "I see a problem: when AI/accord responds it often tags tasks like D-10, D-11, how would I know what those are? I work in a terminal, right? how can the user read and understand the context. just naming the task is not enough. because the user does not understand"
 
 ## Open questions
 <!-- `- [ ]` items; Ready stays blocked while any is unchecked. -->

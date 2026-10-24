@@ -101,20 +101,20 @@ Feature: ST-LN-14
 
 ## Decisions
 <!-- Settled answers, one per line: - D-01 <decision> — "<the owner's sentence>" -->
-- D-01 The benchmark runs chosen past samples at different settings; the existing transcripts alone cannot answer it (160 of 161 executor runs were sonnet at medium) — "tôi tưởng là chúng ta đưa lấy một vài mẫu. sau đó cho chạy từng model và effort khác nhau thì mới ra benchmark dc chứ?"
-- D-02 Round 1 keeps each agent's current model and tries one effort step lower and one higher; tuning goes further only once a setting holds — "bạn cho ra 1 table đi. agent nào dc suggest model nào? rồi degrade effort 1 bậc, upgrade effort một bậc.  sau đó khi chạy mà vẫn ổn thì mới tunning tiếp"
-- D-03 Advisor calls are not measured — "ko cần advisor nữa."
-- D-04 The executor keeps its low step, with its 5 samples mixing plain tasks and risk:<kind> tasks, so the result also shows whether executor effort should follow the risk kind — "ok vậy làm đi"
+- D-01 The benchmark runs chosen past samples at different settings; the existing transcripts alone cannot answer it (160 of 161 executor runs were sonnet at medium) — "I thought we would take a few samples, then run each different model and effort, and only that gives a benchmark, right?"
+- D-02 Round 1 keeps each agent's current model and tries one effort step lower and one higher; tuning goes further only once a setting holds — "give me 1 table. which agent is suggested which model? then degrade effort 1 step, upgrade effort one step.  after that, only when it still runs fine, tune further"
+- D-03 Advisor calls are not measured — "no need for the advisor anymore."
+- D-04 The executor keeps its low step, with its 5 samples mixing plain tasks and risk:<kind> tasks, so the result also shows whether executor effort should follow the risk kind — "ok then do it"
 - D-05 Done is round 1, its report with a suggested effort per agent, and the compliance check finding the four known breaches; later tuning rounds are other tickets; this ticket changes no agent's model or effort, the owner decides from the report — "A"
-- D-06 The benchmark also scores process compliance from transcripts and git — "làm sao để ko thể nào quên chuyện này? tôi nghĩ phần benchmark phải đánh giá thật kỹ mới dc."
-- D-07 Model and effort are read for each turn, not once per run: each `"type":"assistant"` line of `<session>/subagents/agent-<id>.jsonl` carries `message.model`, `requestedModel`, `effort` and `perTurnEffort`, and `agent-<id>.meta.json` names `agentType` and the dispatch `description` (checked 2026-10-18; scripts/benchmark.mjs:31-35 keeps only the first effort and the last model) — "vậy làm sao để strictly biết dc model đang chạy cho từng agent là gì? effort bao nhiêu?"
+- D-06 The benchmark also scores process compliance from transcripts and git — "how do we make it impossible to forget this? I think the benchmark part has to evaluate really thoroughly."
+- D-07 Model and effort are read for each turn, not once per run: each `"type":"assistant"` line of `<session>/subagents/agent-<id>.jsonl` carries `message.model`, `requestedModel`, `effort` and `perTurnEffort`, and `agent-<id>.meta.json` names `agentType` and the dispatch `description` (checked 2026-10-18; scripts/benchmark.mjs:31-35 keeps only the first effort and the last model) — "so how do we strictly know which model is running for each agent? what effort?"
 - D-08 The auditor and the verifier report no Must, so an auditor run holds when it still reads two ways every criterion the current effort did, and a verifier run when it still marks fail or blocked every criterion the current effort did; a sample with none of these holds at every effort, and the report says so — "A"
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
-- 2026-10-21: "ko cần advisor nữa. giải thích cụ thể cách bạn sẽ đo như thế nào đi?"
-- 2026-10-21: "tôi tưởng là chúng ta đưa lấy một vài mẫu. sau đó cho chạy từng model và effort khác nhau thì mới ra benchmark dc chứ? ý của bạn tôi ko rõ lắm"
-- 2026-10-21: "bạn cho ra 1 table đi. agent nào dc suggest model nào? rồi degrade effort 1 bậc, upgrade effort một bậc.  sau đó khi chạy mà vẫn ổn thì mới tunning tiếp"
+- 2026-10-21: "no need for the advisor anymore. explain concretely how you will measure it?"
+- 2026-10-21: "I thought we would take a few samples, then run each different model and effort, and only that gives a benchmark, right? I am not very clear on what you mean"
+- 2026-10-21: "give me 1 table. which agent is suggested which model? then degrade effort 1 step, upgrade effort one step.  after that, only when it still runs fine, tune further"
 
 ## Open questions
 <!-- `- [ ]` items; Ready stays blocked while any is unchecked. -->

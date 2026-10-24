@@ -84,13 +84,13 @@ Feature: TAGS-1 build writes each scenario's test tag
 ## Vetoes
 
 ## Decisions
-- D-01 The plan's verify line names the scenario each test proves, and accord task-done writes the scenario's @test tag once the test passes — "Plan ghi map, task-done tự ghi tag"
-- D-02 accord gate plan fails unless every scenario that is not @ui is mapped by exactly one verify entry across plan.md; a verify id mapping no scenario stays valid — "Bắt buộc, lỗi ngay ở bước plan"
-- D-03 The smallest done version has all four pieces: the map syntax, the gate plan check, task-done writing the tag, and the text in the ticket template, the build and plan skills, and the planner — "Đủ 4 mảnh"
-- D-04 Scope is who writes the tag and when, how each scenario finds its test, and the matching text; dogfood items 2 to 4 are separate tickets — "Đúng, đủ 3 phần"
+- D-01 The plan's verify line names the scenario each test proves, and accord task-done writes the scenario's @test tag once the test passes — "The plan records the map, task-done writes the tag itself"
+- D-02 accord gate plan fails unless every scenario that is not @ui is mapped by exactly one verify entry across plan.md; a verify id mapping no scenario stays valid — "Mandatory, an error right at the plan step"
+- D-03 The smallest done version has all four pieces: the map syntax, the gate plan check, task-done writing the tag, and the text in the ticket template, the build and plan skills, and the planner — "All 4 pieces"
+- D-04 Scope is who writes the tag and when, how each scenario finds its test, and the matching text; dogfood items 2 to 4 are separate tickets — "Right, all 3 parts"
 
-- D-05 An entry mapping a scenario the ticket does not have fails accord gate plan; a scenario already carrying the same @test:T is left as it is and task-done passes; a test missing from the report or failing is refused as today, before anything is written — "Duyệt bản sửa"
-- D-06 An entry mapping a @ui scenario fails accord gate plan, matching the rule that @ui and @test contradict (lint.test-tag-on-ui); this replaces the D-05 clause that let a mapped @ui scenario get its tag — "gate plan từ chối map vào @ui"
+- D-05 An entry mapping a scenario the ticket does not have fails accord gate plan; a scenario already carrying the same @test:T is left as it is and task-done passes; a test missing from the report or failing is refused as today, before anything is written — "Approve the revised version"
+- D-06 An entry mapping a @ui scenario fails accord gate plan, matching the rule that @ui and @test contradict (lint.test-tag-on-ui); this replaces the D-05 clause that let a mapped @ui scenario get its tag — "gate plan refuses a map onto @ui"
 
 ## Corrections
 

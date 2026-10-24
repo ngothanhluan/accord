@@ -2,9 +2,9 @@
 
 ## Round 1 (whole)
 Three critics, lenses `criteria`, `build`, `security`, on plan commit e4cce9b. After the round the owner narrowed hold support to Claude Code (D-17) and widened Continue (D-18).
-1. Must — Continue from the main checkout cannot reach a ticket whose file exists only on its branch, as after @ac-6: `/accord continue ST-9` in `C:/Work/accord` becomes a New request and starts a second ticket — fixed, owner: "Nhận cả id có branch t/<id> (Khuyên)"
+1. Must — Continue from the main checkout cannot reach a ticket whose file exists only on its branch, as after @ac-6: `/accord continue ST-9` in `C:/Work/accord` becomes a New request and starts a second ticket — fixed, owner: "Also accept an id that has a branch t/<id> (Recommended)"
 2. Must — `worktree clean` judges uncommitted work with plain `git status --porcelain`, which follows `status.showUntrackedFiles=no`, so a file never added to git is deleted by `git worktree remove`; use `--untracked-files=normal --ignore-submodules=none` and cover it in the data-loss test — fixed
-3. Must — one probe capture per tool cannot tell two Cursor or VS Code windows apart, so two windows count as one session — owner: "tạm thời chỉ support cho claude thôi"
+3. Must — one probe capture per tool cannot tell two Cursor or VS Code windows apart, so two windows count as one session — owner: "for now only support claude"
 4. Should — Continue runs `worktree open`, whose no-branch path claims the ticket, so Continue on an unclaimed or merged-and-pruned ticket adds a worktree, commits `claim:` and runs setup; no "never claims" case is tested — fixed
 5. Should — `worktree.md` (Task 8) both forbids editing the worktree on `stop:` and tells the agent to commit the `people` edit there, and its `git restore accord/config.yml` in the main checkout drops the owner's other uncommitted edits to that file — fixed
 6. Should — the Claude Code capture is committed without the owner reading it; the env filter is a denylist that misses names such as `*_JWT` or a URL with credentials, and `~` replaces the home folder only in command lines, not env values — withdrawn
@@ -31,14 +31,14 @@ One critic, no lens, on plan commit 328f4b8. fixed: 1.1, 1.2, 1.4, 1.5, 1.7, 1.8
 
 ## Round 3 (diff)
 One critic, mode diff, on the fix in commit 48a7d6b. fixed: 2.1, 2.2, 2.3, 2.4, 2.5.
-1. Should — `worktrees(root)` runs `git worktree prune` silently on any `prunable` entry, and git gives a folder moved by hand the same reason as a deleted one: Continue or `clean` then deletes `.git/worktrees/<name>` (its HEAD and index), so `git worktree repair <new path>` can no longer reconnect the moved folder, and nothing names what was pruned; print one line per pruned entry with its path, git's reason, and "if you moved it, run git worktree repair <new path>" — fixed, owner: "Tự prune, in 1 dòng (Khuyên)" (prune as planned and print one line per pruned entry, `pruned <path>: <git's reason>`, with no repair advice; a folder renamed by hand loses its git record, its files stay; checked on git 2.56.0.windows.1: `repair` works before `prune`, fails after it, and `worktree add` of the branch fails while the entry is prunable)
+1. Should — `worktrees(root)` runs `git worktree prune` silently on any `prunable` entry, and git gives a folder moved by hand the same reason as a deleted one: Continue or `clean` then deletes `.git/worktrees/<name>` (its HEAD and index), so `git worktree repair <new path>` can no longer reconnect the moved folder, and nothing names what was pruned; print one line per pruned entry with its path, git's reason, and "if you moved it, run git worktree repair <new path>" — fixed, owner: "Prune automatically, print 1 line (Recommended)" (prune as planned and print one line per pruned entry, `pruned <path>: <git's reason>`, with no repair advice; a folder renamed by hand loses its git record, its files stay; checked on git 2.56.0.windows.1: `repair` works before `prune`, fails after it, and `worktree add` of the branch fails while the entry is prunable)
 
 ## Round 4 (diff)
 One critic, mode diff, on the owner's fix in commit ac8cd87. fixed: 3.1.
 No findings
 
 ## Closed
-Converged at round 4 (no Must, no Should open); `accord gate plan ST-LN-7` passed after the owner re-approved the ticket ("Duyệt (Khuyên)"); baseline tests at fd9798e: 60 files, 1245 tests passed.
+Converged at round 4 (no Must, no Should open); `accord gate plan ST-LN-7` passed after the owner re-approved the ticket ("Approve (Recommended)"); baseline tests at fd9798e: 60 files, 1245 tests passed.
 
 ## Round 1 (diff)
 Re-plan after the Task 1 build gap (no parent walk), commit bdff57d; one critic, mode diff.

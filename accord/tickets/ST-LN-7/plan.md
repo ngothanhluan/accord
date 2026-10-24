@@ -692,7 +692,7 @@ covers: D-08, D-18
 files: packages/cli/src/commands/worktree.ts (new), packages/cli/test/worktree.test.ts (new), packages/core/skills/accord/SKILL.md, packages/core/skills/accord/worktree.md (new), packages/core/src/generated/skills.ts, .claude/skills/accord/SKILL.md, .claude/skills/accord/worktree.md (new)
 verify: packages/cli/test/worktree.test.ts#risk:complex-branching-pick-up-refuses-a-branch-another-person-claimed-and-reuses-one-claimed-by-the-same-email
 
-The gap (final review 2, ledger Ruling of 2026-10-18, owner: "Từ chối nếu người khác claim (Khuyên)"): Task 3's
+The gap (final review 2, ledger Ruling of 2026-10-18, owner: "Refuse if someone else claimed it (Recommended)"): Task 3's
 cases 1 to 4 run for Pick up as well as for Continue, so when a teammate has pushed `t/<id>` with `claim: <id>`
 and the user has fetched, `accord worktree open <id>` (no `--continue`) adds a worktree on the teammate's branch,
 exits 0, and the skill's push is a no-op: two people work one ticket. After this task, Pick up reuses an existing

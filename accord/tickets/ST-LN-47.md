@@ -23,5 +23,5 @@ In this repository's accord/config.yml only, add a models: block setting auditor
 .claude/agents/accord-auditor.md says effort "high", accord-critic.md says effort "xhigh", accord-scout.md says model "sonnet", and no other agent file or AGENT_DEFAULTS changes
 
 ## Decisions
-- D-01 The auditor and the critic are raised now, in this repository's config — "tôi nghĩ là nâng lên đi."
+- D-01 The auditor and the critic are raised now, in this repository's config — "I think raise them."
 - D-02 The scout also moves from haiku to sonnet in this repository's config now, unmeasured (round 1 held 0/5 at low, 1/5 at medium on haiku); ST-LN-46 still measures it before any default changes — "A"

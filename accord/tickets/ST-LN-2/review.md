@@ -1,7 +1,7 @@
 ## Round 1
 
-Should 1 [intent-gap]: `epics` always present in `dashboard --json` though D-06 says a section that does not apply is absent — packages/core/src/status/dashboard.ts:131 — the owner chose to keep it, recorded as D-08 "Luôn có `epics` (Recommended)", no code change
-Should 2 [intent-gap]: the summary carries a fifth count `backlog` that ac-4 does not name — packages/core/src/status/dashboard.ts:133 — the owner chose to keep it, recorded as D-09 "Giữ `backlog` (Recommended)", no code change
+Should 1 [intent-gap]: `epics` always present in `dashboard --json` though D-06 says a section that does not apply is absent — packages/core/src/status/dashboard.ts:131 — the owner chose to keep it, recorded as D-08 "Always have `epics` (Recommended)", no code change
+Should 2 [intent-gap]: the summary carries a fifth count `backlog` that ac-4 does not name — packages/core/src/status/dashboard.ts:133 — the owner chose to keep it, recorded as D-09 "Keep `backlog` (Recommended)", no code change
 Nice 3 [patch]: README.md lists the CLI commands without `accord dashboard` — README.md:35 — deferred
 Nice 4 [patch]: the header-plus-rows table is built twice — packages/cli/src/render/dashboard.ts:31 — deferred
 Nice 5 [patch]: `dashboard()` shadows `all` and builds the result literal twice — packages/core/src/status/dashboard.ts:124 — deferred

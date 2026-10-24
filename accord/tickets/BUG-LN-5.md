@@ -30,7 +30,7 @@ ui: false
 <!-- At most five lines: why, for whom, how success is measured, and what this does not do. -->
 Queued 2026-10-17, not approved; the intent interview replaces this:
 - Found in BUG-LN-3 final review. The lint-and-gate step of the workflow `accord init` writes (packages/core/src/scaffold/workflow.ts:75) and this repository's .github/workflows/accord.yml:36 set `shell: bash`, which GitHub runs as `bash --noprofile --norc -eo pipefail {0}`. The script's own comment says "Deliberately not -e: a lint failure and a gate failure should both be reported on one push". Under `-e` a failing command outside a condition can end the script before every ticket is gated or reported. packages/cli/test/workflow-script.test.ts runs the script with plain `bash`, so the flags CI uses are never tested.
-- Owner: "tạo ticket riêng đi". Open: whether to set `shell: bash --noprofile --norc {0}` (or `set +e`) so the comment holds, and to run the tests under the CI flags.
+- Owner: "make it a separate ticket". Open: whether to set `shell: bash --noprofile --norc {0}` (or `set +e`) so the comment holds, and to run the tests under the CI flags.
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.
@@ -61,4 +61,4 @@ Feature: BUG-LN-5
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
 
 ## Dropped
-Merged into BUG-LN-4, which carries its notes (owner, 2026-10-18, after the main session proposed merging tickets that touch the same code: "ok gộp đi").
+Merged into BUG-LN-4, which carries its notes (owner, 2026-10-18, after the main session proposed merging tickets that touch the same code: "ok, merge them").

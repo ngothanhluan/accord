@@ -29,11 +29,11 @@ ui: false
 ## Intent
 <!-- At most five lines: why, for whom, how success is measured, and what this does not do. -->
 Queued 2026-10-22, not approved; the intent interview replaces this:
-- Source: ST-LN-14 benchmark round 1, docs/benchmark/round-1.md on branch t/ST-LN-14 (5 samples per agent per effort; "held" = no worse than the current-effort run). Owner, 2026-10-22: "ok tạo ticket cho mấy đề xuất đó đi".
+- Source: ST-LN-14 benchmark round 1, docs/benchmark/round-1.md on branch t/ST-LN-14 (5 samples per agent per effort; "held" = no worse than the current-effort run). Owner, 2026-10-22: "ok create tickets for those proposals".
 - Round 1: accord-auditor (opus, current medium) at high reported Must the current run missed in samples 3 (5 Must) and 4 (2 Must), at 1.0 against 0.8 median minutes; low held 3 of 5.
 - Round 1: accord-critic (opus, current high) at xhigh reported Must the current run missed in samples 2 (3 Must) and 5 (1 Must), at 12.1 against 5.5 median minutes and about 4.7 times the cache reads; medium held 4 of 5.
 - The script's own suggestions to lower effort are not taken: executor low held 5 of 5 but saves only 0.7 min a task; reviewer, final-reviewer and verifier "held" only because their current-effort runs reported no Must (reviewer 1 informative sample, final-reviewer and verifier none).
-- Change: this repository's `accord/config.yml` `models:` entries, which already override each agent (schema packages/core/schemas/config.schema.json `models`, applied by `accord skills sync` over AGENT_DEFAULTS in packages/core/src/skills/agents.ts:14): `auditor: { model: opus, effort: high }` and `critic: { model: opus, effort: xhigh }`, then `node packages/cli/dist/cli.js skills sync`. AGENT_DEFAULTS, which every accord user gets, stays as it is until round 2 gives stronger evidence. Owner, 2026-10-22, agreed to the config route ("ok làm đi").
+- Change: this repository's `accord/config.yml` `models:` entries, which already override each agent (schema packages/core/schemas/config.schema.json `models`, applied by `accord skills sync` over AGENT_DEFAULTS in packages/core/src/skills/agents.ts:14): `auditor: { model: opus, effort: high }` and `critic: { model: opus, effort: xhigh }`, then `node packages/cli/dist/cli.js skills sync`. AGENT_DEFAULTS, which every accord user gets, stays as it is until round 2 gives stronger evidence. Owner, 2026-10-22, agreed to the config route ("ok do it").
 - Caveat: one sample per effort per cell, judges count new items differently; the owner may prefer to wait for round 2.
 
 ## Acceptance criteria
@@ -54,7 +54,7 @@ Feature: ST-LN-45
 
 ## Decisions
 <!-- Settled answers, one per line: - D-01 <decision> — "<the owner's sentence>" -->
-- D-01 The auditor and the critic are raised now, in this repository's config — "tôi nghĩ là nâng lên đi."
+- D-01 The auditor and the critic are raised now, in this repository's config — "I think raise them."
 - D-02 The scout also moves from haiku to sonnet in this repository's config now, unmeasured (round 1 held 0/5 at low, 1/5 at medium on haiku); ST-LN-46 still measures it before any default changes — "A"
 
 ## Corrections

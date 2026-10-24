@@ -109,7 +109,7 @@ Tests first.
   - `forbiddenLines('feat: x\n\nsee 🤖 GENERATED WITH [Claude Code](https://claude.com/claude-code)\r\n')` is
     `['see 🤖 GENERATED WITH [Claude Code](https://claude.com/claude-code)']` (anywhere in the line, CR dropped by
     the trim).
-  - `forbiddenLines('feat: x\n\nbuild: tidy\nOwner: "có"\nCo-Authored: x\nwritten by: me\nCo_Authored-By: x\nby: x\n')`
+  - `forbiddenLines('feat: x\n\nbuild: tidy\nOwner: "yes"\nCo-Authored: x\nwritten by: me\nCo_Authored-By: x\nby: x\n')`
     is `[]` (the lines git's parser misread, and tokens that do not end in `-by:` or hold another character).
 - `packages/cli/test/trailers.test.ts`, top-level, importing `cleanup`, `commitAll`, `gitRun`, `makeLaneRepo`,
   `run` and `writeFiles` from `./helpers/repo.js` and `CONFIG` from `../../../test/helpers/lane.js`, with the

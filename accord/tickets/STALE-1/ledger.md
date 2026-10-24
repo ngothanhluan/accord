@@ -14,7 +14,7 @@
 - Ruling: when git log fails, lastActivity stays empty and nothing is idle, as gitFacts already treats that case — cost if wrong: a broken log silently hides staleness.
 - Ruling: idle is computed in core, not by decorating rows in the CLI — --json stdout stays the core array verbatim and the CLI adds no column — cost if wrong: none known.
 - Ruling: review.mode is outcome for this repository — solo owner reviews outcomes, not slices — cost if wrong: the owner wanted per-slice pull requests.
-- Ruling: the claim branch t/STALE-1 stays local at the owner's word — the owner said "Giữ local" — cost if wrong: a teammate does not see the claim.
+- Ruling: the claim branch t/STALE-1 stays local at the owner's word — the owner said "Keep it local" — cost if wrong: a teammate does not see the claim.
 - Ruling: `accord tests baseline` run once at the plan baseline (1137 existing untraced cases listed) — the repository adopted the test policy without the file, so gate done would flag every existing case — cost if wrong: existing untraced cases are grandfathered instead of each getting a risk: name.
 - Ruling: the main session writes each scenario's `@test:<id>` tag (the task's verify id) into the ticket after `accord task-done` records the task that proves it — no skill step owns the tags and executors never edit the ticket; tags sit outside the AC hash — cost if wrong: none to Ready; a wrong id fails gate done.
 - Ruling: a ticket whose id has non-ASCII characters is never idle — git quotes such paths and the plan keeps the authors walk unchanged (critic round 3) — cost if wrong: such a ticket never shows idle.
@@ -25,7 +25,7 @@
 - Ruling: Tasks 2 and 3 write their tests against code Task 1 already landed, so those tests pass on arrival; their executors show them passing instead of failing first — the alternative is reverting working code — cost if wrong: two criterion tests were never seen red.
 - Ruling: (task 2 executor) no production change; 6b63f29 already reads local and remote-tracking claim refs and keeps the max committer time; red shown by disabling the fold, then restored — cost if wrong: the remote-tracking case would show idleDays, but the test covers it.
 - Ruling: (task 3 executor) the laneless ticket (D-05) is a fourth row in the ac-4 test; 6b63f29 already skips it; red shown by forcing open=true, then restored — cost if wrong: D-05 has no separate test.
-- Ruling: the `risk:drift` test on the installed /accord copy stays, at the owner's word ("Giữ, ghi ngoại lệ") — it guards the sync-from-stale-dist failure the plan critic found; `drift` is not in the spec's risk kinds — cost if wrong: one test outside the policy list.
+- Ruling: the `risk:drift` test on the installed /accord copy stays, at the owner's word ("Keep it, record an exception") — it guards the sync-from-stale-dist failure the plan critic found; `drift` is not in the spec's risk kinds — cost if wrong: one test outside the policy list.
 - Ruling: (final reviewer) lens both for the final review — none named, no auth, money, migration, or deletion path — cost if wrong: security and integration lenses not applied.
 
 ## Deferred

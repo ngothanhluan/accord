@@ -136,11 +136,11 @@ records how many shared steps it got.
    ticket, each spawning git, so it passes an explicit timeout as `it`'s third argument, `}, 300_000);`, the way
    `packages/cli/test/lane-flow.test.ts:96` passes `120_000`, above the cli project's 30 s `testTimeout`
    (`packages/cli/vitest.config.ts:5`).
-2. `it('risk:parsing approval shares only steps before the first then in a language vi fence')`: a lane ticket
-   whose fence starts `# language: vi`, then `Tính năng: X`, two `Tình huống:` scenarios `@ac-1` and `@ac-2`, each
-   `Cho một báo cáo`, `Khi chủ xuất nó`, `Và chọn csv`, then a different `Thì ...` and an identical
-   `Và tệp được lưu`. Expect the three lead steps as shared lines naming `ac-1, ac-2`, and `Thì ...` and
-   `Và tệp được lưu` under each scenario's own bold line (so the identical `Và` after `Thì` is not shared).
+2. `it('risk:parsing approval shares only steps before the first then in a language fr fence')`: a lane ticket
+   whose fence starts `# language: fr`, then `Fonctionnalité: X`, two `Scénario:` scenarios `@ac-1` and `@ac-2`, each
+   `Soit un rapport`, `Quand le responsable exporte`, `Et choisit csv`, then a different `Alors ...` and an identical
+   `Et le fichier est enregistré`. Expect the three lead steps as shared lines naming `ac-1, ac-2`, and `Alors ...` and
+   `Et le fichier est enregistré` under each scenario's own bold line (so the identical `Et` after `Alors` is not shared).
 3. `it('risk:parsing approval gives a star step the phase of the step before it')`: an English ticket with two
    scenarios each `* a report`, `When the owner exports it`, `* the owner confirms`, a different `Then ...`, and
    `* the file is kept`. Expect `- * a report (ac-1, ac-2)`, the When, and `- * the owner confirms (ac-1, ac-2)`

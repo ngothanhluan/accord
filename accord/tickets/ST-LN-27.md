@@ -33,7 +33,7 @@ verified: [ac-1, ac-2, ac-3, ac-4, ac-5]
 
 ## Intent
 <!-- At most five lines: why, for whom, how success is measured, and what this does not do. -->
-Why: Pick up, Continue and New request in lane M end with a `stop:` line that makes the owner open a new session in the ticket's worktree folder and type `/accord continue <id>` there (ST-LN-7 D-08, D-13); owner: "đó ko phải cách làm việc. user ko rảnh để làm việc đó đâu. accord phải tự handle".
+Why: Pick up, Continue and New request in lane M end with a `stop:` line that makes the owner open a new session in the ticket's worktree folder and type `/accord continue <id>` there (ST-LN-7 D-08, D-13); owner: "that is not the way to work. the user has no time to do that. accord must handle it itself".
 For whom: anyone working a ticket through Claude Code.
 Success: from `/accord` in a Claude Code session started in the main checkout, the owner reaches the ticket's next stage without opening a folder or typing a second command, and one session never works two tickets.
 Not this ticket: Cursor, Codex and Copilot (deferred, they keep the `stop:` line); moving the worktree folder (ST-LN-7 D-06 stays); a session switching from one ticket to another; a live session's hold still refuses a second session, as today (ST-LN-7 D-03).
@@ -86,11 +86,11 @@ Feature: ST-LN-27
 
 ## Vetoes
 <!-- What the owner forbids, in the owner's own words, one item per line. -->
-- "ko dc làm 2 ticket trong cùng 1 sessino"
+- "must not work 2 tickets in the same sessino"
 
 ## Decisions
 <!-- Settled answers, one per line: - D-01 <decision> — "<the owner's sentence>" -->
-- D-01 Only Claude Code sessions move into the ticket's worktree in this ticket; Cursor, Codex and Copilot are deferred to a later ticket and keep today's behaviour — "defer đi. hiện tại chỉ support claude."
+- D-01 Only Claude Code sessions move into the ticket's worktree in this ticket; Cursor, Codex and Copilot are deferred to a later ticket and keep today's behaviour — "defer it. for now only support claude."
 - D-02 A session that works a ticket refuses Pick up, Continue and New request for any other ticket, names the ticket it works and says to open a new session in the main checkout, and creates or claims nothing — "A"
 - D-03 Moving into the worktree means the session's own working directory becomes the worktree folder, so every later command, relative path and file edit lands there; not a session left in the main checkout that sends each call to the worktree — "A"
 - D-04 A session works ticket A when it holds A's hold after picking up, continuing or creating A, or when it was started in A's worktree folder, even before any command — "A"
@@ -102,8 +102,8 @@ Feature: ST-LN-27
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
-- 2026-10-19, on the proposed part "the worktree may move under .claude/worktrees/ so one session can switch between two tickets": "ko dc làm 2 ticket trong cùng 1 sessino"
-- 2026-10-19, on D-01 ("A": Cursor, Codex and Copilot in this ticket), asked whether those runtimes must be enforced by the tool: "defer đi. hiện tại chỉ support claude."
+- 2026-10-19, on the proposed part "the worktree may move under .claude/worktrees/ so one session can switch between two tickets": "must not work 2 tickets in the same sessino"
+- 2026-10-19, on D-01 ("A": Cursor, Codex and Copilot in this ticket), asked whether those runtimes must be enforced by the tool: "defer it. for now only support claude."
 
 ## Open questions
 <!-- `- [ ]` items; Ready stays blocked while any is unchecked. -->

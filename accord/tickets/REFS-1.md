@@ -91,14 +91,14 @@ Feature: REFS-1
 
 ## Decisions
 <!-- Settled answers, one per line: - D-01 <decision> — "<the owner's sentence>" -->
-- D-01 Three parts: the citation reader stops trimming a leading `.` (a trailing one still goes); it removes a `:n-m` line range as it removes `:n` and `:n:m`; the verifier holds a rule on citing a file. Not: `path#L12` forms, which collide with `file#name` test ids; the `docs/design.md:111` sentence, fixed in the docs PR — "Đúng (Recommended)"
-- D-02 A `../x` citation is still reported, because the tree is repo-relative and a file outside the repository is not evidence; the finding names it as written, `../x.md`, not `/x.md` — "Vẫn báo (Recommended)"
-- D-03 The verifier holds one fixed sentence, checked verbatim by a test over the rendered agent — "Câu cố định, test bản render (Recommended)"
-- D-04 The smallest version is all three parts — "Cả ba phần (Recommended)"
-- D-05 (audit) ac-1 cites in backticks, ac-2 to ac-4 as bare tokens in prose; the reader already treats both alike, so each form is held by one criterion — "Đồng ý cả 4 (Recommended)"
-- D-06 (audit) A `:n-m` citation resolves when its file is in the tree, whatever the file's length; core holds no source text (D-84), and `:n-m` goes as `:n` goes (D-01) — "Đồng ý cả 4 (Recommended)"
-- D-07 (audit) ac-4 yields exactly one `gate.reference-unknown` warning for the block, its message holding `"../x.md"`, none for `docs/x.md`; ac-5 reads one render of the verifier, because every runtime renders from the same source — "Đồng ý cả 4 (Recommended)"
-- D-08 (approach critic) D-01 narrowed: a leading `.` is kept only where it starts a path — `./x`, `../x`, or a dot-name such as `.claude/x` or `.eslintrc.json`; a token that is only `.` plus a known extension (`.md`, `.ts`) and a run of dots before a path (`...packages/x.ts`) are read as today, so neither raises a new warning nor stops resolving — "Chỉ khi nó mở đầu đường dẫn (Recommended)"
+- D-01 Three parts: the citation reader stops trimming a leading `.` (a trailing one still goes); it removes a `:n-m` line range as it removes `:n` and `:n:m`; the verifier holds a rule on citing a file. Not: `path#L12` forms, which collide with `file#name` test ids; the `docs/design.md:111` sentence, fixed in the docs PR — "Right (Recommended)"
+- D-02 A `../x` citation is still reported, because the tree is repo-relative and a file outside the repository is not evidence; the finding names it as written, `../x.md`, not `/x.md` — "Still report it (Recommended)"
+- D-03 The verifier holds one fixed sentence, checked verbatim by a test over the rendered agent — "Fixed sentence, test the render (Recommended)"
+- D-04 The smallest version is all three parts — "All three parts (Recommended)"
+- D-05 (audit) ac-1 cites in backticks, ac-2 to ac-4 as bare tokens in prose; the reader already treats both alike, so each form is held by one criterion — "Agree to all 4 (Recommended)"
+- D-06 (audit) A `:n-m` citation resolves when its file is in the tree, whatever the file's length; core holds no source text (D-84), and `:n-m` goes as `:n` goes (D-01) — "Agree to all 4 (Recommended)"
+- D-07 (audit) ac-4 yields exactly one `gate.reference-unknown` warning for the block, its message holding `"../x.md"`, none for `docs/x.md`; ac-5 reads one render of the verifier, because every runtime renders from the same source — "Agree to all 4 (Recommended)"
+- D-08 (approach critic) D-01 narrowed: a leading `.` is kept only where it starts a path — `./x`, `../x`, or a dot-name such as `.claude/x` or `.eslintrc.json`; a token that is only `.` plus a known extension (`.md`, `.ts`) and a run of dots before a path (`...packages/x.ts`) are read as today, so neither raises a new warning nor stops resolving — "Only when it starts a path (Recommended)"
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->

@@ -11,6 +11,9 @@
 - Ruling: approach: the verify skill's local check gets the same deletion rule (critic finding 8) — verify stands in for the CI check — one more rendered skill file
 - Ruling: approach: .github/workflows/ci.yml's own "not -e" comment stays out — a different step, not the accord check — that job can stop early on its first failure
 - Ruling: plan: renaming an approved ticket fails like a deletion, since the script sees a rename as delete plus add — a consequence of D-01, confirmed by the owner, who chose option (a): "A" — an id change goes through drop and a new ticket
+- Ruling: task 1: a base status of dropped with an unreadable ## Dropped reason gets its own fix-the-reason line, not the accord drop advice, as the Approach says — accord drop would refuse an already dropped ticket — only the message text differs
+- Ruling: task 1: `set +e` landed in task 1 instead of task 3 to keep the script hunk coherent — task 3 still owns its probe and the CI-flag runner — task 3's probe must still be written
+- Ruling: task 1: the A-09 line left accord/tests-baseline.txt, its test now being @ac-2's — the Approach lists it as affected — none
 
 ## Deferred
 - plan round 1.6: probe this repository's copy for `set +e` too
@@ -28,3 +31,6 @@
 - Ruling: plan round 1: D-04's wider protection lives in a new protected_at used only by the deletion check, approved_at unchanged — keeps the per-ticket gating and BUG-LN-3's rule as they are — a second function to keep in step
 - Ruling: plan round 1: any verified: value other than [] counts as ticked — the script cannot read YAML, so it leans toward protection — a bare verified: line must be dropped before deletion
 - plan round 2.2: the fix line should say to keep the deletion on a modify/delete merge conflict
+
+## Tasks
+- task 1 done 383a78a0b99c

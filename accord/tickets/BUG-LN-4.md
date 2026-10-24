@@ -41,14 +41,14 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: BUG-LN-4
 
-  @ac-1
+  @ac-1 @test:packages/cli/test/workflow-script.test.ts#the-emitted-workflow-script-—-executed->-a-deleted-approved-ticket-not-dropped-at-the-base-fails-naming-the-ticket-and-accord-drop
   Scenario: Deleting an approved ticket that was not dropped fails the check
     Given a ticket whose version at the base commit has an approved_hash key, whatever its value, or an ac_hash key on lane S or with no lane key, or at least one verified tick on any lane, and is not dropped as in @ac-2
     When a pull request deletes that ticket's file, a rename included, and the accord check runs
     Then the check exits non-zero
     And it prints the ticket id and says to drop the ticket with accord drop before deleting it
 
-  @ac-2
+  @ac-2 @test:packages/cli/test/workflow-script.test.ts#the-emitted-workflow-script-—-executed->-a-deleted-ticket-dropped-at-the-base-or-not-approved-there-passes-without-gate-done
   Scenario: Deleting a dropped ticket or an unapproved ticket still passes
     Given a ticket that is status dropped with a readable reason under ## Dropped at the base commit, and another that is not approved as in @ac-1 at the base commit, whatever its status
     When a pull request deletes either ticket's file, with or without its folder under accord/tickets/, and changes nothing else, and the accord check runs

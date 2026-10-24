@@ -991,7 +991,7 @@ it('risk:complex-branching in claude code a worktree pinned to another accord ve
   const c = clone();
   c.git('worktree', 'add', '-q', '-b', 't/ST-9', c.sibling('ST-9'), 'origin/main');
   const cfg = `${c.sibling('ST-9')}/accord/config.yml`;
-  writeFileSync(cfg, readFileSync(cfg, 'utf8').replace('accord: "0.1.0"', 'accord: "0.0.9"'));
+  writeFileSync(cfg, readFileSync(cfg, 'utf8').replace('accord: "0.2.0"', 'accord: "0.0.9"'));
   gitRun(c.sibling('ST-9'), 'commit', '-q', '-am', 'pin');
   setTable(tableOf(A));
   const a = await run(['worktree', 'open', 'ST-9', '--continue'], c.root, envOf(A));
@@ -1007,7 +1007,7 @@ it('risk:complex-branching in claude code a worktree pinned to another accord ve
   const d = clone({ setup: ['node setup-step.js ci'] });
   const o = d.otherClone();
   gitRun(o, 'config', 'user.email', 'y@example.invalid');
-  writeFileSync(`${o}/accord/config.yml`, readFileSync(`${o}/accord/config.yml`, 'utf8').replace('accord: "0.1.0"', 'accord: "0.0.9"'));
+  writeFileSync(`${o}/accord/config.yml`, readFileSync(`${o}/accord/config.yml`, 'utf8').replace('accord: "0.2.0"', 'accord: "0.0.9"'));
   gitRun(o, 'commit', '-q', '-am', 'pin');
   gitRun(o, 'push', '-q', 'origin', 'main');
   d.git('fetch', '-q', 'origin');
@@ -1960,7 +1960,7 @@ it('risk:complex-branching a merge that changes the pinned accord version keeps 
   const head = gitRun(sib, 'rev-parse', 'HEAD').trim();
   const o = c.otherClone();
   const cfg = o + '/accord/config.yml';
-  writeFileSync(cfg, readFileSync(cfg, 'utf8').replace('accord: "0.1.0"', 'accord: "9.9.9"'));
+  writeFileSync(cfg, readFileSync(cfg, 'utf8').replace('accord: "0.2.0"', 'accord: "9.9.9"'));
   gitRun(o, 'add', '-A');
   gitRun(o, 'commit', '-q', '-m', 'pin');
   gitRun(o, 'push', '-q', 'origin', 'main');

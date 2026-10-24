@@ -41,7 +41,7 @@ jobs:
           # the script accumulates an exit code instead of stopping at the first problem.
           set -uo pipefail
           code=0
-          npx --yes @accord-dev/accord@0.1.0 lint || code=1
+          npx --yes @accord-dev/accord@0.2.0 lint || code=1
           # --diff-filter=d excludes deletions, so removing an obsolete ticket does not fail the pull
           # request that removes it. [^/]+ keeps accord/tickets/<id>/verification.md out while
           # accord/tickets/<id>.md stays in. || true keeps a zero-match grep from reading as a failure.
@@ -142,6 +142,6 @@ jobs:
                 continue
               fi
             fi
-            npx --yes @accord-dev/accord@0.1.0 gate done "$id" || code=1
+            npx --yes @accord-dev/accord@0.2.0 gate done "$id" || code=1
           done <<< "$tickets"
           exit $code

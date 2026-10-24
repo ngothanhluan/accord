@@ -6,7 +6,7 @@
 export const REPORT = 'reports/junit.xml';
 
 export const CONFIG = [
-  'accord: "0.1.0"',
+  'accord: "0.2.0"',
   'profile: build',
   'tracker:',
   '  adapter: none',

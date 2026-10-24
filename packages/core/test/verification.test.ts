@@ -21,36 +21,36 @@ describe('Result and Evidence edges on one record (D-42)', () => {
   it('a valid block keeps result and multi-line evidence with comments stripped and lines trimmed', () => {
     expect(snap.verifications.A.blocks[0]).toEqual({
       acTag: 'ac-1',
-      name: 'Một',
+      name: 'One',
       line: 7,
       result: 'pass',
-      evidence: 'dòng một\ndòng hai\ndòng ba',
+      evidence: 'line one\nline two\nline three',
     });
   });
 
   it('a block without Result: is load.result-invalid at the heading line; evidence is still kept', () => {
     const block = snap.verifications.A.blocks[1];
-    expect(block).toEqual({ acTag: 'ac-2', name: 'Hai', line: 16, evidence: 'chạy npm test' });
+    expect(block).toEqual({ acTag: 'ac-2', name: 'Two', line: 16, evidence: 'run npm test' });
     expect(block).not.toHaveProperty('result');
     expect(where(snap.errors, A, 'load.result-invalid').map((e) => e.line)).toContain(16);
   });
 
   it('Result: PASS (wrong case) is load.result-invalid at the Result: line; result is absent', () => {
     const block = snap.verifications.A.blocks[2];
-    expect(block).toEqual({ acTag: 'ac-3', name: 'Ba', line: 20, evidence: '' });
+    expect(block).toEqual({ acTag: 'ac-3', name: 'Three', line: 20, evidence: '' });
     expect(block).not.toHaveProperty('result');
     expect(where(snap.errors, A, 'load.result-invalid').map((e) => e.line)).toEqual([16, 22]);
   });
 
   it('Result: blocked with no Evidence: label gives evidence "" and no finding', () => {
-    expect(snap.verifications.A.blocks[3]).toEqual({ acTag: 'ac-4', name: 'Bốn', line: 24, result: 'blocked', evidence: '' });
+    expect(snap.verifications.A.blocks[3]).toEqual({ acTag: 'ac-4', name: 'Four', line: 24, result: 'blocked', evidence: '' });
   });
 
   it('a non-tag heading is no block; a duplicated tag is load.heading-duplicate at the second heading (D-40)', () => {
     expect(snap.verifications.A.blocks.map((b) => b.acTag)).toEqual(['ac-1', 'ac-2', 'ac-3', 'ac-4']);
     expect(snap.verifications.A.blocks[0].result).toBe('pass'); // the first block is kept, not the `fail` one
     expect(where(snap.errors, A, 'load.heading-duplicate')).toEqual([
-      { file: A, line: 31, rule: 'load.heading-duplicate', reason: 'duplicate heading "## @ac-1 Một lần nữa"; the first occurrence is used' },
+      { file: A, line: 31, rule: 'load.heading-duplicate', reason: 'duplicate heading "## @ac-1 One more time"; the first occurrence is used' },
     ]);
     expect(snap.errors.filter((e) => e.file === A)).toHaveLength(3);
   });

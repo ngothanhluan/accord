@@ -1,29 +1,29 @@
 ---
 id: A
-title: Câu chuyện A
+title: Story A
 type: story
 status: open
 ---
 
 ## Intent
-Câu chuyện có hai kịch bản để đối chiếu với bản ghi kiểm chứng.
+The story has two scenarios to match against the verification record.
 
 ## Requirements
-- WHEN người dùng gửi biểu mẫu the system SHALL lưu dữ liệu
+- WHEN the user submits the form the system SHALL save the data
 
 ## Acceptance criteria
 ```gherkin
 Feature: A
 
   @ac-1
-  Scenario: Một
-    Given một điều kiện
-    Then một kết quả
+  Scenario: One
+    Given a condition
+    Then a result
 
   @ac-2
-  Scenario: Hai
-    Given một điều kiện khác
-    Then một kết quả khác
+  Scenario: Two
+    Given another condition
+    Then another result
 ```
 
 ## Open questions

@@ -1,15 +1,15 @@
 ---
 id: B
-title: Câu chuyện B
+title: Story B
 type: story
 status: open
 ---
 
 ## Intent
-Câu chuyện hợp lệ có bản ghi kiểm chứng với frontmatter hỏng.
+A valid story with a verification record whose frontmatter is broken.
 
 ## Requirements
-- WHEN người dùng bấm lưu the system SHALL xác nhận
+- WHEN the user presses save the system SHALL confirm
 
 ## Acceptance criteria
 ```gherkin
@@ -17,8 +17,8 @@ Feature: B
 
   @ac-1
   Scenario: B1
-    Given một điều kiện
-    Then một kết quả
+    Given a condition
+    Then a result
 ```
 
 ## Open questions

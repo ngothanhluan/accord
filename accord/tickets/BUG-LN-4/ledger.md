@@ -40,6 +40,7 @@
 - plan round 2.2: the fix line should say to keep the deletion on a modify/delete merge conflict
 - review round 1 Nice (security): a deleted ticket path git quotes (", \ or a control character) misses the ^accord/tickets/ match, so its deletion is not checked; only a maintainer can put such a file at the base; reading the listing with -z would close it
 - review round 1 Nice (security): the older lane-drop echo prints a HEAD file name a fork controls, so a name starting with :: could emit a workflow command; predates this ticket
+- review round 3 Nice: D-04 and the no-lane ac_hash, verified-ticks, empty approved_hash and block-scalar lane readings of @ac-1 have no test after D-05
 
 ## Tasks
 - task 1 done 383a78a0b99c

@@ -6,7 +6,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { agentTargets, lintSnapshot, loadConfig, loadSnapshot, pluginTargets, repinConfig, repinWorkflow, skillTargets } from '@accord-dev/accord-core';
+import { agentTargets, lintSnapshot, loadConfig, loadSnapshot, pluginTargets, refreshLintStep, repinConfig, repinWorkflow, skillTargets } from '@accord-dev/accord-core';
 import pkg from '../../package.json' with { type: 'json' };
 import { gitDefaultRef, gitFilesAt, loadRefInput, UsageError } from '../load/fs.js';
 import { newer } from './notice.js';
@@ -61,7 +61,10 @@ export function upgrade(ctx: InitContext): number {
 
   const writes: { path: string; text: string }[] = [{ path: CONFIG, text: next }];
   const workflow = files[WORKFLOW];
-  if (workflow !== undefined) writes.push({ path: WORKFLOW, text: repinWorkflow(workflow, pkg.name, pinned, v) });
+  const refresh = workflow === undefined ? undefined : refreshLintStep(workflow, pkg.name, v);
+  if (workflow !== undefined) {
+    writes.push({ path: WORKFLOW, text: repinWorkflow(refresh !== undefined && 'text' in refresh ? refresh.text : workflow, pkg.name, pinned, v) });
+  }
   const hooks = hooksPlanFor(files[SETTINGS], config);
   if (hooks?.text !== undefined) writes.push({ path: SETTINGS, text: hooks.text });
   const input = loadRefInput(root, ref);

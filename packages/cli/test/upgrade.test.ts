@@ -1,7 +1,9 @@
 // ST-LN-25 `accord upgrade`: the pushed branch moves every pin, and the checkout it ran in is left alone.
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, expect, it } from 'vitest';
+import { parse } from 'yaml';
 import { hookEntries, initFiles, mergeHooks } from '@accord-dev/accord-core';
 import pkg from '../package.json' with { type: 'json' };
 import { commitMsg, gitRun, run, writeFiles } from './helpers/repo.js';
@@ -114,4 +116,33 @@ it('risk:data-loss upgrade refuses and pushes nothing when the branch exists the
   const r = await refused('would fail lint');
   expect(r.err).toContain('accord/tickets/ST-9.md');
   noBranch();
+});
+
+it('ac-1 upgrade replaces the lint and gate step of a 0.1.0 workflow with the step accord init writes now', async () => {
+  const c = makeClone();
+  clones.push(c);
+  const o = c.otherClone();
+  const fixture = readFileSync(fileURLToPath(new URL('./fixtures/workflow-0.1.0.yml', import.meta.url)), 'utf8');
+  const cfg = readFileSync(join(o, 'accord/config.yml'), 'utf8');
+  writeFiles(o, { 'accord/config.yml': cfg.replace(/^accord: .*$/m, 'accord: "0.1.0"'), '.github/workflows/accord.yml': fixture });
+  commitMsg(o, 'pin 0.1.0');
+  gitRun(o, 'push', '-q', 'origin', 'main');
+
+  const r = await run(['upgrade'], c.root);
+  expect(r.code, r.err).toBe(0);
+  expect(r.out).toBe(`branch: upgrade/${v}\nbase: main\ntitle: upgrade: accord ${v}\n`);
+  expect(r.err).not.toContain('was not refreshed');
+
+  const fresh = initFiles({ name, version: v }).find((f) => f.path === '.github/workflows/accord.yml')!.text;
+  const cut = '      - name: lint and gate\n';
+  expect(fixture.indexOf(cut)).not.toBe(-1);
+  expect(fresh.indexOf(cut)).not.toBe(-1);
+  const oldHead = fixture.slice(0, fixture.indexOf(cut)).replace(/@0\.1\.0(?![0-9A-Za-z.+-])/g, `@${v}`);
+  const expected = oldHead + fresh.slice(fresh.indexOf(cut));
+  if (oldHead === fresh.slice(0, fresh.indexOf(cut))) expect(expected).toBe(fresh);
+  const got = gitRun(c.remote, 'show', `upgrade/${v}:.github/workflows/accord.yml`);
+  expect(got).toBe(expected);
+  const doc = parse(got) as { jobs: Record<string, { steps: { name?: string }[] }> };
+  const steps = Object.values(doc.jobs).flatMap((j) => j.steps).filter((s) => s.name === 'lint and gate');
+  expect(steps).toHaveLength(1);
 });

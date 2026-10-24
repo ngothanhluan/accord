@@ -1,27 +1,27 @@
 ---
 id: MISSING
-title: Tệp cấu hình trỏ tới tệp vắng mặt
+title: Config points to absent files
 type: story
 status: draft
 ---
 
 ## Intent
-Cấu hình trỏ tới tệp token và báo cáo kiểm thử không có trong kho.
+The config points to a token file and a test report that are not in the repository.
 
 ## Requirements
-- WHEN người dùng gửi biểu mẫu the system SHALL lưu dữ liệu
+- WHEN the user submits the form the system SHALL save the data
 
 ## Acceptance criteria
 ```gherkin
 Feature: MISSING
 
   @ac-1 @test:t#a
-  Scenario: Lưu dữ liệu
-    When họ gửi biểu mẫu
-    Then dữ liệu được lưu
+  Scenario: Save the data
+    When they submit the form
+    Then the data is saved
 ```
 
 ## Open questions
 
 ## Plan
-- Làm @ac-1
+- Build @ac-1

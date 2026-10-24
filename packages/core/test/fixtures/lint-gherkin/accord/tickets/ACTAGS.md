@@ -1,34 +1,34 @@
 ---
 id: ACTAGS
-title: Thẻ @ac-n
+title: Tag @ac-n
 type: story
 status: draft
 ---
 
 ## Intent
-Mỗi kịch bản mang đúng một thẻ @ac-n riêng.
+Each scenario carries exactly one @ac-n tag of its own.
 
 ## Requirements
-- WHEN người dùng gửi biểu mẫu the system SHALL lưu dữ liệu
+- WHEN the user submits the form the system SHALL save the data
 
 ## Acceptance criteria
 ```gherkin
 Feature: ACTAGS
 
   @test:t#a
-  Scenario: Không thẻ
+  Scenario: No tag
     Given a
 
   @ac-1 @ac-2 @test:t#b
-  Scenario: Hai thẻ
+  Scenario: Two tags
     Given b
 
   @ac-1 @test:t#c
-  Scenario: Trùng thẻ
+  Scenario: Duplicate tag
     Given c
 ```
 
 ## Open questions
 
 ## Plan
-- Làm @ac-1
+- Build @ac-1

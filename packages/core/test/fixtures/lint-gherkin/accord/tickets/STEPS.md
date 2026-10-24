@@ -1,33 +1,33 @@
 ---
 id: STEPS
-title: Bước trống
+title: Empty step
 type: story
 status: draft
 ---
 
 ## Intent
-Mỗi kịch bản có ít nhất một bước có nội dung.
+Each scenario has at least one step with content.
 
 ## Requirements
-- WHEN người dùng gửi biểu mẫu the system SHALL lưu dữ liệu
+- WHEN the user submits the form the system SHALL save the data
 
 ## Acceptance criteria
 ```gherkin
 Feature: STEPS
 
   @ac-1 @test:t#a
-  Scenario: Trống
+  Scenario: Empty
     Given 
 
   @ac-2 @test:t#b
-  Scenario: Không bước
+  Scenario: No steps
 
   @ac-3 @test:t#c
-  Scenario: Mẫu
+  Scenario: Sample
     Given ...
 ```
 
 ## Open questions
 
 ## Plan
-- Làm @ac-1 @ac-2 @ac-3
+- Build @ac-1 @ac-2 @ac-3

@@ -1,18 +1,18 @@
 ---
 id: NOSCEN
-title: Không có kịch bản
+title: No scenario
 type: story
 status: draft
 ---
 
 ## Intent
-Một câu chuyện cần ít nhất một kịch bản.
+A story needs at least one scenario.
 
 ## Requirements
-- WHEN người dùng gửi biểu mẫu the system SHALL lưu dữ liệu
+- WHEN the user submits the form the system SHALL save the data
 
 ## Acceptance criteria
-<!-- Chưa viết kịch bản -->
+<!-- No scenario written yet -->
 
 ## Open questions
 

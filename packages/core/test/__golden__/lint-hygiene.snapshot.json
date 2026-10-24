@@ -28,12 +28,12 @@
         "assumptions": [
           {
             "confirmed": true,
-            "text": "Người dùng đã có tài khoản"
+            "text": "The user already has an account"
           }
         ],
         "id": "CLEAN",
         "status": "draft",
-        "title": "Phiếu sạch",
+        "title": "Clean ticket",
         "type": "story",
         "ui": false,
         "verified": [
@@ -44,11 +44,11 @@
       "requirements": [
         {
           "line": 16,
-          "text": "WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+          "text": "WHEN the user submits a valid email and password the system SHALL open the dashboard"
         },
         {
           "line": 17,
-          "text": "IF mật khẩu sai THEN the system SHALL hiển thị thông báo lỗi"
+          "text": "IF the password is wrong THEN the system SHALL display an error message"
         }
       ],
       "scenarios": [
@@ -56,10 +56,10 @@
           "acTag": "ac-1",
           "keyword": "Scenario",
           "line": 24,
-          "name": "Đăng nhập thành công",
+          "name": "Sign-in succeeds",
           "steps": [
-            "When họ gửi email và mật khẩu hợp lệ",
-            "Then họ thấy bảng điều khiển"
+            "When they submit a valid email and password",
+            "Then they see the dashboard"
           ],
           "tags": [
             "@ac-1",
@@ -70,10 +70,10 @@
           "acTag": "ac-2",
           "keyword": "Scenario",
           "line": 29,
-          "name": "Mật khẩu sai",
+          "name": "Wrong password",
           "steps": [
-            "When họ gửi mật khẩu sai",
-            "Then họ thấy thông báo lỗi"
+            "When they submit a wrong password",
+            "Then they see an error message"
           ],
           "tags": [
             "@ac-2",
@@ -88,11 +88,11 @@
           "lines": [
             {
               "line": 12,
-              "text": "Người dùng đăng nhập bằng email và mật khẩu để vào bảng điều khiển."
+              "text": "The user signs in with email and password to reach the dashboard."
             },
             {
               "line": 13,
-              "text": "Không hỗ trợ đăng nhập mạng xã hội trong phiên bản này."
+              "text": "Social sign-in is not supported in this version."
             },
             {
               "line": 14,
@@ -106,11 +106,11 @@
           "lines": [
             {
               "line": 16,
-              "text": "- WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+              "text": "- WHEN the user submits a valid email and password the system SHALL open the dashboard"
             },
             {
               "line": 17,
-              "text": "- IF mật khẩu sai THEN the system SHALL hiển thị thông báo lỗi"
+              "text": "- IF the password is wrong THEN the system SHALL display an error message"
             },
             {
               "line": 18,
@@ -140,15 +140,15 @@
             },
             {
               "line": 24,
-              "text": "  Scenario: Đăng nhập thành công"
+              "text": "  Scenario: Sign-in succeeds"
             },
             {
               "line": 25,
-              "text": "    When họ gửi email và mật khẩu hợp lệ"
+              "text": "    When they submit a valid email and password"
             },
             {
               "line": 26,
-              "text": "    Then họ thấy bảng điều khiển"
+              "text": "    Then they see the dashboard"
             },
             {
               "line": 27,
@@ -160,15 +160,15 @@
             },
             {
               "line": 29,
-              "text": "  Scenario: Mật khẩu sai"
+              "text": "  Scenario: Wrong password"
             },
             {
               "line": 30,
-              "text": "    When họ gửi mật khẩu sai"
+              "text": "    When they submit a wrong password"
             },
             {
               "line": 31,
-              "text": "    Then họ thấy thông báo lỗi"
+              "text": "    Then they see an error message"
             },
             {
               "line": 32,
@@ -186,7 +186,7 @@
           "lines": [
             {
               "line": 35,
-              "text": "- [x] Đã rõ"
+              "text": "- [x] Clear"
             },
             {
               "line": 36,
@@ -200,11 +200,11 @@
           "lines": [
             {
               "line": 38,
-              "text": "- Bước một @ac-1"
+              "text": "- Step one @ac-1"
             },
             {
               "line": 39,
-              "text": "- Bước hai @ac-2"
+              "text": "- Step two @ac-2"
             },
             {
               "line": 40,
@@ -218,11 +218,11 @@
           "lines": [
             {
               "line": 42,
-              "text": "### @ac-1 Đăng nhập"
+              "text": "### @ac-1 Sign-in"
             },
             {
               "line": 43,
-              "text": "Đã kiểm tra bằng tay."
+              "text": "Checked by hand."
             }
           ]
         }
@@ -233,7 +233,7 @@
       "frontmatter": {
         "id": "EPIC",
         "status": "draft",
-        "title": "Sử thi",
+        "title": "Epic",
         "type": "epic",
         "ui": false
       },
@@ -241,7 +241,7 @@
       "requirements": [
         {
           "line": 17,
-          "text": "WHEN người dùng mở sử thi the system SHALL liệt kê các câu chuyện"
+          "text": "WHEN the user opens the epic the system SHALL list the stories"
         }
       ],
       "scenarios": [],
@@ -252,27 +252,27 @@
           "lines": [
             {
               "line": 9,
-              "text": "Dòng một."
+              "text": "Line one."
             },
             {
               "line": 10,
-              "text": "Dòng hai."
+              "text": "Line two."
             },
             {
               "line": 11,
-              "text": "Dòng ba."
+              "text": "Line three."
             },
             {
               "line": 12,
-              "text": "Dòng bốn."
+              "text": "Line four."
             },
             {
               "line": 13,
-              "text": "Dòng năm."
+              "text": "Line five."
             },
             {
               "line": 14,
-              "text": "Dòng sáu."
+              "text": "Line six."
             },
             {
               "line": 15,
@@ -286,7 +286,7 @@
           "lines": [
             {
               "line": 17,
-              "text": "- WHEN người dùng mở sử thi the system SHALL liệt kê các câu chuyện"
+              "text": "- WHEN the user opens the epic the system SHALL list the stories"
             },
             {
               "line": 18,
@@ -306,7 +306,7 @@
       "frontmatter": {
         "id": "HEADINGS",
         "status": "draft",
-        "title": "Thiếu tiêu đề",
+        "title": "Missing headings",
         "type": "bug",
         "ui": false
       },
@@ -317,10 +317,10 @@
           "acTag": "ac-1",
           "keyword": "Scenario",
           "line": 16,
-          "name": "Hiển thị",
+          "name": "Display",
           "steps": [
-            "Given một trang",
-            "Then trang hiển thị đúng"
+            "Given a page",
+            "Then the page displays correctly"
           ],
           "tags": [
             "@ac-1",
@@ -335,7 +335,7 @@
           "lines": [
             {
               "line": 9,
-              "text": "Lỗi hiển thị khi thiếu tiêu đề."
+              "text": "Display error when headings are missing."
             },
             {
               "line": 10,
@@ -365,15 +365,15 @@
             },
             {
               "line": 16,
-              "text": "  Scenario: Hiển thị"
+              "text": "  Scenario: Display"
             },
             {
               "line": 17,
-              "text": "    Given một trang"
+              "text": "    Given a page"
             },
             {
               "line": 18,
-              "text": "    Then trang hiển thị đúng"
+              "text": "    Then the page displays correctly"
             },
             {
               "line": 19,
@@ -389,16 +389,16 @@
         "assumptions": [
           {
             "confirmed": false,
-            "text": "Người dùng đã có tài khoản"
+            "text": "The user already has an account"
           },
           {
             "confirmed": true,
-            "text": "Đã có SSO"
+            "text": "SSO exists"
           }
         ],
         "id": "HYGIENE",
         "status": "draft",
-        "title": "Vệ sinh phiếu",
+        "title": "Ticket hygiene",
         "tracker": {},
         "type": "story",
         "ui": false,
@@ -411,11 +411,11 @@
       "requirements": [
         {
           "line": 19,
-          "text": "WHEN người dùng gửi form the system SHALL lưu TBD"
+          "text": "WHEN the user submits the form the system SHALL save TBD"
         },
         {
           "line": 20,
-          "text": "WHEN người dùng huỷ the system SHALL maybe đóng form"
+          "text": "WHEN the user cancels the system SHALL maybe close the form"
         }
       ],
       "scenarios": [
@@ -423,11 +423,11 @@
           "acTag": "ac-1",
           "keyword": "Scenario",
           "line": 27,
-          "name": "Đăng nhập",
+          "name": "Sign-in",
           "steps": [
-            "Given probably một người dùng",
+            "Given probably a user",
             "When ...",
-            "Then thấy bảng điều khiển"
+            "Then they see the dashboard"
           ],
           "tags": [
             "@ac-1",
@@ -442,11 +442,11 @@
           "lines": [
             {
               "line": 14,
-              "text": "Người dùng đăng nhập. TODO viết thêm. FIXME nữa."
+              "text": "The user signs in. TODO write more. FIXME again."
             },
             {
               "line": 15,
-              "text": "Kết quả: <observable outcome> cho người dùng."
+              "text": "Result: <observable outcome> for the user."
             },
             {
               "line": 16,
@@ -464,11 +464,11 @@
           "lines": [
             {
               "line": 19,
-              "text": "- WHEN người dùng gửi form the system SHALL lưu TBD"
+              "text": "- WHEN the user submits the form the system SHALL save TBD"
             },
             {
               "line": 20,
-              "text": "- WHEN người dùng huỷ the system SHALL maybe đóng form"
+              "text": "- WHEN the user cancels the system SHALL maybe close the form"
             },
             {
               "line": 21,
@@ -498,11 +498,11 @@
             },
             {
               "line": 27,
-              "text": "  Scenario: Đăng nhập"
+              "text": "  Scenario: Sign-in"
             },
             {
               "line": 28,
-              "text": "    Given probably một người dùng"
+              "text": "    Given probably a user"
             },
             {
               "line": 29,
@@ -510,7 +510,7 @@
             },
             {
               "line": 30,
-              "text": "    Then thấy bảng điều khiển"
+              "text": "    Then they see the dashboard"
             },
             {
               "line": 31,
@@ -528,7 +528,7 @@
           "lines": [
             {
               "line": 34,
-              "text": "- [ ] Chưa rõ luồng SSO"
+              "text": "- [ ] The SSO flow is unclear"
             },
             {
               "line": 35,
@@ -536,7 +536,7 @@
             },
             {
               "line": 36,
-              "text": "- [x] Đã rõ"
+              "text": "- [x] Clear"
             },
             {
               "line": 37,
@@ -550,15 +550,15 @@
           "lines": [
             {
               "line": 39,
-              "text": "- Làm form @ac-1"
+              "text": "- Build the form @ac-1"
             },
             {
               "line": 40,
-              "text": "- Viết test"
+              "text": "- Write the test"
             },
             {
               "line": 41,
-              "text": "- Nối tracker @ac-2"
+              "text": "- Connect the tracker @ac-2"
             }
           ]
         }
@@ -569,7 +569,7 @@
       "frontmatter": {
         "id": "NOTES",
         "status": "draft",
-        "title": "Ghi chú kiểm chứng sai chỗ",
+        "title": "Verification notes in the wrong place",
         "type": "story",
         "ui": false
       },
@@ -577,7 +577,7 @@
       "requirements": [
         {
           "line": 12,
-          "text": "WHEN người dùng gửi form the system SHALL lưu dữ liệu"
+          "text": "WHEN the user submits the form the system SHALL save the data"
         }
       ],
       "scenarios": [
@@ -585,10 +585,10 @@
           "acTag": "ac-1",
           "keyword": "Scenario",
           "line": 19,
-          "name": "Đăng nhập",
+          "name": "Sign-in",
           "steps": [
-            "Given một người dùng",
-            "Then thấy bảng điều khiển"
+            "Given a user",
+            "Then they see the dashboard"
           ],
           "tags": [
             "@ac-1",
@@ -603,7 +603,7 @@
           "lines": [
             {
               "line": 9,
-              "text": "Ghi chú kiểm chứng phải đứng cuối và khớp với kịch bản."
+              "text": "Verification notes must come last and match the scenarios."
             },
             {
               "line": 10,
@@ -617,7 +617,7 @@
           "lines": [
             {
               "line": 12,
-              "text": "- WHEN người dùng gửi form the system SHALL lưu dữ liệu"
+              "text": "- WHEN the user submits the form the system SHALL save the data"
             },
             {
               "line": 13,
@@ -647,15 +647,15 @@
             },
             {
               "line": 19,
-              "text": "  Scenario: Đăng nhập"
+              "text": "  Scenario: Sign-in"
             },
             {
               "line": 20,
-              "text": "    Given một người dùng"
+              "text": "    Given a user"
             },
             {
               "line": 21,
-              "text": "    Then thấy bảng điều khiển"
+              "text": "    Then they see the dashboard"
             },
             {
               "line": 22,
@@ -683,23 +683,23 @@
           "lines": [
             {
               "line": 27,
-              "text": "### @ac-1 Đăng nhập"
+              "text": "### @ac-1 Sign-in"
             },
             {
               "line": 28,
-              "text": "Đã kiểm tra bằng tay."
+              "text": "Checked by hand."
             },
             {
               "line": 29,
-              "text": "<!-- ghi chú mẫu -->"
+              "text": "<!-- sample note -->"
             },
             {
               "line": 30,
-              "text": "### @ac-9 Không có"
+              "text": "### @ac-9 None"
             },
             {
               "line": 31,
-              "text": "Không có kịch bản này."
+              "text": "There is no such scenario."
             },
             {
               "line": 32,
@@ -717,7 +717,7 @@
           "lines": [
             {
               "line": 35,
-              "text": "- Làm @ac-1"
+              "text": "- Build @ac-1"
             }
           ]
         }
@@ -728,7 +728,7 @@
       "frontmatter": {
         "id": "PLAN-EMPTY",
         "status": "draft",
-        "title": "Kế hoạch trống",
+        "title": "Empty plan",
         "type": "story",
         "ui": false
       },
@@ -736,7 +736,7 @@
       "requirements": [
         {
           "line": 12,
-          "text": "WHEN người dùng gửi form the system SHALL lưu dữ liệu"
+          "text": "WHEN the user submits the form the system SHALL save the data"
         }
       ],
       "scenarios": [
@@ -744,10 +744,10 @@
           "acTag": "ac-1",
           "keyword": "Scenario",
           "line": 19,
-          "name": "Đăng nhập",
+          "name": "Sign-in",
           "steps": [
-            "Given một người dùng",
-            "Then thấy bảng điều khiển"
+            "Given a user",
+            "Then they see the dashboard"
           ],
           "tags": [
             "@ac-1",
@@ -762,7 +762,7 @@
           "lines": [
             {
               "line": 9,
-              "text": "Kế hoạch chưa có bước nào dù đã có kịch bản."
+              "text": "The plan has no steps although scenarios exist."
             },
             {
               "line": 10,
@@ -776,7 +776,7 @@
           "lines": [
             {
               "line": 12,
-              "text": "- WHEN người dùng gửi form the system SHALL lưu dữ liệu"
+              "text": "- WHEN the user submits the form the system SHALL save the data"
             },
             {
               "line": 13,
@@ -806,15 +806,15 @@
             },
             {
               "line": 19,
-              "text": "  Scenario: Đăng nhập"
+              "text": "  Scenario: Sign-in"
             },
             {
               "line": 20,
-              "text": "    Given một người dùng"
+              "text": "    Given a user"
             },
             {
               "line": 21,
-              "text": "    Then thấy bảng điều khiển"
+              "text": "    Then they see the dashboard"
             },
             {
               "line": 22,
@@ -853,7 +853,7 @@
       "frontmatter": {
         "id": "SIZE",
         "status": "draft",
-        "title": "Phiếu quá dài",
+        "title": "Oversized ticket",
         "type": "story",
         "ui": false
       },
@@ -861,67 +861,67 @@
       "requirements": [
         {
           "line": 19,
-          "text": "WHEN sự kiện 1 xảy ra the system SHALL ghi nhận 1"
+          "text": "WHEN event 1 happens the system SHALL record 1"
         },
         {
           "line": 20,
-          "text": "WHEN sự kiện 2 xảy ra the system SHALL ghi nhận 2"
+          "text": "WHEN event 2 happens the system SHALL record 2"
         },
         {
           "line": 21,
-          "text": "WHEN sự kiện 3 xảy ra the system SHALL ghi nhận 3"
+          "text": "WHEN event 3 happens the system SHALL record 3"
         },
         {
           "line": 22,
-          "text": "WHEN sự kiện 4 xảy ra the system SHALL ghi nhận 4"
+          "text": "WHEN event 4 happens the system SHALL record 4"
         },
         {
           "line": 23,
-          "text": "WHEN sự kiện 5 xảy ra the system SHALL ghi nhận 5"
+          "text": "WHEN event 5 happens the system SHALL record 5"
         },
         {
           "line": 24,
-          "text": "WHEN sự kiện 6 xảy ra the system SHALL ghi nhận 6"
+          "text": "WHEN event 6 happens the system SHALL record 6"
         },
         {
           "line": 25,
-          "text": "WHEN sự kiện 7 xảy ra the system SHALL ghi nhận 7"
+          "text": "WHEN event 7 happens the system SHALL record 7"
         },
         {
           "line": 26,
-          "text": "WHEN sự kiện 8 xảy ra the system SHALL ghi nhận 8"
+          "text": "WHEN event 8 happens the system SHALL record 8"
         },
         {
           "line": 27,
-          "text": "WHEN sự kiện 9 xảy ra the system SHALL ghi nhận 9"
+          "text": "WHEN event 9 happens the system SHALL record 9"
         },
         {
           "line": 28,
-          "text": "WHEN sự kiện 10 xảy ra the system SHALL ghi nhận 10"
+          "text": "WHEN event 10 happens the system SHALL record 10"
         },
         {
           "line": 29,
-          "text": "WHEN sự kiện 11 xảy ra the system SHALL ghi nhận 11"
+          "text": "WHEN event 11 happens the system SHALL record 11"
         },
         {
           "line": 30,
-          "text": "WHEN sự kiện 12 xảy ra the system SHALL ghi nhận 12"
+          "text": "WHEN event 12 happens the system SHALL record 12"
         },
         {
           "line": 31,
-          "text": "WHEN sự kiện 13 xảy ra the system SHALL ghi nhận 13"
+          "text": "WHEN event 13 happens the system SHALL record 13"
         },
         {
           "line": 32,
-          "text": "WHEN sự kiện 14 xảy ra the system SHALL ghi nhận 14"
+          "text": "WHEN event 14 happens the system SHALL record 14"
         },
         {
           "line": 33,
-          "text": "WHEN sự kiện 15 xảy ra the system SHALL ghi nhận 15"
+          "text": "WHEN event 15 happens the system SHALL record 15"
         },
         {
           "line": 34,
-          "text": "WHEN sự kiện 16 xảy ra the system SHALL ghi nhận 16"
+          "text": "WHEN event 16 happens the system SHALL record 16"
         }
       ],
       "scenarios": [
@@ -929,9 +929,9 @@
           "acTag": "ac-1",
           "keyword": "Scenario",
           "line": 41,
-          "name": "Kịch bản 1",
+          "name": "Scenario 1",
           "steps": [
-            "Given điều kiện 1"
+            "Given condition 1"
           ],
           "tags": [
             "@ac-1",
@@ -942,9 +942,9 @@
           "acTag": "ac-2",
           "keyword": "Scenario",
           "line": 45,
-          "name": "Kịch bản 2",
+          "name": "Scenario 2",
           "steps": [
-            "Given điều kiện 2"
+            "Given condition 2"
           ],
           "tags": [
             "@ac-2",
@@ -955,9 +955,9 @@
           "acTag": "ac-3",
           "keyword": "Scenario",
           "line": 49,
-          "name": "Kịch bản 3",
+          "name": "Scenario 3",
           "steps": [
-            "Given điều kiện 3"
+            "Given condition 3"
           ],
           "tags": [
             "@ac-3",
@@ -968,9 +968,9 @@
           "acTag": "ac-4",
           "keyword": "Scenario",
           "line": 53,
-          "name": "Kịch bản 4",
+          "name": "Scenario 4",
           "steps": [
-            "Given điều kiện 4"
+            "Given condition 4"
           ],
           "tags": [
             "@ac-4",
@@ -981,9 +981,9 @@
           "acTag": "ac-5",
           "keyword": "Scenario",
           "line": 57,
-          "name": "Kịch bản 5",
+          "name": "Scenario 5",
           "steps": [
-            "Given điều kiện 5"
+            "Given condition 5"
           ],
           "tags": [
             "@ac-5",
@@ -994,9 +994,9 @@
           "acTag": "ac-6",
           "keyword": "Scenario",
           "line": 61,
-          "name": "Kịch bản 6",
+          "name": "Scenario 6",
           "steps": [
-            "Given điều kiện 6"
+            "Given condition 6"
           ],
           "tags": [
             "@ac-6",
@@ -1011,11 +1011,11 @@
           "lines": [
             {
               "line": 9,
-              "text": "Dòng một."
+              "text": "Line one."
             },
             {
               "line": 10,
-              "text": "Dòng hai."
+              "text": "Line two."
             },
             {
               "line": 11,
@@ -1023,23 +1023,23 @@
             },
             {
               "line": 12,
-              "text": "Dòng ba."
+              "text": "Line three."
             },
             {
               "line": 13,
-              "text": "<!-- ghi chú -->"
+              "text": "<!-- note -->"
             },
             {
               "line": 14,
-              "text": "Dòng bốn."
+              "text": "Line four."
             },
             {
               "line": 15,
-              "text": "Dòng năm."
+              "text": "Line five."
             },
             {
               "line": 16,
-              "text": "Dòng sáu."
+              "text": "Line six."
             },
             {
               "line": 17,
@@ -1053,67 +1053,67 @@
           "lines": [
             {
               "line": 19,
-              "text": "- WHEN sự kiện 1 xảy ra the system SHALL ghi nhận 1"
+              "text": "- WHEN event 1 happens the system SHALL record 1"
             },
             {
               "line": 20,
-              "text": "- WHEN sự kiện 2 xảy ra the system SHALL ghi nhận 2"
+              "text": "- WHEN event 2 happens the system SHALL record 2"
             },
             {
               "line": 21,
-              "text": "- WHEN sự kiện 3 xảy ra the system SHALL ghi nhận 3"
+              "text": "- WHEN event 3 happens the system SHALL record 3"
             },
             {
               "line": 22,
-              "text": "- WHEN sự kiện 4 xảy ra the system SHALL ghi nhận 4"
+              "text": "- WHEN event 4 happens the system SHALL record 4"
             },
             {
               "line": 23,
-              "text": "- WHEN sự kiện 5 xảy ra the system SHALL ghi nhận 5"
+              "text": "- WHEN event 5 happens the system SHALL record 5"
             },
             {
               "line": 24,
-              "text": "- WHEN sự kiện 6 xảy ra the system SHALL ghi nhận 6"
+              "text": "- WHEN event 6 happens the system SHALL record 6"
             },
             {
               "line": 25,
-              "text": "- WHEN sự kiện 7 xảy ra the system SHALL ghi nhận 7"
+              "text": "- WHEN event 7 happens the system SHALL record 7"
             },
             {
               "line": 26,
-              "text": "- WHEN sự kiện 8 xảy ra the system SHALL ghi nhận 8"
+              "text": "- WHEN event 8 happens the system SHALL record 8"
             },
             {
               "line": 27,
-              "text": "- WHEN sự kiện 9 xảy ra the system SHALL ghi nhận 9"
+              "text": "- WHEN event 9 happens the system SHALL record 9"
             },
             {
               "line": 28,
-              "text": "- WHEN sự kiện 10 xảy ra the system SHALL ghi nhận 10"
+              "text": "- WHEN event 10 happens the system SHALL record 10"
             },
             {
               "line": 29,
-              "text": "- WHEN sự kiện 11 xảy ra the system SHALL ghi nhận 11"
+              "text": "- WHEN event 11 happens the system SHALL record 11"
             },
             {
               "line": 30,
-              "text": "- WHEN sự kiện 12 xảy ra the system SHALL ghi nhận 12"
+              "text": "- WHEN event 12 happens the system SHALL record 12"
             },
             {
               "line": 31,
-              "text": "- WHEN sự kiện 13 xảy ra the system SHALL ghi nhận 13"
+              "text": "- WHEN event 13 happens the system SHALL record 13"
             },
             {
               "line": 32,
-              "text": "- WHEN sự kiện 14 xảy ra the system SHALL ghi nhận 14"
+              "text": "- WHEN event 14 happens the system SHALL record 14"
             },
             {
               "line": 33,
-              "text": "- WHEN sự kiện 15 xảy ra the system SHALL ghi nhận 15"
+              "text": "- WHEN event 15 happens the system SHALL record 15"
             },
             {
               "line": 34,
-              "text": "- WHEN sự kiện 16 xảy ra the system SHALL ghi nhận 16"
+              "text": "- WHEN event 16 happens the system SHALL record 16"
             },
             {
               "line": 35,
@@ -1143,11 +1143,11 @@
             },
             {
               "line": 41,
-              "text": "  Scenario: Kịch bản 1"
+              "text": "  Scenario: Scenario 1"
             },
             {
               "line": 42,
-              "text": "    Given điều kiện 1"
+              "text": "    Given condition 1"
             },
             {
               "line": 43,
@@ -1159,11 +1159,11 @@
             },
             {
               "line": 45,
-              "text": "  Scenario: Kịch bản 2"
+              "text": "  Scenario: Scenario 2"
             },
             {
               "line": 46,
-              "text": "    Given điều kiện 2"
+              "text": "    Given condition 2"
             },
             {
               "line": 47,
@@ -1175,11 +1175,11 @@
             },
             {
               "line": 49,
-              "text": "  Scenario: Kịch bản 3"
+              "text": "  Scenario: Scenario 3"
             },
             {
               "line": 50,
-              "text": "    Given điều kiện 3"
+              "text": "    Given condition 3"
             },
             {
               "line": 51,
@@ -1191,11 +1191,11 @@
             },
             {
               "line": 53,
-              "text": "  Scenario: Kịch bản 4"
+              "text": "  Scenario: Scenario 4"
             },
             {
               "line": 54,
-              "text": "    Given điều kiện 4"
+              "text": "    Given condition 4"
             },
             {
               "line": 55,
@@ -1207,11 +1207,11 @@
             },
             {
               "line": 57,
-              "text": "  Scenario: Kịch bản 5"
+              "text": "  Scenario: Scenario 5"
             },
             {
               "line": 58,
-              "text": "    Given điều kiện 5"
+              "text": "    Given condition 5"
             },
             {
               "line": 59,
@@ -1223,11 +1223,11 @@
             },
             {
               "line": 61,
-              "text": "  Scenario: Kịch bản 6"
+              "text": "  Scenario: Scenario 6"
             },
             {
               "line": 62,
-              "text": "    Given điều kiện 6"
+              "text": "    Given condition 6"
             },
             {
               "line": 63,
@@ -1255,7 +1255,7 @@
           "lines": [
             {
               "line": 68,
-              "text": "- Một bước @ac-1 @ac-2 @ac-3 @ac-4 @ac-5 @ac-6"
+              "text": "- One step @ac-1 @ac-2 @ac-3 @ac-4 @ac-5 @ac-6"
             }
           ]
         }

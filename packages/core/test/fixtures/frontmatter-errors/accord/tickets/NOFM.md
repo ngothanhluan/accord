@@ -1,2 +1,2 @@
 ## Intent
-Không có frontmatter.
+No frontmatter.

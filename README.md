@@ -2,40 +2,25 @@
 
 A contract for AI-assisted software delivery.
 
-Accord defines a small, conventional folder inside your repository where what a feature is for, what it must do, how it must look, and how you will know it is done are written down before an agent writes a line of code, and verified against those same acceptance criteria afterwards. A CLI checks that contract deterministically, so an agent cannot skip it.
+Accord adds a small, fixed folder to your repository. Before an agent writes code, that folder records what a feature is for, what it must do, how it must look, and how you will know it is done. Afterwards the work is verified against those same acceptance criteria. A CLI checks the contract deterministically, so an agent cannot skip it.
 
-BA, designer, developer, reviewer are four stages a ticket passes through, not four job titles. One person passes through all four in turn; four people on a team divide them. No gate reads who anyone is, so the same rules hold either way.
+BA, designer, developer and reviewer are four stages a ticket passes through, not four job titles. One person can pass through all four, or four people on a team can divide them. No gate reads who anyone is, so the same rules hold either way.
 
-**Released:** `@accord-dev/accord@0.2.0`, on npm. See [docs/design.md](docs/design.md) for the design and the reasoning behind it.
-
-## Try it
-
-Nothing to install. Node 22.12 or newer, and:
-
-```sh
-npx --yes @accord-dev/accord@0.2.0 --version
-```
-
-That prints the version back. `init` in place of `--version` writes the `accord/` folder, the workflow skills for the runtimes you name, and a CI workflow pinned to the same release, into whatever repository you run it in.
-
-**New in 0.2.0:** the workflow layer described below (lanes, `/accord`, the stage skills, the accord agents in `.claude/agents/`, and three session hooks in `.claude/settings.json`). A repository pinned to 0.1.0 moves with `npx --yes @accord-dev/accord@0.2.0 upgrade`; from 0.2.0 on, `/accord upgrade` does it. To run `main` from a clone: `npm install`, `npm run build`, then `npm rebuild @accord-dev/accord` so the `accord` command exists for the hooks.
+Released: `@accord-dev/accord@0.2.0` on npm. See [docs/design.md](docs/design.md) for the design and the reasoning behind it.
 
 ## The problem
 
-AI coding agents produce features that pass their own tests and still miss what the user meant. The largest measured cause is not a missing spec but an agent ignoring instructions it already had. The second is a spec that never captured intent, and verification done without acceptance criteria to verify against. Accord attacks both: intent and acceptance criteria are captured up front by whoever holds them, and a Done gate verifies the result against those criteria independently of the agent that built it.
+AI coding agents produce features that pass their own tests and still miss what the user meant. The largest measured cause is an agent ignoring instructions it already had, not a missing spec. The second is a spec that never captured intent, and verification done without acceptance criteria to check against. Accord addresses both. Whoever holds the intent captures it and the acceptance criteria up front, and a Done gate checks the result against those criteria, independently of the agent that built it.
 
 ## What it is
 
-- A folder convention: a fixed `accord/` folder at the repo root with `config.yml`, `product/` (glossary, business rules), `tickets/<id>.md` (epics, stories, and bugs are all tickets; a story names its epic with `parent:`), `tickets/<id>/verification.md` (the review record), and `assets/<id>/` (designer-owned prototypes). Tracker links are a `tracker:` map keyed by adapter, for example `tracker: { github-issues: "1234" }`.
-- Plain-text formats a human and a model can both read and a linter can check: EARS for requirements, Gherkin for acceptance criteria, YAML frontmatter with a JSON schema, fixed headings per ticket: Intent, Requirements, Acceptance criteria, Open questions, Plan.
-- Two gates: **Ready** before work starts, **Done** before the work is called finished: a fresh agent context, not the one that wrote the code, writes `tickets/<id>/verification.md`; the developer ticks `verified:` after a self-test; Done passes only when scenario tags, evidence tags, and `verified` match.
-- A workflow, shipped as skill files, one definition each, rendered for every runtime you list. `/accord` is the entry point: with no argument it shows your tickets, the team's, and what is ready to pick up; with a request it proposes a lane and starts. Every ticket runs the same six stages, each a skill you can also call directly: `accord-intent`, `accord-approach`, `accord-plan`, `accord-build`, `accord-review`, `accord-verify`, plus `accord-debug` for a root cause.
-- Lanes sized to the work: **S** for a small fix (done in the session, one review pass, affected tests), **M** for a feature (an owner-approved approach, a checked plan, one fresh executor per task, review to convergence, an evidence report). A ticket opts in with `lane:` in its frontmatter; a ticket without it keeps every 0.1.0 rule.
-- One worktree per ticket. Pick up, Continue and a new lane M ticket first fetch `origin`, so a new ticket branch starts at the remote's latest default branch. A fetch that fails, or gets no answer within 30 seconds, is one line, and the work goes on. Before verify, Continue merges the remote's default branch into a ticket branch that is behind, with a merge commit, then runs the setup commands and pushes it; a conflict is aborted and named. Before its full suite, `accord-verify` runs `accord worktree merge <id>`, which merges the remote's default branch into the ticket branch with a merge commit, never a rebase. A conflict is aborted and named, and verify stops. Pick up, Continue and a new lane M ticket each work in the ticket's own git worktree, the sibling folder `<repository folder>-<id in lower case>`, prepared by the `setup` commands `config.yml` lists, run in order through the shell (they are repository content, trusted as `tests.affected` is). `accord worktree open` prints the folder and the line `/accord continue <id>` to type in a session opened there. In Claude Code the session rooted there holds the ticket until it ends, and a second session is refused. In Cursor, Copilot and Codex the worktree is made, prepared, reused and removed the same way, but a second session is not refused yet. Every `/accord` command (the dashboard, Pick up, Continue, and a new lane M or lane S ticket with `--worktree`) fetches, then removes the worktree, the local branch and the branch on `origin` of each ticket done on the remote main branch, keeping one with uncommitted work, held by another session, or holding a commit after its verified commit; files ignored by `.gitignore`, such as `node_modules`, go with the worktree.
-- New releases. The session start hook and `/accord` say when a newer accord is out than the repository pins; the registry is asked at most once in 24 hours per machine with a 3 second limit, and an unreachable registry adds nothing. `/accord upgrade` runs `upgrade` as the newer version, which pushes a branch `upgrade/<version>` cut from the remote main whose one commit moves the pin in `config.yml`, the CI workflow and the Claude Code hooks and holds the regenerated skill files; your checkout is left alone.
-- Tests as evidence, never as a claim. `accord task-done` and `accord gate done` read only the JUnit report `tests.report` names in `config.yml`, so the `tests.affected` command template you configure there must write that same report; if it writes nothing, every `task-done` refuses the report as older than the commit. The CLI never runs a test command itself.
-- A CLI: `init`, `new`, `lint`, `gate ready|plan|done`, `approve`, `brief`, `task-done`, `review-package`, `tests baseline`, `status`, `next`, `anchor`, `hook`, `skills sync`, `upgrade`, `worktree open|clean|merge`.
-- Trackers, design tools, and a future multi-repo hub are adapters, never requirements. The default tracker is `none`.
+- A folder convention. A fixed `accord/` folder at the repository root holds `config.yml`, `product/` (glossary, business rules, conventions), `tickets/<id>.md` (epics, stories and bugs are all tickets; a story names its epic with `parent:`), `tickets/<id>/` (the ticket's records, such as `tickets/<id>/verification.md`), and `assets/<id>/` (designer-owned prototypes). Tracker links are a `tracker:` map keyed by adapter, for example `tracker: { github-issues: "1234" }`.
+- Plain-text formats that a person and a model can both read and a linter can check: EARS for requirements, Gherkin for acceptance criteria, and YAML frontmatter with a JSON schema.
+- Gates. Ready passes before work starts. Done passes only when a fresh agent context, not the one that wrote the code, has verified the work against the acceptance criteria and the test evidence matches.
+- A workflow shipped as skill files, one definition each, rendered for every coding agent you list: Claude Code, Codex, Cursor and Copilot.
+- Lanes sized to the work, each ticket worked in its own git worktree. See [Usage](#usage).
+- Tests as evidence, never as a claim. `accord task-done` and `accord gate done` read only the JUnit report that `tests.report` names in `config.yml`. The CLI never runs a test command itself.
+- Trackers, design tools and a future multi-repo hub are adapters, never requirements. The default tracker is `none`.
 
 ## What it is not
 
@@ -43,6 +28,148 @@ AI coding agents produce features that pass their own tests and still miss what 
 - Not a ticket system. Your tracker stays your tracker.
 - Not a database. Git is the only source of truth: the contract is files in your repository, versioned with the code it describes.
 
+## Usage
+
+### 1. Requirements
+
+Node 22.12 or newer. Run accord through npx with an exact version, so nothing needs installing:
+
+```sh
+npx --yes @accord-dev/accord@0.2.0 <command>
+```
+
+Or install it globally and run `accord <command>`:
+
+```sh
+npm i -g @accord-dev/accord@0.2.0
+```
+
+The global install must be the same version the repository pins (see [Version pin](#7-version-pin-and-upgrading)).
+
+### 2. Initialise a repository
+
+In the repository root:
+
+```sh
+npx --yes @accord-dev/accord@0.2.0 init
+```
+
+`init` asks nothing and takes no options. It never overwrites `accord/config.yml`, the product files or the workflow when they exist. The skill, agent and pane copies are accord's own and are rewritten to this version, and the hooks are merged into existing settings. Each path is printed as `created`, `skipped`, `appended`, `updated`, `unchanged` or `overwrote local edits`. It writes:
+
+- `accord/config.yml`, pinned to the running version, with `runtimes: [claude, codex]` and a comment on every key.
+- `accord/product/glossary.md`, `accord/product/business-rules.md` and `accord/product/conventions.md`, from templates.
+- `.github/workflows/accord.yml`, a GitHub Actions workflow that runs `lint` and `gate done` on the tickets a pull request changes, with the same pinned version.
+- The skills: `/accord` and the stage skills `accord-intent`, `accord-approach`, `accord-plan`, `accord-build`, `accord-review`, `accord-verify` and `accord-debug`, plus `accord-designer` for the `designer` role in `roles:`. Claude Code reads them from `.claude/skills/`, Codex from `.agents/skills/`.
+- For Claude Code only: the accord agents in `.claude/agents/`, the dashboard pane plugin in `.claude/accord-panel/`, and in `.claude/settings.json` the session hooks and the keys that enable the pane. Existing settings are kept.
+- A short accord block appended to `AGENTS.md` and `CLAUDE.md`, or those files created.
+
+Then edit `accord/config.yml`. Before the first ticket that carries a `@test:` scenario, remove the `# ` from the commented `tests:` and `report:` lines at its end, and set `report:` to the JUnit report your test runner writes.
+
+### 3. Commit what init wrote
+
+```sh
+git status   # check the list holds only what init printed
+git add accord .github .claude .agents AGENTS.md CLAUDE.md   # leave out any of these init did not print
+git commit -m "accord init"
+git push
+```
+
+Teammates get the same skills, hooks and pane by pulling. The skills run a bare `accord` command. In Claude Code, the session hook tells the agent to run it through `npx` at the pinned version when `accord` is not on PATH. In Codex, Cursor and Copilot there is no such hook, so each person installs the pinned version globally (`npm i -g @accord-dev/accord@0.2.0`).
+
+### 4. Daily use in your coding agent
+
+All work starts from the `/accord` skill inside the agent session:
+
+| Command | What it does |
+|---|---|
+| `/accord` | The dashboard: your tickets, the team's, and what is ready to pick up, with the actions that apply. |
+| `/accord <request>` | New work. Accord proposes a lane with its reason; you may override it. |
+| `/accord continue <id>` | Resume a ticket at the stage and step it reached. |
+| `/accord pick-up <id>` | Claim an unclaimed ticket and start it. |
+| `/accord upgrade` | Move the repository to a newer accord release (see [Version pin](#7-version-pin-and-upgrading)). |
+
+Lanes:
+
+- S, a small fix (a bug, a copy change, one flag). The session writes one line for what it understood and one for when it is done, makes the change, runs the affected tests, and runs review rounds with a fresh reviewer until no Must finding is open. Then `gate done` and a pull request.
+- M, a feature (one story). It passes through six stages, each a skill you can also call directly:
+  1. intent (`accord-intent`): an interview that writes the intent, acceptance criteria, vetoes and decisions.
+  2. approach (`accord-approach`): the lightest approach that works, argued against by a critic, approved by the owner.
+  3. plan (`accord-plan`): a task-by-task plan checked by `accord gate plan`.
+  4. build (`accord-build`): one fresh executor per task, each recorded with `accord task-done`.
+  5. review (`accord-review`): reviewers until no Must is open and every Should is fixed.
+  6. verify (`accord-verify`): a fresh verifier checks each criterion, writes `verification.md`, and `accord gate done` runs once the owner approves.
+
+  `accord-debug` finds a root cause before any fix when something fails for a reason nobody has shown.
+- L (an epic) and P (a project) are not built yet. Accord proposes splitting such work into lane M tickets linked by `depends_on`.
+
+A request moves from S to M when it changes a public interface or schema, touches auth, money or data deletion, has more than one plausible reading, or needs more than about five hand-written files. A lane only rises.
+
+Each ticket is worked in its own git worktree, the sibling folder `<repository folder>-<id in lower case>`, prepared by the `setup` commands listed in `config.yml`. `accord worktree open <id>` prints the folder and the `/accord continue <id>` line to type in a session opened there. Tickets done on the remote main branch have their worktree and branches removed by `accord worktree clean`, which `/accord` runs.
+
+In Claude Code, the pane shows the dashboard beside the chat.
+
+### 5. Other runtimes
+
+`runtimes:` in `accord/config.yml` decides which skill folders accord writes. `claude` writes `.claude/skills/` and also the agents, the pane and the hooks; `codex` writes `.agents/skills/`. Cursor and Copilot read both folders, so the default `runtimes: [claude, codex]` already serves all four tools, and listing `cursor` or `copilot` adds nothing.
+
+After you change `runtimes:`, write the copies again and commit what it prints:
+
+```sh
+npx --yes @accord-dev/accord@0.2.0 skills sync
+```
+
+`skills sync` never deletes. When you remove a runtime, it lists the copies it no longer writes, and you delete them yourself.
+
+### 6. CLI commands for people and CI
+
+The skills call the CLI for you. These are the commands most useful to run by hand or in CI. Bare `accord` needs the global install at the pinned version; without it, put `npx --yes @accord-dev/accord@0.2.0` in place of `accord`. Run `accord --help` for the full list, and `accord <command> --help` for each one.
+
+| Command | What it does |
+|---|---|
+| `accord lint [--json]` | Report every finding in the accord folder. |
+| `accord gate ready <id>` | Report whether the ticket passes the Ready gate. |
+| `accord gate plan <id>` | Report whether the ticket passes the plan gate. |
+| `accord gate done <id>` | Report whether the ticket passes the Done gate. |
+| `accord status [--json] [--all]` | Print one row per ticket; `--all` includes archived tickets. |
+| `accord dashboard [--json]` | Print the ranked and capped dashboard sections for you. |
+| `accord show <id> [--json]` | Print one ticket: its intent and each criterion with its state. |
+| `accord new ticket [id]` | Write `accord/tickets/<id>.md` from the template. |
+| `accord skills sync` | Write every skill the config declares into `.claude/skills/` and `.agents/skills/`. |
+| `accord worktree open <id>` | Find or prepare the ticket's worktree. |
+| `accord worktree clean` | Remove worktrees and branches of tickets done on the default branch. |
+
+### 7. Version pin and upgrading
+
+`accord/config.yml` pins an exact version in its `accord:` key, and the CI workflow and Claude Code hooks use the same one. Every command that reads the repository refuses with exit 2 when the running version differs (on a version mismatch the `prompt-expansion` hook only warns, so the prompt goes on), and names the command to run instead, with the pinned version in place of 0.2.0:
+
+```sh
+npx --yes @accord-dev/accord@0.2.0 <command>
+```
+
+There is no flag or environment variable that skips the check. Only `--version`, `--help` and `upgrade` run regardless.
+
+`/accord` says when a newer release is out. `/accord upgrade` runs `upgrade` as the newer version, which pushes a branch `upgrade/<version>` from the remote default branch with one commit that moves the pin and regenerates the skill files. Your checkout is not touched; merge the pull request to upgrade. A repository still pinned to 0.1.0 runs `npx --yes @accord-dev/accord@0.2.0 upgrade` once by hand.
+
+Exit codes:
+
+| Code | Meaning |
+|---|---|
+| 0 | Gate passed, or lint clean (warnings allowed). |
+| 1 | Gate failed, or lint found errors. The reasons are printed. |
+| 2 | Usage or environment error: bad arguments, no accord folder, unreadable config, version mismatch. |
+
+### 8. Running main from a clone
+
+To work on accord itself:
+
+```sh
+npm install
+npm run build
+npm rebuild @accord-dev/accord
+```
+
+The last step links the `accord` command that the skills call. After pulling a version bump, run `npm run build` again, or the workspace CLI reports the old version and every command refuses on the pin.
+
 ## License
 
-MIT
+MIT. See [LICENSE](LICENSE).

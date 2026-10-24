@@ -392,7 +392,7 @@ describe('gate done gate-done: the identity layer (GATE-03, GATE-11, D-81)', () 
     expect(changed).toHaveLength(1);
     expect(changed[0].level).toBe('error');
     expect(changed[0].reason).toContain('fnv1a64:deadbeefdeadbeef');
-    expect(changed[0].reason).toContain('fnv1a64:0e84e174c4cdc76b');
+    expect(changed[0].reason).toContain('fnv1a64:d195ee776986de2f');
     expect(rules('STALE', 'gate.tick-stale-hash')).toHaveLength(1);
     expect(done.STALE.verdict).toBe('fail');
   });

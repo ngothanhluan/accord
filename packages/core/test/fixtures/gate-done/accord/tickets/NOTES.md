@@ -1,55 +1,55 @@
 ---
 id: NOTES
-title: Ghi chú thiếu, dán lại, và không nêu tệp
+title: Notes missing, pasted back, and naming no file
 type: story
 status: open
 ui: false
-ac_hash: "fnv1a64:01d5981d93f368f0"
+ac_hash: "fnv1a64:a95f4c063932127a"
 verified:
   - ac-1
   - ac-2
   - ac-3
-verified_hash: "fnv1a64:01d5981d93f368f0"
+verified_hash: "fnv1a64:a95f4c063932127a"
 verified_commit: "1234567"
 ---
 
 ## Intent
-Người dùng đăng nhập bằng email để vào bảng điều khiển.
+Users sign in with an email to reach the dashboard.
 
 ## Requirements
-- WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển
+- WHEN a user submits a valid email and password the system SHALL open the dashboard
 
 ## Acceptance criteria
 ```gherkin
 Feature: NOTES
 
   @ac-1 @test:test/login.spec.ts#ok1
-  Scenario: Đăng nhập thành công
-    When họ gửi email và mật khẩu hợp lệ
-    Then họ thấy bảng điều khiển
+  Scenario: Sign-in succeeds
+    When they submit a valid email and password
+    Then they see the dashboard
 
   @ac-2 @test:test/login.spec.ts#ok2
-  Scenario: Mật khẩu sai
-    When họ gửi mật khẩu sai
-    Then họ thấy thông báo lỗi
+  Scenario: Wrong password
+    When they submit a wrong password
+    Then they see an error message
 
   @ac-3 @ui
-  Scenario: Nút đăng nhập bị vô hiệu hoá
-    When ô email còn trống
-    Then nút đăng nhập bị mờ đi
+  Scenario: Sign-in button disabled
+    When the email field is empty
+    Then the sign-in button is greyed out
 ```
 
 ## Open questions
-- [x] Đã rõ
+- [x] Clear
 
 ## Plan
-- Làm màn hình đăng nhập @ac-1
-- Trả lỗi khi xác thực hỏng @ac-2
-- Làm nút đăng nhập mờ đi @ac-3
+- Build the sign-in screen @ac-1
+- Return an error on failed authentication @ac-2
+- Grey out the sign-in button @ac-3
 
 ## Verification notes
 ### @ac-2
-Mật khẩu sai When họ gửi mật khẩu sai Then họ thấy thông báo lỗi src/auth/login.ts
+Wrong password When they submit a wrong password Then they see an error message src/auth/login.ts
 
 ### @ac-3
 LoginButton

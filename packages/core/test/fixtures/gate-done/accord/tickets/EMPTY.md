@@ -1,16 +1,16 @@
 ---
 id: EMPTY
-title: Sử thi không có kịch bản
+title: Epic with no scenarios
 type: epic
 status: open
 ui: false
 ---
 
 ## Intent
-Nhóm các câu chuyện đăng nhập lại thành một sử thi.
+Groups the sign-in stories into one epic.
 
 ## Requirements
-- WHEN một câu chuyện con hoàn tất the system SHALL cập nhật tiến độ của sử thi
+- WHEN a child story completes the system SHALL update the epic progress
 
 ## Open questions
-- [x] Đã rõ
+- [x] Clear

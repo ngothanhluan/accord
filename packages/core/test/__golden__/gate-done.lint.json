@@ -12,7 +12,7 @@
       "file": "accord/tickets/MACHINE.md",
       "level": "warning",
       "line": 43,
-      "reason": "scenario \"Kịch bản quên gắn thẻ kiểm thử\" has no @test:<id> tag and is not @ui",
+      "reason": "scenario \"Scenario with no test tag\" has no @test:<id> tag and is not @ui",
       "rule": "lint.test-tag-missing"
     },
     {

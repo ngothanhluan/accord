@@ -4,7 +4,7 @@ commit: 1234567
 reviewed_on: 2026-09-10
 ---
 
-## @ac-1 Đăng nhập thành công
+## @ac-1 Sign-in succeeds
 
 Result: pass
 

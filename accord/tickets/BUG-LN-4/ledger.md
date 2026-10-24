@@ -14,6 +14,9 @@
 - Ruling: task 1: a base status of dropped with an unreadable ## Dropped reason gets its own fix-the-reason line, not the accord drop advice, as the Approach says — accord drop would refuse an already dropped ticket — only the message text differs
 - Ruling: task 1: `set +e` landed in task 1 instead of task 3 to keep the script hunk coherent — task 3 still owns its probe and the CI-flag runner — task 3's probe must still be written
 - Ruling: task 1: the A-09 line left accord/tests-baseline.txt, its test now being @ac-2's — the Approach lists it as affected — none
+- Ruling: task 2: the failing-listing line ends "- the check fails rather than let an approved ticket go unchecked", as the plan says, replacing task 1's "fix the git error and push again" — the plan's wording — no test asserts the tail
+- Ruling: task 2: is_dropped returns 2 for status dropped with an unreadable reason, and the deletion loop branches on 2 (reason line) versus other non-zero (accord drop line), replacing task 1's status re-check — one read decides both messages — a caller treating 2 as dropped would skip the fix line
+- Ruling: task 2: the swap and failing-listing tests passed before the change because task 1's script already held that behaviour; the unreadable-reason test was red first — the plan ordered the script ahead of these tests — none
 
 ## Deferred
 - plan round 1.6: probe this repository's copy for `set +e` too
@@ -34,3 +37,4 @@
 
 ## Tasks
 - task 1 done 383a78a0b99c
+- task 2 done 56d7517168fd

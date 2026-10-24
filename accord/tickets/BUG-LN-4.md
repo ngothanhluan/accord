@@ -54,7 +54,7 @@ Feature: BUG-LN-4
     When a pull request deletes either ticket's file, with or without its folder under accord/tickets/, and changes nothing else, and the accord check runs
     Then the check exits zero without running gate done
 
-  @ac-3
+  @ac-3 @test:packages/cli/test/workflow-script.test.ts#the-emitted-workflow-script-—-executed->-a-swap-of-an-approved-ticket-for-an-unapproved-one-fails-naming-the-deleted-ticket-and-still-gates-the-new-one
   Scenario: Swapping an approved ticket for an unapproved one fails and still gates the new ticket
     Given a ticket approved as in @ac-1 and not status dropped at the base commit
     When a pull request that changes only accord/ deletes it and adds a new unapproved ticket, and the accord check runs

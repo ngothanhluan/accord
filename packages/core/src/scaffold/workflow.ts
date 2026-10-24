@@ -28,6 +28,10 @@
 // as approved, so a doubt gates. `.github/workflows/accord.yml` carries the same script and must be changed
 // with it; `cli/test/workflow-script.test.ts` fails when the two drift.
 //
+// `accord upgrade` finds the step by its name `lint and gate` (`refreshLintStep` in `scaffold/repin.ts`) and
+// replaces it with the step this function writes, so renaming the step stops upgrades from refreshing the
+// script in every repository that ran `accord init`.
+//
 // The script is written out as a block scalar rather than assembled from an object: a YAML serialiser
 // round-trip would lose the comment and the block-scalar shape, which are what make this file readable in
 // someone else's repository.

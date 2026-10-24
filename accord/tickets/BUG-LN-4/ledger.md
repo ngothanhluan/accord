@@ -17,6 +17,8 @@
 - Ruling: task 2: the failing-listing line ends "- the check fails rather than let an approved ticket go unchecked", as the plan says, replacing task 1's "fix the git error and push again" — the plan's wording — no test asserts the tail
 - Ruling: task 2: is_dropped returns 2 for status dropped with an unreadable reason, and the deletion loop branches on 2 (reason line) versus other non-zero (accord drop line), replacing task 1's status re-check — one read decides both messages — a caller treating 2 as dropped would skip the fix line
 - Ruling: task 2: the swap and failing-listing tests passed before the change because task 1's script already held that behaviour; the unreadable-reason test was red first — the plan ordered the script ahead of these tests — none
+- Ruling: task 3: neither new test could fail first because task 1 already held `set +e`; the `false` probe's variant without `set +e` exits non-zero with no gate call, which shows the line is what keeps the run going — the red step moved into the probe — none
+- Ruling: task 3: the stub prints `npx stub failed: <args>` when it fails, beside task 2's `npx stub: <args>` — the both-fail assertions need to tell a failed gate from a passed one — only the stub's text
 
 ## Deferred
 - plan round 1.6: probe this repository's copy for `set +e` too
@@ -38,3 +40,4 @@
 ## Tasks
 - task 1 done 383a78a0b99c
 - task 2 done 56d7517168fd
+- task 3 done fa896d97cf6a

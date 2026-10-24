@@ -61,7 +61,7 @@ Feature: BUG-LN-4
     Then the check exits non-zero and names the deleted ticket as in @ac-1
     And gate done still runs on the new ticket and its output is printed, whatever its verdict
 
-  @ac-4
+  @ac-4 @test:packages/cli/test/workflow-script.test.ts#the-emitted-workflow-script-—-executed->-lint-and-a-gate-failing-together-under-the-CI-shell-flags-are-both-printed-and-the-check-fails
   Scenario: Every failure is reported on one push under the flags CI uses
     Given the script the workflow runs, started as bash --noprofile --norc -eo pipefail
     When lint fails and a gate fails in the same run

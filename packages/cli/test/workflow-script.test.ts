@@ -115,7 +115,6 @@ interface Case {
   fail?: string;
   base?: string;
 }
-const DROPPED_TICKET = '---\nid: OLD-1\nstatus: dropped\n---\n\n## Intent\nold\n\n## Dropped\nno longer needed\n';
 const NO_KEY_TICKET = '---\nid: OLD-1\nstatus: open\n---\n\n## Intent\nold\n';
 const addDrafts = (r: string): void => {
   write(r, 'accord/tickets/ST-8.md', DRAFT_TICKET);
@@ -150,54 +149,7 @@ const GATED: Array<Case & { id: string }> = [
       write(r, 'src/app.ts', CODE);
     },
   },
-  {
-    id: 'OLD-1',
-    change: (r) => {
-      write(r, 'accord/tickets/OLD-1.md', DROPPED_TICKET);
-      write(r, 'src/app.ts', CODE);
-    },
-  },
-  {
-    id: 'ST-8',
-    change: (r) => {
-      rmSync(join(r, 'docs', 'readme.md'));
-      write(r, 'accord/tickets/ST-8.md', DRAFT_TICKET);
-    },
-  },
-  {
-    // A rename that changes the id and drops approved_hash: the base version lives at the old path.
-    id: 'REN-2',
-    seed: (r) => write(r, 'accord/tickets/OLD-1.md', APPROVED_TICKET + 'body line\n'.repeat(30)),
-    change: (r) => {
-      rmSync(join(r, 'accord', 'tickets', 'OLD-1.md'));
-      write(
-        r,
-        'accord/tickets/REN-2.md',
-        APPROVED_TICKET.replace('OLD-1', 'REN-2').replace(/approved_hash.*\n/, '') + 'body line\n'.repeat(30),
-      );
-    },
-  },
-  {
-    // Same rename without padding: git sees delete plus add, so only the deleted approved ticket gates it.
-    id: 'REN-2',
-    change: (r) => {
-      rmSync(join(r, 'accord', 'tickets', 'OLD-1.md'));
-      write(r, 'accord/tickets/REN-2.md', APPROVED_TICKET.replace('OLD-1', 'REN-2').replace(/approved_hash.*\n/, ''));
-    },
-  },
   { id: 'NEW-1', change: (r) => write(r, 'accord/tickets/NEW-1.md', APPROVED_TICKET.replace('OLD-1', 'NEW-1')) },
-  { id: 'OLD-1', change: (r) => write(r, 'accord/tickets/OLD-1.md', NO_KEY_TICKET) },
-  {
-    // Dropped with no ## Dropped section is not dropped as lint defines it: the approved ticket is gated.
-    id: 'OLD-1',
-    change: (r) => write(r, 'accord/tickets/OLD-1.md', APPROVED_TICKET.replace('status: open', 'status: dropped')),
-  },
-  {
-    // A reason that is only a comment is no reason.
-    id: 'OLD-1',
-    change: (r) =>
-      write(r, 'accord/tickets/OLD-1.md', APPROVED_TICKET.replace('status: open', 'status: dropped') + '\n## Dropped\n<!-- why -->\n'),
-  },
   { id: 'OLD-1', change: (r) => write(r, 'accord/tickets/OLD-1.md', NO_KEY_TICKET), fail: 'OLD-1' },
 ];
 

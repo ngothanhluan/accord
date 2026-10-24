@@ -22,3 +22,5 @@
 
 ## Deferred
 - Nice (plan round 1.4): Task 1's `expected === fresh` assertion cannot fail; drop it and record whether 0.1.0's lines before the step match today's
+- Nice (plan round 2.1): rule 17 should say "every new test", so it does not clash with rule 12 keeping the existing upgrade tests unchanged
+- Ruling: baseline: at 67bb1d0 the full suite (1233 s) had 3 timeouts and no assertion failure — lane-s.test.ts "risk:complex-branching lane S gate done passes a reviewed change…" (130 s of 120 s), show-approval.test.ts "ac-1 every scenario of every real ticket…" (461 s of 300 s), workflow-script.test.ts "code in the diff or an approved ticket: gate done runs…" (85 s of 60 s); run alone the three files pass (34 passed, 1 skipped, 230 s); owner chose (a) "a": record and go on, a timeout of these three at verify is re-run alone, raising the limits is its own backlog ticket — load-only, untouched by this ticket — a real regression in these three could hide behind a timeout

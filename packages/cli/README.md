@@ -43,7 +43,7 @@ npx --yes @accord-dev/accord@0.2.0 <command>
 Or install it globally and run `accord <command>`:
 
 ```sh
-npm i -g @accord-dev/accord
+npm i -g @accord-dev/accord@0.2.0
 ```
 
 The global install must be the same version the repository pins (see [Version pin](#7-version-pin)).
@@ -56,7 +56,7 @@ In the repository root:
 npx --yes @accord-dev/accord@0.2.0 init
 ```
 
-`init` asks nothing and takes no options. It skips every path that already exists, and prints each path as `created`, `skipped`, `appended`, `updated` or `unchanged`. It writes:
+`init` asks nothing and takes no options. It never overwrites `accord/config.yml`, the product files or the workflow when they exist. The skill, agent and pane copies are accord's own and are rewritten to this version, and the hooks are merged into existing settings. Each path is printed as `created`, `skipped`, `appended`, `updated`, `unchanged` or `overwrote local edits`. It writes:
 
 - `accord/config.yml`, pinned to the running version, with `runtimes: [claude, codex]` and a comment on every key.
 - `accord/product/glossary.md`, `accord/product/business-rules.md` and `accord/product/conventions.md`, from templates.
@@ -65,12 +65,13 @@ npx --yes @accord-dev/accord@0.2.0 init
 - For Claude Code only: the accord agents in `.claude/agents/`, the dashboard pane plugin in `.claude/accord-panel/`, and in `.claude/settings.json` the session hooks and the keys that enable the pane. Existing settings are kept.
 - A short accord block appended to `AGENTS.md` and `CLAUDE.md`, or those files created.
 
-Then edit `accord/config.yml`. Before the first ticket that carries a `@test:` scenario, set `tests.report` to the JUnit report your test runner writes.
+Then edit `accord/config.yml`. Before the first ticket that carries a `@test:` scenario, remove the `# ` from the commented `tests:` and `report:` lines at its end, and set `report:` to the JUnit report your test runner writes.
 
 ### 3. Commit what init wrote
 
 ```sh
-git add -A
+git status   # check the list holds only what init printed
+git add accord .github .claude .agents AGENTS.md CLAUDE.md
 git commit -m "accord init"
 git push
 ```
@@ -111,19 +112,13 @@ In Claude Code, the pane shows the dashboard beside the chat.
 
 ### 5. Other runtimes
 
-To add Cursor or Copilot, list them in `accord/config.yml`:
+`runtimes:` in `accord/config.yml` decides which skill folders accord writes. `claude` writes `.claude/skills/` and also the agents, the pane and the hooks; `codex` writes `.agents/skills/`. Cursor and Copilot read both folders, so the default `runtimes: [claude, codex]` already serves all four tools, and listing `cursor` or `copilot` adds nothing.
 
-```yaml
-runtimes: [claude, codex, cursor, copilot]
-```
-
-Then write the skill copies and commit them:
+After you change `runtimes:`, write the copies again and commit what it prints:
 
 ```sh
 npx --yes @accord-dev/accord@0.2.0 skills sync
 ```
-
-Cursor and Copilot read both `.claude/skills/` and `.agents/skills/`.
 
 ### 6. CLI commands for people and CI
 

@@ -11,6 +11,7 @@
 - task 8 done 527c6264bb93
 - task 9 done 2106868bd36e
 - task 10 done 83669221c399
+- task 12 done d5ca7a7e4310
 
 ## Rulings
 
@@ -57,6 +58,7 @@
 - Ruling: Vietnamese test data inside code spans of old records (ST-LN-2 and ST-LN-3 plan.md hostile titles, ST-LN-19 plan.md vi fence, ST-LN-8.md D-07 and ST-LN-8 plan.md forbiddenLines owner line) is replaced by the French or English text the tests now use (Tasks 5, 6, 10); ST-LN-27 verification.md's typed /accord requests are translated into English — the Intent says main holds no Vietnamese, and the current test text keeps each record true to the code — cost if wrong: an old plan no longer quotes what its test held when built; the original stays in the repository's history.
 - Ruling: owner typos are rendered by meaning, not kept (a stray slash after a question in ST-LN-16, a missing letter in ST-LN-7 and ST-LN-16), and a lowercase option letter (BASE-1 D-03) is read as the option — cost if wrong: a quote reads cleaner than the owner typed it.
 - Ruling: Main session step 4 replaced 12 renamed ids in place in accord/tests-baseline.txt (Tasks 3, 4, 6), each new id read from a JUnit run of ears, gherkin and refs tests; the show-approval rename of Task 6 had no baseline line — cost if wrong: an untraced-test warning on a renamed id.
+- Ruling: (executor, task 12) docs/plans/aidlc-vs-accord.html keeps its tags, classes, styles and layout; only its text and `<html lang>` (vi to en) changed (D-07) — cost if wrong: a wording difference in a doc no test reads, checked at review.
 
 ## Deferred
 

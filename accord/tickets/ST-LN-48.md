@@ -41,7 +41,7 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: ST-LN-48
 
-  @ac-1
+  @ac-1 @test:packages/cli/test/no-vietnamese.test.ts#ac-1-no-tracked-file-holds-a-Vietnamese-only-letter
   Scenario: No tracked file holds a Vietnamese-only letter
     Given the files `git ls-files` lists in the working tree of the cleaned branch, read whole, skipping only a file that holds a NUL byte anywhere
     When the repository test suite runs

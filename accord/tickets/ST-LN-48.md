@@ -65,7 +65,7 @@ Feature: ST-LN-48
     When the cleanup is done
     Then each of those tests keeps its trait with text in another language, which may differ from test to test, and the whole suite passes
 
-  @ac-5
+  @ac-5 @test:packages/core/test/convention.test.ts#ac-5-conventions.md-holds-exactly-one-rule-line-for-English-owner-quotes
   Scenario: The conventions carry the English quote rule
     Given accord/product/conventions.md after the cleanup
     When an agent reads it

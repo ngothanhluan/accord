@@ -33,7 +33,7 @@ ac_hash: "fnv1a64:edea85eca35d8018"
 For teams that rely on the accord check in CI: an approved or done ticket must never disappear without a recorded reason, and the check must report every lint and gate failure on one push under the shell flags GitHub uses.
 Success: a pull request that deletes an approved ticket not yet `status: dropped` fails with a message naming the fix; deleting a dropped ticket or any unapproved ticket still passes (A-09 narrowed by D-01); under `bash -eo pipefail` a lint failure and a gate failure are both reported; the tests run the script with those flags.
 Found in BUG-LN-3 review round 1 and final review; the delete-and-add variant is already blocked by BUG-LN-3's code and only gets a test here.
-Not in scope: `gate done` itself, the `accord drop` command, any change to which tickets count as approved, and refreshing the script in repositories that already ran `accord init` (D-03, its own ticket).
+Not in scope: `gate done` itself, the `accord drop` command, any change to which tickets `gate done` treats as approved, and refreshing the script in repositories that already ran `accord init` (D-03, its own ticket).
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.
@@ -43,15 +43,15 @@ Feature: BUG-LN-4
 
   @ac-1
   Scenario: Deleting an approved ticket that was not dropped fails the check
-    Given a ticket whose version at the base commit has an approved_hash key, whatever its value, or on lane S an ac_hash key, and is not status dropped
-    When a pull request deletes that ticket's file and the accord check runs
+    Given a ticket whose version at the base commit has an approved_hash key, whatever its value, or an ac_hash key on lane S or with no lane key, or at least one verified tick on any lane, and is not dropped as in @ac-2
+    When a pull request deletes that ticket's file, a rename included, and the accord check runs
     Then the check exits non-zero
     And it prints the ticket id and says to drop the ticket with accord drop before deleting it
 
   @ac-2
   Scenario: Deleting a dropped ticket or an unapproved ticket still passes
-    Given a ticket that is status dropped at the base commit, and another that is not approved as in @ac-1 at the base commit, whatever its status
-    When a pull request deletes either ticket's file and changes nothing else, and the accord check runs
+    Given a ticket that is status dropped with a readable reason under ## Dropped at the base commit, and another that is not approved as in @ac-1 at the base commit, whatever its status
+    When a pull request deletes either ticket's file, with or without its folder under accord/tickets/, and changes nothing else, and the accord check runs
     Then the check exits zero without running gate done
 
   @ac-3
@@ -59,7 +59,7 @@ Feature: BUG-LN-4
     Given a ticket approved as in @ac-1 and not status dropped at the base commit
     When a pull request that changes only accord/ deletes it and adds a new unapproved ticket, and the accord check runs
     Then the check exits non-zero and names the deleted ticket as in @ac-1
-    And gate done still runs on the new ticket and its result is printed
+    And gate done still runs on the new ticket and its output is printed, whatever its verdict
 
   @ac-4
   Scenario: Every failure is reported on one push under the flags CI uses
@@ -67,7 +67,7 @@ Feature: BUG-LN-4
     When lint fails and a gate fails in the same run
     Then lint and every gate still run and their failures are printed
     And the check exits non-zero
-    And every test in the file that runs the workflow script starts bash with those same flags
+    And every test in the file that runs the workflow script, probes included, starts bash with those same flags
 ```
 
 ## Vetoes
@@ -78,6 +78,7 @@ Feature: BUG-LN-4
 - D-01 Deleting an approved or done ticket passes only when its base version is already `status: dropped`; otherwise the pull request fails with a message saying how to fix it; an unapproved draft may still be deleted freely (A-09 narrowed) — owner chose option (a): "A"
 - D-02 An unapproved ticket may be deleted whatever its status (draft, open or archived); only an approved one must be dropped first — owner chose option (a): "A"
 - D-03 Repositories that already hold the workflow are out of scope; `accord upgrade` refreshing the script is its own ticket — owner chose option (a): "A"
+- D-04 A done ticket written before lanes existed (no lane key, with an ac_hash or verified ticks) is protected like an approved one and must be dropped before deletion — owner chose option (a): "A"
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->

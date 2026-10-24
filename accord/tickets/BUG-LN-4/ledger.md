@@ -10,3 +10,18 @@
 - Ruling: approach: a deleted ticket dropped at the base still sets has_code — keeps BUG-LN-3's rename rule unchanged — a dropped ticket deleted beside a new draft gates that draft
 - Ruling: approach: the verify skill's local check gets the same deletion rule (critic finding 8) — verify stands in for the CI check — one more rendered skill file
 - Ruling: approach: .github/workflows/ci.yml's own "not -e" comment stays out — a different step, not the accord check — that job can stop early on its first failure
+- Ruling: plan: renaming an approved ticket fails like a deletion, since the script sees a rename as delete plus add — a consequence of D-01, confirmed by the owner, who chose option (a): "A" — an id change goes through drop and a new ticket
+
+## Deferred
+- plan round 1.6: probe this repository's copy for `set +e` too
+- plan round 1.7: an unsettled base frontmatter with status dropped gets the drop advice that command refuses
+- plan round 1.8: verify text: unreadable frontmatter counts as approved and not dropped
+- plan round 1.9: verify's "no default branch" case should stop, not push
+- plan round 1.10: shared rule vs Task 1 on the per-ticket loop call
+- plan round 1.11: Task 1 says three GATED rename cases; there are two
+- plan round 1.12: Task 3's flags probe needs a named sandbox
+- plan round 1.13: plan.md:14 cites a check that does not exist
+- plan round 1.14: is_dropped return code wording in Task 1
+- Ruling: re-audit: verified ticks protect a ticket on any lane, not only without a lane — the Intent says "approved or done", and a tick is the done record — a lane M ticket with ticks but no approval must be dropped first
+- Ruling: re-audit: "base commit" stays the pull request's base sha, as BUG-LN-3 set; GitHub refreshes it on each push, so the merge-and-push in the fix message reaches the drop — a stale base needs one more push
+- Ruling: re-audit: @ac-2's "dropped" is what is_dropped reads (status dropped and a readable reason), matching the approved Approach's separate unreadable-reason line — a dropped ticket with an unreadable reason fails until the reason is fixed

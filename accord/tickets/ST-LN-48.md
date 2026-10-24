@@ -47,7 +47,7 @@ Feature: ST-LN-48
     When the repository test suite runs
     Then the check, reading each file's text in Unicode NFC form, finds in none of them a Vietnamese-only letter: a with breve (U+0102, U+0103), d with stroke (U+0110, U+0111), o with horn (U+01A0, U+01A1), u with horn (U+01AF, U+01B0), or any letter from U+1EA0 to U+1EF9
 
-  @ac-2
+  @ac-2 @test:packages/cli/test/no-vietnamese.test.ts#ac-2-the-check-fails-on-a-committed-d-with-stroke-and-names-its-path-and-line-3
   Scenario: The check fails when Vietnamese comes back
     Given a temporary git repository with a committed file holding a d with stroke (U+0111) on its third line
     When the check runs on that repository

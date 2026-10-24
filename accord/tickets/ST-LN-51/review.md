@@ -26,3 +26,10 @@
 1. Nice: upgrading, a step of the Understood line, has no heading of its own; it sits inside "7. Version pin" (README.md, section 7).
 2. Nice: sections 1 and 6 show bare `accord …` commands without saying they need the global install, or the npx prefix otherwise (README.md, sections 1 and 6).
 3. Nice: "the `prompt-expansion` hook only warns, so a prompt is never blocked" reads as general, but that hook does block `/accord` prompts in a session that holds another ticket (README.md, section 7).
+
+## Round 5
+
+1. Nice: section 1 says npx means "nothing needs installing", but the skills call a bare `accord` and only Claude Code's hook adds the npx fallback; that limit is stated only in section 3 (README.md, section 1).
+2. Nice: the "Gates" bullet says Done passes only after a fresh verifier checks the acceptance criteria, which is not what `gate done` checks for a lane S ticket (README.md, "What it is").
+
+verdict: converged

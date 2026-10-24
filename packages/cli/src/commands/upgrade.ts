@@ -6,7 +6,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { agentTargets, lintSnapshot, loadConfig, loadSnapshot, pluginTargets, repinConfig, repinWorkflow, skillTargets } from '@accord-dev/accord-core';
+import { agentTargets, lintSnapshot, loadConfig, loadSnapshot, pluginTargets, refreshLintStep, repinConfig, repinWorkflow, skillTargets } from '@accord-dev/accord-core';
 import pkg from '../../package.json' with { type: 'json' };
 import { gitDefaultRef, gitFilesAt, loadRefInput, UsageError } from '../load/fs.js';
 import { newer } from './notice.js';
@@ -61,7 +61,16 @@ export function upgrade(ctx: InitContext): number {
 
   const writes: { path: string; text: string }[] = [{ path: CONFIG, text: next }];
   const workflow = files[WORKFLOW];
-  if (workflow !== undefined) writes.push({ path: WORKFLOW, text: repinWorkflow(workflow, pkg.name, pinned, v) });
+  const refresh = workflow === undefined ? undefined : refreshLintStep(workflow, pkg.name, v);
+  if (workflow !== undefined) {
+    writes.push({ path: WORKFLOW, text: repinWorkflow(refresh !== undefined && 'text' in refresh ? refresh.text : workflow, pkg.name, pinned, v) });
+  }
+  let warning: string | undefined;
+  if (refresh !== undefined && 'refused' in refresh) {
+    const rerun = `run accord upgrade again before merging upgrade/${v} (close its pull request, delete the branch with git push origin --delete upgrade/${v}, and fix the step on ${short} first); otherwise the refresh waits for the next release`;
+    const fix = refresh.refused === 'count' ? 'leave exactly one step named lint and gate and' : 'the step named lint and gate must be a block list item without an anchor, as accord init writes it; make it one and';
+    warning = `warning: the lint-and-gate script in ${WORKFLOW} was not refreshed: ${fix} ${rerun}`;
+  }
   const hooks = hooksPlanFor(files[SETTINGS], config);
   if (hooks?.text !== undefined) writes.push({ path: SETTINGS, text: hooks.text });
   const input = loadRefInput(root, ref);
@@ -93,9 +102,11 @@ export function upgrade(ctx: InitContext): number {
     gitNoPrompt(root, ['push', 'origin', sha + ':refs/heads/upgrade/' + v]);
   } catch (err) {
     throw new UsageError(
-      `the upgrade commit ${sha} was made but the push failed: ${String((err as { stderr?: string }).stderr ?? err).trim().split('\n')[0]} - push it with git push origin ${sha}:refs/heads/upgrade/${v}`,
+      `the upgrade commit ${sha} was made but the push failed: ${String((err as { stderr?: string }).stderr ?? err).trim().split('\n')[0]} - push it with git push origin ${sha}:refs/heads/upgrade/${v}` +
+        (warning === undefined ? '' : '\n' + warning),
     );
   }
   ctx.stdout.write(`branch: upgrade/${v}\nbase: ${short}\ntitle: upgrade: accord ${v}\n`);
+  if (warning !== undefined) ctx.stderr.write(warning + '\n');
   return 0;
 }

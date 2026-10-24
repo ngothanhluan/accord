@@ -32,3 +32,6 @@ Ranked before any probe.
 
 ## Root cause
 The test, not the product code. packages/cli/test/workflow-script.test.ts:400-417 runs all 9 DELETED_APPROVED sandboxes (:205-242) in one synchronous `it`, which inherits `{ timeout: 60_000 }` from the describe at :377. That budget was sized for one sandbox per test (the comment at :374-376), and it is below the 90 s the cli project gives every Windows test (packages/cli/vitest.config.ts:5). Each sandbox costs 1.3 s with the machine idle and 4-11 s on Windows under parallel load (verify run 7.6 s, full rerun 4.4 s, CPU-load probe 10.8 s), so 9 of them land at 39-97 s against 60 s. The body finishes with every assertion passing, and vitest fails it after the fact (`deadline.exceeded()` in vitest's `withTimeout`). The script is not slower on these cases: 1.34 s per case versus 1.15-1.27 s for the other looping tests. The ticket brought this in at 383a78a: it replaced the one-sandbox A-09 test with 9-case loops under the old per-test budget, and gave a load budget only to the replay test (300 s to 600 s). The @ac-2 test (6 cases, :419-428) and the @ac-3 test (2 cases, :430-441) share the same cause: 55.5 s and 40.6 s under the CPU-load probe.
+
+## Resolved
+The @ac-1 test ran 9 sandboxes under a 60 s bound and timed out under load; fixed by cutting the criterion tests to the cases D-05 keeps, 8ef3be3.

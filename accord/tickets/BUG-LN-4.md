@@ -31,7 +31,7 @@ ui: false
 For teams that rely on the accord check in CI: an approved or done ticket must never disappear without a recorded reason, and the check must report every lint and gate failure on one push under the shell flags GitHub uses.
 Success: a pull request that deletes an approved ticket not yet `status: dropped` fails with a message naming the fix; deleting a dropped ticket or any unapproved ticket still passes (A-09 narrowed by D-01); under `bash -eo pipefail` a lint failure and a gate failure are both reported; the tests run the script with those flags.
 Found in BUG-LN-3 review round 1 and final review; the delete-and-add variant is already blocked by BUG-LN-3's code and only gets a test here.
-Not in scope: `gate done` itself, the `accord drop` command, and any change to which tickets count as approved.
+Not in scope: `gate done` itself, the `accord drop` command, any change to which tickets count as approved, and refreshing the script in repositories that already ran `accord init` (D-03, its own ticket).
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.
@@ -75,6 +75,7 @@ Feature: BUG-LN-4
 <!-- Settled answers, one per line: - D-01 <decision> — "<the owner's sentence>" -->
 - D-01 Deleting an approved or done ticket passes only when its base version is already `status: dropped`; otherwise the pull request fails with a message saying how to fix it; an unapproved draft may still be deleted freely (A-09 narrowed) — owner chose option (a): "A"
 - D-02 An unapproved ticket may be deleted whatever its status (draft, open or archived); only an approved one must be dropped first — owner chose option (a): "A"
+- D-03 Repositories that already hold the workflow are out of scope; `accord upgrade` refreshing the script is its own ticket — owner chose option (a): "A"
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
@@ -84,3 +85,10 @@ Feature: BUG-LN-4
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
+Chosen: the deletion check plus `set +e`. In the lint-and-gate script (packages/core/src/scaffold/workflow.ts and this repository's .github/workflows/accord.yml), the deletion loop runs always, not only when the pull request is accord-only, and the "nothing to gate" exit moves below it. `is_dropped` takes a revision and a path. A ticket approved at the base that is deleted keeps setting has_code (BUG-LN-3's rule); when it is also not dropped at the base the script prints its id, says to run `accord drop <id>`, merge the default branch into this branch and push, and sets code=1. A ticket whose base status is dropped but whose reason the script cannot read gets its own line saying to fix the `## Dropped` reason on the default branch, never the `accord drop` advice that command would refuse. A failing listing of deleted files fails with a line of its own. `set +e` goes ahead of `set -uo pipefail` with a comment that GitHub starts the script with -e and this line undoes it; `shell: bash` stays. The emitted comments that said deletion never fails are rewritten, and the "nothing to gate" line is not printed after a deletion error.
+The verify skill's local stand-in for the check (packages/core/skills/verify/ci.md, rendered with `npm run gen`) applies the same deletion rule, so verify cannot report green on a branch the check will fail.
+Rejected: deletion check alone, relying on every command staying inside a condition — one later unguarded line ends the script early, which @ac-4 forbids. A custom `shell:` line without -e — lost when anyone edits the step, and the tests could no longer use GitHub's default flags that @ac-4 names.
+Affected: workflow.ts, .github/workflows/accord.yml, packages/core/skills/verify/ci.md and its rendered copies, packages/cli/test/workflow-script.test.ts, accord/tests-baseline.txt (the A-09 line goes).
+Risks (critic, all Should, all taken into the plan): no test fails without `set +e` because today's script already survives -e, so a mutation probe inserts a bare `false` and shows lint and gate still run with the line and stop without it; the stub prints nothing, so it gains an output marker the tests assert for "printed"; an accord-only test set would not see the loop guard come back, so one @ac-1 case also changes code; the new cases join the replay against this repository's copy. Kept: a dropped ticket deleted with a new draft still gates the draft, as today. Out: repositories initialised before this release keep the gap until the upgrade ticket (D-03); the same false comment in .github/workflows/ci.yml, a different step.
+Failure scenarios (data deletion): an existing install upgrades and still merges a delete-only pull request (undone by D-03's ticket; the file stays recoverable from history); verify's local check misses a deletion (closed by the ci.md change); a lint-valid dropped ticket the script cannot read blocks its own deletion (the separate message names the fix; worst case the file stays, nothing is lost).
+Tests: all in workflow-script.test.ts, executing the emitted script under `bash --noprofile --norc -eo pipefail` in temporary repositories: @ac-1 (approved_hash, lane S ac_hash, with and without code), @ac-2 (the A-09 test reworked: dropped and unapproved at the base), @ac-3 (swap), @ac-4 (lint and gate fail together, plus the `false` probe and a flags probe).

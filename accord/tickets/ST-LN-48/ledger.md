@@ -10,6 +10,7 @@
 - task 7 done 9de7a1e3ffec
 - task 8 done 527c6264bb93
 - task 9 done 2106868bd36e
+- task 10 done 83669221c399
 
 ## Rulings
 

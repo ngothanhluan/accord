@@ -29,7 +29,7 @@ ui: false
 ## Intent
 <!-- At most five lines: why, for whom, how success is measured, and what this does not do. -->
 For teams that ran `accord init` on an earlier release: `accord upgrade` changes only the version pin in `.github/workflows/accord.yml`, so the lint-and-gate script stays as it was at init, and fixes such as BUG-LN-3's and BUG-LN-4's never reach them (BUG-LN-4 D-03 left this to its own ticket).
-Success: after `accord upgrade`, the workflow's one step named `lint and gate` is exactly the step the new release's `accord init` writes, and every other line of the file is unchanged; the upgrade pull request shows any hand edit inside that step being replaced.
+Success: after `accord upgrade`, the workflow's one step named `lint and gate` is exactly the step the new release's `accord init` writes, and every other line of the file is unchanged apart from the version pin; the upgrade pull request shows any hand edit inside that step being replaced.
 A workflow with no such step, or more than one, is still repinned as today, and upgrade prints a line saying the script was not refreshed and how to fix it.
 Not in scope: creating the workflow when it is absent (unchanged: nothing is written), refreshing anything outside that step, and keeping hand edits inside it (D-01).
 

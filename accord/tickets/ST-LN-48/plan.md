@@ -1,6 +1,6 @@
 ---
 baseline: 9d850dfd492b560fc661dd615a4a5db8ce68b1c9
-plan_hash: "fnv1a64:05521b965843dc74"
+plan_hash: "fnv1a64:21ebca0d5a77695a"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -15,10 +15,10 @@ the stage of every ticket (ac-3) and is the last task of the build stage: it is 
 session step 3 run just before it. Core keeps the ticket at build while any task is open
 (`packages/core/src/status/stage.ts:92`), so review starts only once Task 11 has its ledger line, and review then
 reviews Task 11 like every other task. The approved Approach runs `accord approve`, the fingerprints and the status
-diff last, at the verified commit: Main session step 7 is a required end step of review that reruns step 3 and
-rewrites `fingerprints.json` by Task 11's procedure whenever a ticket record or plan changed after Task 11, so a quote
-fixed at review is re-approved before its fingerprint is taken, and step 5 runs the status diff at the verified
-commit. Task 11 keeps its number.
+diff last, at the verified commit: Main session step 7 is a required end step of review, run after review's final
+review and its fixes and before `review.md`'s verdict is written, that reruns step 3 and rewrites `fingerprints.json`
+by Task 11's procedure whenever a record of a ticket other than ST-LN-48 changed after Task 11, so a quote fixed at
+review is re-approved before its fingerprint is taken, and step 5 runs the status diff at the verified commit. Task 11 keeps its number.
 
 The main session, not an executor, edits every file under the repository's top-level `accord/` folder (ticket
 records, `accord/product/conventions.md`, `accord/tests-baseline.txt`). The steps it takes, and before which task, are
@@ -496,18 +496,29 @@ letter.
 5. After step 7, at the verified commit, as verification evidence for ac-3: run the branch's
    `accord status --json --all` in a detached worktree of `d5db8c3` and on the branch, and compare `stage` for every
    ticket other than ST-LN-48; for a ticket step 6 names, compare against `accord status --json --all` run in a
-   detached worktree of the merged main commit instead, as D-08 decides.
+   detached worktree of the merged main commit instead, as D-08 decides. The branch's CLI refuses with exit 2 when a
+   repository's `accord/config.yml` pins another version (`packages/cli/src/run.ts:67-69`,
+   `packages/cli/src/pin.ts:14-16`), and `d5db8c3` pins `0.1.0`. So in each detached worktree, before running the
+   command, set its `accord/config.yml` key `accord:` to the branch's version (the `version` of
+   `packages/cli/package.json` on the branch); never commit that edit, and remove the worktree with
+   `git worktree remove --force` afterwards. Both sides then run the same stage logic.
 6. Merging origin/main. The owner's standing rule merges origin/main into this branch whenever the branch is behind,
    at any step; `base-stages.json` stays pinned at `d5db8c3`, as the Approach states, and each merge is handled here.
-   After every merge of origin/main: list the tickets whose records differ between `d5db8c3` and the merged main commit
+   On a merge conflict in any file under `accord/tickets/`, take origin/main's side for the whole file
+   (`git checkout --theirs -- <path>`, then `git add <path>`), never this branch's side or a hand mix: this branch's only
+   change to such a file is translation, so main's version keeps the owner's latest approved text, and step 2 below
+   translates it again. After every merge of origin/main: list the tickets whose records differ between `d5db8c3` and the merged main commit
    (`git diff --name-only d5db8c3 <merged main commit> -- accord/tickets/`); for each, run step 2 on its Vietnamese
    lines and step 3 with `B` the merged main commit (D-08); pass their ids to Task 11 (or to step 7's fix dispatch)
    as excluded from `fingerprints.json`, so the ac-3 test skips them; and rerun step 5, which compares them against
    the merged main commit, as D-08 decides. Then run Task 12's ac-1 test again.
-7. Required end step of review, before review is called converged: when any ticket record or plan under
-   `accord/tickets/` changed after Task 11's ledger line (a review fix, a translation fix, or a merge of origin/main),
-   rerun step 3, then dispatch a fresh executor on a review fix brief, written as review writes its fix briefs: the
+7. Required end step of review: run it after review's final review (accord-review step 7) and every fix that final
+   review leads to, and before the verdict line is written to `accord/tickets/ST-LN-48/review.md`. When any record
+   under `accord/tickets/` of a ticket other than ST-LN-48 changed after Task 11's ledger line (a review fix, a
+   translation fix, or a merge of origin/main), rerun step 3, then dispatch a fresh executor on a review fix brief, written as review writes its fix briefs: the
    ticket file copied byte for byte, then this plan's preamble and `## Task 11` section, then the two lines of
    step 3 and the line `Rewrite fingerprints.json only, by Task 11's procedure; base-stages.json stays as written.`.
    It rewrites `packages/core/test/fixtures/st-ln-48/fingerprints.json` and runs Task 11's ac-3 test, which must
-   pass. When nothing changed after Task 11, this step does nothing. Step 5 follows.
+   pass. When nothing changed after Task 11, this step does nothing. Whenever a later fix (including one this step's
+   own dispatch or a merge of origin/main brings) changes a record under `accord/tickets/` of a ticket other than
+   ST-LN-48, run this step again before the verdict is written. Step 5 follows.

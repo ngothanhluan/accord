@@ -46,7 +46,7 @@ Or install it globally and run `accord <command>`:
 npm i -g @accord-dev/accord@0.2.0
 ```
 
-The global install must be the same version the repository pins (see [Version pin](#7-version-pin)).
+The global install must be the same version the repository pins (see [Version pin](#7-version-pin-and-upgrading)).
 
 ### 2. Initialise a repository
 
@@ -88,7 +88,7 @@ All work starts from the `/accord` skill inside the agent session:
 | `/accord <request>` | New work. Accord proposes a lane with its reason; you may override it. |
 | `/accord continue <id>` | Resume a ticket at the stage and step it reached. |
 | `/accord pick-up <id>` | Claim an unclaimed ticket and start it. |
-| `/accord upgrade` | Move the repository to a newer accord release (see [Version pin](#7-version-pin)). |
+| `/accord upgrade` | Move the repository to a newer accord release (see [Version pin](#7-version-pin-and-upgrading)). |
 
 Lanes:
 
@@ -124,7 +124,7 @@ npx --yes @accord-dev/accord@0.2.0 skills sync
 
 ### 6. CLI commands for people and CI
 
-The skills call the CLI for you. These are the commands most useful to run by hand or in CI. Run `accord --help` for the full list, and `accord <command> --help` for each one.
+The skills call the CLI for you. These are the commands most useful to run by hand or in CI. Bare `accord` needs the global install at the pinned version; without it, put `npx --yes @accord-dev/accord@0.2.0` in place of `accord`. Run `accord --help` for the full list, and `accord <command> --help` for each one.
 
 | Command | What it does |
 |---|---|
@@ -140,9 +140,9 @@ The skills call the CLI for you. These are the commands most useful to run by ha
 | `accord worktree open <id>` | Find or prepare the ticket's worktree. |
 | `accord worktree clean` | Remove worktrees and branches of tickets done on the default branch. |
 
-### 7. Version pin
+### 7. Version pin and upgrading
 
-`accord/config.yml` pins an exact version in its `accord:` key, and the CI workflow and Claude Code hooks use the same one. Every command that reads the repository refuses with exit 2 when the running version differs (the `prompt-expansion` hook only warns, so a prompt is never blocked), and names the command to run instead, with the pinned version in place of 0.2.0:
+`accord/config.yml` pins an exact version in its `accord:` key, and the CI workflow and Claude Code hooks use the same one. Every command that reads the repository refuses with exit 2 when the running version differs (on a version mismatch the `prompt-expansion` hook only warns, so the prompt goes on), and names the command to run instead, with the pinned version in place of 0.2.0:
 
 ```sh
 npx --yes @accord-dev/accord@0.2.0 <command>

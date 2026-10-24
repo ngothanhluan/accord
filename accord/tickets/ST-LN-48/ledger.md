@@ -6,6 +6,7 @@
 - task 3 done 14fc3045b659
 - task 4 done 8a85c4183c7c
 - task 5 done 455e0f3d4f0d
+- task 6 done 938232fe8ef9
 
 ## Rulings
 
@@ -44,6 +45,7 @@
 - Ruling: merge of origin/main efdf4fb (plan step 6) changed only accord/tickets/ST-LN-44.md since 060a8a7; ST-LN-44 joins the four tickets of merge 103ec20: it takes step 2 and step 3 with `B` = efdf4fb, is excluded from fingerprints.json, and step 5 compares it against efdf4fb (D-08); no code changed, so the CLI build stays — cost if wrong: a ticket judged against the wrong base, caught by the step 5 status diff.
 - Ruling: (executor, task 1) the test and vietnameseLines were written together and the red step was shown by dropping U+0111 from the letter class (1 failed, Expected ['docs/notes/a.md:3'], Received []) — the brief gave both in one piece — cost if wrong: the red step is simulated, not a true red-first run.
 - Ruling: (executor, task 3) the hash.test.ts title "hashes the UTF-8 bytes, so diacritics change the value" is kept, as the plan says; no red step was possible, since normalise already keeps diacritics — cost if wrong: none.
+- Ruling: Task 6's affected run (4 files, 244 tests) failed only show-approval.test.ts "ac-1 every scenario of every real ticket is rebuilt exactly from the approval view", which passed alone in 213 s; it is the timeout the owner chose to track in ST-LN-44, not a Task 6 regression, so task 6 is recorded — cost if wrong: a real ac-1 break hidden as a timeout, caught by the full suite at verify.
 
 ## Deferred
 

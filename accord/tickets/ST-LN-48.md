@@ -59,7 +59,7 @@ Feature: ST-LN-48
     When the ticket records are translated and their hashes recomputed
     Then `accord status --json --all` on the cleaned branch reports the same `stage` for each of those tickets
 
-  @ac-4
+  @ac-4 @test:packages/core/test/gherkin.test.ts#dialects-(D-50)->-ac-4-fr-keywords-normalise-to-English-keyword-values-and-step-keywords-stay-French
   Scenario: Non-English coverage moves to another language
     Given the tests that used Vietnamese for these five traits: a Gherkin dialect whose Feature and Scenario keywords hold non-ASCII letters, a word whose marked letter stays marked through the reference matcher's normalising, so it never equals the word spelt with the bare letter, a title of single-code-point capitals with a diacritic cut by code point, a ticket id holding a non-ASCII letter, and EARS keywords inside non-ASCII prose
     When the cleanup is done

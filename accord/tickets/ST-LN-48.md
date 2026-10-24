@@ -1,6 +1,6 @@
 ---
 id: "ST-LN-48"                            # equals the file name: tickets/<id>.md
-title: "Remove all Vietnamese from tracked files before 0.2.0"
+title: "Remove all Vietnamese from tracked files before the next release"
 type: "story" # story | bug. An epic uses its own template
 status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
@@ -24,14 +24,14 @@ ui: false
 # The AC hash and the commit the ticks were made against.
 # verified_hash:
 # verified_commit:
-approved_hash: "fnv1a64:c727aaecb2384a97"
+approved_hash: "fnv1a64:2b2b040fb72c47d3"
 ac_hash: "fnv1a64:497d3c3e0ce81393"
 ---
 
 ## Intent
 <!-- At most five lines: why, for whom, how success is measured, and what this does not do. -->
 The repository is public, and the Vietnamese in its tracked files (owner quotes in ticket records, test fixtures, a doc) was never meant for its readers.
-For readers of the public repository, before the 0.2.0 release: main holds no Vietnamese, and a repository test keeps it out from now on.
+For readers of the public repository, before the next release: main holds no Vietnamese, and a repository test keeps it out from now on.
 Success: the new test passes on main, every ticket keeps the stage it had, and tests that covered non-English text still cover it in another language.
 Not done: git history is not rewritten; `accord lint` gains no rule, so accord users are not affected.
 

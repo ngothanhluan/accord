@@ -30,7 +30,7 @@
         "design": "https://example.com/design/uilink",
         "id": "UILINK",
         "status": "open",
-        "title": "Phiếu giao diện chỉ có đường dẫn thiết kế",
+        "title": "Interface ticket with only a design link",
         "type": "story",
         "ui": true
       },
@@ -38,7 +38,7 @@
       "requirements": [
         {
           "line": 14,
-          "text": "WHEN người dùng mở trang cài đặt the system SHALL hiển thị bố cục mới"
+          "text": "WHEN a user opens the settings page the system SHALL show the new layout"
         }
       ],
       "scenarios": [
@@ -46,10 +46,10 @@
           "acTag": "ac-1",
           "keyword": "Scenario",
           "line": 21,
-          "name": "Mở trang cài đặt",
+          "name": "Open the settings page",
           "steps": [
-            "When họ mở trang cài đặt",
-            "Then họ thấy bố cục mới"
+            "When they open the settings page",
+            "Then they see the new layout"
           ],
           "tags": [
             "@ac-1"
@@ -63,7 +63,7 @@
           "lines": [
             {
               "line": 11,
-              "text": "Người dùng thấy trang cài đặt được dựng lại."
+              "text": "Users see the rebuilt settings page."
             },
             {
               "line": 12,
@@ -77,7 +77,7 @@
           "lines": [
             {
               "line": 14,
-              "text": "- WHEN người dùng mở trang cài đặt the system SHALL hiển thị bố cục mới"
+              "text": "- WHEN a user opens the settings page the system SHALL show the new layout"
             },
             {
               "line": 15,
@@ -107,15 +107,15 @@
             },
             {
               "line": 21,
-              "text": "  Scenario: Mở trang cài đặt"
+              "text": "  Scenario: Open the settings page"
             },
             {
               "line": 22,
-              "text": "    When họ mở trang cài đặt"
+              "text": "    When they open the settings page"
             },
             {
               "line": 23,
-              "text": "    Then họ thấy bố cục mới"
+              "text": "    Then they see the new layout"
             },
             {
               "line": 24,
@@ -133,7 +133,7 @@
           "lines": [
             {
               "line": 27,
-              "text": "- [x] Đã rõ"
+              "text": "- [x] Clear"
             },
             {
               "line": 28,
@@ -147,7 +147,7 @@
           "lines": [
             {
               "line": 30,
-              "text": "- Dựng lại trang cài đặt @ac-1"
+              "text": "- Rebuild the settings page @ac-1"
             }
           ]
         }
@@ -158,7 +158,7 @@
       "frontmatter": {
         "id": "UIPROTO",
         "status": "open",
-        "title": "Phiếu giao diện có bản mẫu",
+        "title": "Interface ticket with a prototype",
         "type": "story",
         "ui": true
       },
@@ -166,7 +166,7 @@
       "requirements": [
         {
           "line": 13,
-          "text": "WHEN người dùng mở trang hồ sơ the system SHALL hiển thị bố cục mới"
+          "text": "WHEN a user opens the profile page the system SHALL show the new layout"
         }
       ],
       "scenarios": [
@@ -174,10 +174,10 @@
           "acTag": "ac-1",
           "keyword": "Scenario",
           "line": 20,
-          "name": "Mở trang hồ sơ",
+          "name": "Open the profile page",
           "steps": [
-            "When họ mở trang hồ sơ",
-            "Then họ thấy bố cục mới"
+            "When they open the profile page",
+            "Then they see the new layout"
           ],
           "tags": [
             "@ac-1"
@@ -191,7 +191,7 @@
           "lines": [
             {
               "line": 10,
-              "text": "Người dùng thấy trang hồ sơ được dựng lại."
+              "text": "Users see the rebuilt profile page."
             },
             {
               "line": 11,
@@ -205,7 +205,7 @@
           "lines": [
             {
               "line": 13,
-              "text": "- WHEN người dùng mở trang hồ sơ the system SHALL hiển thị bố cục mới"
+              "text": "- WHEN a user opens the profile page the system SHALL show the new layout"
             },
             {
               "line": 14,
@@ -235,15 +235,15 @@
             },
             {
               "line": 20,
-              "text": "  Scenario: Mở trang hồ sơ"
+              "text": "  Scenario: Open the profile page"
             },
             {
               "line": 21,
-              "text": "    When họ mở trang hồ sơ"
+              "text": "    When they open the profile page"
             },
             {
               "line": 22,
-              "text": "    Then họ thấy bố cục mới"
+              "text": "    Then they see the new layout"
             },
             {
               "line": 23,
@@ -261,7 +261,7 @@
           "lines": [
             {
               "line": 26,
-              "text": "- [x] Đã rõ"
+              "text": "- [x] Clear"
             },
             {
               "line": 27,
@@ -275,7 +275,7 @@
           "lines": [
             {
               "line": 29,
-              "text": "- Dựng lại trang hồ sơ @ac-1"
+              "text": "- Rebuild the profile page @ac-1"
             }
           ]
         }

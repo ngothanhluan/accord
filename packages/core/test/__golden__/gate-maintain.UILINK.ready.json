@@ -1,5 +1,5 @@
 {
-  "acHash": "fnv1a64:3f199d3ed4fe8c38",
+  "acHash": "fnv1a64:94d0715b011398cd",
   "findings": [
     {
       "file": "accord/tickets/UILINK.md",
@@ -12,7 +12,7 @@
       "file": "accord/tickets/UILINK.md",
       "level": "warning",
       "line": 21,
-      "reason": "scenario \"Mở trang cài đặt\" has no @test:<id> tag and is not @ui",
+      "reason": "scenario \"Open the settings page\" has no @test:<id> tag and is not @ui",
       "rule": "lint.test-tag-missing"
     }
   ],

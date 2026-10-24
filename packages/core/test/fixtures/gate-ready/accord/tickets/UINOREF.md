@@ -1,29 +1,29 @@
 ---
 id: UINOREF
-title: Phiếu giao diện thiếu tham chiếu
+title: Interface ticket missing a reference
 type: story
 status: open
 ui: true
 ---
 
 ## Intent
-Người dùng thấy màn hình đăng nhập mới.
+Users see the new sign-in screen.
 
 ## Requirements
-- WHEN người dùng mở trang đăng nhập the system SHALL hiển thị biểu mẫu mới
+- WHEN a user opens the sign-in page the system SHALL show the new form
 
 ## Acceptance criteria
 ```gherkin
 Feature: UINOREF
 
   @ac-1
-  Scenario: Mở trang đăng nhập
-    When họ mở trang đăng nhập
-    Then họ thấy biểu mẫu mới
+  Scenario: Open the sign-in page
+    When they open the sign-in page
+    Then they see the new form
 ```
 
 ## Open questions
-- [x] Đã rõ
+- [x] Clear
 
 ## Plan
-- Dựng biểu mẫu đăng nhập @ac-1
+- Build the sign-in form @ac-1

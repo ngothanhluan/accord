@@ -1,6 +1,6 @@
 ---
 id: THIN
-title: Phiếu rỗng ruột
+title: Hollow ticket
 type: story
 status: open
 ui: false
@@ -8,24 +8,24 @@ ui: false
 
 ## Intent
 
-<!-- BA viết phần này -->
+<!-- The BA writes this section -->
 
 ## Requirements
-- Màn hình phải nhanh
-- Người dùng thấy danh sách
+- The screen must be fast
+- Users see the list
 
 ## Acceptance criteria
 ```gherkin
 Feature: THIN
 
   @ac-1
-  Scenario: Xem danh sách
-    When họ mở trang danh sách
-    Then họ thấy danh sách
+  Scenario: View the list
+    When they open the list page
+    Then they see the list
 ```
 
 ## Open questions
-- [x] Đã rõ
+- [x] Clear
 
 ## Plan
-- Dựng trang danh sách @ac-1
+- Build the list page @ac-1

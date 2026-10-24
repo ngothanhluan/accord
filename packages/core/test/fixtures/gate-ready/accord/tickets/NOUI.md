@@ -1,29 +1,29 @@
 ---
 id: NOUI
-title: Phiếu không có giao diện
+title: Ticket without an interface
 type: story
 status: open
 ui: false
 ---
 
 ## Intent
-Hệ thống dọn phiên đăng nhập đã hết hạn mỗi đêm.
+The system cleans up expired sign-in sessions every night.
 
 ## Requirements
-- WHEN phiên đăng nhập hết hạn the system SHALL xoá phiên đó
+- WHEN a sign-in session expires the system SHALL delete that session
 
 ## Acceptance criteria
 ```gherkin
 Feature: NOUI
 
   @ac-1
-  Scenario: Xoá phiên hết hạn
-    When công việc đêm chạy
-    Then phiên hết hạn không còn
+  Scenario: Expired session is deleted
+    When the nightly job runs
+    Then the expired session is gone
 ```
 
 ## Open questions
-- [x] Đã rõ
+- [x] Clear
 
 ## Plan
-- Viết công việc dọn phiên @ac-1
+- Write the session cleanup job @ac-1

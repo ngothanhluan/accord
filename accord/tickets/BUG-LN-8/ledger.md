@@ -27,6 +27,9 @@
 ## Deferred
 - Nice (plan round 1.4): Task 1's `expected === fresh` assertion cannot fail; drop it and record whether 0.1.0's lines before the step match today's
 - Nice (plan round 2.1): rule 17 should say "every new test", so it does not clash with rule 12 keeping the existing upgrade tests unchanged
+- Nice (review round 1.2): a workflow that is invalid YAML is classed as `shape`, so its warning talks about block list items and anchors, which are not the cause (repin.ts:31, upgrade.ts:306)
+- Nice (final review 1): prose still says upgrade only moves pins: README.md:35, packages/cli/README.md:37, the header of upgrade.ts:1-4, repin.ts:1 ("gives undefined"), and the upgrade pull request body in packages/core/skills/accord/upgrade.md:19 (the skill line is the owner's call; option 2 was rejected)
+- Nice (final review 2): upgrade.test.ts repeats the clone, pin, commit and push setup that `upgradeOf` already does (ac-1, ac-2 loop, push-failure test), and the ac-2 test's local `init09` shadows the module-level one
 
 ## Tasks
 - task 1 done 865f65e174e2

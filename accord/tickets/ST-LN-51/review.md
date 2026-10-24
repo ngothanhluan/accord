@@ -13,3 +13,10 @@
 1. Should: "Only `--version` and `--help` run regardless" is false: `upgrade` also skips the pin check (run.ts), and the same section tells a 0.1.0 repository to run `upgrade` by hand (README.md, section 7).
 2. Nice: `git add accord .github .claude .agents AGENTS.md CLAUDE.md` fails with "pathspec did not match" when init did not write one of those folders, for example `.agents` under `runtimes: [claude]` (README.md, section 3).
 3. Nice: "write the copies again and commit what it prints" omits that `skills sync` never deletes copies of a removed runtime; it only reports them (README.md, section 5).
+
+## Round 3
+
+1. Should: "Nothing else needs installing per person beyond Node" is false: the skills run a bare `accord`, and only Claude Code's session hook tells the agent to fall back to npx, so a Codex, Cursor or Copilot teammate without a global install at the pinned version fails every command (README.md, sections 1, 3 and 5).
+2. Nice: section 8 says `npm rebuild` links the `accord` command "that the hooks call", but the hooks run npx; the skills call `accord` (README.md, section 8).
+3. Nice: the skills list omits `accord-designer`, which the default `roles: [ba, dev, designer]` writes (README.md, section 2).
+4. Nice: "Every command that reads the repository refuses with exit 2" is not true of `hook prompt-expansion`, which warns and exits 0 (README.md, section 7).

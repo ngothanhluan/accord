@@ -1,6 +1,6 @@
 ---
 baseline: 382e1ef6d5cfe788820e1f9fcc726795a9837ccd
-plan_hash: "fnv1a64:d360cf0d97fe6652"
+plan_hash: "fnv1a64:6a47279240fda0a7"
 ---
 
 # Plan: BUG-LN-4
@@ -47,6 +47,7 @@ Each: exit 1; `calls` is one entry ending in ` lint`; `out` contains `OLD-1: an 
 3. `DRAFT_TICKET` with `DRAFT-1` replaced by `OLD-1` (draft, not approved).
 4. `NO_KEY_TICKET` with `status: open` replaced by `status: archived`.
 5. `NO_KEY_TICKET`, and `seed` also writes `accord/tickets/OLD-1/plan.md` (`# Plan\n`); `change` removes the file and the folder (`rmSync(join(r, 'accord', 'tickets', 'OLD-1'), { recursive: true })`), so the ticket goes with its folder.
+6. A block-scalar lane with no approval record (no `approved_hash`, no `ac_hash`, no `verified` key): `---\nid: OLD-1\nstatus: open\nlane: >-\n  M\n---\n\n## Intent\nold\n` (`fm_at` settles it, `approved_at` reads it as unapproved). This case fails if the lane-value-not-on-its-key-line check in `protected_at` runs before the `ac_hash` presence check.
 
 Each: exit 0; `calls` is one entry ending in ` lint`, so no ` gate done ` ran; `out` contains `NOTHING_TO_GATE`.
 
@@ -59,8 +60,8 @@ Test helper changes:
 - Add `protected_at`, defined after `approved_at`, with this comment and body (bracket expressions `[[]` and `[]]` stand for the brackets, because the emitted text holds no backslash):
 ```
           # Protected at revision $1 means deleting path $2 needs a drop first (D-01, D-04): an approved_hash key; a
-          # verified key whose value is not []; an ac_hash key on lane S or with no lane key. An unsettled read, or a
-          # lane key whose value is not on its key line, counts as protected.
+          # verified key whose value is not []; an ac_hash key on lane S, with no lane key, or with a lane key whose
+          # value is not on its key line. An unsettled read counts as protected.
           protected_at() {
             fm_at "$1" "$2"
             local rc=$?
@@ -68,13 +69,13 @@ Test helper changes:
             if [ "$rc" -ne 0 ]; then return 0; fi
             grep -Eq "^[[:space:]]*${qc}?approved_hash${qc}?[[:space:]]*:" <<< "$fm" && return 0
             if grep -Eq "^${qc}?verified${qc}?[[:space:]]*:" <<< "$fm" && ! grep -Eq "^${qc}?verified${qc}?[[:space:]]*:[[:space:]]*[[][[:space:]]*[]][[:space:]]*(#.*)?$" <<< "$fm"; then return 0; fi
-            grep -Eq "^${qc}?lane${qc}?[[:space:]]*:[[:space:]]*([|>][^#]*)?(#.*)?$" <<< "$fm" && return 0
             grep -Eq "^[[:space:]]*${qc}?ac_hash${qc}?[[:space:]]*:" <<< "$fm" || return 1
+            grep -Eq "^${qc}?lane${qc}?[[:space:]]*:[[:space:]]*([|>][^#]*)?(#.*)?$" <<< "$fm" && return 0
             grep -Eq "^${qc}?lane${qc}?[[:space:]]*:" <<< "$fm" || return 0
             grep -Eq "^${qc}?lane${qc}?[[:space:]]*:[[:space:]]*${qc}?S${qc}?[[:space:]]*(#.*)?$" <<< "$fm"
           }
 ```
-  A `verified:` key with any value other than `[]` (a flow list with an item, or an empty value followed by block items or by nothing) counts as ticked; that errs toward protection.
+  A `verified:` key with any value other than `[]` (a flow list with an item, or an empty value followed by block items or by nothing) counts as ticked; that errs toward protection. The lane-value-not-on-its-key-line check runs only after the `ac_hash` presence check, so a block-scalar lane alone, with no `approved_hash`, no `ac_hash` and no ticks, leaves the ticket unprotected (D-02, DELETED_FREE case 6).
 - The deletion block no longer sits inside `if [ "$has_code" -eq 0 ]`; it always runs. Inside the loop, for a path matching `^accord/tickets/[^/]+[.]md$`: `if approved_at "$BASE" "$old"; then has_code=1; fi` (BUG-LN-3's rule, kept as today); `protected_at "$BASE" "$old" || continue`; derive `gone_id=${old#accord/tickets/}` and `gone_id=${gone_id%.md}`; then `rc=0; is_dropped "$BASE" "$old" || rc=$?` (never a bare `is_dropped` statement, which `-e` would end the script on); when `rc` is not 0, `echo` the fix line of the shared rules with `$gone_id` for `<t>`, `deletion_failed=1`, `code=1`. Set `deletion_failed=0` before the block. A failing deletion listing keeps setting `has_code=1` as today.
 - The no-ticket block (`if [ -z "$tickets" ]; then ... exit $code; fi`) moves below the deletion block, and prints `no ticket file changed in this pull request - nothing to gate` only when `deletion_failed` is 0: `if [ "$deletion_failed" -eq 0 ]; then echo "..."; fi`, then `exit $code`.
 - Rewrite the comments that say deletion never fails: the one above `tickets=` says `--diff-filter=d` leaves deleted tickets out of the tickets to gate and the deletion check below decides whether a deletion may land (keep the `[^/]+` and `|| true` sentences); the one above the deletion block says an approved ticket deleted or renamed away counts as code, and a ticket protected at the base (`protected_at`) that is deleted or renamed away fails the check unless it is dropped at the base, while any other may be deleted (D-01, D-02, D-04). In `workflow.ts`, add one sentence to the header comment block (lines 26 to 29) saying a deleted ticket approved or done at the base fails the check unless its base version is dropped.

@@ -17,5 +17,11 @@
 14. Nice — Task 1 says is_dropped returns 1 otherwise, but its awk returns 3 — deferred
 
 ## Round 2 (whole)
-1. Should — protected_at checks the lane-not-on-key-line case before the ac_hash check, so a block-scalar lane alone protects an unapproved ticket, breaking D-02 and @ac-2 and disagreeing with Task 4's verify text; move it after the ac_hash check — open
+1. Should — protected_at checks the lane-not-on-key-line case before the ac_hash check, so a block-scalar lane alone protects an unapproved ticket, breaking D-02 and @ac-2 and disagreeing with Task 4's verify text; move it after the ac_hash check — fixed
 2. Nice — the fix line does not say to keep the deletion when merging the default branch hits a modify/delete conflict — deferred
+
+## Round 3 (diff)
+No findings
+
+## Closed
+Converged at round 3 with no open Must or Should; baseline tests green (79 files, 1514 passed, 3 skipped).

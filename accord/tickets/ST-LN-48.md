@@ -85,6 +85,7 @@ Feature: ST-LN-48
 - D-05 Translated ticket records get their hashes recomputed to match the translation, so done tickets stay done; the original approvals stay in git history — "A"
 - D-06 The check is a test of this repository only, reading the files git tracks, run by `npm test` and CI; `accord lint` gains no rule and accord users are not affected — "A"
 - D-07 docs/plans/aidlc-vs-accord.html is translated into English and kept where it is — "A"
+- D-08 For @ac-3, a ticket whose records a merge of origin/main into this branch changed is compared against the merged main commit, not against the commit the branch was made from; every other ticket is still compared against the commit the branch was made from — "Compare with the new main"
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->

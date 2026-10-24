@@ -30,6 +30,7 @@
 - Ruling: the plan critique adds a `security` lens — rewriting about 75 committed ticket records and their approval hashes is treated as a migration of approval data — cost if wrong: one extra critic's tokens.
 - Ruling: (planner) real tickets' `ac_hash` and `verified_hash` are never rewritten, and the criteria text (or lane S Understood/Done when) must hash the same at base and on the branch; this replaces the ac_hash/verified_hash part of the planner Ruling on recomputing hashes (plan_hash unchanged) — no real ticket's criteria hold Vietnamese, and a rewrite would hide an accidental edit — cost if wrong: a criterion that does hold Vietnamese stops the work and goes to the owner.
 - Ruling: plan step 6 does not forbid merging origin/main; merges follow the owner's standing rule (merge at once when behind) and each merge takes step 6's handling (re-judge hashes and stages at the merged main commit for the tickets the merge changed, exclude them from fingerprints.json) — the planner's ban contradicted an owner instruction, and the handling already covers a merge at any step — cost if wrong: more tickets judged against a second base, caught by the step 5 status diff.
+- Ruling: (planner) plan step 7's fix dispatch uses review's own fix-brief form (the ticket byte for byte, the plan preamble, the Task 11 section, the two step 3 lines and a "fingerprints.json only" line), as accord-review SKILL.md:37-41 defines it — cost if wrong: one extra brief-format rule for the main session to follow.
 
 ## Deferred
 
@@ -40,3 +41,7 @@
 - plan-review 1.12 (Nice): translations must not introduce the vague-wording phrases at packages/core/src/lint/ticket.ts:41.
 - plan-review 2.4 (Nice): step 3's "every ticket" must read "every ticket other than ST-LN-48", so ST-LN-48.md is never reverted.
 - plan-review 2.5 (Nice): a merged file outside accord/tickets/ holding Vietnamese goes to a fix task translated by the preamble rules.
+- plan-review 3.5 (Nice): after Task 10, the main session dispatches Task 12 before Task 11, although `accord anchor` names Task 11 first; Task 11's brief needs step 3's two lines.
+- plan-review 3.6 (Nice): step 7 fires only on records of a ticket other than ST-LN-48.
+- plan-review 3.7 (Nice): step 3's revert rule exempts every ticket step 6 names as well as step 2's list.
+- plan-review 3.8 (Nice): stage-baseline.test.ts gets a one-line header comment saying it pins d5db8c3's stage map and how to regenerate base-stages.json.

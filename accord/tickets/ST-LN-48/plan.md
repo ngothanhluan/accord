@@ -11,10 +11,14 @@ repository that it fails and names the file and line (ac-2). Task 2 pins the Eng
 move the five non-English traits to French; Task 6 holds the Gherkin dialect test that maps ac-4. Tasks 7 to 10 put
 the remaining fixture and test prose into English, family by family. Task 12 translates the HTML doc and adds the
 ac-1 test over every tracked file, which passes only once Tasks 1 to 10 and Main session step 2 are done. Task 11 pins
-the stage of every ticket (ac-3) and is built last, after Task 12, after the last review round of the other tasks and
-after Main session step 3: the approved Approach runs `accord approve`, the fingerprints and the status diff last, at
-the verified commit, so a quote fixed at review is re-approved before its fingerprint is taken. Task 11 keeps its
-number.
+the stage of every ticket (ac-3) and is the last task of the build stage: it is built right after Task 12, with Main
+session step 3 run just before it. Core keeps the ticket at build while any task is open
+(`packages/core/src/status/stage.ts:92`), so review starts only once Task 11 has its ledger line, and review then
+reviews Task 11 like every other task. The approved Approach runs `accord approve`, the fingerprints and the status
+diff last, at the verified commit: Main session step 7 is a required end step of review that reruns step 3 and
+rewrites `fingerprints.json` by Task 11's procedure whenever a ticket record or plan changed after Task 11, so a quote
+fixed at review is re-approved before its fingerprint is taken, and step 5 runs the status diff at the verified
+commit. Task 11 keeps its number.
 
 The main session, not an executor, edits every file under the repository's top-level `accord/` folder (ticket
 records, `accord/product/conventions.md`, `accord/tests-baseline.txt`). The steps it takes, and before which task, are
@@ -378,14 +382,16 @@ Goldens: `fixture verification-edges` (snapshot and lint), `gate case verificati
 Must not change: what each edited test asserts beyond the text; every finding's line, level and rule.
 
 ## Task 11: Every ticket keeps the stage it had on the base commit
-covers: @ac-3, D-05
+covers: @ac-3, D-05, D-08
 files: packages/core/test/stage-baseline.test.ts (new), packages/core/test/fixtures/st-ln-48/base-stages.json (new), packages/core/test/fixtures/st-ln-48/fingerprints.json (new)
 verify: packages/core/test/stage-baseline.test.ts#ac-3-every-ticket-keeps-the-stage-it-had-on-the-base-commit (@ac-3)
 
-Precondition: this task is built last, after Task 12 and after the last review round of Tasks 1 to 10 and 12, and the
-main session has done Main session steps 2 and 3 (ticket records translated and reviewed, then `accord approve` and
-`plan_hash` done). Its brief says so and lists the ids that Main session step 6 excludes (none when origin/main was
-never merged). When the brief does not say so, stop and report it.
+Precondition: this task is the last task of the build stage, built right after Task 12, and the main session has done
+Main session steps 2 and 3 (ticket records translated, then `accord approve` and `plan_hash` done). `accord brief`
+writes only the ticket, the preamble, this task and conventions.md, so the main session appends two lines to the
+brief file before dispatching this task (Main session step 3): one saying steps 2 and 3 are done, and one listing the
+ids that Main session step 6 excludes (`none` when origin/main was never merged). When the brief lacks either line,
+stop and report it.
 
 Consumes: `loadSnapshot` and `statusRows` from `../src/index.js`, `readDir` from `./helpers/fixture.js`, and
 `createHash` from `node:crypto`. Produces: the pinned stage map of commit `d5db8c3`, the fingerprints of the cleaned
@@ -417,7 +423,9 @@ functions and is deleted before the task ends:
   `git worktree remove --force <tmp>`.
 - `fingerprints.json`: for every id of `base-stages.json` except the ids the brief lists as excluded by Main session
   step 6, `fingerprint(accordInput(<repository root>).files, id)`, sorted keys, two-space indent. `base-stages.json`
-  is always taken at `d5db8c3`, merge or not.
+  is always taken at `d5db8c3`, merge or not. The excluded ids are the tickets a merge of origin/main changed, which
+  D-08 compares against the merged main commit instead; Main session steps 5 and 6 make that comparison, so this test
+  skips them.
 - When the test then fails, a stage moved: stop and report the listed lines; do not edit a ticket record.
 
 Must not change: every other test, fixture and helper.
@@ -468,9 +476,11 @@ letter.
    does, stop and ask the owner. Then run `npx vitest run packages/core/test/benchmark-compliance.test.ts`: its ac-4
    test reads `BUG-LN-3` and `ST-LN-7` `ledger.md` and `review.md` (line 23) and must stay green; when it fails, fix
    the translation, never the test.
-3. After the last review round of Tasks 1 to 10 and 12, before Task 11 (D-05; the Approach runs `accord approve`
-   last, at the verified commit). The base `B` of a ticket is `d5db8c3`, or the merged main commit for a ticket step 6
-   names. With core, at `B` (a detached worktree) and on the branch, compute per ticket `approvedHash(ticket)`,
+3. In the build stage, after Task 12 has its ledger line and just before dispatching Task 11 (D-05); step 7 runs it
+   again at the end of review, so `accord approve` still runs last, at the verified commit, as the Approach says.
+   Write the brief with `accord brief ST-LN-48 11` into its file, then append two lines to that file before the
+   dispatch: `Main session steps 2 and 3 are done.` and `Excluded by Main session step 6: <ids, or none>.`. The base
+   `B` of a ticket is `d5db8c3`, or, by D-08, the merged main commit for a ticket step 6 names. With core, at `B` (a detached worktree) and on the branch, compute per ticket `approvedHash(ticket)`,
    `readyHash(ticket)`, `acHash(ticket.scenarios)` and the plan's `bodyHash`, and note at `B` which recorded key
    (`approved_hash`, `ac_hash`, `verified_hash`, `plan_hash`) equals its hash.
    - `readyHash` and `acHash` must be equal at `B` and on the branch for every ticket. Where one differs, an edit
@@ -483,15 +493,21 @@ letter.
      `bodyHash` changed (ledger Ruling 16); every other `plan_hash` is left as written.
 4. Before Task 12: replace each `old id -> new id` pair that Tasks 3, 4 and 6 report in place in
    `accord/tests-baseline.txt` (ledger Ruling 4).
-5. After Task 11, at the verified commit, as verification evidence for ac-3: run the branch's
+5. After step 7, at the verified commit, as verification evidence for ac-3: run the branch's
    `accord status --json --all` in a detached worktree of `d5db8c3` and on the branch, and compare `stage` for every
    ticket other than ST-LN-48; for a ticket step 6 names, compare against `accord status --json --all` run in a
-   detached worktree of the merged main commit instead. A ticket record edited after Task 11 (a review fix) gets
-   step 3 again and a fix task that rewrites `fingerprints.json` by Task 11's procedure.
+   detached worktree of the merged main commit instead, as D-08 decides.
 6. Merging origin/main. The owner's standing rule merges origin/main into this branch whenever the branch is behind,
    at any step; `base-stages.json` stays pinned at `d5db8c3`, as the Approach states, and each merge is handled here.
    After every merge of origin/main: list the tickets whose records differ between `d5db8c3` and the merged main commit
    (`git diff --name-only d5db8c3 <merged main commit> -- accord/tickets/`); for each, run step 2 on its Vietnamese
-   lines and step 3 with `B` the merged main commit; pass their ids to Task 11 (or to a fix task that reruns its
-   fingerprint procedure) as excluded from `fingerprints.json`, so the ac-3 test skips them; and rerun step 5, which
-   compares them against the merged main commit. Then run Task 12's ac-1 test again.
+   lines and step 3 with `B` the merged main commit (D-08); pass their ids to Task 11 (or to step 7's fix dispatch)
+   as excluded from `fingerprints.json`, so the ac-3 test skips them; and rerun step 5, which compares them against
+   the merged main commit, as D-08 decides. Then run Task 12's ac-1 test again.
+7. Required end step of review, before review is called converged: when any ticket record or plan under
+   `accord/tickets/` changed after Task 11's ledger line (a review fix, a translation fix, or a merge of origin/main),
+   rerun step 3, then dispatch a fresh executor on a review fix brief, written as review writes its fix briefs: the
+   ticket file copied byte for byte, then this plan's preamble and `## Task 11` section, then the two lines of
+   step 3 and the line `Rewrite fingerprints.json only, by Task 11's procedure; base-stages.json stays as written.`.
+   It rewrites `packages/core/test/fixtures/st-ln-48/fingerprints.json` and runs Task 11's ac-3 test, which must
+   pass. When nothing changed after Task 11, this step does nothing. Step 5 follows.

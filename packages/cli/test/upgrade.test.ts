@@ -146,3 +146,47 @@ it('ac-1 upgrade replaces the lint and gate step of a 0.1.0 workflow with the st
   const steps = Object.values(doc.jobs).flatMap((j) => j.steps).filter((s) => s.name === 'lint and gate');
   expect(steps).toHaveLength(1);
 });
+
+it('ac-2 upgrade replaces only the lint and gate step and keeps every other line of the workflow', async () => {
+  const init09 = initFiles({ name, version: '0.0.9' }).find((f) => f.path === '.github/workflows/accord.yml')!.text;
+  const edit = '        working-directory: app\n';
+  const shell = '        shell: bash\n';
+  expect(init09).toContain(shell);
+  const tail = `      # team note about the step\n\n      - name: team check\n        run: echo team\n  extra:\n    runs-on: ubuntu-latest\n    steps:\n      - run: npx --yes ${name}@0.0.9 lint\n`;
+  const team = init09.replace(shell, shell + edit) + tail;
+  const expectedTeam = team.replace(edit, '').split(`${name}@0.0.9`).join(`${name}@${v}`);
+
+  const shallow = (s: string) => {
+    const lines = s.split('\n');
+    const from = lines.findIndex((l) => l.startsWith('      - uses:'));
+    const to = lines.indexOf('  extra:');
+    expect(from).toBeGreaterThan(-1);
+    expect(to).toBeGreaterThan(from);
+    return lines.map((l, i) => (i >= from && i < to && l !== '' ? l.slice(2) : l)).join('\n');
+  };
+  const crlf = (s: string) => s.replace(/\n/g, '\r\n');
+
+  const cases = [
+    { label: 'plain', input: team, expected: expectedTeam, attrs: false },
+    { label: 'crlf', input: crlf(team), expected: crlf(expectedTeam), attrs: true },
+    { label: 'indent', input: shallow(team), expected: shallow(expectedTeam), attrs: false },
+  ];
+  for (const k of cases) {
+    const c = makeClone();
+    clones.push(c);
+    const o = c.otherClone();
+    const cfg = readFileSync(join(o, 'accord/config.yml'), 'utf8');
+    writeFiles(o, {
+      'accord/config.yml': cfg.replace(/^accord: .*$/m, 'accord: "0.0.9"'),
+      '.github/workflows/accord.yml': k.input,
+      ...(k.attrs ? { '.gitattributes': '* -text\n' } : {}),
+    });
+    commitMsg(o, 'pin 0.0.9 ' + k.label);
+    gitRun(o, 'push', '-q', 'origin', 'main');
+    const r = await run(['upgrade'], c.root);
+    expect(r.code, `${k.label}: ${r.err}`).toBe(0);
+    expect(r.out).toBe(`branch: upgrade/${v}\nbase: main\ntitle: upgrade: accord ${v}\n`);
+    expect(r.err).not.toContain('was not refreshed');
+    expect(gitRun(c.remote, 'show', `upgrade/${v}:.github/workflows/accord.yml`), k.label).toBe(k.expected);
+  }
+});

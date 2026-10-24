@@ -29,7 +29,7 @@
     {
       "file": "accord/tickets/PARSE-ERROR.md",
       "line": 15,
-      "reason": "expected: #EOF, #TableRow, #DocStringSeparator, #StepLine, #TagLine, #ExamplesLine, #ScenarioLine, #RuleLine, #Comment, #Empty, got 'Đây là dòng sai'",
+      "reason": "expected: #EOF, #TableRow, #DocStringSeparator, #StepLine, #TagLine, #ExamplesLine, #ScenarioLine, #RuleLine, #Comment, #Empty, got 'This is a bad line'",
       "rule": "load.gherkin-parse"
     }
   ],
@@ -99,7 +99,7 @@
             },
             {
               "line": 9,
-              "text": "<!-- Viết các kịch bản Gherkin ở đây -->"
+              "text": "<!-- Write the Gherkin scenarios here -->"
             },
             {
               "line": 10,
@@ -111,6 +111,140 @@
           "heading": "Plan",
           "line": 11,
           "lines": []
+        }
+      ]
+    },
+    "FR": {
+      "file": "accord/tickets/FR.md",
+      "frontmatter": {
+        "id": "FR",
+        "status": "open",
+        "title": "t",
+        "type": "story",
+        "ui": false
+      },
+      "id": "FR",
+      "requirements": [],
+      "scenarios": [
+        {
+          "acTag": "ac-1",
+          "keyword": "Scenario",
+          "line": 17,
+          "name": "Connexion",
+          "steps": [
+            "Soit un utilisateur",
+            "Quand il se connecte",
+            "Alors il voit le tableau de bord"
+          ],
+          "tags": [
+            "@ac-1"
+          ]
+        },
+        {
+          "acTag": "ac-2",
+          "keyword": "Scenario Outline",
+          "line": 22,
+          "name": "Plusieurs",
+          "steps": [
+            "Soit un utilisateur",
+            "Soit <a>",
+            "Examples: | a | | 1 |"
+          ],
+          "tags": [
+            "@ac-2"
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "heading": "Acceptance criteria",
+          "line": 7,
+          "lines": [
+            {
+              "line": 8,
+              "text": ""
+            },
+            {
+              "line": 9,
+              "text": "```gherkin"
+            },
+            {
+              "line": 10,
+              "text": "# language: fr"
+            },
+            {
+              "line": 11,
+              "text": "Fonctionnalité: FR"
+            },
+            {
+              "line": 12,
+              "text": ""
+            },
+            {
+              "line": 13,
+              "text": "Contexte:"
+            },
+            {
+              "line": 14,
+              "text": "  Soit un utilisateur"
+            },
+            {
+              "line": 15,
+              "text": ""
+            },
+            {
+              "line": 16,
+              "text": "@ac-1"
+            },
+            {
+              "line": 17,
+              "text": "Scénario: Connexion"
+            },
+            {
+              "line": 18,
+              "text": "  Quand il se connecte"
+            },
+            {
+              "line": 19,
+              "text": "  Alors il voit le tableau de bord"
+            },
+            {
+              "line": 20,
+              "text": ""
+            },
+            {
+              "line": 21,
+              "text": "@ac-2"
+            },
+            {
+              "line": 22,
+              "text": "Plan du scénario: Plusieurs"
+            },
+            {
+              "line": 23,
+              "text": "  Soit <a>"
+            },
+            {
+              "line": 24,
+              "text": ""
+            },
+            {
+              "line": 25,
+              "text": "  Exemples:"
+            },
+            {
+              "line": 26,
+              "text": "    | a |"
+            },
+            {
+              "line": 27,
+              "text": "    | 1 |"
+            },
+            {
+              "line": 28,
+              "text": "```"
+            }
+          ]
         }
       ]
     },
@@ -248,7 +382,7 @@
           "acTag": "ac-1",
           "keyword": "Scenario Outline",
           "line": 13,
-          "name": "Nhiều giá trị",
+          "name": "Many values",
           "steps": [
             "Given <a>",
             "Examples: | a | | 1 | | 2 |"
@@ -285,7 +419,7 @@
             },
             {
               "line": 13,
-              "text": "Scenario Outline: Nhiều giá trị"
+              "text": "Scenario Outline: Many values"
             },
             {
               "line": 14,
@@ -366,7 +500,7 @@
             },
             {
               "line": 15,
-              "text": "  Đây là dòng sai"
+              "text": "  This is a bad line"
             },
             {
               "line": 16,
@@ -392,7 +526,7 @@
           "acTag": "ac-1",
           "keyword": "Scenario",
           "line": 21,
-          "name": "Trong rule",
+          "name": "In the rule",
           "steps": [
             "Given fb",
             "Given rb",
@@ -438,7 +572,7 @@
             },
             {
               "line": 15,
-              "text": "Rule: Thanh toán"
+              "text": "Rule: Payment"
             },
             {
               "line": 16,
@@ -462,7 +596,7 @@
             },
             {
               "line": 21,
-              "text": "  Scenario: Trong rule"
+              "text": "  Scenario: In the rule"
             },
             {
               "line": 22,
@@ -492,7 +626,7 @@
           "acTag": "ac-1",
           "keyword": "Scenario",
           "line": 13,
-          "name": "Chuỗi và bảng",
+          "name": "String and table",
           "steps": [
             "Given a thing",
             "When a doc string \"\"\"hello world\"\"\"",
@@ -530,7 +664,7 @@
             },
             {
               "line": 13,
-              "text": "Scenario: Chuỗi và bảng"
+              "text": "Scenario: String and table"
             },
             {
               "line": 14,
@@ -591,7 +725,7 @@
         {
           "keyword": "Scenario",
           "line": 13,
-          "name": "Không thẻ",
+          "name": "No tag",
           "steps": [
             "Given a"
           ],
@@ -601,7 +735,7 @@
           "acTag": "ac-1",
           "keyword": "Scenario",
           "line": 17,
-          "name": "Hai thẻ",
+          "name": "Two tags",
           "steps": [
             "Given b"
           ],
@@ -615,7 +749,7 @@
           "acTag": "ac-3",
           "keyword": "Scenario",
           "line": 21,
-          "name": "Thẻ ba",
+          "name": "Third tag",
           "steps": [
             "Given c"
           ],
@@ -628,7 +762,7 @@
           "acTag": "ac-1",
           "keyword": "Scenario",
           "line": 25,
-          "name": "Trùng thẻ",
+          "name": "Duplicate tag",
           "steps": [
             "Given d"
           ],
@@ -664,7 +798,7 @@
             },
             {
               "line": 13,
-              "text": "Scenario: Không thẻ"
+              "text": "Scenario: No tag"
             },
             {
               "line": 14,
@@ -680,7 +814,7 @@
             },
             {
               "line": 17,
-              "text": "Scenario: Hai thẻ"
+              "text": "Scenario: Two tags"
             },
             {
               "line": 18,
@@ -696,7 +830,7 @@
             },
             {
               "line": 21,
-              "text": "Scenario: Thẻ ba"
+              "text": "Scenario: Third tag"
             },
             {
               "line": 22,
@@ -712,7 +846,7 @@
             },
             {
               "line": 25,
-              "text": "Scenario: Trùng thẻ"
+              "text": "Scenario: Duplicate tag"
             },
             {
               "line": 26,
@@ -725,153 +859,19 @@
           ]
         }
       ]
-    },
-    "VI": {
-      "file": "accord/tickets/VI.md",
-      "frontmatter": {
-        "id": "VI",
-        "status": "open",
-        "title": "t",
-        "type": "story",
-        "ui": false
-      },
-      "id": "VI",
-      "requirements": [],
-      "scenarios": [
-        {
-          "acTag": "ac-1",
-          "keyword": "Scenario",
-          "line": 17,
-          "name": "Đăng nhập",
-          "steps": [
-            "Cho một người dùng",
-            "Khi họ đăng nhập",
-            "Thì thấy bảng điều khiển"
-          ],
-          "tags": [
-            "@ac-1"
-          ]
-        },
-        {
-          "acTag": "ac-2",
-          "keyword": "Scenario Outline",
-          "line": 22,
-          "name": "Nhiều",
-          "steps": [
-            "Cho một người dùng",
-            "Cho <a>",
-            "Examples: | a | | 1 |"
-          ],
-          "tags": [
-            "@ac-2"
-          ]
-        }
-      ],
-      "sections": [
-        {
-          "heading": "Acceptance criteria",
-          "line": 7,
-          "lines": [
-            {
-              "line": 8,
-              "text": ""
-            },
-            {
-              "line": 9,
-              "text": "```gherkin"
-            },
-            {
-              "line": 10,
-              "text": "# language: vi"
-            },
-            {
-              "line": 11,
-              "text": "Tính năng: VI"
-            },
-            {
-              "line": 12,
-              "text": ""
-            },
-            {
-              "line": 13,
-              "text": "Bối cảnh:"
-            },
-            {
-              "line": 14,
-              "text": "  Cho một người dùng"
-            },
-            {
-              "line": 15,
-              "text": ""
-            },
-            {
-              "line": 16,
-              "text": "@ac-1"
-            },
-            {
-              "line": 17,
-              "text": "Kịch bản: Đăng nhập"
-            },
-            {
-              "line": 18,
-              "text": "  Khi họ đăng nhập"
-            },
-            {
-              "line": 19,
-              "text": "  Thì thấy bảng điều khiển"
-            },
-            {
-              "line": 20,
-              "text": ""
-            },
-            {
-              "line": 21,
-              "text": "@ac-2"
-            },
-            {
-              "line": 22,
-              "text": "Khung kịch bản: Nhiều"
-            },
-            {
-              "line": 23,
-              "text": "  Cho <a>"
-            },
-            {
-              "line": 24,
-              "text": ""
-            },
-            {
-              "line": 25,
-              "text": "  Dữ liệu:"
-            },
-            {
-              "line": 26,
-              "text": "    | a |"
-            },
-            {
-              "line": 27,
-              "text": "    | 1 |"
-            },
-            {
-              "line": 28,
-              "text": "```"
-            }
-          ]
-        }
-      ]
     }
   },
   "tree": [
     "accord/config.yml",
     "accord/tickets/BADLANG.md",
     "accord/tickets/EMPTY-AC.md",
+    "accord/tickets/FR.md",
     "accord/tickets/MULTI.md",
     "accord/tickets/OUTLINE.md",
     "accord/tickets/PARSE-ERROR.md",
     "accord/tickets/RULE.md",
     "accord/tickets/STEPS.md",
-    "accord/tickets/TAGS.md",
-    "accord/tickets/VI.md"
+    "accord/tickets/TAGS.md"
   ],
   "verifications": {}
 }

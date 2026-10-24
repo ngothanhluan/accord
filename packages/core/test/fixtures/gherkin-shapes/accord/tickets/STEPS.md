@@ -10,7 +10,7 @@ status: open
 Feature: STEPS
 
 @ac-1
-Scenario: Chuỗi và bảng
+Scenario: String and table
   Given  a   thing
   When a doc string
     """

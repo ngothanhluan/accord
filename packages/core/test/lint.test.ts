@@ -385,7 +385,7 @@ describe('fixture gherkin-shapes: pinned lint values', () => {
       ['lint.ac-tag-multiple', 17, 'error'],
       ['lint.ac-tag-duplicate', 25, 'error'],
     ]);
-    expect(ac[2].reason).toBe('@ac-1 is already used by scenario "Hai thẻ"');
+    expect(ac[2].reason).toBe('@ac-1 is already used by scenario "Two tags"');
   });
 });
 

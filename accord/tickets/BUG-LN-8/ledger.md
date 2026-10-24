@@ -19,3 +19,6 @@
 - Ruling: plan: steps are counted across every `jobs.*.steps` list — the ticket names "the workflow's one step" — a team job copying the step gets only the repin and the warning
 - Ruling: plan: @ac-1's expected text is the fixture's lines before the step plus the current step, and the test also asserts it equals `workflowYml` — the 0.1.0 bytes before the step were unchecked by the planner — none
 - Ruling: plan: a security-lens critic reads the plan beside the plain one — the change overwrites user text (approach failure scenarios) — one more critic
+
+## Deferred
+- Nice (plan round 1.4): Task 1's `expected === fresh` assertion cannot fail; drop it and record whether 0.1.0's lines before the step match today's

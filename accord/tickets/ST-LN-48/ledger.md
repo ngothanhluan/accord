@@ -65,6 +65,9 @@
 - Ruling: review finding "owner typos kept" (ST-LN-27 "sessino", ST-LN-25 "peermission") is not fixed — those words were English in the owner's original text, not translated, and the typo Ruling covers only Vietnamese rendered into English; correcting the owner's English would change an approved quote, not translate it — cost if wrong: two misspellings stay in English quotes.
 - Ruling: ST-LN-4 D-04's option "ask you" is rendered "ask the owner" (review round 1) — the agent-written label addressed the owner, and the Decision text names the owner; ST-LN-4 was re-approved and every key that matched at its base matches again (step 3 rerun, 64 checked, 0 bad) — cost if wrong: one quote reads in third person where the label used second.
 - Ruling: the show-approval ac-1 and workflow-script "gate done runs and its failure fails the job" timeouts in the integration reviewer's full runs were load timeouts (two full suites overlapping, about 1100 s each); each file passed alone (103 s and 112 s); the first is tracked in ST-LN-44 — cost if wrong: a real failure seen as load, caught by the verify full suite.
+- Ruling: the round 1 "owner typos kept" finding is classified Nice and deferred, not a Should — the misspelled words were English in the owner's source, so leaving them changes no meaning — cost if wrong: two misspellings stay in quotes.
+- Ruling: (final review) the ac-3 test skips a ticket whose records changed since fingerprints.json was taken and asserts only that some ticket is compared, reverting round 1's strict count — the test stays on main, where other tickets' records and stages move on purpose; the strict check is made once by the main session instead: at af7b6b4 the test compared 58 tickets, all 58 ids in fingerprints.json — cost if wrong: a stage move after verify is not caught by this test, only by the step 5 status diff at verify.
+- Ruling: plan step 7 ran after the final review: no record of a ticket other than ST-LN-48 changed after be1d626 (which retook ST-LN-4's fingerprint after its 2b6e861 re-approval); the step 3 rerun found 64 tickets checked, 0 mismatched, so no fix task was needed — cost if wrong: a stale approved_hash or fingerprint, caught by the step 5 status diff.
 
 ## Deferred
 
@@ -84,3 +87,4 @@
 - review 1 (Nice): `vietnameseLines`, `accordInput`, `stagesOf` and `fingerprint` are exported from test files though nothing imports them.
 - review 1 (Nice): packages/core/src/lint/ears.ts:4's comment still names Vietnamese letters as its example; "accented letters" would match refs.ts and snapshot.ts.
 - review 1 (Nice): BUG-LN-2.md:85 reads better as "Yes, all 3 (Recommended)"; ST-LN-25.md:105 and :116 as "Just do it in this ticket too".
+- review 1 (Nice): owner misspellings "sessino" (ST-LN-27.md:89, :105, ledger.md:5) and "peermission" (ST-LN-25.md:116) were English in the source and are kept; correcting them would need a re-approve.

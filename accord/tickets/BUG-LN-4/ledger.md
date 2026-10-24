@@ -25,3 +25,6 @@
 - Ruling: re-audit: verified ticks protect a ticket on any lane, not only without a lane — the Intent says "approved or done", and a tick is the done record — a lane M ticket with ticks but no approval must be dropped first
 - Ruling: re-audit: "base commit" stays the pull request's base sha, as BUG-LN-3 set; GitHub refreshes it on each push, so the merge-and-push in the fix message reaches the drop — a stale base needs one more push
 - Ruling: re-audit: @ac-2's "dropped" is what is_dropped reads (status dropped and a readable reason), matching the approved Approach's separate unreadable-reason line — a dropped ticket with an unreadable reason fails until the reason is fixed
+- Ruling: plan round 1: D-04's wider protection lives in a new protected_at used only by the deletion check, approved_at unchanged — keeps the per-ticket gating and BUG-LN-3's rule as they are — a second function to keep in step
+- Ruling: plan round 1: any verified: value other than [] counts as ticked — the script cannot read YAML, so it leans toward protection — a bare verified: line must be dropped before deletion
+- plan round 2.2: the fix line should say to keep the deletion on a modify/delete merge conflict

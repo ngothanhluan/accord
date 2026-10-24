@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { expect, it } from 'vitest';
 import { cleanup, commitMsg, gitRun, makeEmptyRepo, writeFiles } from './helpers/repo.js';
 
@@ -35,4 +36,8 @@ it('ac-2 the check fails on a committed d with stroke and names its path and lin
   } finally {
     cleanup(repo);
   }
+}, 60_000);
+
+it('ac-1 no tracked file holds a Vietnamese-only letter', () => {
+  expect(vietnameseLines(fileURLToPath(new URL('../../../', import.meta.url)))).toEqual([]);
 }, 60_000);

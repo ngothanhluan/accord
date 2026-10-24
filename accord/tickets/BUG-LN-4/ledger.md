@@ -19,6 +19,7 @@
 - Ruling: task 2: the swap and failing-listing tests passed before the change because task 1's script already held that behaviour; the unreadable-reason test was red first — the plan ordered the script ahead of these tests — none
 - Ruling: task 3: neither new test could fail first because task 1 already held `set +e`; the `false` probe's variant without `set +e` exits non-zero with no gate call, which shows the line is what keeps the run going — the red step moved into the probe — none
 - Ruling: task 3: the stub prints `npx stub failed: <args>` when it fails, beside task 2's `npx stub: <args>` — the both-fail assertions need to tell a failed gate from a passed one — only the stub's text
+- Ruling: task 4: the verify skill's rule reads "each such line is a failure: stop, nothing is pushed." in lowercase after "Then:", the phrase the test asserts — the plan's wording — cosmetic only
 
 ## Deferred
 - plan round 1.6: probe this repository's copy for `set +e` too
@@ -41,3 +42,4 @@
 - task 1 done 383a78a0b99c
 - task 2 done 56d7517168fd
 - task 3 done fa896d97cf6a
+- task 4 done bc6cf3f00abe

@@ -30,7 +30,7 @@
       "frontmatter": {
         "id": "EPIC-1",
         "status": "open",
-        "title": "Tài khoản và đăng nhập",
+        "title": "Comptes et connexion",
         "type": "epic",
         "ui": false
       },
@@ -38,7 +38,7 @@
       "requirements": [
         {
           "line": 12,
-          "text": "WHEN người dùng có tài khoản the system SHALL cho phép đăng nhập"
+          "text": "WHEN un utilisateur possède un compte the system SHALL permettre la connexion"
         }
       ],
       "scenarios": [],
@@ -49,7 +49,7 @@
           "lines": [
             {
               "line": 9,
-              "text": "Nhóm các câu chuyện về tài khoản."
+              "text": "Groups the stories about accounts and sign-in."
             },
             {
               "line": 10,
@@ -63,7 +63,7 @@
           "lines": [
             {
               "line": 12,
-              "text": "WHEN người dùng có tài khoản the system SHALL cho phép đăng nhập"
+              "text": "WHEN un utilisateur possède un compte the system SHALL permettre la connexion"
             },
             {
               "line": 13,
@@ -84,14 +84,14 @@
         "assumptions": [
           {
             "confirmed": true,
-            "text": "Người dùng đã có tài khoản"
+            "text": "L'utilisateur a déjà un compte"
           }
         ],
         "design": "https://www.figma.com/file/abc",
         "id": "LOGIN-1",
         "parent": "EPIC-1",
         "status": "open",
-        "title": "Đăng nhập bằng email",
+        "title": "Connexion par e-mail",
         "tracker": {
           "jira": "1e3",
           "shortcut": "1234"
@@ -106,11 +106,11 @@
       "requirements": [
         {
           "line": 25,
-          "text": "WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+          "text": "WHEN un utilisateur envoie un e-mail et un mot de passe valides the system SHALL donner accès au tableau de bord"
         },
         {
           "line": 26,
-          "text": "IF mật khẩu sai THEN the system SHALL hiển thị thông báo lỗi"
+          "text": "IF le mot de passe est erroné THEN the system SHALL afficher une erreur"
         }
       ],
       "scenarios": [
@@ -118,11 +118,11 @@
           "acTag": "ac-1",
           "keyword": "Scenario",
           "line": 37,
-          "name": "Đăng nhập thành công",
+          "name": "Connexion réussie",
           "steps": [
-            "Given một người dùng đã đăng ký",
-            "When họ gửi email và mật khẩu hợp lệ",
-            "Then họ thấy bảng điều khiển"
+            "Given un utilisateur déjà inscrit",
+            "When il envoie un e-mail et un mot de passe valides",
+            "Then il voit le tableau de bord"
           ],
           "tags": [
             "@ac-1"
@@ -132,11 +132,11 @@
           "acTag": "ac-2",
           "keyword": "Scenario",
           "line": 42,
-          "name": "Mật khẩu sai",
+          "name": "Mot de passe erroné",
           "steps": [
-            "Given một người dùng đã đăng ký",
-            "When họ gửi mật khẩu sai",
-            "Then họ thấy thông báo lỗi"
+            "Given un utilisateur déjà inscrit",
+            "When il envoie un mot de passe erroné",
+            "Then il voit une erreur"
           ],
           "tags": [
             "@ac-2"
@@ -150,11 +150,11 @@
           "lines": [
             {
               "line": 20,
-              "text": "Người dùng đăng nhập bằng email và mật khẩu để vào bảng điều khiển."
+              "text": "L'utilisateur se connecte avec son e-mail et son mot de passe pour accéder au tableau de bord."
             },
             {
               "line": 21,
-              "text": "Không hỗ trợ đăng nhập mạng xã hội trong phiên bản này."
+              "text": "La connexion sociale n'est pas prise en charge dans cette version."
             },
             {
               "line": 22,
@@ -172,11 +172,11 @@
             },
             {
               "line": 25,
-              "text": "- WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+              "text": "- WHEN un utilisateur envoie un e-mail et un mot de passe valides the system SHALL donner accès au tableau de bord"
             },
             {
               "line": 26,
-              "text": "- IF mật khẩu sai THEN the system SHALL hiển thị thông báo lỗi"
+              "text": "- IF le mot de passe est erroné THEN the system SHALL afficher une erreur"
             },
             {
               "line": 27,
@@ -210,7 +210,7 @@
             },
             {
               "line": 34,
-              "text": "    Given một người dùng đã đăng ký"
+              "text": "    Given un utilisateur déjà inscrit"
             },
             {
               "line": 35,
@@ -222,15 +222,15 @@
             },
             {
               "line": 37,
-              "text": "  Scenario: Đăng nhập thành công"
+              "text": "  Scenario: Connexion réussie"
             },
             {
               "line": 38,
-              "text": "    When họ gửi email và mật khẩu hợp lệ"
+              "text": "    When il envoie un e-mail et un mot de passe valides"
             },
             {
               "line": 39,
-              "text": "    Then họ thấy bảng điều khiển"
+              "text": "    Then il voit le tableau de bord"
             },
             {
               "line": 40,
@@ -242,15 +242,15 @@
             },
             {
               "line": 42,
-              "text": "  Scenario: Mật khẩu sai"
+              "text": "  Scenario: Mot de passe erroné"
             },
             {
               "line": 43,
-              "text": "    When họ gửi mật khẩu sai"
+              "text": "    When il envoie un mot de passe erroné"
             },
             {
               "line": 44,
-              "text": "    Then họ thấy thông báo lỗi"
+              "text": "    Then il voit une erreur"
             },
             {
               "line": 45,
@@ -268,7 +268,7 @@
           "lines": [
             {
               "line": 48,
-              "text": "- [x] Có cần ghi nhớ đăng nhập không? Không, để sau."
+              "text": "- [x] Faut-il mémoriser la connexion ? Non, pas dans cette version."
             },
             {
               "line": 49,
@@ -307,14 +307,14 @@
           "acTag": "ac-1",
           "evidence": "npm test -- login.spec.ts\ntest/login.spec.ts covers the happy path",
           "line": 9,
-          "name": "Đăng nhập thành công",
+          "name": "Connexion réussie",
           "result": "pass"
         },
         {
           "acTag": "ac-2",
           "evidence": "",
           "line": 17,
-          "name": "Mật khẩu sai",
+          "name": "Mot de passe erroné",
           "result": "fail"
         }
       ],

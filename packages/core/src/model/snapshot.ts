@@ -58,7 +58,7 @@ export interface Section {
 }
 
 export interface ScenarioRef {
-  name: string; // 'Đăng nhập thành công'
+  name: string; // 'Connexion réussie'
   keyword: 'Scenario' | 'Scenario Outline'; // English name in every dialect (D-50)
   line: number; // Markdown line of the Scenario keyword (D-46)
   tags: string[]; // every tag on the scenario, raw: ['@ac-1', '@smoke']

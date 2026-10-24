@@ -1,12 +1,12 @@
 ---
 id: EARS
-title: Phân loại EARS
+title: EARS classification
 type: story
 status: draft
 ---
 
 ## Intent
-Mỗi dòng yêu cầu là một trong sáu mẫu EARS.
+Each requirement line is one of the six EARS patterns.
 
 ## Requirements
 - The system shall log every request.
@@ -15,14 +15,14 @@ Mỗi dòng yêu cầu là một trong sáu mẫu EARS.
 - IF the password is wrong THEN the system SHALL show an error
 - Where the premium feature is enabled, the system shall show the export button
 - While the user is signed in, when the session expires, the system shall redirect to login
-- WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển
-- IF mật khẩu sai THEN the system SHALL hiển thị thông báo lỗi
-- WHEN người dùng có tài khoản the system SHALL cho phép đăng nhập
+- WHEN un utilisateur envoie un e-mail et un mot de passe valides the system SHALL donner accès au tableau de bord
+- IF le mot de passe est erroné THEN the system SHALL afficher une erreur
+- WHEN un utilisateur possède un compte the system SHALL permettre la connexion
 - WHEN the user clicks, it saves
 - The user logs in
 - The system must log it
 - WHEN x the system shall
-- Sau khi đăng nhập WHEN x the system shall y
+- Après la connexion WHEN x the system shall y
 - WHEN a WHEN b the system shall c
 - WHEN the system shall save
 - IF x the system shall y
@@ -34,12 +34,12 @@ Mỗi dòng yêu cầu là một trong sáu mẫu EARS.
 Feature: EARS
 
   @ac-1 @test:t#a
-  Scenario: Ghi nhật ký
-    When họ gửi yêu cầu
-    Then yêu cầu được ghi lại
+  Scenario: Write the log
+    When they send a request
+    Then the request is logged
 ```
 
 ## Open questions
 
 ## Plan
-- Ghi nhật ký @ac-1
+- Write the log @ac-1

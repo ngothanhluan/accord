@@ -5,14 +5,14 @@
       "file": "accord/tickets/LOGIN-1.md",
       "level": "warning",
       "line": 37,
-      "reason": "scenario \"Đăng nhập thành công\" has no @test:<id> tag and is not @ui",
+      "reason": "scenario \"Connexion réussie\" has no @test:<id> tag and is not @ui",
       "rule": "lint.test-tag-missing"
     },
     {
       "file": "accord/tickets/LOGIN-1.md",
       "level": "warning",
       "line": 42,
-      "reason": "scenario \"Mật khẩu sai\" has no @test:<id> tag and is not @ui",
+      "reason": "scenario \"Mot de passe erroné\" has no @test:<id> tag and is not @ui",
       "rule": "lint.test-tag-missing"
     },
     {

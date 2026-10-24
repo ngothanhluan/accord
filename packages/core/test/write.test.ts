@@ -33,7 +33,7 @@ describe('setFrontmatterKey (D-43, D-44, D-45)', () => {
     const lines = frontmatterLines(out);
     expect(lines).toContain('id: LOGIN-1                       # equals the file name');
     expect(lines).toContain('# ids in the tracker are strings even when they look numeric');
-    expect(lines).toContain('title: Đăng nhập bằng email');
+    expect(lines).toContain('title: Connexion par e-mail');
     expect(lines.slice(-3)).toEqual(['verified:', '  - "ac-1"', '  - "ac-2"']);
     expect(fromIntent(out)).toBe(fromIntent(login));
   });

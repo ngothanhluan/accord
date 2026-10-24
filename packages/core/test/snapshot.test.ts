@@ -99,24 +99,24 @@ describe('fixture valid-build: pinned values', () => {
     const [first, second] = snap.tickets['LOGIN-1'].scenarios;
     expect(snap.tickets['LOGIN-1'].scenarios).toHaveLength(2);
     expect(first).toEqual({
-      name: 'Đăng nhập thành công',
+      name: 'Connexion réussie',
       keyword: 'Scenario',
       line: 37,
       tags: ['@ac-1'],
       acTag: 'ac-1',
-      steps: ['Given một người dùng đã đăng ký', 'When họ gửi email và mật khẩu hợp lệ', 'Then họ thấy bảng điều khiển'],
+      steps: ['Given un utilisateur déjà inscrit', 'When il envoie un e-mail et un mot de passe valides', 'Then il voit le tableau de bord'],
     });
     expect(second).toMatchObject({ line: 42, acTag: 'ac-2', keyword: 'Scenario' });
-    expect(second.steps[0]).toBe('Given một người dùng đã đăng ký');
+    expect(second.steps[0]).toBe('Given un utilisateur déjà inscrit');
   });
 
   it('EARS lines keep their line and lose the list marker (FMT-05, D-41)', () => {
     expect(snap.tickets['LOGIN-1'].requirements).toEqual([
-      { line: 25, text: 'WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển' },
-      { line: 26, text: 'IF mật khẩu sai THEN the system SHALL hiển thị thông báo lỗi' },
+      { line: 25, text: 'WHEN un utilisateur envoie un e-mail et un mot de passe valides the system SHALL donner accès au tableau de bord' },
+      { line: 26, text: 'IF le mot de passe est erroné THEN the system SHALL afficher une erreur' },
     ]);
     expect(snap.tickets['EPIC-1'].requirements).toEqual([
-      { line: 12, text: 'WHEN người dùng có tài khoản the system SHALL cho phép đăng nhập' },
+      { line: 12, text: 'WHEN un utilisateur possède un compte the system SHALL permettre la connexion' },
     ]);
   });
 
@@ -134,11 +134,11 @@ describe('fixture valid-build: pinned values', () => {
     const [a, b] = snap.verifications['LOGIN-1'].blocks;
     expect(a).toEqual({
       acTag: 'ac-1',
-      name: 'Đăng nhập thành công',
+      name: 'Connexion réussie',
       line: 9,
       result: 'pass',
       evidence: 'npm test -- login.spec.ts\ntest/login.spec.ts covers the happy path',
     });
-    expect(b).toEqual({ acTag: 'ac-2', name: 'Mật khẩu sai', line: 17, result: 'fail', evidence: '' });
+    expect(b).toEqual({ acTag: 'ac-2', name: 'Mot de passe erroné', line: 17, result: 'fail', evidence: '' });
   });
 });

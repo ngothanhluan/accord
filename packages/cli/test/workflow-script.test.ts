@@ -54,7 +54,7 @@ const SCRIPT = scriptOf(
 
 // Read out of the script, never re-typed: the claim is "it prints the line it carries", and 07-03's
 // shape test already pins the wording.
-const NOTHING_TO_GATE = (/echo "([^"]+)"/.exec(SCRIPT) ?? [])[1] ?? '';
+const NOTHING_TO_GATE = (/echo "([^"]*nothing to gate)"/.exec(SCRIPT) ?? [])[1] ?? '';
 
 // A-25: one environment knob, because a Windows host whose PATH resolves `bash` to the WSL shim sees a
 // different filesystem and would fail for a reason that has nothing to do with the script.
@@ -113,8 +113,8 @@ interface Case {
   change: (repo: string) => void;
   seed?: (repo: string) => void;
   fail?: string;
+  base?: string;
 }
-const DROPPED_TICKET = '---\nid: OLD-1\nstatus: dropped\n---\n\n## Intent\nold\n\n## Dropped\nno longer needed\n';
 const NO_KEY_TICKET = '---\nid: OLD-1\nstatus: open\n---\n\n## Intent\nold\n';
 const addDrafts = (r: string): void => {
   write(r, 'accord/tickets/ST-8.md', DRAFT_TICKET);
@@ -149,56 +149,64 @@ const GATED: Array<Case & { id: string }> = [
       write(r, 'src/app.ts', CODE);
     },
   },
-  {
-    id: 'OLD-1',
-    change: (r) => {
-      write(r, 'accord/tickets/OLD-1.md', DROPPED_TICKET);
-      write(r, 'src/app.ts', CODE);
-    },
-  },
-  {
-    id: 'ST-8',
-    change: (r) => {
-      rmSync(join(r, 'docs', 'readme.md'));
-      write(r, 'accord/tickets/ST-8.md', DRAFT_TICKET);
-    },
-  },
-  {
-    // A rename that changes the id and drops approved_hash: the base version lives at the old path.
-    id: 'REN-2',
-    seed: (r) => write(r, 'accord/tickets/OLD-1.md', APPROVED_TICKET + 'body line\n'.repeat(30)),
-    change: (r) => {
-      rmSync(join(r, 'accord', 'tickets', 'OLD-1.md'));
-      write(
-        r,
-        'accord/tickets/REN-2.md',
-        APPROVED_TICKET.replace('OLD-1', 'REN-2').replace(/approved_hash.*\n/, '') + 'body line\n'.repeat(30),
-      );
-    },
-  },
-  {
-    // Same rename without padding: git sees delete plus add, so only the deleted approved ticket gates it.
-    id: 'REN-2',
-    change: (r) => {
-      rmSync(join(r, 'accord', 'tickets', 'OLD-1.md'));
-      write(r, 'accord/tickets/REN-2.md', APPROVED_TICKET.replace('OLD-1', 'REN-2').replace(/approved_hash.*\n/, ''));
-    },
-  },
   { id: 'NEW-1', change: (r) => write(r, 'accord/tickets/NEW-1.md', APPROVED_TICKET.replace('OLD-1', 'NEW-1')) },
-  { id: 'OLD-1', change: (r) => write(r, 'accord/tickets/OLD-1.md', NO_KEY_TICKET) },
-  {
-    // Dropped with no ## Dropped section is not dropped as lint defines it: the approved ticket is gated.
-    id: 'OLD-1',
-    change: (r) => write(r, 'accord/tickets/OLD-1.md', APPROVED_TICKET.replace('status: open', 'status: dropped')),
-  },
-  {
-    // A reason that is only a comment is no reason.
-    id: 'OLD-1',
-    change: (r) =>
-      write(r, 'accord/tickets/OLD-1.md', APPROVED_TICKET.replace('status: open', 'status: dropped') + '\n## Dropped\n<!-- why -->\n'),
-  },
   { id: 'OLD-1', change: (r) => write(r, 'accord/tickets/OLD-1.md', NO_KEY_TICKET), fail: 'OLD-1' },
 ];
+
+const rmOld = (r: string): void => rmSync(join(r, 'accord', 'tickets', 'OLD-1.md'));
+const DELETED_APPROVED: Case[] = [
+  { change: rmOld },
+  {
+    seed: (r) =>
+      write(r, 'accord/tickets/OLD-1.md', '---\nid: OLD-1\nstatus: open\nlane: S\nac_hash: "fnv1a64:0000000000000000"\n---\n\n## Understood\nx\n'),
+    change: rmOld,
+  },
+  {
+    change: (r) => {
+      rmOld(r);
+      write(r, 'accord/archive/OLD-1.md', APPROVED_TICKET);
+    },
+  },
+];
+const DELETED_FREE: Case[] = [
+  { seed: (r) => write(r, 'accord/tickets/OLD-1.md', droppedText('status: dropped')), change: rmOld },
+  {
+    seed: (r) => {
+      write(r, 'accord/tickets/OLD-1.md', NO_KEY_TICKET);
+      write(r, 'accord/tickets/OLD-1/plan.md', '# Plan\n');
+    },
+    change: (r) => {
+      rmOld(r);
+      rmSync(join(r, 'accord', 'tickets', 'OLD-1'), { recursive: true });
+    },
+  },
+];
+
+const SWAP_CHANGE = (r: string): void => {
+  rmOld(r);
+  write(r, 'accord/tickets/NEW-3.md', DRAFT_TICKET.replace('DRAFT-1', 'NEW-3'));
+};
+const SWAP: Case[] = [{ change: SWAP_CHANGE, fail: 'NEW-3' }];
+// A comment spanning lines is a reason the script's awk cannot settle.
+const UNREADABLE_REASON: Case = {
+  seed: (r) =>
+    write(
+      r,
+      'accord/tickets/OLD-1.md',
+      droppedText('status: dropped').replace('superseded by NEW-2\n', 'superseded by NEW-2\n<!-- note\nspanning lines -->\n'),
+    ),
+  change: rmOld,
+};
+const BOTH_FAIL: Case = {
+  change: (r) => {
+    write(r, 'accord/tickets/SIGNUP-1.md', 'id: SIGNUP-1\n');
+    write(r, 'accord/tickets/SIGNUP-2.md', 'id: SIGNUP-2\n');
+    write(r, 'src/app.ts', CODE);
+  },
+  fail: 'lint SIGNUP-1',
+};
+// A commit the repository does not hold, so every diff against it fails.
+const BAD_BASE: Case = { change: (r) => write(r, 'docs/note.md', 'new\n'), base: '0'.repeat(40) };
 
 interface Run {
   code: number;
@@ -236,7 +244,8 @@ function runScript(
       : '#!/bin/sh\n' +
           'printf \'%s\\n\' "$*" >> "$ACCORD_STUB_LOG"\n' +
           'last=\nfor a in "$@"; do last=$a; done\n' +
-          'if [ "$last" = "$ACCORD_STUB_FAIL" ]; then exit 1; fi\nexit 0\n',
+          'printf \'npx stub: %s\\n\' "$*"\n' +
+          'for f in $ACCORD_STUB_FAIL; do if [ "$last" = "$f" ]; then printf \'npx stub failed: %s\\n\' "$*"; exit 1; fi; done\nexit 0\n',
   );
   chmodSync(join(bin, 'npx'), 0o755);
   writeFileSync(join(repo, 'calls.log'), '');
@@ -248,7 +257,7 @@ function runScript(
     PATH: bin + delimiter + (process.env.PATH ?? ''),
     BASE: opts.base,
     ACCORD_STUB_LOG: 'calls.log',
-    ACCORD_STUB_FAIL: opts.fail ?? '--no invocation ends with this argument--',
+    ACCORD_STUB_FAIL: opts.fail ?? '',
     ACCORD_CLI: CLI,
   };
   const options = { cwd: repo, encoding: 'utf8' as const, env };
@@ -256,7 +265,7 @@ function runScript(
   let out: string;
   let err = '';
   try {
-    out = execFileSync(BASH, ['script.sh'], options);
+    out = execFileSync(BASH, ['--noprofile', '--norc', '-eo', 'pipefail', 'script.sh'], options);
   } catch (e) {
     const failure = e as { status?: number; stdout?: string; stderr?: string };
     code = failure.status ?? -1;
@@ -309,13 +318,64 @@ describe.skipIf(noBash)('the emitted workflow script — executed', { timeout: 6
     expect(result.out).not.toContain(NOTHING_TO_GATE);
   });
 
-  it('ticket-deleting diff: does not gate the ticket the pull request removes (A-09)', () => {
-    const { repo, base } = sandbox((r) => rmSync(join(r, 'accord', 'tickets', 'OLD-1.md')));
+  it('a deleted approved ticket not dropped at the base fails naming the ticket and accord drop', () => {
+    for (const c of DELETED_APPROVED) {
+      const { repo, base } = sandbox(c.change, c.seed);
+      const result = runScript(repo, { base });
+      expect(result.code, result.out + result.err).toBe(1);
+      expect(result.calls.length, result.calls.join(' | ')).toBe(1);
+      expect(result.calls[0].endsWith(' lint')).toBe(true);
+      for (const part of [
+        'OLD-1: an approved or done ticket cannot be deleted before it is dropped',
+        "restore the file if this is the ticket's own branch",
+        'accord drop OLD-1',
+        'merge the pull request of the drop/OLD-1 branch it pushes',
+        'merge the default branch into this branch and push',
+      ])
+        expect(result.out, part).toContain(part);
+      expect(result.out).not.toContain(NOTHING_TO_GATE);
+    }
+  });
+
+  it('a deleted ticket dropped at the base or not approved there passes without gate done', () => {
+    for (const c of DELETED_FREE) {
+      const { repo, base } = sandbox(c.change, c.seed);
+      const result = runScript(repo, { base });
+      expect(result.code, result.out + result.err).toBe(0);
+      expect(result.calls.length, result.calls.join(' | ')).toBe(1);
+      expect(result.calls[0].endsWith(' lint')).toBe(true);
+      expect(result.out).toContain(NOTHING_TO_GATE);
+    }
+  });
+
+  it('a swap of an approved ticket for an unapproved one fails naming the deleted ticket and still gates the new one', () => {
+    for (const c of SWAP) {
+      const { repo, base } = sandbox(c.change, c.seed);
+      const result = runScript(repo, { base, fail: c.fail });
+      expect(result.code, result.out + result.err).toBe(1);
+      expect(result.out).toContain('OLD-1: an approved or done ticket cannot be deleted before it is dropped');
+      expect(result.out).toContain('accord drop OLD-1');
+      expect(result.calls.length, result.calls.join(' | ')).toBe(2);
+      expect(result.calls[1].endsWith(' gate done NEW-3')).toBe(true);
+      expect(result.out).toContain('npx stub: ' + result.calls[1]);
+    }
+  });
+
+  it('risk:data-loss a deleted ticket dropped at the base with a reason the script cannot read fails naming the Dropped reason fix', () => {
+    const { repo, base } = sandbox(UNREADABLE_REASON.change, UNREADABLE_REASON.seed);
     const result = runScript(repo, { base });
-    expect(result.code, result.err).toBe(0);
-    expect(result.calls.length, result.calls.join(' | ')).toBe(1);
-    expect(result.calls[0].endsWith(' lint')).toBe(true);
-    expect(result.out).toContain(NOTHING_TO_GATE);
+    expect(result.code, result.out + result.err).toBe(1);
+    expect(result.out).toContain('OLD-1: dropped at the base but its ## Dropped reason cannot be read');
+    expect(result.out).not.toContain('accord drop OLD-1');
+    expect(result.out).not.toContain(NOTHING_TO_GATE);
+  });
+
+  it('risk:data-loss a failing listing of deleted files fails the check on a line of its own', () => {
+    const { repo } = sandbox(BAD_BASE.change);
+    const result = runScript(repo, { base: '0'.repeat(40) });
+    expect(result.code, result.out + result.err).toBe(1);
+    expect(result.out).toContain('could not list the files this pull request deletes');
+    expect(result.out).not.toContain(NOTHING_TO_GATE);
   });
 
   it('nested-path diff: accord/tickets/<id>/verification.md is not a ticket ([^/]+)', () => {
@@ -459,20 +519,58 @@ describe.skipIf(noBash)('the emitted workflow script — executed', { timeout: 6
     const own = named[0].run as string;
     const gatedIds = (calls: string[]): string[] =>
       calls.filter((c) => c.includes('gate done ')).map((c) => c.slice(c.indexOf('gate done ') + 'gate done '.length));
-    const all: Case[] = [...UNAPPROVED, ...DROPPED, NESTED_STATUS, ...GATED];
+    const all: Case[] = [...UNAPPROVED, ...DROPPED, NESTED_STATUS, ...GATED, ...DELETED_APPROVED, ...DELETED_FREE, ...SWAP, UNREADABLE_REASON, BAD_BASE, BOTH_FAIL];
+    const said = (out: string): string[] => out.split('\n').filter((l) => l !== '' && !l.startsWith('npx stub'));
     for (const c of all) {
       const results = [SCRIPT, own].map((script) => {
         const s = sandbox(c.change, c.seed);
-        return runScript(s.repo, { base: s.base, script, fail: c.fail });
+        return runScript(s.repo, { base: c.base ?? s.base, script, fail: c.fail });
       });
       expect(results[1].code, results[1].calls.join(' | ')).toBe(results[0].code);
       expect(gatedIds(results[1].calls)).toEqual(gatedIds(results[0].calls));
+      expect(said(results[1].out)).toEqual(said(results[0].out));
     }
     // 24+ sandboxes of git work: its own budget so load cannot time it out.
-  }, 300_000);
+  }, 600_000);
 
   // Task 2. Without this, "the test passes" and "the test would fail if the script were wrong" are two
   // different claims, and only the first is evidenced.
+  it('lint and a gate failing together under the CI shell flags are both printed and the check fails', () => {
+    const s = sandbox(BOTH_FAIL.change);
+    const r = runScript(s.repo, { base: s.base, fail: BOTH_FAIL.fail });
+    expect(r.code, r.out + r.err).toBe(1);
+    expect(r.calls.length, r.calls.join(' | ')).toBe(3);
+    expect(r.calls[0].endsWith(' lint')).toBe(true);
+    expect(r.calls[1].endsWith(' gate done SIGNUP-1')).toBe(true);
+    expect(r.calls[2].endsWith(' gate done SIGNUP-2')).toBe(true);
+    expect(r.out).toContain('npx stub failed: ' + r.calls[0]);
+    expect(r.out).toContain('npx stub failed: ' + r.calls[1]);
+    expect(r.out).toContain('npx stub: ' + r.calls[2]);
+    // Every case runs through runScript, so this probe shows the flags all of them run under.
+    const p = sandbox((repo) => write(repo, 'docs/note.md', 'x\n'));
+    const flags = runScript(p.repo, {
+      base: p.base,
+      script: '[[ $- == *e* ]] && echo errexit-on\n[[ -o pipefail ]] && echo pipefail-on\nexit 0\n',
+    });
+    expect(flags.out).toContain('errexit-on');
+    expect(flags.out).toContain('pipefail-on');
+  });
+
+  it('risk:regression set +e is what keeps lint and the gates running after a bare false under the errexit flag', () => {
+    const withFalse = SCRIPT.replace('set -uo pipefail\n', 'set -uo pipefail\nfalse\n');
+    expect(withFalse).not.toBe(SCRIPT);
+    const noUndo = withFalse.replace(/^set \+e$/m, '');
+    expect(noUndo).not.toBe(withFalse);
+    const a = sandbox(BOTH_FAIL.change);
+    const kept = runScript(a.repo, { base: a.base, script: withFalse });
+    expect(kept.code, kept.out + kept.err).toBe(0);
+    expect(kept.calls.length, kept.calls.join(' | ')).toBe(3);
+    const b = sandbox(BOTH_FAIL.change);
+    const lost = runScript(b.repo, { base: b.base, script: noUndo });
+    expect(lost.code).not.toBe(0);
+    expect(lost.calls.length, lost.calls.join(' | ')).toBe(0);
+  });
+
   it('mutation probe: the deletion filter and the level bound are what cause those two results', () => {
     // Both fragments are named in the script's own comments, and `replace` takes the FIRST match — so
     // each pattern below carries enough of the command around it to be unique to the command line. A

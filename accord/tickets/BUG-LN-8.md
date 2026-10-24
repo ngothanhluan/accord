@@ -48,7 +48,7 @@ Feature: BUG-LN-8
     Then the workflow on the upgrade branch holds one step named lint and gate
     And that step is byte for byte the step the newer release's accord init writes
 
-  @ac-2
+  @ac-2 @test:packages/cli/test/upgrade.test.ts#ac-2-upgrade-replaces-only-the-lint-and-gate-step-and-keeps-every-other-line-of-the-workflow
   Scenario: Upgrade keeps every other line of the workflow
     Given a workflow with one step named lint and gate that has a hand edit inside it, plus a step and a job the team added, and comment lines after the step
     When accord upgrade runs

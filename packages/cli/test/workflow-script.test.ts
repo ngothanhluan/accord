@@ -276,6 +276,14 @@ const UNREADABLE_REASON: Case = {
     ),
   change: rmOld,
 };
+const BOTH_FAIL: Case = {
+  change: (r) => {
+    write(r, 'accord/tickets/SIGNUP-1.md', 'id: SIGNUP-1\n');
+    write(r, 'accord/tickets/SIGNUP-2.md', 'id: SIGNUP-2\n');
+    write(r, 'src/app.ts', CODE);
+  },
+  fail: 'lint SIGNUP-1',
+};
 // A commit the repository does not hold, so every diff against it fails.
 const BAD_BASE: Case = { change: (r) => write(r, 'docs/note.md', 'new\n'), base: '0'.repeat(40) };
 
@@ -316,7 +324,7 @@ function runScript(
           'printf \'%s\\n\' "$*" >> "$ACCORD_STUB_LOG"\n' +
           'last=\nfor a in "$@"; do last=$a; done\n' +
           'printf \'npx stub: %s\\n\' "$*"\n' +
-          'if [ "$last" = "$ACCORD_STUB_FAIL" ]; then exit 1; fi\nexit 0\n',
+          'for f in $ACCORD_STUB_FAIL; do if [ "$last" = "$f" ]; then printf \'npx stub failed: %s\\n\' "$*"; exit 1; fi; done\nexit 0\n',
   );
   chmodSync(join(bin, 'npx'), 0o755);
   writeFileSync(join(repo, 'calls.log'), '');
@@ -328,7 +336,7 @@ function runScript(
     PATH: bin + delimiter + (process.env.PATH ?? ''),
     BASE: opts.base,
     ACCORD_STUB_LOG: 'calls.log',
-    ACCORD_STUB_FAIL: opts.fail ?? '--no invocation ends with this argument--',
+    ACCORD_STUB_FAIL: opts.fail ?? '',
     ACCORD_CLI: CLI,
   };
   const options = { cwd: repo, encoding: 'utf8' as const, env };
@@ -336,7 +344,7 @@ function runScript(
   let out: string;
   let err = '';
   try {
-    out = execFileSync(BASH, ['script.sh'], options);
+    out = execFileSync(BASH, ['--noprofile', '--norc', '-eo', 'pipefail', 'script.sh'], options);
   } catch (e) {
     const failure = e as { status?: number; stdout?: string; stderr?: string };
     code = failure.status ?? -1;
@@ -590,7 +598,7 @@ describe.skipIf(noBash)('the emitted workflow script — executed', { timeout: 6
     const own = named[0].run as string;
     const gatedIds = (calls: string[]): string[] =>
       calls.filter((c) => c.includes('gate done ')).map((c) => c.slice(c.indexOf('gate done ') + 'gate done '.length));
-    const all: Case[] = [...UNAPPROVED, ...DROPPED, NESTED_STATUS, ...GATED, ...DELETED_APPROVED, ...DELETED_FREE, ...SWAP, UNREADABLE_REASON, BAD_BASE];
+    const all: Case[] = [...UNAPPROVED, ...DROPPED, NESTED_STATUS, ...GATED, ...DELETED_APPROVED, ...DELETED_FREE, ...SWAP, UNREADABLE_REASON, BAD_BASE, BOTH_FAIL];
     const said = (out: string): string[] => out.split('\n').filter((l) => l !== '' && !l.startsWith('npx stub'));
     for (const c of all) {
       const results = [SCRIPT, own].map((script) => {
@@ -606,6 +614,42 @@ describe.skipIf(noBash)('the emitted workflow script — executed', { timeout: 6
 
   // Task 2. Without this, "the test passes" and "the test would fail if the script were wrong" are two
   // different claims, and only the first is evidenced.
+  it('lint and a gate failing together under the CI shell flags are both printed and the check fails', () => {
+    const s = sandbox(BOTH_FAIL.change);
+    const r = runScript(s.repo, { base: s.base, fail: BOTH_FAIL.fail });
+    expect(r.code, r.out + r.err).toBe(1);
+    expect(r.calls.length, r.calls.join(' | ')).toBe(3);
+    expect(r.calls[0].endsWith(' lint')).toBe(true);
+    expect(r.calls[1].endsWith(' gate done SIGNUP-1')).toBe(true);
+    expect(r.calls[2].endsWith(' gate done SIGNUP-2')).toBe(true);
+    expect(r.out).toContain('npx stub failed: ' + r.calls[0]);
+    expect(r.out).toContain('npx stub failed: ' + r.calls[1]);
+    expect(r.out).toContain('npx stub: ' + r.calls[2]);
+    // Every case runs through runScript, so this probe shows the flags all of them run under.
+    const p = sandbox((repo) => write(repo, 'docs/note.md', 'x\n'));
+    const flags = runScript(p.repo, {
+      base: p.base,
+      script: '[[ $- == *e* ]] && echo errexit-on\n[[ -o pipefail ]] && echo pipefail-on\nexit 0\n',
+    });
+    expect(flags.out).toContain('errexit-on');
+    expect(flags.out).toContain('pipefail-on');
+  });
+
+  it('risk:regression set +e is what keeps lint and the gates running after a bare false under the errexit flag', () => {
+    const withFalse = SCRIPT.replace('set -uo pipefail\n', 'set -uo pipefail\nfalse\n');
+    expect(withFalse).not.toBe(SCRIPT);
+    const noUndo = withFalse.replace(/^set \+e$/m, '');
+    expect(noUndo).not.toBe(withFalse);
+    const a = sandbox(BOTH_FAIL.change);
+    const kept = runScript(a.repo, { base: a.base, script: withFalse });
+    expect(kept.code, kept.out + kept.err).toBe(0);
+    expect(kept.calls.length, kept.calls.join(' | ')).toBe(3);
+    const b = sandbox(BOTH_FAIL.change);
+    const lost = runScript(b.repo, { base: b.base, script: noUndo });
+    expect(lost.code).not.toBe(0);
+    expect(lost.calls.length, lost.calls.join(' | ')).toBe(0);
+  });
+
   it('mutation probe: the deletion filter and the level bound are what cause those two results', () => {
     // Both fragments are named in the script's own comments, and `replace` takes the FIRST match — so
     // each pattern below carries enough of the command around it to be unique to the command line. A

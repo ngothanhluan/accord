@@ -113,6 +113,7 @@ interface Case {
   change: (repo: string) => void;
   seed?: (repo: string) => void;
   fail?: string;
+  base?: string;
 }
 const DROPPED_TICKET = '---\nid: OLD-1\nstatus: dropped\n---\n\n## Intent\nold\n\n## Dropped\nno longer needed\n';
 const NO_KEY_TICKET = '---\nid: OLD-1\nstatus: open\n---\n\n## Intent\nold\n';
@@ -260,6 +261,24 @@ const DELETED_FREE: Case[] = [
   },
 ];
 
+const SWAP_CHANGE = (r: string): void => {
+  rmOld(r);
+  write(r, 'accord/tickets/NEW-3.md', DRAFT_TICKET.replace('DRAFT-1', 'NEW-3'));
+};
+const SWAP: Case[] = [{ change: SWAP_CHANGE }, { change: SWAP_CHANGE, fail: 'NEW-3' }];
+// A comment spanning lines is a reason the script's awk cannot settle.
+const UNREADABLE_REASON: Case = {
+  seed: (r) =>
+    write(
+      r,
+      'accord/tickets/OLD-1.md',
+      droppedText('status: dropped').replace('superseded by NEW-2\n', 'superseded by NEW-2\n<!-- note\nspanning lines -->\n'),
+    ),
+  change: rmOld,
+};
+// A commit the repository does not hold, so every diff against it fails.
+const BAD_BASE: Case = { change: (r) => write(r, 'docs/note.md', 'new\n'), base: '0'.repeat(40) };
+
 interface Run {
   code: number;
   out: string;
@@ -296,6 +315,7 @@ function runScript(
       : '#!/bin/sh\n' +
           'printf \'%s\\n\' "$*" >> "$ACCORD_STUB_LOG"\n' +
           'last=\nfor a in "$@"; do last=$a; done\n' +
+          'printf \'npx stub: %s\\n\' "$*"\n' +
           'if [ "$last" = "$ACCORD_STUB_FAIL" ]; then exit 1; fi\nexit 0\n',
   );
   chmodSync(join(bin, 'npx'), 0o755);
@@ -397,6 +417,36 @@ describe.skipIf(noBash)('the emitted workflow script — executed', { timeout: 6
       expect(result.calls[0].endsWith(' lint')).toBe(true);
       expect(result.out).toContain(NOTHING_TO_GATE);
     }
+  });
+
+  it('a swap of an approved ticket for an unapproved one fails naming the deleted ticket and still gates the new one', () => {
+    for (const c of SWAP) {
+      const { repo, base } = sandbox(c.change, c.seed);
+      const result = runScript(repo, { base, fail: c.fail });
+      expect(result.code, result.out + result.err).toBe(1);
+      expect(result.out).toContain('OLD-1: an approved or done ticket cannot be deleted before it is dropped');
+      expect(result.out).toContain('accord drop OLD-1');
+      expect(result.calls.length, result.calls.join(' | ')).toBe(2);
+      expect(result.calls[1].endsWith(' gate done NEW-3')).toBe(true);
+      expect(result.out).toContain('npx stub: ' + result.calls[1]);
+    }
+  });
+
+  it('risk:data-loss a deleted ticket dropped at the base with a reason the script cannot read fails naming the Dropped reason fix', () => {
+    const { repo, base } = sandbox(UNREADABLE_REASON.change, UNREADABLE_REASON.seed);
+    const result = runScript(repo, { base });
+    expect(result.code, result.out + result.err).toBe(1);
+    expect(result.out).toContain('OLD-1: dropped at the base but its ## Dropped reason cannot be read');
+    expect(result.out).not.toContain('accord drop OLD-1');
+    expect(result.out).not.toContain(NOTHING_TO_GATE);
+  });
+
+  it('risk:data-loss a failing listing of deleted files fails the check on a line of its own', () => {
+    const { repo } = sandbox(BAD_BASE.change);
+    const result = runScript(repo, { base: '0'.repeat(40) });
+    expect(result.code, result.out + result.err).toBe(1);
+    expect(result.out).toContain('could not list the files this pull request deletes');
+    expect(result.out).not.toContain(NOTHING_TO_GATE);
   });
 
   it('nested-path diff: accord/tickets/<id>/verification.md is not a ticket ([^/]+)', () => {
@@ -540,12 +590,12 @@ describe.skipIf(noBash)('the emitted workflow script — executed', { timeout: 6
     const own = named[0].run as string;
     const gatedIds = (calls: string[]): string[] =>
       calls.filter((c) => c.includes('gate done ')).map((c) => c.slice(c.indexOf('gate done ') + 'gate done '.length));
-    const all: Case[] = [...UNAPPROVED, ...DROPPED, NESTED_STATUS, ...GATED, ...DELETED_APPROVED, ...DELETED_FREE];
+    const all: Case[] = [...UNAPPROVED, ...DROPPED, NESTED_STATUS, ...GATED, ...DELETED_APPROVED, ...DELETED_FREE, ...SWAP, UNREADABLE_REASON, BAD_BASE];
     const said = (out: string): string[] => out.split('\n').filter((l) => l !== '' && !l.startsWith('npx stub'));
     for (const c of all) {
       const results = [SCRIPT, own].map((script) => {
         const s = sandbox(c.change, c.seed);
-        return runScript(s.repo, { base: s.base, script, fail: c.fail });
+        return runScript(s.repo, { base: c.base ?? s.base, script, fail: c.fail });
       });
       expect(results[1].code, results[1].calls.join(' | ')).toBe(results[0].code);
       expect(gatedIds(results[1].calls)).toEqual(gatedIds(results[0].calls));

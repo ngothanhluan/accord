@@ -148,8 +148,8 @@ jobs:
             local text
             fm_at "$1" "$2" || return 1
             grep -Eq "^\${qc}?status\${qc}?[[:space:]]*:[[:space:]]*\${qc}?dropped\${qc}?[[:space:]]*(#.*)?$" <<< "$fm" || return 1
-            text=$(git show "$1:$2") || return 1
-            awk '{ sub(/[[:space:]]+$/, "") } d < 2 { if (NR == 1) d = 1; else if ($0 == "---") d = 2; next } { if (fc == "") { if ($0 ~ /^(\`\`\`|~~~)/) fc = substr($0, 1, 1); else if (!s && tolower($0) ~ /^##[[:space:]]+dropped$/) { s = 1; next } else if (s && $0 ~ /^##[[:space:]]/) exit } else if (substr($0, 1, 3) == fc fc fc) fc = "" } s { t = $0; gsub(/<!--[^>]*-->/, "", t); if (t ~ /<!--|-->/) bad = 1; if (t ~ /[^[:space:]]/) said = 1 } END { exit (said && !bad) ? 0 : 3 }' <<< "$text"
+            text=$(git show "$1:$2") || return 2
+            awk '{ sub(/[[:space:]]+$/, "") } d < 2 { if (NR == 1) d = 1; else if ($0 == "---") d = 2; next } { if (fc == "") { if ($0 ~ /^(\`\`\`|~~~)/) fc = substr($0, 1, 1); else if (!s && tolower($0) ~ /^##[[:space:]]+dropped$/) { s = 1; next } else if (s && $0 ~ /^##[[:space:]]/) exit } else if (substr($0, 1, 3) == fc fc fc) fc = "" } s { t = $0; gsub(/<!--[^>]*-->/, "", t); if (t ~ /<!--|-->/) bad = 1; if (t ~ /[^[:space:]]/) said = 1 } END { exit (said && !bad) ? 0 : 3 }' <<< "$text" || return 2
           }
           # A ticket that was approved or lane M, L or P at the base and is lane S at HEAD dropped its lane after
           # approval (D-03). An unsettled base read fails closed; an absent base file is a new lane S ticket.
@@ -170,7 +170,7 @@ jobs:
           deletion_failed=0
           if ! gone=$(git -c core.quotePath=false diff --name-only --no-renames --diff-filter=D "$BASE"...HEAD); then
             has_code=1
-            echo "could not list the files this pull request deletes - fix the git error and push again"
+            echo "could not list the files this pull request deletes - the check fails rather than let an approved ticket go unchecked"
             deletion_failed=1
             code=1
           else
@@ -182,12 +182,12 @@ jobs:
               gone_id=\${gone_id%.md}
               rc=0
               is_dropped "$BASE" "$old" || rc=$?
-              if [ "$rc" -ne 0 ]; then
-                if fm_at "$BASE" "$old" && grep -Eq "^\${qc}?status\${qc}?[[:space:]]*:[[:space:]]*\${qc}?dropped\${qc}?[[:space:]]*(#.*)?$" <<< "$fm"; then
-                  echo "$gone_id: its ## Dropped reason cannot be read - fix the ## Dropped reason on the default branch, merge the default branch into this branch and push"
-                else
-                  echo "$gone_id: an approved or done ticket cannot be deleted before it is dropped - restore the file if this is the ticket's own branch, run accord drop $gone_id, merge the pull request of the drop/$gone_id branch it pushes, merge the default branch into this branch and push"
-                fi
+              if [ "$rc" -eq 2 ]; then
+                echo "$gone_id: dropped at the base but its ## Dropped reason cannot be read - fix the ## Dropped reason on the default branch, then merge the default branch into this branch and push"
+                deletion_failed=1
+                code=1
+              elif [ "$rc" -ne 0 ]; then
+                echo "$gone_id: an approved or done ticket cannot be deleted before it is dropped - restore the file if this is the ticket's own branch, run accord drop $gone_id, merge the pull request of the drop/$gone_id branch it pushes, merge the default branch into this branch and push"
                 deletion_failed=1
                 code=1
               fi

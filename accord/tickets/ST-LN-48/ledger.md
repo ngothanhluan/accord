@@ -3,6 +3,7 @@
 ## Tasks
 - task 1 done 1f172fa36a5e
 - task 2 done 36a07ceb385c
+- task 3 done 14fc3045b659
 
 ## Rulings
 
@@ -40,6 +41,7 @@
 - Ruling: merge 103ec20 of origin/main 060a8a7 (plan step 6) changed the records of BUG-LN-7, ST-LN-46, ST-LN-49 and ST-LN-50 since d5db8c3; no step 2, 3 or 5 has run and no Task 11 or 12 test exists yet, so these four take step 2 and step 3 with `B` = 060a8a7 when those steps run, go to Task 11 as excluded from fingerprints.json, and step 5 compares them against 060a8a7 (D-08) — cost if wrong: a ticket judged against the wrong base, caught by the step 5 status diff.
 - Ruling: merge of origin/main efdf4fb (plan step 6) changed only accord/tickets/ST-LN-44.md since 060a8a7; ST-LN-44 joins the four tickets of merge 103ec20: it takes step 2 and step 3 with `B` = efdf4fb, is excluded from fingerprints.json, and step 5 compares it against efdf4fb (D-08); no code changed, so the CLI build stays — cost if wrong: a ticket judged against the wrong base, caught by the step 5 status diff.
 - Ruling: (executor, task 1) the test and vietnameseLines were written together and the red step was shown by dropping U+0111 from the letter class (1 failed, Expected ['docs/notes/a.md:3'], Received []) — the brief gave both in one piece — cost if wrong: the red step is simulated, not a true red-first run.
+- Ruling: (executor, task 3) the hash.test.ts title "hashes the UTF-8 bytes, so diacritics change the value" is kept, as the plan says; no red step was possible, since normalise already keeps diacritics — cost if wrong: none.
 
 ## Deferred
 

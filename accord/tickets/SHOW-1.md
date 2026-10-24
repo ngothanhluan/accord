@@ -22,7 +22,7 @@ ui: false
 # The AC hash and the commit the ticks were made against.
 # verified_hash:
 # verified_commit:
-approved_hash: "fnv1a64:9309d50e6aefacea"
+approved_hash: "fnv1a64:aec8fd0c87f11457"
 ac_hash: "fnv1a64:edc0bb8eab6a9256"
 verified_hash: "fnv1a64:edc0bb8eab6a9256"
 verified_commit: "3bcfa7dee916e5b87b425fb97009c090072c1858"

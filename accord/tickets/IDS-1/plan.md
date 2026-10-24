@@ -1,6 +1,6 @@
 ---
 baseline: 3be1c058edab354ab449e75c966f0c6797dd4813
-plan_hash: "fnv1a64:3425f0af7a494f38"
+plan_hash: "fnv1a64:6c3ed20bc332c702"
 ---
 
 Review mode `outcome`: one branch, no slices. Report case ids follow the JUnit id shape in

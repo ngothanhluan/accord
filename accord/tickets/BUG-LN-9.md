@@ -24,3 +24,6 @@ A hook test with a held ticket whose branch carries a Correction that main lacks
 
 ## Decisions
 - D-01 Fix only the held branch; keep the anchor injection on compact, resume and clear, and leave the Rulings and the `resume` matcher as they are — "ok, agreed" (owner, 2026-10-25, on queueing option A after the test result)
+
+## Corrections
+- "Stop it, no need to run, open the PR. Let the PR run it." (owner, 2026-10-25, on the local affected-test run in step 3)

@@ -24,3 +24,4 @@ In that case the refusal says the build is stale and names `npm run build`; an n
 
 ## Decisions
 - D-01 Keep the ticket and take the smallest fix: when the running CLI build is older than the package.json beside it, the pin refusal says the build is stale and names `npm run build` instead of the npx command that runs the same stale build — "ok A, so that's lane S?"
+- D-02 Open the pull request although `accord gate done` refused: its only error is `show-approval.test.ts` ac-1 passing its 300 s timeout under full-suite load, a slowness that predates this fix (alone it passes, base 262 s, fix 131 s); CI on GitHub runs the tests again — "Open PR without the gate"

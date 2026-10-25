@@ -11,5 +11,13 @@
 
 ## Round 2 (whole)
 
-1. Should — the declaration regexes take the path as `(\S+)` and the sensitive entry pattern rejects spaces, so a lane M interface sign on a spaced path (Task 4's own `src/a b.ts`) has no way out and `Wording-only:` on a spaced path is dropped; capture the path up to ` — ` (`(.+)` for `Confirmed`), strip one pair of backticks, and test a spaced path in Task 2 — open
-2. Should — lane.md step 1 (Task 6) asks accord-scout for the reading judgement and the settling question, which scout.md:10-11 forbids it to report, so the session states its own guess and @ac-1 does not hold in practice; ask the scout only for `path:line` facts (the locations a different reading would change, or "not found") and have the session form the question from them — open
+1. Should — the declaration regexes take the path as `(\S+)` and the sensitive entry pattern rejects spaces, so a lane M interface sign on a spaced path (Task 4's own `src/a b.ts`) has no way out and `Wording-only:` on a spaced path is dropped; capture the path up to ` — ` (`(.+)` for `Confirmed`), strip one pair of backticks, and test a spaced path in Task 2 — fixed
+2. Should — lane.md step 1 (Task 6) asks accord-scout for the reading judgement and the settling question, which scout.md:10-11 forbids it to report, so the session states its own guess and @ac-1 does not hold in practice; ask the scout only for `path:line` facts (the locations a different reading would change, or "not found") and have the session form the question from them — fixed
+
+## Round 3 (diff)
+
+No findings
+
+## Closed
+
+Converged at round 3; baseline suite 1528 passed, 3 skipped, 0 failed.

@@ -1,6 +1,6 @@
 ---
 baseline: 4253a6510c6f01e7afb557c7cfd722b63a08434f
-plan_hash: "fnv1a64:85be6d022b4a03f9"
+plan_hash: "fnv1a64:2cd57ed2bf0b6c4f"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -290,11 +290,12 @@ Consumes: Task 1's `outsideScope`, `outOfScope` and test helpers. Produces: `Led
 Tests first.
 - `packages/core/test/work.test.ts`, appended:
   `it('risk:parsing the ledger and the last review round yield only the fixed declaration lines')`:
-  - `parseLedger('l', '## Rulings\n- Wording-only: README.md — fixes a typo\nWording-only: `docs/a.md` — one word\nWording-only: x.md - no dash\nWording-only: y.md —\n')`
-    has `wordingOnly` equal to `[{ path: 'README.md', reason: 'fixes a typo' }, { path: 'docs/a.md', reason: 'one word' }]`.
+  - `parseLedger('l', '## Rulings\n- Wording-only: README.md — fixes a typo\nWording-only: `docs/a.md` — one word\nWording-only: docs/a b.md — spaced name\nWording-only: `src/c d.md` — quoted spaced name\nWording-only: x.md - no dash\nWording-only: y.md —\n')`
+    has `wordingOnly` equal to `[{ path: 'README.md', reason: 'fixes a typo' }, { path: 'docs/a.md', reason: 'one word' }, { path: 'docs/a b.md', reason: 'spaced name' }, { path: 'src/c d.md', reason: 'quoted spaced name' }]`.
   - `parseLedger('l', '- task 1 done abc1234\n')` has no `wordingOnly` property.
-  - `parseReview('r', '## Round 1\n\nConfirmed wording-only: OLD.md\nNot an interface: src/old.ts — old\n\n## Round 2\n\n- Confirmed wording-only: README.md\nNot an interface: src/cli.ts — test harness only\nConfirmed wording-only: a.md extra\n\nverdict: converged\n')`
-    equals `{ file: 'r', verdict: 'converged', line: 12, confirmed: ['README.md'], notInterface: ['src/cli.ts'] }`.
+  - `parseReview('r', '## Round 1\n\nConfirmed wording-only: OLD.md\nNot an interface: src/old.ts — old\n\n## Round 2\n\n- Confirmed wording-only: README.md\nNot an interface: src/cli.ts — test harness only\nConfirmed wording-only: docs/a b.md\nConfirmed wording-only: `src/c d.md`\nNot an interface: `src/a b.ts` — spaced harness\nNot an interface: src/x y.ts — spaced too\nConfirmed wording-only:\nNot an interface: src/z.ts\n\nverdict: converged\n')`
+    equals `{ file: 'r', verdict: 'converged', line: 17, confirmed: ['README.md', 'docs/a b.md', 'src/c d.md'], notInterface: ['src/cli.ts', 'src/a b.ts', 'src/x y.ts'] }`
+    (the bare `Confirmed wording-only:` and the `Not an interface:` line without ` — <reason>` give nothing).
   - The existing `parseReview` and `parseLedger` cases stay `toEqual` their current values.
 - `packages/core/test/scope.test.ts`, appended:
   `it('ac-3 a wording-only file outside the scope passes only when declared and confirmed')`. Ledger
@@ -315,12 +316,14 @@ Interface:
   `confirmed?: string[]` and `notInterface?: string[]`. Each is present only when non-empty, so every existing value
   and golden is unchanged.
 - `work.ts`:
-  - `WORDING = /^\s*(?:[-*+]\s+)?Wording-only:\s+(\S+)\s+—\s+(.*\S)\s*$/`, read on every line of `ledger.md`. The path
-    has one pair of surrounding backticks removed.
+  - `WORDING = /^\s*(?:[-*+]\s+)?Wording-only:\s+(\S.*?)\s+—\s+(.*\S)\s*$/`, read on every line of `ledger.md`: the
+    path is everything up to the first ` — `, so a path may hold spaces. The path is trimmed and has one pair of
+    surrounding backticks removed.
   - `parseReview` also scans `normaliseText(text)` with `scan(..., 0)` and takes the last round. On each of its lines,
-    with `LIST_MARKER` removed and trimmed, `CONFIRMED = /^Confirmed wording-only:\s+(\S+)$/` adds to `confirmed`
-    and `NOT_INTERFACE = /^Not an interface:\s+(\S+)\s+—\s+(.*\S)$/` adds its path to `notInterface`, backticks
-    removed as above (ledger Ruling 11).
+    with `LIST_MARKER` removed and trimmed, `CONFIRMED = /^Confirmed wording-only:\s+(.+)$/` adds its whole rest of
+    line to `confirmed` and `NOT_INTERFACE = /^Not an interface:\s+(\S.*?)\s+—\s+(.*\S)$/` adds its path, everything
+    up to the first ` — `, to `notInterface`; each path trimmed and with one pair of surrounding backticks removed
+    as above (ledger Ruling 11).
 - `scope.ts` `outOfScope`: a path of `outsideScope` that `workOf(s, id)?.ledger?.wordingOnly` declares is judged in
   this order, the first failing check giving
   `` `${path} is declared wording-only in accord/tickets/${id}/ledger.md but ${why}; the ticket must be lifted to lane M` ``:
@@ -343,11 +346,12 @@ the config key `sensitive`, `sensitiveEntries`, and the rule `gate.sensitive-tou
 Tests first.
 - `packages/core/test/schemas.test.ts`: the key list at line 146 gains `'sensitive'` after `'generated'`. Appended,
   `it('risk:parsing sensitive and generated entries are repository paths without globs backslashes or parent segments')`:
-  - Valid: `sensitive: { interface: ['packages/cli/src/run.ts', 'packages/core/schemas/'], 'data-deletion': ['.github/x.yml'] }`
-    and `generated: ['packages/core/src/generated/', 'packages/cli/README.md']` validate to `[]`.
+  - Valid: `sensitive: { interface: ['packages/cli/src/run.ts', 'packages/core/schemas/', 'src/a b.ts'], 'data-deletion': ['.github/x.yml'] }`
+    and `generated: ['packages/core/src/generated/', 'packages/cli/README.md', 'docs/a b/']` validate to `[]`: a path
+    may hold a space inside it.
   - Each of these gives a finding at its pointer: an area `Interface` (propertyNames), a path `src/*.ts`, `src\\a.ts`,
-    `../a.ts`, `a/../b.ts`, `/abs.ts`, `a//b.ts`, `''`, a duplicate path, a non-array area value, and the same five
-    bad paths as `generated` items.
+    `../a.ts`, `a/../b.ts`, `/abs.ts`, `a//b.ts`, `' a.ts'`, `'a.ts '`, `''`, a duplicate path, a non-array area
+    value, and the same five bad paths `src/*.ts`, `src\\a.ts`, `../a.ts`, `/abs.ts`, `' a.ts'` as `generated` items.
 - `packages/core/test/scope.test.ts`, appended:
   `it('ac-4 gate done fails a lane S ticket that touched a listed sensitive area')`. Base config
   `B = CONFIG + 'sensitive:\n  interface:\n    - packages/cli/src/run.ts\n    - packages/core/schemas/\n'`, HEAD
@@ -364,7 +368,8 @@ Tests first.
 Interface:
 - `snapshot.ts`: `AccordConfig` gains `sensitive?: Record<string, string[]>`.
 - `config.schema.json`: one path item schema used by both keys, written inline twice:
-  `{ "type": "string", "minLength": 1, "allOf": [ { "pattern": "^[A-Za-z0-9._@-][A-Za-z0-9._@/-]*$" }, { "pattern": "^(?!(?:.*/)?\\.\\.(?:/|$))" }, { "pattern": "^(?!.*//)" } ] }`.
+  `{ "type": "string", "minLength": 1, "allOf": [ { "pattern": "^[A-Za-z0-9._@-](?:[A-Za-z0-9._@/ -]*[A-Za-z0-9._@/-])?$" }, { "pattern": "^(?!(?:.*/)?\\.\\.(?:/|$))" }, { "pattern": "^(?!.*//)" } ] }`.
+  A space is allowed inside a path, never first or last, so a file whose name holds a space can be listed.
   `generated` takes it as `items`. After `generated`:
   `"sensitive": { "type": "object", "propertyNames": { "pattern": "^[a-z][a-z0-9-]*$" }, "additionalProperties": { "type": "array", "uniqueItems": true, "items": <the path item> } }`.
   Area names are free lower-case words (Ruling in this plan's report).
@@ -427,6 +432,9 @@ Tests first.
   - `gate done T-1 --json` exits 1 and its `gate.interface-sign` reasons name `src/cli.ts`, `src/é.ts`,
     `src/a b.ts`, `pkg/package.json` and `schemas/thing.json`, and not `docs/how.md`; it has no
     `gate.branch-unknown` finding.
+  - The way out on a spaced path: write `accord/tickets/T-1/review.md` =
+    `` '## Round 1\n\nNot an interface: `src/a b.ts` — test harness only\n\nverdict: converged\n' ``, commit; the
+    `gate.interface-sign` reasons of `gate done T-1 --json` no longer name `src/a b.ts` and still name `src/cli.ts`.
   - `unquoteGitPath('"a\\tb\\"c\\303\\251.ts"')` is `'a\tb"cé.ts'` and `unquoteGitPath('plain/é.ts')` is unchanged.
 
 Interface:
@@ -525,8 +533,11 @@ session follows when it proposes a lane.
 Test first, appended to `packages/core/test/stage-skills.test.ts`, using `flatS`:
 - `it('ac-1 a lane is proposed from the scout facts and a lane S ticket records its scope')`:
   - `ln = flatS('.claude/skills/accord/lane.md')` is non-empty and equals `flatS('.claude/skills/accord-intent/lane.md')`.
-  - `ln.indexOf('dispatch `accord-scout`')` is at least 0 and below `ln.indexOf('Propose a lane')`; `ln` contains
-    `however small it looks`, `the files the change is expected to touch, any listed sensitive area among them, and whether the request has one reading or one question settles it`,
+  - `ln.indexOf('dispatch `accord-scout`')` is at least 0 and below `ln.indexOf('you form the one question that settles the reading')`,
+    which is below `ln.indexOf('Propose a lane')`; `ln` contains
+    `however small it looks`, `` ask for facts only, each with its `path:line` ``,
+    `the code locations a different reading of the request would change`, `never judges the reading`,
+    `the files the change is expected to touch, any listed sensitive area among them, and whether the request has one reading or one question settles it`,
     `LIFT` exactly once, `a reading one question settles stays lane S`, `` `## Scope` ``,
     `one repository path per line and never a folder` and `before any change is made`.
   - `acc = flatS('.claude/skills/accord/SKILL.md')`: its New request section (from `## New request` to `## Upgrade`)
@@ -551,12 +562,16 @@ Text:
   # Proposing a lane
 
   1. For every new request, however small it looks, first dispatch `accord-scout` with the request's text and ask
-     for three facts: the files the change is expected to touch, each an existing repository path; which of them an
-     entry under `sensitive:` in `accord/config.yml` matches, an entry ending in `/` matching every path below that
-     folder; and whether the code leaves the request one reading, or which one question would settle it.
-  2. Propose a lane with its reason, out loud, stating the scout's facts for each lift condition: the files the
-     change is expected to touch, any listed sensitive area among them, and whether the request has one reading or
-     one question settles it. The owner may override.
+     for facts only, each with its `path:line`: the existing files the change is expected to touch; which of them an
+     entry under `sensitive:` in `accord/config.yml` matches, with that entry's `path:line`, an entry ending in `/`
+     matching every path below that folder; and the code locations a different reading of the request would change,
+     or "not found" and where it looked. The scout reports facts and never judges the reading.
+  2. From those facts, judge each lift condition yourself. When the scout names code locations a different reading
+     would change, you form the one question that settles the reading from them, or count the request as having
+     more than one plausible reading when no single question can.
+  3. Propose a lane with its reason, out loud, stating the scout's facts for each lift condition and what you judged
+     from them: the files the change is expected to touch, any listed sensitive area among them, and whether the request has one reading or one
+     question settles it. The owner may override.
 
   Any of these lifts S to M, and nothing else: a public interface or schema changes; a listed sensitive area, or
   auth, money or data deletion, is touched; more than one plausible reading, where a reading one question settles

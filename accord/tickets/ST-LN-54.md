@@ -21,3 +21,7 @@ When a ticket finishes (accord-verify step 7, lane S step 6), the report opens w
 
 ## Done when
 The verify skill and lane-s.md source files state that report shape, `accord skills sync` has re-rendered every copy, and the skills tests pass.
+
+## Corrections
+
+- "vậy tại sao ko thấy link PR?" (why is there no PR link?) — the verdict line must carry the pull request link.

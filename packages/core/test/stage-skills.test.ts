@@ -784,7 +784,8 @@ it('risk:regression a finished ticket reports a verdict, never a merge, then das
       'never write that it is merged',
       'At most four status lines',
       'one to three suggestions',
-      '`accord dashboard`',
+      'Run `accord dashboard` now and read its last line',
+      'Leave out an action on the ticket just finished.',
       '`(recommended)`',
     ])
       expect(finish, dir).toContain(s);

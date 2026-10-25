@@ -31,7 +31,7 @@ ui: false
 Why: today a lane is proposed from the request's words alone, so a loose reading lets work that needs lane M skip the interview, approval and verify as lane S.
 For whom: the owner and every teammate who relies on lane S being safe to skip those stages.
 Success: every lane is proposed from a scout's facts about the code, and gate done fails a lane S ticket that left the files its scout recorded, touched a listed sensitive area, or added a sign of a new interface.
-Not: no file or line count at gate done; no scan that proposes the sensitive list at onboarding (a later ticket); no CODEOWNERS.
+Not: no file count at gate done, and its only line count is the 3-line bound on a file declared wording-only; no scan that proposes the sensitive list at onboarding (a later ticket); no CODEOWNERS.
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.
@@ -91,6 +91,7 @@ Feature: ST-LN-62
 - D-04 No file count. This ticket does: (1) a scope contract — the scout records the files a lane S ticket expects to touch, and gate done fails when the diff touches a file outside them; (2) a list of sensitive areas (public interface, auth, money, data deletion) in config.yml, written by hand for this repository, and gate done fails a lane S ticket that touches one; (3) a check on each ticket's diff for signs of a new interface outside that list, which needs the list updated or the reviewer's reason. The onboarding scan that proposes the list is a later ticket — "A"
 - D-05 All three parts of D-04 are needed for the ticket to count as done — "all 3"
 - D-06 Size still matters when the lane is proposed, once: a request goes to lane M when the scope the scout records has more than 5 hand-written files or spans more than 3 code areas; test files are not counted in either; generated and rendered copies are not counted; gate done counts nothing and only holds the ticket to the recorded scope. The veto on counting files applies to gate done — "A but do not count tests."
+- D-07 gate done keeps the 3-line bound of @ac-3 on a file declared wording-only; it is the only line count at gate done and counts no files — "A"
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
@@ -103,3 +104,8 @@ Feature: ST-LN-62
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
+Chosen: one branch-diff fact, loaded by the CLI at gate done for every ticket with `lane:`, judged by pure core rules: outside `## Scope` (lane S, with the declared and confirmed wording-only exception), sensitive paths (lane S), interface signs (every lane). `## Scope` is read from the commit that first recorded `ac_hash`, so widening it and re-running gate ready changes nothing; a lane S ticket with no or empty Scope fails. `generated:` is read from the merge-base config, `sensitive:` from base ∪ HEAD; a missing default ref, a failed git call, or a diff that lacks the ticket's own file fails the gate. review-package lists the interface signs and out-of-scope files so the reviewer sees them before gate done.
+Rejected: checks without pinning Scope (the agent could widen the recorded scope quietly); Scope pinned only by the lane S hash (re-running gate ready re-pins it, critic Must 1); a size check on Scope at gate ready (no criterion asks for it).
+Affected: accord skill (new reference file in `loads:` for scout-first, the 5-file/3-area rule, and Scope including tests and new files, also on the moved-to-S path and the `stop:` handoff); lane-s.md; intent skill's lift-condition count; reviewer agent and review record text for the three fixed lines; ticket-lane-s template; config schema (`sensitive`, `generated`); snapshot model and loader; gate rules and a new gate/scope.ts; cli gate.ts and load/fs.ts; review-package; this repository's config `sensitive:` and `generated:` lists, drafted here and shown to the owner; README lift sentence and generated copies.
+Risks (critic): Must 1 pinning and Must 2 absent Scope are fixed as above; Must 3, the reviewer and ledger lines, is wired through the reviewer, lane-s.md and record.md text. Should: the call sign skips Markdown and the exempt paths; whitespace uses `-b --ignore-blank-lines --ignore-cr-at-eol`, never `-w`, since `-w` hides `--out <file>` → `--out<file>`; `--no-renames`, so a rename or a mode-only change counts; a sync-written path is exempt only when its text equals the fresh render; the merge base comes from `defaultRefOf`, and a stacked pull request into a non-default branch is judged against the default branch. Every lane M gate done now needs a merge base: a repository with no origin and no local main or master fails Done.
+Tests: @ac-1 skill text tests in core (stage-skills); @ac-2 to @ac-5 core rule tests over a hand-built fact, plus one CLI test on a real git fixture proving the whitespace flags and the merge base on Windows and Linux.

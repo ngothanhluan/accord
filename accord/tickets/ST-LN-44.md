@@ -1,6 +1,6 @@
 ---
 id: "ST-LN-44"                            # equals the file name: tickets/<id>.md
-title: "The slowest tests run in less time and still cover what they cover today"
+title: "No test in a full run takes more than 10 s, and every criterion keeps a test that proves it"
 type: "story" # story | bug. An epic uses its own template
 status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project

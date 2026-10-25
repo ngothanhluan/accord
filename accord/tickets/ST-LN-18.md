@@ -24,7 +24,7 @@ ui: false
 # The AC hash and the commit the ticks were made against.
 # verified_hash:
 # verified_commit:
-approved_hash: "fnv1a64:bc159646183ba8ef"
+approved_hash: "fnv1a64:fabf3e9f8b4605b0"
 ac_hash: "fnv1a64:df63e2879d1a8482"
 verified_hash: "fnv1a64:df63e2879d1a8482"
 verified_commit: "29796f9406aedc2811600878a93a8b5860a14775"
@@ -83,16 +83,16 @@ Feature: ST-LN-18
 
 ## Decisions
 <!-- Settled answers, one per line: - D-01 <decision> — "<the owner's sentence>" -->
-- D-01 Three parts: (A) UP NEXT, the unclaimed open tickets, backlog and blocked alike, always appears on the dashboard, also while the viewer holds tickets in progress, replacing ST-LN-2 D-04; (B) the Claude Code panel shows the same, since it reads the same JSON; (C) the action line offers [Pick up <id>] whenever a ticket can be picked up: the first READY ticket, otherwise the first unblocked UP NEXT ticket — "Đúng, đủ A+B+C (Recommended)"
-- D-02 UP NEXT keeps its cap: at most 20 rows in rank order (effective priority, unblocked before blocked, then id) and `+N more` for the rest; the full list stays `accord status` — "Giữ tối đa 20 + '+N more' (Recommended)"
-- D-03 A ticket appears in one section only: UP NEXT leaves out the tickets READY lists, so it holds the unclaimed open tickets that are not ready (backlog and blocked), and its cap and `+N more` count only those — "UP NEXT bỏ ticket đã có ở READY (Recommended)"
-- D-04 `upNext` is always present in `accord dashboard --json`, `{ "rows": [], "more": 0 }` when it has no row, as `epics` is; this ends the one exception in ST-LN-2 D-08 — "Luôn có, giống `epics` (Recommended)"
-- D-05 The smallest version that counts as done is all of D-01 to D-04: the text, the panel and the JSON — "Đủ D-01..D-04 (Recommended)"
-- D-06 (audit) "Open" in D-01 and D-03 means a lane ticket that is not done, archived or dropped, `status: draft` included, as the dashboard reads it today — "Chưa xong, kể cả draft (Recommended)"
+- D-01 Three parts: (A) UP NEXT, the unclaimed open tickets, backlog and blocked alike, always appears on the dashboard, also while the viewer holds tickets in progress, replacing ST-LN-2 D-04; (B) the Claude Code panel shows the same, since it reads the same JSON; (C) the action line offers [Pick up <id>] whenever a ticket can be picked up: the first READY ticket, otherwise the first unblocked UP NEXT ticket — "Right, all of A+B+C (Recommended)"
+- D-02 UP NEXT keeps its cap: at most 20 rows in rank order (effective priority, unblocked before blocked, then id) and `+N more` for the rest; the full list stays `accord status` — "Keep at most 20 + '+N more' (Recommended)"
+- D-03 A ticket appears in one section only: UP NEXT leaves out the tickets READY lists, so it holds the unclaimed open tickets that are not ready (backlog and blocked), and its cap and `+N more` count only those — "UP NEXT leaves out tickets already in READY (Recommended)"
+- D-04 `upNext` is always present in `accord dashboard --json`, `{ "rows": [], "more": 0 }` when it has no row, as `epics` is; this ends the one exception in ST-LN-2 D-08 — "Always present, like `epics` (Recommended)"
+- D-05 The smallest version that counts as done is all of D-01 to D-04: the text, the panel and the JSON — "All of D-01..D-04 (Recommended)"
+- D-06 (audit) "Open" in D-01 and D-03 means a lane ticket that is not done, archived or dropped, `status: draft` included, as the dashboard reads it today — "Not done, draft included (Recommended)"
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
-- 2026-10-17, after `/accord` showed only YOURS (ST-LN-5, ST-LN-7) and the count line "11 backlog, 1 blocked" while UP NEXT stayed hidden under ST-LN-2 D-04 (UP NEXT appears only when the viewer has nothing in progress and READY is empty): "làm sao tôi biết là ticket nào để pickup? sai idea rồi, phải hiện lên hết trên dashboard chứ"
+- 2026-10-17, after `/accord` showed only YOURS (ST-LN-5, ST-LN-7) and the count line "11 backlog, 1 blocked" while UP NEXT stayed hidden under ST-LN-2 D-04 (UP NEXT appears only when the viewer has nothing in progress and READY is empty): "how do I know which ticket to pick up? the idea is wrong, it all has to show on the dashboard"
 
 ## Open questions
 <!-- `- [ ]` items; Ready stays blocked while any is unchecked. -->

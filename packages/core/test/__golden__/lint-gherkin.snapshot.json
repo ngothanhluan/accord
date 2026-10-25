@@ -27,7 +27,7 @@
       "frontmatter": {
         "id": "ACTAGS",
         "status": "draft",
-        "title": "Thẻ @ac-n",
+        "title": "Tag @ac-n",
         "type": "story",
         "ui": false
       },
@@ -35,14 +35,14 @@
       "requirements": [
         {
           "line": 12,
-          "text": "WHEN người dùng gửi biểu mẫu the system SHALL lưu dữ liệu"
+          "text": "WHEN the user submits the form the system SHALL save the data"
         }
       ],
       "scenarios": [
         {
           "keyword": "Scenario",
           "line": 19,
-          "name": "Không thẻ",
+          "name": "No tag",
           "steps": [
             "Given a"
           ],
@@ -54,7 +54,7 @@
           "acTag": "ac-1",
           "keyword": "Scenario",
           "line": 23,
-          "name": "Hai thẻ",
+          "name": "Two tags",
           "steps": [
             "Given b"
           ],
@@ -68,7 +68,7 @@
           "acTag": "ac-1",
           "keyword": "Scenario",
           "line": 27,
-          "name": "Trùng thẻ",
+          "name": "Duplicate tag",
           "steps": [
             "Given c"
           ],
@@ -85,7 +85,7 @@
           "lines": [
             {
               "line": 9,
-              "text": "Mỗi kịch bản mang đúng một thẻ @ac-n riêng."
+              "text": "Each scenario carries exactly one @ac-n tag of its own."
             },
             {
               "line": 10,
@@ -99,7 +99,7 @@
           "lines": [
             {
               "line": 12,
-              "text": "- WHEN người dùng gửi biểu mẫu the system SHALL lưu dữ liệu"
+              "text": "- WHEN the user submits the form the system SHALL save the data"
             },
             {
               "line": 13,
@@ -129,7 +129,7 @@
             },
             {
               "line": 19,
-              "text": "  Scenario: Không thẻ"
+              "text": "  Scenario: No tag"
             },
             {
               "line": 20,
@@ -145,7 +145,7 @@
             },
             {
               "line": 23,
-              "text": "  Scenario: Hai thẻ"
+              "text": "  Scenario: Two tags"
             },
             {
               "line": 24,
@@ -161,7 +161,7 @@
             },
             {
               "line": 27,
-              "text": "  Scenario: Trùng thẻ"
+              "text": "  Scenario: Duplicate tag"
             },
             {
               "line": 28,
@@ -193,7 +193,7 @@
           "lines": [
             {
               "line": 34,
-              "text": "- Làm @ac-1"
+              "text": "- Build @ac-1"
             }
           ]
         }
@@ -204,7 +204,7 @@
       "frontmatter": {
         "id": "NOSCEN",
         "status": "draft",
-        "title": "Không có kịch bản",
+        "title": "No scenario",
         "type": "story",
         "ui": false
       },
@@ -212,7 +212,7 @@
       "requirements": [
         {
           "line": 12,
-          "text": "WHEN người dùng gửi biểu mẫu the system SHALL lưu dữ liệu"
+          "text": "WHEN the user submits the form the system SHALL save the data"
         }
       ],
       "scenarios": [],
@@ -223,7 +223,7 @@
           "lines": [
             {
               "line": 9,
-              "text": "Một câu chuyện cần ít nhất một kịch bản."
+              "text": "A story needs at least one scenario."
             },
             {
               "line": 10,
@@ -237,7 +237,7 @@
           "lines": [
             {
               "line": 12,
-              "text": "- WHEN người dùng gửi biểu mẫu the system SHALL lưu dữ liệu"
+              "text": "- WHEN the user submits the form the system SHALL save the data"
             },
             {
               "line": 13,
@@ -251,7 +251,7 @@
           "lines": [
             {
               "line": 15,
-              "text": "<!-- Chưa viết kịch bản -->"
+              "text": "<!-- No scenario written yet -->"
             },
             {
               "line": 16,
@@ -281,7 +281,7 @@
       "frontmatter": {
         "id": "STEPS",
         "status": "draft",
-        "title": "Bước trống",
+        "title": "Empty step",
         "type": "story",
         "ui": false
       },
@@ -289,7 +289,7 @@
       "requirements": [
         {
           "line": 12,
-          "text": "WHEN người dùng gửi biểu mẫu the system SHALL lưu dữ liệu"
+          "text": "WHEN the user submits the form the system SHALL save the data"
         }
       ],
       "scenarios": [
@@ -297,7 +297,7 @@
           "acTag": "ac-1",
           "keyword": "Scenario",
           "line": 19,
-          "name": "Trống",
+          "name": "Empty",
           "steps": [
             "Given"
           ],
@@ -310,7 +310,7 @@
           "acTag": "ac-2",
           "keyword": "Scenario",
           "line": 23,
-          "name": "Không bước",
+          "name": "No steps",
           "steps": [],
           "tags": [
             "@ac-2",
@@ -321,7 +321,7 @@
           "acTag": "ac-3",
           "keyword": "Scenario",
           "line": 26,
-          "name": "Mẫu",
+          "name": "Sample",
           "steps": [
             "Given ..."
           ],
@@ -338,7 +338,7 @@
           "lines": [
             {
               "line": 9,
-              "text": "Mỗi kịch bản có ít nhất một bước có nội dung."
+              "text": "Each scenario has at least one step with content."
             },
             {
               "line": 10,
@@ -352,7 +352,7 @@
           "lines": [
             {
               "line": 12,
-              "text": "- WHEN người dùng gửi biểu mẫu the system SHALL lưu dữ liệu"
+              "text": "- WHEN the user submits the form the system SHALL save the data"
             },
             {
               "line": 13,
@@ -382,7 +382,7 @@
             },
             {
               "line": 19,
-              "text": "  Scenario: Trống"
+              "text": "  Scenario: Empty"
             },
             {
               "line": 20,
@@ -398,7 +398,7 @@
             },
             {
               "line": 23,
-              "text": "  Scenario: Không bước"
+              "text": "  Scenario: No steps"
             },
             {
               "line": 24,
@@ -410,7 +410,7 @@
             },
             {
               "line": 26,
-              "text": "  Scenario: Mẫu"
+              "text": "  Scenario: Sample"
             },
             {
               "line": 27,
@@ -442,7 +442,7 @@
           "lines": [
             {
               "line": 33,
-              "text": "- Làm @ac-1 @ac-2 @ac-3"
+              "text": "- Build @ac-1 @ac-2 @ac-3"
             }
           ]
         }
@@ -453,7 +453,7 @@
       "frontmatter": {
         "id": "TESTTAGS",
         "status": "draft",
-        "title": "Thẻ kiểm thử",
+        "title": "Test tags",
         "type": "story",
         "ui": false
       },
@@ -461,7 +461,7 @@
       "requirements": [
         {
           "line": 12,
-          "text": "WHEN người dùng gửi biểu mẫu the system SHALL lưu dữ liệu"
+          "text": "WHEN the user submits the form the system SHALL save the data"
         }
       ],
       "scenarios": [
@@ -469,7 +469,7 @@
           "acTag": "ac-1",
           "keyword": "Scenario",
           "line": 19,
-          "name": "Hai thẻ kiểm thử",
+          "name": "Two test tags",
           "steps": [
             "Given a"
           ],
@@ -483,7 +483,7 @@
           "acTag": "ac-2",
           "keyword": "Scenario",
           "line": 23,
-          "name": "Giao diện có thẻ kiểm thử",
+          "name": "Interface with a test tag",
           "steps": [
             "Given b"
           ],
@@ -497,7 +497,7 @@
           "acTag": "ac-3",
           "keyword": "Scenario",
           "line": 27,
-          "name": "Thiếu thẻ kiểm thử",
+          "name": "Missing test tag",
           "steps": [
             "Given c"
           ],
@@ -509,7 +509,7 @@
           "acTag": "ac-4",
           "keyword": "Scenario",
           "line": 31,
-          "name": "Giao diện",
+          "name": "Interface",
           "steps": [
             "Given d"
           ],
@@ -526,7 +526,7 @@
           "lines": [
             {
               "line": 9,
-              "text": "Kịch bản không phải @ui mang đúng một thẻ @test:."
+              "text": "A scenario that is not @ui carries exactly one @test: tag."
             },
             {
               "line": 10,
@@ -540,7 +540,7 @@
           "lines": [
             {
               "line": 12,
-              "text": "- WHEN người dùng gửi biểu mẫu the system SHALL lưu dữ liệu"
+              "text": "- WHEN the user submits the form the system SHALL save the data"
             },
             {
               "line": 13,
@@ -570,7 +570,7 @@
             },
             {
               "line": 19,
-              "text": "  Scenario: Hai thẻ kiểm thử"
+              "text": "  Scenario: Two test tags"
             },
             {
               "line": 20,
@@ -586,7 +586,7 @@
             },
             {
               "line": 23,
-              "text": "  Scenario: Giao diện có thẻ kiểm thử"
+              "text": "  Scenario: Interface with a test tag"
             },
             {
               "line": 24,
@@ -602,7 +602,7 @@
             },
             {
               "line": 27,
-              "text": "  Scenario: Thiếu thẻ kiểm thử"
+              "text": "  Scenario: Missing test tag"
             },
             {
               "line": 28,
@@ -618,7 +618,7 @@
             },
             {
               "line": 31,
-              "text": "  Scenario: Giao diện"
+              "text": "  Scenario: Interface"
             },
             {
               "line": 32,
@@ -650,7 +650,7 @@
           "lines": [
             {
               "line": 38,
-              "text": "- Làm @ac-1 @ac-2 @ac-3 @ac-4"
+              "text": "- Build @ac-1 @ac-2 @ac-3 @ac-4"
             }
           ]
         }

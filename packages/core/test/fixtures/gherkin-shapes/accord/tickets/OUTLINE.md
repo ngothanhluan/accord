@@ -10,7 +10,7 @@ status: open
 Feature: OUTLINE
 
 @ac-1
-Scenario Outline: Nhiều giá trị
+Scenario Outline: Many values
   Given <a>
 
   Examples:

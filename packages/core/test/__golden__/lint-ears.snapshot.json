@@ -27,7 +27,7 @@
       "frontmatter": {
         "id": "EARS",
         "status": "draft",
-        "title": "Phân loại EARS",
+        "title": "EARS classification",
         "type": "story",
         "ui": false
       },
@@ -59,15 +59,15 @@
         },
         {
           "line": 18,
-          "text": "WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+          "text": "WHEN un utilisateur envoie un e-mail et un mot de passe valides the system SHALL donner accès au tableau de bord"
         },
         {
           "line": 19,
-          "text": "IF mật khẩu sai THEN the system SHALL hiển thị thông báo lỗi"
+          "text": "IF le mot de passe est erroné THEN the system SHALL afficher une erreur"
         },
         {
           "line": 20,
-          "text": "WHEN người dùng có tài khoản the system SHALL cho phép đăng nhập"
+          "text": "WHEN un utilisateur possède un compte the system SHALL permettre la connexion"
         },
         {
           "line": 21,
@@ -87,7 +87,7 @@
         },
         {
           "line": 25,
-          "text": "Sau khi đăng nhập WHEN x the system shall y"
+          "text": "Après la connexion WHEN x the system shall y"
         },
         {
           "line": 26,
@@ -115,10 +115,10 @@
           "acTag": "ac-1",
           "keyword": "Scenario",
           "line": 37,
-          "name": "Ghi nhật ký",
+          "name": "Write the log",
           "steps": [
-            "When họ gửi yêu cầu",
-            "Then yêu cầu được ghi lại"
+            "When they send a request",
+            "Then the request is logged"
           ],
           "tags": [
             "@ac-1",
@@ -133,7 +133,7 @@
           "lines": [
             {
               "line": 9,
-              "text": "Mỗi dòng yêu cầu là một trong sáu mẫu EARS."
+              "text": "Each requirement line is one of the six EARS patterns."
             },
             {
               "line": 10,
@@ -171,15 +171,15 @@
             },
             {
               "line": 18,
-              "text": "- WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+              "text": "- WHEN un utilisateur envoie un e-mail et un mot de passe valides the system SHALL donner accès au tableau de bord"
             },
             {
               "line": 19,
-              "text": "- IF mật khẩu sai THEN the system SHALL hiển thị thông báo lỗi"
+              "text": "- IF le mot de passe est erroné THEN the system SHALL afficher une erreur"
             },
             {
               "line": 20,
-              "text": "- WHEN người dùng có tài khoản the system SHALL cho phép đăng nhập"
+              "text": "- WHEN un utilisateur possède un compte the system SHALL permettre la connexion"
             },
             {
               "line": 21,
@@ -199,7 +199,7 @@
             },
             {
               "line": 25,
-              "text": "- Sau khi đăng nhập WHEN x the system shall y"
+              "text": "- Après la connexion WHEN x the system shall y"
             },
             {
               "line": 26,
@@ -249,15 +249,15 @@
             },
             {
               "line": 37,
-              "text": "  Scenario: Ghi nhật ký"
+              "text": "  Scenario: Write the log"
             },
             {
               "line": 38,
-              "text": "    When họ gửi yêu cầu"
+              "text": "    When they send a request"
             },
             {
               "line": 39,
-              "text": "    Then yêu cầu được ghi lại"
+              "text": "    Then the request is logged"
             },
             {
               "line": 40,
@@ -285,7 +285,7 @@
           "lines": [
             {
               "line": 45,
-              "text": "- Ghi nhật ký @ac-1"
+              "text": "- Write the log @ac-1"
             }
           ]
         }

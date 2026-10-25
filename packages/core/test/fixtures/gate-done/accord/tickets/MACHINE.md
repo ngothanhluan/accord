@@ -1,68 +1,68 @@
 ---
 id: MACHINE
-title: Lớp máy của Done đọc báo cáo chứ không nghe lời khai
+title: The machine layer of Done reads the report, not the claim
 type: story
 status: open
 ui: false
-ac_hash: "fnv1a64:cf39577f15f434b9"
+ac_hash: "fnv1a64:f75d2f60b5606c77"
 verified:
   - ac-1
   - ac-2
   - ac-3
   - ac-4
-verified_hash: "fnv1a64:cf39577f15f434b9"
+verified_hash: "fnv1a64:f75d2f60b5606c77"
 verified_commit: "1234567"
 ---
 
 ## Intent
-Người dùng đăng nhập bằng email để vào bảng điều khiển.
+Users sign in with an email to reach the dashboard.
 
 ## Requirements
-- WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển
+- WHEN a user submits a valid email and password the system SHALL open the dashboard
 
 ## Acceptance criteria
 ```gherkin
 Feature: MACHINE
 
   @ac-1 @test:test/login.spec.ts#skip1
-  Scenario: Bài kiểm thử bị tắt tiếng
-    When họ gửi email và mật khẩu hợp lệ
-    Then họ thấy bảng điều khiển
+  Scenario: Muted test
+    When they submit a valid email and password
+    Then they see the dashboard
 
   @ac-2 @test:test/login.spec.ts#fail1
-  Scenario: Bài kiểm thử hỏng
-    When họ gửi mật khẩu sai
-    Then họ thấy thông báo lỗi
+  Scenario: Failing test
+    When they submit a wrong password
+    Then they see an error message
 
   @ac-3 @test:nope#missing
-  Scenario: Mã kiểm thử không có trong báo cáo
-    When họ gửi email chưa đăng ký
-    Then họ thấy lời mời tạo tài khoản
+  Scenario: Test id absent from the report
+    When they submit an unregistered email
+    Then they see an invitation to create an account
 
   @ac-4
-  Scenario: Kịch bản quên gắn thẻ kiểm thử
-    When họ gửi email viết hoa
-    Then hệ thống vẫn nhận đúng tài khoản
+  Scenario: Scenario with no test tag
+    When they submit an uppercase email
+    Then the system still finds the right account
 ```
 
 ## Open questions
-- [x] Đã rõ
+- [x] Clear
 
 ## Plan
-- Làm màn hình đăng nhập @ac-1
-- Trả lỗi khi xác thực hỏng @ac-2
-- Mời tạo tài khoản khi email lạ @ac-3
-- Chuẩn hoá email trước khi tra cứu @ac-4
+- Build the sign-in screen @ac-1
+- Return an error on failed authentication @ac-2
+- Invite to create an account for an unknown email @ac-3
+- Normalise the email before lookup @ac-4
 
 ## Verification notes
 ### @ac-1
-src/auth/login.ts mở phiên mới rồi chuyển hướng, tôi đã đọc lại từng nhánh.
+src/auth/login.ts opens a new session and redirects, I read every branch again.
 
 ### @ac-2
-src/auth/login.ts dừng trước khi tạo phiên và ghi nhật ký lần thử hỏng.
+src/auth/login.ts stops before it creates a session and logs the failed attempt.
 
 ### @ac-3
-src/auth/login.ts trả về lời mời đăng ký thay vì báo sai mật khẩu, tránh lộ email nào đã tồn tại.
+src/auth/login.ts returns a sign-up invitation instead of a wrong-password error, so no existing email is exposed.
 
 ### @ac-4
-src/auth/login.ts hạ chữ thường email trước khi tra cứu, nên email viết hoa vẫn vào đúng tài khoản.
+src/auth/login.ts lowercases the email before lookup, so an uppercase email still reaches the right account.

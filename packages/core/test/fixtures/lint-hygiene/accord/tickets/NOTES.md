@@ -1,35 +1,35 @@
 ---
 id: NOTES
-title: Ghi chú kiểm chứng sai chỗ
+title: Verification notes in the wrong place
 type: story
 status: draft
 ---
 
 ## Intent
-Ghi chú kiểm chứng phải đứng cuối và khớp với kịch bản.
+Verification notes must come last and match the scenarios.
 
 ## Requirements
-- WHEN người dùng gửi form the system SHALL lưu dữ liệu
+- WHEN the user submits the form the system SHALL save the data
 
 ## Acceptance criteria
 ```gherkin
 Feature: NOTES
 
   @ac-1 @test:t#a
-  Scenario: Đăng nhập
-    Given một người dùng
-    Then thấy bảng điều khiển
+  Scenario: Sign-in
+    Given a user
+    Then they see the dashboard
 ```
 
 ## Open questions
 
 ## Verification notes
-### @ac-1 Đăng nhập
-Đã kiểm tra bằng tay.
-<!-- ghi chú mẫu -->
-### @ac-9 Không có
-Không có kịch bản này.
+### @ac-1 Sign-in
+Checked by hand.
+<!-- sample note -->
+### @ac-9 None
+There is no such scenario.
 ### @AC-1 nope
 
 ## Plan
-- Làm @ac-1
+- Build @ac-1

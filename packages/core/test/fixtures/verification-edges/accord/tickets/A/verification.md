@@ -4,31 +4,31 @@ commit: abcdef0
 reviewed_on: 2026-09-02
 ---
 
-## @ac-1 Một
+## @ac-1 One
 
 Result: pass
 <!-- pass | fail | blocked -->
 
-Evidence: dòng một
-dòng hai <!-- bỏ qua -->
-dòng ba
+Evidence: line one
+line two <!-- skip -->
+line three
 
-## @ac-2 Hai
+## @ac-2 Two
 
-Evidence: chạy npm test
+Evidence: run npm test
 
-## @ac-3 Ba
+## @ac-3 Three
 
 Result: PASS
 
-## @ac-4 Bốn
+## @ac-4 Four
 
 Result: blocked
 
 ## Notes
-Ghi chú tự do, không phải khối bằng chứng.
+Free notes, not an evidence block.
 
-## @ac-1 Một lần nữa
+## @ac-1 One more time
 
 Result: fail
-Evidence: khối lặp
+Evidence: repeated block

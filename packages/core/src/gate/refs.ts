@@ -118,8 +118,8 @@ export function stripRefs(text: string, snapshot: RepoSnapshot): string {
 
 /**
  * D-85 normalisation: lower case, punctuation and symbols to a space, whitespace collapsed. Combining
- * marks and precomposed letters are left alone — content in Vietnamese is the expected case, and folding
- * diacritics would make `trả` and `tra` the same word and manufacture a false match.
+ * marks and precomposed letters are left alone — content in a language with diacritics, such as French, is
+ * the expected case, and folding them would make `où` and `ou` the same word and manufacture a false match.
  */
 export function normalise(text: string): string {
   return text

@@ -22,7 +22,7 @@ ui: false
 # The AC hash and the commit the ticks were made against.
 # verified_hash:
 # verified_commit:
-approved_hash: "fnv1a64:2131b41ab3b67bdc"
+approved_hash: "fnv1a64:ac560715912e06dd"
 ac_hash: "fnv1a64:d112f951cb144e0d"
 verified_hash: "fnv1a64:d112f951cb144e0d"
 verified_commit: "debd399c21bc61470da80c103405282c4999ebc0"
@@ -92,12 +92,12 @@ Feature: VID-1
 
 ## Decisions
 <!-- Settled answers, one per line: - D-01 <decision> — "<the owner's sentence>" -->
-- D-01 Three parts: `accord gate plan` rejects a verify id holding `@` (the `(@ac-n)` marker excepted) and a comma inside an id (one touching a non-space character on both sides, not a separating comma followed by a space); the planner and executor say a test name holds neither. The checks live in `gate plan`, because `accord lint` never reads `plan.md`. Not: junit id normalisation, `accord/tests-baseline.txt`, existing tests whose names hold a comma — "Đúng (Recommended)"
+- D-01 Three parts: `accord gate plan` rejects a verify id holding `@` (the `(@ac-n)` marker excepted) and a comma inside an id (one touching a non-space character on both sides, not a separating comma followed by a space); the planner and executor say a test name holds neither. The checks live in `gate plan`, because `accord lint` never reads `plan.md`. Not: junit id normalisation, `accord/tests-baseline.txt`, existing tests whose names hold a comma — "Right (Recommended)"
 - D-02 Both rules are errors on both profiles: such an id can never pass `task-done` or `gate done` — "error (Recommended)"
-- D-03 An `@` anywhere in the id is rejected, in the path as well as the test name, because the Gherkin tag splits either way; a test under a directory holding `@` cannot be named on a verify line until a later ticket escapes tags — "Chặn mọi `@` (Recommended)"
-- D-04 The smallest version is all three parts: both rules and the text — "Cả ba phần (Recommended)"
-- D-05 (audit) The comma error names the whole whitespace-free text holding the comma, as written on the verify line, so the planner finds it at once — "Cả id như viết (Recommended)"
-- D-06 (audit) Both agents hold one fixed sentence, checked verbatim by a test over the rendered agents; every runtime renders from the same source, so one render output suffices — "Câu cố định, test đọc bản render (Recommended)"
+- D-03 An `@` anywhere in the id is rejected, in the path as well as the test name, because the Gherkin tag splits either way; a test under a directory holding `@` cannot be named on a verify line until a later ticket escapes tags — "Block every `@` (Recommended)"
+- D-04 The smallest version is all three parts: both rules and the text — "All three parts (Recommended)"
+- D-05 (audit) The comma error names the whole whitespace-free text holding the comma, as written on the verify line, so the planner finds it at once — "The whole id as written (Recommended)"
+- D-06 (audit) Both agents hold one fixed sentence, checked verbatim by a test over the rendered agents; every runtime renders from the same source, so one render output suffices — "A fixed sentence, the test reads the render (Recommended)"
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->

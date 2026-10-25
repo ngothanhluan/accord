@@ -22,7 +22,7 @@ ui: false
 # The AC hash and the commit the ticks were made against.
 # verified_hash:
 # verified_commit:
-approved_hash: "fnv1a64:83ab2d0f411f6165"
+approved_hash: "fnv1a64:7ef353203ac235f1"
 ac_hash: "fnv1a64:459b3a1d8a0e95a7"
 verified_hash: "fnv1a64:459b3a1d8a0e95a7"
 verified_commit: "85f4f9c49f71d8e57b7c77b75217945f097918d1"
@@ -89,15 +89,15 @@ Feature: ST-LN-1
 
 ## Decisions
 <!-- Settled answers, one per line: - D-01 <decision> — "<the owner's sentence>" -->
-- D-01 Three parts: an optional config key validated by the schema, defaulting to `t/{id}`; anchor, hook and the claim read use the template; the /accord skill tells the agent to create and switch to the branch the template gives — "Đúng 3 phần (Recommended)"
-- D-02 The template is fixed text plus exactly one `{id}`, matched against the whole branch name; no other variable and no free-text tail — "Chỉ {id} (Recommended)"
-- D-03 `t/<id>` branches always count as claims, next to branches named by the template, so changing the template never loses a claim; `t/` stays reserved — "Đọc cả t/ lẫn mẫu mới (Recommended)"
-- D-04 The schema requires exactly one `{id}`, at least one fixed character besides it, and only characters git allows in a branch name; lint reports an invalid template — "Chặt: đúng 1 {id}, có chữ cố định, tên git hợp lệ (Recommended)"
-- D-05 All three parts are the smallest version that counts as done — "Cả 3 phần (Recommended)"
-- D-06 An invalid template is a lint schema error (exit 1), like any other config key; while it is invalid, anchor, hook, status and next ignore it and use `t/{id}` — "Như key khác, lệnh khác dùng t/{id} (Recommended)"
-- D-07 The templates in force are `t/{id}`, the `branch` in the working tree's config.yml, and the `branch` in config.yml on the fetched default branch; a template reaches the whole team once it is on the default branch, and no other ref sets one — "Máy đang chạy + nhánh mặc định (Recommended)"
-- D-08 The CLI gives the branch name: each row of `status --json` and `next --json` carries `branch`, the claim branch of a claimed ticket or the name a new claim would use; the /accord skill reads it and never builds a name — "CLI in ra tên nhánh (Recommended)"
-- D-09 A new claim is named by the valid template on the fetched default branch, else `t/{id}`; only a repository with no default branch uses the working tree's template, so every new claim is one the whole team counts — "Theo mẫu trên main (Recommended)"
+- D-01 Three parts: an optional config key validated by the schema, defaulting to `t/{id}`; anchor, hook and the claim read use the template; the /accord skill tells the agent to create and switch to the branch the template gives — "Exactly 3 parts (Recommended)"
+- D-02 The template is fixed text plus exactly one `{id}`, matched against the whole branch name; no other variable and no free-text tail — "Only {id} (Recommended)"
+- D-03 `t/<id>` branches always count as claims, next to branches named by the template, so changing the template never loses a claim; `t/` stays reserved — "Read both t/ and the new template (Recommended)"
+- D-04 The schema requires exactly one `{id}`, at least one fixed character besides it, and only characters git allows in a branch name; lint reports an invalid template — "Strict: exactly 1 {id}, has fixed characters, a valid git name (Recommended)"
+- D-05 All three parts are the smallest version that counts as done — "All 3 parts (Recommended)"
+- D-06 An invalid template is a lint schema error (exit 1), like any other config key; while it is invalid, anchor, hook, status and next ignore it and use `t/{id}` — "Like other keys; other commands use t/{id} (Recommended)"
+- D-07 The templates in force are `t/{id}`, the `branch` in the working tree's config.yml, and the `branch` in config.yml on the fetched default branch; a template reaches the whole team once it is on the default branch, and no other ref sets one — "The running machine + the default branch (Recommended)"
+- D-08 The CLI gives the branch name: each row of `status --json` and `next --json` carries `branch`, the claim branch of a claimed ticket or the name a new claim would use; the /accord skill reads it and never builds a name — "The CLI prints the branch name (Recommended)"
+- D-09 A new claim is named by the valid template on the fetched default branch, else `t/{id}`; only a repository with no default branch uses the working tree's template, so every new claim is one the whole team counts — "Follow the template on main (Recommended)"
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->

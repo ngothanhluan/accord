@@ -12,7 +12,7 @@
 - Ruling: the @ac-4 panel test's title starts with `ac-4` although `panel.test.ts` already holds another ticket's `ac-4 pressing a row id…` — full titles differ, so ids are unique, as in `dashboard.test.ts` (planner) — cost if wrong: matching by prefix alone finds two tests.
 - Ruling: the ST-LN-2 pointer sits directly after the last line of its `## Rulings`, before `## Deferred` — the brief says the last line of `## Rulings` (executor, task 2) — cost if wrong: one line to move.
 - Ruling: the executor commits 20d87c7 and f854b8f keep their `Co-Authored-By: Claude` trailer — 34 merged commits already carry it, and rewriting would change the SHAs the ledger's task lines record — cost if wrong: two commits break the "authored solely by the author" constraint as the earlier tickets' do.
-- Overruled by the owner at the final review (Should 1, the "commits authored solely by the author" constraint): "Xóa trailer trước khi merge (Recommended)". The branch's commits from 20d87c7 on were rewritten to drop the trailer, trees unchanged: task 1 is now 763b5ff74dc7 and task 2 ab2a719f0e2a.
+- Overruled by the owner at the final review (Should 1, the "commits authored solely by the author" constraint): "Remove the trailer before merging (Recommended)". The branch's commits from 20d87c7 on were rewritten to drop the trailer, trees unchanged: task 1 is now 763b5ff74dc7 and task 2 ab2a719f0e2a.
 
 ## Deferred
 - Plan review 1.2 (Nice): the ST-LN-2 ledger pointer could also name D-06's absent-section clause as no longer holding for `upNext`.

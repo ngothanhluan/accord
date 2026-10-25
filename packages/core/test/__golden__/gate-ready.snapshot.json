@@ -35,7 +35,7 @@
       "frontmatter": {
         "id": "CLEAN",
         "status": "open",
-        "title": "Phiếu sẵn sàng",
+        "title": "Ready ticket",
         "type": "story",
         "ui": false
       },
@@ -43,7 +43,7 @@
       "requirements": [
         {
           "line": 13,
-          "text": "WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+          "text": "WHEN a user submits a valid email and password the system SHALL open the dashboard"
         }
       ],
       "scenarios": [
@@ -51,10 +51,10 @@
           "acTag": "ac-1",
           "keyword": "Scenario",
           "line": 20,
-          "name": "Đăng nhập thành công",
+          "name": "Sign-in succeeds",
           "steps": [
-            "When họ gửi email và mật khẩu hợp lệ",
-            "Then họ thấy bảng điều khiển"
+            "When they submit a valid email and password",
+            "Then they see the dashboard"
           ],
           "tags": [
             "@ac-1"
@@ -68,7 +68,7 @@
           "lines": [
             {
               "line": 10,
-              "text": "Người dùng đăng nhập bằng email để vào bảng điều khiển."
+              "text": "Users sign in by email to reach the dashboard."
             },
             {
               "line": 11,
@@ -82,7 +82,7 @@
           "lines": [
             {
               "line": 13,
-              "text": "- WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+              "text": "- WHEN a user submits a valid email and password the system SHALL open the dashboard"
             },
             {
               "line": 14,
@@ -112,15 +112,15 @@
             },
             {
               "line": 20,
-              "text": "  Scenario: Đăng nhập thành công"
+              "text": "  Scenario: Sign-in succeeds"
             },
             {
               "line": 21,
-              "text": "    When họ gửi email và mật khẩu hợp lệ"
+              "text": "    When they submit a valid email and password"
             },
             {
               "line": 22,
-              "text": "    Then họ thấy bảng điều khiển"
+              "text": "    Then they see the dashboard"
             },
             {
               "line": 23,
@@ -138,7 +138,7 @@
           "lines": [
             {
               "line": 26,
-              "text": "- [x] Đã rõ"
+              "text": "- [x] Clear"
             },
             {
               "line": 27,
@@ -152,7 +152,7 @@
           "lines": [
             {
               "line": 29,
-              "text": "- Làm màn hình đăng nhập @ac-1"
+              "text": "- Build the sign-in screen @ac-1"
             }
           ]
         }
@@ -164,12 +164,12 @@
         "assumptions": [
           {
             "confirmed": false,
-            "text": "Đã có SSO"
+            "text": "SSO exists"
           }
         ],
         "id": "HYGIENE",
         "status": "open",
-        "title": "Phiếu chưa vệ sinh",
+        "title": "Ticket with hygiene problems",
         "type": "story",
         "ui": false
       },
@@ -177,7 +177,7 @@
       "requirements": [
         {
           "line": 15,
-          "text": "WHEN thanh toán maybe thất bại the system SHALL thử lại một lần"
+          "text": "WHEN a payment maybe fails the system SHALL retry once"
         }
       ],
       "scenarios": [
@@ -185,10 +185,10 @@
           "acTag": "ac-1",
           "keyword": "Scenario",
           "line": 22,
-          "name": "Đăng nhập thành công",
+          "name": "Sign-in succeeds",
           "steps": [
-            "When họ gửi email và mật khẩu hợp lệ",
-            "Then họ thấy bảng điều khiển"
+            "When they submit a valid email and password",
+            "Then they see the dashboard"
           ],
           "tags": [
             "@ac-1"
@@ -202,7 +202,7 @@
           "lines": [
             {
               "line": 12,
-              "text": "Người dùng đăng nhập bằng email. TODO viết thêm phần quên mật khẩu."
+              "text": "Users sign in by email. TODO write the forgotten password part."
             },
             {
               "line": 13,
@@ -216,7 +216,7 @@
           "lines": [
             {
               "line": 15,
-              "text": "- WHEN thanh toán maybe thất bại the system SHALL thử lại một lần"
+              "text": "- WHEN a payment maybe fails the system SHALL retry once"
             },
             {
               "line": 16,
@@ -246,15 +246,15 @@
             },
             {
               "line": 22,
-              "text": "  Scenario: Đăng nhập thành công"
+              "text": "  Scenario: Sign-in succeeds"
             },
             {
               "line": 23,
-              "text": "    When họ gửi email và mật khẩu hợp lệ"
+              "text": "    When they submit a valid email and password"
             },
             {
               "line": 24,
-              "text": "    Then họ thấy bảng điều khiển"
+              "text": "    Then they see the dashboard"
             },
             {
               "line": 25,
@@ -272,7 +272,7 @@
           "lines": [
             {
               "line": 28,
-              "text": "- [ ] Chưa rõ luồng SSO"
+              "text": "- [ ] The SSO flow is unclear"
             },
             {
               "line": 29,
@@ -286,7 +286,7 @@
           "lines": [
             {
               "line": 31,
-              "text": "- Làm màn hình đăng nhập @ac-1"
+              "text": "- Build the sign-in screen @ac-1"
             }
           ]
         }
@@ -297,7 +297,7 @@
       "frontmatter": {
         "id": "NOUI",
         "status": "open",
-        "title": "Phiếu không có giao diện",
+        "title": "Ticket without an interface",
         "type": "story",
         "ui": false
       },
@@ -305,7 +305,7 @@
       "requirements": [
         {
           "line": 13,
-          "text": "WHEN phiên đăng nhập hết hạn the system SHALL xoá phiên đó"
+          "text": "WHEN a sign-in session expires the system SHALL delete that session"
         }
       ],
       "scenarios": [
@@ -313,10 +313,10 @@
           "acTag": "ac-1",
           "keyword": "Scenario",
           "line": 20,
-          "name": "Xoá phiên hết hạn",
+          "name": "Expired session is deleted",
           "steps": [
-            "When công việc đêm chạy",
-            "Then phiên hết hạn không còn"
+            "When the nightly job runs",
+            "Then the expired session is gone"
           ],
           "tags": [
             "@ac-1"
@@ -330,7 +330,7 @@
           "lines": [
             {
               "line": 10,
-              "text": "Hệ thống dọn phiên đăng nhập đã hết hạn mỗi đêm."
+              "text": "The system cleans up expired sign-in sessions every night."
             },
             {
               "line": 11,
@@ -344,7 +344,7 @@
           "lines": [
             {
               "line": 13,
-              "text": "- WHEN phiên đăng nhập hết hạn the system SHALL xoá phiên đó"
+              "text": "- WHEN a sign-in session expires the system SHALL delete that session"
             },
             {
               "line": 14,
@@ -374,15 +374,15 @@
             },
             {
               "line": 20,
-              "text": "  Scenario: Xoá phiên hết hạn"
+              "text": "  Scenario: Expired session is deleted"
             },
             {
               "line": 21,
-              "text": "    When công việc đêm chạy"
+              "text": "    When the nightly job runs"
             },
             {
               "line": 22,
-              "text": "    Then phiên hết hạn không còn"
+              "text": "    Then the expired session is gone"
             },
             {
               "line": 23,
@@ -400,7 +400,7 @@
           "lines": [
             {
               "line": 26,
-              "text": "- [x] Đã rõ"
+              "text": "- [x] Clear"
             },
             {
               "line": 27,
@@ -414,7 +414,7 @@
           "lines": [
             {
               "line": 29,
-              "text": "- Viết công việc dọn phiên @ac-1"
+              "text": "- Write the session cleanup job @ac-1"
             }
           ]
         }
@@ -426,7 +426,7 @@
       "requirements": [
         {
           "line": 12,
-          "text": "WHEN người dùng gửi mật khẩu mới hợp lệ the system SHALL lưu mật khẩu đó"
+          "text": "WHEN a user submits a valid new password the system SHALL save that password"
         }
       ],
       "scenarios": [
@@ -434,10 +434,10 @@
           "acTag": "ac-1",
           "keyword": "Scenario",
           "line": 19,
-          "name": "Đổi mật khẩu",
+          "name": "Change password",
           "steps": [
-            "When họ gửi mật khẩu mới hợp lệ",
-            "Then mật khẩu được lưu"
+            "When they submit a valid new password",
+            "Then the password is saved"
           ],
           "tags": [
             "@ac-1"
@@ -451,7 +451,7 @@
           "lines": [
             {
               "line": 9,
-              "text": "Người dùng đổi mật khẩu trong phần cài đặt."
+              "text": "Users change their password in the settings."
             },
             {
               "line": 10,
@@ -465,7 +465,7 @@
           "lines": [
             {
               "line": 12,
-              "text": "- WHEN người dùng gửi mật khẩu mới hợp lệ the system SHALL lưu mật khẩu đó"
+              "text": "- WHEN a user submits a valid new password the system SHALL save that password"
             },
             {
               "line": 13,
@@ -495,15 +495,15 @@
             },
             {
               "line": 19,
-              "text": "  Scenario: Đổi mật khẩu"
+              "text": "  Scenario: Change password"
             },
             {
               "line": 20,
-              "text": "    When họ gửi mật khẩu mới hợp lệ"
+              "text": "    When they submit a valid new password"
             },
             {
               "line": 21,
-              "text": "    Then mật khẩu được lưu"
+              "text": "    Then the password is saved"
             },
             {
               "line": 22,
@@ -521,7 +521,7 @@
           "lines": [
             {
               "line": 25,
-              "text": "- [x] Đã rõ"
+              "text": "- [x] Clear"
             },
             {
               "line": 26,
@@ -535,7 +535,7 @@
           "lines": [
             {
               "line": 28,
-              "text": "- Làm biểu mẫu đổi mật khẩu @ac-1"
+              "text": "- Build the change password form @ac-1"
             }
           ]
         }
@@ -546,7 +546,7 @@
       "frontmatter": {
         "id": "THIN",
         "status": "open",
-        "title": "Phiếu rỗng ruột",
+        "title": "Hollow ticket",
         "type": "story",
         "ui": false
       },
@@ -554,11 +554,11 @@
       "requirements": [
         {
           "line": 14,
-          "text": "Màn hình phải nhanh"
+          "text": "The screen must be fast"
         },
         {
           "line": 15,
-          "text": "Người dùng thấy danh sách"
+          "text": "Users see the list"
         }
       ],
       "scenarios": [
@@ -566,10 +566,10 @@
           "acTag": "ac-1",
           "keyword": "Scenario",
           "line": 22,
-          "name": "Xem danh sách",
+          "name": "View the list",
           "steps": [
-            "When họ mở trang danh sách",
-            "Then họ thấy danh sách"
+            "When they open the list page",
+            "Then they see the list"
           ],
           "tags": [
             "@ac-1"
@@ -587,7 +587,7 @@
             },
             {
               "line": 11,
-              "text": "<!-- BA viết phần này -->"
+              "text": "<!-- The BA writes this section -->"
             },
             {
               "line": 12,
@@ -601,11 +601,11 @@
           "lines": [
             {
               "line": 14,
-              "text": "- Màn hình phải nhanh"
+              "text": "- The screen must be fast"
             },
             {
               "line": 15,
-              "text": "- Người dùng thấy danh sách"
+              "text": "- Users see the list"
             },
             {
               "line": 16,
@@ -635,15 +635,15 @@
             },
             {
               "line": 22,
-              "text": "  Scenario: Xem danh sách"
+              "text": "  Scenario: View the list"
             },
             {
               "line": 23,
-              "text": "    When họ mở trang danh sách"
+              "text": "    When they open the list page"
             },
             {
               "line": 24,
-              "text": "    Then họ thấy danh sách"
+              "text": "    Then they see the list"
             },
             {
               "line": 25,
@@ -661,7 +661,7 @@
           "lines": [
             {
               "line": 28,
-              "text": "- [x] Đã rõ"
+              "text": "- [x] Clear"
             },
             {
               "line": 29,
@@ -675,7 +675,7 @@
           "lines": [
             {
               "line": 31,
-              "text": "- Dựng trang danh sách @ac-1"
+              "text": "- Build the list page @ac-1"
             }
           ]
         }
@@ -686,7 +686,7 @@
       "frontmatter": {
         "id": "UINOREF",
         "status": "open",
-        "title": "Phiếu giao diện thiếu tham chiếu",
+        "title": "Interface ticket missing a reference",
         "type": "story",
         "ui": true
       },
@@ -694,7 +694,7 @@
       "requirements": [
         {
           "line": 13,
-          "text": "WHEN người dùng mở trang đăng nhập the system SHALL hiển thị biểu mẫu mới"
+          "text": "WHEN a user opens the sign-in page the system SHALL show the new form"
         }
       ],
       "scenarios": [
@@ -702,10 +702,10 @@
           "acTag": "ac-1",
           "keyword": "Scenario",
           "line": 20,
-          "name": "Mở trang đăng nhập",
+          "name": "Open the sign-in page",
           "steps": [
-            "When họ mở trang đăng nhập",
-            "Then họ thấy biểu mẫu mới"
+            "When they open the sign-in page",
+            "Then they see the new form"
           ],
           "tags": [
             "@ac-1"
@@ -719,7 +719,7 @@
           "lines": [
             {
               "line": 10,
-              "text": "Người dùng thấy màn hình đăng nhập mới."
+              "text": "Users see the new sign-in screen."
             },
             {
               "line": 11,
@@ -733,7 +733,7 @@
           "lines": [
             {
               "line": 13,
-              "text": "- WHEN người dùng mở trang đăng nhập the system SHALL hiển thị biểu mẫu mới"
+              "text": "- WHEN a user opens the sign-in page the system SHALL show the new form"
             },
             {
               "line": 14,
@@ -763,15 +763,15 @@
             },
             {
               "line": 20,
-              "text": "  Scenario: Mở trang đăng nhập"
+              "text": "  Scenario: Open the sign-in page"
             },
             {
               "line": 21,
-              "text": "    When họ mở trang đăng nhập"
+              "text": "    When they open the sign-in page"
             },
             {
               "line": 22,
-              "text": "    Then họ thấy biểu mẫu mới"
+              "text": "    Then they see the new form"
             },
             {
               "line": 23,
@@ -789,7 +789,7 @@
           "lines": [
             {
               "line": 26,
-              "text": "- [x] Đã rõ"
+              "text": "- [x] Clear"
             },
             {
               "line": 27,
@@ -803,7 +803,7 @@
           "lines": [
             {
               "line": 29,
-              "text": "- Dựng biểu mẫu đăng nhập @ac-1"
+              "text": "- Build the sign-in form @ac-1"
             }
           ]
         }

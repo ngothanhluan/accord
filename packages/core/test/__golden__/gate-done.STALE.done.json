@@ -1,18 +1,18 @@
 {
-  "acHash": "fnv1a64:0e84e174c4cdc76b",
+  "acHash": "fnv1a64:d195ee776986de2f",
   "findings": [
     {
       "file": "accord/tickets/STALE.md",
       "level": "error",
       "pointer": "/ac_hash",
-      "reason": "the acceptance criteria changed since Ready: ac_hash records fnv1a64:deadbeefdeadbeef, they hash to fnv1a64:0e84e174c4cdc76b now",
+      "reason": "the acceptance criteria changed since Ready: ac_hash records fnv1a64:deadbeefdeadbeef, they hash to fnv1a64:d195ee776986de2f now",
       "rule": "gate.ac-changed"
     },
     {
       "file": "accord/tickets/STALE.md",
       "level": "error",
       "pointer": "/verified_hash",
-      "reason": "the ticks were made against fnv1a64:deadbeefdeadbeef; the acceptance criteria hash to fnv1a64:0e84e174c4cdc76b now",
+      "reason": "the ticks were made against fnv1a64:deadbeefdeadbeef; the acceptance criteria hash to fnv1a64:d195ee776986de2f now",
       "rule": "gate.tick-stale-hash"
     }
   ],

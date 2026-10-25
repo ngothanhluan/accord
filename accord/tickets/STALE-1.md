@@ -22,7 +22,7 @@ ui: false
 # The AC hash and the commit the ticks were made against.
 # verified_hash:
 # verified_commit:
-approved_hash: "fnv1a64:894134e700c4f29b"
+approved_hash: "fnv1a64:e191b31e63de3644"
 ac_hash: "fnv1a64:f80d8a537b0d21cc"
 verified: [ac-1, ac-2, ac-3, ac-4, ac-5]
 verified_hash: "fnv1a64:f80d8a537b0d21cc"
@@ -83,14 +83,14 @@ Feature: STALE-1 idle tickets
 ## Vetoes
 
 ## Decisions
-- D-01 Idle shows as an `idleDays` JSON field, present only when idle, and as "idle <n>d" in the stage cell of the text table — "idleDays + cột stage"
-- D-02 Activity is the newest commit among the ticket's records and its claim branch tip — "Lấy hoạt động mới nhất"
-- D-03 All three parts are in scope: records, claim branch, and status output — "Đủ 3 phần"
-- D-04 idleDays counts whole 24-hour periods since the newest activity; a ticket is idle when idleDays is greater than stale_days — "Duyệt bản sửa"
-- D-05 Only tickets with `lane:` can be idle — "Duyệt bản sửa"
-- D-06 The claim branch is read from local and remote-tracking refs, the newest commit counting — "Duyệt bản sửa"
-- D-07 Now is when the command runs; the CLI passes it in and core reads no clock — "Duyệt bản sửa"
-- D-08 The `/accord` dashboard shows "idle <n>d" for a row that carries idleDays — "Có, thêm vào skill"
+- D-01 Idle shows as an `idleDays` JSON field, present only when idle, and as "idle <n>d" in the stage cell of the text table — "idleDays + stage column"
+- D-02 Activity is the newest commit among the ticket's records and its claim branch tip — "Take the newest activity"
+- D-03 All three parts are in scope: records, claim branch, and status output — "All 3 parts"
+- D-04 idleDays counts whole 24-hour periods since the newest activity; a ticket is idle when idleDays is greater than stale_days — "Approve the revised version"
+- D-05 Only tickets with `lane:` can be idle — "Approve the revised version"
+- D-06 The claim branch is read from local and remote-tracking refs, the newest commit counting — "Approve the revised version"
+- D-07 Now is when the command runs; the CLI passes it in and core reads no clock — "Approve the revised version"
+- D-08 The `/accord` dashboard shows "idle <n>d" for a row that carries idleDays — "Yes, add it to the skill"
 
 ## Corrections
 

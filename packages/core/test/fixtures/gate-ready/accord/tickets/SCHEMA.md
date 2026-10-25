@@ -6,23 +6,23 @@ ui: false
 ---
 
 ## Intent
-Người dùng đổi mật khẩu trong phần cài đặt.
+Users change their password in the settings.
 
 ## Requirements
-- WHEN người dùng gửi mật khẩu mới hợp lệ the system SHALL lưu mật khẩu đó
+- WHEN a user submits a valid new password the system SHALL save that password
 
 ## Acceptance criteria
 ```gherkin
 Feature: SCHEMA
 
   @ac-1
-  Scenario: Đổi mật khẩu
-    When họ gửi mật khẩu mới hợp lệ
-    Then mật khẩu được lưu
+  Scenario: Change password
+    When they submit a valid new password
+    Then the password is saved
 ```
 
 ## Open questions
-- [x] Đã rõ
+- [x] Clear
 
 ## Plan
-- Làm biểu mẫu đổi mật khẩu @ac-1
+- Build the change password form @ac-1

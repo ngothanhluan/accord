@@ -1,43 +1,43 @@
 ---
 id: CLEAN
-title: Phiếu sạch
+title: Clean ticket
 type: story
 status: draft
 assumptions:
-  - { text: "Người dùng đã có tài khoản", confirmed: true }
+  - { text: "The user already has an account", confirmed: true }
 verified: [ac-1]
 ---
 
 ## Intent
-Người dùng đăng nhập bằng email và mật khẩu để vào bảng điều khiển.
-Không hỗ trợ đăng nhập mạng xã hội trong phiên bản này.
+The user signs in with email and password to reach the dashboard.
+Social sign-in is not supported in this version.
 
 ## Requirements
-- WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển
-- IF mật khẩu sai THEN the system SHALL hiển thị thông báo lỗi
+- WHEN the user submits a valid email and password the system SHALL open the dashboard
+- IF the password is wrong THEN the system SHALL display an error message
 
 ## Acceptance criteria
 ```gherkin
 Feature: CLEAN
 
   @ac-1 @test:t#a
-  Scenario: Đăng nhập thành công
-    When họ gửi email và mật khẩu hợp lệ
-    Then họ thấy bảng điều khiển
+  Scenario: Sign-in succeeds
+    When they submit a valid email and password
+    Then they see the dashboard
 
   @ac-2 @ui
-  Scenario: Mật khẩu sai
-    When họ gửi mật khẩu sai
-    Then họ thấy thông báo lỗi
+  Scenario: Wrong password
+    When they submit a wrong password
+    Then they see an error message
 ```
 
 ## Open questions
-- [x] Đã rõ
+- [x] Clear
 
 ## Plan
-- Bước một @ac-1
-- Bước hai @ac-2
+- Step one @ac-1
+- Step two @ac-2
 
 ## Verification notes
-### @ac-1 Đăng nhập
-Đã kiểm tra bằng tay.
+### @ac-1 Sign-in
+Checked by hand.

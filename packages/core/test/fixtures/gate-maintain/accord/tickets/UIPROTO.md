@@ -1,29 +1,29 @@
 ---
 id: UIPROTO
-title: Phiếu giao diện có bản mẫu
+title: Interface ticket with a prototype
 type: story
 status: open
 ui: true
 ---
 
 ## Intent
-Người dùng thấy trang hồ sơ được dựng lại.
+Users see the rebuilt profile page.
 
 ## Requirements
-- WHEN người dùng mở trang hồ sơ the system SHALL hiển thị bố cục mới
+- WHEN a user opens the profile page the system SHALL show the new layout
 
 ## Acceptance criteria
 ```gherkin
 Feature: UIPROTO
 
   @ac-1
-  Scenario: Mở trang hồ sơ
-    When họ mở trang hồ sơ
-    Then họ thấy bố cục mới
+  Scenario: Open the profile page
+    When they open the profile page
+    Then they see the new layout
 ```
 
 ## Open questions
-- [x] Đã rõ
+- [x] Clear
 
 ## Plan
-- Dựng lại trang hồ sơ @ac-1
+- Rebuild the profile page @ac-1

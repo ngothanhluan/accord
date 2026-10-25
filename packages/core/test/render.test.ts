@@ -9,7 +9,7 @@ const result: LintResult = {
   findings: [
     { file: 'accord/config.yml', rule: 'load.config-missing', reason: 'accord/config.yml not found in snapshot', level: 'error' },
     { file: 'accord/tickets/LOGIN-1.md', line: 12, rule: 'lint.ears-unclassified', reason: "has WHEN but no 'the system shall'", level: 'warning' },
-    { file: 'accord/tickets/VI.md', line: 3, rule: 'lint.sentinel', reason: 'chứa TODO', level: 'warning' },
+    { file: 'accord/tickets/FR.md', line: 3, rule: 'lint.sentinel', reason: 'contains TODO', level: 'warning' },
   ],
   errors: 1,
   warnings: 2,
@@ -24,7 +24,7 @@ describe('renderText (D-60)', () => {
     expect(renderText(result)).toBe(
       'accord/config.yml: error load.config-missing accord/config.yml not found in snapshot\n' +
         "accord/tickets/LOGIN-1.md:12: warning lint.ears-unclassified has WHEN but no 'the system shall'\n" +
-        'accord/tickets/VI.md:3: warning lint.sentinel chứa TODO\n' +
+        'accord/tickets/FR.md:3: warning lint.sentinel contains TODO\n' +
         '1 errors, 2 warnings\n',
     );
   });

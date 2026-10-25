@@ -1,31 +1,31 @@
 ---
 id: HYGIENE
-title: Phiếu chưa vệ sinh
+title: Ticket with hygiene problems
 type: story
 status: open
 ui: false
 assumptions:
-  - { text: "Đã có SSO", confirmed: false }
+  - { text: "SSO exists", confirmed: false }
 ---
 
 ## Intent
-Người dùng đăng nhập bằng email. TODO viết thêm phần quên mật khẩu.
+Users sign in by email. TODO write the forgotten password part.
 
 ## Requirements
-- WHEN thanh toán maybe thất bại the system SHALL thử lại một lần
+- WHEN a payment maybe fails the system SHALL retry once
 
 ## Acceptance criteria
 ```gherkin
 Feature: HYGIENE
 
   @ac-1
-  Scenario: Đăng nhập thành công
-    When họ gửi email và mật khẩu hợp lệ
-    Then họ thấy bảng điều khiển
+  Scenario: Sign-in succeeds
+    When they submit a valid email and password
+    Then they see the dashboard
 ```
 
 ## Open questions
-- [ ] Chưa rõ luồng SSO
+- [ ] The SSO flow is unclear
 
 ## Plan
-- Làm màn hình đăng nhập @ac-1
+- Build the sign-in screen @ac-1

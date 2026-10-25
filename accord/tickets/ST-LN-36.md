@@ -29,7 +29,7 @@ ui: false
 ## Intent
 <!-- At most five lines: why, for whom, how success is measured, and what this does not do. -->
 Queued 2026-10-22, not approved; the intent interview replaces this:
-- Owner asked, 2026-10-22: "security agent đã ổn chưa? và điều kiện để trigger security agent đã ok chưa?". Owner, 2026-10-22, to the proposal in chat: "ok queue hết di".
+- Owner asked, 2026-10-22: "is the security agent fine yet? and are the conditions that trigger the security agent ok yet?". Owner, 2026-10-22, to the proposal in chat: "ok queue them all".
 - Today lens `security` is one line, with no checklist (`.claude/agents/accord-reviewer.md`, `accord-final-reviewer.md:28`): "the auth, money, migration, and data deletion paths the diff touches".
 - The trigger (accord-review step 3, accord-plan `critique.md:28`) is the main session's own reading of "auth, money, migration, or data deletion"; nothing records that it was weighed. Accord's own riskiest code (spawning git, writing hook settings, path checks such as `assertNoLink`, `.github/workflows/`) triggers neither. The lane rule in `/accord` lists "auth, money, or data deletion" without migration.
 - Proposal to confirm at intent: `accord review-package` prints `## Security triggers`, the changed files and lines matching patterns with defaults overridable in `config.yml` (process spawn, file writes, paths built from input, workflow files, dependency manifests, auth and secret names); a non-empty section makes the security reviewer, and the plan's security critic, mandatory. The lens gets a checklist: injection, path traversal and links, secrets, untrusted input, CI permissions, new dependencies, hook commands, authorisation. The lane rule gets migration.

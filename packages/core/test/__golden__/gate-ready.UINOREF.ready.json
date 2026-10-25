@@ -1,5 +1,5 @@
 {
-  "acHash": "fnv1a64:c68caf4b4f4a9346",
+  "acHash": "fnv1a64:eb2b34cc9f852d6b",
   "findings": [
     {
       "file": "accord/tickets/UINOREF.md",
@@ -12,7 +12,7 @@
       "file": "accord/tickets/UINOREF.md",
       "level": "warning",
       "line": 20,
-      "reason": "scenario \"Mở trang đăng nhập\" has no @test:<id> tag and is not @ui",
+      "reason": "scenario \"Open the sign-in page\" has no @test:<id> tag and is not @ui",
       "rule": "lint.test-tag-missing"
     }
   ],

@@ -29,7 +29,7 @@ ui: false
 ## Intent
 <!-- At most five lines: why, for whom, how success is measured, and what this does not do. -->
 Queued 2026-10-19, not approved; the intent interview replaces this:
-- Raised during ST-LN-27: how does accord keep state in sync across the tickets of an epic or a project? Owner, citing GSD's STATE.md that records every phase: "thấy khá hay", then "về epic/project structure thì cần một discuss".
+- Raised during ST-LN-27: how does accord keep state in sync across the tickets of an epic or a project? Owner, citing GSD's STATE.md that records every phase: "seems quite good", then "the epic/project structure needs a discussion".
 - Today: lane L and P are "Not built yet" in the /accord skill; an epic has a template (`epic-lane.md`) whose Vetoes and Decisions bind its stories, and stories point at it with `parent:`; each ticket's deferred items, Rulings and lessons stay in its own `ledger.md` and are never gathered across tickets; a ticket's stage is derived from git, never stored.
 - To discuss at intent: the epic and project structure and flow, and what carries from one story to the next (deferred items, Rulings, lessons, progress). A single shared state file conflicts on parallel branches, so state should stay derived from git. Deciding each deferred item at verify is already ST-LN-12; settle its overlap with this ticket.
 

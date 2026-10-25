@@ -1,6 +1,6 @@
 ---
 baseline: 3be1c058edab354ab449e75c966f0c6797dd4813
-plan_hash: "fnv1a64:3425f0af7a494f38"
+plan_hash: "fnv1a64:6c3ed20bc332c702"
 ---
 
 Review mode `outcome`: one branch, no slices. Report case ids follow the JUnit id shape in
@@ -318,7 +318,7 @@ Text, naming no other tool:
   `parent` is not copied either. In the copied sections, remove every
   `@test:<id>` tag from the scenarios and change the gherkin `Feature: <old id>` line to the new id. Never copy
   `id`, `type`, `status`, `approved_hash`, `ac_hash`, `verified`, `verified_hash` or `verified_commit`. Then the owner approves the new ticket again (D-02, ledger Rulings on
-  the owner's answers "Chép nội dung sang" and "Chuyển key mô tả công việc"). Never delete a `t/` branch to drop
+  the owner's answers "Copy the content over" and "Carry over the keys that describe the work"). Never delete a `t/` branch to drop
   a ticket (D-02, ledger Ruling). On a merge conflict under `people`, keep each email once, comparing emails
   without regard to case; when the two sides give one email different initials, or give two different emails
   the same initials, ask the owner which to keep (ledger Ruling: a duplicate key makes config.yml unreadable,

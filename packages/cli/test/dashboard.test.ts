@@ -117,7 +117,7 @@ it('risk:security a title cannot inject control characters or overflow its cell'
   const empty = { rows: [], more: 0 };
   const d: Dashboard = {
     epics: empty,
-    yours: { rows: [row('A-1', 'Đặt lại\u001b[31m mật\u202e khẩu\u2028x'), row('A-2', 'Ư'.repeat(70))], more: 0 },
+    yours: { rows: [row('A-1', 'Mot de\u001b[31m passe\u202e oublié\u2028x'), row('A-2', 'É'.repeat(70))], more: 0 },
     team: empty, ready: empty, upNext: empty,
     summary: { inProgress: 0, ready: 0, blocked: 0, backlog: 0, done: 0, withoutLane: 0, withSchemaErrors: 0 },
   };
@@ -127,9 +127,9 @@ it('risk:security a title cannot inject control characters or overflow its cell'
     if (cp !== 0x0a) expect(cp).toBeGreaterThanOrEqual(0x20);
     expect([0x1b, 0x202e, 0x2028]).not.toContain(cp);
   }
-  expect(text).toContain('Đặt lại [31m mật khẩu x');
-  expect(text).toContain('Ư'.repeat(57) + '...');
-  expect(text).not.toContain('Ư'.repeat(58));
+  expect(text).toContain('Mot de [31m passe oublié x');
+  expect(text).toContain('É'.repeat(57) + '...');
+  expect(text).not.toContain('É'.repeat(58));
 });
 
 it('ac-1 ready tickets are ranked by inherited priority then by id', async () => {

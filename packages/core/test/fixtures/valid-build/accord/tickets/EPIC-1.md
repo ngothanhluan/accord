@@ -1,14 +1,14 @@
 ---
 id: EPIC-1
-title: Tài khoản và đăng nhập
+title: Comptes et connexion
 type: epic
 status: open
 ---
 
 ## Intent
-Nhóm các câu chuyện về tài khoản.
+Groups the stories about accounts and sign-in.
 
 ## Requirements
-WHEN người dùng có tài khoản the system SHALL cho phép đăng nhập
+WHEN un utilisateur possède un compte the system SHALL permettre la connexion
 
 ## Open questions

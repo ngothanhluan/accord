@@ -1,6 +1,6 @@
 ---
 baseline: 1d635b5277fa10c77b89c3eba8108cb877065060
-plan_hash: "fnv1a64:6b1b8a6871b524ab"
+plan_hash: "fnv1a64:40e337bc0df2ff8b"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -313,8 +313,8 @@ Tests first, in `packages/core/test/panel.test.ts`:
   unchanged (an unplaced pane does not count as open), and `fire('command.run', { command: 'accord-panel', args: '' })` calls
   `$.ui.toast` with `The terminal is too narrow for the accord pane: it needs 110 columns`.
 - `it('risk:security a title cannot put control characters into the pane')`: settle YOURS with one row titled
-  `'Đặt\u001b[31m lại\u202e x\u2028y'`: no text holds U+001B, U+202E or U+2028, and a text contains
-  `Đặt [31m lại x y`.
+  `'Réglé\u001b[31m à\u202e x\u2028y'`: no text holds U+001B, U+202E or U+2028, and a text contains
+  `Réglé [31m à x y`.
 - In `risk:complex-branching a rejected run an unparsable stdout and an empty stderr each show a message`, two more
   fresh panels: exit 0 with the JSON of `board({ yours: { rows: ['ST-1'], more: 0 } })`, and with
   `board({ upNext: { more: 0 } })`, each give texts `['accord dashboard --json printed no dashboard']`.

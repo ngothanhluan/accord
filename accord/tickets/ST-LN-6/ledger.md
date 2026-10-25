@@ -2,7 +2,7 @@
 
 ## Rulings
 - Ruling: `accord show` with an id that names no ticket exits 2 with a message naming the id — the CLI's exit-code table gives 2 to usage errors, and the lane commands already throw `UsageError` "no ticket <id> in accord/tickets/" (`packages/cli/src/commands/lane-args.ts:18`) — cost if wrong: one exit code and message change.
-- Ruling: the dashboard bug (a ticket only on its claim branch is invisible; the stage reads build before `plan: <id> ready`) stays its own bug ticket, not part of ST-LN-6 — the owner chose "Ticket bug riêng (Khuyên)" on 2026-10-16 — cost if wrong: `accord show` of a ticket only on its claim branch fails until that bug is fixed.
+- Ruling: the dashboard bug (a ticket only on its claim branch is invisible; the stage reads build before `plan: <id> ready`) stays its own bug ticket, not part of ST-LN-6 — the owner chose "A separate bug ticket (Recommended)" on 2026-10-16 — cost if wrong: `accord show` of a ticket only on its claim branch fails until that bug is fixed.
 - Ruling: a row is pressed through a `plain` Button on its id cell — the host's Button takes only strings and `Text` as children and the row's columns are `Box` cells; `plain` draws the id with no `[ ]` around it, so the id column keeps its width — cost if wrong: the row layout is rebuilt around one Button.
 - Ruling: `accord show` takes lane tickets only, through `requireLaneTicket`; EPICS rows and tickets without `lane:` get no id Button — the dashboard's YOURS, TEAM, READY and UP NEXT rows are lane tickets — cost if wrong: a 0.1.0 ticket has no detail view until `show` accepts it.
 - Ruling: TEAM rows open the detail too, holding only Back, since a TEAM row offers no action today — cost if wrong: one press target fewer.

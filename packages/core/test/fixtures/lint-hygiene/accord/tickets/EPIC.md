@@ -1,19 +1,19 @@
 ---
 id: EPIC
-title: Sử thi
+title: Epic
 type: epic
 status: draft
 ---
 
 ## Intent
-Dòng một.
-Dòng hai.
-Dòng ba.
-Dòng bốn.
-Dòng năm.
-Dòng sáu.
+Line one.
+Line two.
+Line three.
+Line four.
+Line five.
+Line six.
 
 ## Requirements
-- WHEN người dùng mở sử thi the system SHALL liệt kê các câu chuyện
+- WHEN the user opens the epic the system SHALL list the stories
 
 ## Open questions

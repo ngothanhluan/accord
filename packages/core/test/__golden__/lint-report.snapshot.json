@@ -37,7 +37,7 @@
       "frontmatter": {
         "id": "REPORT",
         "status": "open",
-        "title": "Đăng nhập có báo cáo kiểm thử",
+        "title": "Sign-in with a test report",
         "type": "story",
         "ui": false
       },
@@ -45,7 +45,7 @@
       "requirements": [
         {
           "line": 12,
-          "text": "WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+          "text": "WHEN the user submits a valid email and password the system SHALL open the dashboard"
         }
       ],
       "scenarios": [
@@ -53,10 +53,10 @@
           "acTag": "ac-1",
           "keyword": "Scenario",
           "line": 19,
-          "name": "Đăng nhập thành công",
+          "name": "Sign-in succeeds",
           "steps": [
-            "When họ gửi email và mật khẩu hợp lệ",
-            "Then họ thấy bảng điều khiển"
+            "When they submit a valid email and password",
+            "Then they see the dashboard"
           ],
           "tags": [
             "@ac-1",
@@ -67,10 +67,10 @@
           "acTag": "ac-2",
           "keyword": "Scenario",
           "line": 24,
-          "name": "Mật khẩu sai",
+          "name": "Wrong password",
           "steps": [
-            "When họ gửi mật khẩu sai",
-            "Then họ thấy thông báo lỗi"
+            "When they submit a wrong password",
+            "Then they see an error message"
           ],
           "tags": [
             "@ac-2",
@@ -81,10 +81,10 @@
           "acTag": "ac-3",
           "keyword": "Scenario",
           "line": 29,
-          "name": "Ghi nhớ đăng nhập",
+          "name": "Remember sign-in",
           "steps": [
-            "When họ chọn ghi nhớ",
-            "Then phiên được giữ"
+            "When they choose to be remembered",
+            "Then the session is kept"
           ],
           "tags": [
             "@ac-3",
@@ -95,10 +95,10 @@
           "acTag": "ac-4",
           "keyword": "Scenario",
           "line": 34,
-          "name": "Nút đăng nhập",
+          "name": "Sign-in button",
           "steps": [
-            "When họ mở trang đăng nhập",
-            "Then họ thấy nút đăng nhập"
+            "When they open the sign-in page",
+            "Then they see the sign-in button"
           ],
           "tags": [
             "@ac-4",
@@ -113,7 +113,7 @@
           "lines": [
             {
               "line": 9,
-              "text": "Người dùng đăng nhập bằng email và mật khẩu để vào bảng điều khiển."
+              "text": "The user signs in with email and password to reach the dashboard."
             },
             {
               "line": 10,
@@ -127,7 +127,7 @@
           "lines": [
             {
               "line": 12,
-              "text": "- WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển"
+              "text": "- WHEN the user submits a valid email and password the system SHALL open the dashboard"
             },
             {
               "line": 13,
@@ -157,15 +157,15 @@
             },
             {
               "line": 19,
-              "text": "  Scenario: Đăng nhập thành công"
+              "text": "  Scenario: Sign-in succeeds"
             },
             {
               "line": 20,
-              "text": "    When họ gửi email và mật khẩu hợp lệ"
+              "text": "    When they submit a valid email and password"
             },
             {
               "line": 21,
-              "text": "    Then họ thấy bảng điều khiển"
+              "text": "    Then they see the dashboard"
             },
             {
               "line": 22,
@@ -177,15 +177,15 @@
             },
             {
               "line": 24,
-              "text": "  Scenario: Mật khẩu sai"
+              "text": "  Scenario: Wrong password"
             },
             {
               "line": 25,
-              "text": "    When họ gửi mật khẩu sai"
+              "text": "    When they submit a wrong password"
             },
             {
               "line": 26,
-              "text": "    Then họ thấy thông báo lỗi"
+              "text": "    Then they see an error message"
             },
             {
               "line": 27,
@@ -197,15 +197,15 @@
             },
             {
               "line": 29,
-              "text": "  Scenario: Ghi nhớ đăng nhập"
+              "text": "  Scenario: Remember sign-in"
             },
             {
               "line": 30,
-              "text": "    When họ chọn ghi nhớ"
+              "text": "    When they choose to be remembered"
             },
             {
               "line": 31,
-              "text": "    Then phiên được giữ"
+              "text": "    Then the session is kept"
             },
             {
               "line": 32,
@@ -217,15 +217,15 @@
             },
             {
               "line": 34,
-              "text": "  Scenario: Nút đăng nhập"
+              "text": "  Scenario: Sign-in button"
             },
             {
               "line": 35,
-              "text": "    When họ mở trang đăng nhập"
+              "text": "    When they open the sign-in page"
             },
             {
               "line": 36,
-              "text": "    Then họ thấy nút đăng nhập"
+              "text": "    Then they see the sign-in button"
             },
             {
               "line": 37,
@@ -253,7 +253,7 @@
           "lines": [
             {
               "line": 42,
-              "text": "- Làm @ac-1 @ac-2 @ac-3 @ac-4"
+              "text": "- Build @ac-1 @ac-2 @ac-3 @ac-4"
             }
           ]
         }

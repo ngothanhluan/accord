@@ -30,7 +30,7 @@
       "frontmatter": {
         "id": "MISSING",
         "status": "draft",
-        "title": "Tệp cấu hình trỏ tới tệp vắng mặt",
+        "title": "Config points to absent files",
         "type": "story",
         "ui": false
       },
@@ -38,7 +38,7 @@
       "requirements": [
         {
           "line": 12,
-          "text": "WHEN người dùng gửi biểu mẫu the system SHALL lưu dữ liệu"
+          "text": "WHEN the user submits the form the system SHALL save the data"
         }
       ],
       "scenarios": [
@@ -46,10 +46,10 @@
           "acTag": "ac-1",
           "keyword": "Scenario",
           "line": 19,
-          "name": "Lưu dữ liệu",
+          "name": "Save the data",
           "steps": [
-            "When họ gửi biểu mẫu",
-            "Then dữ liệu được lưu"
+            "When they submit the form",
+            "Then the data is saved"
           ],
           "tags": [
             "@ac-1",
@@ -64,7 +64,7 @@
           "lines": [
             {
               "line": 9,
-              "text": "Cấu hình trỏ tới tệp token và báo cáo kiểm thử không có trong kho."
+              "text": "The config points to a token file and a test report that are not in the repository."
             },
             {
               "line": 10,
@@ -78,7 +78,7 @@
           "lines": [
             {
               "line": 12,
-              "text": "- WHEN người dùng gửi biểu mẫu the system SHALL lưu dữ liệu"
+              "text": "- WHEN the user submits the form the system SHALL save the data"
             },
             {
               "line": 13,
@@ -108,15 +108,15 @@
             },
             {
               "line": 19,
-              "text": "  Scenario: Lưu dữ liệu"
+              "text": "  Scenario: Save the data"
             },
             {
               "line": 20,
-              "text": "    When họ gửi biểu mẫu"
+              "text": "    When they submit the form"
             },
             {
               "line": 21,
-              "text": "    Then dữ liệu được lưu"
+              "text": "    Then the data is saved"
             },
             {
               "line": 22,
@@ -144,7 +144,7 @@
           "lines": [
             {
               "line": 27,
-              "text": "- Làm @ac-1"
+              "text": "- Build @ac-1"
             }
           ]
         }

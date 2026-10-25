@@ -188,7 +188,7 @@ describe('fetchIssues — degradation (D-100, D-101)', () => {
   });
 
   it('reduces a hostile title to one line of ASCII (T-05-19)', async () => {
-    const hostile = 'Đăng\nnhập\r' + String.fromCharCode(27) + '[31m   bad';
+    const hostile = 'Été\nnuméro\r' + String.fromCharCode(27) + '[31m   bad';
     const { impl } = fakeFetch(() => issueBody(hostile, 'open', ['ui\nx']));
     const result = await fetchIssues('acme/app', ['7'], { GITHUB_TOKEN: 't' }, impl);
     const facts = result.issues['7'];

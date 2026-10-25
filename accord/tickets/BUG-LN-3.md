@@ -24,7 +24,7 @@ ui: false
 # The AC hash and the commit the ticks were made against.
 # verified_hash:
 # verified_commit:
-approved_hash: "fnv1a64:89771291e28defe5"
+approved_hash: "fnv1a64:272bfc9c4901c940"
 ac_hash: "fnv1a64:6d23ac3ae5200d11"
 verified_hash: "fnv1a64:6d23ac3ae5200d11"
 verified_commit: "655b32644656c4feeba439eee6fa1dbcc98a3fda"
@@ -84,9 +84,9 @@ Feature: BUG-LN-3
 
 ## Decisions
 <!-- Settled answers, one per line: - D-01 <decision> — "<the owner's sentence>" -->
-- D-01 All four parts are in scope and none is cut: unapproved tickets pass, dropped tickets pass, a pull request with code still gates every ticket it touches, and the workflow `accord init` writes applies the same rule as this repository's — "Làm tiếp, đủ cả 4 phần (Recommended)", then "Đủ cả 4 phần, không cắt (Recommended)"
-- D-02 `gate done` is skipped for a ticket only when it is unapproved (no `approved_hash`) or dropped with a reason, and the pull request changes nothing outside `accord/`; a pull request with code gates every ticket it touches whatever the ticket says — "Ticket nháp/đã bỏ VÀ PR không có code (Recommended)"
-- D-03 A ticket counts as approved when `approved_hash` is in its frontmatter in the pull request's version or in the base commit's version, so deleting the key cannot skip the gate — "Có dấu ở main HOẶC trong PR thì kiểm (Recommended)"
+- D-01 All four parts are in scope and none is cut: unapproved tickets pass, dropped tickets pass, a pull request with code still gates every ticket it touches, and the workflow `accord init` writes applies the same rule as this repository's — "Go on, with all 4 parts (Recommended)", then "All 4 parts, no cuts (Recommended)"
+- D-02 `gate done` is skipped for a ticket only when it is unapproved (no `approved_hash`) or dropped with a reason, and the pull request changes nothing outside `accord/`; a pull request with code gates every ticket it touches whatever the ticket says — "Draft/dropped ticket AND the PR has no code (Recommended)"
+- D-03 A ticket counts as approved when `approved_hash` is in its frontmatter in the pull request's version or in the base commit's version, so deleting the key cannot skip the gate — "Marked on main OR in the PR means it is checked (Recommended)"
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->

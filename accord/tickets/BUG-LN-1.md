@@ -22,7 +22,7 @@ ui: false
 # The AC hash and the commit the ticks were made against.
 # verified_hash:
 # verified_commit:
-approved_hash: "fnv1a64:8ebfdc45bbcc07f1"
+approved_hash: "fnv1a64:b7f26da32d515dcf"
 ac_hash: "fnv1a64:a26623adea5fdfac"
 verified_hash: "fnv1a64:a26623adea5fdfac"
 verified_commit: "ed782736d341ff713a96c15684385802a597b3df"
@@ -84,14 +84,14 @@ Feature: BUG-LN-1
 
 ## Decisions
 <!-- Settled answers, one per line: - D-01 <decision> — "<the owner's sentence>" -->
-- D-01 Fix both bugs in one lane M ticket, before the dashboard ticket — "Sửa hai lỗi trước (Recommended)"
-- D-02 Part B covers the whole class of false warnings: only a token that looks like a real file path warns; existing directories, globs, branch names, git refs and tokens of only `/` and `.` do not; a mistyped path that looks like a branch name may be missed, as the code already prefers a miss to a false positive — "Cả lớp báo nhầm (Recommended)"
-- D-03 The error-level gates stay as they are: an evidence block must still cite a concrete file or test to pass `gate done`; a directory alone does not count — "Luật lỗi giữ nguyên (Recommended)"
-- D-04 All five criteria are the smallest version that counts as done — "Cả năm tiêu chí (Recommended)"
-- D-05 The preamble goes right after the brief's `---`, between blank lines, before `## Task n`, with no heading or label — "Ngay sau `---`, không nhãn (Recommended)"
-- D-06 One `gate.reference-unknown` warning per unknown token, as today — "Hai cảnh báo, mỗi đường dẫn một (Recommended)"
-- D-07 ac-5's evidence block cites no file or test in any form, so it must fail — "Không dẫn file hay test nào khác (Recommended)"
-- D-08 The Intent covers executors briefed by `accord brief`; executors that fix review or debug findings, whose brief is the ticket plus the findings, are left for a later ticket — "Thu hẹp Intent (Recommended)"
+- D-01 Fix both bugs in one lane M ticket, before the dashboard ticket — "Fix the two bugs first (Recommended)"
+- D-02 Part B covers the whole class of false warnings: only a token that looks like a real file path warns; existing directories, globs, branch names, git refs and tokens of only `/` and `.` do not; a mistyped path that looks like a branch name may be missed, as the code already prefers a miss to a false positive — "The whole class of false warnings (Recommended)"
+- D-03 The error-level gates stay as they are: an evidence block must still cite a concrete file or test to pass `gate done`; a directory alone does not count — "The error rules stay as they are (Recommended)"
+- D-04 All five criteria are the smallest version that counts as done — "All five criteria (Recommended)"
+- D-05 The preamble goes right after the brief's `---`, between blank lines, before `## Task n`, with no heading or label — "Right after `---`, no label (Recommended)"
+- D-06 One `gate.reference-unknown` warning per unknown token, as today — "Two warnings, one per path (Recommended)"
+- D-07 ac-5's evidence block cites no file or test in any form, so it must fail — "Cites no other file or test (Recommended)"
+- D-08 The Intent covers executors briefed by `accord brief`; executors that fix review or debug findings, whose brief is the ticket plus the findings, are left for a later ticket — "Narrow the Intent (Recommended)"
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->

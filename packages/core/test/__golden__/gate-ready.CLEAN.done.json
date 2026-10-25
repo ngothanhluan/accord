@@ -1,5 +1,5 @@
 {
-  "acHash": "fnv1a64:8613b1c0604c6a56",
+  "acHash": "fnv1a64:a7cd583f043979d7",
   "findings": [
     {
       "file": "accord/config.yml",
@@ -26,14 +26,14 @@
       "file": "accord/tickets/CLEAN.md",
       "level": "error",
       "line": 20,
-      "reason": "scenario \"Đăng nhập thành công\" carries no @test:<id> tag and is not @ui, so Done cannot check it against the report",
+      "reason": "scenario \"Sign-in succeeds\" carries no @test:<id> tag and is not @ui, so Done cannot check it against the report",
       "rule": "gate.test-tag-missing"
     },
     {
       "file": "accord/tickets/CLEAN.md",
       "level": "warning",
       "line": 20,
-      "reason": "scenario \"Đăng nhập thành công\" has no @test:<id> tag and is not @ui",
+      "reason": "scenario \"Sign-in succeeds\" has no @test:<id> tag and is not @ui",
       "rule": "lint.test-tag-missing"
     },
     {

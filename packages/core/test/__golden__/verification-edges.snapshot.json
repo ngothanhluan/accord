@@ -23,7 +23,7 @@
     {
       "file": "accord/tickets/A/verification.md",
       "line": 31,
-      "reason": "duplicate heading \"## @ac-1 Một lần nữa\"; the first occurrence is used",
+      "reason": "duplicate heading \"## @ac-1 One more time\"; the first occurrence is used",
       "rule": "load.heading-duplicate"
     },
     {
@@ -66,7 +66,7 @@
       "frontmatter": {
         "id": "A",
         "status": "open",
-        "title": "Câu chuyện A",
+        "title": "Story A",
         "type": "story",
         "ui": false
       },
@@ -74,7 +74,7 @@
       "requirements": [
         {
           "line": 12,
-          "text": "WHEN người dùng gửi biểu mẫu the system SHALL lưu dữ liệu"
+          "text": "WHEN the user submits the form the system SHALL save the data"
         }
       ],
       "scenarios": [
@@ -82,10 +82,10 @@
           "acTag": "ac-1",
           "keyword": "Scenario",
           "line": 19,
-          "name": "Một",
+          "name": "One",
           "steps": [
-            "Given một điều kiện",
-            "Then một kết quả"
+            "Given a condition",
+            "Then a result"
           ],
           "tags": [
             "@ac-1"
@@ -95,10 +95,10 @@
           "acTag": "ac-2",
           "keyword": "Scenario",
           "line": 24,
-          "name": "Hai",
+          "name": "Two",
           "steps": [
-            "Given một điều kiện khác",
-            "Then một kết quả khác"
+            "Given another condition",
+            "Then another result"
           ],
           "tags": [
             "@ac-2"
@@ -112,7 +112,7 @@
           "lines": [
             {
               "line": 9,
-              "text": "Câu chuyện có hai kịch bản để đối chiếu với bản ghi kiểm chứng."
+              "text": "The story has two scenarios to match against the verification record."
             },
             {
               "line": 10,
@@ -126,7 +126,7 @@
           "lines": [
             {
               "line": 12,
-              "text": "- WHEN người dùng gửi biểu mẫu the system SHALL lưu dữ liệu"
+              "text": "- WHEN the user submits the form the system SHALL save the data"
             },
             {
               "line": 13,
@@ -156,15 +156,15 @@
             },
             {
               "line": 19,
-              "text": "  Scenario: Một"
+              "text": "  Scenario: One"
             },
             {
               "line": 20,
-              "text": "    Given một điều kiện"
+              "text": "    Given a condition"
             },
             {
               "line": 21,
-              "text": "    Then một kết quả"
+              "text": "    Then a result"
             },
             {
               "line": 22,
@@ -176,15 +176,15 @@
             },
             {
               "line": 24,
-              "text": "  Scenario: Hai"
+              "text": "  Scenario: Two"
             },
             {
               "line": 25,
-              "text": "    Given một điều kiện khác"
+              "text": "    Given another condition"
             },
             {
               "line": 26,
-              "text": "    Then một kết quả khác"
+              "text": "    Then another result"
             },
             {
               "line": 27,
@@ -218,7 +218,7 @@
       "frontmatter": {
         "id": "B",
         "status": "open",
-        "title": "Câu chuyện B",
+        "title": "Story B",
         "type": "story",
         "ui": false
       },
@@ -226,7 +226,7 @@
       "requirements": [
         {
           "line": 12,
-          "text": "WHEN người dùng bấm lưu the system SHALL xác nhận"
+          "text": "WHEN the user presses save the system SHALL confirm"
         }
       ],
       "scenarios": [
@@ -236,8 +236,8 @@
           "line": 19,
           "name": "B1",
           "steps": [
-            "Given một điều kiện",
-            "Then một kết quả"
+            "Given a condition",
+            "Then a result"
           ],
           "tags": [
             "@ac-1"
@@ -251,7 +251,7 @@
           "lines": [
             {
               "line": 9,
-              "text": "Câu chuyện hợp lệ có bản ghi kiểm chứng với frontmatter hỏng."
+              "text": "A valid story with a verification record whose frontmatter is broken."
             },
             {
               "line": 10,
@@ -265,7 +265,7 @@
           "lines": [
             {
               "line": 12,
-              "text": "- WHEN người dùng bấm lưu the system SHALL xác nhận"
+              "text": "- WHEN the user presses save the system SHALL confirm"
             },
             {
               "line": 13,
@@ -299,11 +299,11 @@
             },
             {
               "line": 20,
-              "text": "    Given một điều kiện"
+              "text": "    Given a condition"
             },
             {
               "line": 21,
-              "text": "    Then một kết quả"
+              "text": "    Then a result"
             },
             {
               "line": 22,
@@ -344,7 +344,7 @@
           "lines": [
             {
               "line": 2,
-              "text": "Vé không có frontmatter nhưng vẫn có bản ghi kiểm chứng."
+              "text": "A ticket without frontmatter that still has a verification record."
             }
           ]
         }
@@ -369,28 +369,28 @@
       "blocks": [
         {
           "acTag": "ac-1",
-          "evidence": "dòng một\ndòng hai\ndòng ba",
+          "evidence": "line one\nline two\nline three",
           "line": 7,
-          "name": "Một",
+          "name": "One",
           "result": "pass"
         },
         {
           "acTag": "ac-2",
-          "evidence": "chạy npm test",
+          "evidence": "run npm test",
           "line": 16,
-          "name": "Hai"
+          "name": "Two"
         },
         {
           "acTag": "ac-3",
           "evidence": "",
           "line": 20,
-          "name": "Ba"
+          "name": "Three"
         },
         {
           "acTag": "ac-4",
           "evidence": "",
           "line": 24,
-          "name": "Bốn",
+          "name": "Four",
           "result": "blocked"
         }
       ],
@@ -439,7 +439,7 @@
           "acTag": "ac-1",
           "evidence": "ok",
           "line": 7,
-          "name": "Không có vé",
+          "name": "No ticket",
           "result": "pass"
         }
       ],

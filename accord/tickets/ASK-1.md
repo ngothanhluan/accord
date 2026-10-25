@@ -22,7 +22,7 @@ ui: false
 # The AC hash and the commit the ticks were made against.
 # verified_hash:
 # verified_commit:
-approved_hash: "fnv1a64:290d283e8428f557"
+approved_hash: "fnv1a64:53ce1a602cec1a6b"
 ac_hash: "fnv1a64:3165fac58c742bdf"
 verified_hash: "fnv1a64:3165fac58c742bdf"
 verified_commit: "753bd08b659c510c07f4c579d644464048d7ca9e"
@@ -64,13 +64,13 @@ Feature: ASK-1
 
 ## Decisions
 <!-- Settled answers, one per line: - D-01 <decision> — "<the owner's sentence>" -->
-- D-01 Three parts: one fixed rule sentence (what is decided and why now, with an example; each option's consequence; internal ids glossed); every stage skill that asks the owner carries it; a test checks it verbatim on the render. Agents are out: an executor or architect hands its question to the main session, which asks the owner — "Đúng 3 phần (Recommended)"
-- D-02 The sentence, in English, naming no runtime's question tool: "Every question to the owner stands alone, because the owner may see only the question and its options: it says in one or two plain sentences what is being decided and why now, with an example; each option says what happens if it is chosen; the recommended option comes first; every id such as ac-2 or D-03 carries a short gloss." — "Bản đầy đủ (Recommended)"
-- D-03 The sentence lives in one shared file, `packages/core/skills/shared/ask.md`, loaded by the eight skills through `loads:`; each SKILL.md only points to `./ask.md`, because copying the sentence eight times would push the plan and `/accord` skills past the 5120-byte cap (`packages/core/test/skills.test.ts:189`), and the ruleset block reaches only one runtime — "File chung + dòng trỏ (Recommended)"
-- D-04 The smallest version is all three parts — "Cả ba phần (Recommended)"
-- D-05 (audit) "Verbatim" means the same words and punctuation, a line break counting as one space, so the long sentence wraps like all other skill prose — "Đồng ý cả 4 (Recommended)"
-- D-06 (audit) "Every target directory" means every directory `accord skills sync` writes for a config that enables every runtime — "Đồng ý cả 4 (Recommended)"
-- D-07 (audit) ac-2 checks the literal text `./ask.md`, as `./prototype.md` is referenced today, inside the one shared rules paragraph beginning "Anything touching intent"; other sentences holding "asks the owner", such as `packages/core/skills/review/SKILL.md:54`, are not checked — "Đồng ý cả 4 (Recommended)"
+- D-01 Three parts: one fixed rule sentence (what is decided and why now, with an example; each option's consequence; internal ids glossed); every stage skill that asks the owner carries it; a test checks it verbatim on the render. Agents are out: an executor or architect hands its question to the main session, which asks the owner — "Exactly 3 parts (Recommended)"
+- D-02 The sentence, in English, naming no runtime's question tool: "Every question to the owner stands alone, because the owner may see only the question and its options: it says in one or two plain sentences what is being decided and why now, with an example; each option says what happens if it is chosen; the recommended option comes first; every id such as ac-2 or D-03 carries a short gloss." — "The full version (Recommended)"
+- D-03 The sentence lives in one shared file, `packages/core/skills/shared/ask.md`, loaded by the eight skills through `loads:`; each SKILL.md only points to `./ask.md`, because copying the sentence eight times would push the plan and `/accord` skills past the 5120-byte cap (`packages/core/test/skills.test.ts:189`), and the ruleset block reaches only one runtime — "Shared file + pointer line (Recommended)"
+- D-04 The smallest version is all three parts — "All three parts (Recommended)"
+- D-05 (audit) "Verbatim" means the same words and punctuation, a line break counting as one space, so the long sentence wraps like all other skill prose — "Agree to all 4 (Recommended)"
+- D-06 (audit) "Every target directory" means every directory `accord skills sync` writes for a config that enables every runtime — "Agree to all 4 (Recommended)"
+- D-07 (audit) ac-2 checks the literal text `./ask.md`, as `./prototype.md` is referenced today, inside the one shared rules paragraph beginning "Anything touching intent"; other sentences holding "asks the owner", such as `packages/core/skills/review/SKILL.md:54`, are not checked — "Agree to all 4 (Recommended)"
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->

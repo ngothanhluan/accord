@@ -1,29 +1,29 @@
 ---
 id: CLEAN
-title: Phiếu sẵn sàng
+title: Ready ticket
 type: story
 status: open
 ui: false
 ---
 
 ## Intent
-Người dùng đăng nhập bằng email để vào bảng điều khiển.
+Users sign in by email to reach the dashboard.
 
 ## Requirements
-- WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển
+- WHEN a user submits a valid email and password the system SHALL open the dashboard
 
 ## Acceptance criteria
 ```gherkin
 Feature: CLEAN
 
   @ac-1
-  Scenario: Đăng nhập thành công
-    When họ gửi email và mật khẩu hợp lệ
-    Then họ thấy bảng điều khiển
+  Scenario: Sign-in succeeds
+    When they submit a valid email and password
+    Then they see the dashboard
 ```
 
 ## Open questions
-- [x] Đã rõ
+- [x] Clear
 
 ## Plan
-- Làm màn hình đăng nhập @ac-1
+- Build the sign-in screen @ac-1

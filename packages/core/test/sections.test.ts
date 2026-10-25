@@ -134,7 +134,7 @@ describe('duplicateHeadings (D-40, D-42)', () => {
 
   it('dedupes verification blocks on the ac tag, not the heading text', () => {
     const tag = (s: Section) => /^@(ac-[1-9][0-9]*)\b/.exec(s.heading)?.[1];
-    const same = duplicateHeadings('v.md', [at('@ac-1 Một', 3), at('@ac-1 Một lần nữa', 9)], tag);
+    const same = duplicateHeadings('v.md', [at('@ac-1 One', 3), at('@ac-1 One more time', 9)], tag);
     expect(same.map((f) => f.line)).toEqual([9]);
     expect(duplicateHeadings('v.md', [at('@ac-1 A', 3), at('@ac-2 A', 9)], tag)).toEqual([]);
   });

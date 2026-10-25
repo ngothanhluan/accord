@@ -14,12 +14,13 @@ describe('classifyEars (D-61 to D-64)', () => {
     expect(classifyEars(line)).toEqual({ pattern });
   });
 
-  // The valid-build fixture lines: English keywords around Vietnamese content (D-63).
+  // The valid-build fixture lines: English keywords around French content (D-63).
   it.each([
-    ['WHEN người dùng gửi email và mật khẩu hợp lệ the system SHALL mở bảng điều khiển', 'event-driven'],
-    ['IF mật khẩu sai THEN the system SHALL hiển thị thông báo lỗi', 'unwanted-behaviour'],
-    ['WHEN người dùng có tài khoản the system SHALL cho phép đăng nhập', 'event-driven'],
-  ])('classifies the fixture line %j as %s', (line, pattern) => {
+    ['WHEN un utilisateur envoie un e-mail et un mot de passe valides the system SHALL donner accès au tableau de bord', 'event-driven'],
+    ['IF le mot de passe est erroné THEN the system SHALL afficher une erreur', 'unwanted-behaviour'],
+    ['WHEN un utilisateur possède un compte the system SHALL permettre la connexion', 'event-driven'],
+  ])('risk:parsing classifies the fixture line %j as %s', (line, pattern) => {
+    expect([...line].some((ch) => (ch.codePointAt(0) as number) > 0x7f)).toBe(true);
     expect(classifyEars(line)).toEqual({ pattern });
   });
 
@@ -28,7 +29,7 @@ describe('classifyEars (D-61 to D-64)', () => {
     ['The user logs in', "no EARS keyword and no 'the system shall'"],
     ['The system must log it', "has 'the system must' but the verb must be 'shall'"],
     ['WHEN x the system shall', "has 'the system shall' but no response after it"],
-    ['Sau khi đăng nhập WHEN x the system shall y', "has 'the system shall' but the line starts with prose and no keyword"],
+    ['Après la connexion WHEN x the system shall y', "has 'the system shall' but the line starts with prose and no keyword"],
     ['WHEN a WHEN b the system shall c', 'has WHEN twice'],
     ['WHEN the system shall save', "has WHEN but no trigger before 'the system shall'"],
     ['IF x the system shall y', "has IF but no THEN before 'the system shall'"],

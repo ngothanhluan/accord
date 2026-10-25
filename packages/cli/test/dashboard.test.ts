@@ -1,4 +1,4 @@
-// ST-LN-2 task 1: `accord dashboard` — sections, caps, column headers, titles.
+// ST-LN-2 task 1: `accord dashboard` — sections, column headers, titles; ST-LN-61 lifted the row caps.
 import { expect, it } from 'vitest';
 import { approvedHash, dashboard, gateReady, loadSnapshot, setFrontmatterKey } from '@accord-dev/accord-core';
 import type { Dashboard, StatusRow } from '@accord-dev/accord-core';
@@ -59,7 +59,7 @@ it('ac-2 rows carry titles and sections carry column headers', async () => {
   }
 });
 
-it('ac-4 sections are capped on a large backlog', () => {
+it('ac-4 sections list every row on a large backlog', () => {
   const files: Files = { 'accord/config.yml': CONFIG };
   const claims: Record<string, string> = {};
   for (let i = 1; i <= 3; i++) { files[P('ST-AN-' + i)] = laneTicket('ST-AN-' + i); claims['ST-AN-' + i] = 'an@example.com'; }
@@ -68,16 +68,12 @@ it('ac-4 sections are capped on a large backlog', () => {
   for (let i = 1; i <= 25; i++) ready(files, 'ST-CY-' + i);
   const d = board(files, claims);
   expect([d.yours.rows.length, d.yours.more]).toEqual([3, 0]);
-  expect([d.team.rows.length, d.team.more]).toEqual([10, 2]);
-  expect([d.ready.rows.length, d.ready.more]).toEqual([20, 5]);
+  expect([d.team.rows.length, d.team.more]).toEqual([12, 0]);
+  expect([d.ready.rows.length, d.ready.more]).toEqual([25, 0]);
   for (const s of [d.yours, d.team, d.ready]) expect(s.rows.some((r) => r.id.startsWith('ST-DO-'))).toBe(false);
   expect(d.summary).toMatchObject({ inProgress: 15, ready: 25, blocked: 0, done: 4 });
   const lines = renderDashboard(d).split('\n');
-  const t = lines.indexOf('TEAM');
-  const r = lines.indexOf('READY');
-  const m2 = lines.findIndex((l) => l.includes('+2 more'));
-  expect(m2 > t && m2 < r).toBe(true);
-  expect(lines.findIndex((l) => l.includes('+5 more'))).toBeGreaterThan(r);
+  expect(lines.some((l) => l.includes(' more'))).toBe(false);
   expect(lines.filter((l) => ['15 in progress', '25 ready', '0 blocked', '4 done'].every((s) => l.includes(s)))).toHaveLength(1);
 });
 
@@ -212,18 +208,18 @@ it('ac-1 up next lists the backlog and the blocked tickets while the viewer hold
   expect(lastLine).toBe('-> [Continue ST-AN-9]  [Pick up ST-AN-1]  [New request]');
 });
 
-it('ac-2 up next leaves out the ready tickets and caps the rest at 20', () => {
+it('ac-2 up next leaves out the ready tickets and lists all the rest', () => {
   const files: Files = { 'accord/config.yml': CONFIG };
   files[P('ST-AN-9')] = laneTicket('ST-AN-9');
   ready(files, 'ST-AN-50');
   for (let i = 1; i <= 22; i++) files[P('ST-BO-' + i)] = laneTicket('ST-BO-' + i, { frontmatter: ['status: draft'] });
   const { j, lines, u, lastLine } = view(files, MINE);
   expect(j.ready.rows.map((r: StatusRow) => r.id)).toEqual(['ST-AN-50']);
-  expect(j.upNext.rows).toHaveLength(20);
-  expect(j.upNext.more).toBe(2);
+  expect(j.upNext.rows).toHaveLength(22);
+  expect(j.upNext.more).toBe(0);
   expect(j.upNext.rows.map((r: StatusRow) => r.id)).not.toContain('ST-AN-50');
   expect(u).toBeGreaterThanOrEqual(0);
-  expect(lines.indexOf('  +2 more')).toBeGreaterThan(u);
+  expect(lines.some((l) => l.includes(' more'))).toBe(false);
   expect(lastLine).toContain('[Pick up ST-AN-50]');
 });
 
@@ -239,13 +235,13 @@ it('ac-3 up next is present when nothing is left to pick up', () => {
   expect(text).not.toContain('[Pick up');
 });
 
-it('risk:complex-branching a ready ticket past the ready cap is not in up next', () => {
+it('risk:complex-branching every ready ticket is in ready and none in up next', () => {
   const files: Files = { 'accord/config.yml': CONFIG };
   files[P('ST-AN-9')] = laneTicket('ST-AN-9');
   for (let i = 1; i <= 21; i++) ready(files, 'ST-CY-' + i);
   files[P('ST-BO-1')] = laneTicket('ST-BO-1');
   const { d } = view(files, MINE);
-  expect([d.ready.rows.length, d.ready.more]).toEqual([20, 1]);
+  expect([d.ready.rows.length, d.ready.more]).toEqual([21, 0]);
   expect(d.upNext.rows.map((r) => r.id)).toEqual(['ST-BO-1']);
   expect(d.upNext.more).toBe(0);
 });
@@ -330,6 +326,14 @@ it('ac-5 epics show their children done over all their children', () => {
   const d2 = board(files);
   expect(d2.epics).toEqual({ rows: [], more: 0 });
   expect(renderDashboard(d2).split('\n')).not.toContain('EPICS');
+});
+
+it('risk:regression epics list every epic, with no row cap', () => {
+  const files: Files = { 'accord/config.yml': CONFIG };
+  for (let i = 1; i <= 25; i++) files[P('EP-AN-' + i)] = laneTicket('EP-AN-' + i, { lane: '' }).replace('type: story', 'type: epic');
+  const d = board(files);
+  expect([d.epics.rows.length, d.epics.more]).toEqual([25, 0]);
+  expect(renderDashboard(d).split('\n').some((l) => l.includes(' more'))).toBe(false);
 });
 
 it('risk:regression an idle ticket shows idle days in the dashboard text and the json keeps every key', async () => {

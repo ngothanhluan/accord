@@ -133,7 +133,7 @@ The skills call the CLI for you. These are the commands most useful to run by ha
 | `accord gate plan <id>` | Report whether the ticket passes the plan gate. |
 | `accord gate done <id>` | Report whether the ticket passes the Done gate. |
 | `accord status [--json] [--all]` | Print one row per ticket; `--all` includes archived tickets. |
-| `accord dashboard [--json]` | Print the ranked and capped dashboard sections for you. |
+| `accord dashboard [--json]` | Print the ranked dashboard sections for you. |
 | `accord show <id> [--json]` | Print one ticket: its intent and each criterion with its state. |
 | `accord new ticket [id]` | Write `accord/tickets/<id>.md` from the template. |
 | `accord skills sync` | Write every skill the config declares into `.claude/skills/` and `.agents/skills/`. |

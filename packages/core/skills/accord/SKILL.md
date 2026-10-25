@@ -11,7 +11,7 @@ First run the session check in `./worktree.md`, except for `/accord upgrade`. A 
 ## Dashboard: `/accord` with no argument
 
 1. Run `accord worktree clean`, then `accord dashboard`. It reads you from
-   `git config user.email` and prints every section ranked and capped, one
+   `git config user.email` and prints every section ranked, one
    count line, and the actions that apply. When it exits 2, show its message
    and stop.
 2. Show both outputs verbatim in a code block. Never reorder, cut, merge, or

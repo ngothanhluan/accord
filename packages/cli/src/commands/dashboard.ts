@@ -1,4 +1,4 @@
-// ST-LN-2 `accord dashboard`: the ranked, capped sections for the viewer (git user.email), as text or JSON.
+// ST-LN-2 `accord dashboard`: the ranked sections for the viewer (git user.email), as text or JSON.
 import { dashboard } from '@accord-dev/accord-core';
 import { gitUserEmail, UsageError } from '../load/fs.js';
 import { upgradeNotice } from './notice.js';

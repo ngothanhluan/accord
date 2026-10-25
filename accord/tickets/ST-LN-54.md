@@ -25,3 +25,4 @@ The verify skill and lane-s.md source files state that report shape, `accord ski
 ## Corrections
 
 - "vậy tại sao ko thấy link PR?" (why is there no PR link?) — the verdict line must carry the pull request link.
+- "pr đó tôi merge lúc nãy rồi mà, nếu bạn sửa mới thì mở pr mới đi" (I merged that PR already; if you change more, open a new PR) — a change after the PR is merged goes in a new PR, and the verdict names an open PR, never a merged one.

@@ -782,6 +782,7 @@ it('risk:regression a finished ticket reports a verdict, never a merge, then das
     for (const s of [
       '`✅ <id> DONE — PR #<n> ready, waiting for your merge: <url>`',
       'never write that it is merged',
+      '`gh pr list --head <branch> --state open --json number,url`',
       'At most four status lines',
       'one to three suggestions',
       'Run `accord dashboard` now and read its last line',

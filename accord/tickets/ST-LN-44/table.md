@@ -23,7 +23,9 @@ There is one row per test in measurements.md, with the same # numbers (113 rows)
 3. **Measuring run and the owner's list.** After build, the full run before review is the measuring run. A faster or moved row (or any of its destinations) still over 10 s there goes back to the owner as one list before verify, each with its time and a proposed further split or keep. Nothing becomes kept without the owner's yes, which is written into the ticket as a Decision. The same list also takes:
    - a kept row over its ceiling;
    - an unchanged row over 10 s;
-   - any row at all over 7 s, whatever its action, as a margin. That includes unchanged rows and kept rows under their ceiling.
+   - any row at all over 5 s, whatever its action, as a margin. That includes unchanged rows and kept rows under their ceiling. The margin is 2x because six worktree tests ran under 7 s in one full run and over 10 s in the other (#45, #65, #80, #85, #88, #89).
+
+   **At verify.** If the verify full run still has a row over 10 s that the table does not keep, or a kept row over its ceiling, verify stops before ac-1 is judged. That row goes to the owner the same way, and on a yes the table is changed and re-approved as below. Verify then runs the full suite again.
 
    No other cut is added at build without the owner.
 
@@ -36,7 +38,7 @@ There is one row per test in measurements.md, with the same # numbers (113 rows)
      - the drop templates (the claimed clone and the crlf claimed clone);
      - the upgrade templates (clone, other clone and remote).
    - The lane-s, show and dashboard templates, and every lane-repo template, have no remote and are excluded. No origin is ever added to a template to satisfy the rule.
-   - For each of these templates, the copy routine asserts four things:
+   - For each clone in these templates (never on a bare remote, which has no origin), the copy routine asserts four things:
      - `git remote get-url origin` equals the copy's own remote;
      - `git remote get-url --push origin` equals the copy's own remote;
      - the fetch URL differs from the template's own remote URL;

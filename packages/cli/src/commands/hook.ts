@@ -30,9 +30,8 @@ export function hook(ctx: CommandContext, event: HookEvent): number {
       const marker = input?.session_id ?? ctx.env.CLAUDE_CODE_SESSION_ID;
       const held = marker && !isLinked(root) ? heldEntry(root, marker, ctx) : undefined;
       if (held !== undefined) {
-        body =
-          (anchorText(ctx.snapshot, held.id) ?? '') +
-          `this session works ${held.id}: call EnterWorktree with the path on the next line, then run accord anchor there and go on at the stage it prints\nenter: ${held.path}\n`;
+        // No anchor here: main's copy of the ticket can lag its branch; the worktree's `accord anchor` is the one to read.
+        body = `this session works ${held.id}: call EnterWorktree with the path on the next line, then run accord anchor there and go on at the stage it prints\nenter: ${held.path}\n`;
       } else {
         const id = activeTicket(root, ctx.snapshot);
         body = (id === undefined ? undefined : anchorText(ctx.snapshot, id)) ?? body;

@@ -780,7 +780,7 @@ it('risk:regression a finished ticket reports a verdict, never a merge, then das
   for (const dir of ['accord-verify', 'accord']) {
     const finish = text(`.claude/skills/${dir}/finish.md`);
     for (const s of [
-      '`✅ <id> DONE — PR #<n> ready, waiting for your merge`',
+      '`✅ <id> DONE — PR #<n> ready, waiting for your merge: <url>`',
       'never write that it is merged',
       'At most four status lines',
       'one to three suggestions',

@@ -1,4 +1,4 @@
-// ST-LN-2 `accord dashboard`: the sections, the rank and the caps, computed once so every runtime and the
+// ST-LN-2 `accord dashboard`: the sections and the rank, computed once so every runtime and the
 // panel show the same thing (D-02, D-06). Pure: reads the snapshot, returns data, no display text.
 import type { Lane, RepoSnapshot } from '../model/snapshot.js';
 import { nextRows, statusRows } from './rows.js';
@@ -7,7 +7,7 @@ import { isDone } from './stage.js';
 
 export interface DashboardSection {
   rows: StatusRow[];
-  more: number; // rows left out by the cap
+  more: number; // always 0 since ST-LN-61 lifted the caps; kept so the JSON shape and the panel stay as they were
 }
 export interface DashboardSummary {
   inProgress: number;
@@ -33,10 +33,6 @@ export interface Dashboard {
   epics: { rows: EpicRow[]; more: number };
   summary: DashboardSummary;
 }
-
-const TEAM_CAP = 10;
-const READY_CAP = 20;
-const EPIC_CAP = 20;
 
 const closed = (r: StatusRow) => r.status === 'archived' || r.status === 'dropped';
 const isWork = (r: StatusRow) => r.lane !== undefined && r.type !== 'epic';
@@ -94,12 +90,11 @@ function effectivePriorities(snapshot: RepoSnapshot, plain: RepoSnapshot): Map<s
   return out;
 }
 
-function section(rows: StatusRow[], cap: number, prio: Map<string, number>): DashboardSection {
+function section(rows: StatusRow[], prio: Map<string, number>): DashboardSection {
   const p = (r: StatusRow) => prio.get(r.id) ?? 2;
   const rank = (a: StatusRow, b: StatusRow): number =>
     p(b) - p(a) || Number(blocked(a)) - Number(blocked(b)) || cmpId(a.id, b.id);
-  const sorted = [...rows].sort(rank);
-  return { rows: sorted.slice(0, cap), more: Math.max(0, sorted.length - cap) };
+  return { rows: [...rows].sort(rank), more: 0 };
 }
 
 // D-03: children by frontmatter `parent`, dropped children left out of both counts; unfinished epics first.
@@ -112,7 +107,7 @@ function epicsSection(snapshot: RepoSnapshot, plain: RepoSnapshot): Dashboard['e
       return { id, ...(t.frontmatter?.lane === undefined ? {} : { lane: t.frontmatter.lane }), title: t.frontmatter?.title ?? '', done: kids.filter(([k]) => isDone(plain, k)).length, total: kids.length };
     })
     .sort((a, b) => Number(a.total > 0 && a.done === a.total) - Number(b.total > 0 && b.done === b.total) || cmpId(a.id, b.id));
-  return { rows: rows.slice(0, EPIC_CAP), more: Math.max(0, rows.length - EPIC_CAP) };
+  return { rows, more: 0 };
 }
 
 export function dashboard(snapshot: RepoSnapshot, viewer: string, now?: number, plainSnapshot?: RepoSnapshot): Dashboard {
@@ -124,16 +119,16 @@ export function dashboard(snapshot: RepoSnapshot, viewer: string, now?: number, 
   const claimed = open.filter((r) => r.claimedBy !== undefined);
   const readyAll = nextRows(open);
   const unclaimed = open.filter((r) => r.claimedBy === undefined);
-  const yours = section(claimed.filter(mine), Infinity, prio);
-  const ready = section(readyAll, READY_CAP, prio);
+  const yours = section(claimed.filter(mine), prio);
+  const ready = section(readyAll, prio);
   // D-03, D-04: always present; every ready ticket is READY's, so UP NEXT is the backlog and the blocked.
-  const rest = section(unclaimed.filter((r) => !readyAll.includes(r)), Infinity, prio).rows;
+  const rest = section(unclaimed.filter((r) => !readyAll.includes(r)), prio).rows;
   const first = rest.find((r) => !blocked(r));
   return {
     yours,
-    team: section(claimed.filter((r) => !mine(r)), TEAM_CAP, prio),
+    team: section(claimed.filter((r) => !mine(r)), prio),
     ready,
-    upNext: { rows: rest.slice(0, READY_CAP), more: Math.max(0, rest.length - READY_CAP), ...(first ? { suggest: { action: 'pick-up' as const, id: first.id } } : {}) },
+    upNext: { rows: rest, more: 0, ...(first ? { suggest: { action: 'pick-up' as const, id: first.id } } : {}) },
     epics: epicsSection(snapshot, plain),
     summary: {
       inProgress: claimed.length,

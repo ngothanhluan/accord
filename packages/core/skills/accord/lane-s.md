@@ -56,7 +56,7 @@ no intent interview, approval, approach, plan, executor or verify: you make the 
 6. **Pull request.** When `tests.report` is set in `accord/config.yml` and `tests.affected` does not write it, run
    `tests.full` first so the gate finds a fresh report. Run `accord gate done <id>` and fix what it prints. Push the branch with
    `git push -u origin <branch>` and open a pull request with `gh pr create --fill` when `gh` is available, otherwise
-   ask the owner to open it. It waits for the owner's merge.
+   ask the owner to open it. It waits for the owner's merge. Report the finish as `./finish.md` says.
 
 ## Lift to lane M
 

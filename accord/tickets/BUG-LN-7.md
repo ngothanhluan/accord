@@ -2,7 +2,7 @@
 id: "BUG-LN-7"                            # equals the file name: tickets/<id>.md
 title: "The accord pane in a clone reports a version mismatch after a release until the CLI is built again"
 type: "bug" # story | bug. An epic uses its own template
-status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
+status: "dropped" # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
 # Tickets that must reach done before this one can start.
 # depends_on: ["OTHER-ID"]
@@ -52,6 +52,7 @@ Feature: BUG-LN-7
 
 ## Decisions
 <!-- Settled answers, one per line: - D-01 <decision> — "<the owner's sentence>" -->
+- D-01 Keep the ticket and take the smallest fix: when the running CLI build is older than the package.json beside it, the pin refusal says the build is stale and names `npm run build` instead of the npx command that runs the same stale build — "ok A, so that's lane S?"
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
@@ -61,3 +62,6 @@ Feature: BUG-LN-7
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
+
+## Dropped
+moved to lane S

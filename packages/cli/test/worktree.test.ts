@@ -1267,14 +1267,18 @@ it('risk:concurrency the session start hook takes a free hold in a ticket worktr
   expect(readFileSync(holdsFile(c), 'utf8')).toBe(bytes);
 }, 60_000);
 
-it('risk:complex-branching the resume hook in the main checkout prints the anchor and the enter line of the held worktree', async () => {
+it('risk:complex-branching the resume hook in the main checkout prints the enter line of the held worktree and no anchor from main', async () => {
   const c = clone();
   setTable(tableOf(A));
   expect((await run(['worktree', 'open', 'ST-9'], c.root, envOf(A))).code).toBe(0);
+  const ticket = `${c.sibling('ST-9')}/accord/tickets/ST-9.md`;
+  writeFileSync(ticket, readFileSync(ticket, 'utf8') + '\n## Corrections\n- branch-only correction\n');
+  commitMsg(c.sibling('ST-9'), 'correction on the branch only');
   const resume = (s: { marker: string; pid: number }, cwd: string) =>
     run(['hook', 'session-resume'], c.root, envOf(s), JSON.stringify({ session_id: s.marker, cwd, source: 'resume' }));
   const a = await resume(A, c.root);
-  expect(a.out).toContain('# Anchor: ST-9');
+  expect(a.out).not.toContain('# Anchor:');
+  expect(a.out).not.toContain('branch-only correction');
   const al = lines(a.out);
   expect(al.at(-1)).toBe(`enter: ${c.sibling('ST-9')}`);
   expect(al.at(-2)).toContain('EnterWorktree');

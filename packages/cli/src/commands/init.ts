@@ -13,7 +13,7 @@ import { agentTargets, initFiles, loadConfig, loadSnapshot, pluginTargets, POINT
 import pkg from '../../package.json' with { type: 'json' };
 import { assertNoLink } from '../guard.js';
 import { loadFromFs, UsageError } from '../load/fs.js';
-import { pinMessage } from '../pin.js';
+import { pinMessage, versionOnDisk } from '../pin.js';
 import { planHooks, writeHooks, writeSkillFiles } from './skills.js';
 import type { SkillFile } from '@accord-dev/accord-core';
 import type { HooksPlan, ReportRow } from './skills.js';
@@ -57,7 +57,7 @@ export function init(ctx: InitContext): number {
     // A-06, D-95: `init` is repository-reading the moment a config exists, so it refuses like every other
     // such command. On a greenfield run the config this command just wrote pins the running version, so
     // this never fires; on a D-132 run against a repository pinned elsewhere it does.
-    const message = pinMessage(snapshot.config.accord, pkg.version);
+    const message = pinMessage(snapshot.config.accord, pkg.version, versionOnDisk());
     if (message !== undefined) throw new UsageError(message);
     // D-131: the same function `skills sync` calls, with the same pre-pass guard, over the roster the
     // config on disk declares — the defaults this run wrote on a greenfield repository, the human's

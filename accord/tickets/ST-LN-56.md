@@ -34,6 +34,8 @@ Queued 2026-10-25, not approved; the intent interview replaces this:
 - Merged from ST-LN-52: lane-s.md step 4 and accord-review tell the fixer to search for every other place the same claim or pattern appears and fix them all, listing them in review.md, and the next reviewer checks the whole class is gone. ST-LN-51 took 5 review rounds; the "nothing needs installing" claim was reported in rounds 3, 4 and 5 because each fix touched only the flagged spot.
 - Touches the critic, reviewer, final-reviewer, planner and executor agents and the plan and review skills, in all four runtimes. Related: ST-LN-17 counts the rounds; ST-LN-57 fixes the review scope.
 - Research: `accord/research/2026-10-25-review-convergence.md` (evidence, not a contract).
+- Merged from the plugin audit (owner, 2026-10-25, to the plugin audit's recommendation: "agreed. remember to save the research and have the related tickets reference it."): a reviewer of a fix diff gets the findings it re-checks and gives each one ADDRESSED or NOT ADDRESSED with `path:line`; a finding closes only on ADDRESSED, as plan critique closes one only after `fixed:`; anything outside the fix diff goes to the ledger as Deferred and starts no round (superpowers 7.0.0 `re-review-prompt.md`). Today accord-review steps 3 and 4 and lane-s step 4 give that reviewer the ticket, the package and the ledger only, and the main session writes `fixed in <sha>`.
+- Research: `accord/research/2026-10-25-plugin-audit.md` (evidence, not a contract).
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.

@@ -1,6 +1,6 @@
 ---
 id: "ST-LN-54"                            # equals the file name: tickets/<id>.md
-title: "Short title in business language"
+title: "Finished-ticket report opens with a verdict and next steps"
 type: "story" # story | bug
 status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "S" # S: one small change, worked from this ticket alone
@@ -16,7 +16,7 @@ ui: false
 ---
 
 ## Understood
-<!-- One line: the change, as the request was understood. -->
+When a ticket finishes (accord-verify step 7, lane S step 6), the report opens with one verdict line "✅ <id> DONE — PR #<n> ready, waiting for your merge", then at most 3-4 status lines, then "Next:" with 1-3 concrete suggestions taken from `accord dashboard`, the first marked recommended; the PR is never merged by the agent and the line never claims a merge.
 
 ## Done when
-<!-- One line: the observable result that ends the work. -->
+The verify skill and lane-s.md source files state that report shape, `accord skills sync` has re-rendered every copy, and the skills tests pass.

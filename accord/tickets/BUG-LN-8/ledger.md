@@ -23,7 +23,7 @@
 - Ruling: build task 1: the @ac-1 test's expected text applies the 0.1.0-to-<v> repin to the lines before the step, because upgrade repins too, and still asserts expected === fresh when 0.1.0 wrote the same lines — the plan's literal recipe would fail on the pin — none
 - Ruling: build task 2: the three @ac-2 cases (plain, CRLF with `* -text`, two-space-shallower indent) run in one loop inside the single test, each in a fresh clone, because the verify id names one test — a failure shows only the case label in its message
 - Ruling: build task 3: the broken-alias case asserts only `was not refreshed`, since the shape message is the same text for it — as the brief says — the shape wording stays vague for an anchor on `env:` inside the step
-
+- Ruling: verify: local `accord gate done` failed only on load timeouts of tests this ticket does not touch (last run with --maxWorkers=8, 845 s: show-approval ac-1 303 s of 300 s; 1518 passed, 3 skipped); the owner chose not to wait for ST-LN-44: "no need to wait for 44, open the PR, merge it into main and close this ticket" — the CI `accord` check gates the ticket instead — a real regression hidden behind those timeouts would reach main
 ## Deferred
 - Nice (plan round 1.4): Task 1's `expected === fresh` assertion cannot fail; drop it and record whether 0.1.0's lines before the step match today's
 - Nice (plan round 2.1): rule 17 should say "every new test", so it does not clash with rule 12 keeping the existing upgrade tests unchanged

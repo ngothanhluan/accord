@@ -3,7 +3,7 @@ name: accord
 description: Use when starting any work in an accord repository, when seeing where work stands, or when continuing a ticket. Shows the dashboard, continues or picks up a ticket, and classifies a new request into a lane.
 license: MIT
 kind: skill
-loads: [accord/ids.md, accord/lane-s.md, accord/upgrade.md, accord/worktree.md, shared/ask.md, shared/failure.md]
+loads: [accord/ids.md, accord/lane-s.md, accord/upgrade.md, accord/worktree.md, shared/ask.md, shared/failure.md, shared/finish.md]
 ---
 
 First run the session check in `./worktree.md`, except for `/accord upgrade`. A failure reported in a ticket that has reached verify follows `./failure.md`.

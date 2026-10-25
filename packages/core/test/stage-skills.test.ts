@@ -609,7 +609,7 @@ it('ac-5 the verify skill offers to promote a ruling or correction into the conv
   const text = (files.find((f) => f.path === '.claude/skills/accord-verify/SKILL.md')?.text ?? '').replace(/\s+/g, ' ');
   expect(text.length).toBeGreaterThan(0);
   const from = text.indexOf('6. Run `accord gate done <id>`');
-  const to = text.indexOf('7. Next:');
+  const to = text.indexOf('7. Report the finish');
   expect(from).toBeGreaterThan(-1);
   expect(to).toBeGreaterThan(-1);
   const step = text.slice(from, to);
@@ -771,4 +771,22 @@ it('risk:regression the accord skill routes upgrade to its reference and the wor
     expect(wt).toContain(s);
   expect(wt).not.toContain('./upgrade.md');
   expect(wt).not.toContain('never from Pick up or Continue');
+});
+
+it('risk:regression a finished ticket reports a verdict, never a merge, then dashboard next steps', () => {
+  const text = (path: string) => (files.find((f) => f.path === path)?.text ?? '').replace(/\s+/g, ' ');
+  expect(text('.claude/skills/accord-verify/SKILL.md')).toContain('7. Report the finish as `./finish.md` says.');
+  expect(text('.claude/skills/accord/lane-s.md')).toContain("It waits for the owner's merge. Report the finish as `./finish.md` says.");
+  for (const dir of ['accord-verify', 'accord']) {
+    const finish = text(`.claude/skills/${dir}/finish.md`);
+    for (const s of [
+      '`✅ <id> DONE — PR #<n> ready, waiting for your merge`',
+      'never write that it is merged',
+      'At most four status lines',
+      'one to three suggestions',
+      '`accord dashboard`',
+      '`(recommended)`',
+    ])
+      expect(finish, dir).toContain(s);
+  }
 });

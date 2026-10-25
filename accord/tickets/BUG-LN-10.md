@@ -1,6 +1,6 @@
 ---
 id: "BUG-LN-10"                            # equals the file name: tickets/<id>.md
-title: "Short title in business language"
+title: "The accord pane in a clone reports a version mismatch after a release until the CLI is built again"
 type: "bug" # story | bug
 status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "S" # S: one small change, worked from this ticket alone
@@ -16,7 +16,10 @@ ui: false
 ---
 
 ## Understood
-<!-- One line: the change, as the request was understood. -->
+In a clone of accord itself, a CLI build older than its own package.json makes the pin refusal suggest an npx command that runs the same stale build.
 
 ## Done when
-<!-- One line: the observable result that ends the work. -->
+In that case the refusal says the build is stale and names `npm run build`; an npm-installed CLI behaves as today.
+
+## Decisions
+- D-01 Keep the ticket and take the smallest fix: when the running CLI build is older than the package.json beside it, the pin refusal says the build is stale and names `npm run build` instead of the npx command that runs the same stale build — "ok A, so that's lane S?"

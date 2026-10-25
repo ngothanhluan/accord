@@ -26,6 +26,11 @@
 - Ruling: other tickets' criterion test ids go on verify: lines with no (@ac-n) marker, because they prove those tickets' scenarios — cost if wrong: a plan-gate complaint
 - Ruling: ac-4 also maps kept rows, so a row kept through rule 3 is still checked — cost if wrong: a stricter check than ac-4's wording
 - Ruling: the rule 3 tool runs with node --experimental-strip-types — cost if wrong: an experimental warning on Node 22.12-22.17
+- Ruling: plan round 2 split the assertion audits into six tasks (28-33) and renumbered the parser, measuring-run and ac tasks to 34-37; the Ruling above that names "executor Task 31" now means Task 35 — cost if wrong: none, no task is recorded yet
+- Ruling: a row whose only place is its own test is audited only for its maps.json entries and note changes, because Task 37 checks its assertion multiset mechanically — cost if wrong: such a row has no second, independent reader
+- Ruling: the approved table is frozen as a fixture checked by its sha256, not read through git, so the check works in a shallow clone — cost if wrong: if the Approach's hash was computed on other bytes, Task 34 stops BLOCKED
+- Ruling: Task 17's #73 title test keeps its loop cut to ['x'], since the stricter 2.2 matching rule would refuse several old checks mapped to its one loop assertion — cost if wrong: none
+- Ruling: the planner's proposal to add `fetch-depth: 0` to .github/workflows/ci.yml is held for the re-plan after D-12, which should prefer frozen fixtures over a CI change, since the Approach says test code only — cost if wrong: one more plan revision
 
 ## Deferred
 

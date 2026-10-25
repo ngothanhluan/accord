@@ -1,6 +1,6 @@
 ---
 baseline: 2746d3aa6eedd3ff940f82fa5fe7ef0decc132d8
-plan_hash: "fnv1a64:8c2d33ad1fd891d4"
+plan_hash: "fnv1a64:075b169eb3d7abce"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -11,20 +11,21 @@ Order: Tasks 1 to 5 are the wiring: the shared helpers and guards every task aft
 `risk:` test written first (H8 `run()` guard, the template copy routine with its origin assertions of rule 5, H2,
 H6, the core-ready helpers). Tasks 6 to 17 carry out the rows outside `worktree.test.ts`, one test file (or a small
 group of files) each. Tasks 18 to 26 carry out the 48 rows of `worktree.test.ts`, by region of the file. Task 27
-confirms the rows that take no change. Tasks 28 and 29 audit the assertion maps against the row notes and restore any
-omission. Task 30 writes the table, junit and assertion parsers and the rule 3 tool, each proved by a `risk:` test.
-Task 31 is the measuring run of rule 3: it commits the run's junit and its rule 3 list as test fixtures and writes the
-ac-1 test that reads them. Task 32 writes the ac-2 and ac-3 tests, Task 33 the ac-4 test. Every test a `verify:` line
-names exists and passes when its task is recorded: the measuring run's artifacts are committed by Task 31, before the
-tests that read them are written.
+confirms the rows that take no change. Tasks 28 to 33 audit the assertion maps against the row notes and restore any
+omission, one group of build tasks each (the audit procedure below). Task 34 writes the table, junit and assertion
+parsers and the rule 3 tool, each proved by a `risk:` test. Task 35 is the measuring run of rule 3: it commits the
+run's junit and its rule 3 list as test fixtures and writes the ac-1 test that reads them. Task 36 writes the ac-2 and
+ac-3 tests, Task 37 the ac-4 test. Every test a `verify:` line names exists and passes when its task is recorded: the
+measuring run's artifacts are committed by Task 35, before the tests that read them are written.
 
 Committed artifacts (nothing outside the repository survives between executors): everything a task produces for a
 following task or for the main session is written to a committed file under `packages/core/test/`, never only in the
 executor's report and never under the top-level `accord/` folder (executors never touch it). The ST-LN-48 precedent
 keeps a ticket's committed run data in `packages/core/test/fixtures/st-ln-48/`; this ticket uses
 `packages/core/test/fixtures/st-ln-44/`:
-- `maps.json`, written by Tasks 6 to 26 and 28 to 29 (see "maps.json" below);
-- `after-junit.xml` and `rule3-list.md`, written by Task 31.
+- `maps.json`, written by Tasks 7 to 26 and 28 to 33 (see "maps.json" below);
+- `table-approved.md`, written by Task 34;
+- `after-junit.xml` and `rule3-list.md`, written by Task 35.
 
 Row coverage: every one of the 113 rows of table.md is carried out by exactly one task, which lists it on its
 first prose line as `Rows: #n, ...`. Nothing outside those rows changes.
@@ -39,11 +40,16 @@ Rules for every task:
 - Assertions (rule 4, ac-4): every old assertion lands where the row's note column says. An assertion is an
   `expect(` statement or a call of a local assertion helper (a function of the test file whose body holds `expect(`,
   for example `refused(text)` and `noBranch()` in upgrade.test.ts:81-88, `blocked()` in hook.test.ts, `again(C)` in
-  worktree.test.ts:228-234, `passes()` and `fails(rule)` in lane-s.test.ts:108-113). Assertions are counted as a
-  multiset: an assertion the old body made twice is made twice in its new places, or the second one has its own
-  `maps.json` entry. Keep each assertion's text identical, variable names included (bind a new result to the old
-  name before the old assertions run); every assertion whose text changes, that a split drops as a duplicate, or
-  that moves off the row's places gets one `maps.json` entry. An assertion the note turns into a core check is
+  worktree.test.ts:228-234, `passes()` and `fails(rule)` in lane-s.test.ts:108-113, and the file-level `dropAndMerge`
+  and `laneSBranch` of worktree.test.ts:1438-1443 and :2166-2176). The assertion is the helper-call statement in the
+  test body (for example `await dropAndMerge(c, 'ST-10');`, read as `dropAndMerge(c, 'ST-10');`), never an `expect(`
+  inside the helper's declaration, which `asserts` (Task 34) leaves out. Assertions are counted as a multiset: an
+  assertion the old body made twice is made twice in its new places, or the second one has its own `maps.json`
+  entry. Keep each assertion's text identical, variable names included (bind a new result to the old name before the
+  old assertions run); every assertion whose text changes, that a split drops as a duplicate, or that moves off the
+  row's places gets one `maps.json` entry. A `maps.json` entry's `now` is used up by the one old assertion it maps:
+  two old assertions never share one new assertion, and a `now` is never an assertion another old line already
+  matches unchanged (Task 37 checks both). An assertion the note turns into a core check is
   written as an `expect` on the core value (for example `expect(gateReadyIn(files, 'S-1')).toBe('pass')`). A kept
   or faster criterion test keeps every assertion line as it is; only its setup changes. No risk assertion moves into
   a criterion test (rule 1).
@@ -81,16 +87,39 @@ maps.json (`packages/core/test/fixtures/st-ln-44/maps.json`, LF, two-space inden
 creates it as `{ "rows": {}, "baseline": [] }`; every task adds to it and never rewrites another task's entries:
 - `rows`: keyed by the row number as a string; each value a list of `{ "old": <text>, "now": <text>, "cite": <text> }`
   or `{ "old": <text>, "test": <junit id>, "cite": <text> }`, exactly one of `now` and `test`.
-  - `old`: the old assertion as `asserts` (Task 30) reads it: the statement from `expect(` or from the helper name up
-    to its closing `;`, every run of whitespace turned into one space. Copy it from the baseline source.
+  - `old`: the old assertion as `asserts` (Task 34) reads it: the statement from `expect(` or from the helper name up
+    to its closing `;`, every run of whitespace turned into one space. Copy it from the baseline source. For a call of
+    an assertion helper it is the call statement in the test body, never an `expect(` inside the helper.
   - `now`: the new assertion's text, read the same way, present in one of the row's places (its destinations, or for
-    a row that is not moved its own test).
+    a row that is not moved its own test), and not used by any other entry or unchanged old assertion.
   - `test`: the id of the CLI test that makes a dropped CLI exit or output check (D-07's reading of ac-4).
-  - `cite`: an exact substring of the row's note column (at least 3 characters). For a `test` entry it contains that
-    test's `it` title or `#<m>` for a row `m` whose own test or one of whose destinations is that test (for example
-    `the CLI exit 0 is made by #63`, or `` `accord approve > after approval gate ready passes` ``).
+  - `cite`: an exact substring of the row's note column (at least 3 characters). For a `test` entry it also contains
+    that test's last title segment, or `#<m>` (not followed by a digit) for a row `m` whose own test or one of whose
+    destinations is that test, or whose note contains that test's last title segment (for example
+    `the CLI exit 0 is made by #63`; `` `accord approve > after approval gate ready passes` ``; or, for rows #71 and
+    #96, whose notes say "as in #28" and "as in #20", `the CLI checks are made as in #28`).
 - `baseline`: one `{ "old": <id>, "new": <id or null> }` per id of `accord/tests-baseline.txt` that the task removed
   (`null`) or renamed.
+
+Audit procedure (Tasks 28 to 33; each audits the rows of a group of build tasks, so another executor than the one who
+built a row checks it). For each row the task names, read the row's note column, the old test in
+`git show 2746d3aa6eedd3ff940f82fa5fe7ef0decc132d8:<file>`, its places at HEAD, and its entries in `maps.json`:
+- A moved row with more than one destination: every old assertion (an `expect(` statement or an assertion-helper
+  call statement, counted with its repeats) is in the destination the note's order names, or has its `maps.json`
+  entry. Task 37's ac-4 test checks the multiset over all of a row's places but not which destination holds an
+  assertion; this audit checks that.
+- Every row: each of its `maps.json` entries makes the check its `old` made (a `now` checks the same value on the same
+  state, or the core form the note names; a `test` names a CLI test that asserts the dropped exit or output check),
+  and its `cite` is the note's wording for that change.
+- A row whose note moves checks that are not assertions in rule 4's sense (row #1's per-id `bad.push` checks of
+  show-approval.test.ts:139-149): each lands where the note says.
+- A row whose only place is its own test (a faster or kept row): only the two items above; Task 37 checks its
+  multiset mechanically.
+Output: a list of rows with any gap, each with its old line and what is missing; an empty list is the pass. A gap that
+is a plain omission (the note places the assertion and the code lacks it, or an entry is missing from `maps.json`) is
+restored in place and named in the report; any other gap is reported, not fixed. Must not change: any test beyond
+restoring a missing assertion the note places; any `maps.json` entry beyond adding a missing one or correcting its
+text to the code. The task's `verify:` tests must still pass after any restoration.
 
 ## Task 1: Wiring: run() refuses any folder outside the temp folder (H8)
 covers: D-05, D-09, D-10, D-11
@@ -193,7 +222,7 @@ covers: D-05, D-11
 files: packages/cli/test/helpers/worktree.ts, packages/cli/test/sandbox-guard.test.ts (new)
 verify: packages/cli/test/sandbox-guard.test.ts#risk:regression-a-template-copy-and-its-other-clone-run-no-automatic-git-maintenance
 
-Rows: none (H6 for every template row; table: its saving is unconfirmed, Task 31 measures it).
+Rows: none (H6 for every template row; table: its saving is unconfirmed, Task 35 measures it).
 
 Produces: `makeTemplate(opts)` in `helpers/worktree.ts`: `makeClone(opts)`, then in its root
 `git config maintenance.auto false` and `git config gc.auto 0`, and in its remote `git config gc.auto 0` and
@@ -242,7 +271,7 @@ Must not change: every test body in `dashboard.test.ts` and `show.test.ts`; the 
 
 ## Task 6: The ST-LN-19 ac-1 test rebuilds every ticket in core and runs show once (D-08)
 covers: D-04, D-05, D-08, D-11
-files: packages/cli/test/show-approval.test.ts, packages/core/test/fixtures/st-ln-44/maps.json (new)
+files: packages/cli/test/show-approval.test.ts
 verify: packages/cli/test/show-approval.test.ts#ac-1-every-scenario-of-every-real-ticket-is-rebuilt-exactly-from-the-approval-view, packages/cli/test/show-approval.test.ts#risk:data-loss-approval-refuses-a-ticket-whose-gherkin-does-not-parse
 
 Rows: #1.
@@ -250,7 +279,7 @@ Rows: #1.
 Consumes: `approvalView` and `loadSnapshot` from `@accord-dev/accord-core`, `isUnsafe` from
 `../src/render/dashboard.js` (the same unsafe-char map `show.ts:10` uses), the file's `rebuild()`. Produces: the
 test `ac-1 every scenario of every real ticket is rebuilt exactly from the approval view`, title, tag and timeout
-unchanged; `maps.json` created as the preamble says, with row 1's entries.
+unchanged. Row #1 writes no `maps.json` entry.
 
 Body, per row #1:
 - `expect(ids.length).toBeGreaterThanOrEqual(10)` stays.
@@ -262,9 +291,10 @@ Body, per row #1:
   `accord/tickets/ST-LN-19.md`; `run(['show', 'ST-LN-19', '--approval'], repo)` exits 0 and its `rebuild(out)`
   equals ST-LN-19's scenarios.
 - `expect(bad).toEqual([])` stays last.
-- `maps.json` row `1`: one entry per old assertion whose text changes. The per-id exit 0 becomes the load finding
-  check: `{ "old": <the old exit check>, "now": <the load finding check>, "cite": "The per-id exit 0 becomes" }`;
-  each per-id rebuild check now made on `out` gets `now` its new text and `cite` "move to the core loop".
+- The old body's assertions in rule 4's sense are its two `expect(` statements (:132 and :154), and both keep their
+  text, so row #1 needs no `maps.json` entry. The per-id exit 0 and rebuild checks of :139-149 are `if (...)
+  bad.push(...)` conditions that `asserts` does not read; their D-08 mapping (exit 0 to the load finding check,
+  rebuild checks to the core loop) is the row's note, and Task 28's audit checks it.
 
 The test proving ST-LN-19 ac-1 must pass, as must ac-2, ac-3 and ac-5 of this file, which make the per-id CLI exit 0
 (row #1 note).
@@ -353,16 +383,22 @@ they are run and reported but not named above.
 
 Consumes: `makeTemplate`, `copyClone`, `approve`, `gateReadyIn`, `P`. Produces:
 - #4: seven tests, titles and order from row #4, each from a `copyClone` of one `makeTemplate()` template and
-  reading each state once. Each doubled `fact()` pair now checks one value read once, so the second call of each pair
-  gets one `maps.json` entry under `4` (`now` the kept call's text, `cite` "Each doubled `fact()` pair checks one
-  value read once"). Assertion map per the note.
+  reading each state once. In a destination that uses `fact` (the old :35 and :95), `fact` is rebound to the value
+  read once: `let state = loadFromFs(<root>).afterVerify?.['ST-9']; const fact = () => state;`, with
+  `state = loadFromFs(<root>).afterVerify?.['ST-9'];` after each state change (after the fix commit, after the merge
+  of `origin/main`, after the side merge; after the rename of `main` in the other block). Every assertion of :36-115
+  then keeps its text, and each doubled `fact()` pair checks one value read once, so row #4 writes no `maps.json`
+  entry. Assertion map per the note.
 - #20: a `beforeAll` template of the pushed done state with core-ready hashes (approve and `gateReadyIn` on the
   ticket text instead of the :125-126 runs, then the plan, ledger, review, `work` and `tick` commits and the push);
   four tests per row #20. The first asserts `gateReadyIn` returns `pass` and the approved hash is set; the :125-126
   exit 0 checks get `maps.json` entries under `20` naming the two lane-commands tests the note names.
 - #83: template clone and other clone (copy with `others`); both review-package runs stay.
-- #96: template clone; core-ready instead of :219-220 with `toBe('pass')` (`maps.json` entries under `96`); both
-  anchor runs stay.
+- #96: template clone; core-ready instead of :219-220 with `toBe('pass')`; both anchor runs stay. The :219 and :220
+  exit checks get one `test` entry each under `96`, naming
+  `packages/cli/test/lane-commands.test.ts#accord-approve->-writes-approved_hash-once-and-is-a-no-op-the-second-time`
+  and `packages/cli/test/lane-commands.test.ts#accord-approve->-after-approval-gate-ready-passes`, each with `cite`
+  "the CLI checks are made as in #20" (row #20's note quotes both titles).
 
 Test first: #4's first destination.
 
@@ -460,7 +496,10 @@ Consumes: Task 5's `approve`, `ready`, `done`, `gateReadyIn`, `P`; `copyRepo`. P
 The CLI checks these rows drop are made by `gate.test` `gate ready on a passing ticket exits 0 and writes the
 renderText body` and lane-commands `accord approve > writes approved_hash once and is a no-op the second time` and
 `accord approve > after approval gate ready passes` (row notes); run those files too. Each dropped exit check gets
-one `maps.json` entry under its row naming the test its row note names, with the note's words as `cite`.
+one `maps.json` `test` entry under its row naming the test its row note names, with the note's words as `cite`.
+Row #71's note names its CLI tests only as "as in #28": its :45 exit check's entry names
+`packages/cli/test/lane-commands.test.ts#accord-approve->-after-approval-gate-ready-passes` with `cite`
+"the CLI checks are made as in #28" (row #28's note quotes that title).
 
 Test first: #54's two destinations.
 
@@ -545,8 +584,9 @@ Produces:
   `risk:parsing a task number of 0, 01, -1 or 1.5 is refused`, calls the exported `taskNumber` from
   `../src/commands/lane-args.js` for each of `0`, `01`, `-1`, `1.5` and expects a throw of
   `not a task number: <bad>`. Its title holds a comma, so it is run and reported but not named on the `verify:` line.
-  The title test's id stays (`accord/tests-baseline.txt:97`). Each old CLI assertion the row moves to the new test
-  gets one `maps.json` entry under `73`.
+  The title test's id stays (`accord/tests-baseline.txt:97`). The title test keeps the loop of :189-193 with its
+  list cut to `['x']` and the no-commit run of :194-196, so its four assertions keep their text and row #73 needs no
+  `maps.json` entry (one new assertion in the `taskNumber` loop could not serve two mapped old ones, Task 37).
 - #87: build the add/delete side and the `--no-ff` merge of :233-241 with `write-tree`, `commit-tree` and
   `update-ref HEAD`; assertions unchanged.
 - #99: a `makeTemplate()` copy instead of `makeClone`.
@@ -688,8 +728,11 @@ Rows: #45, #67, #92, #93, #98, #101, #103, #105.
 
 Consumes: `copy`, `claimWorktree`, `dropOnRemote`, `dropAndMerge`, `has`. Produces:
 - #105 (ST-LN-34 ac-3): `copy`; one real `accord drop` then `accord worktree clean` stays; H3 and H5 not taken.
-- #103 (ST-LN-34 ac-4): `copy`; H3 `dropOnRemote` instead of `drop` (its exit 0 at 1439 is made by #32 and #105:
-  `maps.json` entry under `103`); 1465-1469 stay.
+- #103 (ST-LN-34 ac-4): `copy`; H3 `dropOnRemote(c, ['ST-10'])` in place of the `await dropAndMerge(c, 'ST-10');`
+  call (:1463); 1465-1469 stay. That call is an assertion of the old body (`dropAndMerge` holds the drop exit 0
+  check, :1439), so it gets one `maps.json` entry under `103`:
+  `{ "old": "dropAndMerge(c, 'ST-10');", "test": "packages/cli/test/worktree.test.ts#ac-3-clean-deletes-the-worktree-and-both-branches-of-a-ticket-dropped-on-the-default-branch", "cite": "is made by #32 and by #105" }`
+  (#105 keeps its real `dropAndMerge` call, so its test still asserts the drop exit 0).
 - #101: two tests per row #101 (1482 first, 1485 second, 1486-1488 in both).
 - #93, #92: `copy`, no split (one clean judges ST-9 to ST-11, and the 4-branch clean at :1527, stay whole).
 - #67: two tests per row #67; c's clean becomes `git push origin --delete t/ST-9` (1597-1598 are made by #105:
@@ -744,8 +787,11 @@ Rows: #5, #14, #31.
 Consumes: `copy`, `copyClone`, `doneOnRemote`, `laneSBranch` (:2166, used by #5 only), `gateReadyIn`, `P`.
 Produces:
 - `laneSBranch`: the `gate ready` run (:2171) becomes core: read the sibling's `accord/config.yml` and ticket into a
-  files map, `expect(gateReadyIn(files, id)).toBe('pass')`, write the ticket back. Its CLI exit 0 is made by #63
-  (`maps.json` entry under `5`, `cite` "The `gate ready` exit 0 in laneSBranch is made by #63").
+  files map, `expect(gateReadyIn(files, id)).toBe('pass')`, write the ticket back. Its signature (async, returning
+  the review commit) stays, and its body still holds `expect(`, so it stays an assertion helper. Row #5's assertions
+  are its `laneSBranch(...)` call statements (:2224, :2225, :2257), never the `expect` inside the helper, and each
+  call keeps its text (variable names included), so row #5 writes no `maps.json` entry for it. The CLI `gate ready`
+  exit 0 the helper no longer makes is made by #63, as row #5's note says.
 - #5: six tests per row #5. The first keeps the title and block c whole (ST-9, ST-10 merged and not done, ST-11 in
   one clean, with the ordered `toEqual` at 2188-2193 and 2194-2199); the third is block f whole (ST-12 and ST-13 in
   one clean, r3's 4-line `toEqual`); block g split per clean. Assertion map per row #5.
@@ -773,47 +819,81 @@ empty, then run the six files and report each row's alone time and, for kept row
 
 Must not change: any of the six files.
 
-## Task 28: Audit the assertion maps of the worktree.test.ts rows
+## Task 28: Audit the assertion maps of the rows of Tasks 6 to 9
+covers: D-05, D-07
+files: packages/cli/test/show-approval.test.ts, packages/cli/test/workflow-script.test.ts, packages/cli/test/lane-s.test.ts, packages/cli/test/after-verify.test.ts, packages/core/test/fixtures/st-ln-44/maps.json (new)
+verify: packages/cli/test/show-approval.test.ts#ac-1-every-scenario-of-every-real-ticket-is-rebuilt-exactly-from-the-approval-view, packages/cli/test/workflow-script.test.ts#the-emitted-workflow-script-—-executed->-risk:parsing-BOM-and-CRLF-frontmatter-and-unreadable-blocks-and-large-files-read-as-approved, packages/cli/test/lane-s.test.ts#risk:complex-branching-lane-S-gate-done-passes-a-reviewed-change, packages/cli/test/after-verify.test.ts#risk:complex-branching-the-commits-after-verify-come-from-the-ticket-tip-in-graph-order
+
+Rows: none (it audits rows #1, #2, #3, #4, #6, #9, #17, #20, #35, #57, #69, #83, #96, built by Tasks 6 to 9; #63,
+#102 and #109 take no change).
+
+Run the audit procedure of the preamble over these rows. Row #1 is the row whose per-id checks are `bad.push`
+conditions (show-approval.test.ts:139-149): check the per-id exit 0 became the load finding check of the core loop,
+the rebuild checks moved to the core loop, and the one CLI run on ST-LN-19 makes its exit 0 and rebuild-equal check.
+Moved rows here: #3 (14 destinations), #4 (7), #20 (4).
+
+## Task 29: Audit the assertion maps of the rows of Tasks 10 to 13
+covers: D-05, D-07
+files: packages/cli/test/drop.test.ts, packages/cli/test/upgrade.test.ts, packages/cli/test/hook.test.ts, packages/cli/test/dashboard.test.ts, packages/core/test/fixtures/st-ln-44/maps.json (new)
+verify: packages/cli/test/drop.test.ts#risk:complex-branching-drop-reads-a-local-claim-tip-ahead-of-origin, packages/cli/test/upgrade.test.ts#risk:data-loss-upgrade-refuses-and-pushes-nothing-when-the-pin-is-not-older, packages/cli/test/hook.test.ts#risk:security-the-prompt-expansion-hook-blocks-continue-and-pick-up-of-other-tickets-in-the-ticket-worktree, packages/cli/test/dashboard.test.ts#risk:complex-branching-a-dependency-done-only-on-its-claim-branch-still-blocks-its-dependent
+
+Rows: none (it audits rows #7, #12, #13, #19, #28, #32, #39, #40, #41, #51, #53, #54, #68, #71, #74, #78, #79, #81,
+#90, #91, built by Tasks 10 to 13).
+
+Run the audit procedure of the preamble over these rows. Moved rows here: #7 (5 destinations), #13 (4, with every
+`refused(...)`/`noBranch()` call), #19 (4, with every `blocked(...)` call), #39 (4), #51 (2), #54 (2), #79 (2). For
+#68, check each rewritten `upgradeNotice` assertion checks the value its dashboard run checked.
+
+## Task 30: Audit the assertion maps of the rows of Tasks 14 to 17
+covers: D-05, D-07
+files: packages/cli/test/show.test.ts, packages/cli/test/status.test.ts, packages/cli/test/lane-flow.test.ts, packages/core/test/benchmark-compliance.test.ts, packages/cli/test/lane-commands.test.ts, packages/cli/test/new-ticket.test.ts, packages/cli/test/bin.test.ts, packages/core/test/fixtures/st-ln-44/maps.json (new)
+verify: packages/cli/test/show.test.ts#risk:complex-branching-show-takes-blockers-from-the-checkout-not-the-claim-branch, packages/cli/test/status.test.ts#risk:complex-branching-a-merged-or-checked-out-or-ticketless-claim-branch-keeps-the-checkout-copy, packages/cli/test/lane-flow.test.ts#lane-ticket-flow->-risk:complex-branching-gate-ready-passes-only-after-approve-and-gate-plan-passes-on-a-plan-against-HEAD, packages/cli/test/new-ticket.test.ts#risk:complex-branching-a-ticket-added-and-deleted-on-a-merged-and-deleted-branch-keeps-its-number
+
+Rows: none (it audits rows #10, #30, #43, #44, #46, #60, #61, #64, #73, #87, #95, #99, built by Tasks 14 to 17; #94,
+#104, #106, #107 and #110 take no change).
+
+Run the audit procedure of the preamble over these rows. Moved rows here: #10 (4 destinations), #30 (2), #60 (2),
+#64 (2), and #73's CLI checks that move to its new `taskNumber` test.
+
+## Task 31: Audit the assertion maps of the worktree.test.ts rows of Tasks 18 to 20
 covers: D-05, D-07
 files: packages/cli/test/worktree.test.ts, packages/core/test/fixtures/st-ln-44/maps.json (new)
-verify: packages/cli/test/worktree.test.ts#risk:data-loss-clean-keeps-unpushed-commits-and-new-files-that-git-status-config-would-hide, packages/cli/test/worktree.test.ts#risk:data-loss-clean-removes-a-held-done-worktree-and-its-hold-and-keeps-the-worked-record, packages/cli/test/worktree.test.ts#risk:data-loss-clean-removes-only-a-done-ticket-and-keeps-a-branch-with-a-commit-after-its-verified-commit, packages/cli/test/worktree.test.ts#risk:complex-branching-the-holding-session-re-enters-its-own-hold-and-a-partial-table-refuses
+verify: packages/cli/test/worktree.test.ts#risk:security-a-ticket-id-cannot-place-a-worktree-outside-its-sibling-folder, packages/cli/test/worktree.test.ts#risk:complex-branching-the-holding-session-re-enters-its-own-hold-and-a-partial-table-refuses, packages/cli/test/worktree.test.ts#risk:data-loss-clean-keeps-unpushed-commits-and-new-files-that-git-status-config-would-hide
 
-Rows: none (it audits the 48 rows of Tasks 18 to 26).
+Rows: none (it audits rows #15, #27, #34, #36, #42, #47, #48, #49, #50, #56, #59, #62, #66, #72, #75, #77, #82, #84,
+#111, #113, built by Tasks 18 to 20).
 
-For each of the 48 rows of `worktree.test.ts` (every one changes in setup or is split), read the old
-test in `git show 2746d3aa6eedd3ff940f82fa5fe7ef0decc132d8:packages/cli/test/worktree.test.ts` and the new tests at
-HEAD, and check every old assertion (an `expect(` statement or a local assertion-helper call, counted with its
-repeats) against the row's note column: it is in the place the note names (for a kept or faster row, on the same
-check in the same test; for a moved row, in the destination the note's order names), or it has its `maps.json`
-entry and that entry's `now` text is in the place the note names or its `test` still asserts the check (D-07's
-reading of ac-4). Work region by region (Tasks 18 to 26), so the diff read at a time stays small.
+Run the audit procedure of the preamble over these rows; their old tests sit in lines 36 to 760 of the old file
+(read a helper outside that range only when an assertion calls it). Moved rows here: #15 (3 destinations), #27 (3, with every `again(...)` call), #34 (6), #47 (3),
+#75 (2), #77 (2), #84 (2).
 
-Output: a list of rows with any old assertion that has no match, each with its old line and what is missing. A gap
-that is a plain omission (the note places the assertion and the code lacks it, or the entry is missing from
-`maps.json`) is restored in place and named in the report; any other gap is reported, not fixed. An empty list is
-the pass. The four tests above, one per region group, must still pass after any restoration.
-
-Must not change: any test beyond restoring a missing assertion the note places; any `maps.json` entry beyond adding
-a missing one or correcting its text to the code.
-
-## Task 29: Audit the assertion maps of every other changed row
+## Task 32: Audit the assertion maps of the worktree.test.ts rows of Tasks 21 to 23
 covers: D-05, D-07
-files: packages/cli/test/show-approval.test.ts, packages/cli/test/workflow-script.test.ts, packages/cli/test/lane-s.test.ts, packages/cli/test/after-verify.test.ts, packages/cli/test/drop.test.ts, packages/cli/test/upgrade.test.ts, packages/cli/test/hook.test.ts, packages/cli/test/dashboard.test.ts, packages/cli/test/show.test.ts, packages/cli/test/status.test.ts, packages/cli/test/lane-flow.test.ts, packages/core/test/benchmark-compliance.test.ts, packages/cli/test/lane-commands.test.ts, packages/cli/test/new-ticket.test.ts, packages/cli/test/bin.test.ts, packages/core/test/fixtures/st-ln-44/maps.json (new)
-verify: packages/cli/test/lane-s.test.ts#risk:complex-branching-lane-S-gate-done-passes-a-reviewed-change, packages/cli/test/after-verify.test.ts#risk:complex-branching-the-commits-after-verify-come-from-the-ticket-tip-in-graph-order, packages/cli/test/upgrade.test.ts#risk:data-loss-upgrade-refuses-and-pushes-nothing-when-the-pin-is-not-older, packages/cli/test/hook.test.ts#risk:security-the-prompt-expansion-hook-blocks-continue-and-pick-up-of-other-tickets-in-the-ticket-worktree, packages/cli/test/drop.test.ts#risk:complex-branching-drop-reads-a-local-claim-tip-ahead-of-origin
+files: packages/cli/test/worktree.test.ts, packages/core/test/fixtures/st-ln-44/maps.json (new)
+verify: packages/cli/test/worktree.test.ts#risk:complex-branching-outside-claude-code-a-worktree-pinned-to-another-accord-version-still-prints-the-stop-lines, packages/cli/test/worktree.test.ts#risk:data-loss-clean-removes-a-held-done-worktree-and-its-hold-and-keeps-the-worked-record, packages/cli/test/worktree.test.ts#risk:data-loss-clean-keeps-a-dropped-ticket-whose-local-and-origin-branches-have-diverged
 
-Rows: none (it audits the changed rows of Tasks 6 to 17).
+Rows: none (it audits rows #18, #24, #45, #52, #58, #67, #80, #86, #88, #89, #92, #93, #97, #98, #101, #103, #105,
+built by Tasks 21 to 23).
 
-The same audit as Task 28, for the rows of Tasks 6 to 17 whose body changed (every row there except #63, #94,
-#102, #104, #106, #107, #109, #110), against `git show 2746d3aa6eedd3ff940f82fa5fe7ef0decc132d8:<file>`. Report
-the result together with Task 28's; Task 33's ac-4 test then checks the same maps mechanically. The five tests above
-must still pass after any restoration.
+Run the audit procedure of the preamble over these rows; their old tests sit in lines 947 to 1665 of the old file
+(read a helper outside that range only when an assertion calls it). Moved rows here: #24 (4 destinations), #45 (3), #58 (3), #67 (2), #86 (3), #88 (2), #89
+(2), #101 (2). For #103, check its `dropAndMerge(c, 'ST-10');` entry names #105's test and that test still calls
+`dropAndMerge`.
 
-Must not change: any test beyond restoring a missing assertion the note places; any `maps.json` entry beyond adding
-a missing one or correcting its text to the code.
+## Task 33: Audit the assertion maps of the worktree.test.ts rows of Tasks 24 to 26
+covers: D-05, D-07
+files: packages/cli/test/worktree.test.ts, packages/core/test/fixtures/st-ln-44/maps.json (new)
+verify: packages/cli/test/worktree.test.ts#risk:complex-branching-worktree-merge-refuses-a-ticket-before-verify-and-merges-nothing, packages/cli/test/worktree.test.ts#risk:data-loss-a-continue-merge-that-conflicts-is-aborted-names-the-file-and-pushes-nothing, packages/cli/test/worktree.test.ts#risk:data-loss-clean-removes-only-a-done-ticket-and-keeps-a-branch-with-a-commit-after-its-verified-commit
 
-## Task 30: The table, junit and assertion parsers and the rule 3 tool
+Rows: none (it audits rows #5, #14, #21, #26, #31, #38, #55, #65, #70, #76, #85, built by Tasks 24 to 26).
+
+Run the audit procedure of the preamble over these rows; their old tests sit in lines 1676 to 2376 of the old file
+(read a helper outside that range only when an assertion calls it). Moved rows here: #5 (6 destinations, with every `laneSBranch(...)` call), #21 (5), #26 (4),
+#31 (3), #70 (3).
+
+## Task 34: The table, junit and assertion parsers and the rule 3 tool
 covers: D-01, D-03, D-05, D-07
-files: packages/core/test/helpers/st-ln-44.ts (new), packages/core/test/st-ln-44.test.ts (new)
+files: packages/core/test/helpers/st-ln-44.ts (new), packages/core/test/st-ln-44.test.ts (new), packages/core/test/fixtures/st-ln-44/table-approved.md (new)
 verify: packages/core/test/st-ln-44.test.ts#risk:parsing-table.md-parses-to-rows-1-to-113-and-the-keep-syntax-of-rule-3-parses-without-changing-them, packages/core/test/st-ln-44.test.ts#risk:parsing-junit-cases-are-read-with-file-title-time-and-status-and-their-text-unescaped, packages/core/test/st-ln-44.test.ts#risk:complex-branching-the-rule-3-list-stops-on-a-test-over-10-s-that-is-not-kept-and-on-a-kept-test-over-its-ceiling, packages/core/test/st-ln-44.test.ts#risk:parsing-assertions-are-a-multiset-of-expect-statements-and-local-assertion-helper-calls, packages/core/test/st-ln-44.test.ts#risk:parsing-a-title-built-at-run-time-matches-its-source-with-its-interpolations-as-wildcards
 
 Rows: none (the tools the ac tests and rule 3 use over all 113 rows).
@@ -876,16 +956,31 @@ Produces, exported from `packages/core/test/helpers/st-ln-44.ts`:
   `listText(rule3(...))` (with `--verify`, only the `stop` entries) to `--out` (UTF-8, LF; the file is written by
   Node, never by a shell redirect) or to stdout, and exits 1 when any entry stops, 0 otherwise.
 
-Tests first, in the new `packages/core/test/st-ln-44.test.ts` (imports: `node:fs`, `vitest`, `./helpers/st-ln-44.js`),
-each top-level with its exact title:
+The approved table, frozen: `packages/core/test/fixtures/st-ln-44/table-approved.md` holds the bytes of
+`git show 2746d3aa6eedd3ff940f82fa5fe7ef0decc132d8:accord/tickets/ST-LN-44/table.md` (the baseline is the approval
+commit), written by Node (`execFileSync` output passed to `writeFileSync`), never by a shell redirect. Before writing
+the test, compute its sha256; when it is not `6ed26baa7b8a7b0726fa62f02a0076095716ca1a117026f4884b937c75ba9c10`,
+the hash `## Approach` records, stop and report `BLOCKED` with both hashes. The frozen copy is what lets this test
+prove the approved table parses fully even when a late keep of rule 3 edits the live `table.md`; it needs no git
+history, so it also runs in CI's shallow clone.
+
+Tests first, in the new `packages/core/test/st-ln-44.test.ts` (imports: `node:fs`, `node:crypto`, `vitest`,
+`./helpers/st-ln-44.js`), each top-level with its exact title:
 - `it('risk:parsing table.md parses to rows 1 to 113 and the keep syntax of rule 3 parses without changing them')`:
-  `rows(readFileSync(TABLE, 'utf8'))` has 113 rows numbered 1 to 113, `tableProblems` is `[]`, 29 rows are `kept`
-  and each has a ceiling, row 2's ceiling is 106. Then the same text with three edits: row 3's first destination
-  given ` :: kept 12 s`, row 6's action `faster` changed to `kept` with `Ceiling 9 s.` prefixed to its note, and the
-  row `| 114 | cli/test/sandbox-guard.test.ts | risk:data-loss a template copy pushes to its own origin and matches a
-  clone built the same way | - | kept | - | - | - | Ceiling 14 s. Reason. |` appended after row 113: it parses to
-  114 rows with no problem, row 3's first destination has ceiling 12, row 6 is kept with ceiling 9, row 114 is kept
-  with ceiling 14. A destination `a :: b :: c` throws; a row 116 appended after 114 is a problem (a gap).
+  - The approved table: `approvedText` is the fixture `table-approved.md` read through
+    `new URL('./fixtures/st-ln-44/table-approved.md', import.meta.url)`; its sha256 (`createHash('sha256')` over
+    the file's bytes) is the hash above. `approved = rows(approvedText)` has 113 rows numbered 1 to 113,
+    `tableProblems(approved)` is `[]`, 29 rows are `kept` and each has a ceiling, row 2's ceiling is 106.
+  - The live table: `live = rows(readFileSync(TABLE, 'utf8'))`; `tableProblems(live)` is `[]`; for each `n` from 1 to
+    113 the live row has the approved row's `file` and `title`, and the same destination files and titles in the
+    same order. A late keep written with main-session step 2's syntax changes only an action, a note, a destination's
+    ceiling, or appends rows from 114, so this part stays green after it.
+  - The keep syntax, on `approvedText` with three edits: row 3's first destination given ` :: kept 12 s`, row 6's
+    action `faster` changed to `kept` with `Ceiling 9 s.` prefixed to its note, and the row
+    `| 114 | cli/test/sandbox-guard.test.ts | risk:data-loss a template copy pushes to its own origin and matches a
+    clone built the same way | - | kept | - | - | - | Ceiling 14 s. Reason. |` appended after row 113: it parses to
+    114 rows with no problem, row 3's first destination has ceiling 12, row 6 is kept with ceiling 9, row 114 is kept
+    with ceiling 14. A destination `a :: b :: c` throws; a row 116 appended after 114 is a problem (a gap).
 - `it('risk:parsing junit cases are read with file title time and status and their text unescaped')`: a three-case
   junit text (a passed case whose name holds `&amp;` and `&gt;`, a failed one with `<failure`, a skipped one) reads
   to the three cases with the unescaped titles, times and statuses; `idOf` of a title with two spaces and ` > `
@@ -909,14 +1004,14 @@ each top-level with its exact title:
 
 Must not change: every other test, fixture and helper; `stage-baseline.test.ts`.
 
-## Task 31: The measuring run, committed with its rule 3 list, and the ac-1 test that reads it
+## Task 35: The measuring run, committed with its rule 3 list, and the ac-1 test that reads it
 covers: @ac-1, D-02, D-03, D-06
 files: packages/core/test/fixtures/st-ln-44/after-junit.xml (new), packages/core/test/fixtures/st-ln-44/rule3-list.md (new), packages/core/test/st-ln-44.test.ts (new)
 verify: packages/core/test/st-ln-44.test.ts#ac-1-no-test-in-the-measuring-run-takes-over-10-s-apart-from-a-kept-test-within-its-ceiling (@ac-1)
 
 Rows: none (rule 3's measuring run over all 113 rows).
 
-Precondition: Tasks 1 to 30 are done and the main session has done Main session step 1
+Precondition: Tasks 1 to 34 are done and the main session has done Main session step 1
 (`accord/tests-baseline.txt`).
 
 Run, once, from PowerShell:
@@ -943,15 +1038,16 @@ takes it to the owner). Report: the rule 3 list, the failing cases, and the two 
 
 Must not change: every other test, fixture and helper.
 
-## Task 32: The ac-2 and ac-3 tests read the committed run
+## Task 36: The ac-2 and ac-3 tests read the committed run
 covers: @ac-2, @ac-3, D-04, D-07
-files: packages/core/test/st-ln-44.test.ts (new)
+files: packages/core/test/st-ln-44.test.ts (new), .github/workflows/ci.yml
 verify: packages/core/test/st-ln-44.test.ts#ac-2-every-test-tag-of-another-ticket-names-one-passing-test-and-lint-reports-no-error (@ac-2), packages/core/test/st-ln-44.test.ts#ac-3-every-test-gone-since-the-baseline-run-is-a-row-the-table-moves-and-every-destination-exists (@ac-3)
 
 Rows: none (it proves ac-2 and ac-3 over all 113 rows).
 
-Consumes: Task 30's helpers and Task 31's `after-junit.xml`. Each test runs well under 10 s: no CLI run, at most one
-`git` spawn per test file read at the baseline (cached in a module-level `Map`), and one `git ls-files`.
+Consumes: Task 34's helpers and Task 35's `after-junit.xml`. Each test runs well under 10 s: no CLI run, at most one
+`git` spawn per test file read at the baseline (cached in a module-level `Map`), one `git cat-file`, and one
+`git ls-files`.
 
 Shared code added to the test file (imports also `node:child_process`, `readDir` from `./helpers/fixture.js`, and
 `loadSnapshot`, `lintSnapshot` from `../src/index.js` and `scanJUnit` from `../src/load/junit.js`, which index.ts does
@@ -960,7 +1056,13 @@ not export; no core source changes, D-11):
   reads `accord/tickets/ST-LN-44/baseline-junit.xml` (committed at the baseline).
 - `atBase(file)`: `execFileSync('git', ['-c', 'log.showSignature=false', 'show', '--no-show-signature',
   BASE + ':' + file], { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })`, cached; `''` when git fails
-  (the file did not exist).
+  (the file did not exist). Its first call runs `execFileSync('git', ['cat-file', '-e', BASE + '^{commit}'],
+  { cwd: ROOT })` and throws `baseline commit <BASE> is not in this clone` when that fails, so a clone without the
+  baseline fails ac-3 and ac-4 loudly instead of reading every file as absent.
+- `.github/workflows/ci.yml`: the `check` job's `actions/checkout@v7` step gets `with:` `fetch-depth: 0`, the form
+  `.github/workflows/accord.yml:12-16` already uses, with a one-line comment that the ST-LN-44 ac-3 and ac-4 tests
+  read the baseline commit, so CI's clone holds it (the default depth-1 checkout does not, and verify waits on CI).
+  Must not change: every other line of ci.yml, including the `examples` job.
 
 Tests first, top-level, exact titles:
 - `it('ac-2 every test tag of another ticket names one passing test and lint reports no error')`:
@@ -982,9 +1084,9 @@ Tests first, top-level, exact titles:
   failure, expect `[]`. A destination carrying a rule 3 keep is still a destination, and an appended keep row is
   neither removed nor moved, so neither changes this check.
 
-Must not change: the tests of Tasks 30 and 31; every other test, fixture and helper.
+Must not change: the tests of Tasks 34 and 35; every other test, fixture and helper.
 
-## Task 33: The ac-4 test checks every changed row's assertions against its places and maps.json
+## Task 37: The ac-4 test checks every changed row's assertions against its places and maps.json
 covers: @ac-4, D-07
 files: packages/core/test/st-ln-44.test.ts (new), packages/core/test/fixtures/st-ln-44/maps.json (new)
 verify: packages/core/test/st-ln-44.test.ts#ac-4-every-assertion-of-a-changed-row-is-in-its-new-place-or-mapped-by-the-row-note (@ac-4)
@@ -992,7 +1094,7 @@ verify: packages/core/test/st-ln-44.test.ts#ac-4-every-assertion-of-a-changed-ro
 Rows: none (it proves ac-4 over every row whose action is `faster`, `moved`, `merged` or `kept`; rule 4 maps kept rows
 with cuts too, so a row kept through rule 3 stays checked).
 
-Consumes: Task 30's `rows`, `body`, `helpersOf`, `asserts`, `cases`, `idOf`; Task 32's `atBase` and `after`;
+Consumes: Task 34's `rows`, `body`, `helpersOf`, `asserts`, `cases`, `idOf`; Task 36's `atBase` and `after`;
 `packages/core/test/fixtures/st-ln-44/maps.json`.
 
 Test first, top-level, exact title:
@@ -1003,35 +1105,41 @@ to 113 whose action is `faster`, `moved`, `merged` or `kept`:
 - `places`: the row's destinations, or for any other action the row's own file and title; `now` is the
   concatenation, over the places, of `asserts(body(text, place.title), helpersOf(text))` with `text` the place's file
   read at HEAD; a missing body fails the row.
-- Each entry of `old` is matched, in order, by removing one equal entry from a working copy of `now`; one that finds
-  none is matched by an unused `maps.json` entry of that row with the same `old`; one that finds neither is
-  collected as `#<n> <file>: <assertion>`.
+- `left` is a working copy of `now`. First pass: each entry of `old`, in order, that has an equal entry in `left`
+  removes one such entry. Second pass: each entry of `old` the first pass left unmatched, in order, is matched by an
+  unused `maps.json` entry of that row with the same `old`: a `test` entry is used as it is; a `now` entry is used
+  only when its `now` text is still in `left`, and using it removes one occurrence from `left`. So a mapped `now`
+  can never be an assertion an unchanged old line already matched, and one new assertion never serves two old ones
+  (row #4's :42 mapped to :41's text fails). An old entry that finds neither is collected as
+  `#<n> <file>: <assertion>`.
 - Every `maps.json` entry is checked whether used or not: its row exists; `old` is in that row's `old`; `cite` has at
   least 3 characters and `row.note` contains it; a `now` entry's text is in the row's `now`; a `test` entry's id is
-  a `passed` case of `after()` (by `idOf`), and `cite` contains that case's last title segment or `#<m>` for a row
-  `m` whose own test or one of whose destinations is that case. Each failure is collected as `#<n> maps.json: <why>`.
+  a `passed` case of `after()` (by `idOf`), and `cite` contains that case's last title segment, or `#<m>` not
+  followed by a digit for a row `m` whose own test or one of whose destinations is that case, or whose note contains
+  that case's last title segment (rows #71 and #96 cite "as in #28" and "as in #20", whose notes quote the CLI
+  tests). Each failure is collected as `#<n> maps.json: <why>`.
 - `expect(<all collected>).toEqual([])`.
 
-Write the test and run it. Any failure is a gap Tasks 28 and 29 missed: a plain omission (the note places the
+Write the test and run it. Any failure is a gap Tasks 28 to 33 missed: a plain omission (the note places the
 assertion and the code or `maps.json` lacks it) is restored in place (a test file outside this task's line is
 declared in the report with the reason) and named in the report; any other failure is reported as
 `BLOCKED`, not fixed. A restoration here does not repeat the measuring run; the verify full run and its rule 3 check
 measure it.
 
-Must not change: the tests of Tasks 30 to 32; every assertion any task wrote, beyond a restored omission.
+Must not change: the tests of Tasks 34 to 36; every assertion any task wrote, beyond a restored omission.
 
 ## Main session steps
 
 These edit files under the top-level `accord/` folder, which no executor touches, or need the owner.
 
-1. Before dispatching Task 31 (the update of `accord/tests-baseline.txt` for every baseline title that moved): from
+1. Before dispatching Task 35 (the update of `accord/tests-baseline.txt` for every baseline title that moved): from
    the `baseline` list of `packages/core/test/fixtures/st-ln-44/maps.json`, remove each line whose `new` is `null`
    and replace each other `old` in place with its `new`. Known: row #10 removes line 129
    (`packages/cli/test/lane-flow.test.ts#lane-ticket-flow->-walks-one-ticket-from-unapproved-to-done`; its four
    destinations carry `risk:`); row #73 keeps its title, so line 97 stays. New `risk:` titles need no line. Then run
    `node packages/cli/dist/cli.js lint` and confirm no `lint.test-untraced` finding names a test of this ticket.
    Commit.
-2. After Task 31 reports (recorded, or `BLOCKED` on stopping entries): read
+2. After Task 35 reports (recorded, or `BLOCKED` on stopping entries): read
    `packages/core/test/fixtures/st-ln-44/rule3-list.md`. When it is not `No entry.`, write one proposal per entry and
    take the whole list to the owner as one question before review (rule 3):
    - an entry that stops: propose either a keep, with its ceiling the larger of its measuring-run time and its
@@ -1041,11 +1149,14 @@ These edit files under the top-level `accord/` folder, which no executor touches
      has it, or a further split when the margin is thin and the test has independent blocks.
    On the owner's yes to a keep: record it as a Decision in the ticket, write it into table.md with the syntax below,
    update the table's sha256 in `## Approach`, and run `accord approve ST-LN-44` before verify (table rule 3, "Late
-   keeps"); then run `tests.affected` for Task 31's files and `accord task-done ST-LN-44 31` again. On the owner's yes
-   to a further split: that is a new cut beyond the approved table, so it is a change of course (accord-build step 6):
-   a change note under `## Approach`, the owner's new yes, `accord approve`, and a re-plan that adds the split tasks
-   and a new measuring task after them, which replaces the two fixture files.
-   Keep syntax (`rows()` of Task 30 accepts exactly this; today's table parses to rows 1 to 113 with none of it):
+   keeps"); then run `tests.affected` for Task 35's files and `accord task-done ST-LN-44 35` again (Task 34's test
+   reads the frozen approved table and checks the live one only for what a keep leaves unchanged, so it stays
+   green). On the owner's yes to a further split: that is a new cut beyond the approved table, so it is a change of
+   course (accord-build step 6): a change note under `## Approach`, the owner's new yes, `accord approve`, and a
+   re-plan that adds the split tasks and a new measuring task after them, which replaces the two measuring fixture
+   files, and a task that replaces `table-approved.md` and its hash in Task 34's test with the newly approved table
+   (a split changes destination titles, which that test compares).
+   Keep syntax (`rows()` of Task 34 accepts exactly this; today's table parses to rows 1 to 113 with none of it):
    - a `faster` or `unchanged` row becomes kept: its action cell becomes `kept` and its note starts with
      `Ceiling <N> s. <reason>`;
    - a kept row over its ceiling: the number in its `Ceiling <N> s` is raised and the reason added to its note;

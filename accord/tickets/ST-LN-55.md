@@ -35,6 +35,7 @@ Queued 2026-10-25, not approved; the intent interview replaces this:
 - Added 2026-10-25 after ST-LN-54; the owner said "Gather them together. Why open so many tickets?", so all three are queued here: (4) when a ticket is done, its session leaves the worktree and cleans it at once. Today `accord worktree clean` keeps it as "this session's worktree" even after ExitWorktree, and no command releases the hold, so the session waits for `/accord` or removes it by hand. (5) `verify/ci.md` finish step 3 reads `gh pr view --json isDraft`, which can read the branch's merged pull request; read only an open one, as `shared/finish.md` does with `gh pr list --head <branch> --state open`. (6) `packages/cli/test/no-vietnamese.test.ts` passed while ST-LN-54's ticket held Vietnamese owner quotes; cause not yet found.
 - Changes what `accord worktree clean` deletes, a public behaviour; never removes uncommitted work or a commit reachable from nothing else.
 - Added (owner, 2026-10-25, after the main session proposed a five-ticket plan for review convergence: "ok, agreed"): each worktree is recorded when created and `gate done` checks it was removed, as GSD records worktrees in a manifest and fails cleanup closed. On 2026-10-25, 15 folders of removed worktrees, each holding only links, were found and deleted by hand.
+- Research: `accord/research/2026-10-25-review-convergence.md` (evidence, not a contract).
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.

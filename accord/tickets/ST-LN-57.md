@@ -33,6 +33,7 @@ Queued 2026-10-25, not approved; the intent interview replaces this:
 - Queued intent: (1) the review package is pinned to a base; code added by a debug episode or a merge gets its own round 1 and does not count as a late round; (2) a fix that changes a file no finding names needs a Ruling, as an undeclared plan file does; (3) from round 3, a new finding that is neither carried forward nor on lines the last fix changed blocks only with a failing test or a reproducing command, otherwise it goes to the ledger as Deferred (GSD #3304 evidence gate); a data-loss or security finding always blocks.
 - Also queued: a Should rests on a ticket line or an in-scope failing case, else it is Nice. The 2026-10-25 measure found this demotes 18 of 50 late Shoulds, none judged a real defect, but 3 of them data-loss edge cases, hence the exception above.
 - Related: ST-LN-17 counts the rounds; ST-LN-56 sets how a finding is stated and fixed.
+- Research: `accord/research/2026-10-25-review-convergence.md` (evidence, not a contract).
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.

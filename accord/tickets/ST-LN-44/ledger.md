@@ -1,0 +1,5 @@
+# Ledger
+
+## Rulings
+- Ruling: the queued item list (an agent's per-test suggestions, lines as of 8a8ba6f) is no longer in the Intent; the approach reads it from the ticket at claim commit 6488ac8, and the scout found three of its claims wrong today (the six-command test is worktree.test.ts:1067, an ST-LN-27 ac-4 test, not :1006; core trailers.test.ts covers one pattern case, not the CLI test's four paths; the VID-1 tests run approve and gate plan, not pure parsing) — the Intent holds at most five lines — an approach that trusts the old list would merge or move the wrong tests
+- Ruling: "the same machine" is the owner's Windows machine, and the baseline is the junit report of the full run on 2026-10-24 in the ST-LN-48 worktree (1,521 tests, no failures, 75 over 10 s), copied as accord/tickets/ST-LN-44/baseline-junit.xml so a later run cannot overwrite it, and CI times are not a measure — the owner chose a per-test 10 s line on the same machine (D-03) — a baseline lost to a later run would leave ac-1 and ac-3 without their "before" list

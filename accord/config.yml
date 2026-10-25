@@ -20,9 +20,11 @@ review:
   mode: outcome
 # ST-LN-47 D-01, D-02: benchmark round 1 raised the auditor and the critic; the scout moves to sonnet
 # unmeasured, and ST-LN-46 measures it before any default in AGENT_DEFAULTS changes.
+# Owner 2026-10-25: the executor runs sonnet at high, since medium left more defects for review to catch.
 models:
   auditor: { model: opus, effort: high }
   critic: { model: opus, effort: xhigh }
+  executor: { model: sonnet, effort: high }
   scout: { model: sonnet, effort: low }
 stale_days: "14"
 # Ticket ids: accord assigns ST-/BUG-/EP-<initials>-<n> to the creator's git user.email (IDS-1).

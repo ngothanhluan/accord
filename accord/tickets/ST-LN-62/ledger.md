@@ -32,6 +32,8 @@
 - Ruling: the package.json and call-line loader gets its own CLI test in Task 4, beside the one the Approach names — Task 1 would not fit half an executor's context with it — cost if wrong: one more git-fixture test.
 - Ruling: "both package.json" means `packages/core/package.json` and `packages/cli/package.json`, the published ones — cost if wrong: the owner corrects it at the Task 8 review.
 - Ruling: `generated:` leaves out `.claude/` — listing it would exempt hand-edited copies and `.claude/settings.json` — cost if wrong: none.
+- Ruling: a done lane S ticket edited by a later pull request gets no new handling, since it already fails at the baseline through `gate.commit-after-review` (fs.ts:317-329, lane-s.ts:86-87; reasoned, not run) — plan finding 1.4 asked for handling without a bypass — cost if wrong: such a pull request fails on new reasons only.
+- Ruling: a `+++ ` path missing from the raw listing makes the branch fact an error — fails closed instead of dropping a call line — cost if wrong: an unexpected diff header format fails gate done for that branch.
 
 ## Deferred
 

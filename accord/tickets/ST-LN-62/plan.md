@@ -1,6 +1,6 @@
 ---
 baseline: 4253a6510c6f01e7afb557c7cfd722b63a08434f
-plan_hash: "fnv1a64:0b3880f264b1a163"
+plan_hash: "fnv1a64:85be6d022b4a03f9"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -17,7 +17,8 @@ fixed lines. Task 8 holds this repository's own `sensitive:` and `generated:` li
 Rules for every task:
 - Test ids: every test this plan writes is a top-level `it(...)` with no `describe` around it. Its report id is the
   test file's path from the repository root, then `#`, then the `it` title with each run of whitespace turned into
-  `-`. No test title holds `@`, a comma or an apostrophe. No existing test is renamed.
+  `-`, letter case kept (`packages/core/src/load/junit.ts:16`), so `lane S` in a title is `lane-S` in its id. No test
+  title holds `@`, a comma or an apostrophe. No existing test is renamed.
 - A test that makes a commit uses `commitMsg` from `packages/cli/test/helpers/repo.ts` (`-F <file>
   --cleanup=verbatim`, conventions.md), except `lane-flow.test.ts`, which keeps its own `commitAll`. Every test that
   spawns git passes `120_000` as the third argument of `it`. A sandbox repository gets
@@ -30,7 +31,9 @@ Rules for every task:
   `stdio: ['ignore', 'pipe', 'pipe']` (or `pipe` stdin for `cat-file --batch`), a 64 MiB `maxBuffer`, and
   `env: { ...process.env, GIT_NO_LAZY_FETCH: '1' }`. Every `git log` is written
   `'-c', 'log.showSignature=false', 'log', '--no-show-signature', ...` exactly, because
-  `packages/cli/test/spawn-surface.test.ts:84-100` checks that text. Paths from git are read with `-z` and split on
+  `packages/cli/test/spawn-surface.test.ts:84-100` checks that text: its scan flags every quoted `'log'` or `'show'`
+  not written that way, so a step label or error text in source is never the bare quoted word `'log'` (write
+  `` `git log -G ac_hash` `` inside the template string instead). Paths from git are read with `-z` and split on
   `\0`; a path handed back to git as a pathspec carries `:(literal)` (conventions.md).
 - Core (`packages/core/src`) imports no `node:` module. Files are LF with no BOM. Add no dependency. Every printed path
   uses `/`.
@@ -51,15 +54,31 @@ Definitions shared by every task:
   counted (D-02, ledger Ruling 8).
 - Exempt path of ticket `id` (ledger Ruling 9): `accord/tickets/<id>.md`; a path starting `accord/tickets/<id>/`; a
   path in `fact.synced`; a path that an entry of the merge-base config's `generated:` list matches, except
-  `.claude/settings.json`, which is never exempt (ledger Ruling 19). `accord/product/conventions.md` is not exempt.
+  `.claude/settings.json`, which a `generated:` entry never exempts. `fact.synced` holds a path `accord skills sync`
+  writes only when its HEAD text equals what sync would write: the fresh render for a skill, agent or plugin copy,
+  and for `.claude/settings.json` the hook merge (`hooksPlanFor`, `packages/cli/src/commands/skills.ts:100`)
+  applied to its merge-base text (ledger Ruling 19). `accord/product/conventions.md` is not exempt.
 - An entry matches a path when the entry ends in `/` and the path starts with it, or when the two are equal (ledger
   Ruling 12). No globs.
 - The last round of `review.md`: its last `## ` section whose heading, after `headingKey`, starts with `round `.
 
+Tickets that predate this change (`.github/workflows/accord.yml:127-145` runs `gate done` on every lane S ticket a
+pull request touches):
+- A lane S ticket already done and merged, whose ticket file a subsequent pull request edits (for example
+  `accord/tickets/ST-LN-61.md`): that pull request already fails `gate done` at the baseline, because the ticket's
+  review commit is reachable from the default ref, so `gitAfterVerify` drops it
+  (`packages/cli/src/load/fs.ts:317-329`), `gitAfterReview` returns nothing and `gate.commit-after-review` fails
+  (`packages/core/src/gate/lane-s.ts:86-87`). This plan adds reasons to that failure and no new failing case; such a
+  ticket file stays unedited, as at the baseline. No rule is relaxed for it.
+- A lane S ticket in flight at upgrade, whose first `ac_hash` commit holds no `## Scope`: `gate done` fails it with
+  the `## Scope held no path` reason of Task 1, and the session lifts it to lane M through lane-s.md's
+  `## Lift to lane M` (Task 7 names that reason there). There is no bypass: a Scope written after `ac_hash` is never
+  read (ledger Ruling 17), so @ac-2 holds for every new lane S ticket.
+
 ## Task 1: Wiring: gate done reads the branch diff and fails a lane S ticket that changed a file outside its recorded scope
 covers: @ac-2, D-02, D-04, D-06
 files: packages/core/src/model/snapshot.ts, packages/core/src/load/snapshot.ts, packages/core/src/load/config.ts, packages/core/schemas/config.schema.json, packages/core/src/gate/scope.ts (new), packages/core/src/gate/rules.ts, packages/core/src/index.ts, packages/core/test/scope.test.ts (new), packages/core/test/schemas.test.ts, packages/core/test/lane-done.test.ts, packages/cli/src/load/fs.ts, packages/cli/src/commands/branch-fact.ts (new), packages/cli/src/commands/gate.ts, packages/cli/test/branch-fact.test.ts (new), packages/cli/test/lane-s.test.ts, packages/cli/test/lane-flow.test.ts
-verify: packages/core/test/scope.test.ts#ac-2-gate-done-fails-a-lane-s-ticket-that-touched-a-file-outside-its-recorded-scope (@ac-2), packages/core/test/scope.test.ts#risk:complex-branching-gate-done-fails-closed-on-a-missing-or-failed-branch-diff-a-diff-without-the-ticket-file-and-an-absent-or-empty-scope, packages/cli/test/branch-fact.test.ts#risk:complex-branching-gate-done-reads-the-branch-diff-from-the-merge-base-ignoring-whitespace-and-pins-the-scope-at-the-first-commit-that-records-ac_hash
+verify: packages/core/test/scope.test.ts#ac-2-gate-done-fails-a-lane-S-ticket-that-touched-a-file-outside-its-recorded-scope (@ac-2), packages/core/test/scope.test.ts#risk:complex-branching-gate-done-fails-closed-on-a-missing-or-failed-branch-diff-a-diff-without-the-ticket-file-and-an-absent-or-empty-scope, packages/cli/test/branch-fact.test.ts#risk:complex-branching-gate-done-reads-the-branch-diff-from-the-merge-base-ignoring-whitespace-and-pins-the-scope-at-the-first-commit-that-records-ac_hash
 
 Consumes: `defaultRefOf` and `gitFilesAt` (`packages/cli/src/load/fs.ts:292`, `:775`), `skillTargets`,
 `agentTargets`, `pluginTargets` and `normaliseText` from core, `parseYamlMap` (`packages/core/src/load/yaml.ts:18`),
@@ -117,13 +136,15 @@ so every existing case keeps its expected findings.
 
 `packages/cli/test/branch-fact.test.ts` (new), importing `cleanup`, `commitMsg`, `gitRun`, `makeEmptyRepo`, `run`,
 `writeFiles` from `./helpers/repo.js`, `CONFIG`, `LANE_S_BODY`, `laneTicket`, `junit`, `REPORT` from
-`../../../test/helpers/lane.js`, `gitBranchFact` from `../src/load/fs.js`, and `loadConfig`, `skillTargets` from
-`@accord-dev/accord-core`. A local `repoWith(files)` sets up the sandbox as the preamble says.
+`../../../test/helpers/lane.js`, `gitBranchFact` from `../src/load/fs.js`, `hooksPlanFor` and `SETTINGS` from `../src/commands/skills.js`, and
+`loadConfig`, `skillTargets` from `@accord-dev/accord-core`. A local `repoWith(files)` sets up the sandbox as the
+preamble says.
 `errs(out, rule)` returns the reasons of `JSON.parse(out).findings` with that rule.
 - `it('risk:complex-branching gate done reads the branch diff from the merge base ignoring whitespace and pins the scope at the first commit that records ac_hash')`:
   - Base on `main`: `accord/config.yml` = `CONFIG`, `accord/tickets/S-1.md` =
     `laneTicket('S-1', { lane: 'S', body: LANE_S_BODY + '\n## Scope\nsrc/a.ts\n' })`, `src/a.ts` `'a\n'`, `src/b.ts`
-    `'b\n'`, `src/ws.ts` `'x = 1;\n'`, `REPORT` = `junit({ 'a#b': 'passed' })`. `commitMsg(repo, 'base')`, then
+    `'b\n'`, `src/ws.ts` `'x = 1;\n'`, `.claude/settings.json` `'{"x":1}\n'`, `REPORT` = `junit({ 'a#b': 'passed' })`.
+    `commitMsg(repo, 'base')`, then
     `gitRun(repo, 'branch', '-M', 'main')`.
   - `switch -q -c t/S-1`; `run(['gate', 'ready', 'S-1'], repo)` exits 0; `R = commitMsg(repo, 'ready: S-1')`.
   - `switch -q main`, write `src/main.ts`, `commitMsg(repo, 'main moves')`, `switch -q t/S-1`.
@@ -132,16 +153,22 @@ so every existing case keeps its expected findings.
     write `src/b.ts` `'b2\n'`, `commitMsg`.
   - Synced copies: `cfg = loadConfig('accord/config.yml', CONFIG).config`; write `.claude/skills/accord/SKILL.md` as the
     `text` of its `skillTargets(cfg)` entry, and `.claude/skills/accord/ids.md` as its entry's `text + 'x\n'`.
+    Settings as sync writes them: `.claude/settings.json` = `hooksPlanFor('{"x":1}\n', cfg).text`.
   - Generated from the base only: append `'generated:\n  - gen/\n'` to `accord/config.yml` and write `gen/out.txt`.
     `commitMsg`.
   - `d = run(['gate', 'done', 'S-1', '--json'], repo)` exits 1. `errs(d.out, 'gate.out-of-scope')` has exactly four
     reasons, starting `.claude/skills/accord/ids.md `, `accord/config.yml `, `gen/out.txt ` and `src/b.ts `; each
     contains `` at commit ${R} ``. No reason names `src/a.ts`, `src/ws.ts`, `src/main.ts`,
-    `.claude/skills/accord/SKILL.md` or `accord/tickets/S-1.md`. `errs(d.out, 'gate.branch-unknown')` is `[]`.
-  - `f = gitBranchFact(repo, 'S-1', { rendered: skillTargets(cfg), scope: true })`: `f.base` equals
-    `gitRun(repo, 'merge-base', 'main', 'HEAD').trim()`; `f.scope` equals `{ commit: R, paths: ['src/a.ts'] }`; the
-    change for `src/ws.ts` is `{ path: 'src/ws.ts', kind: 'modified', lines: 0 }`; no change names `src/main.ts`;
-    `f.synced` is `['.claude/skills/accord/SKILL.md']`; `f.baseConfig` equals `CONFIG`.
+    `.claude/skills/accord/SKILL.md`, `.claude/settings.json` or `accord/tickets/S-1.md`.
+    `errs(d.out, 'gate.branch-unknown')` is `[]`.
+  - `f = gitBranchFact(repo, 'S-1', { rendered: skillTargets(cfg), scope: true, settings: { path: SETTINGS, expected: (b) => hooksPlanFor(b, cfg)?.text ?? b } })`:
+    `f.base` equals `gitRun(repo, 'merge-base', 'main', 'HEAD').trim()`; `f.scope` equals
+    `{ commit: R, paths: ['src/a.ts'] }`; the change for `src/ws.ts` is `{ path: 'src/ws.ts', kind: 'modified', lines: 0 }`;
+    no change names `src/main.ts`; `f.synced` is `['.claude/settings.json', '.claude/skills/accord/SKILL.md']`;
+    `f.baseConfig` equals `CONFIG`.
+  - A hand edit of the settings: rewrite `.claude/settings.json` as `JSON.stringify({ ...JSON.parse(<its text>), y: 2 }, null, 2) + '\n'`,
+    `commitMsg`; `errs(run(gate done S-1 --json).out, 'gate.out-of-scope')` now has five reasons, one starting
+    `.claude/settings.json `.
   - Lane work on the default branch: `switch -q main`; `errs(run(gate done S-1 --json).out, 'gate.branch-unknown')`
     has one reason containing `does not change accord/tickets/S-1.md`. `switch -q t/S-1`.
   - No default branch: `gitRun(repo, 'branch', '-m', 'main', 'trunk')`; gate done exits 1 and the one
@@ -204,7 +231,9 @@ Interface:
   in `DONE_S_RULES` after it.
 - `packages/core/src/index.ts`: export the types `BranchChange`, `BranchFact` and the function `scopeLines`.
 - `packages/cli/src/load/fs.ts`, beside `gitFilesAt`:
-  `export function gitBranchFact(root: string, id: string, opts: { rendered: readonly { path: string; text: string }[]; scope: boolean }): BranchFact`.
+  `export function gitBranchFact(root: string, id: string, opts: { rendered: readonly { path: string; text: string }[]; scope: boolean; settings?: { path: string; expected: (base: string | undefined) => string | undefined } }): BranchFact`.
+  `settings.expected` takes the settings file's merge-base text (undefined when absent there) and returns the text
+  `accord skills sync` would write over it, or undefined when sync would not write it.
   It never throws; each failure returns `{ error }`, the git ones as
   `` `git ${what} failed reading the branch diff: ${first stderr line}` ``.
   1. `def = defaultRefOf(root)`. Undefined: `{ error: "none of origin/HEAD, origin/main, origin/master, main or master resolves, so the branch diff cannot be read; run git fetch origin" }` (ledger Ruling 16).
@@ -219,13 +248,20 @@ Interface:
      The first line, when it is a sha, is `commit`; its ticket text is `gitFilesAt(root, commit, [file])[file]`, and
      `scope = { commit, paths: scopeLines(text) ?? [] }` (ledger Ruling 17). No such commit leaves `scope` out.
   6. `synced`: the changed paths whose kind is not `deleted` and that an `opts.rendered` entry names, kept when
-     `normaliseText(gitFilesAt(root, 'HEAD', those)[p]) === entry.text`, sorted.
+     `normaliseText(gitFilesAt(root, 'HEAD', those)[p]) === entry.text`; plus `opts.settings.path` when it is a
+     changed path whose kind is not `deleted`, `want = opts.settings.expected(gitFilesAt(root, base, [path])[path])`
+     is defined, and `normaliseText(<its HEAD text>) === normaliseText(want)`. Sorted by code point.
   7. `baseConfig = gitFilesAt(root, base, ['accord/config.yml'])['accord/config.yml']`, left out when absent.
   `changes` are sorted by path.
 - `packages/cli/src/commands/branch-fact.ts` (new): `export function branchFactFor(ctx: CommandContext, id: string): BranchFact`.
   `rendered` is `[]` without a config, else `[...skillTargets(c), ...agentTargets(c), ...pluginTargets(c, pkg)]`
   with `import pkg from '../../package.json' with { type: 'json' }` as `skills.ts:27` does; `scope` is true when the
-  ticket has `lane: 'S'`. `.claude/settings.json` is not among them.
+  ticket has `lane: 'S'`. With a config, `settings` is `{ path: SETTINGS, expected }`, `SETTINGS` and `hooksPlanFor`
+  imported from `./skills.js` (`skills.ts:82`, `:100`), and `expected(b)` is `hooksPlanFor(b, c)`'s `text`, else `b`
+  when the plan is `unchanged`, else undefined when the plan is undefined (no `claude` runtime) or `hooksPlanFor`
+  throws (settings that are not a JSON object, or another `accord` marketplace source). Without a config,
+  `settings` is left out. The text equals what `writeHooks` writes (`skills.ts:134-142`), since both come from
+  `hooksPlanFor`.
 - `packages/cli/src/commands/gate.ts`: after `forDone` is built and only for `which === 'done'` and a ticket that
   exists with `lane:`, gate `{ ...forDone, branchFacts: { [id]: branchFactFor(ctx, id) } }`. The commits load stays
   first, so its exit 2 without a default ref is unchanged (`packages/cli/test/gate.test.ts:302-304`).
@@ -237,7 +273,11 @@ Interface:
 
 Must not change: every gate result of a ticket without `lane:`, so the D-54 goldens and `examples.test.ts` stay as
 they are; the exit 2 of `gate done` under `commits.trailers: forbid` without a default ref; every other rule of
-`DONE_RULES` and `DONE_S_RULES`; `gate ready` and `gate plan`; `defaultRefOf`, `gitFilesAt` and every other loader.
+`DONE_RULES` and `DONE_S_RULES`; `gate ready` and `gate plan`; `defaultRefOf`, `gitFilesAt` and every other loader; `packages/cli/src/commands/skills.ts`,
+which this task only imports from.
+
+Test run, after the preamble's build steps: `npx vitest run packages/core/test/scope.test.ts packages/core/test/schemas.test.ts packages/core/test/lane-done.test.ts packages/cli/test/branch-fact.test.ts packages/cli/test/lane-s.test.ts packages/cli/test/lane-flow.test.ts packages/cli/test/spawn-surface.test.ts`.
+`spawn-surface.test.ts` must stay green: it checks every new git spawn in `fs.ts` against the preamble's spawn rules.
 
 ## Task 2: A declared and confirmed wording-only file outside the scope passes; anything more fails
 covers: @ac-3, D-02, D-07
@@ -295,7 +335,7 @@ Must not change: Task 1's tests; `parseLedger`'s `done`, `rulings` and `rulingsS
 ## Task 3: gate done fails a lane S ticket that touched a listed sensitive area
 covers: @ac-4, D-04
 files: packages/core/src/model/snapshot.ts, packages/core/schemas/config.schema.json, packages/core/src/gate/scope.ts (new), packages/core/src/gate/rules.ts, packages/core/test/schemas.test.ts, packages/core/test/scope.test.ts (new)
-verify: packages/core/test/scope.test.ts#ac-4-gate-done-fails-a-lane-s-ticket-that-touched-a-listed-sensitive-area (@ac-4), packages/core/test/schemas.test.ts#risk:parsing-sensitive-and-generated-entries-are-repository-paths-without-globs-backslashes-or-parent-segments
+verify: packages/core/test/scope.test.ts#ac-4-gate-done-fails-a-lane-S-ticket-that-touched-a-listed-sensitive-area (@ac-4), packages/core/test/schemas.test.ts#risk:parsing-sensitive-and-generated-entries-are-repository-paths-without-globs-backslashes-or-parent-segments
 
 Consumes: `configLists`, `matches`, `isCounted`, `factOf` (Task 1), and `Ledger.wordingOnly` (Task 2). Produces:
 the config key `sensitive`, `sensitiveEntries`, and the rule `gate.sensitive-touched`.
@@ -378,13 +418,15 @@ Tests first.
     `branch -M main`, `switch -q -c t/T-1`.
   - On the branch: append to the ticket `'\n<!-- worked -->\n'`; append to `src/cli.ts` a line made as
     `'program.' + 'option(' + "'--x')\n"` and a line `'  ' + 'program.' + 'command(' + "'y')\n"`; write
-    `src/é.ts` with one call line; rewrite `pkg/package.json` adding `"tool":"t.js"` to `bin`; add
+    `src/é.ts` with one call line and `src/a b.ts` (a space in the name) with one call line; rewrite
+    `pkg/package.json` adding `"tool":"t.js"` to `bin`; add
     `schemas/thing.json`; append a call line to `docs/how.md`. Commit.
   - `gitBranchFact(repo, 'T-1', { rendered: [], scope: false })`: the change for `src/cli.ts` has `calls` of length
-    2, `src/é.ts` has `calls` of length 1, `docs/how.md` has `calls` (the loader keeps it; the rule skips Markdown),
+    2, `src/é.ts` and `src/a b.ts` each have `calls` of length 1, `docs/how.md` has `calls` (the loader keeps it; the rule skips Markdown),
     `pkg/package.json` has `pkg.base` and `pkg.head` equal to the two texts, and `schemas/thing.json` has kind `added`.
   - `gate done T-1 --json` exits 1 and its `gate.interface-sign` reasons name `src/cli.ts`, `src/é.ts`,
-    `pkg/package.json` and `schemas/thing.json`, and not `docs/how.md`.
+    `src/a b.ts`, `pkg/package.json` and `schemas/thing.json`, and not `docs/how.md`; it has no
+    `gate.branch-unknown` finding.
   - `unquoteGitPath('"a\\tb\\"c\\303\\251.ts"')` is `'a\tb"cé.ts'` and `unquoteGitPath('plain/é.ts')` is unchanged.
 
 Interface:
@@ -413,8 +455,13 @@ Interface:
 - `index.ts`: export `CALL_SIGN`.
 - `fs.ts` `gitBranchFact`, after step 4:
   - `git -c core.quotePath=false diff -U0 --no-color --no-ext-diff --no-textconv --no-renames -b --ignore-blank-lines --ignore-cr-at-eol --src-prefix=a/ --dst-prefix=b/ <base> HEAD --`.
-    Read line by line: `diff --git ` starts a header; in a header a `+++ ` line sets the current path to
-    `unquoteGitPath(rest)` without its `b/` (`/dev/null` sets none); an `@@` line starts the hunk; in a hunk a line
+    Read line by line: `diff --git ` starts a header; in a header a `+++ ` line sets the current path from `rest`,
+    the text after `+++ `: one trailing `\t` is removed first (git may end the name with a tab when it holds a space;
+    a name that really holds a tab is always quoted, so an unquoted name never ends in one), then
+    `unquoteGitPath(rest)`, then its leading `b/` removed (`/dev/null` sets none). The resulting path must be one of
+    the paths of the `--raw -z` listing of step 3; any other gives
+    `` { error: `git diff -U0 named ${path}, which the raw listing of the branch diff does not hold` } ``, so a
+    misread name fails closed and never drops a call line. An `@@` line starts the hunk; in a hunk a line
     starting `+` whose text after the `+`, with a trailing `\r` removed, matches `CALL_SIGN` is pushed to that
     path's `calls`. An `ENOBUFS` failure gives `{ error: 'the branch diff is larger than 64 MiB' }`.
   - `export function unquoteGitPath(v: string): string`: a value not wrapped in `"` is returned as is; otherwise the
@@ -424,6 +471,10 @@ Interface:
     `gitFilesAt(root, base, <those not added>)` and `pkg.head` from `gitFilesAt(root, 'HEAD', <those not deleted>)`.
 
 Must not change: Tasks 1 to 3 tests, the first `branch-fact.test.ts` test included; the error reasons of Task 1.
+
+Test run, after the preamble's build steps: `npx vitest run packages/core/test/scope.test.ts packages/cli/test/branch-fact.test.ts packages/cli/test/spawn-surface.test.ts`.
+`spawn-surface.test.ts` must stay green: the `diff -U0` spawn follows the preamble's spawn rules, and no step label
+in `fs.ts` is the bare quoted word `'log'`.
 
 ## Task 5: The review package lists the out-of-scope files and the interface signs gate done would name
 covers: D-04
@@ -466,7 +517,7 @@ existing review-package test.
 ## Task 6: A lane is proposed from the scout's facts, and a lane S ticket records its scope
 covers: @ac-1, D-01, D-03, D-06
 files: packages/core/skills/accord/lane.md (new), packages/core/skills/accord/SKILL.md, packages/core/skills/accord/lane-s.md, packages/core/skills/accord/worktree.md, packages/core/skills/intent/SKILL.md, packages/core/templates/ticket-lane-s.md, packages/core/src/generated/skills.ts, packages/core/src/generated/templates.ts, .claude/skills/accord/lane.md (new), .claude/skills/accord-intent/lane.md (new), .claude/skills/accord/SKILL.md, .claude/skills/accord/lane-s.md, .claude/skills/accord/worktree.md, .claude/skills/accord-verify/worktree.md, .claude/skills/accord-debug/worktree.md, .claude/skills/accord-intent/SKILL.md, README.md, packages/cli/README.md, packages/core/test/stage-skills.test.ts, packages/core/test/templates.test.ts, packages/cli/test/lane-s.test.ts
-verify: packages/core/test/stage-skills.test.ts#ac-1-a-lane-is-proposed-from-the-scout-facts-and-a-lane-s-ticket-records-its-scope (@ac-1)
+verify: packages/core/test/stage-skills.test.ts#ac-1-a-lane-is-proposed-from-the-scout-facts-and-a-lane-S-ticket-records-its-scope (@ac-1)
 
 Consumes: nothing from Tasks 1 to 5 at run time; the text names `## Scope`, which Task 1 reads. Produces the text the
 session follows when it proposes a lane.
@@ -558,7 +609,7 @@ lanes; the other steps of `lane-s.md`; the drop and move sections of `ids.md`.
 ## Task 7: The lane S steps, the reviewer and the review record write the fixed lines gate done reads
 covers: D-02, D-04
 files: packages/core/agents/reviewer.md, packages/core/skills/review/record.md, packages/core/skills/review/SKILL.md, packages/core/skills/accord/lane-s.md, packages/core/src/generated/agents.ts, packages/core/src/generated/skills.ts, .claude/agents/accord-reviewer.md, .claude/agents/accord-final-reviewer.md, .claude/skills/accord-review/record.md, .claude/skills/accord-review/SKILL.md, .claude/skills/accord/lane-s.md, packages/core/test/stage-skills.test.ts
-verify: packages/core/test/stage-skills.test.ts#risk:parsing-the-declaration-lines-the-lane-s-steps-the-reviewer-and-the-review-record-write-match-what-gate-done-parses
+verify: packages/core/test/stage-skills.test.ts#risk:parsing-the-declaration-lines-the-lane-S-steps-the-reviewer-and-the-review-record-write-match-what-gate-done-parses
 
 Consumes: `parseLedger` and `parseReview` as Task 2 left them, the package sections of Task 5. Produces the text that
 makes the @ac-3 and @ac-5 paths reachable: without it nobody writes the lines the gate reads.
@@ -600,7 +651,8 @@ Text:
   sign of a new interface lifts the ticket to lane M." Step 4: after "or `No findings`," add "copy each
   `Confirmed wording-only: <path>` line it reports verbatim into that round,". `## Lift to lane M`: "When the work
   meets a lift condition of the accord skill" becomes "When the work meets a lift condition in `./lane.md`, or
-  `accord gate done <id>` names a file outside `## Scope`, a sensitive area or a sign of a new interface".
+  `accord gate done <id>` names a file outside `## Scope`, a sensitive area or a sign of a new interface, or says
+  `## Scope` held no path".
 - Regenerate as in Task 6, then run `npx vitest run packages/core/test/stage-skills.test.ts packages/core/test/skills.test.ts packages/core/test/agents.test.ts packages/core/test/lane-s.test.ts`.
 
 Must not change: the reviewer's lens, severity and findings format text; every `REQUIRED.review` phrase; every
@@ -636,7 +688,8 @@ generated:
   - packages/cli/README.md
 ```
 `generated:` leaves out `.claude/` on purpose: the copies `accord skills sync` writes are exempt only when they equal
-the fresh render, and `.claude/settings.json` never is (ledger Ruling 19).
+the fresh render, `.claude/settings.json` only when it equals the hook merge applied to its merge-base text (ledger
+Ruling 19), and listing `.claude/` would exempt hand-edited copies (ledger Ruling 34).
 
 Test first, `packages/core/test/repo-config.test.ts` (new), as `packages/cli/test/worktree.test.ts:564-570` reads
 this repository's config:

@@ -2,7 +2,7 @@
 id: "ST-LN-52"                            # equals the file name: tickets/<id>.md
 title: "A review finding is fixed everywhere the same claim or pattern appears"
 type: "story" # story | bug
-status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
+status: dropped                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "S" # S: one small change, worked from this ticket alone
 # Tickets that must reach done before this one can start.
 # depends_on: ["OTHER-ID"]
@@ -22,3 +22,6 @@ lane-s.md step 4 and accord-review tell the fixer, for every finding, to search 
 ## Done when
 <!-- One line: the observable result that ends the work. -->
 Both skills say so in all four runtimes' rendered copies, and `accord skills sync` shows no drift.
+
+## Dropped
+Merged into ST-LN-56, which carries its notes (owner, 2026-10-25, after the main session proposed a five-ticket plan for review convergence: "ok, agreed").

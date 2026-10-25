@@ -1,6 +1,6 @@
 ---
 id: "ST-LN-17"                            # equals the file name: tickets/<id>.md
-title: "The review round and the fix executor's model come from the CLI, so a session cannot miss the tier-up or the round cap"
+title: "The CLI counts every review and plan-critique round, so a session cannot miss the tier-up, the cap, or a loop that stops converging"
 type: "story" # story | bug. An epic uses its own template
 status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
@@ -34,6 +34,9 @@ Queued 2026-10-17, not approved; the intent interview replaces this:
 - ST-LN-14 scores the same rule from transcripts.
 - Also in scope (owner: "ok, the proposal is valid", 2026-10-17): past a round threshold, or when the findings keep hitting a risk the Approach held an option in reserve for, the CLI says to ask the owner about a change of course (accord-build step 6). In BUG-LN-3 four rounds of YAML-reading fixes ran while the Approach held `accord gate pr` "in reserve if the grep reading proves too fragile", and nobody asked.
 - Benchmark round 1 (ST-LN-14, 2026-10-22) found 6 tier-up misses: ST-LN-3 review round 5, BUG-LN-3 round 4, ST-LN-26 round 4, and ST-LN-14 rounds 6, 7 and 8 (fix executor on sonnet where `escalation.fix_round_tier_up` asks for opus); and 2 reviews past the round cap with no Ruling allowing it: ST-LN-14 (review.md to round 9, rounds 10 to 15 after verify) and ST-LN-3 (round 6). Whether the cap and tier-up count restarts after each return from verify is not settled in the skill text and should be decided here.
+- Merged from ST-LN-53 (owner, 2026-10-25, after the main session proposed a five-ticket plan for review convergence: "ok, agreed"): ST-LN-51 took 5 review rounds (findings 5, 3, 4, 3, 2) and nothing stopped it. From round 3, when a Should or worse is still found or the open count does not fall, accord prints "stop: report to owner", and `gate done` fails until review.md ends with `verdict: accepted-by-owner` or the owner allows more rounds. Lane S and lane M review alike.
+- The plan critique loop (accord-plan critique.md) has no round cap today; the cap and the stop on a count that does not fall cover plan-review.md too. GSD caps its plan revision loop at 3.
+- From a study of GSD 1.18.0 (2026-10-25): counts come from the current round's record, never a recount of the whole file, which keeps closed findings; a missing or malformed round record fails closed; a count that does not fall stops the loop, where GSD only warns. A PreToolUse hook refusing a fix executor on the wrong model was raised; it conflicts with the 2026-10-17 choice of no tool-specific hook, so the intent interview decides.
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.

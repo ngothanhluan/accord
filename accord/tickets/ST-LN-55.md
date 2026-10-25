@@ -33,6 +33,7 @@ Queued 2026-10-25, not approved; the intent interview replaces this:
 - Queued intent, three parts: (1) the benchmark removes its run worktrees once the round report is written (each run's commits are already kept under `refs/keep/`); (2) `accord worktree clean` deletes a removed worktree's leftover folder when it holds only links, as `scripts/benchmark.mjs` already does (Windows `git worktree remove` skips npm's workspace junctions, which left five `node_modules` folders on 2026-10-25); (3) branches made by hand (`fix/`, `release/`, `backlog/`) are cleaned once merged into the default branch, or are made through accord.
 - Seen, not yet in scope: a worktree kept only for an untracked tool folder (`.impeccable/` kept ST-LN-48's), and a ticket dropped before `accord drop` existed, whose drop record never reached main (ST-LN-33), so clean never sees it as dropped.
 - Changes what `accord worktree clean` deletes, a public behaviour; never removes uncommitted work or a commit reachable from nothing else.
+- Added (owner, 2026-10-25, after the main session proposed a five-ticket plan for review convergence: "ok, agreed"): each worktree is recorded when created and `gate done` checks it was removed, as GSD records worktrees in a manifest and fails cleanup closed. On 2026-10-25, 15 folders of removed worktrees, each holding only links, were found and deleted by hand.
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.

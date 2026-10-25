@@ -17,9 +17,19 @@
 - Ruling: "same behaviour" for D-10 means the same stdout, stderr, exit code and JSON on any repository whose objects are intact; a corrupt baseline object of another ticket now fails only that ticket's gate, not status or lint, since no reader outside gate uses those facts (gate/plan.ts:67-107, gate/done.ts:210-222) — cost if wrong: status and lint stop reporting that corruption
 - Ruling: the table's sha256 is written in `## Approach`, not in a Decision, because a Decision quotes the owner and the approval hash covers Approach as well — cost if wrong: none; a changed table still needs a new approve
 - Ruling: the critic ran four rounds (round 4 a confirmation pass); its last Must (a 7 s margin beaten by the measured swing) is fixed by a 5 s margin plus a verify-time route to the owner — cost if wrong: one more owner round at verify
+- Ruling: the rule 3 script and the measuring-run files live under packages/core/test/ (helpers/st-ln-44.ts, fixtures/st-ln-44/), not accord/tickets/ST-LN-44/, because executors never write the top-level accord/ folder and D-11 allows test code — cost if wrong: the files move later
+- Ruling: the measuring run is executor Task 31, which commits its files; main-session step 1 runs before Task 31, step 2 after it, step 3 at verify — cost if wrong: about 20 minutes of full run inside one executor
+- Ruling: Task 8's template tip is the `change` commit (the state the review reads), and each commitMsg, reset or switch counts as one git command — cost if wrong: the template is one commit earlier than the table's wording; no assertion changes
+- Ruling: #79 copies a plain makeTemplate() template, since the drop template holds t/ST-10 checked out — cost if wrong: a small deviation in wording from the table
+- Ruling: #30 and #64 each get their own claim-state template, because their claim states differ — cost if wrong: one more template build
+- Ruling: H7 applies per destination, only after its last real pick-up and last use of origin/main, per the table's own H7 limit — cost if wrong: some destinations are slower
+- Ruling: other tickets' criterion test ids go on verify: lines with no (@ac-n) marker, because they prove those tickets' scenarios — cost if wrong: a plan-gate complaint
+- Ruling: ac-4 also maps kept rows, so a row kept through rule 3 is still checked — cost if wrong: a stricter check than ac-4's wording
+- Ruling: the rule 3 tool runs with node --experimental-strip-types — cost if wrong: an experimental warning on Node 22.12-22.17
 
 ## Deferred
 
 - Plan round 1.20: no check that a clone template and its remote stay unchanged; record `for-each-ref` of each template root and remote in `beforeAll` and compare in `afterAll`.
 - Plan round 1.21: Task 2's test does the probe push before comparing copy and built clone refs, so the copy holds `probe` refs the built clone lacks.
 - Plan round 1.22: Task 12 #68 says six dashboard runs where :269-275 holds five; Task 30's imports omit `readDir`; Task 17 #87 uses `commit-tree`, not `commitMsg`.
+- Plan round 2.7: Task 16 adds an unused maps.json entry for the :52 task-done exit check, which lands unchanged in lane-flow.test.ts.

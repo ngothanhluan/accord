@@ -1,0 +1,14 @@
+# Ledger: ST-LN-62
+
+## Rulings
+
+- Ruling: research the difficulty of the wording-only choice (declared and reviewer-confirmed, no exception, or automatic guess) before the owner picks one — the owner asked "so why is there no research session to estimate the difficulty?" and accord has no research step yet (ST-LN-13 is a draft) — cost if wrong: one read-only agent run.
+- Ruling: keep the research findings in `accord/tickets/ST-LN-62/research.md` — the approach stage needs the cost, failure modes and history without re-running the agent — cost if wrong: one extra record file.
+- Ruling: the auditor's splits are settled in the criteria text — scope is a `## Scope` body section, never a frontmatter key; the scout is the existing accord-scout agent; a code area is a file's folder cut to its first four path segments, which keeps all seven past lane S tickets at 3 areas or fewer — the owner asked for few, plain questions, and every choice is shown at approval — cost if wrong: a criterion reworded at approval.
+- Ruling: whitespace, blank lines and line endings never count as a change, in @ac-2 and @ac-4 alike — a diff ignoring all three is the only reliable no-change test research found — cost if wrong: a whitespace-only touch of a sensitive file passes.
+- Ruling: exempt from the scope check are only the ticket's own files, the files `accord skills sync` writes, and paths a new `generated:` config list names; accord/product/conventions.md counts, since it changes every agent's brief — the auditor read "own records" two ways — cost if wrong: a lane S ticket that edits conventions.md must be lifted.
+- Ruling: "3 lines" counts the larger of lines added and lines removed, after the whitespace rule — rewording 2 lines is 2 lines, not 4 — cost if wrong: a slightly larger wording edit passes.
+- Ruling: declarations are fixed lines, "Wording-only: <path> — <reason>" in ledger.md and "Confirmed wording-only: <path>" or "Not an interface: <path> — <reason>" in the last `## Round` of review.md — gate done needs a format it can parse — cost if wrong: the format is renamed in the approach.
+- Ruling: a sensitive entry is a path; one ending in `/` matches every path below that folder; no globs — the simplest matcher that covers folders — cost if wrong: a repository needing globs lists folders instead.
+- Ruling: the new-interface signs are a new file under a `schemas` folder or named `*.schema.json`, a new key in a package.json `exports` or `bin` map, and an added `.command(` or `.option(` call, each a text check on the diff; the CLI sign assumes a commander-style CLI — cost if wrong: another CLI style gets false findings or misses, which the reviewer's reason line absorbs.
+- Ruling: @ac-5 applies to every lane other than S, not only M — lanes L and P are not built yet, and a looser rule there would be a hole — cost if wrong: none until L and P exist.

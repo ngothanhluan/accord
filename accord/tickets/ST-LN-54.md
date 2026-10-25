@@ -21,3 +21,9 @@ When a ticket finishes (accord-verify step 7, lane S step 6), the report opens w
 
 ## Done when
 The verify skill and lane-s.md source files state that report shape, `accord skills sync` has re-rendered every copy, and the skills tests pass.
+
+## Corrections
+
+- "So why is there no PR link?" — the verdict line must carry the pull request link.
+- "I merged that PR a while ago; if you change something new, open a new PR." — a change after the PR is merged goes in a new PR, and the verdict names an open PR, never a merged one.
+- "Why did you write Vietnamese into the ticket? I remember there was already a ticket that dealt with the Vietnamese issue." — owner quotes in tickets are a faithful English translation, as `accord/product/conventions.md` says.

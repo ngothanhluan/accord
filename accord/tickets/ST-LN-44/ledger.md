@@ -17,3 +17,9 @@
 - Ruling: "same behaviour" for D-10 means the same stdout, stderr, exit code and JSON on any repository whose objects are intact; a corrupt baseline object of another ticket now fails only that ticket's gate, not status or lint, since no reader outside gate uses those facts (gate/plan.ts:67-107, gate/done.ts:210-222) — cost if wrong: status and lint stop reporting that corruption
 - Ruling: the table's sha256 is written in `## Approach`, not in a Decision, because a Decision quotes the owner and the approval hash covers Approach as well — cost if wrong: none; a changed table still needs a new approve
 - Ruling: the critic ran four rounds (round 4 a confirmation pass); its last Must (a 7 s margin beaten by the measured swing) is fixed by a 5 s margin plus a verify-time route to the owner — cost if wrong: one more owner round at verify
+
+## Deferred
+
+- Plan round 1.20: no check that a clone template and its remote stay unchanged; record `for-each-ref` of each template root and remote in `beforeAll` and compare in `afterAll`.
+- Plan round 1.21: Task 2's test does the probe push before comparing copy and built clone refs, so the copy holds `probe` refs the built clone lacks.
+- Plan round 1.22: Task 12 #68 says six dashboard runs where :269-275 holds five; Task 30's imports omit `readDir`; Task 17 #87 uses `commit-tree`, not `commitMsg`.

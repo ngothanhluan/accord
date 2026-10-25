@@ -24,5 +24,6 @@ The verify skill and lane-s.md source files state that report shape, `accord ski
 
 ## Corrections
 
-- "vậy tại sao ko thấy link PR?" (why is there no PR link?) — the verdict line must carry the pull request link.
-- "pr đó tôi merge lúc nãy rồi mà, nếu bạn sửa mới thì mở pr mới đi" (I merged that PR already; if you change more, open a new PR) — a change after the PR is merged goes in a new PR, and the verdict names an open PR, never a merged one.
+- "So why is there no PR link?" — the verdict line must carry the pull request link.
+- "I merged that PR a while ago; if you change something new, open a new PR." — a change after the PR is merged goes in a new PR, and the verdict names an open PR, never a merged one.
+- "Why did you write Vietnamese into the ticket? I remember there was already a ticket that dealt with the Vietnamese issue." — owner quotes in tickets are a faithful English translation, as `accord/product/conventions.md` says.

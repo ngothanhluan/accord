@@ -5,7 +5,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import pkg from '../package.json' with { type: 'json' };
-import { pinMessage } from '../src/pin.js';
+import { pinMessage, versionOnDisk } from '../src/pin.js';
 import { cleanup, makeRepo, run } from './helpers/repo.js';
 
 /** Rewrite the fixture's pinned version so a mismatch can be driven without touching package.json. */
@@ -36,6 +36,21 @@ describe('pinMessage', () => {
 
   it('compares exact strings, never semver (D-94)', () => {
     expect(pinMessage('0.1.0-rc.1', '0.1.0')).toBeTypeOf('string');
+  });
+
+  it('risk:stale-build names npm run build, not npx, when the package.json beside the build is newer (BUG-LN-10)', () => {
+    const message = pinMessage('0.3.0', '0.2.0', '0.3.0');
+    expect(message).toContain('stale');
+    expect(message).toContain('npm run build');
+    expect(message).not.toContain('npx');
+  });
+
+  it('risk:installed-cli keeps the npx fix when the package.json beside the build matches it (BUG-LN-10)', () => {
+    expect(pinMessage('0.3.0', '0.2.0', '0.2.0')).toContain(`npx --yes ${pkg.name}@0.3.0`);
+  });
+
+  it('risk:stale-build reads the version from the package.json beside this module', () => {
+    expect(versionOnDisk()).toBe(pkg.version);
   });
 });
 

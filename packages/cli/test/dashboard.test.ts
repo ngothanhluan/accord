@@ -328,6 +328,14 @@ it('ac-5 epics show their children done over all their children', () => {
   expect(renderDashboard(d2).split('\n')).not.toContain('EPICS');
 });
 
+it('risk:regression epics list every epic, with no row cap', () => {
+  const files: Files = { 'accord/config.yml': CONFIG };
+  for (let i = 1; i <= 25; i++) files[P('EP-AN-' + i)] = laneTicket('EP-AN-' + i, { lane: '' }).replace('type: story', 'type: epic');
+  const d = board(files);
+  expect([d.epics.rows.length, d.epics.more]).toEqual([25, 0]);
+  expect(renderDashboard(d).split('\n').some((l) => l.includes(' more'))).toBe(false);
+});
+
 it('risk:regression an idle ticket shows idle days in the dashboard text and the json keeps every key', async () => {
   const repo = makeLaneRepo();
   try {

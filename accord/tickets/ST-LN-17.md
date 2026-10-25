@@ -37,6 +37,7 @@ Queued 2026-10-17, not approved; the intent interview replaces this:
 - Merged from ST-LN-53 (owner, 2026-10-25, after the main session proposed a five-ticket plan for review convergence: "ok, agreed"): ST-LN-51 took 5 review rounds (findings 5, 3, 4, 3, 2) and nothing stopped it. From round 3, when a Should or worse is still found or the open count does not fall, accord prints "stop: report to owner", and `gate done` fails until review.md ends with `verdict: accepted-by-owner` or the owner allows more rounds. Lane S and lane M review alike.
 - The plan critique loop (accord-plan critique.md) has no round cap today; the cap and the stop on a count that does not fall cover plan-review.md too. GSD caps its plan revision loop at 3.
 - From a study of GSD 1.18.0 (2026-10-25): counts come from the current round's record, never a recount of the whole file, which keeps closed findings; a missing or malformed round record fails closed; a count that does not fall stops the loop, where GSD only warns. A PreToolUse hook refusing a fix executor on the wrong model was raised; it conflicts with the 2026-10-17 choice of no tool-specific hook, so the intent interview decides.
+- Research: `accord/research/2026-10-25-review-convergence.md` (evidence, not a contract).
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.

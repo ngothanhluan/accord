@@ -33,6 +33,7 @@ Queued 2026-10-25, not approved; the intent interview replaces this:
 - Queued intent: (1) a critic or reviewer finding states the property that must hold and its evidence; a fix it names is an example, never binding (GSD #3771: planners applied fix hints literally, each attempt costing a round); (2) the executor makes the property hold at every place the same claim or pattern appears and lists the places it checked; (3) executor.md "Fix small bugs and blockers you meet on the way" becomes: fix only what the current change caused, and log anything else as Deferred; (4) after each finding's fix the affected tests run, and a red fix is reverted and the executor stops; (5) a fix that would cross a Veto or Decision returns a conflict instead of a workaround.
 - Merged from ST-LN-52: lane-s.md step 4 and accord-review tell the fixer to search for every other place the same claim or pattern appears and fix them all, listing them in review.md, and the next reviewer checks the whole class is gone. ST-LN-51 took 5 review rounds; the "nothing needs installing" claim was reported in rounds 3, 4 and 5 because each fix touched only the flagged spot.
 - Touches the critic, reviewer, final-reviewer, planner and executor agents and the plan and review skills, in all four runtimes. Related: ST-LN-17 counts the rounds; ST-LN-57 fixes the review scope.
+- Research: `accord/research/2026-10-25-review-convergence.md` (evidence, not a contract).
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.

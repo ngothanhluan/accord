@@ -1,4 +1,19 @@
 {
-  "rows": {},
+  "rows": {
+    "3": [
+      {
+        "old": "expect((await run(['gate', 'ready', 'S-1'], repo)).code).toBe(0);",
+        "test": "packages/cli/test/lane-s.test.ts#ac-2-a-lane-S-ticket-is-written-and-passes-gate-ready-without-acceptance-criteria",
+        "cite": "the CLI exit 0 is made by #63"
+      }
+    ],
+    "69": [
+      {
+        "old": "expect((await run(['gate', 'ready', 'S-1'], repo)).code).toBe(0);",
+        "test": "packages/cli/test/lane-s.test.ts#ac-2-a-lane-S-ticket-is-written-and-passes-gate-ready-without-acceptance-criteria",
+        "cite": "the CLI check is made by #63"
+      }
+    ]
+  },
   "baseline": []
 }

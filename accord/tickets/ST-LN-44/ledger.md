@@ -91,6 +91,9 @@
 - Ruling: task 17's mutation check edited packages/cli/src/lane-args.ts only in the working tree and reverted it; `git diff --stat 1cec2ac HEAD -- packages/cli/src packages/core/src` prints nothing after the task, so D-11 holds — cost if wrong: none
 - Ruling: TEMPLATE_OPTS in worktree.test.ts lists exactly the five opts sets rows #15, #36, #42, #49, #59, #66, #84 and #111 use ({}, ci, ci with tickets [], ci+build, ci+fail); tasks 19 to 26 add theirs — the plan's shape, one template per set — cost if wrong: a later task adds an entry (executor, task 18)
 - Ruling: task 18's affected run of worktree.test.ts passed, 83 passed and 1 skipped, in 784 s for the file — cost if wrong: none
+- Ruling: from task 20 the executor runs only its task's tests with `-t`, and the main session still runs each whole affected file before `task-done` — the executor's whole-file run repeated the main session's, about 13 min a task on worktree.test.ts; owner said "ok" (2026-10-26) — cost if wrong: an executor reports DONE on a break in another test of the same file, caught by the main session's run one step later
+- Ruling: the third #47 test makes the pick-up run without asserting its exit 2 — the row note says that check is dropped and made by #49, and the brief asks for the `maps.json` entry — cost if wrong: one exit assertion is lost if Task 37 requires it to stay in this test as well (adding the expect back is one line) (executor, task 19)
+- Ruling: #62 (locked hold file) took 8.96 s in task 19's whole-file run, 2 s of it the lock wait; it goes on rule 3's list at the measuring run if it stays over 5 s — cost if wrong: none (main session, task 19)
 
 ## Deferred
 
@@ -123,3 +126,4 @@
 - task 16 done 2fc12244f800
 - task 17 done d07c341dbede
 - task 18 done 0762a193d09c
+- task 19 done 84fd20a88fe2

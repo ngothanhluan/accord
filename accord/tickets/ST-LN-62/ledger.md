@@ -51,6 +51,8 @@
 - Ruling: the existing `ac-1` lift-condition test keeps its title and now reads the lift conditions from lane.md — a second test with that title would collide on the verify id — cost if wrong: none.
 - Ruling: lane-s.md step 2 holds the Wording-only sentence after the "A test you add carries `risk:<kind>`" sentence — the plan said "step 2 gains" without a position — cost if wrong: readability only.
 - Ruling: review/SKILL.md went 66 bytes over the 5120 cap with the `## Interface signs` clause, so its paragraphs were reflowed to a wider wrap with no wording dropped — the cap is a test, and cutting words would change the stage — cost if wrong: a noisier diff of that file.
+- Ruling: repo-config.test.ts imports `loadConfig` from `../src/load/config.js`, the core-internal path the task names — cost if wrong: one import line.
+- Ruling: to show the task 8 test failing, the executor briefly restored accord/config.yml to its pre-list text and put it back with `git checkout`, committing nothing there — the lists were committed by the main session first, so no other failing run existed — cost if wrong: none; the working tree was clean at record time.
 
 ## Deferred
 
@@ -64,3 +66,4 @@
 - task 5 done 337356a7bee7
 - task 6 done 770aca3c8347
 - task 7 done 87484ec3cdbc
+- task 8 done 72acc2b85085

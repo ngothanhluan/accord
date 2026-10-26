@@ -69,6 +69,8 @@
 - Ruling: task 7's #17 starts each sandbox's script run as soon as that sandbox is built instead of building all 8 first; `expectGated` stays a local helper holding the two `expect(` lines, its 8 calls are text-identical, and one `Promise.all(runs)` awaits them — same concurrency and assertions as the row, only the order differs from the brief's wording — cost if wrong: none to what is checked (executor, task 7)
 - Ruling: task 7 adds no maps.json entries for rows 2, 6, 9, 17, 35 and 57 — every assertion text is unchanged with results bound to the old names; #35's two loops became one `if (gated) … else …` loop holding the same four assertions once each — cost if wrong: Task 37's multiset check flags the missing entries (executor, task 7)
 - Ruling: task 7's rows over the 5 s margin alone (#2 about 28-32 s against its 106 s ceiling, #6 about 7-13 s, #17 5-8 s, #35 5.9 s, #57 5.3 s; the main session's run had #2 27.8 s, #35 6.6 s, #57 6.5 s, #6 8.1 s) go to step 2's rule 3 list after the measuring run, not to an improvised cut now — rule 3 is how the plan handles a row over its estimate — cost if wrong: #6 may be over 10 s in the measuring run and need an owner keep or a re-plan
+- Ruling: task 8's ac-3 test builds its repo from `makeEmptyRepo` plus an appended config block, not from `repoWith` — the brief asks for no `git config` runs and `repoWith` must not change for its other callers — cost if wrong: one more place that sets this identity (executor, task 8)
+- Ruling: task 8 declares `passes`/`fails` once in a `verdicts(repo)` closure and each split test calls them with the old statement text; the executor flags that Task 34's parser and Task 37's multiset check must count those calls in the test bodies, not the closure's definitions, and the main session puts that in Task 34's brief — cost if wrong: Task 37 misses or double-counts row #3's 14 verdict assertions
 
 ## Deferred
 
@@ -90,3 +92,4 @@
 - task 5 done e234310e2b94
 - task 6 done cfbf632917ce
 - task 7 done ff4d1da212ec
+- task 8 done 733af3c94f6a

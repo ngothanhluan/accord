@@ -99,6 +99,9 @@
 - Ruling: task 20's alone times put #50 (10.3 s, kept, ceiling 18), #56 (9.3 s, ceiling 18), #72 (6.1 s, ceiling 13), #77 (7.2 s) and #34's tests near 5 s on rule 3's list at the measuring run — cost if wrong: none (main session, task 20)
 - Ruling: row 97's dropped `.toBe(HELD)` assertion is mapped in maps.json to #27's title test, which makes the same check — cost if wrong: Task 37's multiset check flags the entry (executor, task 21)
 - Ruling: ac-4 (#18, kept, ceiling 32 s) took 36.3 s alone in task 21, over its ceiling, with only H1 allowed by its row; no extra cut is made in build, and it goes first on rule 3's list at the measuring run, where the owner raises the ceiling (a table.md edit and a new `accord approve`) or orders a further cut; ac-5 (#52) took 9.8 s, inside its 18 s ceiling — one alone run on a loaded machine is not the measuring run — cost if wrong: ac-1 fails at verify unless the owner acts on the list (main session, task 21)
+- Ruling: #89's first test stubs LOCALAPPDATA and XDG_CACHE_HOME with `vi.stubEnv`, and the shared `afterEach` also calls `vi.unstubAllEnvs()` so a failing test cannot leak the stub — cost if wrong: one extra line in a shared afterEach (executor, task 22)
+- Ruling: three templates join TEMPLATE_OPTS ({tickets:[ST-10]}, {tickets:[ST-9,ST-10,ST-11]}, {setup:[fail],tickets:[ST-9,ST-10]}), since these rows' opts had no template yet — cost if wrong: about 3 s more beforeAll (executor, task 22)
+- Ruling: maps.json "24" maps #24's dropped o.code, o.out, oc.code and oc.out to the #97 ac-1 test and its HELD continue to #27's title test, cites copied from the row note — cost if wrong: Task 37's multiset check flags an entry (executor, task 22)
 
 ## Deferred
 
@@ -134,3 +137,4 @@
 - task 19 done 84fd20a88fe2
 - task 20 done c2c0ab00754b
 - task 21 done 07a5625fed7d
+- task 22 done 46206956828f

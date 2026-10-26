@@ -10,4 +10,5 @@
 - Ruling: approach: the push names the branch ref, not HEAD — correct from any worktree — none
 - Ruling: approach: a push killed by the time limit prints `no answer within N seconds` after the failure line (critic Should 2) — git gives no message then, and @ac-3 promises a reason — none
 - Ruling: approach: build step 6 (re-approved approach) also pushes (critic Should 3) — the Intent lists approach approval as a stage change — none
+- Ruling: plan: the plan and build skill clauses drop "go on even if it fails" — the 5120-byte cap leaves no room (rendered plan 5061, build 5010 bytes), and the command exits 0 with a failure line saying the commits stay local until the next push — an agent may pause at a failed push in plan or build
 - Ruling: audit: @ac-2 requires each step's own change to be committed before the push, so an approval or plan left uncommitted cannot pass by pushing nothing new — reworded in the scenario — none

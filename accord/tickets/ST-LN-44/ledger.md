@@ -71,6 +71,9 @@
 - Ruling: task 7's rows over the 5 s margin alone (#2 about 28-32 s against its 106 s ceiling, #6 about 7-13 s, #17 5-8 s, #35 5.9 s, #57 5.3 s; the main session's run had #2 27.8 s, #35 6.6 s, #57 6.5 s, #6 8.1 s) go to step 2's rule 3 list after the measuring run, not to an improvised cut now — rule 3 is how the plan handles a row over its estimate — cost if wrong: #6 may be over 10 s in the measuring run and need an owner keep or a re-plan
 - Ruling: task 8's ac-3 test builds its repo from `makeEmptyRepo` plus an appended config block, not from `repoWith` — the brief asks for no `git config` runs and `repoWith` must not change for its other callers — cost if wrong: one more place that sets this identity (executor, task 8)
 - Ruling: task 8 declares `passes`/`fails` once in a `verdicts(repo)` closure and each split test calls them with the old statement text; the executor flags that Task 34's parser and Task 37's multiset check must count those calls in the test bodies, not the closure's definitions, and the main session puts that in Task 34's brief — cost if wrong: Task 37 misses or double-counts row #3's 14 verdict assertions
+- Ruling: after-verify.test.ts's `commit()` now calls `commitMsg` (`-F` file, `--cleanup=verbatim`) instead of `git commit -m` — conventions.md forbids `-m` — cost if wrong: none, the behaviour is the same (executor, task 9)
+- Ruling: the one old `git commit -m fix` after `git add src/fix.ts` stays in the verification.md destination — `commitMsg` uses `add -A` and would also commit the untracked verification.md, which changes that case — cost if wrong: one `-m` commit line left in a test (executor, task 9)
+- Ruling: #4's "ticket tip on the default branch" destination builds the minimal state (work, tick, push t/ST-9:main) instead of replaying the fix and both merges — its single assertion (:66) only needs the tip on main — cost if wrong: it checks a smaller history than the old chain did; review reads this destination (executor, task 9)
 
 ## Deferred
 
@@ -93,3 +96,4 @@
 - task 6 done cfbf632917ce
 - task 7 done ff4d1da212ec
 - task 8 done 733af3c94f6a
+- task 9 done b472f0061748

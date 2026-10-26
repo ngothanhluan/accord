@@ -713,6 +713,10 @@ it('ac-1 a lane is proposed from the scout facts and a lane S ticket records its
   ])
     expect(ln).toContain(p);
   expect(ln.split('Any of these lifts S to M').length - 1).toBe(1);
+  expect(ln).toContain('It reports only the files that exist; you add the new files the change creates.');
+  expect(ln).toContain(
+    'counted over the files the scout reports plus the new files you name, minus test files and the copies accord generates: a request that creates 7 new files is lane M.',
+  );
   const acc = flatS('.claude/skills/accord/SKILL.md');
   const nr = acc.slice(acc.indexOf('## New request'), acc.indexOf('## Upgrade'));
   expect(nr).toContain('`./lane.md`');
@@ -840,6 +844,10 @@ it('risk:parsing the declaration lines the lane S steps the reviewer and the rev
   const confirmed = '`Confirmed wording-only: <path>`';
   const notInterface = '`Not an interface: <path> — <reason>`';
   for (const p of [wording, confirmed]) expect(ls).toContain(p);
+  const step4 = ls.slice(ls.indexOf('4. **Review rounds.**'), ls.indexOf('5. **Verdict.**'));
+  expect(step4).toContain('is not fixed here: it starts the lift below');
+  const lift = ls.slice(ls.indexOf('## Lift to lane M'), ls.indexOf('## Rules'));
+  expect(lift).toContain('a reviewer finds a file outside `## Scope` with no `Wording-only` line or a sign of a new interface');
   for (const p of [wording, confirmed, notInterface, '## Out-of-scope files', '## Interface signs']) expect(rev).toContain(p);
   for (const p of [notInterface, 'Only the last `## Round` is read']) expect(rec).toContain(p);
   const fill = (f: string) => f.slice(1, -1).replace('<path>', 'README.md').replace('<reason>', 'fixes a typo');

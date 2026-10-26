@@ -75,5 +75,15 @@ One critic, diff of the fix for 5.1-5.3 on the owner's decision. fixed: 5.1, 5.2
 
 One critic, diff of the fix for 6.1. fixed: 6.1. withdrawn: none.
 
-1. Should — The fallback's new measuring task names ac-1, and ac-2/ac-3 when Task 36 is recorded, but not Task 37's ac-4, which reads the same after() list for maps.json `test` ids; a merge that renames a CLI test a maps.json entry names is then recorded and fails ac-4 only at verify; also name Task 37's ac-4 id when Task 37 is recorded — open
+1. Should — The fallback's new measuring task names ac-1, and ac-2/ac-3 when Task 36 is recorded, but not Task 37's ac-4, which reads the same after() list for maps.json `test` ids; a merge that renames a CLI test a maps.json entry names is then recorded and fails ac-4 only at verify; also name Task 37's ac-4 id when Task 37 is recorded — fixed
 2. Nice — `after its other executor tasks` does not place the new measuring task before an unrecorded Task 36 or 37 that reads after(); place it before any unrecorded task that reads after() — deferred
+
+## Round 8 (diff)
+
+One critic, diff of the fix for 7.1. fixed: 7.1. withdrawn: none.
+
+No findings
+
+## Closed
+
+Closed 2026-10-26 after round 8: no Must or Should open, accord gate plan passes; step 7's full run at 1cec2ac is before-junit.xml (3 timeouts of table rows, kept for this ticket by the owner).

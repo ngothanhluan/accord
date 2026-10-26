@@ -1,6 +1,6 @@
 ---
 baseline: 1cec2ac130d8d34c4dcdadddfee9effb4d1104e9
-plan_hash: "fnv1a64:111c3441709ea3d1"
+plan_hash: "fnv1a64:b421d46cf768e630"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -1328,7 +1328,7 @@ These edit files under the top-level `accord/` folder, which no executor touches
         tasks, a new measuring task: Task 35's precondition, run and rule 3 tool from the merged code at HEAD, which
         replaces `packages/core/test/fixtures/st-ln-44/after-junit.xml` and `rule3-list.md` and leaves Task 35's
         ac-1 test as it is; its `verify:` names Task 35's ac-1 id, and Task 36's ac-2 and ac-3 ids when Task 36 is
-        recorded. Then step 2 runs again on that task's `rule3-list.md` (a keep re-records that task in place of Task
+        recorded, and Task 37's ac-4 id when Task 37 is recorded. Then step 2 runs again on that task's `rule3-list.md` (a keep re-records that task in place of Task
         35), and the hold ends only after the owner has answered that list. So the before list (`<merge>^2`) and the
         after list both hold the merged main. Dispatch resumes only after the re-plan is approved; on any other answer,
         dispatch stays stopped until the owner says how to go on.

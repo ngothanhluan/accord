@@ -58,6 +58,15 @@ One critic, diff of the fix after round 3. fixed: 3.1, 3.2, 3.3, 3.4. withdrawn:
 
 One critic, diff of the fix for 4.1 on the owner's decision. fixed: 4.1. withdrawn: none.
 
-1. Must — Step 4 holds a merge only on a Continue that reports `behind:`, but Continue merges origin/main by itself at stages intent to review on a clean worktree and prints `merged:` (worktree.ts:498-536, skills accord/worktree.md:26-31), so the hold cannot be carried out, and the plan has no route once a merge lands before Task 35: a renamed test then fails ac-3 at Task 36 and a changed row body goes unchecked by ac-4 — open
-2. Should — The hold starts at `plan: ST-LN-44 ready`, but the before list is already fixed (0dcbd4c) and Continue merges at stage plan too, so a merge before the ready commit breaks the same checks; the owner's words give no start point — open
-3. Should — The hold ends when Task 35 is recorded, but step 2's answer can add a new measuring task after a merge has landed, so the new after list holds merged code against the 1cec2ac before list; the hold must last until step 2's list is answered — open
+1. Must — Step 4 holds a merge only on a Continue that reports `behind:`, but Continue merges origin/main by itself at stages intent to review on a clean worktree and prints `merged:` (worktree.ts:498-536, skills accord/worktree.md:26-31), so the hold cannot be carried out, and the plan has no route once a merge lands before Task 35: a renamed test then fails ac-3 at Task 36 and a changed row body goes unchecked by ac-4 — fixed, owner: "Hold, with a fallback if a merge lands anyway" (2026-10-26, against changing the Approach now so merges are free)
+2. Should — The hold starts at `plan: ST-LN-44 ready`, but the before list is already fixed (0dcbd4c) and Continue merges at stage plan too, so a merge before the ready commit breaks the same checks; the owner's words give no start point — fixed, owner: "Hold, with a fallback if a merge lands anyway" (2026-10-26, against changing the Approach now so merges are free)
+3. Should — The hold ends when Task 35 is recorded, but step 2's answer can add a new measuring task after a merge has landed, so the new after list holds merged code against the 1cec2ac before list; the hold must last until step 2's list is answered — fixed, owner: "Hold, with a fallback if a merge lands anyway" (2026-10-26, against changing the Approach now so merges are free)
+
+## Round 6 (diff)
+
+One critic, diff of the fix for 5.1-5.3 on the owner's decision. fixed: 5.1, 5.2, 5.3. withdrawn: none.
+
+1. Should — The fallback replaces only before-junit.xml and adds no new measuring run, but the hold now lasts past Task 35, so a merge after Task 35 (e.g. a Continue opened to answer step 2) compares a before list at `<merge>^2` with an after list older than the merge, and a test main added fails ac-3 at Task 36; when `<merge>` is newer than Task 35's commit the re-plan must add a measuring task that replaces after-junit.xml and rule3-list.md, then step 2 again — open
+2. Nice — Fallback step 3 does not list the task that replaces table-approved.md and Task 34's hash when the owner's yes renames a row's title — deferred
+3. Nice — Task 36 copies BEFORE_SHA256 from "the newest ledger Ruling naming that file", but newer Rulings name before-junit.xml without a sha256; say "the newest Ruling that records a sha256 for that file" — deferred
+4. Nice — The ledger already quotes `Ruling: the merge hold of plan step 4 ended at <sha>` with the literal placeholder, which an executor searching for the phrase could take as the end marker — deferred

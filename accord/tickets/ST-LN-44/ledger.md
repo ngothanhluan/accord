@@ -54,6 +54,8 @@
 - Ruling: the plan's fix for 4.1 comes after the third revision round, on the owner's answer; one diff critic verifies it — cost if wrong: one round more than the skill allows, taken on the owner's decision
 - Ruling: after a merge that follows the measuring run, rows whose old body main changed (`git diff <BASE> <M>`) and destination titles main newly uses go to the owner before the next task or verify, since ac-4 reads old bodies at `<BASE>` — cost if wrong: one extra diff and grep per merge
 - Ruling: if a re-plan adds a measuring task that replaces Task 35's fixtures, the merge hold lasts until that task is recorded — cost if wrong: one merge waits longer than the owner meant
+- Ruling: the merge hold starts now (before-junit.xml is fixed at 0dcbd4c) and lasts until the owner has answered step 2's rule 3 list after the measuring run; the build runs in this session without Continue; if a merge of origin/main lands anyway before then (Continue merges by itself, worktree.ts:498-536, and D-11 leaves it alone), the main session stops, runs tests.full in a temporary worktree of the merged main commit, and takes the new before list, the rows main changed and an Approach change to the owner for a new approve — "Hold, with a fallback if a merge lands anyway" (owner, 2026-10-26, plan round 5, against changing the Approach now so merges are free) — cost if wrong: one extra full run and one re-approval if a merge lands
+- Ruling: plan step 4's merge check is `git log --merges --format=%H 0dcbd4c..HEAD`, run by the main session before every dispatch, before Task 35 and before step 2's list, and by every executor first (BLOCKED on any output); the fallback measures `<merge>^2` (main's code without this ticket) with `<merge>` the newest merge listed; when the owner has answered step 2 the main session writes the end-of-hold Ruling that plan step 4 names, with that commit's sha, and checks run up to that sha; after a fallback re-plan the range starts at the commit recording the new before-junit.xml; a fallback answer other than yes keeps dispatch stopped until the owner says how to go on — planner round-5 fix — cost if wrong: one more ledger line or a pause
 
 ## Deferred
 
@@ -61,4 +63,7 @@
 - Plan round 1.21: Task 2's test does the probe push before comparing copy and built clone refs, so the copy holds `probe` refs the built clone lacks.
 - Plan round 1.22: Task 12 #68 says six dashboard runs where :269-275 holds five; Task 30's imports omit `readDir`; Task 17 #87 uses `commit-tree`, not `commitMsg`.
 - D-12 critic 11: worktree.test.ts:1270 (BUG-LN-9 added a commit to it) took 7.4 s in the 10-25 full run and is not a row; if it passes 10 s at verify, ac-1 fails with no rule 3 route.
-- Plan round 2.7: Task 16 adds an unused maps.json entry for the :52 task-done exit check, which lands unchanged in lane-flow.test.ts.
+- Plan round 6.2: the merge fallback's re-plan does not name the task that replaces table-approved.md and Task 34's hash when a row's title changes.
+- Plan round 6.3: Task 36 should copy BEFORE_SHA256 from the newest Ruling that records a sha256 for before-junit.xml, not the newest naming it.
+- Plan round 6.4: the ledger quoted plan step 4's end-of-hold marker with a literal placeholder; the main session reworded that Ruling so no ledger line starts with the marker text until the hold ends.
+- Plan round 2.7 (resolved by 3.3): Task 16 adds an unused maps.json entry for the :52 task-done exit check, which lands unchanged in lane-flow.test.ts.

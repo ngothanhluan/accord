@@ -1,6 +1,6 @@
 ---
 baseline: 1cec2ac130d8d34c4dcdadddfee9effb4d1104e9
-plan_hash: "fnv1a64:b3fd88bdb6455001"
+plan_hash: "fnv1a64:51394035c25e79d9"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -35,10 +35,15 @@ keeps a ticket's committed run data in `packages/core/test/fixtures/st-ln-48/`; 
 - `after-junit.xml` and `rule3-list.md`, written by Task 35;
 - `base-tests.json`, written by Task 37.
 The one artifact under `accord/` is `accord/tickets/ST-LN-44/before-junit.xml`, ac-3's "before" list: the main
-session writes it (Main session step 0) before Task 1 is dispatched, never replaces it (Main session step 4 holds
-every merge of origin/main until the measuring run is recorded), and tests only read it. No task changes
-`.github/workflows/ci.yml`: every input of the four criterion tests is a committed file, so they need no git history and
-run the same in CI's shallow clone.
+session wrote it (Main session step 0, commit 0dcbd4c) before Task 1 is dispatched, replaces it only through Main
+session step 4's fallback, and tests only read it. Step 4 holds every merge of origin/main into `t/ST-LN-44` from
+0dcbd4c until the owner has answered step 2's rule 3 list after the measuring run. Every executor, before it changes
+anything, runs `git log --merges --format=%H 0dcbd4c..<end>` (after a step 4 fallback re-plan, from the commit that
+plan names instead of 0dcbd4c), where `<end>` is `HEAD`, or the sha of the ledger line
+`Ruling: the merge hold of plan step 4 ended at <sha>` when `accord/tickets/ST-LN-44/ledger.md` holds one; when it
+prints any line, a merge of origin/main landed in the hold: the executor changes nothing and reports `BLOCKED` with
+that output. No task changes `.github/workflows/ci.yml`: every input of the four criterion tests is a committed file,
+so they need no git history and run the same in CI's shallow clone.
 
 Row coverage: every one of the 118 rows of table.md is carried out by exactly one task, which lists it on its
 first prose line as `Rows: #n, ...`. Nothing outside those rows changes.
@@ -1084,8 +1089,10 @@ verify: packages/core/test/st-ln-44.test.ts#ac-1-no-test-in-the-measuring-run-ta
 Rows: none (rule 3's measuring run over all 118 rows).
 
 Precondition: Tasks 1 to 34 are done and the main session has done Main session step 1
-(`accord/tests-baseline.txt`). No merge of origin/main into `t/ST-LN-44` lands before this task is recorded (Main
-session step 4).
+(`accord/tests-baseline.txt`). Before the run, `git log --merges --format=%H 0dcbd4c..HEAD` (0dcbd4c, or the commit a
+step 4 fallback re-plan names) prints nothing (the
+merge hold of Main session step 4, which lasts past this task until the owner has answered step 2's list); when it
+prints a line, run nothing and report `BLOCKED` with that output.
 
 Run, once, from PowerShell:
 `$env:ACCORD_BASH = 'C:\Program Files\Git\bin\bash.exe'`, `npm run build`, then the configured full run
@@ -1120,7 +1127,9 @@ verify: packages/core/test/st-ln-44.test.ts#ac-2-every-test-tag-that-names-a-tes
 Rows: none (it proves ac-2 and ac-3 over all 118 rows).
 
 Consumes: Task 34's helpers, Task 35's `after-junit.xml`, and `accord/tickets/ST-LN-44/before-junit.xml` with the
-sha256 the main session recorded for it in a ledger Ruling (Main session step 0). Each test runs well under 10 s: no
+sha256 the main session recorded for it in the newest ledger Ruling naming that file: Main session step 0's Ruling
+(commit 0dcbd4c: 1531 cases, sha256 15775f281540569d9fb29ca291d329457daeeafde50064bd88358937ab1a000c), or the Ruling
+of Main session step 4's fallback when one replaced the file. Each test runs well under 10 s: no
 CLI run and one `git ls-files` spawn; no git history is read, so both run the same in CI's shallow clone.
 
 Shared code added to the test file (imports also `node:child_process`, `readDir` from `./helpers/fixture.js`, and
@@ -1129,8 +1138,8 @@ not export; no core source changes, D-11):
 - `after()` reads the fixture `after-junit.xml`.
 - `before()` reads `new URL('accord/tickets/ST-LN-44/before-junit.xml', ROOT)` as bytes and throws
   `before-junit.xml is not the recorded baseline run` unless their sha256 equals `BEFORE_SHA256`, a constant holding
-  the hex sha256 that `accord/tickets/ST-LN-44/ledger.md` records in the Ruling of Main session step 0 (copy it from
-  there; when the ledger holds no such Ruling, stop and report `BLOCKED`).
+  the hex sha256 of that newest Ruling in `accord/tickets/ST-LN-44/ledger.md` (copy it from there; when the ledger
+  holds no such Ruling, stop and report `BLOCKED`).
 - `rowIds(rs)`: the set of `idOf(row.file, row.title)` for every row and `idOf(d.file, d.title)` for every
   destination of every row.
 
@@ -1153,7 +1162,8 @@ Tests first, top-level, exact titles:
     faster or rebuilds (D-04, rule 1) still holds its ticket's tag.
   - Collect failures as `<ticket> <ac> <id>: <why>`, expect `[]`.
 - `it('ac-3 every test gone since the baseline run is a row the table moves and every destination exists')`: the
-  before pairs are the `{ file, title }` pairs of `before()`, the run of the whole suite at `<BASE>`; the after pairs
+  before pairs are the `{ file, title }` pairs of `before()`, the run of the whole suite at `<BASE>` (at `<merge>^2`
+  after a Main session step 4 fallback); the after pairs
   are `after()`'s. Every row's own `file`/`title` must be a before pair (the before list is whole). Every before pair
   missing from after must be the `file`/`title` of a row whose action is `removed`, `merged` or `moved`; every
   destination of a `merged` or `moved` row must be an after pair. Collect each kind of failure, expect `[]`. A
@@ -1271,25 +1281,60 @@ These edit files under the top-level `accord/` folder, which no executor touches
    before ac-1 is judged. Exit 1 lists a row over 10 s that the table does not keep, a kept row or destination over
    its ceiling, or a test outside the table over 10 s: verify stops, the list goes to the owner as in step 2, and on a
    yes the table is changed and re-approved and the full suite runs again (table rule 3, "At verify").
-4. Merging origin/main is held (owner, 2026-10-26: "Hold merging main until after the measuring run"). From the
-   commit `plan: ST-LN-44 ready` until Task 35's measuring run is recorded by `accord task-done ST-LN-44 35`,
-   origin/main is not merged into `t/ST-LN-44`. A Continue that reports `behind:` in that span is not merged, and the
-   main session says so in its reply: `behind: origin/main is not merged until Task 35's measuring run is recorded
-   (ST-LN-44 plan, Main session step 4)`. When a re-plan of step 2 adds a measuring task that replaces Task 35's
-   fixtures, the hold lasts until that task is recorded. So ac-3's before list stays the full run at `<BASE>` that the
-   Approach names, and ac-3 and ac-4 read the state at 1cec2ac.
-   After that, merges follow the owner's usual rule: origin/main is merged whenever Continue reports `behind:`.
-   `accord/tickets/ST-LN-44/before-junit.xml` is never replaced: a merge after the measuring run does not refresh it,
-   since `before-junit.xml` and `after-junit.xml` then both predate the merge, so ac-3 compares like with like, and
-   verify's full run with step 3 measures the merged code. After each such merge one check is made, for ac-4 (whose
-   old bodies and `maps.json` `old` texts are read at `<BASE>`) and ac-2:
-   - `M` is the merged origin/main commit without this ticket's commits: `git rev-parse <the merge commit>^2`.
-   - Rows main changed: list each table row whose old test body main changed, its title line included
-     (`git diff <BASE> <M> -- <the row's file>` has a hunk inside that body), and each destination title main now
-     uses for another test (`git grep -n -F '<last title segment>' <M> -- <the destination's file>` finds it and the
-     same search at `<BASE>` does not). When the list is
-     not empty, take it to the owner as one question before the next task is dispatched (before verify when every
-     task is recorded), with a proposal per row (the row's new title, the row dropped, or its old body re-read at
-     `<M>`): each is a change to the approved table or to the plan, so on the owner's yes it is a change of course
-     (accord-build step 6): a change note under `## Approach`, the owner's new yes, `accord approve`, and a re-plan of
-     the tasks that carry those rows.
+4. Merging origin/main is held, with a fallback if a merge lands anyway (owner, 2026-10-26: "Hold, with a fallback
+   if a merge lands anyway").
+   - The hold. It started when `accord/tickets/ST-LN-44/before-junit.xml` was fixed (commit 0dcbd4c, ledger Ruling
+     "before-junit.xml is the full run at 1cec2ac, ... 1531 cases, sha256
+     15775f281540569d9fb29ca291d329457daeeafde50064bd88358937ab1a000c"). From then until the owner has answered step
+     2's rule 3 list after the measuring run (after the last measuring run, when a step 2 re-plan adds a measuring
+     task that replaces Task 35's fixtures), origin/main is not merged into `t/ST-LN-44`. In that span the main
+     session runs the build in this one session and does not run `accord worktree open ST-LN-44 --continue`, nor
+     `/accord continue ST-LN-44`, which runs it (`.claude/skills/accord/SKILL.md:35`): Continue merges origin/main by
+     itself into a ticket branch that is behind at stage intent to review on a clean worktree
+     (`packages/cli/src/commands/worktree.ts:498-536`), and this ticket cannot change that (D-11, test code only).
+     The main session states this once when build starts. So ac-3's before list stays the full run at `<BASE>` that
+     the Approach names, and ac-3 and ac-4 read the state before this ticket at 1cec2ac.
+   - The check. In that span, before every task dispatch, Task 35's included, and before step 2's list goes to the
+     owner, the main session runs `git log --merges --format=%H 0dcbd4c..HEAD` in the ticket's worktree. Empty
+     output: the hold held. Any line: a merge of origin/main landed in the span (a ticket branch merges nothing
+     else); `<merge>` is the first line (the newest merge). After a fallback re-plan, the range starts at the commit that records the new
+     `before-junit.xml` in place of 0dcbd4c. An executor that finds such a merge reports `BLOCKED` (preamble).
+   - The fallback, when the check prints a line. The main session stops all dispatch, then:
+     1. Runs `tests.full` with `ACCORD_BASH` set to Git Bash (ledger Ruling) in a temporary worktree
+        `git worktree add --detach <tmp> <merge>^2` (`<tmp>` a new folder under the temp folder), after running
+        there, in order, the `setup` commands of that commit's `accord/config.yml` (install and build: `npm ci`,
+        `npm run build`, `npm rebuild @accord-dev/accord --ignore-scripts` at `<BASE>`); the report is that worktree's
+        `node_modules/.cache/accord/junit.xml`. Nothing is checked out, reset or switched in the ticket's worktree. The
+        temporary worktree is removed with `git worktree remove <tmp>` after the report is copied out.
+     2. Takes to the owner, as one question: the new before list (its case count and sha256); the rows whose test main
+        renamed, removed or changed (`git diff <BASE> <merge>^2 -- <each file of table.md's rows>` with a hunk
+        inside a row's old body, its title line included), plus each destination title main newly uses
+        (`git grep -n -F '<last title segment>' <merge>^2 -- <the destination's file>` finds it and the same search
+        at `<BASE>` does not), each with a proposal (the row's new title, the row dropped, or its old body re-read
+        at `<merge>^2`); and the Approach change: "before" becomes that merge commit (`<merge>`), whose test code
+        before this ticket is `<merge>^2`'s.
+     3. On a yes, it is a change of course (accord-build step 6): a change note under `## Approach`, the owner's new
+        yes, `accord approve ST-LN-44`, and a re-plan. The main session copies the new report byte for byte over
+        `accord/tickets/ST-LN-44/before-junit.xml` and writes a new ledger Ruling with its case count and sha256 (as
+        in step 0). The re-plan's executor tasks re-freeze `base-tests.json` at `<merge>^2`, rewrite the `maps.json`
+        `old` texts main changed to their text at `<merge>^2`, and replace `BEFORE_SHA256` in
+        `packages/core/test/st-ln-44.test.ts` with the new Ruling's sha256 (when Task 36 is recorded; otherwise Task
+        36 copies it from that Ruling). Dispatch resumes only after the re-plan is approved; on any other answer,
+        dispatch stays stopped until the owner says how to go on.
+   - The end. When the owner has answered step 2's list and the check prints nothing, the main session writes the
+     ledger Ruling `Ruling: the merge hold of plan step 4 ended at <sha of HEAD> — the owner answered step 2's rule 3
+     list — cost if wrong: a merge before that commit goes unflagged by executors` and commits it, before any
+     merge; executors read that sha (preamble). After it, merges follow the owner's usual rule: origin/main is merged
+     whenever Continue reports `behind:`. `accord/tickets/ST-LN-44/before-junit.xml` is not refreshed by them (ledger
+     Ruling): `before-junit.xml` and `after-junit.xml` then both predate the merge, so ac-3 compares like with like, and
+     verify's full run with step 3 measures the merged code. After each such merge one check is made, for ac-4 (whose
+     old bodies and `maps.json` `old` texts are read at `<BASE>`) and ac-2:
+     - `M` is the merged origin/main commit without this ticket's commits: `git rev-parse <the merge commit>^2`.
+     - Rows main changed: list each table row whose old test body main changed, its title line included
+       (`git diff <BASE> <M> -- <the row's file>` has a hunk inside that body), and each destination title main now
+       uses for another test (`git grep -n -F '<last title segment>' <M> -- <the destination's file>` finds it and
+       the same search at `<BASE>` does not). When the list is not empty, take it to the owner as one question before
+       the next task is dispatched (before verify when every task is recorded), with a proposal per row (the row's
+       new title, the row dropped, or its old body re-read at `<M>`): each is a change to the approved table or to
+       the plan, so on the owner's yes it is a change of course (accord-build step 6): a change note under
+       `## Approach`, the owner's new yes, `accord approve`, and a re-plan of the tasks that carry those rows.

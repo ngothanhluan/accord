@@ -19,6 +19,33 @@
         "cite": "`accord approve > after approval gate ready passes`"
       }
     ],
+    "24": [
+      {
+        "old": "expect(o.code).toBe(0);",
+        "test": "packages/cli/test/worktree.test.ts#ac-1-in-claude-code-pick-up-from-the-main-checkout-takes-the-hold-and-prints-enter-instead-of-stop",
+        "cite": "1302-1303 and 1329-1330 are made by #97"
+      },
+      {
+        "old": "expect(o.out).toContain('enter:');",
+        "test": "packages/cli/test/worktree.test.ts#ac-1-in-claude-code-pick-up-from-the-main-checkout-takes-the-hold-and-prints-enter-instead-of-stop",
+        "cite": "1302-1303 and 1329-1330 are made by #97"
+      },
+      {
+        "old": "expect((await run(['worktree', 'open', 'ST-9', '--continue'], sib, envOf(A))).out).toBe(HELD);",
+        "test": "packages/cli/test/worktree.test.ts#risk:complex-branching-the-holding-session-re-enters-its-own-hold-and-a-partial-table-refuses",
+        "cite": "1304 (HELD) by #27's title test"
+      },
+      {
+        "old": "expect(oc.code).toBe(0);",
+        "test": "packages/cli/test/worktree.test.ts#ac-1-in-claude-code-pick-up-from-the-main-checkout-takes-the-hold-and-prints-enter-instead-of-stop",
+        "cite": "1302-1303 and 1329-1330 are made by #97"
+      },
+      {
+        "old": "expect(oc.out).toContain('enter:');",
+        "test": "packages/cli/test/worktree.test.ts#ac-1-in-claude-code-pick-up-from-the-main-checkout-takes-the-hold-and-prints-enter-instead-of-stop",
+        "cite": "1302-1303 and 1329-1330 are made by #97"
+      }
+    ],
     "28": [
       {
         "old": "expect((await run(['gate', 'ready', id], repo)).code).toBe(0);",

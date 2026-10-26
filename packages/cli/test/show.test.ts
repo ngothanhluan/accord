@@ -1,7 +1,7 @@
 // ST-LN-6 task 2: `accord show <id> [--json]`, in-process through runCli on a fixture repository.
-import { expect, it } from 'vitest';
-import { cleanup, commitAll, gitRun, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
-import { done, LANE_BODY, laneTicket, P, PLAN } from '../../../test/helpers/lane.js';
+import { afterAll, beforeAll, expect, it } from 'vitest';
+import { cleanup, commitAll, commitMsg, copyRepo, gitRun, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
+import { approve, building, done, LANE_BODY, laneTicket, P, PLAN } from '../../../test/helpers/lane.js';
 import type { Files } from '../../../test/helpers/lane.js';
 
 const LONG = 'Export every report of the month as one CSV file with quoted cells';
@@ -96,27 +96,61 @@ it('risk:security show text turns control and bidi characters into spaces', asyn
   }
 });
 
+// Claim-state templates (H1): built once, copied with copyRepo. Neither has a remote and neither is ever given
+// one; the claim tip is only the ref refs/remotes/origin/t/<id>, and the checkout holds no claimed ticket.
+const identity = (repo: string) => {
+  gitRun(repo, 'config', 'user.email', 'fixture@example.invalid');
+  gitRun(repo, 'config', 'user.name', 'fixture');
+  gitRun(repo, 'config', 'commit.gpgsign', 'false');
+};
+let tplBlockers = '';
+let tplClaimTip = '';
+beforeAll(() => {
+  // T-2 depends on T-1, and T-1 is done only on its claim ref; the viewer's identity is written after the last commit.
+  tplBlockers = makeLaneRepo({ [P('T-1')]: laneTicket('T-1'), [P('T-2')]: laneTicket('T-2', { frontmatter: ['depends_on: ["T-1"]'] }) });
+  identity(tplBlockers);
+  commitMsg(tplBlockers, 'fixture');
+  const files: Files = {};
+  done(files, 'T-1');
+  writeFiles(tplBlockers, files);
+  commitMsg(tplBlockers, 'fixture');
+  gitRun(tplBlockers, 'update-ref', 'refs/remotes/origin/t/T-1', 'HEAD');
+  gitRun(tplBlockers, 'reset', '-q', '--hard', 'HEAD~1');
+  gitRun(tplBlockers, 'config', 'user.email', 'an@example.com');
+  // T-2 exists only on its claim tip: approved and planned in core, task 1 in its ledger, authored fixture@example.invalid.
+  tplClaimTip = makeLaneRepo();
+  identity(tplClaimTip);
+  commitMsg(tplClaimTip, 'fixture');
+  const claimed: Files = {};
+  building(claimed, 'T-2');
+  writeFiles(tplClaimTip, claimed);
+  commitMsg(tplClaimTip, 'plan: T-2 ready');
+  writeFiles(tplClaimTip, { 'accord/tickets/T-2/ledger.md': '## Tasks\n- task 1 done abc1234\n' });
+  const tip = commitMsg(tplClaimTip, 'task 1');
+  gitRun(tplClaimTip, 'update-ref', 'refs/remotes/origin/t/T-2', tip);
+  gitRun(tplClaimTip, 'reset', '-q', '--hard', 'HEAD~2');
+});
+afterAll(() => {
+  for (const t of [tplBlockers, tplClaimTip]) if (t !== '') cleanup(t);
+});
+
 it('risk:regression show finds a ticket filed only on its claim branch at that branch stage', async () => {
-  const repo = makeLaneRepo();
+  const repo = copyRepo(tplClaimTip);
   try {
-    commitAll(repo);
-    const base = gitRun(repo, 'rev-parse', '--abbrev-ref', 'HEAD').trim();
-    gitRun(repo, 'checkout', '-q', '-b', 't/T-2');
-    writeFiles(repo, { 'accord/tickets/T-2.md': laneTicket('T-2') });
-    await run(['approve', 'T-2'], repo);
-    writeFiles(repo, { 'accord/tickets/T-2/plan.md': PLAN });
-    commitAll(repo, 'plan: T-2 ready');
-    writeFiles(repo, { 'accord/tickets/T-2/ledger.md': '## Tasks\n- task 1 done abc1234\n' });
-    const tip = commitAll(repo, 'task 1');
-    gitRun(repo, 'update-ref', 'refs/remotes/origin/t/T-2', tip);
-    gitRun(repo, 'checkout', '-q', base);
-    gitRun(repo, 'branch', '-q', '-D', 't/T-2');
     const j = await run(['show', 'T-2', '--json'], repo);
     expect(j.code).toBe(0);
     expect(JSON.parse(j.out)).toMatchObject({
       id: 'T-2', stage: 'build', tasksDone: 1, tasksTotal: 2, branch: 't/T-2', holder: 'fixture@example.invalid', blockedBy: [],
       intent: ['Owners can export their report as CSV.'],
     });
+  } finally {
+    cleanup(repo);
+  }
+});
+
+it('risk:regression show text of a ticket filed only on its claim branch shows that branch stage', async () => {
+  const repo = copyRepo(tplClaimTip);
+  try {
     const t = await run(['show', 'T-2'], repo);
     expect(t.code).toBe(0);
     expect(t.out.split('\n')).toEqual(expect.arrayContaining(['Stage: build', 'Tasks: 1/2']));
@@ -125,22 +159,37 @@ it('risk:regression show finds a ticket filed only on its claim branch at that b
   }
 });
 
-it('risk:complex-branching show holds a plan at stage plan until its ready commit', async () => {
-  const repo = makeLaneRepo();
+// T-1 is approved by core (the CLI approve run only set the test up); its plan is committed or not by each test.
+const approved = (): Files => {
+  const files: Files = { [P('T-1')]: laneTicket('T-1') };
+  approve(files, 'T-1');
+  return files;
+};
+const stage = async (repo: string) => {
+  const d = JSON.parse((await run(['show', 'T-1', '--json'], repo)).out);
+  const row = (JSON.parse((await run(['status', '--json'], repo)).out) as { id: string; stage?: string }[]).find((r) => r.id === 'T-1');
+  return { d, row };
+};
+
+it('risk:complex-branching show and status hold a plan at stage plan before its ready commit', async () => {
+  const repo = makeLaneRepo(approved());
   try {
-    await run(['approve', 'T-1'], repo);
     commitAll(repo, 'plan: T-1 round 1, 1 Must, 0 Should');
-    const stage = async () => {
-      const d = JSON.parse((await run(['show', 'T-1', '--json'], repo)).out);
-      const row = (JSON.parse((await run(['status', '--json'], repo)).out) as { id: string; stage?: string }[]).find((r) => r.id === 'T-1');
-      return { d, row };
-    };
-    const first = await stage();
+    const first = await stage(repo);
     expect(first.d).toMatchObject({ stage: 'plan', tasksDone: 0, tasksTotal: 2 });
     expect(first.row?.stage).toBe('plan');
+  } finally {
+    cleanup(repo);
+  }
+});
+
+it("risk:complex-branching show and status reach build at the plan's ready commit", async () => {
+  const repo = makeLaneRepo(approved());
+  try {
+    commitAll(repo, 'plan: T-1 round 1, 1 Must, 0 Should');
     writeFiles(repo, { 'accord/tickets/T-1/plan.md': PLAN + '\n' });
     commitAll(repo, 'plan: T-1 ready');
-    const second = await stage();
+    const second = await stage(repo);
     expect(second.d.stage).toBe('build');
     expect(second.row?.stage).toBe('build');
   } finally {
@@ -149,22 +198,19 @@ it('risk:complex-branching show holds a plan at stage plan until its ready commi
 });
 
 it('risk:complex-branching show takes blockers from the checkout not the claim branch', async () => {
-  const repo = makeLaneRepo({ [P('T-1')]: laneTicket('T-1'), [P('T-2')]: laneTicket('T-2', { frontmatter: ['depends_on: ["T-1"]'] }) });
+  const repo = copyRepo(tplBlockers);
   try {
-    gitRun(repo, 'config', 'user.email', 'an@example.com');
-    commitAll(repo);
-    const base = gitRun(repo, 'rev-parse', '--abbrev-ref', 'HEAD').trim();
-    gitRun(repo, 'checkout', '-b', 't/T-1');
-    const files: Files = {};
-    done(files, 'T-1');
-    writeFiles(repo, files);
-    commitAll(repo);
-    gitRun(repo, 'update-ref', 'refs/remotes/origin/t/T-1', 'HEAD');
-    gitRun(repo, 'checkout', base);
-    gitRun(repo, 'branch', '-D', 't/T-1');
-    expect(JSON.parse((await run(['show', 'T-1', '--json'], repo)).out).stage).toBe('done');
     expect(JSON.parse((await run(['show', 'T-2', '--json'], repo)).out).blockedBy).toEqual(['T-1']);
     expect((await run(['show', 'T-2'], repo)).out.split('\n')).toContain('Blocked by: T-1');
+  } finally {
+    cleanup(repo);
+  }
+});
+
+it('risk:complex-branching show takes the stage of a ticket done only on its claim branch', async () => {
+  const repo = copyRepo(tplBlockers);
+  try {
+    expect(JSON.parse((await run(['show', 'T-1', '--json'], repo)).out).stage).toBe('done');
   } finally {
     cleanup(repo);
   }

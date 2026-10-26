@@ -359,11 +359,11 @@ it('risk:parsing sensitive and generated entries are repository paths without gl
   expect(cfg({ sensitive: { Interface: ['a.ts'] } }).length).toBeGreaterThan(0);
   expect(has(cfg({ sensitive: { interface: 'a.ts' } }), '/sensitive/interface', 'schema.type')).toBe(true);
   expect(has(cfg({ sensitive: { interface: ['a.ts', 'a.ts'] } }), '/sensitive/interface', 'schema.uniqueItems')).toBe(true);
-  const bad = ['src/*.ts', 'src\\a.ts', '../a.ts', 'a/../b.ts', '/abs.ts', 'a//b.ts', ' a.ts', 'a.ts ', ''];
+  const bad = ['src/*.ts', 'src\\a.ts', '../a.ts', 'a/../b.ts', '/abs.ts', 'a//b.ts', ' a.ts', 'a.ts ', '', './a.ts', 'a/./b.ts', 'a/.', '.'];
   for (const path of bad) {
     expect(cfg({ sensitive: { interface: [path] } }).some((f) => f.pointer === '/sensitive/interface/0'), 'sensitive ' + JSON.stringify(path)).toBe(true);
   }
-  for (const path of ['src/*.ts', 'src\\a.ts', '../a.ts', '/abs.ts', ' a.ts']) {
+  for (const path of ['src/*.ts', 'src\\a.ts', '../a.ts', '/abs.ts', ' a.ts', './a.ts', 'a/./b.ts', 'a/.', '.']) {
     expect(cfg({ generated: [path] }).some((f) => f.pointer === '/generated/0'), 'generated ' + JSON.stringify(path)).toBe(true);
   }
 });

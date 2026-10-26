@@ -73,7 +73,7 @@ Feature: ST-LN-62
     When accord gate done runs for that ticket
     Then it fails with a finding that names the area and the path and says the ticket must be lifted to lane M
 
-  @ac-5
+  @ac-5 @test:packages/core/test/scope.test.ts#ac-5-a-sign-of-a-new-interface-outside-the-list-needs-the-list-updated-or-a-reviewers-reason
   Scenario: A sign of a new interface outside the list needs the list updated or a reviewer's reason
     Given a ticket's branch, in a path no sensitive entry matches, adds one of these signs: a new file under a folder named schemas or named *.schema.json; a new key in the exports or bin map of a package.json; an added line that calls .command( or .option(
     When accord gate done runs for that ticket

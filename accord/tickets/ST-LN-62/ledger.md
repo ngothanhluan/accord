@@ -43,6 +43,9 @@
 - Ruling: from task 2 on, the main session runs only the task's own test files with the JUnit reporter before `accord task-done`, not the whole `tests.affected` set, and executors never run `tests.full` — the owner postponed the slow runs to ST-LN-44 and asked why the full suite ran each task — cost if wrong: a break in a test outside the task's files is caught only at verify's full run.
 - Ruling: `generated` entries use the same path-item schema as `sensitive`, so a `generated:` entry with a glob, a backslash or a `..` segment fails config validation — the plan says so — cost if wrong: an existing config with such an entry fails the schema (this repository has none).
 - Ruling: the first task 3 commit skipped exempt paths in `sensitiveTouched`, against the plan's "with no exemption" and Ruling 29; the main session sent the executor back, and 35f3eb4 removes the filter with a failing-first case for a generated and a synced path — cost if wrong: none.
+- Ruling: the ENOBUFS check sits in the shared git helper of gitBranchFact, so any of its diff calls reports "the branch diff is larger than 64 MiB" — one place, and every call there is a diff or a log of the same branch — cost if wrong: a merge-base or log overflow gets the same wording.
+- Ruling: unquoteGitPath treats a backslash before an unknown character as a literal backslash byte — the plan lists no such case, and git never emits one — cost if wrong: none seen.
+- Ruling: task 4 is recorded although its CLI risk test (branch-fact.test.ts) was never shown failing, only the core @ac-5 test was — it is a `risk:parsing` test, not a criterion test, and it passes on a real git fixture on Windows — cost if wrong: the CLI test may pass without the parse it guards; the reviewer checks it.
 
 ## Deferred
 
@@ -52,3 +55,4 @@
 - task 1 done e318da164184
 - task 2 done 06cd1de92a04
 - task 3 done 35f3eb42e494
+- task 4 done 17aba7b53073

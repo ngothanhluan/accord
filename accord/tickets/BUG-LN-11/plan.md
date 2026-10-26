@@ -1,6 +1,6 @@
 ---
 baseline: 96525b1dbf639196a56bb059e13365906db079e9
-plan_hash: "fnv1a64:fc526885b98a9bab"
+plan_hash: "fnv1a64:830b7721b4dff6ed"
 ---
 
 # Plan: BUG-LN-11
@@ -72,10 +72,10 @@ Done when `packages/cli/test/worktree-push.test.ts`, `packages/cli/test/skill-co
 ## Task 2: Have the stage skills push after each stage commit and each recorded task
 
 covers: @ac-1, @ac-2, @ac-3, D-04
-files: packages/core/skills/intent/SKILL.md, packages/core/skills/approach/SKILL.md, packages/core/skills/plan/SKILL.md, packages/core/skills/build/SKILL.md, packages/core/test/stage-skills.test.ts, packages/core/src/generated/skills.ts, .claude/skills/accord-intent/SKILL.md, .claude/skills/accord-approach/SKILL.md, .claude/skills/accord-plan/SKILL.md, .claude/skills/accord-build/SKILL.md
+files: packages/core/skills/intent/SKILL.md, packages/core/skills/approach/SKILL.md, packages/core/skills/plan/SKILL.md, packages/core/skills/build/SKILL.md, packages/core/skills/accord/worktree.md, packages/core/test/stage-skills.test.ts, packages/core/src/generated/skills.ts, .claude/skills/accord-intent/SKILL.md, .claude/skills/accord-approach/SKILL.md, .claude/skills/accord-plan/SKILL.md, .claude/skills/accord-build/SKILL.md, .claude/skills/accord/worktree.md, .claude/skills/accord-verify/worktree.md, .claude/skills/accord-debug/worktree.md
 verify: packages/core/test/stage-skills.test.ts#risk:regression-the-stage-skills-run-accord-worktree-push-after-each-stage-commit-and-each-recorded-task, packages/core/test/skills.test.ts#render-output-invariants->-every-SKILL.md-is-at-most-MAX_SKILL_BYTES-bytes-(spec-§2)
 
-This wires the push into the moments the Intent names: intent approved, approach approved, plan through its gate, each recorded build task, and a re-approved approach in build. Review is not touched (D-04). Commits carry no trailer of any kind (no Co-Authored-By, no Signed-off-by, no "Generated with" line). The new test title holds no `@`, no comma and no apostrophe, in a top-level `it(...)`, so its case id is the `verify:` id above.
+This wires the push into the moments the Intent names: intent approved, approach approved, plan through its gate, each recorded build task, and a re-approved approach in build, and it tells the session to go on after a failed push (@ac-3). Review is not touched (D-04). Commits carry no trailer of any kind (no Co-Authored-By, no Signed-off-by, no "Generated with" line). The new test title holds no `@`, no comma and no apostrophe, in a top-level `it(...)`, so its case id is the `verify:` id above.
 
 **Test first**, appended to `packages/core/test/stage-skills.test.ts`, title `risk:regression the stage skills run accord worktree push after each stage commit and each recorded task`. Use `all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig`, `skillTargets(all)`, `skillDirs(all)` and `installedName(stage)` as the tests above it do, and flatten each SKILL.md with `.replace(/\s+/g, ' ')`. The rows, as the test writes them (`go` true means the step must also say to go on after a failed push):
 
@@ -93,21 +93,45 @@ const ROWS: [stage: string, from: string, to: string, commit: string, go: boolea
 
 For every dir and row, slice the flattened SKILL.md of `installedName(stage)` from `from` to `to` and assert: both markers are found (`from` before `to`), `commit` is in the step, `PUSH` is in the step at an index after `commit`'s, and, when `go` is true, `GO` is in the step after `PUSH`'s index. Also assert, for every dir, that the review SKILL.md (`installedName('review')`) does not contain `worktree push` (D-04: review rounds push nothing).
 
+The same test also checks the go-on rule that covers plan and build, in the session's worktree reference. Take every rendered file of `skillTargets(all)` whose path ends with `/worktree.md`; assert that each dir has one at `dir + '/' + installedName('accord') + '/worktree.md'`, and for each such file, flattened the same way, with these strings:
+
+```ts
+const OPEN = 'A line starting `push of` that `accord worktree open <id> --continue` prints: the merge commit was not pushed.';
+const OLD = 'A line starting `push of` (Continue only)';
+const FROM = 'A line starting `push of` from `accord worktree push <id>`';
+const NEXT = 'Lines starting `removed`';
+const SAYS = ['the commits stay local until the next push', "go on with the stage's next step", 'never stop or ask the owner'];
+```
+
+assert it contains `OPEN`, does not contain `OLD`, contains `FROM`, contains `NEXT` at an index after `FROM`'s, and the slice from `FROM` to `NEXT` contains every string of `SAYS`.
+
 **Skill sources.** Each edit adds exactly the text shown; no other wording in any file changes. Keep the existing indentation and wrap lines near the width of their neighbours.
 - `packages/core/skills/intent/SKILL.md` step 9: after the sentence ending ``uses `--allow-empty` when nothing changed.`` insert ``Then run `accord worktree push <id>`; go on even if it fails.`` before `On a no,`.
 - `packages/core/skills/approach/SKILL.md` step 5: after ``Then commit the ticket, with `approved_hash:` and `ac_hash:` in it.`` insert ``Then run `accord worktree push <id>`; go on even if it fails.`` before `If the owner picks another option`.
 - `packages/core/skills/plan/SKILL.md` step 8: append ``Then run `accord worktree push <id>`.`` after ``checks for it.``. The re-plan path reaches it, since a re-plan runs step 8 again.
 - `packages/core/skills/build/SKILL.md` step 3, the bullet that writes the ledger line: its sentence ending ``then commit the ticket together with `accord/tickets/<id>/ledger.md`.`` ends instead ``then commit the ticket together with `accord/tickets/<id>/ledger.md`, then run `accord worktree push <id>`.`` Step 3 runs before step 2 dispatches the next task, so the push lands before the next task starts.
-- Plan and build carry no "go on" phrase, because of the byte cap: the command exits 0 and its failure line says the commits stay local until the next push.
+- Plan and build carry no "go on" phrase, because of the byte cap: the command exits 0, its failure line says the commits stay local until the next push, and the go-on rule for that line lives in `packages/core/skills/accord/worktree.md` (below), which the session reads at every `/accord continue` and has no byte cap.
 - `packages/core/skills/build/SKILL.md` step 6: ``on yes run `accord approve <id>`, then `accord-plan`'s re-plan`` becomes ``on yes run `accord approve <id>`, commit the ticket and run `accord worktree push <id>`, then `accord-plan`'s re-plan``; the rest of the sentence is unchanged. A failed push there is carried by the re-plan's own push at plan step 8.
+- `packages/core/skills/accord/worktree.md`, lines 34-35, the bullet that starts ``- A line starting `push of` (Continue only):``. Today it covers every `push of` line, so a failed `accord worktree push` would make the session retry and stop. Replace those two lines with these two bullets, wrapped like their neighbours (two-space continuation indent):
+
+  ```
+  - A line starting `push of` that `accord worktree open <id> --continue` prints: the merge commit was not
+    pushed. Show it verbatim, tell the owner the merge commit is local only, and run the push command the
+    line names; when that push fails too, show git's message and stop.
+  - A line starting `push of` from `accord worktree push <id>`, which a stage skill runs after its commit:
+    the commits stay local until the next push. Show it and git's message after it verbatim and go on with
+    the stage's next step; never stop or ask the owner.
+  ```
+
+  The first keeps the old bullet's meaning for the merge commit word for word from `the merge commit was not pushed.` on; the second is new. Every other line of worktree.md stays as it is.
 
 **Size caps.** The rendered plan and build SKILL.md files sit close to the 5120-byte cap that `packages/core/test/skills.test.ts` checks (`every SKILL.md is at most MAX_SKILL_BYTES bytes`): before this task `.claude/skills/accord-plan/SKILL.md` is 5061 bytes and `.claude/skills/accord-build/SKILL.md` is 5010 bytes, so add no word beyond the text above and rewrap only the lines an edit touches. After the re-render, run that test before anything else. If any of the four files is over the cap, do not reword, shorten or move any other text: stop and report `BLOCKED` with each file's byte count and the cap.
 
-**Re-render**, in this order (conventions.md): `npm run gen`, then `npm run build`, then `node packages/cli/dist/cli.js skills sync`. Commit the four sources, `packages/core/src/generated/skills.ts` and the four `.claude/skills/accord-*/SKILL.md` copies the sync rewrites. If gen or sync changes any other file, report it.
+**Re-render**, in this order (conventions.md): `npm run gen`, then `npm run build`, then `node packages/cli/dist/cli.js skills sync`. Commit the four SKILL.md sources, `packages/core/skills/accord/worktree.md`, `packages/core/test/stage-skills.test.ts`, `packages/core/src/generated/skills.ts`, the four `.claude/skills/accord-*/SKILL.md` copies and the three worktree.md copies the sync rewrites (`.claude/skills/accord/worktree.md`, `.claude/skills/accord-verify/worktree.md`, `.claude/skills/accord-debug/worktree.md`). If gen or sync changes any other file, report it.
 
-Behaviour that must not change: every phrase `stage-skills.test.ts` already requires, including `REQUIRED.build` (`change note`, `accord approve`, `accord-plan`) and the step-3 order test `risk:complex-branching the build skill routes a task-done refusal over a forbidden commit line`; the review, verify, debug and accord skills byte for byte; the 120-line and 5120-byte caps in `packages/core/test/skills.test.ts`.
+Behaviour that must not change: every phrase `stage-skills.test.ts` already requires, including `REQUIRED.build` (`change note`, `accord approve`, `accord-plan`) and the step-3 order test `risk:complex-branching the build skill routes a task-done refusal over a forbidden commit line`; the review, verify, debug and accord SKILL.md files and every other reference file byte for byte; in worktree.md every line but the replaced `push of` bullet, including every phrase the tests `risk:regression the accord skill opens each ticket in its own worktree and cleans only from the bare dashboard` and `risk:complex-branching the accord skill pushes then enters the worktree on enter and refuses other work in a ticket session` require; the 120-line and 5120-byte caps in `packages/core/test/skills.test.ts`.
 
-Consumes: `accord worktree push <id>` from Task 1. Produces: the five skill clauses that run it.
+Consumes: `accord worktree push <id>` from Task 1. Produces: the five skill clauses that run it and the worktree.md rule that a failed `accord worktree push` never stops the work.
 
 Done when `packages/core/test/stage-skills.test.ts`, `packages/core/test/skills.test.ts` and `packages/cli/test/skill-commands.test.ts` pass after the re-render.
 

@@ -31,10 +31,16 @@
 - Ruling: the approved table is frozen as a fixture checked by its sha256, not read through git, so the check works in a shallow clone — cost if wrong: if the Approach's hash was computed on other bytes, Task 34 stops BLOCKED
 - Ruling: Task 17's #73 title test keeps its loop cut to ['x'], since the stricter 2.2 matching rule would refuse several old checks mapped to its one loop assertion — cost if wrong: none
 - Ruling: the planner's proposal to add `fetch-depth: 0` to .github/workflows/ci.yml is held for the re-plan after D-12, which should prefer frozen fixtures over a CI change, since the Approach says test code only — cost if wrong: one more plan revision
+- Ruling: after D-12 the plan's baseline moves to the merge commit 1cec2ac, so `(new)`, ac-3's before list and ac-4's old bodies all read the code that holds BUG-LN-8; the skill's "baseline never changes" is read as applying once a plan is ready, and this plan never reached `plan: ST-LN-44 ready` — cost if wrong: the gate or a critic asks for the original baseline, and ac-3/ac-4 must then skip rows 114-118
+- Ruling: ac-3's before list is the plan stage's full run at that baseline, not the 2026-10-24 run, because main renamed four baseline titles the table does not remove — cost if wrong: one more full run if the plan-stage run is unusable
+- Ruling: ac-2's check covers only the @test tags that name tests in the table's rows; ST-LN-2 ac-4 and ST-LN-18 ac-2 still name titles ST-LN-61 renamed, and ST-LN-61's ledger left them on purpose — cost if wrong: two stale tags stay unflagged by this ticket
+- Ruling: rows 114-118 use alone-on-main x 3.36 for ceilings (#12's 42.8 / 12.76), #115 splits per case as #13 did, and a codex-only config that would drop the agent and plugin writes was not taken because it changes each test's Given — cost if wrong: a ceiling too tight sends a kept row to the owner at verify
+- Ruling: the approach critic on the D-12 table change found 1 Must (ac-3 before list, fixed by the baseline Ruling) and 6 Should (row #5's range, #115/#117 keeps settled by D-13, old bodies for rows 114-118, rule 5's `c.remote`, the stale Approach, plan.md citations left to the re-plan), all addressed — cost if wrong: none; the re-plan's critic reads the result
 
 ## Deferred
 
 - Plan round 1.20: no check that a clone template and its remote stay unchanged; record `for-each-ref` of each template root and remote in `beforeAll` and compare in `afterAll`.
 - Plan round 1.21: Task 2's test does the probe push before comparing copy and built clone refs, so the copy holds `probe` refs the built clone lacks.
 - Plan round 1.22: Task 12 #68 says six dashboard runs where :269-275 holds five; Task 30's imports omit `readDir`; Task 17 #87 uses `commit-tree`, not `commitMsg`.
+- D-12 critic 11: worktree.test.ts:1270 (BUG-LN-9 added a commit to it) took 7.4 s in the 10-25 full run and is not a row; if it passes 10 s at verify, ac-1 fails with no rule 3 route.
 - Plan round 2.7: Task 16 adds an unused maps.json entry for the :52 task-done exit check, which lands unchanged in lane-flow.test.ts.

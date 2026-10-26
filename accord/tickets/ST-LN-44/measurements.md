@@ -118,3 +118,15 @@ The second full run skipped the executed workflow-script cases (bash on PATH was
 | 111 | 7.7 | 8.2 | 3.5 | cli/test/worktree.test.ts | risk:complex-branching continue prunes a worktree whose folder was deleted by hand |
 | 112 | 7.7 | 8.2 | 2.4 | cli/test/tracker.test.ts | the gates are blind to the tracker (D-99) > returns deeply equal results with a token and with the environment scrubbed |
 | 113 | 6.6 | 8.2 | 6.8 | cli/test/worktree.test.ts | risk:data-loss a failed push keeps the claim commit and names the quoted push to run |
+
+Rows 114-118 (D-12) are the tests BUG-LN-8 added to upgrade.test.ts after this ticket's baseline. They have no full-run time yet; "alone" is upgrade.test.ts run alone on main at 583a9e8 (2026-10-25, Git Bash).
+
+| # | baseline | full 10-25 | alone | file | test |
+|---|---|---|---|---|---|
+| 114 | - | - | 24.6 | cli/test/upgrade.test.ts | ac-2 upgrade replaces only the lint and gate step and keeps every other line of the workflow |
+| 115 | - | - | 25.6 | cli/test/upgrade.test.ts | risk:complex-branching an anchored or flow lint and gate step is only repinned and the warning says it must be a block list item |
+| 116 | - | - | 16.5 | cli/test/upgrade.test.ts | ac-3 a workflow with no or two lint and gate steps is only repinned and upgrade warns on stderr |
+| 117 | - | - | 8.5 | cli/test/upgrade.test.ts | risk:complex-branching a step that was not refreshed still gets its warning when the push fails |
+| 118 | - | - | 7.6 | cli/test/upgrade.test.ts | ac-1 upgrade replaces the lint and gate step of a 0.1.0 workflow with the step accord init writes now |
+
+In the same alone run on main, #12 took 12.76 s and #13 took 12.78 s. The table's 3.36 ratio for rows 114-118 is #12's larger full-run time over that: 42.8 / 12.76, rounded up.

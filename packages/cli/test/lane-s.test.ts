@@ -229,3 +229,47 @@ it('risk:complex-branching the review package of a lane S ticket starts at the f
     cleanup(repo);
   }
 }, 120_000);
+
+it('risk:complex-branching the review package lists the out-of-scope files and interface signs gate done would name', async () => {
+  const repo = repoWith({
+    'accord/config.yml': CONFIG,
+    'accord/tickets/S-1.md': laneTicket('S-1', { lane: 'S', body: LANE_S_BODY + '\n## Scope\nsrc/a.ts\n' }),
+    'src/a.ts': 'a\n',
+    'accord/tickets/T-1.md': laneTicket('T-1'),
+  });
+  try {
+    commitMsg(repo, 'base');
+    gitRun(repo, 'branch', '-M', 'main');
+    gitRun(repo, 'switch', '-q', '-c', 't/S-1');
+    expect((await run(['gate', 'ready', 'S-1'], repo)).code).toBe(0);
+    commitMsg(repo, 'ready: S-1');
+    writeFiles(repo, { 'src/a.ts': 'changed\n', 'src/b.ts': 'b\n', 'schemas/x.json': '{}\n' });
+    commitMsg(repo, 'change');
+    const first = await run(['review-package', 'S-1'], repo);
+    expect(first.code).toBe(0);
+    expect(first.out).toContain(
+      '## Out-of-scope files\n\nschemas/x.json\nsrc/b.ts\n\n## Interface signs\n\nschemas/x.json: a new schema file\n\n## Stat',
+    );
+    gitRun(repo, 'rm', '-q', 'src/b.ts', 'schemas/x.json');
+    commitMsg(repo, 'remove');
+    const clean = await run(['review-package', 'S-1'], repo);
+    expect(clean.code).toBe(0);
+    expect(clean.out).toContain('## Out-of-scope files\n\n(none)');
+    expect(clean.out).toContain('## Interface signs\n\n(none)');
+    gitRun(repo, 'switch', '-q', 'main');
+    gitRun(repo, 'switch', '-q', '-c', 't/T-1');
+    writeFileSync(join(repo, 'accord/tickets/T-1.md'), readFileSync(join(repo, 'accord/tickets/T-1.md'), 'utf8') + '\nmore\n');
+    writeFiles(repo, { 'schemas/y.json': '{}\n' });
+    commitMsg(repo, 'change T-1');
+    const other = await run(['review-package', 'T-1', '--base', 'main'], repo);
+    expect(other.code).toBe(0);
+    expect(other.out).toContain('## Interface signs\n\nschemas/y.json: a new schema file');
+    expect(other.out).not.toContain('## Out-of-scope files');
+    gitRun(repo, 'branch', '-m', 'main', 'trunk');
+    const cannot = await run(['review-package', 'T-1', '--base', 'HEAD~1'], repo);
+    expect(cannot.code).toBe(0);
+    expect(cannot.out).toContain('## Interface signs\n\n(cannot tell: none of origin/HEAD');
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);

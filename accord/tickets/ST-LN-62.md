@@ -58,7 +58,7 @@ Feature: ST-LN-62
     Then it fails with a finding that names packages/core/src/gate/rules.ts and says the ticket must be lifted to lane M
     And accord/tickets/<id>.md, files under accord/tickets/<id>/, the files accord skills sync writes, and the paths config.yml lists under generated never cause that finding
 
-  @ac-3
+  @ac-3 @test:packages/core/test/scope.test.ts#ac-3-a-wording-only-file-outside-the-scope-passes-only-when-declared-and-confirmed
   Scenario: A wording-only file outside the scope passes only when declared and confirmed
     Given a lane S ticket whose branch changes README.md, outside its scope, in at most 3 lines counted as the larger of lines added and lines removed, and the file is neither new nor deleted
     And the ticket's ledger has the line "Wording-only: README.md — <reason>"

@@ -38,6 +38,9 @@
 - Ruling: gitFilesAt's UsageError is caught inside gitBranchFact and becomes an { error } fact — the plan's Deferred 1.6 asks for it, and a failed cat-file must not exit 2 — cost if wrong: a cat-file failure reads as a failed gate, not a usage error.
 - Ruling: branchFactFor passes the settings expected-text as the merge-base text when hooksPlanFor says unchanged, and undefined when it throws or the runtime has no claude — as the plan states — cost if wrong: none.
 - Ruling: task 1 was recorded from the executor's JUnit report; the main session's own tests.affected run was stopped on the owner's word ("postpone running the tests, ticket 44 is handling that", 2026-10-26), since ST-LN-44 handles the slow tests — cost if wrong: a task-1 failure the executor's run hid shows up only at review or verify.
+- Ruling: wordingOnlyFault is a module-level function in scope.ts that takes the change, path, confirmed list and id, and outOfScope calls it — the plan fixed the check order and message text but not the code shape — cost if wrong: a trivial refactor.
+- Ruling: the declared path is matched against outsideScope paths by exact string, so a wording-only line in the ledger that names a path inside the Scope has no effect — the plan says only paths outside the scope are judged — cost if wrong: none seen.
+- Ruling: from task 2 on, the main session runs only the task's own test files with the JUnit reporter before `accord task-done`, not the whole `tests.affected` set, and executors never run `tests.full` — the owner postponed the slow runs to ST-LN-44 and asked why the full suite ran each task — cost if wrong: a break in a test outside the task's files is caught only at verify's full run.
 
 ## Deferred
 
@@ -45,3 +48,4 @@
 
 ## Tasks
 - task 1 done e318da164184
+- task 2 done 06cd1de92a04

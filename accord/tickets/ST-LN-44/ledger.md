@@ -89,6 +89,8 @@
 - Ruling: lane-flow.test.ts's `stageRepo` setup helper holds one added `expect(gateReadyIn(...)).toBe('pass')`, outside any test body, so a core ready hash that stops passing fails setup loudly; the ac-4 multiset reads test bodies only — cost if wrong: none, delete the line (executor, task 16)
 - Ruling: #87's merge commit gets the message "Merge branch 'side'" and its other two commits "fixture", all written with `commit-tree -F`, not `-m` — the conventions forbid `-m` and no assertion reads the messages — cost if wrong: a test that read merge subjects would see different history (executor, task 17)
 - Ruling: task 17's mutation check edited packages/cli/src/lane-args.ts only in the working tree and reverted it; `git diff --stat 1cec2ac HEAD -- packages/cli/src packages/core/src` prints nothing after the task, so D-11 holds — cost if wrong: none
+- Ruling: TEMPLATE_OPTS in worktree.test.ts lists exactly the five opts sets rows #15, #36, #42, #49, #59, #66, #84 and #111 use ({}, ci, ci with tickets [], ci+build, ci+fail); tasks 19 to 26 add theirs — the plan's shape, one template per set — cost if wrong: a later task adds an entry (executor, task 18)
+- Ruling: task 18's affected run of worktree.test.ts passed, 83 passed and 1 skipped, in 784 s for the file — cost if wrong: none
 
 ## Deferred
 
@@ -120,3 +122,4 @@
 - task 15 done f894e38d37e5
 - task 16 done 2fc12244f800
 - task 17 done d07c341dbede
+- task 18 done 0762a193d09c

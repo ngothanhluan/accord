@@ -1,6 +1,6 @@
 ---
 baseline: 1cec2ac130d8d34c4dcdadddfee9effb4d1104e9
-plan_hash: "fnv1a64:51394035c25e79d9"
+plan_hash: "fnv1a64:111c3441709ea3d1"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -37,7 +37,8 @@ keeps a ticket's committed run data in `packages/core/test/fixtures/st-ln-48/`; 
 The one artifact under `accord/` is `accord/tickets/ST-LN-44/before-junit.xml`, ac-3's "before" list: the main
 session wrote it (Main session step 0, commit 0dcbd4c) before Task 1 is dispatched, replaces it only through Main
 session step 4's fallback, and tests only read it. Step 4 holds every merge of origin/main into `t/ST-LN-44` from
-0dcbd4c until the owner has answered step 2's rule 3 list after the measuring run. Every executor, before it changes
+0dcbd4c until the owner has answered step 2's rule 3 list after the last measuring run (Task 35's, or a measuring
+task a step 2 or step 4 fallback re-plan adds). Every executor, before it changes
 anything, runs `git log --merges --format=%H 0dcbd4c..<end>` (after a step 4 fallback re-plan, from the commit that
 plan names instead of 0dcbd4c), where `<end>` is `HEAD`, or the sha of the ledger line
 `Ruling: the merge hold of plan step 4 ended at <sha>` when `accord/tickets/ST-LN-44/ledger.md` holds one; when it
@@ -1164,7 +1165,8 @@ Tests first, top-level, exact titles:
 - `it('ac-3 every test gone since the baseline run is a row the table moves and every destination exists')`: the
   before pairs are the `{ file, title }` pairs of `before()`, the run of the whole suite at `<BASE>` (at `<merge>^2`
   after a Main session step 4 fallback); the after pairs
-  are `after()`'s. Every row's own `file`/`title` must be a before pair (the before list is whole). Every before pair
+  are `after()`'s (the fallback's new measuring task replaces that fixture from the merged code when the merge is
+  newer than the last measuring run, so both lists hold the merged main). Every row's own `file`/`title` must be a before pair (the before list is whole). Every before pair
   missing from after must be the `file`/`title` of a row whose action is `removed`, `merged` or `moved`; every
   destination of a `merged` or `moved` row must be an after pair. Collect each kind of failure, expect `[]`. A
   destination carrying a rule 3 keep is still a destination, and an appended keep row is neither removed nor moved,
@@ -1286,8 +1288,8 @@ These edit files under the top-level `accord/` folder, which no executor touches
    - The hold. It started when `accord/tickets/ST-LN-44/before-junit.xml` was fixed (commit 0dcbd4c, ledger Ruling
      "before-junit.xml is the full run at 1cec2ac, ... 1531 cases, sha256
      15775f281540569d9fb29ca291d329457daeeafde50064bd88358937ab1a000c"). From then until the owner has answered step
-     2's rule 3 list after the measuring run (after the last measuring run, when a step 2 re-plan adds a measuring
-     task that replaces Task 35's fixtures), origin/main is not merged into `t/ST-LN-44`. In that span the main
+     2's rule 3 list after the measuring run (after the last measuring run, when a step 2 re-plan or a fallback
+     re-plan below adds a measuring task that replaces Task 35's fixtures), origin/main is not merged into `t/ST-LN-44`. In that span the main
      session runs the build in this one session and does not run `accord worktree open ST-LN-44 --continue`, nor
      `/accord continue ST-LN-44`, which runs it (`.claude/skills/accord/SKILL.md:35`): Continue merges origin/main by
      itself into a ticket branch that is behind at stage intent to review on a clean worktree
@@ -1319,9 +1321,18 @@ These edit files under the top-level `accord/` folder, which no executor touches
         in step 0). The re-plan's executor tasks re-freeze `base-tests.json` at `<merge>^2`, rewrite the `maps.json`
         `old` texts main changed to their text at `<merge>^2`, and replace `BEFORE_SHA256` in
         `packages/core/test/st-ln-44.test.ts` with the new Ruling's sha256 (when Task 36 is recorded; otherwise Task
-        36 copies it from that Ruling). Dispatch resumes only after the re-plan is approved; on any other answer,
+        36 copies it from that Ruling). When `<merge>` is newer than the last measuring run, that is when
+        `git log -1 --format=%H -- packages/core/test/fixtures/st-ln-44/after-junit.xml` prints a sha (the commit of
+        Task 35's fixtures, or of the last measuring task a re-plan added) and
+        `git merge-base --is-ancestor <that sha> <merge>` exits 0, the re-plan also adds, after its other executor
+        tasks, a new measuring task: Task 35's precondition, run and rule 3 tool from the merged code at HEAD, which
+        replaces `packages/core/test/fixtures/st-ln-44/after-junit.xml` and `rule3-list.md` and leaves Task 35's
+        ac-1 test as it is; its `verify:` names Task 35's ac-1 id, and Task 36's ac-2 and ac-3 ids when Task 36 is
+        recorded. Then step 2 runs again on that task's `rule3-list.md` (a keep re-records that task in place of Task
+        35), and the hold ends only after the owner has answered that list. So the before list (`<merge>^2`) and the
+        after list both hold the merged main. Dispatch resumes only after the re-plan is approved; on any other answer,
         dispatch stays stopped until the owner says how to go on.
-   - The end. When the owner has answered step 2's list and the check prints nothing, the main session writes the
+   - The end. When the owner has answered step 2's list of the last measuring run and the check prints nothing, the main session writes the
      ledger Ruling `Ruling: the merge hold of plan step 4 ended at <sha of HEAD> — the owner answered step 2's rule 3
      list — cost if wrong: a merge before that commit goes unflagged by executors` and commits it, before any
      merge; executors read that sha (preamble). After it, merges follow the owner's usual rule: origin/main is merged

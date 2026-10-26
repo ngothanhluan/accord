@@ -66,7 +66,14 @@ One critic, diff of the fix for 4.1 on the owner's decision. fixed: 4.1. withdra
 
 One critic, diff of the fix for 5.1-5.3 on the owner's decision. fixed: 5.1, 5.2, 5.3. withdrawn: none.
 
-1. Should — The fallback replaces only before-junit.xml and adds no new measuring run, but the hold now lasts past Task 35, so a merge after Task 35 (e.g. a Continue opened to answer step 2) compares a before list at `<merge>^2` with an after list older than the merge, and a test main added fails ac-3 at Task 36; when `<merge>` is newer than Task 35's commit the re-plan must add a measuring task that replaces after-junit.xml and rule3-list.md, then step 2 again — open
+1. Should — The fallback replaces only before-junit.xml and adds no new measuring run, but the hold now lasts past Task 35, so a merge after Task 35 (e.g. a Continue opened to answer step 2) compares a before list at `<merge>^2` with an after list older than the merge, and a test main added fails ac-3 at Task 36; when `<merge>` is newer than Task 35's commit the re-plan must add a measuring task that replaces after-junit.xml and rule3-list.md, then step 2 again — fixed
 2. Nice — Fallback step 3 does not list the task that replaces table-approved.md and Task 34's hash when the owner's yes renames a row's title — deferred
 3. Nice — Task 36 copies BEFORE_SHA256 from "the newest ledger Ruling naming that file", but newer Rulings name before-junit.xml without a sha256; say "the newest Ruling that records a sha256 for that file" — deferred
 4. Nice — The ledger already quotes `Ruling: the merge hold of plan step 4 ended at <sha>` with the literal placeholder, which an executor searching for the phrase could take as the end marker — deferred
+
+## Round 7 (diff)
+
+One critic, diff of the fix for 6.1. fixed: 6.1. withdrawn: none.
+
+1. Should — The fallback's new measuring task names ac-1, and ac-2/ac-3 when Task 36 is recorded, but not Task 37's ac-4, which reads the same after() list for maps.json `test` ids; a merge that renames a CLI test a maps.json entry names is then recorded and fails ac-4 only at verify; also name Task 37's ac-4 id when Task 37 is recorded — open
+2. Nice — `after its other executor tasks` does not place the new measuring task before an unrecorded Task 36 or 37 that reads after(); place it before any unrecorded task that reads after() — deferred

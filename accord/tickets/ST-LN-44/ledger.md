@@ -66,6 +66,9 @@
 - Ruling: makeTemplate wraps makeClone(opts) and sets maintenance.auto=false and gc.auto=0 in the root, then gc.auto=0 and receive.autogc=false in the remote; copies inherit them through the copied .git/config — the task's text — cost if wrong: a template copy runs git gc in some test (executor, task 4)
 - Ruling: the lane S files map in core-ready.test.ts has no plan.md (the lane M map adds it explicitly) — a lane S ticket with a plan.md fails core gateReady, so the brief's "same contents" would give `fail` — cost if wrong: none, the test compares both against the CLI output (executor, task 5)
 - Ruling: task 6's extra CLI checks for ST-LN-19 are two new `expect` statements, not `bad.push` conditions, so a CLI failure shows directly — ac-4 asks only that every old assertion has a match, so new ones add to the multiset without breaking it — cost if wrong: Task 37's multiset check counts two extra new assertions (executor, task 6)
+- Ruling: task 7's #17 starts each sandbox's script run as soon as that sandbox is built instead of building all 8 first; `expectGated` stays a local helper holding the two `expect(` lines, its 8 calls are text-identical, and one `Promise.all(runs)` awaits them — same concurrency and assertions as the row, only the order differs from the brief's wording — cost if wrong: none to what is checked (executor, task 7)
+- Ruling: task 7 adds no maps.json entries for rows 2, 6, 9, 17, 35 and 57 — every assertion text is unchanged with results bound to the old names; #35's two loops became one `if (gated) … else …` loop holding the same four assertions once each — cost if wrong: Task 37's multiset check flags the missing entries (executor, task 7)
+- Ruling: task 7's rows over the 5 s margin alone (#2 about 28-32 s against its 106 s ceiling, #6 about 7-13 s, #17 5-8 s, #35 5.9 s, #57 5.3 s; the main session's run had #2 27.8 s, #35 6.6 s, #57 6.5 s, #6 8.1 s) go to step 2's rule 3 list after the measuring run, not to an improvised cut now — rule 3 is how the plan handles a row over its estimate — cost if wrong: #6 may be over 10 s in the measuring run and need an owner keep or a re-plan
 
 ## Deferred
 
@@ -86,3 +89,4 @@
 - task 4 done 00b9f019599c
 - task 5 done e234310e2b94
 - task 6 done cfbf632917ce
+- task 7 done ff4d1da212ec

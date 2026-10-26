@@ -26,6 +26,18 @@
         "cite": "gate.test `gate ready on a passing ticket exits 0 and writes the renderText body`"
       }
     ],
+    "36": [
+      {
+        "old": "expect(c.git('worktree', 'list', '--porcelain')).toContain(`worktree ${c.sibling('ST-9')}\\n`);",
+        "now": "expect(list).toContain(`worktree ${c.sibling('ST-9')}\\n`);",
+        "cite": "44 and 45 check the same values on the one read"
+      },
+      {
+        "old": "expect(c.git('worktree', 'list', '--porcelain')).toContain('branch refs/heads/t/ST-9');",
+        "now": "expect(list).toContain('branch refs/heads/t/ST-9');",
+        "cite": "44 and 45 check the same values on the one read"
+      }
+    ],
     "69": [
       {
         "old": "expect((await run(['gate', 'ready', 'S-1'], repo)).code).toBe(0);",

@@ -1,12 +1,12 @@
 // ST-LN-7: `accord worktree open` against real git in tmp sandboxes with a bare remote.
 import { execFileSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, expect, it, vi } from 'vitest';
 import * as proc from '../src/load/proc.js';
 import { approvedHash, gateReady, loadSnapshot, setFrontmatterKey } from '@accord-dev/accord-core';
 import { CONFIG, LANE_BODY, LANE_S_BODY, laneTicket, PLAN } from '../../../test/helpers/lane.js';
 import { commitMsg, gitRun, mergeMsg, run, writeFiles } from './helpers/repo.js';
-import { makeClone, type Clone } from './helpers/worktree.js';
+import { copyClone, makeClone, makeTemplate, type Clone } from './helpers/worktree.js';
 
 vi.mock('../src/load/proc.js', async (orig) => {
   const real = await orig<typeof import('../src/load/proc.js')>();
@@ -25,6 +25,30 @@ const clone = (opts?: Parameters<typeof makeClone>[0]) => {
   clones.push(c);
   return c;
 };
+// H1: one template per set of opts, built once; a test takes a copy of it with `copy` (rule 5: `copyClone` checks the
+// copy's origin and paths). A template never holds a linked worktree: any `worktree add` runs in the copy.
+const TEMPLATE_OPTS: Parameters<typeof makeClone>[0][] = [
+  {},
+  { setup: ['node setup-step.js ci'] },
+  { setup: ['node setup-step.js ci'], tickets: [] },
+  { setup: ['node setup-step.js ci', 'node setup-step.js build'] },
+  { setup: ['node setup-step.js ci', 'node setup-step.js fail'] },
+];
+const TEMPLATES = new Map<string, Clone>();
+const key = (o?: Parameters<typeof makeClone>[0]) => JSON.stringify(o ?? {});
+beforeAll(() => {
+  for (const o of TEMPLATE_OPTS) TEMPLATES.set(key(o), makeTemplate(o));
+}, 180_000);
+afterAll(() => {
+  for (const t of TEMPLATES.values()) t.cleanupAll();
+});
+const copy = (opts?: Parameters<typeof makeClone>[0]) => {
+  const tpl = TEMPLATES.get(key(opts));
+  if (tpl === undefined) throw new Error(`no template for ${key(opts)}; add it to TEMPLATE_OPTS`);
+  const c = copyClone(tpl);
+  clones.push(c);
+  return c;
+};
 afterEach(() => {
   vi.mocked(proc.processTable).mockReset();
   vi.mocked(limit.fetchLimitMs).mockReset();
@@ -34,15 +58,16 @@ afterEach(() => {
 const entries = (c: Clone) => c.git('worktree', 'list', '--porcelain').split('\n\n').filter((e) => e.trim() !== '');
 
 it('ac-1 pick up adds the ticket worktree from origin main runs setup in order and prints where to continue', async () => {
-  const c = clone({ setup: ['node setup-step.js ci', 'node setup-step.js build'] });
+  const c = copy({ setup: ['node setup-step.js ci', 'node setup-step.js build'] });
   c.git('switch', '-q', '-c', 'other');
   writeFiles(c.root, { 'more.txt': 'x\n' });
   c.git('add', '-A');
   c.git('commit', '-q', '-m', 'more');
   const { code, out } = await run(['worktree', 'open', 'ST-9'], c.root);
   expect(code).toBe(0);
-  expect(c.git('worktree', 'list', '--porcelain')).toContain(`worktree ${c.sibling('ST-9')}\n`);
-  expect(c.git('worktree', 'list', '--porcelain')).toContain('branch refs/heads/t/ST-9');
+  const list = c.git('worktree', 'list', '--porcelain');
+  expect(list).toContain(`worktree ${c.sibling('ST-9')}\n`);
+  expect(list).toContain('branch refs/heads/t/ST-9');
   expect(c.git('rev-parse', 't/ST-9^').trim()).toBe(c.git('rev-parse', 'origin/main').trim());
   expect(c.git('log', '-1', '--format=%s', 't/ST-9').trim()).toBe('claim: ST-9');
   expect(readFileSync(`${c.sibling('ST-9')}/setup.log`, 'utf8')).toBe('ci\nbuild\n');
@@ -56,7 +81,7 @@ it('ac-1 pick up adds the ticket worktree from origin main runs setup in order a
 });
 
 it('ac-2 a failing setup command exits 2 naming it and keeps the worktree', async () => {
-  const c = clone({ setup: ['node setup-step.js ci', 'node setup-step.js fail'] });
+  const c = copy({ setup: ['node setup-step.js ci', 'node setup-step.js fail'] });
   const { code, out, err } = await run(['worktree', 'open', 'ST-9'], c.root);
   expect(code).toBe(2);
   expect(err).toContain('node setup-step.js fail');
@@ -70,14 +95,14 @@ it('ac-2 a failing setup command exits 2 naming it and keeps the worktree', asyn
 });
 
 it('risk:security a ticket id cannot place a worktree outside its sibling folder', async () => {
-  const c = clone();
+  const c = copy();
   for (const id of ['../x', 'a/b', 'ST-99']) expect((await run(['worktree', 'open', id], c.root)).code, id).toBe(2);
   expect(entries(c)).toHaveLength(1);
   expect(c.git('branch', '--format=%(refname:short)').trim()).toBe('main');
 });
 
 it('risk:complex-branching pick up refuses a ticket that origin main lacks', async () => {
-  const c = clone();
+  const c = copy();
   writeFiles(c.root, { 'accord/tickets/ST-30.md': laneTicket('ST-30') });
   const { code, err } = await run(['worktree', 'open', 'ST-30'], c.root);
   expect(code).toBe(2);
@@ -95,7 +120,7 @@ const stopLines = (path: string, id: string) => [
 ];
 
 it('ac-3 continue from another checkout reuses the worktree holding the branch', async () => {
-  const c = clone({ setup: ['node setup-step.js ci'] });
+  const c = copy({ setup: ['node setup-step.js ci'] });
   const hand = `${c.root}-ln9`;
   c.git('worktree', 'add', '-q', '-b', 't/ST-9', hand, 'origin/main');
   const before = entries(c);
@@ -108,9 +133,9 @@ it('ac-3 continue from another checkout reuses the worktree holding the branch',
   expect(c.git('branch', '--show-current').trim()).toBe('main');
 });
 
-it('risk:complex-branching continue reaches a ticket whose file is only on its branch here or on origin', async () => {
+it('risk:complex-branching continue reaches a ticket whose file is only on its branch in the sibling worktree', async () => {
   // (a) the branch is checked out in the sibling worktree, the ticket file only there
-  const a = clone({ setup: ['node setup-step.js ci'], tickets: [] });
+  const a = copy({ setup: ['node setup-step.js ci'], tickets: [] });
   a.git('worktree', 'add', '-q', '-b', 't/ST-9', a.sibling('ST-9'), 'origin/main');
   writeFiles(a.sibling('ST-9'), { 'accord/tickets/ST-9.md': laneTicket('ST-9') });
   gitRun(a.sibling('ST-9'), 'add', '-A');
@@ -119,9 +144,11 @@ it('risk:complex-branching continue reaches a ticket whose file is only on its b
   expect(ra.code).toBe(0);
   expect(ra.out.split('\n').slice(0, 3)).toEqual(stopLines(a.sibling('ST-9'), 'ST-9'));
   expect(existsSync(`${a.root}/accord/tickets/ST-9.md`)).toBe(false);
+});
 
+it('risk:complex-branching continue reaches a ticket whose file is only on a local branch with no worktree', async () => {
   // (b) a local branch with the ticket file and no worktree
-  const b = clone({ setup: ['node setup-step.js ci'], tickets: [] });
+  const b = copy({ setup: ['node setup-step.js ci'], tickets: [] });
   b.git('switch', '-q', '-c', 't/ST-9');
   writeFiles(b.root, { 'accord/tickets/ST-9.md': laneTicket('ST-9') });
   b.git('add', '-A');
@@ -133,9 +160,11 @@ it('risk:complex-branching continue reaches a ticket whose file is only on its b
   expect(b.git('worktree', 'list', '--porcelain')).toContain(`worktree ${b.sibling('ST-9')}\nHEAD ${tip}\nbranch refs/heads/t/ST-9`);
   expect(readFileSync(`${b.sibling('ST-9')}/setup.log`, 'utf8')).toBe('ci\n');
   expect(rb.out.split('\n').slice(0, 3)).toEqual(stopLines(b.sibling('ST-9'), 'ST-9'));
+});
 
+it('risk:complex-branching continue reaches a ticket whose branch is only on origin and tracks it', async () => {
   // (c) the branch only on origin
-  const d = clone({ setup: ['node setup-step.js ci'], tickets: [] });
+  const d = copy({ setup: ['node setup-step.js ci'], tickets: [] });
   const other = d.otherClone();
   gitRun(other, 'switch', '-q', '-c', 't/ST-10');
   writeFiles(other, { 'accord/tickets/ST-10.md': laneTicket('ST-10') });
@@ -151,21 +180,28 @@ it('risk:complex-branching continue reaches a ticket whose file is only on its b
 });
 
 it('risk:complex-branching continue never claims a ticket', async () => {
-  const c = clone();
+  const c = copy();
   const r1 = await run(['worktree', 'open', 'ST-9', '--continue'], c.root);
   expect(r1.code).toBe(2);
   expect(r1.err.startsWith('not claimed: ST-9')).toBe(true);
-  const r2 = await run(['worktree', 'open', 'ST-77', '--continue'], c.root);
-  expect(r2.code).toBe(2);
-  expect(r2.err.startsWith('not a ticket: ST-77')).toBe(true);
   expect(entries(c)).toHaveLength(1);
   expect(c.git('branch', '--format=%(refname:short)').trim()).toBe('main');
   expect(c.git('log', '--all', '--format=%s')).not.toContain('claim:');
   expect(existsSync(c.sibling('ST-9'))).toBe(false);
 });
 
+it('risk:complex-branching continue of an id that is no ticket names it and creates nothing', async () => {
+  const c = copy();
+  const r2 = await run(['worktree', 'open', 'ST-77', '--continue'], c.root);
+  expect(r2.code).toBe(2);
+  expect(r2.err.startsWith('not a ticket: ST-77')).toBe(true);
+  expect(entries(c)).toHaveLength(1);
+  expect(c.git('branch', '--format=%(refname:short)').trim()).toBe('main');
+  expect(c.git('log', '--all', '--format=%s')).not.toContain('claim:');
+});
+
 it('risk:complex-branching continue prunes a worktree whose folder was deleted by hand', async () => {
-  const c = clone({ setup: ['node setup-step.js ci'] });
+  const c = copy({ setup: ['node setup-step.js ci'] });
   c.git('worktree', 'add', '-q', '-b', 't/ST-9', c.sibling('ST-9'), 'origin/main');
   rmSync(c.sibling('ST-9'), { recursive: true, force: true });
   const reason = /^prunable (.*)$/m.exec(c.git('worktree', 'list', '--porcelain'))?.[1] ?? 'no reason given';

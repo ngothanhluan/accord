@@ -34,6 +34,7 @@
 - Ruling: `generated:` leaves out `.claude/` — listing it would exempt hand-edited copies and `.claude/settings.json` — cost if wrong: none.
 - Ruling: a done lane S ticket edited by a later pull request gets no new handling, since it already fails at the baseline through `gate.commit-after-review` (fs.ts:317-329, lane-s.ts:86-87; reasoned, not run) — plan finding 1.4 asked for handling without a bypass — cost if wrong: such a pull request fails on new reasons only.
 - Ruling: a `+++ ` path missing from the raw listing makes the branch fact an error — fails closed instead of dropping a call line — cost if wrong: an unexpected diff header format fails gate done for that branch.
+- Ruling: the owner approved the Task 8 `sensitive:` and `generated:` lists as drafted in plan.md ("yes", 2026-10-26); the main session appends them to accord/config.yml when Task 8 is reached, after Task 3 adds the schema keys — writing them earlier would fail config validation — cost if wrong: none.
 
 ## Deferred
 

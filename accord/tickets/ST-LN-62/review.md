@@ -19,3 +19,10 @@ Should 1 [plan-gap]: `gate.branch-unknown` failed a lane M ticket approved on th
 Not an interface: packages/cli/test/branch-fact.test.ts — the added line is the expected value `calls: ["++ x.option('--y')"]` in a `risk:parsing` test; it registers no CLI option and adds no public interface
 
 verdict: converged
+
+## Round 3
+
+No findings: the diff from 8b25997 renames two ST-LN-61 dashboard tests to `risk:regression` titles and adds their ledger Ruling.
+Not an interface: packages/cli/test/branch-fact.test.ts — the added line is the expected value `calls: ["++ x.option('--y')"]` in a `risk:parsing` test; it registers no CLI option and adds no public interface
+
+verdict: converged

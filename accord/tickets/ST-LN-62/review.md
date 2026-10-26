@@ -12,3 +12,10 @@ Nice 4 [patch]: lane-flow.test.ts relies on git's default initial branch name �
 Nice 5 [patch]: the review package lists no sensitive hits, and reviewer.md does not cover placeholder or sign lines — packages/core/skills/accord-review/reviewer.md — deferred
 Nice 6 [patch]: the ac-1 criterion test and the older ac-1 lift test overlap — packages/core/test/stage-skills.test.ts — deferred
 Nice 7 [patch]: review/SKILL.md was reflowed to meet the byte cap, so 100 lines changed for one clause — packages/core/skills/accord-review/SKILL.md — deferred
+
+## Round 2
+
+Should 1 [plan-gap]: `gate.branch-unknown` failed a lane M ticket approved on the default branch whose scenarios are all `@ui` and whose claim commit is empty, since the branch diff never changes the ticket file and verify keeps the tick uncommitted until Done passes; re-planned as Task 9 with the owner's re-approval, lane S keeping the ticket-file trigger — packages/core/src/gate/scope.ts:70 — fixed in 1a2e54f
+Not an interface: packages/cli/test/branch-fact.test.ts — the added line is the expected value `calls: ["++ x.option('--y')"]` in a `risk:parsing` test; it registers no CLI option and adds no public interface
+
+verdict: converged

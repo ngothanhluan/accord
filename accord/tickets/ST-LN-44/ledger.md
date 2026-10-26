@@ -59,6 +59,9 @@
 - Ruling: a merge fallback measures again when the merge is newer than the last commit that changed after-junit.xml (`git merge-base --is-ancestor`); its measuring task comes after the re-plan's other tasks, step 2 runs again on its list, and a keep then re-records that task instead of Task 35 — planner fix of plan round 6.1 — cost if wrong: one measuring task more than needed
 - Ruling: task 1's sandbox-guard test is a top-level `it` with no describe wrapper — the verify id has no describe segment and junit puts every enclosing describe in the name — cost if wrong: none, one-line change (executor, task 1)
 - Ruling: task 1's affected run (26 files, 473 tests, 964 s) had one failure, the show-approval ac-1 timeout at 300 s that step 7 already showed and the owner gave this ticket (D-08, its own task); it is not task 1's verify case, so task 1 is recorded — cost if wrong: a guard regression hidden behind a known timeout, caught at that task's run
+- Ruling: copyClone's returned object repeats makeClone's otherClone/sibling code instead of sharing a factory — the brief says makeClone and its returned object must not change — cost if wrong: about 15 duplicated lines (executor, task 2)
+- Ruling: rule 5's shared-path check runs after the copies are made; it can only trip on a bug in copyClone, so no test exercises it — cost if wrong: the guard could be dead code (executor, task 2)
+- Ruling: task 2's affected run (26 files, 475 tests, 896 s) had one failure, the same show-approval ac-1 timeout as task 1's run — not task 2's verify case — cost if wrong: as for task 1
 
 ## Deferred
 
@@ -74,3 +77,4 @@
 
 ## Tasks
 - task 1 done 5b5e41f6cbc9
+- task 2 done 17e374e76937

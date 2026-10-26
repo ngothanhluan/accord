@@ -114,7 +114,7 @@ export function sensitiveEntries(s: RepoSnapshot, fact: BranchRead): { area: str
   });
 }
 
-/** Lane S: a counted, non-exempt change under a listed sensitive entry fails, whatever its scope or declaration (D-04). */
+/** Lane S: a counted change under a listed sensitive entry fails, whatever its scope, declaration or exemption (D-04, Ruling 29). */
 export const sensitiveTouched: GateRule['check'] = (s, id) => {
   if (laneTicket(s, id)?.frontmatter?.lane !== 'S') return [];
   const fact = factOf(s, id);
@@ -122,7 +122,7 @@ export const sensitiveTouched: GateRule['check'] = (s, id) => {
   const entries = sensitiveEntries(s, fact);
   const file = ticketFile(id);
   return fact.changes
-    .filter((c) => isCounted(c) && !isExempt(id, fact, c.path))
+    .filter(isCounted)
     .flatMap((c) => {
       const hit = entries.find((e) => matches(e.path, c.path));
       return hit === undefined

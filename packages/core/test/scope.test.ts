@@ -156,6 +156,10 @@ it('ac-4 gate done fails a lane S ticket that touched a listed sensitive area', 
   const headOnly = run([ch('packages/cli/src/run.ts', 1)], { baseConfig: undefined }, B);
   expect(headOnly).toHaveLength(1);
   expect(run([ch('packages/cli/src/run.ts', 0)])).toEqual([]);
+  const exemptBase = WITH_GEN + 'sensitive:\n  interface:\n    - docs/gen/\n    - .claude/skills/accord/SKILL.md\n';
+  const exempt = run([ch('docs/gen/out.txt', 2), ch('.claude/skills/accord/SKILL.md', 2)], { baseConfig: exemptBase, synced: ['.claude/skills/accord/SKILL.md'] });
+  expect(exempt).toHaveLength(2);
+  expect(exempt.map((f) => f.reason).join('\n')).toContain('docs/gen/out.txt');
   const lane = found(
     snap({ 'accord/config.yml': B, 'accord/tickets/T-1.md': laneTicket('T-1') }, { 'T-1': fact([ch('packages/cli/src/run.ts', 2)], { baseConfig: B }, 'T-1') }),
     'T-1',

@@ -50,6 +50,10 @@
 - Ruling: main-session step 4 runs tests.full in a temporary worktree of `<merge>^2` after any merge of origin/main before the last measuring run, replaces before-junit.xml with a new sha256 Ruling, and routes rows whose test main renamed, removed or changed to the owner — the owner's merge-when-behind rule stays — cost if wrong: one extra full run per merge
 - Ruling: a merge after the last measuring run does not refresh before-junit.xml, since before and after then both predate it — cost if wrong: a stale before list, though ac-3 stays consistent
 - Ruling: a viewer email a row sets (show:175, dashboard:361, :392) is written after the setup's last `commitMsg`; #78's `-c An@Example.com` commit-tree line stays — cost if wrong: claim tips authored by the viewer
+- Ruling: origin/main is not merged into t/ST-LN-44 from `plan: ST-LN-44 ready` until Task 35's measuring run is recorded, so ac-3's before list stays the 1cec2ac run the Approach names; the merge-when-behind rule applies again after it — "Hold merging main until after the measuring run" (owner, 2026-10-26, plan finding 4.1, against asking the owner at each merge and against leaving the plan as it is) — cost if wrong: a larger merge after Task 35
+- Ruling: the plan's fix for 4.1 comes after the third revision round, on the owner's answer; one diff critic verifies it — cost if wrong: one round more than the skill allows, taken on the owner's decision
+- Ruling: after a merge that follows the measuring run, rows whose old body main changed (`git diff <BASE> <M>`) and destination titles main newly uses go to the owner before the next task or verify, since ac-4 reads old bodies at `<BASE>` — cost if wrong: one extra diff and grep per merge
+- Ruling: if a re-plan adds a measuring task that replaces Task 35's fixtures, the merge hold lasts until that task is recorded — cost if wrong: one merge waits longer than the owner meant
 
 ## Deferred
 

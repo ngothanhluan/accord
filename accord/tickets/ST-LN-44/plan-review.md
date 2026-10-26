@@ -52,4 +52,12 @@ One critic, no lens, after the re-plan for D-12 and D-13 (baseline 1cec2ac). fix
 
 One critic, diff of the fix after round 3. fixed: 3.1, 3.2, 3.3, 3.4. withdrawn: none.
 
-1. Should — Main session step 4 moves ac-3's before list to the full run at `M` after any later merge of origin/main, recorded only as a ledger Ruling, while the approved Approach says ac-3 and ac-4 read the state at 1cec2ac; at verify ac-3's evidence names `M`, not the approved commit, and needs a change note and a re-approval at the costliest stage — open
+1. Should — Main session step 4 moves ac-3's before list to the full run at `M` after any later merge of origin/main, recorded only as a ledger Ruling, while the approved Approach says ac-3 and ac-4 read the state at 1cec2ac; at verify ac-3's evidence names `M`, not the approved commit, and needs a change note and a re-approval at the costliest stage — fixed, owner: "Hold merging main until after the measuring run" (2026-10-26, against asking the owner at each merge and against leaving the plan as it is)
+
+## Round 5 (diff)
+
+One critic, diff of the fix for 4.1 on the owner's decision. fixed: 4.1. withdrawn: none.
+
+1. Must — Step 4 holds a merge only on a Continue that reports `behind:`, but Continue merges origin/main by itself at stages intent to review on a clean worktree and prints `merged:` (worktree.ts:498-536, skills accord/worktree.md:26-31), so the hold cannot be carried out, and the plan has no route once a merge lands before Task 35: a renamed test then fails ac-3 at Task 36 and a changed row body goes unchecked by ac-4 — open
+2. Should — The hold starts at `plan: ST-LN-44 ready`, but the before list is already fixed (0dcbd4c) and Continue merges at stage plan too, so a merge before the ready commit breaks the same checks; the owner's words give no start point — open
+3. Should — The hold ends when Task 35 is recorded, but step 2's answer can add a new measuring task after a merge has landed, so the new after list holds merged code against the 1cec2ac before list; the hold must last until step 2's list is answered — open

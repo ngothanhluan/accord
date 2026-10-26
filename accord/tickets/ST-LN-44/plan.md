@@ -1,6 +1,6 @@
 ---
 baseline: 1cec2ac130d8d34c4dcdadddfee9effb4d1104e9
-plan_hash: "fnv1a64:0f635ceb628b97f9"
+plan_hash: "fnv1a64:b3fd88bdb6455001"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -35,8 +35,8 @@ keeps a ticket's committed run data in `packages/core/test/fixtures/st-ln-48/`; 
 - `after-junit.xml` and `rule3-list.md`, written by Task 35;
 - `base-tests.json`, written by Task 37.
 The one artifact under `accord/` is `accord/tickets/ST-LN-44/before-junit.xml`, ac-3's "before" list: the main
-session writes it (Main session step 0) before Task 1 is dispatched, rewrites it (Main session step 4) after a merge
-of origin/main that lands before the measuring run, and tests only read it. No task changes
+session writes it (Main session step 0) before Task 1 is dispatched, never replaces it (Main session step 4 holds
+every merge of origin/main until the measuring run is recorded), and tests only read it. No task changes
 `.github/workflows/ci.yml`: every input of the four criterion tests is a committed file, so they need no git history and
 run the same in CI's shallow clone.
 
@@ -1084,8 +1084,8 @@ verify: packages/core/test/st-ln-44.test.ts#ac-1-no-test-in-the-measuring-run-ta
 Rows: none (rule 3's measuring run over all 118 rows).
 
 Precondition: Tasks 1 to 34 are done and the main session has done Main session step 1
-(`accord/tests-baseline.txt`) and, when origin/main was merged into `t/ST-LN-44` after `<BASE>`, Main session step 4
-for the last such merge.
+(`accord/tests-baseline.txt`). No merge of origin/main into `t/ST-LN-44` lands before this task is recorded (Main
+session step 4).
 
 Run, once, from PowerShell:
 `$env:ACCORD_BASH = 'C:\Program Files\Git\bin\bash.exe'`, `npm run build`, then the configured full run
@@ -1130,8 +1130,7 @@ not export; no core source changes, D-11):
 - `before()` reads `new URL('accord/tickets/ST-LN-44/before-junit.xml', ROOT)` as bytes and throws
   `before-junit.xml is not the recorded baseline run` unless their sha256 equals `BEFORE_SHA256`, a constant holding
   the hex sha256 that `accord/tickets/ST-LN-44/ledger.md` records in the Ruling of Main session step 0 (copy it from
-  there, from the latest such Ruling when Main session step 4 has written a newer one; when the ledger holds no such
-  Ruling, stop and report `BLOCKED`).
+  there; when the ledger holds no such Ruling, stop and report `BLOCKED`).
 - `rowIds(rs)`: the set of `idOf(row.file, row.title)` for every row and `idOf(d.file, d.title)` for every
   destination of every row.
 
@@ -1154,8 +1153,7 @@ Tests first, top-level, exact titles:
     faster or rebuilds (D-04, rule 1) still holds its ticket's tag.
   - Collect failures as `<ticket> <ac> <id>: <why>`, expect `[]`.
 - `it('ac-3 every test gone since the baseline run is a row the table moves and every destination exists')`: the
-  before pairs are the `{ file, title }` pairs of `before()`, the run of the whole suite at `<BASE>` (or, after Main
-  session step 4, at the merged origin/main commit without this ticket's commits); the after pairs
+  before pairs are the `{ file, title }` pairs of `before()`, the run of the whole suite at `<BASE>`; the after pairs
   are `after()`'s. Every row's own `file`/`title` must be a before pair (the before list is whole). Every before pair
   missing from after must be the `file`/`title` of a row whose action is `removed`, `merged` or `moved`; every
   destination of a `merged` or `moved` row must be an after pair. Collect each kind of failure, expect `[]`. A
@@ -1273,34 +1271,25 @@ These edit files under the top-level `accord/` folder, which no executor touches
    before ac-1 is judged. Exit 1 lists a row over 10 s that the table does not keep, a kept row or destination over
    its ceiling, or a test outside the table over 10 s: verify stops, the list goes to the owner as in step 2, and on a
    yes the table is changed and re-approved and the full suite runs again (table rule 3, "At verify").
-4. After any merge of origin/main into `t/ST-LN-44` (the owner's standing rule merges it whenever Continue reports
-   `behind:`; merging is never held back for this ticket) that lands before the last measuring run (Task 35, or a
-   measuring task a re-plan adds), and before that run starts: ac-3's before list must be the suite this ticket
-   started from, so it is re-taken at the merged main.
+4. Merging origin/main is held (owner, 2026-10-26: "Hold merging main until after the measuring run"). From the
+   commit `plan: ST-LN-44 ready` until Task 35's measuring run is recorded by `accord task-done ST-LN-44 35`,
+   origin/main is not merged into `t/ST-LN-44`. A Continue that reports `behind:` in that span is not merged, and the
+   main session says so in its reply: `behind: origin/main is not merged until Task 35's measuring run is recorded
+   (ST-LN-44 plan, Main session step 4)`. When a re-plan of step 2 adds a measuring task that replaces Task 35's
+   fixtures, the hold lasts until that task is recorded. So ac-3's before list stays the full run at `<BASE>` that the
+   Approach names, and ac-3 and ac-4 read the state at 1cec2ac.
+   After that, merges follow the owner's usual rule: origin/main is merged whenever Continue reports `behind:`.
+   `accord/tickets/ST-LN-44/before-junit.xml` is never replaced: a merge after the measuring run does not refresh it,
+   since `before-junit.xml` and `after-junit.xml` then both predate the merge, so ac-3 compares like with like, and
+   verify's full run with step 3 measures the merged code. After each such merge one check is made, for ac-4 (whose
+   old bodies and `maps.json` `old` texts are read at `<BASE>`) and ac-2:
    - `M` is the merged origin/main commit without this ticket's commits: `git rev-parse <the merge commit>^2`.
-   - Never by `checkout`, `switch` or `reset` in this worktree, and never by `accord worktree`: from this worktree,
-     `git worktree add --detach <tmp> <M>` with `<tmp>` a new folder under the OS temp folder; in `<tmp>`,
-     `npm ci` and `npm run build`; then, from PowerShell in `<tmp>`,
-     `$env:ACCORD_BASH = 'C:\Program Files\Git\bin\bash.exe'` and `tests.full`
-     (`npx vitest run --reporter=default --reporter=junit --outputFile.junit=node_modules/.cache/accord/junit.xml`).
-     Confirm the executed workflow-script cases ran (not skipped), or fix the environment and run again.
-   - Copy `<tmp>/node_modules/.cache/accord/junit.xml` byte for byte over `accord/tickets/ST-LN-44/before-junit.xml`;
-     write a new ledger Ruling naming the file, `M`, the merge commit, its case count and its sha256
-     (`Ruling: before-junit.xml is the full run at <M> (origin/main merged in <merge sha>), <n> cases, sha256 <hex> —
-     ac-3's before list after the merge — ...`); commit both.
-   - When Task 36 is already recorded, its `BEFORE_SHA256` constant in `packages/core/test/st-ln-44.test.ts` is
-     replaced with the new hash by an executor given Task 36's section and this Ruling (the main session edits no test
-     file), and `tests.affected` runs for that file.
-   - Remove the temporary worktree: `git worktree remove --force <tmp>` (its `node_modules` is untracked), then
-     `git worktree prune`.
-   - Rows main changed: list each table row whose own `file`/`title` is not a before pair of the new report (main
-     renamed or removed its test), each destination title main now uses for another test, and each row whose old test
-     body main changed (`git diff <BASE> <M> -- <the row's file>` has a hunk inside its body; ac-4's old bodies and
-     `maps.json` `old` texts are read at `<BASE>`). When the list is not empty, take it to the owner as one question
-     before Task 35, with a proposal per row (the row's new title, the row dropped, or its old body re-read at `<M>`):
-     each is a change to the approved table or to the plan, so on the owner's yes it is a change of course
+   - Rows main changed: list each table row whose old test body main changed, its title line included
+     (`git diff <BASE> <M> -- <the row's file>` has a hunk inside that body), and each destination title main now
+     uses for another test (`git grep -n -F '<last title segment>' <M> -- <the destination's file>` finds it and the
+     same search at `<BASE>` does not). When the list is
+     not empty, take it to the owner as one question before the next task is dispatched (before verify when every
+     task is recorded), with a proposal per row (the row's new title, the row dropped, or its old body re-read at
+     `<M>`): each is a change to the approved table or to the plan, so on the owner's yes it is a change of course
      (accord-build step 6): a change note under `## Approach`, the owner's new yes, `accord approve`, and a re-plan of
      the tasks that carry those rows.
-   A merge after the last measuring run needs no step 4: `before-junit.xml` and `after-junit.xml` then both predate
-   it, so ac-3 compares like with like, and verify's full run with step 3 measures the merged code; only its
-   rows-main-changed check above is made, for ac-4.

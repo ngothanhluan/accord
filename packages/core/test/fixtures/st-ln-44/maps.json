@@ -60,5 +60,10 @@
       }
     ]
   },
-  "baseline": []
+  "baseline": [
+    {
+      "old": "packages/cli/test/lane-flow.test.ts#lane-ticket-flow->-walks-one-ticket-from-unapproved-to-done",
+      "new": null
+    }
+  ]
 }

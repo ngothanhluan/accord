@@ -24,7 +24,15 @@ Converged at round 3; baseline suite 1528 passed, 3 skipped, 0 failed.
 
 ## Round 4 (whole)
 
-1. Should — Task 9 also loosens lane S: a lane S ticket whose ready commit and an out-of-scope change land on the default branch, then continues on its own branch, passes once the branch diff is not empty, while the old ticket-file trigger failed it; the Change note's case is lane M only — open
-2. Nice — the new reason says "HEAD is at or behind the default branch", false when HEAD is ahead only by empty commits such as the claim commit; "HEAD adds no change over the merge base" holds in every empty-diff state — open
-3. Nice — the kept Task 1 test title still says a diff without the ticket file fails closed; a comment in the test body should say Task 9 changed that — open
-4. Nice — packages/core/src/gate/rules.ts:159's comment still says a diff without the ticket file fails closed, and Task 9's files line forbids rules.ts — open
+1. Should — Task 9 also loosens lane S: a lane S ticket whose ready commit and an out-of-scope change land on the default branch, then continues on its own branch, passes once the branch diff is not empty, while the old ticket-file trigger failed it; the Change note's case is lane M only — fixed
+2. Nice — the new reason says "HEAD is at or behind the default branch", false when HEAD is ahead only by empty commits such as the claim commit; "HEAD adds no change over the merge base" holds in every empty-diff state — fixed
+3. Nice — the kept Task 1 test title still says a diff without the ticket file fails closed; a comment in the test body should say Task 9 changed that — fixed
+4. Nice — packages/core/src/gate/rules.ts:159's comment still says a diff without the ticket file fails closed, and Task 9's files line forbids rules.ts — fixed
+
+## Round 5 (diff)
+
+No findings
+
+## Closed
+
+Re-plan for Task 9 converged at round 5; baseline tests not re-run (re-plan).

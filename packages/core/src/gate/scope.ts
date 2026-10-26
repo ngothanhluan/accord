@@ -5,7 +5,7 @@ import { normaliseText, splitFrontmatter } from '../load/frontmatter.js';
 import { headingKey, scan, stripHtmlComments } from '../load/sections.js';
 import type { BranchChange, BranchFact, RepoSnapshot } from '../model/snapshot.js';
 import type { GateRule } from './rules.js';
-import { laneTicket } from './work.js';
+import { ledgerFile, laneTicket, reviewFile, workOf } from './work.js';
 
 type BranchRead = Exclude<BranchFact, { error: string }>;
 
@@ -90,8 +90,25 @@ export const outOfScope: GateRule['check'] = (s, id) => {
   const file = ticketFile(id);
   if ('cannot' in out) return [{ file, reason: out.cannot }];
   const commit = fact.scope?.commit ?? '';
-  return out.paths.map((p) => ({
-    file,
-    reason: `${p} is changed on this branch but not listed in ## Scope as recorded at commit ${commit}; the ticket must be lifted to lane M`,
-  }));
+  const work = workOf(s, id);
+  const declared = new Set((work?.ledger?.wordingOnly ?? []).map((w) => w.path));
+  const confirmed = work?.review?.confirmed ?? [];
+  return out.paths.flatMap((p) => {
+    if (!declared.has(p)) {
+      return [{ file, reason: `${p} is changed on this branch but not listed in ## Scope as recorded at commit ${commit}; the ticket must be lifted to lane M` }];
+    }
+    const why = wordingOnlyFault(fact.changes.find((c) => c.path === p), p, confirmed, id);
+    return why === undefined ? [] : [{ file, reason: `${p} is declared wording-only in ${ledgerFile(id)} but ${why}; the ticket must be lifted to lane M` }];
+  });
 };
+
+/** D-02, D-07: why a declared wording-only file does not qualify, or undefined when it does. */
+function wordingOnlyFault(c: BranchChange | undefined, path: string, confirmed: string[], id: string): string | undefined {
+  if (c?.kind === 'added') return 'is new';
+  if (c?.kind === 'deleted') return 'is deleted';
+  if (c?.kind === 'type' || c?.kind === 'mode') return 'changes its file type or mode';
+  if (c?.binary === true) return 'is binary';
+  if (c !== undefined && c.lines > 3) return `changes ${c.lines} lines, more than 3`;
+  if (!confirmed.includes(path)) return `has no "Confirmed wording-only: ${path}" line in the last ## Round of ${reviewFile(id)}`;
+  return undefined;
+}

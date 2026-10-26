@@ -89,3 +89,42 @@ it('risk:complex-branching gate done fails closed on a missing or failed branch 
   expect(found(s1({ 'S-1': fact([ch('src/x.sh', 0, 'mode')]) }), 'S-1', 'gate.out-of-scope')).toHaveLength(1);
   expect(found(s1({ 'S-1': fact([{ ...ch('img/a.png', 0), binary: true }]) }), 'S-1', 'gate.out-of-scope')).toHaveLength(1);
 });
+
+it('ac-3 a wording-only file outside the scope passes only when declared and confirmed', () => {
+  const L = '## Rulings\n- Wording-only: README.md — fixes a typo\n';
+  const V = '## Round 1\n\nConfirmed wording-only: README.md\n\nverdict: converged\n';
+  const w = (change: BranchChange, ledger?: string, review?: string) =>
+    found(
+      snap(
+        {
+          'accord/tickets/S-1.md': S1,
+          ...(ledger === undefined ? {} : { 'accord/tickets/S-1/ledger.md': ledger }),
+          ...(review === undefined ? {} : { 'accord/tickets/S-1/review.md': review }),
+        },
+        { 'S-1': fact([change]) },
+      ),
+      'S-1',
+      'gate.out-of-scope',
+    );
+  expect(w(ch('README.md', 3), L, V)).toEqual([]);
+  const missing = w(ch('README.md', 3), L, V.replace('Confirmed wording-only: README.md\n', ''));
+  expect(missing).toHaveLength(1);
+  expect(missing[0].reason).toContain('README.md');
+  expect(missing[0].reason).toContain('Confirmed wording-only: README.md');
+  expect(missing[0].reason).toContain('must be lifted to lane M');
+  expect(
+    w(ch('README.md', 3), L, '## Round 1\n\nConfirmed wording-only: README.md\n\n## Round 2\n\nNo findings\n\nverdict: converged\n'),
+  ).toHaveLength(1);
+  const big = w(ch('README.md', 4), L, V);
+  expect(big).toHaveLength(1);
+  expect(big[0].reason).toContain('changes 4 lines, more than 3');
+  const added = w(ch('README.md', 1, 'added'), L, V);
+  expect(added).toHaveLength(1);
+  expect(added[0].reason).toContain('is new');
+  const deleted = w(ch('README.md', 0, 'deleted'), L, V);
+  expect(deleted).toHaveLength(1);
+  expect(deleted[0].reason).toContain('is deleted');
+  const undeclared = w(ch('README.md', 3), undefined, V);
+  expect(undeclared).toHaveLength(1);
+  expect(undeclared[0].reason).toContain('README.md is changed on this branch but not listed in ## Scope');
+});

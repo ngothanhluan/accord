@@ -159,6 +159,7 @@ export interface Ledger {
   done: Record<string, string>; // task number -> commit sha of its first done line
   rulings: string[]; // every 'Ruling: …' line, list marker stripped
   rulingsSection?: string[]; // the '## Rulings' section's non-blank lines as written, comments stripped; absent without one
+  wordingOnly?: { path: string; reason: string }[]; // every 'Wording-only: <path> — <reason>' line; absent when none
 }
 
 export interface Review {
@@ -166,6 +167,8 @@ export interface Review {
   verdict?: string; // the value of the last 'verdict:' line
   line?: number; // its Markdown line
   trailing?: true; // a non-blank line follows the last verdict line
+  confirmed?: string[]; // paths of 'Confirmed wording-only: <path>' lines in the last '## Round'; absent when none
+  notInterface?: string[]; // paths of 'Not an interface: <path> — <reason>' lines in the last '## Round'; absent when none
 }
 
 export interface TicketWork {

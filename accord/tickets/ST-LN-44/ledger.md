@@ -36,6 +36,15 @@
 - Ruling: ac-2's check covers only the @test tags that name tests in the table's rows; ST-LN-2 ac-4 and ST-LN-18 ac-2 still name titles ST-LN-61 renamed, and ST-LN-61's ledger left them on purpose — cost if wrong: two stale tags stay unflagged by this ticket
 - Ruling: rows 114-118 use alone-on-main x 3.36 for ceilings (#12's 42.8 / 12.76), #115 splits per case as #13 did, and a codex-only config that would drop the agent and plugin writes was not taken because it changes each test's Given — cost if wrong: a ceiling too tight sends a kept row to the owner at verify
 - Ruling: the approach critic on the D-12 table change found 1 Must (ac-3 before list, fixed by the baseline Ruling) and 6 Should (row #5's range, #115/#117 keeps settled by D-13, old bodies for rows 114-118, rule 5's `c.remote`, the stale Approach, plan.md citations left to the re-plan), all addressed — cost if wrong: none; the re-plan's critic reads the result
+- Ruling: before-junit.xml goes under accord/tickets/ST-LN-44/, copied by the main session in plan step 0 from the step-7 run with its sha256 in this ledger — the step-7 report shares a path with every `tests.affected` run and executors never write accord/ — cost if wrong: the file moves to a fixture folder
+- Ruling: ac-4's old bodies are one JSON fixture (packages/core/test/fixtures/st-ln-44/base-tests.json, sha256 per file), not 19 `.test.ts` copies — vitest and tsc would pick up the copies — cost if wrong: none
+- Ruling: table-approved.md is frozen from the approval commit 36be029 — the table at the baseline predates rows 114-118 — cost if wrong: Task 34 stops BLOCKED on the hash
+- Ruling: `titlesAt` and its risk test are dropped — the before list is now the baseline run itself, so it needs no filter — cost if wrong: none
+- Ruling: rows 114-118 extend Task 11 instead of a new task — renumbering every cross-reference risks more errors — cost if wrong: Task 11 runs close to half an executor's context
+- Ruling: `copyClone`'s root/remote/other-clone check runs for every copy, not only upgrade copies — it is free and the same guard — cost if wrong: none
+- Ruling: the new main-session step is numbered 0 so steps 1-3 keep their numbers — cost if wrong: none
+- Ruling: before-junit.xml is the full run at 1cec2ac (plan step 7, 2026-10-26, ACCORD_BASH set), 1531 cases, sha256 15775f281540569d9fb29ca291d329457daeeafde50064bd88358937ab1a000c — ac-3's before list — cost if wrong: one more full run and a new hash in Task 36
+- Ruling: the step-7 run had 3 failures, all timeouts of table rows (show-approval ac-1 over 300 s; workflow-script "dropped ticket in an accord-only diff…" over 90 s; worktree "risk:data-loss clean keeps unpushed commits…" over 60 s), under load from a planner and a critic running at the same time; this ticket fixes them, no separate ticket — "Accept, let this ticket fix them" (owner, 2026-10-26, choosing this against a re-run on an idle machine and a separate ticket) — cost if wrong: a real failure hidden behind a timeout shows only at the measuring run
 
 ## Deferred
 

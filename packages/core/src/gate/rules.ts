@@ -64,7 +64,7 @@ import {
   reviewUncommitted,
   sectionsChanged,
 } from './lane-s.js';
-import { branchUnknown, outOfScope, sensitiveTouched } from './scope.js';
+import { branchUnknown, interfaceSign, outOfScope, sensitiveTouched } from './scope.js';
 import { reviewMissing, reviewUnconverged, suiteNotPassed, tasksIncomplete, testUntracedAtDone } from './work.js';
 import {
   evidenceUnresolved,
@@ -159,6 +159,9 @@ const COMMIT_TRAILER: GateRule = { id: 'gate.commit-trailer', level: 'error', pr
 /** ST-LN-62: Done reads the branch diff of every ticket with `lane:`; no diff, or a diff without the ticket file, fails closed. */
 const BRANCH_UNKNOWN: GateRule = { id: 'gate.branch-unknown', level: 'error', profiles: ['build', 'maintain'], check: branchUnknown };
 
+/** ST-LN-62 D-04: a sign of a new interface in a path no sensitive entry matches, in every lane that carries `lane:`. */
+const INTERFACE_SIGN: GateRule = { id: 'gate.interface-sign', level: 'error', profiles: ['build', 'maintain'], check: interfaceSign };
+
 /** GATE-02/GATE-03/GATE-11 (docs/design.md §5). Every row is an error on both profiles: Done is the
  * gate that must not be talked past, and GATE-06 forbids a level that depends on a flag. */
 export const DONE_RULES: readonly GateRule[] = [
@@ -177,6 +180,7 @@ export const DONE_RULES: readonly GateRule[] = [
   { id: 'gate.stale-review', level: 'error', profiles: ['build', 'maintain'], check: staleReview },
   COMMIT_TRAILER,
   BRANCH_UNKNOWN,
+  INTERFACE_SIGN,
   { id: 'gate.evidence-unresolved', level: 'error', profiles: ['build', 'maintain'], check: evidenceUnresolved },
   { id: 'gate.reference-unknown', level: 'warning', profiles: ['build', 'maintain'], check: referenceUnknown },
   { id: 'gate.note-missing', level: 'error', profiles: ['build', 'maintain'], check: noteMissing },
@@ -217,6 +221,7 @@ export const DONE_S_RULES: readonly GateRule[] = [
   BRANCH_UNKNOWN,
   { id: 'gate.out-of-scope', level: 'error', profiles: ['build', 'maintain'], check: outOfScope },
   { id: 'gate.sensitive-touched', level: 'error', profiles: ['build', 'maintain'], check: sensitiveTouched },
+  INTERFACE_SIGN,
 ];
 
 /** D-89: the three LINT-06 hygiene rules Ready promotes from warning to blocking. */

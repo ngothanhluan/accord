@@ -167,3 +167,63 @@ it('ac-4 gate done fails a lane S ticket that touched a listed sensitive area', 
   );
   expect(lane).toEqual([]);
 });
+
+it('ac-5 a sign of a new interface outside the list needs the list updated or a reviewers reason', () => {
+  const CALL = 'program.' + "command('x')";
+  const PKG = {
+    base: '{"bin":{"old":"a.js"},"exports":"./i.js"}',
+    head: '{"bin":{"old":"a.js","tool":"t.js"},"exports":{".":"./i.js","./extra":"./e.js"}}',
+  };
+  const changesOf = (id: string): BranchChange[] => [
+    ch('schemas/thing.json', 1, 'added'),
+    ch('src/a.schema.json', 1, 'added'),
+    { ...ch('pkg/package.json', 2), pkg: PKG },
+    { ...ch('src/cli.ts', 1), calls: [CALL] },
+    { ...ch('docs/how.md', 1), calls: [CALL] },
+    { ...ch('accord/tickets/' + id + '/notes.txt', 1, 'added'), calls: [CALL] },
+  ];
+  const T1 = laneTicket('T-1');
+  const sign = (id: string, file: string, extra: Record<string, unknown> = {}, files: Record<string, string> = {}, config = CONFIG) =>
+    found(snap({ 'accord/config.yml': config, ['accord/tickets/' + id + '.md']: file, ...files }, { [id]: fact(changesOf(id), extra, id) }), id, 'gate.interface-sign');
+  const reasons = (fs: { reason: string }[]) => fs.map((f) => f.reason);
+  const NAMES = ['schemas/thing.json', 'src/a.schema.json', '"tool"', '"./extra"', 'src/cli.ts'];
+
+  const lane = sign('S-1', S1);
+  expect(lane).toHaveLength(5);
+  expect(lane.every((f) => f.level === 'error' && f.file === 'accord/tickets/S-1.md')).toBe(true);
+  NAMES.forEach((n) => expect(reasons(lane).filter((r) => r.includes(n))).toHaveLength(1));
+  expect(reasons(lane).every((r) => r.includes('must be lifted to lane M'))).toBe(true);
+  expect(reasons(lane).join('\n')).not.toContain('docs/how.md');
+  expect(reasons(lane).join('\n')).not.toContain('accord/tickets/S-1/');
+  expect(reasons(lane).join('\n')).not.toContain('"."');
+  expect(gateDone(snap({ 'accord/tickets/S-1.md': S1 }, { 'S-1': fact(changesOf('S-1')) }), 'S-1').verdict).toBe('fail');
+
+  const other = sign('T-1', T1);
+  expect(other).toHaveLength(5);
+  for (const p of ['schemas/thing.json', 'src/a.schema.json', 'pkg/package.json', 'pkg/package.json', 'src/cli.ts']) {
+    expect(reasons(other).some((r) => r.includes('Not an interface: ' + p + ' — <reason>'))).toBe(true);
+  }
+  expect(gateDone(snap({ 'accord/tickets/T-1.md': T1 }, { 'T-1': fact(changesOf('T-1'), {}, 'T-1') }), 'T-1').verdict).toBe('fail');
+
+  const R = '## Round 1\n\nNot an interface: src/cli.ts — test harness only\n\nverdict: converged\n';
+  const excused = sign('T-1', T1, {}, { 'accord/tickets/T-1/review.md': R });
+  expect(excused).toHaveLength(4);
+  expect(reasons(excused).join('\n')).not.toContain('src/cli.ts');
+
+  const HEAD = CONFIG + 'sensitive:\n  interface:\n    - schemas/\n';
+  const listedM = sign('T-1', T1, {}, {}, HEAD);
+  expect(listedM).toHaveLength(4);
+  expect(reasons(listedM).join('\n')).not.toContain('schemas/thing.json');
+  const listedS = sign('S-1', S1, {}, {}, HEAD);
+  expect(reasons(listedS).join('\n')).not.toContain('schemas/thing.json');
+  const touched = found(snap({ 'accord/config.yml': HEAD, 'accord/tickets/S-1.md': S1 }, { 'S-1': fact(changesOf('S-1')) }), 'S-1', 'gate.sensitive-touched');
+  expect(reasons(touched).join('\n')).toContain('schemas/thing.json');
+
+  const BASE = CONFIG + 'sensitive:\n  interface:\n    - pkg/package.json\n';
+  for (const [id, file] of [['S-1', S1], ['T-1', T1]] as const) {
+    expect(reasons(sign(id, file, { baseConfig: BASE })).join('\n')).not.toContain('pkg/package.json');
+  }
+
+  const plain = snap({ 'accord/tickets/X-1.md': laneTicket('X-1', { lane: '' }) }, { 'X-1': fact(changesOf('X-1'), {}, 'X-1') });
+  expect(found(plain, 'X-1', 'gate.interface-sign')).toEqual([]);
+});

@@ -54,6 +54,8 @@ export interface BranchChange {
   kind: 'added' | 'deleted' | 'modified' | 'mode' | 'type'; // 'mode': status M with differing modes; 'type': status T
   lines: number; // the larger of lines added and lines removed under -b --ignore-blank-lines --ignore-cr-at-eol; 0 when binary
   binary?: true;
+  calls?: string[]; // added lines, under the same whitespace flags, that the call sign matches; present only when non-empty
+  pkg?: { base?: string; head?: string }; // a file named package.json: its text at the merge base and at HEAD, each absent when the file is
 }
 
 /** ST-LN-62: the branch diff of one lane ticket, or why the host could not read it. */

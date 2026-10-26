@@ -131,6 +131,69 @@ export const sensitiveTouched: GateRule['check'] = (s, id) => {
     });
 };
 
+/** Ledger Ruling 13: an added line that calls a commander-style `command` or `option`. */
+export const CALL_SIGN = /\.(command|option)\(/;
+
+/** The keys of the `exports` or `bin` map of a package.json text; a string value counts as the key `.`. */
+function keysOf(text: string | undefined, map: 'exports' | 'bin'): string[] {
+  if (text === undefined) return [];
+  try {
+    const value: unknown = (JSON.parse(text) as Record<string, unknown> | null)?.[map];
+    if (typeof value === 'string') return ['.'];
+    return typeof value === 'object' && value !== null && !Array.isArray(value) ? Object.keys(value) : [];
+  } catch {
+    return [];
+  }
+}
+
+const isPackageJson = (path: string): boolean => path === 'package.json' || path.endsWith('/package.json');
+
+/** Ledger Ruling 20: a call sign is read only in a non-Markdown file the ticket's own exemptions do not cover. */
+const callsOf = (c: BranchChange, id: string, fact: BranchRead): string[] =>
+  c.calls === undefined || /\.(md|markdown)$/i.test(c.path) || isExempt(id, fact, c.path)
+    ? []
+    : [...new Set(c.calls.flatMap((l) => [...l.matchAll(new RegExp(CALL_SIGN.source, 'g'))].map((m) => m[1])))];
+
+/** D-04: signs of a new interface in paths no sensitive entry matches; undefined without a lane ticket or a readable diff. */
+export function interfaceSigns(s: RepoSnapshot, id: string): { path: string; sign: string }[] | undefined {
+  if (laneTicket(s, id) === undefined) return undefined;
+  const fact = factOf(s, id);
+  if (fact === undefined || 'error' in fact) return undefined;
+  const entries = sensitiveEntries(s, fact);
+  const out: { path: string; sign: string }[] = [];
+  for (const c of fact.changes) {
+    if (entries.some((e) => matches(e.path, c.path))) continue;
+    const add = (sign: string) => out.push({ path: c.path, sign });
+    if (c.kind === 'added' && (c.path.split('/').slice(0, -1).includes('schemas') || c.path.endsWith('.schema.json'))) add('a new schema file');
+    if (isPackageJson(c.path)) {
+      for (const map of ['exports', 'bin'] as const) {
+        const before = keysOf(c.pkg?.base, map);
+        keysOf(c.pkg?.head, map)
+          .filter((k) => !before.includes(k))
+          .forEach((k) => add(`a new key "${k}" in the ${map} map of package.json`));
+      }
+    }
+    callsOf(c, id, fact).forEach((name) => add(`an added line that calls .${name}(`));
+  }
+  return out.sort((a, b) => cmp(a.path, b.path) || cmp(a.sign, b.sign));
+}
+
+export const interfaceSign: GateRule['check'] = (s, id) => {
+  const signs = interfaceSigns(s, id);
+  if (signs === undefined) return [];
+  const file = ticketFile(id);
+  if (laneTicket(s, id)?.frontmatter?.lane === 'S') {
+    return signs.map(({ path, sign }) => ({ file, reason: `${path} adds ${sign}, a sign of a new interface; the ticket must be lifted to lane M` }));
+  }
+  const excused = workOf(s, id)?.review?.notInterface ?? [];
+  return signs
+    .filter(({ path }) => !excused.includes(path))
+    .map(({ path, sign }) => ({
+      file,
+      reason: `${path} adds ${sign}, a sign of a new interface no sensitive entry matches; add an entry matching it under sensitive: in accord/config.yml, or have the reviewer record "Not an interface: ${path} — <reason>" in the last ## Round of ${reviewFile(id)}`,
+    }));
+};
+
 /** D-02, D-07: why a declared wording-only file does not qualify, or undefined when it does. */
 function wordingOnlyFault(c: BranchChange | undefined, path: string, confirmed: string[], id: string): string | undefined {
   if (c?.kind === 'added') return 'is new';

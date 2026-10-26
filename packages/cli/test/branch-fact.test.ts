@@ -5,7 +5,7 @@ import { loadConfig, skillTargets } from '@accord-dev/accord-core';
 import { expect, it } from 'vitest';
 import { CONFIG, junit, LANE_S_BODY, laneTicket, REPORT } from '../../../test/helpers/lane.js';
 import { hooksPlanFor, SETTINGS } from '../src/commands/skills.js';
-import { gitBranchFact } from '../src/load/fs.js';
+import { gitBranchFact, unquoteGitPath } from '../src/load/fs.js';
 import { cleanup, commitMsg, gitRun, makeEmptyRepo, run, writeFiles } from './helpers/repo.js';
 
 function repoWith(files: Record<string, string>): string {
@@ -114,6 +114,64 @@ it('risk:complex-branching gate done reads the branch diff from the merge base i
     const nr = errs(none.out, 'gate.branch-unknown');
     expect(nr).toHaveLength(1);
     expect(nr[0]).toContain('none of origin/HEAD, origin/main, origin/master, main or master resolves');
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+it('risk:parsing gate done reads added call lines and package json maps from the branch diff', async () => {
+  const OPT = 'program.' + 'option(' + "'--x')\n";
+  const CMD = '  ' + 'program.' + 'command(' + "'y')\n";
+  const PKG_BASE = '{"name":"p","bin":{"old":"a.js"}}\n';
+  const PKG_HEAD = '{"name":"p","bin":{"old":"a.js","tool":"t.js"}}\n';
+  const repo = repoWith({
+    'accord/config.yml': CONFIG,
+    'accord/tickets/T-1.md': laneTicket('T-1'),
+    'src/cli.ts': 'const p = 1;\n',
+    'pkg/package.json': PKG_BASE,
+    'docs/how.md': 'x\n',
+  });
+  try {
+    commitMsg(repo, 'base');
+    gitRun(repo, 'branch', '-M', 'main');
+    gitRun(repo, 'switch', '-q', '-c', 't/T-1');
+    writeFiles(repo, {
+      'accord/tickets/T-1.md': readFileSync(join(repo, 'accord', 'tickets', 'T-1.md'), 'utf8') + '\n<!-- worked -->\n',
+      'src/cli.ts': 'const p = 1;\n' + OPT + CMD,
+      'src/é.ts': OPT,
+      'src/a b.ts': OPT,
+      'pkg/package.json': PKG_HEAD,
+      'schemas/thing.json': '{}\n',
+      'docs/how.md': 'x\n' + OPT,
+    });
+    commitMsg(repo, 'work');
+
+    const f = gitBranchFact(repo, 'T-1', { rendered: [], scope: false });
+    if ('error' in f) throw new Error(f.error);
+    const at = (path: string) => f.changes.find((c) => c.path === path);
+    expect(at('src/cli.ts')?.calls).toHaveLength(2);
+    expect(at('src/é.ts')?.calls).toHaveLength(1);
+    expect(at('src/a b.ts')?.calls).toHaveLength(1);
+    expect(at('docs/how.md')?.calls).toHaveLength(1);
+    expect(at('pkg/package.json')?.pkg).toEqual({ base: PKG_BASE, head: PKG_HEAD });
+    expect(at('schemas/thing.json')?.kind).toBe('added');
+    expect(at('accord/tickets/T-1.md')?.calls).toBeUndefined();
+
+    const d = await run(['gate', 'done', 'T-1', '--json'], repo);
+    expect(d.code).toBe(1);
+    expect(errs(d.out, 'gate.branch-unknown')).toEqual([]);
+    const signs = errs(d.out, 'gate.interface-sign').join('\n');
+    for (const named of ['src/cli.ts', 'src/é.ts', 'src/a b.ts', 'pkg/package.json', 'schemas/thing.json']) expect(signs).toContain(named);
+    expect(signs).not.toContain('docs/how.md');
+
+    writeFiles(repo, { 'accord/tickets/T-1/review.md': '## Round 1\n\nNot an interface: `src/a b.ts` — test harness only\n\nverdict: converged\n' });
+    commitMsg(repo, 'reason');
+    const after = errs((await run(['gate', 'done', 'T-1', '--json'], repo)).out, 'gate.interface-sign').join('\n');
+    expect(after).not.toContain('src/a b.ts');
+    expect(after).toContain('src/cli.ts');
+
+    expect(unquoteGitPath('"a\\tb\\"c\\303\\251.ts"')).toBe('a\tb"cé.ts');
+    expect(unquoteGitPath('plain/é.ts')).toBe('plain/é.ts');
   } finally {
     cleanup(repo);
   }

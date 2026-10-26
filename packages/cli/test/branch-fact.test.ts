@@ -1,5 +1,6 @@
 // ST-LN-62 Task 1: the host half of the scope check, on a real git repository.
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { loadConfig, skillTargets } from '@accord-dev/accord-core';
 import { expect, it } from 'vitest';
@@ -130,12 +131,20 @@ it('risk:parsing gate done reads added call lines and package json maps from the
     'src/cli.ts': 'const p = 1;\n',
     'pkg/package.json': PKG_BASE,
     'docs/how.md': 'x\n',
+    'src/gone.ts': 'g1\ng2\ng3\n',
+    'bin/blob.dat': 'a\0b\n',
+    'src/run.sh': 'echo\n',
+    'src/lnk.ts': 'target\n',
+    'src/plus.ts': 'p\n',
   });
   try {
     commitMsg(repo, 'base');
     gitRun(repo, 'branch', '-M', 'main');
     gitRun(repo, 'switch', '-q', '-c', 't/T-1');
+    rmSync(join(repo, 'src', 'gone.ts'));
     writeFiles(repo, {
+      'bin/blob.dat': 'a\0c\n',
+      'src/plus.ts': 'p\n++ x.' + 'option(' + "'--y')\n",
       'accord/tickets/T-1.md': readFileSync(join(repo, 'accord', 'tickets', 'T-1.md'), 'utf8') + '\n<!-- worked -->\n',
       'src/cli.ts': 'const p = 1;\n' + OPT + CMD,
       'src/é.ts': OPT,
@@ -145,6 +154,18 @@ it('risk:parsing gate done reads added call lines and package json maps from the
       'docs/how.md': 'x\n' + OPT,
     });
     commitMsg(repo, 'work');
+    // A mode-only change and a regular file turned into a symlink, staged through the index so they work on Windows;
+    // committed without `add -A`, which on POSIX would put the working-tree modes back.
+    gitRun(repo, 'update-index', '--chmod=+x', 'src/run.sh');
+    gitRun(repo, 'update-index', '--cacheinfo', `120000,${gitRun(repo, 'rev-parse', 'HEAD:src/lnk.ts').trim()},src/lnk.ts`);
+    const folder = mkdtempSync(join(tmpdir(), 'accord-msg-'));
+    try {
+      writeFileSync(join(folder, 'msg.txt'), 'mode and type\n');
+      gitRun(repo, 'commit', '-q', '-F', join(folder, 'msg.txt'), '--cleanup=verbatim');
+    } finally {
+      cleanup(folder);
+    }
+    gitRun(repo, 'checkout', '--', 'src/run.sh', 'src/lnk.ts');
 
     const f = gitBranchFact(repo, 'T-1', { rendered: [], scope: false });
     if ('error' in f) throw new Error(f.error);
@@ -156,6 +177,13 @@ it('risk:parsing gate done reads added call lines and package json maps from the
     expect(at('pkg/package.json')?.pkg).toEqual({ base: PKG_BASE, head: PKG_HEAD });
     expect(at('schemas/thing.json')?.kind).toBe('added');
     expect(at('accord/tickets/T-1.md')?.calls).toBeUndefined();
+    // Each branch of the parse: a net-deleted file (`+++ /dev/null`), a changed binary file (numstat `-`), a mode-only
+    // change, a type change, and an added line that starts with `++ ` inside a hunk (patch line `+++ x...`).
+    expect(at('src/gone.ts')).toEqual({ path: 'src/gone.ts', kind: 'deleted', lines: 3 });
+    expect(at('bin/blob.dat')).toEqual({ path: 'bin/blob.dat', kind: 'modified', lines: 0, binary: true });
+    expect(at('src/run.sh')).toEqual({ path: 'src/run.sh', kind: 'mode', lines: 0 });
+    expect(at('src/lnk.ts')?.kind).toBe('type');
+    expect(at('src/plus.ts')).toEqual({ path: 'src/plus.ts', kind: 'modified', lines: 1, calls: ["++ x.option('--y')"] });
 
     const d = await run(['gate', 'done', 'T-1', '--json'], repo);
     expect(d.code).toBe(1);

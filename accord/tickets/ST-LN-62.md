@@ -50,7 +50,7 @@ Feature: ST-LN-62
     And the proposal is lane M when the expected files, not counting test files and the copies accord itself generates, number more than 5 or span more than 3 code areas, a code area being a file's folder cut to its first four path segments
     And a lane S ticket lists the expected files under a ## Scope section of its ticket file, one repository path per line and never a folder, before any change is made
 
-  @ac-2
+  @ac-2 @test:packages/core/test/scope.test.ts#ac-2-gate-done-fails-a-lane-S-ticket-that-touched-a-file-outside-its-recorded-scope
   Scenario: gate done fails a lane S ticket that touched a file outside its recorded scope
     Given a lane S ticket whose ## Scope lists packages/core/src/status/dashboard.ts
     And its branch, compared with its merge base on the default branch, also changes packages/core/src/gate/rules.ts in a way that survives ignoring whitespace, blank lines and line endings

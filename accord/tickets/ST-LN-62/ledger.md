@@ -35,7 +35,13 @@
 - Ruling: a done lane S ticket edited by a later pull request gets no new handling, since it already fails at the baseline through `gate.commit-after-review` (fs.ts:317-329, lane-s.ts:86-87; reasoned, not run) — plan finding 1.4 asked for handling without a bypass — cost if wrong: such a pull request fails on new reasons only.
 - Ruling: a `+++ ` path missing from the raw listing makes the branch fact an error — fails closed instead of dropping a call line — cost if wrong: an unexpected diff header format fails gate done for that branch.
 - Ruling: the owner approved the Task 8 `sensitive:` and `generated:` lists as drafted in plan.md ("yes", 2026-10-26); the main session appends them to accord/config.yml when Task 8 is reached, after Task 3 adds the schema keys — writing them earlier would fail config validation — cost if wrong: none.
+- Ruling: gitFilesAt's UsageError is caught inside gitBranchFact and becomes an { error } fact — the plan's Deferred 1.6 asks for it, and a failed cat-file must not exit 2 — cost if wrong: a cat-file failure reads as a failed gate, not a usage error.
+- Ruling: branchFactFor passes the settings expected-text as the merge-base text when hooksPlanFor says unchanged, and undefined when it throws or the runtime has no claude — as the plan states — cost if wrong: none.
+- Ruling: task 1 was recorded from the executor's JUnit report; the main session's own tests.affected run was stopped on the owner's word ("postpone running the tests, ticket 44 is handling that", 2026-10-26), since ST-LN-44 handles the slow tests — cost if wrong: a task-1 failure the executor's run hid shows up only at review or verify.
 
 ## Deferred
 
 - plan 1.6 Nice — `gitFilesAt` throws `UsageError` on a failed `git cat-file`, so Task 1 steps 5-7 and Task 4 package.json reads can exit 2 instead of returning `{ error }`; wrap each call — deferred
+
+## Tasks
+- task 1 done e318da164184

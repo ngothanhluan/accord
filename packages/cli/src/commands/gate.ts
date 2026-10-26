@@ -7,6 +7,7 @@
 import { gateDone, gatePlan, gateReady, renderText } from '@accord-dev/accord-core';
 import { gitAfterReview, gitBranchCommits, gitReviewFact, UsageError } from '../load/fs.js';
 import { colourFindings } from '../render/color.js';
+import { branchFactFor } from './branch-fact.js';
 import type { CommandContext } from '../run.js';
 import { writeKey } from '../write/key.js';
 
@@ -31,8 +32,13 @@ export function gate(
         if (found !== undefined) after[id] = found;
         return { ...withCommits, reviewFacts: { [id]: gitReviewFact(ctx.root, id) }, afterVerify: after };
       })();
+  // ST-LN-62: Done reads the branch diff of every ticket with `lane:`, loaded here from the merge base with the default branch.
+  const forScope =
+    which === 'done' && Object.hasOwn(ctx.snapshot.tickets, id) && ctx.snapshot.tickets[id].frontmatter?.lane !== undefined
+      ? { ...forDone, branchFacts: { [id]: branchFactFor(ctx, id) } }
+      : forDone;
   const result =
-    which === 'ready' ? gateReady(ctx.snapshot, id) : which === 'plan' ? gatePlan(ctx.snapshot, id) : gateDone(forDone, id);
+    which === 'ready' ? gateReady(ctx.snapshot, id) : which === 'plan' ? gatePlan(ctx.snapshot, id) : gateDone(forScope, id);
   ctx.stdout.write(
     options.json ? JSON.stringify(result, null, 2) + '\n' : colourFindings(renderText(result), ctx.stdout),
   );

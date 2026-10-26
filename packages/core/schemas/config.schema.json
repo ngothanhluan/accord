@@ -108,6 +108,7 @@
       "type": "object",
       "additionalProperties": false,
       "properties": { "trailers": { "type": "string", "enum": ["allow", "forbid"] } }
-    }
+    },
+    "generated": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } }
   }
 }

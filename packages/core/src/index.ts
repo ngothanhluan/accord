@@ -24,6 +24,8 @@ export type {
   Ledger,
   Review,
   TicketWork,
+  BranchChange,
+  BranchFact,
 } from './model/snapshot.js';
 export { loadSnapshot } from './load/snapshot.js';
 export { loadConfig } from './load/config.js';
@@ -36,6 +38,7 @@ export type { GateResult } from './gate/index.js';
 export { taskVerdict } from './gate/task.js';
 export { forbiddenLines, trailerReason } from './gate/trailers.js';
 export { planFile, undeclaredFiles, workOf } from './gate/work.js';
+export { scopeLines } from './gate/scope.js';
 export { ID_PREFIX, initialsHolder, initialsOf, nextTicketId, peopleOf } from './lint/ids.js';
 export { untracedTests } from './lint/tests.js';
 export type { TaskVerdict } from './gate/task.js';

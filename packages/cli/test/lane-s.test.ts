@@ -100,7 +100,7 @@ it('risk:complex-branching lane S gate done passes a reviewed change and fails o
   const PASSED = junit({ 'a#b': 'passed' });
   const repo = repoWith({
     'accord/config.yml': CONFIG,
-    'accord/tickets/S-1.md': laneTicket('S-1', { lane: 'S', body: LANE_S_BODY }),
+    'accord/tickets/S-1.md': laneTicket('S-1', { lane: 'S', body: LANE_S_BODY + '\n## Scope\nsrc/a.ts\n' }),
     'src/a.ts': 'a\n',
     [REPORT]: PASSED,
   });

@@ -1,6 +1,6 @@
 ---
 baseline: 96525b1dbf639196a56bb059e13365906db079e9
-plan_hash: "fnv1a64:830b7721b4dff6ed"
+plan_hash: "fnv1a64:dca883f4040b4702"
 ---
 
 # Plan: BUG-LN-11
@@ -42,10 +42,10 @@ export function worktreePush(ctx: CommandContext, id: string): number
 ```
 
 - An id failing `ID` throws `new UsageError('not a valid ticket id: ' + id)` (exit 2), as `worktreeMerge` does.
-- `branch = branchOf(ctx.snapshot, id)`; `ms = fetchLimitMs()`.
-- `gitNoPrompt(ctx.root, ['push', 'origin', \`refs/heads/${branch}:refs/heads/${branch}\`], ms)`. No `-u`, no fetch, no check for an origin remote first: a missing origin is a failed push like any other.
+- `branch = branchOf(ctx.snapshot, id)`.
+- `gitNoPrompt(ctx.root, ['push', 'origin', \`refs/heads/${branch}:refs/heads/${branch}\`])`, with no third argument: the push has no time limit (Approach, plan round 2.2), because a limit would also kill a slow pre-push hook, and `gitNoPrompt` already turns every credential and SSH prompt off, so the push never waits on one. Do not import or call `fetchLimitMs`. No `-u`, no fetch, no check for an origin remote first: a missing origin is a failed push like any other.
 - On success write `pushed: ${branch}\n` to `ctx.stdout` and return 0.
-- On any throw write `push of ${branch} failed; its commits stay local until the next push\n` to `ctx.stdout`, then one more block followed by `\n`: `no answer within ${ms / 1000} seconds` when `(e as NodeJS.ErrnoException).code === 'ETIMEDOUT'` (as `fetchOrigin` decides it), else git's whole stderr trimmed (`String((e as { stderr?: string }).stderr ?? '').trim()`), or `String(e)` when that is empty. Return 0. Nothing goes to `ctx.stderr`.
+- On any throw write `push of ${branch} failed; its commits stay local until the next push\n` to `ctx.stdout`, then git's whole stderr trimmed (`String((e as { stderr?: string }).stderr ?? '').trim()`), or `String(e)` when that is empty, followed by `\n`. There is no time-limit branch and no `no answer within` line. Return 0. Nothing goes to `ctx.stderr`.
 
 **Registration**, in `packages/cli/src/run.ts`: import `worktreePush` beside the other worktree functions and add, after the `merge <id>` subcommand:
 
@@ -61,11 +61,11 @@ export function worktreePush(ctx: CommandContext, id: string): number
 **Command list**, in `packages/cli/test/skill-commands.test.ts` line 92: add `'worktree push'` after `'worktree open'` in the expected array. Nothing else in that file changes.
 
 Behaviour that must not change:
-- In `worktree.ts`: `gitNoPrompt`, `fetchOrigin`, `continueMerge` (its own push and its `push of ... failed:` line), `worktreeMerge`, `worktreeOpen`, `worktreeClean`, `newTicketWorktree` and every other function, byte for byte.
+- In `worktree.ts`: `gitNoPrompt`, `fetchOrigin`, `continueMerge` (its own push and its `push of ... failed:` line), `worktreeMerge`, `worktreeOpen`, `worktreeClean`, `newTicketWorktree` and every other function, byte for byte. `packages/cli/src/commands/fetch-limit.ts` is not touched; fetches keep their limit.
 - In `run.ts`: every other command, its description and its preflight mode.
 - `packages/cli/test/worktree.test.ts`, `packages/cli/test/dashboard.test.ts` and `packages/cli/test/spawn-surface.test.ts` stay green untouched.
 
-Consumes: the claim branch name from the snapshot (`branchOf`), `gitNoPrompt` and `fetchLimitMs`. Produces: `accord worktree push <id>`, which Task 2's skills call, and the test helpers Tasks 3 and 4 reuse.
+Consumes: the claim branch name from the snapshot (`branchOf`) and `gitNoPrompt`. Produces: `accord worktree push <id>`, which Task 2's skills call, and the test helpers Tasks 3 and 4 reuse.
 
 Done when `packages/cli/test/worktree-push.test.ts`, `packages/cli/test/skill-commands.test.ts` and `packages/cli/test/worktree.test.ts` pass.
 
@@ -101,9 +101,10 @@ const OLD = 'A line starting `push of` (Continue only)';
 const FROM = 'A line starting `push of` from `accord worktree push <id>`';
 const NEXT = 'Lines starting `removed`';
 const SAYS = ['the commits stay local until the next push', "go on with the stage's next step", 'never stop or ask the owner'];
+const LEASE = ['After a commit is reworded', 'run the next push as `accord worktree push <id> --force-with-lease`'];
 ```
 
-assert it contains `OPEN`, does not contain `OLD`, contains `FROM`, contains `NEXT` at an index after `FROM`'s, and the slice from `FROM` to `NEXT` contains every string of `SAYS`.
+assert it contains `OPEN`, does not contain `OLD`, contains `FROM`, contains `NEXT` at an index after `FROM`'s, and the slice from `FROM` to `NEXT` contains every string of `SAYS` and every string of `LEASE` (plan round 2.1: the force-with-lease rule sits in the same bullet as the go-on rule).
 
 **Skill sources.** Each edit adds exactly the text shown; no other wording in any file changes. Keep the existing indentation and wrap lines near the width of their neighbours.
 - `packages/core/skills/intent/SKILL.md` step 9: after the sentence ending ``uses `--allow-empty` when nothing changed.`` insert ``Then run `accord worktree push <id>`; go on even if it fails.`` before `On a no,`.
@@ -120,10 +121,13 @@ assert it contains `OPEN`, does not contain `OLD`, contains `FROM`, contains `NE
     line names; when that push fails too, show git's message and stop.
   - A line starting `push of` from `accord worktree push <id>`, which a stage skill runs after its commit:
     the commits stay local until the next push. Show it and git's message after it verbatim and go on with
-    the stage's next step; never stop or ask the owner.
+    the stage's next step; never stop or ask the owner. After a commit is reworded, as `accord-build` step 3
+    does for a forbidden line, run the next push as `accord worktree push <id> --force-with-lease`: a plain
+    push is rejected once the reworded commit was already on origin, and the lease still refuses to replace
+    commits someone else pushed.
   ```
 
-  The first keeps the old bullet's meaning for the merge commit word for word from `the merge commit was not pushed.` on; the second is new. Every other line of worktree.md stays as it is.
+  The first keeps the old bullet's meaning for the merge commit word for word from `the merge commit was not pushed.` on; the second is new. Its last two sentences are the rule for a reworded commit (plan round 2.1, owner: force-push with lease): build step 3's "reword that commit yourself" can rewrite a commit an earlier `accord worktree push` already sent, and without the lease every push after it is rejected while the go-on rule hides it. The rule lives here because `.claude/skills/accord-build/SKILL.md` has no bytes left. The `--force-with-lease` option of `accord worktree push` is added by Task 4; `packages/cli/test/skill-commands.test.ts` checks only the command path `worktree push`, so this task passes before Task 4. Every other line of worktree.md stays as it is.
 
 **Size caps.** The rendered plan and build SKILL.md files sit close to the 5120-byte cap that `packages/core/test/skills.test.ts` checks (`every SKILL.md is at most MAX_SKILL_BYTES bytes`): before this task `.claude/skills/accord-plan/SKILL.md` is 5061 bytes and `.claude/skills/accord-build/SKILL.md` is 5010 bytes, so add no word beyond the text above and rewrap only the lines an edit touches. After the re-render, run that test before anything else. If any of the four files is over the cap, do not reword, shorten or move any other text: stop and report `BLOCKED` with each file's byte count and the cap.
 
@@ -131,7 +135,7 @@ assert it contains `OPEN`, does not contain `OLD`, contains `FROM`, contains `NE
 
 Behaviour that must not change: every phrase `stage-skills.test.ts` already requires, including `REQUIRED.build` (`change note`, `accord approve`, `accord-plan`) and the step-3 order test `risk:complex-branching the build skill routes a task-done refusal over a forbidden commit line`; the review, verify, debug and accord SKILL.md files and every other reference file byte for byte; in worktree.md every line but the replaced `push of` bullet, including every phrase the tests `risk:regression the accord skill opens each ticket in its own worktree and cleans only from the bare dashboard` and `risk:complex-branching the accord skill pushes then enters the worktree on enter and refuses other work in a ticket session` require; the 120-line and 5120-byte caps in `packages/core/test/skills.test.ts`.
 
-Consumes: `accord worktree push <id>` from Task 1. Produces: the five skill clauses that run it and the worktree.md rule that a failed `accord worktree push` never stops the work.
+Consumes: `accord worktree push <id>` from Task 1. Produces: the five skill clauses that run it, the worktree.md rule that a failed `accord worktree push` never stops the work, and the worktree.md rule that the push after a reworded commit uses `--force-with-lease`.
 
 Done when `packages/core/test/stage-skills.test.ts`, `packages/core/test/skills.test.ts` and `packages/cli/test/skill-commands.test.ts` pass after the re-render.
 
@@ -141,7 +145,7 @@ covers: @ac-2, D-04
 files: packages/cli/test/worktree-push.test.ts (new), packages/cli/src/commands/worktree.ts
 verify: packages/cli/test/worktree-push.test.ts#ac-2-each-stage-change-before-build-pushed-with-accord-worktree-push-shows-the-same-stage-in-another-clone (@ac-2)
 
-**Test first**, in `packages/cli/test/worktree-push.test.ts`, title `ac-2 each stage change before build pushed with accord worktree push shows the same stage in another clone`. It should pass on Task 1's code; if a step fails, fix `worktreePush` in `packages/cli/src/commands/worktree.ts`, keeping its contract: exit 0 always for a valid id, `pushed: <branch>\n` on success, and on failure `push of <branch> failed; its commits stay local until the next push\n` followed by git's trimmed stderr (or `no answer within <n> seconds` when the time limit killed git) and `\n`.
+**Test first**, in `packages/cli/test/worktree-push.test.ts`, title `ac-2 each stage change before build pushed with accord worktree push shows the same stage in another clone`. It should pass on Task 1's code; if a step fails, fix `worktreePush` in `packages/cli/src/commands/worktree.ts`, keeping its contract: exit 0 always for a valid id, `pushed: <branch>\n` on success, and on failure `push of <branch> failed; its commits stay local until the next push\n` followed by git's trimmed stderr and `\n`; the push has no time limit.
 
 Follow the same test rules as the ac-1 test in that file: a title with no `@`, no comma and no apostrophe, in a top-level `it(...)`; `commitMsg` from `packages/cli/test/helpers/repo.ts` for every commit (never `-m`, no trailer), `run(argv, cwd)` in-process, `makeClone()` with `c.cleanupAll()` in a `finally`, and a `120_000` timeout. Reuse the helpers Task 1 put at the top of the file: `claimed(c)` (adds the worktree `c.sibling('ST-9')` on a new branch `t/ST-9` from `origin/main`, commits `src/export.ts` as `claim: ST-9` and pushes it), `head(dir)`, `onOrigin(c)` (the sha of `refs/heads/t/ST-9` in `c.remote`) and `row(dir)` (the `{ stage, tasksDone, tasksTotal }` of `ST-9` from `accord dashboard --json` run in `dir`), and `PLAN` from `../../../test/helpers/lane.js`.
 
@@ -154,22 +158,42 @@ Behaviour that must not change: Task 1's test and everything Task 1 lists.
 
 Consumes: `accord worktree push` from Task 1. Produces: the @ac-2 proof.
 
-## Task 4: Prove a failed push is reported, exits 0, and the next push carries every commit
+## Task 4: Prove a failed push is reported and the next push carries every commit, and push a reworded commit with force-with-lease
 
 covers: @ac-3
-files: packages/cli/test/worktree-push.test.ts (new), packages/cli/src/commands/worktree.ts
-verify: packages/cli/test/worktree-push.test.ts#ac-3-a-failed-push-exits-0-with-the-failure-line-and-the-git-message-and-the-next-push-carries-every-commit (@ac-3), packages/cli/test/worktree-push.test.ts#risk:complex-branching-a-push-with-no-answer-within-the-time-limit-is-killed-and-named
+files: packages/cli/test/worktree-push.test.ts (new), packages/cli/src/commands/worktree.ts, packages/cli/src/run.ts
+verify: packages/cli/test/worktree-push.test.ts#ac-3-a-failed-push-exits-0-with-the-failure-line-and-the-git-message-and-the-next-push-carries-every-commit (@ac-3), packages/cli/test/worktree-push.test.ts#risk:data-loss-a-reworded-commit-already-on-origin-is-pushed-with-force-with-lease-and-a-teammate-push-is-never-overwritten
 
-**Tests first**, in `packages/cli/test/worktree-push.test.ts`. Both should pass on Task 1's code; if a case fails, fix `worktreePush` in `packages/cli/src/commands/worktree.ts`, keeping its contract: exit 0 always for a valid id, `pushed: <branch>\n` on success, and on failure `push of <branch> failed; its commits stay local until the next push\n` followed by git's trimmed stderr (or `no answer within <ms / 1000> seconds` when `fetchLimitMs()` ran out, error code `ETIMEDOUT`) and `\n`, nothing on stderr. `FAILED` is the string `push of t/ST-9 failed; its commits stay local until the next push`.
+The contract of `worktreePush` (Task 1): exit 0 always for a valid id, `pushed: <branch>\n` on success, and on failure `push of <branch> failed; its commits stay local until the next push\n` followed by git's trimmed stderr and `\n`, nothing on stderr. The push has no time limit (Approach, plan round 2.2). `FAILED` is the string `push of t/ST-9 failed; its commits stay local until the next push`.
 
-Follow the same test rules as the ac-1 test in that file: titles with no `@`, no comma and no apostrophe, in top-level `it(...)` calls; `commitMsg` and `mergeMsg` from `packages/cli/test/helpers/repo.ts` for every commit and merge (never `-m`, no trailer), `run(argv, cwd)` in-process, `makeClone()` with `c.cleanupAll()` in a `finally`, and a `120_000` timeout. Reuse the helpers Task 1 put at the top of the file: `claimed(c)` (adds the worktree `c.sibling('ST-9')` on a new branch `t/ST-9` from `origin/main`, commits `src/export.ts` as `claim: ST-9` and pushes it), `head(dir)` and `onOrigin(c)` (the sha of `refs/heads/t/ST-9` in `c.remote`).
+Follow the same test rules as the ac-1 test in that file: titles with no `@`, no comma and no apostrophe, in top-level `it(...)` calls; `commitMsg` and `mergeMsg` from `packages/cli/test/helpers/repo.ts` for every commit and merge (never `-m`, no trailer), `run(argv, cwd)` in-process, `makeClone()` with `c.cleanupAll()` in a `finally`, and a `120_000` timeout. Reuse the helpers Task 1 put at the top of the file: `claimed(c)` (adds the worktree `c.sibling('ST-9')` on a new branch `t/ST-9` from `origin/main`, commits `src/export.ts` as `claim: ST-9` and pushes it with `-u`, which also sets this clone's `refs/remotes/origin/t/ST-9`), `head(dir)` and `onOrigin(c)` (the sha of `refs/heads/t/ST-9` in `c.remote`).
+
+**First test**, the @ac-3 test below. It should pass on Task 1's code; if a case fails, fix `worktreePush` in `packages/cli/src/commands/worktree.ts`, keeping the contract above.
 
 `ac-3 a failed push exits 0 with the failure line and the git message and the next push carries every commit`, two cases, each its own `makeClone()`:
 1. Unreachable remote. `wt = claimed(c)`; `claimTip = onOrigin(c)`. `c.git('remote', 'set-url', 'origin', c.remote + '-missing')`. Make a stage change: `run(['approve', 'ST-9'], wt)` and `run(['gate', 'ready', 'ST-9'], wt)` exit 0, `a = commitMsg(wt, 'approach: ST-9 approved')`. `r = await run(['worktree', 'push', 'ST-9'], wt)`: assert `r.code` 0, `r.err` `''`, `r.out` starts with `FAILED + '\n'`, the rest of `r.out` contains `does not appear to be a git repository`, `head(wt)` is still `a` and `onOrigin(c)` is still `claimTip`. Make a second commit while the remote is still unreachable (write `notes.txt`, `b = commitMsg(wt, 'b')`), push again and assert the same failure output. Repair with `c.git('remote', 'set-url', 'origin', c.remote)`, make a third commit `d`, push: exit 0, out `pushed: t/ST-9\n`, and `onOrigin(c)` equals `d`; assert `gitRun(c.remote, 'merge-base', '--is-ancestor', x, 'refs/heads/t/ST-9')` succeeds for `x` of `a` and `b`.
 2. Rejected push. `wt = claimed(c)`; `o = c.otherClone()`; `gitRun(o, 'switch', 't/ST-9')`, write `teammate.txt`, `mate = commitMsg(o, 'teammate')`, `gitRun(o, 'push', '-q', 'origin', 't/ST-9')`. In `wt` write `mine.txt`, `m = commitMsg(wt, 'mine')`, push with `run(['worktree', 'push', 'ST-9'], wt)`: assert code 0, err `''`, out starts with `FAILED + '\n'` and contains `[rejected]`, and `onOrigin(c)` is still `mate`. Repair: `gitRun(wt, 'fetch', '-q', 'origin')`, `mergeMsg(wt, 'origin/t/ST-9', 'merge teammate')`, push again: exit 0, out `pushed: t/ST-9\n`, `onOrigin(c)` equals `head(wt)`, and `m` is an ancestor of it on the remote.
 
-`risk:complex-branching a push with no answer within the time limit is killed and named`: follow `packages/cli/test/worktree.test.ts` lines 2025-2042, with push in place of fetch. At the top of `worktree-push.test.ts` add the same `vi.mock('../src/commands/fetch-limit.js', ...)` block as `worktree.test.ts` lines 16-20 (import `* as limit` and `vi`). `wt = claimed(c)` (the claim push runs before the hang is set up); commit a change in `wt`. With `release = \`${c.root}/.git/hang-release\`` and `ended = \`${c.root}/.git/hang-ended\``, set `c.git('config', 'remote.origin.receivepack', \`cd / && i=0; while [ ! -f '${release}' ] && [ $i -lt 60 ]; do sleep 1; i=$((i+1)); done; : > '${ended}'; :\`)` and `vi.mocked(limit.fetchLimitMs).mockReturnValueOnce(2000)`. Run the push from `wt`, timing it: assert exit 0, elapsed below 15000 ms, and `out` equal to `FAILED + '\nno answer within 2 seconds\n'`. In `finally`, write `release`, then wait up to 10 seconds for `ended` to exist, as lines 2039-2041 do, before `c.cleanupAll()`.
+**Second test, written before the option exists**: `risk:data-loss a reworded commit already on origin is pushed with force-with-lease and a teammate push is never overwritten`. Run it on Task 1's code first: it fails, because `--force-with-lease` is an unknown option there. Add a helper beside the others at the top of the file: `reword(c, dir, text)` writes `text + '\n'` to `` `${c.root}/.git/reword.txt` `` (outside every working tree, so it is never committed), runs `gitRun(dir, 'commit', '--amend', '-q', '-F', file, '--cleanup=verbatim')` and returns `head(dir)`; this is how build step 3 rewords a commit, without `-m` and without a trailer. Two cases, each its own `makeClone()`:
+1. Own reword. `wt = claimed(c)`; write `notes.txt` in `wt`, `commitMsg(wt, 'notes')`; `run(['worktree', 'push', 'ST-9'], wt)` gives `pushed: t/ST-9\n` (the commit is now on origin, and this clone's `refs/remotes/origin/t/ST-9` follows it). `r = reword(c, wt, 'notes reworded')`. A plain `run(['worktree', 'push', 'ST-9'], wt)`: code 0, err `''`, out starts with `FAILED + '\n'` and contains `[rejected]`, and `onOrigin(c)` is not `r`: this is the lag the round-2.1 finding names. Then `run(['worktree', 'push', 'ST-9', '--force-with-lease'], wt)`: assert it equals `{ code: 0, out: 'pushed: t/ST-9\n', err: '' }`, `onOrigin(c)` equals `r`, and `gitRun(c.remote, 'log', '-1', '--format=%s', 'refs/heads/t/ST-9').trim()` equals `notes reworded`.
+2. Teammate push. `wt = claimed(c)`; `o = c.otherClone()`; `gitRun(o, 'switch', 't/ST-9')`, write `teammate.txt`, `mate = commitMsg(o, 'teammate')`, `gitRun(o, 'push', '-q', 'origin', 't/ST-9')`. In `wt`, without fetching, `reword(c, wt, 'claim: ST-9 reworded')`; `run(['worktree', 'push', 'ST-9', '--force-with-lease'], wt)`: code 0, err `''`, out starts with `FAILED + '\n'` and contains `stale info`, and `onOrigin(c)` still equals `mate`: the lease never replaces a commit this clone has not seen.
 
-Behaviour that must not change: Tasks 1 and 3 tests and everything Task 1 lists.
+**Option**, after that test fails:
+- In `packages/cli/src/commands/worktree.ts`, `worktreePush` takes a third parameter: `export function worktreePush(ctx: CommandContext, id: string, o: { lease?: boolean } = {}): number`. When `o.lease === true` the git arguments are `['push', '--force-with-lease', 'origin', refspec]`, the same refspec `refs/heads/${branch}:refs/heads/${branch}`; otherwise they stay `['push', 'origin', refspec]` as Task 1 wrote them. `--force-with-lease` is given with no value, so git compares origin's branch with this clone's `refs/remotes/origin/<branch>`. The call still goes through `gitNoPrompt` with no time limit, and success and failure print exactly as the contract above says. This keeps @ac-3: no prompt, exit 0, the same failure line. A flag on the command is used rather than a raw `git push --force-with-lease origin <branch>` in the skill text, because a raw push could wait on a credential prompt and would print no accord line.
+- In `packages/cli/src/run.ts`, the `push <id>` subcommand Task 1 registered becomes:
 
-Consumes: `accord worktree push` from Task 1. Produces: the @ac-3 proof and the proof of the time-limit line.
+```ts
+  worktree
+    .command('push <id>')
+    .description("push the ticket's claim branch to origin; a failed push prints git's message and exits 0, its commits stay local until the next push")
+    .option('--force-with-lease', 'after a commit is reworded: replace the branch on origin only while it is still where this clone last saw it')
+    .action((id: string, o: { forceWithLease?: boolean }) => {
+      setCode(worktreePush(preflight(opts), id, { lease: o.forceWithLease === true }));
+    });
+```
+
+Behaviour that must not change: a push without `--force-with-lease` never forces; Tasks 1 and 3 tests and everything Task 1 lists; in `run.ts` every other command; `packages/cli/src/commands/fetch-limit.ts` untouched.
+
+Consumes: `accord worktree push` from Task 1. Produces: the @ac-3 proof and `accord worktree push <id> --force-with-lease`, which the worktree.md rule from Task 2 names.
+
+Done when `packages/cli/test/worktree-push.test.ts`, `packages/cli/test/skill-commands.test.ts` and `packages/cli/test/worktree.test.ts` pass.

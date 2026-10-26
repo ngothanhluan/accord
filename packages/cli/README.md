@@ -104,7 +104,7 @@ Lanes:
   `accord-debug` finds a root cause before any fix when something fails for a reason nobody has shown.
 - L (an epic) and P (a project) are not built yet. Accord proposes splitting such work into lane M tickets linked by `depends_on`.
 
-A request moves from S to M when it changes a public interface or schema, touches auth, money or data deletion, has more than one plausible reading, or needs more than about five hand-written files. A lane only rises.
+A request moves from S to M when it changes a public interface or schema, touches a listed sensitive area or auth, money or data deletion, has more than one plausible reading that one question cannot settle, or is expected to touch more than 5 files or more than 3 code areas, tests and generated copies not counted. A scout reads the code before any lane is proposed, a lane S ticket records the files it expects to touch, and `accord gate done` fails it when it touches others. A lane only rises.
 
 Each ticket is worked in its own git worktree, the sibling folder `<repository folder>-<id in lower case>`, prepared by the `setup` commands listed in `config.yml`. `accord worktree open <id>` prints the folder and the `/accord continue <id>` line to type in a session opened there. Tickets done on the remote main branch have their worktree and branches removed by `accord worktree clean`, which `/accord` runs.
 

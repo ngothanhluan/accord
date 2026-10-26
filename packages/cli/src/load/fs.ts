@@ -3,8 +3,8 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { branchTemplateOf, DEFAULT_BRANCH_TEMPLATE, isSha, loadSnapshot, peopleOf } from '@accord-dev/accord-core';
-import type { RepoSnapshot, SnapshotInput } from '@accord-dev/accord-core';
+import { branchTemplateOf, CALL_SIGN, DEFAULT_BRANCH_TEMPLATE, isSha, loadSnapshot, normaliseText, peopleOf, scopeLines } from '@accord-dev/accord-core';
+import type { BranchChange, BranchFact, RepoSnapshot, SnapshotInput } from '@accord-dev/accord-core';
 
 /** Environment problem the user must fix (no git, not a repository, no accord/ folder); exit 2 in Phase 5. */
 export class UsageError extends Error {
@@ -802,6 +802,154 @@ export function gitFilesAt(root: string, ref: string, paths: readonly string[]):
     at = nl + 1 + size + 1;
   }
   return files;
+}
+
+const firstLine = (text: string): string => text.trim().split('\n')[0];
+const byCodePoint = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
+
+/** A path as `git diff` prints it: a value wrapped in `"` has C-style escapes and three-digit octal bytes; any other is returned as is. */
+export function unquoteGitPath(v: string): string {
+  if (v.length < 2 || !v.startsWith('"') || !v.endsWith('"')) return v;
+  const escapes: Record<string, number> = { '\\': 92, '"': 34, a: 7, b: 8, t: 9, n: 10, v: 11, f: 12, r: 13 };
+  const bytes: number[] = [];
+  const inner = v.slice(1, -1);
+  for (let i = 0; i < inner.length; i++) {
+    const ch = inner[i];
+    const oct = /^[0-7]{3}/.exec(inner.slice(i + 1, i + 4));
+    if (ch !== '\\') bytes.push(...Buffer.from(ch + (inner.codePointAt(i)! > 0xffff ? inner[++i] : ''), 'utf8'));
+    else if (oct !== null) {
+      bytes.push(parseInt(oct[0], 8));
+      i += 3;
+    } else if (inner[i + 1] in escapes) bytes.push(escapes[inner[++i]]);
+    else bytes.push(92);
+  }
+  return Buffer.from(bytes).toString('utf8');
+}
+
+/**
+ * ST-LN-62: the branch diff of one lane ticket, from its merge base with the default branch to HEAD, for the Done gate.
+ * Never throws: each failure is an `{ error }` the gate turns into a finding. `-w` is never used, since it hides
+ * whitespace removed inside a line; `--no-renames` makes a rename a deleted and an added path.
+ */
+export function gitBranchFact(
+  root: string,
+  id: string,
+  opts: {
+    rendered: readonly { path: string; text: string }[];
+    scope: boolean;
+    settings?: { path: string; expected: (base: string | undefined) => string | undefined };
+  },
+): BranchFact {
+  const git = (what: string, args: string[]): string => {
+    try {
+      return execFileSync('git', args, {
+        cwd: root,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+        maxBuffer: 64 * 1024 * 1024,
+        env: { ...process.env, GIT_NO_LAZY_FETCH: '1' },
+      });
+    } catch (err) {
+      if ((err as { code?: unknown }).code === 'ENOBUFS') throw new Error('the branch diff is larger than 64 MiB', { cause: err });
+      const stderr = String((err as { stderr?: unknown }).stderr ?? '');
+      throw new Error(`git ${what} failed reading the branch diff: ${firstLine(stderr === '' ? (err as Error).message : stderr)}`, { cause: err });
+    }
+  };
+  const filesAt = (ref: string, paths: readonly string[]): Record<string, string> => {
+    try {
+      return gitFilesAt(root, ref, paths);
+    } catch (err) {
+      const rest = (err as Error).message.split('\n').slice(1).join('\n');
+      throw new Error(`git cat-file failed reading the branch diff: ${firstLine(rest === '' ? (err as Error).message : rest)}`, { cause: err });
+    }
+  };
+  try {
+    const def = defaultRefOf(root);
+    if (def === undefined) {
+      return { error: 'none of origin/HEAD, origin/main, origin/master, main or master resolves, so the branch diff cannot be read; run git fetch origin' };
+    }
+    const base = git('merge-base', ['merge-base', def, 'HEAD']).trim();
+    const raw = git('diff', ['diff', '--raw', '-z', '--no-renames', '--no-ext-diff', base, 'HEAD', '--']).split('\0');
+    const changes: BranchChange[] = [];
+    for (let i = 0; i + 1 < raw.length; i += 2) {
+      const meta = raw[i].replace(/^:/, '').split(' ');
+      const status = meta[4] ?? '';
+      const kind: BranchChange['kind'] =
+        status === 'A' ? 'added' : status === 'D' ? 'deleted' : status === 'M' ? (meta[0] === meta[1] ? 'modified' : 'mode') : 'type';
+      changes.push({ path: raw[i + 1], kind, lines: 0 });
+    }
+    const counts = git('diff', [
+      'diff', '--numstat', '-z', '--no-renames', '--no-ext-diff', '-b', '--ignore-blank-lines', '--ignore-cr-at-eol', base, 'HEAD', '--',
+    ]).split('\0');
+    for (const token of counts) {
+      const m = /^(\d+|-)\t(\d+|-)\t([\s\S]+)$/.exec(token);
+      const change = m === null ? undefined : changes.find((c) => c.path === m[3]);
+      if (m === null || change === undefined) continue;
+      if (m[1] === '-') change.binary = true;
+      else change.lines = Math.max(Number(m[1]), Number(m[2]));
+    }
+    changes.sort((a, b) => byCodePoint(a.path, b.path));
+
+    const patch = git('diff', [
+      '-c', 'core.quotePath=false', 'diff', '-U0', '--no-color', '--no-ext-diff', '--no-textconv', '--no-renames', '-b', '--ignore-blank-lines',
+      '--ignore-cr-at-eol', '--src-prefix=a/', '--dst-prefix=b/', base, 'HEAD', '--',
+    ]).split('\n');
+    let current: BranchChange | undefined;
+    let inHunk = false;
+    for (const line of patch) {
+      if (line.startsWith('diff --git ')) {
+        current = undefined;
+        inHunk = false;
+      } else if (!inHunk && line.startsWith('+++ ')) {
+        const rest = line.slice(4).replace(/\t$/, '');
+        const path = unquoteGitPath(rest).replace(/^b\//, '');
+        if (rest === '/dev/null') continue;
+        current = changes.find((c) => c.path === path);
+        if (current === undefined) return { error: `git diff -U0 named ${path}, which the raw listing of the branch diff does not hold` };
+      } else if (line.startsWith('@@')) {
+        inHunk = true;
+      } else if (inHunk && current !== undefined && line.startsWith('+') && CALL_SIGN.test(line.slice(1).replace(/\r$/, ''))) {
+        (current.calls ??= []).push(line.slice(1));
+      }
+    }
+    const pkgPaths = changes.filter((c) => c.path === 'package.json' || c.path.endsWith('/package.json'));
+    const pkgBase = filesAt(base, pkgPaths.filter((c) => c.kind !== 'added').map((c) => c.path));
+    const pkgHead = filesAt('HEAD', pkgPaths.filter((c) => c.kind !== 'deleted').map((c) => c.path));
+    for (const c of pkgPaths) {
+      c.pkg = { ...(pkgBase[c.path] === undefined ? {} : { base: pkgBase[c.path] }), ...(pkgHead[c.path] === undefined ? {} : { head: pkgHead[c.path] }) };
+    }
+
+    let scope: { commit: string; paths: string[] } | undefined;
+    if (opts.scope) {
+      const file = 'accord/tickets/' + id + '.md';
+      const first = git('log -G ac_hash', [
+        '-c', 'log.showSignature=false', 'log', '--no-show-signature', '--reverse', '--format=%H', '-G', '^ac_hash:', 'HEAD', '--', ':(literal)' + file,
+      ])
+        .split('\n')
+        .find((l) => l.trim() !== '')
+        ?.trim();
+      if (first !== undefined && isSha(first)) {
+        const text = filesAt(first, [file])[file];
+        scope = { commit: first, paths: text === undefined ? [] : (scopeLines(text) ?? []) };
+      }
+    }
+
+    const live = changes.filter((c) => c.kind !== 'deleted').map((c) => c.path);
+    const rendered = opts.rendered.filter((r) => live.includes(r.path));
+    const settingsPath = opts.settings !== undefined && live.includes(opts.settings.path) ? opts.settings.path : undefined;
+    const head = filesAt('HEAD', [...rendered.map((r) => r.path), ...(settingsPath === undefined ? [] : [settingsPath])]);
+    const synced = rendered.filter((r) => head[r.path] !== undefined && normaliseText(head[r.path]) === r.text).map((r) => r.path);
+    if (opts.settings !== undefined && settingsPath !== undefined && head[settingsPath] !== undefined) {
+      const want = opts.settings.expected(filesAt(base, [settingsPath])[settingsPath]);
+      if (want !== undefined && normaliseText(head[settingsPath]) === normaliseText(want)) synced.push(settingsPath);
+    }
+    synced.sort(byCodePoint);
+
+    const baseConfig = filesAt(base, ['accord/config.yml'])['accord/config.yml'];
+    return { base, changes, synced, ...(baseConfig === undefined ? {} : { baseConfig }), ...(scope === undefined ? {} : { scope }) };
+  } catch (err) {
+    return { error: (err as Error).message };
+  }
 }
 
 /** A SnapshotInput of `ref`'s config and tickets, read from the git tree with no checkout. */

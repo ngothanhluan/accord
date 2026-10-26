@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { anchorText, loadSnapshot } from '../src/index.js';
 import { approved } from './helpers/approve.js';
-import { CONFIG, laneTicket, PLAN } from '../../../test/helpers/lane.js';
+import { CONFIG, LANE_S_BODY, laneTicket, PLAN } from '../../../test/helpers/lane.js';
 
 const snap = (files: Record<string, string>) => loadSnapshot({ files, tree: [] });
 const base = { 'accord/config.yml': CONFIG, 'accord/tickets/T-1.md': laneTicket('T-1') };
@@ -80,5 +80,24 @@ describe('anchorText', () => {
     expect(anchorText(snap(base), 'NOPE')).toBeUndefined();
     const legacy = { ...base, 'accord/tickets/T-1.md': laneTicket('T-1', { lane: '' }) };
     expect(anchorText(snap(legacy), 'T-1')).toBeUndefined();
+  });
+
+  it('risk:complex-branching a lane S anchor prints the ## Scope section after Done when, and nothing when the ticket has none', () => {
+    const scope = '\n## Scope\n<!-- one path per line -->\npackages/core/src/a.ts\n- `packages/core/test/a.test.ts`\n';
+    const lane = (body: string) => ({ 'accord/config.yml': CONFIG, 'accord/tickets/S-1.md': laneTicket('S-1', { lane: 'S', body }) });
+    const lines = anchorText(snap(lane(LANE_S_BODY + scope)), 'S-1')!.split('\n');
+    expect(lines.slice(lines.indexOf('## Done when'))).toEqual([
+      '## Done when',
+      'Pressing export saves report.csv.',
+      '',
+      '## Scope',
+      'packages/core/src/a.ts',
+      '- `packages/core/test/a.test.ts`',
+      '',
+      '## Rulings',
+      '(none)',
+      '',
+    ]);
+    expect(anchorText(snap(lane(LANE_S_BODY)), 'S-1')).not.toContain('## Scope');
   });
 });

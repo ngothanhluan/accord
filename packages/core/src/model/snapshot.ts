@@ -36,6 +36,8 @@ export interface SnapshotInput {
   // Ticket id -> its review.md: `clean` when the file is committed with no uncommitted change; `files`, every path changed by
   // the review commit, the last commit whose change to review.md adds or removes a `## Round ` line; absent when the host supplies none.
   reviewFacts?: Record<string, { clean: boolean; files?: string[] }>;
+  // ST-LN-62: ticket id -> its branch diff; host-supplied by gate done for a ticket with `lane:`. Absent when the host supplies none.
+  branchFacts?: Record<string, BranchFact>;
 }
 
 /** Full shas, first parent first; `files` are the paths the commit changes (for a merge, the paths its remerge diff
@@ -45,6 +47,21 @@ export interface AfterVerifyCommit {
   parents: string[];
   files?: string[];
 }
+
+/** ST-LN-62: one path the branch changes from its merge base with the default branch to HEAD, renames split. */
+export interface BranchChange {
+  path: string;
+  kind: 'added' | 'deleted' | 'modified' | 'mode' | 'type'; // 'mode': status M with differing modes; 'type': status T
+  lines: number; // the larger of lines added and lines removed under -b --ignore-blank-lines --ignore-cr-at-eol; 0 when binary
+  binary?: true;
+  calls?: string[]; // added lines, under the same whitespace flags, that the call sign matches; present only when non-empty
+  pkg?: { base?: string; head?: string }; // a file named package.json: its text at the merge base and at HEAD, each absent when the file is
+}
+
+/** ST-LN-62: the branch diff of one lane ticket, or why the host could not read it. */
+export type BranchFact =
+  | { error: string }
+  | { base: string; changes: BranchChange[]; synced: string[]; baseConfig?: string; scope?: { commit: string; paths: string[] } };
 
 export interface Line {
   line: number; // 1-based Markdown line
@@ -144,6 +161,7 @@ export interface Ledger {
   done: Record<string, string>; // task number -> commit sha of its first done line
   rulings: string[]; // every 'Ruling: …' line, list marker stripped
   rulingsSection?: string[]; // the '## Rulings' section's non-blank lines as written, comments stripped; absent without one
+  wordingOnly?: { path: string; reason: string }[]; // every 'Wording-only: <path> — <reason>' line; absent when none
 }
 
 export interface Review {
@@ -151,6 +169,8 @@ export interface Review {
   verdict?: string; // the value of the last 'verdict:' line
   line?: number; // its Markdown line
   trailing?: true; // a non-blank line follows the last verdict line
+  confirmed?: string[]; // paths of 'Confirmed wording-only: <path>' lines in the last '## Round'; absent when none
+  notInterface?: string[]; // paths of 'Not an interface: <path> — <reason>' lines in the last '## Round'; absent when none
 }
 
 export interface TicketWork {
@@ -181,6 +201,8 @@ export interface AccordConfig {
   branch?: string; // claim branch template with exactly one {id}; absent means 't/{id}'
   setup?: string[]; // D-07: commands run in order in a new worktree
   commits?: { trailers?: 'allow' | 'forbid' }; // ST-LN-8 D-01: absent or allow is off
+  generated?: string[]; // ST-LN-62: paths a lane S ticket may change without listing them in ## Scope; an entry ending in / matches the folder
+  sensitive?: Record<string, string[]>; // ST-LN-62: area name -> paths whose change fails a lane S ticket; an entry ending in / matches the folder
 }
 
 export interface RepoSnapshot {
@@ -208,4 +230,5 @@ export interface RepoSnapshot {
   planFacts?: Record<string, { subject?: string; clean: boolean }>; // carried through from SnapshotInput
   afterVerify?: Record<string, AfterVerifyCommit[]>; // carried through from SnapshotInput
   reviewFacts?: Record<string, { clean: boolean; files?: string[] }>; // carried through from SnapshotInput
+  branchFacts?: Record<string, BranchFact>; // carried through from SnapshotInput
 }

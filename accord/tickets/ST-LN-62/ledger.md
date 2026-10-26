@@ -55,10 +55,19 @@
 - Ruling: to show the task 8 test failing, the executor briefly restored accord/config.yml to its pre-list text and put it back with `git checkout`, committing nothing there — the lists were committed by the main session first, so no other failing run existed — cost if wrong: none; the working tree was clean at record time.
 - Ruling: accept `accord/config.yml`, listed under `## Undeclared files`: the main session appended the owner-approved `sensitive:` and `generated:` lists in 2d37335, as plan Task 8's text and Ruling 37 say, though no `files:` line names it — cost if wrong: none.
 - Ruling: review uses three areas (core rules and model; CLI loaders and commands; skill, agent and template text) times the intent and quality lenses, plus one integration reviewer — the package is about 2350 changed lines, over the 1500 split mark; no security reviewer, since no auth, money, migration or data-deletion code changed (drop.ts and worktree.ts are only listed) — cost if wrong: a gate-bypass case is caught only if an area reviewer finds it.
+- Ruling: Ruling 27's character list is superseded by the plan's round-2 entry pattern, which allows an inner space (`^[A-Za-z0-9._@-](?:[A-Za-z0-9._@/ -]*[A-Za-z0-9._@/-])?$`) — review round 1 found the ledger and the schema disagree; the schema follows the plan — cost if wrong: none.
+- Ruling: review round 1's `anchor` fix (Should 4) touches packages/core/src/status/anchor.ts and its test, outside every task's `files:` line — a lane S session resuming from the anchor must see its `## Scope` — cost if wrong: one more section in the lane S anchor output.
 
 ## Deferred
 
 - plan 1.6 Nice — `gitFilesAt` throws `UsageError` on a failed `git cat-file`, so Task 1 steps 5-7 and Task 4 package.json reads can exit 2 instead of returning `{ error }`; wrap each call — deferred
+- review 1 Nice — `isExempt` and `sensitiveEntries` re-parse the merge-base YAML per changed path and per rule (core/src/gate/scope.ts:38,109); parse once per fact — deferred
+- review 1 Nice — packages/core/test/repo-config.test.ts restates the `sensitive:`/`generated:` lists, so a list edit changes two places; kept on purpose by Task 8 and Ruling 37 — deferred
+- review 1 Nice — intent SKILL.md's drop-to-lane-S proposal says "judged on what accord-scout reports" but never dispatches or reuses the scout (D-03) — deferred
+- review 1 Nice — packages/cli/test/lane-flow.test.ts relies on git's default initial branch name; add `branch -M main` after the base commit — deferred
+- review 1 Nice — the review package lists no sensitive hits, and reviewer.md does not say to skip `(none)` / `(cannot tell: …)` lines or that a sign line is `<path>: <sign>` — deferred
+- review 1 Nice — the ac-1 criterion test and the older ac-1 lift test overlap; the size clause is asserted only in the older test — deferred
+- review 1 Nice — review/SKILL.md was reflowed to meet the byte cap, so 100 lines changed for one clause; parallel edits there will conflict — deferred
 
 ## Tasks
 - task 1 done e318da164184

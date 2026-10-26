@@ -97,6 +97,8 @@
 - Ruling: #34 test 3 alone makes the "claim: ST-12" commit on the default branch; the other five destinations branch from a main without it — the table says each test pushes only what it needs, and that claim is irrelevant to the other tickets — cost if wrong: a pick-up decision that reads main's claim commits for another ticket would not be exercised there (executor, task 20)
 - Ruling: #34's last destination asserts `entries` length 2, not 3, recorded in maps.json "34" — that destination pushes only its own work — cost if wrong: Task 37's multiset check flags it if the entry is wrong (executor, task 20)
 - Ruling: task 20's alone times put #50 (10.3 s, kept, ceiling 18), #56 (9.3 s, ceiling 18), #72 (6.1 s, ceiling 13), #77 (7.2 s) and #34's tests near 5 s on rule 3's list at the measuring run — cost if wrong: none (main session, task 20)
+- Ruling: row 97's dropped `.toBe(HELD)` assertion is mapped in maps.json to #27's title test, which makes the same check — cost if wrong: Task 37's multiset check flags the entry (executor, task 21)
+- Ruling: ac-4 (#18, kept, ceiling 32 s) took 36.3 s alone in task 21, over its ceiling, with only H1 allowed by its row; no extra cut is made in build, and it goes first on rule 3's list at the measuring run, where the owner raises the ceiling (a table.md edit and a new `accord approve`) or orders a further cut; ac-5 (#52) took 9.8 s, inside its 18 s ceiling — one alone run on a loaded machine is not the measuring run — cost if wrong: ac-1 fails at verify unless the owner acts on the list (main session, task 21)
 
 ## Deferred
 
@@ -131,3 +133,4 @@
 - task 18 done 0762a193d09c
 - task 19 done 84fd20a88fe2
 - task 20 done c2c0ab00754b
+- task 21 done 07a5625fed7d

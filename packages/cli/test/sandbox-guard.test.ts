@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, it } from 'vitest';
-import { cleanup, run } from './helpers/repo.js';
+import { cleanup, gitRun, run } from './helpers/repo.js';
 import { copyClone, makeClone } from './helpers/worktree.js';
 
 // The facts a copy must share with a clone built the same way; the root and the head sha vary per clone.
@@ -77,3 +77,21 @@ it('risk:data-loss run refuses the checkout and a folder outside the temp folder
     cleanup(tmp);
   }
 });
+
+it('risk:regression an other clone of a template copy is one clone with the fixture identity and its own origin', () => {
+  const c = copyClone(makeClone());
+  try {
+    const o = c.otherClone();
+    for (const k of ['user.email', 'user.name', 'commit.gpgsign']) {
+      expect(gitRun(o, 'config', k).trim()).toBe(c.git('config', k).trim());
+    }
+    expect(gitRun(o, 'remote', 'get-url', 'origin').trim()).toBe(c.remote);
+    expect(gitRun(o, 'rev-parse', 'main').trim()).toBe(c.git('--git-dir=' + c.remote, 'rev-parse', 'main').trim());
+    // One spawn: `clone -c` writes the identity right after init, so it precedes the remote in the config file; later `git config` calls would append it after.
+    const list = gitRun(o, 'config', '--local', '--list');
+    expect(list.indexOf('user.email=fixture@example.invalid')).toBeGreaterThanOrEqual(0);
+    expect(list.indexOf('user.email=')).toBeLessThan(list.indexOf('remote.origin.url='));
+  } finally {
+    c.cleanupAll();
+  }
+}, 60_000);

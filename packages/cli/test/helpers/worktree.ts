@@ -105,8 +105,8 @@ export function copyClone(tpl: Clone, others: string[] = []): Clone & { others: 
     git: (...args) => gitRun(root, ...args),
     otherClone() {
       const dir = realpathSync.native(mkdtempSync(join(tmpdir(), 'accord-wt-other-')));
-      gitRun(dir, 'clone', '-q', remote, '.');
-      for (const [k, v] of IDENTITY) gitRun(dir, 'config', k, v);
+      // H2: one spawn; `clone -c` writes the identity into the new repository's config.
+      gitRun(dir, 'clone', '-q', ...IDENTITY.flatMap(([k, v]) => ['-c', `${k}=${v}`]), remote, '.');
       mine.push(dir);
       return dir;
     },

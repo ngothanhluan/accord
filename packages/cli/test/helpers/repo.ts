@@ -40,6 +40,13 @@ export function makeRepo(fixture = 'valid-build'): string {
   return tmp;
 }
 
+/** A copy of a template repository that has no remote (rule 5 excludes it from the origin check). */
+export function copyRepo(tpl: string): string {
+  const tmp = mkdtempSync(join(tmpdir(), 'accord-cli-'));
+  cpSync(tpl, tmp, { recursive: true });
+  return tmp;
+}
+
 /**
  * A throwaway git repository with nothing in it — no `accord/` folder, no fixture. `accord init` is the one
  * command whose starting state is precisely this, and `makeRepo` always copies a fixture that already

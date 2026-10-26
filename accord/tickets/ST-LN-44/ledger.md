@@ -85,6 +85,7 @@
 - Ruling: in #19 the `blocked({ cwd: wt, command_args: a })` loop is written once in each of destinations 2 and 3, since the old loop was split; the text is identical, so the old multiset is covered with one extra copy — cost if wrong: none (executor, task 12)
 - Ruling: #28 gets one maps.json entry (the gate.test id) although its note names two CLI tests — the old body had a single exit assertion — cost if wrong: one cite swap if the audit wants the lane-commands test named too (executor, task 13)
 - Ruling: task 13 removed an unused `commitAll` import from dashboard.test.ts that lint flagged — inside the task's file — cost if wrong: none (executor, task 13)
+- Ruling: status.test.ts has a local `approveIn(repo, id)` that reads the ticket file, calls the shared `approve` from test/helpers/lane.js and writes it back — the shared helper takes a files map and this file works on disk — cost if wrong: one edit here if the shared helper changes (executor, task 15)
 
 ## Deferred
 
@@ -113,3 +114,4 @@
 - task 12 done bdf3bbb38fa9
 - task 13 done 18c038ee6f08
 - task 14 done 576d195cf82c
+- task 15 done f894e38d37e5

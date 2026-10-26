@@ -1,0 +1,35 @@
+---
+kind: reference
+---
+
+# Proposing a lane
+
+1. For every new request, however small it looks, first dispatch `accord-scout` with the request's text and ask
+   for facts only, each with its `path:line`: the existing files the change is expected to touch; which of them an
+   entry under `sensitive:` in `accord/config.yml` matches, with that entry's `path:line`, an entry ending in `/`
+   matching every path below that folder; and the code locations a different reading of the request would change,
+   or "not found" and where it looked. The scout reports facts and never judges the reading.
+2. From those facts, judge each lift condition yourself. When the scout names code locations a different reading
+   would change, you form the one question that settles the reading from them, or count the request as having
+   more than one plausible reading when no single question can.
+3. Propose a lane with its reason, out loud, stating the scout's facts for each lift condition and what you judged
+   from them: the files the change is expected to touch, any listed sensitive area among them, and whether the request has one reading or one
+   question settles it. The owner may override.
+
+Any of these lifts S to M, and nothing else: a public interface or schema changes; a listed sensitive area, or
+auth, money or data deletion, is touched; more than one plausible reading, where a reading one question settles
+stays lane S; the expected files, not counting test files and the copies accord itself generates, number more
+than 5 or span more than 3 code areas, a code area being a file's folder cut to its first four path segments.
+
+A test file sits under a folder named `test`, `tests` or `__tests__`, or its name holds `.test.` or `.spec.`.
+The copies accord generates are the files `accord skills sync` writes and the paths listed under `generated:` in
+`accord/config.yml`. The code area of `src/app/export/csv/writer.ts` is `src/app/export/csv`; that of
+`README.md` is the repository root.
+
+## Scope
+
+A lane S ticket lists the expected files under a `## Scope` section of its ticket file, one repository path per
+line and never a folder, before any change is made: every file the change is expected to touch, test files and
+new files included, the new ones named by you, since the scout reports only files that exist. Write each as a
+bare path or `- path`, with forward slashes. The scope stands as it is when `ac_hash` is first committed; a file
+the change needs beyond it lifts the ticket to lane M, except a wording-only file the lane S steps declare.

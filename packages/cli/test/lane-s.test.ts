@@ -17,7 +17,7 @@ it('ac-2 a lane S ticket is written and passes gate ready without acceptance cri
     expect(text).toContain('id: "S-1"');
     expect(text).toMatch(/^lane: "?S"?/m);
     expect(text).toMatch(/^title: ".+"/m);
-    expect(text.split('\n').filter((l) => l.startsWith('## '))).toEqual(['## Understood', '## Done when']);
+    expect(text.split('\n').filter((l) => l.startsWith('## '))).toEqual(['## Understood', '## Done when', '## Scope']);
     expect(text).not.toMatch(/^approved_hash:/m);
     const errorsOn = async () =>
       (JSON.parse((await run(['lint', '--json'], repo)).out).findings as F[]).filter(

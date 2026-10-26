@@ -3,7 +3,7 @@ name: accord
 description: Use when starting any work in an accord repository, when seeing where work stands, or when continuing a ticket. Shows the dashboard, continues or picks up a ticket, and classifies a new request into a lane.
 license: MIT
 kind: skill
-loads: [accord/ids.md, accord/lane-s.md, accord/upgrade.md, accord/worktree.md, shared/ask.md, shared/failure.md, shared/finish.md]
+loads: [accord/ids.md, accord/lane.md, accord/lane-s.md, accord/upgrade.md, accord/worktree.md, shared/ask.md, shared/failure.md, shared/finish.md]
 ---
 
 First run the session check in `./worktree.md`, except for `/accord upgrade`. A failure reported in a ticket that has reached verify follows `./failure.md`.
@@ -56,7 +56,7 @@ Run `accord worktree open <id>`: it makes its `branch` from
 
 ## New request: `/accord <request>`
 
-Propose a lane with its reason, out loud. The owner may override.
+Propose a lane as `./lane.md` says, for every new request however small it looks; the owner may override.
 
 | Lane | Example |
 |---|---|
@@ -65,15 +65,11 @@ Propose a lane with its reason, out loud. The owner may override.
 | L: epic | 3 to 10 related stories |
 | P: project | greenfield |
 
-Any of these lifts S to M, and nothing else: a public interface or schema
-changes; auth, money, or data deletion is touched; more than one plausible
-reading; more than about five hand-written files expected, generated and
-rendered copies not counted.
-
 - **S.** Run `accord new ticket <id> --lane S --worktree`; when config.yml has
   `people`, follow `./ids.md` and run it with `--type <story|bug>` and no id
   instead. Then follow `./lane-s.md`. A request that carries `Understood: …`
-  and `Done when: …` from a drop is lane S without asking again.
+  and `Done when: …` from a drop is lane S without asking again; the scout still runs first and its
+  files still go under `## Scope`.
 - **M.** Run `accord new ticket <id> --lane M --worktree`; when config.yml has
   `people`, follow `./ids.md` and run `accord new ticket --type <story|bug>
   --lane M --worktree` with no id instead. It writes the ticket on its

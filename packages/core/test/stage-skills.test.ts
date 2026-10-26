@@ -689,12 +689,50 @@ it('ac-5 the ids reference drops a ticket with accord drop', () => {
 
 const flatS = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
 const LIFT =
-  'Any of these lifts S to M, and nothing else: a public interface or schema changes; auth, money, or data deletion is touched; more than one plausible reading; more than about five hand-written files expected, generated and rendered copies not counted.';
+  "Any of these lifts S to M, and nothing else: a public interface or schema changes; a listed sensitive area, or auth, money or data deletion, is touched; more than one plausible reading, where a reading one question settles stays lane S; the expected files, not counting test files and the copies accord itself generates, number more than 5 or span more than 3 code areas, a code area being a file's folder cut to its first four path segments.";
+
+it('ac-1 a lane is proposed from the scout facts and a lane S ticket records its scope', () => {
+  const ln = flatS('.claude/skills/accord/lane.md');
+  expect(ln).not.toBe('');
+  expect(ln).toBe(flatS('.claude/skills/accord-intent/lane.md'));
+  const at = (s: string) => ln.indexOf(s);
+  expect(at('dispatch `accord-scout`')).toBeGreaterThanOrEqual(0);
+  expect(at('dispatch `accord-scout`')).toBeLessThan(at('you form the one question that settles the reading'));
+  expect(at('you form the one question that settles the reading')).toBeLessThan(at('Propose a lane'));
+  for (const p of [
+    'however small it looks',
+    'ask for facts only, each with its `path:line`',
+    'the code locations a different reading of the request would change',
+    'never judges the reading',
+    'the files the change is expected to touch, any listed sensitive area among them, and whether the request has one reading or one question settles it',
+    'a reading one question settles stays lane S',
+    '`## Scope`',
+    'one repository path per line and never a folder',
+    'before any change is made',
+  ])
+    expect(ln).toContain(p);
+  expect(ln.split('Any of these lifts S to M').length - 1).toBe(1);
+  const acc = flatS('.claude/skills/accord/SKILL.md');
+  const nr = acc.slice(acc.indexOf('## New request'), acc.indexOf('## Upgrade'));
+  expect(nr).toContain('`./lane.md`');
+  expect(nr).toContain('however small it looks');
+  const s = nr.slice(nr.indexOf('- **S.**'), nr.indexOf('- **M.**'));
+  expect(s).toContain('lane S without asking again');
+  expect(s).toContain('`## Scope`');
+  const ls = flatS('.claude/skills/accord/lane-s.md');
+  expect(ls.slice(ls.indexOf('## Start'), ls.indexOf('## Steps'))).toContain('`## Scope`');
+  const step1 = ls.slice(ls.indexOf('1. **Understood.**'), ls.indexOf('2. **Change.**'));
+  expect(step1).toContain('When `## Scope` holds no path');
+  expect(step1.indexOf('When `## Scope` holds no path')).toBeLessThan(step1.indexOf('`accord gate ready <id>`'));
+  expect(flatS('.claude/skills/accord-intent/SKILL.md')).toContain('four lift conditions in `./lane.md`');
+});
 
 it('ac-1 the accord skill lifts lane S to M only by the four conditions left', () => {
   const acc = flatS('.claude/skills/accord/SKILL.md');
-  expect(acc.split(LIFT).length - 1).toBe(1);
-  expect(acc.split('lifts S to M').length - 1).toBe(1);
+  const ln = flatS('.claude/skills/accord/lane.md');
+  expect(ln.split(LIFT).length - 1).toBe(1);
+  expect(ln.split('lifts S to M').length - 1).toBe(1);
+  expect(acc).not.toContain('lifts S to M');
   expect(acc).not.toContain('user-visible');
   expect(acc).not.toContain('about three files');
   const ls = flatS('.claude/skills/accord/lane-s.md');
@@ -728,7 +766,7 @@ it('ac-4 every lane S change is worked from its own lane S ticket in its worktre
   expect(ls.indexOf('reproduces it')).toBeLessThan(ls.indexOf('then fix it'));
   expect(ls.indexOf('`## Round <n>`')).toBeLessThan(ls.indexOf('**Verdict.**'));
   expect(flatS('.claude/skills/accord/worktree.md')).toContain(
-    "except the people entry below and, in a lane S ticket, its `title:`, the carried `Keys:` frontmatter lines, its `## Understood` and `## Done when` lines, its carried `## Vetoes`, `## Decisions` and `## Corrections` sections and the commit and push of that ticket file",
+    "except the people entry below and, in a lane S ticket, its `title:`, the carried `Keys:` frontmatter lines, its `## Understood`, `## Done when` and `## Scope` lines, its carried `## Vetoes`, `## Decisions` and `## Corrections` sections and the commit and push of that ticket file",
   );
   expect(flatS('.claude/skills/accord/lane-s.md')).toContain('run `tests.full` first');
   expect(flatS('.claude/skills/accord/SKILL.md')).toContain('A lane never drops once its intent is approved');

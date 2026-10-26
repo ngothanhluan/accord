@@ -20,3 +20,6 @@ ui: false
 
 ## Done when
 <!-- One line: the observable result that ends the work. -->
+
+## Scope
+<!-- One repository path per line, never a folder: every file the change is expected to touch, tests and new files included. -->

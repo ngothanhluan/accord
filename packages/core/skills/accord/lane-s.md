@@ -10,7 +10,7 @@ no intent interview, approval, approach, plan, executor or verify: you make the 
 ## Start
 
 - New request: the accord skill ran `accord new ticket <id> --lane S --worktree`. Before you follow the `enter:` or
-  `stop:` line it printed as `./worktree.md` says, write the title and the two lines of step 1 into
+  `stop:` line it printed as `./worktree.md` says, write the title, the two lines of step 1 and the `## Scope` lines `./lane.md` describes into
   `<path>/accord/tickets/<id>.md`, asking step 1's question first when it needs one. A request moved from a lane M
   ticket carries `Title: …` and `Keys: …`: write that title, and each `Keys:` line into the frontmatter in place of
   the template's line for that key, commented or not, and each carried `## Vetoes`, `## Decisions` and `## Corrections` section verbatim under its heading after `## Done when`, in the `enter:` and the `stop:` path alike. Then run
@@ -29,7 +29,7 @@ no intent interview, approval, approach, plan, executor or verify: you make the 
    `Done when: …`, use those lines. Go on without waiting only when the request has a concrete anchor (file, symbol,
    error message, or expected behaviour) and one plausible reading; otherwise ask exactly one question, as
    `./ask.md` says, and wait. When `title:` still reads `Short title in business language`, replace it with a few
-   words naming the change in business language. Run `accord gate ready <id>` and fix what it prints until it exits
+   words naming the change in business language. When `## Scope` holds no path, run step 1 of `./lane.md` and write its files there as its `## Scope` says. Run `accord gate ready <id>` and fix what it prints until it exits
    0, then commit the ticket. Make no other change before that. Never run `accord approve`.
 2. **Change.** Make the change in this worktree. For a bug, first write a test that reproduces it and see it fail,
    then fix it. A test you add carries `risk:<kind>` in its name.

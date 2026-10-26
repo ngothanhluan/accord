@@ -19,11 +19,32 @@
         "cite": "`accord approve > after approval gate ready passes`"
       }
     ],
+    "28": [
+      {
+        "old": "expect((await run(['gate', 'ready', id], repo)).code).toBe(0);",
+        "test": "packages/cli/test/gate.test.ts#accord-gate-—-verdict,-printer,-exit-code->-gate-ready-on-a-passing-ticket-exits-0-and-writes-the-renderText-body",
+        "cite": "gate.test `gate ready on a passing ticket exits 0 and writes the renderText body`"
+      }
+    ],
     "69": [
       {
         "old": "expect((await run(['gate', 'ready', 'S-1'], repo)).code).toBe(0);",
         "test": "packages/cli/test/lane-s.test.ts#ac-2-a-lane-S-ticket-is-written-and-passes-gate-ready-without-acceptance-criteria",
         "cite": "the CLI check is made by #63"
+      }
+    ],
+    "71": [
+      {
+        "old": "expect((await run(['gate', 'ready', 'ST-AN-1'], repo)).code).toBe(0);",
+        "test": "packages/cli/test/lane-commands.test.ts#accord-approve->-after-approval-gate-ready-passes",
+        "cite": "the CLI checks are made as in #28"
+      }
+    ],
+    "90": [
+      {
+        "old": "expect((await run(['approve', 'T-1'], repo)).code).toBe(0);",
+        "test": "packages/cli/test/lane-commands.test.ts#accord-approve->-writes-approved_hash-once-and-is-a-no-op-the-second-time",
+        "cite": "the CLI check is made by `accord approve > writes approved_hash once and is a no-op the second time`"
       }
     ],
     "96": [

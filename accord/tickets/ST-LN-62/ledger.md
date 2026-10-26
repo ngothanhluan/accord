@@ -53,6 +53,8 @@
 - Ruling: review/SKILL.md went 66 bytes over the 5120 cap with the `## Interface signs` clause, so its paragraphs were reflowed to a wider wrap with no wording dropped — the cap is a test, and cutting words would change the stage — cost if wrong: a noisier diff of that file.
 - Ruling: repo-config.test.ts imports `loadConfig` from `../src/load/config.js`, the core-internal path the task names — cost if wrong: one import line.
 - Ruling: to show the task 8 test failing, the executor briefly restored accord/config.yml to its pre-list text and put it back with `git checkout`, committing nothing there — the lists were committed by the main session first, so no other failing run existed — cost if wrong: none; the working tree was clean at record time.
+- Ruling: accept `accord/config.yml`, listed under `## Undeclared files`: the main session appended the owner-approved `sensitive:` and `generated:` lists in 2d37335, as plan Task 8's text and Ruling 37 say, though no `files:` line names it — cost if wrong: none.
+- Ruling: review uses three areas (core rules and model; CLI loaders and commands; skill, agent and template text) times the intent and quality lenses, plus one integration reviewer — the package is about 2350 changed lines, over the 1500 split mark; no security reviewer, since no auth, money, migration or data-deletion code changed (drop.ts and worktree.ts are only listed) — cost if wrong: a gate-bypass case is caught only if an area reviewer finds it.
 
 ## Deferred
 

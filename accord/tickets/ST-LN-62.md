@@ -66,7 +66,7 @@ Feature: ST-LN-62
     Then README.md causes no finding
     But when that confirmation line is missing, or README.md is new, deleted, or changed in more than 3 lines, it fails as in @ac-2
 
-  @ac-4
+  @ac-4 @test:packages/core/test/scope.test.ts#ac-4-gate-done-fails-a-lane-S-ticket-that-touched-a-listed-sensitive-area
   Scenario: gate done fails a lane S ticket that touched a listed sensitive area
     Given accord/config.yml lists packages/cli/src/run.ts under sensitive: interface, an entry ending in / matching every path below that folder
     And a lane S ticket's branch changes packages/cli/src/run.ts in a way that survives ignoring whitespace, even when the file is in its scope or declared wording-only

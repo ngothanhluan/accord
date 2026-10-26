@@ -41,6 +41,8 @@
 - Ruling: wordingOnlyFault is a module-level function in scope.ts that takes the change, path, confirmed list and id, and outOfScope calls it — the plan fixed the check order and message text but not the code shape — cost if wrong: a trivial refactor.
 - Ruling: the declared path is matched against outsideScope paths by exact string, so a wording-only line in the ledger that names a path inside the Scope has no effect — the plan says only paths outside the scope are judged — cost if wrong: none seen.
 - Ruling: from task 2 on, the main session runs only the task's own test files with the JUnit reporter before `accord task-done`, not the whole `tests.affected` set, and executors never run `tests.full` — the owner postponed the slow runs to ST-LN-44 and asked why the full suite ran each task — cost if wrong: a break in a test outside the task's files is caught only at verify's full run.
+- Ruling: `generated` entries use the same path-item schema as `sensitive`, so a `generated:` entry with a glob, a backslash or a `..` segment fails config validation — the plan says so — cost if wrong: an existing config with such an entry fails the schema (this repository has none).
+- Ruling: the first task 3 commit skipped exempt paths in `sensitiveTouched`, against the plan's "with no exemption" and Ruling 29; the main session sent the executor back, and 35f3eb4 removes the filter with a failing-first case for a generated and a synced path — cost if wrong: none.
 
 ## Deferred
 
@@ -49,3 +51,4 @@
 ## Tasks
 - task 1 done e318da164184
 - task 2 done 06cd1de92a04
+- task 3 done 35f3eb42e494

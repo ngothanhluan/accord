@@ -62,6 +62,7 @@
 - Ruling: copyClone's returned object repeats makeClone's otherClone/sibling code instead of sharing a factory — the brief says makeClone and its returned object must not change — cost if wrong: about 15 duplicated lines (executor, task 2)
 - Ruling: rule 5's shared-path check runs after the copies are made; it can only trip on a bug in copyClone, so no test exercises it — cost if wrong: the guard could be dead code (executor, task 2)
 - Ruling: task 2's affected run (26 files, 475 tests, 896 s) had one failure, the same show-approval ac-1 timeout as task 1's run — not task 2's verify case — cost if wrong: as for task 1
+- Ruling: task 3's one-spawn proof checks config-file order (identity before remote.origin.url) — a plain read of the final config cannot tell one spawn from four, because the old code also ended with the same values — cost if wrong: the test is tied to git writing `clone -c` keys right after init; if git changes that order the test fails loudly, nothing else breaks (executor, task 3)
 
 ## Deferred
 
@@ -78,3 +79,4 @@
 ## Tasks
 - task 1 done 5b5e41f6cbc9
 - task 2 done 17e374e76937
+- task 3 done 4249efe3a669

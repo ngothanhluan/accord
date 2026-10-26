@@ -74,6 +74,9 @@
 - Ruling: after-verify.test.ts's `commit()` now calls `commitMsg` (`-F` file, `--cleanup=verbatim`) instead of `git commit -m` — conventions.md forbids `-m` — cost if wrong: none, the behaviour is the same (executor, task 9)
 - Ruling: the one old `git commit -m fix` after `git add src/fix.ts` stays in the verification.md destination — `commitMsg` uses `add -A` and would also commit the untracked verification.md, which changes that case — cost if wrong: one `-m` commit line left in a test (executor, task 9)
 - Ruling: #4's "ticket tip on the default branch" destination builds the minimal state (work, tick, push t/ST-9:main) instead of replaying the fix and both merges — its single assertion (:66) only needs the tip on main — cost if wrong: it checks a smaller history than the old chain did; review reads this destination (executor, task 9)
+- Ruling: in drop.test.ts, tests 1-3 of #7 and the first and second of #39 copy the claimed template (claim tip 'second' replaces 'A'); #7's tests 4 and 5, #79's two tests and #39's third and fourth copy the plain template, since they need no claim branch and #79's own claim creates t/ST-10 in a worktree — cost if wrong: none to what is checked (executor, task 10)
+- Ruling: drop.test.ts's old `undrop` helper and `rmSync(hook)` cleanup are gone — they were setup between blocks, not assertions; each destination builds its own state — cost if wrong: none (executor, task 10)
+- Ruling: #7's "origin tip ahead of local" test no longer pushes a local B first; origin goes 'second' to C, local stays at 'second' — cost if wrong: one step less history than before, same assertions; review reads it (executor, task 10)
 
 ## Deferred
 
@@ -97,3 +100,4 @@
 - task 7 done ff4d1da212ec
 - task 8 done 733af3c94f6a
 - task 9 done b472f0061748
+- task 10 done a7848df58c49

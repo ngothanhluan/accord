@@ -57,6 +57,8 @@
 - Ruling: review uses three areas (core rules and model; CLI loaders and commands; skill, agent and template text) times the intent and quality lenses, plus one integration reviewer — the package is about 2350 changed lines, over the 1500 split mark; no security reviewer, since no auth, money, migration or data-deletion code changed (drop.ts and worktree.ts are only listed) — cost if wrong: a gate-bypass case is caught only if an area reviewer finds it.
 - Ruling: Ruling 27's character list is superseded by the plan's round-2 entry pattern, which allows an inner space (`^[A-Za-z0-9._@-](?:[A-Za-z0-9._@/ -]*[A-Za-z0-9._@/-])?$`) — review round 1 found the ledger and the schema disagree; the schema follows the plan — cost if wrong: none.
 - Ruling: review round 1's `anchor` fix (Should 4) touches packages/core/src/status/anchor.ts and its test, outside every task's `files:` line — a lane S session resuming from the anchor must see its `## Scope` — cost if wrong: one more section in the lane S anchor output.
+- Ruling: review round 1's anchor fix prints `## Scope` in a lane S anchor only when the ticket has the section, with no "(none)" line — the existing lane S anchor test in lane-s.test.ts has no Scope and expects its exact line order — cost if wrong: a lane S ticket with no Scope shows nothing in the anchor, and gate done still fails it.
+- Ruling: review round 1's Should 2 and 3 share commit a5b5404 — both regenerate packages/core/src/generated/skills.ts, so separate commits would carry the same generated change — cost if wrong: none.
 
 ## Deferred
 

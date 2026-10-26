@@ -87,6 +87,8 @@
 - Ruling: task 13 removed an unused `commitAll` import from dashboard.test.ts that lint flagged — inside the task's file — cost if wrong: none (executor, task 13)
 - Ruling: status.test.ts has a local `approveIn(repo, id)` that reads the ticket file, calls the shared `approve` from test/helpers/lane.js and writes it back — the shared helper takes a files map and this file works on disk — cost if wrong: one edit here if the shared helper changes (executor, task 15)
 - Ruling: lane-flow.test.ts's `stageRepo` setup helper holds one added `expect(gateReadyIn(...)).toBe('pass')`, outside any test body, so a core ready hash that stops passing fails setup loudly; the ac-4 multiset reads test bodies only — cost if wrong: none, delete the line (executor, task 16)
+- Ruling: #87's merge commit gets the message "Merge branch 'side'" and its other two commits "fixture", all written with `commit-tree -F`, not `-m` — the conventions forbid `-m` and no assertion reads the messages — cost if wrong: a test that read merge subjects would see different history (executor, task 17)
+- Ruling: task 17's mutation check edited packages/cli/src/lane-args.ts only in the working tree and reverted it; `git diff --stat 1cec2ac HEAD -- packages/cli/src packages/core/src` prints nothing after the task, so D-11 holds — cost if wrong: none
 
 ## Deferred
 
@@ -117,3 +119,4 @@
 - task 14 done 576d195cf82c
 - task 15 done f894e38d37e5
 - task 16 done 2fc12244f800
+- task 17 done d07c341dbede

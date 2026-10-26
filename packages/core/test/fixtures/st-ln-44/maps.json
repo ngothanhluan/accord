@@ -7,11 +7,35 @@
         "cite": "the CLI exit 0 is made by #63"
       }
     ],
+    "20": [
+      {
+        "old": "expect((await run(['approve', 'ST-9'], c.root)).code).toBe(0);",
+        "test": "packages/cli/test/lane-commands.test.ts#accord-approve->-writes-approved_hash-once-and-is-a-no-op-the-second-time",
+        "cite": "`accord approve > writes approved_hash once and is a no-op the second time`"
+      },
+      {
+        "old": "expect((await run(['gate', 'ready', 'ST-9'], c.root)).code).toBe(0);",
+        "test": "packages/cli/test/lane-commands.test.ts#accord-approve->-after-approval-gate-ready-passes",
+        "cite": "`accord approve > after approval gate ready passes`"
+      }
+    ],
     "69": [
       {
         "old": "expect((await run(['gate', 'ready', 'S-1'], repo)).code).toBe(0);",
         "test": "packages/cli/test/lane-s.test.ts#ac-2-a-lane-S-ticket-is-written-and-passes-gate-ready-without-acceptance-criteria",
         "cite": "the CLI check is made by #63"
+      }
+    ],
+    "96": [
+      {
+        "old": "expect((await run(['approve', 'ST-9'], c.root)).code).toBe(0);",
+        "test": "packages/cli/test/lane-commands.test.ts#accord-approve->-writes-approved_hash-once-and-is-a-no-op-the-second-time",
+        "cite": "the CLI checks are made as in #20"
+      },
+      {
+        "old": "expect((await run(['gate', 'ready', 'ST-9'], c.root)).code).toBe(0);",
+        "test": "packages/cli/test/lane-commands.test.ts#accord-approve->-after-approval-gate-ready-passes",
+        "cite": "the CLI checks are made as in #20"
       }
     ]
   },

@@ -1,6 +1,6 @@
 ---
 baseline: 4253a6510c6f01e7afb557c7cfd722b63a08434f
-plan_hash: "fnv1a64:2cd57ed2bf0b6c4f"
+plan_hash: "fnv1a64:1195204059b80773"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -13,6 +13,8 @@ real git repository (@ac-2). Task 2 adds the declared and confirmed wording-only
 out-of-scope files and the interface signs in `accord review-package`. Task 6 makes the lane proposal start from the
 scout and makes lane S tickets record `## Scope` (@ac-1). Task 7 writes the reviewer and record text for the three
 fixed lines. Task 8 holds this repository's own `sensitive:` and `generated:` lists, which the owner reviews first.
+Task 9, added at re-plan from the final review, changes the trigger of `gate.branch-unknown` from "the branch diff
+does not change the ticket file" to "the branch diff holds no change", and supersedes the Task 1 text it names.
 
 Rules for every task:
 - Test ids: every test this plan writes is a top-level `it(...)` with no `describe` around it. Its report id is the
@@ -717,3 +719,61 @@ Interface: none; the test reads the file the main session wrote.
 
 Must not change: every other key of `accord/config.yml`, which the main session leaves as it is;
 `worktree.test.ts:564-570`.
+
+## Task 9: gate done reads lane work from a branch diff that lacks the ticket file and fails only an empty branch diff
+covers: D-04
+files: packages/core/src/gate/scope.ts (new), packages/core/test/scope.test.ts (new), packages/cli/test/branch-fact.test.ts (new)
+verify: packages/core/test/scope.test.ts#risk:regression-gate-done-reads-lane-work-from-a-branch-diff-that-lacks-the-ticket-file-and-fails-only-an-empty-branch-diff
+
+Why: `gate.branch-unknown` fires today whenever the committed branch diff does not change `accord/tickets/<id>.md`
+(`changesTicket`, `packages/core/src/gate/scope.ts:68`). A lane M ticket whose `approved_hash` and `ac_hash` were
+committed on the default branch, whose scenarios are all `@ui` (so `accord task-done` writes no `@test` tag into the
+ticket), and whose claim commit is `--allow-empty` (`packages/cli/src/commands/worktree.ts:420`) commits only code
+and files under `accord/tickets/<id>/` on its branch. Verify step 6 runs `accord gate done` with the tick still
+uncommitted, so Done fails with a reason about the default branch, and `outOfScope` (`scope.ts:87`) is skipped for
+such a branch too. The check exists to catch lane work committed on the default branch: then HEAD is at or behind the
+merge base and the branch diff holds no change at all. That is the new trigger.
+
+This task supersedes, without editing their text: the Task 1 test bullet "A fact whose `changes` lack
+`accord/tickets/S-1.md` gives one `gate.branch-unknown` ..."; the third reason of `branchUnknown` and the clause "that
+changes the ticket file" of `outOfScope` in Task 1's Interface; and the Task 1 CLI bullet "Lane work on the default
+branch", whose expected text changes as below.
+
+Consumes: Task 1's `factOf`, `branchUnknown`, `outOfScope`, `outsideScope` and the `scope.test.ts` helpers `S1`, `ch`,
+`fact`, `snap`, `found`. Produces: the new trigger and reason of `gate.branch-unknown`.
+
+Test first, appended to `packages/core/test/scope.test.ts`, run failing before `scope.ts` changes:
+- `it('risk:regression gate done reads lane work from a branch diff that lacks the ticket file and fails only an empty branch diff')`:
+  - Lane M, the failing case: `m = snap({ 'accord/tickets/T-1.md': laneTicket('T-1') }, { 'T-1': { ...fact([], {}, 'T-1'), changes: [ch('src/x.ts', 2), ch('accord/tickets/T-1/plan.md', 3, 'added'), ch('accord/tickets/T-1/ledger.md', 1, 'added')] } as BranchFact })`;
+    `found(m, 'T-1', 'gate.branch-unknown')` is `[]`.
+  - Lane S, scope still checked: `s = snap({ 'accord/tickets/S-1.md': S1 }, { 'S-1': { ...fact([]), changes: [ch('packages/core/src/status/dashboard.ts', 2), ch('src/x.ts', 1)] } as BranchFact })`;
+    `found(s, 'S-1', 'gate.branch-unknown')` is `[]`; `found(s, 'S-1', 'gate.out-of-scope')` has length 1 and its
+    reason starts `src/x.ts is changed on this branch but not listed in ## Scope`.
+  - The same lane S fact without the `src/x.ts` change gives no `gate.out-of-scope` finding.
+
+Existing tests, updated in the same commit:
+- `packages/core/test/scope.test.ts`, inside the Task 1 test
+  `risk:complex-branching gate done fails closed on a missing or failed branch diff a diff without the ticket file and an absent or empty scope`
+  (title unchanged): the `noTicket` fact (line 66) becomes `{ ...fact([]), changes: [] } as BranchFact`, an empty
+  branch diff; the expectation at line 69 becomes `toContain('holds no change')`, plus
+  `toContain('never on the default branch')`; the length-1 and the empty `gate.out-of-scope` expectations stay. A
+  lane M fact with `changes: []` for `laneTicket('T-1')` also gives one `gate.branch-unknown`.
+- `packages/cli/test/branch-fact.test.ts:108`, the on-main case of the first test (HEAD on `main` equals the merge
+  base, so the diff is empty): `toContain('does not change accord/tickets/S-1.md')` becomes
+  `toContain('holds no change')`. Every other assertion of that file stays.
+
+Interface, `packages/core/src/gate/scope.ts`:
+- Replace `changesTicket` with `const hasChanges = (fact: BranchRead): boolean => fact.changes.length > 0;`. A change
+  of any kind counts here, a whitespace-only one included, since any change means HEAD is ahead of the merge base.
+- `branchUnknown`: the no-fact and error-fact reasons stay verbatim. When `hasChanges(fact)` it returns `[]`; otherwise
+  one finding, `file` the ticket file:
+  `` `the branch diff from ${fact.base}, the merge base with the default branch, to HEAD holds no change, so HEAD is at or behind the default branch; lane work is committed on the ticket's own branch, never on the default branch` ``.
+- `outOfScope`: its guard becomes `fact === undefined || 'error' in fact || !hasChanges(fact)`, so a branch diff that
+  lacks the ticket file is scope-checked, and an empty diff gives only the `gate.branch-unknown` reason.
+
+Must not change: the no-fact and error-fact reasons of `gate.branch-unknown`; its silence for a ticket without
+`lane:`; every `gate.out-of-scope`, `gate.sensitive-touched` and `gate.interface-sign` reason; `outsideScope`,
+`isExempt`, `isCounted`, `interfaceSigns`; every `ac-` test of `scope.test.ts` and its title; `gitBranchFact`, which
+still returns `{ error }` for a missing default ref or a failed git call; `rules.ts`.
+
+Test run, after the preamble's build steps: `npx vitest run packages/core/test/scope.test.ts packages/core/test/lane-done.test.ts packages/cli/test/branch-fact.test.ts packages/cli/test/lane-flow.test.ts`.

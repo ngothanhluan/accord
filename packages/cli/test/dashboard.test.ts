@@ -1,38 +1,14 @@
 // ST-LN-2 task 1: `accord dashboard` — sections, column headers, titles; ST-LN-61 lifted the row caps.
 import { expect, it } from 'vitest';
-import { approvedHash, dashboard, gateReady, loadSnapshot, setFrontmatterKey } from '@accord-dev/accord-core';
+import { dashboard, loadSnapshot } from '@accord-dev/accord-core';
 import type { Dashboard, StatusRow } from '@accord-dev/accord-core';
 import { renderDashboard } from '../src/render/dashboard.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanup, commitAll, commitAllAt, gitRun, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
-import { CONFIG, LANE_BODY, laneTicket, PLAN } from '../../../test/helpers/lane.js';
+import { building, CONFIG, done, LANE_BODY, laneTicket, P, ready } from '../../../test/helpers/lane.js';
+import type { Files } from '../../../test/helpers/lane.js';
 
-type Files = Record<string, string>;
-type Opts = { lane?: string; frontmatter?: string[] };
-const P = (id: string) => 'accord/tickets/' + id + '.md';
-const AC = gateReady(loadSnapshot({ files: { 'accord/config.yml': CONFIG, [P('X-1')]: laneTicket('X-1') }, tree: [] }), 'X-1').acHash as string;
-const approve = (files: Files, id: string) => {
-  const t = loadSnapshot({ files: { 'accord/config.yml': CONFIG, [P(id)]: files[P(id)] }, tree: [] }).tickets[id];
-  files[P(id)] = setFrontmatterKey(files[P(id)], 'approved_hash', approvedHash(t));
-};
-const ready = (files: Files, id: string, opts?: Opts) => {
-  files[P(id)] = laneTicket(id, opts);
-  approve(files, id);
-  files[P(id)] = setFrontmatterKey(files[P(id)], 'ac_hash', AC);
-};
-const building = (files: Files, id: string, opts?: Opts) => {
-  files[P(id)] = laneTicket(id, opts);
-  approve(files, id);
-  files['accord/tickets/' + id + '/plan.md'] = PLAN;
-};
-const done = (files: Files, id: string, opts?: Opts) => {
-  building(files, id, opts);
-  files['accord/tickets/' + id + '/ledger.md'] = '## Tasks\n- task 1 done abc1234\n- task 2 done abc1234\n';
-  files['accord/tickets/' + id + '/review.md'] = 'verdict: converged\n';
-  files[P(id)] = setFrontmatterKey(files[P(id)], 'verified', ['ac-1', 'ac-2']);
-  files[P(id)] = setFrontmatterKey(files[P(id)], 'verified_hash', AC);
-};
 const board = (files: Files, claims: Record<string, string> = {}, viewer = 'an@example.com') =>
   dashboard(loadSnapshot({ files, tree: [], claims }), viewer);
 const summaryLine = (text: string) => text.split('\n').find((l) => l.includes(' in progress, ')) as string;

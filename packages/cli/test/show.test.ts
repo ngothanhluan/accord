@@ -1,8 +1,8 @@
 // ST-LN-6 task 2: `accord show <id> [--json]`, in-process through runCli on a fixture repository.
 import { expect, it } from 'vitest';
-import { approvedHash, gateReady, loadSnapshot, setFrontmatterKey } from '@accord-dev/accord-core';
 import { cleanup, commitAll, gitRun, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
-import { CONFIG, LANE_BODY, laneTicket, PLAN } from '../../../test/helpers/lane.js';
+import { done, LANE_BODY, laneTicket, P, PLAN } from '../../../test/helpers/lane.js';
+import type { Files } from '../../../test/helpers/lane.js';
 
 const LONG = 'Export every report of the month as one CSV file with quoted cells';
 const STEP = 'And the file name is the report name followed by the month and the extension csv';
@@ -95,27 +95,6 @@ it('risk:security show text turns control and bidi characters into spaces', asyn
     cleanup(noLane);
   }
 });
-
-type Files = Record<string, string>;
-type Opts = { lane?: string; frontmatter?: string[] };
-const P = (id: string) => 'accord/tickets/' + id + '.md';
-const AC = gateReady(loadSnapshot({ files: { 'accord/config.yml': CONFIG, [P('X-1')]: laneTicket('X-1') }, tree: [] }), 'X-1').acHash as string;
-const approve = (files: Files, id: string) => {
-  const t = loadSnapshot({ files: { 'accord/config.yml': CONFIG, [P(id)]: files[P(id)] }, tree: [] }).tickets[id];
-  files[P(id)] = setFrontmatterKey(files[P(id)], 'approved_hash', approvedHash(t));
-};
-const building = (files: Files, id: string, opts?: Opts) => {
-  files[P(id)] = laneTicket(id, opts);
-  approve(files, id);
-  files['accord/tickets/' + id + '/plan.md'] = PLAN;
-};
-const done = (files: Files, id: string, opts?: Opts) => {
-  building(files, id, opts);
-  files['accord/tickets/' + id + '/ledger.md'] = '## Tasks\n- task 1 done abc1234\n- task 2 done abc1234\n';
-  files['accord/tickets/' + id + '/review.md'] = 'verdict: converged\n';
-  files[P(id)] = setFrontmatterKey(files[P(id)], 'verified', ['ac-1', 'ac-2']);
-  files[P(id)] = setFrontmatterKey(files[P(id)], 'verified_hash', AC);
-};
 
 it('risk:regression show finds a ticket filed only on its claim branch at that branch stage', async () => {
   const repo = makeLaneRepo();

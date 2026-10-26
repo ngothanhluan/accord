@@ -49,6 +49,8 @@
 - Ruling: in the review package a lane S ticket gets both new sections and any other lane only `## Interface signs` — the task text says so — cost if wrong: none.
 - Ruling: when `branchFactFor` returns an error fact, both review-package sections read `(cannot tell: <error>)` and the command still exits 0 — the task says the command never fails on the fact — cost if wrong: none.
 - Ruling: the existing `ac-1` lift-condition test keeps its title and now reads the lift conditions from lane.md — a second test with that title would collide on the verify id — cost if wrong: none.
+- Ruling: lane-s.md step 2 holds the Wording-only sentence after the "A test you add carries `risk:<kind>`" sentence — the plan said "step 2 gains" without a position — cost if wrong: readability only.
+- Ruling: review/SKILL.md went 66 bytes over the 5120 cap with the `## Interface signs` clause, so its paragraphs were reflowed to a wider wrap with no wording dropped — the cap is a test, and cutting words would change the stage — cost if wrong: a noisier diff of that file.
 
 ## Deferred
 
@@ -61,3 +63,4 @@
 - task 4 done 17aba7b53073
 - task 5 done 337356a7bee7
 - task 6 done 770aca3c8347
+- task 7 done 87484ec3cdbc

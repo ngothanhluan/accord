@@ -29,9 +29,9 @@ ui: false
 ## Intent
 <!-- At most five lines: why, for whom, how success is measured, and what this does not do. -->
 For the owner running several sessions in parallel worktrees, and for teammates on other machines: plan, build and review commit on the claim branch but never push it (only claim and verify push), and the dashboard reads another worktree's ticket from the pushed branch, so ST-LN-44 showed build 0/37 everywhere except its own worktree, which showed 18/37.
-Success: once a stage records progress (a build task, a written plan, a review round), the claim branch on origin holds it, so `accord dashboard` run in any other worktree or clone that has fetched shows the same stage and task count as the ticket's own worktree.
+Success: once a build task is recorded, the claim branch on origin holds it, so `accord dashboard` run in any other worktree or clone that has fetched shows the same task count as the ticket's own worktree.
 A failed push never stops the work; it is reported, and the next successful push carries every commit made since.
-Not in scope: changing which ref the dashboard reads or who it shows as holder (D-02), a central state file (D-01), uncommitted changes in another worktree, and refreshing the panel on another session's commit (D-03).
+Not in scope: pushing after the plan or a review round (D-04), changing which ref the dashboard reads or who it shows as holder (D-02), a central state file (D-01), uncommitted changes in another worktree, and refreshing the panel on another session's commit (D-03).
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.
@@ -47,18 +47,11 @@ Feature: BUG-LN-11
     And accord dashboard in a second clone that has fetched shows the same task count as the ticket's own worktree
 
   @ac-2
-  Scenario: A written plan and each recorded review round reach origin
-    Given a lane M ticket whose claim branch is pushed
-    When the plan stage commits plan.md, and later the review stage records each review round
-    Then before the stage takes its next step, the claim branch on origin holds every commit made so far, fix commits of the round included
-    And accord dashboard in a second clone that has fetched shows the same stage as the ticket's own worktree
-
-  @ac-3
   Scenario: A failed push does not stop the work
     Given a lane M ticket at build whose push fails for any reason, an unreachable remote or a rejected push alike
     When a build task is recorded
     Then the task stays recorded locally as today and the next task starts
-    And a line says the push failed, why, and that the commits stay local until the next push
+    And it prints a line saying the push failed and the commits stay local until the next push, followed by git's own message
     And when the next task is recorded and its push succeeds, origin holds every commit made since
 ```
 
@@ -70,10 +63,12 @@ Feature: BUG-LN-11
 - D-01 Git refs stay the only shared state; no central state file is added — owner, after asking whether a central state file was needed and hearing it was not: "ok, create it" (translated from Vietnamese)
 - D-02 Fix the root cause by pushing the claim branch while the ticket is worked, instead of making the dashboard read an unpushed local branch; the pushed-over-local rule of ST-LN-1 and BUG-LN-2 is unchanged — owner, choosing that direction: "stop, don't create a new ticket, rewrite this ticket and do it now" (translated from Vietnamese)
 - D-03 The panel refreshing on another session's commit is out of scope; it waits until ST-LN-63 makes the dashboard faster, and ST-LN-3 D-06 (no timer) stands — same answer as D-02
+- D-04 Only a recorded build task pushes; the plan stage and the review stage push nothing new — "Drop ac-2, it isn't really needed." (translated from Vietnamese)
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
 - 2026-10-26 (translated from Vietnamese): "Stop, don't create a new ticket; rewrite this ticket and do it now." — the scope moved from changing which ref the dashboard reads plus a panel refresh, to pushing the claim branch during plan, build and review.
+- 2026-10-26 (translated from Vietnamese): "Drop ac-2, it isn't really needed." — the push after the plan commit and after each review round is removed; only a recorded build task pushes.
 
 ## Open questions
 <!-- `- [ ]` items; Ready stays blocked while any is unchecked. -->

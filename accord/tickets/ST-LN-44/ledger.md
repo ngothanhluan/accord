@@ -64,6 +64,7 @@
 - Ruling: task 2's affected run (26 files, 475 tests, 896 s) had one failure, the same show-approval ac-1 timeout as task 1's run — not task 2's verify case — cost if wrong: as for task 1
 - Ruling: task 3's one-spawn proof checks config-file order (identity before remote.origin.url) — a plain read of the final config cannot tell one spawn from four, because the old code also ended with the same values — cost if wrong: the test is tied to git writing `clone -c` keys right after init; if git changes that order the test fails loudly, nothing else breaks (executor, task 3)
 - Ruling: makeTemplate wraps makeClone(opts) and sets maintenance.auto=false and gc.auto=0 in the root, then gc.auto=0 and receive.autogc=false in the remote; copies inherit them through the copied .git/config — the task's text — cost if wrong: a template copy runs git gc in some test (executor, task 4)
+- Ruling: the lane S files map in core-ready.test.ts has no plan.md (the lane M map adds it explicitly) — a lane S ticket with a plan.md fails core gateReady, so the brief's "same contents" would give `fail` — cost if wrong: none, the test compares both against the CLI output (executor, task 5)
 
 ## Deferred
 
@@ -82,3 +83,4 @@
 - task 2 done 17e374e76937
 - task 3 done 4249efe3a669
 - task 4 done 00b9f019599c
+- task 5 done e234310e2b94

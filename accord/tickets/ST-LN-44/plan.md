@@ -1,6 +1,6 @@
 ---
 baseline: 1cec2ac130d8d34c4dcdadddfee9effb4d1104e9
-plan_hash: "fnv1a64:d3fb08b1e8aa9b9f"
+plan_hash: "fnv1a64:0f635ceb628b97f9"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -35,7 +35,8 @@ keeps a ticket's committed run data in `packages/core/test/fixtures/st-ln-48/`; 
 - `after-junit.xml` and `rule3-list.md`, written by Task 35;
 - `base-tests.json`, written by Task 37.
 The one artifact under `accord/` is `accord/tickets/ST-LN-44/before-junit.xml`, ac-3's "before" list: the main
-session writes it (Main session step 0) before Task 1 is dispatched, and tests only read it. No task changes
+session writes it (Main session step 0) before Task 1 is dispatched, rewrites it (Main session step 4) after a merge
+of origin/main that lands before the measuring run, and tests only read it. No task changes
 `.github/workflows/ci.yml`: every input of the four criterion tests is a committed file, so they need no git history and
 run the same in CI's shallow clone.
 
@@ -79,6 +80,15 @@ Rules for every task:
 - H8: every row's "H8 run guard" is met by Task 1 for the whole suite; no row adds its own guard.
 - A new commit made by test code uses `commitMsg` from `packages/cli/test/helpers/repo.ts` (conventions.md: `-F
   <file> --cleanup=verbatim`, never `-m`); existing commit lines that a row does not touch stay as written.
+  `commitMsg` passes no git identity (repo.ts:109-120), unlike `commitAll` (repo.ts:72-77), and `makeEmptyRepo` and
+  `makeLaneRepo` set none (repo.ts:51-55, :145-156); `makeClone` (helpers/worktree.ts:15-17) and lane-s's `repoWith`
+  (lane-s.test.ts:55-57) already do. So every repository built from `makeEmptyRepo` or `makeLaneRepo` (a lane-repo
+  template, or a stage setup) writes `gitRun(repo, 'config', 'user.email', 'fixture@example.invalid')`,
+  `gitRun(repo, 'config', 'user.name', 'fixture')` and `gitRun(repo, 'config', 'commit.gpgsign', 'false')` before
+  its first `commitMsg`, so each commit gets the author `commitAll` gave it (show.test.ts:138 asserts
+  `holder: 'fixture@example.invalid'`) and a CI runner with no global identity commits at all. A row that sets another
+  `user.email` as the viewer (show.test.ts:175, dashboard.test.ts:361, :392) writes it after its last `commitMsg`; a
+  commit whose identity the row asserts keeps its own `-c` arguments (dashboard.test.ts:286).
 - Test ids: the test file's path from the repository root, `#`, then the `describe` titles and the `it` title
   joined by ` > `, every run of whitespace turned into `-`. No id on a `verify:` line holds `@` or a comma, so a
   destination whose table title holds a comma is run but not named there. A `verify:` id of another ticket's
@@ -553,6 +563,12 @@ Row #71's note names its CLI tests only as "as in #28": its :45 exit check's ent
 `packages/cli/test/lane-commands.test.ts#accord-approve->-after-approval-gate-ready-passes` with `cite`
 "the CLI checks are made as in #28" (row #28's note quotes that title).
 
+Identity (preamble rule on `commitMsg`): the lane-repo templates of #54, #78 and #81 write
+`user.email fixture@example.invalid`, `user.name fixture` and `commit.gpgsign false` into the repository's config
+before their first `commitMsg`. #54's and #81's viewer `user.email an@example.com` (:361, :392) is written after the
+template's last `commitMsg`; #78's claim commit keeps its `-c user.email=An@Example.com` `commit-tree` line (:286),
+the identity it asserts, with the viewer email after it (:288).
+
 Test first: #54's two destinations.
 
 Must not change: the pure dashboard tests of the file; the criterion assertions of #28, #71, #81.
@@ -573,6 +589,11 @@ commits on base, `update-ref` and reset):
   the task 1 ledger line; :121-134), so `blockedBy` is `[]` (:138); #64's two tests per row #64 copy it.
 - #60: two tests per row #60 with `approve` in core (the :152 run was unasserted).
 - #94 is unchanged.
+
+Identity (preamble rule on `commitMsg`): both templates and #60's setup write `user.email fixture@example.invalid`,
+`user.name fixture` and `commit.gpgsign false` into the repository's config before their first `commitMsg`, so #64's
+claim tip is authored `fixture@example.invalid`, the `holder` :138 asserts. #30's viewer `user.email an@example.com`
+(:175) is written after its template's last `commitMsg`.
 
 Test first: #64's two destinations.
 
@@ -612,9 +633,11 @@ Consumes: `makeLaneRepo`, `commitAll`, `approve`, `gateReadyIn`, `freshReport`, 
 `describe('lane ticket flow')`, titles from row #10, each starting at its stage from core-ready files
 (approve and `gateReadyIn` in core, the plan written against the baseline commit, earlier task-done ledger lines
 written in setup). Assertion map: :43-49 (the CLI `gate ready` exit 1, `approve` exit 0, `gate ready` exit 0 and
-`gate plan` stay CLI here), :50-55, :56-62 (the ledger line written in setup: its old exit check gets one
-`maps.json` entry under `10`, `cite` "ledger line written in setup"), :63-92. The third and fourth titles hold
-commas, so they are run and reported but not named above.
+`gate plan` stay CLI here), :50-55, :56-62 (the ledger line written in setup), :63-92. The third and fourth titles
+hold commas, so they are run and reported but not named above.
+Identity (preamble rule on `commitMsg`): each stage setup writes `user.email fixture@example.invalid`,
+`user.name fixture` and `commit.gpgsign false` into its `makeLaneRepo` repository's config before its first
+`commitMsg`.
 
 The original id `packages/cli/test/lane-flow.test.ts#lane-ticket-flow->-walks-one-ticket-from-unapproved-to-done`
 is gone (it is `accord/tests-baseline.txt:129`; the new titles carry `risk:`): add
@@ -1061,7 +1084,8 @@ verify: packages/core/test/st-ln-44.test.ts#ac-1-no-test-in-the-measuring-run-ta
 Rows: none (rule 3's measuring run over all 118 rows).
 
 Precondition: Tasks 1 to 34 are done and the main session has done Main session step 1
-(`accord/tests-baseline.txt`).
+(`accord/tests-baseline.txt`) and, when origin/main was merged into `t/ST-LN-44` after `<BASE>`, Main session step 4
+for the last such merge.
 
 Run, once, from PowerShell:
 `$env:ACCORD_BASH = 'C:\Program Files\Git\bin\bash.exe'`, `npm run build`, then the configured full run
@@ -1106,7 +1130,8 @@ not export; no core source changes, D-11):
 - `before()` reads `new URL('accord/tickets/ST-LN-44/before-junit.xml', ROOT)` as bytes and throws
   `before-junit.xml is not the recorded baseline run` unless their sha256 equals `BEFORE_SHA256`, a constant holding
   the hex sha256 that `accord/tickets/ST-LN-44/ledger.md` records in the Ruling of Main session step 0 (copy it from
-  there; when the ledger holds no such Ruling, stop and report `BLOCKED`).
+  there, from the latest such Ruling when Main session step 4 has written a newer one; when the ledger holds no such
+  Ruling, stop and report `BLOCKED`).
 - `rowIds(rs)`: the set of `idOf(row.file, row.title)` for every row and `idOf(d.file, d.title)` for every
   destination of every row.
 
@@ -1129,7 +1154,8 @@ Tests first, top-level, exact titles:
     faster or rebuilds (D-04, rule 1) still holds its ticket's tag.
   - Collect failures as `<ticket> <ac> <id>: <why>`, expect `[]`.
 - `it('ac-3 every test gone since the baseline run is a row the table moves and every destination exists')`: the
-  before pairs are the `{ file, title }` pairs of `before()`, the run of the whole suite at `<BASE>`; the after pairs
+  before pairs are the `{ file, title }` pairs of `before()`, the run of the whole suite at `<BASE>` (or, after Main
+  session step 4, at the merged origin/main commit without this ticket's commits); the after pairs
   are `after()`'s. Every row's own `file`/`title` must be a before pair (the before list is whole). Every before pair
   missing from after must be the `file`/`title` of a row whose action is `removed`, `merged` or `moved`; every
   destination of a `merged` or `moved` row must be an after pair. Collect each kind of failure, expect `[]`. A
@@ -1151,10 +1177,12 @@ Consumes: Task 34's `rows`, `body`, `helpersOf`, `asserts`, `cases`, `idOf`, `TA
 
 The frozen old bodies, written first: `packages/core/test/fixtures/st-ln-44/base-tests.json`, LF, two-space indent,
 `{ "base": "1cec2ac130d8d34c4dcdadddfee9effb4d1104e9", "files": { "<path>": { "sha256": "<hex>", "text": "<file text>" } } }`
-with one entry per distinct `file` of a row whose action is `faster`, `moved`, `merged` or `kept` (19 files today:
-packages/cli/test/ show-approval, workflow-script, lane-s, after-verify, worktree, drop, trailers, lane-flow, upgrade,
-gate, hook, dashboard, show, status, lane-commands, new-ticket and bin `.test.ts`, and packages/core/test/
-benchmark-worktree and benchmark-compliance `.test.ts`). Each entry is made by Node from
+with one entry per distinct `file` of rows 1 to 118, whatever the row's action (22 files: packages/cli/test/
+show-approval, workflow-script, lane-s, after-verify, worktree, drop, trailers, lane-flow, upgrade, gate, hook,
+dashboard, show, status, lane-commands, new-ticket, bin, skills-sync and tracker `.test.ts`, and packages/core/test/
+benchmark-worktree, benchmark-compliance and benchmark-samples `.test.ts`). The `unchanged` rows' files are frozen
+too, so a late keep of rule 3 that turns an `unchanged` row (#100, #108, #112) into `kept` is still checked here
+instead of making `baseText` throw. Each entry is made by Node from
 `execFileSync('git', ['show', base + ':' + path], { cwd: ROOT, maxBuffer: 64 * 1024 * 1024 })` (a Buffer): `text`
 its UTF-8 text, `sha256` the hex sha256 of that Buffer; the file is written by `writeFileSync`, never by a shell
 redirect, and the script that wrote it is not committed. Anyone can recheck an entry against
@@ -1245,3 +1273,34 @@ These edit files under the top-level `accord/` folder, which no executor touches
    before ac-1 is judged. Exit 1 lists a row over 10 s that the table does not keep, a kept row or destination over
    its ceiling, or a test outside the table over 10 s: verify stops, the list goes to the owner as in step 2, and on a
    yes the table is changed and re-approved and the full suite runs again (table rule 3, "At verify").
+4. After any merge of origin/main into `t/ST-LN-44` (the owner's standing rule merges it whenever Continue reports
+   `behind:`; merging is never held back for this ticket) that lands before the last measuring run (Task 35, or a
+   measuring task a re-plan adds), and before that run starts: ac-3's before list must be the suite this ticket
+   started from, so it is re-taken at the merged main.
+   - `M` is the merged origin/main commit without this ticket's commits: `git rev-parse <the merge commit>^2`.
+   - Never by `checkout`, `switch` or `reset` in this worktree, and never by `accord worktree`: from this worktree,
+     `git worktree add --detach <tmp> <M>` with `<tmp>` a new folder under the OS temp folder; in `<tmp>`,
+     `npm ci` and `npm run build`; then, from PowerShell in `<tmp>`,
+     `$env:ACCORD_BASH = 'C:\Program Files\Git\bin\bash.exe'` and `tests.full`
+     (`npx vitest run --reporter=default --reporter=junit --outputFile.junit=node_modules/.cache/accord/junit.xml`).
+     Confirm the executed workflow-script cases ran (not skipped), or fix the environment and run again.
+   - Copy `<tmp>/node_modules/.cache/accord/junit.xml` byte for byte over `accord/tickets/ST-LN-44/before-junit.xml`;
+     write a new ledger Ruling naming the file, `M`, the merge commit, its case count and its sha256
+     (`Ruling: before-junit.xml is the full run at <M> (origin/main merged in <merge sha>), <n> cases, sha256 <hex> —
+     ac-3's before list after the merge — ...`); commit both.
+   - When Task 36 is already recorded, its `BEFORE_SHA256` constant in `packages/core/test/st-ln-44.test.ts` is
+     replaced with the new hash by an executor given Task 36's section and this Ruling (the main session edits no test
+     file), and `tests.affected` runs for that file.
+   - Remove the temporary worktree: `git worktree remove --force <tmp>` (its `node_modules` is untracked), then
+     `git worktree prune`.
+   - Rows main changed: list each table row whose own `file`/`title` is not a before pair of the new report (main
+     renamed or removed its test), each destination title main now uses for another test, and each row whose old test
+     body main changed (`git diff <BASE> <M> -- <the row's file>` has a hunk inside its body; ac-4's old bodies and
+     `maps.json` `old` texts are read at `<BASE>`). When the list is not empty, take it to the owner as one question
+     before Task 35, with a proposal per row (the row's new title, the row dropped, or its old body re-read at `<M>`):
+     each is a change to the approved table or to the plan, so on the owner's yes it is a change of course
+     (accord-build step 6): a change note under `## Approach`, the owner's new yes, `accord approve`, and a re-plan of
+     the tasks that carry those rows.
+   A merge after the last measuring run needs no step 4: `before-junit.xml` and `after-junit.xml` then both predate
+   it, so ac-3 compares like with like, and verify's full run with step 3 measures the merged code; only its
+   rows-main-changed check above is made, for ac-4.

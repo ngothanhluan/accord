@@ -45,6 +45,11 @@
 - Ruling: the new main-session step is numbered 0 so steps 1-3 keep their numbers — cost if wrong: none
 - Ruling: before-junit.xml is the full run at 1cec2ac (plan step 7, 2026-10-26, ACCORD_BASH set), 1531 cases, sha256 15775f281540569d9fb29ca291d329457daeeafde50064bd88358937ab1a000c — ac-3's before list — cost if wrong: one more full run and a new hash in Task 36
 - Ruling: the step-7 run had 3 failures, all timeouts of table rows (show-approval ac-1 over 300 s; workflow-script "dropped ticket in an accord-only diff…" over 90 s; worktree "risk:data-loss clean keeps unpushed commits…" over 60 s), under load from a planner and a critic running at the same time; this ticket fixes them, no separate ticket — "Accept, let this ticket fix them" (owner, 2026-10-26, choosing this against a re-run on an idle machine and a separate ticket) — cost if wrong: a real failure hidden behind a timeout shows only at the measuring run
+- Ruling: base-tests.json freezes every distinct file of rows 1-118 (22 files, not the 19 named above), so a late keep of #100, #108 or #112 stays checked (plan round 3.2) — cost if wrong: none
+- Ruling: plan rounds are counted as revisions: the planner's fix after round 3 is the third and last revision, and round 4 (diff) only verifies it; any Must or Should still open after round 4 goes to the owner — cost if wrong: one critic round more than the skill allows
+- Ruling: main-session step 4 runs tests.full in a temporary worktree of `<merge>^2` after any merge of origin/main before the last measuring run, replaces before-junit.xml with a new sha256 Ruling, and routes rows whose test main renamed, removed or changed to the owner — the owner's merge-when-behind rule stays — cost if wrong: one extra full run per merge
+- Ruling: a merge after the last measuring run does not refresh before-junit.xml, since before and after then both predate it — cost if wrong: a stale before list, though ac-3 stays consistent
+- Ruling: a viewer email a row sets (show:175, dashboard:361, :392) is written after the setup's last `commitMsg`; #78's `-c An@Example.com` commit-tree line stays — cost if wrong: claim tips authored by the viewer
 
 ## Deferred
 

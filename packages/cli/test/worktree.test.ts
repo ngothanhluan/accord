@@ -229,8 +229,9 @@ const holdsFile = (c: Clone) => `${c.root}/.git/accord/holds`;
 const HELD = 'held: ST-9 by this session\n';
 
 it('ac-4 a live holder refuses a second session and a dead holder is taken over', async () => {
-  const c = clone();
-  expect((await run(['worktree', 'open', 'ST-9'], c.root)).code).toBe(0);
+  const c = copy();
+  c.git('worktree', 'add', '-q', '-b', 't/ST-9', c.sibling('ST-9'), 'origin/main');
+  c.git('remote', 'remove', 'origin'); // H7: no fetch in this scenario; the pick-up exit 0 is made by the ac-1 pick-up test
   const sib = c.sibling('ST-9');
   setTable(tableOf(A));
   const r1 = await run(['worktree', 'open', 'ST-9', '--continue'], sib, envOf(A));
@@ -253,12 +254,19 @@ it('ac-4 a live holder refuses a second session and a dead holder is taken over'
   expect(JSON.parse(readFileSync(holdsFile(c), 'utf8'))['ST-9'].marker).toBe('sess-B');
 });
 
-it('risk:complex-branching the holding session re-enters its own hold and a partial table refuses', async () => {
-  const c = clone();
-  await run(['worktree', 'open', 'ST-9'], c.root);
+// H3, H7: the worktree is added by git and the remote is dropped after its last use (no fetch in these scenarios).
+const heldBy = async (c: Clone) => {
+  c.git('worktree', 'add', '-q', '-b', 't/ST-9', c.sibling('ST-9'), 'origin/main');
+  c.git('remote', 'remove', 'origin');
   const sib = c.sibling('ST-9');
   setTable(tableOf(A));
   await run(['worktree', 'open', 'ST-9', '--continue'], sib, envOf(A));
+  return sib;
+};
+
+it('risk:complex-branching the holding session re-enters its own hold and a partial table refuses', async () => {
+  const c = copy();
+  const sib = await heldBy(c);
   const first = readFileSync(holdsFile(c), 'utf8');
   const taken = JSON.parse(first)['ST-9'].taken as string;
   const again = async (s: { marker: string; pid: number }, rows: ReturnType<typeof tableOf>) => {
@@ -271,9 +279,29 @@ it('risk:complex-branching the holding session re-enters its own hold and a part
   };
   await again(A, tableOf(A));
   await again({ ...A, marker: 'sess-A2' }, tableOf(A));
+});
+
+it('risk:complex-branching a session with the holding marker under another pid re-enters the hold', async () => {
+  const c = copy();
+  const sib = await heldBy(c);
+  const first = readFileSync(holdsFile(c), 'utf8');
+  const taken = JSON.parse(first)['ST-9'].taken as string;
+  const again = async (s: { marker: string; pid: number }, rows: ReturnType<typeof tableOf>) => {
+    writeFileSync(holdsFile(c), first); // each case is judged against A's hold alone
+    setTable(rows);
+    const r = await run(['worktree', 'open', 'ST-9', '--continue'], sib, envOf(s));
+    expect(r.code).toBe(0);
+    expect(r.out).toBe(HELD);
+    expect(JSON.parse(readFileSync(holdsFile(c), 'utf8'))['ST-9'].taken).toBe(taken);
+  };
   const C = { pid: 7003, start: 'S-C', marker: 'sess-A' };
   await again(C, tableOf(C, A));
-  // B takes over once A and C have stopped; a session that cannot see itself must then not judge
+});
+
+it('risk:complex-branching a session that cannot see itself in the process table is refused and the hold is unchanged', async () => {
+  const c = copy();
+  const sib = await heldBy(c);
+  // B takes over once A has stopped; a session that cannot see itself must then not judge
   setTable(tableOf(B));
   expect((await run(['worktree', 'open', 'ST-9', '--continue'], sib, envOf(B))).code).toBe(0);
   const bytes = readFileSync(holdsFile(c), 'utf8');
@@ -285,8 +313,9 @@ it('risk:complex-branching the holding session re-enters its own hold and a part
 });
 
 it('risk:complex-branching outside claude code no hold is taken and one line says so', async () => {
-  const c = clone();
-  await run(['worktree', 'open', 'ST-9'], c.root);
+  const c = copy();
+  c.git('worktree', 'add', '-q', '-b', 't/ST-9', c.sibling('ST-9'), 'origin/main');
+  c.git('remote', 'remove', 'origin');
   vi.mocked(proc.processTable).mockClear();
   const sib = c.sibling('ST-9');
   const r = await run(['worktree', 'open', 'ST-9', '--continue'], sib, {});
@@ -301,8 +330,9 @@ it('risk:complex-branching outside claude code no hold is taken and one line say
 });
 
 it('risk:concurrency a locked hold file is never overwritten', async () => {
-  const c = clone();
-  await run(['worktree', 'open', 'ST-9'], c.root);
+  const c = copy();
+  c.git('worktree', 'add', '-q', '-b', 't/ST-9', c.sibling('ST-9'), 'origin/main');
+  c.git('remote', 'remove', 'origin');
   const sib = c.sibling('ST-9');
   const lock = `${holdsFile(c)}.lock`;
   mkdirSync(`${c.root}/.git/accord`, { recursive: true });
@@ -320,22 +350,31 @@ it('risk:concurrency a locked hold file is never overwritten', async () => {
 });
 
 it('risk:complex-branching a worktree whose setup never finished reruns setup in full', async () => {
-  const c = clone({ setup: ['node setup-step.js ci', 'node setup-step.js build'] });
+  const c = copy({ setup: ['node setup-step.js ci', 'node setup-step.js build'] });
   c.git('worktree', 'add', '-q', '-b', 't/ST-9', c.sibling('ST-9'), 'origin/main');
+  c.git('remote', 'remove', 'origin'); // H7
   setTable(tableOf(A));
   expect((await run(['worktree', 'open', 'ST-9', '--continue'], c.sibling('ST-9'), envOf(A))).code).toBe(0);
   expect(readFileSync(`${c.sibling('ST-9')}/setup.log`, 'utf8')).toBe('ci\nbuild\n');
   expect((await run(['worktree', 'open', 'ST-9', '--continue'], c.sibling('ST-9'), envOf(A))).code).toBe(0);
   expect(readFileSync(`${c.sibling('ST-9')}/setup.log`, 'utf8')).toBe('ci\nbuild\n');
+});
 
-  const d = clone({ setup: ['node setup-step.js ci', 'node setup-step.js fail'] });
-  expect((await run(['worktree', 'open', 'ST-9'], d.root)).code).toBe(2);
-  const marker = d.git('-C', d.sibling('ST-9'), 'rev-parse', '--path-format=absolute', '--git-dir').trim() + '/accord-setup-done';
-  expect(existsSync(marker)).toBe(false);
-  rmSync(`${d.sibling('ST-9')}/setup.log`);
+it('risk:complex-branching a hand-made worktree with no done marker reruns setup in full and exits 2 on its failure', async () => {
+  const d = copy({ setup: ['node setup-step.js ci', 'node setup-step.js fail'] });
+  d.git('worktree', 'add', '-q', '-b', 't/ST-9', d.sibling('ST-9'), 'origin/main');
+  d.git('remote', 'remove', 'origin'); // H7
+  setTable(tableOf(A));
   const r = await run(['worktree', 'open', 'ST-9', '--continue'], d.sibling('ST-9'), envOf(A));
   expect(r.code).toBe(2);
   expect(readFileSync(`${d.sibling('ST-9')}/setup.log`, 'utf8')).toBe('ci\nfail\n');
+});
+
+it('risk:complex-branching a pick up whose setup fails leaves no done marker', async () => {
+  const d = copy({ setup: ['node setup-step.js ci', 'node setup-step.js fail'] });
+  await run(['worktree', 'open', 'ST-9'], d.root); // the pick-up exit 2 is made by the ac-2 pick-up test
+  const marker = d.git('-C', d.sibling('ST-9'), 'rev-parse', '--path-format=absolute', '--git-dir').trim() + '/accord-setup-done';
+  expect(existsSync(marker)).toBe(false);
 });
 
 const DEAD = { tool: 'Claude Code', marker: 'sess-D', pid: 4141, start: 'S1', taken: '2026-10-18T00:00:00.000Z' };

@@ -38,6 +38,20 @@
         "cite": "44 and 45 check the same values on the one read"
       }
     ],
+    "47": [
+      {
+        "old": "expect((await run(['worktree', 'open', 'ST-9'], d.root)).code).toBe(2);",
+        "test": "packages/cli/test/worktree.test.ts#ac-2-a-failing-setup-command-exits-2-naming-it-and-keeps-the-worktree",
+        "cite": "the pick-up exit 2 (296) is made by #49"
+      }
+    ],
+    "48": [
+      {
+        "old": "expect((await run(['worktree', 'open', 'ST-9'], c.root)).code).toBe(0);",
+        "test": "packages/cli/test/worktree.test.ts#ac-1-pick-up-adds-the-ticket-worktree-from-origin-main-runs-setup-in-order-and-prints-where-to-continue",
+        "cite": "the pick-up exit 0 (197) is made by #36"
+      }
+    ],
     "69": [
       {
         "old": "expect((await run(['gate', 'ready', 'S-1'], repo)).code).toBe(0);",

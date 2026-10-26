@@ -32,13 +32,17 @@ no intent interview, approval, approach, plan, executor or verify: you make the 
    words naming the change in business language. When `## Scope` holds no path, run step 1 of `./lane.md` and write its files there as its `## Scope` says. Run `accord gate ready <id>` and fix what it prints until it exits
    0, then commit the ticket. Make no other change before that. Never run `accord approve`.
 2. **Change.** Make the change in this worktree. For a bug, first write a test that reproduces it and see it fail,
-   then fix it. A test you add carries `risk:<kind>` in its name.
+   then fix it. A test you add carries `risk:<kind>` in its name. A file outside `## Scope` that the change only
+   rewords, in at most 3 lines, neither new nor deleted, needs the line `Wording-only: <path> — <reason>` under
+   `## Rulings` in `accord/tickets/<id>/ledger.md` before the review. Any other file beyond `## Scope`, a listed
+   sensitive area, or a sign of a new interface lifts the ticket to lane M.
 3. **Tests.** Run the `tests.affected` command from `accord/config.yml` over the changed files, or `tests.full` when
    `tests.affected` is not configured or finds no test file. Fix what fails, then commit the change.
 4. **Review rounds.** Round <n> runs `accord review-package <id>` into a file outside the working tree and
    dispatches one fresh `accord-reviewer`, lens `both`, with the paths of the ticket file, that file, and
    `accord/tickets/<id>/ledger.md` when it exists. Append what it reports to `accord/tickets/<id>/review.md` under
-   `## Round <n>`, each finding with its severity, what it is and where it is, or `No findings`, and commit
+   `## Round <n>`, each finding with its severity, what it is and where it is, or `No findings`, copy each
+   `Confirmed wording-only: <path>` line it reports verbatim into that round, and commit
    `review.md` alone at once; when you stop after this round with no Must open, first append step 5's verdict, so
    the round and its verdict are one commit. When the round reports a Must, fix every Must and Should yourself, run
    step 3 again, commit, and start the next round with a new reviewer. When it reports no Must open, either stop
@@ -60,7 +64,7 @@ no intent interview, approval, approach, plan, executor or verify: you make the 
 
 ## Lift to lane M
 
-When the work meets a lift condition of the accord skill, stop and say which one. On the owner's yes, in this same
+When the work meets a lift condition in `./lane.md`, or `accord gate done <id>` names a file outside `## Scope`, a sensitive area or a sign of a new interface, or says `## Scope` held no path, stop and say which one. On the owner's yes, in this same
 ticket, branch and worktree:
 
 1. In `accord/tickets/<id>.md`, change `lane: S` to `lane: M` and add the lane M sections, each empty, after the

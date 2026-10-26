@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { agentTargets, installedName, skillDirs, skillTargets, STAGES } from '../src/index.js';
 import type { AccordConfig } from '../src/index.js';
+import { parseLedger, parseReview } from '../src/load/work.js';
 
 const config: AccordConfig = {
   accord: '0.1.0',
@@ -829,4 +830,21 @@ it('risk:regression a finished ticket reports a verdict, never a merge, then das
     ])
       expect(finish, dir).toContain(s);
   }
+});
+
+it('risk:parsing the declaration lines the lane S steps the reviewer and the review record write match what gate done parses', () => {
+  const rev = (agentTargets(config).find((f) => f.path === '.claude/agents/accord-reviewer.md')?.text ?? '').replace(/\s+/g, ' ');
+  const ls = flatS('.claude/skills/accord/lane-s.md');
+  const rec = flatS('.claude/skills/accord-review/record.md');
+  const wording = '`Wording-only: <path> — <reason>`';
+  const confirmed = '`Confirmed wording-only: <path>`';
+  const notInterface = '`Not an interface: <path> — <reason>`';
+  for (const p of [wording, confirmed]) expect(ls).toContain(p);
+  for (const p of [wording, confirmed, notInterface, '## Out-of-scope files', '## Interface signs']) expect(rev).toContain(p);
+  for (const p of [notInterface, 'Only the last `## Round` is read']) expect(rec).toContain(p);
+  const fill = (f: string) => f.slice(1, -1).replace('<path>', 'README.md').replace('<reason>', 'fixes a typo');
+  expect(parseLedger('ledger.md', fill(wording)).wordingOnly).toEqual([{ path: 'README.md', reason: 'fixes a typo' }]);
+  const round = (line: string) => parseReview('review.md', '## Round 1\n\n' + line + '\n\nverdict: converged\n');
+  expect(round(fill(confirmed)).confirmed).toEqual(['README.md']);
+  expect(round(fill(notInterface)).notInterface).toEqual(['README.md']);
 });

@@ -33,6 +33,9 @@ const TEMPLATE_OPTS: Parameters<typeof makeClone>[0][] = [
   { setup: ['node setup-step.js ci'], tickets: [] },
   { setup: ['node setup-step.js ci', 'node setup-step.js build'] },
   { setup: ['node setup-step.js ci', 'node setup-step.js fail'] },
+  { tickets: ['ST-9', 'ST-10'] },
+  { tickets: ['ST-9', 'ST-10', 'ST-11', 'ST-12'] },
+  { tickets: ['ST-9', 'ST-10', 'ST-11', 'ST-12', 'ST-13'] },
 ];
 const TEMPLATES = new Map<string, Clone>();
 const key = (o?: Parameters<typeof makeClone>[0]) => JSON.stringify(o ?? {});
@@ -416,6 +419,7 @@ function doneOnRemote(c: Clone, ids: string[], opts: { squash?: boolean; local?:
   const o = c.otherClone();
   const out: Record<string, string> = {};
   const onBranches: string[] = [];
+  const refspecs: string[] = [];
   for (const id of ids) {
     const onBranch = has(o, `refs/remotes/origin/t/${id}`);
     if (onBranch) gitRun(o, 'switch', '-q', '--detach', `origin/t/${id}`);
@@ -425,7 +429,7 @@ function doneOnRemote(c: Clone, ids: string[], opts: { squash?: boolean; local?:
     const tip = commitMsg(o, 'verify: ' + id);
     if (onBranch) {
       onBranches.push(id);
-      gitRun(o, 'push', '-q', 'origin', `HEAD:refs/heads/t/${id}`);
+      refspecs.push(`${tip}:refs/heads/t/${id}`);
       gitRun(o, 'switch', '-q', 'main');
       if (opts.squash) {
         gitRun(o, 'merge', '--squash', '-q', tip);
@@ -434,7 +438,7 @@ function doneOnRemote(c: Clone, ids: string[], opts: { squash?: boolean; local?:
     }
     out[id] = tip;
   }
-  gitRun(o, 'push', '-q', 'origin', 'main');
+  gitRun(o, 'push', '-q', 'origin', 'main', ...refspecs); // one push for the ticket branches and main
   if (opts.local) {
     for (const id of onBranches) {
       c.git('fetch', '-q', 'origin', `t/${id}`);
@@ -454,10 +458,21 @@ function ticketBranch(c: Clone, id: string) {
   c.git('push', '-q', '-u', 'origin', `t/${id}`);
   c.git('switch', '-q', 'main');
 }
+/** The branches `ticketBranch` makes, pushed together in one `git push` (same refs, same tracking). */
+function ticketBranches(c: Clone, ids: string[]) {
+  for (const id of ids) {
+    c.git('switch', '-q', '-c', `t/${id}`, 'main');
+    writeFiles(c.root, { [`${id}.txt`]: id + '\n' });
+    c.git('add', '-A');
+    c.git('commit', '-q', '-m', id);
+  }
+  c.git('switch', '-q', 'main');
+  c.git('push', '-q', '-u', 'origin', ...ids.map((id) => `t/${id}`));
+}
 const sha = (c: Clone, ref: string) => c.git('rev-parse', ref).trim();
 
 it('ac-5 bare accord fetches then removes merged worktrees and names what it keeps', async () => {
-  const c = clone({ tickets: ['ST-9', 'ST-10', 'ST-11', 'ST-12'] });
+  const c = copy({ tickets: ['ST-9', 'ST-10', 'ST-11', 'ST-12'] });
   for (const id of ['ST-9', 'ST-10', 'ST-11', 'ST-12']) ticketWorktree(c, id);
   const t = doneOnRemote(c, ['ST-9', 'ST-10', 'ST-12']);
   mkdirSync(`${c.sibling('ST-9')}/node_modules`);
@@ -493,7 +508,7 @@ it('ac-5 bare accord fetches then removes merged worktrees and names what it kee
 });
 
 it('risk:complex-branching a failed fetch is said and the refs in the clone are judged', async () => {
-  const c = clone();
+  const c = copy();
   c.git('worktree', 'add', '-q', '-b', 't/ST-9', c.sibling('ST-9'), 'origin/main');
   const b9 = sha(c, 't/ST-9');
   doneOnRemote(c, ['ST-9']);
@@ -506,12 +521,14 @@ it('risk:complex-branching a failed fetch is said and the refs in the clone are 
   expect(l[1]).toBe(`removed ${c.sibling('ST-9')}`);
   expect(l).toHaveLength(3);
   expect(l[2]).toBe(`deleted t/ST-9 (was ${b9})`);
+});
 
-  const d = clone();
+it('risk:complex-branching clean with no origin prints nothing and a failed fetch with no ticket branch prints only that', async () => {
+  const d = copy();
   d.git('worktree', 'add', '-q', '-b', 't/ST-9', d.sibling('ST-9'), 'origin/main');
   d.git('remote', 'remove', 'origin');
   expect((await run(['worktree', 'clean'], d.root, {})).out).toBe('');
-  const e = clone();
+  const e = copy();
   e.git('remote', 'set-url', 'origin', e.remote + '-missing');
   const eOut = lines((await run(['worktree', 'clean'], e.root, {})).out);
   expect(eOut).toHaveLength(1);
@@ -519,7 +536,7 @@ it('risk:complex-branching a failed fetch is said and the refs in the clone are 
 });
 
 it('risk:data-loss clean keeps unpushed commits and new files that git status config would hide', async () => {
-  const c = clone({ tickets: ['ST-9', 'ST-10'] });
+  const c = copy({ tickets: ['ST-9', 'ST-10'] });
   ticketWorktree(c, 'ST-9');
   ticketWorktree(c, 'ST-10');
   doneOnRemote(c, ['ST-9', 'ST-10']);
@@ -534,7 +551,7 @@ it('risk:data-loss clean keeps unpushed commits and new files that git status co
   expect(existsSync(`${c.sibling('ST-10')}/new.txt`)).toBe(true);
   expect(existsSync(c.sibling('ST-9'))).toBe(true);
 
-  const d = clone();
+  const d = copy();
   ticketWorktree(d, 'ST-9');
   doneOnRemote(d, ['ST-9']);
   const r = await run(['worktree', 'clean'], d.sibling('ST-9'), {});
@@ -620,7 +637,7 @@ it('ac-6 a new lane m ticket gets its own worktree with the ticket committed and
 });
 
 it('risk:data-loss a failed push keeps the claim commit and names the quoted push to run', async () => {
-  const c = clone({ setup: ['node setup-step.js ci'], tickets: [] });
+  const c = copy({ setup: ['node setup-step.js ci'], tickets: [] });
   c.git('remote', 'set-url', '--push', 'origin', `${c.remote}-missing`);
   const { code, out, err } = await run(['new', 'ticket', 'ST-9', '--lane', 'M', '--worktree'], c.root);
   expect(code).toBe(2);
@@ -730,7 +747,7 @@ it('risk:parsing an invalid config in the new worktree stops setup, writes no do
 });
 
 it('risk:data-loss a stale holds lock keeps a merged clean worktree, names it, and clean exits 0', async () => {
-  const c = clone({ tickets: ['ST-9', 'ST-10'] });
+  const c = copy({ tickets: ['ST-9', 'ST-10'] });
   ticketWorktree(c, 'ST-9');
   ticketWorktree(c, 'ST-10');
   doneOnRemote(c, ['ST-9', 'ST-10']);
@@ -746,39 +763,44 @@ it('risk:data-loss a stale holds lock keeps a merged clean worktree, names it, a
     expect(out).toContain(`kept t/${id}: checked out in ${c.sibling(id)}`);
   }
   expect(out).toContain('holds.lock');
-  rmSync(`${c.root}/.git/accord/holds.lock`);
+});
+
+it('risk:data-loss a holds file that is not a JSON object keeps a merged clean worktree and clean exits 0', async () => {
+  const c = copy({ tickets: ['ST-9', 'ST-10'] });
+  ticketWorktree(c, 'ST-9');
+  ticketWorktree(c, 'ST-10');
+  doneOnRemote(c, ['ST-9', 'ST-10']);
+  mkdirSync(`${c.root}/.git/accord`, { recursive: true });
   writeFileSync(`${c.root}/.git/accord/holds`, '[]');
   const r = await run(['worktree', 'clean'], c.root, {});
   expect(r.code).toBe(0);
   expect(existsSync(c.sibling('ST-9'))).toBe(true);
 });
 
-it('risk:complex-branching pick up refuses a branch another person claimed and reuses one claimed by the same email', async () => {
-  const c = clone({ tickets: ['ST-9', 'ST-10', 'ST-11', 'ST-12', 'ST-13'] });
+// The teammate (y@example.invalid) has pushed the branches a test needs; `me` is the identity of the claims that are mine.
+const ME = ['-c', 'user.email=fixture@example.invalid'];
+const teammate = (c: Clone) => {
   const o = c.otherClone();
-  const me = ['-c', 'user.email=fixture@example.invalid'];
   gitRun(o, 'config', 'user.email', 'y@example.invalid');
-  gitRun(o, ...me, 'commit', '-q', '--allow-empty', '-m', 'claim: ST-12');
-  gitRun(o, 'push', '-q', 'origin', 'main');
+  return o;
+};
+const pushedWork = (o: string, id: string, file: string) => {
+  gitRun(o, 'switch', '-q', '-c', 't/' + id, 'main');
+  writeFiles(o, { [file]: 'x\n' });
+  gitRun(o, 'add', '-A');
+  gitRun(o, 'commit', '-q', '-m', 'work');
+  gitRun(o, 'push', '-q', 'origin', 't/' + id);
+};
+
+it('risk:complex-branching pick up refuses a branch another person claimed', async () => {
+  const c = copy({ tickets: ['ST-9', 'ST-10', 'ST-11', 'ST-12', 'ST-13'] });
+  const o = teammate(c);
   gitRun(o, 'switch', '-q', '-c', 't/ST-9', 'main');
   gitRun(o, 'commit', '-q', '--allow-empty', '-m', 'claim: ST-9');
-  gitRun(o, 'switch', '-q', '-c', 't/ST-10', 'main');
-  gitRun(o, ...me, 'commit', '-q', '--allow-empty', '-m', 'claim: ST-10');
-  gitRun(o, 'commit', '-q', '--allow-empty', '-m', 'help');
-  for (const [id, f] of [['ST-11', 'x.txt'], ['ST-12', 'y.txt']]) {
-    gitRun(o, 'switch', '-q', '-c', 't/' + id, 'main');
-    writeFiles(o, { [f]: 'x\n' });
-    gitRun(o, 'add', '-A');
-    gitRun(o, 'commit', '-q', '-m', 'work');
-  }
-  gitRun(o, 'switch', '-q', '-c', 't/ST-13', 'main');
-  gitRun(o, 'commit', '-q', '--allow-empty', '-m', 'claim: ST-13');
-  gitRun(o, 'push', '-q', 'origin', 't/ST-9', 't/ST-10', 't/ST-11', 't/ST-12', 't/ST-13');
+  gitRun(o, 'push', '-q', 'origin', 't/ST-9');
   c.git('fetch', '-q', 'origin');
-  // the user's own unpushed claim on a local branch must not hide the teammate's pushed one
-  c.git('branch', 't/ST-13', c.git('-c', 'user.email=fixture@example.invalid', 'commit-tree', 'main^{tree}', '-p', 'main', '-m', 'claim: ST-13').trim());
 
-  let r = await run(['worktree', 'open', 'ST-9'], c.root);
+  const r = await run(['worktree', 'open', 'ST-9'], c.root);
   expect(r.code).toBe(2);
   expect(r.err.startsWith('claimed: ST-9 by y@example.invalid')).toBe(true);
   expect(r.err).toContain('/accord continue ST-9');
@@ -786,20 +808,61 @@ it('risk:complex-branching pick up refuses a branch another person claimed and r
   expect(entries(c)).toHaveLength(1);
   expect(() => c.git('rev-parse', '--verify', '-q', 'refs/heads/t/ST-9')).toThrow();
   expect(existsSync(c.sibling('ST-9'))).toBe(false);
+});
 
-  for (const id of ['ST-11', 'ST-12']) {
-    r = await run(['worktree', 'open', id], c.root);
-    expect(r.code, id).toBe(2);
-    expect(r.err.startsWith(`claimed: ${id} by y@example.invalid`), id).toBe(true);
-    expect(existsSync(c.sibling(id)), id).toBe(false);
-  }
+it("risk:complex-branching pick up refuses a branch whose commits are another person's work", async () => {
+  const c = copy({ tickets: ['ST-9', 'ST-10', 'ST-11', 'ST-12', 'ST-13'] });
+  pushedWork(teammate(c), 'ST-11', 'x.txt');
+  c.git('fetch', '-q', 'origin');
 
-  r = await run(['worktree', 'open', 'ST-13'], c.root);
+  const id = 'ST-11';
+  const r = await run(['worktree', 'open', id], c.root);
+  expect(r.code, id).toBe(2);
+  expect(r.err.startsWith(`claimed: ${id} by y@example.invalid`), id).toBe(true);
+  expect(existsSync(c.sibling(id)), id).toBe(false);
+});
+
+it("risk:complex-branching pick up refuses another person's work branch even with my claim on the default branch", async () => {
+  const c = copy({ tickets: ['ST-9', 'ST-10', 'ST-11', 'ST-12', 'ST-13'] });
+  const o = teammate(c);
+  gitRun(o, ...ME, 'commit', '-q', '--allow-empty', '-m', 'claim: ST-12');
+  gitRun(o, 'push', '-q', 'origin', 'main');
+  pushedWork(o, 'ST-12', 'y.txt');
+  c.git('fetch', '-q', 'origin');
+
+  const id = 'ST-12';
+  const r = await run(['worktree', 'open', id], c.root);
+  expect(r.code, id).toBe(2);
+  expect(r.err.startsWith(`claimed: ${id} by y@example.invalid`), id).toBe(true);
+  expect(existsSync(c.sibling(id)), id).toBe(false);
+});
+
+it('risk:complex-branching pick up judges the pushed claim when my unpushed claim branch exists', async () => {
+  const c = copy({ tickets: ['ST-9', 'ST-10', 'ST-11', 'ST-12', 'ST-13'] });
+  const o = teammate(c);
+  gitRun(o, 'switch', '-q', '-c', 't/ST-13', 'main');
+  gitRun(o, 'commit', '-q', '--allow-empty', '-m', 'claim: ST-13');
+  gitRun(o, 'push', '-q', 'origin', 't/ST-13');
+  c.git('fetch', '-q', 'origin');
+  // the user's own unpushed claim on a local branch must not hide the teammate's pushed one
+  c.git('branch', 't/ST-13', c.git('-c', 'user.email=fixture@example.invalid', 'commit-tree', 'main^{tree}', '-p', 'main', '-m', 'claim: ST-13').trim());
+
+  const r = await run(['worktree', 'open', 'ST-13'], c.root);
   expect(r.code).toBe(2);
   expect(r.err.startsWith('claimed: ST-13 by y@example.invalid')).toBe(true);
   expect(existsSync(c.sibling('ST-13'))).toBe(false);
+});
 
-  r = await run(['worktree', 'open', 'ST-10'], c.root);
+it('risk:complex-branching pick up reuses a branch claimed by the same email', async () => {
+  const c = copy({ tickets: ['ST-9', 'ST-10', 'ST-11', 'ST-12', 'ST-13'] });
+  const o = teammate(c);
+  gitRun(o, 'switch', '-q', '-c', 't/ST-10', 'main');
+  gitRun(o, ...ME, 'commit', '-q', '--allow-empty', '-m', 'claim: ST-10');
+  gitRun(o, 'commit', '-q', '--allow-empty', '-m', 'help');
+  gitRun(o, 'push', '-q', 'origin', 't/ST-10');
+  c.git('fetch', '-q', 'origin');
+
+  const r = await run(['worktree', 'open', 'ST-10'], c.root);
   expect(r.code).toBe(0);
   expect(r.out.split('\n').slice(0, 3)).toEqual([
     'stop: open a session in this folder and type the line below it',
@@ -808,8 +871,17 @@ it('risk:complex-branching pick up refuses a branch another person claimed and r
   ]);
   expect(gitRun(c.sibling('ST-10'), 'rev-parse', 'HEAD').trim()).toBe(c.git('rev-parse', 'origin/t/ST-10').trim());
   expect(c.git('log', '--all', '--format=%s').split('\n').filter((s) => s === 'claim: ST-10')).toHaveLength(1);
+});
 
-  r = await run(['worktree', 'open', 'ST-9', '--continue'], c.root);
+it('risk:complex-branching continue opens a ticket another person claimed and a later pick up still refuses', async () => {
+  const c = copy({ tickets: ['ST-9', 'ST-10', 'ST-11', 'ST-12', 'ST-13'] });
+  const o = teammate(c);
+  gitRun(o, 'switch', '-q', '-c', 't/ST-9', 'main');
+  gitRun(o, 'commit', '-q', '--allow-empty', '-m', 'claim: ST-9');
+  gitRun(o, 'push', '-q', 'origin', 't/ST-9');
+  c.git('fetch', '-q', 'origin');
+
+  let r = await run(['worktree', 'open', 'ST-9', '--continue'], c.root);
   expect(r.code).toBe(0);
   expect(r.out.split('\n').slice(0, 3)).toEqual([
     'stop: open a session in this folder and type the line below it',
@@ -819,12 +891,12 @@ it('risk:complex-branching pick up refuses a branch another person claimed and r
   r = await run(['worktree', 'open', 'ST-9'], c.root);
   expect(r.code).toBe(2);
   expect(r.err.startsWith('claimed: ST-9 by y@example.invalid')).toBe(true);
-  expect(entries(c)).toHaveLength(3);
+  expect(entries(c)).toHaveLength(2);
 });
 
 it('ac-1 bare accord deletes merged ticket branches with or without a worktree and names the checked out one it keeps', async () => {
-  const c = clone({ tickets: ['ST-9', 'ST-10', 'ST-11', 'ST-12'] });
-  for (const id of ['ST-9', 'ST-11', 'ST-12']) ticketBranch(c, id);
+  const c = copy({ tickets: ['ST-9', 'ST-10', 'ST-11', 'ST-12'] });
+  ticketBranches(c, ['ST-9', 'ST-11', 'ST-12']);
   ticketWorktree(c, 'ST-10');
   const t = doneOnRemote(c, ['ST-9', 'ST-10', 'ST-12']);
   c.git('switch', '-q', 't/ST-12');

@@ -26,6 +26,13 @@
         "cite": "gate.test `gate ready on a passing ticket exits 0 and writes the renderText body`"
       }
     ],
+    "34": [
+      {
+        "old": "expect(entries(c)).toHaveLength(3);",
+        "now": "expect(entries(c)).toHaveLength(2);",
+        "cite": "`entries` length 3 becomes 2"
+      }
+    ],
     "36": [
       {
         "old": "expect(c.git('worktree', 'list', '--porcelain')).toContain(`worktree ${c.sibling('ST-9')}\\n`);",

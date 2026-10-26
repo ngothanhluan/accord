@@ -48,6 +48,7 @@
 - Ruling: task 4 is recorded although its CLI risk test (branch-fact.test.ts) was never shown failing, only the core @ac-5 test was — it is a `risk:parsing` test, not a criterion test, and it passes on a real git fixture on Windows — cost if wrong: the CLI test may pass without the parse it guards; the reviewer checks it.
 - Ruling: in the review package a lane S ticket gets both new sections and any other lane only `## Interface signs` — the task text says so — cost if wrong: none.
 - Ruling: when `branchFactFor` returns an error fact, both review-package sections read `(cannot tell: <error>)` and the command still exits 0 — the task says the command never fails on the fact — cost if wrong: none.
+- Ruling: the existing `ac-1` lift-condition test keeps its title and now reads the lift conditions from lane.md — a second test with that title would collide on the verify id — cost if wrong: none.
 
 ## Deferred
 
@@ -59,3 +60,4 @@
 - task 3 done 35f3eb42e494
 - task 4 done 17aba7b53073
 - task 5 done 337356a7bee7
+- task 6 done 770aca3c8347

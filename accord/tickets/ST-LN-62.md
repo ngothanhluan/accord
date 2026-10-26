@@ -41,7 +41,7 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: ST-LN-62
 
-  @ac-1
+  @ac-1 @test:packages/core/test/stage-skills.test.ts#ac-1-a-lane-is-proposed-from-the-scout-facts-and-a-lane-S-ticket-records-its-scope
   Scenario: A lane is proposed from the scout's facts, and a lane S ticket records its scope
     Given a new request typed as /accord <request>, however small it looks
     When the accord skill proposes a lane

@@ -86,6 +86,7 @@
 - Ruling: #28 gets one maps.json entry (the gate.test id) although its note names two CLI tests — the old body had a single exit assertion — cost if wrong: one cite swap if the audit wants the lane-commands test named too (executor, task 13)
 - Ruling: task 13 removed an unused `commitAll` import from dashboard.test.ts that lint flagged — inside the task's file — cost if wrong: none (executor, task 13)
 - Ruling: status.test.ts has a local `approveIn(repo, id)` that reads the ticket file, calls the shared `approve` from test/helpers/lane.js and writes it back — the shared helper takes a files map and this file works on disk — cost if wrong: one edit here if the shared helper changes (executor, task 15)
+- Ruling: lane-flow.test.ts's `stageRepo` setup helper holds one added `expect(gateReadyIn(...)).toBe('pass')`, outside any test body, so a core ready hash that stops passing fails setup loudly; the ac-4 multiset reads test bodies only — cost if wrong: none, delete the line (executor, task 16)
 
 ## Deferred
 
@@ -115,3 +116,4 @@
 - task 13 done 18c038ee6f08
 - task 14 done 576d195cf82c
 - task 15 done f894e38d37e5
+- task 16 done 2fc12244f800

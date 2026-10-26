@@ -1092,7 +1092,7 @@ it('risk:data-loss a local-only tag that the fetch refspecs map is named with it
 const C = { pid: 7003, start: 'S-C', marker: 'sess-C' };
 
 it('ac-1 in claude code pick up from the main checkout takes the hold and prints enter instead of stop', async () => {
-  const c = clone({ setup: ['node setup-step.js ci'] });
+  const c = copy({ setup: ['node setup-step.js ci'] });
   setTable(tableOf(A));
   const { code, out } = await run(['worktree', 'open', 'ST-9'], c.root, envOf(A));
   expect(code).toBe(0);
@@ -1106,12 +1106,11 @@ it('ac-1 in claude code pick up from the main checkout takes the hold and prints
   const moved = await run(['anchor'], c.sibling('ST-9'));
   expect(moved.out.startsWith('# Anchor: ST-9')).toBe(true);
   expect(moved.out).toBe((await run(['anchor', 'ST-9'], c.root)).out);
-  expect((await run(['worktree', 'open', 'ST-9', '--continue'], c.sibling('ST-9'), envOf(A))).out).toBe(HELD);
 });
 
 it('ac-2 in claude code continue from the main checkout enters a claimed worktree whose session ended with or without a worktree here', async () => {
-  const c = clone({ tickets: ['ST-9', 'ST-10'] });
-  await run(['worktree', 'open', 'ST-9'], c.root);
+  const c = copy({ tickets: ['ST-9', 'ST-10'] });
+  c.git('worktree', 'add', '-q', '-b', 't/ST-9', c.sibling('ST-9'), 'origin/main'); // H3: the pick-up result was never asserted
   writeHolds(c, { 'ST-9': DEAD });
   setTable(tableOf(A));
   const a = await run(['worktree', 'open', 'ST-9', '--continue'], c.root, envOf(A));
@@ -1134,30 +1133,43 @@ it('ac-2 in claude code continue from the main checkout enters a claimed worktre
   expect((readHolds(c)['ST-10'] as { marker: string }).marker).toBe('sess-C');
 });
 
-it('risk:complex-branching in claude code a worktree pinned to another accord version refuses before setup and prints no enter', async () => {
-  const c = clone();
+// H1, H2, H4: the two pinned-worktree tests share this set-up; the pick-up whose origin main pins another version is its own test.
+const pinnedWorktree = (c: Clone) => {
   c.git('worktree', 'add', '-q', '-b', 't/ST-9', c.sibling('ST-9'), 'origin/main');
   const cfg = `${c.sibling('ST-9')}/accord/config.yml`;
   writeFileSync(cfg, readFileSync(cfg, 'utf8').replace('accord: "0.2.0"', 'accord: "0.0.9"'));
   gitRun(c.sibling('ST-9'), 'commit', '-q', '-am', 'pin');
   setTable(tableOf(A));
+};
+
+it('risk:complex-branching in claude code a worktree pinned to another accord version refuses before setup and prints no enter', async () => {
+  const c = copy();
+  pinnedWorktree(c);
   const a = await run(['worktree', 'open', 'ST-9', '--continue'], c.root, envOf(A));
   expect(a.code).toBe(2);
   expect(a.err).toContain('pins accord 0.0.9');
   expect(a.err).toContain('merge origin/main into t/ST-9');
   expect(a.out).not.toContain('enter:');
   expect(existsSync(holdsFile(c))).toBe(false);
+}, 120_000);
+
+it('risk:complex-branching outside claude code a worktree pinned to another accord version still prints the stop lines', async () => {
+  const c = copy();
+  pinnedWorktree(c);
   const plain = await run(['worktree', 'open', 'ST-9', '--continue'], c.root);
   expect(plain.code).toBe(0);
   expect(lines(plain.out)).toEqual(stopLines(c.sibling('ST-9'), 'ST-9'));
+}, 120_000);
 
-  const d = clone({ setup: ['node setup-step.js ci'] });
+it('risk:complex-branching in claude code a pick up whose origin main pins another version refuses and names the main checkout', async () => {
+  const d = copy({ setup: ['node setup-step.js ci'] });
   const o = d.otherClone();
   gitRun(o, 'config', 'user.email', 'y@example.invalid');
   writeFileSync(`${o}/accord/config.yml`, readFileSync(`${o}/accord/config.yml`, 'utf8').replace('accord: "0.2.0"', 'accord: "0.0.9"'));
   gitRun(o, 'commit', '-q', '-am', 'pin');
   gitRun(o, 'push', '-q', 'origin', 'main');
   d.git('fetch', '-q', 'origin');
+  setTable(tableOf(A));
   const b = await run(['worktree', 'open', 'ST-9'], d.root, envOf(A));
   expect(b.code).toBe(2);
   expect(b.err).toContain('pins accord 0.0.9');
@@ -1212,7 +1224,7 @@ const C3 = { pid: 7003, start: 'S-C', marker: 'sess-C' };
 const WORKS = ['this session works ST-9', 'open a new session in the main checkout', 'without "/accord"'];
 
 it('ac-4 in claude code a session that works a ticket refuses other tickets and new tickets and changes nothing', async () => {
-  const c = clone({ tickets: ['ST-9', 'ST-10'] });
+  const c = copy({ tickets: ['ST-9', 'ST-10'] });
   const sib = c.sibling('ST-9');
   setTable(tableOf(A));
   expect((await run(['worktree', 'open', 'ST-9'], c.root, envOf(A))).code).toBe(0);
@@ -1267,7 +1279,7 @@ it('ac-4 in claude code a session that works a ticket refuses other tickets and 
 }, 180_000);
 
 it('ac-5 outside claude code pick up continue and new ticket print the stop lines and nothing is refused', async () => {
-  const c = clone({ tickets: ['ST-9', 'ST-10'] });
+  const c = copy({ tickets: ['ST-9', 'ST-10'] });
   vi.mocked(proc.processTable).mockClear();
   const outs: string[] = [];
   const go = async (argv: string[], dir: string) => {

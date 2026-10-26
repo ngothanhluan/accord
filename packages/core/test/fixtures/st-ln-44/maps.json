@@ -91,6 +91,13 @@
         "test": "packages/cli/test/lane-commands.test.ts#accord-approve->-after-approval-gate-ready-passes",
         "cite": "the CLI checks are made as in #20"
       }
+    ],
+    "97": [
+      {
+        "old": "expect((await run(['worktree', 'open', 'ST-9', '--continue'], c.sibling('ST-9'), envOf(A))).out).toBe(HELD);",
+        "test": "packages/cli/test/worktree.test.ts#risk:complex-branching-the-holding-session-re-enters-its-own-hold-and-a-partial-table-refuses",
+        "cite": "962 (HELD) is made by #27's title test"
+      }
     ]
   },
   "baseline": [

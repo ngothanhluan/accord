@@ -79,6 +79,10 @@
 - Ruling: #7's "origin tip ahead of local" test no longer pushes a local B first; origin goes 'second' to C, local stays at 'second' — cost if wrong: one step less history than before, same assertions; review reads it (executor, task 10)
 - Ruling: upgrade.test.ts's template other clones get `gc.auto 0` like Task 9 — mirrors H6 for clones made by tests — cost if wrong: one extra git config spawn in beforeAll (executor, task 11)
 - Ruling: #115's destinations carry no timeout argument, since the originals had none — the brief's "keep the original timeout" — cost if wrong: the default 90 s on Windows still holds the 29 s ceiling (executor, task 11)
+- Ruling: hook.test.ts uses one default template (`makeTemplate()`) for the brief's `{}` and `{ tickets: ['ST-9'] }`, which build the same repo, and a second for `{ tickets: ['ST-9','ST-10'] }` — cost if wrong: none, copies are identical (executor, task 12)
+- Ruling: #68's direct calls return `(await upgradeNotice('0.2.0')) ?? ''`, so every assertion keeps its exact text and no maps.json entry is needed — an undefined becomes '' and the toContain/not.toContain checks mean the same — cost if wrong: Task 37 expects entries it won't find (executor, task 12)
+- Ruling: #68 converts 5 direct runs (:269 then the 4-answer loop), not the "6 of the 8" table.md's row says; the row's line range :269-275 is what the executor and the main session follow, and the count in the row's text is off by one — table.md is not edited (that would change the approved hash) — cost if wrong: one more CLI run left in #68, about 0.3 s (executor, task 12)
+- Ruling: in #19 the `blocked({ cwd: wt, command_args: a })` loop is written once in each of destinations 2 and 3, since the old loop was split; the text is identical, so the old multiset is covered with one extra copy — cost if wrong: none (executor, task 12)
 
 ## Deferred
 
@@ -104,3 +108,4 @@
 - task 9 done b472f0061748
 - task 10 done a7848df58c49
 - task 11 done 816116ddd73e
+- task 12 done bdf3bbb38fa9

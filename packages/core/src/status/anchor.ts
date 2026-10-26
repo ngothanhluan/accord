@@ -30,7 +30,7 @@ export function anchorText(snapshot: RepoSnapshot, id: string): string | undefin
   if (lane) out.push('Lane: S', `Stage: ${progress.stage}, next: ${laneSNext(progress.stage as LaneSStage)}`);
   else out.push(`Stage: ${where}`);
   if (progress.base !== undefined) out.push(`Review base: ${progress.base}`);
-  const names = lane ? ['Understood', 'Done when', ...['Vetoes', 'Decisions', 'Corrections'].filter((n) => has(ticket, n))] : SECTIONS;
+  const names = lane ? ['Understood', 'Done when', ...['Scope', 'Vetoes', 'Decisions', 'Corrections'].filter((n) => has(ticket, n))] : SECTIONS;
   for (const name of names) {
     const s = ticket.sections.find((x) => headingKey(x.heading) === headingKey(name));
     const lines = s === undefined ? [] : stripHtmlComments(s.lines).map((l) => l.text).filter((t) => t.trim() !== '');

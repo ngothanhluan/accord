@@ -143,7 +143,7 @@ describe('config.schema.json', () => {
 
   it('top-level properties are the six D-16 keys plus optional tests (D-72) review (spec §7), models, escalation, and stale_days', () => {
     const keys = ['accord', 'profile', 'tracker', 'design', 'roles', 'runtimes'];
-    expect(Object.keys(configSchema.properties)).toEqual([...keys, 'tests', 'review', 'models', 'escalation', 'stale_days', 'people', 'legacy_ids', 'branch', 'setup', 'commits', 'generated']);
+    expect(Object.keys(configSchema.properties)).toEqual([...keys, 'tests', 'review', 'models', 'escalation', 'stale_days', 'people', 'legacy_ids', 'branch', 'setup', 'commits', 'generated', 'sensitive']);
     expect(configSchema.required).toEqual(keys);
     for (const key of Object.keys(configSchema.properties)) {
       expect(key).not.toMatch(/key|token|secret|password/i);
@@ -347,4 +347,23 @@ it('risk:parsing branch refuses a template that breaks any one rule', () => {
   for (const ok of ['feature/{id}', 't/{id}', 'team.x/{id}-wip']) expect(validate('config', { ...idsBase, branch: ok })).toEqual([]);
   for (const bad of ['{id}', 'a/x', 'a/{id}/{id}', 'a {id}', 'a/{name}/{id}', '-a/{id}', '/a/{id}', 'a/{id}/', 'a/{id}.', 'a/..{id}', 'a//{id}', '.a/{id}', 'a/.x/{id}', 'a.lock/{id}', 't/x/{id}', 't/{id}-x'])
     expect(at({ ...idsBase, branch: bad }), bad).toContain('schema.pattern@/branch');
+});
+it('risk:parsing sensitive and generated entries are repository paths without globs backslashes or parent segments', () => {
+  const cfg = (extra: Record<string, unknown>) => validate('config', { ...minimal.config, ...extra });
+  expect(
+    cfg({
+      sensitive: { interface: ['packages/cli/src/run.ts', 'packages/core/schemas/', 'src/a b.ts'], 'data-deletion': ['.github/x.yml'] },
+      generated: ['packages/core/src/generated/', 'packages/cli/README.md', 'docs/a b/'],
+    }),
+  ).toEqual([]);
+  expect(cfg({ sensitive: { Interface: ['a.ts'] } }).length).toBeGreaterThan(0);
+  expect(has(cfg({ sensitive: { interface: 'a.ts' } }), '/sensitive/interface', 'schema.type')).toBe(true);
+  expect(has(cfg({ sensitive: { interface: ['a.ts', 'a.ts'] } }), '/sensitive/interface', 'schema.uniqueItems')).toBe(true);
+  const bad = ['src/*.ts', 'src\\a.ts', '../a.ts', 'a/../b.ts', '/abs.ts', 'a//b.ts', ' a.ts', 'a.ts ', ''];
+  for (const path of bad) {
+    expect(cfg({ sensitive: { interface: [path] } }).some((f) => f.pointer === '/sensitive/interface/0'), 'sensitive ' + JSON.stringify(path)).toBe(true);
+  }
+  for (const path of ['src/*.ts', 'src\\a.ts', '../a.ts', '/abs.ts', ' a.ts']) {
+    expect(cfg({ generated: [path] }).some((f) => f.pointer === '/generated/0'), 'generated ' + JSON.stringify(path)).toBe(true);
+  }
 });

@@ -128,3 +128,38 @@ it('ac-3 a wording-only file outside the scope passes only when declared and con
   expect(undeclared).toHaveLength(1);
   expect(undeclared[0].reason).toContain('README.md is changed on this branch but not listed in ## Scope');
 });
+
+it('ac-4 gate done fails a lane S ticket that touched a listed sensitive area', () => {
+  const B = CONFIG + 'sensitive:\n  interface:\n    - packages/cli/src/run.ts\n    - packages/core/schemas/\n';
+  const L = '## Rulings\n- Wording-only: packages/cli/src/run.ts — fixes a typo\n';
+  const V = '## Round 1\n\nConfirmed wording-only: packages/cli/src/run.ts\n\nverdict: converged\n';
+  const withScope = (path: string) => ({ scope: { commit: 'c'.repeat(40), paths: ['packages/core/src/status/dashboard.ts', path] } });
+  const run = (changes: BranchChange[], extra: Record<string, unknown> = {}, config = CONFIG, files: Record<string, string> = {}) =>
+    found(
+      snap({ 'accord/config.yml': config, 'accord/tickets/S-1.md': S1, ...files }, { 'S-1': fact(changes, { baseConfig: B, ...extra }) }),
+      'S-1',
+      'gate.sensitive-touched',
+    );
+  const declared = run([ch('packages/cli/src/run.ts', 2)], withScope('packages/cli/src/run.ts'), CONFIG, {
+    'accord/tickets/S-1/ledger.md': L,
+    'accord/tickets/S-1/review.md': V,
+  });
+  expect(declared).toHaveLength(1);
+  expect(declared[0].level).toBe('error');
+  expect(declared[0].file).toBe('accord/tickets/S-1.md');
+  expect(declared[0].reason).toContain('interface');
+  expect(declared[0].reason).toContain('packages/cli/src/run.ts');
+  expect(declared[0].reason).toContain('must be lifted to lane M');
+  const folder = run([ch('packages/core/schemas/x.json', 1)]);
+  expect(folder).toHaveLength(1);
+  expect(folder[0].reason).toContain('packages/core/schemas/');
+  const headOnly = run([ch('packages/cli/src/run.ts', 1)], { baseConfig: undefined }, B);
+  expect(headOnly).toHaveLength(1);
+  expect(run([ch('packages/cli/src/run.ts', 0)])).toEqual([]);
+  const lane = found(
+    snap({ 'accord/config.yml': B, 'accord/tickets/T-1.md': laneTicket('T-1') }, { 'T-1': fact([ch('packages/cli/src/run.ts', 2)], { baseConfig: B }, 'T-1') }),
+    'T-1',
+    'gate.sensitive-touched',
+  );
+  expect(lane).toEqual([]);
+});

@@ -200,6 +200,7 @@ export interface AccordConfig {
   setup?: string[]; // D-07: commands run in order in a new worktree
   commits?: { trailers?: 'allow' | 'forbid' }; // ST-LN-8 D-01: absent or allow is off
   generated?: string[]; // ST-LN-62: paths a lane S ticket may change without listing them in ## Scope; an entry ending in / matches the folder
+  sensitive?: Record<string, string[]>; // ST-LN-62: area name -> paths whose change fails a lane S ticket; an entry ending in / matches the folder
 }
 
 export interface RepoSnapshot {

@@ -64,7 +64,7 @@ import {
   reviewUncommitted,
   sectionsChanged,
 } from './lane-s.js';
-import { branchUnknown, outOfScope } from './scope.js';
+import { branchUnknown, outOfScope, sensitiveTouched } from './scope.js';
 import { reviewMissing, reviewUnconverged, suiteNotPassed, tasksIncomplete, testUntracedAtDone } from './work.js';
 import {
   evidenceUnresolved,
@@ -216,6 +216,7 @@ export const DONE_S_RULES: readonly GateRule[] = [
   COMMIT_TRAILER,
   BRANCH_UNKNOWN,
   { id: 'gate.out-of-scope', level: 'error', profiles: ['build', 'maintain'], check: outOfScope },
+  { id: 'gate.sensitive-touched', level: 'error', profiles: ['build', 'maintain'], check: sensitiveTouched },
 ];
 
 /** D-89: the three LINT-06 hygiene rules Ready promotes from warning to blocking. */

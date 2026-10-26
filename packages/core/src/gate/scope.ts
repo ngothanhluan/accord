@@ -102,6 +102,35 @@ export const outOfScope: GateRule['check'] = (s, id) => {
   });
 };
 
+/** The base entries of `sensitive:` then the HEAD entries, in key order, each (area, path) pair once. */
+export function sensitiveEntries(s: RepoSnapshot, fact: BranchRead): { area: string; path: string }[] {
+  const head = Object.entries(s.config?.sensitive ?? {}).flatMap(([area, paths]) => paths.map((path) => ({ area, path })));
+  const seen = new Set<string>();
+  return [...configLists(fact.baseConfig).sensitive, ...head].filter((e) => {
+    const key = e.area + '\0' + e.path;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/** Lane S: a counted, non-exempt change under a listed sensitive entry fails, whatever its scope or declaration (D-04). */
+export const sensitiveTouched: GateRule['check'] = (s, id) => {
+  if (laneTicket(s, id)?.frontmatter?.lane !== 'S') return [];
+  const fact = factOf(s, id);
+  if (fact === undefined || 'error' in fact) return [];
+  const entries = sensitiveEntries(s, fact);
+  const file = ticketFile(id);
+  return fact.changes
+    .filter((c) => isCounted(c) && !isExempt(id, fact, c.path))
+    .flatMap((c) => {
+      const hit = entries.find((e) => matches(e.path, c.path));
+      return hit === undefined
+        ? []
+        : [{ file, reason: `${c.path} is in the sensitive area ${hit.area} (accord/config.yml lists ${hit.path} under sensitive); the ticket must be lifted to lane M` }];
+    });
+};
+
 /** D-02, D-07: why a declared wording-only file does not qualify, or undefined when it does. */
 function wordingOnlyFault(c: BranchChange | undefined, path: string, confirmed: string[], id: string): string | undefined {
   if (c?.kind === 'added') return 'is new';

@@ -83,6 +83,8 @@
 - Ruling: #68's direct calls return `(await upgradeNotice('0.2.0')) ?? ''`, so every assertion keeps its exact text and no maps.json entry is needed — an undefined becomes '' and the toContain/not.toContain checks mean the same — cost if wrong: Task 37 expects entries it won't find (executor, task 12)
 - Ruling: #68 converts 5 direct runs (:269 then the 4-answer loop), not the "6 of the 8" table.md's row says; the row's line range :269-275 is what the executor and the main session follow, and the count in the row's text is off by one — table.md is not edited (that would change the approved hash) — cost if wrong: one more CLI run left in #68, about 0.3 s (executor, task 12)
 - Ruling: in #19 the `blocked({ cwd: wt, command_args: a })` loop is written once in each of destinations 2 and 3, since the old loop was split; the text is identical, so the old multiset is covered with one extra copy — cost if wrong: none (executor, task 12)
+- Ruling: #28 gets one maps.json entry (the gate.test id) although its note names two CLI tests — the old body had a single exit assertion — cost if wrong: one cite swap if the audit wants the lane-commands test named too (executor, task 13)
+- Ruling: task 13 removed an unused `commitAll` import from dashboard.test.ts that lint flagged — inside the task's file — cost if wrong: none (executor, task 13)
 
 ## Deferred
 
@@ -109,3 +111,4 @@
 - task 10 done a7848df58c49
 - task 11 done 816116ddd73e
 - task 12 done bdf3bbb38fa9
+- task 13 done 18c038ee6f08

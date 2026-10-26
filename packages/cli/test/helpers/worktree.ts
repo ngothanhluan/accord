@@ -67,6 +67,16 @@ export function makeClone(opts: { setup?: string[]; tickets?: string[] } = {}): 
   };
 }
 
+/** A clone to copy from (H6): no automatic gc or maintenance in the template, its remote, or any copy of them. */
+export function makeTemplate(opts: { setup?: string[]; tickets?: string[] } = {}): Clone {
+  const c = makeClone(opts);
+  gitRun(c.root, 'config', 'maintenance.auto', 'false');
+  gitRun(c.root, 'config', 'gc.auto', '0');
+  gitRun(c.remote, 'config', 'gc.auto', '0');
+  gitRun(c.remote, 'config', 'receive.autogc', 'false');
+  return c;
+}
+
 /**
  * A copy of a template clone (H1, rule 5): the folders are copied, then `origin` is pointed at the copied
  * remote with `git remote set-url`, never a text replace. Each copied clone asserts its origin is its own;
@@ -106,7 +116,7 @@ export function copyClone(tpl: Clone, others: string[] = []): Clone & { others: 
     otherClone() {
       const dir = realpathSync.native(mkdtempSync(join(tmpdir(), 'accord-wt-other-')));
       // H2: one spawn; `clone -c` writes the identity into the new repository's config.
-      gitRun(dir, 'clone', '-q', ...IDENTITY.flatMap(([k, v]) => ['-c', `${k}=${v}`]), remote, '.');
+      gitRun(dir, 'clone', '-q', ...[...IDENTITY, ['maintenance.auto', 'false'], ['gc.auto', '0']].flatMap(([k, v]) => ['-c', `${k}=${v}`]), remote, '.');
       mine.push(dir);
       return dir;
     },

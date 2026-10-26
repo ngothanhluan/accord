@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, it } from 'vitest';
 import { cleanup, gitRun, run } from './helpers/repo.js';
-import { copyClone, makeClone } from './helpers/worktree.js';
+import { copyClone, makeClone, makeTemplate } from './helpers/worktree.js';
 
 // The facts a copy must share with a clone built the same way; the root and the head sha vary per clone.
 function facts(c: { root: string; remote: string; git(...a: string[]): string }) {
@@ -91,6 +91,21 @@ it('risk:regression an other clone of a template copy is one clone with the fixt
     const list = gitRun(o, 'config', '--local', '--list');
     expect(list.indexOf('user.email=fixture@example.invalid')).toBeGreaterThanOrEqual(0);
     expect(list.indexOf('user.email=')).toBeLessThan(list.indexOf('remote.origin.url='));
+  } finally {
+    c.cleanupAll();
+  }
+}, 60_000);
+
+it('risk:regression a template copy and its other clone run no automatic git maintenance', () => {
+  const c = copyClone(makeTemplate());
+  try {
+    const o = c.otherClone();
+    for (const dir of [c.root, o]) {
+      expect(gitRun(dir, 'config', '--get', 'maintenance.auto').trim()).toBe('false');
+      expect(gitRun(dir, 'config', '--get', 'gc.auto').trim()).toBe('0');
+    }
+    expect(gitRun(c.remote, 'config', '--get', 'receive.autogc').trim()).toBe('false');
+    expect(gitRun(c.remote, 'config', '--get', 'gc.auto').trim()).toBe('0');
   } finally {
     c.cleanupAll();
   }

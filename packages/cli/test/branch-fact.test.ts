@@ -105,7 +105,7 @@ it('risk:complex-branching gate done reads the branch diff from the merge base i
     gitRun(repo, 'switch', '-q', 'main');
     const onMain = errs((await run(['gate', 'done', 'S-1', '--json'], repo)).out, 'gate.branch-unknown');
     expect(onMain).toHaveLength(1);
-    expect(onMain[0]).toContain('does not change accord/tickets/S-1.md');
+    expect(onMain[0]).toContain('adds no change over the merge base');
     gitRun(repo, 'switch', '-q', 't/S-1');
 
     // No default branch at all.

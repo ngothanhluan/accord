@@ -66,6 +66,7 @@ export function outsideScope(s: RepoSnapshot, id: string): { paths: string[] } |
 }
 
 const changesTicket = (fact: BranchRead, id: string): boolean => fact.changes.some((c) => c.path === ticketFile(id));
+const hasChanges = (fact: BranchRead): boolean => fact.changes.length > 0;
 
 export const branchUnknown: GateRule['check'] = (s, id) => {
   if (laneTicket(s, id) === undefined) return [];
@@ -73,13 +74,23 @@ export const branchUnknown: GateRule['check'] = (s, id) => {
   const fact = factOf(s, id);
   if (fact === undefined) return [{ file, reason: 'the host loaded no branch diff for this ticket, so the files it changed cannot be checked' }];
   if ('error' in fact) return [{ file, reason: fact.error }];
-  if (changesTicket(fact, id)) return [];
-  return [
-    {
-      file,
-      reason: `the branch diff from ${fact.base}, the merge base with the default branch, does not change ${file}; lane work is committed on the ticket's own branch, never on the default branch`,
-    },
-  ];
+  if (!hasChanges(fact)) {
+    return [
+      {
+        file,
+        reason: `the branch diff from ${fact.base}, the merge base with the default branch, to HEAD is empty: HEAD adds no change over the merge base; lane work is committed on the ticket's own branch, never on the default branch`,
+      },
+    ];
+  }
+  if (laneTicket(s, id)?.frontmatter?.lane === 'S' && !changesTicket(fact, id)) {
+    return [
+      {
+        file,
+        reason: `the branch diff from ${fact.base}, the merge base with the default branch, does not change ${file}; lane work is committed on the ticket's own branch, never on the default branch`,
+      },
+    ];
+  }
+  return [];
 };
 
 export const outOfScope: GateRule['check'] = (s, id) => {

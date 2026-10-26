@@ -156,7 +156,7 @@ const REVIEW_MISSING: GateRule = { id: 'gate.review-missing', level: 'error', pr
 const REVIEW_UNCONVERGED: GateRule = { id: 'gate.review-unconverged', level: 'error', profiles: ['build', 'maintain'], check: reviewUnconverged };
 const SUITE_NOT_PASSED: GateRule = { id: 'gate.suite-not-passed', level: 'error', profiles: ['build', 'maintain'], check: suiteNotPassed };
 const COMMIT_TRAILER: GateRule = { id: 'gate.commit-trailer', level: 'error', profiles: ['build', 'maintain'], check: commitTrailer };
-/** ST-LN-62: Done reads the branch diff of every ticket with `lane:`; no diff, or a diff without the ticket file, fails closed. */
+/** ST-LN-62: Done reads the branch diff of every ticket with `lane:`; no diff, an empty diff, or in lane S a diff without the ticket file, fails closed. */
 const BRANCH_UNKNOWN: GateRule = { id: 'gate.branch-unknown', level: 'error', profiles: ['build', 'maintain'], check: branchUnknown };
 
 /** ST-LN-62 D-04: a sign of a new interface in a path no sensitive entry matches, in every lane that carries `lane:`. */

@@ -63,6 +63,7 @@ it('risk:complex-branching gate done fails closed on a missing or failed branch 
   expect(found(boom, 'S-1', 'gate.branch-unknown').map((f) => f.reason)).toEqual(['boom']);
   expect(found(boom, 'S-1', 'gate.out-of-scope')).toEqual([]);
 
+  // Since Task 9 a diff without the ticket file fails only lane S; lane M fails only an empty branch diff.
   const noTicket = s1({ 'S-1': { ...fact([]), changes: [ch('src/x.ts')] } as BranchFact });
   const nt = found(noTicket, 'S-1', 'gate.branch-unknown');
   expect(nt).toHaveLength(1);
@@ -226,4 +227,32 @@ it('ac-5 a sign of a new interface outside the list needs the list updated or a 
 
   const plain = snap({ 'accord/tickets/X-1.md': laneTicket('X-1', { lane: '' }) }, { 'X-1': fact(changesOf('X-1'), {}, 'X-1') });
   expect(found(plain, 'X-1', 'gate.interface-sign')).toEqual([]);
+});
+
+it('risk:regression gate done reads lane M work from a branch diff that lacks the ticket file and fails an empty branch diff in every lane', () => {
+  const M = { 'accord/tickets/T-1.md': laneTicket('T-1') };
+  const mFact = (changes: BranchChange[]) => ({ ...fact([], {}, 'T-1'), changes }) as BranchFact;
+  const m = snap(M, {
+    'T-1': mFact([ch('src/x.ts', 2), ch('accord/tickets/T-1/plan.md', 3, 'added'), ch('accord/tickets/T-1/ledger.md', 1, 'added')]),
+  });
+  expect(found(m, 'T-1', 'gate.branch-unknown')).toEqual([]);
+  expect(found(snap(M, { 'T-1': mFact([ch('src/ws.ts', 0)]) }), 'T-1', 'gate.branch-unknown')).toEqual([]);
+  const emptyM = found(snap(M, { 'T-1': mFact([]) }), 'T-1', 'gate.branch-unknown');
+  expect(emptyM).toHaveLength(1);
+  expect(emptyM[0].reason).toContain('adds no change over the merge base');
+  expect(emptyM[0].reason).toContain('never on the default branch');
+
+  const sFact = (changes: BranchChange[]) => ({ ...fact([]), changes }) as BranchFact;
+  const s = snap({ 'accord/tickets/S-1.md': S1 }, { 'S-1': sFact([ch('packages/core/src/status/dashboard.ts', 2), ch('src/x.ts', 1)]) });
+  const noTicket = found(s, 'S-1', 'gate.branch-unknown');
+  expect(noTicket).toHaveLength(1);
+  expect(noTicket[0].reason).toContain('does not change accord/tickets/S-1.md');
+  expect(found(s, 'S-1', 'gate.out-of-scope')).toEqual([]);
+
+  const emptyS = snap({ 'accord/tickets/S-1.md': S1 }, { 'S-1': sFact([]) });
+  const eS = found(emptyS, 'S-1', 'gate.branch-unknown');
+  expect(eS).toHaveLength(1);
+  expect(eS[0].reason).toContain('adds no change over the merge base');
+  expect(eS[0].reason).not.toContain('does not change');
+  expect(found(emptyS, 'S-1', 'gate.out-of-scope')).toEqual([]);
 });

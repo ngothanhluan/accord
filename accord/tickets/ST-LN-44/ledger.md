@@ -77,6 +77,8 @@
 - Ruling: in drop.test.ts, tests 1-3 of #7 and the first and second of #39 copy the claimed template (claim tip 'second' replaces 'A'); #7's tests 4 and 5, #79's two tests and #39's third and fourth copy the plain template, since they need no claim branch and #79's own claim creates t/ST-10 in a worktree — cost if wrong: none to what is checked (executor, task 10)
 - Ruling: drop.test.ts's old `undrop` helper and `rmSync(hook)` cleanup are gone — they were setup between blocks, not assertions; each destination builds its own state — cost if wrong: none (executor, task 10)
 - Ruling: #7's "origin tip ahead of local" test no longer pushes a local B first; origin goes 'second' to C, local stays at 'second' — cost if wrong: one step less history than before, same assertions; review reads it (executor, task 10)
+- Ruling: upgrade.test.ts's template other clones get `gc.auto 0` like Task 9 — mirrors H6 for clones made by tests — cost if wrong: one extra git config spawn in beforeAll (executor, task 11)
+- Ruling: #115's destinations carry no timeout argument, since the originals had none — the brief's "keep the original timeout" — cost if wrong: the default 90 s on Windows still holds the 29 s ceiling (executor, task 11)
 
 ## Deferred
 
@@ -101,3 +103,4 @@
 - task 8 done 733af3c94f6a
 - task 9 done b472f0061748
 - task 10 done a7848df58c49
+- task 11 done 816116ddd73e

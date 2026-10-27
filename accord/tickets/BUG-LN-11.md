@@ -48,7 +48,7 @@ Feature: BUG-LN-11
     Then before the next task starts, the claim branch on origin holds every commit of that task, its ledger line included
     And accord dashboard in a second clone that has fetched shows the same task count as the ticket's own worktree
 
-  @ac-2
+  @ac-2 @test:packages/cli/test/worktree-push.test.ts#ac-2-each-stage-change-before-build-pushed-with-accord-worktree-push-shows-the-same-stage-in-another-clone
   Scenario: Each stage change before build reaches origin
     Given a lane M ticket whose claim branch is pushed
     When its intent is approved, then its approach is approved, then its plan passes accord gate plan

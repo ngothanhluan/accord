@@ -180,6 +180,7 @@
 - Plan round 10 N3: main session step 3 says task-done "re-records" a re-dispatched Task 40 at verify, but task-done only confirms an existing ledger line and exits 0; the full run after it is the real check.
 - Review round 2 N1: worktree.test.ts:2237 still hard-codes `accord: "0.3.0"` while :1150 and :1178 derive it from `PIN`, and hook.test.ts's `N`, answer list and texts stay literal 0.3.0/0.4.0/0.5.0, so a pin bump fails those tests with a confusing error; a one-line `PIN` there and version strings built from `PIN` in #68.
 - Review round 2 N2: ac-3 and ac-1 read only pre-merge runs, so main's two renamed dashboard.test.ts tests (now `risk:regression ...`) are checked only by plan step 6's merged run, which passed.
+- Final review N1: sandbox-guard.test.ts:82 and :100 pass an inline template to copyClone (`copyClone(makeClone())`, `copyClone(makeTemplate())`) and never clean it, so each run of the file leaves 2 accord-wt-* and 2 accord-wt-remote-* folders in the temp directory; keep `tpl` and call `tpl.cleanupAll()` in finally as :26 does.
 
 ## Tasks
 - task 1 done 5b5e41f6cbc9

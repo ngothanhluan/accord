@@ -1665,7 +1665,7 @@ async function dropAndMerge(c: Clone, id: string) {
 }
 
 it('ac-3 clean deletes the worktree and both branches of a ticket dropped on the default branch', async () => {
-  const c = clone();
+  const c = copy();
   const S = claimWorktree(c, 'ST-10', { 'accord/tickets/ST-10.md': laneTicket('ST-10'), 'src/a.ts': 'a\n' });
   await dropAndMerge(c, 'ST-10');
   const r = await run(['worktree', 'clean'], c.root);
@@ -1678,11 +1678,12 @@ it('ac-3 clean deletes the worktree and both branches of a ticket dropped on the
 }, 120_000);
 
 it('ac-4 clean keeps a dropped ticket whose local branch has commits not on origin', async () => {
-  const c = clone();
+  const c = copy();
   const S = claimWorktree(c, 'ST-10', { 'accord/tickets/ST-10.md': laneTicket('ST-10'), 'src/a.ts': 'a\n' });
   writeFiles(c.sibling('ST-10'), { 'more.txt': 'more\n' });
   const L = commitMsg(c.sibling('ST-10'), 'unpushed');
-  await dropAndMerge(c, 'ST-10');
+  // H3: the drop lands on the remote main by git; the drop command and its exit 0 are checked by the ac-3 test above and by #32.
+  dropOnRemote(c, ['ST-10']);
   const r = await run(['worktree', 'clean'], c.root);
   expect(r.code).toBe(0);
   expect(lines(r.out)).toEqual(['kept t/ST-10: 1 commits not on origin']);
@@ -1692,7 +1693,7 @@ it('ac-4 clean keeps a dropped ticket whose local branch has commits not on orig
 }, 120_000);
 
 it('risk:data-loss clean keeps a dropped ticket whose origin branch has commits not here or has diverged', async () => {
-  const c = clone();
+  const c = copy();
   claimWorktree(c, 'ST-9');
   const o = c.otherClone();
   gitRun(o, 'switch', '-q', 't/ST-9');
@@ -1702,6 +1703,21 @@ it('risk:data-loss clean keeps a dropped ticket whose origin branch has commits 
   dropOnRemote(c, ['ST-9']);
   const kept = ['kept t/ST-9: origin/t/ST-9 has commits not here'];
   expect(lines((await run(['worktree', 'clean'], c.root)).out)).toEqual(kept);
+  expect(existsSync(c.sibling('ST-9'))).toBe(true);
+  expect(has(c.root, 'refs/heads/t/ST-9')).toBe(true);
+  expect(has(c.remote, 'refs/heads/t/ST-9')).toBe(true);
+}, 120_000);
+
+it('risk:data-loss clean keeps a dropped ticket whose local and origin branches have diverged', async () => {
+  const c = copy();
+  claimWorktree(c, 'ST-9');
+  const o = c.otherClone();
+  gitRun(o, 'switch', '-q', 't/ST-9');
+  writeFiles(o, { 'o.txt': 'o\n' });
+  commitMsg(o, 'elsewhere');
+  gitRun(o, 'push', '-q');
+  dropOnRemote(c, ['ST-9']);
+  const kept = ['kept t/ST-9: origin/t/ST-9 has commits not here'];
   writeFiles(c.sibling('ST-9'), { 'l.txt': 'l\n' });
   commitMsg(c.sibling('ST-9'), 'local');
   expect(lines((await run(['worktree', 'clean'], c.root)).out)).toEqual(kept);
@@ -1711,7 +1727,7 @@ it('risk:data-loss clean keeps a dropped ticket whose origin branch has commits 
 }, 120_000);
 
 it('risk:data-loss clean deletes a dropped ticket branch that exists on one side only when nothing is lost', async () => {
-  const c = clone({ tickets: ['ST-9', 'ST-10', 'ST-11'] });
+  const c = copy({ tickets: ['ST-9', 'ST-10', 'ST-11'] });
   const S9 = claimWorktree(c, 'ST-9');
   c.git('worktree', 'remove', c.sibling('ST-9'));
   c.git('branch', '-D', 't/ST-9');
@@ -1734,7 +1750,7 @@ it('risk:data-loss clean deletes a dropped ticket branch that exists on one side
 }, 120_000);
 
 it('risk:data-loss clean keeps everything of a dropped ticket that a guard keeps or whose worktree remove fails', async () => {
-  const c = clone({ tickets: ['ST-9', 'ST-10', 'ST-11', 'ST-12'] });
+  const c = copy({ tickets: ['ST-9', 'ST-10', 'ST-11', 'ST-12'] });
   for (const id of ['ST-9', 'ST-10', 'ST-11', 'ST-12']) claimWorktree(c, id);
   writeFiles(c.sibling('ST-9'), { 'new.txt': 'n\n' });
   c.git('worktree', 'lock', c.sibling('ST-10'));
@@ -1806,26 +1822,33 @@ it('risk:data-loss a stale lease keeps the local branch of a dropped ticket and 
 }, 120_000);
 
 it('risk:data-loss a second clone deletes its local branch of a dropped ticket another clone cleaned', async () => {
-  const c = clone();
+  const c = copy();
   const S = claimWorktree(c, 'ST-9');
   const o2 = c.otherClone();
   gitRun(o2, 'branch', 't/ST-9', 'origin/t/ST-9');
+  dropOnRemote(c, ['ST-9']);
+  // H3: what the first clone's clean leaves on the remote; that clean and its exit 0 are the ac-3 test's (#105).
+  c.git('push', '-q', 'origin', '--delete', 't/ST-9');
+  expect(lines((await run(['worktree', 'clean'], o2)).out)).toEqual([`pruned refs/remotes/origin/t/ST-9 (was ${S})`, `deleted t/ST-9 (was ${S})`]);
+  expect(has(o2, 'refs/heads/t/ST-9')).toBe(false);
+}, 120_000);
+
+it('risk:data-loss a second clone keeps its local branch of a cleaned dropped ticket that has commits not on origin', async () => {
+  const c = copy();
+  const S = claimWorktree(c, 'ST-9');
   const o3 = c.otherClone();
   gitRun(o3, 'switch', '-q', 't/ST-9');
   writeFiles(o3, { 'x.txt': 'x\n' });
   commitMsg(o3, 'mine');
   gitRun(o3, 'switch', '-q', 'main');
   dropOnRemote(c, ['ST-9']);
-  expect((await run(['worktree', 'clean'], c.root)).code).toBe(0);
-  expect(has(c.remote, 'refs/heads/t/ST-9')).toBe(false);
-  expect(lines((await run(['worktree', 'clean'], o2)).out)).toEqual([`pruned refs/remotes/origin/t/ST-9 (was ${S})`, `deleted t/ST-9 (was ${S})`]);
-  expect(has(o2, 'refs/heads/t/ST-9')).toBe(false);
+  c.git('push', '-q', 'origin', '--delete', 't/ST-9');
   expect(lines((await run(['worktree', 'clean'], o3)).out)).toEqual([`pruned refs/remotes/origin/t/ST-9 (was ${S})`, 'kept t/ST-9: 2 commits not on origin']);
   expect(has(o3, 'refs/heads/t/ST-9')).toBe(true);
 }, 120_000);
 
 it('risk:data-loss clean keeps the local branch of a dropped ticket that moved after clean read it', async () => {
-  const c = clone();
+  const c = copy();
   const S = claimWorktree(c, 'ST-9');
   dropOnRemote(c, ['ST-9']);
   const o = c.otherClone();
@@ -1867,9 +1890,8 @@ it('risk:data-loss clean keeps a dropped ticket branch that a detached worktree 
 }, 120_000);
 
 it('risk:complex-branching pick up refuses a ticket the default branch holds as dropped', async () => {
-  const c = clone({ tickets: ['ST-9', 'ST-10'] });
-  c.git('branch', 't/ST-10', 'origin/main');
-  dropOnRemote(c, ['ST-9', 'ST-10']);
+  const c = copy({ tickets: ['ST-9', 'ST-10'] });
+  dropOnRemote(c, ['ST-9']);
   c.git('fetch', '-q', 'origin');
   const a = await run(['worktree', 'open', 'ST-9'], c.root);
   expect(a.code).toBe(2);
@@ -1877,10 +1899,24 @@ it('risk:complex-branching pick up refuses a ticket the default branch holds as 
   expect(a.err).toContain('make a new ticket instead');
   expect(existsSync(c.sibling('ST-9'))).toBe(false);
   expect(has(c.root, 'refs/heads/t/ST-9')).toBe(false);
+}, 120_000);
+
+it('risk:complex-branching pick up refuses a ticket the default branch holds as dropped even with a local ticket branch', async () => {
+  const c = copy({ tickets: ['ST-9', 'ST-10'] });
+  c.git('branch', 't/ST-10', 'origin/main');
+  dropOnRemote(c, ['ST-10']);
+  c.git('fetch', '-q', 'origin');
   const b = await run(['worktree', 'open', 'ST-10'], c.root);
   expect(b.code).toBe(2);
   expect(b.err).toContain('ST-10 is dropped on main');
   expect(existsSync(c.sibling('ST-10'))).toBe(false);
+}, 120_000);
+
+it('risk:complex-branching continue still opens a ticket the default branch holds as dropped', async () => {
+  const c = copy({ tickets: ['ST-9', 'ST-10'] });
+  c.git('branch', 't/ST-10', 'origin/main');
+  dropOnRemote(c, ['ST-10']);
+  c.git('fetch', '-q', 'origin');
   const k = await run(['worktree', 'open', 'ST-10', '--continue'], c.root);
   expect(k.code).toBe(0);
   expect(existsSync(c.sibling('ST-10'))).toBe(true);

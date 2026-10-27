@@ -86,6 +86,18 @@
         "cite": "the pick-up exit 0 (197) is made by #36"
       }
     ],
+    "67": [
+      {
+        "old": "expect((await run(['worktree', 'clean'], c.root)).code).toBe(0);",
+        "test": "packages/cli/test/worktree.test.ts#ac-3-clean-deletes-the-worktree-and-both-branches-of-a-ticket-dropped-on-the-default-branch",
+        "cite": "1601-1602 (c's clean exits 0 and deletes the origin branch) is made by #105"
+      },
+      {
+        "old": "expect(has(c.remote, 'refs/heads/t/ST-9')).toBe(false);",
+        "test": "packages/cli/test/worktree.test.ts#ac-3-clean-deletes-the-worktree-and-both-branches-of-a-ticket-dropped-on-the-default-branch",
+        "cite": "1601-1602 (c's clean exits 0 and deletes the origin branch) is made by #105"
+      }
+    ],
     "69": [
       {
         "old": "expect((await run(['gate', 'ready', 'S-1'], repo)).code).toBe(0);",
@@ -124,6 +136,13 @@
         "old": "expect((await run(['worktree', 'open', 'ST-9', '--continue'], c.sibling('ST-9'), envOf(A))).out).toBe(HELD);",
         "test": "packages/cli/test/worktree.test.ts#risk:complex-branching-the-holding-session-re-enters-its-own-hold-and-a-partial-table-refuses",
         "cite": "962 (HELD) is made by #27's title test"
+      }
+    ],
+    "103": [
+      {
+        "old": "dropAndMerge(c, 'ST-10');",
+        "test": "packages/cli/test/worktree.test.ts#ac-3-clean-deletes-the-worktree-and-both-branches-of-a-ticket-dropped-on-the-default-branch",
+        "cite": "is made by #32 and by #105"
       }
     ]
   },

@@ -46,7 +46,8 @@ session and orchestrate: executors write the code.
      different `@test:` tag: ask the owner; never an executor or `accord-debug`.
    - It writes the ledger line: copy every Ruling in the executor's
      report into `accord/tickets/<id>/ledger.md` under `## Rulings`, then
-     commit the ticket together with `accord/tickets/<id>/ledger.md`.
+     commit the ticket together with `accord/tickets/<id>/ledger.md`, then run
+     `accord worktree push <id>`.
    - A ticket whose recorded tasks predate the tag writer: run
      `accord task-done <id> <n>` again for each recorded task.
 
@@ -70,8 +71,9 @@ session and orchestrate: executors write the code.
 6. **Change of course.** When the approved approach cannot work, stop.
    Write a change note under the ticket's `## Approach`: what failed,
    which finished tasks still hold, and the proposed new approach. Ask the
-   owner for a new yes; on yes run `accord approve <id>`, then
-   `accord-plan`'s re-plan covers only the tasks the change touches.
+   owner for a new yes; on yes run `accord approve <id>`, commit
+   the ticket and run `accord worktree push <id>`, then `accord-plan`'s re-plan
+   covers only the tasks the change touches.
    Never re-plan quietly.
 
 7. **Plan changed.** When `accord task-done` says `plan.md` changed,

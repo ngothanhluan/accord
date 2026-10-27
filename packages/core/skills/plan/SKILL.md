@@ -76,7 +76,7 @@ one at a time. You run it in the main session.
 8. **Finish.** If `git status` shows `accord/tests-baseline.txt` new, commit it
    alone first and add its Ruling if absent, per `./baseline.md`. Append a `## Closed` line to `plan-review.md`. Commit `plan.md` and `plan-review.md`, with the ledger if it changed, with the
    subject `plan: <id> ready`. That commit marks the plan finished;
-   `accord-build` checks for it.
+   `accord-build` checks for it. Then run `accord worktree push <id>`.
 
 9. Next: `accord-build`.
 

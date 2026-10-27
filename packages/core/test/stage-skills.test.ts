@@ -792,3 +792,62 @@ it('risk:regression a finished ticket reports a verdict, never a merge, then das
       expect(finish, dir).toContain(s);
   }
 });
+
+it('risk:regression the stage skills run accord worktree push after each stage commit and each recorded task', () => {
+  const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
+  const PUSH = 'run `accord worktree push <id>`';
+  const GO = 'go on even if it fails';
+  const ROWS: [stage: string, from: string, to: string, commit: string, go: boolean][] = [
+    ['intent', "9. **The owner's yes.**", '10. Next', 'uses `--allow-empty` when nothing changed', true],
+    ['approach', "5. **The owner's yes.**", '6. Next', 'Then commit the ticket, with `approved_hash:` and `ac_hash:` in it', true],
+    ['plan', '8. **Finish.**', '9. Next', 'with the subject `plan: <id> ready`', false],
+    ['build', '3. **Record.**', '4. **Blocked.**', 'commit the ticket together with `accord/tickets/<id>/ledger.md`', false],
+    ['build', '6. **Change of course.**', '7. **Plan changed.**', 'on yes run `accord approve <id>`, commit the ticket', false],
+  ];
+  const OPEN = 'A line starting `push of` that `accord worktree open <id> --continue` prints: the merge commit was not pushed.';
+  const OLD = 'A line starting `push of` (Continue only)';
+  const FROM = 'A line starting `push of` from `accord worktree push <id>`';
+  const NEXT = 'Lines starting `removed`';
+  const SAYS = ['the commits stay local until the next push', "go on with the stage's next step", 'never stop or ask the owner'];
+  const LEASE = ['After a commit is reworded', 'run the next push as `accord worktree push <id> --force-with-lease`'];
+  const every = skillTargets(all);
+  const flat = (path: string) => (every.find((f) => f.path === path)?.text ?? '').replace(/\s+/g, ' ');
+  const bad: string[] = [];
+  for (const dir of skillDirs(all)) {
+    for (const [stage, from, to, commit, go] of ROWS) {
+      const text = flat(dir + '/' + installedName(stage) + '/SKILL.md');
+      const a = text.indexOf(from);
+      const b = text.indexOf(to, a);
+      if (a < 0 || b < 0) {
+        bad.push(`${dir} ${stage}: markers ${from} / ${to} not found in order`);
+        continue;
+      }
+      const step = text.slice(a, b);
+      const c = step.indexOf(commit);
+      const p = step.indexOf(PUSH);
+      if (c < 0) bad.push(`${dir} ${stage}: commit marker missing`);
+      if (p < 0 || p < c) bad.push(`${dir} ${stage}: ${PUSH} not after the commit`);
+      if (go && (p < 0 || step.indexOf(GO) < p)) bad.push(`${dir} ${stage}: go-on clause not after the push`);
+    }
+    if (flat(dir + '/' + installedName('review') + '/SKILL.md').includes('worktree push')) bad.push(`${dir} review: pushes`);
+  }
+  const refs = every.filter((f) => f.path.endsWith('/worktree.md')).map((f) => f.path);
+  for (const dir of skillDirs(all)) {
+    const own = dir + '/' + installedName('accord') + '/worktree.md';
+    if (!refs.includes(own)) bad.push(`${dir}: ${own} missing`);
+  }
+  for (const path of refs) {
+    const text = flat(path);
+    const f = text.indexOf(FROM);
+    const n = text.indexOf(NEXT, f);
+    if (!text.includes(OPEN)) bad.push(`${path}: OPEN missing`);
+    if (text.includes(OLD)) bad.push(`${path}: old push bullet still there`);
+    if (f < 0 || n < 0) {
+      bad.push(`${path}: FROM / NEXT missing in order`);
+      continue;
+    }
+    const slice = text.slice(f, n);
+    for (const s of [...SAYS, ...LEASE]) if (!slice.includes(s)) bad.push(`${path}: bullet lacks ${s}`);
+  }
+  expect(bad).toEqual([]);
+});

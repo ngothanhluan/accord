@@ -121,6 +121,8 @@
 - Ruling: accord/tests-baseline.txt:129 still lists the removed lane-flow `walks-one-ticket-from-unapproved-to-done` id (maps.json `baseline` has it as null); the main session's step 1 before Task 35 updates the baseline from maps.json, executors never touch `accord/` — cost if wrong: none (main session, task 30)
 - Ruling: task 31's audit of the worktree.test.ts rows of Tasks 18 to 20 (#15, #27, #34, #36, #42, #47, #48, #49, #50, #56, #59, #62, #66, #72, #75, #77, #82, #84, #111, #113) found no gap, so it edits nothing and has no commit; the whole file passes (123 passed, 1 skipped) — cost if wrong: Task 37's multiset check catches a missed assertion (main session, task 31)
 - Ruling: task 32's audit of the worktree.test.ts rows of Tasks 21 to 23 (#18, #24, #45, #52, #58, #67, #80, #86, #88, #89, #92, #93, #97, #98, #101, #103, #105) found no gap, so it edits nothing and has no commit; the whole file passes (123 passed, 1 skipped) — cost if wrong: Task 37's multiset check catches a missed assertion (main session, task 32)
+- Ruling: task 33's audit of the worktree.test.ts rows of Tasks 24 to 26 (#5, #14, #21, #26, #31, #38, #55, #65, #70, #76, #85) found no gap, so it edits nothing and has no commit; the kept rows' bodies were not read, only their setup change is in the table, and Task 37's multiset check covers them; the whole file passes (123 passed, 1 skipped) — cost if wrong: Task 37's multiset check catches a missed assertion (main session, task 33)
+- Ruling: Task 34's brief carries a main-session note that `helpersOf` finds the `passes`/`fails` declarations nested in lane-s.test.ts's `verdicts(repo)` and `asserts` counts their call statements in the test bodies, never the definitions, with a check over row #3's old and split bodies — Task 8's Ruling asked for it — cost if wrong: Task 37 misses or double-counts row #3's 14 verdict assertions (main session, task 34)
 
 ## Deferred
 
@@ -167,3 +169,4 @@
 - task 30 done 17fbece5ae03
 - task 31 done c4e3ddcd9f35
 - task 32 done bf37a70e6a40
+- task 33 done 19c4d0274203

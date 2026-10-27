@@ -24,7 +24,7 @@ ui: false
 # The AC hash and the commit the ticks were made against.
 # verified_hash:
 # verified_commit:
-approved_hash: "fnv1a64:e7c1bf8aecf424a5"
+approved_hash: "fnv1a64:b43a2a0b0a8149dc"
 ac_hash: "fnv1a64:5759120c1df0e673"
 ---
 
@@ -111,3 +111,4 @@ Risks (critic, four rounds; every Must closed):
 - 24 criterion tests stay over 10 s (kept with a reason), more than the ~14 named at D-09; with D-12 and D-13, four more `accord upgrade` risk tests are kept too.
 - Data deletion, upgrade copies (D-12): a copy whose `c.remote` is still the template's would let #117's rejecting hook and every cleanup reach the template's remote; each upgrade copy asserts its root, remote and other clone differ from the template's.
 Tests: ac-1 by one full run with ACCORD_BASH set to Git Bash, its junit read whole against table.md; ac-2 by `accord lint` and each @test tag that names a test in the table's rows naming one passing test (no row moves a tag; ST-LN-2 and ST-LN-18 hold two tags ST-LN-61 left on renamed tests, outside this ticket); ac-3 by the before/after file+title lists against the table's removed/merged/moved rows; ac-4 by the per-row assertion map in table.md, checked at review and verify.
+Change note (review, 2026-10-27): the final review found the branch 60 commits behind origin/main, whose ST-LN-62 and 0.3.0 changes edit the old bodies of rows #3, #10, #63, #68 and #86 that this ticket rewrote (lane S done needs `## Scope`, gate done needs a ticket branch, the pin is 0.3.0); merging as it stands breaks those split tests, #68's hard-coded `upgradeNotice('0.2.0')`, three pin replaces in worktree.test.ts, and ac-4's old-body map. Tasks 1 to 37 still hold; the table's rows, actions, ceilings and the measuring run stay. New course (owner chose "merge now, change course"): one executor merges origin/main into t/ST-LN-44 and carries main's changes into each split, destination and kept test of those rows, reading the pin from `CONFIG` where it was hard-coded; the old bodies and `maps.json` `old` texts of the rows main changed are re-read at the merged main (plan step 4's after-merge check), so ac-4 compares against main's assertions; then the affected files run, the new work is reviewed, and verify's full run with step 3 measures the merged code. before-junit.xml stays the run at 1cec2ac (plan step 4). The ST-LN-44 test files are deleted after this ticket merges by a queued lane S ticket (owner chose "queue a deletion ticket").

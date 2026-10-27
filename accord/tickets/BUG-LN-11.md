@@ -41,7 +41,7 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: BUG-LN-11
 
-  @ac-1
+  @ac-1 @test:packages/cli/test/worktree-push.test.ts#ac-1-a-recorded-task-pushed-with-accord-worktree-push-shows-the-same-task-count-in-another-clone
   Scenario: A recorded build task reaches origin
     Given a lane M ticket at build whose claim branch is pushed
     When a build task is recorded with accord task-done

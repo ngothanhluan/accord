@@ -20,4 +20,8 @@
 - Ruling: plan round 3.1: the teammate-after-fetch case checks only accord's failure line, a non-empty git message and origin still at the teammate's commit, not git's wording — git's documentation does not fix that wording — a change in git's wording goes unnoticed
 - Ruling: plan round 3.1: worktree.md and the CLI help say "the command" / "this branch once held", not "the lease" — the protection comes from both flags together — none
 - Ruling: baseline: at 532456c (no product change since 96525b1) the full suite (1542 s) had 9 timeouts and no assertion failure — show-approval ac-1 (300 s), workflow-script ×3 (60 s), lane-s gate done (120 s), upgrade ac-2 and risk:data-loss, after-verify graph order, drop claim tip; owner chose "Record and continue the build" (translated from Vietnamese): a timeout of these at verify is re-run alone; slow tests are ST-LN-44 — a real regression in these files could hide behind a timeout
+- Ruling: build task 1: the test's row() reads `dashboard --json` sections as `{ rows: [...] }`, not bare arrays as the brief implied — the shape comes from dashboard.test.ts — only the test helper changes if wrong; its helpers (claimed, onOrigin, freshReport, row) are not exported yet and head() was dropped, so tasks 3 and 4 add what they need
 - Ruling: audit: @ac-2 requires each step's own change to be committed before the push, so an approval or plan left uncommitted cannot pass by pushing nothing new — reworded in the scenario — none
+
+## Tasks
+- task 1 done cfb62ee4082d

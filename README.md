@@ -6,7 +6,7 @@ Accord adds a small, fixed folder to your repository. Before an agent writes cod
 
 BA, designer, developer and reviewer are four stages a ticket passes through, not four job titles. One person can pass through all four, or four people on a team can divide them. No gate reads who anyone is, so the same rules hold either way.
 
-Released: `@accord-dev/accord@0.2.0` on npm. See [docs/design.md](docs/design.md) for the design and the reasoning behind it.
+Released: `@accord-dev/accord@0.3.0` on npm. See [docs/design.md](docs/design.md) for the design and the reasoning behind it.
 
 ## The problem
 
@@ -35,13 +35,13 @@ AI coding agents produce features that pass their own tests and still miss what 
 Node 22.12 or newer. Run accord through npx with an exact version, so nothing needs installing:
 
 ```sh
-npx --yes @accord-dev/accord@0.2.0 <command>
+npx --yes @accord-dev/accord@0.3.0 <command>
 ```
 
 Or install it globally and run `accord <command>`:
 
 ```sh
-npm i -g @accord-dev/accord@0.2.0
+npm i -g @accord-dev/accord@0.3.0
 ```
 
 The global install must be the same version the repository pins (see [Version pin](#7-version-pin-and-upgrading)).
@@ -51,7 +51,7 @@ The global install must be the same version the repository pins (see [Version pi
 In the repository root:
 
 ```sh
-npx --yes @accord-dev/accord@0.2.0 init
+npx --yes @accord-dev/accord@0.3.0 init
 ```
 
 `init` asks nothing and takes no options. It never overwrites `accord/config.yml`, the product files or the workflow when they exist. The skill, agent and pane copies are accord's own and are rewritten to this version, and the hooks are merged into existing settings. Each path is printed as `created`, `skipped`, `appended`, `updated`, `unchanged` or `overwrote local edits`. It writes:
@@ -74,7 +74,7 @@ git commit -m "accord init"
 git push
 ```
 
-Teammates get the same skills, hooks and pane by pulling. The skills run a bare `accord` command. In Claude Code, the session hook tells the agent to run it through `npx` at the pinned version when `accord` is not on PATH. In Codex, Cursor and Copilot there is no such hook, so each person installs the pinned version globally (`npm i -g @accord-dev/accord@0.2.0`).
+Teammates get the same skills, hooks and pane by pulling. The skills run a bare `accord` command. In Claude Code, the session hook tells the agent to run it through `npx` at the pinned version when `accord` is not on PATH. In Codex, Cursor and Copilot there is no such hook, so each person installs the pinned version globally (`npm i -g @accord-dev/accord@0.3.0`).
 
 ### 4. Daily use in your coding agent
 
@@ -115,14 +115,14 @@ In Claude Code, the pane shows the dashboard beside the chat.
 After you change `runtimes:`, write the copies again and commit what it prints:
 
 ```sh
-npx --yes @accord-dev/accord@0.2.0 skills sync
+npx --yes @accord-dev/accord@0.3.0 skills sync
 ```
 
 `skills sync` never deletes. When you remove a runtime, it lists the copies it no longer writes, and you delete them yourself.
 
 ### 6. CLI commands for people and CI
 
-The skills call the CLI for you. These are the commands most useful to run by hand or in CI. Bare `accord` needs the global install at the pinned version; without it, put `npx --yes @accord-dev/accord@0.2.0` in place of `accord`. Run `accord --help` for the full list, and `accord <command> --help` for each one.
+The skills call the CLI for you. These are the commands most useful to run by hand or in CI. Bare `accord` needs the global install at the pinned version; without it, put `npx --yes @accord-dev/accord@0.3.0` in place of `accord`. Run `accord --help` for the full list, and `accord <command> --help` for each one.
 
 | Command | What it does |
 |---|---|
@@ -140,15 +140,15 @@ The skills call the CLI for you. These are the commands most useful to run by ha
 
 ### 7. Version pin and upgrading
 
-`accord/config.yml` pins an exact version in its `accord:` key, and the CI workflow and Claude Code hooks use the same one. Every command that reads the repository refuses with exit 2 when the running version differs (on a version mismatch the `prompt-expansion` hook only warns, so the prompt goes on), and names the command to run instead, with the pinned version in place of 0.2.0:
+`accord/config.yml` pins an exact version in its `accord:` key, and the CI workflow and Claude Code hooks use the same one. Every command that reads the repository refuses with exit 2 when the running version differs (on a version mismatch the `prompt-expansion` hook only warns, so the prompt goes on), and names the command to run instead, with the pinned version in place of 0.3.0:
 
 ```sh
-npx --yes @accord-dev/accord@0.2.0 <command>
+npx --yes @accord-dev/accord@0.3.0 <command>
 ```
 
 There is no flag or environment variable that skips the check. Only `--version`, `--help` and `upgrade` run regardless.
 
-`/accord` says when a newer release is out. `/accord upgrade` runs `upgrade` as the newer version, which pushes a branch `upgrade/<version>` from the remote default branch with one commit that moves the pin and regenerates the skill files. Your checkout is not touched; merge the pull request to upgrade. A repository still pinned to 0.1.0 runs `npx --yes @accord-dev/accord@0.2.0 upgrade` once by hand.
+`/accord` says when a newer release is out. `/accord upgrade` runs `upgrade` as the newer version, which pushes a branch `upgrade/<version>` from the remote default branch with one commit that moves the pin and regenerates the skill files. Your checkout is not touched; merge the pull request to upgrade. A repository still pinned to 0.1.0 runs `npx --yes @accord-dev/accord@0.3.0 upgrade` once by hand.
 
 Exit codes:
 

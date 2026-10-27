@@ -331,14 +331,18 @@ const maps = JSON.parse(readFileSync(new URL('./fixtures/st-ln-44/maps.json', im
   rows: Record<string, MapEntry[]>;
 };
 
-/** The frozen text of a test file at the baseline commit, checked against its recorded sha256. */
+// The change note of 2026-10-27: the files that hold rows main changed are frozen at the merge of origin/main, not at the baseline.
+const MERGED = 'cbb36bdb4a06477e1b1b52ad9cd5092a57a7da48';
+
+/** The frozen text of a test file at the baseline commit (or, with an `at`, at MERGED), checked against its recorded sha256. */
 function baseText(path: string): string {
   const frozen = JSON.parse(readFileSync(new URL('./fixtures/st-ln-44/base-tests.json', import.meta.url), 'utf8')) as {
     base: string;
-    files: Record<string, { sha256: string; text: string }>;
+    files: Record<string, { sha256: string; text: string; at?: string }>;
   };
   const f = frozen.files[path];
-  if (frozen.base !== '1cec2ac130d8d34c4dcdadddfee9effb4d1104e9' || !f) throw new Error(`no frozen baseline copy of ${path}`);
+  if (!f || (f.at === undefined ? frozen.base !== '1cec2ac130d8d34c4dcdadddfee9effb4d1104e9' : f.at !== MERGED))
+    throw new Error(`no frozen baseline copy of ${path}`);
   if (createHash('sha256').update(Buffer.from(f.text, 'utf8')).digest('hex') !== f.sha256)
     throw new Error(`frozen baseline copy of ${path} changed`);
   return f.text;

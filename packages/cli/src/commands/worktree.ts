@@ -1,9 +1,9 @@
 // ST-LN-7 `accord worktree`: each ticket works in its own git worktree, a sibling folder of the main checkout.
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
-import { DEFAULT_BRANCH_TEMPLATE, isSha, loadConfig, loadSnapshot, statusRows } from '@accord-dev/accord-core';
+import { DEFAULT_BRANCH_TEMPLATE, forbiddenLines, isSha, loadConfig, loadSnapshot, statusRows, trailerReason } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
-import { currentBranch, droppedOn, gitDefaultRef, gitUserEmail, loadFromFs, snapshotAt, ticketOfBranch, UsageError } from '../load/fs.js';
+import { currentBranch, droppedOn, gitDefaultRef, gitUnpushedCommits, gitUserEmail, loadFromFs, snapshotAt, ticketOfBranch, UsageError } from '../load/fs.js';
 import { fetchLimitMs } from './fetch-limit.js';
 import { claudeEnv, describeSession, isLive, processTable, runSetup, sameSession, sessionIn } from '../load/proc.js';
 import type { Session } from '../load/proc.js';
@@ -544,14 +544,26 @@ function continueMerge(ctx: CommandContext, id: string, path: string, branch: st
 export function worktreePush(ctx: CommandContext, id: string, o: { lease?: boolean } = {}): number {
   if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id);
   const branch = branchOf(ctx.snapshot, id);
+  const kept = (why: string): number => {
+    ctx.stdout.write(`push of ${branch} failed; its commits stay local until the next push\n${why}\n`);
+    return 0;
+  };
+  if (ctx.snapshot.config?.commits?.trailers === 'forbid') {
+    // a forbidden line on origin could only be removed by replacing history there, so nothing leaves this clone with one
+    try {
+      const hits = gitUnpushedCommits(ctx.root, branch).flatMap((c) => forbiddenLines(c.message).map((l) => trailerReason(c.sha, l)));
+      if (hits.length > 0) return kept(hits.join('\n'));
+    } catch (e) {
+      return kept(e instanceof UsageError ? e.message : firstLine(e));
+    }
+  }
   try {
     // after a reworded commit: the lease keeps a push from replacing what origin got since this clone last saw it, and --force-if-includes keeps it from replacing a commit a fetch brought in that this branch never held
     const force = o.lease === true ? ['--force-with-lease', '--force-if-includes'] : [];
     gitNoPrompt(ctx.root, ['push', ...force, 'origin', `refs/heads/${branch}:refs/heads/${branch}`]);
   } catch (e) {
     const why = String((e as { stderr?: string }).stderr ?? '').trim();
-    ctx.stdout.write(`push of ${branch} failed; its commits stay local until the next push\n${why === '' ? String(e) : why}\n`);
-    return 0;
+    return kept(why === '' ? String(e) : why);
   }
   ctx.stdout.write(`pushed: ${branch}\n`);
   return 0;

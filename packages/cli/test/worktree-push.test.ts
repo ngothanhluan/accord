@@ -2,7 +2,8 @@
 import { readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
-import { junit, PLAN, REPORT } from '../../../test/helpers/lane.js';
+import { trailerReason } from '@accord-dev/accord-core';
+import { CONFIG, junit, PLAN, REPORT } from '../../../test/helpers/lane.js';
 import { commitMsg, gitRun, mergeMsg, run, writeFiles } from './helpers/repo.js';
 import { makeClone, type Clone } from './helpers/worktree.js';
 
@@ -251,5 +252,30 @@ it('risk:data-loss a reworded commit already on origin is pushed with force-with
     expect(head(wt)).toBe(own);
   } finally {
     e.cleanupAll();
+  }
+}, 120_000);
+
+it('risk:data-loss a commit with a forbidden line is not pushed when the repository forbids trailers and the plain push after a reword succeeds', async () => {
+  const c = makeClone();
+  try {
+    const wt = claimed(c);
+    writeFiles(wt, { 'accord/config.yml': CONFIG + 'commits:\n  trailers: forbid\n' });
+    const clean = commitMsg(wt, 'config: forbid trailers');
+    expect(await run(['worktree', 'push', 'ST-9'], wt)).toEqual({ code: 0, out: 'pushed: t/ST-9\n', err: '' });
+    expect(onOrigin(c)).toBe(clean);
+
+    writeFiles(wt, { 'notes.txt': 'notes\n' });
+    const bad = commitMsg(wt, 'plan: ST-9 ready\n\nCo-Authored-By: Bot <bot@example.com>');
+    const r = await run(['worktree', 'push', 'ST-9'], wt);
+    expect(r.code).toBe(0);
+    expect(r.err).toBe('');
+    expect(r.out).toBe(`${FAILED}\n${trailerReason(bad, 'Co-Authored-By: Bot <bot@example.com>')}\n`);
+    expect(onOrigin(c)).toBe(clean);
+
+    const fixed = reword(c, wt, 'plan: ST-9 ready');
+    expect(await run(['worktree', 'push', 'ST-9'], wt)).toEqual({ code: 0, out: 'pushed: t/ST-9\n', err: '' });
+    expect(onOrigin(c)).toBe(fixed);
+  } finally {
+    c.cleanupAll();
   }
 }, 120_000);

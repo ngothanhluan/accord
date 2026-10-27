@@ -2123,7 +2123,7 @@ it('risk:complex-branching worktree merge refuses over tracked changes and merge
 }, 120_000);
 
 it('risk:data-loss worktree merge never overwrites an ignored file and quotes the git error that stopped it', async () => {
-  const c = clone();
+  const c = copy();
   ticketWorktree(c, 'ST-9');
   const sib = c.sibling('ST-9');
   verifyStage(sib, 'ST-9');
@@ -2141,9 +2141,11 @@ it('risk:data-loss worktree merge never overwrites an ignored file and quotes th
   expect(readFileSync(sib + '/node_modules/keep.txt', 'utf8').replace(/\r/g, '')).toBe('mine\n');
   expect(gitRun(sib, 'rev-parse', 'HEAD').trim()).toBe(head);
   expect(() => gitRun(sib, 'rev-parse', '-q', '--verify', 'MERGE_HEAD')).toThrow();
+}, 120_000);
 
-  // a rename on main whose target is an ignored file present here
-  const d = clone();
+// a rename on main whose target is an ignored file present here
+it('risk:data-loss worktree merge never overwrites an ignored file that a rename on main targets', async () => {
+  const d = copy();
   pushMain(d, 'old.txt', 'old\n');
   ticketWorktree(d, 'ST-9');
   const dSib = d.sibling('ST-9');
@@ -2160,9 +2162,11 @@ it('risk:data-loss worktree merge never overwrites an ignored file and quotes th
   expect(rr.err).toContain('node_modules/moved.txt');
   expect(readFileSync(dSib + '/node_modules/moved.txt', 'utf8').replace(/\r/g, '')).toBe('mine\n');
   expect(gitRun(dSib, 'rev-parse', 'HEAD').trim()).toBe(dHead);
+}, 120_000);
 
-  // a non-ASCII path, which git quotes and octal-escapes by default
-  const u = clone();
+// a non-ASCII path, which git quotes and octal-escapes by default
+it('risk:data-loss worktree merge names a non-ASCII ignored file it would overwrite', async () => {
+  const u = copy();
   ticketWorktree(u, 'ST-9');
   const uSib = u.sibling('ST-9');
   verifyStage(uSib, 'ST-9');
@@ -2178,9 +2182,11 @@ it('risk:data-loss worktree merge never overwrites an ignored file and quotes th
   expect(ur.err).toContain('node_modules/é.txt');
   expect(readFileSync(uSib + '/node_modules/é.txt', 'utf8').replace(/\r/g, '')).toBe('mine\n');
   expect(gitRun(uSib, 'rev-parse', 'HEAD').trim()).toBe(uHead);
+}, 120_000);
 
-  // a case-only rename on main of a file this branch tracks is no overwrite, on either kind of filesystem
-  const k = clone();
+// a case-only rename on main of a file this branch tracks is no overwrite, on either kind of filesystem
+it('risk:complex-branching worktree merge takes a case-only rename on main of a tracked file', async () => {
+  const k = copy();
   pushMain(k, 'README.md', 'readme\n');
   k.git('fetch', '-q', 'origin');
   ticketWorktree(k, 'ST-9');
@@ -2195,9 +2201,11 @@ it('risk:data-loss worktree merge never overwrites an ignored file and quotes th
   expect(kr.err).toBe('');
   expect(kr.code).toBe(0);
   expect(gitRun(kSib, 'rev-parse', 'HEAD^1').trim()).toBe(kHead);
+}, 120_000);
 
-  // a main that adds so many files that the pathspec list alone passes the Windows command-line limit of 32767 characters
-  const m = clone();
+// a main that adds so many files that the pathspec list alone passes the Windows command-line limit of 32767 characters
+it('risk:regression worktree merge of a main that adds 500 long paths passes the Windows command-line limit', async () => {
+  const m = copy();
   ticketWorktree(m, 'ST-9');
   const mSib = m.sibling('ST-9');
   verifyStage(mSib, 'ST-9');
@@ -2248,7 +2256,7 @@ it('ac-5 a failed or silent fetch is one accord line at pick up new ticket conti
   };
   const missing = (c: Clone) => c.git('remote', 'set-url', 'origin', c.remote + '-missing');
 
-  const c = clone();
+  const c = copy();
   missing(c);
   const base = sha(c, 'origin/main');
   const rc = await run(['worktree', 'open', 'ST-9'], c.root);
@@ -2256,14 +2264,14 @@ it('ac-5 a failed or silent fetch is one accord line at pick up new ticket conti
   one(rc.out, rc.err);
   expect(sha(c, 't/ST-9^')).toBe(base);
 
-  const d = clone({ tickets: [] });
+  const d = copy({ tickets: [] });
   missing(d);
   d.git('remote', 'set-url', '--push', 'origin', d.remote);
   const rd = await run(['new', 'ticket', 'ST-9', '--lane', 'M', '--worktree'], d.root);
   expect(rd.code).toBe(0);
   one(rd.out, rd.err);
 
-  const e = clone();
+  const e = copy();
   ticketWorktree(e, 'ST-9');
   missing(e);
   const re = await run(['worktree', 'open', 'ST-9', '--continue'], e.root);
@@ -2271,7 +2279,7 @@ it('ac-5 a failed or silent fetch is one accord line at pick up new ticket conti
   one(re.out, re.err);
   expect(lines(re.out).slice(-3)).toEqual(stopLines(e.sibling('ST-9'), 'ST-9'));
 
-  const f = clone();
+  const f = copy();
   ticketWorktree(f, 'ST-9');
   verifyStage(f.sibling('ST-9'), 'ST-9');
   missing(f);
@@ -2281,7 +2289,7 @@ it('ac-5 a failed or silent fetch is one accord line at pick up new ticket conti
   one(rf.out, rf.err);
   expect(gitRun(f.sibling('ST-9'), 'rev-parse', 'HEAD').trim()).toBe(head);
 
-  const g = clone();
+  const g = copy();
   const release = `${g.root}/.git/hang-release`;
   const ended = `${g.root}/.git/hang-ended`;
   // the remote stays silent until the test releases it, 60 s at most, then marks that it ended
@@ -2302,7 +2310,7 @@ it('ac-5 a failed or silent fetch is one accord line at pick up new ticket conti
 }, 120_000);
 
 it('ac-4 continue merges the latest origin main into a ticket branch before verify runs setup on the merge and pushes it', async () => {
-  const c = clone({ setup: ['node setup-step.js ci'] });
+  const c = copy({ setup: ['node setup-step.js ci'] });
   ticketWorktree(c, 'ST-9');
   const sib = c.sibling('ST-9');
   const before = sha(c, 't/ST-9');
@@ -2329,7 +2337,7 @@ it('ac-4 continue merges the latest origin main into a ticket branch before veri
   expect(out.some((l) => l.startsWith('behind:'))).toBe(false);
   expect(out.slice(-3)).toEqual(stopLines(sib, 'ST-9'));
 
-  const s = clone({ setup: ['node setup-step.js ci'] });
+  const s = copy({ setup: ['node setup-step.js ci'] });
   ticketWorktree(s, 'ST-9');
   const ss = s.sibling('ST-9');
   const marker = gitRun(ss, 'rev-parse', '--path-format=absolute', '--git-dir').trim() + '/accord-setup-done';
@@ -2348,8 +2356,18 @@ it('ac-4 continue merges the latest origin main into a ticket branch before veri
   expect(again.err).toContain('setup command failed');
 }, 120_000);
 
-it('risk:data-loss a continue merge that conflicts is aborted and a worktree with uncommitted changes or a live hold is not merged', async () => {
-  const c = clone();
+const BEHIND = 'behind: t/ST-9 is 2 commits behind origin/main; merge them with git merge origin/main';
+const twoOnMain = (k: Clone) => {
+  const x = k.otherClone();
+  for (const f of ['a.txt', 'b.txt']) {
+    writeFiles(x, { [f]: f + '\n' });
+    commitMsg(x, f);
+  }
+  gitRun(x, 'push', '-q', 'origin', 'main');
+};
+
+it('risk:data-loss a continue merge that conflicts is aborted names the file and pushes nothing', async () => {
+  const c = copy();
   writeFiles(c.root, { 'shared.txt': 'base\n' });
   commitMsg(c.root, 'shared');
   c.git('push', '-q', 'origin', 'main');
@@ -2370,17 +2388,10 @@ it('risk:data-loss a continue merge that conflicts is aborted and a worktree wit
   expect(readFileSync(sib + '/shared.txt', 'utf8').replaceAll('\r\n', '\n')).toBe('ST-9\n'); // autocrlf on Windows checks out CRLF
   expect(() => gitRun(sib, 'rev-parse', '-q', '--verify', 'MERGE_HEAD')).toThrow();
   expect(gitRun(c.remote, 'rev-parse', 't/ST-9').trim()).toBe(head);
+}, 180_000);
 
-  const BEHIND = 'behind: t/ST-9 is 2 commits behind origin/main; merge them with git merge origin/main';
-  const twoOnMain = (k: Clone) => {
-    const x = k.otherClone();
-    for (const f of ['a.txt', 'b.txt']) {
-      writeFiles(x, { [f]: f + '\n' });
-      commitMsg(x, f);
-    }
-    gitRun(x, 'push', '-q', 'origin', 'main');
-  };
-  const d = clone();
+it('risk:data-loss continue does not merge into a worktree with uncommitted changes and says it is behind', async () => {
+  const d = copy();
   ticketWorktree(d, 'ST-9');
   const dSib = d.sibling('ST-9');
   const dHead = gitRun(dSib, 'rev-parse', 'HEAD').trim();
@@ -2392,8 +2403,10 @@ it('risk:data-loss a continue merge that conflicts is aborted and a worktree wit
   expect(lines(rd.out).some((l) => l.startsWith('merged:'))).toBe(false);
   expect(gitRun(dSib, 'rev-parse', 'HEAD').trim()).toBe(dHead);
   expect(readFileSync(dSib + '/ST-9.txt', 'utf8')).toBe('changed\n');
+}, 180_000);
 
-  const h = clone();
+it('risk:data-loss continue does not merge into a worktree a live session holds and says it is behind', async () => {
+  const h = copy();
   ticketWorktree(h, 'ST-9');
   const hHead = sha(h, 't/ST-9');
   writeHolds(h, { 'ST-9': LIVE });
@@ -2405,9 +2418,11 @@ it('risk:data-loss a continue merge that conflicts is aborted and a worktree wit
   expect(lines(rh.out).some((l) => l.startsWith('merged:'))).toBe(false);
   expect(sha(h, 't/ST-9')).toBe(hHead);
   expect(gitRun(h.remote, 'rev-parse', 't/ST-9').trim()).toBe(hHead);
+}, 180_000);
 
-  // the remote branch has a commit this clone's branch lacks: no merge into the stale tip, nothing pushed
-  const m = clone();
+// the remote branch has a commit this clone's branch lacks: no merge into the stale tip, nothing pushed
+it('risk:data-loss continue does not merge into a branch whose origin copy has a teammate commit and pushes nothing', async () => {
+  const m = copy();
   ticketWorktree(m, 'ST-9');
   const mHead = sha(m, 't/ST-9');
   twoOnMain(m);

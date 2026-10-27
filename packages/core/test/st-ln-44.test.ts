@@ -199,3 +199,25 @@ it('risk:parsing assertions are a multiset of expect statements and local assert
   const failing = body(laneS, 'risk:complex-branching lane S gate done fails on a code commit after the review');
   expect(asserts(failing!, hs)).toContain("fails('gate.commit-after-review');");
 });
+
+it('ac-1 no test in the measuring run takes over 10 s apart from a kept test within its ceiling', () => {
+  const rs = rows(readFileSync(TABLE, 'utf8'));
+  expect(tableProblems(rs)).toEqual([]);
+  const cs = cases(readFileSync(new URL('./fixtures/st-ln-44/after-junit.xml', import.meta.url), 'utf8'));
+  const has = (file: string, title: string) => cs.some((c) => c.file === file && c.title === title);
+  // The run is whole: every row is found, each destination of a moved or merged row, the row's own test otherwise.
+  const missing = rs.flatMap((r) =>
+    (r.action === 'moved' || r.action === 'merged' ? r.destinations : [r])
+      .filter((d) => !has(d.file, d.title))
+      .map((d) => `#${r.n} ${d.file} > ${d.title}`),
+  );
+  expect(missing).toEqual([]);
+  // Git Bash ran the executed workflow-script cases (row #2): they were not skipped.
+  const two = rs.find((r) => r.n === 2)!;
+  expect(cs.find((c) => c.file === two.file && c.title === two.title)?.status).not.toBe('skipped');
+  expect(
+    rule3(rs, cs)
+      .filter((e) => e.stop)
+      .map((e) => listText([e]).trim()),
+  ).toEqual([]);
+});

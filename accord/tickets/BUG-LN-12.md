@@ -1,6 +1,6 @@
 ---
 id: "BUG-LN-12"                            # equals the file name: tickets/<id>.md
-title: "Short title in business language"
+title: "Publish smoke check waits long enough for npm"
 type: "bug" # story | bug
 status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "S" # S: one small change, worked from this ticket alone
@@ -16,10 +16,10 @@ ui: false
 ---
 
 ## Understood
-<!-- One line: the change, as the request was understood. -->
+The publish workflow's smoke job gives up after 3 minutes (12 tries x 15 s) while npm can take longer to serve a new version; raise its wait in .github/workflows/publish.yml to about 10 minutes.
 
 ## Done when
-<!-- One line: the observable result that ends the work. -->
+The smoke job in .github/workflows/publish.yml retries for about 10 minutes before failing, and its comment and messages state the new budget.
 
 ## Scope
-<!-- One repository path per line, never a folder: every file the change is expected to touch, tests and new files included. -->
+- .github/workflows/publish.yml

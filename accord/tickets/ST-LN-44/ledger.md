@@ -108,6 +108,10 @@
 - Ruling: task 24 adds a `{ tickets: [] }` entry to TEMPLATE_OPTS for #65's second part, and touches no maps.json entry since every assertion keeps its text and place — cost if wrong: about 1 s more beforeAll (executor, task 24)
 - Ruling: task 25's split rows prove "failing" by their new titles running 0 tests before the change, since a split cannot fail an assertion; `BEHIND` and `twoOnMain` move to file level with no assertion in them — cost if wrong: none (executor, task 25)
 - Ruling: task 25's alone times put #21's destinations at 5.5, 7.0 and 7.3 s and #26's at 6.0 and 5.2 s on rule 3's list at the measuring run; kept #38 (18.2 s, ceiling 22) and #55 (14.3 s, ceiling 18) are inside their ceilings — cost if wrong: none (main session, task 25)
+- Ruling: #5 g1 and g2 each keep the `laneSBranch(g, 'ST-14', 'added.txt')` call in their own body and only the squash-merge-and-main-edit part goes into the helper `conflictOnMain`, so ac-4 sees the call in both bodies; the multiset check shows one surplus `laneSBranch(...)` call and no assertion missing — cost if wrong: Task 37 must accept a surplus, or the g2 call goes into the helper (executor, task 26)
+- Ruling: #14 builds the done-ST-9 state once (`copy`, `ticketWorktree`, `doneOnRemote` with `local`, then `worktree remove`) and takes a `copyClone` of it per row; the continue row's ST-10 branches from the same pre-done origin/main as before — cost if wrong: the continue row's ST-10 state differs slightly from the original; only exit 0 and the ST-9 deletions are asserted (executor, task 26)
+- Ruling: `laneSBranch` now checks `gateReadyIn(files, id)` is 'pass' in core instead of running `accord gate ready`; the CLI exit 0 of `gate ready` is made by lane-s.test.ts #63 (`ac-2 a lane S ticket is written and passes gate ready ...`) — the approach's core-ready lever — cost if wrong: a CLI-only gate ready break would show in #63, not in worktree.test.ts (executor, task 26)
+- Ruling: task 26's alone times put #5's first destination (8.5 and 13.8 s in two runs) and third (9.0 and 9.8 s) on rule 3's list at the measuring run; kept #14 ac-5 took 17.6 s, ceiling 39 — cost if wrong: ac-1 fails at verify unless the owner acts on the list (main session, task 26)
 
 ## Deferred
 
@@ -147,3 +151,4 @@
 - task 23 done 230bc0fddfc2
 - task 24 done e5d9e9ea1398
 - task 25 done 7f1ff722aaf3
+- task 26 done 8e0ad8395cb6

@@ -33,6 +33,7 @@ const TEMPLATE_OPTS: Parameters<typeof makeClone>[0][] = [
   {},
   { setup: ['node setup-step.js ci'] },
   { setup: ['node setup-step.js ci'], tickets: [] },
+  { tickets: [] },
   { setup: ['node setup-step.js ci', 'node setup-step.js build'] },
   { setup: ['node setup-step.js ci', 'node setup-step.js fail'] },
   { tickets: ['ST-9', 'ST-10'] },
@@ -1932,7 +1933,7 @@ const pushNext = (c: Clone) => {
 };
 
 it('ac-1 pick up and a new worktree ticket cut the ticket branch from a main commit this clone had not fetched', async () => {
-  const c = clone();
+  const c = copy();
   const tip = pushNext(c);
   expect(sha(c, 'origin/main')).not.toBe(tip);
   const r = await run(['worktree', 'open', 'ST-9'], c.root);
@@ -1941,7 +1942,7 @@ it('ac-1 pick up and a new worktree ticket cut the ticket branch from a main com
   expect(c.git('log', '-1', '--format=%s', 't/ST-9').trim()).toBe('claim: ST-9');
   expect(r.out).not.toContain('fetch from origin failed');
 
-  const d = clone({ tickets: [] });
+  const d = copy({ tickets: [] });
   const tip2 = pushNext(d);
   const n = await run(['new', 'ticket', 'ST-9', '--lane', 'M', '--worktree'], d.root);
   expect(n.code).toBe(0);
@@ -2014,7 +2015,7 @@ function pushMain(c: Clone, file: string, text: string): string {
 }
 
 it('ac-3 worktree merge at verify gives the ticket branch a merge commit of its head and the fetched main commit', async () => {
-  const c = clone();
+  const c = copy();
   ticketWorktree(c, 'ST-9');
   const sib = c.sibling('ST-9');
   verifyStage(sib, 'ST-9');
@@ -2040,7 +2041,7 @@ it('ac-3 worktree merge at verify gives the ticket branch a merge commit of its 
 }, 120_000);
 
 it('ac-4 a merge conflict is aborted names the file exits 2 and the next merge tries again', async () => {
-  const c = clone();
+  const c = copy();
   writeFiles(c.root, { 'shared.txt': 'base\n' });
   c.git('add', '-A');
   c.git('commit', '-q', '-m', 'shared');
@@ -2077,8 +2078,8 @@ it('risk:complex-branching worktree merge merges the remote-tracking main when a
   expect(gitRun(sib, 'rev-parse', 'refs/heads/origin/main').trim()).toBe(head);
 }, 120_000);
 
-it('risk:complex-branching worktree merge refuses before verify on another branch and over tracked changes and merges nothing', async () => {
-  const c = clone();
+it('risk:complex-branching worktree merge refuses a ticket before verify and merges nothing', async () => {
+  const c = copy();
   ticketWorktree(c, 'ST-9');
   const sib = c.sibling('ST-9');
   verifyStage(sib, 'ST-9', { review: false });
@@ -2091,8 +2092,10 @@ it('risk:complex-branching worktree merge refuses before verify on another branc
   expect(early.err).toContain('nothing was merged');
   expect(gitRun(sib, 'rev-parse', 'HEAD').trim()).toBe(head);
   expect(sha(c, 'origin/main')).toBe(main0);
+}, 120_000);
 
-  const d = clone();
+it("risk:complex-branching worktree merge refuses on a branch other than the ticket's and merges nothing", async () => {
+  const d = copy();
   ticketWorktree(d, 'ST-9');
   verifyStage(d.sibling('ST-9'), 'ST-9');
   const dHead = gitRun(d.sibling('ST-9'), 'rev-parse', 'HEAD').trim();
@@ -2102,8 +2105,10 @@ it('risk:complex-branching worktree merge refuses before verify on another branc
   expect(away.err).toContain('t/ST-9');
   expect(away.err).toContain('nothing was merged');
   expect(gitRun(d.sibling('ST-9'), 'rev-parse', 'HEAD').trim()).toBe(dHead);
+}, 120_000);
 
-  const e = clone();
+it('risk:complex-branching worktree merge refuses over tracked changes and merges nothing', async () => {
+  const e = copy();
   ticketWorktree(e, 'ST-9');
   const eSib = e.sibling('ST-9');
   verifyStage(eSib, 'ST-9');

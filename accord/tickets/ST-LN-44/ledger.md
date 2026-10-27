@@ -115,6 +115,7 @@
 - Ruling: task 27 edits nothing, so it has no commit and task-done records it at the task 26 record commit; its six files pass untouched (120 tests) and every kept row is inside its ceiling in a six-file run, the seven benchmark-worktree rows between 13.5 and 16.6 s — cost if wrong: none (main session, task 27)
 - Ruling: task 28's audit of rows #1, #2, #3, #4, #6, #9, #17, #20, #35, #57, #69, #83 and #96 found no gap, so it edits nothing and has no commit; its four files pass whole (60 passed, 1 skipped) — cost if wrong: Task 37's multiset check catches a missed assertion (main session, task 28)
 - Ruling: #3's :117 gate-ready check keeps only a `test` entry in maps.json, with the core `expect(gateReadyIn(...))` as an extra unmapped assertion — the plan allows one of `now` or `test` per entry, and a second entry for the same `old` would count it twice — cost if wrong: Task 37 may ask for a `now` entry, a one-line add (executor, task 28)
+- Ruling: task 29's audit of rows #7, #12, #13, #19, #28, #32, #39, #40, #41, #51, #53, #54, #68, #71, #74, #78, #79, #81, #90, #91 and #114-#118 found no gap, so it edits nothing and has no commit; hook.test.ts was audited by hand because the executor's counting script misreads a regex literal with a backtick; the four files pass whole (63 passed) — cost if wrong: Task 37's multiset check catches a missed assertion (main session, task 29)
 
 ## Deferred
 
@@ -157,3 +158,4 @@
 - task 26 done 8e0ad8395cb6
 - task 27 done ad45a616b54b
 - task 28 done 6a97d5af3278
+- task 29 done 1c6faaabb291

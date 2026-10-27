@@ -31,7 +31,7 @@
 - Ruling: review round 1: the unpushed range is refs/heads/<branch> with all parents, not first-parent — the push sends merge parents too — none
 - Ruling: final review: the held-back push prints the remedy line (reword, then push again) after the reason lines; the first line and exit 0 are unchanged (@ac-3) — the skills have no bytes left for it — none
 - Ruling: audit: @ac-2 requires each step's own change to be committed before the push, so an approval or plan left uncommitted cannot pass by pushing nothing new — reworded in the scenario — none
-
+- Ruling: verify: at bcfb748 the full suite (--maxWorkers=4) timed out show-approval ac-1, upgrade ac-2 and two workflow-script cases, all in the baseline list; run alone, upgrade and workflow-script passed and show-approval ac-1 still timed out (300 s), while CI passed all 5 jobs on the same commit; owner chose "Stop, wait for ST-LN-44" (translated from Vietnamese): the tick and verification.md stay uncommitted, PR #108 stays draft, and gate done runs after ST-LN-44 — the tick waits on another ticket
 ## Deferred
 - Nice (review round 1, security): after a forbidden-line reword a plain `accord worktree push` prints "until the next push" but never succeeds; the `--force-with-lease` instruction lives only in worktree.md (worktree.ts:553)
 

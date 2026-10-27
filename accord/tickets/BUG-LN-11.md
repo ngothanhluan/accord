@@ -55,7 +55,7 @@ Feature: BUG-LN-11
     Then after each of those three steps, before the next stage starts, the step's own change is committed and the claim branch on origin holds every commit made so far
     And accord dashboard in a second clone that has fetched shows the same stage as the ticket's own worktree
 
-  @ac-3
+  @ac-3 @test:packages/cli/test/worktree-push.test.ts#ac-3-a-failed-push-exits-0-with-the-failure-line-and-the-git-message-and-the-next-push-carries-every-commit
   Scenario: A failed push does not stop the work
     Given a lane M ticket whose push fails for any reason, an unreachable remote or a rejected push alike
     When a build task is recorded, or a stage change of @ac-2 is made

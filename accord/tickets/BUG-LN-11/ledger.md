@@ -23,9 +23,12 @@
 - Ruling: build task 1: the test's row() reads `dashboard --json` sections as `{ rows: [...] }`, not bare arrays as the brief implied — the shape comes from dashboard.test.ts — only the test helper changes if wrong; its helpers (claimed, onOrigin, freshReport, row) are not exported yet and head() was dropped, so tasks 3 and 4 add what they need
 - Ruling: build task 2: the inserted skill text is wrapped by hand near neighbouring line widths where the brief gave only the sentence (intent 9, approach 5, build 3 and 6) — the brief says so — a cosmetic rewrap; rendered plan SKILL.md 5099 and build 5111 of 5120 bytes
 - Ruling: build task 3: the expected origin tip is the sha commitMsg returns, since head() was dropped in task 1 — the same check — none
+- Ruling: build task 4: head(dir) is back in worktree-push.test.ts with FAILED, reword and teammate(c) helpers — the task text uses head — a few removable test lines
+- Ruling: build task 4: `lease === true` adds `--force-with-lease --force-if-includes` before `origin`; without the option neither flag is passed; run.ts maps `forceWithLease` to `{ lease }` — as the brief says — none
 - Ruling: audit: @ac-2 requires each step's own change to be committed before the push, so an approval or plan left uncommitted cannot pass by pushing nothing new — reworded in the scenario — none
 
 ## Tasks
 - task 1 done cfb62ee4082d
 - task 2 done 35a03fb68e3b
 - task 3 done 92b546d53455
+- task 4 done ec3f812719ea

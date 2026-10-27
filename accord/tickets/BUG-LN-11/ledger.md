@@ -25,7 +25,14 @@
 - Ruling: build task 3: the expected origin tip is the sha commitMsg returns, since head() was dropped in task 1 — the same check — none
 - Ruling: build task 4: head(dir) is back in worktree-push.test.ts with FAILED, reword and teammate(c) helpers — the task text uses head — a few removable test lines
 - Ruling: build task 4: `lease === true` adds `--force-with-lease --force-if-includes` before `origin`; without the option neither flag is passed; run.ts maps `forceWithLease` to `{ lease }` — as the brief says — none
+- Ruling: review round 1: plan step 8, build steps 3 and 6 now carry "; go on even if it fails"; room made by joining wrapped lines, no words cut (rendered plan 5111, build 5027 of 5120 bytes) — @ac-3 for a session without worktree.md — none
+- Ruling: review round 1: packages/cli/src/load/fs.ts is changed outside the plan — the git log parsing of gitBranchCommits is factored into logCommits so worktreePush can list unpushed commits — none
+- Ruling: review round 1: with trailers forbid and no origin/<branch> nor default ref to compare against, the push is held back with the "run git fetch origin" message under the same failure line, exit 0 — a UsageError (exit 2) breaks @ac-3, pushing unchecked is the bug fixed — a clone with no remote refs never pushes until it fetches
+- Ruling: review round 1: the unpushed range is refs/heads/<branch> with all parents, not first-parent — the push sends merge parents too — none
 - Ruling: audit: @ac-2 requires each step's own change to be committed before the push, so an approval or plan left uncommitted cannot pass by pushing nothing new — reworded in the scenario — none
+
+## Deferred
+- Nice (review round 1, security): after a forbidden-line reword a plain `accord worktree push` prints "until the next push" but never succeeds; the `--force-with-lease` instruction lives only in worktree.md (worktree.ts:553)
 
 ## Tasks
 - task 1 done cfb62ee4082d

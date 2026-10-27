@@ -102,6 +102,16 @@ Re-plan for the change of course (merge origin/main, Tasks 38 and 39). Two criti
 
 One critic, no lens. fixed: 9.1, 9.2, 9.3, 9.4, 9.5. withdrawn: none.
 
-1. Should — Task 39's start check `git log --merges --format=%H 48227f3..HEAD` also lists every merge commit on main's side of Task 38's merge (main lands PRs as merge commits), so it prints several shas and Task 39 reports BLOCKED; use `--first-parent`, or check that the newest first-parent merge's `^2` equals `<M>` — open
-2. Should — Task 40's `files:` names only after-junit.xml and rule3-list.md, which no test imports, so `vitest related` runs nothing, task-done refuses for the missing ac ids, and recording sticks (9.3's defect in the new task); add packages/core/test/st-ln-44.test.ts to Task 40's `files:` as run-only — open
+1. Should — Task 39's start check `git log --merges --format=%H 48227f3..HEAD` also lists every merge commit on main's side of Task 38's merge (main lands PRs as merge commits), so it prints several shas and Task 39 reports BLOCKED; use `--first-parent`, or check that the newest first-parent merge's `^2` equals `<M>` — fixed
+2. Should — Task 40's `files:` names only after-junit.xml and rule3-list.md, which no test imports, so `vitest related` runs nothing, task-done refuses for the missing ac ids, and recording sticks (9.3's defect in the new task); add packages/core/test/st-ln-44.test.ts to Task 40's `files:` as run-only — fixed
 3. Nice — main session step 3 says task-done "re-records" a re-dispatched Task 40 at verify, but task-done only confirms an existing ledger line and exits 0; say the full run after it is the check — deferred
+
+## Round 11 (diff)
+
+One critic, diff of the fix for 10.1 and 10.2. fixed: 10.1, 10.2. withdrawn: none.
+
+No findings
+
+## Closed
+
+Closed 2026-10-27 after round 11: re-plan for the change of course (Tasks 38-40, main session steps 3-6), no Must or Should open, accord gate plan passes; step 7's baseline run is not repeated for a re-plan.

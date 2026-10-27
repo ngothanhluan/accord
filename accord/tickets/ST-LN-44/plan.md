@@ -1,6 +1,6 @@
 ---
 baseline: 1cec2ac130d8d34c4dcdadddfee9effb4d1104e9
-plan_hash: "fnv1a64:713ea9003bf54f54"
+plan_hash: "fnv1a64:3c858fbace9e8a02"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -1360,8 +1360,9 @@ verify: packages/core/test/st-ln-44.test.ts#ac-4-every-assertion-of-a-changed-ro
 Rows: none (it moves ac-4's old bodies of the rows main changed from `<BASE>` to `<M>`, the change note's "re-read at
 the merged main"). The ac-4 id carries no `(@ac-4)` marker here: Task 37 already maps it.
 
-Start: `git log --merges --format=%H 48227f32b492eeaf66b7cef2896ec9e7e36b1eef..HEAD` prints exactly one line,
-`<MERGE>` (Task 38's merge), and `git rev-parse <MERGE>^2` equals `<M>` of the ledger Ruling
+Start: `git log --merges --first-parent --format=%H 48227f32b492eeaf66b7cef2896ec9e7e36b1eef..HEAD` prints exactly
+one line, `<MERGE>` (Task 38's merge; `--first-parent` leaves out the merge commits of main's own history that the
+merge brought in), and `git rev-parse <MERGE>^2` equals `<M>` of the ledger Ruling
 `Ruling: task 38 merges origin/main at <M>`. Otherwise change nothing and report `BLOCKED` with the output.
 
 Consumes: `rows`, `body`, `asserts`, `helpersOf` from `packages/core/test/helpers/st-ln-44.ts`; the local
@@ -1406,10 +1407,12 @@ Must not change: the matching of the ac-4 test (its two passes and its `maps.jso
 
 ## Task 40: The merged full run becomes ac-1's measuring run when a test outside the table is kept
 covers: @ac-1, D-03
-files: packages/core/test/fixtures/st-ln-44/after-junit.xml (new), packages/core/test/fixtures/st-ln-44/rule3-list.md (new)
+files: packages/core/test/fixtures/st-ln-44/after-junit.xml (new), packages/core/test/fixtures/st-ln-44/rule3-list.md (new), packages/core/test/st-ln-44.test.ts (new)
 verify: packages/core/test/st-ln-44.test.ts#ac-1-no-test-in-the-measuring-run-takes-over-10-s-apart-from-a-kept-test-within-its-ceiling, packages/core/test/st-ln-44.test.ts#ac-2-every-test-tag-that-names-a-test-of-the-table-names-one-passing-test-and-lint-reports-no-error, packages/core/test/st-ln-44.test.ts#ac-3-every-test-gone-since-the-baseline-run-is-a-row-the-table-moves-and-every-destination-exists, packages/core/test/st-ln-44.test.ts#ac-4-every-assertion-of-a-changed-row-is-in-its-new-place-or-mapped-by-the-row-note
 
-Rows: none. The four ac ids carry no `(@ac-n)` marker: Tasks 35 to 37 already map them. Dispatched after Main
+Rows: none. The four ac ids carry no `(@ac-n)` marker: Tasks 35 to 37 already map them.
+`packages/core/test/st-ln-44.test.ts` is on the `files:` line so `tests.affected` runs its cases (no test imports the
+two fixtures); this task runs it and never edits it. Dispatched after Main
 session step 6 (or again from step 3) has run the full suite on the merged code and the owner has answered its list.
 
 Why: ac-1 requires every row of `table.md` in the run it reads. A test main added since 1cec2ac (for example main's
@@ -1517,9 +1520,10 @@ These edit files under the top-level `accord/` folder, which no executor touches
      The main session states this once when build starts. So ac-3's before list stays the full run at `<BASE>` that
      the Approach names, and ac-3 and ac-4 read the state before this ticket at 1cec2ac.
    - The check. In that span, before every task dispatch, Task 35's included, and before step 2's list goes to the
-     owner, the main session runs `git log --merges --format=%H 0dcbd4c..HEAD` in the ticket's worktree. Empty
-     output: the hold held. Any line: a merge of origin/main landed in the span (a ticket branch merges nothing
-     else); `<merge>` is the first line (the newest merge). After a fallback re-plan, the range starts at the commit that records the new
+     owner, the main session runs `git log --merges --first-parent --format=%H 0dcbd4c..HEAD` in the ticket's
+     worktree (`--first-parent` lists only the ticket branch's own merges, not the merge commits of main's history a
+     merge brings in). Empty output: the hold held. Any line: a merge of origin/main landed in the span (a ticket
+     branch merges nothing else); `<merge>` is the first line (the newest merge). After a fallback re-plan, the range starts at the commit that records the new
      `before-junit.xml` in place of 0dcbd4c. An executor that finds such a merge reports `BLOCKED` (preamble).
    - The fallback, when the check prints a line. The main session stops all dispatch, then:
      1. Runs `tests.full` with `ACCORD_BASH` set to Git Bash (ledger Ruling) in a temporary worktree

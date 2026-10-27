@@ -102,6 +102,9 @@
 - Ruling: #89's first test stubs LOCALAPPDATA and XDG_CACHE_HOME with `vi.stubEnv`, and the shared `afterEach` also calls `vi.unstubAllEnvs()` so a failing test cannot leak the stub — cost if wrong: one extra line in a shared afterEach (executor, task 22)
 - Ruling: three templates join TEMPLATE_OPTS ({tickets:[ST-10]}, {tickets:[ST-9,ST-10,ST-11]}, {setup:[fail],tickets:[ST-9,ST-10]}), since these rows' opts had no template yet — cost if wrong: about 3 s more beforeAll (executor, task 22)
 - Ruling: maps.json "24" maps #24's dropped o.code, o.out, oc.code and oc.out to the #97 ac-1 test and its HELD continue to #27's title test, cites copied from the row note — cost if wrong: Task 37's multiset check flags an entry (executor, task 22)
+- Ruling: task 23's first executor stalled with no commit and no edit while the laptop slept; a fresh executor got the same brief — cost if wrong: none (main session, task 23)
+- Ruling: #103's old `dropAndMerge(c, 'ST-10');` is mapped as a `test` entry to the ac-3 test, as the brief says; the drop exit 0 stays asserted by #105's real drop — cost if wrong: the audit tool wants a `now`, and one entry would need rewriting (executor, task 23)
+- Ruling: task 23's alone times on a slow machine (an untouched test took 26.6 s) put #45's three destinations (13.5, 13.1, 21.7 s), #93 (11.3 s) and #105 (11.2 s) on rule 3's list at the measuring run, where an idle machine tells machine load from the cost of `worktree open` — cost if wrong: ac-1 fails at verify unless the owner acts on the list (main session, task 23)
 
 ## Deferred
 
@@ -138,3 +141,4 @@
 - task 20 done c2c0ab00754b
 - task 21 done 07a5625fed7d
 - task 22 done 46206956828f
+- task 23 done 230bc0fddfc2

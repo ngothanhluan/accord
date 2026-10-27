@@ -119,6 +119,7 @@
 - Ruling: task 30's audit of rows #10, #30, #43, #44, #46, #60, #61, #64, #73, #87, #95 and #99 found no gap, so it edits nothing and has no commit; its seven files pass whole (160 passed) — cost if wrong: Task 37's multiset check catches a missed assertion (main session, task 30)
 - Ruling: row #73 gets no maps.json entry — the old `x` loop assertions keep their text in the title test, and the table note names that `x` run as the CLI check for the four values moved to `taskNumber` — cost if wrong: Task 37 flags the row and an entry is added then (executor, task 30)
 - Ruling: accord/tests-baseline.txt:129 still lists the removed lane-flow `walks-one-ticket-from-unapproved-to-done` id (maps.json `baseline` has it as null); the main session's step 1 before Task 35 updates the baseline from maps.json, executors never touch `accord/` — cost if wrong: none (main session, task 30)
+- Ruling: task 31's audit of the worktree.test.ts rows of Tasks 18 to 20 (#15, #27, #34, #36, #42, #47, #48, #49, #50, #56, #59, #62, #66, #72, #75, #77, #82, #84, #111, #113) found no gap, so it edits nothing and has no commit; the whole file passes (123 passed, 1 skipped) — cost if wrong: Task 37's multiset check catches a missed assertion (main session, task 31)
 
 ## Deferred
 
@@ -163,3 +164,4 @@
 - task 28 done 6a97d5af3278
 - task 29 done 1c6faaabb291
 - task 30 done 17fbece5ae03
+- task 31 done c4e3ddcd9f35

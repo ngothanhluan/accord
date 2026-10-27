@@ -9,4 +9,9 @@
 2. Should — the push runs under the fixed 30-second fetch limit (fetch-limit.ts:3), which also kills a local pre-push hook that takes longer, so for such a team no push ever succeeds; the limit is part of the approved Approach — fixed
 
 ## Round 3 (diff)
-1. Should — a bare `--force-with-lease` checks origin against this clone's shared `refs/remotes/origin/<branch>`, which any fetch moves (`accord worktree open` in another session, worktree merge, new ticket, drop, or build step 3's own `git fetch origin`); after such a fetch a reword-and-lease-push silently replaces a teammate's commit on origin and prints `pushed:`; the plan's teammate case never fetches, so the test misses it — open
+1. Should — a bare `--force-with-lease` checks origin against this clone's shared `refs/remotes/origin/<branch>`, which any fetch moves (`accord worktree open` in another session, worktree merge, new ticket, drop, or build step 3's own `git fetch origin`); after such a fetch a reword-and-lease-push silently replaces a teammate's commit on origin and prints `pushed:`; the plan's teammate case never fetches, so the test misses it — fixed
+
+## Round 4 (diff)
+No findings
+
+## Closed

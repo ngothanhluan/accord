@@ -1,7 +1,12 @@
 // Serves ST-LN-44's criteria and the rule 3 check; deleted with helpers/st-ln-44.ts and fixtures/st-ln-44/ once the ticket is done.
+import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { expect, it } from 'vitest';
+import { lintSnapshot, loadSnapshot, type SnapshotInput } from '../src/index.js';
+import { scanJUnit } from '../src/load/junit.js';
+import { readDir } from './helpers/fixture.js';
 import {
   asserts,
   body,
@@ -10,6 +15,7 @@ import {
   idOf,
   listText,
   rows,
+  ROOT,
   rule3,
   TABLE,
   tableProblems,
@@ -220,4 +226,80 @@ it('ac-1 no test in the measuring run takes over 10 s apart from a kept test wit
       .filter((e) => e.stop)
       .map((e) => listText([e]).trim()),
   ).toEqual([]);
+});
+
+// The sha256 of accord/tickets/ST-LN-44/before-junit.xml: the full run at 1cec2ac (1531 cases), recorded in the ledger.
+const BEFORE_SHA256 = '15775f281540569d9fb29ca291d329457daeeafde50064bd88358937ab1a000c';
+
+const after = () => readFileSync(new URL('./fixtures/st-ln-44/after-junit.xml', import.meta.url), 'utf8');
+
+function before(): string {
+  const bytes = readFileSync(new URL('accord/tickets/ST-LN-44/before-junit.xml', ROOT));
+  if (createHash('sha256').update(bytes).digest('hex') !== BEFORE_SHA256)
+    throw new Error('before-junit.xml is not the recorded baseline run');
+  return bytes.toString('utf8');
+}
+
+/** Every id of a row's own test and of each of its destinations. */
+function rowIds(rs: Row[]): Set<string> {
+  return new Set(rs.flatMap((r) => [idOf(r.file, r.title), ...r.destinations.map((d) => idOf(d.file, d.title))]));
+}
+
+it('ac-2 every test tag that names a test of the table names one passing test and lint reports no error', () => {
+  const REPORT = 'node_modules/.cache/accord/junit.xml';
+  const files: Record<string, string> = {};
+  for (const [k, v] of Object.entries(readDir(new URL('accord/', ROOT)).files)) files['accord/' + k] = v;
+  files[REPORT] = after();
+  const tracked = execFileSync('git', ['ls-files', '-z'], { cwd: fileURLToPath(ROOT), maxBuffer: 64 * 1024 * 1024 })
+    .toString('utf8')
+    .split('\0')
+    .filter((f) => f !== '');
+  const input: SnapshotInput = { files, tree: [...tracked, REPORT] };
+  const snap = loadSnapshot(input);
+  expect(lintSnapshot(snap).findings.filter((f) => f.level === 'error')).toEqual([]);
+
+  const rs = rows(readFileSync(TABLE, 'utf8'));
+  const ids = rowIds(rs);
+  const report = cases(after());
+  const status = scanJUnit(after());
+  const failures: string[] = [];
+  const check = (ticket: string, ac: string, id: string) => {
+    const n = report.filter((c) => idOf(c.file, c.title) === id).length;
+    if (n !== 1) failures.push(`${ticket} ${ac} ${id}: ${n} cases in the report`);
+    else if (status[id] !== 'passed') failures.push(`${ticket} ${ac} ${id}: ${status[id]}`);
+  };
+  // A tag naming a test outside the table's rows is not this ticket's to check; ST-LN-44's own tags name this file.
+  for (const [ticket, t] of Object.entries(snap.tickets)) {
+    if (ticket === 'ST-LN-44') continue;
+    for (const s of t.scenarios)
+      for (const tag of s.tags)
+        if (tag.startsWith('@test:') && ids.has(tag.slice(6))) check(ticket, s.acTag ?? '-', tag.slice(6));
+  }
+  // Each criterion test the table keeps, speeds up or rebuilds still holds its ticket's tag (D-04, rule 1).
+  for (const r of rs.filter((x) => x.tag !== '-')) {
+    const [ticket, ac] = r.tag.split(' ');
+    const scenario = snap.tickets[ticket]?.scenarios.find((s) => s.acTag === ac);
+    if (!scenario?.tags.includes('@test:' + idOf(r.file, r.title)))
+      failures.push(`${ticket} ${ac} ${idOf(r.file, r.title)}: the scenario does not carry the tag`);
+  }
+  expect(failures).toEqual([]);
+});
+
+it('ac-3 every test gone since the baseline run is a row the table moves and every destination exists', () => {
+  const rs = rows(readFileSync(TABLE, 'utf8'));
+  const pair = (c: { file: string; title: string }) => `${c.file}\0${c.title}`;
+  const beforeSet = new Set(cases(before()).map(pair));
+  const afterSet = new Set(cases(after()).map(pair));
+  const failures: string[] = [];
+  // Rows from 119 are appended keeps of rule 3; one of them (a new test of this ticket) has no before pair.
+  for (const r of rs.filter((x) => x.n <= 118))
+    if (!beforeSet.has(pair(r))) failures.push(`#${r.n} ${r.file} > ${r.title}: not in the before run`);
+  const gone = new Set(['removed', 'merged', 'moved']);
+  const goneOk = new Set(rs.filter((r) => gone.has(r.action)).map(pair));
+  for (const p of beforeSet)
+    if (!afterSet.has(p) && !goneOk.has(p)) failures.push(`${p.replace('\0', ' > ')}: gone but no row removes, merges or moves it`);
+  for (const r of rs.filter((x) => x.action === 'moved' || x.action === 'merged'))
+    for (const d of r.destinations)
+      if (!afterSet.has(pair(d))) failures.push(`#${r.n} ${d.file} > ${d.title}: destination not in the after run`);
+  expect(failures).toEqual([]);
 });

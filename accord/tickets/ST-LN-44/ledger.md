@@ -116,6 +116,9 @@
 - Ruling: task 28's audit of rows #1, #2, #3, #4, #6, #9, #17, #20, #35, #57, #69, #83 and #96 found no gap, so it edits nothing and has no commit; its four files pass whole (60 passed, 1 skipped) — cost if wrong: Task 37's multiset check catches a missed assertion (main session, task 28)
 - Ruling: #3's :117 gate-ready check keeps only a `test` entry in maps.json, with the core `expect(gateReadyIn(...))` as an extra unmapped assertion — the plan allows one of `now` or `test` per entry, and a second entry for the same `old` would count it twice — cost if wrong: Task 37 may ask for a `now` entry, a one-line add (executor, task 28)
 - Ruling: task 29's audit of rows #7, #12, #13, #19, #28, #32, #39, #40, #41, #51, #53, #54, #68, #71, #74, #78, #79, #81, #90, #91 and #114-#118 found no gap, so it edits nothing and has no commit; hook.test.ts was audited by hand because the executor's counting script misreads a regex literal with a backtick; the four files pass whole (63 passed) — cost if wrong: Task 37's multiset check catches a missed assertion (main session, task 29)
+- Ruling: task 30's audit of rows #10, #30, #43, #44, #46, #60, #61, #64, #73, #87, #95 and #99 found no gap, so it edits nothing and has no commit; its seven files pass whole (160 passed) — cost if wrong: Task 37's multiset check catches a missed assertion (main session, task 30)
+- Ruling: row #73 gets no maps.json entry — the old `x` loop assertions keep their text in the title test, and the table note names that `x` run as the CLI check for the four values moved to `taskNumber` — cost if wrong: Task 37 flags the row and an entry is added then (executor, task 30)
+- Ruling: accord/tests-baseline.txt:129 still lists the removed lane-flow `walks-one-ticket-from-unapproved-to-done` id (maps.json `baseline` has it as null); the main session's step 1 before Task 35 updates the baseline from maps.json, executors never touch `accord/` — cost if wrong: none (main session, task 30)
 
 ## Deferred
 
@@ -159,3 +162,4 @@
 - task 27 done ad45a616b54b
 - task 28 done 6a97d5af3278
 - task 29 done 1c6faaabb291
+- task 30 done 17fbece5ae03

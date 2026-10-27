@@ -540,6 +540,21 @@ function continueMerge(ctx: CommandContext, id: string, path: string, branch: st
   if (failure !== undefined) throw failure;
 }
 
+/** BUG-LN-11: push the ticket's claim branch by its ref, so it works from any worktree; a failed push is named with git's message and exits 0. */
+export function worktreePush(ctx: CommandContext, id: string): number {
+  if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id);
+  const branch = branchOf(ctx.snapshot, id);
+  try {
+    gitNoPrompt(ctx.root, ['push', 'origin', `refs/heads/${branch}:refs/heads/${branch}`]);
+  } catch (e) {
+    const why = String((e as { stderr?: string }).stderr ?? '').trim();
+    ctx.stdout.write(`push of ${branch} failed; its commits stay local until the next push\n${why === '' ? String(e) : why}\n`);
+    return 0;
+  }
+  ctx.stdout.write(`pushed: ${branch}\n`);
+  return 0;
+}
+
 /** ST-LN-30 D-03, D-04, D-09: fetch, then merge the remote default branch into the ticket branch with a merge commit; a conflict is aborted, named, and exits 2. */
 export function worktreeMerge(ctx: CommandContext, id: string): number {
   if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id);

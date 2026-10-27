@@ -27,7 +27,7 @@ import { testsBaseline } from './commands/tests-baseline.js';
 import { testsSkipped } from './commands/tests-skipped.js';
 import { drop } from './commands/drop.js';
 import { upgrade } from './commands/upgrade.js';
-import { worktreeCheck, worktreeClean, worktreeMerge, worktreeOpen } from './commands/worktree.js';
+import { worktreeCheck, worktreeClean, worktreeMerge, worktreeOpen, worktreePush } from './commands/worktree.js';
 import { loadClaimView, loadFromFs, UsageError } from './load/fs.js';
 import { pinMessage, versionOnDisk } from './pin.js';
 import { repoRoot } from './root.js';
@@ -249,6 +249,12 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .description("before verify: fetch, then merge the remote main into the ticket's branch with a merge commit; a conflict is aborted, named, and exits 2")
     .action((id: string) => {
       setCode(worktreeMerge(preflight(opts, 'stage'), id));
+    });
+  worktree
+    .command('push <id>')
+    .description("push the ticket's claim branch to origin; a failed push prints git's message and exits 0, its commits stay local until the next push")
+    .action((id: string) => {
+      setCode(worktreePush(preflight(opts), id));
     });
 
   program

@@ -10,6 +10,9 @@ import { CONFIG, gateReadyIn, LANE_BODY, LANE_S_BODY, laneTicket, P, PLAN } from
 import { cleanup, commitMsg, gitRun, mergeMsg, run, writeFiles } from './helpers/repo.js';
 import { copyClone, makeClone, makeTemplate, type Clone } from './helpers/worktree.js';
 
+// The pin the clones hold: their accord/config.yml is written from CONFIG (helpers/worktree.ts), so a pin bump needs no edit here.
+const PIN = /^accord: "([^"]+)"$/m.exec(CONFIG)![1];
+
 vi.mock('../src/load/proc.js', async (orig) => {
   const real = await orig<typeof import('../src/load/proc.js')>();
   return { ...real, processTable: vi.fn(real.processTable) };
@@ -1144,7 +1147,7 @@ it('ac-2 in claude code continue from the main checkout enters a claimed worktre
 const pinnedWorktree = (c: Clone) => {
   c.git('worktree', 'add', '-q', '-b', 't/ST-9', c.sibling('ST-9'), 'origin/main');
   const cfg = `${c.sibling('ST-9')}/accord/config.yml`;
-  writeFileSync(cfg, readFileSync(cfg, 'utf8').replace('accord: "0.2.0"', 'accord: "0.0.9"'));
+  writeFileSync(cfg, readFileSync(cfg, 'utf8').replace(`accord: "${PIN}"`, 'accord: "0.0.9"'));
   gitRun(c.sibling('ST-9'), 'commit', '-q', '-am', 'pin');
   setTable(tableOf(A));
 };
@@ -1172,7 +1175,7 @@ it('risk:complex-branching in claude code a pick up whose origin main pins anoth
   const d = copy({ setup: ['node setup-step.js ci'] });
   const o = d.otherClone();
   gitRun(o, 'config', 'user.email', 'y@example.invalid');
-  writeFileSync(`${o}/accord/config.yml`, readFileSync(`${o}/accord/config.yml`, 'utf8').replace('accord: "0.2.0"', 'accord: "0.0.9"'));
+  writeFileSync(`${o}/accord/config.yml`, readFileSync(`${o}/accord/config.yml`, 'utf8').replace(`accord: "${PIN}"`, 'accord: "0.0.9"'));
   gitRun(o, 'commit', '-q', '-am', 'pin');
   gitRun(o, 'push', '-q', 'origin', 'main');
   d.git('fetch', '-q', 'origin');
@@ -2231,7 +2234,7 @@ it('risk:complex-branching a merge that changes the pinned accord version keeps 
   const head = gitRun(sib, 'rev-parse', 'HEAD').trim();
   const o = c.otherClone();
   const cfg = o + '/accord/config.yml';
-  writeFileSync(cfg, readFileSync(cfg, 'utf8').replace('accord: "0.2.0"', 'accord: "9.9.9"'));
+  writeFileSync(cfg, readFileSync(cfg, 'utf8').replace('accord: "0.3.0"', 'accord: "9.9.9"'));
   gitRun(o, 'add', '-A');
   gitRun(o, 'commit', '-q', '-m', 'pin');
   gitRun(o, 'push', '-q', 'origin', 'main');

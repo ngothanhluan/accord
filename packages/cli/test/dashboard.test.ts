@@ -72,7 +72,7 @@ it('ac-2 rows carry titles and sections carry column headers', async () => {
   }
 });
 
-it('ac-4 sections list every row on a large backlog', () => {
+it('risk:regression sections list every row on a large backlog', () => {
   const files: Files = { 'accord/config.yml': CONFIG };
   const claims: Record<string, string> = {};
   for (let i = 1; i <= 3; i++) { files[P('ST-AN-' + i)] = laneTicket('ST-AN-' + i); claims['ST-AN-' + i] = 'an@example.com'; }
@@ -223,7 +223,7 @@ it('ac-1 up next lists the backlog and the blocked tickets while the viewer hold
   expect(lastLine).toBe('-> [Continue ST-AN-9]  [Pick up ST-AN-1]  [New request]');
 });
 
-it('ac-2 up next leaves out the ready tickets and lists all the rest', () => {
+it('risk:regression up next leaves out the ready tickets and lists all the rest', () => {
   const files: Files = { 'accord/config.yml': CONFIG };
   files[P('ST-AN-9')] = laneTicket('ST-AN-9');
   ready(files, 'ST-AN-50');

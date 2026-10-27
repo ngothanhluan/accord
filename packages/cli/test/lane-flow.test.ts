@@ -43,6 +43,9 @@ function stageRepo(stage: 2 | 3 | 4): string {
     gitRun(repo, 'config', 'user.email', 'fixture@example.invalid');
     gitRun(repo, 'config', 'user.name', 'fixture');
     gitRun(repo, 'config', 'commit.gpgsign', 'false');
+    // The ticket is worked on its own branch: gate done reads the branch diff from the default branch.
+    commitMsg(repo, 'base');
+    gitRun(repo, 'switch', '-q', '-c', 't/T-1');
     // accord approve and accord gate ready, run in core on the repository's own files.
     const files: Files = {};
     for (const rel of ['accord/config.yml', P('T-1'), 'accord/tickets/T-1/plan.md', 'src/export.ts', 'reports/junit.xml']) {
@@ -76,6 +79,9 @@ describe('lane ticket flow', () => {
   it('risk:complex-branching gate ready passes only after approve and gate plan passes on a plan against HEAD', async () => {
     const repo = makeLaneRepo();
     try {
+      // The ticket is worked on its own branch: gate done reads the branch diff from the default branch.
+      commitAll(repo, 'base');
+      gitRun(repo, 'switch', '-q', '-c', 't/T-1');
       expect((await run(['gate', 'ready', 'T-1'], repo)).code).toBe(1);
       expect((await run(['approve', 'T-1'], repo)).code).toBe(0);
       expect((await run(['gate', 'ready', 'T-1'], repo)).code).toBe(0);

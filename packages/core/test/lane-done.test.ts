@@ -60,6 +60,7 @@ const snap = (files: Record<string, string>) =>
       commit: COMMIT,
       authors: { [COMMIT]: 'dev@example.test', 'accord/tickets/T-1/verification.md': 'reviewer@example.test' },
     },
+    branchFacts: { 'T-1': { base: 'b'.repeat(40), changes: [{ path: 'accord/tickets/T-1.md', kind: 'modified', lines: 1 }], synced: [] } },
   });
 const done = (files: Record<string, string>) => gateDone(snap(files), 'T-1');
 const errors = (r: GateResult) => r.findings.filter((f) => f.level === 'error').map((f) => f.rule);

@@ -169,6 +169,6 @@ describe('lane templates (spec §4)', () => {
     expect(headings(templates['epic-lane.md'])).toEqual([
       '## Intent', '## Vetoes', '## Decisions', '## Corrections', '## Open questions', '## Approach',
     ]);
-    expect(headings(templates['ticket-lane-s.md'])).toEqual(['## Understood', '## Done when']);
+    expect(headings(templates['ticket-lane-s.md'])).toEqual(['## Understood', '## Done when', '## Scope']);
   });
 });

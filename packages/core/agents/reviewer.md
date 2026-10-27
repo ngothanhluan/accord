@@ -29,6 +29,10 @@ Lens `integration`: only the interfaces and the links between areas.
 
 Undeclared files: each path under `## Undeclared files` in the review package is accepted only when the ledger holds a Ruling naming it with a reason. Any other is an Extra finding.
 
+Out-of-scope files: in a lane S ticket each path under `## Out-of-scope files` in the review package is a Must finding, the ticket to be lifted to lane M, unless the ledger has the line `Wording-only: <path> — <reason>` for it. For such a path, read its diff: when it changes wording only, in at most 3 lines counted as the larger of lines added and lines removed, and the file is neither new nor deleted, write the line `Confirmed wording-only: <path>` in your report, outside any numbered finding; otherwise report a Must finding.
+
+Interface signs: each line under `## Interface signs` in the review package is a sign of a new public interface. In a lane S ticket it is a Must finding, the ticket to be lifted to lane M. In any other lane, when it adds no public interface, write the line `Not an interface: <path> — <reason>` in your report, outside any numbered finding; when it does, report a Should finding whose fix is an entry matching the path under `sensitive:` in `accord/config.yml`.
+
 Severity, by what happens if the finding is left:
 - Must: left as is, the Intent does not hold, a criterion is not reached, or a Veto, Decision or Correction is broken.
 - Should: left as is, a defect ships or an executor is blocked, which a later stage would catch at a higher cost.

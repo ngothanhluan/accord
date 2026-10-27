@@ -1,6 +1,6 @@
 ---
 baseline: 1cec2ac130d8d34c4dcdadddfee9effb4d1104e9
-plan_hash: "fnv1a64:b421d46cf768e630"
+plan_hash: "fnv1a64:f802be4ad2d82f03"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -25,6 +25,18 @@ Task 37 freezes the baseline copies of the changed test files and writes the ac-
 names exists and passes when its task is recorded: the measuring run's artifacts are committed by Task 35, before the
 tests that read them are written.
 
+Change of course (2026-10-27, the change note on the last line of `## Approach`): Tasks 1 to 37 are recorded and
+stand, and the table's rows, actions and ceilings stay as approved. Main session step 5 starts the merge of
+origin/main at `<M>` (the sha its ledger Ruling names) and resolves the conflicts under `accord/`; Task 38 finishes
+that merge, carrying main's changes into the places (destinations, shared setup, kept tests) of the rows main changed,
+with #68's pin read from `CONFIG`; Task 39 then re-freezes, at `<M>`, the `base-tests.json` copies of the files that
+hold those rows and the `maps.json` texts main changed, so ac-4 compares with main's assertions. Lines cited in Tasks
+38 and 39 are lines at 8a19a1c (the change note's approval; the commits after it and before Task 38 touch only `accord/`).
+Neither task touches `accord/tickets/ST-LN-44/before-junit.xml`, `after-junit.xml` or `rule3-list.md`: verify's
+full run with Main session step 3 measures the merged code. Between Task 38 and Task 39 the ac-4 test fails for the
+rows main changed, so Task 39 is dispatched right after Task 38 is recorded. Deleting the ST-LN-44 test files after
+this ticket merges is a separate queued lane S ticket, not a task here.
+
 Committed artifacts (nothing outside the repository survives between executors): everything a task produces for a
 following task or for the main session is written to a committed file under `packages/core/test/`, never only in the
 executor's report and never under the top-level `accord/` folder (executors never touch it). The ST-LN-48 precedent
@@ -33,7 +45,7 @@ keeps a ticket's committed run data in `packages/core/test/fixtures/st-ln-48/`; 
 - `maps.json`, written by Tasks 7 to 26 and 28 to 33 (see "maps.json" below);
 - `table-approved.md`, written by Task 34;
 - `after-junit.xml` and `rule3-list.md`, written by Task 35;
-- `base-tests.json`, written by Task 37.
+- `base-tests.json`, written by Task 37; Task 39 re-freezes the entries of the files that hold rows main changed.
 The one artifact under `accord/` is `accord/tickets/ST-LN-44/before-junit.xml`, ac-3's "before" list: the main
 session wrote it (Main session step 0, commit 0dcbd4c) before Task 1 is dispatched, replaces it only through Main
 session step 4's fallback, and tests only read it. Step 4 holds every merge of origin/main into `t/ST-LN-44` from
@@ -1233,6 +1245,136 @@ measure it.
 
 Must not change: the tests of Tasks 34 to 36; every assertion any task wrote, beyond a restored omission.
 
+## Task 38: Finish the merge of origin/main and carry main's changes into the rows' new places
+covers: D-04, D-05, D-11, D-14
+files: packages/cli/test/lane-s.test.ts, packages/cli/test/lane-flow.test.ts, packages/cli/test/hook.test.ts, packages/cli/test/worktree.test.ts, packages/cli/test/dashboard.test.ts, test/helpers/lane.ts
+verify: packages/cli/test/lane-s.test.ts#ac-2-a-lane-S-ticket-is-written-and-passes-gate-ready-without-acceptance-criteria, packages/cli/test/lane-s.test.ts#risk:complex-branching-lane-S-gate-done-passes-a-reviewed-change, packages/cli/test/lane-s.test.ts#risk:complex-branching-lane-S-gate-done-fails-on-a-code-commit-after-the-review, packages/cli/test/lane-s.test.ts#risk:complex-branching-lane-S-gate-done-fails-on-edited-approved-sections, packages/cli/test/lane-s.test.ts#risk:complex-branching-lane-S-gate-done-passes-a-verdict-the-owner-accepted-with-a-Must-open, packages/cli/test/lane-flow.test.ts#lane-ticket-flow->-risk:complex-branching-gate-ready-passes-only-after-approve-and-gate-plan-passes-on-a-plan-against-HEAD, packages/cli/test/lane-flow.test.ts#lane-ticket-flow->-risk:complex-branching-task-done-records-task-1-once-and-status-shows-build-1/2, packages/cli/test/hook.test.ts#ac-1-a-newer-release-is-announced-by-the-session-start-hook-and-the-dashboard-and-the-registry-is-asked-once-in-24-hours, packages/cli/test/hook.test.ts#risk:complex-branching-the-registry-is-asked-again-only-after-24-hours-and-only-a-newer-plain-version-is-announced, packages/cli/test/worktree.test.ts#risk:complex-branching-in-claude-code-a-worktree-pinned-to-another-accord-version-refuses-before-setup-and-prints-no-enter, packages/cli/test/worktree.test.ts#risk:complex-branching-outside-claude-code-a-worktree-pinned-to-another-accord-version-still-prints-the-stop-lines, packages/cli/test/worktree.test.ts#risk:complex-branching-in-claude-code-a-pick-up-whose-origin-main-pins-another-version-refuses-and-names-the-main-checkout, packages/cli/test/worktree.test.ts#risk:complex-branching-a-merge-that-changes-the-pinned-accord-version-keeps-the-merge-and-names-the-pin, packages/cli/test/core-ready.test.ts#risk:regression-core-approve-and-gateReadyIn-write-the-hashes-accord-approve-and-gate-ready-write, packages/core/test/st-ln-44.test.ts#ac-2-every-test-tag-that-names-a-test-of-the-table-names-one-passing-test-and-lint-reports-no-error
+
+Rows: none new (it carries main's changes into the places of the rows main changed, which Main session step 5's
+Ruling lists; the final review expects #3, #10, #53, #63, #68 and #86, built or left by Tasks 8, 12, 16 and 21).
+The third and fourth lane-flow destinations hold commas, so they are run and reported but not named above. The
+ac-2 id of this ticket carries no `(@ac-2)` marker here: Task 36 already maps it, and a scenario is mapped once.
+D-14: every test the table keeps, the 29 late keeps and their ceilings included, stays one whole test with its title
+and setup: carrying main's change into it adds main's lines and never splits it, cuts it or moves part of it, and no
+ceiling in table.md changes.
+
+Start state, checked before anything else: a merge is in progress (`git rev-parse MERGE_HEAD` prints a sha) and that
+sha equals `<M>` of the ledger Ruling `Ruling: task 38 merges origin/main at <M>` in
+`accord/tickets/ST-LN-44/ledger.md`; `git diff --name-only --diff-filter=U -- accord` prints nothing (Main session
+step 5 resolved and staged every conflict under `accord/`). Otherwise change nothing and report `BLOCKED` with what
+was found. Never run `git merge --abort`, `reset` or `checkout` of another commit: that would undo step 5's work.
+
+Consumes: the Ruling's list of rows main changed; `git diff 1cec2ac130d8d34c4dcdadddfee9effb4d1104e9 <M> -- <file>`
+for main's own change to each file; the table's rows and destinations for where each row's checks now live.
+Produces: the merge commit, whose test code holds every change main made since `<BASE>` and every change this branch
+made, with no file under `accord/` edited by this task.
+
+1. Resolve each conflicted path outside `accord/` (`git diff --name-only --diff-filter=U`) so it holds both sides.
+   Where main changed an old test that this branch split, moved or rewrote (a row of the Ruling's list), main's
+   change goes into each of that row's places that holds the changed line's role (a destination, the shared template
+   or setup helper the destinations use, or the kept test itself); the old test is never re-added and its old title
+   never comes back. A test main added or changed that is not a row is taken as main wrote it. Known cases:
+   - `test/helpers/lane.ts`: main's `accord: "0.3.0"` in `CONFIG`, with this branch's import of core (:6) and its
+     exports after `junit` (:120-151, Task 5).
+   - `lane-s.test.ts` (#3, #63): the reviewed template's S-1 ticket is
+     `laneTicket('S-1', { lane: 'S', body: LANE_S_BODY + '\n## Scope\nsrc/a.ts\n' })`, as main's old body has it (main's
+     `gate.out-of-scope` fails a lane S done whose `## Scope` holds no path); #63's body is main's (Task 8 left it
+     unedited); main's new test `risk:complex-branching the review package lists the out-of-scope files and interface
+     signs gate done would name` stays as main wrote it, after the fork-point test.
+   - `lane-flow.test.ts` (#10): main's walk makes its base commit and switches to `t/T-1` before its first CLI run
+     (main's `gate.branch-unknown` fails a gate done whose branch diff is empty). The first destination begins with
+     main's comment and main's two lines `commitAll(repo, 'base');` and `gitRun(repo, 'switch', '-q', '-c', 't/T-1');`
+     before its first `gate ready` run (:79); `stageRepo` (:39-72) makes `commitMsg(repo, 'base')` and the same
+     `switch` right after its three identity lines (:43-45), before the core approve, so every following destination
+     works on `t/T-1` as the walk did from that point.
+   - `hook.test.ts` (#53, #68): `N` (:234) takes main's text; #53 takes main's `mockResolvedValue('0.4.0')` (:257);
+     #68 takes main's version strings at each line where main changed them (the cache `latest` and the answer of the
+     two cache attempts, the four-answer list, the `--json` attempt's answer) and in its asserted texts. Its direct
+     call reads the pin from `CONFIG` (finding 2 of the final review): import `CONFIG` from
+     `../../../test/helpers/lane.js`, declare at file level `const PIN = /^accord: "([^"]+)"$/m.exec(CONFIG)![1];`,
+     and write `upgradeNotice(PIN)` in place of `upgradeNotice('0.2.0')` (:329). The clone the dashboard runs read
+     is written from `CONFIG` (helpers/worktree.ts:37), so both forms compare with one pin, now and at every pin
+     bump.
+   - `worktree.test.ts` (#86): `pinnedWorktree` (:1147) and the third destination (:1175) replace main's
+     `'accord: "0.3.0"'` with `'accord: "0.0.9"'`, as main's old body does. The merge-pin test (:2226, not a row)
+     takes main's text.
+   - `dashboard.test.ts`: main's changes by the rule above; this branch's import from `test/helpers/lane.js` and its
+     removed local copies (Task 5) stay.
+2. Hunks git merged with no conflict: for each row of the Ruling's list, read every hunk of the `git diff` above that
+   falls inside the row's old body (its title line included) and confirm its change is in the row's places in the
+   merged tree. A hunk git applied to an old line this branch left outside those places is moved to its place.
+3. Run the `setup` commands of the merged `accord/config.yml` in order (`npm ci`, `npm run build`,
+   `npm rebuild @accord-dev/accord --ignore-scripts`), then `npm run lint` and `npm run typecheck`. Then, with
+   `ACCORD_BASH` as in the preamble, run whole every test file this branch changed or added against main
+   (`git diff --name-only <M> -- packages test`, the `.test.ts` paths), since each is where this branch's test code
+   meets main's product code, with the junit output of the preamble (`task-38.xml`). In `st-ln-44.test.ts` only ac-4
+   may fail, and only on rows of the Ruling's list (Task 39 re-freezes their old bodies); every other case passes.
+4. A failure the rules above do not settle (two sides that cannot both hold, or a test of this branch that fails on
+   main's product change with no hunk of main's to carry): leave the merge uncommitted and report `BLOCKED` with the
+   test, the lines and both sides. Do not improvise a cut or a new assertion.
+5. Commit the merge with `git commit -F <message file> --cleanup=verbatim` (the file under
+   `node_modules/.cache/st-ln-44/`), subject `Merge origin/main into t/ST-LN-44 (ST-LN-44 task 38)`, no trailer
+   (conventions.md). Then D-11 is read against main: `git diff --stat <M> HEAD -- packages/cli/src packages/core/src
+   scripts` prints nothing (the merge brings main's product code; this branch adds none).
+
+Test first: no test is written; the verify tests exist. Before step 1's known cases are carried into lane-s and
+lane-flow, run #3's first destination and the fourth lane-flow destination once and record their failure
+(`gate.out-of-scope`, and an exit 1 on `gate done`), so the report shows the change each carry fixes.
+
+Report: each conflicted path and how it was resolved; each row-body hunk of step 2 and its place; the run's failures
+(only ac-4's, naming rows); the D-11 output.
+
+Must not change: any file under `accord/`; every assertion this branch wrote beyond the text main changed in it; the
+titles, order, timeouts, templates and copy helpers (H1 to H8) of every destination and kept test; main's tests that
+are not rows, beyond what git merged.
+
+## Task 39: Re-freeze the old bodies and maps.json texts of the rows main changed at the merged main
+covers: @ac-4, D-07
+files: packages/core/test/fixtures/st-ln-44/base-tests.json (new), packages/core/test/fixtures/st-ln-44/maps.json (new), packages/core/test/st-ln-44.test.ts (new)
+verify: packages/core/test/st-ln-44.test.ts#ac-4-every-assertion-of-a-changed-row-is-in-its-new-place-or-mapped-by-the-row-note
+
+Rows: none (it moves ac-4's old bodies of the rows main changed from `<BASE>` to `<M>`, the change note's "re-read at
+the merged main"). The ac-4 id carries no `(@ac-4)` marker here: Task 37 already maps it.
+
+Start: `git log --merges --format=%H 48227f32b492eeaf66b7cef2896ec9e7e36b1eef..HEAD` prints exactly one line,
+`<MERGE>` (Task 38's merge), and `git rev-parse <MERGE>^2` equals `<M>` of the ledger Ruling
+`Ruling: task 38 merges origin/main at <M>`. Otherwise change nothing and report `BLOCKED` with the output.
+
+Consumes: `rows`, `body`, `asserts`, `helpersOf` from `packages/core/test/helpers/st-ln-44.ts`; the local
+`helpersIn` and `baseText` of `packages/core/test/st-ln-44.test.ts` (:335-352; the script repeats `helpersIn`'s
+body, since it cannot import a test file). Produces:
+- The rows main changed, computed by a Node script that is not committed (under `node_modules/.cache/st-ln-44/`, run
+  with `node --experimental-strip-types`, reading git by `execFileSync('git', ['show', <sha> + ':' + <file>], { cwd,
+  maxBuffer: 64 * 1024 * 1024 })`): for each row 1 to 118 of the live `table.md`, `b0 = body(<text at BASE>, title)`
+  and `bM = body(<text at M>, title)`; `bM` undefined (main renamed or removed the test) stops the task `BLOCKED`;
+  `b0 !== bM` marks the row changed. A changed row missing from the Ruling's list stops the task `BLOCKED` (Task 38
+  did not carry it); a listed row that is not changed is named in the report.
+- `base-tests.json`: for each file that holds a changed row, its entry becomes `{ "sha256": <hex of the Buffer>,
+  "text": <its UTF-8 text>, "at": "<M>" }` from `git show <M>:<file>`; every other entry and the top-level `base`
+  stay as they are (22 files). For every other row of a re-frozen file, the script confirms `body` at `<M>` equals
+  `body` at `<BASE>`, so those rows' old bodies do not change. Written by `writeFileSync`, LF, two-space indent.
+- `baseText` in `st-ln-44.test.ts`: a file-level `const MERGED = '<M>';` with a one-line comment naming the change
+  note; an entry with `at` is accepted only when `at === MERGED`, an entry without it only when the top-level `base`
+  is `<BASE>` as now; the sha256 check and both error messages stay.
+- `maps.json`: for each entry under a changed row whose `old` is not in `asserts(bM, helpersIn(<text at M>))`, the
+  script finds the entry's `old` at index `k` of `asserts(b0, helpersIn(<text at BASE>))` (its first index no other
+  entry of the row took) and writes `old` as index `k` of the `bM` list; when the two lists differ in length, or the
+  `k`-th assertion at `<M>` is not the same statement with main's change, it stops `BLOCKED` with both lists. An
+  entry under a changed row whose `now` is not in the row's places at HEAD stops the task `BLOCKED` (Task 38 changed
+  that place). Entries of every other row are not touched.
+
+Test first: before any change, run the ac-4 test and see it fail on the rows main changed (expected, among others,
+#63's `toEqual` of the section headings, which main extends with `'## Scope'`, and #68's
+`expect(out).toContain('accord 0.3.0 is out');`); after the change it passes. A gap left after the re-freeze is a
+place where Task 38 did not carry main's assertion: report it `BLOCKED`, do not edit a test file outside this task's
+line. hook.test.ts gaps are checked by hand as Ruling 139 of the ledger did.
+
+Report: the changed rows, the re-frozen files with `<M>` and their sha256, each rewritten `maps.json` text (old and
+new), and the ac-4 run.
+
+Must not change: the matching of the ac-4 test (its two passes and its `maps.json` checks); the tests of Tasks 34 to
+36; `before-junit.xml`, `after-junit.xml`, `rule3-list.md` and `table-approved.md`; the `maps.json` `baseline` list.
+
 ## Main session steps
 
 These edit files under the top-level `accord/` folder, which no executor touches, or need the owner.
@@ -1339,13 +1481,37 @@ These edit files under the top-level `accord/` folder, which no executor touches
      whenever Continue reports `behind:`. `accord/tickets/ST-LN-44/before-junit.xml` is not refreshed by them (ledger
      Ruling): `before-junit.xml` and `after-junit.xml` then both predate the merge, so ac-3 compares like with like, and
      verify's full run with step 3 measures the merged code. After each such merge one check is made, for ac-4 (whose
-     old bodies and `maps.json` `old` texts are read at `<BASE>`) and ac-2:
+     old bodies and `maps.json` `old` texts are read at `<BASE>`, or, for a file whose `base-tests.json` entry
+     carries `at`, at that commit) and ac-2:
      - `M` is the merged origin/main commit without this ticket's commits: `git rev-parse <the merge commit>^2`.
+     - `<P>` for a row's file is that file's `at` commit in `base-tests.json`, or `<BASE>` when its entry has none.
      - Rows main changed: list each table row whose old test body main changed, its title line included
-       (`git diff <BASE> <M> -- <the row's file>` has a hunk inside that body), and each destination title main now
+       (`git diff <P> <M> -- <the row's file>` has a hunk inside that body), and each destination title main now
        uses for another test (`git grep -n -F '<last title segment>' <M> -- <the destination's file>` finds it and
-       the same search at `<BASE>` does not). When the list is not empty, take it to the owner as one question before
+       the same search at `<P>` does not). When the list is not empty, take it to the owner as one question before
        the next task is dispatched (before verify when every task is recorded), with a proposal per row (the row's
        new title, the row dropped, or its old body re-read at `<M>`): each is a change to the approved table or to
        the plan, so on the owner's yes it is a change of course (accord-build step 6): a change note under
        `## Approach`, the owner's new yes, `accord approve`, and a re-plan of the tasks that carry those rows.
+     - The merge of the 2026-10-27 change note is made through step 5, whose check runs before that merge; the
+       owner's answer for it is that change note.
+5. The merge of the 2026-10-27 change note (final review: the branch is 60 commits behind origin/main; owner: "merge
+   now, change course"). Before Task 38 is dispatched, in the ticket's worktree, with every other main-session commit
+   made and `git status --porcelain` empty:
+   1. `<M>` is `git rev-parse origin/main` as fetched (no new fetch). Run step 4's check ("Rows main changed") against
+      `<M>` with `<P>` = `<BASE>` for every file, before merging, and also list each row whose title main renamed or
+      removed (its `body` is missing at `<M>`). Expected: #3, #10, #53, #63, #68 and #86 (the change note and the
+      final review). A renamed or removed row, or a destination title main newly uses, changes the approved table:
+      stop and take it to the owner as one question (the change note does not cover it). Otherwise write and commit
+      the ledger Ruling `Ruling: task 38 merges origin/main at <M>; rows main changed: #<n>, ... — change note
+      2026-10-27 — cost if wrong: a row main changed keeps its 1cec2ac old body in ac-4`, which Tasks 38 and 39 read.
+   2. `git merge --no-ff --no-commit <M>`. For each conflicted path under the top-level `accord/` folder
+      (`git diff --name-only --diff-filter=U -- accord`): `accord/tests-baseline.txt` takes main's lines with the
+      line step 1 removed still removed; a file of this ticket (`accord/tickets/ST-LN-44.md`,
+      `accord/tickets/ST-LN-44/**`) takes this branch's text, and a change main made to it goes to the owner; any
+      other path goes to the owner before dispatch. `git add` each resolved path. Every conflict outside `accord/`
+      stays for Task 38, and the merge stays uncommitted (nothing else is committed until Task 38 commits it).
+   3. After the merge, `accord/config.yml` pins 0.3.0: run accord from the rebuilt workspace bin or as
+      `npx --yes @accord-dev/accord@0.3.0`. `accord task-done ST-LN-44 38` is run with ac-4 failing for the rows of the
+      step 1 Ruling (Task 39 re-freezes their old bodies); write a Ruling naming that failure, and dispatch Task 39
+      next, before any other task or review.

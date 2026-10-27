@@ -87,3 +87,13 @@ No findings
 ## Closed
 
 Closed 2026-10-26 after round 8: no Must or Should open, accord gate plan passes; step 7's full run at 1cec2ac is before-junit.xml (3 timeouts of table rows, kept for this ticket by the owner).
+
+## Round 9 (whole)
+
+Re-plan for the change of course (merge origin/main, Tasks 38 and 39). Two critics, lens criteria and lens build, merged.
+
+1. Must — Once main is merged, a test main added (for example the review-package test in lane-s.test.ts or the branch-fact.test.ts `gate done` tests) can run over 10 s at verify; a keep then appends row 121+, which the frozen pre-merge after-junit.xml lacks, so ac-1 fails with no route but another change of course (packages/core/test/st-ln-44.test.ts:231-237); run tests.full plus the rule 3 tool on the merged HEAD right after Task 39 and name the route for a stopping `outside` entry in advance, keeping ac-3's before/after lists comparable — open
+2. Should — Task 38's test-first runs (#3's first destination, the fourth lane-flow destination) come before step 3's `npm ci` and `npm run build`, so the CLI tests still load the pre-merge core dist without `gate.out-of-scope` or `gate.branch-unknown`, or the files still hold conflict markers; the planned failure cannot show; move the runs after conflict resolution and the setup commands, before the known-case carries — open
+3. Should — Task 38's `verify:` names the ac-2 case in packages/core/test/st-ln-44.test.ts, but its `files:` line omits that file; `vitest related` over Task 38's files never runs it, task-done refuses, and a re-dispatch finds no MERGE_HEAD and blocks; add the file to `files:` as run-only, or have step 5 add it to `{files}` — open
+4. Should — Task 39's uncommitted script lives under node_modules/.cache/st-ln-44/ and copies typed `helpersIn`; Node refuses type stripping under node_modules (ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING); make it an untyped `.mjs` or place it outside node_modules — open
+5. Should — #86's `pinnedWorktree` and its third destination hard-code `'accord: "0.3.0"'`, so at the next pin bump the replace does nothing again, the same failure as the final review's #68 finding, and the change note says to read the pin from CONFIG where it was hard-coded; derive it from CONFIG as #68 does — open

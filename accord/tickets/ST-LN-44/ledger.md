@@ -112,6 +112,7 @@
 - Ruling: #14 builds the done-ST-9 state once (`copy`, `ticketWorktree`, `doneOnRemote` with `local`, then `worktree remove`) and takes a `copyClone` of it per row; the continue row's ST-10 branches from the same pre-done origin/main as before — cost if wrong: the continue row's ST-10 state differs slightly from the original; only exit 0 and the ST-9 deletions are asserted (executor, task 26)
 - Ruling: `laneSBranch` now checks `gateReadyIn(files, id)` is 'pass' in core instead of running `accord gate ready`; the CLI exit 0 of `gate ready` is made by lane-s.test.ts #63 (`ac-2 a lane S ticket is written and passes gate ready ...`) — the approach's core-ready lever — cost if wrong: a CLI-only gate ready break would show in #63, not in worktree.test.ts (executor, task 26)
 - Ruling: task 26's alone times put #5's first destination (8.5 and 13.8 s in two runs) and third (9.0 and 9.8 s) on rule 3's list at the measuring run; kept #14 ac-5 took 17.6 s, ceiling 39 — cost if wrong: ac-1 fails at verify unless the owner acts on the list (main session, task 26)
+- Ruling: task 27 edits nothing, so it has no commit and task-done records it at the task 26 record commit; its six files pass untouched (120 tests) and every kept row is inside its ceiling in a six-file run, the seven benchmark-worktree rows between 13.5 and 16.6 s — cost if wrong: none (main session, task 27)
 
 ## Deferred
 
@@ -152,3 +153,4 @@
 - task 24 done e5d9e9ea1398
 - task 25 done 7f1ff722aaf3
 - task 26 done 8e0ad8395cb6
+- task 27 done ad45a616b54b

@@ -132,6 +132,9 @@
 - Ruling: step 2's ceilings take the larger of the measuring-run time and the same title's times in baseline-junit.xml and full-2026-10-25-junit.xml (the two runs measurements.md is drawn from), rounded up, so a destination that keeps its old title (#5's first, #30's first, #84's first) takes the old test's time (#5's is 64 s), and a new title takes only its measuring-run time — the plan's formula read literally — cost if wrong: a ceiling set from one run is crossed at verify's full run and the list goes to the owner again (step 3) (main session, step 2)
 - Ruling: the late keeps of D-14 were written by a script that checks each row's action before changing it (faster or unchanged to kept, a `Ceiling <N> s` raised, a destination given ` :: kept <N> s`) and appends rows 119 and 120; the rule 3 tool over after-junit.xml with the edited table exits 0 with no STOP, and st-ln-44.test.ts passes 5 of 5; `accord approve ST-LN-44` ran on the owner's "Yes, approve" (commit 48227f3) — cost if wrong: none (main session, step 2)
 - Ruling: the merge hold of plan step 4 ended at 48227f32b492eeaf66b7cef2896ec9e7e36b1eef — the owner answered step 2's rule 3 list — cost if wrong: a merge before that commit goes unflagged by executors (main session, step 4)
+- Ruling: ac-3's check that every row's own file and title is a before pair covers rows 1 to 118, the rows of the approved table; rows 119 and 120 are late keeps (D-14), 119 a test this ticket added — cost if wrong: a later appended row is not checked against the before list (executor, task 36; row 120 noted by the main session)
+- Ruling: BEFORE_SHA256 in st-ln-44.test.ts is 15775f28…a000c, copied from step 0's ledger Ruling and checked against the file — cost if wrong: ac-3 throws that before-junit.xml is not the recorded run (executor, task 36)
+- Ruling: task 36's affected run passed 7 of 7 in st-ln-44.test.ts; the executor showed both ac tests fail on a wrong BEFORE_SHA256 and on an emptied moved set, then reverted those mutations — cost if wrong: none (main session, task 36)
 
 ## Deferred
 
@@ -181,3 +184,4 @@
 - task 33 done 19c4d0274203
 - task 34 done 5c744d192b70
 - task 35 done 48227f32b492
+- task 36 done 4ec859e637eb

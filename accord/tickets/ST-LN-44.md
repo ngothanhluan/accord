@@ -49,14 +49,14 @@ Feature: ST-LN-44
     Then no test in that run's whole junit report takes more than 10 s, inside or outside the table
     And the only exceptions are the tests the table keeps with a reason
 
-  @ac-2
+  @ac-2 @test:packages/core/test/st-ln-44.test.ts#ac-2-every-test-tag-that-names-a-test-of-the-table-names-one-passing-test-and-lint-reports-no-error
   Scenario: A criterion whose test was replaced is still proved by exactly one test
     Given a test that proved an acceptance criterion of another ticket and was replaced by a cheaper one
     When accord lint runs on the repository, unchanged by this ticket, and the full suite runs
     Then that ticket's @test tag names the new test and lint reports no error
     And the new test passes in the full run, and no other test carries that @test tag
 
-  @ac-3
+  @ac-3 @test:packages/core/test/st-ln-44.test.ts#ac-3-every-test-gone-since-the-baseline-run-is-a-row-the-table-moves-and-every-destination-exists
   Scenario: Only the tests the table removes are gone
     Given the tests of the full run before this ticket and after it, each named by its file and its title
     When the two lists are compared

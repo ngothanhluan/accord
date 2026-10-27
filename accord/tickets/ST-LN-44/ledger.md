@@ -178,6 +178,8 @@
 - Review round 1 N14: rule3-list.md still lists the 29 STOP entries the late keeps resolved; no test reads it.
 - Review round 1 note: the 12 worktree.test.ts templates built in beforeAll (up to 180 s) are not test durations in junit, so ac-1 never measures them.
 - Plan round 10 N3: main session step 3 says task-done "re-records" a re-dispatched Task 40 at verify, but task-done only confirms an existing ledger line and exits 0; the full run after it is the real check.
+- Review round 2 N1: worktree.test.ts:2237 still hard-codes `accord: "0.3.0"` while :1150 and :1178 derive it from `PIN`, and hook.test.ts's `N`, answer list and texts stay literal 0.3.0/0.4.0/0.5.0, so a pin bump fails those tests with a confusing error; a one-line `PIN` there and version strings built from `PIN` in #68.
+- Review round 2 N2: ac-3 and ac-1 read only pre-merge runs, so main's two renamed dashboard.test.ts tests (now `risk:regression ...`) are checked only by plan step 6's merged run, which passed.
 
 ## Tasks
 - task 1 done 5b5e41f6cbc9

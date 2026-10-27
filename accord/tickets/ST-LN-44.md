@@ -24,7 +24,7 @@ ui: false
 # The AC hash and the commit the ticks were made against.
 # verified_hash:
 # verified_commit:
-approved_hash: "fnv1a64:d38e5c6bcefc8202"
+approved_hash: "fnv1a64:3fdc001fd3e3f0e7"
 ac_hash: "fnv1a64:5759120c1df0e673"
 ---
 
@@ -89,6 +89,7 @@ Feature: ST-LN-44
 - D-11 D-09 and D-10 are withdrawn: this ticket changes no product code; the gate-only git cut and the deeper cut are queued together as their own ticket — the critic found the ST-LN-19 ac-1 test runs `show` in an empty sandbox (about 4 s a run), not in the real repository, so D-08 alone brings it under 10 s and the cut no longer serves this ticket's criteria — "A" (owner, 2026-10-25, choosing this against keeping the gate-only cut here so daily commands get faster sooner)
 - D-12 The five tests BUG-LN-8 added to packages/cli/test/upgrade.test.ts after this ticket's baseline (24.6, 25.6, 16.5, 8.5 and 7.6 s run alone on main, 2026-10-25) join the table as rows 114 to 118 and are handled like rows #12 and #13 of the same file; main is merged into this branch first — "Add them to the table" (owner, 2026-10-25, choosing this against keeping them over 10 s with a reason and against a separate ticket, which would leave ac-1 failing at verify)
 - D-13 Of D-12's rows, #115's three destinations and #117 are kept with a 29 s ceiling now, because each still holds one `accord upgrade` run of about 7 s alone in product code that D-11 leaves alone — "Keep them now" (owner, 2026-10-26, choosing this against leaving them faster and moved until the measuring run, which would need a second re-approval before verify)
+- D-14 The 29 tests that stop in the measuring run of Task 35 (over 10 s and not kept, or kept over their ceiling) are all kept, each with a ceiling the larger of its measuring-run time and its earlier full-run times, rounded up, written into table.md by rule 3's keep syntax; the 119 entries from 5 to 10 s stay as the table has them — "Keep all 29" (owner, 2026-10-27, choosing this against splitting the 9 tests at 15 s or more, or all 29, as a change of course with a re-plan and a second measuring run)
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
@@ -98,7 +99,7 @@ Feature: ST-LN-44
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
-Chosen: the per-test table accord/tickets/ST-LN-44/table.md (sha256 b6e47395c1fbbc6b4ed76fcc39e6753b59afbfca04b8adc09ffcacb3f28d9bbc), one row per test in measurements.md (118, rows 114-118 from D-12): 39 faster, 36 moved (split into `risk:` tests; #115's destinations kept, D-13), 33 kept with a reason and a ceiling (24 criterion tests, 7 benchmark tests, #50, #117), 10 unchanged, none merged or removed. Main is merged first; ac-3 and ac-4 read the state before this ticket at that merge commit (1cec2ac). Build only carries it out (D-05); test code only, no product or script code (D-11).
+Chosen: the per-test table accord/tickets/ST-LN-44/table.md (sha256 8f7098ab98d9b4395f266b79fd75dcaaddf6377f572059db5736c3fa0d2d5f72), one row per test in measurements.md (118, rows 114-118 from D-12): 39 faster, 36 moved (split into `risk:` tests; #115's destinations kept, D-13), 33 kept with a reason and a ceiling (24 criterion tests, 7 benchmark tests, #50, #117), 10 unchanged, none merged or removed. Main is merged first; ac-3 and ac-4 read the state before this ticket at that merge commit (1cec2ac). Build only carries it out (D-05); test code only, no product or script code (D-11). After the measuring run (Task 35), the late keeps of D-14 make 8 more rows kept (#6, #17, #32, #36, #40, #61, #69, #94), raise 4 ceilings (#16, #63, #76, #85), keep 15 destinations of #4, #5, #7, #10, #13, #30, #39 and #84, and append rows 119 and 120 (the sandbox-guard copy test and the lane-commands `next` test); the frozen approved table (Task 34) keeps hash b6e47395c1fbbc6b4ed76fcc39e6753b59afbfca04b8adc09ffcacb3f28d9bbc.
 Levers, all on the test side: per-file clone templates copied with `git remote set-url` (H1), one-spawn helper clones (H2), setup by git or file writes (H3), splits (H4), batched ref reads (H5), no auto-gc (H6), no origin in hold-only tests (H7), a temp-folder guard on the test `run()` helper (H8), core-ready hashes, async workflow-script runs, D-08 for show-approval.
 Rejected: shared templates without a per-test table (the owner approves every test once, D-05); the product git cut (moved to its own ticket, D-11); a benchmark row filter in scripts/benchmark.mjs (it crashed rows, broke the per-verifier check, and added a 20-40 s test); a byte-identity check for BUG-LN-3 ac-4 (it drops per-case assertions, against ac-4 as D-07 reads it).
 Affected: packages/cli/test/** (worktree, drop, hook, lane-s, after-verify, status, show, dashboard, upgrade, gate, trailers, benchmark-worktree, workflow-script, show-approval and others in the table), packages/cli/test/helpers/repo.ts and worktree.ts, core tests for D-08; accord/tests-baseline.txt where a baseline title moves.

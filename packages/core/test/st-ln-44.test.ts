@@ -64,6 +64,7 @@ it('risk:parsing table.md parses to rows 1 to 118 and the keep syntax of rule 3 
   // The keep syntax of rule 3.
   let t = editLine(approvedText, '| 3 | ', (p) => {
     p[6] = p[6].replace('<br>', ' :: kept 12 s<br>');
+    p[8] = `${p[8]} Destination "${p[6].split('<br>')[0].split(' :: ')[1]}" kept 12 s: Reason.`;
     return p;
   });
   t = editLine(t, '| 6 | ', (p) => {
@@ -87,6 +88,22 @@ it('risk:parsing table.md parses to rows 1 to 118 and the keep syntax of rule 3 
   );
   const gap = rows(`${t}\n| 121 | cli/test/y.test.ts | t | - | kept | - | - | - | Ceiling 3 s. |`);
   expect(tableProblems(gap)).not.toEqual([]);
+});
+
+it('risk:parsing a kept row without a reason and a kept destination whose note does not name it are table problems', () => {
+  const head = '| 119 | cli/test/a.test.ts | t | - | kept | - | - | - |';
+  const base = rows(readFileSync(new URL('./fixtures/st-ln-44/table-approved.md', import.meta.url), 'utf8'));
+  const problemsOf = (...lines: string[]) =>
+    tableProblems([...base, ...rows(lines.join('\n'))]).filter((p) => p.includes('a reason'));
+  expect(problemsOf(`${head} Ceiling 99 s. Reason. |`)).toEqual([]);
+  expect(problemsOf(`${head} Ceiling 99 s. |`)).toEqual(['row 119 is kept without a reason']);
+  const moved = (note: string) =>
+    `| 120 | cli/test/b.test.ts | t | - | moved | h | cli/test/b.test.ts :: d one :: kept 99 s<br>cli/test/b.test.ts :: d two | - | ${note} |`;
+  expect(problemsOf(`${head} Ceiling 9 s. Reason. |`, moved('Destination "d one" kept 99 s: Reason.'))).toEqual([]);
+  expect(problemsOf(`${head} Ceiling 9 s. Reason. |`, moved('Destination "d two" kept 99 s: Reason.'))).toEqual([
+    'row 120 keeps the destination "d one" without a reason naming it',
+  ]);
+  expect(problemsOf(`${head} Ceiling 9 s. Reason. |`, moved('Each destination is kept with a ceiling of 99 s: Reason.'))).toEqual([]);
 });
 
 it('risk:parsing junit cases are read with file title time and status and their text unescaped', () => {

@@ -115,6 +115,11 @@ export function tableProblems(rs: Row[]): string[] {
     if (r.n < 1) problems.push(`row ${r.n} is numbered below 1`);
     if (!ACTIONS.includes(r.action)) problems.push(`row ${r.n} has the unknown action "${r.action}"`);
     if (r.action === 'kept' && r.ceiling === undefined) problems.push(`row ${r.n} is kept without a ceiling`);
+    if (r.action === 'kept' && r.ceiling !== undefined && !r.note.replace(/Ceiling \d+ s\.?/, '').trim())
+      problems.push(`row ${r.n} is kept without a reason`);
+    for (const d of r.destinations)
+      if (d.ceiling !== undefined && !r.note.includes(`"${d.title}"`) && !r.note.includes('Each destination is kept'))
+        problems.push(`row ${r.n} keeps the destination "${d.title}" without a reason naming it`);
     if ((r.action === 'moved' || r.action === 'merged') && r.destinations.length === 0)
       problems.push(`row ${r.n} is ${r.action} without a destination`);
     if (r.n > 118) {

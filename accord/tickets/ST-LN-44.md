@@ -42,7 +42,7 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: ST-LN-44
 
-  @ac-1
+  @ac-1 @test:packages/core/test/st-ln-44.test.ts#ac-1-no-test-in-the-measuring-run-takes-over-10-s-apart-from-a-kept-test-within-its-ceiling
   Scenario: A full run has no test over 10 s apart from the approved keeps
     Given the table of the 75 tests over 10 s that the owner approved at the approach
     When the full suite runs once on the same machine as the 2026-10-24 baseline

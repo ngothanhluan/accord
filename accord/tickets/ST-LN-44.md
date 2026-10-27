@@ -24,7 +24,7 @@ ui: false
 # The AC hash and the commit the ticks were made against.
 # verified_hash:
 # verified_commit:
-approved_hash: "fnv1a64:3fdc001fd3e3f0e7"
+approved_hash: "fnv1a64:e7c1bf8aecf424a5"
 ac_hash: "fnv1a64:5759120c1df0e673"
 ---
 
@@ -99,7 +99,7 @@ Feature: ST-LN-44
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
-Chosen: the per-test table accord/tickets/ST-LN-44/table.md (sha256 8f7098ab98d9b4395f266b79fd75dcaaddf6377f572059db5736c3fa0d2d5f72), one row per test in measurements.md (118, rows 114-118 from D-12): 39 faster, 36 moved (split into `risk:` tests; #115's destinations kept, D-13), 33 kept with a reason and a ceiling (24 criterion tests, 7 benchmark tests, #50, #117), 10 unchanged, none merged or removed. Main is merged first; ac-3 and ac-4 read the state before this ticket at that merge commit (1cec2ac). Build only carries it out (D-05); test code only, no product or script code (D-11). After the measuring run (Task 35), the late keeps of D-14 make 8 more rows kept (#6, #17, #32, #36, #40, #61, #69, #94), raise 4 ceilings (#16, #63, #76, #85), keep 15 destinations of #4, #5, #7, #10, #13, #30, #39 and #84, and append rows 119 and 120 (the sandbox-guard copy test and the lane-commands `next` test); the frozen approved table (Task 34) keeps hash b6e47395c1fbbc6b4ed76fcc39e6753b59afbfca04b8adc09ffcacb3f28d9bbc.
+Chosen: the per-test table accord/tickets/ST-LN-44/table.md (sha256 d403b2491bcf510091c782e002b4d0aca35d51e19e0f1a20a3f650ea01f42361), one row per test in measurements.md (118, rows 114-118 from D-12): 39 faster, 36 moved (split into `risk:` tests; #115's destinations kept, D-13), 33 kept with a reason and a ceiling (24 criterion tests, 7 benchmark tests, #50, #117), 10 unchanged, none merged or removed. Main is merged first; ac-3 and ac-4 read the state before this ticket at that merge commit (1cec2ac). Build only carries it out (D-05); test code only, no product or script code (D-11). After the measuring run (Task 35), the late keeps of D-14 make 8 more rows kept (#6, #17, #32, #36, #40, #61, #69, #94), raise 4 ceilings (#16, #63, #76, #85), keep 15 destinations of #4, #5, #7, #10, #13, #30, #39 and #84, and append rows 119 and 120 (the sandbox-guard copy test and the lane-commands `next` test); the frozen approved table (Task 34) keeps hash b6e47395c1fbbc6b4ed76fcc39e6753b59afbfca04b8adc09ffcacb3f28d9bbc.
 Levers, all on the test side: per-file clone templates copied with `git remote set-url` (H1), one-spawn helper clones (H2), setup by git or file writes (H3), splits (H4), batched ref reads (H5), no auto-gc (H6), no origin in hold-only tests (H7), a temp-folder guard on the test `run()` helper (H8), core-ready hashes, async workflow-script runs, D-08 for show-approval.
 Rejected: shared templates without a per-test table (the owner approves every test once, D-05); the product git cut (moved to its own ticket, D-11); a benchmark row filter in scripts/benchmark.mjs (it crashed rows, broke the per-verifier check, and added a 20-40 s test); a byte-identity check for BUG-LN-3 ac-4 (it drops per-case assertions, against ac-4 as D-07 reads it).
 Affected: packages/cli/test/** (worktree, drop, hook, lane-s, after-verify, status, show, dashboard, upgrade, gate, trailers, benchmark-worktree, workflow-script, show-approval and others in the table), packages/cli/test/helpers/repo.ts and worktree.ts, core tests for D-08; accord/tests-baseline.txt where a baseline title moves.

@@ -138,6 +138,10 @@
 - Ruling: task 37 changed packages/core/test/helpers/st-ln-44.ts, outside its files line: `skipLiteral` now skips regex literals, the upgrade its `shortcut:` comment named, because hook.test.ts's `/\//g` was read as a `//` comment; both old and new text are scanned the same way and Task 34's tests still pass; accepted — cost if wrong: a division right after `(`, `,` or `=` reads as a regex, which none of the 22 frozen files holds (executor, task 37; accepted by the main session)
 - Ruling: rows #19 and #51 of hook.test.ts showed 7 gaps that were a detection gap, not lost assertions: the split tests bind `blocked` and `ok` through `const blocked = blockedOf(hook)` and `const ok = okIn`, so st-ln-44.test.ts adds `helpersIn` for local aliases, keeping Task 34's `helpersOf` API; checked by hand, all 3 `blocked(...)` and all 4 `ok(...)` calls are in the new tests; no assertion was restored in rows 1 to 118 — cost if wrong: another file that aliases a helper needs the same call (executor, task 37)
 - Ruling: base-tests.json freezes 22 files from `git show` at the baseline with a sha256 each, written by an uncommitted Node script; task 37's affected run passed 8 of 8 in st-ln-44.test.ts, and the executor showed ac-4 fails on a cite moved to #99 — cost if wrong: none (main session, task 37)
+- Ruling: review round 1 S1 (ac-1 reads the frozen after-junit.xml, so the late keeps make it green by construction) is not patched: a test cannot read the junit report of the run it is part of, and plan main-session step 3 runs the rule 3 tool on verify's own report before ac-1 is judged — cost if wrong: a test over 10 s at verify goes unflagged if step 3 is skipped (main session, review round 1)
+- Ruling: review round 1 S3 and S4 (sandbox-guard's one-clone and maintenance tests restate the helper; the one-clone test reads git's config key order) are not patched: plan Tasks 3 and 4 name exactly these tests as the guard of `otherClone` and `makeTemplate`, which is what S4 asks for, and Ruling 65 accepts the key-order risk, whose failure is loud — cost if wrong: a git release that reorders `clone -c` keys fails that test with no defect (main session, review round 1)
+- Ruling: review round 1 S2 is fixed in two parts: each of the 29 late keeps in table.md now says why it stays over 10 s (commit 5eb834d), and `tableProblems` reports a kept row with no reason after its `Ceiling <N> s` sentence and a kept destination whose note neither quotes its title nor says "Each destination is kept" (commit 72193ae); st-ln-44.test.ts passes 9 of 9, the rule 3 tool over after-junit.xml prints "No entry."; the table's new sha256 d403b249…2361 is in `## Approach` and `accord approve ST-LN-44` ran on the owner's "Yes, approve" — cost if wrong: none (main session and executor, review round 1)
+- Ruling: a kept row's reason is the note's text left after its first `Ceiling N s` sentence, non-empty; a destination counts as covered when the note holds its title in quotes or "Each destination is kept"; the existing parsing test's synthetic `:: kept 12 s` edit now adds a matching note sentence — cost if wrong: a note quoting the title for another purpose passes (executor, review round 1)
 
 ## Deferred
 
@@ -150,6 +154,21 @@
 - Plan round 6.4: the ledger quoted plan step 4's end-of-hold marker with a literal placeholder; the main session reworded that Ruling so no ledger line starts with the marker text until the hold ends.
 - Plan round 7.2: the merge fallback's new measuring task should go before any unrecorded task that reads after() (Tasks 36, 37), not only after the re-plan's other tasks.
 - Plan round 2.7 (resolved by 3.3): Task 16 adds an unused maps.json entry for the :52 task-done exit check, which lands unchanged in lane-flow.test.ts.
+- Review round 1 N1: single-use templates in bin.test.ts:13-14 and dashboard.test.ts:36-45 (tplCommitted, tplIntent) cost more than a direct makeClone/makeLaneRepo; H1 says two or more uses.
+- Review round 1 N2: constructs kept only so ac-4's text multiset matches: upgrade.test.ts `shape: true` branches, hook.test.ts `const ok = okIn`, after-verify.test.ts `fact = () => state`, one-element loops (lane-commands.test.ts:190, worktree.test.ts:1356).
+- Review round 1 N3: show-approval.test.ts:161 keeps a 300_000 timeout on ac-1 though D-08 brought its run to about 3 s.
+- Review round 1 N4: helpers/repo.ts run() guard compares with startsWith(realpath(tmpdir())) without a separator (/tmp2/repo passes when tmpdir is /tmp) and refuses only the exact cwd, not its subfolders when TMPDIR sits inside the checkout.
+- Review round 1 N5: ac-4's maps.json `test` entries are checked to exist, pass and be cited, not to be packages/cli tests nor to make the dropped check.
+- Review round 1 N6: ac-1 checks only row #2 for a skipped status; any other skipped table row reads 0 s.
+- Review round 1 N7: ac-2 does not catch two scenarios carrying the same @test tag.
+- Review round 1 N8: worktree.test.ts #89 test calls vi.unstubAllEnvs() and cleanup(cache) at the end of its body, not in finally, so a failure leaks the accord-cache-* folder; copyClone leaks its folders when its own throw fires; its `shared` check cannot trip.
+- Review round 1 N9: #5's first destination is kept at 64 s (its old title's time) though it measured 11.6 s; a return to 60 s passes ac-1.
+- Review round 1 N10: new worktree.test.ts helpers (ticketBranches, pushedWork, claim commits near :835-867) commit with -m against conventions.md:6; ticketBranches duplicates ticketBranch; the `again` closure is pasted twice (:282, :299).
+- Review round 1 N11: copyRepo does not check that its lane-repo template has no remote.
+- Review round 1 N12: test/helpers/lane.ts imports core from src while the CLI under test uses dist, so a local run without a build fails with an unexplained hash mismatch; AC is computed once and holds only while LANE_BODY's Feature text carries no id.
+- Review round 1 N13: workflow-script.test.ts BOM/CRLF test starts runs while later sandboxes are still built; an early failure also reports an unhandled rejection.
+- Review round 1 N14: rule3-list.md still lists the 29 STOP entries the late keeps resolved; no test reads it.
+- Review round 1 note: the 12 worktree.test.ts templates built in beforeAll (up to 180 s) are not test durations in junit, so ac-1 never measures them.
 
 ## Tasks
 - task 1 done 5b5e41f6cbc9

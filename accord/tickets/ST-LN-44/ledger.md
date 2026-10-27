@@ -146,6 +146,7 @@
 - Ruling: task 38 is recorded with ac-4 failing on #63 (`## Scope` added by main) and #68 (version strings), the rows of the step 5.1 Ruling, as plan step 5.3 expects; Task 39 re-freezes their old bodies and is dispatched next. The main session's tests.affected run over Task 38's files: 45 files, 869 passed, 3 skipped, 1 failed (only that ac-4 case), 865.7 s — cost if wrong: none (main session, task 38)
 - Ruling: task 38's executor declared `PIN` in hook.test.ts at file level next to `N`, as the brief said file level with no position — cost if wrong: none (executor, task 38)
 - Ruling: main renamed two dashboard.test.ts tests that no table row names (`ac-4 sections list every row on a large backlog` and `ac-2 up next leaves out the ready tickets…` now start `risk:regression`); ac-3 still passes on the pre-merge runs, and plan step 6's merged run with Task 40 checks it on the merged code — cost if wrong: ac-3 fails at step 6 and step 6.3's fallback question goes to the owner (main session, task 38)
+- Ruling: task 39 re-froze lane-s, lane-flow, hook and worktree .test.ts in base-tests.json at cbb36bd with `at`; its script found the same six changed rows over all 118; maps.json needed no change, since every `old` text of those rows is still in main's body and main's changed assertions are matched by Task 38's new places; st-ln-44.test.ts passes 9 of 9 in the main session's tests.affected run — cost if wrong: none (executor and main session, task 39)
 
 ## Deferred
 
@@ -214,3 +215,4 @@
 - task 36 done 4ec859e637eb
 - task 37 done 9c787c146c51
 - task 38 done 69f098d0f118
+- task 39 done 2929ba2d1358

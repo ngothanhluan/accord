@@ -1,5 +1,5 @@
 // BUG-LN-11: `accord worktree push <id>` puts the claim branch on origin, so another clone's dashboard shows the same stage and task count.
-import { utimesSync } from 'node:fs';
+import { readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { junit, PLAN, REPORT } from '../../../test/helpers/lane.js';
@@ -66,6 +66,51 @@ it('ac-1 a recorded task pushed with accord worktree push shows the same task co
     gitRun(o, 'fetch', '-q', 'origin');
     expect(await row(o)).toEqual(await row(wt));
     expect((await row(o))?.tasksDone).toBe(1);
+  } finally {
+    c.cleanupAll();
+  }
+}, 120_000);
+
+it('ac-2 each stage change before build pushed with accord worktree push shows the same stage in another clone', async () => {
+  const c = makeClone();
+  try {
+    const wt = claimed(c);
+    const o = c.otherClone();
+    const push = async (dir: string, tip: string) => {
+      expect(await run(['worktree', 'push', 'ST-9'], dir)).toEqual({ code: 0, out: 'pushed: t/ST-9\n', err: '' });
+      expect(onOrigin(c)).toBe(tip);
+      gitRun(o, 'fetch', '-q', 'origin');
+    };
+
+    // 1. Intent approved.
+    const ticket = join(wt, 'accord/tickets/ST-9.md');
+    const text = readFileSync(ticket, 'utf8');
+    const edited = text.replace('Owners can export their report as CSV.', 'Owners can export their report as a CSV file.');
+    expect(edited).not.toBe(text);
+    writeFileSync(ticket, edited);
+    await push(wt, commitMsg(wt, 'intent: ST-9 approved by the owner: "yes"'));
+    expect(await row(o)).toEqual(await row(wt));
+    expect((await row(o))?.stage).toBe('intent');
+
+    // 2. Approach approved, pushed from the main checkout.
+    expect((await run(['approve', 'ST-9'], wt)).code).toBe(0);
+    expect((await run(['gate', 'ready', 'ST-9'], wt)).code).toBe(0);
+    const approach = commitMsg(wt, 'approach: ST-9 approved by the owner: "yes"');
+    gitRun(o, 'fetch', '-q', 'origin');
+    expect((await row(o))?.stage).toBe('intent');
+    await push(c.root, approach);
+    expect(await row(o)).toEqual(await row(wt));
+    expect((await row(o))?.stage).toBe('plan');
+
+    // 3. Plan through its gate.
+    writeFiles(wt, { 'accord/tickets/ST-9/plan.md': PLAN.replace('abc1234', approach) });
+    expect((await run(['gate', 'plan', 'ST-9'], wt)).code).toBe(0);
+    const ready = commitMsg(wt, 'plan: ST-9 ready');
+    gitRun(o, 'fetch', '-q', 'origin');
+    expect((await row(o))?.stage).toBe('plan');
+    await push(wt, ready);
+    expect(await row(o)).toEqual(await row(wt));
+    expect(await row(o)).toEqual({ stage: 'build', tasksDone: 0, tasksTotal: 2 });
   } finally {
     c.cleanupAll();
   }

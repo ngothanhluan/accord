@@ -143,6 +143,9 @@
 - Ruling: review round 1 S2 is fixed in two parts: each of the 29 late keeps in table.md now says why it stays over 10 s (commit 5eb834d), and `tableProblems` reports a kept row with no reason after its `Ceiling <N> s` sentence and a kept destination whose note neither quotes its title nor says "Each destination is kept" (commit 72193ae); st-ln-44.test.ts passes 9 of 9, the rule 3 tool over after-junit.xml prints "No entry."; the table's new sha256 d403b249…2361 is in `## Approach` and `accord approve ST-LN-44` ran on the owner's "Yes, approve" — cost if wrong: none (main session and executor, review round 1)
 - Ruling: a kept row's reason is the note's text left after its first `Ceiling N s` sentence, non-empty; a destination counts as covered when the note holds its title in quotes or "Each destination is kept"; the existing parsing test's synthetic `:: kept 12 s` edit now adds a matching note sentence — cost if wrong: a note quoting the title for another purpose passes (executor, review round 1)
 - Ruling: task 38 merges origin/main at cbb36bdb4a06477e1b1b52ad9cd5092a57a7da48; rows main changed: #3, #10, #53, #63, #68, #86 — change note 2026-10-27; plan step 5.1's check read all 118 rows' old bodies at 1cec2ac and at that commit with `body()` of the helper (none renamed or removed, no destination title newly used by main, all 126 destination files readable) — cost if wrong: a row main changed keeps its 1cec2ac old body in ac-4 (main session, plan step 5.1)
+- Ruling: task 38 is recorded with ac-4 failing on #63 (`## Scope` added by main) and #68 (version strings), the rows of the step 5.1 Ruling, as plan step 5.3 expects; Task 39 re-freezes their old bodies and is dispatched next. The main session's tests.affected run over Task 38's files: 45 files, 869 passed, 3 skipped, 1 failed (only that ac-4 case), 865.7 s — cost if wrong: none (main session, task 38)
+- Ruling: task 38's executor declared `PIN` in hook.test.ts at file level next to `N`, as the brief said file level with no position — cost if wrong: none (executor, task 38)
+- Ruling: main renamed two dashboard.test.ts tests that no table row names (`ac-4 sections list every row on a large backlog` and `ac-2 up next leaves out the ready tickets…` now start `risk:regression`); ac-3 still passes on the pre-merge runs, and plan step 6's merged run with Task 40 checks it on the merged code — cost if wrong: ac-3 fails at step 6 and step 6.3's fallback question goes to the owner (main session, task 38)
 
 ## Deferred
 
@@ -210,3 +213,4 @@
 - task 35 done 48227f32b492
 - task 36 done 4ec859e637eb
 - task 37 done 9c787c146c51
+- task 38 done 69f098d0f118

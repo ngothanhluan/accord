@@ -123,6 +123,10 @@
 - Ruling: task 32's audit of the worktree.test.ts rows of Tasks 21 to 23 (#18, #24, #45, #52, #58, #67, #80, #86, #88, #89, #92, #93, #97, #98, #101, #103, #105) found no gap, so it edits nothing and has no commit; the whole file passes (123 passed, 1 skipped) — cost if wrong: Task 37's multiset check catches a missed assertion (main session, task 32)
 - Ruling: task 33's audit of the worktree.test.ts rows of Tasks 24 to 26 (#5, #14, #21, #26, #31, #38, #55, #65, #70, #76, #85) found no gap, so it edits nothing and has no commit; the kept rows' bodies were not read, only their setup change is in the table, and Task 37's multiset check covers them; the whole file passes (123 passed, 1 skipped) — cost if wrong: Task 37's multiset check catches a missed assertion (main session, task 33)
 - Ruling: Task 34's brief carries a main-session note that `helpersOf` finds the `passes`/`fails` declarations nested in lane-s.test.ts's `verdicts(repo)` and `asserts` counts their call statements in the test bodies, never the definitions, with a check over row #3's old and split bodies — Task 8's Ruling asked for it — cost if wrong: Task 37 misses or double-counts row #3's 14 verdict assertions (main session, task 34)
+- Ruling: `asserts` turns each run of whitespace into one space literally, so a line break after `toBe(` reads as `toBe( 2)`; the brief's `'expect(x).toBe(2);'` example cannot come from a multi-line source, so the test feeds `expect(x).toBe(\n 2);` and expects `'expect(x).toBe( 2);'` — cost if wrong: Task 37, or anyone writing `now` or `old` text by hand, must apply the same rule (executor, task 34)
+- Ruling: the rule 3 list prints `- #<n or -> <file> > <title>: <time to 1 decimal> s, <action>[, ceiling N s][, STOP]`, `#-` for an outside case — cost if wrong: only the list's wording changes (executor, task 34)
+- Ruling: task 34's check over lane-s.test.ts found 14 `passes`/`fails` call statements in the old row #3 body and the same 14 across the split tests at HEAD, equal as multisets, with the nested declarations found by `helpersOf`; the frozen table-approved.md matches sha256 b6e47395…9bbc and the live table.md is byte-identical to it — cost if wrong: none (executor, task 34)
+- Ruling: `asserts`' bracket counter does not skip regex literals (a `shortcut:` comment in the helper); hook.test.ts holds a regex literal with a backtick that misled task 29's own counting script, so Task 37's brief gets a note to check hook.test.ts's rows by hand when the multiset check reports a gap there — cost if wrong: Task 37 reports a false gap or misses one in hook.test.ts (main session, task 34)
 
 ## Deferred
 
@@ -170,3 +174,4 @@
 - task 31 done c4e3ddcd9f35
 - task 32 done bf37a70e6a40
 - task 33 done 19c4d0274203
+- task 34 done 5c744d192b70

@@ -3,7 +3,7 @@
 
 # The version every accord command in this repository must be. A command running under a different version
 # refuses rather than applying a different release's rules to your tickets.
-accord: "0.2.0"
+accord: "0.3.0"
 
 # build - a new product: a ticket with a screen carries a design: URL, or a prototype under accord/assets/.
 # maintain - an existing product: a ticket with a screen carries a prototype derived from what ships today.

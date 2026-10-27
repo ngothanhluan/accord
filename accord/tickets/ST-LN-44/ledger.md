@@ -169,6 +169,7 @@
 - Review round 1 N13: workflow-script.test.ts BOM/CRLF test starts runs while later sandboxes are still built; an early failure also reports an unhandled rejection.
 - Review round 1 N14: rule3-list.md still lists the 29 STOP entries the late keeps resolved; no test reads it.
 - Review round 1 note: the 12 worktree.test.ts templates built in beforeAll (up to 180 s) are not test durations in junit, so ac-1 never measures them.
+- Plan round 10 N3: main session step 3 says task-done "re-records" a re-dispatched Task 40 at verify, but task-done only confirms an existing ledger line and exits 0; the full run after it is the real check.
 
 ## Tasks
 - task 1 done 5b5e41f6cbc9

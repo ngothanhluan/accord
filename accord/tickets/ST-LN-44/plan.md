@@ -1,6 +1,6 @@
 ---
 baseline: 1cec2ac130d8d34c4dcdadddfee9effb4d1104e9
-plan_hash: "fnv1a64:f802be4ad2d82f03"
+plan_hash: "fnv1a64:713ea9003bf54f54"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -32,9 +32,13 @@ that merge, carrying main's changes into the places (destinations, shared setup,
 with #68's pin read from `CONFIG`; Task 39 then re-freezes, at `<M>`, the `base-tests.json` copies of the files that
 hold those rows and the `maps.json` texts main changed, so ac-4 compares with main's assertions. Lines cited in Tasks
 38 and 39 are lines at 8a19a1c (the change note's approval; the commits after it and before Task 38 touch only `accord/`).
-Neither task touches `accord/tickets/ST-LN-44/before-junit.xml`, `after-junit.xml` or `rule3-list.md`: verify's
-full run with Main session step 3 measures the merged code. Between Task 38 and Task 39 the ac-4 test fails for the
-rows main changed, so Task 39 is dispatched right after Task 38 is recorded. Deleting the ST-LN-44 test files after
+Neither task touches `accord/tickets/ST-LN-44/before-junit.xml`, `after-junit.xml` or `rule3-list.md`. Between
+Task 38 and Task 39 the ac-4 test fails for the rows main changed, so Task 39 is dispatched right after Task 38 is
+recorded. Right after Task 39, Main session step 6 runs the full suite and the rule 3 tool on the merged code, and
+the owner answers any entry that stops; a test main added that has no row and is kept is appended as row 121 upward,
+and Task 40 then makes that merged run ac-1's measuring run (ac-1 needs every row in the run it reads), only while
+ac-3 still passes on it. With no such keep, Task 40 changes nothing. Verify's full run with Main session step 3
+measures the merged code again, and an outside keep there takes the same route. Deleting the ST-LN-44 test files after
 this ticket merges is a separate queued lane S ticket, not a task here.
 
 Committed artifacts (nothing outside the repository survives between executors): everything a task produces for a
@@ -44,7 +48,8 @@ keeps a ticket's committed run data in `packages/core/test/fixtures/st-ln-48/`; 
 `packages/core/test/fixtures/st-ln-44/`:
 - `maps.json`, written by Tasks 7 to 26 and 28 to 33 (see "maps.json" below);
 - `table-approved.md`, written by Task 34;
-- `after-junit.xml` and `rule3-list.md`, written by Task 35;
+- `after-junit.xml` and `rule3-list.md`, written by Task 35; Task 40 replaces both with the merged full run only
+  when the owner keeps a test that has no row (Main session steps 6 and 3);
 - `base-tests.json`, written by Task 37; Task 39 re-freezes the entries of the files that hold rows main changed.
 The one artifact under `accord/` is `accord/tickets/ST-LN-44/before-junit.xml`, ac-3's "before" list: the main
 session wrote it (Main session step 0, commit 0dcbd4c) before Task 1 is dispatched, replaces it only through Main
@@ -1247,13 +1252,15 @@ Must not change: the tests of Tasks 34 to 36; every assertion any task wrote, be
 
 ## Task 38: Finish the merge of origin/main and carry main's changes into the rows' new places
 covers: D-04, D-05, D-11, D-14
-files: packages/cli/test/lane-s.test.ts, packages/cli/test/lane-flow.test.ts, packages/cli/test/hook.test.ts, packages/cli/test/worktree.test.ts, packages/cli/test/dashboard.test.ts, test/helpers/lane.ts
+files: packages/cli/test/lane-s.test.ts, packages/cli/test/lane-flow.test.ts, packages/cli/test/hook.test.ts, packages/cli/test/worktree.test.ts, packages/cli/test/dashboard.test.ts, test/helpers/lane.ts, packages/core/test/st-ln-44.test.ts (new)
 verify: packages/cli/test/lane-s.test.ts#ac-2-a-lane-S-ticket-is-written-and-passes-gate-ready-without-acceptance-criteria, packages/cli/test/lane-s.test.ts#risk:complex-branching-lane-S-gate-done-passes-a-reviewed-change, packages/cli/test/lane-s.test.ts#risk:complex-branching-lane-S-gate-done-fails-on-a-code-commit-after-the-review, packages/cli/test/lane-s.test.ts#risk:complex-branching-lane-S-gate-done-fails-on-edited-approved-sections, packages/cli/test/lane-s.test.ts#risk:complex-branching-lane-S-gate-done-passes-a-verdict-the-owner-accepted-with-a-Must-open, packages/cli/test/lane-flow.test.ts#lane-ticket-flow->-risk:complex-branching-gate-ready-passes-only-after-approve-and-gate-plan-passes-on-a-plan-against-HEAD, packages/cli/test/lane-flow.test.ts#lane-ticket-flow->-risk:complex-branching-task-done-records-task-1-once-and-status-shows-build-1/2, packages/cli/test/hook.test.ts#ac-1-a-newer-release-is-announced-by-the-session-start-hook-and-the-dashboard-and-the-registry-is-asked-once-in-24-hours, packages/cli/test/hook.test.ts#risk:complex-branching-the-registry-is-asked-again-only-after-24-hours-and-only-a-newer-plain-version-is-announced, packages/cli/test/worktree.test.ts#risk:complex-branching-in-claude-code-a-worktree-pinned-to-another-accord-version-refuses-before-setup-and-prints-no-enter, packages/cli/test/worktree.test.ts#risk:complex-branching-outside-claude-code-a-worktree-pinned-to-another-accord-version-still-prints-the-stop-lines, packages/cli/test/worktree.test.ts#risk:complex-branching-in-claude-code-a-pick-up-whose-origin-main-pins-another-version-refuses-and-names-the-main-checkout, packages/cli/test/worktree.test.ts#risk:complex-branching-a-merge-that-changes-the-pinned-accord-version-keeps-the-merge-and-names-the-pin, packages/cli/test/core-ready.test.ts#risk:regression-core-approve-and-gateReadyIn-write-the-hashes-accord-approve-and-gate-ready-write, packages/core/test/st-ln-44.test.ts#ac-2-every-test-tag-that-names-a-test-of-the-table-names-one-passing-test-and-lint-reports-no-error
 
 Rows: none new (it carries main's changes into the places of the rows main changed, which Main session step 5's
 Ruling lists; the final review expects #3, #10, #53, #63, #68 and #86, built or left by Tasks 8, 12, 16 and 21).
 The third and fourth lane-flow destinations hold commas, so they are run and reported but not named above. The
 ac-2 id of this ticket carries no `(@ac-2)` marker here: Task 36 already maps it, and a scenario is mapped once.
+`packages/core/test/st-ln-44.test.ts` is on the `files:` line so `tests.affected` runs its ac-2 case; this task runs
+it and never edits it (Task 39 does).
 D-14: every test the table keeps, the 29 late keeps and their ceilings included, stays one whole test with its title
 and setup: carrying main's change into it adds main's lines and never splits it, cuts it or moves part of it, and no
 ceiling in table.md changes.
@@ -1273,20 +1280,17 @@ made, with no file under `accord/` edited by this task.
    Where main changed an old test that this branch split, moved or rewrote (a row of the Ruling's list), main's
    change goes into each of that row's places that holds the changed line's role (a destination, the shared template
    or setup helper the destinations use, or the kept test itself); the old test is never re-added and its old title
-   never comes back. A test main added or changed that is not a row is taken as main wrote it. Known cases:
+   never comes back. A test main added or changed that is not a row is taken as main wrote it. The two carries of
+   step 4 (lane-s #3's `## Scope`, lane-flow #10's base commit and switch) are not made in this step: there this
+   branch's template, `stageRepo` and destinations stay as written, so step 4 can show them fail first. `git add`
+   each path once it holds no conflict marker. Known cases:
    - `test/helpers/lane.ts`: main's `accord: "0.3.0"` in `CONFIG`, with this branch's import of core (:6) and its
      exports after `junit` (:120-151, Task 5).
-   - `lane-s.test.ts` (#3, #63): the reviewed template's S-1 ticket is
-     `laneTicket('S-1', { lane: 'S', body: LANE_S_BODY + '\n## Scope\nsrc/a.ts\n' })`, as main's old body has it (main's
-     `gate.out-of-scope` fails a lane S done whose `## Scope` holds no path); #63's body is main's (Task 8 left it
-     unedited); main's new test `risk:complex-branching the review package lists the out-of-scope files and interface
-     signs gate done would name` stays as main wrote it, after the fork-point test.
-   - `lane-flow.test.ts` (#10): main's walk makes its base commit and switches to `t/T-1` before its first CLI run
-     (main's `gate.branch-unknown` fails a gate done whose branch diff is empty). The first destination begins with
-     main's comment and main's two lines `commitAll(repo, 'base');` and `gitRun(repo, 'switch', '-q', '-c', 't/T-1');`
-     before its first `gate ready` run (:79); `stageRepo` (:39-72) makes `commitMsg(repo, 'base')` and the same
-     `switch` right after its three identity lines (:43-45), before the core approve, so every following destination
-     works on `t/T-1` as the walk did from that point.
+   - `lane-s.test.ts` (#3, #63): #63's body is main's (Task 8 left it unedited); main's new test
+     `risk:complex-branching the review package lists the out-of-scope files and interface signs gate done would
+     name` stays as main wrote it, after the fork-point test; the reviewed template keeps this branch's S-1 ticket
+     line until step 4.
+   - `lane-flow.test.ts` (#10): this branch's four destinations and `stageRepo` (:39-72) stay as written until step 4.
    - `hook.test.ts` (#53, #68): `N` (:234) takes main's text; #53 takes main's `mockResolvedValue('0.4.0')` (:257);
      #68 takes main's version strings at each line where main changed them (the cache `latest` and the answer of the
      two cache attempts, the four-answer list, the `--json` attempt's answer) and in its asserted texts. Its direct
@@ -1295,34 +1299,54 @@ made, with no file under `accord/` edited by this task.
      and write `upgradeNotice(PIN)` in place of `upgradeNotice('0.2.0')` (:329). The clone the dashboard runs read
      is written from `CONFIG` (helpers/worktree.ts:37), so both forms compare with one pin, now and at every pin
      bump.
-   - `worktree.test.ts` (#86): `pinnedWorktree` (:1147) and the third destination (:1175) replace main's
-     `'accord: "0.3.0"'` with `'accord: "0.0.9"'`, as main's old body does. The merge-pin test (:2226, not a row)
+   - `worktree.test.ts` (#86): `pinnedWorktree` (:1147) and the third destination (:1175) read the pin from `CONFIG`,
+     as #68 does, so the replace still matches at the next pin bump: declare at file level
+     `const PIN = /^accord: "([^"]+)"$/m.exec(CONFIG)![1];` (the file already imports `CONFIG`, :9) and write
+     `.replace(`accord: "${PIN}"`, 'accord: "0.0.9"')` in both places, in place of the hard-coded pin text (main's
+     `'accord: "0.3.0"'`). The clone's `accord/config.yml` is written from `CONFIG` (helpers/worktree.ts:37), so the
+     text replaced is the pin the clone holds. Neither line is an assertion. The merge-pin test (:2226, not a row)
      takes main's text.
    - `dashboard.test.ts`: main's changes by the rule above; this branch's import from `test/helpers/lane.js` and its
      removed local copies (Task 5) stay.
 2. Hunks git merged with no conflict: for each row of the Ruling's list, read every hunk of the `git diff` above that
    falls inside the row's old body (its title line included) and confirm its change is in the row's places in the
-   merged tree. A hunk git applied to an old line this branch left outside those places is moved to its place.
-3. Run the `setup` commands of the merged `accord/config.yml` in order (`npm ci`, `npm run build`,
-   `npm rebuild @accord-dev/accord --ignore-scripts`), then `npm run lint` and `npm run typecheck`. Then, with
-   `ACCORD_BASH` as in the preamble, run whole every test file this branch changed or added against main
-   (`git diff --name-only <M> -- packages test`, the `.test.ts` paths), since each is where this branch's test code
-   meets main's product code, with the junit output of the preamble (`task-38.xml`). In `st-ln-44.test.ts` only ac-4
-   may fail, and only on rows of the Ruling's list (Task 39 re-freezes their old bodies); every other case passes.
-4. A failure the rules above do not settle (two sides that cannot both hold, or a test of this branch that fails on
+   merged tree, apart from the two carries of step 4. A hunk git applied to an old line this branch left outside those
+   places is moved to its place.
+3. With no conflict marker left outside `accord/`, run the `setup` commands of the merged `accord/config.yml` in order
+   (`npm ci`, `npm run build`, `npm rebuild @accord-dev/accord --ignore-scripts`), so the CLI tests load main's core
+   and CLI from `dist`.
+4. Test first, then the two carries. With `ACCORD_BASH` as in the preamble, run #3's first destination
+   (`npx vitest run packages/cli/test/lane-s.test.ts -t "lane S gate done passes a reviewed change"`) and row #10's
+   fourth destination (`npx vitest run packages/cli/test/lane-flow.test.ts -t "Done passes on ticks at HEAD"`) once
+   each, and record their failure: the
+   first on `gate.out-of-scope` (main's check fails a lane S done whose `## Scope` holds no path), the second with an
+   exit 1 on `gate done` (main's `gate.branch-unknown` fails a gate done whose branch diff is empty). A pass, or
+   another failure, is named in the report; the carry is made either way. Then:
+   - `lane-s.test.ts` (#3): the reviewed template's S-1 ticket becomes
+     `laneTicket('S-1', { lane: 'S', body: LANE_S_BODY + '\n## Scope\nsrc/a.ts\n' })`, as main's old body has it.
+   - `lane-flow.test.ts` (#10): main's walk makes its base commit and switches to `t/T-1` before its first CLI run.
+     The first destination begins with main's comment and main's two lines `commitAll(repo, 'base');` and
+     `gitRun(repo, 'switch', '-q', '-c', 't/T-1');` before its first `gate ready` run (:79); `stageRepo` (:39-72)
+     makes `commitMsg(repo, 'base')` and the same `switch` right after its three identity lines (:43-45), before the
+     core approve, so every following destination works on `t/T-1` as the walk did from that point.
+   Run the same two tests again and see them pass; `git add` both files.
+5. `npm run lint` and `npm run typecheck`. Then, with `ACCORD_BASH` as in the preamble, run whole every test file this
+   branch changed or added against main (`git diff --name-only <M> -- packages test`, the `.test.ts` paths), since each
+   is where this branch's test code meets main's product code, with the junit output of the preamble
+   (`task-38.xml`). In `st-ln-44.test.ts` only ac-4 may fail, and only on rows of the Ruling's list (Task 39
+   re-freezes their old bodies); every other case passes.
+6. A failure the rules above do not settle (two sides that cannot both hold, or a test of this branch that fails on
    main's product change with no hunk of main's to carry): leave the merge uncommitted and report `BLOCKED` with the
    test, the lines and both sides. Do not improvise a cut or a new assertion.
-5. Commit the merge with `git commit -F <message file> --cleanup=verbatim` (the file under
+7. Commit the merge with `git commit -F <message file> --cleanup=verbatim` (the file under
    `node_modules/.cache/st-ln-44/`), subject `Merge origin/main into t/ST-LN-44 (ST-LN-44 task 38)`, no trailer
    (conventions.md). Then D-11 is read against main: `git diff --stat <M> HEAD -- packages/cli/src packages/core/src
    scripts` prints nothing (the merge brings main's product code; this branch adds none).
 
-Test first: no test is written; the verify tests exist. Before step 1's known cases are carried into lane-s and
-lane-flow, run #3's first destination and the fourth lane-flow destination once and record their failure
-(`gate.out-of-scope`, and an exit 1 on `gate done`), so the report shows the change each carry fixes.
+Test first: step 4. No test is written; the verify tests exist.
 
-Report: each conflicted path and how it was resolved; each row-body hunk of step 2 and its place; the run's failures
-(only ac-4's, naming rows); the D-11 output.
+Report: each conflicted path and how it was resolved; each row-body hunk of step 2 and its place; step 4's two runs
+before and after the carries; step 5's failures (only ac-4's, naming rows); the D-11 output.
 
 Must not change: any file under `accord/`; every assertion this branch wrote beyond the text main changed in it; the
 titles, order, timeouts, templates and copy helpers (H1 to H8) of every destination and kept test; main's tests that
@@ -1343,9 +1367,14 @@ Start: `git log --merges --format=%H 48227f32b492eeaf66b7cef2896ec9e7e36b1eef..H
 Consumes: `rows`, `body`, `asserts`, `helpersOf` from `packages/core/test/helpers/st-ln-44.ts`; the local
 `helpersIn` and `baseText` of `packages/core/test/st-ln-44.test.ts` (:335-352; the script repeats `helpersIn`'s
 body, since it cannot import a test file). Produces:
-- The rows main changed, computed by a Node script that is not committed (under `node_modules/.cache/st-ln-44/`, run
-  with `node --experimental-strip-types`, reading git by `execFileSync('git', ['show', <sha> + ':' + <file>], { cwd,
-  maxBuffer: 64 * 1024 * 1024 })`): for each row 1 to 118 of the live `table.md`, `b0 = body(<text at BASE>, title)`
+- The rows main changed, computed by a Node script that is not committed:
+  `packages/core/test/helpers/st-ln-44-refreeze.ts`, beside the rule 3 tool and outside `node_modules` (Node refuses
+  to strip types from a file under a `node_modules` path), so `packages/core/package.json`'s `"type": "module"` makes
+  it an ES module as it does the tool. It uses erasable syntax only, imports Task 34's helpers as
+  `./st-ln-44.ts`, runs as `node --experimental-strip-types packages/core/test/helpers/st-ln-44-refreeze.ts`, reads
+  git by `execFileSync('git', ['show', <sha> + ':' + <file>], { cwd, maxBuffer: 64 * 1024 * 1024 })`, and is deleted
+  before the task's build, lint, typecheck and commit (`git status --porcelain` then lists no untracked file). For
+  each row 1 to 118 of the live `table.md`, `b0 = body(<text at BASE>, title)`
   and `bM = body(<text at M>, title)`; `bM` undefined (main renamed or removed the test) stops the task `BLOCKED`;
   `b0 !== bM` marks the row changed. A changed row missing from the Ruling's list stops the task `BLOCKED` (Task 38
   did not carry it); a listed row that is not changed is named in the report.
@@ -1374,6 +1403,52 @@ new), and the ac-4 run.
 
 Must not change: the matching of the ac-4 test (its two passes and its `maps.json` checks); the tests of Tasks 34 to
 36; `before-junit.xml`, `after-junit.xml`, `rule3-list.md` and `table-approved.md`; the `maps.json` `baseline` list.
+
+## Task 40: The merged full run becomes ac-1's measuring run when a test outside the table is kept
+covers: @ac-1, D-03
+files: packages/core/test/fixtures/st-ln-44/after-junit.xml (new), packages/core/test/fixtures/st-ln-44/rule3-list.md (new)
+verify: packages/core/test/st-ln-44.test.ts#ac-1-no-test-in-the-measuring-run-takes-over-10-s-apart-from-a-kept-test-within-its-ceiling, packages/core/test/st-ln-44.test.ts#ac-2-every-test-tag-that-names-a-test-of-the-table-names-one-passing-test-and-lint-reports-no-error, packages/core/test/st-ln-44.test.ts#ac-3-every-test-gone-since-the-baseline-run-is-a-row-the-table-moves-and-every-destination-exists, packages/core/test/st-ln-44.test.ts#ac-4-every-assertion-of-a-changed-row-is-in-its-new-place-or-mapped-by-the-row-note
+
+Rows: none. The four ac ids carry no `(@ac-n)` marker: Tasks 35 to 37 already map them. Dispatched after Main
+session step 6 (or again from step 3) has run the full suite on the merged code and the owner has answered its list.
+
+Why: ac-1 requires every row of `table.md` in the run it reads. A test main added since 1cec2ac (for example main's
+review-package test in lane-s.test.ts) is in no row; when it runs over 10 s, the rule 3 tool lists it `outside`, and
+the owner's keep appends it as row 121 upward, which the committed pre-merge `after-junit.xml` does not hold. This
+task then makes the merged full run the measuring run. Without such a row it changes nothing, so the measuring run
+stays the one the Approach names.
+
+Start: the newest ledger Ruling `Ruling: merged-junit.xml is the full run at <S>, <n> cases, sha256 <hex>` exists;
+`node_modules/.cache/st-ln-44/merged-junit.xml` has that sha256; `git diff --name-only <S> HEAD -- . ":(exclude)accord"`
+prints nothing (the run measured the code at HEAD; the commits since touch only `accord/`). Otherwise change nothing
+and report `BLOCKED` with what was found.
+
+Consumes: Task 34's rule 3 tool; the committed `after-junit.xml`; `accord/tickets/ST-LN-44/before-junit.xml` (read by
+ac-3, never changed); the merged report. Produces: the two fixtures replaced, or nothing.
+
+Test first: run `npx vitest run packages/core/test/st-ln-44.test.ts -t "ac-1"`.
+- It passes: every row is in the committed run. Change nothing, commit nothing, report that the measuring run stays.
+- It fails only on its first check (the `missing` list), and every missing entry is a row numbered 121 or above: go
+  on. Any other failure is reported `BLOCKED`, nothing changed.
+Then:
+1. Copy `node_modules/.cache/st-ln-44/merged-junit.xml` byte for byte over
+   `packages/core/test/fixtures/st-ln-44/after-junit.xml` (`Copy-Item` or Node's `copyFileSync`, never a shell
+   redirect), and run
+   `node --experimental-strip-types packages/core/test/helpers/st-ln-44.ts packages/core/test/fixtures/st-ln-44/after-junit.xml --out packages/core/test/fixtures/st-ln-44/rule3-list.md`.
+   Exit 1 (an entry stops that the owner has not answered) or 2: restore both files with
+   `git restore -- <the two paths>` and report `BLOCKED` with the output.
+2. Run the whole `st-ln-44.test.ts` with the junit output of the preamble (`task-40.xml`). ac-3 keeps the before
+   and after lists comparable: before is still the run at 1cec2ac, and ac-3 passes on the merged after list only when
+   every test gone since then is a row the table moves, so a test main renamed or removed since 1cec2ac fails it. Any
+   failing case: restore both files as in step 1 and report `BLOCKED` with the failures (Main session step 6 names
+   the route).
+3. Commit the two fixtures with `git commit -F <message file> --cleanup=verbatim` (the file under
+   `node_modules/.cache/st-ln-44/`), no trailer (conventions.md).
+
+Report: the ac-1 run before the change, the missing rows, the new `rule3-list.md`, and the run of step 2.
+
+Must not change: every test and helper; every file under `accord/` (`table.md` and `before-junit.xml` among them);
+`table-approved.md`, `maps.json` and `base-tests.json`.
 
 ## Main session steps
 
@@ -1424,7 +1499,10 @@ These edit files under the top-level `accord/` folder, which no executor touches
    `node --experimental-strip-types packages/core/test/helpers/st-ln-44.ts node_modules/.cache/accord/junit.xml --verify`
    before ac-1 is judged. Exit 1 lists a row over 10 s that the table does not keep, a kept row or destination over
    its ceiling, or a test outside the table over 10 s: verify stops, the list goes to the owner as in step 2, and on a
-   yes the table is changed and re-approved and the full suite runs again (table rule 3, "At verify").
+   yes the table is changed and re-approved and the full suite runs again (table rule 3, "At verify"). An `outside`
+   entry the owner keeps takes step 6's route: verify's report is copied to
+   `node_modules/.cache/st-ln-44/merged-junit.xml` with its Ruling (step 6.1), Task 40 is dispatched again and
+   `accord task-done ST-LN-44 40` re-records it, then the full suite runs again.
 4. Merging origin/main is held, with a fallback if a merge lands anyway (owner, 2026-10-26: "Hold, with a fallback
    if a merge lands anyway").
    - The hold. It started when `accord/tickets/ST-LN-44/before-junit.xml` was fixed (commit 0dcbd4c, ledger Ruling
@@ -1514,4 +1592,35 @@ These edit files under the top-level `accord/` folder, which no executor touches
    3. After the merge, `accord/config.yml` pins 0.3.0: run accord from the rebuilt workspace bin or as
       `npx --yes @accord-dev/accord@0.3.0`. `accord task-done ST-LN-44 38` is run with ac-4 failing for the rows of the
       step 1 Ruling (Task 39 re-freezes their old bodies); write a Ruling naming that failure, and dispatch Task 39
-      next, before any other task or review.
+      next, before any other task or review. After Task 39 is recorded, step 6 runs, then Task 40, then review.
+6. The merged full run, right after Task 39 is recorded and before Task 40 is dispatched (plan round 9.1). A test main
+   added since 1cec2ac has no row; ac-1 (Task 35) reads the pre-merge `after-junit.xml`, so a keep of such a test at
+   verify alone would append a row that run lacks. This step finds those tests before review, on the merged code:
+   1. In the ticket's worktree at HEAD, with nothing else running: `$env:ACCORD_BASH = 'C:\Program Files\Git\bin\bash.exe'`,
+      `npm run build`, then `tests.full` as Task 35 ran it
+      (`npx vitest run --reporter=default --reporter=junit --outputFile.junit=node_modules/.cache/accord/junit.xml`).
+      The executed workflow-script cases must have run (not skipped); otherwise fix the environment and run again.
+      Copy the report byte for byte to `node_modules/.cache/st-ln-44/merged-junit.xml` before any `tests.affected`
+      run overwrites it, then write and commit the ledger Ruling `Ruling: merged-junit.xml is the full run at <sha of
+      HEAD>, <n> cases, sha256 <hex> — plan step 6 — cost if wrong: Task 40 copies another run`.
+   2. Run `node --experimental-strip-types packages/core/test/helpers/st-ln-44.ts node_modules/.cache/st-ln-44/merged-junit.xml --verify`.
+      Exit 2 (a table problem or an unreadable file): fix the cause and run it again. Exit 0 (`No entry.`): no
+      question; dispatch Task 40, which then changes nothing. Exit 1: take every listed entry, with the run's failing
+      cases, to the owner as one question before Task 40, one proposal per entry as in step 2:
+      - an entry with a row number (a row or a destination over 10 s and not kept, or over its ceiling): step 2's
+        keep or raised ceiling, or a further split (a change of course, as in step 2). A keep goes through step 2's
+        route (a Decision, the keep syntax in table.md, the sha256 in `## Approach`, `accord approve ST-LN-44`); the
+        committed measuring run stays, and the row is already in it.
+      - an `outside` entry (`#-`, a test with no row, such as one main added): a keep, appended as row 121 upward with
+        step 2's syntax, its ceiling the larger of its time in this run and its time in `before-junit.xml` when that
+        run holds it, rounded up, with the reason it cannot get under 10 s; or a split, a new cut beyond the approved
+        table and so a change of course. The question says that a keep of an outside test also makes this merged run
+        ac-1's measuring run, since ac-1 needs every row in the run it reads: Task 40 copies it over `after-junit.xml`
+        and `rule3-list.md`, and the keep's Decision records that.
+      After the owner's answer (and, for a keep, its `accord approve`), dispatch Task 40. When no outside test is kept, Task 40 changes nothing, and `before-junit.xml` and
+      `after-junit.xml` both predate the merge, so ac-3 compares like with like (step 4, "The end").
+   3. When Task 40 reports `BLOCKED` because ac-3 fails on the merged run (a test the 1cec2ac run holds that main
+      renamed or removed, and that no row moves), the before and after lists are no longer comparable: dispatch stops
+      and the owner gets step 4's fallback question, with `<merge>` Task 38's merge (a before list from a full run at
+      `<M>`, which changes the Approach); on a yes it is a change of course with a re-plan, as there. Any other
+      `BLOCKED` of Task 40 goes to the owner with its output.

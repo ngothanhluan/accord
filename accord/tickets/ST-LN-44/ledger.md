@@ -106,6 +106,8 @@
 - Ruling: #103's old `dropAndMerge(c, 'ST-10');` is mapped as a `test` entry to the ac-3 test, as the brief says; the drop exit 0 stays asserted by #105's real drop — cost if wrong: the audit tool wants a `now`, and one entry would need rewriting (executor, task 23)
 - Ruling: task 23's alone times on a slow machine (an untouched test took 26.6 s) put #45's three destinations (13.5, 13.1, 21.7 s), #93 (11.3 s) and #105 (11.2 s) on rule 3's list at the measuring run, where an idle machine tells machine load from the cost of `worktree open` — cost if wrong: ac-1 fails at verify unless the owner acts on the list (main session, task 23)
 - Ruling: task 24 adds a `{ tickets: [] }` entry to TEMPLATE_OPTS for #65's second part, and touches no maps.json entry since every assertion keeps its text and place — cost if wrong: about 1 s more beforeAll (executor, task 24)
+- Ruling: task 25's split rows prove "failing" by their new titles running 0 tests before the change, since a split cannot fail an assertion; `BEHIND` and `twoOnMain` move to file level with no assertion in them — cost if wrong: none (executor, task 25)
+- Ruling: task 25's alone times put #21's destinations at 5.5, 7.0 and 7.3 s and #26's at 6.0 and 5.2 s on rule 3's list at the measuring run; kept #38 (18.2 s, ceiling 22) and #55 (14.3 s, ceiling 18) are inside their ceilings — cost if wrong: none (main session, task 25)
 
 ## Deferred
 
@@ -144,3 +146,4 @@
 - task 22 done 46206956828f
 - task 23 done 230bc0fddfc2
 - task 24 done e5d9e9ea1398
+- task 25 done 7f1ff722aaf3

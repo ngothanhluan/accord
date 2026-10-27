@@ -113,6 +113,8 @@
 - Ruling: `laneSBranch` now checks `gateReadyIn(files, id)` is 'pass' in core instead of running `accord gate ready`; the CLI exit 0 of `gate ready` is made by lane-s.test.ts #63 (`ac-2 a lane S ticket is written and passes gate ready ...`) — the approach's core-ready lever — cost if wrong: a CLI-only gate ready break would show in #63, not in worktree.test.ts (executor, task 26)
 - Ruling: task 26's alone times put #5's first destination (8.5 and 13.8 s in two runs) and third (9.0 and 9.8 s) on rule 3's list at the measuring run; kept #14 ac-5 took 17.6 s, ceiling 39 — cost if wrong: ac-1 fails at verify unless the owner acts on the list (main session, task 26)
 - Ruling: task 27 edits nothing, so it has no commit and task-done records it at the task 26 record commit; its six files pass untouched (120 tests) and every kept row is inside its ceiling in a six-file run, the seven benchmark-worktree rows between 13.5 and 16.6 s — cost if wrong: none (main session, task 27)
+- Ruling: task 28's audit of rows #1, #2, #3, #4, #6, #9, #17, #20, #35, #57, #69, #83 and #96 found no gap, so it edits nothing and has no commit; its four files pass whole (60 passed, 1 skipped) — cost if wrong: Task 37's multiset check catches a missed assertion (main session, task 28)
+- Ruling: #3's :117 gate-ready check keeps only a `test` entry in maps.json, with the core `expect(gateReadyIn(...))` as an extra unmapped assertion — the plan allows one of `now` or `test` per entry, and a second entry for the same `old` would count it twice — cost if wrong: Task 37 may ask for a `now` entry, a one-line add (executor, task 28)
 
 ## Deferred
 
@@ -154,3 +156,4 @@
 - task 25 done 7f1ff722aaf3
 - task 26 done 8e0ad8395cb6
 - task 27 done ad45a616b54b
+- task 28 done 6a97d5af3278

@@ -253,8 +253,9 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
   worktree
     .command('push <id>')
     .description("push the ticket's claim branch to origin; a failed push prints git's message and exits 0, its commits stay local until the next push")
-    .action((id: string) => {
-      setCode(worktreePush(preflight(opts), id));
+    .option('--force-with-lease', 'after a commit is reworded: replace the branch on origin only while it is still where this clone last saw it and this branch once held that commit')
+    .action((id: string, o: { forceWithLease?: boolean }) => {
+      setCode(worktreePush(preflight(opts), id, { lease: o.forceWithLease === true }));
     });
 
   program

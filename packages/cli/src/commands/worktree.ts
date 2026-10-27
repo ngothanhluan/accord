@@ -541,11 +541,13 @@ function continueMerge(ctx: CommandContext, id: string, path: string, branch: st
 }
 
 /** BUG-LN-11: push the ticket's claim branch by its ref, so it works from any worktree; a failed push is named with git's message and exits 0. */
-export function worktreePush(ctx: CommandContext, id: string): number {
+export function worktreePush(ctx: CommandContext, id: string, o: { lease?: boolean } = {}): number {
   if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id);
   const branch = branchOf(ctx.snapshot, id);
   try {
-    gitNoPrompt(ctx.root, ['push', 'origin', `refs/heads/${branch}:refs/heads/${branch}`]);
+    // after a reworded commit: the lease keeps a push from replacing what origin got since this clone last saw it, and --force-if-includes keeps it from replacing a commit a fetch brought in that this branch never held
+    const force = o.lease === true ? ['--force-with-lease', '--force-if-includes'] : [];
+    gitNoPrompt(ctx.root, ['push', ...force, 'origin', `refs/heads/${branch}:refs/heads/${branch}`]);
   } catch (e) {
     const why = String((e as { stderr?: string }).stderr ?? '').trim();
     ctx.stdout.write(`push of ${branch} failed; its commits stay local until the next push\n${why === '' ? String(e) : why}\n`);

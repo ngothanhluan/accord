@@ -3,7 +3,7 @@ import { readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { junit, PLAN, REPORT } from '../../../test/helpers/lane.js';
-import { commitMsg, gitRun, run, writeFiles } from './helpers/repo.js';
+import { commitMsg, gitRun, mergeMsg, run, writeFiles } from './helpers/repo.js';
 import { makeClone, type Clone } from './helpers/worktree.js';
 
 /** The claim worktree of ST-9, with the plan's file in place and the claim branch pushed. */
@@ -17,6 +17,26 @@ function claimed(c: Clone): string {
 }
 
 const onOrigin = (c: Clone) => gitRun(c.remote, 'rev-parse', 'refs/heads/t/ST-9').trim();
+const head = (dir: string) => gitRun(dir, 'rev-parse', 'HEAD').trim();
+const FAILED = 'push of t/ST-9 failed; its commits stay local until the next push';
+
+/** Reword the tip commit the way build step 3 does: from a file, never -m, no trailer; the message file lies outside every working tree. */
+function reword(c: Clone, dir: string, text: string): string {
+  const file = `${c.root}/.git/reword.txt`;
+  writeFileSync(file, text + '\n');
+  gitRun(dir, 'commit', '--amend', '-q', '-F', file, '--cleanup=verbatim');
+  return head(dir);
+}
+
+/** A teammate in another clone pushes a commit to the claim branch; returns its sha. */
+function teammate(c: Clone): string {
+  const o = c.otherClone();
+  gitRun(o, 'switch', 't/ST-9');
+  writeFiles(o, { 'teammate.txt': 'mate\n' });
+  const mate = commitMsg(o, 'teammate');
+  gitRun(o, 'push', '-q', 'origin', 't/ST-9');
+  return mate;
+}
 
 /** The orchestrator ran the suite after the last commit: task-done refuses a report older than HEAD. */
 function freshReport(dir: string): void {
@@ -113,5 +133,123 @@ it('ac-2 each stage change before build pushed with accord worktree push shows t
     expect(await row(o)).toEqual({ stage: 'build', tasksDone: 0, tasksTotal: 2 });
   } finally {
     c.cleanupAll();
+  }
+}, 120_000);
+
+it('ac-3 a failed push exits 0 with the failure line and the git message and the next push carries every commit', async () => {
+  // Unreachable remote.
+  const c = makeClone();
+  try {
+    const wt = claimed(c);
+    const claimTip = onOrigin(c);
+    c.git('remote', 'set-url', 'origin', c.remote + '-missing');
+    expect((await run(['approve', 'ST-9'], wt)).code).toBe(0);
+    expect((await run(['gate', 'ready', 'ST-9'], wt)).code).toBe(0);
+    const a = commitMsg(wt, 'approach: ST-9 approved');
+    const r = await run(['worktree', 'push', 'ST-9'], wt);
+    expect(r.code).toBe(0);
+    expect(r.err).toBe('');
+    expect(r.out.startsWith(FAILED + '\n')).toBe(true);
+    expect(r.out.slice(FAILED.length + 1)).toContain('does not appear to be a git repository');
+    expect(head(wt)).toBe(a);
+    expect(onOrigin(c)).toBe(claimTip);
+
+    writeFiles(wt, { 'notes.txt': 'notes\n' });
+    const b = commitMsg(wt, 'b');
+    const again = await run(['worktree', 'push', 'ST-9'], wt);
+    expect(again.code).toBe(0);
+    expect(again.err).toBe('');
+    expect(again.out.startsWith(FAILED + '\n')).toBe(true);
+    expect(again.out.slice(FAILED.length + 1)).toContain('does not appear to be a git repository');
+
+    c.git('remote', 'set-url', 'origin', c.remote);
+    writeFiles(wt, { 'more.txt': 'more\n' });
+    const d = commitMsg(wt, 'd');
+    expect(await run(['worktree', 'push', 'ST-9'], wt)).toEqual({ code: 0, out: 'pushed: t/ST-9\n', err: '' });
+    expect(onOrigin(c)).toBe(d);
+    for (const x of [a, b]) gitRun(c.remote, 'merge-base', '--is-ancestor', x, 'refs/heads/t/ST-9');
+  } finally {
+    c.cleanupAll();
+  }
+
+  // Rejected push.
+  const k = makeClone();
+  try {
+    const wt = claimed(k);
+    const mate = teammate(k);
+    writeFiles(wt, { 'mine.txt': 'mine\n' });
+    const m = commitMsg(wt, 'mine');
+    const r = await run(['worktree', 'push', 'ST-9'], wt);
+    expect(r.code).toBe(0);
+    expect(r.err).toBe('');
+    expect(r.out.startsWith(FAILED + '\n')).toBe(true);
+    expect(r.out).toContain('[rejected]');
+    expect(onOrigin(k)).toBe(mate);
+
+    gitRun(wt, 'fetch', '-q', 'origin');
+    mergeMsg(wt, 'origin/t/ST-9', 'merge teammate');
+    expect(await run(['worktree', 'push', 'ST-9'], wt)).toEqual({ code: 0, out: 'pushed: t/ST-9\n', err: '' });
+    expect(onOrigin(k)).toBe(head(wt));
+    gitRun(k.remote, 'merge-base', '--is-ancestor', m, 'refs/heads/t/ST-9');
+  } finally {
+    k.cleanupAll();
+  }
+}, 120_000);
+
+it('risk:data-loss a reworded commit already on origin is pushed with force-with-lease and a teammate commit the branch never held stays on origin', async () => {
+  // 1. Own reword.
+  const c = makeClone();
+  try {
+    const wt = claimed(c);
+    writeFiles(wt, { 'notes.txt': 'notes\n' });
+    commitMsg(wt, 'notes');
+    expect(await run(['worktree', 'push', 'ST-9'], wt)).toEqual({ code: 0, out: 'pushed: t/ST-9\n', err: '' });
+    const r = reword(c, wt, 'notes reworded');
+    const plain = await run(['worktree', 'push', 'ST-9'], wt);
+    expect(plain.code).toBe(0);
+    expect(plain.err).toBe('');
+    expect(plain.out.startsWith(FAILED + '\n')).toBe(true);
+    expect(plain.out).toContain('[rejected]');
+    expect(onOrigin(c)).not.toBe(r);
+    expect(await run(['worktree', 'push', 'ST-9', '--force-with-lease'], wt)).toEqual({ code: 0, out: 'pushed: t/ST-9\n', err: '' });
+    expect(onOrigin(c)).toBe(r);
+    expect(gitRun(c.remote, 'log', '-1', '--format=%s', 'refs/heads/t/ST-9').trim()).toBe('notes reworded');
+  } finally {
+    c.cleanupAll();
+  }
+
+  // 2. Teammate push, no fetch.
+  const d = makeClone();
+  try {
+    const wt = claimed(d);
+    const mate = teammate(d);
+    reword(d, wt, 'claim: ST-9 reworded');
+    const r = await run(['worktree', 'push', 'ST-9', '--force-with-lease'], wt);
+    expect(r.code).toBe(0);
+    expect(r.err).toBe('');
+    expect(r.out.startsWith(FAILED + '\n')).toBe(true);
+    expect(r.out).toContain('stale info');
+    expect(onOrigin(d)).toBe(mate);
+  } finally {
+    d.cleanupAll();
+  }
+
+  // 3. Teammate push, then a fetch: the lease alone would pass.
+  const e = makeClone();
+  try {
+    const wt = claimed(e);
+    const mate = teammate(e);
+    gitRun(wt, 'fetch', '-q', 'origin');
+    expect(gitRun(wt, 'rev-parse', 'refs/remotes/origin/t/ST-9').trim()).toBe(mate);
+    const own = reword(e, wt, 'claim: ST-9 reworded');
+    const r = await run(['worktree', 'push', 'ST-9', '--force-with-lease'], wt);
+    expect(r.code).toBe(0);
+    expect(r.err).toBe('');
+    expect(r.out.startsWith(FAILED + '\n')).toBe(true);
+    expect(r.out.slice(FAILED.length + 1).trim()).not.toBe('');
+    expect(onOrigin(e)).toBe(mate);
+    expect(head(wt)).toBe(own);
+  } finally {
+    e.cleanupAll();
   }
 }, 120_000);

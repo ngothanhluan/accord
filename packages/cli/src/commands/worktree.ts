@@ -552,7 +552,7 @@ export function worktreePush(ctx: CommandContext, id: string, o: { lease?: boole
     // a forbidden line on origin could only be removed by replacing history there, so nothing leaves this clone with one
     try {
       const hits = gitUnpushedCommits(ctx.root, branch).flatMap((c) => forbiddenLines(c.message).map((l) => trailerReason(c.sha, l)));
-      if (hits.length > 0) return kept(hits.join('\n'));
+      if (hits.length > 0) return kept(`${hits.join('\n')}\nreword each commit named above to drop that line (it is not on origin yet), then run accord worktree push ${id} again`);
     } catch (e) {
       return kept(e instanceof UsageError ? e.message : firstLine(e));
     }

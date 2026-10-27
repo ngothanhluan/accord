@@ -269,7 +269,7 @@ it('risk:data-loss a commit with a forbidden line is not pushed when the reposit
     const r = await run(['worktree', 'push', 'ST-9'], wt);
     expect(r.code).toBe(0);
     expect(r.err).toBe('');
-    expect(r.out).toBe(`${FAILED}\n${trailerReason(bad, 'Co-Authored-By: Bot <bot@example.com>')}\n`);
+    expect(r.out).toBe(`${FAILED}\n${trailerReason(bad, 'Co-Authored-By: Bot <bot@example.com>')}\nreword each commit named above to drop that line (it is not on origin yet), then run accord worktree push ST-9 again\n`);
     expect(onOrigin(c)).toBe(clean);
 
     const fixed = reword(c, wt, 'plan: ST-9 ready');

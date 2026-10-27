@@ -12,10 +12,20 @@ const TASK = /^Task\s+([1-9][0-9]*)\s*:\s*(.*)$/;
 export const FIELD = /^(covers|files|verify):(.*)$/;
 const DONE = /^\s*[-*+]\s+task\s+([1-9][0-9]*)\s+done\s+([0-9a-fA-F]{7,})\s*$/;
 export const RULING = /^\s*(?:[-*+]\s+)?(Ruling:.*\S)\s*$/;
+// ST-LN-62: the path is everything up to the first ' — ', so a path may hold spaces.
+const WORDING = /^\s*(?:[-*+]\s+)?Wording-only:\s+(\S.*?)\s+—\s+(.*\S)\s*$/;
+const CONFIRMED = /^Confirmed wording-only:\s+(.+)$/;
+const NOT_INTERFACE = /^Not an interface:\s+(\S.*?)\s+—\s+(.*\S)$/;
 // Spec §10: the verdict is the first token; accepted-by-owner carries the owner's sentence after it.
 const VERDICT = /^verdict:\s*(\S+)(?:\s.*)?$/;
 
 const MARKER = /^\(@ac-[1-9][0-9]*\)$/;
+
+/** A declared path, trimmed, with one pair of surrounding backticks removed. */
+const declared = (t: string): string => {
+  const x = t.trim();
+  return x.length >= 2 && x.startsWith('`') && x.endsWith('`') ? x.slice(1, -1).trim() : x;
+};
 
 type Field = 'covers' | 'files' | 'verify';
 
@@ -121,7 +131,10 @@ export function parsePlan(file: string, text: string): { plan: Plan; findings: L
 export function parseLedger(file: string, text: string): Ledger {
   const done: Record<string, string> = {};
   const rulings: string[] = [];
+  const wordingOnly: { path: string; reason: string }[] = [];
   for (const line of normaliseText(text).split('\n')) {
+    const w = WORDING.exec(line);
+    if (w) wordingOnly.push({ path: declared(w[1]), reason: w[2] });
     const d = DONE.exec(line);
     if (d) {
       if (!Object.hasOwn(done, d[1])) done[d[1]] = d[2];
@@ -131,21 +144,35 @@ export function parseLedger(file: string, text: string): Ledger {
     if (r) rulings.push(r[1]);
   }
   const section = scan(normaliseText(text), 0).sections.find((s) => headingKey(s.heading) === 'rulings');
-  if (section === undefined) return { file, done, rulings };
+  const extra = wordingOnly.length > 0 ? { wordingOnly } : {};
+  if (section === undefined) return { file, done, rulings, ...extra };
   const written = stripHtmlComments(section.lines).map((l) => l.text).filter((t) => t.trim() !== '');
-  return { file, done, rulings, rulingsSection: written };
+  return { file, done, rulings, rulingsSection: written, ...extra };
 }
 
-/** The last `verdict:` line decides; a record with none has no verdict. */
+/** The last `verdict:` line decides; a record with none has no verdict. The last `## Round` also yields its declaration lines. */
 export function parseReview(file: string, text: string): Review {
   let review: Review = { file };
-  normaliseText(text)
+  const normal = normaliseText(text);
+  normal
     .split('\n')
     .forEach((line, i) => {
       const m = VERDICT.exec(line.trim());
       if (m) review = { file, verdict: m[1], line: i + 1 };
       else if (review.verdict !== undefined && line.trim() !== '') review = { ...review, trailing: true };
     });
+  const rounds = scan(normal, 0).sections.filter((s) => headingKey(s.heading).startsWith('round '));
+  const confirmed: string[] = [];
+  const notInterface: string[] = [];
+  for (const l of rounds[rounds.length - 1]?.lines ?? []) {
+    const t = l.text.replace(LIST_MARKER, '').trim();
+    const c = CONFIRMED.exec(t);
+    if (c) confirmed.push(declared(c[1]));
+    const n = NOT_INTERFACE.exec(t);
+    if (n) notInterface.push(declared(n[1]));
+  }
+  if (confirmed.length > 0) review = { ...review, confirmed };
+  if (notInterface.length > 0) review = { ...review, notInterface };
   return review;
 }
 

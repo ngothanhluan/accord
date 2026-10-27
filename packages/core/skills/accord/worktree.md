@@ -44,7 +44,7 @@ What `accord worktree open <id>` and `accord new ticket --worktree` print:
   branch. Show them verbatim and go on.
 - A line `stop:`: show the two lines after it verbatim, the worktree's path and the line to type in a
   session opened in that folder, then stop. Never change directory into the worktree, never edit a file
-  there except the people entry below and, in a lane S ticket, its `title:`, the carried `Keys:` frontmatter lines, its `## Understood` and `## Done when` lines, its carried `## Vetoes`, `## Decisions` and `## Corrections` sections and the commit and push of that ticket file, and never start the next stage from this session.
+  there except the people entry below and, in a lane S ticket, its `title:`, the carried `Keys:` frontmatter lines, its `## Understood`, `## Done when` and `## Scope` lines, its carried `## Vetoes`, `## Decisions` and `## Corrections` sections and the commit and push of that ticket file, and never start the next stage from this session.
 - `enter: <path>` (printed instead of `stop:` when this session can move into the worktree): this session
   moves into the worktree. First, when Pick up made the claim, push it with `git push -u origin <branch>`
   as above, and carry any people entry as below; then call EnterWorktree with `path` set to `<path>`, and

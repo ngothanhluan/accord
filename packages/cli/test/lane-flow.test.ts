@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { setFrontmatterKey } from '@accord-dev/accord-core';
 import { describe, expect, it } from 'vitest';
 import { PLAN } from '../../../test/helpers/lane.js';
-import { cleanup, commitAll, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
+import { cleanup, commitAll, gitRun, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
 
 /** The orchestrator ran the suite after the last commit: task-done refuses a report older than HEAD. */
 function freshReport(repo: string): void {
@@ -40,6 +40,9 @@ describe('lane ticket flow', () => {
   it('walks one ticket from unapproved to done', async () => {
     const repo = makeLaneRepo();
     try {
+      // The ticket is worked on its own branch: gate done reads the branch diff from the default branch.
+      commitAll(repo, 'base');
+      gitRun(repo, 'switch', '-q', '-c', 't/T-1');
       expect((await run(['gate', 'ready', 'T-1'], repo)).code).toBe(1);
       expect((await run(['approve', 'T-1'], repo)).code).toBe(0);
       expect((await run(['gate', 'ready', 'T-1'], repo)).code).toBe(0);

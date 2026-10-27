@@ -800,9 +800,9 @@ it('risk:regression the stage skills run accord worktree push after each stage c
   const ROWS: [stage: string, from: string, to: string, commit: string, go: boolean][] = [
     ['intent', "9. **The owner's yes.**", '10. Next', 'uses `--allow-empty` when nothing changed', true],
     ['approach', "5. **The owner's yes.**", '6. Next', 'Then commit the ticket, with `approved_hash:` and `ac_hash:` in it', true],
-    ['plan', '8. **Finish.**', '9. Next', 'with the subject `plan: <id> ready`', false],
-    ['build', '3. **Record.**', '4. **Blocked.**', 'commit the ticket together with `accord/tickets/<id>/ledger.md`', false],
-    ['build', '6. **Change of course.**', '7. **Plan changed.**', 'on yes run `accord approve <id>`, commit the ticket', false],
+    ['plan', '8. **Finish.**', '9. Next', 'with the subject `plan: <id> ready`', true],
+    ['build', '3. **Record.**', '4. **Blocked.**', 'commit the ticket together with `accord/tickets/<id>/ledger.md`', true],
+    ['build', '6. **Change of course.**', '7. **Plan changed.**', 'on yes run `accord approve <id>`, commit the ticket', true],
   ];
   const OPEN = 'A line starting `push of` that `accord worktree open <id> --continue` prints: the merge commit was not pushed.';
   const OLD = 'A line starting `push of` (Continue only)';

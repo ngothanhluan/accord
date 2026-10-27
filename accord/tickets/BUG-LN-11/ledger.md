@@ -29,10 +29,13 @@
 - Ruling: review round 1: packages/cli/src/load/fs.ts is changed outside the plan — the git log parsing of gitBranchCommits is factored into logCommits so worktreePush can list unpushed commits — none
 - Ruling: review round 1: with trailers forbid and no origin/<branch> nor default ref to compare against, the push is held back with the "run git fetch origin" message under the same failure line, exit 0 — a UsageError (exit 2) breaks @ac-3, pushing unchecked is the bug fixed — a clone with no remote refs never pushes until it fetches
 - Ruling: review round 1: the unpushed range is refs/heads/<branch> with all parents, not first-parent — the push sends merge parents too — none
+- Ruling: final review: the held-back push prints the remedy line (reword, then push again) after the reason lines; the first line and exit 0 are unchanged (@ac-3) — the skills have no bytes left for it — none
 - Ruling: audit: @ac-2 requires each step's own change to be committed before the push, so an approval or plan left uncommitted cannot pass by pushing nothing new — reworded in the scenario — none
 
 ## Deferred
 - Nice (review round 1, security): after a forbidden-line reword a plain `accord worktree push` prints "until the next push" but never succeeds; the `--force-with-lease` instruction lives only in worktree.md (worktree.ts:553)
+
+- Nice (final review 2): gitUnpushedCommits re-checks the default ref that gitDefaultRef already resolved, with a second copy of the `resolves` helper (fs.ts:948-956 vs 757-767 in the package) — one extra git spawn per push under trailers forbid
 
 ## Tasks
 - task 1 done cfb62ee4082d

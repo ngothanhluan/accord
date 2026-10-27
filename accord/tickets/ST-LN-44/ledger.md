@@ -135,6 +135,9 @@
 - Ruling: ac-3's check that every row's own file and title is a before pair covers rows 1 to 118, the rows of the approved table; rows 119 and 120 are late keeps (D-14), 119 a test this ticket added — cost if wrong: a later appended row is not checked against the before list (executor, task 36; row 120 noted by the main session)
 - Ruling: BEFORE_SHA256 in st-ln-44.test.ts is 15775f28…a000c, copied from step 0's ledger Ruling and checked against the file — cost if wrong: ac-3 throws that before-junit.xml is not the recorded run (executor, task 36)
 - Ruling: task 36's affected run passed 7 of 7 in st-ln-44.test.ts; the executor showed both ac tests fail on a wrong BEFORE_SHA256 and on an emptied moved set, then reverted those mutations — cost if wrong: none (main session, task 36)
+- Ruling: task 37 changed packages/core/test/helpers/st-ln-44.ts, outside its files line: `skipLiteral` now skips regex literals, the upgrade its `shortcut:` comment named, because hook.test.ts's `/\//g` was read as a `//` comment; both old and new text are scanned the same way and Task 34's tests still pass; accepted — cost if wrong: a division right after `(`, `,` or `=` reads as a regex, which none of the 22 frozen files holds (executor, task 37; accepted by the main session)
+- Ruling: rows #19 and #51 of hook.test.ts showed 7 gaps that were a detection gap, not lost assertions: the split tests bind `blocked` and `ok` through `const blocked = blockedOf(hook)` and `const ok = okIn`, so st-ln-44.test.ts adds `helpersIn` for local aliases, keeping Task 34's `helpersOf` API; checked by hand, all 3 `blocked(...)` and all 4 `ok(...)` calls are in the new tests; no assertion was restored in rows 1 to 118 — cost if wrong: another file that aliases a helper needs the same call (executor, task 37)
+- Ruling: base-tests.json freezes 22 files from `git show` at the baseline with a sha256 each, written by an uncommitted Node script; task 37's affected run passed 8 of 8 in st-ln-44.test.ts, and the executor showed ac-4 fails on a cite moved to #99 — cost if wrong: none (main session, task 37)
 
 ## Deferred
 
@@ -185,3 +188,4 @@
 - task 34 done 5c744d192b70
 - task 35 done 48227f32b492
 - task 36 done 4ec859e637eb
+- task 37 done 9c787c146c51

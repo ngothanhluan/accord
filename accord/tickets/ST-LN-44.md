@@ -63,7 +63,7 @@ Feature: ST-LN-44
     Then every file and title that is gone is one the table marks as removed, merged, or moved
     And every test marked merged or moved has the file and title it went to written in the table
 
-  @ac-4
+  @ac-4 @test:packages/core/test/st-ln-44.test.ts#ac-4-every-assertion-of-a-changed-row-is-in-its-new-place-or-mapped-by-the-row-note
   Scenario: A test made faster still checks what it checked before
     Given a test the table marks as faster, merged, or moved
     When its new body is compared with its old body

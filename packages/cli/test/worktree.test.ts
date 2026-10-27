@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, expect, it, vi } from 'vitest';
 import * as proc from '../src/load/proc.js';
 import { approvedHash, gateReady, loadSnapshot, setFrontmatterKey } from '@accord-dev/accord-core';
-import { CONFIG, LANE_BODY, LANE_S_BODY, laneTicket, PLAN } from '../../../test/helpers/lane.js';
+import { CONFIG, gateReadyIn, LANE_BODY, LANE_S_BODY, laneTicket, P, PLAN } from '../../../test/helpers/lane.js';
 import { cleanup, commitMsg, gitRun, mergeMsg, run, writeFiles } from './helpers/repo.js';
 import { copyClone, makeClone, makeTemplate, type Clone } from './helpers/worktree.js';
 
@@ -2446,7 +2446,10 @@ async function laneSBranch(c: Clone, id: string, file?: string, edit?: () => voi
   const sx = c.sibling(id);
   writeFiles(sx, { [`accord/tickets/${id}.md`]: laneTicket(id, { lane: 'S', body: LANE_S_BODY }) });
   edit?.();
-  expect((await run(['gate', 'ready', id], sx)).code).toBe(0);
+  // The core form of `accord gate ready`: it writes ac_hash into the ticket; the CLI exit 0 is made by lane-s.test.ts ac-2.
+  const files = { 'accord/config.yml': readFileSync(`${sx}/accord/config.yml`, 'utf8'), [P(id)]: readFileSync(`${sx}/${P(id)}`, 'utf8') };
+  expect(gateReadyIn(files, id)).toBe('pass');
+  writeFiles(sx, { [P(id)]: files[P(id)] });
   writeFiles(sx, { [`accord/tickets/${id}/review.md`]: REVIEWED });
   const t = commitMsg(sx, 'review: ' + id);
   gitRun(sx, 'push', '-q', 'origin', `t/${id}`);
@@ -2454,7 +2457,7 @@ async function laneSBranch(c: Clone, id: string, file?: string, edit?: () => voi
 }
 
 it('risk:data-loss clean removes only a done ticket and keeps a branch with a commit after its verified commit', async () => {
-  const c = clone({ tickets: ['ST-9', 'ST-10', 'ST-11'] });
+  const c = copy({ tickets: ['ST-9', 'ST-10', 'ST-11'] });
   for (const x of ['ST-9', 'ST-10', 'ST-11']) ticketWorktree(c, x);
   const t = doneOnRemote(c, ['ST-9', 'ST-11'], { squash: true, local: true });
   mergeOnRemote(c, 'ST-10');
@@ -2475,8 +2478,10 @@ it('risk:data-loss clean removes only a done ticket and keeps a branch with a co
   expect(existsSync(c.sibling('ST-10'))).toBe(true);
   expect(sha(c, 't/ST-9')).toBe(late);
   expect(has(c.root, 'refs/heads/t/ST-10')).toBe(true);
+}, 240_000);
 
-  const e = clone();
+it('risk:data-loss clean keeps a done ticket branch that a stopped rebase in its worktree is rebuilding', async () => {
+  const e = copy();
   ticketWorktree(e, 'ST-9');
   doneOnRemote(e, ['ST-9'], { squash: true });
   const esib = e.sibling('ST-9');
@@ -2493,8 +2498,10 @@ it('risk:data-loss clean removes only a done ticket and keeps a branch with a co
   expect(has(e.root, 'refs/heads/t/ST-9')).toBe(true);
   expect(has(e.remote, 'refs/heads/t/ST-9')).toBe(true);
   gitRun(esib, 'rebase', '--abort');
+}, 240_000);
 
-  const f = clone();
+it('risk:data-loss clean deletes a done lane S branch with no verified commit only when its merge into main changes nothing', async () => {
+  const f = copy();
   writeFiles(f.root, { 'shared.txt': Array.from({ length: 10 }, (_, i) => `l${i + 1}\n`).join('') });
   commitMsg(f.root, 'shared');
   gitRun(f.root, 'push', '-q', 'origin', 'main');
@@ -2530,10 +2537,10 @@ it('risk:data-loss clean removes only a done ticket and keeps a branch with a co
   expect(existsSync(f.sibling('ST-13'))).toBe(true);
   expect(has(f.root, 'refs/heads/t/ST-13')).toBe(true);
   expect(has(f.root, 'refs/heads/t/ST-12')).toBe(false);
+}, 240_000);
 
-  const g = clone();
-  const t14 = await laneSBranch(g, 'ST-14', 'added.txt');
-  const sg = g.sibling('ST-14');
+/** The remote main squash-merges the pushed lane S branch `t/ST-14`, then edits the same file, so merging the branch into main conflicts; returns the clone that did it. */
+function conflictOnMain(g: Clone) {
   const go = g.otherClone();
   gitRun(go, 'fetch', '-q', 'origin');
   gitRun(go, 'merge', '--squash', '-q', 'origin/t/ST-14');
@@ -2541,6 +2548,14 @@ it('risk:data-loss clean removes only a done ticket and keeps a branch with a co
   writeFiles(go, { 'added.txt': 'main\n' });
   commitMsg(go, 'main edit');
   gitRun(go, 'push', '-q', 'origin', 'main');
+  return go;
+}
+
+it('risk:data-loss clean keeps a done lane S branch whose merge into main conflicts', async () => {
+  const g = copy();
+  const t14 = await laneSBranch(g, 'ST-14', 'added.txt');
+  const sg = g.sibling('ST-14');
+  const go = conflictOnMain(g);
   const grows = JSON.parse((await run(['status', '--json'], go)).out) as { id: string; stage: string }[];
   expect(grows.find((r) => r.id === 'ST-14')?.stage).toBe('done');
   let status: unknown;
@@ -2556,14 +2571,23 @@ it('risk:data-loss clean removes only a done ticket and keeps a branch with a co
   expect(existsSync(sg)).toBe(true);
   expect(sha(g, 't/ST-14')).toBe(t14);
   expect(has(g.remote, 'refs/heads/t/ST-14')).toBe(true);
+}, 240_000);
+
+it('risk:data-loss clean keeps a done lane S origin branch whose merge into main conflicts', async () => {
+  const g = copy();
+  const t14 = await laneSBranch(g, 'ST-14', 'added.txt');
+  const sg = g.sibling('ST-14');
+  conflictOnMain(g);
   gitRun(g.root, 'worktree', 'remove', '--force', sg);
   g.git('update-ref', '-d', 'refs/heads/t/ST-14');
   const r5 = await run(['worktree', 'clean'], g.root);
   expect(r5.code).toBe(0);
   expect(lines(r5.out)).toEqual(['kept origin/t/ST-14: merging it into origin/main conflicts']);
   expect(gitRun(g.remote, 'rev-parse', 't/ST-14').trim()).toBe(t14);
+}, 240_000);
 
-  const h = clone();
+it('risk:data-loss clean keeps a done ticket branch whose commit after verify conflicts with main', async () => {
+  const h = copy();
   ticketWorktree(h, 'ST-15');
   doneOnRemote(h, ['ST-15'], { squash: true, local: true });
   const sh = h.sibling('ST-15');
@@ -2577,8 +2601,8 @@ it('risk:data-loss clean removes only a done ticket and keeps a branch with a co
   expect(has(h.remote, 'refs/heads/t/ST-15')).toBe(true);
 }, 240_000);
 
-it('risk:data-loss an origin branch is deleted only with a lease and only after a fetch that succeeded', async () => {
-  const c = clone();
+it('risk:data-loss clean keeps an origin branch whose lease is stale and names the failed push', async () => {
+  const c = copy();
   ticketWorktree(c, 'ST-9');
   doneOnRemote(c, ['ST-9'], { squash: true, local: true });
   const tip = sha(c, 't/ST-9');
@@ -2598,8 +2622,10 @@ it('risk:data-loss an origin branch is deleted only with a lease and only after 
   expect(l[1]).toBe(`deleted t/ST-9 (was ${tip})`);
   expect(l[2].startsWith('kept origin/t/ST-9: git push failed: ')).toBe(true);
   expect(gitRun(c.remote, 'rev-parse', 't/ST-9').trim()).toBe(S2);
+}, 240_000);
 
-  const d = clone();
+it('risk:data-loss clean after a failed fetch deletes the local branch and never the origin branch', async () => {
+  const d = copy();
   ticketWorktree(d, 'ST-9');
   const tD = doneOnRemote(d, ['ST-9'], { squash: true, local: true });
   const tipD = sha(d, 't/ST-9');
@@ -2611,8 +2637,10 @@ it('risk:data-loss an origin branch is deleted only with a lease and only after 
   expect(rd[1]).toBe(`removed ${d.sibling('ST-9')}`);
   expect(rd[2]).toBe(`deleted t/ST-9 (was ${tipD})`);
   expect(gitRun(d.remote, 'rev-parse', 't/ST-9').trim()).toBe(tD['ST-9']);
+}, 240_000);
 
-  const e = clone();
+it('risk:data-loss clean deletes no origin branch that the prune already removed', async () => {
+  const e = copy();
   ticketWorktree(e, 'ST-9');
   doneOnRemote(e, ['ST-9'], { squash: true, local: true });
   const tipE = sha(e, 't/ST-9');
@@ -2631,13 +2659,18 @@ it('ac-5 clean pick up continue and a new worktree ticket remove the worktree an
     { name: 'continue', argv: ['worktree', 'open', 'ST-10', '--continue'], prep: (c) => ticketWorktree(c, 'ST-10') },
     { name: 'new ticket', argv: ['new', 'ticket', 'ST-11', '--lane', 'M', '--worktree'] },
   ];
+  // The done-ST-9 state is built once, with no linked worktree; each outline row copies it and adds its worktrees in the copy.
+  const built = copy({ tickets: ['ST-9', 'ST-10'] });
+  ticketWorktree(built, 'ST-9');
+  const t = doneOnRemote(built, ['ST-9'], { squash: true, local: true });
+  built.git('worktree', 'remove', built.sibling('ST-9'));
   for (const row of rows) {
-    const c = clone({ tickets: ['ST-9', 'ST-10'] });
-    ticketWorktree(c, 'ST-9');
-    row.prep?.(c);
-    const t = doneOnRemote(c, ['ST-9'], { squash: true, local: true });
-    const tip = sha(c, 't/ST-9');
+    const c = copyClone(built);
+    clones.push(c);
     const sib9 = c.sibling('ST-9');
+    c.git('worktree', 'add', '-q', sib9, 't/ST-9');
+    row.prep?.(c);
+    const tip = sha(c, 't/ST-9');
     expect(tip, row.name).toBe(t['ST-9']);
     expect(() => c.git('cat-file', '-e', 'origin/main:accord/tickets/ST-9/review.md'), row.name).toThrow();
     const r = await run(row.argv, c.root);

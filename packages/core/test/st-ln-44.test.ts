@@ -303,3 +303,109 @@ it('ac-3 every test gone since the baseline run is a row the table moves and eve
       if (!afterSet.has(pair(d))) failures.push(`#${r.n} ${d.file} > ${d.title}: destination not in the after run`);
   expect(failures).toEqual([]);
 });
+
+interface MapEntry {
+  old: string;
+  now?: string;
+  test?: string;
+  cite: string;
+}
+const maps = JSON.parse(readFileSync(new URL('./fixtures/st-ln-44/maps.json', import.meta.url), 'utf8')) as {
+  rows: Record<string, MapEntry[]>;
+};
+
+/** The frozen text of a test file at the baseline commit, checked against its recorded sha256. */
+function baseText(path: string): string {
+  const frozen = JSON.parse(readFileSync(new URL('./fixtures/st-ln-44/base-tests.json', import.meta.url), 'utf8')) as {
+    base: string;
+    files: Record<string, { sha256: string; text: string }>;
+  };
+  const f = frozen.files[path];
+  if (frozen.base !== '1cec2ac130d8d34c4dcdadddfee9effb4d1104e9' || !f) throw new Error(`no frozen baseline copy of ${path}`);
+  if (createHash('sha256').update(Buffer.from(f.text, 'utf8')).digest('hex') !== f.sha256)
+    throw new Error(`frozen baseline copy of ${path} changed`);
+  return f.text;
+}
+
+/** The assertion helpers of a source, and the local names bound to one (`const blocked = blockedOf(hook);`, `const ok = okIn;`). */
+function helpersIn(src: string): string[] {
+  const hs = helpersOf(src);
+  const aliases = [...src.matchAll(/\bconst\s+([\w$]+)\s*=\s*([\w$]+)\b/g)].filter((m) => hs.includes(m[2])).map((m) => m[1]);
+  return [...hs, ...aliases];
+}
+
+it('ac-4 every assertion of a changed row is in its new place or mapped by the row note', () => {
+  const rs = rows(readFileSync(TABLE, 'utf8')).filter((r) => r.n <= 118);
+  const report = cases(after());
+  const status = scanJUnit(after());
+  const problems: string[] = [];
+  const oldOf = new Map<number, string[]>();
+  const nowOf = new Map<number, string[]>();
+  for (const r of rs.filter((x) => ['faster', 'moved', 'merged', 'kept'].includes(x.action))) {
+    const src = baseText(r.file);
+    const oldBody = body(src, r.title);
+    if (oldBody === undefined) {
+      problems.push(`#${r.n} ${r.file}: the old test "${r.title}" is not in the frozen baseline`);
+      continue;
+    }
+    const old = asserts(oldBody, helpersIn(src));
+    oldOf.set(r.n, old);
+    const places = r.action === 'moved' || r.action === 'merged' ? r.destinations : [{ file: r.file, title: r.title }];
+    const now: string[] = [];
+    for (const p of places) {
+      const text = readFileSync(new URL(p.file, ROOT), 'utf8');
+      const b = body(text, p.title);
+      if (b === undefined) problems.push(`#${r.n} ${p.file}: the new test "${p.title}" is not in the file`);
+      else now.push(...asserts(b, helpersIn(text)));
+    }
+    nowOf.set(r.n, now);
+    const left = [...now];
+    const unmatched = old.filter((a) => {
+      const at = left.indexOf(a);
+      if (at < 0) return true;
+      left.splice(at, 1);
+      return false;
+    });
+    const used = new Set<MapEntry>();
+    for (const a of unmatched) {
+      const entry = (maps.rows[String(r.n)] ?? []).find((e) => {
+        if (used.has(e) || e.old !== a) return false;
+        return e.test !== undefined || (e.now !== undefined && left.includes(e.now));
+      });
+      if (!entry) {
+        problems.push(`#${r.n} ${r.file}: ${a}`);
+        continue;
+      }
+      used.add(entry);
+      if (entry.now !== undefined) left.splice(left.indexOf(entry.now), 1);
+    }
+  }
+  // Every maps.json entry is checked, used or not.
+  for (const [key, list] of Object.entries(maps.rows))
+    for (const e of list) {
+      const why: string[] = [];
+      const row = rs.find((r) => String(r.n) === key);
+      if (!row) why.push('no such row');
+      else {
+        if (!oldOf.get(row.n)?.includes(e.old)) why.push(`old "${e.old}" is not an assertion of the old body`);
+        if (e.cite.length < 3 || !row.note.includes(e.cite)) why.push(`cite "${e.cite}" is not in the row note`);
+        if ((e.now === undefined) === (e.test === undefined)) why.push('exactly one of now and test is needed');
+        if (e.now !== undefined && !nowOf.get(row.n)?.includes(e.now)) why.push(`now "${e.now}" is not an assertion of the new places`);
+        if (e.test !== undefined) {
+          const c = report.find((x) => idOf(x.file, x.title) === e.test);
+          if (!c || status[e.test] !== 'passed') why.push(`test ${e.test} is not a passed case of the run`);
+          else {
+            const last = c.title.split(' > ').pop()!;
+            const own = (m: Row) => idOf(m.file, m.title) === e.test || m.destinations.some((d) => idOf(d.file, d.title) === e.test);
+            const byRow = [...e.cite.matchAll(/#(\d+)(?!\d)/g)].some((m) => {
+              const other = rs.find((r) => r.n === Number(m[1]));
+              return other !== undefined && (own(other) || other.note.includes(last));
+            });
+            if (!e.cite.includes(last) && !byRow) why.push(`cite "${e.cite}" does not name test ${e.test}`);
+          }
+        }
+      }
+      if (why.length > 0) problems.push(`#${key} maps.json: ${why.join('; ')}`);
+    }
+  expect(problems).toEqual([]);
+});

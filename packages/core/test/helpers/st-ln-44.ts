@@ -177,8 +177,7 @@ export function listText(es: Entry[]): string {
     .join('');
 }
 
-// --- Source reading: a bracket counter that skips quotes, template literals and comments. shortcut: regex
-// --- literals are not skipped, so a bracket or quote inside one confuses it; upgrade if a test file uses one there.
+// --- Source reading: a bracket counter that skips quotes, template literals, comments and regex literals.
 
 /** The index after the string, template or comment that starts at `i`, or `i` itself when none starts there. */
 function skipLiteral(src: string, i: number): number {
@@ -204,6 +203,24 @@ function skipLiteral(src: string, i: number): number {
   if (c === '/' && src[i + 1] === '*') {
     const end = src.indexOf('*/', i + 2);
     return end < 0 ? src.length : end + 2;
+  }
+  if (c === '/') {
+    // A regex literal: a `/` after an operator or an opening bracket. shortcut: no keyword like `return` before it, upgrade if a test needs one.
+    let p = i - 1;
+    while (p >= 0 && /\s/.test(src[p])) p--;
+    if (p < 0 || '(,=:[!&|?{};'.includes(src[p])) {
+      let j = i + 1;
+      let inClass = false;
+      while (j < src.length && src[j] !== '\n') {
+        if (src[j] === '\\') j += 2;
+        else if (src[j] === '/' && !inClass) return j + 1;
+        else {
+          if (src[j] === '[') inClass = true;
+          else if (src[j] === ']') inClass = false;
+          j++;
+        }
+      }
+    }
   }
   return i;
 }

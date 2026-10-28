@@ -29,6 +29,8 @@
 - Ruling: (task 1, executor) verify steps 2, 4, 5 and 6 are re-wrapped up to 118 characters with no word changed, and the step 6 cut is not used — the first wrap of steps 4 and 5 alone left 5146 bytes against the 5120 cap; verify is now 5110 bytes and 71 lines — cost if wrong: the wrap shows as diff noise in verify SKILL.md
 - Ruling: (task 2, executor) the ac-4 test asserts the accord, accord-intent and lane-s needles on the `.claude/skills` paths in both renders, and checks the ids.md move text in every runtime directory and both rosters — the brief names `.claude` paths for those files and every runtime renders the same text — cost if wrong: a text difference in a non-claude runtime goes unchecked for those three files
 - Ruling: the first affected-test run of task 2 failed 7 cases, every one a timeout (90 s, 120 s, 180 s hook) while the executor's own suite ran beside it; the re-run alone passed 1432 of 1432 — load, not a defect — cost if wrong: a real slow-down hidden behind the timeouts
+- Ruling: every later test run of this ticket (affected, review, verify's full run) sets ACCORD_BASH to C:\Program Files\Git\bin\bash.exe after `npm run build` — from PowerShell `bash` resolves to the WSL shim, workflow-script.test.ts sets noBash and records the executed CI cases skipped, so task 3's first affected run left its verify ids skipped and task-done refused; the plan baseline run and the affected runs of tasks 1 and 2 skipped those cases too (31 skipped) — cost if wrong: a CI-script failure hidden as a skip
+- Ruling: task 3's affected run with ACCORD_BASH passed 1462 cases and timed out one, worktree.test.ts "risk:data-loss clean keeps unpushed commits and new files that git status config would hide" at its 90 s limit in a 25-minute run; alone it passed in 51 s — the same load timeout as the baseline's worktree-push case, a file this ticket does not touch — cost if wrong: a real slow-down hidden behind the timeout
 - Ruling: the ids.md opening line refers to "the section on dropping" and "the last section" instead of naming their headings — so a slice taken at the first `## Moving to lane S` starts at the heading — cost if wrong: one opening line worded less directly
 
 ## Deferred
@@ -41,3 +43,4 @@
 ## Tasks
 - task 1 done 4b60f0452c5f
 - task 2 done 4933d92fb90f
+- task 3 done ec7f4f9b1627

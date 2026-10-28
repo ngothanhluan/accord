@@ -73,7 +73,7 @@ Feature: ST-LN-58
     And the same session goes on with the lane S steps on the same id, branch and worktree
     And no skill tells the session, for a move to lane S, to run accord drop, to make a new ticket, or to print a line for another session
 
-  @ac-5
+  @ac-5 @test:packages/cli/test/workflow-script.test.ts#ac-5-both-CI-scripts-refuse-a-move-to-lane-S-only-once-intent-was-approved-at-the-base-or-in-a-commit-the-pull-request-adds
   Scenario: CI refuses a move to lane S only once intent was approved
     Given a pull request whose head holds a lane S ticket that is lane M at its base, or that does not exist at its base and is lane M in a commit the pull request adds
     When the CI check runs, both in this repository's workflow and as accord init writes it

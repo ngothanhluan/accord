@@ -104,8 +104,19 @@ export function isLive(h: { pid: number; start: string }, table: ProcRow[]): boo
   return table.some((r) => r.pid === h.pid && r.start === h.start);
 }
 
-export function describeSession(h: { marker: string; pid: number }): string {
-  return `Claude Code session ${h.marker} (pid ${h.pid})`;
+/** D-05: `2026-10-27 10:03 (UTC+07:00)`, the local time of the machine that prints it; an unreadable time is returned as it came. */
+export function localTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const p = (n: number): string => String(n).padStart(2, '0');
+  const off = -d.getTimezoneOffset();
+  const a = Math.abs(off);
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())} (UTC${off < 0 ? '-' : '+'}${p(Math.floor(a / 60))}:${p(a % 60)})`;
+}
+
+export function describeSession(h: { marker: string; pid: number; taken: string; folder?: string }): string {
+  const where = typeof h.folder === 'string' && h.folder !== '' ? ` in ${h.folder.replaceAll('\\', '/')}` : ', folder not recorded';
+  return `Claude Code session ${h.marker} (pid ${h.pid})${where}, since ${localTime(h.taken)}`;
 }
 
 /**

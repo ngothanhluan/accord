@@ -114,6 +114,7 @@ function setupMarker(path: string): string {
 
 interface Hold extends Session {
   taken: string;
+  folder?: string;
 }
 
 /** D-14: run `fn` on the holds file under an exclusive lock; `fn` returns the new object or undefined for no write. */
@@ -200,17 +201,18 @@ export function workedBy(root: string, marker: string): string | undefined {
 const norm = (p: string) => (process.platform === 'win32' ? p.replaceAll('\\', '/').toLowerCase() : p);
 
 /** D-17: take (or keep) this session's hold on `id`; a live other session holding it refuses. Claude Code sessions only. */
-export function takeHold(ctx: CommandContext, id: string): void {
+export function takeHold(ctx: CommandContext, id: string, path: string): void {
   const claude = claudeEnv(ctx.env)!;
   const table = processTable();
   const session = sessionIn(claude, table, process.pid);
   withHolds(ctx.root, (holds) => {
     const h = Object.hasOwn(holds, id) ? holds[id] : undefined;
     if (h !== undefined && !sameSession(h, session) && isLive(h, table)) {
-      throw new UsageError(`${id} is held by another session: ${describeSession(h)} since ${h.taken} - work it there, or close that session first`);
+      throw new UsageError(`${id} is held by another session: ${describeSession(h)} - work it there, or close that session first`);
     }
     const same = h !== undefined && sameSession(h, session);
-    return { ...holds, [id]: { ...session, taken: same ? h.taken : new Date().toISOString() } };
+    const here = (isLinked(ctx.root) ? ctx.root : path).replaceAll('\\', '/');
+    return { ...holds, [id]: { ...session, taken: same ? h.taken : new Date().toISOString(), folder: same ? (h.folder ?? here) : here } };
   });
   recordWorked(ctx.root, id, session.marker);
 }
@@ -239,7 +241,7 @@ function hold(ctx: CommandContext, id: string, path: string): number {
 `);
     return 0;
   }
-  takeHold(ctx, id);
+  takeHold(ctx, id, path);
   if (!existsSync(setupMarker(path))) prepare(path);
   ctx.stdout.write(`held: ${id} by this session
 `);
@@ -282,7 +284,7 @@ export function checkPin(ctx: CommandContext, id: string, path: string, branch: 
 
 export function enterOrStop(ctx: CommandContext, id: string, path: string, branch: string, enter: boolean): void {
   if (!enter) return printStop(ctx, path, id);
-  takeHold(ctx, id);
+  takeHold(ctx, id, path);
   if (!existsSync(setupMarker(path))) prepare(path);
   ctx.stdout.write(`enter: ${path}
 `);
@@ -409,7 +411,7 @@ export function worktreeOpen(ctx: CommandContext, id: string, opts: { continue?:
     git(ctx.root, local ? ['worktree', 'add', path, branch] : ['worktree', 'add', '--track', '-b', branch, path, 'origin/' + branch]);
     if (opts.continue === true) continueMerge(ctx, id, path, branch);
     if (enter) {
-      if (pick) takeHold(ctx, id);
+      if (pick) takeHold(ctx, id, path);
       checkPin(ctx, id, path, branch, mainPath);
     } else if (!existsSync(setupMarker(path))) prepare(path);
     enterOrStop(ctx, id, path, branch, enter);
@@ -435,7 +437,7 @@ export function worktreeOpen(ctx: CommandContext, id: string, opts: { continue?:
   git(ctx.root, ['worktree', 'add', '--no-track', '-b', branch, path, ref]);
   git(path, ['commit', '--allow-empty', '-q', '-m', 'claim: ' + id]);
   if (enter) {
-    takeHold(ctx, id);
+    takeHold(ctx, id, path);
     checkPin(ctx, id, path, branch, mainPath);
   } else prepare(path);
   enterOrStop(ctx, id, path, branch, enter);
@@ -526,7 +528,7 @@ function continueMerge(ctx: CommandContext, id: string, path: string, branch: st
   if (stage === undefined || !['intent', 'plan', 'build', 'review'].includes(stage)) return behind();
   if (git(path, ['status', '--porcelain', '--untracked-files=no']).trim() !== '' || gitOk(path, ['rev-parse', '-q', '--verify', 'MERGE_HEAD'])) return behind();
   try {
-    if (claudeEnv(ctx.env) !== undefined) takeHold(ctx, id);
+    if (claudeEnv(ctx.env) !== undefined) takeHold(ctx, id, path);
     else {
       const holds = readHoldsFile(ctx.root);
       const h = Object.hasOwn(holds, id) ? holds[id] : undefined;
@@ -1009,7 +1011,7 @@ export function newTicketWorktree(ctx: CommandContext, id: string, rel: string, 
   let holdError: unknown;
   if (enter) {
     try {
-      takeHold(ctx, id);
+      takeHold(ctx, id, path);
     } catch (e) {
       holdError = e; // push anyway so the claim is not stranded locally; rethrown below
     }

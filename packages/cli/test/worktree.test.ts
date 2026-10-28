@@ -258,7 +258,9 @@ it('ac-4 a live holder refuses a second session and a dead holder is taken over'
   expect(r2.code).toBe(2);
   expect(r2.err).toContain('Claude Code');
   expect(r2.err).toContain('sess-A');
-  expect(r2.err).toContain(taken);
+  expect(r2.err).toContain(`in ${sib}, since `);
+  expect(r2.err).toMatch(/since \d{4}-\d{2}-\d{2} \d{2}:\d{2} \(UTC[+-]\d{2}:\d{2}\) - /);
+  expect(r2.err).not.toContain(taken);
   expect(readFileSync(holdsFile(c), 'utf8')).toBe(bytes);
   setTable(tableOf(B));
   const r3 = await run(['worktree', 'open', 'ST-9', '--continue'], sib, envOf(B));
@@ -2833,3 +2835,40 @@ it('risk:complex-branching a resume to another conversation keeps only the hold 
   expect(b.code).toBe(0);
   expect(readFileSync(holdsFile(c), 'utf8')).toBe(bytes);
 }, 60_000);
+
+it('ac-4 a refusal names the folder and the local time with its offset of the hold', async () => {
+  vi.stubEnv('TZ', 'Asia/Ho_Chi_Minh');
+  expect(new Date(T).getTimezoneOffset()).toBe(-420);
+  const c = copy();
+  const sib = c.sibling('ST-9');
+  c.git('worktree', 'add', '-q', '-b', 't/ST-9', sib, 'origin/main');
+  c.git('remote', 'remove', 'origin');
+  setTable(tableOf(A));
+  const first = await run(['worktree', 'open', 'ST-9', '--continue'], c.root, envOf(A));
+  expect(first.code).toBe(0);
+  expect(lines(first.out)).toEqual([`enter: ${sib}`]);
+  expect((readHolds(c)['ST-9'] as { folder: string }).folder).toBe(sib);
+  writeHolds(c, { 'ST-9': { ...(readHolds(c)['ST-9'] as object), taken: T } });
+  setTable(tableOf(B, A));
+  const r = await run(['worktree', 'open', 'ST-9', '--continue'], c.root, envOf(B));
+  expect(r.code).toBe(2);
+  expect(r.err).toContain(`ST-9 is held by another session: Claude Code session sess-A (pid 7001) in ${sib}, since 2026-10-27 10:03 (UTC+07:00) - work it there, or close that session first`);
+  expect(r.err).not.toContain('\\');
+  vi.stubEnv('TZ', 'America/Bogota');
+  const west = await run(['worktree', 'open', 'ST-9', '--continue'], c.root, envOf(B));
+  expect(west.code).toBe(2);
+  expect(west.err).toContain('since 2026-10-26 22:03 (UTC-05:00)');
+}, 120_000);
+
+it('risk:parsing a hold written without a folder is refused as folder not recorded with its local time', async () => {
+  vi.stubEnv('TZ', 'Asia/Ho_Chi_Minh');
+  const c = copy();
+  const sib = c.sibling('ST-9');
+  c.git('worktree', 'add', '-q', '-b', 't/ST-9', sib, 'origin/main');
+  c.git('remote', 'remove', 'origin');
+  writeHolds(c, { 'ST-9': LIVE });
+  setTable(tableOf(B, { pid: 4242, start: 'S2' }));
+  const r = await run(['worktree', 'open', 'ST-9', '--continue'], sib, envOf(B));
+  expect(r.code).toBe(2);
+  expect(r.err).toContain('Claude Code session sess-H (pid 4242), folder not recorded, since 2026-10-18 07:00 (UTC+07:00) - work it there');
+}, 120_000);

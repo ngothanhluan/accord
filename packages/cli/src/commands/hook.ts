@@ -115,7 +115,7 @@ function startHold(ctx: CommandContext): void {
     if (id === undefined) return;
     record(ctx, root, id, input?.session_id);
     if (claudeEnv(ctx.env) === undefined) return;
-    takeHold({ ...ctx, root }, id);
+    takeHold({ ...ctx, root }, id, root);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     ctx.stderr.write(`accord: no hold taken${id === undefined ? '' : ' on ' + id}: ${msg.split('\n')[0]}`.replace(/\\/g, '/') + '\n');

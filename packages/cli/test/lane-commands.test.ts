@@ -7,6 +7,7 @@ import { templates } from '@accord-dev/accord-core';
 import { describe, expect, it } from 'vitest';
 import { cleanup, commitAll, commitAllAt, gitRun, makeEmptyRepo, makeLaneRepo, makeRepo, run, writeFiles } from './helpers/repo.js';
 import { CONFIG, junit, LANE_BODY, laneTicket, PLAN, REPORT } from '../../../test/helpers/lane.js';
+import { taskNumber } from '../src/commands/lane-args.js';
 import { commitSeconds } from '../src/commands/task-done.js';
 
 const ticketText = (repo: string, id = 'T-1') => readFileSync(join(repo, 'accord', 'tickets', id + '.md'), 'utf8');
@@ -186,7 +187,7 @@ describe('accord task-done', () => {
   it('refuses a task number that is not one, and a repository with no commit, exit 2', async () => {
     const repo = makeLaneRepo();
     try {
-      for (const bad of ['x', '0', '01', '-1', '1.5']) {
+      for (const bad of ['x']) {
         const r = await run(['task-done', 'T-1', bad], repo);
         expect(r.code, bad).toBe(2);
         expect(r.err, bad).toContain('not a task number: ' + bad);
@@ -196,6 +197,12 @@ describe('accord task-done', () => {
       expect(r.err).toContain('the repository has no commit');
     } finally {
       cleanup(repo);
+    }
+  });
+
+  it('risk:parsing a task number of 0, 01, -1 or 1.5 is refused', () => {
+    for (const bad of ['0', '01', '-1', '1.5']) {
+      expect(() => taskNumber(bad), bad).toThrow('not a task number: ' + bad);
     }
   });
 

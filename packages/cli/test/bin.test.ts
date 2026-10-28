@@ -1,11 +1,21 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pkg from '../package.json' with { type: 'json' };
-import { makeClone } from './helpers/worktree.js';
+import { copyClone, makeTemplate } from './helpers/worktree.js';
+import type { Clone } from './helpers/worktree.js';
 
 const cli = fileURLToPath(new URL('../dist/cli.js', import.meta.url));
+
+// Template (H1, rule 5): built once, copied with its own origin; it holds no linked worktree.
+let tpl: Clone;
+beforeAll(() => {
+  tpl = makeTemplate();
+});
+afterAll(() => {
+  tpl.cleanupAll();
+});
 
 describe('accord bin', () => {
   it('is built', () => {
@@ -53,7 +63,7 @@ describe('accord bin', () => {
 });
 
 it('risk:parsing the built cli hands hook input on stdin to the prompt expansion hook', () => {
-  const c = makeClone();
+  const c = copyClone(tpl);
   try {
     c.git('worktree', 'add', '-q', '-b', 't/ST-9', c.sibling('ST-9'), 'origin/main');
     const out = execFileSync(process.execPath, [cli, 'hook', 'prompt-expansion'], {

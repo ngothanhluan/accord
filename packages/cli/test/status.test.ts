@@ -3,13 +3,13 @@
 // only way to pin a table), the character-set invariants that make that table safe on a legacy Windows
 // console — ASCII only, no escape, one row per line (PITFALLS section 12, T-05-11) — and the D-93
 // archived filter with its never-silent hidden count.
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { StatusRow } from '@accord-dev/accord-core';
-import { laneTicket, PLAN } from '../../../test/helpers/lane.js';
+import { approve, laneTicket, P, PLAN, type Files } from '../../../test/helpers/lane.js';
 import { cleanup, commitAll, commitAllAt, gitRun, makeLaneRepo, makeRepo, run, writeFiles } from './helpers/repo.js';
 
 const ESC = String.fromCharCode(27);
@@ -54,6 +54,13 @@ Feature: ${id}
 ## Plan
 - [x] Done
 ${extra.includes('status: dropped') ? '\n## Dropped\nSuperseded.\n' : ''}`;
+}
+
+/** The core form of `accord approve`: writes approved_hash into the ticket file, with no process started. */
+function approveIn(repo: string, id: string): void {
+  const files: Files = { [P(id)]: readFileSync(join(repo, P(id)), 'utf8') };
+  approve(files, id);
+  writeFileSync(join(repo, P(id)), files[P(id)]);
 }
 
 function addTicket(repo: string, id: string, extra: string): void {
@@ -267,7 +274,7 @@ describe('accord status with no tickets', () => {
 it('ac-1 a ticket untouched past the window shows its idle days', async () => {
   const repo = makeLaneRepo();
   try {
-    await run(['approve', 'T-1'], repo);
+    approveIn(repo, 'T-1');
     writeFiles(repo, { 'accord/tickets/T-1/ledger.md': '## Tasks\n- task 1 done abc1234\n' });
     commitAllAt(repo, new Date(Date.now() - (18 * 24 + 1) * 3600 * 1000), 'plan: T-1 ready');
     const json = await run(['status', '--json'], repo);
@@ -282,14 +289,13 @@ it('ac-1 a ticket untouched past the window shows its idle days', async () => {
 it('ac-2 a recent commit on the claim branch keeps the ticket active', async () => {
   const repo = makeLaneRepo();
   try {
-    await run(['approve', 'T-1'], repo);
+    approveIn(repo, 'T-1');
     writeFiles(repo, { 'accord/tickets/T-1/ledger.md': '## Tasks\n- task 1 done abc1234\n' });
     commitAllAt(repo, new Date(Date.now() - (18 * 24 + 1) * 3600 * 1000), 'plan: T-1 ready');
-    const base = gitRun(repo, 'rev-parse', '--abbrev-ref', 'HEAD').trim();
-    gitRun(repo, 'checkout', '-q', '-b', 't/T-1');
     writeFiles(repo, { 'src/other.ts': 'export const x = 1;\n' });
     const tip = commitAllAt(repo, new Date(Date.now() - (2 * 24 + 1) * 3600 * 1000));
-    gitRun(repo, 'checkout', '-q', base);
+    gitRun(repo, 'branch', 't/T-1');
+    gitRun(repo, 'reset', '-q', '--hard', 'HEAD~1');
     const expectActive = async () => {
       const json = await run(['status', '--json'], repo);
       const row = (JSON.parse(json.out) as StatusRow[])[0];
@@ -312,16 +318,15 @@ it('ac-1 a ticket filed only on its pushed claim branch shows at that branch sta
   const repo = makeLaneRepo();
   let clone: string | undefined;
   try {
-    commitAll(repo);
-    const base = gitRun(repo, 'rev-parse', '--abbrev-ref', 'HEAD').trim();
-    gitRun(repo, 'checkout', '-q', '-b', 't/T-2');
+    const baseSha = commitAll(repo);
     writeFiles(repo, { 'accord/tickets/T-2.md': laneTicket('T-2') });
-    await run(['approve', 'T-2'], repo);
+    approveIn(repo, 'T-2');
     writeFiles(repo, { 'accord/tickets/T-2/plan.md': PLAN3 });
     commitAll(repo, 'plan: T-2 ready');
     writeFiles(repo, { 'accord/tickets/T-2/ledger.md': '## Tasks\n- task 1 done abc1234\n' });
     const tip = commitAll(repo, 'task 1');
-    gitRun(repo, 'checkout', '-q', base);
+    gitRun(repo, 'update-ref', 'refs/heads/t/T-2', tip);
+    gitRun(repo, 'reset', '-q', '--hard', baseSha);
     // A blobless clone whose promisor remote stays reachable: a spawn that lazily fetches would fill the blob.
     gitRun(repo, 'config', 'uploadpack.allowFilter', 'true');
     gitRun(repo, 'config', 'uploadpack.allowAnySHA1InWant', 'true');
@@ -464,7 +469,7 @@ it('ac-3 a plan reaches build only after its ready commit and while clean', asyn
     (JSON.parse((await run(['status', '--json'], repo)).out) as StatusRow[]).find((r) => r.id === id);
   const stageOf = async (id = 'T-1') => (await run(['anchor', id], repo)).out;
   try {
-    await run(['approve', 'T-1'], repo);
+    approveIn(repo, 'T-1');
     commitAll(repo, 'plan: T-1 round 1, 1 Must, 0 Should');
     expect(await row()).toMatchObject({ stage: 'plan' });
     expect(await stageOf()).toContain('Stage: plan');
@@ -487,7 +492,7 @@ it('ac-3 a plan reaches build only after its ready commit and while clean', asyn
     expect(await row()).toMatchObject({ stage: 'build' });
 
     writeFiles(repo, { 'accord/tickets/T-2.md': laneTicket('T-2'), 'accord/tickets/T-2/plan.md': PLAN }); // untracked
-    await run(['approve', 'T-2'], repo);
+    approveIn(repo, 'T-2');
     expect(await row('T-2')).toMatchObject({ stage: 'plan' });
     expect(await row()).toMatchObject({ stage: 'build' });
     rmSync(join(repo, 'accord/tickets/T-2.md'));

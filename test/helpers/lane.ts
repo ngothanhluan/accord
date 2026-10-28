@@ -3,6 +3,8 @@
 // under test, and a folder under packages/core/test/fixtures/ would also join the snapshot and lint
 // directory scans and add goldens nobody asked for. Both test trees import DOWNWARDS from here.
 
+import { approvedHash, gateReady, loadSnapshot, setFrontmatterKey } from '../../packages/core/src/index.js';
+
 export const REPORT = 'reports/junit.xml';
 
 export const CONFIG = [
@@ -113,4 +115,37 @@ export function junit(cases: Record<string, 'passed' | 'failed' | 'skipped'>): s
     })
     .join('');
   return `<testsuites><testsuite name="all">${body}</testsuite></testsuites>\n`;
+}
+
+export type Files = Record<string, string>;
+export type Opts = { lane?: string; frontmatter?: string[] };
+export const P = (id: string) => 'accord/tickets/' + id + '.md';
+export const AC = gateReady(loadSnapshot({ files: { 'accord/config.yml': CONFIG, [P('X-1')]: laneTicket('X-1') }, tree: [] }), 'X-1').acHash as string;
+export const approve = (files: Files, id: string) => {
+  const t = loadSnapshot({ files: { 'accord/config.yml': CONFIG, [P(id)]: files[P(id)] }, tree: [] }).tickets[id];
+  files[P(id)] = setFrontmatterKey(files[P(id)], 'approved_hash', approvedHash(t));
+};
+export const ready = (files: Files, id: string, opts?: Opts) => {
+  files[P(id)] = laneTicket(id, opts);
+  approve(files, id);
+  files[P(id)] = setFrontmatterKey(files[P(id)], 'ac_hash', AC);
+};
+export const building = (files: Files, id: string, opts?: Opts) => {
+  files[P(id)] = laneTicket(id, opts);
+  approve(files, id);
+  files['accord/tickets/' + id + '/plan.md'] = PLAN;
+};
+export const done = (files: Files, id: string, opts?: Opts) => {
+  building(files, id, opts);
+  files['accord/tickets/' + id + '/ledger.md'] = '## Tasks\n- task 1 done abc1234\n- task 2 done abc1234\n';
+  files['accord/tickets/' + id + '/review.md'] = 'verdict: converged\n';
+  files[P(id)] = setFrontmatterKey(files[P(id)], 'verified', ['ac-1', 'ac-2']);
+  files[P(id)] = setFrontmatterKey(files[P(id)], 'verified_hash', AC);
+};
+
+/** The core form of `accord gate ready`: on a pass it writes ac_hash into the ticket file, like the command. */
+export function gateReadyIn(files: Files, id: string): string {
+  const r = gateReady(loadSnapshot({ files, tree: Object.keys(files) }), id);
+  if (r.verdict === 'pass') files[P(id)] = setFrontmatterKey(files[P(id)], 'ac_hash', r.acHash as string);
+  return r.verdict;
 }

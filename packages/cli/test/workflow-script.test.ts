@@ -17,10 +17,11 @@
 // that the real binary matches the script's assumptions about its arguments and exit codes). There the
 // stub forwards to the built `dist/cli.js` under `node`, so the real `accord lint` and the real
 // `accord gate done <id>` run — still no `npx`, still no network.
-import { execFileSync } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { delimiter, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
 import { initFiles } from '@accord-dev/accord-core';
 import { afterEach, describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
@@ -217,10 +218,10 @@ interface Run {
  * `PATH` is built into the `env` object passed to `execFileSync` and `process.env` is never mutated, so
  * a parallel test file cannot inherit the stub (T-07-32).
  */
-function runScript(
+function prepare(
   repo: string,
   opts: { base: string; script?: string; fail?: string; forward?: boolean },
-): Run {
+): { cwd: string; encoding: 'utf8'; env: NodeJS.ProcessEnv } {
   const script = opts.script ?? SCRIPT;
   const bin = join(repo, 'bin');
   mkdirSync(bin, { recursive: true });
@@ -251,7 +252,20 @@ function runScript(
     ACCORD_STUB_FAIL: opts.fail ?? '--no invocation ends with this argument--',
     ACCORD_CLI: CLI,
   };
-  const options = { cwd: repo, encoding: 'utf8' as const, env };
+  return { cwd: repo, encoding: 'utf8' as const, env };
+}
+
+function callsOf(repo: string): string[] {
+  return readFileSync(join(repo, 'calls.log'), 'utf8')
+    .split('\n')
+    .filter((l) => l !== '');
+}
+
+function runScript(
+  repo: string,
+  opts: { base: string; script?: string; fail?: string; forward?: boolean },
+): Run {
+  const options = prepare(repo, opts);
   let code = 0;
   let out: string;
   let err = '';
@@ -263,10 +277,30 @@ function runScript(
     out = String(failure.stdout ?? '');
     err = String(failure.stderr ?? '');
   }
-  const calls = readFileSync(join(repo, 'calls.log'), 'utf8')
-    .split('\n')
-    .filter((l) => l !== '');
-  return { code, out, err, calls };
+  return { code, out, err, calls: callsOf(repo) };
+}
+
+const execFileAsync = promisify(execFile);
+
+/** The same run as `runScript`, awaitable, so a case can start all its scripts at once; a run writes only inside its own sandbox. */
+async function runScriptAsync(
+  repo: string,
+  opts: { base: string; script?: string; fail?: string; forward?: boolean },
+): Promise<Run> {
+  const options = prepare(repo, opts);
+  let code = 0;
+  let out: string;
+  let err = '';
+  try {
+    out = (await execFileAsync(BASH, ['script.sh'], options)).stdout;
+  } catch (e) {
+    // execFile reports the exit status in `code`, not `status`.
+    const failure = e as { code?: number; stdout?: string; stderr?: string };
+    code = typeof failure.code === 'number' ? failure.code : -1;
+    out = String(failure.stdout ?? '');
+    err = String(failure.stderr ?? '');
+  }
+  return { code, out, err, calls: callsOf(repo) };
 }
 
 // Guard the guard, OUTSIDE the skipped describe (T-07-35): on a POSIX host this case fails rather than
@@ -348,32 +382,37 @@ describe.skipIf(noBash)('the emitted workflow script — executed', { timeout: 6
     expect(result.calls[1].endsWith(' gate done SIGNUP-1')).toBe(true);
   });
 
-  it('unapproved tickets in an accord-only diff: lint runs and no gate done runs and the exit follows lint', () => {
+  it('unapproved tickets in an accord-only diff: lint runs and no gate done runs and the exit follows lint', async () => {
     const [add, edit, failing] = UNAPPROVED;
     const added = sandbox(add.change, add.seed);
-    const r1 = runScript(added.repo, { base: added.base });
+    const edited = sandbox(edit.change, edit.seed);
+    const bad = sandbox(failing.change, failing.seed);
+    const [r1, r2, r3] = await Promise.all([
+      runScriptAsync(added.repo, { base: added.base }),
+      runScriptAsync(edited.repo, { base: edited.base }),
+      runScriptAsync(bad.repo, { base: bad.base, fail: failing.fail }),
+    ]);
     expect(r1.code, r1.err).toBe(0);
     expect(r1.calls.length, r1.calls.join(' | ')).toBe(1);
     expect(r1.calls[0].endsWith(' lint')).toBe(true);
     expect(r1.calls.join(' ')).not.toContain(' gate done ');
 
-    const edited = sandbox(edit.change, edit.seed);
-    const r2 = runScript(edited.repo, { base: edited.base });
     expect(r2.code, r2.err).toBe(0);
     expect(r2.calls.length, r2.calls.join(' | ')).toBe(1);
     expect(r2.calls[0].endsWith(' lint')).toBe(true);
 
-    const bad = sandbox(failing.change, failing.seed);
-    const r3 = runScript(bad.repo, { base: bad.base, fail: failing.fail });
     expect(r3.code).toBe(1);
     expect(r3.calls.length, r3.calls.join(' | ')).toBe(1);
     expect(r3.calls[0].endsWith(' lint')).toBe(true);
   });
 
-  it('code in the diff or an approved ticket: gate done runs and its failure fails the job', () => {
-    const codes = GATED.map((c) => {
-      const s = sandbox(c.change, c.seed);
-      const r = runScript(s.repo, { base: s.base, fail: c.fail });
+  it('code in the diff or an approved ticket: gate done runs and its failure fails the job', async () => {
+    const built = GATED.map((c) => sandbox(c.change, c.seed));
+    const runs = await Promise.all(
+      GATED.map((c, i) => runScriptAsync(built[i].repo, { base: built[i].base, fail: c.fail })),
+    );
+    const codes = GATED.map((c, i) => {
+      const r = runs[i];
       expect(r.calls.length, r.calls.join(' | ')).toBe(2);
       expect(r.calls[0].endsWith(' lint')).toBe(true);
       expect(r.calls[1].endsWith(` gate done ${c.id}`)).toBe(true);
@@ -393,11 +432,16 @@ describe.skipIf(noBash)('the emitted workflow script — executed', { timeout: 6
     expect(r.calls.some((c) => c.endsWith(' gate done OLD-1'))).toBe(false);
   });
 
-  it('risk:parsing BOM and CRLF frontmatter and unreadable blocks and large files read as approved', () => {
+  it('risk:parsing BOM and CRLF frontmatter and unreadable blocks and large files read as approved', async () => {
+    // Each call starts its sandbox's script run at once; every check runs when its run resolves.
+    const runs: Array<Promise<void>> = [];
     const expectGated = (id: string, s: { repo: string; base: string }): void => {
-      const r = runScript(s.repo, { base: s.base });
-      expect(r.calls.length, r.calls.join(' | ')).toBe(2);
-      expect(r.calls[1].endsWith(` gate done ${id}`)).toBe(true);
+      runs.push(
+        runScriptAsync(s.repo, { base: s.base }).then((r) => {
+          expect(r.calls.length, r.calls.join(' | ')).toBe(2);
+          expect(r.calls[1].endsWith(` gate done ${id}`)).toBe(true);
+        }),
+      );
     };
     const crlf = (t: string): string => '﻿' + t.replace(/\n/g, '\r\n');
     expectGated(
@@ -449,9 +493,10 @@ describe.skipIf(noBash)('the emitted workflow script — executed', { timeout: 6
         ),
       ),
     );
+    await Promise.all(runs);
   });
 
-  it('the workflow of this repository gates the same tickets with the same exit as the emitted one', () => {
+  it('the workflow of this repository gates the same tickets with the same exit as the emitted one', async () => {
     const yml = readFileSync(fileURLToPath(new URL('../../../.github/workflows/accord.yml', import.meta.url)), 'utf8');
     const named = (parse(yml) as unknown as { jobs: { accord: { steps: Array<Step & { name?: string }> } } }).jobs
       .accord.steps.filter((s) => s.name === 'lint and gate');
@@ -460,11 +505,15 @@ describe.skipIf(noBash)('the emitted workflow script — executed', { timeout: 6
     const gatedIds = (calls: string[]): string[] =>
       calls.filter((c) => c.includes('gate done ')).map((c) => c.slice(c.indexOf('gate done ') + 'gate done '.length));
     const all: Case[] = [...UNAPPROVED, ...DROPPED, NESTED_STATUS, ...GATED];
-    for (const c of all) {
-      const results = [SCRIPT, own].map((script) => {
-        const s = sandbox(c.change, c.seed);
-        return runScript(s.repo, { base: s.base, script, fail: c.fail });
-      });
+    // All sandboxes first, then every script run at once.
+    const built = all.map((c) => [SCRIPT, own].map((script) => ({ script, s: sandbox(c.change, c.seed) })));
+    const ran = await Promise.all(
+      all.map((c, i) =>
+        Promise.all(built[i].map(({ script, s }) => runScriptAsync(s.repo, { base: s.base, script, fail: c.fail }))),
+      ),
+    );
+    for (const [i] of all.entries()) {
+      const results = ran[i];
       expect(results[1].code, results[1].calls.join(' | ')).toBe(results[0].code);
       expect(gatedIds(results[1].calls)).toEqual(gatedIds(results[0].calls));
     }
@@ -498,7 +547,7 @@ describe.skipIf(noBash)('the emitted workflow script — executed', { timeout: 6
   });
 });
 
-it.skipIf(noBash)('risk:security a lane S ticket that passed gate ready is gated in an accord-only diff and a queued one is not', () => {
+it.skipIf(noBash)('risk:security a lane S ticket that passed gate ready is gated in an accord-only diff and a queued one is not', async () => {
   const READY_S = '---\nid: LS-1\nstatus: open\nlane: S   # S: one small change\nac_hash: "fnv1a64:0000000000000000"\n---\n\n## Understood\nx\n';
   const QUOTED_S = READY_S.replace('lane: S   # S: one small change', 'lane: "S"');
   const QUEUED_S = READY_S.replace('ac_hash: "fnv1a64:0000000000000000"', '# ac_hash:');
@@ -507,16 +556,18 @@ it.skipIf(noBash)('risk:security a lane S ticket that passed gate ready is gated
   const named = (parse(yml) as unknown as { jobs: { accord: { steps: Array<Step & { name?: string }> } } }).jobs
     .accord.steps.filter((s) => s.name === 'lint and gate');
   const own = named[0].run as string;
-  for (const script of [SCRIPT, own]) {
-    for (const text of [READY_S, QUOTED_S]) {
-      const s = sandbox((r) => write(r, 'accord/tickets/LS-1.md', text));
-      const r = runScript(s.repo, { base: s.base, script });
+  // Both scripts over all four texts: every sandbox first, then the eight runs at once.
+  const texts: Array<[string, boolean]> = [[READY_S, true], [QUOTED_S, true], [QUEUED_S, false], [M_HASH, false]];
+  const jobs = [SCRIPT, own].flatMap((script) =>
+    texts.map(([text, gated]) => ({ script, gated, s: sandbox((r) => write(r, 'accord/tickets/LS-1.md', text)) })),
+  );
+  const runs = await Promise.all(jobs.map(({ script, s }) => runScriptAsync(s.repo, { base: s.base, script })));
+  for (const [i, { gated }] of jobs.entries()) {
+    const r = runs[i];
+    if (gated) {
       expect(r.calls.length, r.calls.join(' | ')).toBe(2);
       expect(r.calls[1].endsWith(' gate done LS-1')).toBe(true);
-    }
-    for (const text of [QUEUED_S, M_HASH]) {
-      const s = sandbox((r) => write(r, 'accord/tickets/LS-1.md', text));
-      const r = runScript(s.repo, { base: s.base, script });
+    } else {
       expect(r.calls.length, r.calls.join(' | ')).toBe(1);
       expect(r.out).toContain('not gating LS-1');
     }
@@ -570,20 +621,7 @@ describe.skipIf(noBash)('the emitted workflow script — against the real CLI', 
     expect(result.out + result.err).not.toContain('gate.ticket-unknown');
   });
 
-  it('dropped ticket in an accord-only diff: no gate done on it and a missing Dropped reason fails through lint', () => {
-    for (const c of DROPPED) {
-      const { repo, base } = sandbox(c.change, c.seed);
-      const r = runScript(repo, { base });
-      expect(r.code, r.err).toBe(0);
-      expect(r.calls.length, r.calls.join(' | ')).toBe(1);
-      expect(r.calls.join(' ')).not.toContain(' gate done ');
-    }
-
-    const nested = sandbox(NESTED_STATUS.change);
-    const rn = runScript(nested.repo, { base: nested.base });
-    expect(rn.calls.length, rn.calls.join(' | ')).toBe(2);
-    expect(rn.calls[1].endsWith(' gate done OLD-1')).toBe(true);
-
+  it('dropped ticket in an accord-only diff: no gate done on it and a missing Dropped reason fails through lint', async () => {
     const ticket = 'accord/tickets/SIGNUP-1.md';
     const reason = 'a dropped ticket needs a "## Dropped" section saying why';
     const drop = (r: string, approved: boolean, section: string): void => {
@@ -594,15 +632,35 @@ describe.skipIf(noBash)('the emitted workflow script — against the real CLI', 
       if (approved) lines.push('approved_hash: "fnv1a64:0000000000000000"');
       write(r, ticket, `---\n${lines.join('\n')}\n---\n${fm?.[2] ?? ''}${section}`);
     };
+    // Every sandbox first, then the six runs at once.
+    const droppedBuilt = DROPPED.map((c) => sandbox(c.change, c.seed));
+    const nested = sandbox(NESTED_STATUS.change);
     const withReason = exampleRepo((r) => drop(r, true, '\n## Dropped\nsuperseded by another ticket\n'));
-    const ok = runScript(withReason.repo, { base: withReason.base, forward: true });
+    const sections = ['', '\n## Dropped\n<!-- why -->\n'];
+    const badBuilt = sections.map((section) => exampleRepo((r) => drop(r, false, section)));
+    const [droppedRuns, rn, ok, badRuns] = await Promise.all([
+      Promise.all(droppedBuilt.map(({ repo, base }) => runScriptAsync(repo, { base }))),
+      runScriptAsync(nested.repo, { base: nested.base }),
+      runScriptAsync(withReason.repo, { base: withReason.base, forward: true }),
+      Promise.all(badBuilt.map((bad) => runScriptAsync(bad.repo, { base: bad.base, forward: true }))),
+    ]);
+
+    for (const [i] of DROPPED.entries()) {
+      const r = droppedRuns[i];
+      expect(r.code, r.err).toBe(0);
+      expect(r.calls.length, r.calls.join(' | ')).toBe(1);
+      expect(r.calls.join(' ')).not.toContain(' gate done ');
+    }
+
+    expect(rn.calls.length, rn.calls.join(' | ')).toBe(2);
+    expect(rn.calls[1].endsWith(' gate done OLD-1')).toBe(true);
+
     expect(ok.code, ok.out + ok.err).toBe(0);
     expect(ok.calls.length, ok.calls.join(' | ')).toBe(1);
     expect(ok.out + ok.err).not.toContain(reason);
 
-    for (const section of ['', '\n## Dropped\n<!-- why -->\n']) {
-      const bad = exampleRepo((r) => drop(r, false, section));
-      const res = runScript(bad.repo, { base: bad.base, forward: true });
+    for (const [i] of sections.entries()) {
+      const res = badRuns[i];
       expect(res.code, res.out + res.err).toBe(1);
       expect(res.calls.length, res.calls.join(' | ')).toBe(1);
       expect(res.out + res.err).toContain(reason);

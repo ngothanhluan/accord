@@ -20,10 +20,10 @@ ui: false
 # Written by `gate ready`; never edit by hand.
 # ac_hash:
 # Self-test ticks, e.g. [ac-1, ac-2]. Always the last key.
-# verified: []
+verified: [ac-1, ac-2, ac-3, ac-4]
 # The AC hash and the commit the ticks were made against.
-# verified_hash:
-# verified_commit:
+verified_hash: "fnv1a64:5759120c1df0e673"
+verified_commit: "e117793892488cedba8ffcba8c93b2c05c54598c"
 approved_hash: "fnv1a64:b43a2a0b0a8149dc"
 ac_hash: "fnv1a64:5759120c1df0e673"
 ---

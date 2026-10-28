@@ -5,8 +5,12 @@ import { readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-/** In the OS temp folder, so every clone and worktree of this user shares it. */
-export const LOCK = join(tmpdir(), 'accord-test-run.lock');
+/**
+ * In the OS temp folder, so every clone and worktree of this user shares it. Named by user id on POSIX, where /tmp
+ * is shared and one user cannot remove another's stale file; Windows already gives each user its own temp folder.
+ */
+const uid = process.getuid?.();
+export const LOCK = join(tmpdir(), uid === undefined ? 'accord-test-run.lock' : `accord-test-run-${uid}.lock`);
 
 interface Options {
   /** Milliseconds between tries while another run holds the lock. */

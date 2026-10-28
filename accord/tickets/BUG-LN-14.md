@@ -69,7 +69,7 @@ Feature: BUG-LN-14
     And its message names the folder that session worked in when it took the hold, as an absolute path with forward slashes
     And it names the date and time the hold was taken to the minute, in the local time of the machine that prints it with its UTC offset, in the form 2026-10-27 10:03 (UTC+07:00)
 
-  @ac-5
+  @ac-5 @test:packages/cli/test/worktree.test.ts#ac-5-a-clear-in-the-held-ticket-worktree-moves-its-hold-to-the-new-conversation-and-releases-the-window-other-holds
   Scenario: A /clear in the held ticket's own worktree keeps the ticket for that window
     Given a Claude Code window, open in ST-9's worktree folder or a folder below it, whose conversation holds ST-9
     When the owner runs /clear in that window

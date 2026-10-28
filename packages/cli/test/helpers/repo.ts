@@ -5,9 +5,9 @@
 // run git against the author's working tree inside a green test run. It throws rather than expects, so
 // it fires outside a test body too.
 import { execFileSync } from 'node:child_process';
-import { cpSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { PassThrough } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { runCli } from '../../src/run.js';
@@ -37,6 +37,13 @@ export function makeRepo(fixture = 'valid-build'): string {
   const tmp = mkdtempSync(join(tmpdir(), 'accord-cli-'));
   cpSync(join(fixtures, fixture), tmp, { recursive: true });
   gitIn(tmp)('init', '-q');
+  return tmp;
+}
+
+/** A copy of a template repository that has no remote (rule 5 excludes it from the origin check). */
+export function copyRepo(tpl: string): string {
+  const tmp = mkdtempSync(join(tmpdir(), 'accord-cli-'));
+  cpSync(tpl, tmp, { recursive: true });
   return tmp;
 }
 
@@ -94,6 +101,14 @@ export async function run(
   env: NodeJS.ProcessEnv = {},
   stdin?: string,
 ): Promise<{ code: number; out: string; err: string }> {
+  // H8: a copy with an unset or wrong path must never run accord (clean, drop) in a real checkout. The
+  // folder may not exist yet, so the check is made on its nearest existing ancestor, as `gitIn` does.
+  let existing = resolve(cwd);
+  while (!existsSync(existing) && dirname(existing) !== existing) existing = dirname(existing);
+  const root = realpathSync.native(existing);
+  if (!root.startsWith(realpathSync.native(tmpdir())) || root === realpathSync.native(process.cwd())) {
+    throw new Error('refusing to run accord outside a temporary sandbox: ' + cwd);
+  }
   const stdout = new PassThrough();
   const stderr = new PassThrough();
   const code = await runCli(argv, { cwd, stdout, stderr, env, ...(stdin === undefined ? {} : { stdin }) });

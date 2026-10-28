@@ -4,6 +4,7 @@
 import { classifyEars } from '../lint/ears.js';
 import { headingKey, stripHtmlComments } from '../load/sections.js';
 import type { RepoSnapshot, Section, Ticket } from '../model/snapshot.js';
+import { doneOnDefault } from '../status/stage.js';
 import { approvedHash } from './hash.js';
 import type { GateRule } from './rules.js';
 
@@ -117,4 +118,26 @@ export const approvalStale: GateRule['check'] = (snapshot, id) => {
       reason: `the approved sections changed since approval: approved_hash records ${recorded}, they hash to ${now} now; the owner must approve again`,
     },
   ];
+};
+
+/** BUG-LN-13 D-06: each prerequisite not done on the default ref the host read, or with none read in this checkout. One lint already reports (unknown, dropped in the checkout) is left to lint's reason; one dropped on the default ref asks for a re-plan, since its merge never comes. */
+export const dependsUnmerged: GateRule['check'] = (snapshot, id) => {
+  const deps = ticketOf(snapshot, id)?.frontmatter?.depends_on ?? [];
+  const onRef = snapshot.defaultRef?.snapshot;
+  const where = snapshot.defaultRef === undefined ? 'in this checkout' : 'on ' + snapshot.defaultRef.ref.replace(/^refs\/(?:remotes|heads)\//, '');
+  return deps.flatMap((d, i) => {
+    const at = { file: ticketFile(id), pointer: '/depends_on/' + i };
+    const here = ticketOf(snapshot, d);
+    if (here === undefined || here.frontmatter?.status === 'dropped') return [];
+    if (onRef !== undefined && ticketOf(onRef, d)?.frontmatter?.status === 'dropped') {
+      return [{ ...at, reason: `depends_on names "${d}", which is dropped ${where}; re-plan this ticket without it` }];
+    }
+    if (doneOnDefault(snapshot, d)) return [];
+    return [
+      {
+        ...at,
+        reason: `depends_on names "${d}", which is not done ${where}; wait until its pull request merges, run git fetch, then run accord gate ready ${id} again; never remove it from depends_on`,
+      },
+    ];
+  });
 };

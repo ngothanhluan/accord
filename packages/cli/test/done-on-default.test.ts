@@ -157,3 +157,41 @@ it('risk:complex-branching show and next keep a dependant blocked while its prer
     cleanup(repo);
   }
 }, 120_000);
+
+it('ac-3 a dependant stays blocked in the dashboard and gate ready until its prerequisite is done on the default branch', async () => {
+  const repo = copyRepo(tpl);
+  try {
+    // The checkout is T-1's own branch, where T-1's records give stage done, so a checkout reading would unblock T-2.
+    gitRun(repo, 'switch', '-q', 't/T-1');
+    const before = await run(['dashboard', '--json'], repo);
+    expect(before.code).toBe(0);
+    const b = JSON.parse(before.out) as Board & { summary: { done: number; blocked: number } };
+    expect(rowsOf(b).find((r) => r.id === 'T-2')?.blockedBy).toEqual(['T-1']);
+    expect(b.summary.blocked).toBe(1);
+    expect(b.yours.rows.some((r) => r.id === 'T-1')).toBe(true);
+    const gate = await run(['gate', 'ready', 'T-2', '--json'], repo);
+    expect(gate.code).toBe(1);
+    const findings = (JSON.parse(gate.out) as { findings: Array<{ rule: string; reason: string }> }).findings;
+    const hit = findings.find((f) => f.rule === 'gate.depends-unmerged');
+    expect(hit).toBeDefined();
+    expect(hit?.reason).toContain('"T-1"');
+    expect(hit?.reason).toContain('on origin/main');
+    // The merge, by squash so the claim tip never becomes an ancestor of main.
+    gitRun(repo, 'switch', '-q', 'main');
+    gitRun(repo, 'merge', '--squash', '-q', 't/T-1');
+    commitMsg(repo, 'T-1 (#1)');
+    gitRun(repo, 'update-ref', 'refs/remotes/origin/main', 'HEAD');
+    const afterRun = await run(['dashboard', '--json'], repo);
+    expect(afterRun.code).toBe(0);
+    const a = JSON.parse(afterRun.out) as Board & { summary: { done: number; blocked: number } };
+    expect([...a.yours.rows, ...a.team.rows].some((r) => r.id === 'T-1')).toBe(false);
+    expect(a.summary.done).toBe(1);
+    expect(rowsOf(a).find((r) => r.id === 'T-2')?.blockedBy).toEqual([]);
+    expect(a.summary.blocked).toBe(0);
+    const ready = await run(['gate', 'ready', 'T-2', '--json'], repo);
+    expect(ready.code).toBe(0);
+    expect((JSON.parse(ready.out) as { findings: Array<{ reason: string }> }).findings.some((f) => f.reason.includes('"T-1"'))).toBe(false);
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);

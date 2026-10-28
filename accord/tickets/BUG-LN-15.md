@@ -1,6 +1,6 @@
 ---
 id: "BUG-LN-15"                            # equals the file name: tickets/<id>.md
-title: "Short title in business language"
+title: "Upgrade writes its files with one git call, so the local test suite stops timing out"
 type: "bug" # story | bug
 status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "S" # S: one small change, worked from this ticket alone
@@ -16,10 +16,11 @@ ui: false
 ---
 
 ## Understood
-<!-- One line: the change, as the request was understood. -->
+accord upgrade stores every file it writes with one batched git call instead of one git hash-object process per file (packages/cli/src/commands/upgrade.ts:92-94), so the git processes it starts no longer grow with the number of files.
 
 ## Done when
-<!-- One line: the observable result that ends the work. -->
+upgrade starts a fixed number of git processes however many files it writes, the ac-2 test "upgrade replaces only the lint and gate step" in packages/cli/test/upgrade.test.ts is unchanged with its three cases, and a local Windows full run passes with no timeout.
 
 ## Scope
-<!-- One repository path per line, never a folder: every file the change is expected to touch, tests and new files included. -->
+packages/cli/src/commands/upgrade.ts
+packages/cli/test/upgrade.test.ts

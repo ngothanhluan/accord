@@ -47,14 +47,14 @@ Feature: BUG-LN-14
     Then the hold record of ST-9 is removed by the /clear itself, before any other accord command runs
     And `accord worktree open ST-9 --continue` in another session is not refused as held by another session
 
-  @ac-2
+  @ac-2 @test:packages/cli/test/worktree.test.ts#ac-2-after-a-clear-the-window-claims-one-other-ticket-and-holds-only-that-one
   Scenario: After a /clear the window may take one other ticket and holds only that one
     Given a Claude Code window, open in a folder that is neither ST-9's worktree folder nor below it, whose conversation held ST-9 and then ran /clear
     When the new conversation in that window claims ST-10, a ticket nobody has claimed, with `accord worktree open ST-10`
     Then the claim is not refused
     And that window holds ST-10 and no other ticket
 
-  @ac-3
+  @ac-3 @test:packages/cli/test/worktree.test.ts#ac-3-a-start-or-a-clear-in-a-second-window-in-the-ticket-worktree-leaves-the-first-window-hold-in-place
   Scenario: A hold whose conversation did not clear stays
     Given a Claude Code window whose conversation holds ST-9
     When a second Claude Code window, open in ST-9's worktree folder or a folder below it, starts a conversation or runs /clear in its own

@@ -56,3 +56,4 @@ Ruling: Task 7's test is renamed to cover both skills — it has no ledger line 
 - task 4 done f229a05ce55a
 - task 5 done d0be9e2add64
 - task 6 done eee058bd893a
+- task 7 done c9499b034a58

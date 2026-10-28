@@ -29,7 +29,7 @@ const NEXT: Record<Exclude<Stage, 'build' | 'intent'>, string> = {
   plan: 'write the plan and pass accord gate plan',
   review: 'review to convergence',
   verify: "verification and the owner's tick",
-  done: 'nothing; run accord gate done',
+  done: 'the pull request; run accord gate done',
 };
 
 /** Spec §6: what comes after `stage`. An unwritten intent (no Intent text, or only the template's scenario) points to the interview. */

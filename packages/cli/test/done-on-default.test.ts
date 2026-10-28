@@ -91,3 +91,47 @@ it('risk:complex-branching the default ref is the origin one and falls back to a
     cleanup(repo);
   }
 }, 120_000);
+
+it('ac-2 a ticked lane M ticket on its claim branch stays in yours with the pull request as its next step', async () => {
+  const repo = copyRepo(tpl);
+  try {
+    const json = await run(['dashboard', '--json'], repo);
+    expect(json.code).toBe(0);
+    const j = JSON.parse(json.out) as Board;
+    const row = j.yours.rows.find((r) => r.id === 'T-1');
+    expect(row).toBeDefined();
+    expect(row?.stage).toBe('done');
+    expect(row?.next).toBe('the pull request; run accord gate done');
+    expect(j.summary.done).toBe(0);
+    const text = await run(['dashboard'], repo);
+    expect(text.code).toBe(0);
+    const lines = text.out.split('\n');
+    const at = lines.indexOf('YOURS');
+    expect(at).toBeGreaterThanOrEqual(0);
+    const end = lines.indexOf('', at);
+    const line = lines.slice(at, end < 0 ? undefined : end).find((l) => l.startsWith('  T-1'));
+    expect(line).toBeDefined();
+    expect(line).toContain('done, next: the pull request; run accord gate done');
+    expect(line).not.toContain('lane-s.md');
+    expect(summaryLine(text.out)).toContain(', 0 done');
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+it('ac-4 status json keeps the row keys and stage done of a ticket done only on its claim branch', async () => {
+  const repo = copyRepo(tpl);
+  try {
+    const res = await run(['status', '--json'], repo);
+    expect(res.code).toBe(0);
+    const rows = JSON.parse(res.out) as Array<Record<string, unknown>>;
+    for (const id of ['T-1', 'S-1']) {
+      const row = rows.find((r) => r.id === id);
+      expect(row).toBeDefined();
+      expect(Object.keys(row as object)).toEqual(['id', 'type', 'status', 'ui', 'errors', 'warnings', 'ready', 'ticksVerified', 'ticksTagged', 'ticksBinding', 'title', 'lane', 'stage', 'tasksDone', 'tasksTotal', 'claimedBy', 'branch']);
+      expect(row?.stage).toBe('done');
+    }
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);

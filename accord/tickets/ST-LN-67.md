@@ -22,6 +22,9 @@ Every vitest run in this repository, tests.full and tests.affected from any work
 ## Done when
 Two runs started together never overlap, a stale lock is taken over, and lint and the full suite pass.
 
+## Corrections
+- 2026-10-28, after review converged and a tests.full run was started: "Why run the tests again? Open the PR."
+
 ## Scope
 <!-- One repository path per line, never a folder: every file the change is expected to touch, tests and new files included. -->
 - vitest.config.ts

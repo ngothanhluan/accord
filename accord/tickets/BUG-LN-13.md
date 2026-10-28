@@ -13,6 +13,8 @@ lane: "M" # M: one feature
 ui: false
 # Written by `gate ready`; never edit by hand.
 # ac_hash:
+approved_hash: "fnv1a64:03f689fa6b541fef"
+ac_hash: "fnv1a64:2a3877559ca3500a"
 ---
 
 ## Understood

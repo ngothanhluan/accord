@@ -24,3 +24,6 @@
 ## Deferred
 
 - Plan round 1.3 (Nice): skip the process-table read and the holds lock on a /clear or /resume when no hold carries this window's `CLAUDE_PID`, by a lock-free `readHoldsFile` look first.
+- Ruling: the probe tells its two windows apart by file order plus the git top of each startup record, and the owner is asked to start or clear no other Claude Code window in either folder until the second probe window closes — cost if wrong: a stray window mid-probe can cause a false BLOCKED, but the report shows every record.
+- Ruling: probe check (f) passes when both tops are the main checkout, since then the window left the worktree on /clear and its commands run in main too — cost if wrong: the D-06 keep path is not exercised against a real window.
+- Plan round 2.1 (Nice): run the probe's cleanup `git status` in the main checkout with `--no-optional-locks`, so it never takes `.git/index.lock` while another session commits there.

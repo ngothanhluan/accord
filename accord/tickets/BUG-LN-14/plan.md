@@ -1,6 +1,6 @@
 ---
 baseline: ec05e9f93dd3663d339512af61cbf0f6511273f0
-plan_hash: "fnv1a64:df99f40a35a38856"
+plan_hash: "fnv1a64:952259b980c6a985"
 ---
 
 # Plan: BUG-LN-14
@@ -59,76 +59,119 @@ The whole fix rests on facts nobody has checked (Approach risk (1), ledger Rulin
 process gets `CLAUDE_PID`, `CLAUDE_CODE_SESSION_ID` and `CLAUDECODE=1` in its environment, that the SessionStart
 input on a /clear carries `source: "clear"` and a new `session_id`, that `CLAUDE_PID` is the same window process
 before and after the /clear, and that a command the new conversation runs sees the new conversation id (the works
-rule reads `CLAUDE_CODE_SESSION_ID`, so an old id there would refuse @ac-2's claim through the worked record). Only
-the owner can type /clear, so this part has two dispatches.
+rule reads `CLAUDE_CODE_SESSION_ID`, so an old id there would refuse @ac-2's claim through the worked record). It
+also checks the case D-06 exists for: a window started in the main checkout that moved into a ticket's worktree
+with EnterWorktree and then ran /clear. Task 3 picks the kept hold from the hook input's `cwd` alone, so that `cwd`
+must name the same git top as the folder the new conversation's commands run in. Only the owner can type /clear,
+so this part spans several dispatches.
 
-First dispatch, when `node_modules/.cache/accord-probe/out.jsonl` does not exist:
-1. If `.claude/settings.local.json` exists, copy its bytes to
-   `node_modules/.cache/accord-probe/settings.local.json.orig` first. Then write `.claude/settings.local.json` as
-   the file below; when the original existed, write the original object with this `hooks.SessionStart` entry added
-   to whatever `SessionStart` list it holds.
+Names used below. `P` is `C:/Work/accord-bug-ln-14/node_modules/.cache/accord-probe` (`node_modules/` is ignored
+by git). `WT` is `C:/Work/accord-bug-ln-14/.claude/settings.local.json` and `MAIN` is
+`C:/Work/accord/.claude/settings.local.json`, the local settings of the main checkout, so that the probe hook is
+also active for a window launched there. `top(x)` is the output of `git -C <x> rev-parse --show-toplevel`, with
+every `\` turned into `/` and, on win32, lower-cased; it is `null` when the command fails. Every dispatch of Part A
+first looks at whether `P/probe.mjs` exists: it does not on the first dispatch (steps 1 to 4), and it does on every
+dispatch after it (steps 5 to 8).
+
+First dispatch, when `P/probe.mjs` does not exist:
+1. Run `git -C C:/Work/accord ls-files -- .claude/settings.local.json` and
+   `git -C C:/Work/accord-bug-ln-14 ls-files -- .claude/settings.local.json`. When either prints a path, that file
+   is tracked: touch neither file, and return `BLOCKED` with `the probe cannot place its hook without editing a
+   tracked file` and the path printed. Besides `MAIN`, nothing in `C:/Work/accord` is written by this task, and
+   every git command there is one of the read-only commands this part names.
+2. Create `P`. When `P/orig.json` does not exist, write it as
+   `{ "WT": <bytes of WT as a UTF-8 string, or null when WT does not exist>, "MAIN": <the same for MAIN> }`. When
+   `P/orig.json` already exists (an earlier first dispatch stopped part way), never overwrite it: it holds the
+   original files, and the current ones may already carry the probe entry.
+3. Write each of `WT` and `MAIN` (its `.claude` folder already exists: it holds the tracked `settings.json`) as the
+   object parsed from its value in `P/orig.json` (`{}` when that value is `null`) with the entry below appended to
+   its `hooks.SessionStart` list (created when missing). When a saved value does not parse as a JSON object, write
+   neither file, go to step 7, and return `BLOCKED` naming that file. The entry in `WT` ends its command with ` worktree`, the entry in `MAIN` with ` main`.
+   Because the base is always `P/orig.json`, a repeated first dispatch never adds the entry twice.
 
    ```json
    {
-     "hooks": {
-       "SessionStart": [
-         {
-           "matcher": "startup|clear",
-           "hooks": [
-             { "type": "command", "command": "node C:/Work/accord-bug-ln-14/node_modules/.cache/accord-probe/probe.mjs" }
-           ]
-         }
-       ]
-     }
+     "matcher": "startup|clear",
+     "hooks": [
+       { "type": "command", "command": "node C:/Work/accord-bug-ln-14/node_modules/.cache/accord-probe/probe.mjs worktree" }
+     ]
    }
    ```
 
-2. Write `node_modules/.cache/accord-probe/probe.mjs` (`node_modules/` is ignored by git). It writes nothing to
-   stdout and always exits 0. It reads stdin to the end (`readFileSync(0, 'utf8')`, an empty string on error) and
-   parses it as JSON (a failed parse keeps `{ raw: <text> }`). It reads the process table the way
+4. Write `P/probe.mjs` last, so that its existence means steps 1 to 3 are done. It writes nothing to stdout and
+   always exits 0. It reads stdin to the end (`readFileSync(0, 'utf8')`, an empty string on error) and parses it as
+   JSON (a failed parse keeps `{ raw: <text> }`). It reads the process table the way
    `packages/cli/src/load/proc.ts` `processTable()` does: on win32
    `powershell -NoProfile -NonInteractive -Command "[Console]::OutputEncoding = [Text.Encoding]::UTF8; ConvertTo-Json -Compress -InputObject @(Get-CimInstance Win32_Process | ForEach-Object { [pscustomobject]@{ pid = [int]$_.ProcessId; ppid = [int]$_.ParentProcessId; name = $_.Name } })"`
    through `execFileSync` with a 64 MiB `maxBuffer`, elsewhere `ps -A -o pid= -o ppid= -o comm=`; a failure keeps
    `rows = []` and the error text. From `process.pid` it walks parents (at most 20 steps, stopping at a pid with
-   no row or a repeated pid) into `chain`, a list of `{ pid, name }`. It appends one JSON line to
-   `node_modules/.cache/accord-probe/out.jsonl` (absolute path, folder created first):
-   `{ at, source, session_id, cwd, CLAUDE_PID, CLAUDE_CODE_SESSION_ID, CLAUDECODE, pid, chain, claudeRow, tableError }`,
-   where the three variables are read from `process.env` (`null` when unset) and `claudeRow` is the row whose pid
-   equals `Number(CLAUDE_PID)`, or `null`.
-3. Do not commit either file. Return `NEEDS_CONTEXT` with this question for the owner, word for word:
+   no row or a repeated pid) into `chain`, a list of `{ pid, name }`. When the input's `cwd` is a string it runs
+   `execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: input.cwd, encoding: 'utf8' })` and keeps the
+   trimmed output as `top` (`null` on any failure or when `cwd` is not a string). It appends one JSON line to
+   `P/out.jsonl` (absolute path, folder created first):
+   `{ at, entry, source, session_id, cwd, top, CLAUDE_PID, CLAUDE_CODE_SESSION_ID, CLAUDECODE, pid, chain, claudeRow, tableError }`,
+   where `entry` is `process.argv[2]`, the three variables are read from `process.env` (`null` when unset) and
+   `claudeRow` is the row whose pid equals `Number(CLAUDE_PID)`, or `null`. Then write `P/attempts` holding `1`,
+   commit nothing, and return `NEEDS_CONTEXT` with the question below for the owner, word for word.
+
+The question:
 
    > To check that the /clear fix can see which Claude Code window ran /clear, a temporary hook now records what
-   > Claude Code hands its hooks. It is in `C:\Work\accord-bug-ln-14\.claude\settings.local.json`, is not
-   > committed, and is removed right after. Please:
-   > 1. Open a new terminal, run `cd C:\Work\accord-bug-ln-14`, then `claude`. Do not use the window this
-   >    session runs in: a /clear there would wipe this session. If Claude Code asks whether to allow the
-   >    hooks of this folder, allow them. A line such as "no hold taken on BUG-LN-14" may appear; ignore it.
+   > Claude Code hands its hooks. It is in `C:\Work\accord-bug-ln-14\.claude\settings.local.json` and
+   > `C:\Work\accord\.claude\settings.local.json`, is not committed, and is removed right after. Until you close
+   > the second window below, start or clear no other Claude Code window in either folder. Do not use the window
+   > this session runs in: a /clear there would wipe this session. If Claude Code asks whether to allow the hooks
+   > of a folder, allow them. A line such as "no hold taken on BUG-LN-14" may appear; ignore it.
+   > 1. Open a new terminal, run `cd C:\Work\accord-bug-ln-14`, then `claude`.
    > 2. Type `hello` and wait for the answer.
    > 3. Type `/clear`.
-   > 4. Type: `Run this exact command with the Bash tool and show me its output: node -e "console.log(process.env.CLAUDE_CODE_SESSION_ID + ' ' + process.env.CLAUDE_PID)"`
-   > 5. Paste the line that command printed into your answer here, then close that window.
+   > 4. Type: `Run this exact command with the Bash tool and show me its output: node -e "console.log(process.env.CLAUDE_CODE_SESSION_ID + ' ' + process.env.CLAUDE_PID + ' ' + process.cwd())"`
+   > 5. Copy the line that command printed, then close that window.
+   > 6. Open a new terminal, run `cd C:\Work\accord`, then `claude`.
+   > 7. Type: `Call the EnterWorktree tool with path C:\Work\accord-bug-ln-14 and change no file.` and wait for
+   >    the answer.
+   > 8. Type `/clear`.
+   > 9. Type the same command as in step 4.
+   > 10. Copy the line it printed, then close that window.
+   > 11. Paste the two copied lines into your answer here, the first window's line first. If a step could not be
+   >     done, say which one.
 
-Second dispatch, with the owner's answer, when `out.jsonl` exists:
-4. Let `S` be the last record with `source` `startup` and `K` the last with `source` `clear`. When either is
-   missing, return `NEEDS_CONTEXT` with the same question once more (the window was opened before the entry was
-   written, or a step was skipped); on a third dispatch with one still missing, go to step 6 and then return
-   `BLOCKED`.
-5. The probe passes when every check holds:
+Every dispatch after the first, when `P/probe.mjs` exists:
+5. When the owner's answer says a step could not be done, or declines, go to step 7 and then return `BLOCKED` with
+   `the approach goes back to the architect` and the owner's words.
+6. Read `P/out.jsonl` (no records when it does not exist). In file order, `S1` is the last record with `source`
+   `startup` and `top(S1.cwd)` equal to `top(C:/Work/accord-bug-ln-14)`; `K1` is the first record after `S1` with
+   `source` `clear`, taken only when no `startup` record lies between them. `S2` is the last record with `source`
+   `startup` and `top(S2.cwd)` equal to `top(C:/Work/accord)`; `K2` is the first `clear` record after `S2`, with
+   the same proviso. `L1` and `L2` are the owner's two pasted lines, each split into its first word (an id), its
+   second word (a pid) and the rest (a folder). When any of `S1`, `K1`, `S2`, `K2`, `L1`, `L2` is missing (the
+   hook recorded nothing, a window was opened before the hooks were written, or a step was skipped): read the
+   number `n` in `P/attempts` (`1` when that file is missing). When `n` is less than 3, write `n + 1` to `P/attempts` and return `NEEDS_CONTEXT`
+   with the question again, preceded by one line naming what is missing. When `n` is 3, go to step 7 and then
+   return `BLOCKED` with `the approach goes back to the architect`, what is missing, and every record of
+   `out.jsonl` (or `out.jsonl does not exist`).
+   Otherwise the probe passes when every check holds, for each pair `(S, K, L)` in `(S1, K1, L1)` and `(S2, K2, L2)`:
    (a) `K.session_id` is a non-empty string and differs from `S.session_id`;
    (b) `K.CLAUDECODE` is `'1'`, `K.CLAUDE_CODE_SESSION_ID` is non-empty, and `K.CLAUDE_PID` matches `^[1-9][0-9]*$`;
    (c) `K.CLAUDE_PID` equals `S.CLAUDE_PID` (the /clear keeps the window process);
    (d) `K.chain` holds a pid equal to `Number(K.CLAUDE_PID)`, or the chain stops at a pid with no row and
        `K.claudeRow` is not `null` (the same shortcut `sessionIn` takes for the Windows gap, `proc.ts` lines 87-88);
-   (e) the owner's pasted line is two words: the first equals `K.session_id`, the second equals `K.CLAUDE_PID`.
+   (e) `L`'s first word equals `K.session_id` and its second word equals `K.CLAUDE_PID`;
+   and, for the window that moved, (f) `top(K2.cwd)` is not `null` and equals `top(<L2's folder>)`.
    Note in the report, without failing on it, whether `K.CLAUDE_CODE_SESSION_ID` equals `K.session_id` or
-   `S.session_id`: the code below takes the new id from the hook's stdin `session_id`, so either works.
-6. Clean up, pass or fail: delete `.claude/settings.local.json`, or write back the bytes of
-   `settings.local.json.orig` when it was saved; then delete the folder `node_modules/.cache/accord-probe`.
-   `git status --porcelain` must show neither path. Declare both paths in the report as touched outside the plan:
-   temporary probe files, removed.
-7. When any check fails, write no code: return `BLOCKED` with `the approach goes back to the architect`, the check
-   that failed, and the values of `S` and `K` (all fields except `chain`, plus the pid list of `chain`). When all
-   pass, put the values of (a) to (e) in the report's `passing:` line and go on to Part B.
+   `S.session_id` for each window (the code below takes the new id from the hook's stdin `session_id`, so either
+   works), and whether `top(K2.cwd)` is the worktree's or the main checkout's (either passes (f): when it is the
+   main checkout, the window left the worktree on /clear and its commands run there too).
+7. Clean up, pass or fail, from `P/orig.json`: for each of `WT` and `MAIN`, delete the file when its value is
+   `null`, else write that value's bytes back. Then delete the folder `P`. Check that each file is absent when its
+   value was `null` and otherwise byte-equal to it, that `P` does not exist, and that
+   `git -C C:/Work/accord-bug-ln-14 status --porcelain` shows no `.claude/settings.local.json` line when `WT` was
+   `null` (the same in `C:/Work/accord` for `MAIN`). Declare `WT`, `MAIN` and `P` in the report as touched outside
+   the plan: temporary probe files, removed or restored.
+8. When any check fails, write no code: return `BLOCKED` with `the approach goes back to the architect`, the check
+   that failed and for which window, and the values of `S1`, `K1`, `S2`, `K2` (all fields except `chain`, plus the
+   pid list of `chain`) with `L1` and `L2`. When all pass, put the values of (a) to (f) in the report's `passing:`
+   line and go on to Part B.
 
 ### Part B: the failing reproduction, then the release
 

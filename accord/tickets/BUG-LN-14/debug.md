@@ -46,6 +46,8 @@ Failure B, ranked before any probe:
 
 ## Fixes
 
+- Fix 1 (4834556, from 14b4d87), the owner's decision on 2026-10-28, "Xóa test ngay trong BUG-LN-14" (delete the test right in BUG-LN-14): deleted packages/core/test/st-ln-44.test.ts, its helper packages/core/test/helpers/st-ln-44.ts and packages/core/test/fixtures/st-ln-44/. Red before: st-ln-44.test.ts "Tests 1 failed | 8 passed (9)", the #48 line. After: `npm run build` complete; `npx vitest run packages/core` "Test Files 53 passed (53); Tests 1045 passed (1045)"; `npx accord lint` "0 errors, 222 warnings". `tests.affected` over the changed (deleted) files finds no test file. Result: symptom A gone locally; CI's green is seen at the next verify. Failed fixes: 0.
+
 ## Root cause
 Failure A (CI, all four jobs): packages/core/test/st-ln-44.test.ts:358-432, ST-LN-44's one-time ac-4 check, reads the live packages/cli/test/worktree.test.ts and requires every assertion frozen for row #48 (accord/tickets/ST-LN-44/table.md:124, "Assertions: 199-217 stay") to remain. BUG-LN-14 task 4 (424fdff) replaced `expect(r2.err).toContain(taken);` in that test with the local-time form that D-05 and the ticket's Approach require. The product change and its test are correct; the failing check is a guard that was meant to be deleted once ST-LN-44 was done (its header; ST-LN-44 plan.md:41-42), and ST-LN-65 is queued to delete it for exactly this failure mode.
 

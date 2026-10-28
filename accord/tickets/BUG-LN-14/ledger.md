@@ -25,6 +25,8 @@
 - Ruling: the process table is read once per /clear, inside `releaseOnClear` in hook.ts — the brief specified it; Approach risk (3) — cost if wrong: about 1 s per /clear on Windows.
 - Ruling: the hook finds the ticket of the window's worktree through one helper, `ticketOfWorktree` in hook.ts, which `recordResume` and `startHold` now call too — the plan allowed it, and the existing hook tests pass unchanged — cost if wrong: a change to that lookup reaches three hook paths at once.
 - Ruling: the recorded folder turns `\` into `/`, and a hold taken inside a worktree records that worktree's root, not the subfolder the command ran in — the repository's no-backslash path rule and the plan's `isLinked(ctx.root) ? ctx.root : path` — cost if wrong: the refusal names the worktree root, one step above a window opened in a subfolder.
+- Ruling: ST-LN-44's four `@test:` tags stay as they are after its one-time test file is deleted (debug episode 1, the owner's choice to delete it here) — ST-LN-44 is done and merged, its tags record what proved it at its verify, and `accord lint` reports 0 errors with them — cost if wrong: a later gate or verify of ST-LN-44 that resolves its tags fails on a missing test file.
+- Ruling: verify runs `npm run build` before `tests.full` whenever a merge brought in source changes — the 6 local workflow-script failures of 2026-10-28 ran against a dist built before the merge of origin/main (debug episode 1), while CI builds before testing — cost if wrong: one build of about a second per verify.
 
 ## Deferred
 

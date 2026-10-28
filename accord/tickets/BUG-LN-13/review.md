@@ -9,3 +9,7 @@ Nice 2 [patch]: doneRef writes a third copy of the `rev-parse --verify -q` resol
 
 Should 1 [plan-gap]: a lane M dependant that `gate ready` refused after `accord approve` reaches stage plan on `/accord continue`, because progressOf moves an approved ticket with no tasks to plan without `ac_hash` and nothing on the plan or build path runs Ready, so it is planned and built while its prerequisite is unmerged — packages/core/src/status/stage.ts:88-89, packages/core/skills/approach/SKILL.md:60-64 — open
 Nice 2 [patch]: the `r2` block of the core risk test re-tests what the ac-3 test covers end to end — packages/core/test/done-on-default.test.ts:65-72 — deferred
+
+## Round 3 (Task 7 re-plan, base c221ac6)
+
+No findings

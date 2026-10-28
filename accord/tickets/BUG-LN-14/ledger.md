@@ -24,6 +24,7 @@
 - Ruling: the probe passed checks (a) to (f) on the owner's two real windows on 2026-10-28: `CLAUDE_PID` stayed the same across /clear (46912, 26288), `CLAUDE_CODE_SESSION_ID` took the new conversation's id, and a window moved in by EnterWorktree had the worktree as its /clear `cwd` — Approach risk (1) is closed — cost if wrong: none, it records evidence.
 - Ruling: the process table is read once per /clear, inside `releaseOnClear` in hook.ts — the brief specified it; Approach risk (3) — cost if wrong: about 1 s per /clear on Windows.
 - Ruling: the hook finds the ticket of the window's worktree through one helper, `ticketOfWorktree` in hook.ts, which `recordResume` and `startHold` now call too — the plan allowed it, and the existing hook tests pass unchanged — cost if wrong: a change to that lookup reaches three hook paths at once.
+- Ruling: the recorded folder turns `\` into `/`, and a hold taken inside a worktree records that worktree's root, not the subfolder the command ran in — the repository's no-backslash path rule and the plan's `isLinked(ctx.root) ? ctx.root : path` — cost if wrong: the refusal names the worktree root, one step above a window opened in a subfolder.
 
 ## Deferred
 
@@ -36,3 +37,4 @@
 - task 1 done 7e4e58848942
 - task 2 done 3208f0c401c8
 - task 3 done 21abd488b18a
+- task 4 done 424fdff3f01d

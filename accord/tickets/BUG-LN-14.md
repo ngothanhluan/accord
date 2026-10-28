@@ -61,7 +61,7 @@ Feature: BUG-LN-14
     Then ST-9 is still held by the first window
     And `accord worktree open ST-9 --continue` in the second window is refused as held by another session
 
-  @ac-4
+  @ac-4 @test:packages/cli/test/worktree.test.ts#ac-4-a-refusal-names-the-folder-and-the-local-time-with-its-offset-of-the-hold
   Scenario: A refusal names the folder and the time of the hold
     Given a live Claude Code session took the hold on ST-9 while it worked in a folder
     When another session runs `accord worktree open ST-9 --continue`

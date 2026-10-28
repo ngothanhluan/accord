@@ -15,6 +15,8 @@ export default defineConfig({
     environment: 'node',
     pool: 'forks',
     maxWorkers: workers(process.env, availableParallelism()),
+    // ST-LN-67: the cap is per run; this lock lets one run at a time hold the machine.
+    globalSetup: ['./test/lock.ts'],
     // Explicit list, not 'packages/*': the test-less packages/mcp stub is never a project.
     projects: ['packages/core', 'packages/cli'],
   },

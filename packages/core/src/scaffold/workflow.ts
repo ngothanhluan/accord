@@ -155,17 +155,35 @@ jobs:
             text=$(git show "$1:$2") || return 2
             awk '{ sub(/[[:space:]]+$/, "") } d < 2 { if (NR == 1) d = 1; else if ($0 == "---") d = 2; next } { if (fc == "") { if ($0 ~ /^(\`\`\`|~~~)/) fc = substr($0, 1, 1); else if (!s && tolower($0) ~ /^##[[:space:]]+dropped$/) { s = 1; next } else if (s && $0 ~ /^##[[:space:]]/) exit } else if (substr($0, 1, 3) == fc fc fc) fc = "" } s { t = $0; gsub(/<!--[^>]*-->/, "", t); if (t ~ /<!--|-->/) bad = 1; if (t ~ /[^[:space:]]/) said = 1 } END { exit (said && !bad) ? 0 : 3 }' <<< "$text" || return 2
           }
-          # A ticket that was approved or lane M, L or P at the base and is lane S at HEAD dropped its lane after
-          # approval (D-03). An unsettled base read fails closed; an absent base file is a new lane S ticket.
+          # A ticket that may be lane S at HEAD dropped its lane after approval (ST-LN-58 D-06) when an approved_hash
+          # key is in its version at the base or at any commit this pull request adds (git rev-list "$BASE..HEAD",
+          # merge sides included), or when it was lane L or P at the base. At HEAD, only no lane key, or lane keys
+          # that each hold a plain M, L or P on the key line, rule lane S out: a value off its key line or behind a
+          # tag may still read as S. A lane M ticket never approved may move to lane S in place. An unsettled read
+          # at HEAD is gated, since approved_at counts it as approved; at the base or at a commit of this pull
+          # request, an unsettled read or a failing rev-list fails closed. An absent file is skipped.
           lane_dropped() {
+            local rc revs rev lanes
             fm_at HEAD "$file" || return 1
-            grep -Eq "^\${qc}?lane\${qc}?[[:space:]]*:[[:space:]]*\${qc}?S\${qc}?[[:space:]]*(#.*)?$" <<< "$fm" || return 1
+            lanes=$(grep -E "^\${qc}?lane\${qc}?[[:space:]]*:" <<< "$fm") || return 1
+            grep -Evq "^\${qc}?lane\${qc}?[[:space:]]*:[[:space:]]*\${qc}?[MLP]\${qc}?[[:space:]]*(#.*)?$" <<< "$lanes" || return 1
             fm_at "$BASE" "$file"
-            local rc=$?
-            if [ "$rc" -eq 1 ]; then return 1; fi
-            if [ "$rc" -ne 0 ]; then return 0; fi
-            grep -Eq "^[[:space:]]*\${qc}?approved_hash\${qc}?[[:space:]]*:" <<< "$fm" && return 0
-            grep -Eq "^\${qc}?lane\${qc}?[[:space:]]*:[[:space:]]*\${qc}?[MLP]\${qc}?[[:space:]]*(#.*)?$" <<< "$fm"
+            rc=$?
+            if [ "$rc" -eq 2 ]; then return 0; fi
+            if [ "$rc" -eq 0 ]; then
+              grep -Eq "^[[:space:]]*\${qc}?approved_hash\${qc}?[[:space:]]*:" <<< "$fm" && return 0
+              grep -Eq "^\${qc}?lane\${qc}?[[:space:]]*:[[:space:]]*\${qc}?[LP]\${qc}?[[:space:]]*(#.*)?$" <<< "$fm" && return 0
+            fi
+            if ! revs=$(git rev-list "$BASE..HEAD"); then return 0; fi
+            while IFS= read -r rev; do
+              [ -n "$rev" ] || continue
+              fm_at "$rev" "$file"
+              rc=$?
+              if [ "$rc" -eq 1 ]; then continue; fi
+              if [ "$rc" -ne 0 ]; then return 0; fi
+              grep -Eq "^[[:space:]]*\${qc}?approved_hash\${qc}?[[:space:]]*:" <<< "$fm" && return 0
+            done <<< "$revs"
+            return 1
           }
           # An approved ticket deleted or renamed away counts as code, whether or not git pairs the rename, so
           # a rename that drops approved_hash cannot skip the gate. A failing diff counts as code too. A ticket
@@ -208,7 +226,7 @@ jobs:
             id=\${file#accord/tickets/}
             id=\${id%.md}
             if lane_dropped; then
-              echo "$id: its lane cannot drop after approval (lane S at HEAD, approved or lane M, L or P at the base)"
+              echo "$id: its lane cannot drop after approval (lane S at HEAD, or a lane that is not a plain M, L or P there; approved at the base or in a commit of this pull request, or lane L or P at the base)"
               code=1
               continue
             fi

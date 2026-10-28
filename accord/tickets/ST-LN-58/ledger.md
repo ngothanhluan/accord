@@ -41,6 +41,11 @@
 - plan round 1.10 Nice — `ids.md` step 4 says nothing for a rejected push; a force-push removes the approval commit
 - plan round 1.11 Nice — `ids.md` step 3 points to lane S step 1, which `accord-intent` does not render
 - plan round 1.12 Nice — Task 3 does not say each (case, script) pair needs its own sandbox
+- review round 1.1 Nice — the debug step 7 `./ids.md` sentence sits between "ask the owner, with what was tried" and "This count…", so "This count" now reads after the type sentence; the verify step 5 mention sits inside the blocked/fail bullet
+- review round 1.2 Nice — ac-3's cap assertions repeat skills.test.ts:280-289 for the default roster; widening those to ROSTERS would let ac-3 check only the five sentences
+- review round 2.1 Nice — the verify step 2 re-wrap splits the `accord worktree merge <id>` code span across lines 17-18, so skill-commands.test.ts (one line at a time) no longer checks it; wrap before the backtick
+- review round 2.2 Nice — stage-skills.test.ts:283 "risk:data-loss the move to lane S carries … into the new lane S ticket" no longer matches its behaviour, repeats ac-4, and its lane-s.md assertions pass only through lane-s.md:70
+- review round 2.3 Nice — workflow-script.test.ts:713 `ownScript()` is a third copy of the lint-and-gate script reader (:560, :655) and drops the `named.length === 1` check
 
 ## Tasks
 - task 1 done 4b60f0452c5f

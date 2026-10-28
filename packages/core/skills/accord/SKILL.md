@@ -67,7 +67,8 @@ Propose a lane as `./lane.md` says, for every new request however small it looks
 
 - **S.** Run `accord new ticket <id> --lane S --worktree`; when config.yml has
   `people`, follow `./ids.md` and run it with `--type <story|bug>` and no id
-  instead. Then follow `./lane-s.md`. A request that carries `Understood: …`
+  instead. Then follow `./lane-s.md`. At step 6 of `./lane-s.md`, report the finish as `./finish.md` says.
+  A request that carries `Understood: …`
   and `Done when: …` from a drop is lane S without asking again; the scout still runs first and its
   files still go under `## Scope`.
 - **M.** Run `accord new ticket <id> --lane M --worktree`; when config.yml has

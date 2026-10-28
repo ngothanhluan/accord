@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import type { Tags } from 'yaml';
 import { agentTargets, allSkillDirs, contentHash, installedName, markerHash, renderSkill, skillDirs, skills, STAGES, skillTargets, withoutMarker } from '../src/index.js';
-import type { SkillKey } from '../src/index.js';
+import type { SkillFile, SkillKey } from '../src/index.js';
 import type { AccordConfig } from '../src/index.js';
 import { DONE_RULES, DONE_S_RULES, READY_RULES } from '../src/gate/rules.js';
 import { RULES } from '../src/lint/rules.js';
@@ -196,6 +196,37 @@ const bodyOf = (text: string) => withoutMarker(text).replace(FRONTMATTER, '');
 
 const dirOf = (path: string) => path.slice(0, path.lastIndexOf('/'));
 const baseOf = (path: string) => path.slice(path.lastIndexOf('/') + 1);
+
+/** One line per problem in the rendered skill folders: a subfolder, a folder without SKILL.md, or a file its own
+ *  SKILL.md does not name as `./<name>`. A skill folder is the first three path segments. */
+function unnamedReferences(files: SkillFile[]): string[] {
+  const folders = new Map<string, SkillFile[]>();
+  for (const f of files) {
+    const folder = f.path.split('/').slice(0, 3).join('/');
+    folders.set(folder, [...(folders.get(folder) ?? []), f]);
+  }
+  const found: string[] = [];
+  for (const [folder, held] of folders) {
+    const skill = held.find((f) => f.path === folder + '/SKILL.md');
+    if (!skill) found.push(`${folder}: has no SKILL.md`);
+    for (const f of held) {
+      const rest = f.path.slice(folder.length + 1);
+      if (rest.includes('/')) found.push(`${folder}: holds a subfolder (${rest})`);
+      else if (skill && rest !== 'SKILL.md' && !skill.text.includes('./' + rest)) {
+        found.push(`${folder}: ${rest} is not named as ./${rest} in its SKILL.md`);
+      }
+    }
+  }
+  return found;
+}
+
+function expectEveryReferenceNamed(files: SkillFile[]) {
+  const found = unnamedReferences(files);
+  expect(found, found.join('\n')).toEqual([]);
+}
+
+const ALL_RUNTIMES: AccordConfig['runtimes'] = ['claude', 'codex', 'cursor', 'copilot'];
+const ROSTERS = [config({ runtimes: ALL_RUNTIMES }), config({ roles: ['ba', 'dev'], runtimes: ALL_RUNTIMES })].map(skillTargets);
 
 const output = skillTargets(config());
 const skillFiles = output.filter((f) => f.path.endsWith('/SKILL.md'));
@@ -446,6 +477,75 @@ describe('render output invariants', () => {
     offenders.sort((a, b) => cmp(a.path, b.path) || a.line - b.line || cmp(a.text, b.text));
     expect(offenders.map((o) => `${o.path}:${o.line}: ${o.text}`)).toEqual([]);
   });
+});
+
+it('ac-1 every reference file of a rendered skill is named in its own SKILL.md', () => {
+  for (const files of ROSTERS) {
+    expect(files.length).toBeGreaterThan(0);
+    const paths = files.map((f) => f.path);
+    for (const dir of ['.claude/skills', '.agents/skills']) {
+      for (const p of ['accord/finish.md', 'accord-debug/worktree.md', 'accord-debug/ids.md', 'accord-verify/worktree.md', 'accord-verify/ids.md']) {
+        expect(paths, `${dir}/${p} is not rendered`).toContain(`${dir}/${p}`);
+      }
+    }
+    expectEveryReferenceNamed(files);
+  }
+});
+
+it('ac-2 the check fails on a skill folder holding a file its SKILL.md does not name', () => {
+  const dir = '.claude/skills/accord-debug';
+  const skill = { path: `${dir}/SKILL.md`, text: 'Read `./failure.md`.' };
+  const files = [skill, { path: `${dir}/failure.md`, text: 'x' }, { path: `${dir}/worktree.md`, text: 'x' }];
+  let message = '';
+  try {
+    expectEveryReferenceNamed(files);
+  } catch (e) {
+    message = (e as Error).message;
+  }
+  expect(message).not.toBe('');
+  expect(message).toContain(dir);
+  expect(message).toContain('worktree.md');
+  expect(message).not.toContain('failure.md is not named');
+  expect(() => expectEveryReferenceNamed([{ ...skill, text: skill.text + ' Read `./worktree.md`.' }, ...files.slice(1)])).not.toThrow();
+  expect(unnamedReferences([...files, { path: `${dir}/sub/x.md`, text: 'x' }]).join('\n')).toContain('holds a subfolder');
+});
+
+it('ac-3 each new mention names the step or event at which to read its file and every SKILL.md stays within the caps', () => {
+  const sentenceWith = (text: string, needle: string) => {
+    const flat = text.replace(/\s+/g, ' ');
+    const i = flat.indexOf(needle);
+    expect(i, `${needle} is missing`).toBeGreaterThan(-1);
+    const start = flat.lastIndexOf('. ', i) + 2;
+    const end = flat.indexOf('. ', i);
+    return flat.slice(start > 1 ? start : 0, end === -1 ? undefined : end + 1);
+  };
+  const A = 'step 6 of `./lane-s.md`,';
+  const B = 'When `./failure.md` runs `accord worktree open`,';
+  const C = 'at step 7';
+  const D = 'at step 5';
+  const vague = /\b(?:when|if|as) (?:needed|necessary|required)\b/i;
+  const expectations: [string, string, string][] = [
+    ['accord', './finish.md', A],
+    ['accord-debug', './worktree.md', B],
+    ['accord-debug', './ids.md', C],
+    ['accord-verify', './worktree.md', B],
+    ['accord-verify', './ids.md', D],
+  ];
+  for (const dir of ['.claude/skills', '.agents/skills']) {
+    for (const [skill, ref, needle] of expectations) {
+      const file = ROSTERS[0].find((f) => f.path === `${dir}/${skill}/SKILL.md`);
+      expect(file, `${dir}/${skill}/SKILL.md`).toBeDefined();
+      const sentence = sentenceWith(file?.text ?? '', ref);
+      expect(sentence, `${dir}/${skill}: ${ref}`).toContain(needle);
+      expect(sentence).not.toMatch(vague);
+    }
+  }
+  for (const files of ROSTERS) {
+    for (const { path, text } of files.filter((f) => f.path.endsWith('/SKILL.md'))) {
+      expect(new TextEncoder().encode(text).length, path).toBeLessThanOrEqual(MAX_SKILL_BYTES);
+      expect(text.split('\n').length, path).toBeLessThanOrEqual(MAX_SKILL_LINES);
+    }
+  }
 });
 
 // SKILL-01 and spec §6: which directories a single runtime receives. One runtime, so the count is over the

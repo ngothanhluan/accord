@@ -129,10 +129,17 @@ it('ac-5 the compliance check scores every run against the other rules', async (
       B: { review: rounds(6), ledger: '- Ruling: review past the cap: one more round — owner: "ok" — none\n' },
       C: { review: rounds(5), ledger: '' },
     };
+    // Test side: the same (id, ms) pair costs one git read, not one per rule (the git call is the slow part).
+    const seen = new Map<string, string | undefined>();
+    const memo = (id: string, ms: number) => {
+      const key = id + '|' + ms;
+      if (!seen.has(key)) seen.set(key, bench.ticketAt(repo, id, ms));
+      return seen.get(key);
+    };
     const out = render(
       compliance({
         runs, refusals: [], commits, tickets, settings: { tierUp: 4, executorModel: 'sonnet' },
-        commitInfo: () => undefined, testFile: () => undefined, ticketAt: (id: string, ms: number) => bench.ticketAt(repo, id, ms),
+        commitInfo: () => undefined, testFile: () => undefined, ticketAt: memo,
       }),
     );
     const lines = out.split('\n');

@@ -18,14 +18,19 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-/** A child process that takes the lock, logs its hold to `log`, holds it for `hold` ms, then releases. */
-function run(lock: string, log: string, hold: number): Promise<{ code: number | null; stderr: string; stdout: string }> {
+const WAITING = /waiting for another test run/;
+
+/**
+ * A child process that takes the lock, logs its hold to `log`, holds it until the file `go` exists, then releases.
+ * `onWait` fires when the child prints the waiting line.
+ */
+function run(lock: string, log: string, go: string, onWait: () => void): Promise<{ code: number | null; stderr: string; stdout: string }> {
   const script = `
-    import { appendFileSync } from 'node:fs';
+    import { appendFileSync, existsSync } from 'node:fs';
     import { acquire } from ${JSON.stringify(lockModule)};
     const release = await acquire(${JSON.stringify(lock)}, { poll: 50 });
     appendFileSync(${JSON.stringify(log)}, 'start ' + Date.now() + '\\n');
-    await new Promise((r) => setTimeout(r, ${hold}));
+    while (!existsSync(${JSON.stringify(go)})) await new Promise((r) => setTimeout(r, 50));
     appendFileSync(${JSON.stringify(log)}, 'end ' + Date.now() + '\\n');
     release();
     console.log('held');
@@ -34,7 +39,10 @@ function run(lock: string, log: string, hold: number): Promise<{ code: number | 
     const child = spawn(process.execPath, [...nodeArgs, '--input-type=module', '-e', script]);
     let stderr = '';
     let stdout = '';
-    child.stderr.on('data', (d: Buffer) => (stderr += d.toString()));
+    child.stderr.on('data', (d: Buffer) => {
+      stderr += d.toString();
+      if (WAITING.test(stderr)) onWait();
+    });
     child.stdout.on('data', (d: Buffer) => (stdout += d.toString()));
     child.on('close', (code) => resolve({ code, stderr, stdout }));
   });
@@ -44,14 +52,18 @@ describe('machine-wide test run lock', () => {
   it('risk:concurrency two runs started together never overlap, and the second says once that it waits', async () => {
     const lock = join(dir, 'run.lock');
     const log = join(dir, 'log');
-    const results = await Promise.all([run(lock, log, 1500), run(lock, log, 1500)]);
+    const go = join(dir, 'go');
+    // The holder keeps the lock until the other run has said it waits, so a slow start on a busy host cannot
+    // let the second run find the lock already free.
+    const letGo = () => writeFileSync(go, '');
+    const results = await Promise.all([run(lock, log, go, letGo), run(lock, log, go, letGo)]);
     for (const r of results) expect(r, r.stderr).toMatchObject({ code: 0, stdout: 'held\n' });
 
     const lines = readFileSync(log, 'utf8').trim().split('\n');
     expect(lines.map((l) => l.split(' ')[0])).toEqual(['start', 'end', 'start', 'end']);
     expect(Number(lines[2].split(' ')[1])).toBeGreaterThanOrEqual(Number(lines[1].split(' ')[1]));
 
-    const waits = results.map((r) => r.stderr.split('\n').filter((l) => /waiting for another test run/.test(l)).length);
+    const waits = results.map((r) => r.stderr.split('\n').filter((l) => WAITING.test(l)).length);
     expect(waits.sort()).toEqual([0, 1]);
   }, 60_000);
 
@@ -73,6 +85,7 @@ describe('machine-wide test run lock', () => {
     const lines: string[] = [];
     const release = await acquire(lock, { poll: 50, log: (l) => lines.push(l) });
     expect(JSON.parse(readFileSync(lock, 'utf8')).pid).toBe(process.pid);
+    expect(lines).toEqual([]);
     release();
     expect(() => readFileSync(lock)).toThrow();
   }, 30_000);

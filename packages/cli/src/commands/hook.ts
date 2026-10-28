@@ -3,11 +3,11 @@
 import { anchorText, DEFAULT_BRANCH_TEMPLATE, rulesetText, sessionLine, statusRows } from '@accord-dev/accord-core';
 import pkg from '../../package.json' with { type: 'json' };
 import { currentBranch, ticketOfBranch } from '../load/fs.js';
-import { claudeEnv } from '../load/proc.js';
+import { claudeEnv, processTable, sessionIn } from '../load/proc.js';
 import { repoRoot } from '../root.js';
 import type { CommandContext } from '../run.js';
 import { activeTicket } from './anchor.js';
-import { branchOf, guardAllowsContinue, inClaude, isLinked, listWorktrees, readHoldsFile, recordWorked, takeHold, worksMessage, worksTicket } from './worktree.js';
+import { branchOf, guardAllowsContinue, inClaude, isLinked, listWorktrees, readHoldsFile, recordWorked, releaseHolds, takeHold, worksMessage, worksTicket } from './worktree.js';
 
 export const HOOK_EVENTS = ['session-start', 'session-resume', 'subagent-start', 'prompt-expansion'] as const;
 export type HookEvent = (typeof HOOK_EVENTS)[number];
@@ -22,8 +22,10 @@ export function hook(ctx: CommandContext, event: HookEvent): number {
   }
   const line = sessionLine(statusRows(ctx.snapshot));
   let body = line + '\n';
+  let note = '';
   if (event === 'session-resume') {
     recordResume(ctx);
+    note = releaseOnNewConversation(ctx);
     try {
       const input = hookInput(ctx);
       const root = input?.cwd !== undefined ? repoRoot(input.cwd) : ctx.root;
@@ -40,7 +42,7 @@ export function hook(ctx: CommandContext, event: HookEvent): number {
       ctx.stderr.write((e as Error).message + '\n');
     }
   }
-  ctx.stdout.write(rules + '\n' + body);
+  ctx.stdout.write(rules + '\n' + note + body);
   if (event === 'session-start') startHold(ctx);
   return 0;
 }
@@ -52,6 +54,30 @@ function heldEntry(root: string, marker: string, ctx: CommandContext): { id: str
   if (id === undefined) return undefined;
   const path = listWorktrees(root).slice(1).find((w) => w.branch === branchOf(ctx.snapshot, id))?.path;
   return path === undefined ? undefined : { id, path };
+}
+
+/** The ticket whose worktree `root` is (a linked worktree on a ticket branch), else undefined. */
+function ticketOfWorktree(root: string, ctx: CommandContext): string | undefined {
+  if (!isLinked(root)) return undefined;
+  const branch = currentBranch(root);
+  return branch === undefined ? undefined : ticketOfBranch(branch, ctx.snapshot.branchTemplates ?? [DEFAULT_BRANCH_TEMPLATE], (i) => Object.hasOwn(ctx.snapshot.tickets, i));
+}
+
+/** BUG-LN-14: a /clear or a /resume to another conversation frees the holds this window's claude process took, except the resumed conversation's own and the ticket whose worktree the window stands in (D-06); returns '' or one line saying why nothing was released. */
+function releaseOnNewConversation(ctx: CommandContext): string {
+  try {
+    const input = hookInput(ctx);
+    if (input?.source !== 'clear' && input?.source !== 'resume') return '';
+    const claude = claudeEnv(ctx.env);
+    if (claude === undefined) return '';
+    const root = input.cwd !== undefined ? repoRoot(input.cwd) : ctx.root;
+    const session = sessionIn(claude, processTable(), process.pid);
+    releaseHolds(root, session, input.session_id || claude.marker, ticketOfWorktree(root, ctx));
+    return '';
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return `accord: no hold released: ${msg.split('\n')[0]}`.replace(/\\/g, '/') + '\n';
+  }
 }
 
 /** Record that a Claude Code session works `id`; a failure is one stderr line. */
@@ -71,9 +97,7 @@ function recordResume(ctx: CommandContext): void {
   try {
     const input = hookInput(ctx);
     const root = input?.cwd !== undefined ? repoRoot(input.cwd) : ctx.root;
-    if (!isLinked(root)) return;
-    const branch = currentBranch(root);
-    const id = branch === undefined ? undefined : ticketOfBranch(branch, ctx.snapshot.branchTemplates ?? [DEFAULT_BRANCH_TEMPLATE], (i) => Object.hasOwn(ctx.snapshot.tickets, i));
+    const id = ticketOfWorktree(root, ctx);
     if (id !== undefined) record(ctx, root, id, input?.session_id);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -87,20 +111,18 @@ function startHold(ctx: CommandContext): void {
   try {
     const input = hookInput(ctx);
     const root = input?.cwd !== undefined ? repoRoot(input.cwd) : ctx.root;
-    if (!isLinked(root)) return;
-    const branch = currentBranch(root);
-    id = branch === undefined ? undefined : ticketOfBranch(branch, ctx.snapshot.branchTemplates ?? [DEFAULT_BRANCH_TEMPLATE], (i) => Object.hasOwn(ctx.snapshot.tickets, i));
+    id = ticketOfWorktree(root, ctx);
     if (id === undefined) return;
     record(ctx, root, id, input?.session_id);
     if (claudeEnv(ctx.env) === undefined) return;
-    takeHold({ ...ctx, root }, id);
+    takeHold({ ...ctx, root }, id, root);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     ctx.stderr.write(`accord: no hold taken${id === undefined ? '' : ' on ' + id}: ${msg.split('\n')[0]}`.replace(/\\/g, '/') + '\n');
   }
 }
 
-export function hookInput(ctx: CommandContext): { session_id?: string; command_name?: string; command_args?: string; cwd?: string } | undefined {
+export function hookInput(ctx: CommandContext): { session_id?: string; command_name?: string; command_args?: string; cwd?: string; source?: string } | undefined {
   let parsed: unknown;
   try {
     parsed = JSON.parse(ctx.stdin ?? '');
@@ -109,7 +131,7 @@ export function hookInput(ctx: CommandContext): { session_id?: string; command_n
   }
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return undefined;
   const out: Record<string, string> = {};
-  for (const k of ['session_id', 'command_name', 'command_args', 'cwd']) {
+  for (const k of ['session_id', 'command_name', 'command_args', 'cwd', 'source']) {
     const v = (parsed as Record<string, unknown>)[k];
     if (typeof v === 'string') out[k] = v;
   }

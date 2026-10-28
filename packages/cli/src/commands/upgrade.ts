@@ -3,7 +3,7 @@
 // origin's default branch, and push it. Drop's pattern (ST-LN-34): a temporary index, no checkout, so the
 // checkout it runs in is never touched.
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { agentTargets, lintSnapshot, loadConfig, loadSnapshot, pluginTargets, refreshLintStep, repinConfig, repinWorkflow, skillTargets } from '@accord-dev/accord-core';
@@ -88,10 +88,15 @@ export function upgrade(ctx: InitContext): number {
   try {
     const env = { ...process.env, GIT_INDEX_FILE: join(folder, 'index') };
     gitIn(root, ['read-tree', base], { env });
-    let info = '';
-    for (const w of writes) {
-      info += `100644 ${gitIn(root, ['hash-object', '-w', '--stdin'], { input: Buffer.from(w.text, 'utf8') }).trim()}\t${w.path}\n`;
-    }
+    // BUG-LN-15: one hash-object for every file, read from the temporary folder; --no-filters keeps the bytes as
+    // written, as --stdin did, and its output lines follow the order of the paths.
+    const paths = writes.map((w, i) => {
+      const file = join(folder, `blob-${i}`);
+      writeFileSync(file, w.text, 'utf8');
+      return file;
+    });
+    const shas = gitIn(root, ['hash-object', '-w', '--no-filters', '--stdin-paths'], { input: Buffer.from(paths.join('\n') + '\n', 'utf8') }).trim().split('\n');
+    const info = writes.map((w, i) => `100644 ${shas[i]}\t${w.path}\n`).join('');
     gitIn(root, ['update-index', '--index-info'], { env, input: Buffer.from(info, 'utf8') });
     const tree = gitIn(root, ['write-tree'], { env }).trim();
     sha = gitIn(root, ['commit-tree', tree, '-p', base], { input: Buffer.from(`upgrade: accord ${v}\n`, 'utf8') }).trim();

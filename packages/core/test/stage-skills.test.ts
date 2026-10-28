@@ -471,6 +471,27 @@ it('risk:regression the verify skill merges the remote main after the review com
     expect(ref).toContain(p);
 });
 
+it('risk:data-loss the verify skill local check stops on a deleted approved ticket not dropped on the default branch', () => {
+  const text = flatText('.claude/skills/accord-verify/ci.md');
+  const fin = text.slice(text.indexOf('## Finish'));
+  expect(fin.length).toBeGreaterThan(0);
+  for (const p of [
+    '--diff-filter=D <def>...HEAD',
+    '`approved_hash`',
+    '`ac_hash`',
+    '`verified`',
+    'no `lane` key',
+    "restore the file if this is the ticket's own branch",
+    'accord drop <t>',
+    'merge the pull request of the drop/<t> branch it pushes',
+    'merge the default branch into this branch and push',
+    '`## Dropped`',
+    'each such line is a failure: stop, nothing is pushed',
+  ])
+    expect(fin, p).toContain(p);
+  expect(fin.indexOf('--diff-filter=D <def>...HEAD')).toBeLessThan(fin.indexOf('Any failure: show it and stop'));
+});
+
 it('ac-5 an assertion that runs only on some operating systems sits in a test the runner skips', () => {
   const flat = (t: string) => t.replace(/\s+/g, ' ');
   const agents = agentTargets(config);

@@ -1,0 +1,11 @@
+# Ledger: ST-LN-67
+
+## Rulings
+
+- Ruling: the lock is a file created exclusively (`wx`) in the OS temp folder, `accord-test-run.lock` on Windows and `accord-test-run-<uid>.lock` on POSIX, taken by a vitest `globalSetup` in the root vitest.config.ts — the root config is what tests.full, tests.affected and `npm test` all read, from every clone and worktree, and the temp folder is shared by all of them; the uid keeps one user's stale file in a shared sticky /tmp from failing another user's run (review round 2) — cost if wrong: runs by two different OS users on one host do not wait for each other.
+- Ruling: a lock is stale when the process named in it no longer exists (`process.kill(pid, 0)`), or, for an empty or half-written file, when it is more than 10 s old; no time limit applies to a live holder — a crashed or killed run frees the lock at the next try, and a long healthy run is never cut — cost if wrong: a dead run's pid reused by an unrelated live process makes the next run wait until that process ends; the waiting line names the lock file to delete.
+- Ruling: taking over a stale lock is guarded by a second exclusive file, `<lock>.takeover`, removed when older than 10 s — two waiters that both saw a dead holder must not each remove a lock the other just took — cost if wrong: a waiter killed inside the guarded step, which takes milliseconds, delays the others by up to 10 s.
+- Ruling: no CI switch — a CI runner has one run, which creates the lock file at once and never waits — cost if wrong: none measured beyond one file create and delete per run.
+- Ruling: a vitest started inside a package folder (`cd packages/cli && npx vitest`) reads that package's config and takes no lock — the request names tests.full and tests.affected, which run from the root, and the package configs are outside Scope — cost if wrong: such a hand-run can still overlap another run.
+- Ruling: watch mode holds the lock for as long as it watches — globalSetup runs once per vitest process — cost if wrong: a watcher left open blocks other runs until it is closed.
+- Ruling: the cross-process test runs its children with `--experimental-strip-types` — Node 22.12, the floor, strips types only behind the flag, and later versions accept it — cost if wrong: the test fails to start on a Node that drops the flag.

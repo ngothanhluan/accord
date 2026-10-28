@@ -42,7 +42,7 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: ST-LN-58
 
-  @ac-1
+  @ac-1 @test:packages/core/test/skills.test.ts#ac-1-every-reference-file-of-a-rendered-skill-is-named-in-its-own-SKILL.md
   Scenario: Every reference file of a rendered skill is named in its own SKILL.md
     Given the skill folders accord renders for every runtime, for the full roster of roles and again for the roster of roles ba and dev
     When every file of each folder is listed
@@ -50,13 +50,13 @@ Feature: ST-LN-58
     And every file other than SKILL.md appears as ./ followed by its file name somewhere in that folder's SKILL.md
     And this holds for finish.md in accord, and for worktree.md and ids.md in accord-debug and in accord-verify
 
-  @ac-2
+  @ac-2 @test:packages/core/test/skills.test.ts#ac-2-the-check-fails-on-a-skill-folder-holding-a-file-its-SKILL.md-does-not-name
   Scenario: The check fails on a skill folder that holds a file its SKILL.md does not name
     Given a skill folder made for the test, holding a SKILL.md and one other file whose name, after ./, the SKILL.md does not contain
     When the check that proves ac-1 runs on that folder
     Then the check fails and its message holds that folder's rendered path, such as .claude/skills/accord-debug, and that file's name
 
-  @ac-3
+  @ac-3 @test:packages/core/test/skills.test.ts#ac-3-each-new-mention-names-the-step-or-event-at-which-to-read-its-file-and-every-SKILL.md-stays-within-the-caps
   Scenario: Each new mention says when to read the file
     Given the five sentences this ticket adds, one for each missing file in each of the three skills
     When each is read on its own

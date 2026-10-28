@@ -26,6 +26,7 @@
 
 - Ruling: an unreadable HEAD frontmatter is not read as possibly lane S in `lane_dropped`; it is left to `gate done`, which always runs on it because `approved_at` counts it as approved — reading it as lane S would turn gated cases of other tickets (workflow-script.test.ts:495, :589, :610) into lane refusals — cost if wrong: a pull request whose HEAD frontmatter is valid YAML the line greps cannot settle (such as `!!map {lane: S}`) reaches the lane S gate instead of the lane refusal
 - Ruling: the one failing case of the baseline full run at a4cec8f, packages/cli/test/worktree-push.test.ts "ac-2 each stage change before build pushed with accord worktree push shows the same stage in another clone" (timed out at 120 s in a 27-minute loaded run, passed alone in 72 s), is tracked in ST-LN-63 part 4, not fixed here — the owner chose this ("a", 2026-10-28) — cost if wrong: the same timeout fails this ticket's verify run and needs a re-run
+- Ruling: (task 1, executor) verify steps 2, 4, 5 and 6 are re-wrapped up to 118 characters with no word changed, and the step 6 cut is not used — the first wrap of steps 4 and 5 alone left 5146 bytes against the 5120 cap; verify is now 5110 bytes and 71 lines — cost if wrong: the wrap shows as diff noise in verify SKILL.md
 - Ruling: the ids.md opening line refers to "the section on dropping" and "the last section" instead of naming their headings — so a slice taken at the first `## Moving to lane S` starts at the heading — cost if wrong: one opening line worded less directly
 
 ## Deferred
@@ -34,3 +35,6 @@
 - plan round 1.10 Nice — `ids.md` step 4 says nothing for a rejected push; a force-push removes the approval commit
 - plan round 1.11 Nice — `ids.md` step 3 points to lane S step 1, which `accord-intent` does not render
 - plan round 1.12 Nice — Task 3 does not say each (case, script) pair needs its own sandbox
+
+## Tasks
+- task 1 done 4b60f0452c5f

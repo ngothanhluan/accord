@@ -1,6 +1,6 @@
 ---
 baseline: 85b3158334ccd32ed9e48e4a7ce560041b86467b
-plan_hash: "fnv1a64:39723038f2ace512"
+plan_hash: "fnv1a64:d8da1643cd2e6a7a"
 ---
 
 # Plan: BUG-LN-13
@@ -134,23 +134,29 @@ Then run `packages/cli/test/lane-commands.test.ts` (its `next` tests, including 
 
 covers: D-06
 files: packages/core/test/done-on-default.test.ts (new), packages/core/src/gate/ready.ts, packages/core/src/gate/rules.ts, packages/core/test/gate.test.ts, packages/cli/test/dashboard.test.ts
-verify: packages/core/test/done-on-default.test.ts#risk:complex-branching-gate-ready-names-each-prerequisite-not-done-on-the-default-ref-and-leaves-dropped-and-unknown-ones-to-lint
+verify: packages/core/test/done-on-default.test.ts#risk:complex-branching-gate-ready-waits-on-each-prerequisite-not-done-on-the-default-ref-and-asks-to-re-plan-without-one-dropped-there
 
 Consumes `doneOnDefault` and the `defaultRef` field (Task 1). Produces the Ready rule `gate.depends-unmerged`; Task 5 wires it to the CLI.
 
-**Test first**, in `packages/core/test/done-on-default.test.ts`, title `risk:complex-branching gate ready names each prerequisite not done on the default ref and leaves dropped and unknown ones to lint`. Files with `CONFIG`: `A` = `laneTicket('A')`; `done(files, 'C')`; `D` = `laneTicket('D', { frontmatter: ['status: dropped'], body: LANE_BODY + '\n## Dropped\nNot needed.\n' })`; `B` = `laneTicket('B', { frontmatter: ['depends_on: ["A", "C", "D", "NOPE"]'] })`, then `approve(files, 'B')`. Import `gateReady` and `loadSnapshot` from `../src/index.js`, and `approve`, `CONFIG`, `done`, `LANE_BODY`, `laneTicket`, `P` from `../../../test/helpers/lane.js`. `snap = loadSnapshot({ files, tree: [] })`.
+**Test first**, in `packages/core/test/done-on-default.test.ts`, title `risk:complex-branching gate ready waits on each prerequisite not done on the default ref and asks to re-plan without one dropped there`. Files with `CONFIG`: `A` = `laneTicket('A')`; `done(files, 'C')`; `D` = `laneTicket('D', { frontmatter: ['status: dropped'], body: LANE_BODY + '\n## Dropped\nNot needed.\n' })`; `B` = `laneTicket('B', { frontmatter: ['depends_on: ["A", "C", "D", "NOPE"]'] })`, then `approve(files, 'B')`. Import `gateReady` and `loadSnapshot` from `../src/index.js`, and `approve`, `CONFIG`, `done`, `LANE_BODY`, `laneTicket`, `P` from `../../../test/helpers/lane.js`. `snap = loadSnapshot({ files, tree: [] })`.
 - `r = gateReady(snap, 'B')`: `r.verdict` is `'fail'`; the findings with rule `gate.depends-unmerged` are exactly one, pointer `/depends_on/0`, reason containing `"A"`, `in this checkout` and `never remove it from depends_on`; findings with rules `lint.depends-dropped` (pointer `/depends_on/2`) and `lint.depends-unknown` (pointer `/depends_on/3`) are present, and no `gate.depends-unmerged` finding names `"D"` or `"NOPE"`.
 - With `refFiles` = `CONFIG`, `done(refFiles, 'A')` and `C` = `laneTicket('C')`, `gateReady({ ...snap, defaultRef: { ref: 'refs/remotes/origin/main', snapshot: loadSnapshot({ files: refFiles, tree: [] }) } }, 'B')`: exactly one `gate.depends-unmerged` finding, pointer `/depends_on/1`, reason containing `"C"` and `on origin/main`.
+- With `droppedFiles` = `CONFIG`, `done(droppedFiles, 'C')` and `A` = `laneTicket('A', { frontmatter: ['status: dropped'], body: LANE_BODY + '\n## Dropped\nNot needed.\n' })` (A is dropped on the ref and still open in the checkout, so lint, which reads the checkout, says nothing about it), `gateReady({ ...snap, defaultRef: { ref: 'refs/remotes/origin/main', snapshot: loadSnapshot({ files: droppedFiles, tree: [] }) } }, 'B')`: `verdict` `'fail'`; exactly one `gate.depends-unmerged` finding, pointer `/depends_on/0`, reason containing `"A"`, `dropped on origin/main` and `re-plan this ticket without it`, and not containing `wait` or `never remove it from depends_on`; no finding with rule `lint.depends-dropped` has pointer `/depends_on/0`.
 
 **Rule**, in `packages/core/src/gate/ready.ts` (import `doneOnDefault` from `../status/stage.js`; that module imports nothing from `gate/rules.ts` or `gate/ready.ts` at run time, so no import cycle forms):
 
 ```ts
-/** BUG-LN-13 D-06: each prerequisite not done on the default ref the host read, or with none read in this checkout. One lint already reports (unknown, dropped) is left to lint's reason. */
+/** BUG-LN-13 D-06: each prerequisite not done on the default ref the host read, or with none read in this checkout. One lint already reports (unknown, dropped in the checkout) is left to lint's reason; one dropped on the default ref asks for a re-plan, since its merge never comes. */
 export const dependsUnmerged: GateRule['check'] = (snapshot, id) => …
 ```
 
-- For each entry `d` of the gated ticket's `depends_on`, at index `i`: skip it when `!Object.hasOwn(snapshot.tickets, d)` or `snapshot.tickets[d].frontmatter?.status === 'dropped'`; skip it when `doneOnDefault(snapshot, d)`; otherwise one draft `{ file: 'accord/tickets/' + id + '.md', pointer: '/depends_on/' + i, reason }`.
-- `where` = `'on ' + ref` with a leading `refs/remotes/` or `refs/heads/` removed (`on origin/main`, `on main`) when `snapshot.defaultRef` is set, else `'in this checkout'`. `reason` = `` `depends_on names "${d}", which is not done ${where}; wait until its pull request merges, run git fetch, then run accord gate ready ${id} again; never remove it from depends_on` ``.
+- `where` = `'on ' + ref` with a leading `refs/remotes/` or `refs/heads/` removed (`on origin/main`, `on main`) when `snapshot.defaultRef` is set, else `'in this checkout'`.
+- For each entry `d` of the gated ticket's `depends_on`, at index `i`, in this order:
+  1. skip it when `!Object.hasOwn(snapshot.tickets, d)` or `snapshot.tickets[d].frontmatter?.status === 'dropped'` (lint reports it);
+  2. when `snapshot.defaultRef` is set, `Object.hasOwn(snapshot.defaultRef.snapshot.tickets, d)` and `snapshot.defaultRef.snapshot.tickets[d].frontmatter?.status === 'dropped'`, one draft with `reason` = `` `depends_on names "${d}", which is dropped ${where}; re-plan this ticket without it` `` (the wording of `lint.depends-dropped` in `packages/core/src/lint/dropped.ts`, with the ref named);
+  3. skip it when `doneOnDefault(snapshot, d)`;
+  4. otherwise one draft with `reason` = `` `depends_on names "${d}", which is not done ${where}; wait until its pull request merges, run git fetch, then run accord gate ready ${id} again; never remove it from depends_on` ``.
+- Every draft is `{ file: 'accord/tickets/' + id + '.md', pointer: '/depends_on/' + i, reason }`.
 
 **Row**, in `packages/core/src/gate/rules.ts`: import `dependsUnmerged` and append `{ id: 'gate.depends-unmerged', level: 'error', profiles: ['build', 'maintain'], check: dependsUnmerged }` to `READY_RULES` after `APPROVAL_STALE`. `PLAN_RULES`, `DONE_RULES`, `DONE_S_RULES` and every existing row do not change.
 
@@ -188,9 +194,9 @@ verify: packages/core/test/stage-skills.test.ts#risk:regression-the-lane-S-and-a
 
 Consumes the behaviour of Tasks 1-5. Produces the text the agents and readers follow.
 
-The sentence, `S`, used verbatim in both skills and in the test:
+The sentence, `S`, used verbatim in both skills and in the test; it is keyed to the words `not done` of the wait reason, so it never reaches the reason for a prerequisite dropped on the default branch, which asks for a re-plan (Task 4):
 
-> When it names a `depends_on` ticket that is not done on the default branch, never remove that entry from `depends_on`: tell the owner this ticket waits for that ticket's merge, then after the merge run `git fetch` and `accord gate ready <id>` again.
+> When it says a `depends_on` ticket is not done on the default branch, never remove that entry from `depends_on`: tell the owner this ticket waits for that ticket's merge, then after the merge run `git fetch` and `accord gate ready <id>` again.
 
 **Test first**, in `packages/core/test/stage-skills.test.ts`, a top-level `it` titled `risk:regression the lane S and approach skills wait for a prerequisite merge and never edit depends_on`: with the file's `flatS` helper (line 691, whitespace collapsed), `flatS('.claude/skills/accord/lane-s.md')` and `flatS('.claude/skills/accord-approach/SKILL.md')` each contain `S` with its whitespace collapsed the same way. It fails until the sources change and `npm run gen` runs.
 
@@ -198,7 +204,7 @@ The sentence, `S`, used verbatim in both skills and in the test:
 - `packages/core/skills/accord/lane-s.md` step 1: insert `S` right after the sentence `Run \`accord gate ready <id>\` and fix what it prints until it exits 0, then commit the ticket.`
 - `packages/core/skills/approach/SKILL.md` step 5: insert `S` right after `\`accord gate ready <id>\` and work from what it prints.`
 - Then, in this order (conventions.md): `npm run gen`, `npm run build`, `node packages/cli/dist/cli.js skills sync`; commit the regenerated `packages/core/src/generated/skills.ts` and the synced `.claude/skills/accord/lane-s.md` and `.claude/skills/accord-approach/SKILL.md`.
-- `docs/specs/2026-10-12-workflow-layer-design.md` §5: the **Dependencies** bullet (lines 145-147) keeps its first two sentences and replaces the rest with: a ticket counts as done for the dashboard and for its dependants (`accord dashboard`, `status`, `show`, `next` and `gate ready`) only when its records, as they stand on the default branch, give stage done; the default branch is origin's as `accord worktree clean` reads it (origin/HEAD, else origin/main or origin/master), or the local main or master in a clone with no origin remote, read without fetching; when none resolves, the tree the command runs on decides; this holds for merge, squash and rebase alike; `accord status --json` keeps the stage the ticket's own records give; `gate ready` refuses a ticket while a prerequisite is not done there. In the **Claim** bullet (line 150), `a dependency still counts as done only in the tree the command runs on` becomes `a dependency still counts as done only on the default branch`.
+- `docs/specs/2026-10-12-workflow-layer-design.md` §5: the **Dependencies** bullet (lines 145-147) keeps its first two sentences and replaces the rest with: a ticket counts as done for the dashboard and for its dependants (`accord dashboard`, `status`, `show`, `next` and `gate ready`) only when its records, as they stand on the default branch, give stage done; the default branch is origin's as `accord worktree clean` reads it (origin/HEAD, else origin/main or origin/master), or the local main or master in a clone with no origin remote, read without fetching; when none resolves, the tree the command runs on decides; this holds for merge, squash and rebase alike; `accord status --json` keeps the stage the ticket's own records give; `gate ready` refuses a ticket while a prerequisite is not done there, and asks to re-plan the ticket without a prerequisite that is dropped there. In the **Claim** bullet (line 150), `a dependency still counts as done only in the tree the command runs on` becomes `a dependency still counts as done only on the default branch`.
 - Behaviour that must not change: every other step and sentence of both skills; every phrase `packages/core/test/stage-skills.test.ts` and `packages/core/test/lane-s.test.ts` already assert; `packages/core/test/skills.test.ts` keeps every rendered `SKILL.md` at most 5120 bytes. If the approach skill then exceeds it, shorten `S` in both skills and in the test alike, keeping its four points: never remove the entry from `depends_on`, tell the owner, wait for the merge, then `git fetch` and `gate ready` again.
 
 Then run `packages/core/test/stage-skills.test.ts`, `packages/core/test/skills.test.ts` and `packages/core/test/lane-s.test.ts`; they must pass.

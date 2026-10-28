@@ -17,6 +17,9 @@ Ruling: an unclaimed row that is done only off the default ref is listed in UP N
 Ruling: the rule id is `gate.depends-unmerged`; its reason names the ref without the `refs/remotes/` or `refs/heads/` prefix, and when no ref was read it says "in this checkout" — with no ref read the rule reads the checkout, which is why the ST-LN-2 test changes — cost if wrong: wording only
 Ruling: a prerequisite in a `depends_on` cycle gets both the lint cycle reason and the wait-for-merge reason — the skip covers only dropped and unknown — cost if wrong: two reasons on a broken graph
 Ruling: test fixtures fake origin's default branch by writing the `refs/remotes/origin/main` ref directly, as existing tests fake origin refs — cost if wrong: the case of a real fetched remote is not run
+Ruling: a prerequisite dropped on the default ref but still open in the checkout gets a re-plan reason under `gate.depends-unmerged`, not a skip — lint reads the checkout and says nothing about it, so a skip would let `gate ready` pass on a prerequisite that never merges — cost if wrong: the refusal comes under a gate rule id instead of a lint id
+Ruling: a prerequisite dropped in the checkout is still left to lint, even if the ref has it open — keeps the approach's "left to lint's reason" and avoids two reasons on one entry — cost if wrong: none beyond wording
+Ruling: skill sentence S is tied to the words "not done" in the gate's reason, so it never covers the dropped reason — otherwise "never remove that entry" would contradict "re-plan without it" — cost if wrong: wording only
 
 ## Deferred
 - plan round 1.2 (Nice): Task 1 adds test imports first used in Task 3; `npm run lint` reports unused vars after Tasks 1 and 2

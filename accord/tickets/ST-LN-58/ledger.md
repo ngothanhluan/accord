@@ -24,6 +24,10 @@
 - Ruling: pointer lines in the ST-LN-31 and ST-LN-62 ledgers name this ticket as superseding their drop and hand-off text; their ticket files stay untouched — as ST-LN-18 did for ST-LN-2 — cost if wrong: their ticket text still describes the old path
 - Ruling: an unreadable ticket frontmatter, at the base or at any commit the pull request adds, counts as possibly approved, so `lane_dropped` refuses — ac-5's Then speaks of a readable key, and the approved Approach says the check fails closed, as `approved_at` already reads it — cost if wrong: a pull request with a hand-broken frontmatter in its history is refused until the history is fixed
 
+- Ruling: an unreadable HEAD frontmatter is not read as possibly lane S in `lane_dropped`; it is left to `gate done`, which always runs on it because `approved_at` counts it as approved — reading it as lane S would turn gated cases of other tickets (workflow-script.test.ts:495, :589, :610) into lane refusals — cost if wrong: a pull request whose HEAD frontmatter is valid YAML the line greps cannot settle (such as `!!map {lane: S}`) reaches the lane S gate instead of the lane refusal
+- Ruling: the one failing case of the baseline full run at a4cec8f, packages/cli/test/worktree-push.test.ts "ac-2 each stage change before build pushed with accord worktree push shows the same stage in another clone" (timed out at 120 s in a 27-minute loaded run, passed alone in 72 s), is tracked in ST-LN-63 part 4, not fixed here — the owner chose this ("a", 2026-10-28) — cost if wrong: the same timeout fails this ticket's verify run and needs a re-run
+- Ruling: the ids.md opening line refers to "the section on dropping" and "the last section" instead of naming their headings — so a slice taken at the first `## Moving to lane S` starts at the heading — cost if wrong: one opening line worded less directly
+
 ## Deferred
 - plan round 1.8 Nice — renaming the ticket file on the branch hides the approval commit from the CI walk; same class as the `reset --soft` gap
 - plan round 1.9 Nice — the skill-side `-G '^approved_hash:'` matches less than CI's grep (quoted key, space before the colon)

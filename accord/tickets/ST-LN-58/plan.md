@@ -1,6 +1,6 @@
 ---
 baseline: a4cec8fa436452eac27103e2b2cf94a9886b7538
-plan_hash: "fnv1a64:0dd925a4e56a805e"
+plan_hash: "fnv1a64:4a7175847055433d"
 ---
 
 # Plan: ST-LN-58
@@ -62,7 +62,8 @@ Tests (top level, after the `render output invariants` describe):
 2. `ac-2 the check fails on a skill folder holding a file its SKILL.md does not name`. Build an in-memory folder:
    `.claude/skills/accord-debug/SKILL.md` with text ``Read `./failure.md`.``, plus `.claude/skills/accord-debug/failure.md`
    and `.claude/skills/accord-debug/worktree.md` with any text. Catch the error from `expectEveryReferenceNamed` on
-   it. Assert an error was thrown, its message contains `.claude/skills/accord-debug` and `worktree.md`, and it does
+   it (`catch (e)`, then read the message as `(e as Error).message`, since the test files typecheck under strict
+   mode). Assert an error was thrown, its message contains `.claude/skills/accord-debug` and `worktree.md`, and it does
    not contain `failure.md is not named`. As a guard, add `./worktree.md` to that SKILL.md text and assert the call
    no longer throws. Also assert that `unnamedReferences` on a list that adds
    `.claude/skills/accord-debug/sub/x.md` returns a line containing `holds a subfolder`.
@@ -70,13 +71,21 @@ Tests (top level, after the `render output invariants` describe):
    Write `sentenceWith(text, needle)`: flatten whitespace to single spaces, take `i = flat.indexOf(needle)`
    (assert `i > -1`), and return the text from just after the last `'. '` before `i` to the next `'. '` after `i`
    (or the end of the text). For each rendered SKILL.md under both `.claude/skills` and `.agents/skills` of the
-   first `ROSTERS` element, assert:
-   - in `accord/SKILL.md`, the sentence with `./finish.md` contains ``step 6 of `./lane-s.md` ``;
-   - in `accord-debug/SKILL.md`, the sentence with `./worktree.md` contains ``When `./failure.md` runs `accord worktree open` ``
-     and the sentence with `./ids.md` contains `at step 7`;
-   - in `accord-verify/SKILL.md`, the sentence with `./worktree.md` contains ``When `./failure.md` runs `accord worktree open` ``
-     and the sentence with `./ids.md` contains `at step 5`;
+   first `ROSTERS` element, assert the following. Each needle is given whole in the fenced block below, one per
+   line, and ends exactly where the line ends (the first two end on a comma, as in the fixed sentences).
+   - in `accord/SKILL.md`, the sentence with `./finish.md` contains needle A;
+   - in `accord-debug/SKILL.md`, the sentence with `./worktree.md` contains needle B and the sentence with
+     `./ids.md` contains needle C;
+   - in `accord-verify/SKILL.md`, the sentence with `./worktree.md` contains needle B and the sentence with
+     `./ids.md` contains needle D;
    - none of the five sentences matches `/\b(?:when|if|as) (?:needed|necessary|required)\b/i`.
+   ```
+   A: step 6 of `./lane-s.md`,
+   B: When `./failure.md` runs `accord worktree open`,
+   C: at step 7
+   D: at step 5
+   ```
+   The `A: `, `B: `, `C: ` and `D: ` prefixes are labels, not part of the needles.
    Then, for every `SKILL.md` in every element of `ROSTERS`, assert that its UTF-8 byte length is at most
    `MAX_SKILL_BYTES` and that its `split('\n').length` is at most `MAX_SKILL_LINES`, with the path as the message.
 
@@ -105,7 +114,8 @@ Behaviour that must not change: every other sentence of the three SKILL.md files
 including the relative-reference, first-command, cap and backslash cases. The source `loads:` lists do not change.
 
 Run `npm run gen`, `npm run build` and `node packages/cli/dist/cli.js skills sync`. Then run
-`npx vitest run packages/core/test/skills.test.ts packages/core/test/stage-skills.test.ts`.
+`npx vitest run packages/core/test/skills.test.ts packages/core/test/stage-skills.test.ts`, then `npm run typecheck`
+and `npm run lint`.
 
 ## Task 2: A move to lane S changes the lane M ticket in place
 
@@ -126,21 +136,30 @@ Write the test first: `ac-4 a lane M ticket moved to lane S at intent is changed
 in `packages/core/test/stage-skills.test.ts`, top level. Flatten each text with `.replace(/\s+/g, ' ')`. Over
 every rendered file of both renders above:
 - For every rendered `ids.md` (in accord, accord-intent, accord-debug and accord-verify, under each skill
-  directory), take `move` = the text from `## Moving to lane S` to the end, which is the last section. Assert it
-  contains each of these substrings:
-  `on the owner's yes`; `keeps its id, branch and worktree, and this same session goes on with it`;
-  ``an unchecked `- [ ]` item``; ``an uncommented `approved_hash:` line``;
-  ``git log --full-history -G '^approved_hash:' --format=%h <origin's default branch>..HEAD -- accord/tickets/<id>.md``;
-  ``git commit -m "intent: <id> before the move to lane S"``; ``replace the `lane:` line with `lane: "S"` ``;
-  ``replace the `## Intent`, `## Acceptance criteria`, `## Open questions` and `## Approach` sections, headings included, with `## Understood` and `## Done when` ``;
-  `written from the intent interview already held, with no new interview`;
-  ``## Scope`, written as step 1 of the accord skill's lane S steps says``;
-  ``Keep `## Vetoes`, `## Decisions` and `## Corrections` verbatim, and every other frontmatter key as it is``;
-  ``git push -u origin <claim branch>``; `go on at its Continue step 2 in this same session`;
-  `the lane S steps go on from step 1 on the same id, branch and worktree`.
-  Assert that the `before the move to lane S` commit comes before ``lane: "S"``, and that ``lane: "S"`` comes before
-  ``git push -u origin <claim branch>``. Assert `move` contains none of `accord drop`, `accord new ticket`,
-  `new session`, `new id`, `Title:`, `Keys:`.
+  directory), find the heading line in the raw text: `const at = text.indexOf('\n## Moving to lane S\n')`, assert
+  `at > -1`, and take `move` = `text.slice(at)` flattened. This anchors `move` on the heading line itself, so a
+  mention of the heading elsewhere in the file never starts the slice; the section runs to the end of the file.
+  Assert `move` contains each of the substrings in the fenced block below, one per line. Each needle is the whole
+  line, ends exactly where the line ends, and holds no line break of its own:
+  ```
+  on the owner's yes
+  keeps its id, branch and worktree, and this same session goes on with it
+  an unchecked `- [ ]` item
+  an uncommented `approved_hash:` line
+  git log --full-history -G '^approved_hash:' --format=%h <origin's default branch>..HEAD -- accord/tickets/<id>.md
+  git commit -m "intent: <id> before the move to lane S"
+  replace the `lane:` line with `lane: "S"`,
+  replace the `## Intent`, `## Acceptance criteria`, `## Open questions` and `## Approach` sections, headings included, with `## Understood` and `## Done when`,
+  written from the intent interview already held, with no new interview
+  `## Scope`, written as step 1 of the accord skill's lane S steps says
+  Keep `## Vetoes`, `## Decisions` and `## Corrections` verbatim, and every other frontmatter key as it is
+  git push -u origin <claim branch>
+  go on at its Continue step 2 in this same session
+  the lane S steps go on from step 1 on the same id, branch and worktree
+  ```
+  Assert that the index in `move` of `before the move to lane S` is less than that of `lane: "S"`, and that the
+  index of `lane: "S"` is less than that of `git push -u origin <claim branch>`. Assert `move` contains none of
+  `accord drop`, `accord new ticket`, `new session`, `new id`, `Title:`, `Keys:`.
 - In every rendered file, assert that none of these substrings appears: `moved from <id>`, ``Title: …``,
   ``Keys: …``, ``carried `Keys:` ``, ``carried `## Vetoes` ``, `Understood: <one line>`,
   ``carries `Understood: …` ``, `from a drop`, `lane S without asking again`, `--reason "moved to lane S"`.
@@ -157,9 +176,14 @@ Skill text:
   and replace the opening line (``Read this when config.yml has `people`. Register only when `people` exists, never create it.``) with:
   ```
   `## Assigning` and the two sections after it apply when config.yml has `people`; register only when `people` exists,
-  never create it. `## Dropping instead of renaming` applies whenever a ticket's type changes, and `## Moving to lane S`
-  when the intent interview moves a lane M ticket to lane S.
+  never create it. The section on dropping applies whenever a ticket's type changes, and the last section when the
+  intent interview moves a lane M ticket to lane S.
   ```
+  The opening line holds neither the `## Dropping instead of renaming` heading text nor the `## Moving to lane S` one. `lane-s.test.ts` line 138 takes
+  `ids.slice(ids.indexOf('## Moving to lane S'))` on the flattened file; with this wording the first match is the
+  heading itself, so that line stays as it is and its kept needles (`` `git status --porcelain --untracked-files=all` ``,
+  `commit only those records`, `` `git add -A` ``) and its `not.toContain('commit every change')` check read the new
+  section only.
   Replace the whole `## Moving to lane S` section with:
   ```
   ## Moving to lane S
@@ -228,13 +252,14 @@ other than the `stop:` clause stays. The other accord SKILL.md sections stay, an
 `stage-skills.test.ts` `ac-5 the ids reference drops a ticket with accord drop` and the session-check test still pass.
 
 Run `npm run gen`, `npm run build` and `node packages/cli/dist/cli.js skills sync`. Then run
-`npx vitest run packages/core/test/stage-skills.test.ts packages/core/test/lane-s.test.ts packages/core/test/skills.test.ts`.
+`npx vitest run packages/core/test/stage-skills.test.ts packages/core/test/lane-s.test.ts packages/core/test/skills.test.ts`,
+then `npm run typecheck` and `npm run lint`. Type each render as `AccordConfig`.
 
 ## Task 3: CI refuses a move to lane S only once intent was approved at the base or in a commit the pull request adds
 
 covers: @ac-5, D-05, D-06
 files: .github/workflows/accord.yml, packages/core/src/scaffold/workflow.ts, packages/cli/test/workflow-script.test.ts
-verify: packages/cli/test/workflow-script.test.ts#ac-5-both-CI-scripts-refuse-a-move-to-lane-S-only-once-intent-was-approved-at-the-base-or-in-a-commit-the-pull-request-adds (@ac-5), packages/cli/test/workflow-script.test.ts#risk:security-a-commit-of-the-pull-request-whose-ticket-frontmatter-cannot-be-read-fails-the-lane-check-closed-in-both-scripts
+verify: packages/cli/test/workflow-script.test.ts#ac-5-both-CI-scripts-refuse-a-move-to-lane-S-only-once-intent-was-approved-at-the-base-or-in-a-commit-the-pull-request-adds (@ac-5), packages/cli/test/workflow-script.test.ts#risk:security-a-commit-of-the-pull-request-whose-ticket-frontmatter-cannot-be-read-fails-the-lane-check-closed-in-both-scripts, packages/cli/test/workflow-script.test.ts#risk:security-the-lane-check-reads-a-lane-S-value-written-off-its-key-line-and-refuses-a-lane-L-ticket-at-the-base-in-both-scripts
 
 This task covers D-06 and D-05 part 3 (the CI half).
 
@@ -255,8 +280,10 @@ Write the tests first, in `packages/cli/test/workflow-script.test.ts`, top level
   `{ repo, base }`. Import `gitRun`, `commitMsg` and `mergeMsg` from `./helpers/repo.js`. Commits go through
   `-F` (conventions.md), never `-m`.
 - Ticket texts for id `LM-1`. Lane M: `---\nid: LM-1\nstatus: draft\nlane: M\n# approved_hash:\n<extra>---\n\n## Intent\nwhy\n`,
-  where `<extra>` is empty, `approved_hash: "abc"\n`, or `approved_hash:\n` (no value). Lane S:
+  where `<extra>` is empty, `approved_hash: "abc"\n`, or `approved_hash:\n` (no value). Lane L: the unapproved lane M
+  text with `lane: M` replaced by `lane: L`. Lane S:
   `---\nid: LM-1\nstatus: draft\nlane: "S"\n# approved_hash:\n---\n\n## Understood\nx\n\n## Done when\ny\n\n## Vetoes\n- none\n`.
+- Each (case, script) pair gets its own sandbox, because a run writes `script.sh` and `calls.log` into its sandbox.
 - Test `ac-5 both CI scripts refuse a move to lane S only once intent was approved at the base or in a commit the pull request adds`
   (`it.skipIf(noBash)`, its own timeout of 300_000). Build every sandbox first, then run every script at once with
   `runScriptAsync`, as the neighbouring cases do. Cases:
@@ -275,20 +302,38 @@ Write the tests first, in `packages/cli/test/workflow-script.test.ts`, top level
   call ends with ` gate done LM-1`.
 - Test `risk:security a commit of the pull request whose ticket frontmatter cannot be read fails the lane check closed in both scripts`
   (`it.skipIf(noBash)`). No seed; steps: `---\n{id: LM-1, lane: M}\n---\n\n## Intent\nwhy\n`, then lane S. Assert
-  exit 1 and `LM-1: its lane cannot drop after approval` for both scripts.
+  exit 1 and `LM-1: its lane cannot drop after approval` for both scripts. This case goes beyond the literal first
+  Then of ac-5, which speaks of a readable key: it follows the ledger Ruling that an unreadable ticket frontmatter,
+  at the base or at any commit the pull request adds, counts as possibly approved, so `lane_dropped` refuses.
+- Test `risk:security the lane check reads a lane S value written off its key line and refuses a lane L ticket at the base in both scripts`
+  (`it.skipIf(noBash)`, its own timeout of 300_000; every sandbox first, then every run at once). Cases:
+  - fail, value off its key line: seed lane M with `approved_hash: "abc"`; one step to the lane S text with
+    `lane: "S"\n` replaced by `lane:\n  S\n` (YAML reads this as lane S; the old key-line grep did not);
+  - fail, tagged value: the same seed; one step to the lane S text with `lane: "S"` replaced by `lane: !!str S`;
+  - fail, lane L at the base: seed lane L (unapproved); one step to lane S. This guards the kept L and P clause
+    (ledger Ruling);
+  - pass, guard against an over-wide check: seed lane M with `approved_hash: "abc"`; one step to the same text with
+    `## Intent\nwhy\n` replaced by `## Intent\nwhy\nedited\n`.
+  For a fail case, assert exit 1, that the output contains `LM-1: its lane cannot drop after approval`, and that no
+  call ends with ` gate done LM-1`. For the pass case, assert exit 0, that the output does not contain
+  `lane cannot drop after approval`, and that some call ends with ` gate done LM-1` (the stub's gate exits 0).
 
 Script change, the same in both files. In `workflow.ts`, write every `${` as `\${`, as the file already does; no
 backslash may appear anywhere else, because `scaffold.test.ts` forbids one. Replace the comment above
 `lane_dropped` and the function with:
 ```
-          # A ticket lane S at HEAD dropped its lane after approval (ST-LN-58 D-06) when an approved_hash key is in
-          # its version at the base or at any commit this pull request adds (git rev-list "$BASE..HEAD", merge sides
-          # included), or when it was lane L or P at the base. A lane M ticket never approved may move to lane S in
-          # place. An absent file is skipped; a read that cannot be settled, or a failing rev-list, fails closed.
+          # A ticket that may be lane S at HEAD dropped its lane after approval (ST-LN-58 D-06) when an approved_hash
+          # key is in its version at the base or at any commit this pull request adds (git rev-list "$BASE..HEAD",
+          # merge sides included), or when it was lane L or P at the base. At HEAD, only no lane key, or lane keys
+          # that each hold a plain M, L or P on the key line, rule lane S out: a value off its key line or behind a
+          # tag may still read as S. A lane M ticket never approved may move to lane S in place. An unsettled read
+          # at HEAD is gated, since approved_at counts it as approved; at the base or at a commit of this pull
+          # request, an unsettled read or a failing rev-list fails closed. An absent file is skipped.
           lane_dropped() {
-            local rc revs rev
+            local rc revs rev lanes
             fm_at HEAD "$file" || return 1
-            grep -Eq "^${qc}?lane${qc}?[[:space:]]*:[[:space:]]*${qc}?S${qc}?[[:space:]]*(#.*)?$" <<< "$fm" || return 1
+            lanes=$(grep -E "^${qc}?lane${qc}?[[:space:]]*:" <<< "$fm") || return 1
+            grep -Evq "^${qc}?lane${qc}?[[:space:]]*:[[:space:]]*${qc}?[MLP]${qc}?[[:space:]]*(#.*)?$" <<< "$lanes" || return 1
             fm_at "$BASE" "$file"
             rc=$?
             if [ "$rc" -eq 2 ]; then return 0; fi
@@ -310,18 +355,29 @@ backslash may appear anywhere else, because `scaffold.test.ts` forbids one. Repl
 ```
 Use no pathspec on `git rev-list`. A pathspec would simplify history and skip the merged side.
 
+The two lines after `fm_at HEAD` read the lane at HEAD. `lanes` holds every lane key line; when there is none, the
+ticket has no lane and is not lane S. The second grep prints the lane lines that are not a plain M, L or P (quoted or
+not, with an optional comment) on the key line; when it prints nothing, the ticket is lane M, L or P and the check
+stops. Anything else, `S`, a value on the next line, a tag, an anchor or a block scalar, goes on to the base and branch
+checks, as `protected_at` treats a lane value that is not on its key line. A HEAD whose frontmatter `fm_at` cannot
+settle still returns 1 here: the gate loop then runs `gate done` on it, because `approved_at` counts an unsettled
+read as approved.
+
 Change the refusal line to:
-`echo "$id: its lane cannot drop after approval (lane S at HEAD; approved at the base or in a commit of this pull request, or lane L or P at the base)"`.
+`echo "$id: its lane cannot drop after approval (lane S at HEAD, or a lane that is not a plain M, L or P there; approved at the base or in a commit of this pull request, or lane L or P at the base)"`.
 
 Behaviour that must not change: `fm_at`, `approved_at`, `protected_at`, `is_dropped`, the deletion check, the
 `has_code` logic, the gate loop, the `npx` pins, the step name `lint and gate`, and every message other than the
-refusal line. A ticket approved at the base and lane S at HEAD still fails. So does lane L or P at the base. Every
+refusal line. A ticket approved at the base and lane S at HEAD still fails. So does lane L or P at the base. A ticket
+whose lane at HEAD is a plain M, L or P is never refused by the lane check, so an approved lane M ticket edited in a
+pull request is still gated as before. Every
 existing case in `workflow-script.test.ts` still passes, including
 `the workflow of this repository gates the same tickets with the same exit as the emitted one`. The scaffold and
 upgrade tests still pass.
 
 Run `npm run build`, because the cli test imports `initFiles` from the built core. Then run
-`npx vitest run packages/cli/test/workflow-script.test.ts packages/core/test/scaffold.test.ts packages/cli/test/upgrade.test.ts packages/cli/test/init.test.ts`.
+`npx vitest run packages/cli/test/workflow-script.test.ts packages/core/test/scaffold.test.ts packages/cli/test/upgrade.test.ts packages/cli/test/init.test.ts`,
+then `npm run typecheck` and `npm run lint`.
 
 ## Task 4: The drop lint rule goes, a moved ticket lints clean as lane S, and the README names the exception
 
@@ -342,7 +398,8 @@ in `packages/core/test/lane-s.test.ts`, top level. Build the moved ticket from t
 `ids.md` `## Moving to lane S` step 3 says:
 - `id:` becomes `"MV-1"`; `title:` becomes `"Export"`; the `lane:` line becomes `lane: "S"`;
 - the text from `## Intent` up to `## Vetoes` is replaced by `## Understood\nThe export button writes a csv file.\n\n## Done when\nPressing export saves report.csv.\n\n## Scope\nsrc/export.ts\n\n`;
-- `## Vetoes`, `## Decisions` and `## Corrections` each get one line, and everything from `## Open questions` to the end is removed;
+- `## Vetoes` gets the line `- "never touch the schema"`, `## Decisions` gets `- D-01 csv only` and
+  `## Corrections` gets `- "no, the tsv one"`, and everything from `## Open questions` to the end is removed;
 - every other frontmatter line of the template, the commented keys included, stays.
 
 Load it with `snap({ 'accord/tickets/MV-1.md': moved }, { tree: ['src/export.ts', 'accord/config.yml', 'accord/tickets/MV-1.md'] })`.
@@ -350,7 +407,10 @@ Assert:
 - `lintSnapshot(s).findings` has no `error` finding;
 - the `statusRows` row for `MV-1` has `lane: 'S'` and `stage: 'intent'`;
 - `gateReady(s, 'MV-1').verdict` is `'pass'`;
-- `anchorText(s, 'MV-1')` starts with `Lane: S` and holds the `## Vetoes` line.
+- `const a = anchorText(s, 'MV-1')!.split('\n')` includes the line `Lane: S`, and includes `## Vetoes` followed
+  directly by `- "never touch the schema"` (`a[a.indexOf('## Vetoes') + 1]`). The anchor opens with
+  `# Anchor: MV-1 "Export"` and a blank line (`packages/core/src/status/anchor.ts` lines 29 and 30), so `Lane: S`
+  is its third line, not its first.
 
 When this test fails on product code, stop with `BLOCKED` and name the finding. Do not change lint or gate code to
 make it pass.
@@ -367,5 +427,8 @@ Then run `npm run gen`, which regenerates `packages/cli/README.md`. Run `npm run
 Behaviour that must not change: `lint.dropped-reason`, `lint.depends-dropped`, `lint.lane-s-lane-m-records` and
 every other lint rule and level; the other `lane-s.test.ts` cases; every other README line.
 
-Run `npx vitest run packages/core/test/lane-s.test.ts packages/core/test/lane-lint.test.ts packages/core/test/skills.test.ts`,
-then `tests.full`, `npx vitest run`.
+Run `npx vitest run packages/core/test/lane-s.test.ts packages/core/test/lane-lint.test.ts packages/core/test/skills.test.ts`.
+Then run `npm run typecheck` and `npm run lint`. CI runs both, and the typecheck reads test files under strict mode
+(`tsc -p packages/core/tsconfig.test.json`). Fix an error they report in a file on this task's `files:` line. For an
+error in any other file, stop with `BLOCKED` and name the file, the line and the error. Then run `tests.full`,
+`npx vitest run`.

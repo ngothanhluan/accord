@@ -64,7 +64,7 @@ Feature: ST-LN-58
     And a general condition such as "when needed" does not count
     And every rendered SKILL.md, of every skill, roster and runtime, stays within 5120 bytes and 120 lines
 
-  @ac-4
+  @ac-4 @test:packages/core/test/stage-skills.test.ts#ac-4-a-lane-M-ticket-moved-to-lane-S-at-intent-is-changed-in-place-and-no-skill-drops-it-or-hands-it-off
   Scenario: A lane M ticket moved to lane S at intent is changed in place
     Given the rendered accord skills
     When they describe moving a lane M ticket whose intent is not approved to lane S, on the owner's yes

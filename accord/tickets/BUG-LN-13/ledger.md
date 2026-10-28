@@ -24,6 +24,13 @@ Ruling: from task 3 on, the main session runs `tests.affected` and `tests.full` 
 Ruling: task 4 writes the dashboard.test.ts loop expectation as `['ST-AN-2','ST-AN-6'].includes(id) ? 'fail' : 'pass'` instead of two separate loops — same assertions, smaller diff — cost if wrong: none, the other assertions in that test are untouched
 Ruling: task 6 wraps the spec's Dependencies bullet to the file's line width, worded as the task lists it — layout only — cost if wrong: none
 Ruling: final review Should 1 (a refused lane M dependant reaches plan on `/accord continue`) is fixed in this ticket through a re-plan, not a separate ticket — the owner chose it ("A", 2026-10-28) as part of D-06 keeping dependants blocked — cost if wrong: one more task and review round on this ticket
+Ruling: the re-plan fixes the gap in Continue step 4 of the accord skill, not in core — holding the ticket at stage `intent` in progressOf would change the `stage` values the Intent's "Not" freezes and every `building`/`done` helper ticket in test/helpers/lane.ts has no `ac_hash`; a PLAN_RULES row would break many `gate plan` tests on approved tickets without `ac_hash` and still let the planner run first; accord-plan step 1 has about 60 bytes left under the 5120 cap — cost if wrong: the block relies on the agent following the skill, not on a tool
+Ruling: Continue runs `gate ready` at every lane M stage except `intent`, not only when `ac_hash` is absent — a re-approval whose Ready fails can leave an older or equal `ac_hash`; `gate ready` writes only when the value differs — cost if wrong: one extra gate run on every lane M Continue, and a stop at done if a prerequisite was later dropped on the default branch
+Ruling: `intent` is left out of that check — accord-approach step 5 already runs `gate ready` — cost if wrong: none
+Ruling: Continue commits a ticket that `gate ready` changed but does not push — the next stage's commit pushes, and it saves bytes under the cap — cost if wrong: the `ac_hash` commit stays local until that push
+Ruling: the debug resume (Continue step 3) and the after-verify failure path are not gated — both fix a failure in a ticket already at build or later — cost if wrong: a debug resume on a re-refused ticket goes unchecked
+Ruling: spec §6 gets one sentence on the check — that section describes Continue's routing — cost if wrong: wording only
+Ruling: Task 7 touches a third skill, the accord skill, beyond the two the Approach lists under Affected — the owner chose to fix the gap in this ticket ("A", 2026-10-28) — cost if wrong: one more file outside the approved Approach
 
 ## Deferred
 - plan round 1.2 (Nice): Task 1 adds test imports first used in Task 3; `npm run lint` reports unused vars after Tasks 1 and 2
@@ -31,6 +38,7 @@ Ruling: final review Should 1 (a refused lane M dependant reaches plan on `/acco
 - plan round 1.4 (Nice): Task 6 quotes its two anchor sentences as single lines; the sources wrap them
 - review round 1.1 (Nice): the risk:regression skills test (packages/core/test/stage-skills.test.ts:915-919) only checks a literal sentence in two skill files
 - review round 1.2 (Nice): doneRef (packages/cli/src/load/fs.ts:661-668) repeats the `rev-parse --verify -q` resolver of gitDefaultRef and the helper near fs.ts:297
+- plan round 3.2 (Nice): Task 7 changes the accord skill and spec §6 beyond the Approach's Affected list, covered by Rulings rather than a Decision
 - review round 2.2 (Nice): the `r2` block of packages/core/test/done-on-default.test.ts:65-72 re-tests what the ac-3 test covers end to end
 
 ## Tasks

@@ -1,6 +1,6 @@
 ---
 baseline: 85b3158334ccd32ed9e48e4a7ce560041b86467b
-plan_hash: "fnv1a64:d8da1643cd2e6a7a"
+plan_hash: "fnv1a64:639c3899ba15d46d"
 ---
 
 # Plan: BUG-LN-13
@@ -206,5 +206,42 @@ The sentence, `S`, used verbatim in both skills and in the test; it is keyed to 
 - Then, in this order (conventions.md): `npm run gen`, `npm run build`, `node packages/cli/dist/cli.js skills sync`; commit the regenerated `packages/core/src/generated/skills.ts` and the synced `.claude/skills/accord/lane-s.md` and `.claude/skills/accord-approach/SKILL.md`.
 - `docs/specs/2026-10-12-workflow-layer-design.md` §5: the **Dependencies** bullet (lines 145-147) keeps its first two sentences and replaces the rest with: a ticket counts as done for the dashboard and for its dependants (`accord dashboard`, `status`, `show`, `next` and `gate ready`) only when its records, as they stand on the default branch, give stage done; the default branch is origin's as `accord worktree clean` reads it (origin/HEAD, else origin/main or origin/master), or the local main or master in a clone with no origin remote, read without fetching; when none resolves, the tree the command runs on decides; this holds for merge, squash and rebase alike; `accord status --json` keeps the stage the ticket's own records give; `gate ready` refuses a ticket while a prerequisite is not done there, and asks to re-plan the ticket without a prerequisite that is dropped there. In the **Claim** bullet (line 150), `a dependency still counts as done only in the tree the command runs on` becomes `a dependency still counts as done only on the default branch`.
 - Behaviour that must not change: every other step and sentence of both skills; every phrase `packages/core/test/stage-skills.test.ts` and `packages/core/test/lane-s.test.ts` already assert; `packages/core/test/skills.test.ts` keeps every rendered `SKILL.md` at most 5120 bytes. If the approach skill then exceeds it, shorten `S` in both skills and in the test alike, keeping its four points: never remove the entry from `depends_on`, tell the owner, wait for the merge, then `git fetch` and `gate ready` again.
+
+Then run `packages/core/test/stage-skills.test.ts`, `packages/core/test/skills.test.ts` and `packages/core/test/lane-s.test.ts`; they must pass.
+
+## Task 7: Continue runs gate ready before every lane M stage after intent
+
+covers: D-06
+files: packages/core/test/stage-skills.test.ts, packages/core/skills/accord/SKILL.md, packages/core/src/generated/skills.ts, .claude/skills/accord/SKILL.md, docs/specs/2026-10-12-workflow-layer-design.md
+verify: packages/core/test/stage-skills.test.ts#risk:regression-continue-runs-gate-ready-before-every-lane-M-stage-after-intent-and-stops-on-a-refusal
+
+Closes the final review's plan gap. A lane M ticket that `accord gate ready` refused after `accord approve` (for example, B, whose prerequisite A is not done on the default branch) has a matching `approved_hash` and no tasks, so `accord anchor` prints stage `plan`. `/accord continue B` then loads `accord-plan`, and nothing on the plan or build path runs Ready again. The fix is in the accord skill's Continue step 4. It does not touch `progressOf`, because the ticket's Intent freezes the `stage` values of `accord status --json`. It does not add a `gate plan` row either. Before Continue loads the stage skill for any stage but `intent` (where `accord-approach` step 5 already runs it), it runs `accord gate ready <id>` and stops while that fails. The check runs at every stage after `intent`, not only when `ac_hash` is absent. A re-approval after a change of course can leave an `ac_hash` that is older, or equal when the criteria did not move, while the ticket's anchor reads `build`, `review`, `verify` or `done`. A re-run on a ticket that passes writes nothing (`writeKey` writes only on a difference).
+
+Consumes: the `gate.depends-unmerged` rule and `accord gate ready`'s default-ref read (Tasks 4 and 5); `anchorText`, `gateReady` and `loadSnapshot` from `packages/core/src/index.ts`; `approve`, `CONFIG`, `laneTicket`, `P` and the type `Files` from `test/helpers/lane.ts`. Produces: Continue step 4 with the sentence `G` below, and one sentence in spec §6.
+
+The sentence `G` is used verbatim in the skill source and in the test:
+
+> Else, at any stage but `intent`, first run `accord gate ready <id>`; when it fails, show the owner what it prints and stop; when it changes the ticket, commit the ticket.
+
+**Test first**, in `packages/core/test/stage-skills.test.ts`. Add `anchorText`, `gateReady` and `loadSnapshot` to the existing import from `../src/index.js`, and add `import { approve, CONFIG, laneTicket, P } from '../../../test/helpers/lane.js';` and `import type { Files } from '../../../test/helpers/lane.js';`. Then add a top-level `it` after the last test, titled `risk:regression continue runs gate ready before every lane M stage after intent and stops on a refusal`. Inside it, `const G` is a double-quoted string that holds `G` exactly, with its backticks written plainly and not escaped:
+1. The state the review found: `files: Files` = `{ 'accord/config.yml': CONFIG, [P('A')]: laneTicket('A'), [P('B')]: laneTicket('B', { frontmatter: ['depends_on: ["A"]'] }) }`, then `approve(files, 'B')` (B approved, no `ac_hash`). `snap = loadSnapshot({ files, tree: Object.keys(files) })`. `r = gateReady(snap, 'B')`: `r.verdict` is `'fail'` and `r.findings.some((f) => f.rule === 'gate.depends-unmerged')` is true. `anchorText(snap, 'B')` contains `'Stage: plan, next: '`. So the anchor routes the refused ticket to `accord-plan`.
+2. The Continue step that routes it: `acc = flatS('.claude/skills/accord/SKILL.md')`; `step4 = acc.slice(acc.indexOf('4. Otherwise'), acc.indexOf('## Pick up'))`; `at = (s: string) => step4.indexOf(s)`. `step4` contains `G`. ``at('`./lane-s.md`')`` is at least 0 and less than `at(G)`. For each of `` '`plan` → `accord-plan`' ``, `` '`build` → `accord-build`' ``, `` '`review` → `accord-review`' ``, `` '`verify` → `accord-verify`' `` and `` '`done` → `accord-verify` at step 6' ``, the route's index is greater than `at(G)`.
+
+At the start of this task part 1 passes and part 2 fails: step 4 does not contain `G`.
+
+**Changes**:
+- `packages/core/skills/accord/SKILL.md`, `## Continue` step 4: replace `Else load the stage skill` with `G` followed by ` Then load the stage skill`, so the step reads: when it prints `Lane: S`, follow `./lane-s.md`; `G`; then load the stage skill for the stage it prints, with the routes unchanged. Wrap the lines at the file's width with a three-space indent.
+- Then, in this order (conventions.md): `npm run gen`, `npm run build`, `node packages/cli/dist/cli.js skills sync`. Commit the regenerated `packages/core/src/generated/skills.ts` and the synced `.claude/skills/accord/SKILL.md` with the source.
+- `docs/specs/2026-10-12-workflow-layer-design.md` §6: at the end of the bullet that begins ``The anchored stage `intent` covers the approach too`` (lines 187-189), add this sentence, wrapped at the bullet's width:
+
+  > In lane M, at every other stage Continue first runs `accord gate ready <id>` and stops while it fails, so a ticket that gate ready refused after its approval, such as one whose prerequisite is not yet done on the default branch, is not planned or built.
+
+Behaviour that must not change:
+- Continue's step numbers, so `./failure.md` still reads correctly when it says "Continue's step 2 only" and "in place of Continue's steps 3 and 4". Step 3's debug resume and the lane S branch, which follows `./lane-s.md` without this check.
+- Every route of step 4 and the literal `` `done` → `accord-verify` at step 6. `` that `packages/core/test/stage-skills.test.ts` asserts.
+- Every other phrase that `packages/core/test/stage-skills.test.ts` asserts on `.claude/skills/accord/SKILL.md`: the `REQUIRED.accord` list, `` `Lane: S` ``, `` `./lane-s.md` ``, `` `branch` ``, `` `accord status --json` ``, and `` `accord worktree open <id> --continue` ``. The `## Continue` section still holds no `` `t/ ``, no `{id}` and no `worktree clean`.
+- The accord skill's first command is still `accord dashboard`.
+- `packages/core/test/skills.test.ts` holds for the rendered file. It stays at most 120 lines and at most 5120 bytes; it is about 4780 bytes before and about 4950 after. No line holds a capitalised `Ready` or `Done`, a rule id, or the word `warning`. The step's paragraph holds none of the subjects listed in `PROMOTED` in that test.
+- If the byte cap still fails, never cut another sentence. Shorten `G` the same way in the skill and in the test, keeping its four points: every lane M stage but `intent`, `accord gate ready <id>` first, a failure is shown to the owner and stops Continue, and a changed ticket is committed.
 
 Then run `packages/core/test/stage-skills.test.ts`, `packages/core/test/skills.test.ts` and `packages/core/test/lane-s.test.ts`; they must pass.

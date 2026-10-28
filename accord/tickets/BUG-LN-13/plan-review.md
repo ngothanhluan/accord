@@ -11,3 +11,7 @@ No findings
 
 ## Closed
 Converged at round 2: 0 Must open, 0 Should open, 3 Nice deferred.
+
+## Round 3 (whole)
+1. Should — Task 7 gates only Continue step 4; in the same session approach step 5 runs `gate ready`, and on a `gate.depends-unmerged` refusal sentence S tells the owner the ticket waits but never says to stop, so the paragraph goes on to commit, push and step 6 "Next: accord-plan", whose step 1 and step 4 never run Ready; B is planned while A is unmerged (approach/SKILL.md:60-65, :74; plan/SKILL.md:14, :48) — open
+2. Nice — Task 7 changes a third skill and spec §6 beyond the Approach's Affected list, covered only by ledger Rulings, not a Decision — deferred

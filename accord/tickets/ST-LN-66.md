@@ -1,6 +1,6 @@
 ---
 id: "ST-LN-66"                            # equals the file name: tickets/<id>.md
-title: "Short title in business language"
+title: "Cap how many test workers a run starts"
 type: "story" # story | bug
 status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "S" # S: one small change, worked from this ticket alone
@@ -16,10 +16,11 @@ ui: false
 ---
 
 ## Understood
-<!-- One line: the change, as the request was understood. -->
+vitest.config.ts sets pool: 'forks' with no maxWorkers, so every run starts CPUs-1 forks (19 on a 20-thread machine), each spawning git and the CLI; two sessions running tests at once ran a 32 GB host out of memory on 2026-10-28, and the contention likely slows tests past their limit (upgrade.test.ts ac-2 took 108 s against 90 s). Read the worker count from an environment variable, defaulting to about half the CPUs.
 
 ## Done when
-<!-- One line: the observable result that ends the work. -->
+A test run starts at most the configured number of forks, the default is about half the CPUs, the variable overrides it, and lint and the full suite pass.
 
 ## Scope
-<!-- One repository path per line, never a folder: every file the change is expected to touch, tests and new files included. -->
+- vitest.config.ts
+- packages/cli/test/vitest-config.test.ts

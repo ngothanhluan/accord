@@ -39,8 +39,10 @@ New request whose text is the whole text after `/accord`: for
 2. Run `accord anchor`.
 3. If `accord/tickets/<id>/debug.md` exists and its last `## ` heading is
    not `## Resolved`, load `accord-debug` and resume there.
-4. Otherwise, when it prints `Lane: S`, follow `./lane-s.md`. Else load the stage skill
-   for the stage it prints: `intent` →
+4. Otherwise, when it prints `Lane: S`, follow `./lane-s.md`. Else, at any stage
+   but `intent`, first run `accord gate ready <id>`; when it fails, show the
+   owner what it prints and stop; when it changes the ticket, commit the ticket.
+   Then load the stage skill for the stage it prints: `intent` →
    `accord-approach` at step 5, the owner's yes, when the ticket's
    `## Approach` is already written, otherwise `accord-intent`; `plan` →
    `accord-plan`, `build` → `accord-build`, `review` → `accord-review`,

@@ -258,7 +258,9 @@ it('ac-4 a live holder refuses a second session and a dead holder is taken over'
   expect(r2.code).toBe(2);
   expect(r2.err).toContain('Claude Code');
   expect(r2.err).toContain('sess-A');
-  expect(r2.err).toContain(taken);
+  expect(r2.err).toContain(`in ${sib}, since `);
+  expect(r2.err).toMatch(/since \d{4}-\d{2}-\d{2} \d{2}:\d{2} \(UTC[+-]\d{2}:\d{2}\) - /);
+  expect(r2.err).not.toContain(taken);
   expect(readFileSync(holdsFile(c), 'utf8')).toBe(bytes);
   setTable(tableOf(B));
   const r3 = await run(['worktree', 'open', 'ST-9', '--continue'], sib, envOf(B));
@@ -2703,3 +2705,170 @@ it('risk:complex-branching pick up and continue never clean the ticket they open
   expect(r.out).not.toContain('merged:');
   expect(lines(r.out)[0].startsWith('behind:')).toBe(true);
 }, 240_000);
+
+// BUG-LN-14: a /clear frees the holds its window took.
+const T = '2026-10-27T03:03:00.000Z';
+const A2 = { ...A, marker: 'sess-A2' };
+const clearOf = (cwd: string, s: { marker: string; pid: number }) =>
+  run(['hook', 'session-resume'], cwd, envOf(s), JSON.stringify({ session_id: s.marker, cwd, source: 'clear' }));
+
+it('ac-1 a clear in a window outside the ticket worktree removes the hold its old conversation took and another session continues the ticket', async () => {
+  const c = copy({ tickets: ['ST-9', 'ST-10'] });
+  const sib = c.sibling('ST-9');
+  c.git('worktree', 'add', '-q', '-b', 't/ST-9', sib, 'origin/main');
+  c.git('remote', 'remove', 'origin');
+  writeHolds(c, { 'ST-9': { tool: 'Claude Code', ...A, taken: T }, 'ST-10': DEAD });
+  setTable(tableOf(A));
+  const k = await clearOf(c.root, A2);
+  expect(k.code).toBe(0);
+  expect(k.out.startsWith('# accord rules\n')).toBe(true);
+  expect(Object.hasOwn(readHolds(c), 'ST-9')).toBe(false);
+  expect(readHolds(c)['ST-10']).toEqual(DEAD);
+  setTable(tableOf(B, A));
+  const r = await run(['worktree', 'open', 'ST-9', '--continue'], c.root, envOf(B));
+  expect(r.code).toBe(0);
+  expect(r.err).not.toContain('held by another session');
+  expect(lines(r.out)).toEqual([`enter: ${sib}`]);
+  expect((readHolds(c)['ST-9'] as { marker: string }).marker).toBe('sess-B');
+}, 120_000);
+
+it('risk:data-loss a clear whose window the process table does not show releases nothing and says so on stdout', async () => {
+  const c = copy();
+  writeHolds(c, { 'ST-9': { tool: 'Claude Code', ...A, taken: T } });
+  const bytes = readFileSync(holdsFile(c), 'utf8');
+  setTable([{ pid: process.pid, ppid: 1, start: 'self' }]);
+  const a = await clearOf(c.root, A2);
+  expect(a.code).toBe(0);
+  expect(a.err).toBe('');
+  expect(a.out.startsWith('# accord rules\n')).toBe(true);
+  expect(lines(a.out).some((l) => l.startsWith('accord: no hold released: cannot see this Claude Code session'))).toBe(true);
+  expect(readFileSync(holdsFile(c), 'utf8')).toBe(bytes);
+  const stdin = JSON.stringify({ session_id: 'sess-A2', cwd: c.root, source: 'clear' });
+  const b = await run(['hook', 'session-resume'], c.root, { CLAUDECODE: '1' }, stdin);
+  expect(b.code).toBe(0);
+  expect(lines(b.out).some((l) => l.startsWith('accord: no hold released: this Claude Code session sets no'))).toBe(true);
+  expect(readFileSync(holdsFile(c), 'utf8')).toBe(bytes);
+  const o = await run(['hook', 'session-resume'], c.root, {}, stdin);
+  expect(o.code).toBe(0);
+  expect(o.out).not.toContain('no hold released');
+  expect(readFileSync(holdsFile(c), 'utf8')).toBe(bytes);
+}, 60_000);
+
+it('ac-2 after a clear the window claims one other ticket and holds only that one', async () => {
+  const c = copy({ tickets: ['ST-9', 'ST-10'] });
+  const sib = c.sibling('ST-9');
+  c.git('worktree', 'add', '-q', '-b', 't/ST-9', sib, 'origin/main');
+  writeHolds(c, { 'ST-9': { tool: 'Claude Code', ...A, taken: T } });
+  writeFileSync(`${c.root}/.git/accord/worked`, 'ST-9\tsess-A\n');
+  setTable(tableOf(A));
+  const k = await clearOf(c.root, A2);
+  expect(k.code).toBe(0);
+  const r = await run(['worktree', 'open', 'ST-10'], c.root, envOf(A2));
+  expect(r.code).toBe(0);
+  expect(r.err).not.toContain('this session works');
+  expect(r.err).not.toContain('held by another session');
+  expect(lines(r.out).at(-1)).toBe(`enter: ${c.sibling('ST-10')}`);
+  expect(Object.keys(readHolds(c))).toEqual(['ST-10']);
+  expect((readHolds(c)['ST-10'] as { marker: string }).marker).toBe('sess-A2');
+}, 120_000);
+
+it('ac-3 a start or a clear in a second window in the ticket worktree leaves the first window hold in place', async () => {
+  const c = copy({ tickets: ['ST-9', 'ST-10'] });
+  const sib = c.sibling('ST-9');
+  c.git('worktree', 'add', '-q', '-b', 't/ST-9', sib, 'origin/main');
+  c.git('remote', 'remove', 'origin');
+  mkdirSync(`${sib}/sub`);
+  writeHolds(c, { 'ST-9': { tool: 'Claude Code', ...A, taken: T } });
+  const bytes = readFileSync(holdsFile(c), 'utf8');
+  setTable(tableOf(B, A));
+  const s = await run(['hook', 'session-start'], sib, envOf(B), JSON.stringify({ session_id: 'sess-B', cwd: sib, source: 'startup' }));
+  expect(s.code).toBe(0);
+  expect(readFileSync(holdsFile(c), 'utf8')).toBe(bytes);
+  const B2 = { ...B, marker: 'sess-B2' };
+  const k = await run(['hook', 'session-resume'], sib, envOf(B2), JSON.stringify({ session_id: 'sess-B2', cwd: `${sib}/sub`, source: 'clear' }));
+  expect(k.code).toBe(0);
+  expect(readFileSync(holdsFile(c), 'utf8')).toBe(bytes);
+  const r = await run(['worktree', 'open', 'ST-9', '--continue'], sib, envOf(B2));
+  expect(r.code).toBe(2);
+  expect(r.err).toContain('ST-9 is held by another session');
+  expect(r.err).toContain('sess-A');
+  expect((readHolds(c)['ST-9'] as { marker: string }).marker).toBe('sess-A');
+}, 120_000);
+
+it('ac-5 a clear in the held ticket worktree moves its hold to the new conversation and releases the window other holds', async () => {
+  const c = copy({ tickets: ['ST-9', 'ST-10'] });
+  const sib = c.sibling('ST-9');
+  c.git('worktree', 'add', '-q', '-b', 't/ST-9', sib, 'origin/main');
+  c.git('remote', 'remove', 'origin');
+  mkdirSync(`${sib}/sub`);
+  writeHolds(c, { 'ST-9': { tool: 'Claude Code', ...A, taken: T }, 'ST-10': { tool: 'Claude Code', ...A, taken: T } });
+  setTable(tableOf(A));
+  const k = await run(['hook', 'session-resume'], sib, envOf(A2), JSON.stringify({ session_id: 'sess-A2', cwd: `${sib}/sub`, source: 'clear' }));
+  expect(k.code).toBe(0);
+  expect(Object.keys(readHolds(c))).toEqual(['ST-9']);
+  expect(readHolds(c)['ST-9']).toMatchObject({ marker: 'sess-A2', pid: 7001, start: 'S-A', taken: T });
+  const same = await run(['worktree', 'open', 'ST-9', '--continue'], sib, envOf(A2));
+  expect(same.code).toBe(0);
+  expect(same.out).toBe(HELD);
+  setTable(tableOf(B, A));
+  const other = await run(['worktree', 'open', 'ST-9', '--continue'], c.root, envOf(B));
+  expect(other.code).toBe(2);
+  expect(other.err).toContain('ST-9 is held by another session');
+  expect(other.err).toContain('sess-A2');
+}, 120_000);
+
+it('risk:complex-branching a resume to another conversation keeps only the hold that conversation took and a compact releases nothing', async () => {
+  const c = copy();
+  const A3 = { ...A, marker: 'sess-A3' };
+  const both = { 'ST-9': { tool: 'Claude Code', ...A, taken: T }, 'ST-10': { tool: 'Claude Code', ...A3, taken: T } };
+  setTable(tableOf(A));
+  const resumeTo = (s: { marker: string; pid: number }, source: string) =>
+    run(['hook', 'session-resume'], c.root, envOf(s), JSON.stringify({ session_id: s.marker, cwd: c.root, source }));
+  writeHolds(c, both);
+  const a = await resumeTo(A3, 'resume');
+  expect(a.code).toBe(0);
+  expect(Object.keys(readHolds(c))).toEqual(['ST-10']);
+  expect((readHolds(c)['ST-10'] as { marker: string }).marker).toBe('sess-A3');
+  writeHolds(c, both);
+  const bytes = readFileSync(holdsFile(c), 'utf8');
+  const b = await resumeTo(A, 'compact');
+  expect(b.code).toBe(0);
+  expect(readFileSync(holdsFile(c), 'utf8')).toBe(bytes);
+}, 60_000);
+
+it('ac-4 a refusal names the folder and the local time with its offset of the hold', async () => {
+  vi.stubEnv('TZ', 'Asia/Ho_Chi_Minh');
+  expect(new Date(T).getTimezoneOffset()).toBe(-420);
+  const c = copy();
+  const sib = c.sibling('ST-9');
+  c.git('worktree', 'add', '-q', '-b', 't/ST-9', sib, 'origin/main');
+  c.git('remote', 'remove', 'origin');
+  setTable(tableOf(A));
+  const first = await run(['worktree', 'open', 'ST-9', '--continue'], c.root, envOf(A));
+  expect(first.code).toBe(0);
+  expect(lines(first.out)).toEqual([`enter: ${sib}`]);
+  expect((readHolds(c)['ST-9'] as { folder: string }).folder).toBe(sib);
+  writeHolds(c, { 'ST-9': { ...(readHolds(c)['ST-9'] as object), taken: T } });
+  setTable(tableOf(B, A));
+  const r = await run(['worktree', 'open', 'ST-9', '--continue'], c.root, envOf(B));
+  expect(r.code).toBe(2);
+  expect(r.err).toContain(`ST-9 is held by another session: Claude Code session sess-A (pid 7001) in ${sib}, since 2026-10-27 10:03 (UTC+07:00) - work it there, or close that session first`);
+  expect(r.err).not.toContain('\\');
+  vi.stubEnv('TZ', 'America/Bogota');
+  const west = await run(['worktree', 'open', 'ST-9', '--continue'], c.root, envOf(B));
+  expect(west.code).toBe(2);
+  expect(west.err).toContain('since 2026-10-26 22:03 (UTC-05:00)');
+}, 120_000);
+
+it('risk:parsing a hold written without a folder is refused as folder not recorded with its local time', async () => {
+  vi.stubEnv('TZ', 'Asia/Ho_Chi_Minh');
+  const c = copy();
+  const sib = c.sibling('ST-9');
+  c.git('worktree', 'add', '-q', '-b', 't/ST-9', sib, 'origin/main');
+  c.git('remote', 'remove', 'origin');
+  writeHolds(c, { 'ST-9': LIVE });
+  setTable(tableOf(B, { pid: 4242, start: 'S2' }));
+  const r = await run(['worktree', 'open', 'ST-9', '--continue'], sib, envOf(B));
+  expect(r.code).toBe(2);
+  expect(r.err).toContain('Claude Code session sess-H (pid 4242), folder not recorded, since 2026-10-18 07:00 (UTC+07:00) - work it there');
+}, 120_000);

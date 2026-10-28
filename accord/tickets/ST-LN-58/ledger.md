@@ -31,6 +31,8 @@
 - Ruling: the first affected-test run of task 2 failed 7 cases, every one a timeout (90 s, 120 s, 180 s hook) while the executor's own suite ran beside it; the re-run alone passed 1432 of 1432 — load, not a defect — cost if wrong: a real slow-down hidden behind the timeouts
 - Ruling: every later test run of this ticket (affected, review, verify's full run) sets ACCORD_BASH to C:\Program Files\Git\bin\bash.exe after `npm run build` — from PowerShell `bash` resolves to the WSL shim, workflow-script.test.ts sets noBash and records the executed CI cases skipped, so task 3's first affected run left its verify ids skipped and task-done refused; the plan baseline run and the affected runs of tasks 1 and 2 skipped those cases too (31 skipped) — cost if wrong: a CI-script failure hidden as a skip
 - Ruling: task 3's affected run with ACCORD_BASH passed 1462 cases and timed out one, worktree.test.ts "risk:data-loss clean keeps unpushed commits and new files that git status config would hide" at its 90 s limit in a 25-minute run; alone it passed in 51 s — the same load timeout as the baseline's worktree-push case, a file this ticket does not touch — cost if wrong: a real slow-down hidden behind the timeout
+- Ruling: (task 4, executor) no full run in the executor, on the main session's instruction to run only the touched test files while memory is short — the main session's affected run covers the rest — cost if wrong: a failure outside the touched tests surfaces at verify
+- Ruling: task 4's affected run with ACCORD_BASH passed 1460 cases and timed out four in files this ticket does not touch (lane-commands "a passing gate plan writes plan_hash once…" 30 s, upgrade "ac-2 upgrade replaces only the lint and gate step…" 90 s, workflow-script "a deleted approved ticket not dropped at the base…" 60 s, worktree-push "ac-2 each stage change…" 120 s); the four files alone passed 123 of 123 in 216 s — load timeouts, as in tasks 2 and 3 — cost if wrong: a real slow-down hidden behind the timeouts
 - Ruling: the ids.md opening line refers to "the section on dropping" and "the last section" instead of naming their headings — so a slice taken at the first `## Moving to lane S` starts at the heading — cost if wrong: one opening line worded less directly
 
 ## Deferred
@@ -44,3 +46,4 @@
 - task 1 done 4b60f0452c5f
 - task 2 done 4933d92fb90f
 - task 3 done ec7f4f9b1627
+- task 4 done efdc6fce420e

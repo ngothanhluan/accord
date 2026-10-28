@@ -25,3 +25,6 @@ Ruling: skill sentence S is tied to the words "not done" in the gate's reason, s
 - plan round 1.2 (Nice): Task 1 adds test imports first used in Task 3; `npm run lint` reports unused vars after Tasks 1 and 2
 - plan round 1.3 (Nice): Task 5's Consumes line leaves out Task 3, on which its step 2 depends
 - plan round 1.4 (Nice): Task 6 quotes its two anchor sentences as single lines; the sources wrap them
+
+## Tasks
+- task 1 done a46e5943fd4b

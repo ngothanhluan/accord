@@ -36,7 +36,7 @@ Not: no change to the shape of `accord status --json` or its `stage` values, no 
 ```gherkin
 Feature: BUG-LN-13
 
-  @ac-1
+  @ac-1 @test:packages/cli/test/done-on-default.test.ts#ac-1-a-lane-S-ticket-reviewed-only-on-its-claim-branch-stays-in-yours-with-its-next-step
   Scenario: A lane S ticket with a review verdict that is not yet on the default branch stays in YOURS
     Given a claimed lane S ticket whose review.md ends with a verdict on its claim branch
     And the ticket's records as they stand on the default branch do not give stage done

@@ -1,0 +1,44 @@
+# Ledger
+
+## Rulings
+- Ruling: intent: lane stays M although the owner asked whether it was lane S — the first scope overturned two earlier rulings (BUG-LN-2, ST-LN-3 D-06) and held more than one reading; the owner chose "A" (keep lane M) — none
+- Ruling: audit: who pushes after a recorded task (the CLI's task-done or the build skill) is left to the approach — @ac-1 fixes only when origin holds the task, before the next task starts — the approach may pick a layer the owner did not expect
+- Ruling: audit: @ac-1 names lane M because only lane M records build tasks with task-done; no lane guard is added beyond that — lane S has no build tasks — none
+- Ruling: audit: @ac-2 "why" is git's own message, printed after accord's line, with no classification of failures by accord — reworded in the scenario — a long git message takes several lines
+- Ruling: audit (after the owner chose B): that failure scenario is now @ac-3, and its "why" ruling above carries over; whether the push sits in the CLI (task-done, approve, gate plan) or in the stage skills, and whether a command exits 0 on a failed push, is the approach's choice — @ac-3 fixes only that the stage goes on without stopping or asking — a CLI exit code a script relies on may change
+- Ruling: approach: chosen architect option 2 (`accord worktree push <id>` called by the stage skills) — lightest that keeps @ac-3 deterministic — the push depends on the skill clause being followed (critic Should 1, kept as a risk)
+- Ruling: approach: the push names the branch ref, not HEAD — correct from any worktree — none
+- Ruling: approach: a push killed by the time limit prints `no answer within N seconds` after the failure line (critic Should 2) — git gives no message then, and @ac-3 promises a reason — none
+- Ruling: approach: build step 6 (re-approved approach) also pushes (critic Should 3) — the Intent lists approach approval as a stage change — none
+- Ruling: plan: the plan and build skill clauses drop "go on even if it fails" — the 5120-byte cap leaves no room (rendered plan 5061, build 5010 bytes), and the command exits 0 with a failure line saying the commits stay local until the next push — an agent may pause at a failed push in plan or build
+- Ruling: plan round 1: the go-on for a failed `accord worktree push` lives in accord/worktree.md (no SKILL.md byte cap), whose `push of` bullet is narrowed to Continue's merge push — the line prefix matched a stop rule, and plan and build have no room for the clause — a session that never loaded worktree.md may still pause at a failed push
+- Ruling: plan round 2.1: the force-with-lease push is a `--force-with-lease` option on `accord worktree push`, not a raw `git push --force-with-lease origin <branch>` in skill text — the flag keeps @ac-3: no prompt, exit 0 and the same `push of` line — one CLI option and one test
+- Ruling: plan round 2.1: the worktree.md rule says "after a commit is reworded", not only one already on origin — a session cannot easily tell, and the lease push is a fast-forward otherwise — none
+- Ruling: plan round 2.1: the option is added in Task 4 (test first) while Task 2's worktree.md names it earlier — skill-commands.test.ts checks only the command path — none
+- Ruling: plan round 2.2 supersedes the Ruling that a push killed by the time limit prints `no answer within N seconds` — the owner dropped the limit — a remote that hangs keeps the push waiting
+- Ruling: plan round 3.1: the lease push also passes `--force-if-includes` (owner chose it); the Approach's "pushed with `--force-with-lease`" stands and is not re-approved — it only narrows when the push may overwrite — a git older than 2.30 fails that push with the usual `push of` line
+- Ruling: plan round 3.1: the teammate-after-fetch case checks only accord's failure line, a non-empty git message and origin still at the teammate's commit, not git's wording — git's documentation does not fix that wording — a change in git's wording goes unnoticed
+- Ruling: plan round 3.1: worktree.md and the CLI help say "the command" / "this branch once held", not "the lease" — the protection comes from both flags together — none
+- Ruling: baseline: at 532456c (no product change since 96525b1) the full suite (1542 s) had 9 timeouts and no assertion failure — show-approval ac-1 (300 s), workflow-script ×3 (60 s), lane-s gate done (120 s), upgrade ac-2 and risk:data-loss, after-verify graph order, drop claim tip; owner chose "Record and continue the build" (translated from Vietnamese): a timeout of these at verify is re-run alone; slow tests are ST-LN-44 — a real regression in these files could hide behind a timeout
+- Ruling: build task 1: the test's row() reads `dashboard --json` sections as `{ rows: [...] }`, not bare arrays as the brief implied — the shape comes from dashboard.test.ts — only the test helper changes if wrong; its helpers (claimed, onOrigin, freshReport, row) are not exported yet and head() was dropped, so tasks 3 and 4 add what they need
+- Ruling: build task 2: the inserted skill text is wrapped by hand near neighbouring line widths where the brief gave only the sentence (intent 9, approach 5, build 3 and 6) — the brief says so — a cosmetic rewrap; rendered plan SKILL.md 5099 and build 5111 of 5120 bytes
+- Ruling: build task 3: the expected origin tip is the sha commitMsg returns, since head() was dropped in task 1 — the same check — none
+- Ruling: build task 4: head(dir) is back in worktree-push.test.ts with FAILED, reword and teammate(c) helpers — the task text uses head — a few removable test lines
+- Ruling: build task 4: `lease === true` adds `--force-with-lease --force-if-includes` before `origin`; without the option neither flag is passed; run.ts maps `forceWithLease` to `{ lease }` — as the brief says — none
+- Ruling: review round 1: plan step 8, build steps 3 and 6 now carry "; go on even if it fails"; room made by joining wrapped lines, no words cut (rendered plan 5111, build 5027 of 5120 bytes) — @ac-3 for a session without worktree.md — none
+- Ruling: review round 1: packages/cli/src/load/fs.ts is changed outside the plan — the git log parsing of gitBranchCommits is factored into logCommits so worktreePush can list unpushed commits — none
+- Ruling: review round 1: with trailers forbid and no origin/<branch> nor default ref to compare against, the push is held back with the "run git fetch origin" message under the same failure line, exit 0 — a UsageError (exit 2) breaks @ac-3, pushing unchecked is the bug fixed — a clone with no remote refs never pushes until it fetches
+- Ruling: review round 1: the unpushed range is refs/heads/<branch> with all parents, not first-parent — the push sends merge parents too — none
+- Ruling: final review: the held-back push prints the remedy line (reword, then push again) after the reason lines; the first line and exit 0 are unchanged (@ac-3) — the skills have no bytes left for it — none
+- Ruling: audit: @ac-2 requires each step's own change to be committed before the push, so an approval or plan left uncommitted cannot pass by pushing nothing new — reworded in the scenario — none
+- Ruling: verify: at bcfb748 the full suite (--maxWorkers=4) timed out show-approval ac-1, upgrade ac-2 and two workflow-script cases, all in the baseline list; run alone, upgrade and workflow-script passed and show-approval ac-1 still timed out (300 s), while CI passed all 5 jobs on the same commit; owner chose "Stop, wait for ST-LN-44" (translated from Vietnamese): the tick and verification.md stay uncommitted, PR #108 stays draft, and gate done runs after ST-LN-44 — the tick waits on another ticket
+## Deferred
+- Nice (review round 1, security): after a forbidden-line reword a plain `accord worktree push` prints "until the next push" but never succeeds; the `--force-with-lease` instruction lives only in worktree.md (worktree.ts:553)
+
+- Nice (final review 2): gitUnpushedCommits re-checks the default ref that gitDefaultRef already resolved, with a second copy of the `resolves` helper (fs.ts:948-956 vs 757-767 in the package) — one extra git spawn per push under trailers forbid
+
+## Tasks
+- task 1 done cfb62ee4082d
+- task 2 done 35a03fb68e3b
+- task 3 done 92b546d53455
+- task 4 done ec3f812719ea

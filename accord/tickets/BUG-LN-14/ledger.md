@@ -13,3 +13,14 @@
 - Ruling: the release removes holds inside `withHolds`, the locked read-modify-write of the holds file, never as a separate read and write — the critic's failure scenario C, a lost hold of a third session — cost if wrong: none.
 - Ruling: whether Claude Code passes CLAUDE_PID, CLAUDE_CODE_SESSION_ID and CLAUDECODE to hook processes is unverified (ST-LN-27 left it as an untested Ruling); the plan's first task probes it on a real /clear before any build, and the hook says on stdout when a release fails — the whole option rests on it — cost if wrong: the approach goes back to the architect.
 - Ruling: after the second audit, ac-1 says the /clear itself removes the record; "in ST-9's worktree folder" means that folder or any folder below it (as the existing folder rule takes the git top of the window's folder); ac-4 prints the folder as an absolute path with forward slashes (the repository's no-backslash path rule) and the time to the minute in D-05's form — each split was settled by the approved Decisions or an existing repository rule, not a new intent — cost if wrong: a reworded Then line and its test.
+- Ruling: the probe and the failing reproduction share Task 1 — `accord gate plan` needs a `verify:` line on every task and a probe writes no test, and a bug ticket's first task is the reproduction — cost if wrong: Task 1 is split in two.
+- Ruling: the probe also checks that a command run by the new conversation sees the new conversation id — the works rule reads `CLAUDE_CODE_SESSION_ID`, and with the old id the worked record would refuse ac-2's claim in a real window — cost if wrong: one extra step for the owner.
+- Ruling: a `risk:data-loss` test for a release that fails (the process table does not show the window, or the session variables are missing) — the Approach requires the stdout line and a release on a guess would lose holds — cost if wrong: one extra test.
+- Ruling: `takeHold` gains a `path` argument and records `folder = isLinked(ctx.root) ? ctx.root : path` — this matches the folder Ruling at every call site — cost if wrong: the refusal names a folder one step off.
+- Ruling: a hold the same session takes again keeps its `folder` as it keeps `taken`, and gains one only when it had none — cost if wrong: the refusal names the first folder, not the newest.
+- Ruling: `localTime` prints the raw `taken` value when it cannot be parsed — the holds file is read from disk — cost if wrong: none.
+- Ruling: under a /resume, the hold of the ticket whose worktree the window stands in also moves to the resumed conversation — the ledger's /resume Ruling excepts that ticket as D-06 does — cost if wrong: one rule in the release.
+
+## Deferred
+
+- Plan round 1.3 (Nice): skip the process-table read and the holds lock on a /clear or /resume when no hold carries this window's `CLAUDE_PID`, by a lock-free `readHoldsFile` look first.

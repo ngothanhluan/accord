@@ -111,9 +111,9 @@ jobs:
           # reads a non-zero exit as "not yet visible", and `-e` would stop on the first attempt.
           set -uo pipefail
           # The registry is eventually consistent: npm acknowledges a publish before every edge
-          # serves the new version. 12 attempts at 15s is a three-minute budget, and the attempt
+          # serves the new version. 40 attempts at 15s is a ten-minute budget, and the attempt
           # number is echoed so a slow release reads as a slow release rather than a broken package.
-          for attempt in $(seq 1 12); do
+          for attempt in $(seq 1 40); do
             if out=$(npx --yes "${PKG}@${VERSION}" --version 2>&1); then
               echo "attempt ${attempt}: ${out}"
               # Visible but wrong output is not a propagation problem. Failing now rather than
@@ -126,5 +126,5 @@ jobs:
             echo "attempt ${attempt}: not yet visible; sleeping 15s"
             sleep 15
           done
-          echo "${PKG}@${VERSION} never became installable within 3 minutes" >&2
+          echo "${PKG}@${VERSION} never became installable within 10 minutes" >&2
           exit 1

@@ -23,6 +23,7 @@ Ruling: skill sentence S is tied to the words "not done" in the gate's reason, s
 Ruling: from task 3 on, the main session runs `tests.affected` and `tests.full` with `--maxWorkers=6` added on the command line, config.yml unchanged — an unbounded vitest fork pool (19 forks on this 20-thread machine) ran the host out of memory and the run was killed; a lasting worker cap in the repository is left out of this ticket — cost if wrong: test runs take longer; which tests run is unchanged
 Ruling: task 4 writes the dashboard.test.ts loop expectation as `['ST-AN-2','ST-AN-6'].includes(id) ? 'fail' : 'pass'` instead of two separate loops — same assertions, smaller diff — cost if wrong: none, the other assertions in that test are untouched
 Ruling: task 6 wraps the spec's Dependencies bullet to the file's line width, worded as the task lists it — layout only — cost if wrong: none
+Ruling: final review Should 1 (a refused lane M dependant reaches plan on `/accord continue`) is fixed in this ticket through a re-plan, not a separate ticket — the owner chose it ("A", 2026-10-28) as part of D-06 keeping dependants blocked — cost if wrong: one more task and review round on this ticket
 
 ## Deferred
 - plan round 1.2 (Nice): Task 1 adds test imports first used in Task 3; `npm run lint` reports unused vars after Tasks 1 and 2
@@ -30,6 +31,7 @@ Ruling: task 6 wraps the spec's Dependencies bullet to the file's line width, wo
 - plan round 1.4 (Nice): Task 6 quotes its two anchor sentences as single lines; the sources wrap them
 - review round 1.1 (Nice): the risk:regression skills test (packages/core/test/stage-skills.test.ts:915-919) only checks a literal sentence in two skill files
 - review round 1.2 (Nice): doneRef (packages/cli/src/load/fs.ts:661-668) repeats the `rev-parse --verify -q` resolver of gitDefaultRef and the helper near fs.ts:297
+- review round 2.2 (Nice): the `r2` block of packages/core/test/done-on-default.test.ts:65-72 re-tests what the ac-3 test covers end to end
 
 ## Tasks
 - task 1 done a46e5943fd4b

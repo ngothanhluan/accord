@@ -24,6 +24,7 @@ Two runs started together never overlap, a stale lock is taken over, and lint an
 
 ## Corrections
 - 2026-10-28, after review converged and a tests.full run was started: "Why run the tests again? Open the PR."
+- 2026-10-28, when gate done refused a report from the stopped tests.full run (79 git commands killed): chose "B: open the PR now, skipping gate done".
 
 ## Scope
 <!-- One repository path per line, never a folder: every file the change is expected to touch, tests and new files included. -->

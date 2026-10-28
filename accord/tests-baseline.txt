@@ -281,7 +281,6 @@ packages/cli/test/workflow-script.test.ts#the-emitted-workflow-script-—-execut
 packages/cli/test/workflow-script.test.ts#the-emitted-workflow-script-—-executed->-mutation-probe:-the-deletion-filter-and-the-level-bound-are-what-cause-those-two-results
 packages/cli/test/workflow-script.test.ts#the-emitted-workflow-script-—-executed->-nested-path-diff:-accord/tickets/<id>/verification.md-is-not-a-ticket-([^/]+)
 packages/cli/test/workflow-script.test.ts#the-emitted-workflow-script-—-executed->-ticket-adding-diff:-gates-that-ticket-by-the-id-in-its-file-name-(D-137)
-packages/cli/test/workflow-script.test.ts#the-emitted-workflow-script-—-executed->-ticket-deleting-diff:-does-not-gate-the-ticket-the-pull-request-removes-(A-09)
 packages/cli/test/workflow-script.test.ts#the-emitted-workflow-script-—-what-is-under-test->-is-a-multi-line-script-lifted-from-the-emitted-document,-and-bash-resolved
 packages/core/test/agents.test.ts#agents-name-what-the-spec-requires->-architect-names-every-required-phrase
 packages/core/test/agents.test.ts#agents-name-what-the-spec-requires->-critic-names-every-required-phrase

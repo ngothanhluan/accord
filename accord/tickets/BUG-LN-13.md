@@ -44,7 +44,7 @@ Feature: BUG-LN-13
     Then the ticket is listed in YOURS with the next step "the pull request; run accord gate done (lane-s.md)"
     And the count line does not count it as done
 
-  @ac-2
+  @ac-2 @test:packages/cli/test/done-on-default.test.ts#ac-2-a-ticked-lane-M-ticket-on-its-claim-branch-stays-in-yours-with-the-pull-request-as-its-next-step
   Scenario: A ticked lane M ticket that is not yet on the default branch stays in YOURS
     Given a claimed lane M ticket whose ticks are bound on its claim branch
     And the ticket's records as they stand on the default branch do not give stage done
@@ -59,7 +59,7 @@ Feature: BUG-LN-13
     Then the dashboard shows B as blocked by A and accord gate ready B fails naming A
     And once A's records on the default branch give stage done, A leaves YOURS, counts as done, B is no longer shown as blocked, and accord gate ready B no longer fails on A
 
-  @ac-4
+  @ac-4 @test:packages/cli/test/done-on-default.test.ts#ac-4-status-json-keeps-the-row-keys-and-stage-done-of-a-ticket-done-only-on-its-claim-branch
   Scenario: accord status --json keeps its shape
     Given a ticket that is done on its claim branch but not on the default branch
     When the owner runs accord status --json

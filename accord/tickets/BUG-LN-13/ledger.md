@@ -28,3 +28,4 @@ Ruling: skill sentence S is tied to the words "not done" in the gate's reason, s
 
 ## Tasks
 - task 1 done a46e5943fd4b
+- task 2 done f26f7b42eb84

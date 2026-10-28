@@ -22,6 +22,7 @@ Ruling: a prerequisite dropped in the checkout is still left to lint, even if th
 Ruling: skill sentence S is tied to the words "not done" in the gate's reason, so it never covers the dropped reason — otherwise "never remove that entry" would contradict "re-plan without it" — cost if wrong: wording only
 Ruling: from task 3 on, the main session runs `tests.affected` and `tests.full` with `--maxWorkers=6` added on the command line, config.yml unchanged — an unbounded vitest fork pool (19 forks on this 20-thread machine) ran the host out of memory and the run was killed; a lasting worker cap in the repository is left out of this ticket — cost if wrong: test runs take longer; which tests run is unchanged
 Ruling: task 4 writes the dashboard.test.ts loop expectation as `['ST-AN-2','ST-AN-6'].includes(id) ? 'fail' : 'pass'` instead of two separate loops — same assertions, smaller diff — cost if wrong: none, the other assertions in that test are untouched
+Ruling: task 6 wraps the spec's Dependencies bullet to the file's line width, worded as the task lists it — layout only — cost if wrong: none
 
 ## Deferred
 - plan round 1.2 (Nice): Task 1 adds test imports first used in Task 3; `npm run lint` reports unused vars after Tasks 1 and 2

@@ -130,17 +130,16 @@ it('ac-5 a queued lane M ticket drops to lane S only at intent on the owners yes
   const rule = intent.slice(intent.indexOf('**Lane S.**'));
   expect(rule.length).toBeGreaterThan(0);
   expect(intent.indexOf('**Lane S.**')).toBeGreaterThan(intent.indexOf('## Rules'));
-  for (const x of ['fits lane S', '`accord status --json`', '`depends_on`', '`git status --porcelain --untracked-files=all`', 'propose dropping it to lane S', "only on the owner's yes", '`## Moving to lane S` in `./ids.md`', 'From step 9 on, a lane never drops'])
+  for (const x of ['fits lane S', '`accord status --json`', '`depends_on`', '`git status --porcelain --untracked-files=all`', "only on the owner's yes", '`## Moving to lane S` in `./ids.md`', 'From step 9 on, a lane never drops'])
     expect(rule, x).toContain(x);
   const ids = flat('.claude/skills/accord-intent/ids.md');
   expect(ids.length).toBeGreaterThan(0);
   expect(ids).toBe(flat('.claude/skills/accord/ids.md'));
   const move = ids.slice(ids.indexOf('## Moving to lane S'));
-  for (const x of ['`git status --porcelain --untracked-files=all`', 'do not drop', 'commit only those records', '`git add -A`', '`accord drop <id> --reason "moved to lane S"`', 'step 1 of', '(lane S, moved from <id>)', 'Title: <its title> Keys: <its depends_on, tracker, priority, ui and design lines', '`accord new ticket --lane S --worktree`', 'a new id'])
+  for (const x of ['`git status --porcelain --untracked-files=all`', 'commit only those records', '`git add -A`'])
     expect(move, x).toContain(x);
   expect(move).not.toContain('commit every change');
   const accord = flat('.claude/skills/accord/SKILL.md');
-  expect(accord).toContain('lane S without asking again');
   expect(accord).toContain('--lane S --worktree');
   const plan = flat('.claude/skills/accord-plan/SKILL.md');
   expect(plan).toContain('Run `git rev-parse HEAD` (lifted from lane S: the fork point in its ledger Ruling)');

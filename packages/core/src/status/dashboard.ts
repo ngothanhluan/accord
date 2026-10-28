@@ -3,7 +3,7 @@
 import type { Lane, RepoSnapshot } from '../model/snapshot.js';
 import { nextRows, statusRows } from './rows.js';
 import type { StatusRow } from './rows.js';
-import { isDone } from './stage.js';
+import { isDone, nextStep } from './stage.js';
 
 export interface DashboardSection {
   rows: StatusRow[];
@@ -36,7 +36,6 @@ export interface Dashboard {
 
 const closed = (r: StatusRow) => r.status === 'archived' || r.status === 'dropped';
 const isWork = (r: StatusRow) => r.lane !== undefined && r.type !== 'epic';
-const isOpen = (r: StatusRow) => isWork(r) && !closed(r) && r.stage !== 'done';
 const blocked = (r: StatusRow) => (r.blockedBy ?? []).length > 0;
 
 const cmp = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
@@ -112,7 +111,13 @@ function epicsSection(snapshot: RepoSnapshot, plain: RepoSnapshot): Dashboard['e
 
 export function dashboard(snapshot: RepoSnapshot, viewer: string, now?: number, plainSnapshot?: RepoSnapshot): Dashboard {
   const plain = plainSnapshot ?? snapshot;
-  const all = statusRows(snapshot, now, plain);
+  const ref = snapshot.defaultRef;
+  // BUG-LN-13 D-01: with a default ref read, a row counts as done exactly when it is done there; with none, its own stage.
+  const finished = (r: StatusRow) => (ref === undefined ? r.stage === 'done' : isDone(ref.snapshot, r.id));
+  const isOpen = (r: StatusRow) => isWork(r) && !closed(r) && !finished(r);
+  const all = statusRows(snapshot, now, plain).map((r) =>
+    isWork(r) && !closed(r) && r.stage === 'done' && !finished(r) ? { ...r, next: nextStep(snapshot.tickets[r.id], 'done') } : r,
+  );
   const prio = effectivePriorities(snapshot, plain);
   const open = all.filter(isOpen);
   const mine = (r: StatusRow) => r.claimedBy !== undefined && r.claimedBy.toLowerCase() === viewer.toLowerCase();
@@ -123,7 +128,7 @@ export function dashboard(snapshot: RepoSnapshot, viewer: string, now?: number, 
   const ready = section(readyAll, prio);
   // D-03, D-04: always present; every ready ticket is READY's, so UP NEXT is the backlog and the blocked.
   const rest = section(unclaimed.filter((r) => !readyAll.includes(r)), prio).rows;
-  const first = rest.find((r) => !blocked(r));
+  const first = rest.find((r) => !blocked(r) && r.stage !== 'done');
   return {
     yours,
     team: section(claimed.filter((r) => !mine(r)), prio),
@@ -135,7 +140,7 @@ export function dashboard(snapshot: RepoSnapshot, viewer: string, now?: number, 
       ready: readyAll.length,
       blocked: unclaimed.filter(blocked).length,
       backlog: unclaimed.filter((r) => !blocked(r) && !readyAll.includes(r)).length,
-      done: all.filter((r) => isWork(r) && !closed(r) && r.stage === 'done').length,
+      done: all.filter((r) => isWork(r) && !closed(r) && finished(r)).length,
       withoutLane: all.filter((r) => r.type !== undefined && r.type !== 'epic' && r.lane === undefined && !closed(r) && !isDone(plain, r.id)).length,
       withSchemaErrors: all.filter((r) => r.type === undefined).length,
     },

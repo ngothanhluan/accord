@@ -28,7 +28,7 @@ import { testsSkipped } from './commands/tests-skipped.js';
 import { drop } from './commands/drop.js';
 import { upgrade } from './commands/upgrade.js';
 import { worktreeCheck, worktreeClean, worktreeMerge, worktreeOpen, worktreePush } from './commands/worktree.js';
-import { loadClaimView, loadFromFs, UsageError } from './load/fs.js';
+import { loadClaimView, loadFromFs, UsageError, withDefaultRef } from './load/fs.js';
 import { pinMessage, versionOnDisk } from './pin.js';
 import { repoRoot } from './root.js';
 
@@ -45,7 +45,9 @@ export interface RunOptions {
 export interface CommandContext {
   root: string;
   snapshot: RepoSnapshot;
-  plain?: RepoSnapshot; // checkout-only snapshot, set under 'claims' (BUG-LN-2 D-04)
+  // Checkout-only snapshot, set under 'claims': `show --approval` reads it, and a dependency counts as done on the
+  // default branch (`snapshot.defaultRef`, BUG-LN-13 D-01), here only when no default ref resolves (BUG-LN-2 D-04).
+  plain?: RepoSnapshot;
   stdout: NodeJS.WritableStream;
   stderr: NodeJS.WritableStream;
   env: NodeJS.ProcessEnv;
@@ -59,15 +61,17 @@ export interface CommandContext {
 function preflight(opts: RunOptions, mode: 'checkout' | 'stage' | 'claims' | 'light' = 'checkout'): CommandContext {
   const root = repoRoot(opts.cwd);
   const parts = mode === 'claims' ? loadClaimView(root) : undefined;
-  const snapshot = loadSnapshot(parts?.view ?? loadFromFs(root, { stage: mode === 'stage', light: mode === 'light' }));
-  const plain = parts === undefined ? undefined : parts.checkout === parts.view ? snapshot : loadSnapshot(parts.checkout);
+  const loaded = loadSnapshot(parts?.view ?? loadFromFs(root, { stage: mode === 'stage', light: mode === 'light' }));
+  const plain = parts === undefined ? undefined : parts.checkout === parts.view ? loaded : loadSnapshot(parts.checkout);
   // D-94: a hard refusal, no flag and no environment variable that skips it. `config` is undefined
   // when config.yml is missing or failed the schema (D-31); those repositories must report their
   // schema findings through lint rather than a pin error, so the check is guarded rather than global.
-  if (snapshot.config !== undefined) {
-    const message = pinMessage(snapshot.config.accord, pkg.version, versionOnDisk());
+  if (loaded.config !== undefined) {
+    const message = pinMessage(loaded.config.accord, pkg.version, versionOnDisk());
     if (message !== undefined) throw new UsageError(message);
   }
+  // BUG-LN-13 D-01: the default ref's records ride on the snapshot; `plain` stays the checkout.
+  const snapshot = mode === 'claims' ? withDefaultRef(root, loaded) : loaded;
   return { root, snapshot, ...(plain === undefined ? {} : { plain }), stdout: opts.stdout, stderr: opts.stderr, env: opts.env ?? {}, ...(opts.stdin === undefined ? {} : { stdin: opts.stdin }) };
 }
 

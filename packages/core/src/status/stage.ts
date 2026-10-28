@@ -107,3 +107,8 @@ export function isDone(snapshot: RepoSnapshot, id: string): boolean {
   const progress = progressOf(snapshot, ticket);
   return progress === undefined ? ticksBound(ticket) : progress.stage === 'done';
 }
+
+/** BUG-LN-13 D-01, D-04: done for the dashboard and for dependants: on the default ref the host read, else in `fallback` (BUG-LN-2 D-04). */
+export function doneOnDefault(snapshot: RepoSnapshot, id: string, fallback: RepoSnapshot = snapshot): boolean {
+  return isDone(snapshot.defaultRef?.snapshot ?? fallback, id);
+}

@@ -2,13 +2,26 @@
 import { chmodSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterAll, afterEach, beforeAll, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, expect, it, vi } from 'vitest';
 import { parse } from 'yaml';
 import { hookEntries, initFiles, mergeHooks } from '@accord-dev/accord-core';
 import pkg from '../package.json' with { type: 'json' };
 import { commitMsg, gitRun, run, writeFiles } from './helpers/repo.js';
 import { copyClone, makeTemplate } from './helpers/worktree.js';
 import type { Clone } from './helpers/worktree.js';
+
+// BUG-LN-15: every git call stays real; the hash-object calls are only recorded, so a test can count them.
+const spawned = vi.hoisted(() => ({ hashObject: 0 }));
+vi.mock('node:child_process', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:child_process')>();
+  return {
+    ...actual,
+    execFileSync: (file: string, args: string[], opts: unknown) => {
+      if (file === 'git' && args[0] === 'hash-object') spawned.hashObject++;
+      return (actual.execFileSync as unknown as (...a: unknown[]) => unknown)(file, args, opts);
+    },
+  };
+});
 
 const clones: Clone[] = [];
 afterEach(() => {
@@ -247,6 +260,16 @@ async function onlyRepinned(input: string, label: string) {
   expect(gitRun(c.remote, 'show', `upgrade/${v}:.github/workflows/accord.yml`), label).toBe(repinned(input));
   return r;
 }
+
+it('risk:performance upgrade stores every file it writes with one git hash-object process', async () => {
+  const c = copy(pinned, pinnedOther);
+  spawned.hashObject = 0;
+  const r = await run(['upgrade'], c.root);
+  expect(r.code, r.err).toBe(0);
+  const written = gitRun(c.remote, 'diff-tree', '-r', '--name-only', `upgrade/${v}^`, `upgrade/${v}`).trim().split('\n');
+  expect(written.length).toBeGreaterThan(10);
+  expect(spawned.hashObject).toBe(1);
+});
 
 it('ac-3 a workflow with no or two lint and gate steps is only repinned and upgrade warns on stderr', async () => {
   const base = init09();

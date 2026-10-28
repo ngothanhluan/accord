@@ -4,7 +4,7 @@
 // write (an existing ticket, an id that has no business reaching the filesystem, a repository whose pin
 // does not match — D-95). Every case runs in its own mkdtemp sandbox, so no test can reach the fixture
 // directory it was copied from.
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -229,16 +229,22 @@ it('risk:complex-branching a ticket added and deleted on a merged and deleted br
   const repo = sandbox();
   addPeople(repo);
   gitRun(repo, 'config', 'user.email', 'an@example.com');
-  commitAll(repo);
-  const main = gitRun(repo, 'branch', '--show-current').trim();
-  gitRun(repo, 'checkout', '-q', '-b', 'side');
+  const base = commitAll(repo);
+  // Setup by plumbing (H3): the add and delete commits and the --no-ff merge are written with write-tree and
+  // commit-tree, then HEAD moves to the merge; the same history as a merged and deleted `side` branch.
+  const who = ['-c', 'user.email=fixture@example.invalid', '-c', 'user.name=fixture', '-c', 'commit.gpgsign=false'];
+  const msg = join(repo, '.git', 'MSG');
+  const mergeMsg = join(repo, '.git', 'MSG_MERGE');
+  writeFileSync(msg, 'fixture\n');
+  writeFileSync(mergeMsg, "Merge branch 'side'\n");
   writeFiles(repo, { 'accord/tickets/ST-AN-2.md': laneTicket('ST-AN-2') });
-  commitAll(repo);
-  rmSync(ticket(repo, 'ST-AN-2'));
-  commitAll(repo);
-  gitRun(repo, 'checkout', '-q', main);
-  gitRun(repo, '-c', 'user.email=fixture@example.invalid', '-c', 'user.name=fixture', '-c', 'commit.gpgsign=false', 'merge', '-q', '--no-ff', '--no-edit', '--no-verify', 'side');
-  gitRun(repo, 'branch', '-D', 'side');
+  gitRun(repo, 'add', '-A');
+  const added = gitRun(repo, ...who, 'commit-tree', gitRun(repo, 'write-tree').trim(), '-p', base, '-F', msg).trim();
+  gitRun(repo, 'rm', '-q', '-f', 'accord/tickets/ST-AN-2.md');
+  const baseTree = base + '^{tree}';
+  const deleted = gitRun(repo, ...who, 'commit-tree', baseTree, '-p', added, '-F', msg).trim();
+  const merged = gitRun(repo, ...who, 'commit-tree', baseTree, '-p', base, '-p', deleted, '-F', mergeMsg).trim();
+  gitRun(repo, 'update-ref', 'HEAD', merged);
   const { code, out } = await run(['new', 'ticket', '--type', 'story'], repo);
   expect(code).toBe(0);
   expect(out).toBe('accord/tickets/ST-AN-3.md\n');

@@ -1000,9 +1000,14 @@ export function gitBranchCommits(root: string, since?: string): { sha: string; m
       // unresolved: default ref alone
     }
   }
+  return logCommits(root, ['--first-parent', 'HEAD', ...stop]);
+}
+
+/** The commits `git log` prints for `args`, newest first, each with its full message. */
+function logCommits(root: string, args: string[]): { sha: string; message: string }[] {
   let raw: string;
   try {
-    raw = execFileSync('git', ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '--first-parent', '--format=%H%x00%B%x01', 'HEAD', ...stop], {
+    raw = execFileSync('git', ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '--format=%H%x00%B%x01', ...args], {
       cwd: root,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -1018,6 +1023,26 @@ export function gitBranchCommits(root: string, since?: string): { sha: string; m
     .map((r) => r.replace(/^\n+/, ''))
     .filter((r) => r.includes('\0'))
     .map((r) => ({ sha: r.slice(0, r.indexOf('\0')), message: r.slice(r.indexOf('\0') + 1) }));
+}
+
+/**
+ * BUG-LN-11: the commits `git push` would send for `branch`: those neither on origin's branch as this clone last saw it nor on the default ref.
+ * With neither ref to stop at, the range would be the whole history, so it throws instead.
+ */
+export function gitUnpushedCommits(root: string, branch: string): { sha: string; message: string }[] {
+  const resolves = (ref: string): boolean => {
+    try {
+      execFileSync('git', ['rev-parse', '--verify', '-q', ref], { cwd: root, stdio: 'ignore' });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const stop = ['refs/remotes/origin/' + branch, gitDefaultRef(root)].filter((r): r is string => r !== undefined && resolves(r)).map((r) => '^' + r);
+  if (stop.length === 0) {
+    throw new UsageError(`commits.trailers is forbid in accord/config.yml, but none of origin/${branch}, origin/HEAD, origin/main and origin/master exists here; run \`git fetch origin\``);
+  }
+  return logCommits(root, ['refs/heads/' + branch, ...stop]);
 }
 
 /**

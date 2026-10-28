@@ -59,7 +59,8 @@ plans or builds. You run it in the main session.
    heading "In plain words" written in the chat language, and one line per scenario that begins with its ac-n
    and says in plain words what it means; ask for an explicit yes, and on yes commit the ticket with
    the owner's answer quoted in the commit message. That commit holds `accord/tickets/<id>.md`, with the ledger
-   if it changed, and uses `--allow-empty` when nothing changed. On a no, write the owner's words under
+   if it changed, and uses `--allow-empty` when nothing changed. Then run `accord worktree push <id>`; go on even
+   if it fails. On a no, write the owner's words under
    `## Corrections` first, rewrite the sections they touch, take a changed criterion back to step 8, and show
    the text again.
 

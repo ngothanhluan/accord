@@ -57,11 +57,7 @@ one at a time. You run it in the main session.
    read, and what, which findings `accord-planner` fixes, and when the loop ends.
 
 6. **Rounds.** At most three revision rounds. If a Must or Should in
-   `plan-review.md` is still `open` or `unverified`, or `accord gate plan <id>` still fails, after the third, stop and tell the owner what is still
-   open, and show the revision with the fewest Must findings: its round
-   and its commit, read from `git log` since the last `plan: <id> ready`,
-   if any. Never continue on
-   a failing plan.
+   `plan-review.md` is still `open` or `unverified`, or `accord gate plan <id>` still fails, after the third, stop and tell the owner what is still open, and show the revision with the fewest Must findings: its round and its commit, read from `git log` since the last `plan: <id> ready`, if any. Never continue on a failing plan.
 
 7. **Baseline tests.** Before the first build commit, run the
    `tests.full` command from `accord/config.yml` at the current HEAD, and
@@ -76,7 +72,7 @@ one at a time. You run it in the main session.
 8. **Finish.** If `git status` shows `accord/tests-baseline.txt` new, commit it
    alone first and add its Ruling if absent, per `./baseline.md`. Append a `## Closed` line to `plan-review.md`. Commit `plan.md` and `plan-review.md`, with the ledger if it changed, with the
    subject `plan: <id> ready`. That commit marks the plan finished;
-   `accord-build` checks for it.
+   `accord-build` checks for it. Then run `accord worktree push <id>`; go on even if it fails.
 
 9. Next: `accord-build`.
 

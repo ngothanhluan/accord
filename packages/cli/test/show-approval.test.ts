@@ -2,11 +2,14 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { stripVTControlCharacters } from 'node:util';
 import { fileURLToPath } from 'node:url';
-import { loadSnapshot } from '@accord-dev/accord-core';
+import { approvalView, loadSnapshot } from '@accord-dev/accord-core';
 import { expect, it, vi } from 'vitest';
 import { cleanup, makeEmptyRepo, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
+import { isUnsafe } from '../src/render/dashboard.js';
 import { CONFIG, laneTicket } from '../../../test/helpers/lane.js';
 
+// The unsafe-character map `accord show` applies (show.ts:10).
+const clean = (s: string): string => [...s].map((ch) => (isUnsafe(ch.codePointAt(0) ?? 0) ? ' ' : ch)).join('');
 const ESC = String.fromCharCode(27);
 const GIVEN = 'Given a report of the month with three hundred rows';
 const FOUR = [
@@ -130,24 +133,27 @@ it('ac-1 every scenario of every real ticket is rebuilt exactly from the approva
     snap.tickets[id].sections.some((x) => x.heading.toLowerCase().includes('acceptance criteria') && x.lines.some((l) => l.text.startsWith('```gherkin'))),
   );
   expect(ids.length).toBeGreaterThanOrEqual(10);
-  const repo = makeEmptyRepo();
   const bad: string[] = [];
+  for (const id of ids) {
+    const out = approvalView(snap.tickets[id]).split('\n').map(clean).join('\n');
+    const want = snap.tickets[id].scenarios.map((s) => ({ acTag: s.acTag, name: s.name, steps: s.steps }));
+    const got = rebuild(out);
+    if (JSON.stringify(got.map(({ acTag, name, steps }) => ({ acTag, name, steps }))) !== JSON.stringify(want)) bad.push(`${id} rebuild differs`);
+    snap.tickets[id].scenarios.forEach((s, i) => {
+      const then = s.steps.findIndex((t) => t.startsWith('Then '));
+      if (got[i] !== undefined && got[i].shared > (then < 0 ? s.steps.length : then)) bad.push(`${id} ${s.acTag} shares past its first Then`);
+    });
+    // The condition show.ts exits 1 on.
+    if (snap.errors.some((f) => f.file === snap.tickets[id].file)) bad.push(`${id} load finding`);
+  }
+  // The command path, once: a sandbox that holds only the config and ST-LN-19.
+  const repo = makeEmptyRepo();
   try {
-    writeFiles(repo, files);
-    for (const id of ids) {
-      const { code, out, err } = await run(['show', id, '--approval'], repo);
-      if (code !== 0) {
-        bad.push(`${id} exit ${code} ${err.trim().split('\n')[0]}`);
-        continue;
-      }
-      const want = snap.tickets[id].scenarios.map((s) => ({ acTag: s.acTag, name: s.name, steps: s.steps }));
-      const got = rebuild(out);
-      if (JSON.stringify(got.map(({ acTag, name, steps }) => ({ acTag, name, steps }))) !== JSON.stringify(want)) bad.push(`${id} rebuild differs`);
-      snap.tickets[id].scenarios.forEach((s, i) => {
-        const then = s.steps.findIndex((t) => t.startsWith('Then '));
-        if (got[i] !== undefined && got[i].shared > (then < 0 ? s.steps.length : then)) bad.push(`${id} ${s.acTag} shares past its first Then`);
-      });
-    }
+    writeFiles(repo, { 'accord/config.yml': CONFIG, 'accord/tickets/ST-LN-19.md': files['accord/tickets/ST-LN-19.md'] });
+    const { code, out } = await run(['show', 'ST-LN-19', '--approval'], repo);
+    expect(code).toBe(0);
+    const want = snap.tickets['ST-LN-19'].scenarios.map((s) => ({ acTag: s.acTag, name: s.name, steps: s.steps }));
+    expect(JSON.stringify(rebuild(out).map(({ acTag, name, steps }) => ({ acTag, name, steps })))).toBe(JSON.stringify(want));
   } finally {
     cleanup(repo);
   }

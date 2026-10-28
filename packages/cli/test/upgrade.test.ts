@@ -2,12 +2,12 @@
 import { chmodSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterEach, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import { hookEntries, initFiles, mergeHooks } from '@accord-dev/accord-core';
 import pkg from '../package.json' with { type: 'json' };
 import { commitMsg, gitRun, run, writeFiles } from './helpers/repo.js';
-import { makeClone } from './helpers/worktree.js';
+import { copyClone, makeTemplate } from './helpers/worktree.js';
 import type { Clone } from './helpers/worktree.js';
 
 const clones: Clone[] = [];
@@ -18,21 +18,47 @@ afterEach(() => {
 const v = pkg.version;
 const name = pkg.name;
 
-it('ac-3 upgrade pushes a branch from the latest origin main whose one commit moves every pin and the checkout is unchanged', async () => {
-  const c = makeClone();
+// Templates (H1, rule 5): built once, copied with their own origin (copyClone asserts it); none holds a linked worktree.
+let plain: Clone;
+let plainOther: string;
+let pinned: Clone;
+let pinnedOther: string;
+let nextSha: string;
+const copy = (tpl: Clone, other: string) => {
+  const c = copyClone(tpl, [other]);
   clones.push(c);
-  const o = c.otherClone();
+  return c;
+};
+
+beforeAll(() => {
+  plain = makeTemplate();
+  plainOther = plain.otherClone();
+  gitRun(plainOther, 'config', 'gc.auto', '0');
+
+  // #12's remote at the old-pin `next` commit.
+  pinned = makeTemplate();
+  pinnedOther = pinned.otherClone();
+  gitRun(pinnedOther, 'config', 'gc.auto', '0');
   const old = { name, version: '0.0.9' };
-  const cfg = readFileSync(join(o, 'accord/config.yml'), 'utf8');
-  writeFiles(o, {
+  const cfg = readFileSync(join(pinnedOther, 'accord/config.yml'), 'utf8');
+  writeFiles(pinnedOther, {
     'accord/config.yml': cfg.replace(/^accord: .*$/m, 'accord: "0.0.9"'),
     '.github/workflows/accord.yml': initFiles(old).find((f) => f.path === '.github/workflows/accord.yml')!.text,
     '.claude/settings.json': JSON.stringify(mergeHooks({}, hookEntries(old)), null, 2) + '\n',
   });
-  commitMsg(o, 'pin 0.0.9');
-  writeFiles(o, { 'next.txt': 'next\n' });
-  const base = commitMsg(o, 'next');
-  gitRun(o, 'push', '-q', 'origin', 'main');
+  commitMsg(pinnedOther, 'pin 0.0.9');
+  writeFiles(pinnedOther, { 'next.txt': 'next\n' });
+  nextSha = commitMsg(pinnedOther, 'next');
+  gitRun(pinnedOther, 'push', '-q', 'origin', 'main');
+}, 120_000);
+
+afterAll(() => {
+  for (const t of [plain, pinned]) t.cleanupAll();
+});
+
+it('ac-3 upgrade pushes a branch from the latest origin main whose one commit moves every pin and the checkout is unchanged', async () => {
+  const c = copy(pinned, pinnedOther);
+  const base = nextSha;
 
   writeFileSync(join(c.root, 'scratch.txt'), 'scratch\n');
   const head = c.git('rev-parse', 'HEAD');
@@ -69,10 +95,10 @@ it('ac-3 upgrade pushes a branch from the latest origin main whose one commit mo
   expect(gitRun(p, 'status', '--porcelain')).toBe('');
 });
 
-it('risk:data-loss upgrade refuses and pushes nothing when the branch exists the pin is not older the settings are not an object or lint fails', async () => {
-  const c = makeClone();
-  clones.push(c);
-  const o = c.otherClone();
+/** A copy of the plain template with the helpers every refusal test uses; the old pin helpers, unchanged. */
+function refusing() {
+  const c = copy(plain, plainOther);
+  const o = c.others[0];
   const cfg = readFileSync(join(o, 'accord/config.yml'), 'utf8');
   const pin = (x: string) => {
     writeFiles(o, { 'accord/config.yml': cfg.replace(/^accord: .*$/m, `accord: "${x}"`) });
@@ -88,28 +114,41 @@ it('risk:data-loss upgrade refuses and pushes nothing when the branch exists the
     return r;
   };
   const noBranch = () => expect(gitRun(c.remote, 'for-each-ref', 'refs/heads/upgrade')).toBe('');
+  return { c, o, pin, refused, noBranch };
+}
 
+it('risk:data-loss upgrade refuses and pushes nothing when the pin is not older', async () => {
+  const { pin, refused, noBranch } = refusing();
   await refused(`which is not older than ${v}`);
   noBranch();
   pin('9.9.9');
   await refused(`which is not older than ${v}`);
   noBranch();
+});
 
+it('risk:data-loss upgrade refuses and pushes nothing when the upgrade branch exists on origin', async () => {
+  const { c, o, pin, refused } = refusing();
   pin('0.0.9');
   gitRun(o, 'push', '-q', 'origin', `HEAD:refs/heads/upgrade/${v}`);
   const before = gitRun(c.remote, 'rev-parse', `upgrade/${v}`);
   await refused('already exists on origin');
   expect(gitRun(c.remote, 'rev-parse', `upgrade/${v}`)).toBe(before);
   gitRun(o, 'push', '-q', 'origin', '--delete', `upgrade/${v}`);
+});
 
+it('risk:data-loss upgrade refuses and pushes nothing when the settings are not a JSON object', async () => {
+  const { o, pin, refused, noBranch } = refusing();
+  pin('0.0.9');
   writeFiles(o, { '.claude/settings.json': '[]\n' });
   commitMsg(o, 'bad settings');
   gitRun(o, 'push', '-q', 'origin', 'main');
   await refused('is not a JSON object');
   noBranch();
-  gitRun(o, 'rm', '-q', '.claude/settings.json');
-  commitMsg(o, 'no settings');
+});
 
+it('risk:data-loss upgrade refuses and pushes nothing when the default branch would fail lint', async () => {
+  const { o, pin, refused, noBranch } = refusing();
+  pin('0.0.9');
   writeFiles(o, { 'accord/tickets/ST-9.md': '---\nid: "ST-9"\ntype: nonsense\n---\n' });
   commitMsg(o, 'bad ticket');
   gitRun(o, 'push', '-q', 'origin', 'main');
@@ -119,9 +158,8 @@ it('risk:data-loss upgrade refuses and pushes nothing when the branch exists the
 });
 
 it('ac-1 upgrade replaces the lint and gate step of a 0.1.0 workflow with the step accord init writes now', async () => {
-  const c = makeClone();
-  clones.push(c);
-  const o = c.otherClone();
+  const c = copy(plain, plainOther);
+  const o = c.others[0];
   const fixture = readFileSync(fileURLToPath(new URL('./fixtures/workflow-0.1.0.yml', import.meta.url)), 'utf8');
   const cfg = readFileSync(join(o, 'accord/config.yml'), 'utf8');
   writeFiles(o, { 'accord/config.yml': cfg.replace(/^accord: .*$/m, 'accord: "0.1.0"'), '.github/workflows/accord.yml': fixture });
@@ -172,9 +210,8 @@ it('ac-2 upgrade replaces only the lint and gate step and keeps every other line
     { label: 'indent', input: shallow(team), expected: shallow(expectedTeam), attrs: false },
   ];
   for (const k of cases) {
-    const c = makeClone();
-    clones.push(c);
-    const o = c.otherClone();
+    const c = copy(plain, plainOther);
+    const o = c.others[0];
     const cfg = readFileSync(join(o, 'accord/config.yml'), 'utf8');
     writeFiles(o, {
       'accord/config.yml': cfg.replace(/^accord: .*$/m, 'accord: "0.0.9"'),
@@ -195,9 +232,8 @@ const STEP = '      - name: lint and gate\n';
 const init09 = () => initFiles({ name, version: '0.0.9' }).find((f) => f.path === '.github/workflows/accord.yml')!.text;
 const repinned = (s: string) => s.split(`${name}@0.0.9`).join(`${name}@${v}`);
 async function upgradeOf(input: string) {
-  const c = makeClone();
-  clones.push(c);
-  const o = c.otherClone();
+  const c = copy(plain, plainOther);
+  const o = c.others[0];
   const cfg = readFileSync(join(o, 'accord/config.yml'), 'utf8');
   writeFiles(o, { 'accord/config.yml': cfg.replace(/^accord: .*$/m, 'accord: "0.0.9"'), '.github/workflows/accord.yml': input });
   commitMsg(o, 'pin 0.0.9');
@@ -227,30 +263,41 @@ it('ac-3 a workflow with no or two lint and gate steps is only repinned and upgr
   }
 });
 
-it('risk:complex-branching an anchored or flow lint and gate step is only repinned and the warning says it must be a block list item', async () => {
+it('risk:complex-branching an anchored lint and gate step is only repinned and the warning says it must be a block list item', async () => {
   const base = init09();
-  const flow = base.slice(0, base.indexOf(STEP)) + `      - { name: lint and gate, run: npx --yes ${name}@0.0.9 lint }\n`;
-  const env = '        env:\n';
-  expect(base).toContain(env);
-  const cases = [
-    { label: 'anchored', input: base.replace(STEP, '      - &lint\n        name: lint and gate\n'), shape: true },
-    { label: 'flow', input: flow, shape: true },
-    { label: 'alias', input: base.replace(env, '        env: &base\n') + '      - name: team step\n        env: *base\n        run: echo team\n', shape: false },
-  ];
-  for (const k of cases) {
-    const r = await onlyRepinned(k.input, k.label);
-    expect(r.err, k.label).toContain('was not refreshed');
-    if (k.shape) {
-      expect(r.err, k.label).toContain('.github/workflows/accord.yml');
-      expect(r.err, k.label).toContain('must be a block list item without an anchor');
-    }
+  const k = { label: 'anchored', input: base.replace(STEP, '      - &lint\n        name: lint and gate\n'), shape: true };
+  const r = await onlyRepinned(k.input, k.label);
+  expect(r.err, k.label).toContain('was not refreshed');
+  if (k.shape) {
+    expect(r.err, k.label).toContain('.github/workflows/accord.yml');
+    expect(r.err, k.label).toContain('must be a block list item without an anchor');
   }
 });
 
+it('risk:complex-branching a flow lint and gate step is only repinned and the warning says it must be a block list item', async () => {
+  const base = init09();
+  const flow = base.slice(0, base.indexOf(STEP)) + `      - { name: lint and gate, run: npx --yes ${name}@0.0.9 lint }\n`;
+  const k = { label: 'flow', input: flow, shape: true };
+  const r = await onlyRepinned(k.input, k.label);
+  expect(r.err, k.label).toContain('was not refreshed');
+  if (k.shape) {
+    expect(r.err, k.label).toContain('.github/workflows/accord.yml');
+    expect(r.err, k.label).toContain('must be a block list item without an anchor');
+  }
+});
+
+it('risk:complex-branching a lint and gate step whose env another step aliases is only repinned and warns it was not refreshed', async () => {
+  const base = init09();
+  const env = '        env:\n';
+  expect(base).toContain(env);
+  const k = { label: 'alias', input: base.replace(env, '        env: &base\n') + '      - name: team step\n        env: *base\n        run: echo team\n', shape: false };
+  const r = await onlyRepinned(k.input, k.label);
+  expect(r.err, k.label).toContain('was not refreshed');
+});
+
 it('risk:complex-branching a step that was not refreshed still gets its warning when the push fails', async () => {
-  const c = makeClone();
-  clones.push(c);
-  const o = c.otherClone();
+  const c = copy(plain, plainOther);
+  const o = c.others[0];
   const cfg = readFileSync(join(o, 'accord/config.yml'), 'utf8');
   writeFiles(o, { 'accord/config.yml': cfg.replace(/^accord: .*$/m, 'accord: "0.0.9"'), '.github/workflows/accord.yml': init09().replace('- name: lint and gate', '- name: lint') });
   commitMsg(o, 'pin 0.0.9');

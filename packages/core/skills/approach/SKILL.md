@@ -59,7 +59,8 @@ the owner's yes before anyone plans. You run it in the main session.
    yes, run
    `accord approve <id>`, then `accord gate ready <id>` and work from what it
    prints. Then commit the ticket, with `approved_hash:` and `ac_hash:` in
-   it. If the owner picks another option, go back to step 3 with that
+   it. Then run `accord worktree push <id>`; go on even if it fails. If the
+   owner picks another option, go back to step 3 with that
    option, rewrite `## Approach`, and ask again. On any other no, write the
    owner's words under `## Corrections` first, empty `## Approach` below its
    heading, go back to `accord-intent` step 8, and restart this stage at

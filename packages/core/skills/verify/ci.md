@@ -72,7 +72,22 @@ Then run the suite and the verifier while CI runs.
    and commit `debug.md` alone.
 2. Run `accord lint`. `<def>` is the first of `origin/HEAD`,
    `origin/main` and `origin/master` that `git rev-parse --verify -q`
-   resolves. Run `accord gate done <t>` for every ticket file
+   resolves. For every file `git diff --name-only --no-renames
+   --diff-filter=D <def>...HEAD` lists as `accord/tickets/<t>.md` (a
+   ticket renamed away is listed too), read its version at `<def>`. It is
+   approved or done when its frontmatter has an `approved_hash` key; or a
+   `verified` key whose value is not `[]`; or an `ac_hash` key with
+   `lane: S`, with no `lane` key, or with a `lane` key whose value is not
+   on its key line; a frontmatter it cannot read counts as approved. When
+   it is approved or done and its `status` is not `dropped`, show "<t>: an
+   approved or done ticket cannot be deleted before it is dropped -
+   restore the file if this is the ticket's own branch, run accord drop
+   <t>, merge the pull request of the drop/<t> branch it pushes, merge the
+   default branch into this branch and push"; when it is approved or
+   done, its `status` is `dropped` and its `## Dropped` section gives no
+   reason it can read, show "<t>: fix the `## Dropped` reason on the
+   default branch". Then: each such line is a failure: stop, nothing is pushed.
+   When no `<def>` resolves, say the deletion check was not run. Run `accord gate done <t>` for every ticket file
    `git diff --name-only --diff-filter=d <def>...HEAD` lists as
    `accord/tickets/<t>.md`; when none resolves, run
    `accord gate done <id>` alone. Any failure: show it and stop; nothing

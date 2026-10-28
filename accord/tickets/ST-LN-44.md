@@ -1,6 +1,6 @@
 ---
 id: "ST-LN-44"                            # equals the file name: tickets/<id>.md
-title: "The slowest tests run in less time and still cover what they cover today"
+title: "No test in a full run takes more than 10 s, and every criterion keeps a test that proves it"
 type: "story" # story | bug. An epic uses its own template
 status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
@@ -20,21 +20,21 @@ ui: false
 # Written by `gate ready`; never edit by hand.
 # ac_hash:
 # Self-test ticks, e.g. [ac-1, ac-2]. Always the last key.
-# verified: []
+verified: [ac-1, ac-2, ac-3, ac-4]
 # The AC hash and the commit the ticks were made against.
-# verified_hash:
-# verified_commit:
+verified_hash: "fnv1a64:5759120c1df0e673"
+verified_commit: "e117793892488cedba8ffcba8c93b2c05c54598c"
+approved_hash: "fnv1a64:b43a2a0b0a8149dc"
+ac_hash: "fnv1a64:5759120c1df0e673"
 ---
 
 ## Intent
 <!-- At most five lines: why, for whom, how success is measured, and what this does not do. -->
-Queued 2026-10-22, not approved; the intent interview replaces this:
-- Owner, 2026-10-22, to a read-only audit of all 73 test files (~1,100 tests) by five agents: "both tickets, go ahead". Make the slow tests below cheaper without losing coverage. Line numbers as of main 8a8ba6f; each item is an agent's reading, check it before changing. Windows CI times from run 39784116057 (windows-latest, Node 22).
-- cli show-approval.test.ts:124 ac-1 rebuild over every real ticket, 78.7 s: call core approvalView(snap.tickets[id]) and check snap.errors per ticket instead of one CLI run per ticket; CLI-only parts covered by :297, :313, :267.
-  2026-10-24, ST-LN-48 plan baseline: it timed out at the 300 s limit under the full suite (1162 s run) and passed alone in 140 s; the owner chose to track it here.
-- cli workflow-script.test.ts:454, 59.9 s: run both scripts in one sandbox (runScript only adds untracked files), about 30 s saved; same for :501 (12.5 s), about 6 s. cli worktree.test.ts:1799, 23.5 s: the two merging cases (1857, 1874) share one clone. cli after-verify.test.ts:27, 22.6 s: sections d (71) and f (105) reuse a clone. cli worktree.test.ts:1006, 17.3 s: all six commands in one folder, one command in the other two.
-- cli trailers.test.ts:21, 7.2 s: one CLI body; core trailers.test.ts:4 covers the patterns. cli lane-commands.test.ts:825 it.each over four unsafe paths, 9.0 s: one plan, one repo, four findings. cli lane-commands.test.ts:1040, :1048, :1056 (VID-1 ac-1/2/3, 6.6 s): pure plan parsing; move to core lane-plan.test.ts and retag.
-- cli status.test.ts:416 and :438 share one repo; show.test.ts:149 folds into status.test.ts:460; show.test.ts:172 with dashboard.test.ts:354; show.test.ts:120 with status.test.ts:360; dashboard.test.ts:135 uses the in-memory ready()/board() helpers as :165 does. cli publish-workflow.test.ts:140 and :158 merge with :132 and :149.
+Why: the full suite takes about 19 minutes on the owner's Windows machine, and its slowest tests time out under load and have blocked verify (BUG-LN-4, ST-LN-48).
+For whom: whoever runs the full suite at plan and verify, the owner today and any team on accord.
+Success: a full run on the same machine has no test over 10 s, apart from tests the owner chose to keep, each with its reason.
+Every one of the 75 tests over 10 s is handled; a criterion of another ticket keeps exactly one test that proves it.
+Not: a target for total suite time, tests under 10 s, or changing what any ticket's criterion asks.
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.
@@ -42,11 +42,33 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: ST-LN-44
 
-  @ac-1
-  Scenario: <observable outcome>
-    Given ...
-    When ...
-    Then ...
+  @ac-1 @test:packages/core/test/st-ln-44.test.ts#ac-1-no-test-in-the-measuring-run-takes-over-10-s-apart-from-a-kept-test-within-its-ceiling
+  Scenario: A full run has no test over 10 s apart from the approved keeps
+    Given the table of the 75 tests over 10 s that the owner approved at the approach
+    When the full suite runs once on the same machine as the 2026-10-24 baseline
+    Then no test in that run's whole junit report takes more than 10 s, inside or outside the table
+    And the only exceptions are the tests the table keeps with a reason
+
+  @ac-2 @test:packages/core/test/st-ln-44.test.ts#ac-2-every-test-tag-that-names-a-test-of-the-table-names-one-passing-test-and-lint-reports-no-error
+  Scenario: A criterion whose test was replaced is still proved by exactly one test
+    Given a test that proved an acceptance criterion of another ticket and was replaced by a cheaper one
+    When accord lint runs on the repository, unchanged by this ticket, and the full suite runs
+    Then that ticket's @test tag names the new test and lint reports no error
+    And the new test passes in the full run, and no other test carries that @test tag
+
+  @ac-3 @test:packages/core/test/st-ln-44.test.ts#ac-3-every-test-gone-since-the-baseline-run-is-a-row-the-table-moves-and-every-destination-exists
+  Scenario: Only the tests the table removes are gone
+    Given the tests of the full run before this ticket and after it, each named by its file and its title
+    When the two lists are compared
+    Then every file and title that is gone is one the table marks as removed, merged, or moved
+    And every test marked merged or moved has the file and title it went to written in the table
+
+  @ac-4 @test:packages/core/test/st-ln-44.test.ts#ac-4-every-assertion-of-a-changed-row-is-in-its-new-place-or-mapped-by-the-row-note
+  Scenario: A test made faster still checks what it checked before
+    Given a test the table marks as faster, merged, or moved
+    When its new body is compared with its old body
+    Then every assertion the old body made has a matching assertion in the new place
+    And a check of CLI output or exit code that the new place drops is made by another CLI test the table names
 ```
 
 ## Vetoes
@@ -54,6 +76,20 @@ Feature: ST-LN-44
 
 ## Decisions
 <!-- Settled answers, one per line: - D-01 <decision> — "<the owner's sentence>" -->
+- D-01 The ticket has four parts: make the slow tests named in the Intent cheaper without losing what they check; remove the slow tests the owner judges not worth keeping, each listed for the owner's approval; sweep the whole suite for other slow tests; measure before and after from the junit durations the run already writes — "approved" (owner, 2026-10-25, to these four parts, which also drop the title's "still cover what they cover today" for removed tests)
+- D-02 A test is in scope when it takes more than 10 s in a full run (75 tests, 2,125 of 3,375 test-seconds in the local full run of 2026-10-24) — "A" (owner, 2026-10-25, choosing over 10 s against over 30 s and over 5 s)
+- D-03 Done means a full run on the same machine has no test over 10 s: each of the 75 is under 10 s, removed with the owner's approval, or kept with a reason the owner accepted, written in the ticket; total suite time is not a criterion — "A" (owner, 2026-10-25, choosing this against halving the full-suite time and against both)
+- D-04 A test that proves an acceptance criterion of another ticket is never removed without a replacement: it is replaced by a cheaper test that proves the same criterion, and that ticket's `@test:` tag is moved to the new test — "A" (owner, 2026-10-25, choosing this against leaving such tests alone and against removing them)
+- D-05 The owner approves the action for every one of the 75 tests once, at the approach stage, as one table (faster, merged, moved to core, removed, or kept with a reason); build only carries the table out — "A" (owner, 2026-10-25, choosing this against approving each test at build and against approving only removals and keeps)
+- D-06 There is no smaller version: all 75 tests are handled in this ticket, none deferred — "handle it thoroughly" (owner, 2026-10-25, asked for the smallest version that still counts as done)
+- D-07 The criteria read as follows: ac-1 checks every test in one full run's whole report, not only the 75; ac-2 needs no change to accord lint, and "the only test" means the only one carrying that @test tag; ac-3 names a test by file and title, and the table gives the file and title a test went to; ac-4 needs a matching assertion for every old one, and a CLI output or exit-code check dropped by a move is made by another CLI test the table names — "ok, agreed" (owner, 2026-10-25, to these four readings after the audit)
+- D-08 The ST-LN-19 ac-1 test (show-approval.test.ts, 292 s) stays one tagged test: it rebuilds every real ticket from core approvalView and checks each ticket's load findings, and runs `accord show <id> --approval` once on one real ticket for the command path; it is not kept at 292 s — "A" (owner, 2026-10-25, choosing this against keeping the test as it is with a reason)
+- D-09 The ticket also cuts the git processes each accord command starts (product code, same behaviour and output), so the criterion tests whose scenario needs several real command runs can get under 10 s instead of being kept with a reason; the cut is sized and measured before the table is approved — "ok A" (owner, 2026-10-25, choosing this against keeping about 14 criterion tests over 10 s with a reason and against running the full suite with fewer workers)
+- D-10 The git cut of D-09 is only this: the plan-baseline ancestry, baseline files, and paths changed since a recorded commit are computed only when `gate plan` or `gate done` runs, and only for the gated ticket, since no other command reads them; the deeper cut (one-process default ref, claim tips, HEAD author, one `--merged` query, duplicate calls, light preflight) is queued as its own ticket; criterion tests still over 10 s are cut on the test side or kept with a reason in the table — "A" (owner, 2026-10-25, choosing this against also building the deeper cut here, about 120 lines that leave most criterion tests over 10 s, and against dropping the cut, which leaves the ST-LN-19 real-repo `show` run at 23 s)
+- D-11 D-09 and D-10 are withdrawn: this ticket changes no product code; the gate-only git cut and the deeper cut are queued together as their own ticket — the critic found the ST-LN-19 ac-1 test runs `show` in an empty sandbox (about 4 s a run), not in the real repository, so D-08 alone brings it under 10 s and the cut no longer serves this ticket's criteria — "A" (owner, 2026-10-25, choosing this against keeping the gate-only cut here so daily commands get faster sooner)
+- D-12 The five tests BUG-LN-8 added to packages/cli/test/upgrade.test.ts after this ticket's baseline (24.6, 25.6, 16.5, 8.5 and 7.6 s run alone on main, 2026-10-25) join the table as rows 114 to 118 and are handled like rows #12 and #13 of the same file; main is merged into this branch first — "Add them to the table" (owner, 2026-10-25, choosing this against keeping them over 10 s with a reason and against a separate ticket, which would leave ac-1 failing at verify)
+- D-13 Of D-12's rows, #115's three destinations and #117 are kept with a 29 s ceiling now, because each still holds one `accord upgrade` run of about 7 s alone in product code that D-11 leaves alone — "Keep them now" (owner, 2026-10-26, choosing this against leaving them faster and moved until the measuring run, which would need a second re-approval before verify)
+- D-14 The 29 tests that stop in the measuring run of Task 35 (over 10 s and not kept, or kept over their ceiling) are all kept, each with a ceiling the larger of its measuring-run time and its earlier full-run times, rounded up, written into table.md by rule 3's keep syntax; the 119 entries from 5 to 10 s stay as the table has them — "Keep all 29" (owner, 2026-10-27, choosing this against splitting the 9 tests at 15 s or more, or all 29, as a change of course with a re-plan and a second measuring run)
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
@@ -63,3 +99,16 @@ Feature: ST-LN-44
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
+Chosen: the per-test table accord/tickets/ST-LN-44/table.md (sha256 d403b2491bcf510091c782e002b4d0aca35d51e19e0f1a20a3f650ea01f42361), one row per test in measurements.md (118, rows 114-118 from D-12): 39 faster, 36 moved (split into `risk:` tests; #115's destinations kept, D-13), 33 kept with a reason and a ceiling (24 criterion tests, 7 benchmark tests, #50, #117), 10 unchanged, none merged or removed. Main is merged first; ac-3 and ac-4 read the state before this ticket at that merge commit (1cec2ac). Build only carries it out (D-05); test code only, no product or script code (D-11). After the measuring run (Task 35), the late keeps of D-14 make 8 more rows kept (#6, #17, #32, #36, #40, #61, #69, #94), raise 4 ceilings (#16, #63, #76, #85), keep 15 destinations of #4, #5, #7, #10, #13, #30, #39 and #84, and append rows 119 and 120 (the sandbox-guard copy test and the lane-commands `next` test); the frozen approved table (Task 34) keeps hash b6e47395c1fbbc6b4ed76fcc39e6753b59afbfca04b8adc09ffcacb3f28d9bbc.
+Levers, all on the test side: per-file clone templates copied with `git remote set-url` (H1), one-spawn helper clones (H2), setup by git or file writes (H3), splits (H4), batched ref reads (H5), no auto-gc (H6), no origin in hold-only tests (H7), a temp-folder guard on the test `run()` helper (H8), core-ready hashes, async workflow-script runs, D-08 for show-approval.
+Rejected: shared templates without a per-test table (the owner approves every test once, D-05); the product git cut (moved to its own ticket, D-11); a benchmark row filter in scripts/benchmark.mjs (it crashed rows, broke the per-verifier check, and added a 20-40 s test); a byte-identity check for BUG-LN-3 ac-4 (it drops per-case assertions, against ac-4 as D-07 reads it).
+Affected: packages/cli/test/** (worktree, drop, hook, lane-s, after-verify, status, show, dashboard, upgrade, gate, trailers, benchmark-worktree, workflow-script, show-approval and others in the table), packages/cli/test/helpers/repo.ts and worktree.ts, core tests for D-08; accord/tests-baseline.txt where a baseline title moves.
+Risks (critic, four rounds; every Must closed):
+- Estimates are unmeasured and full runs swing 2-3x: rule 3 lists every row over 5 s at the measuring run, and any unkept row over 10 s at verify, for the owner before ac-1 is judged; a late keep edits table.md, changes this hash and needs a new `accord approve`.
+- Data deletion A, a copy sharing the template's remote, so a clean deletes branches there and a "kept" test reads the wrong remote: each clone copy asserts its origin fetch and push URLs are its own and differ from the template's.
+- Data deletion B, a split that separates branches one clean judges, hiding a cross-branch guard: #5 (with ST-10), block f, #50, #56, #72, #92, #93 stay multi-branch; #105 keeps a real drop then clean.
+- Data deletion C, a copy with an unset path running `accord worktree clean` in the real checkout, deleting real worktrees and branches: H8 makes `run()` refuse any cwd outside the temp folder; recovery otherwise is reflog and GitHub's branch restore.
+- 24 criterion tests stay over 10 s (kept with a reason), more than the ~14 named at D-09; with D-12 and D-13, four more `accord upgrade` risk tests are kept too.
+- Data deletion, upgrade copies (D-12): a copy whose `c.remote` is still the template's would let #117's rejecting hook and every cleanup reach the template's remote; each upgrade copy asserts its root, remote and other clone differ from the template's.
+Tests: ac-1 by one full run with ACCORD_BASH set to Git Bash, its junit read whole against table.md; ac-2 by `accord lint` and each @test tag that names a test in the table's rows naming one passing test (no row moves a tag; ST-LN-2 and ST-LN-18 hold two tags ST-LN-61 left on renamed tests, outside this ticket); ac-3 by the before/after file+title lists against the table's removed/merged/moved rows; ac-4 by the per-row assertion map in table.md, checked at review and verify.
+Change note (review, 2026-10-27): the final review found the branch 60 commits behind origin/main, whose ST-LN-62 and 0.3.0 changes edit the old bodies of rows #3, #10, #63, #68 and #86 that this ticket rewrote (lane S done needs `## Scope`, gate done needs a ticket branch, the pin is 0.3.0); merging as it stands breaks those split tests, #68's hard-coded `upgradeNotice('0.2.0')`, three pin replaces in worktree.test.ts, and ac-4's old-body map. Tasks 1 to 37 still hold; the table's rows, actions, ceilings and the measuring run stay. New course (owner chose "merge now, change course"): one executor merges origin/main into t/ST-LN-44 and carries main's changes into each split, destination and kept test of those rows, reading the pin from `CONFIG` where it was hard-coded; the old bodies and `maps.json` `old` texts of the rows main changed are re-read at the merged main (plan step 4's after-merge check), so ac-4 compares against main's assertions; then the affected files run, the new work is reviewed, and verify's full run with step 3 measures the merged code. before-junit.xml stays the run at 1cec2ac (plan step 4). The ST-LN-44 test files are deleted after this ticket merges by a queued lane S ticket (owner chose "queue a deletion ticket").

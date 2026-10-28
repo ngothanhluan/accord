@@ -126,7 +126,6 @@ packages/cli/test/lane-commands.test.ts#status,-claims,-and-next->-a-ticket-with
 packages/cli/test/lane-commands.test.ts#status,-claims,-and-next->-next-lists-an-approved,-Ready,-unclaimed-ticket,-and-nothing-once-it-is-claimed
 packages/cli/test/lane-commands.test.ts#status,-claims,-and-next->-the-pushed-claim-wins-over-a-local-branch-of-the-same-name-with-a-different-tip-author
 packages/cli/test/lane-commands.test.ts#status,-claims,-and-next->-the-status-table-gains-stage,-who,-and-blocked-by-columns-when-a-lane-ticket-exists
-packages/cli/test/lane-flow.test.ts#lane-ticket-flow->-walks-one-ticket-from-unapproved-to-done
 packages/cli/test/load.test.ts#loadFromFs->-a-directory-that-is-not-a-repository-is-a-UsageError
 packages/cli/test/load.test.ts#loadFromFs->-exposes-exit-code-2-on-UsageError
 packages/cli/test/load.test.ts#loadFromFs->-keys-never-contain-a-backslash
@@ -282,7 +281,6 @@ packages/cli/test/workflow-script.test.ts#the-emitted-workflow-script-—-execut
 packages/cli/test/workflow-script.test.ts#the-emitted-workflow-script-—-executed->-mutation-probe:-the-deletion-filter-and-the-level-bound-are-what-cause-those-two-results
 packages/cli/test/workflow-script.test.ts#the-emitted-workflow-script-—-executed->-nested-path-diff:-accord/tickets/<id>/verification.md-is-not-a-ticket-([^/]+)
 packages/cli/test/workflow-script.test.ts#the-emitted-workflow-script-—-executed->-ticket-adding-diff:-gates-that-ticket-by-the-id-in-its-file-name-(D-137)
-packages/cli/test/workflow-script.test.ts#the-emitted-workflow-script-—-executed->-ticket-deleting-diff:-does-not-gate-the-ticket-the-pull-request-removes-(A-09)
 packages/cli/test/workflow-script.test.ts#the-emitted-workflow-script-—-what-is-under-test->-is-a-multi-line-script-lifted-from-the-emitted-document,-and-bash-resolved
 packages/core/test/agents.test.ts#agents-name-what-the-spec-requires->-architect-names-every-required-phrase
 packages/core/test/agents.test.ts#agents-name-what-the-spec-requires->-critic-names-every-required-phrase

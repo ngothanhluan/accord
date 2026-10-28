@@ -25,4 +25,8 @@ describe('vitest worker cap', () => {
     expect(config.test?.pool).toBe('forks');
     expect(config.test?.maxWorkers).toBe(workers(process.env, availableParallelism()));
   });
+
+  it('risk:resource the root config takes the machine-wide run lock for the whole run', () => {
+    expect(config.test?.globalSetup).toEqual(['./test/lock.ts']);
+  });
 });

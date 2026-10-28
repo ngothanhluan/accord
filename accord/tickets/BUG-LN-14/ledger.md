@@ -20,6 +20,9 @@
 - Ruling: a hold the same session takes again keeps its `folder` as it keeps `taken`, and gains one only when it had none — cost if wrong: the refusal names the first folder, not the newest.
 - Ruling: `localTime` prints the raw `taken` value when it cannot be parsed — the holds file is read from disk — cost if wrong: none.
 - Ruling: under a /resume, the hold of the ticket whose worktree the window stands in also moves to the resumed conversation — the ledger's /resume Ruling excepts that ticket as D-06 does — cost if wrong: one rule in the release.
+- Ruling: the probe's tracked-file check on the main checkout's `.claude/settings.local.json` ran as `git ls-tree` on main and HEAD from the worktree, since `git -C C:/Work/accord` is refused in a worktree-isolated session, and the owner created and later deleted that file by hand — it covers committed state only — cost if wrong: the probe could touch a tracked file; both runs showed it untracked and git-ignored.
+- Ruling: the probe passed checks (a) to (f) on the owner's two real windows on 2026-10-28: `CLAUDE_PID` stayed the same across /clear (46912, 26288), `CLAUDE_CODE_SESSION_ID` took the new conversation's id, and a window moved in by EnterWorktree had the worktree as its /clear `cwd` — Approach risk (1) is closed — cost if wrong: none, it records evidence.
+- Ruling: the process table is read once per /clear, inside `releaseOnClear` in hook.ts — the brief specified it; Approach risk (3) — cost if wrong: about 1 s per /clear on Windows.
 
 ## Deferred
 
@@ -27,3 +30,6 @@
 - Ruling: the probe tells its two windows apart by file order plus the git top of each startup record, and the owner is asked to start or clear no other Claude Code window in either folder until the second probe window closes — cost if wrong: a stray window mid-probe can cause a false BLOCKED, but the report shows every record.
 - Ruling: probe check (f) passes when both tops are the main checkout, since then the window left the worktree on /clear and its commands run in main too — cost if wrong: the D-06 keep path is not exercised against a real window.
 - Plan round 2.1 (Nice): run the probe's cleanup `git status` in the main checkout with `--no-optional-locks`, so it never takes `.git/index.lock` while another session commits there.
+
+## Tasks
+- task 1 done 7e4e58848942

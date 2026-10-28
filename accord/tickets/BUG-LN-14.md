@@ -40,7 +40,7 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: BUG-LN-14
 
-  @ac-1
+  @ac-1 @test:packages/cli/test/worktree.test.ts#ac-1-a-clear-in-a-window-outside-the-ticket-worktree-removes-the-hold-its-old-conversation-took-and-another-session-continues-the-ticket
   Scenario: A /clear releases the hold its old conversation took
     Given a Claude Code window, open in a folder that is neither ST-9's worktree folder nor below it, whose conversation holds ST-9
     When the owner runs /clear in that window

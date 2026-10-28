@@ -2703,3 +2703,51 @@ it('risk:complex-branching pick up and continue never clean the ticket they open
   expect(r.out).not.toContain('merged:');
   expect(lines(r.out)[0].startsWith('behind:')).toBe(true);
 }, 240_000);
+
+// BUG-LN-14: a /clear frees the holds its window took.
+const T = '2026-10-27T03:03:00.000Z';
+const A2 = { ...A, marker: 'sess-A2' };
+const clearOf = (cwd: string, s: { marker: string; pid: number }) =>
+  run(['hook', 'session-resume'], cwd, envOf(s), JSON.stringify({ session_id: s.marker, cwd, source: 'clear' }));
+
+it('ac-1 a clear in a window outside the ticket worktree removes the hold its old conversation took and another session continues the ticket', async () => {
+  const c = copy({ tickets: ['ST-9', 'ST-10'] });
+  const sib = c.sibling('ST-9');
+  c.git('worktree', 'add', '-q', '-b', 't/ST-9', sib, 'origin/main');
+  c.git('remote', 'remove', 'origin');
+  writeHolds(c, { 'ST-9': { tool: 'Claude Code', ...A, taken: T }, 'ST-10': DEAD });
+  setTable(tableOf(A));
+  const k = await clearOf(c.root, A2);
+  expect(k.code).toBe(0);
+  expect(k.out.startsWith('# accord rules\n')).toBe(true);
+  expect(Object.hasOwn(readHolds(c), 'ST-9')).toBe(false);
+  expect(readHolds(c)['ST-10']).toEqual(DEAD);
+  setTable(tableOf(B, A));
+  const r = await run(['worktree', 'open', 'ST-9', '--continue'], c.root, envOf(B));
+  expect(r.code).toBe(0);
+  expect(r.err).not.toContain('held by another session');
+  expect(lines(r.out)).toEqual([`enter: ${sib}`]);
+  expect((readHolds(c)['ST-9'] as { marker: string }).marker).toBe('sess-B');
+}, 120_000);
+
+it('risk:data-loss a clear whose window the process table does not show releases nothing and says so on stdout', async () => {
+  const c = copy();
+  writeHolds(c, { 'ST-9': { tool: 'Claude Code', ...A, taken: T } });
+  const bytes = readFileSync(holdsFile(c), 'utf8');
+  setTable([{ pid: process.pid, ppid: 1, start: 'self' }]);
+  const a = await clearOf(c.root, A2);
+  expect(a.code).toBe(0);
+  expect(a.err).toBe('');
+  expect(a.out.startsWith('# accord rules\n')).toBe(true);
+  expect(lines(a.out).some((l) => l.startsWith('accord: no hold released: cannot see this Claude Code session'))).toBe(true);
+  expect(readFileSync(holdsFile(c), 'utf8')).toBe(bytes);
+  const stdin = JSON.stringify({ session_id: 'sess-A2', cwd: c.root, source: 'clear' });
+  const b = await run(['hook', 'session-resume'], c.root, { CLAUDECODE: '1' }, stdin);
+  expect(b.code).toBe(0);
+  expect(lines(b.out).some((l) => l.startsWith('accord: no hold released: this Claude Code session sets no'))).toBe(true);
+  expect(readFileSync(holdsFile(c), 'utf8')).toBe(bytes);
+  const o = await run(['hook', 'session-resume'], c.root, {}, stdin);
+  expect(o.code).toBe(0);
+  expect(o.out).not.toContain('no hold released');
+  expect(readFileSync(holdsFile(c), 'utf8')).toBe(bytes);
+}, 60_000);

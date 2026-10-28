@@ -215,6 +215,14 @@ export function takeHold(ctx: CommandContext, id: string): void {
   recordWorked(ctx.root, id, session.marker);
 }
 
+/** BUG-LN-14 D-02: drop every hold the claude process `session` took (same pid and start), under the holds lock; no write when none is dropped. */
+export function releaseHolds(root: string, session: { pid: number; start: string }): void {
+  withHolds(root, (holds) => {
+    const keep = Object.entries(holds).filter(([, h]) => !(h.pid === session.pid && h.start === session.start));
+    return keep.length === Object.keys(holds).length ? undefined : Object.fromEntries(keep);
+  });
+}
+
 /** Inside the ticket's worktree: take the hold (Claude Code only, D-17), then make sure `setup` finished. */
 function hold(ctx: CommandContext, id: string, path: string): number {
   if (claudeEnv(ctx.env) === undefined) {

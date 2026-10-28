@@ -3,11 +3,11 @@
 import { anchorText, DEFAULT_BRANCH_TEMPLATE, rulesetText, sessionLine, statusRows } from '@accord-dev/accord-core';
 import pkg from '../../package.json' with { type: 'json' };
 import { currentBranch, ticketOfBranch } from '../load/fs.js';
-import { claudeEnv } from '../load/proc.js';
+import { claudeEnv, processTable, sessionIn } from '../load/proc.js';
 import { repoRoot } from '../root.js';
 import type { CommandContext } from '../run.js';
 import { activeTicket } from './anchor.js';
-import { branchOf, guardAllowsContinue, inClaude, isLinked, listWorktrees, readHoldsFile, recordWorked, takeHold, worksMessage, worksTicket } from './worktree.js';
+import { branchOf, guardAllowsContinue, inClaude, isLinked, listWorktrees, readHoldsFile, recordWorked, releaseHolds, takeHold, worksMessage, worksTicket } from './worktree.js';
 
 export const HOOK_EVENTS = ['session-start', 'session-resume', 'subagent-start', 'prompt-expansion'] as const;
 export type HookEvent = (typeof HOOK_EVENTS)[number];
@@ -22,8 +22,10 @@ export function hook(ctx: CommandContext, event: HookEvent): number {
   }
   const line = sessionLine(statusRows(ctx.snapshot));
   let body = line + '\n';
+  let note = '';
   if (event === 'session-resume') {
     recordResume(ctx);
+    note = releaseOnClear(ctx);
     try {
       const input = hookInput(ctx);
       const root = input?.cwd !== undefined ? repoRoot(input.cwd) : ctx.root;
@@ -40,7 +42,7 @@ export function hook(ctx: CommandContext, event: HookEvent): number {
       ctx.stderr.write((e as Error).message + '\n');
     }
   }
-  ctx.stdout.write(rules + '\n' + body);
+  ctx.stdout.write(rules + '\n' + note + body);
   if (event === 'session-start') startHold(ctx);
   return 0;
 }
@@ -52,6 +54,23 @@ function heldEntry(root: string, marker: string, ctx: CommandContext): { id: str
   if (id === undefined) return undefined;
   const path = listWorktrees(root).slice(1).find((w) => w.branch === branchOf(ctx.snapshot, id))?.path;
   return path === undefined ? undefined : { id, path };
+}
+
+/** BUG-LN-14: a /clear frees the holds this window's claude process took; returns '' or one line saying why nothing was released. */
+function releaseOnClear(ctx: CommandContext): string {
+  try {
+    const input = hookInput(ctx);
+    if (input?.source !== 'clear') return '';
+    const claude = claudeEnv(ctx.env);
+    if (claude === undefined) return '';
+    const root = input.cwd !== undefined ? repoRoot(input.cwd) : ctx.root;
+    const session = sessionIn(claude, processTable(), process.pid);
+    releaseHolds(root, session);
+    return '';
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return `accord: no hold released: ${msg.split('\n')[0]}`.replace(/\\/g, '/') + '\n';
+  }
 }
 
 /** Record that a Claude Code session works `id`; a failure is one stderr line. */
@@ -100,7 +119,7 @@ function startHold(ctx: CommandContext): void {
   }
 }
 
-export function hookInput(ctx: CommandContext): { session_id?: string; command_name?: string; command_args?: string; cwd?: string } | undefined {
+export function hookInput(ctx: CommandContext): { session_id?: string; command_name?: string; command_args?: string; cwd?: string; source?: string } | undefined {
   let parsed: unknown;
   try {
     parsed = JSON.parse(ctx.stdin ?? '');
@@ -109,7 +128,7 @@ export function hookInput(ctx: CommandContext): { session_id?: string; command_n
   }
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return undefined;
   const out: Record<string, string> = {};
-  for (const k of ['session_id', 'command_name', 'command_args', 'cwd']) {
+  for (const k of ['session_id', 'command_name', 'command_args', 'cwd', 'source']) {
     const v = (parsed as Record<string, unknown>)[k];
     if (typeof v === 'string') out[k] = v;
   }

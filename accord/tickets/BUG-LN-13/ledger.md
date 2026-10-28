@@ -33,3 +33,4 @@ Ruling: task 4 writes the dashboard.test.ts loop expectation as `['ST-AN-2','ST-
 - task 2 done f26f7b42eb84
 - task 3 done 254f77deadb1
 - task 4 done f229a05ce55a
+- task 5 done d0be9e2add64

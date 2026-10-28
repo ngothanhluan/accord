@@ -52,7 +52,7 @@ Feature: BUG-LN-13
     Then the ticket is listed in YOURS with the next step "the pull request; run accord gate done"
     And the count line does not count it as done
 
-  @ac-3
+  @ac-3 @test:packages/cli/test/done-on-default.test.ts#ac-3-a-dependant-stays-blocked-in-the-dashboard-and-gate-ready-until-its-prerequisite-is-done-on-the-default-branch
   Scenario: A dependant stays blocked until the ticket's done records reach the default branch
     Given ticket B names ticket A as a prerequisite, and A's records give stage done only on its claim branch
     When the owner runs accord dashboard and accord gate ready B

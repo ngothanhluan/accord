@@ -25,7 +25,7 @@ export function hook(ctx: CommandContext, event: HookEvent): number {
   let note = '';
   if (event === 'session-resume') {
     recordResume(ctx);
-    note = releaseOnClear(ctx);
+    note = releaseOnNewConversation(ctx);
     try {
       const input = hookInput(ctx);
       const root = input?.cwd !== undefined ? repoRoot(input.cwd) : ctx.root;
@@ -56,16 +56,23 @@ function heldEntry(root: string, marker: string, ctx: CommandContext): { id: str
   return path === undefined ? undefined : { id, path };
 }
 
-/** BUG-LN-14: a /clear frees the holds this window's claude process took; returns '' or one line saying why nothing was released. */
-function releaseOnClear(ctx: CommandContext): string {
+/** The ticket whose worktree `root` is (a linked worktree on a ticket branch), else undefined. */
+function ticketOfWorktree(root: string, ctx: CommandContext): string | undefined {
+  if (!isLinked(root)) return undefined;
+  const branch = currentBranch(root);
+  return branch === undefined ? undefined : ticketOfBranch(branch, ctx.snapshot.branchTemplates ?? [DEFAULT_BRANCH_TEMPLATE], (i) => Object.hasOwn(ctx.snapshot.tickets, i));
+}
+
+/** BUG-LN-14: a /clear or a /resume to another conversation frees the holds this window's claude process took, except the resumed conversation's own and the ticket whose worktree the window stands in (D-06); returns '' or one line saying why nothing was released. */
+function releaseOnNewConversation(ctx: CommandContext): string {
   try {
     const input = hookInput(ctx);
-    if (input?.source !== 'clear') return '';
+    if (input?.source !== 'clear' && input?.source !== 'resume') return '';
     const claude = claudeEnv(ctx.env);
     if (claude === undefined) return '';
     const root = input.cwd !== undefined ? repoRoot(input.cwd) : ctx.root;
     const session = sessionIn(claude, processTable(), process.pid);
-    releaseHolds(root, session);
+    releaseHolds(root, session, input.session_id || claude.marker, ticketOfWorktree(root, ctx));
     return '';
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -90,9 +97,7 @@ function recordResume(ctx: CommandContext): void {
   try {
     const input = hookInput(ctx);
     const root = input?.cwd !== undefined ? repoRoot(input.cwd) : ctx.root;
-    if (!isLinked(root)) return;
-    const branch = currentBranch(root);
-    const id = branch === undefined ? undefined : ticketOfBranch(branch, ctx.snapshot.branchTemplates ?? [DEFAULT_BRANCH_TEMPLATE], (i) => Object.hasOwn(ctx.snapshot.tickets, i));
+    const id = ticketOfWorktree(root, ctx);
     if (id !== undefined) record(ctx, root, id, input?.session_id);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -106,9 +111,7 @@ function startHold(ctx: CommandContext): void {
   try {
     const input = hookInput(ctx);
     const root = input?.cwd !== undefined ? repoRoot(input.cwd) : ctx.root;
-    if (!isLinked(root)) return;
-    const branch = currentBranch(root);
-    id = branch === undefined ? undefined : ticketOfBranch(branch, ctx.snapshot.branchTemplates ?? [DEFAULT_BRANCH_TEMPLATE], (i) => Object.hasOwn(ctx.snapshot.tickets, i));
+    id = ticketOfWorktree(root, ctx);
     if (id === undefined) return;
     record(ctx, root, id, input?.session_id);
     if (claudeEnv(ctx.env) === undefined) return;

@@ -2792,3 +2792,44 @@ it('ac-3 a start or a clear in a second window in the ticket worktree leaves the
   expect(r.err).toContain('sess-A');
   expect((readHolds(c)['ST-9'] as { marker: string }).marker).toBe('sess-A');
 }, 120_000);
+
+it('ac-5 a clear in the held ticket worktree moves its hold to the new conversation and releases the window other holds', async () => {
+  const c = copy({ tickets: ['ST-9', 'ST-10'] });
+  const sib = c.sibling('ST-9');
+  c.git('worktree', 'add', '-q', '-b', 't/ST-9', sib, 'origin/main');
+  c.git('remote', 'remove', 'origin');
+  mkdirSync(`${sib}/sub`);
+  writeHolds(c, { 'ST-9': { tool: 'Claude Code', ...A, taken: T }, 'ST-10': { tool: 'Claude Code', ...A, taken: T } });
+  setTable(tableOf(A));
+  const k = await run(['hook', 'session-resume'], sib, envOf(A2), JSON.stringify({ session_id: 'sess-A2', cwd: `${sib}/sub`, source: 'clear' }));
+  expect(k.code).toBe(0);
+  expect(Object.keys(readHolds(c))).toEqual(['ST-9']);
+  expect(readHolds(c)['ST-9']).toMatchObject({ marker: 'sess-A2', pid: 7001, start: 'S-A', taken: T });
+  const same = await run(['worktree', 'open', 'ST-9', '--continue'], sib, envOf(A2));
+  expect(same.code).toBe(0);
+  expect(same.out).toBe(HELD);
+  setTable(tableOf(B, A));
+  const other = await run(['worktree', 'open', 'ST-9', '--continue'], c.root, envOf(B));
+  expect(other.code).toBe(2);
+  expect(other.err).toContain('ST-9 is held by another session');
+  expect(other.err).toContain('sess-A2');
+}, 120_000);
+
+it('risk:complex-branching a resume to another conversation keeps only the hold that conversation took and a compact releases nothing', async () => {
+  const c = copy();
+  const A3 = { ...A, marker: 'sess-A3' };
+  const both = { 'ST-9': { tool: 'Claude Code', ...A, taken: T }, 'ST-10': { tool: 'Claude Code', ...A3, taken: T } };
+  setTable(tableOf(A));
+  const resumeTo = (s: { marker: string; pid: number }, source: string) =>
+    run(['hook', 'session-resume'], c.root, envOf(s), JSON.stringify({ session_id: s.marker, cwd: c.root, source }));
+  writeHolds(c, both);
+  const a = await resumeTo(A3, 'resume');
+  expect(a.code).toBe(0);
+  expect(Object.keys(readHolds(c))).toEqual(['ST-10']);
+  expect((readHolds(c)['ST-10'] as { marker: string }).marker).toBe('sess-A3');
+  writeHolds(c, both);
+  const bytes = readFileSync(holdsFile(c), 'utf8');
+  const b = await resumeTo(A, 'compact');
+  expect(b.code).toBe(0);
+  expect(readFileSync(holdsFile(c), 'utf8')).toBe(bytes);
+}, 60_000);

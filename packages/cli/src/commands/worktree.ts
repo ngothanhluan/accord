@@ -215,11 +215,19 @@ export function takeHold(ctx: CommandContext, id: string): void {
   recordWorked(ctx.root, id, session.marker);
 }
 
-/** BUG-LN-14 D-02: drop every hold the claude process `session` took (same pid and start), under the holds lock; no write when none is dropped. */
-export function releaseHolds(root: string, session: { pid: number; start: string }): void {
+/** BUG-LN-14 D-02, D-06: drop the holds the claude process `session` took, except the one `marker` holds; the hold of `stay` moves to `marker`. */
+export function releaseHolds(root: string, session: { pid: number; start: string }, marker: string, stay: string | undefined): void {
   withHolds(root, (holds) => {
-    const keep = Object.entries(holds).filter(([, h]) => !(h.pid === session.pid && h.start === session.start));
-    return keep.length === Object.keys(holds).length ? undefined : Object.fromEntries(keep);
+    let changed = false;
+    const next: Record<string, Hold> = {};
+    for (const [id, h] of Object.entries(holds)) {
+      if (h.pid !== session.pid || h.start !== session.start || h.marker === marker) next[id] = h;
+      else if (id === stay) {
+        next[id] = { ...h, marker };
+        changed = true;
+      } else changed = true;
+    }
+    return changed ? next : undefined;
   });
 }
 

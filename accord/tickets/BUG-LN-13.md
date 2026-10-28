@@ -25,12 +25,54 @@ A lane S ticket at that point, and a lane M ticket too if the check confirms the
 <!-- One repository path per line, never a folder: every file the change is expected to touch, tests and new files included. -->
 
 ## Intent
+Why: the dashboard counts a ticket as done once its records say so on its claim branch, so a ticket whose pull request is still open leaves YOURS and a ticket that depends on it is unblocked before the code reaches the default branch; seen on BUG-LN-12 on 2026-10-28.
+For whom: everyone who reads `accord dashboard` or starts a ticket that depends on another.
+Success: a lane S or lane M ticket whose done records are not yet on the default branch stays in YOURS with its next step and keeps its dependants blocked; once merged, it leaves YOURS and counts as done.
+Not: no change to the shape of `accord status --json` or its `stage` values, no tracker or GitHub lookup, and `accord worktree clean` keeps cleaning what it cleans today.
 
 ## Acceptance criteria
+```gherkin
+Feature: BUG-LN-13
+
+  @ac-1
+  Scenario: A lane S ticket with a review verdict that is not yet on the default branch stays in YOURS
+    Given a claimed lane S ticket whose review.md ends with a verdict on its claim branch
+    And the ticket's records as they stand on the default branch do not give stage done
+    When the owner runs accord dashboard on the default branch
+    Then the ticket is listed in YOURS with the next step "the pull request; run accord gate done (lane-s.md)"
+    And the count line does not count it as done
+
+  @ac-2
+  Scenario: A ticked lane M ticket that is not yet on the default branch stays in YOURS
+    Given a claimed lane M ticket whose ticks are bound on its claim branch
+    And the ticket's records as they stand on the default branch do not give stage done
+    When the owner runs accord dashboard on the default branch
+    Then the ticket is listed in YOURS with the next step "the pull request; run accord gate done"
+    And the count line does not count it as done
+
+  @ac-3
+  Scenario: A dependant stays blocked until the ticket's done records reach the default branch
+    Given ticket B names ticket A as a prerequisite, and A's records give stage done only on its claim branch
+    When the owner runs accord dashboard and accord gate ready B
+    Then the dashboard shows B as blocked by A and accord gate ready B fails naming A
+    And once A's records on the default branch give stage done, A leaves YOURS, counts as done, B is no longer shown as blocked, and accord gate ready B no longer fails on A
+
+  @ac-4
+  Scenario: accord status --json keeps its shape
+    Given a ticket that is done on its claim branch but not on the default branch
+    When the owner runs accord status --json
+    Then the ticket's row has the same keys as before this change and its stage is done
+```
 
 ## Vetoes
 
 ## Decisions
+- D-01 A ticket counts as done for the dashboard and for its dependants only once its done records are on the default branch (origin's, as `accord worktree clean` reads it), which holds for merge, squash and rebase alike — "A" (owner, 2026-10-28, choosing this over the claim tip being an ancestor of the default branch, and over asking GitHub)
+- D-02 The shape of `accord status --json` stays as it is: `stage` is still `done`; only the dashboard and the dependency check compare with the default branch — "A" (owner, 2026-10-28, choosing this over a new `merged` field or a new stage value)
+- D-03 The smallest version that counts as done is all four criteria — "ok" (owner, 2026-10-28)
+- D-04 The default branch "holds" a ticket's done records when its stage, computed again from the records as they stand there, is done, the same test `accord worktree clean` uses — "as recommended" (owner, 2026-10-28, choosing this over comparing review.md's content)
+- D-05 A lane M ticket that is done but not yet on the default branch shows the next step "the pull request; run accord gate done", like lane S, in place of "nothing; run accord gate done" — "as recommended" (owner, 2026-10-28)
+- D-06 Blocked covers `accord gate ready` too: it refuses a ticket whose prerequisite is done only on its claim branch, not only the dashboard display — "as recommended" (owner, 2026-10-28)
 
 ## Corrections
 

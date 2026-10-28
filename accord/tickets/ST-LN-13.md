@@ -1,6 +1,6 @@
 ---
 id: "ST-LN-13"                            # equals the file name: tickets/<id>.md
-title: "An agent researches outside libraries before the approach, with a source for each fact"
+title: "Research behind a ticket is kept in the repository with its sources, and an agent researches outside libraries before the approach"
 type: "story" # story | bug. An epic uses its own template
 status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
@@ -31,6 +31,9 @@ ui: false
 Queued 2026-10-17, not approved; the intent interview replaces this:
 - Owner approved 2026-10-13: an `accord-researcher` agent runs at the approach stage when a ticket touches an outside library, API or version the code cannot answer; writes `accord/tickets/<id>/research.md` with source and date per fact; the architect reads it.
 - A library documentation tool first when installed, official docs second, web search third; shipped text describes the tool by function and never names it.
+- Widened (owner, 2026-10-25, after the main session proposed it: "ok, do it and open a PR"): knowledge made before a ticket exists, a discussion, a measure or a study, has no home. A ticket's Intent holds five lines, the intent interview replaces the queued intent, and the owner's memory is local to one machine and one runtime. On 2026-10-25 a measure of 129 review findings and a study of GSD fed four tickets and existed only in one session.
+- Queued: research is recorded in `accord/research/<date>-<topic>.md`, shared because one study feeds several tickets, with its date and the commit it was made at; a ticket names it under a `research:` key that lint checks exists; the intent interview, architect, critic and planner read it; the interview moves evidence it replaces in the queued intent into the record instead of deleting it. Research is evidence, never a contract. The researcher's output could go there instead of the per-ticket `accord/tickets/<id>/research.md` above; the interview decides.
+- First record: `accord/research/2026-10-25-review-convergence.md`. The ticket schema rejects unknown keys, so `research:` is not usable yet; whether adding it breaks repositories pinned to 0.2.0 is to be checked.
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.

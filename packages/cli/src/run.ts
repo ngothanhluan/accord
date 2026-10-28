@@ -29,7 +29,7 @@ import { drop } from './commands/drop.js';
 import { upgrade } from './commands/upgrade.js';
 import { worktreeCheck, worktreeClean, worktreeMerge, worktreeOpen } from './commands/worktree.js';
 import { loadClaimView, loadFromFs, UsageError } from './load/fs.js';
-import { pinMessage } from './pin.js';
+import { pinMessage, versionOnDisk } from './pin.js';
 import { repoRoot } from './root.js';
 
 export interface RunOptions {
@@ -65,7 +65,7 @@ function preflight(opts: RunOptions, mode: 'checkout' | 'stage' | 'claims' | 'li
   // when config.yml is missing or failed the schema (D-31); those repositories must report their
   // schema findings through lint rather than a pin error, so the check is guarded rather than global.
   if (snapshot.config !== undefined) {
-    const message = pinMessage(snapshot.config.accord, pkg.version);
+    const message = pinMessage(snapshot.config.accord, pkg.version, versionOnDisk());
     if (message !== undefined) throw new UsageError(message);
   }
   return { root, snapshot, ...(plain === undefined ? {} : { plain }), stdout: opts.stdout, stderr: opts.stderr, env: opts.env ?? {}, ...(opts.stdin === undefined ? {} : { stdin: opts.stdin }) };
@@ -272,7 +272,7 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
 
   program
     .command('dashboard')
-    .description('print the ranked and capped sections for the viewer')
+    .description('print the ranked sections for the viewer')
     .option('--json', 'print the Dashboard object instead of text')
     .action(async (options: { json?: boolean }) => {
       setCode(await dashboardCommand(preflight(opts, 'claims'), options));

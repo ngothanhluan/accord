@@ -2,7 +2,7 @@
 id: "ST-LN-53"                            # equals the file name: tickets/<id>.md
 title: "A review loop that does not converge stops and reports to the owner"
 type: "story" # story | bug. An epic uses its own template
-status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
+status: dropped                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
 # Tickets that must reach done before this one can start.
 # depends_on: ["OTHER-ID"]
@@ -61,3 +61,6 @@ Feature: ST-LN-53
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
+
+## Dropped
+Merged into ST-LN-17, which carries its notes (owner, 2026-10-25, after the main session proposed a five-ticket plan for review convergence: "ok, agreed").

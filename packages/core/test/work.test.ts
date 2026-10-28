@@ -179,3 +179,29 @@ it('risk:parsing the preamble keeps a Context section and a title above Task 1',
   expect(parsePlan('p', 'only prose\n').plan.preamble).toBe('only prose\n');
   expect(parsePlan('p', '\uFEFF' + text.replace(/\n/g, '\r\n')).plan.preamble).toBe(pre);
 });
+
+it('risk:parsing the ledger and the last review round yield only the fixed declaration lines', () => {
+  const l = parseLedger(
+    'l',
+    '## Rulings\n- Wording-only: README.md \u2014 fixes a typo\nWording-only: `docs/a.md` \u2014 one word\nWording-only: docs/a b.md \u2014 spaced name\nWording-only: `src/c d.md` \u2014 quoted spaced name\nWording-only: x.md - no dash\nWording-only: y.md \u2014\n',
+  );
+  expect(l.wordingOnly).toEqual([
+    { path: 'README.md', reason: 'fixes a typo' },
+    { path: 'docs/a.md', reason: 'one word' },
+    { path: 'docs/a b.md', reason: 'spaced name' },
+    { path: 'src/c d.md', reason: 'quoted spaced name' },
+  ]);
+  expect(parseLedger('l', '- task 1 done abc1234\n')).not.toHaveProperty('wordingOnly');
+  expect(
+    parseReview(
+      'r',
+      '## Round 1\n\nConfirmed wording-only: OLD.md\nNot an interface: src/old.ts \u2014 old\n\n## Round 2\n\n- Confirmed wording-only: README.md\nNot an interface: src/cli.ts \u2014 test harness only\nConfirmed wording-only: docs/a b.md\nConfirmed wording-only: `src/c d.md`\nNot an interface: `src/a b.ts` \u2014 spaced harness\nNot an interface: src/x y.ts \u2014 spaced too\nConfirmed wording-only:\nNot an interface: src/z.ts\n\nverdict: converged\n',
+    ),
+  ).toEqual({
+    file: 'r',
+    verdict: 'converged',
+    line: 17,
+    confirmed: ['README.md', 'docs/a b.md', 'src/c d.md'],
+    notInterface: ['src/cli.ts', 'src/a b.ts', 'src/x y.ts'],
+  });
+});

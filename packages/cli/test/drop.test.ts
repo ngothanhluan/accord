@@ -1,6 +1,6 @@
-import { chmodSync, rmSync, writeFileSync } from 'node:fs';
-import { afterEach, expect, it } from 'vitest';
-import { makeClone } from './helpers/worktree.js';
+import { chmodSync, writeFileSync } from 'node:fs';
+import { afterAll, afterEach, beforeAll, expect, it } from 'vitest';
+import { copyClone, makeClone, makeTemplate } from './helpers/worktree.js';
 import type { Clone } from './helpers/worktree.js';
 import { commitMsg, gitRun, mergeMsg, run, writeFiles } from './helpers/repo.js';
 import { LANE_BODY, laneTicket } from '../../../test/helpers/lane.js';
@@ -42,9 +42,49 @@ function remoteDrop(c: Clone, id: string): string | undefined {
   }
 }
 
+const blob = (cl: Clone, id: string): string => gitRun(cl.remote, 'cat-file', 'blob', remoteDrop(cl, id)! + ':accord/tickets/' + id + '.md');
+const crlf = '﻿' + laneTicket('ST-10').replaceAll('\n', '\r\n');
+
+// Templates (H1, rule 5): built once and copied with their own origin; a template holds no linked worktree.
+let plain: Clone;
+let claimed: Clone;
+let crlfClaimed: Clone;
+const copy = (tpl: Clone): Clone => {
+  const c = copyClone(tpl);
+  clones.push(c);
+  return c;
+};
+
+beforeAll(() => {
+  plain = makeTemplate();
+  claimed = makeTemplate();
+  claimOnBranch(claimed, 'second');
+  crlfClaimed = makeTemplate();
+  crlfClaimed.git('config', 'core.autocrlf', 'false');
+  crlfClaimed.git('switch', '-q', '-c', 't/ST-10');
+  writeFiles(crlfClaimed.root, { 'accord/tickets/ST-10.md': crlf });
+  commitMsg(crlfClaimed.root, 'claim: ST-10');
+  crlfClaimed.git('push', '-q', '-u', 'origin', 't/ST-10');
+}, 120_000);
+
+afterAll(() => {
+  for (const t of [plain, claimed, crlfClaimed]) t.cleanupAll();
+});
+
+/** The worktree that holds t/ST-10 with its claim committed and pushed, then the ticket edited (added after the copy, rule 5). */
+function heldWorktree(c: Clone): string {
+  const s = c.sibling('ST-10');
+  c.git('worktree', 'add', '-q', '-b', 't/ST-10', s, 'origin/main');
+  writeFiles(s, { 'accord/tickets/ST-10.md': laneTicket('ST-10') });
+  commitMsg(s, 'claim: ST-10');
+  gitRun(s, 'push', '-q', '-u', 'origin', 't/ST-10');
+  writeFileSync(s + '/accord/tickets/ST-10.md', laneTicket('ST-10') + '\nedited\n');
+  return s;
+}
+
 it('ac-1 dropping a ticket pushes a branch from the default branch whose only change is the ticket file set to dropped', async () => {
-  const c = clone();
-  const tip = claimOnBranch(c, 'second');
+  const c = copy(claimed);
+  const tip = ticketWith('second');
   writeFiles(c.root, { 'src/a.ts': 'changed\n' });
   const head = c.git('rev-parse', 'HEAD');
   const r = await run(['drop', 'ST-10', '--reason', 'no longer needed'], c.root);
@@ -63,8 +103,7 @@ it('ac-1 dropping a ticket pushes a branch from the default branch whose only ch
 }, 120_000);
 
 it('ac-2 dropping without a reason is refused and nothing is created committed or pushed', async () => {
-  const c = clone();
-  claimOnBranch(c, 'second');
+  const c = copy(claimed);
   const heads = gitRun(c.remote, 'for-each-ref');
   const head = c.git('rev-parse', 'HEAD');
   for (const argv of [['drop', 'ST-10'], ['drop', 'ST-10', '--reason', '   '], ['drop', 'ST-10', '--reason', 'a\nb']]) {
@@ -79,13 +118,7 @@ it('ac-2 dropping without a reason is refused and nothing is created committed o
 }, 120_000);
 
 it('risk:data-loss drop pushes a crlf ticket file with a bom byte for byte outside the status value and the dropped section', async () => {
-  const c = clone();
-  c.git('config', 'core.autocrlf', 'false');
-  c.git('switch', '-q', '-c', 't/ST-10');
-  const crlf = '﻿' + laneTicket('ST-10').replaceAll('\n', '\r\n');
-  writeFiles(c.root, { 'accord/tickets/ST-10.md': crlf });
-  commitMsg(c.root, 'claim: ST-10');
-  c.git('push', '-q', '-u', 'origin', 't/ST-10');
+  const c = copy(crlfClaimed);
   const r = await run(['drop', 'ST-10', '--reason', 'no longer needed'], c.root);
   expect(r.code, r.err).toBe(0);
   const D = remoteDrop(c, 'ST-10')!;
@@ -94,78 +127,91 @@ it('risk:data-loss drop pushes a crlf ticket file with a bom byte for byte outsi
   );
 }, 120_000);
 
-it('risk:complex-branching drop reads the claim tip that holds the other refuses diverged tips and falls back to the default branch', async () => {
-  const c = clone();
-  const blob = (cl: Clone, id: string): string => gitRun(cl.remote, 'cat-file', 'blob', remoteDrop(cl, id)! + ':accord/tickets/' + id + '.md');
-  const undrop = (cl: Clone, id: string): string => cl.git('push', '-q', 'origin', '--delete', 'drop/' + id);
-  claimOnBranch(c, 'A');
+it('risk:complex-branching drop reads a local claim tip ahead of origin', async () => {
+  const c = copy(claimed);
   writeIntent(c, 'B');
   commitMsg(c.root, 'B');
-  let r = await run(['drop', 'ST-10', '--reason', 'x'], c.root);
+  const r = await run(['drop', 'ST-10', '--reason', 'x'], c.root);
   expect(r.code, r.err).toBe(0);
   expect(blob(c, 'ST-10')).toContain('as CSV, B.');
-  undrop(c, 'ST-10');
+}, 120_000);
 
-  c.git('push', '-q');
+it('risk:complex-branching drop reads an origin claim tip ahead of the local one', async () => {
+  const c = copy(claimed);
   const o = c.otherClone();
   gitRun(o, 'switch', '-q', 't/ST-10');
   writeFiles(o, { 'accord/tickets/ST-10.md': ticketWith('C') });
   commitMsg(o, 'C');
   gitRun(o, 'push', '-q');
-  r = await run(['drop', 'ST-10', '--reason', 'x'], c.root);
+  const r = await run(['drop', 'ST-10', '--reason', 'x'], c.root);
   expect(r.code, r.err).toBe(0);
   expect(blob(c, 'ST-10')).toContain('as CSV, C.');
-  undrop(c, 'ST-10');
+}, 120_000);
 
+it('risk:complex-branching drop refuses diverged claim tips', async () => {
+  const c = copy(claimed);
+  const o = c.otherClone();
+  gitRun(o, 'switch', '-q', 't/ST-10');
+  writeFiles(o, { 'accord/tickets/ST-10.md': ticketWith('C') });
+  commitMsg(o, 'C');
+  gitRun(o, 'push', '-q');
   writeIntent(c, 'D');
   commitMsg(c.root, 'D');
-  r = await run(['drop', 'ST-10', '--reason', 'x'], c.root);
+  const r = await run(['drop', 'ST-10', '--reason', 'x'], c.root);
   expect(r.code).toBe(2);
   expect(r.err).toContain('diverged');
   expect(remoteDrop(c, 'ST-10')).toBeUndefined();
+}, 120_000);
 
-  r = await run(['drop', 'ST-9', '--reason', 'gone'], c.root);
+it('risk:complex-branching drop falls back to the default branch with no claim branch', async () => {
+  const c = copy(plain);
+  const r = await run(['drop', 'ST-9', '--reason', 'gone'], c.root);
   expect(r.code, r.err).toBe(0);
   expect(blob(c, 'ST-9')).toBe(laneTicket('ST-9').replace('status: open', 'status: "dropped"') + '\n## Dropped\ngone\n');
+}, 120_000);
 
-  const d = clone();
+it('risk:complex-branching drop names trunk when origin HEAD is trunk', async () => {
+  const d = copy(plain);
   gitRun(d.remote, 'branch', '-m', 'main', 'trunk');
   gitRun(d.remote, 'symbolic-ref', 'HEAD', 'refs/heads/trunk');
   d.git('fetch', '-q', 'origin');
   d.git('remote', 'set-head', 'origin', 'trunk');
-  r = await run(['drop', 'ST-9', '--reason', 'gone'], d.root);
+  const r = await run(['drop', 'ST-9', '--reason', 'gone'], d.root);
   expect(r.code, r.err).toBe(0);
   expect(r.out).toContain('base: trunk\n');
   expect(gitRun(d.remote, 'rev-list', '--parents', '-n', '1', remoteDrop(d, 'ST-9')!).trim().split(' ')[1]).toBe(gitRun(d.remote, 'rev-parse', 'trunk').trim());
 }, 120_000);
 
 it('risk:data-loss drop refuses an uncommitted ticket file in the worktree holding its branch', async () => {
-  const c = clone();
-  const s = c.sibling('ST-10');
-  c.git('worktree', 'add', '-q', '-b', 't/ST-10', s, 'origin/main');
-  writeFiles(s, { 'accord/tickets/ST-10.md': laneTicket('ST-10') });
-  commitMsg(s, 'claim: ST-10');
-  gitRun(s, 'push', '-q', '-u', 'origin', 't/ST-10');
-  writeFileSync(s + '/accord/tickets/ST-10.md', laneTicket('ST-10') + '\nedited\n');
-  let r = await run(['drop', 'ST-10', '--reason', 'x'], c.root);
+  const c = copy(plain);
+  heldWorktree(c);
+  const r = await run(['drop', 'ST-10', '--reason', 'x'], c.root);
   expect(r.code).toBe(2);
   expect(r.err).toContain('accord/tickets/ST-10.md');
   expect(r.err).toContain('uncommitted');
   expect(remoteDrop(c, 'ST-10')).toBeUndefined();
-  commitMsg(s, 'edit');
-  r = await run(['drop', 'ST-10', '--reason', 'x'], c.root);
+}, 120_000);
+
+it('risk:data-loss drop proceeds once the held ticket file is committed', async () => {
+  const c = copy(plain);
+  commitMsg(heldWorktree(c), 'edit');
+  const r = await run(['drop', 'ST-10', '--reason', 'x'], c.root);
   expect(r.code, r.err).toBe(0);
 }, 120_000);
 
-it('risk:complex-branching drop refuses a failed fetch an existing drop branch a ticket already dropped and names a failed push', async () => {
-  const c = clone();
-  claimOnBranch(c, 'A');
+it('risk:complex-branching drop refuses a drop branch already on origin', async () => {
+  const c = copy(claimed);
   let r = await run(['drop', 'ST-10', '--reason', 'x'], c.root);
   expect(r.code, r.err).toBe(0);
   r = await run(['drop', 'ST-10', '--reason', 'x'], c.root);
   expect(r.code).toBe(2);
   expect(r.err).toContain('git push origin --delete drop/ST-10');
+}, 120_000);
 
+it('risk:complex-branching drop refuses a ticket already dropped on main', async () => {
+  const c = copy(claimed);
+  let r = await run(['drop', 'ST-10', '--reason', 'x'], c.root);
+  expect(r.code, r.err).toBe(0);
   const o = c.otherClone();
   mergeMsg(o, 'origin/drop/ST-10', 'merge drop/ST-10');
   gitRun(o, 'push', '-q', 'origin', 'main');
@@ -173,17 +219,22 @@ it('risk:complex-branching drop refuses a failed fetch an existing drop branch a
   r = await run(['drop', 'ST-10', '--reason', 'x'], c.root);
   expect(r.code).toBe(2);
   expect(r.err).toContain('already dropped on main');
+}, 120_000);
 
+it('risk:complex-branching drop names the quoted push when the push fails', async () => {
+  const c = copy(plain);
   const hook = `${c.remote}/hooks/pre-receive`;
   writeFileSync(hook, '#!/bin/sh\nexit 1\n');
   chmodSync(hook, 0o755);
-  r = await run(['drop', 'ST-9', '--reason', 'gone'], c.root);
+  const r = await run(['drop', 'ST-9', '--reason', 'gone'], c.root);
   expect(r.code).toBe(2);
   expect(r.err).toMatch(/git push origin [0-9a-f]{40}:refs\/heads\/drop\/ST-9/);
-  rmSync(hook);
+}, 120_000);
 
+it('risk:complex-branching drop refuses a failed fetch', async () => {
+  const c = copy(plain);
   c.git('remote', 'set-url', 'origin', c.remote + '-missing');
-  r = await run(['drop', 'ST-9', '--reason', 'gone'], c.root);
+  const r = await run(['drop', 'ST-9', '--reason', 'gone'], c.root);
   expect(r.code).toBe(2);
   expect(r.err.startsWith('fetch from origin failed')).toBe(true);
 }, 120_000);

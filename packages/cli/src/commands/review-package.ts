@@ -1,9 +1,10 @@
 // Spec §10 `accord review-package <id> [--base <ref>]`: what a reviewer reads — commits, stat, and the diff
 // with ten lines of context. git only, literal argument arrays, no shell (CLI-07).
 import { execFileSync } from 'node:child_process';
-import { undeclaredFiles, workOf } from '@accord-dev/accord-core';
+import { interfaceSigns, outsideScope, undeclaredFiles, workOf } from '@accord-dev/accord-core';
 import { defaultRefOf, UsageError } from '../load/fs.js';
 import type { CommandContext } from '../run.js';
+import { branchFactFor } from './branch-fact.js';
 import { requireLaneTicket } from './lane-args.js';
 
 // No leading '-', so a ref can never be read as a git option; no spaces or shell metacharacters.
@@ -109,6 +110,24 @@ export function reviewPackage(ctx: CommandContext, id: string, options: { base?:
   } catch (e) {
     throw new UsageError(`cannot diff ${range}: ${why(e)}`);
   }
+  // ST-LN-62: what `accord gate done` would name, shown before it runs; the command never fails on the fact.
+  const f = branchFactFor(ctx, id);
+  const s = { ...ctx.snapshot, branchFacts: { [id]: f } };
+  const cannot = (why: string) => `(cannot tell: ${why})`;
+  const shown: string[] = [];
+  if (laneS) {
+    const o = outsideScope(s, id);
+    shown.push(
+      '## Out-of-scope files',
+      'error' in f ? cannot(f.error) : o !== undefined && 'cannot' in o ? cannot(o.cannot) : o?.paths.join('\n') || '(none)',
+    );
+  }
+  const signs = interfaceSigns(s, id);
+  shown.push(
+    '## Interface signs',
+    'error' in f ? cannot(f.error) : signs?.map((x) => `${x.path}: ${x.sign}`).join('\n') || '(none)',
+  );
+  parts.splice(parts.indexOf('## Stat'), 0, ...shown);
   ctx.stdout.write(parts.join('\n\n') + '\n');
   return 0;
 }

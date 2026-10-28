@@ -3,7 +3,7 @@ name: accord-verify
 description: Use when a lane M ticket's review.md ends with a verdict and the work needs verifying. Runs the full suite, has a fresh verifier write verification.md, builds the owner's report, and runs accord gate done once the owner has approved verified.
 license: MIT
 kind: skill
-loads: [verify/ci.md, accord/ids.md, accord/worktree.md, shared/ask.md, shared/failure.md]
+loads: [verify/ci.md, accord/ids.md, accord/worktree.md, shared/ask.md, shared/failure.md, shared/finish.md]
 ---
 
 This stage checks the built work against the ticket and hands it to the
@@ -81,7 +81,7 @@ judges, the owner decides.
    When both files are already committed and no rule was written,
    commit nothing. Then finish CI as `./ci.md` says.
 
-7. Next: `/accord`, for the next ticket.
+7. Report the finish as `./finish.md` says.
 
 ## Rules
 

@@ -1,0 +1,35 @@
+---
+ticket: "ST-LN-62"
+commit: "4a25f1d53d070344e87458702da5e1d931782445"
+reviewed_on: "2026-10-26"
+---
+
+## @ac-1 A lane is proposed from the scout's facts, and a lane S ticket records its scope
+
+Result: pass
+
+Evidence: Exists: the test `ac-1 a lane is proposed from the scout facts and a lane S ticket records its scope` is at packages/core/test/stage-skills.test.ts:695, and the new reference is packages/core/skills/accord/lane.md. Substantive: lane.md:7-18 dispatches `accord-scout` first for every request "however small it looks", asks for facts with `path:line`, and states the facts for each lift condition. lane.md:20-23 holds the lift conditions: a reading one question settles stays lane S, and the lane is M above 5 expected files (tests and generated copies not counted) or above 3 code areas (a folder cut to its first four segments). lane.md:33-39 requires a `## Scope` section with one repository path per line, never a folder, before any change is made. Wired: packages/core/skills/accord/SKILL.md lists `accord/lane.md` in `loads:` and its New request section points to `./lane.md`. lane-s.md Start and step 1 write the Scope before `gate ready`. packages/core/templates/ticket-lane-s.md carries a `## Scope` section. The rendered copy .claude/skills/accord/lane.md is identical to packages/core/skills/accord/lane.md, and the test compares it with the copy in accord-intent. Data flows: this is skill text, so the flow is the instruction order. The test asserts that the scout dispatch comes before the question and before "Propose a lane". I ran `npx vitest run test/stage-skills.test.ts test/scope.test.ts` in packages/core: 2 files passed, 47 of 47 tests.
+
+## @ac-2 gate done fails a lane S ticket that touched a file outside its recorded scope
+
+Result: pass
+
+Evidence: Exists: the test `ac-2 gate done fails a lane S ticket ...` is at packages/core/test/scope.test.ts:29. Substantive: `outsideScope` and `isExempt` in packages/core/src/gate/scope.ts:34-66 report counted changes that are not in the pinned scope. The ticket file, files under accord/tickets/<id>/, the sync-written paths and the merge-base `generated:` paths are exempt. A change with 0 lines after the whitespace flags is not counted (`isCounted`, scope.ts:42). `outOfScope` (scope.ts:96-114) emits a finding that names the path and says "must be lifted to lane M". The test asserts one finding, for rules.ts only, while the other exempt paths are silent, and that the verdict is fail. Wired: packages/core/src/gate/rules.ts adds `gate.out-of-scope` to DONE_S_RULES. packages/cli/src/commands/gate.ts passes `branchFacts` built by `branchFactFor` when the ticket has `lane:`. Data flows: packages/cli/src/load/fs.ts:867-895 computes the merge base against `defaultRefOf`, runs `git diff --raw/--numstat --no-renames -b --ignore-blank-lines --ignore-cr-at-eol` from the base to HEAD, and the result becomes `fact.changes`. The scope is pinned from the commit that first recorded `ac_hash`. packages/cli/test/branch-fact.test.ts exercises this on a real git fixture. I did not run that file; the main session reports the CI jobs on this commit passed.
+
+## @ac-3 A wording-only file outside the scope passes only when declared and confirmed
+
+Result: pass
+
+Evidence: Exists: the test `ac-3 a wording-only file outside the scope passes only when declared and confirmed` is at packages/core/test/scope.test.ts:94. Substantive: `wordingOnlyFault` (packages/core/src/gate/scope.ts:209-217) rejects a new file, a deleted file, a file with more than 3 changed lines, and a file without the "Confirmed wording-only" line. `outOfScope` also requires a ledger declaration, read from `work.ledger.wordingOnly`. The test covers a pass at 3 lines. It covers fails for a missing confirmation, a confirmation in a non-last Round, 4 lines, new, deleted and undeclared. Wired: the same `gate.out-of-scope` rule. The ledger and review lines are parsed in packages/core/src/load/work.ts, and the line text is wired into packages/core/skills/accord/lane-s.md step 2 and step 4 and into packages/core/agents/reviewer.md. Data flows: the line count comes from `git diff --numstat` with the ignore flags (packages/cli/src/load/fs.ts:882), and the ledger and review text comes from the snapshot files. The 47 tests passed in my run.
+
+## @ac-4 gate done fails a lane S ticket that touched a listed sensitive area
+
+Result: pass
+
+Evidence: Exists: the test `ac-4 gate done fails a lane S ticket that touched a listed sensitive area` is at packages/core/test/scope.test.ts:133. Substantive: `sensitiveTouched` (packages/core/src/gate/scope.ts:129-143) fails any counted change that matches an entry. An entry ending in `/` matches every path below that folder (`matches`, scope.ts:31). The check runs even when the path is in the scope or declared wording-only. The finding names the area and the path and says "must be lifted to lane M". The test covers a file that is both declared and in scope, a folder entry, and an entry present only in the HEAD config. It covers a whitespace-only change (silent) and a non-S ticket (silent). Wired: `gate.sensitive-touched` is in DONE_S_RULES in packages/core/src/gate/rules.ts. `sensitive` is added to packages/core/schemas/config.schema.json and read by `configLists` in packages/core/src/load/config.ts. accord/config.yml now lists `sensitive: interface` with packages/cli/src/run.ts among its entries. Data flows: entries come from the merge-base config unioned with the HEAD `s.config.sensitive`, and changes come from the real git diff in fs.ts. Tests passed in my run.
+
+## @ac-5 A sign of a new interface outside the list needs the list updated or a reviewer's reason
+
+Result: pass
+
+Evidence: Exists: the test `ac-5 a sign of a new interface outside the list needs the list updated or a reviewers reason` is at packages/core/test/scope.test.ts:172. Substantive: `interfaceSigns` (packages/core/src/gate/scope.ts:169-190) detects an added file under a `schemas` folder or named `*.schema.json`, a new key in the `exports` or `bin` map (via `keysOf` over the base and head package.json texts), and an added `.command(` or `.option(` line. It skips Markdown and exempt paths, and skips paths a sensitive entry matches. `interfaceSign` (scope.ts:192-206) fails a lane S ticket with "must be lifted to lane M". For other lanes it fails unless the "Not an interface: <path>" line is in the review, and a matching sensitive entry added on the branch silences it through the base-plus-HEAD union. The test covers all three signs, both lane branches, the excusing line, a HEAD list entry, a base list entry, and a ticket with no lane (silent). Wired: `INTERFACE_SIGN` is in both DONE_RULES and DONE_S_RULES in packages/core/src/gate/rules.ts. packages/cli/src/commands/review-package.ts also lists the signs for the reviewer. Data flows: `calls` and `pkg` come from the `git diff -U0` and the base and head file texts that fs.ts:894-895 loads. packages/cli/test/branch-fact.test.ts:123 covers the parsing of call lines and package.json maps against real git. Tests passed in my run.

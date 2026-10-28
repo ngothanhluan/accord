@@ -20,6 +20,7 @@ Must|Should|Nice <n> [patch|plan-gap|intent-gap]: <finding> — <file:line> — 
   and what became of it: `fixed in <sha>` with the fix commit, `deferred`
   for a Nice finding written to the ledger under `## Deferred`, or `open`.
 - A round with no findings says `No findings`.
+- Every `Confirmed wording-only: <path>` and `Not an interface: <path> — <reason>` line a reviewer reports is copied verbatim, one per line, into that round's section. Only the last `## Round` is read for them, so the last round, the final review, carries every one that still holds.
 
 The single last line of the file is the verdict:
 

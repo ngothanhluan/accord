@@ -68,6 +68,7 @@ Feature: ST-LN-58
 <!-- Settled answers, one per line: - D-01 <decision> — "<the owner's sentence>" -->
 - D-01 The ticket has two parts: each SKILL.md names every reference file its steps can reach, saying when to read it (five missing today), and a test fails when a skill folder holds a file its SKILL.md does not name; links between reference files stay as they are — "ok, correct" (owner, 2026-10-28, to these two parts)
 - D-02 The smallest version that counts as done is both parts, the five mentions and the test — "A" (owner, 2026-10-28, choosing this against the mentions without the test and against the test alone)
+- D-03 The ticket moves to lane S: three source SKILL.md files in three code areas plus one test, no public interface, no sensitive area, one reading after the audit — "ok" (owner, 2026-10-28, to the proposal to drop to lane S against keeping lane M)
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->

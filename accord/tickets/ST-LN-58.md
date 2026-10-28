@@ -72,6 +72,7 @@ Feature: ST-LN-58
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
+- (owner, 2026-10-28, after the main session dropped this ticket to move it to lane S, opening PR #117) "What is the drop for? Fix the ticket instead. Which rule says it has to be dropped? Fix the rule too."
 
 ## Open questions
 <!-- `- [ ]` items; Ready stays blocked while any is unchecked. -->

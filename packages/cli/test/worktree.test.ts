@@ -2751,3 +2751,44 @@ it('risk:data-loss a clear whose window the process table does not show releases
   expect(o.out).not.toContain('no hold released');
   expect(readFileSync(holdsFile(c), 'utf8')).toBe(bytes);
 }, 60_000);
+
+it('ac-2 after a clear the window claims one other ticket and holds only that one', async () => {
+  const c = copy({ tickets: ['ST-9', 'ST-10'] });
+  const sib = c.sibling('ST-9');
+  c.git('worktree', 'add', '-q', '-b', 't/ST-9', sib, 'origin/main');
+  writeHolds(c, { 'ST-9': { tool: 'Claude Code', ...A, taken: T } });
+  writeFileSync(`${c.root}/.git/accord/worked`, 'ST-9\tsess-A\n');
+  setTable(tableOf(A));
+  const k = await clearOf(c.root, A2);
+  expect(k.code).toBe(0);
+  const r = await run(['worktree', 'open', 'ST-10'], c.root, envOf(A2));
+  expect(r.code).toBe(0);
+  expect(r.err).not.toContain('this session works');
+  expect(r.err).not.toContain('held by another session');
+  expect(lines(r.out).at(-1)).toBe(`enter: ${c.sibling('ST-10')}`);
+  expect(Object.keys(readHolds(c))).toEqual(['ST-10']);
+  expect((readHolds(c)['ST-10'] as { marker: string }).marker).toBe('sess-A2');
+}, 120_000);
+
+it('ac-3 a start or a clear in a second window in the ticket worktree leaves the first window hold in place', async () => {
+  const c = copy({ tickets: ['ST-9', 'ST-10'] });
+  const sib = c.sibling('ST-9');
+  c.git('worktree', 'add', '-q', '-b', 't/ST-9', sib, 'origin/main');
+  c.git('remote', 'remove', 'origin');
+  mkdirSync(`${sib}/sub`);
+  writeHolds(c, { 'ST-9': { tool: 'Claude Code', ...A, taken: T } });
+  const bytes = readFileSync(holdsFile(c), 'utf8');
+  setTable(tableOf(B, A));
+  const s = await run(['hook', 'session-start'], sib, envOf(B), JSON.stringify({ session_id: 'sess-B', cwd: sib, source: 'startup' }));
+  expect(s.code).toBe(0);
+  expect(readFileSync(holdsFile(c), 'utf8')).toBe(bytes);
+  const B2 = { ...B, marker: 'sess-B2' };
+  const k = await run(['hook', 'session-resume'], sib, envOf(B2), JSON.stringify({ session_id: 'sess-B2', cwd: `${sib}/sub`, source: 'clear' }));
+  expect(k.code).toBe(0);
+  expect(readFileSync(holdsFile(c), 'utf8')).toBe(bytes);
+  const r = await run(['worktree', 'open', 'ST-9', '--continue'], sib, envOf(B2));
+  expect(r.code).toBe(2);
+  expect(r.err).toContain('ST-9 is held by another session');
+  expect(r.err).toContain('sess-A');
+  expect((readHolds(c)['ST-9'] as { marker: string }).marker).toBe('sess-A');
+}, 120_000);

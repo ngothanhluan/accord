@@ -3,7 +3,7 @@ id: "BUG-LN-13"                            # equals the file name: tickets/<id>.
 title: "A ticket whose pull request has not merged leaves the dashboard as done"
 type: "bug" # story | bug
 status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
-lane: "S" # S: one small change, worked from this ticket alone
+lane: "M" # M: one feature
 # Tickets that must reach done before this one can start.
 # depends_on: ["OTHER-ID"]
 # How the dashboard ranks this ticket: high | medium | low; absent means medium.
@@ -23,3 +23,17 @@ A lane S ticket at that point, and a lane M ticket too if the check confirms the
 
 ## Scope
 <!-- One repository path per line, never a folder: every file the change is expected to touch, tests and new files included. -->
+
+## Intent
+
+## Acceptance criteria
+
+## Vetoes
+
+## Decisions
+
+## Corrections
+
+## Open questions
+
+## Approach

@@ -31,6 +31,12 @@ Ruling: Continue commits a ticket that `gate ready` changed but does not push �
 Ruling: the debug resume (Continue step 3) and the after-verify failure path are not gated — both fix a failure in a ticket already at build or later — cost if wrong: a debug resume on a re-refused ticket goes unchecked
 Ruling: spec §6 gets one sentence on the check — that section describes Continue's routing — cost if wrong: wording only
 Ruling: Task 7 touches a third skill, the accord skill, beyond the two the Approach lists under Affected — the owner chose to fix the gap in this ticket ("A", 2026-10-28) — cost if wrong: one more file outside the approved Approach
+Ruling: the approach stop goes in step 6, the hand-off, not into sentence S — S and Task 6's test stay unchanged — cost if wrong: none beyond where the sentence sits
+Ruling: when `gate ready` refuses, approach still commits and pushes the approval with `approved_hash:` alone, then stops — the owner's yes is kept, and Continue's check runs `gate ready` again at stage plan — cost if wrong: an approval commit on a ticket that waits
+Ruling: approach step 6 stops on any open `gate ready` failure, not only `gate.depends-unmerged` — skill text may not name rule ids, and planning a ticket that failed Ready is wrong for any reason — cost if wrong: none
+Ruling: lane-s.md is not changed for the stop — its step 1 already holds the ticket until `gate ready` exits 0 — cost if wrong: a lane S dependant could go on past a refusal
+Ruling: the spec §6 sentence also names the approach stop — that section describes how a ticket reaches plan — cost if wrong: wording only
+Ruling: Task 7's test is renamed to cover both skills — it has no ledger line yet — cost if wrong: none
 
 ## Deferred
 - plan round 1.2 (Nice): Task 1 adds test imports first used in Task 3; `npm run lint` reports unused vars after Tasks 1 and 2
@@ -39,6 +45,8 @@ Ruling: Task 7 touches a third skill, the accord skill, beyond the two the Appro
 - review round 1.1 (Nice): the risk:regression skills test (packages/core/test/stage-skills.test.ts:915-919) only checks a literal sentence in two skill files
 - review round 1.2 (Nice): doneRef (packages/cli/src/load/fs.ts:661-668) repeats the `rev-parse --verify -q` resolver of gitDefaultRef and the helper near fs.ts:297
 - plan round 3.2 (Nice): Task 7 changes the accord skill and spec §6 beyond the Approach's Affected list, covered by Rulings rather than a Decision
+- plan round 4.1 (Nice): Task 7's sentence H says the step 5 commit "carries `approved_hash:` alone", false when an older `ac_hash` is present
+- plan round 4.2 (Nice): sentence S read in order puts the step 5 commit after the merge, while H commits while the gate fails
 - review round 2.2 (Nice): the `r2` block of packages/core/test/done-on-default.test.ts:65-72 re-tests what the ac-3 test covers end to end
 
 ## Tasks

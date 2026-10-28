@@ -278,7 +278,7 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .description('list lane tickets that passed Ready, have no task recorded, and are unblocked and unclaimed')
     .option('--json', 'print the StatusRow array instead of the table')
     .action((options: { json?: boolean }) => {
-      setCode(next(preflight(opts, 'stage'), options));
+      setCode(next(preflight(opts, 'claims'), options));
     });
 
   program

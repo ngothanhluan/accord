@@ -3,7 +3,7 @@
 import type { Lane, RepoSnapshot } from '../model/snapshot.js';
 import { nextRows, statusRows } from './rows.js';
 import type { StatusRow } from './rows.js';
-import { isDone, nextStep } from './stage.js';
+import { doneOnDefault, isDone, nextStep } from './stage.js';
 
 export interface DashboardSection {
   rows: StatusRow[];
@@ -69,7 +69,7 @@ function effectivePriorities(snapshot: RepoSnapshot, plain: RepoSnapshot): Map<s
     for (const dep of t.frontmatter?.depends_on ?? []) dependents.set(dep, [...(dependents.get(dep) ?? []), id]);
   const lifts = (id: string) => {
     const fm = snapshot.tickets[id]?.frontmatter;
-    return fm?.status !== 'archived' && fm?.status !== 'dropped' && !isDone(plain, id);
+    return fm?.status !== 'archived' && fm?.status !== 'dropped' && !doneOnDefault(snapshot, id, plain);
   };
   const out = new Map<string, number>();
   for (const id of Object.keys(snapshot.tickets)) {
@@ -103,7 +103,7 @@ function epicsSection(snapshot: RepoSnapshot, plain: RepoSnapshot): Dashboard['e
     .filter(([, t]) => t.frontmatter?.type === 'epic' && t.frontmatter.status !== 'archived' && t.frontmatter.status !== 'dropped')
     .map(([id, t]) => {
       const kids = tickets.filter(([, k]) => k.frontmatter?.parent === id && k.frontmatter.status !== 'dropped');
-      return { id, ...(t.frontmatter?.lane === undefined ? {} : { lane: t.frontmatter.lane }), title: t.frontmatter?.title ?? '', done: kids.filter(([k]) => isDone(plain, k)).length, total: kids.length };
+      return { id, ...(t.frontmatter?.lane === undefined ? {} : { lane: t.frontmatter.lane }), title: t.frontmatter?.title ?? '', done: kids.filter(([k]) => doneOnDefault(snapshot, k, plain)).length, total: kids.length };
     })
     .sort((a, b) => Number(a.total > 0 && a.done === a.total) - Number(b.total > 0 && b.done === b.total) || cmpId(a.id, b.id));
   return { rows, more: 0 };
@@ -141,7 +141,7 @@ export function dashboard(snapshot: RepoSnapshot, viewer: string, now?: number, 
       blocked: unclaimed.filter(blocked).length,
       backlog: unclaimed.filter((r) => !blocked(r) && !readyAll.includes(r)).length,
       done: all.filter((r) => isWork(r) && !closed(r) && finished(r)).length,
-      withoutLane: all.filter((r) => r.type !== undefined && r.type !== 'epic' && r.lane === undefined && !closed(r) && !isDone(plain, r.id)).length,
+      withoutLane: all.filter((r) => r.type !== undefined && r.type !== 'epic' && r.lane === undefined && !closed(r) && !doneOnDefault(snapshot, r.id, plain)).length,
       withSchemaErrors: all.filter((r) => r.type === undefined).length,
     },
   };

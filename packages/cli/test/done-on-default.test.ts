@@ -1,11 +1,12 @@
 // BUG-LN-13 D-01, D-04: a ticket counts as done for the dashboard and for its dependants only once its done records
 // are on the default branch. The template has main (and a faked origin/main) holding S-1 readied but unreviewed,
 // T-1 and T-2 approved; t/S-1 adds S-1's verdict; t/T-1 adds T-1's plan, ledger, review and bound ticks.
-import { appendFileSync } from 'node:fs';
+import { appendFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { setFrontmatterKey } from '@accord-dev/accord-core';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { cleanup, commitMsg, copyRepo, gitRun, makeEmptyRepo, run, writeFiles } from './helpers/repo.js';
-import { approve, CONFIG, done, gateReadyIn, LANE_S_BODY, laneTicket, P } from '../../../test/helpers/lane.js';
+import { AC, approve, CONFIG, done, gateReadyIn, LANE_S_BODY, laneTicket, P } from '../../../test/helpers/lane.js';
 import type { Files } from '../../../test/helpers/lane.js';
 import { doneRef } from '../src/load/fs.js';
 
@@ -131,6 +132,27 @@ it('ac-4 status json keeps the row keys and stage done of a ticket done only on 
       expect(Object.keys(row as object)).toEqual(['id', 'type', 'status', 'ui', 'errors', 'warnings', 'ready', 'ticksVerified', 'ticksTagged', 'ticksBinding', 'title', 'lane', 'stage', 'tasksDone', 'tasksTotal', 'claimedBy', 'branch']);
       expect(row?.stage).toBe('done');
     }
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+it('risk:complex-branching show and next keep a dependant blocked while its prerequisite is done only on its own branch', async () => {
+  const repo = copyRepo(tpl);
+  try {
+    // The checkout is T-1's own branch, where T-1's records give stage done.
+    gitRun(repo, 'switch', '-q', 't/T-1');
+    writeFiles(repo, { [P('T-2')]: setFrontmatterKey(readFileSync(join(repo, 'accord', 'tickets', 'T-2.md'), 'utf8'), 'ac_hash', AC) });
+    const shown = JSON.parse((await run(['show', 'T-2', '--json'], repo)).out) as { blockedBy: string[] };
+    expect(shown.blockedBy).toEqual(['T-1']);
+    const queued = JSON.parse((await run(['next', '--json'], repo)).out) as Row[];
+    expect(queued.map((r) => r.id)).not.toContain('T-2');
+    // T-1's records reach the default ref.
+    gitRun(repo, 'update-ref', 'refs/remotes/origin/main', 't/T-1');
+    const after = JSON.parse((await run(['show', 'T-2', '--json'], repo)).out) as { blockedBy: string[] };
+    expect(after.blockedBy).toEqual([]);
+    const ids = (JSON.parse((await run(['next', '--json'], repo)).out) as Row[]).map((r) => r.id);
+    expect(ids).toEqual(['T-2']);
   } finally {
     cleanup(repo);
   }

@@ -143,11 +143,16 @@ the contract that is tested and verified. `## Plan` moves out of the ticket into
 ## 5. Team coordination
 
 - **Dependencies.** `depends_on: [T-12]`. Lint fails on unknown ids and cycles. A ticket counts as done
-  when its records say done in the tree the command runs on; being merged is implied by its presence in
-  that tree.
+  for the dashboard and for its dependants (`accord dashboard`, `status`, `show`, `next` and `gate ready`)
+  only when its records, as they stand on the default branch, give stage done. The default branch is
+  origin's, as `accord worktree clean` reads it (origin/HEAD, else origin/main or origin/master), or the
+  local main or master in a clone with no origin remote, read without fetching; when none resolves, the
+  tree the command runs on decides. This holds for merge, squash and rebase alike. `accord status --json`
+  keeps the stage the ticket's own records give. `gate ready` refuses a ticket while a prerequisite is not
+  done there, and asks to re-plan the ticket without a prerequisite that is dropped there.
 - **Claim.** Starting a ticket means pushing a branch `t/<id>` with one commit of its own (the new ticket
   file, or an empty `claim: <id>` commit on pick up), so its author is the claimant. `accord status` reads remote branches and
-  their commit authors to show who holds what. For a ticket claimed on a branch that is neither the current one nor merged into it, `accord status`, `accord dashboard` and `accord show` read its ticket, plan, ledger, review and verification from that branch, without fetching; a dependency still counts as done only in the tree the command runs on. Nothing is committed to the default branch to claim. When a
+  their commit authors to show who holds what. For a ticket claimed on a branch that is neither the current one nor merged into it, `accord status`, `accord dashboard` and `accord show` read its ticket, plan, ledger, review and verification from that branch, without fetching; a dependency still counts as done only on the default branch. Nothing is committed to the default branch to claim. When a
   tracker adapter is configured, its assignee is used instead.
 - **Waves.** Within an epic, stories without unmet dependencies form a wave and may run in parallel.
 - Shared rules live in the repository (`product/`, `config.yml`), so a teammate who clones gets the same

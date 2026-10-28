@@ -915,3 +915,9 @@ it('risk:parsing the declaration lines the lane S steps the reviewer and the rev
   expect(round(fill(confirmed)).confirmed).toEqual(['README.md']);
   expect(round(fill(notInterface)).notInterface).toEqual(['README.md']);
 });
+
+it('risk:regression the lane S and approach skills wait for a prerequisite merge and never edit depends_on', () => {
+  const wait =
+    "When it says a `depends_on` ticket is not done on the default branch, never remove that entry from `depends_on`: tell the owner this ticket waits for that ticket's merge, then after the merge run `git fetch` and `accord gate ready <id>` again.";
+  for (const p of ['.claude/skills/accord/lane-s.md', '.claude/skills/accord-approach/SKILL.md']) expect(flatS(p)).toContain(wait);
+});

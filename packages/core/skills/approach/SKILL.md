@@ -58,7 +58,10 @@ the owner's yes before anyone plans. You run it in the main session.
    Decisions, and Corrections as written: the approval covers them all. On
    yes, run
    `accord approve <id>`, then `accord gate ready <id>` and work from what it
-   prints. Then commit the ticket, with `approved_hash:` and `ac_hash:` in
+   prints. When it says a `depends_on` ticket is not done on the default
+   branch, never remove that entry from `depends_on`: tell the owner this
+   ticket waits for that ticket's merge, then after the merge run `git fetch`
+   and `accord gate ready <id>` again. Then commit the ticket, with `approved_hash:` and `ac_hash:` in
    it. Then run `accord worktree push <id>`; go on even if it fails. If the
    owner picks another option, go back to step 3 with that
    option, rewrite `## Approach`, and ask again. On any other no, write the

@@ -41,7 +41,7 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: ST-LN-63
 
-  @ac-1
+  @ac-1 @test:packages/cli/test/git-count.test.ts#ac-1-a-read-command-starts-as-many-git-processes-with-20-tickets-as-with-1
   Scenario: A read command starts as many git processes with 20 tickets as with 1
     Given a repository with 20 tickets at several stages, with claims, recorded plan baselines and verify commits, at least one of them with a merge commit on its branch after review, at least one with a merge commit on its branch before review, and at least one at verify or done without one, and two repositories each holding only one of those tickets, one whose branch holds a merge commit and one whose branch holds none, its file and its branch copied with the same history
     When each of `status`, `anchor`, `lint`, `dashboard` and `show` runs in the 20-ticket repository and in each one-ticket repository, `anchor` and `show` on that one ticket

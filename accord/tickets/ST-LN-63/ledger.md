@@ -35,6 +35,11 @@
 - Ruling: task 6's test asserts that the plan-subject `git log -1 --format=%s` runs once for C-2 and C-5 (merge) and never for C-1, and compares the subject with git's own, instead of an ITEMS entry (executor, task 6) — it tests the risk directly — the reviewer finds `expectFewer('main status', P)` missing
 - Ruling: task 6's affected run had one failure, worktree.test.ts "risk:data-loss worktree merge names a non-ASCII ignored file it would overwrite", a 120 s timeout measured at 21,612 s, so the machine slept during it; alone it passes (1 passed, 33.8 s) and task 6 touched no worktree code (task 6 build) — the run used ACCORD_TEST_WORKERS=4 after an earlier run was killed for low memory; 617 passed, 3 skipped otherwise — if not a sleep artifact, a worktree merge hang goes unseen until the full run at verify
 - Ruling: under that run the git-count tests took 15.0 s (baseline history), 13.8 s (head author), 11.6 s (claim tips), 4.7 s (shared walk) and 4.8 s (claim view) (task 6 build) — the first three go over 10 s under load — their ceilings go to the owner at verify
+- Ruling: samples.ts and git-count.test.ts are extended, not created, since Tasks 1 to 6 already made them (executor, task 7) — they are the files the task names; additions only — none
+- Ruling: `oneTicketFrom` stamps its single main commit at P's commit time plus 20 s, not by buildSample's per-count formula (executor, task 7) — Sample does not expose the build start — only idle-day figures could differ; no git count reads them
+- Ruling: ac-1 counts plain `status`, as the ticket says; one uncounted `status --json` per repository checks the stage match, the 20-ticket read shared across B-6 and B-7 (executor, task 7) — the literal reading — about 2 s that counting `status --json` instead would save
+- Ruling: ac-1's counts (20 / 1 / bound): with merge (B-6) status 16/14/20, anchor 10/10/16, lint 9/9/15, dashboard 17/15/21, show 16/14/20; without (B-7) status 16/12/20, anchor 10/10/18, lint 9/9/17, dashboard 17/13/21, show 16/12/20 (executor, task 7) — the 20-ticket status asserts the shared walk ran — none
+- Ruling: the ac-1 test takes 13.8 to 19.8 s alone, 18.8 s with its file and 14.0 s in the affected run (about 290 git processes, each required by the criterion); proposed ceiling 26 s goes to the owner at verify (executor, task 7) — affected run 3 files, 8 passed, 105 s — over the 10 s line until the owner approves
 
 ## Deferred
 - plan-review 1.10 Nice — clean's merged set answers R later than today on a ref that may have moved; skip the set for R or re-read it when the ref changed
@@ -53,3 +58,4 @@
 - task 4 done b4120e40f31e
 - task 5 done c7ee946d1783
 - task 6 done 523279597366
+- task 7 done 5b74fe932e9a

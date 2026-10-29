@@ -53,6 +53,8 @@ Feature: ST-LN-60
 
 ## Decisions
 <!-- Settled answers, one per line: - D-01 <decision> — "<the owner's sentence>" -->
+- D-01 Instructions only: the change is skill wording plus the tests that check it; no new CLI gate reads the pull request — "A" (2026-10-29, to: A, instructions only; B, instructions plus a CLI gate; C, defer)
+- D-02 The two research gaps with no ticket (worktree.md's output handling moved into the CLI; a skill wording change run against a benchmark baseline) are queued as their own tickets, not folded into this one — "A" (2026-10-29, to: A, split into three tickets; B, fold all three in; C, fold only the baseline rule in)
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->

@@ -5,7 +5,7 @@ type: "story" # story | bug. An epic uses its own template
 status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
 # Tickets that must reach done before this one can start.
-# depends_on: ["OTHER-ID"]
+depends_on: ["ST-LN-17"]
 # How the dashboard ranks this ticket: high | medium | low; absent means medium.
 # priority: medium
 # The epic this ticket belongs to.
@@ -28,12 +28,10 @@ ui: false
 
 ## Intent
 <!-- At most five lines: why, for whom, how success is measured, and what this does not do. -->
-Queued 2026-10-25, not approved; the intent interview replaces this:
-- Why (owner, 2026-10-25, after the main session proposed a five-ticket plan for review convergence: "ok, agreed"): 27 of ST-LN-14's late review findings were on code added mid-review by debug episodes, and 5 of the 7 Musts raised after round 2 across all records came from code added during review (debug fixes, a merge of main, post-verify rework), none from a defect missed earlier.
-- Queued intent: (1) the review package is pinned to a base; code added by a debug episode or a merge gets its own round 1 and does not count as a late round; (2) a fix that changes a file no finding names needs a Ruling, as an undeclared plan file does; (3) from round 3, a new finding that is neither carried forward nor on lines the last fix changed blocks only with a failing test or a reproducing command, otherwise it goes to the ledger as Deferred (GSD #3304 evidence gate); a data-loss or security finding always blocks.
-- Also queued: a Should rests on a ticket line or an in-scope failing case, else it is Nice. The 2026-10-25 measure found this demotes 18 of 50 late Shoulds, none judged a real defect, but 3 of them data-loss edge cases, hence the exception above.
-- Related: ST-LN-17 counts the rounds; ST-LN-56 sets how a finding is stated and fixed.
-- Research: `accord/research/2026-10-25-review-convergence.md` (evidence, not a contract).
+- Why: 64% of round-3+ review findings came from an earlier round's fix, and 5 of the 7 late Musts from code added mid-review by a debug episode or a merge of main, none from a defect missed earlier (`accord/research/2026-10-25-review-convergence.md`); ST-LN-14's review ran 18 rounds.
+- For whom: whoever runs accord review in lane S or lane M, and the owner who waits on it.
+- Success: review checks a pinned scope; code added by a debug episode or a merge gets its own round 1; `accord gate done` refuses a late block without a test or command, a Should without grounds, and a file a fix changed that nothing explains; data loss and security always block.
+- Not this ticket: counting rounds, the cap, tier-up, and whether counts restart after verify (ST-LN-17); how a finding is stated and fixed (ST-LN-56); the CLI never runs a reviewer's command.
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.
@@ -42,10 +40,48 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 Feature: ST-LN-57
 
   @ac-1
-  Scenario: <observable outcome>
-    Given ...
-    When ...
-    Then ...
+  Scenario: The next review round covers only code added after the last round
+    Given a ticket in review whose last recorded round reviewed the ticket branch up to a known head commit
+    And a debug episode or a merge of main has since added commits to the ticket branch
+    When the review package for the next round is built without a --base option
+    Then it holds only the ticket branch's commits after that head commit, leaving out what a merge brought in from main but keeping the merge's own conflict resolutions
+    And review.md records, for each round, the head commit that round reviewed up to
+
+  @ac-2
+  Scenario: From round 3, a new finding outside the last fix's files blocks only with evidence
+    Given review.md whose round 3 holds a Must or a Should that is not marked as carried forward from an earlier round
+    And the file in the finding's location is one that none of round 2's fix commits, the ones its findings name as "fixed in", changed, or the finding gives no file
+    And the finding is not marked as data loss or security
+    When accord gate done runs
+    Then it fails and names the finding while the finding records neither a failing test nor a reproducing command
+    And it passes that finding when the finding records a failing test or a reproducing command
+    And it passes that finding when the finding is marked deferred and the ledger's Deferred names it by round and number
+    And it passes the same finding without evidence when it is marked as data loss or security
+
+  @ac-3
+  Scenario: Code added by a debug episode or a merge starts its own round 1 for the evidence rule
+    Given a ticket whose review reached round 4
+    And a debug episode or a merge of main then added commits
+    When the next round reviews those commits
+    Then review.md records that round as round 1 of the added code
+    And accord gate done asks no evidence of a finding located in a file the package of ac-1 shows those commits changed until that code's own round 3
+    And a finding in any other file keeps the ticket's round count
+    And the round count ST-LN-17 keeps still counts that round as the ticket's round 5
+
+  @ac-4
+  Scenario: From round 3, a Should rests on a ticket line or a failing case
+    Given review.md whose round 3 or later, counted as ac-2 and ac-3 count it, holds a Should that is not marked as carried forward from an earlier round
+    When accord gate done runs
+    Then it fails and names the Should when the finding records neither a reference to an acceptance criterion, Decision, Veto or Intent line that exists in the ticket, nor a failing test or reproducing command
+    And it passes when the finding records one of them, or the finding is a Nice, or it is marked as data loss or security
+    And it asks no grounds of a Should in round 1 or 2
+
+  @ac-5
+  Scenario: A file a fix changed needs a finding or a Ruling
+    Given a review round whose fix commits, the ones its findings name as "fixed in", change a file that is the location of no finding of that round
+    When accord gate done runs
+    Then it fails and names the file while the ledger's Rulings hold no Ruling giving that file's repository path and a reason
+    And it passes once such a Ruling is there
 ```
 
 ## Vetoes
@@ -53,6 +89,13 @@ Feature: ST-LN-57
 
 ## Decisions
 <!-- Settled answers, one per line: - D-01 <decision> — "<the owner's sentence>" -->
+- D-01 The ticket has four parts: (1) review scope pinned to a base, code added by a debug episode or a merge reviewed as its own round 1; (2) a fix that changes a file no finding names needs a Ruling; (3) from round 3 a new finding blocks only with a failing test or a reproducing command, else Deferred, data loss and security always block; (4) a Should rests on a ticket line or an in-scope failing case, else Nice, with the same exception — "A" (2026-10-29, asked: keep all four parts)
+- D-02 The ticket waits for ST-LN-17: its round-based rules (own round 1, from round 3) use the round count the CLI keeps, not one the agent counts — "A" (2026-10-29, asked: wait for ST-LN-17, build alone now, or fold round counting in)
+- D-03 From round 3, a finding counts as on the last fix when it is in a file that fix changed (file, not line); only a finding outside those files needs evidence to block — "A" (2026-10-29, asked: file or line)
+- D-04 The CLI checks the form: each finding line in review.md carries its grounds (a ticket line, or a test or command that reproduces it), and `accord gate done` fails on a blocking finding from round 3 outside the last fix's files without a test or command, a Should without grounds, or a file a fix changed that no finding names and no Ruling covers; the CLI never runs the command — "A" (2026-10-29, asked: CLI checks the form, skill text only, or CLI runs the evidence)
+- D-05 The own round 1 for code added by a debug episode or a merge restarts only the evidence gate's count; the round cap and the stop that reports to the owner keep counting every round of the ticket — "A" (2026-10-29, asked: restart only the evidence count, or restart everything)
+- D-06 The smallest version that counts as done holds all four parts — "A" (2026-10-29, asked: all four parts required, or parts 1 and 3 as the core)
+- D-07 The rule that a Should rests on a ticket line or a failing case applies from round 3 only; rounds 1 and 2 fix every Should as today — "A" (2026-10-29, asked: from round 3 only, or every round)
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->

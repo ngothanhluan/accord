@@ -28,12 +28,11 @@ ui: false
 
 ## Intent
 <!-- At most five lines: why, for whom, how success is measured, and what this does not do. -->
-Queued 2026-10-25, not approved; the intent interview replaces this:
-- Why (owner, 2026-10-25, to the main session's recommendation after auditing the superpowers and ponytail plugins against accord and Anthropic's skill authoring guide: "agreed. remember to save the research and have the related tickets reference it.").
-- Today no accord skill says what to do with comments a person leaves on a ticket's pull request (searched `packages/core`, no match), though accord targets teams where the reviewer is another person.
-- Queued intent, from superpowers 7.0.0 `receiving-code-review`: (1) each comment is checked against the code before anything changes; (2) when any comment is unclear, ask about it before fixing any, since comments may be related; (3) a comment that conflicts with a Veto, Decision or Correction goes to the owner; (4) the rest are classified patch, plan-gap or intent-gap as review findings are, fixed through a fresh executor, and recorded; (5) the answer goes in the comment's own thread.
-- Open at intent: which stage owns this after verify (a new review round, as `failure.md` gives a failure), and whether a comment from the owner is a Correction.
-- Research: `accord/research/2026-10-25-plugin-audit.md` (evidence, not a contract).
+- Why: no accord skill says what to do with review comments on a ticket's pull request, so an agent asked to handle them may change code without checking the comment, against a Veto, Decision or Correction, outside review and verify, or post replies the owner never saw; accord targets teams where the reviewer is another person.
+- For whom: the owner and teammates on a ticket whose pull request is open and not merged (lane M from verify, lane S from its step 6), for a comment by anyone, the owner included (D-05).
+- Success: asked to handle the comments (D-03), the agent follows one written path: check each against the code, ask about unclear ones first, send conflicts to the owner, fix the rest as review findings through the path `failure.md` gives, and post the drafted thread replies only on the owner's yes (D-04).
+- Not this: no CLI gate or command reads the pull request (D-01); comments are never read unasked (D-03); no GitHub account is mapped to the owner (D-05).
+- Research: `accord/research/2026-10-25-plugin-audit.md`, gap 6, from superpowers 7.0.0 `receiving-code-review` (evidence, not a contract).
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.
@@ -42,10 +41,40 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 Feature: ST-LN-60
 
   @ac-1
-  Scenario: <observable outcome>
-    Given ...
-    When ...
-    Then ...
+  Scenario: Every comment is checked against the code before anything is fixed
+    Given a ticket whose pull request is open and not merged
+    When someone asks the agent to handle that pull request's comments
+    Then the rendered skills tell the agent to take each review thread, each top-level comment and each review's summary as one comment, a reply inside a thread being part of that thread, by a person whoever it is, the owner included
+    And to check each comment against the code and mark it holds, does not hold, or unclear before fixing any comment
+
+  @ac-2
+  Scenario: Unclear comments are asked about before any comment is fixed
+    Given at least one comment is marked unclear
+    When the agent has checked every comment
+    Then the rendered skills tell the agent to draft a question for each unclear comment's thread first, show those drafts to the owner and post them only after the owner's yes
+    And to fix no comment until every unclear comment is answered, in its thread by its author or in the chat by the owner
+
+  @ac-3
+  Scenario: A comment against a Veto, Decision or Correction stops the handling and goes to the owner
+    Given a comment asks for something a Veto, Decision or Correction of the ticket forbids or settles otherwise
+    When the agent has checked every comment
+    Then the rendered skills tell the agent to stop handling every comment and ask the owner about that one, naming the Veto, Decision or Correction
+    And to fix no comment until the owner answers
+
+  @ac-4
+  Scenario: The comments that hold are fixed as one review round's findings and the fix is reviewed and verified again
+    Given comments that hold and conflict with no Veto, Decision or Correction
+    When the agent fixes them
+    Then the rendered skills tell the agent to classify each patch, plan-gap or intent-gap and handle them as `accord-review` handles one round's findings, the patch ones fixed together through a fresh executor
+    And to take that fix through the path `failure.md` gives a failure reported after verify: one new review round and then verify again for lane M, the lane S steps for lane S
+
+  @ac-5
+  Scenario: Replies are posted to their threads only after the owner's yes
+    Given every comment is fixed, declined or answered
+    When the agent answers them
+    Then the rendered skills tell the agent to draft one reply per comment: the commit that fixed it, the reason it was not changed, or the answer it took
+    And to show every draft to the owner together, apply the owner's changes to any of them, and post them to their threads only after the owner's yes
+    And to post no reply, comment or review to the pull request before that yes, while the fix commits are pushed as the stage skills already push them
 ```
 
 ## Vetoes
@@ -58,6 +87,7 @@ Feature: ST-LN-60
 - D-03 The agent reads a pull request's comments only when someone asks it to (names the comments or pastes a link), never on its own at every Continue — "A" (2026-10-29, to: A, on request; B, checked at every Continue of a ticket with a pull request)
 - D-04 The agent drafts the reply for each comment's thread and shows the drafts to the owner; it posts them only after the owner's yes — "A" (2026-10-29, to: A, the agent drafts, the owner approves, then the agent posts; B, the agent posts on its own; C, the agent only drafts and the owner posts)
 - D-05 A comment from the owner takes the same steps as a teammate's; it is written under `## Corrections` only when it changes the intent or a criterion and the owner confirms it, and nothing tells the owner's GitHub account apart — "A" (2026-10-29, to: A, the same steps, a Correction only on the owner's confirmation; B, every owner comment is a Correction, which needs the owner's GitHub account in config)
+- D-06 The smallest version that counts as done holds all five parts: check each comment against the code; ask about unclear ones before fixing any; send a conflict with a Veto, Decision or Correction to the owner; fix the rest as review findings and review and verify the fix again as `failure.md` says; draft a reply for every thread, posted on the owner's yes — "yes" (2026-10-29, to: the five parts as the smallest version, with the reply to a comment that does not hold offered as the one part that could be cut)
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->

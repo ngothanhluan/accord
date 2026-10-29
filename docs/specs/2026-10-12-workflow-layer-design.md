@@ -143,11 +143,16 @@ the contract that is tested and verified. `## Plan` moves out of the ticket into
 ## 5. Team coordination
 
 - **Dependencies.** `depends_on: [T-12]`. Lint fails on unknown ids and cycles. A ticket counts as done
-  when its records say done in the tree the command runs on; being merged is implied by its presence in
-  that tree.
+  for the dashboard and for its dependants (`accord dashboard`, `status`, `show`, `next` and `gate ready`)
+  only when its records, as they stand on the default branch, give stage done. The default branch is
+  origin's, as `accord worktree clean` reads it (origin/HEAD, else origin/main or origin/master), or the
+  local main or master in a clone with no origin remote, read without fetching; when none resolves, the
+  tree the command runs on decides. This holds for merge, squash and rebase alike. `accord status --json`
+  keeps the stage the ticket's own records give. `gate ready` refuses a ticket while a prerequisite is not
+  done there, and asks to re-plan the ticket without a prerequisite that is dropped there.
 - **Claim.** Starting a ticket means pushing a branch `t/<id>` with one commit of its own (the new ticket
   file, or an empty `claim: <id>` commit on pick up), so its author is the claimant. `accord status` reads remote branches and
-  their commit authors to show who holds what. For a ticket claimed on a branch that is neither the current one nor merged into it, `accord status`, `accord dashboard` and `accord show` read its ticket, plan, ledger, review and verification from that branch, without fetching; a dependency still counts as done only in the tree the command runs on. Nothing is committed to the default branch to claim. When a
+  their commit authors to show who holds what. For a ticket claimed on a branch that is neither the current one nor merged into it, `accord status`, `accord dashboard` and `accord show` read its ticket, plan, ledger, review and verification from that branch, without fetching; a dependency still counts as done only on the default branch. Nothing is committed to the default branch to claim. When a
   tracker adapter is configured, its assignee is used instead.
 - **Waves.** Within an epic, stories without unmet dependencies form a wave and may run in parallel.
 - Shared rules live in the repository (`product/`, `config.yml`), so a teammate who clones gets the same
@@ -181,7 +186,10 @@ READY TO PICK UP
 - After verify, any commit on the ticket's branch that the default branch does not hold, made after the verified commit (before the first tick, the commit `verification.md` names), and that changes a path outside the ticket's own records and `accord/product/conventions.md` takes the stage back from `done`, or holds it at `verify`: to `review` for a hand-made change, with `accord anchor` printing the review base, the commit before the first unreviewed change, until a review round of those changes is recorded in `review.md`; to `verify` for a merge from the default branch alone. A ticket whose verified commit is on the default branch keeps its stage.
 - The anchored stage `intent` covers the approach too: Continue resumes at the owner's yes in
   `accord-approach` when `## Approach` is written, otherwise in `accord-intent`; at `done` it re-enters
-  `accord-verify` at step 6.
+  `accord-verify` at step 6. In lane M, the approach stage stops after committing the approval while
+  `accord gate ready <id>` fails, and at every other stage Continue first runs `accord gate ready <id>` and
+  stops while it fails, so a ticket that gate ready refused after its approval, such as one whose prerequisite
+  is not yet done on the default branch, is not planned or built.
 - `/accord <request>` goes straight to lane classification and the intent stage.
 - `accord next` lists tickets that passed Ready, are unblocked, and are unclaimed.
 - Session start prints one line ("1 in progress, 1 ready · type /accord"), not the dashboard.

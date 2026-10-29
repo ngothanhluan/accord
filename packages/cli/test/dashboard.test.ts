@@ -153,7 +153,8 @@ it('ac-1 ready tickets are ranked by inherited priority then by id', async () =>
   };
   for (const id of ['ST-AN-1', 'ST-AN-3', 'ST-AN-4', 'ST-AN-2', 'ST-AN-6']) {
     approve(written, id);
-    expect(gateReadyIn(written, id)).toBe('pass');
+    // BUG-LN-13 D-06: a ticket whose prerequisite is not done fails gate ready.
+    expect(gateReadyIn(written, id)).toBe(['ST-AN-2', 'ST-AN-6'].includes(id) ? 'fail' : 'pass');
   }
   const repo = makeLaneRepo(Object.fromEntries(['ST-AN-1', 'ST-AN-3', 'ST-AN-4', 'ST-AN-2', 'ST-AN-6'].map((id) => [P(id), written[P(id)]])));
   try {

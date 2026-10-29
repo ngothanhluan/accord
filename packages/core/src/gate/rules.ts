@@ -50,6 +50,7 @@ import {
   approachEmpty,
   approvalMissing,
   approvalStale,
+  dependsUnmerged,
   designMissing,
   earsMissing,
   intentEmpty,
@@ -125,6 +126,7 @@ export const READY_RULES: readonly GateRule[] = [
   SECTION_EMPTY,
   APPROVAL_MISSING,
   APPROVAL_STALE,
+  { id: 'gate.depends-unmerged', level: 'error', profiles: ['build', 'maintain'], check: dependsUnmerged },
 ];
 
 /** Spec §7: the plan gate. Every row is an error except the last, which only asks: an incomplete plan never reaches an executor. */

@@ -27,7 +27,9 @@ no intent interview, approval, approach, plan, executor or verify: you make the 
    error message, or expected behaviour) and one plausible reading; otherwise ask exactly one question, as
    `./ask.md` says, and wait. When `title:` still reads `Short title in business language`, replace it with a few
    words naming the change in business language. When `## Scope` holds no path, run step 1 of `./lane.md` and write its files there as its `## Scope` says. Run `accord gate ready <id>` and fix what it prints until it exits
-   0, then commit the ticket. Make no other change before that. Never run `accord approve`.
+   0, then commit the ticket. When it says a `depends_on` ticket is not done on the default branch, never remove that entry
+   from `depends_on`: tell the owner this ticket waits for that ticket's merge, then after the merge run `git fetch` and
+   `accord gate ready <id>` again. Make no other change before that. Never run `accord approve`.
 2. **Change.** Make the change in this worktree. For a bug, first write a test that reproduces it and see it fail,
    then fix it. A test you add carries `risk:<kind>` in its name. A file outside `## Scope` that the change only
    rewords, in at most 3 lines, neither new nor deleted, needs the line `Wording-only: <path> — <reason>` under

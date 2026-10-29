@@ -29,7 +29,7 @@ const NEXT: Record<Exclude<Stage, 'build' | 'intent'>, string> = {
   plan: 'write the plan and pass accord gate plan',
   review: 'review to convergence',
   verify: "verification and the owner's tick",
-  done: 'nothing; run accord gate done',
+  done: 'the pull request; run accord gate done',
 };
 
 /** Spec §6: what comes after `stage`. An unwritten intent (no Intent text, or only the template's scenario) points to the interview. */
@@ -106,4 +106,9 @@ export function isDone(snapshot: RepoSnapshot, id: string): boolean {
   if (ticket.frontmatter?.status === 'dropped') return false;
   const progress = progressOf(snapshot, ticket);
   return progress === undefined ? ticksBound(ticket) : progress.stage === 'done';
+}
+
+/** BUG-LN-13 D-01, D-04: done for the dashboard and for dependants: on the default ref the host read, else in `fallback` (BUG-LN-2 D-04). */
+export function doneOnDefault(snapshot: RepoSnapshot, id: string, fallback: RepoSnapshot = snapshot): boolean {
+  return isDone(snapshot.defaultRef?.snapshot ?? fallback, id);
 }

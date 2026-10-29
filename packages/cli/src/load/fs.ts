@@ -982,6 +982,35 @@ export function snapshotAt(root: string, ref: string, ids: readonly string[]): R
   return loadSnapshot({ files: gitFilesAt(root, ref, paths), tree: [] });
 }
 
+/** BUG-LN-13 D-01: origin's default ref (gitDefaultRef); in a clone with no `origin` remote, the first of refs/heads/main and refs/heads/master that resolves; else undefined. Never fetches. */
+export function doneRef(root: string): string | undefined {
+  const found = gitDefaultRef(root);
+  if (found !== undefined) return found;
+  try {
+    execFileSync('git', ['remote', 'get-url', 'origin'], { cwd: root, ...GIT_QUIET });
+    return undefined; // an origin exists whose default branch this clone has not fetched
+  } catch {
+    // no origin remote
+  }
+  return ['refs/heads/main', 'refs/heads/master'].find((ref) => {
+    try {
+      execFileSync('git', ['rev-parse', '--verify', '-q', ref], { cwd: root, ...GIT_QUIET });
+      return true;
+    } catch {
+      return false;
+    }
+  });
+}
+
+/** BUG-LN-13: `snapshot` with `defaultRef` read by snapshotAt at doneRef, over the view's ticket ids and every depends_on entry; `snapshot` itself when no default ref resolves. */
+export function withDefaultRef(root: string, snapshot: RepoSnapshot): RepoSnapshot {
+  const ref = doneRef(root);
+  if (ref === undefined) return snapshot;
+  const ids = new Set(Object.keys(snapshot.tickets));
+  for (const t of Object.values(snapshot.tickets)) for (const dep of t.frontmatter?.depends_on ?? []) ids.add(dep);
+  return { ...snapshot, defaultRef: { ref, snapshot: snapshotAt(root, ref, [...ids]) } };
+}
+
 /**
  * ST-LN-8 D-02: the first-parent commits of HEAD that are neither on the default ref nor reachable from `since`.
  * A `since` that does not resolve is left out, so the range falls back to the default ref alone.

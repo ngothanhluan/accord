@@ -2,7 +2,7 @@
 id: "ST-LN-65"                            # equals the file name: tickets/<id>.md
 title: "Delete the one-time ST-LN-44 tests once that ticket has merged"
 type: "story" # story | bug
-status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
+status: "dropped" # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "S" # S: one small change, worked from this ticket alone
 # Tickets that must reach done before this one can start.
 depends_on: ["ST-LN-44"]
@@ -23,3 +23,6 @@ After ST-LN-44 has merged, its one-time test file, helper and fixtures folder ar
 
 ## Decisions
 - D-01 Queue a lane S ticket that deletes the ST-LN-44 test files after ST-LN-44 merges, rather than keeping them as a lasting guard — "Queue a deletion ticket" (owner, 2026-10-27, choosing this against keeping them for good)
+
+## Dropped
+Done inside BUG-LN-14 (PR #122): it deleted the ST-LN-44 one-time test file, helper and fixtures, and its ledger records how ST-LN-44's four @test: tags are handled; nothing is left to do

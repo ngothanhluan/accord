@@ -5,7 +5,7 @@ import { renderRows } from '../render/table.js';
 import type { CommandContext } from '../run.js';
 
 export function next(ctx: CommandContext, options: { json?: boolean }): number {
-  const rows = nextRows(statusRows(ctx.snapshot));
+  const rows = nextRows(statusRows(ctx.snapshot, undefined, ctx.plain));
   if (options.json) {
     ctx.stdout.write(JSON.stringify(rows, null, 2) + '\n');
     return 0;

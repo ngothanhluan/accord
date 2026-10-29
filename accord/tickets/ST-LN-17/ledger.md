@@ -41,3 +41,4 @@
 - Ruling: a lane S ticket sent back to review by a hand-made commit after its verdict starts a new cycle with the same marker, naming the commit that held the verdict — lane S has no verify, but the same reopen path exists — cost if wrong: none found
 - Ruling: accord round prints the model as the family alias (haiku, sonnet, opus), the only values the agent tool takes, and the hook compares families — cost if wrong: a pinned full model id is not passed through on tiered rounds
 - Ruling: fixModel is computed from round headings and the tier rule alone, never from finding lines, so an unreadable finding line cannot make the hook fail open — cost if wrong: none found
+- Ruling: Ruling 5 (the count sums every severity) no longer applies, since D-09 drops the count rule — cost if wrong: none found

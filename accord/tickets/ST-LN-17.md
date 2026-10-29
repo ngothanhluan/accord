@@ -58,14 +58,14 @@ Feature: ST-LN-17
   @ac-3
   Scenario: A review that stops converging stops for the owner
     Given a lane M or lane S review.md that records round 3 or a later round, counted from the last return from verify
-    And that round reports a Should or a Must, or reports at least one finding and no fewer findings of any severity than the round before
+    And that round reports a Should or a Must
     When the session asks accord for the next review round
     Then accord prints "stop: report to owner" with that round's findings and the ticket's Approach section, asking whether to change course
     And no next round is given, and accord gate done fails until review.md ends with the line verdict: accepted-by-owner followed by the owner's sentence in quotes, or a later round reports no findings and review.md ends with verdict: converged
 
   @ac-4
   Scenario: The plan critique loop has the same cap and stop
-    Given a plan-review.md whose rounds after the last "## Closed" record round 3 or later still reporting a Should or a Must, or at least one finding and no fewer findings than the round before, or record five rounds
+    Given a plan-review.md whose rounds after the last "## Closed" record round 3 or later still reporting a Should or a Must, or record five rounds
     When the session asks accord for the next plan critique round
     Then accord prints the same stop as review does, "stop: report to owner" with that round's findings and the Approach section, and gives no next round
     And accord gate plan fails until plan-review.md ends with the line verdict: accepted-by-owner followed by the owner's sentence in quotes, or a later round reports no findings
@@ -91,6 +91,8 @@ Feature: ST-LN-17
 - D-06 Past a round threshold the CLI says to ask the owner about a change of course — "ok, the proposal is valid" (2026-10-17)
 - D-07 From round 3, when a Should or worse is still found or the count does not fall, accord prints "stop: report to owner", and gate done fails until review.md ends with verdict: accepted-by-owner or the owner allows more rounds; lane S and lane M alike, and the plan critique loop too — "ok, agreed" (2026-10-25, merged from ST-LN-53)
 - D-08 A round that reports no findings never starts a stop: the count rule applies only to a round that reports at least one finding — "A" (2026-10-29, after the approach critique showed two clean rounds in a row would block gate done)
+- D-09 The stop from round 3 fires only on a round that still reports a Should or a Must; the rule on a count that does not fall is dropped, superseding that part of D-07 and D-08 — "A" (2026-10-29, after the approach critique showed a final review with one deferred Nice at round 3 would stop most lane M tickets, and that a Should already stops)
+- D-10 The approach critique of this ticket ends after round 3: its findings on implementation detail are deferred to the plan, where plan critique checks them, and the critic's approach mode gets a detail limit and a diff mode in a separate ticket — "ok A+B" (2026-10-30, after three rounds showed most new findings came from the previous round's Rulings)
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->

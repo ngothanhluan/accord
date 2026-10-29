@@ -1,0 +1,355 @@
+{
+  "main status": {
+    "code": 0,
+    "out": "id    type   status  parent  ui  err/warn  ready  ticks      stage      who                      blocked by  tracker\n----  -----  ------  ------  --  --------  -----  ---------  ---------  -----------------------  ----------  -------\nA-1   story  open    -       no  0/0       -      0/2 none   intent     -                        -           -      \nA-10  story  open    -       no  0/0       ok     2/2 bound  done       fixture@example.invalid  -           -      \nA-11  story  open    -       no  0/0       ok     2/2 bound  review     fixture@example.invalid  -           -      \nA-13  story  open    -       no  0/0       ok     0/2 none   verify     fixture@example.invalid  -           -      \nA-2   story  open    -       no  0/0       ok     0/2 none   plan       fixture@example.invalid  -           -      \nA-3   story  open    -       no  0/0       ok     0/2 none   build 1/2  fixture@example.invalid  -           -      \nA-4   story  open    -       no  0/0       ok     0/2 none   build 0/2  fixture@example.invalid  -           -      \nA-5   story  open    -       no  0/0       ok     0/2 none   review     fixture@example.invalid  -           -      \nA-6   story  open    -       no  0/0       ok     0/2 none   verify     fixture@example.invalid  -           -      \nA-7   story  open    -       no  0/0       ok     0/2 none   verify     fixture@example.invalid  -           -      \nA-8   story  open    -       no  0/0       ok     2/2 bound  done       fixture@example.invalid  -           -      \nA-9   story  open    -       no  0/0       ok     2/2 bound  done       fixture@example.invalid  -           -      \nS-1   story  open    -       no  0/0       ok     -          done       fixture@example.invalid  -           -      \n13 tickets shown, 1 dropped or archived ticket hidden (--all shows them)\n",
+    "err": ""
+  },
+  "main status --json": {
+    "code": 0,
+    "out": "[\n  {\n    \"id\": \"A-1\",\n    \"type\": \"story\",\n    \"status\": \"open\",\n    \"ui\": false,\n    \"errors\": 0,\n    \"warnings\": 0,\n    \"ready\": \"none\",\n    \"ticksVerified\": 0,\n    \"ticksTagged\": 2,\n    \"ticksBinding\": \"none\",\n    \"title\": \"Export\",\n    \"lane\": \"M\",\n    \"stage\": \"intent\",\n    \"next\": \"the owner approves the ticket (accord approve)\",\n    \"tasksDone\": 0,\n    \"tasksTotal\": 0,\n    \"branch\": \"t/A-1\"\n  },\n  {\n    \"id\": \"A-10\",\n    \"type\": \"story\",\n    \"status\": \"open\",\n    \"ui\": false,\n    \"errors\": 0,\n    \"warnings\": 0,\n    \"ready\": \"ok\",\n    \"ticksVerified\": 2,\n    \"ticksTagged\": 2,\n    \"ticksBinding\": \"bound\",\n    \"title\": \"Export\",\n    \"lane\": \"M\",\n    \"stage\": \"done\",\n    \"tasksDone\": 2,\n    \"tasksTotal\": 2,\n    \"claimedBy\": \"fixture@example.invalid\",\n    \"branch\": \"t/A-10\"\n  },\n  {\n    \"id\": \"A-11\",\n    \"type\": \"story\",\n    \"status\": \"open\",\n    \"ui\": false,\n    \"errors\": 0,\n    \"warnings\": 0,\n    \"ready\": \"ok\",\n    \"ticksVerified\": 2,\n    \"ticksTagged\": 2,\n    \"ticksBinding\": \"bound\",\n    \"title\": \"Export\",\n    \"lane\": \"M\",\n    \"stage\": \"review\",\n    \"tasksDone\": 2,\n    \"tasksTotal\": 2,\n    \"claimedBy\": \"fixture@example.invalid\",\n    \"branch\": \"t/A-11\"\n  },\n  {\n    \"id\": \"A-13\",\n    \"type\": \"story\",\n    \"status\": \"open\",\n    \"ui\": false,\n    \"errors\": 0,\n    \"warnings\": 0,\n    \"ready\": \"ok\",\n    \"ticksVerified\": 0,\n    \"ticksTagged\": 2,\n    \"ticksBinding\": \"none\",\n    \"title\": \"Export\",\n    \"lane\": \"M\",\n    \"stage\": \"verify\",\n    \"tasksDone\": 2,\n    \"tasksTotal\": 2,\n    \"claimedBy\": \"fixture@example.invalid\",\n    \"branch\": \"t/A-13\"\n  },\n  {\n    \"id\": \"A-2\",\n    \"type\": \"story\",\n    \"status\": \"open\",\n    \"ui\": false,\n    \"errors\": 0,\n    \"warnings\": 0,\n    \"ready\": \"ok\",\n    \"ticksVerified\": 0,\n    \"ticksTagged\": 2,\n    \"ticksBinding\": \"none\",\n    \"title\": \"Export\",\n    \"lane\": \"M\",\n    \"stage\": \"plan\",\n    \"tasksDone\": 0,\n    \"tasksTotal\": 2,\n    \"claimedBy\": \"fixture@example.invalid\",\n    \"branch\": \"t/A-2\"\n  },\n  {\n    \"id\": \"A-3\",\n    \"type\": \"story\",\n    \"status\": \"open\",\n    \"ui\": false,\n    \"errors\": 0,\n    \"warnings\": 0,\n    \"ready\": \"ok\",\n    \"ticksVerified\": 0,\n    \"ticksTagged\": 2,\n    \"ticksBinding\": \"none\",\n    \"title\": \"Export\",\n    \"lane\": \"M\",\n    \"stage\": \"build\",\n    \"tasksDone\": 1,\n    \"tasksTotal\": 2,\n    \"claimedBy\": \"fixture@example.invalid\",\n    \"branch\": \"t/A-3\"\n  },\n  {\n    \"id\": \"A-4\",\n    \"type\": \"story\",\n    \"status\": \"open\",\n    \"ui\": false,\n    \"errors\": 0,\n    \"warnings\": 0,\n    \"ready\": \"ok\",\n    \"ticksVerified\": 0,\n    \"ticksTagged\": 2,\n    \"ticksBinding\": \"none\",\n    \"title\": \"Export\",\n    \"lane\": \"M\",\n    \"stage\": \"build\",\n    \"tasksDone\": 0,\n    \"tasksTotal\": 2,\n    \"claimedBy\": \"fixture@example.invalid\",\n    \"branch\": \"t/A-4\"\n  },\n  {\n    \"id\": \"A-5\",\n    \"type\": \"story\",\n    \"status\": \"open\",\n    \"ui\": false,\n    \"errors\": 0,\n    \"warnings\": 0,\n    \"ready\": \"ok\",\n    \"ticksVerified\": 0,\n    \"ticksTagged\": 2,\n    \"ticksBinding\": \"none\",\n    \"title\": \"Export\",\n    \"lane\": \"M\",\n    \"stage\": \"review\",\n    \"tasksDone\": 2,\n    \"tasksTotal\": 2,\n    \"claimedBy\": \"fixture@example.invalid\",\n    \"branch\": \"t/A-5\"\n  },\n  {\n    \"id\": \"A-6\",\n    \"type\": \"story\",\n    \"status\": \"open\",\n    \"ui\": false,\n    \"errors\": 0,\n    \"warnings\": 0,\n    \"ready\": \"ok\",\n    \"ticksVerified\": 0,\n    \"ticksTagged\": 2,\n    \"ticksBinding\": \"none\",\n    \"title\": \"Export\",\n    \"lane\": \"M\",\n    \"stage\": \"verify\",\n    \"tasksDone\": 2,\n    \"tasksTotal\": 2,\n    \"claimedBy\": \"fixture@example.invalid\",\n    \"branch\": \"t/A-6\"\n  },\n  {\n    \"id\": \"A-7\",\n    \"type\": \"story\",\n    \"status\": \"open\",\n    \"ui\": false,\n    \"errors\": 0,\n    \"warnings\": 0,\n    \"ready\": \"ok\",\n    \"ticksVerified\": 0,\n    \"ticksTagged\": 2,\n    \"ticksBinding\": \"none\",\n    \"title\": \"Export\",\n    \"lane\": \"M\",\n    \"stage\": \"verify\",\n    \"tasksDone\": 2,\n    \"tasksTotal\": 2,\n    \"claimedBy\": \"fixture@example.invalid\",\n    \"branch\": \"t/A-7\"\n  },\n  {\n    \"id\": \"A-8\",\n    \"type\": \"story\",\n    \"status\": \"open\",\n    \"ui\": false,\n    \"errors\": 0,\n    \"warnings\": 0,\n    \"ready\": \"ok\",\n    \"ticksVerified\": 2,\n    \"ticksTagged\": 2,\n    \"ticksBinding\": \"bound\",\n    \"title\": \"Export\",\n    \"lane\": \"M\",\n    \"stage\": \"done\",\n    \"tasksDone\": 2,\n    \"tasksTotal\": 2,\n    \"claimedBy\": \"fixture@example.invalid\",\n    \"branch\": \"t/A-8\"\n  },\n  {\n    \"id\": \"A-9\",\n    \"type\": \"story\",\n    \"status\": \"open\",\n    \"ui\": false,\n    \"errors\": 0,\n    \"warnings\": 0,\n    \"ready\": \"ok\",\n    \"ticksVerified\": 2,\n    \"ticksTagged\": 2,\n    \"ticksBinding\": \"bound\",\n    \"title\": \"Export\",\n    \"lane\": \"M\",\n    \"stage\": \"done\",\n    \"tasksDone\": 2,\n    \"tasksTotal\": 2,\n    \"claimedBy\": \"fixture@example.invalid\",\n    \"branch\": \"t/A-9\"\n  },\n  {\n    \"id\": \"S-1\",\n    \"type\": \"story\",\n    \"status\": \"open\",\n    \"ui\": false,\n    \"errors\": 0,\n    \"warnings\": 0,\n    \"ready\": \"ok\",\n    \"ticksVerified\": 0,\n    \"ticksTagged\": 0,\n    \"ticksBinding\": \"none\",\n    \"title\": \"Export\",\n    \"lane\": \"S\",\n    \"stage\": \"done\",\n    \"tasksDone\": 0,\n    \"tasksTotal\": 0,\n    \"claimedBy\": \"fixture@example.invalid\",\n    \"branch\": \"t/S-1\"\n  }\n]\n",
+    "err": "1 dropped or archived ticket hidden (--all shows them)\n"
+  },
+  "main lint": {
+    "code": 0,
+    "out": "0 errors, 0 warnings\n",
+    "err": ""
+  },
+  "main lint --json": {
+    "code": 0,
+    "out": "{\n  \"findings\": [],\n  \"errors\": 0,\n  \"warnings\": 0\n}\n",
+    "err": ""
+  },
+  "main dashboard": {
+    "code": 0,
+    "out": "YOURS\n  id    lane  title   stage      who                      blocked by\n  A-2   M     Export  plan       fixture@example.invalid  -\n  A-3   M     Export  build 1/2  fixture@example.invalid  -\n  A-4   M     Export  build 0/2  fixture@example.invalid  -\n  A-5   M     Export  review     fixture@example.invalid  -\n  A-6   M     Export  verify     fixture@example.invalid  -\n  A-7   M     Export  verify     fixture@example.invalid  -\n  A-11  M     Export  review     fixture@example.invalid  -\n  A-13  M     Export  verify     fixture@example.invalid  -\n\nTEAM\n  none\n\nREADY\n  none\n\nUP NEXT\n  id   lane  title   stage                                                         who  blocked by\n  A-1  M     Export  intent, next: the owner approves the ticket (accord approve)  -    -\n\n8 in progress, 0 ready, 0 blocked, 1 backlog, 4 done\n-> [Continue A-2]  [Pick up A-1]  [New request]\n",
+    "err": ""
+  },
+  "main dashboard --json": {
+    "code": 0,
+    "out": "{\n  \"yours\": {\n    \"rows\": [\n      {\n        \"id\": \"A-2\",\n        \"type\": \"story\",\n        \"status\": \"open\",\n        \"ui\": false,\n        \"errors\": 0,\n        \"warnings\": 0,\n        \"ready\": \"ok\",\n        \"ticksVerified\": 0,\n        \"ticksTagged\": 2,\n        \"ticksBinding\": \"none\",\n        \"title\": \"Export\",\n        \"lane\": \"M\",\n        \"stage\": \"plan\",\n        \"tasksDone\": 0,\n        \"tasksTotal\": 2,\n        \"claimedBy\": \"fixture@example.invalid\",\n        \"branch\": \"t/A-2\"\n      },\n      {\n        \"id\": \"A-3\",\n        \"type\": \"story\",\n        \"status\": \"open\",\n        \"ui\": false,\n        \"errors\": 0,\n        \"warnings\": 0,\n        \"ready\": \"ok\",\n        \"ticksVerified\": 0,\n        \"ticksTagged\": 2,\n        \"ticksBinding\": \"none\",\n        \"title\": \"Export\",\n        \"lane\": \"M\",\n        \"stage\": \"build\",\n        \"tasksDone\": 1,\n        \"tasksTotal\": 2,\n        \"claimedBy\": \"fixture@example.invalid\",\n        \"branch\": \"t/A-3\"\n      },\n      {\n        \"id\": \"A-4\",\n        \"type\": \"story\",\n        \"status\": \"open\",\n        \"ui\": false,\n        \"errors\": 0,\n        \"warnings\": 0,\n        \"ready\": \"ok\",\n        \"ticksVerified\": 0,\n        \"ticksTagged\": 2,\n        \"ticksBinding\": \"none\",\n        \"title\": \"Export\",\n        \"lane\": \"M\",\n        \"stage\": \"build\",\n        \"tasksDone\": 0,\n        \"tasksTotal\": 2,\n        \"claimedBy\": \"fixture@example.invalid\",\n        \"branch\": \"t/A-4\"\n      },\n      {\n        \"id\": \"A-5\",\n        \"type\": \"story\",\n        \"status\": \"open\",\n        \"ui\": false,\n        \"errors\": 0,\n        \"warnings\": 0,\n        \"ready\": \"ok\",\n        \"ticksVerified\": 0,\n        \"ticksTagged\": 2,\n        \"ticksBinding\": \"none\",\n        \"title\": \"Export\",\n        \"lane\": \"M\",\n        \"stage\": \"review\",\n        \"tasksDone\": 2,\n        \"tasksTotal\": 2,\n        \"claimedBy\": \"fixture@example.invalid\",\n        \"branch\": \"t/A-5\"\n      },\n      {\n        \"id\": \"A-6\",\n        \"type\": \"story\",\n        \"status\": \"open\",\n        \"ui\": false,\n        \"errors\": 0,\n        \"warnings\": 0,\n        \"ready\": \"ok\",\n        \"ticksVerified\": 0,\n        \"ticksTagged\": 2,\n        \"ticksBinding\": \"none\",\n        \"title\": \"Export\",\n        \"lane\": \"M\",\n        \"stage\": \"verify\",\n        \"tasksDone\": 2,\n        \"tasksTotal\": 2,\n        \"claimedBy\": \"fixture@example.invalid\",\n        \"branch\": \"t/A-6\"\n      },\n      {\n        \"id\": \"A-7\",\n        \"type\": \"story\",\n        \"status\": \"open\",\n        \"ui\": false,\n        \"errors\": 0,\n        \"warnings\": 0,\n        \"ready\": \"ok\",\n        \"ticksVerified\": 0,\n        \"ticksTagged\": 2,\n        \"ticksBinding\": \"none\",\n        \"title\": \"Export\",\n        \"lane\": \"M\",\n        \"stage\": \"verify\",\n        \"tasksDone\": 2,\n        \"tasksTotal\": 2,\n        \"claimedBy\": \"fixture@example.invalid\",\n        \"branch\": \"t/A-7\"\n      },\n      {\n        \"id\": \"A-11\",\n        \"type\": \"story\",\n        \"status\": \"open\",\n        \"ui\": false,\n        \"errors\": 0,\n        \"warnings\": 0,\n        \"ready\": \"ok\",\n        \"ticksVerified\": 2,\n        \"ticksTagged\": 2,\n        \"ticksBinding\": \"bound\",\n        \"title\": \"Export\",\n        \"lane\": \"M\",\n        \"stage\": \"review\",\n        \"tasksDone\": 2,\n        \"tasksTotal\": 2,\n        \"claimedBy\": \"fixture@example.invalid\",\n        \"branch\": \"t/A-11\"\n      },\n      {\n        \"id\": \"A-13\",\n        \"type\": \"story\",\n        \"status\": \"open\",\n        \"ui\": false,\n        \"errors\": 0,\n        \"warnings\": 0,\n        \"ready\": \"ok\",\n        \"ticksVerified\": 0,\n        \"ticksTagged\": 2,\n        \"ticksBinding\": \"none\",\n        \"title\": \"Export\",\n        \"lane\": \"M\",\n        \"stage\": \"verify\",\n        \"tasksDone\": 2,\n        \"tasksTotal\": 2,\n        \"claimedBy\": \"fixture@example.invalid\",\n        \"branch\": \"t/A-13\"\n      }\n    ],\n    \"more\": 0\n  },\n  \"team\": {\n    \"rows\": [],\n    \"more\": 0\n  },\n  \"ready\": {\n    \"rows\": [],\n    \"more\": 0\n  },\n  \"upNext\": {\n    \"rows\": [\n      {\n        \"id\": \"A-1\",\n        \"type\": \"story\",\n        \"status\": \"open\",\n        \"ui\": false,\n        \"errors\": 0,\n        \"warnings\": 0,\n        \"ready\": \"none\",\n        \"ticksVerified\": 0,\n        \"ticksTagged\": 2,\n        \"ticksBinding\": \"none\",\n        \"title\": \"Export\",\n        \"lane\": \"M\",\n        \"stage\": \"intent\",\n        \"next\": \"the owner approves the ticket (accord approve)\",\n        \"tasksDone\": 0,\n        \"tasksTotal\": 0,\n        \"branch\": \"t/A-1\"\n      }\n    ],\n    \"more\": 0,\n    \"suggest\": {\n      \"action\": \"pick-up\",\n      \"id\": \"A-1\"\n    }\n  },\n  \"epics\": {\n    \"rows\": [],\n    \"more\": 0\n  },\n  \"summary\": {\n    \"inProgress\": 8,\n    \"ready\": 0,\n    \"blocked\": 0,\n    \"backlog\": 1,\n    \"done\": 4,\n    \"withoutLane\": 0,\n    \"withSchemaErrors\": 0\n  }\n}\n",
+    "err": ""
+  },
+  "main show A-6": {
+    "code": 0,
+    "out": "A-6 Export\nStage: verify\nLane: M\nTasks: 2/2\nBranch: t/A-6\nHolder: fixture@example.invalid\nBlocked by: none\n\nIntent:\nOwners can export their report as CSV.\n\nac-1 export writes a csv\n  Given a report\n  When the owner exports it\n  Then a csv file is written\n  State: passing\n  Test: export#writes-csv\n  Test result: passed\n  Ticked: no\n  Verification: none\n\nac-2 commas are escaped\n  Given a cell with a comma\n  When the owner exports it\n  Then the cell is quoted\n  State: passing\n  Test: export#escapes-commas\n  Test result: passed\n  Ticked: no\n  Verification: none\n",
+    "err": ""
+  },
+  "main show A-6 --json": {
+    "code": 0,
+    "out": "{\n  \"id\": \"A-6\",\n  \"title\": \"Export\",\n  \"stage\": \"verify\",\n  \"lane\": \"M\",\n  \"tasksDone\": 2,\n  \"tasksTotal\": 2,\n  \"branch\": \"t/A-6\",\n  \"holder\": \"fixture@example.invalid\",\n  \"blockedBy\": [],\n  \"intent\": [\n    \"Owners can export their report as CSV.\"\n  ],\n  \"criteria\": [\n    {\n      \"id\": \"ac-1\",\n      \"title\": \"export writes a csv\",\n      \"steps\": [\n        \"Given a report\",\n        \"When the owner exports it\",\n        \"Then a csv file is written\"\n      ],\n      \"label\": \"passing\",\n      \"test\": \"export#writes-csv\",\n      \"testResult\": \"passed\",\n      \"ticked\": false,\n      \"verification\": null\n    },\n    {\n      \"id\": \"ac-2\",\n      \"title\": \"commas are escaped\",\n      \"steps\": [\n        \"Given a cell with a comma\",\n        \"When the owner exports it\",\n        \"Then the cell is quoted\"\n      ],\n      \"label\": \"passing\",\n      \"test\": \"export#escapes-commas\",\n      \"testResult\": \"passed\",\n      \"ticked\": false,\n      \"verification\": null\n    }\n  ]\n}\n",
+    "err": ""
+  },
+  "main show A-13 --json": {
+    "code": 0,
+    "out": "{\n  \"id\": \"A-13\",\n  \"title\": \"Export\",\n  \"stage\": \"verify\",\n  \"lane\": \"M\",\n  \"tasksDone\": 2,\n  \"tasksTotal\": 2,\n  \"branch\": \"t/A-13\",\n  \"holder\": \"fixture@example.invalid\",\n  \"blockedBy\": [],\n  \"intent\": [\n    \"Owners can export their report as CSV.\"\n  ],\n  \"criteria\": [\n    {\n      \"id\": \"ac-1\",\n      \"title\": \"export writes a csv\",\n      \"steps\": [\n        \"Given a report\",\n        \"When the owner exports it\",\n        \"Then a csv file is written\"\n      ],\n      \"label\": \"passing\",\n      \"test\": \"export#writes-csv\",\n      \"testResult\": \"passed\",\n      \"ticked\": false,\n      \"verification\": null\n    },\n    {\n      \"id\": \"ac-2\",\n      \"title\": \"commas are escaped\",\n      \"steps\": [\n        \"Given a cell with a comma\",\n        \"When the owner exports it\",\n        \"Then the cell is quoted\"\n      ],\n      \"label\": \"passing\",\n      \"test\": \"export#escapes-commas\",\n      \"testResult\": \"passed\",\n      \"ticked\": false,\n      \"verification\": null\n    }\n  ]\n}\n",
+    "err": ""
+  },
+  "main anchor A-6": {
+    "code": 0,
+    "out": "# Anchor: A-6 \"Export\"\n\nStage: intent, next: the owner approves the ticket (accord approve)\n\n## Intent\nOwners can export their report as CSV.\n\n## Vetoes\n- No new dependency.\n\n## Decisions\n- D-01 Use the existing writer — \"reuse what we have\"\n\n## Corrections\n(none)\n\n## Rulings\n(none)\n",
+    "err": ""
+  },
+  "main anchor": {
+    "code": 0,
+    "out": "",
+    "err": ""
+  },
+  "main gate done A-8 --json": {
+    "code": 1,
+    "out": "{\n  \"gate\": \"done\",\n  \"ticket\": \"A-8\",\n  \"verdict\": \"fail\",\n  \"findings\": [\n    {\n      \"file\": \"accord/tickets/A-8.md\",\n      \"reason\": \"the branch diff from <sha:A-11-squash>, the merge base with the default branch, to HEAD is empty: HEAD adds no change over the merge base; lane work is committed on the ticket's own branch, never on the default branch\",\n      \"rule\": \"gate.branch-unknown\",\n      \"level\": \"error\"\n    },\n    {\n      \"file\": \"accord/tickets/A-8.md\",\n      \"pointer\": \"/verified_commit\",\n      \"reason\": \"the ticks were made against commit <sha:A-8-review>; the gated commit is <sha:A-11-squash>\",\n      \"rule\": \"gate.tick-stale-commit\",\n      \"level\": \"error\"\n    },\n    {\n      \"file\": \"accord/tickets/A-8/verification.md\",\n      \"reason\": \"the review and the gated commit share an author (fixture@example.invalid), so no second pair of eyes touched this ticket\",\n      \"rule\": \"gate.author-match\",\n      \"level\": \"warning\"\n    },\n    {\n      \"file\": \"accord/tickets/A-8/verification.md\",\n      \"pointer\": \"/commit\",\n      \"reason\": \"the review was written against commit <sha:A-8-review>; the gated commit is <sha:A-11-squash>\",\n      \"rule\": \"gate.stale-review\",\n      \"level\": \"error\"\n    },\n    {\n      \"file\": \"accord/tickets/A-8/verification.md\",\n      \"line\": 7,\n      \"reason\": \"evidence block \\\"@ac-1\\\" cites no file, test, or command that exists in the snapshot\",\n      \"rule\": \"gate.evidence-unresolved\",\n      \"level\": \"error\"\n    },\n    {\n      \"file\": \"accord/tickets/A-8/verification.md\",\n      \"line\": 13,\n      \"reason\": \"evidence block \\\"@ac-2\\\" cites no file, test, or command that exists in the snapshot\",\n      \"rule\": \"gate.evidence-unresolved\",\n      \"level\": \"error\"\n    }\n  ],\n  \"acHash\": \"fnv1a64:978be4ea88fa4e87\"\n}\n",
+    "err": ""
+  },
+  "wt-A-7 status --json": {
+    "code": 0,
+    "out": "[\n  {\n    \"id\": \"A-1\",\n    \"type\": \"story\",\n    \"status\": \"open\",\n    \"ui\": false,\n    \"errors\": 0,\n    \"warnings\": 0,\n    \"ready\": \"none\",\n    \"ticksVerified\": 0,\n    \"ticksTagged\": 2,\n    \"ticksBinding\": \"none\",\n    \"title\": \"Export\",\n    \"lane\": \"M\",\n    \"stage\": \"intent\",\n    \"next\": \"the owner approves the ticket (accord approve)\",\n    \"tasksDone\": 0,\n    \"tasksTotal\": 0,\n    \"branch\": \"t/A-1\"\n  },\n  {\n    \"id\": \"A-10\",\n    \"type\": \"story\",\n    \"status\": \"open\",\n    \"ui\": false,\n    \"errors\": 0,\n    \"warnings\": 0,\n    \"ready\": \"ok\",\n    \"ticksVerified\": 2,\n    \"ticksTagged\": 2,\n    \"ticksBinding\": \"bound\",\n    \"title\": \"Export\",\n    \"lane\": \"M\",\n    \"stage\": \"done\",\n    \"tasksDone\": 2,\n    \"tasksTotal\": 2,\n    \"claimedBy\": \"fixture@example.invalid\",\n    \"branch\": \"t/A-10\"\n  },\n  {\n    \"id\": \"A-11\",\n    \"type\": \"story\",\n    \"status\": \"open\",\n    \"ui\": false,\n    \"errors\": 0,\n    \"warnings\": 0,\n    \"ready\": \"ok\",\n    \"ticksVerified\": 2,\n    \"ticksTagged\": 2,\n    \"ticksBinding\": \"bound\",\n    \"title\": \"Export\",\n    \"lane\": \"M\",\n    \"stage\": \"review\",\n    \"tasksDone\": 2,\n    \"tasksTotal\": 2,\n    \"claimedBy\": \"fixture@example.invalid\",\n    \"branch\": \"t/A-11\"\n  },\n  {\n    \"id\": \"A-12\",\n    \"type\": \"story\",\n    \"status\": \"open\",\n    \"ui\": false,\n    \"errors\": 0,\n    \"warnings\": 0,\n    \"ready\": \"ok\",\n    \"ticksVerified\": 0,\n    \"ticksTagged\": 2,\n    \"ticksBinding\": \"none\",\n    \"title\": \"Export\",\n    \"lane\": \"M\",\n    \"stage\": \"plan\",\n    \"tasksDone\": 0,\n    \"tasksTotal\": 0,\n    \"claimedBy\": \"fixture@example.invalid\",\n    \"branch\": \"t/A-12\"\n  },\n  {\n    \"id\": \"A-13\",\n    \"type\": \"story\",\n    \"status\": \"open\",\n    \"ui\": false,\n    \"errors\": 0,\n    \"warnings\": 0,\n    \"ready\": \"ok\",\n    \"ticksVerified\": 0,\n    \"ticksTagged\": 2,\n    \"ticksBinding\": \"none\",\n    \"title\": \"Export\",\n    \"lane\": \"M\",\n    \"stage\": \"verify\",\n    \"tasksDone\": 2,\n    \"tasksTotal\": 2,\n    \"claimedBy\": \"fixture@example.invalid\",\n    \"branch\": \"t/A-13\"\n  },\n  {\n    \"id\": \"A-2\",\n    \"type\": \"story\",\n    \"status\": \"open\",\n    \"ui\": false,\n    \"errors\": 0,\n    \"warnings\": 0,\n    \"ready\": \"ok\",\n    \"ticksVerified\": 0,\n    \"ticksTagged\": 2,\n    \"ticksBinding\": \"none\",\n    \"title\": \"Export\",\n    \"lane\": \"M\",\n    \"stage\": \"plan\",\n    \"tasksDone\": 0,\n    \"tasksTotal\": 2,\n    \"claimedBy\": \"fixture@example.invalid\",\n    \"branch\": \"t/A-2\"\n  },\n  {\n    \"id\": \"A-3\",\n    \"type\": \"story\",\n    \"status\": \"open\",\n    \"ui\": false,\n    \"errors\": 0,\n    \"warnings\": 0,\n    \"ready\": \"ok\",\n    \"ticksVerified\": 0,\n    \"ticksTagged\": 2,\n    \"ticksBinding\": \"none\",\n    \"title\": \"Export\",\n    \"lane\": \"M\",\n    \"stage\": \"build\",\n    \"tasksDone\": 1,\n    \"tasksTotal\": 2,\n    \"claimedBy\": \"fixture@example.invalid\",\n    \"branch\": \"t/A-3\"\n  },\n  {\n    \"id\": \"A-4\",\n    \"type\": \"story\",\n    \"status\": \"open\",\n    \"ui\": false,\n    \"errors\": 0,\n    \"warnings\": 0,\n    \"ready\": \"ok\",\n    \"ticksVerified\": 0,\n    \"ticksTagged\": 2,\n    \"ticksBinding\": \"none\",\n    \"title\": \"Export\",\n    \"lane\": \"M\",\n    \"stage\": \"build\",\n    \"tasksDone\": 0,\n    \"tasksTotal\": 2,\n    \"claimedBy\": \"fixture@example.invalid\",\n    \"branch\": \"t/A-4\"\n  },\n  {\n    \"id\": \"A-5\",\n    \"type\": \"story\",\n    \"status\": \"open\",\n    \"ui\": false,\n    \"errors\": 0,\n    \"warnings\": 0,\n    \"ready\": \"ok\",\n    \"ticksVerified\": 0,\n    \"ticksTagged\": 2,\n    \"ticksBinding\": \"none\",\n    \"title\": \"Export\",\n    \"lane\": \"M\",\n    \"stage\": \"review\",\n    \"tasksDone\": 2,\n    \"tasksTotal\": 2,\n    \"claimedBy\": \"fixture@example.invalid\",\n    \"branch\": \"t/A-5\"\n  },\n  {\n    \"id\": \"A-6\",\n    \"type\": \"story\",\n    \"status\": \"open\",\n    \"ui\": false,\n    \"errors\": 0,\n    \"warnings\": 0,\n    \"ready\": \"ok\",\n    \"ticksVerified\": 0,\n    \"ticksTagged\": 2,\n    \"ticksBinding\": \"none\",\n    \"title\": \"Export\",\n    \"lane\": \"M\",\n    \"stage\": \"verify\",\n    \"tasksDone\": 2,\n    \"tasksTotal\": 2,\n    \"claimedBy\": \"fixture@example.invalid\",\n    \"branch\": \"t/A-6\"\n  },\n  {\n    \"id\": \"A-7\",\n    \"type\": \"story\",\n    \"status\": \"open\",\n    \"ui\": false,\n    \"errors\": 0,\n    \"warnings\": 0,\n    \"ready\": \"ok\",\n    \"ticksVerified\": 0,\n    \"ticksTagged\": 2,\n    \"ticksBinding\": \"none\",\n    \"title\": \"Export\",\n    \"lane\": \"M\",\n    \"stage\": \"verify\",\n    \"tasksDone\": 2,\n    \"tasksTotal\": 2,\n    \"claimedBy\": \"fixture@example.invalid\",\n    \"branch\": \"t/A-7\"\n  },\n  {\n    \"id\": \"A-8\",\n    \"type\": \"story\",\n    \"status\": \"open\",\n    \"ui\": false,\n    \"errors\": 0,\n    \"warnings\": 0,\n    \"ready\": \"ok\",\n    \"ticksVerified\": 2,\n    \"ticksTagged\": 2,\n    \"ticksBinding\": \"bound\",\n    \"title\": \"Export\",\n    \"lane\": \"M\",\n    \"stage\": \"done\",\n    \"tasksDone\": 2,\n    \"tasksTotal\": 2,\n    \"claimedBy\": \"fixture@example.invalid\",\n    \"branch\": \"t/A-8\"\n  },\n  {\n    \"id\": \"A-9\",\n    \"type\": \"story\",\n    \"status\": \"open\",\n    \"ui\": false,\n    \"errors\": 0,\n    \"warnings\": 0,\n    \"ready\": \"ok\",\n    \"ticksVerified\": 2,\n    \"ticksTagged\": 2,\n    \"ticksBinding\": \"bound\",\n    \"title\": \"Export\",\n    \"lane\": \"M\",\n    \"stage\": \"done\",\n    \"tasksDone\": 2,\n    \"tasksTotal\": 2,\n    \"claimedBy\": \"fixture@example.invalid\",\n    \"branch\": \"t/A-9\"\n  },\n  {\n    \"id\": \"S-1\",\n    \"type\": \"story\",\n    \"status\": \"open\",\n    \"ui\": false,\n    \"errors\": 0,\n    \"warnings\": 0,\n    \"ready\": \"ok\",\n    \"ticksVerified\": 0,\n    \"ticksTagged\": 0,\n    \"ticksBinding\": \"none\",\n    \"title\": \"Export\",\n    \"lane\": \"S\",\n    \"stage\": \"done\",\n    \"tasksDone\": 0,\n    \"tasksTotal\": 0,\n    \"claimedBy\": \"fixture@example.invalid\",\n    \"branch\": \"t/S-1\"\n  }\n]\n",
+    "err": ""
+  },
+  "wt-A-7 anchor": {
+    "code": 0,
+    "out": "# Anchor: A-7 \"Export\"\n\nStage: verify, next: verification and the owner's tick\n\n## Intent\nOwners can export their report as CSV.\n\n## Vetoes\n- No new dependency.\n\n## Decisions\n- D-01 Use the existing writer — \"reuse what we have\"\n\n## Corrections\n(none)\n\n## Rulings\n(none)\n",
+    "err": ""
+  },
+  "wt-A-7 lint --json": {
+    "code": 0,
+    "out": "{\n  \"findings\": [],\n  \"errors\": 0,\n  \"warnings\": 0\n}\n",
+    "err": ""
+  },
+  "wt-A-7 dashboard --json": {
+    "code": 0,
+    "out": "{\n  \"yours\": {\n    \"rows\": [\n      {\n        \"id\": \"A-2\",\n        \"type\": \"story\",\n        \"status\": \"open\",\n        \"ui\": false,\n        \"errors\": 0,\n        \"warnings\": 0,\n        \"ready\": \"ok\",\n        \"ticksVerified\": 0,\n        \"ticksTagged\": 2,\n        \"ticksBinding\": \"none\",\n        \"title\": \"Export\",\n        \"lane\": \"M\",\n        \"stage\": \"plan\",\n        \"tasksDone\": 0,\n        \"tasksTotal\": 2,\n        \"claimedBy\": \"fixture@example.invalid\",\n        \"branch\": \"t/A-2\"\n      },\n      {\n        \"id\": \"A-3\",\n        \"type\": \"story\",\n        \"status\": \"open\",\n        \"ui\": false,\n        \"errors\": 0,\n        \"warnings\": 0,\n        \"ready\": \"ok\",\n        \"ticksVerified\": 0,\n        \"ticksTagged\": 2,\n        \"ticksBinding\": \"none\",\n        \"title\": \"Export\",\n        \"lane\": \"M\",\n        \"stage\": \"build\",\n        \"tasksDone\": 1,\n        \"tasksTotal\": 2,\n        \"claimedBy\": \"fixture@example.invalid\",\n        \"branch\": \"t/A-3\"\n      },\n      {\n        \"id\": \"A-4\",\n        \"type\": \"story\",\n        \"status\": \"open\",\n        \"ui\": false,\n        \"errors\": 0,\n        \"warnings\": 0,\n        \"ready\": \"ok\",\n        \"ticksVerified\": 0,\n        \"ticksTagged\": 2,\n        \"ticksBinding\": \"none\",\n        \"title\": \"Export\",\n        \"lane\": \"M\",\n        \"stage\": \"build\",\n        \"tasksDone\": 0,\n        \"tasksTotal\": 2,\n        \"claimedBy\": \"fixture@example.invalid\",\n        \"branch\": \"t/A-4\"\n      },\n      {\n        \"id\": \"A-5\",\n        \"type\": \"story\",\n        \"status\": \"open\",\n        \"ui\": false,\n        \"errors\": 0,\n        \"warnings\": 0,\n        \"ready\": \"ok\",\n        \"ticksVerified\": 0,\n        \"ticksTagged\": 2,\n        \"ticksBinding\": \"none\",\n        \"title\": \"Export\",\n        \"lane\": \"M\",\n        \"stage\": \"review\",\n        \"tasksDone\": 2,\n        \"tasksTotal\": 2,\n        \"claimedBy\": \"fixture@example.invalid\",\n        \"branch\": \"t/A-5\"\n      },\n      {\n        \"id\": \"A-6\",\n        \"type\": \"story\",\n        \"status\": \"open\",\n        \"ui\": false,\n        \"errors\": 0,\n        \"warnings\": 0,\n        \"ready\": \"ok\",\n        \"ticksVerified\": 0,\n        \"ticksTagged\": 2,\n        \"ticksBinding\": \"none\",\n        \"title\": \"Export\",\n        \"lane\": \"M\",\n        \"stage\": \"verify\",\n        \"tasksDone\": 2,\n        \"tasksTotal\": 2,\n        \"claimedBy\": \"fixture@example.invalid\",\n        \"branch\": \"t/A-6\"\n      },\n      {\n        \"id\": \"A-7\",\n        \"type\": \"story\",\n        \"status\": \"open\",\n        \"ui\": false,\n        \"errors\": 0,\n        \"warnings\": 0,\n        \"ready\": \"ok\",\n        \"ticksVerified\": 0,\n        \"ticksTagged\": 2,\n        \"ticksBinding\": \"none\",\n        \"title\": \"Export\",\n        \"lane\": \"M\",\n        \"stage\": \"verify\",\n        \"tasksDone\": 2,\n        \"tasksTotal\": 2,\n        \"claimedBy\": \"fixture@example.invalid\",\n        \"branch\": \"t/A-7\"\n      },\n      {\n        \"id\": \"A-11\",\n        \"type\": \"story\",\n        \"status\": \"open\",\n        \"ui\": false,\n        \"errors\": 0,\n        \"warnings\": 0,\n        \"ready\": \"ok\",\n        \"ticksVerified\": 2,\n        \"ticksTagged\": 2,\n        \"ticksBinding\": \"bound\",\n        \"title\": \"Export\",\n        \"lane\": \"M\",\n        \"stage\": \"review\",\n        \"tasksDone\": 2,\n        \"tasksTotal\": 2,\n        \"claimedBy\": \"fixture@example.invalid\",\n        \"branch\": \"t/A-11\"\n      },\n      {\n        \"id\": \"A-12\",\n        \"type\": \"story\",\n        \"status\": \"open\",\n        \"ui\": false,\n        \"errors\": 0,\n        \"warnings\": 0,\n        \"ready\": \"ok\",\n        \"ticksVerified\": 0,\n        \"ticksTagged\": 2,\n        \"ticksBinding\": \"none\",\n        \"title\": \"Export\",\n        \"lane\": \"M\",\n        \"stage\": \"plan\",\n        \"tasksDone\": 0,\n        \"tasksTotal\": 0,\n        \"claimedBy\": \"fixture@example.invalid\",\n        \"branch\": \"t/A-12\"\n      },\n      {\n        \"id\": \"A-13\",\n        \"type\": \"story\",\n        \"status\": \"open\",\n        \"ui\": false,\n        \"errors\": 0,\n        \"warnings\": 0,\n        \"ready\": \"ok\",\n        \"ticksVerified\": 0,\n        \"ticksTagged\": 2,\n        \"ticksBinding\": \"none\",\n        \"title\": \"Export\",\n        \"lane\": \"M\",\n        \"stage\": \"verify\",\n        \"tasksDone\": 2,\n        \"tasksTotal\": 2,\n        \"claimedBy\": \"fixture@example.invalid\",\n        \"branch\": \"t/A-13\"\n      }\n    ],\n    \"more\": 0\n  },\n  \"team\": {\n    \"rows\": [],\n    \"more\": 0\n  },\n  \"ready\": {\n    \"rows\": [],\n    \"more\": 0\n  },\n  \"upNext\": {\n    \"rows\": [\n      {\n        \"id\": \"A-1\",\n        \"type\": \"story\",\n        \"status\": \"open\",\n        \"ui\": false,\n        \"errors\": 0,\n        \"warnings\": 0,\n        \"ready\": \"none\",\n        \"ticksVerified\": 0,\n        \"ticksTagged\": 2,\n        \"ticksBinding\": \"none\",\n        \"title\": \"Export\",\n        \"lane\": \"M\",\n        \"stage\": \"intent\",\n        \"next\": \"the owner approves the ticket (accord approve)\",\n        \"tasksDone\": 0,\n        \"tasksTotal\": 0,\n        \"branch\": \"t/A-1\"\n      }\n    ],\n    \"more\": 0,\n    \"suggest\": {\n      \"action\": \"pick-up\",\n      \"id\": \"A-1\"\n    }\n  },\n  \"epics\": {\n    \"rows\": [],\n    \"more\": 0\n  },\n  \"summary\": {\n    \"inProgress\": 9,\n    \"ready\": 0,\n    \"blocked\": 0,\n    \"backlog\": 1,\n    \"done\": 4,\n    \"withoutLane\": 0,\n    \"withSchemaErrors\": 0\n  }\n}\n",
+    "err": ""
+  },
+  "wt-A-7 show A-7 --json": {
+    "code": 0,
+    "out": "{\n  \"id\": \"A-7\",\n  \"title\": \"Export\",\n  \"stage\": \"verify\",\n  \"lane\": \"M\",\n  \"tasksDone\": 2,\n  \"tasksTotal\": 2,\n  \"branch\": \"t/A-7\",\n  \"holder\": \"fixture@example.invalid\",\n  \"blockedBy\": [],\n  \"intent\": [\n    \"Owners can export their report as CSV.\"\n  ],\n  \"criteria\": [\n    {\n      \"id\": \"ac-1\",\n      \"title\": \"export writes a csv\",\n      \"steps\": [\n        \"Given a report\",\n        \"When the owner exports it\",\n        \"Then a csv file is written\"\n      ],\n      \"label\": \"passing\",\n      \"test\": \"export#writes-csv\",\n      \"testResult\": \"passed\",\n      \"ticked\": false,\n      \"verification\": \"pass\"\n    },\n    {\n      \"id\": \"ac-2\",\n      \"title\": \"commas are escaped\",\n      \"steps\": [\n        \"Given a cell with a comma\",\n        \"When the owner exports it\",\n        \"Then the cell is quoted\"\n      ],\n      \"label\": \"passing\",\n      \"test\": \"export#escapes-commas\",\n      \"testResult\": \"passed\",\n      \"ticked\": false,\n      \"verification\": \"pass\"\n    }\n  ]\n}\n",
+    "err": ""
+  },
+  "wt-A-7 gate plan A-7 --json": {
+    "code": 0,
+    "out": "{\n  \"gate\": \"plan\",\n  \"ticket\": \"A-7\",\n  \"verdict\": \"pass\",\n  \"findings\": [\n    {\n      \"file\": \"accord/tests-baseline.txt\",\n      \"reason\": \"accord/tests-baseline.txt does not exist, so every test case already in the suite counts as untraced at the Done gate; ask the owner, at the plan stage's baseline tests step and never before it, whether to run accord tests baseline\",\n      \"rule\": \"gate.tests-baseline-missing\",\n      \"level\": \"warning\"\n    }\n  ],\n  \"acHash\": \"fnv1a64:978be4ea88fa4e87\",\n  \"planHash\": \"fnv1a64:d54f607ff5b8a3a7\"\n}\n",
+    "err": ""
+  },
+  "wt-A-7 gate done A-7": {
+    "code": 1,
+    "out": "accord/tickets/A-7.md:15: error gate.tags-differ scenarios lack nothing; evidence lacks nothing; verified lacks @ac-1 @ac-2\naccord/tickets/A-7/verification.md: warning gate.author-match the review and the gated commit share an author (fixture@example.invalid), so no second pair of eyes touched this ticket\naccord/tickets/A-7/verification.md:7: error gate.evidence-unresolved evidence block \"@ac-1\" cites no file, test, or command that exists in the snapshot\naccord/tickets/A-7/verification.md:13: error gate.evidence-unresolved evidence block \"@ac-2\" cites no file, test, or command that exists in the snapshot\n3 errors, 1 warnings\n",
+    "err": ""
+  },
+  "wt-A-7 gate done A-7 --json": {
+    "code": 1,
+    "out": "{\n  \"gate\": \"done\",\n  \"ticket\": \"A-7\",\n  \"verdict\": \"fail\",\n  \"findings\": [\n    {\n      \"file\": \"accord/tickets/A-7.md\",\n      \"line\": 15,\n      \"reason\": \"scenarios lack nothing; evidence lacks nothing; verified lacks @ac-1 @ac-2\",\n      \"rule\": \"gate.tags-differ\",\n      \"level\": \"error\"\n    },\n    {\n      \"file\": \"accord/tickets/A-7/verification.md\",\n      \"reason\": \"the review and the gated commit share an author (fixture@example.invalid), so no second pair of eyes touched this ticket\",\n      \"rule\": \"gate.author-match\",\n      \"level\": \"warning\"\n    },\n    {\n      \"file\": \"accord/tickets/A-7/verification.md\",\n      \"line\": 7,\n      \"reason\": \"evidence block \\\"@ac-1\\\" cites no file, test, or command that exists in the snapshot\",\n      \"rule\": \"gate.evidence-unresolved\",\n      \"level\": \"error\"\n    },\n    {\n      \"file\": \"accord/tickets/A-7/verification.md\",\n      \"line\": 13,\n      \"reason\": \"evidence block \\\"@ac-2\\\" cites no file, test, or command that exists in the snapshot\",\n      \"rule\": \"gate.evidence-unresolved\",\n      \"level\": \"error\"\n    }\n  ],\n  \"acHash\": \"fnv1a64:978be4ea88fa4e87\"\n}\n",
+    "err": ""
+  },
+  "wt-A-3 gate plan A-3": {
+    "code": 1,
+    "out": "accord/tests-baseline.txt: warning gate.tests-baseline-missing accord/tests-baseline.txt does not exist, so every test case already in the suite counts as untraced at the Done gate; ask the owner, at the plan stage's baseline tests step and never before it, whether to run accord tests baseline\naccord/tickets/A-3/plan.md:14: error gate.task-file-unknown task 2 names src/missing.ts, which does not exist at baseline <sha:main-1>; correct the path, or write (new) after it if the task creates it\n1 errors, 1 warnings\n",
+    "err": ""
+  },
+  "wt-A-3 gate plan A-3 --json": {
+    "code": 1,
+    "out": "{\n  \"gate\": \"plan\",\n  \"ticket\": \"A-3\",\n  \"verdict\": \"fail\",\n  \"findings\": [\n    {\n      \"file\": \"accord/tests-baseline.txt\",\n      \"reason\": \"accord/tests-baseline.txt does not exist, so every test case already in the suite counts as untraced at the Done gate; ask the owner, at the plan stage's baseline tests step and never before it, whether to run accord tests baseline\",\n      \"rule\": \"gate.tests-baseline-missing\",\n      \"level\": \"warning\"\n    },\n    {\n      \"file\": \"accord/tickets/A-3/plan.md\",\n      \"line\": 14,\n      \"reason\": \"task 2 names src/missing.ts, which does not exist at baseline <sha:main-1>; correct the path, or write (new) after it if the task creates it\",\n      \"rule\": \"gate.task-file-unknown\",\n      \"level\": \"error\"\n    }\n  ],\n  \"acHash\": \"fnv1a64:978be4ea88fa4e87\",\n  \"planHash\": \"fnv1a64:324c1d03de498f78\"\n}\n",
+    "err": ""
+  },
+  "wt-A-4 gate plan A-4 --json": {
+    "code": 1,
+    "out": "{\n  \"gate\": \"plan\",\n  \"ticket\": \"A-4\",\n  \"verdict\": \"fail\",\n  \"findings\": [\n    {\n      \"file\": \"accord/tests-baseline.txt\",\n      \"reason\": \"accord/tests-baseline.txt does not exist, so every test case already in the suite counts as untraced at the Done gate; ask the owner, at the plan stage's baseline tests step and never before it, whether to run accord tests baseline\",\n      \"rule\": \"gate.tests-baseline-missing\",\n      \"level\": \"warning\"\n    },\n    {\n      \"file\": \"accord/tickets/A-4/plan.md\",\n      \"reason\": \"baseline <sha:A-2-plan> is not a commit on the history of HEAD\",\n      \"rule\": \"gate.plan-baseline-unknown\",\n      \"level\": \"error\"\n    }\n  ],\n  \"acHash\": \"fnv1a64:978be4ea88fa4e87\",\n  \"planHash\": \"fnv1a64:8941b0ac28f9ec91\"\n}\n",
+    "err": ""
+  },
+  "wt-S-1 gate done S-1": {
+    "code": 0,
+    "out": "0 errors, 0 warnings\n",
+    "err": ""
+  },
+  "wt-S-1 gate done S-1 --json": {
+    "code": 0,
+    "out": "{\n  \"gate\": \"done\",\n  \"ticket\": \"S-1\",\n  \"verdict\": \"pass\",\n  \"findings\": [],\n  \"acHash\": \"fnv1a64:201e4937ae9f01fb\"\n}\n",
+    "err": ""
+  },
+  "side status": {
+    "code": 0,
+    "out": "id   type   status  parent  ui  err/warn  ready  ticks     stage   who                      blocked by  tracker\n---  -----  ------  ------  --  --------  -----  --------  ------  -----------------------  ----------  -------\nF-1  story  open    -       no  0/0       ok     0/2 none  verify  fixture@example.invalid  -           -      \nF-2  story  open    -       no  0/0       ok     0/2 none  review  fixture@example.invalid  -           -      \nF-3  story  open    -       no  0/0       ok     0/2 none  verify  fixture@example.invalid  -           -      \nF-4  story  open    -       no  0/0       ok     0/2 none  plan    fixture@example.invalid  -           -      \n4 tickets shown, 0 archived hidden\n",
+    "err": ""
+  },
+  "side status --json": {
+    "code": 0,
+    "out": "[\n  {\n    \"id\": \"F-1\",\n    \"type\": \"story\",\n    \"status\": \"open\",\n    \"ui\": false,\n    \"errors\": 0,\n    \"warnings\": 0,\n    \"ready\": \"ok\",\n    \"ticksVerified\": 0,\n    \"ticksTagged\": 2,\n    \"ticksBinding\": \"none\",\n    \"title\": \"Export\",\n    \"lane\": \"M\",\n    \"stage\": \"verify\",\n    \"tasksDone\": 2,\n    \"tasksTotal\": 2,\n    \"claimedBy\": \"fixture@example.invalid\",\n    \"branch\": \"feature/F-1\"\n  },\n  {\n    \"id\": \"F-2\",\n    \"type\": \"story\",\n    \"status\": \"open\",\n    \"ui\": false,\n    \"errors\": 0,\n    \"warnings\": 0,\n    \"ready\": \"ok\",\n    \"ticksVerified\": 0,\n    \"ticksTagged\": 2,\n    \"ticksBinding\": \"none\",\n    \"title\": \"Export\",\n    \"lane\": \"M\",\n    \"stage\": \"review\",\n    \"tasksDone\": 2,\n    \"tasksTotal\": 2,\n    \"claimedBy\": \"fixture@example.invalid\",\n    \"branch\": \"feature/F-2\"\n  },\n  {\n    \"id\": \"F-3\",\n    \"type\": \"story\",\n    \"status\": \"open\",\n    \"ui\": false,\n    \"errors\": 0,\n    \"warnings\": 0,\n    \"ready\": \"ok\",\n    \"ticksVerified\": 0,\n    \"ticksTagged\": 2,\n    \"ticksBinding\": \"none\",\n    \"title\": \"Export\",\n    \"lane\": \"M\",\n    \"stage\": \"verify\",\n    \"tasksDone\": 2,\n    \"tasksTotal\": 2,\n    \"claimedBy\": \"fixture@example.invalid\",\n    \"branch\": \"feature/F-3\"\n  },\n  {\n    \"id\": \"F-4\",\n    \"type\": \"story\",\n    \"status\": \"open\",\n    \"ui\": false,\n    \"errors\": 0,\n    \"warnings\": 0,\n    \"ready\": \"ok\",\n    \"ticksVerified\": 0,\n    \"ticksTagged\": 2,\n    \"ticksBinding\": \"none\",\n    \"title\": \"Export\",\n    \"lane\": \"M\",\n    \"stage\": \"plan\",\n    \"tasksDone\": 0,\n    \"tasksTotal\": 2,\n    \"claimedBy\": \"fixture@example.invalid\",\n    \"branch\": \"feature/F-4\"\n  }\n]\n",
+    "err": ""
+  },
+  "side lint --json": {
+    "code": 0,
+    "out": "{\n  \"findings\": [],\n  \"errors\": 0,\n  \"warnings\": 0\n}\n",
+    "err": ""
+  },
+  "side dashboard --json": {
+    "code": 0,
+    "out": "{\n  \"yours\": {\n    \"rows\": [\n      {\n        \"id\": \"F-1\",\n        \"type\": \"story\",\n        \"status\": \"open\",\n        \"ui\": false,\n        \"errors\": 0,\n        \"warnings\": 0,\n        \"ready\": \"ok\",\n        \"ticksVerified\": 0,\n        \"ticksTagged\": 2,\n        \"ticksBinding\": \"none\",\n        \"title\": \"Export\",\n        \"lane\": \"M\",\n        \"stage\": \"verify\",\n        \"tasksDone\": 2,\n        \"tasksTotal\": 2,\n        \"claimedBy\": \"fixture@example.invalid\",\n        \"branch\": \"feature/F-1\"\n      },\n      {\n        \"id\": \"F-2\",\n        \"type\": \"story\",\n        \"status\": \"open\",\n        \"ui\": false,\n        \"errors\": 0,\n        \"warnings\": 0,\n        \"ready\": \"ok\",\n        \"ticksVerified\": 0,\n        \"ticksTagged\": 2,\n        \"ticksBinding\": \"none\",\n        \"title\": \"Export\",\n        \"lane\": \"M\",\n        \"stage\": \"review\",\n        \"tasksDone\": 2,\n        \"tasksTotal\": 2,\n        \"claimedBy\": \"fixture@example.invalid\",\n        \"branch\": \"feature/F-2\"\n      },\n      {\n        \"id\": \"F-3\",\n        \"type\": \"story\",\n        \"status\": \"open\",\n        \"ui\": false,\n        \"errors\": 0,\n        \"warnings\": 0,\n        \"ready\": \"ok\",\n        \"ticksVerified\": 0,\n        \"ticksTagged\": 2,\n        \"ticksBinding\": \"none\",\n        \"title\": \"Export\",\n        \"lane\": \"M\",\n        \"stage\": \"verify\",\n        \"tasksDone\": 2,\n        \"tasksTotal\": 2,\n        \"claimedBy\": \"fixture@example.invalid\",\n        \"branch\": \"feature/F-3\"\n      },\n      {\n        \"id\": \"F-4\",\n        \"type\": \"story\",\n        \"status\": \"open\",\n        \"ui\": false,\n        \"errors\": 0,\n        \"warnings\": 0,\n        \"ready\": \"ok\",\n        \"ticksVerified\": 0,\n        \"ticksTagged\": 2,\n        \"ticksBinding\": \"none\",\n        \"title\": \"Export\",\n        \"lane\": \"M\",\n        \"stage\": \"plan\",\n        \"tasksDone\": 0,\n        \"tasksTotal\": 2,\n        \"claimedBy\": \"fixture@example.invalid\",\n        \"branch\": \"feature/F-4\"\n      }\n    ],\n    \"more\": 0\n  },\n  \"team\": {\n    \"rows\": [],\n    \"more\": 0\n  },\n  \"ready\": {\n    \"rows\": [],\n    \"more\": 0\n  },\n  \"upNext\": {\n    \"rows\": [],\n    \"more\": 0\n  },\n  \"epics\": {\n    \"rows\": [],\n    \"more\": 0\n  },\n  \"summary\": {\n    \"inProgress\": 4,\n    \"ready\": 0,\n    \"blocked\": 0,\n    \"backlog\": 0,\n    \"done\": 0,\n    \"withoutLane\": 0,\n    \"withSchemaErrors\": 0\n  }\n}\n",
+    "err": ""
+  },
+  "side show F-1 --json": {
+    "code": 0,
+    "out": "{\n  \"id\": \"F-1\",\n  \"title\": \"Export\",\n  \"stage\": \"verify\",\n  \"lane\": \"M\",\n  \"tasksDone\": 2,\n  \"tasksTotal\": 2,\n  \"branch\": \"feature/F-1\",\n  \"holder\": \"fixture@example.invalid\",\n  \"blockedBy\": [],\n  \"intent\": [\n    \"Owners can export their report as CSV.\"\n  ],\n  \"criteria\": [\n    {\n      \"id\": \"ac-1\",\n      \"title\": \"export writes a csv\",\n      \"steps\": [\n        \"Given a report\",\n        \"When the owner exports it\",\n        \"Then a csv file is written\"\n      ],\n      \"label\": \"passing\",\n      \"test\": \"export#writes-csv\",\n      \"testResult\": \"passed\",\n      \"ticked\": false,\n      \"verification\": \"pass\"\n    },\n    {\n      \"id\": \"ac-2\",\n      \"title\": \"commas are escaped\",\n      \"steps\": [\n        \"Given a cell with a comma\",\n        \"When the owner exports it\",\n        \"Then the cell is quoted\"\n      ],\n      \"label\": \"passing\",\n      \"test\": \"export#escapes-commas\",\n      \"testResult\": \"passed\",\n      \"ticked\": false,\n      \"verification\": \"pass\"\n    }\n  ]\n}\n",
+    "err": ""
+  },
+  "side anchor F-1": {
+    "code": 0,
+    "out": "# Anchor: F-1 \"Export\"\n\nStage: intent, next: the owner approves the ticket (accord approve)\n\n## Intent\nOwners can export their report as CSV.\n\n## Vetoes\n- No new dependency.\n\n## Decisions\n- D-01 Use the existing writer — \"reuse what we have\"\n\n## Corrections\n(none)\n\n## Rulings\n(none)\n",
+    "err": ""
+  },
+  "side-local status": {
+    "code": 0,
+    "out": "id   type   status  parent  ui  err/warn  ready  ticks     stage   who                      blocked by  tracker\n---  -----  ------  ------  --  --------  -----  --------  ------  -----------------------  ----------  -------\nF-1  story  open    -       no  0/0       ok     0/2 none  verify  fixture@example.invalid  -           -      \nF-2  story  open    -       no  0/0       ok     0/2 none  review  fixture@example.invalid  -           -      \nF-3  story  open    -       no  0/0       ok     0/2 none  verify  fixture@example.invalid  -           -      \nF-4  story  open    -       no  0/0       ok     0/2 none  plan    fixture@example.invalid  -           -      \n4 tickets shown, 0 archived hidden\n",
+    "err": ""
+  },
+  "side-local status --json": {
+    "code": 0,
+    "out": "[\n  {\n    \"id\": \"F-1\",\n    \"type\": \"story\",\n    \"status\": \"open\",\n    \"ui\": false,\n    \"errors\": 0,\n    \"warnings\": 0,\n    \"ready\": \"ok\",\n    \"ticksVerified\": 0,\n    \"ticksTagged\": 2,\n    \"ticksBinding\": \"none\",\n    \"title\": \"Export\",\n    \"lane\": \"M\",\n    \"stage\": \"verify\",\n    \"tasksDone\": 2,\n    \"tasksTotal\": 2,\n    \"claimedBy\": \"fixture@example.invalid\",\n    \"branch\": \"feature/F-1\"\n  },\n  {\n    \"id\": \"F-2\",\n    \"type\": \"story\",\n    \"status\": \"open\",\n    \"ui\": false,\n    \"errors\": 0,\n    \"warnings\": 0,\n    \"ready\": \"ok\",\n    \"ticksVerified\": 0,\n    \"ticksTagged\": 2,\n    \"ticksBinding\": \"none\",\n    \"title\": \"Export\",\n    \"lane\": \"M\",\n    \"stage\": \"review\",\n    \"tasksDone\": 2,\n    \"tasksTotal\": 2,\n    \"claimedBy\": \"fixture@example.invalid\",\n    \"branch\": \"feature/F-2\"\n  },\n  {\n    \"id\": \"F-3\",\n    \"type\": \"story\",\n    \"status\": \"open\",\n    \"ui\": false,\n    \"errors\": 0,\n    \"warnings\": 0,\n    \"ready\": \"ok\",\n    \"ticksVerified\": 0,\n    \"ticksTagged\": 2,\n    \"ticksBinding\": \"none\",\n    \"title\": \"Export\",\n    \"lane\": \"M\",\n    \"stage\": \"verify\",\n    \"tasksDone\": 2,\n    \"tasksTotal\": 2,\n    \"claimedBy\": \"fixture@example.invalid\",\n    \"branch\": \"feature/F-3\"\n  },\n  {\n    \"id\": \"F-4\",\n    \"type\": \"story\",\n    \"status\": \"open\",\n    \"ui\": false,\n    \"errors\": 0,\n    \"warnings\": 0,\n    \"ready\": \"ok\",\n    \"ticksVerified\": 0,\n    \"ticksTagged\": 2,\n    \"ticksBinding\": \"none\",\n    \"title\": \"Export\",\n    \"lane\": \"M\",\n    \"stage\": \"plan\",\n    \"tasksDone\": 0,\n    \"tasksTotal\": 2,\n    \"claimedBy\": \"fixture@example.invalid\",\n    \"branch\": \"feature/F-4\"\n  }\n]\n",
+    "err": ""
+  },
+  "side-local lint --json": {
+    "code": 0,
+    "out": "{\n  \"findings\": [],\n  \"errors\": 0,\n  \"warnings\": 0\n}\n",
+    "err": ""
+  },
+  "side-local dashboard --json": {
+    "code": 0,
+    "out": "{\n  \"yours\": {\n    \"rows\": [\n      {\n        \"id\": \"F-1\",\n        \"type\": \"story\",\n        \"status\": \"open\",\n        \"ui\": false,\n        \"errors\": 0,\n        \"warnings\": 0,\n        \"ready\": \"ok\",\n        \"ticksVerified\": 0,\n        \"ticksTagged\": 2,\n        \"ticksBinding\": \"none\",\n        \"title\": \"Export\",\n        \"lane\": \"M\",\n        \"stage\": \"verify\",\n        \"tasksDone\": 2,\n        \"tasksTotal\": 2,\n        \"claimedBy\": \"fixture@example.invalid\",\n        \"branch\": \"feature/F-1\"\n      },\n      {\n        \"id\": \"F-2\",\n        \"type\": \"story\",\n        \"status\": \"open\",\n        \"ui\": false,\n        \"errors\": 0,\n        \"warnings\": 0,\n        \"ready\": \"ok\",\n        \"ticksVerified\": 0,\n        \"ticksTagged\": 2,\n        \"ticksBinding\": \"none\",\n        \"title\": \"Export\",\n        \"lane\": \"M\",\n        \"stage\": \"review\",\n        \"tasksDone\": 2,\n        \"tasksTotal\": 2,\n        \"claimedBy\": \"fixture@example.invalid\",\n        \"branch\": \"feature/F-2\"\n      },\n      {\n        \"id\": \"F-3\",\n        \"type\": \"story\",\n        \"status\": \"open\",\n        \"ui\": false,\n        \"errors\": 0,\n        \"warnings\": 0,\n        \"ready\": \"ok\",\n        \"ticksVerified\": 0,\n        \"ticksTagged\": 2,\n        \"ticksBinding\": \"none\",\n        \"title\": \"Export\",\n        \"lane\": \"M\",\n        \"stage\": \"verify\",\n        \"tasksDone\": 2,\n        \"tasksTotal\": 2,\n        \"claimedBy\": \"fixture@example.invalid\",\n        \"branch\": \"feature/F-3\"\n      },\n      {\n        \"id\": \"F-4\",\n        \"type\": \"story\",\n        \"status\": \"open\",\n        \"ui\": false,\n        \"errors\": 0,\n        \"warnings\": 0,\n        \"ready\": \"ok\",\n        \"ticksVerified\": 0,\n        \"ticksTagged\": 2,\n        \"ticksBinding\": \"none\",\n        \"title\": \"Export\",\n        \"lane\": \"M\",\n        \"stage\": \"plan\",\n        \"tasksDone\": 0,\n        \"tasksTotal\": 2,\n        \"claimedBy\": \"fixture@example.invalid\",\n        \"branch\": \"feature/F-4\"\n      }\n    ],\n    \"more\": 0\n  },\n  \"team\": {\n    \"rows\": [],\n    \"more\": 0\n  },\n  \"ready\": {\n    \"rows\": [],\n    \"more\": 0\n  },\n  \"upNext\": {\n    \"rows\": [],\n    \"more\": 0\n  },\n  \"epics\": {\n    \"rows\": [],\n    \"more\": 0\n  },\n  \"summary\": {\n    \"inProgress\": 4,\n    \"ready\": 0,\n    \"blocked\": 0,\n    \"backlog\": 0,\n    \"done\": 0,\n    \"withoutLane\": 0,\n    \"withSchemaErrors\": 0\n  }\n}\n",
+    "err": ""
+  },
+  "side-local show F-1 --json": {
+    "code": 0,
+    "out": "{\n  \"id\": \"F-1\",\n  \"title\": \"Export\",\n  \"stage\": \"verify\",\n  \"lane\": \"M\",\n  \"tasksDone\": 2,\n  \"tasksTotal\": 2,\n  \"branch\": \"feature/F-1\",\n  \"holder\": \"fixture@example.invalid\",\n  \"blockedBy\": [],\n  \"intent\": [\n    \"Owners can export their report as CSV.\"\n  ],\n  \"criteria\": [\n    {\n      \"id\": \"ac-1\",\n      \"title\": \"export writes a csv\",\n      \"steps\": [\n        \"Given a report\",\n        \"When the owner exports it\",\n        \"Then a csv file is written\"\n      ],\n      \"label\": \"passing\",\n      \"test\": \"export#writes-csv\",\n      \"testResult\": \"passed\",\n      \"ticked\": false,\n      \"verification\": \"pass\"\n    },\n    {\n      \"id\": \"ac-2\",\n      \"title\": \"commas are escaped\",\n      \"steps\": [\n        \"Given a cell with a comma\",\n        \"When the owner exports it\",\n        \"Then the cell is quoted\"\n      ],\n      \"label\": \"passing\",\n      \"test\": \"export#escapes-commas\",\n      \"testResult\": \"passed\",\n      \"ticked\": false,\n      \"verification\": \"pass\"\n    }\n  ]\n}\n",
+    "err": ""
+  },
+  "side-local anchor F-1": {
+    "code": 0,
+    "out": "# Anchor: F-1 \"Export\"\n\nStage: intent, next: the owner approves the ticket (accord approve)\n\n## Intent\nOwners can export their report as CSV.\n\n## Vetoes\n- No new dependency.\n\n## Decisions\n- D-01 Use the existing writer — \"reuse what we have\"\n\n## Corrections\n(none)\n\n## Rulings\n(none)\n",
+    "err": ""
+  },
+  "main worktree open A-1": {
+    "code": 0,
+    "out": "deleted t/A-10 (was <sha:A-10-verify>)\ndeleted origin/t/A-10 (was <sha:A-10-verify>)\nkept t/A-11: merging it into origin/main conflicts\ndeleted t/A-8 (was <sha:A-8-verify>)\ndeleted origin/t/A-8 (was <sha:A-8-verify>)\ndeleted t/A-9 (was <sha:A-9-verify>)\ndeleted origin/t/A-9 (was <sha:A-9-verify>)\ndeleted origin/t/A-12 (was <sha:A-12-code>)\ndeleted t/A-12 (was <sha:A-12-code>)\nstop: open a session in this folder and type the line below it\n<root>-a-1\n/accord continue A-1\n",
+    "err": "",
+    "refs": [
+      "<sha:A-11-squash> refs/heads/main",
+      "<sha:ref:refs/heads/t/A-1> refs/heads/t/A-1",
+      "<sha:A-11-extra> refs/heads/t/A-11",
+      "<sha:A-13-review> refs/heads/t/A-13",
+      "<sha:A-2-plan> refs/heads/t/A-2",
+      "<sha:A-3-task-1> refs/heads/t/A-3",
+      "<sha:A-4-plan> refs/heads/t/A-4",
+      "<sha:A-5-review> refs/heads/t/A-5",
+      "<sha:A-6-merge> refs/heads/t/A-6",
+      "<sha:A-7-verify> refs/heads/t/A-7",
+      "<sha:S-1-review> refs/heads/t/S-1",
+      "<sha:A-11-squash> refs/remotes/origin/HEAD",
+      "<sha:A-11-squash> refs/remotes/origin/main",
+      "<sha:A-11-extra> refs/remotes/origin/t/A-11",
+      "<sha:A-13-review> refs/remotes/origin/t/A-13",
+      "<sha:A-2-plan> refs/remotes/origin/t/A-2",
+      "<sha:A-3-task-1> refs/remotes/origin/t/A-3",
+      "<sha:A-4-plan> refs/remotes/origin/t/A-4",
+      "<sha:A-5-review> refs/remotes/origin/t/A-5",
+      "<sha:A-6-merge> refs/remotes/origin/t/A-6",
+      "<sha:A-7-verify> refs/remotes/origin/t/A-7",
+      "<sha:S-1-review> refs/remotes/origin/t/S-1",
+      "<sha:A-11-squash> refs/heads/main",
+      "<sha:A-11-extra> refs/heads/t/A-11",
+      "<sha:A-13-review> refs/heads/t/A-13",
+      "<sha:A-2-plan> refs/heads/t/A-2",
+      "<sha:A-3-task-1> refs/heads/t/A-3",
+      "<sha:A-4-plan> refs/heads/t/A-4",
+      "<sha:A-5-review> refs/heads/t/A-5",
+      "<sha:A-6-merge> refs/heads/t/A-6",
+      "<sha:A-7-verify> refs/heads/t/A-7",
+      "<sha:S-1-review> refs/heads/t/S-1"
+    ]
+  },
+  "main worktree clean": {
+    "code": 0,
+    "out": "deleted t/A-10 (was <sha:A-10-verify>)\ndeleted origin/t/A-10 (was <sha:A-10-verify>)\nkept t/A-11: merging it into origin/main conflicts\ndeleted t/A-8 (was <sha:A-8-verify>)\ndeleted origin/t/A-8 (was <sha:A-8-verify>)\ndeleted t/A-9 (was <sha:A-9-verify>)\ndeleted origin/t/A-9 (was <sha:A-9-verify>)\ndeleted origin/t/A-12 (was <sha:A-12-code>)\ndeleted t/A-12 (was <sha:A-12-code>)\n",
+    "err": "",
+    "refs": [
+      "<sha:A-11-squash> refs/heads/main",
+      "<sha:A-11-extra> refs/heads/t/A-11",
+      "<sha:A-13-review> refs/heads/t/A-13",
+      "<sha:A-2-plan> refs/heads/t/A-2",
+      "<sha:A-3-task-1> refs/heads/t/A-3",
+      "<sha:A-4-plan> refs/heads/t/A-4",
+      "<sha:A-5-review> refs/heads/t/A-5",
+      "<sha:A-6-merge> refs/heads/t/A-6",
+      "<sha:A-7-verify> refs/heads/t/A-7",
+      "<sha:S-1-review> refs/heads/t/S-1",
+      "<sha:A-11-squash> refs/remotes/origin/HEAD",
+      "<sha:A-11-squash> refs/remotes/origin/main",
+      "<sha:A-11-extra> refs/remotes/origin/t/A-11",
+      "<sha:A-13-review> refs/remotes/origin/t/A-13",
+      "<sha:A-2-plan> refs/remotes/origin/t/A-2",
+      "<sha:A-3-task-1> refs/remotes/origin/t/A-3",
+      "<sha:A-4-plan> refs/remotes/origin/t/A-4",
+      "<sha:A-5-review> refs/remotes/origin/t/A-5",
+      "<sha:A-6-merge> refs/remotes/origin/t/A-6",
+      "<sha:A-7-verify> refs/remotes/origin/t/A-7",
+      "<sha:S-1-review> refs/remotes/origin/t/S-1",
+      "<sha:A-11-squash> refs/heads/main",
+      "<sha:A-11-extra> refs/heads/t/A-11",
+      "<sha:A-13-review> refs/heads/t/A-13",
+      "<sha:A-2-plan> refs/heads/t/A-2",
+      "<sha:A-3-task-1> refs/heads/t/A-3",
+      "<sha:A-4-plan> refs/heads/t/A-4",
+      "<sha:A-5-review> refs/heads/t/A-5",
+      "<sha:A-6-merge> refs/heads/t/A-6",
+      "<sha:A-7-verify> refs/heads/t/A-7",
+      "<sha:S-1-review> refs/heads/t/S-1"
+    ]
+  },
+  "wt-A-7 worktree merge A-7": {
+    "code": 0,
+    "out": "",
+    "err": "",
+    "refs": [
+      "<sha:A-11-squash> refs/heads/main",
+      "<sha:A-10-verify> refs/heads/t/A-10",
+      "<sha:A-11-extra> refs/heads/t/A-11",
+      "<sha:A-12-code> refs/heads/t/A-12",
+      "<sha:A-13-review> refs/heads/t/A-13",
+      "<sha:A-2-plan> refs/heads/t/A-2",
+      "<sha:A-3-task-1> refs/heads/t/A-3",
+      "<sha:A-4-plan> refs/heads/t/A-4",
+      "<sha:A-5-review> refs/heads/t/A-5",
+      "<sha:A-6-merge> refs/heads/t/A-6",
+      "<sha:ref:refs/heads/t/A-7> refs/heads/t/A-7",
+      "<sha:A-8-verify> refs/heads/t/A-8",
+      "<sha:A-9-verify> refs/heads/t/A-9",
+      "<sha:S-1-review> refs/heads/t/S-1",
+      "<sha:A-11-squash> refs/remotes/origin/HEAD",
+      "<sha:A-11-squash> refs/remotes/origin/main",
+      "<sha:A-10-verify> refs/remotes/origin/t/A-10",
+      "<sha:A-11-extra> refs/remotes/origin/t/A-11",
+      "<sha:A-12-code> refs/remotes/origin/t/A-12",
+      "<sha:A-13-review> refs/remotes/origin/t/A-13",
+      "<sha:A-2-plan> refs/remotes/origin/t/A-2",
+      "<sha:A-3-task-1> refs/remotes/origin/t/A-3",
+      "<sha:A-4-plan> refs/remotes/origin/t/A-4",
+      "<sha:A-5-review> refs/remotes/origin/t/A-5",
+      "<sha:A-6-merge> refs/remotes/origin/t/A-6",
+      "<sha:A-7-verify> refs/remotes/origin/t/A-7",
+      "<sha:A-8-verify> refs/remotes/origin/t/A-8",
+      "<sha:A-9-verify> refs/remotes/origin/t/A-9",
+      "<sha:S-1-review> refs/remotes/origin/t/S-1",
+      "<sha:A-11-squash> refs/heads/main",
+      "<sha:A-10-verify> refs/heads/t/A-10",
+      "<sha:A-11-extra> refs/heads/t/A-11",
+      "<sha:A-12-code> refs/heads/t/A-12",
+      "<sha:A-13-review> refs/heads/t/A-13",
+      "<sha:A-2-plan> refs/heads/t/A-2",
+      "<sha:A-3-task-1> refs/heads/t/A-3",
+      "<sha:A-4-plan> refs/heads/t/A-4",
+      "<sha:A-5-review> refs/heads/t/A-5",
+      "<sha:A-6-merge> refs/heads/t/A-6",
+      "<sha:A-7-verify> refs/heads/t/A-7",
+      "<sha:A-8-verify> refs/heads/t/A-8",
+      "<sha:A-9-verify> refs/heads/t/A-9",
+      "<sha:S-1-review> refs/heads/t/S-1"
+    ]
+  },
+  "main new ticket N-1 --lane M --worktree": {
+    "code": 0,
+    "out": "deleted t/A-10 (was <sha:A-10-verify>)\ndeleted origin/t/A-10 (was <sha:A-10-verify>)\nkept t/A-11: merging it into origin/main conflicts\ndeleted t/A-8 (was <sha:A-8-verify>)\ndeleted origin/t/A-8 (was <sha:A-8-verify>)\ndeleted t/A-9 (was <sha:A-9-verify>)\ndeleted origin/t/A-9 (was <sha:A-9-verify>)\ndeleted origin/t/A-12 (was <sha:A-12-code>)\ndeleted t/A-12 (was <sha:A-12-code>)\naccord/tickets/N-1.md\nstop: open a session in this folder and type the line below it\n<root>-n-1\n/accord continue N-1\n",
+    "err": "",
+    "refs": [
+      "<sha:A-11-squash> refs/heads/main",
+      "<sha:A-11-extra> refs/heads/t/A-11",
+      "<sha:A-13-review> refs/heads/t/A-13",
+      "<sha:A-2-plan> refs/heads/t/A-2",
+      "<sha:A-3-task-1> refs/heads/t/A-3",
+      "<sha:A-4-plan> refs/heads/t/A-4",
+      "<sha:A-5-review> refs/heads/t/A-5",
+      "<sha:A-6-merge> refs/heads/t/A-6",
+      "<sha:A-7-verify> refs/heads/t/A-7",
+      "<sha:ref:refs/heads/t/N-1> refs/heads/t/N-1",
+      "<sha:S-1-review> refs/heads/t/S-1",
+      "<sha:A-11-squash> refs/remotes/origin/HEAD",
+      "<sha:A-11-squash> refs/remotes/origin/main",
+      "<sha:A-11-extra> refs/remotes/origin/t/A-11",
+      "<sha:A-13-review> refs/remotes/origin/t/A-13",
+      "<sha:A-2-plan> refs/remotes/origin/t/A-2",
+      "<sha:A-3-task-1> refs/remotes/origin/t/A-3",
+      "<sha:A-4-plan> refs/remotes/origin/t/A-4",
+      "<sha:A-5-review> refs/remotes/origin/t/A-5",
+      "<sha:A-6-merge> refs/remotes/origin/t/A-6",
+      "<sha:A-7-verify> refs/remotes/origin/t/A-7",
+      "<sha:ref:refs/heads/t/N-1> refs/remotes/origin/t/N-1",
+      "<sha:S-1-review> refs/remotes/origin/t/S-1",
+      "<sha:A-11-squash> refs/heads/main",
+      "<sha:A-11-extra> refs/heads/t/A-11",
+      "<sha:A-13-review> refs/heads/t/A-13",
+      "<sha:A-2-plan> refs/heads/t/A-2",
+      "<sha:A-3-task-1> refs/heads/t/A-3",
+      "<sha:A-4-plan> refs/heads/t/A-4",
+      "<sha:A-5-review> refs/heads/t/A-5",
+      "<sha:A-6-merge> refs/heads/t/A-6",
+      "<sha:A-7-verify> refs/heads/t/A-7",
+      "<sha:ref:refs/heads/t/N-1> refs/heads/t/N-1",
+      "<sha:S-1-review> refs/heads/t/S-1"
+    ]
+  }
+}

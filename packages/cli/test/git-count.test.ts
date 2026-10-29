@@ -4,11 +4,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import { CONFIG, laneTicket, PLAN, REPORT, junit } from '../../../test/helpers/lane.js';
-import { loadFromFs } from '../src/load/fs.js';
-import { countedSync } from './helpers/git-spawns.js';
+import type { SnapshotInput } from '@accord-dev/accord-core';
+import { gitDefaultRef, loadFromFs } from '../src/load/fs.js';
+import { countedSync, spawnLog } from './helpers/git-spawns.js';
 import { counted } from './helpers/runs.js';
 import { checkItem, expectFewer, ITEMS } from './helpers/items.js';
-import { cleanup, commitMsg, gitRun, makeEmptyRepo, writeFiles } from './helpers/repo.js';
+import { cleanup, commitMsg, gitRun, makeEmptyRepo, mergeMsg, writeFiles } from './helpers/repo.js';
 import { prepareSamples, SAMPLE_BUILD_LIMIT, samples } from './helpers/samples.js';
 import type { Clone } from './helpers/worktree.js';
 import { makeClone } from './helpers/worktree.js';
@@ -197,4 +198,178 @@ it('risk:complex-branching a claim tip adds the local branch only when the claim
   expect(argv.some((a) => a[0] === 'for-each-ref')).toBe(true);
   expect(argv.filter((a) => a[0] === 'rev-parse' && a.some((x) => x.startsWith('refs/heads/t/') || x.startsWith('refs/heads/feature/')))).toEqual([]);
   await checkItem(item('claim tips'));
+}, LIMIT);
+
+type AfterList = NonNullable<SnapshotInput['afterVerify']>[string];
+
+/** What fs.ts reads from `log -z --format=%x01%H%x00%P --name-only`: `\x01sha NUL parents NUL`, then `\n` + first path NUL and the others NUL-ended. */
+function parseAfter(raw: string, remerged: boolean): AfterList {
+  const tokens = raw.split('\0');
+  const commits: AfterList = [];
+  for (let i = 0; i < tokens.length; i++) {
+    if (!tokens[i].startsWith('\x01')) continue;
+    const sha = tokens[i].slice(1);
+    const parents = (tokens[i + 1] ?? '').split(' ').filter((p) => p !== '');
+    const files: string[] = [];
+    i += 2;
+    if ((tokens[i] ?? '').startsWith('\n')) {
+      files.push(tokens[i].slice(1));
+      while (i + 1 < tokens.length && tokens[i + 1] !== '' && !tokens[i + 1].startsWith('\x01')) files.push(tokens[++i]);
+    } else i -= 1;
+    commits.push({ sha, parents, ...(parents.length > 1 && !remerged ? {} : { files }) });
+  }
+  return commits;
+}
+
+/** Today's per-ticket pipeline, run by the test itself outside any counted call: the review start, the `rev-list` filter, the `log`. */
+function oracleAfter(root: string, def: string, id: string, start: string | undefined, tips: string[]): AfterList | undefined {
+  let commit = start;
+  if (commit === undefined) {
+    try {
+      const sha = gitRun(root, '-c', 'log.showSignature=false', 'log', '--no-show-signature', '-1', '--format=%H', ...tips, '--', `accord/tickets/${id}/review.md`).trim();
+      commit = /^[0-9a-f]{40}$/.test(sha) ? sha : undefined;
+    } catch {
+      commit = undefined;
+    }
+  }
+  if (commit === undefined) return undefined;
+  const wanted = commit.toLowerCase();
+  const listed = gitRun(root, 'rev-list', '--ignore-missing', commit, '^' + def, '--').split('\n').filter((l) => l !== '');
+  if (!listed.some((sha) => sha.startsWith(wanted))) return undefined;
+  const args = [
+    '-c', 'core.quotePath=false', '-c', 'log.showSignature=false', 'log', '--no-show-signature', '-z', '--topo-order', '--reverse', '--format=%x01%H%x00%P', '--name-only', '--no-renames',
+    '--remerge-diff', ...tips, '^' + commit, '^' + def, '--',
+  ];
+  return parseAfter(gitRun(root, ...args), true);
+}
+
+let walked: { c: Clone; expected: Record<string, AfterList>; tips: Record<string, string[]> } | undefined;
+
+beforeAll(() => {
+  const ids = ['W-1', 'W-2', 'W-3', 'W-4', 'W-5', 'W-6', 'W-7'];
+  const c = makeClone({ tickets: ids });
+  c.git('config', 'gc.auto', '0');
+  c.git('config', 'maintenance.auto', 'false');
+  const base = c.git('rev-parse', 'HEAD').trim();
+  const commitOn = (files: Record<string, string>, text: string) => {
+    writeFiles(c.root, files);
+    return commitMsg(c.root, text);
+  };
+  const open = (id: string) => c.git('switch', '-q', '-c', 't/' + id, base);
+  const publish = (id: string) => {
+    c.git('push', '-q', 'origin', 't/' + id);
+    c.git('switch', '-q', 'main');
+  };
+  // W-1: straight after its start commit, the local branch one commit ahead of the pushed one.
+  open('W-1');
+  const start1 = commitOn({ 'src/W-1.ts': '1\n' }, 'work W-1');
+  commitOn({ 'accord/tickets/W-1/ledger.md': '## Tasks\n' }, 'tick W-1');
+  c.git('push', '-q', 'origin', 't/W-1');
+  commitOn({ 'src/W-1b.ts': '2\n' }, 'ahead W-1');
+  c.git('switch', '-q', 'main');
+  // W-2: the review round, then work, then main merged into the branch; W-3: main merged, then the review round.
+  open('W-2');
+  commitOn({ 'accord/tickets/W-2/review.md': '## Round 1\n' }, 'review W-2');
+  commitOn({ 'src/W-2.ts': '1\n' }, 'work W-2');
+  c.git('switch', '-q', 'main');
+  // Main moves on, and holds W-6's review round.
+  const moved = commitOn({ 'src/main-x.ts': 'x\n', 'accord/tickets/W-6/review.md': '## Round 1\n' }, 'main moves');
+  c.git('push', '-q', 'origin', 'main');
+  c.git('switch', '-q', 't/W-2');
+  mergeMsg(c.root, 'origin/main', 'merge main into W-2');
+  publish('W-2');
+  open('W-3');
+  commitOn({ 'src/W-3.ts': '1\n' }, 'work W-3');
+  mergeMsg(c.root, 'origin/main', 'merge main into W-3');
+  commitOn({ 'accord/tickets/W-3/review.md': '## Round 1\n' }, 'review W-3');
+  commitOn({ 'src/W-3b.ts': '2\n' }, 'tick W-3');
+  publish('W-3');
+  // W-4: its start commit is on main. W-5: its start commit is on a branch its tip does not contain.
+  open('W-4');
+  commitOn({ 'src/W-4.ts': '1\n' }, 'work W-4');
+  publish('W-4');
+  c.git('switch', '-q', '-c', 'side-d', base);
+  const off = commitOn({ 'src/side-d.ts': 'd\n' }, 'side branch commit');
+  c.git('switch', '-q', 'main');
+  open('W-5');
+  commitOn({ 'src/W-5.ts': '1\n' }, 'work W-5');
+  commitOn({ 'src/W-5b.ts': '2\n' }, 'more W-5');
+  publish('W-5');
+  // W-6: every tip is on main. W-7: a lane M ticket with an open task and a merge after its start.
+  c.git('branch', 't/W-6', moved);
+  c.git('push', '-q', 'origin', 't/W-6');
+  open('W-7');
+  const start7 = commitOn({ 'src/W-7.ts': '1\n' }, 'work W-7');
+  mergeMsg(c.root, 'origin/main', 'merge main into W-7');
+  publish('W-7');
+  writeFiles(c.root, {
+    'accord/tickets/W-1.md': laneTicket('W-1', { frontmatter: [`verified_commit: "${start1}"`] }),
+    'accord/tickets/W-2/review.md': '## Round 1\n',
+    'accord/tickets/W-3/review.md': '## Round 1\n',
+    'accord/tickets/W-4.md': laneTicket('W-4', { frontmatter: [`verified_commit: "${moved}"`] }),
+    'accord/tickets/W-5.md': laneTicket('W-5', { frontmatter: [`verified_commit: "${off}"`] }),
+    'accord/tickets/W-7.md': laneTicket('W-7', { frontmatter: [`verified_commit: "${start7}"`] }),
+    'accord/tickets/W-7/plan.md': PLAN,
+    'accord/tickets/W-7/ledger.md': '## Tasks\n- task 1 done abc1234\n',
+  });
+  commitMsg(c.root, 'record the start commits and the review rounds');
+  const def = gitDefaultRef(c.root) as string;
+  const starts: Record<string, string | undefined> = { 'W-1': start1, 'W-4': moved, 'W-5': off };
+  const expected: Record<string, AfterList> = {};
+  const tips: Record<string, string[]> = {};
+  // W-7 is not read: its plan has an open task, so core never reads its afterVerify.
+  for (const id of ['W-1', 'W-2', 'W-3', 'W-4', 'W-5', 'W-6']) {
+    tips[id] = ['refs/remotes/origin/t/' + id, 'refs/heads/t/' + id];
+    const list = oracleAfter(c.root, def, id, starts[id], tips[id]);
+    if (list !== undefined) expected[id] = list;
+  }
+  walked = { c, expected, tips };
+}, 180_000);
+
+afterAll(() => walked?.c.cleanupAll());
+
+const isStdin = (a: string[]) => a.includes('log') && a.includes('--stdin');
+const isTopo = (a: string[]) => a.includes('log') && a.includes('--topo-order') && a.includes('--reverse');
+const isReviewStart = (a: string[]) => a.includes('log') && a.includes('-1') && a.includes('--format=%H') && (a[a.length - 1] ?? '').endsWith('/review.md');
+const isRevList = (a: string[]) => a.includes('rev-list') && a.includes('--ignore-missing');
+const afterReads = (a: string[]) => isTopo(a) || isReviewStart(a) || isRevList(a) || isStdin(a);
+
+it('risk:complex-branching the shared walk gives each ticket what its own git log gives straight merged or unresolvable', async () => {
+  const { c, expected, tips } = walked as NonNullable<typeof walked>;
+  // Not every ticket has an entry: the start on main, the tips on main and the open task have none.
+  expect(Object.keys(expected).sort()).toEqual(['W-1', 'W-2', 'W-3', 'W-5']);
+  expect(expected['W-2'].some((x) => x.parents.length > 1)).toBe(true);
+  expect(expected['W-3'].some((x) => x.parents.length > 1)).toBe(false);
+
+  const a = countedSync(() => loadFromFs(c.root, { stage: true }));
+  expect(a.value.afterVerify).toEqual(expected);
+  expect(a.argv.filter(isStdin)).toHaveLength(1);
+  const reviews = a.argv.filter(isReviewStart);
+  expect(reviews).toHaveLength(1);
+  expect(reviews[0]).toEqual(expect.arrayContaining(tips['W-2']));
+  const topo = a.argv.filter(isTopo);
+  expect(topo).toHaveLength(2);
+  expect(topo.some((x) => tips['W-2'].every((t) => x.includes(t)))).toBe(true);
+  expect(topo.some((x) => tips['W-5'].every((t) => x.includes(t)))).toBe(true);
+  expect(a.argv.filter(isRevList)).toEqual([]);
+
+  // The walk fails: every ticket is read by today's calls and the answers are the same.
+  spawnLog.fail = (args) => args.includes('--stdin');
+  let b: { value: SnapshotInput; argv: string[][] };
+  try {
+    b = countedSync(() => loadFromFs(c.root, { stage: true }));
+  } finally {
+    spawnLog.fail = undefined;
+  }
+  expect(b.value.afterVerify).toEqual(expected);
+  const stdinAt = b.argv.findIndex(isStdin);
+  expect(stdinAt).toBeGreaterThanOrEqual(0);
+  expect(b.argv.findIndex(isRevList)).toBeGreaterThan(stdinAt);
+  expect(b.argv.findIndex(isTopo)).toBeGreaterThan(stdinAt);
+  expect(b.argv.filter(isReviewStart).length).toBeGreaterThanOrEqual(3);
+  expect(b.argv.filter(isRevList)).toHaveLength(1);
+  expect(b.argv.filter(isTopo)).toHaveLength(4);
+
+  await expectFewer('wt-A-7 anchor', afterReads);
+  await expectFewer('main lint', afterReads);
 }, LIMIT);

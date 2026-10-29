@@ -357,11 +357,54 @@ export function defaultRefOf(root: string): string | undefined {
   );
 }
 
+/** What `log -z --format=%x01%H%x00%P --name-only` printed: `\x01sha NUL parents NUL`, then `\n` + first path NUL and the other paths NUL-ended when the commit has any. */
+function parseAfterLog(raw: string, remerged: boolean): AfterVerify {
+  const tokens = raw.split('\0');
+  const commits: AfterVerify = [];
+  for (let i = 0; i < tokens.length; i++) {
+    if (!tokens[i].startsWith('\x01')) continue;
+    const sha = tokens[i].slice(1);
+    const parents = (tokens[i + 1] ?? '').split(' ').filter((p) => p !== '');
+    const files: string[] = [];
+    i += 2;
+    if ((tokens[i] ?? '').startsWith('\n')) {
+      files.push(tokens[i].slice(1));
+      while (i + 1 < tokens.length && tokens[i + 1] !== '' && !tokens[i + 1].startsWith('\x01')) files.push(tokens[++i]);
+    } else i -= 1; // no paths: the loop's own increment lands on the next commit
+    commits.push({ sha, parents, ...(parents.length > 1 && !remerged ? {} : { files }) });
+  }
+  return commits;
+}
+
+/**
+ * ST-LN-26: one ticket's commits reachable from its tips and not from its start commit nor the default ref, oldest first in
+ * graph order, with the paths each changes. ST-LN-63: the body of the former per-ticket loop, one log with `--remerge-diff`
+ * and once more without it when that fails; undefined when both fail.
+ */
+function ownAfterVerify(root: string, def: string | undefined, want: { commit: string; tips: string[] }): AfterVerify | undefined {
+  const opts = { cwd: root, ...GIT_QUIET, maxBuffer: 64 * 1024 * 1024, env: { ...process.env, GIT_NO_LAZY_FETCH: '1' } };
+  const args = (remerge: boolean) => [
+    '-c', 'core.quotePath=false', '-c', 'log.showSignature=false', 'log', '--no-show-signature', '-z', '--topo-order', '--reverse', '--format=%x01%H%x00%P', '--name-only', '--no-renames',
+    ...(remerge ? ['--remerge-diff'] : []), ...want.tips, '^' + want.commit, ...(def === undefined ? [] : ['^' + def]), '--',
+  ];
+  let raw: string;
+  let remerged = def !== undefined;
+  try {
+    raw = execFileSync('git', args(true), opts);
+  } catch {
+    remerged = false; // git before 2.36 has no --remerge-diff: a merge then counts as a change
+    try {
+      raw = execFileSync('git', args(false), opts);
+    } catch {
+      return undefined;
+    }
+  }
+  return parseAfterLog(raw, remerged);
+}
+
 /**
  * ST-LN-26: per ticket, the commits reachable from its tips and not from its start commit nor the default ref, oldest
  * first in graph order, with the paths each changes. A git failure drops the entry; it is never an environment error.
- * Layout of `log -z --format=%x01%H%x00%P --name-only`: `\x01sha NUL parents NUL`, then `\n` + first path NUL and the
- * other paths NUL-ended when the commit has any.
  */
 function gitAfterVerify(root: string, wanted: Record<string, { commit: string; tips: string[] }>): Record<string, AfterVerify> {
   const out: Record<string, AfterVerify> = {};
@@ -382,39 +425,116 @@ function gitAfterVerify(root: string, wanted: Record<string, { commit: string; t
     entries = entries.filter(([, w]) => listed.some((sha) => sha.startsWith(w.commit.toLowerCase())));
   }
   for (const [id, w] of entries) {
-    const args = (remerge: boolean) => [
-      '-c', 'core.quotePath=false', '-c', 'log.showSignature=false', 'log', '--no-show-signature', '-z', '--topo-order', '--reverse', '--format=%x01%H%x00%P', '--name-only', '--no-renames',
-      ...(remerge ? ['--remerge-diff'] : []), ...w.tips, '^' + w.commit, ...(def === undefined ? [] : ['^' + def]), '--',
-    ];
-    let raw: string;
-    let remerged = def !== undefined;
-    try {
-      raw = execFileSync('git', args(true), opts);
-    } catch {
-      remerged = false; // git before 2.36 has no --remerge-diff: a merge then counts as a change
-      try {
-        raw = execFileSync('git', args(false), opts);
-      } catch {
-        continue;
-      }
-    }
-    const tokens = raw.split('\0');
-    const commits: AfterVerify = [];
-    for (let i = 0; i < tokens.length; i++) {
-      if (!tokens[i].startsWith('\x01')) continue;
-      const sha = tokens[i].slice(1);
-      const parents = (tokens[i + 1] ?? '').split(' ').filter((p) => p !== '');
-      const files: string[] = [];
-      i += 2;
-      if ((tokens[i] ?? '').startsWith('\n')) {
-        files.push(tokens[i].slice(1));
-        while (i + 1 < tokens.length && tokens[i + 1] !== '' && !tokens[i + 1].startsWith('\x01')) files.push(tokens[++i]);
-      } else i -= 1; // no paths: the loop's own increment lands on the next commit
-      commits.push({ sha, parents, ...(parents.length > 1 && !remerged ? {} : { files }) });
-    }
-    out[id] = commits;
+    const commits = ownAfterVerify(root, def, w);
+    if (commits !== undefined) out[id] = commits;
   }
   return out;
+}
+
+type WalkCommit = { parents: string[]; files: string[]; subject: string };
+type Walk = Map<string, WalkCommit>;
+
+/**
+ * ST-LN-63: false only for a ticket with a lane other than `S` and an open task. Core reads `afterVerify` for a lane S
+ * ticket and for a ticket with no open task, so such a ticket gets neither a review start nor an after-verify read.
+ */
+function readsAfter(snapshot: RepoSnapshot, id: string): boolean {
+  const lane = snapshot.tickets[id]?.frontmatter?.lane;
+  if (lane === undefined || lane === 'S') return true;
+  const work = workOf(snapshot, id);
+  const done = work?.ledger?.done ?? {};
+  return !(work?.plan?.tasks ?? []).some((t) => !Object.hasOwn(done, String(t.n)));
+}
+
+/**
+ * ST-LN-63: one `git log --stdin` over every positive and, when there is a default ref, `^<def>`: each commit reachable
+ * from a positive and not from the default ref, keyed by its lower-case sha, with its parents, its subject and, for a
+ * non-merge, its paths against its parent. A merge's paths are never read (D-10), so its `files` is empty. Any failure
+ * (exit code, ENOBUFS, an option an old git rejects) gives undefined.
+ */
+function gitWalk(root: string, def: string | undefined, positives: string[]): Walk | undefined {
+  let raw: string;
+  try {
+    raw = execFileSync(
+      'git',
+      ['-c', 'core.quotePath=false', '-c', 'log.showSignature=false', 'log', '--no-show-signature', '--stdin', '--ignore-missing', '-z', '--format=%x01%H%x00%P%x00%s', '--name-only', '--no-renames', '--'],
+      {
+        cwd: root,
+        encoding: 'utf8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+        maxBuffer: 64 * 1024 * 1024,
+        env: { ...process.env, GIT_NO_LAZY_FETCH: '1' },
+        input: [...positives, ...(def === undefined ? [] : ['^' + def])].map((l) => l + '\n').join(''),
+      },
+    );
+  } catch {
+    return undefined;
+  }
+  const walk: Walk = new Map();
+  const tokens = raw.split('\0');
+  for (let i = 0; i < tokens.length; i++) {
+    if (!tokens[i].startsWith('\x01')) continue;
+    const sha = tokens[i].slice(1).toLowerCase();
+    const parents = (tokens[i + 1] ?? '').split(' ').filter((p) => p !== '').map((p) => p.toLowerCase());
+    const subject = tokens[i + 2] ?? '';
+    const files: string[] = [];
+    i += 3;
+    if ((tokens[i] ?? '').startsWith('\n')) {
+      files.push(tokens[i].slice(1));
+      while (i + 1 < tokens.length && tokens[i + 1] !== '' && !tokens[i + 1].startsWith('\x01')) files.push(tokens[++i]);
+    } else i -= 1;
+    walk.set(sha, { parents, files: parents.length > 1 ? [] : files, subject });
+  }
+  return walk;
+}
+
+/**
+ * ST-LN-63: what `ownAfterVerify` gives a ticket whose history after `start` is a chain of single-parent commits. `'drop'`:
+ * the start is not in the walk, so it is on the default ref or missing, as the former `rev-list` filter drops it. `'own'`:
+ * a merge, a root, the walk's edge or a tip off the chain stands between a tip and the start, so git answers (D-10).
+ */
+function walkAfter(walk: Walk, start: string, tips: string[]): AfterVerify | 'drop' | 'own' {
+  const wanted = start.toLowerCase();
+  const found = [...walk.keys()].filter((k) => k.startsWith(wanted));
+  if (found.length === 0) return 'drop';
+  if (found.length > 1) return 'own';
+  const s = found[0] as string;
+  const inside = [...new Set(tips.map((t) => t.toLowerCase()))].filter((t) => walk.has(t));
+  if (inside.length === 0) return [];
+  for (const top of inside) {
+    const chain: string[] = [];
+    let at = top;
+    while (at !== s) {
+      const c = walk.get(at);
+      if (c === undefined || c.parents.length !== 1) break;
+      chain.push(at);
+      at = c.parents[0] as string;
+    }
+    if (at !== s) continue;
+    const met = new Set([...chain, s]);
+    if (!inside.every((t) => met.has(t))) continue;
+    return chain.reverse().map((sha) => {
+      const c = walk.get(sha) as WalkCommit;
+      return { sha, parents: [...c.parents], files: [...c.files] };
+    });
+  }
+  return 'own';
+}
+
+/**
+ * ST-LN-63: what `git log -1 <tip> -- <path>` names, answered only on a chain of single-parent commits: the first commit
+ * from the tip whose paths hold `path`, null when a root is reached without one, `'own'` when the chain leaves the walk or
+ * meets a merge, since accord never steps through a merge (D-10).
+ */
+function walkPath(walk: Walk, tip: string, path: string): string | null | 'own' {
+  let at = tip.toLowerCase();
+  for (;;) {
+    const c = walk.get(at);
+    if (c === undefined || c.parents.length > 1) return 'own';
+    if (c.files.includes(path)) return at;
+    if (c.parents.length === 0) return null;
+    at = c.parents[0] as string;
+  }
 }
 
 /** X's start commit: its `verified_commit`, else the `commit:` of its verification.md, each kept only when a sha. */
@@ -575,6 +695,8 @@ function loadParts(root: string, stage = false, light = false): {
   input: SnapshotInput;
   claimRefs: Record<string, string>;
   listed: ReadonlyMap<string, string>;
+  /** The current branch, read once outside light mode (ST-LN-63). */
+  branch?: { name: string | undefined };
   templates: string[];
   known: (id: string) => boolean;
   statusOf: (id: string) => string | undefined;
@@ -603,21 +725,63 @@ function loadParts(root: string, stage = false, light = false): {
   const lastActivity: Record<string, number> = { ...facts?.activity };
   for (const [id, t] of Object.entries(branchActivity)) if (t > (lastActivity[id] ?? 0)) lastActivity[id] = t;
   // ST-LN-26: the commits after verify, for the ticket on this branch (HEAD) and for each claimed ticket (its tips).
-  const afterWanted: Record<string, { commit: string; tips: string[] }> = {};
-  // Only a ticket with a start commit or a review.md needs its tips, so the branch and the claim tips are read for those alone.
-  const starts = Object.keys(first.tickets).flatMap((id) => {
+  // ST-LN-63: the branch is read once, here, and handed on.
+  const branch = { name: currentBranch(root) };
+  const own = branch.name === undefined || branch.name === '' ? undefined : ticketOfBranch(branch.name, branchTemplates, known);
+  // An entry: a ticket with a start commit or a review.md, with tips, that core reads `afterVerify` for.
+  const entries: { id: string; start: string | undefined; tips: string[]; shas: string[] | undefined }[] = [];
+  for (const id of Object.keys(first.tickets)) {
     const start = startOf(first, id);
-    return start === undefined && !Object.hasOwn(files, `accord/tickets/${id}/review.md`) ? [] : [{ id, start }];
-  });
-  const current = starts.length === 0 ? undefined : currentBranch(root);
-  const own = current === undefined || current === '' ? undefined : ticketOfBranch(current, branchTemplates, known);
-  for (const { id, start } of starts) {
+    if (start === undefined && !Object.hasOwn(files, `accord/tickets/${id}/review.md`)) continue;
+    if (!readsAfter(first, id)) continue;
     const tips = id === own ? ['HEAD'] : Object.hasOwn(claimRefs, id) ? claimTips(id, claimRefs[id], claimBranches, listed) : undefined;
     if (tips === undefined) continue;
-    const commit = start ?? reviewStartOf(root, id, tips);
-    if (commit !== undefined) afterWanted[id] = { commit, tips };
+    const shas = tips.map((t) => (t === 'HEAD' ? facts?.commit : listed.get(t)));
+    entries.push({ id, start, tips, shas: shas.every((s): s is string => s !== undefined) ? shas : undefined });
   }
-  const afterVerify = gitAfterVerify(root, afterWanted);
+  // One walk over every claim tip, HEAD when the branch names a ticket, and every start commit.
+  const positives = new Set<string>();
+  for (const id of Object.keys(claimRefs)) for (const t of claimTips(id, claimRefs[id], claimBranches, listed)) positives.add(listed.get(t) ?? '');
+  if (own !== undefined && facts !== undefined) positives.add(facts.commit);
+  for (const e of entries) if (e.start !== undefined) positives.add(e.start);
+  positives.delete('');
+  let def: string | undefined;
+  let walk: Walk | undefined;
+  if (positives.size > 0) {
+    def = defaultRefOf(root);
+    walk = gitWalk(root, def, [...positives]);
+  }
+  const resolved = new Map<string, AfterVerify>();
+  const viaGit: Record<string, { commit: string; tips: string[] }> = {};
+  const reviewPath = (id: string) => `accord/tickets/${id}/review.md`;
+  for (const e of entries) {
+    // Without a walk, or with a tip git has no sha for, the ticket is read by git alone, as before (D-08).
+    if (walk === undefined || e.shas === undefined) {
+      const commit = e.start ?? reviewStartOf(root, e.id, e.tips);
+      if (commit !== undefined) viaGit[e.id] = { commit, tips: e.tips };
+      continue;
+    }
+    let commit = e.start;
+    if (commit === undefined) {
+      // Every tip outside the walk is on the default ref, where a review commit is dropped.
+      if (!e.shas.some((s) => walk.has(s.toLowerCase()))) continue;
+      const one = new Set(e.shas.map((s) => s.toLowerCase())).size === 1 && e.shas.every((s) => walk.has(s.toLowerCase()));
+      const named = one ? walkPath(walk, e.shas[0] as string, reviewPath(e.id)) : 'own';
+      if (named === null) continue;
+      commit = named === 'own' ? reviewStartOf(root, e.id, e.tips) : named;
+      if (commit === undefined || !walk.has(commit.toLowerCase())) continue; // a sha not in the walk is on the default ref
+    }
+    const after = walkAfter(walk, commit, e.shas);
+    if (after === 'drop') continue;
+    const list = after === 'own' ? ownAfterVerify(root, def, { commit, tips: e.tips }) : after;
+    if (list !== undefined) resolved.set(e.id, list);
+  }
+  const fromGit = gitAfterVerify(root, viaGit);
+  const afterVerify: Record<string, AfterVerify> = {};
+  for (const e of entries) {
+    const list = resolved.get(e.id) ?? (Object.hasOwn(fromGit, e.id) ? fromGit[e.id] : undefined);
+    if (list !== undefined) afterVerify[e.id] = list;
+  }
   let planFacts: Record<string, { subject?: string; clean: boolean }> | undefined;
   if (stage) {
     const dirty = gitDirty(root);
@@ -641,7 +805,7 @@ function loadParts(root: string, stage = false, light = false): {
     ...(Object.keys(lastActivity).length === 0 ? {} : { lastActivity }),
     ...(Object.keys(afterVerify).length === 0 ? {} : { afterVerify }),
   };
-  return { input, claimRefs, listed, templates: branchTemplates, known, statusOf };
+  return { input, claimRefs, listed, templates: branchTemplates, known, statusOf, branch };
 }
 
 export function loadFromFs(root: string, options: { stage?: boolean; light?: boolean } = {}): SnapshotInput {

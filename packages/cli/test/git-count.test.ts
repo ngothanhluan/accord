@@ -5,12 +5,12 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import { CONFIG, laneTicket, PLAN, REPORT, junit } from '../../../test/helpers/lane.js';
 import type { SnapshotInput } from '@accord-dev/accord-core';
-import { gitDefaultRef, loadFromFs } from '../src/load/fs.js';
+import { gitDefaultRef, loadClaimView, loadFromFs } from '../src/load/fs.js';
 import { countedSync, spawnLog } from './helpers/git-spawns.js';
 import { counted } from './helpers/runs.js';
 import { checkItem, expectFewer, ITEMS } from './helpers/items.js';
 import { cleanup, commitMsg, gitRun, makeEmptyRepo, mergeMsg, writeFiles } from './helpers/repo.js';
-import { prepareSamples, SAMPLE_BUILD_LIMIT, samples } from './helpers/samples.js';
+import { buildSample, prepareSamples, SAMPLE_BUILD_LIMIT, samples } from './helpers/samples.js';
 import type { Clone } from './helpers/worktree.js';
 import { makeClone } from './helpers/worktree.js';
 
@@ -372,4 +372,64 @@ it('risk:complex-branching the shared walk gives each ticket what its own git lo
 
   await expectFewer('wt-A-7 anchor', afterReads);
   await expectFewer('main lint', afterReads);
+}, LIMIT);
+
+let viewed: { root: string; cleanup: () => void } | undefined;
+
+beforeAll(() => {
+  const s = buildSample([
+    { id: 'C-1', kind: 'build-missing-file' },
+    { id: 'C-2', kind: 'build-missing-file' },
+    { id: 'C-3', kind: 'verify-merged' },
+    { id: 'C-4', kind: 'verify-merged-before' },
+    { id: 'C-5', kind: 'build-missing-file' },
+  ]);
+  const { root } = s;
+  // Main moves on once more; C-2 then merges it after its plan commit, and C-5 adds its review round and merges it after that.
+  gitRun(root, 'switch', '-q', 'main');
+  writeFiles(root, { 'main/claim-view.txt': 'main moves again\n' });
+  commitMsg(root, 'main: change for the claim view');
+  gitRun(root, 'switch', '-q', 't/C-2');
+  mergeMsg(root, 'main', "Merge branch 'main' into t/C-2");
+  gitRun(root, 'switch', '-q', 't/C-5');
+  writeFiles(root, { 'accord/tickets/C-5/review.md': '## Round 1\nverdict: converged\n' });
+  commitMsg(root, 'review: C-5 converged');
+  mergeMsg(root, 'main', "Merge branch 'main' into t/C-5");
+  gitRun(root, 'push', '-q', 'origin', 'main', 't/C-2', 't/C-5');
+  gitRun(root, 'switch', '-q', 'main');
+  gitRun(root, 'reset', '-q', '--hard');
+  viewed = { root, cleanup: () => s.cleanup() };
+}, SAMPLE_BUILD_LIMIT);
+
+afterAll(() => viewed?.cleanup());
+
+const isSubject = (a: string[]) => a.includes('log') && a.includes('-1') && a.includes('--format=%s');
+const mentions = (id: string) => (a: string[]) => a.some((x) => x.includes('t/' + id) || x.includes(`tickets/${id}/`));
+
+it('risk:complex-branching the claim view reads plan subjects and review starts from the shared walk and leaves each merge to at most two git reads', async () => {
+  const { root } = viewed as NonNullable<typeof viewed>;
+  const r = await counted(['status', '--json'], root);
+  expect(r.code).toBe(0);
+  const stages = Object.fromEntries((JSON.parse(r.out) as { id: string; stage: string }[]).map((row) => [row.id, row.stage]));
+  expect(stages).toMatchObject({ 'C-1': 'build', 'C-2': 'build', 'C-3': 'verify', 'C-4': 'verify', 'C-5': 'build' });
+  const own = (id: string) => ({
+    subject: r.argv.filter(isSubject).filter(mentions(id)).length,
+    review: r.argv.filter(isReviewStart).filter(mentions(id)).length,
+    after: r.argv.filter(isTopo).filter(mentions(id)).length,
+  });
+  // (a) a straight branch, (b) a merge after the plan commit, (c) a merge after the review, (d) a merge before it, (e) an open task with a merge after the review.
+  expect(own('C-1')).toEqual({ subject: 0, review: 0, after: 0 });
+  expect(own('C-2')).toEqual({ subject: 1, review: 0, after: 0 });
+  expect(own('C-3')).toEqual({ subject: 0, review: 1, after: 1 });
+  expect(own('C-4')).toEqual({ subject: 0, review: 0, after: 0 });
+  expect(own('C-5')).toEqual({ subject: 1, review: 0, after: 0 });
+
+  const { value } = countedSync(() => loadClaimView(root));
+  for (const id of ['C-1', 'C-2', 'C-5']) {
+    const ref = gitRun(root, 'for-each-ref', '--format=%(refname)', `refs/remotes/origin/t/${id}`).trim();
+    const want = gitRun(root, '-c', 'log.showSignature=false', 'log', '--no-show-signature', '-1', '--format=%s', ref, '--', `accord/tickets/${id}/plan.md`).replace(/\r?\n$/, '');
+    expect(want, id).toBe(`plan: ${id} ready`);
+    expect(value.view.planFacts?.[id], id).toEqual({ subject: want, clean: true });
+  }
+  await expectFewer('main status', (a) => isSubject(a) || a.includes('--stdin'));
 }, LIMIT);

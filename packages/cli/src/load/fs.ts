@@ -440,10 +440,20 @@ type Walk = Map<string, WalkCommit>;
  */
 function readsAfter(snapshot: RepoSnapshot, id: string): boolean {
   const lane = snapshot.tickets[id]?.frontmatter?.lane;
-  if (lane === undefined || lane === 'S') return true;
+  return lane === undefined || lane === 'S' || !hasOpenTask(snapshot, id);
+}
+
+/** A task of the ticket's plan whose number is not a key of its ledger's `done` (stage.ts: `open`). */
+function hasOpenTask(snapshot: RepoSnapshot, id: string): boolean {
   const work = workOf(snapshot, id);
   const done = work?.ledger?.done ?? {};
-  return !(work?.plan?.tasks ?? []).some((t) => !Object.hasOwn(done, String(t.n)));
+  return (work?.plan?.tasks ?? []).some((t) => !Object.hasOwn(done, String(t.n)));
+}
+
+/** ST-LN-63: true only for a ticket with a lane other than `S` and an open task, the one state core reads a plan subject in. */
+function readsSubject(snapshot: RepoSnapshot, id: string): boolean {
+  const lane = snapshot.tickets[id]?.frontmatter?.lane;
+  return lane !== undefined && lane !== 'S' && hasOpenTask(snapshot, id);
 }
 
 /**
@@ -598,6 +608,79 @@ function claimTips(id: string, ref: string, claimBranches: Record<string, string
   return local === undefined || local === ref || !listed.has(local) ? [ref] : [ref, local];
 }
 
+/** A ticket the walk may answer: its start commit or, with none, its review.md, its tips and the sha of each (undefined when git named one of them no sha). */
+type AfterEntry = { id: string; start: string | undefined; tips: string[]; shas: string[] | undefined };
+
+/** The shas one walk starts from: every claim tip, HEAD's commit when the branch names a ticket, and every start commit. */
+function claimPositives(
+  claimRefs: Record<string, string>,
+  claimBranches: Record<string, string>,
+  listed: ReadonlyMap<string, string>,
+  headCommit: string | undefined,
+  entries: readonly AfterEntry[],
+): string[] {
+  const positives = new Set<string>();
+  for (const id of Object.keys(claimRefs)) for (const t of claimTips(id, claimRefs[id], claimBranches, listed)) positives.add(listed.get(t) ?? '');
+  if (headCommit !== undefined) positives.add(headCommit);
+  for (const e of entries) if (e.start !== undefined) positives.add(e.start);
+  positives.delete('');
+  return [...positives];
+}
+
+/** The default ref and the walk over `positives`; neither when there is nothing to walk. */
+function walkOver(root: string, positives: readonly string[]): { walk: Walk | undefined; def: string | undefined } {
+  if (positives.length === 0) return { walk: undefined, def: undefined };
+  const def = defaultRefOf(root);
+  return { walk: gitWalk(root, def, [...positives]), def };
+}
+
+/**
+ * ST-LN-63: each entry's commits after its start, answered from the walk for a straight history and by git alone for a merge,
+ * an unresolvable start, a tip git named no sha for, or when the walk failed (D-08, D-10). Entries of one id with the same
+ * start and tips are read once. The result is aligned with `entries`; undefined where the ticket has none.
+ */
+function resolveAfter(root: string, entries: readonly AfterEntry[], walk: Walk | undefined, def: string | undefined): (AfterVerify | undefined)[] {
+  const unique: AfterEntry[] = [];
+  const seen = new Map<string, number>();
+  const slot = entries.map((e) => {
+    const key = [e.id, e.start ?? '', ...e.tips].join('\0');
+    let at = seen.get(key);
+    if (at === undefined) {
+      at = unique.length;
+      unique.push(e);
+      seen.set(key, at);
+    }
+    return at;
+  });
+  const resolved = new Map<number, AfterVerify>();
+  const viaGit: Record<string, { commit: string; tips: string[] }> = {};
+  const reviewPath = (id: string) => `accord/tickets/${id}/review.md`;
+  unique.forEach((e, i) => {
+    // Without a walk, or with a tip git has no sha for, the ticket is read by git alone, as before (D-08).
+    if (walk === undefined || e.shas === undefined) {
+      const commit = e.start ?? reviewStartOf(root, e.id, e.tips);
+      if (commit !== undefined) viaGit[String(i)] = { commit, tips: e.tips };
+      return;
+    }
+    let commit = e.start;
+    if (commit === undefined) {
+      // Every tip outside the walk is on the default ref, where a review commit is dropped.
+      if (!e.shas.some((s) => walk.has(s.toLowerCase()))) return;
+      const one = new Set(e.shas.map((s) => s.toLowerCase())).size === 1 && e.shas.every((s) => walk.has(s.toLowerCase()));
+      const named = one ? walkPath(walk, e.shas[0] as string, reviewPath(e.id)) : 'own';
+      if (named === null) return;
+      commit = named === 'own' ? reviewStartOf(root, e.id, e.tips) : named;
+      if (commit === undefined || !walk.has(commit.toLowerCase())) return; // a sha not in the walk is on the default ref
+    }
+    const after = walkAfter(walk, commit, e.shas);
+    if (after === 'drop') return;
+    const list = after === 'own' ? ownAfterVerify(root, def, { commit, tips: e.tips }) : after;
+    if (list !== undefined) resolved.set(i, list);
+  });
+  const fromGit = gitAfterVerify(root, viaGit);
+  return slot.map((i) => resolved.get(i) ?? (Object.hasOwn(fromGit, String(i)) ? fromGit[String(i)] : undefined));
+}
+
 /**
  * The ticket id a branch name carries under the templates in force, or undefined. A `t/` name is matched only by
  * `t/{id}`. Among matching templates the first whose id is `known` wins, else the first match in template order.
@@ -691,12 +774,14 @@ export function currentBranch(root: string): string | undefined {
   }
 }
 
-function loadParts(root: string, stage = false, light = false): {
+function loadParts(root: string, stage = false, light = false, defer = false): {
   input: SnapshotInput;
   claimRefs: Record<string, string>;
   listed: ReadonlyMap<string, string>;
   /** The current branch, read once outside light mode (ST-LN-63). */
   branch?: { name: string | undefined };
+  /** With `defer` only: the entries no walk has answered yet, the HEAD commit when the branch names a ticket, and that ticket. */
+  deferred?: { entries: AfterEntry[]; headCommit: string | undefined; own: string | undefined };
   templates: string[];
   known: (id: string) => boolean;
   statusOf: (id: string) => string | undefined;
@@ -729,7 +814,7 @@ function loadParts(root: string, stage = false, light = false): {
   const branch = { name: currentBranch(root) };
   const own = branch.name === undefined || branch.name === '' ? undefined : ticketOfBranch(branch.name, branchTemplates, known);
   // An entry: a ticket with a start commit or a review.md, with tips, that core reads `afterVerify` for.
-  const entries: { id: string; start: string | undefined; tips: string[]; shas: string[] | undefined }[] = [];
+  const entries: AfterEntry[] = [];
   for (const id of Object.keys(first.tickets)) {
     const start = startOf(first, id);
     if (start === undefined && !Object.hasOwn(files, `accord/tickets/${id}/review.md`)) continue;
@@ -739,48 +824,14 @@ function loadParts(root: string, stage = false, light = false): {
     const shas = tips.map((t) => (t === 'HEAD' ? facts?.commit : listed.get(t)));
     entries.push({ id, start, tips, shas: shas.every((s): s is string => s !== undefined) ? shas : undefined });
   }
-  // One walk over every claim tip, HEAD when the branch names a ticket, and every start commit.
-  const positives = new Set<string>();
-  for (const id of Object.keys(claimRefs)) for (const t of claimTips(id, claimRefs[id], claimBranches, listed)) positives.add(listed.get(t) ?? '');
-  if (own !== undefined && facts !== undefined) positives.add(facts.commit);
-  for (const e of entries) if (e.start !== undefined) positives.add(e.start);
-  positives.delete('');
-  let def: string | undefined;
-  let walk: Walk | undefined;
-  if (positives.size > 0) {
-    def = defaultRefOf(root);
-    walk = gitWalk(root, def, [...positives]);
-  }
-  const resolved = new Map<string, AfterVerify>();
-  const viaGit: Record<string, { commit: string; tips: string[] }> = {};
-  const reviewPath = (id: string) => `accord/tickets/${id}/review.md`;
-  for (const e of entries) {
-    // Without a walk, or with a tip git has no sha for, the ticket is read by git alone, as before (D-08).
-    if (walk === undefined || e.shas === undefined) {
-      const commit = e.start ?? reviewStartOf(root, e.id, e.tips);
-      if (commit !== undefined) viaGit[e.id] = { commit, tips: e.tips };
-      continue;
-    }
-    let commit = e.start;
-    if (commit === undefined) {
-      // Every tip outside the walk is on the default ref, where a review commit is dropped.
-      if (!e.shas.some((s) => walk.has(s.toLowerCase()))) continue;
-      const one = new Set(e.shas.map((s) => s.toLowerCase())).size === 1 && e.shas.every((s) => walk.has(s.toLowerCase()));
-      const named = one ? walkPath(walk, e.shas[0] as string, reviewPath(e.id)) : 'own';
-      if (named === null) continue;
-      commit = named === 'own' ? reviewStartOf(root, e.id, e.tips) : named;
-      if (commit === undefined || !walk.has(commit.toLowerCase())) continue; // a sha not in the walk is on the default ref
-    }
-    const after = walkAfter(walk, commit, e.shas);
-    if (after === 'drop') continue;
-    const list = after === 'own' ? ownAfterVerify(root, def, { commit, tips: e.tips }) : after;
-    if (list !== undefined) resolved.set(e.id, list);
-  }
-  const fromGit = gitAfterVerify(root, viaGit);
+  const headCommit = own !== undefined && facts !== undefined ? facts.commit : undefined;
   const afterVerify: Record<string, AfterVerify> = {};
-  for (const e of entries) {
-    const list = resolved.get(e.id) ?? (Object.hasOwn(fromGit, e.id) ? fromGit[e.id] : undefined);
-    if (list !== undefined) afterVerify[e.id] = list;
+  if (!defer) {
+    const { walk, def } = walkOver(root, claimPositives(claimRefs, claimBranches, listed, headCommit, entries));
+    const lists = resolveAfter(root, entries, walk, def);
+    entries.forEach((e, i) => {
+      if (lists[i] !== undefined) afterVerify[e.id] = lists[i] as AfterVerify;
+    });
   }
   let planFacts: Record<string, { subject?: string; clean: boolean }> | undefined;
   if (stage) {
@@ -805,7 +856,7 @@ function loadParts(root: string, stage = false, light = false): {
     ...(Object.keys(lastActivity).length === 0 ? {} : { lastActivity }),
     ...(Object.keys(afterVerify).length === 0 ? {} : { afterVerify }),
   };
-  return { input, claimRefs, listed, templates: branchTemplates, known, statusOf, branch };
+  return { input, claimRefs, listed, templates: branchTemplates, known, statusOf, branch, ...(defer ? { deferred: { entries, headCommit, own } } : {}) };
 }
 
 export function loadFromFs(root: string, options: { stage?: boolean; light?: boolean } = {}): SnapshotInput {
@@ -824,10 +875,22 @@ const recordPaths = (id: string): string[] => [
  * One `git cat-file --batch`, no network (`GIT_NO_LAZY_FETCH`). A blob not present locally reads as absent.
  */
 export function loadClaimView(root: string): { checkout: SnapshotInput; view: SnapshotInput } {
-  const { input: checkout, claimRefs, listed, templates, known, statusOf } = loadParts(root, true);
+  // ST-LN-63: the branch is read once in loadParts, and the commits after each start come from one walk made here, over the
+  // checkout's entries and the candidates' together.
+  const parts = loadParts(root, true, false, true);
+  const { input: bare, claimRefs, listed, statusOf } = parts;
+  const { entries: checkoutEntries, headCommit, own } = parts.deferred as NonNullable<typeof parts.deferred>;
   const env = { ...process.env, GIT_NO_LAZY_FETCH: '1' };
-  const current = currentBranch(root);
-  const own = current === undefined || current === '' ? undefined : ticketOfBranch(current, templates, known);
+  /** The input with the `afterVerify` of the lists, aligned with `entries`. */
+  const withAfter = (entries: readonly AfterEntry[], lists: readonly (AfterVerify | undefined)[], only?: (id: string) => boolean): Record<string, AfterVerify> => {
+    const out: Record<string, AfterVerify> = {};
+    entries.forEach((e, i) => {
+      const list = lists[i];
+      if (list !== undefined && (only === undefined || only(e.id))) out[e.id] = list;
+    });
+    return out;
+  };
+  const walked = (entries: readonly AfterEntry[]) => walkOver(root, claimPositives(claimRefs, bare.claimBranches ?? {}, listed, headCommit, entries));
   // One spawn for the merged set; a failure (an unborn HEAD) leaves it empty, as a non-ancestor.
   let merged = new Set<string>();
   const refNames = Object.values(claimRefs);
@@ -847,7 +910,12 @@ export function loadClaimView(root: string): { checkout: SnapshotInput; view: Sn
   // A squash or rebase merge leaves the claim tip unmerged: a terminal checkout copy is never superseded.
   const terminal = (id: string) => ['archived', 'dropped'].includes(statusOf(id) ?? '');
   const candidates = Object.entries(claimRefs).filter(([id, ref]) => id !== own && !merged.has(ref) && !terminal(id));
-  if (candidates.length === 0) return { checkout, view: checkout };
+  if (candidates.length === 0) {
+    const { walk, def } = walked(checkoutEntries);
+    const afterVerify = withAfter(checkoutEntries, resolveAfter(root, checkoutEntries, walk, def));
+    const checkout: SnapshotInput = { ...bare, ...(Object.keys(afterVerify).length === 0 ? {} : { afterVerify }) };
+    return { checkout, view: checkout };
+  }
   const wanted = candidates.flatMap(([id, ref]) => recordPaths(id).map((path) => ref + ':' + path));
   let out: Buffer;
   try {
@@ -876,14 +944,55 @@ export function loadClaimView(root: string): { checkout: SnapshotInput; view: Sn
     read.set(spec, out.toString('utf8', nl + 1, nl + 1 + size));
     at = nl + 1 + size + 1;
   }
-  const files = { ...checkout.files };
-  const planFacts = { ...checkout.planFacts };
+  const files = { ...bare.files };
+  const planFacts = { ...bare.planFacts };
+  const planJobs: { id: string; ref: string; planPath: string }[] = [];
+  const overlaid = new Set<string>();
   for (const [id, ref] of candidates) {
     if (read.get(ref + ':' + recordPaths(id)[0]) === undefined) continue;
+    overlaid.add(id);
     const planPath = 'accord/tickets/' + id + '/plan.md';
     if (read.get(ref + ':' + planPath) === undefined) delete planFacts[id];
     else {
-      let subject = '';
+      planFacts[id] = { clean: true }; // the subject is filled in below, for the tickets whose state core reads it in
+      planJobs.push({ id, ref, planPath });
+    }
+    for (const path of recordPaths(id)) {
+      const text = read.get(ref + ':' + path);
+      if (text === undefined) delete files[path];
+      else files[path] = text;
+    }
+  }
+  // A candidate is read from its overlaid texts: the start commit is the one its own branch records, and core reads its
+  // `afterVerify` and its plan subject only in the states `readsAfter` and `readsSubject` name.
+  const candidateEntries: AfterEntry[] = [];
+  const subjectOf = new Set<string>();
+  for (const [id, ref] of candidates) {
+    const paths = recordPaths(id);
+    if (files[paths[0]] === undefined) continue;
+    const present: Record<string, string> = {};
+    for (const p of paths) if (files[p] !== undefined) present[p] = files[p];
+    const snap = loadSnapshot({ files: present, tree: [] });
+    if (overlaid.has(id) && readsSubject(snap, id)) subjectOf.add(id);
+    const start = startOf(snap, id);
+    if (start === undefined && files[paths[3]] === undefined) continue;
+    if (!readsAfter(snap, id)) continue;
+    const tips = claimTips(id, ref, bare.claimBranches ?? {}, listed);
+    const shas = tips.map((t) => listed.get(t));
+    candidateEntries.push({ id, start, tips, shas: shas.every((s): s is string => s !== undefined) ? shas : undefined });
+  }
+  const all = [...checkoutEntries, ...candidateEntries];
+  const { walk, def } = walked(all);
+  const lists = resolveAfter(root, all, walk, def);
+  const fromCheckout = lists.slice(0, checkoutEntries.length);
+  const checkoutAfter = withAfter(checkoutEntries, fromCheckout);
+  const checkout: SnapshotInput = { ...bare, ...(Object.keys(checkoutAfter).length === 0 ? {} : { afterVerify: checkoutAfter }) };
+  for (const { id, ref, planPath } of planJobs) {
+    if (!subjectOf.has(id)) continue;
+    const sha = listed.get(ref);
+    const named = walk === undefined || sha === undefined ? 'own' : walkPath(walk, sha, planPath);
+    let subject = '';
+    if (named === 'own') {
       try {
         subject = execFileSync('git', ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '-1', '--format=%s', ref, '--', planPath], {
           cwd: root,
@@ -895,32 +1004,14 @@ export function loadClaimView(root: string): { checkout: SnapshotInput; view: Sn
       } catch {
         // a commit not present locally reads as no subject, so the plan is not ready
       }
-      planFacts[id] = { ...(subject === '' ? {} : { subject }), clean: true };
-    }
-    for (const path of recordPaths(id)) {
-      const text = read.get(ref + ':' + path);
-      if (text === undefined) delete files[path];
-      else files[path] = text;
-    }
+    } else if (named !== null) subject = walk?.get(named)?.subject ?? '';
+    planFacts[id] = { ...(subject === '' ? {} : { subject }), clean: true };
   }
-  // The start commit of a candidate is the one its own branch records, so it is read from the overlaid texts.
-  const afterWanted: Record<string, { commit: string; tips: string[] }> = {};
-  for (const [id, ref] of candidates) {
-    const t = files[recordPaths(id)[0]];
-    const v = files[recordPaths(id)[4]];
-    if (t === undefined) continue;
-    const tips = claimTips(id, ref, checkout.claimBranches ?? {}, listed);
-    const commit =
-      startOf(loadSnapshot({ files: { [recordPaths(id)[0]]: t, ...(v === undefined ? {} : { [recordPaths(id)[4]]: v }) }, tree: [] }), id) ??
-      (files[recordPaths(id)[3]] === undefined ? undefined : reviewStartOf(root, id, tips));
-    if (commit !== undefined) afterWanted[id] = { commit, tips };
-  }
-  const afterVerify: Record<string, AfterVerify> = { ...checkout.afterVerify };
-  for (const [id] of candidates) delete afterVerify[id];
-  Object.assign(afterVerify, gitAfterVerify(root, afterWanted));
-  const rest: SnapshotInput = { ...checkout };
-  delete rest.afterVerify;
-  return { checkout, view: { ...rest, files, planFacts, ...(Object.keys(afterVerify).length === 0 ? {} : { afterVerify }) } };
+  const afterVerify: Record<string, AfterVerify> = {
+    ...withAfter(checkoutEntries, fromCheckout, (id) => !candidates.some(([c]) => c === id)),
+    ...withAfter(candidateEntries, lists.slice(checkoutEntries.length)),
+  };
+  return { checkout, view: { ...bare, files, planFacts, ...(Object.keys(afterVerify).length === 0 ? {} : { afterVerify }) } };
 }
 
 /** IDS-1: `git config user.email`, trimmed; '' when unset (git exits 1). */

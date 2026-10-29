@@ -9,7 +9,9 @@ pull request while it is open and not merged (`gh pr view <branch> --json
 state` prints `OPEN`): lane M from verify on, lane S from its step 6. Never
 read a pull request's comments unasked. Work in the ticket's worktree: when
 this session is not in it, first run `accord worktree open <id> --continue`
-and follow `./worktree.md`, then Continue's step 2 only.
+and follow `./worktree.md`, then Continue's step 2 only; after a `stop:`
+line, ask the owner to type, in the session opened there, `/accord <id> `
+followed by the request, in place of the line it prints, and stop here.
 
 1. **Read.** Take each review thread, each top-level comment and each
    review's summary as one comment, a reply inside a thread being part of
@@ -30,8 +32,9 @@ and follow `./worktree.md`, then Continue's step 2 only.
    Decision or Correction. Fix no comment until the owner answers.
 5. **Fix.** Classify each comment that holds `patch`, `plan-gap` or
    `intent-gap` and handle them as `accord-review` handles one round's
-   findings, the patch ones fixed together through a fresh executor. The
-   fix then takes the path `./failure.md` gives a failure reported after
+   findings, the patch ones fixed together through a fresh executor in
+   lane M, and by you yourself in lane S, which has no executor. The fix
+   then takes the path `./failure.md` gives a failure reported after
    verify: one new review round and then verify again for lane M, the
    lane S steps for lane S.
 6. **Reply.** Once every comment is fixed, declined or answered, draft one

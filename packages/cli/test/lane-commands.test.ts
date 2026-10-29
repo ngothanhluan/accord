@@ -260,6 +260,9 @@ describe('accord brief', () => {
 });
 
 const BRIEF_RULE = 'Shared rule: run the build first.';
+const NO_COMMAND = 'No test command is configured: accord/config.yml has no tests.affected and no tests.full.';
+const ONLY = 'This is the only test command the executor runs for this task.';
+const withTests = (lines: string[]) => CONFIG.replace('  report: ' + REPORT + '\n', '  report: ' + REPORT + '\n' + lines.map((l) => '  ' + l + '\n').join(''));
 
 it('ac-1 a brief carries the plan preamble', async () => {
   const repo = makeLaneRepo({
@@ -269,7 +272,7 @@ it('ac-1 a brief carries the plan preamble', async () => {
     const ticket = readFileSync(join(repo, 'accord/tickets/T-1.md'), 'utf8');
     const r = await run(['brief', 'T-1', '2'], repo);
     expect(r.code).toBe(0);
-    expect(r.out).toBe(ticket.replace(/\n*$/, '\n') + '\n---\n\n' + BRIEF_RULE + '\n\n## Task 2: B\ncovers: @ac-2\n');
+    expect(r.out).toBe(ticket.replace(/\n*$/, '\n') + '\n---\n\n' + BRIEF_RULE + '\n\n## Task 2: B\ncovers: @ac-2\n' + '\n---\n\n' + NO_COMMAND + '\n');
     expect(r.out).not.toContain('Task 1');
   } finally {
     cleanup(repo);
@@ -284,7 +287,7 @@ it('ac-2 a plan with no preamble gives the same brief as before', async () => {
     const ticket = readFileSync(join(repo, 'accord/tickets/T-1.md'), 'utf8');
     const r = await run(['brief', 'T-1', '1'], repo);
     expect(r.code).toBe(0);
-    expect(r.out).toBe(ticket.replace(/\n*$/, '\n') + '\n---\n\n## Task 1: A\ncovers: @ac-1\n');
+    expect(r.out).toBe(ticket.replace(/\n*$/, '\n') + '\n---\n\n## Task 1: A\ncovers: @ac-1\n' + '\n---\n\n' + NO_COMMAND + '\n');
   } finally {
     cleanup(repo);
   }
@@ -1307,3 +1310,58 @@ it('ac-2 every brief ends with the repository conventions', async () => {
     cleanup(repo);
   }
 }, 60_000);
+
+it('ac-1 the brief prints the task tests.affected command as the only one to run', async () => {
+  const plan =
+    '---\nbaseline: abc1234\n---\n\n## Task 1: A\ncovers: @ac-1\n\n## Task 2: B\ncovers: @ac-2\nfiles: src/export.ts, src/csv.ts\nverify: test/csv.test.ts#quotes-cells (@ac-2), test/export.test.ts#writes-csv, src/csv.ts#direct\n';
+  const repo = makeLaneRepo({
+    'accord/config.yml': withTests(['affected: npx vitest related --run {files} --reporter=junit', 'full: npx vitest run --reporter=junit']),
+    'accord/tickets/T-1/plan.md': plan,
+    'src/csv.ts': 'export const csv = 1;\n',
+    'test/csv.test.ts': '',
+    'test/export.test.ts': '',
+  });
+  try {
+    const ticket = readFileSync(join(repo, 'accord/tickets/T-1.md'), 'utf8');
+    const r = await run(['brief', 'T-1', '2'], repo);
+    expect(r.code).toBe(0);
+    expect(r.out).toBe(
+      ticket.replace(/\n*$/, '\n') +
+        '\n---\n\n## Task 2: B\ncovers: @ac-2\nfiles: src/export.ts, src/csv.ts\nverify: test/csv.test.ts#quotes-cells (@ac-2), test/export.test.ts#writes-csv, src/csv.ts#direct\n' +
+        '\n---\n\nTest command: npx vitest related --run src/export.ts src/csv.ts test/csv.test.ts test/export.test.ts --reporter=junit\n' +
+        ONLY +
+        '\n',
+    );
+  } finally {
+    cleanup(repo);
+  }
+});
+
+it('ac-2 without tests.affected the brief prints tests.full and says why', async () => {
+  const repo = makeLaneRepo({ 'accord/config.yml': withTests(['full: npx vitest run --reporter=junit']) });
+  try {
+    const r = await run(['brief', 'T-1', '2'], repo);
+    expect(r.code).toBe(0);
+    expect(
+      r.out.endsWith(
+        '\n---\n\nTest command: npx vitest run --reporter=junit\n' + ONLY + '\ntests.full is printed because accord/config.yml has no tests.affected.\n',
+      ),
+    ).toBe(true);
+  } finally {
+    cleanup(repo);
+  }
+});
+
+it('ac-3 without either command the brief says no test command is configured', async () => {
+  const repo = makeLaneRepo();
+  try {
+    for (const n of ['1', '2']) {
+      const r = await run(['brief', 'T-1', n], repo);
+      expect(r.code).toBe(0);
+      expect(r.out.endsWith('\n---\n\n' + NO_COMMAND + '\n')).toBe(true);
+      expect(r.out).not.toContain('Test command:');
+    }
+  } finally {
+    cleanup(repo);
+  }
+});

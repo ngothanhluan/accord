@@ -54,6 +54,7 @@
 - Ruling: a move to lane S carries the interview's non-empty `## Vetoes`, `## Decisions` and `## Corrections` verbatim into the new lane S ticket, as optional sections the lane S form accepts and the lane S anchor prints — review round 1 security finding: the drop and the later branch clean otherwise lose them; owner: "A" — cost if wrong: a lane S ticket can carry up to three more sections.
 - Ruling: lint, the schema, the lane S template and gate ready are unchanged for the carried sections — fix E's test shows lane S already accepts them — cost if wrong: none seen.
 - Ruling: the move-to-S hand-off is the `/accord …` line followed by the carried sections verbatim under their headings — a one-line form cannot hold multi-line sections — cost if wrong: a session that reads only the first line drops the sections.
+- Ruling: `accord/tickets/ST-LN-31.md` stays untouched; ST-LN-58 D-04, D-05 and D-06 supersede D-03 and the drop half of ac-5 here: a move to lane S now changes the ticket in place, and CI refuses it once the base or any commit the pull request adds holds approved_hash; the ac-4 and ac-5 tests keep their names and lose only the superseded assertions — editing the ticket file changes its AC hash, while the ledger is outside the hash — cost if wrong: ST-LN-31's own text still describes the drop
 
 ## Deferred
 - plan round 1.10 Nice — Understood/Done when can be rewritten after review and `gate ready` rerun unflagged

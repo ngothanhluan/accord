@@ -69,9 +69,7 @@ Propose a lane as `./lane.md` says, for every new request however small it looks
 
 - **S.** Run `accord new ticket <id> --lane S --worktree`; when config.yml has
   `people`, follow `./ids.md` and run it with `--type <story|bug>` and no id
-  instead. Then follow `./lane-s.md`. A request that carries `Understood: …`
-  and `Done when: …` from a drop is lane S without asking again; the scout still runs first and its
-  files still go under `## Scope`.
+  instead. Then follow `./lane-s.md`. At step 6 of `./lane-s.md`, report the finish as `./finish.md` says.
 - **M.** Run `accord new ticket <id> --lane M --worktree`; when config.yml has
   `people`, follow `./ids.md` and run `accord new ticket --type <story|bug>
   --lane M --worktree` with no id instead. It writes the ticket on its
@@ -86,9 +84,9 @@ Follow `./upgrade.md`.
 
 ## Rules
 
-- A lane only rises. Complexity found mid-task lifts the lane: stop, say so,
-  and re-enter at the new lane's first incomplete stage. A lane never drops once its intent is approved; before
-  that only the intent interview's move to lane S drops it.
+- A lane only rises, except that the intent interview may move a lane M ticket whose intent is not approved
+  to lane S in place, as `./ids.md` says. Complexity found mid-task lifts the lane: stop, say so,
+  and re-enter at the new lane's first incomplete stage. A lane never drops once its intent is approved.
 - A ticket without `lane:` follows the 0.1.0 contract. Offer to add `lane: M`
   and the lane headings; do it only on a yes.
 - In lane M the main session orchestrates and never edits product code.

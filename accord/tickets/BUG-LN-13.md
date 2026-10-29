@@ -15,6 +15,9 @@ ui: false
 # ac_hash:
 approved_hash: "fnv1a64:03f689fa6b541fef"
 ac_hash: "fnv1a64:2a3877559ca3500a"
+verified_hash: "fnv1a64:2a3877559ca3500a"
+verified_commit: "125dc0424977f6853d76ba98444a36eea7f37ff3"
+verified: [ac-1, ac-2, ac-3, ac-4]
 ---
 
 ## Understood

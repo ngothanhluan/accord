@@ -1,0 +1,43 @@
+---
+kind: reference
+---
+
+# Comments on a ticket's pull request
+
+This applies when someone asks you to handle the comments on ticket <id>'s
+pull request while it is open and not merged (`gh pr view <branch> --json
+state` prints `OPEN`): lane M from verify on, lane S from its step 6. Never
+read a pull request's comments unasked. Work in the ticket's worktree: when
+this session is not in it, first run `accord worktree open <id> --continue`
+and follow `./worktree.md`, then Continue's step 2 only.
+
+1. **Read.** Take each review thread, each top-level comment and each
+   review's summary as one comment, a reply inside a thread being part of
+   that thread, by a person whoever it is, the owner included; a failed
+   check follows `./failure.md` instead.
+2. **Check.** Check each comment against the code and mark it holds, does
+   not hold, or unclear before fixing any comment. A comment from the
+   owner takes the same steps, and goes under `## Corrections` only when
+   it changes the intent or a criterion and the owner confirms it.
+3. **Unclear first.** When any comment is unclear, draft a question to its
+   author for its thread, show those drafts to the owner and post them
+   only after the owner's yes. Fix no comment until every unclear comment
+   is answered, in its thread by its author or in the chat by the owner,
+   since comments may be related.
+4. **Conflicts.** When a comment asks for something a Veto, Decision or
+   Correction of the ticket forbids or settles otherwise, stop handling
+   every comment and ask the owner about that one, naming the Veto,
+   Decision or Correction. Fix no comment until the owner answers.
+5. **Fix.** Classify each comment that holds `patch`, `plan-gap` or
+   `intent-gap` and handle them as `accord-review` handles one round's
+   findings, the patch ones fixed together through a fresh executor. The
+   fix then takes the path `./failure.md` gives a failure reported after
+   verify: one new review round and then verify again for lane M, the
+   lane S steps for lane S.
+6. **Reply.** Once every comment is fixed, declined or answered, draft one
+   reply per comment: the commit that fixed it, the reason it was not
+   changed, or the answer it took. Show every draft to the owner together,
+   apply the owner's changes to any of them, and post them to their
+   threads only after the owner's yes. Post no reply, comment or review to
+   the pull request before that yes; the fix commits are pushed as the
+   stage skills already push them.

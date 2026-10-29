@@ -1027,3 +1027,33 @@ it('risk:regression a lane M ticket that gate ready refuses is never planned fro
     expect(at(route)).toBeGreaterThan(at(G));
   }
 });
+
+// ST-LN-60: one path for review comments on a ticket's pull request, each part of its Understood.
+it('risk:regression the accord skill routes pull request comments to comments.md, which checks before it fixes and posts only on the owners yes', () => {
+  const flat = (t: string) => t.replace(/\s+/g, ' ');
+  const get = (p: string) => flat(files.find((f) => f.path === p)?.text ?? '');
+  const skill = get('.claude/skills/accord/SKILL.md');
+  const route = skill.indexOf("A request to handle the comments on a ticket's pull request follows `./comments.md`, without the session check.");
+  expect(route).toBeGreaterThan(-1);
+  expect(route).toBeLessThan(skill.indexOf('## Dashboard'));
+  const c = get('.claude/skills/accord/comments.md');
+  expect(c.length, 'accord/comments.md is missing').toBeGreaterThan(0);
+  const parts = [
+    'open and not merged', 'lane M from verify on, lane S from its step 6', 'Never read a pull request\'s comments unasked',
+    "Take each review thread, each top-level comment and each review's summary as one comment, a reply inside a thread being part of that thread, by a person whoever it is, the owner included",
+    'mark it holds, does not hold, or unclear before fixing any comment',
+    'goes under `## Corrections` only when it changes the intent or a criterion and the owner confirms it',
+    'draft a question to its author for its thread, show those drafts to the owner and post them only after the owner\'s yes',
+    'Fix no comment until every unclear comment is answered, in its thread by its author or in the chat by the owner',
+    'stop handling every comment and ask the owner about that one, naming the Veto, Decision or Correction',
+    'Fix no comment until the owner answers',
+    "handle them as `accord-review` handles one round's findings, the patch ones fixed together through a fresh executor",
+    'one new review round and then verify again for lane M, the lane S steps for lane S',
+    'draft one reply per comment: the commit that fixed it, the reason it was not changed, or the answer it took',
+    'Show every draft to the owner together, apply the owner\'s changes to any of them, and post them to their threads only after the owner\'s yes',
+    'Post no reply, comment or review to the pull request before that yes',
+  ];
+  expect(parts.filter((p) => !c.includes(p))).toEqual([]);
+  const order = ['**Read.**', '**Check.**', '**Unclear first.**', '**Conflicts.**', '**Fix.**', '**Reply.**'].map((h) => c.indexOf(h));
+  expect(order.every((i, n) => i > -1 && (n === 0 || i > order[n - 1]!))).toBe(true);
+});

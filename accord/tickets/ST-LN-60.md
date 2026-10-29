@@ -55,6 +55,7 @@ Feature: ST-LN-60
 <!-- Settled answers, one per line: - D-01 <decision> — "<the owner's sentence>" -->
 - D-01 Instructions only: the change is skill wording plus the tests that check it; no new CLI gate reads the pull request — "A" (2026-10-29, to: A, instructions only; B, instructions plus a CLI gate; C, defer)
 - D-02 The two research gaps with no ticket (worktree.md's output handling moved into the CLI; a skill wording change run against a benchmark baseline) are queued as their own tickets, not folded into this one — "A" (2026-10-29, to: A, split into three tickets; B, fold all three in; C, fold only the baseline rule in)
+- D-03 The agent reads a pull request's comments only when someone asks it to (names the comments or pastes a link), never on its own at every Continue — "A" (2026-10-29, to: A, on request; B, checked at every Continue of a ticket with a pull request)
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->

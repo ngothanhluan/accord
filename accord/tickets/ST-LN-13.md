@@ -32,7 +32,7 @@ Knowledge made before or beside a ticket (a discussion, a measure, a study) live
 Research is recorded in `accord/research/<date>-<topic>.md` with its date and the commit it was made at; a ticket names its records under a `research:` key; lint refuses a missing or undated record; `accord anchor` prints the list; the scout, architect, critic and planner read the records.
 For everyone who works a ticket, on any machine or runtime. Success: a ticket's research reaches every deciding agent from the key alone, and evidence an intent interview replaces is moved into a record, never deleted.
 Not here: the researcher agent (its own ticket, D-01) and any change to the scout (D-02). Research is evidence, never a contract: the executor, reviewers and verifier do not read it.
-- Research: `accord/research/2026-10-30-research-records.md` (evidence, not a contract).
+- Research: `accord/research/2026-10-30-research-records.md`, `accord/research/2026-10-30-scout-coverage.md` (evidence, not a contract).
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.

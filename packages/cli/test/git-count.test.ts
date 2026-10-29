@@ -3,11 +3,11 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, expect, it, vi } from 'vitest';
-import { CONFIG, laneTicket, PLAN, REPORT, junit } from '../../../test/helpers/lane.js';
+import { CONFIG, LANE_S_BODY, laneTicket, PLAN, REPORT, junit } from '../../../test/helpers/lane.js';
 import type { SnapshotInput } from '@accord-dev/accord-core';
 import { gitDefaultRef, loadClaimView, loadFromFs } from '../src/load/fs.js';
 import { countedSync, spawnLog } from './helpers/git-spawns.js';
-import { counted } from './helpers/runs.js';
+import { counted, readGolden, runSample } from './helpers/runs.js';
 import { checkItem, expectFewer, ITEMS } from './helpers/items.js';
 import { cleanup, commitMsg, gitRun, makeEmptyRepo, mergeMsg, run, writeFiles } from './helpers/repo.js';
 import { buildSample, oneTicketFrom, prepareSamples, SAMPLE_BUILD_LIMIT, samples, TWENTY, TWENTY_BUILD_LIMIT } from './helpers/samples.js';
@@ -493,3 +493,85 @@ it('ac-1 a read command starts as many git processes with 20 tickets as with 1',
     }
   }
 }, AC1_LIMIT);
+
+const isBranchRead = (a: string[]) => a[0] === 'symbolic-ref' && a.includes('--short') && a.includes('HEAD');
+const isReviewLog = (a: string[]) => a.includes('log') && a.includes('-G') && a.includes('^## Round ');
+
+it('risk:complex-branching anchor hook and worktree merge read the current branch once detached or unreadable included', async () => {
+  const { mixed } = samples();
+  const copy = mixed.copy();
+  try {
+    const wt = copy.worktree('A-7');
+    const branchReads = (argv: string[][]) => argv.filter(isBranchRead);
+
+    const onBranch = await counted(['anchor'], wt);
+    expect(onBranch.code).toBe(0);
+    expect(onBranch.out).toContain('A-7');
+    expect(branchReads(onBranch.argv)).toHaveLength(1);
+
+    // The hook reads the branch for the anchor, the record and the hold; the session-resume path asks for all three.
+    const resumed = await counted(['hook', 'session-resume'], wt);
+    expect(resumed.code).toBe(0);
+    expect(resumed.out).toContain('A-7');
+    expect(branchReads(resumed.argv)).toHaveLength(1);
+
+    // The branch is unreadable: the same stderr line and exit 0 as before, from the one read.
+    spawnLog.fail = isBranchRead;
+    let unreadable: Awaited<ReturnType<typeof counted>>;
+    try {
+      unreadable = await counted(['anchor'], wt);
+    } finally {
+      spawnLog.fail = undefined;
+    }
+    expect(unreadable.code).toBe(0);
+    expect(unreadable.out).toBe('');
+    expect(unreadable.err).toBe('could not read the current branch; nothing to anchor\n');
+    expect(branchReads(unreadable.argv)).toHaveLength(1);
+
+    // worktree merge from another checkout refuses as it did, from the one read.
+    const other = await counted(['worktree', 'merge', 'A-7'], copy.root);
+    expect(other.code).toBe(2);
+    expect(other.err).toContain('is merged on its branch t/A-7, and this checkout is on main');
+    expect(branchReads(other.argv)).toHaveLength(1);
+
+    // A detached HEAD says nothing and exits 0.
+    gitRun(wt, 'switch', '-q', '--detach');
+    const detached = await counted(['anchor'], wt);
+    expect(detached.code).toBe(0);
+    expect(detached.out).toBe('');
+    expect(detached.err).toBe('');
+    expect(branchReads(detached.argv)).toHaveLength(1);
+    const detachedMerge = await counted(['worktree', 'merge', 'A-7'], wt);
+    expect(detachedMerge.code).toBe(2);
+    expect(detachedMerge.err).toContain('a detached HEAD');
+    expect(branchReads(detachedMerge.argv)).toHaveLength(1);
+  } finally {
+    spawnLog.fail = undefined;
+    copy.cleanup();
+  }
+  await checkItem(item('current branch'));
+}, LIMIT);
+
+it('risk:complex-branching lane S gate done reads the review commit once and fails closed without one', async () => {
+  const key = 'wt-S-1 gate done S-1 --json';
+  const got = (await runSample([key]))[key];
+  const want = readGolden<Record<string, { code: number; out: string; err: string }>>('goldens.json')[key];
+  expect(got.code).toBe(want.code);
+  expect(got.out).toBe(want.out);
+  expect(got.err).toBe(want.err);
+  expect(got.argv.filter(isReviewLog)).toHaveLength(1);
+
+  // A lane S ticket whose review.md holds no `## Round ` commit: Done fails, from one review log and no show of a review commit.
+  const repo = makeEmptyRepo();
+  try {
+    writeFiles(repo, { 'accord/config.yml': CONFIG, 'accord/tickets/S-1.md': laneTicket('S-1', { lane: 'S', body: LANE_S_BODY }) });
+    commitMsg(repo, 'base');
+    const r = await counted(['gate', 'done', 'S-1', '--json'], repo);
+    expect(r.code).toBe(1);
+    expect(r.argv.filter(isReviewLog)).toHaveLength(1);
+    expect(r.argv.filter(isShow)).toEqual([]);
+  } finally {
+    cleanup(repo);
+  }
+  await checkItem(item('review commit'));
+}, LIMIT);

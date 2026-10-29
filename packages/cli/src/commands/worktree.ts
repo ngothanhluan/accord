@@ -592,7 +592,7 @@ export function worktreeMerge(ctx: CommandContext, id: string): number {
   if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id);
   const branch = branchOf(ctx.snapshot, id);
   // refusals first: a refused merge makes no network call
-  const cur = currentBranch(ctx.root);
+  const cur = ctx.branch === undefined ? currentBranch(ctx.root) : ctx.branch.name;
   if (cur !== branch) {
     throw new UsageError(`${id} is merged on its branch ${branch}, and this checkout is on ${cur ? cur : 'a detached HEAD'} - run accord worktree merge ${id} in the ticket's worktree; nothing was merged`);
   }

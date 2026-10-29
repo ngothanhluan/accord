@@ -28,7 +28,7 @@ import { testsSkipped } from './commands/tests-skipped.js';
 import { drop } from './commands/drop.js';
 import { upgrade } from './commands/upgrade.js';
 import { worktreeCheck, worktreeClean, worktreeMerge, worktreeOpen, worktreePush } from './commands/worktree.js';
-import { loadClaimView, loadFromFs, UsageError } from './load/fs.js';
+import { loadClaimView, loadWithBranch, UsageError } from './load/fs.js';
 import { pinMessage, versionOnDisk } from './pin.js';
 import { repoRoot } from './root.js';
 
@@ -46,6 +46,8 @@ export interface CommandContext {
   root: string;
   snapshot: RepoSnapshot;
   plain?: RepoSnapshot; // checkout-only snapshot, set under 'claims' (BUG-LN-2 D-04)
+  /** ST-LN-63: the current branch of `root`, read once by the load (undefined name: git could not say; '' : detached); absent in light mode. */
+  branch?: { name: string | undefined };
   stdout: NodeJS.WritableStream;
   stderr: NodeJS.WritableStream;
   env: NodeJS.ProcessEnv;
@@ -59,7 +61,10 @@ export interface CommandContext {
 function preflight(opts: RunOptions, mode: 'checkout' | 'stage' | 'claims' | 'light' = 'checkout'): CommandContext {
   const root = repoRoot(opts.cwd);
   const parts = mode === 'claims' ? loadClaimView(root) : undefined;
-  const snapshot = loadSnapshot(parts?.view ?? loadFromFs(root, { stage: mode === 'stage', light: mode === 'light' }));
+  const loaded = parts === undefined ? loadWithBranch(root, { stage: mode === 'stage', light: mode === 'light' }) : undefined;
+  const snapshot = loadSnapshot(parts?.view ?? (loaded as NonNullable<typeof loaded>).input);
+  // ST-LN-63: the branch the load read, handed on so no command asks git for it again (none in light mode).
+  const branch = parts?.branch ?? loaded?.branch;
   const plain = parts === undefined ? undefined : parts.checkout === parts.view ? snapshot : loadSnapshot(parts.checkout);
   // D-94: a hard refusal, no flag and no environment variable that skips it. `config` is undefined
   // when config.yml is missing or failed the schema (D-31); those repositories must report their
@@ -68,7 +73,7 @@ function preflight(opts: RunOptions, mode: 'checkout' | 'stage' | 'claims' | 'li
     const message = pinMessage(snapshot.config.accord, pkg.version, versionOnDisk());
     if (message !== undefined) throw new UsageError(message);
   }
-  return { root, snapshot, ...(plain === undefined ? {} : { plain }), stdout: opts.stdout, stderr: opts.stderr, env: opts.env ?? {}, ...(opts.stdin === undefined ? {} : { stdin: opts.stdin }) };
+  return { root, snapshot, ...(plain === undefined ? {} : { plain }), ...(branch === undefined ? {} : { branch }), stdout: opts.stdout, stderr: opts.stderr, env: opts.env ?? {}, ...(opts.stdin === undefined ? {} : { stdin: opts.stdin }) };
 }
 
 /**

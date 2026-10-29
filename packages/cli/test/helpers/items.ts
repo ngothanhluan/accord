@@ -17,6 +17,16 @@ export const ITEMS: Item[] = [
     keys: ['main status', 'main worktree open A-1'],
     p: (a) => a[0] === 'rev-parse' && a.includes('--verify') && a.some((x) => x.startsWith('refs/heads/')),
   },
+  {
+    item: 'current branch',
+    keys: ['wt-A-7 anchor', 'wt-A-7 worktree merge A-7'],
+    p: (a) => a[0] === 'symbolic-ref' && a.includes('--short') && a.includes('HEAD'),
+  },
+  {
+    item: 'review commit',
+    keys: ['wt-S-1 gate done S-1 --json'],
+    p: (a) => a.includes('log') && a.includes('-G') && a.includes('^## Round '),
+  },
 ];
 
 /**

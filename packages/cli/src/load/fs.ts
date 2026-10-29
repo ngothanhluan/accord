@@ -567,7 +567,7 @@ function reviewStartOf(root: string, id: string, tips: string[]): string | undef
 const REVIEW_OPTS = (root: string) => ({ cwd: root, encoding: 'utf8' as const, stdio: ['ignore', 'pipe', 'pipe'] as ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 });
 
 /** ST-LN-31: the last commit on HEAD whose change to the ticket's review.md adds or removes a `## Round ` line. */
-function reviewCommit(root: string, id: string): string | undefined {
+export function gitReviewCommit(root: string, id: string): string | undefined {
   try {
     const sha = execFileSync('git', ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '-1', '-G', '^## Round ', '--format=%H', 'HEAD', '--', `:(literal)accord/tickets/${id}/review.md`], REVIEW_OPTS(root)).trim();
     return isSha(sha) ? sha : undefined;
@@ -576,13 +576,15 @@ function reviewCommit(root: string, id: string): string | undefined {
   }
 }
 
-/** ST-LN-31: whether review.md is committed and unchanged, and the paths its review commit changes; a git failure is `clean: false`, so the gate fails closed. */
-export function gitReviewFact(root: string, id: string): { clean: boolean; files?: string[] } {
+/**
+ * ST-LN-31: whether review.md is committed and unchanged, and the paths its review commit changes; a git failure is `clean: false`, so the gate fails closed.
+ * ST-LN-63: `sha` is the review commit the caller read once (`gitReviewCommit`); none means no review commit, so `clean: false` with no git process.
+ */
+export function gitReviewFact(root: string, id: string, sha: string | undefined): { clean: boolean; files?: string[] } {
+  if (sha === undefined) return { clean: false };
   try {
     const o = REVIEW_OPTS(root);
     const dirty = execFileSync('git', ['status', '--porcelain', '-z', '--untracked-files=all', '--', `:(literal)accord/tickets/${id}/review.md`], o) !== '';
-    const sha = reviewCommit(root, id);
-    if (sha === undefined) return { clean: false };
     const raw = execFileSync('git', ['-c', 'log.showSignature=false', 'show', '--no-show-signature', '-z', '--format=', '--name-only', '--no-renames', sha], o);
     const files = raw.split('\0').map((t) => (t.startsWith('\n') ? t.slice(1) : t)).filter((t) => t !== '');
     return { clean: !dirty, files };
@@ -591,9 +593,8 @@ export function gitReviewFact(root: string, id: string): { clean: boolean; files
   }
 }
 
-/** ST-LN-31: the commits on HEAD after the ticket's review commit; undefined when there is none, so the gate fails closed. */
-export function gitAfterReview(root: string, id: string): AfterVerify | undefined {
-  const commit = reviewCommit(root, id);
+/** ST-LN-31: the commits on HEAD after the ticket's review commit `commit` (read once by the caller); undefined when there is none, so the gate fails closed. */
+export function gitAfterReview(root: string, id: string, commit: string | undefined): AfterVerify | undefined {
   if (commit === undefined) return undefined;
   const r = gitAfterVerify(root, { [id]: { commit, tips: ['HEAD'] } });
   return Object.hasOwn(r, id) ? r[id] : undefined;
@@ -860,7 +861,13 @@ function loadParts(root: string, stage = false, light = false, defer = false): {
 }
 
 export function loadFromFs(root: string, options: { stage?: boolean; light?: boolean } = {}): SnapshotInput {
-  return loadParts(root, options.stage === true, options.light === true).input;
+  return loadWithBranch(root, options).input;
+}
+
+/** ST-LN-63: the load and the current branch it read (none in light mode), so a command asks git for the branch once. */
+export function loadWithBranch(root: string, options: { stage?: boolean; light?: boolean } = {}): { input: SnapshotInput; branch?: { name: string | undefined } } {
+  const { input, branch } = loadParts(root, options.stage === true, options.light === true);
+  return { input, ...(branch === undefined ? {} : { branch }) };
 }
 
 /** The five records of a ticket, as repository paths. */
@@ -874,11 +881,12 @@ const recordPaths = (id: string): string[] => [
  * the current branch's own and whose claim ref is not merged into HEAD, the ticket's five records as that ref holds them.
  * One `git cat-file --batch`, no network (`GIT_NO_LAZY_FETCH`). A blob not present locally reads as absent.
  */
-export function loadClaimView(root: string): { checkout: SnapshotInput; view: SnapshotInput } {
+export function loadClaimView(root: string): { checkout: SnapshotInput; view: SnapshotInput; branch: { name: string | undefined } } {
   // ST-LN-63: the branch is read once in loadParts, and the commits after each start come from one walk made here, over the
   // checkout's entries and the candidates' together.
   const parts = loadParts(root, true, false, true);
   const { input: bare, claimRefs, listed, statusOf } = parts;
+  const branch = parts.branch as NonNullable<typeof parts.branch>;
   const { entries: checkoutEntries, headCommit, own } = parts.deferred as NonNullable<typeof parts.deferred>;
   const env = { ...process.env, GIT_NO_LAZY_FETCH: '1' };
   /** The input with the `afterVerify` of the lists, aligned with `entries`. */
@@ -914,7 +922,7 @@ export function loadClaimView(root: string): { checkout: SnapshotInput; view: Sn
     const { walk, def } = walked(checkoutEntries);
     const afterVerify = withAfter(checkoutEntries, resolveAfter(root, checkoutEntries, walk, def));
     const checkout: SnapshotInput = { ...bare, ...(Object.keys(afterVerify).length === 0 ? {} : { afterVerify }) };
-    return { checkout, view: checkout };
+    return { checkout, view: checkout, branch };
   }
   const wanted = candidates.flatMap(([id, ref]) => recordPaths(id).map((path) => ref + ':' + path));
   let out: Buffer;
@@ -1011,7 +1019,7 @@ export function loadClaimView(root: string): { checkout: SnapshotInput; view: Sn
     ...withAfter(checkoutEntries, fromCheckout, (id) => !candidates.some(([c]) => c === id)),
     ...withAfter(candidateEntries, lists.slice(checkoutEntries.length)),
   };
-  return { checkout, view: { ...bare, files, planFacts, ...(Object.keys(afterVerify).length === 0 ? {} : { afterVerify }) } };
+  return { checkout, view: { ...bare, files, planFacts, ...(Object.keys(afterVerify).length === 0 ? {} : { afterVerify }) }, branch };
 }
 
 /** IDS-1: `git config user.email`, trimmed; '' when unset (git exits 1). */

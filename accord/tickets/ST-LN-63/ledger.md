@@ -19,6 +19,7 @@
 - Ruling: `SAMPLE_BUILD_LIMIT` is 60 s (the MIXED and SIDE build takes about 2.9 s on Windows) and the samples test limit is 120 s (it takes about 6.4 s) (executor, task 1) — both are well over six times, as the plan requires
 - Ruling: the ac-2 goldens test's own limit is 600 s; it takes about 75 to 97 s on Windows (executor, task 2) — none, the limit guards no stall; its ceiling goes to the owner at verify
 - Ruling: a remote ref whose sha is not a fixture commit and whose refname is already taken in the copy is named `ref:remote:<refname>` (executor, task 2) — keeps two shas under one placeholder from collapsing — none, it never fired in the recorded runs
+- Ruling: the records-diff predicate matches `diff` with `--name-only`, `-z`, `--no-renames` and `HEAD`, the loader's own call at fs.ts:272 (executor, task 3) — the plan names only the diff shape — a later read-command `diff` of that shape would be counted too, which is the intended direction
 
 ## Deferred
 - plan-review 1.10 Nice — clean's merged set answers R later than today on a ref that may have moved; skip the set for R or re-read it when the ref changed
@@ -33,3 +34,4 @@
 ## Tasks
 - task 1 done d4a93ac435a0
 - task 2 done 206756ddebce
+- task 3 done 82a9117d2047

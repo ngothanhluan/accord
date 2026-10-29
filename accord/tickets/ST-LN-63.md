@@ -47,7 +47,7 @@ Feature: ST-LN-63
     When each of `status`, `anchor`, `lint`, `dashboard` and `show` runs in the 20-ticket repository and in each one-ticket repository, `anchor` and `show` on that one ticket
     Then each command starts as many git processes itself in the 20-ticket repository as in the one-ticket repository, plus in total at most two more for each of the other 19 tickets whose branch holds a merge commit
 
-  @ac-2
+  @ac-2 @test:packages/cli/test/goldens.test.ts#ac-2-every-command-prints-what-it-printed-before-the-change
   Scenario: Every command prints what it printed before the change
     Given goldens recorded before any product change, of the stdout, stderr, exit code and JSON of `status`, `anchor`, `lint`, `dashboard`, `show`, `gate plan`, `gate done`, pick-up, clean, `worktree merge` and `new ticket --worktree` on the sample repositories
     When the same commands run on the same repositories after the change

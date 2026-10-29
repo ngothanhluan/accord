@@ -25,3 +25,4 @@
 ## Deferred
 - plan-review 1.2 (Nice): the build skill's `description:` and refusal bullet still name `tests.affected` as the command whose report goes missing; reword to "the command the brief printed" while keeping the word `tests.affected` for `REQUIRED`.
 - plan-review 1.3 (Nice): Task 1 should say that a path repeated on the `files:` line itself is left out; Task 3 (a) relies on it. Fixed in task 3 (2af7c0b), see its Ruling.
+- review round 2 (final) 1 (Nice): two spec lines Task 2 added are not wrapped — `docs/specs/2026-10-12-workflow-layer-design.md:305` (603 characters) and `:308` (213), and `:304` lost its wrap; wrap them near the width of §8's other lines.

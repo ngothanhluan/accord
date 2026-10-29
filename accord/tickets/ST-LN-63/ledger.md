@@ -12,6 +12,11 @@
 - Ruling: on a failed fetch, pick-up and `new ticket --worktree` finish the load from the tree, files and default branch read before the fetch — a failed fetch changes no ref (planner, round 2) — a fetch killed by its timeout after moving some refs shows claims and history read after the fetch, with the tree, files and default-branch template from before it
 - Ruling: Tasks 7–14 renumbered to 8–15 when Task 6 was split (planner, round 2) — ledger lines citing task numbers go stale
 - Ruling: the new tests of this plan (goldens, ac-1, ac-3 and the git-count risk tests) are kept even over 10 s; each is measured at build and its ceiling is written as a Decision the owner approves once at verify, with the Part 4 keeps — owner answered "A" (2026-10-29), keeping them as a guard against output changes and git-process regressions — every full run is about 3 to 5 minutes longer
+- Ruling: Sample gets `shaOf(name)`, and samples.ts also exports `MIXED`, `SIDE`, `buildSample`, `Kind` and `TicketSpec` (executor, task 1) — a test needs a name-to-sha lookup — none, test-only exports
+- Ruling: each sample ticket's code lives in its own `src/<id>.ts`, named on its plan's `files:` line, not a shared `src/export.ts` (executor, task 1) — done branches sharing one file would conflict in clean's merge-tree check and judge squash and rebased branches unsafe — if Task 2's goldens want `src/export.ts`, only the plan text changes
+- Ruling: sample A-11 (done-extra) shows stage `review`, since its code commit after the verified commit is post-verify change, and A-12 (dropped) shows `intent`; the samples test asserts both (executor, task 1) — the samples test pins today's stages for those kinds
+- Ruling: while another worktree's suite held the test-run lock, focused single-file runs used packages/cli as the vitest config; the final junit run used the root config (executor, task 1) — none for the result
+- Ruling: `SAMPLE_BUILD_LIMIT` is 60 s (the MIXED and SIDE build takes about 2.9 s on Windows) and the samples test limit is 120 s (it takes about 6.4 s) (executor, task 1) — both are well over six times, as the plan requires
 
 ## Deferred
 - plan-review 1.10 Nice — clean's merged set answers R later than today on a ref that may have moved; skip the set for R or re-read it when the ref changed
@@ -22,3 +27,6 @@
 - plan-review 2.5 Nice — `readsAfter` should be false when review.md has no verdict in `VERDICTS`, in any lane (2 unread processes for a merged ticket in review)
 - plan-review 3.1 Nice — Deferred lines' task numbers were stale; corrected above
 - plan-review 3.2 Nice — the failed-fetch Ruling's cost line was wrong; corrected above
+
+## Tasks
+- task 1 done d4a93ac435a0

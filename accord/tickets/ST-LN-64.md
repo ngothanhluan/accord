@@ -30,7 +30,7 @@ ui: false
 <!-- At most five lines: why, for whom, how success is measured, and what this does not do. -->
 Why: in ST-LN-62's build an executor ran the whole suite on its own (1368 s, 7 timeouts), because no text named the one test command it runs and `tests.full` writes the same JUnit report `accord task-done` reads.
 For whom: everyone whose ticket an executor builds; the executor gets its test command from `accord brief`, not from recall.
-Success: `accord brief <id> <n>` prints the task's exact test command and says it is the only one the executor runs, and the executor text says it never runs `tests.full`, which belongs to the plan's baseline run and to verify.
+Success: `accord brief <id> <n>` prints the task's exact test command and says it is the only one the executor runs, and the executor text says it never runs `tests.full` on its own, which belongs to the plan's baseline run and to verify.
 Non-goals: no benchmark score or hook for an executor's `tests.full` run; no change to `tests.full` runs in plan, review, lane S or verify; the CLI still runs no test command itself.
 
 ## Acceptance criteria

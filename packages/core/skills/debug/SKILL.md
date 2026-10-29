@@ -12,6 +12,7 @@ main session and orchestrate: debuggers investigate, executors fix.
 ## Steps
 
 1. Run `accord anchor`. For a failure found after verify, read `./failure.md`.
+   When `./failure.md` runs `accord worktree open`, follow `./worktree.md`.
 
 2. **State.** Everything this stage learns lives in
    `accord/tickets/<id>/debug.md`: the symptom, the hypotheses, the
@@ -64,7 +65,8 @@ main session and orchestrate: debuggers investigate, executors fix.
 7. **Three.** After three failed fixes, stop: never a fourth. Each fix
    uncovering a new problem elsewhere means the architecture is wrong,
    not the hypothesis. Write the architectural question in `debug.md`
-   and ask the owner, with what was tried. This count is this stage's
+   and ask the owner, with what was tried. An answer at step 7 that changes
+   the ticket's type follows `./ids.md`. This count is this stage's
    own; an executor's three attempts at one problem inside a task also
    end at the owner.
 

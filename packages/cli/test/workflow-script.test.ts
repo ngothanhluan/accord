@@ -26,7 +26,7 @@ import { initFiles } from '@accord-dev/accord-core';
 import { afterEach, describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import pkg from '../package.json' with { type: 'json' };
-import { cleanup, commitAll, makeEmptyRepo } from './helpers/repo.js';
+import { cleanup, commitAll, commitMsg, gitRun, makeEmptyRepo, mergeMsg } from './helpers/repo.js';
 
 // Narrow local shapes, as in core/test/scaffold.test.ts: the document is data, not a typed API.
 interface Step {
@@ -670,6 +670,139 @@ it.skipIf(noBash)('risk:security a lane S ticket that passed gate ready is gated
     } else {
       expect(r.calls.length, r.calls.join(' | ')).toBe(1);
       expect(r.out).toContain('not gating LS-1');
+    }
+  }
+}, 300_000);
+
+// ST-LN-58 D-05 part 3 and D-06: a lane M ticket may move to lane S in place until its intent is approved, at the base
+// or in any commit the pull request adds. `history` builds a base commit, then one commit per step.
+const LM_ID = 'LM-1';
+const lmText = (extra = ''): string =>
+  `---\nid: LM-1\nstatus: draft\nlane: M\n# approved_hash:\n${extra}---\n\n## Intent\nwhy\n`;
+const LM_UNAPPROVED = lmText();
+const LM_APPROVED = lmText('approved_hash: "abc"\n');
+const LM_EMPTY_KEY = lmText('approved_hash:\n');
+const LL_UNAPPROVED = LM_UNAPPROVED.replace('lane: M', 'lane: L');
+const LS_TEXT =
+  '---\nid: LM-1\nstatus: draft\nlane: "S"\n# approved_hash:\n---\n\n## Understood\nx\n\n## Done when\ny\n\n## Vetoes\n- none\n';
+const putTicket =
+  (text: string) =>
+  (r: string): void =>
+    write(r, `accord/tickets/${LM_ID}.md`, text);
+
+function history(
+  steps: Array<(repo: string) => void>,
+  seed?: (repo: string) => void,
+): { repo: string; base: string } {
+  const repo = makeEmptyRepo();
+  repos.push(repo);
+  gitRun(repo, 'config', 'user.email', 'fixture@example.invalid');
+  gitRun(repo, 'config', 'user.name', 'fixture');
+  gitRun(repo, 'config', 'commit.gpgsign', 'false');
+  write(repo, 'docs/readme.md', 'base\n');
+  seed?.(repo);
+  const base = commitMsg(repo, 'base');
+  for (const step of steps) {
+    step(repo);
+    if (gitRun(repo, 'status', '--porcelain') !== '') commitMsg(repo, 'step');
+  }
+  return { repo, base };
+}
+
+/** The `lint and gate` script of this repository's own workflow. */
+function ownScript(): string {
+  const yml = readFileSync(fileURLToPath(new URL('../../../.github/workflows/accord.yml', import.meta.url)), 'utf8');
+  const named = (parse(yml) as unknown as { jobs: { accord: { steps: Array<Step & { name?: string }> } } }).jobs.accord
+    .steps.filter((s) => s.name === 'lint and gate');
+  return named[0].run as string;
+}
+const LANE_REFUSAL = `${LM_ID}: its lane cannot drop after approval`;
+
+/** One sandbox per (case, script) pair, since a run writes script.sh and calls.log into its sandbox; every run at once. */
+async function laneRuns<T extends { make: () => { repo: string; base: string } }>(
+  cases: T[],
+): Promise<Array<{ c: T; r: Run }>> {
+  const jobs = [SCRIPT, ownScript()].flatMap((script) => cases.map((c) => ({ c, script, s: c.make() })));
+  const runs = await Promise.all(jobs.map(({ script, s }) => runScriptAsync(s.repo, { base: s.base, script })));
+  return jobs.map((j, i) => ({ c: j.c, r: runs[i] }));
+}
+
+it.skipIf(noBash)('ac-5 both CI scripts refuse a move to lane S only once intent was approved at the base or in a commit the pull request adds', async () => {
+  const toS = putTicket(LS_TEXT);
+  // The approval exists only in a commit on the merged side, and the merge result equals both parents.
+  const side = (r: string): void => {
+    gitRun(r, 'checkout', '-q', '-b', 'side');
+    putTicket(LM_APPROVED)(r);
+    commitMsg(r, 'approve on the side');
+    putTicket(LM_UNAPPROVED)(r);
+    commitMsg(r, 'unapprove on the side');
+    gitRun(r, 'checkout', '-q', '-');
+    mergeMsg(r, 'side', 'merge side');
+  };
+  const cases = [
+    { name: 'pass, base unapproved', fails: false, make: () => history([toS], putTicket(LM_UNAPPROVED)) },
+    { name: 'pass, absent at the base', fails: false, make: () => history([putTicket(LM_UNAPPROVED), toS]) },
+    { name: 'fail, approved at the base', fails: true, make: () => history([toS], putTicket(LM_APPROVED)) },
+    {
+      name: 'fail, approved only on the branch',
+      fails: true,
+      make: () => history([putTicket(LM_UNAPPROVED), putTicket(LM_APPROVED), toS]),
+    },
+    {
+      name: 'fail, any value',
+      fails: true,
+      make: () => history([putTicket(LM_EMPTY_KEY), toS], putTicket(LM_UNAPPROVED)),
+    },
+    { name: 'fail, merge side', fails: true, make: () => history([putTicket(LM_UNAPPROVED), side, toS]) },
+  ];
+  for (const { c, r } of await laneRuns(cases)) {
+    const said = r.out + r.err;
+    if (c.fails) {
+      expect(r.code, `${c.name}: ${said}`).toBe(1);
+      expect(said, c.name).toContain(LANE_REFUSAL);
+      expect(r.calls.some((call) => call.endsWith(` gate done ${LM_ID}`)), c.name).toBe(false);
+    } else {
+      expect(r.code, `${c.name}: ${said}`).toBe(0);
+      expect(said, c.name).not.toContain('lane cannot drop after approval');
+    }
+  }
+}, 300_000);
+
+it.skipIf(noBash)('risk:security a commit of the pull request whose ticket frontmatter cannot be read fails the lane check closed in both scripts', async () => {
+  // Beyond the literal first Then of ac-5 (ledger Ruling): an unreadable frontmatter counts as possibly approved.
+  const unreadable = putTicket('---\n{id: LM-1, lane: M}\n---\n\n## Intent\nwhy\n');
+  const cases = [{ make: () => history([unreadable, putTicket(LS_TEXT)]) }];
+  for (const { r } of await laneRuns(cases)) {
+    expect(r.code, r.out + r.err).toBe(1);
+    expect(r.out + r.err).toContain(LANE_REFUSAL);
+  }
+}, 300_000);
+
+it.skipIf(noBash)('risk:security the lane check reads a lane S value written off its key line and refuses a lane L ticket at the base in both scripts', async () => {
+  const offLine = LS_TEXT.replace('lane: "S"\n', 'lane:\n  S\n');
+  const tagged = LS_TEXT.replace('lane: "S"', 'lane: !!str S');
+  const cases = [
+    { name: 'fail, value off its key line', fails: true, make: () => history([putTicket(offLine)], putTicket(LM_APPROVED)) },
+    { name: 'fail, tagged value', fails: true, make: () => history([putTicket(tagged)], putTicket(LM_APPROVED)) },
+    { name: 'fail, lane L at the base', fails: true, make: () => history([putTicket(LS_TEXT)], putTicket(LL_UNAPPROVED)) },
+    {
+      name: 'pass, guard against an over-wide check',
+      fails: false,
+      make: () =>
+        history([putTicket(LM_APPROVED.replace('## Intent\nwhy\n', '## Intent\nwhy\nedited\n'))], putTicket(LM_APPROVED)),
+    },
+  ];
+  for (const { c, r } of await laneRuns(cases)) {
+    const said = r.out + r.err;
+    const gated = r.calls.some((call) => call.endsWith(` gate done ${LM_ID}`));
+    if (c.fails) {
+      expect(r.code, `${c.name}: ${said}`).toBe(1);
+      expect(said, c.name).toContain(LANE_REFUSAL);
+      expect(gated, c.name).toBe(false);
+    } else {
+      expect(r.code, `${c.name}: ${said}`).toBe(0);
+      expect(said, c.name).not.toContain('lane cannot drop after approval');
+      expect(gated, c.name).toBe(true);
     }
   }
 }, 300_000);

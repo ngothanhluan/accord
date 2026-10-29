@@ -79,6 +79,6 @@ plans or builds. You run it in the main session.
   Read `./ask.md` before any question to the owner.
 - **Lane S.** Before step 9, when the interview shows the request fits lane S (none of the four lift conditions in `./lane.md` holds, judged on what `accord-scout` reports), no ticket that `accord status --json` lists names this one in `depends_on`, and both
   `git diff --name-only <origin's default branch>...HEAD` and `git status --porcelain --untracked-files=all` list
-  only `accord/tickets/<id>.md` and paths under `accord/tickets/<id>/`, propose dropping it to lane S, with the
-  reason. Drop it only on the owner's yes, as `## Moving to lane S` in `./ids.md` says; otherwise say why it stays
+  only `accord/tickets/<id>.md` and paths under `accord/tickets/<id>/`, propose moving it to lane S, with the
+  reason. Move it only on the owner's yes, as `## Moving to lane S` in `./ids.md` says; otherwise say why it stays
   lane M. From step 9 on, a lane never drops.

@@ -68,6 +68,7 @@
 - Ruling: Task 9's test title and verify id say lane M — Task 9 was not yet recorded, so no recorded id changes — cost if wrong: none.
 - Ruling: Task 9's test includes a lane M whitespace-only case — it pins the Ruling that any change counts as ahead — cost if wrong: one extra assertion.
 - Ruling: packages/cli/test/dashboard.test.ts, outside every task's files line, renames the two tests ST-LN-61 (lane S) renamed to `ac-2 up next leaves out the ready tickets and lists all the rest` and `ac-4 sections list every row on a large backlog` into `risk:regression …`, commit 1eb8423 — CI's gate done for ST-LN-62 failed `gate.test-untraced` on them; lane S tests are named `risk:<kind>`; retagging ST-LN-18 ac-2 and ST-LN-2 ac-4 instead would make CI gate those done tickets, whose verification is stale and whose criteria still describe the caps ST-LN-61 removed (its Ruling 7 keeps their text); the owner chose to fix it in this ticket ("B") and approved the rename ("ok") — cost if wrong: the `@test:` tags of ST-LN-18 ac-2 and ST-LN-2 ac-4 still name tests that no longer exist, a lint warning until a pull request touches those tickets.
+- Ruling: `accord/tickets/ST-LN-62.md` stays untouched; ST-LN-58 D-05 removes the hand-off from a drop that its ac-1 test asserted on accord SKILL.md (`lane S without asking again`, `## Scope` in the S bullet); the test keeps its name and loses only those assertions — editing the ticket file changes its AC hash, while the ledger is outside the hash — cost if wrong: ST-LN-62's own text still names the hand-off
 
 ## Deferred
 

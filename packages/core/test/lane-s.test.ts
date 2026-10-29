@@ -6,7 +6,7 @@ import { nextRows, statusRows } from '../src/status/rows.js';
 import { isDone } from '../src/status/stage.js';
 import { anchorText } from '../src/status/anchor.js';
 import { lintSnapshot } from '../src/lint/index.js';
-import { agentTargets, skillTargets } from '../src/index.js';
+import { agentTargets, skillTargets, templates } from '../src/index.js';
 import { gateDone, gateReady } from '../src/gate/index.js';
 import { CONFIG, LANE_BODY, LANE_S_BODY, PLAN, REPORT, junit, laneTicket } from '../../../test/helpers/lane.js';
 
@@ -130,28 +130,43 @@ it('ac-5 a queued lane M ticket drops to lane S only at intent on the owners yes
   const rule = intent.slice(intent.indexOf('**Lane S.**'));
   expect(rule.length).toBeGreaterThan(0);
   expect(intent.indexOf('**Lane S.**')).toBeGreaterThan(intent.indexOf('## Rules'));
-  for (const x of ['fits lane S', '`accord status --json`', '`depends_on`', '`git status --porcelain --untracked-files=all`', 'propose dropping it to lane S', "only on the owner's yes", '`## Moving to lane S` in `./ids.md`', 'From step 9 on, a lane never drops'])
+  for (const x of ['fits lane S', '`accord status --json`', '`depends_on`', '`git status --porcelain --untracked-files=all`', "only on the owner's yes", '`## Moving to lane S` in `./ids.md`', 'From step 9 on, a lane never drops'])
     expect(rule, x).toContain(x);
   const ids = flat('.claude/skills/accord-intent/ids.md');
   expect(ids.length).toBeGreaterThan(0);
   expect(ids).toBe(flat('.claude/skills/accord/ids.md'));
   const move = ids.slice(ids.indexOf('## Moving to lane S'));
-  for (const x of ['`git status --porcelain --untracked-files=all`', 'do not drop', 'commit only those records', '`git add -A`', '`accord drop <id> --reason "moved to lane S"`', 'step 1 of', '(lane S, moved from <id>)', 'Title: <its title> Keys: <its depends_on, tracker, priority, ui and design lines', '`accord new ticket --lane S --worktree`', 'a new id'])
+  for (const x of ['`git status --porcelain --untracked-files=all`', 'commit only those records', '`git add -A`'])
     expect(move, x).toContain(x);
   expect(move).not.toContain('commit every change');
   const accord = flat('.claude/skills/accord/SKILL.md');
-  expect(accord).toContain('lane S without asking again');
   expect(accord).toContain('--lane S --worktree');
   const plan = flat('.claude/skills/accord-plan/SKILL.md');
   expect(plan).toContain('Run `git rev-parse HEAD` (lifted from lane S: the fork point in its ledger Ruling)');
   expect(plan).toContain('`baseline: <that commit>`');
   const planner = (agentTargets(cfg).find((f) => f.path === '.claude/agents/accord-planner.md')?.text ?? '').replace(/\s+/g, ' ');
   expect(planner).toContain('or, for a ticket lifted from lane S, the fork point its ledger Ruling names');
+});
 
-  const T = (fm: string[], reason: string) => laneTicket('M-1', { frontmatter: ['status: dropped', ...fm], body: LANE_BODY + '\n## Dropped\n' + reason + '\n' });
-  const A = 'approved_hash: "fnv1a64:0123456789abcdef"';
-  const lint = (t: string) => lintSnapshot(snap({ 'accord/tickets/M-1.md': t })).findings;
-  expect(lint(T([A], 'moved to lane S'))).toContainEqual(expect.objectContaining({ rule: 'lint.dropped-approved', file: 'accord/tickets/M-1.md', level: 'error' }));
-  expect(lint(T([], 'moved to lane S')).map((f) => f.rule)).not.toContain('lint.dropped-approved');
-  expect(lint(T([A], 'no longer needed')).map((f) => f.rule)).not.toContain('lint.dropped-approved');
+it('risk:parsing a lane M ticket moved in place to lane S lints clean and passes gate ready as lane S', () => {
+  const tpl = templates['ticket-lane.md'];
+  const front = tpl
+    .slice(0, tpl.indexOf('## Intent'))
+    .replace('id: "TICKET-ID"', 'id: "MV-1"')
+    .replace('title: "Short title in business language"', 'title: "Export"')
+    .replace(/^lane: M.*$/m, 'lane: "S"');
+  const fill = (text: string, heading: string, line: string) => text.replace(new RegExp(`(## ${heading}\\n)<!--[^]*?-->\\n`), `$1${line}\n`);
+  let tail = tpl.slice(tpl.indexOf('## Vetoes'), tpl.indexOf('## Open questions'));
+  tail = fill(tail, 'Vetoes', '- "never touch the schema"');
+  tail = fill(tail, 'Decisions', '- D-01 csv only');
+  tail = fill(tail, 'Corrections', '- "no, the tsv one"');
+  const understood = '## Understood\nThe export button writes a csv file.\n\n## Done when\nPressing export saves report.csv.\n\n## Scope\nsrc/export.ts\n\n';
+  const moved = front + understood + tail;
+  const s = snap({ 'accord/tickets/MV-1.md': moved }, { tree: ['src/export.ts', 'accord/config.yml', 'accord/tickets/MV-1.md'] });
+  expect(lintSnapshot(s).findings.filter((f) => f.level === 'error')).toEqual([]);
+  expect(statusRows(s).find((r) => r.id === 'MV-1')).toMatchObject({ lane: 'S', stage: 'intent' });
+  expect(gateReady(s, 'MV-1').verdict).toBe('pass');
+  const a = anchorText(s, 'MV-1')!.split('\n');
+  expect(a).toContain('Lane: S');
+  expect(a[a.indexOf('## Vetoes') + 1]).toBe('- "never touch the schema"');
 });

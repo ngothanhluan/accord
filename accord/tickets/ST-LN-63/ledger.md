@@ -30,6 +30,11 @@
 - Ruling: a start commit missing locally makes the whole `git log --stdin --ignore-missing` walk fail (exit 128), and every ticket falls back to today's per-ticket reads (executor, task 5) — output stays the same (D-08); a retry or pre-check spawn was not added — that command saves nothing; Task 7's samples must hold no missing start; reviewers judge it
 - Ruling: packages/core/test/stage-skills.test.ts ac-5 fails on the unguarded `process.platform` at packages/cli/test/goldens.test.ts:25 and packages/cli/test/helpers/runs.ts:88 from Task 2 (executor, task 5 full run) — the cli affected runs never include that core test; it goes to review as a finding to fix — the full run stays red with one failure until review fixes it
 - Ruling: task 5's shared-walk test takes 4.5 s alone and 3.9 s in the affected run; task 4's two tests took 8.0 s and 9.5 s in that run (task 5 build) — under 10 s this time — the loaded times vary between runs
+- Ruling: a candidate's plan subject is read only when `readsSubject` holds (lane other than S and an open task), computed from its overlaid ticket, plan and ledger texts; stage.ts:91 is the only place core reads it, and any other candidate gets `{ clean: true }` (executor, task 6) — goldens show no output change — if wrong, `status` shows a plan-stage ticket as build and the spawn must come back
+- Ruling: checkout and candidate entries go through one `resolveAfter` call, deduplicated on id, start and tips (executor, task 6) — one own call serves both when they match, as the brief requires — if wrong, one ticket is read twice, one extra git process
+- Ruling: task 6's test asserts that the plan-subject `git log -1 --format=%s` runs once for C-2 and C-5 (merge) and never for C-1, and compares the subject with git's own, instead of an ITEMS entry (executor, task 6) — it tests the risk directly — the reviewer finds `expectFewer('main status', P)` missing
+- Ruling: task 6's affected run had one failure, worktree.test.ts "risk:data-loss worktree merge names a non-ASCII ignored file it would overwrite", a 120 s timeout measured at 21,612 s, so the machine slept during it; alone it passes (1 passed, 33.8 s) and task 6 touched no worktree code (task 6 build) — the run used ACCORD_TEST_WORKERS=4 after an earlier run was killed for low memory; 617 passed, 3 skipped otherwise — if not a sleep artifact, a worktree merge hang goes unseen until the full run at verify
+- Ruling: under that run the git-count tests took 15.0 s (baseline history), 13.8 s (head author), 11.6 s (claim tips), 4.7 s (shared walk) and 4.8 s (claim view) (task 6 build) — the first three go over 10 s under load — their ceilings go to the owner at verify
 
 ## Deferred
 - plan-review 1.10 Nice — clean's merged set answers R later than today on a ref that may have moved; skip the set for R or re-read it when the ref changed
@@ -47,3 +52,4 @@
 - task 3 done 82a9117d2047
 - task 4 done b4120e40f31e
 - task 5 done c7ee946d1783
+- task 6 done 523279597366

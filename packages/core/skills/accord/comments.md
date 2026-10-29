@@ -29,7 +29,8 @@ followed by the request, in place of the line it prints, and stop here.
 4. **Conflicts.** When a comment asks for something a Veto, Decision or
    Correction of the ticket forbids or settles otherwise, stop handling
    every comment and ask the owner about that one, naming the Veto,
-   Decision or Correction. Fix no comment until the owner answers.
+   Decision or Correction. Fix no comment until the owner answers. This
+   comes before step 3: post no question while a conflict is open.
 5. **Fix.** Classify each comment that holds `patch`, `plan-gap` or
    `intent-gap` and handle them as `accord-review` handles one round's
    findings, the patch ones fixed together through a fresh executor in

@@ -1047,6 +1047,7 @@ it('risk:regression the accord skill routes pull request comments to comments.md
     'Fix no comment until every unclear comment is answered, in its thread by its author or in the chat by the owner',
     'stop handling every comment and ask the owner about that one, naming the Veto, Decision or Correction',
     'Fix no comment until the owner answers',
+    'This comes before step 3: post no question while a conflict is open',
     "handle them as `accord-review` handles one round's findings, the patch ones fixed together through a fresh executor in lane M, and by you yourself in lane S, which has no executor",
     'after a `stop:` line, ask the owner to type, in the session opened there, `/accord <id> ` followed by the request',
     'one new review round and then verify again for lane M, the lane S steps for lane S',

@@ -260,6 +260,9 @@ describe('accord brief', () => {
 });
 
 const BRIEF_RULE = 'Shared rule: run the build first.';
+const NO_COMMAND = 'No test command is configured: accord/config.yml has no tests.affected and no tests.full.';
+const ONLY = 'This is the only test command the executor runs for this task.';
+const withTests = (lines: string[]) => CONFIG.replace('  report: ' + REPORT + '\n', '  report: ' + REPORT + '\n' + lines.map((l) => '  ' + l + '\n').join(''));
 
 it('ac-1 a brief carries the plan preamble', async () => {
   const repo = makeLaneRepo({
@@ -269,7 +272,7 @@ it('ac-1 a brief carries the plan preamble', async () => {
     const ticket = readFileSync(join(repo, 'accord/tickets/T-1.md'), 'utf8');
     const r = await run(['brief', 'T-1', '2'], repo);
     expect(r.code).toBe(0);
-    expect(r.out).toBe(ticket.replace(/\n*$/, '\n') + '\n---\n\n' + BRIEF_RULE + '\n\n## Task 2: B\ncovers: @ac-2\n');
+    expect(r.out).toBe(ticket.replace(/\n*$/, '\n') + '\n---\n\n' + BRIEF_RULE + '\n\n## Task 2: B\ncovers: @ac-2\n' + '\n---\n\n' + NO_COMMAND + '\n');
     expect(r.out).not.toContain('Task 1');
   } finally {
     cleanup(repo);
@@ -284,7 +287,7 @@ it('ac-2 a plan with no preamble gives the same brief as before', async () => {
     const ticket = readFileSync(join(repo, 'accord/tickets/T-1.md'), 'utf8');
     const r = await run(['brief', 'T-1', '1'], repo);
     expect(r.code).toBe(0);
-    expect(r.out).toBe(ticket.replace(/\n*$/, '\n') + '\n---\n\n## Task 1: A\ncovers: @ac-1\n');
+    expect(r.out).toBe(ticket.replace(/\n*$/, '\n') + '\n---\n\n## Task 1: A\ncovers: @ac-1\n' + '\n---\n\n' + NO_COMMAND + '\n');
   } finally {
     cleanup(repo);
   }
@@ -1303,6 +1306,109 @@ it('ac-2 every brief ends with the repository conventions', async () => {
     }
     rmSync(conv);
     expect(await brief()).toBe(before);
+  } finally {
+    cleanup(repo);
+  }
+}, 60_000);
+
+it('ac-1 the brief prints the task tests.affected command as the only one to run', async () => {
+  const plan =
+    '---\nbaseline: abc1234\n---\n\n## Task 1: A\ncovers: @ac-1\n\n## Task 2: B\ncovers: @ac-2\nfiles: src/export.ts, src/csv.ts\nverify: test/csv.test.ts#quotes-cells (@ac-2), test/export.test.ts#writes-csv, src/csv.ts#direct\n';
+  const repo = makeLaneRepo({
+    'accord/config.yml': withTests(['affected: npx vitest related --run {files} --reporter=junit', 'full: npx vitest run --reporter=junit']),
+    'accord/tickets/T-1/plan.md': plan,
+    'src/csv.ts': 'export const csv = 1;\n',
+    'test/csv.test.ts': '',
+    'test/export.test.ts': '',
+  });
+  try {
+    const ticket = readFileSync(join(repo, 'accord/tickets/T-1.md'), 'utf8');
+    const r = await run(['brief', 'T-1', '2'], repo);
+    expect(r.code).toBe(0);
+    expect(r.out).toBe(
+      ticket.replace(/\n*$/, '\n') +
+        '\n---\n\n## Task 2: B\ncovers: @ac-2\nfiles: src/export.ts, src/csv.ts\nverify: test/csv.test.ts#quotes-cells (@ac-2), test/export.test.ts#writes-csv, src/csv.ts#direct\n' +
+        '\n---\n\nTest command: npx vitest related --run src/export.ts src/csv.ts test/csv.test.ts test/export.test.ts --reporter=junit\n' +
+        ONLY +
+        '\n',
+    );
+  } finally {
+    cleanup(repo);
+  }
+});
+
+it('ac-2 without tests.affected the brief prints tests.full and says why', async () => {
+  const repo = makeLaneRepo({ 'accord/config.yml': withTests(['full: npx vitest run --reporter=junit']) });
+  try {
+    const r = await run(['brief', 'T-1', '2'], repo);
+    expect(r.code).toBe(0);
+    expect(
+      r.out.endsWith(
+        '\n---\n\nTest command: npx vitest run --reporter=junit\n' + ONLY + '\ntests.full is printed because accord/config.yml has no tests.affected.\n',
+      ),
+    ).toBe(true);
+  } finally {
+    cleanup(repo);
+  }
+});
+
+it('ac-3 without either command the brief says no test command is configured', async () => {
+  const repo = makeLaneRepo();
+  try {
+    for (const n of ['1', '2']) {
+      const r = await run(['brief', 'T-1', n], repo);
+      expect(r.code).toBe(0);
+      expect(r.out.endsWith('\n---\n\n' + NO_COMMAND + '\n')).toBe(true);
+      expect(r.out).not.toContain('Test command:');
+    }
+  } finally {
+    cleanup(repo);
+  }
+});
+
+const NO_PATHS = 'No test command is configured for this task: its files: and verify: lines name no path for {files}.';
+
+it('risk:parsing the brief test command quotes odd paths and drops new marks repeats and non-file verify prefixes', async () => {
+  const plan = [
+    '---',
+    'baseline: abc1234',
+    '---',
+    '',
+    '## Task 1: A',
+    'covers: @ac-1',
+    "files: src/export.ts, lib/@scope/a+b=c.ts, app/(group)/[slug]/page.tsx (new), routes/$id.tsx, src/$&.ts, docs/it's.md, src/export.ts",
+    'verify: src/export.ts#a (@ac-1), export#writes-csv, tests.test_csv.TestCsv#test_quotes, test/csv.test.ts#b, test/csv.test.ts#c, app/(group)/[slug]/page.tsx#d, lonely-name',
+    '',
+    '## Task 2: B',
+    'covers: @ac-2',
+    'verify: export#escapes-commas, tests.test_csv.TestCsv#test_x',
+    '',
+  ].join('\n');
+  const repo = makeLaneRepo({
+    'accord/config.yml': withTests(['affected: run {files} -- {files}']),
+    'accord/tickets/T-1/plan.md': plan,
+    'test/csv.test.ts': '',
+  });
+  try {
+    const J = String.raw`src/export.ts lib/@scope/a+b=c.ts 'app/(group)/[slug]/page.tsx' 'routes/$id.tsx' 'src/$&.ts' 'docs/it'\''s.md' test/csv.test.ts`;
+    const a = await run(['brief', 'T-1', '1'], repo);
+    expect(a.code).toBe(0);
+    expect(a.out.endsWith('\n---\n\nTest command: run ' + J + ' -- ' + J + '\n' + ONLY + '\n')).toBe(true);
+
+    const b = await run(['brief', 'T-1', '2'], repo);
+    expect(b.code).toBe(0);
+    expect(b.out.endsWith('\n---\n\n' + NO_PATHS + '\n')).toBe(true);
+    expect(b.out).not.toContain('Test command:');
+
+    writeFiles(repo, { 'accord/config.yml': withTests(['affected: npm test']) });
+    const c = await run(['brief', 'T-1', '2'], repo);
+    expect(c.code).toBe(0);
+    expect(c.out.endsWith('\n---\n\nTest command: npm test\n' + ONLY + '\n')).toBe(true);
+
+    writeFiles(repo, { 'accord/config.yml': withTests(['affected: ""']) });
+    const d = await run(['brief', 'T-1', '1'], repo);
+    expect(d.code).toBe(0);
+    expect(d.out.endsWith('\n---\n\n' + NO_COMMAND + '\n')).toBe(true);
   } finally {
     cleanup(repo);
   }

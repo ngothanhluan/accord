@@ -223,3 +223,26 @@ it('ac-1 the executor is told how verify ids match what it must not touch and to
   expect(planner).toContain('An `accord/` folder inside a test fixture or an example is not it');
   expect(rules).toContain('Every commit, by the main session or any agent, follows `accord/product/conventions.md` when that file exists.');
 });
+
+it('ac-4 the executor runs only the test command its brief prints and never tests.full on its own', () => {
+  const flat = (s: string): string => s.replace(/\s+/g, ' ');
+  const rendered = agentTargets(config({ runtimes: ['claude', 'codex', 'cursor', 'copilot'] })).filter((f) => f.path.endsWith('/accord-executor.md'));
+  expect(rendered.length).toBeGreaterThan(0);
+  const committed = readFileSync(new URL('../../../.claude/agents/accord-executor.md', import.meta.url), 'utf8');
+  const texts: [string, string][] = [
+    ['core', agents['executor.md']],
+    ...rendered.map((f): [string, string] => [f.path, f.text]),
+    ['committed', committed],
+  ];
+  for (const [name, text] of texts) expect(text, `${name} is empty`).not.toBe('');
+  for (const [name, text] of texts) {
+    for (const phrase of [
+      'Run only the test command your brief prints for your task',
+      'never run `tests.full` on your own',
+      "`tests.full` belongs to the plan's baseline run and to verify",
+      "you run it only when your brief prints it as your task's command",
+      'When your brief prints no test command',
+      'run only the test files you wrote or changed, never `tests.full`',
+    ]) expect(flat(text), `${name} lacks: ${phrase}`).toContain(phrase);
+  }
+});

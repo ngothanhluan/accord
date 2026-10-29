@@ -301,9 +301,11 @@ touching `plan.md` carries it, and otherwise the plan stage resumes (phase 2).
 
 - In lane M and above the main session orchestrates and never edits code. In lane S it does the work.
 - One fresh `accord-executor` per task (several small same-shaped edits may be one task). Its brief comes
-  from `accord brief <id> <task>` (new): the ticket verbatim plus that task. It never receives chat history.
+  from `accord brief <id> <task>` (new): the ticket verbatim, the plan's preamble, that task, the task's test command, then `accord/product/conventions.md` when it holds text. It never receives chat history.
+- The task's test command (ST-LN-64): `tests.affected` with every `{files}` replaced by the task's `files:` paths in order, then each `verify:` entry's text before its first `#` when that text is a file in the repository or on `files:`, a repeated path left out, joined by single spaces; a path holding a character outside `[A-Za-z0-9._/@+=:-]` is single-quoted. Without `tests.affected` it is `tests.full`, and the brief says why; with neither, or with no path for `{files}`, the brief says no test command is configured. The brief says the command it prints is the only test command the executor runs.
 - Executor rules:
   - Write the task's criterion test first. Show it failing, then passing. Both outputs go in the report.
+  - Run only the test command the brief prints. Never run `tests.full` on its own: it belongs to the plan's baseline run and to verify, and the executor runs it only when the brief prints it as the task's command.
   - Fix small bugs and blockers it meets, and log them.
   - Stop and return `BLOCKED` with a question when the work would change architecture or a public
     interface, or would cross a veto.
@@ -325,7 +327,7 @@ touching `plan.md` carries it, and otherwise the plan stage resumes (phase 2).
 - `accord task-done <id> <task>` (new) writes the ledger line only when every case the task's `verify:`
   line names is recorded `passed` in the test report, the report was written after the current commit, and
   the plan below its frontmatter still matches the `plan_hash:` that `gate plan` wrote when it last passed.
-  The orchestrator runs the tests (`tests.affected`) and then `task-done`; the executor's claim alone records
+  The orchestrator runs the test command the brief printed and then `task-done`; the executor's claim alone records
   nothing. It also writes each mapped scenario's `@test:<id>` tag into the ticket, right after the `@ac-n` token,
   before the ledger line; a scenario already carrying a different tag is refused before any write, and a re-run fills
   a missing tag. The CLI never runs a test command itself: it spawns only `git`, so the check is the report, the
@@ -349,7 +351,7 @@ touching `plan.md` carries it, and otherwise the plan stage resumes (phase 2).
 | **Required** | each acceptance criterion has exactly one behaviour test, named by the scenario's existing `@test:<id>` tag, written before the code, at the cheapest layer that observes the behaviour |
 | **Allowed** | extra tests whose name carries `risk:<kind>`, where kind is one of: parsing, money or calculation, security or permission, concurrency, data loss, complex branching, regression of a real bug |
 | **Forbidden** | tests that restate the implementation, getter or setter tests, tests that only assert on mocks, a second test of behaviour a criterion test already covers at another layer |
-| **Speed** | during build only `tests.affected` runs (a command template in config, for example `vitest related {files}` or `dotnet test --filter …`, added in phase 2 with its consumer); `tests.full` runs at Done and writes the report `tests.report` names; the verify report lists slow tests |
+| **Speed** | during build only the test command `accord brief` prints for the task runs: `tests.affected` (a command template in config, for example `vitest related {files}` or `dotnet test --filter …`, added in phase 2 with its consumer), or `tests.full` when `tests.affected` is not configured; an executor never runs `tests.full` on its own; `tests.full` runs on the baseline before build and at Done and writes the report `tests.report` names; the verify report lists slow tests |
 | **Enforced** | a test case in the report that is not named by any scenario's `@test:<id>`, does not carry `risk:` in its name, and is not listed in `accord/tests-baseline.txt` is `lint.test-untraced` (a warning in `accord lint`, once any lane ticket exists) and `gate.test-untraced` (an error at Done for lane tickets). Any failed case in the report is `gate.suite-not-passed` |
 | **Baseline** | `accord tests baseline` (new) writes `accord/tests-baseline.txt` once, listing the untraced cases that exist when a project adopts the policy. It also refuses, writing nothing, a report written before the HEAD commit, as `accord task-done` does. It refuses when the file exists: the baseline only shrinks, by hand or through the test diet, so it cannot become a way past the gate. A legacy case that is edited keeps its id and stays in the baseline; that is the known limit of a report-based check |
 | **Legacy** | not retroactive. `accord-test-diet` maps an existing suite to behaviours, finds duplicates, restating tests, and trivial tests, and **proposes** deletions backed by a mutation check showing the reduced suite catches the same injected faults. The owner approves before anything is deleted |

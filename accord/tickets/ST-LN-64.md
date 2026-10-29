@@ -41,7 +41,7 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: ST-LN-64
 
-  @ac-1
+  @ac-1 @test:packages/cli/test/lane-commands.test.ts#ac-1-the-brief-prints-the-task-tests.affected-command-as-the-only-one-to-run
   Scenario: The brief prints the task's affected test command as the only one to run
     Given accord/config.yml has a tests.affected command containing {files}
     And task 2 of the ticket's plan has a files: line and a verify: line whose entries are a test file path, "#" and a test id
@@ -49,14 +49,14 @@ Feature: ST-LN-64
     Then the output holds the tests.affected command with {files} replaced by the task's files: paths in their order, then the test file of each verify: entry in its order, leaving out any path already listed, joined by single spaces
     And the output says it is the only test command the executor runs for this task
 
-  @ac-2
+  @ac-2 @test:packages/cli/test/lane-commands.test.ts#ac-2-without-tests.affected-the-brief-prints-tests.full-and-says-why
   Scenario: Without tests.affected the brief prints tests.full and says why
     Given accord/config.yml has a tests.full key and no tests.affected key
     When a person runs accord brief with the ticket's id and a task number
     Then the output holds the tests.full command and says it is the only test command the executor runs for this task
     And it says tests.full is printed because accord/config.yml has no tests.affected
 
-  @ac-3
+  @ac-3 @test:packages/cli/test/lane-commands.test.ts#ac-3-without-either-command-the-brief-says-no-test-command-is-configured
   Scenario: Without either command the brief says no test command is configured
     Given accord/config.yml has neither a tests.affected key nor a tests.full key
     When a person runs accord brief with the ticket's id and a task number

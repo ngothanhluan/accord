@@ -37,6 +37,7 @@ Ruling: approach step 6 stops on any open `gate ready` failure, not only `gate.d
 Ruling: lane-s.md is not changed for the stop — its step 1 already holds the ticket until `gate ready` exits 0 — cost if wrong: a lane S dependant could go on past a refusal
 Ruling: the spec §6 sentence also names the approach stop — that section describes how a ticket reaches plan — cost if wrong: wording only
 Ruling: Task 7's test is renamed to cover both skills — it has no ledger line yet — cost if wrong: none
+Ruling: task 7's ledger line records c9499b034a58, the merge of origin/main, not the task commit 4018276 — `accord task-done` records HEAD and the task was recorded after that merge; the sha only bounds later tasks' trailer check, and no task follows — cost if wrong: none
 
 ## Deferred
 - plan round 1.2 (Nice): Task 1 adds test imports first used in Task 3; `npm run lint` reports unused vars after Tasks 1 and 2
@@ -48,6 +49,7 @@ Ruling: Task 7's test is renamed to cover both skills — it has no ledger line 
 - plan round 4.1 (Nice): Task 7's sentence H says the step 5 commit "carries `approved_hash:` alone", false when an older `ac_hash` is present
 - plan round 4.2 (Nice): sentence S read in order puts the step 5 commit after the merge, while H commits while the gate fails
 - review round 2.2 (Nice): the `r2` block of packages/core/test/done-on-default.test.ts:65-72 re-tests what the ac-3 test covers end to end
+- review round 4.1 (Nice): the `gate.depends-unmerged` reason says "run git fetch" even in a clone without origin, where a fetch cannot help (packages/core/src/gate/ready.ts:136-140)
 
 ## Tasks
 - task 1 done a46e5943fd4b

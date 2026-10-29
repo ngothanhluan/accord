@@ -13,3 +13,9 @@ Nice 2 [patch]: the `r2` block of the core risk test re-tests what the ac-3 test
 ## Round 3 (Task 7 re-plan, base c221ac6)
 
 No findings
+
+## Round 4 (final review)
+
+Nice 1 [patch]: the `gate.depends-unmerged` reason always says "run git fetch", which cannot help in a clone without origin, where the ref read is local main or no ref resolves — packages/core/src/gate/ready.ts:136-140 — deferred
+
+verdict: converged

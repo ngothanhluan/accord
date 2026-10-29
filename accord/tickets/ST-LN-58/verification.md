@@ -1,6 +1,6 @@
 ---
 ticket: "ST-LN-58"
-commit: "b0d3298d539b97e5b566596bc6206e3cc86e719e"
+commit: "9846495b5a1932545ddbf58b64f8b9124943cf9e"
 reviewed_on: "2026-10-29"
 ---
 
@@ -8,28 +8,28 @@ reviewed_on: "2026-10-29"
 
 Result: pass
 
-Evidence: Exists: packages/core/test/skills.test.ts:482-493 (ac-1) with the helper expectEveryReferenceNamed, run over ROSTERS (full and ba+dev) and both .claude/.agents dirs, asserting the five files are rendered. Substantive: the mentions are in packages/core/skills/accord/SKILL.md (`./finish.md`, lane S step), debug/SKILL.md (`./worktree.md` step 1, `./ids.md` step 7) and verify/SKILL.md (`./worktree.md` step 4, `./ids.md` step 5) (git diff origin/main...HEAD). Wired: the test renders through skillTargets. Data flows: `npx vitest run packages/core/test/skills.test.ts packages/core/test/stage-skills.test.ts` gave 78 passed, 0 failed.
+Evidence: Exists: packages/core/test/skills.test.ts (ac-1, helper expectEveryReferenceNamed over both rosters and both runtime dirs). Substantive: mentions are `./finish.md` in packages/core/skills/accord/SKILL.md, `./worktree.md` and `./ids.md` in debug/SKILL.md and verify/SKILL.md; the helper rejects subfolders and any file not named as `./name`. Wired: the test renders through skillTargets. Data flows: `npx vitest run packages/core/test/skills.test.ts packages/core/test/stage-skills.test.ts` at 9846495 gave 80 passed, 0 failed.
 
 ## @ac-2 The check fails on a skill folder that holds a file its SKILL.md does not name
 
 Result: pass
 
-Evidence: packages/core/test/skills.test.ts:495-511 builds an in-memory folder `.claude/skills/accord-debug` with SKILL.md naming only `./failure.md` and a `worktree.md`. It asserts the thrown message holds the folder path and `worktree.md`, passes once the file is named, and reports a subfolder. It goes through the same helper as ac-1. The file passed in the run above.
+Evidence: the ac-2 test in packages/core/test/skills.test.ts builds an in-memory `.claude/skills/accord-debug` folder with an unnamed `worktree.md`, runs the same helper as ac-1, and asserts the message holds the folder path and file name. It passed in the run above.
 
 ## @ac-3 Each new mention says when to read the file
 
 Result: pass
 
-Evidence: packages/core/test/skills.test.ts:513-548 extracts the sentence around each of the five mentions and requires a named step or event ("step 6 of `./lane-s.md`", "When `./failure.md` runs `accord worktree open`", "at step 7", "at step 5") and no "when needed" wording. I read the same sentences in the git diff of the three SKILL.md files: they name those steps. The caps (5120 bytes, 120 lines) are asserted for every rendered SKILL.md in every roster. Test passed.
+Evidence: the ac-3 test in packages/core/test/skills.test.ts extracts the five sentences and requires a named step or event and no "when needed" wording; it also asserts MAX_SKILL_BYTES = 5120 and the 120-line cap on every rendered SKILL.md (rendered .claude/skills/accord-verify/SKILL.md is 5110 bytes, 71 lines; the 5143-byte source includes unrendered placeholders). The merge after the earlier verification changed accord/SKILL.md and approach/SKILL.md (git diff b0d3298 HEAD); the test still passes with these. Test passed.
 
 ## @ac-4 A lane M ticket moved to lane S at intent is changed in place
 
 Result: pass
 
-Evidence: packages/core/test/stage-skills.test.ts:932 asserts, in every ids.md render of both rosters, the in-place move text. I read it in packages/core/skills/accord/ids.md (`## Moving to lane S`): refusal on an open question, `approved_hash`, or an approved_hash commit in the branch history; commit the records; set `lane: "S"`; replace Intent, Acceptance criteria, Open questions and Approach with Understood and Done when and Scope; keep Vetoes, Decisions, Corrections and other keys; commit, push, load accord at Continue step 2 in the same session. The test also asserts that no skill holds the drop, new-ticket or hand-off wording (`accord drop`, "moved from <id>", `Title:`/`Keys:`). The removal shows in the diffs of lane-s.md, worktree.md, accord/SKILL.md and intent/SKILL.md. The Rules line keeps "A lane never drops once its intent is approved". The test file passed. The .claude/skills copies are updated in the same commit.
+Evidence: the ac-4 test in packages/core/test/stage-skills.test.ts asserts the in-place move text in every ids.md render and the absence of drop, new-ticket and hand-off wording; it passed. I grepped `accord drop` in packages/core/skills: the only hits are packages/core/skills/accord/ids.md:41 and packages/core/skills/verify/ci.md:84, which concern dropping a ticket for other reasons, not a lane S move. The in-place move text is in packages/core/skills/accord/ids.md `## Moving to lane S`. The merge diff to lane-s.md and approach/SKILL.md adds only depends_on wording, not a hand-off.
 
 ## @ac-5 CI refuses a move to lane S only once intent was approved
 
 Result: pass
 
-Evidence: packages/cli/test/workflow-script.test.ts:730 runs both scripts (scaffold SCRIPT and .github/workflows/accord.yml through ownScript) over six real git histories. Pass cases: unapproved base, and absent at the base. Fail cases, each containing "its lane cannot drop after approval": approved at the base, approved only on the branch, empty-valued key, and approval on a merge side. A fail case must not reach `gate done`. The implementation is lane_dropped in packages/core/src/scaffold/workflow.ts and the matching hunk in .github/workflows/accord.yml: it reads the base, then each commit of `git rev-list "$BASE..HEAD"`, and fails closed on an unreadable read. I ran `npx vitest run packages/cli/test/workflow-script.test.ts -t "ac-5 both CI"` with ACCORD_BASH set to Git Bash: 1 passed (not skipped). Lint rule lint.dropped-approved is removed from packages/core/src/lint/rules.ts and dropped.ts (D-05 part 4).
+Evidence: `npx vitest run packages/cli/test/workflow-script.test.ts -t ac-5` (ACCORD_BASH set to Git Bash) passed. Test at packages/cli/test/workflow-script.test.ts:730-769 runs both SCRIPT (accord init's) and ownScript() (.github/workflows/accord.yml) over six cases: pass with base unapproved, pass with the file absent at the base, fail approved at the base, fail approved only on the branch, fail with an empty-key value, fail with the approval on a merged side. Failures must exit 1 with "its lane cannot drop after approval". Both scripts use `git rev-list "$BASE..HEAD"` (.github/workflows/accord.yml:133, packages/core/src/scaffold/workflow.ts:177) and print the message at :185 and :229. Risk tests at :771 and :781 also cover unreadable frontmatter and off-line values. `dropped-approved` no longer appears in packages/*/src.

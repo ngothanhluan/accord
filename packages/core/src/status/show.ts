@@ -30,7 +30,7 @@ export interface TicketDetail {
   criteria: CriterionDetail[];
 }
 
-/** undefined unless `id` is a lane ticket in the snapshot. `plain` is the checkout-only snapshot whose done tickets decide `blockedBy` (BUG-LN-2 D-04, D-05). */
+/** undefined unless `id` is a lane ticket in the snapshot. `blockedBy` is decided on the default branch the host read (`snapshot.defaultRef`), else by `plain`, the checkout-only snapshot (BUG-LN-2 D-04, D-05, BUG-LN-13 D-01). */
 export function ticketDetail(snapshot: RepoSnapshot, id: string, plain?: RepoSnapshot): TicketDetail | undefined {
   if (!Object.hasOwn(snapshot.tickets, id)) return undefined;
   const ticket = snapshot.tickets[id];

@@ -4,9 +4,11 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { agentTargets, installedName, skillDirs, skillTargets, STAGES } from '../src/index.js';
+import { agentTargets, anchorText, gateReady, installedName, loadSnapshot, skillDirs, skillTargets, STAGES } from '../src/index.js';
 import type { AccordConfig } from '../src/index.js';
 import { parseLedger, parseReview } from '../src/load/work.js';
+import { approve, CONFIG, laneTicket, P } from '../../../test/helpers/lane.js';
+import type { Files } from '../../../test/helpers/lane.js';
 
 const config: AccordConfig = {
   accord: '0.1.0',
@@ -935,4 +937,39 @@ it('risk:parsing the declaration lines the lane S steps the reviewer and the rev
   const round = (line: string) => parseReview('review.md', '## Round 1\n\n' + line + '\n\nverdict: converged\n');
   expect(round(fill(confirmed)).confirmed).toEqual(['README.md']);
   expect(round(fill(notInterface)).notInterface).toEqual(['README.md']);
+});
+
+it('risk:regression the lane S and approach skills wait for a prerequisite merge and never edit depends_on', () => {
+  const wait =
+    "When it says a `depends_on` ticket is not done on the default branch, never remove that entry from `depends_on`: tell the owner this ticket waits for that ticket's merge, then after the merge run `git fetch` and `accord gate ready <id>` again.";
+  for (const p of ['.claude/skills/accord/lane-s.md', '.claude/skills/accord-approach/SKILL.md']) expect(flatS(p)).toContain(wait);
+});
+
+it('risk:regression a lane M ticket that gate ready refuses is never planned from approach or continue', () => {
+  const G = "Else, at any stage but `intent`, first run `accord gate ready <id>`; when it fails, show the owner what it prints and stop; when it changes the ticket, commit the ticket.";
+  const H = "6. Next: `accord-plan`, only once `accord gate ready <id>` passes. While it fails, the commit in step 5 carries `approved_hash:` alone; after its push, stop and tell the owner that `/accord continue <id>` plans the ticket once the gate passes.";
+  const tickets: Files = { 'accord/config.yml': CONFIG, [P('A')]: laneTicket('A'), [P('B')]: laneTicket('B', { frontmatter: ['depends_on: ["A"]'] }) };
+  approve(tickets, 'B');
+  const snap = loadSnapshot({ files: tickets, tree: Object.keys(tickets) });
+  const r = gateReady(snap, 'B');
+  expect(r.verdict).toBe('fail');
+  expect(r.findings.some((f) => f.rule === 'gate.depends-unmerged')).toBe(true);
+  expect(anchorText(snap, 'B')).toContain('Stage: plan, next: ');
+
+  const app = flatS('.claude/skills/accord-approach/SKILL.md');
+  expect(app).toContain(H);
+  const mid = app.indexOf("never remove that entry from `depends_on`");
+  expect(mid).toBeGreaterThanOrEqual(0);
+  expect(mid).toBeLessThan(app.indexOf(H));
+  expect(app.indexOf(H)).toBeLessThan(app.indexOf('## Rules'));
+
+  const acc = flatS('.claude/skills/accord/SKILL.md');
+  const step4 = acc.slice(acc.indexOf('4. Otherwise'), acc.indexOf('## Pick up'));
+  const at = (x: string) => step4.indexOf(x);
+  expect(step4).toContain(G);
+  expect(at('`./lane-s.md`')).toBeGreaterThanOrEqual(0);
+  expect(at('`./lane-s.md`')).toBeLessThan(at(G));
+  for (const route of ['`plan` → `accord-plan`', '`build` → `accord-build`', '`review` → `accord-review`', '`verify` → `accord-verify`', '`done` → `accord-verify` at step 6']) {
+    expect(at(route)).toBeGreaterThan(at(G));
+  }
 });

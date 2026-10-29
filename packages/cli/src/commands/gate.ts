@@ -5,7 +5,7 @@
 // than instead of it (D-97). Under `--json` stdout carries the GateResult verbatim and every notice
 // goes to stderr, so `jq '.findings[]'` works with no unwrapping (D-98).
 import { gateDone, gatePlan, gateReady, renderText } from '@accord-dev/accord-core';
-import { gitAfterReview, gitBranchCommits, gitReviewFact, UsageError } from '../load/fs.js';
+import { gitAfterReview, gitBranchCommits, gitReviewFact, UsageError, withDefaultRef } from '../load/fs.js';
 import { colourFindings } from '../render/color.js';
 import { branchFactFor } from './branch-fact.js';
 import type { CommandContext } from '../run.js';
@@ -38,7 +38,7 @@ export function gate(
       ? { ...forDone, branchFacts: { [id]: branchFactFor(ctx, id) } }
       : forDone;
   const result =
-    which === 'ready' ? gateReady(ctx.snapshot, id) : which === 'plan' ? gatePlan(ctx.snapshot, id) : gateDone(forScope, id);
+    which === 'ready' ? gateReady(withDefaultRef(ctx.root, ctx.snapshot), id) : which === 'plan' ? gatePlan(ctx.snapshot, id) : gateDone(forScope, id);
   ctx.stdout.write(
     options.json ? JSON.stringify(result, null, 2) + '\n' : colourFindings(renderText(result), ctx.stdout),
   );

@@ -231,4 +231,8 @@ export interface RepoSnapshot {
   afterVerify?: Record<string, AfterVerifyCommit[]>; // carried through from SnapshotInput
   reviewFacts?: Record<string, { clean: boolean; files?: string[] }>; // carried through from SnapshotInput
   branchFacts?: Record<string, BranchFact>; // carried through from SnapshotInput
+  // BUG-LN-13 D-01: host-supplied after load: the default ref as git names it ('refs/remotes/origin/main', or
+  // 'refs/heads/main' in a clone without origin) and a snapshot of the records of the view's tickets and every
+  // depends_on entry as that ref holds them. Only the done readers read it; absent when no default ref resolves.
+  defaultRef?: { ref: string; snapshot: RepoSnapshot };
 }

@@ -1,6 +1,6 @@
 ---
 baseline: 39fd2ec98567a35f10843999f65eb973aed1ba54
-plan_hash: "fnv1a64:9d31de6042d9187e"
+plan_hash: "fnv1a64:24038de09575a51f"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -158,13 +158,14 @@ Interface (text):
 - `packages/core/skills/build/SKILL.md`, step 3: replace the text
   ``run the affected tests yourself: the `tests.affected` command from `accord/config.yml`, with `{files}` replaced by the paths on the task's `files:` line.``
   with
-  ``run the test command its brief printed yourself; when the brief printed none, run the test files on the task's `verify:` line.``
+  ``run the test command its brief printed yourself; when the brief printed none, run the test files the executor reports it wrote or changed.``
+  (the same files the executor bullet above tells the executor to run when its brief prints no command).
   The rest of step 3 and its bullets stay; the bullet that begins ``It refuses because the report is missing or
   older than the commit: the `tests.affected` command`` stays word for word, so the build row of `REQUIRED` in
   `packages/core/test/stage-skills.test.ts:27` (which needs `tests.affected`, `accord brief`, `accord task-done`)
   still holds. The new text names no gate state word (`Ready`, `Done`), no finding level and no rule id, so
   `no rendered text restates a rule the CLI enforces` in `packages/core/test/skills.test.ts` stays green. It is
-  about 30 bytes shorter than the text it replaces, so the rendered build skill stays under `MAX_SKILL_BYTES`
+  15 bytes shorter than the text it replaces (138 against 153), so the rendered build skill stays under `MAX_SKILL_BYTES`
   (5120, `packages/core/test/skills.test.ts:188`); check it with
   `node -e "console.log(require('fs').statSync('.claude/skills/accord-build/SKILL.md').size)"`.
 - Run `npm run gen`, then `npm run build`, then `node packages/cli/dist/cli.js skills sync`, which rewrites

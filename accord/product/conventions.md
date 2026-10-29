@@ -13,3 +13,4 @@
 - Code that deletes a local branch uses `git update-ref -d refs/heads/<b> <sha it checked>`, never `git branch -D`, so a commit made after the check makes git refuse the delete instead of losing it.
 - Run `npm run build` before the full suite whenever a merge brought in source changes, since tests that run `packages/*/dist` otherwise test the build from before the merge.
 - Owner quotes in a ticket's Decisions and Corrections, in ledger Rulings, and in approval commit messages are written as a faithful English translation that keeps the owner's meaning and drops nothing, whatever language the owner used.
+- On Windows, every test run (plan baseline, affected, verify) sets `ACCORD_BASH` to Git Bash after `npm run build`, or runs from Git Bash, since from PowerShell `bash` is the WSL shim and the executed CI-script cases are recorded skipped.

@@ -1,16 +1,16 @@
 ---
 baseline: 57b9310260535e1e9e9769258a8063d793869991
-plan_hash: "fnv1a64:9f2802da03611771"
+plan_hash: "fnv1a64:89b05891dcaaccb2"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task can be finished from its own section, this preamble, the
 ticket and its ledger.
 
 Order: Task 1 builds the counting harness and the sample repositories; Task 2 records the goldens and the git counts
-at the baseline. Neither touches a file under `packages/*/src`. Tasks 3 to 6 are the wiring: Part 1, then the loader's
-per-ticket reads, ending in Task 6, whose ac-1 test runs the five read commands end to end. Tasks 7 to 11 are the other
-Part 2 items, each with its own count assertion (D-05); Task 11 adds the ac-3 test, which runs every Part 2 item's
-count assertion on the four worktree commands (D-11, D-12). Tasks 12 to 14 are Part 4.
+at the baseline. Neither touches a file under `packages/*/src`. Tasks 3 to 7 are the wiring: Part 1, then the loader's
+per-ticket reads (Tasks 4 to 6), ending in Task 7, whose ac-1 test runs the five read commands end to end. Tasks 8 to 12
+are the other Part 2 items, each with its own count assertion (D-05); Task 12 adds the ac-3 test, which runs every Part 2
+item's count assertion on the four worktree commands (D-11, D-12). Tasks 13 to 15 are Part 4.
 
 Rules for every task:
 - Test ids: every test this plan writes is a top-level `it(...)` with no `describe` around it. Its report id is the
@@ -25,7 +25,25 @@ Rules for every task:
 - Sample build time: a test file that uses a sample builds it in `beforeAll(() => ..., <limit>)` (the second argument
   is the hook's own time limit, as packages/cli/test/worktree.test.ts:51-53 does with `180_000`), never inside an `it`,
   so no test pays for the build inside its own limit. Each `it` that runs samples passes its own time limit as `it`'s
-  third argument, at least three times its time measured on Windows.
+  third argument, at least six times its time measured locally on Windows: packages/cli/vitest.config.ts:4 records
+  Windows CI runners running git 5 times slower than local runs (BUG-LN-6), and these limits guard no stall, so a wide
+  one costs nothing (conventions.md: wide enough for the whole suite in parallel). The build limits
+  (`SAMPLE_BUILD_LIMIT`, `TWENTY_BUILD_LIMIT`) use the same factor of six.
+- Expected local times on the owner's Windows machine, for the owner to weigh against the 10 s line ST-LN-44 set for
+  every test in a full run. These are unmeasured estimates from about 0.1 to 0.15 s per git process on that machine
+  (the Intent: `status` starts 150 in 21 s), likely off by up to two times either way; each task that adds the test
+  measures it. After every task is done:
+  - samples.test.ts: the build of MIXED and SIDE in `beforeAll`, about 80 to 100 git processes, 10 to 15 s, which is a
+    hook and not a test's own time; its one test about 60 processes, 6 to 10 s.
+  - goldens.test.ts: its one ac-2 test runs the 41 `RUNS` keys, about 1,000 processes, 100 to 150 s (300 to 400 s
+    in Task 2's recording run at the baseline), over 10 s and over the cli's 90 s default, so its own limit is the
+    one given as `it`'s third argument.
+  - git-count.test.ts: the ac-1 test about 20 runs, 40 to 70 s; the ac-3 test 4 worktree commands, 25 to 35 s; each
+    risk test 5 to 20 s, since each `checkItem` key without given `argv` copies a sample and runs one key; the builds
+    of the 20-ticket sample and its two one-ticket repositories in `beforeAll` about 10 to 15 s.
+  A new test of this plan measured at or over 10 s is reported as the Part 4 keeps below say (its title, its time
+  alone and with the suite, where the time goes, why it is not cut further, a proposed ceiling) and handled by the same
+  owner question and the same `## Decisions` line; the plan goes on meanwhile.
 - conventions.md binds every task: each `git log` and `git show` the code runs passes
   `-c log.showSignature=false --no-show-signature` and a 64 MiB `maxBuffer`; paths read from git output are read with
   `-z`; no unbounded list of shas or paths goes on one command line; a test that makes a commit uses
@@ -36,7 +54,7 @@ Rules for every task:
   stored or printed use `/` (`path.posix`). Nothing under `packages/core/src` changes: the gates read the same
   `RepoSnapshot` fields, now supplied only where read.
 - Files are LF with no BOM. Add no dependency.
-- Part 4 keeps (Tasks 12 to 14): a Part 4 task is done when its verify cases pass, whatever the measured time. The
+- Part 4 keeps (Tasks 13 to 15): a Part 4 task is done when its verify cases pass, whatever the measured time. The
   10 s limit holds for each of the four tests and for every test a Part 4 task splits off from one of them (D-12). A
   test still at or over 10 s is reported by the executor, by its own title, with its time alone and with the suite,
   where the time goes, why it cannot be cut further, and a proposed ceiling: the with-suite time times 1.35 (the
@@ -65,7 +83,7 @@ Definitions shared by every task:
   git's subcommand and flags, never a normalised sha or path. P always also matches the command the item adds, so a
   build that ran the new command once per ticket or per branch fails the assertion.
 - A Part 2 item's count assertions are one entry `{ item, keys, p }` of `ITEMS` in items.ts, added by the task that
-  builds the item; that task's risk test runs it with `checkItem(entry)` (`expectFewer` for each key), and Task 11's
+  builds the item; that task's risk test runs it with `checkItem(entry)` (`expectFewer` for each key), and Task 12's
   ac-3 test runs every entry on each of its keys that names one of the four worktree commands (D-05, D-11, D-12).
 - The default ref: `gitDefaultRef(root)` (origin's), else the first of `refs/heads/main` and `refs/heads/master` that
   resolves (`defaultRefOf`, fs.ts:292).
@@ -80,8 +98,9 @@ Definitions shared by every task:
   else its claim tips), as `afterWanted` holds them today (fs.ts:553-567), and for which `readsAfter` (Task 5) holds.
 - With a merge (D-10, D-11): a ticket whose branch, between the default ref and its tips, holds a commit with more than
   one parent, before or after its review commit. A sample's `withMerge` lists them.
-- The walk (Task 5) and an own call (Task 5) are defined there and used by Tasks 6 and 7. Accord never steps through a
-  merge itself (D-10): wherever the walk would, the ticket's read goes to git's own call, as today.
+- The walk (Task 5) and an own call (Task 5) are defined there and used by Task 6; Task 5's `branch` is used by
+  Task 8. Accord never steps through a merge itself (D-10): wherever the walk would, the ticket's read goes to git's
+  own call, as today.
 
 ## Task 1: The counting harness and the sample repositories
 covers: D-04
@@ -161,8 +180,8 @@ Produces, in `samples.ts`:
   `ahead: ['F-1']`. Its place `side` is a copy as built; its place `side-local` is a copy after
   `git remote remove origin`, which drops every `refs/remotes/origin/*` ref, so the default ref falls back to
   `refs/heads/main` and every claim comes from a local branch.
-- `export const SAMPLE_BUILD_LIMIT`: at least three times the build of MIXED and SIDE together measured on Windows,
-  in milliseconds.
+- `export const SAMPLE_BUILD_LIMIT`: at least six times the build of MIXED and SIDE together measured locally on
+  Windows, in milliseconds (preamble).
 - `prepareSamples(): { mixed: Sample; side: Sample }`, built once per test file and kept at module level;
   `samples()` returns them and throws `call prepareSamples in beforeAll first` when they are not built.
 
@@ -211,25 +230,35 @@ Produces, in `runs.ts`:
   not a fixture commit, named `ref:<refname>`. Nothing else is replaced (D-07); an unknown sha stays and fails the
   comparison.
 - `counted(argv, cwd)`: clears `spawnLog.calls`, sets `on`, awaits `run(argv, cwd, {})` from helpers/repo.ts, clears
-  `on` in a `finally`, returns `{ code, out, err, argv: spawnLog.calls }`.
+  `on` in a `finally`, returns `{ code, out, err, argv: spawnLog.calls.map((a) => [...a]) }`: a copy, so the next
+  `counted` call, which clears `spawnLog.calls`, never empties an earlier key's `argv`.
 - `runSample(keys = all of RUNS)`: reads the samples with `samples()`, makes the copies the keys need, runs the keys in
-  `RUNS` order through `counted`, and returns per key `{ code, out, err, argv, refs? }`, each normalised; `refs`, for
-  the four fresh-copy runs, is `git for-each-ref --format=%(objectname) %(refname)` of the copy then of its remote,
-  read after the run. It cleans every copy it made.
+  `RUNS` order through `counted`, and returns per key `{ code, out, err, argv, refs? }`; `out`, `err`, every `refs`
+  line and every argument string of `argv` pass through `normalise` before they are returned, so no temporary folder
+  (which holds the user's name on Windows) and no run-specific sha reaches a golden file. Count predicates match git's
+  subcommand and flags only (preamble), so the `<root>` and `<sha:NAME>` replacements never change a count. `refs`, for the four fresh-copy
+  runs, is `git for-each-ref --format=%(objectname) %(refname)` of the copy then of its remote, read after the run. It
+  cleans every copy it made.
 - `readGolden(name)`: `readFileSync` of `packages/cli/test/__golden__/st-ln-63/<name>` parsed as JSON; when absent it
   throws `<path> is missing: it is recorded once at the ST-LN-63 baseline and never rewritten`.
 
 `goldens.test.ts`: the `vi.mock` line of the counting harness, `beforeAll(() => prepareSamples(), SAMPLE_BUILD_LIMIT)`,
 `afterAll` cleaning the samples, then one `it('ac-2 every command prints what it printed before the change', ...)`.
-It calls `runSample()`. With `ACCORD_RECORD_ST_LN_63=1` in the environment and neither golden file present, it writes
-`goldens.json` (key -> `{ code, out, err, refs? }`) and `git-counts.before.json` (key -> `argv`), each
-`JSON.stringify(x, null, 2) + '\n'`; with the variable set and either file present it throws, so nothing re-records
-by accident. Then, in every mode, it reads both with `readGolden` and expects each key's `code`, `out`, `err` and
-`refs` to equal the golden's.
+It calls `runSample()` and first expects every `RUNS` key's `argv` to be a non-empty array, in every mode. With
+`ACCORD_RECORD_ST_LN_63=1` in the environment and neither golden file present, it builds `goldens.json`
+(key -> `{ code, out, err, refs? }`) and `git-counts.before.json` (key -> `argv`), each
+`JSON.stringify(x, null, 2) + '\n'`, and throws without writing either when either text holds `os.homedir()`,
+`os.tmpdir()` or `realpathSync.native(os.tmpdir())`, each in its native and forward-slash spelling, compared
+case-insensitively on win32; else it writes both. With the variable set and either file present it throws, so nothing
+re-records by accident. Then, in every mode, it reads both with `readGolden`, expects `git-counts.before.json` to hold
+every `RUNS` key with a non-empty array, and expects each key's `code`, `out`, `err` and `refs` to equal the
+golden's.
 
 Test first: write `goldens.test.ts` and see it fail on the missing files; record once with the variable; run it
-twice more without it, which must pass both times (other folders, other shas). Measure its time on Windows and set its
-own limit as the preamble says. Report the measured time.
+twice more without it, which must pass both times (other folders, other shas). Open `git-counts.before.json` and check
+that every key holds the argument arrays of its own run (the `main status` key starts with that run's first git call,
+not with an empty list). Measure its time locally on Windows and set its own limit as the preamble says. Report the
+measured time of the recording run and of a run without the variable.
 
 ## Task 3: Baseline history only in gate plan and gate done
 covers: D-01, D-02, D-06
@@ -385,12 +414,13 @@ failed `--stdin` log followed by today's shapes, so the fallback ran. `expectFew
 `main lint` with P = a log holding `--topo-order` and `--reverse`, or a log holding `-1` and `--format=%H` with a path
 ending `/review.md`, or `rev-list --ignore-missing`, or a log holding `--stdin`.
 
-## Task 6: The claim view on the same walk, and the 1-versus-20 count
-covers: @ac-1, D-02, D-07, D-08, D-09, D-10, D-11, D-12
-files: packages/cli/src/load/fs.ts, packages/cli/test/git-count.test.ts (new), packages/cli/test/helpers/samples.ts (new)
-verify: packages/cli/test/git-count.test.ts#ac-1-a-read-command-starts-as-many-git-processes-with-20-tickets-as-with-1 (@ac-1), packages/cli/test/git-count.test.ts#risk:complex-branching-the-claim-view-reads-plan-subjects-and-review-starts-from-the-shared-walk-and-leaves-each-merge-to-at-most-two-git-reads
+## Task 6: The claim view on the same walk
+covers: D-02, D-08, D-10
+files: packages/cli/src/load/fs.ts, packages/cli/test/git-count.test.ts (new)
+verify: packages/cli/test/git-count.test.ts#risk:complex-branching-the-claim-view-reads-plan-subjects-and-review-starts-from-the-shared-walk-and-leaves-each-merge-to-at-most-two-git-reads
 
 Consumes Task 5's `readsAfter`, `gitWalk`, `walkAfter`, `walkPath`, `ownAfterVerify`, the claim listing and `branch`.
+The code in view is fs.ts:501-711 (`loadParts` and `loadClaimView`) and Task 5's walk; samples.ts is only called.
 
 Produces:
 - `loadParts(root, stage, light, defer)`: with `defer` (only `loadClaimView` passes it) it computes no walk and no
@@ -410,6 +440,36 @@ Produces:
   (fs.ts:675). So a ticket with a merge costs at most two own reads: a review start and an after-verify read when it
   has no open task, one plan-subject read when it has one. With no candidate, `view` is the same object as `checkout`
   (run.ts:63 relies on it), now carrying the `afterVerify` computed here.
+
+Must not change: `checkout` and `view` files and claims, and every output; each `afterVerify` and planFacts subject
+that core reads (preamble: an open task); a candidate's own records still come from its ref.
+
+Test written first, `risk:complex-branching ...`. Its repository is built once, in its own `beforeAll` with
+`SAMPLE_BUILD_LIMIT`: `buildSample` with C-1 `build-missing-file`, C-2 `build-missing-file`, C-3 `verify-merged`,
+C-4 `verify-merged-before` and C-5 `build-missing-file`; then one more `git fast-import` phase in its root that adds
+one main commit, then on C-2's branch a merge commit whose second parent is that main commit, and on C-5's branch a
+commit adding its review.md with `verdict: converged` followed by the same kind of merge (the way `buildSample` writes
+the `verify-merged` merge); then `git push -q origin` of main and both branches and `git reset -q --hard`. Run from
+main, where each candidate is claimed and unmerged: (a) C-1, at build on a straight branch, shows build in
+`status --json` and starts no `log -1 --format=%s`; (b) C-2, at build with a merge after its `plan: <id> ready`
+commit, shows build and starts exactly one plan-subject log, and its subject equals what the test's own
+`git log -1 --format=%s <ref> -- <plan.md>` prints; (c) C-3, review-only with every task done and a merge after its
+review commit, shows verify and starts exactly one review-start log and one `--topo-order --reverse` log naming its
+ref, and no plan-subject log; (d) C-4, `verify-merged-before`, shows verify and starts none of the three; (e) C-5, with
+a review.md, an open task and a merge after its review commit, shows build and starts one plan-subject log and no
+review-start or after-verify log. `expectFewer('main status', P)` with P = `log ... -1 --format=%s`, or a log holding
+`--stdin`. Measure the test locally on Windows, set its own limit as the preamble says, and report it.
+
+## Task 7: The 1-versus-20 count of the read commands
+covers: @ac-1, D-02, D-07, D-09, D-11, D-12
+files: packages/cli/test/helpers/samples.ts (new), packages/cli/test/git-count.test.ts (new)
+verify: packages/cli/test/git-count.test.ts#ac-1-a-read-command-starts-as-many-git-processes-with-20-tickets-as-with-1 (@ac-1)
+
+Test-only: no file under `packages/*/src` changes. Consumes Task 1's `buildSample` and `Sample`, Task 2's `counted`,
+and the loader as Tasks 3 to 6 leave it. If the ac-1 bound fails, the cause is in the loader those tasks built; the
+executor reports which command and which git argument arrays differ, and never loosens the bound.
+
+Produces:
 - samples.ts: `oneTicketFrom(sample: Sample, id: string): Sample`, the one-ticket repository of ac-1, holding the
   ticket's branch with the same commits (D-09). In `sample.root`: `P = git merge-base refs/heads/t/<id> refs/heads/main`
   (for a `verify-merged` ticket, the main commit its merge brought in) and the paths
@@ -429,30 +489,24 @@ Produces:
   B-17 verify-merged, B-18 verify-straight, B-19 verify-merged-before, B-20 done-squash; default options. Its
   `withMerge` is `['B-6', 'B-8', 'B-17', 'B-19']`: a merge after review (B-6), a merge before review (B-8), and B-7 at
   verify with none (D-11). The two one-ticket repositories are `oneTicketFrom(twenty, 'B-6')` (a merge) and
-  `oneTicketFrom(twenty, 'B-7')` (none). samples.ts exports `TWENTY_BUILD_LIMIT`, at least three times the build of
-  the three measured on Windows; this file builds them in a second `beforeAll` with that limit.
+  `oneTicketFrom(twenty, 'B-7')` (none). samples.ts exports `TWENTY_BUILD_LIMIT`, at least six times the build of
+  the three measured locally on Windows (preamble); git-count.test.ts builds them in one more `beforeAll` with that
+  limit.
 
-Must not change: `checkout` and `view` files and claims, and every output; each `afterVerify` and planFacts subject
-that core reads (preamble: an open task); a candidate's own records still come from its ref.
+Must not change: Task 1's `buildSample`, `prepareSamples`, MIXED and SIDE, which the goldens of Task 2 were recorded
+from; samples.test.ts and goldens.test.ts stay green.
 
-Tests written first:
-- `ac-1 ...`: for each X of B-6 and B-7, with `one` = X's one-ticket repository: first, `one.withMerge` is `['B-6']`
-  for B-6 and `[]` for B-7; in both repositories `refs/heads/t/X` and `refs/remotes/origin/t/X` name the same shas,
-  and `status --json` from each root shows X at the same stage (D-07). Then for each of `status`, `anchor X`, `lint`,
-  `dashboard` and `show X` (D-12: the same ticket in both), run from each root through `counted`; `M` = the 20-ticket
-  sample's `withMerge` without X. Expect `count(twenty) <= count(one) + 2 * M.length` for each command, the one bound
-  of ac-1 as D-11 reads it. Measure the test on Windows, set its own limit as the preamble says; report it.
-- `risk:complex-branching ...`: in one repository, run from main, each candidate claimed and unmerged: (a) a candidate
-  at build on a straight branch shows build in `status --json` and starts no `log -1 --format=%s`; (b) a candidate at
-  build whose branch merged main after its `plan: <id> ready` commit shows build and starts exactly one plan-subject
-  log, and its subject equals what the test's own `git log -1 --format=%s <ref> -- <plan.md>` prints; (c) a
-  review-only candidate with every task done whose branch merged main after its review commit shows verify and starts
-  exactly one review-start log and one `--topo-order --reverse` log naming its ref, and no plan-subject log; (d) a
-  `verify-merged-before` candidate shows verify and starts none of the three; (e) a candidate with a review.md, an
-  open task and a merge after its review commit shows build and starts one plan-subject log and no review-start or
-  after-verify log. `expectFewer('main status', P)` with P = `log ... -1 --format=%s`, or a log holding `--stdin`.
+Test written first, `ac-1 ...`: for each X of B-6 and B-7, with `one` = X's one-ticket repository: first,
+`one.withMerge` is `['B-6']` for B-6 and `[]` for B-7; in both repositories `refs/heads/t/X` and
+`refs/remotes/origin/t/X` name the same shas, and `status --json` from each root shows X at the same stage (D-07).
+Then for each of `status`, `anchor X`, `lint`, `dashboard` and `show X` (D-12: the same ticket in both), run from each
+root through `counted`; `M` = the 20-ticket sample's `withMerge` without X. Expect
+`count(twenty) <= count(one) + 2 * M.length` for each command, the one bound of ac-1 as D-11 reads it. This task
+adds no product code, so the test is written first and run once on the loader Tasks 3 to 6 left; report each
+command's two counts and its bound. Measure the test locally on Windows, set its own limit as the preamble says;
+report it.
 
-## Task 7: The current branch and the review commit read once per command
+## Task 8: The current branch and the review commit read once per command
 covers: D-05
 files: packages/cli/src/load/fs.ts, packages/cli/src/run.ts, packages/cli/src/commands/anchor.ts, packages/cli/src/commands/hook.ts, packages/cli/src/commands/worktree.ts, packages/cli/src/commands/gate.ts, packages/cli/test/git-count.test.ts (new), packages/cli/test/helpers/items.ts (new)
 verify: packages/cli/test/git-count.test.ts#risk:complex-branching-anchor-hook-and-worktree-merge-read-the-current-branch-once-detached-or-unreadable-included, packages/cli/test/git-count.test.ts#risk:complex-branching-lane-S-gate-done-reads-the-review-commit-once-and-fails-closed-without-one
@@ -486,7 +540,7 @@ Tests written first:
   `gate done` exit 1 and starts one such log and no `git show` of a review commit. `checkItem` of the review commit
   entry.
 
-## Task 8: The default ref in one git process
+## Task 9: The default ref in one git process
 covers: D-05
 files: packages/cli/src/load/fs.ts, packages/cli/src/commands/review-package.ts, packages/cli/test/git-count.test.ts (new), packages/cli/test/helpers/items.ts (new)
 verify: packages/cli/test/git-count.test.ts#risk:complex-branching-the-default-ref-resolves-in-one-git-process-from-a-symbolic-plain-or-dangling-origin-HEAD-and-falls-back-to-the-local-main
@@ -515,7 +569,7 @@ Test written first, one repository per case, each call starting one git process:
 - `refs/remotes/origin/main/x` and local `main`, no origin/main: undefined and `refs/heads/main`.
 Then `checkItem` of the default ref entry.
 
-## Task 9: Clean answers ancestry from one sha-keyed merged set
+## Task 10: Clean answers ancestry from one sha-keyed merged set
 covers: D-05, D-07
 files: packages/cli/src/commands/worktree.ts, packages/cli/test/git-count.test.ts (new), packages/cli/test/helpers/items.ts (new)
 verify: packages/cli/test/git-count.test.ts#risk:data-loss-clean-answers-ancestry-from-one-sha-keyed-merged-set-and-sends-every-miss-and-every-re-read-tip-to-the-content-checks
@@ -550,7 +604,7 @@ Test written first, one clean sample:
 - a dropped branch merged into main stays on the merged path.
 Then `checkItem` of the clean merged set entry.
 
-## Task 10: get-url, the worktree list and the ssh config read once
+## Task 11: get-url, the worktree list and the ssh config read once
 covers: D-05
 files: packages/cli/src/commands/worktree.ts, packages/cli/src/commands/new-ticket.ts, packages/cli/src/run.ts, packages/cli/src/commands/drop.ts, packages/cli/src/commands/upgrade.ts, packages/cli/test/git-count.test.ts (new), packages/cli/test/helpers/items.ts (new)
 verify: packages/cli/test/git-count.test.ts#risk:security-every-network-git-call-keeps-prompts-off-while-core.sshCommand-is-read-once-per-folder, packages/cli/test/git-count.test.ts#risk:complex-branching-pick-up-and-new-ticket-worktree-reuse-the-worktree-list-clean-read-and-read-it-again-after-clean-removed-one, packages/cli/test/git-count.test.ts#risk:complex-branching-a-command-that-proved-the-origin-remote-asks-for-it-once-and-with-no-origin-nothing-is-fetched
@@ -594,31 +648,48 @@ Tests written first:
   origin it starts no `fetch` and exits 0; pick-up with no origin creates the worktree without a fetch as at the
   baseline. `checkItem` of the get-url entry.
 
-## Task 11: A light load before the fetch in pick-up and new ticket --worktree, and the ac-3 count
+## Task 12: A light load before the fetch in pick-up and new ticket --worktree, and the ac-3 count
 covers: @ac-3, D-05, D-06, D-07, D-11, D-12
-files: packages/cli/src/run.ts, packages/cli/src/commands/worktree.ts, packages/cli/test/git-count.test.ts (new), packages/cli/test/helpers/items.ts (new)
+files: packages/cli/src/load/fs.ts, packages/cli/src/run.ts, packages/cli/src/commands/worktree.ts, packages/cli/test/git-count.test.ts (new), packages/cli/test/helpers/items.ts (new)
 verify: packages/cli/test/git-count.test.ts#ac-3-each-worktree-command-starts-fewer-git-processes-than-before-the-change-and-clean-keeps-and-removes-the-same-branches (@ac-3), packages/cli/test/git-count.test.ts#risk:complex-branching-pick-up-and-new-ticket-worktree-load-the-full-snapshot-after-a-failed-or-absent-fetch
 
+Today pick-up and `new ticket --worktree` load the full snapshot in `preflight`, and load it again after a fetch that
+succeeded (worktree.ts:489); with no origin or a failed fetch they load it once. This task must never start more git
+processes than today on any of the three paths.
+
 Produces:
+- fs.ts: `export type LightLoad = { tree, files, defaultBranch }` (the `gitTree` result, the `files` map after the
+  tokens and test-report reads of fs.ts:514-517, and the `gitDefaultBranch` result, its `head` from Task 4 included),
+  which callers outside fs.ts only pass back. `export function loadLight(root): { input: SnapshotInput; parts: LightLoad }`
+  is today's light branch of `loadParts` (fs.ts:508-523); `loadFromFs(root, { light: true })` returns its `input`,
+  so the prompt hook is unchanged. `loadWithBranch` and `loadFromFs` take `from?: LightLoad`: with it, `loadParts`
+  runs no `gitTree`, no `accordFiles`, no file reads and no `gitDefaultBranch`, and takes those three from `from`
+  (a shallow copy of `from.files`), then runs the rest of the full load exactly as without it.
 - run.ts: `worktree open` without `--continue` runs `preflight(opts, 'light')`; `new ticket` runs
   `preflight(opts, options.worktree === true ? 'light' : 'checkout')`; plain `new ticket` keeps the full load, which
-  it needs for the claims that keep an id from being reused (D-12). A light `preflight` sets `CommandContext.light: true`;
-  the pin check runs as today.
-- worktree.ts `fetchOrigin`: a light context gets the full snapshot (`loadSnapshot(loadFromFs(ctx.root))`, today's
-  preflight load) on `'none'` and `'failed'` as well as on `'ok'`, and the returned context has no `light`.
+  it needs for the claims that keep an id from being reused (D-12). A light `preflight` loads with `loadLight` and sets
+  `CommandContext.light: LightLoad`; the pin check runs as today, on the light snapshot, which holds config.yml.
+- worktree.ts `fetchOrigin`, for a context with `light`: on `'none'` and `'failed'` the snapshot becomes
+  `loadSnapshot(loadFromFs(ctx.root, { from: ctx.light }))`, finishing the full load from the light parts, since no
+  fetch changed the working tree or a ref; on `'ok'` it becomes `loadSnapshot(loadFromFs(ctx.root))`, a full re-read,
+  as today, since the fetch may have moved origin's refs. The returned context has no `light` on all three paths. A
+  context without `light` keeps today's behaviour. So, against today: on `'none'` and `'failed'` each read of the load
+  runs once, as in today's one full load; on `'ok'` the light load's two reads (`ls-files`, the default-branch
+  `cat-file`) run plus one full load, where today runs two full loads.
   `guardTicketSession` keeps running first, on the light snapshot, which holds the tickets and branch templates it
   reads.
 - ITEMS entry `{ item: 'light preflight', keys: ['main worktree open A-1', 'main new ticket N-1 --lane M --worktree'], p }`
   with p = the git facts' log (`--format=%x01%ae%x00%ct%x00%s` with `--name-only` and `accord/tickets`).
 
 Must not change: pick-up's and `new ticket --worktree`'s refusals (guard, claimed by another, dropped, branch exists),
-output and exit codes; the pin refusal; `worktree open --continue` and plain `new ticket`.
+output and exit codes; the pin refusal; `worktree open --continue` and plain `new ticket`; the prompt hook's light
+load; `loadFromFs` without `from` reads everything itself, as today.
 
 Tests written first:
 - `ac-3 ...`: one `runSample` of `main worktree open A-1`, `main worktree clean`, `wt-A-7 worktree merge A-7` and
   `main new ticket N-1 --lane M --worktree`. For every ITEMS entry and each of its keys that is one of these four,
   `expectFewer(key, entry.p, that key's argv)`, so each Part 2 item touching a worktree command shows fewer than its
-  own recorded count (D-05, D-11, D-12); the three per-ticket reads are proven by ac-1 (Task 6). Each of the four
+  own recorded count (D-05, D-11, D-12); the three per-ticket reads are proven by ac-1 (Task 7). Each of the four
   also starts fewer git processes in total than its array in `git-counts.before.json`; clean's `out` and `refs` equal
   `goldens.json`'s, so it removes and keeps the same branches, the squash-merged A-9 and the rebased A-10 included
   (D-11).
@@ -627,10 +698,14 @@ Tests written first:
   `feature/{id}` branch (the `branch:` template in config.yml), present here, refuses with `claimed: <id> by <email>`
   and makes no `t/<id>` branch, since `branchOf` reads the claim branch from the full snapshot. With `people` in
   config.yml holding the fixture email, `new ticket --lane M --worktree` with no id never assigns the id of a branch
-  that holds only an empty `claim: <id>` commit, since only the claims show that id. `checkItem` of the light preflight
-  entry.
+  that holds only an empty `claim: <id>` commit, since only the claims show that id. Counts, for pick-up and for
+  `new ticket --worktree`: with no origin and after the failed fetch, each run starts exactly one
+  `ls-files --cached --others --exclude-standard -z` and exactly one `-c credential.interactive=never cat-file --batch`
+  (the light reads, not repeated by the finish) and one git facts log; with a reachable origin on the same repository,
+  exactly two of each of the first two (light, then the re-read after the fetch) and one git facts log. `checkItem` of
+  the light preflight entry.
 
-## Task 12: The two branch-fact tests under 10 s
+## Task 13: The two branch-fact tests under 10 s
 covers: D-03, D-12
 files: packages/cli/test/branch-fact.test.ts, packages/cli/src/load/fs.ts, packages/cli/src/commands/gate.ts
 verify: packages/cli/test/branch-fact.test.ts#risk:complex-branching-gate-done-reads-the-branch-diff-from-the-merge-base-ignoring-whitespace-and-pins-the-scope-at-the-first-commit-that-records-ac_hash, packages/cli/test/branch-fact.test.ts#risk:parsing-gate-done-reads-added-call-lines-and-package-json-maps-from-the-branch-diff
@@ -658,13 +733,13 @@ cases; each parse branch of the second test); every output of `gate done`.
 Report each test's time alone and with the suite, before and after, and which side each cut was on. A test still at
 or over 10 s is handled as the preamble's Part 4 keeps say.
 
-## Task 13: The lane S review-package test under 10 s
+## Task 14: The lane S review-package test under 10 s
 covers: D-03, D-12
 files: packages/cli/test/lane-s.test.ts, packages/cli/src/commands/review-package.ts, packages/cli/src/load/fs.ts
 verify: packages/cli/test/lane-s.test.ts#risk:complex-branching-the-review-package-lists-the-out-of-scope-files-and-interface-signs-gate-done-would-name
 
-Part 4, as Task 12, for lane-s.test.ts:304 (22.8 s in ST-LN-44's full run). Measure first, alone and with the
-suite, JUnit output under `node_modules/.cache/st-ln-63/`, and find where the time goes as Task 12 does. Then cut on
+Part 4, as Task 13, for lane-s.test.ts:304 (22.8 s in ST-LN-44's full run). Measure first, alone and with the
+suite, JUnit output under `node_modules/.cache/st-ln-63/`, and find where the time goes as Task 13 does. Then cut on
 either side; the test stays one test with its title, not split:
 - Test side: fewer git processes to build the two branches, no run that repeats a state another run read; the five
   `review-package` outcomes it asserts (out-of-scope and interface signs listed, both `(none)`, T-1's sign with no
@@ -674,9 +749,9 @@ either side; the test stays one test with its title, not split:
 
 Must not change: the other tests of lane-s.test.ts; every line `review-package` prints, for every repository state.
 
-Report as Task 12; a test still at or over 10 s is handled as the preamble's Part 4 keeps say.
+Report as Task 13; a test still at or over 10 s is handled as the preamble's Part 4 keeps say.
 
-## Task 14: The upgrade ac-2 test keeps its CRLF case end to end and its other cases move to core
+## Task 15: The upgrade ac-2 test keeps its CRLF case end to end and its other cases move to core
 covers: @ac-4, D-03, D-06, D-07, D-11, D-12
 files: packages/cli/test/upgrade.test.ts, packages/core/test/scaffold.test.ts
 verify: packages/cli/test/upgrade.test.ts#ac-2-upgrade-replaces-only-the-lint-and-gate-step-and-keeps-every-other-line-of-the-workflow (@ac-4), packages/core/test/scaffold.test.ts#risk:parsing-the-lint-and-gate-refresh-keeps-every-other-line-of-a-workflow-written-plain-or-with-a-shallow-indent
@@ -704,4 +779,4 @@ read the JUnit report could not pass inside the run that writes that report and 
 times of the four tests and of the split-off core test in the owner's full run on the owner's machine are read from
 that report at verify, with no separate CI check (D-11).
 
-Report the times as Task 12 does; a test still at or over 10 s is handled as the preamble's Part 4 keeps say.
+Report the times as Task 13 does; a test still at or over 10 s is handled as the preamble's Part 4 keeps say.

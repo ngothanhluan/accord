@@ -15,7 +15,7 @@ session and orchestrate: executors write the code.
 
 2. **Dispatch.** For each task in `plan.md` without a line in `accord/tickets/<id>/ledger.md`, in order, one at a time: run `accord brief <id> <n>` into a file outside the working tree (for example the system temp directory), so it is never committed, and dispatch a fresh `accord-executor` with the path of that file only. Never pass chat history.
 
-3. **Record.** When it reports, run the affected tests yourself: the `tests.affected` command from `accord/config.yml`, with `{files}` replaced by the paths on the task's `files:` line. Then run `accord task-done <id> <n>`. The executor's claim alone records nothing.
+3. **Record.** When it reports, run the test command its brief printed yourself; when the brief printed none, run the test files the executor reports it wrote or changed. Then run `accord task-done <id> <n>`. The executor's claim alone records nothing.
    - It refuses because a `verify:` case failed or is missing: dispatch a fresh executor with the same brief plus the reasons it printed. If it refuses that way again after that dispatch, load `accord-debug` instead of dispatching again.
    - It refuses because the report is missing or older than the commit: the `tests.affected` command does not write the report `tests.report` names. Tell the owner; do not loop.
    - It refuses because a commit carries a forbidden line: reword that commit yourself if you made it; if an executor made it, dispatch a fresh executor with the same brief plus the reasons it printed. It exits 2 and says to run `git fetch origin`: run that. Either way, run `accord task-done <id> <n>` again.

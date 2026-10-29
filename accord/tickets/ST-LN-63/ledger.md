@@ -25,6 +25,11 @@
 - Ruling: the local `listed` in `loadClaimView` is renamed `mergedOut`, no behaviour change (executor, task 4) — the old name read like the claim listing — none
 - Ruling: task 4's tests take 7.7 s alone and 18.4 s under load (parsing) and 9.4 s / 13.1 s (claim tips); proposed ceilings 25 s and 18 s go to the owner at verify (task 4 build) — under load both pass 10 s; affected run 616 passed, 3 skipped, 759 s with another suite holding the lock
 - Ruling: from task 5 on, executors measure each new test alone only; the with-suite time comes from the junit report of the main session's tests.affected run, which on fs.ts covers nearly the whole suite (36 files at task 4) — owner answered "A" (2026-10-29), each task otherwise ran the suite twice, about 10 minutes more — an executor cutting a test's time sees its with-suite time only after it reports, which may cost one more dispatch
+- Ruling: the shared walk's positives are every claimed ticket's tips, HEAD's commit when the branch names a ticket, and every entry's start (executor, task 5) — Task 6 reuses the walk — a few extra commits in one log
+- Ruling: `walkPath` returns 'own' when a chain leaves the walk, though a null answer would also drop the entry (executor, task 5) — as the plan specifies — one extra spawn in a rare case
+- Ruling: a start commit missing locally makes the whole `git log --stdin --ignore-missing` walk fail (exit 128), and every ticket falls back to today's per-ticket reads (executor, task 5) — output stays the same (D-08); a retry or pre-check spawn was not added — that command saves nothing; Task 7's samples must hold no missing start; reviewers judge it
+- Ruling: packages/core/test/stage-skills.test.ts ac-5 fails on the unguarded `process.platform` at packages/cli/test/goldens.test.ts:25 and packages/cli/test/helpers/runs.ts:88 from Task 2 (executor, task 5 full run) — the cli affected runs never include that core test; it goes to review as a finding to fix — the full run stays red with one failure until review fixes it
+- Ruling: task 5's shared-walk test takes 4.5 s alone and 3.9 s in the affected run; task 4's two tests took 8.0 s and 9.5 s in that run (task 5 build) — under 10 s this time — the loaded times vary between runs
 
 ## Deferred
 - plan-review 1.10 Nice — clean's merged set answers R later than today on a ref that may have moved; skip the set for R or re-read it when the ref changed
@@ -41,3 +46,4 @@
 - task 2 done 206756ddebce
 - task 3 done 82a9117d2047
 - task 4 done b4120e40f31e
+- task 5 done c7ee946d1783

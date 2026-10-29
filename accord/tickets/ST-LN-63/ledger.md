@@ -20,6 +20,10 @@
 - Ruling: the ac-2 goldens test's own limit is 600 s; it takes about 75 to 97 s on Windows (executor, task 2) — none, the limit guards no stall; its ceiling goes to the owner at verify
 - Ruling: a remote ref whose sha is not a fixture commit and whose refname is already taken in the copy is named `ref:remote:<refname>` (executor, task 2) — keeps two shas under one placeholder from collapsing — none, it never fired in the recorded runs
 - Ruling: the records-diff predicate matches `diff` with `--name-only`, `-z`, `--no-renames` and `HEAD`, the loader's own call at fs.ts:272 (executor, task 3) — the plan names only the diff shape — a later read-command `diff` of that shape would be counted too, which is the intended direction
+- Ruling: `gitDefaultBranch`'s cat-file batch reads HEAD as its seventh object, and the HEAD author is unborn or undefined when that object fails or carries an encoding header (executor, task 4) — one batch already running answers it, so the separate `log -1` goes — a HEAD whose commit has an encoding header shows no author, as the fallback did before
+- Ruling: `claimTips` takes the local branch when the for-each-ref claim listing holds it, not when `rev-parse` resolves it (executor, task 4) — the listing is already read, so the per-ticket `rev-parse` goes — a ref pointing at a missing object is skipped instead of failing later
+- Ruling: the local `listed` in `loadClaimView` is renamed `mergedOut`, no behaviour change (executor, task 4) — the old name read like the claim listing — none
+- Ruling: task 4's tests take 7.7 s alone and 18.4 s under load (parsing) and 9.4 s / 13.1 s (claim tips); proposed ceilings 25 s and 18 s go to the owner at verify (task 4 build) — under load both pass 10 s; affected run 616 passed, 3 skipped, 759 s with another suite holding the lock
 
 ## Deferred
 - plan-review 1.10 Nice — clean's merged set answers R later than today on a ref that may have moved; skip the set for R or re-read it when the ref changed
@@ -35,3 +39,4 @@
 - task 1 done d4a93ac435a0
 - task 2 done 206756ddebce
 - task 3 done 82a9117d2047
+- task 4 done b4120e40f31e

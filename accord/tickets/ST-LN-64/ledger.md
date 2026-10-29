@@ -3,6 +3,7 @@
 ## Tasks
 - task 1 done e88add4b3ebe
 - task 2 done d9f5a6df4514
+- task 3 done 2af7c0be5a8d
 
 ## Rulings
 
@@ -19,7 +20,8 @@
 - Ruling: existing tests with no `risk:` (build phrases, skill size, `stays short`) are named as must-stay-green in the task text, not on `verify:` lines — a `verify:` id that proves no criterion must carry `risk:` — cost if wrong: task-done does not check them per task; the full suite at verify does.
 - Ruling: task 1's executor ran the brief's `vitest related` command as printed, though it ran 31 files in about 15 minutes — the brief says it is the only command allowed — cost if wrong: when the dependency graph is the cause, this ticket's own tests.affected is as slow for any task touching cli sources.
 - Ruling: task 2's executor appended the new test with the Edit tool, since a compound bash heredoc was refused in the worktree — the content is the same either way — cost if wrong: none.
+- Ruling: task 3's executor de-duplicates the `files:` line itself, not only the `verify:` additions, in `brief.ts` — ac-1 says any path already listed is left out, and the new risk:parsing test lists a repeated `files:` path once (plan-review 1.3) — cost if wrong: a plan that repeats a path in `files:` prints it twice.
 
 ## Deferred
 - plan-review 1.2 (Nice): the build skill's `description:` and refusal bullet still name `tests.affected` as the command whose report goes missing; reword to "the command the brief printed" while keeping the word `tests.affected` for `REQUIRED`.
-- plan-review 1.3 (Nice): Task 1 should say that a path repeated on the `files:` line itself is left out; Task 3 (a) relies on it.
+- plan-review 1.3 (Nice): Task 1 should say that a path repeated on the `files:` line itself is left out; Task 3 (a) relies on it. Fixed in task 3 (2af7c0b), see its Ruling.

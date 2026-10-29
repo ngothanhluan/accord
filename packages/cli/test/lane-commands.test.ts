@@ -1365,3 +1365,51 @@ it('ac-3 without either command the brief says no test command is configured', a
     cleanup(repo);
   }
 });
+
+const NO_PATHS = 'No test command is configured for this task: its files: and verify: lines name no path for {files}.';
+
+it('risk:parsing the brief test command quotes odd paths and drops new marks repeats and non-file verify prefixes', async () => {
+  const plan = [
+    '---',
+    'baseline: abc1234',
+    '---',
+    '',
+    '## Task 1: A',
+    'covers: @ac-1',
+    "files: src/export.ts, lib/@scope/a+b=c.ts, app/(group)/[slug]/page.tsx (new), routes/$id.tsx, src/$&.ts, docs/it's.md, src/export.ts",
+    'verify: src/export.ts#a (@ac-1), export#writes-csv, tests.test_csv.TestCsv#test_quotes, test/csv.test.ts#b, test/csv.test.ts#c, app/(group)/[slug]/page.tsx#d, lonely-name',
+    '',
+    '## Task 2: B',
+    'covers: @ac-2',
+    'verify: export#escapes-commas, tests.test_csv.TestCsv#test_x',
+    '',
+  ].join('\n');
+  const repo = makeLaneRepo({
+    'accord/config.yml': withTests(['affected: run {files} -- {files}']),
+    'accord/tickets/T-1/plan.md': plan,
+    'test/csv.test.ts': '',
+  });
+  try {
+    const J = String.raw`src/export.ts lib/@scope/a+b=c.ts 'app/(group)/[slug]/page.tsx' 'routes/$id.tsx' 'src/$&.ts' 'docs/it'\''s.md' test/csv.test.ts`;
+    const a = await run(['brief', 'T-1', '1'], repo);
+    expect(a.code).toBe(0);
+    expect(a.out.endsWith('\n---\n\nTest command: run ' + J + ' -- ' + J + '\n' + ONLY + '\n')).toBe(true);
+
+    const b = await run(['brief', 'T-1', '2'], repo);
+    expect(b.code).toBe(0);
+    expect(b.out.endsWith('\n---\n\n' + NO_PATHS + '\n')).toBe(true);
+    expect(b.out).not.toContain('Test command:');
+
+    writeFiles(repo, { 'accord/config.yml': withTests(['affected: npm test']) });
+    const c = await run(['brief', 'T-1', '2'], repo);
+    expect(c.code).toBe(0);
+    expect(c.out.endsWith('\n---\n\nTest command: npm test\n' + ONLY + '\n')).toBe(true);
+
+    writeFiles(repo, { 'accord/config.yml': withTests(['affected: ""']) });
+    const d = await run(['brief', 'T-1', '1'], repo);
+    expect(d.code).toBe(0);
+    expect(d.out.endsWith('\n---\n\n' + NO_COMMAND + '\n')).toBe(true);
+  } finally {
+    cleanup(repo);
+  }
+}, 60_000);

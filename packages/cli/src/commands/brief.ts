@@ -12,19 +12,24 @@ import { requireLaneTicket, taskNumber } from './lane-args.js';
 const ONLY = 'This is the only test command the executor runs for this task.';
 const FULL_WHY = 'tests.full is printed because accord/config.yml has no tests.affected.';
 const NO_COMMAND = 'No test command is configured: accord/config.yml has no tests.affected and no tests.full.';
+const NO_PATHS = 'No test command is configured for this task: its files: and verify: lines name no path for {files}.';
+
+// A path with a shell metacharacter is single-quoted, an inner quote written '\''.
+const quote = (p: string): string => (/^[A-Za-z0-9._/@+=:-]+$/.test(p) ? p : "'" + p.replace(/'/g, "'\\''") + "'");
 
 // ST-LN-64: the one test command the executor runs, from config.yml. The CLI prints it and runs nothing.
 function testBlock(ctx: CommandContext, t: PlanTask): string {
   const tests = ctx.snapshot.config?.tests;
   if (tests?.affected !== undefined) {
-    const paths = [...t.files];
+    const paths = [...new Set(t.files)];
     for (const v of t.verify) {
       const i = v.indexOf('#');
       const prefix = i < 0 ? v : v.slice(0, i);
       if ((ctx.snapshot.tree.includes(prefix) || t.files.includes(prefix)) && !paths.includes(prefix)) paths.push(prefix);
     }
+    if (tests.affected.includes('{files}') && paths.length === 0) return NO_PATHS + '\n';
     // split/join, never String.replace, so a `$` in a path is not read as a replacement pattern.
-    return 'Test command: ' + tests.affected.split('{files}').join(paths.join(' ')) + '\n' + ONLY + '\n';
+    return 'Test command: ' + tests.affected.split('{files}').join(paths.map(quote).join(' ')) + '\n' + ONLY + '\n';
   }
   if (tests?.full !== undefined) return 'Test command: ' + tests.full + '\n' + ONLY + '\n' + FULL_WHY + '\n';
   return NO_COMMAND + '\n';

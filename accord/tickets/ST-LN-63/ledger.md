@@ -40,6 +40,9 @@
 - Ruling: ac-1 counts plain `status`, as the ticket says; one uncounted `status --json` per repository checks the stage match, the 20-ticket read shared across B-6 and B-7 (executor, task 7) — the literal reading — about 2 s that counting `status --json` instead would save
 - Ruling: ac-1's counts (20 / 1 / bound): with merge (B-6) status 16/14/20, anchor 10/10/16, lint 9/9/15, dashboard 17/15/21, show 16/14/20; without (B-7) status 16/12/20, anchor 10/10/18, lint 9/9/17, dashboard 17/13/21, show 16/12/20 (executor, task 7) — the 20-ticket status asserts the shared walk ran — none
 - Ruling: the ac-1 test takes 13.8 to 19.8 s alone, 18.8 s with its file and 14.0 s in the affected run (about 290 git processes, each required by the criterion); proposed ceiling 26 s goes to the owner at verify (executor, task 7) — affected run 3 files, 8 passed, 105 s — over the 10 s line until the owner approves
+- Ruling: `gitReviewFact` returns `{clean:false}` at once when the review commit is undefined, skipping the `git status` it ran first (executor, task 8) — a missing review commit was already `{clean:false}`; one process fewer — a gate-done count assertion would see one `status` fewer, with no output change
+- Ruling: `fetchOrigin`'s post-fetch `loadFromFs` still reads the current branch again, so `worktree merge` after a fetch reads it twice (baseline 3) (executor, task 8) — the brief names no item for it, and the refusal path before the fetch reads once — one spawn more than the ideal on the fetch path
+- Ruling: task 8's affected run: 36 files, 621 passed, 3 skipped, 827 s with 4 workers; the current-branch test took 9.3 s and the review-commit test 7.4 s (6.6 s and 4.8 s alone); in the same run the head-author, claim-tips and ac-1 tests took 11.2 s, 11.3 s and 16.6 s (task 8 build) — the over-10 s ones go to the owner at verify — loaded times vary between runs
 
 ## Deferred
 - plan-review 1.10 Nice — clean's merged set answers R later than today on a ref that may have moved; skip the set for R or re-read it when the ref changed
@@ -59,3 +62,4 @@
 - task 5 done c7ee946d1783
 - task 6 done 523279597366
 - task 7 done 5b74fe932e9a
+- task 8 done a8dc1ff32565

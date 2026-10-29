@@ -63,7 +63,7 @@ Feature: ST-LN-64
     Then the output holds a line saying no test command is configured
     And the command exits 0
 
-  @ac-4
+  @ac-4 @test:packages/core/test/agents.test.ts#ac-4-the-executor-runs-only-the-test-command-its-brief-prints-and-never-tests.full-on-its-own
   Scenario: The executor's agent text forbids the full suite
     Given the executor agent definition in core and the copy accord skills sync renders from it for each runtime that receives agent files
     When a person reads each one

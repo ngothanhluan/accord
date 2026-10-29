@@ -2,6 +2,7 @@
 
 ## Tasks
 - task 1 done e88add4b3ebe
+- task 2 done d9f5a6df4514
 
 ## Rulings
 
@@ -17,6 +18,7 @@
 - Ruling: the empty-path line applies only when `tests.affected` contains `{files}`; otherwise the command is printed as written — it matches the printed-as-written Ruling — cost if wrong: a task with no path runs a command that has no filter.
 - Ruling: existing tests with no `risk:` (build phrases, skill size, `stays short`) are named as must-stay-green in the task text, not on `verify:` lines — a `verify:` id that proves no criterion must carry `risk:` — cost if wrong: task-done does not check them per task; the full suite at verify does.
 - Ruling: task 1's executor ran the brief's `vitest related` command as printed, though it ran 31 files in about 15 minutes — the brief says it is the only command allowed — cost if wrong: when the dependency graph is the cause, this ticket's own tests.affected is as slow for any task touching cli sources.
+- Ruling: task 2's executor appended the new test with the Edit tool, since a compound bash heredoc was refused in the worktree — the content is the same either way — cost if wrong: none.
 
 ## Deferred
 - plan-review 1.2 (Nice): the build skill's `description:` and refusal bullet still name `tests.affected` as the command whose report goes missing; reword to "the command the brief printed" while keeping the word `tests.affected` for `REQUIRED`.

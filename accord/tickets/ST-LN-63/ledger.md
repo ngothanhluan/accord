@@ -24,6 +24,7 @@
 - Ruling: `claimTips` takes the local branch when the for-each-ref claim listing holds it, not when `rev-parse` resolves it (executor, task 4) — the listing is already read, so the per-ticket `rev-parse` goes — a ref pointing at a missing object is skipped instead of failing later
 - Ruling: the local `listed` in `loadClaimView` is renamed `mergedOut`, no behaviour change (executor, task 4) — the old name read like the claim listing — none
 - Ruling: task 4's tests take 7.7 s alone and 18.4 s under load (parsing) and 9.4 s / 13.1 s (claim tips); proposed ceilings 25 s and 18 s go to the owner at verify (task 4 build) — under load both pass 10 s; affected run 616 passed, 3 skipped, 759 s with another suite holding the lock
+- Ruling: from task 5 on, executors measure each new test alone only; the with-suite time comes from the junit report of the main session's tests.affected run, which on fs.ts covers nearly the whole suite (36 files at task 4) — owner answered "A" (2026-10-29), each task otherwise ran the suite twice, about 10 minutes more — an executor cutting a test's time sees its with-suite time only after it reports, which may cost one more dispatch
 
 ## Deferred
 - plan-review 1.10 Nice — clean's merged set answers R later than today on a ref that may have moved; skip the set for R or re-read it when the ref changed

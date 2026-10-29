@@ -57,6 +57,7 @@ Feature: ST-LN-60
 - D-02 The two research gaps with no ticket (worktree.md's output handling moved into the CLI; a skill wording change run against a benchmark baseline) are queued as their own tickets, not folded into this one — "A" (2026-10-29, to: A, split into three tickets; B, fold all three in; C, fold only the baseline rule in)
 - D-03 The agent reads a pull request's comments only when someone asks it to (names the comments or pastes a link), never on its own at every Continue — "A" (2026-10-29, to: A, on request; B, checked at every Continue of a ticket with a pull request)
 - D-04 The agent drafts the reply for each comment's thread and shows the drafts to the owner; it posts them only after the owner's yes — "A" (2026-10-29, to: A, the agent drafts, the owner approves, then the agent posts; B, the agent posts on its own; C, the agent only drafts and the owner posts)
+- D-05 A comment from the owner takes the same steps as a teammate's; it is written under `## Corrections` only when it changes the intent or a criterion and the owner confirms it, and nothing tells the owner's GitHub account apart — "A" (2026-10-29, to: A, the same steps, a Correction only on the owner's confirmation; B, every owner comment is a Correction, which needs the owner's GitHub account in config)
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->

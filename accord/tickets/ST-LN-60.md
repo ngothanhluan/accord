@@ -3,7 +3,7 @@ id: "ST-LN-60"                            # equals the file name: tickets/<id>.m
 title: "A teammate's review comments on a ticket's pull request are checked and routed like review findings"
 type: "story" # story | bug. An epic uses its own template
 status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
-lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
+lane: "S" # S: one small change, worked from this ticket alone
 # Tickets that must reach done before this one can start.
 # depends_on: ["OTHER-ID"]
 # How the dashboard ranks this ticket: high | medium | low; absent means medium.
@@ -26,56 +26,20 @@ ui: false
 # verified_commit:
 ---
 
-## Intent
-<!-- At most five lines: why, for whom, how success is measured, and what this does not do. -->
-- Why: no accord skill says what to do with review comments on a ticket's pull request, so an agent asked to handle them may change code without checking the comment, against a Veto, Decision or Correction, outside review and verify, or post replies the owner never saw; accord targets teams where the reviewer is another person.
-- For whom: the owner and teammates on a ticket whose pull request is open and not merged (lane M from verify, lane S from its step 6), for a comment by anyone, the owner included (D-05).
-- Success: asked to handle the comments (D-03), the agent follows one written path: check each against the code, ask about unclear ones first, send conflicts to the owner, fix the rest as review findings through the path `failure.md` gives, and post the drafted thread replies only on the owner's yes (D-04).
-- Not this: no CLI gate or command reads the pull request (D-01); comments are never read unasked (D-03); no GitHub account is mapped to the owner (D-05).
-- Research: `accord/research/2026-10-25-plugin-audit.md`, gap 6, from superpowers 7.0.0 `receiving-code-review` (evidence, not a contract).
+## Understood
+No accord skill says what to do with review comments on a ticket's open, unmerged pull request (lane M from verify, lane S from its step 6), so a new reference file, `./comments.md` of the accord skill, named from its `SKILL.md`, gives the one path the agent takes when someone asks it to handle them (D-03): a comment is a review thread, a top-level comment or a review's summary by a person, the owner included (D-05); each is checked against the code and marked holds, does not hold or unclear before any is fixed; questions for the unclear ones are drafted for their threads, shown to the owner and posted on the owner's yes, and nothing is fixed until each is answered in its thread by its author or in the chat by the owner; a comment against a Veto, Decision or Correction stops every comment and goes to the owner, naming it; the ones that hold are classified patch, plan-gap or intent-gap and handled as `accord-review` handles one round's findings, the patch ones fixed together, and the fix takes `./failure.md`'s path after verify (one new review round, then verify again for lane M; the lane S steps for lane S); then one reply per comment (the fixing commit, the reason it was not changed, or the answer taken) is drafted, shown to the owner together, changed as the owner says, and posted only on the owner's yes, nothing being posted to the pull request before it while fix commits are pushed as usual (D-04); no CLI code changes (D-01).
 
-## Acceptance criteria
-<!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.
-A scenario that is not @ui also carries one @test:<id> tag naming the one test that proves it; `accord task-done` writes it from the plan's `(@ac-n)` marker, not by hand; it is outside the AC hash. -->
-```gherkin
-Feature: ST-LN-60
+## Done when
+The rendered accord skill names `./comments.md`, which states every part of that path as Understood gives it (D-06), a `risk:` test in `packages/core/test/stage-skills.test.ts` asserts each part in the rendered copy, the rendered `SKILL.md` stays within 5120 bytes and 120 lines, and lint and the full suite pass.
 
-  @ac-1
-  Scenario: Every comment is checked against the code before anything is fixed
-    Given a ticket whose pull request is open and not merged
-    When someone asks the agent to handle that pull request's comments
-    Then the rendered skills tell the agent to take each review thread, each top-level comment and each review's summary as one comment, a reply inside a thread being part of that thread, by a person whoever it is, the owner included
-    And to check each comment against the code and mark it holds, does not hold, or unclear before fixing any comment
-
-  @ac-2
-  Scenario: Unclear comments are asked about before any comment is fixed
-    Given at least one comment is marked unclear
-    When the agent has checked every comment
-    Then the rendered skills tell the agent to draft a question for each unclear comment's thread first, show those drafts to the owner and post them only after the owner's yes
-    And to fix no comment until every unclear comment is answered, in its thread by its author or in the chat by the owner
-
-  @ac-3
-  Scenario: A comment against a Veto, Decision or Correction stops the handling and goes to the owner
-    Given a comment asks for something a Veto, Decision or Correction of the ticket forbids or settles otherwise
-    When the agent has checked every comment
-    Then the rendered skills tell the agent to stop handling every comment and ask the owner about that one, naming the Veto, Decision or Correction
-    And to fix no comment until the owner answers
-
-  @ac-4
-  Scenario: The comments that hold are fixed as one review round's findings and the fix is reviewed and verified again
-    Given comments that hold and conflict with no Veto, Decision or Correction
-    When the agent fixes them
-    Then the rendered skills tell the agent to classify each patch, plan-gap or intent-gap and handle them as `accord-review` handles one round's findings, the patch ones fixed together through a fresh executor
-    And to take that fix through the path `failure.md` gives a failure reported after verify: one new review round and then verify again for lane M, the lane S steps for lane S
-
-  @ac-5
-  Scenario: Replies are posted to their threads only after the owner's yes
-    Given every comment is fixed, declined or answered
-    When the agent answers them
-    Then the rendered skills tell the agent to draft one reply per comment: the commit that fixed it, the reason it was not changed, or the answer it took
-    And to show every draft to the owner together, apply the owner's changes to any of them, and post them to their threads only after the owner's yes
-    And to post no reply, comment or review to the pull request before that yes, while the fix commits are pushed as the stage skills already push them
-```
+## Scope
+<!-- One repository path per line, never a folder: every file the change is expected to touch, tests and new files included. -->
+packages/core/skills/accord/comments.md
+packages/core/skills/accord/SKILL.md
+packages/core/test/stage-skills.test.ts
+packages/core/src/generated/skills.ts
+.claude/skills/accord/comments.md
+.claude/skills/accord/SKILL.md
 
 ## Vetoes
 <!-- What the owner forbids, in the owner's own words, one item per line. -->
@@ -91,9 +55,3 @@ Feature: ST-LN-60
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
-
-## Open questions
-<!-- `- [ ]` items; Ready stays blocked while any is unchecked. -->
-
-## Approach
-<!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->

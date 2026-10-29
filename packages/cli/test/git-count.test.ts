@@ -1,10 +1,17 @@
 // ST-LN-63: tests that count the git processes accord itself starts, against the baseline in git-counts.before.json.
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import { CONFIG, laneTicket, PLAN, REPORT, junit } from '../../../test/helpers/lane.js';
+import { loadFromFs } from '../src/load/fs.js';
+import { countedSync } from './helpers/git-spawns.js';
 import { counted } from './helpers/runs.js';
-import { expectFewer } from './helpers/items.js';
+import { checkItem, expectFewer, ITEMS } from './helpers/items.js';
 import { cleanup, commitMsg, gitRun, makeEmptyRepo, writeFiles } from './helpers/repo.js';
 import { prepareSamples, SAMPLE_BUILD_LIMIT, samples } from './helpers/samples.js';
+import type { Clone } from './helpers/worktree.js';
+import { makeClone } from './helpers/worktree.js';
 
 vi.mock('node:child_process', async (orig) => (await import('./helpers/git-spawns.js')).wrapChildProcess(await orig<typeof import('node:child_process')>()));
 
@@ -81,4 +88,113 @@ it('risk:complex-branching gate plan and gate done read baseline history for the
     cleanup(repo);
   }
   await expectFewer('main status', history);
+}, LIMIT);
+
+/** `git commit -F <file> --cleanup=verbatim` with the given author and extra `-c` settings; returns the new HEAD sha. */
+function commitAs(dir: string, text: string, email: string, config: string[] = []): string {
+  const folder = mkdtempSync(join(tmpdir(), 'accord-msg-'));
+  try {
+    const file = join(folder, 'msg.txt');
+    writeFileSync(file, text + '\n');
+    gitRun(dir, 'add', '-A');
+    gitRun(dir, '-c', `user.email=${email}`, '-c', 'user.name=head', '-c', 'commit.gpgsign=false', ...config.flatMap((c) => ['-c', c]), 'commit', '-q', '-F', file, '--cleanup=verbatim');
+    return gitRun(dir, 'rev-parse', 'HEAD').trim();
+  } finally {
+    cleanup(folder);
+  }
+}
+
+const isShow = (a: string[]) => a.includes('show');
+const item = (name: string) =>
+  ITEMS.find((i) => i.item === name) ??
+  (() => {
+    throw new Error('no such item: ' + name);
+  })();
+
+it('risk:parsing the head author comes from the commit object and from git show when the commit names an encoding', async () => {
+  const repos: string[] = [];
+  try {
+    const seed = () => {
+      const repo = makeEmptyRepo();
+      repos.push(repo);
+      writeFiles(repo, { 'accord/config.yml': CONFIG, 'accord/tickets/T-1.md': laneTicket('T-1') });
+      return repo;
+    };
+    const expected = (repo: string, sha: string, email: string) => ({
+      commit: sha,
+      authors: { 'accord/tickets/T-1.md': email, [sha]: gitRun(repo, 'show', '-s', '--format=%ae', 'HEAD').trim() },
+    });
+
+    const plain = seed();
+    const plainSha = commitAs(plain, 'plain', 'plain.author@example.test');
+    const a = countedSync(() => loadFromFs(plain));
+    expect(a.value.git).toEqual(expected(plain, plainSha, 'plain.author@example.test'));
+    expect(a.argv.some((x) => x.includes('cat-file') && x.includes('--batch'))).toBe(true);
+    expect(a.argv.filter(isShow)).toEqual([]);
+
+    const encoded = seed();
+    const encodedSha = commitAs(encoded, 'encoded', 'encoded.author@example.test', ['i18n.commitEncoding=ISO-8859-1']);
+    expect(gitRun(encoded, 'cat-file', '-p', 'HEAD')).toContain('\nencoding ISO-8859-1\n');
+    const b = countedSync(() => loadFromFs(encoded));
+    expect(b.value.git).toEqual(expected(encoded, encodedSha, 'encoded.author@example.test'));
+    expect(b.argv.filter(isShow)).toHaveLength(1);
+
+    const unborn = seed();
+    const c = countedSync(() => loadFromFs(unborn));
+    expect(c.value.git).toBeUndefined();
+    expect(Object.hasOwn(c.value, 'git')).toBe(false);
+
+    await checkItem(item('HEAD author'));
+  } finally {
+    repos.forEach(cleanup);
+  }
+}, LIMIT);
+
+let claimed: { c: Clone; shas: Record<string, string[]> } | undefined;
+
+beforeAll(() => {
+  const c = makeClone({ tickets: ['A-1', 'A-2', 'A-3', 'A-4'] });
+  c.git('config', 'gc.auto', '0');
+  c.git('config', 'maintenance.auto', 'false');
+  writeFiles(c.root, { 'accord/config.yml': CONFIG + 'branch: "feature/{id}"\n' });
+  commitMsg(c.root, 'branch template');
+  c.git('push', '-q', 'origin', 'main');
+  const starts: Record<string, string> = {};
+  const ticks: Record<string, string> = {};
+  const branch = (id: string, name: string) => {
+    c.git('switch', '-q', '-c', name, 'main');
+    writeFiles(c.root, { [`src/${id}.ts`]: id + '\n' });
+    starts[id] = commitMsg(c.root, 'work ' + id);
+    writeFiles(c.root, { [`accord/tickets/${id}/ledger.md`]: '## Tasks\n' });
+    ticks[id] = commitMsg(c.root, 'tick ' + id);
+    c.git('push', '-q', 'origin', name);
+  };
+  branch('A-1', 't/A-1');
+  branch('A-2', 't/A-2');
+  branch('A-3', 't/A-3');
+  branch('A-4', 'feature/A-4');
+  // A-2's local branch is one own-records commit ahead of its pushed one.
+  c.git('switch', '-q', 't/A-2');
+  writeFiles(c.root, { 'accord/tickets/A-2/ledger.md': '## Tasks\n- task 1 done abc1234\n' });
+  const ahead = commitMsg(c.root, 'ahead');
+  c.git('switch', '-q', 'main');
+  // A-3 keeps only its remote-tracking branch.
+  c.git('update-ref', '-d', 'refs/heads/t/A-3', ticks['A-3']);
+  const files: Record<string, string> = {};
+  for (const id of Object.keys(starts)) files[`accord/tickets/${id}.md`] = laneTicket(id, { frontmatter: [`verified_commit: "${starts[id]}"`] });
+  writeFiles(c.root, files);
+  commitMsg(c.root, 'record the start commits');
+  claimed = { c, shas: { 'A-1': [ticks['A-1']], 'A-2': [ticks['A-2'], ahead], 'A-3': [ticks['A-3']], 'A-4': [ticks['A-4']] } };
+}, 180_000);
+
+afterAll(() => claimed?.c.cleanupAll());
+
+it('risk:complex-branching a claim tip adds the local branch only when the claim listing holds it', async () => {
+  const { c, shas } = claimed as NonNullable<typeof claimed>;
+  const { value, argv } = countedSync(() => loadFromFs(c.root));
+  const got = Object.fromEntries(Object.entries(value.afterVerify ?? {}).map(([id, list]) => [id, list.map((x) => x.sha)]));
+  expect(got).toEqual(shas);
+  expect(argv.some((a) => a[0] === 'for-each-ref')).toBe(true);
+  expect(argv.filter((a) => a[0] === 'rev-parse' && a.some((x) => x.startsWith('refs/heads/t/') || x.startsWith('refs/heads/feature/')))).toEqual([]);
+  await checkItem(item('claim tips'));
 }, LIMIT);

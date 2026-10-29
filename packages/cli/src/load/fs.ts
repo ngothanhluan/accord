@@ -70,18 +70,26 @@ function containedPath(root: string, rel: string | undefined): string | undefine
  */
 function gitFacts(
   root: string,
+  headRead: { commit: string; author: string } | 'unborn' | undefined,
 ): { commit: string; authors: Record<string, string>; activity: Record<string, number>; planSubjects: Record<string, string> } | undefined {
   const git = (args: string[]) =>
     execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 });
-  let head: string;
-  try {
-    head = git(['-c', 'log.showSignature=false', 'show', '--no-show-signature', '-s', '--format=%H%x00%ae', 'HEAD']);
-  } catch {
-    // `gitTree` runs first, so a missing binary has already thrown the ENOENT UsageError; a failure
-    // here means an unborn HEAD and nothing else.
-    return undefined;
+  // ST-LN-63: the HEAD commit and its author come from the object `gitDefaultBranch` already read; `git show` runs only when that read could not say.
+  if (headRead === 'unborn') return undefined;
+  let commit: string | undefined;
+  let commitAuthor: string | undefined;
+  if (headRead !== undefined) ({ commit, author: commitAuthor } = headRead);
+  else {
+    let head: string;
+    try {
+      head = git(['-c', 'log.showSignature=false', 'show', '--no-show-signature', '-s', '--format=%H%x00%ae', 'HEAD']);
+    } catch {
+      // `gitTree` runs first, so a missing binary has already thrown the ENOENT UsageError; a failure
+      // here means an unborn HEAD and nothing else.
+      return undefined;
+    }
+    [commit, commitAuthor] = head.trim().split('\0');
   }
-  const [commit, commitAuthor] = head.trim().split('\0');
   if (commit === undefined || commitAuthor === undefined) return undefined;
   const authors: Record<string, string> = {};
   // Ticket id -> newest committer time over its records; empty when the log fails, so nothing is idle.
@@ -158,7 +166,14 @@ function gitClaims(
   root: string,
   templates: readonly string[],
   known: (id: string) => boolean,
-): { claims: Record<string, string>; branches: Record<string, string>; refs: Record<string, string>; activity: Record<string, number> } {
+): {
+  claims: Record<string, string>;
+  branches: Record<string, string>;
+  refs: Record<string, string>;
+  activity: Record<string, number>;
+  /** Every ref the listing printed, with its sha. */
+  listed: Map<string, string>;
+} {
   const patterns = templates.flatMap((t) => {
     const parts = t.split('{id}');
     return parts.length === 2 ? ['refs/heads/' + parts[0] + '*' + parts[1], 'refs/remotes/*/' + parts[0] + '*' + parts[1]] : [];
@@ -167,7 +182,7 @@ function gitClaims(
   try {
     // for-each-ref globs with WM_PATHNAME, so `*` stays within one segment.
     // shortcut: a remote whose name contains `/` is not matched; widen the pattern if one ever must be.
-    out = execFileSync('git', ['for-each-ref', '--format=%(refname)%00%(authoremail)%00%(committerdate:unix)', ...patterns], {
+    out = execFileSync('git', ['for-each-ref', '--format=%(refname)%00%(authoremail)%00%(committerdate:unix)%00%(objectname)', ...patterns], {
       cwd: root,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -179,8 +194,10 @@ function gitClaims(
   // A Map, so an inherited key such as `constructor` never counts as an earlier winner.
   const winners = new Map<string, { email: string; short: string; ref: string; pushed: boolean; when: number }>();
   const activity: Record<string, number> = {};
+  const listed = new Map<string, string>();
   for (const line of out.split('\n')) {
-    const [ref, email, whenText] = line.split('\0');
+    const [ref, email, whenText, sha] = line.split('\0');
+    if (ref !== undefined && sha !== undefined) listed.set(ref, sha);
     const m = /^refs\/(?:(heads)|remotes\/[^/]+)\/(.+)$/.exec(ref ?? '');
     if (m === null || email === undefined) continue;
     const id = ticketOfBranch(m[2], templates, known);
@@ -200,7 +217,7 @@ function gitClaims(
     branches[id] = w.short;
     refs[id] = w.ref;
   }
-  return { claims, branches, refs, activity };
+  return { claims, branches, refs, activity, listed };
 }
 /**
  * Spec §7: is each lane plan's baseline an ancestor of HEAD? Per sha, `git merge-base --is-ancestor`:
@@ -452,16 +469,13 @@ export function gitAfterReview(root: string, id: string): AfterVerify | undefine
   return Object.hasOwn(r, id) ? r[id] : undefined;
 }
 
-/** A claim's tip: its ref, plus the local branch when that is another ref, since `gitClaims` prefers the pushed one. */
-function claimTips(root: string, id: string, ref: string, claimBranches: Record<string, string>): string[] {
+/**
+ * A claim's tip: its ref, plus the local branch when that is another ref, since `gitClaims` prefers the pushed one.
+ * ST-LN-63: the local branch is there when the claim listing printed it, so no git process runs here.
+ */
+function claimTips(id: string, ref: string, claimBranches: Record<string, string>, listed: ReadonlyMap<string, string>): string[] {
   const local = Object.hasOwn(claimBranches, id) ? 'refs/heads/' + claimBranches[id] : undefined;
-  if (local === undefined || local === ref) return [ref];
-  try {
-    execFileSync('git', ['rev-parse', '--verify', '-q', local], { cwd: root, ...GIT_QUIET });
-    return [ref, local];
-  } catch {
-    return [ref];
-  }
+  return local === undefined || local === ref || !listed.has(local) ? [ref] : [ref, local];
 }
 
 /**
@@ -482,8 +496,24 @@ export function ticketOfBranch(name: string, templates: readonly string[], known
   return ids.find(known) ?? ids[0];
 }
 
-/** D-07: the default branch is the first of origin/HEAD, origin/main, origin/master naming a commit; its valid `branch` is a template in force. */
-function gitDefaultBranch(root: string): { exists: boolean; template?: string } {
+/** The author email of a commit object's headers; undefined with an `encoding` header or no author line, where `git show` decides. */
+function headAuthorOf(body: string): string | undefined {
+  const headers = body.split('\n\n', 1)[0] ?? '';
+  const lines = headers.split('\n');
+  if (lines.some((l) => l.startsWith('encoding '))) return undefined;
+  const line = lines.find((l) => l.startsWith('author '));
+  if (line === undefined) return undefined;
+  const open = line.lastIndexOf('<');
+  const close = line.indexOf('>', open);
+  return open < 0 || close < 0 ? undefined : line.slice(open + 1, close);
+}
+
+/**
+ * D-07: the default branch is the first of origin/HEAD, origin/main, origin/master naming a commit; its valid `branch` is a template in force.
+ * ST-LN-63: the same `cat-file --batch` also reads HEAD, whose commit and author `head` carries ('unborn' when HEAD names nothing,
+ * undefined when the batch failed or the commit needs `git show`).
+ */
+function gitDefaultBranch(root: string): { exists: boolean; template?: string; head?: { commit: string; author: string } | 'unborn' } {
   const refs = ['refs/remotes/origin/HEAD', 'refs/remotes/origin/main', 'refs/remotes/origin/master'];
   let out: Buffer;
   try {
@@ -492,32 +522,38 @@ function gitDefaultBranch(root: string): { exists: boolean; template?: string } 
       stdio: ['pipe', 'pipe', 'pipe'],
       maxBuffer: 64 * 1024 * 1024,
       env: { ...process.env, GIT_NO_LAZY_FETCH: '1', GIT_TERMINAL_PROMPT: '0', GCM_INTERACTIVE: 'never' },
-      input: refs.map((r) => r + '\n' + r + ':accord/config.yml\n').join(''),
+      input: refs.map((r) => r + '\n' + r + ':accord/config.yml\n').join('') + 'HEAD\n',
     });
   } catch {
     return { exists: true };
   }
   let at = 0;
-  const next = (): { type: string; body: string } | undefined => {
+  const next = (): { type: string; body: string; sha?: string } | undefined => {
     const nl = out.indexOf(10, at);
     if (nl < 0) return undefined;
-    const m = /^[0-9a-f]+ (\w+) (\d+)$/.exec(out.toString('utf8', at, nl));
+    const m = /^([0-9a-f]+) (\w+) (\d+)$/.exec(out.toString('utf8', at, nl));
     if (m === null) {
       at = nl + 1; // `<name> missing`
       return { type: 'missing', body: '' };
     }
-    const size = Number(m[2]);
+    const size = Number(m[3]);
     const body = out.toString('utf8', nl + 1, nl + 1 + size);
     at = nl + 1 + size + 1;
-    return { type: m[1] as string, body };
+    return { type: m[2] as string, body, sha: m[1] as string };
   };
+  // All seven objects are read before deciding: the default branch is the first of the three refs, and HEAD comes last.
+  const objects = Array.from({ length: refs.length * 2 + 1 }, next);
+  const tip = objects[refs.length * 2];
+  const author = tip?.type === 'commit' ? headAuthorOf(tip.body) : undefined;
+  const head: { commit: string; author: string } | 'unborn' | undefined =
+    tip === undefined ? undefined : tip.type === 'missing' ? 'unborn' : tip.sha === undefined || author === undefined ? undefined : { commit: tip.sha, author };
   for (let i = 0; i < refs.length; i++) {
-    const head = next();
-    const config = next();
-    if (head === undefined || config === undefined) break;
-    if (head.type === 'commit') return { exists: true, ...(config.type === 'blob' && branchTemplateOf(config.body) !== undefined ? { template: branchTemplateOf(config.body) as string } : {}) };
+    const commit = objects[i * 2];
+    const config = objects[i * 2 + 1];
+    if (commit === undefined || config === undefined) break;
+    if (commit.type === 'commit') return { exists: true, ...(config.type === 'blob' && branchTemplateOf(config.body) !== undefined ? { template: branchTemplateOf(config.body) as string } : {}), ...(head === undefined ? {} : { head }) };
   }
-  return { exists: false };
+  return { exists: false, ...(head === undefined ? {} : { head }) };
 }
 
 /** The branch name; '' for a detached HEAD; undefined when git could not say. */
@@ -538,6 +574,7 @@ export function currentBranch(root: string): string | undefined {
 function loadParts(root: string, stage = false, light = false): {
   input: SnapshotInput;
   claimRefs: Record<string, string>;
+  listed: ReadonlyMap<string, string>;
   templates: string[];
   known: (id: string) => boolean;
   statusOf: (id: string) => string | undefined;
@@ -557,10 +594,10 @@ function loadParts(root: string, stage = false, light = false): {
   const known = (id: string) => Object.hasOwn(first.tickets, id);
   const statusOf = (id: string) => first.tickets[id]?.frontmatter?.status;
   // The prompt-expansion hook reads only the tickets, the config and the branch templates; each git spawn it skips is ~50 ms on Windows.
-  if (light) return { input: { files, tree, ...(branchTemplates.length === 1 ? {} : { branchTemplates }) }, claimRefs: {}, templates: branchTemplates, known, statusOf };
-  const facts = gitFacts(root);
+  if (light) return { input: { files, tree, ...(branchTemplates.length === 1 ? {} : { branchTemplates }) }, claimRefs: {}, listed: new Map(), templates: branchTemplates, known, statusOf };
+  const facts = gitFacts(root, defaultBranch.head);
   const git = facts === undefined ? undefined : { commit: facts.commit, authors: facts.authors };
-  const { claims, branches: claimBranches, refs: claimRefs, activity: branchActivity } = gitClaims(root, branchTemplates, known);
+  const { claims, branches: claimBranches, refs: claimRefs, activity: branchActivity, listed } = gitClaims(root, branchTemplates, known);
   // D-09: a new claim is named by the default branch's template; only a repository with no default branch uses the working tree's.
   const claimTemplate = (defaultBranch.exists ? defaultBranch.template : config?.branch) ?? DEFAULT_BRANCH_TEMPLATE;
   const lastActivity: Record<string, number> = { ...facts?.activity };
@@ -575,7 +612,7 @@ function loadParts(root: string, stage = false, light = false): {
   const current = starts.length === 0 ? undefined : currentBranch(root);
   const own = current === undefined || current === '' ? undefined : ticketOfBranch(current, branchTemplates, known);
   for (const { id, start } of starts) {
-    const tips = id === own ? ['HEAD'] : Object.hasOwn(claimRefs, id) ? claimTips(root, id, claimRefs[id], claimBranches) : undefined;
+    const tips = id === own ? ['HEAD'] : Object.hasOwn(claimRefs, id) ? claimTips(id, claimRefs[id], claimBranches, listed) : undefined;
     if (tips === undefined) continue;
     const commit = start ?? reviewStartOf(root, id, tips);
     if (commit !== undefined) afterWanted[id] = { commit, tips };
@@ -604,7 +641,7 @@ function loadParts(root: string, stage = false, light = false): {
     ...(Object.keys(lastActivity).length === 0 ? {} : { lastActivity }),
     ...(Object.keys(afterVerify).length === 0 ? {} : { afterVerify }),
   };
-  return { input, claimRefs, templates: branchTemplates, known, statusOf };
+  return { input, claimRefs, listed, templates: branchTemplates, known, statusOf };
 }
 
 export function loadFromFs(root: string, options: { stage?: boolean; light?: boolean } = {}): SnapshotInput {
@@ -623,7 +660,7 @@ const recordPaths = (id: string): string[] => [
  * One `git cat-file --batch`, no network (`GIT_NO_LAZY_FETCH`). A blob not present locally reads as absent.
  */
 export function loadClaimView(root: string): { checkout: SnapshotInput; view: SnapshotInput } {
-  const { input: checkout, claimRefs, templates, known, statusOf } = loadParts(root, true);
+  const { input: checkout, claimRefs, listed, templates, known, statusOf } = loadParts(root, true);
   const env = { ...process.env, GIT_NO_LAZY_FETCH: '1' };
   const current = currentBranch(root);
   const own = current === undefined || current === '' ? undefined : ticketOfBranch(current, templates, known);
@@ -632,13 +669,13 @@ export function loadClaimView(root: string): { checkout: SnapshotInput; view: Sn
   const refNames = Object.values(claimRefs);
   if (refNames.length > 0) {
     try {
-      const listed = execFileSync('git', ['for-each-ref', '--merged', 'HEAD', '--format=%(refname)', ...refNames], {
+      const mergedOut = execFileSync('git', ['for-each-ref', '--merged', 'HEAD', '--format=%(refname)', ...refNames], {
         cwd: root,
         encoding: 'utf8',
         stdio: ['ignore', 'pipe', 'ignore'],
         env,
       });
-      merged = new Set(listed.split('\n').filter((l) => l !== ''));
+      merged = new Set(mergedOut.split('\n').filter((l) => l !== ''));
     } catch {
       // unborn HEAD or git failure: nothing is merged
     }
@@ -708,7 +745,7 @@ export function loadClaimView(root: string): { checkout: SnapshotInput; view: Sn
     const t = files[recordPaths(id)[0]];
     const v = files[recordPaths(id)[4]];
     if (t === undefined) continue;
-    const tips = claimTips(root, id, ref, checkout.claimBranches ?? {});
+    const tips = claimTips(id, ref, checkout.claimBranches ?? {}, listed);
     const commit =
       startOf(loadSnapshot({ files: { [recordPaths(id)[0]]: t, ...(v === undefined ? {} : { [recordPaths(id)[4]]: v }) }, tree: [] }), id) ??
       (files[recordPaths(id)[3]] === undefined ? undefined : reviewStartOf(root, id, tips));

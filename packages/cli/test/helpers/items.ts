@@ -6,7 +6,18 @@ import { readGolden, runSample } from './runs.js';
 export type Item = { item: string; keys: string[]; p: (args: string[]) => boolean };
 
 /** Each Part 2 task appends its entries to this array literal. */
-export const ITEMS: Item[] = [];
+export const ITEMS: Item[] = [
+  {
+    item: 'HEAD author',
+    keys: ['main worktree open A-1'],
+    p: (a) => a.includes('show') && a.includes('-s') && a.includes('--format=%H%x00%ae') && a.includes('HEAD'),
+  },
+  {
+    item: 'claim tips',
+    keys: ['main status', 'main worktree open A-1'],
+    p: (a) => a[0] === 'rev-parse' && a.includes('--verify') && a.some((x) => x.startsWith('refs/heads/')),
+  },
+];
 
 /**
  * `before` is the number of arrays in `git-counts.before.json[key]` that `p` matches; `after` the same over `argv` when given,

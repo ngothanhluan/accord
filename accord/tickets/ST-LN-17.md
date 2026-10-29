@@ -103,3 +103,14 @@ Feature: ST-LN-17
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
+Chosen: a dedicated `accord round <id> [--plan]` command over pure core functions `nextRound` and `fixModel` that read review.md and plan-review.md. Exit 0 prints `Round: <n> of <cap>` and `Fix executor model: <alias>`; exit 1 prints `stop: report to owner` with the round's findings and the Approach, or `refused: <reason>`; exit 2 is a usage error. The ledger Rulings fix the record grammar, cycles, allowances and legacy records.
+Why: D-05 has the CLI compute the round, and one command serves review in lanes M and S and plan critique alike, without changing `accord anchor`.
+Rejected: round lines and a non-zero exit on `accord anchor`, with the same core, since every stage's step 1 and both resume hooks rely on anchor exiting 0; counting in the skills alone, which is the memory-only count the benchmark caught missing (D-05).
+Affected areas: the record loader (packages/core/src/load/work.ts), a new core round module, the gate rules for gate done and gate plan (packages/core/src/gate), the CLI command and the `pre-tool-use` hook event (packages/cli/src/run.ts, commands/hook.ts, packages/core/src/scaffold/hooks.ts), the review, lane S and plan skills and their record and critique files, and scripts/compliance.mjs.
+Risks, Must first: none open. The approach critique ended after round 3 by D-10, so a Must left in detail would surface at plan critique.
+Risks, Should: the hook fails open on any error (Ruling 32), so a broken hook does not refuse a sonnet fix executor. The CLI prints the model and the benchmark still catches a miss. An agent can write a false owner quote into an allowance or acceptance; the review and approval commits remain the check (Ruling 34). The repository's own settings.json entry and rendered skills land only with the pin pull request (Ruling 28), so until then this repository runs the old review rules. An in-flight ticket at release must add the version line (Ruling 37).
+Test strategy:
+- ac-1, ac-2: core unit tests of `nextRound` and `fixModel` on fixture records, plus one in-process CLI test of `accord round` covering exit 0 and exit 1.
+- ac-3: a core test of the stop, and a gate done rule test for acceptance and convergence.
+- ac-4: the same tests on plan-review.md, and a gate plan rule test.
+- ac-5: an in-process test of `accord hook pre-tool-use` with hook input JSON, covering deny on sonnet or no model and allow on opus.

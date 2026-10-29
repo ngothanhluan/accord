@@ -1,0 +1,14 @@
+# Ledger
+
+## Rulings
+- Ruling: the plan critique loop takes the same cap (five rounds) and the same stop from round 3 as review — the owner already put the cap and the non-falling stop on plan-review.md (2026-10-17 queue text), and one rule is one thing to learn — cost if wrong: plan loops stop two rounds later than GSD's cap of 3
+- Ruling: rounds are read from review.md alone; "written as its round ended" describes the fixture, not a git-history check — D-05 says the CLI reads the record, and the GSD study says counts come from the round record — cost if wrong: a round written late is counted
+- Ruling: a return from verify is a marker the review skill writes into review.md — counts come from the round record, never from frontmatter or git — cost if wrong: a skill that forgets the marker restarts no cap
+- Ruling: "a tier once raised stays raised" is a sticky flag set by the first recorded round at or past escalation.fix_round_tier_up in the ticket, not a running total across verify cycles — D-01 says "once raised, stays raised" — cost if wrong: a ticket with three short review passes never tiers up
+- Ruling: the count that must fall counts findings of every severity, Nice included — counting only Should and Must would make D-07's second condition never fire on its own, since a Should already stops — cost if wrong: a loop that only trades Nice findings stops early
+- Ruling: the cap is five rounds in lane M, lane S and plan critique alike — lane S already caps at five and the earlier Ruling gives plan critique the same — cost if wrong: one lane wanted a different cap
+- Ruling: an owner Ruling allowing more rounds names how many, and accord refuses again after that many — an open-ended allowance is the past-the-cap run the benchmark flagged — cost if wrong: the owner is asked again sooner than wanted
+- Ruling: the stop prints the ticket's whole Approach section rather than extracting the rejected or reserve options — no marker exists to extract by, and printing about fifteen lines misses nothing — cost if wrong: a longer stop message
+- Ruling: an owner acceptance is one line, verdict: accepted-by-owner followed by the owner's sentence in quotes, in review.md and plan-review.md alike, as lane S records it today — cost if wrong: a second form must be read
+- Ruling: an owner Ruling allowing more rounds only lets more rounds run; gate done passes only on an acceptance verdict or a later converged round — otherwise the Ruling would skip review — cost if wrong: none found
+- Ruling: the hook checks the model for the latest recorded round, whose findings the fix executor fixes, and treats any executor dispatch while the ticket is at the review stage as a fix — the review skill dispatches fixes after recording the round, and build executors run at the build stage — cost if wrong: an executor dispatched at review for another reason needs the tiered model too

@@ -1042,6 +1042,8 @@ it('risk:regression the accord skill routes pull request comments to comments.md
     'open and not merged', 'lane M from verify on, lane S from its step 6', 'Never read a pull request\'s comments unasked',
     "Take each review thread, each top-level comment and each review's summary as one comment, a reply inside a thread being part of that thread, by a person whoever it is, the owner included",
     'mark it holds, does not hold, or unclear before fixing any comment',
+    'A failed check, and a comment that reports a failure in the work, follow `./failure.md` from its step 1 instead',
+    'the ticket whose `branch` in `accord status --json` is the pull request's branch (`gh pr view <link> --json headRefName`)',
     'goes under `## Corrections` only when it changes the intent or a criterion and the owner confirms it',
     'draft a question to its author for its thread, show those drafts to the owner and post them only after the owner\'s yes',
     'Fix no comment until every unclear comment is answered, in its thread by its author or in the chat by the owner',

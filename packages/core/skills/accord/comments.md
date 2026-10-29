@@ -7,7 +7,9 @@ kind: reference
 This applies when someone asks you to handle the comments on ticket <id>'s
 pull request while it is open and not merged (`gh pr view <branch> --json
 state` prints `OPEN`): lane M from verify on, lane S from its step 6. Never
-read a pull request's comments unasked. Work in the ticket's worktree: when
+read a pull request's comments unasked. Given only a link, <id> is the
+ticket whose `branch` in `accord status --json` is the pull request's
+branch (`gh pr view <link> --json headRefName`). Work in the ticket's worktree: when
 this session is not in it, first run `accord worktree open <id> --continue`
 and follow `./worktree.md`, then Continue's step 2 only; after a `stop:`
 line, ask the owner to type, in the session opened there, `/accord <id> `
@@ -15,8 +17,9 @@ followed by the request, in place of the line it prints, and stop here.
 
 1. **Read.** Take each review thread, each top-level comment and each
    review's summary as one comment, a reply inside a thread being part of
-   that thread, by a person whoever it is, the owner included; a failed
-   check follows `./failure.md` instead.
+   that thread, by a person whoever it is, the owner included. A failed
+   check, and a comment that reports a failure in the work, follow
+   `./failure.md` from its step 1 instead.
 2. **Check.** Check each comment against the code and mark it holds, does
    not hold, or unclear before fixing any comment. A comment from the
    owner takes the same steps, and goes under `## Corrections` only when

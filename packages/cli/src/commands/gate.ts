@@ -5,7 +5,7 @@
 // than instead of it (D-97). Under `--json` stdout carries the GateResult verbatim and every notice
 // goes to stderr, so `jq '.findings[]'` works with no unwrapping (D-98).
 import { gateDone, gatePlan, gateReady, renderText } from '@accord-dev/accord-core';
-import { gitAfterReview, gitBranchCommits, gitReviewFact, UsageError } from '../load/fs.js';
+import { gitAfterReview, gitBranchCommits, gitPlanHistory, gitRecordsSinceFor, gitReviewFact, UsageError } from '../load/fs.js';
 import { colourFindings } from '../render/color.js';
 import { branchFactFor } from './branch-fact.js';
 import type { CommandContext } from '../run.js';
@@ -37,8 +37,13 @@ export function gate(
     which === 'done' && Object.hasOwn(ctx.snapshot.tickets, id) && ctx.snapshot.tickets[id].frontmatter?.lane !== undefined
       ? { ...forDone, branchFacts: { [id]: branchFactFor(ctx, id) } }
       : forDone;
+  // ST-LN-63: the history Plan and Done read is loaded here for the gated ticket alone, never at load for every ticket.
   const result =
-    which === 'ready' ? gateReady(ctx.snapshot, id) : which === 'plan' ? gatePlan(ctx.snapshot, id) : gateDone(forScope, id);
+    which === 'ready'
+      ? gateReady(ctx.snapshot, id)
+      : which === 'plan'
+        ? gatePlan({ ...ctx.snapshot, ...gitPlanHistory(ctx.root, ctx.snapshot, id) }, id)
+        : gateDone({ ...forScope, ...gitRecordsSinceFor(ctx.root, ctx.snapshot, id) }, id);
   ctx.stdout.write(
     options.json ? JSON.stringify(result, null, 2) + '\n' : colourFindings(renderText(result), ctx.stdout),
   );

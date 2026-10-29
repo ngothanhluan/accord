@@ -3,7 +3,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { branchTemplateOf, CALL_SIGN, DEFAULT_BRANCH_TEMPLATE, isSha, loadSnapshot, normaliseText, peopleOf, scopeLines } from '@accord-dev/accord-core';
+import { branchTemplateOf, CALL_SIGN, DEFAULT_BRANCH_TEMPLATE, isSha, loadSnapshot, normaliseText, peopleOf, scopeLines, workOf } from '@accord-dev/accord-core';
 import type { BranchChange, BranchFact, RepoSnapshot, SnapshotInput } from '@accord-dev/accord-core';
 
 /** Environment problem the user must fix (no git, not a repository, no accord/ folder); exit 2 in Phase 5. */
@@ -284,6 +284,43 @@ function gitRecordsSince(root: string, shas: string[]): Record<string, string[]>
   return out;
 }
 
+/**
+ * ST-LN-63: the history `gate plan` reads for the gated ticket alone, never for every ticket at load: whether its plan's
+ * baseline is an ancestor of HEAD, and which of its plan's non-new `files:` paths exist at that baseline. A baseline that is
+ * not a sha gives `{}`, as the plan gate's own rule reports it.
+ */
+export function gitPlanHistory(
+  root: string,
+  snapshot: RepoSnapshot,
+  id: string,
+): { ancestors?: Record<string, boolean>; baselineFiles?: Record<string, string[]> } {
+  const plan = workOf(snapshot, id)?.plan;
+  const sha = plan?.baseline;
+  if (plan === undefined || sha === undefined || !isSha(sha)) return {};
+  const ancestors = gitAncestors(root, [sha]);
+  const wanted = { [sha]: [...new Set(plan.tasks.flatMap((t) => t.files.filter((f) => !t.newFiles.includes(f))))] };
+  const baselineFiles = gitBaselineFiles(root, wanted, ancestors);
+  return { ancestors, ...(Object.keys(baselineFiles).length === 0 ? {} : { baselineFiles }) };
+}
+
+/**
+ * ST-LN-63: the paths changed from each commit the gated ticket's ticks and review were made against to HEAD, read for
+ * `gate done` and the gated ticket alone. A recorded sha equal to HEAD is included: its diff is empty and the rule never reads it.
+ */
+export function gitRecordsSinceFor(root: string, snapshot: RepoSnapshot, id: string): { recordsSince?: Record<string, string[]> } {
+  const recorded = [
+    ...new Set(
+      [
+        Object.hasOwn(snapshot.tickets, id) ? snapshot.tickets[id].frontmatter?.verified_commit : undefined,
+        Object.hasOwn(snapshot.verifications, id) ? snapshot.verifications[id].frontmatter?.commit : undefined,
+      ].filter((c): c is string => c !== undefined && isSha(c)),
+    ),
+  ];
+  if (recorded.length === 0) return {};
+  const recordsSince = gitRecordsSince(root, recorded);
+  return Object.keys(recordsSince).length === 0 ? {} : { recordsSince };
+}
+
 type AfterVerify = NonNullable<SnapshotInput['afterVerify']>[string];
 
 const GIT_QUIET = { encoding: 'utf8' as const, stdio: ['ignore', 'pipe', 'pipe'] as ['ignore', 'pipe', 'pipe'] };
@@ -523,33 +560,11 @@ function loadParts(root: string, stage = false, light = false): {
   if (light) return { input: { files, tree, ...(branchTemplates.length === 1 ? {} : { branchTemplates }) }, claimRefs: {}, templates: branchTemplates, known, statusOf };
   const facts = gitFacts(root);
   const git = facts === undefined ? undefined : { commit: facts.commit, authors: facts.authors };
-  const shas = [
-    ...new Set(Object.values(first.work ?? {}).flatMap((w) => (w.plan?.baseline !== undefined && isSha(w.plan.baseline) ? [w.plan.baseline] : []))),
-  ];
   const { claims, branches: claimBranches, refs: claimRefs, activity: branchActivity } = gitClaims(root, branchTemplates, known);
   // D-09: a new claim is named by the default branch's template; only a repository with no default branch uses the working tree's.
   const claimTemplate = (defaultBranch.exists ? defaultBranch.template : config?.branch) ?? DEFAULT_BRANCH_TEMPLATE;
   const lastActivity: Record<string, number> = { ...facts?.activity };
   for (const [id, t] of Object.entries(branchActivity)) if (t > (lastActivity[id] ?? 0)) lastActivity[id] = t;
-  const ancestors = shas.length === 0 ? undefined : gitAncestors(root, shas);
-  const wanted: Record<string, string[]> = {};
-  for (const plan of Object.values(first.work ?? {}).flatMap((w) => (w.plan === undefined ? [] : [w.plan]))) {
-    const sha = plan.baseline;
-    if (sha === undefined || !isSha(sha)) continue;
-    const mine = plan.tasks.flatMap((t) => t.files.filter((f) => !t.newFiles.includes(f)));
-    wanted[sha] = [...new Set([...(wanted[sha] ?? []), ...mine])];
-  }
-  const baselineFiles = ancestors === undefined ? {} : gitBaselineFiles(root, wanted, ancestors);
-  // A recorded sha equal to HEAD is included: its diff is empty and the rule never reads it.
-  const recorded = [
-    ...new Set(
-      [
-        ...Object.values(first.tickets).map((t) => t.frontmatter?.verified_commit),
-        ...Object.values(first.verifications).map((v) => v.frontmatter?.commit),
-      ].filter((c): c is string => c !== undefined && isSha(c)),
-    ),
-  ];
-  const recordsSince = recorded.length === 0 ? {} : gitRecordsSince(root, recorded);
   // ST-LN-26: the commits after verify, for the ticket on this branch (HEAD) and for each claimed ticket (its tips).
   const afterWanted: Record<string, { commit: string; tips: string[] }> = {};
   // Only a ticket with a start commit or a review.md needs its tips, so the branch and the claim tips are read for those alone.
@@ -587,9 +602,6 @@ function loadParts(root: string, stage = false, light = false): {
     ...(Object.keys(claims).length === 0 ? {} : { claims, claimBranches }),
     ...(claimTemplate === DEFAULT_BRANCH_TEMPLATE ? {} : { claimTemplate }),
     ...(Object.keys(lastActivity).length === 0 ? {} : { lastActivity }),
-    ...(ancestors === undefined ? {} : { ancestors }),
-    ...(Object.keys(baselineFiles).length === 0 ? {} : { baselineFiles }),
-    ...(Object.keys(recordsSince).length === 0 ? {} : { recordsSince }),
     ...(Object.keys(afterVerify).length === 0 ? {} : { afterVerify }),
   };
   return { input, claimRefs, templates: branchTemplates, known, statusOf };

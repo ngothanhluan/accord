@@ -9,8 +9,9 @@ import { gitDefaultRef, loadClaimView, loadFromFs } from '../src/load/fs.js';
 import { countedSync, spawnLog } from './helpers/git-spawns.js';
 import { counted } from './helpers/runs.js';
 import { checkItem, expectFewer, ITEMS } from './helpers/items.js';
-import { cleanup, commitMsg, gitRun, makeEmptyRepo, mergeMsg, writeFiles } from './helpers/repo.js';
-import { buildSample, prepareSamples, SAMPLE_BUILD_LIMIT, samples } from './helpers/samples.js';
+import { cleanup, commitMsg, gitRun, makeEmptyRepo, mergeMsg, run, writeFiles } from './helpers/repo.js';
+import { buildSample, oneTicketFrom, prepareSamples, SAMPLE_BUILD_LIMIT, samples, TWENTY, TWENTY_BUILD_LIMIT } from './helpers/samples.js';
+import type { Sample } from './helpers/samples.js';
 import type { Clone } from './helpers/worktree.js';
 import { makeClone } from './helpers/worktree.js';
 
@@ -433,3 +434,62 @@ it('risk:complex-branching the claim view reads plan subjects and review starts 
   }
   await expectFewer('main status', (a) => isSubject(a) || a.includes('--stdin'));
 }, LIMIT);
+
+let twenty: { sample: Sample; ones: Record<'B-6' | 'B-7', Sample> } | undefined;
+
+beforeAll(() => {
+  const sample = buildSample(TWENTY);
+  twenty = { sample, ones: { 'B-6': oneTicketFrom(sample, 'B-6'), 'B-7': oneTicketFrom(sample, 'B-7') } };
+}, TWENTY_BUILD_LIMIT);
+
+afterAll(() => {
+  twenty?.ones['B-6'].cleanup();
+  twenty?.ones['B-7'].cleanup();
+  twenty?.sample.cleanup();
+});
+
+// About 14 to 19 s locally on Windows; this is over thirty times that, since the limit guards no stall.
+const AC1_LIMIT = 600_000;
+
+it('ac-1 a read command starts as many git processes with 20 tickets as with 1', async () => {
+  const { sample, ones } = twenty as NonNullable<typeof twenty>;
+  expect(sample.withMerge).toEqual(['B-6', 'B-8', 'B-17', 'B-19']);
+  const stages = async (root: string) => {
+    const r = await run(['status', '--json'], root);
+    return Object.fromEntries((JSON.parse(r.out) as { id: string; stage: string }[]).map((row) => [row.id, row.stage]));
+  };
+  const stagesOfTwenty = await stages(sample.root);
+  const twentyCounts = new Map<string, number>();
+  for (const id of ['B-6', 'B-7'] as const) {
+    const one = ones[id];
+    // D-09: the one-ticket repository holds the same branch with the same history, a merge commit included.
+    expect(one.withMerge).toEqual(id === 'B-6' ? ['B-6'] : []);
+    for (const root of [sample.root, one.root]) {
+      expect(gitRun(root, 'rev-parse', `refs/remotes/origin/t/${id}`).trim(), `${root}: the local and the remote branch of ${id}`).toBe(gitRun(root, 'rev-parse', `refs/heads/t/${id}`).trim());
+    }
+    expect(gitRun(one.root, 'rev-parse', `refs/heads/t/${id}`).trim()).toBe(gitRun(sample.root, 'rev-parse', `refs/heads/t/${id}`).trim());
+    expect(stagesOfTwenty[id], `${id} in the 20-ticket repository`).toBeDefined();
+    expect((await stages(one.root))[id], `${id} in its one-ticket repository`).toBe(stagesOfTwenty[id]);
+    const parents = gitRun(one.root, 'rev-list', '--min-parents=2', `refs/heads/t/${id}`, '^refs/heads/main').split('\n').filter((l) => l !== '');
+    expect(parents.length > 0, `${id}: a merge commit on its branch`).toBe(id === 'B-6');
+
+    const others = sample.withMerge.filter((x) => x !== id);
+    for (const argv of [['status'], ['anchor', id], ['lint'], ['dashboard'], ['show', id]]) {
+      const key = argv.join(' ');
+      let many = twentyCounts.get(key);
+      if (many === undefined) {
+        const r = await counted(argv, sample.root);
+        expect(r.code, `${key} in the 20-ticket repository: ${r.err}`).not.toBe(2);
+        many = r.argv.length;
+        twentyCounts.set(key, many);
+        // The shared walk ran: a failed walk sends every ticket to its own reads, which would make the bound pass or fail for the wrong reason.
+        if (key === 'status') expect(r.argv.some(isStdin), 'status in the 20-ticket repository reads the commits after each start with one shared walk').toBe(true);
+      }
+      const r1 = await counted(argv, one.root);
+      expect(r1.code, `${key} in the one-ticket repository of ${id}: ${r1.err}`).not.toBe(2);
+      const bound = r1.argv.length + 2 * others.length;
+      expect(many, `${key} (one ticket ${id}, merge: ${one.withMerge.length > 0}): ${many} git processes with 20 tickets, ${r1.argv.length} with 1, bound ${bound}`).toBeLessThanOrEqual(bound);
+      process.stdout.write(`ac-1 ${id} ${key}: 20 tickets ${many}, 1 ticket ${r1.argv.length}, bound ${bound}\n`);
+    }
+  }
+}, AC1_LIMIT);

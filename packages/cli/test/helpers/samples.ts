@@ -531,3 +531,106 @@ export function samples(): { mixed: Sample; side: Sample } {
   if (built === undefined) throw new Error('call prepareSamples in beforeAll first');
   return built;
 }
+
+/** Task 7: the 20 tickets of ac-1. A merge after review: B-6, B-17; before review: B-8, B-19; at verify with none: B-7, B-18. */
+export const TWENTY: TicketSpec[] = [
+  { id: 'B-1', kind: 'intent' },
+  { id: 'B-2', kind: 'plan' },
+  { id: 'B-3', kind: 'build-missing-file' },
+  { id: 'B-4', kind: 'plan-foreign-baseline' },
+  { id: 'B-5', kind: 'review' },
+  { id: 'B-6', kind: 'verify-merged' },
+  { id: 'B-7', kind: 'verify-straight' },
+  { id: 'B-8', kind: 'verify-merged-before' },
+  { id: 'B-9', kind: 'done-merged' },
+  { id: 'B-10', kind: 'done-squash' },
+  { id: 'B-11', kind: 'done-rebased' },
+  { id: 'B-12', kind: 'done-extra' },
+  { id: 'B-13', kind: 'dropped' },
+  { id: 'B-14', kind: 'lane-s' },
+  { id: 'B-15', kind: 'plan' },
+  { id: 'B-16', kind: 'review' },
+  { id: 'B-17', kind: 'verify-merged' },
+  { id: 'B-18', kind: 'verify-straight' },
+  { id: 'B-19', kind: 'verify-merged-before' },
+  { id: 'B-20', kind: 'done-squash' },
+];
+
+/** The build of TWENTY and its two one-ticket repositories took 7.4 s on the owner's Windows machine; this is over twenty times that (preamble: at least six). */
+export const TWENTY_BUILD_LIMIT = 180_000;
+
+/**
+ * The one-ticket repository of ac-1 (D-09): the ticket's branch with the same commits, a merge commit included, and a
+ * main that holds the branch's own main commits and only that ticket's file and records, so its stage and its commits
+ * after review are the same in both repositories. Branches are named `t/<id>`, as in `buildSample`'s default.
+ */
+export function oneTicketFrom(sample: Sample, id: string): Sample {
+  const branch = `refs/heads/t/${id}`;
+  const base = git(sample.root, 'merge-base', branch, MAIN).trim();
+  const listed = git(sample.root, 'ls-tree', '-r', '-z', '--name-only', base, '--', 'accord/tickets').split('\0').filter((p) => p !== '');
+  const dropped = listed.filter((p) => p !== `accord/tickets/${id}.md` && !p.startsWith(`accord/tickets/${id}/`));
+  const ts = Number(git(sample.root, 'show', '-s', '--format=%ct', base).trim()) + 20;
+
+  const remote = realpathSync.native(mkdtempSync(join(tmpdir(), 'accord-sample-remote-')));
+  const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'accord-sample-')));
+  git(remote, 'init', '--bare', '-q', '-b', 'main');
+  git(remote, 'config', 'gc.auto', '0');
+  git(remote, 'config', 'receive.autogc', 'false');
+  git(root, 'init', '-q', '-b', 'main');
+  for (const [k, v] of [
+    ['user.email', 'fixture@example.invalid'],
+    ['user.name', 'fixture'],
+    ['commit.gpgsign', 'false'],
+    ['core.autocrlf', 'false'],
+    ['gc.auto', '0'],
+    ['maintenance.auto', 'false'],
+  ]) git(root, 'config', k, v);
+
+  git(root, 'fetch', '-q', sample.root, `${branch}:${branch}`, `refs/remotes/origin/t/${id}:refs/st-ln-63/origin-tip`);
+  const who = `fixture <fixture@example.invalid> ${ts} +0000`;
+  const message = `main: only ${id} and its records`;
+  const lines = [`commit ${MAIN}`, `author ${who}`, `committer ${who}`, `data ${Buffer.byteLength(message) + 1}`, message, `from ${base}`, ...dropped.map((p) => `D ${p}`), '', ''];
+  execFileSync('git', ['fast-import', '--quiet'], { cwd: inSandbox(root), input: Buffer.from(lines.join('\n')), stdio: ['pipe', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 });
+  git(root, 'reset', '-q', '--hard');
+  git(root, 'remote', 'add', 'origin', remote);
+  git(root, 'push', '-q', 'origin', `${MAIN}:${MAIN}`, `refs/st-ln-63/origin-tip:${branch}`);
+  git(root, 'update-ref', '-d', 'refs/st-ln-63/origin-tip', git(root, 'rev-parse', branch).trim());
+  git(root, 'fetch', '-q', 'origin');
+  git(root, 'remote', 'set-head', 'origin', 'main');
+
+  const oneMain = git(root, 'rev-parse', MAIN).trim();
+  const template0: Clone = {
+    root,
+    remote,
+    sibling: (other) => `${dirname(root)}/${root.split(/[\\/]/).pop()}-${other.toLowerCase()}`,
+    git: (...args) => git(root, ...args),
+    otherClone: () => {
+      throw new Error('a sample has no other clone');
+    },
+    cleanupAll: () => {},
+  };
+  return {
+    root,
+    remote,
+    names: { ...sample.names, [oneMain]: 'one-main' },
+    withMerge: sample.withMerge.includes(id) ? [id] : [],
+    shaOf: (name) => (name === 'one-main' ? oneMain : sample.shaOf(name)),
+    copy() {
+      const c = copyClone(template0);
+      return {
+        root: c.root,
+        remote: c.remote,
+        worktree(other) {
+          if (other !== id) throw new Error(`${other} has no branch in the one-ticket repository of ${id}`);
+          const path = c.sibling(id);
+          git(c.root, 'worktree', 'add', path, `t/${id}`);
+          return path;
+        },
+        cleanup: () => c.cleanupAll(),
+      };
+    },
+    cleanup() {
+      for (const d of [root, remote]) cleanup(d);
+    },
+  };
+}

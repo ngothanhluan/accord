@@ -28,13 +28,10 @@ ui: false
 
 ## Intent
 <!-- At most five lines: why, for whom, how success is measured, and what this does not do. -->
-Queued 2026-10-25, not approved; the intent interview replaces this:
-- Why (owner, 2026-10-25, ST-LN-44 D-11: the git cut is "queued together as their own ticket"). Measured with GIT_TRACE2_EVENT in this repository on 2026-10-25: `status` 150 git processes / 21 s, `anchor` 137 / 19.5 s, `lint` 135 / 21 s, `dashboard` 151 / 21 s, `show` 150 / 23 s.
-- Queued intent, part 1 (ST-LN-44 D-10, sized): `loadParts` (packages/cli/src/load/fs.ts) computes plan-baseline ancestry, baseline files and paths changed since each recorded commit for every ticket on every command (128 of `status`'s 150 processes), but only `gate plan` / `gate done` read them, and only for the gated ticket (core gate/plan.ts, gate/done.ts). Compute them only there.
-- Part 2: one-process default ref, claim tips from the existing listing, HEAD author folded into the existing `cat-file`, one `--merged` query in clean instead of a merge-base per branch, the duplicate `currentBranch` / `reviewCommit` / `get-url` / `worktree list` / ssh-config calls, and a light preflight before the fetch in pick-up and `new ticket --worktree`; `safeTip`'s re-check stays (data-loss guard).
-- Part 3, from ST-LN-44's table: a benchmark sample filter in scripts/benchmark.mjs for the 7 kept benchmark tests, without the crash at :859-862 or a loss of the once-per-verifier check; open at intent whether it belongs here.
-- Part 4, added 2026-10-27 from ST-LN-44's merged full run: three tests main added after ST-LN-44's baseline are in no row of its table and ran over 10 s on the owner's machine (a loaded run, about 1.35 times slower than ST-LN-44's measuring run): packages/cli/test/branch-fact.test.ts "risk:complex-branching gate done reads the branch diff from the merge base ignoring whitespace and pins the scope at the first commit that records ac_hash" (51.2 s) and "risk:parsing gate done reads added call lines and package json maps from the branch diff" (32.3 s), and packages/cli/test/lane-s.test.ts "risk:complex-branching the review package lists the out-of-scope files and interface signs gate done would name" (22.8 s). The owner sent them here instead of ST-LN-44 ("ok", 2026-10-27); cut them on the command side (parts 1-2) or the test side, as ST-LN-44 did. Added 2026-10-28 from BUG-LN-13's baseline run at 85b3158: packages/cli/test/upgrade.test.ts "ac-2 upgrade replaces only the lint and gate step and keeps every other line of the workflow" ran 107.8 s and failed on the cli's 90 s test limit (packages/cli/vitest.config.ts:8), one full run only, so not yet known whether it fails every time; the owner sent it here ("A", 2026-10-28).
-- Same stdout, stderr, exit code and JSON on any repository whose objects are intact; the architect's sizing and risk tests are in ST-LN-44's session record and ledger.
+Why: every accord command starts 135-151 git processes and takes about 20 s in this repository (GIT_TRACE2_EVENT, 2026-10-25: `status` 150 / 21 s, `anchor` 137 / 19.5 s, `lint` 135 / 21 s, `dashboard` 151 / 21 s, `show` 150 / 23 s); 128 of `status`'s 150 compute plan-baseline ancestry, baseline files and paths changed since each recorded commit for every ticket (`loadParts`, packages/cli/src/load/fs.ts), which only `gate plan` and `gate done` read, for the gated ticket only (core gate/plan.ts, gate/done.ts); queued by ST-LN-44 D-11 ("queued together as their own ticket"), the architect's sizing and risk tests are in ST-LN-44's session record and ledger.
+For: everyone who runs accord, by hand or through an agent, and every full test run. Part 1: compute that history only in `gate plan` / `gate done`, for the gated ticket. Part 2: one-process default ref, claim tips from the existing listing, HEAD author folded into the existing `cat-file`, one `--merged` query in clean instead of a merge-base per branch, the duplicate `currentBranch` / `reviewCommit` / `get-url` / `worktree list` / ssh-config calls, and a light preflight before the fetch in pick-up and `new ticket --worktree`. Part 4, cut on the command side or the test side as ST-LN-44 did: packages/cli/test/branch-fact.test.ts "risk:complex-branching gate done reads the branch diff from the merge base ignoring whitespace and pins the scope at the first commit that records ac_hash" (51.2 s) and "risk:parsing gate done reads added call lines and package json maps from the branch diff" (32.3 s), packages/cli/test/lane-s.test.ts "risk:complex-branching the review package lists the out-of-scope files and interface signs gate done would name" (22.8 s), all three from ST-LN-44's merged full run, a loaded run about 1.35 times slower than its measuring run ("ok", 2026-10-27), and packages/cli/test/upgrade.test.ts "ac-2 upgrade replaces only the lint and gate step and keeps every other line of the workflow" (107.8 s, failed the cli's 90 s limit at packages/cli/vitest.config.ts:8 in BUG-LN-13's baseline run at 85b3158, one run only, "A", 2026-10-28).
+Success: the read commands start as many git processes with 20 tickets as with 1 (D-02); the worktree commands start fewer than today (D-05); goldens recorded first match byte for byte (D-04); the four Part 4 tests are under 10 s or kept (D-03); nothing deferred (D-06).
+Not: the benchmark sample filter in scripts/benchmark.mjs (part 3: its own ticket, D-01; it must avoid the crash at :859-862 and keep the once-per-verifier check), wall-clock targets, any change to stdout, stderr, exit code or JSON on a repository whose objects are intact, or dropping `safeTip`'s re-check (the data-loss guard).
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.
@@ -43,10 +40,30 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 Feature: ST-LN-63
 
   @ac-1
-  Scenario: <observable outcome>
-    Given ...
-    When ...
-    Then ...
+  Scenario: A read command starts as many git processes with 20 tickets as with 1
+    Given a repository with 20 tickets at several stages, with claims, recorded plan baselines and verify commits, and a repository holding only one of those tickets, at the same stage with its claim, baseline and verify commit
+    When each of `status`, `anchor`, `lint`, `dashboard` and `show` runs in both, `anchor` and `show` on that one ticket
+    Then each command starts the same number of git processes in both repositories
+
+  @ac-2
+  Scenario: Every command prints what it printed before the change
+    Given goldens recorded before any product change, of the stdout, stderr, exit code and JSON of `status`, `anchor`, `lint`, `dashboard`, `show`, `gate plan`, `gate done`, pick-up, clean, `worktree merge` and `new ticket --worktree` on the sample repositories
+    When the same commands run on the same repositories after the change
+    Then every output matches its golden byte for byte, after only the temporary folder paths and commit shas that differ between runs are replaced by fixed placeholders
+
+  @ac-3
+  Scenario: Each worktree command starts fewer git processes than before the change
+    Given the number of git processes that pick-up, clean, `worktree merge` and `new ticket --worktree` started on a sample repository before any product change
+    When each runs on the same repository after the change
+    Then each starts fewer git processes than its recorded number
+    And clean removes and keeps exactly the branches it removed and kept before the change, a squash-merged or rebased branch included
+
+  @ac-4
+  Scenario: The four slow tests are under 10 s or kept with an approved ceiling
+    Given the two branch-fact tests, the lane S review-package test and the upgrade ac-2 test named in Part 4 of the Intent
+    When a full run completes on the owner's machine
+    Then each of the four takes under 10 s in that run's junit report, or is kept with a reason and a ceiling the owner approved, written in this ticket, and takes no longer than that ceiling in the report
+    And the upgrade ac-2 test passes within the cli's test limit of 90 s on Windows at packages/cli/vitest.config.ts, which is not raised
 ```
 
 ## Vetoes
@@ -54,6 +71,13 @@ Feature: ST-LN-63
 
 ## Decisions
 <!-- Settled answers, one per line: - D-01 <decision> — "<the owner's sentence>" -->
+- D-01 The ticket holds parts 1, 2 and 4; part 3 (the benchmark sample filter) moves to its own draft ticket — "A"
+- D-02 Success for parts 1 and 2 is measured by counting git processes: the read commands `status`, `anchor`, `lint`, `dashboard` and `show` start the same number of git processes on a repository with 1 ticket as on one with 20, checked by a test, not by wall-clock time — "A" (owner, 2026-10-29, choosing this against a fixed ceiling per command and against a time limit)
+- D-03 Part 4 is done when each of the four named tests (the two branch-fact tests, the lane S review-package test and the upgrade ac-2 test) runs under 10 s in a full run on the owner's machine, or is kept with a reason and a ceiling the owner approves, as ST-LN-44 did; the upgrade ac-2 test at least no longer fails the cli's 90 s limit — "A" (owner, 2026-10-29, choosing this against under 10 s with no keep and against fixing only the upgrade test)
+- D-04 "Same output" is proven by goldens recorded before any product change: the full stdout, stderr, exit code and JSON of `status`, `anchor`, `lint`, `dashboard`, `show`, `gate plan` and `gate done` on a few sample repositories (tickets at several stages, claims, worktrees), which must match byte for byte after the change — "A" (owner, 2026-10-29, choosing this against relying on today's tests and against goldens for the read commands only)
+- D-05 The worktree commands are in scope: each part 2 item has a test that counts the git processes of the command it touches (pick-up, clean, `worktree merge`, `new ticket --worktree`) and shows fewer than today, and those commands' messages get goldens as in D-04 — "A" (owner, 2026-10-29, choosing this against keeping part 2 to the read commands and queuing the worktree items as their own ticket)
+- D-06 There is no smaller version: parts 1, 2 and 4 are done in full in this ticket, none deferred — "A" (owner, 2026-10-29, asked for the smallest version that still counts as done, choosing this against part 1 plus the upgrade test only)
+- D-07 The criteria read as follows after the audit: ac-1's one-ticket repository holds one of the 20 tickets at the same stage, and `anchor` and `show` run on it; ac-2 replaces only temporary folder paths and commit shas that differ between runs before the byte comparison; ac-3's clean keeps today's rule, content checks for squash-merged or rebased branches included, and a `--merged` query is only a shortcut; ac-4's ceilings are written in the ticket and read from the full run's junit report, and the 90 s limit is not raised — "ok" (owner, 2026-10-29, to these four readings)
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->

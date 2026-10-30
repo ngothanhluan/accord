@@ -30,7 +30,7 @@ ui: false
 <!-- At most five lines: why, for whom, how success is measured, and what this does not do. -->
 Why: finished work is never fully cleaned. On 2026-10-30, 23 folders of removed worktrees, each holding only npm's workspace links, sat in `C:\Work`, two of them printed `removed` that same day; 15 were deleted by hand on 2026-10-25, and round 1 left 75 benchmark worktrees until removed by hand. The owner: "I think there needs to be a mechanism that cleans up the workflow completely when a ticket is finished, or when /accord is used".
 For: everyone working tickets through accord, on Windows and POSIX.
-Success: once a ticket is done on the default branch, no worktree folder, recorded worktree, or branch of it is left after its own session sees the merge or after any next session starts, with nobody typing a cleanup command; a folder holding a real file is kept and named, never deleted.
+Success: once a ticket is done on the default branch, no worktree folder, recorded worktree, or branch of it is left after the next session starts, resumes or is cleared (once no live session holds it), with nobody typing a cleanup command; a folder holding a real file is kept and named, never deleted.
 Not: never removes uncommitted work, a real file, or a commit reachable from nothing else; `gate done` gets no worktree check (D-07); parts (5) and (6) of the queued note leave for their own tickets (D-02), and so do merged non-ticket branches and the benchmark's own clean (D-10).
 Evidence: the queued note of 2026-10-25 is in this file's git history; research `accord/research/2026-10-25-review-convergence.md` (not a contract).
 
@@ -50,12 +50,13 @@ Feature: ST-LN-55
     And the second folder and its real file still exist, and clean prints a line naming that folder and that file, and no "removed" line for it
 
   @ac-2
-  Scenario: The session that worked a ticket cleans its own worktree once the ticket is done
-    Given a session holds a ticket's worktree and has left it
-    And the ticket's pull request is merged, so the ticket's file on origin's default branch says it is done
-    When that session runs the cleanup its finish step names
-    Then the ticket's worktree folder, its local branch and its branch on origin no longer exist
-    And no hold on the ticket remains
+  Scenario: The next session start cleans a done ticket's worktree and branches, unless a live session holds it
+    Given a ticket's pull request is merged, so the ticket's file on origin's default branch says it is done
+    And its worktree, its local branch and its branch on origin still exist, and the session that held the worktree has ended
+    And another done ticket's worktree is held by a session that still runs
+    When a session starts, resumes or is cleared, in the main checkout or in any worktree of the repository
+    Then the first ticket's worktree folder, its local branch, its branch on origin and its hold no longer exist, and that session shows the "removed" line
+    And the second ticket's worktree still exists
 
   @ac-3
   Scenario: A session start cleans a done ticket's recorded worktree that git has forgotten
@@ -79,6 +80,8 @@ Feature: ST-LN-55
 - D-08 A file git ignores counts as a real file unless it sits in a folder named in a list in `config.yml`, by default `node_modules` and `dist`; a worktree holding any other ignored file is kept, and clean names the file — owner, 2026-10-30: "a" (asked after the approach critic showed `git worktree remove` deletes every ignored file before clean looks)
 - D-09 No new flag: clean removes a worktree this session holds once its ticket is done on the default branch and the session no longer runs inside it; before done, the session's own held worktree is kept as today — owner, 2026-10-30: "a"
 - D-10 The ticket keeps (A), (B), (C) and (D); (E) merged non-ticket branches and agent worktrees, and part (1) the benchmark's own clean (D-05), move to two new draft tickets, taking former ac-4 and ac-5 with them; this narrows D-01 and replaces D-05 — owner, 2026-10-30: "A" (asked after the second approach critique found seven Must findings, most in (E) and the benchmark)
+- D-11 No session waits for a merge: a done ticket is cleaned at the next session start, resume or /clear in any folder of the repository, by a clean the hook runs in the foreground with a hook timeout long enough not to cut a removal short, and at `/accord`; its result shows in that session; a worktree a live session still holds is kept until that session ends. This replaces D-03's first moment and D-09 — owner, 2026-10-30: "a" (asked after the third approach critique found four Must findings, all in the merge wait and the background clean)
+- D-12 The D-08 list holds file and folder names matched at any depth, and its default adds `.DS_Store` and `Thumbs.db`; `.claude/settings.local.json` is not in the default, so a worktree holding it is kept and the file named — owner, 2026-10-30: "a"
 - D-02 Parts (5) `verify/ci.md` reading a merged pull request and (6) the no-Vietnamese test's gap leave this ticket for tickets of their own — owner, 2026-10-30: "ok, go with the proposal"
 
 ## Corrections

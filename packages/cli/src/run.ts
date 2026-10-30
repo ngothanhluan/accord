@@ -28,7 +28,8 @@ import { testsSkipped } from './commands/tests-skipped.js';
 import { drop } from './commands/drop.js';
 import { upgrade } from './commands/upgrade.js';
 import { worktreeCheck, worktreeClean, worktreeMerge, worktreeOpen, worktreePush } from './commands/worktree.js';
-import { loadClaimView, loadWithBranch, UsageError } from './load/fs.js';
+import { loadClaimView, loadLight, loadWithBranch, UsageError } from './load/fs.js';
+import type { LightLoad } from './load/fs.js';
 import { pinMessage, versionOnDisk } from './pin.js';
 import { repoRoot } from './root.js';
 
@@ -54,6 +55,8 @@ export interface CommandContext {
   stdin?: string;
   /** ST-LN-63: `core.sshCommand` per folder, filled by the first network git call of the run and kept across a reload. */
   ssh?: Map<string, string>;
+  /** ST-LN-63: set by a light preflight (pick-up, `new ticket --worktree`); `fetchOrigin` finishes the full load from it and returns a context without it. */
+  light?: LightLoad;
 }
 
 /**
@@ -63,8 +66,10 @@ export interface CommandContext {
 function preflight(opts: RunOptions, mode: 'checkout' | 'stage' | 'claims' | 'light' = 'checkout'): CommandContext {
   const root = repoRoot(opts.cwd);
   const parts = mode === 'claims' ? loadClaimView(root) : undefined;
-  const loaded = parts === undefined ? loadWithBranch(root, { stage: mode === 'stage', light: mode === 'light' }) : undefined;
-  const snapshot = loadSnapshot(parts?.view ?? (loaded as NonNullable<typeof loaded>).input);
+  // ST-LN-63: a light load keeps the parts it read, so a command that goes on to the full load does not read them twice.
+  const lit = mode === 'light' ? loadLight(root) : undefined;
+  const loaded = parts === undefined && lit === undefined ? loadWithBranch(root, { stage: mode === 'stage' }) : undefined;
+  const snapshot = loadSnapshot(parts?.view ?? lit?.input ?? (loaded as NonNullable<typeof loaded>).input);
   // ST-LN-63: the branch the load read, handed on so no command asks git for it again (none in light mode).
   const branch = parts?.branch ?? loaded?.branch;
   const plain = parts === undefined ? undefined : parts.checkout === parts.view ? snapshot : loadSnapshot(parts.checkout);
@@ -75,7 +80,7 @@ function preflight(opts: RunOptions, mode: 'checkout' | 'stage' | 'claims' | 'li
     const message = pinMessage(snapshot.config.accord, pkg.version, versionOnDisk());
     if (message !== undefined) throw new UsageError(message);
   }
-  return { root, snapshot, ...(plain === undefined ? {} : { plain }), ...(branch === undefined ? {} : { branch }), stdout: opts.stdout, stderr: opts.stderr, env: opts.env ?? {}, ssh: new Map(), ...(opts.stdin === undefined ? {} : { stdin: opts.stdin }) };
+  return { root, snapshot, ...(plain === undefined ? {} : { plain }), ...(branch === undefined ? {} : { branch }), stdout: opts.stdout, stderr: opts.stderr, env: opts.env ?? {}, ssh: new Map(), ...(lit === undefined ? {} : { light: lit.parts }), ...(opts.stdin === undefined ? {} : { stdin: opts.stdin }) };
 }
 
 /**
@@ -184,7 +189,7 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .addOption(new Option('--lane <lane>', 'write a lane ticket (S, M, L, or P)').choices(['S', 'M', 'L', 'P']))
     .option('--worktree', 'write the ticket in its own new worktree on its claim branch, commit and push it, then run setup there')
     .action((id: string | undefined, options: { type: 'epic' | 'story' | 'bug'; lane?: Lane; worktree?: boolean }) => {
-      setCode(newTicket(preflight(opts), id, options));
+      setCode(newTicket(preflight(opts, options.worktree === true ? 'light' : 'checkout'), id, options));
     });
 
   // D-121: the same `preflight` every other repository-reading command uses, so the pin check and the
@@ -249,7 +254,7 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .description("find or prepare the ticket's worktree, or take its hold from inside it")
     .option('--continue', 'continue a claimed ticket: never claim, refuse when it has no branch')
     .action((id: string, o: { continue?: boolean }) => {
-      setCode(worktreeOpen(preflight(opts), id, { continue: o.continue === true }));
+      setCode(worktreeOpen(preflight(opts, o.continue === true ? 'checkout' : 'light'), id, { continue: o.continue === true }));
     });
   worktree
     .command('merge <id>')

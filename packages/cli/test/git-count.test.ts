@@ -13,7 +13,7 @@ import { cleanup, commitMsg, gitRun, makeEmptyRepo, mergeMsg, run, writeFiles } 
 import { buildSample, oneTicketFrom, prepareSamples, SAMPLE_BUILD_LIMIT, samples, TWENTY, TWENTY_BUILD_LIMIT } from './helpers/samples.js';
 import type { Sample } from './helpers/samples.js';
 import type { Clone } from './helpers/worktree.js';
-import { makeClone } from './helpers/worktree.js';
+import { copyClone, makeClone, makeTemplate } from './helpers/worktree.js';
 
 vi.mock('node:child_process', async (orig) => (await import('./helpers/git-spawns.js')).wrapChildProcess(await orig<typeof import('node:child_process')>()));
 
@@ -810,3 +810,97 @@ it('risk:complex-branching a command that proved the origin remote asks for it o
   // the merge run above is the run of key 'wt-A-7 worktree merge A-7'; the other two keys run fresh
   for (const key of item('get-url').keys) await expectFewer(key, item('get-url').p, key.startsWith('wt-A-7 ') ? merged.argv : undefined);
 }, LIMIT);
+
+const WORKTREE_COMMANDS = ['main worktree open A-1', 'main worktree clean', 'wt-A-7 worktree merge A-7', 'main new ticket N-1 --lane M --worktree'];
+
+it('ac-3 each worktree command starts fewer git processes than before the change and clean keeps and removes the same branches', async () => {
+  const got = await runSample(WORKTREE_COMMANDS);
+  const baseline = readGolden<Record<string, string[][]>>('git-counts.before.json');
+  const golden = readGolden<Record<string, { code: number; out: string; err: string; refs?: string[] }>>('goldens.json');
+  for (const key of WORKTREE_COMMANDS) {
+    const after = got[key].argv.length;
+    expect(after, `${key}: ${after} git processes after, ${baseline[key].length} before`).toBeLessThan(baseline[key].length);
+    // each Part 2 item that touches this command shows fewer than its own recorded count (D-05, D-11, D-12)
+    for (const entry of ITEMS) if (entry.keys.includes(key)) await expectFewer(key, entry.p, got[key].argv);
+    expect(got[key].code, key).toBe(golden[key].code);
+    expect(got[key].out, key).toBe(golden[key].out);
+  }
+  // clean removes and keeps the same branches, the squash-merged A-9 and the rebased A-10 included
+  const clean = got['main worktree clean'];
+  expect(clean.out).toContain('deleted t/A-9 ');
+  expect(clean.out).toContain('deleted t/A-10 ');
+  expect(clean.refs).toEqual(golden['main worktree clean'].refs);
+}, 600_000);
+
+const isLsFiles = (a: string[]) => a.join(' ') === 'ls-files --cached --others --exclude-standard -z';
+const isDefaultBranchRead = (a: string[]) => a.join(' ') === '-c credential.interactive=never cat-file --batch';
+
+let lightTemplate: Clone | undefined;
+
+beforeAll(() => {
+  const t = makeTemplate({ tickets: ['A-1', 'ST-LN-1'] });
+  lightTemplate = t;
+  // the claim branch template and the people table are in config.yml, so only the full snapshot knows a claim's branch and the numbers taken
+  writeFiles(t.root, { 'accord/config.yml': CONFIG + 'branch: "feature/{id}"\npeople:\n  "fixture@example.invalid": LN\n' });
+  commitMsg(t.root, 'branch template and people');
+  t.git('push', '-q', 'origin', 'main');
+  const claim = (branch: string, id: string, email: string) => {
+    t.git('switch', '-q', '-c', branch, 'main');
+    const folder = mkdtempSync(join(tmpdir(), 'accord-msg-'));
+    try {
+      const file = join(folder, 'msg.txt');
+      writeFileSync(file, 'claim: ' + id + '\n');
+      t.git('-c', 'user.email=' + email, '-c', 'user.name=other', 'commit', '--allow-empty', '-q', '-F', file, '--cleanup=verbatim');
+    } finally {
+      cleanup(folder);
+    }
+    t.git('switch', '-q', 'main');
+  };
+  // another email claimed A-1 on a feature/ branch, present here; ST-LN-1 has a branch holding only an empty claim commit
+  claim('feature/A-1', 'A-1', 'other@example.invalid');
+  claim('feature/ST-LN-1', 'ST-LN-1', 'fixture@example.invalid');
+}, 180_000);
+
+afterAll(() => lightTemplate?.cleanupAll());
+
+it('risk:complex-branching pick-up and new ticket worktree load the full snapshot after a failed or absent fetch', async () => {
+  const t = lightTemplate as NonNullable<typeof lightTemplate>;
+  const variants = [
+    { name: 'no origin', reads: 1, setup: (c: Clone) => c.git('config', '--remove-section', 'remote.origin') },
+    { name: 'failed fetch', reads: 1, setup: (c: Clone) => c.git('remote', 'set-url', 'origin', join(tmpdir(), 'accord-no-such-remote-' + process.pid)) },
+    { name: 'reachable origin', reads: 2, setup: () => '' },
+  ];
+  const facts = item('light preflight').p;
+  const runs: Record<string, string[][]> = {};
+  for (const v of variants) {
+    const c = copyClone(t);
+    try {
+      v.setup(c);
+      const pick = await counted(['worktree', 'open', 'A-1'], c.root);
+      // the claim branch comes from the full snapshot: A-1 is claimed by another email on feature/A-1, so nothing is made on t/A-1
+      expect(pick.err, `${v.name}: ${pick.out}`).toContain('claimed: A-1 by other@example.invalid');
+      expect(pick.code, v.name).toBe(2);
+      expect(() => c.git('rev-parse', '--verify', '-q', 'refs/heads/t/A-1'), v.name).toThrow();
+      expect(pick.argv.filter(isLsFiles), `${v.name} pick-up: light reads`).toHaveLength(v.reads);
+      expect(pick.argv.filter(isDefaultBranchRead), `${v.name} pick-up: default branch reads`).toHaveLength(v.reads);
+      expect(pick.argv.filter(facts), `${v.name} pick-up: git facts`).toHaveLength(1);
+      if (v.name === 'reachable origin') runs['main worktree open A-1'] = pick.argv;
+
+      const made = await counted(['new', 'ticket', '--lane', 'M', '--worktree'], c.root);
+      // ST-LN-1 has a branch with only an empty claim commit: the number after it is the next one, never ST-LN-1 again
+      expect(made.out + made.err, `${v.name}: new ticket`).not.toContain('ST-LN-1.md');
+      expect(made.argv.filter(isLsFiles), `${v.name} new ticket: light reads`).toHaveLength(v.reads);
+      expect(made.argv.filter(isDefaultBranchRead), `${v.name} new ticket: default branch reads`).toHaveLength(v.reads);
+      expect(made.argv.filter(facts), `${v.name} new ticket: git facts`).toHaveLength(1);
+      if (v.name !== 'no origin') expect(made.out + made.err, `${v.name}: new ticket`).toContain('ST-LN-2');
+      if (v.name === 'reachable origin') runs['main new ticket N-1 --lane M --worktree'] = made.argv;
+    } finally {
+      c.cleanupAll();
+    }
+  }
+  // the reachable runs hold the git calls of the two keys: the facts log runs once where the baseline ran it twice
+  for (const key of item('light preflight').keys) {
+    expect(runs[key], key).toBeDefined();
+    await expectFewer(key, facts, runs[key]);
+  }
+}, 600_000);

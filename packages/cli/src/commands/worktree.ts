@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { DEFAULT_BRANCH_TEMPLATE, forbiddenLines, isSha, loadConfig, loadSnapshot, statusRows, trailerReason } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
-import { currentBranch, droppedOn, gitDefaultRef, gitUnpushedCommits, gitUserEmail, loadFromFs, snapshotAt, ticketOfBranch, UsageError } from '../load/fs.js';
+import { currentBranch, droppedOn, gitDefaultRef, gitUnpushedCommits, gitUserEmail, loadFromFs, loadWithBranch, snapshotAt, ticketOfBranch, UsageError } from '../load/fs.js';
 import { fetchLimitMs } from './fetch-limit.js';
 import { claudeEnv, describeSession, isLive, processTable, runSetup, sameSession, sessionIn } from '../load/proc.js';
 import type { Session } from '../load/proc.js';
@@ -483,16 +483,26 @@ const firstLine = (e: unknown) => String((e as { stderr?: string }).stderr ?? e)
 
 /** ST-LN-30 D-01, D-06: fetch origin so a branch is cut and a claim judged from the latest refs; a failed fetch prints one line and the work goes on. */
 export function fetchOrigin(ctx: CommandContext, known?: boolean): { ctx: CommandContext; fetched: 'ok' | 'failed' | 'none' } {
-  if (known !== true && !gitOk(ctx.root, ['remote', 'get-url', 'origin'])) return { ctx, fetched: 'none' };
+  // ST-LN-63: a context from a light preflight is finished here. With no fetch, or a failed one, nothing moved a ref or the working tree,
+  // so the full load reuses what the light load read; after a fetch origin's refs may have moved, so it reads everything again.
+  const finished = (): CommandContext => {
+    if (ctx.light === undefined) return ctx;
+    const { light, ...rest } = ctx;
+    const loaded = loadWithBranch(ctx.root, { from: light });
+    return { ...rest, snapshot: loadSnapshot(loaded.input), ...(loaded.branch === undefined ? {} : { branch: loaded.branch }) };
+  };
+  if (known !== true && !gitOk(ctx.root, ['remote', 'get-url', 'origin'])) return { ctx: finished(), fetched: 'none' };
   const ms = fetchLimitMs();
   try {
     gitNoPrompt(ctx.root, ['fetch', '--no-prune', 'origin'], ms, ctx.ssh);
   } catch (e) {
     const why = (e as NodeJS.ErrnoException).code === 'ETIMEDOUT' ? `no answer within ${ms / 1000} seconds` : firstLine(e);
     ctx.stdout.write(`fetch from origin failed, going on with the refs already in this clone: ${why}\n`);
-    return { ctx, fetched: 'failed' };
+    return { ctx: finished(), fetched: 'failed' };
   }
-  return { ctx: { ...ctx, snapshot: loadSnapshot(loadFromFs(ctx.root)) }, fetched: 'ok' };
+  const full: CommandContext = { ...ctx, snapshot: loadSnapshot(loadFromFs(ctx.root)) };
+  delete full.light;
+  return { ctx: full, fetched: 'ok' };
 }
 
 /** The merge of `ref` into the branch checked out in `root`, always `--no-ff`: a refused or conflicting merge is aborted, named, and leaves the branch as it was. */

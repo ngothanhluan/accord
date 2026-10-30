@@ -57,6 +57,11 @@ export const ITEMS: Item[] = [
     keys: ['main worktree open A-1', 'main new ticket N-1 --lane M --worktree', 'wt-A-7 worktree merge A-7'],
     p: (a) => a[0] === 'remote' && a[1] === 'get-url' && a.includes('origin'),
   },
+  {
+    item: 'light preflight',
+    keys: ['main worktree open A-1', 'main new ticket N-1 --lane M --worktree'],
+    p: (a) => a.includes('log') && a.includes('--format=%x01%ae%x00%ct%x00%s') && a.includes('--name-only') && a.includes('accord/tickets'),
+  },
 ];
 
 /**

@@ -732,12 +732,20 @@ function headAuthorOf(body: string): string | undefined {
   return open < 0 || close < 0 ? undefined : line.slice(open + 1, close);
 }
 
+type DefaultBranch = { exists: boolean; template?: string; head?: { commit: string; author: string } | 'unborn' };
+
+/**
+ * ST-LN-63: what the light load read (the tracked tree, the files under `accord/` with the tokens and the test report, and the default
+ * branch), handed back to `loadFromFs` so finishing the full load reads none of them again. Callers outside this file only pass it back.
+ */
+export type LightLoad = { tree: string[]; files: Record<string, string>; defaultBranch: DefaultBranch };
+
 /**
  * D-07: the default branch is the first of origin/HEAD, origin/main, origin/master naming a commit; its valid `branch` is a template in force.
  * ST-LN-63: the same `cat-file --batch` also reads HEAD, whose commit and author `head` carries ('unborn' when HEAD names nothing,
  * undefined when the batch failed or the commit needs `git show`).
  */
-function gitDefaultBranch(root: string): { exists: boolean; template?: string; head?: { commit: string; author: string } | 'unborn' } {
+function gitDefaultBranch(root: string): DefaultBranch {
   const refs = ['refs/remotes/origin/HEAD', 'refs/remotes/origin/main', 'refs/remotes/origin/master'];
   let out: Buffer;
   try {
@@ -795,8 +803,10 @@ export function currentBranch(root: string): string | undefined {
   }
 }
 
-function loadParts(root: string, stage = false, light = false, defer = false): {
+function loadParts(root: string, stage = false, light = false, defer = false, from?: LightLoad): {
   input: SnapshotInput;
+  /** In light mode only: what was read, for `loadFromFs(root, { from })` to finish the load with. */
+  lightLoad?: LightLoad;
   claimRefs: Record<string, string>;
   listed: ReadonlyMap<string, string>;
   /** The current branch, read once outside light mode (ST-LN-63). */
@@ -807,22 +817,35 @@ function loadParts(root: string, stage = false, light = false, defer = false): {
   known: (id: string) => boolean;
   statusOf: (id: string) => string | undefined;
 } {
-  const tree = gitTree(root);
-  const files = accordFiles(root);
+  // ST-LN-63: with `from`, the light load's reads are taken as they are: no ls-files, no file read, no default-branch read.
+  const tree = from?.tree ?? gitTree(root);
+  const files = from === undefined ? accordFiles(root) : { ...from.files };
   // First pass reads the config; the tokens file and the test report are read the same way,
   // and a missing one is lint's concern (LINT-04, FMT-11).
   const first = loadSnapshot({ files, tree });
   const config = first.config;
-  for (const value of [config?.design.tokens, config?.tests?.report]) {
-    const key = containedPath(root, value);
-    if (key !== undefined) files[key] = readFileSync(join(root, key), 'utf8');
+  if (from === undefined) {
+    for (const value of [config?.design.tokens, config?.tests?.report]) {
+      const key = containedPath(root, value);
+      if (key !== undefined) files[key] = readFileSync(join(root, key), 'utf8');
+    }
   }
-  const defaultBranch = gitDefaultBranch(root);
+  const defaultBranch = from?.defaultBranch ?? gitDefaultBranch(root);
   const branchTemplates = [...new Set([DEFAULT_BRANCH_TEMPLATE, defaultBranch.template, config?.branch].filter((t): t is string => t !== undefined))];
   const known = (id: string) => Object.hasOwn(first.tickets, id);
   const statusOf = (id: string) => first.tickets[id]?.frontmatter?.status;
   // The prompt-expansion hook reads only the tickets, the config and the branch templates; each git spawn it skips is ~50 ms on Windows.
-  if (light) return { input: { files, tree, ...(branchTemplates.length === 1 ? {} : { branchTemplates }) }, claimRefs: {}, listed: new Map(), templates: branchTemplates, known, statusOf };
+  if (light) {
+    return {
+      input: { files, tree, ...(branchTemplates.length === 1 ? {} : { branchTemplates }) },
+      lightLoad: { tree, files: { ...files }, defaultBranch },
+      claimRefs: {},
+      listed: new Map(),
+      templates: branchTemplates,
+      known,
+      statusOf,
+    };
+  }
   const facts = gitFacts(root, defaultBranch.head);
   const git = facts === undefined ? undefined : { commit: facts.commit, authors: facts.authors };
   const { claims, branches: claimBranches, refs: claimRefs, activity: branchActivity, listed } = gitClaims(root, branchTemplates, known);
@@ -880,14 +903,23 @@ function loadParts(root: string, stage = false, light = false, defer = false): {
   return { input, claimRefs, listed, templates: branchTemplates, known, statusOf, branch, ...(defer ? { deferred: { entries, headCommit, own } } : {}) };
 }
 
-export function loadFromFs(root: string, options: { stage?: boolean; light?: boolean } = {}): SnapshotInput {
+export function loadFromFs(root: string, options: { stage?: boolean; light?: boolean; from?: LightLoad } = {}): SnapshotInput {
   return loadWithBranch(root, options).input;
 }
 
 /** ST-LN-63: the load and the current branch it read (none in light mode), so a command asks git for the branch once. */
-export function loadWithBranch(root: string, options: { stage?: boolean; light?: boolean } = {}): { input: SnapshotInput; branch?: { name: string | undefined } } {
-  const { input, branch } = loadParts(root, options.stage === true, options.light === true);
+export function loadWithBranch(
+  root: string,
+  options: { stage?: boolean; light?: boolean; from?: LightLoad } = {},
+): { input: SnapshotInput; branch?: { name: string | undefined } } {
+  const { input, branch } = loadParts(root, options.stage === true, options.light === true, false, options.from);
   return { input, ...(branch === undefined ? {} : { branch }) };
+}
+
+/** ST-LN-63: the light load (what the prompt hook reads) and the parts it read, for `from` to finish a full load without reading them again. */
+export function loadLight(root: string): { input: SnapshotInput; parts: LightLoad } {
+  const { input, lightLoad } = loadParts(root, false, true);
+  return { input, parts: lightLoad as LightLoad };
 }
 
 /** The five records of a ticket, as repository paths. */

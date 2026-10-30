@@ -648,7 +648,7 @@ const same = (a: string, b: string) => {
   };
   const x = real(a).replaceAll('\\', '/');
   const y = real(b).replaceAll('\\', '/');
-  return process.platform === 'win32' ? x.toLowerCase() === y.toLowerCase() : x === y;
+  return x.toLowerCase() === y.toLowerCase();
 };
 
 it('risk:data-loss clean answers ancestry from one sha-keyed merged set and sends every miss and every re-read tip to the content checks', async () => {

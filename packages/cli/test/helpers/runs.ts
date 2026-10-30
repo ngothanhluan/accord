@@ -85,7 +85,6 @@ export async function counted(argv: string[], cwd: string): Promise<Counted> {
   }
 }
 
-const win = process.platform === 'win32';
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /** Every spelling of one folder: as given, forward slashes, `realpathSync.native`, and that with forward slashes. */
@@ -114,7 +113,7 @@ export function normalise(text: string, sample: Sample, copy: SampleCopy, extra:
   ] as const) for (const s of spellings(dir)) folders.push([s, tag]);
   folders.sort((a, b) => b[0].length - a[0].length);
   let out = text;
-  for (const [s, tag] of folders) out = out.replace(new RegExp(escapeRe(s), win ? 'gi' : 'g'), tag);
+  for (const [s, tag] of folders) out = out.replace(new RegExp(escapeRe(s), 'gi'), tag);
   const known: Record<string, string> = { ...extra, ...sample.names };
   const shas = Object.keys(known);
   return out.replace(/(?<![0-9a-fA-F])[0-9a-f]{7,40}(?![0-9a-fA-F])/g, (run) => {

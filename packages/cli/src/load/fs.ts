@@ -1120,9 +1120,11 @@ export function gitDefaultRef(root: string): string | undefined {
   return defaultRefs(root, false).origin;
 }
 
-/** The utf8 text of each existing `<ref>:<path>`, read with one `git cat-file --batch`; a missing path is left out. */
-export function gitFilesAt(root: string, ref: string, paths: readonly string[]): Record<string, string> {
-  if (paths.length === 0) return {};
+/**
+ * The utf8 text of each `<ref>:<path>` spec, in order, read with one `git cat-file --batch`; a missing one is `undefined`.
+ * `what` names the ref in the error.
+ */
+function catBatch(root: string, specs: readonly string[], what: string): (string | undefined)[] {
   let out: Buffer;
   try {
     out = execFileSync('git', ['cat-file', '--batch'], {
@@ -1130,15 +1132,15 @@ export function gitFilesAt(root: string, ref: string, paths: readonly string[]):
       stdio: ['pipe', 'pipe', 'pipe'],
       maxBuffer: 64 * 1024 * 1024,
       env: { ...process.env, GIT_NO_LAZY_FETCH: '1' },
-      input: paths.map((p) => ref + ':' + p + '\n').join(''),
+      input: specs.map((s) => s + '\n').join(''),
     });
   } catch (err) {
     const stderr = String((err as { stderr?: string }).stderr ?? '').trim();
-    throw new UsageError('git cat-file failed reading ' + ref + (stderr === '' ? '' : '\n' + stderr));
+    throw new UsageError('git cat-file failed reading ' + what + (stderr === '' ? '' : '\n' + stderr));
   }
-  const files: Record<string, string> = {};
+  const texts: (string | undefined)[] = [];
   let at = 0;
-  for (const path of paths) {
+  for (let i = 0; i < specs.length; i++) {
     const nl = out.indexOf(10, at);
     if (nl < 0) break;
     const m = /^[0-9a-f]+ blob (\d+)$/.exec(out.toString('utf8', at, nl));
@@ -1147,9 +1149,21 @@ export function gitFilesAt(root: string, ref: string, paths: readonly string[]):
       continue;
     }
     const size = Number(m[1]);
-    files[path] = out.toString('utf8', nl + 1, nl + 1 + size);
+    texts[i] = out.toString('utf8', nl + 1, nl + 1 + size);
     at = nl + 1 + size + 1;
   }
+  return texts;
+}
+
+/** The utf8 text of each existing `<ref>:<path>`, read with one `git cat-file --batch`; a missing path is left out. */
+export function gitFilesAt(root: string, ref: string, paths: readonly string[]): Record<string, string> {
+  if (paths.length === 0) return {};
+  const texts = catBatch(root, paths.map((p) => ref + ':' + p), ref);
+  const files: Record<string, string> = {};
+  paths.forEach((path, i) => {
+    const text = texts[i];
+    if (text !== undefined) files[path] = text;
+  });
   return files;
 }
 
@@ -1204,7 +1218,7 @@ export function gitBranchFact(
       throw new Error(`git ${what} failed reading the branch diff: ${firstLine(stderr === '' ? (err as Error).message : stderr)}`, { cause: err });
     }
   };
-  const filesAt = (ref: string, paths: readonly string[]): Record<string, string> => {
+  const readFilesAt = (ref: string, paths: readonly string[]): Record<string, string> => {
     try {
       return gitFilesAt(root, ref, paths);
     } catch (err) {
@@ -1262,6 +1276,53 @@ export function gitBranchFact(
       }
     }
     const pkgPaths = changes.filter((c) => c.path === 'package.json' || c.path.endsWith('/package.json'));
+    const live = changes.filter((c) => c.kind !== 'deleted').map((c) => c.path);
+    const rendered = opts.rendered.filter((r) => live.includes(r.path));
+    const settingsPath = opts.settings !== undefined && live.includes(opts.settings.path) ? opts.settings.path : undefined;
+    const scopeFile = 'accord/tickets/' + id + '.md';
+    const firstOf = (): string | undefined =>
+      git('log -G ac_hash', [
+        '-c', 'log.showSignature=false', 'log', '--no-show-signature', '--reverse', '--format=%H', '-G', '^ac_hash:', 'HEAD', '--', ':(literal)' + scopeFile,
+      ])
+        .split('\n')
+        .find((l) => l.trim() !== '')
+        ?.trim();
+
+    // ST-LN-63: the scope's commit and every blob read below come from one log and one cat-file. When either fails, the commit
+    // stays unread or the cache stays empty, so each read below runs on its own as before and reports its own error.
+    const cache = new Map<string, string | null>();
+    let first: { value: string | undefined } | undefined;
+    try {
+      if (opts.scope) first = { value: firstOf() };
+      const specs = new Map<string, [string, string]>();
+      const want = (ref: string, path: string) => specs.set(ref + '\0' + path, [ref, path]);
+      for (const c of pkgPaths) {
+        if (c.kind !== 'added') want(base, c.path);
+        if (c.kind !== 'deleted') want('HEAD', c.path);
+      }
+      if (first?.value !== undefined && isSha(first.value)) want(first.value, scopeFile);
+      for (const r of rendered) want('HEAD', r.path);
+      if (settingsPath !== undefined) {
+        want('HEAD', settingsPath);
+        want(base, settingsPath);
+      }
+      want(base, 'accord/config.yml');
+      const keys = [...specs.keys()];
+      const texts = catBatch(root, keys.map((k) => (specs.get(k) as [string, string]).join(':')), 'the branch diff');
+      keys.forEach((k, i) => cache.set(k, texts[i] ?? null));
+    } catch {
+      cache.clear();
+    }
+    const filesAt = (ref: string, paths: readonly string[]): Record<string, string> => {
+      if (!paths.every((p) => cache.has(ref + '\0' + p))) return readFilesAt(ref, paths);
+      const files: Record<string, string> = {};
+      for (const p of paths) {
+        const text = cache.get(ref + '\0' + p);
+        if (text !== null && text !== undefined) files[p] = text;
+      }
+      return files;
+    };
+
     const pkgBase = filesAt(base, pkgPaths.filter((c) => c.kind !== 'added').map((c) => c.path));
     const pkgHead = filesAt('HEAD', pkgPaths.filter((c) => c.kind !== 'deleted').map((c) => c.path));
     for (const c of pkgPaths) {
@@ -1270,22 +1331,13 @@ export function gitBranchFact(
 
     let scope: { commit: string; paths: string[] } | undefined;
     if (opts.scope) {
-      const file = 'accord/tickets/' + id + '.md';
-      const first = git('log -G ac_hash', [
-        '-c', 'log.showSignature=false', 'log', '--no-show-signature', '--reverse', '--format=%H', '-G', '^ac_hash:', 'HEAD', '--', ':(literal)' + file,
-      ])
-        .split('\n')
-        .find((l) => l.trim() !== '')
-        ?.trim();
-      if (first !== undefined && isSha(first)) {
-        const text = filesAt(first, [file])[file];
-        scope = { commit: first, paths: text === undefined ? [] : (scopeLines(text) ?? []) };
+      const found = first === undefined ? firstOf() : first.value;
+      if (found !== undefined && isSha(found)) {
+        const text = filesAt(found, [scopeFile])[scopeFile];
+        scope = { commit: found, paths: text === undefined ? [] : (scopeLines(text) ?? []) };
       }
     }
 
-    const live = changes.filter((c) => c.kind !== 'deleted').map((c) => c.path);
-    const rendered = opts.rendered.filter((r) => live.includes(r.path));
-    const settingsPath = opts.settings !== undefined && live.includes(opts.settings.path) ? opts.settings.path : undefined;
     const head = filesAt('HEAD', [...rendered.map((r) => r.path), ...(settingsPath === undefined ? [] : [settingsPath])]);
     const synced = rendered.filter((r) => head[r.path] !== undefined && normaliseText(head[r.path]) === r.text).map((r) => r.path);
     if (opts.settings !== undefined && settingsPath !== undefined && head[settingsPath] !== undefined) {

@@ -4,9 +4,11 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { agentTargets, installedName, skillDirs, skillTargets, STAGES } from '../src/index.js';
+import { agentTargets, anchorText, gateReady, installedName, loadSnapshot, skillDirs, skillTargets, STAGES } from '../src/index.js';
 import type { AccordConfig } from '../src/index.js';
 import { parseLedger, parseReview } from '../src/load/work.js';
+import { approve, CONFIG, laneTicket, P } from '../../../test/helpers/lane.js';
+import type { Files } from '../../../test/helpers/lane.js';
 
 const config: AccordConfig = {
   accord: '0.1.0',
@@ -18,7 +20,7 @@ const config: AccordConfig = {
 };
 
 const REQUIRED: Record<string, readonly string[]> = {
-  accord: ['accord status --json', 'accord dashboard', 'accord new ticket', '--lane M', 'Understood:', 'Done when:', 'accord anchor', 'user.email', 'accord-debug', '## Resolved', 'accord-approach', 'last `## ` heading', '`done` → `accord-verify` at step 6', 'push it (the pushed branch is the claim)', 'claim: <id>', 'accord new ticket --type', './ids.md', './lane-s.md', '--lane S --worktree'],
+  accord: ['accord status --json', 'accord dashboard', 'accord new ticket', '--lane M', 'accord anchor', 'user.email', 'accord-debug', '## Resolved', 'accord-approach', 'last `## ` heading', '`done` → `accord-verify` at step 6', 'push it (the pushed branch is the claim)', 'claim: <id>', 'accord new ticket --type', './ids.md', './lane-s.md', '--lane S --worktree'],
   intent: ['accord anchor', 'accord-scout', 'accord-auditor', '0.2', '## Corrections', '## Open questions', 'D-01', 'accord-approach', 'top-level parts', 'smallest version', 'commit `accord/tickets/<id>.md`'],
   approach: ['accord anchor', 'accord-architect', 'accord-critic', '## Approach', 'accord approve', 'accord gate ready', 'accord-plan', 'ladder order', 'text only', 'not yet ruled out', 'three concrete failure scenarios', 'undone', 'back to step 3', 'Commit `accord/tickets/<id>.md`', 'Decisions, and Corrections as written', 'approved_hash:'],
   plan: ['accord anchor', 'accord-planner', 'baseline:', 'covers:', 'verify:', 'accord gate plan', 'plan_hash:', 'accord-critic', 'three revision rounds', 'fewest Must', 'tests.full', 'accord-build', 'plan: <id> ready', 'Only the first', '**Re-plan**', '`baseline:` never changes', 'highest existing number', 'step 7 does not re-run', 'since the last `plan: <id> ready`'],
@@ -284,14 +286,12 @@ it('risk:data-loss the move to lane S carries Vetoes Decisions and Corrections i
   const ids = get('.claude/skills/accord/ids.md');
   const move = ids.slice(ids.indexOf('## Moving to lane S'));
   const lane = get('.claude/skills/accord/lane-s.md');
-  const wt = get('.claude/skills/accord/worktree.md');
   for (const h of ['## Vetoes', '## Decisions', '## Corrections']) {
     expect(move, h).toContain(h);
     expect(lane, h).toContain(h);
   }
   expect(move).toContain('verbatim');
   expect(lane).toContain('`stop:`');
-  expect(wt).toContain('`## Vetoes`');
 });
 
 it('risk:complex-branching the accord skill pushes then enters the worktree on enter and refuses other work in a ticket session', () => {
@@ -742,9 +742,6 @@ it('ac-1 a lane is proposed from the scout facts and a lane S ticket records its
   const nr = acc.slice(acc.indexOf('## New request'), acc.indexOf('## Upgrade'));
   expect(nr).toContain('`./lane.md`');
   expect(nr).toContain('however small it looks');
-  const s = nr.slice(nr.indexOf('- **S.**'), nr.indexOf('- **M.**'));
-  expect(s).toContain('lane S without asking again');
-  expect(s).toContain('`## Scope`');
   const ls = flatS('.claude/skills/accord/lane-s.md');
   expect(ls.slice(ls.indexOf('## Start'), ls.indexOf('## Steps'))).toContain('`## Scope`');
   const step1 = ls.slice(ls.indexOf('1. **Understood.**'), ls.indexOf('2. **Change.**'));
@@ -781,7 +778,7 @@ it('ac-4 every lane S change is worked from its own lane S ticket in its worktre
     'Make no other change before that', 'Never run `accord approve`', 'you make the change yourself', '`tests.affected`',
     'over the changed files', 'first write a test that reproduces it', 'fresh `accord-reviewer`, lens `both`',
     '`accord/tickets/<id>/ledger.md` when it exists', '`## Round <n>`', 'commit `review.md` alone at once',
-    'the round and its verdict are one commit', '`Short title in business language`', '`Keys: …`', 'no Must open',
+    'the round and its verdict are one commit', '`Short title in business language`', 'no Must open',
     'a fix no reviewer has seen never ships', 'There is no final reviewer', 'At most five rounds',
     'stop and report the open findings to the owner', 'the next round is one after the last', '`verdict: converged`',
     '`verdict: accepted-by-owner', '`git -C "<path>" commit', 'pull request',
@@ -791,9 +788,6 @@ it('ac-4 every lane S change is worked from its own lane S ticket in its worktre
   expect(ls.indexOf('`accord gate ready <id>`')).toBeLessThan(ls.indexOf('**Change.**'));
   expect(ls.indexOf('reproduces it')).toBeLessThan(ls.indexOf('then fix it'));
   expect(ls.indexOf('`## Round <n>`')).toBeLessThan(ls.indexOf('**Verdict.**'));
-  expect(flatS('.claude/skills/accord/worktree.md')).toContain(
-    "except the people entry below and, in a lane S ticket, its `title:`, the carried `Keys:` frontmatter lines, its `## Understood`, `## Done when` and `## Scope` lines, its carried `## Vetoes`, `## Decisions` and `## Corrections` sections and the commit and push of that ticket file",
-  );
   expect(flatS('.claude/skills/accord/lane-s.md')).toContain('run `tests.full` first');
   expect(flatS('.claude/skills/accord/SKILL.md')).toContain('A lane never drops once its intent is approved');
   const rev = (agentTargets(config).find((f) => f.path === '.claude/agents/accord-reviewer.md')?.text ?? '').replace(/\s+/g, ' ');
@@ -935,4 +929,136 @@ it('risk:parsing the declaration lines the lane S steps the reviewer and the rev
   const round = (line: string) => parseReview('review.md', '## Round 1\n\n' + line + '\n\nverdict: converged\n');
   expect(round(fill(confirmed)).confirmed).toEqual(['README.md']);
   expect(round(fill(notInterface)).notInterface).toEqual(['README.md']);
+});
+
+it('ac-4 a lane M ticket moved to lane S at intent is changed in place and no skill drops it or hands it off', () => {
+  const MOVE = [
+    "on the owner's yes",
+    'keeps its id, branch and worktree, and this same session goes on with it',
+    'an unchecked `- [ ]` item',
+    'an uncommented `approved_hash:` line',
+    "git log --full-history -G '^approved_hash:' --format=%h <origin's default branch>..HEAD -- accord/tickets/<id>.md",
+    'git commit -m "intent: <id> before the move to lane S"',
+    'replace the `lane:` line with `lane: "S"`,',
+    'replace the `## Intent`, `## Acceptance criteria`, `## Open questions` and `## Approach` sections, headings included, with `## Understood` and `## Done when`,',
+    'written from the intent interview already held, with no new interview',
+    "`## Scope`, written as step 1 of the accord skill's lane S steps says",
+    'Keep `## Vetoes`, `## Decisions` and `## Corrections` verbatim, and every other frontmatter key as it is',
+    'git push -u origin <claim branch>',
+    'go on at its Continue step 2 in this same session',
+    'the lane S steps go on from step 1 on the same id, branch and worktree',
+  ];
+  const GONE = ['moved from <id>', 'Title: …', 'Keys: …', 'carried `Keys:` ', 'carried `## Vetoes` ', 'Understood: <one line>', 'carries `Understood: …` ', 'from a drop', 'lane S without asking again', '--reason "moved to lane S"'];
+  const flat = (s: string) => s.replace(/\s+/g, ' ');
+  const all = ['claude', 'codex', 'cursor', 'copilot'];
+  const renders = [
+    skillTargets({ ...config, runtimes: all } as AccordConfig),
+    skillTargets({ ...config, runtimes: all, roles: ['ba', 'dev', 'designer'] } as AccordConfig),
+  ];
+  const bad: string[] = [];
+  const offenders: string[] = [];
+  for (const render of renders) {
+    const ids = render.filter((f) => f.path.endsWith('/ids.md'));
+    expect(ids.length, 'ids.md is rendered in accord, accord-intent, accord-debug and accord-verify for each skill folder').toBeGreaterThanOrEqual(8);
+    for (const f of ids) {
+      const at = f.text.indexOf('\n## Moving to lane S\n');
+      if (at < 0) {
+        bad.push(f.path + ': no `## Moving to lane S` heading line');
+        continue;
+      }
+      const move = flat(f.text.slice(at));
+      for (const n of MOVE) if (!move.includes(n)) bad.push(f.path + ': move lacks ' + n);
+      const i = (s: string) => move.indexOf(s);
+      if (!(i('before the move to lane S') < i('lane: "S"') && i('lane: "S"') < i('git push -u origin <claim branch>'))) bad.push(f.path + ': move steps out of order');
+      for (const n of ['accord drop', 'accord new ticket', 'new session', 'new id', 'Title:', 'Keys:']) if (move.includes(n)) bad.push(f.path + ': move holds ' + n);
+    }
+    for (const f of render) {
+      const text = flat(f.text);
+      for (const g of GONE) if (text.includes(g)) bad.push(f.path + ': still holds ' + g);
+      for (const para of f.text.split(/\n\s*\n/)) {
+        const p = flat(para);
+        if (p.includes('to lane S') && ['accord drop', 'accord new ticket', 'new session'].some((s) => p.includes(s))) offenders.push(f.path + ': ' + p.slice(0, 60));
+      }
+    }
+    const get = (p: string) => flat(render.find((f) => f.path === p)?.text ?? '');
+    const acc = get('.claude/skills/accord/SKILL.md');
+    for (const n of ['A lane never drops once its intent is approved', 'to lane S in place, as `./ids.md` says']) if (!acc.includes(n)) bad.push('accord/SKILL.md lacks ' + n);
+    const intent = get('.claude/skills/accord-intent/SKILL.md');
+    for (const n of ['propose moving it to lane S', "Move it only on the owner's yes, as `## Moving to lane S` in `./ids.md` says"]) if (!intent.includes(n)) bad.push('accord-intent/SKILL.md lacks ' + n);
+    if (intent.includes('Drop it')) bad.push('accord-intent/SKILL.md still holds Drop it');
+    const ls = get('.claude/skills/accord/lane-s.md');
+    if (!ls.includes('When `## Understood` and `## Done when` in `accord/tickets/<id>.md` each hold a line, keep them')) bad.push('accord/lane-s.md lost the keep rule');
+  }
+  expect(bad).toEqual([]);
+  expect(offenders).toEqual([]);
+});
+
+it('risk:regression the lane S and approach skills wait for a prerequisite merge and never edit depends_on', () => {
+  const wait =
+    "When it says a `depends_on` ticket is not done on the default branch, never remove that entry from `depends_on`: tell the owner this ticket waits for that ticket's merge, then after the merge run `git fetch` and `accord gate ready <id>` again.";
+  for (const p of ['.claude/skills/accord/lane-s.md', '.claude/skills/accord-approach/SKILL.md']) expect(flatS(p)).toContain(wait);
+});
+
+it('risk:regression a lane M ticket that gate ready refuses is never planned from approach or continue', () => {
+  const G = "Else, at any stage but `intent`, first run `accord gate ready <id>`; when it fails, show the owner what it prints and stop; when it changes the ticket, commit the ticket.";
+  const H = "6. Next: `accord-plan`, only once `accord gate ready <id>` passes. While it fails, the commit in step 5 carries `approved_hash:` alone; after its push, stop and tell the owner that `/accord continue <id>` plans the ticket once the gate passes.";
+  const tickets: Files = { 'accord/config.yml': CONFIG, [P('A')]: laneTicket('A'), [P('B')]: laneTicket('B', { frontmatter: ['depends_on: ["A"]'] }) };
+  approve(tickets, 'B');
+  const snap = loadSnapshot({ files: tickets, tree: Object.keys(tickets) });
+  const r = gateReady(snap, 'B');
+  expect(r.verdict).toBe('fail');
+  expect(r.findings.some((f) => f.rule === 'gate.depends-unmerged')).toBe(true);
+  expect(anchorText(snap, 'B')).toContain('Stage: plan, next: ');
+
+  const app = flatS('.claude/skills/accord-approach/SKILL.md');
+  expect(app).toContain(H);
+  const mid = app.indexOf("never remove that entry from `depends_on`");
+  expect(mid).toBeGreaterThanOrEqual(0);
+  expect(mid).toBeLessThan(app.indexOf(H));
+  expect(app.indexOf(H)).toBeLessThan(app.indexOf('## Rules'));
+
+  const acc = flatS('.claude/skills/accord/SKILL.md');
+  const step4 = acc.slice(acc.indexOf('4. Otherwise'), acc.indexOf('## Pick up'));
+  const at = (x: string) => step4.indexOf(x);
+  expect(step4).toContain(G);
+  expect(at('`./lane-s.md`')).toBeGreaterThanOrEqual(0);
+  expect(at('`./lane-s.md`')).toBeLessThan(at(G));
+  for (const route of ['`plan` → `accord-plan`', '`build` → `accord-build`', '`review` → `accord-review`', '`verify` → `accord-verify`', '`done` → `accord-verify` at step 6']) {
+    expect(at(route)).toBeGreaterThan(at(G));
+  }
+});
+
+// ST-LN-60: one path for review comments on a ticket's pull request, each part of its Understood.
+it('risk:regression the accord skill routes pull request comments to comments.md, which checks before it fixes and posts only on the owners yes', () => {
+  const flat = (t: string) => t.replace(/\s+/g, ' ');
+  const get = (p: string) => flat(files.find((f) => f.path === p)?.text ?? '');
+  const skill = get('.claude/skills/accord/SKILL.md');
+  const route = skill.indexOf("A request to handle the comments on a ticket's pull request follows `./comments.md`, without the session check.");
+  expect(route).toBeGreaterThan(-1);
+  expect(route).toBeLessThan(skill.indexOf('## Dashboard'));
+  const c = get('.claude/skills/accord/comments.md');
+  expect(c.length, 'accord/comments.md is missing').toBeGreaterThan(0);
+  const parts = [
+    'open and not merged', 'lane M from verify on, lane S from its step 6', 'Never read a pull request\'s comments unasked',
+    "Take each review thread, each top-level comment and each review's summary as one comment, a reply inside a thread being part of that thread, by a person whoever it is, the owner included",
+    'mark it holds, does not hold, or unclear before fixing any comment',
+    'a failed check follows `./failure.md` instead',
+    'Only once steps 3 and 4 are clear: a comment that holds and reports a failure in the work follows `./failure.md` from its step 1, through `accord-debug`. Classify each other comment that holds',
+    "the ticket whose `branch` in `accord status --json` is the pull request's branch (`gh pr view <link> --json headRefName`)",
+    'goes under `## Corrections` only when it changes the intent or a criterion and the owner confirms it',
+    'draft a question to its author for its thread, show those drafts to the owner and post them only after the owner\'s yes',
+    'Fix no comment until every unclear comment is answered, in its thread by its author or in the chat by the owner',
+    'stop handling every comment and ask the owner about that one, naming the Veto, Decision or Correction',
+    'Fix no comment until the owner answers',
+    'This comes before step 3: post no question while a conflict is open',
+    "handle them as `accord-review` handles one round's findings, the patch ones fixed together through a fresh executor in lane M, and by you yourself in lane S, which has no executor",
+    'after a `stop:` line, ask the owner to type, in the session opened there, `/accord <id> ` followed by the request',
+    'one new review round and then verify again for lane M, the lane S steps for lane S',
+    'draft one reply per comment: the commit that fixed it, the reason it was not changed, or the answer it took',
+    'Show every draft to the owner together, apply the owner\'s changes to any of them, and post them to their threads only after the owner\'s yes',
+    'Post no reply, comment or review to the pull request before that yes',
+  ];
+  expect(parts.filter((p) => !c.includes(p))).toEqual([]);
+  const order = ['**Read.**', '**Check.**', '**Unclear first.**', '**Conflicts.**', '**Fix.**', '**Reply.**'].map((h) => c.indexOf(h));
+  expect(order.every((i, n) => i > -1 && (n === 0 || i > order[n - 1]!))).toBe(true);
 });

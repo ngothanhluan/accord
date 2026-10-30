@@ -5,7 +5,7 @@ import { lintSnapshot } from '../lint/index.js';
 import { scoped } from '../gate/index.js';
 import { acHash, readyHash } from '../gate/hash.js';
 import { DEFAULT_BRANCH_TEMPLATE } from './branch.js';
-import { isDone, nextStep, progressOf } from './stage.js';
+import { doneOnDefault, nextStep, progressOf } from './stage.js';
 import type { Stage } from './stage.js';
 
 export interface StatusRow {
@@ -48,7 +48,8 @@ const compare = <T extends string>(recorded: string | undefined, current: string
  * in-flight tickets would render fail: accurate and useless.
  *
  * Every ticket is returned, archived included; the D-93 filter and the `—` glyphs are the caller's.
- * `plain` is the checkout-only snapshot: a dependency counts as done only there (spec §5, BUG-LN-2 D-04).
+ * A dependency counts as done on the default branch the host read (`snapshot.defaultRef`, BUG-LN-13 D-01), else in `plain`,
+ * the checkout-only snapshot (spec §5, BUG-LN-2 D-04).
  * Pure: reads the snapshot only, never mutates it, and returns the same result on every call.
  */
 export function statusRows(snapshot: RepoSnapshot, now?: number, plain?: RepoSnapshot): StatusRow[] {
@@ -89,7 +90,7 @@ export function statusRows(snapshot: RepoSnapshot, now?: number, plain?: RepoSna
               ...(progress.stage === 'intent' || (fm.lane === 'S' && progress.stage === 'review') ? { next: nextStep(ticket, progress.stage as 'intent' | 'review') } : {}),
               tasksDone: progress.tasksDone,
               tasksTotal: progress.tasksTotal,
-              ...(deps === undefined ? {} : { dependsOn: deps, blockedBy: deps.filter((d) => !isDone(plain ?? snapshot, d)) }),
+              ...(deps === undefined ? {} : { dependsOn: deps, blockedBy: deps.filter((d) => !doneOnDefault(snapshot, d, plain ?? snapshot)) }),
               ...(claims !== undefined && Object.hasOwn(claims, ticket.id) ? { claimedBy: claims[ticket.id] } : {}),
               branch:
                 snapshot.claimBranches !== undefined && Object.hasOwn(snapshot.claimBranches, ticket.id)

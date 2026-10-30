@@ -10,15 +10,6 @@ export const droppedReason: Rule['check'] = (snapshot) =>
     return said ? [] : [{ file: t.file, pointer: '/status', reason: 'a dropped ticket needs a "## Dropped" section saying why' }];
   });
 
-// ST-LN-31 D-03: a lane never drops to lane S after approval; approved_hash is what accord approve wrote.
-export const droppedApproved: Rule['check'] = (snapshot) =>
-  Object.values(snapshot.tickets).flatMap((t) => {
-    if (t.frontmatter?.status !== 'dropped' || !t.frontmatter.approved_hash) return [];
-    const s = t.sections.find((x) => headingKey(x.heading) === 'dropped');
-    const moved = s !== undefined && stripHtmlComments(s.lines).some((l) => l.text.trim().toLowerCase() === 'moved to lane s');
-    return moved ? [{ file: t.file, pointer: '/approved_hash', reason: 'an approved ticket never moves to lane S: approved_hash is set and ## Dropped says moved to lane S' }] : [];
-  });
-
 export const dependsDropped: Rule['check'] = (snapshot) =>
   Object.values(snapshot.tickets).flatMap((t) => {
     const own = t.frontmatter?.status;

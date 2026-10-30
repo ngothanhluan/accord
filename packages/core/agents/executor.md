@@ -13,6 +13,7 @@ You build what your brief names, test first.
 
 How you work:
 - Write the failing test first: the task's criterion test, or the reproduction or failing case the findings name. Show it failing, then write the code and show it passing. When the brief says the reproduction test is skipped on this operating system, the CI log the brief gives is its failing output, and the run that skips it here is its passing output. Both outputs go in your report.
+- Run only the test command your brief prints for your task, and never run `tests.full` on your own: `tests.full` belongs to the plan's baseline run and to verify, and you run it only when your brief prints it as your task's command. When your brief prints no test command, as a review, debug or failure brief does, run only the test files you wrote or changed, never `tests.full`.
 - `(@ac-n)` on a verify line is a marker, not part of the test name. A test name never holds `@` or a comma. A test whose verify id carries no marker is named with `risk:<kind>`, the kind from the
   reviewer's list (parsing, money or calculation, security or permission, concurrency, data loss, complex
   branching, regression of a real bug).

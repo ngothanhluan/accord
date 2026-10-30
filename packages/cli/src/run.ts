@@ -28,7 +28,7 @@ import { testsSkipped } from './commands/tests-skipped.js';
 import { drop } from './commands/drop.js';
 import { upgrade } from './commands/upgrade.js';
 import { worktreeCheck, worktreeClean, worktreeMerge, worktreeOpen, worktreePush } from './commands/worktree.js';
-import { loadClaimView, loadLight, loadWithBranch, UsageError } from './load/fs.js';
+import { loadClaimView, loadLight, loadWithBranch, UsageError, withDefaultRef } from './load/fs.js';
 import type { LightLoad } from './load/fs.js';
 import { pinMessage, versionOnDisk } from './pin.js';
 import { repoRoot } from './root.js';
@@ -46,7 +46,9 @@ export interface RunOptions {
 export interface CommandContext {
   root: string;
   snapshot: RepoSnapshot;
-  plain?: RepoSnapshot; // checkout-only snapshot, set under 'claims' (BUG-LN-2 D-04)
+  // Checkout-only snapshot, set under 'claims': `show --approval` reads it, and a dependency counts as done on the
+  // default branch (`snapshot.defaultRef`, BUG-LN-13 D-01), here only when no default ref resolves (BUG-LN-2 D-04).
+  plain?: RepoSnapshot;
   /** ST-LN-63: the current branch of `root`, read once by the load (undefined name: git could not say; '' : detached); absent in light mode. */
   branch?: { name: string | undefined };
   stdout: NodeJS.WritableStream;
@@ -68,18 +70,20 @@ function preflight(opts: RunOptions, mode: 'checkout' | 'stage' | 'claims' | 'li
   const parts = mode === 'claims' ? loadClaimView(root) : undefined;
   // ST-LN-63: a light load keeps the parts it read, so a command that goes on to the full load does not read them twice.
   const lit = mode === 'light' ? loadLight(root) : undefined;
-  const loaded = parts === undefined && lit === undefined ? loadWithBranch(root, { stage: mode === 'stage' }) : undefined;
-  const snapshot = loadSnapshot(parts?.view ?? lit?.input ?? (loaded as NonNullable<typeof loaded>).input);
+  const read = parts === undefined && lit === undefined ? loadWithBranch(root, { stage: mode === 'stage' }) : undefined;
+  const loaded = loadSnapshot(parts?.view ?? lit?.input ?? (read as NonNullable<typeof read>).input);
   // ST-LN-63: the branch the load read, handed on so no command asks git for it again (none in light mode).
-  const branch = parts?.branch ?? loaded?.branch;
-  const plain = parts === undefined ? undefined : parts.checkout === parts.view ? snapshot : loadSnapshot(parts.checkout);
+  const branch = parts?.branch ?? read?.branch;
+  const plain = parts === undefined ? undefined : parts.checkout === parts.view ? loaded : loadSnapshot(parts.checkout);
   // D-94: a hard refusal, no flag and no environment variable that skips it. `config` is undefined
   // when config.yml is missing or failed the schema (D-31); those repositories must report their
   // schema findings through lint rather than a pin error, so the check is guarded rather than global.
-  if (snapshot.config !== undefined) {
-    const message = pinMessage(snapshot.config.accord, pkg.version, versionOnDisk());
+  if (loaded.config !== undefined) {
+    const message = pinMessage(loaded.config.accord, pkg.version, versionOnDisk());
     if (message !== undefined) throw new UsageError(message);
   }
+  // BUG-LN-13 D-01: the default ref's records ride on the snapshot; `plain` stays the checkout.
+  const snapshot = mode === 'claims' ? withDefaultRef(root, loaded, parts?.refs) : loaded;
   return { root, snapshot, ...(plain === undefined ? {} : { plain }), ...(branch === undefined ? {} : { branch }), stdout: opts.stdout, stderr: opts.stderr, env: opts.env ?? {}, ssh: new Map(), ...(lit === undefined ? {} : { light: lit.parts }), ...(opts.stdin === undefined ? {} : { stdin: opts.stdin }) };
 }
 
@@ -286,7 +290,7 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .description('list lane tickets that passed Ready, have no task recorded, and are unblocked and unclaimed')
     .option('--json', 'print the StatusRow array instead of the table')
     .action((options: { json?: boolean }) => {
-      setCode(next(preflight(opts, 'stage'), options));
+      setCode(next(preflight(opts, 'claims'), options));
     });
 
   program

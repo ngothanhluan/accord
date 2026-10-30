@@ -357,7 +357,12 @@ const LOCAL_DEFAULTS = ['refs/heads/main', 'refs/heads/master'];
  * A ref whose target does not resolve is left out by git or has no object name, so it never counts.
  * Nothing is kept between calls: a caller that fetched or pruned reads again.
  */
-function defaultRefs(root: string, local: boolean): { origin?: string; local?: string } {
+export interface DefaultRefs {
+  origin?: string;
+  local?: string;
+}
+
+function defaultRefs(root: string, local: boolean): DefaultRefs {
   const patterns = ['refs/remotes/origin/HEAD', ...ORIGIN_DEFAULTS, ...(local ? LOCAL_DEFAULTS : [])];
   let raw: string;
   try {
@@ -674,14 +679,15 @@ function missingShas(root: string, positives: readonly string[]): string[] {
  * without the positives that are missing here, so a missing start costs two more git processes, not one read per ticket; its
  * ticket is dropped from the walk, as `rev-list --ignore-missing` drops it.
  */
-function walkOver(root: string, positives: readonly string[]): { walk: Walk | undefined; def: string | undefined } {
+function walkOver(root: string, positives: readonly string[]): { walk: Walk | undefined; def: string | undefined; refs?: DefaultRefs } {
   if (positives.length === 0) return { walk: undefined, def: undefined };
-  const def = defaultRefOf(root);
+  const refs = defaultRefs(root, true);
+  const def = refs.origin ?? refs.local;
   const walk = gitWalk(root, def, [...positives]);
-  if (walk !== undefined) return { walk, def };
+  if (walk !== undefined) return { walk, def, refs };
   const missing = new Set(missingShas(root, positives));
   const rest = positives.filter((p) => !missing.has(p));
-  return { walk: missing.size === 0 || rest.length === 0 ? undefined : gitWalk(root, def, rest), def };
+  return { walk: missing.size === 0 || rest.length === 0 ? undefined : gitWalk(root, def, rest), def, refs };
 }
 
 /**
@@ -962,7 +968,7 @@ const recordPaths = (id: string): string[] => [
  * the current branch's own and whose claim ref is not merged into HEAD, the ticket's five records as that ref holds them.
  * One `git cat-file --batch`, no network (`GIT_NO_LAZY_FETCH`). A blob not present locally reads as absent.
  */
-export function loadClaimView(root: string): { checkout: SnapshotInput; view: SnapshotInput; branch: { name: string | undefined } } {
+export function loadClaimView(root: string): { checkout: SnapshotInput; view: SnapshotInput; branch: { name: string | undefined }; refs?: DefaultRefs } {
   // ST-LN-63: the branch is read once in loadParts, and the commits after each start come from one walk made here, over the
   // checkout's entries and the candidates' together.
   const parts = loadParts(root, true, false, true);
@@ -1000,10 +1006,10 @@ export function loadClaimView(root: string): { checkout: SnapshotInput; view: Sn
   const terminal = (id: string) => ['archived', 'dropped'].includes(statusOf(id) ?? '');
   const candidates = Object.entries(claimRefs).filter(([id, ref]) => id !== own && !merged.has(ref) && !terminal(id));
   if (candidates.length === 0) {
-    const { walk, def } = walked(checkoutEntries);
+    const { walk, def, refs } = walked(checkoutEntries);
     const afterVerify = withAfter(checkoutEntries, resolveAfter(root, checkoutEntries, walk, def));
     const checkout: SnapshotInput = { ...bare, ...(Object.keys(afterVerify).length === 0 ? {} : { afterVerify }) };
-    return { checkout, view: checkout, branch };
+    return { checkout, view: checkout, branch, ...(refs === undefined ? {} : { refs }) };
   }
   const wanted = candidates.flatMap(([id, ref]) => recordPaths(id).map((path) => ref + ':' + path));
   let out: Buffer;
@@ -1071,7 +1077,7 @@ export function loadClaimView(root: string): { checkout: SnapshotInput; view: Sn
     candidateEntries.push({ id, start, tips, shas: shas.every((s): s is string => s !== undefined) ? shas : undefined });
   }
   const all = [...checkoutEntries, ...candidateEntries];
-  const { walk, def } = walked(all);
+  const { walk, def, refs } = walked(all);
   const lists = resolveAfter(root, all, walk, def);
   const fromCheckout = lists.slice(0, checkoutEntries.length);
   const checkoutAfter = withAfter(checkoutEntries, fromCheckout);
@@ -1100,7 +1106,7 @@ export function loadClaimView(root: string): { checkout: SnapshotInput; view: Sn
     ...withAfter(checkoutEntries, fromCheckout, (id) => !candidates.some(([c]) => c === id)),
     ...withAfter(candidateEntries, lists.slice(checkoutEntries.length)),
   };
-  return { checkout, view: { ...bare, files, planFacts, ...(Object.keys(afterVerify).length === 0 ? {} : { afterVerify }) }, branch };
+  return { checkout, view: { ...bare, files, planFacts, ...(Object.keys(afterVerify).length === 0 ? {} : { afterVerify }) }, branch, ...(refs === undefined ? {} : { refs }) };
 }
 
 /** IDS-1: `git config user.email`, trimmed; '' when unset (git exits 1). */
@@ -1412,6 +1418,37 @@ export function droppedOn(root: string, ref: string, ids: readonly string[]): Se
 export function snapshotAt(root: string, ref: string, ids: readonly string[]): RepoSnapshot {
   const paths = ['accord/config.yml', ...ids.flatMap((i) => ['accord/tickets/' + i + '.md', 'accord/tickets/' + i + '/plan.md', 'accord/tickets/' + i + '/ledger.md', 'accord/tickets/' + i + '/review.md'])];
   return loadSnapshot({ files: gitFilesAt(root, ref, paths), tree: [] });
+}
+
+/** BUG-LN-13 D-01: origin's default ref (gitDefaultRef); in a clone with no `origin` remote, the first of refs/heads/main and refs/heads/master that resolves; else undefined. Never fetches. */
+export function doneRef(root: string, known?: DefaultRefs): string | undefined {
+  // ST-LN-63: `known` is the one for-each-ref of the same command (`origin` is gitDefaultRef's answer, `local` the first resolving local main or master); without it the refs are read here.
+  const found = known === undefined ? gitDefaultRef(root) : known.origin;
+  if (found !== undefined) return found;
+  try {
+    execFileSync('git', ['remote', 'get-url', 'origin'], { cwd: root, ...GIT_QUIET });
+    return undefined; // an origin exists whose default branch this clone has not fetched
+  } catch {
+    // no origin remote
+  }
+  if (known !== undefined) return known.local;
+  return ['refs/heads/main', 'refs/heads/master'].find((ref) => {
+    try {
+      execFileSync('git', ['rev-parse', '--verify', '-q', ref], { cwd: root, ...GIT_QUIET });
+      return true;
+    } catch {
+      return false;
+    }
+  });
+}
+
+/** BUG-LN-13: `snapshot` with `defaultRef` read by snapshotAt at doneRef, over the view's ticket ids and every depends_on entry; `snapshot` itself when no default ref resolves. */
+export function withDefaultRef(root: string, snapshot: RepoSnapshot, known?: DefaultRefs): RepoSnapshot {
+  const ref = doneRef(root, known);
+  if (ref === undefined) return snapshot;
+  const ids = new Set(Object.keys(snapshot.tickets));
+  for (const t of Object.values(snapshot.tickets)) for (const dep of t.frontmatter?.depends_on ?? []) ids.add(dep);
+  return { ...snapshot, defaultRef: { ref, snapshot: snapshotAt(root, ref, [...ids]) } };
 }
 
 /**

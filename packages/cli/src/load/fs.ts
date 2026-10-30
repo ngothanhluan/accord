@@ -3,7 +3,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { branchTemplateOf, CALL_SIGN, DEFAULT_BRANCH_TEMPLATE, isSha, loadSnapshot, normaliseText, peopleOf, scopeLines } from '@accord-dev/accord-core';
+import { branchTemplateOf, CALL_SIGN, DEFAULT_BRANCH_TEMPLATE, isResearchPath, isSha, loadSnapshot, normaliseText, peopleOf, scopeLines } from '@accord-dev/accord-core';
 import type { BranchChange, BranchFact, RepoSnapshot, SnapshotInput } from '@accord-dev/accord-core';
 
 /** Environment problem the user must fix (no git, not a repository, no accord/ folder); exit 2 in Phase 5. */
@@ -690,6 +690,13 @@ export function loadClaimView(root: string): { checkout: SnapshotInput; view: Sn
       else files[path] = text;
     }
   }
+  // ST-LN-13: a record the claim branch adds is read from that ref; a record the checkout or an earlier ref holds is kept.
+  for (const [id, ref] of candidates) {
+    const text = read.get(ref + ':' + recordPaths(id)[0]);
+    if (text === undefined) continue;
+    const mine = researchListed({ [recordPaths(id)[0]]: text }, []).filter((p) => !Object.hasOwn(checkout.files, p) && !Object.hasOwn(files, p));
+    Object.assign(files, gitFilesAt(root, ref, mine));
+  }
   // The start commit of a candidate is the one its own branch records, so it is read from the overlaid texts.
   const afterWanted: Record<string, { commit: string; tips: string[] }> = {};
   for (const [id, ref] of candidates) {
@@ -966,7 +973,20 @@ export function loadRefInput(root: string, ref: string): SnapshotInput {
     throw new UsageError('git ls-tree failed reading ' + ref);
   }
   const kept = listed.split('\0').filter((p) => p === 'accord/config.yml' || /^accord\/tickets\/[^/]+\.md$/.test(p));
-  return { files: gitFilesAt(root, ref, kept), tree: kept };
+  const files = gitFilesAt(root, ref, kept);
+  // ST-LN-13: lint reads the text of each research record a ticket lists, so they are read from the same ref.
+  const records = researchListed(files, kept);
+  if (records.length === 0) return { files, tree: kept };
+  const texts = gitFilesAt(root, ref, records);
+  return { files: { ...files, ...texts }, tree: [...kept, ...Object.keys(texts)] };
+}
+
+/** ST-LN-13: the unique research paths the tickets of `files` list, in code-point order. */
+function researchListed(files: Record<string, string>, tree: string[]): string[] {
+  const { tickets } = loadSnapshot({ files, tree });
+  const listed = new Set<string>();
+  for (const t of Object.values(tickets)) for (const p of t.frontmatter?.research ?? []) if (isResearchPath(p)) listed.add(p);
+  return [...listed].sort(byCodePoint);
 }
 
 /** The ids of `ids` whose ticket file on `ref` has status dropped. */

@@ -253,3 +253,18 @@ it('risk:data-loss drop refuses a record the default branch would fail to lint',
   expect(r.err).toContain('nothing was created');
   expect(remoteDrop(c, 'ST-9')).toBeUndefined();
 }, 120_000);
+
+const REC = (topic: string): string => '# ' + topic + '\n\nDate: 2026-10-30. Repository at `5c083d3`. Feeds the ticket.\n';
+
+it('risk:data-loss drop lints the default branch with the research records its tickets list', async () => {
+  const OLD = 'accord/research/2026-10-29-old.md';
+  const c = copy(plain);
+  const o = c.otherClone();
+  writeFiles(o, { [OLD]: REC('old'), 'accord/tickets/ST-11.md': laneTicket('ST-11', { frontmatter: ['research: ["' + OLD + '"]'] }) });
+  commitMsg(o, 'ST-11');
+  gitRun(o, 'push', '-q');
+  c.git('pull', '-q');
+  const r = await run(['drop', 'ST-9', '--reason', 'gone'], c.root);
+  expect(r.code, r.err).toBe(0);
+  expect(remoteDrop(c, 'ST-9')).toBeDefined();
+}, 120_000);

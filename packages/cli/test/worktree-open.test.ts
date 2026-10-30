@@ -1,9 +1,10 @@
 // ST-LN-7, ST-LN-30: `accord worktree open` (pick up, continue, the claim, setup) and `accord new ticket --worktree`, against real git in tmp sandboxes with a bare remote.
-import { existsSync, readFileSync, rmSync } from 'node:fs';
+// ST-LN-20's clean of merged ticket branches and its prune of stale refs end this file, placed here by time (ST-LN-75).
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { expect, it, vi } from 'vitest';
 import { laneTicket } from '../../../test/helpers/lane.js';
 import { gitRun, run, writeFiles } from './helpers/repo.js';
-import { A, clone, clones, type Clone, copy, copyClone, doneOnRemote, dropOnRemote, entries, envOf, has, lines, ME, pushedWork, pushNext, setTable, sha, stopLines, tableOf, teammate, ticketWorktree, useSandboxes } from './helpers/worktree.js';
+import { A, clone, clones, type Clone, copy, copyClone, doneOnRemote, dropOnRemote, entries, envOf, has, lines, ME, mergeOnRemote, pushedWork, pushNext, setTable, sha, stopLines, tableOf, teammate, ticketBranch, ticketWorktree, useSandboxes } from './helpers/worktree.js';
 
 vi.mock('../src/load/proc.js', async (orig) => {
   const real = await orig<typeof import('../src/load/proc.js')>();
@@ -498,3 +499,170 @@ it('risk:complex-branching pick up and continue never clean the ticket they open
   expect(r.out).not.toContain('merged:');
   expect(lines(r.out)[0].startsWith('behind:')).toBe(true);
 }, 240_000);
+
+it('ac-2 a merged branch whose remote branch is gone is deleted from another ticket branch with a stale local main', async () => {
+  const c = clone();
+  ticketBranch(c, 'ST-9');
+  c.git('switch', '-q', '-c', 't/ST-20', 'main');
+  writeFiles(c.root, { 'ST-20.txt': 'x\n' });
+  c.git('add', '-A');
+  c.git('commit', '-q', '-m', 'ST-20');
+  doneOnRemote(c, ['ST-9']);
+  gitRun(c.remote, 'branch', '-D', 't/ST-9');
+  c.git('update-ref', '-d', 'refs/remotes/origin/t/ST-9');
+  const sha9 = sha(c, 't/ST-9');
+  const mainBefore = sha(c, 'main');
+  expect(c.git('config', 'branch.t/ST-9.merge').trim()).toBe('refs/heads/t/ST-9');
+  expect(c.git('config', 'branch.t/ST-9.remote').trim()).toBe('origin');
+  expect(() => c.git('rev-parse', '--verify', '-q', 'refs/remotes/origin/t/ST-9')).toThrow();
+  expect(() => c.git('merge-base', '--is-ancestor', sha9, 'main')).toThrow();
+  expect(() => c.git('merge-base', '--is-ancestor', sha9, 'HEAD')).toThrow();
+  const { code, out } = await run(['worktree', 'clean'], c.root, {});
+  expect(code).toBe(0);
+  expect(lines(out)).toEqual([`deleted t/ST-9 (was ${sha9})`]);
+  expect(() => c.git('rev-parse', '--verify', '-q', 'refs/heads/t/ST-9')).toThrow();
+  expect(sha(c, 'main')).toBe(mainBefore);
+  expect(c.git('branch', '--show-current').trim()).toBe('t/ST-20');
+});
+
+it('ac-3 a ticket branch with a commit not on the remote main is kept and not named', async () => {
+  const c = clone();
+  ticketBranch(c, 'ST-9');
+  mergeOnRemote(c, 'ST-9');
+  c.git('switch', '-q', 't/ST-9');
+  writeFiles(c.root, { 'after.txt': 'x\n' });
+  c.git('add', '-A');
+  c.git('commit', '-q', '-m', 'after');
+  const extra = sha(c, 'HEAD');
+  c.git('switch', '-q', 'main');
+  const { code, out } = await run(['worktree', 'clean'], c.root, {});
+  expect(code).toBe(0);
+  expect(lines(out)).toEqual([]);
+  expect(sha(c, 't/ST-9')).toBe(extra);
+});
+
+it('risk:data-loss a merged branch the ticket branch template does not name is never deleted', async () => {
+  const c = clone();
+  c.git('branch', 'backlog/notes', 'main');
+  c.git('branch', 't/ST-9', 'main');
+  const base = sha(c, 'main');
+  doneOnRemote(c, ['ST-9']);
+  const { code, out } = await run(['worktree', 'clean'], c.root, {});
+  expect(code).toBe(0);
+  expect(lines(out)).toEqual([`deleted t/ST-9 (was ${base})`]);
+  expect(sha(c, 'backlog/notes')).toBe(base);
+  expect(sha(c, 'main')).toBe(base);
+});
+
+it('risk:complex-branching a branch git refuses to delete is kept with git message and the others still go', async () => {
+  const c = clone();
+  c.git('branch', 't/ST-1', 'main');
+  c.git('branch', 't/ST-2', 'main');
+  const base = sha(c, 'main');
+  doneOnRemote(c, ['ST-1', 'ST-2']);
+  mkdirSync(`${c.root}/.git/refs/heads/t`, { recursive: true });
+  writeFileSync(`${c.root}/.git/refs/heads/t/ST-1.lock`, '');
+  const { code, out } = await run(['worktree', 'clean'], c.root, {});
+  expect(code).toBe(0);
+  const l = lines(out);
+  expect(l).toHaveLength(2);
+  expect(l[0].startsWith('kept t/ST-1: could not be judged: ')).toBe(true);
+  expect(l[0].length).toBeGreaterThan('kept t/ST-1: could not be judged: '.length);
+  expect(l[1]).toBe(`deleted t/ST-2 (was ${base})`);
+  expect(sha(c, 't/ST-1')).toBe(base);
+});
+
+it('ac-4 stale remote refs are pruned after a good fetch and a failed fetch prunes nothing', async () => {
+  const stale = (c: Clone) => {
+    c.git('push', '-q', 'origin', 'main:refs/heads/t/ST-9', 'main:refs/heads/backlog/notes');
+    c.git('fetch', '-q', 'origin');
+    const r = c.git('branch', '-r');
+    expect(r).toContain('origin/t/ST-9');
+    expect(r).toContain('origin/backlog/notes');
+    gitRun(c.remote, 'branch', '-D', 't/ST-9', 'backlog/notes');
+  };
+  const c = clone();
+  stale(c);
+  const main = sha(c, 'main');
+  const good = await run(['worktree', 'clean'], c.root, {});
+  expect(good.code).toBe(0);
+  const r = c.git('branch', '-r');
+  expect(r).not.toContain('origin/t/ST-9');
+  expect(r).not.toContain('origin/backlog/notes');
+  expect(r).toContain('origin/main');
+  expect(lines(good.out)).toEqual([
+    `pruned refs/remotes/origin/backlog/notes (was ${main})`,
+    `pruned refs/remotes/origin/t/ST-9 (was ${main})`,
+  ]);
+
+  const d = clone();
+  stale(d);
+  d.git('branch', 't/ST-9', 'origin/t/ST-9');
+  const tip = sha(d, 'origin/main');
+  doneOnRemote(d, ['ST-9']);
+  d.git('fetch', '-q', 'origin');
+  d.git('remote', 'set-url', 'origin', d.remote + '-missing');
+  const bad = await run(['worktree', 'clean'], d.root, {});
+  expect(bad.code).toBe(0);
+  const l = lines(bad.out);
+  expect(l).toHaveLength(2);
+  expect(l[0].startsWith('fetch from origin failed, judging against the refs already in this clone')).toBe(true);
+  expect(l[1]).toBe(`deleted t/ST-9 (was ${tip})`);
+  const r2 = d.git('branch', '-r');
+  expect(r2).toContain('origin/t/ST-9');
+  expect(r2).toContain('origin/backlog/notes');
+});
+
+it('risk:data-loss a prune setting cannot prune before the fetch and the pruned ref is named with its sha', async () => {
+  const c = clone();
+  c.git('switch', '-q', '-c', 't/ST-9', 'main');
+  writeFiles(c.root, { 'ST-9.txt': 'x\n' });
+  c.git('add', '-A');
+  c.git('commit', '-q', '-m', 'ST-9');
+  c.git('push', '-q', 'origin', 't/ST-9');
+  const tip = sha(c, 'HEAD');
+  c.git('switch', '-q', 'main');
+  c.git('branch', '-D', 't/ST-9');
+  c.git('config', 'remote.origin.prune', 'true');
+  gitRun(c.remote, 'branch', '-D', 't/ST-9');
+  const { code, out } = await run(['worktree', 'clean'], c.root, {});
+  expect(code).toBe(0);
+  expect(lines(out)).toEqual([`pruned refs/remotes/origin/t/ST-9 (was ${tip})`]);
+  c.git('cat-file', '-e', tip);
+});
+
+it('risk:data-loss a failed prune says only that the prune failed and still names each ref it removed', async () => {
+  const c = clone();
+  c.git('push', '-q', 'origin', 'main:refs/heads/t/ST-9', 'main:refs/heads/backlog/notes');
+  c.git('fetch', '-q', 'origin');
+  gitRun(c.remote, 'branch', '-D', 't/ST-9', 'backlog/notes');
+  writeFiles(c.root, { '.git/refs/remotes/origin/t/ST-9.lock': '' });
+  const main = sha(c, 'main');
+  const { code, out } = await run(['worktree', 'clean'], c.root, {});
+  expect(code).toBe(0);
+  const l = lines(out);
+  const failed = l.filter((x) => x.startsWith('prune of origin failed'));
+  expect(failed).toHaveLength(1);
+  expect(failed[0].startsWith('prune of origin failed: ')).toBe(true);
+  expect(failed[0]).not.toContain('stale remote refs are kept');
+  const left = c.git('branch', '-r');
+  for (const [b, ref] of [['t/ST-9', 'refs/remotes/origin/t/ST-9'], ['backlog/notes', 'refs/remotes/origin/backlog/notes']] as const) {
+    const named = l.includes(`pruned ${ref} (was ${main})`);
+    expect(named).toBe(!left.includes(`origin/${b}`));
+  }
+});
+
+it('risk:data-loss a local-only tag that the fetch refspecs map is named with its sha when the prune removes it', async () => {
+  const c = clone();
+  c.git('config', '--add', 'remote.origin.fetch', '+refs/tags/*:refs/tags/*');
+  c.git('switch', '-q', '--detach', 'main');
+  writeFiles(c.root, { 'mine.txt': 'x\n' });
+  c.git('add', '-A');
+  c.git('commit', '-q', '-m', 'mine');
+  c.git('tag', 'mine');
+  const tip = sha(c, 'mine');
+  c.git('switch', '-q', 'main');
+  const { code, out } = await run(['worktree', 'clean'], c.root, {});
+  expect(code).toBe(0);
+  expect(lines(out)).toEqual([`pruned refs/tags/mine (was ${tip})`]);
+});

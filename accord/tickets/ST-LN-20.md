@@ -57,7 +57,7 @@ Feature: ST-LN-20
     And "t/ST-12" is kept, named with the reason that it is checked out in "C:/Work/accord"
     And "t/ST-11" is kept and not named
 
-  @ac-2 @test:packages/cli/test/worktree-clean.test.ts#ac-2-a-merged-branch-whose-remote-branch-is-gone-is-deleted-from-another-ticket-branch-with-a-stale-local-main
+  @ac-2 @test:packages/cli/test/worktree-open.test.ts#ac-2-a-merged-branch-whose-remote-branch-is-gone-is-deleted-from-another-ticket-branch-with-a-stale-local-main
   Scenario: A merged branch whose remote branch was deleted on merge is deleted from whatever branch the session stands on
     Given the pull request of "t/ST-9" merged with a merge commit and the remote deleted the branch "t/ST-9"
     And the local branch "t/ST-9" tracks "origin/t/ST-9", has no worktree, and "C:/Work/accord" has the branch "t/ST-20" checked out, which does not contain the tip of "t/ST-9"
@@ -65,13 +65,13 @@ Feature: ST-LN-20
     When "/accord" with no argument runs in a session rooted at "C:/Work/accord"
     Then the local branch "t/ST-9" is deleted and named as deleted
 
-  @ac-3 @test:packages/cli/test/worktree-clean.test.ts#ac-3-a-ticket-branch-with-a-commit-not-on-the-remote-main-is-kept-and-not-named
+  @ac-3 @test:packages/cli/test/worktree-open.test.ts#ac-3-a-ticket-branch-with-a-commit-not-on-the-remote-main-is-kept-and-not-named
   Scenario: A local commit that is not on the remote main branch keeps its branch
     Given the remote main branch contains the merged tip of "t/ST-9", and the local branch "t/ST-9" has one more commit made after the merge, with no worktree
     When "/accord" with no argument runs in a session rooted at "C:/Work/accord"
     Then the local branch "t/ST-9" and its extra commit are kept, and the branch is not named
 
-  @ac-4 @test:packages/cli/test/worktree-clean.test.ts#ac-4-stale-remote-refs-are-pruned-after-a-good-fetch-and-a-failed-fetch-prunes-nothing
+  @ac-4 @test:packages/cli/test/worktree-open.test.ts#ac-4-stale-remote-refs-are-pruned-after-a-good-fetch-and-a-failed-fetch-prunes-nothing
   Scenario: Stale remote-tracking refs are pruned, and a failed fetch prunes nothing
     Given the remote deleted the branches "t/ST-9" and "backlog/notes", and the clone still has the refs "origin/t/ST-9" and "origin/backlog/notes"
     When "/accord" with no argument runs in a session rooted at "C:/Work/accord" and the fetch from the remote succeeds

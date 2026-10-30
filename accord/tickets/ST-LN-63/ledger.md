@@ -60,6 +60,9 @@
 - Ruling: the raw and numstat diffs in `gitBranchFact` stay two processes (executor, task 13) — with `-b`, `--raw` drops whitespace-only files, so one merged diff would change the output — one git process per `gate done`
 - Ruling: task 13's counts: `gitBranchFact` starts 7 git processes instead of 10 in lane S and 6 instead of 8 otherwise; the branch-fact tests start about 82 and 37 instead of about 115 and 60 (executor, task 13) — none
 - Ruling: task 13's affected run: 36 files, 626 passed, 2 failed, 3 skipped, 1292 s, 4 workers; complex-branching 8.7 s, parsing 2.7 s (alone 11.9 to 18.4 s and 3.5 to 11.4 s; before 42.1 s and 26.7 s); goldens ac-2 153.9 s; the two failures were time limits in files this task did not touch: lane-commands ac-1 task-done timed out at 30 s (7.9 s alone) and worktree.test's locked-hold test measured 19.6 s against its 15 s bound for one `worktree open --continue` (passes alone, 19.4 s for the whole test); both passed when run again alone (task 13 build) — machine load, as in tasks 6 and 12 — the locked-hold bound is near its limit under load and goes to review as a finding, since tasks 11 and 12 changed the `worktree open` path it times
+- Ruling: task 14 cuts on the command side only: review-package hands its default ref to the branch fact, one git process less per run, output unchanged (executor, task 14) — the test was already 5.9 s before the change after Tasks 4 to 13, so a riskier cut was not needed — if a loaded run puts it at 10 s or more, a second pass cuts one `rev-list --count` and one `diff`
+- Ruling: accepted two files outside Task 14's `files:` line: packages/cli/src/commands/branch-fact.ts, which passes the optional known default ref through to `gitBranchFact`, and the new packages/cli/test/review-package-count.test.ts, which holds the count assertion (`risk:complex-branching the review package reads the default ref once for its exclusion and the branch fact`, failing 3 against 2 before the change) (executor, task 14) — the ref has no other path to fs.ts, and lane-s.test.ts counts no processes — none
+- Ruling: task 14's affected run: 37 files, 629 passed, 3 skipped, 555 s, 4 workers; the Task 14 test 6.6 s (4.8 s alone), the new count test 2.3 s, goldens ac-2 55.3 s, and the two task 13 load failures passed in it (lane-commands ac-1 7.9 s, locked hold 8.6 s) (task 14 build) — none
 
 ## Deferred
 - plan-review 1.10 Nice — clean's merged set answers R later than today on a ref that may have moved; skip the set for R or re-read it when the ref changed
@@ -85,3 +88,4 @@
 - task 11 done 05bd752fd0e2
 - task 12 done 96e72c4c2de8
 - task 13 done 998f78f9c69f
+- task 14 done fc232b52ceba

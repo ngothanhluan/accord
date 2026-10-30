@@ -44,6 +44,7 @@
 - Ruling: task 1's ac-1 test compares the pointers of the three findings sorted, not in listing order — lintSnapshot orders findings by file, rule, then reason, so /0, /1, /2 do not come back in key order; the set and the pointers are still asserted exactly (executor, task 1) — cost if wrong: a missed order guarantee lint never made
 - Ruling: task 2 ran only the brief's `vitest related` command, not packages/cli/test/hook.test.ts by name — the related set includes it (its run log names hook.test) (executor, task 2) — cost if wrong: none found
 - Ruling: task 3's executor ran its related tests without `ACCORD_BASH`, which its shell guard refused; the main session re-ran the same command with it set and got the same 1486 passed, 3 skipped, so those 3 skips do not depend on it (executor, task 3) — cost if wrong: none found
+- Ruling: the step 6 pointer in the intent SKILL.md is written as a blank line plus an indented line after the table, inside the list item — the brief says "indented line", and this keeps it out of the table (executor, task 4) — cost if wrong: a one-line move in SKILL.md
 
 ## Deferred
 - Plan round 1.5 (Nice): `gitFilesAt` (packages/cli/src/load/fs.ts:795-798) misreads a non-blob result's body and a path with a control character shifts the batch; `isResearchPath` could reject control characters and `:`
@@ -60,3 +61,4 @@
 - task 1 done 870e1cfa4263
 - task 2 done 252de2fd1da0
 - task 3 done d38d03949f05
+- task 4 done fc814b1ac65f

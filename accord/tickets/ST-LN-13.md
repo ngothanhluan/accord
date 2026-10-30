@@ -70,7 +70,7 @@ Feature: ST-LN-13
     Then the scout, architect, critic and planner are told to read every record the ticket's `research:` key lists
     And no other agent's definition holds an instruction to read them
 
-  @ac-4
+  @ac-4 @test:packages/core/test/stage-skills.test.ts#ac-4-the-intent-interview-moves-the-evidence-it-replaces-into-a-dated-record-listed-under-research
   Scenario: the intent interview moves evidence it replaces into a record
     Given the intent interview skill that `accord skills sync` renders
     When it rewrites a ticket's queued Intent

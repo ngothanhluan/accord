@@ -59,7 +59,7 @@ Feature: ST-LN-34
     Then it exits 2 with a message naming --reason
     And no branch is created, committed or pushed
 
-  @ac-3 @test:packages/cli/test/worktree.test.ts#ac-3-clean-deletes-the-worktree-and-both-branches-of-a-ticket-dropped-on-the-default-branch
+  @ac-3 @test:packages/cli/test/worktree-clean.test.ts#ac-3-clean-deletes-the-worktree-and-both-branches-of-a-ticket-dropped-on-the-default-branch
   Scenario: Clean deletes a dropped ticket's worktree and both branches
     Given main on origin, as clean fetches it, holds ticket X's file with status dropped
     And X's worktree has no uncommitted work and t/X has the same tip locally and on origin
@@ -67,7 +67,7 @@ Feature: ST-LN-34
     Then X's worktree, the local branch t/X and the branch t/X on origin are deleted
     And each deletion is printed
 
-  @ac-4 @test:packages/cli/test/worktree.test.ts#ac-4-clean-keeps-a-dropped-ticket-whose-local-branch-has-commits-not-on-origin
+  @ac-4 @test:packages/cli/test/worktree-clean.test.ts#ac-4-clean-keeps-a-dropped-ticket-whose-local-branch-has-commits-not-on-origin
   Scenario: Clean keeps a dropped ticket whose branch has commits not on origin
     Given origin/main holds ticket X's file with status dropped
     And the local branch t/X has a commit that t/X on origin does not have

@@ -14,6 +14,7 @@ import { loadFrontmatter, normaliseText } from './frontmatter.js';
 import { extractScenarios } from './gherkin.js';
 import { scanJUnit } from './junit.js';
 import { d07Key, duplicateHeadings, headingKey, laneKey, requirementLines, scan } from './sections.js';
+import { parseRounds } from '../round/record.js';
 import { parseVerification } from './verification.js';
 import { parseBaseline, parseLedger, parsePlan, parseReview } from './work.js';
 
@@ -22,7 +23,7 @@ const CONFIG = 'accord/config.yml';
 const REPORT_TAG = /<testsuites?\b|<testcase\b/;
 const TICKET = /^accord\/tickets\/([^/]+)\.md$/;
 const VERIFICATION = /^accord\/tickets\/([^/]+)\/verification\.md$/;
-const WORK = /^accord\/tickets\/([^/]+)\/(plan|ledger|review)\.md$/;
+const WORK = /^accord\/tickets\/([^/]+)\/(plan-review|plan|ledger|review)\.md$/;
 const BASELINE = 'accord/tests-baseline.txt';
 export const PROTOTYPE = /^accord\/assets\/([^/]+)\/prototype\.html$/;
 
@@ -164,8 +165,11 @@ export function loadSnapshot(input: SnapshotInput): RepoSnapshot {
       errors.push(...r.findings);
     } else if (kind === 'ledger') {
       entry.ledger = parseLedger(file, files[file]);
+    } else if (kind === 'plan-review') {
+      entry.planRounds = parseRounds(file, files[file], 'plan');
     } else {
       entry.review = parseReview(file, files[file]);
+      entry.rounds = parseRounds(file, files[file], 'review');
     }
   }
 
@@ -194,5 +198,6 @@ export function loadSnapshot(input: SnapshotInput): RepoSnapshot {
     ...(input.afterVerify === undefined ? {} : { afterVerify: input.afterVerify }),
     ...(input.reviewFacts === undefined ? {} : { reviewFacts: input.reviewFacts }),
     ...(input.branchFacts === undefined ? {} : { branchFacts: input.branchFacts }),
+    ...(input.returnFacts === undefined ? {} : { returnFacts: input.returnFacts }),
   };
 }

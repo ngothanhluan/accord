@@ -20,6 +20,7 @@ import { next } from './commands/next.js';
 import { upgradeNotice } from './commands/notice.js';
 import { dashboardCommand } from './commands/dashboard.js';
 import { reviewPackage } from './commands/review-package.js';
+import { round } from './commands/round.js';
 import { skills } from './commands/skills.js';
 import { status } from './commands/status.js';
 import { taskDone } from './commands/task-done.js';
@@ -172,6 +173,14 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .option('--base <ref>', "the commit or branch the work started from (default: the plan's baseline:)")
     .action((id: string, options: { base?: string }) => {
       setCode(reviewPackage(preflight(opts), id, options));
+    });
+
+  program
+    .command('round <id>')
+    .description('print the next review round, its cap and the fix executor model, or the stop or refusal; --plan counts plan critique rounds')
+    .option('--plan', 'count the plan critique rounds in plan-review.md')
+    .action((id: string, options: { plan?: boolean }) => {
+      setCode(round(preflight(opts), id, options));
     });
 
   // D-95: `new ticket` is deliberately *not* exempt from the pin. The ticket template changes between
@@ -337,6 +346,25 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
           return;
         }
         setCode(hook(ctx, event));
+        return;
+      }
+      if (event === 'pre-tool-use') {
+        // Ledger Ruling 32: a broken repository never blocks a dispatch; any failure is one stderr line and an allow.
+        try {
+          let cwd: string | undefined;
+          try {
+            const sent = JSON.parse(opts.stdin ?? '') as unknown;
+            const c = typeof sent === 'object' && sent !== null ? (sent as Record<string, unknown>).cwd : undefined;
+            if (typeof c === 'string') cwd = c;
+          } catch {
+            cwd = undefined;
+          }
+          setCode(hook(preflight({ ...opts, cwd: cwd ?? opts.cwd }, 'checkout'), event));
+        } catch (e) {
+          opts.stderr.write(`accord hook pre-tool-use: ${(e instanceof Error ? e.message : String(e)).split('\n')[0]}; allowed`.replace(/\\/g, '/') + '\n');
+          opts.stdout.write('{}\n');
+          setCode(0);
+        }
         return;
       }
       const ctx = preflight(opts, 'stage');

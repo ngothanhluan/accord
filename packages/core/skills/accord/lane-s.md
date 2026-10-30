@@ -53,9 +53,10 @@ no intent interview, approval, approach, plan, executor or verify: you make the 
    the open findings to the owner; never report the work finished. Resumed at `review`, the next round is one after
    the last `## Round <n>` in `review.md`; when that round reported a Must whose fix is not yet committed, make and
    commit the fix first.
+   `review.md` starts with the line `Round record: 1`, above every heading, and a finding line starts with its severity word, `Must`, `Should` or `Nice`, never two of them or a question mark. Before each round, and before appending step 5's verdict, run `accord round <id>`: exit 0 prints the round's number and the cap, counting the `## Round <n>` sections after the last `## Return from verify` line. It prints `stop: report to owner` from round 3 on a round that still reports a Should or a Must, and at the cap: commit the round's record, stop and report the open findings to the owner with what it prints, and write the owner's answer as the last line `verdict: accepted-by-owner "<the owner's words>"`, as the ledger Ruling `Ruling: the owner allows <n> more review rounds after round <r> of cycle <k> — "<the owner's words>" — <cost if wrong>`, or as the lift to lane M below, which is the change of course in lane S. Before the verdict, a stop whose only `Reason:` is that the cap is reached and no owner Ruling allows more lets the verdict be written. On `refused:`, fix what it names and run it again. Resumed at `review` with `review.md` ending in a verdict and a commit made after it, first run `git log -1 --format=%H -- accord/tickets/<id>/review.md` and append `## Return from verify <sha>` with the sha it prints; the rounds after it count from 1.
 5. **Verdict.** The last line of `review.md` is `verdict: converged` when the last round reported no Must open, or
-   `verdict: accepted-by-owner "<the owner's words>"` when the owner accepts the open findings at the cap; that one
-   is committed alone, right after the fifth round's record. Nothing follows that line. `accord gate done` fails on
+   `verdict: accepted-by-owner "<the owner's words>"` when the owner accepts the open findings at the cap or at a stop from round 3; that one
+   is committed alone, right after that round's record. Nothing follows that line. `accord gate done` fails on
    any commit after the last round's record that changes more than the ticket's records: a change after it needs
    another round and a new verdict.
 6. **Pull request.** When `tests.report` is set in `accord/config.yml` and `tests.affected` does not write it, run

@@ -226,8 +226,9 @@ class Dag {
   }
 }
 
-const REVIEWED = '## Round 1\nverdict: converged\n';
-const UNFINISHED = '## Round 1\nNo verdict yet.\n';
+// ST-LN-17: a review.md carries the record version line, or gate done refuses it (gate.review-rounds).
+const REVIEWED = 'Round record: 1\n\n## Round 1\n\nNo findings\n\nverdict: converged\n';
+const UNFINISHED = 'Round record: 1\n\n## Round 1\n\nNo findings\n\nNo verdict yet.\n';
 const recordsOf = (id: string) => ({
   ticket: P(id),
   plan: `accord/tickets/${id}/plan.md`,

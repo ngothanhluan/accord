@@ -66,6 +66,7 @@ import {
   sectionsChanged,
 } from './lane-s.js';
 import { branchUnknown, interfaceSign, outOfScope, sensitiveTouched } from './scope.js';
+import { planRounds, reviewRounds } from './rounds.js';
 import { reviewMissing, reviewUnconverged, suiteNotPassed, tasksIncomplete, testUntracedAtDone } from './work.js';
 import {
   evidenceUnresolved,
@@ -151,11 +152,14 @@ export const PLAN_RULES: readonly GateRule[] = [
   { id: 'gate.plan-deferral', level: 'error', profiles: ['build', 'maintain'], check: deferral },
   { id: 'gate.plan-verify-at', level: 'error', profiles: ['build', 'maintain'], check: verifyAt },
   { id: 'gate.plan-verify-comma', level: 'error', profiles: ['build', 'maintain'], check: verifyComma },
+  { id: 'gate.plan-rounds', level: 'error', profiles: ['build', 'maintain'], check: planRounds },
   { id: 'gate.tests-baseline-missing', level: 'warning', profiles: ['build', 'maintain'], check: testsBaselineMissing },
 ];
 
 const REVIEW_MISSING: GateRule = { id: 'gate.review-missing', level: 'error', profiles: ['build', 'maintain'], check: reviewMissing };
 const REVIEW_UNCONVERGED: GateRule = { id: 'gate.review-unconverged', level: 'error', profiles: ['build', 'maintain'], check: reviewUnconverged };
+/** ST-LN-17 AC-3: the cap and the stop from round 3 in review.md, for lane M and lane S alike. */
+const REVIEW_ROUNDS: GateRule = { id: 'gate.review-rounds', level: 'error', profiles: ['build', 'maintain'], check: reviewRounds };
 const SUITE_NOT_PASSED: GateRule = { id: 'gate.suite-not-passed', level: 'error', profiles: ['build', 'maintain'], check: suiteNotPassed };
 const COMMIT_TRAILER: GateRule = { id: 'gate.commit-trailer', level: 'error', profiles: ['build', 'maintain'], check: commitTrailer };
 /** ST-LN-62: Done reads the branch diff of every ticket with `lane:`; no diff, an empty diff, or in lane S a diff without the ticket file, fails closed. */
@@ -198,6 +202,7 @@ export const DONE_RULES: readonly GateRule[] = [
   { id: 'gate.task-incomplete', level: 'error', profiles: ['build', 'maintain'], check: tasksIncomplete },
   REVIEW_MISSING,
   REVIEW_UNCONVERGED,
+  REVIEW_ROUNDS,
   SUITE_NOT_PASSED,
   { id: 'gate.test-untraced', level: 'error', profiles: ['build', 'maintain'], check: testUntracedAtDone },
   // GATE-05 (D-79): warnings, and never more. docs/design.md §4 makes the reviewer not a role, so the
@@ -214,6 +219,7 @@ export const DONE_S_RULES: readonly GateRule[] = [
   { id: 'gate.sections-changed', level: 'error', profiles: ['build', 'maintain'], check: sectionsChanged },
   REVIEW_MISSING,
   REVIEW_UNCONVERGED,
+  REVIEW_ROUNDS,
   { id: 'gate.review-trailing', level: 'error', profiles: ['build', 'maintain'], check: reviewTrailing },
   { id: 'gate.review-uncommitted', level: 'error', profiles: ['build', 'maintain'], check: reviewUncommitted },
   { id: 'gate.review-commit-code', level: 'error', profiles: ['build', 'maintain'], check: reviewCommitCode },

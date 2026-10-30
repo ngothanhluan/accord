@@ -18,6 +18,8 @@ nothing. A round with no findings says `No findings`. Only the sections
 after the last `## Closed` line count; step 8 of the skill appends that
 line.
 
+`plan-review.md` starts with the line `Round record: 1`, above every heading; its only headings are `## Round <n> (whole)`, `## Round <n> (diff)` and `## Closed`. Before each round, and before step 8 of the skill appends `## Closed`, run `accord round <id> --plan`: exit 0 gives the round's number and the cap; it counts only the rounds after the last `## Closed` line, at most five, and prints `stop: report to owner` from round 3 on a round that still reports a Should or a Must, and on a fifth round that reports any finding. On a stop, stop and report to the owner what it prints, as `./ask.md` says, and ask whether to change course, accept the open findings, or allow more rounds. Write the answer as the last line `verdict: accepted-by-owner "<the owner's sentence>"` in `plan-review.md`, which ends the loop as step 4 says; or, to allow more rounds, as the ledger Ruling `Ruling: the owner allows <n> more plan critique rounds after round <r> of cycle <k> — "<the owner's sentence>" — <cost if wrong>`, with r and k as the stop printed them; or, for a change of course, as that same Ruling with n the rounds the owner gives the reworked plan, then the re-plan. A round after the stop, allowed by the owner, that reports no findings clears it. Never append `## Closed` while a stop holds. On a `refused:` that says the loop has ended, the loop is over: go to step 7 of the skill, or at step 8 append `## Closed`. On any other `refused:`, fix what it names and run it again.
+
 1. **Read.** Round 1 is `whole` and sized by the plan. Count the
    `## Task` sections of `plan.md` and judge from the ticket and the plan
    whether the ticket touches auth, money, migration, or data deletion.
@@ -59,9 +61,12 @@ line.
    lists it after `fixed:`. On drop its state becomes
    `owner: "<the owner's words>"`, which closes it.
 4. **Converged.** The loop ends only on a round that reports no Must
-   and no Should and leaves no Must or Should open or unverified, and
-   only when the last `accord gate plan <id>` passed: go to step 7 of
-   the skill.
+   and no Should and leaves no Must or Should open or unverified, or on
+   the owner's acceptance after a stop, the last line
+   `verdict: accepted-by-owner "<the owner's sentence>"` of
+   `plan-review.md`, and only when the last `accord gate plan <id>`
+   passed (after an acceptance, run it once more): go to step 7 of the
+   skill.
 5. **Fix.** Otherwise commit `plan.md` and `plan-review.md` with the
    subject `plan: <id> round <n>, <m> Must, <s> Should`, where `<m>` and
    `<s>` count the Musts and the Shoulds after the last `## Closed` line

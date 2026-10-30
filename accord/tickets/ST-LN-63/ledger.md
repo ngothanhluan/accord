@@ -56,6 +56,10 @@
 - Ruling: in the failed-or-absent-fetch risk test, ST-LN-1 (only an empty claim commit) also has a ticket file in the working tree, so the "never assigns that id" assertion cannot tell the light snapshot from the full one; the branch-template refusal (`claimed: A-1 by other@example.invalid`, no t/A-1 made) is the assertion that discriminates (executor, task 12) — the plan's assertion is kept as written — that one assertion guards nothing extra
 - Ruling: after a full finish from the light parts, `ctx.branch` is set from that load, read inside it at no extra git process (executor, task 12) — nothing in pick-up or new ticket reads it today — none
 - Ruling: task 12's affected run: 36 files, 628 passed, 3 skipped, 1261 s, 4 workers, while another session's tests ran on the same machine; times in that run were 2 to 3 times task 11's: goldens ac-2 126.3 s, ac-3 81.8 s (20.6 s alone, 17.8 s with goldens; executor proposed 25 s), the new risk test 21.1 s (9.2 s alone), origin 78.7 s, default ref 63.6 s, worktree list 60.8 s, ssh 42.6 s (task 12 build) — loaded times from this run are not a basis for ceilings; the owner chooses at verify from a run on a quiet machine — over the 10 s line until approved
+- Ruling: `gitBranchFact` gets no default ref threaded from the loader (executor, task 13) — that needs a new snapshot field, outside the task's limit to `gitBranchFact` and the lane gate done path — one more git process per lane `gate done`
+- Ruling: the raw and numstat diffs in `gitBranchFact` stay two processes (executor, task 13) — with `-b`, `--raw` drops whitespace-only files, so one merged diff would change the output — one git process per `gate done`
+- Ruling: task 13's counts: `gitBranchFact` starts 7 git processes instead of 10 in lane S and 6 instead of 8 otherwise; the branch-fact tests start about 82 and 37 instead of about 115 and 60 (executor, task 13) — none
+- Ruling: task 13's affected run: 36 files, 626 passed, 2 failed, 3 skipped, 1292 s, 4 workers; complex-branching 8.7 s, parsing 2.7 s (alone 11.9 to 18.4 s and 3.5 to 11.4 s; before 42.1 s and 26.7 s); goldens ac-2 153.9 s; the two failures were time limits in files this task did not touch: lane-commands ac-1 task-done timed out at 30 s (7.9 s alone) and worktree.test's locked-hold test measured 19.6 s against its 15 s bound for one `worktree open --continue` (passes alone, 19.4 s for the whole test); both passed when run again alone (task 13 build) — machine load, as in tasks 6 and 12 — the locked-hold bound is near its limit under load and goes to review as a finding, since tasks 11 and 12 changed the `worktree open` path it times
 
 ## Deferred
 - plan-review 1.10 Nice — clean's merged set answers R later than today on a ref that may have moved; skip the set for R or re-read it when the ref changed
@@ -80,3 +84,4 @@
 - task 10 done 2d65af786e58
 - task 11 done 05bd752fd0e2
 - task 12 done 96e72c4c2de8
+- task 13 done 998f78f9c69f

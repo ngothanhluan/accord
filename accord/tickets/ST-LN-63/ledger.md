@@ -45,6 +45,9 @@
 - Ruling: task 8's affected run: 36 files, 621 passed, 3 skipped, 827 s with 4 workers; the current-branch test took 9.3 s and the review-commit test 7.4 s (6.6 s and 4.8 s alone); in the same run the head-author, claim-tips and ac-1 tests took 11.2 s, 11.3 s and 16.6 s (task 8 build) — the over-10 s ones go to the owner at verify — loaded times vary between runs
 - Ruling: the 'default ref' item predicate matches `symbolic-ref` of origin/HEAD, `rev-parse --verify` of origin/HEAD, origin/main, origin/master, main or master, and `for-each-ref` naming origin/HEAD (executor, task 9) — it covers the plan's list and the new command, so a per-ticket query would fail — a looser or tighter count, fixed by editing the entry
 - Ruling: the default-ref test takes 22.0 s alone, 22.9 s with goldens and 30.0 s in the affected run (36 files, 622 passed, 3 skipped, 570 s, 4 workers); about 21 s is checkItem on its 5 keys, four of them FRESH worktree runs at about 4 s each, all on the plan's list (executor and task 9 build) — the executor proposed 31 s from 22.9 s; the affected run gives 30.0 × 1.35 = 41 s, and the owner chooses at verify — over the 10 s line until approved
+- Ruling: the ancestry check of a tip re-read after the guards stays one `merge-base --is-ancestor` per local branch clean deletes (executor, task 10) — the plan says the re-read tip never uses the merged set — one git process per deleted branch
+- Ruling: the late-commit case shares one sample copy and one clean run with the merged, squash and dropped cases (executor, task 10) — cut the test from 12.0 s to 9.0 s alone — a failure points less precisely at its case
+- Ruling: task 10's affected run: 33 files, 608 passed, 3 skipped, 559 s, 4 workers; the clean test took 12.3 s (9.0 s alone, proposed ceiling 14 s from 9.99 s, 17 s from this run), and in the same run the shared-walk test took 16.9 s, ac-1 15.2 s, default ref 29.5 s, claim tips 10.7 s (task 10 build) — the shared-walk test, 3.9 to 5.2 s in earlier runs, joins the over-10 s list under load — loaded times vary between runs
 
 ## Deferred
 - plan-review 1.10 Nice — clean's merged set answers R later than today on a ref that may have moved; skip the set for R or re-read it when the ref changed
@@ -66,3 +69,4 @@
 - task 7 done 5b74fe932e9a
 - task 8 done a8dc1ff32565
 - task 9 done 64aa99648624
+- task 10 done 2d65af786e58

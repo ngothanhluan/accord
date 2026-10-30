@@ -43,6 +43,8 @@
 - Ruling: `gitReviewFact` returns `{clean:false}` at once when the review commit is undefined, skipping the `git status` it ran first (executor, task 8) — a missing review commit was already `{clean:false}`; one process fewer — a gate-done count assertion would see one `status` fewer, with no output change
 - Ruling: `fetchOrigin`'s post-fetch `loadFromFs` still reads the current branch again, so `worktree merge` after a fetch reads it twice (baseline 3) (executor, task 8) — the brief names no item for it, and the refusal path before the fetch reads once — one spawn more than the ideal on the fetch path
 - Ruling: task 8's affected run: 36 files, 621 passed, 3 skipped, 827 s with 4 workers; the current-branch test took 9.3 s and the review-commit test 7.4 s (6.6 s and 4.8 s alone); in the same run the head-author, claim-tips and ac-1 tests took 11.2 s, 11.3 s and 16.6 s (task 8 build) — the over-10 s ones go to the owner at verify — loaded times vary between runs
+- Ruling: the 'default ref' item predicate matches `symbolic-ref` of origin/HEAD, `rev-parse --verify` of origin/HEAD, origin/main, origin/master, main or master, and `for-each-ref` naming origin/HEAD (executor, task 9) — it covers the plan's list and the new command, so a per-ticket query would fail — a looser or tighter count, fixed by editing the entry
+- Ruling: the default-ref test takes 22.0 s alone, 22.9 s with goldens and 30.0 s in the affected run (36 files, 622 passed, 3 skipped, 570 s, 4 workers); about 21 s is checkItem on its 5 keys, four of them FRESH worktree runs at about 4 s each, all on the plan's list (executor and task 9 build) — the executor proposed 31 s from 22.9 s; the affected run gives 30.0 × 1.35 = 41 s, and the owner chooses at verify — over the 10 s line until approved
 
 ## Deferred
 - plan-review 1.10 Nice — clean's merged set answers R later than today on a ref that may have moved; skip the set for R or re-read it when the ref changed
@@ -63,3 +65,4 @@
 - task 6 done 523279597366
 - task 7 done 5b74fe932e9a
 - task 8 done a8dc1ff32565
+- task 9 done 64aa99648624

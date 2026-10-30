@@ -13,3 +13,9 @@ Nice 8 [patch]: `worktree merge` discards `fetchOrigin`'s full reload after a go
 Nice 9 [patch]: `headAuthorOf` takes the email after the last `<` where git takes the first — packages/cli/src/load/fs.ts ~2863-2872 — deferred
 Nice 10 [patch]: no test fails when clean caches the default ref before its prune or reuses a worktree list read before the fetch — packages/cli/test/git-count.test.ts:654 — deferred
 Nice 11 [patch]: ac-1 writes progress lines to stdout and items.ts keeps a build-process comment — packages/cli/test/git-count.test.ts, packages/cli/test/helpers/items.ts:7 — deferred
+
+## Round 2
+
+Final review (integration, whole package): No findings
+
+verdict: converged

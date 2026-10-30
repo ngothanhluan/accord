@@ -41,27 +41,27 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 Feature: ST-LN-55
 
   @ac-1
-  Scenario: Clean removes a done ticket's worktree completely, and keeps and names one whose leftover holds a real file
-    Given two done tickets whose worktrees git still lists, neither with uncommitted work
-    And the first worktree's folder will hold only links and empty folders once git removes it
-    And the second worktree's folder will also hold a real file, an entry that is neither a link nor a folder
+  Scenario: Clean removes a done ticket's worktree completely, and keeps and names one that holds a file it may not delete
+    Given two tickets that accord reads as done on origin's default branch, whose worktrees git still lists, neither with uncommitted work
+    And the first worktree holds, besides its tracked files, only npm's workspace links and ignored paths that have a name from the config list ("node_modules", "dist", ".DS_Store", "Thumbs.db") as a path segment
+    And the second worktree also holds an ignored file ".env", whose path has no name from that list
     When accord worktree clean runs
     Then the first folder no longer exists, and clean prints "removed" with its path
-    And the second folder and its real file still exist, and clean prints a line naming that folder and that file, and no "removed" line for it
+    And git still lists the second worktree, its folder and ".env" are unchanged, and clean prints a line naming that folder and ".env", and no "removed" line for it
 
   @ac-2
   Scenario: The next session start cleans a done ticket's worktree and branches, unless a live session holds it
-    Given a ticket's pull request is merged, so the ticket's file on origin's default branch says it is done
+    Given a ticket's pull request is merged, so that after a fetch accord reads the ticket as done on origin's default branch
     And its worktree, its local branch and its branch on origin still exist, and the session that held the worktree has ended
     And another done ticket's worktree is held by a session that still runs
-    When a session starts, resumes or is cleared, in the main checkout or in any worktree of the repository
+    When a session starts, resumes or is cleared, in the main checkout or in a worktree other than those two
     Then the first ticket's worktree folder, its local branch, its branch on origin and its hold no longer exist, and that session shows the "removed" line
     And the second ticket's worktree still exists
 
   @ac-3
   Scenario: A session start cleans a done ticket's recorded worktree that git has forgotten
     Given accord recorded a worktree for a ticket when it created it
-    And the ticket is done on the default branch, git no longer lists that worktree, and its folder holds only links and empty folders
+    And accord reads the ticket as done on origin's default branch, git no longer lists that worktree, and its folder holds only links and empty folders
     When a session starts, resumes or is cleared, in the main checkout or in any worktree of the repository
     Then that folder no longer exists, and the record no longer lists it
 ```

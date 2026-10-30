@@ -1,0 +1,83 @@
+// ST-LN-63 D-05: one count assertion per Part 2 item, each against its own recorded count at the baseline.
+import { expect } from 'vitest';
+import { readGolden, runSample } from './runs.js';
+
+/** A Part 2 item: the run keys it touches and a predicate over one git argument array that matches its calls and the command it adds. */
+export type Item = { item: string; keys: string[]; p: (args: string[]) => boolean };
+
+/** Each Part 2 task appends its entries to this array literal. */
+export const ITEMS: Item[] = [
+  {
+    item: 'HEAD author',
+    keys: ['main worktree open A-1'],
+    p: (a) => a.includes('show') && a.includes('-s') && a.includes('--format=%H%x00%ae') && a.includes('HEAD'),
+  },
+  {
+    item: 'claim tips',
+    keys: ['main status', 'main worktree open A-1'],
+    p: (a) => a[0] === 'rev-parse' && a.includes('--verify') && a.some((x) => x.startsWith('refs/heads/')),
+  },
+  {
+    item: 'current branch',
+    keys: ['wt-A-7 anchor', 'wt-A-7 worktree merge A-7'],
+    p: (a) => a[0] === 'symbolic-ref' && a.includes('--short') && a.includes('HEAD'),
+  },
+  {
+    item: 'review commit',
+    keys: ['wt-S-1 gate done S-1 --json'],
+    p: (a) => a.includes('log') && a.includes('-G') && a.includes('^## Round '),
+  },
+  {
+    item: 'default ref',
+    keys: ['main worktree open A-1', 'main worktree clean', 'wt-A-7 worktree merge A-7', 'main new ticket N-1 --lane M --worktree', 'side-local status --json'],
+    p: (a) => {
+      const refs = ['refs/remotes/origin/HEAD', 'refs/remotes/origin/main', 'refs/remotes/origin/master', 'refs/heads/main', 'refs/heads/master'];
+      if (a[0] === 'symbolic-ref') return a.includes('refs/remotes/origin/HEAD');
+      if (a[0] === 'rev-parse') return a.includes('--verify') && a.some((x) => refs.includes(x));
+      return a[0] === 'for-each-ref' && a.includes('refs/remotes/origin/HEAD');
+    },
+  },
+  {
+    item: 'clean merged set',
+    keys: ['main worktree clean'],
+    p: (a) => (a[0] === 'merge-base' && a.includes('--is-ancestor')) || (a[0] === 'for-each-ref' && a.includes('--merged')),
+  },
+  {
+    item: 'ssh config',
+    keys: ['main worktree clean', 'main worktree open A-1'],
+    p: (a) => a[0] === 'config' && a.includes('--get') && a.includes('core.sshCommand'),
+  },
+  {
+    item: 'worktree list',
+    keys: ['main worktree open A-1', 'main new ticket N-1 --lane M --worktree'],
+    p: (a) => a[0] === 'worktree' && a[1] === 'list' && a.includes('--porcelain'),
+  },
+  {
+    item: 'get-url',
+    keys: ['main worktree open A-1', 'main new ticket N-1 --lane M --worktree', 'wt-A-7 worktree merge A-7'],
+    p: (a) => a[0] === 'remote' && a[1] === 'get-url' && a.includes('origin'),
+  },
+  {
+    item: 'light preflight',
+    keys: ['main worktree open A-1', 'main new ticket N-1 --lane M --worktree'],
+    p: (a) => a.includes('log') && a.includes('--format=%x01%ae%x00%ct%x00%s') && a.includes('--name-only') && a.includes('accord/tickets'),
+  },
+];
+
+/**
+ * `before` is the number of arrays in `git-counts.before.json[key]` that `p` matches; `after` the same over `argv` when given,
+ * else over a fresh `runSample([key])`. The item shows fewer git processes than the baseline did.
+ */
+export async function expectFewer(key: string, p: (args: string[]) => boolean, argv?: string[][]): Promise<void> {
+  const before = readGolden<Record<string, string[][]>>('git-counts.before.json')[key]?.filter(p).length ?? 0;
+  expect(before, `${key}: the baseline started no git process this item touches`).toBeGreaterThan(0);
+  const calls = argv ?? (await runSample([key]))[key]?.argv;
+  expect(calls, `${key}: no run`).toBeDefined();
+  const after = calls!.filter(p).length;
+  expect(after, `${key}: ${after} git processes after, ${before} before`).toBeLessThan(before);
+}
+
+/** Runs the item's count assertion on each of its keys. */
+export async function checkItem(entry: Item): Promise<void> {
+  for (const key of entry.keys) await expectFewer(key, entry.p);
+}

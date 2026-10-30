@@ -38,7 +38,7 @@ export function hook(ctx: CommandContext, event: HookEvent): number {
         // No anchor here: main's copy of the ticket can lag its branch; the worktree's `accord anchor` is the one to read.
         body = `this session works ${held.id}: call EnterWorktree with the path on the next line, then run accord anchor there and go on at the stage it prints\nenter: ${held.path}\n`;
       } else {
-        const id = activeTicket(root, ctx.snapshot);
+        const id = activeTicket(root, ctx.snapshot, branchFor(root, ctx));
         body = (id === undefined ? undefined : anchorText(ctx.snapshot, id)) ?? body;
       }
     } catch (e) {
@@ -59,10 +59,15 @@ function heldEntry(root: string, marker: string, ctx: CommandContext): { id: str
   return path === undefined ? undefined : { id, path };
 }
 
+/** ST-LN-63: the branch the load read, when `root` is the checkout the load read it in; a hook run for another folder reads its own. */
+function branchFor(root: string, ctx: CommandContext): { name: string | undefined } | undefined {
+  return root === ctx.root ? ctx.branch : undefined;
+}
+
 /** The ticket whose worktree `root` is (a linked worktree on a ticket branch), else undefined. */
 function ticketOfWorktree(root: string, ctx: CommandContext): string | undefined {
   if (!isLinked(root)) return undefined;
-  const branch = currentBranch(root);
+  const branch = (branchFor(root, ctx) ?? { name: currentBranch(root) }).name;
   return branch === undefined ? undefined : ticketOfBranch(branch, ctx.snapshot.branchTemplates ?? [DEFAULT_BRANCH_TEMPLATE], (i) => Object.hasOwn(ctx.snapshot.tickets, i));
 }
 

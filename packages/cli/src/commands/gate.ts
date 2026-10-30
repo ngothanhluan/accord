@@ -5,7 +5,7 @@
 // than instead of it (D-97). Under `--json` stdout carries the GateResult verbatim and every notice
 // goes to stderr, so `jq '.findings[]'` works with no unwrapping (D-98).
 import { gateDone, gatePlan, gateReady, renderText, workOf } from '@accord-dev/accord-core';
-import { gitAfterReview, gitBranchCommits, gitReviewFact, UsageError, withDefaultRef, withReturnFacts } from '../load/fs.js';
+import { gitAfterReview, gitBranchCommits, gitPlanHistory, gitRecordsSinceFor, gitReviewCommit, gitReviewFact, UsageError, withDefaultRef, withReturnFacts } from '../load/fs.js';
 import { colourFindings } from '../render/color.js';
 import { branchFactFor } from './branch-fact.js';
 import type { CommandContext } from '../run.js';
@@ -28,18 +28,27 @@ export function gate(
     ? withCommits
     : (() => {
         const after = Object.fromEntries(Object.entries(ctx.snapshot.afterVerify ?? {}).filter(([k]) => k !== id));
-        const found = gitAfterReview(ctx.root, id);
+        // ST-LN-63: the review commit is read once and both facts are taken from it.
+        const commit = gitReviewCommit(ctx.root, id);
+        const found = gitAfterReview(ctx.root, id, commit);
         if (found !== undefined) after[id] = found;
-        return { ...withCommits, reviewFacts: { [id]: gitReviewFact(ctx.root, id) }, afterVerify: after };
+        return { ...withCommits, reviewFacts: { [id]: gitReviewFact(ctx.root, id, commit) }, afterVerify: after };
       })();
   // ST-LN-62: Done reads the branch diff of every ticket with `lane:`, loaded here from the merge base with the default branch.
   const forScope =
     which === 'done' && Object.hasOwn(ctx.snapshot.tickets, id) && ctx.snapshot.tickets[id].frontmatter?.lane !== undefined
       ? { ...forDone, branchFacts: { [id]: branchFactFor(ctx, id) } }
       : forDone;
+  // ST-LN-63: the history Plan and Done read is loaded here for the gated ticket alone, never at load for every ticket.
+  const gated =
+    which === 'plan'
+      ? { ...ctx.snapshot, ...gitPlanHistory(ctx.root, ctx.snapshot, id) }
+      : which === 'done'
+        ? { ...forScope, ...gitRecordsSinceFor(ctx.root, ctx.snapshot, id) }
+        : ctx.snapshot;
   // ST-LN-17: Done confirms each ## Return from verify marker with git; an unversioned round record of a ticket
   // not done on the default branch needs that branch's snapshot.
-  const forRounds = which === 'done' ? withReturnFacts(ctx.root, forScope, id) : ctx.snapshot;
+  const forRounds = which === 'done' ? withReturnFacts(ctx.root, gated, id) : gated;
   const roundRecord = which === 'done' ? workOf(forRounds, id)?.rounds : which === 'plan' ? workOf(forRounds, id)?.planRounds : undefined;
   const forGate =
     roundRecord !== undefined && !roundRecord.versioned && roundRecord.cycles.some((c) => c.rounds.length > 0)

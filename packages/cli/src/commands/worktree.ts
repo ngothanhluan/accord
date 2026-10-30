@@ -740,9 +740,24 @@ export function worktreeClean(ctx: CommandContext, opts: { fetched?: 'ok' | 'fai
   const ref = gitDefaultRef(ctx.root);
   if (ref === undefined) return 0;
   const state: GuardState = {};
-  cleanDone(ctx, ref, templates, state, fetchFailed, opts.skip);
-  cleanDropped(ctx, ref, templates, state, pruned, fetchFailed, opts.skip);
+  const merged = mergedTips(ctx.root, ref);
+  cleanDone(ctx, ref, templates, state, fetchFailed, merged, opts.skip);
+  cleanDropped(ctx, ref, templates, state, pruned, fetchFailed, merged, opts.skip);
   return 0;
+}
+
+/** The shas of the local and origin branches already on `ref`, from one query; a failure gives an empty set, so every tip goes to the checks. Keyed by sha, never by branch name: a branch that moves is not in it. */
+function mergedTips(root: string, ref: string): Set<string> {
+  try {
+    return new Set(
+      git(root, ['for-each-ref', '--merged', ref, '--format=%(objectname)', 'refs/heads', 'refs/remotes/origin'])
+        .split('\n')
+        .map((l) => l.trim().toLowerCase())
+        .filter((l) => l !== ''),
+    );
+  } catch {
+    return new Set();
+  }
 }
 
 /** D-02: the clean a command runs on the side; a failure is named and never stops that command. */
@@ -768,9 +783,9 @@ function rebaseBranch(path: string): string | undefined {
   return undefined;
 }
 
-/** ST-LN-25 D-08: is every commit of `tip` either on `ref`, in the verified commit `vc`, or past `vc` touching only paths `ref` leaves alone, or else a branch whose merge into `ref` adds nothing? */
-function safeTip(root: string, tip: string, vc: string | undefined, ref: string): 'safe' | 'conflict' | 'unsafe' {
-  if (gitOk(root, ['merge-base', '--is-ancestor', tip, ref])) return 'safe';
+/** ST-LN-25 D-08: is every commit of `tip` either on `ref`, in the verified commit `vc`, or past `vc` touching only paths `ref` leaves alone, or else a branch whose merge into `ref` adds nothing? A tip in `merged` (the shas of the branches already on `ref`) is on `ref` without a process; a miss runs every check. */
+function safeTip(root: string, tip: string, vc: string | undefined, ref: string, merged?: ReadonlySet<string>): 'safe' | 'conflict' | 'unsafe' {
+  if (merged?.has(tip.toLowerCase()) === true || gitOk(root, ['merge-base', '--is-ancestor', tip, ref])) return 'safe';
   if (vc !== undefined) {
     if (gitOk(root, ['merge-base', '--is-ancestor', tip, vc])) return 'safe';
     if (!gitOk(root, ['merge-base', '--is-ancestor', vc, tip])) return 'unsafe';
@@ -793,7 +808,7 @@ function safeTip(root: string, tip: string, vc: string | undefined, ref: string)
 }
 
 /** ST-LN-25 D-08: for each ticket branch whose ticket is done on `ref`, remove the worktree and delete the local branch when nothing beyond main is lost. */
-function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[], s: GuardState, fetchFailed: boolean, skip?: string): void {
+function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[], s: GuardState, fetchFailed: boolean, merged: ReadonlySet<string>, skip?: string): void {
   const known = (i: string) => Object.hasOwn(ctx.snapshot.tickets, i);
   const def = ref.replace('refs/remotes/', '');
   const tips = new Map<string, string | undefined>();
@@ -837,13 +852,14 @@ function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[
       const vcArgs = ['rev-parse', '--verify', '-q', String(raw) + '^{commit}'];
       const vc = typeof raw === 'string' && isSha(raw) && gitOk(ctx.root, vcArgs) ? git(ctx.root, vcArgs).trim() : undefined;
       const tipArgs = ['rev-parse', '--verify', '-q', 'refs/heads/' + b];
-      const reason = (t: string) => {
-        const v = safeTip(ctx.root, t, vc, ref);
+      // The set answers the first judgement of L and the one of R; the tip re-read after the guards gets every check.
+      const reason = (t: string, set?: ReadonlySet<string>) => {
+        const v = safeTip(ctx.root, t, vc, ref, set);
         if (v === 'safe') return undefined;
         return v === 'conflict' ? `merging it into ${def} conflicts` : vc !== undefined ? 'it has commits after its verified commit' : `it has changes not on ${def}`;
       };
       let L = gitOk(ctx.root, tipArgs) ? git(ctx.root, tipArgs).trim() : undefined;
-      const why = L === undefined ? undefined : reason(L);
+      const why = L === undefined ? undefined : reason(L, merged);
       if (why !== undefined) {
         ctx.stdout.write(`kept ${b}: ${why}
 `);
@@ -873,7 +889,7 @@ function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[
       // The origin branch goes with a lease on the fetched sha; after a failed fetch it is not judged.
       const R = origin.get(b);
       if (R === undefined || fetchFailed) continue;
-      const why2 = reason(R);
+      const why2 = reason(R, merged);
       if (why2 !== undefined) {
         ctx.stdout.write(`kept origin/${b}: ${why2}
 `);
@@ -896,7 +912,7 @@ function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[
 }
 
 /** ST-LN-34: for each ticket branch whose ticket is dropped on `ref`, delete the worktree, the origin branch and the local branch when nothing beyond origin is lost. */
-function cleanDropped(ctx: CommandContext, ref: string, templates: readonly string[], s: GuardState, pruned: Map<string, string>, fetchFailed: boolean, skip?: string): void {
+function cleanDropped(ctx: CommandContext, ref: string, templates: readonly string[], s: GuardState, pruned: Map<string, string>, fetchFailed: boolean, merged: ReadonlySet<string>, skip?: string): void {
   const known = (i: string) => Object.hasOwn(ctx.snapshot.tickets, i);
   const tips = new Map<string, { L?: string; R?: string }>();
   for (const row of git(ctx.root, ['for-each-ref', '--format=%(objectname) %(refname)', 'refs/heads', 'refs/remotes/origin']).split('\n')) {
@@ -913,7 +929,8 @@ function cleanDropped(ctx: CommandContext, ref: string, templates: readonly stri
   const ids = new Map<string, string>();
   for (const [name, t] of tips) {
     const id = ticketOfBranch(name, templates, known);
-    if (id !== undefined && id !== skip && !gitOk(ctx.root, ['merge-base', '--is-ancestor', (t.L ?? t.R)!, ref])) ids.set(name, id);
+    const tip = (t.L ?? t.R)!;
+    if (id !== undefined && id !== skip && !merged.has(tip.toLowerCase()) && !gitOk(ctx.root, ['merge-base', '--is-ancestor', tip, ref])) ids.set(name, id);
   }
   if (ids.size === 0) return;
   const dropped = droppedOn(ctx.root, ref, [...new Set(ids.values())]);

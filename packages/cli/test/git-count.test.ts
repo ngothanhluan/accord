@@ -1,5 +1,5 @@
 // ST-LN-63: tests that count the git processes accord itself starts, against the baseline in git-counts.before.json.
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, expect, it, vi } from 'vitest';
@@ -621,4 +621,88 @@ it('risk:complex-branching the default ref resolves in one git process from a sy
     for (const repo of repos) cleanup(repo);
   }
   await checkItem(item('default ref'));
+}, LIMIT);
+
+let cleaned: { sample: Sample } | undefined;
+
+beforeAll(() => {
+  cleaned = {
+    sample: buildSample([
+      { id: 'D-1', kind: 'done-merged' },
+      { id: 'D-2', kind: 'done-merged' },
+      { id: 'D-3', kind: 'done-squash' },
+      { id: 'D-4', kind: 'dropped' },
+    ]),
+  };
+}, SAMPLE_BUILD_LIMIT);
+
+afterAll(() => cleaned?.sample.cleanup());
+
+const same = (a: string, b: string) => {
+  const real = (p: string) => {
+    try {
+      return realpathSync.native(p);
+    } catch {
+      return p;
+    }
+  };
+  const x = real(a).replaceAll('\\', '/');
+  const y = real(b).replaceAll('\\', '/');
+  return process.platform === 'win32' ? x.toLowerCase() === y.toLowerCase() : x === y;
+};
+
+it('risk:data-loss clean answers ancestry from one sha-keyed merged set and sends every miss and every re-read tip to the content checks', async () => {
+  const { sample } = cleaned as NonNullable<typeof cleaned>;
+  const isMergedQuery = (a: string[]) => a[0] === 'for-each-ref' && a.includes('--merged');
+
+  // One clean run on one copy: (a) merged into main, (b) squash-merged, (c) a dropped branch whose tip is on main, and (d) a merged branch with a linked
+  // worktree that gets a commit while the guards run, so the tip re-read after them must be judged in full.
+  const one = sample.copy();
+  try {
+    const tip = (b: string) => gitRun(one.root, 'rev-parse', 'refs/heads/' + b).trim();
+    const merged = tip('t/D-1');
+    const squash = tip('t/D-3');
+    const dropped = gitRun(one.root, 'rev-parse', 'refs/remotes/origin/main').trim();
+    gitRun(one.root, 'update-ref', 'refs/heads/t/D-4', dropped);
+    const w = one.worktree('D-2');
+    const before = tip('t/D-2');
+    let late: string | undefined;
+    spawnLog.after = (args, options) => {
+      if (late !== undefined || options?.cwd === undefined || !same(options.cwd, w)) return;
+      if (!(args[0] === 'status' && args.includes('--porcelain') && args.includes('--untracked-files=normal') && args.includes('--ignore-submodules=none'))) return;
+      writeFiles(w, { 'src/late.ts': 'export const late = 1;\n' });
+      late = commitMsg(w, 'late commit during the guards');
+    };
+    let r: Awaited<ReturnType<typeof counted>>;
+    try {
+      r = await counted(['worktree', 'clean'], one.root);
+    } finally {
+      spawnLog.after = undefined;
+    }
+    expect(r.code).toBe(0);
+    expect(r.out).toContain(`deleted t/D-1 (was ${merged})`);
+    expect(r.out).toContain(`deleted origin/t/D-1 (was ${merged})`);
+    expect(r.out).toContain(`deleted t/D-3 (was ${squash})`);
+    expect(r.argv.filter(isMergedQuery)).toHaveLength(1);
+    // (a) answered from the set at the first judgement of the local tip and at the one of the origin tip: the only ancestry check naming its tip is the re-read after the guards.
+    expect(r.argv.filter((a) => isAncestor(a) && a.includes(merged))).toHaveLength(1);
+    // (b) a miss: the content checks run, its ancestry check among them, and the squash-merged branch goes as at the baseline.
+    expect(r.argv.filter((a) => isAncestor(a) && a.includes(squash)).length).toBeGreaterThan(0);
+    expect(r.argv.some((a) => a.includes('diff') && a.includes('--name-only') && a.includes(squash))).toBe(true);
+    // (c) a dropped branch merged into main stays on the merged path: untouched, and no ancestry check for its tip.
+    expect(tip('t/D-4')).toBe(dropped);
+    expect(r.out).not.toContain('t/D-4');
+    expect(r.argv.filter((a) => isAncestor(a) && a[2] === dropped)).toEqual([]);
+    // (d) the worktree is removed, the commit made during the guards is outside the set, so the full checks keep the branch at that commit.
+    expect(late, 'the late commit was made').toBeDefined();
+    expect(r.out).toContain(`removed ${w}`);
+    expect(r.out).toContain('kept t/D-2: it has commits after its verified commit');
+    expect(r.out).not.toContain('deleted t/D-2');
+    expect(tip('t/D-2')).toBe(late);
+    expect(late).not.toBe(before);
+  } finally {
+    spawnLog.after = undefined;
+    one.cleanup();
+  }
+  await checkItem(item('clean merged set'));
 }, LIMIT);

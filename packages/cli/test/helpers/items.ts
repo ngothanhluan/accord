@@ -37,6 +37,11 @@ export const ITEMS: Item[] = [
       return a[0] === 'for-each-ref' && a.includes('refs/remotes/origin/HEAD');
     },
   },
+  {
+    item: 'clean merged set',
+    keys: ['main worktree clean'],
+    p: (a) => (a[0] === 'merge-base' && a.includes('--is-ancestor')) || (a[0] === 'for-each-ref' && a.includes('--merged')),
+  },
 ];
 
 /**

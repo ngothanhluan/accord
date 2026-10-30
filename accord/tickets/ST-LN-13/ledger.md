@@ -41,6 +41,7 @@
 - Ruling: `accord worktree clean` counts a listed `.md` record as safe when the tip's blob is the default branch's current copy, or when `--find-object=<blob>` over the default branch's history of that path finds a commit, which replaces "lacks or holds with another blob id" in the clean-keep Ruling above — a merged drop already put the copy in history, and a later edit on the default branch must not keep the claim branch for good (plan review 2.1, owner: "A") — cost if wrong: a record the default branch held and then deleted counts as safe, though history still has it
 - Ruling: the `kept` line for a research record ends ` - make the record on <b> equal to the copy on <default>, or put it on <default>, then push` — ids.md step 1 forbids deleting a claim branch by hand, so the owner needs a next step (plan review 2.1, owner: "A") — cost if wrong: one message's wording
 - Ruling: Task 8's test constant `LATER` is renamed `EXTRA` (record `2026-10-30-extra.md`) — `gate plan` reads "later" as deferred work (gate.plan-deferral) — cost if wrong: none found
+- Ruling: task 1's ac-1 test compares the pointers of the three findings sorted, not in listing order — lintSnapshot orders findings by file, rule, then reason, so /0, /1, /2 do not come back in key order; the set and the pointers are still asserted exactly (executor, task 1) — cost if wrong: a missed order guarantee lint never made
 
 ## Deferred
 - Plan round 1.5 (Nice): `gitFilesAt` (packages/cli/src/load/fs.ts:795-798) misreads a non-blob result's body and a path with a control character shifts the batch; `isResearchPath` could reject control characters and `:`
@@ -52,3 +53,6 @@
 - Plan round 1.11 (Nice): Task 9's §10 spec clause should name the sentence it follows
 - Plan round 2.2 (Nice): ids.md step 1 should say "`.md` record" and that `worktree clean` deletes the branch unless it prints `kept`
 - Plan round 3.1 (Nice): clean's `--find-object` history check misses a blob hidden by history simplification after a merge that took a side branch's copy, keeping the branch with a wrong reason; `--full-history` would find it, and Task 9's test covers only the plain-commit path
+
+## Tasks
+- task 1 done 870e1cfa4263

@@ -42,7 +42,7 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: ST-LN-13
 
-  @ac-1
+  @ac-1 @test:packages/core/test/research.test.ts#ac-1-lint-refuses-a-ticket-whose-research-reference-is-not-a-dated-record
   Scenario Outline: lint refuses a ticket whose research reference is not a dated record
     Given a ticket whose frontmatter key `research:` lists the repository path <reference>
     When the owner runs `accord lint`

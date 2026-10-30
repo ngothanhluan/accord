@@ -14,7 +14,7 @@
 // container here, so a container run does not wait for a host run; its memory guard reads the Docker VM's memory.
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -27,8 +27,16 @@ const ENV = ['ACCORD_TEST_WORKERS', 'CI', 'FORCE_COLOR', 'NO_COLOR'];
 /** A host path with forward slashes and an upper-case drive letter, so Windows paths compare as strings. */
 const slash = (p) => p.replace(/\\/g, '/').replace(/^[a-z]:/, (d) => d.toUpperCase());
 const absolute = (p) => p.startsWith('/') || /^[A-Za-z]:\//.test(p);
-/** The path of `p` below `root`, '' for root itself, or undefined when `p` is outside it. */
+/**
+ * The path of `p` below `root`, '' for root itself, or undefined when `p` is outside it. A drive-letter path compares
+ * without regard to case, as Windows does, and keeps the letter case of `p`.
+ */
 function below(root, p) {
+  if (/^[A-Z]:\//.test(root)) {
+    const r = root.toLowerCase();
+    const l = p.toLowerCase();
+    return l === r ? '' : l.startsWith(r + '/') ? p.slice(r.length + 1).replace(/\/+$/, '') : undefined;
+  }
   const rel = path.posix.relative(root, p);
   return rel.startsWith('..') || absolute(rel) ? undefined : rel;
 }
@@ -37,10 +45,11 @@ function below(root, p) {
  * The `docker run` arguments for one vitest run, or undefined when `cwd` is outside `root`. Pure: every host path is
  * given. `git` is the checkout's git folders (`git rev-parse --git-dir --git-common-dir`), absent when git is not there;
  * `dotGit` is the host file that replaces a worktree's `.git` file, whose gitdir names a host path the container
- * cannot reach. Returns the arguments, the host folder of the JUnit report to create, and the text of that `.git` file.
+ * cannot reach. Returns the arguments, the host path of the JUnit report, and the text of that `.git` file.
  */
 export function containerArgs({ root, cwd, args, image, volume, workspaces, git, dotGit, env }) {
-  root = slash(root);
+  // fileURLToPath of the script's folder ends with a separator; `${root}/.git` below must not hold two.
+  root = slash(root).replace(/\/+$/, '');
   cwd = slash(cwd);
   const at = below(root, cwd);
   if (at === undefined) return undefined;
@@ -61,17 +70,16 @@ export function containerArgs({ root, cwd, args, image, volume, workspaces, git,
       run.push('-v', `${common}:/gitcommon:ro`, '-v', `${slash(dotGit)}:/work/.git:ro`);
     }
   }
-  let reportDir;
+  let report;
   const out = [];
   for (let i = 0; i < args.length; i++) {
-    let a = args[i];
+    const a = args[i];
     const inline = a.startsWith('--outputFile.junit=');
     if (inline || (a === '--outputFile.junit' && i + 1 < args.length)) {
       const value = slash(inline ? a.slice('--outputFile.junit='.length) : args[++i]);
-      const host = absolute(value) ? value : path.posix.join(cwd, value);
-      reportDir = path.posix.dirname(host);
-      run.push('-v', `${reportDir}:/out`);
-      out.push(`--outputFile.junit=/out/${path.posix.basename(host)}`);
+      report = absolute(value) ? value : path.posix.join(cwd, value);
+      run.push('-v', `${path.posix.dirname(report)}:/out`);
+      out.push(`--outputFile.junit=/out/${path.posix.basename(report)}`);
       continue;
     }
     const inRoot = absolute(slash(a)) ? below(root, slash(a)) : undefined;
@@ -79,7 +87,7 @@ export function containerArgs({ root, cwd, args, image, volume, workspaces, git,
   }
   for (const name of ENV) if (env[name] !== undefined) run.push('-e', name);
   run.push('-w', path.posix.join('/work', at), image, 'sh', '-c', inside(modules), 'sh', ...out);
-  return { run, reportDir, dotGitText };
+  return { run, report, dotGitText };
 }
 
 // Installs node_modules into the volumes once per key, under a lock so two runs never install at once; npm ci cannot
@@ -119,6 +127,10 @@ export function main(args, env = process.env) {
       process.stderr.write(`test-linux: docker build of ${image} failed\n`);
       return built.status ?? 1;
     }
+    // Images of an older DOCKERFILE; one a running container still uses is kept.
+    for (const old of docker(['image', 'ls', '--filter', `label=${LABEL}`, '--format', '{{.Repository}}:{{.Tag}}']).stdout.split('\n')) {
+      if (old !== '' && old !== image) docker(['image', 'rm', old]);
+    }
   }
   const volume = `${LABEL}-${hash(image + readFileSync(path.join(root, 'package-lock.json'), 'utf8'))}`;
   const workspaces = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8')).workspaces ?? [];
@@ -129,18 +141,41 @@ export function main(args, env = process.env) {
     root, cwd: process.cwd(), args, image, volume, workspaces, dotGit, env,
     git: dir !== undefined && common !== undefined ? { dir, common } : undefined,
   });
-  if (plan === undefined) return onHost(root, args);
-  for (const v of ['state', 'root', ...workspaces.map((w) => w.replace(/\//g, '-'))]) docker(['volume', 'create', '--label', LABEL, `${volume}-${v}`]);
-  // Volumes of an older package-lock.json or image; one still mounted by another run is kept.
-  for (const old of docker(['volume', 'ls', '-q', '--filter', `label=${LABEL}`]).stdout.split('\n')) {
-    if (old !== '' && !old.startsWith(`${volume}-`)) docker(['volume', 'rm', old]);
+  if (plan === undefined) {
+    process.stderr.write(`test-linux: ${process.cwd()} is outside ${root}; vitest runs on this machine\n`);
+    return onHost(root, args);
   }
-  if (plan.reportDir !== undefined) mkdirSync(plan.reportDir, { recursive: true });
+  for (const v of ['state', 'root', ...workspaces.map((w) => w.replace(/\//g, '-'))]) docker(['volume', 'create', '--label', LABEL, `${volume}-${v}`]);
+  removeOldVolumes(volume);
+  const before = plan.report === undefined ? undefined : mtime(plan.report);
+  if (plan.report !== undefined) mkdirSync(path.dirname(plan.report), { recursive: true });
   if (plan.dotGitText !== undefined) writeFileSync(dotGit, plan.dotGitText);
   try {
     return spawnSync('docker', plan.run, { stdio: 'inherit' }).status ?? 1;
   } finally {
     if (existsSync(dotGit)) rmSync(dotGit);
+    // The container writes the report with the Docker VM's clock, which can lag the host's after sleep, and
+    // `accord task-done` refuses a report older than the last commit: a report this run wrote takes the host's time.
+    if (plan.report !== undefined && mtime(plan.report) !== before && existsSync(plan.report)) {
+      const now = new Date();
+      utimesSync(plan.report, now, now);
+    }
+  }
+}
+
+const mtime = (file) => (existsSync(file) ? statSync(file).mtimeMs : undefined);
+
+// A week, so worktrees on different package-lock.json files keep their own volumes while they are worked, and a volume
+// another run has just created is never removed before it is mounted.
+const KEEP_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Removes labelled volumes of another key created more than KEEP_MS ago; one still mounted by a run is kept. */
+function removeOldVolumes(volume) {
+  const names = docker(['volume', 'ls', '-q', '--filter', `label=${LABEL}`]).stdout.split('\n').filter((n) => n !== '' && !n.startsWith(`${volume}-`));
+  if (names.length === 0) return;
+  for (const line of docker(['volume', 'inspect', '--format', '{{.Name}} {{.CreatedAt}}', ...names]).stdout.split('\n')) {
+    const [name, created] = line.split(' ');
+    if (name && Date.now() - Date.parse(created) > KEEP_MS) docker(['volume', 'rm', name]);
   }
 }
 

@@ -344,17 +344,37 @@ const GIT_QUIET = { encoding: 'utf8' as const, stdio: ['ignore', 'pipe', 'pipe']
 
 /** The default ref: origin's (`gitDefaultRef`), else the first local `main` or `master` that resolves. */
 export function defaultRefOf(root: string): string | undefined {
-  return (
-    gitDefaultRef(root) ??
-    ['refs/heads/main', 'refs/heads/master'].find((ref) => {
-      try {
-        execFileSync('git', ['rev-parse', '--verify', '-q', ref], { cwd: root, ...GIT_QUIET });
-        return true;
-      } catch {
-        return false;
-      }
-    })
-  );
+  const refs = defaultRefs(root, true);
+  return refs.origin ?? refs.local;
+}
+
+const ORIGIN_DEFAULTS = ['refs/remotes/origin/main', 'refs/remotes/origin/master'];
+const LOCAL_DEFAULTS = ['refs/heads/main', 'refs/heads/master'];
+
+/**
+ * The default refs in one `for-each-ref`: `origin` is origin/HEAD's target when origin/HEAD is symbolic and resolves, else
+ * the first resolving origin/main or origin/master; `local` (only when asked for) is the first resolving local main or master.
+ * A ref whose target does not resolve is left out by git or has no object name, so it never counts.
+ * Nothing is kept between calls: a caller that fetched or pruned reads again.
+ */
+function defaultRefs(root: string, local: boolean): { origin?: string; local?: string } {
+  const patterns = ['refs/remotes/origin/HEAD', ...ORIGIN_DEFAULTS, ...(local ? LOCAL_DEFAULTS : [])];
+  let raw: string;
+  try {
+    raw = execFileSync('git', ['for-each-ref', '--format=%(refname)%00%(symref)%00%(objectname)', ...patterns], { cwd: root, ...GIT_QUIET });
+  } catch {
+    return {};
+  }
+  // A pattern also matches the refs below it (`refs/remotes/origin/main/x`), so only an exact name counts.
+  const found = new Map<string, string>();
+  for (const line of raw.split('\n')) {
+    const [name, symref, object] = line.split('\0');
+    if (name !== undefined && patterns.includes(name) && object !== undefined && object.trim() !== '') found.set(name, symref ?? '');
+  }
+  const head = found.get('refs/remotes/origin/HEAD');
+  // A plain origin/HEAD has no symref: `symbolic-ref -q` fails on it, so it is not used.
+  const origin = head !== undefined && head !== '' ? head : ORIGIN_DEFAULTS.find((ref) => found.has(ref));
+  return { origin, local: LOCAL_DEFAULTS.find((ref) => found.has(ref)) };
 }
 
 /** What `log -z --format=%x01%H%x00%P --name-only` printed: `\x01sha NUL parents NUL`, then `\n` + first path NUL and the other paths NUL-ended when the commit has any. */
@@ -1065,22 +1085,7 @@ export function gitTicketIdsInHistory(root: string): string[] {
 
 /** D-15: origin/HEAD's target when it resolves, else origin/main or origin/master; never fetched, never the local main. */
 export function gitDefaultRef(root: string): string | undefined {
-  const opts = { cwd: root, encoding: 'utf8' as const, stdio: ['ignore', 'pipe', 'pipe'] as ['ignore', 'pipe', 'pipe'] };
-  const resolves = (ref: string): boolean => {
-    try {
-      execFileSync('git', ['rev-parse', '--verify', '-q', ref], opts);
-      return true;
-    } catch {
-      return false;
-    }
-  };
-  try {
-    const head = execFileSync('git', ['symbolic-ref', '-q', 'refs/remotes/origin/HEAD'], opts).trim();
-    if (resolves(head)) return head;
-  } catch {
-    // no origin/HEAD
-  }
-  return ['refs/remotes/origin/main', 'refs/remotes/origin/master'].find(resolves);
+  return defaultRefs(root, false).origin;
 }
 
 /** The utf8 text of each existing `<ref>:<path>`, read with one `git cat-file --batch`; a missing path is left out. */

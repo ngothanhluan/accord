@@ -13,7 +13,9 @@ const REF = /^[A-Za-z0-9][A-Za-z0-9._/~^-]*$/;
 
 export function reviewPackage(ctx: CommandContext, id: string, options: { base?: string }): number {
   const laneS = requireLaneTicket(ctx, id).frontmatter?.lane === 'S';
-  const base = options.base ?? (laneS ? defaultRefOf(ctx.root) : workOf(ctx.snapshot, id)?.plan?.baseline);
+  // The default ref read for a lane S base is the one the exclusion below uses.
+  const laneSDefault = laneS && options.base === undefined ? defaultRefOf(ctx.root) : undefined;
+  const base = options.base ?? (laneS ? laneSDefault : workOf(ctx.snapshot, id)?.plan?.baseline);
   if (base === undefined) {
     throw new UsageError(
       laneS
@@ -51,7 +53,7 @@ export function reviewPackage(ctx: CommandContext, id: string, options: { base?:
     throw new UsageError(headless ? 'the repository has no commit to review' : 'unknown base ref: ' + base);
   }
   // ST-LN-26: a fix made after a merge from the default branch is reviewed without what that merge brought in.
-  const def = defaultRefOf(ctx.root);
+  const def = laneSDefault ?? defaultRefOf(ctx.root);
   const short = def?.replace(/^refs\/(remotes|heads)\//, '');
   let excluded = false;
   if (def !== undefined) {

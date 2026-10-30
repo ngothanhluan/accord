@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import { CONFIG, LANE_S_BODY, laneTicket, PLAN, REPORT, junit } from '../../../test/helpers/lane.js';
 import type { SnapshotInput } from '@accord-dev/accord-core';
-import { gitDefaultRef, loadClaimView, loadFromFs } from '../src/load/fs.js';
+import { defaultRefOf, gitDefaultRef, loadClaimView, loadFromFs } from '../src/load/fs.js';
 import { countedSync, spawnLog } from './helpers/git-spawns.js';
 import { counted, readGolden, runSample } from './helpers/runs.js';
 import { checkItem, expectFewer, ITEMS } from './helpers/items.js';
@@ -574,4 +574,51 @@ it('risk:complex-branching lane S gate done reads the review commit once and fai
     cleanup(repo);
   }
   await checkItem(item('review commit'));
+}, LIMIT);
+
+it('risk:complex-branching the default ref resolves in one git process from a symbolic plain or dangling origin HEAD and falls back to the local main', async () => {
+  const repos: string[] = [];
+  try {
+    // One repository per case, with one commit on a branch named `branch`; `refs` are then made at that commit.
+    const seed = (branch: string, refs: string[] = [], symbolic: Record<string, string> = {}) => {
+      const repo = makeEmptyRepo();
+      repos.push(repo);
+      writeFiles(repo, { 'a.txt': 'a\n' });
+      const sha = commitMsg(repo, 'base');
+      gitRun(repo, 'branch', '-q', '-M', branch);
+      for (const ref of refs) gitRun(repo, 'update-ref', ref, sha);
+      for (const [ref, target] of Object.entries(symbolic)) gitRun(repo, 'symbolic-ref', ref, target);
+      return repo;
+    };
+    const both = (repo: string) => {
+      const origin = countedSync(() => gitDefaultRef(repo));
+      const either = countedSync(() => defaultRefOf(repo));
+      expect(origin.argv, 'gitDefaultRef starts one git process').toHaveLength(1);
+      expect(either.argv, 'defaultRefOf starts one git process').toHaveLength(1);
+      return { origin: origin.value, either: either.value };
+    };
+
+    // origin/HEAD symbolic to origin/main.
+    expect(both(seed('work', ['refs/remotes/origin/main'], { 'refs/remotes/origin/HEAD': 'refs/remotes/origin/main' }))).toEqual({
+      origin: 'refs/remotes/origin/main',
+      either: 'refs/remotes/origin/main',
+    });
+    // origin/HEAD a plain ref, which `symbolic-ref -q` refuses: only origin/master counts.
+    expect(both(seed('work', ['refs/remotes/origin/HEAD', 'refs/remotes/origin/master']))).toEqual({
+      origin: 'refs/remotes/origin/master',
+      either: 'refs/remotes/origin/master',
+    });
+    // origin/HEAD symbolic to a ref that does not exist: origin/main is used.
+    expect(both(seed('work', ['refs/remotes/origin/main'], { 'refs/remotes/origin/HEAD': 'refs/remotes/origin/gone' }))).toEqual({
+      origin: 'refs/remotes/origin/main',
+      either: 'refs/remotes/origin/main',
+    });
+    // No origin refs: only the local master is a default ref, and only for defaultRefOf.
+    expect(both(seed('master'))).toEqual({ origin: undefined, either: 'refs/heads/master' });
+    // A ref below origin/main is not origin/main.
+    expect(both(seed('main', ['refs/remotes/origin/main/x']))).toEqual({ origin: undefined, either: 'refs/heads/main' });
+  } finally {
+    for (const repo of repos) cleanup(repo);
+  }
+  await checkItem(item('default ref'));
 }, LIMIT);

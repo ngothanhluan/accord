@@ -27,6 +27,16 @@ export const ITEMS: Item[] = [
     keys: ['wt-S-1 gate done S-1 --json'],
     p: (a) => a.includes('log') && a.includes('-G') && a.includes('^## Round '),
   },
+  {
+    item: 'default ref',
+    keys: ['main worktree open A-1', 'main worktree clean', 'wt-A-7 worktree merge A-7', 'main new ticket N-1 --lane M --worktree', 'side-local status --json'],
+    p: (a) => {
+      const refs = ['refs/remotes/origin/HEAD', 'refs/remotes/origin/main', 'refs/remotes/origin/master', 'refs/heads/main', 'refs/heads/master'];
+      if (a[0] === 'symbolic-ref') return a.includes('refs/remotes/origin/HEAD');
+      if (a[0] === 'rev-parse') return a.includes('--verify') && a.some((x) => refs.includes(x));
+      return a[0] === 'for-each-ref' && a.includes('refs/remotes/origin/HEAD');
+    },
+  },
 ];
 
 /**

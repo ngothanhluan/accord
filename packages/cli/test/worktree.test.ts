@@ -1881,14 +1881,12 @@ const REC = (topic: string): string => '# ' + topic + '\n\nDate: 2026-10-30. Rep
 it('risk:data-loss clean keeps a dropped ticket branch whose listed research record the default branch history never held', async () => {
   const NEW = 'accord/research/2026-10-30-new.md';
   const GONE = 'accord/research/2026-10-29-gone.md';
-  const TS = 'accord/research/2026-10-30-x.test.ts';
   const CARRIED = 'accord/research/2026-10-30-carried.md';
   const FIX = ' - make the record on t/ST-10 equal to the copy on main, or put it on main, then push';
   const c = copy();
   const S = claimWorktree(c, 'ST-10', {
-    'accord/tickets/ST-10.md': laneTicket('ST-10', { frontmatter: ['research: ["' + GONE + '", "' + TS + '", "' + NEW + '"]'] }),
+    'accord/tickets/ST-10.md': laneTicket('ST-10', { frontmatter: ['research: ["' + GONE + '", "' + NEW + '"]'] }),
     [NEW]: REC('new'),
-    [TS]: '// Date: 2026-10-30\n',
   });
   dropOnRemote(c, ['ST-10']);
   let r = await run(['worktree', 'clean'], c.root);
@@ -1934,6 +1932,22 @@ it('risk:data-loss clean keeps a dropped ticket branch whose listed research rec
   expect(existsSync(c.sibling('ST-11'))).toBe(false);
   expect(has(c.root, 'refs/heads/t/ST-11')).toBe(false);
   expect(has(c.remote, 'refs/heads/t/ST-11')).toBe(false);
+}, 120_000);
+
+it('risk:data-loss clean keeps a dropped ticket branch whose listed non-Markdown research record the default branch never held', async () => {
+  const TXT = 'accord/research/2026-10-30-measure.txt';
+  const c = copy();
+  claimWorktree(c, 'ST-10', {
+    'accord/tickets/ST-10.md': laneTicket('ST-10', { frontmatter: ['research: ["' + TXT + '"]'] }),
+    [TXT]: 'Date: 2026-10-30\nRepository at `5c083d3`\nmeasure\n',
+  });
+  dropOnRemote(c, ['ST-10']);
+  const r = await run(['worktree', 'clean'], c.root);
+  expect(r.code).toBe(0);
+  expect(lines(r.out)).toEqual(['kept t/ST-10: research record ' + TXT + ' is not on main as t/ST-10 holds it - make the record on t/ST-10 equal to the copy on main, or put it on main, then push']);
+  expect(existsSync(c.sibling('ST-10'))).toBe(true);
+  expect(has(c.root, 'refs/heads/t/ST-10')).toBe(true);
+  expect(has(c.remote, 'refs/heads/t/ST-10')).toBe(true);
 }, 120_000);
 
 it('risk:data-loss clean keeps a dropped ticket branch that a detached worktree is rebasing', async () => {

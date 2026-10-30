@@ -80,6 +80,14 @@ export function drop(ctx: CommandContext, id: string, opts: { reason?: string })
   // The research records the ticket lists (ST-LN-13): the drop branch holds the ones the default branch lacks.
   const listed = [...new Set(loadSnapshot({ files: { [path]: next }, tree: [] }).tickets[id]?.frontmatter?.research ?? [])].filter(isResearchPath);
   const records = listed.filter(isResearchRecord);
+  // Only Markdown travels (the drop writes nothing else to the default branch): refuse a listed other file only the claim branch holds, before anything is written.
+  for (const p of listed.filter((q) => !isResearchRecord(q))) {
+    if (resolve(root, tip + ':' + p) !== undefined && resolve(root, base + ':' + p) === undefined) {
+      throw new UsageError(
+        `${p} is listed under research: and only ${b} holds it, but only .md research records travel with a drop - rename it to .md on ${b} (and update the research: key), or put it on ${short} first, then run accord drop again` + NOTHING,
+      );
+    }
+  }
   if (held !== undefined) {
     for (const p of records) {
       if (git(held.path, ['status', '--porcelain', '--untracked-files=all', '--', p]).trim() !== '') {

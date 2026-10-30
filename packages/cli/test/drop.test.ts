@@ -335,3 +335,19 @@ it('risk:data-loss drop refuses a listed research record with uncommitted change
   expect(r.code, r.err).toBe(0);
   expect(gitRun(c.remote, 'cat-file', 'blob', remoteDrop(c, 'ST-10')! + ':' + EXTRA)).toBe(REC('extra'));
 }, 120_000);
+
+it('risk:data-loss drop refuses a listed non-Markdown research record only the claim branch holds', async () => {
+  const TXT = 'accord/research/2026-10-30-measure.txt';
+  const c = withOldRecord();
+  writeFiles(c.root, { [TXT]: 'Date: 2026-10-30\nRepository at `5c083d3`\nmeasure\n', 'accord/tickets/ST-10.md': laneTicket('ST-10', { frontmatter: ['research: ["' + TXT + '"]'] }) });
+  commitMsg(c.root, 'claim: ST-10');
+  c.git('push', '-q', '-u', 'origin', 't/ST-10');
+  const r = await run(['drop', 'ST-10', '--reason', 'x'], c.root);
+  expect(r.code).toBe(2);
+  expect(r.err).toContain(TXT);
+  expect(r.err).toContain('only .md research records travel with a drop');
+  expect(r.err).toContain('rename it to .md on t/ST-10');
+  expect(r.err).toContain('nothing was created');
+  expect(r.err).not.toContain('not a file in the repository');
+  expect(remoteDrop(c, 'ST-10')).toBeUndefined();
+}, 120_000);

@@ -1,7 +1,7 @@
 // ST-LN-7 `accord worktree`: each ticket works in its own git worktree, a sibling folder of the main checkout.
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
-import { DEFAULT_BRANCH_TEMPLATE, forbiddenLines, isResearchRecord, isSha, loadConfig, loadSnapshot, statusRows, trailerReason } from '@accord-dev/accord-core';
+import { DEFAULT_BRANCH_TEMPLATE, forbiddenLines, isResearchPath, isSha, loadConfig, loadSnapshot, statusRows, trailerReason } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
 import { currentBranch, droppedOn, gitDefaultRef, gitFilesAt, gitUnpushedCommits, gitUserEmail, loadFromFs, snapshotAt, ticketOfBranch, UsageError } from '../load/fs.js';
 import { fetchLimitMs } from './fetch-limit.js';
@@ -906,7 +906,7 @@ function researchNotOn(root: string, tip: string, ref: string, id: string): stri
     const args = ['rev-parse', '--verify', '-q', c + ':' + p];
     return gitOk(root, args) ? git(root, args).trim() : undefined;
   };
-  for (const p of [...new Set(tickets[id].frontmatter?.research ?? [])].filter(isResearchRecord)) {
+  for (const p of [...new Set(tickets[id].frontmatter?.research ?? [])].filter(isResearchPath)) {
     const atTip = blob(tip, p);
     if (atTip === undefined || atTip === blob(ref, p)) continue;
     if (git(root, ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '-1', '--format=%H', '--find-object=' + atTip, ref, '--', ':(literal)' + p]).trim() !== '') continue;

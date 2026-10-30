@@ -27,9 +27,13 @@
 - Ruling: the record and sibling sweeps clean dropped tickets only after a good fetch, as `cleanDropped` does — cost if wrong: a dropped leftover waits one fetch.
 - Ruling: `disposable` names are one path segment: no `/`, no `\`, not `.` or `..` — cost if wrong: a schema change.
 - Ruling: `finish.md` gains an instruction to the agent (never wait for the merge, never remove by hand), not a status line — cost if wrong: the owner is not told in the finish message.
+- Ruling: a recorded path that is itself a link is kept and named, never unlinked or walked — a link's target is outside the folder — cost if wrong: a stale link stays.
+- Ruling: a dropped ticket's recorded worktree whose branch is already on the default branch gets a kept line, not a removal — neither existing phase judges it — cost if wrong: that worktree stays and is named at every clean.
+- Ruling: the hook runs no clean when the repository has no origin — done is read on origin's default branch — cost if wrong: none.
+- Ruling: the hook clean never prunes; a worktree whose folder is missing stays listed and is named on a kept line, and the `rebasing` search skips it — a missing folder may be an unmounted drive — cost if wrong: a stale entry stays until `/accord` prunes it.
+- Ruling: a flagged symlink entry (mode 120000) on disk counts as differing, so its worktree is kept — the cheapest safe reading — cost if wrong: such a worktree is cleaned by hand.
 
 ## Deferred
-
 - Plan round 1 Nice: a relative path in a record line is resolved against cwd; skip non-absolute lines and fence descendants of the main checkout — deferred
 - Plan round 1 Nice: two cleans that both see the same stale lock pid can both take it over; re-check pid and mtime before removing, release only an own lock — deferred
 - Plan round 1 Nice: `disposable` is read from the config.yml of whatever checkout the session starts in; read it from origin's default ref — deferred
@@ -38,3 +42,4 @@
 - Plan round 1 Nice: Task 5's `guardHolds(ctx, s)` has no path parameter for its kept line — deferred
 - Plan round 1 Nice: `readRecorded`, `dropRecorded` and `withLock` each spawn `rev-parse --git-common-dir` again — deferred
 - Plan round 1 Nice: `git remote prune origin` on the hook path has no timeout — deferred
+- Plan round 2 Nice: a hook input cwd that no longer exists makes repoRoot report 'git is required but was not found on PATH'; lstat the folder first and word the clean failed line from that — deferred

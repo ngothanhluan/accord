@@ -31,7 +31,7 @@ ui: false
 Knowledge made before or beside a ticket (a discussion, a measure, a study) lives in one session or in free text that stages skip: in ST-LN-60's interview the main session and the scout both missed a record its Intent named.
 Research is recorded in `accord/research/<date>-<topic>.md` with its date and the commit it was made at; a ticket names its records under a `research:` key; lint refuses a missing or undated record; `accord anchor` prints the list; the scout, architect, critic and planner read the records.
 For everyone who works a ticket, on any machine or runtime. Success: a ticket's research reaches every deciding agent from the key alone, and evidence an intent interview replaces is moved into a record, never deleted.
-Not here: the researcher agent (its own ticket, D-01) and any change to the scout (D-02). Research is evidence, never a contract: the executor, reviewers and verifier do not read it.
+Not here: the researcher agent (its own ticket, D-01) and any change to how many scouts run or how their questions are split (D-02). Research is evidence, never a contract: the executor, reviewers and verifier do not read it.
 - Research: `accord/research/2026-10-30-research-records.md`, `accord/research/2026-10-30-scout-coverage.md` (evidence, not a contract).
 
 ## Acceptance criteria
@@ -75,12 +75,6 @@ Feature: ST-LN-13
     Then it is told first to move every line of evidence it replaces, verbatim, into a new record under `accord/research/` with `Date: <YYYY-MM-DD>` and `Repository at <sha>` in its first five lines
     And to list that record under the ticket's `research:` key
 
-  @ac-5
-  Scenario: the unclaimed draft tickets that cite research in free text name it under the key
-    Given tickets ST-LN-10, ST-LN-43, ST-LN-55, ST-LN-56, ST-LN-59, ST-LN-69 and ST-LN-70 in this repository
-    When the owner runs `accord lint`
-    Then each lists under `research:` every `accord/research/` record its Intent cited in a free-text `- Research:` line, and that line is gone
-    And lint reports no error for any of them
 ```
 
 ## Vetoes
@@ -94,6 +88,10 @@ Feature: ST-LN-13
 - D-04 The unclaimed draft tickets that name a research record in free text (ST-LN-10, 43, 55, 56, 59, 69, 70) move to the new key in this ticket; claimed or done tickets (ST-LN-17, 57, 58) are not touched — "A" (2026-10-30)
 - D-05 Lint fails a ticket when a research reference names a missing file, or a record whose first lines lack its date and the commit it was made at — "A" (2026-10-30)
 - D-06 The smallest done includes the rule that the intent interview moves evidence it replaces in a queued Intent into a research record instead of deleting it — "A" (2026-10-30)
+- D-07 The scout's definition gains the instruction to read research records (@ac-3); D-02 rules out only changes to how many scouts run or how their questions are split — "A" (2026-10-30)
+- D-08 In every lane, a research record the ticket lists under `research:` counts as one of the ticket's own files: the lane S proposal, the move to lane S and the lane S `gate done` scope check accept it — "A" (2026-10-30)
+- D-09 D-08's lane S exemption covers only a listed record the branch adds; a change to a record that already exists on the default branch stays outside a lane S scope — "A" (2026-10-30)
+- D-10 D-04's migration of the seven drafts leaves this ticket: it lands as an accord-only backlog pull request after the release that ships the `research:` key and the pin bump, because CI runs `gate done` on every ticket a pull request with code touches — "A" (2026-10-30)
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
@@ -103,3 +101,11 @@ Feature: ST-LN-13
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
+Chosen: a lint rule over research text carried in the snapshot, the lightest option that meets every criterion; it follows `lint.depends-unknown`.
+- Schema and lint: the ticket schema accepts a `research` string array (no path pattern, so a bad path is a lint finding that names it). One error rule `lint.research-reference`, on the ticket at `/research/<i>`: outside `accord/research/`, missing, or no `Date:` / `Repository at <sha>` (backticks allowed) in the first five lines. The loader keeps only listed records, normalised.
+- Readers: `accord anchor` prints `## Research` when the key is set; one sentence in the scout, architect, critic and planner (read every listed record; it holds at its commit, check claims against code); `intent/research.md`, pointed to from steps 2 and 6 and from the lane S move, has the main session read the records first and move replaced evidence into a committed, listed record.
+- Other refs: `loadRefInput` (drop, upgrade) and the claim view read listed records; `accord drop` carries a record the default branch lacks and refuses on a same-named different one. A listed record the branch adds counts as the ticket's own file in the lane S proposal, the lane S move, the lane S scope and lane M undeclared files (D-08, D-09).
+- Rejected: a typed research index in the snapshot (no criterion reads it); `accord new research` (new write path; lint already catches a bad header); migrating the drafts here (CI gates them in a code PR, D-10).
+- Affected: packages/core schema, model, load, lint, anchor, gate/scope.ts, gate/work.ts; packages/cli load/fs.ts, commands/drop.ts; four agent sources, intent SKILL.md plus research.md, accord/ids.md; generated and synced copies; docs/specs/2026-10-12-workflow-layer-design.md.
+- Risks (critic, three rounds; all Must findings fixed as Rulings): `drop` is a data-deletion path and now writes records. A CLI built before this merge, or the global 0.3.0, reads any ticket using the key as having no frontmatter until rebuild or release. Agents render for Claude Code only, so other runtimes get the list in the anchor alone. ac-3 and ac-4 test rendered text, not what an agent does at run time.
+- Tests: ac-1 and ac-2 lint and gate in core over a fixture snapshot, ac-2's anchor in the anchor test; ac-3 over every rendered agent target; ac-4 over the rendered intent skill. Risk tests: drop carry and refuse, `loadRefInput`, claim view, lane S scope.

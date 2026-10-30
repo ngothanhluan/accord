@@ -1,6 +1,6 @@
 ---
 baseline: 7bcd659645f9cc41a03b50dd4494dd9ded0c2ce0
-plan_hash: "fnv1a64:3e5a9d40d7fa7d9b"
+plan_hash: "fnv1a64:0dc82f76f1b6ae1a"
 ---
 
 # Plan: ST-LN-13
@@ -505,16 +505,18 @@ the working tree.
 
 Run `npm run build`, then `npx vitest run packages/cli/test/drop.test.ts`, then `npm run typecheck` and `npm run lint`.
 
-## Task 9: accord worktree clean keeps a dropped ticket's branch that holds a listed record the default branch lacks
+## Task 9: accord worktree clean keeps a dropped ticket's branch that holds a listed record the default branch never held
 
 covers: D-06
 files: packages/cli/src/commands/worktree.ts, packages/cli/test/worktree.test.ts
-verify: packages/cli/test/worktree.test.ts#risk:data-loss-clean-keeps-a-dropped-ticket-branch-whose-listed-research-record-the-default-branch-lacks-or-holds-otherwise
+verify: packages/cli/test/worktree.test.ts#risk:data-loss-clean-keeps-a-dropped-ticket-branch-whose-listed-research-record-the-default-branch-history-never-held
 
 A record committed on the claim branch after `accord drop` ran, or edited there after it, is not on the drop branch.
 `cleanDropped` (`packages/cli/src/commands/worktree.ts:899-988`) deletes the worktree, the origin branch and the local
 branch once local and origin agree (lines 946-961), so that record would be lost, against D-06 (ledger Ruling). This is
-a data-deletion path.
+a data-deletion path. A record whose tip copy the default branch's history already holds at that path is not lost: a
+merged drop branch put it there, and an edit made on the default branch since must not keep the claim branch for good
+(plan review 2.1, owner: "A").
 
 Consumes: `isResearchRecord` and `loadSnapshot` from `@accord-dev/accord-core` (`loadSnapshot` is already imported;
 add `isResearchRecord` to that import); `gitFilesAt` from `../load/fs.js` (add it to the existing import of that
@@ -525,37 +527,54 @@ module); the file's own `git(cwd, args)` and `gitOk(cwd, args)`. Produces:
   `loadSnapshot({ files, tree: [] }).tickets`, it takes the unique entries of its `frontmatter?.research`, in key order,
   that `isResearchRecord` accepts. For each `p`, with
   `blob(c) = gitOk(root, ['rev-parse', '--verify', '-q', c + ':' + p]) ? git(root, ['rev-parse', '--verify', '-q', c + ':' + p]).trim() : undefined`:
-  when `blob(tip)` is defined and differs from `blob(ref)` (undefined, or another blob id), it returns `p`. Otherwise,
-  and when the ticket file is not at `tip` or lists no record, it returns `undefined`.
+  - `blob(tip)` undefined, or equal to `blob(ref)`: the record is safe; go on to the next `p`.
+  - Otherwise, the history check: the record is safe when
+    `git(root, ['log', '-1', '--format=%H', '--find-object=' + blob(tip), ref, '--', p]).trim()` is non-empty, that is,
+    some commit in the history of `ref` added or changed `p` to the tip's blob, such as the commit of a merged drop
+    branch that carried it. `--find-object` needs git 2.16 or newer (https://git-scm.com/docs/git-log; owner's words
+    in plan review 2.1). The empty output means the default branch never held the tip's copy at `p`, and the function
+    returns `p`.
+  When every `p` is safe, and when the ticket file is not at `tip` or lists no record, it returns `undefined`.
 - In `cleanDropped`, after the block that starts `if (L !== undefined && R === undefined && pruned.get(` and before
   the comment `// git refuses to delete a branch checked out in a worktree`:
   `const at = L ?? R;`, `const lost = at === undefined ? undefined : researchNotOn(ctx.root, at, ref, id);` and, when
-  `lost !== undefined`, write
-  ``kept ${b}: research record ${lost} is not on ${ref.replace('refs/remotes/origin/', '')} as ${b} holds it\n``
+  `lost !== undefined`, with `const d = ref.replace('refs/remotes/origin/', '');`, write
+  ``kept ${b}: research record ${lost} is not on ${d} as ${b} holds it - make the record on ${b} equal to the copy on ${d}, or put it on ${d}, then push\n``
   to `ctx.stdout` and `continue`. Nothing is removed or deleted for that branch. An error thrown inside reaches the
   existing `catch`, which prints `kept <b>: could not be judged: ...`.
 
 Write the test first, top level in `packages/cli/test/worktree.test.ts`, with timeout `120_000`. Define `REC` in this
 file (rules above). `NEW = 'accord/research/2026-10-30-new.md'`, `GONE = 'accord/research/2026-10-29-gone.md'`,
-`TS = 'accord/research/2026-10-30-x.test.ts'`, defined in the test.
-`risk:data-loss clean keeps a dropped ticket branch whose listed research record the default branch lacks or holds otherwise`.
+`TS = 'accord/research/2026-10-30-x.test.ts'`, `CARRIED = 'accord/research/2026-10-30-carried.md'`, and
+`FIX = ' - make the record on t/ST-10 equal to the copy on main, or put it on main, then push'`, defined in the test.
+`risk:data-loss clean keeps a dropped ticket branch whose listed research record the default branch history never held`.
 - `c = copy()`;
   `S = claimWorktree(c, 'ST-10', { 'accord/tickets/ST-10.md': laneTicket('ST-10', { frontmatter: ['research: ["' + GONE + '", "' + TS + '", "' + NEW + '"]'] }), [NEW]: REC('new'), [TS]: '// Date: 2026-10-30\n' })`;
   `dropOnRemote(c, ['ST-10'])`. `GONE` is on no branch and `TS` is not a record, so neither keeps the branch; `NEW`
   is only on `t/ST-10`.
 - `r = await run(['worktree', 'clean'], c.root)`: exit 0; `lines(r.out)` equals
-  `['kept t/ST-10: research record ' + NEW + ' is not on main as t/ST-10 holds it']`; `existsSync(c.sibling('ST-10'))`,
-  `has(c.root, 'refs/heads/t/ST-10')` and `has(c.remote, 'refs/heads/t/ST-10')` are true.
+  `['kept t/ST-10: research record ' + NEW + ' is not on main as t/ST-10 holds it' + FIX]`, so the line names the fix;
+  `existsSync(c.sibling('ST-10'))`, `has(c.root, 'refs/heads/t/ST-10')` and `has(c.remote, 'refs/heads/t/ST-10')` are
+  true.
 - `o = c.otherClone()`; `writeFiles(o, { [NEW]: REC('other') })`, `commitMsg(o, 'other')`,
-  `gitRun(o, 'push', '-q', 'origin', 'main')`. Clean again: the same single `kept` line, and the same three refs and
-  folder remain.
+  `gitRun(o, 'push', '-q', 'origin', 'main')`. Clean again: the same single `kept` line, `FIX` included, and the same
+  three refs and folder remain (the default branch's history never held `REC('new')` at `NEW`).
 - Guard: `writeFiles(o, { [NEW]: REC('new') })`, `commitMsg(o, 'same')`, `gitRun(o, 'push', '-q', 'origin', 'main')`.
   Clean again: `lines(r.out)` equals
   ``[`removed ${c.sibling('ST-10')}`, `deleted origin/t/ST-10 (was ${S})`, `deleted t/ST-10 (was ${S})`]``, as in
   `ac-3 clean deletes the worktree and both branches of a ticket dropped on the default branch`; the folder and both
   refs are gone.
-Place the test after the existing ST-LN-34 clean cases, so `has`, `claimWorktree` and `dropOnRemote` are defined above
-it.
+- The drop merged, then the record edited on the default branch:
+  `S11 = claimWorktree(c, 'ST-11', { 'accord/tickets/ST-11.md': laneTicket('ST-11', { frontmatter: ['research: ["' + CARRIED + '"]'] }), [CARRIED]: REC('carried') })`;
+  `await dropAndMerge(c, 'ST-11')` (Task 8's drop carries `CARRIED`, which the default branch lacks, and the merge puts
+  it on main). Assert `gitRun(c.remote, 'cat-file', 'blob', 'main:' + CARRIED)` is `REC('carried')`. Then
+  `o2 = c.otherClone()`, `writeFiles(o2, { [CARRIED]: REC('carried edited') })`, `commitMsg(o2, 'edit')`,
+  `gitRun(o2, 'push', '-q', 'origin', 'main')`. Clean again: exit 0; `lines(r.out)` equals
+  ``[`removed ${c.sibling('ST-11')}`, `deleted origin/t/ST-11 (was ${S11})`, `deleted t/ST-11 (was ${S11})`]``;
+  `existsSync(c.sibling('ST-11'))`, `has(c.root, 'refs/heads/t/ST-11')` and `has(c.remote, 'refs/heads/t/ST-11')` are
+  false. The tip's blob of `CARRIED` differs from main's, so only the history check lets this branch go.
+Place the test after the existing ST-LN-34 clean cases, so `has`, `claimWorktree`, `dropOnRemote` and `dropAndMerge`
+are defined above it.
 
 Behaviour that must not change: every other path of `cleanDropped`, its messages and their order (being rebased,
 checked out, the guards, `commits not on origin`, `has commits not here`, the push and update-ref failures, could not
@@ -597,7 +616,9 @@ Consumes: `skillTargets(config)`. Produces wording only.
   - §3 `**Lifecycle.**`, *Dropped*: `accord drop` carries each listed `.md` record the default branch lacks, refuses a
     listed record that differs from the default branch's copy, and refuses a listed record with uncommitted changes in
     the worktree holding the claim branch; `accord worktree clean` keeps a dropped ticket's claim branch while the
-    ticket at its tip lists a `.md` record that branch holds and the default branch lacks or holds otherwise.
+    ticket at its tip lists a `.md` record whose copy on that branch the default branch's history never held at that
+    path, and names the fix: make the record on the claim branch equal to the default branch's copy, or put it on the
+    default branch, then push.
   - §5 *Claim*: after ``read its ticket, plan, ledger, review and verification from that branch``, add `and each
     research record the ticket lists that the checkout lacks`.
   - §6, the `accord anchor [<id>]` bullet: ``then, verbatim, its Intent, Vetoes, Decisions, Corrections, the research records its `research:` key lists, and Rulings``.

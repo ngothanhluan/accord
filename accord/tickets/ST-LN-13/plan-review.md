@@ -14,5 +14,11 @@
 11. Nice — Task 9: the §10 spec clause has no named sentence to follow in docs/specs/2026-10-12-workflow-layer-design.md:380-383 (critic, build lens) — deferred
 
 ## Round 2 (diff)
-1. Should — Task 9: clean keeps a dropped ticket's branch for good once a carried record is edited on the default branch, because `researchNotOn` compares the tip's blob only with the current default-branch copy, though the tip's copy is already in the default branch's history through the drop merge; and the `kept` message names no next step while ids.md step 1 forbids deleting a claim branch; fix (a) treat the record as safe when the tip's blob appears at that path in the default branch's history (`--find-object=<blob>` on the history of `<p>` at `<ref>`, cited only by https://git-scm.com/docs/git-log), or (b) have the `kept` message name the fix (critic, diff) — open
+1. Should — Task 9: clean keeps a dropped ticket's branch for good once a carried record is edited on the default branch, because `researchNotOn` compares the tip's blob only with the current default-branch copy, though the tip's copy is already in the default branch's history through the drop merge; and the `kept` message names no next step while ids.md step 1 forbids deleting a claim branch; fix (a) treat the record as safe when the tip's blob appears at that path in the default branch's history (`--find-object=<blob>` on the history of `<p>` at `<ref>`, cited only by https://git-scm.com/docs/git-log), or (b) have the `kept` message name the fix (critic, diff) — fixed, owner: "A" (both: the history check by `--find-object`, and the `kept` message names the fix)
 2. Nice — Task 10: ids.md step 1 says every listed record the default branch lacks travels with the drop, though Task 8 carries only `.md` entries, and still says `worktree clean` deletes the branch, which Task 9 no longer always does; say "`.md` record" and add "unless it prints `kept`" (critic, diff) — deferred
+
+## Round 3 (diff)
+1. Nice — Task 9: the history check uses default history simplification, so it misses the tip's blob when a later merge took a side branch's copy of the path, and clean keeps the branch with a wrong reason (the safe direction); `--full-history` would walk both parents, and the new test reaches only the plain-commit path (critic, diff) — deferred
+
+## Closed
+Round 3 reported no Must and no Should; 1.1 to 1.4 and 2.1 fixed; `accord gate plan ST-LN-13` passed (plan_hash fnv1a64:0dc82f76f1b6ae1a); baseline `tests.full` at 7bcd659: 91 files, 1694 passed, 3 skipped, 0 failed.

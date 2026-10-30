@@ -70,12 +70,23 @@ it('risk:security the pre tool use hook lets other agents an open debug record a
 
     const debug = join(repo, 'accord', 'tickets', 'T-1', 'debug.md');
     writeFileSync(debug, '# Debug\n\n## Hypothesis\n\nx\n');
-    expect(await hook(repo, input(repo, { model: 'sonnet' }))).toEqual(allowed);
+    // The cycle holds rounds and no verdict, so an open debug record no longer lets the wrong model through.
+    expect(JSON.parse((await hook(repo, input(repo, { model: 'sonnet' }))).out).hookSpecificOutput.permissionDecision).toBe('deny');
     appendFileSync(debug, '\n## Resolved\n\ny\n');
     const r = await hook(repo, input(repo, { model: 'sonnet' }));
     expect(JSON.parse(r.out).hookSpecificOutput.permissionDecision).toBe('deny');
   } finally {
     cleanup(repo);
+  }
+
+  // A debug fix dispatched before the current cycle holds a recorded round is not a review fix.
+  const fresh = build({ 'accord/tickets/T-1/review.md': 'Round record: 1\n' });
+  try {
+    writeFileSync(join(fresh, 'accord', 'tickets', 'T-1', 'debug.md'), '# Debug\n\n## Hypothesis\n\nx\n');
+    expect((await run(['anchor', 'T-1'], fresh)).out).toContain('Stage: review');
+    expect(await hook(fresh, input(fresh, { model: 'sonnet' }))).toEqual(allowed);
+  } finally {
+    cleanup(fresh);
   }
 
   const atBuild = build({ 'accord/tickets/T-1/ledger.md': '## Rulings\n- task 1 done abc1234\n' });
@@ -95,6 +106,33 @@ it('risk:security the pre tool use hook lets other agents an open debug record a
     expect(r.err).toContain('allowed');
   } finally {
     cleanup(pinned);
+  }
+}, 120_000);
+
+it('risk:regression a fix executor on the wrong model is refused in a review cycle that keeps an open debug record', async () => {
+  const repo = build();
+  try {
+    const review = join(repo, 'accord', 'tickets', 'T-1', 'review.md');
+    appendFileSync(review, '\nverdict: accepted-by-owner "ship it"\n');
+    const sha = commitMsg(repo, 'review: T-1 accepted');
+    writeFiles(repo, { 'src/export.ts': 'export const write = 2;\n' });
+    commitMsg(repo, 'fix: T-1 after review');
+    // failure.md step 3: the debug fix is committed and debug.md stays open across verify.
+    writeFileSync(join(repo, 'accord', 'tickets', 'T-1', 'debug.md'), '# Debug\n\n## Hypothesis\n\nx\n');
+    appendFileSync(review, '\n## Return from verify ' + sha + '\n\n## Round 1\n\nShould 1 [patch]: the header row is missing — src/export.ts:1 — open\n');
+    commitMsg(repo, 'review: T-1 cycle 2 round 1');
+
+    expect((await run(['anchor', 'T-1'], repo)).out).toContain('Stage: review');
+    for (const o of [{ model: 'sonnet' }, {}]) {
+      const r = await hook(repo, input(repo, o));
+      expect(r.code).toBe(0);
+      const reason: string = JSON.parse(r.out).hookSpecificOutput.permissionDecisionReason;
+      expect(reason).toContain('round 1');
+      expect(reason).toContain('model "opus"');
+    }
+    expect(await hook(repo, input(repo, { model: 'opus' }))).toEqual({ code: 0, out: '{}\n', err: '' });
+  } finally {
+    cleanup(repo);
   }
 }, 120_000);
 

@@ -201,8 +201,8 @@ function preToolUse(ctx: CommandContext): number {
     const { subagent_type: agent, model } = toolInput as Record<string, unknown>;
     if (agent !== 'accord-executor') return allow();
     const id = activeTicket(ctx.root, ctx.snapshot);
-    if (id === undefined || debugOpen(ctx.root, id)) return allow();
-    const reason = checkFixDispatch(ctx.snapshot, id, typeof model === 'string' ? model : undefined);
+    if (id === undefined) return allow();
+    const reason = checkFixDispatch(ctx.snapshot, id, typeof model === 'string' ? model : undefined, debugOpen(ctx.root, id));
     if (reason === undefined) return allow();
     ctx.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } }) + '\n');
     return 0;

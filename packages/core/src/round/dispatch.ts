@@ -4,16 +4,20 @@ import { AGENT_DEFAULTS } from '../skills/agents.js';
 import { progressOf } from '../status/stage.js';
 import type { RepoSnapshot } from '../model/snapshot.js';
 import { fixModel, modelFamily } from './next.js';
+import { cycleOpen } from './record.js';
 
 /** ST-LN-17 D-03: the reason to refuse an accord-executor dispatched with `model` (undefined when none) while `id` is at review; undefined to allow. */
-export function checkFixDispatch(snapshot: RepoSnapshot, id: string, model: string | undefined): string | undefined {
+export function checkFixDispatch(snapshot: RepoSnapshot, id: string, model: string | undefined, debugOpen = false): string | undefined {
   const ticket = laneTicket(snapshot, id);
   if (ticket === undefined || ticket.frontmatter?.lane === 'S') return undefined;
   if (progressOf(snapshot, ticket)?.stage !== 'review') return undefined;
+  const cycles = workOf(snapshot, id)?.rounds?.cycles ?? [];
+  const current = cycles[cycles.length - 1];
+  // An open debug record exempts accord-debug's own fix dispatches, but only until the current cycle holds an open round (ledger Ruling 28, amended).
+  if (debugOpen && (current === undefined || !cycleOpen(current))) return undefined;
   const f = fixModel(snapshot, id);
   if (f === undefined) return undefined;
-  const cycles = workOf(snapshot, id)?.rounds?.cycles ?? [];
-  const r = cycles[cycles.length - 1]?.rounds.length ?? 0;
+  const r = current?.rounds.length ?? 0;
   if ('refused' in f) return `accord: review round ${r} of ${id} cannot dispatch a fix executor: ${f.refused}`;
   const m = f.model;
   const family = (name: string): string => modelFamily(name) ?? name;

@@ -85,6 +85,10 @@
 - Ruling: stage.ts names the new flag `midCycle`, because `open` already exists in progressOf and the brief's name caused a redeclaration parse error (task 5) — cost if wrong: none
 - Ruling: the allowance Ruling for plan critique round 4 is reworded from "1 more plan critique round" to "1 more plan critique rounds", the form the allowance Ruling above sets and the parser reads (review 1.1) — cost if wrong: none; the owner's words and the count are unchanged
 - Ruling: review round 1 ran an intent and a quality reviewer, not an area split, because the diff outside accord/ is about 1470 changed lines, under the 1500 line split; the final review takes the integration lens, the one lens round 1 did not cover — cost if wrong: a cross-area defect is found only by the final reviewer
+- Ruling: the hook passes `debugOpen` into `checkFixDispatch` as an optional fourth parameter, default false; an open debug.md exempts an executor dispatch only when the current cycle, after the last `## Return from verify` or the whole review.md, has no open round (`cycleOpen`), otherwise the dispatch is judged like any review fix; this narrows the debug.md skip Ruling above (review 2.1) — cost if wrong: a debug fix dispatched mid-cycle on the wrong model is refused instead of allowed
+- Ruling: a debug fix dispatched while the current review cycle holds an open round carries the model `accord round <id>` prints, or runs before the cycle's first round is recorded or after its verdict (review 2.1) — cost if wrong: accord-debug must pass that model in that window
+- Ruling: the risk:security open-debug case in pre-tool-use.test.ts, which expected allow for cycle 1 with four open rounds, now expects deny, and its allow assertion uses a cycle with no recorded round, since that case is the one review 2.1 says must be judged (review 2.1) — cost if wrong: none; the allow path is still covered
+- Ruling: this ticket's review.md carries the `Round record: 1` line, though the pinned 0.3.0 skills do not write it, so the record reads under the rules this ticket ships; the branch's own `accord round ST-LN-17` reads it with no unreadable line and refuses only because the cycle ends `verdict: converged` — cost if wrong: none found; 0.3.0 reads only the last line's verdict
 
 ## Deferred
 - plan critique 1.8: Task 5 test 2's `tool_name: 'Bash'` case needs its own top-level input — deferred
@@ -97,6 +101,9 @@
 - review 1.2: seven core exports (ROUND_CAP, allowancesOf, cycleState, modelFamily, planStopOf, recordProblems, ROUND_RECORD_LINE) have no consumer outside core — deferred
 - review 1.3: the unallowed-round loop is written in both round/next.ts and gate/rounds.ts, and the hook stdin parse in both cli run.ts and commands/hook.ts — deferred
 - review 1.4: the round-next risk:complex-branching test overlaps the ac-3 and ac-4 tests; lane-s.md step 4 still holds the old "either stop there, leaving its Shoulds open" sentence beside the new accord round rule — deferred
+- review 2.2: scripts/compliance.mjs reads an allowance Ruling only with a leading "- ", while core's allowancesOf and the text accord round prints have none — deferred
+- review 2.3: accord anchor's lane S next step (status/stage.ts:64) numbers the next round after the last ## Round, not from 1 after a Return from verify marker — deferred
+- review 2.1 follow-up: shared/failure.md and the accord-debug skill do not say that a debug fix dispatched mid-cycle passes the model accord round prints — deferred
 
 ## Tasks
 - task 1 done 7be4d34a115b

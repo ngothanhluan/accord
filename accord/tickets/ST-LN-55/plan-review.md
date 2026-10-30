@@ -1,0 +1,15 @@
+# Plan review
+
+## Round 1 (whole)
+
+1. Must — a nested repository (its own `.git`) inside an ignored disposable folder such as `dist/` passes passGuards, and `git worktree remove` deletes it with any unpushed commit; keep the worktree when a disposable `!!` folder holds a `.git` entry at any depth (lstat walk, never following links), with a risk test — open
+2. Should — sweepForgotten/cleanForgotten never check whether the recorded path itself is a link or junction, so the walk follows it and unlinks links and empty folders in the target; lstat the root first and never walk through it, with a test — open
+3. Should — Task 8's budget check between cleanDropped's origin delete push and its local `update-ref -d` can leave a local branch that every later clean keeps with a wrong "not on origin" reason; check the budget once before the removal and treat push plus local delete as one step — open
+4. Should — the hook clean now runs `git worktree prune` at every session start, which deletes the admin folder of a worktree whose folder is only missing for the moment (unmounted drive), losing a detached HEAD; on the hook path, do not prune entries whose folder is missing, name them on a kept line instead — open
+5. Should — `git status` cannot see edits in files marked skip-worktree or assume-unchanged, so clean removes them as if committed; keep such a worktree when a flagged file on disk differs from the index (`git ls-files -v`) — unverified: fix relies on a git API cited only by URL; asked the owner
+6. Should — Task 1's `sessionClean` calls `repoRoot(input.cwd)` outside its `try`; a hook input cwd that is gone or not a repository makes the hook exit 2 and the session loses its rules; move it inside and print `clean failed …` — open
+7. Should — a recorded worktree on its own branch whose ticket is dropped while the branch tip is an ancestor of origin's default ref is judged by neither cleanDone nor cleanDropped, and cleanRecorded stays silent, against D-07's "printing the ones it cannot"; print a kept line or remove it — open
+8. Should — Task 7's `readList` before the "no sibling found" check adds a `git worktree list` read to every clean and breaks the git-count `expectFewer` bounds for `worktree open` and `new ticket --worktree`; reuse the list already read — open
+9. Should — Task 3's rewritten POSIX test expects `kept <sibling>: sub/f.txt`, but git stops at its first failed entry in readdir order, so on Linux CI the line may name `.git` or `.gitignore`; assert on a line that does not depend on readdir order — open
+10. Should — Tasks 4 and 7 revisit in the same run a folder `removeWorktree` already left kept, printing a second kept line (the POSIX test's 3 lines become 4); skip any path already judged in this run — open
+11. Should — on POSIX git unlinks symlinks itself, so ac-1's first worktree passes at the baseline and no test exercises the "delete leftover links, then print removed" path after a successful remove; add a case that fails without sweepRemoved on every OS — open

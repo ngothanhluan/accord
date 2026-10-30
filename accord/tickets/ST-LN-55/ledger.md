@@ -18,3 +18,23 @@
 - Ruling: the D-08/D-12 list is a top-level `disposable:` key in config.yml, a list of names — the owner decided the list, not its key — cost if wrong: a rename before release.
 - Ruling: critique round 4's five Musts are fixed inside the chosen option, not by switching options; none breaks a Decision — each narrows what clean removes or bounds its time — cost if wrong: a fifth critique would have found more; review catches them.
 - Ruling: a worktree with initialised submodules is a known limit, kept and named, never forced — `--force` would bypass the uncommitted-work check — cost if wrong: such repositories keep cleaning by hand.
+- Ruling: the record is `<id>\t<path>` lines in `<git-common-dir>/accord/worktrees`, written under the holds lock; a failed write prints a `note` line and the command goes on — no command fails over bookkeeping — cost if wrong: a format change before release.
+- Ruling: the hook cleans on startup, and on `session-resume` only when its source is resume or clear — follows the Ruling on compaction — cost if wrong: one fetch per compaction.
+- Ruling: the hook clean budget is 300 s (`cleanBudgetMs` in `fetch-limit.ts`); the clean lock is stale when its pid no longer runs or it is older than one hour — the budget sits well below the 600 s timeout — cost if wrong: a slow last removal, or leftovers wait one hour.
+- Ruling: the ignored check uses `git status --ignored=matching`, so `sub/.DS_Store` is judged by its own name — plain `--ignored` shows only `sub/`, and ac-1 would fail — cost if wrong: worktrees kept that could be cleaned.
+- Ruling: the `removed … in part` line becomes `kept <folder>: <file>`, and the existing POSIX test's line checks follow — the Approach says `removed` means the folder is gone — cost if wrong: git's failure text is no longer shown.
+- Ruling: clean keeps a listed worktree that holds another listed worktree — the "ancestor of these" Should applied to `git worktree remove` — cost if wrong: none, data is kept.
+- Ruling: the record and sibling sweeps clean dropped tickets only after a good fetch, as `cleanDropped` does — cost if wrong: a dropped leftover waits one fetch.
+- Ruling: `disposable` names are one path segment: no `/`, no `\`, not `.` or `..` — cost if wrong: a schema change.
+- Ruling: `finish.md` gains an instruction to the agent (never wait for the merge, never remove by hand), not a status line — cost if wrong: the owner is not told in the finish message.
+
+## Deferred
+
+- Plan round 1 Nice: a relative path in a record line is resolved against cwd; skip non-absolute lines and fence descendants of the main checkout — deferred
+- Plan round 1 Nice: two cleans that both see the same stale lock pid can both take it over; re-check pid and mtime before removing, release only an own lock — deferred
+- Plan round 1 Nice: `disposable` is read from the config.yml of whatever checkout the session starts in; read it from origin's default ref — deferred
+- Plan round 1 Nice: ac-2's test starts sessions only in the main checkout; add one start in a linked worktree — deferred
+- Plan round 1 Nice: Task 1's hooks test needs a cast on `mergeHooks(...).hooks` to typecheck — deferred
+- Plan round 1 Nice: Task 5's `guardHolds(ctx, s)` has no path parameter for its kept line — deferred
+- Plan round 1 Nice: `readRecorded`, `dropRecorded` and `withLock` each spawn `rev-parse --git-common-dir` again — deferred
+- Plan round 1 Nice: `git remote prune origin` on the hook path has no timeout — deferred

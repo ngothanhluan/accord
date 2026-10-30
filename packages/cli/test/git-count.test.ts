@@ -1,9 +1,10 @@
 // ST-LN-63: tests that count the git processes accord itself starts, against the baseline in git-counts.before.json.
-import { mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import { CONFIG, LANE_S_BODY, laneTicket, PLAN, REPORT, junit } from '../../../test/helpers/lane.js';
+import { setFrontmatterKey } from '@accord-dev/accord-core';
 import type { SnapshotInput } from '@accord-dev/accord-core';
 import { defaultRefOf, gitDefaultRef, loadClaimView, loadFromFs } from '../src/load/fs.js';
 import { countedSync, spawnLog } from './helpers/git-spawns.js';
@@ -904,3 +905,45 @@ it('risk:complex-branching pick-up and new ticket worktree load the full snapsho
     await expectFewer(key, facts, runs[key]);
   }
 }, 600_000);
+
+let broken: { sample: Sample; intact: Awaited<ReturnType<typeof counted>>; id: string } | undefined;
+
+beforeAll(async () => {
+  const ids = ['M-1', 'M-2', 'M-3', 'M-4', 'M-5', 'M-6', 'M-7', 'M-8'];
+  const sample = buildSample(ids.map((id) => ({ id, kind: 'verify-straight' as const })));
+  const intact = await counted(['status', '--json'], sample.root);
+  // M-3's branch then records a start commit this repository does not hold (rewritten away after verify, or never fetched).
+  const id = 'M-3';
+  const file = join(sample.root, 'accord', 'tickets', `${id}.md`);
+  gitRun(sample.root, 'switch', '-q', 't/' + id);
+  writeFileSync(file, setFrontmatterKey(readFileSync(file, 'utf8'), 'verified_commit', '1234567890abcdef1234567890abcdef12345678'));
+  commitMsg(sample.root, `verify: ${id} rewritten`);
+  gitRun(sample.root, 'push', '-q', 'origin', 't/' + id);
+  gitRun(sample.root, 'switch', '-q', 'main');
+  gitRun(sample.root, 'reset', '-q', '--hard');
+  broken = { sample, intact, id };
+}, SAMPLE_BUILD_LIMIT);
+
+afterAll(() => broken?.sample.cleanup());
+
+it('risk:complex-branching a start commit this repository does not hold costs a constant number of git processes and changes no output', async () => {
+  const { sample, intact } = broken as NonNullable<typeof broken>;
+  expect(intact.argv.some(isStdin), 'the intact status reads the commits after each start with one shared walk').toBe(true);
+
+  const one = await counted(['status', '--json'], sample.root);
+  expect(one.code, one.err).toBe(0);
+  process.stdout.write(`missing start: ${intact.argv.length} git processes intact, ${one.argv.length} with one start missing\n`);
+  // One more `cat-file --batch-check` and one more walk for each of the two snapshots status loads, whatever the number of tickets.
+  expect(one.argv.length, 'one missing start must not send the other seven tickets to their own reads').toBeLessThanOrEqual(intact.argv.length + 4);
+
+  // What each ticket's own reads give is the answer.
+  spawnLog.fail = (args) => args.includes('--stdin');
+  let own: Awaited<ReturnType<typeof counted>>;
+  try {
+    own = await counted(['status', '--json'], sample.root);
+  } finally {
+    spawnLog.fail = undefined;
+  }
+  expect(own.argv.length, 'without the shared walk every ticket is read on its own').toBeGreaterThan(one.argv.length);
+  expect(one.out).toBe(own.out);
+}, 120_000);

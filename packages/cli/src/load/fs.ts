@@ -648,11 +648,40 @@ function claimPositives(
   return [...positives];
 }
 
-/** The default ref and the walk over `positives`; neither when there is nothing to walk. */
+/**
+ * ST-LN-63: the positives no object of this repository holds, from one `cat-file --batch-check`; none when git failed. `git log
+ * --stdin --ignore-missing` still exits 128 on a missing sha, so one start rewritten away or never fetched would fail the whole walk.
+ */
+function missingShas(root: string, positives: readonly string[]): string[] {
+  try {
+    const out = execFileSync('git', ['cat-file', '--batch-check'], {
+      cwd: root,
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+      maxBuffer: 64 * 1024 * 1024,
+      env: { ...process.env, GIT_NO_LAZY_FETCH: '1' },
+      input: positives.map((p) => p + '\n').join(''),
+    });
+    const lines = out.split('\n');
+    return positives.filter((_, i) => lines[i]?.endsWith(' missing') === true);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * The default ref and the walk over `positives`; neither when there is nothing to walk. A failed walk is tried once more
+ * without the positives that are missing here, so a missing start costs two more git processes, not one read per ticket; its
+ * ticket is dropped from the walk, as `rev-list --ignore-missing` drops it.
+ */
 function walkOver(root: string, positives: readonly string[]): { walk: Walk | undefined; def: string | undefined } {
   if (positives.length === 0) return { walk: undefined, def: undefined };
   const def = defaultRefOf(root);
-  return { walk: gitWalk(root, def, [...positives]), def };
+  const walk = gitWalk(root, def, [...positives]);
+  if (walk !== undefined) return { walk, def };
+  const missing = new Set(missingShas(root, positives));
+  const rest = positives.filter((p) => !missing.has(p));
+  return { walk: missing.size === 0 || rest.length === 0 ? undefined : gitWalk(root, def, rest), def };
 }
 
 /**

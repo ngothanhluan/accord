@@ -52,6 +52,8 @@ export interface CommandContext {
   stderr: NodeJS.WritableStream;
   env: NodeJS.ProcessEnv;
   stdin?: string;
+  /** ST-LN-63: `core.sshCommand` per folder, filled by the first network git call of the run and kept across a reload. */
+  ssh?: Map<string, string>;
 }
 
 /**
@@ -73,7 +75,7 @@ function preflight(opts: RunOptions, mode: 'checkout' | 'stage' | 'claims' | 'li
     const message = pinMessage(snapshot.config.accord, pkg.version, versionOnDisk());
     if (message !== undefined) throw new UsageError(message);
   }
-  return { root, snapshot, ...(plain === undefined ? {} : { plain }), ...(branch === undefined ? {} : { branch }), stdout: opts.stdout, stderr: opts.stderr, env: opts.env ?? {}, ...(opts.stdin === undefined ? {} : { stdin: opts.stdin }) };
+  return { root, snapshot, ...(plain === undefined ? {} : { plain }), ...(branch === undefined ? {} : { branch }), stdout: opts.stdout, stderr: opts.stderr, env: opts.env ?? {}, ssh: new Map(), ...(opts.stdin === undefined ? {} : { stdin: opts.stdin }) };
 }
 
 /**

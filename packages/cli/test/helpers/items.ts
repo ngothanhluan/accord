@@ -42,6 +42,21 @@ export const ITEMS: Item[] = [
     keys: ['main worktree clean'],
     p: (a) => (a[0] === 'merge-base' && a.includes('--is-ancestor')) || (a[0] === 'for-each-ref' && a.includes('--merged')),
   },
+  {
+    item: 'ssh config',
+    keys: ['main worktree clean', 'main worktree open A-1'],
+    p: (a) => a[0] === 'config' && a.includes('--get') && a.includes('core.sshCommand'),
+  },
+  {
+    item: 'worktree list',
+    keys: ['main worktree open A-1', 'main new ticket N-1 --lane M --worktree'],
+    p: (a) => a[0] === 'worktree' && a[1] === 'list' && a.includes('--porcelain'),
+  },
+  {
+    item: 'get-url',
+    keys: ['main worktree open A-1', 'main new ticket N-1 --lane M --worktree', 'wt-A-7 worktree merge A-7'],
+    p: (a) => a[0] === 'remote' && a[1] === 'get-url' && a.includes('origin'),
+  },
 ];
 
 /**

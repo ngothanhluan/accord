@@ -380,11 +380,12 @@ export function worktreeOpen(ctx: CommandContext, id: string, opts: { continue?:
   guardTicketSession(ctx, opts.continue === true ? id : undefined);
   const f = fetchOrigin(ctx);
   ctx = f.ctx;
-  cleanQuietly(ctx, f.fetched, id);
+  const seen = cleanQuietly(ctx, f.fetched, id);
   const enter = canEnter(ctx);
   const pick = opts.continue !== true;
   const branch = branchOf(ctx.snapshot, id);
-  const list = worktrees(ctx.root, ctx.stdout);
+  // the list clean read last and no removal changed since; undefined after a removal or a failed clean
+  const list = seen ?? worktrees(ctx.root, ctx.stdout);
   const mainPath = list[0].path;
   const held = list.find((w) => w.branch === branch);
   const local = held !== undefined || gitOk(ctx.root, ['rev-parse', '--verify', '-q', 'refs/heads/' + branch]);
@@ -451,12 +452,17 @@ const firstWord = (cmd: string) => (/^\s*(?:"([^"]*)"|'([^']*)'|(\S+))/.exec(cmd
  * Run a network git command with prompts off. ssh gets BatchMode only when it is OpenSSH: git reads core.sshCommand before GIT_SSH, and
  * GIT_SSH_COMMAND before both, so the user's own program is never replaced and a non-OpenSSH command is passed through unchanged.
  */
-export function gitNoPrompt(cwd: string, args: string[], timeout?: number): string {
-  let configured = '';
-  try {
-    configured = execFileSync('git', ['config', '--get', 'core.sshCommand'], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
-  } catch {
-    // not set
+export function gitNoPrompt(cwd: string, args: string[], timeout?: number, seen?: Map<string, string>): string {
+  // ST-LN-63: the configured command is read once per folder when the caller keeps a map for the run
+  let configured = seen?.get(cwd);
+  if (configured === undefined) {
+    configured = '';
+    try {
+      configured = execFileSync('git', ['config', '--get', 'core.sshCommand'], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    } catch {
+      // not set
+    }
+    seen?.set(cwd, configured);
   }
   const fromEnv = (process.env.GIT_SSH_COMMAND ?? '') !== '';
   const cmd = fromEnv ? process.env.GIT_SSH_COMMAND! : configured;
@@ -476,11 +482,11 @@ export function gitNoPrompt(cwd: string, args: string[], timeout?: number): stri
 const firstLine = (e: unknown) => String((e as { stderr?: string }).stderr ?? e).trim().split('\n')[0];
 
 /** ST-LN-30 D-01, D-06: fetch origin so a branch is cut and a claim judged from the latest refs; a failed fetch prints one line and the work goes on. */
-export function fetchOrigin(ctx: CommandContext): { ctx: CommandContext; fetched: 'ok' | 'failed' | 'none' } {
-  if (!gitOk(ctx.root, ['remote', 'get-url', 'origin'])) return { ctx, fetched: 'none' };
+export function fetchOrigin(ctx: CommandContext, known?: boolean): { ctx: CommandContext; fetched: 'ok' | 'failed' | 'none' } {
+  if (known !== true && !gitOk(ctx.root, ['remote', 'get-url', 'origin'])) return { ctx, fetched: 'none' };
   const ms = fetchLimitMs();
   try {
-    gitNoPrompt(ctx.root, ['fetch', '--no-prune', 'origin'], ms);
+    gitNoPrompt(ctx.root, ['fetch', '--no-prune', 'origin'], ms, ctx.ssh);
   } catch (e) {
     const why = (e as NodeJS.ErrnoException).code === 'ETIMEDOUT' ? `no answer within ${ms / 1000} seconds` : firstLine(e);
     ctx.stdout.write(`fetch from origin failed, going on with the refs already in this clone: ${why}\n`);
@@ -551,7 +557,7 @@ function continueMerge(ctx: CommandContext, id: string, path: string, branch: st
     failure = e;
   }
   try {
-    gitNoPrompt(path, ['push', 'origin', 'HEAD:refs/heads/' + branch]);
+    gitNoPrompt(path, ['push', 'origin', 'HEAD:refs/heads/' + branch], undefined, ctx.ssh);
   } catch (e) {
     ctx.stdout.write(`push of ${branch} failed: ${firstLine(e)} - push it with git -C "${path}" push origin ${branch}\n`);
   }
@@ -578,7 +584,7 @@ export function worktreePush(ctx: CommandContext, id: string, o: { lease?: boole
   try {
     // after a reworded commit: the lease keeps a push from replacing what origin got since this clone last saw it, and --force-if-includes keeps it from replacing a commit a fetch brought in that this branch never held
     const force = o.lease === true ? ['--force-with-lease', '--force-if-includes'] : [];
-    gitNoPrompt(ctx.root, ['push', ...force, 'origin', `refs/heads/${branch}:refs/heads/${branch}`]);
+    gitNoPrompt(ctx.root, ['push', ...force, 'origin', `refs/heads/${branch}:refs/heads/${branch}`], undefined, ctx.ssh);
   } catch (e) {
     const why = String((e as { stderr?: string }).stderr ?? '').trim();
     return kept(why === '' ? String(e) : why);
@@ -604,7 +610,7 @@ export function worktreeMerge(ctx: CommandContext, id: string): number {
     throw new UsageError(`${id} is at stage ${stage ?? 'none'}, and accord worktree merge runs only at verify, after review - nothing was merged`);
   }
   if (!gitOk(ctx.root, ['remote', 'get-url', 'origin'])) return 0;
-  fetchOrigin(ctx);
+  fetchOrigin(ctx, true);
   const ref = gitDefaultRef(ctx.root);
   if (ref === undefined) {
     ctx.stdout.write('no origin/HEAD, origin/main or origin/master in this clone - nothing was merged\n');
@@ -622,7 +628,7 @@ function pruneStale(ctx: CommandContext): Map<string, string> {
   const refs = () => git(ctx.root, ['for-each-ref', '--format=%(objectname) %(refname)']).split('\n').filter((r) => r !== '');
   const before = refs();
   try {
-    gitNoPrompt(ctx.root, ['remote', 'prune', 'origin']);
+    gitNoPrompt(ctx.root, ['remote', 'prune', 'origin'], undefined, ctx.ssh);
   } catch (e) {
     ctx.stdout.write(`prune of origin failed: ${firstLine(e)}
 `);
@@ -639,7 +645,20 @@ function pruneStale(ctx: CommandContext): Map<string, string> {
   return pruned;
 }
 
+/** The worktree list the last read in a clean left, for the pick-up that runs it; a removal clears it. */
+interface SeenList {
+  list?: WorktreeEntry[];
+}
+
+/** `worktrees(...)`, remembered in `seen` when there is one. */
+function readList(ctx: CommandContext, seen?: SeenList): WorktreeEntry[] {
+  const list = worktrees(ctx.root, ctx.stdout);
+  if (seen !== undefined) seen.list = list;
+  return list;
+}
+
 interface GuardState {
+  seen?: SeenList;
   holds?: Record<string, Hold>;
   holdsError?: string;
   table?: ReturnType<typeof processTable>;
@@ -695,14 +714,16 @@ function passGuards(ctx: CommandContext, w: WorktreeEntry, id: string, s: GuardS
 }
 
 /** `git worktree remove` with its three printed outcomes; the hold goes with a worktree that is gone. `failed` means the folder is still a worktree. */
-function removeWorktree(ctx: CommandContext, w: WorktreeEntry, id: string, h: Hold | undefined): { failed: boolean } {
+function removeWorktree(ctx: CommandContext, w: WorktreeEntry, id: string, h: Hold | undefined, seen?: SeenList): { failed: boolean } {
   let failure: string | undefined;
   try {
     execFileSync('git', ['worktree', 'remove', w.path], { cwd: ctx.root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   } catch (e) {
     failure = firstLine(e);
   }
-  const gone = failure === undefined || !worktrees(ctx.root, ctx.stdout).some((x) => x.path === w.path);
+  // the list held before this removal no longer stands; the read below, when there is one, is fresh
+  if (seen !== undefined) seen.list = undefined;
+  const gone = failure === undefined || !readList(ctx, seen).some((x) => x.path === w.path);
   if (failure === undefined) ctx.stdout.write(`removed ${w.path}
 `);
   else if (gone) ctx.stdout.write(`removed ${w.path} in part: git worktree remove failed: ${failure} - delete what is left of the folder by hand
@@ -721,15 +742,16 @@ function removeWorktree(ctx: CommandContext, w: WorktreeEntry, id: string, h: Ho
 }
 
 /** D-05, D-16: fetch, prune stale remote refs, then (ST-LN-25 D-08) remove the worktree and delete the local branch of each ticket that is done on origin's main, then (ST-LN-34) those of dropped tickets, naming what is removed, deleted or kept. */
-export function worktreeClean(ctx: CommandContext, opts: { fetched?: 'ok' | 'failed' | 'none'; skip?: string } = {}): number {
-  worktrees(ctx.root, ctx.stdout);
+export function worktreeClean(ctx: CommandContext, opts: { fetched?: 'ok' | 'failed' | 'none'; skip?: string; seen?: SeenList } = {}): number {
+  readList(ctx, opts.seen);
   const templates = ctx.snapshot.branchTemplates ?? [DEFAULT_BRANCH_TEMPLATE];
-  if (opts.fetched === 'none' || !gitOk(ctx.root, ['remote', 'get-url', 'origin'])) return 0;
+  // 'ok' and 'failed' come from a caller that found the origin remote; only a bare clean asks for it
+  if (opts.fetched === 'none' || (opts.fetched === undefined && !gitOk(ctx.root, ['remote', 'get-url', 'origin']))) return 0;
   let pruned = new Map<string, string>();
   let fetchFailed = opts.fetched === 'failed';
   try {
     if (!fetchFailed) {
-      if (opts.fetched === undefined) gitNoPrompt(ctx.root, ['fetch', '--no-prune', 'origin']);
+      if (opts.fetched === undefined) gitNoPrompt(ctx.root, ['fetch', '--no-prune', 'origin'], undefined, ctx.ssh);
       pruned = pruneStale(ctx);
     }
   } catch (e) {
@@ -739,7 +761,7 @@ export function worktreeClean(ctx: CommandContext, opts: { fetched?: 'ok' | 'fai
   }
   const ref = gitDefaultRef(ctx.root);
   if (ref === undefined) return 0;
-  const state: GuardState = {};
+  const state: GuardState = { seen: opts.seen };
   const merged = mergedTips(ctx.root, ref);
   cleanDone(ctx, ref, templates, state, fetchFailed, merged, opts.skip);
   cleanDropped(ctx, ref, templates, state, pruned, fetchFailed, merged, opts.skip);
@@ -761,12 +783,15 @@ function mergedTips(root: string, ref: string): Set<string> {
 }
 
 /** D-02: the clean a command runs on the side; a failure is named and never stops that command. */
-export function cleanQuietly(ctx: CommandContext, fetched: 'ok' | 'failed' | 'none', skip?: string): void {
+export function cleanQuietly(ctx: CommandContext, fetched: 'ok' | 'failed' | 'none', skip?: string): WorktreeEntry[] | undefined {
+  const seen: SeenList = {};
   try {
-    worktreeClean(ctx, { fetched, skip });
+    worktreeClean(ctx, { fetched, skip, seen });
   } catch (e) {
     ctx.stdout.write(`clean failed, nothing more was removed: ${firstLine(e instanceof UsageError ? e.message : e)}\n`);
+    return undefined;
   }
+  return seen.list;
 }
 
 /** The branch a worktree's stopped rebase is rebuilding, or undefined. */
@@ -831,7 +856,7 @@ function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[
   if (ids.size === 0) return;
   const snap = snapshotAt(ctx.root, ref, [...new Set(ids.values())]);
   const done = new Set(statusRows(snap).filter((r) => r.stage === 'done' && r.status !== 'dropped').map((r) => r.id));
-  const after = worktrees(ctx.root, ctx.stdout);
+  const after = readList(ctx, s.seen);
   for (const b of [...ids.keys()].filter((n) => done.has(ids.get(n)!)).sort()) {
     const id = ids.get(b)!;
     try {
@@ -867,7 +892,7 @@ function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[
       }
       if (W !== undefined) {
         const g = passGuards(ctx, W, id, s);
-        if (g === undefined || removeWorktree(ctx, W, id, g.h).failed) {
+        if (g === undefined || removeWorktree(ctx, W, id, g.h, s.seen).failed) {
           ctx.stdout.write(`kept ${b}: checked out in ${W.path}
 `);
           continue;
@@ -896,7 +921,7 @@ function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[
         continue;
       }
       try {
-        gitNoPrompt(ctx.root, ['push', `--force-with-lease=refs/heads/${b}:${R}`, 'origin', ':refs/heads/' + b]);
+        gitNoPrompt(ctx.root, ['push', `--force-with-lease=refs/heads/${b}:${R}`, 'origin', ':refs/heads/' + b], undefined, ctx.ssh);
       } catch (e) {
         ctx.stdout.write(`kept origin/${b}: git push failed: ${firstLine(e)}
 `);
@@ -938,7 +963,7 @@ function cleanDropped(ctx: CommandContext, ref: string, templates: readonly stri
     ctx.stdout.write('kept dropped tickets: fetch from origin failed\n');
     return;
   }
-  const after = worktrees(ctx.root, ctx.stdout);
+  const after = readList(ctx, s.seen);
   for (const b of [...ids.keys()].filter((n) => dropped.has(ids.get(n)!)).sort()) {
     const id = ids.get(b)!;
     try {
@@ -977,10 +1002,10 @@ function cleanDropped(ctx: CommandContext, ref: string, templates: readonly stri
         }
       }
       // git refuses to delete a branch checked out in a worktree, and a branch must not lose its folder after its origin copy is gone.
-      if (W !== undefined && removeWorktree(ctx, W, id, g!.h).failed) continue;
+      if (W !== undefined && removeWorktree(ctx, W, id, g!.h, s.seen).failed) continue;
       if (R !== undefined) {
         try {
-          gitNoPrompt(ctx.root, ['push', `--force-with-lease=refs/heads/${b}:${R}`, 'origin', ':refs/heads/' + b]);
+          gitNoPrompt(ctx.root, ['push', `--force-with-lease=refs/heads/${b}:${R}`, 'origin', ':refs/heads/' + b], undefined, ctx.ssh);
         } catch (e) {
           ctx.stdout.write(`kept origin/${b}: git push failed: ${firstLine(e)}
 `);
@@ -1005,10 +1030,10 @@ function cleanDropped(ctx: CommandContext, ref: string, templates: readonly stri
 }
 
 /** D-13: write the new ticket in its own worktree on its claim branch, commit and push it, then run setup there. */
-export function newTicketWorktree(ctx: CommandContext, id: string, rel: string, text: string): void {
+export function newTicketWorktree(ctx: CommandContext, id: string, rel: string, text: string, seen?: WorktreeEntry[]): void {
   const enter = canEnter(ctx);
   const branch = branchOf(ctx.snapshot, id);
-  const list = worktrees(ctx.root, ctx.stdout);
+  const list = seen ?? worktrees(ctx.root, ctx.stdout);
   const exists =
     list.some((w) => w.branch === branch) ||
     gitOk(ctx.root, ['rev-parse', '--verify', '-q', 'refs/heads/' + branch]) ||
@@ -1034,7 +1059,7 @@ export function newTicketWorktree(ctx: CommandContext, id: string, rel: string, 
     }
   }
   try {
-    gitNoPrompt(path, ['push', '-u', 'origin', branch]);
+    gitNoPrompt(path, ['push', '-u', 'origin', branch], undefined, ctx.ssh);
   } catch (e) {
     throw new UsageError(`the ticket is committed in ${path} but the push failed: ${firstLine(e)} - push it with git -C "${path}" push -u origin ${branch}`);
   }

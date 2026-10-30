@@ -706,3 +706,107 @@ it('risk:data-loss clean answers ancestry from one sha-keyed merged set and send
   }
   await checkItem(item('clean merged set'));
 }, LIMIT);
+
+const isConfigRead = (a: string[]) => a[0] === 'config' && a.includes('--get') && a.includes('core.sshCommand');
+const isListRead = (a: string[]) => a[0] === 'worktree' && a[1] === 'list' && a.includes('--porcelain');
+const isGetUrl = (a: string[]) => a[0] === 'remote' && a[1] === 'get-url' && a.includes('origin');
+const slashes = (s: string) => s.replaceAll('\\', '/');
+
+it('risk:security every network git call keeps prompts off while core.sshCommand is read once per folder', async () => {
+  const { sample } = cleaned as NonNullable<typeof cleaned>;
+  const one = sample.copy();
+  const saved = { command: process.env.GIT_SSH_COMMAND, program: process.env.GIT_SSH };
+  delete process.env.GIT_SSH_COMMAND;
+  delete process.env.GIT_SSH;
+  try {
+    gitRun(one.root, 'config', 'core.sshCommand', 'ssh -o ConnectTimeout=5');
+    const r = await counted(['worktree', 'clean'], one.root);
+    expect(r.code).toBe(0);
+    expect(r.out).toContain('deleted origin/t/D-1');
+    const prefix = ['-c', 'credential.interactive=never', '-c', 'core.sshCommand=ssh -o ConnectTimeout=5 -o BatchMode=yes'];
+    const sub = (a: string[]) => (a[0] === '-c' ? a.slice(4) : a);
+    const network = r.argv.filter((a) => ['fetch', 'push'].includes(sub(a)[0]) || (sub(a)[0] === 'remote' && sub(a)[1] === 'prune'));
+    // a fetch, a prune and at least one push, each with the prompts off and the user's own ssh options kept
+    expect(network.map((a) => sub(a)[0] + (sub(a)[0] === 'remote' ? ' prune' : ''))).toEqual(expect.arrayContaining(['fetch', 'remote prune', 'push']));
+    for (const a of network) expect(a.slice(0, 4), a.join(' ')).toEqual(prefix);
+    expect(r.argv.filter(isConfigRead)).toHaveLength(1);
+  } finally {
+    if (saved.command === undefined) delete process.env.GIT_SSH_COMMAND;
+    else process.env.GIT_SSH_COMMAND = saved.command;
+    if (saved.program === undefined) delete process.env.GIT_SSH;
+    else process.env.GIT_SSH = saved.program;
+    one.cleanup();
+  }
+  await checkItem(item('ssh config'));
+}, LIMIT);
+
+it('risk:complex-branching pick-up and new ticket worktree reuse the worktree list clean read and read it again after clean removed one', async () => {
+  const { mixed } = samples();
+  // (a) clean removed no worktree: both commands print what they printed at the baseline.
+  const got = await runSample(['main worktree open A-1', 'main new ticket N-1 --lane M --worktree']);
+  const golden = readGolden<Record<string, { code: number; out: string }>>('goldens.json');
+  for (const key of ['main worktree open A-1', 'main new ticket N-1 --lane M --worktree']) {
+    expect(got[key].code, key).toBe(golden[key].code);
+    expect(got[key].out, key).toBe(golden[key].out);
+  }
+  // (b) clean removes the dropped ticket's worktree: the list read after that removal is a fresh one, and the stop lines name the new worktree.
+  const copy = mixed.copy();
+  try {
+    const w = copy.worktree('A-12');
+    const r = await counted(['worktree', 'open', 'A-1'], copy.root);
+    expect(r.code).toBe(0);
+    expect(slashes(r.out)).toContain(`removed ${slashes(w)}\n`);
+    expect(slashes(r.out)).toContain(`stop: open a session in this folder and type the line below it\n${slashes(copy.root)}-a-1\n/accord continue A-1\n`);
+    const removed = r.argv.findIndex((a) => a[0] === 'worktree' && a[1] === 'remove');
+    const lists = r.argv.map((a, i) => (isListRead(a) ? i : -1)).filter((i) => i >= 0);
+    expect(removed, 'clean removed the worktree').toBeGreaterThanOrEqual(0);
+    expect(Math.max(...lists), 'a list read follows the removal').toBeGreaterThan(removed);
+  } finally {
+    copy.cleanup();
+  }
+  // the runs of (a) already hold both keys' git calls
+  for (const key of item('worktree list').keys) await expectFewer(key, item('worktree list').p, got[key].argv);
+}, LIMIT);
+
+it('risk:complex-branching a command that proved the origin remote asks for it once and with no origin nothing is fetched', async () => {
+  const { mixed } = samples();
+  // worktree merge with an origin asks once.
+  const merged: { argv: string[][] } = { argv: [] };
+  const withOrigin = mixed.copy();
+  try {
+    const w = withOrigin.worktree('A-7');
+    const r = await counted(['worktree', 'merge', 'A-7'], w);
+    expect(r.code).toBe(0);
+    expect(r.argv.filter(isGetUrl)).toHaveLength(1);
+    expect(r.argv.some((a) => a.includes('fetch'))).toBe(true);
+    merged.argv = r.argv;
+  } finally {
+    withOrigin.cleanup();
+  }
+  // worktree merge with no origin returns 0 and fetches nothing.
+  const none = mixed.copy();
+  try {
+    const w = none.worktree('A-7');
+    gitRun(none.root, 'remote', 'remove', 'origin');
+    const r = await counted(['worktree', 'merge', 'A-7'], w);
+    expect(r.code).toBe(0);
+    expect(r.out).toBe('');
+    expect(r.argv.filter(isGetUrl)).toHaveLength(1);
+    expect(r.argv.some((a) => a.includes('fetch'))).toBe(false);
+  } finally {
+    none.cleanup();
+  }
+  // pick-up with no origin creates the worktree from the remote-tracking default branch, with no fetch.
+  const local = mixed.copy();
+  try {
+    gitRun(local.root, 'config', '--remove-section', 'remote.origin');
+    const r = await counted(['worktree', 'open', 'A-1'], local.root);
+    expect(r.code).toBe(0);
+    expect(slashes(r.out)).toContain(`${slashes(local.root)}-a-1\n/accord continue A-1\n`);
+    expect(r.argv.some((a) => a.includes('fetch'))).toBe(false);
+  } finally {
+    local.cleanup();
+  }
+  // the merge run above is the run of key 'wt-A-7 worktree merge A-7'; the other two keys run fresh
+  for (const key of item('get-url').keys) await expectFewer(key, item('get-url').p, key.startsWith('wt-A-7 ') ? merged.argv : undefined);
+}, LIMIT);

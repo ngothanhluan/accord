@@ -1,6 +1,6 @@
 ---
 baseline: 995a87c98600c6c9d286aaf16158dcbb6b409928
-plan_hash: "fnv1a64:e044d041035ece48"
+plan_hash: "fnv1a64:b95014a8f06d592d"
 ---
 
 Review mode `outcome`: one branch, no slices. Each task below can be finished from its own section, this
@@ -23,13 +23,24 @@ Rules for every task:
 - Every test that builds a clone passes `120_000` as the third argument of `it`, except the ac-2 test, which builds
   three clones and passes `300_000`.
 - A test commits through `commitMsg` or `mergeMsg` from `packages/cli/test/helpers/repo.ts`, never `-m`
-  (conventions.md). A new test does not call `ticketWorktree`, `ticketBranch` or `verifyStage` from `worktree.test.ts`,
-  because those commit with `-m`.
+  (conventions.md). A new test does not call `ticketWorktree`, `ticketBranch`, `ticketBranches`, `mergeOnRemote` or
+  `verifyStage` of `packages/cli/test/helpers/worktree.ts`, because those commit with `-m`. `doneOnRemote` of that
+  file, which calls `verifyStage`, is used as it is (ledger Rulings on task 1's helpers).
 - CLI tests import core from `packages/core/dist`. After any change under `packages/core/`, run
   `npm run build -w packages/core` before a CLI test. Run one file with `npx vitest run <path>`. On Windows, follow
   conventions.md on `ACCORD_BASH`. End every task with `npm run build`, `npm run lint` and `npm run typecheck`, then
-  run the test files the task names, plus `packages/cli/test/worktree.test.ts`, `packages/cli/test/hook.test.ts` and
-  `packages/cli/test/git-count.test.ts` for every task that edits `worktree.ts` or `hook.ts`.
+  run the test files the task names, plus `packages/cli/test/worktree-clean.test.ts`,
+  `packages/cli/test/worktree-merge.test.ts`, `packages/cli/test/worktree-open.test.ts`,
+  `packages/cli/test/worktree-push.test.ts`, `packages/cli/test/worktree-session.test.ts`,
+  `packages/cli/test/hook.test.ts` and `packages/cli/test/git-count.test.ts` for every task that edits `worktree.ts` or
+  `hook.ts`.
+- `accord task-done` records a verify id from the report of `tests.affected`, which on Windows with Docker running runs
+  vitest in a Linux container as root (`scripts/test-linux.mjs`, ST-LN-78), and otherwise on the host. Every verify id
+  of this plan is a test with no `skipIf`, so it runs on the owner's Windows host and in that container alike. A test
+  skipped on Windows or as root (`it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)`) is never a
+  verify id; CI's non-root POSIX jobs still run it. `link` (Task 3) makes a junction on Windows and a directory symlink
+  on POSIX, so a junction case of Tasks 3, 4, 6 and 7 is observed on a Windows host run and in CI's Windows jobs, and
+  the same verify id passes in the container with symlinks.
 - `packages/cli/test/git-count.test.ts` and its golden files pass unchanged after every task. Its sample clean prints
   the same lines as before. When a bound fails, cut the new git spawns: never edit a golden file. No new phase reads the
   worktree list (`git worktree list`) unless it has a recorded entry or a leftover folder to judge, because the
@@ -47,7 +58,7 @@ Definitions shared by every task:
   comparison of two paths in this plan uses it.
 - The default ref `ref`: `gitDefaultRef(root)`, the ref clean already reads. `def` is `ref` without `refs/remotes/`.
 - Done on `ref`: a ticket whose row in `statusRows(snapshotAt(root, ref, ids))` has stage `done` and a status that is not
-  `dropped`, as `cleanDone` decides (`worktree.ts:868`). Dropped on `ref`: in `droppedOn(root, ref, ids)`.
+  `dropped`, as `cleanDone` decides (`worktree.ts:888`). Dropped on `ref`: in `droppedOn(root, ref, ids)`.
 - `names`: `ctx.snapshot.config?.disposable ?? DEFAULT_DISPOSABLE`. `DEFAULT_DISPOSABLE` is
   `['node_modules', 'dist', '.DS_Store', 'Thumbs.db']`, exported from `packages/cli/src/commands/leftover.ts` (D-08,
   D-12). The list is read from the config of the checkout clean runs in, like every other clean setting.
@@ -66,28 +77,31 @@ Definitions shared by every task:
   `kept` line for it through `folderLine`. No phase after that one in the same clean judges it again: it writes nothing for
   it and changes nothing in it.
 
-Shared test file `packages/cli/test/worktree-clean.test.ts` (new, made by Task 1). It starts like
-`worktree.test.ts:13-69`: the same `vi.mock` of `../src/load/proc.js` and `../src/commands/fetch-limit.js`, a
-`TEMPLATE_OPTS` list with one template per set of options built in `beforeAll` (`180_000`), a `copy(opts)` that takes a
-`copyClone` of a template and pushes it to a list, and an `afterEach` that resets the two mocks, unstubs envs and calls
-`cleanupAll()` on every clone. Each task adds the template options it needs to `TEMPLATE_OPTS`.
+Shared test file `packages/cli/test/worktree-clean.test.ts` (new since the baseline: main's split of `worktree.test.ts`
+made it, and Task 1 appended its tests at its end). Lines 10-17 mock `../src/load/proc.js` (`processTable` wrapped in
+`vi.fn`) and `../src/commands/fetch-limit.js` (`fetchLimitMs` wrapped in `vi.fn`). Lines 19-24 call `useSandboxes` of
+`helpers/worktree.ts` with the template sets `{}`, `{ tickets: ['ST-9', 'ST-10'] }`, `{ tickets: ['ST-9', 'ST-10', 'ST-11'] }`
+and `{ tickets: ['ST-9', 'ST-10', 'ST-11', 'ST-12'] }`, built once in its `beforeAll` (`180_000`). `copy(opts)` takes a
+`copyClone` of one of them, and the `afterEach` of `useSandboxes` resets the `processTable` and `fetchLimitMs` mocks,
+unstubs envs and removes every clone. Every set this plan's tests use is already in that list. Each task appends its
+tests at the end of the file and adds its imports to the existing import lines.
 
-Shared test helper file `packages/cli/test/helpers/done.ts` (new, made by Task 1; Tasks 3, 4 and 5 add to it):
-- `DEAD = { tool: 'Claude Code', marker: 'sess-D', pid: 4141, start: 'S1', taken: '2026-10-18T00:00:00.000Z' }` and
-  `LIVE`, the same with `marker: 'sess-H', pid: 4242, start: 'S2'`. `ALIVE = [{ pid: process.pid, ppid: 1, start: 'self' }, { pid: 4242, ppid: 1, start: 'S2' }]`,
-  the process table in which `LIVE` runs and `DEAD` does not.
-- `lines(s)`: the non-empty lines of `s`. `has(dir, ref)`: whether `gitRun(dir, 'rev-parse', '--verify', '-q', ref)`
-  succeeds. `gone(p)`: the definition above.
-- `writeHolds(c, holds)` and `readHolds(c)`: the JSON file `${c.root}/.git/accord/holds`, as `worktree.test.ts:397-401`.
-- `claimWorktree(c, id, files = { [`${id}.txt`]: id + '\n' })`:
-  `c.git('worktree', 'add', '-q', '-b', `t/${id}`, c.sibling(id), 'origin/main')`, `writeFiles(c.sibling(id), files)`,
-  `commitMsg(c.sibling(id), id)`, then `gitRun(c.sibling(id), 'push', '-q', '-u', 'origin', `t/${id}`)`. Returns the sha.
-- `doneOnRemote(c, ids)`: the logic of `worktree.test.ts:421-462` and `1997-2010` without the `squash` and `local`
-  options, with every commit made through `commitMsg` and every merge through `mergeMsg`. In `o = c.otherClone()`, for
-  each id: when `origin/t/<id>` exists, `switch -q --detach origin/t/<id>`; write the verify-stage files and commit
-  them; `v = rev-parse HEAD`; write the done ticket of `doneTicket(id, v)` (`worktree.test.ts:421`) and commit
-  `verify: <id>`; when on a branch, push that tip to `refs/heads/t/<id>`, `switch -q main` and `mergeMsg` the tip into
-  `main`. Then one push of `main` and the branch refspecs. `c` does not fetch.
+Shared test helpers:
+- `packages/cli/test/helpers/worktree.ts` (new since the baseline, from main) holds
+  `DEAD = { tool: 'Claude Code', marker: 'sess-D', pid: 4141, start: 'S1', taken: '2026-10-18T00:00:00.000Z' }` and
+  `LIVE`, the same with `marker: 'sess-H', pid: 4242, start: 'S2'`; `writeHolds(c, holds)` and `readHolds(c)`, the JSON
+  file `${c.root}/.git/accord/holds`; `lines(s)`, the non-empty lines of `s`; `has(dir, ref)`, whether
+  `gitRun(dir, 'rev-parse', '--verify', '-q', ref)` succeeds; `sha(c, ref)`; `copy` and `clone`.
+- The same file holds `claimWorktree(c, id, files = { [`${id}.txt`]: id + '\n' })`: a `t/<id>` worktree at
+  `origin/main` with one `commitMsg` commit, pushed with `-u`; it returns that commit.
+- The same file holds `doneOnRemote(c, ids)`. In another clone, for each id, it writes the verify-stage commits and the
+  done ticket of `doneTicket(id, v)`, pushes that tip to `t/<id>` when origin has that branch, and merges it into `main`
+  with `mergeMsg`. Then one push. `c` does not fetch. It returns each id's tick commit.
+- The same file holds `dropOnRemote(c, ids)` (`helpers/worktree.ts:363`), which puts each ticket on the remote `main` as
+  dropped through `commitMsg`.
+- `packages/cli/test/helpers/done.ts` (new, made by Task 1) holds `ALIVE = [{ pid: process.pid, ppid: 1, start: 'self' }, { pid: 4242, ppid: 1, start: 'S2' }]`,
+  the process table in which `LIVE` runs and `DEAD` does not; `gone(p)`, the definition above; and `runWhole`. Tasks 3
+  and 4 add to it.
 
 ## Task 1: Wiring: the session-start hook runs the clean after its usual output
 covers: @ac-2, D-03, D-09, D-11
@@ -245,8 +259,8 @@ Must not change: the validation of every other key; every existing config, this 
 
 ## Task 3: Clean keeps a worktree holding an ignored file outside the list, and prints removed only once the folder is gone
 covers: @ac-1, D-01, D-04, D-08, D-12
-files: packages/cli/src/commands/leftover.ts (new), packages/cli/src/commands/worktree.ts, packages/cli/test/helpers/done.ts (new), packages/cli/test/worktree-clean.test.ts (new), packages/cli/test/worktree.test.ts
-verify: packages/cli/test/worktree-clean.test.ts#ac-1-clean-removes-a-done-ticket-worktree-completely-and-keeps-and-names-one-holding-an-ignored-env-file (@ac-1), packages/cli/test/worktree-clean.test.ts#risk:data-loss-clean-keeps-a-worktree-holding-an-ignored-env-file-when-status-shows-no-untracked-files, packages/cli/test/worktree-clean.test.ts#risk:regression-a-folder-git-reports-removed-but-leaves-links-and-disposable-files-in-is-deleted-before-removed-is-printed, packages/cli/test/worktree.test.ts#risk:complex-branching-a-worktree-remove-that-fails-part-way-removes-it-in-part-and-names-what-is-left
+files: packages/cli/src/commands/leftover.ts (new), packages/cli/src/commands/worktree.ts, packages/cli/test/helpers/done.ts (new), packages/cli/test/worktree-clean.test.ts (new)
+verify: packages/cli/test/worktree-clean.test.ts#ac-1-clean-removes-a-done-ticket-worktree-completely-and-keeps-and-names-one-holding-an-ignored-env-file (@ac-1), packages/cli/test/worktree-clean.test.ts#risk:data-loss-clean-keeps-a-worktree-holding-an-ignored-env-file-when-status-shows-no-untracked-files, packages/cli/test/worktree-clean.test.ts#risk:regression-a-folder-git-reports-removed-but-leaves-links-and-disposable-files-in-is-deleted-before-removed-is-printed, packages/cli/test/worktree-clean.test.ts#risk:complex-branching-a-worktree-remove-that-fails-after-git-unregistered-the-folder-keeps-and-names-the-file-left-in-it
 
 Consumes: `AccordConfig.disposable` (Task 2), `folderLine` (Task 1), `passGuards` and `removeWorktree`. Produces:
 `leftover.ts` with `DEFAULT_DISPOSABLE`, `isDisposable` and `sweepRemoved`; the ignored-file guard; the `removed` and
@@ -259,14 +273,17 @@ Tests first. Add to `helpers/done.ts`:
 - `listing(dir)`: the sorted lines of a walk with `lstatSync` that never follows a link: `<rel> -> <readlinkSync>` for a
   link, `<rel>/` for a folder, and `<rel>: <content>` for a file.
 
-At the top of `worktree-clean.test.ts`, add the spawn wrapper `git-count.test.ts:19` uses:
+In `worktree-clean.test.ts`, beside its two `vi.mock` calls (lines 10-17), add the spawn wrapper `git-count.test.ts:19`
+uses:
 `vi.mock('node:child_process', async (orig) => (await import('./helpers/git-spawns.js')).wrapChildProcess(await orig<typeof import('node:child_process')>()));`,
 and import `spawnLog` from `./helpers/git-spawns.js`. With `spawnLog.on` false, the wrapper passes every call through
-unchanged (`git-spawns.ts:31`). With it true, `spawnLog.after` runs after each git call that returned
-(`git-spawns.ts:42-51`). The `afterEach` also sets `spawnLog.on = false`, `spawnLog.after = undefined` and
-`spawnLog.calls = []`.
+unchanged (`git-spawns.ts:31`). With it true, a git call for which `spawnLog.fail(args)` returns true throws an injected
+failure instead of running (`git-spawns.ts:34-41`), and `spawnLog.after` runs after each git call that returned
+(`git-spawns.ts:42-51`). Add an `afterEach` of the file's own (import `afterEach` from `vitest`) that sets
+`spawnLog.on = false`, `spawnLog.after = undefined`, `spawnLog.fail = undefined` and `spawnLog.calls = []`; the
+`afterEach` of `useSandboxes` still resets the mocks and removes the clones.
 
-Add `{}` to `TEMPLATE_OPTS`. Tests:
+Tests, at the end of the file (the `{}` and two-ticket sets are already in the `useSandboxes` list):
 - `it('ac-1 clean removes a done ticket worktree completely and keeps and names one holding an ignored env file')`:
   - `c = copy({ tickets: ['ST-9', 'ST-10'] })` and `exclude(c, ['dist/', '.DS_Store', 'Thumbs.db', '.env'])`.
     `.gitignore` already ignores `node_modules/`.
@@ -291,11 +308,30 @@ Add `{}` to `TEMPLATE_OPTS`. Tests:
   - `worktree clean` exits 0. `gone(c.sibling('ST-9'))`; `lines(r.out)` holds `removed ${c.sibling('ST-9')}` and no line
     starting `kept ${c.sibling('ST-9')}`; `${c.root}/accord/config.yml` still exists, so the link was not followed.
   - At the baseline this fails on every OS: clean prints `removed` while the folder still exists.
-- `worktree.test.ts:590`, the POSIX-only part-way test, keeps its name and setup. git stops at its first failed entry
-  in readdir order, so what it leaves differs by file system. Its line checks become: `lines(q.out)` has length 3;
-  `lines(q.out)[0]` starts with `kept ${d.sibling('ST-9')}: `; lines 1 and 2 stay as they are; and
+- `it('risk:complex-branching a worktree remove that fails after git unregistered the folder keeps and names the file left in it')`.
+  `git worktree remove` deletes the folder's files, then unregisters it even when a deletion failed, and exits non-zero
+  (the part-way case). This test makes that case on every OS, so it runs on the Windows host and in the root container:
+  - `c = copy()`, `claimWorktree(c, 'ST-9')`, `t = doneOnRemote(c, ['ST-9'])`, `sha9 = sha(c, 't/ST-9')`,
+    `writeHolds(c, { 'ST-9': { ...DEAD, folder: c.sibling('ST-9') } })` and
+    `vi.mocked(proc.processTable).mockReturnValue(ALIVE)`.
+  - `spawnLog.fail = (args) => { if (args[0] !== 'worktree' || args[1] !== 'remove') return false; spawnLog.on = false; try { gitRun(c.root, ...args); writeFiles(args[2], { 'sub/f.txt': 'left\n' }); } finally { spawnLog.on = true; } return true; }`,
+    then `spawnLog.on = true`. git's own remove runs and unregisters the folder, a file is put back where a failed
+    deletion would leave it, and clean sees a failure.
+  - `r = await run(['worktree', 'clean'], c.root)`, then `spawnLog.on = false`. `r.code` is 0, and `lines(r.out)` equals
+    `[`kept ${c.sibling('ST-9')}: sub/f.txt`, `deleted t/ST-9 (was ${sha9})`, `deleted origin/t/ST-9 (was ${t['ST-9']})`]`.
+  - `${c.sibling('ST-9')}/sub/f.txt` still reads `left\n`; `c.git('worktree', 'list', '--porcelain')` does not contain
+    `c.sibling('ST-9')`; `Object.keys(readHolds(c))` is `[]`.
+  - At the baseline this fails: clean prints `removed ${c.sibling('ST-9')} in part: ...`.
+- `worktree-clean.test.ts:130`, the POSIX-only part-way test, keeps its name and setup. It is
+  `it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)`, so neither the owner's Windows host nor the
+  root Linux container runs it; it is not a verify id, and CI's non-root POSIX jobs run it. git stops at its first
+  failed entry in readdir order, so what it leaves differs by file system. Its line checks become: `lines(q.out)` has
+  length 3; `lines(q.out)[0]` starts with `kept ${d.sibling('ST-9')}: `; lines 1 and 2 stay as they are; and
   `${d.sibling('ST-9')}/sub/f.txt` still exists. Drop the `in part` and `delete what is left of the folder by hand`
-  checks. Everything else in it stays.
+  checks (lines 143-144). Everything else in it stays.
+
+The ac-1 test and the regression test call `link`, which makes junctions on the Windows host and symlinks in the
+container; both verify ids run in both places, and the junction case itself is seen on a Windows run.
 
 Interface:
 - `packages/cli/src/commands/leftover.ts` (new), importing only `node:fs`:
@@ -311,7 +347,7 @@ Interface:
     A failed deletion leaves that entry and counts it as remembered. At the end `rmdirSync(dir)` when it is empty. Return
     `undefined` when `dir` is gone. Otherwise return the first remembered relative path, or else the first name
     `readdirSync(dir)` now lists, or else `.`.
-- `worktree.ts` `passGuards`, the uncommitted-work step (`worktree.ts:684`):
+- `worktree.ts` `passGuards`, the uncommitted-work step (`worktree.ts:703`):
   - Run `git(w.path, ['status', '--porcelain', '-z', '--ignored=matching', '--untracked-files=normal', '--ignore-submodules=none'])`,
     split on `\0`, empty entries dropped. `matching` shows an ignored file under a folder that is not itself ignored, so
     `sub/.DS_Store` is judged by its own name. `--untracked-files=normal` stays explicit (critique fix 4).
@@ -330,8 +366,9 @@ Interface:
   - The hold is dropped as today, and the result is `{ failed: false }`, so the branch steps go on as today.
 
 Must not change: the own-session, hold and cannot-tell lines of `passGuards`; the `ac-5` clean test
-(`worktree.test.ts:486`), whose `node_modules/x` is disposable; the locked-worktree failure case
-(`worktree.test.ts:574`); every dropped-ticket case; the spawn count of a clean that removes nothing.
+(`worktree-clean.test.ts:26`), whose `node_modules/x` is disposable; the locked-worktree failure case
+(`worktree-clean.test.ts:114`); every dropped-ticket case (`worktree-clean.test.ts:266-491`); the spawn count of a
+clean that removes nothing.
 
 ## Task 4: Accord records each worktree it creates, and clean deletes a recorded folder git has forgotten when it holds only links and empty folders
 covers: @ac-3, D-01, D-04, D-06, D-07
@@ -347,7 +384,9 @@ Tests first. Add to `helpers/done.ts`:
   a folder git no longer lists.
 - `recorded(c)`: the lines of `${c.root}/.git/accord/worktrees` as `{ id, path }`, or `[]` when the file is missing.
 
-Add `{ tickets: ['ST-9', 'ST-10', 'ST-11'] }` to `TEMPLATE_OPTS`. Tests:
+Tests, at the end of `worktree-clean.test.ts` (the three-ticket set is already in the `useSandboxes` list). Both call
+`link`, which makes junctions on the Windows host and symlinks in the container; both verify ids run in both places,
+and the junction case itself is seen on a Windows run:
 - `it('ac-3 a session start in a worktree and a clear in the main checkout delete the recorded folder of a done ticket that git forgot')`:
   - `c = copy({ tickets: ['ST-9', 'ST-10', 'ST-11'] })`. Run `run(['worktree', 'open', id], c.root)` for `ST-9`, `ST-10`
     and `ST-11`, each exiting 0. `recorded(c)` then holds the three siblings with their ids.
@@ -391,7 +430,7 @@ Interface, `worktree.ts`:
 - `function recordQuietly(ctx: CommandContext, id: string, path: string): void`: `recordWorktree` in a `try`. On a
   failure it writes `note <id>: the worktree <path> was not recorded: <first line>`, and the command goes on.
 - The three creation sites call `recordQuietly(ctx, id, path)` right after their `git worktree add`: `worktreeOpen` after
-  `worktree.ts:412` and after `worktree.ts:438`, and `newTicketWorktree` after `worktree.ts:1058`.
+  `worktree.ts:412` and after `worktree.ts:438`, and `newTicketWorktree` after `worktree.ts:1078`.
 - `GuardState` gains `accord?: string`, the `<common>/accord` folder read once per clean, so the record read costs one
   spawn per clean at most, and `recorded?: { id: string; path: string }[]`, the entries `cleanRecorded` read.
 - `removeWorktree`: when it wrote `removed <path>`, call `dropRecorded(ctx.root, w.path)` in a `try`. On a failure write
@@ -433,16 +472,16 @@ line `worktree open` and `new ticket --worktree` print; the clean output of a re
 
 ## Task 5: Clean keeps any folder a live hold names, and removes a recorded detached worktree only when its HEAD is on the default branch or a branch tip
 covers: D-07, D-11
-files: packages/cli/src/commands/worktree.ts, packages/cli/test/helpers/done.ts (new), packages/cli/test/worktree-clean.test.ts (new)
+files: packages/cli/src/commands/worktree.ts, packages/cli/test/worktree-clean.test.ts (new)
 verify: packages/cli/test/worktree-clean.test.ts#risk:data-loss-clean-keeps-a-recorded-detached-worktree-whose-head-is-on-no-branch-and-removes-one-at-the-default-branch, packages/cli/test/worktree-clean.test.ts#risk:data-loss-clean-never-removes-a-recorded-worktree-on-another-branch-or-a-folder-a-live-hold-names, packages/cli/test/worktree-clean.test.ts#risk:complex-branching-clean-names-a-recorded-worktree-of-a-dropped-ticket-whose-branch-is-already-on-the-default-branch
 
 Consumes: Task 4's `cleanRecorded`, `cleanForgotten` and record, plus `passGuards`, `removeWorktree`, `rebaseBranch`
 and `folderLine`. Produces: critique fixes 1 and 2, and a kept line for every recorded worktree of a done or dropped
 ticket that no other phase judges (D-07: "printing the ones it cannot").
 
-Tests first. Add to `helpers/done.ts` `dropOnRemote(c, ids)`, the body of `worktree.test.ts:1657-1664` (it already
-commits through `commitMsg`), with `laneTicket` and `LANE_BODY` imported from `../../../../test/helpers/lane.js`. Add
-`{ tickets: ['ST-9', 'ST-10', 'ST-11', 'ST-12'] }` to `TEMPLATE_OPTS`.
+Tests first, at the end of `worktree-clean.test.ts`. They use `dropOnRemote(c, ids)` of `helpers/worktree.ts:363`,
+which the file already imports and which commits through `commitMsg`, and `forget` and `recorded` of `helpers/done.ts`
+(Task 4). The four-ticket set is already in the `useSandboxes` list.
 - `it('risk:data-loss clean keeps a recorded detached worktree whose head is on no branch and removes one at the default branch')`
   (fix 1, scenario A):
   - `c = copy({ tickets: ['ST-9', 'ST-10'] })`, then `worktree open` for ST-9 and ST-10.
@@ -470,12 +509,12 @@ commits through `commitMsg`), with `laneTicket` and `LANE_BODY` imported from `.
   - The sibling is still listed, `has(c.root, 'refs/heads/t/ST-9')` is true, and `recorded(c)` still names the sibling.
 
 Interface, `worktree.ts`:
-- Split the lazy holds read out of `passGuards` (`worktree.ts:689-700`) into
+- Split the lazy holds read out of `passGuards` (`worktree.ts:708-719`) into
   `function guardHolds(ctx, s): Record<string, Hold> | undefined`. It returns `undefined` after the same `its hold could
   not be read` line, now naming the folder it was asked for.
 - `function heldElsewhere(ctx: CommandContext, path: string, skip: string | undefined, s: GuardState): string | undefined`.
   For each hold whose key is not `skip` and whose `folder` equals `path` under `norm`, apply the same tests `passGuards`
-  applies to the id's hold (`worktree.ts:702-721`):
+  applies to the id's hold (`worktree.ts:720-741`):
   - the marker of this session gives `this session's worktree`;
   - a process-table failure gives `cannot tell whether the session holding it still runs`;
   - a live hold of another session gives `held by another session`.
@@ -488,7 +527,7 @@ Interface, `worktree.ts`:
   `worktreeClean` already builds). Every line here goes through `folderLine`:
   - `W.branch === branchOf(ctx.snapshot, id)`, and the id is in `dropped`, and `merged.has(W.head.toLowerCase())` or
     `merge-base --is-ancestor W.head ref` succeeds: `kept <path>: its ticket is dropped and its branch <W.branch> is already on <def>`.
-    `cleanDropped` leaves such a branch (`worktree.ts:963-968`) and `cleanDone` judges only done tickets, so without
+    `cleanDropped` leaves such a branch (`worktree.ts:983-989`) and `cleanDone` judges only done tickets, so without
     this line clean would say nothing (D-07, ledger Ruling);
   - `W.branch === branchOf(ctx.snapshot, id)` otherwise: nothing here, because `cleanDone` and `cleanDropped` judge it;
   - `W.branch` is another branch: `kept <path>: checked out on <W.branch>`. Clean never removes by path a worktree on a
@@ -500,9 +539,11 @@ Interface, `worktree.ts`:
     record entry (fix 1);
   - detached otherwise: `kept <path>: its detached HEAD <W.head> is on no branch`.
 
-Must not change: every line and hold case `passGuards` had (`worktree.test.ts:761`, `780`, `1413` and `1485`); the
-rebase cases of `cleanDone` and `cleanDropped`; every dropped-ticket case of `worktree.test.ts`, whose worktrees are
-not recorded; Tasks 1, 3 and 4 tests.
+Must not change: every line and hold case `passGuards` had (`worktree-clean.test.ts:207` and `:226`, the stale holds
+lock and the holds file that is not a JSON object; `worktree-session.test.ts:436` and `:508`, the merged worktree this
+session holds and the held done worktree whose hold goes); the rebase cases of `cleanDone` and `cleanDropped`; every
+dropped-ticket case of `worktree-clean.test.ts` (lines 266-491), whose worktrees are not recorded; Tasks 1, 3 and 4
+tests.
 
 ## Task 6: The clean never enters or removes a listed worktree, a folder holding .git, the main checkout, a folder that holds one of these, or a worktree with an edit git status cannot see
 covers: D-01, D-04
@@ -513,7 +554,9 @@ Consumes: `sweepRemoved`, `sweepForgotten`, `passGuards`, `cleanForgotten` and `
 (Approach Should), the nested-repository guard and the flagged-file guard before `git worktree remove`, and
 `seen.listed` and `seen.main`, which Task 7 relies on.
 
-Tests first:
+Tests first, at the end of `worktree-clean.test.ts`. The last one calls `link`, which makes a junction on the Windows
+host and a symlink in the container; every verify id below runs in both places, and the junction case itself is seen
+on a Windows run:
 - `it('risk:data-loss clean keeps a done worktree that holds another listed worktree')`:
   - `c = copy()`, `claimWorktree(c, 'ST-9')`, and `n = c.sibling('ST-9') + '/node_modules/nested'`.
   - `c.git('worktree', 'add', '-q', '-b', 'scratch', n, 'origin/main')`. It sits in an ignored, disposable folder, where
@@ -628,7 +671,8 @@ clean's list reads returned (finding of plan round 1).
    `cleanRecorded`.
 
 Must not change: a folder that is a link is never touched; every earlier test, the POSIX part-way test of
-`worktree.test.ts:590` with its three lines included; the clean output and counts of the `git-count.test.ts` sample.
+`worktree-clean.test.ts:130` and Task 3's part-way test that runs on every OS, with their three lines included; the
+clean output and counts of the `git-count.test.ts` sample.
 
 ## Task 8: A second clean skips with one line, and the hook clean stops starting removals when its time budget is spent
 covers: D-11
@@ -658,8 +702,11 @@ Tests first:
 Interface:
 - `fetch-limit.ts`: add `export function cleanBudgetMs(): number { return 300_000; }`, with a comment: the hook clean
   starts no new branch, entry or folder after 300 s, well below the hook's 600 s timeout, so the one it started still
-  finishes in time. The test file's `vi.mock` of this module wraps it in `vi.fn` like `fetchLimitMs`, and its
-  `afterEach` resets it too.
+  finishes in time. In `worktree-clean.test.ts`, the `vi.mock` of this module (lines 14-17) also wraps `cleanBudgetMs`
+  in `vi.fn` like `fetchLimitMs`, and the file's own `afterEach` (Task 3) calls
+  `vi.mocked(limit.cleanBudgetMs).mockReset()`, because the `afterEach` of `useSandboxes` resets only `fetchLimitMs`
+  and the other `worktree-*.test.ts` files do not mock `cleanBudgetMs`. Import
+  `* as limit from '../src/commands/fetch-limit.js'` there.
 - `worktree.ts`, clean lock:
   - `worktreeClean` takes the lock first. The lock is `<accord dir>/clean.lock`, read once into `state.accord` (Task 4).
     Make the folder with `mkdirSync(dir, { recursive: true })`, open the lock with `openSync(lock, 'wx')` and write

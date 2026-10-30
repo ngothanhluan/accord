@@ -23,3 +23,15 @@
 No findings (one Nice, deferred to the ledger)
 
 ## Closed 2026-10-30: round 3 reported no Must and no Should; gate plan passed
+
+## Round 4 (whole)
+
+Re-plan after origin/main split worktree.test.ts; three critics, lenses criteria, build, security; first round of this re-plan.
+
+1. Must — the non-hook clean (bare `accord worktree clean`, and the cleans in `worktree open` and `new ticket --worktree`) still runs `git worktree prune` in `worktrees()` (worktree.ts:67-75), dropping the only ref to a detached worktree's commit whose folder is missing; the Intent forbids removing a commit reachable from nothing else, and `/accord` is a clean moment (D-07, D-11); fix: before prune, keep any prunable entry with no branch whose HEAD is not on the default ref, not merged and not a branch tip, skip the prune and print a kept line naming the sha; add a `risk:data-loss` test — open
+2. Should — no test sets a custom `disposable:` list in config.yml, so an executor reading `DEFAULT_DISPOSABLE` directly passes every verify line (D-08); fix: a case with `disposable: [node_modules, dist, coverage]` removed, and `disposable: [node_modules]` keeping an ignored `dist/x` — open
+3. Should — the record (D-07) is tested only at the fresh-claim creation site (worktree.ts:438); the existing-branch site (worktree.ts:412) and `newTicketWorktree` (worktree.ts:1078) have no test; fix: extend Task 4's test or add a `risk:regression` test asserting both are recorded — open
+4. Should — Task 6's flagged-file guard reads the index line with `ls-files -s -z -- <path>`, a plain pathspec (conventions.md:9 requires `:(literal)`); `a?.txt` beside `a1.txt` compares against the wrong entry and can remove an edit; fix: `':(literal)' + path` — open
+5. Nice — Task 6 widens the window between the ignored-file status read and `git worktree remove`; run the status step last in `passGuards` — deferred
+6. Nice — Task 5's branch-tip rule counts a stale `refs/remotes/origin/*` after a failed fetch and has no test; pass only `refs/heads` when the fetch failed, add a tip-of-local-branch case — deferred
+7. Nice — Task 7's test calls `mkdirSync(c.sibling('ST-11') + '/a')` and `('ST-99')` without `{ recursive: true }` — deferred

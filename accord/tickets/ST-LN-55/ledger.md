@@ -37,6 +37,8 @@
 - Ruling: task 1's `doneOnRemote` calls a verifyStage copy that always writes review.md — task 1 needs only the verify path — cost if wrong: later tasks add an option.
 - Ruling: when the hook input's cwd names another repo root than the launch checkout and the fetch fails, the clean judges against the launch checkout's snapshot, as `fetchOrigin` reloads only after a good fetch — the plan's text, a rare case — cost if wrong: a stale branch-template list then.
 - Ruling: origin/main (ST-LN-78, and the split of worktree.test.ts into five files) was merged into t/ST-LN-55 after task 1, so task tests run in the Linux container; task 1's tests were appended to main's worktree-clean.test.ts and its duplicate helpers dropped for main's `helpers/worktree.ts` — the owner asked for Linux test runs and ST-LN-78 is merged — cost if wrong: main's `doneOnRemote` returns a record and takes options where task 1's returned void; no task-1 test depends on it.
+- Ruling: Task 3's part-way case is checked by an injected failure (`spawnLog.fail` after the real remove puts `sub/f.txt` back), not the POSIX chmod test — that test is skipped on Windows and as root, so `accord task-done` could never record it — cost if wrong: git's real failure text is checked only by CI's POSIX job.
+- Ruling: the re-plan after main's split of worktree.test.ts edited the plan preamble outside the Task 1 section — tasks 2–9 read it — cost if wrong: none to Task 1's recorded text.
 
 ## Deferred
 - Plan round 1 Nice: a relative path in a record line is resolved against cwd; skip non-absolute lines and fence descendants of the main checkout — deferred
@@ -49,6 +51,9 @@
 - Plan round 1 Nice: `git remote prune origin` on the hook path has no timeout — deferred
 - Plan round 2 Nice: a hook input cwd that no longer exists makes repoRoot report 'git is required but was not found on PATH'; lstat the folder first and word the clean failed line from that — deferred
 - Plan round 3 Nice: Task 1's long-output risk test calls the removed line the clean's last line (deleted lines follow it) and says the closing line would be missing in the old design; word it as "after all of them" — deferred
+- Plan round 4 Nice: Task 6 widens the window between the ignored-file status read and `git worktree remove`; run the status step last in `passGuards`, right before removal — deferred
+- Plan round 4 Nice: Task 5's branch-tip rule counts a stale `refs/remotes/origin/*` after a failed fetch and has no test; pass only `refs/heads` when the fetch failed, and add a tip-of-local-branch case — deferred
+- Plan round 4 Nice: Task 7's test calls `mkdirSync` on the ST-11 and ST-99 siblings without `{ recursive: true }` — deferred
 
 ## Tasks
 - task 1 done 48b7de376993

@@ -709,6 +709,29 @@ it('ac-5 the ids reference drops a ticket with accord drop', () => {
   expect(flat('.claude/skills/accord/SKILL.md')).not.toContain('accord drop');
 });
 
+it('risk:data-loss the drop steps carry the research records the default branch lacks and copy the research key into the new ticket', () => {
+  const idsFiles = files.filter((f) => f.path.endsWith('/ids.md'));
+  expect(idsFiles.map((f) => f.path).sort()).toEqual([
+    '.claude/skills/accord-debug/ids.md',
+    '.claude/skills/accord-intent/ids.md',
+    '.claude/skills/accord-verify/ids.md',
+    '.claude/skills/accord/ids.md',
+  ]);
+  for (const f of idsFiles) {
+    const text = f.text.replace(/\s+/g, ' ');
+    const drop = text.slice(text.indexOf('## Dropping instead of renaming'));
+    const step1 = drop.slice(0, drop.indexOf('2. Create the new ticket'));
+    expect(step1, f.path).toContain(
+      'holds the ticket file, set to dropped with that reason, and each record the ticket lists under `research:` that the default branch lacks',
+    );
+    expect(step1, f.path).not.toContain('holds only the ticket file');
+    const step3 = drop.slice(drop.indexOf('3. Copy into it'), drop.indexOf('4. Never copy'));
+    expect(step3, f.path).toContain(
+      'frontmatter keys `title`, `ui`, `design`, `parent`, `depends_on`, `research` and `tracker`, where present',
+    );
+  }
+});
+
 const flatS = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
 const LIFT =
   "Any of these lifts S to M, and nothing else: a public interface or schema changes; a listed sensitive area, or auth, money or data deletion, is touched; more than one plausible reading, where a reading one question settles stays lane S; the expected files, not counting test files and the copies accord itself generates, number more than 5 or span more than 3 code areas, a code area being a file's folder cut to its first four path segments.";

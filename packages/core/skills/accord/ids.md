@@ -39,7 +39,8 @@ A ticket's type never changes and its id is never renamed. To change the type:
 1. When the ticket has a worktree, first commit every change in the ticket's worktree on its claim branch and
    push it with `git push -u origin <claim branch>`, so that the next `accord worktree clean` finds nothing that
    exists only there. Then run `accord drop <id> --reason "<reason>"` with the owner's reason. It pushes a branch
-   made from the default branch that holds only the ticket file, set to dropped with that reason, and prints
+   made from the default branch that holds the ticket file, set to dropped with that reason, and each record the
+   ticket lists under `research:` that the default branch lacks, and prints
    `branch:`, `base:` and `title:` lines. Open that pull request with
    `gh pr create --head <branch> --base <base> --title "<title>" --body "<reason>"` when `gh` is available,
    otherwise ask the owner to open it; it waits for the owner's merge like other ticket work. Tell the owner to
@@ -48,9 +49,9 @@ A ticket's type never changes and its id is never renamed. To change the type:
    `accord worktree clean` deletes it and its worktree.
 2. Create the new ticket with `accord new ticket --type <the other type> --lane <lane>`, always passing
    `--lane`: the dropped ticket's lane, except `L` for a new epic and `M` for a story or bug made from an epic.
-3. Copy into it the dropped ticket's frontmatter keys `title`, `ui`, `design`, `parent`, `depends_on` and
-   `tracker`, where present, and every section below its frontmatter except `## Dropped`; the copied sections
-   replace the template's sections.
+3. Copy into it the dropped ticket's frontmatter keys `title`, `ui`, `design`, `parent`, `depends_on`,
+   `research` and `tracker`, where present, and every section below its frontmatter except `## Dropped`; the
+   copied sections replace the template's sections.
 4. Never copy `id`, `type`, `status`, `lane`, `approved_hash`, `ac_hash`, `verified`, `verified_hash` or
    `verified_commit`. When the change is between an epic and a story or bug, do not copy `parent` either.
 5. In the copied sections, remove every `@test:<id>` tag from the scenarios and change the gherkin

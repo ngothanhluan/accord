@@ -49,6 +49,8 @@
 - Ruling: `addedResearch` also requires `fact.changes` to be an array (an Array.isArray guard) — it is cheap and returns [] for a malformed fact (executor, task 6) — cost if wrong: none
 - Ruling: task 6's review-package.ts change is covered only by the existing cli tests in its related run; no new cli test shows a listed record left out of `## Undeclared files`, because the plan names none — review weighs whether one is needed (executor, task 6) — cost if wrong: a review-package regression caught only at review or verify
 - Ruling: task 7's executor ran only the brief's printed `vitest related` command, not the task text's `vitest run` of drop, status, upgrade and load; the main session's re-run of the printed command shows upgrade.test.ts, load.test.ts, dashboard.test.ts and show.test.ts in its 34 files, 626 passed, 3 skipped (executor, task 7) — cost if wrong: none found
+- Ruling: drop's differs-refusal says "make the two equal on ${b}" with ${b} the claim branch, as the brief's text reads, though the rest of that sentence talks about the default branch — review checks the advice names the branch the owner should edit (executor, task 8) — cost if wrong: only the advice wording changes, no behaviour
+- Ruling: drop has no test of its own for a non-Markdown listed entry that only the claim branch holds, because lint refuses such an entry and the brief asked for none (executor, task 8) — cost if wrong: a drop edge case first seen at review
 
 ## Deferred
 - Plan round 1.5 (Nice): `gitFilesAt` (packages/cli/src/load/fs.ts:795-798) misreads a non-blob result's body and a path with a control character shifts the batch; `isResearchPath` could reject control characters and `:`
@@ -69,3 +71,4 @@
 - task 5 done caf498a18339
 - task 6 done d8f452a6cc2f
 - task 7 done 51511417e7bd
+- task 8 done aa3c41f07f71

@@ -53,7 +53,7 @@ Feature: ST-LN-63
     When the same commands run on the same repositories after the change
     Then every output matches its golden byte for byte, after only the temporary folder paths and commit shas that differ between runs are replaced by fixed placeholders
 
-  @ac-3
+  @ac-3 @test:packages/cli/test/git-count.test.ts#ac-3-each-worktree-command-starts-fewer-git-processes-than-before-the-change-and-clean-keeps-and-removes-the-same-branches
   Scenario: Each worktree command starts fewer git processes than before the change
     Given the number of git processes that pick-up, clean, `worktree merge` and `new ticket --worktree` started on a sample repository before any product change
     When each runs on the same repository after the change

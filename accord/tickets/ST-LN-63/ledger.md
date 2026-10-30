@@ -53,6 +53,9 @@
 - Ruling: the no-origin get-url case removes the `remote.origin` config section but keeps the origin remote-tracking refs (executor, task 11) — it proves nothing is fetched while the refs the loaders read stay — a repository with refs and no remote differs from one never cloned
 - Ruling: task 11's counts: ssh config 6→1, worktree list 4→3, get-url 2→1 (executor, task 11) — the plan's targets — none
 - Ruling: task 11's affected run: 33 files, 611 passed, 3 skipped, 875 s, 4 workers, 8 GB free; the ssh test took 19.2 s (13.6 s alone, proposed ceiling 19 s), the worktree-list test 41.8 s (19.0 s alone, 17.1 s with goldens, proposed 24 s), the origin test 27.9 s (15.8 s alone, 17.4 s with goldens, proposed 24 s); in the same run default ref 28.6 s, claim tips 21.2 s, ac-1 16.7 s, clean 12.5 s, head author 10.1 s (task 11 build) — the executor's ceilings sit below this run's loaded times; the owner chooses at verify — over the 10 s line until approved
+- Ruling: in the failed-or-absent-fetch risk test, ST-LN-1 (only an empty claim commit) also has a ticket file in the working tree, so the "never assigns that id" assertion cannot tell the light snapshot from the full one; the branch-template refusal (`claimed: A-1 by other@example.invalid`, no t/A-1 made) is the assertion that discriminates (executor, task 12) — the plan's assertion is kept as written — that one assertion guards nothing extra
+- Ruling: after a full finish from the light parts, `ctx.branch` is set from that load, read inside it at no extra git process (executor, task 12) — nothing in pick-up or new ticket reads it today — none
+- Ruling: task 12's affected run: 36 files, 628 passed, 3 skipped, 1261 s, 4 workers, while another session's tests ran on the same machine; times in that run were 2 to 3 times task 11's: goldens ac-2 126.3 s, ac-3 81.8 s (20.6 s alone, 17.8 s with goldens; executor proposed 25 s), the new risk test 21.1 s (9.2 s alone), origin 78.7 s, default ref 63.6 s, worktree list 60.8 s, ssh 42.6 s (task 12 build) — loaded times from this run are not a basis for ceilings; the owner chooses at verify from a run on a quiet machine — over the 10 s line until approved
 
 ## Deferred
 - plan-review 1.10 Nice — clean's merged set answers R later than today on a ref that may have moved; skip the set for R or re-read it when the ref changed
@@ -76,3 +79,4 @@
 - task 9 done 64aa99648624
 - task 10 done 2d65af786e58
 - task 11 done 05bd752fd0e2
+- task 12 done 96e72c4c2de8

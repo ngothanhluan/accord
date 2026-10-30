@@ -1,6 +1,6 @@
 ---
 baseline: 995a87c98600c6c9d286aaf16158dcbb6b409928
-plan_hash: "fnv1a64:b95014a8f06d592d"
+plan_hash: "fnv1a64:3dbedc408858a1cd"
 ---
 
 Review mode `outcome`: one branch, no slices. Each task below can be finished from its own section, this
@@ -12,7 +12,8 @@ record of a worktree whose folder is missing. Task 2 adds the `disposable:` key 
 ignored files before `git worktree remove`, and print `removed` only once the folder is gone (ac-1). Task 4 records each
 worktree accord creates and deletes a recorded folder git has forgotten (ac-3). Task 5 adds the hold guard for any live
 hold and the detached-HEAD rule (critique fixes 1 and 2). Task 6 adds the walk guards, with a nested repository in a
-disposable folder and an edit hidden by a skip-worktree or assume-unchanged flag kept before `git worktree remove`. Task 7 adds the sibling sweep for leftovers that were never recorded (D-01 part C). Task 8
+disposable folder and an edit hidden by a skip-worktree or assume-unchanged flag kept before `git worktree remove`. Task 5 also
+stops a bare clean from pruning while a missing folder holds a detached HEAD on no branch. Task 7 adds the sibling sweep for leftovers that were never recorded (D-01 part C). Task 8
 adds the clean lock and the hook's time budget (fix 5). Task 9 updates the skill text and re-renders the copies and the
 hooks in `.claude/settings.json`.
 
@@ -260,7 +261,7 @@ Must not change: the validation of every other key; every existing config, this 
 ## Task 3: Clean keeps a worktree holding an ignored file outside the list, and prints removed only once the folder is gone
 covers: @ac-1, D-01, D-04, D-08, D-12
 files: packages/cli/src/commands/leftover.ts (new), packages/cli/src/commands/worktree.ts, packages/cli/test/helpers/done.ts (new), packages/cli/test/worktree-clean.test.ts (new)
-verify: packages/cli/test/worktree-clean.test.ts#ac-1-clean-removes-a-done-ticket-worktree-completely-and-keeps-and-names-one-holding-an-ignored-env-file (@ac-1), packages/cli/test/worktree-clean.test.ts#risk:data-loss-clean-keeps-a-worktree-holding-an-ignored-env-file-when-status-shows-no-untracked-files, packages/cli/test/worktree-clean.test.ts#risk:regression-a-folder-git-reports-removed-but-leaves-links-and-disposable-files-in-is-deleted-before-removed-is-printed, packages/cli/test/worktree-clean.test.ts#risk:complex-branching-a-worktree-remove-that-fails-after-git-unregistered-the-folder-keeps-and-names-the-file-left-in-it
+verify: packages/cli/test/worktree-clean.test.ts#ac-1-clean-removes-a-done-ticket-worktree-completely-and-keeps-and-names-one-holding-an-ignored-env-file (@ac-1), packages/cli/test/worktree-clean.test.ts#risk:data-loss-clean-keeps-a-worktree-holding-an-ignored-env-file-when-status-shows-no-untracked-files, packages/cli/test/worktree-clean.test.ts#risk:data-loss-the-disposable-list-in-config.yml-decides-which-ignored-folders-a-done-worktree-may-hold-and-still-be-removed, packages/cli/test/worktree-clean.test.ts#risk:regression-a-folder-git-reports-removed-but-leaves-links-and-disposable-files-in-is-deleted-before-removed-is-printed, packages/cli/test/worktree-clean.test.ts#risk:complex-branching-a-worktree-remove-that-fails-after-git-unregistered-the-folder-keeps-and-names-the-file-left-in-it
 
 Consumes: `AccordConfig.disposable` (Task 2), `folderLine` (Task 1), `passGuards` and `removeWorktree`. Produces:
 `leftover.ts` with `DEFAULT_DISPOSABLE`, `isDisposable` and `sweepRemoved`; the ignored-file guard; the `removed` and
@@ -299,6 +300,21 @@ Tests, at the end of the file (the `{}` and two-ticket sets are already in the `
   (critique fix 4, scenario B): `c = copy()`, `exclude(c, ['.env'])`, `claimWorktree(c, 'ST-9')`, write `.env` there as
   `SECRET=1\n`, `doneOnRemote(c, ['ST-9'])`, then `c.git('config', 'status.showUntrackedFiles', 'no')`. Clean exits 0
   and holds `kept ${c.sibling('ST-9')}: .env`; the sibling is still listed; `.env` still reads `SECRET=1\n`.
+- `it('risk:data-loss the disposable list in config.yml decides which ignored folders a done worktree may hold and still be removed')`
+  (D-08: the list comes from config.yml, so a clean that reads `DEFAULT_DISPOSABLE` directly fails this test both ways):
+  - `c = copy({ tickets: ['ST-9', 'ST-10'] })` and `exclude(c, ['coverage/', 'dist/'])`. `claimWorktree(c, 'ST-9')`, then
+    write `coverage/x` there as `x`. `claimWorktree(c, 'ST-10')`, then write `dist/x` there as `x`.
+    `doneOnRemote(c, ['ST-9', 'ST-10'])`.
+  - `cfg = `${c.root}/accord/config.yml`` and `text = readFileSync(cfg, 'utf8').trimEnd()`. The main checkout's
+    config.yml is the one clean reads (`names` above); the worktrees' own copies are never read.
+  - `writeFileSync(cfg, text + '\ndisposable: [node_modules]\n')`. `worktree clean` exits 0. A line starts with
+    `kept ${c.sibling('ST-9')}: coverage/` and a line starts with `kept ${c.sibling('ST-10')}: dist/` (git prints an
+    ignored folder as `dist/` under `--ignored=matching`); no line starts with `removed`; both siblings are still
+    listed, and `dist/x` still reads `x`. The default list holds `dist`, so a clean that ignored the config would remove
+    the ST-10 sibling here.
+  - `writeFileSync(cfg, text + '\ndisposable: [node_modules, dist, coverage]\n')`. `worktree clean` exits 0, and its
+    lines hold `removed ${c.sibling('ST-9')}` and `removed ${c.sibling('ST-10')}`; both siblings are gone. The default
+    list lacks `coverage`, so a clean that ignored the config would keep the ST-9 sibling here.
 - `it('risk:regression a folder git reports removed but leaves links and disposable files in is deleted before removed is printed')`.
   This is the bug of 2026-10-30: Git for Windows leaves npm's junctions behind and exits 0. On POSIX git unlinks a
   symlink itself, so the test rebuilds that leftover right after git's own remove returns, on every OS:
@@ -373,7 +389,7 @@ clean that removes nothing.
 ## Task 4: Accord records each worktree it creates, and clean deletes a recorded folder git has forgotten when it holds only links and empty folders
 covers: @ac-3, D-01, D-04, D-06, D-07
 files: packages/cli/src/commands/worktree.ts, packages/cli/src/commands/leftover.ts (new), packages/cli/test/helpers/done.ts (new), packages/cli/test/worktree-clean.test.ts (new)
-verify: packages/cli/test/worktree-clean.test.ts#ac-3-a-session-start-in-a-worktree-and-a-clear-in-the-main-checkout-delete-the-recorded-folder-of-a-done-ticket-that-git-forgot (@ac-3), packages/cli/test/worktree-clean.test.ts#risk:data-loss-a-forgotten-folder-holding-a-dist-file-or-a-recorded-path-that-is-a-link-is-kept-unchanged-and-named
+verify: packages/cli/test/worktree-clean.test.ts#ac-3-a-session-start-in-a-worktree-and-a-clear-in-the-main-checkout-delete-the-recorded-folder-of-a-done-ticket-that-git-forgot (@ac-3), packages/cli/test/worktree-clean.test.ts#risk:data-loss-a-forgotten-folder-holding-a-dist-file-or-a-recorded-path-that-is-a-link-is-kept-unchanged-and-named, packages/cli/test/worktree-clean.test.ts#risk:regression-worktree-open-on-an-existing-branch-and-new-ticket-in-a-worktree-both-record-the-worktree
 
 Consumes: Task 1's hook clean and `folderLine`, and Task 3's `removeWorktree` and `leftover.ts`. Produces: the record
 (D-07), written at the three places accord creates a worktree; `cleanRecorded`; `cleanForgotten`; `sweepForgotten`.
@@ -384,9 +400,9 @@ Tests first. Add to `helpers/done.ts`:
   a folder git no longer lists.
 - `recorded(c)`: the lines of `${c.root}/.git/accord/worktrees` as `{ id, path }`, or `[]` when the file is missing.
 
-Tests, at the end of `worktree-clean.test.ts` (the three-ticket set is already in the `useSandboxes` list). Both call
-`link`, which makes junctions on the Windows host and symlinks in the container; both verify ids run in both places,
-and the junction case itself is seen on a Windows run:
+Tests, at the end of `worktree-clean.test.ts` (the two- and three-ticket sets are already in the `useSandboxes` list).
+The first two call `link`, which makes junctions on the Windows host and symlinks in the container; every verify id
+below runs in both places, and the junction case itself is seen on a Windows run:
 - `it('ac-3 a session start in a worktree and a clear in the main checkout delete the recorded folder of a done ticket that git forgot')`:
   - `c = copy({ tickets: ['ST-9', 'ST-10', 'ST-11'] })`. Run `run(['worktree', 'open', id], c.root)` for `ST-9`, `ST-10`
     and `ST-11`, each exiting 0. `recorded(c)` then holds the three siblings with their ids.
@@ -415,6 +431,16 @@ and the junction case itself is seen on a Windows run:
   - `listing(c.sibling('ST-9'))` equals `before`; `listing(t)` equals `beforeT`;
     `lstatSync(c.sibling('ST-10')).isSymbolicLink()` is true; `recorded(c)` still names both siblings. A disposable name
     never makes a file in a forgotten folder deletable, and a link is never walked through.
+- `it('risk:regression worktree open on an existing branch and new ticket in a worktree both record the worktree')`.
+  The ac-3 test reaches only the fresh-claim site (`worktree.ts:438`); this one reaches the other two:
+  - `c = copy({ tickets: ['ST-9', 'ST-10'] })`. `c.git('branch', 't/ST-10', 'origin/main')`: a local branch with no
+    worktree and no claim commit, so `checkClaimant` finds no claimant and lets it through.
+  - `run(['worktree', 'open', 'ST-10'], c.root)` exits 0. It takes the existing-branch site (`worktree.ts:412`,
+    `git worktree add <path> t/ST-10`).
+  - `run(['new', 'ticket', 'ST-11', '--lane', 'M', '--worktree'], c.root)` exits 0. It takes the `newTicketWorktree`
+    site (`worktree.ts:1078`); the fixture's config.yml has no `people`, so the typed id is accepted.
+  - `recorded(c)` equals `[{ id: 'ST-10', path: c.sibling('ST-10') }, { id: 'ST-11', path: c.sibling('ST-11') }]`, in
+    that order, and neither run printed a line starting with `note `.
 
 Interface, `worktree.ts`:
 - `function withLock<T>(root: string, fn: (dir: string) => T): T`. It holds the lock loop and the `finally` of
@@ -473,13 +499,16 @@ line `worktree open` and `new ticket --worktree` print; the clean output of a re
 ## Task 5: Clean keeps any folder a live hold names, and removes a recorded detached worktree only when its HEAD is on the default branch or a branch tip
 covers: D-07, D-11
 files: packages/cli/src/commands/worktree.ts, packages/cli/test/worktree-clean.test.ts (new)
-verify: packages/cli/test/worktree-clean.test.ts#risk:data-loss-clean-keeps-a-recorded-detached-worktree-whose-head-is-on-no-branch-and-removes-one-at-the-default-branch, packages/cli/test/worktree-clean.test.ts#risk:data-loss-clean-never-removes-a-recorded-worktree-on-another-branch-or-a-folder-a-live-hold-names, packages/cli/test/worktree-clean.test.ts#risk:complex-branching-clean-names-a-recorded-worktree-of-a-dropped-ticket-whose-branch-is-already-on-the-default-branch
+verify: packages/cli/test/worktree-clean.test.ts#risk:data-loss-clean-keeps-a-recorded-detached-worktree-whose-head-is-on-no-branch-and-removes-one-at-the-default-branch, packages/cli/test/worktree-clean.test.ts#risk:data-loss-clean-never-removes-a-recorded-worktree-on-another-branch-or-a-folder-a-live-hold-names, packages/cli/test/worktree-clean.test.ts#risk:complex-branching-clean-names-a-recorded-worktree-of-a-dropped-ticket-whose-branch-is-already-on-the-default-branch, packages/cli/test/worktree-clean.test.ts#risk:data-loss-a-bare-clean-keeps-the-record-of-a-missing-folder-whose-detached-head-is-on-no-branch
 
-Consumes: Task 4's `cleanRecorded`, `cleanForgotten` and record, plus `passGuards`, `removeWorktree`, `rebaseBranch`
-and `folderLine`. Produces: critique fixes 1 and 2, and a kept line for every recorded worktree of a done or dropped
-ticket that no other phase judges (D-07: "printing the ones it cannot").
+Consumes: Task 4's `cleanRecorded`, `cleanForgotten` and record, plus `passGuards`, `removeWorktree`, `rebaseBranch`,
+`folderLine`, and `worktrees` and `readList` with Task 1's handling of entries whose folder is missing. Produces:
+critique fixes 1 and 2, `onNoBranch`, a kept line for every recorded worktree of a done or dropped ticket that no other
+phase judges (D-07: "printing the ones it cannot"), and a bare clean that never prunes the only ref to a detached
+commit (the Intent: never remove a commit reachable from nothing else; `/accord` is a clean moment, D-07, D-11).
 
-Tests first, at the end of `worktree-clean.test.ts`. They use `dropOnRemote(c, ids)` of `helpers/worktree.ts:363`,
+Tests first, at the end of `worktree-clean.test.ts`; each passes `120_000` and none calls `link`, so each runs alike on
+the Windows host and in the container. They use `dropOnRemote(c, ids)` of `helpers/worktree.ts:363`,
 which the file already imports and which commits through `commitMsg`, and `forget` and `recorded` of `helpers/done.ts`
 (Task 4). The four-ticket set is already in the `useSandboxes` list.
 - `it('risk:data-loss clean keeps a recorded detached worktree whose head is on no branch and removes one at the default branch')`
@@ -507,8 +536,56 @@ which the file already imports and which commits through `commitMsg`, and `forge
   - `worktree clean` exits 0, and its lines hold
     `kept ${c.sibling('ST-9')}: its ticket is dropped and its branch t/ST-9 is already on origin/main`.
   - The sibling is still listed, `has(c.root, 'refs/heads/t/ST-9')` is true, and `recorded(c)` still names the sibling.
+- `it('risk:data-loss a bare clean keeps the record of a missing folder whose detached head is on no branch')`. Task 1
+  stops the hook clean from pruning; a bare `accord worktree clean`, and the clean inside `worktree open` and
+  `new ticket --worktree`, still run `git worktree prune` in `worktrees()` (`worktree.ts:67-75`), which deletes the only
+  ref to such a commit:
+  - `c = copy({ tickets: ['ST-9', 'ST-10'] })`, `p = c.sibling('ST-9')` and `q = c.sibling('ST-10')`.
+  - `c.git('worktree', 'add', '-q', '--detach', p, 'origin/main')`, `writeFiles(p, { 'x.txt': 'x\n' })`, then
+    `X = commitMsg(p, 'detached work')`, a commit on no branch. `c.git('worktree', 'add', '-q', '--detach', q, 'origin/main')`,
+    whose HEAD is on `origin/main`.
+  - `renameSync(p, p + '-away')` and `renameSync(q, q + '-away')`, so both are listed as `prunable`.
+  - `r = await run(['worktree', 'clean'], c.root)`. `r.code` is 0. `lines(r.out)` holds
+    `kept ${p}: its folder is missing and its detached HEAD ${X} is on no branch`; a line starts with
+    `kept ${q}: its folder is missing (`; no line starts with `pruned`. `c.git('worktree', 'list', '--porcelain')`
+    contains `worktree ${p}\n` and `worktree ${q}\n`.
+  - `renameSync(p + '-away', p)`. `gitRun(p, 'rev-parse', 'HEAD').trim()` equals `X`.
+  - `r2 = await run(['worktree', 'clean'], c.root)`. `r2.code` is 0; a line starts with `pruned ${q}: `; no line starts
+    with `kept ${p}`; the worktree list still contains `worktree ${p}\n` and no longer contains `worktree ${q}\n`.
+  - At the baseline the first clean prints `pruned ${p}: ...`, and `X` is reachable from nothing.
 
 Interface, `worktree.ts`:
+- `function onNoBranch(root: string, head: string, ref: string | undefined, merged?: Set<string>): boolean`, the
+  detached-HEAD rule of fix 1, used by `worktrees` and by `cleanRecorded` below. It returns true, with no spawn, when
+  `head` is empty. It returns false when `merged?.has(head.toLowerCase())`, or when `ref !== undefined` and
+  `gitOk(root, ['merge-base', '--is-ancestor', head, ref])`, or when
+  `git(root, ['for-each-ref', '--points-at', head, '--format=%(refname)', 'refs/heads', 'refs/remotes/origin'])`
+  prints a non-empty line. A `for-each-ref` that throws counts as no line. Otherwise it returns true.
+- `worktrees(root: string, out: NodeJS.WritableStream, judged?: Set<string>): PrunableEntry[]`. When no entry is
+  prunable it returns the list with no other spawn, as today. Otherwise:
+  - `ref = gitDefaultRef(root)`, and `held` is the prunable entries with no `branch` for which
+    `onNoBranch(root, w.head, ref)` is true. A prunable entry on a branch is never in `held`: its branch keeps its
+    commits.
+  - When `held` is empty, today's steps run unchanged: `git worktree prune`, a `pruned <path>: <reason>` line per entry
+    it removed, and the list without prunable entries.
+  - Otherwise no `git worktree prune` runs in this call, because git prunes every prunable entry at once and has no
+    per-entry form. For each prunable entry whose `norm`ed path is not in `judged`, write
+    `kept <path>: its folder is missing and its detached HEAD <head> is on no branch` for an entry of `held`, else
+    `kept <path>: its folder is missing (<prunable>); no prune runs while a missing folder holds a detached HEAD on no branch`,
+    then add its `norm`ed path to `judged`. When `judged` is undefined, write none of these lines: the only callers
+    without it are the list reads of `worktreeOpen` and `newTicketWorktree` below, which run right after a clean whose
+    `readList` already named those entries, so no line is printed twice. Return the whole list, prunable entries included, as the hook path of
+    `readList` does (Task 1): `passGuards` skips them with no line, the `rebasing` search skips them, `cleanDone` keeps
+    a branch checked out in a missing folder, and `cleanRecorded` skips them as judged.
+  - The next clean in which no missing folder holds such a HEAD prunes as today, so every other entry's `pruned` line
+    comes back once the owner restores or deletes that folder (ledger Ruling).
+- `readList`, the path that is not the hook's: `list = worktrees(ctx.root, ctx.stdout, seen === undefined ? undefined : (seen.judged ??= new Set()))`,
+  so its lines go into the judged set like a `folderLine` line, and a second read in the same clean writes nothing new.
+  The hook path is unchanged: it never prunes.
+- `worktreeOpen` (`worktree.ts:388`) and `newTicketWorktree` (`worktree.ts:1066`) use only the entries of their list
+  whose `prunable` is unset: `(seen ?? worktrees(ctx.root, ctx.stdout)).filter((w) => (w as PrunableEntry).prunable === undefined)`.
+  They never enter or claim a missing folder, and `list[0]`, the main checkout, is never prunable. When no prunable
+  entry exists, both behave and print exactly as today.
 - Split the lazy holds read out of `passGuards` (`worktree.ts:708-719`) into
   `function guardHolds(ctx, s): Record<string, Hold> | undefined`. It returns `undefined` after the same `its hold could
   not be read` line, now naming the folder it was asked for.
@@ -533,9 +610,9 @@ Interface, `worktree.ts`:
   - `W.branch` is another branch: `kept <path>: checked out on <W.branch>`. Clean never removes by path a worktree on a
     branch (fix 2, second half);
   - detached, and `rebaseBranch(W.path) !== undefined`: `kept <path>: being rebased`;
-  - detached, and `W.head` is in `merged`, or `merge-base --is-ancestor W.head ref` succeeds, or
-    `git for-each-ref --points-at <W.head> --format=%(refname) refs/heads refs/remotes/origin` prints a line: then
-    `g = passGuards(ctx, W, id, s)`, and when it passes, `removeWorktree(ctx, W, id, g.h, s.seen)`, which drops the
+  - detached, and `onNoBranch(ctx.root, W.head, ref, merged)` is false (`W.head` is in `merged`, or
+    `merge-base --is-ancestor W.head ref` succeeds, or `for-each-ref --points-at` finds a local or origin branch at it):
+    then `g = passGuards(ctx, W, id, s)`, and when it passes, `removeWorktree(ctx, W, id, g.h, s.seen)`, which drops the
     record entry (fix 1);
   - detached otherwise: `kept <path>: its detached HEAD <W.head> is on no branch`.
 
@@ -543,7 +620,10 @@ Must not change: every line and hold case `passGuards` had (`worktree-clean.test
 lock and the holds file that is not a JSON object; `worktree-session.test.ts:436` and `:508`, the merged worktree this
 session holds and the held done worktree whose hold goes); the rebase cases of `cleanDone` and `cleanDropped`; every
 dropped-ticket case of `worktree-clean.test.ts` (lines 266-491), whose worktrees are not recorded; Tasks 1, 3 and 4
-tests.
+tests. The prune and its `pruned <path>: <reason>` line stay as they are for every clean in which no missing folder holds
+a detached HEAD on no branch, so `worktree-clean.test.ts:152` and `worktree-open.test.ts:166`, whose missing folders
+hold branches, pass unchanged. The hook clean of Task 1 still never prunes and still writes its own line. A clean with
+no prunable entry spawns nothing new, so the `git-count.test.ts` counts and goldens hold.
 
 ## Task 6: The clean never enters or removes a listed worktree, a folder holding .git, the main checkout, a folder that holds one of these, or a worktree with an edit git status cannot see
 covers: D-01, D-04
@@ -606,8 +686,10 @@ Interface:
     a space, then the path. A flagged entry has the tag `S` (skip-worktree) or a lower-case tag (assume-unchanged).
   - A flagged entry counts only when `lstatSync(w.path + '/' + path, { throwIfNoEntry: false })` finds it on disk; a
     sparse-checkout `S` entry that is not on disk never counts.
-  - For a flagged entry on disk, read its index line with `git(w.path, ['ls-files', '-s', '-z', '--', path])`
-    (`<mode> <sha> <stage>\t<path>`). When the mode is `120000`, it counts as differing. Otherwise it differs when
+  - For a flagged entry on disk, read its index line with
+    `git(w.path, ['ls-files', '-s', '-z', '--', ':(literal)' + path])` (`<mode> <sha> <stage>\t<path>`). The
+    `:(literal)` prefix (conventions.md) keeps a name such as `a?.txt` from matching `a1.txt` as a glob, so the sha
+    compared is always the flagged file's own. When the mode is `120000`, it counts as differing. Otherwise it differs when
     `git(w.path, ['hash-object', '--', path]).trim()` is not the index sha.
   - The first flagged entry, in git's order, that differs keeps the worktree with `kept <w.path>: <path>`, the path as
     git prints it, before `git worktree remove` runs.

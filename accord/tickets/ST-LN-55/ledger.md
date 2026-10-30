@@ -39,6 +39,9 @@
 - Ruling: origin/main (ST-LN-78, and the split of worktree.test.ts into five files) was merged into t/ST-LN-55 after task 1, so task tests run in the Linux container; task 1's tests were appended to main's worktree-clean.test.ts and its duplicate helpers dropped for main's `helpers/worktree.ts` — the owner asked for Linux test runs and ST-LN-78 is merged — cost if wrong: main's `doneOnRemote` returns a record and takes options where task 1's returned void; no task-1 test depends on it.
 - Ruling: Task 3's part-way case is checked by an injected failure (`spawnLog.fail` after the real remove puts `sub/f.txt` back), not the POSIX chmod test — that test is skipped on Windows and as root, so `accord task-done` could never record it — cost if wrong: git's real failure text is checked only by CI's POSIX job.
 - Ruling: the re-plan after main's split of worktree.test.ts edited the plan preamble outside the Task 1 section — tasks 2–9 read it — cost if wrong: none to Task 1's recorded text.
+- Ruling: while a missing folder holds a detached HEAD on no branch, a non-hook clean runs no `git worktree prune` at all and names every missing entry on a kept line — git prunes all prunable entries at once with no per-entry form, and locking one entry would rely on `git worktree lock` resolving a missing path, unconfirmed — cost if wrong: other stale records stay, named, until the owner restores or deletes that one folder.
+- Ruling: `worktrees()` writes its kept lines only when given the judged set; the list reads in `worktreeOpen` and `newTicketWorktree` after a clean write nothing and drop entries whose folder is missing — both run right after a clean whose `readList` already named them — cost if wrong: a caller that reads the list without a clean first leaves those entries unnamed.
+- Ruling: the plan stays one branch with no slices — `accord/config.yml` says `review.mode: outcome`; the round-4 fix brief said `human` by mistake — cost if wrong: tasks regrouped into slices.
 
 ## Deferred
 - Plan round 1 Nice: a relative path in a record line is resolved against cwd; skip non-absolute lines and fence descendants of the main checkout — deferred
@@ -54,6 +57,7 @@
 - Plan round 4 Nice: Task 6 widens the window between the ignored-file status read and `git worktree remove`; run the status step last in `passGuards`, right before removal — deferred
 - Plan round 4 Nice: Task 5's branch-tip rule counts a stale `refs/remotes/origin/*` after a failed fetch and has no test; pass only `refs/heads` when the fetch failed, and add a tip-of-local-branch case — deferred
 - Plan round 4 Nice: Task 7's test calls `mkdirSync` on the ST-11 and ST-99 siblings without `{ recursive: true }` — deferred
+- Plan round 5 Nice: one clean can print `kept` then `pruned` for the same folder, since `worktrees()` decides the prune per read, before and after the fetch; decide it once per clean — deferred
 
 ## Tasks
 - task 1 done 48b7de376993

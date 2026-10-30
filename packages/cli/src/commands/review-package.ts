@@ -113,7 +113,7 @@ export function reviewPackage(ctx: CommandContext, id: string, options: { base?:
     throw new UsageError(`cannot diff ${range}: ${why(e)}`);
   }
   // ST-LN-62: what `accord gate done` would name, shown before it runs; the command never fails on the fact.
-  const f = branchFactFor(ctx, id);
+  const f = branchFactFor(ctx, id, { defaultRef: def });
   const s = { ...ctx.snapshot, branchFacts: { [id]: f } };
   const cannot = (why: string) => `(cannot tell: ${why})`;
   const shown: string[] = [];

@@ -1201,6 +1201,8 @@ export function gitBranchFact(
     rendered: readonly { path: string; text: string }[];
     scope: boolean;
     settings?: { path: string; expected: (base: string | undefined) => string | undefined };
+    /** The default ref the caller just read, so it is not read again; absent means read it here. */
+    known?: { defaultRef: string | undefined };
   },
 ): BranchFact {
   const git = (what: string, args: string[]): string => {
@@ -1227,7 +1229,7 @@ export function gitBranchFact(
     }
   };
   try {
-    const def = defaultRefOf(root);
+    const def = opts.known === undefined ? defaultRefOf(root) : opts.known.defaultRef;
     if (def === undefined) {
       return { error: 'none of origin/HEAD, origin/main, origin/master, main or master resolves, so the branch diff cannot be read; run git fetch origin' };
     }

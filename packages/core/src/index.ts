@@ -24,10 +24,17 @@ export type {
   Ledger,
   Review,
   TicketWork,
+  Severity,
+  RoundFinding,
+  RecordedRound,
+  RoundVerdict,
+  RoundCycle,
+  RoundRecord,
   BranchChange,
   BranchFact,
 } from './model/snapshot.js';
 export { loadSnapshot } from './load/snapshot.js';
+export { parseRounds, cycleOpen, ROUND_RECORD_LINE } from './round/record.js';
 export { loadConfig } from './load/config.js';
 export { lintSnapshot } from './lint/index.js';
 export type { LintResult } from './lint/index.js';

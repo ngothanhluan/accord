@@ -60,7 +60,7 @@ Feature: ST-LN-63
     Then each starts fewer git processes than its recorded number
     And clean removes and keeps exactly the branches it removed and kept before the change, a squash-merged or rebased branch included
 
-  @ac-4
+  @ac-4 @test:packages/cli/test/upgrade.test.ts#ac-2-upgrade-replaces-only-the-lint-and-gate-step-and-keeps-every-other-line-of-the-workflow
   Scenario: The four slow tests are under 10 s or kept with an approved ceiling
     Given the two branch-fact tests, the lane S review-package test and the upgrade ac-2 test named in Part 4 of the Intent
     When a full run completes on the owner's machine

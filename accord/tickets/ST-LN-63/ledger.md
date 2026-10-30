@@ -63,6 +63,8 @@
 - Ruling: task 14 cuts on the command side only: review-package hands its default ref to the branch fact, one git process less per run, output unchanged (executor, task 14) — the test was already 5.9 s before the change after Tasks 4 to 13, so a riskier cut was not needed — if a loaded run puts it at 10 s or more, a second pass cuts one `rev-list --count` and one `diff`
 - Ruling: accepted two files outside Task 14's `files:` line: packages/cli/src/commands/branch-fact.ts, which passes the optional known default ref through to `gitBranchFact`, and the new packages/cli/test/review-package-count.test.ts, which holds the count assertion (`risk:complex-branching the review package reads the default ref once for its exclusion and the branch fact`, failing 3 against 2 before the change) (executor, task 14) — the ref has no other path to fs.ts, and lane-s.test.ts counts no processes — none
 - Ruling: task 14's affected run: 37 files, 629 passed, 3 skipped, 555 s, 4 workers; the Task 14 test 6.6 s (4.8 s alone), the new count test 2.3 s, goldens ac-2 55.3 s, and the two task 13 load failures passed in it (lane-commands ac-1 7.9 s, locked hold 8.6 s) (task 14 build) — none
+- Ruling: the new core workflow-rewrite test uses the literals '@accord-dev/accord' and '0.1.0', not packages/cli/package.json (executor, task 15) — the neighbouring test does the same, the rewrite does not depend on the CLI's manifest, and it keeps scaffold.test.ts:27-28 true, which settles Deferred round 1 item 11 — the test does not follow a package rename, as no other core test does
+- Ruling: task 15's affected run: 2 files, 51 passed, 36 s, 4 workers; upgrade ac-2 2.5 s (6.95 s alone before the cut, 2.82 s after), the new core test 0.008 s (task 15 build) — the Intent's 107.8 s for this test was a loaded figure; no keep or ceiling is needed — none
 
 ## Deferred
 - plan-review 1.10 Nice — clean's merged set answers R later than today on a ref that may have moved; skip the set for R or re-read it when the ref changed
@@ -89,3 +91,4 @@
 - task 12 done 96e72c4c2de8
 - task 13 done 998f78f9c69f
 - task 14 done fc232b52ceba
+- task 15 done fbeb832753df

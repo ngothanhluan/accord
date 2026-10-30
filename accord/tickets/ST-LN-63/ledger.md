@@ -65,6 +65,10 @@
 - Ruling: task 14's affected run: 37 files, 629 passed, 3 skipped, 555 s, 4 workers; the Task 14 test 6.6 s (4.8 s alone), the new count test 2.3 s, goldens ac-2 55.3 s, and the two task 13 load failures passed in it (lane-commands ac-1 7.9 s, locked hold 8.6 s) (task 14 build) — none
 - Ruling: the new core workflow-rewrite test uses the literals '@accord-dev/accord' and '0.1.0', not packages/cli/package.json (executor, task 15) — the neighbouring test does the same, the rewrite does not depend on the CLI's manifest, and it keeps scaffold.test.ts:27-28 true, which settles Deferred round 1 item 11 — the test does not follow a package rename, as no other core test does
 - Ruling: task 15's affected run: 2 files, 51 passed, 36 s, 4 workers; upgrade ac-2 2.5 s (6.95 s alone before the cut, 2.82 s after), the new core test 0.008 s (task 15 build) — the Intent's 107.8 s for this test was a loaded figure; no keep or ceiling is needed — none
+- Ruling: review 1.1 removes the OS branch rather than hiding it: runs.ts matches folder spellings with the `i` flag on every OS, `same()` in git-count.test.ts compares case-folded on every OS, and goldens.test.ts loses its recording branch with `leaks()` and `win`, so it fails through `readGolden` when a golden file is absent (executor, review 1) — the goldens were recorded once at Task 2 and must never be rewritten — a case-folded match on POSIX could hide a path that differs only in case, which no sample has
+- Ruling: review 1.2's fix: when `gitWalk` fails, `walkOver` runs one `cat-file --batch-check` over the positives and walks once more without the shas it reports missing; any other failure still gives undefined and the per-ticket reads; a dropped start gets 'drop' from `walkAfter`, as `rev-list --ignore-missing` gave it; no extra process when every start exists (executor, review 1) — the lightest form that keeps the count flat — a positive missing for another reason than an absent object still costs the per-ticket path
+- Ruling: review 1.2's test counts `status --json` on 8 verify-straight tickets with one start no object holds: 11 git processes intact, 20 before the fix, 13 after, bound intact + 4 (one cat-file and one walk for each of status's two snapshot loads), and its stdout equals the output with the shared walk forced to fail; 1.5 s in the executor's run (executor, review 1) — none
+- Ruling: review round 1's affected run: 38 files, 673 passed, 3 skipped, 580 s, 4 workers; stage-skills ac-5 passed (0.03 s), the new missing-start test 1.9 s, goldens ac-2 49.7 s (review 1 fix) — none
 
 ## Deferred
 - plan-review 1.10 Nice — clean's merged set answers R later than today on a ref that may have moved; skip the set for R or re-read it when the ref changed
@@ -75,6 +79,14 @@
 - plan-review 2.5 Nice — `readsAfter` should be false when review.md has no verdict in `VERDICTS`, in any lane (2 unread processes for a merged ticket in review)
 - plan-review 3.1 Nice — Deferred lines' task numbers were stale; corrected above
 - plan-review 3.2 Nice — the failed-fetch Ruling's cost line was wrong; corrected above
+- review 1.4 Nice — `loadFromFs`'s and `loadWithBranch`'s `light` option and `loadFromFs`'s `from` have no caller (fs.ts:906, 911-913); remove them or give the light mode one entry point
+- review 1.5 Nice — drop builds its own ssh map (drop.ts:33-34) while its `CommandContext` already carries `ctx.ssh`
+- review 1.6 Nice — `hasOpenTask`, `readsAfter` and `readsSubject` restate core stage.ts's rule for reading `afterVerify` and the plan subject (fs.ts:458-475); one exported predicate from core would keep them in step
+- review 1.7 Nice — the shared walk starts from every claimed ticket's tips, including tickets that need no read, and reads `--name-only` over all their commits off the default ref (fs.ts:635-642, 864-878); a time risk on long-lived or uncleaned branches, not measured
+- review 1.8 Nice — `worktree merge` ignores `fetchOrigin`'s context, which still reloads in full after a good fetch (worktree.ts:503, 623); skip the reload when its result is unused
+- review 1.9 Nice — `headAuthorOf` takes the email after the last `<` of the author line where git takes the first (fs.ts ~2863-2872); only an imported, malformed ident line differs
+- review 1.10 Nice — no test fails when clean caches the default ref before its prune or reuses a worktree list read before the fetch (git-count.test.ts:654 guards only the merged set and the re-read tip)
+- review 1.11 Nice — the ac-1 loop writes progress lines to stdout and helpers/items.ts:7 keeps a build-process comment ("Each Part 2 task appends its entries")
 
 ## Tasks
 - task 1 done d4a93ac435a0

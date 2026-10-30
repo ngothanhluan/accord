@@ -29,6 +29,7 @@ const resolve = (root: string, ref: string): string | undefined => {
 
 export function drop(ctx: CommandContext, id: string, opts: { reason?: string }): number {
   const root = ctx.root;
+  const ssh = new Map<string, string>(); // core.sshCommand, read once for this command's network calls
   if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id + NOTHING);
   const reason = opts.reason?.trim();
   if (reason !== undefined && (reason === '' || /[\r\n]/.test(reason))) throw new UsageError('--reason must be one line of text' + NOTHING);
@@ -40,7 +41,7 @@ export function drop(ctx: CommandContext, id: string, opts: { reason?: string })
     throw new UsageError(`${path} has uncommitted changes in ${held.path} - commit and push them on ${b} first` + NOTHING);
   }
   try {
-    gitNoPrompt(root, ['fetch', '--no-prune', 'origin']);
+    gitNoPrompt(root, ['fetch', '--no-prune', 'origin'], undefined, ssh);
   } catch (err) {
     throw new UsageError('fetch from origin failed: ' + String((err as { stderr?: string }).stderr ?? err).trim().split('\n')[0] + NOTHING);
   }
@@ -50,7 +51,7 @@ export function drop(ctx: CommandContext, id: string, opts: { reason?: string })
   const base = git(root, ['rev-parse', ref]).trim();
 
   if (droppedOn(root, ref, [id]).has(id)) throw new UsageError(`${id} is already dropped on ${short}` + NOTHING);
-  if (gitNoPrompt(root, ['ls-remote', 'origin', 'refs/heads/drop/' + id]).trim() !== '') {
+  if (gitNoPrompt(root, ['ls-remote', 'origin', 'refs/heads/drop/' + id], undefined, ssh).trim() !== '') {
     throw new UsageError(`drop/${id} already exists on origin - delete it with git push origin --delete drop/${id}, then run accord drop again` + NOTHING);
   }
   const L = resolve(root, 'refs/heads/' + b);
@@ -99,7 +100,7 @@ export function drop(ctx: CommandContext, id: string, opts: { reason?: string })
     rmSync(folder, { recursive: true, force: true });
   }
   try {
-    gitNoPrompt(root, ['push', 'origin', sha + ':refs/heads/drop/' + id]);
+    gitNoPrompt(root, ['push', 'origin', sha + ':refs/heads/drop/' + id], undefined, ssh);
   } catch (err) {
     throw new UsageError(
       `the drop commit ${sha} was made but the push failed: ${String((err as { stderr?: string }).stderr ?? err).trim().split('\n')[0]} - push it with git push origin ${sha}:refs/heads/drop/${id}`,

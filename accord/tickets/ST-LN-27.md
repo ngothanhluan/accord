@@ -44,7 +44,7 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: ST-LN-27
 
-  @ac-1 @test:packages/cli/test/worktree.test.ts#ac-1-in-claude-code-pick-up-from-the-main-checkout-takes-the-hold-and-prints-enter-instead-of-stop
+  @ac-1 @test:packages/cli/test/worktree-session.test.ts#ac-1-in-claude-code-pick-up-from-the-main-checkout-takes-the-hold-and-prints-enter-instead-of-stop
   Scenario: Pick up moves the Claude Code session into the ticket's worktree and goes on
     Given a Claude Code session started in the main checkout that works no ticket
     And ticket X is ready to pick up
@@ -53,7 +53,7 @@ Feature: ST-LN-27
     And the same session's working directory becomes X's worktree folder and the session starts X at the stage and step that "accord anchor" prints for X
     And no "stop:" line is shown and the owner opens no folder
 
-  @ac-2 @test:packages/cli/test/worktree.test.ts#ac-2-in-claude-code-continue-from-the-main-checkout-enters-a-claimed-worktree-whose-session-ended-with-or-without-a-worktree-here
+  @ac-2 @test:packages/cli/test/worktree-session.test.ts#ac-2-in-claude-code-continue-from-the-main-checkout-enters-a-claimed-worktree-whose-session-ended-with-or-without-a-worktree-here
   Scenario: Continue moves the Claude Code session into a claimed ticket's worktree and goes on
     Given a Claude Code session started in the main checkout that works no ticket
     And ticket X is claimed, by anyone as today, whether or not its worktree exists on this machine, and the session that worked it has ended, closed or crashed, mid-stage or between stages
@@ -61,7 +61,7 @@ Feature: ST-LN-27
     Then the same session's working directory becomes X's worktree folder and the session resumes X at the stage and step that "accord anchor" prints for X
     And no "stop:" line is shown and the owner opens no folder
 
-  @ac-3 @test:packages/cli/test/worktree.test.ts#ac-3-in-claude-code-a-new-lane-m-ticket-is-committed-pushed-and-held-and-prints-enter-instead-of-stop
+  @ac-3 @test:packages/cli/test/worktree-session.test.ts#ac-3-in-claude-code-a-new-lane-m-ticket-is-committed-pushed-and-held-and-prints-enter-instead-of-stop
   Scenario: A lane M new request moves the Claude Code session into the new ticket's worktree and goes on
     Given a Claude Code session started in the main checkout that works no ticket
     When the owner types "/accord <request>" and the request is classified lane M
@@ -69,14 +69,14 @@ Feature: ST-LN-27
     And the same session's working directory becomes the new ticket's worktree folder and the session starts its intent interview
     And no "stop:" line is shown and the owner opens no folder
 
-  @ac-4 @test:packages/cli/test/worktree.test.ts#ac-4-in-claude-code-a-session-that-works-a-ticket-refuses-other-tickets-and-new-tickets-and-changes-nothing
+  @ac-4 @test:packages/cli/test/worktree-session.test.ts#ac-4-in-claude-code-a-session-that-works-a-ticket-refuses-other-tickets-and-new-tickets-and-changes-nothing
   Scenario: A Claude Code session that works a ticket refuses a second ticket
     Given a Claude Code session that picked up, continued or created ticket A, or that was started in A's worktree folder or a folder inside it, at any later point in its life, even after A is done or merged
     When the owner types "/accord pick-up B", "/accord continue B", or "/accord <request>" in any lane, even a request about A
     Then accord refuses, naming A, saying to open a new session in the main checkout for other work, and saying to type a request about A without "/accord"
     And no ticket file, branch, worktree, claim or file change is made for the other work
 
-  @ac-5 @test:packages/cli/test/worktree.test.ts#ac-5-outside-claude-code-pick-up-continue-and-new-ticket-print-the-stop-lines-and-nothing-is-refused
+  @ac-5 @test:packages/cli/test/worktree-session.test.ts#ac-5-outside-claude-code-pick-up-continue-and-new-ticket-print-the-stop-lines-and-nothing-is-refused
   Scenario: Sessions other than Claude Code keep today's behaviour
     Given a session that is not Claude Code, started in the main checkout
     When the owner picks up, continues, or creates a lane M ticket

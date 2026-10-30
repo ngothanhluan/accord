@@ -10,6 +10,7 @@ import { initialsHolder, initialsOf, nextTicketId, setFrontmatterKey, templates 
 import type { Lane } from '@accord-dev/accord-core';
 import { gitIsShallow, gitPeopleOnRefs, gitTicketIdsInHistory, gitUserEmail, UsageError } from '../load/fs.js';
 import { cleanQuietly, fetchOrigin, guardTicketSession, newTicketWorktree } from './worktree.js';
+import type { WorktreeEntry } from './worktree.js';
 import type { CommandContext } from '../run.js';
 
 // The ticket schema's own id pattern (packages/core/schemas/ticket.schema.json). Duplicated as a
@@ -23,10 +24,12 @@ export function newTicket(
   options: { type: 'epic' | 'story' | 'bug'; lane?: Lane; worktree?: boolean },
 ): number {
   guardTicketSession(ctx);
+  // the worktree list clean read last, for the new worktree's own check; undefined when nothing was read or a removal followed
+  let seen: WorktreeEntry[] | undefined;
   if (options.worktree === true) {
     const f = fetchOrigin(ctx);
     ctx = f.ctx;
-    cleanQuietly(ctx, f.fetched);
+    seen = cleanQuietly(ctx, f.fetched);
   }
   // An invalid `people` value leaves config undefined, which would read as the convention being off.
   let raw = '';
@@ -120,7 +123,7 @@ export function newTicket(
   // destroyed by a second `new ticket`. Exit 2: this is a usage error, not a gate verdict.
   if (existsSync(file)) throw new UsageError(rel + ' already exists - nothing was written');
   if (options.worktree === true) {
-    newTicketWorktree(ctx, id, rel, text);
+    newTicketWorktree(ctx, id, rel, text, seen);
     return 0;
   }
   mkdirSync(join(ctx.root, 'accord', 'tickets'), { recursive: true });

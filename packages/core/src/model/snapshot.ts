@@ -38,6 +38,8 @@ export interface SnapshotInput {
   reviewFacts?: Record<string, { clean: boolean; files?: string[] }>;
   // ST-LN-62: ticket id -> its branch diff; host-supplied by gate done for a ticket with `lane:`. Absent when the host supplies none.
   branchFacts?: Record<string, BranchFact>;
+  // ST-LN-17: ticket id -> each ## Return from verify sha in its review.md -> whether the host confirmed it. Absent when the host supplies none.
+  returnFacts?: Record<string, Record<string, boolean>>;
 }
 
 /** Full shas, first parent first; `files` are the paths the commit changes (for a merge, the paths its remerge diff
@@ -173,10 +175,25 @@ export interface Review {
   notInterface?: string[]; // paths of 'Not an interface: <path> — <reason>' lines in the last '## Round'; absent when none
 }
 
+export type Severity = 'Must' | 'Should' | 'Nice';
+export interface RoundFinding { severity: Severity; line: number; text: string } // text: the line trimmed, as written
+export interface RecordedRound { line: number; findings: RoundFinding[]; noFindings: boolean } // line: of its ## Round heading
+export interface RoundVerdict { value: string; quoted: boolean; line: number } // quoted: accepted-by-owner followed by a "sentence"
+export interface RoundCycle { line: number; marker?: string; rounds: RecordedRound[]; verdicts: RoundVerdict[]; closed?: number }
+export interface RoundRecord {
+  file: string;
+  kind: 'review' | 'plan';
+  versioned: boolean; // a `Round record: 1` line above the first ## heading
+  cycles: RoundCycle[]; // always at least one; review: split at ## Return from verify; plan: split after ## Closed
+  unreadable: { line: number; reason: string }[];
+}
+
 export interface TicketWork {
   plan?: Plan;
   ledger?: Ledger;
   review?: Review;
+  rounds?: RoundRecord; // review.md as round records (ST-LN-17)
+  planRounds?: RoundRecord; // plan-review.md as round records (ST-LN-17)
 }
 
 export type RouteKey =
@@ -231,6 +248,7 @@ export interface RepoSnapshot {
   afterVerify?: Record<string, AfterVerifyCommit[]>; // carried through from SnapshotInput
   reviewFacts?: Record<string, { clean: boolean; files?: string[] }>; // carried through from SnapshotInput
   branchFacts?: Record<string, BranchFact>; // carried through from SnapshotInput
+  returnFacts?: Record<string, Record<string, boolean>>; // carried through from SnapshotInput
   // BUG-LN-13 D-01: host-supplied after load: the default ref as git names it ('refs/remotes/origin/main', or
   // 'refs/heads/main' in a clone without origin) and a snapshot of the records of the view's tickets and every
   // depends_on entry as that ref holds them. Only the done readers read it; absent when no default ref resolves.

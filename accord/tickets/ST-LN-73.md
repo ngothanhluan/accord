@@ -24,6 +24,8 @@ ui: false
 # The AC hash and the commit the ticks were made against.
 # verified_hash:
 # verified_commit:
+approved_hash: "fnv1a64:7f4297abc075675b"
+ac_hash: "fnv1a64:61a3c96ce9c110b7"
 ---
 
 ## Intent

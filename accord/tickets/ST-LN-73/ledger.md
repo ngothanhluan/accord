@@ -9,6 +9,9 @@
 - Ruling (superseded by D-08, which drops ac-5): the vm_stat sample of ac-5 is written by hand in the format macOS prints on Apple silicon, since no Mac is at hand to record one — cost if wrong: a real macOS output that differs in spacing or a label fails on a Mac while the test passes; swapping in a real recording changes one file.
 - Ruling: the fixture's config is named `fork-cap.config.ts` and its inline projects carry no `extends` — an editor extension would otherwise run it against the real lock, and an inherited globalSetup would run `setup` twice and wait on its own lock — cost if wrong: none to behaviour.
 - Ruling (superseded by D-08, which drops the macOS reader): `vmStatFree` throws on output missing a count or the page size, with one `risk:parsing` test, though no criterion asks for it — a missing count would give NaN, which skips the wait and sets NaN as the fork count (rule 4, validation at a trust boundary) — cost if wrong: one small extra test.
+- Ruling: the macOS branch of `setup` is chosen through an injected `platform` option that defaults to `process.platform` — the criteria tests and the fixture then run the Windows and Linux path on every host, and the one D-08 test reaches the darwin branch on Windows CI — cost if wrong: one optional field in a test-only module.
+- Ruling: the re-planned task is numbered Task 3, after the round-1 Tasks 1 and 2 — a changed task is numbered after the highest existing number — cost if wrong: a renumber.
+- Ruling: D-04 stays on Task 3's `covers:` with a line saying D-08 replaces it — the plan gate requires every D-nn under Decisions to be cited — cost if wrong: none to behaviour.
 
 ## Deferred
 

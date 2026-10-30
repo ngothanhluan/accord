@@ -8,3 +8,11 @@
 4. Nice — the risk:regression test never kills its spawned vitest on timeout, so a regression leaves an orphan that later takes the real lock — deferred
 5. Nice — Task 1 step 2 calls `read()` without defining it, while test/lock.ts:34 already has a module-level `read(file)` — deferred
 6. Nice — Task 2 marks test-memory.test.ts "(new)" though Task 1 creates it (the gate requires "(new)" relative to the baseline), and PER_FORK and RESERVE are exported for consumers that never import them — deferred
+
+## Round 2 (whole)
+
+fixed: 1.1, 1.3
+
+No findings
+
+## Closed

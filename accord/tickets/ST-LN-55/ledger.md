@@ -42,6 +42,9 @@
 - Ruling: while a missing folder holds a detached HEAD on no branch, a non-hook clean runs no `git worktree prune` at all and names every missing entry on a kept line — git prunes all prunable entries at once with no per-entry form, and locking one entry would rely on `git worktree lock` resolving a missing path, unconfirmed — cost if wrong: other stale records stay, named, until the owner restores or deletes that one folder.
 - Ruling: `worktrees()` writes its kept lines only when given the judged set; the list reads in `worktreeOpen` and `newTicketWorktree` after a clean write nothing and drop entries whose folder is missing — both run right after a clean whose `readList` already named them — cost if wrong: a caller that reads the list without a clean first leaves those entries unnamed.
 - Ruling: the plan stays one branch with no slices — `accord/config.yml` says `review.mode: outcome`; the round-4 fix brief said `human` by mistake — cost if wrong: tasks regrouped into slices.
+- Ruling: when a ticket's branch is held by a missing folder that is not its own sibling, `worktree open` refuses and tells the owner to put that folder back, suggesting nothing else — prune could lose a detached commit (plan round 5.1) — cost if wrong: an owner whose folder is truly gone gets no way out from accord's message.
+- Ruling: the refusal case of plan round 5.1 is checked inside the same verify test as the `--force` re-create — both halves of one rule — cost if wrong: a failure names the test, not which half failed.
+- Ruling: `git worktree add --force` replaces only the ticket's own missing entry and keeps every other entry — the planner's reading of git, which the 5.1 test pins by checking the other folder is still listed with its HEAD — cost if wrong: the test fails at build time, not after release.
 
 ## Deferred
 - Plan round 1 Nice: a relative path in a record line is resolved against cwd; skip non-absolute lines and fence descendants of the main checkout — deferred
@@ -58,6 +61,7 @@
 - Plan round 4 Nice: Task 5's branch-tip rule counts a stale `refs/remotes/origin/*` after a failed fetch and has no test; pass only `refs/heads` when the fetch failed, and add a tip-of-local-branch case — deferred
 - Plan round 4 Nice: Task 7's test calls `mkdirSync` on the ST-11 and ST-99 siblings without `{ recursive: true }` — deferred
 - Plan round 5 Nice: one clean can print `kept` then `pruned` for the same folder, since `worktrees()` decides the prune per read, before and after the fetch; decide it once per clean — deferred
+- Plan round 6 Nice: the `--force` re-create in Task 5 says the steps of worktree.ts:413-419 run as today, but Task 4's `recordQuietly` sits right after the line-412 add, so the `--force` branch may skip the record (D-07); say so in the task or check the record in the test — deferred
 
 ## Tasks
 - task 1 done 48b7de376993

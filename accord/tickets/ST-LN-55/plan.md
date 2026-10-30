@@ -1,6 +1,6 @@
 ---
 baseline: 995a87c98600c6c9d286aaf16158dcbb6b409928
-plan_hash: "fnv1a64:3dbedc408858a1cd"
+plan_hash: "fnv1a64:9f27db2b70578893"
 ---
 
 Review mode `outcome`: one branch, no slices. Each task below can be finished from its own section, this
@@ -13,7 +13,8 @@ ignored files before `git worktree remove`, and print `removed` only once the fo
 worktree accord creates and deletes a recorded folder git has forgotten (ac-3). Task 5 adds the hold guard for any live
 hold and the detached-HEAD rule (critique fixes 1 and 2). Task 6 adds the walk guards, with a nested repository in a
 disposable folder and an edit hidden by a skip-worktree or assume-unchanged flag kept before `git worktree remove`. Task 5 also
-stops a bare clean from pruning while a missing folder holds a detached HEAD on no branch. Task 7 adds the sibling sweep for leftovers that were never recorded (D-01 part C). Task 8
+stops a bare clean from pruning while a missing folder holds a detached HEAD on no branch, and lets `worktree open` re-create a
+ticket's own worktree whose folder is missing with `git worktree add --force` meanwhile. Task 7 adds the sibling sweep for leftovers that were never recorded (D-01 part C). Task 8
 adds the clean lock and the hook's time budget (fix 5). Task 9 updates the skill text and re-renders the copies and the
 hooks in `.claude/settings.json`.
 
@@ -499,13 +500,16 @@ line `worktree open` and `new ticket --worktree` print; the clean output of a re
 ## Task 5: Clean keeps any folder a live hold names, and removes a recorded detached worktree only when its HEAD is on the default branch or a branch tip
 covers: D-07, D-11
 files: packages/cli/src/commands/worktree.ts, packages/cli/test/worktree-clean.test.ts (new)
-verify: packages/cli/test/worktree-clean.test.ts#risk:data-loss-clean-keeps-a-recorded-detached-worktree-whose-head-is-on-no-branch-and-removes-one-at-the-default-branch, packages/cli/test/worktree-clean.test.ts#risk:data-loss-clean-never-removes-a-recorded-worktree-on-another-branch-or-a-folder-a-live-hold-names, packages/cli/test/worktree-clean.test.ts#risk:complex-branching-clean-names-a-recorded-worktree-of-a-dropped-ticket-whose-branch-is-already-on-the-default-branch, packages/cli/test/worktree-clean.test.ts#risk:data-loss-a-bare-clean-keeps-the-record-of-a-missing-folder-whose-detached-head-is-on-no-branch
+verify: packages/cli/test/worktree-clean.test.ts#risk:data-loss-clean-keeps-a-recorded-detached-worktree-whose-head-is-on-no-branch-and-removes-one-at-the-default-branch, packages/cli/test/worktree-clean.test.ts#risk:data-loss-clean-never-removes-a-recorded-worktree-on-another-branch-or-a-folder-a-live-hold-names, packages/cli/test/worktree-clean.test.ts#risk:complex-branching-clean-names-a-recorded-worktree-of-a-dropped-ticket-whose-branch-is-already-on-the-default-branch, packages/cli/test/worktree-clean.test.ts#risk:data-loss-a-bare-clean-keeps-the-record-of-a-missing-folder-whose-detached-head-is-on-no-branch, packages/cli/test/worktree-clean.test.ts#risk:data-loss-worktree-open-re-creates-a-ticket-worktree-whose-folder-was-deleted-while-a-missing-folder-holds-a-detached-head-on-no-branch
 
 Consumes: Task 4's `cleanRecorded`, `cleanForgotten` and record, plus `passGuards`, `removeWorktree`, `rebaseBranch`,
 `folderLine`, and `worktrees` and `readList` with Task 1's handling of entries whose folder is missing. Produces:
 critique fixes 1 and 2, `onNoBranch`, a kept line for every recorded worktree of a done or dropped ticket that no other
-phase judges (D-07: "printing the ones it cannot"), and a bare clean that never prunes the only ref to a detached
-commit (the Intent: never remove a commit reachable from nothing else; `/accord` is a clean moment, D-07, D-11).
+phase judges (D-07: "printing the ones it cannot"), a bare clean that never prunes the only ref to a detached
+commit (the Intent: never remove a commit reachable from nothing else; `/accord` is a clean moment, D-07, D-11), and a
+`worktree open` that, while that no-prune rule holds, re-creates the ticket's own worktree whose folder was deleted
+with `git worktree add --force`, and otherwise refuses without suggesting a prune (owner's answer "Use --force
+(Recommended)" to plan round 5 finding 1).
 
 Tests first, at the end of `worktree-clean.test.ts`; each passes `120_000` and none calls `link`, so each runs alike on
 the Windows host and in the container. They use `dropOnRemote(c, ids)` of `helpers/worktree.ts:363`,
@@ -553,6 +557,27 @@ which the file already imports and which commits through `commitMsg`, and `forge
   - `r2 = await run(['worktree', 'clean'], c.root)`. `r2.code` is 0; a line starts with `pruned ${q}: `; no line starts
     with `kept ${p}`; the worktree list still contains `worktree ${p}\n` and no longer contains `worktree ${q}\n`.
   - At the baseline the first clean prints `pruned ${p}: ...`, and `X` is reachable from nothing.
+- `it('risk:data-loss worktree open re-creates a ticket worktree whose folder was deleted while a missing folder holds a detached head on no branch')`.
+  While the rule above keeps every missing entry listed, git still has the ticket's own sibling registered, so a plain
+  `git worktree add <sibling> t/<id>` fails and git's message suggests `prune`, which would lose `X`. Import `rmSync`
+  and `renameSync` from `node:fs` on the file's existing import line when they are not there yet:
+  - `c = copy({ tickets: ['ST-9', 'ST-10'] })`, `p = c.sibling('scratch')`, `s = c.sibling('ST-9')` and
+    `q = c.sibling('elsewhere')`.
+  - `c.git('worktree', 'add', '-q', '--detach', p, 'origin/main')`, `writeFiles(p, { 'x.txt': 'x\n' })`, then
+    `X = commitMsg(p, 'detached work')`, a commit on no branch. `renameSync(p, p + '-away')`.
+  - `claimWorktree(c, 'ST-9')`, `sha9 = sha(c, 't/ST-9')`, then `rmSync(s, { recursive: true, force: true })`: the
+    ticket's own folder deleted by hand, its entry still on branch `t/ST-9`.
+  - `r = await run(['worktree', 'open', 'ST-9', '--continue'], c.root)`. `r.code` is 0; no line of `r.out` starts with
+    `pruned`; `gitRun(s, 'branch', '--show-current').trim()` equals `t/ST-9` and `gitRun(s, 'rev-parse', 'HEAD').trim()`
+    equals `sha9`. With `list = c.git('worktree', 'list', '--porcelain')`: `list.split('worktree ' + s + '\n').length`
+    is 2 (one entry for `s`), and `list` contains `worktree ${p}\nHEAD ${X}\n`.
+  - The refusal: `c.git('worktree', 'add', '-q', '-b', 't/ST-10', q, 'origin/main')`, then `renameSync(q, q + '-away')`,
+    so `t/ST-10` is held by a missing folder that is not ST-10's sibling.
+    `r2 = await run(['worktree', 'open', 'ST-10', '--continue'], c.root)`. `r2.code` is 2; `r2.err` contains
+    `ST-10: its branch t/ST-10 is checked out in ${q}, whose folder is missing` and does not contain `prune`;
+    `gone(c.sibling('ST-10'))`; the worktree list still contains `worktree ${q}\n` and `worktree ${p}\nHEAD ${X}\n`.
+  - At the baseline the open's clean prunes `p`, so the check on `worktree ${p}\nHEAD ${X}\n` fails; with the no-prune
+    rule and no `--force`, the first open exits 2 with git's `is a missing but already registered worktree` message.
 
 Interface, `worktree.ts`:
 - `function onNoBranch(root: string, head: string, ref: string | undefined, merged?: Set<string>): boolean`, the
@@ -586,6 +611,22 @@ Interface, `worktree.ts`:
   whose `prunable` is unset: `(seen ?? worktrees(ctx.root, ctx.stdout)).filter((w) => (w as PrunableEntry).prunable === undefined)`.
   They never enter or claim a missing folder, and `list[0]`, the main checkout, is never prunable. When no prunable
   entry exists, both behave and print exactly as today.
+- `worktreeOpen` keeps the unfiltered list as `all = seen ?? worktrees(ctx.root, ctx.stdout)` (typed
+  `PrunableEntry[]`) and sets `list = all.filter(...)` as above, so no list read is added. Prunable entries reach `all`
+  only while the no-prune rule holds, because otherwise `worktrees()` has already pruned them. In the
+  `if (local || remote)` block, after `path = siblingOf(mainPath, id)` and before the `git worktree add` of
+  `worktree.ts:412`, take `missing = all.filter((w) => w.prunable !== undefined && w.branch === branch)`:
+  - `missing` is empty: today's `git worktree add`, unchanged.
+  - `missing` has exactly one entry and `norm(missing[0].path) === norm(path)`: the ticket's own sibling, deleted by
+    hand, is still registered. Run `git(ctx.root, ['worktree', 'add', '--force', path, branch])` (`branch` is local here,
+    since a worktree holds it). Per the git-worktree docs (https://git-scm.com/docs/git-worktree, `--force`), this
+    overrides only the two safeguards in the way: the branch checked out by another worktree, and a path assigned to a
+    worktree but missing. Git replaces only that one entry's record; every other entry, `p` included, stays. The
+    commits of that entry are on `branch`, so nothing is lost. Then the steps of `worktree.ts:413-419` run as today.
+  - Any other case: throw `UsageError` (exit 2) with
+    `<id>: its branch <branch> is checked out in <paths>, whose folder is missing - put that folder back, then try again; nothing was created`,
+    `<paths>` the entries' paths joined by `, `. The text never names `prune`, and no git command runs.
+  - `git worktree remove` never takes `--force`, here or anywhere else in this plan.
 - Split the lazy holds read out of `passGuards` (`worktree.ts:708-719`) into
   `function guardHolds(ctx, s): Record<string, Hold> | undefined`. It returns `undefined` after the same `its hold could
   not be read` line, now naming the folder it was asked for.
@@ -622,7 +663,9 @@ session holds and the held done worktree whose hold goes); the rebase cases of `
 dropped-ticket case of `worktree-clean.test.ts` (lines 266-491), whose worktrees are not recorded; Tasks 1, 3 and 4
 tests. The prune and its `pruned <path>: <reason>` line stay as they are for every clean in which no missing folder holds
 a detached HEAD on no branch, so `worktree-clean.test.ts:152` and `worktree-open.test.ts:166`, whose missing folders
-hold branches, pass unchanged. The hook clean of Task 1 still never prunes and still writes its own line. A clean with
+hold branches, pass unchanged; in them the clean prunes first, so `worktreeOpen` finds no missing entry and runs
+today's `git worktree add` with no `--force`. Every `worktree open` case of `worktree-open.test.ts` prints and exits as
+today. The hook clean of Task 1 still never prunes and still writes its own line. A clean with
 no prunable entry spawns nothing new, so the `git-count.test.ts` counts and goldens hold.
 
 ## Task 6: The clean never enters or removes a listed worktree, a folder holding .git, the main checkout, a folder that holds one of these, or a worktree with an edit git status cannot see

@@ -40,5 +40,12 @@ Re-plan after origin/main split worktree.test.ts; three critics, lenses criteria
 
 fixed: 4.1, 4.2, 4.3, 4.4
 
-1. Should — Task 5's no-prune rule breaks `worktree open` of a ticket whose own folder was deleted by hand while another missing folder holds a detached HEAD on no branch: `worktreeOpen` drops prunable entries (plan.md:585-588, worktree.ts:388), line 412 runs `git worktree add <sibling> t/ST-X` on a path git still has registered, and git's error suggests `prune`, which would lose that commit; proposed fix: `git worktree add --force` when the only entry holding the branch is the ticket's own missing sibling (cited only by https://git-scm.com/docs/git-worktree#Documentation/git-worktree.txt---force), otherwise refuse with a line naming the held folder and not suggesting prune; add a `risk:data-loss` test — open
+1. Should — Task 5's no-prune rule breaks `worktree open` of a ticket whose own folder was deleted by hand while another missing folder holds a detached HEAD on no branch: `worktreeOpen` drops prunable entries (plan.md:585-588, worktree.ts:388), line 412 runs `git worktree add <sibling> t/ST-X` on a path git still has registered, and git's error suggests `prune`, which would lose that commit; proposed fix: `git worktree add --force` when the only entry holding the branch is the ticket's own missing sibling (cited only by https://git-scm.com/docs/git-worktree#Documentation/git-worktree.txt---force), otherwise refuse with a line naming the held folder and not suggesting prune; add a `risk:data-loss` test — fixed, owner: "Use --force (Recommended)"
 2. Nice — one clean can print `kept` then `pruned` for the same folder, as the prune decision in `worktrees()` is taken per read, before and after the fetch; decide once per clean — deferred
+
+## Round 6 (diff)
+
+fixed: 5.1
+
+1. Should — the 5.1 fix looks only at missing entries that hold the branch; a missing entry at the ticket's own sibling path with a detached HEAD on no branch (Task 5 scenario A, folder then moved away) leaves `missing` empty, so line 412's plain `git worktree add` runs and git's error suggests `add -f` or `prune`, either of which loses that commit (plan.md:618-619, worktree.ts:412); fix: before the `missing` check, refuse with the same no-prune line when any prunable entry sits at the target path and is not the one branch-holding entry the `--force` case accepts; same guard before worktree.ts:438 and :1078; add that case to the new test — open
+2. Nice — the `--force` hunk says the steps of worktree.ts:413-419 run as today, but Task 4's `recordQuietly` sits right after the line-412 add, so the `--force` branch may skip the record (D-07); say so in the hunk or check the record in the test — deferred

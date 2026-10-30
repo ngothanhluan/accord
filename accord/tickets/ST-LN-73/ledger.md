@@ -19,6 +19,9 @@
 - Plan round 1.4 (Nice): the risk:regression test never kills its spawned vitest on timeout, so a regression leaves an orphan that later takes the real lock.
 - Plan round 1.5 (Nice): Task 1 step 2 calls `read()` without defining it, while test/lock.ts:34 already has a module-level `read(file)`.
 - Plan round 1.6 (Nice): PER_FORK and RESERVE are exported for consumers that never import them.
+- Review round 1.1 (Nice): `gb()` rounds to one decimal, so with 4.96 GB free the wait line reads "5 GB free, 5 GB needed" while the run still waits.
+- Final review 2.1 (Nice): test/lock.ts:3 says a CI runner "never waits", but CI's `npm test` now waits for free memory there too; "never waits for another run" would be accurate.
+- Final review 2.2 (Nice): `setup` copies `acquire`'s default stderr writer and 1000 ms poll (test/lock.ts:170-171 and :129-130) instead of sharing one default.
 
 ## Tasks
 - task 3 done 9a93d6c3f688

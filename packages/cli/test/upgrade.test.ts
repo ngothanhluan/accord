@@ -207,38 +207,24 @@ it('ac-2 upgrade replaces only the lint and gate step and keeps every other line
   const team = init09.replace(shell, shell + edit) + tail;
   const expectedTeam = team.replace(edit, '').split(`${name}@0.0.9`).join(`${name}@${v}`);
 
-  const shallow = (s: string) => {
-    const lines = s.split('\n');
-    const from = lines.findIndex((l) => l.startsWith('      - uses:'));
-    const to = lines.indexOf('  extra:');
-    expect(from).toBeGreaterThan(-1);
-    expect(to).toBeGreaterThan(from);
-    return lines.map((l, i) => (i >= from && i < to && l !== '' ? l.slice(2) : l)).join('\n');
-  };
   const crlf = (s: string) => s.replace(/\n/g, '\r\n');
 
-  const cases = [
-    { label: 'plain', input: team, expected: expectedTeam, attrs: false },
-    { label: 'crlf', input: crlf(team), expected: crlf(expectedTeam), attrs: true },
-    { label: 'indent', input: shallow(team), expected: shallow(expectedTeam), attrs: false },
-  ];
-  for (const k of cases) {
-    const c = copy(plain, plainOther);
-    const o = c.others[0];
-    const cfg = readFileSync(join(o, 'accord/config.yml'), 'utf8');
-    writeFiles(o, {
-      'accord/config.yml': cfg.replace(/^accord: .*$/m, 'accord: "0.0.9"'),
-      '.github/workflows/accord.yml': k.input,
-      ...(k.attrs ? { '.gitattributes': '* -text\n' } : {}),
-    });
-    commitMsg(o, 'pin 0.0.9 ' + k.label);
-    gitRun(o, 'push', '-q', 'origin', 'main');
-    const r = await run(['upgrade'], c.root);
-    expect(r.code, `${k.label}: ${r.err}`).toBe(0);
-    expect(r.out).toBe(`branch: upgrade/${v}\nbase: main\ntitle: upgrade: accord ${v}\n`);
-    expect(r.err).not.toContain('was not refreshed');
-    expect(gitRun(c.remote, 'show', `upgrade/${v}:.github/workflows/accord.yml`), k.label).toBe(k.expected);
-  }
+  // The plain and shallow-indent cases live in packages/core/test/scaffold.test.ts (ST-LN-63); this one keeps CRLF end to end.
+  const c = copy(plain, plainOther);
+  const o = c.others[0];
+  const cfg = readFileSync(join(o, 'accord/config.yml'), 'utf8');
+  writeFiles(o, {
+    'accord/config.yml': cfg.replace(/^accord: .*$/m, 'accord: "0.0.9"'),
+    '.github/workflows/accord.yml': crlf(team),
+    '.gitattributes': '* -text\n',
+  });
+  commitMsg(o, 'pin 0.0.9 crlf');
+  gitRun(o, 'push', '-q', 'origin', 'main');
+  const r = await run(['upgrade'], c.root);
+  expect(r.code, `crlf: ${r.err}`).toBe(0);
+  expect(r.out).toBe(`branch: upgrade/${v}\nbase: main\ntitle: upgrade: accord ${v}\n`);
+  expect(r.err).not.toContain('was not refreshed');
+  expect(gitRun(c.remote, 'show', `upgrade/${v}:.github/workflows/accord.yml`), 'crlf').toBe(crlf(expectedTeam));
 });
 
 const STEP = '      - name: lint and gate\n';

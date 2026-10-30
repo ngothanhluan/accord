@@ -17,3 +17,9 @@ Round 1's five findings are fixed.
 1. Should — quality — a week-old volume set of another key can be half-removed while that key's run starts: docker recreates the removed node_modules volumes empty and unlabelled, the mounted `state` volume survives with `/state/installed`, and every later run of that key skips `npm ci` and fails on a missing vitest.mjs; the cutoff counts from creation, so the comment's "while they are worked" is wrong — scripts/test-linux.mjs (`removeOldVolumes`, `inside`).
 2. Nice — quality — the main-module guard compares `fileURLToPath(import.meta.url)` with `path.resolve(process.argv[1])`, so a checkout reached through a junction or symlink runs nothing and exits 0 — scripts/test-linux.mjs (last line).
 3. Nice — intent — the ledger's last Ruling says two `risk:parsing` tests; the file has five — accord/tickets/ST-LN-78/ledger.md.
+
+## Round 3
+
+No findings. Round 2's three findings are fixed.
+
+verdict: converged

@@ -57,7 +57,7 @@ Feature: ST-LN-17
     Then accord exits non-zero, names the reason, and prints no model for a fix executor
     And an owner Ruling allowing a stated number of more rounds lets exactly that many more run before the same refusal
 
-  @ac-3
+  @ac-3 @test:packages/core/test/round-gate.test.ts#ac-3-a-review-that-stops-converging-stops-for-the-owner-and-gate-done-fails-until-acceptance-or-convergence
   Scenario: A review that stops converging stops for the owner
     Given a lane M or lane S review.md that records round 3 or a later round, counted from the last return from verify
     And that round reports a Should or a Must
@@ -65,7 +65,7 @@ Feature: ST-LN-17
     Then accord prints "stop: report to owner" with that round's findings and the ticket's Approach section, asking whether to change course
     And no next round is given, and accord gate done fails until review.md ends with the line verdict: accepted-by-owner followed by the owner's sentence in quotes, or a later round reports no findings and review.md ends with verdict: converged
 
-  @ac-4
+  @ac-4 @test:packages/core/test/round-gate.test.ts#ac-4-the-plan-critique-loop-has-the-same-cap-and-stop-and-gate-plan-fails-until-acceptance-or-a-no-findings-round
   Scenario: The plan critique loop has the same cap and stop
     Given a plan-review.md whose rounds after the last "## Closed" record round 3 or later still reporting a Should or a Must, or record five rounds
     When the session asks accord for the next plan critique round

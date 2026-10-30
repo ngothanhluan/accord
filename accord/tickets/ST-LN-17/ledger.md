@@ -73,6 +73,8 @@
 - Ruling: "lane M" in every rule, condition and code check of this plan means a ticket whose `lane:` is `M`, `L` or `P`, every lane but `S` — `progressOf` sends all three down one path (packages/core/src/status/stage.ts:82), so code tests a lane ticket whose `lane` is not `S`, never `lane === 'M'` (plan critique 3.2) — cost if wrong: a lane L or P ticket gets lane M's review rules where a later ticket wanted others
 - Ruling: in plan critique, an owner acceptance line `verdict: accepted-by-owner "<the owner's sentence>"` written after a stop ends the loop the same way a round with no Must and no Should open does; critique.md step 4 names it, the accepted findings keep their state, `accord round <id> --plan` then refuses with a reason saying the loop has ended, and the skill goes on to step 7 and step 8's `## Closed` (Rulings 36, 44; plan critique 3.1) — the old refusal text sent the session to append `## Closed`, which opened a new cycle — cost if wrong: none found
 - Ruling: the baseline run at 6288bed failed one case, packages/cli/test/lane-commands.test.ts:819 "a directory token passes when it exists at baseline and fails when it does not", on its 30 s timeout under the full suite (the file took 481 s), and it passed alone; the owner tracks it as its own work, with the slow tests of ST-LN-63 part 4, and the plan goes on to build — "Split it into a ticket, go on" (2026-10-30, the owner's choice in Vietnamese, given here in English) — cost if wrong: the same case can time out again at verify and need a re-run
+- Ruling: a trailing empty cycle exists after a final `## Closed` in plan-review.md, so consumers can take the last cycle as the current one without checking `closed` (task 1) — cost if wrong: Task 2 must check `closed` on the last cycle if it assumed the closed cycle is last
+- Ruling: lines under `## Closed`, under an unknown heading, and under a `## Round` with no number are read against the cycle they follow and its last round; a `## Round` with no number is unreadable and not counted as a round (task 1) — cost if wrong: such a record is refused either way
 
 ## Deferred
 - plan critique 1.8: Task 5 test 2's `tool_name: 'Bash'` case needs its own top-level input — deferred
@@ -81,3 +83,6 @@
 - plan critique 2.7: the pre-tool-use hook could use the light preflight before it reads tool_name — deferred
 - plan critique 2.8: lane-s.md's "one after the last ## Round <n>" sentence should match the restart after a marker — deferred
 - plan critique 4.1: add a lane L case to Task 5 test 1 (pre-tool-use.test.ts), and lane L or P cases for nextRound's stop and the open-cycle gate done check — deferred
+
+## Tasks
+- task 1 done 7be4d34a115b

@@ -41,7 +41,7 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: ST-LN-73
 
-  @ac-1
+  @ac-1 @test:packages/cli/test/test-memory.test.ts#ac-1-the-fork-count-follows-the-free-memory-capped-by-half-the-CPUs
   Scenario: The fork count follows the free memory, capped by half the CPUs
     Given no other run holds the lock and ACCORD_TEST_WORKERS is not set
     And half the CPUs is 8, each fork needs 1 GB, and 4 GB is kept free for the rest of the machine
@@ -49,7 +49,7 @@ Feature: ST-LN-73
     Then it runs at most 6 forks at once
     And a run that starts with 30 GB free runs at most 8 forks at once
 
-  @ac-2
+  @ac-2 @test:packages/cli/test/test-memory.test.ts#ac-2-an-explicit-ACCORD_TEST_WORKERS-is-a-cap-the-free-memory-can-lower
   Scenario: An explicit ACCORD_TEST_WORKERS is a cap that the free memory can lower
     Given no other run holds the lock and ACCORD_TEST_WORKERS is 20
     And half the CPUs is 2, each fork needs 1 GB, and 4 GB is kept free for the rest of the machine
@@ -57,7 +57,7 @@ Feature: ST-LN-73
     Then it runs at most 6 forks at once, since half the CPUs does not apply once the variable is set
     And a run that starts with 30 GB free and ACCORD_TEST_WORKERS set to 3 runs at most 3 forks at once
 
-  @ac-3
+  @ac-3 @test:packages/cli/test/test-memory.test.ts#ac-3-a-run-waits-with-one-line-until-one-fork-fits-and-has-no-time-limit
   Scenario: A run waits for enough free memory for one fork, with no time limit
     Given no other run holds the lock and ACCORD_TEST_WORKERS is not set
     And half the CPUs is 8, each fork needs 1 GB, and 4 GB is kept free for the rest of the machine
@@ -66,7 +66,7 @@ Feature: ST-LN-73
     And it starts no test while less than 5 GB is free, however long that lasts
     And once 7 GB is free it runs at most 3 forks at once
 
-  @ac-4
+  @ac-4 @test:packages/cli/test/test-memory.test.ts#ac-4-the-fork-count-is-read-once-the-lock-is-held
   Scenario: The fork count is taken from the memory free once the lock is held
     Given another run holds the lock while 2 GB of memory is free, and ACCORD_TEST_WORKERS is not set
     And each fork needs 1 GB, 4 GB is kept free for the rest of the machine, and half the CPUs is 8

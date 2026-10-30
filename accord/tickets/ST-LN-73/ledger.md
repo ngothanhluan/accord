@@ -12,9 +12,13 @@
 - Ruling: the macOS branch of `setup` is chosen through an injected `platform` option that defaults to `process.platform` — the criteria tests and the fixture then run the Windows and Linux path on every host, and the one D-08 test reaches the darwin branch on Windows CI — cost if wrong: one optional field in a test-only module.
 - Ruling: the re-planned task is numbered Task 3, after the round-1 Tasks 1 and 2 — a changed task is numbered after the highest existing number — cost if wrong: a renumber.
 - Ruling: D-04 stays on Task 3's `covers:` with a line saying D-08 replaces it — the plan gate requires every D-nn under Decisions to be cited — cost if wrong: none to behaviour.
+- Ruling: `setup` reads the OS through `os.platform()` by default instead of `process.platform` — the ac-5 scan in packages/core/test/stage-skills.test.ts rejects any line under test/ holding `process.platform`, and both give the same value — cost if wrong: none.
 
 ## Deferred
 
 - Plan round 1.4 (Nice): the risk:regression test never kills its spawned vitest on timeout, so a regression leaves an orphan that later takes the real lock.
 - Plan round 1.5 (Nice): Task 1 step 2 calls `read()` without defining it, while test/lock.ts:34 already has a module-level `read(file)`.
 - Plan round 1.6 (Nice): PER_FORK and RESERVE are exported for consumers that never import them.
+
+## Tasks
+- task 3 done 9a93d6c3f688

@@ -2,7 +2,8 @@ import { availableParallelism } from 'node:os';
 import { defineConfig } from 'vitest/config';
 
 // Each fork spawns git and the CLI; vitest's default of CPUs-1 forks ran a 32 GB host out of memory with two
-// sessions testing at once. ACCORD_TEST_WORKERS sets the count; the default is half the CPUs.
+// sessions testing at once. ACCORD_TEST_WORKERS sets the cap, otherwise half the CPUs; once the run holds the lock,
+// test/lock.ts lowers it to the forks the free memory allows, except on macOS (ST-LN-73).
 export function workers(env: NodeJS.ProcessEnv, cpus: number): number {
   const value = env.ACCORD_TEST_WORKERS;
   if (value === undefined || value === '') return Math.max(1, Math.floor(cpus / 2));

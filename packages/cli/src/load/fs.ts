@@ -415,6 +415,34 @@ export function gitAfterReview(root: string, id: string): AfterVerify | undefine
   return Object.hasOwn(r, id) ? r[id] : undefined;
 }
 
+/** ST-LN-17: each ## Return from verify sha of the ticket's review.md -> confirmed by git (the preamble Ruling on the marker). */
+export function gitReturnFacts(root: string, id: string, shas: readonly string[]): Record<string, boolean> {
+  const ancestor = gitAncestors(root, [...shas]);
+  const path = 'accord/tickets/' + id + '/review.md';
+  const out: Record<string, boolean> = {};
+  for (const sha of shas) {
+    out[sha] = false;
+    if (!ancestor[sha]) continue;
+    let text: string | undefined;
+    try {
+      text = gitFilesAt(root, sha, [path])[path];
+    } catch {
+      text = undefined;
+    }
+    if (text === undefined) continue;
+    const last = normaliseText(text).split('\n').filter((l) => l.trim() !== '').pop() ?? '';
+    out[sha] = /^verdict:\s*(converged|accepted-by-owner)(\s|$)/.test(last.trim());
+  }
+  return out;
+}
+
+/** `snapshot` with returnFacts[id] set when its review.md holds a marker; `snapshot` itself otherwise. */
+export function withReturnFacts(root: string, snapshot: RepoSnapshot, id: string): RepoSnapshot {
+  const shas = (snapshot.work?.[id]?.rounds?.cycles ?? []).flatMap((c) => (c.marker === undefined ? [] : [c.marker]));
+  if (shas.length === 0) return snapshot;
+  return { ...snapshot, returnFacts: { ...snapshot.returnFacts, [id]: gitReturnFacts(root, id, shas) } };
+}
+
 /** A claim's tip: its ref, plus the local branch when that is another ref, since `gitClaims` prefers the pushed one. */
 function claimTips(root: string, id: string, ref: string, claimBranches: Record<string, string>): string[] {
   const local = Object.hasOwn(claimBranches, id) ? 'refs/heads/' + claimBranches[id] : undefined;

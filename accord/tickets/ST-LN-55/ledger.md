@@ -34,6 +34,9 @@
 - Ruling: a flagged symlink entry (mode 120000) on disk counts as differing, so its worktree is kept — the cheapest safe reading — cost if wrong: such a worktree is cleaned by hand.
 - Ruling: the long-output risk test runs through a new `runWhole` helper in `helpers/done.ts`, not `run` — `run` reads its output once and would cut long output the same way — cost if wrong: one more small test helper.
 - Ruling: the plan's baseline test run (step 7) is CI's full suite on a draft pull request opened at the plan commit, not a local tests.full — the owner replaced the 25-30 min local run with CI on ST-LN-17 and ST-LN-75; only accord/ changed since the baseline — cost if wrong: a baseline failure is seen once CI finishes rather than before build starts.
+- Ruling: task 1's `doneOnRemote` calls a verifyStage copy that always writes review.md — task 1 needs only the verify path — cost if wrong: later tasks add an option.
+- Ruling: when the hook input's cwd names another repo root than the launch checkout and the fetch fails, the clean judges against the launch checkout's snapshot, as `fetchOrigin` reloads only after a good fetch — the plan's text, a rare case — cost if wrong: a stale branch-template list then.
+- Ruling: origin/main (ST-LN-78, and the split of worktree.test.ts into five files) was merged into t/ST-LN-55 after task 1, so task tests run in the Linux container; task 1's tests were appended to main's worktree-clean.test.ts and its duplicate helpers dropped for main's `helpers/worktree.ts` — the owner asked for Linux test runs and ST-LN-78 is merged — cost if wrong: main's `doneOnRemote` returns a record and takes options where task 1's returned void; no task-1 test depends on it.
 
 ## Deferred
 - Plan round 1 Nice: a relative path in a record line is resolved against cwd; skip non-absolute lines and fence descendants of the main checkout — deferred
@@ -46,3 +49,6 @@
 - Plan round 1 Nice: `git remote prune origin` on the hook path has no timeout — deferred
 - Plan round 2 Nice: a hook input cwd that no longer exists makes repoRoot report 'git is required but was not found on PATH'; lstat the folder first and word the clean failed line from that — deferred
 - Plan round 3 Nice: Task 1's long-output risk test calls the removed line the clean's last line (deleted lines follow it) and says the closing line would be missing in the old design; word it as "after all of them" — deferred
+
+## Tasks
+- task 1 done 48b7de376993

@@ -51,7 +51,7 @@ Feature: ST-LN-55
     Then the first folder no longer exists, and clean prints "removed" with its path
     And git still lists the second worktree, its folder and ".env" are unchanged, and clean prints a line naming that folder and ".env", and no "removed" line for it
 
-  @ac-2
+  @ac-2 @test:packages/cli/test/worktree-clean.test.ts#ac-2-a-session-start-resume-or-clear-cleans-a-done-ticket-worktree-and-branches-and-keeps-one-a-live-session-holds
   Scenario: The next session start cleans a done ticket's worktree and branches, unless a live session holds it
     Given a ticket's pull request is merged, so that after a fetch accord reads the ticket as done on origin's default branch
     And its worktree, its local branch and its branch on origin still exist, and the session that held the worktree has ended

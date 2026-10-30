@@ -1104,3 +1104,57 @@ it('ac-4 the intent interview moves the evidence it replaces into a dated record
   }
   expect(bad).toEqual([]);
 });
+
+// ST-LN-13: a research record the ticket lists and the branch adds is the ticket's own file in the lane S checks.
+it('risk:data-loss a listed research record the branch adds counts as the tickets own file in the lane S checks and the move to lane S keeps the evidence it drops', () => {
+  const flat = (t: string) => t.replace(/\s+/g, ' ');
+  const all = ['claude', 'codex', 'cursor', 'copilot'];
+  const renders = [
+    skillTargets({ ...config, runtimes: all } as AccordConfig),
+    skillTargets({ ...config, runtimes: all, roles: ['ba', 'dev', 'designer'] } as AccordConfig),
+  ];
+  const bad: string[] = [];
+  for (const render of renders) {
+    const ids = render.filter((f) => f.path.endsWith('/ids.md'));
+    expect(ids.length, 'ids.md is rendered in accord, accord-intent, accord-debug and accord-verify for each skill folder').toBeGreaterThanOrEqual(8);
+    for (const f of ids) {
+      const at = f.text.indexOf('\n## Moving to lane S\n');
+      if (at < 0) {
+        bad.push(f.path + ': no `## Moving to lane S` heading line');
+        continue;
+      }
+      const move = flat(f.text.slice(at));
+      for (const n of [
+        "paths under `accord/tickets/<id>/` and `.md` records under `accord/research/` that the ticket lists under `research:` and origin's default branch does not hold, do not move",
+        'First move every line of evidence in the `## Intent`, `## Acceptance criteria`, `## Open questions` and `## Approach` sections, verbatim, into a new record under `accord/research/`',
+        'Commit the ticket file and any record step 3 made',
+      ]) {
+        if (!move.includes(n)) bad.push(f.path + ': move lacks ' + n);
+      }
+      const evidence = move.indexOf('First move every line of evidence');
+      if (!(evidence > -1 && evidence < move.indexOf('replace the `lane:` line'))) bad.push(f.path + ': evidence is moved after the lane line is replaced');
+    }
+    for (const dir of ['.claude/skills', '.agents/skills']) {
+      const get = (p: string) => flat(render.find((f) => f.path === dir + '/' + p)?.text ?? '');
+      const own = (who: string) => 'A `.md` record under `accord/research/` that the ticket lists under `research:` and ' + who + ' adds is the ticket\'s own file';
+      const checks: [string, string[]][] = [
+        ['accord/lane.md', [own('the branch') + ': it is not an expected file and needs no `## Scope` line']],
+        ['accord-intent/lane.md', [own('the branch') + ': it is not an expected file and needs no `## Scope` line']],
+        ['accord/lane-s.md', [own('this branch') + ' and needs no `## Scope` line']],
+        [
+          'accord-intent/research.md',
+          [
+            "A `.md` record under `accord/research/` that the ticket lists under `research:` and that origin's default branch does not hold counts as one of the ticket's own files",
+            'A change to a record the default branch already holds does not count.',
+          ],
+        ],
+      ];
+      for (const [p, needles] of checks) {
+        const text = get(p);
+        if (text.length === 0) bad.push(dir + '/' + p + ' is empty');
+        for (const n of needles) if (!text.includes(n)) bad.push(dir + '/' + p + ' lacks ' + n);
+      }
+    }
+  }
+  expect(bad).toEqual([]);
+});

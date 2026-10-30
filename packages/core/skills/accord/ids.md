@@ -70,15 +70,20 @@ id, branch and worktree, and this same session goes on with it.
    `git log --full-history -G '^approved_hash:' --format=%h <origin's default branch>..HEAD -- accord/tickets/<id>.md`
    prints a commit.
 2. In the ticket's worktree, run `git status --porcelain --untracked-files=all`. When it lists a path other than
-   `accord/tickets/<id>.md` and paths under `accord/tickets/<id>/`, do not move: name those paths, say the ticket
-   stays lane M, and stop. Otherwise commit only those records: run `git add -A`, which that check limits to them,
+   `accord/tickets/<id>.md`, paths under `accord/tickets/<id>/` and `.md` records under `accord/research/` that the
+   ticket lists under `research:` and origin's default branch does not hold, do not move: name those paths, say the
+   ticket stays lane M, and stop. Otherwise commit only those records: run `git add -A`, which that check limits to them,
    and `git commit -m "intent: <id> before the move to lane S"` when anything is staged.
-3. In `accord/tickets/<id>.md`, replace the `lane:` line with `lane: "S"`, and replace the `## Intent`,
+3. First move every line of evidence in the `## Intent`, `## Acceptance criteria`, `## Open questions` and
+   `## Approach` sections, verbatim, into a new record under `accord/research/`, listed under the ticket's `research:`
+   key, as `research.md` of the intent skill says; skip this when they hold none. Then, in `accord/tickets/<id>.md`,
+   replace the `lane:` line with `lane: "S"`, and replace the `## Intent`,
    `## Acceptance criteria`, `## Open questions` and `## Approach` sections, headings included, with `## Understood`
    and `## Done when`, one line each, written from the intent interview already held, with no new interview, then
    `## Scope`, written as step 1 of the accord skill's lane S steps says. Keep `## Vetoes`, `## Decisions` and
    `## Corrections` verbatim, and every other frontmatter key as it is.
-4. Commit the ticket file with `git commit -m "intent: <id> moved to lane S" -- accord/tickets/<id>.md`, push with
+4. Commit the ticket file and any record step 3 made with
+   `git commit -m "intent: <id> moved to lane S" -- accord/tickets/<id>.md` followed by the path of each such record, push with
    `git push -u origin <claim branch>`, then load the accord skill and go on at its Continue step 2 in this same
    session, where the anchor prints `Lane: S` and the lane S steps go on from step 1 on the same id, branch and
    worktree.

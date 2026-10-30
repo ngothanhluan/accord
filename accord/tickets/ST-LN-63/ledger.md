@@ -96,6 +96,8 @@
 - review 1.11 Nice — the ac-1 loop writes progress lines to stdout and helpers/items.ts:7 keeps a build-process comment ("Each Part 2 task appends its entries")
 - review 3.1 Nice — the `known` branches of `doneRef` have no test: done-on-default.test.ts:81-87 calls `doneRef(repo)` only, so a `known.local` that came back undefined would pass every test while `status` in a repository with a local main and no origin counts against the checkout again (fs.ts:1426, 1435); run the same three assertions with `known` from `defaultRefs(repo, true)`
 - review 3.2 Nice — the doc comment "The default refs in one `for-each-ref`…" sits above `export interface DefaultRefs` instead of `function defaultRefs` (fs.ts:354-363)
+- review 4.1 Nice — repo-helper.test.ts never sets a local identity, commits, and checks `log -1 --format=%ae%an`, so a `commitFlags` that always forced `-c user.*` would stay green there
+- review 4.2 Nice — repo-helper.test.ts's risk kind `environment` is used nowhere else; `risk:regression` fits the policy wording
 
 ## Tasks
 - task 1 done d4a93ac435a0

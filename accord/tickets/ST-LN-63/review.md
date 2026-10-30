@@ -27,3 +27,11 @@ Nice 1 [patch]: the `known` branches of `doneRef` have no test — packages/cli/
 Nice 2 [patch]: the `defaultRefs` doc comment sits above `interface DefaultRefs` — packages/cli/src/load/fs.ts:354-363 — deferred
 
 verdict: converged
+
+## Round 4
+
+Debug episode 1's fix (CI-only: the test helper `commitMsg` had no committer identity), reviewed from c3f245f, lens both: no Must or Should.
+Nice 1 [patch]: the reproduction test does not check that a repository with its own identity keeps its author — packages/cli/test/repo-helper.test.ts — deferred
+Nice 2 [patch]: the test's risk kind `environment` is used nowhere else; `regression` fits the policy wording — packages/cli/test/repo-helper.test.ts — deferred
+
+verdict: converged

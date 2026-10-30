@@ -12,6 +12,7 @@ import {
   POINTER_FILES,
   POINTER_START,
   pointerText,
+  refreshLintStep,
   repinConfig,
   repinWorkflow,
   skillTargets,
@@ -417,4 +418,38 @@ it('risk:parsing the pin rewrites change only the top level accord line and the 
   expect(repinConfig('accord: "0.0.9" extra\n', '0.1.0')).toBeUndefined();
   const keep = `npx --yes ${name}@0.0.90 x && other@0.0.9`;
   expect(repinWorkflow(keep, name, '0.0.9', '0.1.0')).toBe(keep);
+});
+
+// ST-LN-63 Task 15: the plain and shallow-indent cases of the upgrade ac-2 test, split off from the end to end test in
+// packages/cli/test/upgrade.test.ts, which keeps its CRLF case. The composition is the one upgrade.ts applies.
+it('risk:parsing the lint and gate refresh keeps every other line of a workflow written plain or with a shallow indent', () => {
+  const name = '@accord-dev/accord';
+  const v = '0.1.0';
+  const init09 = initFiles({ name, version: '0.0.9' }).find((f) => f.path === '.github/workflows/accord.yml')!.text;
+  const edit = '        working-directory: app\n';
+  const shell = '        shell: bash\n';
+  expect(init09).toContain(shell);
+  const tail = `      # team note about the step\n\n      - name: team check\n        run: echo team\n  extra:\n    runs-on: ubuntu-latest\n    steps:\n      - run: npx --yes ${name}@0.0.9 lint\n`;
+  const team = init09.replace(shell, shell + edit) + tail;
+  const expectedTeam = team.replace(edit, '').split(`${name}@0.0.9`).join(`${name}@${v}`);
+
+  const shallow = (s: string) => {
+    const lines = s.split('\n');
+    const from = lines.findIndex((l) => l.startsWith('      - uses:'));
+    const to = lines.indexOf('  extra:');
+    expect(from).toBeGreaterThan(-1);
+    expect(to).toBeGreaterThan(from);
+    return lines.map((l, i) => (i >= from && i < to && l !== '' ? l.slice(2) : l)).join('\n');
+  };
+
+  const cases = [
+    { label: 'plain', input: team, expected: expectedTeam },
+    { label: 'indent', input: shallow(team), expected: shallow(expectedTeam) },
+  ];
+  for (const k of cases) {
+    const refresh = refreshLintStep(k.input, name, v);
+    expect('text' in refresh, `${k.label}: ${JSON.stringify(refresh)}`).toBe(true);
+    const text = 'text' in refresh ? refresh.text : k.input;
+    expect(repinWorkflow(text, name, '0.0.9', v), k.label).toBe(k.expected);
+  }
 });

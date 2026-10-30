@@ -5,7 +5,7 @@
 // than instead of it (D-97). Under `--json` stdout carries the GateResult verbatim and every notice
 // goes to stderr, so `jq '.findings[]'` works with no unwrapping (D-98).
 import { gateDone, gatePlan, gateReady, renderText } from '@accord-dev/accord-core';
-import { gitAfterReview, gitBranchCommits, gitReviewFact, UsageError, withDefaultRef } from '../load/fs.js';
+import { gitAfterReview, gitBranchCommits, gitPlanHistory, gitRecordsSinceFor, gitReviewCommit, gitReviewFact, UsageError, withDefaultRef } from '../load/fs.js';
 import { colourFindings } from '../render/color.js';
 import { branchFactFor } from './branch-fact.js';
 import type { CommandContext } from '../run.js';
@@ -28,17 +28,24 @@ export function gate(
     ? withCommits
     : (() => {
         const after = Object.fromEntries(Object.entries(ctx.snapshot.afterVerify ?? {}).filter(([k]) => k !== id));
-        const found = gitAfterReview(ctx.root, id);
+        // ST-LN-63: the review commit is read once and both facts are taken from it.
+        const commit = gitReviewCommit(ctx.root, id);
+        const found = gitAfterReview(ctx.root, id, commit);
         if (found !== undefined) after[id] = found;
-        return { ...withCommits, reviewFacts: { [id]: gitReviewFact(ctx.root, id) }, afterVerify: after };
+        return { ...withCommits, reviewFacts: { [id]: gitReviewFact(ctx.root, id, commit) }, afterVerify: after };
       })();
   // ST-LN-62: Done reads the branch diff of every ticket with `lane:`, loaded here from the merge base with the default branch.
   const forScope =
     which === 'done' && Object.hasOwn(ctx.snapshot.tickets, id) && ctx.snapshot.tickets[id].frontmatter?.lane !== undefined
       ? { ...forDone, branchFacts: { [id]: branchFactFor(ctx, id) } }
       : forDone;
+  // ST-LN-63: the history Plan and Done read is loaded here for the gated ticket alone, never at load for every ticket.
   const result =
-    which === 'ready' ? gateReady(withDefaultRef(ctx.root, ctx.snapshot), id) : which === 'plan' ? gatePlan(ctx.snapshot, id) : gateDone(forScope, id);
+    which === 'ready'
+      ? gateReady(withDefaultRef(ctx.root, ctx.snapshot), id)
+      : which === 'plan'
+        ? gatePlan({ ...ctx.snapshot, ...gitPlanHistory(ctx.root, ctx.snapshot, id) }, id)
+        : gateDone({ ...forScope, ...gitRecordsSinceFor(ctx.root, ctx.snapshot, id) }, id);
   ctx.stdout.write(
     options.json ? JSON.stringify(result, null, 2) + '\n' : colourFindings(renderText(result), ctx.stdout),
   );

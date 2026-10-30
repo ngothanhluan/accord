@@ -3,7 +3,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { branchTemplateOf, CALL_SIGN, DEFAULT_BRANCH_TEMPLATE, isSha, loadSnapshot, normaliseText, peopleOf, scopeLines } from '@accord-dev/accord-core';
+import { branchTemplateOf, CALL_SIGN, DEFAULT_BRANCH_TEMPLATE, isSha, loadSnapshot, normaliseText, peopleOf, scopeLines, workOf } from '@accord-dev/accord-core';
 import type { BranchChange, BranchFact, RepoSnapshot, SnapshotInput } from '@accord-dev/accord-core';
 
 /** Environment problem the user must fix (no git, not a repository, no accord/ folder); exit 2 in Phase 5. */
@@ -70,18 +70,26 @@ function containedPath(root: string, rel: string | undefined): string | undefine
  */
 function gitFacts(
   root: string,
+  headRead: { commit: string; author: string } | 'unborn' | undefined,
 ): { commit: string; authors: Record<string, string>; activity: Record<string, number>; planSubjects: Record<string, string> } | undefined {
   const git = (args: string[]) =>
     execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 });
-  let head: string;
-  try {
-    head = git(['-c', 'log.showSignature=false', 'show', '--no-show-signature', '-s', '--format=%H%x00%ae', 'HEAD']);
-  } catch {
-    // `gitTree` runs first, so a missing binary has already thrown the ENOENT UsageError; a failure
-    // here means an unborn HEAD and nothing else.
-    return undefined;
+  // ST-LN-63: the HEAD commit and its author come from the object `gitDefaultBranch` already read; `git show` runs only when that read could not say.
+  if (headRead === 'unborn') return undefined;
+  let commit: string | undefined;
+  let commitAuthor: string | undefined;
+  if (headRead !== undefined) ({ commit, author: commitAuthor } = headRead);
+  else {
+    let head: string;
+    try {
+      head = git(['-c', 'log.showSignature=false', 'show', '--no-show-signature', '-s', '--format=%H%x00%ae', 'HEAD']);
+    } catch {
+      // `gitTree` runs first, so a missing binary has already thrown the ENOENT UsageError; a failure
+      // here means an unborn HEAD and nothing else.
+      return undefined;
+    }
+    [commit, commitAuthor] = head.trim().split('\0');
   }
-  const [commit, commitAuthor] = head.trim().split('\0');
   if (commit === undefined || commitAuthor === undefined) return undefined;
   const authors: Record<string, string> = {};
   // Ticket id -> newest committer time over its records; empty when the log fails, so nothing is idle.
@@ -158,7 +166,14 @@ function gitClaims(
   root: string,
   templates: readonly string[],
   known: (id: string) => boolean,
-): { claims: Record<string, string>; branches: Record<string, string>; refs: Record<string, string>; activity: Record<string, number> } {
+): {
+  claims: Record<string, string>;
+  branches: Record<string, string>;
+  refs: Record<string, string>;
+  activity: Record<string, number>;
+  /** Every ref the listing printed, with its sha. */
+  listed: Map<string, string>;
+} {
   const patterns = templates.flatMap((t) => {
     const parts = t.split('{id}');
     return parts.length === 2 ? ['refs/heads/' + parts[0] + '*' + parts[1], 'refs/remotes/*/' + parts[0] + '*' + parts[1]] : [];
@@ -167,7 +182,7 @@ function gitClaims(
   try {
     // for-each-ref globs with WM_PATHNAME, so `*` stays within one segment.
     // shortcut: a remote whose name contains `/` is not matched; widen the pattern if one ever must be.
-    out = execFileSync('git', ['for-each-ref', '--format=%(refname)%00%(authoremail)%00%(committerdate:unix)', ...patterns], {
+    out = execFileSync('git', ['for-each-ref', '--format=%(refname)%00%(authoremail)%00%(committerdate:unix)%00%(objectname)', ...patterns], {
       cwd: root,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -179,8 +194,10 @@ function gitClaims(
   // A Map, so an inherited key such as `constructor` never counts as an earlier winner.
   const winners = new Map<string, { email: string; short: string; ref: string; pushed: boolean; when: number }>();
   const activity: Record<string, number> = {};
+  const listed = new Map<string, string>();
   for (const line of out.split('\n')) {
-    const [ref, email, whenText] = line.split('\0');
+    const [ref, email, whenText, sha] = line.split('\0');
+    if (ref !== undefined && sha !== undefined) listed.set(ref, sha);
     const m = /^refs\/(?:(heads)|remotes\/[^/]+)\/(.+)$/.exec(ref ?? '');
     if (m === null || email === undefined) continue;
     const id = ticketOfBranch(m[2], templates, known);
@@ -200,7 +217,7 @@ function gitClaims(
     branches[id] = w.short;
     refs[id] = w.ref;
   }
-  return { claims, branches, refs, activity };
+  return { claims, branches, refs, activity, listed };
 }
 /**
  * Spec §7: is each lane plan's baseline an ancestor of HEAD? Per sha, `git merge-base --is-ancestor`:
@@ -284,30 +301,135 @@ function gitRecordsSince(root: string, shas: string[]): Record<string, string[]>
   return out;
 }
 
+/**
+ * ST-LN-63: the history `gate plan` reads for the gated ticket alone, never for every ticket at load: whether its plan's
+ * baseline is an ancestor of HEAD, and which of its plan's non-new `files:` paths exist at that baseline. A baseline that is
+ * not a sha gives `{}`, as the plan gate's own rule reports it.
+ */
+export function gitPlanHistory(
+  root: string,
+  snapshot: RepoSnapshot,
+  id: string,
+): { ancestors?: Record<string, boolean>; baselineFiles?: Record<string, string[]> } {
+  const plan = workOf(snapshot, id)?.plan;
+  const sha = plan?.baseline;
+  if (plan === undefined || sha === undefined || !isSha(sha)) return {};
+  const ancestors = gitAncestors(root, [sha]);
+  const wanted = { [sha]: [...new Set(plan.tasks.flatMap((t) => t.files.filter((f) => !t.newFiles.includes(f))))] };
+  const baselineFiles = gitBaselineFiles(root, wanted, ancestors);
+  return { ancestors, ...(Object.keys(baselineFiles).length === 0 ? {} : { baselineFiles }) };
+}
+
+/**
+ * ST-LN-63: the paths changed from each commit the gated ticket's ticks and review were made against to HEAD, read for
+ * `gate done` and the gated ticket alone. A recorded sha equal to HEAD is included: its diff is empty and the rule never reads it.
+ */
+export function gitRecordsSinceFor(root: string, snapshot: RepoSnapshot, id: string): { recordsSince?: Record<string, string[]> } {
+  const recorded = [
+    ...new Set(
+      [
+        Object.hasOwn(snapshot.tickets, id) ? snapshot.tickets[id].frontmatter?.verified_commit : undefined,
+        Object.hasOwn(snapshot.verifications, id) ? snapshot.verifications[id].frontmatter?.commit : undefined,
+      ].filter((c): c is string => c !== undefined && isSha(c)),
+    ),
+  ];
+  if (recorded.length === 0) return {};
+  const recordsSince = gitRecordsSince(root, recorded);
+  return Object.keys(recordsSince).length === 0 ? {} : { recordsSince };
+}
+
 type AfterVerify = NonNullable<SnapshotInput['afterVerify']>[string];
 
 const GIT_QUIET = { encoding: 'utf8' as const, stdio: ['ignore', 'pipe', 'pipe'] as ['ignore', 'pipe', 'pipe'] };
 
 /** The default ref: origin's (`gitDefaultRef`), else the first local `main` or `master` that resolves. */
 export function defaultRefOf(root: string): string | undefined {
-  return (
-    gitDefaultRef(root) ??
-    ['refs/heads/main', 'refs/heads/master'].find((ref) => {
-      try {
-        execFileSync('git', ['rev-parse', '--verify', '-q', ref], { cwd: root, ...GIT_QUIET });
-        return true;
-      } catch {
-        return false;
-      }
-    })
-  );
+  const refs = defaultRefs(root, true);
+  return refs.origin ?? refs.local;
+}
+
+const ORIGIN_DEFAULTS = ['refs/remotes/origin/main', 'refs/remotes/origin/master'];
+const LOCAL_DEFAULTS = ['refs/heads/main', 'refs/heads/master'];
+
+/**
+ * The default refs in one `for-each-ref`: `origin` is origin/HEAD's target when origin/HEAD is symbolic and resolves, else
+ * the first resolving origin/main or origin/master; `local` (only when asked for) is the first resolving local main or master.
+ * A ref whose target does not resolve is left out by git or has no object name, so it never counts.
+ * Nothing is kept between calls: a caller that fetched or pruned reads again.
+ */
+export interface DefaultRefs {
+  origin?: string;
+  local?: string;
+}
+
+function defaultRefs(root: string, local: boolean): DefaultRefs {
+  const patterns = ['refs/remotes/origin/HEAD', ...ORIGIN_DEFAULTS, ...(local ? LOCAL_DEFAULTS : [])];
+  let raw: string;
+  try {
+    raw = execFileSync('git', ['for-each-ref', '--format=%(refname)%00%(symref)%00%(objectname)', ...patterns], { cwd: root, ...GIT_QUIET });
+  } catch {
+    return {};
+  }
+  // A pattern also matches the refs below it (`refs/remotes/origin/main/x`), so only an exact name counts.
+  const found = new Map<string, string>();
+  for (const line of raw.split('\n')) {
+    const [name, symref, object] = line.split('\0');
+    if (name !== undefined && patterns.includes(name) && object !== undefined && object.trim() !== '') found.set(name, symref ?? '');
+  }
+  const head = found.get('refs/remotes/origin/HEAD');
+  // A plain origin/HEAD has no symref: `symbolic-ref -q` fails on it, so it is not used.
+  const origin = head !== undefined && head !== '' ? head : ORIGIN_DEFAULTS.find((ref) => found.has(ref));
+  return { origin, local: LOCAL_DEFAULTS.find((ref) => found.has(ref)) };
+}
+
+/** What `log -z --format=%x01%H%x00%P --name-only` printed: `\x01sha NUL parents NUL`, then `\n` + first path NUL and the other paths NUL-ended when the commit has any. */
+function parseAfterLog(raw: string, remerged: boolean): AfterVerify {
+  const tokens = raw.split('\0');
+  const commits: AfterVerify = [];
+  for (let i = 0; i < tokens.length; i++) {
+    if (!tokens[i].startsWith('\x01')) continue;
+    const sha = tokens[i].slice(1);
+    const parents = (tokens[i + 1] ?? '').split(' ').filter((p) => p !== '');
+    const files: string[] = [];
+    i += 2;
+    if ((tokens[i] ?? '').startsWith('\n')) {
+      files.push(tokens[i].slice(1));
+      while (i + 1 < tokens.length && tokens[i + 1] !== '' && !tokens[i + 1].startsWith('\x01')) files.push(tokens[++i]);
+    } else i -= 1; // no paths: the loop's own increment lands on the next commit
+    commits.push({ sha, parents, ...(parents.length > 1 && !remerged ? {} : { files }) });
+  }
+  return commits;
+}
+
+/**
+ * ST-LN-26: one ticket's commits reachable from its tips and not from its start commit nor the default ref, oldest first in
+ * graph order, with the paths each changes. ST-LN-63: the body of the former per-ticket loop, one log with `--remerge-diff`
+ * and once more without it when that fails; undefined when both fail.
+ */
+function ownAfterVerify(root: string, def: string | undefined, want: { commit: string; tips: string[] }): AfterVerify | undefined {
+  const opts = { cwd: root, ...GIT_QUIET, maxBuffer: 64 * 1024 * 1024, env: { ...process.env, GIT_NO_LAZY_FETCH: '1' } };
+  const args = (remerge: boolean) => [
+    '-c', 'core.quotePath=false', '-c', 'log.showSignature=false', 'log', '--no-show-signature', '-z', '--topo-order', '--reverse', '--format=%x01%H%x00%P', '--name-only', '--no-renames',
+    ...(remerge ? ['--remerge-diff'] : []), ...want.tips, '^' + want.commit, ...(def === undefined ? [] : ['^' + def]), '--',
+  ];
+  let raw: string;
+  let remerged = def !== undefined;
+  try {
+    raw = execFileSync('git', args(true), opts);
+  } catch {
+    remerged = false; // git before 2.36 has no --remerge-diff: a merge then counts as a change
+    try {
+      raw = execFileSync('git', args(false), opts);
+    } catch {
+      return undefined;
+    }
+  }
+  return parseAfterLog(raw, remerged);
 }
 
 /**
  * ST-LN-26: per ticket, the commits reachable from its tips and not from its start commit nor the default ref, oldest
  * first in graph order, with the paths each changes. A git failure drops the entry; it is never an environment error.
- * Layout of `log -z --format=%x01%H%x00%P --name-only`: `\x01sha NUL parents NUL`, then `\n` + first path NUL and the
- * other paths NUL-ended when the commit has any.
  */
 function gitAfterVerify(root: string, wanted: Record<string, { commit: string; tips: string[] }>): Record<string, AfterVerify> {
   const out: Record<string, AfterVerify> = {};
@@ -328,39 +450,126 @@ function gitAfterVerify(root: string, wanted: Record<string, { commit: string; t
     entries = entries.filter(([, w]) => listed.some((sha) => sha.startsWith(w.commit.toLowerCase())));
   }
   for (const [id, w] of entries) {
-    const args = (remerge: boolean) => [
-      '-c', 'core.quotePath=false', '-c', 'log.showSignature=false', 'log', '--no-show-signature', '-z', '--topo-order', '--reverse', '--format=%x01%H%x00%P', '--name-only', '--no-renames',
-      ...(remerge ? ['--remerge-diff'] : []), ...w.tips, '^' + w.commit, ...(def === undefined ? [] : ['^' + def]), '--',
-    ];
-    let raw: string;
-    let remerged = def !== undefined;
-    try {
-      raw = execFileSync('git', args(true), opts);
-    } catch {
-      remerged = false; // git before 2.36 has no --remerge-diff: a merge then counts as a change
-      try {
-        raw = execFileSync('git', args(false), opts);
-      } catch {
-        continue;
-      }
-    }
-    const tokens = raw.split('\0');
-    const commits: AfterVerify = [];
-    for (let i = 0; i < tokens.length; i++) {
-      if (!tokens[i].startsWith('\x01')) continue;
-      const sha = tokens[i].slice(1);
-      const parents = (tokens[i + 1] ?? '').split(' ').filter((p) => p !== '');
-      const files: string[] = [];
-      i += 2;
-      if ((tokens[i] ?? '').startsWith('\n')) {
-        files.push(tokens[i].slice(1));
-        while (i + 1 < tokens.length && tokens[i + 1] !== '' && !tokens[i + 1].startsWith('\x01')) files.push(tokens[++i]);
-      } else i -= 1; // no paths: the loop's own increment lands on the next commit
-      commits.push({ sha, parents, ...(parents.length > 1 && !remerged ? {} : { files }) });
-    }
-    out[id] = commits;
+    const commits = ownAfterVerify(root, def, w);
+    if (commits !== undefined) out[id] = commits;
   }
   return out;
+}
+
+type WalkCommit = { parents: string[]; files: string[]; subject: string };
+type Walk = Map<string, WalkCommit>;
+
+/**
+ * ST-LN-63: false only for a ticket with a lane other than `S` and an open task. Core reads `afterVerify` for a lane S
+ * ticket and for a ticket with no open task, so such a ticket gets neither a review start nor an after-verify read.
+ */
+function readsAfter(snapshot: RepoSnapshot, id: string): boolean {
+  const lane = snapshot.tickets[id]?.frontmatter?.lane;
+  return lane === undefined || lane === 'S' || !hasOpenTask(snapshot, id);
+}
+
+/** A task of the ticket's plan whose number is not a key of its ledger's `done` (stage.ts: `open`). */
+function hasOpenTask(snapshot: RepoSnapshot, id: string): boolean {
+  const work = workOf(snapshot, id);
+  const done = work?.ledger?.done ?? {};
+  return (work?.plan?.tasks ?? []).some((t) => !Object.hasOwn(done, String(t.n)));
+}
+
+/** ST-LN-63: true only for a ticket with a lane other than `S` and an open task, the one state core reads a plan subject in. */
+function readsSubject(snapshot: RepoSnapshot, id: string): boolean {
+  const lane = snapshot.tickets[id]?.frontmatter?.lane;
+  return lane !== undefined && lane !== 'S' && hasOpenTask(snapshot, id);
+}
+
+/**
+ * ST-LN-63: one `git log --stdin` over every positive and, when there is a default ref, `^<def>`: each commit reachable
+ * from a positive and not from the default ref, keyed by its lower-case sha, with its parents, its subject and, for a
+ * non-merge, its paths against its parent. A merge's paths are never read (D-10), so its `files` is empty. Any failure
+ * (exit code, ENOBUFS, an option an old git rejects) gives undefined.
+ */
+function gitWalk(root: string, def: string | undefined, positives: string[]): Walk | undefined {
+  let raw: string;
+  try {
+    raw = execFileSync(
+      'git',
+      ['-c', 'core.quotePath=false', '-c', 'log.showSignature=false', 'log', '--no-show-signature', '--stdin', '--ignore-missing', '-z', '--format=%x01%H%x00%P%x00%s', '--name-only', '--no-renames', '--'],
+      {
+        cwd: root,
+        encoding: 'utf8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+        maxBuffer: 64 * 1024 * 1024,
+        env: { ...process.env, GIT_NO_LAZY_FETCH: '1' },
+        input: [...positives, ...(def === undefined ? [] : ['^' + def])].map((l) => l + '\n').join(''),
+      },
+    );
+  } catch {
+    return undefined;
+  }
+  const walk: Walk = new Map();
+  const tokens = raw.split('\0');
+  for (let i = 0; i < tokens.length; i++) {
+    if (!tokens[i].startsWith('\x01')) continue;
+    const sha = tokens[i].slice(1).toLowerCase();
+    const parents = (tokens[i + 1] ?? '').split(' ').filter((p) => p !== '').map((p) => p.toLowerCase());
+    const subject = tokens[i + 2] ?? '';
+    const files: string[] = [];
+    i += 3;
+    if ((tokens[i] ?? '').startsWith('\n')) {
+      files.push(tokens[i].slice(1));
+      while (i + 1 < tokens.length && tokens[i + 1] !== '' && !tokens[i + 1].startsWith('\x01')) files.push(tokens[++i]);
+    } else i -= 1;
+    walk.set(sha, { parents, files: parents.length > 1 ? [] : files, subject });
+  }
+  return walk;
+}
+
+/**
+ * ST-LN-63: what `ownAfterVerify` gives a ticket whose history after `start` is a chain of single-parent commits. `'drop'`:
+ * the start is not in the walk, so it is on the default ref or missing, as the former `rev-list` filter drops it. `'own'`:
+ * a merge, a root, the walk's edge or a tip off the chain stands between a tip and the start, so git answers (D-10).
+ */
+function walkAfter(walk: Walk, start: string, tips: string[]): AfterVerify | 'drop' | 'own' {
+  const wanted = start.toLowerCase();
+  const found = [...walk.keys()].filter((k) => k.startsWith(wanted));
+  if (found.length === 0) return 'drop';
+  if (found.length > 1) return 'own';
+  const s = found[0] as string;
+  const inside = [...new Set(tips.map((t) => t.toLowerCase()))].filter((t) => walk.has(t));
+  if (inside.length === 0) return [];
+  for (const top of inside) {
+    const chain: string[] = [];
+    let at = top;
+    while (at !== s) {
+      const c = walk.get(at);
+      if (c === undefined || c.parents.length !== 1) break;
+      chain.push(at);
+      at = c.parents[0] as string;
+    }
+    if (at !== s) continue;
+    const met = new Set([...chain, s]);
+    if (!inside.every((t) => met.has(t))) continue;
+    return chain.reverse().map((sha) => {
+      const c = walk.get(sha) as WalkCommit;
+      return { sha, parents: [...c.parents], files: [...c.files] };
+    });
+  }
+  return 'own';
+}
+
+/**
+ * ST-LN-63: what `git log -1 <tip> -- <path>` names, answered only on a chain of single-parent commits: the first commit
+ * from the tip whose paths hold `path`, null when a root is reached without one, `'own'` when the chain leaves the walk or
+ * meets a merge, since accord never steps through a merge (D-10).
+ */
+function walkPath(walk: Walk, tip: string, path: string): string | null | 'own' {
+  let at = tip.toLowerCase();
+  for (;;) {
+    const c = walk.get(at);
+    if (c === undefined || c.parents.length > 1) return 'own';
+    if (c.files.includes(path)) return at;
+    if (c.parents.length === 0) return null;
+    at = c.parents[0] as string;
+  }
 }
 
 /** X's start commit: its `verified_commit`, else the `commit:` of its verification.md, each kept only when a sha. */
@@ -383,7 +592,7 @@ function reviewStartOf(root: string, id: string, tips: string[]): string | undef
 const REVIEW_OPTS = (root: string) => ({ cwd: root, encoding: 'utf8' as const, stdio: ['ignore', 'pipe', 'pipe'] as ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 });
 
 /** ST-LN-31: the last commit on HEAD whose change to the ticket's review.md adds or removes a `## Round ` line. */
-function reviewCommit(root: string, id: string): string | undefined {
+export function gitReviewCommit(root: string, id: string): string | undefined {
   try {
     const sha = execFileSync('git', ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '-1', '-G', '^## Round ', '--format=%H', 'HEAD', '--', `:(literal)accord/tickets/${id}/review.md`], REVIEW_OPTS(root)).trim();
     return isSha(sha) ? sha : undefined;
@@ -392,13 +601,15 @@ function reviewCommit(root: string, id: string): string | undefined {
   }
 }
 
-/** ST-LN-31: whether review.md is committed and unchanged, and the paths its review commit changes; a git failure is `clean: false`, so the gate fails closed. */
-export function gitReviewFact(root: string, id: string): { clean: boolean; files?: string[] } {
+/**
+ * ST-LN-31: whether review.md is committed and unchanged, and the paths its review commit changes; a git failure is `clean: false`, so the gate fails closed.
+ * ST-LN-63: `sha` is the review commit the caller read once (`gitReviewCommit`); none means no review commit, so `clean: false` with no git process.
+ */
+export function gitReviewFact(root: string, id: string, sha: string | undefined): { clean: boolean; files?: string[] } {
+  if (sha === undefined) return { clean: false };
   try {
     const o = REVIEW_OPTS(root);
     const dirty = execFileSync('git', ['status', '--porcelain', '-z', '--untracked-files=all', '--', `:(literal)accord/tickets/${id}/review.md`], o) !== '';
-    const sha = reviewCommit(root, id);
-    if (sha === undefined) return { clean: false };
     const raw = execFileSync('git', ['-c', 'log.showSignature=false', 'show', '--no-show-signature', '-z', '--format=', '--name-only', '--no-renames', sha], o);
     const files = raw.split('\0').map((t) => (t.startsWith('\n') ? t.slice(1) : t)).filter((t) => t !== '');
     return { clean: !dirty, files };
@@ -407,24 +618,123 @@ export function gitReviewFact(root: string, id: string): { clean: boolean; files
   }
 }
 
-/** ST-LN-31: the commits on HEAD after the ticket's review commit; undefined when there is none, so the gate fails closed. */
-export function gitAfterReview(root: string, id: string): AfterVerify | undefined {
-  const commit = reviewCommit(root, id);
+/** ST-LN-31: the commits on HEAD after the ticket's review commit `commit` (read once by the caller); undefined when there is none, so the gate fails closed. */
+export function gitAfterReview(root: string, id: string, commit: string | undefined): AfterVerify | undefined {
   if (commit === undefined) return undefined;
   const r = gitAfterVerify(root, { [id]: { commit, tips: ['HEAD'] } });
   return Object.hasOwn(r, id) ? r[id] : undefined;
 }
 
-/** A claim's tip: its ref, plus the local branch when that is another ref, since `gitClaims` prefers the pushed one. */
-function claimTips(root: string, id: string, ref: string, claimBranches: Record<string, string>): string[] {
+/**
+ * A claim's tip: its ref, plus the local branch when that is another ref, since `gitClaims` prefers the pushed one.
+ * ST-LN-63: the local branch is there when the claim listing printed it, so no git process runs here.
+ */
+function claimTips(id: string, ref: string, claimBranches: Record<string, string>, listed: ReadonlyMap<string, string>): string[] {
   const local = Object.hasOwn(claimBranches, id) ? 'refs/heads/' + claimBranches[id] : undefined;
-  if (local === undefined || local === ref) return [ref];
+  return local === undefined || local === ref || !listed.has(local) ? [ref] : [ref, local];
+}
+
+/** A ticket the walk may answer: its start commit or, with none, its review.md, its tips and the sha of each (undefined when git named one of them no sha). */
+type AfterEntry = { id: string; start: string | undefined; tips: string[]; shas: string[] | undefined };
+
+/** The shas one walk starts from: every claim tip, HEAD's commit when the branch names a ticket, and every start commit. */
+function claimPositives(
+  claimRefs: Record<string, string>,
+  claimBranches: Record<string, string>,
+  listed: ReadonlyMap<string, string>,
+  headCommit: string | undefined,
+  entries: readonly AfterEntry[],
+): string[] {
+  const positives = new Set<string>();
+  for (const id of Object.keys(claimRefs)) for (const t of claimTips(id, claimRefs[id], claimBranches, listed)) positives.add(listed.get(t) ?? '');
+  if (headCommit !== undefined) positives.add(headCommit);
+  for (const e of entries) if (e.start !== undefined) positives.add(e.start);
+  positives.delete('');
+  return [...positives];
+}
+
+/**
+ * ST-LN-63: the positives no object of this repository holds, from one `cat-file --batch-check`; none when git failed. `git log
+ * --stdin --ignore-missing` still exits 128 on a missing sha, so one start rewritten away or never fetched would fail the whole walk.
+ */
+function missingShas(root: string, positives: readonly string[]): string[] {
   try {
-    execFileSync('git', ['rev-parse', '--verify', '-q', local], { cwd: root, ...GIT_QUIET });
-    return [ref, local];
+    const out = execFileSync('git', ['cat-file', '--batch-check'], {
+      cwd: root,
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+      maxBuffer: 64 * 1024 * 1024,
+      env: { ...process.env, GIT_NO_LAZY_FETCH: '1' },
+      input: positives.map((p) => p + '\n').join(''),
+    });
+    const lines = out.split('\n');
+    return positives.filter((_, i) => lines[i]?.endsWith(' missing') === true);
   } catch {
-    return [ref];
+    return [];
   }
+}
+
+/**
+ * The default ref and the walk over `positives`; neither when there is nothing to walk. A failed walk is tried once more
+ * without the positives that are missing here, so a missing start costs two more git processes, not one read per ticket; its
+ * ticket is dropped from the walk, as `rev-list --ignore-missing` drops it.
+ */
+function walkOver(root: string, positives: readonly string[]): { walk: Walk | undefined; def: string | undefined; refs?: DefaultRefs } {
+  if (positives.length === 0) return { walk: undefined, def: undefined };
+  const refs = defaultRefs(root, true);
+  const def = refs.origin ?? refs.local;
+  const walk = gitWalk(root, def, [...positives]);
+  if (walk !== undefined) return { walk, def, refs };
+  const missing = new Set(missingShas(root, positives));
+  const rest = positives.filter((p) => !missing.has(p));
+  return { walk: missing.size === 0 || rest.length === 0 ? undefined : gitWalk(root, def, rest), def, refs };
+}
+
+/**
+ * ST-LN-63: each entry's commits after its start, answered from the walk for a straight history and by git alone for a merge,
+ * an unresolvable start, a tip git named no sha for, or when the walk failed (D-08, D-10). Entries of one id with the same
+ * start and tips are read once. The result is aligned with `entries`; undefined where the ticket has none.
+ */
+function resolveAfter(root: string, entries: readonly AfterEntry[], walk: Walk | undefined, def: string | undefined): (AfterVerify | undefined)[] {
+  const unique: AfterEntry[] = [];
+  const seen = new Map<string, number>();
+  const slot = entries.map((e) => {
+    const key = [e.id, e.start ?? '', ...e.tips].join('\0');
+    let at = seen.get(key);
+    if (at === undefined) {
+      at = unique.length;
+      unique.push(e);
+      seen.set(key, at);
+    }
+    return at;
+  });
+  const resolved = new Map<number, AfterVerify>();
+  const viaGit: Record<string, { commit: string; tips: string[] }> = {};
+  const reviewPath = (id: string) => `accord/tickets/${id}/review.md`;
+  unique.forEach((e, i) => {
+    // Without a walk, or with a tip git has no sha for, the ticket is read by git alone, as before (D-08).
+    if (walk === undefined || e.shas === undefined) {
+      const commit = e.start ?? reviewStartOf(root, e.id, e.tips);
+      if (commit !== undefined) viaGit[String(i)] = { commit, tips: e.tips };
+      return;
+    }
+    let commit = e.start;
+    if (commit === undefined) {
+      // Every tip outside the walk is on the default ref, where a review commit is dropped.
+      if (!e.shas.some((s) => walk.has(s.toLowerCase()))) return;
+      const one = new Set(e.shas.map((s) => s.toLowerCase())).size === 1 && e.shas.every((s) => walk.has(s.toLowerCase()));
+      const named = one ? walkPath(walk, e.shas[0] as string, reviewPath(e.id)) : 'own';
+      if (named === null) return;
+      commit = named === 'own' ? reviewStartOf(root, e.id, e.tips) : named;
+      if (commit === undefined || !walk.has(commit.toLowerCase())) return; // a sha not in the walk is on the default ref
+    }
+    const after = walkAfter(walk, commit, e.shas);
+    if (after === 'drop') return;
+    const list = after === 'own' ? ownAfterVerify(root, def, { commit, tips: e.tips }) : after;
+    if (list !== undefined) resolved.set(i, list);
+  });
+  const fromGit = gitAfterVerify(root, viaGit);
+  return slot.map((i) => resolved.get(i) ?? (Object.hasOwn(fromGit, String(i)) ? fromGit[String(i)] : undefined));
 }
 
 /**
@@ -445,8 +755,32 @@ export function ticketOfBranch(name: string, templates: readonly string[], known
   return ids.find(known) ?? ids[0];
 }
 
-/** D-07: the default branch is the first of origin/HEAD, origin/main, origin/master naming a commit; its valid `branch` is a template in force. */
-function gitDefaultBranch(root: string): { exists: boolean; template?: string } {
+/** The author email of a commit object's headers; undefined with an `encoding` header or no author line, where `git show` decides. */
+function headAuthorOf(body: string): string | undefined {
+  const headers = body.split('\n\n', 1)[0] ?? '';
+  const lines = headers.split('\n');
+  if (lines.some((l) => l.startsWith('encoding '))) return undefined;
+  const line = lines.find((l) => l.startsWith('author '));
+  if (line === undefined) return undefined;
+  const open = line.lastIndexOf('<');
+  const close = line.indexOf('>', open);
+  return open < 0 || close < 0 ? undefined : line.slice(open + 1, close);
+}
+
+type DefaultBranch = { exists: boolean; template?: string; head?: { commit: string; author: string } | 'unborn' };
+
+/**
+ * ST-LN-63: what the light load read (the tracked tree, the files under `accord/` with the tokens and the test report, and the default
+ * branch), handed back to `loadFromFs` so finishing the full load reads none of them again. Callers outside this file only pass it back.
+ */
+export type LightLoad = { tree: string[]; files: Record<string, string>; defaultBranch: DefaultBranch };
+
+/**
+ * D-07: the default branch is the first of origin/HEAD, origin/main, origin/master naming a commit; its valid `branch` is a template in force.
+ * ST-LN-63: the same `cat-file --batch` also reads HEAD, whose commit and author `head` carries ('unborn' when HEAD names nothing,
+ * undefined when the batch failed or the commit needs `git show`).
+ */
+function gitDefaultBranch(root: string): DefaultBranch {
   const refs = ['refs/remotes/origin/HEAD', 'refs/remotes/origin/main', 'refs/remotes/origin/master'];
   let out: Buffer;
   try {
@@ -455,32 +789,38 @@ function gitDefaultBranch(root: string): { exists: boolean; template?: string } 
       stdio: ['pipe', 'pipe', 'pipe'],
       maxBuffer: 64 * 1024 * 1024,
       env: { ...process.env, GIT_NO_LAZY_FETCH: '1', GIT_TERMINAL_PROMPT: '0', GCM_INTERACTIVE: 'never' },
-      input: refs.map((r) => r + '\n' + r + ':accord/config.yml\n').join(''),
+      input: refs.map((r) => r + '\n' + r + ':accord/config.yml\n').join('') + 'HEAD\n',
     });
   } catch {
     return { exists: true };
   }
   let at = 0;
-  const next = (): { type: string; body: string } | undefined => {
+  const next = (): { type: string; body: string; sha?: string } | undefined => {
     const nl = out.indexOf(10, at);
     if (nl < 0) return undefined;
-    const m = /^[0-9a-f]+ (\w+) (\d+)$/.exec(out.toString('utf8', at, nl));
+    const m = /^([0-9a-f]+) (\w+) (\d+)$/.exec(out.toString('utf8', at, nl));
     if (m === null) {
       at = nl + 1; // `<name> missing`
       return { type: 'missing', body: '' };
     }
-    const size = Number(m[2]);
+    const size = Number(m[3]);
     const body = out.toString('utf8', nl + 1, nl + 1 + size);
     at = nl + 1 + size + 1;
-    return { type: m[1] as string, body };
+    return { type: m[2] as string, body, sha: m[1] as string };
   };
+  // All seven objects are read before deciding: the default branch is the first of the three refs, and HEAD comes last.
+  const objects = Array.from({ length: refs.length * 2 + 1 }, next);
+  const tip = objects[refs.length * 2];
+  const author = tip?.type === 'commit' ? headAuthorOf(tip.body) : undefined;
+  const head: { commit: string; author: string } | 'unborn' | undefined =
+    tip === undefined ? undefined : tip.type === 'missing' ? 'unborn' : tip.sha === undefined || author === undefined ? undefined : { commit: tip.sha, author };
   for (let i = 0; i < refs.length; i++) {
-    const head = next();
-    const config = next();
-    if (head === undefined || config === undefined) break;
-    if (head.type === 'commit') return { exists: true, ...(config.type === 'blob' && branchTemplateOf(config.body) !== undefined ? { template: branchTemplateOf(config.body) as string } : {}) };
+    const commit = objects[i * 2];
+    const config = objects[i * 2 + 1];
+    if (commit === undefined || config === undefined) break;
+    if (commit.type === 'commit') return { exists: true, ...(config.type === 'blob' && branchTemplateOf(config.body) !== undefined ? { template: branchTemplateOf(config.body) as string } : {}), ...(head === undefined ? {} : { head }) };
   }
-  return { exists: false };
+  return { exists: false, ...(head === undefined ? {} : { head }) };
 }
 
 /** The branch name; '' for a detached HEAD; undefined when git could not say. */
@@ -498,74 +838,80 @@ export function currentBranch(root: string): string | undefined {
   }
 }
 
-function loadParts(root: string, stage = false, light = false): {
+function loadParts(root: string, stage = false, light = false, defer = false, from?: LightLoad): {
   input: SnapshotInput;
+  /** In light mode only: what was read, for `loadFromFs(root, { from })` to finish the load with. */
+  lightLoad?: LightLoad;
   claimRefs: Record<string, string>;
+  listed: ReadonlyMap<string, string>;
+  /** The current branch, read once outside light mode (ST-LN-63). */
+  branch?: { name: string | undefined };
+  /** With `defer` only: the entries no walk has answered yet, the HEAD commit when the branch names a ticket, and that ticket. */
+  deferred?: { entries: AfterEntry[]; headCommit: string | undefined; own: string | undefined };
   templates: string[];
   known: (id: string) => boolean;
   statusOf: (id: string) => string | undefined;
 } {
-  const tree = gitTree(root);
-  const files = accordFiles(root);
+  // ST-LN-63: with `from`, the light load's reads are taken as they are: no ls-files, no file read, no default-branch read.
+  const tree = from?.tree ?? gitTree(root);
+  const files = from === undefined ? accordFiles(root) : { ...from.files };
   // First pass reads the config; the tokens file and the test report are read the same way,
   // and a missing one is lint's concern (LINT-04, FMT-11).
   const first = loadSnapshot({ files, tree });
   const config = first.config;
-  for (const value of [config?.design.tokens, config?.tests?.report]) {
-    const key = containedPath(root, value);
-    if (key !== undefined) files[key] = readFileSync(join(root, key), 'utf8');
+  if (from === undefined) {
+    for (const value of [config?.design.tokens, config?.tests?.report]) {
+      const key = containedPath(root, value);
+      if (key !== undefined) files[key] = readFileSync(join(root, key), 'utf8');
+    }
   }
-  const defaultBranch = gitDefaultBranch(root);
+  const defaultBranch = from?.defaultBranch ?? gitDefaultBranch(root);
   const branchTemplates = [...new Set([DEFAULT_BRANCH_TEMPLATE, defaultBranch.template, config?.branch].filter((t): t is string => t !== undefined))];
   const known = (id: string) => Object.hasOwn(first.tickets, id);
   const statusOf = (id: string) => first.tickets[id]?.frontmatter?.status;
   // The prompt-expansion hook reads only the tickets, the config and the branch templates; each git spawn it skips is ~50 ms on Windows.
-  if (light) return { input: { files, tree, ...(branchTemplates.length === 1 ? {} : { branchTemplates }) }, claimRefs: {}, templates: branchTemplates, known, statusOf };
-  const facts = gitFacts(root);
+  if (light) {
+    return {
+      input: { files, tree, ...(branchTemplates.length === 1 ? {} : { branchTemplates }) },
+      lightLoad: { tree, files: { ...files }, defaultBranch },
+      claimRefs: {},
+      listed: new Map(),
+      templates: branchTemplates,
+      known,
+      statusOf,
+    };
+  }
+  const facts = gitFacts(root, defaultBranch.head);
   const git = facts === undefined ? undefined : { commit: facts.commit, authors: facts.authors };
-  const shas = [
-    ...new Set(Object.values(first.work ?? {}).flatMap((w) => (w.plan?.baseline !== undefined && isSha(w.plan.baseline) ? [w.plan.baseline] : []))),
-  ];
-  const { claims, branches: claimBranches, refs: claimRefs, activity: branchActivity } = gitClaims(root, branchTemplates, known);
+  const { claims, branches: claimBranches, refs: claimRefs, activity: branchActivity, listed } = gitClaims(root, branchTemplates, known);
   // D-09: a new claim is named by the default branch's template; only a repository with no default branch uses the working tree's.
   const claimTemplate = (defaultBranch.exists ? defaultBranch.template : config?.branch) ?? DEFAULT_BRANCH_TEMPLATE;
   const lastActivity: Record<string, number> = { ...facts?.activity };
   for (const [id, t] of Object.entries(branchActivity)) if (t > (lastActivity[id] ?? 0)) lastActivity[id] = t;
-  const ancestors = shas.length === 0 ? undefined : gitAncestors(root, shas);
-  const wanted: Record<string, string[]> = {};
-  for (const plan of Object.values(first.work ?? {}).flatMap((w) => (w.plan === undefined ? [] : [w.plan]))) {
-    const sha = plan.baseline;
-    if (sha === undefined || !isSha(sha)) continue;
-    const mine = plan.tasks.flatMap((t) => t.files.filter((f) => !t.newFiles.includes(f)));
-    wanted[sha] = [...new Set([...(wanted[sha] ?? []), ...mine])];
-  }
-  const baselineFiles = ancestors === undefined ? {} : gitBaselineFiles(root, wanted, ancestors);
-  // A recorded sha equal to HEAD is included: its diff is empty and the rule never reads it.
-  const recorded = [
-    ...new Set(
-      [
-        ...Object.values(first.tickets).map((t) => t.frontmatter?.verified_commit),
-        ...Object.values(first.verifications).map((v) => v.frontmatter?.commit),
-      ].filter((c): c is string => c !== undefined && isSha(c)),
-    ),
-  ];
-  const recordsSince = recorded.length === 0 ? {} : gitRecordsSince(root, recorded);
   // ST-LN-26: the commits after verify, for the ticket on this branch (HEAD) and for each claimed ticket (its tips).
-  const afterWanted: Record<string, { commit: string; tips: string[] }> = {};
-  // Only a ticket with a start commit or a review.md needs its tips, so the branch and the claim tips are read for those alone.
-  const starts = Object.keys(first.tickets).flatMap((id) => {
+  // ST-LN-63: the branch is read once, here, and handed on.
+  const branch = { name: currentBranch(root) };
+  const own = branch.name === undefined || branch.name === '' ? undefined : ticketOfBranch(branch.name, branchTemplates, known);
+  // An entry: a ticket with a start commit or a review.md, with tips, that core reads `afterVerify` for.
+  const entries: AfterEntry[] = [];
+  for (const id of Object.keys(first.tickets)) {
     const start = startOf(first, id);
-    return start === undefined && !Object.hasOwn(files, `accord/tickets/${id}/review.md`) ? [] : [{ id, start }];
-  });
-  const current = starts.length === 0 ? undefined : currentBranch(root);
-  const own = current === undefined || current === '' ? undefined : ticketOfBranch(current, branchTemplates, known);
-  for (const { id, start } of starts) {
-    const tips = id === own ? ['HEAD'] : Object.hasOwn(claimRefs, id) ? claimTips(root, id, claimRefs[id], claimBranches) : undefined;
+    if (start === undefined && !Object.hasOwn(files, `accord/tickets/${id}/review.md`)) continue;
+    if (!readsAfter(first, id)) continue;
+    const tips = id === own ? ['HEAD'] : Object.hasOwn(claimRefs, id) ? claimTips(id, claimRefs[id], claimBranches, listed) : undefined;
     if (tips === undefined) continue;
-    const commit = start ?? reviewStartOf(root, id, tips);
-    if (commit !== undefined) afterWanted[id] = { commit, tips };
+    const shas = tips.map((t) => (t === 'HEAD' ? facts?.commit : listed.get(t)));
+    entries.push({ id, start, tips, shas: shas.every((s): s is string => s !== undefined) ? shas : undefined });
   }
-  const afterVerify = gitAfterVerify(root, afterWanted);
+  const headCommit = own !== undefined && facts !== undefined ? facts.commit : undefined;
+  const afterVerify: Record<string, AfterVerify> = {};
+  if (!defer) {
+    const { walk, def } = walkOver(root, claimPositives(claimRefs, claimBranches, listed, headCommit, entries));
+    const lists = resolveAfter(root, entries, walk, def);
+    entries.forEach((e, i) => {
+      if (lists[i] !== undefined) afterVerify[e.id] = lists[i] as AfterVerify;
+    });
+  }
   let planFacts: Record<string, { subject?: string; clean: boolean }> | undefined;
   if (stage) {
     const dirty = gitDirty(root);
@@ -587,16 +933,28 @@ function loadParts(root: string, stage = false, light = false): {
     ...(Object.keys(claims).length === 0 ? {} : { claims, claimBranches }),
     ...(claimTemplate === DEFAULT_BRANCH_TEMPLATE ? {} : { claimTemplate }),
     ...(Object.keys(lastActivity).length === 0 ? {} : { lastActivity }),
-    ...(ancestors === undefined ? {} : { ancestors }),
-    ...(Object.keys(baselineFiles).length === 0 ? {} : { baselineFiles }),
-    ...(Object.keys(recordsSince).length === 0 ? {} : { recordsSince }),
     ...(Object.keys(afterVerify).length === 0 ? {} : { afterVerify }),
   };
-  return { input, claimRefs, templates: branchTemplates, known, statusOf };
+  return { input, claimRefs, listed, templates: branchTemplates, known, statusOf, branch, ...(defer ? { deferred: { entries, headCommit, own } } : {}) };
 }
 
-export function loadFromFs(root: string, options: { stage?: boolean; light?: boolean } = {}): SnapshotInput {
-  return loadParts(root, options.stage === true, options.light === true).input;
+export function loadFromFs(root: string, options: { stage?: boolean; light?: boolean; from?: LightLoad } = {}): SnapshotInput {
+  return loadWithBranch(root, options).input;
+}
+
+/** ST-LN-63: the load and the current branch it read (none in light mode), so a command asks git for the branch once. */
+export function loadWithBranch(
+  root: string,
+  options: { stage?: boolean; light?: boolean; from?: LightLoad } = {},
+): { input: SnapshotInput; branch?: { name: string | undefined } } {
+  const { input, branch } = loadParts(root, options.stage === true, options.light === true, false, options.from);
+  return { input, ...(branch === undefined ? {} : { branch }) };
+}
+
+/** ST-LN-63: the light load (what the prompt hook reads) and the parts it read, for `from` to finish a full load without reading them again. */
+export function loadLight(root: string): { input: SnapshotInput; parts: LightLoad } {
+  const { input, lightLoad } = loadParts(root, false, true);
+  return { input, parts: lightLoad as LightLoad };
 }
 
 /** The five records of a ticket, as repository paths. */
@@ -610,23 +968,36 @@ const recordPaths = (id: string): string[] => [
  * the current branch's own and whose claim ref is not merged into HEAD, the ticket's five records as that ref holds them.
  * One `git cat-file --batch`, no network (`GIT_NO_LAZY_FETCH`). A blob not present locally reads as absent.
  */
-export function loadClaimView(root: string): { checkout: SnapshotInput; view: SnapshotInput } {
-  const { input: checkout, claimRefs, templates, known, statusOf } = loadParts(root, true);
+export function loadClaimView(root: string): { checkout: SnapshotInput; view: SnapshotInput; branch: { name: string | undefined }; refs?: DefaultRefs } {
+  // ST-LN-63: the branch is read once in loadParts, and the commits after each start come from one walk made here, over the
+  // checkout's entries and the candidates' together.
+  const parts = loadParts(root, true, false, true);
+  const { input: bare, claimRefs, listed, statusOf } = parts;
+  const branch = parts.branch as NonNullable<typeof parts.branch>;
+  const { entries: checkoutEntries, headCommit, own } = parts.deferred as NonNullable<typeof parts.deferred>;
   const env = { ...process.env, GIT_NO_LAZY_FETCH: '1' };
-  const current = currentBranch(root);
-  const own = current === undefined || current === '' ? undefined : ticketOfBranch(current, templates, known);
+  /** The input with the `afterVerify` of the lists, aligned with `entries`. */
+  const withAfter = (entries: readonly AfterEntry[], lists: readonly (AfterVerify | undefined)[], only?: (id: string) => boolean): Record<string, AfterVerify> => {
+    const out: Record<string, AfterVerify> = {};
+    entries.forEach((e, i) => {
+      const list = lists[i];
+      if (list !== undefined && (only === undefined || only(e.id))) out[e.id] = list;
+    });
+    return out;
+  };
+  const walked = (entries: readonly AfterEntry[]) => walkOver(root, claimPositives(claimRefs, bare.claimBranches ?? {}, listed, headCommit, entries));
   // One spawn for the merged set; a failure (an unborn HEAD) leaves it empty, as a non-ancestor.
   let merged = new Set<string>();
   const refNames = Object.values(claimRefs);
   if (refNames.length > 0) {
     try {
-      const listed = execFileSync('git', ['for-each-ref', '--merged', 'HEAD', '--format=%(refname)', ...refNames], {
+      const mergedOut = execFileSync('git', ['for-each-ref', '--merged', 'HEAD', '--format=%(refname)', ...refNames], {
         cwd: root,
         encoding: 'utf8',
         stdio: ['ignore', 'pipe', 'ignore'],
         env,
       });
-      merged = new Set(listed.split('\n').filter((l) => l !== ''));
+      merged = new Set(mergedOut.split('\n').filter((l) => l !== ''));
     } catch {
       // unborn HEAD or git failure: nothing is merged
     }
@@ -634,7 +1005,12 @@ export function loadClaimView(root: string): { checkout: SnapshotInput; view: Sn
   // A squash or rebase merge leaves the claim tip unmerged: a terminal checkout copy is never superseded.
   const terminal = (id: string) => ['archived', 'dropped'].includes(statusOf(id) ?? '');
   const candidates = Object.entries(claimRefs).filter(([id, ref]) => id !== own && !merged.has(ref) && !terminal(id));
-  if (candidates.length === 0) return { checkout, view: checkout };
+  if (candidates.length === 0) {
+    const { walk, def, refs } = walked(checkoutEntries);
+    const afterVerify = withAfter(checkoutEntries, resolveAfter(root, checkoutEntries, walk, def));
+    const checkout: SnapshotInput = { ...bare, ...(Object.keys(afterVerify).length === 0 ? {} : { afterVerify }) };
+    return { checkout, view: checkout, branch, ...(refs === undefined ? {} : { refs }) };
+  }
   const wanted = candidates.flatMap(([id, ref]) => recordPaths(id).map((path) => ref + ':' + path));
   let out: Buffer;
   try {
@@ -663,14 +1039,55 @@ export function loadClaimView(root: string): { checkout: SnapshotInput; view: Sn
     read.set(spec, out.toString('utf8', nl + 1, nl + 1 + size));
     at = nl + 1 + size + 1;
   }
-  const files = { ...checkout.files };
-  const planFacts = { ...checkout.planFacts };
+  const files = { ...bare.files };
+  const planFacts = { ...bare.planFacts };
+  const planJobs: { id: string; ref: string; planPath: string }[] = [];
+  const overlaid = new Set<string>();
   for (const [id, ref] of candidates) {
     if (read.get(ref + ':' + recordPaths(id)[0]) === undefined) continue;
+    overlaid.add(id);
     const planPath = 'accord/tickets/' + id + '/plan.md';
     if (read.get(ref + ':' + planPath) === undefined) delete planFacts[id];
     else {
-      let subject = '';
+      planFacts[id] = { clean: true }; // the subject is filled in below, for the tickets whose state core reads it in
+      planJobs.push({ id, ref, planPath });
+    }
+    for (const path of recordPaths(id)) {
+      const text = read.get(ref + ':' + path);
+      if (text === undefined) delete files[path];
+      else files[path] = text;
+    }
+  }
+  // A candidate is read from its overlaid texts: the start commit is the one its own branch records, and core reads its
+  // `afterVerify` and its plan subject only in the states `readsAfter` and `readsSubject` name.
+  const candidateEntries: AfterEntry[] = [];
+  const subjectOf = new Set<string>();
+  for (const [id, ref] of candidates) {
+    const paths = recordPaths(id);
+    if (files[paths[0]] === undefined) continue;
+    const present: Record<string, string> = {};
+    for (const p of paths) if (files[p] !== undefined) present[p] = files[p];
+    const snap = loadSnapshot({ files: present, tree: [] });
+    if (overlaid.has(id) && readsSubject(snap, id)) subjectOf.add(id);
+    const start = startOf(snap, id);
+    if (start === undefined && files[paths[3]] === undefined) continue;
+    if (!readsAfter(snap, id)) continue;
+    const tips = claimTips(id, ref, bare.claimBranches ?? {}, listed);
+    const shas = tips.map((t) => listed.get(t));
+    candidateEntries.push({ id, start, tips, shas: shas.every((s): s is string => s !== undefined) ? shas : undefined });
+  }
+  const all = [...checkoutEntries, ...candidateEntries];
+  const { walk, def, refs } = walked(all);
+  const lists = resolveAfter(root, all, walk, def);
+  const fromCheckout = lists.slice(0, checkoutEntries.length);
+  const checkoutAfter = withAfter(checkoutEntries, fromCheckout);
+  const checkout: SnapshotInput = { ...bare, ...(Object.keys(checkoutAfter).length === 0 ? {} : { afterVerify: checkoutAfter }) };
+  for (const { id, ref, planPath } of planJobs) {
+    if (!subjectOf.has(id)) continue;
+    const sha = listed.get(ref);
+    const named = walk === undefined || sha === undefined ? 'own' : walkPath(walk, sha, planPath);
+    let subject = '';
+    if (named === 'own') {
       try {
         subject = execFileSync('git', ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '-1', '--format=%s', ref, '--', planPath], {
           cwd: root,
@@ -682,32 +1099,14 @@ export function loadClaimView(root: string): { checkout: SnapshotInput; view: Sn
       } catch {
         // a commit not present locally reads as no subject, so the plan is not ready
       }
-      planFacts[id] = { ...(subject === '' ? {} : { subject }), clean: true };
-    }
-    for (const path of recordPaths(id)) {
-      const text = read.get(ref + ':' + path);
-      if (text === undefined) delete files[path];
-      else files[path] = text;
-    }
+    } else if (named !== null) subject = walk?.get(named)?.subject ?? '';
+    planFacts[id] = { ...(subject === '' ? {} : { subject }), clean: true };
   }
-  // The start commit of a candidate is the one its own branch records, so it is read from the overlaid texts.
-  const afterWanted: Record<string, { commit: string; tips: string[] }> = {};
-  for (const [id, ref] of candidates) {
-    const t = files[recordPaths(id)[0]];
-    const v = files[recordPaths(id)[4]];
-    if (t === undefined) continue;
-    const tips = claimTips(root, id, ref, checkout.claimBranches ?? {});
-    const commit =
-      startOf(loadSnapshot({ files: { [recordPaths(id)[0]]: t, ...(v === undefined ? {} : { [recordPaths(id)[4]]: v }) }, tree: [] }), id) ??
-      (files[recordPaths(id)[3]] === undefined ? undefined : reviewStartOf(root, id, tips));
-    if (commit !== undefined) afterWanted[id] = { commit, tips };
-  }
-  const afterVerify: Record<string, AfterVerify> = { ...checkout.afterVerify };
-  for (const [id] of candidates) delete afterVerify[id];
-  Object.assign(afterVerify, gitAfterVerify(root, afterWanted));
-  const rest: SnapshotInput = { ...checkout };
-  delete rest.afterVerify;
-  return { checkout, view: { ...rest, files, planFacts, ...(Object.keys(afterVerify).length === 0 ? {} : { afterVerify }) } };
+  const afterVerify: Record<string, AfterVerify> = {
+    ...withAfter(checkoutEntries, fromCheckout, (id) => !candidates.some(([c]) => c === id)),
+    ...withAfter(candidateEntries, lists.slice(checkoutEntries.length)),
+  };
+  return { checkout, view: { ...bare, files, planFacts, ...(Object.keys(afterVerify).length === 0 ? {} : { afterVerify }) }, branch, ...(refs === undefined ? {} : { refs }) };
 }
 
 /** IDS-1: `git config user.email`, trimmed; '' when unset (git exits 1). */
@@ -753,27 +1152,14 @@ export function gitTicketIdsInHistory(root: string): string[] {
 
 /** D-15: origin/HEAD's target when it resolves, else origin/main or origin/master; never fetched, never the local main. */
 export function gitDefaultRef(root: string): string | undefined {
-  const opts = { cwd: root, encoding: 'utf8' as const, stdio: ['ignore', 'pipe', 'pipe'] as ['ignore', 'pipe', 'pipe'] };
-  const resolves = (ref: string): boolean => {
-    try {
-      execFileSync('git', ['rev-parse', '--verify', '-q', ref], opts);
-      return true;
-    } catch {
-      return false;
-    }
-  };
-  try {
-    const head = execFileSync('git', ['symbolic-ref', '-q', 'refs/remotes/origin/HEAD'], opts).trim();
-    if (resolves(head)) return head;
-  } catch {
-    // no origin/HEAD
-  }
-  return ['refs/remotes/origin/main', 'refs/remotes/origin/master'].find(resolves);
+  return defaultRefs(root, false).origin;
 }
 
-/** The utf8 text of each existing `<ref>:<path>`, read with one `git cat-file --batch`; a missing path is left out. */
-export function gitFilesAt(root: string, ref: string, paths: readonly string[]): Record<string, string> {
-  if (paths.length === 0) return {};
+/**
+ * The utf8 text of each `<ref>:<path>` spec, in order, read with one `git cat-file --batch`; a missing one is `undefined`.
+ * `what` names the ref in the error.
+ */
+function catBatch(root: string, specs: readonly string[], what: string): (string | undefined)[] {
   let out: Buffer;
   try {
     out = execFileSync('git', ['cat-file', '--batch'], {
@@ -781,15 +1167,15 @@ export function gitFilesAt(root: string, ref: string, paths: readonly string[]):
       stdio: ['pipe', 'pipe', 'pipe'],
       maxBuffer: 64 * 1024 * 1024,
       env: { ...process.env, GIT_NO_LAZY_FETCH: '1' },
-      input: paths.map((p) => ref + ':' + p + '\n').join(''),
+      input: specs.map((s) => s + '\n').join(''),
     });
   } catch (err) {
     const stderr = String((err as { stderr?: string }).stderr ?? '').trim();
-    throw new UsageError('git cat-file failed reading ' + ref + (stderr === '' ? '' : '\n' + stderr));
+    throw new UsageError('git cat-file failed reading ' + what + (stderr === '' ? '' : '\n' + stderr));
   }
-  const files: Record<string, string> = {};
+  const texts: (string | undefined)[] = [];
   let at = 0;
-  for (const path of paths) {
+  for (let i = 0; i < specs.length; i++) {
     const nl = out.indexOf(10, at);
     if (nl < 0) break;
     const m = /^[0-9a-f]+ blob (\d+)$/.exec(out.toString('utf8', at, nl));
@@ -798,9 +1184,21 @@ export function gitFilesAt(root: string, ref: string, paths: readonly string[]):
       continue;
     }
     const size = Number(m[1]);
-    files[path] = out.toString('utf8', nl + 1, nl + 1 + size);
+    texts[i] = out.toString('utf8', nl + 1, nl + 1 + size);
     at = nl + 1 + size + 1;
   }
+  return texts;
+}
+
+/** The utf8 text of each existing `<ref>:<path>`, read with one `git cat-file --batch`; a missing path is left out. */
+export function gitFilesAt(root: string, ref: string, paths: readonly string[]): Record<string, string> {
+  if (paths.length === 0) return {};
+  const texts = catBatch(root, paths.map((p) => ref + ':' + p), ref);
+  const files: Record<string, string> = {};
+  paths.forEach((path, i) => {
+    const text = texts[i];
+    if (text !== undefined) files[path] = text;
+  });
   return files;
 }
 
@@ -838,6 +1236,8 @@ export function gitBranchFact(
     rendered: readonly { path: string; text: string }[];
     scope: boolean;
     settings?: { path: string; expected: (base: string | undefined) => string | undefined };
+    /** The default ref the caller just read, so it is not read again; absent means read it here. */
+    known?: { defaultRef: string | undefined };
   },
 ): BranchFact {
   const git = (what: string, args: string[]): string => {
@@ -855,7 +1255,7 @@ export function gitBranchFact(
       throw new Error(`git ${what} failed reading the branch diff: ${firstLine(stderr === '' ? (err as Error).message : stderr)}`, { cause: err });
     }
   };
-  const filesAt = (ref: string, paths: readonly string[]): Record<string, string> => {
+  const readFilesAt = (ref: string, paths: readonly string[]): Record<string, string> => {
     try {
       return gitFilesAt(root, ref, paths);
     } catch (err) {
@@ -864,7 +1264,7 @@ export function gitBranchFact(
     }
   };
   try {
-    const def = defaultRefOf(root);
+    const def = opts.known === undefined ? defaultRefOf(root) : opts.known.defaultRef;
     if (def === undefined) {
       return { error: 'none of origin/HEAD, origin/main, origin/master, main or master resolves, so the branch diff cannot be read; run git fetch origin' };
     }
@@ -913,6 +1313,53 @@ export function gitBranchFact(
       }
     }
     const pkgPaths = changes.filter((c) => c.path === 'package.json' || c.path.endsWith('/package.json'));
+    const live = changes.filter((c) => c.kind !== 'deleted').map((c) => c.path);
+    const rendered = opts.rendered.filter((r) => live.includes(r.path));
+    const settingsPath = opts.settings !== undefined && live.includes(opts.settings.path) ? opts.settings.path : undefined;
+    const scopeFile = 'accord/tickets/' + id + '.md';
+    const firstOf = (): string | undefined =>
+      git('log -G ac_hash', [
+        '-c', 'log.showSignature=false', 'log', '--no-show-signature', '--reverse', '--format=%H', '-G', '^ac_hash:', 'HEAD', '--', ':(literal)' + scopeFile,
+      ])
+        .split('\n')
+        .find((l) => l.trim() !== '')
+        ?.trim();
+
+    // ST-LN-63: the scope's commit and every blob read below come from one log and one cat-file. When either fails, the commit
+    // stays unread or the cache stays empty, so each read below runs on its own as before and reports its own error.
+    const cache = new Map<string, string | null>();
+    let first: { value: string | undefined } | undefined;
+    try {
+      if (opts.scope) first = { value: firstOf() };
+      const specs = new Map<string, [string, string]>();
+      const want = (ref: string, path: string) => specs.set(ref + '\0' + path, [ref, path]);
+      for (const c of pkgPaths) {
+        if (c.kind !== 'added') want(base, c.path);
+        if (c.kind !== 'deleted') want('HEAD', c.path);
+      }
+      if (first?.value !== undefined && isSha(first.value)) want(first.value, scopeFile);
+      for (const r of rendered) want('HEAD', r.path);
+      if (settingsPath !== undefined) {
+        want('HEAD', settingsPath);
+        want(base, settingsPath);
+      }
+      want(base, 'accord/config.yml');
+      const keys = [...specs.keys()];
+      const texts = catBatch(root, keys.map((k) => (specs.get(k) as [string, string]).join(':')), 'the branch diff');
+      keys.forEach((k, i) => cache.set(k, texts[i] ?? null));
+    } catch {
+      cache.clear();
+    }
+    const filesAt = (ref: string, paths: readonly string[]): Record<string, string> => {
+      if (!paths.every((p) => cache.has(ref + '\0' + p))) return readFilesAt(ref, paths);
+      const files: Record<string, string> = {};
+      for (const p of paths) {
+        const text = cache.get(ref + '\0' + p);
+        if (text !== null && text !== undefined) files[p] = text;
+      }
+      return files;
+    };
+
     const pkgBase = filesAt(base, pkgPaths.filter((c) => c.kind !== 'added').map((c) => c.path));
     const pkgHead = filesAt('HEAD', pkgPaths.filter((c) => c.kind !== 'deleted').map((c) => c.path));
     for (const c of pkgPaths) {
@@ -921,22 +1368,13 @@ export function gitBranchFact(
 
     let scope: { commit: string; paths: string[] } | undefined;
     if (opts.scope) {
-      const file = 'accord/tickets/' + id + '.md';
-      const first = git('log -G ac_hash', [
-        '-c', 'log.showSignature=false', 'log', '--no-show-signature', '--reverse', '--format=%H', '-G', '^ac_hash:', 'HEAD', '--', ':(literal)' + file,
-      ])
-        .split('\n')
-        .find((l) => l.trim() !== '')
-        ?.trim();
-      if (first !== undefined && isSha(first)) {
-        const text = filesAt(first, [file])[file];
-        scope = { commit: first, paths: text === undefined ? [] : (scopeLines(text) ?? []) };
+      const found = first === undefined ? firstOf() : first.value;
+      if (found !== undefined && isSha(found)) {
+        const text = filesAt(found, [scopeFile])[scopeFile];
+        scope = { commit: found, paths: text === undefined ? [] : (scopeLines(text) ?? []) };
       }
     }
 
-    const live = changes.filter((c) => c.kind !== 'deleted').map((c) => c.path);
-    const rendered = opts.rendered.filter((r) => live.includes(r.path));
-    const settingsPath = opts.settings !== undefined && live.includes(opts.settings.path) ? opts.settings.path : undefined;
     const head = filesAt('HEAD', [...rendered.map((r) => r.path), ...(settingsPath === undefined ? [] : [settingsPath])]);
     const synced = rendered.filter((r) => head[r.path] !== undefined && normaliseText(head[r.path]) === r.text).map((r) => r.path);
     if (opts.settings !== undefined && settingsPath !== undefined && head[settingsPath] !== undefined) {
@@ -983,8 +1421,9 @@ export function snapshotAt(root: string, ref: string, ids: readonly string[]): R
 }
 
 /** BUG-LN-13 D-01: origin's default ref (gitDefaultRef); in a clone with no `origin` remote, the first of refs/heads/main and refs/heads/master that resolves; else undefined. Never fetches. */
-export function doneRef(root: string): string | undefined {
-  const found = gitDefaultRef(root);
+export function doneRef(root: string, known?: DefaultRefs): string | undefined {
+  // ST-LN-63: `known` is the one for-each-ref of the same command (`origin` is gitDefaultRef's answer, `local` the first resolving local main or master); without it the refs are read here.
+  const found = known === undefined ? gitDefaultRef(root) : known.origin;
   if (found !== undefined) return found;
   try {
     execFileSync('git', ['remote', 'get-url', 'origin'], { cwd: root, ...GIT_QUIET });
@@ -992,6 +1431,7 @@ export function doneRef(root: string): string | undefined {
   } catch {
     // no origin remote
   }
+  if (known !== undefined) return known.local;
   return ['refs/heads/main', 'refs/heads/master'].find((ref) => {
     try {
       execFileSync('git', ['rev-parse', '--verify', '-q', ref], { cwd: root, ...GIT_QUIET });
@@ -1003,8 +1443,8 @@ export function doneRef(root: string): string | undefined {
 }
 
 /** BUG-LN-13: `snapshot` with `defaultRef` read by snapshotAt at doneRef, over the view's ticket ids and every depends_on entry; `snapshot` itself when no default ref resolves. */
-export function withDefaultRef(root: string, snapshot: RepoSnapshot): RepoSnapshot {
-  const ref = doneRef(root);
+export function withDefaultRef(root: string, snapshot: RepoSnapshot, known?: DefaultRefs): RepoSnapshot {
+  const ref = doneRef(root, known);
   if (ref === undefined) return snapshot;
   const ids = new Set(Object.keys(snapshot.tickets));
   for (const t of Object.values(snapshot.tickets)) for (const dep of t.frontmatter?.depends_on ?? []) ids.add(dep);

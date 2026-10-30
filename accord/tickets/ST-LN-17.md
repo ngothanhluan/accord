@@ -72,7 +72,7 @@ Feature: ST-LN-17
     Then accord prints the same stop as review does, "stop: report to owner" with that round's findings and the Approach section, and gives no next round
     And accord gate plan fails until plan-review.md ends with the line verdict: accepted-by-owner followed by the owner's sentence in quotes, or a later round reports no findings
 
-  @ac-5
+  @ac-5 @test:packages/cli/test/pre-tool-use.test.ts#ac-5-in-claude-code-a-fix-executor-dispatched-on-the-wrong-model-is-refused
   Scenario: In Claude Code a fix executor on the wrong model is refused
     Given a lane M ticket at the review stage whose review.md records round 4, for which accord computes opus as the fix executor's model
     When the session dispatches the executor agent in Claude Code with model sonnet, or with no model

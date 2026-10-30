@@ -81,6 +81,8 @@
 - Ruling: three review.md fixture texts in lane-flow.test.ts:127 and lane-s.test.ts:103 and :226 take the versioned form, as the brief allows, because the first run failed them with gate.review-rounds "has no record version line"; the unversioned texts at lane-s.test.ts:232, 242 and 250 did not fail and are unchanged (task 4) — cost if wrong: none
 - Ruling: the review stop check reads the cycle's last verdict as the brief's rule says, with no test that a verdict must come after the stop round, because parseRounds already makes a round after a verdict unreadable (task 4) — cost if wrong: none found
 - Ruling: gate.ts takes the snapshot through withReturnFacts for done only, and through withDefaultRef for done and plan only when the record is unversioned and holds a round; `ready` is unchanged; it uses the exported workOf, not work?.[id], so an id like __proto__ cannot hit a prototype key (task 4) — cost if wrong: none
+- Ruling: the dispatched-model check allows when `modelFamily(m)` is undefined for the model fixModel computed, or when the dispatched model names no family, such as `inherit`, since the brief's gloss "for example inherit" is about the dispatch (task 5) — cost if wrong: an `inherit` dispatch on the wrong model is not refused; the printed model and the benchmark still catch it
+- Ruling: stage.ts names the new flag `midCycle`, because `open` already exists in progressOf and the brief's name caused a redeclaration parse error (task 5) — cost if wrong: none
 
 ## Deferred
 - plan critique 1.8: Task 5 test 2's `tool_name: 'Bash'` case needs its own top-level input — deferred
@@ -95,3 +97,4 @@
 - task 2 done a87b32e3fa12
 - task 3 done 54954fe132da
 - task 4 done 6fd8bb0d7cf0
+- task 5 done 2ba18c32f6b1

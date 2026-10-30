@@ -51,6 +51,8 @@
 - Ruling: task 7's executor ran only the brief's printed `vitest related` command, not the task text's `vitest run` of drop, status, upgrade and load; the main session's re-run of the printed command shows upgrade.test.ts, load.test.ts, dashboard.test.ts and show.test.ts in its 34 files, 626 passed, 3 skipped (executor, task 7) — cost if wrong: none found
 - Ruling: drop's differs-refusal says "make the two equal on ${b}" with ${b} the claim branch, as the brief's text reads, though the rest of that sentence talks about the default branch — review checks the advice names the branch the owner should edit (executor, task 8) — cost if wrong: only the advice wording changes, no behaviour
 - Ruling: drop has no test of its own for a non-Markdown listed entry that only the claim branch holds, because lint refuses such an entry and the brief asked for none (executor, task 8) — cost if wrong: a drop edge case first seen at review
+- Ruling: ids.md step 1's lines are not re-wrapped after the task 10 edit (the `and prints` line stays short) — the text fits the 5120-byte and 120-line caps and the tests pass (executor, task 10) — cost if wrong: only a slightly uneven line break
+- Ruling: task 10's `tests.full` was run by the main session, not the executor, after `npm run build` at a70a5a6: 92 files, 1711 passed, 3 skipped, 0 failed (781 s); its JUnit report also served `accord task-done` — the full run covers the brief's related set (main session, task 10) — cost if wrong: none found
 
 ## Deferred
 - Plan round 1.5 (Nice): `gitFilesAt` (packages/cli/src/load/fs.ts:795-798) misreads a non-blob result's body and a path with a control character shifts the batch; `isResearchPath` could reject control characters and `:`
@@ -73,3 +75,4 @@
 - task 7 done 51511417e7bd
 - task 8 done aa3c41f07f71
 - task 9 done 1aa1aca8c47f
+- task 10 done a70a5a6eb63b

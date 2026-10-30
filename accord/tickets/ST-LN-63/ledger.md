@@ -48,6 +48,11 @@
 - Ruling: the ancestry check of a tip re-read after the guards stays one `merge-base --is-ancestor` per local branch clean deletes (executor, task 10) — the plan says the re-read tip never uses the merged set — one git process per deleted branch
 - Ruling: the late-commit case shares one sample copy and one clean run with the merged, squash and dropped cases (executor, task 10) — cut the test from 12.0 s to 9.0 s alone — a failure points less precisely at its case
 - Ruling: task 10's affected run: 33 files, 608 passed, 3 skipped, 559 s, 4 workers; the clean test took 12.3 s (9.0 s alone, proposed ceiling 14 s from 9.99 s, 17 s from this run), and in the same run the shared-walk test took 16.9 s, ac-1 15.2 s, default ref 29.5 s, claim tips 10.7 s (task 10 build) — the shared-walk test, 3.9 to 5.2 s in earlier runs, joins the over-10 s list under load — loaded times vary between runs
+- Ruling: pick-up and `new ticket --worktree` take the worktree list from clean's last read; any removal clears it, and a failed removal stores the fresh re-read (executor, task 11) — the plan reuses clean's read and reads again after a removal — a stale list if a removal path forgets to clear it
+- Ruling: drop and upgrade each build one local ssh map; `CommandContext.ssh` is built in preflight and survives fetchOrigin's reload by spread (executor, task 11) — core.sshCommand is read once per folder — a folder whose sshCommand changes mid-command is read with the old value
+- Ruling: the no-origin get-url case removes the `remote.origin` config section but keeps the origin remote-tracking refs (executor, task 11) — it proves nothing is fetched while the refs the loaders read stay — a repository with refs and no remote differs from one never cloned
+- Ruling: task 11's counts: ssh config 6→1, worktree list 4→3, get-url 2→1 (executor, task 11) — the plan's targets — none
+- Ruling: task 11's affected run: 33 files, 611 passed, 3 skipped, 875 s, 4 workers, 8 GB free; the ssh test took 19.2 s (13.6 s alone, proposed ceiling 19 s), the worktree-list test 41.8 s (19.0 s alone, 17.1 s with goldens, proposed 24 s), the origin test 27.9 s (15.8 s alone, 17.4 s with goldens, proposed 24 s); in the same run default ref 28.6 s, claim tips 21.2 s, ac-1 16.7 s, clean 12.5 s, head author 10.1 s (task 11 build) — the executor's ceilings sit below this run's loaded times; the owner chooses at verify — over the 10 s line until approved
 
 ## Deferred
 - plan-review 1.10 Nice — clean's merged set answers R later than today on a ref that may have moved; skip the set for R or re-read it when the ref changed
@@ -70,3 +75,4 @@
 - task 8 done a8dc1ff32565
 - task 9 done 64aa99648624
 - task 10 done 2d65af786e58
+- task 11 done 05bd752fd0e2

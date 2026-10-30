@@ -42,7 +42,7 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: ST-LN-17
 
-  @ac-1
+  @ac-1 @test:packages/core/test/round-next.test.ts#ac-1-the-round-record-gives-the-round-the-cap-and-the-fix-executor-model-and-the-tier-stays-raised-after-verify
   Scenario: The round record gives the round, the cap and the fix executor's model
     Given a lane M ticket whose review.md records rounds 1 to 3, each written as its round ended, with round 3 reporting only Nice findings and fewer findings than round 2
     And the executor's configured model is sonnet and escalation.fix_round_tier_up is 4
@@ -50,7 +50,7 @@ Feature: ST-LN-17
     Then accord prints round 4, the cap of 5 rounds and opus as the model of the executor that fixes round 4's findings
     And once review.md marks a return from verify after round 4, the next round prints as round 1 of 5 with opus still the fix executor's model, because a tier once raised stays raised for the ticket
 
-  @ac-2
+  @ac-2 @test:packages/core/test/round-next.test.ts#ac-2-an-unreadable-record-or-a-round-past-the-cap-gets-no-next-round-until-an-owner-allowance-lets-exactly-that-many-run
   Scenario: A round record accord cannot read, or a round past the cap, gets no next round
     Given a review.md with any round record holding a finding whose severity accord cannot read, or holding five rounds since the last return from verify with no owner Ruling in the ledger allowing more
     When the session asks accord for the next review round, in lane M or lane S

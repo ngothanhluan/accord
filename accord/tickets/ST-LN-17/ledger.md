@@ -75,6 +75,9 @@
 - Ruling: the baseline run at 6288bed failed one case, packages/cli/test/lane-commands.test.ts:819 "a directory token passes when it exists at baseline and fails when it does not", on its 30 s timeout under the full suite (the file took 481 s), and it passed alone; the owner tracks it as its own work, with the slow tests of ST-LN-63 part 4, and the plan goes on to build — "Split it into a ticket, go on" (2026-10-30, the owner's choice in Vietnamese, given here in English) — cost if wrong: the same case can time out again at verify and need a re-run
 - Ruling: a trailing empty cycle exists after a final `## Closed` in plan-review.md, so consumers can take the last cycle as the current one without checking `closed` (task 1) — cost if wrong: Task 2 must check `closed` on the last cycle if it assumed the closed cycle is last
 - Ruling: lines under `## Closed`, under an unknown heading, and under a `## Round` with no number are read against the cycle they follow and its last round; a `## Round` with no number is unreadable and not counted as a round (task 1) — cost if wrong: such a record is refused either way
+- Ruling: step 9 of nextRound uses `st.stopAt(L)` for both kinds, as the brief says; step 6, the "verdict hides the stop" check, uses `planStopOf` for plan and `stopAt` for review, because the brief names planStopOf for plan there (task 2) — cost if wrong: a plan with a fifth round that has findings and a trailing verdict reads as stopped, not as ended
+- Ruling: an allowance Ruling whose number is beyond the safe-integer range grants nothing, since a 400-digit number would otherwise make the cap Infinity (task 2) — cost if wrong: none found
+- Ruling: the risk:complex-branching test of task 2 also asserts a few plan-kind and lane S plan cases, which Task 4 covers in more depth (task 2) — cost if wrong: none
 
 ## Deferred
 - plan critique 1.8: Task 5 test 2's `tool_name: 'Bash'` case needs its own top-level input — deferred
@@ -86,3 +89,4 @@
 
 ## Tasks
 - task 1 done 7be4d34a115b
+- task 2 done a87b32e3fa12

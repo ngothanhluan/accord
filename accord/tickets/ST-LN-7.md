@@ -50,7 +50,7 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: ST-LN-7
 
-  @ac-1 @test:packages/cli/test/worktree.test.ts#ac-1-pick-up-adds-the-ticket-worktree-from-origin-main-runs-setup-in-order-and-prints-where-to-continue
+  @ac-1 @test:packages/cli/test/worktree-open.test.ts#ac-1-pick-up-adds-the-ticket-worktree-from-origin-main-runs-setup-in-order-and-prints-where-to-continue
   Scenario: Pick up prepares the ticket's own worktree and points to a session there
     Given a repository at "C:/Work/accord" whose config.yml lists the setup commands "npm ci" and "npm run build"
     And the ticket "ST-9" has no branch and no worktree
@@ -61,7 +61,7 @@ Feature: ST-LN-7
     And the accord CLI command prints the path "C:/Work/accord-st-9" and the line "/accord continue ST-9" to type in a session opened there, naming no agent's own command, and the session stops
     And the branch checked out in "C:/Work/accord" is the one it had before
 
-  @ac-2 @test:packages/cli/test/worktree.test.ts#ac-2-a-failing-setup-command-exits-2-naming-it-and-keeps-the-worktree
+  @ac-2 @test:packages/cli/test/worktree-open.test.ts#ac-2-a-failing-setup-command-exits-2-naming-it-and-keeps-the-worktree
   Scenario: A failing setup command stops the run and keeps the worktree
     Given config.yml lists the setup commands "npm ci" and "npm run build", and "npm run build" fails
     When "/accord pick-up ST-9" runs in a session rooted at "C:/Work/accord"
@@ -69,21 +69,21 @@ Feature: ST-LN-7
     And the worktree "C:/Work/accord-st-9" still exists and "npm ci" ran in it
     And no path or line to open a session is printed
 
-  @ac-3 @test:packages/cli/test/worktree.test.ts#ac-3-continue-from-another-checkout-reuses-the-worktree-holding-the-branch
+  @ac-3 @test:packages/cli/test/worktree-open.test.ts#ac-3-continue-from-another-checkout-reuses-the-worktree-holding-the-branch
   Scenario: Continue from another checkout reuses the worktree that holds the branch
     Given the branch "t/ST-9" is checked out in the worktree "C:/Work/accord-ln9", a name made by hand
     When "/accord continue ST-9" runs in a session rooted at "C:/Work/accord"
     Then no new worktree is added, no setup command runs in "C:/Work/accord-ln9", and the branch checked out in "C:/Work/accord" is unchanged
     And the accord CLI command prints the path "C:/Work/accord-ln9" and the line "/accord continue ST-9" to type in a session opened there, naming no agent's own command, and the session stops
 
-  @ac-4 @test:packages/cli/test/worktree.test.ts#ac-4-a-live-holder-refuses-a-second-session-and-a-dead-holder-is-taken-over
+  @ac-4 @test:packages/cli/test/worktree-session.test.ts#ac-4-a-live-holder-refuses-a-second-session-and-a-dead-holder-is-taken-over
   Scenario: A second session in a held worktree is refused while the holder runs, and a dead holder's hold is taken over
     Given a Claude Code session rooted at "C:/Work/accord-st-9" holds the ticket "ST-9" and is still running, though the command that took its hold has exited
     When "/accord continue ST-9" runs in a second Claude Code session rooted at "C:/Work/accord-st-9"
     Then the accord CLI command that takes the hold exits 2 with a message naming the holding agent session by its tool, its session marker or process id, and the time it took the hold, and the second session edits nothing
     And once the holding agent session has stopped without releasing its hold, as after a crash, "/accord continue ST-9" in a new Claude Code session there takes the hold and resumes the ticket
 
-  @ac-5 @test:packages/cli/test/worktree.test.ts#ac-5-bare-accord-fetches-then-removes-merged-worktrees-and-names-what-it-keeps
+  @ac-5 @test:packages/cli/test/worktree-clean.test.ts#ac-5-bare-accord-fetches-then-removes-merged-worktrees-and-names-what-it-keeps
   Scenario: /accord with no argument fetches, removes the worktrees of merged tickets, and names what it keeps
     Given on the remote the main branch contains the tips of "t/ST-9", "t/ST-10" and "t/ST-12", which the local clone has not fetched, and not the tip of "t/ST-11"
     And "C:/Work/accord-st-9" is clean apart from files ignored by .gitignore, "C:/Work/accord-st-10" holds a new file not yet added to git, "C:/Work/accord-st-11" is clean, and "C:/Work/accord-st-12" is clean and held by a running session
@@ -94,7 +94,7 @@ Feature: ST-LN-7
     And "C:/Work/accord-st-12" is kept, named with the reason "held by another session"
     And "C:/Work/accord-st-11" is kept and not named
 
-  @ac-6 @test:packages/cli/test/worktree.test.ts#ac-6-a-new-lane-m-ticket-gets-its-own-worktree-with-the-ticket-committed-and-pushed
+  @ac-6 @test:packages/cli/test/worktree-open.test.ts#ac-6-a-new-lane-m-ticket-gets-its-own-worktree-with-the-ticket-committed-and-pushed
   Scenario: A new request prepares the new ticket's worktree and points to a session there
     Given a repository at "C:/Work/accord" on the branch "main", whose config.yml lists the setup command "npm ci"
     When "/accord add an export flag" runs in a session rooted at "C:/Work/accord" and is taken as lane M with the new ticket "ST-9"

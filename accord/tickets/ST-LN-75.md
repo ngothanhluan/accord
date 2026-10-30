@@ -25,6 +25,9 @@ In a `tests.full` run the cli test files that replace worktree.test.ts hold the 
 ## Decisions
 - D-01 Lane S with the 7 ticket files' tags rewritten, over keeping the tagged tests in worktree.test.ts — "still B but lane S, the complexity is not high. 7 files but not complex. lane M is overkill" (owner, 2026-10-30, translated)
 
+## Corrections
+- 2026-10-30, after the local `tests.full` run was started: "I think it takes too much time. use CI" (owner, translated). The local run was stopped; CI's full suite on the pull request replaces `tests.full`, and the per-file times of `## Done when` are read from CI's `npm test` log.
+
 ## Scope
 <!-- One repository path per line, never a folder: every file the change is expected to touch, tests and new files included. -->
 packages/cli/test/worktree.test.ts

@@ -8,6 +8,15 @@ const TIERS = ['haiku', 'sonnet', 'opus'];
 const lower = (p) => String(p).replace(/\\/g, '/').toLowerCase();
 const EXEC = 'accord-executor';
 
+// review.md split at each "## Return from verify" line: one string per cycle (a file without the line is one cycle).
+const cycles = (review) => review.split(/^## Return from verify\b.*$/m);
+
+// The highest round an owner allowance Ruling in the new form lets a cycle reach; the cap is five without one.
+export function allowanceLimit(ledger, cycle) {
+  const re = /^- Ruling: the owner allows ([1-9][0-9]*) more review rounds after round ([1-9][0-9]*) of cycle ([1-9][0-9]*) — ".*\S.*" — \S/;
+  return Math.max(5, ...ledger.split('\n').map((l) => l.match(re)).filter((m) => m && Number(m[3]) === cycle).map((m) => Number(m[1]) + Number(m[2])));
+}
+
 export function describeOf(text, slug) {
   if (text === undefined) return undefined;
   const lines = text.split('\n');
@@ -41,17 +50,25 @@ export function compliance({ runs, refusals, commits, tickets, settings, commitI
     const mine = runCommits(r);
     const seen = new Set();
     for (const [id, t] of Object.entries(tickets)) {
-      for (const sec of t.review.split(/^## Round (?=\d)/m).slice(1)) {
-        const n = Number(sec.match(/^\d+/)[0]);
-        const hit = [...sec.matchAll(/fixed in ([0-9a-f]{7,40})/g)].some((m) => mine.some((c) => c.sha.startsWith(m[1])));
-        if (!hit || seen.has(`${id}#${n}`) || n < settings.tierUp) continue;
-        seen.add(`${id}#${n}`);
-        const base = TIERS.indexOf(settings.executorModel);
-        const expected = base < 0 ? settings.executorModel : TIERS[Math.min(base + 1, TIERS.length - 1)];
-        const asked = r.dispatch?.model || r.metaModel || settings.executorModel; // parseRun gives '' for an absent model
-        const task = r.task ?? mine.map((c) => c.message.match(/\btask (\d+)/i)?.[1]).find(Boolean) ?? `none, a fix assignment "${r.desc}"`;
-        if (asked !== expected) out['tier-up'].push(`- tier-up: ${id} review round ${n} (task ${task}): the fix executor asked for ${asked} where escalation.fix_round_tier_up asks for ${expected} — ${r.file}`);
-      }
+      // A tier once raised stays raised for the ticket (D-01): a round of a later cycle is judged once any earlier cycle reached tierUp.
+      let raised = false;
+      cycles(t.review).forEach((cycle, ci) => {
+        const k = ci + 1;
+        let reached = false;
+        for (const sec of cycle.split(/^## Round (?=\d)/m).slice(1)) {
+          const n = Number(sec.match(/^\d+/)[0]);
+          if (n >= settings.tierUp) reached = true;
+          const hit = [...sec.matchAll(/fixed in ([0-9a-f]{7,40})/g)].some((m) => mine.some((c) => c.sha.startsWith(m[1])));
+          if (!hit || seen.has(`${id}#${k}#${n}`) || !(raised || n >= settings.tierUp)) continue;
+          seen.add(`${id}#${k}#${n}`);
+          const base = TIERS.indexOf(settings.executorModel);
+          const expected = base < 0 ? settings.executorModel : TIERS[Math.min(base + 1, TIERS.length - 1)];
+          const asked = r.dispatch?.model || r.metaModel || settings.executorModel; // parseRun gives '' for an absent model
+          const task = r.task ?? mine.map((c) => c.message.match(/\btask (\d+)/i)?.[1]).find(Boolean) ?? `none, a fix assignment "${r.desc}"`;
+          if (asked !== expected) out['tier-up'].push(`- tier-up: ${id} review round ${n}${k > 1 ? ` in cycle ${k}` : ''} (task ${task}): the fix executor asked for ${asked} where escalation.fix_round_tier_up asks for ${expected} — ${r.file}`);
+        }
+        raised = raised || reached;
+      });
     }
   }
 
@@ -98,9 +115,12 @@ export function compliance({ runs, refusals, commits, tickets, settings, commitI
     }
   }
   for (const [id, t] of Object.entries(tickets)) {
-    const n = Math.max(0, ...[...t.review.matchAll(/^## Round (\d+)/gm)].map((m) => Number(m[1])));
     const allowed = t.ledger.split('\n').some((l) => l.startsWith('- Ruling:') && allowsPastCap(l.slice('- Ruling:'.length).split(' — ')[0]));
-    if (n >= 6 && !allowed) out['round-cap'].push(`- round-cap: ${id} review: reached round ${n} with no Ruling that allows going past the round cap — accord/tickets/${id}/review.md`);
+    if (allowed) continue;
+    // The cap counts again in each cycle after a return from verify (D-01); an owner allowance in the new form lifts it for its own cycle.
+    const counts = cycles(t.review).map((c) => (c.match(/^## Round \d+/gm) ?? []).length);
+    const k = counts.findIndex((count, i) => count > allowanceLimit(t.ledger, i + 1)) + 1;
+    if (k > 0) out['round-cap'].push(`- round-cap: ${id} review: reached round ${counts[k - 1]}${k > 1 ? ` in cycle ${k}` : ''} with no Ruling that allows going past the round cap — accord/tickets/${id}/review.md`);
   }
 
   for (const r of execs) {

@@ -4,6 +4,7 @@ import { handMade, shaEqual } from '../gate/done.js';
 import { acHash, approvedHash, laneSHash } from '../gate/hash.js';
 import { VERDICTS, workOf } from '../gate/work.js';
 import { headingKey, stripHtmlComments } from '../load/sections.js';
+import { cycleOpen } from '../round/record.js';
 import type { AfterVerifyCommit, RepoSnapshot, Ticket } from '../model/snapshot.js';
 
 export type Stage = 'intent' | 'plan' | 'build' | 'review' | 'verify' | 'done';
@@ -91,11 +92,14 @@ export function progressOf(snapshot: RepoSnapshot, ticket: Ticket): Progress | u
   if (open.length > 0 && snapshot.planFacts !== undefined && !planReady(snapshot.planFacts, ticket.id)) return { stage: 'plan', ...counts };
   if (open.length > 0) return { stage: 'build', ...counts, next: open[0].n };
   if (!VERDICTS.includes(work?.review?.verdict ?? '')) return { stage: 'review', ...counts };
+  // ST-LN-17: a versioned record that ends in an open cycle is at review, whatever the after-verify window reads.
+  const midCycle = work?.rounds?.versioned === true && cycleOpen(work.rounds.cycles[work.rounds.cycles.length - 1]);
   const after = snapshot.afterVerify !== undefined && Object.hasOwn(snapshot.afterVerify, ticket.id) ? snapshot.afterVerify[ticket.id] : undefined;
   if (after !== undefined && after.some((c) => c.parents.length > 1 || handMade(ticket.id, c))) {
     const base = reviewBase(snapshot, ticket.id, after);
-    return base === undefined ? { stage: 'verify', ...counts } : { stage: 'review', ...counts, base };
+    return base === undefined ? { stage: midCycle ? 'review' : 'verify', ...counts } : { stage: 'review', ...counts, base };
   }
+  if (midCycle) return { stage: 'review', ...counts };
   return { stage: ticksBound(ticket) ? 'done' : 'verify', ...counts };
 }
 

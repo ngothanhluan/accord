@@ -6,13 +6,15 @@ import { gitBranchFact } from '../load/fs.js';
 import type { CommandContext } from '../run.js';
 import { hooksPlanFor, SETTINGS } from './skills.js';
 
-export function branchFactFor(ctx: CommandContext, id: string): BranchFact {
+/** `known`: the default ref the caller already read (`review-package`), so the fact does not read it again. */
+export function branchFactFor(ctx: CommandContext, id: string, known?: { defaultRef: string | undefined }): BranchFact {
   const config = ctx.snapshot.config;
   const scope = Object.hasOwn(ctx.snapshot.tickets, id) && ctx.snapshot.tickets[id].frontmatter?.lane === 'S';
-  if (config === undefined) return gitBranchFact(ctx.root, id, { rendered: [], scope });
+  if (config === undefined) return gitBranchFact(ctx.root, id, { rendered: [], scope, ...(known === undefined ? {} : { known }) });
   return gitBranchFact(ctx.root, id, {
     rendered: [...skillTargets(config), ...agentTargets(config), ...pluginTargets(config, pkg)],
     scope,
+    ...(known === undefined ? {} : { known }),
     settings: {
       path: SETTINGS,
       // What `accord skills sync` would write over the settings file's merge-base text; the same plan `writeHooks` applies.

@@ -14,3 +14,4 @@
 - Run `npm run build` before the full suite whenever a merge brought in source changes, since tests that run `packages/*/dist` otherwise test the build from before the merge.
 - Owner quotes in a ticket's Decisions and Corrections, in ledger Rulings, and in approval commit messages are written as a faithful English translation that keeps the owner's meaning and drops nothing, whatever language the owner used.
 - On Windows, every test run (plan baseline, affected, verify) sets `ACCORD_BASH` to Git Bash after `npm run build`, or runs from Git Bash, since from PowerShell `bash` is the WSL shim and the executed CI-script cases are recorded skipped.
+- Test helpers that commit or merge never depend on the host's git config: they supply a fixture identity when the repository has none, and turn commit signing off.

@@ -89,6 +89,8 @@
 - Ruling: a debug fix dispatched while the current review cycle holds an open round carries the model `accord round <id>` prints, or runs before the cycle's first round is recorded or after its verdict (review 2.1) — cost if wrong: accord-debug must pass that model in that window
 - Ruling: the risk:security open-debug case in pre-tool-use.test.ts, which expected allow for cycle 1 with four open rounds, now expects deny, and its allow assertion uses a cycle with no recorded round, since that case is the one review 2.1 says must be judged (review 2.1) — cost if wrong: none; the allow path is still covered
 - Ruling: this ticket's review.md carries the `Round record: 1` line, though the pinned 0.3.0 skills do not write it, so the record reads under the rules this ticket ships; the branch's own `accord round ST-LN-17` reads it with no unreadable line and refuses only because the cycle ends `verdict: converged` — cost if wrong: none found; 0.3.0 reads only the last line's verdict
+- Ruling: at verify, the merge of origin/main (2a4b3c5, bringing ST-LN-63) was resolved by an executor on the owner's choice: gate.ts keeps ST-LN-63's per-ticket history (gitPlanHistory, gitRecordsSinceFor) in a `gated` snapshot that ST-LN-17's withReturnFacts and withDefaultRef now start from, and fs.ts keeps gitReturnFacts and withReturnFacts beside ST-LN-63's claimTips signature; a scoped reviewer read the remerge diff and found no Must or Should — cost if wrong: a lost ST-LN-63 speedup or ST-LN-17 rule shows in tests.full
+- Ruling: packages/cli/test/helpers/samples.ts, outside every task's files, is accepted: its REVIEWED and UNFINISHED review.md fixtures take `Round record: 1` and a "No findings" line, because after the merge gate.review-rounds refused them and failed goldens.test.ts and git-count.test.ts; the goldens are unchanged and match — cost if wrong: if unversioned records on in-flight tickets should pass gate done, this fixture change hides that
 
 ## Deferred
 - plan critique 1.8: Task 5 test 2's `tool_name: 'Bash'` case needs its own top-level input — deferred
@@ -104,6 +106,8 @@
 - review 2.2: scripts/compliance.mjs reads an allowance Ruling only with a leading "- ", while core's allowancesOf and the text accord round prints have none — deferred
 - review 2.3: accord anchor's lane S next step (status/stage.ts:64) numbers the next round after the last ## Round, not from 1 after a Return from verify marker — deferred
 - review 2.1 follow-up: shared/failure.md and the accord-debug skill do not say that a debug fix dispatched mid-cycle passes the model accord round prints — deferred
+- merge review 1: no git-count test runs gate done on an unversioned review.md holding rounds, so the withDefaultRef path's process count is unchecked — deferred
+- merge review 2: no CLI test runs gate done with a `## Return from verify <sha>` marker, so dropping withReturnFacts in gate.ts would pass every test — deferred
 
 ## Tasks
 - task 1 done 7be4d34a115b

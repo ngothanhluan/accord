@@ -92,6 +92,8 @@
 - review 1.9 Nice — `headAuthorOf` takes the email after the last `<` of the author line where git takes the first (fs.ts ~2863-2872); only an imported, malformed ident line differs
 - review 1.10 Nice — no test fails when clean caches the default ref before its prune or reuses a worktree list read before the fetch (git-count.test.ts:654 guards only the merged set and the re-read tip)
 - review 1.11 Nice — the ac-1 loop writes progress lines to stdout and helpers/items.ts:7 keeps a build-process comment ("Each Part 2 task appends its entries")
+- review 3.1 Nice — the `known` branches of `doneRef` have no test: done-on-default.test.ts:81-87 calls `doneRef(repo)` only, so a `known.local` that came back undefined would pass every test while `status` in a repository with a local main and no origin counts against the checkout again (fs.ts:1426, 1435); run the same three assertions with `known` from `defaultRefs(repo, true)`
+- review 3.2 Nice — the doc comment "The default refs in one `for-each-ref`…" sits above `export interface DefaultRefs` instead of `function defaultRefs` (fs.ts:354-363)
 
 ## Tasks
 - task 1 done d4a93ac435a0

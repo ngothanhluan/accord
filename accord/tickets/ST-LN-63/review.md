@@ -19,3 +19,11 @@ Nice 11 [patch]: ac-1 writes progress lines to stdout and items.ts keeps a build
 Final review (integration, whole package): No findings
 
 verdict: converged
+
+## Round 3
+
+Merge of origin/main f772645 (BUG-LN-13) at verify, and the goldens ac-2 record of 3 dashboard keys from origin/main's code (owner's "A"), reviewed from b5fdc37, lens both: no Must or Should.
+Nice 1 [patch]: the `known` branches of `doneRef` have no test — packages/cli/src/load/fs.ts:1426, 1435, packages/cli/test/done-on-default.test.ts:81-87 — deferred
+Nice 2 [patch]: the `defaultRefs` doc comment sits above `interface DefaultRefs` — packages/cli/src/load/fs.ts:354-363 — deferred
+
+verdict: converged

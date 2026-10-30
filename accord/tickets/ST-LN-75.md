@@ -27,6 +27,7 @@ In a `tests.full` run the cli test files that replace worktree.test.ts hold the 
 
 ## Corrections
 - 2026-10-30, after the local `tests.full` run was started: "I think it takes too much time. use CI" (owner, translated). The local run was stopped; CI's full suite on the pull request replaces `tests.full`, and the per-file times of `## Done when` are read from CI's `npm test` log.
+- 2026-10-30, after CI showed worktree-clean.test.ts at 254 s and 231 s on Windows against 587 s and 617 s for worktree.test.ts on main: "option 1, but run the tests in linux to be fast" (owner, translated). Option 1 was: move about 40-50 s of tests from the clean file to the open file, review, and run CI again.
 
 ## Scope
 <!-- One repository path per line, never a folder: every file the change is expected to touch, tests and new files included. -->

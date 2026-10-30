@@ -75,6 +75,8 @@
 - Review round 1.5 (Nice, quality): packages/core/test/research.test.ts's `risk:parsing a research entry with a backslash…` test bundles four behaviours under one name; split it
 - Review round 1.6 (Nice, intent and quality): packages/core/src/model/snapshot.ts's `priority?` line lost its space before `//`, an unrelated edit
 - Review round 1.7 (Nice, quality): packages/core/src/lint/rules.ts places `lint.research-reference` between the `depends-*` rules
+- Final review 2.1 (Nice, quality): docs/specs/2026-10-12-workflow-layer-design.md:80-85 still says `worktree clean` keeps a dropped branch only for a listed `.md` record, says drop refuses any differing record (only `.md` ones), and omits drop's refusal of a non-`.md` record only the claim branch holds; update the paragraph to round 1's rule
+- Final review 2.2 (Nice, quality): packages/core/skills/intent/research.md:22 tells the session to use `git rev-parse --short HEAD`, whose length follows `core.abbrev`; below 7 the header fails `lint.research-reference` — use `--short=7` or the full sha
 
 ## Tasks
 - task 1 done 870e1cfa4263

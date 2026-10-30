@@ -4,8 +4,8 @@
 // stdout before the write is attempted, so a write failure is reported after the true verdict rather
 // than instead of it (D-97). Under `--json` stdout carries the GateResult verbatim and every notice
 // goes to stderr, so `jq '.findings[]'` works with no unwrapping (D-98).
-import { gateDone, gatePlan, gateReady, renderText } from '@accord-dev/accord-core';
-import { gitAfterReview, gitBranchCommits, gitReviewFact, UsageError, withDefaultRef } from '../load/fs.js';
+import { gateDone, gatePlan, gateReady, renderText, workOf } from '@accord-dev/accord-core';
+import { gitAfterReview, gitBranchCommits, gitReviewFact, UsageError, withDefaultRef, withReturnFacts } from '../load/fs.js';
 import { colourFindings } from '../render/color.js';
 import { branchFactFor } from './branch-fact.js';
 import type { CommandContext } from '../run.js';
@@ -37,8 +37,16 @@ export function gate(
     which === 'done' && Object.hasOwn(ctx.snapshot.tickets, id) && ctx.snapshot.tickets[id].frontmatter?.lane !== undefined
       ? { ...forDone, branchFacts: { [id]: branchFactFor(ctx, id) } }
       : forDone;
+  // ST-LN-17: Done confirms each ## Return from verify marker with git; an unversioned round record of a ticket
+  // not done on the default branch needs that branch's snapshot.
+  const forRounds = which === 'done' ? withReturnFacts(ctx.root, forScope, id) : ctx.snapshot;
+  const roundRecord = which === 'done' ? workOf(forRounds, id)?.rounds : which === 'plan' ? workOf(forRounds, id)?.planRounds : undefined;
+  const forGate =
+    roundRecord !== undefined && !roundRecord.versioned && roundRecord.cycles.some((c) => c.rounds.length > 0)
+      ? withDefaultRef(ctx.root, forRounds)
+      : forRounds;
   const result =
-    which === 'ready' ? gateReady(withDefaultRef(ctx.root, ctx.snapshot), id) : which === 'plan' ? gatePlan(ctx.snapshot, id) : gateDone(forScope, id);
+    which === 'ready' ? gateReady(withDefaultRef(ctx.root, ctx.snapshot), id) : which === 'plan' ? gatePlan(forGate, id) : gateDone(forGate, id);
   ctx.stdout.write(
     options.json ? JSON.stringify(result, null, 2) + '\n' : colourFindings(renderText(result), ctx.stdout),
   );

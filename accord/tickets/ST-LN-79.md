@@ -84,6 +84,7 @@ Feature: ST-LN-79
 - D-04 Replaces the sample set of D-03: round 1 cannot see a cut make an agent worse (17 of its samples hold by default because the first run found no Must; scout, architect and planner miss already at their current effort; one run per sample), so the cut waits for ST-LN-46's round 2 samples (known or seeded Musts, judged more than once) and is proven on them. — "C" (option C of the question "is this test still accurate?", 2026-10-30)
 - D-05 Split: this ticket keeps only the measurement (D-02) and starts now; the cut and its proof (D-03, D-04) move to a new ticket that depends on ST-LN-79 and ST-LN-46, queued in a backlog pull request. — "A" (option A of the split question, 2026-10-30)
 - D-06 The measurement covers both the accord subagents and the main session, each split by owner. — "A" (option A of the question "which calls are measured?", 2026-10-30)
+- D-07 The report is per agent: for the main session and each accord agent, the fixed context per call by owner, raw and cost-weighted; its share of a lane M ticket's cost; and what the owner could cut in their own setup with its saving; re-running the script gives the table again. The figures after a cut belong to the cut ticket (D-05). — "A" (option A of the question "how detailed is the report?", 2026-10-30)
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->

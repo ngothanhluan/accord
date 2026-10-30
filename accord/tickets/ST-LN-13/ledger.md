@@ -25,3 +25,19 @@
 - Ruling: the claim view overlays a research record from a claim ref only when the checkout lacks that path — a shared record is listed by several tickets, and one branch's copy must not replace the checkout's for all of them (critic round 3, Nice 6) — cost if wrong: a branch's edit to an existing record is not seen in status, which D-09 keeps out of scope anyway
 - Ruling: lane M `## Undeclared files` (packages/core/src/gate/work.ts:123-125) also leaves out a listed record the branch adds, as the lane S scope check does — D-08 says every lane (critic round 3, Nice 7) — cost if wrong: none found
 - Ruling: ST-LN-70's §2 row locator is kept as a YAML comment beside its key entry, as ST-LN-69's is (critic round 3, Nice 8) — cost if wrong: comment wording
+- Ruling: `packages/cli/src/commands/review-package.ts` is edited (moving `branchFactFor` earlier) so `undeclaredFiles` sees which records the branch adds — it is the only caller and the Approach's Affected list omits it (planner) — cost if wrong: one moved line
+- Ruling: "the branch adds" means `kind: 'added'` in the branch fact against the merge base with the default branch, for lane M too, not the plan baseline — D-09 speaks of the default branch (planner) — cost if wrong: a record committed before the plan baseline counts as the ticket's own file
+- Ruling: `addedResearch` lives in a new `packages/core/src/gate/research.ts` because `work.ts` cannot import `scope.ts` without an import cycle (planner) — cost if wrong: one file
+- Ruling: the interface-sign check still calls `isExempt` without research records — the Approach lists only the lane S scope and lane M undeclared files (planner) — cost if wrong: a non-Markdown record holding `.command(` would be flagged
+- Ruling: `accord drop` writes a carried record with mode 100644 — records are Markdown (planner) — cost if wrong: an executable bit is lost
+- Ruling: the anchor prints each listed path bare, one per line, with no list marker — the criterion says "as the key lists them" (planner) — cost if wrong: one line format
+- Ruling: the whole `intent/research.md`, its lane S section included, is written in Task 4 — the plan gate rejects a non-new path absent at the baseline, so Task 5 cannot edit a file Task 4 creates (planner) — cost if wrong: none found
+
+## Deferred
+- Plan round 1.5 (Nice): `gitFilesAt` (packages/cli/src/load/fs.ts:795-798) misreads a non-blob result's body and a path with a control character shifts the batch; `isResearchPath` could reject control characters and `:`
+- Plan round 1.6 (Nice): export only `isResearchPath` from core, not `RESEARCH_DIR` and `recordHeaderFaults`
+- Plan round 1.7 (Nice): Tasks 6 and 8 tests use `NEW` and `OLD` defined in other tasks' test files
+- Plan round 1.8 (Nice): intent SKILL.md step 6 line needs a blank line after the table to render outside it on GitHub
+- Plan round 1.9 (Nice): Task 7 should also run dashboard.test.ts and show.test.ts
+- Plan round 1.10 (Nice): Task 7's new drop.test.ts case should pass `120_000` like the rest of that file
+- Plan round 1.11 (Nice): Task 9's §10 spec clause should name the sentence it follows

@@ -1,0 +1,14 @@
+# Plan review
+
+## Round 1 (whole)
+1. Should — Task 8: records committed on the claim branch after `accord drop` ran are deleted by `accord worktree clean`, since `cleanDropped` (packages/cli/src/commands/worktree.ts:946-961) deletes the branch once local and origin agree without checking that the records its tip's ticket lists are on the default branch; keep such a branch (a listed record the default branch lacks or holds with another blob id) and print `kept <b>: ...`, with worktree.ts on a `files:` line and a `risk:data-loss` test (critic, security lens) — open
+2. Should — Task 8: drop's uncommitted-changes refusal (packages/cli/src/commands/drop.ts:39) covers only the ticket file, so an uncommitted edit to a listed record is lost or an uncommitted new record gets the wrong "fix these on main first" advice; run the same `git status --porcelain` check on every listed record path with the "commit and push them on <b> first" message, with a test (critic, security lens) — open
+3. Should — Tasks 1 and 6: any file type under `accord/research/` counts as a record, so a lane S branch can add a listed `accord/research/x.test.ts` whose header lines sit in a comment and have the scope check skip it; `addedResearch` and the drop carry accept only entries ending `.md` (critic, security lens; Ruling 21) — open
+4. Should — Task 9: `## Dropping instead of renaming` step 3 in packages/core/skills/accord/ids.md:51-53 lists the keys copied into the new ticket and omits `research`, so a recreated ticket loses the key and its records reach no deciding agent; add `research` to that list, with a needle in Task 9's test (critic, criteria lens) — open
+5. Nice — Tasks 7 and 8: `gitFilesAt` (packages/cli/src/load/fs.ts:795-798) reads a non-blob result's body as the next header, and an entry with a control character shifts the batch; `isResearchPath` rejects control characters and `:`, `gitFilesAt` skips a non-blob body (critic, security lens) — deferred
+6. Nice — Task 1: `RESEARCH_DIR` and `recordHeaderFaults` become core exports with no consumer outside core; export only `isResearchPath` (critic, criteria lens) — deferred
+7. Nice — Tasks 6 and 8: tests use `NEW` and `OLD` defined in other tasks' test files; state the literals and their scope in each task (critic, build lens) — deferred
+8. Nice — Task 4: the step 6 line placed straight after the table renders as a table row on GitHub; put a blank line before it (critic, build lens) — deferred
+9. Nice — Task 7: its run list omits dashboard.test.ts and show.test.ts, which read `loadClaimView` (critic, build lens) — deferred
+10. Nice — Task 7: the new drop.test.ts case gives no `120_000` timeout as every other case there does (critic, build lens) — deferred
+11. Nice — Task 9: the §10 spec clause has no named sentence to follow in docs/specs/2026-10-12-workflow-layer-design.md:380-383 (critic, build lens) — deferred

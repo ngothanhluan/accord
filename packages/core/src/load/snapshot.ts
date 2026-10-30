@@ -14,6 +14,7 @@ import { loadFrontmatter, normaliseText } from './frontmatter.js';
 import { extractScenarios } from './gherkin.js';
 import { scanJUnit } from './junit.js';
 import { d07Key, duplicateHeadings, headingKey, laneKey, requirementLines, scan } from './sections.js';
+import { isResearchPath } from './research.js';
 import { parseVerification } from './verification.js';
 import { parseBaseline, parseLedger, parsePlan, parseReview } from './work.js';
 
@@ -133,6 +134,13 @@ export function loadSnapshot(input: SnapshotInput): RepoSnapshot {
       continue;
     }
     // D-37: anything else is ignored.
+  }
+
+  // ST-LN-13: keep only the records some ticket lists, after the entries above so the D-54 goldens keep their order.
+  const listed = new Set<string>();
+  for (const t of Object.values(tickets)) for (const p of t.frontmatter?.research ?? []) listed.add(p);
+  for (const p of [...listed].sort()) {
+    if (isResearchPath(p) && Object.hasOwn(files, p)) snapshotFiles[p] = normaliseText(files[p]);
   }
 
   for (const id of Object.keys(verifications)) {

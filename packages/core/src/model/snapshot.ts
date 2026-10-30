@@ -97,7 +97,9 @@ export interface TicketFrontmatter {
   assumptions?: { text: string; confirmed: boolean }[];
   lane?: Lane; // spec §3: present opts the ticket into the workflow-layer contract
   depends_on?: string[]; // spec §5: ticket ids that must reach done first
-  priority?: 'high' | 'medium' | 'low'; // how the dashboard ranks this ticket; absent means medium
+  // ST-LN-13: repository paths of research records under accord/research/; optional
+  research?: string[];
+  priority?: 'high' | 'medium' | 'low';// how the dashboard ranks this ticket; absent means medium
   approved_hash?: string; // spec §4: written by `accord approve`, 'fnv1a64:<16 hex>'
   ac_hash?: string;
   verified?: string[]; // ['ac-1']
@@ -211,7 +213,7 @@ export interface RepoSnapshot {
   verifications: Record<string, Verification>; // keyed by folder name
   tree: string[]; // sorted, forward slashes (D-29, D-30)
   errors: LoadFinding[]; // every loader and schema finding, in file order; lint stamps the level (D-58)
-  files: Record<string, string>; // D-65: normalised text of every accord/assets/<id>/prototype.html, the config.design.tokens file, and the config.tests.report file; nothing else
+  files: Record<string, string>; // D-65: normalised text of every accord/assets/<id>/prototype.html, the config.design.tokens file, and the config.tests.report file, and every accord/research/ file some ticket lists under research:; nothing else
   tests?: Record<string, 'passed' | 'failed' | 'skipped'>; // D-72: absent when no report is in files
   // D-78: carried through from SnapshotInput. Host-supplied, `authors` keyed by repo-relative posix path
   // plus one entry keyed by the value of `commit`; absent, not undefined, when the host cannot supply it.

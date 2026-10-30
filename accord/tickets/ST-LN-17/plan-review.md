@@ -24,6 +24,10 @@ fixed: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7
 
 ## Round 3 (whole)
 fixed: 2.1, 2.2, 2.3, 2.4, 2.5
-1. Should — plan critique has no way out of the loop after an owner acceptance: critique.md:61-64 (pinned by stage-skills.test.ts:362) still ends the loop only with no Must or Should open, the accepted findings stay open, and the step 6 refusal "append a ## Closed line" read with "On refused:, fix what it names" starts a fresh 5-round cycle on a plan the owner accepted — open
-2. Should — the plan limits tier-up, fixModel, the hook, the Approach in the stop and the open-cycle check to "lane M", while progressOf (stage.ts:82) sends lanes L and P down the lane M path; read literally, a lane L story gets no tier-up, no hook check and no open-cycle check — open
-3. Should — the hook judges against the latest recorded round, so a correct opus dispatch for round 4's findings made before round 4 is written is denied with "dispatch again with model sonnet", and the session re-dispatches on the wrong model; the deny reason should say to write and commit the round first — open
+1. Should — plan critique has no way out of the loop after an owner acceptance: critique.md:61-64 (pinned by stage-skills.test.ts:362) still ends the loop only with no Must or Should open, the accepted findings stay open, and the step 6 refusal "append a ## Closed line" read with "On refused:, fix what it names" starts a fresh 5-round cycle on a plan the owner accepted — fixed
+2. Should — the plan limits tier-up, fixModel, the hook, the Approach in the stop and the open-cycle check to "lane M", while progressOf (stage.ts:82) sends lanes L and P down the lane M path; read literally, a lane L story gets no tier-up, no hook check and no open-cycle check — fixed
+3. Should — the hook judges against the latest recorded round, so a correct opus dispatch for round 4's findings made before round 4 is written is denied with "dispatch again with model sonnet", and the session re-dispatches on the wrong model; the deny reason should say to write and commit the round first — fixed
+## Round 4 (diff)
+fixed: 3.1, 3.2, 3.3
+1. Nice — only fixModel has a lane L or P test; checkFixDispatch's lane guard, the Approach in nextRound's stop and the open-cycle gate done check have none, so a `lane === 'M'` guard in the hook would pass every test — deferred
+## Closed

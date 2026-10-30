@@ -32,10 +32,10 @@ fix.
    package, and `accord/tickets/<id>/ledger.md`. The executor's report is context, never evidence.
 
 4. **Classify.** De-duplicate the findings, then mark each one `patch`, `plan-gap`, or `intent-gap`.
-   - Fix every Must and Should marked `patch` through `accord-build`'s executor path. Note the HEAD sha.
-     Write a brief file outside the working tree: copy the ticket file byte for byte (never retype it),
-     then append the findings to fix. Dispatch a fresh `accord-executor` with its path, and route its
-     stops as `accord-build` does.
+   - Fix every Must and Should marked `patch` through `accord-build`'s executor path. Commit the round to `review.md` as
+     `./record.md` says, then note the HEAD sha. Write a brief file outside the working tree: copy the ticket file byte
+     for byte (never retype it), then append the findings to fix. Dispatch a fresh `accord-executor` with its path and
+     step 6's `model`, and route its stops as `accord-build` does.
    - When it reports, run the `tests.affected` command over the files the fix touched, or `tests.full`
      when `tests.affected` is not configured or finds no test file. If it fails, dispatch a fresh
      executor with the same brief plus the failing output, in the same round.
@@ -49,13 +49,12 @@ fix.
    - An intent gap stops the run and asks the owner.
    - Nice findings go to the ledger under `## Deferred`, not fixed.
 
-5. **Converged** means no Must is open and every Should is fixed with that command passing. If round 3 still finds a new
-   Must, say whether it traces to the ticket or the plan; if it does, ask the owner before round 4.
+5. **Converged** means no Must is open and every Should is fixed with that command passing.
 
-6. **Cap.** At most five rounds, after verify counted from the first round after it. A round at or after
-   `escalation.fix_round_tier_up` in `accord/config.yml` (default 4) dispatches a fresh executor one model tier above the
-   executor's configured model, passed as `model` on the dispatch itself: `haiku`, then `sonnet`, then `opus`; `opus` stays
-   `opus`. At the cap, stop and report the open findings to the owner; never report the work finished.
+6. **Cap.** Run `accord round <id>` before each round and before the verdict. Exit 0 prints `Round: <n> of <cap>` and
+   `Fix executor model: <model>`. It counts at most five rounds, after verify counted from the first round after it, and
+   tiers up from `escalation.fix_round_tier_up`. On `stop: report to owner` (a Should or a Must from round 3, or the cap)
+   or `refused:`, act as `./record.md` says; never report the work finished.
 
 7. **Final review.** After convergence, one fresh `accord-final-reviewer` reads the whole review package once (over about
    1500 changed lines, dispatch it with lens `integration`). If it finds a Must: one fix and one scoped re-review, as in

@@ -94,3 +94,27 @@ Feature: ST-LN-55
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
+Chosen: extend `accord worktree clean` in place, and have the session-start hook (startup, resume, clear) run it in the foreground after its usual output. Removal never uses `--force`. It checks ignored files against the `disposable:` list in config.yml (default `node_modules`, `dist`, `.DS_Store`, `Thumbs.db`), matching any segment of the path relative to the worktree root. After git unregisters a folder, clean deletes only links, files with a disposable segment, and then empty folders, bottom-up. It prints `removed` only once the folder is gone, and otherwise a `kept <folder>: <file>` line. Each worktree accord creates is recorded in `<git-common-dir>/accord/worktrees`, under the holds lock. This is the lightest option that covers ac-1 to ac-3, and it is the clean that `/accord` already runs.
+Rejected: a session that waits for its merge and a background clean (critique round 3: four Musts; replaced by D-11); a `--left` flag (D-09, then D-11); a `gate done` worktree check (D-07).
+Affected: `packages/cli/src/commands/worktree.ts` (removeWorktree, passGuards, cleanDone, cleanDropped, the record at the three creation sites); `hook.ts` (clean after session-start and session-resume output); `packages/core/src/scaffold/hooks.ts` (`timeout: 600` on both entries); `config.schema.json` and the config types (`disposable:`); skills `shared/finish.md` and `accord/worktree.md`, then `npm run gen`, build and skills sync; tests.
+Risks. Critique round 4 found five Musts, each fixed in this option:
+- (1) A detached-HEAD worktree is removed only when its HEAD is on the default ref or is a branch tip.
+- (2) The hold guard also keeps a folder that any live hold names, and clean removes by path only a detached worktree, never one on another branch.
+- (3) In a folder git no longer lists, clean scans first, and deletes only when everything is a link or an empty folder; otherwise it changes nothing and prints a kept line.
+- (4) The ignored-file check passes `--untracked-files=normal`.
+- (5) The hook clean has a time budget below the hook timeout: it starts no new removal or push once the budget is spent, prints that the rest waits for the next start, and its deletion push gets the fetch limit.
+Shoulds kept as fixes:
+- The walk never enters a listed worktree, a `.git` holder, the main checkout or an ancestor of these.
+- A clean lock: a second concurrent clean skips with one line.
+- The hook adds "tell the owner the lines above".
+- The sibling sweep reads ticket ids from origin's default ref.
+Known limit: a worktree with initialised submodules is kept, because git refuses it without `--force`.
+Data-deletion scenarios, and how each is undone:
+- A. A detached commit is lost (fix 1). Undo: `git fsck --lost-found` before gc.
+- B. An ignored `.env` is deleted under `status.showUntrackedFiles=no` (fix 4). Not undoable, so a risk test pins the fix.
+- C. A forgotten folder's modified `dist/index.js` is deleted before a note is found (fix 3). Not undoable, so a risk test pins the fix.
+Tests:
+- ac-1: CLI integration, `runCli worktree clean` in a temp repo with a bare origin and real junctions on Windows.
+- ac-2: hook test, `hook session-start` with stdin JSON, a merged ticket and a live-hold fixture.
+- ac-3: hook test, with a record entry and a folder git forgot.
+- Risk tests: detached HEAD, `-uno`, a nested worktree, a tracked `dist` file in a forgotten folder, the time budget.

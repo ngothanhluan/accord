@@ -32,6 +32,13 @@
 - Ruling: `accord drop` writes a carried record with mode 100644 — records are Markdown (planner) — cost if wrong: an executable bit is lost
 - Ruling: the anchor prints each listed path bare, one per line, with no list marker — the criterion says "as the key lists them" (planner) — cost if wrong: one line format
 - Ruling: the whole `intent/research.md`, its lane S section included, is written in Task 4 — the plan gate rejects a non-new path absent at the baseline, so Task 5 cannot edit a file Task 4 creates (planner) — cost if wrong: none found
+- Ruling: a research entry counts as a record for the lane S exemption, the lane M undeclared files, the drop's checks and carry, and the clean keep only when it is under `accord/research/` and ends `.md` (`isResearchRecord`); lint and the loaders keep `isResearchPath` — a listed non-Markdown file could hide code from the lane S scope check, and the criteria fix what lint does (plan review 1.3) — cost if wrong: a listed non-Markdown record is out of scope in lane S and drop refuses on it
+- Ruling: the skill sentences on the ticket's own files say "`.md` record", to match the gate — otherwise the move to lane S accepts a file `gate done` then flags (planner) — cost if wrong: one word in four sentences
+- Ruling: `accord worktree clean` keeps a dropped ticket's branch when the ticket at its tip lists a `.md` record the tip holds and the default branch lacks or holds with another blob id, naming the first such record — records committed after the drop would otherwise be deleted (plan review 1.1) — cost if wrong: the branch stays until the owner moves the record or deletes the branch by hand
+- Ruling: drop's uncommitted check runs one `git status` per listed `.md` record, in key order, names the first dirty one, and runs only when a worktree in this clone holds the claim branch, as the ticket-file check does — same message and scope as the existing refusal (plan review 1.2) — cost if wrong: one git spawn per record
+- Ruling: `research` joins the keys copied into a recreated ticket in ids.md step 3 — otherwise the new ticket's records reach no deciding agent (plan review 1.4) — cost if wrong: one word
+- Ruling: the clean keep is a new Task 9 and the old Task 9 becomes Task 10 — polish stays last and no ledger line names a task (planner) — cost if wrong: round 1 findings that say Task 9 mean Task 10
+- Ruling: Task 8's test constant `LATER` is renamed `EXTRA` (record `2026-10-30-extra.md`) — `gate plan` reads "later" as deferred work (gate.plan-deferral) — cost if wrong: none found
 
 ## Deferred
 - Plan round 1.5 (Nice): `gitFilesAt` (packages/cli/src/load/fs.ts:795-798) misreads a non-blob result's body and a path with a control character shifts the batch; `isResearchPath` could reject control characters and `:`
@@ -41,3 +48,4 @@
 - Plan round 1.9 (Nice): Task 7 should also run dashboard.test.ts and show.test.ts
 - Plan round 1.10 (Nice): Task 7's new drop.test.ts case should pass `120_000` like the rest of that file
 - Plan round 1.11 (Nice): Task 9's §10 spec clause should name the sentence it follows
+- Plan round 2.2 (Nice): ids.md step 1 should say "`.md` record" and that `worktree clean` deletes the branch unless it prints `kept`

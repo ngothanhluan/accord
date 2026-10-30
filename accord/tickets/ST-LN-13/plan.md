@@ -1,6 +1,6 @@
 ---
 baseline: 7bcd659645f9cc41a03b50dd4494dd9ded0c2ce0
-plan_hash: "fnv1a64:ad3ff68248783852"
+plan_hash: "fnv1a64:3e5a9d40d7fa7d9b"
 ---
 
 # Plan: ST-LN-13
@@ -37,7 +37,7 @@ Rules for every task:
 
 covers: @ac-1, D-05
 files: packages/core/schemas/ticket.schema.json, packages/core/src/model/snapshot.ts, packages/core/src/load/snapshot.ts, packages/core/src/load/research.ts (new), packages/core/src/lint/research.ts (new), packages/core/src/lint/rules.ts, packages/core/src/index.ts, packages/core/test/research.test.ts (new)
-verify: packages/core/test/research.test.ts#ac-1-lint-refuses-a-ticket-whose-research-reference-is-not-a-dated-record (@ac-1), packages/core/test/research.test.ts#risk:parsing-a-record-header-counts-in-its-first-five-lines-after-a-bom-and-crlf-with-the-sha-bare-or-in-backticks, packages/core/test/research.test.ts#risk:parsing-a-research-entry-with-a-backslash-a-dot-segment-or-a-leading-slash-is-outside-the-research-folder-and-only-listed-records-are-loaded
+verify: packages/core/test/research.test.ts#ac-1-lint-refuses-a-ticket-whose-research-reference-is-not-a-dated-record (@ac-1), packages/core/test/research.test.ts#risk:parsing-a-record-header-counts-in-its-first-five-lines-after-a-bom-and-crlf-with-the-sha-bare-or-in-backticks, packages/core/test/research.test.ts#risk:parsing-a-research-entry-with-a-backslash-a-dot-segment-or-a-leading-slash-is-outside-the-research-folder-only-an-md-entry-is-a-record-and-only-listed-records-are-loaded
 
 This task is the wiring: a ticket's `research:` key reaches the snapshot, lint reads it, and `gate ready` fails on it.
 
@@ -58,6 +58,10 @@ Produces:
   - `isResearchPath(entry: string): boolean`: false when `entry` does not start with `accord/research/` (a plain
     prefix test first, ledger Ruling), or holds a backslash, or, split on `/`, has a segment that is `''`, `.` or `..`;
     true otherwise. The entry is compared as written, never normalised (ledger Ruling).
+  - `isResearchRecord(entry: string): boolean`: `isResearchPath(entry) && entry.endsWith('.md')`, case-sensitive.
+    Lint and the loaders use `isResearchPath`; the lane S exemption, the lane M undeclared files, the drop carry and
+    the clean keep (Tasks 6, 8, 9) use `isResearchRecord`, so a listed non-Markdown file under `accord/research/`
+    (such as a `.test.ts` whose header lines sit in a comment) never counts as the ticket's own file (ledger Ruling).
   - `recordHeaderFaults(text: string): ('date' | 'commit')[]`: take the first five lines of `normaliseText(text)`
     (BOM stripped, CRLF to LF); `'date'` is in the result when none of them matches `/Date: \d{4}-\d{2}-\d{2}/`, and
     `'commit'` when none matches ``/Repository at `?\b[0-9a-f]{7,40}\b/``. Matches are found anywhere in a line, not
@@ -80,7 +84,7 @@ Produces:
   ticket's own files (`packages/core/src/gate/index.ts:40-45`).
 - `packages/core/src/lint/rules.ts`: a row `{ id: 'lint.research-reference', level: 'error', profiles: ['build', 'maintain'], check: researchReference }`
   directly after the `lint.depends-cycle` row, with its import.
-- `packages/core/src/index.ts`: `export { isResearchPath, recordHeaderFaults, RESEARCH_DIR } from './load/research.js';`
+- `packages/core/src/index.ts`: `export { isResearchPath, isResearchRecord, recordHeaderFaults, RESEARCH_DIR } from './load/research.js';`
 
 Write the tests first, in the new file `packages/core/test/research.test.ts`, each top level:
 1. `ac-1 lint refuses a ticket whose research reference is not a dated record`. `const R = 'accord/research/2026-10-30-x.md'`.
@@ -105,11 +109,15 @@ Write the tests first, in the new file `packages/core/test/research.test.ts`, ea
    - `['date', 'commit']` for `'1\n2\n3\n4\n5\nDate: 2026-10-30. Repository at 5c083d3\n'` (line six) and for `''`.
    Then through the loader: a lane ticket `T-1` listing `R` with `files[R]` set to the BOM and CRLF text above has no
    `lint.research-reference` finding, and `loadSnapshot(...).files[R]` equals that text without the BOM and with LF.
-3. `risk:parsing a research entry with a backslash a dot segment or a leading slash is outside the research folder and only listed records are loaded`.
+3. `risk:parsing a research entry with a backslash a dot segment or a leading slash is outside the research folder only an md entry is a record and only listed records are loaded`.
    - `isResearchPath` is false for each of `'accord\\research\\a.md'`, `'accord/research/../tickets/T-1.md'`,
      `'accord/research/./a.md'`, `'/accord/research/a.md'`, `'./accord/research/a.md'`, `'accord/research/'`,
      `'accord/research//a.md'`, `'accord/researcher/a.md'`, `'docs/a.md'`; true for `'accord/research/2026-10-30-a.md'`
      and `'accord/research/sub/a.md'`.
+   - `isResearchRecord` is true for `'accord/research/2026-10-30-a.md'` and `'accord/research/sub/a.md'`; false for
+     `'accord/research/2026-10-30-x.test.ts'`, `'accord/research/2026-10-25-x.findings.jsonl'`, `'accord/research/a.MD'`,
+     `'accord/research/a.md.ts'`, `'accord/research/../a.md'` and `'docs/a.md'`; and `isResearchPath` is true for
+     `'accord/research/2026-10-30-x.test.ts'`, so lint keeps reading such an entry as the criteria say.
    - A lane ticket `T-1` with the frontmatter line
      `"research: ['accord\\research\\a.md', 'accord/research/../tickets/T-1.md', '/accord/research/a.md']"` (single-quoted
      YAML keeps each backslash) and the file `accord/research/a.md` holding `REC('A')` in the input: lint gives three
@@ -226,7 +234,7 @@ test reads it flattened). It opens with a frontmatter block of three lines: `---
   holding exactly these three lines: `# <topic>`, an empty line, ``Date: <YYYY-MM-DD>. Repository at `<sha>`.``
 - Paragraph: `Commit the record with the ticket at steps 8 and 9.`
 - `## The ticket's own files`
-- Paragraph: ``A record under `accord/research/` that the ticket lists under `research:` and that origin's default branch does not hold counts as one of the ticket's own files, beside `accord/tickets/<id>.md` and the paths under `accord/tickets/<id>/`: the `git diff` and `git status` checks of the lane S rule accept it, and so does step 2 of `## Moving to lane S` in `./ids.md`. A change to a record the default branch already holds does not count. Step 3 there first moves the evidence of the sections it replaces into a record, as `## Evidence a rewrite replaces` says.``
+- Paragraph: ``A `.md` record under `accord/research/` that the ticket lists under `research:` and that origin's default branch does not hold counts as one of the ticket's own files, beside `accord/tickets/<id>.md` and the paths under `accord/tickets/<id>/`: the `git diff` and `git status` checks of the lane S rule accept it, and so does step 2 of `## Moving to lane S` in `./ids.md`. A change to a record the default branch already holds does not count. Step 3 there first moves the evidence of the sections it replaces into a record, as `## Evidence a rewrite replaces` says.``
 This file holds no other fenced block.
 
 `packages/core/skills/intent/SKILL.md`:
@@ -277,7 +285,7 @@ reference files. `ids.md` is rendered into accord, accord-intent, accord-debug a
 Skill text:
 - `packages/core/skills/accord/ids.md`, `## Moving to lane S`:
   - step 2: change ``When it lists a path other than `accord/tickets/<id>.md` and paths under `accord/tickets/<id>/`, do not move:``
-    to ``When it lists a path other than `accord/tickets/<id>.md`, paths under `accord/tickets/<id>/` and records under `accord/research/` that the ticket lists under `research:` and origin's default branch does not hold, do not move:``.
+    to ``When it lists a path other than `accord/tickets/<id>.md`, paths under `accord/tickets/<id>/` and `.md` records under `accord/research/` that the ticket lists under `research:` and origin's default branch does not hold, do not move:``.
     The rest of step 2 stays, including `commit only those records` and `` `git add -A` ``.
   - step 3: insert at its start ``First move every line of evidence in the `## Intent`, `## Acceptance criteria`, `## Open questions` and `## Approach` sections, verbatim, into a new record under `accord/research/`, listed under the ticket's `research:` key, as `research.md` of the intent skill says; skip this when they hold none. Then, in``
     so that the step goes on ``accord/tickets/<id>.md`, replace the `lane:` line with `lane: "S"`, ...`` with every
@@ -285,9 +293,11 @@ Skill text:
   - step 4: change ``Commit the ticket file with `git commit -m "intent: <id> moved to lane S" -- accord/tickets/<id>.md`,``
     to ``Commit the ticket file and any record step 3 made with `git commit -m "intent: <id> moved to lane S" -- accord/tickets/<id>.md` followed by the path of each such record,``.
 - `packages/core/skills/accord/lane.md`: at the end of the paragraph that starts `A test file sits under a folder named`,
-  add ``A record under `accord/research/` that the ticket lists under `research:` and the branch adds is the ticket's own file: it is not an expected file and needs no `## Scope` line.``
+  add ``A `.md` record under `accord/research/` that the ticket lists under `research:` and the branch adds is the ticket's own file: it is not an expected file and needs no `## Scope` line.``
 - `packages/core/skills/accord/lane-s.md`, step 2: after `` before the review.`` add
-  ``A record under `accord/research/` that the ticket lists under `research:` and this branch adds is the ticket's own file and needs no `## Scope` line.``
+  ``A `.md` record under `accord/research/` that the ticket lists under `research:` and this branch adds is the ticket's own file and needs no `## Scope` line.``
+The `.md` in these sentences matches `isResearchRecord` (Task 1), which the lane S scope check of Task 6 uses (ledger
+Ruling).
 
 Write the test first, top level in `packages/core/test/stage-skills.test.ts`:
 `risk:data-loss a listed research record the branch adds counts as the tickets own file in the lane S checks and the move to lane S keeps the evidence it drops`.
@@ -296,15 +306,17 @@ least eight files: accord, accord-intent, accord-debug and accord-verify under e
 `at = text.indexOf('\n## Moving to lane S\n')`, assert `at > -1`, and `move` = flattened `text.slice(at)`. Assert
 `move` contains:
 ```
-paths under `accord/tickets/<id>/` and records under `accord/research/` that the ticket lists under `research:` and origin's default branch does not hold, do not move
+paths under `accord/tickets/<id>/` and `.md` records under `accord/research/` that the ticket lists under `research:` and origin's default branch does not hold, do not move
 First move every line of evidence in the `## Intent`, `## Acceptance criteria`, `## Open questions` and `## Approach` sections, verbatim, into a new record under `accord/research/`
 Commit the ticket file and any record step 3 made
 ```
 and that the index of `First move every line of evidence` is less than the index of ``replace the `lane:` line``.
 For each skill directory, assert the flattened `accord/lane.md` and `accord-intent/lane.md` each contain
-``is the ticket's own file: it is not an expected file and needs no `## Scope` line``, the flattened `accord/lane-s.md`
-contains ``this branch adds is the ticket's own file and needs no `## Scope` line``, and the flattened
-`accord-intent/research.md` contains ``that origin's default branch does not hold counts as one of the ticket's own files``
+``A `.md` record under `accord/research/` that the ticket lists under `research:` and the branch adds is the ticket's own file: it is not an expected file and needs no `## Scope` line``,
+the flattened `accord/lane-s.md` contains
+``A `.md` record under `accord/research/` that the ticket lists under `research:` and this branch adds is the ticket's own file and needs no `## Scope` line``,
+and the flattened `accord-intent/research.md` contains
+``A `.md` record under `accord/research/` that the ticket lists under `research:` and that origin's default branch does not hold counts as one of the ticket's own files``
 and `A change to a record the default branch already holds does not count.`
 
 Behaviour that must not change: every needle of `ac-4 a lane M ticket moved to lane S at intent is changed in place and no skill drops it or hands it off`
@@ -323,13 +335,13 @@ then `npm run typecheck` and `npm run lint`.
 
 covers: D-08, D-09
 files: packages/core/src/gate/research.ts (new), packages/core/src/gate/scope.ts, packages/core/src/gate/work.ts, packages/cli/src/commands/review-package.ts, packages/core/test/scope.test.ts, packages/core/test/undeclared.test.ts
-verify: packages/core/test/scope.test.ts#risk:complex-branching-a-listed-research-record-the-branch-adds-is-in-scope-for-lane-S-and-a-changed-unlisted-or-outside-one-is-not, packages/core/test/undeclared.test.ts#risk:complex-branching-undeclared-files-leave-out-a-listed-research-record-the-branch-adds-and-keep-a-changed-one
+verify: packages/core/test/scope.test.ts#risk:complex-branching-a-listed-research-record-the-branch-adds-is-in-scope-for-lane-S-and-a-changed-unlisted-non-markdown-or-outside-one-is-not, packages/core/test/undeclared.test.ts#risk:complex-branching-undeclared-files-leave-out-a-listed-research-record-the-branch-adds-and-keep-a-changed-or-non-markdown-one
 
-Consumes: `isResearchPath` (Task 1); `RepoSnapshot.branchFacts` and `BranchChange` (`packages/core/src/model/snapshot.ts`);
-`gateDone`, `outsideScope`, `undeclaredFiles`. Produces:
+Consumes: `isResearchRecord` (Task 1, from `../load/research.js`); `RepoSnapshot.branchFacts` and `BranchChange`
+(`packages/core/src/model/snapshot.ts`); `gateDone`, `outsideScope`, `undeclaredFiles`. Produces:
 - `packages/core/src/gate/research.ts`, exporting `addedResearch(snapshot: RepoSnapshot, id: string): string[]`: the
   entries of the ticket's `frontmatter.research` (read with `Object.hasOwn` on `snapshot.tickets`) that
-  `isResearchPath` accepts and that `snapshot.branchFacts[id].changes` holds with `kind: 'added'`; `[]` when the ticket,
+  `isResearchRecord` accepts (under `accord/research/` and ending `.md`; ledger Ruling) and that `snapshot.branchFacts[id].changes` holds with `kind: 'added'`; `[]` when the ticket,
   the fact or its `changes` is missing, or the fact is `{ error }`. It imports neither `scope.ts` nor `work.ts`, so no
   import cycle forms. "Added" is relative to the merge base with the default branch, which is what D-09 asks.
 - `packages/core/src/gate/scope.ts`: `isExempt(id, fact, path, own: readonly string[] = [])` returns true when `own`
@@ -343,21 +355,23 @@ Consumes: `isResearchPath` (Task 1); `RepoSnapshot.branchFacts` and `BranchChang
 
 Write the tests first, each top level:
 1. In `packages/core/test/scope.test.ts`:
-   `risk:complex-branching a listed research record the branch adds is in scope for lane S and a changed unlisted or outside one is not`.
+   `risk:complex-branching a listed research record the branch adds is in scope for lane S and a changed unlisted non markdown or outside one is not`.
    `NEW = 'accord/research/2026-10-30-new.md'`, `OLD = 'accord/research/2026-10-29-old.md'`,
-   `UNLISTED = 'accord/research/2026-10-30-other.md'`. Build `S1R` as `S1` is built but with the frontmatter lines
-   `['ac_hash: "' + H + '"', 'research: ["' + NEW + '", "' + OLD + '", "src/notes.md"]']`. Changes:
-   `ch(NEW, 5, 'added')`, `ch(OLD, 2)`, `ch(UNLISTED, 5, 'added')`, `ch('src/notes.md', 3, 'added')`. With
-   `s = snap({ 'accord/tickets/S-1.md': S1R }, { 'S-1': fact(changes) })`: `outsideScope(s, 'S-1')` equals
-   `{ paths: [OLD, UNLISTED, 'src/notes.md'] }` (import `outsideScope` from `../src/gate/scope.js`), and
-   `found(s, 'S-1', 'gate.out-of-scope')` has three findings whose reasons name those three paths. Guard: the same with
-   `S1` (no key) gives `paths: [OLD, NEW, UNLISTED, 'src/notes.md']` (code-point order, as `outsideScope` sorts).
+   `UNLISTED = 'accord/research/2026-10-30-other.md'`, `TS = 'accord/research/2026-10-30-x.test.ts'`, all defined in
+   this test. Build `S1R` as `S1` is built but with the frontmatter lines
+   `['ac_hash: "' + H + '"', 'research: ["' + NEW + '", "' + OLD + '", "' + TS + '", "src/notes.md"]']`. Changes:
+   `ch(NEW, 5, 'added')`, `ch(OLD, 2)`, `ch(UNLISTED, 5, 'added')`, `ch(TS, 4, 'added')`, `ch('src/notes.md', 3, 'added')`.
+   With `s = snap({ 'accord/tickets/S-1.md': S1R }, { 'S-1': fact(changes) })`: `outsideScope(s, 'S-1')` equals
+   `{ paths: [OLD, UNLISTED, TS, 'src/notes.md'] }` (import `outsideScope` from `../src/gate/scope.js`), and
+   `found(s, 'S-1', 'gate.out-of-scope')` has four findings whose reasons name those four paths. Guard: the same with
+   `S1` (no key) gives `paths: [OLD, NEW, UNLISTED, TS, 'src/notes.md']` (code-point order, as `outsideScope` sorts).
 2. In `packages/core/test/undeclared.test.ts`:
-   `risk:complex-branching undeclared files leave out a listed research record the branch adds and keep a changed one`.
-   Files: `CONFIG`, `accord/tickets/T-1.md` = `laneTicket('T-1', { frontmatter: ['research: ["' + NEW + '", "' + OLD + '"]'] })`,
-   `accord/tickets/T-1/plan.md` = `PLAN`. Load with `branchFacts: { 'T-1': { base: 'b'.repeat(40), changes: [{ path: NEW, kind: 'added', lines: 5 }, { path: OLD, kind: 'modified', lines: 2 }], synced: [] } }`.
-   `undeclaredFiles(s, 'T-1', [NEW, OLD, 'src/export.ts'])` equals `[OLD]`. Guard: loaded without `branchFacts`, it
-   equals `[OLD, NEW]` (code-point order).
+   `risk:complex-branching undeclared files leave out a listed research record the branch adds and keep a changed or non markdown one`.
+   `NEW`, `OLD` and `TS` hold the same literals as in test 1, defined in this file. Files: `CONFIG`,
+   `accord/tickets/T-1.md` = `laneTicket('T-1', { frontmatter: ['research: ["' + NEW + '", "' + OLD + '", "' + TS + '"]'] })`,
+   `accord/tickets/T-1/plan.md` = `PLAN`. Load with `branchFacts: { 'T-1': { base: 'b'.repeat(40), changes: [{ path: NEW, kind: 'added', lines: 5 }, { path: OLD, kind: 'modified', lines: 2 }, { path: TS, kind: 'added', lines: 4 }], synced: [] } }`.
+   `undeclaredFiles(s, 'T-1', [NEW, OLD, TS, 'src/export.ts'])` equals `[OLD, TS]`. Guard: loaded without
+   `branchFacts`, it equals `[OLD, NEW, TS]` (code-point order).
 
 Behaviour that must not change: `isExempt` for the ticket's records, `synced` paths, `.claude/settings.json` and
 `generated:` entries; `sensitiveTouched` and `interfaceSigns`; every existing `scope.test.ts` and `undeclared.test.ts`
@@ -415,37 +429,47 @@ single `cat-file` spawn when no candidate lists a missing record; `loadFromFs`; 
 Run `npm run build`, then `npx vitest run packages/cli/test/drop.test.ts packages/cli/test/status.test.ts packages/cli/test/upgrade.test.ts packages/cli/test/load.test.ts`,
 then `npm run typecheck` and `npm run lint`.
 
-## Task 8: accord drop carries a listed record the default branch lacks and refuses a different one
+## Task 8: accord drop carries a listed record the default branch lacks and refuses a different or uncommitted one
 
 covers: D-06
 files: packages/cli/src/commands/drop.ts, packages/cli/test/drop.test.ts
-verify: packages/cli/test/drop.test.ts#risk:data-loss-drop-carries-a-listed-research-record-the-default-branch-lacks-and-leaves-an-identical-one, packages/cli/test/drop.test.ts#risk:data-loss-drop-refuses-a-listed-research-record-that-differs-from-the-default-branch-copy
+verify: packages/cli/test/drop.test.ts#risk:data-loss-drop-carries-a-listed-research-record-the-default-branch-lacks-and-leaves-an-identical-one, packages/cli/test/drop.test.ts#risk:data-loss-drop-refuses-a-listed-research-record-that-differs-from-the-default-branch-copy, packages/cli/test/drop.test.ts#risk:data-loss-drop-refuses-a-listed-research-record-with-uncommitted-changes-in-the-worktree-holding-its-branch
 
 `accord worktree clean` deletes the claim branch once the drop is merged, so a record that exists only there would be
-lost, against D-06 (ledger Rulings). `drop.ts` is a data-deletion path.
+lost, against D-06 (ledger Rulings). `drop.ts` is a data-deletion path. Its uncommitted-changes refusal
+(`drop.ts:38-41`) covers only the ticket file today, so an uncommitted edit to a listed record would be lost and an
+uncommitted new record would get lint's "fix these on <default branch> first" advice (ledger Ruling).
 
-Consumes: `isResearchPath`, `loadSnapshot` from `@accord-dev/accord-core`; `gitFilesAt` from `../load/fs.js`; the
-file's own `resolve(root, ref)` (`git rev-parse --verify -q`, which also resolves `<commit>:<path>` to a blob id),
-`tip`, `base`, `b`, `short`, `path`, `next`, `NOTHING`. Produces, in `drop`, between the `next === undefined` check and
+Consumes: `isResearchPath`, `isResearchRecord`, `loadSnapshot` from `@accord-dev/accord-core`; `gitFilesAt` from
+`../load/fs.js`; `git` from `./worktree.js` (already imported); the file's own `resolve(root, ref)`
+(`git rev-parse --verify -q`, which also resolves `<commit>:<path>` to a blob id), `held`, `tip`, `base`, `b`, `short`,
+`path`, `next`, `NOTHING`. Produces, in `drop`, between the `next === undefined` check and
 `const input = loadRefInput(root, ref);`:
 - `listed` = the unique `research` entries of `loadSnapshot({ files: { [path]: next }, tree: [] }).tickets[id]?.frontmatter`
-  that `isResearchPath` accepts.
-- For each `p`: `atBase = resolve(root, base + ':' + p)`, `atTip = resolve(root, tip + ':' + p)`.
+  that `isResearchPath` accepts, in key order; `records` = the entries of `listed` that `isResearchRecord` accepts
+  (ending `.md`; ledger Ruling). Only `records` are checked, compared and carried below.
+- When `held !== undefined`, for each `p` of `records` in key order: when
+  `git(held.path, ['status', '--porcelain', '--untracked-files=all', '--', p]).trim() !== ''`, throw
+  ``new UsageError(`${p} has uncommitted changes in ${held.path} - commit and push them on ${b} first` + NOTHING)``,
+  the same text the ticket file's refusal uses with `p` in place of `path`. This runs before any blob comparison.
+- For each `p` of `records`: `atBase = resolve(root, base + ':' + p)`, `atTip = resolve(root, tip + ':' + p)`.
   - `atBase` undefined and `atTip` defined: carried, with blob `atTip`.
   - `atBase` defined and `atTip` defined and different: throw
     ``new UsageError(`${p} on ${b} differs from the copy on ${short}; a drop never replaces a research record the default branch holds - make the two equal on ${b}, or list a new record instead, then run accord drop again` + NOTHING)``.
   - `atBase` defined otherwise: kept from the base.
   - both undefined: nothing; lint then refuses on the missing record.
 - After `input.files[path] = next` and the tree push: add `gitFilesAt(root, tip, carriedPaths)` and
-  `gitFilesAt(root, ref, keptPaths not already in input.files)` into `input.files`, and push each added path onto
-  `input.tree` when absent, so lint reads every listed record as the drop branch will hold it.
+  `gitFilesAt(root, ref, the entries of listed that are not carried and not own keys of input.files)` into
+  `input.files` (a path `ref` lacks is left out by `gitFilesAt`), and push each added path onto `input.tree` when
+  absent, so lint reads every listed entry as the drop branch will hold it. A listed non-Markdown entry that only the
+  claim branch holds is not carried, so lint refuses the drop on it.
 - After the ticket's `update-index`, for each carried record run
   `gitIn(root, ['update-index', '--add', '--cacheinfo', '100644,' + blob + ',' + p], { env })`.
 - Update the file's header comment: the drop branch holds the ticket file and the research records it lists that the
   default branch lacks; the claim branch's code never travels.
 
 Write the tests first, top level in `packages/cli/test/drop.test.ts`, each with timeout `120_000`. `NEW` and `OLD` as
-in Task 7. Seed both: `c = copy(plain)`, `o = c.otherClone()`, write `{ [OLD]: REC('old') }` into `o`,
+in Task 7. Seed each of the three: `c = copy(plain)`, `o = c.otherClone()`, write `{ [OLD]: REC('old') }` into `o`,
 `commitMsg(o, 'old')`, `gitRun(o, 'push', '-q')`, `c.git('pull', '-q')`, then `c.git('switch', '-q', '-c', 't/ST-10')`.
 1. `risk:data-loss drop carries a listed research record the default branch lacks and leaves an identical one`. On the
    branch write `{ [NEW]: REC('new'), 'accord/tickets/ST-10.md': laneTicket('ST-10', { frontmatter: ['research: ["' + NEW + '", "' + OLD + '"]'] }) }`,
@@ -457,19 +481,96 @@ in Task 7. Seed both: `c = copy(plain)`, `o = c.otherClone()`, write `{ [OLD]: R
    write `{ [OLD]: REC('old edited'), 'accord/tickets/ST-10.md': laneTicket('ST-10', { frontmatter: ['research: ["' + OLD + '"]'] }) }`,
    commit and push as above. Run the same drop: exit 2; `r.err` contains `OLD + ' on t/ST-10 differs from the copy on main'`
    and `nothing was created`; `remoteDrop(c, 'ST-10')` is undefined.
+3. `risk:data-loss drop refuses a listed research record with uncommitted changes in the worktree holding its branch`.
+   `EXTRA = 'accord/research/2026-10-30-extra.md'`. On the branch write
+   `{ [NEW]: REC('new'), 'accord/tickets/ST-10.md': laneTicket('ST-10', { frontmatter: ['research: ["' + NEW + '", "' + EXTRA + '"]'] }) }`,
+   `commitMsg(c.root, 'claim: ST-10')`, `c.git('push', '-q', '-u', 'origin', 't/ST-10')`. The main checkout `c.root`
+   now holds `t/ST-10`. Then `writeFiles(c.root, { [NEW]: REC('new edited'), [EXTRA]: REC('extra') })` (an edit to a
+   committed record and a new untracked one).
+   - Run `['drop', 'ST-10', '--reason', 'x']`: exit 2; `r.err` contains `NEW + ' has uncommitted changes in '`,
+     `commit and push them on t/ST-10 first` and `nothing was created`, and does not contain `fix these on`;
+     `remoteDrop(c, 'ST-10')` is undefined.
+   - `c.git('checkout', '--', NEW)`, run the same drop: exit 2; `r.err` contains `EXTRA + ' has uncommitted changes in '`
+     and does not contain `fix these on`; `remoteDrop(c, 'ST-10')` is undefined.
+   - Guard: `commitMsg(c.root, 'extra')`, `c.git('push', '-q')`, run the same drop: exit 0
+     (`expect(r.code, r.err).toBe(0)`), and `gitRun(c.remote, 'cat-file', 'blob', remoteDrop(c, 'ST-10')! + ':' + EXTRA)`
+     is `REC('extra')`.
 
 Behaviour that must not change: a ticket listing no research drops exactly as before: one changed path, the same
 commit message, the same three output lines (`ac-1 dropping a ticket pushes a branch from the default branch whose only change is the ticket file set to dropped`);
-every refusal and its message; the CRLF and BOM bytes of the ticket file; the order of checks before the lint; the
-push and its failure message; no checkout, no change to the working tree.
+every refusal and its message, the ticket file's uncommitted-changes refusal included
+(`risk:data-loss drop refuses an uncommitted ticket file in the worktree holding its branch`); the CRLF and BOM bytes
+of the ticket file; the order of checks before the lint; the push and its failure message; no checkout, no change to
+the working tree.
 
 Run `npm run build`, then `npx vitest run packages/cli/test/drop.test.ts`, then `npm run typecheck` and `npm run lint`.
 
-## Task 9: The drop steps and the workflow spec name the research records
+## Task 9: accord worktree clean keeps a dropped ticket's branch that holds a listed record the default branch lacks
+
+covers: D-06
+files: packages/cli/src/commands/worktree.ts, packages/cli/test/worktree.test.ts
+verify: packages/cli/test/worktree.test.ts#risk:data-loss-clean-keeps-a-dropped-ticket-branch-whose-listed-research-record-the-default-branch-lacks-or-holds-otherwise
+
+A record committed on the claim branch after `accord drop` ran, or edited there after it, is not on the drop branch.
+`cleanDropped` (`packages/cli/src/commands/worktree.ts:899-988`) deletes the worktree, the origin branch and the local
+branch once local and origin agree (lines 946-961), so that record would be lost, against D-06 (ledger Ruling). This is
+a data-deletion path.
+
+Consumes: `isResearchRecord` and `loadSnapshot` from `@accord-dev/accord-core` (`loadSnapshot` is already imported;
+add `isResearchRecord` to that import); `gitFilesAt` from `../load/fs.js` (add it to the existing import of that
+module); the file's own `git(cwd, args)` and `gitOk(cwd, args)`. Produces:
+- A function directly above `cleanDropped`, not exported:
+  `function researchNotOn(root: string, tip: string, ref: string, id: string): string | undefined`. It reads
+  `accord/tickets/<id>.md` at `tip` with `gitFilesAt(root, tip, [file])`; when the ticket is an own key of
+  `loadSnapshot({ files, tree: [] }).tickets`, it takes the unique entries of its `frontmatter?.research`, in key order,
+  that `isResearchRecord` accepts. For each `p`, with
+  `blob(c) = gitOk(root, ['rev-parse', '--verify', '-q', c + ':' + p]) ? git(root, ['rev-parse', '--verify', '-q', c + ':' + p]).trim() : undefined`:
+  when `blob(tip)` is defined and differs from `blob(ref)` (undefined, or another blob id), it returns `p`. Otherwise,
+  and when the ticket file is not at `tip` or lists no record, it returns `undefined`.
+- In `cleanDropped`, after the block that starts `if (L !== undefined && R === undefined && pruned.get(` and before
+  the comment `// git refuses to delete a branch checked out in a worktree`:
+  `const at = L ?? R;`, `const lost = at === undefined ? undefined : researchNotOn(ctx.root, at, ref, id);` and, when
+  `lost !== undefined`, write
+  ``kept ${b}: research record ${lost} is not on ${ref.replace('refs/remotes/origin/', '')} as ${b} holds it\n``
+  to `ctx.stdout` and `continue`. Nothing is removed or deleted for that branch. An error thrown inside reaches the
+  existing `catch`, which prints `kept <b>: could not be judged: ...`.
+
+Write the test first, top level in `packages/cli/test/worktree.test.ts`, with timeout `120_000`. Define `REC` in this
+file (rules above). `NEW = 'accord/research/2026-10-30-new.md'`, `GONE = 'accord/research/2026-10-29-gone.md'`,
+`TS = 'accord/research/2026-10-30-x.test.ts'`, defined in the test.
+`risk:data-loss clean keeps a dropped ticket branch whose listed research record the default branch lacks or holds otherwise`.
+- `c = copy()`;
+  `S = claimWorktree(c, 'ST-10', { 'accord/tickets/ST-10.md': laneTicket('ST-10', { frontmatter: ['research: ["' + GONE + '", "' + TS + '", "' + NEW + '"]'] }), [NEW]: REC('new'), [TS]: '// Date: 2026-10-30\n' })`;
+  `dropOnRemote(c, ['ST-10'])`. `GONE` is on no branch and `TS` is not a record, so neither keeps the branch; `NEW`
+  is only on `t/ST-10`.
+- `r = await run(['worktree', 'clean'], c.root)`: exit 0; `lines(r.out)` equals
+  `['kept t/ST-10: research record ' + NEW + ' is not on main as t/ST-10 holds it']`; `existsSync(c.sibling('ST-10'))`,
+  `has(c.root, 'refs/heads/t/ST-10')` and `has(c.remote, 'refs/heads/t/ST-10')` are true.
+- `o = c.otherClone()`; `writeFiles(o, { [NEW]: REC('other') })`, `commitMsg(o, 'other')`,
+  `gitRun(o, 'push', '-q', 'origin', 'main')`. Clean again: the same single `kept` line, and the same three refs and
+  folder remain.
+- Guard: `writeFiles(o, { [NEW]: REC('new') })`, `commitMsg(o, 'same')`, `gitRun(o, 'push', '-q', 'origin', 'main')`.
+  Clean again: `lines(r.out)` equals
+  ``[`removed ${c.sibling('ST-10')}`, `deleted origin/t/ST-10 (was ${S})`, `deleted t/ST-10 (was ${S})`]``, as in
+  `ac-3 clean deletes the worktree and both branches of a ticket dropped on the default branch`; the folder and both
+  refs are gone.
+Place the test after the existing ST-LN-34 clean cases, so `has`, `claimWorktree` and `dropOnRemote` are defined above
+it.
+
+Behaviour that must not change: every other path of `cleanDropped`, its messages and their order (being rebased,
+checked out, the guards, `commits not on origin`, `has commits not here`, the push and update-ref failures, could not
+be judged); `cleanDone`; a dropped ticket whose tip lists no research is cleaned exactly as before; every existing
+clean case in `worktree.test.ts`, from `ac-3 clean deletes the worktree and both branches of a ticket dropped on the default branch`
+to `risk:data-loss clean keeps the local branch of a dropped ticket that moved after clean read it`.
+
+Run `npm run build`, then `npx vitest run packages/cli/test/worktree.test.ts packages/cli/test/drop.test.ts`, then
+`npm run typecheck` and `npm run lint`.
+
+## Task 10: The drop steps and the workflow spec name the research records
 
 covers: D-03, D-04, D-10
 files: packages/core/skills/accord/ids.md, packages/core/src/generated/skills.ts, .claude/skills/accord/ids.md, .claude/skills/accord-intent/ids.md, .claude/skills/accord-debug/ids.md, .claude/skills/accord-verify/ids.md, docs/specs/2026-10-12-workflow-layer-design.md, packages/core/test/stage-skills.test.ts
-verify: packages/core/test/stage-skills.test.ts#risk:data-loss-the-drop-steps-say-the-drop-branch-carries-the-research-records-the-default-branch-lacks
+verify: packages/core/test/stage-skills.test.ts#risk:data-loss-the-drop-steps-carry-the-research-records-the-default-branch-lacks-and-copy-the-research-key-into-the-new-ticket
 
 D-04 and D-10: no draft ticket is changed on this branch; the main session lands the move of the seven drafts to the
 key as an accord-only backlog pull request after the release that ships the key. This task changes no file under
@@ -479,6 +580,10 @@ Consumes: `skillTargets(config)`. Produces wording only.
 - `packages/core/skills/accord/ids.md`, `## Dropping instead of renaming`, step 1: change
   `made from the default branch that holds only the ticket file, set to dropped with that reason, and prints`
   to ``made from the default branch that holds the ticket file, set to dropped with that reason, and each record the ticket lists under `research:` that the default branch lacks, and prints``.
+- The same section, step 3: change ``frontmatter keys `title`, `ui`, `design`, `parent`, `depends_on` and`` to
+  ``frontmatter keys `title`, `ui`, `design`, `parent`, `depends_on`, `research` and``, so a recreated ticket keeps
+  its records under the key and they still reach the deciding agents (ledger Ruling). Re-wrap the lines of step 3 to
+  at most 118 characters, changing no other word; step 4's list of keys never copied stays as it is.
 - `docs/specs/2026-10-12-workflow-layer-design.md`:
   - §4 `### Ticket format`, the sentence that starts `Frontmatter keeps the 0.1.0 schema`: add the optional
     `research` key, a list of repository paths of research records under `accord/research/`.
@@ -487,10 +592,12 @@ Consumes: `skillTargets(config)`. Produces wording only.
     lint fails a ticket whose reference is outside `accord/research/`, names no file, or names a record without those
     lines; a record is evidence, never a contract; the scout, architect, critic and planner read the listed records and
     the executor, reviewers and verifier are not told to; the intent interview moves the evidence a rewrite replaces
-    into a new listed record; a listed record the branch adds counts as the ticket's own file in the lane S checks and
-    the undeclared files.
-  - §3 `**Lifecycle.**`, *Dropped*: `accord drop` carries each listed record the default branch lacks and refuses a
-    listed record that differs from the default branch's copy.
+    into a new listed record; a listed `.md` record the branch adds counts as the ticket's own file in the lane S
+    checks and the undeclared files; a recreated ticket copies the `research` key.
+  - §3 `**Lifecycle.**`, *Dropped*: `accord drop` carries each listed `.md` record the default branch lacks, refuses a
+    listed record that differs from the default branch's copy, and refuses a listed record with uncommitted changes in
+    the worktree holding the claim branch; `accord worktree clean` keeps a dropped ticket's claim branch while the
+    ticket at its tip lists a `.md` record that branch holds and the default branch lacks or holds otherwise.
   - §5 *Claim*: after ``read its ticket, plan, ledger, review and verification from that branch``, add `and each
     research record the ticket lists that the checkout lacks`.
   - §6, the `accord anchor [<id>]` bullet: ``then, verbatim, its Intent, Vetoes, Decisions, Corrections, the research records its `research:` key lists, and Rulings``.
@@ -498,11 +605,14 @@ Consumes: `skillTargets(config)`. Produces wording only.
     among them.
 
 Write the test first, top level in `packages/core/test/stage-skills.test.ts`:
-`risk:data-loss the drop steps say the drop branch carries the research records the default branch lacks`. For each
-rendered `ids.md` of `skillTargets(config)` (accord, accord-intent, accord-debug, accord-verify), flattened, the slice
-from `## Dropping instead of renaming` to `2. Create the new ticket` contains
-``holds the ticket file, set to dropped with that reason, and each record the ticket lists under `research:` that the default branch lacks``
-and does not contain `holds only the ticket file`.
+`risk:data-loss the drop steps carry the research records the default branch lacks and copy the research key into the new ticket`.
+For each rendered `ids.md` of `skillTargets(config)` (accord, accord-intent, accord-debug, accord-verify), flattened
+with `.replace(/\s+/g, ' ')`:
+- the slice from `## Dropping instead of renaming` to `2. Create the new ticket` contains
+  ``holds the ticket file, set to dropped with that reason, and each record the ticket lists under `research:` that the default branch lacks``
+  and does not contain `holds only the ticket file`;
+- the slice from `3. Copy into it` to `4. Never copy` contains
+  ``frontmatter keys `title`, `ui`, `design`, `parent`, `depends_on`, `research` and `tracker`, where present``.
 
 Behaviour that must not change: every needle of `ac-5 the ids reference drops a ticket with accord drop`; the four
 rendered `ids.md` copies stay identical; Task 5's `## Moving to lane S` text; every other section of the spec.

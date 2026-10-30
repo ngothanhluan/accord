@@ -7,7 +7,7 @@
 // os.freemem() reads the host's memory, not a container's memory limit; on macOS the run takes the lock and changes
 // nothing else, so a run there can still exhaust memory (D-08).
 import { readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { freemem, tmpdir } from 'node:os';
+import { freemem, platform, tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 /**
@@ -53,7 +53,7 @@ interface SetupOptions extends Options {
   perFork?: number;
   /** Memory kept free for the rest of the machine, in bytes; default RESERVE. */
   reserve?: number;
-  /** The OS the run is on, default process.platform; on 'darwin' setup takes the lock and changes nothing else (D-08). */
+  /** The OS the run is on, default os.platform(); on 'darwin' setup takes the lock and changes nothing else (D-08). */
   platform?: NodeJS.Platform;
 }
 
@@ -163,7 +163,7 @@ const gb = (bytes: number) => String(Number((bytes / GB).toFixed(1)));
  */
 export default async function setup(project: VitestRun, options: SetupOptions = {}): Promise<() => void> {
   const release = await acquire(options.lock ?? LOCK, options);
-  if ((options.platform ?? process.platform) === 'darwin') return release;
+  if ((options.platform ?? platform()) === 'darwin') return release;
   const freeNow = options.free ?? freemem;
   const perFork = options.perFork ?? PER_FORK;
   const reserve = options.reserve ?? RESERVE;

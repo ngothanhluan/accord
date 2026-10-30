@@ -100,3 +100,16 @@ Feature: ST-LN-73
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
+Chosen: lower maxWorkers from the globalSetup, after the lock. vitest.config.ts keeps its synchronous cap (half the CPUs, or the validated ACCORD_TEST_WORKERS) and takes no lock. `setup(project)` in test/lock.ts takes the lock with the unchanged `acquire()`, waits with one line and no time limit until the free memory is at least the reserve plus one fork (D-02), then sets every project in `project.vitest.projects` and `project.vitest.config` to min(current value, floor((free - reserve) / per fork)). In vitest 5.0.0 the worker count is read when the tests run, after globalSetup (index.B89dZ0-N.js:11780-11782, :21044). It is the least new code, and the config and its tests stay as they are.
+Rejected: an async vitest.config.ts that takes the lock itself. An editor's vitest extension and `vitest list` load the config, so they would hold the lock or wait on memory, and the config tests would need a guard against their own run's lock.
+Free memory: `os.freemem()` on Windows (available physical memory) and Linux (MemAvailable, page cache counted as free); on macOS `vm_stat` parsed as (free + inactive + speculative) x page size (D-04). GB is 10^9 bytes in the constants, the line and the tests.
+Figures (D-06): the plan measures one full run's peak and sets the reserve and the per-fork figure from it, written beside the constants, and checks that the reserve plus one fork fits what a 16 GB CI runner has free after the build.
+Affected: test/lock.ts (setup, the memory reader, the header comment), a new packages/cli/test/fixtures vm_stat sample, packages/cli/test/test-lock.test.ts or a sibling test file, and the comment on workers() in vitest.config.ts (D-03 makes it a cap).
+Risks the critic raised, each kept and handled:
+- Must: `setup` must take the lock path, as `acquire` does, so a test inside a run never waits on its own run's lock.
+- The tests write a field on a stand-in project, which proves nothing about vitest; one `risk:resource` test runs vitest on a small fixture with the reader allowing one fork and asserts that no second fork started, so a vitest upgrade that reads the count earlier fails a test.
+- `--maxWorkers` and `VITEST_MAX_WORKERS` set the value per package project, so every project is lowered to the same value; lowering one alone makes vitest abort the run.
+- A Linux container with a memory limit: `os.freemem()` reads the host's MemAvailable, not the limit, so a run in such a container can still exceed it; no such container runs these tests today.
+- Figures measured on a 32 GB host may never fit a 16 GB host, and the wait has no limit (D-02); the plan's check above guards CI, and the wait line names the needed GB so a person sees why.
+- Watch mode (`vitest` without `run`, an editor extension) runs globalSetup once, so a rerun keeps the first count; `npm test` and tests.affected/tests.full use `vitest run`.
+Tests: ac-1 to ac-4 at the unit layer, `setup` driven with an injected reader, lock path, poll of 0 ms and log; ac-4 with a lock file the test holds and releases; ac-5 on the recorded vm_stat sample on every OS; plus the one `risk:resource` vitest run.

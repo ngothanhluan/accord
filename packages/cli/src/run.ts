@@ -336,6 +336,25 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
         setCode(hook(ctx, event));
         return;
       }
+      if (event === 'pre-tool-use') {
+        // Ledger Ruling 32: a broken repository never blocks a dispatch; any failure is one stderr line and an allow.
+        try {
+          let cwd: string | undefined;
+          try {
+            const sent = JSON.parse(opts.stdin ?? '') as unknown;
+            const c = typeof sent === 'object' && sent !== null ? (sent as Record<string, unknown>).cwd : undefined;
+            if (typeof c === 'string') cwd = c;
+          } catch {
+            cwd = undefined;
+          }
+          setCode(hook(preflight({ ...opts, cwd: cwd ?? opts.cwd }, 'checkout'), event));
+        } catch (e) {
+          opts.stderr.write(`accord hook pre-tool-use: ${(e instanceof Error ? e.message : String(e)).split('\n')[0]}; allowed`.replace(/\\/g, '/') + '\n');
+          opts.stdout.write('{}\n');
+          setCode(0);
+        }
+        return;
+      }
       const ctx = preflight(opts, 'stage');
       setCode(hook(ctx, event as (typeof HOOK_EVENTS)[number]));
       if (event === 'session-start') {

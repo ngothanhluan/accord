@@ -1,7 +1,7 @@
 // The hooks accord adds to a Claude Code settings file. Every command is `npx --yes <pkg>@<version> hook <event>`:
 // no quoting, pipe, redirect, or variable, so the same string runs under bash and PowerShell.
 export type HookEntries = Record<
-  'SessionStart' | 'SubagentStart' | 'UserPromptExpansion',
+  'SessionStart' | 'SubagentStart' | 'UserPromptExpansion' | 'PreToolUse',
   { matcher: string; hooks: { type: 'command'; command: string }[] }[]
 >;
 
@@ -15,10 +15,11 @@ export const hookEntries = (pkg: { name: string; version: string }): HookEntries
   ],
   SubagentStart: [{ matcher: 'accord-.*', hooks: [{ type: 'command', command: cmd(pkg, 'subagent-start') }] }],
   UserPromptExpansion: [{ matcher: 'accord', hooks: [{ type: 'command', command: cmd(pkg, 'prompt-expansion') }] }],
+  PreToolUse: [{ matcher: 'Agent|Task', hooks: [{ type: 'command', command: cmd(pkg, 'pre-tool-use') }] }],
 });
 
 export const isAccordHookCommand = (c: string): boolean =>
-  /^npx --yes \S+ hook (session-start|session-resume|subagent-start|prompt-expansion)$/.test(c);
+  /^npx --yes \S+ hook (session-start|session-resume|subagent-start|prompt-expansion|pre-tool-use)$/.test(c);
 
 const isObject = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v);

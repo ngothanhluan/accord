@@ -1,6 +1,8 @@
 // Spec §17 `accord hook <event>`: the text Claude Code's SessionStart and SubagentStart hooks inject.
 // Nothing here fails a session over the anchor: a git problem is one stderr line and the session line.
-import { anchorText, DEFAULT_BRANCH_TEMPLATE, rulesetText, sessionLine, statusRows } from '@accord-dev/accord-core';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { anchorText, checkFixDispatch, DEFAULT_BRANCH_TEMPLATE, rulesetText, sessionLine, statusRows } from '@accord-dev/accord-core';
 import pkg from '../../package.json' with { type: 'json' };
 import { currentBranch, ticketOfBranch } from '../load/fs.js';
 import { claudeEnv, processTable, sessionIn } from '../load/proc.js';
@@ -9,11 +11,12 @@ import type { CommandContext } from '../run.js';
 import { activeTicket } from './anchor.js';
 import { branchOf, guardAllowsContinue, inClaude, isLinked, listWorktrees, readHoldsFile, recordWorked, releaseHolds, takeHold, worksMessage, worksTicket } from './worktree.js';
 
-export const HOOK_EVENTS = ['session-start', 'session-resume', 'subagent-start', 'prompt-expansion'] as const;
+export const HOOK_EVENTS = ['session-start', 'session-resume', 'subagent-start', 'prompt-expansion', 'pre-tool-use'] as const;
 export type HookEvent = (typeof HOOK_EVENTS)[number];
 
 export function hook(ctx: CommandContext, event: HookEvent): number {
   if (event === 'prompt-expansion') return promptExpansion(ctx);
+  if (event === 'pre-tool-use') return preToolUse(ctx);
   const rules = rulesetText(`npx --yes ${pkg.name}@${pkg.version}`);
   if (event === 'subagent-start') {
     const out = { hookSpecificOutput: { hookEventName: 'SubagentStart', additionalContext: rules } };
@@ -158,6 +161,50 @@ function promptExpansion(ctx: CommandContext): number {
     const cont = /^continue\s+(\S+)$/.exec(args)?.[1];
     if (cont !== undefined && guardAllowsContinue(w, mainPath, cont)) return allow();
     ctx.stdout.write(JSON.stringify({ decision: 'block', reason: worksMessage(w, mainPath) }) + '\n');
+    return 0;
+  } catch (e) {
+    return allow(e instanceof Error ? e.message : String(e));
+  }
+}
+
+/** True when `accord/tickets/<id>/debug.md` has an open episode: its last `## ` heading is not `## Resolved`. */
+function debugOpen(root: string, id: string): boolean {
+  let text: string;
+  try {
+    text = readFileSync(join(root, 'accord', 'tickets', id, 'debug.md'), 'utf8');
+  } catch {
+    return false;
+  }
+  const last = text.split(/\r?\n/).filter((l) => /^##\s/.test(l)).pop();
+  return last !== undefined && last.slice(2).trim().replace(/\s+/g, ' ').toLowerCase() !== 'resolved';
+}
+
+/** ST-LN-17 D-03: refuse an accord-executor dispatched on a model other than the one accord computes while the ticket is at review. Fails open on any error. */
+function preToolUse(ctx: CommandContext): number {
+  const allow = (why?: string) => {
+    if (why !== undefined) ctx.stderr.write(`accord hook pre-tool-use: ${why.split('\n')[0]}; allowed`.replace(/\\/g, '/') + '\n');
+    ctx.stdout.write('{}\n');
+    return 0;
+  };
+  try {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(ctx.stdin ?? '');
+    } catch {
+      return allow('no hook input on stdin');
+    }
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return allow('no hook input on stdin');
+    const input = parsed as Record<string, unknown>;
+    if (input.tool_name !== 'Agent' && input.tool_name !== 'Task') return allow();
+    const toolInput = input.tool_input;
+    if (typeof toolInput !== 'object' || toolInput === null || Array.isArray(toolInput)) return allow();
+    const { subagent_type: agent, model } = toolInput as Record<string, unknown>;
+    if (agent !== 'accord-executor') return allow();
+    const id = activeTicket(ctx.root, ctx.snapshot);
+    if (id === undefined || debugOpen(ctx.root, id)) return allow();
+    const reason = checkFixDispatch(ctx.snapshot, id, typeof model === 'string' ? model : undefined);
+    if (reason === undefined) return allow();
+    ctx.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } }) + '\n');
     return 0;
   } catch (e) {
     return allow(e instanceof Error ? e.message : String(e));

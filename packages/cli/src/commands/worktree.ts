@@ -658,24 +658,43 @@ function pruneStale(ctx: CommandContext): Map<string, string> {
 /** The worktree list the last read in a clean left, for the pick-up that runs it; a removal clears it. */
 interface SeenList {
   list?: WorktreeEntry[];
+  /** ST-LN-55 D-11: set only by the session-start hook's clean, which never prunes the record of a worktree whose folder is missing. */
+  keepMissing?: boolean;
+  /** The `norm`ed folders this clean already wrote a `removed` or `kept` line for; no later phase judges them again. */
+  judged?: Set<string>;
 }
 
-/** `worktrees(...)`, remembered in `seen` when there is one. */
-function readList(ctx: CommandContext, seen?: SeenList): WorktreeEntry[] {
-  const list = worktrees(ctx.root, ctx.stdout);
+/** One folder line of a clean: `text` is written and the folder is remembered as judged. */
+function folderLine(ctx: CommandContext, seen: SeenList, path: string, text: string): void {
+  ctx.stdout.write(text + '\n');
+  (seen.judged ??= new Set()).add(norm(path));
+}
+
+/** `worktrees(...)`, remembered in `seen` when there is one. For the hook's clean the list is never pruned: a folder that is missing may be an unmounted drive, so its entry stays and is named. */
+function readList(ctx: CommandContext, seen?: SeenList): PrunableEntry[] {
+  let list: PrunableEntry[];
+  if (seen?.keepMissing === true) {
+    list = listWorktrees(ctx.root);
+    for (const w of list) {
+      if (w.prunable === undefined || seen.judged?.has(norm(w.path)) === true) continue;
+      folderLine(ctx, seen, w.path, `kept ${w.path}: its folder is missing (${w.prunable}); a session start never prunes its record`);
+    }
+  } else list = worktrees(ctx.root, ctx.stdout);
   if (seen !== undefined) seen.list = list;
   return list;
 }
 
 interface GuardState {
-  seen?: SeenList;
+  seen: SeenList;
   holds?: Record<string, Hold>;
   holdsError?: string;
   table?: ReturnType<typeof processTable>;
 }
 
 /** The guards every worktree removal passes; undefined (after a kept line) when one keeps the worktree, else the hold it may drop. */
-function passGuards(ctx: CommandContext, w: WorktreeEntry, id: string, s: GuardState): { h: Hold | undefined } | undefined {
+function passGuards(ctx: CommandContext, w: PrunableEntry, id: string, s: GuardState): { h: Hold | undefined } | undefined {
+  // readList already named a worktree whose folder is missing
+  if (w.prunable !== undefined) return undefined;
   if (norm(w.path) === norm(ctx.root)) {
     ctx.stdout.write(`kept ${w.path}: this session's worktree
 `);
@@ -753,7 +772,8 @@ function removeWorktree(ctx: CommandContext, w: WorktreeEntry, id: string, h: Ho
 
 /** D-05, D-16: fetch, prune stale remote refs, then (ST-LN-25 D-08) remove the worktree and delete the local branch of each ticket that is done on origin's main, then (ST-LN-34) those of dropped tickets, naming what is removed, deleted or kept. */
 export function worktreeClean(ctx: CommandContext, opts: { fetched?: 'ok' | 'failed' | 'none'; skip?: string; seen?: SeenList } = {}): number {
-  readList(ctx, opts.seen);
+  const seen = opts.seen ?? {};
+  readList(ctx, seen);
   const templates = ctx.snapshot.branchTemplates ?? [DEFAULT_BRANCH_TEMPLATE];
   // 'ok' and 'failed' come from a caller that found the origin remote; only a bare clean asks for it
   if (opts.fetched === 'none' || (opts.fetched === undefined && !gitOk(ctx.root, ['remote', 'get-url', 'origin']))) return 0;
@@ -771,7 +791,7 @@ export function worktreeClean(ctx: CommandContext, opts: { fetched?: 'ok' | 'fai
   }
   const ref = gitDefaultRef(ctx.root);
   if (ref === undefined) return 0;
-  const state: GuardState = { seen: opts.seen };
+  const state: GuardState = { seen };
   const merged = mergedTips(ctx.root, ref);
   cleanDone(ctx, ref, templates, state, fetchFailed, merged, opts.skip);
   cleanDropped(ctx, ref, templates, state, pruned, fetchFailed, merged, opts.skip);
@@ -793,8 +813,8 @@ function mergedTips(root: string, ref: string): Set<string> {
 }
 
 /** D-02: the clean a command runs on the side; a failure is named and never stops that command. */
-export function cleanQuietly(ctx: CommandContext, fetched: 'ok' | 'failed' | 'none', skip?: string): WorktreeEntry[] | undefined {
-  const seen: SeenList = {};
+export function cleanQuietly(ctx: CommandContext, fetched: 'ok' | 'failed' | 'none', skip?: string, o: { hook?: boolean } = {}): WorktreeEntry[] | undefined {
+  const seen: SeenList = o.hook === true ? { keepMissing: true } : {};
   try {
     worktreeClean(ctx, { fetched, skip, seen });
   } catch (e) {
@@ -871,7 +891,7 @@ function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[
     const id = ids.get(b)!;
     try {
       // A worktree mid-rebase has a detached HEAD; its rebase still owns the branch.
-      const rebasing = after.find((x) => x.branch === undefined && rebaseBranch(x.path) === b);
+      const rebasing = after.find((x) => x.branch === undefined && x.prunable === undefined && rebaseBranch(x.path) === b);
       if (rebasing !== undefined) {
         ctx.stdout.write(`kept ${b}: being rebased in ${rebasing.path}
 `);
@@ -979,7 +999,7 @@ function cleanDropped(ctx: CommandContext, ref: string, templates: readonly stri
     try {
       const W = after.find((x) => x.branch === b);
       // A worktree mid-rebase has a detached HEAD and shows no branch; its rebase still owns the branch.
-      const rebasing = after.find((x) => x.branch === undefined && rebaseBranch(x.path) === b);
+      const rebasing = after.find((x) => x.branch === undefined && x.prunable === undefined && rebaseBranch(x.path) === b);
       if (rebasing !== undefined) {
         ctx.stdout.write(`kept ${b}: being rebased in ${rebasing.path}
 `);

@@ -53,6 +53,12 @@
 - Ruling: drop has no test of its own for a non-Markdown listed entry that only the claim branch holds, because lint refuses such an entry and the brief asked for none (executor, task 8) — cost if wrong: a drop edge case first seen at review
 - Ruling: ids.md step 1's lines are not re-wrapped after the task 10 edit (the `and prints` line stays short) — the text fits the 5120-byte and 120-line caps and the tests pass (executor, task 10) — cost if wrong: only a slightly uneven line break
 - Ruling: task 10's `tests.full` was run by the main session, not the executor, after `npm run build` at a70a5a6: 92 files, 1711 passed, 3 skipped, 0 failed (781 s); its JUnit report also served `accord task-done` — the full run covers the brief's related set (main session, task 10) — cost if wrong: none found
+- Ruling: review round 1 ran an intent, a quality and a security reviewer — about 820 changed lines of source, tests, skills and docs once plan.md, the ledger and the generated `.claude/` and `generated/` copies are set aside, and the ticket touches data deletion (`drop`, `worktree clean`) — cost if wrong: an area-split review would have read the same diff in narrower slices
+- Ruling: review 1.1's fix makes `worktree clean` keep a branch for any listed `isResearchPath` entry the default branch history never held, while `accord drop` still carries only `.md` records and refuses a listed non-`.md` one the default branch lacks with a message naming it; the lane S exemption keeps the `.md` rule — clean is the step that deletes the only copy, so it must not filter by extension, and the drop writes only Markdown to the default branch as plan round 1.3 ruled — cost if wrong: a non-`.md` record blocks a drop until renamed, never lost
+- Ruling: review 1.2's fix keeps both `risk:data-loss` test names in stage-skills.test.ts, since they are `verify:` ids in plan.md, and reduces their assertions to the phrases that carry each rule — renaming them would change the plan — cost if wrong: a "data-loss" label on a text test stays
+- Ruling: the existing clean keep test in worktree.test.ts no longer lists the `.ts` entry, since with the new filter it would be the first kept record and change the expected message; the new `.txt` test covers non-Markdown entries (executor, review round 1) — cost if wrong: none
+- Ruling: drop's non-Markdown refusal reads "<path> is listed under research: and only <branch> holds it, but only .md research records travel with a drop - rename it to .md on <branch> (and update the research: key), or put it on <default> first, then run accord drop again - nothing was created"; its test asserts key phrases, not the whole line (executor, review round 1) — cost if wrong: wording only
+- Ruling: drop's non-Markdown refusal sits before the dirty-worktree checks, so it fires first when both apply; nothing is written either way (executor, review round 1) — cost if wrong: none
 
 ## Deferred
 - Plan round 1.5 (Nice): `gitFilesAt` (packages/cli/src/load/fs.ts:795-798) misreads a non-blob result's body and a path with a control character shifts the batch; `isResearchPath` could reject control characters and `:`
@@ -64,6 +70,11 @@
 - Plan round 1.11 (Nice): Task 9's §10 spec clause should name the sentence it follows
 - Plan round 2.2 (Nice): ids.md step 1 should say "`.md` record" and that `worktree clean` deletes the branch unless it prints `kept`
 - Plan round 3.1 (Nice): clean's `--find-object` history check misses a blob hidden by history simplification after a merge that took a side branch's copy, keeping the branch with a wrong reason; `--full-history` would find it, and Task 9's test covers only the plain-commit path
+- Review round 1.3 (Nice, security): `worktree clean` deletes a dropped branch without a `kept` line when the ticket at its tip fails to parse (no `research` read), where "could not be judged, keep" fits; only a hand drop reaches it, since `accord drop` lints the tip first
+- Review round 1.4 (Nice, quality): `accord drop` refuses as "differs from the copy on main" when main edited a listed record after the claim and the branch never changed it; compare against the merge base, or name "merge main" in the message
+- Review round 1.5 (Nice, quality): packages/core/test/research.test.ts's `risk:parsing a research entry with a backslash…` test bundles four behaviours under one name; split it
+- Review round 1.6 (Nice, intent and quality): packages/core/src/model/snapshot.ts's `priority?` line lost its space before `//`, an unrelated edit
+- Review round 1.7 (Nice, quality): packages/core/src/lint/rules.ts places `lint.research-reference` between the `depends-*` rules
 
 ## Tasks
 - task 1 done 870e1cfa4263

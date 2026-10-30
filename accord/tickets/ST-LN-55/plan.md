@@ -1,6 +1,6 @@
 ---
 baseline: 995a87c98600c6c9d286aaf16158dcbb6b409928
-plan_hash: "fnv1a64:676c96b4ce3a252a"
+plan_hash: "fnv1a64:e044d041035ece48"
 ---
 
 Review mode `outcome`: one branch, no slices. Each task below can be finished from its own section, this
@@ -92,7 +92,7 @@ Shared test helper file `packages/cli/test/helpers/done.ts` (new, made by Task 1
 ## Task 1: Wiring: the session-start hook runs the clean after its usual output
 covers: @ac-2, D-03, D-09, D-11
 files: packages/cli/src/commands/hook.ts, packages/cli/src/commands/worktree.ts, packages/core/src/scaffold/hooks.ts, packages/core/test/hooks.test.ts, packages/cli/test/helpers/done.ts (new), packages/cli/test/worktree-clean.test.ts (new)
-verify: packages/cli/test/worktree-clean.test.ts#ac-2-a-session-start-resume-or-clear-cleans-a-done-ticket-worktree-and-branches-and-keeps-one-a-live-session-holds (@ac-2), packages/cli/test/worktree-clean.test.ts#risk:complex-branching-a-compaction-runs-no-clean-and-fetches-nothing, packages/cli/test/worktree-clean.test.ts#risk:data-loss-a-session-start-keeps-the-record-of-a-worktree-whose-folder-is-missing, packages/cli/test/worktree-clean.test.ts#risk:complex-branching-a-session-start-whose-input-folder-is-not-a-repository-prints-clean-failed-after-the-rules, packages/core/test/hooks.test.ts#risk:regression-both-session-start-hooks-carry-a-600-second-timeout-and-a-re-sync-adds-it
+verify: packages/cli/test/worktree-clean.test.ts#ac-2-a-session-start-resume-or-clear-cleans-a-done-ticket-worktree-and-branches-and-keeps-one-a-live-session-holds (@ac-2), packages/cli/test/worktree-clean.test.ts#risk:complex-branching-a-compaction-runs-no-clean-and-fetches-nothing, packages/cli/test/worktree-clean.test.ts#risk:data-loss-a-session-start-keeps-the-record-of-a-worktree-whose-folder-is-missing, packages/cli/test/worktree-clean.test.ts#risk:complex-branching-a-session-start-whose-input-folder-is-not-a-repository-prints-clean-failed-after-the-rules, packages/cli/test/worktree-clean.test.ts#risk:data-loss-a-session-start-whose-clean-output-passes-128-KiB-still-prints-its-last-line, packages/core/test/hooks.test.ts#risk:regression-both-session-start-hooks-carry-a-600-second-timeout-and-a-re-sync-adds-it
 
 Consumes: `fetchOrigin`, `cleanQuietly`, `readList`, `passGuards`, `hookInput` and `repoRoot`. Produces: the hook
 clean, the line `tell the owner the lines above`, `timeout: 600` on both SessionStart entries, `folderLine` and the
@@ -133,6 +133,28 @@ preamble says, with `TEMPLATE_OPTS = [{ tickets: ['ST-9', 'ST-10'] }]`.
   `run(['hook', 'session-start'], c.root, {}, JSON.stringify({ session_id: 'sess-M', cwd: c.root + '/no-such-folder', source: 'startup' }))`
   exits 0; `out` starts with `'# accord rules\n'`; a line starts with `clean failed, nothing more was removed: `; and
   `tell the owner the lines above` comes after it.
+- `it('risk:data-loss a session start whose clean output passes 128 KiB still prints its last line')`. A stream that
+  is read once returns only what its buffer holds (64 KiB on Node 22 and 24), so this test reads the hook's output
+  through `runWhole`, never `run`, whose `stdout.read()` (`repo.ts:115`) would cut it the same way:
+  - Add to `helpers/done.ts`
+    `runWhole(argv: string[], cwd: string, stdin?: string): Promise<{ code: number; out: string; err: string }>`. It
+    makes the sandbox check of `run` (`repo.ts:106-111`, copied: the nearest existing ancestor of `cwd`, under
+    `realpathSync.native(tmpdir())` and not `process.cwd()`, else it throws), then calls `runCli` from
+    `../../src/run.js` with `env` `{}`, `stdin` when given, and `stdout` and `stderr` each a sink
+    `{ write(chunk: string | Uint8Array): boolean { s += typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString('utf8'); return true; } }`
+    cast `as unknown as NodeJS.WritableStream`, one string per sink.
+  - `c = copy({ tickets: ['ST-9', 'ST-10'] })`, `claimWorktree(c, 'ST-9')`, `doneOnRemote(c, ['ST-9'])`, the `ALIVE`
+    table, and `head = c.git('rev-parse', 'origin/main').trim()`.
+  - 1000 worktree records whose folders are missing, written as files with no git spawn: for each `n` from 0 to 999,
+    `writeFiles(`${c.root}/.git/worktrees/gone-${n}`, { gitdir: `${c.sibling('gone-' + n)}/.git\n`, HEAD: head + '\n', commondir: '../..\n' })`.
+    `git worktree list --porcelain` lists each as `prunable`, so the hook clean writes one
+    `kept <path>: its folder is missing (...)` line per record, about 150 bytes each, before it judges ST-9.
+  - `r = await runWhole(['hook', 'session-start'], c.root, JSON.stringify({ session_id: 'sess-M', cwd: c.root, source: 'startup' }))`.
+    `r.code` is 0, `r.out` starts with `'# accord rules\n'`, and `r.out.length` is greater than `131072`.
+  - With `L = lines(r.out)`: exactly 1000 lines start with `kept ` and contain `: its folder is missing (`;
+    `L` holds `removed ${c.sibling('ST-9')}`, the clean's last line, written after all of them; and
+    `L.indexOf('tell the owner the lines above')` is greater than its index. `gone(c.sibling('ST-9'))`.
+  - At a `sessionClean` that reads a `PassThrough` once, the removed line and the closing line are missing.
 - In `packages/core/test/hooks.test.ts`, top level:
   `it('risk:regression both session start hooks carry a 600 second timeout and a re-sync adds it')`. With
   `e = hookEntries({ name: '@accord-dev/accord', version: '0.2.0' })`: `e.SessionStart.map((x) => x.hooks[0].timeout)`
@@ -169,7 +191,12 @@ Interface:
   `session-start`, after `startHold(ctx)`. Steps:
   1. `input = hookInput(ctx)`. For `session-resume`, return unless `input?.source` is `resume` or `clear`. Compaction
      and a resume with no readable input run no clean (ledger Ruling on what a session start is).
-  2. `out = new PassThrough()` from `node:stream`. Everything else runs in one `try`:
+  2. `let text = ''` and `out`, a minimal writable that keeps every write and never drops one:
+     `{ write(chunk: string | Uint8Array): boolean { text += typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString('utf8'); return true; } }`
+     cast `as unknown as NodeJS.WritableStream`. Every writer the clean reaches calls only `write(chunk)` on its
+     stdout (`worktree.ts`, `worktrees(root, out)` at `worktree.ts:67-75`), so no other method is needed. No
+     `PassThrough`: a single `read()` returns only its buffer, and output past 64 KiB would be lost. Everything else
+     runs in one `try`:
      - `root = input?.cwd !== undefined ? repoRoot(input.cwd) : ctx.root`. `c` is `{ ...ctx, root, stdout: out }` with
        `branch` removed when `root !== ctx.root`.
      - `f = fetchOrigin(c)`. When `f.fetched` is `none`, the clone has no origin to judge against, and no clean runs.
@@ -177,8 +204,7 @@ Interface:
      In the `catch`, write `clean failed, nothing more was removed: <first line of the message>` to `out`, as
      `cleanQuietly` words it. A hook input folder that is gone or is not a repository lands here, so the hook still
      exits 0 with its rules printed.
-  3. `text = String(out.read() ?? '')`. When it is not empty, write `text`, then `tell the owner the lines above\n`, to
-     `ctx.stdout`.
+  3. When `text` is not empty, write `text`, then `tell the owner the lines above\n`, to `ctx.stdout`.
 - Clean never removes the worktree this session runs in: `passGuards` keeps it as today (`worktree.ts:679`), so a
   session started in the ticket's own worktree keeps it (D-09, D-11, ledger Ruling).
 

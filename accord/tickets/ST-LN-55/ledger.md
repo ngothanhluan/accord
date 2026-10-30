@@ -32,6 +32,8 @@
 - Ruling: the hook runs no clean when the repository has no origin — done is read on origin's default branch — cost if wrong: none.
 - Ruling: the hook clean never prunes; a worktree whose folder is missing stays listed and is named on a kept line, and the `rebasing` search skips it — a missing folder may be an unmounted drive — cost if wrong: a stale entry stays until `/accord` prunes it.
 - Ruling: a flagged symlink entry (mode 120000) on disk counts as differing, so its worktree is kept — the cheapest safe reading — cost if wrong: such a worktree is cleaned by hand.
+- Ruling: the long-output risk test runs through a new `runWhole` helper in `helpers/done.ts`, not `run` — `run` reads its output once and would cut long output the same way — cost if wrong: one more small test helper.
+- Ruling: the plan's baseline test run (step 7) is CI's full suite on a draft pull request opened at the plan commit, not a local tests.full — the owner replaced the 25-30 min local run with CI on ST-LN-17 and ST-LN-75; only accord/ changed since the baseline — cost if wrong: a baseline failure is seen once CI finishes rather than before build starts.
 
 ## Deferred
 - Plan round 1 Nice: a relative path in a record line is resolved against cwd; skip non-absolute lines and fence descendants of the main checkout — deferred
@@ -43,3 +45,4 @@
 - Plan round 1 Nice: `readRecorded`, `dropRecorded` and `withLock` each spawn `rev-parse --git-common-dir` again — deferred
 - Plan round 1 Nice: `git remote prune origin` on the hook path has no timeout — deferred
 - Plan round 2 Nice: a hook input cwd that no longer exists makes repoRoot report 'git is required but was not found on PATH'; lstat the folder first and word the clean failed line from that — deferred
+- Plan round 3 Nice: Task 1's long-output risk test calls the removed line the clean's last line (deleted lines follow it) and says the closing line would be missing in the old design; word it as "after all of them" — deferred

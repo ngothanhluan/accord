@@ -16,4 +16,10 @@
 
 ## Round 2 (whole)
 
-1. Should — Task 1's `sessionClean` reads the clean's output from a PassThrough with one `read()`, which returns only the readable buffer; past 64 KiB (e.g. ~750 pruned-ref lines) later `removed`/`kept` lines are lost; collect writes in a string through a minimal writable — open
+1. Should — Task 1's `sessionClean` reads the clean's output from a PassThrough with one `read()`, which returns only the readable buffer; past 64 KiB (e.g. ~750 pruned-ref lines) later `removed`/`kept` lines are lost; collect writes in a string through a minimal writable — fixed
+
+## Round 3 (diff)
+
+No findings (one Nice, deferred to the ledger)
+
+## Closed 2026-10-30: round 3 reported no Must and no Should; gate plan passed

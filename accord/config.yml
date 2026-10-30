@@ -14,7 +14,9 @@ runtimes: [claude]
 tests:
   # JUnit report under node_modules/.cache so it is never committed.
   report: node_modules/.cache/accord/junit.xml
-  affected: npx vitest related --run {files} --reporter=default --reporter=junit --outputFile.junit=node_modules/.cache/accord/junit.xml
+  # ST-LN-78: on Windows with Docker running, the build stage's runs go through a Linux container (about 85 s for the
+  # whole suite, against 11-30 min on the host); ACCORD_TEST_LINUX=0 runs them on the host. tests.full stays on the host.
+  affected: node scripts/test-linux.mjs related --run {files} --reporter=default --reporter=junit --outputFile.junit=node_modules/.cache/accord/junit.xml
   full: npx vitest run --reporter=default --reporter=junit --outputFile.junit=node_modules/.cache/accord/junit.xml
 review:
   mode: outcome

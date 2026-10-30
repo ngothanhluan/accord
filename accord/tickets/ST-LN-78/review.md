@@ -1,5 +1,7 @@
 # Review: ST-LN-78
 
+Round record: 1
+
 ## Round 1
 
 1. Should — intent — the whole-suite run in the Done when was shown with `scripts/test-linux.mjs run`, not with the configured `tests.affected` command, which is `related --run {files}` — accord/config.yml (tests.affected).

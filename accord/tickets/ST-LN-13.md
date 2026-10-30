@@ -63,7 +63,7 @@ Feature: ST-LN-13
     Then lint reports no finding about the ticket's research
     And the anchor prints both paths as the key lists them
 
-  @ac-3
+  @ac-3 @test:packages/core/test/agents.test.ts#ac-3-the-scout-architect-critic-and-planner-read-the-research-records-and-no-other-agent-is-told-to
   Scenario: the deciding agents read a ticket's research records and the others do not
     Given the agent definitions that `accord skills sync` renders
     When their instructions are read

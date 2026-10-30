@@ -56,7 +56,7 @@ Feature: ST-LN-13
       | of a record under `accord/research/` whose first five lines hold no `Repository at <sha>`   |
       | outside `accord/research/`                                                                         |
 
-  @ac-2
+  @ac-2 @test:packages/core/test/anchor.test.ts#ac-2-a-ticket-that-names-dated-records-passes-lint-and-its-anchor-lists-them
   Scenario: a ticket that names dated records passes lint and its anchor lists them
     Given a ticket whose `research:` key lists two records under `accord/research/`, each with `Date: <YYYY-MM-DD>` and `Repository at <sha>` in its first five lines
     When the owner runs `accord lint` and then `accord anchor` on that ticket

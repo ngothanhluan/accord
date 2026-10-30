@@ -14,7 +14,7 @@
 // container here, so a container run does not wait for a host run; its memory guard reads the Docker VM's memory.
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -90,15 +90,18 @@ export function containerArgs({ root, cwd, args, image, volume, workspaces, git,
   return { run, report, dotGitText };
 }
 
-// Installs node_modules into the volumes once per key, under a lock so two runs never install at once; npm ci cannot
-// remove a mount point, so a half-finished install is emptied first, the mounted volumes only.
+// Installs node_modules into the volumes once per key, under a lock so two runs never install at once. Each volume
+// carries its own marker, so a volume removed and recreated empty by docker reinstalls. npm ci cannot remove a mount
+// point, so a half-finished install is emptied first, the mounted volumes only.
 const inside = (modules) => `set -e
 exec 9>/state/lock
 flock 9
-if [ ! -f /state/installed ]; then
+installed=1
+for d in ${modules.join(' ')}; do [ -f "$d/.accord-installed" ] || installed=0; done
+if [ "$installed" = 0 ]; then
   for d in ${modules.join(' ')}; do find "$d" -mindepth 1 -maxdepth 1 -exec rm -rf {} +; done
   (cd /work && npm ci --no-audit --no-fund --no-update-notifier --loglevel=error && npm rebuild @accord-dev/accord --ignore-scripts --no-update-notifier --loglevel=error)
-  touch /state/installed
+  for d in ${modules.join(' ')}; do touch "$d/.accord-installed"; done
 fi
 flock -u 9
 exec node /work/node_modules/vitest/vitest.mjs "$@"`;
@@ -165,8 +168,9 @@ export function main(args, env = process.env) {
 
 const mtime = (file) => (existsSync(file) ? statSync(file).mtimeMs : undefined);
 
-// A week, so worktrees on different package-lock.json files keep their own volumes while they are worked, and a volume
-// another run has just created is never removed before it is mounted.
+// A week from creation, so worktrees on different package-lock.json files do not reinstall each other's volumes run
+// after run, and a volume another run has just created is never removed before it is mounted. A volume removed while
+// its key's run starts is recreated empty and unlabelled by docker; its marker is then missing and the run reinstalls.
 const KEEP_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** Removes labelled volumes of another key created more than KEEP_MS ago; one still mounted by a run is kept. */
@@ -179,4 +183,5 @@ function removeOldVolumes(volume) {
   }
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) process.exitCode = main(process.argv.slice(2));
+// Real paths on both sides: Node runs the entry by its real path, so a checkout reached through a junction still runs.
+if (process.argv[1] && realpathSync(fileURLToPath(import.meta.url)) === realpathSync(process.argv[1])) process.exitCode = main(process.argv.slice(2));

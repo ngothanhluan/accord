@@ -46,6 +46,8 @@
 - Ruling: task 3's executor ran its related tests without `ACCORD_BASH`, which its shell guard refused; the main session re-ran the same command with it set and got the same 1486 passed, 3 skipped, so those 3 skips do not depend on it (executor, task 3) — cost if wrong: none found
 - Ruling: the step 6 pointer in the intent SKILL.md is written as a blank line plus an indented line after the table, inside the list item — the brief says "indented line", and this keeps it out of the table (executor, task 4) — cost if wrong: a one-line move in SKILL.md
 - Ruling: in ids.md step 4 the new "followed by the path of each such record," clause is put in as the brief's text reads, and the touched lines are re-wrapped to at most 118 characters with no word changed — it keeps the file readable (executor, task 5) — cost if wrong: only line breaks differ
+- Ruling: `addedResearch` also requires `fact.changes` to be an array (an Array.isArray guard) — it is cheap and returns [] for a malformed fact (executor, task 6) — cost if wrong: none
+- Ruling: task 6's review-package.ts change is covered only by the existing cli tests in its related run; no new cli test shows a listed record left out of `## Undeclared files`, because the plan names none — review weighs whether one is needed (executor, task 6) — cost if wrong: a review-package regression caught only at review or verify
 
 ## Deferred
 - Plan round 1.5 (Nice): `gitFilesAt` (packages/cli/src/load/fs.ts:795-798) misreads a non-blob result's body and a path with a control character shifts the batch; `isResearchPath` could reject control characters and `:`
@@ -64,3 +66,4 @@
 - task 3 done d38d03949f05
 - task 4 done fc814b1ac65f
 - task 5 done caf498a18339
+- task 6 done d8f452a6cc2f

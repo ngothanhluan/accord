@@ -98,6 +98,23 @@
 - Ruling: a folder counts toward a ticket only when some call in it records a branch and every call that records one records `t/<id>` — "every call that records a branch" is otherwise true of a folder with none, which would give it to every ticket — cost if wrong: a few branchless calls move out of a share.
 - Ruling: a done ticket with no calls in the transcripts is left out of the tickets table — its share would be 0/0 — cost if wrong: one empty line is missing.
 - Ruling: `doneTickets` accepts only a first commit subject exactly `claim: <id>`, and the claim date range is inclusive at both ends — cost if wrong: a ticket on the boundary moves in or out.
+- Ruling: (re-plan 2) the calibration text is a committed copy of the body of `.claude/agents/accord-planner.md` at the baseline (marker and frontmatter removed) — it is fixed and LF on every checkout, so the pairs go stale only on a version change — cost if wrong: the ratio is off for table- or code-heavy texts, inside the ±10% the report states.
+- Ruling: (re-plan 2) sizes are rounded per text, using the JavaScript string length — so parts and unattributed are whole numbers and add up in the raw table — cost if wrong: about 0.5 token per text.
+- Ruling: (re-plan 2) a listing, block or tool-name text is taken from the main first call, else the first agent by name, and charged whole to each row that lists any of it — the rule Task 4 used for accord's listings — cost if wrong: a row with a shorter skill listing is charged slightly more, and unattributed absorbs it.
+- Ruling: (re-plan 2) a listing entry belongs to accord by exact name, else to a plugin by the `<plugin id up to its last @>:` prefix (seen on a real transcript: `- claude-security:explore:`), else to an own set by exact member name; first match wins; Claude Code's own and unknown entries go to no text — cost if wrong: a plugin that names its entries another way stays in unattributed.
+- Ruling: (re-plan 2) a plugin's MCP servers are charged under MCP servers, and the report says so — the change note says "to their server" — cost if wrong: a plugin's total is split over two columns. Replaces the overlap-line Ruling.
+- Ruling: (re-plan 2) every connected server is its own item `mcp:<name>` — each server's text is now known — cost if wrong: none. Replaces the Rulings on `connector:`, `other-servers` and the shared connectors line.
+- Ruling: (re-plan 2) an MCP block is matched to its server by its `## <name>` heading, else by index — `addedBlocks` is an array of strings in the probe transcript under `~/.claude/projects/C--Work-accord-probe/` — cost if wrong: a block is charged to the wrong server.
+- Ruling: (re-plan 2) deferred tool names are sized as the names joined with newlines — how Claude Code renders them is not known — cost if wrong: the difference lands in unattributed.
+- Ruling: (re-plan 2) the baseline also goes stale when its stubs change (an accord agent's tool list or model), beyond the change note's "only the all-on probe goes stale" — its Claude Code part is exactly those stubs' tool definitions — cost if wrong: one extra baseline run of a few calls.
+- Ruling: (re-plan 2) the docs fingerprint covers file content, and the "changed disk text makes all-on stale" rule is dropped — cost if wrong: none new; an edit of `MEMORY.md` already made all-on stale.
+- Ruling: (re-plan 2) a calibration pair whose `cal:` input is not above its `ref:` input is pending again (both probes), and `measure` also throws as a guard — cost if wrong: one more probe round.
+- Ruling: (re-plan 2) tests whose titles would become false are deleted and rewritten under true titles; titles that still hold are kept — the `verify:` lines of done Tasks 3, 4 and 5 then name ids that no longer exist, which `DONE_RULES` (`packages/core/src/gate/rules.ts:173`) does not re-check — cost if wrong: gate done refuses on a stale `verify:` id.
+- Ruling: (re-plan 2) criterion test ids on Tasks 12 to 15 carry no `(@ac-n)` marker — `gate.plan-test-repeated` (`packages/core/src/gate/plan.ts:159`) counts a second marker as a second mapping — cost if wrong: none.
+- Ruling: (re-plan 2) the change is five tasks so each stays green: additive (11), pairs beside the old probes (12), switch (13), removal (14), wording (15); Task 10 runs last — cost if wrong: one more dispatch.
+- Ruling: (re-plan 2) `PROBE_FORMS.claudeVersion` stays — it records the spike's version (deferred Nice 1.14) — cost if wrong: one unused key.
+
+- Ruling: (re-plan 2, review 1.1) an MCP instructions block the all-on main holds before its first call is charged to every agent row as well — real subagent calls carry it from about their second call on, read-only agents included, so most calls carry it — cost if wrong: an agent row whose calls never get the block is overstated by about 600 tokens.
 
 ## Deferred
 
@@ -107,3 +124,8 @@
 - Re-plan review 1.4 (Nice): Task 1's step 2e and `PROBE_FORMS` paragraph still describe `Skill(<name>)` deny rules and no `skillOverride`; Task 1 has a ledger line, so its text stays, and the Rulings on `skillOverrides` and `PROBE_FORMS` hold the change.
 - Re-plan review 1.5 (Nice): the connector-probe path of Tasks 4, 7 and 9 is never taken while `PROBE_FORMS.connector` is `null`, and Task 7's test does not name the forms override that gives it a connector probe.
 - Re-plan review 2.1 (Nice): the preamble says the stored `cwd` in `probes.json` passes through `shellLine`, but Task 3's test expects it unquoted; only `command` should be quoted.
+- Re-plan 2 review 1.3 (Nice): Task 9's "cost per call that removing the item saves" overstates a plugin's line once its MCP server is its own line.
+- Re-plan 2 review 1.4 (Nice): Task 13 does not say to drop the Task 5 test's step-2 assertions that require `text:` ids.
+- Re-plan 2 review 1.5 (Nice): Task 13's test texts carry no `label`; the source of an `mcp:<n>` item's name is not stated.
+- Re-plan 2 review 1.6 (Nice): Task 14's new test asserts `<bench>/fixed` is absent though earlier calls created it.
+- Re-plan 2 review 1.7 (Nice): the old probe settings and MCP config files under `C:/Work/accord-bench/fixed/` are never removed.

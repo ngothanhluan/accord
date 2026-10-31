@@ -1,5 +1,7 @@
 # Plan review: ST-LN-79
 
+Round record: 1
+
 ## Round 1 (whole)
 
 1. Must — Tasks 4 and 5 size the CLAUDE.md and pointer texts by reading the path the all-on probe's `instructions` attachment names, which is the probe worktree's copy (`C:/Work/accord-probe/CLAUDE.md`) or the main checkout's, never the repository file it stands for; a committed edit to the repository's CLAUDE.md is never marked stale, the report prints the old size and labels doc lines with the throwaway worktree's path, and Task 5's test passes only because its world names `<repo>/CLAUDE.md`; likewise `--fixed` has no dirty-tree refusal, so an uncommitted agent edit is sized from the working copy while the reprinted all-on probe checks out HEAD (criteria 1, build 8) — fixed
@@ -47,3 +49,15 @@ Re-plan after Task 1: set probes move skills and commands out of reach with `ski
 
 ## Closed
 Converged at round 2: 0 Must open, 0 Should open, 3 Nice deferred.
+
+## Round 1 (whole)
+
+Re-plan after Task 9: size each part from its text with a ratio per model.
+
+1. Should — Task 11 decides which rows an MCP server's instructions block reaches only from attachments before each row's first call, but Claude Code adds that block to a subagent after its first call (accord-critic runs in this session carry `mcp_instructions_delta` for claude.ai Claude Docs at lines 28 and 36, after the first assistant line 17, with tools `Read, Grep, Glob`); the connector's block is charged to the main row alone, every agent row leaves out about 600 tokens real calls carry, and Task 9's "cost per call that removing the item saves" is false for that line (criteria 1) — open
+2. Should — Task 12 adds steps 9 and 10 to the Task 5 test after steps 7 and 8, which never undo their changes (step 7 commits a `CLAUDE.md` edit, step 8 leaves an uncommitted agent edit); step 9's `fixedPending` sees `setupDirty` and returns exit 2 with no pending ids, and step 7's content change moves the new docs hash; run steps 9 and 10 before step 7, or have steps 7 and 8 undo their changes (build 1) — open
+3. Nice — Task 9's "each line above is the cost per call that removing the item saves" overstates a plugin's line once its MCP server is its own line; reword in Task 15 (criteria 2) — deferred
+4. Nice — Task 13 changes step 2 of the Task 5 test to "no id starts with `text:`" without saying to drop the step-2 assertions that require `text:` ids and the `text_doc_…md` file (build 2) — deferred
+5. Nice — Task 13's test texts carry no `label`, and it does not say whether an `mcp:<n>` item's name comes from the text's label or the item id (build 3) — deferred
+6. Nice — Task 14's new test asserts `<bench>/fixed` does not exist after the refused `fixedProbe`, though earlier calls in the test created it and the task never removes it (build 4) — deferred
+7. Nice — the settings and MCP config files the earlier real `--fixed --probe` wrote under `C:/Work/accord-bench/fixed/` stay on disk after Task 14; no step removes them (build 5) — deferred

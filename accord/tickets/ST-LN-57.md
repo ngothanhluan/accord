@@ -99,6 +99,8 @@ Feature: ST-LN-57
 - D-07 The rule that a Should rests on a ticket line or a failing case applies from round 3 only; rounds 1 and 2 fix every Should as today — "A" (2026-10-29, asked: from round 3 only, or every round)
 - D-08 A finding deferred under ac-2's evidence rule, with its line in the ledger's Deferred, does not count toward ST-LN-17's stop from round 3 or the gate done failure it causes; this ticket changes that one rule of ST-LN-17 — "as proposed" (2026-10-31, asked: deferred findings leave the stop, or keep counting as ST-LN-17 does today)
 - D-09 A round's fix commits are every commit after that round up to the next round, but a merge of main, a debug episode's commits and commits that change only the ticket's records; a fix split over two commits cannot escape the checks and nobody has to name each commit as "fixed in" — "A" (2026-10-31, asked: fix commits are the round's range, or only the commits findings name as "fixed in" plus a check that every commit is named)
+- D-10 When the ticket branch's HEAD is already on the default branch, or the ticket is done there, gate done skips this ticket's checks and prints a line saying so; the pull request's CI gate ran them on the branch — "A" (2026-10-31, asked: skip with a notice, or keep checking and fail a ticket whose pull request merged before its tick)
+- D-11 In lane S, a Should's ticket line under ac-4 may be a quote from the ticket's `## Understood` or `## Done when`, lane S's counterparts of Intent and acceptance criteria — "A" (2026-10-31, asked: allow those quotes, or accept only a test or command in lane S)
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->

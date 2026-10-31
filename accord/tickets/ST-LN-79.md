@@ -66,7 +66,7 @@ Feature: ST-LN-79
     When the owner prints it again on the same transcripts and the same setup
     Then every figure is the same
 
-  @ac-4
+  @ac-4 @test:packages/core/test/benchmark-fixed.test.ts#ac-4-the-committed-report-holds-the-date-range-the-call-counts-the-setup-items-and-the-not-measured-line
   Scenario: The committed report holds a real run and the cuts the owner could make
     Given the script was run over the owner's own transcripts
     When its report is committed under docs/benchmark

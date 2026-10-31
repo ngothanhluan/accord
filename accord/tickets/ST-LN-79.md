@@ -42,7 +42,7 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: ST-LN-79
 
-  @ac-1
+  @ac-1 @test:packages/core/test/benchmark-fixed.test.ts#ac-1-the-main-session-and-each-accord-agent-that-ran-get-one-row-split-by-owner
   Scenario: The fixed context of the main session and of each accord agent is split by owner
     Given Claude Code transcripts of a main session and of runs of accord agents
     And the setup on this machine when the report runs: its plugins, MCP servers, CLAUDE.md files, memory and accord install
@@ -60,7 +60,7 @@ Feature: ST-LN-79
     Then each figure is given in raw tokens and in cost-weighted tokens, where a fresh input token weighs 1, a cache read 0.1 and a cache write 1.25, and the fixed context, which sits at the front of every call's input, is charged first against that call's cache reads, then its cache writes, then its fresh input, as the transcripts record them
     And for each lane M ticket that reached done and whose claim commit falls inside the transcripts' date range, it gives two shares of that ticket's whole cost, where the ticket's calls are those whose transcript lines record the ticket's branch or worktree and each output token weighs 5: the main session's fixed context, and the subagents' fixed context
 
-  @ac-3
+  @ac-3 @test:packages/core/test/benchmark-fixed.test.ts#ac-3-the-report-printed-twice-on-the-same-transcripts-and-setup-is-the-same
   Scenario: The same transcripts give the same figures
     Given the fixed-context report was printed once
     When the owner prints it again on the same transcripts and the same setup

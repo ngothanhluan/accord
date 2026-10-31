@@ -8,6 +8,7 @@
 - task 5 done d21eb917c55a
 - task 6 done 494592055d70
 - task 7 done ca2b98f01517
+- task 8 done 3e69301c358a
 
 ## Rulings
 
@@ -90,6 +91,9 @@
 - Ruling: the agent definitions are one item (`agent-definition`, label "agent definition") with each agent's body in its own row — the plan names one label, and ten one-row items would clutter the items table — cost if wrong: Task 10 lists one line instead of one per agent.
 - Ruling: item ids are `plugin:<id>`, `mcp:<name>`, `connector:<name>`, `other-servers`, `set:<prefix>`, the text ids (`rules`, `skill-listing`, `agent-listing`, `pointer:<label>`, `doc:<label>`) and `agent-definition`; a set's label is "set gsd (3 members)"; the parts are `accord`, `claudeCode`, `plugins`, `mcp`, `docs` and `sets` — Tasks 8 to 10 read these strings — cost if wrong: they rename strings only.
 - Ruling: `measure` accepts the probe state as `{ probes: [...] }` or a bare array, uses it only to learn which `connector:` probes are planned, and throws "The probe <id> has no first call." when a needed session is missing, so callers run it only with nothing pending — cost if wrong: a caller that skips the pending check gets an exception rather than a figure.
+- Ruling: `fixedPending` also returns `probes`, `setup`, `state`, `located` and `read` on a call it does not refuse — `fixedReport` needs them, and reading them again would repeat the work — cost if wrong: none; the existing tests use `toMatchObject`.
+- Ruling: the test world's real sessions add a general-purpose call (counted in the Transcripts line, not a row), a scout call on another model, and a newer Claude Code call plus an accord-planner run with no definition — they reach the render branches the brief names — cost if wrong: none.
+- Ruling: the main row's label in the "<row>: n of its m calls ran on" line is the table label `main session (claude -p)` — the brief left it open — cost if wrong: one string.
 
 ## Deferred
 

@@ -246,3 +246,17 @@ it('ac-4 the executor runs only the test command its brief prints and never test
     ]) expect(flat(text), `${name} lacks: ${phrase}`).toContain(phrase);
   }
 });
+
+it('ac-3 the scout architect critic and planner read the research records and no other agent is told to', () => {
+  const S =
+    "Read every record the ticket's frontmatter `research:` key lists, when it has one: a record is evidence, not a contract, and holds at the commit it names, so check a claim against the code before you rely on it.";
+  const files = agentTargets(config({ runtimes: ['claude', 'codex', 'cursor', 'copilot'] }));
+  const names = ['architect', 'auditor', 'critic', 'debugger', 'executor', 'final-reviewer', 'planner', 'reviewer', 'scout', 'verifier'];
+  expect(files.map((f) => f.path).sort()).toEqual(names.map((n) => `.claude/agents/accord-${n}.md`));
+  const readers = ['scout', 'architect', 'critic', 'planner'];
+  for (const f of files) {
+    const role = f.path.replace('.claude/agents/accord-', '').replace('.md', '');
+    if (readers.includes(role)) expect(f.text.replace(/\s+/g, ' '), f.path).toContain(S);
+    else expect(f.text, f.path).not.toMatch(/research/i);
+  }
+});

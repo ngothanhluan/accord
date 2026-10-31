@@ -1,11 +1,12 @@
 // ST-LN-34 `accord drop <id>`: put the ticket file, set to dropped with its reason, on a new branch drop/<id>
-// made from origin's default branch, without a checkout, and push it. The claim branch's code never travels.
+// made from origin's default branch, without a checkout, and push it. The branch holds the ticket file and the
+// research records it lists that the default branch lacks (ST-LN-13); the claim branch's code never travels.
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { lintSnapshot, loadSnapshot, markDropped } from '@accord-dev/accord-core';
-import { droppedOn, gitDefaultRef, loadRefInput, UsageError } from '../load/fs.js';
+import { isResearchPath, isResearchRecord, lintSnapshot, loadSnapshot, markDropped } from '@accord-dev/accord-core';
+import { droppedOn, gitDefaultRef, gitFilesAt, loadRefInput, UsageError } from '../load/fs.js';
 import type { CommandContext } from '../run.js';
 import { branchOf, git, gitNoPrompt, gitOk, ID, listWorktrees } from './worktree.js';
 
@@ -77,9 +78,49 @@ export function drop(ctx: CommandContext, id: string, opts: { reason?: string })
   }
   if (next === undefined) throw new UsageError(`${path} has no "## Dropped" reason - pass --reason "<why>"` + NOTHING);
 
+  // The research records the ticket lists (ST-LN-13): the drop branch holds the ones the default branch lacks.
+  const listed = [...new Set(loadSnapshot({ files: { [path]: next }, tree: [] }).tickets[id]?.frontmatter?.research ?? [])].filter(isResearchPath);
+  const records = listed.filter(isResearchRecord);
+  // Only Markdown travels (the drop writes nothing else to the default branch): refuse a listed other file only the claim branch holds, before anything is written.
+  for (const p of listed.filter((q) => !isResearchRecord(q))) {
+    if (resolve(root, tip + ':' + p) !== undefined && resolve(root, base + ':' + p) === undefined) {
+      throw new UsageError(
+        `${p} is listed under research: and only ${b} holds it, but only .md research records travel with a drop - rename it to .md on ${b} (and update the research: key), or put it on ${short} first, then run accord drop again` + NOTHING,
+      );
+    }
+  }
+  if (held !== undefined) {
+    for (const p of records) {
+      if (git(held.path, ['status', '--porcelain', '--untracked-files=all', '--', p]).trim() !== '') {
+        throw new UsageError(`${p} has uncommitted changes in ${held.path} - commit and push them on ${b} first` + NOTHING);
+      }
+    }
+  }
+  const carried: Record<string, string> = {};
+  for (const p of records) {
+    const atBase = resolve(root, base + ':' + p);
+    const atTip = resolve(root, tip + ':' + p);
+    if (atTip === undefined) continue;
+    if (atBase === undefined) carried[p] = atTip;
+    else if (atBase !== atTip) {
+      throw new UsageError(
+        `${p} on ${b} differs from the copy on ${short}; a drop never replaces a research record the default branch holds - make the two equal on ${b}, or list a new record instead, then run accord drop again` +
+          NOTHING,
+      );
+    }
+  }
+
   const input = loadRefInput(root, ref);
   input.files[path] = next;
   if (!input.tree.includes(path)) input.tree.push(path);
+  const extra = {
+    ...gitFilesAt(root, tip, Object.keys(carried)),
+    ...gitFilesAt(root, ref, listed.filter((p) => !Object.hasOwn(carried, p) && !Object.hasOwn(input.files, p))),
+  };
+  for (const [p, text] of Object.entries(extra)) {
+    input.files[p] = text;
+    if (!input.tree.includes(p)) input.tree.push(p);
+  }
   const errors = lintSnapshot(loadSnapshot(input)).findings.filter((f) => f.level === 'error');
   if (errors.length > 0) {
     throw new UsageError(
@@ -94,6 +135,7 @@ export function drop(ctx: CommandContext, id: string, opts: { reason?: string })
     const blob = gitIn(root, ['hash-object', '-w', '--stdin'], { input: Buffer.from(next, 'utf8') }).trim();
     gitIn(root, ['read-tree', base], { env });
     gitIn(root, ['update-index', '--add', '--cacheinfo', `100644,${blob},${path}`], { env });
+    for (const [p, b2] of Object.entries(carried)) gitIn(root, ['update-index', '--add', '--cacheinfo', `100644,${b2},${p}`], { env });
     const tree = gitIn(root, ['write-tree'], { env }).trim();
     sha = gitIn(root, ['commit-tree', tree, '-p', base], { input: Buffer.from(`drop: ${id}\n`, 'utf8') }).trim();
   } finally {

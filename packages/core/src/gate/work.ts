@@ -5,6 +5,7 @@ import { UNTRACED, untracedTests } from '../lint/tests.js';
 import { reportLoaded, reportPath } from './done.js';
 import type { RepoSnapshot, Ticket, TicketWork } from '../model/snapshot.js';
 import type { GateRule } from './rules.js';
+import { addedResearch } from './research.js';
 
 export const planFile = (id: string): string => 'accord/tickets/' + id + '/plan.md';
 export const ledgerFile = (id: string): string => 'accord/tickets/' + id + '/ledger.md';
@@ -121,8 +122,9 @@ export function undeclaredFiles(snapshot: RepoSnapshot, id: string, changed: rea
   if (tasks === undefined) return undefined;
   const declared = tasks.flatMap((t) => [...t.files, ...t.newFiles]);
   const own = 'accord/tickets/' + id;
+  const research = addedResearch(snapshot, id);
   return [...new Set(changed)]
-    .filter((p) => p !== own + '.md' && !p.startsWith(own + '/'))
+    .filter((p) => p !== own + '.md' && !p.startsWith(own + '/') && !research.includes(p))
     .filter((p) => !declared.some((d) => (d.endsWith('/') ? p.startsWith(d) : p === d)))
     .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 }

@@ -2,6 +2,7 @@
 import { expect, it } from 'vitest';
 import { gateDone } from '../src/gate/index.js';
 import { laneSHash } from '../src/gate/hash.js';
+import { outsideScope } from '../src/gate/scope.js';
 import { loadSnapshot } from '../src/load/snapshot.js';
 import type { BranchChange, BranchFact } from '../src/model/snapshot.js';
 import { CONFIG, LANE_S_BODY, laneTicket } from '../../../test/helpers/lane.js';
@@ -255,4 +256,24 @@ it('risk:regression gate done reads lane M work from a branch diff that lacks th
   expect(eS[0].reason).toContain('adds no change over the merge base');
   expect(eS[0].reason).not.toContain('does not change');
   expect(found(emptyS, 'S-1', 'gate.out-of-scope')).toEqual([]);
+});
+
+it('risk:complex-branching a listed research record the branch adds is in scope for lane S and a changed unlisted non markdown or outside one is not', () => {
+  const NEW = 'accord/research/2026-10-30-new.md';
+  const OLD = 'accord/research/2026-10-29-old.md';
+  const UNLISTED = 'accord/research/2026-10-30-other.md';
+  const TS = 'accord/research/2026-10-30-x.test.ts';
+  const S1R = laneTicket('S-1', {
+    lane: 'S',
+    body: SCOPE,
+    frontmatter: ['ac_hash: "' + H + '"', 'research: ["' + NEW + '", "' + OLD + '", "' + TS + '", "src/notes.md"]'],
+  });
+  const changes = [ch(NEW, 5, 'added'), ch(OLD, 2), ch(UNLISTED, 5, 'added'), ch(TS, 4, 'added'), ch('src/notes.md', 3, 'added')];
+  const s = snap({ 'accord/tickets/S-1.md': S1R }, { 'S-1': fact(changes) });
+  expect(outsideScope(s, 'S-1')).toEqual({ paths: [OLD, UNLISTED, TS, 'src/notes.md'] });
+  const reasons = found(s, 'S-1', 'gate.out-of-scope').map((f) => f.reason);
+  expect(reasons).toHaveLength(4);
+  for (const p of [OLD, UNLISTED, TS, 'src/notes.md']) expect(reasons.some((r) => r.includes(p))).toBe(true);
+  const plain = snap({ 'accord/tickets/S-1.md': S1 }, { 'S-1': fact(changes) });
+  expect(outsideScope(plain, 'S-1')).toEqual({ paths: [OLD, NEW, UNLISTED, TS, 'src/notes.md'] });
 });

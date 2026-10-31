@@ -4,7 +4,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { agentTargets, anchorText, gateReady, installedName, loadSnapshot, skillDirs, skillTargets, STAGES } from '../src/index.js';
+import { agentTargets, anchorText, gateReady, installedName, loadSnapshot, recordHeaderFaults, skillDirs, skillTargets, STAGES } from '../src/index.js';
 import type { AccordConfig } from '../src/index.js';
 import { parseLedger, parseReview } from '../src/load/work.js';
 import { approve, CONFIG, laneTicket, P } from '../../../test/helpers/lane.js';
@@ -709,6 +709,27 @@ it('ac-5 the ids reference drops a ticket with accord drop', () => {
   expect(flat('.claude/skills/accord/SKILL.md')).not.toContain('accord drop');
 });
 
+it('risk:data-loss the drop steps carry the research records the default branch lacks and copy the research key into the new ticket', () => {
+  const idsFiles = files.filter((f) => f.path.endsWith('/ids.md'));
+  expect(idsFiles.map((f) => f.path).sort()).toEqual([
+    '.claude/skills/accord-debug/ids.md',
+    '.claude/skills/accord-intent/ids.md',
+    '.claude/skills/accord-verify/ids.md',
+    '.claude/skills/accord/ids.md',
+  ]);
+  for (const f of idsFiles) {
+    const text = f.text.replace(/\s+/g, ' ');
+    const drop = text.slice(text.indexOf('## Dropping instead of renaming'));
+    const step1 = drop.slice(0, drop.indexOf('2. Create the new ticket'));
+    expect(step1, f.path).toContain('each record the ticket lists under `research:`');
+    expect(step1, f.path).toContain('the default branch lacks');
+    expect(step1, f.path).not.toContain('holds only the ticket file');
+    const step3 = drop.slice(drop.indexOf('3. Copy into it'), drop.indexOf('4. Never copy'));
+    expect(step3, f.path).toContain('frontmatter keys');
+    expect(step3, f.path).toContain('`research`');
+  }
+});
+
 const flatS = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
 const LIFT =
   "Any of these lifts S to M, and nothing else: a public interface or schema changes; a listed sensitive area, or auth, money or data deletion, is touched; more than one plausible reading, where a reading one question settles stays lane S; the expected files, not counting test files and the copies accord itself generates, number more than 5 or span more than 3 code areas, a code area being a file's folder cut to its first four path segments.";
@@ -1061,6 +1082,98 @@ it('risk:regression the accord skill routes pull request comments to comments.md
   expect(parts.filter((p) => !c.includes(p))).toEqual([]);
   const order = ['**Read.**', '**Check.**', '**Unclear first.**', '**Conflicts.**', '**Fix.**', '**Reply.**'].map((h) => c.indexOf(h));
   expect(order.every((i, n) => i > -1 && (n === 0 || i > order[n - 1]!))).toBe(true);
+});
+
+// ST-LN-13: the intent interview reads the research records first and keeps the evidence a rewrite replaces.
+it('ac-4 the intent interview moves the evidence it replaces into a dated record listed under research', () => {
+  const flat = (t: string) => t.replace(/\s+/g, ' ');
+  const all = ['claude', 'codex', 'cursor', 'copilot'];
+  const renders = [
+    skillTargets({ ...config, runtimes: all } as AccordConfig),
+    skillTargets({ ...config, runtimes: all, roles: ['ba', 'dev', 'designer'] } as AccordConfig),
+  ];
+  const bad: string[] = [];
+  for (const render of renders) {
+    for (const dir of ['.claude/skills', '.agents/skills']) {
+      const raw = (n: string) => render.find((f) => f.path === dir + '/accord-intent/' + n)?.text ?? '';
+      const skillRaw = raw('SKILL.md');
+      const refRaw = raw('research.md');
+      if (skillRaw.length === 0) bad.push(dir + ': accord-intent/SKILL.md is empty');
+      if (refRaw.length === 0) bad.push(dir + ': accord-intent/research.md is empty');
+      const skill = flat(skillRaw);
+      const step2 = skill.slice(skill.indexOf('2. **Look before asking.**'), skill.indexOf('3. **Confirm the parts.**'));
+      if (!step2.includes('Before any question, read `./research.md`.')) bad.push(dir + ': step 2 lacks the pointer');
+      const step6 = skill.slice(skill.indexOf('6. **Write the ticket**'), skill.indexOf('7. **Write back**'));
+      if (!step6.includes('Before you rewrite a queued Intent, follow `./research.md`.')) bad.push(dir + ': step 6 lacks the pointer');
+      const ref = flat(refRaw);
+      for (const n of [
+        'At step 2, before any question to the owner, read every record `accord anchor` lists under `## Research`.',
+        "At step 6, before you rewrite a queued Intent, first move every line of evidence it replaces, verbatim, into a new record under `accord/research/` with `Date: <YYYY-MM-DD>` and `Repository at <sha>` in its first five lines, and list that record under the ticket's `research:` key.",
+        'Never delete such a line.',
+        'Commit the record with the ticket at steps 8 and 9.',
+      ]) {
+        if (!ref.includes(n)) bad.push(dir + ': research.md lacks ' + n);
+      }
+      const block = /```\n([\s\S]*?)\n```/.exec(refRaw)?.[1];
+      if (block === undefined) {
+        bad.push(dir + ': research.md holds no fenced block');
+        continue;
+      }
+      expect(recordHeaderFaults(block)).toEqual(['date', 'commit']);
+      expect(recordHeaderFaults(block.replace('<YYYY-MM-DD>', '2026-10-30').replace('<sha>', '5c083d3').replace('<topic>', 'x'))).toEqual([]);
+    }
+  }
+  expect(bad).toEqual([]);
+});
+
+// ST-LN-13: a research record the ticket lists and the branch adds is the ticket's own file in the lane S checks.
+it('risk:data-loss a listed research record the branch adds counts as the tickets own file in the lane S checks and the move to lane S keeps the evidence it drops', () => {
+  const flat = (t: string) => t.replace(/\s+/g, ' ');
+  const all = ['claude', 'codex', 'cursor', 'copilot'];
+  const renders = [
+    skillTargets({ ...config, runtimes: all } as AccordConfig),
+    skillTargets({ ...config, runtimes: all, roles: ['ba', 'dev', 'designer'] } as AccordConfig),
+  ];
+  const bad: string[] = [];
+  for (const render of renders) {
+    const ids = render.filter((f) => f.path.endsWith('/ids.md'));
+    expect(ids.length, 'ids.md is rendered in accord, accord-intent, accord-debug and accord-verify for each skill folder').toBeGreaterThanOrEqual(8);
+    for (const f of ids) {
+      const at = f.text.indexOf('\n## Moving to lane S\n');
+      if (at < 0) {
+        bad.push(f.path + ': no `## Moving to lane S` heading line');
+        continue;
+      }
+      const move = flat(f.text.slice(at));
+      for (const n of [
+        '`.md` records under `accord/research/` that the ticket lists',
+        'do not move',
+        'First move every line of evidence',
+        'verbatim, into a new record under `accord/research/`',
+        'Commit the ticket file and any record',
+      ]) {
+        if (!move.includes(n)) bad.push(f.path + ': move lacks ' + n);
+      }
+      const evidence = move.indexOf('First move every line of evidence');
+      if (!(evidence > -1 && evidence < move.indexOf('replace the `lane:` line'))) bad.push(f.path + ': evidence is moved after the lane line is replaced');
+    }
+    for (const dir of ['.claude/skills', '.agents/skills']) {
+      const get = (p: string) => flat(render.find((f) => f.path === dir + '/' + p)?.text ?? '');
+      const own = ['`.md` record under `accord/research/` that the ticket lists', "is the ticket's own file", 'needs no `## Scope` line'];
+      const checks: [string, string[]][] = [
+        ['accord/lane.md', own],
+        ['accord-intent/lane.md', own],
+        ['accord/lane-s.md', own],
+        ['accord-intent/research.md', ['`.md` record under `accord/research/` that the ticket lists', "one of the ticket's own files", 'already holds does not count']],
+      ];
+      for (const [p, needles] of checks) {
+        const text = get(p);
+        if (text.length === 0) bad.push(dir + '/' + p + ' is empty');
+        for (const n of needles) if (!text.includes(n)) bad.push(dir + '/' + p + ' lacks ' + n);
+      }
+    }
+  }
+  expect(bad).toEqual([]);
 });
 
 it('risk:regression the review lane S and plan critique skills ask accord round and write the round record version line', () => {

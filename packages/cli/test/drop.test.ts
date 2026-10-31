@@ -253,3 +253,101 @@ it('risk:data-loss drop refuses a record the default branch would fail to lint',
   expect(r.err).toContain('nothing was created');
   expect(remoteDrop(c, 'ST-9')).toBeUndefined();
 }, 120_000);
+
+const REC = (topic: string): string => '# ' + topic + '\n\nDate: 2026-10-30. Repository at `5c083d3`. Feeds the ticket.\n';
+
+it('risk:data-loss drop lints the default branch with the research records its tickets list', async () => {
+  const OLD = 'accord/research/2026-10-29-old.md';
+  const c = copy(plain);
+  const o = c.otherClone();
+  writeFiles(o, { [OLD]: REC('old'), 'accord/tickets/ST-11.md': laneTicket('ST-11', { frontmatter: ['research: ["' + OLD + '"]'] }) });
+  commitMsg(o, 'ST-11');
+  gitRun(o, 'push', '-q');
+  c.git('pull', '-q');
+  const r = await run(['drop', 'ST-9', '--reason', 'gone'], c.root);
+  expect(r.code, r.err).toBe(0);
+  expect(remoteDrop(c, 'ST-9')).toBeDefined();
+}, 120_000);
+
+const NEW = 'accord/research/2026-10-30-new.md';
+const OLD2 = 'accord/research/2026-10-29-old.md';
+
+/** A clone whose main holds OLD2, with the branch t/ST-10 checked out from it. */
+function withOldRecord(): Clone {
+  const c = copy(plain);
+  const o = c.otherClone();
+  writeFiles(o, { [OLD2]: REC('old') });
+  commitMsg(o, 'old');
+  gitRun(o, 'push', '-q');
+  c.git('pull', '-q');
+  c.git('switch', '-q', '-c', 't/ST-10');
+  return c;
+}
+
+it('risk:data-loss drop carries a listed research record the default branch lacks and leaves an identical one', async () => {
+  const c = withOldRecord();
+  writeFiles(c.root, { [NEW]: REC('new'), 'accord/tickets/ST-10.md': laneTicket('ST-10', { frontmatter: ['research: ["' + NEW + '", "' + OLD2 + '"]'] }) });
+  commitMsg(c.root, 'claim: ST-10');
+  c.git('push', '-q', '-u', 'origin', 't/ST-10');
+  const r = await run(['drop', 'ST-10', '--reason', 'x'], c.root);
+  expect(r.code, r.err).toBe(0);
+  const D = remoteDrop(c, 'ST-10')!;
+  expect(gitRun(c.remote, 'diff', '--name-only', 'main', D)).toBe(NEW + '\naccord/tickets/ST-10.md\n');
+  expect(gitRun(c.remote, 'cat-file', 'blob', D + ':' + NEW)).toBe(REC('new'));
+  expect(gitRun(c.remote, 'cat-file', 'blob', D + ':' + OLD2)).toBe(REC('old'));
+}, 120_000);
+
+it('risk:data-loss drop refuses a listed research record that differs from the default branch copy', async () => {
+  const c = withOldRecord();
+  writeFiles(c.root, { [OLD2]: REC('old edited'), 'accord/tickets/ST-10.md': laneTicket('ST-10', { frontmatter: ['research: ["' + OLD2 + '"]'] }) });
+  commitMsg(c.root, 'claim: ST-10');
+  c.git('push', '-q', '-u', 'origin', 't/ST-10');
+  const r = await run(['drop', 'ST-10', '--reason', 'x'], c.root);
+  expect(r.code).toBe(2);
+  expect(r.err).toContain(OLD2 + ' on t/ST-10 differs from the copy on main');
+  expect(r.err).toContain('nothing was created');
+  expect(remoteDrop(c, 'ST-10')).toBeUndefined();
+}, 120_000);
+
+it('risk:data-loss drop refuses a listed research record with uncommitted changes in the worktree holding its branch', async () => {
+  const EXTRA = 'accord/research/2026-10-30-extra.md';
+  const c = withOldRecord();
+  writeFiles(c.root, { [NEW]: REC('new'), 'accord/tickets/ST-10.md': laneTicket('ST-10', { frontmatter: ['research: ["' + NEW + '", "' + EXTRA + '"]'] }) });
+  commitMsg(c.root, 'claim: ST-10');
+  c.git('push', '-q', '-u', 'origin', 't/ST-10');
+  writeFiles(c.root, { [NEW]: REC('new edited'), [EXTRA]: REC('extra') });
+  let r = await run(['drop', 'ST-10', '--reason', 'x'], c.root);
+  expect(r.code).toBe(2);
+  expect(r.err).toContain(NEW + ' has uncommitted changes in ');
+  expect(r.err).toContain('commit and push them on t/ST-10 first');
+  expect(r.err).toContain('nothing was created');
+  expect(r.err).not.toContain('fix these on');
+  expect(remoteDrop(c, 'ST-10')).toBeUndefined();
+  c.git('checkout', '--', NEW);
+  r = await run(['drop', 'ST-10', '--reason', 'x'], c.root);
+  expect(r.code).toBe(2);
+  expect(r.err).toContain(EXTRA + ' has uncommitted changes in ');
+  expect(r.err).not.toContain('fix these on');
+  expect(remoteDrop(c, 'ST-10')).toBeUndefined();
+  commitMsg(c.root, 'extra');
+  c.git('push', '-q');
+  r = await run(['drop', 'ST-10', '--reason', 'x'], c.root);
+  expect(r.code, r.err).toBe(0);
+  expect(gitRun(c.remote, 'cat-file', 'blob', remoteDrop(c, 'ST-10')! + ':' + EXTRA)).toBe(REC('extra'));
+}, 120_000);
+
+it('risk:data-loss drop refuses a listed non-Markdown research record only the claim branch holds', async () => {
+  const TXT = 'accord/research/2026-10-30-measure.txt';
+  const c = withOldRecord();
+  writeFiles(c.root, { [TXT]: 'Date: 2026-10-30\nRepository at `5c083d3`\nmeasure\n', 'accord/tickets/ST-10.md': laneTicket('ST-10', { frontmatter: ['research: ["' + TXT + '"]'] }) });
+  commitMsg(c.root, 'claim: ST-10');
+  c.git('push', '-q', '-u', 'origin', 't/ST-10');
+  const r = await run(['drop', 'ST-10', '--reason', 'x'], c.root);
+  expect(r.code).toBe(2);
+  expect(r.err).toContain(TXT);
+  expect(r.err).toContain('only .md research records travel with a drop');
+  expect(r.err).toContain('rename it to .md on t/ST-10');
+  expect(r.err).toContain('nothing was created');
+  expect(r.err).not.toContain('not a file in the repository');
+  expect(remoteDrop(c, 'ST-10')).toBeUndefined();
+}, 120_000);

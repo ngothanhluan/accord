@@ -46,10 +46,10 @@ export function exclude(c: { root: string }, patterns: string[]): void {
   appendFileSync(`${c.root}/.git/info/exclude`, patterns.map((p) => p + '\n').join(''));
 }
 
-/** A link at `at` to `target`: a junction on Windows (no admin right needed), a directory symlink elsewhere. */
+/** A link at `at` to `target`: a junction on Windows (no admin right needed); elsewhere Node ignores the type and makes a symlink. */
 export function link(target: string, at: string): void {
   mkdirSync(dirname(at), { recursive: true });
-  symlinkSync(target, at, process.platform === 'win32' ? 'junction' : 'dir');
+  symlinkSync(target, at, 'junction');
 }
 
 /** Leaves a folder git no longer lists: the worktree is removed with `--force`, then an empty folder is made at its path. */

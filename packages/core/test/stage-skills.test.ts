@@ -1102,3 +1102,20 @@ it('risk:regression the review lane S and plan critique skills ask accord round 
   ];
   expect(problems).toEqual([]);
 });
+
+it('risk:regression the worktree reference and the finish report say a session start cleans a merged ticket and nobody removes it by hand', () => {
+  for (const dir of ['accord', 'accord-debug', 'accord-verify']) {
+    const wt = flatS(`.claude/skills/${dir}/worktree.md`);
+    for (const s of [
+      '`clean skipped` or `clean stopped`',
+      'A `kept <folder>: <file>` line names a file accord never deletes',
+      'every session start, resume or /clear runs the same clean',
+      '`tell the owner the lines above`',
+      '`removed`, `deleted` or `kept`',
+      'only from `/accord` with no argument and from `/accord upgrade`',
+    ])
+      expect(wt, dir).toContain(s);
+  }
+  for (const dir of ['accord', 'accord-verify'])
+    expect(flatS(`.claude/skills/${dir}/finish.md`), dir).toContain("Never wait for the merge, and never remove the ticket's worktree or branches by hand");
+});

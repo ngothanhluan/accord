@@ -16,3 +16,7 @@ The last message of a finished ticket has three parts, in this order, and nothin
    one per line, is an action it names, written as its command: `[Continue <id>]` as `/accord continue <id>`,
    `[Pick up <id>]` as `/accord pick-up <id>`, `[New request]` as `/accord <request>`. Leave out an action on the
    ticket just finished. The first ends with `(recommended)`. Never suggest an action the dashboard does not print.
+
+After this message, end the turn. Never wait for the merge, and never remove the ticket's worktree or branches by
+hand: once the owner merges the pull request, the next session start, resume or /clear, or the next `/accord`,
+removes them.

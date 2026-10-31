@@ -1530,7 +1530,7 @@ export function fixedReport({ repo, home, bench, dirs, forms = PROBE_FORMS }) {
   const texts = textsOf(p.setup, { main: allOn.main, agents: allOn.agents }, p.read);
   const { rows, items, ratios } = measure({ setup: p.setup, state: p.state, located: p.located, texts, calibration: p.calibration });
   const tickets = ticketShares({ calls, rows, tickets: doneTickets(repo) });
-  const text = render({ calls, version, folders, probeVersion: p.version, allOnTs: allOn.main.ts, rows, items, tickets, ratios });
+  const text = render({ calls, version, folders, probeVersion: p.version, allOnTs: allOn.main.ts, rows, items, tickets, ratios, unavailable: allOn.main.unavailable });
   fs.mkdirSync(`${repo}/docs/benchmark`, { recursive: true });
   fs.writeFileSync(`${repo}/docs/benchmark/fixed-context.md`, text);
   return { exit: 0, text };

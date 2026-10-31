@@ -990,6 +990,37 @@ it('ac-3 the report printed twice on the same transcripts and setup is the same'
   }
 }, 120_000);
 
+it('risk:regression of a real bug a server that failed to connect or needed authentication in the all-on probe is named as not measured', async () => {
+  const m = await measuredWorld();
+  const { w } = m;
+  try {
+    const state = (JSON.parse(readFileSync(`${w.bench}/fixed/probes.json`, 'utf8')) as { probes: { id: string; sessionId: string }[] }).probes;
+    const allOnId = (state.find((e) => e.id === 'all-on') as { sessionId: string }).sessionId;
+    const quiet = m.bench.fixedReport(m.args);
+    expect(quiet.exit).toBe(0);
+    expect(quiet.text).not.toContain('is not measured');
+    // The probe reports the servers late, after the first call, as the real transcript does.
+    const late = attachmentLine({
+      type: 'deferred_tools_delta', addedNames: [], pendingMcpServers: ['slow-one'], needsAuthMcpServers: ['plugin:docs:docs'],
+      failedMcpServers: [{ name: 'proj-db', errorCode: 'CONNECT_TIMEOUT', error: 'MCP server proj-db connection timed out' }],
+    });
+    appendFileSync(`${w.home}/.claude/projects/probes/${allOnId}.jsonl`, JSON.stringify(late) + '\n');
+    const r = m.bench.fixedReport(m.args);
+    expect(r.exit).toBe(0);
+    const tail = ' in the all-on probe, so its cost per call is not measured; a - in its cells means that, not that removing it saves nothing.';
+    const lines = r.text.split('\n').filter((l) => l.startsWith('MCP server '));
+    expect(lines).toEqual([
+      `MCP server plugin:docs:docs needed authentication${tail}`,
+      `MCP server proj-db failed to connect (CONNECT_TIMEOUT)${tail}`,
+      `MCP server slow-one was still connecting${tail}`,
+    ]);
+    expect(r.text).not.toContain('connection timed out');
+    expect(m.bench.fixedReport(m.args).text).toBe(r.text);
+  } finally {
+    rmSync(w.tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+}, 120_000);
+
 // ---- ST-LN-79 task 9: cost-weighted figures, the setup items and the ticket shares ----
 
 type Bill = { input: number; cacheRead: number; cacheWrite: number; output: number };

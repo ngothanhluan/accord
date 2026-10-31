@@ -65,6 +65,16 @@ export function firstCall(lines) {
       if (name !== undefined) mcpBlocks[name] = block;
     });
   }
+  // Servers that did not connect are reported by a deferred_tools_delta that can arrive after the first call, so the
+  // whole transcript is read: a server that failed or needed authentication, or was still pending, with the reason.
+  const unavailable = new Map();
+  for (const l of lines) {
+    if (l?.attachment?.type !== 'deferred_tools_delta') continue;
+    const a = l.attachment;
+    for (const f of a.failedMcpServers ?? []) if (typeof f?.name === 'string') unavailable.set(f.name, `failed to connect${typeof f.errorCode === 'string' ? ` (${f.errorCode})` : ''}`);
+    for (const n of a.needsAuthMcpServers ?? []) if (typeof n === 'string') unavailable.set(n, 'needed authentication');
+    for (const n of a.pendingMcpServers ?? []) if (typeof n === 'string' && !unavailable.has(n)) unavailable.set(n, 'was still connecting');
+  }
   const deferredTools = [...new Set(attachments('deferred_tools_delta').flatMap((a) => a.addedNames ?? []))];
   const user = lines.find((l) => l?.type === 'user');
   const content = user?.message?.content;
@@ -90,6 +100,7 @@ export function firstCall(lines) {
     prompt,
     mcpBlocks,
     deferredTools,
+    unavailable: [...unavailable].map(([name, reason]) => ({ name, reason })).sort((a, b) => cmp(a.name, b.name)),
   };
 }
 
@@ -530,7 +541,7 @@ export function ticketShares({ calls, rows, tickets }) {
 // `folders`), the Claude Code and the date of the all-on probe, and `measure`'s rows. Reads no clock: every date comes
 // from the transcripts. One row for the main session and one for each accord agent that ran; an agent that ran but has
 // no definition now keeps its calls and gets `-` in every figure.
-export function render({ calls, version, folders, probeVersion: probed, allOnTs, rows, items = [], tickets = [], ratios = {} }) {
+export function render({ calls, version, folders, probeVersion: probed, allOnTs, rows, items = [], tickets = [], ratios = {}, unavailable = [] }) {
   const first = calls.length ? day(Math.min(...calls.map((c) => c.ts))) : '-';
   const last = calls.length ? day(Math.max(...calls.map((c) => c.ts))) : '-';
   const ran = [...new Set(calls.filter((c) => c.accord).map((c) => c.row))].sort(cmp);
@@ -559,6 +570,7 @@ export function render({ calls, version, folders, probeVersion: probed, allOnTs,
     'A claude.ai connector can change its instructions on the server, which no fingerprint sees; its figure holds for the probe date.',
     "A plugin's own MCP servers count under MCP servers; its skills and agents count under plugins.",
     "An MCP server's instructions block that the main session loads is counted in every accord agent row's fixed context and MCP servers part: Claude Code adds it to a subagent after the subagent's first call, so it is added to the fixed context measured from that first call, and each subagent's first call, which does not carry it, is weighed without it.",
+    ...unavailable.map((u) => `MCP server ${u.name} ${u.reason} in the all-on probe, so its cost per call is not measured; a - in its cells means that, not that removing it saves nothing.`),
     'Local-scope MCP servers and .claude/settings.local.json are not measured: the probe worktree loads neither.',
     'Cursor, Codex and Copilot calls were not measured.',
     '',

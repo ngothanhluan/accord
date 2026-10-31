@@ -171,3 +171,4 @@
 - Review 1.5 (Nice): `PROBE_FORMS` keeps `claudeVersion`, `extraArgs` and `agentsArg` that nothing needs (the `agentsArg` JSON branch cannot run), and a test restates its key list.
 - Review 1.6 (Nice): the test title "a changed item reprints only its own probes and the all-on probe" no longer matches the code since Task 14 removed per-item probes.
 - Review 1.7 (Nice): the risk:complex-branching `measure` test repeats the totals and late-block assertions ac-1 already makes, with a helper that mirrors the formula.
+- Final review 1 (Nice): the not-measured line names `plugin:context7:context7`, which has no row in the items table, while the `context7@claude-plugins-official` plugin row shows `-` under "the cost per call that removing the item saves".

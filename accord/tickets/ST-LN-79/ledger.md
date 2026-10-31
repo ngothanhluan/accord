@@ -4,6 +4,7 @@
 - task 1 done 1addb0e5cdf6
 - task 2 done 90ae76b02c83
 - task 3 done f70d4a746033
+- task 4 done 46e4373f8897
 
 ## Rulings
 
@@ -73,6 +74,9 @@
 - Ruling: `mcp` on a probe is an array of `{ name, entry }`, absent (not empty) when no server stays, and `--strict-mcp-config` is added by id (`mcp-ref` and `mcp:*`), so an empty reference still gets the flag — cost if wrong: Tasks 4 and 5 read a different shape.
 - Ruling: `writeProbes` takes an optional `setup` (default `readSetup`) so `fixedProbe` reads the setup once, returns the entries it wrote sorted by id, and throws when two probe ids map to the same file name — cost if wrong: none.
 - Ruling: `phaseOne` takes `forms = PROBE_FORMS` as a second argument; a refusal goes to stderr and the command list to stdout; only the exact arguments `--fixed --probe` reach `fixedProbe`, and any other `--fixed` list gets the usage error (exit 2) until Task 8 — cost if wrong: one condition moves.
+- Ruling: row order in a text's `rows` is `main` first, then accord agent names sorted — the brief fixed no order — cost if wrong: code that compares rows by position must sort first.
+- Ruling: the `prompt` text lists every setup agent name, as Task 3's command does, while `brief` and the stubs cover only agents with an all-on first call — the brief said "<agent names>" for the prompt — cost if wrong: the prompt is sized with a few extra names.
+- Ruling: `ref:<model>` probes have `depends: {}` and `model` only — the brief named no dependencies — cost if wrong: a stale reference is caught only by the version check, not by a fingerprint.
 
 ## Deferred
 

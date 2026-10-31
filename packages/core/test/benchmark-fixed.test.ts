@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { expect, it } from 'vitest';
-import { assistantLine, attachmentLine, HOOK, makeWorld, writeSession, type World } from './helpers/fixed-world.js';
+import { assistantLine, attachmentLine, HOOK, makeWorld, userLine, writeSession, type World } from './helpers/fixed-world.js';
 
 type Line = Record<string, any>;
 type FirstCall = {
@@ -624,3 +624,76 @@ it('risk:complex-branching a set probe that still lists a member makes fixed ref
     rmSync(w.tmp, { recursive: true, force: true, maxRetries: 5 });
   }
 }, 120_000);
+
+type Call = { row: string; accord: boolean; file: string; ts: number; model: string; version: string; cwd: string; branch: string; input: number; cacheRead: number; cacheWrite: number; output: number };
+type ReadCalls = {
+  readCalls: (dirs: string[], o: { bench: string }) => { calls: Call[]; version: string; folders: number };
+  readSessions: (dirs: string[]) => { runs: { agent: string; desc: string }[] };
+};
+
+it('risk:parsing calls are read once per message from main and subagent transcripts and probe and bench runs are left out', async () => {
+  const { readCalls, readSessions } = (await import(new URL('../../../scripts/benchmark.mjs', import.meta.url).href)) as ReadCalls;
+  const w = makeWorld();
+  try {
+    const dir = `${w.home}/.claude/projects/proj`;
+    const probeBranch = 'probe/fixed-context';
+    const line = (o: Parameters<typeof assistantLine>[0]) => assistantLine({ cwd: w.repo, branch: 't/ST-LN-1', ...o });
+    // A real main session: message m1 streamed over two lines with the same usage, message m2, one synthetic line.
+    const real = [
+      line({ id: 'm1', input: 10, cacheRead: 100, cacheWrite: 5, output: 2, chars: 400, ts: T0 }),
+      line({ id: 'm1', input: 10, cacheRead: 100, cacheWrite: 5, output: 2, chars: 400, ts: T0 + 1000 }),
+      line({ id: 'm2', input: 20, cacheRead: 200, cacheWrite: 0, output: 50, chars: 4, ts: T0 + 2000 }),
+      line({ id: 'syn', model: '<synthetic>', input: 999, ts: T0 + 3000 }),
+    ];
+    const scout = [
+      line({ id: 's1', model: 'm-sonnet', input: 3, cacheRead: 30, ts: T0 + 4000 }),
+      line({ id: 's2', model: 'm-sonnet', input: 4, cacheRead: 40, ts: T0 + 5000 }),
+    ];
+    const general = [line({ id: 'g1', model: 'm-opus', input: 7, version: '9.1.0', ts: T0 + 9000 })];
+    // Runs of the real session that are measurement: a probe description, a line on the probe branch, a folder under bench, a bench branch.
+    const probeDescribed = [line({ id: 'p1', input: 1, ts: T0 + 6000 })];
+    const probeBranched = [line({ id: 'p2', input: 1, branch: probeBranch, ts: T0 + 6000 })];
+    const underBench = [line({ id: 'b1', input: 1, cwd: `${w.bench}/worktrees/x`, ts: T0 + 6000 }), line({ id: 'b2', input: 1, branch: 'bench/r1-a', ts: T0 + 6500 })];
+    writeSession(w.home, 'proj', 'real', {
+      main: [userLine('build the thing'), ...real],
+      agents: { 'accord-scout': scout, 'general-purpose': general, 'accord-reviewer': probeDescribed, 'accord-planner': probeBranched, 'accord-executor': underBench },
+      descriptions: { 'accord-scout': 'scout the code', 'general-purpose': 'look around', 'accord-reviewer': 'fixed probe accord-reviewer', 'accord-planner': 'plan it', 'accord-executor': 'build it' },
+    });
+    // A probe session: newest lines, another version, and a run of its own.
+    const probeLine = (id: string, o: Parameters<typeof assistantLine>[0] = {}) => assistantLine({ id, cwd: w.probeDir, branch: probeBranch, version: '9.9.9', ts: T0 + 20_000, ...o });
+    writeSession(w.home, 'proj', 'probe-a', { main: [userLine('accord fixed-context probe. dispatch'), probeLine('pa1')], agents: { 'accord-scout': [probeLine('pa2')] } });
+    // A probe session found by its first user line alone; its run is found through the session.
+    writeSession(w.home, 'proj', 'probe-b', {
+      main: [userLine('accord fixed-context probe. dispatch'), probeLine('pb1', { branch: 'main' })],
+      agents: { 'accord-critic': [probeLine('pb2', { branch: 'main' })] },
+      descriptions: { 'accord-critic': 'critique it' },
+    });
+
+    const { calls, version, folders } = readCalls([dir], { bench: w.bench });
+    const rows = (row: string) => calls.filter((c) => c.row === row);
+    expect(rows('main').map((c) => c.input + c.cacheRead + c.cacheWrite).sort((a, b) => a - b)).toEqual([115, 220]);
+    expect(rows('accord-scout')).toHaveLength(2);
+    expect(rows('accord-scout').every((c) => c.accord)).toBe(true);
+    expect(rows('general-purpose')).toHaveLength(1);
+    expect(rows('general-purpose')[0].accord).toBe(false);
+    expect(rows('main').every((c) => !c.accord)).toBe(true);
+    expect(calls).toHaveLength(5);
+    // The streamed message m1 counts once, with its usage and the output raised by its text length.
+    const m1 = rows('main').find((c) => c.cacheWrite === 5) as Call;
+    expect(m1).toMatchObject({ input: 10, cacheRead: 100, cacheWrite: 5, output: 200, model: 'm-sonnet', cwd: w.repo, branch: 't/ST-LN-1', version: '9.0.0', ts: T0 });
+    expect(m1.file.endsWith('real.jsonl')).toBe(true);
+    // The recorded output counts when it is the larger.
+    expect(rows('main').find((c) => c.input === 20)?.output).toBe(50);
+    // The version is the newest kept call's, not the probe session's.
+    expect(version).toBe('9.1.0');
+    expect(folders).toBe(1);
+
+    // The existing reader leaves out the probe runs it can see: a probe description or a line on the probe branch.
+    // (probe-b's critic is found by readCalls through its session, which readSessions does not read.)
+    const runs = readSessions([dir]).runs;
+    expect(runs.map((r) => r.agent).sort()).toEqual(['accord-critic', 'accord-executor', 'accord-scout', 'general-purpose']);
+    expect(runs.some((r) => r.desc.startsWith('fixed probe '))).toBe(false);
+  } finally {
+    rmSync(w.tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+});

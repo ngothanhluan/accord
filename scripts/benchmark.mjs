@@ -13,7 +13,7 @@ import { parse as parseYaml } from 'yaml';
 import { parsePlanReview } from './plan-review.mjs';
 import { median, ROLES, WRITERS, checkSamples, readDiffers, runMatrix, rewriteBrief, dispatchTable, matchRuns, mustsOf, judgeBrief, parseVerdict, holds, turnFlags, report, carryJudgeBriefs, escapes, exitState, runProblem } from './round.mjs';
 import { compliance, render as renderCompliance, parseCompliance, mergeCompliance } from './compliance.mjs';
-import { standsFor, firstCall, pendingProbes, probeVersion, PROBE_BRANCH, PROBE_BRIEF, PROBE_FORMS, dispatchPrompt, phaseOne, shellLine } from './fixed-context.mjs';
+import { standsFor, firstCall, pendingProbes, probeVersion, PROBE_BRANCH, PROBE_BRIEF, PROBE_DESCRIPTION, PROBE_FORMS, PROBE_PREFIX, dispatchPrompt, phaseOne, shellLine } from './fixed-context.mjs';
 
 const projectsRoot = path.join(os.homedir(), '.claude', 'projects');
 const defaultDirs = (repo) => {
@@ -26,8 +26,12 @@ const min = (ms) => (ms / 60000).toFixed(1);
 const k = (n) => (n / 1000).toFixed(0) + 'k';
 
 // ---- transcripts -------------------------------------------------------------
+// A subagent run of a fixed-context probe (ST-LN-79): measurement, not work, so the round tools leave it out.
+const probeRun = (meta, lines) => String(meta.description ?? '').startsWith(PROBE_DESCRIPTION) || lines.some((o) => o.gitBranch === PROBE_BRANCH);
+
 function readRun(jsonl, meta) {
   const lines = fs.readFileSync(jsonl, 'utf8').split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+  if (probeRun(meta, lines)) return null;
   const seen = new Set();
   let input = 0, output = 0, tools = 0, model = '', effort = '', branch = '', lastText = '', handedBack = false;
   for (const o of lines) {
@@ -77,7 +81,8 @@ for (const dir of dirs) {
     if (!fs.existsSync(sub)) continue;
     for (const f of fs.readdirSync(sub).filter((f) => f.endsWith('.meta.json'))) {
       const jsonl = path.join(sub, f.slice(0, -'.meta.json'.length) + '.jsonl');
-      if (fs.existsSync(jsonl)) runs.push(readRun(jsonl, JSON.parse(fs.readFileSync(path.join(sub, f), 'utf8'))));
+      const run = fs.existsSync(jsonl) ? readRun(jsonl, JSON.parse(fs.readFileSync(path.join(sub, f), 'utf8'))) : null;
+      if (run) runs.push(run);
     }
   }
 }
@@ -333,13 +338,73 @@ export function readSessions(dirs) {
         if (!fs.existsSync(jsonl)) continue;
         const file = `${name}/${s}/subagents/agent-${id}.jsonl`;
         const lines = readLines(jsonl);
+        const meta = JSON.parse(fs.readFileSync(path.join(sub, f), 'utf8'));
+        if (probeRun(meta, lines)) continue;
         refusals.push(...refusalsIn(file, lines));
-        runs.push(parseRun(file, id, JSON.parse(fs.readFileSync(path.join(sub, f), 'utf8')), lines, { uses, sends }));
+        runs.push(parseRun(file, id, meta, lines, { uses, sends }));
       }
     }
   }
   const seen = new Set();
   return { runs, refusals: refusals.filter((r) => { const key = JSON.stringify([r.file, r.ticket, r.task, r.reasons]); return seen.has(key) ? false : (seen.add(key), true); }) };
+}
+
+// ---- every call, main session and subagents (ST-LN-79) ---------------------------
+const userText = (o) => (typeof o.message?.content === 'string' ? o.message.content : items(o).filter((c) => c.type === 'text').map((c) => c.text).join('\n'));
+const sortedNames = (dir, ext) => ownFiles(dir, ext).sort();
+
+// A call is one assistant message that is not `<synthetic>`; a streamed message repeats its usage, so each usage field
+// is the largest over the message's lines. Output is the larger of the recorded value and the 4-characters-a-token
+// estimate: the transcript keeps the usage from the stream's start. Probe sessions and runs, and calls made in or for
+// the bench folder, are measurement and are left out. Returns `{ calls, version, folders }`; `version` is the Claude
+// Code of the newest kept call.
+export function readCalls(dirs, { bench }) {
+  const benchDir = slash(bench).toLowerCase();
+  const underBench = (cwd) => { const c = slash(cwd ?? '').toLowerCase(); return c === benchDir || c.startsWith(`${benchDir}/`); };
+  const calls = [];
+  const callsOf = (file, lines, row) => {
+    const byId = new Map();
+    for (const o of lines) {
+      if (o.type !== 'assistant' || !o.message || o.message.model === '<synthetic>') continue;
+      const id = o.message.id ?? o.requestId ?? o.uuid;
+      let c = byId.get(id);
+      if (!c) {
+        c = { row, accord: row.startsWith('accord-'), file, ts: stamp(o) ?? 0, model: o.message.model ?? '', version: o.version ?? '', cwd: o.cwd ?? '', branch: o.gitBranch ?? '', input: 0, cacheRead: 0, cacheWrite: 0, output: 0, chars: 0 };
+        byId.set(id, c);
+      }
+      const u = o.message.usage ?? {};
+      c.input = Math.max(c.input, u.input_tokens ?? 0);
+      c.cacheRead = Math.max(c.cacheRead, u.cache_read_input_tokens ?? 0);
+      c.cacheWrite = Math.max(c.cacheWrite, u.cache_creation_input_tokens ?? 0);
+      c.output = Math.max(c.output, u.output_tokens ?? 0);
+      for (const item of items(o)) c.chars += (item.text ?? item.thinking ?? (item.type === 'tool_use' ? JSON.stringify(item.input ?? '') : '')).length;
+    }
+    for (const { chars, ...c } of byId.values()) {
+      if (underBench(c.cwd) || c.branch.startsWith('bench/')) continue;
+      calls.push({ ...c, output: Math.max(c.output, Math.ceil(chars / 4)) });
+    }
+  };
+  for (const dir of dirs) {
+    const name = path.basename(dir);
+    for (const s of sortedNames(dir, '.jsonl').map((f) => f.slice(0, -'.jsonl'.length))) {
+      const lines = readLines(path.join(dir, `${s}.jsonl`));
+      if (lines.some((o) => o.gitBranch === PROBE_BRANCH) || userText(lines.find((o) => o.type === 'user') ?? {}).startsWith(PROBE_PREFIX)) continue;
+      callsOf(`${name}/${s}.jsonl`, lines, 'main');
+      const sub = path.join(dir, s, 'subagents');
+      for (const f of sortedNames(sub, '.meta.json')) {
+        const id = f.slice('agent-'.length, -'.meta.json'.length);
+        const jsonl = path.join(sub, `agent-${id}.jsonl`);
+        if (!fs.existsSync(jsonl)) continue;
+        let meta;
+        try { meta = JSON.parse(fs.readFileSync(path.join(sub, f), 'utf8')); } catch { continue; }
+        const subLines = readLines(jsonl);
+        if (typeof meta.agentType !== 'string' || probeRun(meta, subLines)) continue;
+        callsOf(`${name}/${s}/subagents/agent-${id}.jsonl`, subLines, meta.agentType);
+      }
+    }
+  }
+  const newest = calls.reduce((best, c) => (best === undefined || c.ts > best.ts ? c : best), undefined);
+  return { calls, version: newest?.version, folders: dirs.length };
 }
 
 export function agentSettings(repo) {

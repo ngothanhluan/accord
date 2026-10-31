@@ -110,16 +110,16 @@ export function assistantLine(o: {
 export const attachmentLine = (attachment: Record<string, unknown>): TranscriptLine => ({ type: 'attachment', attachment });
 export const userLine = (text: string): TranscriptLine => ({ type: 'user', message: { role: 'user', content: text } });
 
-/** Writes `<home>/.claude/projects/<folder>/<sessionId>.jsonl` when `main` is given, and for `agents` (agentType to lines) each `<sessionId>/subagents/agent-<n>.jsonl` with its `.meta.json`. */
+/** Writes `<home>/.claude/projects/<folder>/<sessionId>.jsonl` when `main` is given, and for `agents` (agentType to lines) each `<sessionId>/subagents/agent-<n>.jsonl` with its `.meta.json`; the description of a run is `fixed probe <agentType>` unless `descriptions` gives its agentType another. */
 export function writeSession(
   home: string, folder: string, sessionId: string,
-  { main, agents }: { main?: TranscriptLine[]; agents?: Record<string, TranscriptLine[]> },
+  { main, agents, descriptions }: { main?: TranscriptLine[]; agents?: Record<string, TranscriptLine[]>; descriptions?: Record<string, string> },
 ): void {
   const dir = `${home}/.claude/projects/${folder}`;
   const jsonl = (lines: TranscriptLine[]) => lines.map((l) => JSON.stringify(l)).join('\n') + '\n';
   if (main) put(`${dir}/${sessionId}.jsonl`, jsonl(main));
   Object.entries(agents ?? {}).forEach(([agentType, lines], n) => {
     put(`${dir}/${sessionId}/subagents/agent-${n}.jsonl`, jsonl(lines));
-    put(`${dir}/${sessionId}/subagents/agent-${n}.meta.json`, JSON.stringify({ agentType, description: `fixed probe ${agentType}` }) + '\n');
+    put(`${dir}/${sessionId}/subagents/agent-${n}.meta.json`, JSON.stringify({ agentType, description: descriptions?.[agentType] ?? `fixed probe ${agentType}` }) + '\n');
   });
 }

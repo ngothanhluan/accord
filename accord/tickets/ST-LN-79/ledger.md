@@ -116,6 +116,10 @@
 
 - Ruling: (re-plan 2, review 1.1) an MCP instructions block the all-on main holds before its first call is charged to every agent row as well — real subagent calls carry it from about their second call on, read-only agents included, so most calls carry it — cost if wrong: an agent row whose calls never get the block is overstated by about 600 tokens.
 
+- Ruling: (re-plan 2, round 1 fix) the Task 5 test steps are renumbered (new steps 7 and 8, old 7 and 8 become 9 and 10) rather than making the CLAUDE.md commit step undo itself — keeps the old steps code as it is — cost if wrong: an executor reading the older numbering finds the calibration step at step 7.
+- Ruling: (re-plan 2, round 1 fix) Task 15 adds a report line saying the main MCP instructions block is charged to every accord agent row — the report states its other method choices — cost if wrong: one extra line.
+- Ruling: (re-plan 2, round 1 fix) an MCP block held only by agents, never by the main, keeps the rows that hold it — the review 1.1 Ruling covers only blocks the main holds — cost if wrong: such a block is understated on other agent rows.
+
 ## Deferred
 
 - Plan review 1.14 (Nice): `PROBE_FORMS.claudeVersion` is recorded in Task 1 but no task reads it.

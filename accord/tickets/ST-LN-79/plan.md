@@ -1,6 +1,6 @@
 ---
 baseline: 5c8b5d96c8cbf6acddfcee3c6358c09b84f75094
-plan_hash: "fnv1a64:3e5db525f0a66dcc"
+plan_hash: "fnv1a64:aa0e053a546a462e"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -118,6 +118,11 @@ differ, this paragraph and Tasks 11 to 15 hold.
 - Sizes: with `I(p, r)` as in Task 7, `perChar(m) = (I(cal:m, main) − I(ref:m, main)) / calibration.length` tokens a
   character, and a text's size in row `r` is `Math.round(text.length × perChar(<the model key of r>))`, where
   `length` is the JavaScript string length. Claude Code's part is still measured directly by the baseline.
+- Rows a text reaches are read from the attachments before each row's first call in the all-on probe, with one
+  exception: an MCP server's instructions block that the all-on main holds before its first call is charged to every
+  agent row as well, because Claude Code adds that block to a subagent after the subagent's first call (real
+  accord-critic transcripts carry the `claude.ai Claude Docs` `mcp_instructions_delta` after their first assistant
+  line; ledger Ruling "re-plan 2, review 1.1"). Task 11 builds those rows, Task 15 says so in the report.
 - Stale: a change of the setup makes only `all-on` stale (Task 3's `fingerprints`, whose `docs` key also covers each
   instruction file's content from Task 12); `baseline` is also stale when its stubs change (an accord agent's tool
   list or model changed); a Claude Code version other than the probe version makes every probe stale; a calibration
@@ -907,7 +912,14 @@ label, text and rows; `stubsOf`.
     (a block's name is kept when both name one server) and sorted. For each such name `n`, with `k = serverKey(n)`:
     the item is `mcp:<s>` when a listable server `s` of `setup.mcp` has `serverKey(s) === k`, else `mcp:<n>`; owner
     `MCP servers`; label `n`. `mcp-block:<n>` is the block of the main FirstCall whose `mcpBlocks` holds a name with
-    key `k`, else that of the first agent by name that holds one; its rows are those holding one. `mcp-tools:<n>` is
+    key `k`, else that of the first agent by name that holds one. Its rows: when the main FirstCall holds a block
+    with key `k`, `main` and every agent row (each setup agent with an all-on FirstCall, whether or not its own
+    FirstCall holds the block), because Claude Code adds an MCP server's instructions block to a subagent after the
+    subagent's first call, so the attachments before that first call understate what its next calls carry (real
+    accord-critic transcripts, tools `Read, Grep, Glob`, carry the `claude.ai Claude Docs` `mcp_instructions_delta`
+    after their first assistant line; the all-on executor transcript has the deferred tool names but no block before its first call; ledger
+    Ruling "re-plan 2, review 1.1"); otherwise the agent rows whose FirstCall holds a block with key `k`. Rows are
+    ordered as every text's are, `main` first, then agent names sorted. `mcp-tools:<n>` is
     the `deferredTools` items starting `mcp__<k>__`, joined with `\n`, from the main FirstCall when it holds any,
     else from the first agent by name that holds any; its rows are those holding any.
   - The new texts come after the `doc:` texts and before `prompt`, in this order: plugins by id, sets by prefix,
@@ -936,7 +948,8 @@ Tests first.
   '- alpha:helper: h', '- other: o']`, its `mcpBlocks` `{ 'claude.ai Docs X': '## claude.ai Docs X\nrules',
   'proj-db': '## proj-db\nq' }` and its `deferredTools` `['mcp__claude_ai_Docs_X__read', 'mcp__proj_db__query',
   'mcp__plugin_alpha_srv__ping', 'WebFetch']`; the executor's `skillListing` is `['- accord: a', '- gsd-a: b']` and
-  its `deferredTools` `['mcp__proj_db__query']`. Assert, besides the kept assertions:
+  its `deferredTools` `['mcp__proj_db__query']`; the critic's `mcpBlocks` is `{ 'agent-only': '## agent-only\nz' }`
+  (no agent's `mcpBlocks` holds `claude.ai Docs X` or `proj-db`). Assert, besides the kept assertions:
   - `plugin-skills:alpha@m` is `{ owner: 'plugins', item: 'plugin:alpha@m', label: 'alpha@m', text: '- alpha:sk: c',
     rows: ['main'] }` and `plugin-agents:alpha@m` has the text `- alpha:helper: h` and rows `['main']`; no text id
     ends with `accord-panel@accord`;
@@ -944,10 +957,13 @@ Tests first.
     ['main', 'accord-executor'] }`; `set-agents:gsd` has the text `- gsd-r: r` and rows `['main']`; `set-skills:tool`
     has the text `- tool:run: d`;
   - `mcp-block:claude.ai Docs X` is `{ owner: 'MCP servers', item: 'mcp:claude.ai Docs X', text: '## claude.ai Docs
-    X\nrules', rows: ['main'] }` and `mcp-tools:claude.ai Docs X` has the text `mcp__claude_ai_Docs_X__read`;
-    `mcp-block:proj-db` has item `mcp:proj-db`; `mcp-tools:proj-db` has the text `mcp__proj_db__query` and rows
-    `['main', 'accord-executor']`; `mcp-tools:plugin_alpha_srv` has item `mcp:plugin_alpha_srv`, and there is no
-    `mcp-block:plugin_alpha_srv`;
+    X\nrules', rows: ['main', 'accord-critic', 'accord-executor', 'accord-scout'] }` (a block the main holds reaches
+    every agent row, though no agent FirstCall holds it) and `mcp-tools:claude.ai Docs X` has the text
+    `mcp__claude_ai_Docs_X__read` and rows `['main']`; `mcp-block:proj-db` has item `mcp:proj-db` and rows `['main',
+    'accord-critic', 'accord-executor', 'accord-scout']`; `mcp-tools:proj-db` has the text `mcp__proj_db__query` and
+    rows `['main', 'accord-executor']`; `mcp-block:agent-only` has item `mcp:agent-only`, the text `## agent-only\nz`
+    and rows `['accord-critic']` (a block only an agent holds stays on the agents holding it);
+    `mcp-tools:plugin_alpha_srv` has item `mcp:plugin_alpha_srv`, and there is no `mcp-block:plugin_alpha_srv`;
   - `skill-listing` still has the text `- accord: a`; no text holds `- other: o` or `WebFetch`; every line of the main
     listings is in at most one text;
   - `agent:accord-critic` has item `agent-definition`, `rules` item `rules`, `pointer:CLAUDE.md` item
@@ -995,10 +1011,15 @@ Tests first.
   title still holds), step 2 computes the expected ids with `phaseTwo(setup, allOn, disk, calibrationText())` and
   also expects `cal:m-opus` and `cal:m-sonnet`; `<bench>/fixed/cal_m-opus.md` exists and its text equals
   `calibrationText()`, which is longer than 4,000 characters and holds no `\r` and no `generated by accord skills
-  sync`. Steps 3 to 8 stay. A new step 9, from the step-3 bytes of `probes.json`: with the `cal:m-opus` session
-  rewritten at input 1 (its bytes saved first and written back after), the pending ids are exactly `cal:m-opus` and
-  `ref:m-opus`. A new step 10, from the step-3 bytes: with one line appended to `<memDir>/MEMORY.md` (its bytes saved
-  first and written back after), the pending ids are exactly `all-on`.
+  sync`. Steps 3 to 6 stay. Two new steps come after step 6 and before the step that commits a `CLAUDE.md` edit,
+  because that step and the uncommitted-edit step after it leave their changes in place (the commit moves the `docs`
+  hash and the uncommitted edit makes `setupDirty` refuse), so a step placed after them could not pass. The two old
+  steps keep their code and assertions and are renumbered 9 and 10. Each new step begins, as steps 4 to 6 do, by
+  writing the step-3 bytes of `probes.json` back:
+  7. with the `cal:m-opus` session rewritten at input 1 (its bytes saved first and written back after asserting),
+     the pending ids are exactly `cal:m-opus` and `ref:m-opus`;
+  8. with one line appended to `<memDir>/MEMORY.md` (its bytes saved first and written back after asserting), the
+     pending ids are exactly `all-on`.
 - `it('risk:complex-branching a set probe that still lists a member makes fixed refuse naming the set and the probe version')`
   is unchanged and passes with the new `writeProbeSessions`.
 - `measuredWorld` (`fixed-world.ts`): `CHOSEN` gains `perChar: { 'm-opus': 0.25, 'm-sonnet': 0.3 }`; its loop over
@@ -1033,8 +1054,9 @@ unattributed }`; that the parts and `unattributed` add up to `total`; `state` re
     size(brief, r)` for an agent. These are Task 7's formulas with a text's size read from the ratio.
   - `items`, each `{ id, owner, label, perRow }`, in this order: each enabled plugin `plugin:<id>` (label the id, with
     ` (accord's own)` for `accord-panel@accord`); each listable server `mcp:<name>` (label its name), then each other
-    `mcp:<n>` item the texts name, by name (label `<n> (claude.ai connector)` when `n` is a claude.ai connector by the
-    preamble's rule, else `n`); each set `set:<prefix>` (label `set <prefix> (<member count> members)`);
+    `mcp:<n>` item the texts name, by name, `<n>` being the text's `item` after `mcp:` (a text's `label` is not read
+    for it), labelled `<n> (claude.ai connector)` when `n` is a claude.ai connector by the preamble's rule, else `n`;
+    each set `set:<prefix>` (label `set <prefix> (<member count> members)`);
     `agent-definition`, `rules`, `skill-listing`, `agent-listing` and each `pointer:<label>` (labels as Task 7 gives
     them); each doc of `setup.docs`, then each `doc:` text whose label is none of theirs (labels as Task 7).
     `perRow[r]` is the sum of `size(t, r)` over the texts whose `item` is the item's id and whose `rows` hold `r`; a
@@ -1055,19 +1077,23 @@ Tests first.
   `agent:accord-scout` 2001 [scout], `agent:accord-executor` 2403 [executor], `rules` 999 [all], `skill-listing` 1601
   [main, executor], `agent-listing` 801 [main], `pointer:CLAUDE.md` 241 [all], `doc:CLAUDE.md` 361 [all],
   `doc:~/extra.md` 45 [main], `plugin-skills:alpha@m` 401 [main, executor], `plugin-agents:alpha@m` 121 [main],
-  `set-skills:gsd` 201 [main, scout], `set-agents:gsd` 61 [main], `mcp-block:srv` 603 [main], `mcp-tools:srv` 101
-  [main, executor], `mcp-block:claude.ai Docs X` 905 [main], `mcp-tools:claude.ai Docs X` 301 [main],
+  `set-skills:gsd` 201 [main, scout], `set-agents:gsd` 61 [main], `mcp-block:srv` 603 [all], `mcp-tools:srv` 101
+  [main, executor], `mcp-block:claude.ai Docs X` 905 [all], `mcp-tools:claude.ai Docs X` 301 [main],
   `mcp-tools:plugin_alpha_srv` 51 [main], `prompt` 161 [main], `baseline-prompt` 121 [main], `brief` 63 [scout,
   executor], with owners and items by Task 11's rules. Assert: each row's `total`, `claudeCode` and every part equal
   the values the test computes with `Math.round(length × perChar)` per text; `ratios` is `{ 'm-opus': 4, 'm-sonnet':
   1000 / 300 }`; `plugin:alpha@m` has `perRow` keys main and executor only; `plugin:beta@m`,
   `plugin:accord-panel@accord` and `mcp:idle` are listed with an empty `perRow`; `mcp:claude.ai Docs X` has the label
-  `claude.ai Docs X (claude.ai connector)` and `mcp:plugin_alpha_srv` the label `plugin_alpha_srv`; `set:gsd` has the
+  `claude.ai Docs X (claude.ai connector)` and a `perRow` key in every row (its block reaches every row), and
+  `mcp:plugin_alpha_srv` the label `plugin_alpha_srv` and a `perRow` key in main only; `set:gsd` has the
   label `set gsd (3 members)`; there is no item `other-servers`, `prompt` or `brief`; each row's parts plus
   `unattributed` equal its `total`; with `cal:m-sonnet`'s input set to 80, `measure` throws the message above.
 - In the Task 5 test `a changed item reprints only its own probes and the all-on probe`, step 2 computes the expected
-  ids with `phaseTwo(setup, allOn, calibrationText())` and asserts that no id starts with `text:`; step 7 now expects
-  exactly `all-on`; the test file's `NOTE` is the new note.
+  ids with `phaseTwo(setup, allOn, calibrationText())` and asserts that no id starts with `text:`; its
+  `arrayContaining` list becomes exactly `baseline`, `ref:m-opus`, `ref:m-sonnet`, `cal:m-opus` and `cal:m-sonnet`
+  (the four `text:` ids go), and its check that `<bench>/fixed/text_doc_CLAUDE.md_m-opus.md` exists goes; step 9 (the
+  committed `CLAUDE.md` edit, renumbered by Task 12) now expects exactly `all-on`, and its check that no id starts
+  with `text:pointer:` goes; the test file's `NOTE` is the new note.
 - `measuredWorld` and the criterion tests. `CHOSEN` drops `cut`, `mcpRefCut`, `mcpCut` and `delta`, and `sizeOf`
   goes; the leave-one-out sessions, planned until Task 14, are written with the all-on inputs; no `text:` session is
   written. `fixed-world.ts` exports `perCharOf(model)`, `(cal input − ref input) / calibrationText().length` from the
@@ -1078,11 +1104,14 @@ Tests first.
   `addedNames` `claude.ai Docs X` and `proj-db` and a block each (`## <name>\n` then one line), and one
   `deferred_tools_delta` with `mcp__claude_ai_Docs_X__read`, `mcp__proj_db__query` and `mcp__plugin_alpha_srv__ping`;
   the scout's all-on transcript also gets a `skill_listing` with `- gsd-a: <description>` and a `deferred_tools_delta`
-  with `mcp__proj_db__query`. `expectedRow` (ac-1) computes each owner's figure as the sum of `Math.round(<text
+  with `mcp__proj_db__query`, and no `mcp_instructions_delta` (the main's two blocks reach the scout's row by Task
+  11's rule all the same). `expectedRow` (ac-1) computes each owner's figure as the sum of `Math.round(<text
   length> × perCharOf(<row model>))` over that owner's texts in the row, built by Task 11's rules from those strings,
   and the docs from the files `makeWorld` writes (the root `CLAUDE.md` with its pointer block cut out, as Task 4
   cuts it). In ac-2 the item expectations become: the `MCP servers` lines are `claude.ai Docs X (claude.ai
-  connector)`, `plugin_alpha_srv`, `proj-db` and `user-search`; `alpha@m` has a main cell and `-` for the scout;
+  connector)`, `plugin_alpha_srv`, `proj-db` and `user-search`; `claude.ai Docs X (claude.ai connector)` and
+  `proj-db` each have a main and a scout cell (the block reaches the scout's row), `plugin_alpha_srv` a main cell and
+  `-` for the scout; `alpha@m` has a main cell and `-` for the scout;
   `beta@m`, `user-search` and the `note.md` line have `-` in every cell; `set gsd (3 members)` has a main and a scout
   cell, each computed as the other cells are. Every other assertion of ac-1, ac-2 and ac-3 stays.
 
@@ -1124,8 +1153,9 @@ Tests first.
   session id>`, and holds none of `--settings`, `--mcp-config` and `--strict-mcp-config`; `<bench>/fixed` holds
   `probes.json` alone; with `forms: { ...PROBE_FORMS, extraArgs: ['--allowedTools', 'Agent'] }` the command ends with
   ` --allowedTools Agent`; `Object.keys(PROBE_FORMS)` sorted is `['agentsArg', 'claudeVersion', 'extraArgs',
-  'noSources']`; after an uncommitted edit of `.claude/agents/accord-scout.md`, `fixedProbe` exits 2 with the refusal
-  line and `<bench>/fixed` does not exist.
+  'noSources']`; then, with `<bench>/fixed` removed (`rmSync` with `recursive: true, force: true, maxRetries: 5`) and
+  an uncommitted edit of `.claude/agents/accord-scout.md`, `fixedProbe` exits 2 with the refusal line and
+  `<bench>/fixed` does not exist (the refusal writes nothing).
 - Delete `it('risk:security MCP config files stay under the bench root and no server secret is printed or stored in the repository')`
   (Task 3) and write `it('risk:security no MCP server secret is printed or written to any file')` on `makeWorld()`:
   after `fixedProbe`, and after `fixedPending` once the all-on session is written with `writeProbeSessions` (so the
@@ -1158,7 +1188,9 @@ order.
 
 - `render` drops the line `A plugin's own MCP servers count under plugins and again in the other connected servers
   line; unattributed absorbs the overlap.` and prints, in its place, `A plugin's own MCP servers count under MCP
-  servers; its skills and agents count under plugins.` Directly after the line `The main session row is measured under
+  servers; its skills and agents count under plugins.`, then directly after it `An MCP server's instructions block
+  that the main session loads is charged to every accord agent row too: Claude Code adds it to a subagent after the
+  subagent's first call.` (the rows rule of Task 11). Directly after the line `The main session row is measured under
   claude -p, with its probe prompt sized and taken out.` it prints `Every part but Claude Code is sized from its
   text's characters at a characters-per-token ratio calibrated on each model (<model>: <ratio>, ... characters a
   token), so those sizes carry that estimate, about ±10%; unattributed absorbs the difference.`, with each model key
@@ -1166,6 +1198,7 @@ order.
 
 Test first: in `it('ac-1 the main session and each accord agent that ran get one row split by owner')` (Task 8; its
 title still holds), the assertion on the dropped line becomes one that no line holds `again in the other connected
-servers line`; the text holds the plugin-servers line above and the ratio line, its ratios computed in the test from
+servers line`; the text holds the plugin-servers line above, directly followed by the MCP-block line above, and the
+ratio line, its ratios computed in the test from
 `measuredWorld`'s inputs as `calibrationText().length / (cal input − ref input)` for `m-opus` and `m-sonnet`, and the
 ratio line comes directly after the main-session line. Every other assertion stays.

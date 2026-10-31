@@ -1,9 +1,10 @@
 // ST-LN-7, ST-LN-20, ST-LN-34, ST-LN-55: `accord worktree clean` of merged, pruned and dropped tickets, and the session-start hook that runs it, against real git in tmp sandboxes with a bare remote.
-import { chmodSync, existsSync, mkdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
-import { expect, it, vi } from 'vitest';
+import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { afterEach, expect, it, vi } from 'vitest';
 import * as proc from '../src/load/proc.js';
 import { laneTicket } from '../../../test/helpers/lane.js';
-import { ALIVE, gone, runWhole } from './helpers/done.js';
+import { ALIVE, exclude, gone, link, listing, runWhole } from './helpers/done.js';
+import { spawnLog } from './helpers/git-spawns.js';
 import { commitMsg, gitRun, run, writeFiles } from './helpers/repo.js';
 import { claimWorktree, clone, copy, DEAD, doneOnRemote, dropAndMerge, dropOnRemote, has, lines, LIVE, readHolds, recorder, sha, ticketBranches, ticketWorktree, useSandboxes, worktreeAndSshRemote, writeHolds, type Clone } from './helpers/worktree.js';
 
@@ -14,6 +15,14 @@ vi.mock('../src/load/proc.js', async (orig) => {
 vi.mock('../src/commands/fetch-limit.js', async (orig) => {
   const real = await orig<typeof import('../src/commands/fetch-limit.js')>();
   return { ...real, fetchLimitMs: vi.fn(real.fetchLimitMs) };
+});
+vi.mock('node:child_process', async (orig) => (await import('./helpers/git-spawns.js')).wrapChildProcess(await orig<typeof import('node:child_process')>()));
+
+afterEach(() => {
+  spawnLog.on = false;
+  spawnLog.after = undefined;
+  spawnLog.fail = undefined;
+  spawnLog.calls = [];
 });
 
 useSandboxes([
@@ -138,10 +147,10 @@ it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)('risk:comple
   try {
     const q = await run(['worktree', 'clean'], d.root, {});
     expect(lines(q.out)).toHaveLength(3);
+    expect(lines(q.out)[0]!.startsWith(`kept ${d.sibling('ST-9')}: `)).toBe(true);
     expect(lines(q.out)[1]).toBe(`deleted t/ST-9 (was ${sha9d})`);
     expect(lines(q.out)[2]).toBe(`deleted origin/t/ST-9 (was ${t['ST-9']})`);
-    expect(q.out.startsWith(`removed ${d.sibling('ST-9')} in part: git worktree remove failed: `)).toBe(true);
-    expect(lines(q.out)[0]!.endsWith(' - delete what is left of the folder by hand')).toBe(true);
+    expect(existsSync(`${d.sibling('ST-9')}/sub/f.txt`)).toBe(true);
     expect(d.git('worktree', 'list', '--porcelain')).not.toContain(d.sibling('ST-9'));
     expect(Object.keys(readHolds(d))).toEqual([]);
   } finally {
@@ -583,4 +592,123 @@ it('risk:data-loss a session start whose clean output passes 128 KiB still print
   expect(removed).toBeGreaterThan(-1);
   expect(L.indexOf('tell the owner the lines above')).toBeGreaterThan(removed);
   expect(gone(c.sibling('ST-9'))).toBe(true);
+}, 120_000);
+
+it('ac-1 clean removes a done ticket worktree completely and keeps and names one holding an ignored env file', async () => {
+  const c = copy({ tickets: ['ST-9', 'ST-10'] });
+  exclude(c, ['dist/', '.DS_Store', 'Thumbs.db', '.env']);
+  for (const id of ['ST-9', 'ST-10']) {
+    claimWorktree(c, id);
+    const s = c.sibling(id);
+    link(`${s}/accord`, `${s}/node_modules/@x/ws`);
+    writeFiles(s, { 'node_modules/.bin/tool.cmd': 'x', 'dist/index.js': 'x', 'sub/.DS_Store': 'x', 'Thumbs.db': 'x' });
+  }
+  writeFiles(c.sibling('ST-10'), { '.env': 'SECRET=1\n' });
+  const before = listing(c.sibling('ST-10'));
+  doneOnRemote(c, ['ST-9', 'ST-10']);
+  const r = await run(['worktree', 'clean'], c.root);
+  expect(r.code).toBe(0);
+  expect(gone(c.sibling('ST-9'))).toBe(true);
+  const L = lines(r.out);
+  expect(L).toContain(`removed ${c.sibling('ST-9')}`);
+  expect(c.git('worktree', 'list', '--porcelain')).toContain(`worktree ${c.sibling('ST-10')}\n`);
+  expect(listing(c.sibling('ST-10'))).toEqual(before);
+  expect(L).toContain(`kept ${c.sibling('ST-10')}: .env`);
+  expect(L.some((l) => l.startsWith(`removed ${c.sibling('ST-10')}`))).toBe(false);
+}, 120_000);
+
+it('risk:data-loss clean keeps a worktree holding an ignored env file when status shows no untracked files', async () => {
+  const c = copy();
+  exclude(c, ['.env']);
+  claimWorktree(c, 'ST-9');
+  writeFiles(c.sibling('ST-9'), { '.env': 'SECRET=1\n' });
+  doneOnRemote(c, ['ST-9']);
+  c.git('config', 'status.showUntrackedFiles', 'no');
+  const r = await run(['worktree', 'clean'], c.root);
+  expect(r.code).toBe(0);
+  expect(lines(r.out)).toContain(`kept ${c.sibling('ST-9')}: .env`);
+  expect(c.git('worktree', 'list', '--porcelain')).toContain(`worktree ${c.sibling('ST-9')}\n`);
+  expect(readFileSync(`${c.sibling('ST-9')}/.env`, 'utf8')).toBe('SECRET=1\n');
+}, 120_000);
+
+it('risk:data-loss the disposable list in config.yml decides which ignored folders a done worktree may hold and still be removed', async () => {
+  const c = copy({ tickets: ['ST-9', 'ST-10'] });
+  exclude(c, ['coverage/', 'dist/']);
+  claimWorktree(c, 'ST-9');
+  writeFiles(c.sibling('ST-9'), { 'coverage/x': 'x' });
+  claimWorktree(c, 'ST-10');
+  writeFiles(c.sibling('ST-10'), { 'dist/x': 'x' });
+  doneOnRemote(c, ['ST-9', 'ST-10']);
+  const cfg = `${c.root}/accord/config.yml`;
+  const text = readFileSync(cfg, 'utf8').trimEnd();
+  writeFileSync(cfg, text + '\ndisposable: [node_modules]\n');
+  const a = await run(['worktree', 'clean'], c.root);
+  expect(a.code).toBe(0);
+  const A = lines(a.out);
+  expect(A.some((l) => l.startsWith(`kept ${c.sibling('ST-9')}: coverage/`))).toBe(true);
+  expect(A.some((l) => l.startsWith(`kept ${c.sibling('ST-10')}: dist/`))).toBe(true);
+  expect(A.some((l) => l.startsWith('removed'))).toBe(false);
+  const listed = c.git('worktree', 'list', '--porcelain');
+  expect(listed).toContain(`worktree ${c.sibling('ST-9')}\n`);
+  expect(listed).toContain(`worktree ${c.sibling('ST-10')}\n`);
+  expect(readFileSync(`${c.sibling('ST-10')}/dist/x`, 'utf8')).toBe('x');
+  writeFileSync(cfg, text + '\ndisposable: [node_modules, dist, coverage]\n');
+  const b = await run(['worktree', 'clean'], c.root);
+  expect(b.code).toBe(0);
+  const B = lines(b.out);
+  expect(B).toContain(`removed ${c.sibling('ST-9')}`);
+  expect(B).toContain(`removed ${c.sibling('ST-10')}`);
+  expect(gone(c.sibling('ST-9'))).toBe(true);
+  expect(gone(c.sibling('ST-10'))).toBe(true);
+}, 120_000);
+
+it('risk:regression a folder git reports removed but leaves links and disposable files in is deleted before removed is printed', async () => {
+  const c = copy();
+  claimWorktree(c, 'ST-9');
+  doneOnRemote(c, ['ST-9']);
+  spawnLog.after = (args) => {
+    if (args[0] === 'worktree' && args[1] === 'remove') {
+      const p = args[2]!;
+      link(`${c.root}/accord`, `${p}/node_modules/@x/ws`);
+      mkdirSync(`${p}/a/b`, { recursive: true });
+      writeFiles(p, { 'dist/index.js': 'x' });
+    }
+  };
+  spawnLog.on = true;
+  const r = await run(['worktree', 'clean'], c.root);
+  spawnLog.on = false;
+  expect(r.code).toBe(0);
+  expect(gone(c.sibling('ST-9'))).toBe(true);
+  const L = lines(r.out);
+  expect(L).toContain(`removed ${c.sibling('ST-9')}`);
+  expect(L.some((l) => l.startsWith(`kept ${c.sibling('ST-9')}`))).toBe(false);
+  expect(existsSync(`${c.root}/accord/config.yml`)).toBe(true);
+}, 120_000);
+
+it('risk:complex-branching a worktree remove that fails after git unregistered the folder keeps and names the file left in it', async () => {
+  const c = copy();
+  claimWorktree(c, 'ST-9');
+  const t = doneOnRemote(c, ['ST-9']);
+  const sha9 = sha(c, 't/ST-9');
+  writeHolds(c, { 'ST-9': { ...DEAD, folder: c.sibling('ST-9') } });
+  vi.mocked(proc.processTable).mockReturnValue(ALIVE);
+  spawnLog.fail = (args) => {
+    if (args[0] !== 'worktree' || args[1] !== 'remove') return false;
+    spawnLog.on = false;
+    try {
+      gitRun(c.root, ...args);
+      writeFiles(args[2]!, { 'sub/f.txt': 'left\n' });
+    } finally {
+      spawnLog.on = true;
+    }
+    return true;
+  };
+  spawnLog.on = true;
+  const r = await run(['worktree', 'clean'], c.root);
+  spawnLog.on = false;
+  expect(r.code).toBe(0);
+  expect(lines(r.out)).toEqual([`kept ${c.sibling('ST-9')}: sub/f.txt`, `deleted t/ST-9 (was ${sha9})`, `deleted origin/t/ST-9 (was ${t['ST-9']})`]);
+  expect(readFileSync(`${c.sibling('ST-9')}/sub/f.txt`, 'utf8')).toBe('left\n');
+  expect(c.git('worktree', 'list', '--porcelain')).not.toContain(c.sibling('ST-9'));
+  expect(Object.keys(readHolds(c))).toEqual([]);
 }, 120_000);

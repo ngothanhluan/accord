@@ -5,6 +5,7 @@ import { DEFAULT_BRANCH_TEMPLATE, forbiddenLines, isSha, loadConfig, loadSnapsho
 import type { RepoSnapshot } from '@accord-dev/accord-core';
 import { currentBranch, droppedOn, gitDefaultRef, gitUnpushedCommits, gitUserEmail, loadFromFs, loadWithBranch, snapshotAt, ticketOfBranch, UsageError } from '../load/fs.js';
 import { fetchLimitMs } from './fetch-limit.js';
+import { DEFAULT_DISPOSABLE, isDisposable, sweepRemoved } from './leftover.js';
 import { claudeEnv, describeSession, isLive, processTable, runSetup, sameSession, sessionIn } from '../load/proc.js';
 import type { Session } from '../load/proc.js';
 import type { CommandContext } from '../run.js';
@@ -700,8 +701,17 @@ function passGuards(ctx: CommandContext, w: PrunableEntry, id: string, s: GuardS
 `);
     return undefined;
   }
-  if (git(w.path, ['status', '--porcelain', '--untracked-files=normal', '--ignore-submodules=none']).trim() !== '') {
+  // D-08: `git worktree remove` deletes every ignored file, so they are judged here; `matching` lists an ignored file under a folder that is not itself ignored, and the untracked mode stays explicit whatever `status.showUntrackedFiles` says
+  const status = git(w.path, ['status', '--porcelain', '-z', '--ignored=matching', '--untracked-files=normal', '--ignore-submodules=none']).split('\0').filter((e) => e !== '');
+  if (status.some((e) => !e.startsWith('!! '))) {
     ctx.stdout.write(`kept ${w.path}: uncommitted work
+`);
+    return undefined;
+  }
+  const names = ctx.snapshot.config?.disposable ?? DEFAULT_DISPOSABLE;
+  const real = status.find((e) => !isDisposable(e.slice(3), names));
+  if (real !== undefined) {
+    ctx.stdout.write(`kept ${w.path}: ${real.slice(3)}
 `);
     return undefined;
   }
@@ -752,13 +762,15 @@ function removeWorktree(ctx: CommandContext, w: WorktreeEntry, id: string, h: Ho
   }
   // the list held before this removal no longer stands; the read below, when there is one, is fresh
   if (seen !== undefined) seen.list = undefined;
-  const gone = failure === undefined || !readList(ctx, seen).some((x) => x.path === w.path);
-  if (failure === undefined) ctx.stdout.write(`removed ${w.path}
-`);
-  else if (gone) ctx.stdout.write(`removed ${w.path} in part: git worktree remove failed: ${failure} - delete what is left of the folder by hand
-`);
-  else ctx.stdout.write(`kept ${w.path}: git worktree remove failed: ${failure}
-`);
+  const listed = failure !== undefined && readList(ctx, seen).some((x) => x.path === w.path);
+  const line = seen ?? {};
+  if (listed) folderLine(ctx, line, w.path, `kept ${w.path}: git worktree remove failed: ${failure}`);
+  else {
+    // git unregistered the folder, but may leave links (Git for Windows leaves npm's junctions) or files behind; "removed" means the folder is gone
+    const left = sweepRemoved(w.path, ctx.snapshot.config?.disposable ?? DEFAULT_DISPOSABLE);
+    folderLine(ctx, line, w.path, left === undefined ? `removed ${w.path}` : `kept ${w.path}: ${left}`);
+  }
+  const gone = !listed;
   if (gone && h !== undefined) {
     try {
       withHolds(ctx.root, (all) => (Object.hasOwn(all, id) ? Object.fromEntries(Object.entries(all).filter(([k]) => k !== id)) : undefined));

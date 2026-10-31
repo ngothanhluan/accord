@@ -1,7 +1,7 @@
 // Helpers of the ST-LN-55 clean tests (worktree-clean.test.ts) that helpers/worktree.ts does not hold.
-import { existsSync, lstatSync, realpathSync } from 'node:fs';
+import { appendFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, realpathSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { runCli } from '../../src/run.js';
 
 /** The process table in which LIVE runs and DEAD does not. */
@@ -38,4 +38,35 @@ export async function runWhole(argv: string[], cwd: string, stdin?: string): Pro
     ...(stdin === undefined ? {} : { stdin }),
   });
   return { code, out, err };
+}
+
+/** Append each pattern and a newline to `.git/info/exclude`, which every worktree of the clone reads. */
+export function exclude(c: { root: string }, patterns: string[]): void {
+  mkdirSync(`${c.root}/.git/info`, { recursive: true });
+  appendFileSync(`${c.root}/.git/info/exclude`, patterns.map((p) => p + '\n').join(''));
+}
+
+/** A link at `at` to `target`: a junction on Windows (no admin right needed), a directory symlink elsewhere. */
+export function link(target: string, at: string): void {
+  mkdirSync(dirname(at), { recursive: true });
+  symlinkSync(target, at, process.platform === 'win32' ? 'junction' : 'dir');
+}
+
+/** The sorted lines of a walk that never follows a link: `<rel> -> <target>`, `<rel>/` for a folder, `<rel>: <content>` for a file. */
+export function listing(dir: string): string[] {
+  const out: string[] = [];
+  const walk = (rel: string): void => {
+    for (const name of readdirSync(join(dir, rel))) {
+      const r = rel === '' ? name : `${rel}/${name}`;
+      const p = join(dir, r);
+      const st = lstatSync(p);
+      if (st.isSymbolicLink()) out.push(`${r} -> ${readlinkSync(p)}`);
+      else if (st.isDirectory()) {
+        out.push(`${r}/`);
+        walk(r);
+      } else out.push(`${r}: ${readFileSync(p, 'utf8')}`);
+    }
+  };
+  walk('');
+  return out.sort();
 }

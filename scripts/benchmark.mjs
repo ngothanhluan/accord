@@ -1316,7 +1316,7 @@ export function readSetup({ repo, home }) {
 
   const servers = new Map();
   for (const [scope, file] of [['user', `${home}/.claude.json`], ['project', `${repo}/.mcp.json`]]) {
-    for (const [name, entry] of Object.entries(readJsonFile(file, home)?.mcpServers ?? {})) servers.set(name, { name, scope, entry, hash: sha256(JSON.stringify(entry)) });
+    for (const [name, entry] of Object.entries(readJsonFile(file, home)?.mcpServers ?? {})) servers.set(name, { name, scope, hash: sha256(JSON.stringify(entry)) });
   }
   const mcp = [...servers.values()].sort(byName('name'));
 
@@ -1373,10 +1373,9 @@ const REFUSED_DIRTY = 'Refused: .claude or a CLAUDE.md file has uncommitted chan
 const safe = (id) => id.replace(/[^A-Za-z0-9._-]/g, '_');
 
 // Writes the files of the probes under `<bench>/fixed/` and records each probe's session id, command and
-// fingerprint in `<bench>/fixed/probes.json`. A probe run from the probe worktree gets its settings and MCP config
-// files (MCP config files carry server secrets, so they never go inside the repository); a probe run from the empty
-// folder gets the baseline's stub agents or the text it appends. A probe keeps its session id unless `fresh` (a
-// boolean, or a function of the probe id). Returns the entries written, sorted by id.
+// fingerprint in `<bench>/fixed/probes.json`. A probe run from the probe worktree (the all-on probe) needs no file;
+// a probe run from the empty folder gets the baseline's stub agents or the text it appends. A probe keeps its
+// session id unless `fresh` (a boolean, or a function of the probe id). Returns the entries written, sorted by id.
 export function writeProbes({ repo, home, bench, probes, fresh, forms = PROBE_FORMS, setup = readSetup({ repo, home }) }) {
   const dir = `${slash(bench)}/fixed`;
   fs.mkdirSync(dir, { recursive: true });
@@ -1408,17 +1407,6 @@ export function writeProbes({ repo, home, bench, probes, fresh, forms = PROBE_FO
       continue;
     }
     const args = ['claude', '-p', prompt, '--session-id', sessionId, ...forms.extraArgs];
-    if (probe.settings) {
-      const file = `${dir}/${safe(probe.id)}.settings.json`;
-      fs.writeFileSync(file, JSON.stringify(probe.settings, null, 2) + '\n');
-      args.push('--settings', file);
-    }
-    if (probe.mcp) {
-      const file = `${dir}/${safe(probe.id)}.mcp.json`;
-      fs.writeFileSync(file, JSON.stringify({ mcpServers: Object.fromEntries(probe.mcp.map((m) => [m.name, m.entry])) }, null, 2) + '\n');
-      args.push('--mcp-config', file);
-    }
-    if (probe.id === 'mcp-ref' || probe.id.startsWith('mcp:')) args.push('--strict-mcp-config');
     written.push({ id: probe.id, sessionId, cwd: setup.probeDir, command: `cd ${shellLine([setup.probeDir])} && ${shellLine(args)}`, fingerprint: probe.depends });
   }
   const kept = stored.filter((e) => !written.some((w) => w.id === e.id));
@@ -1436,12 +1424,12 @@ function worktreeLine(repo, setup) {
 }
 const HEADER = '# Run in Git Bash, then run: node scripts/benchmark.mjs --fixed';
 
-// `--fixed --probe`: writes the phase-one probes anew and returns the commands the owner runs in Git Bash.
+// `--fixed --probe`: writes the phase-one probe (the all-on probe) anew and returns the commands the owner runs in Git Bash.
 export function fixedProbe({ repo, home, bench, forms = PROBE_FORMS }) {
   repo = slash(repo);
   if (setupDirty(repo)) return { exit: 2, text: REFUSED_DIRTY };
   const setup = readSetup({ repo, home });
-  const written = writeProbes({ repo, home, bench, probes: phaseOne(setup, forms), fresh: true, forms, setup });
+  const written = writeProbes({ repo, home, bench, probes: phaseOne(setup), fresh: true, forms, setup });
   return { exit: 0, text: [HEADER, worktreeLine(repo, setup), ...written.map((e) => e.command)].join('\n') + '\n' };
 }
 
@@ -1477,7 +1465,7 @@ export function locateSessions(home, ids) {
 // The text appended to the brief by the calibration probes, whichever repository the script measures.
 export const calibrationText = () => fs.readFileSync(fileURLToPath(new URL('./fixed-calibration.txt', import.meta.url)), 'utf8');
 
-// `--fixed`, first step: the probes that are missing, stale or failed. Writes the files and commands of the ones to
+// `--fixed`, first step: the probes that are missing or stale. Writes the files and commands of the ones to
 // run (and nothing else) and returns `{ exit, pending, version, text }`; `text` holds the commands, or the refusal. A
 // call that is not refused also returns what it read: `probes`, `setup`, `state`, `located` and `read`.
 export function fixedPending({ repo, home, bench, forms = PROBE_FORMS }) {
@@ -1489,11 +1477,7 @@ export function fixedPending({ repo, home, bench, forms = PROBE_FORMS }) {
   const version = probeVersion(state, located);
   const read = (file) => { try { return fs.readFileSync(file, 'utf8'); } catch { return undefined; } };
   const calibration = calibrationText();
-  const { probes, pending, failed, notes } = pendingProbes({ setup, state, located, version, calibration, forms });
-  if (failed.length) {
-    const lines = failed.map((f) => `Refused: the probe ${f.id} still lists ${f.member} under Claude Code ${version}, so the settings that move a set out of reach no longer work on this version; run the switch spike again and update PROBE_FORMS in scripts/fixed-context.mjs before measuring.`);
-    return { exit: 2, pending, version, text: lines.join('\n') + '\n' };
-  }
+  const { probes, pending, notes } = pendingProbes({ setup, state, located, version, calibration });
   const todo = probes.filter((p) => pending.includes(p.id));
   const emptyDir = `${slash(bench)}/fixed/empty`;
   if (todo.some((p) => p.where === 'empty')) {

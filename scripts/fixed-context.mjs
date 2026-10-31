@@ -18,19 +18,13 @@ export const serverKey = (name) => name.replace(/[^A-Za-z0-9]/g, '_');
 // The forms the spike of 2026-10-31 proved with Claude Code 2.1.314 (every run from Git Bash, on Windows).
 // - A dispatched agent needs no extra flag in `-p`.
 // - `--setting-sources ""` turns every setting source off; `--agents` takes the path of a JSON file.
-// - Agents are moved out of reach with the permission rule `Agent(<name>)`. The rule `Skill(<name>)` does not:
-//   a denied skill or command stays in the skill listing, so `deny.skill` and `deny.command` are null and a skill
-//   or command is moved out of reach with the setting `skillOverrides: { "<name>": <skillOverride> }` instead.
-// - A claude.ai connector cannot be taken out of the main session's first call by a deny rule: neither
-//   `mcp__<server>` nor `mcp__<server>__*` removes its `mcp_instructions_delta` entry, so `connector` is null.
+// - The switches that moved a plugin, a set or a server out of reach (deny rules, skillOverrides, connectors) are no longer
+//   used since the change of course of 2026-10-31: every part but Claude Code is sized from its text.
 export const PROBE_FORMS = {
   claudeVersion: '2.1.314',
   extraArgs: [],
   noSources: ['--setting-sources', ''],
   agentsArg: 'file',
-  deny: { skill: null, agent: 'Agent({name})', command: null },
-  skillOverride: 'off',
-  connector: null,
 };
 
 const sum = (u) => u.input + u.cacheRead + u.cacheWrite;
@@ -139,38 +133,9 @@ export function fingerprints(setup) {
   return Object.fromEntries(Object.entries(out).sort(([a], [b]) => cmp(a, b)));
 }
 
-// The probes run from the probe worktree that need no transcript to be planned: everything on, one probe per
-// enabled plugin with only that plugin off, the MCP reference and one probe per listable server with only that
-// server left out, and one probe per set of the owner's own skills, agents and commands moved out of reach.
-// Each is { id, where, depends, settings?, mcp? }; `mcp` lists { name, entry } and is absent when no server stays.
-export function phaseOne(setup, forms = PROBE_FORMS) {
-  const fp = fingerprints(setup);
-  const pick = (keys) => Object.fromEntries(keys.map((k) => [k, fp[k]]));
-  const servers = setup.mcp.map((m) => ({ name: m.name, entry: m.entry }));
-  const withServers = (list) => (list.length ? { mcp: list } : {});
-  const probes = [{ id: 'all-on', where: 'probe', depends: fp }];
-  for (const p of setup.plugins) {
-    probes.push({ id: `plugin:${p.id}`, where: 'probe', depends: pick([`plugin:${p.id}`]), settings: { enabledPlugins: { [p.id]: false } } });
-  }
-  probes.push({ id: 'mcp-ref', where: 'probe', depends: pick(setup.mcp.map((m) => `mcp:${m.name}`)), ...withServers(servers) });
-  for (const m of setup.mcp) {
-    probes.push({ id: `mcp:${m.name}`, where: 'probe', depends: pick([`mcp:${m.name}`]), ...withServers(servers.filter((s) => s.name !== m.name)) });
-  }
-  for (const s of setup.sets) {
-    const agents = s.members.filter((m) => m.kind === 'agent').map((m) => forms.deny.agent.replace('{name}', m.name));
-    const others = s.members.filter((m) => m.kind !== 'agent');
-    probes.push({
-      id: `set:${s.prefix}`,
-      where: 'probe',
-      depends: pick([`set:${s.prefix}`]),
-      settings: {
-        ...(agents.length ? { permissions: { deny: agents } } : {}),
-        ...(others.length ? { skillOverrides: Object.fromEntries(others.map((m) => [m.name, forms.skillOverride])) } : {}),
-      },
-    });
-  }
-  return probes.sort((a, b) => cmp(a.id, b.id));
-}
+// The probes run from the probe worktree that need no transcript to be planned: the all-on probe alone, which
+// depends on everything the setup holds. Each is { id, where, depends }.
+export const phaseOne = (setup) => [{ id: 'all-on', where: 'probe', depends: fingerprints(setup) }];
 
 // Arguments joined for Git Bash: a plain one as it is, any other (the empty string included) in single quotes.
 // A path given to it is absolute: a `~` is outside the plain set, so it would be quoted and never expanded.
@@ -322,15 +287,6 @@ export function textsOf(setup, allOn, read) {
   return out;
 }
 
-// The servers the all-on main session lists that the setup cannot list: claude.ai connectors, and the rest (a
-// plugin's own server, whose key starts with plugin_). Each list is sorted.
-export function connectorsOf(setup, allOn) {
-  const listable = new Set(setup.mcp.map((m) => serverKey(m.name)));
-  const extra = allOn.main.mcpServers.filter((n) => !listable.has(serverKey(n)));
-  const isConnector = (n) => n.startsWith('claude.ai ') || serverKey(n).startsWith('claude_ai_');
-  return { connectors: extra.filter(isConnector).sort(cmp), others: extra.filter((n) => !isConnector(n)).sort(cmp) };
-}
-
 // The probes planned from the all-on transcript: the baseline with its stub agents, and a reference and a calibration
 // probe (the brief with `calibration` appended) per model of the rows. Each is { id, where, depends, model?, ... }; the
 // files and commands are written by the caller. No text is probed: every part but Claude Code is sized from its text.
@@ -358,13 +314,12 @@ export function probeVersion(state, located) {
   return best?.version;
 }
 
-// The probes needed now and which of them must be run: { probes, pending, failed, notes }. `state` is the stored
+// The probes needed now and which of them must be run: { probes, pending, notes }. `state` is the stored
 // probes (`{ id, sessionId, fingerprint }`), `located` the sessions found for them. A probe is missing without a
 // stored session, a main first call, an agent first call of the setup (probes run from the probe worktree) or a stub
 // first call (baseline); it is stale when its Claude Code is not `version` or a value it depends on has changed.
 // A calibration pair whose `cal:` input is not above its `ref:` input gives no size: both probes are pending again.
-// A set probe that is not pending but still lists a member did not move it out of reach: it is failed.
-export function pendingProbes({ setup, state, located, version, calibration, forms = PROBE_FORMS }) {
+export function pendingProbes({ setup, state, located, version, calibration }) {
   const entries = new Map(state.map((e) => [e.id, e]));
   const sessionOf = (id) => {
     const e = entries.get(id);
@@ -372,7 +327,7 @@ export function pendingProbes({ setup, state, located, version, calibration, for
   };
   const allOnSession = sessionOf('all-on');
   const notes = [];
-  const probes = phaseOne(setup, forms);
+  const probes = phaseOne(setup);
   if (allOnSession?.main) probes.push(...phaseTwo(setup, { main: allOnSession.main, agents: allOnSession.agents }, calibration));
   else notes.push(PHASE_TWO_NOTE);
   probes.sort((a, b) => cmp(a.id, b.id));
@@ -395,19 +350,7 @@ export function pendingProbes({ setup, state, located, version, calibration, for
 
   const need = probes.filter((p) => missing(p) || stale(p) || flat.has(p.id));
   const pending = need.map((p) => p.id).sort(cmp);
-  const failed = [];
-  for (const s of setup.sets) {
-    const id = `set:${s.prefix}`;
-    const session = sessionOf(id);
-    if (pending.includes(id) || !session?.main) continue;
-    const calls = [session.main, ...Object.values(session.agents)];
-    const listed = s.members
-      .filter((m) => calls.some((c) => (m.kind === 'agent' ? c.agentListing : c.skillListing).some((line) => line.startsWith(`- ${m.name}:`))))
-      .map((m) => m.name)
-      .sort(cmp);
-    if (listed.length) failed.push({ id, member: listed[0] });
-  }
-  return { probes, pending, failed: failed.sort((a, b) => cmp(a.id, b.id)), notes };
+  return { probes, pending, notes };
 }
 
 export const OWNERS = {

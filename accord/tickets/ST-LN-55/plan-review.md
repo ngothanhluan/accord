@@ -47,5 +47,14 @@ fixed: 4.1, 4.2, 4.3, 4.4
 
 fixed: 5.1
 
-1. Should — the 5.1 fix looks only at missing entries that hold the branch; a missing entry at the ticket's own sibling path with a detached HEAD on no branch (Task 5 scenario A, folder then moved away) leaves `missing` empty, so line 412's plain `git worktree add` runs and git's error suggests `add -f` or `prune`, either of which loses that commit (plan.md:618-619, worktree.ts:412); fix: before the `missing` check, refuse with the same no-prune line when any prunable entry sits at the target path and is not the one branch-holding entry the `--force` case accepts; same guard before worktree.ts:438 and :1078; add that case to the new test — open
+1. Should — the 5.1 fix looks only at missing entries that hold the branch; a missing entry at the ticket's own sibling path with a detached HEAD on no branch (Task 5 scenario A, folder then moved away) leaves `missing` empty, so line 412's plain `git worktree add` runs and git's error suggests `add -f` or `prune`, either of which loses that commit (plan.md:618-619, worktree.ts:412); fix: before the `missing` check, refuse with the same no-prune line when any prunable entry sits at the target path and is not the one branch-holding entry the `--force` case accepts; same guard before worktree.ts:438 and :1078; add that case to the new test — fixed
 2. Nice — the `--force` hunk says the steps of worktree.ts:413-419 run as today, but Task 4's `recordQuietly` sits right after the line-412 add, so the `--force` branch may skip the record (D-07); say so in the hunk or check the record in the test — deferred
+
+## Round 7 (diff)
+
+fixed: 6.1 (the diff also settles Nice 6.2)
+
+1. Nice — the target-path guards before worktree.ts:438 and :1078 have no test; add fresh-claim and `new ticket --worktree` steps to Task 5's test — deferred
+2. Nice — at the line-412 site, "put that folder back, then try again" fails again once the folder is back detached; say "and switch it to <branch>" — deferred
+
+## Closed 2026-10-31: round 7 reported no Must and no Should; gate plan passed; round 7 ran past the three-round cap on the owner's word "One more round (Recommended)"

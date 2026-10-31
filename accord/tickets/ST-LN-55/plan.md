@@ -1,6 +1,6 @@
 ---
 baseline: 995a87c98600c6c9d286aaf16158dcbb6b409928
-plan_hash: "fnv1a64:9f27db2b70578893"
+plan_hash: "fnv1a64:50c09ac4a2501c62"
 ---
 
 Review mode `outcome`: one branch, no slices. Each task below can be finished from its own section, this
@@ -509,7 +509,10 @@ phase judges (D-07: "printing the ones it cannot"), a bare clean that never prun
 commit (the Intent: never remove a commit reachable from nothing else; `/accord` is a clean moment, D-07, D-11), and a
 `worktree open` that, while that no-prune rule holds, re-creates the ticket's own worktree whose folder was deleted
 with `git worktree add --force`, and otherwise refuses without suggesting a prune (owner's answer "Use --force
-(Recommended)" to plan round 5 finding 1).
+(Recommended)" to plan round 5 finding 1). The same refusal, with no git command run, stops `worktree open` and
+`new ticket --worktree` at any of their three `git worktree add` sites (`worktree.ts:412`, `:438`, `:1078`) when a
+missing entry sits at the target path and is not the one branch-holding entry the `--force` case accepts (plan round 6
+finding 1).
 
 Tests first, at the end of `worktree-clean.test.ts`; each passes `120_000` and none calls `link`, so each runs alike on
 the Windows host and in the container. They use `dropOnRemote(c, ids)` of `helpers/worktree.ts:363`,
@@ -570,14 +573,25 @@ which the file already imports and which commits through `commitMsg`, and `forge
   - `r = await run(['worktree', 'open', 'ST-9', '--continue'], c.root)`. `r.code` is 0; no line of `r.out` starts with
     `pruned`; `gitRun(s, 'branch', '--show-current').trim()` equals `t/ST-9` and `gitRun(s, 'rev-parse', 'HEAD').trim()`
     equals `sha9`. With `list = c.git('worktree', 'list', '--porcelain')`: `list.split('worktree ' + s + '\n').length`
-    is 2 (one entry for `s`), and `list` contains `worktree ${p}\nHEAD ${X}\n`.
+    is 2 (one entry for `s`), and `list` contains `worktree ${p}\nHEAD ${X}\n`. `recorded(c)` equals
+    `[{ id: 'ST-9', path: s }]`: the `--force` re-create is recorded (D-07), and `claimWorktree` and the plain
+    `git worktree add` calls of this test record nothing.
   - The refusal: `c.git('worktree', 'add', '-q', '-b', 't/ST-10', q, 'origin/main')`, then `renameSync(q, q + '-away')`,
     so `t/ST-10` is held by a missing folder that is not ST-10's sibling.
     `r2 = await run(['worktree', 'open', 'ST-10', '--continue'], c.root)`. `r2.code` is 2; `r2.err` contains
     `ST-10: its branch t/ST-10 is checked out in ${q}, whose folder is missing` and does not contain `prune`;
     `gone(c.sibling('ST-10'))`; the worktree list still contains `worktree ${q}\n` and `worktree ${p}\nHEAD ${X}\n`.
+  - The refusal at the ticket's own path: in `s`, `gitRun(s, 'switch', '-q', '--detach')`,
+    `writeFiles(s, { 'y.txt': 'y\n' })`, then `Y = commitMsg(s, 'detached on the sibling')`, a commit on no branch
+    (`t/ST-9` stays at `sha9`). `renameSync(s, s + '-away')`, so the entry at `s` is missing and holds no branch.
+    `r3 = await run(['worktree', 'open', 'ST-9', '--continue'], c.root)`. `r3.code` is 2; `r3.err` contains
+    `ST-9: git still registers a worktree at ${s}, whose folder is missing` and does not contain `prune`; `gone(s)`;
+    the worktree list still contains `worktree ${s}\nHEAD ${Y}\n` and `worktree ${p}\nHEAD ${X}\n`.
+  - `recorded(c)` still equals `[{ id: 'ST-9', path: s }]`: neither refusal recorded anything.
   - At the baseline the open's clean prunes `p`, so the check on `worktree ${p}\nHEAD ${X}\n` fails; with the no-prune
     rule and no `--force`, the first open exits 2 with git's `is a missing but already registered worktree` message.
+    Without the path guard below, the last open runs a plain `git worktree add ${s} t/ST-9`, whose error suggests
+    `add -f` or `prune`, so `r3.err` contains `prune`.
 
 Interface, `worktree.ts`:
 - `function onNoBranch(root: string, head: string, ref: string | undefined, merged?: Set<string>): boolean`, the
@@ -615,18 +629,39 @@ Interface, `worktree.ts`:
   `PrunableEntry[]`) and sets `list = all.filter(...)` as above, so no list read is added. Prunable entries reach `all`
   only while the no-prune rule holds, because otherwise `worktrees()` has already pruned them. In the
   `if (local || remote)` block, after `path = siblingOf(mainPath, id)` and before the `git worktree add` of
-  `worktree.ts:412`, take `missing = all.filter((w) => w.prunable !== undefined && w.branch === branch)`:
-  - `missing` is empty: today's `git worktree add`, unchanged.
+  `worktree.ts:412`, take `missing = all.filter((w) => w.prunable !== undefined && w.branch === branch)` and
+  `atPath = all.filter((w) => w.prunable !== undefined && norm(w.path) === norm(path))`. The checks run in this order:
+  - First the path guard: when `atPath` is not empty and is not exactly the one branch-holding entry the `--force` case
+    below accepts, that is when `!(atPath.length === 1 && missing.length === 1 && atPath[0] === missing[0])`, call
+    `refuseAt(id, path, 'nothing was created')`. This is the ticket's own sibling switched to a detached HEAD (on no
+    branch, or on another branch) and then moved away: a plain `git worktree add` there fails with git's message
+    suggesting `add -f` or `prune`, and either loses that HEAD. No git command runs.
+  - `missing` is empty: today's `git worktree add`, unchanged, followed by Task 4's `recordQuietly(ctx, id, path)`.
   - `missing` has exactly one entry and `norm(missing[0].path) === norm(path)`: the ticket's own sibling, deleted by
     hand, is still registered. Run `git(ctx.root, ['worktree', 'add', '--force', path, branch])` (`branch` is local here,
-    since a worktree holds it). Per the git-worktree docs (https://git-scm.com/docs/git-worktree, `--force`), this
+    since a worktree holds it). This `--force` add replaces the line-412 add: like the plain add, it is followed by
+    Task 4's `recordQuietly(ctx, id, path)`, and then by the steps of `worktree.ts:413-419` as today, so the re-created
+    worktree is recorded (D-07). Per the git-worktree docs (https://git-scm.com/docs/git-worktree, `--force`), this
     overrides only the two safeguards in the way: the branch checked out by another worktree, and a path assigned to a
     worktree but missing. Git replaces only that one entry's record; every other entry, `p` included, stays. The
-    commits of that entry are on `branch`, so nothing is lost. Then the steps of `worktree.ts:413-419` run as today.
+    commits of that entry are on `branch`, so nothing is lost.
   - Any other case: throw `UsageError` (exit 2) with
     `<id>: its branch <branch> is checked out in <paths>, whose folder is missing - put that folder back, then try again; nothing was created`,
     `<paths>` the entries' paths joined by `, `. The text never names `prune`, and no git command runs.
   - `git worktree remove` never takes `--force`, here or anywhere else in this plan.
+- `function refuseAt(id: string, path: string, tail: string): never` throws `UsageError` (exit 2) with
+  `<id>: git still registers a worktree at <path>, whose folder is missing - put that folder back, then try again; <tail>`.
+  Like the branch refusal above, the text never names `prune`, and each caller calls it before any git command of its
+  site.
+- `worktreeOpen`, the fresh-claim site: after `path = siblingOf(mainPath, id)` (`worktree.ts:437`) and before the
+  `git worktree add` of `worktree.ts:438`, when some entry of `all` has `prunable` set and `norm(w.path) === norm(path)`,
+  call `refuseAt(id, path, 'nothing was created')`. The branch does not exist here, so no entry holds it and no
+  `--force` case applies.
+- `newTicketWorktree`: keeps `all = (seen ?? worktrees(ctx.root, ctx.stdout)) as PrunableEntry[]` and sets `list` to
+  its filtered entries as above, so no list read is added. After `path = siblingOf(list[0].path, id)`
+  (`worktree.ts:1077`) and before the `git worktree add` of `worktree.ts:1078`, the same check calls
+  `refuseAt(id, path, 'nothing was written')`, the tail its other refusals use. It runs before the worktree, the ticket
+  file, the commit and the push, so nothing is written.
 - Split the lazy holds read out of `passGuards` (`worktree.ts:708-719`) into
   `function guardHolds(ctx, s): Record<string, Hold> | undefined`. It returns `undefined` after the same `its hold could
   not be read` line, now naming the folder it was asked for.
@@ -664,8 +699,10 @@ dropped-ticket case of `worktree-clean.test.ts` (lines 266-491), whose worktrees
 tests. The prune and its `pruned <path>: <reason>` line stay as they are for every clean in which no missing folder holds
 a detached HEAD on no branch, so `worktree-clean.test.ts:152` and `worktree-open.test.ts:166`, whose missing folders
 hold branches, pass unchanged; in them the clean prunes first, so `worktreeOpen` finds no missing entry and runs
-today's `git worktree add` with no `--force`. Every `worktree open` case of `worktree-open.test.ts` prints and exits as
-today. The hook clean of Task 1 still never prunes and still writes its own line. A clean with
+today's `git worktree add` with no `--force`. When no entry whose folder is missing sits at the target path or holds the
+ticket's branch, the three
+creation sites (`worktree.ts:412`, `:438` and `:1078`) run exactly as before. Every `worktree open` case of
+`worktree-open.test.ts` prints and exits as today. The hook clean of Task 1 still never prunes and still writes its own line. A clean with
 no prunable entry spawns nothing new, so the `git-count.test.ts` counts and goldens hold.
 
 ## Task 6: The clean never enters or removes a listed worktree, a folder holding .git, the main checkout, a folder that holds one of these, or a worktree with an edit git status cannot see

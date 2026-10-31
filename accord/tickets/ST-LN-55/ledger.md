@@ -45,6 +45,11 @@
 - Ruling: when a ticket's branch is held by a missing folder that is not its own sibling, `worktree open` refuses and tells the owner to put that folder back, suggesting nothing else — prune could lose a detached commit (plan round 5.1) — cost if wrong: an owner whose folder is truly gone gets no way out from accord's message.
 - Ruling: the refusal case of plan round 5.1 is checked inside the same verify test as the `--force` re-create — both halves of one rule — cost if wrong: a failure names the test, not which half failed.
 - Ruling: `git worktree add --force` replaces only the ticket's own missing entry and keeps every other entry — the planner's reading of git, which the 5.1 test pins by checking the other folder is still listed with its HEAD — cost if wrong: the test fails at build time, not after release.
+- Ruling: the re-plan runs a fourth critique round past the three-round cap, on the owner's word "One more round (Recommended)" (2026-10-31), to fix plan round 6.1 — only a Should was open and its fix is small — cost if wrong: one more round of tokens.
+- Ruling: the refusal at a target path git still registers has its own wording, "git still registers a worktree at <path>, whose folder is missing", with the same "put that folder back" ending and exit 2 as the branch refusal — "its branch is checked out in" would be false for a detached entry — cost if wrong: one message string to change.
+- Ruling: Task 5's test calls the sibling's detached commit `Y`, as `X` is already the scratch folder's commit — cost if wrong: none.
+- Ruling: `refuseAt` takes a tail so `new ticket --worktree` keeps its "nothing was written" ending — consistent output per command — cost if wrong: one string to change.
+- Ruling: the target-path guards before worktree.ts:438 and :1078 get no test of their own; only the line-412 case is tested — round 6.1 named that case and the logic is shared through `refuseAt` — cost if wrong: a slip at those two sites is not caught by a test.
 
 ## Deferred
 - Plan round 1 Nice: a relative path in a record line is resolved against cwd; skip non-absolute lines and fence descendants of the main checkout — deferred
@@ -62,6 +67,8 @@
 - Plan round 4 Nice: Task 7's test calls `mkdirSync` on the ST-11 and ST-99 siblings without `{ recursive: true }` — deferred
 - Plan round 5 Nice: one clean can print `kept` then `pruned` for the same folder, since `worktrees()` decides the prune per read, before and after the fetch; decide it once per clean — deferred
 - Plan round 6 Nice: the `--force` re-create in Task 5 says the steps of worktree.ts:413-419 run as today, but Task 4's `recordQuietly` sits right after the line-412 add, so the `--force` branch may skip the record (D-07); say so in the task or check the record in the test — deferred
+- Plan round 7 Nice: the target-path guards before worktree.ts:438 and :1078 have no test; add fresh-claim and `new ticket --worktree` steps to Task 5's test — deferred
+- Plan round 7 Nice: at the line-412 site, "put that folder back, then try again" fails again once the folder is back on a detached HEAD; say "and switch it to <branch>" — deferred
 
 ## Tasks
 - task 1 done 48b7de376993

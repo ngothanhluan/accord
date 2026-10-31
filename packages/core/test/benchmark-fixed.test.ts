@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- transcript lines are untyped JSON of Claude Code */
-import { readFileSync } from 'node:fs';
+import { readFileSync, rmSync } from 'node:fs';
 import { expect, it } from 'vitest';
+import { HOOK, makeWorld } from './helpers/fixed-world.js';
 
 type Line = Record<string, any>;
 type FirstCall = {
@@ -94,3 +95,71 @@ it('risk:parsing a probe transcript gives its first call input and what loaded b
   expect(execCall.input).toBe(execUsage.input + execUsage.cacheRead + execUsage.cacheWrite);
   expect(execCall.model).toBe(execFirst.message.model);
 });
+
+type Setup = {
+  repo: string; home: string; mainCheckout: string; probeDir: string;
+  agents: { name: string; model: string; tools: string[] | null; hash: string }[];
+  accordSkills: { name: string; description: string }[];
+  hookCommand: string;
+  plugins: { id: string; version: string | null; accordOwn: boolean }[];
+  mcp: { name: string; scope: string; hash: string }[];
+  sets: { prefix: string; members: { kind: string; name: string; level: string }[] }[];
+  docs: { file: string; label: string; topic: boolean }[];
+};
+
+it('risk:complex-branching the setup lists each enabled plugin listable MCP server and own skill set under its owner', async () => {
+  const { readSetup } = (await import(new URL('../../../scripts/benchmark.mjs', import.meta.url).href)) as {
+    readSetup: (a: { repo: string; home: string }) => Setup;
+  };
+  const { standsFor } = (await import(new URL('../../../scripts/fixed-context.mjs', import.meta.url).href)) as {
+    standsFor: (p: string, s: { repo: string; mainCheckout: string; probeDir: string; home: string }) => { file: string; label: string };
+  };
+  const w = makeWorld();
+  try {
+    const s = readSetup({ repo: w.repo, home: w.home });
+    expect(s.plugins).toEqual([
+      { id: 'accord-panel@accord', version: '0.3.0', accordOwn: true },
+      { id: 'alpha@m', version: '1.0.0', accordOwn: false },
+      { id: 'beta@m', version: '2.0.0', accordOwn: false },
+    ]);
+    expect(s.mcp.map((m) => [m.name, m.scope])).toEqual([['proj-db', 'project'], ['user-search', 'user']]);
+    for (const m of s.mcp) expect(m.hash).toMatch(/^[0-9a-f]{64}$/);
+    expect(s.sets.map((x) => [x.prefix, x.members.map((m) => `${m.kind}:${m.name}:${m.level}`)])).toEqual([
+      ['aws', ['skill:aws-x:user']],
+      ['gsd', ['skill:gsd-a:user', 'skill:gsd-b:user', 'agent:gsd-r:user']],
+      ['my', ['agent:my-helper:project']],
+      ['own', ['skill:own-notes:project']],
+      ['tool', ['command:tool:run:user']],
+    ]);
+    expect(s.agents.map((a) => [a.name, a.model, a.tools])).toEqual([
+      ['accord-critic', 'opus', ['Read', 'Grep', 'Glob']],
+      ['accord-executor', 'sonnet', null],
+      ['accord-scout', 'sonnet', ['Read', 'Grep', 'Glob']],
+    ]);
+    for (const a of s.agents) expect(a.hash).toMatch(/^[0-9a-f]{64}$/);
+    expect(s.accordSkills).toEqual([{ name: 'accord', description: 'Use when starting work.' }]);
+    expect(s.hookCommand).toBe(HOOK);
+    expect(s.repo).toBe(w.repo);
+    expect(s.mainCheckout).toBe(w.repo);
+    expect(s.home).toBe(w.home);
+    expect(s.probeDir).toBe(w.probeDir);
+    const enc = w.repo.replace(/[^A-Za-z0-9]/g, '-');
+    const own = s.docs.filter((d) => d.file.toLowerCase().startsWith(w.tmp.toLowerCase()));
+    expect(own.map((d) => [d.label, d.topic])).toEqual([
+      ['CLAUDE.md', false],
+      ['~/.claude/CLAUDE.md', false],
+      [`~/.claude/projects/${enc}/memory/MEMORY.md`, false],
+      [`~/.claude/projects/${enc}/memory/note.md`, true],
+    ]);
+    expect(JSON.stringify(s)).not.toContain('sekret-local-456');
+    expect(JSON.stringify(s)).not.toContain('local-db');
+
+    const st = { repo: w.repo, mainCheckout: w.repo, probeDir: w.probeDir, home: w.home };
+    expect(standsFor(`${w.probeDir}/CLAUDE.md`.replace(/\//g, '\\'), st)).toEqual({ file: `${w.repo}/CLAUDE.md`, label: 'CLAUDE.md' });
+    expect(standsFor(`${w.home}/.claude/CLAUDE.md`, st)).toEqual({ file: `${w.home}/.claude/CLAUDE.md`, label: '~/.claude/CLAUDE.md' });
+    expect(standsFor('/elsewhere/x.md', st)).toEqual({ file: '/elsewhere/x.md', label: '/elsewhere/x.md' });
+    expect(standsFor(`${w.repo.toUpperCase()}/a/b.md`, st).label).toBe('a/b.md');
+  } finally {
+    rmSync(w.tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+}, 120_000);

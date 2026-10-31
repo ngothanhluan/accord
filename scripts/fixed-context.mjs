@@ -84,3 +84,25 @@ export function firstCall(lines) {
     prompt,
   };
 }
+
+// Which repository file a path stands for. A probe transcript names the probe worktree's copy of a file, never
+// the repository file the report sizes, so a path under the probe worktree, the repository or the main checkout
+// (compared case folded, in that order) stands for the same path under the repository. Other paths keep their
+// file; a path under the home folder is labelled `~/<rest>` so no user name reaches the report.
+export function standsFor(file, { repo, mainCheckout, probeDir, home }) {
+  const slash = (p) => String(p).replace(/\\/g, '/').replace(/\/+$/, '');
+  const p = slash(file);
+  const under = (root) => {
+    const r = slash(root);
+    const lower = p.toLowerCase();
+    if (lower === r.toLowerCase()) return '';
+    return lower.startsWith(r.toLowerCase() + '/') ? p.slice(r.length + 1) : null;
+  };
+  for (const root of [probeDir, repo, mainCheckout]) {
+    const rest = under(root);
+    if (rest !== null) return { file: rest ? `${slash(repo)}/${rest}` : slash(repo), label: rest };
+  }
+  const rest = under(home);
+  if (rest !== null) return { file: p, label: rest ? `~/${rest}` : '~' };
+  return { file: p, label: p };
+}

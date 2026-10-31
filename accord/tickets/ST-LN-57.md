@@ -50,7 +50,7 @@ Feature: ST-LN-57
   @ac-2
   Scenario: From round 3, a new finding outside the last fix's files blocks only with evidence
     Given review.md whose round 3 holds a Must or a Should that is not marked as carried forward from an earlier round
-    And the file in the finding's location is one that none of round 2's fix commits, the ones its findings name as "fixed in", changed, or the finding gives no file
+    And the file in the finding's location is one that none of round 2's fix commits, every commit after round 2 up to round 3 but a merge of main, a debug episode's commits and commits that change only the ticket's records, changed, or the finding gives no file
     And the finding is not marked as data loss or security
     When accord gate done runs
     Then it fails and names the finding while the finding records neither a failing test nor a reproducing command
@@ -79,7 +79,7 @@ Feature: ST-LN-57
 
   @ac-5
   Scenario: A file a fix changed needs a finding or a Ruling
-    Given a review round whose fix commits, the ones its findings name as "fixed in", change a file that is the location of no finding of that round
+    Given a review round whose fix commits, every commit after that round up to the next round but a merge of main, a debug episode's commits and commits that change only the ticket's records, change a file that is the location of no finding of that round
     When accord gate done runs
     Then it fails and names the file while the ledger's Rulings hold no Ruling giving that file's repository path and a reason
     And it passes once such a Ruling is there
@@ -98,6 +98,7 @@ Feature: ST-LN-57
 - D-06 The smallest version that counts as done holds all four parts — "A" (2026-10-29, asked: all four parts required, or parts 1 and 3 as the core)
 - D-07 The rule that a Should rests on a ticket line or a failing case applies from round 3 only; rounds 1 and 2 fix every Should as today — "A" (2026-10-29, asked: from round 3 only, or every round)
 - D-08 A finding deferred under ac-2's evidence rule, with its line in the ledger's Deferred, does not count toward ST-LN-17's stop from round 3 or the gate done failure it causes; this ticket changes that one rule of ST-LN-17 — "as proposed" (2026-10-31, asked: deferred findings leave the stop, or keep counting as ST-LN-17 does today)
+- D-09 A round's fix commits are every commit after that round up to the next round, but a merge of main, a debug episode's commits and commits that change only the ticket's records; a fix split over two commits cannot escape the checks and nobody has to name each commit as "fixed in" — "A" (2026-10-31, asked: fix commits are the round's range, or only the commits findings name as "fixed in" plus a check that every commit is named)
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->

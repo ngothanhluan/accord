@@ -2,6 +2,7 @@
 
 ## Tasks
 - task 1 done 1addb0e5cdf6
+- task 2 done 90ae76b02c83
 
 ## Rulings
 
@@ -64,6 +65,9 @@
 - Ruling: paths inside printed commands and in `probes.json` stay absolute; this replaces the Ruling "printed commands use Git Bash syntax, and home paths are printed as `~/`" for commands only (re-plan review 1.3) — an unquoted `~/` would rely on Git Bash's `HOME` matching Node's home folder, and commands are never committed — cost if wrong: the user name shows in terminal output.
 - Ruling: a set probe that is still pending (missing or stale) never counts as failed, and the refusal comes before any file is written — a pending probe runs again anyway — cost if wrong: a broken switch is reported one probe round later.
 - Ruling: the set-probe check sits in Task 5 rather than a new task — Task 5 already finds missing and stale probes — cost if wrong: Task 5 nears half an executor's context.
+- Ruling: a plugin counts as enabled only when its `enabledPlugins` value is `true` — the brief only says `false` is left out, and `true` is the documented form — cost if wrong: a plugin set to some other value is skipped.
+- Ruling: set members and every list are sorted by name, so the gsd set reads skill gsd-a, skill gsd-b, agent gsd-r — the brief says "sorted by name" — cost if wrong: none, a test expectation only.
+- Ruling: `mcp` entries keep `entry` with its values, as the brief's field list says; the test asserts only that the local-scope `local-db` server and its secret are absent — cost if wrong: a later task that writes `entry` out could leak a server's secret, which Task 3's security test checks.
 
 ## Deferred
 

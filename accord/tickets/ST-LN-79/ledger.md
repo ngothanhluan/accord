@@ -60,6 +60,10 @@
 - Ruling: a nested command's `skillOverrides` key is its `:` name (`tool:run` for `commands/tool/run.md`), as Task 2 names it — the spike proved `skillOverrides` only on a top-level command (`zzprobe-x`), and no `commands` folder exists on this machine, so only the test world exercises the nested shape — cost if wrong: a nested command stays in reach and its set's figure is too low until a spike run shows it.
 - Ruling: the re-plan's first critique round is `whole` with the criteria and build lenses, numbered from 1 after the `## Closed` line — critique.md sizes round 1 by the plan, and the change came from build — cost if wrong: one extra critic run.
 - Ruling: re-plan review 1.2 assumes work sessions run mostly in ticket worktrees, not the main checkout — the worktree convention — cost if wrong: the local-scope mismatch also misstates the main checkout's sessions, which makes the finding stronger.
+- Ruling: local-scope MCP servers and `.claude/settings.local.json` are dropped from `readSetup`, and the report says so (re-plan review 1.2) — carrying them into the probe commands would need `--mcp-config` without `--strict-mcp-config` merged with the default config, which the spike never ran — cost if wrong: an owner working in the main checkout with local servers or local plugin switches does not see their cost, which the report's line states.
+- Ruling: paths inside printed commands and in `probes.json` stay absolute; this replaces the Ruling "printed commands use Git Bash syntax, and home paths are printed as `~/`" for commands only (re-plan review 1.3) — an unquoted `~/` would rely on Git Bash's `HOME` matching Node's home folder, and commands are never committed — cost if wrong: the user name shows in terminal output.
+- Ruling: a set probe that is still pending (missing or stale) never counts as failed, and the refusal comes before any file is written — a pending probe runs again anyway — cost if wrong: a broken switch is reported one probe round later.
+- Ruling: the set-probe check sits in Task 5 rather than a new task — Task 5 already finds missing and stale probes — cost if wrong: Task 5 nears half an executor's context.
 
 ## Deferred
 
@@ -68,3 +72,4 @@
 - Plan review 2.3 (Nice): Task 10's test-first step cannot fail first, because the main session's `--fixed` run leaves `docs/benchmark/fixed-context.md` in the worktree before Task 10 is dispatched.
 - Re-plan review 1.4 (Nice): Task 1's step 2e and `PROBE_FORMS` paragraph still describe `Skill(<name>)` deny rules and no `skillOverride`; Task 1 has a ledger line, so its text stays, and the Rulings on `skillOverrides` and `PROBE_FORMS` hold the change.
 - Re-plan review 1.5 (Nice): the connector-probe path of Tasks 4, 7 and 9 is never taken while `PROBE_FORMS.connector` is `null`, and Task 7's test does not name the forms override that gives it a connector probe.
+- Re-plan review 2.1 (Nice): the preamble says the stored `cwd` in `probes.json` passes through `shellLine`, but Task 3's test expects it unquoted; only `command` should be quoted.

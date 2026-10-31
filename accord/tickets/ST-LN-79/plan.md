@@ -1,6 +1,6 @@
 ---
 baseline: 5c8b5d96c8cbf6acddfcee3c6358c09b84f75094
-plan_hash: "fnv1a64:0ca073cb0a7eb358"
+plan_hash: "fnv1a64:08118af219b53d86"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -10,7 +10,7 @@ Order. Task 1 runs the approach's switches on one dispatched accord agent before
 first Should), records the command forms that worked, captures real probe transcripts as fixtures, and writes
 the reader every other task uses on a probe transcript. Task 2 reads the setup on this machine. Tasks 3 to 5 plan
 the probes: the probes that need no all-on transcript (Task 3), the probes planned from the all-on transcript
-(Task 4), and which probes are missing or stale (Task 5). Task 6 reads the real transcripts' calls. Task 7 turns
+(Task 4), and which probes are missing, stale or failed (Task 5). Task 6 reads the real transcripts' calls. Task 7 turns
 probe transcripts into each row's parts. Task 8 wires `--fixed` and prints the raw table (@ac-1, @ac-3). Task 9
 adds the cost-weighted figures, the setup items and the ticket shares (@ac-2). Task 10 commits the real report
 (@ac-4).
@@ -48,9 +48,12 @@ Rules for every task:
 - Every function that reads the home folder takes it as a `home` argument (tests pass a fake home); only `main()`
   passes `os.homedir()`. The bench root is `benchRoot(repo)` (`scripts/benchmark.mjs:351`); every function that
   uses it takes it as a `bench` argument.
-- Every path the scripts print, store or write into the report uses `/`; a path under the home folder is printed
-  as `~/` followed by the rest (no user name reaches the output); a path under the repository is printed
-  relative to it.
+- Every path the scripts print, store or write into the report uses `/`. In the report and in every printed line
+  that is not a command, a path under the home folder is printed as `~/` followed by the rest (no user name
+  reaches the report) and a path under the repository is printed relative to it. A path inside a printed
+  command, and the `cwd` and `command` stored in `probes.json`, stay absolute and pass through `shellLine`: Git
+  Bash does not expand a quoted `~`, and `shellLine` quotes every argument holding one. Printed commands go to
+  the terminal only, never into the report or any file under the repository.
 - Nothing under `.claude/`, `packages/core/agents/`, `packages/*/src/`, `CLAUDE.md`, `AGENTS.md` or `accord/` of
   this repository changes, and nothing of the owner's setup changes: the settings files, skills, agents, commands,
   rules, plugins, `CLAUDE.md` and memory files under the real `~/.claude`, and the `mcpServers` entries of the real
@@ -223,8 +226,12 @@ verify: packages/core/test/benchmark-fixed.test.ts#risk:complex-branching-the-se
 
 Consumes: the repository's `.claude/` folder, `.mcp.json` and tracked `CLAUDE.md` files, the folders above the
 repository, and the home folder's `.claude/settings.json`, `.claude/plugins/installed_plugins.json`,
-`.claude.json`, `.claude/skills/`, `.claude/agents/`, `.claude/commands/`, `.claude/CLAUDE.md`, `.claude/rules/`
-and `.claude/projects/<folder>/memory/`.
+`.claude.json` (its top-level `mcpServers` only), `.claude/skills/`, `.claude/agents/`, `.claude/commands/`,
+`.claude/CLAUDE.md`, `.claude/rules/` and `.claude/projects/<folder>/memory/`. Two things are never read, because
+the probe worktree loads neither, so a cost given to them would be one the all-on probe never measured: the
+local-scope MCP servers (`<home>/.claude.json` `projects[<path>].mcpServers`, keyed by a checkout's path, which
+the probe worktree's path never equals) and `<repo>/.claude/settings.local.json` (an untracked file, which a
+worktree of the commit does not carry). The report says so (Task 8).
 Produces: `export function readSetup({ repo, home })` in `scripts/benchmark.mjs`, `standsFor(path, setup)` in
 `scripts/fixed-context.mjs`, and the test world helper.
 Behaviour that must not change in `scripts/benchmark.mjs`: every existing export and mode.
@@ -246,19 +253,18 @@ copy, never the repository file the report sizes); otherwise a path under `home`
   frontmatter.
 - `hookCommand`: the `command` of the `SubagentStart` hook in `<repo>/.claude/settings.json` that holds
   ` hook subagent-start`, else `''`.
-- `plugins`: the plugins enabled after merging `enabledPlugins` of `<home>/.claude/settings.json`,
-  `<repo>/.claude/settings.json` and `<repo>/.claude/settings.local.json`, in that order (the last file's value
-  wins); a plugin set `false` is left out (it costs nothing per call). Each is `{ id, version, accordOwn }`.
+- `plugins`: the plugins enabled after merging `enabledPlugins` of `<home>/.claude/settings.json` and
+  `<repo>/.claude/settings.json`, in that order (the second file's value wins; `settings.local.json` is never
+  read); a plugin set `false` is left out (it costs nothing per call). Each is `{ id, version, accordOwn }`.
   `<home>/.claude/plugins/installed_plugins.json` holds `{ version, plugins: { <id>: [<install record>, ...] } }`:
   `plugins[id]` is an array of install records, each `{ scope, projectPath?, installPath, version, ... }` with
   `scope` `'user'` or `'project'` (checked: `~/.claude/plugins/installed_plugins.json:3-30` on the owner's
   machine). `version` is the `version` of the record with `scope: 'user'`, else of the record with
   `scope: 'project'` whose `projectPath` equals `mainCheckout` (slashes turned, case folded), else `null`;
   `accordOwn` is `id === 'accord-panel@accord'` (it counts under plugins, named as accord's own: ledger Ruling).
-- `mcp`: the listable servers, `{ name, scope, entry, hash }`, from `<home>/.claude.json` `mcpServers` (`user`),
-  `<repo>/.mcp.json` `mcpServers` (`project`), and `<home>/.claude.json` `projects[<key>].mcpServers` for each key
-  equal to `mainCheckout` or `repo` (slashes turned, case folded) (`local`); a name in `local` replaces one in
-  `project`, which replaces one in `user`. `hash` is the sha256 hex of `JSON.stringify(entry)`. An entry's values
+- `mcp`: the listable servers, `{ name, scope, entry, hash }`, from `<home>/.claude.json` `mcpServers` (`user`)
+  and `<repo>/.mcp.json` `mcpServers` (`project`); a name in `project` replaces one in `user`. The `projects`
+  map of `<home>/.claude.json` is never read (local scope, above). `hash` is the sha256 hex of `JSON.stringify(entry)`. An entry's values
   are never printed or written anywhere but the MCP config files of Task 3.
 - `sets`: the owner's own skills, agents and commands, user level (`<home>/.claude/skills/<dir>/SKILL.md`,
   `<home>/.claude/agents/*.md`, `<home>/.claude/commands/**/*.md`) and project level (the same under
@@ -287,7 +293,9 @@ Test first. `packages/core/test/helpers/fixed-world.ts` (new) exports `makeWorld
   (no marker); `.claude/settings.json` with the SubagentStart hook command
   `npx --yes @accord-dev/accord@0.3.0 hook subagent-start` and `enabledPlugins: { "accord-panel@accord": true }`;
   `.mcp.json` with server `proj-db`; `CLAUDE.md` holding the pointer block (`<!-- accord:start -->` to
-  `<!-- accord:end -->`, as in the repository's `CLAUDE.md`) and one own line; one commit of all of it.
+  `<!-- accord:end -->`, as in the repository's `CLAUDE.md`) and one own line; one commit of all of it. Then
+  `.claude/settings.local.json` with `enabledPlugins: { "gamma@m": true }`, uncommitted, its path
+  `.claude/settings.local.json` appended to `.git/info/exclude` so `git status` does not list it.
 - `<tmp>/work/accord-bench` is `bench` (equal to `benchRoot(repo)`); `probeDir` is `<tmp>/work/accord-probe`
   (not created).
 - `<tmp>/home`: `.claude/settings.json` with `enabledPlugins` `alpha@m: true`, `beta@m: true`, `gamma@m: false`;
@@ -303,8 +311,9 @@ Test first. `packages/core/test/helpers/fixed-world.ts` (new) exports `makeWorld
   the rule above, holding `MEMORY.md` (one line) and `note.md` (one line).
 - `it('risk:complex-branching the setup lists each enabled plugin listable MCP server and own skill set under its owner')`:
   `readSetup({ repo, home })` lists plugins `accord-panel@accord` (`accordOwn: true`, `version: '0.3.0'`),
-  `alpha@m` (`1.0.0`) and `beta@m` (`2.0.0`), and not `gamma@m`; servers `local-db` (`local`), `proj-db`
-  (`project`) and `user-search` (`user`), each with a 64-hex `hash`; sets `aws` (skill `aws-x`), `gsd` (skills
+  `alpha@m` (`1.0.0`) and `beta@m` (`2.0.0`), and not `gamma@m` (set `true` only in the excluded
+  `settings.local.json`); servers exactly `proj-db` (`project`) and `user-search` (`user`), each with a 64-hex
+  `hash`, and not the local-scope `local-db`; sets `aws` (skill `aws-x`), `gsd` (skills
   `gsd-a`, `gsd-b`, agent `gsd-r`), `my` (project agent `my-helper`), `own` (project skill `own-notes`) and `tool`
   (command `tool:run`); no set member named `accord` or `accord-*`; agents `accord-critic`, `accord-executor`
   (`tools: null`), `accord-scout` with their models; `accordSkills` `[{ name: 'accord', ... }]`; `hookCommand` the
@@ -317,7 +326,7 @@ Test first. `packages/core/test/helpers/fixed-world.ts` (new) exports `makeWorld
 ## Task 3: Write the phase-one probes, and `--fixed --probe`
 covers: D-02, D-08
 files: scripts/fixed-context.mjs (new), scripts/benchmark.mjs, packages/core/test/benchmark-fixed.test.ts (new), packages/core/test/helpers/fixed-world.ts (new)
-verify: packages/core/test/benchmark-fixed.test.ts#risk:complex-branching-phase-one-has-an-all-on-probe-and-one-leave-one-out-probe-per-plugin-MCP-server-and-own-set, packages/core/test/benchmark-fixed.test.ts#risk:security-MCP-config-files-stay-under-the-bench-root-and-no-server-secret-is-printed-or-stored-in-the-repository
+verify: packages/core/test/benchmark-fixed.test.ts#risk:complex-branching-phase-one-has-an-all-on-probe-and-one-leave-one-out-probe-per-plugin-MCP-server-and-own-set, packages/core/test/benchmark-fixed.test.ts#risk:security-MCP-config-files-stay-under-the-bench-root-and-no-server-secret-is-printed-or-stored-in-the-repository, packages/core/test/benchmark-fixed.test.ts#risk:parsing-printed-commands-keep-absolute-paths-Git-Bash-runs-when-the-repository-lies-under-the-home-folder
 
 Consumes: `readSetup` (Task 2), `PROBE_FORMS` and `dispatchPrompt` (Task 1). Produces: in
 `scripts/fixed-context.mjs`, `fingerprints(setup)`, `phaseOne(setup)` and `shellLine(args)`; in
@@ -350,7 +359,9 @@ other argument list as before, and its usage line gains `--fixed [--probe]`.
   exists also when there is no listable server: it then has no `mcp` and is `--strict-mcp-config` alone, so the
   connected-servers line is still measured (approach).
 - `shellLine(args)` joins arguments for Git Bash: an argument matching `/^[A-Za-z0-9._/@+=:,-]+$/` as is, any
-  other (the empty string included) in single quotes with each `'` written `'\''`.
+  other (the empty string included) in single quotes with each `'` written `'\''`. Every path given to it is
+  absolute, never `~/...` (preamble): a `~` is outside the plain set, so it would be quoted and Git Bash would
+  not expand it.
 - `setupDirty(repo)` is true when `git status --porcelain -z -- ':(literal).claude' ':(glob)**/CLAUDE.md'` run in
   `repo` prints anything (the probe worktree holds the commit, not the working files).
 - `writeProbes` writes, for each probe with `where: 'probe'`, its files under `<bench>/fixed/`:
@@ -369,13 +380,13 @@ other argument list as before, and its usage line gains `--fixed [--probe]`.
   when `setupDirty(repo)` is true. Otherwise it writes every phase-one probe with `fresh: true` and prints:
   a first line `# Run in Git Bash, then run: node scripts/benchmark.mjs --fixed`; then
   `git -C <repo> worktree add -B probe/fixed-context <probeDir> <HEAD sha>` when the probe worktree folder
-  does not exist, else `git -C <probeDir> checkout -B probe/fixed-context <HEAD sha>` (paths through `shellLine`);
+  does not exist, else `git -C <probeDir> checkout -B probe/fixed-context <HEAD sha>` (absolute paths through
+  `shellLine`);
   then each probe's command, one per line, sorted by id. Exit 0.
 
 Tests first, both with `makeWorld()`, calling `fixedProbe` and reading its `text`:
 - `it('risk:complex-branching phase one has an all-on probe and one leave-one-out probe per plugin MCP server and own set')`:
-  `phaseOne(readSetup(...))` ids are exactly `all-on`, `mcp-ref`, `mcp:local-db`, `mcp:proj-db`,
-  `mcp:user-search`, `plugin:accord-panel@accord`, `plugin:alpha@m`, `plugin:beta@m`, `set:aws`, `set:gsd`,
+  `phaseOne(readSetup(...))` ids are exactly `all-on`, `mcp-ref`, `mcp:proj-db`, `mcp:user-search`, `plugin:accord-panel@accord`, `plugin:alpha@m`, `plugin:beta@m`, `set:aws`, `set:gsd`,
   `set:my`, `set:own`, `set:tool`; the `settings` of each set probe, compared with `toEqual` against objects the
   test builds from `PROBE_FORMS` (`PROBE_FORMS.deny.agent.replace('{name}', <name>)` and
   `PROBE_FORMS.skillOverride`): `set:gsd` is `{ permissions: { deny: [<agent gsd-r>] }, skillOverrides: { 'gsd-a':
@@ -393,9 +404,19 @@ Tests first, both with `makeWorld()`, calling `fixedProbe` and reading its `text
   has `mcp-ref`, whose command holds `--strict-mcp-config` and no `--mcp-config`. After an uncommitted edit of
   `.claude/agents/accord-scout.md`, `fixedProbe` exits 2 with the refusal line.
 - `it('risk:security MCP config files stay under the bench root and no server secret is printed or stored in the repository')`:
-  after `--fixed --probe` on the world, `sekret-user-123` and `sekret-local-456` appear in no printed line, in no
-  file under `repo`, and not in `probes.json`; they appear only in `.mcp.json` files under `<bench>/fixed/`, and
-  `<bench>` is not inside `repo`.
+  after `--fixed --probe` on the world, `sekret-user-123` appears in no printed line, in no file under `repo`,
+  and not in `probes.json`; it appears only in `.mcp.json` files under `<bench>/fixed/`, and `<bench>` is not
+  inside `repo`; `sekret-local-456` (the local-scope server, never read) appears in no printed line and in no
+  file under `repo` or `<bench>`.
+- `it('risk:parsing printed commands keep absolute paths Git Bash runs when the repository lies under the home folder')`:
+  `makeWorld` gains an option `{ underHome: true }` that builds the work folder at `<tmp>/home/work` instead of
+  `<tmp>/work`, so `repo`, `bench` and `probeDir` lie under `home` (every other part of the world as before). On
+  that world, `fixedProbe({ repo, home, bench })` exits 0; no printed line holds `~`; the line after the first is
+  exactly `'git -C ' + shellLine([repo]) + ' worktree add -B probe/fixed-context ' + shellLine([probeDir]) + ' ' +
+  <HEAD sha>`; every command starts with `'cd ' + shellLine([probeDir]) + ' && '`; the `set:gsd` command holds
+  `' --settings ' + shellLine([bench + '/fixed/set_gsd.settings.json'])` and the `mcp-ref` command holds
+  `' --mcp-config ' + shellLine([bench + '/fixed/mcp-ref.mcp.json'])`, each of those files exists, and each
+  `cwd` in `probes.json` equals `probeDir`.
 
 ## Task 4: Plan the phase-two probes: connectors, baseline, references and appended texts
 covers: D-01, D-06
@@ -466,12 +487,13 @@ all-on FirstCall gets no text and no stub; `connectorsOf` gives connectors `['cl
 ## Task 5: Find the probes that are missing or stale, and write their commands
 covers: @ac-1, @ac-3, D-02
 files: scripts/fixed-context.mjs (new), scripts/benchmark.mjs, packages/core/test/benchmark-fixed.test.ts (new), packages/core/test/helpers/fixed-world.ts (new)
-verify: packages/core/test/benchmark-fixed.test.ts#risk:complex-branching-a-changed-item-reprints-only-its-own-probes-and-the-all-on-probe
+verify: packages/core/test/benchmark-fixed.test.ts#risk:complex-branching-a-changed-item-reprints-only-its-own-probes-and-the-all-on-probe, packages/core/test/benchmark-fixed.test.ts#risk:complex-branching-a-set-probe-that-still-lists-a-member-makes-fixed-refuse-naming-the-set-and-the-probe-version
 
 Consumes: Tasks 1 to 4. Produces: in `scripts/benchmark.mjs`, `locateSessions(home, sessionIds)` and
 `fixedPending({ repo, home, bench })`; in `scripts/fixed-context.mjs`, `probeVersion(state, located)` and
-`pendingProbes({ setup, state, located, version, read, forms = PROBE_FORMS })`. Behaviour that must not change:
-`fixedProbe` (Task 3) still writes every phase-one probe anew; the existing modes of `scripts/benchmark.mjs`.
+`pendingProbes({ setup, state, located, version, read, forms = PROBE_FORMS })`, whose `failed` list makes
+`fixedPending` refuse. Behaviour that must not change: `fixedProbe` (Task 3) still writes every phase-one probe
+anew and checks no transcript; the existing modes of `scripts/benchmark.mjs`.
 
 - `locateSessions(home, ids)` looks in every folder under `<home>/.claude/projects/` for `<id>.jsonl` and returns a
   Map from id to `{ main: FirstCall | null, agents: { <agentType>: FirstCall } }`, the agents read from
@@ -479,9 +501,9 @@ Consumes: Tasks 1 to 4. Produces: in `scripts/benchmark.mjs`, `locateSessions(ho
 - `probeVersion(state, located)`: the probe version (preamble), `undefined` when no session `state` names has a
   main FirstCall. The version of the session running the script is never used here: the probes run in Git Bash,
   whose Claude Code may be another build.
-- `pendingProbes` returns `{ probes, pending, notes }`: `probes` the probes needed now, `pending` their ids that
-  are missing or stale, sorted. A probe is missing when `state` has no entry for it, or its session has no main
-  FirstCall, or (`where: 'probe'`) an accord agent of the setup has no FirstCall in it, or (`baseline`) a stub has
+- `pendingProbes` returns `{ probes, pending, failed, notes }`: `probes` the probes needed now, `pending` their ids
+  that are missing or stale, sorted, and `failed` the set probes that did not move their members out of reach
+  (below). A probe is missing when `state` has no entry for it, or its session has no main FirstCall, or (`where: 'probe'`) an accord agent of the setup has no FirstCall in it, or (`baseline`) a stub has
   none. A probe is stale when `version` is set and its main FirstCall's `version` differs from it, or a key of its
   `depends` has a stored value different from the current one. `all-on` is also stale when the stored text hash
   of a `text:` probe whose text has `source: 'disk'` differs from the current text's hash (a changed text needs
@@ -491,6 +513,12 @@ Consumes: Tasks 1 to 4. Produces: in `scripts/benchmark.mjs`, `locateSessions(ho
   are `phaseOne(setup)` always, and `phaseTwo(setup, allOn, read, forms)` whenever the all-on probe in `state` has
   a transcript (`allOn` read from it, stale or not); without one, `notes` holds
   `The connector, baseline, reference and text probes follow once the all-on probe has run.`
+- `failed`: `skillOverrides` is read from the `claude.exe` binary, not documented (ledger Ruling), so a newer
+  Claude Code may ignore it and leave a set in reach. A `set:<prefix>` probe that is not pending fails when its
+  main FirstCall or any of its agents' FirstCalls still lists a member of the set: a `skill` or `command`
+  member when a line of that FirstCall's `skillListing` starts with `- <name>:`, an `agent` member when a line of
+  its `agentListing` starts with `- <name>:`. A pending set probe is never failed (it is run again anyway).
+  `failed` is `[{ id, member }]` sorted by id, `member` the first listed member's name in sorted order.
 - Files and commands: a probe with `where: 'probe'` (phase one and `connector:`) gets Task 3's files and command
   through `writeProbes`. For `where: 'empty'`, `<bench>/fixed/stubs.json` holds the baseline stubs as
   `{ <name>: { description: 'probe stub', prompt: 'Reply ok.', model, tools } }` (`model` the frontmatter model,
@@ -504,8 +532,11 @@ Consumes: Tasks 1 to 4. Produces: in `scripts/benchmark.mjs`, `locateSessions(ho
 - `fixedPending` first refuses with exit 2 and Task 3's refusal line, writing nothing, when `setupDirty(repo)` is
   true: a working-copy edit would be sized from disk while the probe worktree checks out HEAD. Otherwise it reads
   the setup, `probes.json` and the sessions it names, takes `version = probeVersion(...)`, computes the pending
-  probes with `read` reading a file from disk (`undefined` when absent), and for each pending probe writes its
-  files and its `probes.json` entry; a pending probe keeps its stored session id while no transcript exists for
+  probes with `read` reading a file from disk (`undefined` when absent). When `failed` is not empty it refuses
+  with exit 2, writing nothing, and its `text` is one line per failed probe, in `failed`'s order:
+  `Refused: the probe <id> still lists <member> under Claude Code <version>, so the settings that move a set out of reach no longer work on this version; run the switch spike again and update PROBE_FORMS in scripts/fixed-context.mjs before measuring.`
+  (`<version>` is the probe version.) Otherwise, for each pending probe it writes its files and its `probes.json`
+  entry; a pending probe keeps its stored session id while no transcript exists for
   it, else gets a new one. When nothing is pending it writes nothing. It returns
   `{ exit, pending, version, text }`, `text` being the lines `fixedProbe` prints (the worktree line only when a
   `where: 'probe'` probe is pending) followed by the notes. `where: 'empty'` probes run from
@@ -533,6 +564,22 @@ cacheWrite, output, ts, cwd, branch, version, chars })`, `attachmentLine(attachm
    `text:doc:CLAUDE.md:<model>` ids of that file, not its `text:pointer:CLAUDE.md:` ids;
 8. with `.claude/agents/accord-scout.md` edited and not committed, `fixedPending` returns exit 2 with the refusal
    line and `probes.json` keeps its bytes.
+
+`it('risk:complex-branching a set probe that still lists a member makes fixed refuse naming the set and the probe version')`
+on `makeWorld()`: after `fixedProbe`, write every phase-one session (main and the three agents, version `9.0.0`)
+as step 2 above does (one function in the test file writes them for both tests), except that the `set:gsd` main session holds, before its first assistant line,
+`attachmentLine({ type: 'skill_listing', content: '- accord: a\n- gsd-b: b' })`; save the bytes of `probes.json`.
+Assert, each case starting from those bytes:
+1. `fixedPending` returns exit 2, and its `text` is exactly the one refusal line for `set:gsd` with member `gsd-b`
+   and version `9.0.0`; `probes.json` keeps its bytes and no `<bench>/fixed/stubs.json` exists;
+2. with the `set:gsd` session rewritten without that line and the `set:my` session's `accord-executor` transcript
+   holding, before its first assistant line, `attachmentLine({ type: 'agent_listing_delta', addedLines:
+   ['- my-helper: h'] })`, the exit is 2 and the one refusal line names `set:my`, `my-helper` and `9.0.0`;
+3. with the `set:my` main session also rewritten at version `8.0.0` and a `ts` older than every other session's
+   (the probe version stays `9.0.0`, so `set:my` is stale and pending), its executor transcript still holding
+   that line, the exit is not 2 and `pending` holds `set:my`;
+4. with the `set:my` session rewritten as the other phase-one sessions are (no member listed, version `9.0.0`),
+   the exit is not 2 and `pending` holds no phase-one id.
 
 ## Task 6: Read every real call, main session and subagents, and leave out probe and bench runs
 covers: @ac-1, @ac-2, D-06
@@ -652,6 +699,7 @@ The main session row is measured under claude -p, with its probe prompt sized an
 <row>: <n> of its <m> calls ran on <other model ids>; they are counted at the size measured on <model>.
 A claude.ai connector can change its instructions on the server, which no fingerprint sees; its figure holds for the probe date.
 A plugin's own MCP servers count under plugins and again in the other connected servers line; unattributed absorbs the overlap.
+Local-scope MCP servers and .claude/settings.local.json are not measured: the probe worktree loads neither.
 Cursor, Codex and Copilot calls were not measured.
 
 ## Fixed context per call, raw tokens
@@ -675,8 +723,9 @@ chosen numbers, so each expected figure is computed in the test.
 - `it('ac-1 the main session and each accord agent that ran get one row split by owner')`: `fixedReport` exits 0;
   the raw table has exactly the rows `main session (claude -p)` (calls 3) and `accord-scout` (calls 2); each cell
   equals the value computed from the chosen numbers; in each row the owner cells plus `unattributed` equal `fixed`;
-  `docs/benchmark/fixed-context.md` equals `text`; the text holds no `sekret-` value, no `accord-probe` and no home
-  path with a user name (`~/` is used).
+  `docs/benchmark/fixed-context.md` equals `text`; the text holds the line `Local-scope MCP servers and
+  .claude/settings.local.json are not measured: the probe worktree loads neither.` and no `local-db`; the text
+  holds no `sekret-` value, no `accord-probe` and no home path with a user name (`~/` is used).
 - `it('ac-3 the report printed twice on the same transcripts and setup is the same')`: `fixedReport` run twice on
   the measured world gives equal `text`, and `probes.json` is byte-equal before and after the second run.
 
@@ -738,7 +787,7 @@ with calls chosen so that one call's cache reads cover the fixed context, one ca
 its cache writes, and one call's whole input is below it, the cost-weighted table's `fixed` cell of each row equals
 the mean computed in the test, each owner cell equals its raw value times the row's ratio, `largest owner` names
 the largest; an item cell reads `<raw> / <weighted>`; the items table has exactly one line for each enabled plugin
-(`accord-panel@accord`, `alpha@m`, `beta@m`), each listable server (`local-db`, `proj-db`, `user-search`), the
+(`accord-panel@accord`, `alpha@m`, `beta@m`), each listable server (`proj-db`, `user-search`; no `local-db`), the
 other connected servers line, each doc of `readSetup(...).docs` and each set (`aws`, `gsd`, `my`, `own`, `tool`),
 and the `beta@m` line and the `note.md` line hold `-` in every row cell (they reach no row); the tickets table has
 exactly `T-1`, with the two shares computed in the test from the weights 1, 0.1, 1.25 and 5; the output-estimate

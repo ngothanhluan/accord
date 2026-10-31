@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- transcript lines are untyped JSON of Claude Code */
-import { readFileSync, rmSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { appendFileSync, existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { expect, it } from 'vitest';
 import { HOOK, makeWorld } from './helpers/fixed-world.js';
 
@@ -159,6 +160,156 @@ it('risk:complex-branching the setup lists each enabled plugin listable MCP serv
     expect(standsFor(`${w.home}/.claude/CLAUDE.md`, st)).toEqual({ file: `${w.home}/.claude/CLAUDE.md`, label: '~/.claude/CLAUDE.md' });
     expect(standsFor('/elsewhere/x.md', st)).toEqual({ file: '/elsewhere/x.md', label: '/elsewhere/x.md' });
     expect(standsFor(`${w.repo.toUpperCase()}/a/b.md`, st).label).toBe('a/b.md');
+  } finally {
+    rmSync(w.tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+}, 120_000);
+
+type Probe = { id: string; where: string; depends: Record<string, string>; settings?: Record<string, unknown>; mcp?: { name: string; entry: unknown }[] };
+type Forms = { extraArgs: string[]; skillOverride: string; deny: { agent: string } } & Record<string, unknown>;
+type Fc = {
+  PROBE_FORMS: Forms; dispatchPrompt: (types: string[]) => string; shellLine: (args: string[]) => string;
+  fingerprints: (s: Setup) => Record<string, string>; phaseOne: (s: Setup) => Probe[];
+};
+type Bench = {
+  readSetup: (a: { repo: string; home: string }) => Setup;
+  fixedProbe: (a: { repo: string; home: string; bench: string; forms?: Forms }) => { exit: number; text: string };
+};
+const REFUSAL = 'Refused: .claude or a CLAUDE.md file has uncommitted changes; the probe worktree holds the commit. Commit them and run again.';
+const loadBoth = async () => ({
+  fc: (await import(new URL('../../../scripts/fixed-context.mjs', import.meta.url).href)) as Fc,
+  bench: (await import(new URL('../../../scripts/benchmark.mjs', import.meta.url).href)) as Bench,
+});
+const readState = (bench: string) =>
+  (JSON.parse(readFileSync(`${bench}/fixed/probes.json`, 'utf8')) as { probes: { id: string; sessionId: string; cwd: string; command: string; fingerprint: Record<string, string> }[] }).probes;
+const filesUnder = (dir: string): string[] =>
+  readdirSync(dir, { recursive: true, withFileTypes: true }).filter((e) => e.isFile()).map((e) => `${e.parentPath}/${e.name}`.replace(/\\/g, '/'));
+
+it('risk:complex-branching phase one has an all-on probe and one leave-one-out probe per plugin MCP server and own set', async () => {
+  const { fc, bench } = await loadBoth();
+  const w = makeWorld();
+  try {
+    const setup = bench.readSetup({ repo: w.repo, home: w.home });
+    const probes = fc.phaseOne(setup);
+    expect(probes.map((p) => p.id)).toEqual([
+      'all-on', 'mcp-ref', 'mcp:proj-db', 'mcp:user-search', 'plugin:accord-panel@accord', 'plugin:alpha@m', 'plugin:beta@m',
+      'set:aws', 'set:gsd', 'set:my', 'set:own', 'set:tool',
+    ]);
+    for (const p of probes) expect(p.where).toBe('probe');
+    const by = (id: string) => probes.find((p) => p.id === id) as Probe;
+    const off = fc.PROBE_FORMS.skillOverride;
+    const deny = (name: string) => fc.PROBE_FORMS.deny.agent.replace('{name}', name);
+    expect(by('set:gsd').settings).toEqual({ permissions: { deny: [deny('gsd-r')] }, skillOverrides: { 'gsd-a': off, 'gsd-b': off } });
+    expect(by('set:my').settings).toEqual({ permissions: { deny: [deny('my-helper')] } });
+    expect(by('set:aws').settings).toEqual({ skillOverrides: { 'aws-x': off } });
+    expect(by('set:own').settings).toEqual({ skillOverrides: { 'own-notes': off } });
+    expect(by('set:tool').settings).toEqual({ skillOverrides: { 'tool:run': off } });
+    expect(by('plugin:alpha@m').settings).toEqual({ enabledPlugins: { 'alpha@m': false } });
+    expect(by('mcp-ref').mcp?.map((m) => m.name)).toEqual(['proj-db', 'user-search']);
+    expect(by('mcp:proj-db').mcp?.map((m) => m.name)).toEqual(['user-search']);
+    expect(by('mcp:user-search').mcp?.map((m) => m.name)).toEqual(['proj-db']);
+    expect(by('all-on').depends).toEqual(fc.fingerprints(setup));
+    expect(Object.keys(by('all-on').depends)).toEqual(expect.arrayContaining(['hook', 'skills', 'docs', 'agent:accord-scout', 'plugin:alpha@m', 'mcp:proj-db', 'set:gsd']));
+    expect(Object.keys(by('set:gsd').depends)).toEqual(['set:gsd']);
+    expect(Object.keys(by('mcp-ref').depends)).toEqual(['mcp:proj-db', 'mcp:user-search']);
+    expect(by('plugin:beta@m').depends).toEqual({ 'plugin:beta@m': '2.0.0' });
+
+    const r = bench.fixedProbe({ repo: w.repo, home: w.home, bench: w.bench });
+    expect(r.exit).toBe(0);
+    const lines = r.text.split('\n').filter(Boolean);
+    expect(lines[0]).toBe('# Run in Git Bash, then run: node scripts/benchmark.mjs --fixed');
+    expect(lines[1]).toContain(' worktree add -B probe/fixed-context ');
+    const commands = lines.slice(2);
+    expect(commands).toHaveLength(probes.length);
+    for (const line of lines) expect(line).not.toContain('{');
+    const names = setup.agents.map((a) => a.name);
+    const prompt = fc.shellLine([fc.dispatchPrompt(names)]);
+    const state = readState(w.bench);
+    expect(state.map((e) => e.id)).toEqual(probes.map((p) => p.id));
+    expect(commands).toEqual(state.map((e) => e.command));
+    expect(new Set(state.map((e) => e.sessionId)).size).toBe(probes.length);
+    for (const e of state) {
+      expect(e.command.startsWith('cd ' + fc.shellLine([w.probeDir]) + ' && ')).toBe(true);
+      expect(e.command).toContain('claude -p ' + prompt + ' --session-id ' + e.sessionId);
+      expect(e.fingerprint).toEqual(by(e.id).depends);
+    }
+    const cmd = (id: string) => (state.find((e) => e.id === id) as { command: string }).command;
+    expect(cmd('set:gsd')).toContain(' --settings ' + fc.shellLine([`${w.bench}/fixed/set_gsd.settings.json`]));
+    expect(cmd('set:gsd')).not.toContain('--mcp-config');
+    expect(cmd('mcp:proj-db')).toContain(' --mcp-config ' + fc.shellLine([`${w.bench}/fixed/mcp_proj-db.mcp.json`]));
+    expect(cmd('mcp:proj-db')).toContain(' --strict-mcp-config');
+    expect(cmd('mcp-ref')).toContain(' --strict-mcp-config');
+    expect(cmd('all-on')).not.toMatch(/--settings|--mcp-config|--strict-mcp-config/);
+    expect(cmd('plugin:alpha@m')).toContain(' --settings ' + fc.shellLine([`${w.bench}/fixed/plugin_alpha_m.settings.json`]));
+    expect(JSON.parse(readFileSync(`${w.bench}/fixed/set_gsd.settings.json`, 'utf8'))).toEqual(by('set:gsd').settings);
+
+    // Other forms reach the command: a flag that takes a list comes after the prompt.
+    const forms = { ...fc.PROBE_FORMS, extraArgs: ['--allowedTools', 'Agent'] };
+    expect(bench.fixedProbe({ repo: w.repo, home: w.home, bench: w.bench, forms }).exit).toBe(0);
+    const allOn = readState(w.bench).find((e) => e.id === 'all-on') as { sessionId: string; command: string };
+    expect(allOn.command).toContain('claude -p ' + prompt + ' --session-id ' + allOn.sessionId);
+    expect(allOn.command.endsWith(' --allowedTools Agent')).toBe(true);
+
+    // No listable server: the reference is still measured, with the strict flag alone.
+    rmSync(`${w.repo}/.mcp.json`);
+    writeFileSync(`${w.home}/.claude.json`, '{}\n');
+    expect(bench.fixedProbe({ repo: w.repo, home: w.home, bench: w.bench }).exit).toBe(0);
+    const ref = readState(w.bench).find((e) => e.id === 'mcp-ref') as { command: string };
+    expect(ref.command).toContain(' --strict-mcp-config');
+    expect(ref.command).not.toContain(' --mcp-config');
+
+    // An uncommitted edit of .claude: the probe worktree holds the commit, so nothing is written.
+    rmSync(`${w.bench}/fixed`, { recursive: true, force: true });
+    appendFileSync(`${w.repo}/.claude/agents/accord-scout.md`, '\nedited\n');
+    const refused = bench.fixedProbe({ repo: w.repo, home: w.home, bench: w.bench });
+    expect(refused.exit).toBe(2);
+    expect(refused.text.trim()).toBe(REFUSAL);
+    expect(existsSync(`${w.bench}/fixed`)).toBe(false);
+  } finally {
+    rmSync(w.tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+}, 120_000);
+
+it('risk:security MCP config files stay under the bench root and no server secret is printed or stored in the repository', async () => {
+  const { bench } = await loadBoth();
+  const w = makeWorld();
+  try {
+    const r = bench.fixedProbe({ repo: w.repo, home: w.home, bench: w.bench });
+    expect(r.exit).toBe(0);
+    expect(r.text).not.toContain('sekret-user-123');
+    expect(r.text).not.toContain('sekret-local-456');
+    expect(w.bench.startsWith(w.repo + '/')).toBe(false);
+    expect(readFileSync(`${w.bench}/fixed/probes.json`, 'utf8')).not.toContain('sekret-user-123');
+    for (const file of filesUnder(w.repo)) expect(readFileSync(file, 'utf8'), file).not.toMatch(/sekret-(user-123|local-456)/);
+    const holding = filesUnder(w.bench).filter((f) => readFileSync(f, 'utf8').includes('sekret-user-123'));
+    expect(holding.length).toBeGreaterThan(0);
+    for (const f of holding) expect(f.startsWith(`${w.bench}/fixed/`) && f.endsWith('.mcp.json'), f).toBe(true);
+    for (const f of filesUnder(w.bench)) expect(readFileSync(f, 'utf8'), f).not.toContain('sekret-local-456');
+  } finally {
+    rmSync(w.tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+}, 120_000);
+
+it('risk:parsing printed commands keep absolute paths Git Bash runs when the repository lies under the home folder', async () => {
+  const { fc, bench } = await loadBoth();
+  const w = makeWorld({ underHome: true });
+  try {
+    expect(w.repo.startsWith(w.home + '/')).toBe(true);
+    const r = bench.fixedProbe({ repo: w.repo, home: w.home, bench: w.bench });
+    expect(r.exit).toBe(0);
+    const lines = r.text.split('\n').filter(Boolean);
+    for (const line of lines) expect(line).not.toContain('~');
+    const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: w.repo, encoding: 'utf8' }).trim();
+    expect(lines[1]).toBe('git -C ' + fc.shellLine([w.repo]) + ' worktree add -B probe/fixed-context ' + fc.shellLine([w.probeDir]) + ' ' + head);
+    const commands = lines.slice(2);
+    for (const c of commands) expect(c.startsWith('cd ' + fc.shellLine([w.probeDir]) + ' && ')).toBe(true);
+    const state = readState(w.bench);
+    const cmd = (id: string) => (state.find((e) => e.id === id) as { command: string }).command;
+    expect(cmd('set:gsd')).toContain(' --settings ' + fc.shellLine([w.bench + '/fixed/set_gsd.settings.json']));
+    expect(cmd('mcp-ref')).toContain(' --mcp-config ' + fc.shellLine([w.bench + '/fixed/mcp-ref.mcp.json']));
+    expect(existsSync(`${w.bench}/fixed/set_gsd.settings.json`)).toBe(true);
+    expect(existsSync(`${w.bench}/fixed/mcp-ref.mcp.json`)).toBe(true);
+    for (const e of state) expect(e.cwd).toBe(w.probeDir);
   } finally {
     rmSync(w.tmp, { recursive: true, force: true, maxRetries: 5 });
   }

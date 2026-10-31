@@ -23,13 +23,14 @@ export const POINTER = '<!-- accord:start -->\nThis repository uses accord. Type
 const agent = (name: string, model: string, tools: string | null) =>
   `---\nname: "${name}"\ndescription: "${name} does one thing."\n${tools ? `tools: "${tools}"\n` : ''}model: "${model}"\n---\n${MARKER}\n\nBody of ${name}.\n`;
 
-/** Builds the fake machine under a new temporary folder; the caller removes `tmp`. */
-export function makeWorld(): World {
+/** Builds the fake machine under a new temporary folder; the caller removes `tmp`. `underHome` puts the work folder inside the home folder. */
+export function makeWorld(options: { underHome?: boolean } = {}): World {
   const tmp = slash(realpathSync.native(mkdtempSync(join(tmpdir(), 'bench-'))));
-  const repo = `${tmp}/work/repo`;
+  const work = options.underHome ? `${tmp}/home/work` : `${tmp}/work`;
+  const repo = `${work}/repo`;
   const home = `${tmp}/home`;
-  const bench = `${tmp}/work/accord-bench`;
-  const probeDir = `${tmp}/work/accord-probe`;
+  const bench = `${work}/accord-bench`;
+  const probeDir = `${work}/accord-probe`;
   mkdirSync(repo, { recursive: true });
   mkdirSync(bench, { recursive: true });
   git(repo, ['init', '-q', '-b', 'main']);

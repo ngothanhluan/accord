@@ -7,13 +7,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { execFileSync, execSync } from 'node:child_process';
 import { parse as parseYaml } from 'yaml';
 import { parsePlanReview } from './plan-review.mjs';
 import { median, ROLES, WRITERS, checkSamples, readDiffers, runMatrix, rewriteBrief, dispatchTable, matchRuns, mustsOf, judgeBrief, parseVerdict, holds, turnFlags, report, carryJudgeBriefs, escapes, exitState, runProblem } from './round.mjs';
 import { compliance, render as renderCompliance, parseCompliance, mergeCompliance } from './compliance.mjs';
-import { standsFor } from './fixed-context.mjs';
+import { standsFor, PROBE_BRANCH, PROBE_FORMS, dispatchPrompt, phaseOne, shellLine } from './fixed-context.mjs';
 
 const projectsRoot = path.join(os.homedir(), '.claude', 'projects');
 const defaultDirs = (repo) => {
@@ -1072,6 +1072,12 @@ export function main(args) {
     return runRound(process.cwd(), { judge, extra: args.slice(judge ? 3 : 2).filter((a) => !a.startsWith('--')) });
   }
   if (args[0] === '--clean') return runClean(process.cwd(), args.includes('--force'));
+  if (args.length === 2 && args[0] === '--fixed' && args[1] === '--probe') {
+    const repo = process.cwd();
+    const result = fixedProbe({ repo, home: os.homedir(), bench: benchRoot(repo) });
+    (result.exit === 0 ? process.stdout : process.stderr).write(result.text);
+    return result.exit;
+  }
   if (args[0] === '--round' && args[1] === '1' && args[2] === '--samples') return runSamples(process.cwd());
   if (args[0] === '--round' && args[1] === '1' && args[2] === '--plan') {
     const at = args.indexOf('--rerun');
@@ -1079,7 +1085,7 @@ export function main(args) {
     return runPlan(process.cwd(), at >= 0 ? args[at + 1].split(',').filter(Boolean) : []);
   }
   if (args.some((a) => a.startsWith('--'))) {
-    process.stderr.write('usage: node scripts/benchmark.mjs [--compliance | --round 1 [--samples | --plan [--rerun <tag>[,<tag>]] | --judge] | --clean [--force]] [folder ...]\n');
+    process.stderr.write('usage: node scripts/benchmark.mjs [--compliance | --round 1 [--samples | --plan [--rerun <tag>[,<tag>]] | --judge] | --clean [--force] | --fixed [--probe]] [folder ...]\n');
     return 2;
   }
   process.stdout.write(legacyReport(args.length ? args : defaultDirs(process.cwd())));
@@ -1282,6 +1288,61 @@ export function readSetup({ repo, home }) {
     sets,
     docs,
   };
+}
+
+// ---- fixed context: the probes the owner runs (ST-LN-79) ----
+const byId = byName('id');
+
+// True when `.claude` or a CLAUDE.md file has uncommitted changes: the probe worktree holds the commit, not the
+// working files, so a probe run then would measure a setup other than the one the report sizes.
+export const setupDirty = (repo) => gitIn(repo, ['status', '--porcelain', '-z', '--', ':(literal).claude', ':(glob)**/CLAUDE.md']).length > 0;
+
+// Writes the settings and MCP config files of the probes run from the probe worktree under `<bench>/fixed/`
+// (MCP config files carry server secrets, so they never go inside the repository) and records each probe's
+// session id, command and fingerprint in `<bench>/fixed/probes.json`. A probe keeps its session id unless `fresh`.
+// Returns the entries written, sorted by id.
+export function writeProbes({ repo, home, bench, probes, fresh, forms = PROBE_FORMS, setup = readSetup({ repo, home }) }) {
+  const dir = `${slash(bench)}/fixed`;
+  fs.mkdirSync(dir, { recursive: true });
+  const stateFile = `${dir}/probes.json`;
+  const stored = readJsonFile(stateFile, home)?.probes ?? [];
+  const prompt = dispatchPrompt(setup.agents.map((a) => a.name));
+  const safe = (id) => id.replace(/[^A-Za-z0-9._-]/g, '_');
+  const written = [];
+  for (const probe of probes.filter((p) => p.where === 'probe')) {
+    if (written.some((e) => safe(e.id) === safe(probe.id))) throw new Error(`probes ${probe.id} and another share the file name ${safe(probe.id)}`);
+    const sessionId = (!fresh && stored.find((e) => e.id === probe.id)?.sessionId) || randomUUID();
+    const args = ['claude', '-p', prompt, '--session-id', sessionId, ...forms.extraArgs];
+    if (probe.settings) {
+      const file = `${dir}/${safe(probe.id)}.settings.json`;
+      fs.writeFileSync(file, JSON.stringify(probe.settings, null, 2) + '\n');
+      args.push('--settings', file);
+    }
+    if (probe.mcp) {
+      const file = `${dir}/${safe(probe.id)}.mcp.json`;
+      fs.writeFileSync(file, JSON.stringify({ mcpServers: Object.fromEntries(probe.mcp.map((m) => [m.name, m.entry])) }, null, 2) + '\n');
+      args.push('--mcp-config', file);
+    }
+    if (probe.id === 'mcp-ref' || probe.id.startsWith('mcp:')) args.push('--strict-mcp-config');
+    written.push({ id: probe.id, sessionId, cwd: setup.probeDir, command: `cd ${shellLine([setup.probeDir])} && ${shellLine(args)}`, fingerprint: probe.depends });
+  }
+  const kept = stored.filter((e) => !written.some((w) => w.id === e.id));
+  written.sort(byId);
+  fs.writeFileSync(stateFile, JSON.stringify({ probes: [...kept, ...written].sort(byId) }, null, 2) + '\n');
+  return written;
+}
+
+// `--fixed --probe`: writes the phase-one probes anew and returns the commands the owner runs in Git Bash.
+export function fixedProbe({ repo, home, bench, forms = PROBE_FORMS }) {
+  repo = slash(repo);
+  if (setupDirty(repo)) return { exit: 2, text: 'Refused: .claude or a CLAUDE.md file has uncommitted changes; the probe worktree holds the commit. Commit them and run again.\n' };
+  const setup = readSetup({ repo, home });
+  const written = writeProbes({ repo, home, bench, probes: phaseOne(setup, forms), fresh: true, forms, setup });
+  const head = gitIn(repo, ['rev-parse', 'HEAD']).trim();
+  const worktree = fs.existsSync(setup.probeDir)
+    ? shellLine(['git', '-C', setup.probeDir, 'checkout', '-B', PROBE_BRANCH, head])
+    : shellLine(['git', '-C', repo, 'worktree', 'add', '-B', PROBE_BRANCH, setup.probeDir, head]);
+  return { exit: 0, text: ['# Run in Git Bash, then run: node scripts/benchmark.mjs --fixed', worktree, ...written.map((e) => e.command)].join('\n') + '\n' };
 }
 
 // Last: the entry runs only once every top-level declaration above has been evaluated.

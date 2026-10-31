@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { expect, it } from 'vitest';
-import { assistantLine, attachmentLine, CHOSEN, HOOK, makeWorld, measuredWorld, MODEL_OF as ROW_MODEL, sizeOf, userLine, writeSession, type RowName, type World } from './helpers/fixed-world.js';
+import { assistantLine, attachmentLine, CHOSEN, CLAIMED, HOOK, makeWorld, measuredWorld, MODEL_OF as ROW_MODEL, sizeOf, userLine, writeSession, type RowName, type World } from './helpers/fixed-world.js';
 
 type Line = Record<string, any>;
 type FirstCall = {
@@ -832,7 +832,9 @@ const sumOf = (...n: (number | undefined)[]) => n.reduce<number>((a, b) => a + (
 const tableUnder = (text: string, heading: string): string[][] => {
   const lines = text.split('\n');
   const at = lines.indexOf(heading);
-  const table = lines.slice(at + 1).filter((l) => l.startsWith('|'));
+  const rest = lines.slice(at + 1);
+  const end = rest.findIndex((l) => l.startsWith('#'));
+  const table = (end < 0 ? rest : rest.slice(0, end)).filter((l) => l.startsWith('|'));
   return table.slice(2).map((l) => l.split('|').slice(1, -1).map((c) => c.trim()));
 };
 
@@ -924,6 +926,117 @@ it('ac-3 the report printed twice on the same transcripts and setup is the same'
     expect(second.text).toBe(first.text);
     expect(readFileSync(stateFile, 'utf8')).toBe(before);
     expect(readFileSync(m.reportFile, 'utf8')).toBe(first.text);
+  } finally {
+    rmSync(w.tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+}, 120_000);
+
+// ---- ST-LN-79 task 9: cost-weighted figures, the setup items and the ticket shares ----
+
+type Bill = { input: number; cacheRead: number; cacheWrite: number; output: number };
+/** The fixed context is charged to the cache reads first, then the cache writes, then the fresh input; weights 1, 0.1 and 1.25. */
+function weighed(fixed: number, c: Bill): number {
+  const reads = Math.min(fixed, c.cacheRead);
+  const writes = Math.min(fixed - reads, c.cacheWrite);
+  const fresh = Math.min(fixed - reads - writes, c.input);
+  return 0.1 * reads + 1.25 * writes + fresh;
+}
+const wholeCost = (c: Bill) => c.input + 0.1 * c.cacheRead + 1.25 * c.cacheWrite + 5 * c.output;
+const one = (n: number) => n.toFixed(1);
+const pct = (n: number) => `${(n * 100).toFixed(1)}%`;
+const OWNER_ORDER = ['accord', 'Claude Code', 'plugins', 'MCP servers', 'CLAUDE.md and memory', 'own skills, agents and commands'];
+const order = (owner: string) => OWNER_ORDER.indexOf(owner);
+
+it('ac-2 each figure is given raw and cost-weighted and each done lane M ticket gets two fixed context shares', async () => {
+  const mainFixed = Number(expectedRow('main')[3]);
+  const scoutFixed = Number(expectedRow('accord-scout')[3]);
+  // m1: its cache reads cover the fixed context; m2: it reaches into its cache writes; m3: it reaches into its fresh input;
+  // s1 and s2: the whole input is below it.
+  const bill: Record<string, Bill> = {
+    m1: { input: 5, cacheRead: 60000, cacheWrite: 1000, output: 200 },
+    m2: { input: 100, cacheRead: 30000, cacheWrite: 25000, output: 300 },
+    m3: { input: 100000, cacheRead: 10000, cacheWrite: 0, output: 50 },
+    s1: { input: 10, cacheRead: 100, cacheWrite: 0, output: 70 },
+    s2: { input: 10, cacheRead: 100, cacheWrite: 0, output: 0 },
+    g1: { input: 50, cacheRead: 1000, cacheWrite: 20, output: 400 },
+  };
+  const elsewhere = { cwd: '/elsewhere', branch: 'main' };
+  const m = await measuredWorld({
+    tickets: true,
+    real: {
+      m1: { ...bill.m1, branch: 't/T-1' }, m2: { ...bill.m2, branch: 't/T-1' }, m3: { ...bill.m3, ...elsewhere },
+      s1: { ...bill.s1, branch: 't/T-1' }, s2: { ...bill.s2, ...elsewhere }, g1: { ...bill.g1, branch: '' },
+    },
+  });
+  const { w } = m;
+  try {
+    const r = m.bench.fixedReport(m.args);
+    expect(r.exit).toBe(0);
+    const lines = r.text.split('\n');
+
+    // The raw table is unchanged and comes first.
+    const rawTable = tableUnder(r.text, '## Fixed context per call, raw tokens');
+    expect(rawTable[0]).toEqual(expectedRow('main'));
+    expect(lines.indexOf('## Fixed context per call, raw tokens')).toBeLessThan(lines.indexOf('## Fixed context per call, cost-weighted tokens'));
+
+    // The cost-weighted table: the mean over the row's calls, each owner its raw value times the row's ratio.
+    const weightedTable = tableUnder(r.text, '## Fixed context per call, cost-weighted tokens');
+    expect(weightedTable.map((c) => c[0])).toEqual([MAIN_LABEL, 'accord-scout']);
+    const means = {
+      main: (weighed(mainFixed, bill.m1) + weighed(mainFixed, bill.m2) + weighed(mainFixed, bill.m3)) / 3,
+      'accord-scout': (weighed(scoutFixed, bill.s1) + weighed(scoutFixed, bill.s2)) / 2,
+    };
+    for (const row of ['main', 'accord-scout'] as const) {
+      const raw = expectedRow(row);
+      const cells = weightedTable[row === 'main' ? 0 : 1];
+      const ratio = means[row] / Number(raw[3]);
+      expect(cells.slice(0, 3)).toEqual(raw.slice(0, 3));
+      expect(cells[3]).toBe(one(means[row]));
+      expect(cells.slice(4, 11)).toEqual(raw.slice(4, 11).map((v) => one(Number(v) * ratio)));
+      const owners = raw.slice(4, 10).map(Number);
+      expect(cells[11]).toBe(OWNER_ORDER[owners.indexOf(Math.max(...owners))]);
+    }
+    expect(lines).toContain('Weights: fresh input 1, cache read 0.1, cache write 1.25. 2 calls had less input than the fixed context now measured; the excess was not charged.');
+
+    // The items table.
+    const setup = m.bench.readSetup({ repo: w.repo, home: w.home }) as { docs: { label: string }[] };
+    const items = tableUnder(r.text, '## Setup items, tokens per call (raw / cost-weighted)');
+    expect(lines).toContain(`| item | owner | ${MAIN_LABEL} | accord-scout |`);
+    const of = (owner: string) => items.filter((c) => c[1] === owner).map((c) => c[0]);
+    expect(of('plugins')).toEqual(["accord-panel@accord (accord's own)", 'alpha@m', 'beta@m']);
+    expect(of('MCP servers')).toEqual(['other connected servers: none', 'proj-db', 'user-search']);
+    expect(of('CLAUDE.md and memory').sort()).toEqual(setup.docs.map((d) => d.label).sort());
+    expect(of('own skills, agents and commands').map((l) => l.split(' ')[1])).toEqual(['aws', 'gsd', 'my', 'own', 'tool']);
+    expect(items.map((c) => order(c[1]))).toEqual(items.map((c) => order(c[1])).sort((a, b) => a - b));
+    const cell = (label: string) => (items.find((c) => c[0] === label) as string[]).slice(2);
+    const mainRatio = means.main / mainFixed;
+    expect(cell('alpha@m')).toEqual([`1000 / ${one(1000 * mainRatio)}`, '-']);
+    expect(cell('beta@m')).toEqual(['-', '-']);
+    expect(cell(setup.docs.find((d) => d.label.endsWith('note.md'))?.label as string)).toEqual(['-', '-']);
+    expect(cell('set gsd (3 members)')).toEqual([`600 / ${one(600 * mainRatio)}`, `100 / ${one(100 * (means['accord-scout'] / scoutFixed))}`]);
+    expect(lines).toContain('What the owner could cut: each line above is the cost per call that removing the item saves in that row.');
+
+    // The tickets table: T-1 only; its calls are m1, m2 and s1 on its branch and g1 in the folder that only ever recorded it.
+    const tickets = tableUnder(r.text, "## Lane M tickets, share of the ticket's cost");
+    expect(tickets.map((c) => c[0])).toEqual(['T-1']);
+    const cost = wholeCost(bill.m1) + wholeCost(bill.m2) + wholeCost(bill.s1) + wholeCost(bill.g1);
+    expect(tickets[0]).toEqual([
+      'T-1', new Date(CLAIMED['T-1']).toISOString().slice(0, 10), '4',
+      pct((weighed(mainFixed, bill.m1) + weighed(mainFixed, bill.m2)) / cost), pct(weighed(scoutFixed, bill.s1) / cost),
+    ]);
+    expect(lines).toContain('| ticket | claim | calls | main fixed context | accord subagents fixed context |');
+    expect(lines).toContain("Weights: fresh input 1, cache read 0.1, cache write 1.25, output 5. Output tokens are estimated at 4 characters a token, since transcripts keep the usage from the stream's start.");
+    expect(lines).toContain("The subagent share counts accord agents only; other subagents (such as Explore or general-purpose) count in the ticket's whole cost, and their fixed context is not measured.");
+
+    // With no done ticket in range, the table is replaced by one sentence.
+    const none = await measuredWorld();
+    try {
+      const text = none.bench.fixedReport(none.args).text.split('\n');
+      const at = text.indexOf("## Lane M tickets, share of the ticket's cost");
+      expect(text.slice(at)).toEqual(["## Lane M tickets, share of the ticket's cost", '', "No lane M ticket reached done with its claim inside the transcripts' date range.", '']);
+    } finally {
+      rmSync(none.w.tmp, { recursive: true, force: true, maxRetries: 5 });
+    }
   } finally {
     rmSync(w.tmp, { recursive: true, force: true, maxRetries: 5 });
   }

@@ -443,11 +443,65 @@ export function measure({ setup, probes, state, located, texts }) {
 export const MAIN_LABEL = 'main session (claude -p)';
 const day = (ms) => new Date(ms).toISOString().slice(0, 10);
 
+// The cost, in fresh-input tokens, of the fixed context `size` in one call: it sits at the front of the call's input, so
+// it is charged first against the cache reads (weight 0.1), then the cache writes (1.25), then the fresh input (1).
+// `clamped` is true when the call's whole input is smaller than `size` (a size measured today can exceed an old call's
+// input); the excess is not charged.
+export function weighFixed(size, call) {
+  const fixed = Math.max(0, size);
+  const reads = Math.min(fixed, call.cacheRead);
+  const writes = Math.min(fixed - reads, call.cacheWrite);
+  const fresh = Math.min(fixed - reads - writes, call.input);
+  return { weighted: 0.1 * reads + 1.25 * writes + fresh, clamped: fixed > reads + writes + fresh };
+}
+
+// A row's mean cost-weighted fixed context per call, its weighted-to-raw ratio, and how many of its calls were clamped.
+function rowWeights(own, total) {
+  const each = own.map((c) => weighFixed(total, c));
+  const mean = each.reduce((n, x) => n + x.weighted, 0) / each.length;
+  return { mean, ratio: total > 0 ? mean / total : 0, clamped: each.filter((x) => x.clamped).length };
+}
+
+// The lane M tickets that reached done (`tickets`: { id, claimAt } from the repository) whose claim lies inside the
+// calls' date range, each with its calls, and the share of its whole cost (fresh input 1, cache read 0.1, cache write
+// 1.25, output 5) that the main session's fixed context and the accord agents' fixed context make. A ticket's calls are
+// those on its branch `t/<id>` and those in a folder that records no other branch than that one. A ticket with no call
+// has no cost to share and is left out. A call of a row without a figure counts in the whole cost only.
+export function ticketShares({ calls, rows, tickets }) {
+  if (!calls.length) return [];
+  const first = Math.min(...calls.map((c) => c.ts));
+  const last = Math.max(...calls.map((c) => c.ts));
+  const totalOf = new Map(rows.map((r) => [r.row, r.total]));
+  const folder = (c) => c.cwd.replace(/\\/g, '/').toLowerCase();
+  const branchesIn = new Map();
+  for (const c of calls) {
+    if (!c.cwd || !c.branch) continue;
+    if (!branchesIn.has(folder(c))) branchesIn.set(folder(c), new Set());
+    branchesIn.get(folder(c)).add(c.branch);
+  }
+  const shares = [];
+  for (const t of [...tickets].sort((a, b) => cmp(a.id, b.id))) {
+    if (t.claimAt < first || t.claimAt > last) continue;
+    const branch = `t/${t.id}`;
+    const only = (c) => c.cwd && !c.branch && branchesIn.get(folder(c))?.size === 1 && branchesIn.get(folder(c)).has(branch);
+    const own = calls.filter((c) => c.branch === branch || only(c));
+    if (!own.length) continue;
+    const whole = own.reduce((n, c) => n + c.input + 0.1 * c.cacheRead + 1.25 * c.cacheWrite + 5 * c.output, 0);
+    const fixedOf = (pick) => own.filter(pick).reduce((n, c) => n + (totalOf.has(c.row) ? weighFixed(totalOf.get(c.row), c).weighted : 0), 0);
+    shares.push({
+      id: t.id, claimAt: t.claimAt, calls: own.length,
+      main: whole > 0 ? fixedOf((c) => c.row === 'main') / whole : 0,
+      agents: whole > 0 ? fixedOf((c) => c.accord) / whole : 0,
+    });
+  }
+  return shares;
+}
+
 // The report text, from the real calls (`readCalls`' list, its newest Claude Code `version` and the number of transcript
 // `folders`), the Claude Code and the date of the all-on probe, and `measure`'s rows. Reads no clock: every date comes
 // from the transcripts. One row for the main session and one for each accord agent that ran; an agent that ran but has
 // no definition now keeps its calls and gets `-` in every figure.
-export function render({ calls, version, folders, probeVersion: probed, allOnTs, rows }) {
+export function render({ calls, version, folders, probeVersion: probed, allOnTs, rows, items = [], tickets = [] }) {
   const first = calls.length ? day(Math.min(...calls.map((c) => c.ts))) : '-';
   const last = calls.length ? day(Math.max(...calls.map((c) => c.ts))) : '-';
   const ran = [...new Set(calls.filter((c) => c.accord).map((c) => c.row))].sort(cmp);
@@ -487,6 +541,56 @@ export function render({ calls, version, folders, probeVersion: probed, allOnTs,
       ? [measured.total, measured.parts.accord, measured.parts.claudeCode, measured.parts.plugins, measured.parts.mcp, measured.parts.docs, measured.parts.sets, measured.unattributed].map((n) => String(Math.round(n)))
       : Array(8).fill('-');
     out.push(line([label, measured ? measured.model : '-', String(own.length), ...figures]));
+  }
+
+  // Cost-weighted: each row's mean over its calls; each owner and each item its raw tokens times the row's ratio.
+  const one = (n) => { const t = n.toFixed(1); return t === '-0.0' ? '0.0' : t; };
+  const weights = new Map();
+  for (const { label, own, measured } of table) if (measured && own.length) weights.set(label, rowWeights(own, measured.total));
+  const named = ['accord', 'claudeCode', 'plugins', 'mcp', 'docs', 'sets'];
+  const weightedHead = [...head, 'largest owner'];
+  out.push('', '## Fixed context per call, cost-weighted tokens', '', line(weightedHead), line(weightedHead.map(() => '---')));
+  let clamped = 0;
+  for (const { label, own, measured } of table) {
+    const w = weights.get(label);
+    if (!measured || !w) {
+      out.push(line([label, measured ? measured.model : '-', String(own.length), ...Array(9).fill('-')]));
+      continue;
+    }
+    clamped += w.clamped;
+    const raw = [measured.total, measured.parts.accord, measured.parts.claudeCode, measured.parts.plugins, measured.parts.mcp, measured.parts.docs, measured.parts.sets, measured.unattributed];
+    let big = 0;
+    named.forEach((k, i) => { if (measured.parts[k] > measured.parts[named[big]]) big = i; });
+    out.push(line([label, measured.model, String(own.length), one(w.mean), ...raw.slice(1).map((n) => one(n * w.ratio)), Object.values(OWNERS)[big]]));
+  }
+  out.push('', `Weights: fresh input 1, cache read 0.1, cache write 1.25. ${clamped} calls had less input than the fixed context now measured; the excess was not charged.`);
+
+  const ownerOrder = Object.values(OWNERS);
+  const itemHead = ['item', 'owner', ...table.map((t) => t.label)];
+  out.push('', '## Setup items, tokens per call (raw / cost-weighted)', '', line(itemHead), line(itemHead.map(() => '---')));
+  const sorted = [...items].sort((a, b) => ownerOrder.indexOf(a.owner) - ownerOrder.indexOf(b.owner) || cmp(a.label, b.label));
+  for (const item of sorted) {
+    const cells = table.map(({ label, measured }) => {
+      const w = weights.get(label);
+      const n = measured ? item.perRow[measured.row] : undefined;
+      return n === undefined || !w ? '-' : `${Math.round(n)} / ${one(n * w.ratio)}`;
+    });
+    out.push(line([item.label, item.owner, ...cells]));
+  }
+  out.push('', 'What the owner could cut: each line above is the cost per call that removing the item saves in that row.');
+
+  out.push('', "## Lane M tickets, share of the ticket's cost", '');
+  if (!tickets.length) out.push("No lane M ticket reached done with its claim inside the transcripts' date range.");
+  else {
+    const ticketHead = ['ticket', 'claim', 'calls', 'main fixed context', 'accord subagents fixed context'];
+    const pct = (n) => `${(n * 100).toFixed(1)}%`;
+    out.push(line(ticketHead), line(ticketHead.map(() => '---')));
+    for (const t of tickets) out.push(line([t.id, day(t.claimAt), String(t.calls), pct(t.main), pct(t.agents)]));
+    out.push(
+      '',
+      "Weights: fresh input 1, cache read 0.1, cache write 1.25, output 5. Output tokens are estimated at 4 characters a token, since transcripts keep the usage from the stream's start.",
+      "The subagent share counts accord agents only; other subagents (such as Explore or general-purpose) count in the ticket's whole cost, and their fixed context is not measured.",
+    );
   }
   return out.join('\n') + '\n';
 }

@@ -193,6 +193,39 @@ type BenchApi = {
 };
 type FcApi = { stubsOf: (s: unknown, a: unknown) => { name: string; agents: string[] }[] };
 
+/** The real calls `measuredWorld` writes: three of the main session, two of `accord-scout` and one of `general-purpose`. */
+export type RealId = 'm1' | 'm2' | 'm3' | 's1' | 's2' | 'g1';
+export type MeasuredOptions = {
+  /** Another billing, folder or branch for a real call. */
+  real?: Partial<Record<RealId, { input?: number; cacheRead?: number; cacheWrite?: number; output?: number; cwd?: string; branch?: string }>>;
+  /** Commit the lane M tickets `T-1` (done), `T-2` (lane L), `T-3` (not done) and `T-4` (done, claimed before the first call). */
+  tickets?: boolean;
+};
+
+/** When each ticket's claim commit is dated; the real calls run from 2026-10-28T10 to 2026-10-29T12. */
+export const CLAIMED: Record<string, number> = {
+  'T-1': Date.UTC(2026, 9, 28, 12), 'T-2': Date.UTC(2026, 9, 28, 12), 'T-3': Date.UTC(2026, 9, 28, 12), 'T-4': Date.UTC(2026, 9, 27, 12),
+};
+const TICKETS: Record<string, string> = {
+  'T-1': 'lane: "M"\nverified_hash: "fnv1a64:0000000000000001"',
+  'T-2': 'lane: "L"\nverified_hash: "fnv1a64:0000000000000002"',
+  'T-3': 'lane: "M"',
+  'T-4': 'lane: "M"\nverified_hash: "fnv1a64:0000000000000004"',
+};
+
+/** Commits each ticket with a `claim: <id>` commit dated by `CLAIMED`, on the default branch. */
+function commitTickets(w: World): void {
+  for (const [id, fields] of Object.entries(TICKETS)) {
+    put(`${w.repo}/accord/tickets/${id}.md`, `---\nid: "${id}"\n${fields}\n---\n\n## Intent\nx\n`);
+    git(w.repo, ['add', '-A']);
+    put(`${w.tmp}/claim-${id}.txt`, `claim: ${id}\n`);
+    const date = new Date(CLAIMED[id]).toISOString();
+    execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', '-c', 'commit.gpgsign=false', 'commit', '-q', '--no-verify', '-F', `${w.tmp}/claim-${id}.txt`, '--cleanup=verbatim'], {
+      cwd: w.repo, env: { ...process.env, GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date }, stdio: ['ignore', 'pipe', 'pipe'],
+    });
+  }
+}
+
 export type MeasuredWorld = {
   w: World;
   bench: BenchApi;
@@ -208,11 +241,12 @@ export type MeasuredWorld = {
  * calls: a main session of three calls, an `accord-scout` run of two (the second on another model) and one
  * `general-purpose` call. The caller removes `w.tmp`.
  */
-export async function measuredWorld(): Promise<MeasuredWorld> {
+export async function measuredWorld(options: MeasuredOptions = {}): Promise<MeasuredWorld> {
   const bench = (await import(new URL('../../../../scripts/benchmark.mjs', import.meta.url).href)) as BenchApi;
   const fc = (await import(new URL('../../../../scripts/fixed-context.mjs', import.meta.url).href)) as FcApi;
   const w = makeWorld();
   try {
+    if (options.tickets) commitTickets(w);
     const realDir = `${w.home}/.claude/projects/real`;
     const args = { repo: w.repo, home: w.home, bench: w.bench, dirs: [realDir, `${w.home}/.claude/projects/probes`] };
     const state = () => (JSON.parse(readFileSync(`${w.bench}/fixed/probes.json`, 'utf8')) as { probes: { id: string; sessionId: string }[] }).probes;
@@ -268,7 +302,7 @@ export async function measuredWorld(): Promise<MeasuredWorld> {
     }
 
     const real = (id: string, model: string, ts: number) =>
-      assistantLine({ id, model, ts, input: 10, cacheRead: 100, version: '9.0.0', cwd: w.repo, branch: 't/ST-LN-1' });
+      assistantLine({ id, model, ts, input: 10, cacheRead: 100, version: '9.0.0', cwd: w.repo, branch: 't/ST-LN-1', ...options.real?.[id as RealId] });
     writeSession(w.home, 'real', 'real-1', {
       main: [userLine('build the thing'), real('m1', 'm-opus', Date.UTC(2026, 9, 28, 10)), real('m2', 'm-opus', Date.UTC(2026, 9, 28, 11)), real('m3', 'm-opus', Date.UTC(2026, 9, 29, 9))],
       agents: {

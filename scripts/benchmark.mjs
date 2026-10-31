@@ -13,7 +13,7 @@ import { parse as parseYaml } from 'yaml';
 import { parsePlanReview } from './plan-review.mjs';
 import { median, ROLES, WRITERS, checkSamples, readDiffers, runMatrix, rewriteBrief, dispatchTable, matchRuns, mustsOf, judgeBrief, parseVerdict, holds, turnFlags, report, carryJudgeBriefs, escapes, exitState, runProblem } from './round.mjs';
 import { compliance, render as renderCompliance, parseCompliance, mergeCompliance } from './compliance.mjs';
-import { standsFor, firstCall, pendingProbes, probeVersion, textsOf, measure, render, PROBE_BRANCH, PROBE_BRIEF, PROBE_DESCRIPTION, PROBE_FORMS, PROBE_PREFIX, dispatchPrompt, phaseOne, shellLine } from './fixed-context.mjs';
+import { standsFor, firstCall, pendingProbes, probeVersion, textsOf, measure, render, ticketShares, PROBE_BRANCH, PROBE_BRIEF, PROBE_DESCRIPTION, PROBE_FORMS, PROBE_PREFIX, dispatchPrompt, phaseOne, shellLine } from './fixed-context.mjs';
 
 const projectsRoot = path.join(os.homedir(), '.claude', 'projects');
 const defaultDirs = (repo) => {
@@ -1507,6 +1507,27 @@ export function fixedPending({ repo, home, bench, forms = PROBE_FORMS }) {
   return { exit: 0, pending, version, text: lines.length ? lines.join('\n') + '\n' : '', probes, setup, state, located, read };
 }
 
+// The lane M tickets that reached done: those on the default branch whose frontmatter has `lane: M` and a non-empty
+// `verified_hash`, each with `claimAt`, the time of the earliest commit whose message starts `claim: <id>`. A ticket
+// with no claim commit is left out.
+export function doneTickets(repo) {
+  const ref = defaultRef(repo);
+  if (!ref) return [];
+  const claims = new Map();
+  for (const c of branchCommits(repo)) {
+    const m = /^claim: (\S+)$/.exec(c.message.split('\n')[0]);
+    if (m && !(claims.get(m[1]) <= c.at)) claims.set(m[1], c.at);
+  }
+  const found = [];
+  for (const file of gitIn(repo, ['ls-tree', '-z', '--name-only', ref, 'accord/tickets/']).split('\0').filter((f) => f.endsWith('.md'))) {
+    const id = file.slice('accord/tickets/'.length, -'.md'.length);
+    if (!claims.has(id)) continue;
+    const { data } = frontmatter(gitIn(repo, ['-c', 'log.showSignature=false', 'show', '--no-show-signature', `${ref}:${file}`]));
+    if (data.lane === 'M' && typeof data.verified_hash === 'string' && data.verified_hash !== '') found.push({ id, claimAt: claims.get(id) });
+  }
+  return found.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+}
+
 // `--fixed`: the raw table of the fixed context per call by owner, written to `<repo>/docs/benchmark/fixed-context.md`.
 // Exit 1 with the commands to run while probes are pending (nothing is written: the size is measured on the setup as
 // it is when the report runs), exit 2 on a refusal, exit 0 with the report. The report text holds no path under the
@@ -1519,8 +1540,9 @@ export function fixedReport({ repo, home, bench, dirs, forms = PROBE_FORMS }) {
   if (p.pending.length) return { exit: 1, text: p.text };
   const allOn = p.located.get(p.state.find((e) => e.id === 'all-on').sessionId);
   const texts = textsOf(p.setup, { main: allOn.main, agents: allOn.agents }, p.read);
-  const { rows } = measure({ setup: p.setup, probes: p.probes, state: p.state, located: p.located, texts });
-  const text = render({ calls, version, folders, probeVersion: p.version, allOnTs: allOn.main.ts, rows });
+  const { rows, items } = measure({ setup: p.setup, probes: p.probes, state: p.state, located: p.located, texts });
+  const tickets = ticketShares({ calls, rows, tickets: doneTickets(repo) });
+  const text = render({ calls, version, folders, probeVersion: p.version, allOnTs: allOn.main.ts, rows, items, tickets });
   fs.mkdirSync(`${repo}/docs/benchmark`, { recursive: true });
   fs.writeFileSync(`${repo}/docs/benchmark/fixed-context.md`, text);
   return { exit: 0, text };

@@ -54,6 +54,8 @@
 - Ruling: `passGuards` judges every non-ignored status entry first (the uncommitted-work line), then the first ignored entry outside the list — the brief's order, so uncommitted work is named ahead of an ignored file — cost if wrong: none.
 - Ruling: `readRecorded` takes an optional second argument `dir`, the cached `<common>/accord` in `GuardState.accord` — keeps the record read to one rev-parse per clean as the plan says; callers without it get the plan's one-argument form — cost if wrong: one signature to trim.
 - Ruling: `sweepForgotten` unlinks a link and falls back to rmdir when unlink throws, as `sweepRemoved` does — the Windows junction Ruling above — cost if wrong: such a junction is kept and named.
+- Ruling: heldElsewhere reads the holds from `s.holds` and callers call `guardHolds` first (new `path` param, plus a `say` callback so cleanForgotten records the line as judged) — keeps the spec's two-step split while naming the folder — if wrong, only the wording or judged-set of the "hold could not be read" line changes.
+- Ruling: the "this session / cannot tell / held by another session" tests moved into one shared `holdReason`, used by passGuards and heldElsewhere — no duplicated logic — if wrong, hold-guard lines would change; the existing session and clean tests pass unchanged.
 
 ## Deferred
 - Plan round 1 Nice: a relative path in a record line is resolved against cwd; skip non-absolute lines and fence descendants of the main checkout — deferred
@@ -79,3 +81,4 @@
 - task 2 done 77c5fc49a523
 - task 3 done c30511b742fd
 - task 4 done 1457dacb9468
+- task 5 done c2da4216c053

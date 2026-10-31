@@ -1,0 +1,22 @@
+# Plan review
+
+## Round 1 (whole)
+
+Three critics in fresh contexts, lenses `criteria`, `build` and `security` (the ticket migrates the review record format).
+
+1. Must — D-10's "the ticket is done there" skip does not reach Task 8's `fixFileUnexplained`: it has no guard for `skipped`, a facts error or a version 2 record, so a pull request for T-2 that touches done ticket T-1's file runs `gate done T-1`, which names every code file of T-2 as an unexplained fix file of T-1's last round and fails CI; no test covers the "done there" skip with a non-empty walk (Task 8 lines 699-705, Task 6 D-10 test lines 565-568) — open
+2. Should — a version 1 ticket in flight at the cut-over fails CI once on main: on main's first-parent chain review.md is added by the merge M_T, so R_1 = M_T and its pin is 0.3.1, version 1 is refused, `withDefaultRef` is applied only to unversioned-with-round or version 2 records so "done there" never fires, and converting fails because no branch head is below M_T's first parent; fix: apply `withDefaultRef` to every record with a round, follow the parent that has review.md when the adding commit is a merge whose first parent lacks it, and add a real-git `risk:` test — open
+3. Should — the pin at R_1 is read from the ticket branch, so one commit that sets `accord: "0.3.0"` while rewriting the record as `Round record: 1` and a later commit that restores the pin turns ac-2 to ac-5 off for that ticket with no net config change in the pull request; fix: read the pin from a commit the branch cannot rewrite (for example the merge base with the default ref, else the plan's `baseline:`), or refuse a pin at R_1 lower than the one the branch started from, and add a `risk:security` test — open
+4. Should — the release that ships this ticket breaks the tests: the CLI pin check is exact equality, so `CONFIG` in `test/helpers/lane.ts:11` becomes `0.3.1`, after which every real-git fixture with a committed version 1 or unversioned round (`samples.ts:230` `REVIEWED`, round.test.ts, lane-s.test.ts, lane-flow.test.ts, git-count golden) gets `gate.review-scope`, and the plan's own tests asserting pin `0.3.0` from `CONFIG` (Tasks 3, 4, 6) fail; fix: the new tests commit an explicit `accord: "0.3.0"` at R_1 and never assert `CONFIG`'s pin, and the existing fixtures are pinned the same way or moved to version 2, or a Ruling names that work for the release — open
+5. Should — the Risks' "only ever looser" for git versions that list a path on a clean merge does not hold: under Task 5 rule 4 and Task 7 the author's git and CI's git disagree both ways (mark asked locally, refused as "remove the mark" on CI, and the reverse); fix: refuse `(added code round 1)` only when the span holds no merge and no episode commit, adjust test (b), and correct the wording or add a `risk:` test for both behaviours — open
+6. Should — Task 9's skill text drops `--base <the noted sha>` for re-reviews and the `Review base:` sentence, which version 1 tickets still in flight rely on, so their re-reviews read the whole ticket again; fix: `record.md` keeps both for a version 1 record — open
+7. Should — Task 4 test 1 expects `ranges[0]` to hold exactly F1, O and E1, but by the Terms (line 83) and Task 7 a range also holds the records-only R1 between C1 and F1, so a correct `roundFactsFor` fails the verify test; fix: add `R1 commit ['accord/tickets/T-1/review.md']` — open
+8. Nice — rolling back to the 0.3.0 CLI also needs an owner allowance Ruling per cycle that went past round 3 with deferred findings, since 0.3.0 has no D-08 — deferred
+9. Nice — Task 4 does not say what a failing `cat-file --batch-check` returns — deferred
+10. Nice — `gitIsShallow` returns false on a git error, so the shallow check fails open — deferred
+11. Nice — Task 9's `git restore -- <path>` can discard uncommitted edits to a file the sync rewrites — deferred
+12. Nice — the Terms do not say whether an episode's end commit is among its commits when it is a record commit — deferred
+13. Nice — "except the first such round of its cycle" in the added-code Ruling reads two ways; only one matches Task 5's tests — deferred
+14. Nice — Task 4 tests 3 and 4 leave out sandbox facts their assertions depend on (a committed version 2 round; a code commit before R1) — deferred
+15. Nice — an unresolved head empties every range, so gate done floods `gate.finding-evidence` and "remove the mark" errors — deferred
+16. Nice — Task 4 does not say whether `readHistory` returning `{ error }` fails gate done for a version 1 record whose pin allows version 1 — deferred

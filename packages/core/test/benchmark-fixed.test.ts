@@ -1,0 +1,96 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- transcript lines are untyped JSON of Claude Code */
+import { readFileSync } from 'node:fs';
+import { expect, it } from 'vitest';
+
+type Line = Record<string, any>;
+type FirstCall = {
+  id: string; model: string; version: string; ts: number; cwd: string; branch: string; input: number;
+  usage: { input: number; cacheRead: number; cacheWrite: number };
+  instructions: { path: string; type: string }[]; skillListing: string[]; agentListing: string[]; hookContexts: string[];
+  mcpServers: string[]; sessionStartHook: boolean; prompt: string;
+};
+type FixedContext = {
+  PROBE_PREFIX: string; serverKey: (name: string) => string; firstCall: (lines: Line[]) => FirstCall | null;
+};
+
+const read = (name: string): Line[] =>
+  readFileSync(new URL(`./fixtures/benchmark-fixed/${name}`, import.meta.url), 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l) as Line);
+
+it('risk:parsing a probe transcript gives its first call input and what loaded before it', async () => {
+  const { PROBE_PREFIX, serverKey, firstCall } = (await import(new URL('../../../scripts/fixed-context.mjs', import.meta.url).href)) as FixedContext;
+  const forbidden = [/[A-Za-z]:[\\/]+Users[\\/]/i, /\/[a-z]\/Users\//i, /[\w.+-]+@[\w-]+(\.[A-Za-z][\w-]*)+/, /"thinking"/];
+  for (const name of ['all-on-main.jsonl', 'all-on-executor.jsonl']) {
+    const text = readFileSync(new URL(`./fixtures/benchmark-fixed/${name}`, import.meta.url), 'utf8');
+    for (const line of text.split('\n').filter(Boolean)) for (const re of forbidden) expect(re.test(line), `${name} matches ${re}`).toBe(false);
+  }
+  expect(serverKey('claude.ai Claude Docs')).toBe('claude_ai_Claude_Docs');
+
+  const expectUsage = (lines: Line[], id: string) => {
+    const own = lines.filter((l) => l.type === 'assistant' && l.message?.id === id);
+    const top = (k: string) => Math.max(...own.map((l) => (l.message.usage[k] as number | undefined) ?? 0));
+    return { input: top('input_tokens'), cacheRead: top('cache_read_input_tokens'), cacheWrite: top('cache_creation_input_tokens') };
+  };
+  const attachments = (lines: Line[], type: string): Line[] => lines.filter((l) => l.attachment?.type === type).map((l) => l.attachment as Line);
+
+  const main = read('all-on-main.jsonl');
+  const firstLine = main.find((l) => l.type === 'assistant' && l.message.model !== '<synthetic>') as Line;
+  const usage = expectUsage(main, firstLine.message.id as string);
+  const call = firstCall(main) as FirstCall;
+  expect(call.id).toBe(firstLine.message.id);
+  expect(call.model).toBe(firstLine.message.model);
+  expect(call.usage).toEqual(usage);
+  expect(call.input).toBe(usage.input + usage.cacheRead + usage.cacheWrite);
+  expect(call.version).toBe(main[0].version);
+  expect(call.cwd).toBe(firstLine.cwd);
+  expect(call.branch).toBe(firstLine.gitBranch);
+  expect(call.ts).toBe(Date.parse(firstLine.timestamp as string));
+  expect(call.instructions).toEqual(attachments(main, 'instructions').flatMap((a) => a.files.map((f: Line) => ({ path: f.path, type: f.type }))));
+  expect(call.instructions.length).toBeGreaterThan(0);
+  const skillLines = attachments(main, 'skill_listing').flatMap((a) => (a.content as string).split('\n'));
+  expect(call.skillListing.filter((l) => l.startsWith('- accord')).length).toBeGreaterThan(0);
+  expect(call.skillListing).toEqual(skillLines);
+  const agentLines = attachments(main, 'agent_listing_delta').flatMap((a) => a.addedLines as string[]);
+  expect(call.agentListing.filter((l) => l.startsWith('- accord-')).length).toBeGreaterThan(0);
+  expect(call.agentListing).toEqual(agentLines);
+  const byKey = new Map<string, string>();
+  for (const a of attachments(main, 'mcp_instructions_delta')) for (const n of a.addedNames as string[]) byKey.set(serverKey(n), n);
+  for (const a of attachments(main, 'deferred_tools_delta')) {
+    for (const n of a.addedNames as string[]) {
+      const m = /^mcp__(.+?)__.+$/.exec(n);
+      if (m && !byKey.has(serverKey(m[1]))) byKey.set(serverKey(m[1]), m[1]);
+    }
+  }
+  expect(call.mcpServers).toEqual([...byKey.values()].sort());
+  expect(call.mcpServers).toContain('claude.ai Claude Docs');
+  expect(call.sessionStartHook).toBe(true);
+  expect(call.prompt.startsWith(PROBE_PREFIX)).toBe(true);
+
+  // The largest value of each usage field over the lines of the message counts, and a later message does not.
+  const split = main.flatMap((l) => (l === firstLine ? [{ ...l, message: { ...l.message, usage: { ...l.message.usage, cache_read_input_tokens: usage.cacheRead + 1000, cache_creation_input_tokens: 1 } } }, l] : [l]));
+  const merged = firstCall(split) as FirstCall;
+  expect(merged.usage).toEqual({ ...usage, cacheRead: usage.cacheRead + 1000 });
+  expect(merged.input).toBe(usage.input + usage.cacheRead + 1000 + usage.cacheWrite);
+
+  // An attachment after the first assistant line is not read, and no assistant line gives null.
+  const at = main.indexOf(firstLine);
+  const late = (type: string, extra: Line) => ({ type: 'attachment', attachment: { type, ...extra } });
+  const withLate = [
+    ...main.slice(0, at + 1),
+    late('skill_listing', { content: '- late-skill: x' }), late('agent_listing_delta', { addedLines: ['- late-agent: x'] }),
+    late('instructions', { files: [{ path: 'late.md', type: 'Project' }] }), late('hook_additional_context', { content: ['late'] }),
+    late('mcp_instructions_delta', { addedNames: ['late server'] }), late('deferred_tools_delta', { addedNames: ['mcp__late_server__t'] }),
+    ...main.slice(at + 1),
+  ];
+  expect(firstCall(withLate)).toEqual(call);
+  expect(firstCall(main.filter((l) => l.type !== 'assistant'))).toBeNull();
+
+  const exec = read('all-on-executor.jsonl');
+  const execCall = firstCall(exec) as FirstCall;
+  expect(execCall.hookContexts[0].startsWith('# accord rules')).toBe(true);
+  expect(execCall.sessionStartHook).toBe(false);
+  expect(execCall.prompt.startsWith(PROBE_PREFIX)).toBe(true);
+  const execFirst = exec.find((l) => l.type === 'assistant') as Line;
+  const execUsage = expectUsage(exec, execFirst.message.id as string);
+  expect(execCall.input).toBe(execUsage.input + execUsage.cacheRead + execUsage.cacheWrite);
+  expect(execCall.model).toBe(execFirst.message.model);
+});

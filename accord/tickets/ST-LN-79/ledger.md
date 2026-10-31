@@ -147,6 +147,7 @@
 - Ruling: (Task 13) pointer and extra-doc item labels in `measure` come from the text id (`pointer:<label>`, `doc:<label>`), not `text.label` — the brief's test texts carry no label (plan review 1.5) — cost if wrong: none while id and label agree, which `textsOf` guarantees.
 - Ruling: (Task 13) `perCharOf` in fixed-world.ts reads `scripts/fixed-calibration.txt` directly for its length, since it must be synchronous — cost if wrong: two readers of one file; the length is the same.
 - Ruling: (Task 13) `measure` guards `text.item` only for `owner === 'MCP servers'` when naming the extra `mcp:<n>` items, and a text with no matching item is left out of every item — cost if wrong: an unnamed item would not show in ac-4's list.
+- Ruling: (review 1.1 fix) the report line for an MCP server not measured names it with one of three reasons, "failed to connect (<code>)", "needed authentication" or "was still connecting", read from the whole all-on main transcript since the attachment arrives after the first call — the finding fixed only the intent — cost if wrong: wording is cheap to change.
 
 ## Deferred
 
@@ -163,3 +164,9 @@
 - Re-plan 2 review 1.7 (Nice): the old probe settings and MCP config files under `C:/Work/accord-bench/fixed/` are never removed.
 - Re-plan 2 review 4.1 (Nice): the review 3.1 Ruling named a branch in `weighFixed`; its cost clause now names the callers (Task 15), matching the plan.
 - Re-plan 2 review 4.2 (Nice): Task 15's new test does not check that `ticketShares` takes first calls from its whole `calls` argument rather than one ticket's calls.
+- Review 1.2 (Nice): the ticket share for subagents counts accord agents only, narrower than "the subagents' fixed context" reads; covered by the existing Ruling and the report's own line.
+- Review 1.3 (Nice): `readJsonFile`'s "does not parse" label calls `standsFor` with empty roots, so on POSIX it drops the leading `/` and prints the user name instead of `~/` (scripts/benchmark.mjs:1243).
+- Review 1.4 (Nice): `fixedReport` runs `readCalls` over every transcript before `fixedPending`, so a refusal or a pending-probe exit still waits for the full read.
+- Review 1.5 (Nice): `PROBE_FORMS` keeps `claudeVersion`, `extraArgs` and `agentsArg` that nothing needs (the `agentsArg` JSON branch cannot run), and a test restates its key list.
+- Review 1.6 (Nice): the test title "a changed item reprints only its own probes and the all-on probe" no longer matches the code since Task 14 removed per-item probes.
+- Review 1.7 (Nice): the risk:complex-branching `measure` test repeats the totals and late-block assertions ac-1 already makes, with a helper that mirrors the formula.

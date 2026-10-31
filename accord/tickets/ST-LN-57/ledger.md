@@ -1,6 +1,7 @@
 # Ledger
 
 ## Tasks
+- task 1 done c51b3a6f830a
 
 ## Rulings
 
@@ -58,6 +59,8 @@
 - Ruling: plan critique round 3 left Should 3.1 open (the build's version check stops every task after a release ships mid-build, and the cut-over Ruling never moves it); the owner chose a fourth, diff-only round with the planner fixing 3.1 and Nice 3.2 — "A" (2026-10-31) — if wrong, one more planner and critic pass is spent.
 - Ruling: plan critique round 4 left Should 4.1 open (the shipping-release Ruling has the session edit plan.md mid-build, which stales plan_hash and breaks the build and re-plan rules); the owner chose fix (a) — the merge step leaves plan.md alone, records the new versions in a ledger Ruling and edits only code — and a fifth, diff-only round, after which a further finding only about this release-mid-build path is closed as a risk the owner accepted — "A" (2026-10-31) — if wrong, one more planner and critic pass is spent.
 - Ruling: the baseline tests.full runs on CI through a draft pull request, not locally — no file outside accord/ changed since the baseline, and the owner has twice chosen CI over a 25-30 min local full run (ST-LN-17, ST-LN-75) — if wrong, a failure already on the baseline is found later, at the first build task's CI run.
+- Ruling: (task 1) the review package joins the `Head:` line to the title line with one newline, not a blank line — the plan says "right after the title line" — if wrong, a later test expecting a blank line between them fails.
+- Ruling: (task 1) a version 2 record whose last round has an unreadable heading (no head) makes the review package fail with a UsageError naming the round — silently falling back would build the package from the wrong base — if wrong, a record with a typo in a heading is refused until retyped.
 
 ## Deferred
 - plan round 1.8 (Nice): rolling back to the 0.3.0 CLI needs an owner allowance Ruling per cycle that went past round 3 with deferred findings (0.3.0 has no D-08); rolling forward sets line 1 back to `Round record: 2`

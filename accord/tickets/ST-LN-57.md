@@ -41,7 +41,7 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: ST-LN-57
 
-  @ac-1
+  @ac-1 @test:packages/cli/test/review-scope-package.test.ts#ac-1-the-next-review-package-holds-only-the-ticket-branch-commits-after-the-last-round-head
   Scenario: The next review round covers only code added after the last round
     Given a ticket in review whose last recorded round reviewed the ticket branch up to a known head commit
     And a debug episode or a merge of main has since added commits to the ticket branch

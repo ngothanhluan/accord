@@ -1187,7 +1187,7 @@ export function gitDefaultRef(root: string): string | undefined {
  * The utf8 text of each `<ref>:<path>` spec, in order, read with one `git cat-file --batch`; a missing one is `undefined`.
  * `what` names the ref in the error.
  */
-function catBatch(root: string, specs: readonly string[], what: string): (string | undefined)[] {
+export function catBatch(root: string, specs: readonly string[], what: string): (string | undefined)[] {
   let out: Buffer;
   try {
     out = execFileSync('git', ['cat-file', '--batch'], {

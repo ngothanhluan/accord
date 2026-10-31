@@ -35,6 +35,7 @@ export type {
 } from './model/snapshot.js';
 export { loadSnapshot } from './load/snapshot.js';
 export { parseRounds, cycleOpen, ROUND_RECORD_LINE, ROUND_RECORD_LINE_2 } from './round/record.js';
+export { RECORD_V2_FROM, pinAllowsV1, pinOf } from './round/pin.js';
 export { ROUND_CAP, allowancesOf, cycleState, fixModel, modelFamily, nextRound, planStopOf, recordProblems, roundText } from './round/next.js';
 export type { Allowance, RoundAnswer, RoundKind } from './round/next.js';
 export { checkFixDispatch } from './round/dispatch.js';

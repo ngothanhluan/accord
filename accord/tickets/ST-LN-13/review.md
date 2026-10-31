@@ -14,3 +14,10 @@ Nice 1 [patch]: the workflow spec still says clean keeps a branch only for a lis
 Nice 2 [patch]: the record template's `git rev-parse --short HEAD` follows `core.abbrev`, which can print fewer than the 7 hex digits lint requires — packages/core/skills/intent/research.md:22 — deferred
 
 verdict: converged
+
+## Return from verify f4a8bb79a675509a6b365c29af4a66150b6ffa06
+
+## Round 1
+
+Nice 1 [patch]: the regenerated `.claude/skills` copies listed under `## Undeclared files` were not named in the merge Ruling — accord/tickets/ST-LN-13/ledger.md:62 — fixed in the ledger commit that records this round
+Nice 2 [patch]: the research overlay spawns one `git cat-file --batch` per claimed ticket that adds an unseen record — packages/cli/src/load/fs.ts:1133 — deferred

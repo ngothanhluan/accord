@@ -59,7 +59,7 @@
 - Ruling: the existing clean keep test in worktree.test.ts no longer lists the `.ts` entry, since with the new filter it would be the first kept record and change the expected message; the new `.txt` test covers non-Markdown entries (executor, review round 1) — cost if wrong: none
 - Ruling: drop's non-Markdown refusal reads "<path> is listed under research: and only <branch> holds it, but only .md research records travel with a drop - rename it to .md on <branch> (and update the research: key), or put it on <default> first, then run accord drop again - nothing was created"; its test asserts key phrases, not the whole line (executor, review round 1) — cost if wrong: wording only
 - Ruling: verify's merge of origin/main 3819b405 conflicted in eight files; on the owner's word (2026-10-31, translated: "you resolve it") an executor resolved them in 45b6961d, keeping both sides, moving ST-LN-13's two clean tests into packages/cli/test/worktree-clean.test.ts (ST-LN-75's split) with names and timeouts unchanged; its related run: 90 files, 1628 passed, 3 skipped (main session) — cost if wrong: a change lost in the merge, caught by tests.full or CI
-- Ruling: the merge commit also regenerates five `.claude/skills` copies that were stale against main's sources, with `accord skills sync`, and leaves `.claude/settings.json` as it was although sync wanted to add a PreToolUse hook — generated text must match its sources; the hook is outside this ticket (executor, verify merge) — cost if wrong: a later sync adds the hook
+- Ruling: the merge commit also regenerates five `.claude/skills` copies that were stale against main's sources (`.claude/skills/accord-plan/SKILL.md`, `.claude/skills/accord-plan/critique.md`, `.claude/skills/accord-review/SKILL.md`, `.claude/skills/accord-review/record.md`, `.claude/skills/accord/lane-s.md`), with `accord skills sync`, and leaves `.claude/settings.json` as it was although sync wanted to add a PreToolUse hook — generated text must match its sources; the hook is outside this ticket (executor, verify merge) — cost if wrong: a later sync adds the hook
 - Ruling: drop's non-Markdown refusal sits before the dirty-worktree checks, so it fires first when both apply; nothing is written either way (executor, review round 1) — cost if wrong: none
 
 ## Deferred
@@ -79,6 +79,7 @@
 - Review round 1.7 (Nice, quality): packages/core/src/lint/rules.ts places `lint.research-reference` between the `depends-*` rules
 - Final review 2.1 (Nice, quality): docs/specs/2026-10-12-workflow-layer-design.md:80-85 still says `worktree clean` keeps a dropped branch only for a listed `.md` record, says drop refuses any differing record (only `.md` ones), and omits drop's refusal of a non-`.md` record only the claim branch holds; update the paragraph to round 1's rule
 - Final review 2.2 (Nice, quality): packages/core/skills/intent/research.md:22 tells the session to use `git rev-parse --short HEAD`, whose length follows `core.abbrev`; below 7 the header fails `lint.research-reference` — use `--short=7` or the full sha
+- Merge review 1.2 (Nice, quality): packages/cli/src/load/fs.ts:1133-1139's research overlay spawns one `git cat-file --batch` per claimed ticket that adds an unseen record; collect every candidate path and read them in one batch, as ST-LN-63's claim-view reads do
 
 ## Tasks
 - task 1 done 870e1cfa4263

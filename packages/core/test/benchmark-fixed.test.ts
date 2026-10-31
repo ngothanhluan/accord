@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- transcript lines are untyped JSON of Claude Code */
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { appendFileSync, existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { expect, it } from 'vitest';
 import { HOOK, makeWorld } from './helpers/fixed-world.js';
@@ -314,3 +315,123 @@ it('risk:parsing printed commands keep absolute paths Git Bash runs when the rep
     rmSync(w.tmp, { recursive: true, force: true, maxRetries: 5 });
   }
 }, 120_000);
+
+type Row = FirstCall;
+type Stub = { name: string; tools: string[] | null; model: string; agents: string[] };
+type Text = { id: string; owner: string; label: string; text: string; rows: string[] };
+type TwoProbe = {
+  id: string; where: string; depends: Record<string, string>; model?: string; text?: string; source?: string;
+  stubs?: Stub[]; settings?: { permissions: { deny: string[] } };
+};
+type Two = {
+  PROBE_FORMS: Forms; PROBE_BRIEF: string; dispatchPrompt: (types: string[]) => string;
+  stubsOf: (s: unknown, a: unknown) => Stub[];
+  textsOf: (s: unknown, a: unknown, read: (f: string) => string | undefined) => Text[];
+  connectorsOf: (s: unknown, a: unknown) => { connectors: string[]; others: string[] };
+  phaseTwo: (s: unknown, a: unknown, read: (f: string) => string | undefined, forms?: unknown) => TwoProbe[];
+};
+
+it('risk:complex-branching each text is sized on the models of the rows it reaches and the baseline has one stub per tool list and model', async () => {
+  const fc = (await import(new URL('../../../scripts/fixed-context.mjs', import.meta.url).href)) as Two;
+  const RULES = '# accord rules\n\nhold these';
+  const CLAUDE = 'own line\n<!-- accord:start -->\npointer block\n<!-- accord:end -->\n';
+  const MEMORY = 'C:/h/.claude/projects/C--w-repo/memory/MEMORY.md';
+  const agent = (name: string, model: string, tools: string[] | null) => ({ name, model, tools, body: `body of ${name}`, hash: 'h' });
+  const setup = {
+    repo: 'C:/w/repo', mainCheckout: 'C:/w/repo', probeDir: 'C:/w/accord-probe', home: 'C:/h',
+    mcp: [{ name: 'proj-db' }],
+    accordSkills: [{ name: 'accord', description: 'd' }],
+    agents: [
+      agent('accord-scout', 'sonnet', ['Read', 'Grep', 'Glob']), agent('accord-critic', 'opus', ['Read', 'Grep', 'Glob']),
+      agent('accord-executor', 'sonnet', null), agent('accord-ghost', 'sonnet', null),
+    ],
+  };
+  const call = (o: Partial<Row>): Row => ({
+    id: 'x', model: 'm', version: '2.1.314', ts: 0, cwd: '', branch: '', input: 0, usage: { input: 0, cacheRead: 0, cacheWrite: 0 },
+    instructions: [], skillListing: [], agentListing: [], hookContexts: [], mcpServers: [], sessionStartHook: false, prompt: '', ...o,
+  });
+  const allOn = {
+    main: call({
+      model: 'm-opus', sessionStartHook: true, skillListing: ['- accord: a', '- gsd-a: b'], agentListing: ['- accord-scout: s', '- other: o'],
+      instructions: [{ path: 'C:\\w\\accord-probe\\CLAUDE.md', type: 'Project' }, { path: MEMORY, type: 'AutoMem' }],
+      mcpServers: ['claude.ai Docs X', 'plugin_alpha_srv', 'proj_db'],
+    }),
+    agents: {
+      'accord-scout': call({ model: 'm-sonnet', hookContexts: [RULES], instructions: [{ path: 'C:/w/accord-probe/CLAUDE.md', type: 'Project' }] }),
+      'accord-critic': call({
+        model: 'm-opus', hookContexts: [RULES],
+        instructions: [{ path: 'C:/w/accord-probe/CLAUDE.md', type: 'Project' }, { path: MEMORY, type: 'AutoMem' }],
+      }),
+      'accord-executor': call({
+        model: 'm-sonnet', hookContexts: [RULES], skillListing: ['- accord: a'],
+        instructions: [{ path: 'C:/w/accord-probe/CLAUDE.md', type: 'Project' }],
+      }),
+    },
+  };
+  const seen: string[] = [];
+  const read = (file: string): string | undefined => {
+    seen.push(file);
+    if (file === 'C:/w/repo/CLAUDE.md') return CLAUDE;
+    return file === MEMORY ? 'one memory line\n' : undefined;
+  };
+
+  const stubs = fc.stubsOf(setup, allOn);
+  expect(stubs).toEqual([
+    { name: 'stub-1', tools: ['Glob', 'Grep', 'Read'], model: 'opus', agents: ['accord-critic'] },
+    { name: 'stub-2', tools: null, model: 'sonnet', agents: ['accord-executor'] },
+    { name: 'stub-3', tools: ['Glob', 'Grep', 'Read'], model: 'sonnet', agents: ['accord-scout'] },
+  ]);
+
+  const texts = fc.textsOf(setup, allOn, read);
+  expect(seen).toContain('C:/w/repo/CLAUDE.md');
+  expect(seen.filter((f) => f.toLowerCase().startsWith('c:/w/accord-probe'))).toEqual([]);
+  const text = (id: string): Text => texts.find((t) => t.id === id) as Text;
+  const ids = texts.map((t) => t.id);
+  expect(ids).toEqual(expect.arrayContaining(['doc:CLAUDE.md', 'pointer:CLAUDE.md', 'doc:~/.claude/projects/C--w-repo/memory/MEMORY.md']));
+  expect(ids).not.toContain('agent:accord-ghost');
+  expect(text('agent:accord-critic')).toMatchObject({ owner: 'accord', text: 'body of accord-critic', rows: ['accord-critic'] });
+  expect(text('rules')).toMatchObject({ owner: 'accord', text: RULES, rows: ['main', 'accord-critic', 'accord-executor', 'accord-scout'] });
+  expect(text('skill-listing')).toMatchObject({ owner: 'accord', text: '- accord: a', rows: ['main', 'accord-executor'] });
+  expect(text('agent-listing')).toMatchObject({ owner: 'accord', text: '- accord-scout: s', rows: ['main'] });
+  expect(text('doc:CLAUDE.md').owner).toBe('CLAUDE.md and memory');
+  expect(text('doc:CLAUDE.md').text).toContain('own line');
+  expect(text('doc:CLAUDE.md').text).not.toContain('accord:start');
+  expect(text('doc:CLAUDE.md').rows).toEqual(['main', 'accord-critic', 'accord-executor', 'accord-scout']);
+  expect(text('pointer:CLAUDE.md').owner).toBe('accord');
+  expect(text('pointer:CLAUDE.md').text).toBe('<!-- accord:start -->\npointer block\n<!-- accord:end -->');
+  expect(text('doc:~/.claude/projects/C--w-repo/memory/MEMORY.md').rows).toEqual(['main', 'accord-critic']);
+  expect(text('prompt')).toMatchObject({ owner: 'probe', rows: ['main'], text: fc.dispatchPrompt(setup.agents.map((a) => a.name)) });
+  expect(text('baseline-prompt')).toMatchObject({ owner: 'probe', rows: ['main'], text: fc.dispatchPrompt(['stub-1', 'stub-2', 'stub-3']) });
+  expect(text('brief')).toMatchObject({ owner: 'probe', text: fc.PROBE_BRIEF, rows: ['accord-critic', 'accord-executor', 'accord-scout'] });
+
+  const two = fc.phaseTwo(setup, allOn, read);
+  expect(two.map((p) => p.id)).toEqual([...two.map((p) => p.id)].sort());
+  const models = (id: string) => two.filter((p) => p.id.startsWith(`text:${id}:`)).map((p) => p.model).sort();
+  expect(models('agent:accord-critic')).toEqual(['m-opus']);
+  expect(models('rules')).toEqual(['m-opus', 'm-sonnet']);
+  expect(models('skill-listing')).toEqual(['m-opus', 'm-sonnet']);
+  expect(models('agent-listing')).toEqual(['m-opus']);
+  expect(models('doc:~/.claude/projects/C--w-repo/memory/MEMORY.md')).toEqual(['m-opus']);
+  expect(models('doc:CLAUDE.md')).toEqual(['m-opus', 'm-sonnet']);
+  expect(models('brief')).toEqual(['m-opus', 'm-sonnet']);
+  expect(models('prompt')).toEqual(['m-opus']);
+  expect(models('baseline-prompt')).toEqual(['m-opus']);
+  expect(two.filter((p) => p.id.startsWith('ref:')).map((p) => p.id)).toEqual(['ref:m-opus', 'ref:m-sonnet']);
+  const probe = (id: string): TwoProbe => two.find((p) => p.id === id) as TwoProbe;
+  expect(probe('text:agent:accord-critic:m-opus')).toMatchObject({
+    where: 'empty', source: 'disk', text: 'body of accord-critic',
+    depends: { 'text:agent:accord-critic': createHash('sha256').update('body of accord-critic').digest('hex') },
+  });
+  expect(probe('text:rules:m-opus').source).toBe('probe');
+  expect(probe('text:doc:CLAUDE.md:m-sonnet').source).toBe('disk');
+  expect(probe('text:pointer:CLAUDE.md:m-opus').source).toBe('disk');
+  expect(probe('baseline')).toMatchObject({ where: 'empty', model: 'm-opus', stubs, depends: { stubs: JSON.stringify(stubs) } });
+  expect(probe('ref:m-sonnet').where).toBe('empty');
+
+  expect(fc.connectorsOf(setup, allOn)).toEqual({ connectors: ['claude.ai Docs X'], others: ['plugin_alpha_srv'] });
+  expect(two.filter((p) => p.id.startsWith('connector:'))).toEqual([]);
+  const withForm = fc.phaseTwo(setup, allOn, read, { ...fc.PROBE_FORMS, connector: 'mcp__{server}' }).filter((p) => p.id.startsWith('connector:'));
+  expect(withForm).toEqual([
+    { id: 'connector:claude.ai Docs X', where: 'probe', depends: {}, settings: { permissions: { deny: ['mcp__claude_ai_Docs_X'] } } },
+  ]);
+});

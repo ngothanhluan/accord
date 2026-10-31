@@ -163,3 +163,124 @@ export function phaseOne(setup, forms = PROBE_FORMS) {
 // A path given to it is absolute: a `~` is outside the plain set, so it would be quoted and never expanded.
 export const shellLine = (args) =>
   args.map((a) => (/^[A-Za-z0-9._/@+=:,-]+$/.test(a) ? a : `'${a.replace(/'/g, `'\\''`)}'`)).join(' ');
+
+// The all-on first call of each row; a row's model key is the model that call ran on.
+const rowCalls = (allOn) => ({ main: allOn.main, ...allOn.agents });
+const byName = (a, b) => cmp(a.name, b.name);
+
+// One stub agent per distinct pair of tool list and model among the accord agents that have an all-on first call, so
+// the baseline carries exactly the tool definitions each row carries. A tool list is sorted; null (every tool) is its
+// own value. Stubs are named stub-1, stub-2, ... in the order of their first agent by name; `model` is the agent's
+// frontmatter model (what `--agents` takes), and the pair is told apart by the model the first call ran on.
+export function stubsOf(setup, allOn) {
+  const stubs = [];
+  const at = new Map();
+  for (const agent of [...setup.agents].sort(byName)) {
+    const call = allOn.agents[agent.name];
+    if (!call) continue;
+    const tools = agent.tools ? [...agent.tools].sort(cmp) : null;
+    const key = JSON.stringify([tools, call.model]);
+    if (!at.has(key)) {
+      at.set(key, stubs.length);
+      stubs.push({ name: `stub-${stubs.length + 1}`, tools, model: agent.model, agents: [] });
+    }
+    stubs[at.get(key)].agents.push(agent.name);
+  }
+  return stubs;
+}
+
+const START = '<!-- accord:start -->';
+const END = '<!-- accord:end -->';
+
+// Every text the report sizes by appending it to a baseline, with the rows it reaches: { id, owner, label, text, rows }.
+// A text is charged only to rows it reaches, read from the all-on probe. `read(file)` gives a repository or home file
+// as it is now, undefined when it is gone; it is never given a path under the probe worktree, whose copy stands for
+// the repository file. Rows are `main` first, then the accord agents by name.
+export function textsOf(setup, allOn, read) {
+  const calls = rowCalls(allOn);
+  const agents = Object.keys(allOn.agents).sort(cmp);
+  const rowNames = ['main', ...agents];
+  const reach = (has) => rowNames.filter((r) => has(calls[r]));
+  const out = [];
+  for (const agent of [...setup.agents].sort(byName)) {
+    if (allOn.agents[agent.name]) out.push({ id: `agent:${agent.name}`, owner: 'accord', label: agent.name, text: agent.body, rows: [agent.name] });
+  }
+
+  const rules = agents.flatMap((a) => allOn.agents[a].hookContexts).find((c) => c.startsWith('# accord rules'));
+  if (rules !== undefined) {
+    out.push({ id: 'rules', owner: 'accord', label: 'rules', text: rules, rows: reach((c) => c.hookContexts.includes(rules) || (c === allOn.main && c.sessionStartHook)) });
+  }
+
+  const listing = (id, field, names) => {
+    const mine = (line) => names.some((n) => line.startsWith(`- ${n}:`));
+    const from = [allOn.main, ...agents.map((a) => allOn.agents[a])].find((c) => c[field].some(mine));
+    if (from) out.push({ id, owner: 'accord', label: id, text: from[field].filter(mine).join('\n'), rows: reach((c) => c[field].some(mine)) });
+  };
+  listing('skill-listing', 'skillListing', setup.accordSkills.map((s) => s.name));
+  listing('agent-listing', 'agentListing', setup.agents.map((a) => a.name));
+
+  const seen = new Set();
+  for (const r of rowNames) {
+    for (const { path } of calls[r].instructions) {
+      const { file, label } = standsFor(path, setup);
+      if (seen.has(file.toLowerCase())) continue;
+      seen.add(file.toLowerCase());
+      const content = read(file);
+      if (content === undefined) continue;
+      const rows = reach((c) => c.instructions.some((i) => standsFor(i.path, setup).file.toLowerCase() === file.toLowerCase()));
+      const from = content.indexOf(START);
+      const to = from < 0 ? -1 : content.indexOf(END, from);
+      let doc = content;
+      if (to >= 0) {
+        const end = to + END.length;
+        out.push({ id: `pointer:${label}`, owner: 'accord', label, text: content.slice(from, end), rows });
+        doc = content.slice(0, from) + content.slice(end);
+      }
+      if (doc.trim() !== '') out.push({ id: `doc:${label}`, owner: 'CLAUDE.md and memory', label, text: doc, rows });
+    }
+  }
+
+  const stubs = stubsOf(setup, allOn);
+  out.push({ id: 'prompt', owner: 'probe', label: 'prompt', text: dispatchPrompt(setup.agents.map((a) => a.name)), rows: ['main'] });
+  out.push({ id: 'baseline-prompt', owner: 'probe', label: 'baseline-prompt', text: dispatchPrompt(stubs.map((s) => s.name)), rows: ['main'] });
+  out.push({ id: 'brief', owner: 'probe', label: 'brief', text: PROBE_BRIEF, rows: agents });
+  return out;
+}
+
+// The servers the all-on main session lists that the setup cannot list: claude.ai connectors, and the rest (a
+// plugin's own server, whose key starts with plugin_). Each list is sorted.
+export function connectorsOf(setup, allOn) {
+  const listable = new Set(setup.mcp.map((m) => serverKey(m.name)));
+  const extra = allOn.main.mcpServers.filter((n) => !listable.has(serverKey(n)));
+  const isConnector = (n) => n.startsWith('claude.ai ') || serverKey(n).startsWith('claude_ai_');
+  return { connectors: extra.filter(isConnector).sort(cmp), others: extra.filter((n) => !isConnector(n)).sort(cmp) };
+}
+
+// The probes planned from the all-on transcript: one per claude.ai connector (when a form takes one out), the
+// baseline with its stub agents, a reference per model, and each text appended to the baseline on each model of the
+// rows it reaches. Each is { id, where, depends, model?, ... }; the files and commands are written by the caller.
+export function phaseTwo(setup, allOn, read, forms = PROBE_FORMS) {
+  const calls = rowCalls(allOn);
+  const stubs = stubsOf(setup, allOn);
+  const probes = [];
+  if (forms.connector !== null) {
+    for (const name of connectorsOf(setup, allOn).connectors) {
+      probes.push({
+        id: `connector:${name}`,
+        where: 'probe',
+        depends: {},
+        settings: { permissions: { deny: [forms.connector.replace('{server}', serverKey(name))] } },
+      });
+    }
+  }
+  probes.push({ id: 'baseline', where: 'empty', model: allOn.main.model, stubs, depends: { stubs: JSON.stringify(stubs) } });
+  const modelsOf = (rows) => [...new Set(rows.map((r) => calls[r].model))].sort(cmp);
+  for (const model of modelsOf(Object.keys(calls))) probes.push({ id: `ref:${model}`, where: 'empty', model, depends: {} });
+  for (const t of textsOf(setup, allOn, read)) {
+    const source = /^(agent|doc|pointer):/.test(t.id) ? 'disk' : 'probe';
+    for (const model of modelsOf(t.rows)) {
+      probes.push({ id: `text:${t.id}:${model}`, where: 'empty', model, text: t.text, source, depends: { [`text:${t.id}`]: sha256(t.text) } });
+    }
+  }
+  return probes.sort((a, b) => cmp(a.id, b.id));
+}

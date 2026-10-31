@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- transcript lines are untyped JSON of Claude Code */
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { expect, it } from 'vitest';
 import { agentBody, assistantLine, attachmentLine, calibrationAdded, CHOSEN, CLAIMED, DOC_FILES, HOOK, LISTED, makeWorld, measuredWorld, MODEL_OF as ROW_MODEL, perCharOf, POINTER, userLine, writeSession, type RowName, type World } from './helpers/fixed-world.js';
 
@@ -1150,4 +1151,29 @@ it('risk:calculation a dispatch first call is weighed without the late MCP block
   const whole = calls.reduce((n, c) => n + wholeCost(c), 0);
   expect(shares[0].agents).toBeCloseTo(sum / whole, 12);
   expect(shares[0].main).toBeCloseTo(weighed(1000, x1) / whole, 12);
+});
+
+it('ac-4 the committed report holds the date range the call counts the setup items and the not-measured line', () => {
+  const root = fileURLToPath(new URL('../../../', import.meta.url));
+  const text = readFileSync(`${root}docs/benchmark/fixed-context.md`, 'utf8');
+  const range = /^Transcripts: (\d+) calls from (\d{4}-\d{2}-\d{2}) to (\d{4}-\d{2}-\d{2}), read from \d+ transcript folder\(s\)\.$/m.exec(text);
+  expect(range).not.toBeNull();
+  expect(Number(range![1])).toBeGreaterThan(0);
+  expect(range![2] <= range![3]).toBe(true);
+  const raw = tableUnder(text, '## Fixed context per call, raw tokens');
+  const main = raw.find((c) => c[0] === MAIN_LABEL);
+  expect(main).toBeDefined();
+  const agents = raw.filter((c) => c[0].startsWith('accord-'));
+  expect(agents.length).toBeGreaterThan(0);
+  for (const cells of [main!, ...agents]) expect(cells[2], cells[0]).toMatch(/^[1-9]\d*$/);
+  const items = tableUnder(text, '## Setup items, tokens per call (raw / cost-weighted)');
+  for (const owner of ['plugins', 'MCP servers', 'CLAUDE.md and memory', 'own skills, agents and commands']) {
+    expect(items.filter((c) => c[1] === owner).length, owner).toBeGreaterThan(0);
+  }
+  for (const cells of items) for (const cell of cells.slice(2)) expect(cell, cells[0]).toMatch(/^(-|-?\d+ \/ -?\d+\.\d)$/);
+  expect(text.split('\n')).toContain('Cursor, Codex and Copilot calls were not measured.');
+  expect(text).not.toMatch(/[A-Za-z]:[\\/]+Users[\\/]/i);
+  expect(text).not.toMatch(/\/[a-z]\/Users\//i);
+  expect(text).not.toMatch(/[\w.+-]+@[\w-]+(\.[A-Za-z][\w-]*)+/);
+  expect(text).not.toMatch(/sekret|Bearer /);
 });

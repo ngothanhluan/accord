@@ -80,7 +80,7 @@
 - Ruling: the merge got a scoped re-review (review.md Round 3) because it changed code the converged review never saw — cost if wrong: one extra reviewer dispatch.
 - Ruling: the research kept line keeps ST-LN-13's CLI wording, which its tests pin, and worktree.md names it among the reasons where nothing is deleted (433d47e9): "the record is the owner's to reconcile, never to delete or move; make the branch copy equal to the default branch's, or put it on the default branch, then push, and the branch stays" — cost if wrong: reword one sentence.
 - Ruling: the merge round's only finding was a Should fixed in 433d47e9 with no re-review, and tests.affected passed in the Linux container (3 files, 139 passed, 1 skipped) — cost if wrong: a slip in that fix is caught only by verify.
-- Ruling: the owner allows 1 more review rounds after round 3 of cycle 1 — "Thêm 1 vòng (Recommended)" — cost if wrong: one more reviewer dispatch.
+- Ruling: the owner allows 1 more review rounds after round 3 of cycle 1 — "One more round (Recommended)" — cost if wrong: one more reviewer dispatch.
 
 ## Deferred
 - Plan round 1 Nice: a relative path in a record line is resolved against cwd; skip non-absolute lines and fence descendants of the main checkout — deferred

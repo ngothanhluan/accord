@@ -34,5 +34,11 @@ One critic in a fresh context, no lens. fixed: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7
 
 One critic in a fresh context, mode diff. fixed: 2.1, 2.2, 2.3.
 
-1. Should — the new preamble check (plan.md:31) stops every task when `packages/cli/package.json` is not `0.3.0`, and the cut-over Ruling's merge step (plan.md:171-172) never moves that `0.3.0` and names only code literals that may not exist yet; if 0.3.1 ships after Task 4 is built, the session merges main and edits the literals, and Tasks 5 to 9 still stop; fix: compare with the release the Ruling names, and list every place the merge step moves (plan.md:31, Terms:116, Task 3:419, Task 9:877/915, Task 5's message) — open
-2. Nice — Task 5's refusal message hard-codes `from accord 0.3.1` (plan.md:597) and the earlier Ruling (plan.md:141) still says "at least `0.3.1`" — deferred
+1. Should — the new preamble check (plan.md:31) stops every task when `packages/cli/package.json` is not `0.3.0`, and the cut-over Ruling's merge step (plan.md:171-172) never moves that `0.3.0` and names only code literals that may not exist yet; if 0.3.1 ships after Task 4 is built, the session merges main and edits the literals, and Tasks 5 to 9 still stop; fix: compare with the release the Ruling names, and list every place the merge step moves (plan.md:31, Terms:116, Task 3:419, Task 9:877/915, Task 5's message) — fixed
+2. Nice — Task 5's refusal message hard-codes `from accord 0.3.1` (plan.md:597) and the earlier Ruling (plan.md:141) still says "at least `0.3.1`" — fixed
+
+## Round 4 (diff)
+
+One critic in a fresh context, mode diff, a round the owner allowed. fixed: 3.1, 3.2.
+
+1. Should — the shipping-release Ruling's merge step has the session edit plan.md (preamble, Terms, two Rulings, Task 3 and Task 9 text) mid-build: the next `accord task-done` fails on the stale `plan_hash` (packages/core/src/gate/task.ts:20), build rule 7 forbids clearing it with `accord gate plan` outside `accord-plan`, and changing Task 3's text after its ledger line breaks the re-plan rule; fix: (a) the merge step leaves plan.md alone, writes a ledger Ruling naming the release and the next version, and edits only the code places plus gen, build and sync, with the preamble check reading the latest such Ruling; or (b) the Ruling routes the plan edit through `accord-plan`'s re-plan — open

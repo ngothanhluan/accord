@@ -1,6 +1,6 @@
 ---
 baseline: ae46f67e91318d204e08e27e7c01fe9f7dc03be9
-plan_hash: "fnv1a64:6c6e64f51690d4ba"
+plan_hash: "fnv1a64:bf078b5a23b2212c"
 ---
 
 # Plan: ST-LN-57
@@ -28,8 +28,9 @@ four criteria's rules; Task 9 changes the text the sessions follow.
 - Commits carry no trailer of any kind: no `Co-Authored-By:`, no line whose first word ends in `-by:`, no
   "Generated with" line.
 - No task touches a file under the repository's top-level `accord/` folder.
-- Before any change, read `version` in `packages/cli/package.json`: when it is not `0.3.0`, a release has shipped
-  since the plan, so stop and report it instead of building (the Ruling on the cut-over literal).
+- Before any change, read `version` in `packages/cli/package.json`: when it is not `0.3.0`, the last release before
+  the cut-over that the Ruling on the shipping release names, a release has shipped since the plan, so stop and
+  report it instead of building; that Ruling then moves this version with every other place it lists.
 - Test titles hold no `@`, `#`, comma or apostrophe, and every test named on a `verify:` line is a top-level
   `it(...)` with no `describe` around it, so its id is `<test file path from the repository root>#<title with each
   whitespace run turned into ->`. No existing test is renamed. Every new test is named on some task's `verify:` line.
@@ -113,7 +114,7 @@ four criteria's rules; Task 9 changes the text the sessions follow.
 - *Pin at the first round*: `accord:` of `accord/config.yml` at R_1, or of HEAD's config when no round is
   committed (ledger Ruling 26). *Base pin*: `accord:` of `accord/config.yml` at the merge base of R_1 (of HEAD when
   no round is committed) with the default ref, or at the plan's `baseline:` when there is no default ref; absent
-  when there is neither or that commit has no pin. *Cut-over*: the release literal `0.3.1`. A version 1 or
+  when there is neither or that commit has no pin. *Cut-over*: the release literal `0.3.1` (`RECORD_V2_FROM`; the Ruling on the shipping release moves it). A version 1 or
   unversioned record is *allowed* when the pin at the first round is a plain `x.y.z` below the cut-over and not
   below a plain base pin.
 - *Merge or episode in a span*: the span holds a commit of kind `merge` or `episode`, whatever paths it lists.
@@ -138,7 +139,8 @@ four criteria's rules; Task 9 changes the text the sessions follow.
 - Ruling: the cut-over literal is `0.3.1`, the first version after the current `0.3.0`; a version 1 record is
   allowed only when the pin at its first round is a plain `x.y.z` below it and not below the base pin (the pin at
   the merge base of R_1 with the default ref, else at the plan's `baseline:`), a version 2 record is always
-  allowed, which is how a version 1 record converts — whatever release ships this ticket is at least `0.3.1`; the
+  allowed, which is how a version 1 record converts — the cut-over is the release that ships this ticket, as the
+  Ruling on the shipping release keeps it; the
   pin stays read at R_1 as ledger Ruling 26 says, and the base pin, a commit of the default branch the ticket branch
   cannot rewrite, stops one commit from lowering the pin with the record and restoring it after (plan critique 1.3)
   — cost if wrong: a branch started from a default-branch commit older than the cut-over keeps version 1 however
@@ -165,13 +167,18 @@ four criteria's rules; Task 9 changes the text the sessions follow.
   commit and merged into a ticket branch must not carry an old pin in with its record (plan critique 2.3); ledger
   Ruling 22's first-parent reading is kept on each side — cost if wrong: a version 1 record merged into a ticket
   branch from a branch not yet on the default branch is read at the merge and its pin, and must be converted.
-- Ruling: the cut-over literal `RECORD_V2_FROM` and `record.md`'s and `lane-s.md`'s "pinned accord 0.3.0 or
-  earlier" must name the release that ships this ticket: every task starts by reading `version` in
-  `packages/cli/package.json` and, when it is not `0.3.0`, stops and reports it instead of building; when a release
-  ships before this ticket merges, the session that merges it into this branch sets `RECORD_V2_FROM` to the version
-  after that release and those two phrases to that release before the next build (plan critique 2.1) — a cut-over
-  below the shipping release would refuse the version 1 records committed under it — cost if wrong: one more edit of
-  the literal at a merge of main.
+- Ruling (on the shipping release): the cut-over is the release that ships this ticket: the last release before it is `0.3.0` and the
+  cut-over `0.3.1`; every task starts by reading `version` in `packages/cli/package.json` and, when it is not that
+  last release, stops and reports it instead of building. When a release R ships before this ticket merges, the
+  session that merges main into this branch moves, before the next task is built, the last release to R and the
+  cut-over to the version after R in every place: in the plan, the preamble's version check, the Terms' cut-over,
+  this Ruling and the Ruling that opens "the cut-over literal is", Task 3's `RECORD_V2_FROM = '…'`, and Task 9's two "pinned
+  accord 0.3.0 or earlier" phrases (Task 5's message names no literal: it is built from `RECORD_V2_FROM`); in code
+  already built, `RECORD_V2_FROM` in `packages/core/src/round/pin.ts` and the same two phrases in
+  `packages/core/skills/review/record.md` and `packages/core/skills/accord/lane-s.md`, then `npm run gen`,
+  `npm run build` and `node packages/cli/dist/cli.js skills sync` (plan critique 2.1, 3.1) — a cut-over below the
+  shipping release would refuse the version 1 records committed under it — cost if wrong: one more edit of those
+  places at a merge of main.
 - Ruling: the fixtures of the existing tests (`packages/cli/test/helpers/samples.ts` `REVIEWED` and `UNFINISHED`,
   `packages/cli/test/helpers/worktree.ts` `REVIEWED`, and the records `packages/cli/test/round.test.ts`,
   `lane-s.test.ts` and `lane-flow.test.ts` commit under `CONFIG` before running `accord gate done` or
@@ -594,7 +601,7 @@ export const reviewScopeSkipped: GateRule['check'];
    skipped or `pinAllowsV1(pin, basePin)`, nothing; else one problem at line 1: `review.md is a version 1 record,
    but accord/config.yml pins <pin or "no release"> at <pinAt's first 12 characters or HEAD>` + (when the pin is
    below the cut-over but below the base pin) ` below <basePin> at <baseAt's first 12 characters>, the commit this
-   branch started from` + `, and from accord 0.3.1 a record is version 2: set its first line to Round record: 2,
+   branch started from` + `, and from accord <RECORD_V2_FROM> a record is version 2: set its first line to Round record: 2,
    head each round ## Round <n> head <sha> with a commit above the previous round's head and at or below the one
    listed (<"round p of cycle k: high" for every round, joined by "; ">), give each finding one location, then add
    the marks or Rulings accord gate done asks`.

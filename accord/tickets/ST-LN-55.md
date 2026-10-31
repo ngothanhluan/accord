@@ -42,7 +42,7 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: ST-LN-55
 
-  @ac-1
+  @ac-1 @test:packages/cli/test/worktree-clean.test.ts#ac-1-clean-removes-a-done-ticket-worktree-completely-and-keeps-and-names-one-holding-an-ignored-env-file
   Scenario: Clean removes a done ticket's worktree completely, and keeps and names one that holds a file it may not delete
     Given two tickets that accord reads as done on origin's default branch, whose worktrees git still lists, neither with uncommitted work
     And the first worktree holds, besides its tracked files, only npm's workspace links and ignored paths that have a name from the config list ("node_modules", "dist", ".DS_Store", "Thumbs.db") as a path segment

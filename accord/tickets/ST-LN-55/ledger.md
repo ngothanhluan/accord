@@ -50,6 +50,8 @@
 - Ruling: Task 5's test calls the sibling's detached commit `Y`, as `X` is already the scratch folder's commit — cost if wrong: none.
 - Ruling: `refuseAt` takes a tail so `new ticket --worktree` keeps its "nothing was written" ending — consistent output per command — cost if wrong: one string to change.
 - Ruling: the target-path guards before worktree.ts:438 and :1078 get no test of their own; only the line-412 case is tested — round 6.1 named that case and the logic is shared through `refuseAt` — cost if wrong: a slip at those two sites is not caught by a test.
+- Ruling: unlinking a link falls back to rmdir when unlink throws (a Windows junction) — such a junction is still removed or kept and named — cost if wrong: that junction is kept and named.
+- Ruling: `passGuards` judges every non-ignored status entry first (the uncommitted-work line), then the first ignored entry outside the list — the brief's order, so uncommitted work is named ahead of an ignored file — cost if wrong: none.
 
 ## Deferred
 - Plan round 1 Nice: a relative path in a record line is resolved against cwd; skip non-absolute lines and fence descendants of the main checkout — deferred
@@ -73,3 +75,4 @@
 ## Tasks
 - task 1 done 48b7de376993
 - task 2 done 77c5fc49a523
+- task 3 done c30511b742fd

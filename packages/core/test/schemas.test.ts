@@ -143,7 +143,7 @@ describe('config.schema.json', () => {
 
   it('top-level properties are the six D-16 keys plus optional tests (D-72) review (spec §7), models, escalation, and stale_days', () => {
     const keys = ['accord', 'profile', 'tracker', 'design', 'roles', 'runtimes'];
-    expect(Object.keys(configSchema.properties)).toEqual([...keys, 'tests', 'review', 'models', 'escalation', 'stale_days', 'people', 'legacy_ids', 'branch', 'setup', 'commits', 'generated', 'sensitive']);
+    expect(Object.keys(configSchema.properties)).toEqual([...keys, 'tests', 'review', 'models', 'escalation', 'stale_days', 'people', 'legacy_ids', 'branch', 'setup', 'commits', 'generated', 'sensitive', 'disposable']);
     expect(configSchema.required).toEqual(keys);
     for (const key of Object.keys(configSchema.properties)) {
       expect(key).not.toMatch(/key|token|secret|password/i);
@@ -366,4 +366,12 @@ it('risk:parsing sensitive and generated entries are repository paths without gl
   for (const path of ['src/*.ts', 'src\\a.ts', '../a.ts', '/abs.ts', ' a.ts', './a.ts', 'a/./b.ts', 'a/.', '.']) {
     expect(cfg({ generated: [path] }).some((f) => f.pointer === '/generated/0'), 'generated ' + JSON.stringify(path)).toBe(true);
   }
+});
+it('risk:parsing disposable is a list of file or folder names', () => {
+  const cfg = (v: unknown) => validate('config', { ...minimal.config, disposable: v });
+  for (const ok of [['node_modules', 'dist', '.DS_Store', 'Thumbs.db'], [], ['.claude']]) expect(cfg(ok), JSON.stringify(ok)).toEqual([]);
+  expect(has(cfg('dist'), '/disposable', 'schema.type')).toBe(true);
+  expect(has(cfg(['']), '/disposable/0', 'schema.minLength')).toBe(true);
+  for (const bad of ['a/b', 'a\\b', '.', '..']) expect(has(cfg([bad]), '/disposable/0', 'schema.pattern'), bad).toBe(true);
+  expect(has(cfg(['dist', 'dist']), '/disposable', 'schema.uniqueItems')).toBe(true);
 });

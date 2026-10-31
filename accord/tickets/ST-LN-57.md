@@ -57,6 +57,7 @@ Feature: ST-LN-57
     And it passes that finding when the finding records a failing test or a reproducing command
     And it passes that finding when the finding is marked deferred and the ledger's Deferred names it by round and number
     And it passes the same finding without evidence when it is marked as data loss or security
+    And a finding so deferred, with its Deferred line, does not count toward the stop ST-LN-17 prints from round 3, nor toward the gate done failure that stop causes
 
   @ac-3
   Scenario: Code added by a debug episode or a merge starts its own round 1 for the evidence rule
@@ -96,6 +97,7 @@ Feature: ST-LN-57
 - D-05 The own round 1 for code added by a debug episode or a merge restarts only the evidence gate's count; the round cap and the stop that reports to the owner keep counting every round of the ticket — "A" (2026-10-29, asked: restart only the evidence count, or restart everything)
 - D-06 The smallest version that counts as done holds all four parts — "A" (2026-10-29, asked: all four parts required, or parts 1 and 3 as the core)
 - D-07 The rule that a Should rests on a ticket line or a failing case applies from round 3 only; rounds 1 and 2 fix every Should as today — "A" (2026-10-29, asked: from round 3 only, or every round)
+- D-08 A finding deferred under ac-2's evidence rule, with its line in the ledger's Deferred, does not count toward ST-LN-17's stop from round 3 or the gate done failure it causes; this ticket changes that one rule of ST-LN-17 — "as proposed" (2026-10-31, asked: deferred findings leave the stop, or keep counting as ST-LN-17 does today)
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->

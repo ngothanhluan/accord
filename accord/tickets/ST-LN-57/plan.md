@@ -1,6 +1,6 @@
 ---
 baseline: ae46f67e91318d204e08e27e7c01fe9f7dc03be9
-plan_hash: "fnv1a64:5c38f3e3a7a4bcd9"
+plan_hash: "fnv1a64:6c6e64f51690d4ba"
 ---
 
 # Plan: ST-LN-57
@@ -28,6 +28,8 @@ four criteria's rules; Task 9 changes the text the sessions follow.
 - Commits carry no trailer of any kind: no `Co-Authored-By:`, no line whose first word ends in `-by:`, no
   "Generated with" line.
 - No task touches a file under the repository's top-level `accord/` folder.
+- Before any change, read `version` in `packages/cli/package.json`: when it is not `0.3.0`, a release has shipped
+  since the plan, so stop and report it instead of building (the Ruling on the cut-over literal).
 - Test titles hold no `@`, `#`, comma or apostrophe, and every test named on a `verify:` line is a top-level
   `it(...)` with no `describe` around it, so its id is `<test file path from the repository root>#<title with each
   whitespace run turned into ->`. No existing test is renamed. Every new test is named on some task's `verify:` line.
@@ -81,8 +83,10 @@ four criteria's rules; Task 9 changes the text the sessions follow.
 - *Record commit* R_j: reading `review.md`'s history along first parents of HEAD from the last commit that creates
   it, the last commit at which the parsed number of rounds (all cycles) rose to j (ledger Ruling 22); absent when
   round j is not committed. When the commit that adds `review.md` along first parents is a merge whose first parent
-  lacks it (a ticket branch merged into the default branch), the reading goes on, before that merge, along first
-  parents from its first other parent that holds `review.md`, as often as that happens.
+  lacks it, and its first other parent that holds `review.md` is on the default branch (an ancestor of the default
+  ref: a ticket branch already merged there), the reading goes on, before that merge, along first parents from that
+  parent, as often as that happens; a merged-in parent that is not on the default branch (or no default ref) is not
+  followed, and the merge itself is then the commit that adds `review.md`.
 - *High* of round j: the nearest code commit from R_j's first parent, or from HEAD when R_j is absent (ledger
   Ruling 23). H_j is *bound* when (j = 1, or H_{j-1} is H_j or an ancestor of it) and H_j is high_j or an ancestor of it.
 - *Range* of round j: the walk commits reachable from H_{j+1} (from HEAD for j = N) and not from H_j (ledger
@@ -155,10 +159,19 @@ four criteria's rules; Task 9 changes the text the sessions follow.
   `review.md` holds a round, whatever its version, so another ticket's pull request that re-gates a done ticket
   skips it (plan critique 1.1, 1.2) — cost if wrong: one more read of the default ref's records per gate done.
 - Ruling: when the commit that adds `review.md` along first parents is a merge whose first parent lacks it, the
-  record's history goes on along the merged-in side — a ticket merged into the default branch, before or after
-  verify, otherwise gets the merge as R_1 and that commit's pin (plan critique 1.2); ledger Ruling 22's first-parent
-  reading is kept on each side — cost if wrong: a review.md that two branches both added is read on the side the
-  merge's first other parent holds.
+  record's history goes on along the merged-in side only when that side is already on the default branch (an
+  ancestor of the default ref) — a ticket merged into the default branch, before or after verify, otherwise gets
+  the merge as R_1 and that commit's pin (plan critique 1.2), while a side branch cut from an old default-branch
+  commit and merged into a ticket branch must not carry an old pin in with its record (plan critique 2.3); ledger
+  Ruling 22's first-parent reading is kept on each side — cost if wrong: a version 1 record merged into a ticket
+  branch from a branch not yet on the default branch is read at the merge and its pin, and must be converted.
+- Ruling: the cut-over literal `RECORD_V2_FROM` and `record.md`'s and `lane-s.md`'s "pinned accord 0.3.0 or
+  earlier" must name the release that ships this ticket: every task starts by reading `version` in
+  `packages/cli/package.json` and, when it is not `0.3.0`, stops and reports it instead of building; when a release
+  ships before this ticket merges, the session that merges it into this branch sets `RECORD_V2_FROM` to the version
+  after that release and those two phrases to that release before the next build (plan critique 2.1) — a cut-over
+  below the shipping release would refuse the version 1 records committed under it — cost if wrong: one more edit of
+  the literal at a merge of main.
 - Ruling: the fixtures of the existing tests (`packages/cli/test/helpers/samples.ts` `REVIEWED` and `UNFINISHED`,
   `packages/cli/test/helpers/worktree.ts` `REVIEWED`, and the records `packages/cli/test/round.test.ts`,
   `lane-s.test.ts` and `lane-flow.test.ts` commit under `CONFIG` before running `accord gate done` or
@@ -186,8 +199,9 @@ four criteria's rules; Task 9 changes the text the sessions follow.
   a git the gate can ask one more round after a clean merge.
 - Ruling: `packages/core/skills/review/record.md` keeps, for a version 1 record only, the package forms the version 1
   loop used (`--base` the HEAD sha noted after committing a round with a Must, and `--base <sha>` when
-  `accord anchor` prints `Review base: <sha>`) — a version 1 ticket in flight keeps its old rules (plan critique
-  1.6) — cost if wrong: none found.
+  `accord anchor` prints `Review base: <sha>`), and `packages/core/skills/accord/lane-s.md` keeps, for a version 1
+  record, its `Round record: 1`, its `## Round <n>` headings and its finding lines, also after a merge of the default
+  branch — a version 1 ticket in flight keeps its old rules (plan critique 1.6, 2.2) — cost if wrong: none found.
 - Ruling: `accord round` refuses on the record-against-git problems of a version 2 record (and on the version
   cut-over), as it refuses an unreadable record — a wrong head is cheaper to retype before the next round — cost if
   wrong: one more refusal to fix during review.
@@ -362,7 +376,7 @@ Gives every finding the form D-04 has the CLI check: one location, a state and e
 
 covers: D-12
 files: packages/core/src/round/pin.ts (new), packages/core/src/index.ts, packages/cli/src/load/record-history.ts (new), packages/cli/src/load/fs.ts, packages/cli/test/record-history.test.ts (new)
-verify: packages/cli/test/record-history.test.ts#risk:complex-branching-the-round-commits-and-the-pin-are-read-along-first-parents-through-a-merge-of-main-that-changes-config.yml, packages/cli/test/record-history.test.ts#risk:complex-branching-a-debug-episode-left-open-ends-at-the-first-review-round-recorded-after-it-opened, packages/cli/test/record-history.test.ts#risk:complex-branching-a-ticket-branch-merged-into-the-default-branch-is-read-on-its-merged-in-side
+verify: packages/cli/test/record-history.test.ts#risk:complex-branching-the-round-commits-and-the-pin-are-read-along-first-parents-through-a-merge-of-main-that-changes-config.yml, packages/cli/test/record-history.test.ts#risk:complex-branching-a-debug-episode-left-open-ends-at-the-first-review-round-recorded-after-it-opened, packages/cli/test/record-history.test.ts#risk:complex-branching-a-ticket-branch-merged-into-the-default-branch-is-read-on-its-merged-in-side, packages/cli/test/record-history.test.ts#risk:security-a-record-merged-in-from-a-branch-off-the-default-branch-is-read-at-the-merge
 
 Reads, from git, which commit recorded each round (R_j), the pin at the first round, the base pin and each debug
 episode's commits (D-12, ledger Rulings 22, 26; plan critique 1.2, 1.3).
@@ -394,6 +408,12 @@ takes a pin from `CONFIG` itself (the preamble's rule for the release).
    `mergeMsg(repo, 't/T-1', 'merge T-1')` while on `main` (M_T; along `main`'s first parents `review.md` is added by
    M_T). `readHistory(repo, 'T-1', undefined, '0.3.1', { def: 'refs/heads/main' })` run on `main` gives `rounds`
    `[B1, B2]`, `pin` `0.3.0` and `pinAt` B1 — not M_T and not its pin `0.3.1`.
+4. `risk:security a record merged in from a branch off the default branch is read at the merge`: `main` holds
+   `pinned('0.3.0')` and T-1 (commit O), then `pinned('0.3.1')` (commit U); `t/T-1` starts at U with a code commit;
+   a branch `side` cut at O (`gitRun(repo, 'switch', '-q', '-c', 'side', O)`) commits a version 1
+   `accord/tickets/T-1/review.md` with one round; back on `t/T-1`, `mergeMsg(repo, 'side', 'merge side')` (M).
+   `readHistory(repo, 'T-1', undefined, '0.3.1', { def: 'refs/heads/main' })` gives `rounds` `[M]`, `pin` `0.3.1`
+   and `pinAt` M: `side` is not on `main`, so its old pin is not followed (plan critique 2.3).
 
 **Interface.**
 - New core `packages/core/src/round/pin.ts`, exported from `index.ts`: `RECORD_V2_FROM = '0.3.1'`;
@@ -417,9 +437,11 @@ takes a pin from `CONFIG` itself (the preamble's rule for the release).
   :(literal)accord/tickets/<id>/review.md :(literal)accord/tickets/<id>/debug.md`) lists, newest first, the
   first-parent commits that change either file with each file's status; `review.md`'s history starts at its newest
   `A` status. When that commit has more than one parent (its first parent lacks `review.md`), one `catBatch` of
-  `<parent>:accord/tickets/<id>/review.md` over its other parents finds the first that holds it, and the same log run
-  from that parent instead of `HEAD` gives the history before the merge; this repeats while the oldest `A` is such a
-  merge (the Terms' record commit). One `catBatch` then reads `<sha>:accord/tickets/<id>/review.md` and
+  `<parent>:accord/tickets/<id>/review.md` over its other parents finds the first that holds it; when `o.def` is
+  given and `git merge-base --is-ancestor <that parent> <o.def>` exits 0, the same log run from that parent instead
+  of `HEAD` gives the history before the merge; exit 1, or no `o.def`, leaves the merge as the commit that adds
+  `review.md`, and any other exit is `{ error }`. This repeats while the oldest `A` is such a merge (the Terms'
+  record commit). One `catBatch` then reads `<sha>:accord/tickets/<id>/review.md` and
   `<sha>:accord/config.yml` for each `review.md` commit, and `<sha>:accord/tickets/<id>/debug.md` for each
   `debug.md` commit when a walk is given. R_j is the last commit at which the round count of
   `parseRounds(…, 'review')` (all cycles) rose to j. The pin is `pinOf` of the config at R_1. The base pin is `pinOf`
@@ -816,8 +838,8 @@ told to write (D-01).
   `` `Review base: <sha>` `` (the version 1 sentence); review SKILL.md's step 2 holds `` `Head: <sha>` ``
   and `after that head`, step 4 holds ``re-review only the fix diff: `accord review-package <id>` into`` and not
   `--base <the noted sha>`, step 7 holds ``--base <the plan's baseline:>`` and `(final review)`;
-  `.claude/skills/accord/lane-s.md` holds `Round record: 2`, `` `rests on: Understood "<quote>"` `` and
-  `` `rests on: Done when "<quote>"` ``; `.claude/agents/accord-reviewer.md` holds `` `command: <command>` `` and
+  `.claude/skills/accord/lane-s.md` holds `Round record: 2`, `` `rests on: Understood "<quote>"` ``,
+  `` `rests on: Done when "<quote>"` `` and ``keeps its `Round record: 1` `` (the version 1 sentence); `.claude/agents/accord-reviewer.md` holds `` `command: <command>` `` and
   `` `risk: security` ``; `.claude/skills/accord-debug/SKILL.md` holds `that round's fix`.
 - In `risk:complex-branching the fix review after verify reads only the changes after the review base and counts its own five rounds`
   the step 2 assertions become: holds `after that head` and does not hold `` `Review base: <sha>` ``; the step 6
@@ -889,7 +911,10 @@ told to write (D-01).
     ` (added code round 1)` when `accord round` printed `Added code:`; write each finding as
     `Must|Should|Nice <n>: <finding> — <path>[:<line>] | none — fixed in <sha> | deferred | open`, then its marks, or
     `No findings`;`` (the sentence then goes on as today with "copy each `Confirmed wording-only: <path>` line…").
-  - `` `review.md` starts with the line `Round record: 1` `` becomes `` `Round record: 2` ``.
+  - `` `review.md` starts with the line `Round record: 1` `` becomes `` `Round record: 2` ``, and right after that
+    sentence add: ``A `review.md` whose first round was committed while `accord/config.yml` pinned accord 0.3.0 or
+    earlier keeps its `Round record: 1`, its `## Round <n>` headings and its finding lines, without heads or marks,
+    and keeps that form after a merge of the default branch.`` (plan critique 2.2).
   - After ``never two of them or a question mark.`` insert: ``After its state a finding line carries its marks, each
     after ` — `: `carried from <r>.<n>` when round `<r>` of this cycle reported it as finding `<n>`;
     `risk: data-loss` or `risk: security`; `test: <test id>` or `command: <command>` when a failing test or a command

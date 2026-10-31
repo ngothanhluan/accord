@@ -68,6 +68,11 @@
 - Ruling: accepted task 9's change to packages/cli/test/helpers/done.ts outside its files line: `link` calls `symlinkSync(target, at, 'junction')` with no `process.platform` branch, which the existing stage-skills.test.ts:522 rule required — the Task 3 helper broke that rule — cost if wrong: none; a junction on Windows, a symlink elsewhere.
 - Ruling: accepted the skill files `skills sync` rewrote beyond task 9's files line (accord-plan/SKILL.md, accord-plan/critique.md, accord-review/SKILL.md, accord-review/record.md, accord/lane-s.md) — the committed copies lagged their sources — cost if wrong: an unrelated diff in the PR, easy to revert.
 - Ruling: refused the `PreToolUse` `Agent|Task` → `hook pre-tool-use` entry `skills sync` added to .claude/settings.json in c51fbd64 and removed it in bc057b6b — the pinned 0.3.0 has no `pre-tool-use` event, so it exits 2 with a UsageError, and a PreToolUse hook exiting 2 blocks every Agent call in this repository — cost if wrong: the pre-tool-use model guard stays off here until the pin includes it; add the entry back with that pin bump.
+- Ruling: review round 1 split into five reviewers (engine intent, engine quality, hook/skills both, security, integration) — the ticket's own diff is over 1500 lines and deletes data; the package also carries origin/main merges, so each reviewer was told to judge only the `build: ST-LN-55 task n` commits — cost if wrong: a defect in merged main work is not reviewed here, where it is not this ticket's.
+- Ruling: review round 1 raised the security Nice "the hook judges another repository's worktrees with the launch checkout's `disposable` list after a failed fetch" to Should — it can delete an ignored file the other repository's list does not name, against the Intent's "never removes a real file" — cost if wrong: one small fix more than needed.
+- Ruling: review round 1 raised the integration Nice "worktree.md says every kept line names a file to move or delete", merged with the hook/skills Nice on `note` lines, to Should — an agent following the text may tell the owner to delete real work for a `held by another session` or `uncommitted work` line — cost if wrong: one small fix more than needed.
+- Ruling: the round 1 fix executor ran `skills sync`, which re-added the PreToolUse `hook pre-tool-use` entry to .claude/settings.json; it reverted that file and left the entry out, per the Ruling above — any later `skills sync` here re-adds it until the pin includes `pre-tool-use` — cost if wrong: none; the entry returns with the pin bump.
+- Ruling: review round 1 converged without a re-review — it found no Must, its three Should were fixed in 26bfdfd3 and 69313de8, and tests.affected passed in the Linux container (84 files, 1555 passed, 2 skipped) — cost if wrong: a slip in the fix diff waits for the final reviewer.
 
 ## Deferred
 - Plan round 1 Nice: a relative path in a record line is resolved against cwd; skip non-absolute lines and fence descendants of the main checkout — deferred
@@ -87,6 +92,14 @@
 - Plan round 6 Nice: the `--force` re-create in Task 5 says the steps of worktree.ts:413-419 run as today, but Task 4's `recordQuietly` sits right after the line-412 add, so the `--force` branch may skip the record (D-07); say so in the task or check the record in the test — deferred
 - Plan round 7 Nice: the target-path guards before worktree.ts:438 and :1078 have no test; add fresh-claim and `new ticket --worktree` steps to Task 5's test — deferred
 - Plan round 7 Nice: at the line-412 site, "put that folder back, then try again" fails again once the folder is back on a detached HEAD; say "and switch it to <branch>" — deferred
+- Review round 1 Nice (quality): helpers/done.ts:14 `gone` re-implements leftover.ts `isGone`; import it — deferred
+- Review round 1 Nice (quality): the unlink-then-rmdir link fallback is written twice in leftover.ts (:107-116, :187-196); share a `dropLink` — deferred
+- Review round 1 Nice (quality): worktree-clean.test.ts:771 is named `risk:regression` but pins no past bug; `risk:complex-branching` fits — deferred
+- Review round 1 Nice (quality): cleanForgotten leaves the deleted folder's dead hold in the holds file (worktree.ts:1138-1165); harmless, takeHold treats it as free — deferred
+- Review round 1 Nice (security): the holds snapshot is read once per clean (worktree.ts:923-949) while a clean may run ~300 s; a session that takes a hold on an already-done, clean worktree mid-clean can lose its folder (no data lost); re-read holds before each removeWorktree — deferred
+- Review round 1 Nice (security): file names are printed raw in kept lines and hook output (worktree.ts:871, :880, :1163, hook.ts:85); a newline in a name forges a line; escape control characters — deferred
+- Review round 1 Nice (hook/skills, integration): docs/design.md:201, README.md:107 and packages/cli/README.md:109 still describe the old trigger; say a session start fetches and runs the clean in the foreground under a 600 s hook timeout — deferred
+- Review round 1 risk noted (quality): the time budget is checked between units, so a very large node_modules in a done worktree is walked unbounded by gitInside/sweepRemoved; follows the Approach, not measured
 
 ## Tasks
 - task 1 done 48b7de376993

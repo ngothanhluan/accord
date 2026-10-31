@@ -3,6 +3,7 @@
 // every tool and not only where a session asked `accord round`.
 import { allowancesOf, cycleState, planStopOf, recordProblems } from '../round/next.js';
 import { cycleOpen } from '../round/record.js';
+import { scopeProblems } from '../round/scope.js';
 import { doneOnDefault } from '../status/stage.js';
 import type { RepoSnapshot, RoundRecord } from '../model/snapshot.js';
 import type { RoundKind } from '../round/next.js';
@@ -22,6 +23,8 @@ function check(snapshot: RepoSnapshot, id: string, kind: RoundKind): GateDraft[]
   if (!rec.versioned) {
     // An unversioned record is read by the old rules: where the host gave no default ref, or the ticket is done there.
     if (rec.cycles.every((c) => c.rounds.length === 0) || snapshot.defaultRef === undefined || doneOnDefault(snapshot, id)) return [];
+    // ST-LN-57: when gate.review-scope refuses version 1 (or cannot read the facts), it already tells how to fix the record.
+    if (kind === 'review' && scopeProblems(snapshot, id).length > 0) return [];
     add(undefined, `${name} has no record version line; add the line "Round record: 1" above its first ## heading`);
     return out;
   }

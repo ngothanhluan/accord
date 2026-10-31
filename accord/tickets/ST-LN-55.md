@@ -60,7 +60,7 @@ Feature: ST-LN-55
     Then the first ticket's worktree folder, its local branch, its branch on origin and its hold no longer exist, and that session shows the "removed" line
     And the second ticket's worktree still exists
 
-  @ac-3
+  @ac-3 @test:packages/cli/test/worktree-clean.test.ts#ac-3-a-session-start-in-a-worktree-and-a-clear-in-the-main-checkout-delete-the-recorded-folder-of-a-done-ticket-that-git-forgot
   Scenario: A session start cleans a done ticket's recorded worktree that git has forgotten
     Given accord recorded a worktree for a ticket when it created it
     And accord reads the ticket as done on origin's default branch, git no longer lists that worktree, and its folder holds only links and empty folders

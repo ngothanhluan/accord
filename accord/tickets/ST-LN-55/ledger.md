@@ -52,6 +52,8 @@
 - Ruling: the target-path guards before worktree.ts:438 and :1078 get no test of their own; only the line-412 case is tested — round 6.1 named that case and the logic is shared through `refuseAt` — cost if wrong: a slip at those two sites is not caught by a test.
 - Ruling: unlinking a link falls back to rmdir when unlink throws (a Windows junction) — such a junction is still removed or kept and named — cost if wrong: that junction is kept and named.
 - Ruling: `passGuards` judges every non-ignored status entry first (the uncommitted-work line), then the first ignored entry outside the list — the brief's order, so uncommitted work is named ahead of an ignored file — cost if wrong: none.
+- Ruling: `readRecorded` takes an optional second argument `dir`, the cached `<common>/accord` in `GuardState.accord` — keeps the record read to one rev-parse per clean as the plan says; callers without it get the plan's one-argument form — cost if wrong: one signature to trim.
+- Ruling: `sweepForgotten` unlinks a link and falls back to rmdir when unlink throws, as `sweepRemoved` does — the Windows junction Ruling above — cost if wrong: such a junction is kept and named.
 
 ## Deferred
 - Plan round 1 Nice: a relative path in a record line is resolved against cwd; skip non-absolute lines and fence descendants of the main checkout — deferred
@@ -76,3 +78,4 @@
 - task 1 done 48b7de376993
 - task 2 done 77c5fc49a523
 - task 3 done c30511b742fd
+- task 4 done 1457dacb9468

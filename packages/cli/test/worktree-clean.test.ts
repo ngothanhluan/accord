@@ -1,6 +1,8 @@
 // ST-LN-7, ST-LN-20, ST-LN-34, ST-LN-55: `accord worktree clean` of merged, pruned and dropped tickets, and the session-start hook that runs it, against real git in tmp sandboxes with a bare remote.
+import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { afterEach, expect, it, vi } from 'vitest';
+import * as limit from '../src/commands/fetch-limit.js';
 import * as proc from '../src/load/proc.js';
 import { laneTicket } from '../../../test/helpers/lane.js';
 import { ALIVE, exclude, forget, gone, link, listing, recorded, runWhole } from './helpers/done.js';
@@ -14,11 +16,12 @@ vi.mock('../src/load/proc.js', async (orig) => {
 });
 vi.mock('../src/commands/fetch-limit.js', async (orig) => {
   const real = await orig<typeof import('../src/commands/fetch-limit.js')>();
-  return { ...real, fetchLimitMs: vi.fn(real.fetchLimitMs) };
+  return { ...real, fetchLimitMs: vi.fn(real.fetchLimitMs), cleanBudgetMs: vi.fn(real.cleanBudgetMs) };
 });
 vi.mock('node:child_process', async (orig) => (await import('./helpers/git-spawns.js')).wrapChildProcess(await orig<typeof import('node:child_process')>()));
 
 afterEach(() => {
+  vi.mocked(limit.cleanBudgetMs).mockReset();
   spawnLog.on = false;
   spawnLog.after = undefined;
   spawnLog.fail = undefined;
@@ -1016,4 +1019,42 @@ it('risk:data-loss the sibling sweep deletes an unrecorded leftover of a done ti
   expect(existsSync(c.sibling('ST-11'))).toBe(true);
   expect(existsSync(c.sibling('ST-99'))).toBe(true);
   expect(existsSync(`${c.root}/accord/config.yml`)).toBe(true);
+}, 120_000);
+
+it('risk:concurrency a clean that finds another clean running skips with one line and a stale lock is taken over', async () => {
+  const c = copy();
+  claimWorktree(c, 'ST-9');
+  doneOnRemote(c, ['ST-9']);
+  mkdirSync(`${c.root}/.git/accord`, { recursive: true });
+  const lock = `${c.root}/.git/accord/clean.lock`;
+  writeFileSync(lock, String(process.pid));
+  const held = await run(['worktree', 'clean'], c.root);
+  expect(held.code).toBe(0);
+  expect(lines(held.out)).toHaveLength(1);
+  expect(held.out.startsWith('clean skipped: another accord worktree clean is running')).toBe(true);
+  expect(existsSync(c.sibling('ST-9'))).toBe(true);
+  const ended = spawnSync(process.execPath, ['-e', ''], { encoding: 'utf8' });
+  writeFileSync(lock, String(ended.pid));
+  const taken = await run(['worktree', 'clean'], c.root);
+  expect(taken.code).toBe(0);
+  expect(lines(taken.out)).toContain(`removed ${c.sibling('ST-9')}`);
+  expect(gone(c.sibling('ST-9'))).toBe(true);
+  expect(gone(lock)).toBe(true);
+}, 120_000);
+
+it('risk:complex-branching the hook clean starts no removal once its time budget is spent and says the rest waits', async () => {
+  const c = copy();
+  claimWorktree(c, 'ST-9');
+  doneOnRemote(c, ['ST-9']);
+  vi.mocked(limit.cleanBudgetMs).mockReturnValue(0);
+  const r = await run(['hook', 'session-start'], c.root, {}, startInput(c));
+  expect(r.code).toBe(0);
+  const L = lines(r.out);
+  const stopped = L.indexOf('clean stopped: its time budget is spent; the rest waits for the next session start');
+  expect(stopped).toBeGreaterThan(-1);
+  expect(L.indexOf('tell the owner the lines above')).toBeGreaterThan(stopped);
+  expect(L.some((l) => l.startsWith('removed') || l.startsWith('deleted'))).toBe(false);
+  expect(existsSync(c.sibling('ST-9'))).toBe(true);
+  expect(has(c.root, 'refs/heads/t/ST-9')).toBe(true);
+  expect(has(c.remote, 'refs/heads/t/ST-9')).toBe(true);
 }, 120_000);

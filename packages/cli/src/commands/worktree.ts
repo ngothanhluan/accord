@@ -1,6 +1,6 @@
 // ST-LN-7 `accord worktree`: each ticket works in its own git worktree, a sibling folder of the main checkout.
 import { execFileSync } from 'node:child_process';
-import { appendFileSync, closeSync, existsSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, closeSync, existsSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import type { Dirent } from 'node:fs';
 import { DEFAULT_BRANCH_TEMPLATE, forbiddenLines, isSha, loadConfig, loadSnapshot, statusRows, trailerReason } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
@@ -820,7 +820,28 @@ interface GuardState {
   accord?: string;
   /** The record entries `cleanRecorded` read. */
   recorded?: { id: string; path: string }[];
+  /** ST-LN-55 fix 5: the time (ms since the epoch) after which a hook clean starts no new unit of work. */
+  until?: number;
+  stopped?: boolean;
 }
+
+/**
+ * ST-LN-55 fix 5: true once the time budget is spent, writing the stop line once. Called once per unit of work, never between two steps of
+ * one unit, so a branch whose worktree is removed also loses its local branch and its origin branch in the same turn.
+ */
+function spent(ctx: CommandContext, s: GuardState): boolean {
+  if (s.until === undefined) return false;
+  if (s.stopped === true) return true;
+  if (Date.now() < s.until) return false;
+  s.stopped = true;
+  ctx.stdout.write('clean stopped: its time budget is spent; the rest waits for the next session start\n');
+  return true;
+}
+
+const halted = (s: GuardState): boolean => s.stopped === true;
+
+/** The origin delete push gets the fetch limit while a budget is set, so a hung push fails with the usual kept line. */
+const pushLimit = (s: GuardState): number | undefined => (s.until === undefined ? undefined : fetchLimitMs());
 
 /** The guards every worktree removal passes; undefined (after a kept line) when one keeps the worktree, else the hold it may drop. */
 function passGuards(ctx: CommandContext, w: PrunableEntry, id: string, s: GuardState, list: readonly WorktreeEntry[]): { h: Hold | undefined } | undefined {
@@ -976,8 +997,67 @@ function removeWorktree(ctx: CommandContext, w: WorktreeEntry, id: string, h: Ho
   return { failed: !gone };
 }
 
+/**
+ * ST-LN-55: one clean runs at a time per repository. Returns the open lock file, or the line that says why this clean skips. A lock is stale
+ * when its pid no longer runs or it is more than an hour old.
+ */
+function takeCleanLock(dir: string): { fd: number; file: string } | string {
+  const file = dir + '/clean.lock';
+  mkdirSync(dir, { recursive: true });
+  let owner = '?';
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const fd = openSync(file, 'wx');
+      try {
+        writeFileSync(fd, String(process.pid));
+      } catch (e) {
+        closeSync(fd);
+        rmSync(file, { force: true });
+        throw e;
+      }
+      return { fd, file };
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e;
+    }
+    let pid: number;
+    try {
+      pid = Number.parseInt(readFileSync(file, 'utf8').trim(), 10);
+      if (Number.isInteger(pid) && pid > 0) owner = String(pid);
+    } catch {
+      // the lock vanished between the open and the read: try the open again
+      continue;
+    }
+    let stale = Date.now() - (statSync(file, { throwIfNoEntry: false })?.mtimeMs ?? Date.now()) > 3_600_000;
+    if (!stale && Number.isInteger(pid) && pid > 0) {
+      try {
+        process.kill(pid, 0);
+      } catch (e) {
+        stale = (e as NodeJS.ErrnoException).code === 'ESRCH';
+      }
+    }
+    if (!stale) break;
+    rmSync(file, { force: true });
+  }
+  return `clean skipped: another accord worktree clean is running (pid ${owner})`;
+}
+
 /** D-05, D-16: fetch, prune stale remote refs, then (ST-LN-25 D-08) remove the worktree and delete the local branch of each ticket that is done on origin's main, then (ST-LN-34) those of dropped tickets, naming what is removed, deleted or kept. */
-export function worktreeClean(ctx: CommandContext, opts: { fetched?: 'ok' | 'failed' | 'none'; skip?: string; seen?: SeenList } = {}): number {
+export function worktreeClean(ctx: CommandContext, opts: { fetched?: 'ok' | 'failed' | 'none'; skip?: string; seen?: SeenList; until?: number } = {}): number {
+  const accord = git(ctx.root, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim() + '/accord';
+  const lock = takeCleanLock(accord);
+  if (typeof lock === 'string') {
+    ctx.stdout.write(lock + '\n');
+    return 0;
+  }
+  try {
+    return cleanLocked(ctx, opts, accord);
+  } finally {
+    closeSync(lock.fd);
+    rmSync(lock.file, { force: true });
+  }
+}
+
+function cleanLocked(ctx: CommandContext, opts: { fetched?: 'ok' | 'failed' | 'none'; skip?: string; seen?: SeenList; until?: number }, accord: string): number {
   const seen = opts.seen ?? {};
   readList(ctx, seen);
   const templates = ctx.snapshot.branchTemplates ?? [DEFAULT_BRANCH_TEMPLATE];
@@ -997,11 +1077,14 @@ export function worktreeClean(ctx: CommandContext, opts: { fetched?: 'ok' | 'fai
   }
   const ref = gitDefaultRef(ctx.root);
   if (ref === undefined) return 0;
-  const state: GuardState = { seen };
+  const state: GuardState = { seen, accord, until: opts.until };
   const merged = mergedTips(ctx.root, ref);
   cleanDone(ctx, ref, templates, state, fetchFailed, merged, opts.skip);
+  if (halted(state)) return 0;
   cleanDropped(ctx, ref, templates, state, pruned, fetchFailed, merged, opts.skip);
+  if (halted(state)) return 0;
   cleanRecorded(ctx, ref, state, fetchFailed, merged);
+  if (halted(state)) return 0;
   cleanSiblings(ctx, ref, state, fetchFailed);
   return 0;
 }
@@ -1042,6 +1125,7 @@ function cleanSiblings(ctx: CommandContext, ref: string, s: GuardState, fetchFai
   const done = new Set(statusRows(snapshotAt(ctx.root, ref, ids)).filter((r) => r.stage === 'done' && r.status !== 'dropped').map((r) => r.id));
   const dropped = fetchFailed ? new Set<string>() : droppedOn(ctx.root, ref, ids);
   for (const f of candidates.filter((c) => done.has(c.id) || dropped.has(c.id)).sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))) {
+    if (spent(ctx, s)) return;
     try {
       cleanForgotten(ctx, f.path, s);
     } catch (err) {
@@ -1094,6 +1178,7 @@ function cleanRecorded(ctx: CommandContext, ref: string, s: GuardState, fetchFai
   const list = readList(ctx, s.seen);
   for (const e of todo) {
     if (s.seen.judged?.has(norm(e.path)) === true) continue;
+    if (spent(ctx, s)) return;
     try {
       const W = list.find((w) => norm(w.path) === norm(e.path));
       if (W !== undefined) {
@@ -1145,10 +1230,10 @@ function mergedTips(root: string, ref: string): Set<string> {
 }
 
 /** D-02: the clean a command runs on the side; a failure is named and never stops that command. */
-export function cleanQuietly(ctx: CommandContext, fetched: 'ok' | 'failed' | 'none', skip?: string, o: { hook?: boolean } = {}): WorktreeEntry[] | undefined {
+export function cleanQuietly(ctx: CommandContext, fetched: 'ok' | 'failed' | 'none', skip?: string, o: { hook?: boolean; until?: number } = {}): WorktreeEntry[] | undefined {
   const seen: SeenList = o.hook === true ? { keepMissing: true } : {};
   try {
-    worktreeClean(ctx, { fetched, skip, seen });
+    worktreeClean(ctx, { fetched, skip, seen, until: o.until });
   } catch (e) {
     ctx.stdout.write(`clean failed, nothing more was removed: ${firstLine(e instanceof UsageError ? e.message : e)}\n`);
     return undefined;
@@ -1222,6 +1307,7 @@ function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[
   for (const b of [...ids.keys()].filter((n) => done.has(ids.get(n)!)).sort()) {
     const id = ids.get(b)!;
     try {
+      if (spent(ctx, s)) return;
       // A worktree mid-rebase has a detached HEAD; its rebase still owns the branch.
       const rebasing = after.find((x) => x.branch === undefined && x.prunable === undefined && rebaseBranch(x.path) === b);
       if (rebasing !== undefined) {
@@ -1283,7 +1369,7 @@ function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[
         continue;
       }
       try {
-        gitNoPrompt(ctx.root, ['push', `--force-with-lease=refs/heads/${b}:${R}`, 'origin', ':refs/heads/' + b], undefined, ctx.ssh);
+        gitNoPrompt(ctx.root, ['push', `--force-with-lease=refs/heads/${b}:${R}`, 'origin', ':refs/heads/' + b], pushLimit(s), ctx.ssh);
       } catch (e) {
         ctx.stdout.write(`kept origin/${b}: git push failed: ${firstLine(e)}
 `);
@@ -1329,6 +1415,7 @@ function cleanDropped(ctx: CommandContext, ref: string, templates: readonly stri
   for (const b of [...ids.keys()].filter((n) => dropped.has(ids.get(n)!)).sort()) {
     const id = ids.get(b)!;
     try {
+      if (spent(ctx, s)) return;
       const W = after.find((x) => x.branch === b);
       // A worktree mid-rebase has a detached HEAD and shows no branch; its rebase still owns the branch.
       const rebasing = after.find((x) => x.branch === undefined && x.prunable === undefined && rebaseBranch(x.path) === b);
@@ -1367,7 +1454,7 @@ function cleanDropped(ctx: CommandContext, ref: string, templates: readonly stri
       if (W !== undefined && removeWorktree(ctx, W, id, g!.h, s.seen).failed) continue;
       if (R !== undefined) {
         try {
-          gitNoPrompt(ctx.root, ['push', `--force-with-lease=refs/heads/${b}:${R}`, 'origin', ':refs/heads/' + b], undefined, ctx.ssh);
+          gitNoPrompt(ctx.root, ['push', `--force-with-lease=refs/heads/${b}:${R}`, 'origin', ':refs/heads/' + b], pushLimit(s), ctx.ssh);
         } catch (e) {
           ctx.stdout.write(`kept origin/${b}: git push failed: ${firstLine(e)}
 `);

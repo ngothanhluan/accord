@@ -8,6 +8,7 @@ import { currentBranch, ticketOfBranch } from '../load/fs.js';
 import { claudeEnv, processTable, sessionIn } from '../load/proc.js';
 import { repoRoot } from '../root.js';
 import type { CommandContext } from '../run.js';
+import { cleanBudgetMs } from './fetch-limit.js';
 import { activeTicket } from './anchor.js';
 import { branchOf, cleanQuietly, fetchOrigin, guardAllowsContinue, inClaude, isLinked, listWorktrees, readHoldsFile, recordWorked, releaseHolds, takeHold, worksMessage, worksTicket } from './worktree.js';
 
@@ -71,9 +72,11 @@ function sessionClean(ctx: CommandContext, event: 'session-start' | 'session-res
     const root = input?.cwd !== undefined ? repoRoot(input.cwd) : ctx.root;
     const c: CommandContext = { ...ctx, root, stdout: out };
     if (root !== ctx.root) delete c.branch;
+    // fix 5: the budget starts before the fetch
+    const until = Date.now() + cleanBudgetMs();
     const f = fetchOrigin(c);
     // a clone with no origin has nothing to judge done against
-    if (f.fetched !== 'none') cleanQuietly(f.ctx, f.fetched, undefined, { hook: true });
+    if (f.fetched !== 'none') cleanQuietly(f.ctx, f.fetched, undefined, { hook: true, until });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     out.write(`clean failed, nothing more was removed: ${msg.split('\n')[0]}`.replace(/\\/g, '/') + '\n');

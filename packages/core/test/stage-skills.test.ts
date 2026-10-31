@@ -1215,3 +1215,29 @@ it('risk:regression the review lane S and plan critique skills ask accord round 
   ];
   expect(problems).toEqual([]);
 });
+
+it('risk:regression the worktree reference and the finish report say a session start cleans a merged ticket and nobody removes it by hand', () => {
+  for (const dir of ['accord', 'accord-debug', 'accord-verify']) {
+    const wt = flatS(`.claude/skills/${dir}/worktree.md`);
+    for (const s of [
+      '`clean skipped` or `clean stopped`',
+      'A `kept` line ends with its reason',
+      'Only when that reason names a file accord never deletes does the owner move or delete that file',
+      'for any other reason nothing is to be deleted',
+      '`holds a repository: <path>` (a nested repository, maybe with unpushed commits; never offer to delete it), `has an edit git status hides: <path>`',
+      "`research record <path> is not on <default> as <branch> holds it`: the record is the owner's to reconcile, never to delete or move; make the branch copy equal to the default branch's, or put it on the default branch, then push, and the branch stays",
+      'A line starting `note <id>:` says a record or a hold was not updated',
+      'every session start, resume or /clear runs the same clean',
+      '`tell the owner the lines above`',
+      '`removed`, `deleted` or `kept`',
+      'only from `/accord` with no argument and from `/accord upgrade`',
+    ])
+      expect(wt, dir).toContain(s);
+  }
+  for (const dir of ['accord', 'accord-verify']) {
+    expect(flatS(`.claude/skills/${dir}/finish.md`), dir).toContain("Never wait for the merge, and never remove the ticket's worktree or branches by hand");
+    expect(flatS(`.claude/skills/${dir}/finish.md`), dir).toContain(
+      "A /clear in this finishing session keeps its worktree (`kept <path>: this session's worktree`): the folder goes only after this session has ended, at a session started in another folder, so tell the owner to close this session once the pull request is merged.",
+    );
+  }
+});

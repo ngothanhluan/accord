@@ -20,6 +20,13 @@
 
 ## Round 2 (whole)
 
-1. Should — Task 3 builds each probe command as `claude -p --session-id <id> ...PROBE_FORMS.extraArgs [--settings f] [--mcp-config f] [--strict-mcp-config] <prompt>`; if Task 1 records a variadic flag such as `--allowedTools Agent` (the plan's own example; https://code.claude.com/docs/en/cli-reference shows `--allowedTools` taking a space-separated list), the all-on probe, which has none of the bracketed flags, puts its prompt right after that list, which swallows it as a tool name, so `-p` gets no prompt, no agent is dispatched and `--fixed` reprints `all-on` as missing forever; Task 3's test runs with the real `PROBE_FORMS` and cannot see it; put the prompt directly after `-p` (the documented `claude -p "query"` form) or end the options with a single-valued flag, and add a test with `extraArgs: ['--allowedTools', 'Agent']` — open, owner: "A"
-2. Should — any change to auto-memory's `MEMORY.md` makes `all-on` stale, and the main session writes ticket-stage lines there as it works; an update between the last clean `--fixed` and Task 10 makes Task 10's `--fixed` exit 1 and report BLOCKED, forcing another all-on probe that dispatches every accord agent; the plan neither stops memory writes in that gap nor lets Task 10 reuse the report that run wrote — open
+1. Should — Task 3 builds each probe command as `claude -p --session-id <id> ...PROBE_FORMS.extraArgs [--settings f] [--mcp-config f] [--strict-mcp-config] <prompt>`; if Task 1 records a variadic flag such as `--allowedTools Agent` (the plan's own example; https://code.claude.com/docs/en/cli-reference shows `--allowedTools` taking a space-separated list), the all-on probe, which has none of the bracketed flags, puts its prompt right after that list, which swallows it as a tool name, so `-p` gets no prompt, no agent is dispatched and `--fixed` reprints `all-on` as missing forever; Task 3's test runs with the real `PROBE_FORMS` and cannot see it; put the prompt directly after `-p` (the documented `claude -p "query"` form) or end the options with a single-valued flag, and add a test with `extraArgs: ['--allowedTools', 'Agent']` — fixed
+2. Should — any change to auto-memory's `MEMORY.md` makes `all-on` stale, and the main session writes ticket-stage lines there as it works; an update between the last clean `--fixed` and Task 10 makes Task 10's `--fixed` exit 1 and report BLOCKED, forcing another all-on probe that dispatches every accord agent; the plan neither stops memory writes in that gap nor lets Task 10 reuse the report that run wrote — fixed
 3. Nice — Task 10's test-first step cannot fail first: the main session's `--fixed` run leaves `docs/benchmark/fixed-context.md` in the worktree before Task 10 is dispatched, so the ac-4 test passes at once and the executor finds a dirty file it did not create — deferred
+
+## Round 3 (diff)
+
+No findings
+
+## Closed
+Converged at round 3: 0 Must open, 0 Should open, 3 Nice deferred.

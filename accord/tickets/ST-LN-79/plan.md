@@ -1,6 +1,6 @@
 ---
 baseline: 5c8b5d96c8cbf6acddfcee3c6358c09b84f75094
-plan_hash: "fnv1a64:bdfa0a26179a9bd6"
+plan_hash: "fnv1a64:ead825cdcff6ee11"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -19,7 +19,10 @@ How the measurement is run once Tasks 1 to 9 are done (no executor runs a probe 
 Before Task 10 is dispatched, the main session runs `node scripts/benchmark.mjs --fixed --probe` in the ticket
 worktree and gives the owner the commands it printed; the owner runs them in Git Bash; the main session then runs
 `node scripts/benchmark.mjs --fixed` and gives the owner each set of commands it prints, until `--fixed` exits 0
-and prints the table. Only then is Task 10 dispatched.
+and prints the table. That run writes `docs/benchmark/fixed-context.md` into the ticket worktree, and Task 10 commits
+that file as it is, without running `--fixed` again: a line the main session writes to auto-memory's `MEMORY.md`
+afterwards makes `all-on` stale, though the file already measures the setup as it was when it ran. Only then is
+Task 10 dispatched.
 
 Rules for every task:
 - Test ids: every test this plan writes is a top-level `it(...)` in `packages/core/test/benchmark-fixed.test.ts`
@@ -111,8 +114,10 @@ file of the owner's.
    `empty/`; check `git -C ../accord-bench/fixed-spike/empty rev-parse --is-inside-work-tree` fails (outside any
    repository). Make the probe worktree:
    `git worktree add -B probe/fixed-context ../accord-probe 5c8b5d96c8cbf6acddfcee3c6358c09b84f75094`.
-2. Every run below passes `-p`, `--session-id <uuid>` (a new `node -e "console.log(require('crypto').randomUUID())"`
-   each run), and from the probe worktree the prompt `dispatchPrompt(['accord-executor'])`. Settings and MCP config
+2. Every run below passes `-p` with its prompt directly after it (the documented `claude -p "query"` form, so a flag
+   that takes a list, added below, cannot take the prompt as one of its values), then `--session-id <uuid>` (a new
+   `node -e "console.log(require('crypto').randomUUID())"` each run); from the probe worktree the prompt is
+   `dispatchPrompt(['accord-executor'])`. Settings and MCP config
    go in files under the scratch folder and are passed by path, never as inline JSON. If `-p` stops without
    dispatching the agent, add the smallest flag that lets it dispatch (such as `--allowedTools Agent`) to every run
    and record it.
@@ -316,8 +321,9 @@ verify: packages/core/test/benchmark-fixed.test.ts#risk:complex-branching-phase-
 
 Consumes: `readSetup` (Task 2), `PROBE_FORMS` and `dispatchPrompt` (Task 1). Produces: in
 `scripts/fixed-context.mjs`, `fingerprints(setup)`, `phaseOne(setup)` and `shellLine(args)`; in
-`scripts/benchmark.mjs`, `setupDirty(repo)`, `writeProbes({ repo, home, bench, probes, fresh })`,
-`fixedProbe({ repo, home, bench })` returning `{ exit, text }`, and the mode `--fixed --probe`, whose `main()`
+`scripts/benchmark.mjs`, `setupDirty(repo)`, `writeProbes({ repo, home, bench, probes, fresh, forms = PROBE_FORMS })`,
+`fixedProbe({ repo, home, bench, forms = PROBE_FORMS })` (it passes `forms` to `writeProbes`) returning
+`{ exit, text }`, and the mode `--fixed --probe`, whose `main()`
 branch prints `text` and returns `exit` (every function of this plan returns its text and only `main()` prints).
 Behaviour that must not change in `scripts/benchmark.mjs`: every existing mode; `main()` keeps answering every
 other argument list as before, and its usage line gains `--fixed [--probe]`.
@@ -345,9 +351,11 @@ other argument list as before, and its usage line gains `--fixed [--probe]`.
   `<safe id>.settings.json` (the `settings` object) and `<safe id>.mcp.json` (`{ mcpServers: { <name>: <entry> } }`),
   where the safe id is the id with every character outside `[A-Za-z0-9._-]` turned to `_`. It gives the probe a
   session id (`crypto.randomUUID()`) when `fresh` is true or the probe has none in `probes.json`, and builds its
-  command with `shellLine`: `cd <probeDir> && claude -p --session-id <id> ...PROBE_FORMS.extraArgs
-  [--settings <file>] [--mcp-config <file>] [--strict-mcp-config] <prompt>` with the prompt
-  `dispatchPrompt(<every setup agent name>)`; `--strict-mcp-config` is on `mcp-ref` and every `mcp:` probe. It
+  command with `shellLine`: `cd <probeDir> && claude -p <prompt> --session-id <id> ...forms.extraArgs
+  [--settings <file>] [--mcp-config <file>] [--strict-mcp-config]` with the prompt
+  `dispatchPrompt(<every setup agent name>)` directly after `-p` (the documented `claude -p "query"` form: a flag of
+  `extraArgs` that takes a list, such as `--allowedTools Agent`, would take a prompt placed after it as one more
+  value); `--strict-mcp-config` is on `mcp-ref` and every `mcp:` probe. It
   stores `{ id, sessionId, cwd, command, fingerprint }` (`fingerprint` the probe's depends keys with their current
   values) into `probes.json`, keeping entries of other probes.
 - `fixedProbe` (`node scripts/benchmark.mjs --fixed --probe`) refuses with exit 2 and the one line
@@ -366,7 +374,11 @@ Tests first, both with `makeWorld()`, calling `fixedProbe` and reading its `text
   through the templates; the printed commands pass settings and MCP config by `--settings <path>` /
   `--mcp-config <path>` (no printed line holds `{`), each starts with `'cd ' + shellLine([probeDir]) + ' && '`
   (the temporary path may hold a space, which `shellLine` quotes), and the line before them is the `worktree add`
-  line; `probes.json` holds one entry per probe with a distinct session id. A setup with no listable server still
+  line; each command holds `'claude -p ' + shellLine([dispatchPrompt(<the agent names of readSetup in order>)]) +
+  ' --session-id '`; `probes.json` holds one entry per probe with a distinct session id. With
+  `forms: { ...PROBE_FORMS, extraArgs: ['--allowedTools', 'Agent'] }`, `fixedProbe` prints an all-on command (the
+  line holding the all-on session id of `probes.json`) that holds that same `claude -p <prompt> --session-id ` text
+  and ends with ` --allowedTools Agent`. A setup with no listable server still
   has `mcp-ref`, whose command holds `--strict-mcp-config` and no `--mcp-config`. After an uncommitted edit of
   `.claude/agents/accord-scout.md`, `fixedProbe` exits 2 with the refusal line.
 - `it('risk:security MCP config files stay under the bench root and no server secret is printed or stored in the repository')`:
@@ -473,11 +485,11 @@ Consumes: Tasks 1 to 4. Produces: in `scripts/benchmark.mjs`, `locateSessions(ho
   `{ <name>: { description: 'probe stub', prompt: 'Reply ok.', model, tools } }` (`model` the frontmatter model,
   `tools` the array of tool names, the form run f of Task 1 proved, and absent for `null`);
   `<bench>/fixed/<safe id>.md` holds a `text:` probe's text. Every `where: 'empty'` command is
-  `cd <bench>/fixed/empty && claude -p --session-id <id> ...PROBE_FORMS.extraArgs ...PROBE_FORMS.noSources
-  --strict-mcp-config --model <model key>` followed by: for `baseline`, `--agents` with the path of `stubs.json`
-  when `PROBE_FORMS.agentsArg` is `'file'`, else the JSON itself (quoted by `shellLine`), and the prompt
-  `dispatchPrompt(<stub names>)`; for `ref:`, the prompt `PROBE_BRIEF`; for `text:`,
-  `--append-system-prompt-file <its .md file>` and the prompt `PROBE_BRIEF`.
+  `cd <bench>/fixed/empty && claude -p <prompt> --session-id <id> ...PROBE_FORMS.extraArgs ...PROBE_FORMS.noSources
+  --strict-mcp-config --model <model key>`, the prompt directly after `-p` as in Task 3, followed by: for
+  `baseline`, `--agents` with the path of `stubs.json` when `PROBE_FORMS.agentsArg` is `'file'`, else the JSON
+  itself (quoted by `shellLine`), with the prompt `dispatchPrompt(<stub names>)`; for `ref:`, nothing more, with the
+  prompt `PROBE_BRIEF`; for `text:`, `--append-system-prompt-file <its .md file>`, with the prompt `PROBE_BRIEF`.
 - `fixedPending` first refuses with exit 2 and Task 3's refusal line, writing nothing, when `setupDirty(repo)` is
   true: a working-copy edit would be sized from disk while the probe worktree checks out HEAD. Otherwise it reads
   the setup, `probes.json` and the sessions it names, takes `version = probeVersion(...)`, computes the pending
@@ -741,9 +753,10 @@ line for each of the owners `plugins`, `MCP servers`, `CLAUDE.md and memory` and
 `/[A-Za-z]:[\\/]+Users[\\/]/i`, `/\/[a-z]\/Users\//i`, `/[\w.+-]+@[\w-]+(\.[A-Za-z][\w-]*)+/` or
 `/sekret|Bearer /`.
 
-Then run `node scripts/benchmark.mjs --fixed` from the ticket worktree. Exit 1 (commands printed) or 2 (refused)
-means the probes are not current: stop and report BLOCKED with the printed lines, so the main session gives them to
-the owner. Exit 0 writes `docs/benchmark/fixed-context.md`; read it whole and check by eye that no MCP server value,
+Then take `docs/benchmark/fixed-context.md` as the main session's clean `node scripts/benchmark.mjs --fixed` run
+wrote it into the ticket worktree (preamble), and do not run `--fixed` again: an auto-memory line written since
+would make `all-on` stale, though the file already measures the setup as it was when it ran (ac-1). When the file
+is missing, stop and report BLOCKED, so the main session runs `--fixed` again with the owner. Read it whole and check by eye that no MCP server value,
 token or e-mail address is in it and that each claude.ai connector the owner has connected is named on an
 `MCP servers` line, then commit it with the test. The report changes nothing in accord or in the owner's setup and
 names no keep-or-cut judgement (ledger Ruling): the cut and its proof on ST-LN-46's round 2 samples, and the

@@ -2,9 +2,9 @@
 // Nothing here fails a session over the anchor: a git problem is one stderr line and the session line.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { anchorText, checkFixDispatch, DEFAULT_BRANCH_TEMPLATE, rulesetText, sessionLine, statusRows } from '@accord-dev/accord-core';
+import { anchorText, checkFixDispatch, DEFAULT_BRANCH_TEMPLATE, loadSnapshot, rulesetText, sessionLine, statusRows } from '@accord-dev/accord-core';
 import pkg from '../../package.json' with { type: 'json' };
-import { currentBranch, ticketOfBranch } from '../load/fs.js';
+import { currentBranch, loadFromFs, ticketOfBranch } from '../load/fs.js';
 import { claudeEnv, processTable, sessionIn } from '../load/proc.js';
 import { repoRoot } from '../root.js';
 import type { CommandContext } from '../run.js';
@@ -71,7 +71,13 @@ function sessionClean(ctx: CommandContext, event: 'session-start' | 'session-res
   try {
     const root = input?.cwd !== undefined ? repoRoot(input.cwd) : ctx.root;
     const c: CommandContext = { ...ctx, root, stdout: out };
-    if (root !== ctx.root) delete c.branch;
+    if (root !== ctx.root) {
+      // another repository than the one the launch loaded: its own config and tickets judge it, whether or not the fetch succeeds; a failed load removes nothing
+      c.snapshot = loadSnapshot(loadFromFs(root));
+      delete c.branch;
+      delete c.plain;
+      delete c.light;
+    }
     // fix 5: the budget starts before the fetch
     const until = Date.now() + cleanBudgetMs();
     const f = fetchOrigin(c);

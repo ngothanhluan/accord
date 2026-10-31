@@ -1058,3 +1058,21 @@ it('risk:complex-branching the hook clean starts no removal once its time budget
   expect(has(c.root, 'refs/heads/t/ST-9')).toBe(true);
   expect(has(c.remote, 'refs/heads/t/ST-9')).toBe(true);
 }, 120_000);
+
+it('risk:data-loss a hook run for another repository judges with that repository config even when its fetch fails', async () => {
+  const a = copy();
+  const b = copy();
+  const cfg = `${a.root}/accord/config.yml`;
+  writeFileSync(cfg, readFileSync(cfg, 'utf8').trimEnd() + '\ndisposable: [node_modules, .env]\n');
+  exclude(b, ['.env']);
+  claimWorktree(b, 'ST-9');
+  writeFiles(b.sibling('ST-9'), { '.env': 'SECRET=1\n' });
+  doneOnRemote(b, ['ST-9']);
+  b.git('fetch', '-q', 'origin');
+  b.git('remote', 'set-url', 'origin', b.remote + '-missing');
+  const r = await run(['hook', 'session-start'], a.root, {}, JSON.stringify({ session_id: 'sess-B', cwd: b.root, source: 'startup' }));
+  expect(r.code).toBe(0);
+  expect(lines(r.out)).toContain(`kept ${b.sibling('ST-9')}: .env`);
+  expect(readFileSync(`${b.sibling('ST-9')}/.env`, 'utf8')).toBe('SECRET=1\n');
+  expect(b.git('worktree', 'list', '--porcelain')).toContain(`worktree ${b.sibling('ST-9')}\n`);
+}, 120_000);

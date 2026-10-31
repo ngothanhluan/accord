@@ -84,3 +84,61 @@ export function sweepRemoved(dir: string, names: readonly string[]): string | un
     return '.';
   }
 }
+
+/**
+ * ST-LN-55 D-04, critique fix 3: the sweep of a recorded folder that git no longer lists. It scans first and changes
+ * nothing unless the whole tree is links and folders; a disposable name never makes a file deletable here, because
+ * nothing says the folder was ever a clean worktree. Returns undefined when `dir` is gone, else the first relative
+ * path that keeps it (`.` when `dir` is not a folder, a link included).
+ */
+export function sweepForgotten(dir: string): string | undefined {
+  const top = lstatSync(dir, { throwIfNoEntry: false });
+  if (top === undefined) return undefined;
+  if (!top.isDirectory()) return '.';
+  const links: string[] = [];
+  const folders: string[] = [];
+  let real: string | undefined;
+  const scan = (abs: string, rel: string): void => {
+    for (const name of readdirSync(abs).sort(byCodePoint)) {
+      if (real !== undefined) return;
+      const r = rel === '' ? name : `${rel}/${name}`;
+      const p = `${abs}/${name}`;
+      const st = lstatSync(p);
+      if (st.isSymbolicLink()) links.push(r);
+      else if (st.isDirectory()) {
+        folders.push(r);
+        scan(p, r);
+      } else real = r;
+    }
+  };
+  try {
+    scan(dir, '');
+  } catch {
+    real ??= '.';
+  }
+  if (real !== undefined) return real;
+  for (const r of links) {
+    try {
+      unlinkSync(`${dir}/${r}`);
+    } catch {
+      try {
+        rmdirSync(`${dir}/${r}`);
+      } catch {
+        return r;
+      }
+    }
+  }
+  for (const r of folders.reverse()) {
+    try {
+      rmdirSync(`${dir}/${r}`);
+    } catch {
+      return r;
+    }
+  }
+  try {
+    rmdirSync(dir);
+  } catch {
+    return '.';
+  }
+  return isGone(dir) ? undefined : '.';
+}

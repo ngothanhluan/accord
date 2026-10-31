@@ -52,6 +52,25 @@ export function link(target: string, at: string): void {
   symlinkSync(target, at, process.platform === 'win32' ? 'junction' : 'dir');
 }
 
+/** Leaves a folder git no longer lists: the worktree is removed with `--force`, then an empty folder is made at its path. */
+export function forget(c: { git(...args: string[]): string; sibling(id: string): string }, id: string): void {
+  c.git('worktree', 'remove', '--force', c.sibling(id));
+  mkdirSync(c.sibling(id));
+}
+
+/** The lines of the record `.git/accord/worktrees` as `{ id, path }`, or `[]` when the file is missing. */
+export function recorded(c: { root: string }): { id: string; path: string }[] {
+  const file = `${c.root}/.git/accord/worktrees`;
+  if (!existsSync(file)) return [];
+  return readFileSync(file, 'utf8')
+    .split('\n')
+    .filter((l) => l !== '')
+    .map((l) => {
+      const t = l.indexOf('\t');
+      return { id: l.slice(0, t), path: l.slice(t + 1) };
+    });
+}
+
 /** The sorted lines of a walk that never follows a link: `<rel> -> <target>`, `<rel>/` for a folder, `<rel>: <content>` for a file. */
 export function listing(dir: string): string[] {
   const out: string[] = [];

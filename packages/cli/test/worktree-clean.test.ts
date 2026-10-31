@@ -1,9 +1,9 @@
 // ST-LN-7, ST-LN-20, ST-LN-34, ST-LN-55: `accord worktree clean` of merged, pruned and dropped tickets, and the session-start hook that runs it, against real git in tmp sandboxes with a bare remote.
-import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { afterEach, expect, it, vi } from 'vitest';
 import * as proc from '../src/load/proc.js';
 import { laneTicket } from '../../../test/helpers/lane.js';
-import { ALIVE, exclude, gone, link, listing, runWhole } from './helpers/done.js';
+import { ALIVE, exclude, forget, gone, link, listing, recorded, runWhole } from './helpers/done.js';
 import { spawnLog } from './helpers/git-spawns.js';
 import { commitMsg, gitRun, run, writeFiles } from './helpers/repo.js';
 import { claimWorktree, clone, copy, DEAD, doneOnRemote, dropAndMerge, dropOnRemote, has, lines, LIVE, readHolds, recorder, sha, ticketBranches, ticketWorktree, useSandboxes, worktreeAndSshRemote, writeHolds, type Clone } from './helpers/worktree.js';
@@ -711,4 +711,71 @@ it('risk:complex-branching a worktree remove that fails after git unregistered t
   expect(readFileSync(`${c.sibling('ST-9')}/sub/f.txt`, 'utf8')).toBe('left\n');
   expect(c.git('worktree', 'list', '--porcelain')).not.toContain(c.sibling('ST-9'));
   expect(Object.keys(readHolds(c))).toEqual([]);
+}, 120_000);
+
+it('ac-3 a session start in a worktree and a clear in the main checkout delete the recorded folder of a done ticket that git forgot', async () => {
+  const c = copy({ tickets: ['ST-9', 'ST-10', 'ST-11'] });
+  for (const id of ['ST-9', 'ST-10', 'ST-11']) expect((await run(['worktree', 'open', id], c.root)).code).toBe(0);
+  expect(recorded(c)).toEqual(['ST-9', 'ST-10', 'ST-11'].map((id) => ({ id, path: c.sibling(id) })));
+  vi.mocked(proc.processTable).mockReturnValue(ALIVE);
+  forget(c, 'ST-9');
+  mkdirSync(`${c.sibling('ST-9')}/a/b`, { recursive: true });
+  link(`${c.root}/accord`, `${c.sibling('ST-9')}/node_modules/outside`);
+  doneOnRemote(c, ['ST-9']);
+  const w = c.sibling('ST-10');
+  const a = await run(['hook', 'session-start'], w, {}, JSON.stringify({ session_id: 'sess-W', cwd: w, source: 'startup' }));
+  expect(a.code).toBe(0);
+  expect(gone(c.sibling('ST-9'))).toBe(true);
+  expect(lines(a.out)).toContain(`removed ${c.sibling('ST-9')}`);
+  expect(existsSync(`${c.root}/accord/config.yml`)).toBe(true);
+  expect(recorded(c).map((e) => e.path)).not.toContain(c.sibling('ST-9'));
+  expect(recorded(c).map((e) => e.path)).toContain(c.sibling('ST-10'));
+  forget(c, 'ST-11');
+  mkdirSync(`${c.sibling('ST-11')}/a/b`, { recursive: true });
+  doneOnRemote(c, ['ST-11']);
+  const b = await run(['hook', 'session-resume'], c.root, {}, JSON.stringify({ session_id: 'sess-M', cwd: c.root, source: 'clear' }));
+  expect(b.code).toBe(0);
+  expect(gone(c.sibling('ST-11'))).toBe(true);
+  expect(recorded(c).map((e) => e.path)).not.toContain(c.sibling('ST-11'));
+}, 120_000);
+
+it('risk:data-loss a forgotten folder holding a dist file or a recorded path that is a link is kept unchanged and named', async () => {
+  const c = copy({ tickets: ['ST-9', 'ST-10', 'ST-11'] });
+  for (const id of ['ST-9', 'ST-10']) expect((await run(['worktree', 'open', id], c.root)).code).toBe(0);
+  forget(c, 'ST-9');
+  writeFiles(c.sibling('ST-9'), { 'dist/index.js': 'modified\n' });
+  link(`${c.root}/accord`, `${c.sibling('ST-9')}/node_modules/outside`);
+  mkdirSync(`${c.sibling('ST-9')}/empty`);
+  c.git('worktree', 'remove', '--force', c.sibling('ST-10'));
+  const t = c.sibling('ST-11');
+  mkdirSync(`${t}/a/b`, { recursive: true });
+  link(`${c.root}/accord`, `${t}/l`);
+  link(t, c.sibling('ST-10'));
+  doneOnRemote(c, ['ST-9', 'ST-10']);
+  const before = listing(c.sibling('ST-9'));
+  const beforeT = listing(t);
+  const r = await run(['worktree', 'clean'], c.root);
+  expect(r.code).toBe(0);
+  const L = lines(r.out);
+  expect(L).toContain(`kept ${c.sibling('ST-9')}: dist/index.js`);
+  expect(L).toContain(`kept ${c.sibling('ST-10')}: it is a link`);
+  expect(listing(c.sibling('ST-9'))).toEqual(before);
+  expect(listing(t)).toEqual(beforeT);
+  expect(lstatSync(c.sibling('ST-10')).isSymbolicLink()).toBe(true);
+  expect(recorded(c).map((e) => e.path)).toEqual([c.sibling('ST-9'), c.sibling('ST-10')]);
+}, 120_000);
+
+it('risk:regression worktree open on an existing branch and new ticket in a worktree both record the worktree', async () => {
+  const c = copy({ tickets: ['ST-9', 'ST-10'] });
+  c.git('branch', 't/ST-10', 'origin/main');
+  const a = await run(['worktree', 'open', 'ST-10'], c.root);
+  expect(a.code).toBe(0);
+  const b = await run(['new', 'ticket', 'ST-11', '--lane', 'M', '--worktree'], c.root);
+  expect(b.code).toBe(0);
+  expect(recorded(c)).toEqual([
+    { id: 'ST-10', path: c.sibling('ST-10') },
+    { id: 'ST-11', path: c.sibling('ST-11') },
+  ]);
+  expect(lines(a.out).some((l) => l.startsWith('note '))).toBe(false);
+  expect(lines(b.out).some((l) => l.startsWith('note '))).toBe(false);
 }, 120_000);

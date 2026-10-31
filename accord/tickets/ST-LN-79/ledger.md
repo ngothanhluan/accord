@@ -9,6 +9,7 @@
 - task 6 done 494592055d70
 - task 7 done ca2b98f01517
 - task 8 done 3e69301c358a
+- task 9 done aae232f5945e
 
 ## Rulings
 
@@ -94,6 +95,9 @@
 - Ruling: `fixedPending` also returns `probes`, `setup`, `state`, `located` and `read` on a call it does not refuse — `fixedReport` needs them, and reading them again would repeat the work — cost if wrong: none; the existing tests use `toMatchObject`.
 - Ruling: the test world's real sessions add a general-purpose call (counted in the Transcripts line, not a row), a scout call on another model, and a newer Claude Code call plus an accord-planner run with no definition — they reach the render branches the brief names — cost if wrong: none.
 - Ruling: the main row's label in the "<row>: n of its m calls ran on" line is the table label `main session (claude -p)` — the brief left it open — cost if wrong: one string.
+- Ruling: a folder counts toward a ticket only when some call in it records a branch and every call that records one records `t/<id>` — "every call that records a branch" is otherwise true of a folder with none, which would give it to every ticket — cost if wrong: a few branchless calls move out of a share.
+- Ruling: a done ticket with no calls in the transcripts is left out of the tickets table — its share would be 0/0 — cost if wrong: one empty line is missing.
+- Ruling: `doneTickets` accepts only a first commit subject exactly `claim: <id>`, and the claim date range is inclusive at both ends — cost if wrong: a ticket on the boundary moves in or out.
 
 ## Deferred
 

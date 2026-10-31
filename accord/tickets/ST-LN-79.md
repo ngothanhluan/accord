@@ -53,7 +53,7 @@ Feature: ST-LN-79
     And each row splits that fixed context into accord (its agent definitions, rules block, skill listing entries and the pointer block in CLAUDE.md), Claude Code, plugins, MCP servers, the owner's CLAUDE.md files and memory (repository and user level, without accord's pointer block), the owner's own skills, agents and commands (user and project level, not accord's and not a plugin's), and a remainder named unattributed
     And unattributed is the row's fixed context less the named parts, so the parts in a row add up to that row's fixed context
 
-  @ac-2
+  @ac-2 @test:packages/core/test/benchmark-fixed.test.ts#ac-2-each-figure-is-given-raw-and-cost-weighted-and-each-done-lane-M-ticket-gets-two-fixed-context-shares
   Scenario: Every figure is given raw and cost-weighted
     Given the same transcripts and setup
     When the fixed-context report is printed

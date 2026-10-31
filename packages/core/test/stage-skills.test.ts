@@ -1225,6 +1225,7 @@ it('risk:regression the worktree reference and the finish report say a session s
       'Only when that reason names a file accord never deletes does the owner move or delete that file',
       'for any other reason nothing is to be deleted',
       '`holds a repository: <path>` (a nested repository, maybe with unpushed commits; never offer to delete it), `has an edit git status hides: <path>`',
+      "`research record <path> is not on <default> as <branch> holds it`: the record is the owner's to reconcile, never to delete or move; make the branch copy equal to the default branch's, or put it on the default branch, then push, and the branch stays",
       'A line starting `note <id>:` says a record or a hold was not updated',
       'every session start, resume or /clear runs the same clean',
       '`tell the owner the lines above`',

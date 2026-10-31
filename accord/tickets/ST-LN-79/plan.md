@@ -1,6 +1,6 @@
 ---
 baseline: 5c8b5d96c8cbf6acddfcee3c6358c09b84f75094
-plan_hash: "fnv1a64:ead825cdcff6ee11"
+plan_hash: "fnv1a64:0ca073cb0a7eb358"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -339,8 +339,14 @@ other argument list as before, and its usage line gains `--fixed [--probe]`.
   `plugin:<id>` per enabled plugin with `settings: { enabledPlugins: { <id>: false } }` (depends `plugin:<id>`);
   `mcp-ref` with `mcp` every listable server (depends on every `mcp:` key, so a changed server re-runs the
   reference its figure is read against); one `mcp:<name>` per listable server with `mcp` every other listable
-  server (depends `mcp:<name>`); one `set:<prefix>` per set with `settings: { permissions: { deny: [...] } }`,
-  one entry per member from `PROBE_FORMS.deny[kind]` with `{name}` replaced (depends `set:<prefix>`). `mcp-ref`
+  server (depends `mcp:<name>`); one `set:<prefix>` per set (depends `set:<prefix>`) whose `settings` move every
+  member out of reach by its kind, the forms Task 1's spike proved (ledger Rulings): each `agent` member is an
+  entry of `permissions.deny`, `PROBE_FORMS.deny.agent` with `{name}` replaced by the member's name; each `skill`
+  and `command` member is a key of `skillOverrides`, the member's name mapped to `PROBE_FORMS.skillOverride` (a
+  `Skill(<name>)` deny rule leaves the entry in the skill listing, so `PROBE_FORMS.deny.skill` and
+  `PROBE_FORMS.deny.command` are `null` and are never read). `permissions` is present only when the set has an
+  agent member and `skillOverrides` only when it has a skill or command member; a command's key is its name as
+  Task 2 gives it (`tool:run` for `commands/tool/run.md`). `mcp-ref`
   exists also when there is no listable server: it then has no `mcp` and is `--strict-mcp-config` alone, so the
   connected-servers line is still measured (approach).
 - `shellLine(args)` joins arguments for Git Bash: an argument matching `/^[A-Za-z0-9._/@+=:,-]+$/` as is, any
@@ -370,8 +376,13 @@ Tests first, both with `makeWorld()`, calling `fixedProbe` and reading its `text
 - `it('risk:complex-branching phase one has an all-on probe and one leave-one-out probe per plugin MCP server and own set')`:
   `phaseOne(readSetup(...))` ids are exactly `all-on`, `mcp-ref`, `mcp:local-db`, `mcp:proj-db`,
   `mcp:user-search`, `plugin:accord-panel@accord`, `plugin:alpha@m`, `plugin:beta@m`, `set:aws`, `set:gsd`,
-  `set:my`, `set:own`, `set:tool`; `set:gsd` denies exactly its three member names (`gsd-a`, `gsd-b`, `gsd-r`)
-  through the templates; the printed commands pass settings and MCP config by `--settings <path>` /
+  `set:my`, `set:own`, `set:tool`; the `settings` of each set probe, compared with `toEqual` against objects the
+  test builds from `PROBE_FORMS` (`PROBE_FORMS.deny.agent.replace('{name}', <name>)` and
+  `PROBE_FORMS.skillOverride`): `set:gsd` is `{ permissions: { deny: [<agent gsd-r>] }, skillOverrides: { 'gsd-a':
+  <off>, 'gsd-b': <off> } }`, `set:my` is `{ permissions: { deny: [<agent my-helper>] } }` with no
+  `skillOverrides`, `set:aws` is `{ skillOverrides: { 'aws-x': <off> } }`, `set:own` is `{ skillOverrides:
+  { 'own-notes': <off> } }` and `set:tool` is `{ skillOverrides: { 'tool:run': <off> } }`, the last three with no
+  `permissions`; `<bench>/fixed/set_gsd.settings.json`, which `writeProbes` wrote, parses to the same object; the printed commands pass settings and MCP config by `--settings <path>` /
   `--mcp-config <path>` (no printed line holds `{`), each starts with `'cd ' + shellLine([probeDir]) + ' && '`
   (the temporary path may hold a space, which `shellLine` quotes), and the line before them is the `worktree add`
   line; each command holds `'claude -p ' + shellLine([dispatchPrompt(<the agent names of readSetup in order>)]) +

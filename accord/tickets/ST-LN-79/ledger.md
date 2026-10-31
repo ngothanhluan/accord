@@ -57,9 +57,14 @@
 - Ruling: `PROBE_FORMS` differs from the planned shape: `deny.skill` and `deny.command` are `null`, `deny.agent` is `'Agent({name})'`, a new key `skillOverride: 'off'`, `noSources` `['--setting-sources', '']`, `agentsArg` `'file'`, `extraArgs` `[]`, `connector` `null` — the forms Task 1's spike proved on Claude Code 2.1.314 — cost if wrong: none; Tasks 3 and 4 are re-planned to read this shape.
 - Ruling: claude.ai connectors share one `other connected servers` line — run h's both deny forms (`mcp__claude_ai_Claude_Docs` and `mcp__claude_ai_Claude_Docs__*`) left the connector named in `mcp_instructions_delta`, so neither passed; the plan says run h never blocks — cost if wrong: the owner cannot see each connector's cost.
 - Ruling: a set's leave-one-out figure includes Claude Code lengthening the descriptions of the skill-listing entries that stay — the listing is budgeted, and the spike saw 5 entries change — cost if wrong: a set's figure is understated by those few lines, which unattributed holds.
+- Ruling: a nested command's `skillOverrides` key is its `:` name (`tool:run` for `commands/tool/run.md`), as Task 2 names it — the spike proved `skillOverrides` only on a top-level command (`zzprobe-x`), and no `commands` folder exists on this machine, so only the test world exercises the nested shape — cost if wrong: a nested command stays in reach and its set's figure is too low until a spike run shows it.
+- Ruling: the re-plan's first critique round is `whole` with the criteria and build lenses, numbered from 1 after the `## Closed` line — critique.md sizes round 1 by the plan, and the change came from build — cost if wrong: one extra critic run.
+- Ruling: re-plan review 1.2 assumes work sessions run mostly in ticket worktrees, not the main checkout — the worktree convention — cost if wrong: the local-scope mismatch also misstates the main checkout's sessions, which makes the finding stronger.
 
 ## Deferred
 
 - Plan review 1.14 (Nice): `PROBE_FORMS.claudeVersion` is recorded in Task 1 but no task reads it.
 - Plan review 1.15 (Nice): Tasks 3 to 10 mark `scripts/fixed-context.mjs`, `benchmark-fixed.test.ts` and `fixed-world.ts` as `(new)` though Tasks 1 and 2 create them.
 - Plan review 2.3 (Nice): Task 10's test-first step cannot fail first, because the main session's `--fixed` run leaves `docs/benchmark/fixed-context.md` in the worktree before Task 10 is dispatched.
+- Re-plan review 1.4 (Nice): Task 1's step 2e and `PROBE_FORMS` paragraph still describe `Skill(<name>)` deny rules and no `skillOverride`; Task 1 has a ledger line, so its text stays, and the Rulings on `skillOverrides` and `PROBE_FORMS` hold the change.
+- Re-plan review 1.5 (Nice): the connector-probe path of Tasks 4, 7 and 9 is never taken while `PROBE_FORMS.connector` is `null`, and Task 7's test does not name the forms override that gives it a connector probe.

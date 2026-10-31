@@ -26,4 +26,6 @@ Nice 2 [patch]: the research overlay spawns one `git cat-file --batch` per claim
 
 ## Round 2
 
-Should 1 [patch]: `review.md` has no `Round record: 1` line, so main's `gate.review-rounds` (ST-LN-17) fails `accord gate done` after the merge — accord/tickets/ST-LN-13/review.md:1 — open
+Should 1 [patch]: `review.md` has no `Round record: 1` line, so main's `gate.review-rounds` (ST-LN-17) fails `accord gate done` after the merge — accord/tickets/ST-LN-13/review.md:1 — fixed in 669980f7
+
+verdict: converged

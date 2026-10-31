@@ -1,6 +1,6 @@
 ---
 baseline: 5c8b5d96c8cbf6acddfcee3c6358c09b84f75094
-plan_hash: "fnv1a64:a2ee33c25271189e"
+plan_hash: "fnv1a64:bdfa0a26179a9bd6"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -9,10 +9,11 @@ preamble, the ticket and its ledger.
 Order. Task 1 runs the approach's switches on one dispatched accord agent before any code (approach, Risks,
 first Should), records the command forms that worked, captures real probe transcripts as fixtures, and writes
 the reader every other task uses on a probe transcript. Task 2 reads the setup on this machine. Tasks 3 to 5 plan
-the probes: the probes run from the probe worktree (Task 3), the probes run from the empty folder (Task 4), and
-which probes are missing or stale (Task 5). Task 6 reads the real transcripts' calls. Task 7 turns probe
-transcripts into each row's parts. Task 8 wires `--fixed` and prints the raw table (@ac-1, @ac-3). Task 9 adds the
-cost-weighted figures, the setup items and the ticket shares (@ac-2). Task 10 commits the real report (@ac-4).
+the probes: the probes that need no all-on transcript (Task 3), the probes planned from the all-on transcript
+(Task 4), and which probes are missing or stale (Task 5). Task 6 reads the real transcripts' calls. Task 7 turns
+probe transcripts into each row's parts. Task 8 wires `--fixed` and prints the raw table (@ac-1, @ac-3). Task 9
+adds the cost-weighted figures, the setup items and the ticket shares (@ac-2). Task 10 commits the real report
+(@ac-4).
 
 How the measurement is run once Tasks 1 to 9 are done (no executor runs a probe except the spike of Task 1).
 Before Task 10 is dispatched, the main session runs `node scripts/benchmark.mjs --fixed --probe` in the ticket
@@ -47,10 +48,14 @@ Rules for every task:
 - Every path the scripts print, store or write into the report uses `/`; a path under the home folder is printed
   as `~/` followed by the rest (no user name reaches the output); a path under the repository is printed
   relative to it.
-- Nothing under `.claude/`, `packages/core/agents/`, `packages/*/src/`, `CLAUDE.md`, `AGENTS.md`, `accord/` of this
-  repository or the real `~/.claude` changes (ticket "Not here": this ticket cuts nothing, D-05); the throwaway
-  probe worktree of Task 1 is removed with what it holds. No probe file (settings, MCP
-  config, stubs, appended text) is written inside the repository; they go under `<bench>/fixed/`.
+- Nothing under `.claude/`, `packages/core/agents/`, `packages/*/src/`, `CLAUDE.md`, `AGENTS.md` or `accord/` of
+  this repository changes, and nothing of the owner's setup changes: the settings files, skills, agents, commands,
+  rules, plugins, `CLAUDE.md` and memory files under the real `~/.claude`, and the `mcpServers` entries of the real
+  `~/.claude.json` (ticket "Not here": this ticket cuts nothing, D-05). The transcripts Claude Code writes under
+  `~/.claude/projects/` and the project entries it writes into `~/.claude.json` whenever `claude -p` runs are
+  expected and are not a change of the setup. The throwaway probe worktree of Task 1 is removed with what it
+  holds. No probe file (settings, MCP config, stubs, appended text) is written inside the repository; they go
+  under `<bench>/fixed/`.
 - The existing modes of `scripts/benchmark.mjs` (`--compliance`, `--round 1 ...`, `--clean`, the legacy report)
   behave as before for every run that is not a probe run, and the tests in `packages/core/test/benchmark-*.test.ts`
   that exist at the baseline pass unchanged.
@@ -64,20 +69,29 @@ Names shared by every task (all in `scripts/fixed-context.mjs` unless said other
   types once, with the description "fixed probe <type>" and the prompt "accord fixed-context probe: reply ok, use
   no tool": <types joined by ", ">. Use no other tool, then reply ok.` (`<type>` is written literally; the
   description each dispatch gets is `fixed probe ` and its type).
+- `serverKey(name)` is the name with every character outside `[A-Za-z0-9]` turned to `_` (Claude Code writes the
+  connector `claude.ai Claude Docs` into tool names as `mcp__claude_ai_Claude_Docs__<tool>`). A connected server
+  is a claude.ai connector when its name starts with `claude.ai ` or its key starts with `claude_ai_`.
 - A FirstCall (Task 1) is `{ id, model, version, ts, cwd, branch, input, usage: { input, cacheRead, cacheWrite },
   instructions: [{ path, type }], skillListing: string[], agentListing: string[], hookContexts: string[],
-  sessionStartHook: boolean, prompt }`.
+  mcpServers: string[], sessionStartHook: boolean, prompt }`.
 - Rows: `main` and each accord agent name. A row's model key is the `model` of that row's FirstCall in the all-on
   probe (the main session's model at probe time; the model an accord agent ran on, from its frontmatter).
 - Owners, in this order and with these labels in every table: `accord`, `Claude Code`, `plugins`, `MCP servers`,
   `CLAUDE.md and memory`, `own skills, agents and commands`, and the remainder `unattributed`.
-- Probe ids: `all-on`, `plugin:<plugin id>`, `mcp-ref`, `mcp:<server name>`, `set:<prefix>` (run from the probe
-  worktree, phase 1); `baseline`, `ref:<model>`, `text:<text id>:<model>` (run from the empty folder, phase 2).
-  Text ids: `agent:<name>`, `rules`, `skill-listing`, `agent-listing`, `pointer:<path label>`,
-  `doc:<path label>`, `prompt`, `baseline-prompt`, `brief`.
-- The probe worktree is `path.resolve(repo, '..', 'accord-probe')`; the empty folder is `<bench>/fixed/empty`; the
-  probe state is `<bench>/fixed/probes.json`, `{ probes: [{ id, sessionId, cwd, command, fingerprint }] }` sorted by
-  id, where `fingerprint` maps each key the probe depends on to its value when the probe was written.
+- Probe ids. Phase one, run from the probe worktree, planned from the setup alone: `all-on`, `plugin:<plugin id>`,
+  `mcp-ref`, `mcp:<server name>`, `set:<prefix>`. Phase two, planned from the all-on transcript: `connector:<name>`
+  (run from the probe worktree), `baseline`, `ref:<model>`, `text:<text id>:<model>` (run from the empty folder).
+  Each probe has `where`: `'probe'` or `'empty'`. Text ids: `agent:<name>`, `rules`, `skill-listing`,
+  `agent-listing`, `pointer:<label>`, `doc:<label>`, `prompt`, `baseline-prompt`, `brief`, where `<label>` is
+  `standsFor(path, setup).label` (Task 2).
+- The probe worktree is `path.resolve(repo, '..', 'accord-probe')` (the setup's `probeDir`); the empty folder is
+  `<bench>/fixed/empty`; the probe state is `<bench>/fixed/probes.json`,
+  `{ probes: [{ id, sessionId, cwd, command, fingerprint }] }` sorted by id, where `fingerprint` maps each key the
+  probe depends on to its value when the probe was written.
+- The probe version is the `version` of the main FirstCall with the newest `ts` among the sessions `probes.json`
+  names (the Claude Code the owner runs probes with in Git Bash); a probe whose main FirstCall has another version
+  is stale.
 
 ## Task 1: Spike the switches on a dispatched agent, record the forms that worked, and read a probe's first call
 covers: D-06
@@ -85,11 +99,14 @@ files: scripts/fixed-context.mjs (new), packages/core/test/benchmark-fixed.test.
 verify: packages/core/test/benchmark-fixed.test.ts#risk:parsing-a-probe-transcript-gives-its-first-call-input-and-what-loaded-before-it
 
 Consumes: the `claude` command on this machine, the owner's login, and the repository at the baseline.
-Produces: the constants above, `PROBE_FORMS`, `firstCall(lines)`, and two fixture transcripts.
+Produces: the constants above, `serverKey`, `PROBE_FORMS`, `firstCall(lines)`, and two fixture transcripts.
 
 Spike first, before any code, from Git Bash. Read transcripts with `node -e` one-liners that print only the lines
 and fields you need; never read a whole transcript (they run to megabytes). A session's transcript is
-`~/.claude/projects/<folder>/<session id>.jsonl` and its subagents are under `<session id>/subagents/`.
+`~/.claude/projects/<folder>/<session id>.jsonl` and its subagents are under `<session id>/subagents/`. Each run
+writes its own transcript under `~/.claude/projects/` and Claude Code records the folder in `~/.claude.json`; that
+is expected (preamble). No run changes a settings file, skill, agent, command, plugin, rule, `CLAUDE.md` or memory
+file of the owner's.
 1. Run `claude --version`. Make a scratch folder `../accord-bench/fixed-spike/` and in it an empty folder
    `empty/`; check `git -C ../accord-bench/fixed-spike/empty rev-parse --is-inside-work-tree` fails (outside any
    repository). Make the probe worktree:
@@ -111,46 +128,62 @@ and fields you need; never read a whole transcript (they run to megabytes). A se
       `Skill(zzprobe-x)`.
    f. baseline: from `empty/`, the flags that turn every setting source off (try `--setting-sources ""`, then
       `--setting-sources=`), `--strict-mcp-config`, and `--agents` with
-      `{"stub-1":{"description":"probe stub","prompt":"Reply ok.","model":"sonnet"}}`, first as the path of a JSON
-      file holding it, then inline in single quotes; the prompt `dispatchPrompt(['stub-1'])`.
+      `{"stub-1":{"description":"probe stub","prompt":"Reply ok.","model":"sonnet"},"stub-2":{"description":"probe stub","prompt":"Reply ok.","model":"sonnet","tools":["Read"]}}`,
+      first as the path of a JSON file holding it, then inline in single quotes; the prompt
+      `dispatchPrompt(['stub-1', 'stub-2'])`.
    g. reference and append pair: from `empty/` with the flags of f but no `--agents`, the prompt `PROBE_BRIEF`;
       then the same with `--append-system-prompt-file <file holding the accord pointer block of CLAUDE.md>`.
-3. For each run, read the first call of the main session and of the dispatched agent: the first assistant line
+   h. one claude.ai connector off: only when run a's main lists a connector before its first call (an
+      `mcp_instructions_delta` attachment's `addedNames` item starting `claude.ai `, or a `deferred_tools_delta`
+      attachment's `addedNames` item starting `mcp__claude_ai_`). Take the first such connector by name and its key
+      `k = serverKey(name)`; `--settings <file>` whose `permissions.deny` is `["mcp__<k>"]`; when that run fails the
+      condition below, run again with `["mcp__<k>__*"]`.
+3. For each run, read the first call of the main session and of each dispatched agent: the first assistant line
    whose `message.model` is not `<synthetic>`, and every line with the same `message.id`; its input is
    `usage.input_tokens + usage.cache_read_input_tokens + usage.cache_creation_input_tokens`, each field the largest
    over those lines. Pass conditions:
-   - `--session-id` names the transcript file, and the executor's transcript exists for runs a to e.
+   - `--session-id` names the transcript file, and the executor's transcript exists for runs a to e and h.
    - Run a: before the main's first call there are attachment lines of type `instructions`, `skill_listing` and
      `agent_listing_delta`; before the executor's there are `hook_additional_context` and `instructions`.
    - Runs b, c, d and e each lower the main's first-call input below run a's; at least one of them also changes the
      executor's first-call input (a switch is shown to reach a dispatched agent).
    - Run e: no `gsd-` name and no `zzprobe-x` is left in any `skill_listing` or `agent_listing_delta` of the main
      or of the executor, and every other entry of run a is still there.
-   - Run f: the stub's transcript exists; its first-call input is below the executor's in run a; the main's first
-     call has no `instructions` attachment.
+   - Run f: both stubs' transcripts exist; `stub-1`'s first-call input is below the executor's in run a; `stub-2`'s
+     first-call input is below `stub-1`'s (the `tools` array of `--agents` limits a stub's tool definitions, which
+     every agent row's Claude Code part depends on); the main's first call has no `instructions` attachment. When
+     `stub-2`'s input is not below `stub-1`'s, no other form is tried: stop and report BLOCKED with both figures
+     (the owner's ruling on plan review 1.13).
    - Run g: the second first-call input is above the first.
-   If a condition fails and no other form named above passes it, stop and report BLOCKED with each run's figures
-   and the condition that failed: the approach depends on it and the owner decides.
+   - Run h: the main's first-call input is below run a's, and no line before the main's first call names the
+     connector (no `deferred_tools_delta` name starting `mcp__<k>__`, no `mcp_instructions_delta` name whose key is
+     `k`). Run h never makes the task BLOCKED: when neither deny form passes, or run a lists no connector, the
+     connectors share one line (approach: "else one line for all").
+   If a condition of runs a to g fails and no other form named above passes it, stop and report BLOCKED with each
+   run's figures and the condition that failed: the approach depends on it and the owner decides.
 4. Remove the probe worktree (`git worktree remove --force ../accord-probe`, then
    `git update-ref -d refs/heads/probe/fixed-context <the sha you read with git rev-parse>`) and the scratch folder.
 
 Then write `scripts/fixed-context.mjs` (new) with a header comment saying it is the pure half of the fixed-context
-measurement (ST-LN-79). It exports the shared constants of the preamble, `dispatchPrompt`, and
-`PROBE_FORMS = { claudeVersion, extraArgs, noSources, agentsArg, deny: { skill, agent, command } }`, the forms that
-passed: `claudeVersion` the version printed in step 1; `extraArgs` the flags of step 2 (an empty array when none
-was needed); `noSources` the argument array that turned every setting source off in run f (such as
+measurement (ST-LN-79). It exports the shared constants of the preamble, `dispatchPrompt`, `serverKey`, and
+`PROBE_FORMS = { claudeVersion, extraArgs, noSources, agentsArg, deny: { skill, agent, command }, connector }`, the
+forms that passed: `claudeVersion` the version printed in step 1; `extraArgs` the flags of step 2 (an empty array
+when none was needed); `noSources` the argument array that turned every setting source off in run f (such as
 `['--setting-sources', '']`); `agentsArg` `'file'` when `--agents` took a file path, else `'inline'`; `deny` the
 rule templates of run e with `{name}` for the name (`'Skill({name})'`, `'Agent({name})'`, and for commands the
-template that removed `zzprobe-x`).
+template that removed `zzprobe-x`); `connector` the deny template of run h that passed with `{server}` for the key
+(`'mcp__{server}'` or `'mcp__{server}__*'`), or `null`.
 
 Fixtures: from run a, write `all-on-main.jsonl` and `all-on-executor.jsonl` holding only: the first user line
 (prompt text kept); the attachment lines of type `instructions` (each file reduced to `path` and `type`),
 `skill_listing` (content reduced to its `- accord` lines and the first two other lines), `agent_listing_delta`
-(`addedLines` reduced the same way, other arrays dropped), `hook_additional_context`, and a `hook_success` line of
-the SessionStart hook if there is one (`stdout` and `content` emptied); every line of the first assistant message
-(keeping `type`, `timestamp`, `cwd`, `gitBranch`, `version`, and `message` reduced to `id`, `model`, `usage`); and
-one assistant line of the second message. In every kept line, the home folder (both slash forms) becomes
-`C:/owner-home`; no line holds an e-mail address, `"thinking"`, or `<letter>:/Users/` in either slash form.
+(`addedLines` reduced the same way, other arrays dropped), `mcp_instructions_delta` (`addedNames` kept,
+`addedBlocks` emptied), `deferred_tools_delta` (`addedNames` reduced to its `mcp__` items, other arrays dropped),
+`hook_additional_context`, and a `hook_success` line of the SessionStart hook if there is one (`stdout` and
+`content` emptied); every line of the first assistant message (keeping `type`, `timestamp`, `cwd`, `gitBranch`,
+`version`, and `message` reduced to `id`, `model`, `usage`); and one assistant line of the second message. In
+every kept line, the home folder (both slash forms) becomes `C:/owner-home`; no line holds an e-mail address,
+`"thinking"`, or `<letter>:/Users/` in either slash form.
 
 Test first, then `firstCall`:
 - `it('risk:parsing a probe transcript gives its first call input and what loaded before it')`: read each fixture,
@@ -158,34 +191,48 @@ Test first, then `firstCall`:
   equal to the sum you compute in the test from the fixture's usage fields (largest per field over the message's
   lines), `version`, `cwd`, `branch` (`gitBranch`), `ts` (the timestamp as milliseconds); for the main fixture
   `instructions` paths and types as in the fixture, `skillListing` holding the fixture's `- accord` lines,
-  `agentListing` holding its `- accord-` lines, and `prompt` starting with `PROBE_PREFIX`; for the executor
-  fixture `hookContexts[0]` starting with `# accord rules`. An attachment placed after the first assistant line
-  in a copy of the lines is not read; lines with no assistant message give `null`. The test also asserts that no
-  line of either fixture matches `/[A-Za-z]:[\\/]+Users[\\/]/i`, `/\/[a-z]\/Users\//i`,
+  `agentListing` holding its `- accord-` lines, `mcpServers` equal to the list the test computes from the fixture's
+  `mcp_instructions_delta` and `deferred_tools_delta` lines by the rule below, and `prompt` starting with
+  `PROBE_PREFIX`; for the executor fixture `hookContexts[0]` starting with `# accord rules`. An attachment placed
+  after the first assistant line in a copy of the lines is not read; lines with no assistant message give `null`.
+  `serverKey('claude.ai Claude Docs')` is `claude_ai_Claude_Docs`. The test also asserts that no line of either
+  fixture matches `/[A-Za-z]:[\\/]+Users[\\/]/i`, `/\/[a-z]\/Users\//i`,
   `/[\w.+-]+@[\w-]+(\.[A-Za-z][\w-]*)+/` (an e-mail address; `accord@0.3.0` in the rules block is not one) or
   `/"thinking"/`.
 - `firstCall(lines)`: lines are parsed objects. The first call is the first `type: 'assistant'` line whose
   `message.model` is not `<synthetic>`; its message id is `message.id ?? requestId ?? uuid`. Only lines before
   that line count as loaded before it: `instructions` gives `attachment.files` as `{ path, type }`;
   `skill_listing` gives `attachment.content` split into lines; `agent_listing_delta` gives `attachment.addedLines`;
-  `hook_additional_context` gives each `attachment.content` item; `sessionStartHook` is true when a `hook_success`
-  attachment has `hookEvent: 'SessionStart'`, `exitCode: 0` and a `command` holding ` hook session-start`. `prompt`
-  is the text of the first `type: 'user'` line (a string `message.content`, or its `text` items joined with
-  `\n`). `version` is the first line's `version` that is set.
+  `hook_additional_context` gives each `attachment.content` item; `mcpServers` is every `addedNames` item of the
+  `mcp_instructions_delta` attachments, then, for each `deferred_tools_delta` `addedNames` item of the form
+  `mcp__<server>__<tool>`, the `<server>` part, deduplicated by `serverKey` (the instructions name is kept when
+  both name one server) and sorted; `sessionStartHook` is true when a `hook_success` attachment has
+  `hookEvent: 'SessionStart'`, `exitCode: 0` and a `command` holding ` hook session-start`. `prompt` is the text
+  of the first `type: 'user'` line (a string `message.content`, or its `text` items joined with `\n`). `version`
+  is the first line's `version` that is set.
 
 ## Task 2: Read the setup on this machine and group it by owner
 covers: D-01, D-08
-files: scripts/benchmark.mjs, packages/core/test/benchmark-fixed.test.ts (new), packages/core/test/helpers/fixed-world.ts (new)
+files: scripts/fixed-context.mjs (new), scripts/benchmark.mjs, packages/core/test/benchmark-fixed.test.ts (new), packages/core/test/helpers/fixed-world.ts (new)
 verify: packages/core/test/benchmark-fixed.test.ts#risk:complex-branching-the-setup-lists-each-enabled-plugin-listable-MCP-server-and-own-skill-set-under-its-owner
 
-Consumes: the repository's `.claude/` folder, `.mcp.json`, and the home folder's `.claude/settings.json`,
-`.claude/plugins/installed_plugins.json`, `.claude.json`, `.claude/skills/`, `.claude/agents/`, `.claude/commands/`.
-Produces: `export function readSetup({ repo, home })` in `scripts/benchmark.mjs`, and the test world helper.
+Consumes: the repository's `.claude/` folder, `.mcp.json` and tracked `CLAUDE.md` files, the folders above the
+repository, and the home folder's `.claude/settings.json`, `.claude/plugins/installed_plugins.json`,
+`.claude.json`, `.claude/skills/`, `.claude/agents/`, `.claude/commands/`, `.claude/CLAUDE.md`, `.claude/rules/`
+and `.claude/projects/<folder>/memory/`.
+Produces: `export function readSetup({ repo, home })` in `scripts/benchmark.mjs`, `standsFor(path, setup)` in
+`scripts/fixed-context.mjs`, and the test world helper.
 Behaviour that must not change in `scripts/benchmark.mjs`: every existing export and mode.
 
-`readSetup` returns, every list sorted by its name or id, every path with `/`:
+`standsFor(path, { repo, mainCheckout, probeDir, home })` (pure) turns `\` into `/` and returns `{ file, label }`:
+a path under `probeDir`, `repo` or `mainCheckout` (compared case folded, in that order) stands for the same path
+under `repo`: `file` is `<repo>/<rest>` and `label` is `<rest>` (a probe transcript names the probe worktree's
+copy, never the repository file the report sizes); otherwise a path under `home` keeps `file` and gets the label
+`~/<rest>`; any other path keeps `file` and is its own label.
+
+`readSetup` returns, every list sorted by its name, id or label, every path with `/`:
 - `repo`, `home`, `mainCheckout`: the parent of `git rev-parse --path-format=absolute --git-common-dir` run in
-  `repo` (a linked worktree gives the main checkout).
+  `repo` (a linked worktree gives the main checkout); `probeDir`: `path.resolve(repo, '..', 'accord-probe')`.
 - `agents`: each `<repo>/.claude/agents/*.md` holding the line `<!-- generated by accord skills sync` (accord's
   marker): `{ name, file, model, tools, body, hash }`; `name` and `model` from the YAML frontmatter
   (`parseYaml`, already imported); `tools` the frontmatter `tools` split on `,` and trimmed, or `null` when absent
@@ -196,10 +243,13 @@ Behaviour that must not change in `scripts/benchmark.mjs`: every existing export
   ` hook subagent-start`, else `''`.
 - `plugins`: the plugins enabled after merging `enabledPlugins` of `<home>/.claude/settings.json`,
   `<repo>/.claude/settings.json` and `<repo>/.claude/settings.local.json`, in that order (the last file's value
-  wins); a plugin set `false` is left out (it costs nothing per call). Each is `{ id, version, accordOwn }`:
-  `version` from `<home>/.claude/plugins/installed_plugins.json` `plugins[id]`, the entry with `scope: 'user'`,
-  else the one whose `projectPath` equals `mainCheckout` (slashes turned, case folded), else `null`; `accordOwn` is
-  `id === 'accord-panel@accord'` (it counts under plugins, named as accord's own: ledger Ruling).
+  wins); a plugin set `false` is left out (it costs nothing per call). Each is `{ id, version, accordOwn }`.
+  `<home>/.claude/plugins/installed_plugins.json` holds `{ version, plugins: { <id>: [<install record>, ...] } }`:
+  `plugins[id]` is an array of install records, each `{ scope, projectPath?, installPath, version, ... }` with
+  `scope` `'user'` or `'project'` (checked: `~/.claude/plugins/installed_plugins.json:3-30` on the owner's
+  machine). `version` is the `version` of the record with `scope: 'user'`, else of the record with
+  `scope: 'project'` whose `projectPath` equals `mainCheckout` (slashes turned, case folded), else `null`;
+  `accordOwn` is `id === 'accord-panel@accord'` (it counts under plugins, named as accord's own: ledger Ruling).
 - `mcp`: the listable servers, `{ name, scope, entry, hash }`, from `<home>/.claude.json` `mcpServers` (`user`),
   `<repo>/.mcp.json` `mcpServers` (`project`), and `<home>/.claude.json` `projects[<key>].mcpServers` for each key
   equal to `mainCheckout` or `repo` (slashes turned, case folded) (`local`); a name in `local` replaces one in
@@ -212,11 +262,19 @@ Behaviour that must not change in `scripts/benchmark.mjs`: every existing export
   `.md` (agents), or the path below `commands/` without `.md` with `/` turned to `:` (commands); `hash` the sha256
   hex of the file. Members are grouped by prefix, the name up to its first `-` or `:` (a name with neither is its
   own prefix), into `{ prefix, members }`.
+- `docs`: every instruction and memory file that exists now, `{ file, label, topic }` with `label` from
+  `standsFor`, deduplicated by `file` case folded: `<home>/.claude/CLAUDE.md`; every `<home>/.claude/rules/**/*.md`;
+  `CLAUDE.md` and `.claude/CLAUDE.md` in each folder above `repo` up to the drive root; every tracked file of
+  `git ls-files -z -- ':(glob)**/CLAUDE.md' ':(glob).claude/rules/**/*.md'` run in `repo` (the root `CLAUDE.md`
+  included); and every `*.md` in `<home>/.claude/projects/<enc>/memory/`, where `<enc>` is `mainCheckout` with
+  every character outside `[A-Za-z0-9]` turned to `-` (`C:\Work\accord` gives `C--Work-accord`, the folder whose
+  `memory/MEMORY.md` this repository's sessions load). `topic` is true for a memory file other than `MEMORY.md`
+  (read on demand, not at session start), false for every other file.
 A file or folder that does not exist gives an empty part; a JSON file that does not parse stops with an error
 naming the file.
 
 Test first. `packages/core/test/helpers/fixed-world.ts` (new) exports `makeWorld()` returning
-`{ tmp, home, repo, bench }` (all with `/`), building under a temporary folder `<tmp>`:
+`{ tmp, home, repo, bench, probeDir, memDir }` (all with `/`), building under a temporary folder `<tmp>`:
 - `<tmp>/work/repo`: `git init -q -b main`; `.claude/agents/accord-scout.md` (tools `Read, Grep, Glob`, model
   `sonnet`), `accord-critic.md` (tools `Read, Grep, Glob`, model `opus`), `accord-executor.md` (no `tools`, model
   `sonnet`), each frontmatter then the marker line then one body line; `.claude/agents/my-helper.md` (no marker);
@@ -225,89 +283,105 @@ Test first. `packages/core/test/helpers/fixed-world.ts` (new) exports `makeWorld
   `npx --yes @accord-dev/accord@0.3.0 hook subagent-start` and `enabledPlugins: { "accord-panel@accord": true }`;
   `.mcp.json` with server `proj-db`; `CLAUDE.md` holding the pointer block (`<!-- accord:start -->` to
   `<!-- accord:end -->`, as in the repository's `CLAUDE.md`) and one own line; one commit of all of it.
-- `<tmp>/work/accord-bench` is `bench` (equal to `benchRoot(repo)`).
+- `<tmp>/work/accord-bench` is `bench` (equal to `benchRoot(repo)`); `probeDir` is `<tmp>/work/accord-probe`
+  (not created).
 - `<tmp>/home`: `.claude/settings.json` with `enabledPlugins` `alpha@m: true`, `beta@m: true`, `gamma@m: false`;
-  `.claude/plugins/installed_plugins.json` with user-scope versions `1.0.0`, `2.0.0`, `3.0.0` for them;
+  `.claude/plugins/installed_plugins.json` in the array form: `{ version: 2, plugins: { "alpha@m": [{ scope:
+  "user", version: "1.0.0" }], "beta@m": [{ scope: "project", projectPath: "C:\\elsewhere", version: "9.9.9" },
+  { scope: "user", version: "2.0.0" }], "gamma@m": [{ scope: "user", version: "3.0.0" }], "accord-panel@accord":
+  [{ scope: "project", projectPath: <repo with every / turned to \>, version: "0.3.0" }] } }`;
   `.claude.json` with `mcpServers: { "user-search": { command: "x", env: { API_KEY: "sekret-user-123" } } }` and
   `projects: { <repo path>: { mcpServers: { "local-db": { type: "http", url: "https://x.invalid",
   headers: { Authorization: "Bearer sekret-local-456" } } } } }`; skills `gsd-a`, `gsd-b`, `aws-x`
   (`.claude/skills/<n>/SKILL.md`); agent `.claude/agents/gsd-r.md`; command `.claude/commands/tool/run.md`;
-  `.claude/CLAUDE.md` with one line.
+  `.claude/CLAUDE.md` with one line; `memDir`, `.claude/projects/<enc>/memory` with `<enc>` computed from `repo` by
+  the rule above, holding `MEMORY.md` (one line) and `note.md` (one line).
 - `it('risk:complex-branching the setup lists each enabled plugin listable MCP server and own skill set under its owner')`:
-  `readSetup({ repo, home })` lists plugins `accord-panel@accord` (`accordOwn: true`, `version: null`),
+  `readSetup({ repo, home })` lists plugins `accord-panel@accord` (`accordOwn: true`, `version: '0.3.0'`),
   `alpha@m` (`1.0.0`) and `beta@m` (`2.0.0`), and not `gamma@m`; servers `local-db` (`local`), `proj-db`
   (`project`) and `user-search` (`user`), each with a 64-hex `hash`; sets `aws` (skill `aws-x`), `gsd` (skills
   `gsd-a`, `gsd-b`, agent `gsd-r`), `my` (project agent `my-helper`), `own` (project skill `own-notes`) and `tool`
   (command `tool:run`); no set member named `accord` or `accord-*`; agents `accord-critic`, `accord-executor`
   (`tools: null`), `accord-scout` with their models; `accordSkills` `[{ name: 'accord', ... }]`; `hookCommand` the
-  command above; `mainCheckout` equal to `repo`.
+  command above; `mainCheckout` equal to `repo`; `probeDir` equal to the world's; the `docs` whose `file` lies under
+  `<tmp>` are exactly `CLAUDE.md`, `~/.claude/CLAUDE.md`, `~/.claude/projects/<enc>/memory/MEMORY.md` (`topic`
+  false) and `~/.claude/projects/<enc>/memory/note.md` (`topic` true). `standsFor` of `<probeDir>/CLAUDE.md` written
+  with `\` gives `{ file: '<repo>/CLAUDE.md', label: 'CLAUDE.md' }`, and of `<home>/.claude/CLAUDE.md` gives the
+  label `~/.claude/CLAUDE.md`.
 
-## Task 3: Write the probes run from the probe worktree, and `--fixed --probe`
+## Task 3: Write the phase-one probes, and `--fixed --probe`
 covers: D-02, D-08
 files: scripts/fixed-context.mjs (new), scripts/benchmark.mjs, packages/core/test/benchmark-fixed.test.ts (new), packages/core/test/helpers/fixed-world.ts (new)
 verify: packages/core/test/benchmark-fixed.test.ts#risk:complex-branching-phase-one-has-an-all-on-probe-and-one-leave-one-out-probe-per-plugin-MCP-server-and-own-set, packages/core/test/benchmark-fixed.test.ts#risk:security-MCP-config-files-stay-under-the-bench-root-and-no-server-secret-is-printed-or-stored-in-the-repository
 
 Consumes: `readSetup` (Task 2), `PROBE_FORMS` and `dispatchPrompt` (Task 1). Produces: in
-`scripts/fixed-context.mjs`, `fingerprints(setup)` and `phaseOne(setup)`, and `shellLine(args)`; in
-`scripts/benchmark.mjs`, `writeProbes({ repo, home, bench, probes, fresh })`, `fixedProbe({ repo, home, bench })`
-returning `{ exit, text }`, and the mode `--fixed --probe`, whose `main()` branch prints `text` and returns `exit`
-(every function of this plan returns its text and only `main()` prints).
+`scripts/fixed-context.mjs`, `fingerprints(setup)`, `phaseOne(setup)` and `shellLine(args)`; in
+`scripts/benchmark.mjs`, `setupDirty(repo)`, `writeProbes({ repo, home, bench, probes, fresh })`,
+`fixedProbe({ repo, home, bench })` returning `{ exit, text }`, and the mode `--fixed --probe`, whose `main()`
+branch prints `text` and returns `exit` (every function of this plan returns its text and only `main()` prints).
 Behaviour that must not change in `scripts/benchmark.mjs`: every existing mode; `main()` keeps answering every
 other argument list as before, and its usage line gains `--fixed [--probe]`.
 
 - `fingerprints(setup)` maps: `plugin:<id>` to its version or `none`; `mcp:<name>` to its hash; `set:<prefix>` to
   the sha256 hex of its members as sorted lines `<kind>\0<name>\0<hash>`; `agent:<name>` to the agent's hash;
   `hook` to `hookCommand`; `skills` to the sha256 hex of the accord skills as sorted lines
-  `<name>\0<description>`.
+  `<name>\0<description>`; `docs` to the sha256 hex of the sorted labels of the `docs` whose `topic` is false
+  (which instruction files exist: a `CLAUDE.md`, rule or `MEMORY.md` added or removed since the all-on probe makes
+  it stale).
 - `phaseOne(setup)` returns the probes run from the probe worktree, sorted by id, each
   `{ id, where: 'probe', depends, settings?, mcp? }`: `all-on` (depends on every key of `fingerprints`); one
   `plugin:<id>` per enabled plugin with `settings: { enabledPlugins: { <id>: false } }` (depends `plugin:<id>`);
   `mcp-ref` with `mcp` every listable server (depends on every `mcp:` key, so a changed server re-runs the
   reference its figure is read against); one `mcp:<name>` per listable server with `mcp` every other listable
   server (depends `mcp:<name>`); one `set:<prefix>` per set with `settings: { permissions: { deny: [...] } }`,
-  one entry per member from `PROBE_FORMS.deny[kind]` with `{name}` replaced (depends `set:<prefix>`). `mcp-ref` exists also when there
-  is no listable server: it then has no `mcp` and is `--strict-mcp-config` alone, so the claude.ai connectors line
-  is still measured (approach).
+  one entry per member from `PROBE_FORMS.deny[kind]` with `{name}` replaced (depends `set:<prefix>`). `mcp-ref`
+  exists also when there is no listable server: it then has no `mcp` and is `--strict-mcp-config` alone, so the
+  connected-servers line is still measured (approach).
 - `shellLine(args)` joins arguments for Git Bash: an argument matching `/^[A-Za-z0-9._/@+=:,-]+$/` as is, any
   other (the empty string included) in single quotes with each `'` written `'\''`.
-- `writeProbes` writes, for each probe, its files under `<bench>/fixed/`: `<safe id>.settings.json` (the
-  `settings` object) and `<safe id>.mcp.json` (`{ mcpServers: { <name>: <entry> } }`), where the safe id is the id
-  with every character outside `[A-Za-z0-9._-]` turned to `_`. It gives the probe a session id
-  (`crypto.randomUUID()`) when `fresh` is true or the probe has none in `probes.json`, and builds its command:
-  `cd <cwd> && claude -p --session-id <id> ...PROBE_FORMS.extraArgs [--settings <file>] [--mcp-config <file>]
-  [--strict-mcp-config] <prompt>` with the prompt `dispatchPrompt(<every setup agent name>)`; `--strict-mcp-config`
-  is on `mcp-ref` and every `mcp:` probe. It stores `{ id, sessionId, cwd, command, fingerprint }` (`fingerprint`
-  the probe's depends keys with their current values) into `probes.json`, keeping entries of other probes.
-- `fixedProbe` (`node scripts/benchmark.mjs --fixed --probe`) refuses with exit 2 and one line
-  when `git status --porcelain -z -- ':(literal).claude' ':(literal)CLAUDE.md'` is not empty (the probe worktree
-  holds the commit, not the working files). Otherwise it writes every phase-one probe with `fresh: true` and prints:
+- `setupDirty(repo)` is true when `git status --porcelain -z -- ':(literal).claude' ':(glob)**/CLAUDE.md'` run in
+  `repo` prints anything (the probe worktree holds the commit, not the working files).
+- `writeProbes` writes, for each probe with `where: 'probe'`, its files under `<bench>/fixed/`:
+  `<safe id>.settings.json` (the `settings` object) and `<safe id>.mcp.json` (`{ mcpServers: { <name>: <entry> } }`),
+  where the safe id is the id with every character outside `[A-Za-z0-9._-]` turned to `_`. It gives the probe a
+  session id (`crypto.randomUUID()`) when `fresh` is true or the probe has none in `probes.json`, and builds its
+  command with `shellLine`: `cd <probeDir> && claude -p --session-id <id> ...PROBE_FORMS.extraArgs
+  [--settings <file>] [--mcp-config <file>] [--strict-mcp-config] <prompt>` with the prompt
+  `dispatchPrompt(<every setup agent name>)`; `--strict-mcp-config` is on `mcp-ref` and every `mcp:` probe. It
+  stores `{ id, sessionId, cwd, command, fingerprint }` (`fingerprint` the probe's depends keys with their current
+  values) into `probes.json`, keeping entries of other probes.
+- `fixedProbe` (`node scripts/benchmark.mjs --fixed --probe`) refuses with exit 2 and the one line
+  `Refused: .claude or a CLAUDE.md file has uncommitted changes; the probe worktree holds the commit. Commit them and run again.`
+  when `setupDirty(repo)` is true. Otherwise it writes every phase-one probe with `fresh: true` and prints:
   a first line `# Run in Git Bash, then run: node scripts/benchmark.mjs --fixed`; then
-  `git -C <repo> worktree add -B probe/fixed-context <probe worktree> <HEAD sha>` when the probe worktree folder
-  does not exist, else `git -C <probe worktree> checkout -B probe/fixed-context <HEAD sha>`; then each probe's
-  command, one per line, sorted by id. Exit 0.
+  `git -C <repo> worktree add -B probe/fixed-context <probeDir> <HEAD sha>` when the probe worktree folder
+  does not exist, else `git -C <probeDir> checkout -B probe/fixed-context <HEAD sha>` (paths through `shellLine`);
+  then each probe's command, one per line, sorted by id. Exit 0.
 
 Tests first, both with `makeWorld()`, calling `fixedProbe` and reading its `text`:
 - `it('risk:complex-branching phase one has an all-on probe and one leave-one-out probe per plugin MCP server and own set')`:
   `phaseOne(readSetup(...))` ids are exactly `all-on`, `mcp-ref`, `mcp:local-db`, `mcp:proj-db`,
   `mcp:user-search`, `plugin:accord-panel@accord`, `plugin:alpha@m`, `plugin:beta@m`, `set:aws`, `set:gsd`,
-  `set:my`, `set:own`, `set:tool`; `set:gsd` denies exactly the four member names through the templates; the
-  printed commands pass settings and MCP config by `--settings <path>` / `--mcp-config <path>` (no printed line
-  holds `{`), each starts `cd ` and the probe worktree path, and the line before them is the `worktree add` line;
-  `probes.json` holds one entry per probe with a distinct session id. A setup with no listable server still has
-  `mcp-ref`, whose command holds `--strict-mcp-config` and no `--mcp-config`.
+  `set:my`, `set:own`, `set:tool`; `set:gsd` denies exactly its three member names (`gsd-a`, `gsd-b`, `gsd-r`)
+  through the templates; the printed commands pass settings and MCP config by `--settings <path>` /
+  `--mcp-config <path>` (no printed line holds `{`), each starts with `'cd ' + shellLine([probeDir]) + ' && '`
+  (the temporary path may hold a space, which `shellLine` quotes), and the line before them is the `worktree add`
+  line; `probes.json` holds one entry per probe with a distinct session id. A setup with no listable server still
+  has `mcp-ref`, whose command holds `--strict-mcp-config` and no `--mcp-config`. After an uncommitted edit of
+  `.claude/agents/accord-scout.md`, `fixedProbe` exits 2 with the refusal line.
 - `it('risk:security MCP config files stay under the bench root and no server secret is printed or stored in the repository')`:
   after `--fixed --probe` on the world, `sekret-user-123` and `sekret-local-456` appear in no printed line, in no
   file under `repo`, and not in `probes.json`; they appear only in `.mcp.json` files under `<bench>/fixed/`, and
   `<bench>` is not inside `repo`.
 
-## Task 4: Plan the probes run from the empty folder: baseline, references and appended texts
+## Task 4: Plan the phase-two probes: connectors, baseline, references and appended texts
 covers: D-01, D-06
 files: scripts/fixed-context.mjs (new), packages/core/test/benchmark-fixed.test.ts (new)
 verify: packages/core/test/benchmark-fixed.test.ts#risk:complex-branching-each-text-is-sized-on-the-models-of-the-rows-it-reaches-and-the-baseline-has-one-stub-per-tool-list-and-model
 
-Consumes: a setup (Task 2) and `allOn`, `{ main: FirstCall, agents: { <name>: FirstCall } }` read from the all-on
-probe (Task 1). Produces, pure in `scripts/fixed-context.mjs`: `stubsOf(setup, allOn)`, `textsOf(setup, allOn,
-read)` and `phaseTwo(setup, allOn, read)`.
+Consumes: a setup (Task 2), `standsFor` (Task 2), and `allOn`, `{ main: FirstCall, agents: { <name>: FirstCall } }`
+read from the all-on probe (Task 1). Produces, pure in `scripts/fixed-context.mjs`: `stubsOf(setup, allOn)`,
+`textsOf(setup, allOn, read)`, `connectorsOf(setup, allOn)` and `phaseTwo(setup, allOn, read, forms = PROBE_FORMS)`.
 
 - `stubsOf`: one stub per distinct pair of tool list (sorted; `null` is its own value) and model key among the
   accord agents that have an all-on FirstCall; stubs are named `stub-1`, `stub-2`, ... in the order of their first
@@ -323,35 +397,48 @@ read)` and `phaseTwo(setup, allOn, read)`.
     joined with `\n`, taken from the main FirstCall when it has them, else from the first agent by name that has
     them; rows: each row whose FirstCall `skillListing` holds such a line.
   - `agent-listing` (`accord`): the same with `agentListing` and `- <accord agent name>:`.
-  - For each `instructions` path in any FirstCall (deduplicated with slashes turned and case folded), with `label`
-    its printed path (preamble rules): `read(path)` gives the file now (`undefined` when it no longer exists: no
-    text). When the file holds `<!-- accord:start -->` and `<!-- accord:end -->`, `pointer:<label>` (`accord`) is
+  - For each `instructions` path in any FirstCall, `{ file, label } = standsFor(path, setup)`, deduplicated by
+    `file` case folded: `read(file)` gives the file now (`undefined` when it no longer exists: no text). `read` is
+    never given a path under `probeDir`: the probe worktree's copy stands for the repository file, which is what is
+    sized. When the file holds `<!-- accord:start -->` and `<!-- accord:end -->`, `pointer:<label>` (`accord`) is
     the text from the start marker to the end of the end marker, and `doc:<label>` (`CLAUDE.md and memory`) is the
     file with that span removed; otherwise `doc:<label>` is the whole file. Rows of both: each row whose FirstCall
-    `instructions` lists the path. A `doc:` text that is empty after the cut is left out.
+    `instructions` lists a path standing for that `file`. A `doc:` text that is empty after the cut is left out.
   - `prompt` (owner `probe`): `dispatchPrompt(<agent names>)`, rows `['main']`; `baseline-prompt` (`probe`):
     `dispatchPrompt(<stub names>)`, rows `['main']`; `brief` (`probe`): `PROBE_BRIEF`, rows every agent with an
     all-on FirstCall.
-- `phaseTwo` returns, sorted by id, each `{ id, where: 'empty', depends, model, ... }`: `baseline`
-  (`model` the main's model key, `stubs` from `stubsOf`, depends `stubs` with the stubs' JSON as value);
-  `ref:<model>` for each model key of a row; `text:<text id>:<model>` for each text and each distinct model key of
-  the rows it reaches (`text` the text, `source` `'disk'` for `agent:`, `doc:` and `pointer:` texts and `'probe'`
-  for the others, depends `text:<text id>` with the sha256 hex of the text). `phaseTwo` builds no command; Task 5
-  writes the files and commands.
+- `connectorsOf(setup, allOn)`: the names in the all-on main FirstCall's `mcpServers` whose `serverKey` equals no
+  listable server's `serverKey`, split into `connectors` (the claude.ai connectors, preamble) and `others` (the
+  rest, such as plugin-provided servers whose key starts `plugin_`), each sorted.
+- `phaseTwo` returns, sorted by id, each `{ id, where, depends, model?, ... }`: when `forms.connector` is not
+  `null`, one `connector:<name>` per name of `connectorsOf(...).connectors`, `where: 'probe'`,
+  `settings: { permissions: { deny: [forms.connector with {server} replaced by serverKey(name)] } }`, `depends`
+  `{}`; `baseline` (`where: 'empty'`, `model` the main's model key, `stubs` from `stubsOf`, depends `stubs` with the
+  stubs' JSON as value); `ref:<model>` (`where: 'empty'`) for each model key of a row; `text:<text id>:<model>`
+  (`where: 'empty'`) for each text and each distinct model key of the rows it reaches (`text` the text, `source`
+  `'disk'` for `agent:`, `doc:` and `pointer:` texts and `'probe'` for the others, depends `text:<text id>` with
+  the sha256 hex of the text). `phaseTwo` builds no command; Task 5 writes the files and commands.
 
 Test first: `it('risk:complex-branching each text is sized on the models of the rows it reaches and the baseline has one stub per tool list and model')`,
-in memory, no files: a setup of three agents (scout: `Read, Grep, Glob`, sonnet; critic: `Read, Grep, Glob`, opus;
-executor: `null`, sonnet) and an `allOn` where main (model `m-opus`, `sessionStartHook: true`, `skillListing`
-`['- accord: a', '- gsd-a: b']`, `agentListing` `['- accord-scout: s', '- other: o']`, `instructions` `C:/r/CLAUDE.md`
-and `C:/h/MEMORY.md`), scout (`m-sonnet`, the rules context, `instructions` `C:/r/CLAUDE.md`), critic (`m-opus`,
-rules, both files) and executor (`m-sonnet`, rules, `skillListing` `['- accord: a']`, `C:/r/CLAUDE.md`); `read`
-returns a `CLAUDE.md` with the pointer block and one own line, and a one-line `MEMORY.md`. Assert: the stubs are
-three (scout's, critic's, executor's pairs); `agent:accord-critic` is sized on `m-opus` only; `rules` on `m-opus`
-and `m-sonnet` (rows main, scout, critic, executor); `skill-listing` on `m-opus` and `m-sonnet` (rows main and
-executor, not scout or critic); `agent-listing` on `m-opus` only (row main); the `MEMORY.md` doc on `m-opus` only
-(main and critic); the `CLAUDE.md` doc holds the own line and not `accord:start`, and its pointer text holds both
-markers; `brief` is sized on both models; `prompt` and `baseline-prompt` on `m-opus`; one `ref:` per model; a
-setup agent with no all-on FirstCall gets no text and no stub.
+in memory, no files: a setup with `repo` and `mainCheckout` `C:/w/repo`, `probeDir` `C:/w/accord-probe`, `home`
+`C:/h`, one listable server `proj-db`, and three agents (scout: `Read, Grep, Glob`, sonnet; critic:
+`Read, Grep, Glob`, opus; executor: `null`, sonnet); an `allOn` where main (model `m-opus`, `sessionStartHook:
+true`, `skillListing` `['- accord: a', '- gsd-a: b']`, `agentListing` `['- accord-scout: s', '- other: o']`,
+`instructions` `C:\w\accord-probe\CLAUDE.md` and `C:/h/.claude/projects/C--w-repo/memory/MEMORY.md`, `mcpServers`
+`['claude.ai Docs X', 'plugin_alpha_srv', 'proj_db']`), scout (`m-sonnet`, the rules context, `instructions`
+`C:/w/accord-probe/CLAUDE.md`), critic (`m-opus`, rules, both files) and executor (`m-sonnet`, rules,
+`skillListing` `['- accord: a']`, `C:/w/accord-probe/CLAUDE.md`); `read` records every file it is given and returns
+a `CLAUDE.md` with the pointer block and one own line for `C:/w/repo/CLAUDE.md`, and a one-line `MEMORY.md`.
+Assert: `read` was given `C:/w/repo/CLAUDE.md` and no path under `C:/w/accord-probe`; the texts `doc:CLAUDE.md`,
+`pointer:CLAUDE.md` and `doc:~/.claude/projects/C--w-repo/memory/MEMORY.md` exist; the stubs are three (scout's,
+critic's, executor's pairs); `agent:accord-critic` is sized on `m-opus` only; `rules` on `m-opus` and `m-sonnet`
+(rows main, scout, critic, executor); `skill-listing` on `m-opus` and `m-sonnet` (rows main and executor, not scout
+or critic); `agent-listing` on `m-opus` only (row main); the `MEMORY.md` doc on `m-opus` only (main and critic);
+the `CLAUDE.md` doc holds the own line and not `accord:start`, and its pointer text holds both markers; `brief` is
+sized on both models; `prompt` and `baseline-prompt` on `m-opus`; one `ref:` per model; a setup agent with no
+all-on FirstCall gets no text and no stub; `connectorsOf` gives connectors `['claude.ai Docs X']` and others
+`['plugin_alpha_srv']`; with `forms` `{ ...PROBE_FORMS, connector: 'mcp__{server}' }` the probes hold exactly one
+`connector:claude.ai Docs X` (`where: 'probe'`, deny `['mcp__claude_ai_Docs_X']`), and with `connector: null` none.
 
 ## Task 5: Find the probes that are missing or stale, and write their commands
 covers: @ac-1, @ac-3, D-02
@@ -359,54 +446,70 @@ files: scripts/fixed-context.mjs (new), scripts/benchmark.mjs, packages/core/tes
 verify: packages/core/test/benchmark-fixed.test.ts#risk:complex-branching-a-changed-item-reprints-only-its-own-probes-and-the-all-on-probe
 
 Consumes: Tasks 1 to 4. Produces: in `scripts/benchmark.mjs`, `locateSessions(home, sessionIds)` and
-`fixedPending({ repo, home, bench, version })`; in `scripts/fixed-context.mjs`, `pendingProbes({ setup, state,
-located, version, read })`. Behaviour that must not change: `fixedProbe` (Task 3) still writes every phase-one
-probe anew; the existing modes of `scripts/benchmark.mjs`.
+`fixedPending({ repo, home, bench })`; in `scripts/fixed-context.mjs`, `probeVersion(state, located)` and
+`pendingProbes({ setup, state, located, version, read, forms = PROBE_FORMS })`. Behaviour that must not change:
+`fixedProbe` (Task 3) still writes every phase-one probe anew; the existing modes of `scripts/benchmark.mjs`.
 
 - `locateSessions(home, ids)` looks in every folder under `<home>/.claude/projects/` for `<id>.jsonl` and returns a
   Map from id to `{ main: FirstCall | null, agents: { <agentType>: FirstCall } }`, the agents read from
   `<folder>/<id>/subagents/agent-*.jsonl` with their `.meta.json` `agentType`; an id with no file is absent.
+- `probeVersion(state, located)`: the probe version (preamble), `undefined` when no session `state` names has a
+  main FirstCall. The version of the session running the script is never used here: the probes run in Git Bash,
+  whose Claude Code may be another build.
 - `pendingProbes` returns `{ probes, pending, notes }`: `probes` the probes needed now, `pending` their ids that
   are missing or stale, sorted. A probe is missing when `state` has no entry for it, or its session has no main
-  FirstCall, or (phase one) an accord agent of the setup has no FirstCall in it, or (`baseline`) a stub has none.
-  A probe is stale when its transcript's `version` differs from `version` (the current Claude Code version), or a
-  key of its `depends` has a stored value different from the current one. `all-on` is also stale when the stored
-  text hash of a `text:` probe whose text has `source: 'disk'` differs from the current text's hash (a changed
-  text needs its own append probe and the all-on probe again: approach); both are then printed together, and once
-  both have run neither is stale. A text taken from the all-on transcript itself (`rules`, the listings) never
-  makes the all-on stale; the all-on's `hook`, `skills` and `agent:` keys cover what changes it. The probes needed
-  are `phaseOne(setup)` always, and `phaseTwo(setup, allOn, read)` whenever the all-on probe in `state` has a
-  transcript (`allOn` read from it, stale or not); without one, `notes` holds
-  `The baseline, reference and text probes follow once the all-on probe has run.`
-- Phase-two files and commands: `<bench>/fixed/stubs.json` holds the baseline stubs as
+  FirstCall, or (`where: 'probe'`) an accord agent of the setup has no FirstCall in it, or (`baseline`) a stub has
+  none. A probe is stale when `version` is set and its main FirstCall's `version` differs from it, or a key of its
+  `depends` has a stored value different from the current one. `all-on` is also stale when the stored text hash
+  of a `text:` probe whose text has `source: 'disk'` differs from the current text's hash (a changed text needs
+  its own append probe and the all-on probe again: approach); both are then printed together, and once both have
+  run neither is stale. A text taken from the all-on transcript itself (`rules`, the listings) never makes the
+  all-on stale; the all-on's `hook`, `skills`, `docs` and `agent:` keys cover what changes it. The probes needed
+  are `phaseOne(setup)` always, and `phaseTwo(setup, allOn, read, forms)` whenever the all-on probe in `state` has
+  a transcript (`allOn` read from it, stale or not); without one, `notes` holds
+  `The connector, baseline, reference and text probes follow once the all-on probe has run.`
+- Files and commands: a probe with `where: 'probe'` (phase one and `connector:`) gets Task 3's files and command
+  through `writeProbes`. For `where: 'empty'`, `<bench>/fixed/stubs.json` holds the baseline stubs as
   `{ <name>: { description: 'probe stub', prompt: 'Reply ok.', model, tools } }` (`model` the frontmatter model,
-  `tools` absent for `null`); `<bench>/fixed/<safe id>.md` holds a `text:` probe's text. Every phase-two command is
+  `tools` the array of tool names, the form run f of Task 1 proved, and absent for `null`);
+  `<bench>/fixed/<safe id>.md` holds a `text:` probe's text. Every `where: 'empty'` command is
   `cd <bench>/fixed/empty && claude -p --session-id <id> ...PROBE_FORMS.extraArgs ...PROBE_FORMS.noSources
   --strict-mcp-config --model <model key>` followed by: for `baseline`, `--agents` with the path of `stubs.json`
   when `PROBE_FORMS.agentsArg` is `'file'`, else the JSON itself (quoted by `shellLine`), and the prompt
   `dispatchPrompt(<stub names>)`; for `ref:`, the prompt `PROBE_BRIEF`; for `text:`,
   `--append-system-prompt-file <its .md file>` and the prompt `PROBE_BRIEF`.
-- `fixedPending` reads the setup, `probes.json` and the sessions it names, computes the pending probes, and for each
-  writes its files (Task 3's for phase one) and its `probes.json` entry; a pending probe keeps its stored session
-  id while no transcript exists for it, else gets a new one. When nothing is pending it writes nothing. It returns
-  `{ exit, pending, text }`, `text` being the lines `fixedProbe` prints (the worktree line only when a phase-one
-  probe is pending) followed by the notes. Phase-two probes run from `<bench>/fixed/empty`, which `fixedPending`
-  creates, and refuses (exit 2 and one line) when `git rev-parse --is-inside-work-tree` succeeds there.
+- `fixedPending` first refuses with exit 2 and Task 3's refusal line, writing nothing, when `setupDirty(repo)` is
+  true: a working-copy edit would be sized from disk while the probe worktree checks out HEAD. Otherwise it reads
+  the setup, `probes.json` and the sessions it names, takes `version = probeVersion(...)`, computes the pending
+  probes with `read` reading a file from disk (`undefined` when absent), and for each pending probe writes its
+  files and its `probes.json` entry; a pending probe keeps its stored session id while no transcript exists for
+  it, else gets a new one. When nothing is pending it writes nothing. It returns
+  `{ exit, pending, version, text }`, `text` being the lines `fixedProbe` prints (the worktree line only when a
+  `where: 'probe'` probe is pending) followed by the notes. `where: 'empty'` probes run from
+  `<bench>/fixed/empty`, which `fixedPending` creates, and refuses (exit 2 and one line) when
+  `git rev-parse --is-inside-work-tree` succeeds there.
 
 Test first. `fixed-world.ts` gains `writeSession(home, folder, sessionId, { main, agents })` writing
 `<home>/.claude/projects/<folder>/<sessionId>.jsonl` and each `<sessionId>/subagents/agent-<n>.jsonl` with its
 `.meta.json` (`agentType`, `description`), and line builders: `assistantLine({ id, model, input, cacheRead,
 cacheWrite, output, ts, cwd, branch, version, chars })`, `attachmentLine(attachment)` and `userLine(text)`.
 `it('risk:complex-branching a changed item reprints only its own probes and the all-on probe')` on `makeWorld()`:
-1. after `fixedProbe`, `fixedPending` with version `9.0.0` lists every phase-one id and the note, no phase-two id;
+1. after `fixedProbe`, `fixedPending` lists every phase-one id and the note, no phase-two id;
 2. once every phase-one session is written (main and the three agents, version `9.0.0`, the all-on main with
-   `instructions` naming the world's `CLAUDE.md`, the agents with the rules context), it lists exactly the
-   phase-two ids;
-3. once those are written, nothing is pending and `probes.json` is unchanged by the call;
-4. with `beta@m` set to `2.1.0` in `installed_plugins.json`, exactly `all-on` and `plugin:beta@m`;
-5. with that restored and the own line of the world's `CLAUDE.md` changed, exactly `all-on` and the
-   `text:doc:<label>:<model>` ids of that file, not its `text:pointer:` ids;
-6. with that restored and version `9.1.0`, every probe.
+   `instructions` naming `<probeDir>/CLAUDE.md` and `<home>/.claude/CLAUDE.md`, the agents with the rules
+   context), it lists exactly the phase-two ids of `phaseTwo` for that all-on transcript, and no id holds
+   `accord-probe` (the doc and pointer labels are `CLAUDE.md` and `~/.claude/CLAUDE.md`);
+3. once those are written (version `9.0.0`), nothing is pending and `probes.json` is unchanged by the call. The
+   test saves the bytes of `probes.json` here. Steps 4 to 8 each begin by writing those bytes back, so every step
+   is read against the step-3 state; steps 4 to 6 undo their own change to the world after asserting;
+4. with `beta@m`'s user record set to `2.1.0` in `installed_plugins.json`, exactly `all-on` and `plugin:beta@m`;
+5. with `<home>/.claude/rules/style.md` created (one line), exactly `all-on` (the `docs` key changed);
+6. with the all-on main transcript rewritten at version `9.1.0` and a newer `ts` (its bytes saved first and
+   written back after asserting), every needed probe except `all-on`;
+7. with the own line of the world's `CLAUDE.md` changed and committed, exactly `all-on` and the
+   `text:doc:CLAUDE.md:<model>` ids of that file, not its `text:pointer:CLAUDE.md:` ids;
+8. with `.claude/agents/accord-scout.md` edited and not committed, `fixedPending` returns exit 2 with the refusal
+   line and `probes.json` keeps its bytes.
 
 ## Task 6: Read every real call, main session and subagents, and leave out probe and bench runs
 covers: @ac-1, @ac-2, D-06
@@ -431,8 +534,9 @@ that is not a probe run exactly as before.
   whose meta `description` starts with `PROBE_DESCRIPTION` or `bench r` or any of whose lines has `gitBranch`
   `PROBE_BRANCH`; and a call whose `cwd` lies under `bench` (slashes turned, case folded) or whose `branch` starts
   with `bench/`.
-- `version` is the `version` of the line with the latest timestamp among every line read (left-out runs included),
-  the current Claude Code version Task 8 compares probes with; `folders` is `dirs.length`.
+- `version` is the `version` of the kept call with the newest `ts` (the Claude Code of the owner's work sessions);
+  Task 8 prints it beside the probe version when the two differ, and no probe is judged by it. `folders` is
+  `dirs.length`.
 - `readSessions` (`scripts/benchmark.mjs:307`) and `legacyReport` (`scripts/benchmark.mjs:68`) skip a subagent run
   whose meta `description` starts with `PROBE_DESCRIPTION` or any of whose lines has `gitBranch` `PROBE_BRANCH`
   (probe runs are left out of the existing round tools: approach).
@@ -440,22 +544,25 @@ that is not a probe run exactly as before.
 Test first: `it('risk:parsing calls are read once per message from main and subagent transcripts and probe and bench runs are left out')`,
 with `writeSession` into one folder of a fake home: a real main session (message `m1` over two lines with the same
 usage, message `m2`, one `<synthetic>` line); an `accord-scout` run of two calls; a `general-purpose` run of one call;
-a probe session (`gitBranch` `probe/fixed-context`) with a `fixed probe accord-scout` run; a run whose `cwd` is under
-`bench`. Assert the calls: two `main`, two `accord-scout` (`accord: true`), one `general-purpose` (`accord: false`),
-none from the probe or the bench run; `m1`'s usage counted once; an `output` raised by its text length; `version`
-the newest line's; and `readSessions([folder]).runs` holds the scout and general-purpose runs and not the probe
-run.
+a probe session (`gitBranch` `probe/fixed-context`, its lines newer than every other and on another version) with a
+`fixed probe accord-scout` run; a run whose `cwd` is under `bench`. Assert the calls: two `main`, two
+`accord-scout` (`accord: true`), one `general-purpose` (`accord: false`), none from the probe or the bench run;
+`m1`'s usage counted once; an `output` raised by its text length; `version` the newest kept call's, not the probe
+session's; and `readSessions([folder]).runs` holds the scout and general-purpose runs and not the probe run.
 
 ## Task 7: Turn the probe transcripts into each row's total and parts
 covers: @ac-1, D-01
 files: scripts/fixed-context.mjs (new), packages/core/test/benchmark-fixed.test.ts (new)
 verify: packages/core/test/benchmark-fixed.test.ts#risk:complex-branching-a-part-is-charged-only-to-the-rows-it-reaches-and-unattributed-is-what-the-named-parts-leave
 
-Consumes: a setup, the probes of `pendingProbes` with none pending, the located sessions, and `textsOf`. Produces,
-pure: `measure({ setup, probes, located, texts })` returning `{ rows, items }`. `I(p, r)` below is the first-call
-`input` of row `r` in probe `p` (for `baseline`, of the stub the row maps to; for `ref:` and `text:` probes, of
-the main); `size(t, m) = I(text:t:m, main) − I(ref:m, main)` (no characters-per-token ratio: approach); `m(r)` is
-row `r`'s model key.
+Consumes: a setup, the probes of `pendingProbes` with none pending, the probe state, the located sessions,
+`textsOf` and `connectorsOf`. Produces, pure: `measure({ setup, probes, state, located, texts })` returning
+`{ rows, items }`, where `state` is the parsed `probes.json` (`{ probes: [{ id, sessionId, ... }] }`) and `located`
+the Map `locateSessions` returns, keyed by session id. `S(p)` is the `sessionId` of the `state` entry whose `id` is
+`p`. `I(p, r)` below is the first-call `input` of row `r` in probe `p`: `located.get(S(p)).main` for `main`,
+`located.get(S(p)).agents[r]` for an agent; for `baseline`, `agents[<the stub row r maps to>]`; for `ref:` and
+`text:` probes, the `main`. `size(t, m) = I(text:t:m, main) − I(ref:m, main)` (no characters-per-token ratio:
+approach); `m(r)` is row `r`'s model key. The all-on transcript is `located.get(S('all-on'))`.
 - Rows: `main` and each setup agent with an all-on FirstCall. Each `{ row, model: m(r), total, parts:
   { accord, claudeCode, plugins, mcp, docs, sets }, unattributed }`, all in raw tokens per call:
   - `total = I(all-on, r) − size(prompt, m(main))` for `main`, `I(all-on, r) − size(brief, m(r))` for an agent
@@ -463,23 +570,35 @@ row `r`'s model key.
   - `claudeCode = I(baseline, main) − size(baseline-prompt, m(main))` for `main`, and
     `I(baseline, stub of r) − size(brief, m(r))` for an agent.
   - each plugin `p`: `I(all-on, r) − I(plugin:p, r)`; each listable server `s`: `I(mcp-ref, r) − I(mcp:s, r)`;
-    the line `claude.ai connectors and plugin-provided servers`: `I(all-on, r) − I(mcp-ref, r)`; each set `g`:
+    each connector `c` with a `connector:` probe: `I(all-on, r) − I(connector:c, r)`; the line `other connected
+    servers`: `I(all-on, r) − I(mcp-ref, r)` less every connector item of that row; each set `g`:
     `I(all-on, r) − I(set:g, r)`.
   - each text with owner `accord` or `CLAUDE.md and memory`: `size(t, m(r))` for each row it reaches, 0 elsewhere.
-  - `accord`, `plugins` (accord-panel included, labelled as accord's own), `mcp` (servers plus the connectors
-    line), `docs`, `sets` are the sums of their items; `unattributed = total − claudeCode − every other part`, so
-    the parts add up to the total (it may be negative: leave-one-out figures need not add up, approach).
-- `items`: every item above, `{ id, owner, label, perRow: { <row>: tokens } }`, an item reaching a row when it is a
-  text that reaches it or a probe item whose difference in that row is not 0. Labels: the plugin id (with
-  ` (accord's own)` for `accord-panel@accord`), the server name, the connectors line, `set <prefix>` with its
-  member count, the text label for docs and pointer blocks, `agent definition`, `rules block`, `skill listing
-  entries`, `agent listing entries`.
+  - `accord`, `plugins` (accord-panel included, labelled as accord's own), `mcp` (listable servers, connectors and
+    the other connected servers line), `docs`, `sets` are the sums of their items; `unattributed = total −
+    claudeCode − every other part`, so the parts add up to the total (it may be negative: leave-one-out figures need
+    not add up, approach).
+- `items`: one entry per item, `{ id, owner, label, perRow: { <row>: tokens } }`, listed whether or not it reaches
+  a row (ac-4 asks for every item): every enabled plugin, every listable server, every connector with a probe, the
+  other connected servers line, every set, every accord text, and every doc of `setup.docs` plus every `doc:` text
+  whose label is in none of them. An item reaches a row, and gets a `perRow` value there, when it is a text that
+  reaches the row or a probe item whose difference in that row is not 0; a doc of `setup.docs` with no `doc:` text
+  (it did not load, such as a memory topic file) reaches no row. Labels: the plugin id (with ` (accord's own)` for
+  `accord-panel@accord`), the server name, the connector name with ` (claude.ai connector)`, `other connected
+  servers: <names>` (the `connectorsOf` names with no `connector:` probe, `others` included, joined with `, `, or
+  `none`), `set <prefix>` with its member count, the doc's label, `pointer block <label>`, `agent definition`,
+  `rules block`, `skill listing entries`, `agent listing entries`.
 
 Test first: `it('risk:complex-branching a part is charged only to the rows it reaches and unattributed is what the named parts leave')`,
-in memory: rows main, scout (no skill listing) and executor; chosen first-call inputs for every probe of a setup
-with plugins `alpha@m` and `beta@m`, one listable server, one set; `alpha@m`'s probe equal to all-on in scout's row.
-Assert each part equals the formula's value from the chosen numbers; `skill listing entries` has no value in
-scout's row; `alpha@m` does not reach scout; each row's parts plus `unattributed` equal its `total`.
+in memory: rows main, scout (no skill listing) and executor; a `state` naming one session id per probe and a
+`located` Map holding chosen first-call inputs for every probe of a setup with plugins `alpha@m` and `beta@m`, one
+listable server, one set, the docs `CLAUDE.md` and `~/.claude/projects/x/memory/note.md` (no text for the second),
+and an all-on main whose `mcpServers` are `claude.ai Docs X` and `plugin_alpha_srv` with a `connector:claude.ai
+Docs X` probe; `alpha@m`'s probe equal to all-on in scout's row; `beta@m`'s probe equal to all-on in every row.
+Assert each part equals the formula's value from the chosen numbers; the connector item and the `other connected
+servers: plugin_alpha_srv` line equal theirs; `skill listing entries` has no value in scout's row; `alpha@m` does
+not reach scout; the `beta@m` and `note.md` items are listed with an empty `perRow`; each row's parts plus
+`unattributed` equal its `total`.
 
 ## Task 8: `--fixed` prints the raw table by owner and writes the report
 covers: @ac-1, @ac-3, D-02, D-06, D-07
@@ -493,45 +612,48 @@ Consumes: Tasks 2 to 7. Produces: `export function fixedReport({ repo, home, ben
 `C--Work-accord-st-ln-79`; `defaultDirs(repo)` run from a ticket worktree would read that worktree alone).
 Behaviour that must not change: the other modes and `--fixed --probe`.
 
-`fixedReport`: reads `readCalls(dirs, { bench })`; its `version` is the current Claude Code version (the folders
-hold the probe worktree's and the empty folder's sessions too, `C--Work-accord-probe` and
-`C--Work-accord-bench-fixed-empty`); `fixedPending(...)` with it. When probes are pending: `exit` 1, `text` the
-commands, and the report file is not written (the size is measured on the setup as it is when the report runs:
-ac-1). Otherwise `measure(...)`, `render(...)`, writes `text` to `<repo>/docs/benchmark/fixed-context.md`
-(creating the folder), `exit` 0.
+`fixedReport`: reads `readCalls(dirs, { bench })`, then `fixedPending({ repo, home, bench })`. When that exits 2,
+`fixedReport` returns its exit and text. When probes are pending: `exit` 1, `text` the commands, and the report
+file is not written (the size is measured on the setup as it is when the report runs: ac-1). Otherwise
+`measure({ setup, probes, state, located, texts })` with the `probes.json` it read, `render(...)`, writes `text`
+to `<repo>/docs/benchmark/fixed-context.md` (creating the folder), `exit` 0.
 
 `render` prints, reading no clock (every date comes from transcripts, as UTC `YYYY-MM-DD`):
 ```
 # Fixed context per call
 
 Transcripts: <calls> calls from <first> to <last>, read from <folders> transcript folder(s).
-Probes: the all-on probe of <its date> under Claude Code <version>.
+Probes: the all-on probe of <its date> under Claude Code <probe version>.
+The newest transcript call ran Claude Code <readCalls version>; the figures are measured under Claude Code <probe version>.
 The main session row is measured under claude -p, with its probe prompt sized and taken out.
 <row>: <n> of its <m> calls ran on <other model ids>; they are counted at the size measured on <model>.
 A claude.ai connector can change its instructions on the server, which no fingerprint sees; its figure holds for the probe date.
-A plugin's own MCP servers count under plugins and again in the claude.ai connectors and plugin-provided servers line; unattributed absorbs the overlap.
+A plugin's own MCP servers count under plugins and again in the other connected servers line; unattributed absorbs the overlap.
 Cursor, Codex and Copilot calls were not measured.
 
 ## Fixed context per call, raw tokens
 
 | row | model | calls | fixed | accord | Claude Code | plugins | MCP servers | CLAUDE.md and memory | own skills, agents and commands | unattributed |
 ```
-`<calls>`, `<first>` and `<last>` count every call `readCalls` kept; the `<row>: ...` line appears once per row
-with calls on another model than its model key. Table rows: `main session (claude -p)` first, then each accord
-agent that ran (at least one call) by name; `calls` is the row's call count; the figures are integers. An accord
-agent that ran but has no definition now gets its calls and `-` in every figure. Rows of agents that did not run
-are not printed.
+`<calls>`, `<first>` and `<last>` count every call `readCalls` kept; the `The newest transcript call ...` line
+appears only when the `readCalls` version differs from the probe version; the `<row>: ...` line appears once per
+row with calls on another model than its model key. Table rows: `main session (claude -p)` first, then each
+accord agent that ran (at least one call) by name; `calls` is the row's call count; the figures are integers. An
+accord agent that ran but has no definition now gets its calls and `-` in every figure. Rows of agents that did
+not run are not printed.
 
 Tests first, on a measured world: `fixed-world.ts` gains `measuredWorld()`, which builds `makeWorld()`, runs
-`fixedProbe`, writes a session for every phase-one probe with chosen first-call inputs, runs `fixedReport`
+`fixedProbe`, writes a session for every phase-one probe with chosen first-call inputs (all at version `9.0.0`;
+`plugin:beta@m`'s inputs equal to the all-on's in every row; the all-on main's `instructions` naming
+`<probeDir>/CLAUDE.md`, `<home>/.claude/CLAUDE.md` and `<memDir>/MEMORY.md`, not `note.md`), runs `fixedReport`
 (which writes the phase-two probes), writes their sessions, and writes real calls: a main session of three calls
 and an `accord-scout` run of two calls (no `accord-critic` or `accord-executor` calls). It returns the world and the
 chosen numbers, so each expected figure is computed in the test.
 - `it('ac-1 the main session and each accord agent that ran get one row split by owner')`: `fixedReport` exits 0;
   the raw table has exactly the rows `main session (claude -p)` (calls 3) and `accord-scout` (calls 2); each cell
   equals the value computed from the chosen numbers; in each row the owner cells plus `unattributed` equal `fixed`;
-  `docs/benchmark/fixed-context.md` equals `text`; the text holds no `sekret-` value and no home path with a user
-  name (`~/` is used).
+  `docs/benchmark/fixed-context.md` equals `text`; the text holds no `sekret-` value, no `accord-probe` and no home
+  path with a user name (`~/` is used).
 - `it('ac-3 the report printed twice on the same transcripts and setup is the same')`: `fixedReport` run twice on
   the measured world gives equal `text`, and `probes.json` is byte-equal before and after the second run.
 
@@ -562,22 +684,25 @@ Behaviour that must not change: the raw table and header of Task 8, byte for byt
   branch records `t/<id>` (slashes turned, case folded). Its whole cost is the sum over its calls of
   `input + 0.1·cacheRead + 1.25·cacheWrite + 5·output`. The two shares are the sum of
   `weighFixed(total of main, call).weighted` over its `main` calls, and the same over its accord-agent calls with
-  each call's own row total, each divided by the whole cost. A call of a row with no figure (another subagent)
-  counts in the whole cost only.
+  each call's own row total, each divided by the whole cost. A call of a row with no figure (another subagent,
+  such as Explore or general-purpose) counts in the whole cost only.
 - `render` appends, after the raw table:
   - `## Fixed context per call, cost-weighted tokens`: the same columns plus a last column `largest owner`, the
     owner with the largest cost-weighted figure among the six named owners (unattributed is a remainder, not an
     owner); figures with one decimal; then `Weights: fresh input 1, cache read 0.1, cache write 1.25. <n> calls had
     less input than the fixed context now measured; the excess was not charged.`
   - `## Setup items, tokens per call (raw / cost-weighted)`: `| item | owner | <one column per printed row> |`, one
-    line per item of `measure` (every enabled plugin, every listable server and the connectors line, every
-    CLAUDE.md and memory file that loads, every own set, and accord's own parts), each cell `<raw> / <weighted>`
-    for a row it reaches and `-` elsewhere, ordered by owner then label; then
+    line per entry of `measure`'s `items` (every enabled plugin, every listable server, every connector with its
+    own probe and the other connected servers line, every CLAUDE.md and memory file, every own set, and accord's
+    own parts), each cell `<raw> / <weighted>` for a row it reaches and `-` elsewhere, so an item that reaches no
+    row is still a line of `-` cells; ordered by owner then label; then
     `What the owner could cut: each line above is the cost per call that removing the item saves in that row.`
-  - `## Lane M tickets, share of the ticket's cost`: `| ticket | claim | calls | main fixed context | subagent fixed
-    context |`, shares in percent with one decimal, by ticket id; then `Weights: fresh input 1, cache read 0.1,
-    cache write 1.25, output 5. Output tokens are estimated at 4 characters a token, since transcripts keep the
-    usage from the stream's start.`; when no ticket qualifies, the table is replaced by
+  - `## Lane M tickets, share of the ticket's cost`: `| ticket | claim | calls | main fixed context | accord
+    subagents fixed context |`, shares in percent with one decimal, by ticket id; then `Weights: fresh input 1,
+    cache read 0.1, cache write 1.25, output 5. Output tokens are estimated at 4 characters a token, since
+    transcripts keep the usage from the stream's start.` and `The subagent share counts accord agents only; other
+    subagents (such as Explore or general-purpose) count in the ticket's whole cost, and their fixed context is not
+    measured.`; when no ticket qualifies, the table and these two lines are replaced by
     `No lane M ticket reached done with its claim inside the transcripts' date range.`
 
 Test first: `measuredWorld()` gains options to give each real call a chosen billing and branch, and to commit
@@ -589,8 +714,12 @@ dated before the first call). Calls of T-1: two main calls and one scout call wi
 with calls chosen so that one call's cache reads cover the fixed context, one call's fixed context reaches into
 its cache writes, and one call's whole input is below it, the cost-weighted table's `fixed` cell of each row equals
 the mean computed in the test, each owner cell equals its raw value times the row's ratio, `largest owner` names
-the largest; an item cell reads `<raw> / <weighted>`; the tickets table has exactly `T-1`, with the two shares
-computed in the test from the weights 1, 0.1, 1.25 and 5; the output-estimate sentence is printed.
+the largest; an item cell reads `<raw> / <weighted>`; the items table has exactly one line for each enabled plugin
+(`accord-panel@accord`, `alpha@m`, `beta@m`), each listable server (`local-db`, `proj-db`, `user-search`), the
+other connected servers line, each doc of `readSetup(...).docs` and each set (`aws`, `gsd`, `my`, `own`, `tool`),
+and the `beta@m` line and the `note.md` line hold `-` in every row cell (they reach no row); the tickets table has
+exactly `T-1`, with the two shares computed in the test from the weights 1, 0.1, 1.25 and 5; the output-estimate
+sentence and the accord-agents-only sentence are printed.
 
 ## Task 10: Run the report on the owner's transcripts and commit it
 covers: @ac-4, D-02, D-03, D-04, D-05, D-07
@@ -612,11 +741,12 @@ line for each of the owners `plugins`, `MCP servers`, `CLAUDE.md and memory` and
 `/[A-Za-z]:[\\/]+Users[\\/]/i`, `/\/[a-z]\/Users\//i`, `/[\w.+-]+@[\w-]+(\.[A-Za-z][\w-]*)+/` or
 `/sekret|Bearer /`.
 
-Then run `node scripts/benchmark.mjs --fixed` from the ticket worktree. Exit 1 (commands printed) means the
-probes are not current: stop and report BLOCKED with the printed commands, so the main session gives them to the
-owner. Exit 0 writes `docs/benchmark/fixed-context.md`; read it whole and check by eye that no MCP server value,
-token or e-mail address is in it, then commit it with the test. The report changes nothing in accord or in the
-owner's setup and names no keep-or-cut judgement (ledger Ruling): the cut and its proof on ST-LN-46's round 2
-samples, and the figures after a cut, belong to the cut ticket (D-03, D-04, D-05, D-07). Check that
+Then run `node scripts/benchmark.mjs --fixed` from the ticket worktree. Exit 1 (commands printed) or 2 (refused)
+means the probes are not current: stop and report BLOCKED with the printed lines, so the main session gives them to
+the owner. Exit 0 writes `docs/benchmark/fixed-context.md`; read it whole and check by eye that no MCP server value,
+token or e-mail address is in it and that each claude.ai connector the owner has connected is named on an
+`MCP servers` line, then commit it with the test. The report changes nothing in accord or in the owner's setup and
+names no keep-or-cut judgement (ledger Ruling): the cut and its proof on ST-LN-46's round 2 samples, and the
+figures after a cut, belong to the cut ticket (D-03, D-04, D-05, D-07). Check that
 `git diff --name-only 5c8b5d96c8cbf6acddfcee3c6358c09b84f75094 -- .claude packages/core/agents CLAUDE.md` prints
 nothing.

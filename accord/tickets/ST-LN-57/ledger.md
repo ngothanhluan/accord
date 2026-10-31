@@ -4,6 +4,7 @@
 - task 1 done c51b3a6f830a
 - task 2 done 278c0fd41e44
 - task 3 done 6b0dd94523fd
+- task 4 done d5bdab866bca
 
 ## Rulings
 
@@ -69,6 +70,9 @@
 - Ruling: (task 3) the record history log passes `--diff-merges=first-parent` next to `--first-parent`, so a merge lists its review.md or debug.md status against its first parent on every git that has remerge-diff — the plan names only `--first-parent` and the extra flag only makes the merge status explicit — if wrong, a git older than 2.31 rejects the flag and the history read fails.
 - Ruling: (task 3) when the history goes on past a merge from the default branch, the first log is cut at that merge, so debug.md commits on that merge's first-parent line before it are not read — the plan is silent and that line cannot hold this ticket's debug.md — if wrong, an episode opened before such a merge is missed.
 - Ruling: (task 3) a review.md or debug.md whose newest entry is a deletion gives no rounds or episodes, and each file's history is cut at its newest `A` — the plan says history starts at the newest `A` — if wrong, rounds before a delete-and-re-add are lost.
+- Ruling: (task 4) round facts bound each typed head on its own: a head that names no commit, and the head after it, get bound 'unknown', the other heads keep their normal bound, and ranges are N empty lists when any head is unresolved — the plan says "those heads" and core can skip on any 'unknown' — if wrong, a resolved head next to an unresolved one shows a bound where 'unknown' was wanted.
+- Ruling: (task 4) a failing `git cat-file --batch-check` returns `{ error: 'git cat-file --batch-check failed: <reason>' }` (plan Nice 1.9), and a readHistory error is the facts' error, also for a version 1 record whose pin allows version 1 (Nice 1.16 left it open) — failing closed is the safer default — if wrong, gate done fails where a version 1 record should pass.
+- Ruling: (task 4) a round's record commit outside the walk gets its first parent from one `git rev-parse <sha>^`, falling back to the commit itself when it has none; inside the walk no git call is made — the plan is silent — if wrong, one extra git call in a case that should not occur.
 
 ## Deferred
 - plan round 1.8 (Nice): rolling back to the 0.3.0 CLI needs an owner allowance Ruling per cycle that went past round 3 with deferred findings (0.3.0 has no D-08); rolling forward sets line 1 back to `Round record: 2`

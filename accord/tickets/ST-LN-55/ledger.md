@@ -60,6 +60,8 @@
 - Ruling: a `.git` holder is checked at the start of every walked folder, the swept folder itself included — a `.git` folder or file is a real entry either way — cost if wrong: none.
 - Ruling: in the flagged-file guard, an unparsable `ls-files -s` row or a `hash-object` that throws keeps the worktree — the safe side — cost if wrong: a worktree is kept and named where it could have been cleaned.
 - Ruling: `cleanListed` gained a trailing `list` parameter, passed on to `passGuards` — `cleanRecorded` already had the list — cost if wrong: one signature.
+- Ruling: the sibling sweep reuses a per-candidate try/catch that prints `kept <path>: could not be judged: ...`, the same line as cleanRecorded — it keeps one bad folder from stopping the sweep — cost if wrong: a differently worded kept line on an unexpected error.
+- Ruling: ticket stems from `ls-tree` must also match `ID` (worktree.ts) to become candidates — a malformed file name never makes a path — cost if wrong: a ticket with an unusual id is not swept.
 
 ## Deferred
 - Plan round 1 Nice: a relative path in a record line is resolved against cwd; skip non-absolute lines and fence descendants of the main checkout — deferred
@@ -87,3 +89,4 @@
 - task 4 done 1457dacb9468
 - task 5 done c2da4216c053
 - task 6 done d00fa5d325d4
+- task 7 done a430c0d1a533

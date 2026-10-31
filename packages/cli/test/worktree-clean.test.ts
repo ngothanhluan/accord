@@ -996,3 +996,24 @@ it('risk:data-loss a forgotten folder holding a listed worktree or a git folder 
   expect(listing(c.sibling('ST-10'))).toEqual(before10);
   expect(c.git('worktree', 'list', '--porcelain')).toContain(`worktree ${inner}\n`);
 }, 120_000);
+
+it('risk:data-loss the sibling sweep deletes an unrecorded leftover of a done ticket and keeps one holding a file', async () => {
+  const c = copy({ tickets: ['ST-9', 'ST-10', 'ST-11'] });
+  mkdirSync(`${c.sibling('ST-9')}/a/b`, { recursive: true });
+  link(`${c.root}/accord`, `${c.sibling('ST-9')}/node_modules/w`);
+  mkdirSync(c.sibling('ST-10'));
+  writeFileSync(`${c.sibling('ST-10')}/notes.txt`, 'keep me\n');
+  mkdirSync(`${c.sibling('ST-11')}/a`, { recursive: true });
+  mkdirSync(`${c.sibling('ST-99')}/a`, { recursive: true });
+  doneOnRemote(c, ['ST-9', 'ST-10']);
+  const r = await run(['worktree', 'clean'], c.root);
+  expect(r.code).toBe(0);
+  const L = lines(r.out);
+  expect(gone(c.sibling('ST-9'))).toBe(true);
+  expect(L).toContain(`removed ${c.sibling('ST-9')}`);
+  expect(L.filter((l) => l === `kept ${c.sibling('ST-10')}: notes.txt`).length).toBe(1);
+  expect(readFileSync(`${c.sibling('ST-10')}/notes.txt`, 'utf8')).toBe('keep me\n');
+  expect(existsSync(c.sibling('ST-11'))).toBe(true);
+  expect(existsSync(c.sibling('ST-99'))).toBe(true);
+  expect(existsSync(`${c.root}/accord/config.yml`)).toBe(true);
+}, 120_000);

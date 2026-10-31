@@ -1,6 +1,7 @@
 // ST-LN-7 `accord worktree`: each ticket works in its own git worktree, a sibling folder of the main checkout.
 import { execFileSync } from 'node:child_process';
-import { appendFileSync, closeSync, existsSync, lstatSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, closeSync, existsSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import type { Dirent } from 'node:fs';
 import { DEFAULT_BRANCH_TEMPLATE, forbiddenLines, isSha, loadConfig, loadSnapshot, statusRows, trailerReason } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
 import { currentBranch, droppedOn, gitDefaultRef, gitUnpushedCommits, gitUserEmail, loadFromFs, loadWithBranch, snapshotAt, ticketOfBranch, UsageError } from '../load/fs.js';
@@ -1001,7 +1002,52 @@ export function worktreeClean(ctx: CommandContext, opts: { fetched?: 'ok' | 'fai
   cleanDone(ctx, ref, templates, state, fetchFailed, merged, opts.skip);
   cleanDropped(ctx, ref, templates, state, pruned, fetchFailed, merged, opts.skip);
   cleanRecorded(ctx, ref, state, fetchFailed, merged);
+  cleanSiblings(ctx, ref, state, fetchFailed);
   return 0;
+}
+
+/** ST-LN-55 D-01 part C: folders next to the main checkout, named for a done or dropped ticket, that git does not list and the record never named (left before the record existed). Judged by `cleanForgotten` with all its guards. */
+function cleanSiblings(ctx: CommandContext, ref: string, s: GuardState, fetchFailed: boolean): void {
+  const main = s.seen.main;
+  if (main === undefined) return;
+  const cut = main.lastIndexOf('/');
+  const parent = main.slice(0, cut);
+  const prefix = main.slice(cut + 1) + '-';
+  let entries: Dirent[];
+  try {
+    entries = readdirSync(parent, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  const known = new Set((s.recorded ?? []).map((e) => norm(e.path)));
+  const folders = entries
+    .filter((d) => d.isDirectory() && !d.isSymbolicLink() && d.name.startsWith(prefix) && d.name.length > prefix.length)
+    .map((d) => ({ path: parent + '/' + d.name, rest: d.name.slice(prefix.length) }))
+    .filter((f) => !s.seen.listed?.has(norm(f.path)) && s.seen.judged?.has(norm(f.path)) !== true && !known.has(norm(f.path)));
+  if (folders.length === 0) return;
+  // ids come from origin's default ref; a lower-cased id two tickets share is left out
+  const byLower = new Map<string, string | null>();
+  for (const f of git(ctx.root, ['ls-tree', '-z', '--name-only', ref, '--', 'accord/tickets/']).split('\0')) {
+    const id = /^accord\/tickets\/([^/]+)\.md$/.exec(f)?.[1];
+    if (id === undefined || !ID.test(id)) continue;
+    const low = id.toLowerCase();
+    byLower.set(low, byLower.has(low) ? null : id);
+  }
+  const candidates = folders.flatMap((f) => {
+    const id = byLower.get(f.rest);
+    return id === undefined || id === null ? [] : [{ ...f, id }];
+  });
+  if (candidates.length === 0) return;
+  const ids = [...new Set(candidates.map((f) => f.id))];
+  const done = new Set(statusRows(snapshotAt(ctx.root, ref, ids)).filter((r) => r.stage === 'done' && r.status !== 'dropped').map((r) => r.id));
+  const dropped = fetchFailed ? new Set<string>() : droppedOn(ctx.root, ref, ids);
+  for (const f of candidates.filter((c) => done.has(c.id) || dropped.has(c.id)).sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))) {
+    try {
+      cleanForgotten(ctx, f.path, s);
+    } catch (err) {
+      folderLine(ctx, s.seen, f.path, `kept ${f.path}: could not be judged: ${firstLine(err instanceof UsageError ? err.message : err)}`);
+    }
+  }
 }
 
 /** ST-LN-55 D-04: a folder at a recorded path that git no longer lists. Every line goes through `folderLine`; true when the folder is gone. */

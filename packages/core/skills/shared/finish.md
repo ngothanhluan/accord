@@ -19,4 +19,6 @@ The last message of a finished ticket has three parts, in this order, and nothin
 
 After this message, end the turn. Never wait for the merge, and never remove the ticket's worktree or branches by
 hand: once the owner merges the pull request, the next session start, resume or /clear, or the next `/accord`,
-removes them.
+removes them. A /clear in this finishing session keeps its worktree (`kept <path>: this session's worktree`): the
+folder goes only after this session has ended, at a session started in another folder, so tell the owner to close
+this session once the pull request is merged.

@@ -41,8 +41,11 @@ What `accord worktree open <id>` and `accord new ticket --worktree` print:
   push is rejected once the reworded commit was already on origin, and the command still refuses to
   replace a commit someone else pushed that this branch never held, even after a fetch.
 - Lines starting `removed`, `deleted` or `kept`, or `clean failed`, `clean skipped` or `clean stopped`: the clean of
-  tickets done or dropped on the default branch. A `kept <folder>: <file>` line names a file accord never deletes, so
-  that folder stays until the owner moves or deletes the file. Show them verbatim and go on.
+  tickets done or dropped on the default branch. A `kept` line ends with its reason. Only when that reason names a
+  file accord never deletes does the owner move or delete that file; for any other reason nothing is to be deleted and
+  the folder stays, as with `uncommitted work`, `held by another session`, `this session's worktree`,
+  `checked out on <branch>`, `being rebased` or `it holds the worktree …`. Show them verbatim and go on.
+- A line starting `note <id>:` says a record or a hold was not updated. Show it verbatim and go on.
 - A line `stop:`: show the two lines after it verbatim, the worktree's path and the line to type in a
   session opened in that folder, then stop. Never change directory into the worktree, never edit a file
   there except the people entry below and, in a lane S ticket, its `title:`, its `## Understood`, `## Done when` and `## Scope` lines and the commit and push of that ticket file, and never start the next stage from this session.

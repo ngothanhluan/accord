@@ -62,6 +62,9 @@
 - Ruling: `cleanListed` gained a trailing `list` parameter, passed on to `passGuards` — `cleanRecorded` already had the list — cost if wrong: one signature.
 - Ruling: the sibling sweep reuses a per-candidate try/catch that prints `kept <path>: could not be judged: ...`, the same line as cleanRecorded — it keeps one bad folder from stopping the sweep — cost if wrong: a differently worded kept line on an unexpected error.
 - Ruling: ticket stems from `ls-tree` must also match `ID` (worktree.ts) to become candidates — a malformed file name never makes a path — cost if wrong: a ticket with an unusual id is not swept.
+- Ruling: the clean lock is taken before the no-origin early return, so every clean costs one `rev-parse --git-common-dir`, and cleanRecorded reuses it through `GuardState.accord` — the plan says "takes the lock first" — cost if wrong: one git spawn on a clean with no origin; git-count passes.
+- Ruling: a lock file whose pid cannot be parsed counts as held until it is an hour old, and the skip line then says `pid ?` — an empty file may be another clean mid-write — cost if wrong: a corrupt lock blocks cleans for up to an hour.
+- Ruling: EPERM from `process.kill(pid, 0)` counts as still running, so only ESRCH makes a lock stale — cost if wrong: none; the process exists.
 
 ## Deferred
 - Plan round 1 Nice: a relative path in a record line is resolved against cwd; skip non-absolute lines and fence descendants of the main checkout — deferred
@@ -90,3 +93,4 @@
 - task 5 done c2da4216c053
 - task 6 done d00fa5d325d4
 - task 7 done a430c0d1a533
+- task 8 done 07f7d57d9708

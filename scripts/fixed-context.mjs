@@ -463,11 +463,31 @@ export function weighFixed(size, call) {
   return { weighted: 0.1 * reads + 1.25 * writes + fresh, clamped: fixed > reads + writes + fresh };
 }
 
+// The first call of every dispatch: each transcript file is one dispatch (the main session, or one subagent run), and
+// `readCalls` lists a file's calls in the order their messages appear, so a file's first call is its first entry. Returns
+// the Set of those call objects.
+export function firstCalls(calls) {
+  const seen = new Set();
+  const firsts = new Set();
+  for (const c of calls) {
+    if (seen.has(c.file)) continue;
+    seen.add(c.file);
+    firsts.add(c);
+  }
+  return firsts;
+}
+
+// The fixed context a call of a row is weighed against: a dispatch's first call does not carry the MCP blocks Claude
+// Code adds to a subagent afterwards (the row's `late`), every other call does.
+function fixedFor(measured, call, firsts) {
+  return measured.total - (firsts.has(call) ? (measured.late ?? 0) : 0);
+}
+
 // A row's mean cost-weighted fixed context per call, its weighted-to-raw ratio, and how many of its calls were clamped.
-function rowWeights(own, total) {
-  const each = own.map((c) => weighFixed(total, c));
+function rowWeights(own, measured, firsts) {
+  const each = own.map((c) => weighFixed(fixedFor(measured, c, firsts), c));
   const mean = each.reduce((n, x) => n + x.weighted, 0) / each.length;
-  return { mean, ratio: total > 0 ? mean / total : 0, clamped: each.filter((x) => x.clamped).length };
+  return { mean, ratio: measured.total > 0 ? mean / measured.total : 0, clamped: each.filter((x) => x.clamped).length };
 }
 
 // The lane M tickets that reached done (`tickets`: { id, claimAt } from the repository) whose claim lies inside the
@@ -479,7 +499,8 @@ export function ticketShares({ calls, rows, tickets }) {
   if (!calls.length) return [];
   const first = Math.min(...calls.map((c) => c.ts));
   const last = Math.max(...calls.map((c) => c.ts));
-  const totalOf = new Map(rows.map((r) => [r.row, r.total]));
+  const measuredOf = new Map(rows.map((r) => [r.row, r]));
+  const firsts = firstCalls(calls);
   const folder = (c) => c.cwd.replace(/\\/g, '/').toLowerCase();
   const branchesIn = new Map();
   for (const c of calls) {
@@ -495,7 +516,7 @@ export function ticketShares({ calls, rows, tickets }) {
     const own = calls.filter((c) => c.branch === branch || only(c));
     if (!own.length) continue;
     const whole = own.reduce((n, c) => n + c.input + 0.1 * c.cacheRead + 1.25 * c.cacheWrite + 5 * c.output, 0);
-    const fixedOf = (pick) => own.filter(pick).reduce((n, c) => n + (totalOf.has(c.row) ? weighFixed(totalOf.get(c.row), c).weighted : 0), 0);
+    const fixedOf = (pick) => own.filter(pick).reduce((n, c) => n + (measuredOf.has(c.row) ? weighFixed(fixedFor(measuredOf.get(c.row), c, firsts), c).weighted : 0), 0);
     shares.push({
       id: t.id, claimAt: t.claimAt, calls: own.length,
       main: whole > 0 ? fixedOf((c) => c.row === 'main') / whole : 0,
@@ -509,7 +530,7 @@ export function ticketShares({ calls, rows, tickets }) {
 // `folders`), the Claude Code and the date of the all-on probe, and `measure`'s rows. Reads no clock: every date comes
 // from the transcripts. One row for the main session and one for each accord agent that ran; an agent that ran but has
 // no definition now keeps its calls and gets `-` in every figure.
-export function render({ calls, version, folders, probeVersion: probed, allOnTs, rows, items = [], tickets = [] }) {
+export function render({ calls, version, folders, probeVersion: probed, allOnTs, rows, items = [], tickets = [], ratios = {} }) {
   const first = calls.length ? day(Math.min(...calls.map((c) => c.ts))) : '-';
   const last = calls.length ? day(Math.max(...calls.map((c) => c.ts))) : '-';
   const ran = [...new Set(calls.filter((c) => c.accord).map((c) => c.row))].sort(cmp);
@@ -526,6 +547,8 @@ export function render({ calls, version, folders, probeVersion: probed, allOnTs,
   ];
   if (version !== undefined && version !== probed) out.push(`The newest transcript call ran Claude Code ${version}; the figures are measured under Claude Code ${probed}.`);
   out.push('The main session row is measured under claude -p, with its probe prompt sized and taken out.');
+  const pairs = Object.keys(ratios).sort(cmp).map((m) => `${m}: ${ratios[m].toFixed(2)}`).join(', ');
+  out.push(`Every part but Claude Code is sized from its text's characters at a characters-per-token ratio calibrated on each model (${pairs} characters a token), so those sizes carry that estimate, about ±10%; unattributed absorbs the difference.`);
   for (const { label, own, measured } of table) {
     const other = own.filter((c) => measured && c.model !== measured.model);
     if (other.length) {
@@ -534,7 +557,8 @@ export function render({ calls, version, folders, probeVersion: probed, allOnTs,
   }
   out.push(
     'A claude.ai connector can change its instructions on the server, which no fingerprint sees; its figure holds for the probe date.',
-    "A plugin's own MCP servers count under plugins and again in the other connected servers line; unattributed absorbs the overlap.",
+    "A plugin's own MCP servers count under MCP servers; its skills and agents count under plugins.",
+    "An MCP server's instructions block that the main session loads is counted in every accord agent row's fixed context and MCP servers part: Claude Code adds it to a subagent after the subagent's first call, so it is added to the fixed context measured from that first call, and each subagent's first call, which does not carry it, is weighed without it.",
     'Local-scope MCP servers and .claude/settings.local.json are not measured: the probe worktree loads neither.',
     'Cursor, Codex and Copilot calls were not measured.',
     '',
@@ -554,7 +578,8 @@ export function render({ calls, version, folders, probeVersion: probed, allOnTs,
   // Cost-weighted: each row's mean over its calls; each owner and each item its raw tokens times the row's ratio.
   const one = (n) => { const t = n.toFixed(1); return t === '-0.0' ? '0.0' : t; };
   const weights = new Map();
-  for (const { label, own, measured } of table) if (measured && own.length) weights.set(label, rowWeights(own, measured.total));
+  const firsts = firstCalls(calls);
+  for (const { label, own, measured } of table) if (measured && own.length) weights.set(label, rowWeights(own, measured, firsts));
   const named = ['accord', 'claudeCode', 'plugins', 'mcp', 'docs', 'sets'];
   const weightedHead = [...head, 'largest owner'];
   out.push('', '## Fixed context per call, cost-weighted tokens', '', line(weightedHead), line(weightedHead.map(() => '---')));

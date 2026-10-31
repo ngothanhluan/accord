@@ -2,7 +2,7 @@
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { expect, it } from 'vitest';
-import { agentBody, assistantLine, attachmentLine, CHOSEN, CLAIMED, DOC_FILES, HOOK, LISTED, makeWorld, measuredWorld, MODEL_OF as ROW_MODEL, perCharOf, POINTER, userLine, writeSession, type RowName, type World } from './helpers/fixed-world.js';
+import { agentBody, assistantLine, attachmentLine, calibrationAdded, CHOSEN, CLAIMED, DOC_FILES, HOOK, LISTED, makeWorld, measuredWorld, MODEL_OF as ROW_MODEL, perCharOf, POINTER, userLine, writeSession, type RowName, type World } from './helpers/fixed-world.js';
 
 type Line = Record<string, any>;
 type FirstCall = {
@@ -941,7 +941,14 @@ it('ac-1 the main session and each accord agent that ran get one row split by ow
     expect(lines).toContain(LOCAL_SCOPE);
     expect(lines).toContain('Cursor, Codex and Copilot calls were not measured.');
     expect(lines).toContain('A claude.ai connector can change its instructions on the server, which no fingerprint sees; its figure holds for the probe date.');
-    expect(lines).toContain("A plugin's own MCP servers count under plugins and again in the other connected servers line; unattributed absorbs the overlap.");
+    expect(lines.some((l) => l.includes('again in the other connected servers line'))).toBe(false);
+    const pluginServers = lines.indexOf("A plugin's own MCP servers count under MCP servers; its skills and agents count under plugins.");
+    expect(pluginServers).toBeGreaterThan(-1);
+    expect(lines[pluginServers + 1]).toBe("An MCP server's instructions block that the main session loads is counted in every accord agent row's fixed context and MCP servers part: Claude Code adds it to a subagent after the subagent's first call, so it is added to the fixed context measured from that first call, and each subagent's first call, which does not carry it, is weighed without it.");
+    const calibrationLength = (m.bench as unknown as { calibrationText: () => string }).calibrationText().length;
+    const ratioOf = (model: string) => (calibrationLength / calibrationAdded(model)).toFixed(2);
+    const mainLine = lines.indexOf('The main session row is measured under claude -p, with its probe prompt sized and taken out.');
+    expect(lines[mainLine + 1]).toBe(`Every part but Claude Code is sized from its text's characters at a characters-per-token ratio calibrated on each model (m-opus: ${ratioOf('m-opus')}, m-sonnet: ${ratioOf('m-sonnet')} characters a token), so those sizes carry that estimate, about ±10%; unattributed absorbs the difference.`);
 
     expect(r.text).not.toContain('local-db');
     expect(r.text).not.toMatch(/sekret-/);
@@ -1033,9 +1040,11 @@ it('ac-2 each figure is given raw and cost-weighted and each done lane M ticket 
     // The cost-weighted table: the mean over the row's calls, each owner its raw value times the row's ratio.
     const weightedTable = tableUnder(r.text, '## Fixed context per call, cost-weighted tokens');
     expect(weightedTable.map((c) => c[0])).toEqual([MAIN_LABEL, 'accord-scout']);
+    // s1 is the first call of the scout run: it is weighed against the fixed context less the two blocks added after it.
+    const scoutBlocks = sizeIn(LISTED.blocks['claude.ai Docs X'], 'm-sonnet') + sizeIn(LISTED.blocks['proj-db'], 'm-sonnet');
     const means = {
       main: (weighed(mainFixed, bill.m1) + weighed(mainFixed, bill.m2) + weighed(mainFixed, bill.m3)) / 3,
-      'accord-scout': (weighed(scoutFixed, bill.s1) + weighed(scoutFixed, bill.s2)) / 2,
+      'accord-scout': (weighed(scoutFixed - scoutBlocks, bill.s1) + weighed(scoutFixed, bill.s2)) / 2,
     };
     for (const row of ['main', 'accord-scout'] as const) {
       const raw = expectedRow(row);
@@ -1093,7 +1102,7 @@ it('ac-2 each figure is given raw and cost-weighted and each done lane M ticket 
     const cost = wholeCost(bill.m1) + wholeCost(bill.m2) + wholeCost(bill.s1) + wholeCost(bill.g1);
     expect(tickets[0]).toEqual([
       'T-1', new Date(CLAIMED['T-1']).toISOString().slice(0, 10), '4',
-      pct((weighed(mainFixed, bill.m1) + weighed(mainFixed, bill.m2)) / cost), pct(weighed(scoutFixed, bill.s1) / cost),
+      pct((weighed(mainFixed, bill.m1) + weighed(mainFixed, bill.m2)) / cost), pct(weighed(scoutFixed - scoutBlocks, bill.s1) / cost),
     ]);
     expect(lines).toContain('| ticket | claim | calls | main fixed context | accord subagents fixed context |');
     expect(lines).toContain("Weights: fresh input 1, cache read 0.1, cache write 1.25, output 5. Output tokens are estimated at 4 characters a token, since transcripts keep the usage from the stream's start.");
@@ -1112,3 +1121,33 @@ it('ac-2 each figure is given raw and cost-weighted and each done lane M ticket 
     rmSync(w.tmp, { recursive: true, force: true, maxRetries: 5 });
   }
 }, 120_000);
+
+it('risk:calculation a dispatch first call is weighed without the late MCP blocks and its other calls against the full total', async () => {
+  const fc = (await import(new URL('../../../scripts/fixed-context.mjs', import.meta.url).href)) as unknown as {
+    render: (a: Record<string, unknown>) => string;
+    ticketShares: (a: Record<string, unknown>) => { id: string; calls: number; main: number; agents: number }[];
+  };
+  const T = Date.UTC(2026, 9, 30);
+  const base = { model: 'm-opus', version: '9.0.0', cwd: '/w', branch: 't/T-9', output: 0, cacheWrite: 0 };
+  const call = (row: string, accord: boolean, file: string, i: number, cacheRead: number, input: number) => ({ ...base, row, accord, file, ts: T + i * 1000, cacheRead, input });
+  const x1 = call('main', false, 'p/s.jsonl', 0, 1000, 10);
+  const a1 = call('accord-critic', true, 'p/s/subagents/agent-a.jsonl', 1, 1000, 380);
+  const a2 = call('accord-critic', true, 'p/s/subagents/agent-a.jsonl', 2, 1650, 40);
+  const a3 = call('accord-critic', true, 'p/s/subagents/agent-a.jsonl', 3, 1210, 0);
+  const b1 = call('accord-critic', true, 'p/s/subagents/agent-b.jsonl', 4, 1000, 380);
+  const calls = [x1, a1, a2, a3, b1];
+  const row = (name: string, total: number, late: number) => ({
+    row: name, model: 'm-opus', total, late, parts: { accord: total, claudeCode: 0, plugins: 0, mcp: 0, docs: 0, sets: 0 }, unattributed: 0,
+  });
+  const rows = [row('main', 1000, 0), row('accord-critic', 1650, 650)];
+  const text = fc.render({ calls, version: '9.0.0', folders: 1, probeVersion: '9.0.0', allOnTs: x1.ts, rows, items: [], tickets: [], ratios: { 'm-opus': 4 } });
+  const critic = tableUnder(text, '## Fixed context per call, cost-weighted tokens').find((c) => c[0] === 'accord-critic') as string[];
+  const sum = weighed(1000, a1) + weighed(1650, a2) + weighed(1650, a3) + weighed(1000, b1);
+  expect(critic[3]).toBe(one(sum / 4));
+  expect(text.split('\n')).toContain('Weights: fresh input 1, cache read 0.1, cache write 1.25. 1 calls had less input than the fixed context now measured; the excess was not charged.');
+  const shares = fc.ticketShares({ calls, rows, tickets: [{ id: 'T-9', claimAt: x1.ts }] });
+  expect(shares).toHaveLength(1);
+  const whole = calls.reduce((n, c) => n + wholeCost(c), 0);
+  expect(shares[0].agents).toBeCloseTo(sum / whole, 12);
+  expect(shares[0].main).toBeCloseTo(weighed(1000, x1) / whole, 12);
+});

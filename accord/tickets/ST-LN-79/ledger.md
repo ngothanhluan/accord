@@ -5,6 +5,7 @@
 - task 2 done 90ae76b02c83
 - task 3 done f70d4a746033
 - task 4 done 46e4373f8897
+- task 5 done d21eb917c55a
 
 ## Rulings
 
@@ -77,6 +78,10 @@
 - Ruling: row order in a text's `rows` is `main` first, then accord agent names sorted — the brief fixed no order — cost if wrong: code that compares rows by position must sort first.
 - Ruling: the `prompt` text lists every setup agent name, as Task 3's command does, while `brief` and the stubs cover only agents with an all-on first call — the brief said "<agent names>" for the prompt — cost if wrong: the prompt is sized with a few extra names.
 - Ruling: `ref:<model>` probes have `depends: {}` and `model` only — the brief named no dependencies — cost if wrong: a stale reference is caught only by the version check, not by a fingerprint.
+- Ruling: a probe is stale when any key of the stored fingerprint or the current `depends` differs, not only the current keys — a removed plugin or server leaves a stored key behind and must make the all-on probe stale — cost if wrong: one extra all-on reprint.
+- Ruling: when nothing is pending and there are no notes, `fixedPending.text` is the empty string — nothing is written, and Task 8 reads `pending` — cost if wrong: Task 8 adapts one line.
+- Ruling: the refusal when `<bench>/fixed/empty` lies inside a repository is one line; the folder is created before the check and nothing else is written — cost if wrong: an empty folder remains after a refusal.
+- Ruling: from Task 5 on, each brief carries a main-session note naming the Linux-container test command — the pinned accord 0.3.0 prints no test command, so Tasks 1 to 4 ran `npx vitest` on the host and waited on the machine-wide test lock; the main session reran every benchmark test file in the container after each task — cost if wrong: none to results, only wait time.
 
 ## Deferred
 

@@ -1,6 +1,6 @@
 ---
 baseline: ae46f67e91318d204e08e27e7c01fe9f7dc03be9
-plan_hash: "fnv1a64:782805def599cc39"
+plan_hash: "fnv1a64:5c38f3e3a7a4bcd9"
 ---
 
 # Plan: ST-LN-57
@@ -57,8 +57,11 @@ four criteria's rules; Task 9 changes the text the sessions follow.
   are version 1 behave as at the baseline: `packages/cli/test/goldens.test.ts`, `git-count.test.ts`,
   `round.test.ts`, `lane-flow.test.ts`, `lane-s.test.ts`, `lane-commands.test.ts`, `after-verify.test.ts`,
   `review-package-count.test.ts`, `packages/core/test/round-record.test.ts`, `round-next.test.ts` and
-  `round-gate.test.ts` stay green with no golden or assertion edited. Their fixtures pin `accord: "0.3.0"`, below
-  the cut-over, so the old rules apply to them.
+  `round-gate.test.ts` stay green with no golden or assertion edited. Their fixtures pin `accord: "0.3.0"` through
+  `CONFIG`, below the cut-over, so the old rules apply to them; moving them for the release is the work the
+  Ruling on fixtures below names. The new tests of this plan never take the pin at a first round, or at a branch
+  start, from `CONFIG`: they commit an explicit `accord:` line there (`CONFIG` with its `accord:` line replaced),
+  so they stay green when the release moves `CONFIG` to the new version.
 - "Lane M" means every lane but `S` (`lane !== 'S'`), as ST-LN-17's plan Ruling says.
 - "Ledger Ruling <n>" is the n-th `- Ruling:` line under `## Rulings` in `accord/tickets/ST-LN-57/ledger.md`,
   counted from 1.
@@ -77,7 +80,9 @@ four criteria's rules; Task 9 changes the text the sessions follow.
   records-only; the first commit reached outside the walk when there is none.
 - *Record commit* R_j: reading `review.md`'s history along first parents of HEAD from the last commit that creates
   it, the last commit at which the parsed number of rounds (all cycles) rose to j (ledger Ruling 22); absent when
-  round j is not committed.
+  round j is not committed. When the commit that adds `review.md` along first parents is a merge whose first parent
+  lacks it (a ticket branch merged into the default branch), the reading goes on, before that merge, along first
+  parents from its first other parent that holds `review.md`, as often as that happens.
 - *High* of round j: the nearest code commit from R_j's first parent, or from HEAD when R_j is absent (ledger
   Ruling 23). H_j is *bound* when (j = 1, or H_{j-1} is H_j or an ancestor of it) and H_j is high_j or an ancestor of it.
 - *Range* of round j: the walk commits reachable from H_{j+1} (from HEAD for j = N) and not from H_j (ledger
@@ -102,7 +107,12 @@ four criteria's rules; Task 9 changes the text the sessions follow.
 - *Stretch*: a cycle's rounds split after each round r that an owner allowance Ruling of that cycle names as
   `after round <r>`; the last stretch ends at the cycle's last round (ledger Ruling 21).
 - *Pin at the first round*: `accord:` of `accord/config.yml` at R_1, or of HEAD's config when no round is
-  committed (ledger Ruling 26). *Cut-over*: the release literal `0.3.1`.
+  committed (ledger Ruling 26). *Base pin*: `accord:` of `accord/config.yml` at the merge base of R_1 (of HEAD when
+  no round is committed) with the default ref, or at the plan's `baseline:` when there is no default ref; absent
+  when there is neither or that commit has no pin. *Cut-over*: the release literal `0.3.1`. A version 1 or
+  unversioned record is *allowed* when the pin at the first round is a plain `x.y.z` below the cut-over and not
+  below a plain base pin.
+- *Merge or episode in a span*: the span holds a commit of kind `merge` or `episode`, whatever paths it lists.
 
 **Decisions this plan takes** (each a Ruling for the ledger):
 - Ruling: a version 2 heading reads, after `headingKey` (trimmed, whitespace collapsed, lower case),
@@ -122,22 +132,41 @@ four criteria's rules; Task 9 changes the text the sessions follow.
   section, r the round's position, k the cycle, 1 when absent — the approach's form — cost if wrong: a cycle 2
   deferral written without ` cycle 2` names cycle 1 and does not count.
 - Ruling: the cut-over literal is `0.3.1`, the first version after the current `0.3.0`; a version 1 record is
-  allowed only when the pin at its first round is a plain `x.y.z` below it, a version 2 record is always allowed,
-  which is how a version 1 record converts — whatever release ships this ticket is at least `0.3.1` — cost if
-  wrong: none found.
+  allowed only when the pin at its first round is a plain `x.y.z` below it and not below the base pin (the pin at
+  the merge base of R_1 with the default ref, else at the plan's `baseline:`), a version 2 record is always
+  allowed, which is how a version 1 record converts — whatever release ships this ticket is at least `0.3.1`; the
+  pin stays read at R_1 as ledger Ruling 26 says, and the base pin, a commit of the default branch the ticket branch
+  cannot rewrite, stops one commit from lowering the pin with the record and restoring it after (plan critique 1.3)
+  — cost if wrong: a branch started from a default-branch commit older than the cut-over keeps version 1 however
+  old that start is, as a ticket in flight at the upgrade does.
 - Ruling: the walk, the record history and the round facts live in three new modules beside
   `packages/cli/src/load/fs.ts` (`walk.ts`, `record-history.ts`, `round-facts.ts`), and the core rules in new
   modules under `packages/core/src/round/` (`pin.ts`, `scope.ts`, `evidence.ts`, `grounds.ts`); `fs.ts` only
   exports `parseAfterLog` and `catBatch` — the approach names `fs.ts` and the existing core files as affected
   areas; one module per task keeps each file created and finished inside one task and `fs.ts` (1500 lines) out of
   every executor's context — cost if wrong: the code moves files at review.
-- Ruling: for a version 1 or unversioned record the host reads only the record history and the pin, and runs the
-  walk only when the pin refuses version 1 (to print each round's high) — the old rules need no walk, so a version 1
-  ticket keeps its git calls and outputs — cost if wrong: none found.
+- Ruling: for a version 1 or unversioned record the host reads only the record history, the pin and the base pin,
+  and runs the walk only when they refuse version 1 (to print each round's high) — the old rules need no walk, so a
+  version 1 ticket keeps its outputs — cost if wrong: none found.
 - Ruling: HEAD is on the default branch (D-10) when a default ref exists and the walk is empty, read with no extra
   git call; the ticket is done there only when the host read a default ref snapshot (`snapshot.defaultRef`) and the
   ticket is done in it, never through `doneOnDefault`'s fallback to the checkout, which would skip the checks of
-  every finished ticket on its own branch — cost if wrong: none found.
+  every finished ticket on its own branch; `accord gate done` reads that snapshot for every ticket whose
+  `review.md` holds a round, whatever its version, so another ticket's pull request that re-gates a done ticket
+  skips it (plan critique 1.1, 1.2) — cost if wrong: one more read of the default ref's records per gate done.
+- Ruling: when the commit that adds `review.md` along first parents is a merge whose first parent lacks it, the
+  record's history goes on along the merged-in side — a ticket merged into the default branch, before or after
+  verify, otherwise gets the merge as R_1 and that commit's pin (plan critique 1.2); ledger Ruling 22's first-parent
+  reading is kept on each side — cost if wrong: a review.md that two branches both added is read on the side the
+  merge's first other parent holds.
+- Ruling: the fixtures of the existing tests (`packages/cli/test/helpers/samples.ts` `REVIEWED` and `UNFINISHED`,
+  `packages/cli/test/helpers/worktree.ts` `REVIEWED`, and the records `packages/cli/test/round.test.ts`,
+  `lane-s.test.ts` and `lane-flow.test.ts` commit under `CONFIG` before running `accord gate done` or
+  `accord round`; core tests that load records with no round facts are not touched by the cut-over) move at the release that sets `CONFIG`'s pin to the new version, not in this ticket: that release commits
+  an explicit `accord: "0.3.0"` at their first round or converts them to version 2, and records the goldens again —
+  this ticket ships no release and `CONFIG` must equal the running CLI's version; moving them now would rewrite
+  goldens for no behaviour change (plan critique 1.4) — cost if wrong: the release pull request carries that
+  fixture work, and its suite fails until it is done.
 - Ruling: under D-10 the D-08 deferred set is every finding written `deferred` whose Deferred line exists, with no
   git fact, and the notice is a warning-level rule `gate.review-scope-skipped` — the checks were run on the branch,
   and a warning prints a line without changing the exit code — cost if wrong: on the default branch a finding
@@ -147,10 +176,18 @@ four criteria's rules; Task 9 changes the text the sessions follow.
   (ac-4) and `gate.fix-file-unexplained` (ac-5), all errors in both Done tables — one id per criterion so a failure
   names its rule — cost if wrong: a rename.
 - Ruling: the `(added code round 1)` mark is asked on a round not headed `(final review)` whose span holds added code,
-  except the first such round of its cycle, where it is allowed and not asked (its count is 1 anyway), and is refused
-  on a round whose span holds none; `accord round` prints `Added code:` when the span of the next round holds added
-  code — ledger Ruling 11 has gate done refuse a mark git does not support, and the session needs to know when to
-  write it — cost if wrong: a session must mark a round it could have left unmarked.
+  except the first round of its cycle not headed `(final review)`, where it is allowed and not asked (its count is 1
+  anyway); it is refused only on a round whose span holds no merge and no episode commit, so a clean merge allows
+  it without asking it; `accord round` prints `Added code:` when the span of the next round holds added code —
+  ledger Ruling 11 has gate done refuse a mark git does not support, and some git versions list a path in a clean
+  merge's remerge diff (the approach's Risks): with this rule a record that passes on the git that asks the mark
+  passes on every git, and only a git that asks it where the author's git did not can fail once, fixed by adding
+  the mark (plan critique 1.5) — cost if wrong: a session must mark a round it could have left unmarked, and on such
+  a git the gate can ask one more round after a clean merge.
+- Ruling: `packages/core/skills/review/record.md` keeps, for a version 1 record only, the package forms the version 1
+  loop used (`--base` the HEAD sha noted after committing a round with a Must, and `--base <sha>` when
+  `accord anchor` prints `Review base: <sha>`) — a version 1 ticket in flight keeps its old rules (plan critique
+  1.6) — cost if wrong: none found.
 - Ruling: `accord round` refuses on the record-against-git problems of a version 2 record (and on the version
   cut-over), as it refuses an unreadable record — a wrong head is cheaper to retype before the next round — cost if
   wrong: one more refusal to fix during review.
@@ -325,51 +362,69 @@ Gives every finding the form D-04 has the CLI check: one location, a state and e
 
 covers: D-12
 files: packages/core/src/round/pin.ts (new), packages/core/src/index.ts, packages/cli/src/load/record-history.ts (new), packages/cli/src/load/fs.ts, packages/cli/test/record-history.test.ts (new)
-verify: packages/cli/test/record-history.test.ts#risk:complex-branching-the-round-commits-and-the-pin-are-read-along-first-parents-through-a-merge-of-main-that-changes-config.yml, packages/cli/test/record-history.test.ts#risk:complex-branching-a-debug-episode-left-open-ends-at-the-first-review-round-recorded-after-it-opened
+verify: packages/cli/test/record-history.test.ts#risk:complex-branching-the-round-commits-and-the-pin-are-read-along-first-parents-through-a-merge-of-main-that-changes-config.yml, packages/cli/test/record-history.test.ts#risk:complex-branching-a-debug-episode-left-open-ends-at-the-first-review-round-recorded-after-it-opened, packages/cli/test/record-history.test.ts#risk:complex-branching-a-ticket-branch-merged-into-the-default-branch-is-read-on-its-merged-in-side
 
-Reads, from git, which commit recorded each round (R_j), the pin at the first round and each debug episode's
-commits (D-12, ledger Rulings 22, 26).
+Reads, from git, which commit recorded each round (R_j), the pin at the first round, the base pin and each debug
+episode's commits (D-12, ledger Rulings 22, 26; plan critique 1.2, 1.3).
 
 **Test first**, in the new `packages/cli/test/record-history.test.ts`, calling `readHistory` and `readWalk` (Task 1)
-directly on real sandboxes:
+directly on real sandboxes. `pinned(v)` is `CONFIG` with its `accord:` line replaced by `accord: "<v>"`; no test here
+takes a pin from `CONFIG` itself (the preamble's rule for the release).
 1. `risk:complex-branching the round commits and the pin are read along first parents through a merge of main that changes config.yml`:
-   `main` holds `CONFIG` and T-1; on `t/T-1` commit `src/a.ts` (A), then `accord/tickets/T-1/review.md` as a version
-   1 record with one round (commit B1). On `main` commit `accord/config.yml` with `accord: "0.3.1"` and
-   `accord/tickets/T-1/review.md` holding three rounds (M1). Merge `main` into `t/T-1`: `review.md` conflicts (both
-   added it); keep the branch's with `gitRun(repo, 'checkout', '--ours', '--', 'accord/tickets/T-1/review.md')`, the
-   config takes main's text, and `commitMsg` finishes the merge. `readHistory(repo, 'T-1', undefined, '0.3.1')` gives
-   `rounds` `[B1]`, `pin` `0.3.0` and `pinAt` B1 — not main's three rounds, not HEAD's or main's pin.
+   `main` holds `pinned('0.3.0')` and T-1 (commit Base); on `t/T-1` commit `src/a.ts` (A), then
+   `accord/tickets/T-1/review.md` as a version 1 record with one round (commit B1). On `main` commit
+   `accord/config.yml` as `pinned('0.4.0')` and `accord/tickets/T-1/review.md` holding three rounds (M1). Merge `main`
+   into `t/T-1`: `review.md` conflicts (both added it); keep the branch's with
+   `gitRun(repo, 'checkout', '--ours', '--', 'accord/tickets/T-1/review.md')`, the config takes main's text, and
+   `commitMsg` finishes the merge. `readHistory(repo, 'T-1', undefined, '0.4.0', { def: 'refs/heads/main' })` gives
+   `rounds` `[B1]`, `pin` `0.3.0`, `pinAt` B1, `basePin` `0.3.0` and `baseAt` Base (the merge base of B1, not of
+   HEAD, with `main`) — not main's three rounds, not HEAD's or main's pin.
 2. `risk:complex-branching a debug episode left open ends at the first review round recorded after it opened`: on
    `t/T-1` commit `src/a.ts` (C1); a version 2 `review.md` with round 1 (R1); `debug.md` with `## Episode 1` (O);
    `src/e.ts` (E1); `review.md` with round 2 added (R2); `src/f.ts` (F, the episode still open, no `## Resolved`).
-   With the walk of `readWalk(repo, { laneS: false, def: 'refs/heads/main', baseline: undefined })`, `rounds` is
+   With `walk = readWalk(repo, { laneS: false, def: 'refs/heads/main', baseline: undefined })`,
+   `readHistory(repo, 'T-1', walk, undefined, { def: 'refs/heads/main' })` gives `rounds`
    `[R1, R2]`, and `episodes` is one entry with `open` O, `end` R2 and `commits` holding E1 and neither O, R2 nor F.
    Then append `## Resolved` to `debug.md` (commit Z), then `## Episode 2` (commit O2), `src/g.ts` (E2) and a second
    `## Resolved` (Z2), with no round after them: episode 1 still ends at R2 (it came before Z), and episode 2 has
    `end` Z2 and `commits` holding E2 and Z2 but not O2.
+3. `risk:complex-branching a ticket branch merged into the default branch is read on its merged-in side`: `main`
+   holds `pinned('0.3.0')` and T-1; on `t/T-1` commit `src/a.ts`, then a version 1 `review.md` with one round (B1),
+   then a second round added (B2). On `main` commit `accord/config.yml` as `pinned('0.3.1')`, then
+   `mergeMsg(repo, 't/T-1', 'merge T-1')` while on `main` (M_T; along `main`'s first parents `review.md` is added by
+   M_T). `readHistory(repo, 'T-1', undefined, '0.3.1', { def: 'refs/heads/main' })` run on `main` gives `rounds`
+   `[B1, B2]`, `pin` `0.3.0` and `pinAt` B1 — not M_T and not its pin `0.3.1`.
 
 **Interface.**
 - New core `packages/core/src/round/pin.ts`, exported from `index.ts`: `RECORD_V2_FROM = '0.3.1'`;
   `pinOf(configText: string): string | undefined` (the top-level `accord:` string, read with `parseYamlMap` from
-  `load/yaml.ts`, so a config the schema refuses still gives its pin); `pinAllowsV1(pin: string | undefined): boolean`
-  (true only for a plain `x.y.z` numerically below `RECORD_V2_FROM`).
+  `load/yaml.ts`, so a config the schema refuses still gives its pin); `pinAllowsV1(pin: string | undefined,
+  basePin?: string): boolean` (true only when `pin` is a plain `x.y.z` numerically below `RECORD_V2_FROM` and, when
+  `basePin` is a plain `x.y.z`, not numerically below `basePin`: the Terms' *allowed*).
 - `packages/cli/src/load/fs.ts` exports `catBatch` unchanged.
 - New `packages/cli/src/load/record-history.ts`:
   ```ts
   export interface RecordHistory {
     rounds: string[]; // R_1..R_c, full lower-case shas, c = the rounds committed
     pin?: string; pinAt?: string; // the pin at R_1 and R_1; with no committed round, pin = headPin and no pinAt
+    basePin?: string; baseAt?: string; // the Terms' base pin and the commit it was read at
     episodes: { open: string; end?: string; commits: Set<string> }[]; // empty when no walk is given
   }
-  export function readHistory(root: string, id: string, walk: Walk | undefined, headPin: string | undefined): RecordHistory | { error: string };
+  export function readHistory(root: string, id: string, walk: Walk | undefined, headPin: string | undefined,
+    o: { def?: string; baseline?: string }): RecordHistory | { error: string };
   ```
-  One `git log` (the common flags, `--first-parent -z --format=%x01%H --name-status --no-renames HEAD --
+  One `git log` (the common flags, `--first-parent -z --format=%x01%H%x00%P --name-status --no-renames HEAD --
   :(literal)accord/tickets/<id>/review.md :(literal)accord/tickets/<id>/debug.md`) lists, newest first, the
   first-parent commits that change either file with each file's status; `review.md`'s history starts at its newest
-  `A` status. One `catBatch` reads `<sha>:accord/tickets/<id>/review.md` and `<sha>:accord/config.yml` for each
-  of those `review.md` commits, and `<sha>:accord/tickets/<id>/debug.md` for each `debug.md` commit when a walk is
-  given. R_j is the last commit at which the round count of `parseRounds(…, 'review')` (all cycles) rose to j. The
-  pin is `pinOf` of the config at R_1. Episodes follow the Terms, headings found by `^## Episode\b` and
+  `A` status. When that commit has more than one parent (its first parent lacks `review.md`), one `catBatch` of
+  `<parent>:accord/tickets/<id>/review.md` over its other parents finds the first that holds it, and the same log run
+  from that parent instead of `HEAD` gives the history before the merge; this repeats while the oldest `A` is such a
+  merge (the Terms' record commit). One `catBatch` then reads `<sha>:accord/tickets/<id>/review.md` and
+  `<sha>:accord/config.yml` for each `review.md` commit, and `<sha>:accord/tickets/<id>/debug.md` for each
+  `debug.md` commit when a walk is given. R_j is the last commit at which the round count of
+  `parseRounds(…, 'review')` (all cycles) rose to j. The pin is `pinOf` of the config at R_1. The base pin is `pinOf`
+  of `<base>:accord/config.yml`, `base` being `git merge-base <R_1 or HEAD> <o.def>` (exit 1, no common commit:
+  no base pin) or, with no `o.def`, `o.baseline`; one more `catBatch` reads it. Episodes follow the Terms, headings found by `^## Episode\b` and
   `^## Resolved\b` outside fenced blocks, "after" decided by the order of the log; reachability by `reach` (Task 1).
   Any git failure (including `catBatch`'s UsageError) gives `{ error: 'git failed reading the record history: <reason>' }`.
 - Must not change: `catBatch` and every other `fs.ts` function.
@@ -393,9 +448,11 @@ and `spawnLog.fail = (a) => …` from `./helpers/git-spawns.js`, and reset both 
    (R1); `src/a.ts` changed (F1); `debug.md` `## Episode 1` (O); `src/e.ts` (E1); on `main` `src/m.ts`; merge `main`
    cleanly with `mergeMsg` (Mg); `review.md` with `## Round 2 head <E1>` added (R2). Assert `heads[0]` is
    `{ high: C1, bound: true }`, `heads[1]` has `low` C1 and `bound` true (its `high` is E1 or Mg: some git versions
-   list a path in a clean merge's remerge diff, so the test does not pin it), `ranges[0]` holds exactly F1 `commit`
-   with `['src/a.ts']`, O `commit` and E1 `episode` with `['src/e.ts']`, `ranges[1]` holds exactly Mg `merge` and R2
-   `commit`, main's own commit is in neither, and `pin` is `0.3.0`.
+   list a path in a clean merge's remerge diff, so the test does not pin it), `ranges[0]` holds exactly R1 `commit`
+   with `['accord/tickets/T-1/review.md']` (records-only commits stay in a range; only the rules leave them out), F1
+   `commit` with `['src/a.ts']`, O `commit` with `['accord/tickets/T-1/debug.md']` and E1 `episode` with
+   `['src/e.ts']`, `ranges[1]` holds exactly Mg `merge` and R2 `commit`, and main's own commit is in neither. (No
+   pin is asserted here: the pin comes from `CONFIG`, which the release moves.)
 2. `risk:complex-branching a failed remerge read fails closed only when the range holds a merge`: with
    `spawnLog.fail = (a) => a.includes('--remerge-diff')`, the facts of a version 2 record on a branch with no merge
    are not an error; after merging `main` they are `{ error }` holding `git 2.36`.
@@ -414,7 +471,7 @@ and `spawnLog.fail = (a) => …` from `./helpers/git-spawns.js`, and reset both 
   export interface HeadFact { high: string; low?: string; bound?: boolean | 'unknown' } // bound: version 2 only; 'unknown': the head names no commit
   export type RoundFacts =
     | { error: string }
-    | { pin?: string; pinAt?: string; skip?: 'on-default'; heads: HeadFact[]; ranges: RangeCommit[][] };
+    | { pin?: string; pinAt?: string; basePin?: string; baseAt?: string; skip?: 'on-default'; heads: HeadFact[]; ranges: RangeCommit[][] };
   ```
   `SnapshotInput` and `RepoSnapshot` gain `roundFacts?: Record<string, RoundFacts>` (ticket id → facts), carried
   through by `packages/core/src/load/snapshot.ts` as `returnFacts` is, absent when the host supplies none.
@@ -424,9 +481,12 @@ and `spawnLog.fail = (a) => …` from `./helpers/git-spawns.js`, and reset both 
   export function withRoundFacts(root: string, snapshot: RepoSnapshot, id: string): RepoSnapshot; // snapshot itself when undefined
   ```
   undefined when the ticket has no lane, no round in `review.md`, or `snapshot.git` is absent. `def = defaultRefOf(root)`.
-  - Version 1 or unversioned: `readHistory(root, id, undefined, snapshot.config?.accord)`; when `pinAllowsV1(pin)`,
-    `{ pin, pinAt, heads: [], ranges: [] }`; otherwise the walk, and when `def` exists and the walk is empty
-    `{ pin, pinAt, skip: 'on-default', heads: [], ranges: [] }`, else each round's `{ high }`, ranges `[]`.
+  Every `readHistory` call passes `{ def, baseline: <the plan's baseline:> }`, and its `pin`, `pinAt`, `basePin`
+  and `baseAt` are copied into the facts.
+  - Version 1 or unversioned: `readHistory(root, id, undefined, snapshot.config?.accord, …)`; when
+    `pinAllowsV1(pin, basePin)`, `{ pin, pinAt, basePin, baseAt, heads: [], ranges: [] }`; otherwise the walk, and
+    when `def` exists and the walk is empty the same with `skip: 'on-default'`, else each round's `{ high }`,
+    ranges `[]`.
   - Version 2: the walk (an error is the facts' error); `def` set and the walk empty gives
     `{ skip: 'on-default', heads: [], ranges: [] }`; then `readHistory` with the walk; then the typed heads resolved
     in one `git cat-file --batch-check` (input lines `<sha>^{commit}`; a `missing` or `ambiguous` answer is
@@ -443,7 +503,7 @@ and `spawnLog.fail = (a) => …` from `./helpers/git-spawns.js`, and reset both 
 
 covers: D-04, D-10, D-13
 files: packages/core/src/round/scope.ts (new), packages/core/src/gate/rounds.ts, packages/core/src/gate/rules.ts, packages/core/src/index.ts, test/helpers/review-v2.ts (new), packages/core/test/review-scope.test.ts (new)
-verify: packages/core/test/review-scope.test.ts#risk:complex-branching-a-final-review-round-stands-once-per-stretch-as-its-last-round-or-the-one-before, packages/core/test/review-scope.test.ts#risk:complex-branching-the-added-code-mark-is-asked-exactly-where-a-debug-episode-or-a-merge-added-code
+verify: packages/core/test/review-scope.test.ts#risk:complex-branching-a-final-review-round-stands-once-per-stretch-as-its-last-round-or-the-one-before, packages/core/test/review-scope.test.ts#risk:complex-branching-the-added-code-mark-is-asked-exactly-where-a-debug-episode-or-a-merge-added-code, packages/core/test/review-scope.test.ts#risk:security-a-version-1-record-whose-first-round-lowers-the-pin-below-the-branch-start-is-refused
 
 The pure rules that hold the record to git (D-04's form check, ledger Rulings 11, 21, 23, 26, 28) and the D-10 skip.
 
@@ -455,13 +515,15 @@ The pure rules that hold the record to git (D-04's form check, ledger Rulings 11
   cycle but the last closed by `verdict: converged`) each round as
   `## Round <p> head <head ?? H(j)>[ (added code round 1)| (final review)]` and its lines (`No findings` when empty),
   then `tail`.
-- `facts(ranges: RangeCommit[][], o: { heads?: HeadFact[]; pin?: string; skip?: 'on-default' } = {})`: round
-  facts whose heads default to `{ high: H(j), bound: true }`.
-- `scopeSnapshot(o: { id?: string; lane?: 'M' | 'S'; review: string; ledger?: string; facts?: RoundFacts; branch?: BranchFact })`:
+- `facts(ranges: RangeCommit[][], o: { heads?: HeadFact[]; pin?: string; basePin?: string; skip?: 'on-default' } = {})`:
+  round facts whose heads default to `{ high: H(j), bound: true }`.
+- `scopeSnapshot(o: { id?: string; lane?: 'M' | 'S'; review: string; ledger?: string; facts?: RoundFacts; branch?: BranchFact; doneOnDefault?: true })`:
   `loadSnapshot` of `CONFIG`, the ticket (lane M through `done(files, id)`, lane S through
   `laneTicket(id, { lane: 'S', body: LANE_S_BODY })`), the ledger `## Rulings\n- task 1 done abc1234\n- task 2 done abc1234\n`
   plus `o.ledger`, the review, `roundFacts: { [id]: o.facts }` when given, `branchFacts` when given, and
-  `returnFacts` confirming every `abc1234def<k>` marker.
+  `returnFacts` confirming every `abc1234def<k>` marker; with `doneOnDefault`, `defaultRef` is
+  `{ ref: 'refs/heads/main', snapshot: <that same snapshot> }`, so a lane M ticket whose review ends in
+  `verdict: converged` is done on the default branch.
 
 **Test first**, in the new `packages/core/test/review-scope.test.ts`, reading `gateDone(…).findings` filtered to
 `gate.review-scope`:
@@ -473,12 +535,23 @@ The pure rules that hold the record to git (D-04's form check, ledger Rulings 11
 2. `risk:complex-branching the added code mark is asked exactly where a debug episode or a merge added code`: lane
    M, rounds 1..4 of cycle 1 with `ranges[1]` (round 2's range) holding
    (a) `commit(['src/m.ts'], 'merge')`: round 3 unmarked fails (`needs (added code round 1)`), marked passes;
-   (b) `commit([], 'merge')`: round 3 marked fails (`remove the mark`), unmarked passes;
-   (c) `commit(['src/e.ts'], 'episode')` asks the mark; `commit(['accord/tickets/T-1/debug.md'], 'episode')` does not;
-   (d) rounds 1, 2, 3 `(final review)`, 4 with the merge in `ranges[1]`: round 4 unmarked fails;
-   (e) the merge in the range before round 1 of cycle 2: that round passes marked and unmarked;
-   (f) `ranges[3]` (after the last round) holding the merge fails with `no round has reviewed`.
+   (b) `commit([], 'merge')` (a clean merge, as one git lists it) and `commit(['src/m.ts'], 'merge')` with
+   `src/m.ts` only main's (as another git lists the same merge): with the empty list round 3 passes both marked and
+   unmarked; with the listed path it passes marked and fails unmarked, so the marked record passes under both;
+   (c) `commit(['src/e.ts'], 'episode')` asks the mark; `commit(['accord/tickets/T-1/debug.md'], 'episode')` does not
+   ask it and allows it;
+   (d) only `commit(['src/a.ts'])` and `commit(['accord/tickets/T-1/review.md'])`: round 3 marked fails
+   (`remove the mark`), unmarked passes;
+   (e) rounds 1, 2, 3 `(final review)`, 4 with the merge with `src/m.ts` in `ranges[1]`: round 4 unmarked fails;
+   (f) that merge in the range before round 1 of cycle 2: that round passes marked and unmarked;
+   (g) `ranges[3]` (after the last round) holding that merge fails with `no round has reviewed`.
    A version 1 record with the same facts and pin `0.3.0` gives no `gate.review-scope` finding.
+3. `risk:security a version 1 record whose first round lowers the pin below the branch start is refused`: a lane M
+   version 1 record (`Round record: 1\n\n## Round 1\n\nNo findings\n\nverdict: converged\n`) with facts
+   `{ pin: '0.3.0', basePin: '0.3.1', heads: [{ high: H(1) }], ranges: [] }` fails and the reason holds `0.3.0`,
+   `0.3.1` and `Round record: 2`; with `basePin: '0.3.0'`, or with no `basePin`, it passes; with `basePin: '0.3.1'`
+   and `doneOnDefault`, `gate.review-scope` is empty and `gate.review-scope-skipped` holds one warning (a done
+   ticket re-gated on another ticket's branch, plan critique 1.2).
 
 **Interface** (new `packages/core/src/round/scope.ts`; `index.ts` exports `scopeProblems` and `pendingAddedCode`):
 ```ts
@@ -496,20 +569,22 @@ export const reviewScopeSkipped: GateRule['check'];
 ```
 `scopeProblems` is `[]` without a lane ticket, a review record with a round, or facts. Otherwise, in this order:
 1. Not version 2: when the facts are an error, that error (`the review scope cannot be checked: <error>`); when
-   skipped or `pinAllowsV1(pin)`, nothing; else one problem at line 1: `review.md is a version 1 record, but
-   accord/config.yml pins <pin or "no release"> at <pinAt's first 12 characters or HEAD>, and from accord 0.3.1 a
-   record is version 2: set its first line to Round record: 2, head each round ## Round <n> head <sha> with a commit
-   above the previous round's head and at or below the one listed (<"round p of cycle k: high" for every round,
-   joined by "; ">), give each finding one location, then add the marks or Rulings accord gate done asks`.
+   skipped or `pinAllowsV1(pin, basePin)`, nothing; else one problem at line 1: `review.md is a version 1 record,
+   but accord/config.yml pins <pin or "no release"> at <pinAt's first 12 characters or HEAD>` + (when the pin is
+   below the cut-over but below the base pin) ` below <basePin> at <baseAt's first 12 characters>, the commit this
+   branch started from` + `, and from accord 0.3.1 a record is version 2: set its first line to Round record: 2,
+   head each round ## Round <n> head <sha> with a commit above the previous round's head and at or below the one
+   listed (<"round p of cycle k: high" for every round, joined by "; ">), give each finding one location, then add
+   the marks or Rulings accord gate done asks`.
 2. Version 2: an error is `the review scope cannot be checked: <error>` and nothing else; skipped gives nothing.
 3. Heads, at each round's heading line: `bound: 'unknown'` gives `round <p> of cycle <k>: head <head> names no
    commit in this repository; after a rebase, retype each round's head to the commit that now holds the same change,
    at or below <high>`; `bound: false` gives `round <p> of cycle <k>: head <head> is not between <low or "the
    branch start"> and <high> in HEAD's history; type the Head: line accord review-package printed for this round`.
-4. Marks (the Ruling on the mark): a marked round whose span holds no added code gives `round <p> of cycle <k> is
-   headed (added code round 1), but no debug episode or merge added code since the round before it; remove the
-   mark`; an unmarked round, not `(final review)` and not the first such round of its cycle, whose span holds added
-   code gives `round <p> of cycle <k> reviews code a debug episode or a merge added (<first 12 characters of each
+4. Marks (the Ruling on the mark): a marked round whose span holds no merge and no episode commit (whatever paths
+   they list) gives `round <p> of cycle <k> is headed (added code round 1), but no debug episode or merge comes
+   since the round before it; remove the mark`; an unmarked round, not `(final review)` and not the first round of
+   its cycle not headed `(final review)`, whose span holds added code gives `round <p> of cycle <k> reviews code a debug episode or a merge added (<first 12 characters of each
    sha>) and its heading needs (added code round 1)`.
 5. Final review: in lane S, `round <p> of cycle <k> is headed (final review), but lane S has no final review`; in
    lane M, a final review round not the last round of its stretch or the one before it, or a second one in its
@@ -532,6 +607,10 @@ headed `(final review)` (the record's last round when the cycle has none) throug
 reports the version refusal. Must not change: every other row and table, and every check of `rounds.ts` for a
 record whose pin allows version 1.
 
+`pinAllowsV1(pin, basePin)` is Task 3's. A git that lists a path in a clean merge's remerge diff asks the mark where
+another git does not; by rule 4 it is never refused on a span holding a merge, so the record that passes the asking
+git passes every git (plan critique 1.5); test 2 (b) holds both listings.
+
 ## Task 6: `accord round` and `accord gate done` read the round facts
 
 covers: D-10
@@ -548,16 +627,18 @@ and D-10 on real repositories.
    `refused` with a reason holding `is not between`; with every head bound and the last range holding
    `commit(['src/m.ts'], 'merge')`, the answer is `next` and `roundText` holds
    `Added code: head round 3 as ## Round 3 head <sha> (added code round 1)`; with the merge in no range, no
-   `Added code:` line; a version 1 record with facts `{ pin: '0.3.1', heads: [{ high: H(1) }], ranges: [] }` is
-   refused with a reason holding `Round record: 2`, and with pin `0.3.0` it is answered as at the baseline.
+   `Added code:` line; a version 1 record with facts `{ pin: RECORD_V2_FROM, heads: [{ high: H(1) }], ranges: [] }`
+   is refused with a reason holding `Round record: 2`, and with pin `0.3.0` it is answered as at the baseline.
 2. New `packages/cli/test/review-scope-gate.test.ts`, each test reading `run(['gate', 'done', '<id>', '--json'], repo)`
-   and filtering `JSON.parse(out).findings` by rule:
-   - `risk:complex-branching a version 1 record is refused when the pin at its first round is at the cut-over`: on
-     `t/T-1` commit code, then `accord/config.yml` with `accord: "0.3.1"` together with a version 1 `review.md`
-     (R_1), then `accord/config.yml` back to `CONFIG` so the CLI's own pin check passes. `gate.review-scope` holds
-     `Round record: 2` and `0.3.1`; `run(['round', 'T-1'], repo)` exits 1 and prints `refused:` with
-     `Round record: 2`. A second ticket T-2 whose version 1 record was first committed under `CONFIG` gets no
-     `gate.review-scope` finding.
+   and filtering `JSON.parse(out).findings` by rule. `pinned(v)` is `CONFIG` with its `accord:` line replaced by
+   `accord: "<v>"`; HEAD's config is always `CONFIG`, so the CLI's own pin check passes now and at the release.
+   - `risk:complex-branching a version 1 record is refused when the pin at its first round is at the cut-over`: the
+     `main` base commit holds `pinned('0.3.0')` and tickets T-1 and T-2; on `t/T-1` commit code, then a version 1
+     `accord/tickets/T-2/review.md` (T-2's R_1, config still `pinned('0.3.0')`), then `accord/config.yml` as
+     `pinned(RECORD_V2_FROM)` together with a version 1 `accord/tickets/T-1/review.md` (T-1's R_1), then
+     `accord/config.yml` as `CONFIG` together with a code change. For T-1, `gate.review-scope` holds
+     `Round record: 2` and `RECORD_V2_FROM`, and `run(['round', 'T-1'], repo)` exits 1 and prints `refused:` with
+     `Round record: 2`; T-2 gets no `gate.review-scope` finding.
    - `risk:complex-branching gate done names an unreadable head and a head typed past the last code commit of its round`:
      code C1, a version 2 `review.md` with `## Round 1 head deadbeef` (R_1), code F: `gate.review-scope` holds
      `names no commit in this repository` and `retype`; then the heading retyped to F's sha and committed:
@@ -565,12 +646,20 @@ and D-10 on real repositories.
    - `risk:complex-branching gate done skips the review scope checks with a notice when HEAD is on the default branch`:
      a version 2 record on `t/T-1` whose head is `deadbeef`, merged into `main` with
      `gitRun(repo, 'merge', '--ff-only', 't/T-1')` after `switch main`: `gate.review-scope-skipped` is present with
-     level `warning` and `gate.review-scope` is absent.
+     level `warning` and `gate.review-scope` is absent. Then the ticket done there, with a non-empty walk (plan
+     critique 1.1): the same sandbox also holds lane S ticket S-1 (`laneTicket('S-1', { lane: 'S', body: LANE_S_BODY })`,
+     `run(['gate', 'ready', 'S-1'])` passed and committed) with a version 2 `accord/tickets/S-1/review.md`
+     `Round record: 2\n\n## Round 1 head deadbeef\n\nNo findings\n\nverdict: converged\n`, all on `main`; from `main`
+     switch to a new `t/T-2` and commit `src/t2.ts`. There `gate done S-1 --json` holds `gate.review-scope-skipped`
+     and neither `gate.review-scope` nor any `gate.fix-file-unexplained`, `gate.finding-evidence` or
+     `gate.finding-grounds` finding (the walk holds `src/t2.ts`, so only the done-there read skips).
 
 **Interface.**
 - `packages/cli/src/commands/gate.ts`: for `done`, `forRounds` becomes `withRoundFacts(ctx.root,
-  withReturnFacts(ctx.root, gated, id), id)`; `withDefaultRef` is applied when the review record is unversioned with
-  a round (as today) or version 2.
+  withReturnFacts(ctx.root, gated, id), id)`; `withDefaultRef` is applied whenever the ticket's `review.md` holds a
+  round, whatever its version (it was applied only to an unversioned record with a round), so the done-there skip
+  reaches version 1 records too (plan critique 1.2). Outputs of a version 1 record whose pin is allowed do not
+  change: only `rounds.ts`'s unversioned branch and Task 5's `skipped` read `defaultRef` at Done.
 - `packages/cli/src/commands/round.ts`: for the review record, the snapshot is
   `withRoundFacts(ctx.root, withReturnFacts(ctx.root, ctx.snapshot, id), id)`; `--plan` is unchanged.
 - `packages/core/src/round/next.ts`: `nextRound` for kind `review`: an unversioned record with a round is refused
@@ -674,6 +763,9 @@ ac-4 from round 3 only (D-07), lane S quotes (D-11), and ac-5 with D-14's exempt
    `- Ruling: src/c.ts holds the helper the fix needed — the header writer moved there — cost if wrong: one file reviewed twice`
    and the same for `src/d.ts`, none. In the same snapshot `gate.finding-evidence` (Task 7) does not name round 3's
    Must: `src/gen/y.ts`, exempt for ac-5, still counts among round 2's fix files for ac-2 (D-03, ledger Ruling 24).
+   Without the Rulings, the same snapshot built with `doneOnDefault` (the record ending `verdict: converged`), with
+   facts carrying `skip: 'on-default'`, with facts `{ error: 'x' }`, or as a version 1 record gives no
+   `gate.fix-file-unexplained` finding (D-10, plan critique 1.1).
 3. `risk:parsing a ruling names a path only as a whole token`: with fix file `src/c.ts`, the Rulings
    `- Ruling: src/c.tsx moved — reason — cost`, `- Ruling: xsrc/c.ts moved — reason — cost`,
    `- Ruling: src/c.ts.bak kept — reason — cost` and `- Ruling: src/c.ts moved` (no reason) explain nothing; each of
@@ -696,7 +788,9 @@ line, reason `round <p> of cycle <k>, finding <n>: from round 3 a Should rests o
 or command:; otherwise it is a Nice`. Quotes need at least three whitespace-separated words and are found in the
 section text with comments stripped and whitespace collapsed; `D-nn` must start a line of `## Decisions` (list marker
 stripped) followed by a space or the line's end; `ac-n` must be a scenario's `acTag`.
-`fixFileUnexplained`: for each round j, the paths of the fix commits of range j that are not own records and, when
+`fixFileUnexplained` checks nothing unless the record is version 2 and its facts are neither an error nor skipped
+(Task 5's `skipped`, which also holds when the ticket is done on the default branch) and have ranges, the same guard
+as `needsEvidence` and `needsGrounds`. Then, for each round j, the paths of the fix commits of range j that are not own records and, when
 `factOf(snapshot, id)` (from `gate/scope.ts`) is a readable branch fact, not `isExempt(id, fact, path)`; each path no
 finding of that round is located in and no ledger `rulings` line mentions (with ` — ` followed by text) gives, at
 the round's heading line: `<path> changed by the fix of round <p> of cycle <k> (<first 12 characters of each sha>)
@@ -718,7 +812,8 @@ told to write (D-01).
   rendered files (`flatText` as the file already uses): `.claude/skills/accord-review/record.md` holds
   `Round record: 2`, ``## Round <n> head <sha>``, `(added code round 1)`, `(final review)`, `` `Head: <sha>` ``,
   `` `carried from <r>.<n>` ``, `` `risk: data-loss` ``, `` `test: <test id>` ``, `` `rests on: ac-<n>` ``,
-  `- review <r>.<n> cycle <k>: <finding>` and `` `generated:` ``; review SKILL.md's step 2 holds `` `Head: <sha>` ``
+  `- review <r>.<n> cycle <k>: <finding>`, `` `generated:` ``, ``--base <the noted sha>`` and
+  `` `Review base: <sha>` `` (the version 1 sentence); review SKILL.md's step 2 holds `` `Head: <sha>` ``
   and `after that head`, step 4 holds ``re-review only the fix diff: `accord review-package <id>` into`` and not
   `--base <the noted sha>`, step 7 holds ``--base <the plan's baseline:>`` and `(final review)`;
   `.claude/skills/accord/lane-s.md` holds `Round record: 2`, `` `rests on: Understood "<quote>"` `` and
@@ -758,7 +853,10 @@ told to write (D-01).
   - The version sentence becomes: ``Its first line is `Round record: 2`, above every heading, and its only headings
     are `## Round <n> head <sha>` and `## Return from verify <sha>`. A record whose first round was committed while
     `accord/config.yml` pinned accord 0.3.0 or earlier keeps its `Round record: 1` and its `## Round <n>` headings,
-    without heads or marks.``
+    without heads or marks, and its old packages: after committing a round, note the HEAD sha, and re-review a
+    round with a Must with `accord review-package <id> --base <the noted sha>`; when `accord anchor` prints
+    `Review base: <sha>`, build the package with `accord review-package <id> --base <sha>`.`` (the Ruling on version
+    1 text, plan critique 1.6).
   - The fenced form becomes `## Round <n> head <sha>`, a blank line, and
     `Must|Should|Nice <n> [patch|plan-gap|intent-gap]: <finding> — <path>[:<line>] | none — fixed in <sha> | deferred | open[ — <mark>]…`.
   - First bullet: `One `## Round <n>` section` becomes `One `## Round <n> head <sha>` section`. After it, the bullet:

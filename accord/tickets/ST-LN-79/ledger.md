@@ -7,6 +7,7 @@
 - task 4 done 46e4373f8897
 - task 5 done d21eb917c55a
 - task 6 done 494592055d70
+- task 7 done ca2b98f01517
 
 ## Rulings
 
@@ -86,6 +87,9 @@
 - Ruling: `writeSession` in `fixed-world.ts` takes an optional `descriptions` map, defaulting to `fixed probe <agentType>` — the helper already existed — cost if wrong: none.
 - Ruling: `readCalls` skips a subagent run whose meta has no string `agentType`, and `version` is undefined when no call is kept — Claude Code always writes `agentType` — cost if wrong: such runs are missed in a row.
 - Ruling: the probe check on the existing readers lives in a shared `probeRun(meta, lines)` helper; `readRun` returns null for a probe run and `readSessions` skips it before reading its refusals; `readSessions` still lists a probe run found only by its session's first user line, which a real probe run never is, since it carries the description — cost if wrong: such a run appears in the older report.
+- Ruling: the agent definitions are one item (`agent-definition`, label "agent definition") with each agent's body in its own row — the plan names one label, and ten one-row items would clutter the items table — cost if wrong: Task 10 lists one line instead of one per agent.
+- Ruling: item ids are `plugin:<id>`, `mcp:<name>`, `connector:<name>`, `other-servers`, `set:<prefix>`, the text ids (`rules`, `skill-listing`, `agent-listing`, `pointer:<label>`, `doc:<label>`) and `agent-definition`; a set's label is "set gsd (3 members)"; the parts are `accord`, `claudeCode`, `plugins`, `mcp`, `docs` and `sets` — Tasks 8 to 10 read these strings — cost if wrong: they rename strings only.
+- Ruling: `measure` accepts the probe state as `{ probes: [...] }` or a bare array, uses it only to learn which `connector:` probes are planned, and throws "The probe <id> has no first call." when a needed session is missing, so callers run it only with nothing pending — cost if wrong: a caller that skips the pending check gets an exception rather than a figure.
 
 ## Deferred
 

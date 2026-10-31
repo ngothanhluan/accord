@@ -3,6 +3,7 @@
 ## Tasks
 - task 1 done c51b3a6f830a
 - task 2 done 278c0fd41e44
+- task 3 done 6b0dd94523fd
 
 ## Rulings
 
@@ -65,6 +66,9 @@
 - Ruling: (task 2) the "carried from" and repeated-number checks run in the final per-round loop, and a finding line that fails the form is not added to the round, so a round whose only finding is unreadable also reports "holds no finding" — consistent with the baseline severity-doubt behaviour — if wrong, one extra unreadable line per bad single-finding round.
 - Ruling: (task 2) a double quote or backtick protects the ' — ' split only when a closing twin exists later in the line (a lone quote is plain text), and the `[class]` and severity word match case-insensitively — keeps a stray quote from swallowing the marks — if wrong, a finding text with an odd number of quotes is read as plain text.
 - Ruling: (task 2) parseLedger reads the Deferred section, found by its heading key `deferred`, without fenced lines or comments, and stores the state `fixed in <sha>` as `state: 'fixed'` with no sha field — the interface names none — if wrong, a later reader needing the sha must parse it again.
+- Ruling: (task 3) the record history log passes `--diff-merges=first-parent` next to `--first-parent`, so a merge lists its review.md or debug.md status against its first parent on every git that has remerge-diff — the plan names only `--first-parent` and the extra flag only makes the merge status explicit — if wrong, a git older than 2.31 rejects the flag and the history read fails.
+- Ruling: (task 3) when the history goes on past a merge from the default branch, the first log is cut at that merge, so debug.md commits on that merge's first-parent line before it are not read — the plan is silent and that line cannot hold this ticket's debug.md — if wrong, an episode opened before such a merge is missed.
+- Ruling: (task 3) a review.md or debug.md whose newest entry is a deletion gives no rounds or episodes, and each file's history is cut at its newest `A` — the plan says history starts at the newest `A` — if wrong, rounds before a delete-and-re-add are lost.
 
 ## Deferred
 - plan round 1.8 (Nice): rolling back to the 0.3.0 CLI needs an owner allowance Ruling per cycle that went past round 3 with deferred findings (0.3.0 has no D-08); rolling forward sets line 1 back to `Round record: 2`

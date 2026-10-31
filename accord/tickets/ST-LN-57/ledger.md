@@ -5,6 +5,7 @@
 - task 2 done 278c0fd41e44
 - task 3 done 6b0dd94523fd
 - task 4 done d5bdab866bca
+- task 5 done a9112c25cb76
 
 ## Rulings
 
@@ -73,6 +74,9 @@
 - Ruling: (task 4) round facts bound each typed head on its own: a head that names no commit, and the head after it, get bound 'unknown', the other heads keep their normal bound, and ranges are N empty lists when any head is unresolved — the plan says "those heads" and core can skip on any 'unknown' — if wrong, a resolved head next to an unresolved one shows a bound where 'unknown' was wanted.
 - Ruling: (task 4) a failing `git cat-file --batch-check` returns `{ error: 'git cat-file --batch-check failed: <reason>' }` (plan Nice 1.9), and a readHistory error is the facts' error, also for a version 1 record whose pin allows version 1 (Nice 1.16 left it open) — failing closed is the safer default — if wrong, gate done fails where a version 1 record should pass.
 - Ruling: (task 4) a round's record commit outside the walk gets its first parent from one `git rev-parse <sha>^`, falling back to the commit itself when it has none; inside the walk no git call is made — the plan is silent — if wrong, one extra git call in a case that should not occur.
+- Ruling: (task 5) in rounds.ts the unversioned-record branch gives no `Round record: 1` finding whenever `scopeProblems` returns anything, including the "review scope cannot be checked" error — the plan words it as "reports the version refusal", and gate.review-scope still fails in both cases — if wrong, after a git error is fixed the missing-version-line finding appears one run later.
+- Ruling: (task 5) `reviewScopeSkipped` also fires for a version 1 record whose facts show the pin refuses version 1, and for any version 2 record, when `skipped` holds (D-10); with no facts and a version 1 record it stays silent — the plan names the skip, not each record kind — if wrong, one warning line is missing.
+- Ruling: (task 5) shas in the review-scope messages are cut to 12 characters, including the rounds' highs listed in the version refusal — a 12-character head is valid and copyable — if wrong, a session retypes a longer sha.
 
 ## Deferred
 - plan round 1.8 (Nice): rolling back to the 0.3.0 CLI needs an owner allowance Ruling per cycle that went past round 3 with deferred findings (0.3.0 has no D-08); rolling forward sets line 1 back to `Round record: 2`

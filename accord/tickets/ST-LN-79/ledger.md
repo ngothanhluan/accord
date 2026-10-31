@@ -10,6 +10,7 @@
 - task 7 done ca2b98f01517
 - task 8 done 3e69301c358a
 - task 9 done aae232f5945e
+- task 11 done 57ac2e9a29bf
 
 ## Rulings
 
@@ -131,6 +132,10 @@
 - Ruling: (re-plan 2, round 3 fix) task text says "its other calls" rather than "later calls" — the plan rules forbid "later" in task text — cost if wrong: none.
 
 - Ruling: the owner allows 1 more plan critique rounds after round 3 of cycle 3 — "Allow 1 more round (translated)" — cost if wrong: one more diff critic call.
+
+- Ruling: (Task 11) plugin ownership of a listing line goes to the first matching plugin in id order when two plugins share a name before the "@" — the brief says "first that applies" but not how to order plugins — cost if wrong: a line is charged to the other plugin of the same name.
+- Ruling: (Task 11) `textsOf` reads `setup.plugins` and `setup.sets` with `?? []` — the brief does not say whether they are always present — cost if wrong: none, since `readSetup` always gives them.
+- Ruling: (Task 11) the executor also changed the Task 9 measure test helpers (`mcpBlocks: {}`, `deferredTools: []`, `item`) and removed an unused `createHash` import, inside the task files — typecheck and lint failed otherwise — cost if wrong: none.
 
 ## Deferred
 

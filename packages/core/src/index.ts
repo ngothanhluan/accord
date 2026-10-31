@@ -32,6 +32,9 @@ export type {
   RoundRecord,
   BranchChange,
   BranchFact,
+  RangeCommit,
+  HeadFact,
+  RoundFacts,
 } from './model/snapshot.js';
 export { loadSnapshot } from './load/snapshot.js';
 export { parseRounds, cycleOpen, ROUND_RECORD_LINE, ROUND_RECORD_LINE_2 } from './round/record.js';

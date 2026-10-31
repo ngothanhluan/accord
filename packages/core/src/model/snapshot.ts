@@ -40,7 +40,17 @@ export interface SnapshotInput {
   branchFacts?: Record<string, BranchFact>;
   // ST-LN-17: ticket id -> each ## Return from verify sha in its review.md -> whether the host confirmed it. Absent when the host supplies none.
   returnFacts?: Record<string, Record<string, boolean>>;
+  // ST-LN-57: ticket id -> the round facts the host read from git (heads, ranges, pin). Absent when the host supplies none.
+  roundFacts?: Record<string, RoundFacts>;
 }
+
+/** ST-LN-57: one commit of a round's range: its kind and the paths it changes (for a merge, the paths its remerge diff shows). */
+export interface RangeCommit { sha: string; kind: 'commit' | 'merge' | 'episode'; files: string[] }
+/** ST-LN-57: round j's head as the host read it: `high` the nearest code commit below the round's record, `low` the previous head. */
+export interface HeadFact { high: string; low?: string; bound?: boolean | 'unknown' } // bound: version 2 only; 'unknown': the head names no commit
+export type RoundFacts =
+  | { error: string }
+  | { pin?: string; pinAt?: string; basePin?: string; baseAt?: string; skip?: 'on-default'; heads: HeadFact[]; ranges: RangeCommit[][] };
 
 /** Full shas, first parent first; `files` are the paths the commit changes (for a merge, the paths its remerge diff
  * shows), absent for a merge whose own changes git could not show. */
@@ -271,6 +281,7 @@ export interface RepoSnapshot {
   reviewFacts?: Record<string, { clean: boolean; files?: string[] }>; // carried through from SnapshotInput
   branchFacts?: Record<string, BranchFact>; // carried through from SnapshotInput
   returnFacts?: Record<string, Record<string, boolean>>; // carried through from SnapshotInput
+  roundFacts?: Record<string, RoundFacts>; // carried through from SnapshotInput
   // BUG-LN-13 D-01: host-supplied after load: the default ref as git names it ('refs/remotes/origin/main', or
   // 'refs/heads/main' in a clone without origin) and a snapshot of the records of the view's tickets and every
   // depends_on entry as that ref holds them. Only the done readers read it; absent when no default ref resolves.

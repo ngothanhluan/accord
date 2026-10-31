@@ -199,5 +199,6 @@ export function loadSnapshot(input: SnapshotInput): RepoSnapshot {
     ...(input.reviewFacts === undefined ? {} : { reviewFacts: input.reviewFacts }),
     ...(input.branchFacts === undefined ? {} : { branchFacts: input.branchFacts }),
     ...(input.returnFacts === undefined ? {} : { returnFacts: input.returnFacts }),
+    ...(input.roundFacts === undefined ? {} : { roundFacts: input.roundFacts }),
   };
 }

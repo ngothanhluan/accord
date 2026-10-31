@@ -277,3 +277,43 @@ it('risk:parsing a Ruling allows going past the round cap only in its what part,
   expect(allowsPastCap(what('- Ruling: review continues past the round cap to round 6, by the owner\'s answer — owner: "ok" — none'))).toBe(true);
   expect(allowsPastCap(what('- Ruling: review past the cap: one more round — owner: "ok" — none'))).toBe(true);
 });
+
+it('risk:regression the round cap counts each review cycle and an owner allowance in the new form covers the rounds it names', async () => {
+  const { compliance } = await load();
+  const rounds = (n: number) => Array.from({ length: n }, (_, i) => `## Round ${i + 1}\n\nbody\n`).join('\n');
+  const marker = 'verdict: converged\n\n## Return from verify abc1234\n\n';
+  const allow = (n: number, after: number, cycle: number) => `- Ruling: the owner allows ${n} more review rounds after round ${after} of cycle ${cycle} — "more" — cost if wrong: extra rounds\n`;
+  const out = compliance({
+    runs: [], refusals: [], commits: [], settings: { tierUp: 4, executorModel: 'sonnet' }, commitInfo: () => undefined, testFile: () => undefined,
+    tickets: {
+      D: { review: rounds(4) + marker + rounds(4), ledger: '' },
+      E: { review: rounds(7), ledger: allow(2, 5, 1) },
+      F: { review: rounds(7), ledger: allow(1, 5, 1) },
+      G: { review: rounds(3) + marker + rounds(6), ledger: allow(1, 5, 1) },
+    },
+  });
+  const lines = out['round-cap'];
+  expect(lines.filter((l) => l.includes(': D ') || l.includes(': E '))).toEqual([]);
+  expect(lines.filter((l) => l.startsWith('- round-cap: F review:'))).toHaveLength(1);
+  expect(lines.find((l) => l.startsWith('- round-cap: F review:'))).toContain('reached round 7');
+  expect(lines.filter((l) => l.startsWith('- round-cap: G review:'))).toHaveLength(1);
+  expect(lines.find((l) => l.startsWith('- round-cap: G review:'))).toContain('reached round 6 in cycle 2');
+  expect(lines).toHaveLength(2);
+});
+
+it('risk:regression the tier up rule stays raised in a review cycle after a return from verify', async () => {
+  const { compliance } = await load();
+  const cycle2 = '\nverdict: converged\n\n## Return from verify def5678\n\n## Round 1\n\nShould 1: x — fixed in abc1234\n';
+  const out = compliance({
+    runs: [{ agent: 'accord-executor', desc: 'Fix T-1 round 1', ticket: 'T-1', task: null, fix: true, commits: ['abc1234'], start: 0, end: 10, edits: [], reads: [], sends: [], handbacks: [], file: 'f.jsonl', dispatch: { model: 'sonnet' } }],
+    refusals: [], commits: [], settings: { tierUp: 4, executorModel: 'sonnet' },
+    commitInfo: () => ({ sha: 'abc1234'.padEnd(40, '0'), at: 5, message: 'T-1 task 3: fix' }), testFile: () => undefined,
+    tickets: {
+      'T-1': { review: '## Round 1\n\nb\n\n## Round 2\n\nb\n\n## Round 3\n\nb\n\n## Round 4\n\nb\n' + cycle2, ledger: '' },
+      'T-2': { review: '## Round 1\n\nb\n\n## Round 2\n\nb\n\n## Round 3\n\nb\n' + cycle2, ledger: '' },
+    },
+  });
+  expect(out['tier-up']).toHaveLength(1);
+  expect(out['tier-up'][0]).toContain('T-1 review round 1 in cycle 2');
+  expect(out['tier-up'][0]).toContain('asks for opus');
+});

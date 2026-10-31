@@ -23,7 +23,7 @@ const REQUIRED: Record<string, readonly string[]> = {
   accord: ['accord status --json', 'accord dashboard', 'accord new ticket', '--lane M', 'accord anchor', 'user.email', 'accord-debug', '## Resolved', 'accord-approach', 'last `## ` heading', '`done` → `accord-verify` at step 6', 'push it (the pushed branch is the claim)', 'claim: <id>', 'accord new ticket --type', './ids.md', './lane-s.md', '--lane S --worktree'],
   intent: ['accord anchor', 'accord-scout', 'accord-auditor', '0.2', '## Corrections', '## Open questions', 'D-01', 'accord-approach', 'top-level parts', 'smallest version', 'commit `accord/tickets/<id>.md`'],
   approach: ['accord anchor', 'accord-architect', 'accord-critic', '## Approach', 'accord approve', 'accord gate ready', 'accord-plan', 'ladder order', 'text only', 'not yet ruled out', 'three concrete failure scenarios', 'undone', 'back to step 3', 'Commit `accord/tickets/<id>.md`', 'Decisions, and Corrections as written', 'approved_hash:'],
-  plan: ['accord anchor', 'accord-planner', 'baseline:', 'covers:', 'verify:', 'accord gate plan', 'plan_hash:', 'accord-critic', 'three revision rounds', 'fewest Must', 'tests.full', 'accord-build', 'plan: <id> ready', 'Only the first', '**Re-plan**', '`baseline:` never changes', 'highest existing number', 'step 7 does not re-run', 'since the last `plan: <id> ready`'],
+  plan: ['accord anchor', 'accord-planner', 'baseline:', 'covers:', 'verify:', 'accord gate plan', 'plan_hash:', 'accord-critic', '`accord round <id> --plan`', 'fewest Must', 'tests.full', 'accord-build', 'plan: <id> ready', 'Only the first', '**Re-plan**', '`baseline:` never changes', 'highest existing number', 'step 7 does not re-run', 'since the last `plan: <id> ready`'],
   build: ['accord anchor', 'accord brief', 'accord-executor', 'tests.affected', 'accord task-done', 'BLOCKED: context', 'change note', 'accord approve', 'accord-plan', 'accord-review', 'plan: <id> ready', 'accord-debug', 'git status --porcelain'],
   review: ['accord anchor', 'accord review-package', 'accord-reviewer', 'accord-final-reviewer', 'Must', 'Should', 'Nice', 'patch', 'plan-gap', 'intent-gap', 'round 3', 'Undeclared files', 'five', 'fix_round_tier_up', 'verdict: converged', 'verdict: accepted-by-owner', 'accord-verify'],
   verify: ['accord anchor', 'tests.full', 'accord-verifier', 'verification.md', 'try this', 'cost if wrong', 'verified:', 'accord gate done'],
@@ -340,7 +340,7 @@ it('ac-1 the first plan critique is sized by the plan and a should only round re
   const step5 = skill.slice(skill.indexOf('5. **Critique.**'), skill.indexOf('6. **Rounds.**'));
   expect(step5.length).toBeGreaterThan(0);
   expect(['`./critique.md`', '`accord-critic`'].filter((p) => !step5.includes(p))).toEqual([]);
-  expect(['three revision rounds', 'stop and tell the owner', '`accord gate plan <id>` still fails, after the third'].filter((p) => !skill.includes(p))).toEqual([]);
+  expect(['`accord round <id> --plan`', 'stop and tell the owner', '`accord gate plan <id>` still fails'].filter((p) => !skill.includes(p))).toEqual([]);
   expect(skill).not.toContain('have the planner fix every Must and every Should');
   const loopPhrases = [
     'Round 1 is `whole` and sized by the plan.',
@@ -1174,4 +1174,44 @@ it('risk:data-loss a listed research record the branch adds counts as the ticket
     }
   }
   expect(bad).toEqual([]);
+});
+
+it('risk:regression the review lane S and plan critique skills ask accord round and write the round record version line', () => {
+  const missing = (path: string, phrases: readonly string[]) => phrases.filter((p) => !flatText(path).includes(p)).map((p) => path + ' lacks: ' + p);
+  const review = '.claude/skills/accord-review/SKILL.md';
+  const reviewFlat = flatText(review);
+  const step6 = reviewFlat.slice(reviewFlat.indexOf('6. **Cap.**'), reviewFlat.indexOf('7. **Final review.**'));
+  const record = '.claude/skills/accord-review/record.md';
+  const planSkill = '.claude/skills/accord-plan/SKILL.md';
+  const problems = [
+    ...missing(review, ['`accord round <id>`', 'Fix executor model', "with its path and step 6's `model`"]),
+    ...['stop: report to owner', 'before each round and before the verdict'].filter((p) => !step6.includes(p)).map((p) => 'review step 6 lacks: ' + p),
+    ...missing(record, [
+      'Round record: 1',
+      '## Return from verify <sha>',
+      'committed before any fix executor is dispatched',
+      '`haiku`, then `sonnet`, then `opus`; `opus` stays `opus`',
+      'trace to the ticket or the plan',
+      'verdict: accepted-by-owner "<the owner\'s sentence>"',
+      'Ruling: the owner allows <n> more review rounds after round <r> of cycle <k> — "<the owner\'s sentence>" — <cost if wrong>',
+      'changing course: that same Ruling',
+      'Before writing the verdict, run `accord round <id>`',
+      'git log -1 --format=%H -- accord/tickets/<id>/review.md',
+    ]),
+    ...missing('.claude/skills/accord/lane-s.md', ['`accord round <id>`', 'Round record: 1', 'stop: report to owner', "before appending step 5's verdict", '## Return from verify <sha>']),
+    ...missing('.claude/skills/accord-plan/critique.md', [
+      '`accord round <id> --plan`',
+      'Round record: 1',
+      'stop: report to owner',
+      'Ruling: the owner allows <n> more plan critique rounds after round <r> of cycle <k>',
+      'for a change of course, as that same Ruling',
+      'before step 8 of the skill appends `## Closed`',
+      "or on the owner's acceptance after a stop",
+      'On a `refused:` that says the loop has ended',
+    ]),
+    ...missing(planSkill, ['`accord round <id> --plan`']),
+    ...['three revision rounds', '`plan: <id> round` commits'].filter((p) => flatText(planSkill).includes(p)).map((p) => 'plan SKILL.md still holds: ' + p),
+    ...(flatText(record).includes('verification.md') ? ['record.md names verification.md'] : []),
+  ];
+  expect(problems).toEqual([]);
 });

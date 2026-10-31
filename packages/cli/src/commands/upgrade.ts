@@ -29,13 +29,14 @@ function gitIn(root: string, args: string[], extra: { env?: NodeJS.ProcessEnv; i
 export function upgrade(ctx: InitContext): number {
   const root = ctx.root;
   const v = pkg.version;
+  const ssh = new Map<string, string>(); // core.sshCommand, read once for this command's network calls
   if (!gitOk(root, ['remote', 'get-url', 'origin'])) throw new UsageError('no origin remote - accord upgrade pushes its branch there' + NOTHING);
   try {
-    gitNoPrompt(root, ['fetch', '--no-prune', 'origin']);
+    gitNoPrompt(root, ['fetch', '--no-prune', 'origin'], undefined, ssh);
   } catch (err) {
     throw new UsageError('fetch from origin failed: ' + String((err as { stderr?: string }).stderr ?? err).trim().split('\n')[0] + NOTHING);
   }
-  if (gitNoPrompt(root, ['ls-remote', 'origin', 'refs/heads/upgrade/' + v]).trim() !== '') {
+  if (gitNoPrompt(root, ['ls-remote', 'origin', 'refs/heads/upgrade/' + v], undefined, ssh).trim() !== '') {
     throw new UsageError(`upgrade/${v} already exists on origin - delete it with git push origin --delete upgrade/${v}, then run accord upgrade again` + NOTHING);
   }
   const ref = gitDefaultRef(root);
@@ -104,7 +105,7 @@ export function upgrade(ctx: InitContext): number {
     rmSync(folder, { recursive: true, force: true });
   }
   try {
-    gitNoPrompt(root, ['push', 'origin', sha + ':refs/heads/upgrade/' + v]);
+    gitNoPrompt(root, ['push', 'origin', sha + ':refs/heads/upgrade/' + v], undefined, ssh);
   } catch (err) {
     throw new UsageError(
       `the upgrade commit ${sha} was made but the push failed: ${String((err as { stderr?: string }).stderr ?? err).trim().split('\n')[0]} - push it with git push origin ${sha}:refs/heads/upgrade/${v}` +

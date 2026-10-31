@@ -43,28 +43,28 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: BUG-LN-14
 
-  @ac-1 @test:packages/cli/test/worktree.test.ts#ac-1-a-clear-in-a-window-outside-the-ticket-worktree-removes-the-hold-its-old-conversation-took-and-another-session-continues-the-ticket
+  @ac-1 @test:packages/cli/test/worktree-session.test.ts#ac-1-a-clear-in-a-window-outside-the-ticket-worktree-removes-the-hold-its-old-conversation-took-and-another-session-continues-the-ticket
   Scenario: A /clear releases the hold its old conversation took
     Given a Claude Code window, open in a folder that is neither ST-9's worktree folder nor below it, whose conversation holds ST-9
     When the owner runs /clear in that window
     Then the hold record of ST-9 is removed by the /clear itself, before any other accord command runs
     And `accord worktree open ST-9 --continue` in another session is not refused as held by another session
 
-  @ac-2 @test:packages/cli/test/worktree.test.ts#ac-2-after-a-clear-the-window-claims-one-other-ticket-and-holds-only-that-one
+  @ac-2 @test:packages/cli/test/worktree-session.test.ts#ac-2-after-a-clear-the-window-claims-one-other-ticket-and-holds-only-that-one
   Scenario: After a /clear the window may take one other ticket and holds only that one
     Given a Claude Code window, open in a folder that is neither ST-9's worktree folder nor below it, whose conversation held ST-9 and then ran /clear
     When the new conversation in that window claims ST-10, a ticket nobody has claimed, with `accord worktree open ST-10`
     Then the claim is not refused
     And that window holds ST-10 and no other ticket
 
-  @ac-3 @test:packages/cli/test/worktree.test.ts#ac-3-a-start-or-a-clear-in-a-second-window-in-the-ticket-worktree-leaves-the-first-window-hold-in-place
+  @ac-3 @test:packages/cli/test/worktree-session.test.ts#ac-3-a-start-or-a-clear-in-a-second-window-in-the-ticket-worktree-leaves-the-first-window-hold-in-place
   Scenario: A hold whose conversation did not clear stays
     Given a Claude Code window whose conversation holds ST-9
     When a second Claude Code window, open in ST-9's worktree folder or a folder below it, starts a conversation or runs /clear in its own
     Then ST-9 is still held by the first window
     And `accord worktree open ST-9 --continue` in the second window is refused as held by another session
 
-  @ac-4 @test:packages/cli/test/worktree.test.ts#ac-4-a-refusal-names-the-folder-and-the-local-time-with-its-offset-of-the-hold
+  @ac-4 @test:packages/cli/test/worktree-session.test.ts#ac-4-a-refusal-names-the-folder-and-the-local-time-with-its-offset-of-the-hold
   Scenario: A refusal names the folder and the time of the hold
     Given a live Claude Code session took the hold on ST-9 while it worked in a folder
     When another session runs `accord worktree open ST-9 --continue`
@@ -72,7 +72,7 @@ Feature: BUG-LN-14
     And its message names the folder that session worked in when it took the hold, as an absolute path with forward slashes
     And it names the date and time the hold was taken to the minute, in the local time of the machine that prints it with its UTC offset, in the form 2026-10-27 10:03 (UTC+07:00)
 
-  @ac-5 @test:packages/cli/test/worktree.test.ts#ac-5-a-clear-in-the-held-ticket-worktree-moves-its-hold-to-the-new-conversation-and-releases-the-window-other-holds
+  @ac-5 @test:packages/cli/test/worktree-session.test.ts#ac-5-a-clear-in-the-held-ticket-worktree-moves-its-hold-to-the-new-conversation-and-releases-the-window-other-holds
   Scenario: A /clear in the held ticket's own worktree keeps the ticket for that window
     Given a Claude Code window, open in ST-9's worktree folder or a folder below it, whose conversation holds ST-9
     When the owner runs /clear in that window

@@ -8,8 +8,9 @@ import type { CommandContext } from '../run.js';
 import { requireLaneTicket } from './lane-args.js';
 
 /** The id the current branch carries under a template in force; undefined on any other branch. Throws when git could not say. */
-export function activeTicket(root: string, snapshot: RepoSnapshot): string | undefined {
-  const branch = currentBranch(root);
+export function activeTicket(root: string, snapshot: RepoSnapshot, known?: { name: string | undefined }): string | undefined {
+  // ST-LN-63: `known` is the branch the load of this same checkout already read.
+  const branch = known === undefined ? currentBranch(root) : known.name;
   if (branch === undefined) throw new Error('could not read the current branch; nothing to anchor');
   return ticketOfBranch(branch, snapshot.branchTemplates ?? [DEFAULT_BRANCH_TEMPLATE], (id) => Object.hasOwn(snapshot.tickets, id));
 }
@@ -24,7 +25,7 @@ export function anchor(ctx: CommandContext, id: string | undefined): number {
   // exits 0 and says why on stderr, and only a detached HEAD (nothing to anchor) says nothing.
   let active: string | undefined;
   try {
-    active = activeTicket(ctx.root, ctx.snapshot);
+    active = activeTicket(ctx.root, ctx.snapshot, ctx.branch);
   } catch (e) {
     ctx.stderr.write((e as Error).message + '\n');
     return 0;

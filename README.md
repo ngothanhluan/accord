@@ -140,7 +140,7 @@ The skills call the CLI for you. These are the commands most useful to run by ha
 
 ### 7. Version pin and upgrading
 
-`accord/config.yml` pins an exact version in its `accord:` key, and the CI workflow and Claude Code hooks use the same one. Every command that reads the repository refuses with exit 2 when the running version differs (on a version mismatch the `prompt-expansion` hook only warns, so the prompt goes on), and names the command to run instead, with the pinned version in place of 0.3.0:
+`accord/config.yml` pins an exact version in its `accord:` key, and the CI workflow and Claude Code hooks use the same one. Every command that reads the repository refuses with exit 2 when the running version differs (on a version mismatch the `prompt-expansion` and `pre-tool-use` hooks only warn, so the prompt or the agent dispatch goes on), and names the command to run instead, with the pinned version in place of 0.3.0:
 
 ```sh
 npx --yes @accord-dev/accord@0.3.0 <command>

@@ -124,7 +124,7 @@ describe('lane ticket flow', () => {
   it('risk:complex-branching Done passes on ticks at HEAD, still passes after the records are committed, and fails on a later product change', async () => {
     const repo = stageRepo(4);
     try {
-      writeFiles(repo, { 'accord/tickets/T-1/review.md': '## Round 1\nverdict: converged\n' });
+      writeFiles(repo, { 'accord/tickets/T-1/review.md': 'Round record: 1\n\n## Round 1\n\nNo findings\n\nverdict: converged\n' });
 
       // The reviewer verifies the committed tree: evidence and ticks bound to HEAD, left uncommitted.
       const sha = commitAll(repo);

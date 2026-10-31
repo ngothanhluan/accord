@@ -120,6 +120,28 @@ export function gitRun(repo: string, ...args: string[]): string {
   return gitIn(repo)(...args);
 }
 
+/**
+ * `-c` flags for a commit made by `commitMsg` or `mergeMsg`: signing is always off, and a fixture identity is
+ * supplied only for the half the repository does not already have. A caller that set its own `user.email` or
+ * `user.name` (or exports GIT_AUTHOR_* / GIT_COMMITTER_*, which beat `-c`) keeps exactly that author, so the
+ * dashboard's "yours", the HEAD-author reads and the goldens see what the test chose. A host with no global
+ * identity, such as a CI runner, would otherwise refuse the commit during setup.
+ */
+function commitFlags(dir: string): string[] {
+  const has = (key: string): boolean => {
+    try {
+      return gitRun(dir, 'config', '--get', key).trim() !== '';
+    } catch {
+      return false; // exit 1: the key is unset
+    }
+  };
+  return [
+    '-c', 'commit.gpgsign=false',
+    ...(has('user.email') ? [] : ['-c', 'user.email=fixture@example.invalid']),
+    ...(has('user.name') ? [] : ['-c', 'user.name=fixture']),
+  ];
+}
+
 /** Commit everything with `-F <file> --cleanup=verbatim` (conventions.md), never `-m`; returns the new HEAD sha. */
 export function commitMsg(dir: string, text: string): string {
   const folder = mkdtempSync(join(tmpdir(), 'accord-msg-'));
@@ -127,7 +149,7 @@ export function commitMsg(dir: string, text: string): string {
     const file = join(folder, 'msg.txt');
     writeFileSync(file, text + '\n');
     gitRun(dir, 'add', '-A');
-    gitRun(dir, 'commit', '-q', '-F', file, '--cleanup=verbatim');
+    gitRun(dir, ...commitFlags(dir), 'commit', '-q', '-F', file, '--cleanup=verbatim');
     return gitRun(dir, 'rev-parse', 'HEAD').trim();
   } finally {
     cleanup(folder);
@@ -140,7 +162,7 @@ export function mergeMsg(dir: string, ref: string, text: string): string {
   try {
     const file = join(folder, 'msg.txt');
     writeFileSync(file, text + '\n');
-    gitRun(dir, 'merge', '-q', '--no-ff', '-F', file, '--cleanup=verbatim', ref);
+    gitRun(dir, ...commitFlags(dir), 'merge', '-q', '--no-ff', '-F', file, '--cleanup=verbatim', ref);
     return gitRun(dir, 'rev-parse', 'HEAD').trim();
   } finally {
     cleanup(folder);

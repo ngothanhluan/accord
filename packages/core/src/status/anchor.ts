@@ -36,6 +36,9 @@ export function anchorText(snapshot: RepoSnapshot, id: string): string | undefin
     const lines = s === undefined ? [] : stripHtmlComments(s.lines).map((l) => l.text).filter((t) => t.trim() !== '');
     out.push('', `## ${name}`, ...(lines.length === 0 ? ['(none)'] : lines));
   }
+  // ST-LN-13: the research records the ticket lists, as written, in key order.
+  const research = ticket.frontmatter?.research;
+  if (research !== undefined && research.length > 0) out.push('', '## Research', ...research);
   // The section verbatim, so a Ruling in a form the parser does not read is never dropped; then any
   // parsed Ruling: line from elsewhere in the ledger that the section did not already print.
   const written = work?.ledger?.rulingsSection ?? [];

@@ -1,9 +1,9 @@
 // ST-LN-7 `accord worktree`: each ticket works in its own git worktree, a sibling folder of the main checkout.
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
-import { DEFAULT_BRANCH_TEMPLATE, forbiddenLines, isSha, loadConfig, loadSnapshot, statusRows, trailerReason } from '@accord-dev/accord-core';
+import { DEFAULT_BRANCH_TEMPLATE, forbiddenLines, isResearchPath, isSha, loadConfig, loadSnapshot, statusRows, trailerReason } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
-import { currentBranch, droppedOn, gitDefaultRef, gitUnpushedCommits, gitUserEmail, loadFromFs, loadWithBranch, snapshotAt, ticketOfBranch, UsageError } from '../load/fs.js';
+import { currentBranch, droppedOn, gitDefaultRef, gitFilesAt, gitUnpushedCommits, gitUserEmail, loadFromFs, loadWithBranch, snapshotAt, ticketOfBranch, UsageError } from '../load/fs.js';
 import { fetchLimitMs } from './fetch-limit.js';
 import { claudeEnv, describeSession, isLive, processTable, runSetup, sameSession, sessionIn } from '../load/proc.js';
 import type { Session } from '../load/proc.js';
@@ -946,6 +946,26 @@ function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[
   }
 }
 
+/** ST-LN-13: the first research record the ticket lists at `tip` whose copy the history of `ref` never held, or undefined. */
+function researchNotOn(root: string, tip: string, ref: string, id: string): string | undefined {
+  const file = 'accord/tickets/' + id + '.md';
+  const files = gitFilesAt(root, tip, [file]);
+  if (!Object.hasOwn(files, file)) return undefined;
+  const tickets = loadSnapshot({ files, tree: [] }).tickets;
+  if (!Object.hasOwn(tickets, id)) return undefined;
+  const blob = (c: string, p: string): string | undefined => {
+    const args = ['rev-parse', '--verify', '-q', c + ':' + p];
+    return gitOk(root, args) ? git(root, args).trim() : undefined;
+  };
+  for (const p of [...new Set(tickets[id].frontmatter?.research ?? [])].filter(isResearchPath)) {
+    const atTip = blob(tip, p);
+    if (atTip === undefined || atTip === blob(ref, p)) continue;
+    if (git(root, ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '-1', '--format=%H', '--find-object=' + atTip, ref, '--', ':(literal)' + p]).trim() !== '') continue;
+    return p;
+  }
+  return undefined;
+}
+
 /** ST-LN-34: for each ticket branch whose ticket is dropped on `ref`, delete the worktree, the origin branch and the local branch when nothing beyond origin is lost. */
 function cleanDropped(ctx: CommandContext, ref: string, templates: readonly string[], s: GuardState, pruned: Map<string, string>, fetchFailed: boolean, merged: ReadonlySet<string>, skip?: string): void {
   const known = (i: string) => Object.hasOwn(ctx.snapshot.tickets, i);
@@ -1010,6 +1030,14 @@ function cleanDropped(ctx: CommandContext, ref: string, templates: readonly stri
           ctx.stdout.write(`kept ${b}: ${n} commits not on origin\n`);
           continue;
         }
+      }
+      const at = L ?? R;
+      const lost = at === undefined ? undefined : researchNotOn(ctx.root, at, ref, id);
+      if (lost !== undefined) {
+        const d = ref.replace('refs/remotes/origin/', '');
+        ctx.stdout.write(`kept ${b}: research record ${lost} is not on ${d} as ${b} holds it - make the record on ${b} equal to the copy on ${d}, or put it on ${d}, then push
+`);
+        continue;
       }
       // git refuses to delete a branch checked out in a worktree, and a branch must not lose its folder after its origin copy is gone.
       if (W !== undefined && removeWorktree(ctx, W, id, g!.h, s.seen).failed) continue;

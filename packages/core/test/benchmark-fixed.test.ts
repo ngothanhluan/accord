@@ -697,3 +697,130 @@ it('risk:parsing calls are read once per message from main and subagent transcri
     rmSync(w.tmp, { recursive: true, force: true, maxRetries: 5 });
   }
 });
+
+type Measured = {
+  rows: { row: string; model: string; total: number; parts: Record<string, number>; unattributed: number }[];
+  items: { id: string; owner: string; label: string; perRow: Record<string, number> }[];
+};
+type Seven = {
+  stubsOf: (s: unknown, a: unknown) => Stub[];
+  measure: (a: { setup: unknown; probes: { id: string }[]; state: { probes: { id: string; sessionId: string }[] }; located: Located; texts: Text[] }) => Measured;
+};
+
+it('risk:complex-branching a part is charged only to the rows it reaches and unattributed is what the named parts leave', async () => {
+  const fc = (await import(new URL('../../../scripts/fixed-context.mjs', import.meta.url).href)) as unknown as Seven;
+  const M = 'main';
+  const S = 'accord-scout';
+  const E = 'accord-executor';
+  const agent = (name: string, tools: string[] | null) => ({ name, model: 'sonnet', tools, body: `body of ${name}`, hash: 'h' });
+  const setup = {
+    repo: 'C:/w/repo', mainCheckout: 'C:/w/repo', probeDir: 'C:/w/accord-probe', home: 'C:/h',
+    agents: [agent(S, ['Read', 'Grep', 'Glob']), agent(E, null)],
+    accordSkills: [{ name: 'accord', description: 'd' }],
+    plugins: [
+      { id: 'accord-panel@accord', version: '0.3.0', accordOwn: true },
+      { id: 'alpha@m', version: '1', accordOwn: false },
+      { id: 'beta@m', version: '1', accordOwn: false },
+    ],
+    mcp: [{ name: 'srv' }],
+    sets: [{ prefix: 'gsd', members: [{ kind: 'skill', name: 'gsd-a' }, { kind: 'skill', name: 'gsd-b' }, { kind: 'agent', name: 'gsd-r' }] }],
+    docs: [
+      { file: 'C:/w/repo/CLAUDE.md', label: 'CLAUDE.md', topic: false },
+      { file: 'C:/h/.claude/projects/x/memory/note.md', label: '~/.claude/projects/x/memory/note.md', topic: true },
+    ],
+  };
+  const call = (model: string, input: number, o: Partial<FirstCall> = {}): FirstCall => ({
+    id: 'x', model, version: '2.1.314', ts: 0, cwd: '', branch: '', input, usage: { input, cacheRead: 0, cacheWrite: 0 },
+    instructions: [], skillListing: [], agentListing: [], hookContexts: [], mcpServers: [], sessionStartHook: false, prompt: '', ...o,
+  });
+  const modelOf: Record<string, string> = { [M]: 'm-opus', [S]: 'm-sonnet', [E]: 'm-sonnet' };
+  const stubs = fc.stubsOf(setup, { main: call('m-opus', 0), agents: { [S]: call('m-sonnet', 0), [E]: call('m-sonnet', 0) } });
+  const stubOf = (row: string) => (stubs.find((s) => s.agents.includes(row)) as Stub).name;
+
+  const located: Located = new Map();
+  const probes: { id: string; sessionId: string }[] = [];
+  const add = (id: string, main: number, agents: Record<string, number> = {}, mcpServers: string[] = []) => {
+    probes.push({ id, sessionId: `s-${id}` });
+    located.set(`s-${id}`, {
+      main: call('m-opus', main, { mcpServers }),
+      agents: Object.fromEntries(Object.entries(agents).map(([n, v]) => [n, call(modelOf[n] ?? 'm-sonnet', v)])),
+    });
+  };
+  // A probe's first-call inputs are [main, scout, executor].
+  const put = (id: string, v: readonly [number, number, number], mcpServers: string[] = []) => add(id, v[0], { [S]: v[1], [E]: v[2] }, mcpServers);
+  put('all-on', [50000, 20000, 21000], ['claude.ai Docs X', 'plugin_alpha_srv', 'srv']);
+  put('plugin:accord-panel@accord', [50000, 20000, 21000]);
+  put('plugin:alpha@m', [49000, 20000, 20500]);
+  put('plugin:beta@m', [50000, 20000, 21000]);
+  put('mcp-ref', [47000, 20000, 20800]);
+  put('mcp:srv', [46000, 20000, 20800]);
+  put('connector:claude.ai Docs X', [48500, 20000, 20900]);
+  put('set:gsd', [49400, 19900, 21000]);
+  // The baseline: the main row, and one stub run per row.
+  probes.push({ id: 'baseline', sessionId: 's-baseline' });
+  located.set('s-baseline', { main: call('m-opus', 12000), agents: { [stubOf(S)]: call('m-sonnet', 8000), [stubOf(E)]: call('m-sonnet', 9000) } });
+  // Appended texts: the reference input of a model, plus the text's own tokens.
+  const ref: Record<string, number> = { 'm-opus': 100, 'm-sonnet': 80 };
+  for (const [m, v] of Object.entries(ref)) add(`ref:${m}`, v);
+  const delta: Record<string, Record<string, number>> = {
+    prompt: { 'm-opus': 40 }, 'baseline-prompt': { 'm-opus': 30 }, brief: { 'm-sonnet': 15 },
+    [`agent:${S}`]: { 'm-sonnet': 500 }, [`agent:${E}`]: { 'm-sonnet': 700 },
+    rules: { 'm-opus': 300, 'm-sonnet': 250 }, 'skill-listing': { 'm-opus': 400, 'm-sonnet': 350 }, 'agent-listing': { 'm-opus': 200 },
+    'pointer:CLAUDE.md': { 'm-opus': 60, 'm-sonnet': 50 }, 'doc:CLAUDE.md': { 'm-opus': 90, 'm-sonnet': 80 }, 'doc:~/extra.md': { 'm-opus': 11 },
+  };
+  for (const [id, byModel] of Object.entries(delta)) for (const [m, d] of Object.entries(byModel)) add(`text:${id}:${m}`, ref[m] + d);
+  const all = [M, S, E];
+  const text = (id: string, owner: string, rows: string[]): Text => ({ id, owner, label: id.replace(/^(doc|pointer|agent):/, ''), text: id, rows });
+  const texts = [
+    text(`agent:${S}`, 'accord', [S]), text(`agent:${E}`, 'accord', [E]), text('rules', 'accord', all),
+    text('skill-listing', 'accord', [M, E]), text('agent-listing', 'accord', [M]), text('pointer:CLAUDE.md', 'accord', all),
+    text('doc:CLAUDE.md', 'CLAUDE.md and memory', all), text('doc:~/extra.md', 'CLAUDE.md and memory', [M]), text('prompt', 'probe', [M]), text('baseline-prompt', 'probe', [M]),
+    text('brief', 'probe', [S, E]),
+  ];
+
+  const { rows, items } = fc.measure({ setup, probes: probes.map((p) => ({ id: p.id })), state: { probes }, located, texts });
+  expect(rows.map((r) => r.row)).toEqual([M, E, S]);
+  const row = (name: string) => rows.find((r) => r.row === name) as Measured['rows'][number];
+  expect(row(M)).toEqual({
+    row: M, model: 'm-opus', total: 49960,
+    parts: { accord: 960, claudeCode: 11970, plugins: 1000, mcp: 4000, docs: 101, sets: 600 },
+    unattributed: 31329,
+  });
+  expect(row(S)).toEqual({
+    row: S, model: 'm-sonnet', total: 19985,
+    parts: { accord: 800, claudeCode: 7985, plugins: 0, mcp: 0, docs: 80, sets: 100 },
+    unattributed: 11020,
+  });
+  expect(row(E)).toEqual({
+    row: E, model: 'm-sonnet', total: 20985,
+    parts: { accord: 1350, claudeCode: 8985, plugins: 500, mcp: 200, docs: 80, sets: 0 },
+    unattributed: 9870,
+  });
+  for (const r of rows) {
+    const { claudeCode, accord, plugins, mcp, docs, sets } = r.parts;
+    expect(claudeCode + accord + plugins + mcp + docs + sets + r.unattributed).toBe(r.total);
+  }
+
+  const item = (id: string) => items.find((i) => i.id === id) as Measured['items'][number];
+  expect(item('plugin:alpha@m')).toMatchObject({ owner: 'plugins', label: 'alpha@m', perRow: { [M]: 1000, [E]: 500 } });
+  expect(item('plugin:alpha@m').perRow).not.toHaveProperty(S);
+  expect(item('plugin:beta@m').perRow).toEqual({});
+  expect(item('plugin:accord-panel@accord')).toMatchObject({ owner: 'plugins', label: "accord-panel@accord (accord's own)", perRow: {} });
+  expect(item('mcp:srv')).toMatchObject({ owner: 'MCP servers', label: 'srv', perRow: { [M]: 1000 } });
+  expect(item('connector:claude.ai Docs X')).toMatchObject({
+    owner: 'MCP servers', label: 'claude.ai Docs X (claude.ai connector)', perRow: { [M]: 1500, [E]: 100 },
+  });
+  expect(item('other-servers')).toMatchObject({ owner: 'MCP servers', label: 'other connected servers: plugin_alpha_srv', perRow: { [M]: 1500, [E]: 100 } });
+  expect(item('set:gsd')).toMatchObject({ owner: 'own skills, agents and commands', label: 'set gsd (3 members)', perRow: { [M]: 600, [S]: 100 } });
+  expect(item('skill-listing')).toMatchObject({ owner: 'accord', label: 'skill listing entries', perRow: { [M]: 400, [E]: 350 } });
+  expect(item('skill-listing').perRow).not.toHaveProperty(S);
+  expect(item('agent-definition')).toMatchObject({ owner: 'accord', label: 'agent definition', perRow: { [S]: 500, [E]: 700 } });
+  expect(item('rules')).toMatchObject({ label: 'rules block', perRow: { [M]: 300, [S]: 250, [E]: 250 } });
+  expect(item('agent-listing')).toMatchObject({ label: 'agent listing entries', perRow: { [M]: 200 } });
+  expect(item('pointer:CLAUDE.md')).toMatchObject({ owner: 'accord', label: 'pointer block CLAUDE.md', perRow: { [M]: 60, [S]: 50, [E]: 50 } });
+  expect(item('doc:CLAUDE.md')).toMatchObject({ owner: 'CLAUDE.md and memory', label: 'CLAUDE.md', perRow: { [M]: 90, [S]: 80, [E]: 80 } });
+  expect(item('doc:~/.claude/projects/x/memory/note.md')).toMatchObject({ owner: 'CLAUDE.md and memory', perRow: {} });
+  expect(item('doc:~/extra.md')).toMatchObject({ owner: 'CLAUDE.md and memory', label: '~/extra.md', perRow: { [M]: 11 } });
+  expect(items.map((i) => i.id)).not.toContain('prompt');
+  expect(items.map((i) => i.id)).not.toContain('brief');
+});

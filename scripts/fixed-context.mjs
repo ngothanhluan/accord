@@ -343,3 +343,99 @@ export function pendingProbes({ setup, state, located, version, read, forms = PR
   }
   return { probes, pending, failed: failed.sort((a, b) => cmp(a.id, b.id)), notes };
 }
+
+export const OWNERS = {
+  accord: 'accord',
+  claudeCode: 'Claude Code',
+  plugins: 'plugins',
+  mcp: 'MCP servers',
+  docs: 'CLAUDE.md and memory',
+  sets: 'own skills, agents and commands',
+  unattributed: 'unattributed',
+};
+
+// Each row's fixed context and its parts in raw tokens per call, and every item of the setup with what it costs per
+// row, from the probe transcripts. `probes` are the probes planned (pendingProbes' list, none pending), `state` the
+// parsed probes.json, `located` the sessions found for it, `texts` the result of textsOf. Every figure is a
+// difference of two first calls (no characters-per-token ratio); a part is charged only to the rows it reaches, and
+// `unattributed` is the total less every other part (it may be negative, since leave-one-out figures need not add up).
+export function measure({ setup, probes, state, located, texts }) {
+  const entries = new Map((Array.isArray(state) ? state : state.probes).map((e) => [e.id, e]));
+  const planned = new Set(probes.map((p) => p.id));
+  const session = (id) => {
+    const found = located.get(entries.get(id)?.sessionId);
+    if (!found?.main) throw new Error(`The probe ${id} has no first call.`);
+    return found;
+  };
+  // The first-call input of a row in a probe; a ref: or text: probe has the main session only.
+  const input = (id, row) => {
+    const s = session(id);
+    const call = row === 'main' ? s.main : s.agents[row];
+    if (!call) throw new Error(`The probe ${id} has no first call for ${row}.`);
+    return call.input;
+  };
+  const allOn = session('all-on');
+  const calls = rowCalls({ main: allOn.main, agents: allOn.agents });
+  const rowNames = ['main', ...[...setup.agents].sort(byName).map((a) => a.name).filter((n) => calls[n])];
+  const model = (row) => calls[row].model;
+  const stubOf = new Map();
+  for (const stub of stubsOf(setup, { main: allOn.main, agents: allOn.agents })) for (const a of stub.agents) stubOf.set(a, stub.name);
+
+  const size = (id, row) => input(`text:${id}:${model(row)}`, 'main') - input(`ref:${model(row)}`, 'main');
+  // What the task prompt of a row adds to its first call: the dispatch prompt for the main session, the brief for an agent.
+  const task = (row) => size(row === 'main' ? 'prompt' : 'brief', row);
+
+  const { connectors, others } = connectorsOf(setup, allOn);
+  const probed = connectors.filter((c) => planned.has(`connector:${c}`));
+  const unprobed = [...connectors.filter((c) => !planned.has(`connector:${c}`)), ...others].sort(cmp);
+
+  const items = [];
+  // A probe item: the row's all-on (or reference) input less its input with only that item left out.
+  const probeItem = (id, owner, label, base, probe) => {
+    const perRow = {};
+    for (const row of rowNames) {
+      const d = input(base, row) - input(probe, row);
+      if (d !== 0) perRow[row] = d;
+    }
+    const item = { id, owner, label, perRow };
+    items.push(item);
+    return item;
+  };
+  for (const p of setup.plugins) {
+    probeItem(`plugin:${p.id}`, OWNERS.plugins, p.accordOwn ? `${p.id} (accord's own)` : p.id, 'all-on', `plugin:${p.id}`);
+  }
+  for (const m of setup.mcp) probeItem(`mcp:${m.name}`, OWNERS.mcp, m.name, 'mcp-ref', `mcp:${m.name}`);
+  const connectorItems = probed.map((c) => probeItem(`connector:${c}`, OWNERS.mcp, `${c} (claude.ai connector)`, 'all-on', `connector:${c}`));
+  const rest = { id: 'other-servers', owner: OWNERS.mcp, label: `other connected servers: ${unprobed.length ? unprobed.join(', ') : 'none'}`, perRow: {} };
+  for (const row of rowNames) {
+    const d = input('all-on', row) - input('mcp-ref', row) - connectorItems.reduce((n, c) => n + (c.perRow[row] ?? 0), 0);
+    if (d !== 0) rest.perRow[row] = d;
+  }
+  items.push(rest);
+  for (const s of setup.sets) probeItem(`set:${s.prefix}`, OWNERS.sets, `set ${s.prefix} (${s.members.length} members)`, 'all-on', `set:${s.prefix}`);
+
+  // A text item: its size in each row it reaches. The agent definitions are one item, each in its own row.
+  const textItem = (id, owner, label, from) => {
+    const perRow = {};
+    for (const t of from) for (const row of t.rows) if (rowNames.includes(row)) perRow[row] = size(t.id, row);
+    items.push({ id, owner, label, perRow });
+  };
+  textItem('agent-definition', OWNERS.accord, 'agent definition', texts.filter((t) => t.id.startsWith('agent:')));
+  for (const [id, label] of [['rules', 'rules block'], ['skill-listing', 'skill listing entries'], ['agent-listing', 'agent listing entries']]) {
+    textItem(id, OWNERS.accord, label, texts.filter((t) => t.id === id));
+  }
+  for (const t of texts.filter((x) => x.id.startsWith('pointer:'))) textItem(t.id, OWNERS.accord, `pointer block ${t.label}`, [t]);
+  const docIds = new Set(setup.docs.map((d) => `doc:${d.label}`));
+  for (const d of setup.docs) textItem(`doc:${d.label}`, OWNERS.docs, d.label, texts.filter((t) => t.id === `doc:${d.label}`));
+  for (const t of texts.filter((x) => x.id.startsWith('doc:') && !docIds.has(x.id))) textItem(t.id, OWNERS.docs, t.label, [t]);
+
+  const rows = rowNames.map((row) => {
+    const sum = (owner) => items.filter((i) => i.owner === owner).reduce((n, i) => n + (i.perRow[row] ?? 0), 0);
+    const total = input('all-on', row) - task(row);
+    const claudeCode = row === 'main' ? input('baseline', 'main') - size('baseline-prompt', row) : input('baseline', stubOf.get(row)) - task(row);
+    const parts = { accord: sum(OWNERS.accord), claudeCode, plugins: sum(OWNERS.plugins), mcp: sum(OWNERS.mcp), docs: sum(OWNERS.docs), sets: sum(OWNERS.sets) };
+    const named = Object.values(parts).reduce((n, v) => n + v, 0);
+    return { row, model: model(row), total, parts, unattributed: total - named };
+  });
+  return { rows, items };
+}

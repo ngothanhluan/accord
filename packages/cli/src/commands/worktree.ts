@@ -64,15 +64,47 @@ export function listWorktrees(root: string): PrunableEntry[] {
     });
 }
 
-/** `git worktree list --porcelain` in git's order (the first is the main worktree), after pruning records of folders deleted by hand, each named on `out`. */
-export function worktrees(root: string, out: NodeJS.WritableStream): WorktreeEntry[] {
+/** ST-LN-55 fix 1: true when `head` (a detached HEAD) is reachable from no branch, so a prune or a removal would lose its commits. An empty `head` counts as no branch. */
+function onNoBranch(root: string, head: string, ref: string | undefined, merged?: ReadonlySet<string>): boolean {
+  if (head === '') return true;
+  if (merged?.has(head.toLowerCase()) === true) return false;
+  if (ref !== undefined && gitOk(root, ['merge-base', '--is-ancestor', head, ref])) return false;
+  try {
+    return git(root, ['for-each-ref', '--points-at', head, '--format=%(refname)', 'refs/heads', 'refs/remotes/origin']).trim() === '';
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * `git worktree list --porcelain` in git's order (the first is the main worktree), after pruning records of folders deleted by hand, each named on `out`.
+ * While a missing folder holds a detached HEAD on no branch nothing is pruned (git prunes every missing entry at once, and the prune would drop the only ref to that commit):
+ * the whole list comes back, missing entries included, and each is named once on `out` (when `judged` is given) and added to `judged`.
+ */
+export function worktrees(root: string, out: NodeJS.WritableStream, judged?: Set<string>): PrunableEntry[] {
   let list = listWorktrees(root);
   const stale = list.filter((w) => w.prunable !== undefined);
   if (stale.length === 0) return list;
-  git(root, ['worktree', 'prune']);
-  list = listWorktrees(root);
-  for (const w of stale) if (!list.some((x) => x.path === w.path)) out.write(`pruned ${w.path}: ${w.prunable}\n`);
-  return list.filter((w) => w.prunable === undefined);
+  const ref = gitDefaultRef(root);
+  const held = stale.filter((w) => w.branch === undefined && onNoBranch(root, w.head, ref));
+  if (held.length === 0) {
+    git(root, ['worktree', 'prune']);
+    list = listWorktrees(root);
+    for (const w of stale) if (!list.some((x) => x.path === w.path)) out.write(`pruned ${w.path}: ${w.prunable}\n`);
+    return list.filter((w) => w.prunable === undefined);
+  }
+  if (judged !== undefined) {
+    for (const w of stale) {
+      if (judged.has(norm(w.path))) continue;
+      out.write(
+        held.includes(w)
+          ? `kept ${w.path}: its folder is missing and its detached HEAD ${w.head} is on no branch\n`
+          : `kept ${w.path}: its folder is missing (${w.prunable}); no prune runs while a missing folder holds a detached HEAD on no branch\n`,
+      );
+      judged.add(norm(w.path));
+    }
+  }
+  return list;
 }
 
 /** D-06: the main checkout's folder name, a hyphen, the id in lower case, beside the main checkout. */
@@ -434,6 +466,11 @@ export function guardTicketSession(ctx: CommandContext, cont?: string): void {
   throw new UsageError(worksMessage(w, mainPath));
 }
 
+/** A worktree git still registers at `path` whose folder is missing: a plain `git worktree add` there would fail with advice to prune, which can lose a detached commit. No git command has run. */
+function refuseAt(id: string, path: string, tail: string): never {
+  throw new UsageError(`${id}: git still registers a worktree at ${path}, whose folder is missing - put that folder back, then try again; ${tail}`);
+}
+
 export function worktreeCheck(ctx: CommandContext): number {
   guardTicketSession(ctx);
   return 0;
@@ -449,7 +486,9 @@ export function worktreeOpen(ctx: CommandContext, id: string, opts: { continue?:
   const pick = opts.continue !== true;
   const branch = branchOf(ctx.snapshot, id);
   // the list clean read last and no removal changed since; undefined after a removal or a failed clean
-  const list = seen ?? worktrees(ctx.root, ctx.stdout);
+  // entries whose folder is missing reach `all` only while a missing folder holds a detached HEAD on no branch; they are never entered or claimed
+  const all = (seen ?? worktrees(ctx.root, ctx.stdout)) as PrunableEntry[];
+  const list = all.filter((w) => w.prunable === undefined);
   const mainPath = list[0].path;
   const held = list.find((w) => w.branch === branch);
   const local = held !== undefined || gitOk(ctx.root, ['rev-parse', '--verify', '-q', 'refs/heads/' + branch]);
@@ -473,7 +512,20 @@ export function worktreeOpen(ctx: CommandContext, id: string, opts: { continue?:
   }
   if (local || remote) {
     const path = siblingOf(mainPath, id);
-    git(ctx.root, local ? ['worktree', 'add', path, branch] : ['worktree', 'add', '--track', '-b', branch, path, 'origin/' + branch]);
+    const missing = all.filter((w) => w.prunable !== undefined && w.branch === branch);
+    const atPath = all.filter((w) => w.prunable !== undefined && norm(w.path) === norm(path));
+    // a missing folder at the target path that is not the one --force case below: a plain add would fail with git's advice to prune
+    if (atPath.length > 0 && !(atPath.length === 1 && missing.length === 1 && atPath[0] === missing[0])) refuseAt(id, path, 'nothing was created');
+    if (missing.length === 0) {
+      git(ctx.root, local ? ['worktree', 'add', path, branch] : ['worktree', 'add', '--track', '-b', branch, path, 'origin/' + branch]);
+    } else if (missing.length === 1 && norm(missing[0].path) === norm(path)) {
+      // the ticket's own sibling, deleted by hand and still registered: --force replaces only that entry's record, and its commits are on the branch
+      git(ctx.root, ['worktree', 'add', '--force', path, branch]);
+    } else {
+      throw new UsageError(
+        `${id}: its branch ${branch} is checked out in ${missing.map((w) => w.path).join(', ')}, whose folder is missing - put that folder back, then try again; nothing was created`,
+      );
+    }
     recordQuietly(ctx, id, path);
     if (opts.continue === true) continueMerge(ctx, id, path, branch);
     if (enter) {
@@ -500,6 +552,7 @@ export function worktreeOpen(ctx: CommandContext, id: string, opts: { continue?:
     );
   }
   const path = siblingOf(mainPath, id);
+  if (all.some((w) => w.prunable !== undefined && norm(w.path) === norm(path))) refuseAt(id, path, 'nothing was created');
   git(ctx.root, ['worktree', 'add', '--no-track', '-b', branch, path, ref]);
   recordQuietly(ctx, id, path);
   git(path, ['commit', '--allow-empty', '-q', '-m', 'claim: ' + id]);
@@ -745,7 +798,7 @@ function readList(ctx: CommandContext, seen?: SeenList): PrunableEntry[] {
       if (w.prunable === undefined || seen.judged?.has(norm(w.path)) === true) continue;
       folderLine(ctx, seen, w.path, `kept ${w.path}: its folder is missing (${w.prunable}); a session start never prunes its record`);
     }
-  } else list = worktrees(ctx.root, ctx.stdout);
+  } else list = worktrees(ctx.root, ctx.stdout, seen === undefined ? undefined : (seen.judged ??= new Set()));
   if (seen !== undefined) seen.list = list;
   return list;
 }
@@ -784,6 +837,25 @@ function passGuards(ctx: CommandContext, w: PrunableEntry, id: string, s: GuardS
 `);
     return undefined;
   }
+  const holds = guardHolds(ctx, s, w.path);
+  if (holds === undefined) return undefined;
+  const h = Object.hasOwn(holds, id) ? holds[id] : undefined;
+  const why = h === undefined ? undefined : holdReason(ctx, h, s);
+  if (why !== undefined) {
+    ctx.stdout.write(`kept ${w.path}: ${why}\n`);
+    return undefined;
+  }
+  // fix 2: a hold of another ticket that names this folder keeps it too
+  const elsewhere = heldElsewhere(ctx, w.path, id, s);
+  if (elsewhere !== undefined) {
+    ctx.stdout.write(`kept ${w.path}: ${elsewhere}\n`);
+    return undefined;
+  }
+  return { h };
+}
+
+/** The holds file, read once per clean; undefined after the line `say` writes when it could not be read, naming `path`. */
+function guardHolds(ctx: CommandContext, s: GuardState, path: string, say: (text: string) => void = (t) => void ctx.stdout.write(t + '\n')): Record<string, Hold> | undefined {
   if (s.holds === undefined && s.holdsError === undefined) {
     try {
       withHolds(ctx.root, (h) => ((s.holds = h), undefined));
@@ -792,33 +864,34 @@ function passGuards(ctx: CommandContext, w: PrunableEntry, id: string, s: GuardS
     }
   }
   if (s.holds === undefined) {
-    ctx.stdout.write(`kept ${w.path}: its hold could not be read: ${s.holdsError}
-`);
+    say(`kept ${path}: its hold could not be read: ${s.holdsError}`);
     return undefined;
   }
-  const h = Object.hasOwn(s.holds, id) ? s.holds[id] : undefined;
-  if (h !== undefined) {
-    let mine: Session | undefined;
-    try {
-      const claude = claudeEnv(ctx.env);
-      if (claude !== undefined && h.marker === claude.marker) {
-        ctx.stdout.write(`kept ${w.path}: this session's worktree\n`);
-        return undefined;
-      }
-      s.table ??= processTable();
-      if (claude !== undefined) mine = sessionIn(claude, s.table, process.pid);
-    } catch {
-      ctx.stdout.write(`kept ${w.path}: cannot tell whether the session holding it still runs
-`);
-      return undefined;
-    }
-    if (isLive(h, s.table) && !(mine !== undefined && sameSession(h, mine))) {
-      ctx.stdout.write(`kept ${w.path}: held by another session
-`);
-      return undefined;
-    }
+  return s.holds;
+}
+
+/** Why the session of hold `h` keeps the folder it holds, or undefined when that session is gone. */
+function holdReason(ctx: CommandContext, h: Hold, s: GuardState): string | undefined {
+  let mine: Session | undefined;
+  try {
+    const claude = claudeEnv(ctx.env);
+    if (claude !== undefined && h.marker === claude.marker) return `this session's worktree`;
+    s.table ??= processTable();
+    if (claude !== undefined) mine = sessionIn(claude, s.table, process.pid);
+  } catch {
+    return 'cannot tell whether the session holding it still runs';
   }
-  return { h };
+  return isLive(h, s.table) && !(mine !== undefined && sameSession(h, mine)) ? 'held by another session' : undefined;
+}
+
+/** ST-LN-55 fix 2: the reason a hold other than `skip` keeps `path`, going by the folder it names; the holds are already read into `s`. */
+function heldElsewhere(ctx: CommandContext, path: string, skip: string | undefined, s: GuardState): string | undefined {
+  for (const [key, h] of Object.entries(s.holds ?? {})) {
+    if (key === skip || typeof h?.folder !== 'string' || norm(h.folder) !== norm(path)) continue;
+    const why = holdReason(ctx, h, s);
+    if (why !== undefined) return why;
+  }
+  return undefined;
 }
 
 /** `git worktree remove` with its three printed outcomes; the hold goes with a worktree that is gone. `failed` means the folder is still a worktree. */
@@ -883,7 +956,7 @@ export function worktreeClean(ctx: CommandContext, opts: { fetched?: 'ok' | 'fai
   const merged = mergedTips(ctx.root, ref);
   cleanDone(ctx, ref, templates, state, fetchFailed, merged, opts.skip);
   cleanDropped(ctx, ref, templates, state, pruned, fetchFailed, merged, opts.skip);
-  cleanRecorded(ctx, ref, state, fetchFailed);
+  cleanRecorded(ctx, ref, state, fetchFailed, merged);
   return 0;
 }
 
@@ -894,6 +967,12 @@ function cleanForgotten(ctx: CommandContext, path: string, s: GuardState): boole
   const here = norm(path);
   if (root === here || root.startsWith(here + '/')) {
     folderLine(ctx, s.seen, path, `kept ${path}: this session's worktree`);
+    return false;
+  }
+  if (guardHolds(ctx, s, path, (t) => folderLine(ctx, s.seen, path, t)) === undefined) return false;
+  const elsewhere = heldElsewhere(ctx, path, undefined, s);
+  if (elsewhere !== undefined) {
+    folderLine(ctx, s.seen, path, `kept ${path}: ${elsewhere}`);
     return false;
   }
   const st = lstatSync(path, { throwIfNoEntry: false });
@@ -911,8 +990,8 @@ function cleanForgotten(ctx: CommandContext, path: string, s: GuardState): boole
   return left === undefined;
 }
 
-/** ST-LN-55 D-07: the worktrees accord recorded for a ticket that is done or dropped on `ref`; one git still lists is left to the phases above, one whose folder is gone leaves the record, one git forgot is swept. */
-function cleanRecorded(ctx: CommandContext, ref: string, s: GuardState, fetchFailed: boolean): void {
+/** ST-LN-55 D-07: the worktrees accord recorded for a ticket that is done or dropped on `ref`; one git lists on the ticket's own branch is left to the phases above, any other listed one is judged by its HEAD, one whose folder is gone leaves the record, one git forgot is swept. */
+function cleanRecorded(ctx: CommandContext, ref: string, s: GuardState, fetchFailed: boolean, merged: ReadonlySet<string>): void {
   s.accord ??= git(ctx.root, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim() + '/accord';
   s.recorded = readRecorded(ctx.root, s.accord);
   if (s.recorded.length === 0) return;
@@ -926,11 +1005,38 @@ function cleanRecorded(ctx: CommandContext, ref: string, s: GuardState, fetchFai
   for (const e of todo) {
     if (s.seen.judged?.has(norm(e.path)) === true) continue;
     try {
-      if (list.some((w) => norm(w.path) === norm(e.path))) continue;
+      const W = list.find((w) => norm(w.path) === norm(e.path));
+      if (W !== undefined) {
+        cleanListed(ctx, ref, s, e.id, W, dropped.has(e.id), merged);
+        continue;
+      }
       if (lstatSync(e.path, { throwIfNoEntry: false }) === undefined || cleanForgotten(ctx, e.path, s)) dropRecorded(ctx.root, e.path);
     } catch (err) {
       folderLine(ctx, s.seen, e.path, `kept ${e.path}: could not be judged: ${firstLine(err instanceof UsageError ? err.message : err)}`);
     }
+  }
+}
+
+/** ST-LN-55 D-07: a recorded worktree of a done or dropped ticket that git lists. Clean never removes by path a worktree on a branch, and a detached one only when its HEAD is on `ref` or at a branch tip (fix 1, fix 2). */
+function cleanListed(ctx: CommandContext, ref: string, s: GuardState, id: string, W: PrunableEntry, dropped: boolean, merged: ReadonlySet<string>): void {
+  if (W.prunable !== undefined) return; // readList already named it
+  const def = ref.replace('refs/remotes/', '');
+  if (W.branch !== undefined) {
+    if (W.branch !== branchOf(ctx.snapshot, id)) {
+      folderLine(ctx, s.seen, W.path, `kept ${W.path}: checked out on ${W.branch}`);
+    } else if (dropped && (merged.has(W.head.toLowerCase()) || gitOk(ctx.root, ['merge-base', '--is-ancestor', W.head, ref]))) {
+      // cleanDropped leaves such a branch and cleanDone judges only done tickets, so this line is the only word on it
+      folderLine(ctx, s.seen, W.path, `kept ${W.path}: its ticket is dropped and its branch ${W.branch} is already on ${def}`);
+    }
+    return;
+  }
+  if (rebaseBranch(W.path) !== undefined) {
+    folderLine(ctx, s.seen, W.path, `kept ${W.path}: being rebased`);
+  } else if (onNoBranch(ctx.root, W.head, ref, merged)) {
+    folderLine(ctx, s.seen, W.path, `kept ${W.path}: its detached HEAD ${W.head} is on no branch`);
+  } else {
+    const g = passGuards(ctx, W, id, s);
+    if (g !== undefined) removeWorktree(ctx, W, id, g.h, s.seen);
   }
 }
 
@@ -1199,7 +1305,8 @@ function cleanDropped(ctx: CommandContext, ref: string, templates: readonly stri
 export function newTicketWorktree(ctx: CommandContext, id: string, rel: string, text: string, seen?: WorktreeEntry[]): void {
   const enter = canEnter(ctx);
   const branch = branchOf(ctx.snapshot, id);
-  const list = seen ?? worktrees(ctx.root, ctx.stdout);
+  const all = (seen ?? worktrees(ctx.root, ctx.stdout)) as PrunableEntry[];
+  const list = all.filter((w) => w.prunable === undefined);
   const exists =
     list.some((w) => w.branch === branch) ||
     gitOk(ctx.root, ['rev-parse', '--verify', '-q', 'refs/heads/' + branch]) ||
@@ -1211,6 +1318,7 @@ export function newTicketWorktree(ctx: CommandContext, id: string, rel: string, 
     throw new UsageError(`${rel} already exists on ${ref.replace('refs/remotes/', '')} - nothing was written`);
   }
   const path = siblingOf(list[0].path, id);
+  if (all.some((w) => w.prunable !== undefined && norm(w.path) === norm(path))) refuseAt(id, path, 'nothing was written');
   git(ctx.root, ['worktree', 'add', '--no-track', '-b', branch, path, ref]);
   recordQuietly(ctx, id, path);
   mkdirSync(path + '/accord/tickets', { recursive: true });

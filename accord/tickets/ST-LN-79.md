@@ -24,7 +24,7 @@ ui: false
 # The AC hash and the commit the ticks were made against.
 # verified_hash:
 # verified_commit:
-approved_hash: "fnv1a64:f0920eacc9018c46"
+approved_hash: "fnv1a64:8ee953dc077602d7"
 ac_hash: "fnv1a64:c19cd8ed02a91cdf"
 ---
 
@@ -91,6 +91,7 @@ Feature: ST-LN-79
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
+- 2026-10-31, at build before Task 10, on the 22 leave-one-out probes that each dispatch all 10 accord agents (about 220 agent calls): "what are you saying, you madman, running 220 agent calls just to count tokens? what is the end goal?" then "why not measure it while running the benchmark" (translated); the owner then agreed to size each part from the text the transcripts already hold instead of leave-one-out probes.
 
 ## Open questions
 <!-- `- [ ]` items; Ready stays blocked while any is unchecked. -->
@@ -103,3 +104,17 @@ Spike, 2026-10-30, main session `-p`, haiku: all on 54,547 input tokens (14 plug
 Affected: `scripts/benchmark.mjs` (new `--fixed` mode, per-call usage kept, main-session reader, probe file writer and matcher, per-item fingerprints, position weighting, ticket share, own report file), new `packages/core/test/benchmark-fixed.test.ts`, new report under `docs/benchmark/`.
 Risks: (Must, kept) a remote claude.ai connector changes its instructions server-side, which no fingerprint sees; the report states the probe date and this limit. (Must, kept) transcripts store stream-start `output_tokens`, so ticket shares use the existing 4-characters-a-token output estimate and say so. (Should) the switches are spiked on the main session only; the plan's first task runs them on one dispatched agent before any code, and how a set of user-level skills is moved out of reach without touching `~/.claude` is settled there. (Should) a probe agent may keep working past its first call; the probe worktree is throwaway and `-p` denies unapproved edits. (Should) `-p` and interactive main sessions may differ, and the probe prompt sits in the main row's first call; the main row is labelled as measured under `-p` and the prompt is sized and taken out. (Should) leave-one-out figures need not add up to a group's effect; unattributed holds the difference. (Nice) accord-panel counts under plugins, named as accord's own. (Nice, for the plan) the baseline's transcript lies outside the repository's transcript folders; a size measured today can exceed an old call's whole input, which position weighting clamps; MCP config files carry server secrets and are written outside the worktree; which texts reach a row comes from the agent's frontmatter and removal probes, not from usage. Probe count is about 2 + plugins + MCP servers + skill sets + texts, each dispatching 10 agents once; the owner runs it again only for what changed.
 Tests: ac-1 to ac-3 in `benchmark-fixed.test.ts` on jsonl and probe fixtures (script layer, no model); ac-4 by a test that the committed report holds the date range, per-row call counts, the per-item list and the not-measured line.
+
+Change note, 2026-10-31, at build after Task 9 (see Corrections):
+- What failed: leave-one-out costs too much for what it buys. `--fixed --probe` printed 22 phase-one probes on this machine (all on, 11 plugins, 8 own sets, an MCP reference and 1 server), each dispatching all 10 accord agents, so about 220 agent calls plus phase two. Each call carries 15k to 55k input tokens, which is millions of tokens to split a figure the cut ticket only needs to rank.
+- New approach: size each part from its text, and keep only the probes that the criteria need.
+  - The all-on probe still runs once from the probe worktree (main plus each accord agent, about 11 calls). Each row's total is its first-call input on the setup as it is (ac-1). The attachments before each first call say which texts reached that row: instructions files, the skill listing, the agent listing, hook context, MCP instructions blocks and deferred tool names.
+  - The Claude Code baseline stays as planned: an empty folder, no setting sources, one stub per tool list and model, a few calls. It gives each row's Claude Code part.
+  - Every other part is a text. It is sized as its characters times a characters-per-token ratio per model. The ratio comes from one appended-text pair per model (the Task 1 run g form, two calls per model).
+  - Each text is charged to its owner: a skill or agent listing entry by its name (accord, a plugin's `<plugin>:` prefix, an own set's prefix); instructions files to CLAUDE.md and memory, except accord's pointer block; the rules block to accord; MCP blocks and tool names to their server.
+  - Unattributed is still the row total less the named parts (ac-1).
+- About 20 model calls in all, and only the all-on probe reruns when the setup changes. The leave-one-out probes for plugins, sets and MCP servers, and the per-text append probes, are dropped. The rejected "characters-per-token ratio" comes back, calibrated per model; the report says its sizes carry that estimate, about ±10%.
+- Finished tasks that still hold:
+  - Task 1 (`firstCall`, `PROBE_FORMS`), Task 2 (`readSetup`), Task 6 (`readCalls`), Task 8 (render) and Task 9 (weighting, items, shares).
+  - Parts of Task 3 (`shellLine`, `setupDirty`, `writeProbes`, the all-on probe) and of Task 4 (`stubsOf`, `textsOf`, the baseline and reference probes).
+- Tasks to change: Task 3 (phase one is the all-on probe only); Task 4 (an append pair per model, not per text); Task 5 (stale is the all-on probe on any setup change; the set-probe check goes); Task 7 (`measure` sizes parts from text); Task 10 unchanged.

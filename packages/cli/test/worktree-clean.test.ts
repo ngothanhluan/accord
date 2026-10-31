@@ -914,3 +914,85 @@ it('risk:data-loss worktree open re-creates a ticket worktree whose folder was d
   expect(list3).toContain(`worktree ${p}\nHEAD ${X}\n`);
   expect(recorded(c)).toEqual([{ id: 'ST-9', path: s }]);
 }, 120_000);
+
+it('risk:data-loss clean keeps a done worktree that holds another listed worktree', async () => {
+  const c = copy();
+  claimWorktree(c, 'ST-9');
+  const n = c.sibling('ST-9') + '/node_modules/nested';
+  c.git('worktree', 'add', '-q', '-b', 'scratch', n, 'origin/main');
+  doneOnRemote(c, ['ST-9']);
+  const r = await run(['worktree', 'clean'], c.root);
+  expect(r.code).toBe(0);
+  expect(lines(r.out)).toContain(`kept ${c.sibling('ST-9')}: it holds the worktree ${n}`);
+  const listed = c.git('worktree', 'list', '--porcelain');
+  expect(listed).toContain(`worktree ${c.sibling('ST-9')}\n`);
+  expect(listed).toContain(`worktree ${n}\n`);
+  expect(existsSync(`${n}/accord/config.yml`)).toBe(true);
+}, 120_000);
+
+it('risk:data-loss clean keeps a done worktree whose disposable folder holds a nested repository', async () => {
+  const c = copy();
+  exclude(c, ['dist/']);
+  claimWorktree(c, 'ST-9');
+  const n = c.sibling('ST-9') + '/dist/pkg';
+  mkdirSync(n, { recursive: true });
+  gitRun(n, 'init', '-q');
+  writeFiles(n, { 'a.txt': 'a\n' });
+  const N = commitMsg(n, 'nested work');
+  doneOnRemote(c, ['ST-9']);
+  const r = await run(['worktree', 'clean'], c.root);
+  expect(r.code).toBe(0);
+  const L = lines(r.out);
+  expect(L).toContain(`kept ${c.sibling('ST-9')}: dist/pkg/.git`);
+  expect(L.some((l) => l.startsWith(`removed ${c.sibling('ST-9')}`))).toBe(false);
+  expect(c.git('worktree', 'list', '--porcelain')).toContain(`worktree ${c.sibling('ST-9')}\n`);
+  expect(gitRun(n, 'rev-parse', 'HEAD').trim()).toBe(N);
+}, 120_000);
+
+it('risk:data-loss clean keeps a done worktree holding an edit in a skip-worktree or assume-unchanged file', async () => {
+  const c = copy({ tickets: ['ST-9', 'ST-10'] });
+  claimWorktree(c, 'ST-9');
+  claimWorktree(c, 'ST-10');
+  const s9 = c.sibling('ST-9');
+  gitRun(s9, 'update-index', '--skip-worktree', 'ST-9.txt');
+  writeFileSync(`${s9}/ST-9.txt`, 'edited\n');
+  const s10 = c.sibling('ST-10');
+  gitRun(s10, 'update-index', '--assume-unchanged', 'ST-10.txt');
+  writeFileSync(`${s10}/ST-10.txt`, 'edited\n');
+  doneOnRemote(c, ['ST-9', 'ST-10']);
+  const r = await run(['worktree', 'clean'], c.root);
+  expect(r.code).toBe(0);
+  const L = lines(r.out);
+  expect(L).toContain(`kept ${s9}: ST-9.txt`);
+  expect(L).toContain(`kept ${s10}: ST-10.txt`);
+  expect(L.some((l) => l.startsWith('removed'))).toBe(false);
+  const listed = c.git('worktree', 'list', '--porcelain');
+  expect(listed).toContain(`worktree ${s9}\n`);
+  expect(listed).toContain(`worktree ${s10}\n`);
+  expect(readFileSync(`${s9}/ST-9.txt`, 'utf8')).toBe('edited\n');
+  expect(readFileSync(`${s10}/ST-10.txt`, 'utf8')).toBe('edited\n');
+}, 120_000);
+
+it('risk:data-loss a forgotten folder holding a listed worktree or a git folder is kept unchanged', async () => {
+  const c = copy({ tickets: ['ST-9', 'ST-10'] });
+  for (const id of ['ST-9', 'ST-10']) {
+    expect((await run(['worktree', 'open', id], c.root)).code).toBe(0);
+    forget(c, id);
+  }
+  const inner = c.sibling('ST-9') + '/inner';
+  c.git('worktree', 'add', '-q', '-b', 'scratch', inner, 'origin/main');
+  mkdirSync(`${c.sibling('ST-9')}/empty`);
+  mkdirSync(`${c.sibling('ST-10')}/sub/.git`, { recursive: true });
+  link(`${c.root}/accord`, `${c.sibling('ST-10')}/l`);
+  doneOnRemote(c, ['ST-9', 'ST-10']);
+  const before9 = listing(c.sibling('ST-9'));
+  const before10 = listing(c.sibling('ST-10'));
+  const r = await run(['worktree', 'clean'], c.root);
+  expect(r.code).toBe(0);
+  const L = lines(r.out);
+  expect(L).toContain(`kept ${c.sibling('ST-9')}: inner`);
+  expect(L).toContain(`kept ${c.sibling('ST-10')}: sub/.git`);
+  expect(listing(c.sibling('ST-9'))).toEqual(before9);
+  expect(listing(c.sibling('ST-10'))).toEqual(before10);
+  expect(c.git('worktree', 'list', '--porcelain')).toContain(`worktree ${inner}\n`);
+}, 120_000);

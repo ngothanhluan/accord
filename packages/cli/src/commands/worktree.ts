@@ -5,7 +5,7 @@ import { DEFAULT_BRANCH_TEMPLATE, forbiddenLines, isSha, loadConfig, loadSnapsho
 import type { RepoSnapshot } from '@accord-dev/accord-core';
 import { currentBranch, droppedOn, gitDefaultRef, gitUnpushedCommits, gitUserEmail, loadFromFs, loadWithBranch, snapshotAt, ticketOfBranch, UsageError } from '../load/fs.js';
 import { fetchLimitMs } from './fetch-limit.js';
-import { DEFAULT_DISPOSABLE, isDisposable, sweepForgotten, sweepRemoved } from './leftover.js';
+import { DEFAULT_DISPOSABLE, gitInside, isDisposable, norm, sweepForgotten, sweepRemoved } from './leftover.js';
 import { claudeEnv, describeSession, isLive, processTable, runSetup, sameSession, sessionIn } from '../load/proc.js';
 import type { Session } from '../load/proc.js';
 import type { CommandContext } from '../run.js';
@@ -293,8 +293,6 @@ export function workedBy(root: string, marker: string): string | undefined {
   }
   return undefined;
 }
-
-const norm = (p: string) => (process.platform === 'win32' ? p.replaceAll('\\', '/').toLowerCase() : p);
 
 /** D-17: take (or keep) this session's hold on `id`; a live other session holding it refuses. Claude Code sessions only. */
 export function takeHold(ctx: CommandContext, id: string, path: string): void {
@@ -781,6 +779,10 @@ interface SeenList {
   keepMissing?: boolean;
   /** The `norm`ed folders this clean already wrote a `removed` or `kept` line for; no later phase judges them again. */
   judged?: Set<string>;
+  /** The `norm`ed path of the main checkout and of every worktree any list read of this clean returned. */
+  listed?: Set<string>;
+  /** The main checkout, the first entry of a list read. */
+  main?: string;
 }
 
 /** One folder line of a clean: `text` is written and the folder is remembered as judged. */
@@ -799,7 +801,12 @@ function readList(ctx: CommandContext, seen?: SeenList): PrunableEntry[] {
       folderLine(ctx, seen, w.path, `kept ${w.path}: its folder is missing (${w.prunable}); a session start never prunes its record`);
     }
   } else list = worktrees(ctx.root, ctx.stdout, seen === undefined ? undefined : (seen.judged ??= new Set()));
-  if (seen !== undefined) seen.list = list;
+  if (seen !== undefined) {
+    seen.list = list;
+    seen.listed ??= new Set();
+    for (const w of list) seen.listed.add(norm(w.path));
+    if (seen.main === undefined && list.length > 0) seen.main = list[0].path;
+  }
   return list;
 }
 
@@ -815,12 +822,18 @@ interface GuardState {
 }
 
 /** The guards every worktree removal passes; undefined (after a kept line) when one keeps the worktree, else the hold it may drop. */
-function passGuards(ctx: CommandContext, w: PrunableEntry, id: string, s: GuardState): { h: Hold | undefined } | undefined {
+function passGuards(ctx: CommandContext, w: PrunableEntry, id: string, s: GuardState, list: readonly WorktreeEntry[]): { h: Hold | undefined } | undefined {
   // readList already named a worktree whose folder is missing
   if (w.prunable !== undefined) return undefined;
   if (norm(w.path) === norm(ctx.root)) {
     ctx.stdout.write(`kept ${w.path}: this session's worktree
 `);
+    return undefined;
+  }
+  // Task 6: `git worktree remove` would delete a worktree that sits inside this one, in an ignored folder
+  const inner = list.find((x) => norm(x.path) !== norm(w.path) && norm(x.path).startsWith(norm(w.path) + '/'));
+  if (inner !== undefined) {
+    ctx.stdout.write(`kept ${w.path}: it holds the worktree ${inner.path}\n`);
     return undefined;
   }
   // D-08: `git worktree remove` deletes every ignored file, so they are judged here; `matching` lists an ignored file under a folder that is not itself ignored, and the untracked mode stays explicit whatever `status.showUntrackedFiles` says
@@ -835,6 +848,20 @@ function passGuards(ctx: CommandContext, w: PrunableEntry, id: string, s: GuardS
   if (real !== undefined) {
     ctx.stdout.write(`kept ${w.path}: ${real.slice(3)}
 `);
+    return undefined;
+  }
+  // a nested repository in an ignored folder holds commits that `git worktree remove` would delete with it
+  for (const e of status) {
+    if (!e.endsWith('/')) continue;
+    const nested = gitInside(w.path, e.slice(3));
+    if (nested !== undefined) {
+      ctx.stdout.write(`kept ${w.path}: ${nested}\n`);
+      return undefined;
+    }
+  }
+  const edited = editHiddenFromStatus(w.path);
+  if (edited !== undefined) {
+    ctx.stdout.write(`kept ${w.path}: ${edited}\n`);
     return undefined;
   }
   const holds = guardHolds(ctx, s, w.path);
@@ -852,6 +879,22 @@ function passGuards(ctx: CommandContext, w: PrunableEntry, id: string, s: GuardS
     return undefined;
   }
   return { h };
+}
+
+/**
+ * Task 6: the first file on disk that the index flags skip-worktree (tag `S`) or assume-unchanged (a lower-case tag) and that differs from its
+ * index entry, so `git status`, and with it `git worktree remove`, cannot see the edit. A flagged symlink counts as differing; a flagged entry
+ * that is not on disk (a sparse checkout) never counts.
+ */
+function editHiddenFromStatus(path: string): string | undefined {
+  for (const e of git(path, ['ls-files', '-v', '-z']).split('\0')) {
+    if (e === '' || !/^[Sa-z] /.test(e)) continue;
+    const file = e.slice(2);
+    if (lstatSync(`${path}/${file}`, { throwIfNoEntry: false }) === undefined) continue;
+    const row = /^(\d+) ([0-9a-f]+) /.exec(git(path, ['ls-files', '-s', '-z', '--', ':(literal)' + file]).split('\0')[0]);
+    if (row === null || row[1] === '120000' || git(path, ['hash-object', '--', file]).trim() !== row[2]) return file;
+  }
+  return undefined;
 }
 
 /** The holds file, read once per clean; undefined after the line `say` writes when it could not be read, naming `path`. */
@@ -909,7 +952,8 @@ function removeWorktree(ctx: CommandContext, w: WorktreeEntry, id: string, h: Ho
   if (listed) folderLine(ctx, line, w.path, `kept ${w.path}: git worktree remove failed: ${failure}`);
   else {
     // git unregistered the folder, but may leave links (Git for Windows leaves npm's junctions) or files behind; "removed" means the folder is gone
-    const left = sweepRemoved(w.path, ctx.snapshot.config?.disposable ?? DEFAULT_DISPOSABLE);
+    const own = norm(w.path);
+    const left = sweepRemoved(w.path, ctx.snapshot.config?.disposable ?? DEFAULT_DISPOSABLE, [...(seen?.listed ?? [])].filter((p) => p !== own));
     folderLine(ctx, line, w.path, left === undefined ? `removed ${w.path}` : `kept ${w.path}: ${left}`);
     if (left === undefined) {
       try {
@@ -985,7 +1029,7 @@ function cleanForgotten(ctx: CommandContext, path: string, s: GuardState): boole
     folderLine(ctx, s.seen, path, `kept ${path}: it is not a folder`);
     return false;
   }
-  const left = sweepForgotten(path);
+  const left = sweepForgotten(path, [...(s.seen.listed ?? [])]);
   folderLine(ctx, s.seen, path, left === undefined ? `removed ${path}` : `kept ${path}: ${left}`);
   return left === undefined;
 }
@@ -1007,7 +1051,7 @@ function cleanRecorded(ctx: CommandContext, ref: string, s: GuardState, fetchFai
     try {
       const W = list.find((w) => norm(w.path) === norm(e.path));
       if (W !== undefined) {
-        cleanListed(ctx, ref, s, e.id, W, dropped.has(e.id), merged);
+        cleanListed(ctx, ref, s, e.id, W, dropped.has(e.id), merged, list);
         continue;
       }
       if (lstatSync(e.path, { throwIfNoEntry: false }) === undefined || cleanForgotten(ctx, e.path, s)) dropRecorded(ctx.root, e.path);
@@ -1018,7 +1062,7 @@ function cleanRecorded(ctx: CommandContext, ref: string, s: GuardState, fetchFai
 }
 
 /** ST-LN-55 D-07: a recorded worktree of a done or dropped ticket that git lists. Clean never removes by path a worktree on a branch, and a detached one only when its HEAD is on `ref` or at a branch tip (fix 1, fix 2). */
-function cleanListed(ctx: CommandContext, ref: string, s: GuardState, id: string, W: PrunableEntry, dropped: boolean, merged: ReadonlySet<string>): void {
+function cleanListed(ctx: CommandContext, ref: string, s: GuardState, id: string, W: PrunableEntry, dropped: boolean, merged: ReadonlySet<string>, list: readonly WorktreeEntry[]): void {
   if (W.prunable !== undefined) return; // readList already named it
   const def = ref.replace('refs/remotes/', '');
   if (W.branch !== undefined) {
@@ -1035,7 +1079,7 @@ function cleanListed(ctx: CommandContext, ref: string, s: GuardState, id: string
   } else if (onNoBranch(ctx.root, W.head, ref, merged)) {
     folderLine(ctx, s.seen, W.path, `kept ${W.path}: its detached HEAD ${W.head} is on no branch`);
   } else {
-    const g = passGuards(ctx, W, id, s);
+    const g = passGuards(ctx, W, id, s, list);
     if (g !== undefined) removeWorktree(ctx, W, id, g.h, s.seen);
   }
 }
@@ -1163,7 +1207,7 @@ function cleanDone(ctx: CommandContext, ref: string, templates: readonly string[
         continue;
       }
       if (W !== undefined) {
-        const g = passGuards(ctx, W, id, s);
+        const g = passGuards(ctx, W, id, s, after);
         if (g === undefined || removeWorktree(ctx, W, id, g.h, s.seen).failed) {
           ctx.stdout.write(`kept ${b}: checked out in ${W.path}
 `);
@@ -1253,7 +1297,7 @@ function cleanDropped(ctx: CommandContext, ref: string, templates: readonly stri
       }
       let g: { h: Hold | undefined } | undefined;
       if (W !== undefined) {
-        g = passGuards(ctx, W, id, s);
+        g = passGuards(ctx, W, id, s, after);
         if (g === undefined) continue;
       }
       // Re-read the local tip: a commit made in the worktree while the guards ran counts, and the printed sha is the deleted one.

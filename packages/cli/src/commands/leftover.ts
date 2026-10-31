@@ -12,8 +12,61 @@ export function isDisposable(rel: string, names: readonly string[]): boolean {
 /** Gone: nothing at all at the path. A dangling link is not gone, which `existsSync` would say. */
 export const isGone = (p: string): boolean => lstatSync(p, { throwIfNoEntry: false }) === undefined;
 
+/** A path for comparing: `\` becomes `/`, and on Windows the case goes (a folder name there does not tell case). */
+export const norm = (p: string): string => (process.platform === 'win32' ? p.replaceAll('\\', '/').toLowerCase() : p);
+
 /** UTF-8 byte order is code point order. */
 const byCodePoint = (a: string, b: string): number => Buffer.compare(Buffer.from(a), Buffer.from(b));
+
+/**
+ * ST-LN-55 Task 6: the first entry named `.git`, of any type, under the folder `rel` of `root` (a `!! ` path of `git status`,
+ * a trailing `/` dropped), as a path relative to `root`; undefined when there is none or `rel` is not a folder (a link
+ * included). Depth first, entries in code point order, a link never entered. A `.git` holder keeps unpushed commits that a
+ * deletion of the folder would lose.
+ */
+export function gitInside(root: string, rel: string): string | undefined {
+  const top = rel.replace(/\/+$/, '');
+  const st = lstatSync(`${root}/${top}`, { throwIfNoEntry: false });
+  if (st === undefined || !st.isDirectory()) return undefined;
+  const walk = (r: string): string | undefined => {
+    let list: string[];
+    try {
+      list = readdirSync(`${root}/${r}`).sort(byCodePoint);
+    } catch {
+      return undefined;
+    }
+    for (const name of list) {
+      const p = `${r}/${name}`;
+      if (name === '.git') return p;
+      let s;
+      try {
+        s = lstatSync(`${root}/${p}`);
+      } catch {
+        continue;
+      }
+      if (s.isDirectory()) {
+        const found = walk(p);
+        if (found !== undefined) return found;
+      }
+    }
+    return undefined;
+  };
+  return walk(top);
+}
+
+/** When `dir` is a fenced path or holds one (`fenced` holds `norm`ed paths), that path relative to `dir`, `.` for `dir` itself. */
+function fencedInside(dir: string, fenced: readonly string[]): string | undefined {
+  const here = norm(dir).replace(/\/+$/, '');
+  for (const f of fenced) {
+    if (f === here) return '.';
+    if (f.startsWith(here + '/')) return f.slice(here.length + 1);
+  }
+  return undefined;
+}
+
+/** `rel` of a folder `abs` that holds a `.git` entry, as `<rel>/.git`; such a folder is never entered. */
+const holdsGit = (abs: string, rel: string): string | undefined =>
+  lstatSync(`${abs}/.git`, { throwIfNoEntry: false }) === undefined ? undefined : rel === '' ? '.git' : `${rel}/.git`;
 
 /**
  * The walk after git unregistered `dir`: depth first, entries in code point order, each read with `lstatSync`.
@@ -21,7 +74,9 @@ const byCodePoint = (a: string, b: string): number => Buffer.compare(Buffer.from
  * path is deleted; any other file stays. Returns undefined when `dir` is gone, else the first relative path that
  * stays (or whose deletion failed), else the first name left in `dir`, else `.`.
  */
-export function sweepRemoved(dir: string, names: readonly string[]): string | undefined {
+export function sweepRemoved(dir: string, names: readonly string[], fenced: readonly string[]): string | undefined {
+  const inside = fencedInside(dir, fenced);
+  if (inside !== undefined) return inside;
   if (isGone(dir)) return undefined;
   let first: string | undefined;
   const keep = (rel: string): void => {
@@ -29,6 +84,11 @@ export function sweepRemoved(dir: string, names: readonly string[]): string | un
   };
   const walk = (abs: string, rel: string): void => {
     let list: string[];
+    const git = holdsGit(abs, rel);
+    if (git !== undefined) {
+      keep(git);
+      return;
+    }
     try {
       list = readdirSync(abs).sort(byCodePoint);
     } catch {
@@ -91,14 +151,21 @@ export function sweepRemoved(dir: string, names: readonly string[]): string | un
  * nothing says the folder was ever a clean worktree. Returns undefined when `dir` is gone, else the first relative
  * path that keeps it (`.` when `dir` is not a folder, a link included).
  */
-export function sweepForgotten(dir: string): string | undefined {
+export function sweepForgotten(dir: string, fenced: readonly string[]): string | undefined {
   const top = lstatSync(dir, { throwIfNoEntry: false });
   if (top === undefined) return undefined;
   if (!top.isDirectory()) return '.';
+  const inside = fencedInside(dir, fenced);
+  if (inside !== undefined) return inside;
   const links: string[] = [];
   const folders: string[] = [];
   let real: string | undefined;
   const scan = (abs: string, rel: string): void => {
+    const git = holdsGit(abs, rel);
+    if (git !== undefined) {
+      real = git;
+      return;
+    }
     for (const name of readdirSync(abs).sort(byCodePoint)) {
       if (real !== undefined) return;
       const r = rel === '' ? name : `${rel}/${name}`;

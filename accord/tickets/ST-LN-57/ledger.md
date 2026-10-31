@@ -2,6 +2,7 @@
 
 ## Tasks
 - task 1 done c51b3a6f830a
+- task 2 done 278c0fd41e44
 
 ## Rulings
 
@@ -61,6 +62,9 @@
 - Ruling: the baseline tests.full runs on CI through a draft pull request, not locally — no file outside accord/ changed since the baseline, and the owner has twice chosen CI over a 25-30 min local full run (ST-LN-17, ST-LN-75) — if wrong, a failure already on the baseline is found later, at the first build task's CI run.
 - Ruling: (task 1) the review package joins the `Head:` line to the title line with one newline, not a blank line — the plan says "right after the title line" — if wrong, a later test expecting a blank line between them fails.
 - Ruling: (task 1) a version 2 record whose last round has an unreadable heading (no head) makes the review package fail with a UsageError naming the round — silently falling back would build the package from the wrong base — if wrong, a record with a typo in a heading is refused until retyped.
+- Ruling: (task 2) the "carried from" and repeated-number checks run in the final per-round loop, and a finding line that fails the form is not added to the round, so a round whose only finding is unreadable also reports "holds no finding" — consistent with the baseline severity-doubt behaviour — if wrong, one extra unreadable line per bad single-finding round.
+- Ruling: (task 2) a double quote or backtick protects the ' — ' split only when a closing twin exists later in the line (a lone quote is plain text), and the `[class]` and severity word match case-insensitively — keeps a stray quote from swallowing the marks — if wrong, a finding text with an odd number of quotes is read as plain text.
+- Ruling: (task 2) parseLedger reads the Deferred section, found by its heading key `deferred`, without fenced lines or comments, and stores the state `fixed in <sha>` as `state: 'fixed'` with no sha field — the interface names none — if wrong, a later reader needing the sha must parse it again.
 
 ## Deferred
 - plan round 1.8 (Nice): rolling back to the 0.3.0 CLI needs an owner allowance Ruling per cycle that went past round 3 with deferred findings (0.3.0 has no D-08); rolling forward sets line 1 back to `Round record: 2`

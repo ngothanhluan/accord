@@ -18,4 +18,8 @@ Nice 10 [patch]: design.md and the READMEs still describe the old clean trigger 
 Should 1 [patch]: kept lines for a nested repository and for an edit git status hides look like a file to move or delete, so an agent may offer to delete a repository with unpushed commits — packages/cli/src/commands/worktree.ts:349 — fixed in 40eb0477
 Should 2 [patch]: the hook cleans another repository without that repository's version pin check — packages/cli/src/commands/hook.ts:74-85 — fixed in 40eb0477
 
+## Round 3
+
+Should 1 [patch]: after the merge of origin/main (e8a1f846), the research-record kept line from ST-LN-13 is not among worktree.md's reasons where nothing is deleted, so an agent may offer to delete or move the research record the check protects — packages/core/skills/accord/worktree.md:43-48 — fixed in 433d47e9
+
 verdict: converged

@@ -14,6 +14,7 @@
 - task 12 done 24906a43192f
 - task 13 done 25be519db63e
 - task 14 done efa35632b17f
+- task 15 done b4bfda9ca22d
 
 ## Rulings
 

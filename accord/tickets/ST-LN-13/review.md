@@ -1,3 +1,5 @@
+Round record: 1
+
 ## Round 1
 
 Should 1 [patch]: `worktree clean` keeps a dropped claim branch only for a listed `.md` research record, so a listed non-Markdown record only that branch holds is deleted with it; `accord drop` refused such an entry with a misleading "not a file" reason — packages/cli/src/commands/worktree.ts:909, packages/cli/src/commands/drop.ts:82 — fixed in 57618a0e
@@ -19,5 +21,9 @@ verdict: converged
 
 ## Round 1
 
-Nice 1 [patch]: the regenerated `.claude/skills` copies listed under `## Undeclared files` were not named in the merge Ruling — accord/tickets/ST-LN-13/ledger.md:62 — fixed in the ledger commit that records this round
+Nice 1 [patch]: the regenerated `.claude/skills` copies listed under `## Undeclared files` were not named in the merge Ruling — accord/tickets/ST-LN-13/ledger.md:62 — fixed in 61b07826
 Nice 2 [patch]: the research overlay spawns one `git cat-file --batch` per claimed ticket that adds an unseen record — packages/cli/src/load/fs.ts:1133 — deferred
+
+## Round 2
+
+Should 1 [patch]: `review.md` has no `Round record: 1` line, so main's `gate.review-rounds` (ST-LN-17) fails `accord gate done` after the merge — accord/tickets/ST-LN-13/review.md:1 — open

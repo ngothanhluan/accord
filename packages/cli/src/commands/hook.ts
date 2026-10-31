@@ -6,6 +6,7 @@ import { anchorText, checkFixDispatch, DEFAULT_BRANCH_TEMPLATE, loadSnapshot, ru
 import pkg from '../../package.json' with { type: 'json' };
 import { currentBranch, loadFromFs, ticketOfBranch } from '../load/fs.js';
 import { claudeEnv, processTable, sessionIn } from '../load/proc.js';
+import { pinMessage, versionOnDisk } from '../pin.js';
 import { repoRoot } from '../root.js';
 import type { CommandContext } from '../run.js';
 import { cleanBudgetMs } from './fetch-limit.js';
@@ -78,11 +79,17 @@ function sessionClean(ctx: CommandContext, event: 'session-start' | 'session-res
       delete c.plain;
       delete c.light;
     }
-    // fix 5: the budget starts before the fetch
-    const until = Date.now() + cleanBudgetMs();
-    const f = fetchOrigin(c);
-    // a clone with no origin has nothing to judge done against
-    if (f.fetched !== 'none') cleanQuietly(f.ctx, f.fetched, undefined, { hook: true, until });
+    // D-94: the pin check every repository-reading command makes (run.ts preflight) holds for another repository too; a mismatch removes nothing
+    const pinned = root === ctx.root || c.snapshot.config === undefined ? undefined : pinMessage(c.snapshot.config.accord, pkg.version, versionOnDisk());
+    if (pinned !== undefined) {
+      out.write(`clean skipped: ${pinned.split('\n')[0]}`.replace(/\\/g, '/') + '\n');
+    } else {
+      // fix 5: the budget starts before the fetch
+      const until = Date.now() + cleanBudgetMs();
+      const f = fetchOrigin(c);
+      // a clone with no origin has nothing to judge done against
+      if (f.fetched !== 'none') cleanQuietly(f.ctx, f.fetched, undefined, { hook: true, until });
+    }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     out.write(`clean failed, nothing more was removed: ${msg.split('\n')[0]}`.replace(/\\/g, '/') + '\n');

@@ -64,9 +64,15 @@ function fencedInside(dir: string, fenced: readonly string[]): string | undefine
   return undefined;
 }
 
-/** `rel` of a folder `abs` that holds a `.git` entry, as `<rel>/.git`; such a folder is never entered. */
+/** The reason of a `kept` line for a `.git` entry at `gitPath`: a nested repository may hold unpushed commits, so nothing in it is a file to move or delete. */
+export const repositoryReason = (gitPath: string): string => `holds a repository: ${gitPath}`;
+
+/** The reason of a `kept` line for a flagged file whose edit `git status` cannot see. */
+export const hiddenEditReason = (file: string): string => `has an edit git status hides: ${file}`;
+
+/** The reason for a folder `abs` (relative path `rel`) that holds a `.git` entry, naming `<rel>/.git`; such a folder is never entered. */
 const holdsGit = (abs: string, rel: string): string | undefined =>
-  lstatSync(`${abs}/.git`, { throwIfNoEntry: false }) === undefined ? undefined : rel === '' ? '.git' : `${rel}/.git`;
+  lstatSync(`${abs}/.git`, { throwIfNoEntry: false }) === undefined ? undefined : repositoryReason(rel === '' ? '.git' : `${rel}/.git`);
 
 /**
  * The walk after git unregistered `dir`: depth first, entries in code point order, each read with `lstatSync`.

@@ -6,7 +6,7 @@ import { DEFAULT_BRANCH_TEMPLATE, forbiddenLines, isSha, loadConfig, loadSnapsho
 import type { RepoSnapshot } from '@accord-dev/accord-core';
 import { currentBranch, droppedOn, gitDefaultRef, gitUnpushedCommits, gitUserEmail, loadFromFs, loadWithBranch, snapshotAt, ticketOfBranch, UsageError } from '../load/fs.js';
 import { fetchLimitMs } from './fetch-limit.js';
-import { DEFAULT_DISPOSABLE, gitInside, isDisposable, norm, sweepForgotten, sweepRemoved } from './leftover.js';
+import { DEFAULT_DISPOSABLE, gitInside, hiddenEditReason, isDisposable, norm, repositoryReason, sweepForgotten, sweepRemoved } from './leftover.js';
 import { claudeEnv, describeSession, isLive, processTable, runSetup, sameSession, sessionIn } from '../load/proc.js';
 import type { Session } from '../load/proc.js';
 import type { CommandContext } from '../run.js';
@@ -877,13 +877,13 @@ function passGuards(ctx: CommandContext, w: PrunableEntry, id: string, s: GuardS
     if (!e.endsWith('/')) continue;
     const nested = gitInside(w.path, e.slice(3));
     if (nested !== undefined) {
-      ctx.stdout.write(`kept ${w.path}: ${nested}\n`);
+      ctx.stdout.write(`kept ${w.path}: ${repositoryReason(nested)}\n`);
       return undefined;
     }
   }
   const edited = editHiddenFromStatus(w.path);
   if (edited !== undefined) {
-    ctx.stdout.write(`kept ${w.path}: ${edited}\n`);
+    ctx.stdout.write(`kept ${w.path}: ${hiddenEditReason(edited)}\n`);
     return undefined;
   }
   const holds = guardHolds(ctx, s, w.path);

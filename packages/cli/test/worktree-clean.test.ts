@@ -946,7 +946,7 @@ it('risk:data-loss clean keeps a done worktree whose disposable folder holds a n
   const r = await run(['worktree', 'clean'], c.root);
   expect(r.code).toBe(0);
   const L = lines(r.out);
-  expect(L).toContain(`kept ${c.sibling('ST-9')}: dist/pkg/.git`);
+  expect(L).toContain(`kept ${c.sibling('ST-9')}: holds a repository: dist/pkg/.git`);
   expect(L.some((l) => l.startsWith(`removed ${c.sibling('ST-9')}`))).toBe(false);
   expect(c.git('worktree', 'list', '--porcelain')).toContain(`worktree ${c.sibling('ST-9')}\n`);
   expect(gitRun(n, 'rev-parse', 'HEAD').trim()).toBe(N);
@@ -966,8 +966,8 @@ it('risk:data-loss clean keeps a done worktree holding an edit in a skip-worktre
   const r = await run(['worktree', 'clean'], c.root);
   expect(r.code).toBe(0);
   const L = lines(r.out);
-  expect(L).toContain(`kept ${s9}: ST-9.txt`);
-  expect(L).toContain(`kept ${s10}: ST-10.txt`);
+  expect(L).toContain(`kept ${s9}: has an edit git status hides: ST-9.txt`);
+  expect(L).toContain(`kept ${s10}: has an edit git status hides: ST-10.txt`);
   expect(L.some((l) => l.startsWith('removed'))).toBe(false);
   const listed = c.git('worktree', 'list', '--porcelain');
   expect(listed).toContain(`worktree ${s9}\n`);
@@ -994,7 +994,7 @@ it('risk:data-loss a forgotten folder holding a listed worktree or a git folder 
   expect(r.code).toBe(0);
   const L = lines(r.out);
   expect(L).toContain(`kept ${c.sibling('ST-9')}: inner`);
-  expect(L).toContain(`kept ${c.sibling('ST-10')}: sub/.git`);
+  expect(L).toContain(`kept ${c.sibling('ST-10')}: holds a repository: sub/.git`);
   expect(listing(c.sibling('ST-9'))).toEqual(before9);
   expect(listing(c.sibling('ST-10'))).toEqual(before10);
   expect(c.git('worktree', 'list', '--porcelain')).toContain(`worktree ${inner}\n`);
@@ -1075,4 +1075,25 @@ it('risk:data-loss a hook run for another repository judges with that repository
   expect(lines(r.out)).toContain(`kept ${b.sibling('ST-9')}: .env`);
   expect(readFileSync(`${b.sibling('ST-9')}/.env`, 'utf8')).toBe('SECRET=1\n');
   expect(b.git('worktree', 'list', '--porcelain')).toContain(`worktree ${b.sibling('ST-9')}\n`);
+}, 120_000);
+
+it('risk:data-loss a hook run for another repository with another accord version pin skips the clean and removes nothing', async () => {
+  const a = copy();
+  const b = copy();
+  const cfg = `${b.root}/accord/config.yml`;
+  const text = readFileSync(cfg, 'utf8');
+  const pinned = text.replace(/^accord: .*$/m, 'accord: "9.9.9"');
+  expect(pinned).not.toBe(text);
+  writeFileSync(cfg, pinned);
+  claimWorktree(b, 'ST-9');
+  doneOnRemote(b, ['ST-9']);
+  const r = await run(['hook', 'session-start'], a.root, {}, JSON.stringify({ session_id: 'sess-B', cwd: b.root, source: 'startup' }));
+  expect(r.code).toBe(0);
+  const L = lines(r.out);
+  expect(L.some((l) => l.startsWith('clean skipped: ') && l.includes('9.9.9'))).toBe(true);
+  expect(L.some((l) => l.startsWith('removed') || l.startsWith('deleted'))).toBe(false);
+  expect(existsSync(b.sibling('ST-9'))).toBe(true);
+  expect(b.git('worktree', 'list', '--porcelain')).toContain(`worktree ${b.sibling('ST-9')}\n`);
+  expect(has(b.root, 'refs/heads/t/ST-9')).toBe(true);
+  expect(has(b.remote, 'refs/heads/t/ST-9')).toBe(true);
 }, 120_000);

@@ -24,6 +24,8 @@ ui: false
 # The AC hash and the commit the ticks were made against.
 # verified_hash:
 # verified_commit:
+approved_hash: "fnv1a64:fa8636f35b1f509f"
+ac_hash: "fnv1a64:77ead066cc31368d"
 ---
 
 ## Intent
@@ -113,7 +115,7 @@ Feature: ST-LN-57
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
-- Chosen: version 2 review record, every loop round built from a head bound to git, D-09 and D-12 ranges from one walk, fail closed. review.md opens with `Round record: 2`; each heading is `## Round <n> head <sha>` (with `(added code round 1)` or `(final review)` when they apply); each finding line ends `— <location> — <state>` plus marks (`carried from`, `risk:`, `test:`/`command:`, `rests on:`); Deferred lines read `- review <r>.<n>[ cycle <k>]: …`. The typed head must lie in git between the previous head and the last code commit before the round's record, so a head cannot be typed to skip code. Every loop package is built from the last head; `--base` is kept for the lane M final review only. One `git log --remerge-diff HEAD ^<default ref>` walk gives each round's fix range (merges, debug episodes per D-12 and records-only commits left out) and the added code. Gate done checks ac-2 to ac-5 in both lanes; the D-08 deferred set reaches every `cycleState` caller; every git error fails closed; D-10 skips with a notice.
+- Chosen: version 2 review record, every loop round built from a head bound to git, D-09 and D-12 ranges from one walk, fail closed. review.md opens with `Round record: 2`; each heading is `## Round <n> head <sha>` (with `(added code round 1)` or `(final review)` when they apply); each finding line ends `— <location> — <state>` plus marks (`carried from`, `risk:`, `test:`/`command:`, `rests on:`); Deferred lines read `- review <r>.<n>[ cycle <k>]: …`. The typed head must lie in git between the previous head and the last code commit before the round's record, so a head cannot be typed to skip code. Every loop package is built from the last head; `--base` is kept for the lane M final review only. One `git log --remerge-diff` walk of HEAD less the default branch gives each round's fix range (merges, debug episodes per D-12 and records-only commits left out) and the added code. Gate done checks ac-2 to ac-5 in both lanes; the D-08 deferred set reaches every `cycleState` caller; every git error fails closed; D-10 skips with a notice.
 - Why: the only option to meet every criterion and D-01..D-14 with heads, ranges and marks bound to git rather than typed; six critique rounds shaped it (ledger Rulings).
 - Rejected: options that defined added code as commits not named `fixed in` (against D-05), that had no walk in lane S, or that trusted typed heads (critique 1 to 3); Option 2's same-file carried-from check (against the Ruling on explicit marks) and its `--base` warning, superseded by refusing `--base` in loop rounds.
 - Affected: core round/record.ts, round/next.ts (`cycleState`, `recordProblems`), gate/rounds.ts, gate/rules.ts, gate/done.ts, work.ts (Deferred), snapshot and index exports; cli load/fs.ts (walk, cat-file batch), commands/review-package.ts, gate.ts, round.ts; skills review/record.md, review/SKILL.md steps 2, 4 and 7, accord/lane-s.md, debug/SKILL.md, agents/reviewer.md, regenerated generated/skills.ts; the workflow spec's review lines.

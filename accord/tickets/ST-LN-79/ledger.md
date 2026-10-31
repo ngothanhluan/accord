@@ -6,6 +6,7 @@
 - task 3 done f70d4a746033
 - task 4 done 46e4373f8897
 - task 5 done d21eb917c55a
+- task 6 done 494592055d70
 
 ## Rulings
 
@@ -82,6 +83,9 @@
 - Ruling: when nothing is pending and there are no notes, `fixedPending.text` is the empty string — nothing is written, and Task 8 reads `pending` — cost if wrong: Task 8 adapts one line.
 - Ruling: the refusal when `<bench>/fixed/empty` lies inside a repository is one line; the folder is created before the check and nothing else is written — cost if wrong: an empty folder remains after a refusal.
 - Ruling: from Task 5 on, each brief carries a main-session note naming the Linux-container test command — the pinned accord 0.3.0 prints no test command, so Tasks 1 to 4 ran `npx vitest` on the host and waited on the machine-wide test lock; the main session reran every benchmark test file in the container after each task — cost if wrong: none to results, only wait time.
+- Ruling: `writeSession` in `fixed-world.ts` takes an optional `descriptions` map, defaulting to `fixed probe <agentType>` — the helper already existed — cost if wrong: none.
+- Ruling: `readCalls` skips a subagent run whose meta has no string `agentType`, and `version` is undefined when no call is kept — Claude Code always writes `agentType` — cost if wrong: such runs are missed in a row.
+- Ruling: the probe check on the existing readers lives in a shared `probeRun(meta, lines)` helper; `readRun` returns null for a probe run and `readSessions` skips it before reading its refusals; `readSessions` still lists a probe run found only by its session's first user line, which a real probe run never is, since it carries the description — cost if wrong: such a run appears in the older report.
 
 ## Deferred
 

@@ -41,4 +41,12 @@ One critic in a fresh context, mode diff. fixed: 2.1, 2.2, 2.3.
 
 One critic in a fresh context, mode diff, a round the owner allowed. fixed: 3.1, 3.2.
 
-1. Should — the shipping-release Ruling's merge step has the session edit plan.md (preamble, Terms, two Rulings, Task 3 and Task 9 text) mid-build: the next `accord task-done` fails on the stale `plan_hash` (packages/core/src/gate/task.ts:20), build rule 7 forbids clearing it with `accord gate plan` outside `accord-plan`, and changing Task 3's text after its ledger line breaks the re-plan rule; fix: (a) the merge step leaves plan.md alone, writes a ledger Ruling naming the release and the next version, and edits only the code places plus gen, build and sync, with the preamble check reading the latest such Ruling; or (b) the Ruling routes the plan edit through `accord-plan`'s re-plan — open
+1. Should — the shipping-release Ruling's merge step has the session edit plan.md (preamble, Terms, two Rulings, Task 3 and Task 9 text) mid-build: the next `accord task-done` fails on the stale `plan_hash` (packages/core/src/gate/task.ts:20), build rule 7 forbids clearing it with `accord gate plan` outside `accord-plan`, and changing Task 3's text after its ledger line breaks the re-plan rule; fix: (a) the merge step leaves plan.md alone, writes a ledger Ruling naming the release and the next version, and edits only the code places plus gen, build and sync, with the preamble check reading the latest such Ruling; or (b) the Ruling routes the plan edit through `accord-plan`'s re-plan — fixed
+
+## Round 5 (diff)
+
+One critic in a fresh context, mode diff, a round the owner allowed. fixed: 4.1.
+
+No findings
+
+## Closed

@@ -1,6 +1,6 @@
 ---
 baseline: ae46f67e91318d204e08e27e7c01fe9f7dc03be9
-plan_hash: "fnv1a64:bf078b5a23b2212c"
+plan_hash: "fnv1a64:660e75d3d710e3be"
 ---
 
 # Plan: ST-LN-57
@@ -28,9 +28,12 @@ four criteria's rules; Task 9 changes the text the sessions follow.
 - Commits carry no trailer of any kind: no `Co-Authored-By:`, no line whose first word ends in `-by:`, no
   "Generated with" line.
 - No task touches a file under the repository's top-level `accord/` folder.
-- Before any change, read `version` in `packages/cli/package.json`: when it is not `0.3.0`, the last release before
-  the cut-over that the Ruling on the shipping release names, a release has shipped since the plan, so stop and
-  report it instead of building; that Ruling then moves this version with every other place it lists.
+- Before any change, read `version` in `packages/cli/package.json`: when it is not the last release that the latest
+  ledger Ruling on the shipping release names, else `0.3.0`, a release has shipped that no such Ruling names yet, so
+  stop and report it instead of building. When `accord/tickets/ST-LN-57/ledger.md` holds a Ruling on the shipping
+  release (the Ruling on the shipping release below), the latest one decides: wherever a task's text writes `0.3.1`
+  as the cut-over (`RECORD_V2_FROM`, the Terms' cut-over) use its cut-over, and wherever it writes "0.3.0 or earlier"
+  use its last release; plan.md itself is not edited for it.
 - Test titles hold no `@`, `#`, comma or apostrophe, and every test named on a `verify:` line is a top-level
   `it(...)` with no `describe` around it, so its id is `<test file path from the repository root>#<title with each
   whitespace run turned into ->`. No existing test is renamed. Every new test is named on some task's `verify:` line.
@@ -168,17 +171,16 @@ four criteria's rules; Task 9 changes the text the sessions follow.
   Ruling 22's first-parent reading is kept on each side — cost if wrong: a version 1 record merged into a ticket
   branch from a branch not yet on the default branch is read at the merge and its pin, and must be converted.
 - Ruling (on the shipping release): the cut-over is the release that ships this ticket: the last release before it is `0.3.0` and the
-  cut-over `0.3.1`; every task starts by reading `version` in `packages/cli/package.json` and, when it is not that
-  last release, stops and reports it instead of building. When a release R ships before this ticket merges, the
-  session that merges main into this branch moves, before the next task is built, the last release to R and the
-  cut-over to the version after R in every place: in the plan, the preamble's version check, the Terms' cut-over,
-  this Ruling and the Ruling that opens "the cut-over literal is", Task 3's `RECORD_V2_FROM = '…'`, and Task 9's two "pinned
-  accord 0.3.0 or earlier" phrases (Task 5's message names no literal: it is built from `RECORD_V2_FROM`); in code
-  already built, `RECORD_V2_FROM` in `packages/core/src/round/pin.ts` and the same two phrases in
-  `packages/core/skills/review/record.md` and `packages/core/skills/accord/lane-s.md`, then `npm run gen`,
-  `npm run build` and `node packages/cli/dist/cli.js skills sync` (plan critique 2.1, 3.1) — a cut-over below the
-  shipping release would refuse the version 1 records committed under it — cost if wrong: one more edit of those
-  places at a merge of main.
+  cut-over `0.3.1`; every task starts with the preamble's version check against the last release. When a release R
+  ships before this ticket merges, the session that merges main into this branch leaves plan.md as it is: it writes a
+  ledger Ruling on the shipping release naming R as the last release and the version after R as the cut-over, which
+  the preamble applies to every task not yet built, and edits only the code places already built —
+  `RECORD_V2_FROM` in `packages/core/src/round/pin.ts` and the "pinned accord 0.3.0 or earlier" phrases in
+  `packages/core/skills/review/record.md` and `packages/core/skills/accord/lane-s.md` — then runs `npm run gen`,
+  `npm run build` and `node packages/cli/dist/cli.js skills sync` (Task 5's message names no literal: it is built from
+  `RECORD_V2_FROM`) (plan critique 2.1, 3.1, 4.1, option (a) chosen by the owner) — a cut-over below the shipping
+  release would refuse the version 1 records committed under it — cost if wrong: one ledger Ruling and one edit of
+  those code places at a merge of main.
 - Ruling: the fixtures of the existing tests (`packages/cli/test/helpers/samples.ts` `REVIEWED` and `UNFINISHED`,
   `packages/cli/test/helpers/worktree.ts` `REVIEWED`, and the records `packages/cli/test/round.test.ts`,
   `lane-s.test.ts` and `lane-flow.test.ts` commit under `CONFIG` before running `accord gate done` or

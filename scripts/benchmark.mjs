@@ -13,7 +13,7 @@ import { parse as parseYaml } from 'yaml';
 import { parsePlanReview } from './plan-review.mjs';
 import { median, ROLES, WRITERS, checkSamples, readDiffers, runMatrix, rewriteBrief, dispatchTable, matchRuns, mustsOf, judgeBrief, parseVerdict, holds, turnFlags, report, carryJudgeBriefs, escapes, exitState, runProblem } from './round.mjs';
 import { compliance, render as renderCompliance, parseCompliance, mergeCompliance } from './compliance.mjs';
-import { standsFor, firstCall, pendingProbes, probeVersion, PROBE_BRANCH, PROBE_BRIEF, PROBE_DESCRIPTION, PROBE_FORMS, PROBE_PREFIX, dispatchPrompt, phaseOne, shellLine } from './fixed-context.mjs';
+import { standsFor, firstCall, pendingProbes, probeVersion, textsOf, measure, render, PROBE_BRANCH, PROBE_BRIEF, PROBE_DESCRIPTION, PROBE_FORMS, PROBE_PREFIX, dispatchPrompt, phaseOne, shellLine } from './fixed-context.mjs';
 
 const projectsRoot = path.join(os.homedir(), '.claude', 'projects');
 const defaultDirs = (repo) => {
@@ -1143,6 +1143,13 @@ export function main(args) {
     (result.exit === 0 ? process.stdout : process.stderr).write(result.text);
     return result.exit;
   }
+  if (args[0] === '--fixed' && !args.slice(1).some((a) => a.startsWith('--'))) {
+    const repo = process.cwd();
+    const mainCheckout = path.dirname(gitIn(repo, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim());
+    const result = fixedReport({ repo, home: os.homedir(), bench: benchRoot(repo), dirs: args.length > 1 ? args.slice(1) : defaultDirs(mainCheckout) });
+    (result.exit === 2 ? process.stderr : process.stdout).write(result.text);
+    return result.exit;
+  }
   if (args[0] === '--round' && args[1] === '1' && args[2] === '--samples') return runSamples(process.cwd());
   if (args[0] === '--round' && args[1] === '1' && args[2] === '--plan') {
     const at = args.indexOf('--rerun');
@@ -1468,7 +1475,8 @@ export function locateSessions(home, ids) {
 }
 
 // `--fixed`, first step: the probes that are missing, stale or failed. Writes the files and commands of the ones to
-// run (and nothing else) and returns `{ exit, pending, version, text }`; `text` holds the commands, or the refusal.
+// run (and nothing else) and returns `{ exit, pending, version, text }`; `text` holds the commands, or the refusal. A
+// call that is not refused also returns what it read: `probes`, `setup`, `state`, `located` and `read`.
 export function fixedPending({ repo, home, bench, forms = PROBE_FORMS }) {
   repo = slash(repo);
   if (setupDirty(repo)) return { exit: 2, pending: [], version: undefined, text: REFUSED_DIRTY };
@@ -1496,7 +1504,26 @@ export function fixedPending({ repo, home, bench, forms = PROBE_FORMS }) {
     ? [HEADER, ...(todo.some((p) => p.where === 'probe') ? [worktreeLine(repo, setup)] : []), ...written.map((e) => e.command)]
     : [];
   lines.push(...notes);
-  return { exit: 0, pending, version, text: lines.length ? lines.join('\n') + '\n' : '' };
+  return { exit: 0, pending, version, text: lines.length ? lines.join('\n') + '\n' : '', probes, setup, state, located, read };
+}
+
+// `--fixed`: the raw table of the fixed context per call by owner, written to `<repo>/docs/benchmark/fixed-context.md`.
+// Exit 1 with the commands to run while probes are pending (nothing is written: the size is measured on the setup as
+// it is when the report runs), exit 2 on a refusal, exit 0 with the report. The report text holds no path under the
+// home folder or the repository.
+export function fixedReport({ repo, home, bench, dirs, forms = PROBE_FORMS }) {
+  repo = slash(repo);
+  const { calls, version, folders } = readCalls(dirs, { bench });
+  const p = fixedPending({ repo, home, bench, forms });
+  if (p.exit !== 0) return { exit: p.exit, text: p.text };
+  if (p.pending.length) return { exit: 1, text: p.text };
+  const allOn = p.located.get(p.state.find((e) => e.id === 'all-on').sessionId);
+  const texts = textsOf(p.setup, { main: allOn.main, agents: allOn.agents }, p.read);
+  const { rows } = measure({ setup: p.setup, probes: p.probes, state: p.state, located: p.located, texts });
+  const text = render({ calls, version, folders, probeVersion: p.version, allOnTs: allOn.main.ts, rows });
+  fs.mkdirSync(`${repo}/docs/benchmark`, { recursive: true });
+  fs.writeFileSync(`${repo}/docs/benchmark/fixed-context.md`, text);
+  return { exit: 0, text };
 }
 
 // Last: the entry runs only once every top-level declaration above has been evaluated.

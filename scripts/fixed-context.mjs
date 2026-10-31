@@ -439,3 +439,54 @@ export function measure({ setup, probes, state, located, texts }) {
   });
   return { rows, items };
 }
+
+export const MAIN_LABEL = 'main session (claude -p)';
+const day = (ms) => new Date(ms).toISOString().slice(0, 10);
+
+// The report text, from the real calls (`readCalls`' list, its newest Claude Code `version` and the number of transcript
+// `folders`), the Claude Code and the date of the all-on probe, and `measure`'s rows. Reads no clock: every date comes
+// from the transcripts. One row for the main session and one for each accord agent that ran; an agent that ran but has
+// no definition now keeps its calls and gets `-` in every figure.
+export function render({ calls, version, folders, probeVersion: probed, allOnTs, rows }) {
+  const first = calls.length ? day(Math.min(...calls.map((c) => c.ts))) : '-';
+  const last = calls.length ? day(Math.max(...calls.map((c) => c.ts))) : '-';
+  const ran = [...new Set(calls.filter((c) => c.accord).map((c) => c.row))].sort(cmp);
+  const table = ['main', ...ran].map((name) => ({
+    label: name === 'main' ? MAIN_LABEL : name,
+    own: calls.filter((c) => c.row === name),
+    measured: rows.find((r) => r.row === name),
+  }));
+  const out = [
+    '# Fixed context per call',
+    '',
+    `Transcripts: ${calls.length} calls from ${first} to ${last}, read from ${folders} transcript folder(s).`,
+    `Probes: the all-on probe of ${day(allOnTs)} under Claude Code ${probed}.`,
+  ];
+  if (version !== undefined && version !== probed) out.push(`The newest transcript call ran Claude Code ${version}; the figures are measured under Claude Code ${probed}.`);
+  out.push('The main session row is measured under claude -p, with its probe prompt sized and taken out.');
+  for (const { label, own, measured } of table) {
+    const other = own.filter((c) => measured && c.model !== measured.model);
+    if (other.length) {
+      out.push(`${label}: ${other.length} of its ${own.length} calls ran on ${[...new Set(other.map((c) => c.model))].sort(cmp).join(', ')}; they are counted at the size measured on ${measured.model}.`);
+    }
+  }
+  out.push(
+    'A claude.ai connector can change its instructions on the server, which no fingerprint sees; its figure holds for the probe date.',
+    "A plugin's own MCP servers count under plugins and again in the other connected servers line; unattributed absorbs the overlap.",
+    'Local-scope MCP servers and .claude/settings.local.json are not measured: the probe worktree loads neither.',
+    'Cursor, Codex and Copilot calls were not measured.',
+    '',
+    '## Fixed context per call, raw tokens',
+    '',
+  );
+  const head = ['row', 'model', 'calls', 'fixed', ...Object.values(OWNERS)];
+  const line = (cells) => `| ${cells.join(' | ')} |`;
+  out.push(line(head), line(head.map(() => '---')));
+  for (const { label, own, measured } of table) {
+    const figures = measured
+      ? [measured.total, measured.parts.accord, measured.parts.claudeCode, measured.parts.plugins, measured.parts.mcp, measured.parts.docs, measured.parts.sets, measured.unattributed].map((n) => String(Math.round(n)))
+      : Array(8).fill('-');
+    out.push(line([label, measured ? measured.model : '-', String(own.length), ...figures]));
+  }
+  return out.join('\n') + '\n';
+}

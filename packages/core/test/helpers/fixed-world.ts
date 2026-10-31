@@ -2,7 +2,7 @@
 // plugins, MCP servers, skills, agents, commands and memory, and the bench folder; test-only, so Node built-ins
 // are allowed here.
 import { execFileSync } from 'node:child_process';
-import { appendFileSync, mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
@@ -122,4 +122,164 @@ export function writeSession(
     put(`${dir}/${sessionId}/subagents/agent-${n}.jsonl`, jsonl(lines));
     put(`${dir}/${sessionId}/subagents/agent-${n}.meta.json`, JSON.stringify({ agentType, description: descriptions?.[agentType] ?? `fixed probe ${agentType}` }) + '\n');
   });
+}
+
+// ---- a measured world: probe sessions with chosen first-call inputs, then real calls (ST-LN-79 task 8) ----
+
+export const ROW_NAMES = ['main', 'accord-critic', 'accord-executor', 'accord-scout'] as const;
+export type RowName = (typeof ROW_NAMES)[number];
+export const MODEL_OF: Record<RowName, string> = { main: 'm-opus', 'accord-critic': 'm-opus', 'accord-executor': 'm-sonnet', 'accord-scout': 'm-sonnet' };
+type ByRow = Partial<Record<RowName, number>>;
+
+/** The numbers every probe session is written with; a test computes each expected figure from these. */
+export const CHOSEN = {
+  allOn: { main: 50000, 'accord-critic': 21000, 'accord-executor': 22000, 'accord-scout': 20000 } as Record<RowName, number>,
+  /** All-on first-call input less the probe's, by probe id (a probe not named is equal to the all-on). */
+  cut: {
+    'plugin:accord-panel@accord': { main: 200 },
+    'plugin:alpha@m': { main: 1000, 'accord-executor': 500 },
+    'plugin:beta@m': {},
+    'set:aws': { main: 50 },
+    'set:gsd': { main: 600, 'accord-scout': 100 },
+    'set:my': { main: 30 },
+    'set:own': { main: 40 },
+    'set:tool': { main: 10 },
+  } as Record<string, ByRow>,
+  /** All-on less the MCP reference probe. */
+  mcpRefCut: { main: 3000, 'accord-executor': 100 } as ByRow,
+  /** The MCP reference less the probe with only that server left out. */
+  mcpCut: { 'proj-db': { main: 700 }, 'user-search': { main: 1100, 'accord-executor': 20 } } as Record<string, ByRow>,
+  /** First-call input of the reference probe of a model; a text probe adds its delta to it. */
+  ref: { 'm-opus': 100, 'm-sonnet': 80 } as Record<string, number>,
+  /** The size of a text on a model. */
+  delta: {
+    prompt: { 'm-opus': 40, 'm-sonnet': 41 },
+    'baseline-prompt': { 'm-opus': 30, 'm-sonnet': 31 },
+    brief: { 'm-opus': 15, 'm-sonnet': 16 },
+    'agent:accord-critic': { 'm-opus': 500, 'm-sonnet': 501 },
+    'agent:accord-executor': { 'm-opus': 700, 'm-sonnet': 701 },
+    'agent:accord-scout': { 'm-opus': 600, 'm-sonnet': 601 },
+    rules: { 'm-opus': 300, 'm-sonnet': 250 },
+    'skill-listing': { 'm-opus': 400, 'm-sonnet': 350 },
+    'agent-listing': { 'm-opus': 200, 'm-sonnet': 180 },
+    'pointer:CLAUDE.md': { 'm-opus': 60, 'm-sonnet': 50 },
+    'doc:CLAUDE.md': { 'm-opus': 90, 'm-sonnet': 80 },
+    'doc:~/.claude/CLAUDE.md': { 'm-opus': 70, 'm-sonnet': 65 },
+    'doc:MEMORY.md': { 'm-opus': 55, 'm-sonnet': 45 },
+  } as Record<string, Record<string, number>>,
+  baselineMain: 12000,
+  /** The baseline's stub run input, by the accord agent the stub stands for. */
+  baselineStub: { 'accord-critic': 8500, 'accord-executor': 9000, 'accord-scout': 8200 } as Partial<Record<RowName, number>>,
+};
+
+/** The chosen size of a text on a model; the memory file's label holds the encoded repository path, so it is looked up by its tail. */
+export function sizeOf(textId: string, model: string): number {
+  const key = textId.endsWith('/memory/MEMORY.md') ? 'doc:MEMORY.md' : textId;
+  const d = CHOSEN.delta[key]?.[model];
+  if (d === undefined) throw new Error(`no chosen size for the text ${textId} on ${model}`);
+  return d;
+}
+
+const RULES = '# accord rules\n\nhold these';
+const T0 = Date.UTC(2026, 9, 30);
+const PROBE_MARK = 'accord fixed-context probe';
+
+type Called = { main: unknown; agents: Record<string, unknown> };
+type BenchApi = {
+  fixedProbe: (a: { repo: string; home: string; bench: string }) => { exit: number; text: string };
+  fixedReport: (a: { repo: string; home: string; bench: string; dirs: string[] }) => { exit: number; text: string };
+  locateSessions: (home: string, ids: string[]) => Map<string, Called>;
+  readSetup: (a: { repo: string; home: string }) => unknown;
+};
+type FcApi = { stubsOf: (s: unknown, a: unknown) => { name: string; agents: string[] }[] };
+
+export type MeasuredWorld = {
+  w: World;
+  bench: BenchApi;
+  args: { repo: string; home: string; bench: string; dirs: string[] };
+  /** The first `fixedReport` call, which found the phase-two probes pending and wrote their commands. */
+  firstRun: { exit: number; text: string; reportWritten: boolean };
+  reportFile: string;
+};
+
+/**
+ * Builds `makeWorld()`, runs `fixedProbe`, writes a session for every phase-one probe (all at Claude Code 9.0.0) with the
+ * inputs of `CHOSEN`, runs `fixedReport` (which writes the phase-two probes), writes their sessions, and writes real
+ * calls: a main session of three calls, an `accord-scout` run of two (the second on another model) and one
+ * `general-purpose` call. The caller removes `w.tmp`.
+ */
+export async function measuredWorld(): Promise<MeasuredWorld> {
+  const bench = (await import(new URL('../../../../scripts/benchmark.mjs', import.meta.url).href)) as BenchApi;
+  const fc = (await import(new URL('../../../../scripts/fixed-context.mjs', import.meta.url).href)) as FcApi;
+  const w = makeWorld();
+  try {
+    const realDir = `${w.home}/.claude/projects/real`;
+    const args = { repo: w.repo, home: w.home, bench: w.bench, dirs: [realDir, `${w.home}/.claude/projects/probes`] };
+    const state = () => (JSON.parse(readFileSync(`${w.bench}/fixed/probes.json`, 'utf8')) as { probes: { id: string; sessionId: string }[] }).probes;
+    const call = (id: string, model: string, input: number, cwd: string) =>
+      assistantLine({ id, model, input, version: '9.0.0', ts: T0, cwd, branch: 'probe/fixed-context' });
+    const cut = (id: string, row: RowName): number => {
+      if (id === 'all-on') return 0;
+      if (id === 'mcp-ref') return CHOSEN.mcpRefCut[row] ?? 0;
+      if (id.startsWith('mcp:')) return (CHOSEN.mcpRefCut[row] ?? 0) + (CHOSEN.mcpCut[id.slice(4)]?.[row] ?? 0);
+      return CHOSEN.cut[id]?.[row] ?? 0;
+    };
+
+    if (bench.fixedProbe(args).exit !== 0) throw new Error('fixedProbe failed');
+    const rules = attachmentLine({ type: 'hook_additional_context', content: [RULES] });
+    for (const { id, sessionId } of state()) {
+      const row = (r: RowName) => call(`${sessionId}-${r}`, MODEL_OF[r], CHOSEN.allOn[r] - cut(id, r), w.probeDir);
+      const loads = id !== 'all-on' ? [] : [
+        attachmentLine({ type: 'instructions', files: [
+          { path: `${w.probeDir}/CLAUDE.md`, type: 'Project' }, { path: `${w.home}/.claude/CLAUDE.md`, type: 'User' }, { path: `${w.memDir}/MEMORY.md`, type: 'AutoMem' },
+        ] }),
+        attachmentLine({ type: 'skill_listing', content: '- accord: Use when starting work.\n- other: Something else.' }),
+        attachmentLine({ type: 'agent_listing_delta', addedLines: ['- accord-critic: c', '- accord-executor: e', '- accord-scout: s', '- general-purpose: g'] }),
+        attachmentLine({ type: 'hook_success', hookEvent: 'SessionStart', exitCode: 0, command: 'npx x hook session-start' }),
+      ];
+      const skills = attachmentLine({ type: 'skill_listing', content: '- accord: Use when starting work.' });
+      const agents = Object.fromEntries((['accord-critic', 'accord-executor', 'accord-scout'] as const).map((r) =>
+        [r, [rules, ...(id === 'all-on' && r === 'accord-executor' ? [skills] : []), row(r)]]));
+      writeSession(w.home, 'probes', sessionId, { main: [userLine(`${PROBE_MARK}. dispatch`), ...loads, row('main')], agents });
+    }
+
+    const run = bench.fixedReport(args);
+    const reportFile = `${w.repo}/docs/benchmark/fixed-context.md`;
+    const firstRun = { ...run, reportWritten: existsSync(reportFile) };
+
+    const allOnId = (state().find((e) => e.id === 'all-on') as { sessionId: string }).sessionId;
+    const allOn = bench.locateSessions(w.home, [allOnId]).get(allOnId) as Called;
+    const stubs = fc.stubsOf(bench.readSetup({ repo: w.repo, home: w.home }), allOn);
+    const empty = `${w.bench}/fixed/empty`;
+    for (const { id, sessionId } of state()) {
+      if (!/^(baseline$|ref:|text:)/.test(id)) continue;
+      if (id === 'baseline') {
+        const agents = Object.fromEntries(stubs.map((s) => {
+          if (s.agents.length !== 1) throw new Error(`the stub ${s.name} stands for ${s.agents.length} agents`);
+          const stands = s.agents[0] as RowName;
+          return [s.name, [call(`${sessionId}-${s.name}`, MODEL_OF[stands], CHOSEN.baselineStub[stands] as number, empty)]];
+        }));
+        writeSession(w.home, 'probes', sessionId, { main: [userLine(`${PROBE_MARK}. dispatch`), call(`${sessionId}-main`, MODEL_OF.main, CHOSEN.baselineMain, empty)], agents });
+        continue;
+      }
+      const model = id.slice(id.lastIndexOf(':') + 1);
+      const input = id.startsWith('ref:') ? CHOSEN.ref[model] : CHOSEN.ref[model] + sizeOf(id.slice('text:'.length, id.lastIndexOf(':')), model);
+      writeSession(w.home, 'probes', sessionId, { main: [userLine(`${PROBE_MARK}: reply ok, use no tool`), call(`${sessionId}-main`, model, input, empty)] });
+    }
+
+    const real = (id: string, model: string, ts: number) =>
+      assistantLine({ id, model, ts, input: 10, cacheRead: 100, version: '9.0.0', cwd: w.repo, branch: 't/ST-LN-1' });
+    writeSession(w.home, 'real', 'real-1', {
+      main: [userLine('build the thing'), real('m1', 'm-opus', Date.UTC(2026, 9, 28, 10)), real('m2', 'm-opus', Date.UTC(2026, 9, 28, 11)), real('m3', 'm-opus', Date.UTC(2026, 9, 29, 9))],
+      agents: {
+        'accord-scout': [real('s1', 'm-sonnet', Date.UTC(2026, 9, 29, 10)), real('s2', 'm-haiku', Date.UTC(2026, 9, 29, 11))],
+        'general-purpose': [real('g1', 'm-opus', Date.UTC(2026, 9, 29, 12))],
+      },
+      descriptions: { 'accord-scout': 'scout the code', 'general-purpose': 'look around' },
+    });
+    return { w, bench, args, firstRun, reportFile };
+  } catch (e) {
+    rmSync(w.tmp, { recursive: true, force: true, maxRetries: 5 });
+    throw e;
+  }
 }

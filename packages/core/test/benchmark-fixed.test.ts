@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { expect, it } from 'vitest';
-import { assistantLine, attachmentLine, HOOK, makeWorld, userLine, writeSession, type World } from './helpers/fixed-world.js';
+import { assistantLine, attachmentLine, CHOSEN, HOOK, makeWorld, measuredWorld, MODEL_OF as ROW_MODEL, sizeOf, userLine, writeSession, type RowName, type World } from './helpers/fixed-world.js';
 
 type Line = Record<string, any>;
 type FirstCall = {
@@ -824,3 +824,107 @@ it('risk:complex-branching a part is charged only to the rows it reaches and una
   expect(items.map((i) => i.id)).not.toContain('prompt');
   expect(items.map((i) => i.id)).not.toContain('brief');
 });
+
+const MAIN_LABEL = 'main session (claude -p)';
+const LOCAL_SCOPE = 'Local-scope MCP servers and .claude/settings.local.json are not measured: the probe worktree loads neither.';
+const sumOf = (...n: (number | undefined)[]) => n.reduce<number>((a, b) => a + (b ?? 0), 0);
+/** The cells of the table under `heading`, one array per row, without the header and the separator. */
+const tableUnder = (text: string, heading: string): string[][] => {
+  const lines = text.split('\n');
+  const at = lines.indexOf(heading);
+  const table = lines.slice(at + 1).filter((l) => l.startsWith('|'));
+  return table.slice(2).map((l) => l.split('|').slice(1, -1).map((c) => c.trim()));
+};
+
+/** What the raw table must hold for a row, computed from the chosen numbers alone. */
+function expectedRow(row: RowName): string[] {
+  const model = ROW_MODEL[row];
+  const main = row === 'main';
+  const d = (id: string) => sizeOf(id, model);
+  const total = CHOSEN.allOn[row] - (main ? d('prompt') : d('brief'));
+  const accord = sumOf(
+    main ? 0 : d(`agent:${row}`), d('rules'), main || row === 'accord-executor' ? d('skill-listing') : 0,
+    main ? d('agent-listing') : 0, main ? d('pointer:CLAUDE.md') : 0,
+  );
+  const claudeCode = main ? CHOSEN.baselineMain - d('baseline-prompt') : (CHOSEN.baselineStub[row] as number) - d('brief');
+  const plugins = sumOf(...['plugin:accord-panel@accord', 'plugin:alpha@m', 'plugin:beta@m'].map((id) => CHOSEN.cut[id]?.[row]));
+  const mcp = sumOf(CHOSEN.mcpRefCut[row], ...Object.values(CHOSEN.mcpCut).map((c) => c[row]));
+  const docs = main ? sumOf(d('doc:CLAUDE.md'), d('doc:~/.claude/CLAUDE.md'), d('doc:MEMORY.md')) : 0;
+  const sets = sumOf(...['set:aws', 'set:gsd', 'set:my', 'set:own', 'set:tool'].map((id) => CHOSEN.cut[id]?.[row]));
+  const unattributed = total - accord - claudeCode - plugins - mcp - docs - sets;
+  const calls = main ? 3 : 2;
+  return [main ? MAIN_LABEL : row, model, String(calls), ...[total, accord, claudeCode, plugins, mcp, docs, sets, unattributed].map(String)];
+}
+
+it('ac-1 the main session and each accord agent that ran get one row split by owner', async () => {
+  const m = await measuredWorld();
+  const { w } = m;
+  try {
+    // The first call found the phase-two probes pending: exit 1, commands, no report.
+    expect(m.firstRun.exit).toBe(1);
+    expect(m.firstRun.reportWritten).toBe(false);
+    expect(m.firstRun.text).toContain('--append-system-prompt-file');
+
+    const r = m.bench.fixedReport(m.args);
+    expect(r.exit).toBe(0);
+    const raw = tableUnder(r.text, '## Fixed context per call, raw tokens');
+    expect(raw.map((c) => c[0])).toEqual([MAIN_LABEL, 'accord-scout']);
+    expect(raw[0]).toEqual(expectedRow('main'));
+    expect(raw[1]).toEqual(expectedRow('accord-scout'));
+    for (const cells of raw) {
+      const n = cells.slice(3).map(Number);
+      expect(n[0]).toBe(n.slice(1).reduce((a, b) => a + b, 0));
+    }
+    expect(readFileSync(m.reportFile, 'utf8')).toBe(r.text);
+
+    const lines = r.text.split('\n');
+    expect(lines[0]).toBe('# Fixed context per call');
+    expect(lines).toContain('Transcripts: 6 calls from 2026-10-28 to 2026-10-29, read from 2 transcript folder(s).');
+    expect(lines).toContain('Probes: the all-on probe of 2026-10-30 under Claude Code 9.0.0.');
+    expect(lines).toContain('The main session row is measured under claude -p, with its probe prompt sized and taken out.');
+    expect(lines).toContain('accord-scout: 1 of its 2 calls ran on m-haiku; they are counted at the size measured on m-sonnet.');
+    expect(lines.filter((l) => l.includes(' calls ran on '))).toHaveLength(1);
+    expect(lines.some((l) => l.startsWith('The newest transcript call'))).toBe(false);
+    expect(lines).toContain(LOCAL_SCOPE);
+    expect(lines).toContain('Cursor, Codex and Copilot calls were not measured.');
+    expect(lines).toContain('A claude.ai connector can change its instructions on the server, which no fingerprint sees; its figure holds for the probe date.');
+    expect(lines).toContain("A plugin's own MCP servers count under plugins and again in the other connected servers line; unattributed absorbs the overlap.");
+
+    expect(r.text).not.toContain('local-db');
+    expect(r.text).not.toMatch(/sekret-/);
+    expect(r.text).not.toContain('accord-probe');
+    expect(r.text).not.toContain(w.tmp);
+    expect(r.text).not.toMatch(/[A-Za-z]:[\\/]+Users[\\/]/i);
+
+    // A newer Claude Code on a real call is named beside the probe's; an accord agent with no definition keeps its calls and gets dashes.
+    const later = (id: string, version: string) => ({ ...assistantLine({ id, ts: Date.UTC(2026, 9, 29, 20), cwd: w.repo, branch: 't/ST-LN-1', version }) });
+    writeSession(w.home, 'real', 'real-2', { main: [userLine('more'), later('n1', '9.5.0')], agents: { 'accord-planner': [later('p1', '9.5.0')] }, descriptions: { 'accord-planner': 'plan it' } });
+    const again = m.bench.fixedReport(m.args);
+    expect(again.exit).toBe(0);
+    expect(again.text.split('\n')).toContain('The newest transcript call ran Claude Code 9.5.0; the figures are measured under Claude Code 9.0.0.');
+    const rows = tableUnder(again.text, '## Fixed context per call, raw tokens');
+    expect(rows.map((c) => c[0])).toEqual([MAIN_LABEL, 'accord-planner', 'accord-scout']);
+    expect(rows[0].slice(0, 3)).toEqual([MAIN_LABEL, 'm-opus', '4']);
+    expect(rows[1]).toEqual(['accord-planner', '-', '1', ...Array<string>(8).fill('-')]);
+  } finally {
+    rmSync(w.tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+}, 120_000);
+
+it('ac-3 the report printed twice on the same transcripts and setup is the same', async () => {
+  const m = await measuredWorld();
+  const { w } = m;
+  try {
+    const stateFile = `${w.bench}/fixed/probes.json`;
+    const first = m.bench.fixedReport(m.args);
+    expect(first.exit).toBe(0);
+    const before = readFileSync(stateFile, 'utf8');
+    const second = m.bench.fixedReport(m.args);
+    expect(second.exit).toBe(0);
+    expect(second.text).toBe(first.text);
+    expect(readFileSync(stateFile, 'utf8')).toBe(before);
+    expect(readFileSync(m.reportFile, 'utf8')).toBe(first.text);
+  } finally {
+    rmSync(w.tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+}, 120_000);

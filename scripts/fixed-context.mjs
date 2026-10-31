@@ -331,40 +331,21 @@ export function connectorsOf(setup, allOn) {
   return { connectors: extra.filter(isConnector).sort(cmp), others: extra.filter((n) => !isConnector(n)).sort(cmp) };
 }
 
-// The probes planned from the all-on transcript: one per claude.ai connector (when a form takes one out), the
-// baseline with its stub agents, a reference and a calibration probe (the brief with `calibration` appended) per model,
-// and each text appended to the baseline on each model of the rows it reaches. Each is { id, where, depends, model?, ... };
-// the files and commands are written by the caller.
-export function phaseTwo(setup, allOn, read, calibration, forms = PROBE_FORMS) {
+// The probes planned from the all-on transcript: the baseline with its stub agents, and a reference and a calibration
+// probe (the brief with `calibration` appended) per model of the rows. Each is { id, where, depends, model?, ... }; the
+// files and commands are written by the caller. No text is probed: every part but Claude Code is sized from its text.
+export function phaseTwo(setup, allOn, calibration) {
   const calls = rowCalls(allOn);
   const stubs = stubsOf(setup, allOn);
-  const probes = [];
-  if (forms.connector !== null) {
-    for (const name of connectorsOf(setup, allOn).connectors) {
-      probes.push({
-        id: `connector:${name}`,
-        where: 'probe',
-        depends: {},
-        settings: { permissions: { deny: [forms.connector.replace('{server}', serverKey(name))] } },
-      });
-    }
-  }
-  probes.push({ id: 'baseline', where: 'empty', model: allOn.main.model, stubs, depends: { stubs: JSON.stringify(stubs) } });
-  const modelsOf = (rows) => [...new Set(rows.map((r) => calls[r].model))].sort(cmp);
-  for (const model of modelsOf(Object.keys(calls))) {
+  const probes = [{ id: 'baseline', where: 'empty', model: allOn.main.model, stubs, depends: { stubs: JSON.stringify(stubs) } }];
+  for (const model of [...new Set(Object.values(calls).map((c) => c.model))].sort(cmp)) {
     probes.push({ id: `ref:${model}`, where: 'empty', model, depends: {} });
     probes.push({ id: `cal:${model}`, where: 'empty', model, text: calibration, depends: { calibration: sha256(calibration) } });
-  }
-  for (const t of textsOf(setup, allOn, read)) {
-    const source = /^(agent|doc|pointer):/.test(t.id) ? 'disk' : 'probe';
-    for (const model of modelsOf(t.rows)) {
-      probes.push({ id: `text:${t.id}:${model}`, where: 'empty', model, text: t.text, source, depends: { [`text:${t.id}`]: sha256(t.text) } });
-    }
   }
   return probes.sort((a, b) => cmp(a.id, b.id));
 }
 
-export const PHASE_TWO_NOTE = 'The connector, baseline, reference and text probes follow once the all-on probe has run.';
+export const PHASE_TWO_NOTE = 'The baseline and calibration probes follow once the all-on probe has run.';
 
 // The Claude Code the probes ran with: the version of the newest main first call among the sessions `state` names.
 // The session that runs the script is never used, since the probes run in the owner's shell, whose Claude Code may be another build.
@@ -383,7 +364,7 @@ export function probeVersion(state, located) {
 // first call (baseline); it is stale when its Claude Code is not `version` or a value it depends on has changed.
 // A calibration pair whose `cal:` input is not above its `ref:` input gives no size: both probes are pending again.
 // A set probe that is not pending but still lists a member did not move it out of reach: it is failed.
-export function pendingProbes({ setup, state, located, version, read, calibration, forms = PROBE_FORMS }) {
+export function pendingProbes({ setup, state, located, version, calibration, forms = PROBE_FORMS }) {
   const entries = new Map(state.map((e) => [e.id, e]));
   const sessionOf = (id) => {
     const e = entries.get(id);
@@ -392,7 +373,7 @@ export function pendingProbes({ setup, state, located, version, read, calibratio
   const allOnSession = sessionOf('all-on');
   const notes = [];
   const probes = phaseOne(setup, forms);
-  if (allOnSession?.main) probes.push(...phaseTwo(setup, { main: allOnSession.main, agents: allOnSession.agents }, read, calibration, forms));
+  if (allOnSession?.main) probes.push(...phaseTwo(setup, { main: allOnSession.main, agents: allOnSession.agents }, calibration));
   else notes.push(PHASE_TWO_NOTE);
   probes.sort((a, b) => cmp(a.id, b.id));
 
@@ -440,19 +421,21 @@ export const OWNERS = {
 };
 
 // Each row's fixed context and its parts in raw tokens per call, and every item of the setup with what it costs per
-// row, from the probe transcripts. `probes` are the probes planned (pendingProbes' list, none pending), `state` the
-// parsed probes.json, `located` the sessions found for it, `texts` the result of textsOf. Every figure is a
-// difference of two first calls (no characters-per-token ratio); a part is charged only to the rows it reaches, and
-// `unattributed` is the total less every other part (it may be negative, since leave-one-out figures need not add up).
-export function measure({ setup, probes, state, located, texts }) {
+// row. `state` is the parsed probes.json (`{ probes }` or the bare array), `located` the sessions found for it, `texts`
+// the result of textsOf and `calibration` the text the calibration probes appended. A row's total comes from its first
+// call in the all-on probe and its Claude Code part from the baseline; every other part is a text, sized as its
+// characters times the tokens a character costs on the row's model (the calibration pair of that model). A part is
+// charged only to the rows its texts reach, and `unattributed` is the total less every other part (it may be negative).
+// An MCP server's instructions block that reaches an agent row though its first call does not hold it is added to that
+// row's total (Claude Code adds it after the first call) and recorded as the row's `late`.
+export function measure({ setup, state, located, texts, calibration }) {
   const entries = new Map((Array.isArray(state) ? state : state.probes).map((e) => [e.id, e]));
-  const planned = new Set(probes.map((p) => p.id));
   const session = (id) => {
     const found = located.get(entries.get(id)?.sessionId);
     if (!found?.main) throw new Error(`The probe ${id} has no first call.`);
     return found;
   };
-  // The first-call input of a row in a probe; a ref: or text: probe has the main session only.
+  // The first-call input of a row in a probe; a ref: or cal: probe has the main session only.
   const input = (id, row) => {
     const s = session(id);
     const call = row === 'main' ? s.main : s.agents[row];
@@ -466,63 +449,60 @@ export function measure({ setup, probes, state, located, texts }) {
   const stubOf = new Map();
   for (const stub of stubsOf(setup, { main: allOn.main, agents: allOn.agents })) for (const a of stub.agents) stubOf.set(a, stub.name);
 
-  const size = (id, row) => input(`text:${id}:${model(row)}`, 'main') - input(`ref:${model(row)}`, 'main');
-  // What the task prompt of a row adds to its first call: the dispatch prompt for the main session, the brief for an agent.
-  const task = (row) => size(row === 'main' ? 'prompt' : 'brief', row);
-
-  const { connectors, others } = connectorsOf(setup, allOn);
-  const probed = connectors.filter((c) => planned.has(`connector:${c}`));
-  const unprobed = [...connectors.filter((c) => !planned.has(`connector:${c}`)), ...others].sort(cmp);
+  const perChar = new Map();
+  const ratios = {};
+  for (const m of [...new Set(rowNames.map(model))].sort(cmp)) {
+    const added = input(`cal:${m}`, 'main') - input(`ref:${m}`, 'main');
+    if (added <= 0) throw new Error(`The calibration pair of ${m} gives no positive size.`);
+    perChar.set(m, added / calibration.length);
+    ratios[m] = calibration.length / added;
+  }
+  const size = (t, row) => Math.round(t.text.length * perChar.get(model(row)));
+  const textById = (id) => {
+    const t = texts.find((x) => x.id === id);
+    if (!t) throw new Error(`The text ${id} is missing.`);
+    return t;
+  };
+  // The size of the task prompt of a row: the dispatch prompt for the main session, the brief for an agent.
+  const task = (row) => size(textById(row === 'main' ? 'prompt' : 'brief'), row);
 
   const items = [];
-  // A probe item: the row's all-on (or reference) input less its input with only that item left out.
-  const probeItem = (id, owner, label, base, probe) => {
-    const perRow = {};
-    for (const row of rowNames) {
-      const d = input(base, row) - input(probe, row);
-      if (d !== 0) perRow[row] = d;
-    }
-    const item = { id, owner, label, perRow };
-    items.push(item);
-    return item;
-  };
-  for (const p of setup.plugins) {
-    probeItem(`plugin:${p.id}`, OWNERS.plugins, p.accordOwn ? `${p.id} (accord's own)` : p.id, 'all-on', `plugin:${p.id}`);
-  }
-  for (const m of setup.mcp) probeItem(`mcp:${m.name}`, OWNERS.mcp, m.name, 'mcp-ref', `mcp:${m.name}`);
-  const connectorItems = probed.map((c) => probeItem(`connector:${c}`, OWNERS.mcp, `${c} (claude.ai connector)`, 'all-on', `connector:${c}`));
-  const rest = { id: 'other-servers', owner: OWNERS.mcp, label: `other connected servers: ${unprobed.length ? unprobed.join(', ') : 'none'}`, perRow: {} };
-  for (const row of rowNames) {
-    const d = input('all-on', row) - input('mcp-ref', row) - connectorItems.reduce((n, c) => n + (c.perRow[row] ?? 0), 0);
-    if (d !== 0) rest.perRow[row] = d;
-  }
-  items.push(rest);
-  for (const s of setup.sets) probeItem(`set:${s.prefix}`, OWNERS.sets, `set ${s.prefix} (${s.members.length} members)`, 'all-on', `set:${s.prefix}`);
-
-  // A text item: its size in each row it reaches. The agent definitions are one item, each in its own row.
-  const textItem = (id, owner, label, from) => {
-    const perRow = {};
-    for (const t of from) for (const row of t.rows) if (rowNames.includes(row)) perRow[row] = size(t.id, row);
-    items.push({ id, owner, label, perRow });
-  };
-  textItem('agent-definition', OWNERS.accord, 'agent definition', texts.filter((t) => t.id.startsWith('agent:')));
-  for (const [id, label] of [['rules', 'rules block'], ['skill-listing', 'skill listing entries'], ['agent-listing', 'agent listing entries']]) {
-    textItem(id, OWNERS.accord, label, texts.filter((t) => t.id === id));
-  }
-  for (const t of texts.filter((x) => x.id.startsWith('pointer:'))) textItem(t.id, OWNERS.accord, `pointer block ${t.label}`, [t]);
+  const item = (id, owner, label) => items.push({ id, owner, label, perRow: {} });
+  const isConnector = (n) => n.startsWith('claude.ai ') || serverKey(n).startsWith('claude_ai_');
+  for (const p of setup.plugins) item(`plugin:${p.id}`, OWNERS.plugins, p.accordOwn ? `${p.id} (accord's own)` : p.id);
+  for (const m of setup.mcp) item(`mcp:${m.name}`, OWNERS.mcp, m.name);
+  const listed = new Set(items.map((i) => i.id));
+  const others = [...new Set(texts.filter((t) => t.owner === OWNERS.mcp && !listed.has(t.item)).map((t) => t.item.slice('mcp:'.length)))].sort(cmp);
+  for (const n of others) item(`mcp:${n}`, OWNERS.mcp, isConnector(n) ? `${n} (claude.ai connector)` : n);
+  for (const s of setup.sets) item(`set:${s.prefix}`, OWNERS.sets, `set ${s.prefix} (${s.members.length} members)`);
+  item('agent-definition', OWNERS.accord, 'agent definition');
+  for (const [id, label] of [['rules', 'rules block'], ['skill-listing', 'skill listing entries'], ['agent-listing', 'agent listing entries']]) item(id, OWNERS.accord, label);
+  for (const t of texts.filter((x) => x.id.startsWith('pointer:'))) item(t.item, OWNERS.accord, `pointer block ${t.id.slice('pointer:'.length)}`);
   const docIds = new Set(setup.docs.map((d) => `doc:${d.label}`));
-  for (const d of setup.docs) textItem(`doc:${d.label}`, OWNERS.docs, d.label, texts.filter((t) => t.id === `doc:${d.label}`));
-  for (const t of texts.filter((x) => x.id.startsWith('doc:') && !docIds.has(x.id))) textItem(t.id, OWNERS.docs, t.label, [t]);
+  for (const d of setup.docs) item(`doc:${d.label}`, OWNERS.docs, d.label);
+  for (const t of texts.filter((x) => x.id.startsWith('doc:') && !docIds.has(x.id))) item(t.id, OWNERS.docs, t.id.slice('doc:'.length));
+  for (const it of items) {
+    for (const t of texts) {
+      if (t.item !== it.id) continue;
+      for (const row of t.rows) if (rowNames.includes(row)) it.perRow[row] = (it.perRow[row] ?? 0) + size(t, row);
+    }
+  }
 
+  const holds = (row, n) => Object.keys(calls[row].mcpBlocks ?? {}).some((b) => serverKey(b) === serverKey(n));
   const rows = rowNames.map((row) => {
     const sum = (owner) => items.filter((i) => i.owner === owner).reduce((n, i) => n + (i.perRow[row] ?? 0), 0);
-    const total = input('all-on', row) - task(row);
-    const claudeCode = row === 'main' ? input('baseline', 'main') - size('baseline-prompt', row) : input('baseline', stubOf.get(row)) - task(row);
+    const late = row === 'main' ? 0 : texts
+      .filter((t) => t.id.startsWith('mcp-block:') && t.rows.includes(row) && !holds(row, t.id.slice('mcp-block:'.length)))
+      .reduce((n, t) => n + size(t, row), 0);
+    const total = input('all-on', row) - task(row) + late;
+    const claudeCode = row === 'main'
+      ? input('baseline', 'main') - size(textById('baseline-prompt'), row)
+      : input('baseline', stubOf.get(row)) - task(row);
     const parts = { accord: sum(OWNERS.accord), claudeCode, plugins: sum(OWNERS.plugins), mcp: sum(OWNERS.mcp), docs: sum(OWNERS.docs), sets: sum(OWNERS.sets) };
     const named = Object.values(parts).reduce((n, v) => n + v, 0);
-    return { row, model: model(row), total, parts, unattributed: total - named };
+    return { row, model: model(row), total, late, parts, unattributed: total - named };
   });
-  return { rows, items };
+  return { rows, items, ratios };
 }
 
 export const MAIN_LABEL = 'main session (claude -p)';

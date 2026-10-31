@@ -1489,7 +1489,7 @@ export function fixedPending({ repo, home, bench, forms = PROBE_FORMS }) {
   const version = probeVersion(state, located);
   const read = (file) => { try { return fs.readFileSync(file, 'utf8'); } catch { return undefined; } };
   const calibration = calibrationText();
-  const { probes, pending, failed, notes } = pendingProbes({ setup, state, located, version, read, calibration, forms });
+  const { probes, pending, failed, notes } = pendingProbes({ setup, state, located, version, calibration, forms });
   if (failed.length) {
     const lines = failed.map((f) => `Refused: the probe ${f.id} still lists ${f.member} under Claude Code ${version}, so the settings that move a set out of reach no longer work on this version; run the switch spike again and update PROBE_FORMS in scripts/fixed-context.mjs before measuring.`);
     return { exit: 2, pending, version, text: lines.join('\n') + '\n' };
@@ -1544,7 +1544,7 @@ export function fixedReport({ repo, home, bench, dirs, forms = PROBE_FORMS }) {
   if (p.pending.length) return { exit: 1, text: p.text };
   const allOn = p.located.get(p.state.find((e) => e.id === 'all-on').sessionId);
   const texts = textsOf(p.setup, { main: allOn.main, agents: allOn.agents }, p.read);
-  const { rows, items } = measure({ setup: p.setup, probes: p.probes, state: p.state, located: p.located, texts });
+  const { rows, items } = measure({ setup: p.setup, state: p.state, located: p.located, texts, calibration: p.calibration });
   const tickets = ticketShares({ calls, rows, tickets: doneTickets(repo) });
   const text = render({ calls, version, folders, probeVersion: p.version, allOnTs: allOn.main.ts, rows, items, tickets });
   fs.mkdirSync(`${repo}/docs/benchmark`, { recursive: true });

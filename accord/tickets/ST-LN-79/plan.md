@@ -1,6 +1,6 @@
 ---
 baseline: 5c8b5d96c8cbf6acddfcee3c6358c09b84f75094
-plan_hash: "fnv1a64:aa0e053a546a462e"
+plan_hash: "fnv1a64:5e47c13e4c00a259"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -122,7 +122,11 @@ differ, this paragraph and Tasks 11 to 15 hold.
   exception: an MCP server's instructions block that the all-on main holds before its first call is charged to every
   agent row as well, because Claude Code adds that block to a subagent after the subagent's first call (real
   accord-critic transcripts carry the `claude.ai Claude Docs` `mcp_instructions_delta` after their first assistant
-  line; ledger Ruling "re-plan 2, review 1.1"). Task 11 builds those rows, Task 15 says so in the report.
+  line; ledger Ruling "re-plan 2, review 1.1"). Such a block is also added to the `total` of each agent row whose own
+  all-on first call does not hold it, since that first call's input, which the `total` is read from, leaves it out:
+  the block is then in the row's fixed context and its MCP servers part alike, `unattributed` stays what the
+  measured inputs leave, and Task 9's cost-weighted figures and ticket shares, which read the `total`, count it.
+  Task 11 builds those rows, Task 13 adds the block to the `total`, Task 15 says so in the report.
 - Stale: a change of the setup makes only `all-on` stale (Task 3's `fingerprints`, whose `docs` key also covers each
   instruction file's content from Task 12); `baseline` is also stale when its stubs change (an accord agent's tool
   list or model changed); a Claude Code version other than the probe version makes every probe stale; a calibration
@@ -1049,7 +1053,16 @@ unattributed }`; that the parts and `unattributed` add up to `total`; `state` re
   as in the preamble's re-plan paragraph. When `I(cal:m, main) ≤ I(ref:m, main)` for a row's model, `measure` throws
   `The calibration pair of <model> gives no positive size.` (the pending rule of Task 12 keeps that from reaching it).
   `ratios` maps each row's model key to `calibration.length / (I(cal:m, main) − I(ref:m, main))`, characters a token.
-  - `total`: `I(all-on, main) − size(prompt, main)` for `main`, `I(all-on, r) − size(brief, r)` for an agent;
+  - `total`: `I(all-on, main) − size(prompt, main)` for `main`, `I(all-on, r) − size(brief, r) + late(r)` for an
+    agent, where `late(r)` is the sum of `size(t, r)` over the texts `t` whose id is `mcp-block:<n>`, whose `rows`
+    hold `r`, and whose server the row's own all-on first call does not hold: no key `b` of
+    `located.get(S('all-on')).agents[r].mcpBlocks` (an absent `mcpBlocks` reads as `{}`) has `serverKey(b) ===
+    serverKey(<n>)`, `<n>` read from the text's id after `mcp-block:`. Such a block reaches the row by Task 11's
+    rows rule, though Claude Code adds it only after the subagent's first call, so `I(all-on, r)` leaves it out while
+    the row's next calls carry it; adding it to the `total` keeps the block in the fixed context as it is in the MCP
+    servers part, and `unattributed` stays what the measured inputs leave. `main` gets no `late`: a block reaches
+    `main` only when the main's own first call holds it. Task 9's `weighFixed(total, call)`, cost-weighted figures
+    and `ticketShares` read this `total`, so they count the block with no change to Task 9's code.
     `claudeCode`: `I(baseline, main) − size(baseline-prompt, main)` for `main`, `I(baseline, <stub of r>) −
     size(brief, r)` for an agent. These are Task 7's formulas with a text's size read from the ratio.
   - `items`, each `{ id, owner, label, perRow }`, in this order: each enabled plugin `plugin:<id>` (label the id, with
@@ -1080,8 +1093,17 @@ Tests first.
   `set-skills:gsd` 201 [main, scout], `set-agents:gsd` 61 [main], `mcp-block:srv` 603 [all], `mcp-tools:srv` 101
   [main, executor], `mcp-block:claude.ai Docs X` 905 [all], `mcp-tools:claude.ai Docs X` 301 [main],
   `mcp-tools:plugin_alpha_srv` 51 [main], `prompt` 161 [main], `baseline-prompt` 121 [main], `brief` 63 [scout,
-  executor], with owners and items by Task 11's rules. Assert: each row's `total`, `claudeCode` and every part equal
-  the values the test computes with `Math.round(length × perChar)` per text; `ratios` is `{ 'm-opus': 4, 'm-sonnet':
+  executor], with owners and items by Task 11's rules. The all-on FirstCalls in `located` carry `mcpBlocks`: main
+  `{ srv: '## srv\nq', 'claude.ai Docs X': '## claude.ai Docs X\nrules' }`, scout `{ srv: '## srv\nq' }`, executor
+  `{}`. Assert: each row's `total`, `claudeCode` and every part equal the values the test computes with
+  `Math.round(length × perChar)` per text; main's `total` is `50000 − size(prompt, main)`, with no block added;
+  scout's `total` is `20000 − size(brief, scout) + size(mcp-block:claude.ai Docs X, scout)` (it holds the `srv`
+  block, so that one is not added) and executor's is `21000 − size(brief, executor) + size(mcp-block:srv, executor)
+  + size(mcp-block:claude.ai Docs X, executor)`; each agent row's `mcp` part holds both blocks' sizes; each agent
+  row's `unattributed` equals `I(all-on, r) − size(brief, r) − claudeCode − (every other part − late(r))`, the
+  remainder with the added blocks left out of both the total and the MCP servers part; with the scout's `mcpBlocks`
+  also holding `claude.ai Docs X`, the scout's `total` is `20000 − size(brief, scout)` and its `unattributed` is
+  `20000 − size(brief, scout) − claudeCode − every other part` (its input of 20000 is then read as holding the block); `ratios` is `{ 'm-opus': 4, 'm-sonnet':
   1000 / 300 }`; `plugin:alpha@m` has `perRow` keys main and executor only; `plugin:beta@m`,
   `plugin:accord-panel@accord` and `mcp:idle` are listed with an empty `perRow`; `mcp:claude.ai Docs X` has the label
   `claude.ai Docs X (claude.ai connector)` and a `perRow` key in every row (its block reaches every row), and
@@ -1108,7 +1130,15 @@ Tests first.
   11's rule all the same). `expectedRow` (ac-1) computes each owner's figure as the sum of `Math.round(<text
   length> × perCharOf(<row model>))` over that owner's texts in the row, built by Task 11's rules from those strings,
   and the docs from the files `makeWorld` writes (the root `CLAUDE.md` with its pointer block cut out, as Task 4
-  cuts it). In ac-2 the item expectations become: the `MCP servers` lines are `claude.ai Docs X (claude.ai
+  cuts it). Since the scout's all-on transcript holds neither block, `expectedRow` gives the scout's `fixed` as
+  `I(all-on, scout) − size(brief, scout)` plus the sizes of the `claude.ai Docs X` and `proj-db` blocks at the
+  scout's model, and its `unattributed` as that `fixed` less `Claude Code` and every other owner's figure, the
+  blocks included in the `MCP servers` figure; the main row's `fixed` gets no block added. ac-1 also asserts that the
+  scout row's `fixed` cell less those two block sizes equals `I(all-on, scout) − size(brief, scout)`, and that its
+  `unattributed` cell equals `I(all-on, scout) − size(brief, scout) − <Claude Code cell> − (<the other owner cells>
+  − <the two block sizes>)`, the remainder the measured inputs leave. In ac-2 the expected cost-weighted figures and
+  the T-1 subagent share use the scout's raised `fixed`, and the calls chosen against the fixed context (cache reads
+  covering it, cache writes reached, whole input below it) are chosen against that raised value. In ac-2 the item expectations become: the `MCP servers` lines are `claude.ai Docs X (claude.ai
   connector)`, `plugin_alpha_srv`, `proj-db` and `user-search`; `claude.ai Docs X (claude.ai connector)` and
   `proj-db` each have a main and a scout cell (the block reaches the scout's row), `plugin_alpha_srv` a main cell and
   `-` for the scout; `alpha@m` has a main cell and `-` for the scout;
@@ -1189,8 +1219,9 @@ order.
 - `render` drops the line `A plugin's own MCP servers count under plugins and again in the other connected servers
   line; unattributed absorbs the overlap.` and prints, in its place, `A plugin's own MCP servers count under MCP
   servers; its skills and agents count under plugins.`, then directly after it `An MCP server's instructions block
-  that the main session loads is charged to every accord agent row too: Claude Code adds it to a subagent after the
-  subagent's first call.` (the rows rule of Task 11). Directly after the line `The main session row is measured under
+  that the main session loads is counted in every accord agent row's fixed context and MCP servers part: Claude Code
+  adds it to a subagent after the subagent's first call, so it is added to the fixed context measured from that
+  first call.` (the rows rule of Task 11 and the `total` of Task 13). Directly after the line `The main session row is measured under
   claude -p, with its probe prompt sized and taken out.` it prints `Every part but Claude Code is sized from its
   text's characters at a characters-per-token ratio calibrated on each model (<model>: <ratio>, ... characters a
   token), so those sizes carry that estimate, about ±10%; unattributed absorbs the difference.`, with each model key

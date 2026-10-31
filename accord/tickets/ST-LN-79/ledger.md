@@ -120,6 +120,12 @@
 - Ruling: (re-plan 2, round 1 fix) Task 15 adds a report line saying the main MCP instructions block is charged to every accord agent row — the report states its other method choices — cost if wrong: one extra line.
 - Ruling: (re-plan 2, round 1 fix) an MCP block held only by agents, never by the main, keeps the rows that hold it — the review 1.1 Ruling covers only blocks the main holds — cost if wrong: such a block is understated on other agent rows.
 
+- Ruling: (re-plan 2, round 2 fix) `measure` works out whether a row first call holds a block from that call own `mcpBlocks`, matched by `serverKey`, without a new field on Task 11 texts — keeps the text shape and Task 11 tests — cost if wrong: the server is matched on its key in two places that could drift apart.
+- Ruling: (re-plan 2, round 2 fix) an `mcp-block:<n>` server name is read from the text id, not its label — the Task 13 test texts carry no label — cost if wrong: none while id and label agree.
+- Ruling: (re-plan 2, round 2 fix) the main row never gets the late-block addition — a block reaches main only when its own first call holds it — cost if wrong: none under that rule.
+
+- Ruling: (re-plan 2, review 3.1) each dispatch first real call is weighed against the agent row total less its late MCP blocks, rather than only saying so in the report — the first call by premise lacks the block, and the light fix would leave its brief charged as fixed context — cost if wrong: one more branch in `weighFixed`.
+
 ## Deferred
 
 - Plan review 1.14 (Nice): `PROBE_FORMS.claudeVersion` is recorded in Task 1 but no task reads it.

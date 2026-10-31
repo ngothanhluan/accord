@@ -1,6 +1,6 @@
 ---
 baseline: 5c8b5d96c8cbf6acddfcee3c6358c09b84f75094
-plan_hash: "fnv1a64:5e47c13e4c00a259"
+plan_hash: "fnv1a64:9ef48359d2a59e47"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -107,8 +107,8 @@ differ, this paragraph and Tasks 11 to 15 hold.
   after the owner's probe runs ("How the measurement is run" above holds as written). Each of Tasks 11 to 15 leaves
   every test of `benchmark-fixed.test.ts` passing: 11 adds the texts of every owner, which nothing reads yet; 12 plans
   the calibration pairs beside the existing probes; 13 switches `measure` to text sizing and drops the text probes,
-  which wires the new approach end to end through `--fixed`; 14 removes what nothing uses any more; 15 is the
-  report's wording.
+  which wires the new approach end to end through `--fixed`; 14 removes what nothing uses any more; 15 weighs each
+  dispatch's first call without the MCP blocks Claude Code adds after it, and is the report's wording.
 - Probes from Task 14 on: `all-on` (run from the probe worktree, planned from the setup); then, planned from the
   all-on transcript and run from the empty folder, `baseline` (Task 4's stubs) and, for each row's model key,
   `ref:<model>` (the brief alone) and `cal:<model>` (the brief with the calibration text appended). About 20 model
@@ -126,7 +126,9 @@ differ, this paragraph and Tasks 11 to 15 hold.
   all-on first call does not hold it, since that first call's input, which the `total` is read from, leaves it out:
   the block is then in the row's fixed context and its MCP servers part alike, `unattributed` stays what the
   measured inputs leave, and Task 9's cost-weighted figures and ticket shares, which read the `total`, count it.
-  Task 11 builds those rows, Task 13 adds the block to the `total`, Task 15 says so in the report.
+  Task 11 builds those rows, Task 13 adds the block to the `total` and records it as the row's `late`, Task 15
+  weighs each dispatch's first real call, which by that premise does not carry the block, against `total − late`
+  and every other call against `total` (ledger Ruling "re-plan 2, review 3.1"), and says so in the report.
 - Stale: a change of the setup makes only `all-on` stale (Task 3's `fingerprints`, whose `docs` key also covers each
   instruction file's content from Task 12); `baseline` is also stale when its stubs change (an accord agent's tool
   list or model changed); a Claude Code version other than the probe version makes every probe stale; a calibration
@@ -1043,7 +1045,7 @@ calibration)` and `measure({ setup, state, located, texts, calibration })` retur
 `scripts/benchmark.mjs`, `fixedReport` calling them.
 Behaviour that must not change: the rows `measure` gives (`main`, then each setup agent that has an all-on FirstCall,
 by name) and their fields `{ row, model, total, parts: { accord, claudeCode, plugins, mcp, docs, sets },
-unattributed }`; that the parts and `unattributed` add up to `total`; `state` read as `{ probes }` or a bare array;
+unattributed }`, to which each row adds one field `late` (below); that the parts and `unattributed` add up to `total`; `state` read as `{ probes }` or a bare array;
 `render` and every line of the report (Task 15 changes the wording); the exits of `fixedReport`; phase one.
 
 - `phaseTwo(setup, allOn, calibration)` returns `baseline` (as Task 4 plans it), and `ref:<model>` and `cal:<model>`
@@ -1061,8 +1063,9 @@ unattributed }`; that the parts and `unattributed` add up to `total`; `state` re
     rows rule, though Claude Code adds it only after the subagent's first call, so `I(all-on, r)` leaves it out while
     the row's next calls carry it; adding it to the `total` keeps the block in the fixed context as it is in the MCP
     servers part, and `unattributed` stays what the measured inputs leave. `main` gets no `late`: a block reaches
-    `main` only when the main's own first call holds it. Task 9's `weighFixed(total, call)`, cost-weighted figures
-    and `ticketShares` read this `total`, so they count the block with no change to Task 9's code.
+    `main` only when the main's own first call holds it. Each row carries `late`, the value `late(r)` (0 for `main`
+    and for an agent row whose own first call holds every such block). Task 9's cost-weighted figures and
+    `ticketShares` read this `total`; Task 15 weighs each dispatch's first call against `total − late`.
     `claudeCode`: `I(baseline, main) − size(baseline-prompt, main)` for `main`, `I(baseline, <stub of r>) −
     size(brief, r)` for an agent. These are Task 7's formulas with a text's size read from the ratio.
   - `items`, each `{ id, owner, label, perRow }`, in this order: each enabled plugin `plugin:<id>` (label the id, with
@@ -1099,10 +1102,11 @@ Tests first.
   `Math.round(length × perChar)` per text; main's `total` is `50000 − size(prompt, main)`, with no block added;
   scout's `total` is `20000 − size(brief, scout) + size(mcp-block:claude.ai Docs X, scout)` (it holds the `srv`
   block, so that one is not added) and executor's is `21000 − size(brief, executor) + size(mcp-block:srv, executor)
-  + size(mcp-block:claude.ai Docs X, executor)`; each agent row's `mcp` part holds both blocks' sizes; each agent
+  + size(mcp-block:claude.ai Docs X, executor)`; `late` is 0 for main, `size(mcp-block:claude.ai Docs X, scout)` for
+  the scout and the sum of those two block sizes for the executor; each agent row's `mcp` part holds both blocks' sizes; each agent
   row's `unattributed` equals `I(all-on, r) − size(brief, r) − claudeCode − (every other part − late(r))`, the
   remainder with the added blocks left out of both the total and the MCP servers part; with the scout's `mcpBlocks`
-  also holding `claude.ai Docs X`, the scout's `total` is `20000 − size(brief, scout)` and its `unattributed` is
+  also holding `claude.ai Docs X`, the scout's `total` is `20000 − size(brief, scout)`, its `late` 0, and its `unattributed` is
   `20000 − size(brief, scout) − claudeCode − every other part` (its input of 20000 is then read as holding the block); `ratios` is `{ 'm-opus': 4, 'm-sonnet':
   1000 / 300 }`; `plugin:alpha@m` has `perRow` keys main and executor only; `plugin:beta@m`,
   `plugin:accord-panel@accord` and `mcp:idle` are listed with an empty `perRow`; `mcp:claude.ai Docs X` has the label
@@ -1206,22 +1210,41 @@ Tests first.
 - The ac-1 and ac-3 tests pass unchanged: `measuredWorld` writes a session for each entry of `probes.json`, now the
   all-on, baseline and calibration probes alone.
 
-## Task 15: The report says its sizes carry the calibrated ratio estimate
-covers: @ac-1, D-07
+## Task 15: Weigh each dispatch's first call without the late MCP blocks, and the report says its sizes carry the calibrated ratio estimate
+covers: @ac-1, @ac-2, D-07
 files: scripts/fixed-context.mjs (new), scripts/benchmark.mjs, packages/core/test/benchmark-fixed.test.ts (new)
-verify: packages/core/test/benchmark-fixed.test.ts#ac-1-the-main-session-and-each-accord-agent-that-ran-get-one-row-split-by-owner
+verify: packages/core/test/benchmark-fixed.test.ts#risk:calculation-a-dispatch-first-call-is-weighed-without-the-late-MCP-blocks-and-its-other-calls-against-the-full-total, packages/core/test/benchmark-fixed.test.ts#ac-1-the-main-session-and-each-accord-agent-that-ran-get-one-row-split-by-owner, packages/core/test/benchmark-fixed.test.ts#ac-2-each-figure-is-given-raw-and-cost-weighted-and-each-done-lane-M-ticket-gets-two-fixed-context-shares
 
-Dispatched after Task 14 and before Task 10. Consumes: `measure`'s `ratios` (Task 13). Produces: `render({ ...,
-ratios })`, and `fixedReport` passing `ratios` to it.
-Behaviour that must not change: every table of the report, every other line before the first table, and their
-order.
+Dispatched after Task 14 and before Task 10. Consumes: `measure`'s `ratios` and each row's `late` (Task 13), and the
+`file` of each call `readCalls` returns (Task 6). Produces: `render({ ..., ratios })`, `fixedReport` passing `ratios`
+to it, and the first-call weighing in `render` and `ticketShares`.
+Behaviour that must not change: `weighFixed(size, call)` itself; the raw table; every table of the report but the
+cost-weighted figures of a dispatch's first call; every other line before the first table, and their order; each
+row's cost-weighted parts adding up to its cost-weighted fixed context.
+
+- First-call weighing (ledger Ruling "re-plan 2, review 3.1"). Each transcript file is one dispatch: a subagent run
+  is its own file `<folder>/<s>/subagents/agent-<id>.jsonl`, one per Agent call, and the main session is
+  `<folder>/<s>.jsonl`; `readCalls` gives every call its file as `file` (`scripts/benchmark.mjs:372`, called per file
+  at `:392` and `:402`) and pushes a file's calls in the order each message's first line appears in that file (the
+  Map `byId`, `scripts/benchmark.mjs:366-385`, keeps insertion order). So the first call of a dispatch is the first
+  entry of `calls` whose `file` is that file: the first assistant message that is not `<synthetic>`, the same message
+  `firstCall` reads as a probe's first call. A pure `firstCalls(calls)` in `scripts/fixed-context.mjs` returns the
+  Set of those call objects. A call of row `r` is weighed against `r.total − (r.late ?? 0)` when it is in that Set,
+  and against `r.total` otherwise (a row without `late`, as earlier tests build, reads 0; `main`'s `late` is 0, so
+  its weighing does not change). `rowWeights(own, measured, firsts)` weighs each call so, its `mean` is the mean of
+  those weighted figures and its `ratio` stays `mean / total`, so the cost-weighted parts still add up; its clamped
+  count follows, so a first call whose input lies between `total − late` and `total` is no longer counted in the
+  `<n> calls had less input than the fixed context now measured` line. `render` computes `firsts` from its `calls`.
+  `ticketShares` computes `firsts` from its whole `calls` argument (not from one ticket's calls) and weighs each call
+  of a row with a figure the same way, through a map from row name to the measured row in place of `totalOf`.
 
 - `render` drops the line `A plugin's own MCP servers count under plugins and again in the other connected servers
   line; unattributed absorbs the overlap.` and prints, in its place, `A plugin's own MCP servers count under MCP
   servers; its skills and agents count under plugins.`, then directly after it `An MCP server's instructions block
   that the main session loads is counted in every accord agent row's fixed context and MCP servers part: Claude Code
   adds it to a subagent after the subagent's first call, so it is added to the fixed context measured from that
-  first call.` (the rows rule of Task 11 and the `total` of Task 13). Directly after the line `The main session row is measured under
+  first call, and each subagent's first call, which does not carry it, is weighed without it.` (the rows rule of
+  Task 11, the `total` of Task 13 and the first-call weighing above). Directly after the line `The main session row is measured under
   claude -p, with its probe prompt sized and taken out.` it prints `Every part but Claude Code is sized from its
   text's characters at a characters-per-token ratio calibrated on each model (<model>: <ratio>, ... characters a
   token), so those sizes carry that estimate, about ±10%; unattributed absorbs the difference.`, with each model key
@@ -1233,3 +1256,27 @@ servers line`; the text holds the plugin-servers line above, directly followed b
 ratio line, its ratios computed in the test from
 `measuredWorld`'s inputs as `calibrationText().length / (cal input − ref input)` for `m-opus` and `m-sonnet`, and the
 ratio line comes directly after the main-session line. Every other assertion stays.
+
+Test first, also: `it('risk:calculation a dispatch first call is weighed without the late MCP blocks and its other calls against the full total')`,
+in memory, calling `render` and `ticketShares` with the test file's `weighed`, `wholeCost`, `one`, `pct` and
+`tableUnder` helpers of the ac-2 test. Rows: `main` (`m-opus`, `total` 1000, `late` 0) and `accord-critic`
+(`m-opus`, `total` 1650, `late` 650: a brief of 380 tokens, shorter than the 650-token block), each with parts that
+add up to its `total`. Calls, each with `model` `m-opus`, `version` `9.0.0`, `cwd` `/w`, `branch` `t/T-9`,
+`output` 0, `cacheWrite` 0, a rising `ts`, and in this order: `x1` (row `main`, `accord` false, file
+`p/s.jsonl`, `cacheRead` 1000, `input` 10); in file `p/s/subagents/agent-a.jsonl` (row `accord-critic`, `accord`
+true) `a1` (`cacheRead` 1000, `input` 380: the fixed context without the block plus the brief, 1380 in all, below
+1650), `a2` (`cacheRead` 1650, `input` 40) and `a3` (`cacheRead` 1210, `input` 0: below 1650); in file
+`p/s/subagents/agent-b.jsonl` `b1` (as `a1`). Assert: `render({ calls, version: '9.0.0', folders: 1, probeVersion:
+'9.0.0', allOnTs: <x1's ts>, rows, items: [], tickets: [], ratios: { 'm-opus': 4 } })` gives, in the cost-weighted
+table, an `accord-critic` `fixed` cell equal to `one((weighed(1000, a1) + weighed(1650, a2) + weighed(1650, a3) +
+weighed(1000, b1)) / 4)`, and the line `Weights: fresh input 1, cache read 0.1, cache write 1.25. 1 calls had less
+input than the fixed context now measured; the excess was not charged.` (only `a3`; weighed against 1650, `a1` and
+`b1` would each count too, and `a1`'s 380 brief tokens would be charged as fixed context); `ticketShares({ calls,
+rows, tickets: [{ id: 'T-9', claimAt: <x1's ts> }] })` gives one share whose `agents` equals that sum of four
+weighed figures divided by the `wholeCost` sum of the five calls, and whose `main` equals `weighed(1000, x1)` over
+the same sum.
+
+In the ac-2 test (Task 9, as Task 13 left it), `s1` is the first call of the scout run, so `means['accord-scout']` and
+the T-1 subagent share weigh it against `scoutFixed` less the two block sizes Task 13 adds to the scout's `fixed`,
+and `s2` against `scoutFixed`; `s1`'s whole input of 110 lies below both, so every expected figure and the count
+`2 calls` stay. Every other assertion stays.

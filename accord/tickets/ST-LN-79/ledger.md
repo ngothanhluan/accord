@@ -124,7 +124,13 @@
 - Ruling: (re-plan 2, round 2 fix) an `mcp-block:<n>` server name is read from the text id, not its label — the Task 13 test texts carry no label — cost if wrong: none while id and label agree.
 - Ruling: (re-plan 2, round 2 fix) the main row never gets the late-block addition — a block reaches main only when its own first call holds it — cost if wrong: none under that rule.
 
-- Ruling: (re-plan 2, review 3.1) each dispatch first real call is weighed against the agent row total less its late MCP blocks, rather than only saying so in the report — the first call by premise lacks the block, and the light fix would leave its brief charged as fixed context — cost if wrong: one more branch in `weighFixed`.
+- Ruling: (re-plan 2, review 3.1) each dispatch first real call is weighed against the agent row total less its late MCP blocks, rather than only saying so in the report — the first call by premise lacks the block, and the light fix would leave its brief charged as fixed context — cost if wrong: one more branch in the callers of `weighFixed` (Task 15), which itself does not change.
+
+- Ruling: (re-plan 2, round 3 fix) the first-call weighing goes in Task 15 and Task 13 only exposes `late` — Task 13 is already the largest task — cost if wrong: between Tasks 13 and 15 the weighted figures still weigh first calls against the raised total; no report is committed in that gap.
+- Ruling: (re-plan 2, round 3 fix) "first call of a dispatch" applies to every transcript file, the main session included — main has `late` 0 — cost if wrong: none.
+- Ruling: (re-plan 2, round 3 fix) task text says "its other calls" rather than "later calls" — the plan rules forbid "later" in task text — cost if wrong: none.
+
+- Ruling: the owner allows 1 more plan critique rounds after round 3 of cycle 3 — "Allow 1 more round (translated)" — cost if wrong: one more diff critic call.
 
 ## Deferred
 
@@ -139,3 +145,5 @@
 - Re-plan 2 review 1.5 (Nice): Task 13's test texts carry no `label`; the source of an `mcp:<n>` item's name is not stated.
 - Re-plan 2 review 1.6 (Nice): Task 14's new test asserts `<bench>/fixed` is absent though earlier calls created it.
 - Re-plan 2 review 1.7 (Nice): the old probe settings and MCP config files under `C:/Work/accord-bench/fixed/` are never removed.
+- Re-plan 2 review 4.1 (Nice): the review 3.1 Ruling named a branch in `weighFixed`; its cost clause now names the callers (Task 15), matching the plan.
+- Re-plan 2 review 4.2 (Nice): Task 15's new test does not check that `ticketShares` takes first calls from its whole `calls` argument rather than one ticket's calls.

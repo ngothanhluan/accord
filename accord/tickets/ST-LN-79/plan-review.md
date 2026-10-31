@@ -68,4 +68,16 @@ Re-plan after Task 9: size each part from its text with a ratio per model.
 
 ## Round 3 (diff)
 
-1. Should — the raised agent `total` is also charged to each dispatch's first real call, which by the fix's premise does not carry the late block; when the brief is shorter than the late blocks (an accord-critic brief of about 380 tokens against the Claude Docs block of about 650), `weighFixed` (`scripts/fixed-context.mjs:450-456`) counts that first call as clamped, the report's "calls had less input than the fixed context" line reads as setup drift, and the call's whole input, brief included, is charged as fixed context; weigh each dispatch's first call against `total − late(r)`, or say so in the report — open
+1. Should — the raised agent `total` is also charged to each dispatch's first real call, which by the fix's premise does not carry the late block; when the brief is shorter than the late blocks (an accord-critic brief of about 380 tokens against the Claude Docs block of about 650), `weighFixed` (`scripts/fixed-context.mjs:450-456`) counts that first call as clamped, the report's "calls had less input than the fixed context" line reads as setup drift, and the call's whole input, brief included, is charged as fixed context; weigh each dispatch's first call against `total − late(r)`, or say so in the report — fixed
+
+## Round 4 (diff)
+
+Allowed by the owner after round 3 (ledger Ruling).
+
+1. Nice — the ledger Ruling "re-plan 2, review 3.1" gives its cost as "one more branch in `weighFixed`", while Task 15 says `weighFixed` must not change; an executor reading the Ruling may add an argument to it — deferred
+2. Nice — Task 15's new test puts all calls in one ticket, so it does not check that `ticketShares` takes the first calls from its whole `calls` argument rather than one ticket's calls — deferred
+
+verdict: accepted-by-owner "Accept the plan (translated)"
+
+## Closed
+Accepted by the owner after round 4: 0 Must open, 0 Should open, 9 Nice deferred.

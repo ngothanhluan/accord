@@ -3,6 +3,7 @@
 ## Tasks
 - task 1 done 1addb0e5cdf6
 - task 2 done 90ae76b02c83
+- task 3 done f70d4a746033
 
 ## Rulings
 
@@ -68,6 +69,10 @@
 - Ruling: a plugin counts as enabled only when its `enabledPlugins` value is `true` — the brief only says `false` is left out, and `true` is the documented form — cost if wrong: a plugin set to some other value is skipped.
 - Ruling: set members and every list are sorted by name, so the gsd set reads skill gsd-a, skill gsd-b, agent gsd-r — the brief says "sorted by name" — cost if wrong: none, a test expectation only.
 - Ruling: `mcp` entries keep `entry` with its values, as the brief's field list says; the test asserts only that the local-scope `local-db` server and its secret are absent — cost if wrong: a later task that writes `entry` out could leak a server's secret, which Task 3's security test checks.
+- Ruling: a probe's `depends` is a map `{ key: current value }`, not a key list, and `fingerprint` in `probes.json` is that same map — Task 5's "stored value differs from current" and `phaseTwo`'s `depends: {}` read it that way — cost if wrong: Task 5 adapts one line.
+- Ruling: `mcp` on a probe is an array of `{ name, entry }`, absent (not empty) when no server stays, and `--strict-mcp-config` is added by id (`mcp-ref` and `mcp:*`), so an empty reference still gets the flag — cost if wrong: Tasks 4 and 5 read a different shape.
+- Ruling: `writeProbes` takes an optional `setup` (default `readSetup`) so `fixedProbe` reads the setup once, returns the entries it wrote sorted by id, and throws when two probe ids map to the same file name — cost if wrong: none.
+- Ruling: `phaseOne` takes `forms = PROBE_FORMS` as a second argument; a refusal goes to stderr and the command list to stdout; only the exact arguments `--fixed --probe` reach `fixedProbe`, and any other `--fixed` list gets the usage error (exit 2) until Task 8 — cost if wrong: one condition moves.
 
 ## Deferred
 

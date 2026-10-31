@@ -1,9 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- transcript lines are untyped JSON of Claude Code */
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { appendFileSync, existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { expect, it } from 'vitest';
-import { HOOK, makeWorld } from './helpers/fixed-world.js';
+import { assistantLine, attachmentLine, HOOK, makeWorld, writeSession, type World } from './helpers/fixed-world.js';
 
 type Line = Record<string, any>;
 type FirstCall = {
@@ -435,3 +435,192 @@ it('risk:complex-branching each text is sized on the models of the rows it reach
     { id: 'connector:claude.ai Docs X', where: 'probe', depends: {}, settings: { permissions: { deny: ['mcp__claude_ai_Docs_X'] } } },
   ]);
 });
+
+type Pending = { exit: number; pending: string[]; version: string | undefined; text: string };
+type Located = Map<string, { main: FirstCall | null; agents: Record<string, FirstCall> }>;
+type Three = {
+  phaseOne: (s: Setup) => Probe[];
+  phaseTwo: (s: Setup, a: { main: FirstCall; agents: Record<string, FirstCall> }, read: (f: string) => string | undefined) => Probe[];
+};
+type BenchThree = Bench & {
+  fixedPending: (a: { repo: string; home: string; bench: string }) => Pending;
+  locateSessions: (home: string, ids: string[]) => Located;
+};
+const NOTE = 'The connector, baseline, reference and text probes follow once the all-on probe has run.';
+const T0 = Date.UTC(2026, 9, 30);
+const RULES = '# accord rules\n\nhold these';
+const MODEL_OF: Record<string, string> = { main: 'm-opus', 'accord-scout': 'm-sonnet', 'accord-critic': 'm-opus', 'accord-executor': 'm-sonnet' };
+const refusalFor = (id: string, member: string, version = '9.0.0') =>
+  `Refused: the probe ${id} still lists ${member} under Claude Code ${version}, so the settings that move a set out of reach no longer work on this version; run the switch spike again and update PROBE_FORMS in scripts/fixed-context.mjs before measuring.\n`;
+
+type Extra = { main?: Line[]; agents?: Record<string, Line[]> };
+/** Writes the transcripts of the given probes the way a run of them would; `extra` lines load before the first call, `only: 'main'` leaves the agents' files alone. */
+function writeProbeSessions(w: World, ids: string[], version: string, o: { extra?: Record<string, Extra>; ts?: number; only?: 'main' } = {}): void {
+  const state = readState(w.bench);
+  for (const id of ids) {
+    const { sessionId } = state.find((e) => e.id === id) as { sessionId: string };
+    const call = (name: string, model: string) => assistantLine({ id: `${sessionId}-${name}`, model, version, ts: o.ts ?? T0, cwd: w.probeDir, branch: 'probe/fixed-context' });
+    const own = o.extra?.[id] ?? {};
+    const loads = id === 'all-on'
+      ? [attachmentLine({ type: 'instructions', files: [{ path: `${w.probeDir}/CLAUDE.md`, type: 'Project' }, { path: `${w.home}/.claude/CLAUDE.md`, type: 'User' }] })]
+      : [];
+    const main = [...loads, ...(own.main ?? []), call('main', MODEL_OF.main)];
+    let agents: Record<string, Line[]> | undefined;
+    if (o.only === 'main' || /^(ref|text):/.test(id)) agents = undefined;
+    else if (id === 'baseline') agents = Object.fromEntries(['stub-1', 'stub-2', 'stub-3'].map((n) => [n, [call(n, 'm-sonnet')]]));
+    else {
+      agents = Object.fromEntries(Object.keys(MODEL_OF).filter((n) => n !== 'main').map((n) => [n, [attachmentLine({ type: 'hook_additional_context', content: [RULES] }), ...(own.agents?.[n] ?? []), call(n, MODEL_OF[n])]]));
+    }
+    writeSession(w.home, 'proj', sessionId, { main, agents });
+  }
+}
+
+it('risk:complex-branching a changed item reprints only its own probes and the all-on probe', async () => {
+  const { fc, bench } = await loadBoth();
+  const three = fc as unknown as Three;
+  const b = bench as unknown as BenchThree;
+  const w = makeWorld();
+  try {
+    const args = { repo: w.repo, home: w.home, bench: w.bench };
+    const stateFile = `${w.bench}/fixed/probes.json`;
+    const setup = b.readSetup({ repo: w.repo, home: w.home });
+    const phaseOneIds = three.phaseOne(setup).map((p) => p.id);
+    expect(b.fixedProbe(args).exit).toBe(0);
+
+    // 1. Only the phase-one probes are needed until the all-on probe has run.
+    const first = b.fixedPending(args);
+    expect(first.exit).toBe(0);
+    expect(first.pending).toEqual(phaseOneIds);
+    expect(first.version).toBeUndefined();
+    const lines = first.text.split('\n').filter(Boolean);
+    expect(lines).toHaveLength(2 + phaseOneIds.length + 1);
+    expect(lines[0]).toBe('# Run in Git Bash, then run: node scripts/benchmark.mjs --fixed');
+    expect(lines.at(-1)).toBe(NOTE);
+    expect(readState(w.bench).map((e) => e.id)).toEqual(phaseOneIds);
+
+    // 2. Once the phase-one sessions have run, exactly the phase-two probes of the all-on transcript are needed.
+    writeProbeSessions(w, phaseOneIds, '9.0.0');
+    const allOnId = readState(w.bench).find((e) => e.id === 'all-on')?.sessionId as string;
+    const allOn = b.locateSessions(w.home, [allOnId]).get(allOnId) as { main: FirstCall; agents: Record<string, FirstCall> };
+    const disk = (f: string) => (existsSync(f) ? readFileSync(f, 'utf8') : undefined);
+    const expected = three.phaseTwo(setup, allOn, disk).map((p) => p.id);
+    const second = b.fixedPending(args);
+    expect(second.exit).toBe(0);
+    expect(second.version).toBe('9.0.0');
+    expect(second.pending).toEqual(expected);
+    expect(expected).toEqual(expect.arrayContaining([
+      'baseline', 'ref:m-opus', 'ref:m-sonnet', 'text:agent:accord-critic:m-opus', 'text:pointer:CLAUDE.md:m-opus',
+      'text:doc:CLAUDE.md:m-opus', 'text:doc:~/.claude/CLAUDE.md:m-opus',
+    ]));
+    for (const id of second.pending) expect(id).not.toContain('accord-probe');
+    expect(second.text).not.toContain(NOTE);
+    expect(existsSync(`${w.bench}/fixed/stubs.json`)).toBe(true);
+    expect(existsSync(`${w.bench}/fixed/text_doc_CLAUDE.md_m-opus.md`)).toBe(true);
+    const baseline = readState(w.bench).find((e) => e.id === 'baseline') as { cwd: string; command: string };
+    expect(baseline.cwd).toBe(`${w.bench}/fixed/empty`);
+    expect(baseline.command).toContain('--strict-mcp-config --model m-opus --agents ');
+
+    // 3. Once those have run too, nothing is pending and the call writes nothing.
+    writeProbeSessions(w, expected, '9.0.0');
+    const base = readFileSync(stateFile, 'utf8');
+    const settled = b.fixedPending(args);
+    expect(settled).toMatchObject({ exit: 0, pending: [], version: '9.0.0', text: '' });
+    expect(readFileSync(stateFile, 'utf8')).toBe(base);
+    const fromBase = () => writeFileSync(stateFile, base);
+    const pendingNow = () => b.fixedPending(args).pending;
+
+    // 4. A plugin that moved to a new version.
+    fromBase();
+    const installed = `${w.home}/.claude/plugins/installed_plugins.json`;
+    const installedText = readFileSync(installed, 'utf8');
+    writeFileSync(installed, installedText.replace('"version": "2.0.0"', '"version": "2.1.0"'));
+    expect(pendingNow()).toEqual(['all-on', 'plugin:beta@m']);
+    writeFileSync(installed, installedText);
+
+    // 5. A new rules file changes which instruction files exist.
+    fromBase();
+    mkdirSync(`${w.home}/.claude/rules`, { recursive: true });
+    writeFileSync(`${w.home}/.claude/rules/style.md`, 'Keep it short.\n');
+    expect(pendingNow()).toEqual(['all-on']);
+    rmSync(`${w.home}/.claude/rules/style.md`);
+
+    // 6. A newer Claude Code on the all-on transcript makes every other probe stale.
+    fromBase();
+    const allOnFile = `${w.home}/.claude/projects/proj/${allOnId}.jsonl`;
+    const allOnBytes = readFileSync(allOnFile, 'utf8');
+    writeProbeSessions(w, ['all-on'], '9.1.0', { ts: T0 + 60_000, only: 'main' });
+    expect(pendingNow()).toEqual(readState(w.bench).map((e) => e.id).filter((id) => id !== 'all-on'));
+    writeFileSync(allOnFile, allOnBytes);
+
+    // 7. The own line of CLAUDE.md changed: the doc text probe and the all-on probe, not the pointer text probe.
+    fromBase();
+    writeFileSync(`${w.repo}/CLAUDE.md`, readFileSync(`${w.repo}/CLAUDE.md`, 'utf8').replace('One own line.', 'Another own line.'));
+    writeFileSync(`${w.tmp}/commit2.txt`, 'change the own line\n');
+    const git = (...a: string[]) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', '-c', 'commit.gpgsign=false', ...a], { cwd: w.repo, encoding: 'utf8' });
+    git('add', '-A');
+    git('commit', '-q', '--no-verify', '-F', `${w.tmp}/commit2.txt`, '--cleanup=verbatim');
+    const changed = pendingNow();
+    expect(changed).toEqual(['all-on', 'text:doc:CLAUDE.md:m-opus']);
+    expect(changed.filter((id) => id.startsWith('text:pointer:'))).toEqual([]);
+
+    // 8. An uncommitted edit of .claude: refused, nothing written.
+    fromBase();
+    appendFileSync(`${w.repo}/.claude/agents/accord-scout.md`, '\nedited\n');
+    const refused = b.fixedPending(args);
+    expect(refused.exit).toBe(2);
+    expect(refused.text.trim()).toBe(REFUSAL);
+    expect(readFileSync(stateFile, 'utf8')).toBe(base);
+  } finally {
+    rmSync(w.tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+}, 120_000);
+
+it('risk:complex-branching a set probe that still lists a member makes fixed refuse naming the set and the probe version', async () => {
+  const { fc, bench } = await loadBoth();
+  const three = fc as unknown as Three;
+  const b = bench as unknown as BenchThree;
+  const w = makeWorld();
+  try {
+    const args = { repo: w.repo, home: w.home, bench: w.bench };
+    const stateFile = `${w.bench}/fixed/probes.json`;
+    const ids = three.phaseOne(b.readSetup({ repo: w.repo, home: w.home })).map((p) => p.id);
+    expect(b.fixedProbe(args).exit).toBe(0);
+    const listing = attachmentLine({ type: 'skill_listing', content: '- accord: a\n- gsd-b: b' });
+    writeProbeSessions(w, ids, '9.0.0', { extra: { 'set:gsd': { main: [listing] } } });
+    const saved = readFileSync(stateFile, 'utf8');
+    const fromSaved = () => writeFileSync(stateFile, saved);
+
+    // 1. A skill of the gsd set is still listed.
+    const one = b.fixedPending(args);
+    expect(one.exit).toBe(2);
+    expect(one.text).toBe(refusalFor('set:gsd', 'gsd-b'));
+    expect(readFileSync(stateFile, 'utf8')).toBe(saved);
+    expect(existsSync(`${w.bench}/fixed/stubs.json`)).toBe(false);
+
+    // 2. An agent of the my set is still listed in an agent's first call.
+    fromSaved();
+    writeProbeSessions(w, ['set:gsd'], '9.0.0');
+    const agentLine = attachmentLine({ type: 'agent_listing_delta', addedLines: ['- my-helper: h'] });
+    writeProbeSessions(w, ['set:my'], '9.0.0', { extra: { 'set:my': { agents: { 'accord-executor': [agentLine] } } } });
+    const two = b.fixedPending(args);
+    expect(two.exit).toBe(2);
+    expect(two.text).toBe(refusalFor('set:my', 'my-helper'));
+    expect(readFileSync(stateFile, 'utf8')).toBe(saved);
+
+    // 3. A stale set probe is run again anyway, so it is not failed.
+    fromSaved();
+    writeProbeSessions(w, ['set:my'], '8.0.0', { ts: T0 - 1000, only: 'main' });
+    const stale = b.fixedPending(args);
+    expect(stale.exit).not.toBe(2);
+    expect(stale.pending).toContain('set:my');
+
+    // 4. Once it lists no member, nothing of phase one is pending.
+    fromSaved();
+    writeProbeSessions(w, ['set:my'], '9.0.0');
+    const clean = b.fixedPending(args);
+    expect(clean.exit).not.toBe(2);
+    for (const id of ids) expect(clean.pending).not.toContain(id);
+  } finally {
+    rmSync(w.tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+}, 120_000);

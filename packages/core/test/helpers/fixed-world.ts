@@ -77,3 +77,49 @@ export function makeWorld(options: { underHome?: boolean } = {}): World {
   put(`${memDir}/note.md`, 'A note.\n');
   return { tmp, home, repo, bench, probeDir, memDir };
 }
+
+export type TranscriptLine = Record<string, unknown>;
+
+/** One assistant line: the usage fields Claude Code records, `chars` characters of text, and the line-level `cwd`, `gitBranch` and `version`. */
+export function assistantLine(o: {
+  id?: string; model?: string; input?: number; cacheRead?: number; cacheWrite?: number; output?: number;
+  ts?: number; cwd?: string; branch?: string; version?: string; chars?: number;
+} = {}): TranscriptLine {
+  const id = o.id ?? 'msg_1';
+  return {
+    type: 'assistant',
+    uuid: `u-${id}`,
+    timestamp: new Date(o.ts ?? Date.UTC(2026, 9, 30)).toISOString(),
+    cwd: o.cwd ?? '/work',
+    gitBranch: o.branch ?? 'main',
+    version: o.version ?? '9.0.0',
+    message: {
+      id,
+      model: o.model ?? 'm-sonnet',
+      usage: {
+        input_tokens: o.input ?? 1,
+        cache_read_input_tokens: o.cacheRead ?? 0,
+        cache_creation_input_tokens: o.cacheWrite ?? 0,
+        output_tokens: o.output ?? 0,
+      },
+      content: [{ type: 'text', text: 'x'.repeat(o.chars ?? 0) }],
+    },
+  };
+}
+
+export const attachmentLine = (attachment: Record<string, unknown>): TranscriptLine => ({ type: 'attachment', attachment });
+export const userLine = (text: string): TranscriptLine => ({ type: 'user', message: { role: 'user', content: text } });
+
+/** Writes `<home>/.claude/projects/<folder>/<sessionId>.jsonl` when `main` is given, and for `agents` (agentType to lines) each `<sessionId>/subagents/agent-<n>.jsonl` with its `.meta.json`. */
+export function writeSession(
+  home: string, folder: string, sessionId: string,
+  { main, agents }: { main?: TranscriptLine[]; agents?: Record<string, TranscriptLine[]> },
+): void {
+  const dir = `${home}/.claude/projects/${folder}`;
+  const jsonl = (lines: TranscriptLine[]) => lines.map((l) => JSON.stringify(l)).join('\n') + '\n';
+  if (main) put(`${dir}/${sessionId}.jsonl`, jsonl(main));
+  Object.entries(agents ?? {}).forEach(([agentType, lines], n) => {
+    put(`${dir}/${sessionId}/subagents/agent-${n}.jsonl`, jsonl(lines));
+    put(`${dir}/${sessionId}/subagents/agent-${n}.meta.json`, JSON.stringify({ agentType, description: `fixed probe ${agentType}` }) + '\n');
+  });
+}

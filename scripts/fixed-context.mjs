@@ -284,3 +284,62 @@ export function phaseTwo(setup, allOn, read, forms = PROBE_FORMS) {
   }
   return probes.sort((a, b) => cmp(a.id, b.id));
 }
+
+export const PHASE_TWO_NOTE = 'The connector, baseline, reference and text probes follow once the all-on probe has run.';
+
+// The Claude Code the probes ran with: the version of the newest main first call among the sessions `state` names.
+// The session that runs the script is never used, since the probes run in the owner's shell, whose Claude Code may be another build.
+export function probeVersion(state, located) {
+  let best;
+  for (const e of [...state].sort((a, b) => cmp(a.id, b.id))) {
+    const call = located.get(e.sessionId)?.main;
+    if (call && (best === undefined || call.ts > best.ts)) best = call;
+  }
+  return best?.version;
+}
+
+// The probes needed now and which of them must be run: { probes, pending, failed, notes }. `state` is the stored
+// probes (`{ id, sessionId, fingerprint }`), `located` the sessions found for them. A probe is missing without a
+// stored session, a main first call, an agent first call of the setup (probes run from the probe worktree) or a stub
+// first call (baseline); it is stale when its Claude Code is not `version` or a value it depends on has changed.
+// The all-on probe is also stale when a text read from disk changed, since it carries that text. A set probe that
+// is not pending but still lists a member did not move it out of reach: it is failed.
+export function pendingProbes({ setup, state, located, version, read, forms = PROBE_FORMS }) {
+  const entries = new Map(state.map((e) => [e.id, e]));
+  const sessionOf = (id) => {
+    const e = entries.get(id);
+    return e ? located.get(e.sessionId) : undefined;
+  };
+  const allOnSession = sessionOf('all-on');
+  const notes = [];
+  const probes = phaseOne(setup, forms);
+  if (allOnSession?.main) probes.push(...phaseTwo(setup, { main: allOnSession.main, agents: allOnSession.agents }, read, forms));
+  else notes.push(PHASE_TWO_NOTE);
+  probes.sort((a, b) => cmp(a.id, b.id));
+
+  const differs = (a, b) => [...new Set([...Object.keys(a), ...Object.keys(b)])].some((key) => a[key] !== b[key]);
+  const missing = (probe) => {
+    const session = sessionOf(probe.id);
+    if (!session?.main) return true;
+    const need = probe.id === 'baseline' ? probe.stubs.map((s) => s.name) : probe.where === 'probe' ? setup.agents.map((a) => a.name) : [];
+    return need.some((name) => !session.agents[name]);
+  };
+  const stale = (probe) => (version !== undefined && sessionOf(probe.id).main.version !== version) || differs(entries.get(probe.id).fingerprint ?? {}, probe.depends);
+  const textChanged = probes.some((p) => p.source === 'disk' && entries.has(p.id) && differs(entries.get(p.id).fingerprint ?? {}, p.depends));
+
+  const need = probes.filter((p) => missing(p) || (stale(p) || (p.id === 'all-on' && textChanged)));
+  const pending = need.map((p) => p.id).sort(cmp);
+  const failed = [];
+  for (const s of setup.sets) {
+    const id = `set:${s.prefix}`;
+    const session = sessionOf(id);
+    if (pending.includes(id) || !session?.main) continue;
+    const calls = [session.main, ...Object.values(session.agents)];
+    const listed = s.members
+      .filter((m) => calls.some((c) => (m.kind === 'agent' ? c.agentListing : c.skillListing).some((line) => line.startsWith(`- ${m.name}:`))))
+      .map((m) => m.name)
+      .sort(cmp);
+    if (listed.length) failed.push({ id, member: listed[0] });
+  }
+  return { probes, pending, failed: failed.sort((a, b) => cmp(a.id, b.id)), notes };
+}

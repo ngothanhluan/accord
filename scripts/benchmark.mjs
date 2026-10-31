@@ -13,7 +13,7 @@ import { parse as parseYaml } from 'yaml';
 import { parsePlanReview } from './plan-review.mjs';
 import { median, ROLES, WRITERS, checkSamples, readDiffers, runMatrix, rewriteBrief, dispatchTable, matchRuns, mustsOf, judgeBrief, parseVerdict, holds, turnFlags, report, carryJudgeBriefs, escapes, exitState, runProblem } from './round.mjs';
 import { compliance, render as renderCompliance, parseCompliance, mergeCompliance } from './compliance.mjs';
-import { standsFor, PROBE_BRANCH, PROBE_FORMS, dispatchPrompt, phaseOne, shellLine } from './fixed-context.mjs';
+import { standsFor, firstCall, pendingProbes, probeVersion, PROBE_BRANCH, PROBE_BRIEF, PROBE_FORMS, dispatchPrompt, phaseOne, shellLine } from './fixed-context.mjs';
 
 const projectsRoot = path.join(os.homedir(), '.claude', 'projects');
 const defaultDirs = (repo) => {
@@ -1297,21 +1297,44 @@ const byId = byName('id');
 // working files, so a probe run then would measure a setup other than the one the report sizes.
 export const setupDirty = (repo) => gitIn(repo, ['status', '--porcelain', '-z', '--', ':(literal).claude', ':(glob)**/CLAUDE.md']).length > 0;
 
-// Writes the settings and MCP config files of the probes run from the probe worktree under `<bench>/fixed/`
-// (MCP config files carry server secrets, so they never go inside the repository) and records each probe's
-// session id, command and fingerprint in `<bench>/fixed/probes.json`. A probe keeps its session id unless `fresh`.
-// Returns the entries written, sorted by id.
+const REFUSED_DIRTY = 'Refused: .claude or a CLAUDE.md file has uncommitted changes; the probe worktree holds the commit. Commit them and run again.\n';
+const safe = (id) => id.replace(/[^A-Za-z0-9._-]/g, '_');
+
+// Writes the files of the probes under `<bench>/fixed/` and records each probe's session id, command and
+// fingerprint in `<bench>/fixed/probes.json`. A probe run from the probe worktree gets its settings and MCP config
+// files (MCP config files carry server secrets, so they never go inside the repository); a probe run from the empty
+// folder gets the baseline's stub agents or the text it appends. A probe keeps its session id unless `fresh` (a
+// boolean, or a function of the probe id). Returns the entries written, sorted by id.
 export function writeProbes({ repo, home, bench, probes, fresh, forms = PROBE_FORMS, setup = readSetup({ repo, home }) }) {
   const dir = `${slash(bench)}/fixed`;
   fs.mkdirSync(dir, { recursive: true });
   const stateFile = `${dir}/probes.json`;
   const stored = readJsonFile(stateFile, home)?.probes ?? [];
   const prompt = dispatchPrompt(setup.agents.map((a) => a.name));
-  const safe = (id) => id.replace(/[^A-Za-z0-9._-]/g, '_');
+  const isFresh = typeof fresh === 'function' ? fresh : () => fresh === true;
   const written = [];
-  for (const probe of probes.filter((p) => p.where === 'probe')) {
+  for (const probe of probes) {
     if (written.some((e) => safe(e.id) === safe(probe.id))) throw new Error(`probes ${probe.id} and another share the file name ${safe(probe.id)}`);
-    const sessionId = (!fresh && stored.find((e) => e.id === probe.id)?.sessionId) || randomUUID();
+    const sessionId = (!isFresh(probe.id) && stored.find((e) => e.id === probe.id)?.sessionId) || randomUUID();
+    if (probe.where === 'empty') {
+      const cwd = `${dir}/empty`;
+      const args = ['claude', '-p', probe.id === 'baseline' ? dispatchPrompt(probe.stubs.map((s) => s.name)) : PROBE_BRIEF, '--session-id', sessionId,
+        ...forms.extraArgs, ...forms.noSources, '--strict-mcp-config', '--model', probe.model];
+      if (probe.id === 'baseline') {
+        const stubs = Object.fromEntries(probe.stubs.map((s) => [s.name, {
+          description: 'probe stub', prompt: 'Reply ok.', ...(s.model === undefined ? {} : { model: s.model }), ...(s.tools === null ? {} : { tools: s.tools }),
+        }]));
+        const file = `${dir}/stubs.json`;
+        fs.writeFileSync(file, JSON.stringify(stubs, null, 2) + '\n');
+        args.push('--agents', forms.agentsArg === 'file' ? file : JSON.stringify(stubs));
+      } else if (probe.text !== undefined) {
+        const file = `${dir}/${safe(probe.id)}.md`;
+        fs.writeFileSync(file, probe.text);
+        args.push('--append-system-prompt-file', file);
+      }
+      written.push({ id: probe.id, sessionId, cwd, command: `cd ${shellLine([cwd])} && ${shellLine(args)}`, fingerprint: probe.depends });
+      continue;
+    }
     const args = ['claude', '-p', prompt, '--session-id', sessionId, ...forms.extraArgs];
     if (probe.settings) {
       const file = `${dir}/${safe(probe.id)}.settings.json`;
@@ -1332,17 +1355,83 @@ export function writeProbes({ repo, home, bench, probes, fresh, forms = PROBE_FO
   return written;
 }
 
+// The command that puts the probe worktree on the commit the probes are written for.
+function worktreeLine(repo, setup) {
+  const head = gitIn(repo, ['rev-parse', 'HEAD']).trim();
+  return fs.existsSync(setup.probeDir)
+    ? shellLine(['git', '-C', setup.probeDir, 'checkout', '-B', PROBE_BRANCH, head])
+    : shellLine(['git', '-C', repo, 'worktree', 'add', '-B', PROBE_BRANCH, setup.probeDir, head]);
+}
+const HEADER = '# Run in Git Bash, then run: node scripts/benchmark.mjs --fixed';
+
 // `--fixed --probe`: writes the phase-one probes anew and returns the commands the owner runs in Git Bash.
 export function fixedProbe({ repo, home, bench, forms = PROBE_FORMS }) {
   repo = slash(repo);
-  if (setupDirty(repo)) return { exit: 2, text: 'Refused: .claude or a CLAUDE.md file has uncommitted changes; the probe worktree holds the commit. Commit them and run again.\n' };
+  if (setupDirty(repo)) return { exit: 2, text: REFUSED_DIRTY };
   const setup = readSetup({ repo, home });
   const written = writeProbes({ repo, home, bench, probes: phaseOne(setup, forms), fresh: true, forms, setup });
-  const head = gitIn(repo, ['rev-parse', 'HEAD']).trim();
-  const worktree = fs.existsSync(setup.probeDir)
-    ? shellLine(['git', '-C', setup.probeDir, 'checkout', '-B', PROBE_BRANCH, head])
-    : shellLine(['git', '-C', repo, 'worktree', 'add', '-B', PROBE_BRANCH, setup.probeDir, head]);
-  return { exit: 0, text: ['# Run in Git Bash, then run: node scripts/benchmark.mjs --fixed', worktree, ...written.map((e) => e.command)].join('\n') + '\n' };
+  return { exit: 0, text: [HEADER, worktreeLine(repo, setup), ...written.map((e) => e.command)].join('\n') + '\n' };
+}
+
+const readTranscript = (file) => firstCall(readLines(file));
+
+// The probe sessions named by `ids`, found in any folder under `<home>/.claude/projects/`: a Map from session id to
+// `{ main, agents }`, `main` the first call of the session (null when it holds none) and `agents` the first call of
+// each subagent by its agent type. An id with no transcript file is absent.
+export function locateSessions(home, ids) {
+  const root = `${slash(home)}/.claude/projects`;
+  const folders = fs.existsSync(root) ? fs.readdirSync(root, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name).sort() : [];
+  const found = new Map();
+  for (const id of new Set(ids)) {
+    for (const folder of folders) {
+      const file = `${root}/${folder}/${id}.jsonl`;
+      if (!fs.existsSync(file)) continue;
+      const agents = {};
+      const sub = `${root}/${folder}/${id}/subagents`;
+      for (const name of ownFiles(sub, '.meta.json').sort()) {
+        const jsonl = `${sub}/${name.slice(0, -'.meta.json'.length)}.jsonl`;
+        const type = readJsonFile(`${sub}/${name}`, home)?.agentType;
+        if (typeof type !== 'string' || type in agents || !fs.existsSync(jsonl)) continue;
+        const call = readTranscript(jsonl);
+        if (call) agents[type] = call;
+      }
+      found.set(id, { main: readTranscript(file), agents });
+      break;
+    }
+  }
+  return found;
+}
+
+// `--fixed`, first step: the probes that are missing, stale or failed. Writes the files and commands of the ones to
+// run (and nothing else) and returns `{ exit, pending, version, text }`; `text` holds the commands, or the refusal.
+export function fixedPending({ repo, home, bench, forms = PROBE_FORMS }) {
+  repo = slash(repo);
+  if (setupDirty(repo)) return { exit: 2, pending: [], version: undefined, text: REFUSED_DIRTY };
+  const setup = readSetup({ repo, home });
+  const state = readJsonFile(`${slash(bench)}/fixed/probes.json`, home)?.probes ?? [];
+  const located = locateSessions(home, state.map((e) => e.sessionId));
+  const version = probeVersion(state, located);
+  const read = (file) => { try { return fs.readFileSync(file, 'utf8'); } catch { return undefined; } };
+  const { probes, pending, failed, notes } = pendingProbes({ setup, state, located, version, read, forms });
+  if (failed.length) {
+    const lines = failed.map((f) => `Refused: the probe ${f.id} still lists ${f.member} under Claude Code ${version}, so the settings that move a set out of reach no longer work on this version; run the switch spike again and update PROBE_FORMS in scripts/fixed-context.mjs before measuring.`);
+    return { exit: 2, pending, version, text: lines.join('\n') + '\n' };
+  }
+  const todo = probes.filter((p) => pending.includes(p.id));
+  const emptyDir = `${slash(bench)}/fixed/empty`;
+  if (todo.some((p) => p.where === 'empty')) {
+    fs.mkdirSync(emptyDir, { recursive: true });
+    let inside = false;
+    try { inside = gitIn(emptyDir, ['rev-parse', '--is-inside-work-tree']).trim() === 'true'; } catch { /* not a repository: the folder is fit */ }
+    if (inside) return { exit: 2, pending, version, text: `Refused: ${standsFor(emptyDir, { repo, mainCheckout: repo, probeDir: setup.probeDir, home: slash(home) }).label} lies inside a git repository, so the baseline would load its settings and instructions; move the bench folder out of any repository.\n` };
+  }
+  const fromId = new Map(state.map((e) => [e.id, e.sessionId]));
+  const written = todo.length ? writeProbes({ repo, home, bench, probes: todo, fresh: (id) => located.has(fromId.get(id)), forms, setup }) : [];
+  const lines = written.length
+    ? [HEADER, ...(todo.some((p) => p.where === 'probe') ? [worktreeLine(repo, setup)] : []), ...written.map((e) => e.command)]
+    : [];
+  lines.push(...notes);
+  return { exit: 0, pending, version, text: lines.length ? lines.join('\n') + '\n' : '' };
 }
 
 // Last: the entry runs only once every top-level declaration above has been evaluated.

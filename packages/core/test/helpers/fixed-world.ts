@@ -151,6 +151,8 @@ export const CHOSEN = {
   mcpCut: { 'proj-db': { main: 700 }, 'user-search': { main: 1100, 'accord-executor': 20 } } as Record<string, ByRow>,
   /** First-call input of the reference probe of a model; a text probe adds its delta to it. */
   ref: { 'm-opus': 100, 'm-sonnet': 80 } as Record<string, number>,
+  /** Tokens a character of the calibration text costs on a model. */
+  perChar: { 'm-opus': 0.25, 'm-sonnet': 0.3 } as Record<string, number>,
   /** The size of a text on a model. */
   delta: {
     prompt: { 'm-opus': 40, 'm-sonnet': 41 },
@@ -190,6 +192,7 @@ type BenchApi = {
   fixedReport: (a: { repo: string; home: string; bench: string; dirs: string[] }) => { exit: number; text: string };
   locateSessions: (home: string, ids: string[]) => Map<string, Called>;
   readSetup: (a: { repo: string; home: string }) => unknown;
+  calibrationText: () => string;
 };
 type FcApi = { stubsOf: (s: unknown, a: unknown) => { name: string; agents: string[] }[] };
 
@@ -286,7 +289,7 @@ export async function measuredWorld(options: MeasuredOptions = {}): Promise<Meas
     const stubs = fc.stubsOf(bench.readSetup({ repo: w.repo, home: w.home }), allOn);
     const empty = `${w.bench}/fixed/empty`;
     for (const { id, sessionId } of state()) {
-      if (!/^(baseline$|ref:|text:)/.test(id)) continue;
+      if (!/^(baseline$|ref:|cal:|text:)/.test(id)) continue;
       if (id === 'baseline') {
         const agents = Object.fromEntries(stubs.map((s) => {
           if (s.agents.length !== 1) throw new Error(`the stub ${s.name} stands for ${s.agents.length} agents`);
@@ -297,7 +300,11 @@ export async function measuredWorld(options: MeasuredOptions = {}): Promise<Meas
         continue;
       }
       const model = id.slice(id.lastIndexOf(':') + 1);
-      const input = id.startsWith('ref:') ? CHOSEN.ref[model] : CHOSEN.ref[model] + sizeOf(id.slice('text:'.length, id.lastIndexOf(':')), model);
+      const input = id.startsWith('ref:')
+        ? CHOSEN.ref[model]
+        : id.startsWith('cal:')
+          ? CHOSEN.ref[model] + Math.round(bench.calibrationText().length * CHOSEN.perChar[model])
+          : CHOSEN.ref[model] + sizeOf(id.slice('text:'.length, id.lastIndexOf(':')), model);
       writeSession(w.home, 'probes', sessionId, { main: [userLine(`${PROBE_MARK}: reply ok, use no tool`), call(`${sessionId}-main`, model, input, empty)] });
     }
 

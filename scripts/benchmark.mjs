@@ -1346,7 +1346,7 @@ export function readSetup({ repo, home }) {
     const key = slash(c.file).toLowerCase();
     if (seen.has(key) || !fs.existsSync(c.file)) continue;
     seen.add(key);
-    docs.push({ ...standsFor(c.file, where), topic: c.topic === true });
+    docs.push({ ...standsFor(c.file, where), topic: c.topic === true, hash: sha256(text(c.file)) });
   }
   docs.sort((a, b) => (a.label < b.label ? -1 : a.label > b.label ? 1 : a.file < b.file ? -1 : 1));
 
@@ -1474,6 +1474,9 @@ export function locateSessions(home, ids) {
   return found;
 }
 
+// The text appended to the brief by the calibration probes, whichever repository the script measures.
+export const calibrationText = () => fs.readFileSync(fileURLToPath(new URL('./fixed-calibration.txt', import.meta.url)), 'utf8');
+
 // `--fixed`, first step: the probes that are missing, stale or failed. Writes the files and commands of the ones to
 // run (and nothing else) and returns `{ exit, pending, version, text }`; `text` holds the commands, or the refusal. A
 // call that is not refused also returns what it read: `probes`, `setup`, `state`, `located` and `read`.
@@ -1485,7 +1488,8 @@ export function fixedPending({ repo, home, bench, forms = PROBE_FORMS }) {
   const located = locateSessions(home, state.map((e) => e.sessionId));
   const version = probeVersion(state, located);
   const read = (file) => { try { return fs.readFileSync(file, 'utf8'); } catch { return undefined; } };
-  const { probes, pending, failed, notes } = pendingProbes({ setup, state, located, version, read, forms });
+  const calibration = calibrationText();
+  const { probes, pending, failed, notes } = pendingProbes({ setup, state, located, version, read, calibration, forms });
   if (failed.length) {
     const lines = failed.map((f) => `Refused: the probe ${f.id} still lists ${f.member} under Claude Code ${version}, so the settings that move a set out of reach no longer work on this version; run the switch spike again and update PROBE_FORMS in scripts/fixed-context.mjs before measuring.`);
     return { exit: 2, pending, version, text: lines.join('\n') + '\n' };
@@ -1504,7 +1508,7 @@ export function fixedPending({ repo, home, bench, forms = PROBE_FORMS }) {
     ? [HEADER, ...(todo.some((p) => p.where === 'probe') ? [worktreeLine(repo, setup)] : []), ...written.map((e) => e.command)]
     : [];
   lines.push(...notes);
-  return { exit: 0, pending, version, text: lines.length ? lines.join('\n') + '\n' : '', probes, setup, state, located, read };
+  return { exit: 0, pending, version, text: lines.length ? lines.join('\n') + '\n' : '', probes, setup, state, located, read, calibration };
 }
 
 // The lane M tickets that reached done: those on the default branch whose frontmatter has `lane: M` and a non-empty

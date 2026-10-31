@@ -134,8 +134,8 @@ export function fingerprints(setup) {
   for (const a of setup.agents) out[`agent:${a.name}`] = a.hash;
   out.hook = setup.hookCommand;
   out.skills = sha256(setup.accordSkills.map((s) => `${s.name}\0${s.description}`).sort(cmp).join('\n'));
-  // Which instruction files exist; a memory topic file is read on demand, so it never makes a probe stale.
-  out.docs = sha256(setup.docs.filter((d) => !d.topic).map((d) => d.label).sort(cmp).join('\n'));
+  // Which instruction files exist and what they hold; a memory topic file is read on demand, so it never makes a probe stale.
+  out.docs = sha256(setup.docs.filter((d) => !d.topic).map((d) => `${d.label}\0${d.hash}`).sort(cmp).join('\n'));
   return Object.fromEntries(Object.entries(out).sort(([a], [b]) => cmp(a, b)));
 }
 
@@ -332,9 +332,10 @@ export function connectorsOf(setup, allOn) {
 }
 
 // The probes planned from the all-on transcript: one per claude.ai connector (when a form takes one out), the
-// baseline with its stub agents, a reference per model, and each text appended to the baseline on each model of the
-// rows it reaches. Each is { id, where, depends, model?, ... }; the files and commands are written by the caller.
-export function phaseTwo(setup, allOn, read, forms = PROBE_FORMS) {
+// baseline with its stub agents, a reference and a calibration probe (the brief with `calibration` appended) per model,
+// and each text appended to the baseline on each model of the rows it reaches. Each is { id, where, depends, model?, ... };
+// the files and commands are written by the caller.
+export function phaseTwo(setup, allOn, read, calibration, forms = PROBE_FORMS) {
   const calls = rowCalls(allOn);
   const stubs = stubsOf(setup, allOn);
   const probes = [];
@@ -350,7 +351,10 @@ export function phaseTwo(setup, allOn, read, forms = PROBE_FORMS) {
   }
   probes.push({ id: 'baseline', where: 'empty', model: allOn.main.model, stubs, depends: { stubs: JSON.stringify(stubs) } });
   const modelsOf = (rows) => [...new Set(rows.map((r) => calls[r].model))].sort(cmp);
-  for (const model of modelsOf(Object.keys(calls))) probes.push({ id: `ref:${model}`, where: 'empty', model, depends: {} });
+  for (const model of modelsOf(Object.keys(calls))) {
+    probes.push({ id: `ref:${model}`, where: 'empty', model, depends: {} });
+    probes.push({ id: `cal:${model}`, where: 'empty', model, text: calibration, depends: { calibration: sha256(calibration) } });
+  }
   for (const t of textsOf(setup, allOn, read)) {
     const source = /^(agent|doc|pointer):/.test(t.id) ? 'disk' : 'probe';
     for (const model of modelsOf(t.rows)) {
@@ -377,9 +381,9 @@ export function probeVersion(state, located) {
 // probes (`{ id, sessionId, fingerprint }`), `located` the sessions found for them. A probe is missing without a
 // stored session, a main first call, an agent first call of the setup (probes run from the probe worktree) or a stub
 // first call (baseline); it is stale when its Claude Code is not `version` or a value it depends on has changed.
-// The all-on probe is also stale when a text read from disk changed, since it carries that text. A set probe that
-// is not pending but still lists a member did not move it out of reach: it is failed.
-export function pendingProbes({ setup, state, located, version, read, forms = PROBE_FORMS }) {
+// A calibration pair whose `cal:` input is not above its `ref:` input gives no size: both probes are pending again.
+// A set probe that is not pending but still lists a member did not move it out of reach: it is failed.
+export function pendingProbes({ setup, state, located, version, read, calibration, forms = PROBE_FORMS }) {
   const entries = new Map(state.map((e) => [e.id, e]));
   const sessionOf = (id) => {
     const e = entries.get(id);
@@ -388,7 +392,7 @@ export function pendingProbes({ setup, state, located, version, read, forms = PR
   const allOnSession = sessionOf('all-on');
   const notes = [];
   const probes = phaseOne(setup, forms);
-  if (allOnSession?.main) probes.push(...phaseTwo(setup, { main: allOnSession.main, agents: allOnSession.agents }, read, forms));
+  if (allOnSession?.main) probes.push(...phaseTwo(setup, { main: allOnSession.main, agents: allOnSession.agents }, read, calibration, forms));
   else notes.push(PHASE_TWO_NOTE);
   probes.sort((a, b) => cmp(a.id, b.id));
 
@@ -400,9 +404,15 @@ export function pendingProbes({ setup, state, located, version, read, forms = PR
     return need.some((name) => !session.agents[name]);
   };
   const stale = (probe) => (version !== undefined && sessionOf(probe.id).main.version !== version) || differs(entries.get(probe.id).fingerprint ?? {}, probe.depends);
-  const textChanged = probes.some((p) => p.source === 'disk' && entries.has(p.id) && differs(entries.get(p.id).fingerprint ?? {}, p.depends));
+  const flat = new Set();
+  for (const p of probes) {
+    if (!p.id.startsWith('cal:')) continue;
+    const ref = sessionOf(`ref:${p.id.slice('cal:'.length)}`)?.main;
+    const cal = sessionOf(p.id)?.main;
+    if (ref && cal && cal.input <= ref.input) flat.add(p.id).add(`ref:${p.id.slice('cal:'.length)}`);
+  }
 
-  const need = probes.filter((p) => missing(p) || (stale(p) || (p.id === 'all-on' && textChanged)));
+  const need = probes.filter((p) => missing(p) || stale(p) || flat.has(p.id));
   const pending = need.map((p) => p.id).sort(cmp);
   const failed = [];
   for (const s of setup.sets) {

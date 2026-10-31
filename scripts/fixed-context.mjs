@@ -61,6 +61,17 @@ export function firstCall(lines) {
       if (m && !servers.has(serverKey(m[1]))) servers.set(serverKey(m[1]), m[1]);
     }
   }
+  // A block belongs to the name it starts with (`## <name>`), else to the name at its own index; otherwise it is dropped.
+  const mcpBlocks = {};
+  for (const a of attachments('mcp_instructions_delta')) {
+    const names = a.addedNames ?? [];
+    (a.addedBlocks ?? []).forEach((block, i) => {
+      if (typeof block !== 'string') return;
+      const name = names.find((n) => block === `## ${n}` || block.startsWith(`## ${n}\n`)) ?? names[i];
+      if (name !== undefined) mcpBlocks[name] = block;
+    });
+  }
+  const deferredTools = [...new Set(attachments('deferred_tools_delta').flatMap((a) => a.addedNames ?? []))];
   const user = lines.find((l) => l?.type === 'user');
   const content = user?.message?.content;
   const prompt = typeof content === 'string' ? content : Array.isArray(content) ? content.filter((c) => c?.type === 'text').map((c) => c.text).join('\n') : '';
@@ -83,6 +94,8 @@ export function firstCall(lines) {
       (a) => a.hookEvent === 'SessionStart' && a.exitCode === 0 && String(a.command ?? '').includes(' hook session-start'),
     ),
     prompt,
+    mcpBlocks,
+    deferredTools,
   };
 }
 
@@ -192,7 +205,14 @@ export function stubsOf(setup, allOn) {
 const START = '<!-- accord:start -->';
 const END = '<!-- accord:end -->';
 
-// Every text the report sizes by appending it to a baseline, with the rows it reaches: { id, owner, label, text, rows }.
+// The name of a listing entry: the text after `- ` up to the first `:` followed by a space or ending the line
+// (`- claude-security:explore: x` is `claude-security:explore`); undefined for a line that is not an entry.
+export const entryName = (line) => /^- (.*?):(?: |$)/.exec(line)?.[1];
+
+// A plugin's name is its id up to the last `@`.
+const pluginName = (id) => (id.lastIndexOf('@') < 0 ? id : id.slice(0, id.lastIndexOf('@')));
+
+// Every text the report sizes, with the item it belongs to and the rows it reaches: { id, owner, item, label, text, rows }.
 // A text is charged only to rows it reaches, read from the all-on probe. `read(file)` gives a repository or home file
 // as it is now, undefined when it is gone; it is never given a path under the probe worktree, whose copy stands for
 // the repository file. Rows are `main` first, then the accord agents by name.
@@ -203,21 +223,38 @@ export function textsOf(setup, allOn, read) {
   const reach = (has) => rowNames.filter((r) => has(calls[r]));
   const out = [];
   for (const agent of [...setup.agents].sort(byName)) {
-    if (allOn.agents[agent.name]) out.push({ id: `agent:${agent.name}`, owner: 'accord', label: agent.name, text: agent.body, rows: [agent.name] });
+    if (allOn.agents[agent.name]) out.push({ id: `agent:${agent.name}`, owner: 'accord', item: 'agent-definition', label: agent.name, text: agent.body, rows: [agent.name] });
   }
 
   const rules = agents.flatMap((a) => allOn.agents[a].hookContexts).find((c) => c.startsWith('# accord rules'));
   if (rules !== undefined) {
-    out.push({ id: 'rules', owner: 'accord', label: 'rules', text: rules, rows: reach((c) => c.hookContexts.includes(rules) || (c === allOn.main && c.sessionStartHook)) });
+    out.push({ id: 'rules', owner: 'accord', item: 'rules', label: 'rules', text: rules, rows: reach((c) => c.hookContexts.includes(rules) || (c === allOn.main && c.sessionStartHook)) });
   }
 
-  const listing = (id, field, names) => {
-    const mine = (line) => names.some((n) => line.startsWith(`- ${n}:`));
-    const from = [allOn.main, ...agents.map((a) => allOn.agents[a])].find((c) => c[field].some(mine));
-    if (from) out.push({ id, owner: 'accord', label: id, text: from[field].filter(mine).join('\n'), rows: reach((c) => c[field].some(mine)) });
+  // The owner of a listing line, the first that applies, so a line is charged once: accord, an enabled plugin (the
+  // entry name starts with `<plugin name>:`), a set of the owner's own skills, agents and commands, else none (Claude
+  // Code's own entries and unknown ones stay out of every named part).
+  const plugins = [...(setup.plugins ?? [])].sort((a, b) => cmp(a.id, b.id));
+  const sets = [...(setup.sets ?? [])].sort((a, b) => cmp(a.prefix, b.prefix));
+  const ownerOf = (line, field) => {
+    const name = entryName(line);
+    if (name === undefined) return null;
+    const skills = field === 'skillListing';
+    if ((skills ? setup.accordSkills : setup.agents).some((x) => x.name === name)) return 'accord';
+    const plugin = plugins.find((p) => name.startsWith(`${pluginName(p.id)}:`));
+    if (plugin) return `plugin:${plugin.id}`;
+    const set = sets.find((s) => s.members.some((m) => m.name === name && (skills ? m.kind !== 'agent' : m.kind === 'agent')));
+    return set ? `set:${set.prefix}` : null;
   };
-  listing('skill-listing', 'skillListing', setup.accordSkills.map((s) => s.name));
-  listing('agent-listing', 'agentListing', setup.agents.map((a) => a.name));
+  // The listing lines of one owner as a text: taken from the main first call when it holds any, else from the first
+  // agent by name that holds any; its rows are those holding at least one of the lines.
+  const listing = (id, field, who, extra) => {
+    const mine = (line) => ownerOf(line, field) === who;
+    const from = [allOn.main, ...agents.map((a) => allOn.agents[a])].find((c) => c[field].some(mine));
+    if (from) out.push({ id, ...extra, text: from[field].filter(mine).join('\n'), rows: reach((c) => c[field].some(mine)) });
+  };
+  listing('skill-listing', 'skillListing', 'accord', { owner: 'accord', item: 'skill-listing', label: 'skill-listing' });
+  listing('agent-listing', 'agentListing', 'accord', { owner: 'accord', item: 'agent-listing', label: 'agent-listing' });
 
   const seen = new Set();
   for (const r of rowNames) {
@@ -233,17 +270,55 @@ export function textsOf(setup, allOn, read) {
       let doc = content;
       if (to >= 0) {
         const end = to + END.length;
-        out.push({ id: `pointer:${label}`, owner: 'accord', label, text: content.slice(from, end), rows });
+        out.push({ id: `pointer:${label}`, owner: 'accord', item: `pointer:${label}`, label, text: content.slice(from, end), rows });
         doc = content.slice(0, from) + content.slice(end);
       }
-      if (doc.trim() !== '') out.push({ id: `doc:${label}`, owner: 'CLAUDE.md and memory', label, text: doc, rows });
+      if (doc.trim() !== '') out.push({ id: `doc:${label}`, owner: 'CLAUDE.md and memory', item: `doc:${label}`, label, text: doc, rows });
     }
   }
 
+  // The listing entries of each enabled plugin and each own set. A text with no line is left out.
+  for (const p of plugins) {
+    listing(`plugin-skills:${p.id}`, 'skillListing', `plugin:${p.id}`, { owner: 'plugins', item: `plugin:${p.id}`, label: p.id });
+    listing(`plugin-agents:${p.id}`, 'agentListing', `plugin:${p.id}`, { owner: 'plugins', item: `plugin:${p.id}`, label: p.id });
+  }
+  for (const s of sets) {
+    const extra = { owner: 'own skills, agents and commands', item: `set:${s.prefix}`, label: `set ${s.prefix}` };
+    listing(`set-skills:${s.prefix}`, 'skillListing', `set:${s.prefix}`, extra);
+    listing(`set-agents:${s.prefix}`, 'agentListing', `set:${s.prefix}`, extra);
+  }
+
+  // The connected MCP servers: the names of every instructions block, then those the tool names of the deferred
+  // tools carry; one name for each key, the block's name kept.
+  const names = new Map();
+  for (const r of rowNames) for (const n of Object.keys(calls[r].mcpBlocks)) names.set(serverKey(n), n);
+  for (const r of rowNames) {
+    for (const tool of calls[r].deferredTools) {
+      const m = /^mcp__(.+?)__.+$/.exec(tool);
+      if (m && !names.has(serverKey(m[1]))) names.set(serverKey(m[1]), m[1]);
+    }
+  }
+  const agentRows = [...setup.agents].sort(byName).map((a) => a.name).filter((n) => allOn.agents[n]);
+  const blockOf = (c, key) => Object.entries(c.mcpBlocks).find(([n]) => serverKey(n) === key)?.[1];
+  const toolsOf = (c, key) => c.deferredTools.filter((t) => t.startsWith(`mcp__${key}__`));
+  for (const n of [...names.values()].sort(cmp)) {
+    const key = serverKey(n);
+    const listed = setup.mcp.find((m) => serverKey(m.name) === key);
+    const extra = { owner: 'MCP servers', item: `mcp:${listed ? listed.name : n}`, label: n };
+    const from = [allOn.main, ...agents.map((a) => allOn.agents[a])].find((c) => blockOf(c, key) !== undefined);
+    if (from) {
+      // Claude Code adds a block the main session holds to a subagent after the subagent's first call.
+      const rows = blockOf(allOn.main, key) !== undefined ? ['main', ...agentRows] : reach((c) => blockOf(c, key) !== undefined);
+      out.push({ id: `mcp-block:${n}`, ...extra, text: blockOf(from, key), rows });
+    }
+    const tools = [allOn.main, ...agents.map((a) => allOn.agents[a])].find((c) => toolsOf(c, key).length);
+    if (tools) out.push({ id: `mcp-tools:${n}`, ...extra, text: toolsOf(tools, key).join('\n'), rows: reach((c) => toolsOf(c, key).length > 0) });
+  }
+
   const stubs = stubsOf(setup, allOn);
-  out.push({ id: 'prompt', owner: 'probe', label: 'prompt', text: dispatchPrompt(setup.agents.map((a) => a.name)), rows: ['main'] });
-  out.push({ id: 'baseline-prompt', owner: 'probe', label: 'baseline-prompt', text: dispatchPrompt(stubs.map((s) => s.name)), rows: ['main'] });
-  out.push({ id: 'brief', owner: 'probe', label: 'brief', text: PROBE_BRIEF, rows: agents });
+  out.push({ id: 'prompt', owner: 'probe', item: null, label: 'prompt', text: dispatchPrompt(setup.agents.map((a) => a.name)), rows: ['main'] });
+  out.push({ id: 'baseline-prompt', owner: 'probe', item: null, label: 'baseline-prompt', text: dispatchPrompt(stubs.map((s) => s.name)), rows: ['main'] });
+  out.push({ id: 'brief', owner: 'probe', item: null, label: 'brief', text: PROBE_BRIEF, rows: agents });
   return out;
 }
 

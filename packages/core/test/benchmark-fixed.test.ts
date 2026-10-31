@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- transcript lines are untyped JSON of Claude Code */
 import { execFileSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { expect, it } from 'vitest';
 import { assistantLine, attachmentLine, CHOSEN, CLAIMED, HOOK, makeWorld, measuredWorld, MODEL_OF as ROW_MODEL, sizeOf, userLine, writeSession, type RowName, type World } from './helpers/fixed-world.js';
@@ -11,6 +10,7 @@ type FirstCall = {
   usage: { input: number; cacheRead: number; cacheWrite: number };
   instructions: { path: string; type: string }[]; skillListing: string[]; agentListing: string[]; hookContexts: string[];
   mcpServers: string[]; sessionStartHook: boolean; prompt: string;
+  mcpBlocks: Record<string, string>; deferredTools: string[];
 };
 type FixedContext = {
   PROBE_PREFIX: string; serverKey: (name: string) => string; firstCall: (lines: Line[]) => FirstCall | null;
@@ -67,6 +67,24 @@ it('risk:parsing a probe transcript gives its first call input and what loaded b
   expect(call.mcpServers).toContain('claude.ai Claude Docs');
   expect(call.sessionStartHook).toBe(true);
   expect(call.prompt.startsWith(PROBE_PREFIX)).toBe(true);
+  const deferred = attachments(main, 'deferred_tools_delta').flatMap((a) => a.addedNames as string[]);
+  expect(deferred.length).toBeGreaterThan(0);
+  expect(call.deferredTools).toEqual(deferred);
+  expect(call.mcpBlocks).toEqual({});
+
+  // A block belongs to the name it starts with, else to the name at its own index, else it is dropped.
+  const firstAt = main.indexOf(firstLine);
+  const delta = (addedNames: string[], addedBlocks: string[]): Line => ({ type: 'attachment', attachment: { type: 'mcp_instructions_delta', addedNames, addedBlocks } });
+  const withBlocks = [
+    ...main.slice(0, firstAt),
+    delta(['srv one', 'claude.ai Docs X'], ['## claude.ai Docs X\nDocs rules', '## srv one\nOne rules']),
+    delta(['srv two'], ['Two rules']),
+    delta(['srv three'], ['## other\nx', 'orphan']),
+    ...main.slice(firstAt),
+  ];
+  expect((firstCall(withBlocks) as FirstCall).mcpBlocks).toEqual({
+    'claude.ai Docs X': '## claude.ai Docs X\nDocs rules', 'srv one': '## srv one\nOne rules', 'srv two': 'Two rules', 'srv three': '## other\nx',
+  });
 
   // The largest value of each usage field over the lines of the message counts, and a later message does not.
   const split = main.flatMap((l) => (l === firstLine ? [{ ...l, message: { ...l.message, usage: { ...l.message.usage, cache_read_input_tokens: usage.cacheRead + 1000, cache_creation_input_tokens: 1 } } }, l] : [l]));
@@ -81,7 +99,7 @@ it('risk:parsing a probe transcript gives its first call input and what loaded b
     ...main.slice(0, at + 1),
     late('skill_listing', { content: '- late-skill: x' }), late('agent_listing_delta', { addedLines: ['- late-agent: x'] }),
     late('instructions', { files: [{ path: 'late.md', type: 'Project' }] }), late('hook_additional_context', { content: ['late'] }),
-    late('mcp_instructions_delta', { addedNames: ['late server'] }), late('deferred_tools_delta', { addedNames: ['mcp__late_server__t'] }),
+    late('mcp_instructions_delta', { addedNames: ['late server'], addedBlocks: ['## late server\nx'] }), late('deferred_tools_delta', { addedNames: ['mcp__late_server__t'] }),
     ...main.slice(at + 1),
   ];
   expect(firstCall(withLate)).toEqual(call);
@@ -318,7 +336,7 @@ it('risk:parsing printed commands keep absolute paths Git Bash runs when the rep
 
 type Row = FirstCall;
 type Stub = { name: string; tools: string[] | null; model: string; agents: string[] };
-type Text = { id: string; owner: string; label: string; text: string; rows: string[] };
+type Text = { id: string; owner: string; item: string | null; label: string; text: string; rows: string[] };
 type TwoProbe = {
   id: string; where: string; depends: Record<string, string>; model?: string; text?: string; source?: string;
   stubs?: Stub[]; settings?: { permissions: { deny: string[] } };
@@ -331,15 +349,18 @@ type Two = {
   phaseTwo: (s: unknown, a: unknown, read: (f: string) => string | undefined, forms?: unknown) => TwoProbe[];
 };
 
-it('risk:complex-branching each text is sized on the models of the rows it reaches and the baseline has one stub per tool list and model', async () => {
+it('risk:complex-branching each text is charged to its owner and to the rows it reaches and the baseline has one stub per tool list and model', async () => {
   const fc = (await import(new URL('../../../scripts/fixed-context.mjs', import.meta.url).href)) as Two;
   const RULES = '# accord rules\n\nhold these';
   const CLAUDE = 'own line\n<!-- accord:start -->\npointer block\n<!-- accord:end -->\n';
   const MEMORY = 'C:/h/.claude/projects/C--w-repo/memory/MEMORY.md';
   const agent = (name: string, model: string, tools: string[] | null) => ({ name, model, tools, body: `body of ${name}`, hash: 'h' });
+  const member = (kind: string, name: string) => ({ kind, name, level: 'user', hash: 'h' });
   const setup = {
     repo: 'C:/w/repo', mainCheckout: 'C:/w/repo', probeDir: 'C:/w/accord-probe', home: 'C:/h',
     mcp: [{ name: 'proj-db' }],
+    plugins: [{ id: 'accord-panel@accord', version: '1', accordOwn: true }, { id: 'alpha@m', version: '1', accordOwn: false }],
+    sets: [{ prefix: 'gsd', members: [member('skill', 'gsd-a'), member('agent', 'gsd-r')] }, { prefix: 'tool', members: [member('command', 'tool:run')] }],
     accordSkills: [{ name: 'accord', description: 'd' }],
     agents: [
       agent('accord-scout', 'sonnet', ['Read', 'Grep', 'Glob']), agent('accord-critic', 'opus', ['Read', 'Grep', 'Glob']),
@@ -348,22 +369,27 @@ it('risk:complex-branching each text is sized on the models of the rows it reach
   };
   const call = (o: Partial<Row>): Row => ({
     id: 'x', model: 'm', version: '2.1.314', ts: 0, cwd: '', branch: '', input: 0, usage: { input: 0, cacheRead: 0, cacheWrite: 0 },
-    instructions: [], skillListing: [], agentListing: [], hookContexts: [], mcpServers: [], sessionStartHook: false, prompt: '', ...o,
+    instructions: [], skillListing: [], agentListing: [], hookContexts: [], mcpServers: [], sessionStartHook: false, prompt: '',
+    mcpBlocks: {}, deferredTools: [], ...o,
   });
   const allOn = {
     main: call({
-      model: 'm-opus', sessionStartHook: true, skillListing: ['- accord: a', '- gsd-a: b'], agentListing: ['- accord-scout: s', '- other: o'],
+      model: 'm-opus', sessionStartHook: true,
+      skillListing: ['- accord: a', '- gsd-a: b', '- alpha:sk: c', '- tool:run: d', '- other: o'],
+      agentListing: ['- accord-scout: s', '- gsd-r: r', '- alpha:helper: h', '- other: o'],
       instructions: [{ path: 'C:\\w\\accord-probe\\CLAUDE.md', type: 'Project' }, { path: MEMORY, type: 'AutoMem' }],
       mcpServers: ['claude.ai Docs X', 'plugin_alpha_srv', 'proj_db'],
+      mcpBlocks: { 'claude.ai Docs X': '## claude.ai Docs X\nrules', 'proj-db': '## proj-db\nq' },
+      deferredTools: ['mcp__claude_ai_Docs_X__read', 'mcp__proj_db__query', 'mcp__plugin_alpha_srv__ping', 'WebFetch'],
     }),
     agents: {
       'accord-scout': call({ model: 'm-sonnet', hookContexts: [RULES], instructions: [{ path: 'C:/w/accord-probe/CLAUDE.md', type: 'Project' }] }),
       'accord-critic': call({
-        model: 'm-opus', hookContexts: [RULES],
+        model: 'm-opus', hookContexts: [RULES], mcpBlocks: { 'agent-only': '## agent-only\nz' },
         instructions: [{ path: 'C:/w/accord-probe/CLAUDE.md', type: 'Project' }, { path: MEMORY, type: 'AutoMem' }],
       }),
       'accord-executor': call({
-        model: 'm-sonnet', hookContexts: [RULES], skillListing: ['- accord: a'],
+        model: 'm-sonnet', hookContexts: [RULES], skillListing: ['- accord: a', '- gsd-a: b'], deferredTools: ['mcp__proj_db__query'],
         instructions: [{ path: 'C:/w/accord-probe/CLAUDE.md', type: 'Project' }],
       }),
     },
@@ -389,51 +415,63 @@ it('risk:complex-branching each text is sized on the models of the rows it reach
   const ids = texts.map((t) => t.id);
   expect(ids).toEqual(expect.arrayContaining(['doc:CLAUDE.md', 'pointer:CLAUDE.md', 'doc:~/.claude/projects/C--w-repo/memory/MEMORY.md']));
   expect(ids).not.toContain('agent:accord-ghost');
-  expect(text('agent:accord-critic')).toMatchObject({ owner: 'accord', text: 'body of accord-critic', rows: ['accord-critic'] });
-  expect(text('rules')).toMatchObject({ owner: 'accord', text: RULES, rows: ['main', 'accord-critic', 'accord-executor', 'accord-scout'] });
-  expect(text('skill-listing')).toMatchObject({ owner: 'accord', text: '- accord: a', rows: ['main', 'accord-executor'] });
-  expect(text('agent-listing')).toMatchObject({ owner: 'accord', text: '- accord-scout: s', rows: ['main'] });
+  expect(ids.some((id) => id.endsWith('accord-panel@accord'))).toBe(false);
+  expect(text('agent:accord-critic')).toMatchObject({ owner: 'accord', item: 'agent-definition', text: 'body of accord-critic', rows: ['accord-critic'] });
+  expect(text('rules')).toMatchObject({ owner: 'accord', item: 'rules', text: RULES, rows: ['main', 'accord-critic', 'accord-executor', 'accord-scout'] });
+  expect(text('skill-listing')).toMatchObject({ owner: 'accord', item: 'skill-listing', text: '- accord: a', rows: ['main', 'accord-executor'] });
+  expect(text('agent-listing')).toMatchObject({ owner: 'accord', item: 'agent-listing', text: '- accord-scout: s', rows: ['main'] });
   expect(text('doc:CLAUDE.md').owner).toBe('CLAUDE.md and memory');
+  expect(text('doc:CLAUDE.md').item).toBe('doc:CLAUDE.md');
   expect(text('doc:CLAUDE.md').text).toContain('own line');
   expect(text('doc:CLAUDE.md').text).not.toContain('accord:start');
   expect(text('doc:CLAUDE.md').rows).toEqual(['main', 'accord-critic', 'accord-executor', 'accord-scout']);
   expect(text('pointer:CLAUDE.md').owner).toBe('accord');
+  expect(text('pointer:CLAUDE.md').item).toBe('pointer:CLAUDE.md');
   expect(text('pointer:CLAUDE.md').text).toBe('<!-- accord:start -->\npointer block\n<!-- accord:end -->');
   expect(text('doc:~/.claude/projects/C--w-repo/memory/MEMORY.md').rows).toEqual(['main', 'accord-critic']);
-  expect(text('prompt')).toMatchObject({ owner: 'probe', rows: ['main'], text: fc.dispatchPrompt(setup.agents.map((a) => a.name)) });
-  expect(text('baseline-prompt')).toMatchObject({ owner: 'probe', rows: ['main'], text: fc.dispatchPrompt(['stub-1', 'stub-2', 'stub-3']) });
-  expect(text('brief')).toMatchObject({ owner: 'probe', text: fc.PROBE_BRIEF, rows: ['accord-critic', 'accord-executor', 'accord-scout'] });
+  expect(text('prompt')).toMatchObject({ owner: 'probe', item: null, rows: ['main'], text: fc.dispatchPrompt(setup.agents.map((a) => a.name)) });
+  expect(text('baseline-prompt')).toMatchObject({ owner: 'probe', item: null, rows: ['main'], text: fc.dispatchPrompt(['stub-1', 'stub-2', 'stub-3']) });
+  expect(text('brief')).toMatchObject({ owner: 'probe', item: null, text: fc.PROBE_BRIEF, rows: ['accord-critic', 'accord-executor', 'accord-scout'] });
 
-  const two = fc.phaseTwo(setup, allOn, read);
-  expect(two.map((p) => p.id)).toEqual([...two.map((p) => p.id)].sort());
-  const models = (id: string) => two.filter((p) => p.id.startsWith(`text:${id}:`)).map((p) => p.model).sort();
-  expect(models('agent:accord-critic')).toEqual(['m-opus']);
-  expect(models('rules')).toEqual(['m-opus', 'm-sonnet']);
-  expect(models('skill-listing')).toEqual(['m-opus', 'm-sonnet']);
-  expect(models('agent-listing')).toEqual(['m-opus']);
-  expect(models('doc:~/.claude/projects/C--w-repo/memory/MEMORY.md')).toEqual(['m-opus']);
-  expect(models('doc:CLAUDE.md')).toEqual(['m-opus', 'm-sonnet']);
-  expect(models('brief')).toEqual(['m-opus', 'm-sonnet']);
-  expect(models('prompt')).toEqual(['m-opus']);
-  expect(models('baseline-prompt')).toEqual(['m-opus']);
-  expect(two.filter((p) => p.id.startsWith('ref:')).map((p) => p.id)).toEqual(['ref:m-opus', 'ref:m-sonnet']);
-  const probe = (id: string): TwoProbe => two.find((p) => p.id === id) as TwoProbe;
-  expect(probe('text:agent:accord-critic:m-opus')).toMatchObject({
-    where: 'empty', source: 'disk', text: 'body of accord-critic',
-    depends: { 'text:agent:accord-critic': createHash('sha256').update('body of accord-critic').digest('hex') },
-  });
-  expect(probe('text:rules:m-opus').source).toBe('probe');
-  expect(probe('text:doc:CLAUDE.md:m-sonnet').source).toBe('disk');
-  expect(probe('text:pointer:CLAUDE.md:m-opus').source).toBe('disk');
-  expect(probe('baseline')).toMatchObject({ where: 'empty', model: 'm-opus', stubs, depends: { stubs: JSON.stringify(stubs) } });
-  expect(probe('ref:m-sonnet').where).toBe('empty');
+  // A plugin's entries are charged to the plugin, an own set's to the set, whatever else the listing holds.
+  expect(text('plugin-skills:alpha@m')).toEqual({ id: 'plugin-skills:alpha@m', owner: 'plugins', item: 'plugin:alpha@m', label: 'alpha@m', text: '- alpha:sk: c', rows: ['main'] });
+  expect(text('plugin-agents:alpha@m')).toMatchObject({ owner: 'plugins', item: 'plugin:alpha@m', text: '- alpha:helper: h', rows: ['main'] });
+  expect(text('set-skills:gsd')).toMatchObject({ owner: 'own skills, agents and commands', item: 'set:gsd', text: '- gsd-a: b', rows: ['main', 'accord-executor'] });
+  expect(text('set-agents:gsd')).toMatchObject({ item: 'set:gsd', text: '- gsd-r: r', rows: ['main'] });
+  expect(text('set-skills:tool')).toMatchObject({ item: 'set:tool', text: '- tool:run: d' });
+  expect(ids).not.toContain('set-agents:tool');
 
-  expect(fc.connectorsOf(setup, allOn)).toEqual({ connectors: ['claude.ai Docs X'], others: ['plugin_alpha_srv'] });
-  expect(two.filter((p) => p.id.startsWith('connector:'))).toEqual([]);
-  const withForm = fc.phaseTwo(setup, allOn, read, { ...fc.PROBE_FORMS, connector: 'mcp__{server}' }).filter((p) => p.id.startsWith('connector:'));
-  expect(withForm).toEqual([
-    { id: 'connector:claude.ai Docs X', where: 'probe', depends: {}, settings: { permissions: { deny: ['mcp__claude_ai_Docs_X'] } } },
+  // A block the main holds reaches every agent row, though no agent first call holds it; a block only an agent holds
+  // stays on the agents holding it. A server with tool names and no block has no block text.
+  const everyRow = ['main', 'accord-critic', 'accord-executor', 'accord-scout'];
+  expect(text('mcp-block:claude.ai Docs X')).toMatchObject({ owner: 'MCP servers', item: 'mcp:claude.ai Docs X', label: 'claude.ai Docs X', text: '## claude.ai Docs X\nrules', rows: everyRow });
+  expect(text('mcp-tools:claude.ai Docs X')).toMatchObject({ text: 'mcp__claude_ai_Docs_X__read', rows: ['main'] });
+  expect(text('mcp-block:proj-db')).toMatchObject({ item: 'mcp:proj-db', rows: everyRow });
+  expect(text('mcp-tools:proj-db')).toMatchObject({ text: 'mcp__proj_db__query', rows: ['main', 'accord-executor'] });
+  expect(text('mcp-block:agent-only')).toMatchObject({ item: 'mcp:agent-only', text: '## agent-only\nz', rows: ['accord-critic'] });
+  expect(text('mcp-tools:plugin_alpha_srv').item).toBe('mcp:plugin_alpha_srv');
+  expect(ids).not.toContain('mcp-block:plugin_alpha_srv');
+
+  // Claude Code's own entries and unknown ones are in no named text, and no listing line is charged twice.
+  expect(text('skill-listing').text).toBe('- accord: a');
+  for (const t of texts) {
+    expect(t.text).not.toContain('- other: o');
+    expect(t.text).not.toContain('WebFetch');
+  }
+  const listings = texts.filter((t) => /^(skill-listing|agent-listing|plugin-|set-)/.test(t.id));
+  for (const line of [...allOn.main.skillListing, ...allOn.main.agentListing]) {
+    expect(listings.filter((t) => t.text.split('\n').includes(line)).length).toBeLessThanOrEqual(1);
+  }
+
+  // The new texts follow the doc: texts and precede prompt: plugins by id, sets by prefix, servers by name.
+  const added = ids.filter((id) => /^(plugin-|set-|mcp-)/.test(id));
+  expect(added).toEqual([
+    'plugin-skills:alpha@m', 'plugin-agents:alpha@m', 'set-skills:gsd', 'set-agents:gsd', 'set-skills:tool',
+    'mcp-block:agent-only', 'mcp-block:claude.ai Docs X', 'mcp-tools:claude.ai Docs X', 'mcp-tools:plugin_alpha_srv', 'mcp-block:proj-db', 'mcp-tools:proj-db',
   ]);
+  const lastDoc = Math.max(...ids.map((id, i) => (id.startsWith('doc:') ? i : -1)));
+  expect(ids.indexOf('plugin-skills:alpha@m')).toBeGreaterThan(lastDoc);
+  expect(ids.indexOf('mcp-tools:proj-db')).toBeLessThan(ids.indexOf('prompt'));
 });
 
 type Pending = { exit: number; pending: string[]; version: string | undefined; text: string };
@@ -731,7 +769,7 @@ it('risk:complex-branching a part is charged only to the rows it reaches and una
   };
   const call = (model: string, input: number, o: Partial<FirstCall> = {}): FirstCall => ({
     id: 'x', model, version: '2.1.314', ts: 0, cwd: '', branch: '', input, usage: { input, cacheRead: 0, cacheWrite: 0 },
-    instructions: [], skillListing: [], agentListing: [], hookContexts: [], mcpServers: [], sessionStartHook: false, prompt: '', ...o,
+    instructions: [], skillListing: [], agentListing: [], hookContexts: [], mcpServers: [], sessionStartHook: false, prompt: '', mcpBlocks: {}, deferredTools: [], ...o,
   });
   const modelOf: Record<string, string> = { [M]: 'm-opus', [S]: 'm-sonnet', [E]: 'm-sonnet' };
   const stubs = fc.stubsOf(setup, { main: call('m-opus', 0), agents: { [S]: call('m-sonnet', 0), [E]: call('m-sonnet', 0) } });
@@ -770,7 +808,7 @@ it('risk:complex-branching a part is charged only to the rows it reaches and una
   };
   for (const [id, byModel] of Object.entries(delta)) for (const [m, d] of Object.entries(byModel)) add(`text:${id}:${m}`, ref[m] + d);
   const all = [M, S, E];
-  const text = (id: string, owner: string, rows: string[]): Text => ({ id, owner, label: id.replace(/^(doc|pointer|agent):/, ''), text: id, rows });
+  const text = (id: string, owner: string, rows: string[]): Text => ({ id, owner, item: id, label: id.replace(/^(doc|pointer|agent):/, ''), text: id, rows });
   const texts = [
     text(`agent:${S}`, 'accord', [S]), text(`agent:${E}`, 'accord', [E]), text('rules', 'accord', all),
     text('skill-listing', 'accord', [M, E]), text('agent-listing', 'accord', [M]), text('pointer:CLAUDE.md', 'accord', all),

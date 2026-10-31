@@ -65,6 +65,9 @@
 - Ruling: the clean lock is taken before the no-origin early return, so every clean costs one `rev-parse --git-common-dir`, and cleanRecorded reuses it through `GuardState.accord` — the plan says "takes the lock first" — cost if wrong: one git spawn on a clean with no origin; git-count passes.
 - Ruling: a lock file whose pid cannot be parsed counts as held until it is an hour old, and the skip line then says `pid ?` — an empty file may be another clean mid-write — cost if wrong: a corrupt lock blocks cleans for up to an hour.
 - Ruling: EPERM from `process.kill(pid, 0)` counts as still running, so only ESRCH makes a lock stale — cost if wrong: none; the process exists.
+- Ruling: accepted task 9's change to packages/cli/test/helpers/done.ts outside its files line: `link` calls `symlinkSync(target, at, 'junction')` with no `process.platform` branch, which the existing stage-skills.test.ts:522 rule required — the Task 3 helper broke that rule — cost if wrong: none; a junction on Windows, a symlink elsewhere.
+- Ruling: accepted the skill files `skills sync` rewrote beyond task 9's files line (accord-plan/SKILL.md, accord-plan/critique.md, accord-review/SKILL.md, accord-review/record.md, accord/lane-s.md) — the committed copies lagged their sources — cost if wrong: an unrelated diff in the PR, easy to revert.
+- Ruling: refused the `PreToolUse` `Agent|Task` → `hook pre-tool-use` entry `skills sync` added to .claude/settings.json in c51fbd64 and removed it in bc057b6b — the pinned 0.3.0 has no `pre-tool-use` event, so it exits 2 with a UsageError, and a PreToolUse hook exiting 2 blocks every Agent call in this repository — cost if wrong: the pre-tool-use model guard stays off here until the pin includes it; add the entry back with that pin bump.
 
 ## Deferred
 - Plan round 1 Nice: a relative path in a record line is resolved against cwd; skip non-absolute lines and fence descendants of the main checkout — deferred
@@ -94,3 +97,4 @@
 - task 6 done d00fa5d325d4
 - task 7 done a430c0d1a533
 - task 8 done 07f7d57d9708
+- task 9 done bc057b6b3f1b

@@ -40,8 +40,14 @@ What `accord worktree open <id>` and `accord new ticket --worktree` print:
   does for a forbidden line, run the next push as `accord worktree push <id> --force-with-lease`: a plain
   push is rejected once the reworded commit was already on origin, and the command still refuses to
   replace a commit someone else pushed that this branch never held, even after a fetch.
-- Lines starting `removed`, `deleted` or `kept`, or `clean failed`: the clean of tickets done on the default
-  branch. Show them verbatim and go on.
+- Lines starting `removed`, `deleted` or `kept`, or `clean failed`, `clean skipped` or `clean stopped`: the clean of
+  tickets done or dropped on the default branch. A `kept` line ends with its reason. Only when that reason names a
+  file accord never deletes does the owner move or delete that file; for any other reason nothing is to be deleted and
+  the folder stays, as with `holds a repository: <path>` (a nested repository, maybe with unpushed commits; never
+  offer to delete it), `has an edit git status hides: <path>`, `uncommitted work`, `held by another session`, `this session's worktree`,
+  `checked out on <branch>`, `being rebased` or `it holds the worktree …`. Show them verbatim and go on.
+  Another such reason is `research record <path> is not on <default> as <branch> holds it`: the record is the owner's to reconcile, never to delete or move; make the branch copy equal to the default branch's, or put it on the default branch, then push, and the branch stays.
+- A line starting `note <id>:` says a record or a hold was not updated. Show it verbatim and go on.
 - A line `stop:`: show the two lines after it verbatim, the worktree's path and the line to type in a
   session opened in that folder, then stop. Never change directory into the worktree, never edit a file
   there except the people entry below and, in a lane S ticket, its `title:`, its `## Understood`, `## Done when` and `## Scope` lines and the commit and push of that ticket file, and never start the next stage from this session.
@@ -79,7 +85,10 @@ and follow the `stop:` or `enter:` line it prints. When that push fails again, s
 
 This skill runs `accord worktree clean` itself only from `/accord` with no argument and from `/accord upgrade`;
 `accord worktree open` and `accord new ticket --worktree` clean the same way on their own, so a ticket done on
-the default branch loses its worktree and branches at any `/accord` command. A New request the session check
+the default branch loses its worktree and branches at any `/accord` command. In a tool that runs accord's session-start hook, every
+session start, resume or /clear runs the same clean, so a ticket merged since the last session loses its worktree,
+its branches and any folder left behind with nobody typing a command; the hook ends its clean lines with
+`tell the owner the lines above`, so show them to the owner in your first reply. A New request the session check
 stops cleans nothing. At the dashboard its lines are shown verbatim with the dashboard's.
 
 ## Session check

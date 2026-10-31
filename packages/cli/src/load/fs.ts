@@ -383,7 +383,7 @@ function defaultRefs(root: string, local: boolean): DefaultRefs {
 }
 
 /** What `log -z --format=%x01%H%x00%P --name-only` printed: `\x01sha NUL parents NUL`, then `\n` + first path NUL and the other paths NUL-ended when the commit has any. */
-function parseAfterLog(raw: string, remerged: boolean): AfterVerify {
+export function parseAfterLog(raw: string, remerged: boolean): AfterVerify {
   const tokens = raw.split('\0');
   const commits: AfterVerify = [];
   for (let i = 0; i < tokens.length; i++) {

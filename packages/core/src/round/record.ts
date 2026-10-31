@@ -4,10 +4,13 @@ import { headingKey, scan, stripHtmlComments } from '../load/sections.js';
 import type { Line, RecordedRound, RoundCycle, RoundFinding, RoundRecord, Severity } from '../model/snapshot.js';
 
 export const ROUND_RECORD_LINE = 'Round record: 1';
+export const ROUND_RECORD_LINE_2 = 'Round record: 2';
 
 const ROUND = /^round(?:\s+([0-9]+)\b.*)?$/;
 const RETURN = /^return from verify(?:\s+(\S+))?$/i;
 const CLOSED = /^closed\b/;
+// ST-LN-57: a version 2 heading as headingKey writes it: the head, then at most one mark.
+const HEADING_2 = /^round [0-9]+ head ([0-9a-f]{7,40})(?: \((added code round 1|final review)\))?$/;
 const SHA = /^[0-9a-f]{7,40}$/i;
 const VERDICT = /^verdict:\s*(\S+)(.*)$/;
 const QUOTED = /^\s+".*\S.*"\s*$/;
@@ -58,7 +61,12 @@ export function parseRounds(file: string, text: string, kind: 'review' | 'plan')
 
   const firstHeading = sections[0]?.line ?? all.length + 1;
   let versioned = false;
-  for (let n = 1; n < firstHeading; n++) if (textOf(n)?.trim() === ROUND_RECORD_LINE) versioned = true;
+  let version2 = false;
+  for (let n = 1; n < firstHeading; n++) {
+    const t = textOf(n)?.trim();
+    if (t === ROUND_RECORD_LINE) versioned = true;
+    else if (kind === 'review' && t === ROUND_RECORD_LINE_2) versioned = version2 = true;
+  }
 
   const unreadable: { line: number; reason: string }[] = [];
   const bad = (line: number, reason: string) => unreadable.push({ line, reason });
@@ -75,6 +83,16 @@ export function parseRounds(file: string, text: string, kind: 'review' | 'plan')
     const m = ROUND.exec(key);
     if (m && m[1] !== undefined) {
       round = { line: section.line, findings: [], noFindings: false };
+      if (version2) {
+        const h = HEADING_2.exec(key);
+        if (h === null) {
+          bad(section.line, `line ${section.line}: ${shown} is not ## Round <n> head <sha>, optionally followed by (added code round 1) or (final review)`);
+        } else {
+          round.head = h[1];
+          if (h[2] === 'added code round 1') round.added = true;
+          else if (h[2] === 'final review') round.final = true;
+        }
+      }
       cycle.rounds.push(round);
       positions.set(round, cycle.rounds.length);
     } else if (m) {
@@ -127,5 +145,5 @@ export function parseRounds(file: string, text: string, kind: 'review' | 'plan')
   }
 
   unreadable.sort((a, b) => a.line - b.line);
-  return { file, kind, versioned, cycles, unreadable };
+  return { file, kind, versioned, ...(version2 ? { version: 2 as const } : {}), cycles, unreadable };
 }

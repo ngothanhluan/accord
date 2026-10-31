@@ -177,13 +177,21 @@ export interface Review {
 
 export type Severity = 'Must' | 'Should' | 'Nice';
 export interface RoundFinding { severity: Severity; line: number; text: string } // text: the line trimmed, as written
-export interface RecordedRound { line: number; findings: RoundFinding[]; noFindings: boolean } // line: of its ## Round heading
+export interface RecordedRound {
+  line: number; // of its ## Round heading
+  findings: RoundFinding[];
+  noFindings: boolean;
+  head?: string; // version 2 only (ST-LN-57): the commit the round reviewed up to, lower case
+  added?: true; // version 2 only: the heading says (added code round 1)
+  final?: true; // version 2 only: the heading says (final review)
+}
 export interface RoundVerdict { value: string; quoted: boolean; line: number } // quoted: accepted-by-owner followed by a "sentence"
 export interface RoundCycle { line: number; marker?: string; rounds: RecordedRound[]; verdicts: RoundVerdict[]; closed?: number }
 export interface RoundRecord {
   file: string;
   kind: 'review' | 'plan';
-  versioned: boolean; // a `Round record: 1` line above the first ## heading
+  versioned: boolean; // a `Round record: 1` or `Round record: 2` line above the first ## heading
+  version?: 2; // ST-LN-57: set only for `Round record: 2`
   cycles: RoundCycle[]; // always at least one; review: split at ## Return from verify; plan: split after ## Closed
   unreadable: { line: number; reason: string }[];
 }

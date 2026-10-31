@@ -34,7 +34,7 @@ export type {
   BranchFact,
 } from './model/snapshot.js';
 export { loadSnapshot } from './load/snapshot.js';
-export { parseRounds, cycleOpen, ROUND_RECORD_LINE } from './round/record.js';
+export { parseRounds, cycleOpen, ROUND_RECORD_LINE, ROUND_RECORD_LINE_2 } from './round/record.js';
 export { ROUND_CAP, allowancesOf, cycleState, fixModel, modelFamily, nextRound, planStopOf, recordProblems, roundText } from './round/next.js';
 export type { Allowance, RoundAnswer, RoundKind } from './round/next.js';
 export { checkFixDispatch } from './round/dispatch.js';
@@ -42,7 +42,7 @@ export { loadConfig } from './load/config.js';
 export { lintSnapshot } from './lint/index.js';
 export type { LintResult } from './lint/index.js';
 export { gateDone, gatePlan, gateReady } from './gate/index.js';
-export { isSha } from './gate/done.js';
+export { isSha, ownRecordsOnly } from './gate/done.js';
 export { approvedHash } from './gate/hash.js';
 export type { GateResult } from './gate/index.js';
 export { taskVerdict } from './gate/task.js';

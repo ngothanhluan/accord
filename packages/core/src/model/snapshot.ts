@@ -164,6 +164,7 @@ export interface Ledger {
   rulings: string[]; // every 'Ruling: …' line, list marker stripped
   rulingsSection?: string[]; // the '## Rulings' section's non-blank lines as written, comments stripped; absent without one
   wordingOnly?: { path: string; reason: string }[]; // every 'Wording-only: <path> — <reason>' line; absent when none
+  deferred?: { round: number; n: number; cycle: number }[]; // '- review <r>.<n>[ cycle <k>]: …' lines of the first '## Deferred' section; absent when none
 }
 
 export interface Review {
@@ -176,7 +177,20 @@ export interface Review {
 }
 
 export type Severity = 'Must' | 'Should' | 'Nice';
-export interface RoundFinding { severity: Severity; line: number; text: string } // text: the line trimmed, as written
+export interface RoundFinding {
+  severity: Severity;
+  line: number;
+  text: string; // the line trimmed, as written
+  // Version 2 only (ST-LN-57): the parts of the finding line the form names.
+  n?: number;
+  file?: string; // absent for `none`
+  state?: 'open' | 'fixed' | 'deferred';
+  carried?: { round: number; n: number };
+  risk?: 'data-loss' | 'security';
+  test?: string;
+  command?: string;
+  restsOn?: { kind: 'ac' | 'decision' | 'Veto' | 'Intent' | 'Understood' | 'Done when'; ref: string }; // ref: ac-<n>, D-<nn>, or the quote without its quotes
+}
 export interface RecordedRound {
   line: number; // of its ## Round heading
   findings: RoundFinding[];

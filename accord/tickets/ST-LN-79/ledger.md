@@ -1,6 +1,7 @@
 # Ledger
 
 ## Tasks
+- task 1 done 1addb0e5cdf6
 
 ## Rulings
 
@@ -52,6 +53,10 @@
 - Ruling: every probe command, the Task 1 spike runs included, puts the prompt directly after `-p`, and `writeProbes`/`fixedProbe` take a `forms` argument that defaults to `PROBE_FORMS` so a test can pass other forms — a list-taking flag in `extraArgs` would otherwise take the prompt, and the scripts should print the form the spike proved — cost if wrong: none expected; it is the documented form.
 - Ruling: Task 10 commits the report the main session's clean `--fixed` run wrote and does not rerun `--fixed` — a `MEMORY.md` line written after that run would make `all-on` stale and block Task 10, though the report already measures the setup as it was when it ran (ac-1) — cost if wrong: the committed report's `MEMORY.md` line shows the file as it was at that run, not at commit time.
 - Ruling: the plan's baseline tests are CI's green run on `main` at `cb91031` instead of a local `tests.full`, on the owner's "A" — the baseline commit's product code equals `cb91031` (no change outside `accord/` since), CI ran the whole suite there on Linux and Windows, and `accord/tests-baseline.txt` already exists — cost if wrong: a failure that shows only on this machine surfaces at build or verify instead of at plan.
+- Ruling: a user skill or command is moved out of reach with `skillOverrides: {"<name>": "off"}` in the `--settings` file, not a `Skill(<name>)` deny rule, on the owner's choice "Dùng skillOverrides" (translated: "use skillOverrides") — Task 1's run e showed denied skills and commands, `zzprobe-x` included, stay in `skill_listing`, while `skillOverrides` passed every run e condition; only `Agent(<name>)` removes agent entries; the key is not documented and was read from the `claude.exe` binary — cost if wrong: a later Claude Code may drop the key and a set's figure goes wrong, which a rerun of the spike shows.
+- Ruling: `PROBE_FORMS` differs from the planned shape: `deny.skill` and `deny.command` are `null`, `deny.agent` is `'Agent({name})'`, a new key `skillOverride: 'off'`, `noSources` `['--setting-sources', '']`, `agentsArg` `'file'`, `extraArgs` `[]`, `connector` `null` — the forms Task 1's spike proved on Claude Code 2.1.314 — cost if wrong: none; Tasks 3 and 4 are re-planned to read this shape.
+- Ruling: claude.ai connectors share one `other connected servers` line — run h's both deny forms (`mcp__claude_ai_Claude_Docs` and `mcp__claude_ai_Claude_Docs__*`) left the connector named in `mcp_instructions_delta`, so neither passed; the plan says run h never blocks — cost if wrong: the owner cannot see each connector's cost.
+- Ruling: a set's leave-one-out figure includes Claude Code lengthening the descriptions of the skill-listing entries that stay — the listing is budgeted, and the spike saw 5 entries change — cost if wrong: a set's figure is understated by those few lines, which unattributed holds.
 
 ## Deferred
 

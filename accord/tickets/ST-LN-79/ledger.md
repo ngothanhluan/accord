@@ -148,6 +148,7 @@
 - Ruling: (Task 13) `perCharOf` in fixed-world.ts reads `scripts/fixed-calibration.txt` directly for its length, since it must be synchronous — cost if wrong: two readers of one file; the length is the same.
 - Ruling: (Task 13) `measure` guards `text.item` only for `owner === 'MCP servers'` when naming the extra `mcp:<n>` items, and a text with no matching item is left out of every item — cost if wrong: an unnamed item would not show in ac-4's list.
 - Ruling: (review 1.1 fix) the report line for an MCP server not measured names it with one of three reasons, "failed to connect (<code>)", "needed authentication" or "was still connecting", read from the whole all-on main transcript since the attachment arrives after the first call — the finding fixed only the intent — cost if wrong: wording is cheap to change.
+- Ruling: (review 1.1 fix) the main session regenerated docs/benchmark/fixed-context.md by running `node scripts/benchmark.mjs --fixed` after one new all-on probe (owner: "Run it (Recommended)", translated from the option chosen) and committed the script's output unedited — the report must be what the script prints, and a memory write after the first probe had made the all-on probe stale — cost if wrong: none; a second all-on run was needed because another session rewrote MEMORY.md between the printed command and the probe.
 
 ## Deferred
 

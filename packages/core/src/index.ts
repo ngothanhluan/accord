@@ -37,6 +37,7 @@ export type {
   RoundFacts,
 } from './model/snapshot.js';
 export { loadSnapshot } from './load/snapshot.js';
+export { isResearchPath, isResearchRecord, recordHeaderFaults, RESEARCH_DIR } from './load/research.js';
 export { parseRounds, cycleOpen, ROUND_RECORD_LINE, ROUND_RECORD_LINE_2 } from './round/record.js';
 export { RECORD_V2_FROM, pinAllowsV1, pinOf } from './round/pin.js';
 export { pendingAddedCode, scopeProblems } from './round/scope.js';

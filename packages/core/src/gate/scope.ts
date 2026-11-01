@@ -5,6 +5,7 @@ import { normaliseText, splitFrontmatter } from '../load/frontmatter.js';
 import { headingKey, scan, stripHtmlComments } from '../load/sections.js';
 import type { BranchChange, BranchFact, RepoSnapshot } from '../model/snapshot.js';
 import type { GateRule } from './rules.js';
+import { addedResearch } from './research.js';
 import { ledgerFile, laneTicket, reviewFile, workOf } from './work.js';
 
 type BranchRead = Exclude<BranchFact, { error: string }>;
@@ -31,8 +32,9 @@ export const factOf = (s: RepoSnapshot, id: string): BranchFact | undefined =>
 export const matches = (entry: string, path: string): boolean => (entry.endsWith('/') ? path.startsWith(entry) : entry === path);
 
 /** Ledger Ruling 9: the ticket's own files, the files `accord skills sync` writes, and the merge-base config's `generated:` paths. */
-export function isExempt(id: string, fact: BranchRead, path: string): boolean {
+export function isExempt(id: string, fact: BranchRead, path: string, own: readonly string[] = []): boolean {
   if (path === ticketFile(id) || path.startsWith('accord/tickets/' + id + '/')) return true;
+  if (own.includes(path)) return true;
   if (fact.synced.includes(path)) return true;
   if (path === '.claude/settings.json') return false;
   return configLists(fact.baseConfig).generated.some((e) => matches(e, path));
@@ -57,9 +59,10 @@ export function outsideScope(s: RepoSnapshot, id: string): { paths: string[] } |
       cannot: `## Scope held no path when ac_hash was first recorded (commit ${commit}); a lane S ticket lists the files it expects to touch before any change, so it must be lifted to lane M`,
     };
   }
+  const own = addedResearch(s, id);
   return {
     paths: fact.changes
-      .filter((c) => isCounted(c) && !isExempt(id, fact, c.path) && !paths.includes(c.path))
+      .filter((c) => isCounted(c) && !isExempt(id, fact, c.path, own) && !paths.includes(c.path))
       .map((c) => c.path)
       .sort(cmp),
   };

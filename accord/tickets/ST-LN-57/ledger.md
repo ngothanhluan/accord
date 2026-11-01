@@ -9,6 +9,7 @@
 - task 6 done b22e062e87a9
 - task 7 done 79ba28583a61
 - task 8 done 5f472d455b35
+- task 9 done a68e6a1d07e3
 
 ## Rulings
 
@@ -88,6 +89,9 @@
 - Ruling: (task 8) `restsOnHolds` decides by kind per lane: lane M accepts only ac, D-nn, Veto and Intent; lane S accepts only Understood and Done when quotes (D-11); a kind from the other lane never holds — each lane's ticket has only its own sections — if wrong, a lane S ticket cannot rest a Should on an ac id.
 - Ruling: (task 8) `gate.finding-grounds` and `gate.fix-file-unexplained` sit after `gate.finding-evidence` in both Done tables — it follows the plan — if wrong, the rule order in gate output changes.
 - Ruling: the skill size cap rises from 5120 to 6000 bytes (`MAX_SKILL_BYTES` in packages/core/test/skills.test.ts and the workflow spec §2 line "Each skill targets under 5 KB"), two files outside Task 9's `files:` line — Task 9's text puts the rendered review SKILL.md at 5152 bytes after both of its fallbacks, and the owner chose raising the cap over moving text to record.md or trimming wording — "I think make the limit 6000." (2026-11-01) — if wrong, skills grow longer before a load-reference split is forced.
+- Ruling: (task 9) the debug SKILL.md uses the plan's fallback sentence "A commit after the next review round is that round's fix." — the primary sentence would have pushed it over the then 5120-byte cap (it renders at 5078) — if wrong, weaker wording; the test needs only "that round's fix".
+- Ruling: (task 9) whitespace was not reflowed to save bytes — rewrapping the touched paragraphs saves only 5 to 37 bytes and leaves 200-character lines — if wrong, none.
+- Ruling: (task 9) the skills sync rewrote `.claude/settings.json`, `.claude/skills/accord-plan/SKILL.md` and `.claude/skills/accord-plan/critique.md` (copies of other tickets' unreleased changes); each was restored with `git restore --`, as the plan's sync Ruling says — the scope stays this ticket's — if wrong, those copies stay on their older text.
 
 ## Deferred
 - plan round 1.8 (Nice): rolling back to the 0.3.0 CLI needs an owner allowance Ruling per cycle that went past round 3 with deferred findings (0.3.0 has no D-08); rolling forward sets line 1 back to `Round record: 2`

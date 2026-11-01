@@ -2,16 +2,18 @@
 // no quoting, pipe, redirect, or variable, so the same string runs under bash and PowerShell.
 export type HookEntries = Record<
   'SessionStart' | 'SubagentStart' | 'UserPromptExpansion' | 'PreToolUse',
-  { matcher: string; hooks: { type: 'command'; command: string }[] }[]
+  { matcher: string; hooks: { type: 'command'; command: string; timeout?: number }[] }[]
 >;
 
 const cmd = (pkg: { name: string; version: string }, event: string): string =>
   `npx --yes ${pkg.name}@${pkg.version} hook ${event}`;
 
+// ST-LN-55 D-11: a session start runs the worktree clean in the foreground. `timeout` is in seconds and is longer than the
+// clean's own budget (Task 8, 300 s), so the hook is never cut short in the middle of a removal.
 export const hookEntries = (pkg: { name: string; version: string }): HookEntries => ({
   SessionStart: [
-    { matcher: 'startup', hooks: [{ type: 'command', command: cmd(pkg, 'session-start') }] },
-    { matcher: 'resume|clear|compact', hooks: [{ type: 'command', command: cmd(pkg, 'session-resume') }] },
+    { matcher: 'startup', hooks: [{ type: 'command', command: cmd(pkg, 'session-start'), timeout: 600 }] },
+    { matcher: 'resume|clear|compact', hooks: [{ type: 'command', command: cmd(pkg, 'session-resume'), timeout: 600 }] },
   ],
   SubagentStart: [{ matcher: 'accord-.*', hooks: [{ type: 'command', command: cmd(pkg, 'subagent-start') }] }],
   UserPromptExpansion: [{ matcher: 'accord', hooks: [{ type: 'command', command: cmd(pkg, 'prompt-expansion') }] }],

@@ -38,6 +38,7 @@ import {
   trackerEmpty,
   vagueWording,
 } from './ticket.js';
+import { researchReference } from './research.js';
 import { testUntraced } from './tests.js';
 import { prototypeDerivation, tokenHardcoded, tokensMissing } from './tokens.js';
 
@@ -55,6 +56,7 @@ export const RULES: readonly Rule[] = [
   { id: 'lint.id-mismatch', level: 'error', profiles: ['build', 'maintain'], check: idMismatch },
   { id: 'lint.depends-unknown', level: 'error', profiles: ['build', 'maintain'], check: dependsUnknown },
   { id: 'lint.depends-cycle', level: 'error', profiles: ['build', 'maintain'], check: dependsCycle },
+  { id: 'lint.research-reference', level: 'error', profiles: ['build', 'maintain'], check: researchReference },
   { id: 'lint.depends-dropped', level: 'error', profiles: ['build', 'maintain'], check: dependsDropped },
   { id: 'lint.dropped-reason', level: 'error', profiles: ['build', 'maintain'], check: droppedReason },
   { id: 'lint.id-convention', level: 'error', profiles: ['build', 'maintain'], check: idConvention },

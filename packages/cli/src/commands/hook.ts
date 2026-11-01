@@ -2,14 +2,16 @@
 // Nothing here fails a session over the anchor: a git problem is one stderr line and the session line.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { anchorText, checkFixDispatch, DEFAULT_BRANCH_TEMPLATE, rulesetText, sessionLine, statusRows } from '@accord-dev/accord-core';
+import { anchorText, checkFixDispatch, DEFAULT_BRANCH_TEMPLATE, loadSnapshot, rulesetText, sessionLine, statusRows } from '@accord-dev/accord-core';
 import pkg from '../../package.json' with { type: 'json' };
-import { currentBranch, ticketOfBranch } from '../load/fs.js';
+import { currentBranch, loadFromFs, ticketOfBranch } from '../load/fs.js';
 import { claudeEnv, processTable, sessionIn } from '../load/proc.js';
+import { pinMessage, versionOnDisk } from '../pin.js';
 import { repoRoot } from '../root.js';
 import type { CommandContext } from '../run.js';
+import { cleanBudgetMs } from './fetch-limit.js';
 import { activeTicket } from './anchor.js';
-import { branchOf, guardAllowsContinue, inClaude, isLinked, listWorktrees, readHoldsFile, recordWorked, releaseHolds, takeHold, worksMessage, worksTicket } from './worktree.js';
+import { branchOf, cleanQuietly, fetchOrigin, guardAllowsContinue, inClaude, isLinked, listWorktrees, readHoldsFile, recordWorked, releaseHolds, takeHold, worksMessage, worksTicket } from './worktree.js';
 
 export const HOOK_EVENTS = ['session-start', 'session-resume', 'subagent-start', 'prompt-expansion', 'pre-tool-use'] as const;
 export type HookEvent = (typeof HOOK_EVENTS)[number];
@@ -47,7 +49,52 @@ export function hook(ctx: CommandContext, event: HookEvent): number {
   }
   ctx.stdout.write(rules + '\n' + note + body);
   if (event === 'session-start') startHold(ctx);
+  sessionClean(ctx, event);
   return 0;
+}
+
+/**
+ * ST-LN-55 D-11: a session start, resume or clear runs the worktree clean in the foreground, after the rules and the anchor,
+ * and prints what it did for the session to tell the owner. Compaction is not a session start. Nothing here fails a session:
+ * a failure is one line, and the hook still exits 0.
+ */
+function sessionClean(ctx: CommandContext, event: 'session-start' | 'session-resume'): void {
+  const input = hookInput(ctx);
+  if (event === 'session-resume' && input?.source !== 'resume' && input?.source !== 'clear') return;
+  // Every write is kept: a PassThrough read once returns only its buffer, and output past 64 KiB would be lost.
+  let text = '';
+  const out = {
+    write(chunk: string | Uint8Array): boolean {
+      text += typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString('utf8');
+      return true;
+    },
+  } as unknown as NodeJS.WritableStream;
+  try {
+    const root = input?.cwd !== undefined ? repoRoot(input.cwd) : ctx.root;
+    const c: CommandContext = { ...ctx, root, stdout: out };
+    if (root !== ctx.root) {
+      // another repository than the one the launch loaded: its own config and tickets judge it, whether or not the fetch succeeds; a failed load removes nothing
+      c.snapshot = loadSnapshot(loadFromFs(root));
+      delete c.branch;
+      delete c.plain;
+      delete c.light;
+    }
+    // D-94: the pin check every repository-reading command makes (run.ts preflight) holds for another repository too; a mismatch removes nothing
+    const pinned = root === ctx.root || c.snapshot.config === undefined ? undefined : pinMessage(c.snapshot.config.accord, pkg.version, versionOnDisk());
+    if (pinned !== undefined) {
+      out.write(`clean skipped: ${pinned.split('\n')[0]}`.replace(/\\/g, '/') + '\n');
+    } else {
+      // fix 5: the budget starts before the fetch
+      const until = Date.now() + cleanBudgetMs();
+      const f = fetchOrigin(c);
+      // a clone with no origin has nothing to judge done against
+      if (f.fetched !== 'none') cleanQuietly(f.ctx, f.fetched, undefined, { hook: true, until });
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    out.write(`clean failed, nothing more was removed: ${msg.split('\n')[0]}`.replace(/\\/g, '/') + '\n');
+  }
+  if (text !== '') ctx.stdout.write(text + 'tell the owner the lines above\n');
 }
 
 /** The first held id (code-point order) of this marker whose worktree exists here, with that worktree's path. */

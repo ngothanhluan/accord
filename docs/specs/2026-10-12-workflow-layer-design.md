@@ -77,7 +77,12 @@ derived by `accord status`. A release mark, when one is wanted, is a git tag; ac
 **Lifecycle.**
 - *Dropped.* `status: dropped` with a `## Dropped` section giving the reason in one line. `status` and
   `next` skip it, and a live ticket whose `depends_on` names a dropped ticket is a lint error: its plan is
-  re-thought, not silently unblocked (phase 2).
+  re-thought, not silently unblocked (phase 2). `accord drop` carries each listed `.md` record the default
+  branch lacks, refuses a listed record that differs from the default branch's copy, and refuses a listed
+  record with uncommitted changes in the worktree holding the claim branch. `accord worktree clean` keeps a
+  dropped ticket's claim branch while the ticket at its tip lists a `.md` record whose copy on that branch the
+  default branch's history never held at that path, and names the fix: make the record on the claim branch
+  equal to the default branch's copy, or put it on the default branch, then push.
 - *Stale.* `config.yml` gains `stale_days` (default 14). `status` flags a ticket whose last commit on any
   of its records is older than that and whose stage is not done; a claim branch `t/<id>` with no commit in
   that window is flagged the same way (phase 2).
@@ -93,6 +98,7 @@ derived by `accord status`. A release mark, when one is wanted, is a git tag; ac
 ### Ticket format (lane M and above)
 
 Frontmatter keeps the 0.1.0 schema and adds `lane` (`M | L | P`) and `depends_on` (list of ticket ids).
+It also takes an optional `research` key, a list of repository paths of research records under `accord/research/`.
 Body headings, in order:
 
 | Heading | Content | Written by |
@@ -107,6 +113,14 @@ Body headings, in order:
 
 `## Requirements` (EARS) becomes optional and its lint rules are off by default; acceptance criteria are
 the contract that is tested and verified. `## Plan` moves out of the ticket into `tickets/<id>/plan.md`.
+
+**Research records.** A record is `accord/research/<date>-<topic>.md` with `Date: <YYYY-MM-DD>` and
+`Repository at <sha>` in its first five lines. Lint fails a ticket whose reference is outside
+`accord/research/`, names no file, or names a record without those lines. A record is evidence, never a
+contract: the scout, architect, critic and planner read the listed records, and the executor, reviewers and
+verifier are not told to. The intent interview moves the evidence a rewrite replaces into a new listed record.
+A listed `.md` record the branch adds counts as the ticket's own file in the lane S checks and the undeclared
+files. A recreated ticket copies the `research` key.
 
 ### Interview (`accord-intent`, main session)
 
@@ -152,7 +166,7 @@ the contract that is tested and verified. `## Plan` moves out of the ticket into
   done there, and asks to re-plan the ticket without a prerequisite that is dropped there.
 - **Claim.** Starting a ticket means pushing a branch `t/<id>` with one commit of its own (the new ticket
   file, or an empty `claim: <id>` commit on pick up), so its author is the claimant. `accord status` reads remote branches and
-  their commit authors to show who holds what. For a ticket claimed on a branch that is neither the current one nor merged into it, `accord status`, `accord dashboard` and `accord show` read its ticket, plan, ledger, review and verification from that branch, without fetching; a dependency still counts as done only on the default branch. Nothing is committed to the default branch to claim. When a
+  their commit authors to show who holds what. For a ticket claimed on a branch that is neither the current one nor merged into it, `accord status`, `accord dashboard` and `accord show` read its ticket, plan, ledger, review and verification from that branch, and each research record the ticket lists that the checkout lacks, without fetching; a dependency still counts as done only on the default branch. Nothing is committed to the default branch to claim. When a
   tracker adapter is configured, its assignee is used instead.
 - **Waves.** Within an epic, stories without unmet dependencies form a wave and may run in parallel.
 - Shared rules live in the repository (`product/`, `config.yml`), so a teammate who clones gets the same
@@ -201,7 +215,7 @@ The intent therefore never has to be remembered; it is re-read.
 
 - The active ticket is the current branch `t/<id>`, read from git, never from memory.
 - `accord anchor [<id>]` (new) prints the active ticket's stage and its position from the ledger ("build
-  3/5, next: task 4"), then, verbatim, its Intent, Vetoes, Decisions, Corrections, and Rulings.
+  3/5, next: task 4"), then, verbatim, its Intent, Vetoes, Decisions, Corrections, the research records its `research:` key lists, and Rulings.
   Without an id it uses the current branch; on a branch that names no ticket it prints nothing and exits 0.
 - The SessionStart hook on `compact`, `resume`, and `clear` runs `accord anchor`, so its output is in context
   immediately after every compaction.
@@ -379,8 +393,8 @@ text has its own guards in the critic, the phrase tests, and the size cap. When 
 ## 10. Review
 
 **Input.** The ticket verbatim, the approach, a review package from `accord review-package <id>` (new:
-commit list, stat, the changed files no task's `files:` names under `## Undeclared files`, and the diff
-with context), and the ledger. The executor's report is context, never evidence. The reviewer accepts an
+commit list, stat, the changed files no task's `files:` names under `## Undeclared files`, which leave out
+the ticket's own records, a listed research record the branch adds among them, and the diff with context), and the ledger. The executor's report is context, never evidence. The reviewer accepts an
 undeclared file only against a reason the ledger records as a Ruling; any other is an Extra finding.
 
 **Two axes, reported separately.**

@@ -512,3 +512,33 @@ it('ac-3 a plan reaches build only after its ready commit and while clean', asyn
     cleanup(repo);
   }
 });
+
+const REC = (topic: string): string => '# ' + topic + '\n\nDate: 2026-10-30. Repository at `5c083d3`. Feeds the ticket.\n';
+
+it('risk:complex-branching the claim view reads a research record only the claim branch holds and keeps the checkout copy of a shared one', async () => {
+  const NEW = 'accord/research/2026-10-30-new.md';
+  const OLD = 'accord/research/2026-10-29-old.md';
+  const repo = makeLaneRepo({
+    'accord/tickets/T-2.md': laneTicket('T-2', { frontmatter: ['research: ["' + NEW + '", "' + OLD + '"]'] }),
+    [OLD]: REC('old'),
+  });
+  try {
+    commitAll(repo);
+    const base = gitRun(repo, 'rev-parse', '--abbrev-ref', 'HEAD').trim();
+    gitRun(repo, 'checkout', '-q', '-b', 't/T-2');
+    writeFiles(repo, { [NEW]: REC('new'), [OLD]: '# old\n\nno header here\n' });
+    const tip = commitAll(repo, 'research');
+    gitRun(repo, 'update-ref', 'refs/remotes/origin/t/T-2', tip);
+    gitRun(repo, 'checkout', '-q', base);
+    gitRun(repo, 'branch', '-q', '-D', 't/T-2');
+    expect(existsSync(join(repo, NEW))).toBe(false);
+    const row = (JSON.parse((await run(['status', '--json'], repo)).out) as StatusRow[]).find((r) => r.id === 'T-2');
+    expect(row).toMatchObject({ errors: 0 });
+    const lint = await run(['lint'], repo);
+    expect(lint.code).toBe(1);
+    expect(lint.out + lint.err).toContain('lint.research-reference');
+    expect(lint.out + lint.err).toContain(NEW);
+  } finally {
+    cleanup(repo);
+  }
+});

@@ -63,3 +63,13 @@ it('risk:regression the pre tool use hook entry matches the agent tool and a re-
   expect((once.hooks as Record<string, unknown>).PreToolUse).toEqual([{ matcher: 'Agent|Task', hooks: [foreignHook] }, fresh]);
   expect(mergeHooks(once, entries)).toEqual(once);
 });
+
+it('risk:regression both session start hooks carry a 600 second timeout and a re-sync adds it', () => {
+  const entries = hookEntries({ name: '@accord-dev/accord', version: '0.2.0' });
+  expect(entries.SessionStart.map((x) => x.hooks[0].timeout)).toEqual([600, 600]);
+  for (const event of ['SubagentStart', 'UserPromptExpansion', 'PreToolUse'] as const) {
+    for (const x of entries[event]) for (const h of x.hooks) expect(h).not.toHaveProperty('timeout');
+  }
+  const old = { hooks: { SessionStart: [{ matcher: 'startup', hooks: [{ type: 'command', command: 'npx --yes @accord-dev/accord@0.0.9 hook session-start' }] }] } };
+  expect((mergeHooks(old, entries).hooks as Record<string, unknown>).SessionStart).toEqual(entries.SessionStart);
+});

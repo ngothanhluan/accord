@@ -28,7 +28,8 @@ minus test files and the copies accord generates: a request that creates 7 new f
 A test file sits under a folder named `test`, `tests` or `__tests__`, or its name holds `.test.` or `.spec.`.
 The copies accord generates are the files `accord skills sync` writes and the paths listed under `generated:` in
 `accord/config.yml`. The code area of `src/app/export/csv/writer.ts` is `src/app/export/csv`; that of
-`README.md` is the repository root.
+`README.md` is the repository root. A `.md` record under `accord/research/` that the ticket lists under `research:`
+and the branch adds is the ticket's own file: it is not an expected file and needs no `## Scope` line.
 
 ## Scope
 

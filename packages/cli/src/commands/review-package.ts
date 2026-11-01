@@ -119,6 +119,8 @@ export function reviewPackage(ctx: CommandContext, id: string, options: { base?:
       return full([]);
     }
   };
+  const f = branchFactFor(ctx, id, { defaultRef: def });
+  const s = { ...ctx.snapshot, branchFacts: { [id]: f } };
   let parts: string[];
   try {
     parts = excluded
@@ -143,7 +145,7 @@ export function reviewPackage(ctx: CommandContext, id: string, options: { base?:
     const changed = excluded
       ? [...new Set(log(['--no-renames', '--name-only', '-z', '--format=']).split(/[\0\n]/).filter((p) => p !== ''))]
       : git(['diff', '--name-only', '-z', '--no-renames', range, '--']).split('\0').filter((p) => p !== '');
-    const undeclared = undeclaredFiles(ctx.snapshot, id, changed);
+    const undeclared = undeclaredFiles(s, id, changed);
     parts.splice(
       parts.indexOf('## Diff'),
       0,
@@ -161,8 +163,6 @@ export function reviewPackage(ctx: CommandContext, id: string, options: { base?:
     const head = 'error' in walk ? '(cannot tell: ' + walk.error + ')' : commit === undefined ? '(cannot tell: no commit)' : nearestCode(walk, commit, id);
     parts[0] += '\nHead: ' + head;
   }
-  const f = branchFactFor(ctx, id, { defaultRef: def });
-  const s = { ...ctx.snapshot, branchFacts: { [id]: f } };
   const cannot = (why: string) => `(cannot tell: ${why})`;
   const shown: string[] = [];
   if (laneS) {

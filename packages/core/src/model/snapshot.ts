@@ -215,7 +215,7 @@ export interface RoundVerdict { value: string; quoted: boolean; line: number } /
 export interface RoundCycle { line: number; marker?: string; rounds: RecordedRound[]; verdicts: RoundVerdict[]; closed?: number }
 export interface RoundRecord {
   file: string;
-  kind: 'review' | 'plan';
+  kind: 'review' | 'plan' | 'approach';
   versioned: boolean; // a `Round record: 1` or `Round record: 2` line above the first ## heading
   version?: 2; // ST-LN-57: set only for `Round record: 2`
   cycles: RoundCycle[]; // always at least one; review: split at ## Return from verify; plan: split after ## Closed
@@ -228,10 +228,11 @@ export interface TicketWork {
   review?: Review;
   rounds?: RoundRecord; // review.md as round records (ST-LN-17)
   planRounds?: RoundRecord; // plan-review.md as round records (ST-LN-17)
+  approachRounds?: RoundRecord; // approach-review.md as round records (ST-LN-80)
 }
 
 export type RouteKey =
-  | 'scout' | 'auditor' | 'architect' | 'critic' | 'planner'
+  | 'scout' | 'auditor' | 'critic' | 'planner'
   | 'executor' | 'reviewer' | 'reviewer.final' | 'verifier' | 'debugger';
 export type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
@@ -244,7 +245,7 @@ export interface AccordConfig {
   runtimes: ('claude' | 'codex' | 'cursor' | 'copilot')[];
   tests?: { report: string; affected?: string; full?: string }; // D-72: repo-relative path of the test report; commands the skills run
   review?: { mode: 'human' | 'outcome' }; // spec §7: absent means 'human', the 0.1.0 behaviour
-  models?: Partial<Record<RouteKey, { model: string; effort?: Effort }>>; // absent entries use the default routing
+  models?: Partial<Record<RouteKey | 'architect', { model: string; effort?: Effort }>>; // absent entries use the default routing; architect is still accepted and has no effect (ST-LN-80)
   escalation?: { fix_round_tier_up: string }; // '1'..'5'; YAML numerics stay strings
   stale_days?: string; // digits; YAML numerics stay strings
   people?: Record<string, string>; // email -> 2 to 4 capital letters (IDS-1)

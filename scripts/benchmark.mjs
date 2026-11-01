@@ -11,7 +11,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { execFileSync, execSync } from 'node:child_process';
 import { parse as parseYaml } from 'yaml';
 import { parsePlanReview } from './plan-review.mjs';
-import { median, ROLES, WRITERS, checkSamples, readDiffers, runMatrix, rewriteBrief, dispatchTable, matchRuns, mustsOf, judgeBrief, parseVerdict, holds, turnFlags, report, carryJudgeBriefs, escapes, exitState, runProblem } from './round.mjs';
+import { median, ROLES, RETIRED, WRITERS, checkSamples, readDiffers, runMatrix, rewriteBrief, dispatchTable, matchRuns, mustsOf, judgeBrief, parseVerdict, holds, turnFlags, report, carryJudgeBriefs, escapes, exitState, runProblem } from './round.mjs';
 import { compliance, render as renderCompliance, parseCompliance, mergeCompliance } from './compliance.mjs';
 import { standsFor, firstCall, pendingProbes, probeVersion, textsOf, measure, render, ticketShares, PROBE_BRANCH, PROBE_BRIEF, PROBE_DESCRIPTION, PROBE_FORMS, PROBE_PREFIX, dispatchPrompt, phaseOne, shellLine } from './fixed-context.mjs';
 
@@ -408,8 +408,9 @@ export function readCalls(dirs, { bench }) {
 }
 
 export function agentSettings(repo) {
-  return Object.fromEntries(Object.keys(ROLES).map((a) => {
-    const fm = fs.readFileSync(path.join(repo, '.claude', 'agents', `${a}.md`), 'utf8').match(/^---\r?\n([\s\S]*?)\r?\n---/)[1];
+  const file = (a) => path.join(repo, '.claude', 'agents', `${a}.md`);
+  return Object.fromEntries(Object.keys(ROLES).filter((a) => !(RETIRED.includes(a) && !fs.existsSync(file(a)))).map((a) => {
+    const fm = fs.readFileSync(file(a), 'utf8').match(/^---\r?\n([\s\S]*?)\r?\n---/)[1];
     const { model, effort } = parseYaml(fm);
     return [a, { model, effort }];
   }));

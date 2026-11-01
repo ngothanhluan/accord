@@ -14,7 +14,9 @@ export const ROLES = {
   'accord-architect': 'fact',
   'accord-scout': 'fact',
 };
-export const WRITERS = ['accord-executor', 'accord-planner', 'accord-verifier'];
+// Agents accord no longer renders (ST-LN-80); their round-1 samples stay in the list, and the matrix leaves them out once their file is gone.
+export const RETIRED = ['accord-architect'];
+export const WRITERS =['accord-executor', 'accord-planner', 'accord-verifier'];
 export const JUDGE = { model: 'opus', effort: 'high' };
 
 export function steps(effort) {
@@ -87,7 +89,7 @@ export function readDiffers(read, text) {
 }
 
 export function runMatrix(list, settings) {
-  return list.samples.flatMap((s) => {
+  return list.samples.filter((s) => Object.hasOwn(settings, s.agent)).flatMap((s) => {
     const { model, effort: cur } = settings[s.agent];
     return steps(cur).map((effort) => ({
       tag: tagOf(s.agent, s.n, effort), agent: s.agent, n: s.n, ticket: s.ticket, model, effort,

@@ -461,3 +461,32 @@ it('risk:regression the report appends the measurement notes verbatim, or None.'
   expect(round.report([], {}, { ...out, notes: 'Two verifier-high runs hung.\n' })).toContain('## Measurement notes\n\nTwo verifier-high runs hung.\n');
   expect(round.report([], {}, out)).toContain('## Measurement notes\n\nNone.');
 });
+
+it('risk:regression the benchmark skips a retired agent whose rendered file is gone and still needs every other agent file', async () => {
+  const { ROLES, RETIRED, runMatrix } = (await import(new URL('../../../scripts/round.mjs', import.meta.url).href)) as {
+    ROLES: Record<string, string>; RETIRED: string[];
+    runMatrix: (l: unknown, s: unknown) => { agent: string }[];
+  };
+  const { agentSettings } = (await import(new URL('../../../scripts/benchmark.mjs', import.meta.url).href)) as {
+    agentSettings: (repo: string) => Record<string, { model: string; effort: string }>;
+  };
+  const others = Object.keys(ROLES).filter((a) => a !== 'accord-architect');
+  const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'bench-')));
+  try {
+    const dir = join(tmp, '.claude', 'agents');
+    mkdirSync(dir, { recursive: true });
+    const text = '---\nmodel: opus\neffort: high\n---\n';
+    for (const a of others) writeFileSync(join(dir, `${a}.md`), text);
+    expect(RETIRED).toEqual(['accord-architect']);
+    expect(Object.keys(agentSettings(tmp)).sort()).toEqual([...others].sort());
+    const rows = runMatrix(listOf(Object.keys(ROLES)), agentSettings(tmp));
+    expect(rows.some((r) => r.agent === 'accord-architect')).toBe(false);
+    expect(rows).toHaveLength(5 * 3 * others.length);
+    writeFileSync(join(dir, 'accord-architect.md'), text);
+    expect(agentSettings(tmp)['accord-architect']).toEqual({ model: 'opus', effort: 'high' });
+    rmSync(join(dir, 'accord-scout.md'));
+    expect(() => agentSettings(tmp)).toThrow();
+  } finally {
+    rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+});

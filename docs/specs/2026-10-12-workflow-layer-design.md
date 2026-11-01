@@ -117,7 +117,7 @@ the contract that is tested and verified. `## Plan` moves out of the ticket into
 **Research records.** A record is `accord/research/<date>-<topic>.md` with `Date: <YYYY-MM-DD>` and
 `Repository at <sha>` in its first five lines. Lint fails a ticket whose reference is outside
 `accord/research/`, names no file, or names a record without those lines. A record is evidence, never a
-contract: the scout, architect, critic and planner read the listed records, and the executor, reviewers and
+contract: the scout, critic and planner read the listed records, and the executor, reviewers and
 verifier are not told to. The intent interview moves the evidence a rewrite replaces into a new listed record.
 A listed `.md` record the branch adds counts as the ticket's own file in the lane S checks and the undeclared
 files. A recreated ticket copies the `research` key.
@@ -139,7 +139,7 @@ files. A recreated ticket copies the `research` key.
 7. **Audit once.** `accord-auditor`, in a fresh context reading only the ticket, tries to find two
    different readings of each acceptance criterion. A criterion with two readings goes back to the owner.
 8. **The owner's yes.** The agent shows the output of `accord show <id> --approval`, pasted unchanged, followed by its
-   plain-words lines, instead of text copied verbatim from the ticket file, and takes an explicit yes before `accord-architect` runs. The yes is recorded
+   plain-words lines, instead of text copied verbatim from the ticket file, and takes an explicit yes before the approach stage starts. The yes is recorded
    by quoting the owner's answer in the ticket's commit message, with no new field or gate; a no is written under
    `## Corrections` and the text is shown again.
 
@@ -199,7 +199,8 @@ READY TO PICK UP
   new session, and never re-runs completed tasks.
 - After verify, any commit on the ticket's branch that the default branch does not hold, made after the verified commit (before the first tick, the commit `verification.md` names), and that changes a path outside the ticket's own records and `accord/product/conventions.md` takes the stage back from `done`, or holds it at `verify`: to `review` for a hand-made change, with `accord anchor` printing the review base, the commit before the first unreviewed change, until a review round of those changes is recorded in `review.md`; to `verify` for a merge from the default branch alone. A ticket whose verified commit is on the default branch keeps its stage.
 - The anchored stage `intent` covers the approach too: Continue resumes at the owner's yes in
-  `accord-approach` when `## Approach` is written, otherwise in `accord-intent`; at `done` it re-enters
+  `accord-approach` when `## Approach` holds a `- Rejected:` line, at its critique step when it holds only the
+  draft, otherwise in `accord-intent`; at `done` it re-enters
   `accord-verify` at step 6. In lane M, the approach stage stops after committing the approval while
   `accord gate ready <id>` fails, and at every other stage Continue first runs `accord gate ready <id>` and
   stops while it fails, so a ticket that gate ready refused after its approval, such as one whose prerequisite
@@ -231,23 +232,34 @@ The intent therefore never has to be remembered; it is re-read.
 
 ### Approach (owner-approved)
 
-1. `accord-architect` reads the ticket, runs an impact analysis (callers, interfaces, tests, config,
-   exports the change must reach), and proposes two or three options in ladder order.
+1. `accord-planner`, in its `direction` mode, reads the ticket, runs an impact analysis (callers,
+   interfaces, tests, config, exports the change must reach, each with `path:line`), and returns in its
+   report two or three options in ladder order. It writes no file. When the ticket touches auth, money,
+   migration, or data deletion, the report holds three failure scenarios in total, each with how it is
+   undone.
 2. The first option is the first rung of the ladder that fully works (principle 6). The second and third
    climb further only where a criterion or constraint needs it. Each added layer of complexity names the
-   acceptance criterion or constraint that requires it, or is dropped.
+   acceptance criterion or constraint that requires it, or is dropped. The main session writes into
+   `## Approach` only the chosen option's name, what it does, and the impact list, and records the ladder
+   in the ledger as a Ruling.
 3. `accord-critic`, in a fresh context, argues the strongest case against the chosen option and checks it
    against Vetoes, Decisions, and Corrections. This runs for every lane M and above. The chosen option is
-   the one the architect recommends unless the owner picked another. The critic receives the chosen
-   option's text only, never the architect's reasoning, risk line, or recommendation, so its review stays
-   independent. Every finding the chosen option keeps goes into the brief's risks, Must findings first; a
-   Must that breaks a Veto, Decision, or Correction rules the option out, and the critic runs again on the
-   first option in the architect's ladder order that is not yet ruled out, or the owner is asked when none
-   is left. When the ticket touches auth, money, migration, or data deletion, the critic adds three
-   concrete failure scenarios.
+   the one the planner recommends unless the owner picked another. The critic receives the chosen
+   option's text only, never the planner's reasoning, risk line, or recommendation, so its review stays
+   independent. Its rounds are recorded in `approach-review.md`, and `accord round <id> --approach` counts
+   them with the plan critique's cap and stop. A finding on implementation detail the planner decides is
+   marked `defer to plan` and rated Nice, so it never stops the loop. From round 2 the critic reads only
+   the diff of `## Approach` since the previous round and `approach-review.md`, raises new findings only on
+   the changed lines, and lists earlier findings the change fixes after `fixed:` and those that no longer
+   hold after `withdrawn:`. Every finding the chosen option keeps goes into the brief's risks, Must findings
+   first; a Must that breaks a Veto, Decision, or Correction rules the option out, a `## Closed` heading
+   naming it ends that cycle, and the critic runs again on the first option in the ladder order that is not
+   yet ruled out, or the owner is asked when none is left. A resumed session or a revision keeps the option
+   `## Approach` names. When the ticket touches auth, money, migration, or data deletion, the critic adds
+   three concrete failure scenarios.
 4. The owner receives a brief of about 15 lines under `## Approach`: chosen option and why, rejected
    options and why, affected areas, risks, and test strategy (which criterion is tested at which layer).
-   For a ticket that touches auth, money, migration, or data deletion, the risks include the critic's three
+   For a ticket that touches auth, money, migration, or data deletion, the risks include the three
    failure scenarios and how each is undone. If the owner picks another option, the critic runs on it
    (step 3) and the brief is rewritten before the owner is asked again.
    The owner's yes is asked on `## Approach` and every other approved section, shown as the output of
@@ -279,7 +291,7 @@ stage's baseline step.
 On a pass it writes `plan_hash:`, the hash of the plan below its frontmatter, into `plan.md`, as
 `gate ready` writes `ac_hash` (phase 2).
 `accord-critic` checks meaning: no veto violated, nothing beyond the criteria, the approved approach
-followed. It checks that an executor holding only the ticket and one task could finish that task without
+followed, and every Decision and every Correction of the ticket kept. It checks that an executor holding only the ticket and one task could finish that task without
 asking; a task that fails this is a Should. It also argues goal-backward: assuming every task passes its
 `verify:` line, does the `## Intent` hold for the person it names? A plan that covers each criterion on
 paper but leaves the intent unmet (a step nobody wired, a state nobody reaches) is a Must (phase 2). The first critic round is sized by the plan: one critic for one to three tasks; two in parallel for four or more, one on the criteria and the Intent, one on whether an executor can build each task; one more, a security critic, when the ticket touches auth, money, migration, or data deletion; their findings are merged and de-duplicated. The main session keeps every finding and its state in `tickets/<id>/plan-review.md`. After a round that reports a Must, or leaves a Must from an earlier round open or unverified, the next critic reads the whole plan, even when the owner dropped that Must; after any other round it reads only `git diff` of `plan.md` from the round commit, and the task or section each open or unverified finding names. Every Must and Should is fixed; a Nice goes to the ledger as deferred. A finding stays open or unverified until a critic reports it fixed or withdrawn, or the owner drops it; the planner's word alone closes nothing. The next critic repeats an unverified finding with the citation or fix it lacked, or withdraws it. The loop ends only on a round that reports no Must and no Should and leaves none open or unverified, and when the plan gate passes. A fix whose API is cited only by a URL goes to the owner at once. At
@@ -521,9 +533,8 @@ human layer stays: a person ticks by hand, and each slice's pull request is revi
 | main session | intent interview, orchestration | full | owner's session model |
 | `accord-scout` | facts from code, impact analysis | read | Haiku, low |
 | `accord-auditor` | two readings per criterion | read | Opus, medium |
-| `accord-architect` | options, lightest first | read | Opus, high |
 | `accord-critic` | approach and plan critique | read | Opus, high |
-| `accord-planner` | `plan.md` | writes plan only | Opus, medium |
+| `accord-planner` | `plan.md`; the approach draft in `direction` mode | writes plan only | Opus, high |
 | `accord-executor` | one task, test first | writes code | Sonnet, medium; one tier up in fix rounds 4 and 5 |
 | `accord-reviewer` | one agent, parameter lens: intent, quality, security, integration | read | Sonnet, high; final review Opus, high |
 | `accord-verifier` | `verification.md` | writes verification only | Sonnet, medium |

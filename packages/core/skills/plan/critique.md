@@ -33,6 +33,9 @@ line.
      ticket touches auth, money, migration, or data deletion, so at most
      three.
 
+   A critic with no lens or with lens `criteria`, and every `diff` critic,
+   checks the plan against every Decision and every Correction of the ticket.
+
    Merge and de-duplicate their findings into one round, numbered within
    it, before the planner gets them. After a round that reports a Must,
    or that leaves a Must from an earlier round open or unverified (its

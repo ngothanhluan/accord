@@ -3,7 +3,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { branchTemplateOf, CALL_SIGN, DEFAULT_BRANCH_TEMPLATE, isResearchPath, isSha, loadSnapshot, normaliseText, peopleOf, scopeLines, workOf } from '@accord-dev/accord-core';
+import { branchTemplateOf, CALL_SIGN, DEFAULT_BRANCH_TEMPLATE, isIntactRender, isResearchPath, isSha, loadSnapshot, normaliseText, peopleOf, RETIRED_FILES, scopeLines, workOf } from '@accord-dev/accord-core';
 import type { BranchChange, BranchFact, RepoSnapshot, SnapshotInput } from '@accord-dev/accord-core';
 
 /** Environment problem the user must fix (no git, not a repository, no accord/ folder); exit 2 in Phase 5. */
@@ -1351,6 +1351,7 @@ export function gitBranchFact(
     const live = changes.filter((c) => c.kind !== 'deleted').map((c) => c.path);
     const rendered = opts.rendered.filter((r) => live.includes(r.path));
     const settingsPath = opts.settings !== undefined && live.includes(opts.settings.path) ? opts.settings.path : undefined;
+    const retired = changes.filter((c) => c.kind === 'deleted' && RETIRED_FILES.includes(c.path)).map((c) => c.path);
     const scopeFile = 'accord/tickets/' + id + '.md';
     const firstOf = (): string | undefined =>
       git('log -G ac_hash', [
@@ -1378,6 +1379,7 @@ export function gitBranchFact(
         want('HEAD', settingsPath);
         want(base, settingsPath);
       }
+      for (const p of retired) want(base, p);
       want(base, 'accord/config.yml');
       const keys = [...specs.keys()];
       const texts = catBatch(root, keys.map((k) => (specs.get(k) as [string, string]).join(':')), 'the branch diff');
@@ -1416,6 +1418,10 @@ export function gitBranchFact(
       const want = opts.settings.expected(filesAt(base, [settingsPath])[settingsPath]);
       if (want !== undefined && normaliseText(head[settingsPath]) === normaliseText(want)) synced.push(settingsPath);
     }
+    // ST-LN-80: a retired file that `skills sync` or `accord upgrade` removed is exempt as a synced copy is; a copy someone
+    // edited is not, so deleting it stays a change the scope gates see.
+    const gone = filesAt(base, retired);
+    for (const p of retired) if (gone[p] !== undefined && isIntactRender(gone[p])) synced.push(p);
     synced.sort(byCodePoint);
 
     const baseConfig = filesAt(base, ['accord/config.yml'])['accord/config.yml'];

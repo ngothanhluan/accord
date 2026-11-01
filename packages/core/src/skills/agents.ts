@@ -3,8 +3,8 @@
 // `route` is an authoring key and never ships. Same marker-and-hash drift rule as skills (D-111).
 import { Document, Scalar, isScalar, parse } from 'yaml';
 import { agents } from '../generated/agents.js';
-import { splitFrontmatter, stringNumerics } from '../load/frontmatter.js';
-import { stamp } from './render.js';
+import { normaliseText, splitFrontmatter, stringNumerics } from '../load/frontmatter.js';
+import { contentHash, markerHash, stamp, withoutMarker } from './render.js';
 import type { AgentKey } from '../generated/agents.js';
 import type { AccordConfig, Effort, RouteKey } from '../model/snapshot.js';
 import type { SkillFile } from './targets.js';
@@ -14,15 +14,25 @@ export const agentDir = '.claude/agents';
 export const AGENT_DEFAULTS: Record<RouteKey, { model: string; effort: Effort }> = {
   scout: { model: 'haiku', effort: 'low' },
   auditor: { model: 'opus', effort: 'medium' },
-  architect: { model: 'opus', effort: 'high' },
   critic: { model: 'opus', effort: 'high' },
-  planner: { model: 'opus', effort: 'medium' },
+  planner: { model: 'opus', effort: 'high' },
   executor: { model: 'sonnet', effort: 'medium' },
   reviewer: { model: 'sonnet', effort: 'high' },
   'reviewer.final': { model: 'opus', effort: 'high' },
   verifier: { model: 'sonnet', effort: 'medium' },
   debugger: { model: 'opus', effort: 'high' },
 };
+
+// ST-LN-80: files accord rendered before and no longer renders. `skills sync` and `accord upgrade` remove one when its
+// marker is intact; an edited copy stays.
+export const RETIRED_FILES: readonly string[] = [agentDir + '/accord-architect.md'];
+
+/** True for a copy accord rendered that nobody edited: its marker hash equals the hash of the text around it. */
+export function isIntactRender(text: string): boolean {
+  const onDisk = normaliseText(text);
+  const stored = markerHash(onDisk);
+  return stored !== undefined && stored === contentHash(withoutMarker(onDisk));
+}
 
 const options = { schema: 'core', customTags: stringNumerics } as const;
 const cmp = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);

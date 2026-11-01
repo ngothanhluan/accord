@@ -224,6 +224,7 @@ describe('accord skills sync — the orphan report (D-113, D-123)', () => {
     const repo = sandbox();
     await run(['skills', 'sync'], repo);
     const before = DESIGNER.map((p) => bytes(at(repo, p)));
+    // An orphan is never deleted; sync removes only a retired file it rendered (ST-LN-80).
     // A roster change is the whole point: designer's copies stay on disk, declared by nobody.
     setConfig(repo, /^roles: .*$/m, 'roles: [ba, dev]');
 

@@ -6,7 +6,10 @@
 // `overwrote local edits` when the copy's hash does not match its own contents. The last one is the whole
 // point — overwriting is the contract the file itself states, and git is a hard precondition of the CLI, so
 // nothing is unrecoverable; losing someone's work *without saying so* is what this report prevents.
-import { lstatSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+//
+// ST-LN-80, the one exception to "sync deletes nothing": a file accord once rendered and no longer renders
+// (`RETIRED_FILES`) is removed, and reported `removed`, only while its marker shows nobody edited it.
+import { lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import {
   agentDir,
@@ -14,6 +17,7 @@ import {
   allSkillDirs,
   contentHash,
   hookEntries,
+  isIntactRender,
   markerHash,
   mergeHooks,
   mergePanel,
@@ -21,6 +25,7 @@ import {
   panelSettings,
   pluginDir,
   pluginTargets,
+  RETIRED_FILES,
   skillTargets,
   withoutMarker,
 } from '@accord-dev/accord-core';
@@ -37,7 +42,7 @@ export type SkillStatus = 'created' | 'unchanged' | 'updated' | 'overwrote local
  * the same list for its scaffold half, and a union spelled inline at both ends is a union the two ends
  * can drift apart on.
  */
-export type ReportRow = { status: SkillStatus | 'skipped' | 'appended'; path: string };
+export type ReportRow = { status: SkillStatus | 'skipped' | 'appended' | 'removed'; path: string };
 
 /**
  * D-131: the one place accord writes a skill copy. `sync` and `init` both call it, so the marker-and-hash
@@ -142,13 +147,35 @@ export function writeHooks(root: string, plan: HooksPlan | undefined, out: Repor
 }
 
 /**
+ * ST-LN-80: remove each retired file (`RETIRED_FILES`) that is a real file under real folders, and only when
+ * its marker shows nobody edited it. The check is the orphan scan's (`scannable`), so a link at `.claude` or
+ * `.claude/agents` makes it a skip and nothing outside the repository is touched. A read or delete that fails
+ * (a read-only folder, EBUSY, EPERM) leaves the file where it is and adds no row: sync goes on and the orphan
+ * scan then lists it. An edited copy stays and is listed as an orphan.
+ */
+function removeRetired(root: string, out: ReportRow[]): void {
+  for (const path of RETIRED_FILES) {
+    if (!scannable(root, path.slice(0, path.lastIndexOf('/')))) continue;
+    const file = join(root, ...path.split('/'));
+    try {
+      if (lstatSync(file, { throwIfNoEntry: false })?.isFile() !== true) continue;
+      if (!isIntactRender(readFileSync(file, 'utf8'))) continue;
+      rmSync(file);
+      out.push({ status: 'removed', path });
+    } catch {
+      // left where it is; the orphan scan reports it
+    }
+  }
+}
+
+/**
  * D-113: the scan opens every directory the table can produce (`allSkillDirs()`), and an accord
  * directory is an orphan when this render does not produce it: a dropped runtime, a role no longer
  * declared, or a 0.1.0 `accord-ba` or `accord-dev` that the stage skills replaced while `roles:` still
  * names them. The declared subset cannot be the scan set: a directory abandoned by dropping a runtime is
- * by definition not in it, so it would never be opened at all. `sync` never deletes — an orphan keeps
+ * by definition not in it, so it would never be opened at all. `sync` deletes no orphan — an orphan keeps
  * loading in the runtime until someone removes it, so saying nothing was rejected, and deleting files
- * under a user's repository was rejected harder.
+ * under a user's repository was rejected harder (the one retired file it removes is `removeRetired`'s).
  *
  * D-123: `accord` and `accord-*` and nothing else. A directory another tool owns is not read, not
  * counted, and not mentioned — inspecting someone else's files and editorialising about them is outside
@@ -220,6 +247,7 @@ export function skills(ctx: CommandContext): number {
   // Computed once, then rendered — so a `--json` mode added later cannot disagree with the text.
   const results = writeSkillFiles(ctx.root, targets);
   writeHooks(ctx.root, hooks, results);
+  removeRetired(ctx.root, results);
 
   // Scanned after the writes, so a directory this run created is already on disk when it is judged.
   const stale = orphans(ctx.root, config);
@@ -233,7 +261,7 @@ export function skills(ctx: CommandContext): number {
         (d) =>
           'orphan ' +
           d +
-          ' - no longer declared; accord never deletes - remove it with: rm -rf ' +
+          ' - no longer declared; accord deletes no orphan - remove it with: rm -rf ' +
           d +
           (d === pluginDir ? ' - then remove extraKnownMarketplaces.accord and enabledPlugins["accord-panel@accord"] from ' + SETTINGS : '') +
           '\n',

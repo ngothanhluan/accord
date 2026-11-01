@@ -14,7 +14,7 @@ const NONE = 'No findings';
 const allow = (n: number, after: number, cycle = 1, kind = 'review') =>
   `- Ruling: the owner allows ${n} more ${kind} rounds after round ${after} of cycle ${cycle} — "go on" — cost if wrong: ${n} more rounds\n`;
 
-type Opts = { config?: string; ledger?: string; lane?: string; id?: string; plan?: string; returnFacts?: Record<string, Record<string, boolean>> };
+type Opts = { config?: string; ledger?: string; lane?: string; id?: string; plan?: string; approach?: string; returnFacts?: Record<string, Record<string, boolean>> };
 function repo(review: string | undefined, o: Opts = {}) {
   const id = o.id ?? 'T-1';
   const files: Record<string, string> = { 'accord/config.yml': o.config ?? CFG };
@@ -23,6 +23,7 @@ function repo(review: string | undefined, o: Opts = {}) {
   files['accord/tickets/' + id + '/ledger.md'] = o.ledger ?? LEDGER;
   if (review !== undefined) files['accord/tickets/' + id + '/review.md'] = review;
   if (o.plan !== undefined) files['accord/tickets/' + id + '/plan-review.md'] = o.plan;
+  if (o.approach !== undefined) files['accord/tickets/' + id + '/approach-review.md'] = o.approach;
   return loadSnapshot({ files, tree: Object.keys(files), ...(o.returnFacts === undefined ? {} : { returnFacts: o.returnFacts }) });
 }
 
@@ -174,4 +175,26 @@ it('risk:calculation the fix executor model tiers up by family and refuses a mod
   for (const [id, lane] of [['L-1', 'L'], ['P-1', 'P']]) {
     expect(fixModel(repo(three, { id, lane }), id, 4), id).toEqual({ model: 'opus' });
   }
+});
+
+it('risk:complex-branching approach critique rounds take only approach critique allowances and their own stop text', () => {
+  const five = HEAD + [1, 2, 3, 4, 5].map((n) => round(n, '1. Nice — a wording — deferred')).join('');
+  const stop = nextRound(repo(undefined, { approach: five, ledger: LEDGER + allow(2, 5, 1, 'plan critique') }), 'T-1', 'approach');
+  expect(stop.kind).toBe('stop');
+  const text = roundText(stop);
+  expect(text).toContain('approach-review.md');
+  expect(text).toContain('more approach critique rounds after round 5 of cycle 1');
+  expect(text).toContain("the other options of the planner's direction report");
+  expect(text).not.toContain('plan-review.md');
+
+  const allowed = LEDGER + allow(2, 5, 1, 'approach critique');
+  expect(nextRound(repo(undefined, { approach: five, ledger: allowed }), 'T-1', 'approach')).toMatchObject({ kind: 'next', round: 6, cap: 7 });
+  expect(nextRound(repo(undefined, { plan: five, ledger: allowed }), 'T-1', 'plan').kind).toBe('stop');
+
+  const closed = HEAD + round(1, '1. Must — the option breaks D-01 — open') + '## Closed option B: ruled out by 1.1\n\n';
+  expect(nextRound(repo(undefined, { approach: closed }), 'T-1', 'approach')).toMatchObject({ kind: 'next', round: 1, cycle: 2 });
+
+  const laneS = nextRound(repo(undefined, { id: 'S-1', approach: five }), 'S-1', 'approach');
+  expect(laneS.kind).toBe('refused');
+  expect(laneS.reasons.join('\n')).toContain('lane S has no approach critique');
 });

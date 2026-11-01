@@ -124,7 +124,7 @@ function readLine(text: string): Read {
 }
 
 /** Read one review.md or plan-review.md into cycles of rounds; a line accord cannot read is reported, never skipped. */
-export function parseRounds(file: string, text: string, kind: 'review' | 'plan'): RoundRecord {
+export function parseRounds(file: string, text: string, kind: 'review' | 'plan' | 'approach'): RoundRecord {
   const normal = normaliseText(text);
   const { sections, fences } = scan(normal, 0);
   const inFence = (n: number) => fences.some((f) => n >= f.open && n <= f.close);
@@ -177,7 +177,7 @@ export function parseRounds(file: string, text: string, kind: 'review' | 'plan')
       if (!ok) bad(section.line, `line ${section.line}: "## Return from verify" names no commit sha`);
       cycle = { line: section.line, ...(ok ? { marker: sha } : {}), rounds: [], verdicts: [] };
       cycles.push(cycle);
-    } else if (kind === 'plan' && CLOSED.test(key)) {
+    } else if (kind !== 'review' && CLOSED.test(key)) {
       cycle.closed = section.line;
       next = { line: section.line + 1, rounds: [], verdicts: [] };
     } else {

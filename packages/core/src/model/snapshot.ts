@@ -215,7 +215,7 @@ export interface RoundVerdict { value: string; quoted: boolean; line: number } /
 export interface RoundCycle { line: number; marker?: string; rounds: RecordedRound[]; verdicts: RoundVerdict[]; closed?: number }
 export interface RoundRecord {
   file: string;
-  kind: 'review' | 'plan';
+  kind: 'review' | 'plan' | 'approach';
   versioned: boolean; // a `Round record: 1` or `Round record: 2` line above the first ## heading
   version?: 2; // ST-LN-57: set only for `Round record: 2`
   cycles: RoundCycle[]; // always at least one; review: split at ## Return from verify; plan: split after ## Closed
@@ -228,6 +228,7 @@ export interface TicketWork {
   review?: Review;
   rounds?: RoundRecord; // review.md as round records (ST-LN-17)
   planRounds?: RoundRecord; // plan-review.md as round records (ST-LN-17)
+  approachRounds?: RoundRecord; // approach-review.md as round records (ST-LN-80)
 }
 
 export type RouteKey =

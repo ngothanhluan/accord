@@ -24,7 +24,7 @@ const CONFIG = 'accord/config.yml';
 const REPORT_TAG = /<testsuites?\b|<testcase\b/;
 const TICKET = /^accord\/tickets\/([^/]+)\.md$/;
 const VERIFICATION = /^accord\/tickets\/([^/]+)\/verification\.md$/;
-const WORK = /^accord\/tickets\/([^/]+)\/(plan-review|plan|ledger|review)\.md$/;
+const WORK = /^accord\/tickets\/([^/]+)\/(plan-review|approach-review|plan|ledger|review)\.md$/;
 const BASELINE = 'accord/tests-baseline.txt';
 export const PROTOTYPE = /^accord\/assets\/([^/]+)\/prototype\.html$/;
 
@@ -173,6 +173,8 @@ export function loadSnapshot(input: SnapshotInput): RepoSnapshot {
       errors.push(...r.findings);
     } else if (kind === 'ledger') {
       entry.ledger = parseLedger(file, files[file]);
+    } else if (kind === 'approach-review') {
+      entry.approachRounds = parseRounds(file, files[file], 'approach');
     } else if (kind === 'plan-review') {
       entry.planRounds = parseRounds(file, files[file], 'plan');
     } else {

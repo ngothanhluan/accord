@@ -177,9 +177,10 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
 
   program
     .command('round <id>')
-    .description('print the next review round, its cap and the fix executor model, or the stop or refusal; --plan counts plan critique rounds')
+    .description('print the next review round, its cap and the fix executor model, or the stop or refusal; --plan counts plan critique rounds, --approach approach critique rounds')
     .option('--plan', 'count the plan critique rounds in plan-review.md')
-    .action((id: string, options: { plan?: boolean }) => {
+    .option('--approach', 'count the approach critique rounds in approach-review.md')
+    .action((id: string, options: { plan?: boolean; approach?: boolean }) => {
       setCode(round(preflight(opts), id, options));
     });
 

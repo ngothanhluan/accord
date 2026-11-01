@@ -4,11 +4,11 @@ import { laneTicket, workOf } from '../gate/work.js';
 import { headingKey, stripHtmlComments } from '../load/sections.js';
 import { AGENT_DEFAULTS } from '../skills/agents.js';
 import { pendingAddedCode, scopeProblems } from './scope.js';
-import type { RepoSnapshot, RoundCycle, RoundFinding, RoundRecord } from '../model/snapshot.js';
+import type { RepoSnapshot, RoundCycle, RoundFinding, RoundRecord, TicketWork } from '../model/snapshot.js';
 import { deferredOf } from './evidence.js';
 
 export const ROUND_CAP = 5;
-export type RoundKind = 'review' | 'plan';
+export type RoundKind = 'review' | 'plan' | 'approach';
 export interface Allowance { n: number; after: number; cycle: number }
 export interface RoundAnswer {
   kind: 'next' | 'stop' | 'refused';
@@ -28,11 +28,14 @@ export interface RoundAnswer {
 }
 
 const ALLOWANCE =
-  /^Ruling: the owner allows ([1-9][0-9]*) more (review|plan critique) rounds after round ([1-9][0-9]*) of cycle ([1-9][0-9]*) — ".*\S.*" — \S/;
+  /^Ruling: the owner allows ([1-9][0-9]*) more (review|plan critique|approach critique) rounds after round ([1-9][0-9]*) of cycle ([1-9][0-9]*) — ".*\S.*" — \S/;
+
+const NOUN: Record<RoundKind, string> = { review: 'review', plan: 'plan critique', approach: 'approach critique' };
+const FILE: Record<RoundKind, string> = { review: 'review.md', plan: 'plan-review.md', approach: 'approach-review.md' };
 
 /** The owner allowance Rulings of the ledger for one record kind; a line that does not match grants nothing. */
 export function allowancesOf(snapshot: RepoSnapshot, id: string, kind: RoundKind): Allowance[] {
-  const want = kind === 'review' ? 'review' : 'plan critique';
+  const want = NOUN[kind];
   const out: Allowance[] = [];
   for (const ruling of workOf(snapshot, id)?.ledger?.rulings ?? []) {
     const m = ALLOWANCE.exec(ruling);
@@ -56,7 +59,7 @@ export function cycleState(cycle: RoundCycle, allowances: Allowance[], kind: Rou
     for (let s = top; s >= 3; s--) {
       if (s < top && rounds[s].noFindings) return undefined; // round s + 1 reports no findings: it clears every stop up to s
       if (!rounds[s - 1].findings.some((f) => f.severity !== 'Nice' && !deferred.has(f))) continue;
-      if (kind === 'plan') {
+      if (kind !== 'review') {
         const to = top < rounds.length ? rounds[top].line : Infinity;
         if (accepted.some((v) => v.line > rounds[s - 1].line && v.line < to)) continue;
       }
@@ -72,8 +75,8 @@ export function cycleState(cycle: RoundCycle, allowances: Allowance[], kind: Rou
 }
 
 /** The round a plan critique cycle stops at: the stop from round 3, else a last round with findings at the cap. */
-export function planStopOf(cycle: RoundCycle, allowances: Allowance[]): number | undefined {
-  const st = cycleState(cycle, allowances, 'plan');
+export function planStopOf(cycle: RoundCycle, allowances: Allowance[], kind: 'plan' | 'approach' = 'plan'): number | undefined {
+  const st = cycleState(cycle, allowances, kind);
   const L = cycle.rounds.length;
   const stop = st.stopAt(L);
   if (stop !== undefined || L === 0 || L < st.cap) return stop;
@@ -82,7 +85,10 @@ export function planStopOf(cycle: RoundCycle, allowances: Allowance[]): number |
   return last.findings.length > 0 && !acceptedAfter ? L : undefined;
 }
 
-const ofCycle = (all: Allowance[], index: number): Allowance[] => all.filter((a) => a.cycle === index + 1);
+const recordOf = (work: TicketWork | undefined, kind: RoundKind): RoundRecord | undefined =>
+  kind === 'review' ? work?.rounds : kind === 'plan' ? work?.planRounds : work?.approachRounds;
+
+const ofCycle =(all: Allowance[], index: number): Allowance[] => all.filter((a) => a.cycle === index + 1);
 
 /** The findings of one cycle (0-based) that leave the stop: review records only (ST-LN-57 D-08). */
 export const deferredFor = (snapshot: RepoSnapshot, id: string, kind: RoundKind, cycle: number): ReadonlySet<RoundFinding> =>
@@ -91,7 +97,7 @@ export const deferredFor = (snapshot: RepoSnapshot, id: string, kind: RoundKind,
 /** Every reason the record cannot be read as it stands, in line order. */
 export function recordProblems(snapshot: RepoSnapshot, id: string, kind: RoundKind): { line: number; reason: string }[] {
   const work = workOf(snapshot, id);
-  const rec: RoundRecord | undefined = kind === 'review' ? work?.rounds : work?.planRounds;
+  const rec: RoundRecord | undefined = recordOf(work, kind);
   if (rec === undefined) return [];
   const out = [...rec.unreadable];
   const all = allowancesOf(snapshot, id, kind);
@@ -114,8 +120,8 @@ export function recordProblems(snapshot: RepoSnapshot, id: string, kind: RoundKi
         }
       }
     }
-    if (kind === 'plan' && cycle.closed !== undefined) {
-      const stop = planStopOf(cycle, ofCycle(all, i));
+    if (kind !== 'review' && cycle.closed !== undefined) {
+      const stop = planStopOf(cycle, ofCycle(all, i), kind);
       if (stop !== undefined) {
         add(cycle.closed, `## Closed while the stop at round ${stop} holds; the owner accepts with verdict: accepted-by-owner "<sentence>" after that round, or a round that reports no findings clears it`);
       }
@@ -175,10 +181,10 @@ export function nextRound(snapshot: RepoSnapshot, id: string, kind: RoundKind): 
   const base: RoundAnswer = { kind: 'refused', ticket: id, record: kind, laneS, cycle: 1, round: 0, cap: ROUND_CAP, reasons: [] };
   const refuse = (...reasons: string[]): RoundAnswer => ({ ...base, reasons });
   if (laneTicket(snapshot, id) === undefined) return refuse(`${id} is not a lane ticket`);
-  if (kind === 'plan' && laneS) return refuse('lane S has no plan critique');
+  if (kind !== 'review' && laneS) return refuse(`lane S has no ${NOUN[kind]}`);
   const lane = isLaneM(snapshot, id);
-  const file = kind === 'review' ? 'review.md' : 'plan-review.md';
-  const rec = kind === 'review' ? workOf(snapshot, id)?.rounds : workOf(snapshot, id)?.planRounds;
+  const file = FILE[kind];
+  const rec = recordOf(workOf(snapshot, id), kind);
 
   const next = (round: number, cycle: number, cap: number): RoundAnswer => {
     const answer: RoundAnswer = { ...base, kind: 'next', cycle, round, cap };
@@ -211,7 +217,7 @@ export function nextRound(snapshot: RepoSnapshot, id: string, kind: RoundKind): 
   const L = cyc.rounds.length;
   const all = allowancesOf(snapshot, id, kind);
   const st = cycleState(cyc, ofCycle(all, k - 1), kind, deferredFor(snapshot, id, kind, k - 1));
-  const stopOf = (q: number) => (kind === 'plan' ? planStopOf(cyc, ofCycle(all, k - 1)) : st.stopAt(q));
+  const stopOf = (q: number) => (kind !== 'review' ? planStopOf(cyc, ofCycle(all, k - 1), kind) : st.stopAt(q));
   const textsOf = (n: number) => ({ round: n, lines: cyc.rounds[n - 1].findings.map((f) => f.text) });
   const findingsFor = (s: number) => (L === s ? [textsOf(s)] : [textsOf(s), textsOf(L)]);
   const stop = (reasons: string[], s: number, extra: Partial<RoundAnswer> = {}): RoundAnswer => ({
@@ -242,7 +248,9 @@ export function nextRound(snapshot: RepoSnapshot, id: string, kind: RoundKind): 
       const tail =
         kind === 'review'
           ? '; a new cycle starts with a ## Return from verify <sha> line'
-          : '; the loop has ended: the plan skill goes on to its baseline tests and appends ## Closed when it finishes, which starts the next cycle';
+          : kind === 'plan'
+            ? '; the loop has ended: the plan skill goes on to its baseline tests and appends ## Closed when it finishes, which starts the next cycle'
+            : '; the loop has ended: accord-approach goes on to write ## Approach in full and ask the owner, and a round on another option follows a ## Closed line, which starts the next cycle';
       return { ...refuse(`${file} ends cycle ${k} with verdict: ${verdict.value} at line ${verdict.line}${tail}`), cycle: k, round: L, cap: st.cap };
     }
   }
@@ -272,8 +280,8 @@ export function roundText(answer: RoundAnswer): string {
     );
   }
   if (answer.kind === 'refused') return answer.reasons.map((r) => `refused: ${r}\n`).join('');
-  const file = answer.record === 'review' ? 'review.md' : 'plan-review.md';
-  const noun = answer.record === 'review' ? 'review' : 'plan critique';
+  const file = FILE[answer.record];
+  const noun = NOUN[answer.record];
   const out = ['stop: report to owner'];
   for (const r of answer.reasons) out.push(`Reason: ${r}`);
   for (const f of answer.findings ?? []) out.push(`Findings of round ${f.round}:`, ...f.lines);
@@ -281,11 +289,15 @@ export function roundText(answer: RoundAnswer): string {
   out.push(
     answer.laneS
       ? 'Ask the owner whether to change course: in lane S the change of course is the lift to lane M (lane-s.md).'
-      : 'Ask the owner whether to change course: weigh the options the Approach above rejected or held in reserve against going on.',
+      : answer.record === 'approach'
+        ? "Ask the owner whether to change course: weigh the other options of the planner's direction report against going on."
+        : 'Ask the owner whether to change course: weigh the options the Approach above rejected or held in reserve against going on.',
     `To accept the open findings: end ${file} with the line verdict: accepted-by-owner "<the owner's sentence>"`,
     `To allow more rounds: add under ## Rulings in the ledger: Ruling: the owner allows <n> more ${noun} rounds after round ${answer.allowAfter ?? answer.round} of cycle ${answer.cycle} — "<the owner's sentence>" — <cost if wrong>`,
   );
-  if (!answer.laneS) {
+  if (!answer.laneS && answer.record === 'approach') {
+    out.push('To change course: write that Ruling with <n> the rounds the owner gives the other option, then write that option into ## Approach and critique it through accord-approach');
+  } else if (!answer.laneS) {
     out.push(`To change course: write that Ruling with <n> the rounds the owner gives the reworked ${answer.record === 'review' ? 'code' : 'plan'}, then re-plan through accord-plan`);
   }
   if (answer.model !== undefined) {

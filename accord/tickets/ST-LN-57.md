@@ -26,6 +26,9 @@ ui: false
 # verified_commit:
 approved_hash: "fnv1a64:fa8636f35b1f509f"
 ac_hash: "fnv1a64:77ead066cc31368d"
+verified_hash: "fnv1a64:77ead066cc31368d"
+verified_commit: "993f6c76c0518aa3fafd63e8fa56b3c0ee0783b8"
+verified: [ac-1, ac-2, ac-3, ac-4, ac-5]
 ---
 
 ## Intent

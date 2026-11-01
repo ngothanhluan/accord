@@ -1,3 +1,5 @@
+Round record: 1
+
 ## Round 1
 
 Should 1 [patch]: the report shows an MCP server that never connected in the all-on probe (aws-mcp failed, plugin:context7:context7 needed authentication) with `-` cells and no note, which reads as "removing it saves nothing" — docs/benchmark/fixed-context.md:71, scripts/fixed-context.mjs `render`, scripts/benchmark.mjs `fixedReport` — fixed in 1b74963a (report regenerated in d9af84f8)

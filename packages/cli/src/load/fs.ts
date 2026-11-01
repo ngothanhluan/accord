@@ -383,7 +383,7 @@ function defaultRefs(root: string, local: boolean): DefaultRefs {
 }
 
 /** What `log -z --format=%x01%H%x00%P --name-only` printed: `\x01sha NUL parents NUL`, then `\n` + first path NUL and the other paths NUL-ended when the commit has any. */
-function parseAfterLog(raw: string, remerged: boolean): AfterVerify {
+export function parseAfterLog(raw: string, remerged: boolean): AfterVerify {
   const tokens = raw.split('\0');
   const commits: AfterVerify = [];
   for (let i = 0; i < tokens.length; i++) {
@@ -1194,7 +1194,7 @@ export function gitDefaultRef(root: string): string | undefined {
  * The utf8 text of each `<ref>:<path>` spec, in order, read with one `git cat-file --batch`; a missing one is `undefined`.
  * `what` names the ref in the error.
  */
-function catBatch(root: string, specs: readonly string[], what: string): (string | undefined)[] {
+export function catBatch(root: string, specs: readonly string[], what: string): (string | undefined)[] {
   let out: Buffer;
   try {
     out = execFileSync('git', ['cat-file', '--batch'], {

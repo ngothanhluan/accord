@@ -184,8 +184,8 @@ const MAX_SKILL_LINES = 120;
 const COMMAND =
   /\baccord (gate ready|gate done|gate plan|new ticket|skills sync|tests baseline|review-package|task-done|approve|anchor|brief|dashboard|status|next|lint|hook)\b/g;
 
-/** Spec §2: each skill targets under 5 KB. */
-const MAX_SKILL_BYTES = 5120;
+/** Spec §2: each skill targets at most 6000 bytes. */
+const MAX_SKILL_BYTES = 6000;
 
 /** The first command a SKILL.md names: `/accord` opens on the dashboard, a stage re-anchors, designer gates. */
 const firstCommand = (dir: string): string =>

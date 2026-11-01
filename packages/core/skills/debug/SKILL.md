@@ -51,7 +51,11 @@ main session and orchestrate: debuggers investigate, executors fix.
 5. **Check.** Run the `tests.affected` command over the files changed
    since the noted sha. Copy every Ruling in the executor's report into
    `accord/tickets/<id>/ledger.md` under `## Rulings`. Record the fix and
-   its result in `debug.md`, then commit `debug.md` with the ledger.
+   its result in `debug.md`, then commit `debug.md` with the ledger. The episode's
+   commits before the first review round recorded after it opened are reviewed in a
+   round headed `(added code round 1)`. A commit made after that round while the
+   episode stays open is that round's fix: its files need a finding of that round or
+   a Ruling.
 
 6. **Failed fix.** A fix that leaves the symptom, or the reproduction
    test failing, counts one in `debug.md`. After one failed fix, dispatch

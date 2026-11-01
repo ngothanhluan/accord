@@ -3,6 +3,7 @@
 import { execFileSync } from 'node:child_process';
 import { interfaceSigns, outsideScope, undeclaredFiles, workOf } from '@accord-dev/accord-core';
 import { defaultRefOf, UsageError } from '../load/fs.js';
+import { nearestCode, readWalk } from '../load/walk.js';
 import type { CommandContext } from '../run.js';
 import { branchFactFor } from './branch-fact.js';
 import { requireLaneTicket } from './lane-args.js';
@@ -13,9 +14,55 @@ const REF = /^[A-Za-z0-9][A-Za-z0-9._/~^-]*$/;
 
 export function reviewPackage(ctx: CommandContext, id: string, options: { base?: string }): number {
   const laneS = requireLaneTicket(ctx, id).frontmatter?.lane === 'S';
+  const git = (args: string[]) =>
+    execFileSync('git', args, {
+      cwd: ctx.root,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      maxBuffer: 64 * 1024 * 1024,
+    });
+  const commitOf = (ref: string): string | undefined => {
+    try {
+      return git(['rev-parse', '--verify', '--quiet', ref + '^{commit}']).trim();
+    } catch {
+      return undefined;
+    }
+  };
+  // ST-LN-57: a version 2 record builds every loop round from the last round's head; a version 1 or
+  // unversioned record with rounds keeps today's package.
+  const work = workOf(ctx.snapshot, id);
+  const rec = work?.rounds;
+  const v2 = rec?.version === 2;
+  const old = rec !== undefined && !v2 && rec.cycles.some((c) => c.rounds.length > 0);
+  const baseline = work?.plan?.baseline;
+  const loopBase = "in a version 2 review record every loop round is built from the last round's head; ";
+  let lastHead: string | undefined;
+  if (v2) {
+    if (options.base !== undefined) {
+      if (laneS) throw new UsageError(loopBase + 'lane S takes no --base');
+      const given = commitOf(options.base);
+      if (baseline === undefined || given === undefined || given !== commitOf(baseline)) {
+        throw new UsageError(loopBase + "--base is accepted only for the final review, as the plan's baseline: " + (baseline ?? '(none)'));
+      }
+    } else {
+      let k = rec!.cycles.length - 1;
+      while (k >= 0 && rec!.cycles[k].rounds.length === 0) k--;
+      if (k >= 0) {
+        const rounds = rec!.cycles[k].rounds;
+        const last = rounds[rounds.length - 1];
+        if (last.head === undefined) throw new UsageError(`round ${rounds.length} of cycle ${k + 1} names no readable head in review.md; fix its heading`);
+        if (commitOf(last.head) === undefined) {
+          throw new UsageError(
+            `round ${rounds.length} of cycle ${k + 1}'s head ${last.head} names no commit in this repository; after a rebase, retype each round's head to the commit that now holds the same change`,
+          );
+        }
+        lastHead = last.head;
+      }
+    }
+  }
   // The default ref read for a lane S base is the one the exclusion below uses.
-  const laneSDefault = laneS && options.base === undefined ? defaultRefOf(ctx.root) : undefined;
-  const base = options.base ?? (laneS ? laneSDefault : workOf(ctx.snapshot, id)?.plan?.baseline);
+  const laneSDefault = laneS && (options.base === undefined || v2) ? defaultRefOf(ctx.root) : undefined;
+  const base = lastHead ?? options.base ?? (laneS ? laneSDefault : baseline);
   if (base === undefined) {
     throw new UsageError(
       laneS
@@ -24,13 +71,6 @@ export function reviewPackage(ctx: CommandContext, id: string, options: { base?:
     );
   }
   if (!REF.test(base)) throw new UsageError('not a git ref: ' + base);
-  const git = (args: string[]) =>
-    execFileSync('git', args, {
-      cwd: ctx.root,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-      maxBuffer: 64 * 1024 * 1024,
-    });
   // Every git log passes the signature flags (conventions.md), so a signed HEAD never changes the output.
   const gitLog = (args: string[]) => git(['-c', 'log.showSignature=false', 'log', '--no-show-signature', ...args]);
   const range = base + '...HEAD';
@@ -75,6 +115,7 @@ export function reviewPackage(ctx: CommandContext, id: string, options: { base?:
     try {
       return full(['--remerge-diff']);
     } catch {
+      if (!old) throw new UsageError(`cannot diff ${range}: git cannot show a merge's own changes (git log --remerge-diff needs git 2.36 or newer)`);
       return full([]);
     }
   };
@@ -112,9 +153,16 @@ export function reviewPackage(ctx: CommandContext, id: string, options: { base?:
       undeclared === undefined ? '(no plan)' : undeclared.join('\n') || '(none)',
     );
   } catch (e) {
+    if (e instanceof UsageError) throw e;
     throw new UsageError(`cannot diff ${range}: ${why(e)}`);
   }
   // ST-LN-62: what `accord gate done` would name, shown before it runs; the command never fails on the fact.
+  if (!old) {
+    const walk = readWalk(ctx.root, { laneS, def, baseline });
+    const commit = ctx.snapshot.git?.commit;
+    const head = 'error' in walk ? '(cannot tell: ' + walk.error + ')' : commit === undefined ? '(cannot tell: no commit)' : nearestCode(walk, commit, id);
+    parts[0] += '\nHead: ' + head;
+  }
   const cannot = (why: string) => `(cannot tell: ${why})`;
   const shown: string[] = [];
   if (laneS) {

@@ -28,12 +28,11 @@ ui: false
 
 ## Intent
 <!-- At most five lines: why, for whom, how success is measured, and what this does not do. -->
-Queued 2026-10-30, not approved; the intent interview replaces this:
-- Source: accord/research/2026-10-30-harness-architecture.md section 1. Owner, 2026-10-30: "The critic mechanism repeats in the architect and the planner. Why not gather it in one place? No need for the architect any more. This cuts token use and is faster." (translated).
-- Measured: architect plus approach critic are about 11% of a lane M ticket's tokens (planner plus plan critics about 41%); at the first approach approval the owner said a plain yes in 35 of 38 tickets and picked another option in 0; 15 of 26 re-approvals came from the plan stage.
-- Against: the approach critic's Musts changed the approach in 112 of 117 cases; for 48 of 94 it is unclear the plan critic would catch them, mostly Decision breaks, since plan mode (packages/core/agents/critic.md, mode `plan`) does not check Decisions.
-- Queued intent: drop accord-architect and the approach-mode critic; the planner writes `## Approach` with plan.md; the owner picks the option and answers direction questions before the full plan is written; plan critique also checks every Decision and Correction; the owner approves once after critique. The CLI gates that read `approved_hash` before plan (gate ready) change order, a public interface.
-- Open for the interview: what replaces the impact analysis (the scout report of ST-LN-81 or the planner); whether lane-M tickets touching auth, money, migration or data deletion keep a separate direction critique; ST-LN-71 and ST-LN-13 change with this (overlap to settle).
+- Why: the architect repeats what the planner does (the owner picked another option than its first in 0 of 38 tickets), while the approach critic catches direction errors cheaply on ~15 lines, and plan critique misses broken Decisions. Evidence: accord/research/2026-11-01-architect-fold-review.md.
+- For: whoever runs a lane M ticket, one person or a team where the BA approves direction before a developer plans.
+- What: drop accord-architect; the planner drafts `## Approach` in a direction pass; the approach critic stays, defers implementation detail to the plan, re-reads only amended text, and stops at a cap the CLI counts; plan critique checks every Decision and Correction.
+- Success: no lane M stage dispatches accord-architect; `accord round <id> --approach` gives the approach critique the same cap and stop as plan critique; ST-LN-46 later measures tokens and plan rounds before and after (not part of done).
+- Non-goals: no change to when the owner approves, to gate ready, gate plan, stage order or `approved_hash`; no model change for any agent; lane S untouched; ST-LN-81's scout report is not used.
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.
@@ -42,10 +41,34 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 Feature: ST-LN-80
 
   @ac-1
-  Scenario: <observable outcome>
-    Given ...
-    When ...
-    Then ...
+  Scenario: No agent named accord-architect is rendered or dispatched, and an old config still loads
+    Given a repository whose accord/config.yml sets models.architect and whose .claude/agents holds an accord-architect.md that accord rendered
+    When the owner runs accord skills sync and then accord lint
+    Then no agent file named accord-architect.md is rendered and no skill step dispatches accord-architect, the old accord-architect.md is gone, and lint accepts models.architect with a warning that it no longer has an effect
+
+  @ac-2
+  Scenario: The planner's direction pass returns an Approach draft and writes no file
+    Given a lane M ticket whose intent the owner approved and which has no ## Approach yet
+    When accord-approach dispatches the planner in its direction mode
+    Then the planner returns in its report an impact list naming file and line, two or three options with the lightest that works first, and, when the ticket touches auth, money, migration or data deletion, three failure scenarios in total with how to undo each; it writes neither plan.md nor the ticket, and the main session writes ## Approach from the report
+
+  @ac-3
+  Scenario: Approach critique defers detail to the plan and re-reads only what changed
+    Given an approach critique round that raised a finding on implementation detail the planner decides, and an Approach amended after that round
+    When the critic runs the next round in approach mode
+    Then the detail finding is marked defer to plan and is never a Must, the critic is given only the diff of ## Approach since the previous round and approach-review.md, it raises new findings only on the changed lines, and it lists earlier findings the change fixes on a fixed: line and those that no longer hold on a withdrawn: line, as diff mode does for plan-review.md
+
+  @ac-4
+  Scenario: The CLI counts approach critique rounds and stops them at the cap
+    Given accord/tickets/<id>/approach-review.md records approach critique rounds
+    When the owner runs accord round <id> --approach
+    Then it prints the next round and the same cap that accord round <id> --plan uses, and it applies the same stop rule --plan applies to plan-review.md, printing stop: report to owner at the stop or the cap
+
+  @ac-5
+  Scenario: Plan critique checks every Decision and Correction
+    Given a ticket with Decisions and Corrections and a plan.md whose tasks contradict one Decision
+    When the critic runs in plan mode on the whole plan, and in diff mode on a hunk that adds the contradiction
+    Then each mode reports a Must naming that Decision's D-nn, because the plan-mode and diff-mode instructions of the critic tell it to check every Decision and every Correction of the ticket
 ```
 
 ## Vetoes
@@ -53,6 +76,11 @@ Feature: ST-LN-80
 
 ## Decisions
 <!-- Settled answers, one per line: - D-01 <decision> — "<the owner's sentence>" -->
+- D-01 Drop the accord-architect agent; the planner drafts `## Approach` in a short direction pass; a capped approach-mode critic still critiques that draft on every lane M ticket; the owner approves before the full plan, as today, with no change to gate ready, gate plan, stage order or `approved_hash`; plan critique additionally checks every Decision and Correction — "option A đi." (translated: "go with option A", choosing that option over routing the critic to risky tickets only, or dropping it and approving once after critique)
+- D-02 ST-LN-71 folds into this ticket and is dropped: in approach critique a finding on implementation detail is deferred to the plan and is never a Must; from round 2 the critic reads only the amended text and lists `fixed:` and `withdrawn:`; approach critique takes the same round cap and stop as review — "A" (choosing to fold all of ST-LN-71 in, over keeping it as the next ticket or folding only the cap)
+- D-03 The planner writes the impact analysis itself in its direction pass; this ticket does not wait on ST-LN-81 — "A" (choosing the planner over the saved scout report of ST-LN-81)
+- D-04 The CLI enforces the approach critique's round cap: each round is recorded in a new `accord/tickets/<id>/approach-review.md`, and `accord round <id> --approach` counts it as `--plan` counts plan-review.md, a new public CLI flag — "A" (choosing CLI enforcement over a cap stated only in the skill)
+- D-05 The smallest version that counts as done is all five criteria — "A" (choosing all five over only ac-1, ac-2 and ac-5)
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->

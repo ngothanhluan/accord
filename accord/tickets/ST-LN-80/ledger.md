@@ -4,6 +4,7 @@
 - task 1 done 816fb0d1e522
 - task 2 done 47368331e1ef
 - task 3 done 8a80ccc0076d
+- task 4 done 5056d5615f06
 
 ## Rulings
 - Ruling: a config that still sets `models.architect` loads, and lint warns that the key has no effect, rather than refusing it — config.schema.json has `additionalProperties: false`, so dropping the key would break every repository that set it — cost if wrong: a dead key lingers until a later release removes it
@@ -41,6 +42,7 @@
 - Ruling: agents.test.ts keeps the title "renders the architect and the critic read-only on their spec routes", with a comment above it saying why; its body now asserts the critic's frontmatter and that no accord-architect.md is rendered (task 2) — a rename would fail gate.test-untraced at done — cost if wrong: one test title still names the architect
 - Ruling: stage-skills.test.ts keeps the REQUIRED `approach` row, with a one-line comment above it saying why its body changed (task 3) — the plan keeps test titles and changes only bodies — cost if wrong: none, it is a comment
 - Ruling: approach/critique.md sets out the record format, the ladder, the count and the rounds under their own `##` headings (task 3) — the plan fixes the order of content, not the headings — cost if wrong: a reword; no test reads the headings
+- Ruling: the workflow-layer spec's §7 steps 1-4 and its critic line are worded to match Tasks 2 and 3 as built (task 4) — the plan fixed their content only in outline — cost if wrong: a doc-only edit
 
 ## Deferred
 - plan 1.8 Nice: Task 5's "Must not change the orphan report" contradicts its rewording of skills.ts:236 — deferred

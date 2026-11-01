@@ -10,7 +10,9 @@ Nice 5 [patch]: missing space before `=` in two hand-edited lines — packages/c
 
 ## Round 2
 
-Should 1 [patch]: the approach stage writes Deferred findings and allowance Rulings to the ledger but no step commits the ledger — packages/core/skills/approach/SKILL.md:55 — open
-Nice 2 [patch]: after an accepted stop, approach/critique.md sends a refusal to step 4 while SKILL.md step 5 appends `## Closed` — packages/core/skills/approach/critique.md:74 — open
-Nice 3 [patch]: the critic's revision bullet still says "the plan" in approach mode — packages/core/agents/critic.md:14 — open
-Nice 4 [patch]: the architect.md source deletion rode in the approval commit f8e2a8d9, not task 2's commit — packages/core/agents/architect.md:1 — open
+Should 1 [patch]: the approach stage writes Deferred findings and allowance Rulings to the ledger but no step commits the ledger — packages/core/skills/approach/SKILL.md:55 — fixed in 68201816
+Nice 2 [patch]: after an accepted stop, approach/critique.md sends a refusal to step 4 while SKILL.md step 5 appends `## Closed` — packages/core/skills/approach/critique.md:74 — deferred
+Nice 3 [patch]: the critic's revision bullet still says "the plan" in approach mode — packages/core/agents/critic.md:14 — deferred
+Nice 4 [patch]: the architect.md source deletion rode in the approval commit f8e2a8d9, not task 2's commit — packages/core/agents/architect.md:1 — deferred
+
+verdict: converged

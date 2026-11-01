@@ -31,6 +31,7 @@
 - Ruling: the approach ladder goes in a ledger Ruling, not in approach-review.md — the critic never reads the ledger, so it never sees the rejected options, and a prose line in the record could parse as a finding — cost if wrong: the session reads a second file on resume
 - Ruling: the closed option's name goes in the `## Closed` heading — the existing `/^closed\b/` match accepts it with no parser change — cost if wrong: a stricter heading check later must allow the suffix
 - Ruling: the owner allows 2 more plan critique rounds after round 3 of cycle 1 — "A" — two more agent rounds spent on fix-induced findings
+- Ruling: the ticket title is rewritten to match D-01 (it still said one critique loop and one owner approval) — the title is outside the approved hash and gate ready still passes — cost if wrong: none beyond a dashboard label
 - Ruling: after round 4 the main session changed sentence M in Task 3 from "every later fix commit" (gate plan read "later" as a deferral) to "any fix commit to that path", as the round-4 critic noted fixFileUnexplained ignores timing — a wording fix with no critique round of its own — cost if wrong: one sentence of critique.md reworded at review
 - Ruling: the step-7 baseline test run is CI's green run on the base commit 9f5085f4 (Linux and Windows), not a local tests.full — the branch changes nothing outside accord/ since that commit, and the owner prefers CI over a 30-minute local full run — cost if wrong: a host-only failure at the baseline shows up first at build
 

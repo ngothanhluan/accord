@@ -1,6 +1,6 @@
 ---
 id: "ST-LN-80"                            # equals the file name: tickets/<id>.md
-title: "One approach-and-plan stage replaces the architect, with one critique loop that also checks every Decision and one owner approval"
+title: "The planner drafts the Approach in place of the architect, approach critique has a CLI-counted round cap, and plan critique checks every Decision"
 type: "story" # story | bug. An epic uses its own template
 status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project

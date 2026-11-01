@@ -99,13 +99,13 @@ run it again.
    naming that Must, to `approach-review.md`, take the first option of the
    ladder Ruling that is not yet ruled out, write it into `## Approach` as
    step 2 of the skill says (when this session no longer holds the planner's
-   report, as the ladder section above says), commit both files, and start
+   report, as the ladder section above says), commit both files, with the ledger if it changed, and start
    again at round 1. When no option is left, ask the owner.
 4. **Converged.** The loop ends only on a round that reports no Must and no
    Should and leaves no Must or Should open or unverified, or on the owner's
    acceptance after a stop: go to step 4 of the skill.
 5. **Fix.** Otherwise commit `accord/tickets/<id>.md` and
-   `approach-review.md` with the subject
+   `approach-review.md`, with the ledger if it changed, with the subject
    `approach: <id> round <n>, <m> Must, <s> Should`, `<m>` and `<s>` counting
    the Musts and the Shoulds after the last `## Closed` line that are `open`
    or `unverified`; the next `diff` round reads from that commit. Dispatch

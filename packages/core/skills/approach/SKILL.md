@@ -52,7 +52,7 @@ the owner's yes before anyone plans. You run it in the main session.
      failure scenarios and how it is undone;
    - test strategy: which criterion is tested at which layer.
 
-   Commit `accord/tickets/<id>.md` and `accord/tickets/<id>/approach-review.md`.
+   Commit `accord/tickets/<id>.md` and `accord/tickets/<id>/approach-review.md`, with the ledger if it changed.
 
 5. **The owner's yes.** Run `accord show <id> --approval`; if it fails, stop and tell
    the owner. Paste its output, which holds every approved section, unchanged, as Markdown, not inside a code
@@ -68,7 +68,7 @@ the owner's yes before anyone plans. You run it in the main session.
    branch, never remove that entry from `depends_on`: tell the owner this
    ticket waits for that ticket's merge, then after the merge run `git fetch`
    and `accord gate ready <id>` again. Then commit the ticket, with `approved_hash:` and `ac_hash:` in
-   it. Then run `accord worktree push <id>`; go on even if it fails. If the
+   it, and the ledger if it changed. Then run `accord worktree push <id>`; go on even if it fails. If the
    owner picks another option, append
    `## Closed <option>: the owner picked <other option>` to
    `accord/tickets/<id>/approach-review.md`, write that option into

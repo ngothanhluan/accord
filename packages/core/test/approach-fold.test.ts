@@ -80,3 +80,9 @@ it('risk:complex-branching a resumed or revised approach round keeps its option 
   holds(flat(skillFile('accord-approach', 'SKILL.md')), [G, 'the first option of the ladder Ruling that is not yet ruled out', '`## Closed <option>: the owner picked <other option>`', "`## Closed <option>: the owner's no`"]);
   holds(flat(skillFile('accord-approach', 'critique.md')), [LADDER, H, J, M, N, '`## Closed <option>: ruled out by <round>.<n>`', 'the name of the option `## Approach` names']);
 });
+
+it('risk:data-loss every approach commit carries the ledger when it changed, so the pushed branch holds the deferred findings', () => {
+  const skill = flat(skillFile('accord-approach', 'SKILL.md'));
+  holds(skill, ['Commit `accord/tickets/<id>.md` and `accord/tickets/<id>/approach-review.md`, with the ledger if it changed.', 'Then commit the ticket, with `approved_hash:` and `ac_hash:` in it, and the ledger if it changed.']);
+  holds(flat(skillFile('accord-approach', 'critique.md')), ['commit both files, with the ledger if it changed,', 'Otherwise commit `accord/tickets/<id>.md` and `approach-review.md`, with the ledger if it changed, with the subject']);
+});

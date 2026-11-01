@@ -28,6 +28,8 @@
 - Ruling: the five accord-architect benchmark samples stay in the round-1 list; only the settings read and the matrix skip a retired agent — removing them breaks the 45-sample checks — cost if wrong: the round-1 list still names a retired agent
 - Ruling: no test for an rmSync failure in removeRetired — a permission failure cannot be reproduced on both systems (Windows clears read-only; Linux test runs are root) — cost if wrong: the catch path is checked by review only
 - Ruling: Task 3's `files:` keeps `(new)` on approach-fold.test.ts, because gate plan reads `(new)` against the baseline; finding 1.5 is answered by Task 3's prose, which says to add to the file Task 2 created — cost if wrong: an executor reads `(new)` and rewrites the file, caught by the ac-5 test vanishing
+- Ruling: the approach ladder goes in a ledger Ruling, not in approach-review.md — the critic never reads the ledger, so it never sees the rejected options, and a prose line in the record could parse as a finding — cost if wrong: the session reads a second file on resume
+- Ruling: the closed option's name goes in the `## Closed` heading — the existing `/^closed\b/` match accepts it with no parser change — cost if wrong: a stricter heading check later must allow the suffix
 
 ## Deferred
 - plan 1.8 Nice: Task 5's "Must not change the orphan report" contradicts its rewording of skills.ts:236 — deferred
@@ -35,3 +37,4 @@
 - plan 1.10 Nice: workflow-layer spec line 592 still says "architect in lane P" — deferred
 - plan 2.2 Nice: the planner's final reply instruction still names plan.md in direction mode — deferred
 - plan 2.3 Nice: Task 3 does not say each phrase of the stage-skills approach row stays on one line — deferred
+- plan 3.3 Nice: an option the owner turned down at step 5 is still "not yet ruled out" under rule H — deferred

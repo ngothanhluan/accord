@@ -24,7 +24,7 @@ ui: false
 # The AC hash and the commit the ticks were made against.
 # verified_hash:
 # verified_commit:
-approved_hash: "fnv1a64:3fb1847ec2d9821d"
+approved_hash: "fnv1a64:3e68612a7ddf6d2e"
 ac_hash: "fnv1a64:fbbd120aee043b0b"
 ---
 
@@ -78,16 +78,16 @@ Feature: ST-LN-80
 
 ## Decisions
 <!-- Settled answers, one per line: - D-01 <decision> — "<the owner's sentence>" -->
-- D-01 Drop the accord-architect agent; the planner drafts `## Approach` in a short direction pass; a capped approach-mode critic still critiques that draft on every lane M ticket; the owner approves before the full plan, as today, with no change to gate ready, gate plan, stage order or `approved_hash`; plan critique additionally checks every Decision and Correction — "option A đi." (translated: "go with option A", choosing that option over routing the critic to risky tickets only, or dropping it and approving once after critique)
+- D-01 Drop the accord-architect agent; the planner drafts `## Approach` in a short direction pass; a capped approach-mode critic still critiques that draft on every lane M ticket; the owner approves before the full plan, as today, with no change to gate ready, gate plan, stage order or `approved_hash`; plan critique additionally checks every Decision and Correction — "go with option A" (translated from the owner's Vietnamese, choosing that option over routing the critic to risky tickets only, or dropping it and approving once after critique)
 - D-02 ST-LN-71 folds into this ticket and is dropped: in approach critique a finding on implementation detail is deferred to the plan and is never a Must; from round 2 the critic reads only the amended text and lists `fixed:` and `withdrawn:`; approach critique takes the same round cap and stop as review — "A" (choosing to fold all of ST-LN-71 in, over keeping it as the next ticket or folding only the cap)
 - D-03 The planner writes the impact analysis itself in its direction pass; this ticket does not wait on ST-LN-81 — "A" (choosing the planner over the saved scout report of ST-LN-81)
 - D-04 The CLI enforces the approach critique's round cap: each round is recorded in a new `accord/tickets/<id>/approach-review.md`, and `accord round <id> --approach` counts it as `--plan` counts plan-review.md, a new public CLI flag — "A" (choosing CLI enforcement over a cap stated only in the skill)
 - D-05 The smallest version that counts as done is all five criteria — "A" (choosing all five over only ac-1, ac-2 and ac-5)
-- D-06 The planner's default effort rises from medium to high, for the direction pass and the plan alike — "duyệt nhưng planner lên high" (translated: "approved, but raise the planner to high")
+- D-06 The planner's default effort rises from medium to high, for the direction pass and the plan alike — "approved, but raise the planner to high" (translated from the owner's Vietnamese)
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
-- 2026-11-01, at the approach approval: "duyệt nhưng planner lên high" (translated: "approved, but raise the planner to high")
+- 2026-11-01, at the approach approval: "approved, but raise the planner to high" (translated from the owner's Vietnamese)
 
 ## Open questions
 <!-- `- [ ]` items; Ready stays blocked while any is unchecked. -->

@@ -53,4 +53,4 @@ Eight agents in fresh contexts, read-only: five evidence lenses (data re-check, 
 
 ## Owner choice
 
-Owner, 2026-11-01, of three options put — A: drop the architect, keep a capped direction critic on every lane M ticket, approve before plan, add Decision checks to plan critique; B: as A with the direction critic only on risky or large tickets; C: as queued — answered "option A đi." (translated: "go with option A").
+Owner, 2026-11-01, of three options put — A: drop the architect, keep a capped direction critic on every lane M ticket, approve before plan, add Decision checks to plan critique; B: as A with the direction critic only on risky or large tickets; C: as queued — answered "go with option A" (translated from the owner's Vietnamese).

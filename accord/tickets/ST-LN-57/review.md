@@ -37,5 +37,7 @@ Nice 32 [patch]: the `--base` help text still says the default is the plan's bas
 
 ## Round 2
 
-Should 1 [patch]: after a final review that already covered a merge, `accord round` still prints `Added code:` because pendingOf reads the span from the last round not headed `(final review)`, and record.md tells the session to run that round before the verdict; gate.review-scope never asks it, and if that round reports a Must its re-review leaves the final review two rounds from the end, so gate done fails — packages/core/src/round/scope.ts:170 — open
+Should 1 [patch]: after a final review that already covered a merge, `accord round` still prints `Added code:` because pendingOf reads the span from the last round not headed `(final review)`, and record.md tells the session to run that round before the verdict; gate.review-scope never asks it, and if that round reports a Must its re-review leaves the final review two rounds from the end, so gate done fails — packages/core/src/round/scope.ts:170 — fixed in 90808284
 Nice 2 [patch]: a version 2 record's unknown-heading error names the version 1 heading forms — packages/core/src/round/record.ts:149 — deferred
+
+verdict: converged

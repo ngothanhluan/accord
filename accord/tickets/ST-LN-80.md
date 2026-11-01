@@ -66,7 +66,7 @@ Feature: ST-LN-80
     When the owner runs accord round <id> --approach
     Then it prints the next round and the same cap that accord round <id> --plan uses, and it applies the same stop rule --plan applies to plan-review.md, printing stop: report to owner at the stop or the cap
 
-  @ac-5
+  @ac-5 @test:packages/core/test/approach-fold.test.ts#ac-5-the-critic-checks-every-decision-and-correction-in-plan-mode-and-in-diff-mode
   Scenario: Plan critique checks every Decision and Correction
     Given a ticket with Decisions and Corrections and a plan.md whose tasks contradict one Decision
     When the critic runs in plan mode on the whole plan, and in diff mode on a hunk that adds the contradiction

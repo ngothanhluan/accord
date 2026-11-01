@@ -15,3 +15,16 @@
 - Ruling: a defer-to-plan finding is always rated Nice — ac-3 says it is never a Must, and a Should would still stop the loop at round 3 — cost if wrong: a detail the critic thinks matters gets less weight at approach and is caught at plan
 - Ruling: before round 1 `## Approach` holds only the chosen option's name, what it does and the impact list; reasons, rejected options, risks and tests are added after critique — keeps the critic independent of the author's reasoning while ac-3 still has a diff to give it — cost if wrong: the critic sees less context in round 1
 - Ruling: `accord upgrade` removes the retired architect file too, and a removed retired path is exempt from the scope gates — otherwise the deletion lands on whatever branch next runs sync and fails gate.out-of-scope there (critic scenario A) — cost if wrong: one extra exemption path in the scope gate
+- Ruling: tasks run `npm run gen` and `npm run build` but never `skills sync` here; nothing under `.claude/` or `.agents/` changes — the approved Approach says this repository's renders follow the pin — cost if wrong: this repository's `.claude` copies stay stale until the pin moves
+- Ruling: no existing test is renamed; tests whose titles name the architect, and the "deletes nothing" sync test, keep their titles and change only their bodies with a one-line comment — their ids are in accord/tests-baseline.txt or are @test tags of done tickets, and gate.test-untraced fails a renamed one at done — cost if wrong: a few titles still mention the architect
+- Ruling: config.schema.json is not edited — its pattern already accepts `architect` — cost if wrong: none expected
+- Ruling: at an approach stop, choosing another option goes through the allowance Ruling instead of `## Closed` — recordProblems refuses `## Closed` while a stop holds — cost if wrong: one more cycle-numbering rule in approach/critique.md
+- Ruling: Continue resumes the approach stage at step 3 when `## Approach` holds only the draft, and at step 5 when it has a `- Rejected:` line — otherwise a resumed session would skip the critique D-01 requires — cost if wrong: about 55 bytes added to accord/SKILL.md
+- Ruling: a `defer to plan` finding goes to the ledger under `## Deferred`, as plan critique does with a Nice — cost if wrong: deferred findings are not handed to the planner automatically
+- Ruling: retired files are removed whatever `runtimes:` says — a retired agent should not linger after the runtime list changes — cost if wrong: an intact copy disappears even where `claude` is no longer declared
+- Ruling: D-06 is checked inside the body of an existing baseline test, and the lint warning only by the end-to-end ac-1 test — a separate test would repeat ac-1 at another layer — cost if wrong: a lint-rule regression shows only in the CLI test
+
+## Deferred
+- plan 1.8 Nice: Task 5's "Must not change the orphan report" contradicts its rewording of skills.ts:236 — deferred
+- plan 1.9 Nice: `accord upgrade` does not say it removed the retired file — deferred
+- plan 1.10 Nice: workflow-layer spec line 592 still says "architect in lane P" — deferred

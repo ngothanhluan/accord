@@ -71,7 +71,7 @@ Feature: ST-LN-57
     And a finding in any other file keeps the ticket's round count
     And the round count ST-LN-17 keeps still counts that round as the ticket's round 5
 
-  @ac-4
+  @ac-4 @test:packages/core/test/finding-grounds.test.ts#ac-4-from-round-3-a-should-rests-on-a-ticket-line-or-a-failing-case
   Scenario: From round 3, a Should rests on a ticket line or a failing case
     Given review.md whose round 3 or later, counted as ac-2 and ac-3 count it, holds a Should that is not marked as carried forward from an earlier round
     When accord gate done runs
@@ -79,7 +79,7 @@ Feature: ST-LN-57
     And it passes when the finding records one of them, or the finding is a Nice, or it is marked as data loss or security
     And it asks no grounds of a Should in round 1 or 2
 
-  @ac-5
+  @ac-5 @test:packages/core/test/finding-grounds.test.ts#ac-5-a-file-a-fix-changed-needs-a-finding-or-a-ruling
   Scenario: A file a fix changed needs a finding or a Ruling
     Given a review round whose fix commits, every commit after that round up to the next round but a merge of main, a debug episode's commits and commits that change only the ticket's records, change a file that is the location of no finding of that round
     When accord gate done runs

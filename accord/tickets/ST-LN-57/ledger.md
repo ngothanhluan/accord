@@ -8,6 +8,7 @@
 - task 5 done a9112c25cb76
 - task 6 done b22e062e87a9
 - task 7 done 79ba28583a61
+- task 8 done 5f472d455b35
 
 ## Rulings
 
@@ -83,6 +84,9 @@
 - Ruling: (task 6) the first task 6 executor was cut off by the session's end before committing; a fresh executor got the same brief plus the uncommitted partial diff, checked it against the brief, kept it unchanged and showed the failing tests with the source changes set aside — no work is lost and the test-first evidence is still produced — if wrong, unchecked partial code reached the commit, which review reads in full.
 - Ruling: (task 7) `cycleState` takes the deferred set as a fourth parameter, and one exported `deferredFor(snapshot, id, kind, cycle)` in next.ts hands it to all three callers (`recordProblems`, `nextRound`, gate/rounds.ts), returning the empty set for plan records — one helper means the plan kind cannot receive a set by mistake — if wrong, a rename.
 - Ruling: (task 7) `gate.finding-evidence` sits after `gate.review-scope-skipped` in both Done tables (lane M and lane S), and its findings carry file review.md, the finding's line and the reason text the plan gives — it follows the plan — if wrong, the rule order in gate output changes.
+- Ruling: (task 8) grounds.ts reuses the exported `evidenceCount` from evidence.ts and rebuilds the version 2 / facts / skipped guard locally, so evidence.ts stays untouched — it keeps the task inside its `files:` line — if wrong, a few duplicated lines.
+- Ruling: (task 8) `restsOnHolds` decides by kind per lane: lane M accepts only ac, D-nn, Veto and Intent; lane S accepts only Understood and Done when quotes (D-11); a kind from the other lane never holds — each lane's ticket has only its own sections — if wrong, a lane S ticket cannot rest a Should on an ac id.
+- Ruling: (task 8) `gate.finding-grounds` and `gate.fix-file-unexplained` sit after `gate.finding-evidence` in both Done tables — it follows the plan — if wrong, the rule order in gate output changes.
 
 ## Deferred
 - plan round 1.8 (Nice): rolling back to the 0.3.0 CLI needs an owner allowance Ruling per cycle that went past round 3 with deferred findings (0.3.0 has no D-08); rolling forward sets line 1 back to `Round record: 2`

@@ -263,7 +263,7 @@ it('risk:complex-branching a merge that changes the pinned accord version keeps 
   const head = gitRun(sib, 'rev-parse', 'HEAD').trim();
   const o = c.otherClone();
   const cfg = o + '/accord/config.yml';
-  writeFileSync(cfg, readFileSync(cfg, 'utf8').replace('accord: "0.3.0"', 'accord: "9.9.9"'));
+  writeFileSync(cfg, readFileSync(cfg, 'utf8').replace('accord: "0.4.0"', 'accord: "9.9.9"'));
   gitRun(o, 'add', '-A');
   gitRun(o, 'commit', '-q', '-m', 'pin');
   gitRun(o, 'push', '-q', 'origin', 'main');

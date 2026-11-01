@@ -3,6 +3,7 @@
 ## Tasks
 - task 1 done 816fb0d1e522
 - task 2 done 47368331e1ef
+- task 3 done 8a80ccc0076d
 
 ## Rulings
 - Ruling: a config that still sets `models.architect` loads, and lint warns that the key has no effect, rather than refusing it — config.schema.json has `additionalProperties: false`, so dropping the key would break every repository that set it — cost if wrong: a dead key lingers until a later release removes it
@@ -38,6 +39,8 @@
 - Ruling: the step-7 baseline test run is CI's green run on the base commit 9f5085f4 (Linux and Windows), not a local tests.full — the branch changes nothing outside accord/ since that commit, and the owner prefers CI over a 30-minute local full run — cost if wrong: a host-only failure at the baseline shows up first at build
 - Ruling: `planStopOf` takes an optional third `kind` argument, default `'plan'` (task 1) — next.ts needs it to pass 'approach' on, and the exported call in gate/rounds.ts is unchanged — cost if wrong: none, since the existing plan outputs are byte-identical
 - Ruling: agents.test.ts keeps the title "renders the architect and the critic read-only on their spec routes", with a comment above it saying why; its body now asserts the critic's frontmatter and that no accord-architect.md is rendered (task 2) — a rename would fail gate.test-untraced at done — cost if wrong: one test title still names the architect
+- Ruling: stage-skills.test.ts keeps the REQUIRED `approach` row, with a one-line comment above it saying why its body changed (task 3) — the plan keeps test titles and changes only bodies — cost if wrong: none, it is a comment
+- Ruling: approach/critique.md sets out the record format, the ladder, the count and the rounds under their own `##` headings (task 3) — the plan fixes the order of content, not the headings — cost if wrong: a reword; no test reads the headings
 
 ## Deferred
 - plan 1.8 Nice: Task 5's "Must not change the orphan report" contradicts its rewording of skills.ts:236 — deferred

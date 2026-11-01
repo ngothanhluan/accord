@@ -48,13 +48,13 @@ Feature: ST-LN-80
     When the owner runs accord skills sync and then accord lint
     Then no agent file named accord-architect.md is rendered and no skill step dispatches accord-architect, the old accord-architect.md is gone, and lint accepts models.architect with a warning that it no longer has an effect
 
-  @ac-2
+  @ac-2 @test:packages/core/test/approach-fold.test.ts#ac-2-the-planner-direction-pass-returns-the-approach-draft-and-writes-no-file
   Scenario: The planner's direction pass returns an Approach draft and writes no file
     Given a lane M ticket whose intent the owner approved and which has no ## Approach yet
     When accord-approach dispatches the planner in its direction mode
     Then the planner returns in its report an impact list naming file and line, two or three options with the lightest that works first, and, when the ticket touches auth, money, migration or data deletion, three failure scenarios in total with how to undo each; it writes neither plan.md nor the ticket, and the main session writes ## Approach from the report
 
-  @ac-3
+  @ac-3 @test:packages/core/test/approach-fold.test.ts#ac-3-approach-critique-defers-detail-to-the-plan-and-reads-only-the-approach-diff-from-round-2
   Scenario: Approach critique defers detail to the plan and re-reads only what changed
     Given an approach critique round that raised a finding on implementation detail the planner decides, and an Approach amended after that round
     When the critic runs the next round in approach mode

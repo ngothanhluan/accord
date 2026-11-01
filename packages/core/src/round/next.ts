@@ -4,7 +4,8 @@ import { laneTicket, workOf } from '../gate/work.js';
 import { headingKey, stripHtmlComments } from '../load/sections.js';
 import { AGENT_DEFAULTS } from '../skills/agents.js';
 import { pendingAddedCode, scopeProblems } from './scope.js';
-import type { RepoSnapshot, RoundCycle, RoundRecord } from '../model/snapshot.js';
+import type { RepoSnapshot, RoundCycle, RoundFinding, RoundRecord } from '../model/snapshot.js';
+import { deferredOf } from './evidence.js';
 
 export const ROUND_CAP = 5;
 export type RoundKind = 'review' | 'plan';
@@ -42,8 +43,8 @@ export function allowancesOf(snapshot: RepoSnapshot, id: string, kind: RoundKind
   return out;
 }
 
-/** The cap, the allowed rounds and the stop of one cycle; the caller passes only that cycle's allowances. */
-export function cycleState(cycle: RoundCycle, allowances: Allowance[], kind: RoundKind): {
+/** The cap, the allowed rounds and the stop of one cycle; the caller passes only that cycle's allowances. `deferred` (ST-LN-57 D-08) are findings that do not stop the loop. */
+export function cycleState(cycle: RoundCycle, allowances: Allowance[], kind: RoundKind, deferred: ReadonlySet<RoundFinding> = new Set()): {
   cap: number;
   allowed: (p: number) => boolean;
   stopAt: (q: number) => number | undefined;
@@ -54,7 +55,7 @@ export function cycleState(cycle: RoundCycle, allowances: Allowance[], kind: Rou
     const top = Math.min(q, rounds.length);
     for (let s = top; s >= 3; s--) {
       if (s < top && rounds[s].noFindings) return undefined; // round s + 1 reports no findings: it clears every stop up to s
-      if (!rounds[s - 1].findings.some((f) => f.severity !== 'Nice')) continue;
+      if (!rounds[s - 1].findings.some((f) => f.severity !== 'Nice' && !deferred.has(f))) continue;
       if (kind === 'plan') {
         const to = top < rounds.length ? rounds[top].line : Infinity;
         if (accepted.some((v) => v.line > rounds[s - 1].line && v.line < to)) continue;
@@ -83,6 +84,10 @@ export function planStopOf(cycle: RoundCycle, allowances: Allowance[]): number |
 
 const ofCycle = (all: Allowance[], index: number): Allowance[] => all.filter((a) => a.cycle === index + 1);
 
+/** The findings of one cycle (0-based) that leave the stop: review records only (ST-LN-57 D-08). */
+export const deferredFor = (snapshot: RepoSnapshot, id: string, kind: RoundKind, cycle: number): ReadonlySet<RoundFinding> =>
+  kind === 'review' ? deferredOf(snapshot, id, cycle) : new Set();
+
 /** Every reason the record cannot be read as it stands, in line order. */
 export function recordProblems(snapshot: RepoSnapshot, id: string, kind: RoundKind): { line: number; reason: string }[] {
   const work = workOf(snapshot, id);
@@ -102,7 +107,7 @@ export function recordProblems(snapshot: RepoSnapshot, id: string, kind: RoundKi
       } else if (before.verdicts.length === 0) {
         add(cycle.line, `cycle ${i} has no verdict: line before ## Return from verify`);
       } else {
-        const stop = cycleState(before, ofCycle(all, i - 1), kind).stopAt(before.rounds.length);
+        const stop = cycleState(before, ofCycle(all, i - 1), kind, deferredFor(snapshot, id, kind, i - 1)).stopAt(before.rounds.length);
         const last = before.verdicts[before.verdicts.length - 1];
         if (stop !== undefined && !(last.value === 'accepted-by-owner' && last.quoted)) {
           add(cycle.line, `## Return from verify follows the stop at round ${stop} of cycle ${i}, which the owner did not accept with verdict: accepted-by-owner "<sentence>"`);
@@ -205,7 +210,7 @@ export function nextRound(snapshot: RepoSnapshot, id: string, kind: RoundKind): 
   const cyc = rec.cycles[k - 1];
   const L = cyc.rounds.length;
   const all = allowancesOf(snapshot, id, kind);
-  const st = cycleState(cyc, ofCycle(all, k - 1), kind);
+  const st = cycleState(cyc, ofCycle(all, k - 1), kind, deferredFor(snapshot, id, kind, k - 1));
   const stopOf = (q: number) => (kind === 'plan' ? planStopOf(cyc, ofCycle(all, k - 1)) : st.stopAt(q));
   const textsOf = (n: number) => ({ round: n, lines: cyc.rounds[n - 1].findings.map((f) => f.text) });
   const findingsFor = (s: number) => (L === s ? [textsOf(s)] : [textsOf(s), textsOf(L)]);

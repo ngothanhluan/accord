@@ -67,6 +67,7 @@ import {
 } from './lane-s.js';
 import { branchUnknown, interfaceSign, outOfScope, sensitiveTouched } from './scope.js';
 import { planRounds, reviewRounds } from './rounds.js';
+import { findingEvidence } from '../round/evidence.js';
 import { reviewScope, reviewScopeSkipped } from '../round/scope.js';
 import { reviewMissing, reviewUnconverged, suiteNotPassed, tasksIncomplete, testUntracedAtDone } from './work.js';
 import {
@@ -164,6 +165,8 @@ const REVIEW_ROUNDS: GateRule = { id: 'gate.review-rounds', level: 'error', prof
 /** ST-LN-57: the record against git (version, heads, marks, final review) and D-10's notice that those checks were skipped. */
 const REVIEW_SCOPE: GateRule = { id: 'gate.review-scope', level: 'error', profiles: ['build', 'maintain'], check: reviewScope };
 const REVIEW_SCOPE_SKIPPED: GateRule = { id: 'gate.review-scope-skipped', level: 'warning', profiles: ['build', 'maintain'], check: reviewScopeSkipped };
+/** ST-LN-57 ac-2: from round 3 a new Must or Should outside the last fix's files needs a test or command, or a deferral. */
+const FINDING_EVIDENCE: GateRule = { id: 'gate.finding-evidence', level: 'error', profiles: ['build', 'maintain'], check: findingEvidence };
 const SUITE_NOT_PASSED: GateRule = { id: 'gate.suite-not-passed', level: 'error', profiles: ['build', 'maintain'], check: suiteNotPassed };
 const COMMIT_TRAILER: GateRule = { id: 'gate.commit-trailer', level: 'error', profiles: ['build', 'maintain'], check: commitTrailer };
 /** ST-LN-62: Done reads the branch diff of every ticket with `lane:`; no diff, an empty diff, or in lane S a diff without the ticket file, fails closed. */
@@ -209,6 +212,7 @@ export const DONE_RULES: readonly GateRule[] = [
   REVIEW_ROUNDS,
   REVIEW_SCOPE,
   REVIEW_SCOPE_SKIPPED,
+  FINDING_EVIDENCE,
   SUITE_NOT_PASSED,
   { id: 'gate.test-untraced', level: 'error', profiles: ['build', 'maintain'], check: testUntracedAtDone },
   // GATE-05 (D-79): warnings, and never more. docs/design.md §4 makes the reviewer not a role, so the
@@ -228,6 +232,7 @@ export const DONE_S_RULES: readonly GateRule[] = [
   REVIEW_ROUNDS,
   REVIEW_SCOPE,
   REVIEW_SCOPE_SKIPPED,
+  FINDING_EVIDENCE,
   { id: 'gate.review-trailing', level: 'error', profiles: ['build', 'maintain'], check: reviewTrailing },
   { id: 'gate.review-uncommitted', level: 'error', profiles: ['build', 'maintain'], check: reviewUncommitted },
   { id: 'gate.review-commit-code', level: 'error', profiles: ['build', 'maintain'], check: reviewCommitCode },

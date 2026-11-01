@@ -1,7 +1,7 @@
 // ST-LN-17 AC-3, AC-4: Done and the plan gate read the round records. A round run past the cap or past a stop,
 // a stop the owner has not lifted, and a record accord cannot read each fail, so the cap and the stop hold in
 // every tool and not only where a session asked `accord round`.
-import { allowancesOf, cycleState, planStopOf, recordProblems } from '../round/next.js';
+import { allowancesOf, cycleState, deferredFor, planStopOf, recordProblems } from '../round/next.js';
 import { cycleOpen } from '../round/record.js';
 import { scopeProblems } from '../round/scope.js';
 import { doneOnDefault } from '../status/stage.js';
@@ -33,7 +33,7 @@ function check(snapshot: RepoSnapshot, id: string, kind: RoundKind): GateDraft[]
 
   const all = allowancesOf(snapshot, id, kind);
   rec.cycles.forEach((cycle, i) => {
-    const state = cycleState(cycle, all.filter((a) => a.cycle === i + 1), kind);
+    const state = cycleState(cycle, all.filter((a) => a.cycle === i + 1), kind, deferredFor(snapshot, id, kind, i));
     for (let p = 1; p <= cycle.rounds.length; p++) {
       if (state.allowed(p)) continue;
       const why = p > state.cap ? `past the cap of ${state.cap} rounds` : `after the stop at round ${state.stopAt(p - 1)}`;
@@ -46,7 +46,7 @@ function check(snapshot: RepoSnapshot, id: string, kind: RoundKind): GateDraft[]
   const last = rec.cycles[k - 1];
   const mine = all.filter((a) => a.cycle === k);
   if (kind === 'review') {
-    const s = cycleState(last, mine, kind).stopAt(last.rounds.length);
+    const s = cycleState(last, mine, kind, deferredFor(snapshot, id, kind, k - 1)).stopAt(last.rounds.length);
     const verdict = last.verdicts[last.verdicts.length - 1];
     if (s !== undefined && !(verdict?.value === 'accepted-by-owner' && verdict.quoted)) {
       add(

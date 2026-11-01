@@ -105,3 +105,24 @@
 - plan round 1.15 (Nice): an unresolved head empties every range, so gate done floods `gate.finding-evidence` and "remove the mark" errors; skip those checks while any head is `unknown`
 - plan round 1.16 (Nice): Task 4 does not say whether `readHistory` returning `{ error }` fails gate done for a version 1 record whose pin allows version 1
 - plan round 2.4 (Nice): the added-code Ruling's "passes on every git" holds for `gate.review-scope` but not for Task 7's evidence count when two gits list a clean merge differently; narrow the claim and name it under the approach's git-version risk
+- review 1.12 (Nice): firstParent returns the record sha itself on any rev-parse failure, failing open — packages/cli/src/load/round-facts.ts:67
+- review 1.13 (Nice): a failing `git rev-list --count` silently falls back to the whole base...HEAD diff with main's code in a version 2 package — packages/cli/src/commands/review-package.ts:104
+- review 1.14 (Nice): a finding location is compared to git paths unnormalised, so `./src/a.ts` or a backslash path misses the fix-file set — packages/core/src/round/record.ts:17
+- review 1.15 (Nice): a location written `` `src/a.ts:12` `` keeps `:12` in the file — packages/core/src/round/record.ts:17
+- review 1.16 (Nice): a lone quote in a finding's text pairs with the opening quote of a later mark and makes the line unreadable — packages/core/src/round/record.ts:34
+- review 1.17 (Nice): needsEvidence is exported and used nowhere — packages/core/src/round/evidence.ts:55
+- review 1.18 (Nice): the ac-2 message tells a Should deferred passes, but ac-4 still fails it without grounds — packages/core/src/round/evidence.ts:101
+- review 1.19 (Nice): no lane S test for ac-2 and ac-5 — packages/core/test/finding-evidence.test.ts:1
+- review 1.20 (Nice): `--base` and the plan's baseline reach git rev-parse before the REF check — packages/cli/src/commands/review-package.ts:43
+- review 1.21 (Nice): ranges are listed in date order reversed, not topological order — packages/cli/src/load/walk.ts:38
+- review 1.22 (Nice): review-scope-package.test.ts re-parses its own fixture, and round-facts.test.ts accepts either of two heads — packages/cli/test/round-facts.test.ts:82
+- review 1.23 (Nice): no test for isAncestor or mergeBase exit other than 1 in record-history.ts — packages/cli/src/load/record-history.ts:73
+- review 1.24 (Nice): whyGit is written four times and the GIT options object twice — packages/cli/src/load/walk.ts:15
+- review 1.25 (Nice): no text says what to do when the package prints `Head: (cannot tell: …)` — packages/core/skills/review/SKILL.md:20
+- review 1.26 (Nice): no text says each mark kind appears at most once on a finding line — packages/core/skills/review/record.md:30
+- review 1.27 (Nice): text says merges of the default branch are not fix commits, but the code excludes every merge — packages/core/skills/review/record.md:40
+- review 1.28 (Nice): the final-review placement phrase does not say a stretch ends at a round an owner allowance names — packages/core/skills/review/record.md:24
+- review 1.29 (Nice): the review skill does not point to the fix-file exemptions or the version 1 package forms, and drops the whole-ticket and merge-resolution sentences — packages/core/skills/review/SKILL.md:27
+- review 1.30 (Nice): failure.md still describes the `Review base:` round, and a stage-skills test title says the package reads after the review base — packages/core/skills/shared/failure.md:47
+- review 1.31 (Nice): `<r>` in the Deferred line is not defined as the round's place in its cycle — packages/core/skills/review/record.md:37
+- review 1.32 (Nice): the `--base` help text still says the default is the plan's baseline — packages/cli/src/run.ts:173

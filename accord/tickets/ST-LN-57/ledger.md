@@ -6,6 +6,7 @@
 - task 3 done 6b0dd94523fd
 - task 4 done d5bdab866bca
 - task 5 done a9112c25cb76
+- task 6 done b22e062e87a9
 
 ## Rulings
 
@@ -77,6 +78,8 @@
 - Ruling: (task 5) in rounds.ts the unversioned-record branch gives no `Round record: 1` finding whenever `scopeProblems` returns anything, including the "review scope cannot be checked" error — the plan words it as "reports the version refusal", and gate.review-scope still fails in both cases — if wrong, after a git error is fixed the missing-version-line finding appears one run later.
 - Ruling: (task 5) `reviewScopeSkipped` also fires for a version 1 record whose facts show the pin refuses version 1, and for any version 2 record, when `skipped` holds (D-10); with no facts and a version 1 record it stays silent — the plan names the skip, not each record kind — if wrong, one warning line is missing.
 - Ruling: (task 5) shas in the review-scope messages are cut to 12 characters, including the rounds' highs listed in the version refusal — a 12-character head is valid and copyable — if wrong, a session retypes a longer sha.
+- Ruling: (task 6) the executor used the Task 4 and Task 5 code (`round/scope.ts`, `load/round-facts.ts`) as it stands and did not re-review it — both are outside this task's `files:` line and were recorded with their own tests — if wrong, a defect there is found only at review.
+- Ruling: (task 6) the first task 6 executor was cut off by the session's end before committing; a fresh executor got the same brief plus the uncommitted partial diff, checked it against the brief, kept it unchanged and showed the failing tests with the source changes set aside — no work is lost and the test-first evidence is still produced — if wrong, unchecked partial code reached the commit, which review reads in full.
 
 ## Deferred
 - plan round 1.8 (Nice): rolling back to the 0.3.0 CLI needs an owner allowance Ruling per cycle that went past round 3 with deferred findings (0.3.0 has no D-08); rolling forward sets line 1 back to `Round record: 2`

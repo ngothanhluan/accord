@@ -1,6 +1,6 @@
 ---
 baseline: c37bfa86c27c4f58dec8f844251038a4602eb8c9
-plan_hash: "fnv1a64:91b92bc433e1b4dc"
+plan_hash: "fnv1a64:a377470d56e6ed9d"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -11,10 +11,12 @@ critique's cap and stop (@ac-4): the CLI half that each round of the approach lo
 critic and the planner: the planner gains the `direction` mode that carries the architect's rules, the critic's
 `approach` mode defers implementation detail and reads only the Approach diff from round 2, and its `plan` and
 `diff` modes check every Decision and Correction (@ac-5); `architect.md` is deleted. Task 3 rewrites the
-approach skill around them, with its own critique loop (@ac-2, @ac-3). Task 4 retires the architect's route in
-core: the planner default becomes opus/high (D-06), `models.architect` draws a lint warning, a deleted retired
-agent file is exempt from the scope gates, and the docs follow. Task 5 makes `accord skills sync` and
-`accord upgrade` remove a rendered `accord-architect.md` and proves the whole of ac-1 at the CLI.
+approach skill around them, with its own critique loop (@ac-2, @ac-3). Task 4 retires the architect's route:
+the planner default becomes opus/high (D-06), `models.architect` draws a lint warning, the deletion of a retired
+agent file whose merge-base copy shows no edit is exempt from the scope gates, and the docs follow. Task 5 makes
+`accord skills sync` and `accord upgrade` remove a rendered `accord-architect.md` and proves the whole of ac-1 at
+the CLI. Task 6 keeps the benchmark scripts working once `accord upgrade` removes this repository's own
+`.claude/agents/accord-architect.md`.
 
 Exact text. A string this plan gives in a fenced block is written into the file exactly as the block shows it,
 as one line unless the block holds several; its backticks are part of the text.
@@ -23,10 +25,15 @@ Rules for every task:
 - Test ids. Every test this plan adds is a top-level `it(...)` with no `describe` around it. Its report id is
   the file path from the repository root, `#`, then the `it` title with each whitespace run turned into `-`.
   No title holds `@`, a comma or an apostrophe.
-- No existing test is renamed or removed. Several existing ids are listed in `accord/tests-baseline.txt` or
-  named by a done ticket's `@test:` tag (SHOW-1, ST-LN-4, ST-LN-13), and `gate.test-untraced` fails a renamed
-  one at Done. Where a task below changes an existing test, it changes the body only and keeps the title, even
-  where the title still names the architect; a one-line comment above such a test says why.
+- No existing test is renamed or removed, with one exception: Task 2 drops the `architect` row of
+  `AGENT_REQUIRED` (`packages/core/test/agents.test.ts:17-25`), which removes the case
+  `packages/core/test/agents.test.ts#agents-name-what-the-spec-requires->-architect-names-every-required-phrase`
+  (`accord/tests-baseline.txt:285`). That removal fails nothing: `untracedTests` reads only the ids in the test
+  report (`packages/core/src/lint/tests.ts:17-19`), so a baseline id no test reports is never flagged. Several
+  existing ids are listed in `accord/tests-baseline.txt` or named by a done ticket's `@test:` tag (SHOW-1,
+  ST-LN-4, ST-LN-13, ST-LN-14), and `gate.test-untraced` fails a renamed one at Done. Where a task below changes an
+  existing test, it changes the body only and keeps the title, even where the title still names the architect; a
+  one-line comment above such a test says why.
 - After any edit under `packages/core/agents/` or `packages/core/skills/`, or to `README.md`, run `npm run gen`,
   then `npm run build` (`accord/product/conventions.md`); CLI tests read the built core, so `npm run build` also
   runs before any CLI test. Do not run `skills sync` in this repository and change nothing under `.claude/` or
@@ -55,6 +62,10 @@ Names shared by every task:
   ```
 - `RETIRED_FILES`, exported from `packages/core/src/skills/agents.ts` and `packages/core/src/index.ts`, is
   `['.claude/agents/accord-architect.md']`: the files accord once rendered and no longer renders.
+- `isIntactRender(text: string): boolean`, exported from the same two files, is true when `normaliseText(text)`
+  carries a marker (`markerHash` defined) whose hash equals `contentHash(withoutMarker(<the normalised text>))`:
+  a copy accord rendered that nobody edited. It is the test `writeSkillFiles` applies inline
+  (`packages/cli/src/commands/skills.ts:67-69`), which stays as it is.
 - The lint rule is `lint.model-retired`; the sync report state for a removed retired file is `removed`.
 - SEVENTH, the critic's seventh plan check, identical in `critic.md` and `planner.md`:
 
@@ -164,11 +175,12 @@ skill dispatches, and no `accord-architect.md` among `agentTargets`.
   architect's reasoning go):
 
   ```text
-  - Your caller names one mode, `approach`, `plan`, or `diff`, and gives you the path of the ticket file. Read the whole ticket. In `approach` mode the ticket's `## Approach` holds only the chosen option's name, what it does and its impact list; judge it without its author's reasoning. From round 2 of `approach` mode you also get the paths of a file holding `git diff` of the ticket since the previous round, which shows how `## Approach` changed, and of `accord/tickets/<id>/approach-review.md`; read `## Approach` at the changed lines and raise new findings only on the changed lines. In `plan` mode you get the path of `accord/tickets/<id>/plan.md`.
+  - Your caller names one mode, `approach`, `plan`, or `diff`, and gives you the path of the ticket file. Read the whole ticket, except that from round 2 of `approach` mode you read `## Approach` only at the changed lines, never in full. In `approach` mode the ticket's `## Approach` holds only the chosen option's name, what it does and its impact list; judge it without its author's reasoning. From round 2 of `approach` mode you also get the paths of a file holding `git diff` of the ticket since the previous round, which shows how `## Approach` changed, and of `accord/tickets/<id>/approach-review.md`; raise new findings only on the changed lines. In `plan` mode you get the path of `accord/tickets/<id>/plan.md`.
   ```
 - `critic.md` line 13: `the first, second, third and fifth checks` becomes
   `the first, second, third, fifth and seventh checks`; the rest of the line stays.
-- `critic.md` line 14: its text up to the first comma after `fixed:` becomes the block below; the rest of the line
+- `critic.md` line 14: its text from its start up to and including `that the plan now fixes,` becomes the block
+  below, and a space then the unchanged rest of the line follow it, starting `and never repeat`; that rest
   stays word for word, `whether or not the plan changed` included (`packages/core/test/agents.test.ts:194`):
 
   ```text
@@ -213,7 +225,7 @@ the last equals SEVENTH; the lines after ``Mode `diff`:`` up to the first blank 
 `Before you reply, run these checks of the critic's plan mode on your plan and fix what fails:`.
 
 Body edits to existing tests, titles kept (preamble):
-- `packages/core/test/agents.test.ts:17-25`: drop the `architect` row; in the critic row `'text only'` becomes
+- `packages/core/test/agents.test.ts:17-25`: drop the `architect` row (the one removal the preamble allows); in the critic row `'text only'` becomes
   `'defer to plan'`; the planner row adds ``'`direction` mode'``, `'first rung'` and `'climb further'`.
 - `agents.test.ts:69-74` (`renders the architect and the critic read-only on their spec routes`): assert the
   critic's frontmatter matches `{ name: 'accord-critic', tools: 'Read, Grep, Glob', model: 'opus', effort: 'high' }`
@@ -335,7 +347,8 @@ Must not change: the plan skill's loop (`stage-skills.test.ts:332-379` passes); 
 sentences above, step 6 and `## Rules` of the approach skill; the Continue routes of `/accord`
 (`stage-skills.test.ts:1041-1049`).
 
-Tests first, in `packages/core/test/approach-fold.test.ts`, two top-level `it`s:
+Tests first: add two top-level `it`s to `packages/core/test/approach-fold.test.ts`, the file Task 2 created;
+its ac-5 test and its imports and helpers stay as Task 2 wrote them:
 - `ac-2 the planner direction pass returns the approach draft and writes no file`: `flat(planner)` holds each
   P line below. In `flat(skill)` of `.claude/skills/accord-approach/SKILL.md`, the slice from `2. **Options.**`
   to `3. **Critique.**` holds each S line below, and the whole skill does not hold `accord-architect`.
@@ -359,6 +372,7 @@ S: It writes no file
 S: three failure scenarios in total
 S: Write into `## Approach` only the chosen option's name, what it does, and the impact list
 R: is marked `defer to plan` and rated Nice, never a Must or a Should
+R: read `## Approach` only at the changed lines, never in full
 R: From round 2 of `approach` mode you also get the paths of a file holding `git diff` of the ticket since the previous round
 R: `accord/tickets/<id>/approach-review.md`
 R: raise new findings only on the changed lines
@@ -374,17 +388,19 @@ Body edit, title kept: `packages/core/test/stage-skills.test.ts:25`, the `approa
 approach: ['accord anchor', 'accord-planner', '`direction` mode', 'accord-critic', '## Approach', 'accord approve', 'accord gate ready', 'accord-plan', 'ladder order', 'not yet ruled out', 'three failure scenarios', 'undone', 'back to step 3', 'Commit `accord/tickets/<id>.md`', 'Decisions, and Corrections as written', 'approved_hash:', './critique.md', '`accord round <id> --approach`'],
 ```
 
-## Task 4: Retire the architect route in core: planner default, the lint warning, the scope exemption, the docs
+## Task 4: Retire the architect route: planner default, the lint warning, the scope exemption, the docs
 
 covers: D-01, D-06
-files: packages/core/src/skills/agents.ts, packages/core/src/model/snapshot.ts, packages/core/src/index.ts, packages/core/src/lint/config.ts (new), packages/core/src/lint/rules.ts, packages/core/src/gate/scope.ts, packages/core/test/scope.test.ts, packages/core/test/agents.test.ts, docs/design.md, docs/specs/2026-10-12-workflow-layer-design.md
-verify: packages/core/test/scope.test.ts#risk:complex-branching-a-deleted-retired-agent-file-is-exempt-from-the-lane-S-scope-and-a-changed-one-is-not
+files: packages/core/src/skills/agents.ts, packages/core/src/model/snapshot.ts, packages/core/src/index.ts, packages/core/src/lint/config.ts (new), packages/core/src/lint/rules.ts, packages/cli/src/load/fs.ts, packages/cli/test/branch-fact.test.ts, packages/core/test/agents.test.ts, docs/design.md, docs/specs/2026-10-12-workflow-layer-design.md
+verify: packages/cli/test/branch-fact.test.ts#risk:data-loss-a-deleted-retired-agent-file-is-exempt-from-the-scope-gates-only-when-its-merge-base-copy-shows-no-edit
 
 Consumes Task 2's deletion of `architect.md`. Produces:
 - `packages/core/src/skills/agents.ts`: `AGENT_DEFAULTS` loses `architect`; `planner` becomes
   `{ model: 'opus', effort: 'high' }` (D-06). `export const RETIRED_FILES: readonly string[] = [agentDir +
   '/accord-architect.md'];`, with a comment: rendered by accord before ST-LN-80, removed by `skills sync` and
-  `accord upgrade` when its marker is intact. `packages/core/src/index.ts` line 84 also exports it.
+  `accord upgrade` when its marker is intact. `export function isIntactRender(text: string): boolean` as the
+  preamble defines it, importing `contentHash`, `markerHash` and `withoutMarker` from `./render.js` and
+  `normaliseText` from `../load/frontmatter.js`. `packages/core/src/index.ts` line 84 also exports both.
 - `packages/core/src/model/snapshot.ts`: `RouteKey` (line 233) loses `'architect'`; `AccordConfig.models` (line
   247) becomes `Partial<Record<RouteKey | 'architect', { model: string; effort?: Effort }>>`, its comment saying
   `architect` is still accepted and has no effect (ST-LN-80). `packages/core/schemas/config.schema.json` is not
@@ -397,11 +413,16 @@ Consumes Task 2's deletion of `architect.md`. Produces:
   ```text
   models.architect has no effect: accord no longer renders accord-architect, and the planner drafts the approach, so models.planner now applies; remove models.architect
   ```
-- `packages/core/src/gate/scope.ts` `isExempt` (line 35), before the `.claude/settings.json` line, with
-  `RETIRED_FILES` imported from `../skills/agents.js`:
-  `if (RETIRED_FILES.includes(path) && fact.changes.some((c) => c.path === path && c.kind === 'deleted')) return true;`.
-  This exempts the deletion from `gate.out-of-scope`, the undeclared files (`packages/core/src/round/grounds.ts:124`)
-  and the call-sign read, as a synced copy is.
+- `packages/cli/src/load/fs.ts` `gitBranchFact` (line 1267), the host side, since core cannot read the deleted
+  file's text: line 6 also imports `isIntactRender` and `RETIRED_FILES`. In the batch read (lines 1369-1381),
+  `want(base, c.path)` for every change whose `kind` is `'deleted'` and whose path `RETIRED_FILES` holds. After the
+  settings check (line 1418) and before `synced.sort(byCodePoint)`, those paths whose text
+  `filesAt(base, <those paths>)` returns passes `isIntactRender` are pushed onto `synced`, with a comment: ST-LN-80,
+  a retired file `skills sync` or `accord upgrade` removed is exempt as a synced copy is; a copy someone edited is
+  not, so deleting it stays a change the scope gates see. `isExempt` reads `fact.synced` (`packages/core/src/gate/scope.ts:38`),
+  so the deletion of an intact copy passes `gate.out-of-scope`, the undeclared files
+  (`packages/core/src/round/grounds.ts:124`) and the call-sign read. The merge base's text comes from the git
+  tree, which follows no link: a link's blob holds its target path, whose marker is never intact.
 - `docs/design.md:184`: the agent list loses `architect`.
 - `docs/specs/2026-10-12-workflow-layer-design.md`: line 120 reads `the scout, critic and planner read the listed
   records`; line 142 ends `takes an explicit yes before the approach stage starts`; lines 201-202 say Continue
@@ -416,18 +437,27 @@ Consumes Task 2's deletion of `architect.md`. Produces:
   every Correction kept to what the critic checks; the §12 table (lines 522-530) loses the `accord-architect` row,
   and its planner row reads `` | `accord-planner` | `plan.md`; the approach draft in `direction` mode | writes plan only | Opus, high | ``.
 
-Must not change: every other route default; the `agentTargets` output of the other nine agents; `isExempt` for
-every path not in `RETIRED_FILES`, and for a retired path that is changed but not deleted; the lint findings of
-every existing fixture (`packages/core/test/lint.test.ts` and its goldens pass unchanged, since none sets
-`models.architect`).
+Must not change: every other route default; the `agentTargets` output of the other nine agents;
+`packages/core/src/gate/scope.ts`, which is not edited, so core exempts a retired path only through `synced`, after
+the host's content check; every other entry of `synced` (`packages/cli/test/branch-fact.test.ts` passes
+unchanged); the lint findings of every existing fixture (`packages/core/test/lint.test.ts` and its goldens pass
+unchanged, since none sets `models.architect`).
 
-Test first, in `packages/core/test/scope.test.ts`, a top-level `it` titled
-`risk:complex-branching a deleted retired agent file is exempt from the lane S scope and a changed one is not`,
-with the file's `ch`, `fact`, `snap`, `found` and `S1` (lines 10-27):
-`found(snap({ 'accord/tickets/S-1.md': S1 }, { 'S-1': fact([ch('.claude/agents/accord-architect.md', 40, 'deleted')]) }), 'S-1', 'gate.out-of-scope')`
-is `[]`; the same with `ch('.claude/agents/accord-architect.md', 2)` (modified) gives one finding whose reason
-names `.claude/agents/accord-architect.md`; the same with `ch('.claude/agents/accord-old.md', 40, 'deleted')`
-gives one finding whose reason names `.claude/agents/accord-old.md`.
+Test first, in `packages/cli/test/branch-fact.test.ts`, a top-level `it` titled
+`risk:data-loss a deleted retired agent file is exempt from the scope gates only when its merge-base copy shows no edit`,
+third argument `120_000`, with the file's `repoWith`, `importCommits` and `checkedOut`. Line 6 also imports
+`contentHash`. A helper `rendered()` builds an intact old render:
+`head = '---\nname: "accord-architect"\ntools: "Read, Grep, Glob"\nmodel: "opus"\neffort: "high"\n---\n'`,
+`body = '\nYou propose how a ticket could be built, lightest first.\n'`, and it returns
+`head + '<!-- generated by accord skills sync - do not edit - ' + contentHash(head + body) + ' -->\n' + body`.
+For each pair `[rendered(), true]` and `[rendered() + 'a hand edit\n', false]`, `[text, exempt]`, in its own
+repository cleaned up in `finally`:
+`base = { 'accord/config.yml': CONFIG, 'accord/tickets/S-1.md': laneTicket('S-1', { lane: 'S', body: LANE_S_BODY + '\n## Scope\nsrc/a.ts\n' }), 'src/a.ts': 'a\n', '.claude/agents/accord-architect.md': text }`,
+`repo = repoWith(base)`, `T = 'refs/heads/t/S-1'`, then
+`importCommits(repo, [{ name: 'base', ref: 'refs/heads/main', message: 'base', files: base, also: [T] }, { name: 'gone', ref: T, from: 'base', message: 'gone', files: { 'src/a.ts': 'a2\n', '.claude/agents/accord-architect.md': null } }])`
+and `checkedOut(repo, T)`. `f = gitBranchFact(repo, 'S-1', { rendered: [], scope: false })` holds no `error`,
+`f.changes.find((c) => c.path === '.claude/agents/accord-architect.md')?.kind` is `'deleted'`, and
+`f.synced.includes('.claude/agents/accord-architect.md')` is `exempt`.
 
 Body edit, title kept: in `packages/core/test/agents.test.ts`, `renders the architect and the critic read-only on
 their spec routes` (as Task 2 left it) also asserts that the rendered planner's frontmatter matches
@@ -439,19 +469,21 @@ covers: @ac-1, D-01, D-05
 files: packages/cli/src/commands/skills.ts, packages/cli/src/commands/upgrade.ts, packages/cli/test/retired-agent.test.ts (new), packages/cli/test/upgrade.test.ts, packages/cli/test/skills-sync.test.ts, README.md, packages/cli/README.md
 verify: packages/cli/test/retired-agent.test.ts#ac-1-sync-removes-the-rendered-architect-agent-and-lint-accepts-models-architect-with-a-warning (@ac-1), packages/cli/test/retired-agent.test.ts#risk:data-loss-sync-keeps-an-edited-architect-agent-and-reports-it-as-an-orphan, packages/cli/test/retired-agent.test.ts#risk:security-sync-removes-no-retired-agent-through-a-linked-agents-folder, packages/cli/test/upgrade.test.ts#risk:data-loss-upgrade-deletes-the-retired-architect-agent-only-when-its-marker-shows-no-edit
 
-Consumes `RETIRED_FILES`, `markerHash`, `contentHash`, `withoutMarker` and `normaliseText` from
-`@accord-dev/accord-core` (Task 4), and the `lint.model-retired` rule. Produces:
+Consumes `RETIRED_FILES` and `isIntactRender` from `@accord-dev/accord-core` (Task 4), and the
+`lint.model-retired` rule. Produces:
 - `packages/cli/src/commands/skills.ts`: `ReportRow.status` (line 40) gains `'removed'`. A new
   `removeRetired(root: string, out: ReportRow[]): void`: for each path of `RETIRED_FILES`, skip it unless
   `scannable(root, <its folder>)` (line 195, the orphan scan's link check) and `lstatSync(file, { throwIfNoEntry:
-  false })?.isFile() === true`; read it, `normaliseText` it, and only when `markerHash(text)` is defined and equals
-  `contentHash(withoutMarker(text))`, delete it with `rmSync(file)` and push `{ status: 'removed', path }`. It
-  runs whatever `runtimes:` says. `skills()` calls it after `writeHooks` and before `orphans`, so an edited copy is
+  false })?.isFile() === true`; read it, and only when `isIntactRender(text)`, delete it with `rmSync(file)` and
+  push `{ status: 'removed', path }`. The read and the `rmSync` sit in one `try` whose `catch` swallows the error,
+  leaves the file where it is and pushes no row (a read-only `.claude/agents` on POSIX, `EBUSY` or `EPERM` on
+  Windows): sync goes on, prints its whole report, every `overwrote local edits` row included (D-112), exits 0,
+  and the orphan scan lists the file it could not remove. It runs whatever `runtimes:` says. `skills()` calls it after `writeHooks` and before `orphans`, so an edited copy is
   still on disk when the scan runs and is reported as an orphan (line 173). The comments that say sync never
   deletes (lines 4-8, 149-151) say instead that it deletes no orphan and removes only a retired file it rendered,
   and the orphan line (line 236) reads `' - no longer declared; accord deletes no orphan - remove it with: rm -rf '`.
 - `packages/cli/src/commands/upgrade.ts`: line 47 reads `[CONFIG, WORKFLOW, SETTINGS, ...RETIRED_FILES]`. The
-  retired paths whose text read there has an intact marker (the same test as above) are removed from the
+  retired paths whose text read there passes `isIntactRender` are removed from the
   temporary index right after the `update-index --index-info` call (line 101), with
   `gitIn(root, ['update-index', '--force-remove', '--', ...paths], { env })` when there is any. The text comes
   from the git tree, which follows no link: a link's blob holds its target, whose marker is never intact, and a
@@ -506,3 +538,48 @@ take `const c = copy(pinned, pinnedOther)`, write the text to `.claude/agents/ac
 `c.root` (exit 0), and read
 `gitRun(c.remote, 'ls-tree', '-r', '--name-only', 'upgrade/' + v, '--', '.claude/agents/accord-architect.md').trim()`:
 empty for the intact copy, the path for the edited one.
+
+## Task 6: The benchmark scripts read no retired agent file that is gone
+
+covers: D-01
+files: scripts/round.mjs, scripts/benchmark.mjs, packages/core/test/benchmark-round.test.ts
+verify: packages/core/test/benchmark-round.test.ts#risk:regression-the-benchmark-skips-a-retired-agent-whose-rendered-file-is-gone-and-still-needs-every-other-agent-file
+
+Why: `agentSettings` (`scripts/benchmark.mjs:410-416`) reads `.claude/agents/<agent>.md` for every agent of `ROLES`
+(`scripts/round.mjs:6-16`, which holds `accord-architect`), and `ac-2 a run holds only when it is no worse than the
+current effort on the same sample` calls it on this repository (`packages/core/test/benchmark-round.test.ts:191`).
+Once this repository's pin moves past this ticket, `accord upgrade` removes its `.claude/agents/accord-architect.md`
+(Task 5) and that read throws `ENOENT`. The five `accord-architect` samples of `scripts/benchmark-samples.json`
+stay: they record round 1, and `checkSamples` and the sample counts of `benchmark-samples.test.ts:103` and
+`benchmark-worktree.test.ts:576` still need them.
+
+Consumes the rendered agents under `.claude/agents/`. Produces:
+- `scripts/round.mjs`: right after `ROLES`, which stays as it is,
+  `export const RETIRED = ['accord-architect'];`, with a one-line comment: agents accord no longer renders
+  (ST-LN-80); their round-1 samples stay in the list, and the matrix leaves them out once their file is gone.
+  `runMatrix` (line 89) maps only the samples whose agent has an entry in `settings`:
+  `list.samples.filter((s) => Object.hasOwn(settings, s.agent)).flatMap(...)`, the mapping itself unchanged.
+- `scripts/benchmark.mjs`: line 14 also imports `RETIRED` from `./round.mjs`. `agentSettings` skips an agent that
+  `RETIRED` holds and whose `.claude/agents/<agent>.md` does not exist (`fs.existsSync`); every other agent's file
+  is read as today, so a missing one still throws.
+
+Must not change: `ROLES`, `checkSamples`, `scripts/benchmark-samples.json`; every row `runMatrix` returns when
+`settings` has an entry for every agent of the list; what `agentSettings` returns while
+`.claude/agents/accord-architect.md` exists, as it does in this repository until its pin moves past this ticket
+(`benchmark-round.test.ts`, `benchmark-samples.test.ts` and `benchmark-worktree.test.ts` pass unchanged).
+
+Test first, in `packages/core/test/benchmark-round.test.ts`, an async top-level `it` titled
+`risk:regression the benchmark skips a retired agent whose rendered file is gone and still needs every other agent file`.
+It imports `scripts/round.mjs` and `scripts/benchmark.mjs` as the tests above it do (`ROLES`, `RETIRED` and
+`runMatrix`; `agentSettings`), and works in `tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'bench-')))`,
+removed in `finally` with `rmSync(tmp, { recursive: true, force: true, maxRetries: 5 })`. With
+`others = Object.keys(ROLES).filter((a) => a !== 'accord-architect')`, make `<tmp>/.claude/agents` with
+`mkdirSync(..., { recursive: true })` and write `'---\nmodel: opus\neffort: high\n---\n'` to
+`<tmp>/.claude/agents/<a>.md` for each of `others`:
+- `RETIRED` equals `['accord-architect']`;
+- `Object.keys(agentSettings(tmp)).sort()` equals `[...others].sort()`;
+- `runMatrix(listOf(Object.keys(ROLES)), agentSettings(tmp))` has no row whose `agent` is `accord-architect`, and
+  `5 * 3 * others.length` rows (`high` runs at `medium`, `high` and `xhigh`);
+- with the same text written to `<tmp>/.claude/agents/accord-architect.md`, `agentSettings(tmp)` has an
+  `accord-architect` entry `{ model: 'opus', effort: 'high' }`;
+- with `<tmp>/.claude/agents/accord-scout.md` removed, `agentSettings(tmp)` throws.

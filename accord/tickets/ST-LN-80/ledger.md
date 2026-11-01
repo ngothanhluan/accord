@@ -23,8 +23,15 @@
 - Ruling: a `defer to plan` finding goes to the ledger under `## Deferred`, as plan critique does with a Nice — cost if wrong: deferred findings are not handed to the planner automatically
 - Ruling: retired files are removed whatever `runtimes:` says — a retired agent should not linger after the runtime list changes — cost if wrong: an intact copy disappears even where `claude` is no longer declared
 - Ruling: D-06 is checked inside the body of an existing baseline test, and the lint warning only by the end-to-end ac-1 test — a separate test would repeat ac-1 at another layer — cost if wrong: a lint-rule regression shows only in the CLI test
+- Ruling: one shared check, `isIntactRender(text)`, exported from core and used by fs.ts (Task 4), skills.ts and upgrade.ts (Task 5) — merge-base check, sync and upgrade cannot disagree on "intact" — cost if wrong: one more core export
+- Ruling: the scope exemption lives in Task 4 on the host side (fs.ts gitBranchFact), not in core scope.ts — finding 1.2 needs the merge-base content — cost if wrong: Task 4 grows by one host file and one test
+- Ruling: the five accord-architect benchmark samples stay in the round-1 list; only the settings read and the matrix skip a retired agent — removing them breaks the 45-sample checks — cost if wrong: the round-1 list still names a retired agent
+- Ruling: no test for an rmSync failure in removeRetired — a permission failure cannot be reproduced on both systems (Windows clears read-only; Linux test runs are root) — cost if wrong: the catch path is checked by review only
+- Ruling: Task 3's `files:` keeps `(new)` on approach-fold.test.ts, because gate plan reads `(new)` against the baseline; finding 1.5 is answered by Task 3's prose, which says to add to the file Task 2 created — cost if wrong: an executor reads `(new)` and rewrites the file, caught by the ac-5 test vanishing
 
 ## Deferred
 - plan 1.8 Nice: Task 5's "Must not change the orphan report" contradicts its rewording of skills.ts:236 — deferred
 - plan 1.9 Nice: `accord upgrade` does not say it removed the retired file — deferred
 - plan 1.10 Nice: workflow-layer spec line 592 still says "architect in lane P" — deferred
+- plan 2.2 Nice: the planner's final reply instruction still names plan.md in direction mode — deferred
+- plan 2.3 Nice: Task 3 does not say each phrase of the stage-skills approach row stays on one line — deferred

@@ -6,6 +6,7 @@
 - task 3 done 8a80ccc0076d
 - task 4 done 5056d5615f06
 - task 5 done f995368497ff
+- task 6 done a89ac64a6952
 
 ## Rulings
 - Ruling: a config that still sets `models.architect` loads, and lint warns that the key has no effect, rather than refusing it — config.schema.json has `additionalProperties: false`, so dropping the key would break every repository that set it — cost if wrong: a dead key lingers until a later release removes it

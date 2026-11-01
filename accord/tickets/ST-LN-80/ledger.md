@@ -48,6 +48,8 @@
 - Ruling: the skills-sync.test.ts comment sits directly above the existing "A roster change is the whole point" comment inside the `it` body (task 5) — the plan's line number had drifted — cost if wrong: none, a comment only
 - Ruling: upgrade takes `retired` as `RETIRED_FILES.filter(p => isIntactRender(files[p] ?? ''))`, so a missing path counts like an edited one and is never removed (task 5) — an empty string carries no marker — cost if wrong: none
 - Ruling: accord/research/2026-11-01-architect-fold-review.md line 56 now quotes the owner's choice in English only (review 1.1) — the repository is English-only and no-vietnamese.test.ts fails on the Vietnamese quote; the Intent cites this record as its evidence and the meaning is unchanged — cost if wrong: none, a wording-only change
+- Ruling: the deletion of packages/core/agents/architect.md landed in the re-approval commit f8e2a8d9, not in task 2's commit 47368331, because task 2's executor had staged it with `git rm` while the main session committed the ticket; the pushed history is kept, and the main session no longer commits while an executor runs (review 2.4) — rewriting pushed history costs more than the misattribution — cost if wrong: `git revert f8e2a8d9` alone would restore architect.md without its generated entry
+- Ruling: approach/critique.md step 3 (the ruled-out commit) also carries the ledger if it changed, not only step 5 (review 2.1 fix) — step 2 can write `## Deferred` or the ladder Ruling before that commit — cost if wrong: one extra phrase in the skill text
 
 ## Deferred
 - plan 1.8 Nice: Task 5's "Must not change the orphan report" contradicts its rewording of skills.ts:236 — deferred
@@ -60,3 +62,6 @@
 - review 1.3 Nice: the intact old architect render builder is copied into three test files — deferred
 - review 1.4 Nice: the risk:complex-branching test in approach-fold.test.ts pins nine whole skill sentences word for word — deferred
 - review 1.5 Nice: missing space before `=` in next.ts:91 and scripts/round.mjs:19 — deferred
+- review 2.2 Nice: after an accepted stop, approach/critique.md sends a refusal to step 4 while SKILL.md step 5 appends `## Closed` — deferred
+- review 2.3 Nice: the critic's revision bullet still says "the plan" in approach mode (critic.md:14) — deferred
+- review 2.4 Nice: the architect.md source deletion rode in the approval commit f8e2a8d9 — deferred, history kept; see the Ruling

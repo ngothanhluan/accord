@@ -42,7 +42,7 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: ST-LN-80
 
-  @ac-1
+  @ac-1 @test:packages/cli/test/retired-agent.test.ts#ac-1-sync-removes-the-rendered-architect-agent-and-lint-accepts-models-architect-with-a-warning
   Scenario: No agent named accord-architect is rendered or dispatched, and an old config still loads
     Given a repository whose accord/config.yml sets models.architect and whose .claude/agents holds an accord-architect.md that accord rendered
     When the owner runs accord skills sync and then accord lint

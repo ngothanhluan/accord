@@ -6,7 +6,19 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { agentTargets, lintSnapshot, loadConfig, loadSnapshot, pluginTargets, refreshLintStep, repinConfig, repinWorkflow, skillTargets } from '@accord-dev/accord-core';
+import {
+  agentTargets,
+  isIntactRender,
+  lintSnapshot,
+  loadConfig,
+  loadSnapshot,
+  pluginTargets,
+  refreshLintStep,
+  repinConfig,
+  repinWorkflow,
+  RETIRED_FILES,
+  skillTargets,
+} from '@accord-dev/accord-core';
 import pkg from '../../package.json' with { type: 'json' };
 import { gitDefaultRef, gitFilesAt, loadRefInput, UsageError } from '../load/fs.js';
 import { newer } from './notice.js';
@@ -44,7 +56,7 @@ export function upgrade(ctx: InitContext): number {
   const short = ref.replace('refs/remotes/origin/', '');
   const base = git(root, ['rev-parse', ref]).trim();
 
-  const files = gitFilesAt(root, ref, [CONFIG, WORKFLOW, SETTINGS]);
+  const files = gitFilesAt(root, ref, [CONFIG, WORKFLOW, SETTINGS, ...RETIRED_FILES]);
   const text = files[CONFIG];
   if (text === undefined) throw new UsageError(`no ${CONFIG} on ${short}` + NOTHING);
   const old = loadConfig(CONFIG, text);
@@ -99,6 +111,10 @@ export function upgrade(ctx: InitContext): number {
     const shas = gitIn(root, ['hash-object', '-w', '--no-filters', '--stdin-paths'], { input: Buffer.from(paths.join('\n') + '\n', 'utf8') }).trim().split('\n');
     const info = writes.map((w, i) => `100644 ${shas[i]}\t${w.path}\n`).join('');
     gitIn(root, ['update-index', '--index-info'], { env, input: Buffer.from(info, 'utf8') });
+    // ST-LN-80: a retired file whose marker shows no edit leaves the tree. The text is read from the git tree, which
+    // follows no link; a link's blob holds its target, whose marker is never intact.
+    const retired = RETIRED_FILES.filter((p) => isIntactRender(files[p] ?? ''));
+    if (retired.length > 0) gitIn(root, ['update-index', '--force-remove', '--', ...retired], { env });
     const tree = gitIn(root, ['write-tree'], { env }).trim();
     sha = gitIn(root, ['commit-tree', tree, '-p', base], { input: Buffer.from(`upgrade: accord ${v}\n`, 'utf8') }).trim();
   } finally {

@@ -93,7 +93,7 @@ Lanes:
 - S, a small fix (a bug, a copy change, one flag). The session writes one line for what it understood and one for when it is done, makes the change, runs the affected tests, and runs review rounds with a fresh reviewer until no Must finding is open. Then `gate done` and a pull request.
 - M, a feature (one story). It passes through six stages, each a skill you can also call directly:
   1. intent (`accord-intent`): an interview that writes the intent, acceptance criteria, vetoes and decisions.
-  2. approach (`accord-approach`): the lightest approach that works, argued against by a critic, approved by the owner.
+  2. approach (`accord-approach`): the planner drafts the lightest approach that works, a critic argues against it in rounds `accord round <id> --approach` counts, and the owner approves it.
   3. plan (`accord-plan`): a task-by-task plan checked by `accord gate plan`.
   4. build (`accord-build`): one fresh executor per task, each recorded with `accord task-done`.
   5. review (`accord-review`): reviewers until no Must is open and every Should is fixed.
@@ -118,7 +118,7 @@ After you change `runtimes:`, write the copies again and commit what it prints:
 npx --yes @accord-dev/accord@0.3.0 skills sync
 ```
 
-`skills sync` never deletes. When you remove a runtime, it lists the copies it no longer writes, and you delete them yourself.
+`skills sync` deletes no copy you may still use. When you remove a runtime, it lists the copies it no longer writes, and you delete them yourself. The one file it deletes is `.claude/agents/accord-architect.md`, an agent accord no longer has, and only while its marker shows nobody edited it: it prints `removed` for it, and lists an edited copy with the others.
 
 ### 6. CLI commands for people and CI
 

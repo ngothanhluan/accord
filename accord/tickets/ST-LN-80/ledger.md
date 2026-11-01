@@ -47,6 +47,7 @@
 - Ruling: the workflow-layer spec's §7 steps 1-4 and its critic line are worded to match Tasks 2 and 3 as built (task 4) — the plan fixed their content only in outline — cost if wrong: a doc-only edit
 - Ruling: the skills-sync.test.ts comment sits directly above the existing "A roster change is the whole point" comment inside the `it` body (task 5) — the plan's line number had drifted — cost if wrong: none, a comment only
 - Ruling: upgrade takes `retired` as `RETIRED_FILES.filter(p => isIntactRender(files[p] ?? ''))`, so a missing path counts like an edited one and is never removed (task 5) — an empty string carries no marker — cost if wrong: none
+- Ruling: accord/research/2026-11-01-architect-fold-review.md line 56 now quotes the owner's choice in English only (review 1.1) — the repository is English-only and no-vietnamese.test.ts fails on the Vietnamese quote; the Intent cites this record as its evidence and the meaning is unchanged — cost if wrong: none, a wording-only change
 
 ## Deferred
 - plan 1.8 Nice: Task 5's "Must not change the orphan report" contradicts its rewording of skills.ts:236 — deferred
@@ -55,3 +56,7 @@
 - plan 2.2 Nice: the planner's final reply instruction still names plan.md in direction mode — deferred
 - plan 2.3 Nice: Task 3 does not say each phrase of the stage-skills approach row stays on one line — deferred
 - plan 3.3 Nice: an option the owner turned down at step 5 is still "not yet ruled out" under rule H — deferred
+- review 1.2 Nice: writeSkillFiles still computes the intact-render check inline instead of calling isIntactRender (skills.ts:72) — deferred
+- review 1.3 Nice: the intact old architect render builder is copied into three test files — deferred
+- review 1.4 Nice: the risk:complex-branching test in approach-fold.test.ts pins nine whole skill sentences word for word — deferred
+- review 1.5 Nice: missing space before `=` in next.ts:91 and scripts/round.mjs:19 — deferred

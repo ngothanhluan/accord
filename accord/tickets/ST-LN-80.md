@@ -24,6 +24,8 @@ ui: false
 # The AC hash and the commit the ticks were made against.
 # verified_hash:
 # verified_commit:
+approved_hash: "fnv1a64:3fb1847ec2d9821d"
+ac_hash: "fnv1a64:fbbd120aee043b0b"
 ---
 
 ## Intent
@@ -32,7 +34,7 @@ ui: false
 - For: whoever runs a lane M ticket, one person or a team where the BA approves direction before a developer plans.
 - What: drop accord-architect; the planner drafts `## Approach` in a direction pass; the approach critic stays, defers implementation detail to the plan, re-reads only amended text, and stops at a cap the CLI counts; plan critique checks every Decision and Correction.
 - Success: no lane M stage dispatches accord-architect; `accord round <id> --approach` gives the approach critique the same cap and stop as plan critique; ST-LN-46 later measures tokens and plan rounds before and after (not part of done).
-- Non-goals: no change to when the owner approves, to gate ready, gate plan, stage order or `approved_hash`; no model change for any agent; lane S untouched; ST-LN-81's scout report is not used.
+- Non-goals: no change to when the owner approves, to gate ready, gate plan, stage order or `approved_hash`; no model change for any agent, except that the planner's default effort rises from medium to high; lane S untouched; ST-LN-81's scout report is not used.
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.
@@ -81,9 +83,11 @@ Feature: ST-LN-80
 - D-03 The planner writes the impact analysis itself in its direction pass; this ticket does not wait on ST-LN-81 — "A" (choosing the planner over the saved scout report of ST-LN-81)
 - D-04 The CLI enforces the approach critique's round cap: each round is recorded in a new `accord/tickets/<id>/approach-review.md`, and `accord round <id> --approach` counts it as `--plan` counts plan-review.md, a new public CLI flag — "A" (choosing CLI enforcement over a cap stated only in the skill)
 - D-05 The smallest version that counts as done is all five criteria — "A" (choosing all five over only ac-1, ac-2 and ac-5)
+- D-06 The planner's default effort rises from medium to high, for the direction pass and the plan alike — "duyệt nhưng planner lên high" (translated: "approved, but raise the planner to high")
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
+- 2026-11-01, at the approach approval: "duyệt nhưng planner lên high" (translated: "approved, but raise the planner to high")
 
 ## Open questions
 <!-- `- [ ]` items; Ready stays blocked while any is unchecked. -->
@@ -94,12 +98,12 @@ Feature: ST-LN-80
 - Agents: architect.md goes and its rules move into a planner `direction` mode that returns the draft and writes no file. The critic's approach mode marks implementation detail `defer to plan` and always rates it Nice, so it never stops the loop. From round 2, even after a Must, it gets the ticket path, the `## Approach` diff since the previous round and approach-review.md, and lists `fixed:` and `withdrawn:`. Plan mode and diff mode gain a check of every Decision and every Correction, in lens `criteria`, and the planner self-checks the same.
 - Approach skill: step 2 dispatches the planner in direction mode. Before round 1 the main session writes into `## Approach` only the chosen option's name, what it does and the impact list, so the critic never sees the reasons or the rejected options. After critique it adds the rejected options, the risks and the test strategy. Choosing another option, or the owner's no, appends `## Closed` to approach-review.md before the next round.
 - Removal: `skills sync` and `accord upgrade` both remove a listed retired file, `.claude/agents/accord-architect.md`, only when its marker hash is intact, never through a link (the orphan scan's link check). Sync reports it as a new `removed` state. A removed retired path is exempt from the scope gates like a synced copy, so the deletion never fails a ticket branch. An edited copy stays and is reported as an orphan. README, sync's messages and the "deletes nothing" test are reworded for this one exception to D-113 ("sync never deletes").
-- Config: `models.architect` still validates; a lint warning in both profiles says it has no effect and that `models.planner` now applies.
+- Config: the planner's default in AGENT_DEFAULTS becomes opus/high. `models.architect` still validates; a lint warning in both profiles says it has no effect and that `models.planner` now applies.
 - Rejected: a read-only second render of the planner for the direction pass — ac-2 says the planner, and a new agent name would need the owner. A gate rule for the approach cap — D-01 and the Non-goals keep gate ready unchanged.
 - Affected: core agents (architect, planner, critic), skills approach (+ new critique.md) and plan/critique.md, round/next.ts, load/snapshot.ts, model/snapshot.ts, skills/agents.ts, config schema, lint, cli round, skills and upgrade commands, scope exemption, docs/design.md, the workflow-layer spec, README; generated agents and skills are regenerated. This repository's own `.claude` renders follow the pin and are not touched.
 - Risks, Should findings first:
   - The approach cap holds only when the session runs `accord round <id> --approach`. No gate, approve or lint reads approach-review.md, so a skipped call or a sixth round goes unrecorded (critic 6, kept by D-01).
-  - The direction pass runs at the planner's opus/medium where the architect ran opus/high: a drop in effort for this work, though no agent's model changes (critic 7).
+  - The planner's default rises from opus/medium to opus/high (owner's correction), so the direction pass keeps the architect's opus/high; the plan stage, about 41% of a ticket's tokens, now also runs at high effort and costs more output tokens.
   - The planner body nears the 60-line agent cap, with about 6 lines spare.
   - Removal failure scenarios and how each is undone:
     - The deletion lands on an unrelated branch: guarded by the removal in upgrade and the scope exemption; undo with `git restore --source=<base> .claude/agents/accord-architect.md`.

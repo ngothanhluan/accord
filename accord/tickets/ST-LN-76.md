@@ -2,7 +2,7 @@
 id: "ST-LN-76"                            # equals the file name: tickets/<id>.md
 title: "Merged branches made outside a ticket are cleaned with their worktrees"
 type: "story" # story | bug. An epic uses its own template
-status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
+status: "dropped" # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
 # Tickets that must reach done before this one can start.
 depends_on: ["ST-LN-55"]
@@ -67,3 +67,6 @@ Feature: ST-LN-76
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
+
+## Dropped
+Duplicate of ST-LN-87, which PR #152 queued on 2026-11-01 from the same ST-LN-55 split (its D-01 E, D-10, former ac-4). Same acceptance criterion and the same five open questions; ST-LN-87 keeps the work.

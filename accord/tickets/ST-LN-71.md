@@ -2,7 +2,7 @@
 id: "ST-LN-71"                            # equals the file name: tickets/<id>.md
 title: "Approach critique defers implementation detail to the plan, re-reads only what changed, and has the same round cap and stop as review"
 type: "story" # story | bug. An epic uses its own template
-status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
+status: "dropped" # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
 # Tickets that must reach done before this one can start.
 depends_on: ["ST-LN-17"]
@@ -61,3 +61,6 @@ Feature: ST-LN-71
 
 ## Approach
 <!-- About fifteen lines: the chosen option and why, rejected options and why, affected areas, risks, and which criterion is tested at which layer. -->
+
+## Dropped
+Folded into ST-LN-80 by its Decision D-02: approach critique defers implementation detail to the plan, re-reads only the amended text from round 2 with fixed: and withdrawn: lines, and takes the same round cap and stop as plan critique, counted by accord round <id> --approach.

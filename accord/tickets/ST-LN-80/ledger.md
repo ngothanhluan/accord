@@ -1,6 +1,7 @@
 # Ledger
 
 ## Tasks
+- task 1 done 816fb0d1e522
 
 ## Rulings
 - Ruling: a config that still sets `models.architect` loads, and lint warns that the key has no effect, rather than refusing it — config.schema.json has `additionalProperties: false`, so dropping the key would break every repository that set it — cost if wrong: a dead key lingers until a later release removes it
@@ -34,6 +35,7 @@
 - Ruling: the ticket title is rewritten to match D-01 (it still said one critique loop and one owner approval) — the title is outside the approved hash and gate ready still passes — cost if wrong: none beyond a dashboard label
 - Ruling: after round 4 the main session changed sentence M in Task 3 from "every later fix commit" (gate plan read "later" as a deferral) to "any fix commit to that path", as the round-4 critic noted fixFileUnexplained ignores timing — a wording fix with no critique round of its own — cost if wrong: one sentence of critique.md reworded at review
 - Ruling: the step-7 baseline test run is CI's green run on the base commit 9f5085f4 (Linux and Windows), not a local tests.full — the branch changes nothing outside accord/ since that commit, and the owner prefers CI over a 30-minute local full run — cost if wrong: a host-only failure at the baseline shows up first at build
+- Ruling: `planStopOf` takes an optional third `kind` argument, default `'plan'` (task 1) — next.ts needs it to pass 'approach' on, and the exported call in gate/rounds.ts is unchanged — cost if wrong: none, since the existing plan outputs are byte-identical
 
 ## Deferred
 - plan 1.8 Nice: Task 5's "Must not change the orphan report" contradicts its rewording of skills.ts:236 — deferred

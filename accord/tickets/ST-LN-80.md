@@ -60,7 +60,7 @@ Feature: ST-LN-80
     When the critic runs the next round in approach mode
     Then the detail finding is marked defer to plan and is never a Must, the critic is given only the diff of ## Approach since the previous round and approach-review.md, it raises new findings only on the changed lines, and it lists earlier findings the change fixes on a fixed: line and those that no longer hold on a withdrawn: line, as diff mode does for plan-review.md
 
-  @ac-4
+  @ac-4 @test:packages/cli/test/round-approach.test.ts#ac-4-accord-round-approach-counts-approach-critique-rounds-with-the-plan-cap-and-stop
   Scenario: The CLI counts approach critique rounds and stops them at the cap
     Given accord/tickets/<id>/approach-review.md records approach critique rounds
     When the owner runs accord round <id> --approach

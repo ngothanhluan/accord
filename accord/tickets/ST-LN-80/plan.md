@@ -1,6 +1,6 @@
 ---
 baseline: c37bfa86c27c4f58dec8f844251038a4602eb8c9
-plan_hash: "fnv1a64:dcfadd93f8f3a9eb"
+plan_hash: "fnv1a64:8cf4fccd7f739d45"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -63,7 +63,11 @@ Names shared by every task:
 - The ladder Ruling is the ledger line the approach skill's step 2 writes under `## Rulings` of
   `accord/tickets/<id>/ledger.md` from the planner's direction report, with two or three numbered options in the
   report's order (`; 3. <option>: <what it does>` is left out when the report has two); the last ladder Ruling of
-  the ledger is the one that holds. The critic reads no ledger, so its review stays independent:
+  the ledger is the one that holds. No part of it names a file or a path: each `<what it does>` and the reason
+  after `Recommended because` are plain words the main session writes from the report, never a `path:line`, since
+  `fixFileUnexplained` takes any Ruling that names a path as the reason for a fix commit to it
+  (`packages/core/src/round/grounds.ts:95-104`, `:127`). The critic reads no ledger, so its review stays
+  independent:
 
   ```text
   Ruling: the approach ladder is 1. <option>: <what it does>; 2. <option>: <what it does>; 3. <option>: <what it does>; <option> is Recommended because <the planner's line> — kept so a resumed or revised round critiques the option ## Approach names and nobody picks again — a ruled-out option comes back
@@ -219,7 +223,7 @@ skill dispatches, and no `accord-architect.md` among `agentTargets`.
   line (the body stays within 60 lines, so add no other line):
 
   ```text
-  - In `direction` mode your caller gives you the ticket path, and on a revision also `accord/tickets/<id>/approach-review.md` and the Must and Should findings to fix, each with its `<round>.<n>` label: you write no file, neither `plan.md` nor the ticket, and reply with the `## Approach` draft the main session writes into the ticket, answering each label you were given. When your caller names an option, as on a revision or a resume, you keep that option and its name, revise only it, and pick no other: your reply holds the impact list, that option alone with no `Recommended` line, and the failure scenarios when they apply. Otherwise it holds:
+  - In `direction` mode your caller gives you the ticket path, and on a revision also `accord/tickets/<id>/approach-review.md` and the Must and Should findings to fix, each with its `<round>.<n>` label: you write no file, neither `plan.md` nor the ticket, and reply with the `## Approach` draft the main session writes into the ticket, answering each label you were given. When your caller names an option, as on a revision or a resume, you keep that option and its name, revise only it, and pick no other: your reply holds the impact list, that option alone with no `Recommended` line, and the failure scenarios when they apply. When your caller also gives that option's ladder entry, `## Approach` still holds another option: draft the named one from that entry and the code, with its own impact list. Otherwise it holds:
     - First, the impact list: every caller, interface, test, config entry, and export the change must reach, each with `path:line`.
     - Then two or three options, the lightest that works first. Option 1 is the first rung of the ladder that fully works: does it need to exist; already in the repo; standard library or platform; installed dependency; minimum new code. Options 2 and 3 climb further only where a criterion or constraint needs it, and say which. Each option has a short name and says what it does in two or three lines, its cost, its risk, and the criterion it serves (`@ac-n`, `D-nn`, or a named constraint); every added layer names the criterion or constraint that requires it, or you drop it; never cut validation at trust boundaries, data-loss handling, security, accessibility, or anything asked for. Mark one option `Recommended` and say why in one line.
     - When the ticket touches auth, money, migration, or data deletion, three failure scenarios in total, each with the step or state where it starts and how it is undone.
@@ -310,8 +314,9 @@ Consumes Task 2's planner `direction` mode and critic `approach` mode, and Task 
   the last `## Closed` line count.
 - The ladder: step 2 of the skill writes the ladder Ruling from the planner's report, its text the preamble's
   block, shown in a `text` fence as one line, with the preamble's note that the third entry is left out when the
-  report has two and that the last ladder Ruling holds; the three `## Closed` headings of the preamble, each
-  naming the option its cycle critiqued as the ladder Ruling names it; sentence H; then sentence J.
+  report has two and that the last ladder Ruling holds; sentence M; the three `## Closed` headings of the
+  preamble, each naming the option its cycle critiqued as the ladder Ruling names it; sentence H; sentence J; then
+  sentence N.
 - The count: before each round and before appending `## Closed`, run `accord round <id> --approach`. Exit 0 gives
   the round's number and the cap; it counts only the rounds after the last `## Closed` line, at most five, and
   prints `stop: report to owner` from round 3 on a round that still reports a Should or a Must, and on a fifth
@@ -331,9 +336,9 @@ Consumes Task 2's planner `direction` mode and critic `approach` mode, and Task 
   sentence E.
 - `3. **Ruled out.**` When a Must would break a Veto, Decision, or Correction, the option is out: append
   `## Closed <option>: ruled out by <round>.<n>`, naming that Must, to `approach-review.md`, take the first option
-  of the ladder Ruling that is not yet ruled out, write it into `## Approach` as step 2 of the skill says (in a
-  new session, from a `direction` dispatch that names that option), commit both files, and start again at round
-  1. When no option is left, ask the owner.
+  of the ladder Ruling that is not yet ruled out, write it into `## Approach` as step 2 of the skill says (when
+  this session no longer holds the planner's report, as the ladder section above says), commit both files, and
+  start again at round 1. When no option is left, ask the owner.
 - `4. **Converged.**` The loop ends only on a round that reports no Must and no Should and leaves no Must or
   Should open or unverified, or on the owner's acceptance after a stop: go to step 4 of the skill.
 - `5. **Fix.**` Otherwise commit `accord/tickets/<id>.md` and `approach-review.md` with the subject
@@ -351,8 +356,11 @@ Consumes Task 2's planner `direction` mode and critic `approach` mode, and Task 
   E: A Nice, a `defer to plan` one included, is marked `deferred`, goes to the ledger under `## Deferred`, and never to the planner.
   H: An option is ruled out when a `## Closed <option>: ruled out by <round>.<n>` heading after the last `: the owner's no` heading names it.
   J: The option under critique is always the one `## Approach` names: a resumed session or a revision keeps it, and only step 3 below or the owner moves to another.
+  M: No part of the ladder Ruling names a file or a path: each option's description and the reason after `Recommended because` are plain words, never a `path:line`, because a Ruling that names a path stands as the reason for any fix commit to that path; the impact list stays in `## Approach`.
+  N: When another option of the ladder Ruling takes the place of the one `## Approach` names and this session no longer holds the planner's report, dispatch `accord-planner` in its `direction` mode with the ticket path, that option's name and its entry of the ladder Ruling, and write the draft it returns into `## Approach` as step 2 of the skill says.
   ```
-  (The `C: `, `D: `, `E: `, `H: ` and `J: ` labels are not written; each sentence may wrap across lines in the file.)
+  (The `C: `, `D: `, `E: `, `H: `, `J: `, `M: ` and `N: ` labels are not written; each sentence may wrap across
+  lines in the file.)
 
 `packages/core/skills/plan/critique.md`: right before `Merge and de-duplicate their findings` (line 36) add the
 sentence below; every other line stays.
@@ -384,8 +392,8 @@ its ac-5 test and its imports and helpers stay as Task 2 wrote them:
   `./critique.md` and `` `accord round <id> --approach` ``.
 - `risk:complex-branching a resumed or revised approach round keeps its option and skips every ruled-out one`:
   `flat(planner)` holds each Q line below; `flat(skill)` holds sentence G with its whitespace collapsed and each K
-  line below; `flat(loop)` holds the ladder Ruling block line of the preamble and sentences H and J, each with its
-  whitespace collapsed, and each L line below.
+  line below; `flat(loop)` holds the ladder Ruling block line of the preamble and sentences H, J, M and N, each
+  with its whitespace collapsed, and each L line below.
 
 ```text
 P: `direction` mode
@@ -411,6 +419,7 @@ R: `fixed: <round>.<n>, <round>.<n>`
 R: `withdrawn: <round>.<n>, <round>.<n>`
 Q: you keep that option and its name, revise only it, and pick no other
 Q: that option alone with no `Recommended` line
+Q: draft the named one from that entry and the code
 K: the first option of the ladder Ruling that is not yet ruled out
 K: `## Closed <option>: the owner picked <other option>`
 K: `## Closed <option>: the owner's no`

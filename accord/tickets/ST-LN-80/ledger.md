@@ -30,7 +30,9 @@
 - Ruling: Task 3's `files:` keeps `(new)` on approach-fold.test.ts, because gate plan reads `(new)` against the baseline; finding 1.5 is answered by Task 3's prose, which says to add to the file Task 2 created — cost if wrong: an executor reads `(new)` and rewrites the file, caught by the ac-5 test vanishing
 - Ruling: the approach ladder goes in a ledger Ruling, not in approach-review.md — the critic never reads the ledger, so it never sees the rejected options, and a prose line in the record could parse as a finding — cost if wrong: the session reads a second file on resume
 - Ruling: the closed option's name goes in the `## Closed` heading — the existing `/^closed\b/` match accepts it with no parser change — cost if wrong: a stricter heading check later must allow the suffix
-- Ruling: the owner allows 2 more plan critique rounds after round 3 of cycle 1 — "A" (choosing two more rounds to fix 3.1 and 3.2 over accepting them or changing course) — cost if wrong: two more agent rounds spent on fix-induced findings
+- Ruling: the owner allows 2 more plan critique rounds after round 3 of cycle 1 — "A" — two more agent rounds spent on fix-induced findings
+- Ruling: after round 4 the main session changed sentence M in Task 3 from "every later fix commit" (gate plan read "later" as a deferral) to "any fix commit to that path", as the round-4 critic noted fixFileUnexplained ignores timing — a wording fix with no critique round of its own — cost if wrong: one sentence of critique.md reworded at review
+- Ruling: the step-7 baseline test run is CI's green run on the base commit 9f5085f4 (Linux and Windows), not a local tests.full — the branch changes nothing outside accord/ since that commit, and the owner prefers CI over a 30-minute local full run — cost if wrong: a host-only failure at the baseline shows up first at build
 
 ## Deferred
 - plan 1.8 Nice: Task 5's "Must not change the orphan report" contradicts its rewording of skills.ts:236 — deferred

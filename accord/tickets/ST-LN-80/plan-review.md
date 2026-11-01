@@ -23,6 +23,13 @@ fixed: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7
 ## Round 3 (diff)
 
 fixed: 2.1
-1. Should — the ladder Ruling's per-option `<what it does>` text is a `Ruling:` line, and fixFileUnexplained (grounds.ts:116,127 via mentionsPath) and the reviewer's Undeclared-files rule treat any Ruling naming a path as that path's justification, so a ladder option mentioning `packages/core/src/round/next.ts:30` silently exempts later unexplained fix commits to that file; fix: keep paths out of the ladder entries, keep only option names, or record the ladder outside a `Ruling:` line (e.g. prose above the first heading of approach-review.md, which parseRounds ignores) — open
-2. Should — a ruled-out switch in a new session dispatches the planner with only the next option's name; the planner gets no ledger path and `## Approach` still holds the ruled-out option, so it rebuilds the option from its name and the critic reviews a different option from the ladder's; fix: pass that option's ladder entry or the ledger path with its name, or have the main session write the draft from the ladder Ruling plus the impact list with no planner dispatch — open
+1. Should — the ladder Ruling's per-option `<what it does>` text is a `Ruling:` line, and fixFileUnexplained (grounds.ts:116,127 via mentionsPath) and the reviewer's Undeclared-files rule treat any Ruling naming a path as that path's justification, so a ladder option mentioning `packages/core/src/round/next.ts:30` silently exempts later unexplained fix commits to that file; fix: keep paths out of the ladder entries, keep only option names, or record the ladder outside a `Ruling:` line (e.g. prose above the first heading of approach-review.md, which parseRounds ignores) — fixed
+2. Should — a ruled-out switch in a new session dispatches the planner with only the next option's name; the planner gets no ledger path and `## Approach` still holds the ruled-out option, so it rebuilds the option from its name and the critic reviews a different option from the ladder's; fix: pass that option's ladder entry or the ledger path with its name, or have the main session write the draft from the ladder Ruling plus the impact list with no planner dispatch — fixed
 3. Nice — rule H counts only `: ruled out by` headings, so an option the owner turned down at step 5 is still "not yet ruled out" and can come back for a full new cycle before the owner is asked again — deferred
+
+## Round 4 (diff)
+
+fixed: 3.1, 3.2
+No findings
+
+## Closed

@@ -160,7 +160,7 @@ export function scopeProblems(snapshot: RepoSnapshot, id: string): { line?: numb
   return out.sort((a, b) => (a.line ?? 0) - (b.line ?? 0));
 }
 
-/** The ranges from the latest round of the last cycle not headed (final review) through the last range hold added code. */
+/** The ranges from the latest round of the last cycle not headed (final review) through the last range hold added code; once the last round is a final review, only the range after it counts, as gate.review-scope asks. */
 export function pendingAddedCode(snapshot: RepoSnapshot, id: string): boolean {
   const s = subject(snapshot, id);
   if (s === undefined || s.rec.version !== 2 || 'error' in s.facts || skipped(snapshot, id)) return false;
@@ -172,7 +172,7 @@ function pendingOf(rec: RoundRecord, facts: Ready, id: string): RangeCommit[] {
   if (placed.length === 0) return [];
   const last = rec.cycles.length;
   const mine = placed.filter((p) => p.cycle === last && !p.round.final);
-  const from = mine.length > 0 ? mine[mine.length - 1].j : placed.length;
+  const from = placed[placed.length - 1].round.final || mine.length === 0 ? placed.length : mine[mine.length - 1].j;
   return addedCode(id, facts.ranges.slice(from - 1).flat());
 }
 

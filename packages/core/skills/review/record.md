@@ -61,7 +61,7 @@ On `stop: report to owner`, printed from round 3 for a round that still reports 
 
 After a stop, `verdict: converged` needs a round after it, allowed by the owner, that reports no findings.
 
-Before writing the verdict, run `accord round <id>`. Exit 0, or a stop whose only `Reason:` is that the cap is reached and no owner Ruling allows more, lets the verdict be written; any other stop goes to the owner as above first. When exit 0 also prints `Added code:`, run that round first, headed `(added code round 1)`, before the verdict.
+Before writing the verdict, run `accord round <id>`. Exit 0, or a stop whose only `Reason:` is that the cap is reached and no owner Ruling allows more, lets the verdict be written; any other stop goes to the owner as above first. When exit 0 also prints `Added code:` (after a `(final review)` round, only code added after that round counts), run that round first, headed `(added code round 1)`, before the verdict.
 
 The single last line of the file is the verdict:
 

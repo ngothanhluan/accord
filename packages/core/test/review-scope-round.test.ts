@@ -43,3 +43,15 @@ it('risk:complex-branching accord round refuses a record git does not bind and a
   expect(below.round).toBe(2);
   expect(roundText(below)).toBe('Round: 2 of 5\nCycle: 1\nFix executor model: sonnet\n');
 });
+
+it('risk:complex-branching accord round asks no added code round once the last round is a final review that covered the merge', () => {
+  const merge = commit(['src/m.ts'], 'merge');
+  const finalDone = v2Review([[{ lines: [] }, { lines: [], mark: 'final' }]]);
+  // the merge came between round 1 and the final review: the final review covered it, so the verdict may follow
+  const covered = nextRound(scopeSnapshot({ review: finalDone, facts: facts([[merge], []]) }), 'T-1', 'review');
+  expect(covered.kind).toBe('next');
+  expect(roundText(covered)).not.toContain('Added code:');
+  // a merge after the final review is still pending
+  const after = nextRound(scopeSnapshot({ review: finalDone, facts: facts([[], [merge]]) }), 'T-1', 'review');
+  expect(roundText(after)).toContain('Added code:');
+});

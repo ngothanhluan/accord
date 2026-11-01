@@ -8,6 +8,7 @@ import { loadSnapshot } from '@accord-dev/accord-core';
 import type { RoundFacts } from '@accord-dev/accord-core';
 import { loadFromFs } from '../src/load/fs.js';
 import { roundFactsFor } from '../src/load/round-facts.js';
+import { nearestCode, readWalk } from '../src/load/walk.js';
 import { cleanup, commitMsg, gitRun, makeEmptyRepo, mergeMsg, writeFiles } from './helpers/repo.js';
 import { spawnLog } from './helpers/git-spawns.js';
 import { CONFIG, laneTicket } from '../../../test/helpers/lane.js';
@@ -94,6 +95,38 @@ it('risk:complex-branching each round range runs from its head to the next and t
     ]);
     const all = facts.ranges.flat().map((c) => c.sha);
     expect(all).not.toContain(main);
+  } finally {
+    cleanup(repo);
+  }
+});
+
+it('risk:complex-branching the nearest code commit is not past a clean merge that brought in ticket commits on its second parent', () => {
+  const repo = start();
+  try {
+    gitRun(repo, 'switch', '-q', '-c', 't/T-1');
+    writeFiles(repo, { 'src/a.ts': 'export const a = 1;\n' });
+    commitMsg(repo, 'code');
+    gitRun(repo, 'switch', '-q', '-c', 'side', 'main');
+    writeFiles(repo, { 'src/s.ts': 'export const s = 1;\n' });
+    commitMsg(repo, 'side code, not on main');
+    gitRun(repo, 'switch', '-q', 't/T-1');
+    const mg = mergeMsg(repo, 'side', 'merge side');
+    writeFiles(repo, { [REVIEW]: v2([mg]) });
+    const rec = commitMsg(repo, 'round 1');
+
+    const walk = readWalk(repo, { laneS: false, def: 'refs/heads/main', baseline: undefined });
+    if ('error' in walk) throw new Error(walk.error);
+    expect(nearestCode(walk, rec, 'T-1')).toBe(mg);
+
+    // a merge of main alone, whose second parent lies outside the walk, is still skipped
+    gitRun(repo, 'switch', '-q', 'main');
+    writeFiles(repo, { 'src/m.ts': 'export const m = 1;\n' });
+    commitMsg(repo, 'main moves');
+    gitRun(repo, 'switch', '-q', 't/T-1');
+    const mg2 = mergeMsg(repo, 'main', 'merge main');
+    const walk2 = readWalk(repo, { laneS: false, def: 'refs/heads/main', baseline: undefined });
+    if ('error' in walk2) throw new Error(walk2.error);
+    expect(nearestCode(walk2, mg2, 'T-1')).toBe(mg);
   } finally {
     cleanup(repo);
   }

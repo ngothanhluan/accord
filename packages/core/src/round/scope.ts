@@ -97,12 +97,9 @@ export function scopeProblems(snapshot: RepoSnapshot, id: string): { line?: numb
   if (s === undefined) return [];
   const { rec, facts, laneS } = s;
   const placed = placedRounds(rec);
-  if (rec.version !== 2) {
-    if ('error' in facts) return [{ reason: `the review scope cannot be checked: ${facts.error}` }];
-    return skipped(snapshot, id) ? [] : versionProblems(facts, placed);
-  }
-  if ('error' in facts) return [{ reason: `the review scope cannot be checked: ${facts.error}` }];
   if (skipped(snapshot, id)) return [];
+  if ('error' in facts) return [{ reason: `the review scope cannot be checked: ${facts.error}` }];
+  if (rec.version !== 2) return versionProblems(facts, placed);
 
   const out: { line?: number; reason: string }[] = [];
   const add = (line: number, reason: string) => out.push({ line, reason });

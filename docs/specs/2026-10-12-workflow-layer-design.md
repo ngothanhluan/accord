@@ -434,13 +434,18 @@ merges and de-duplicates findings before the fix loop.
   commits after the last head, without what a merge of the default branch brought in but with the merge's own
   changes; `--base` is accepted only for the lane M final review, as the plan's baseline. A round after code a
   debug episode or a merge added is headed `(added code round 1)`, the final review `(final review)`.
-- From round 3 of a cycle, the final review not counted and a file added code changed counted from that
-  code's own round 1, a new Must or Should outside the files the previous round's fix changed blocks only with
-  `test:` or `command:`, else it is deferred in the ledger and leaves the stop; a new Should also rests on a
-  ticket line or a failing case; `risk: data-loss` and `risk: security` always block. A round's fix is every
-  commit from its head to the next head but merges, a debug episode's commits and records-only commits; each
-  file it changes needs a finding of the round or a Ruling naming it, synced and `generated:` copies aside.
-- Converged means no Must is open and every Should is fixed with that test command passing. Nice findings go to the ledger as deferred, not fixed.
+- These rules bind a `Round record: 2` record; a version 1 record keeps its old rules. Rounds are counted
+  within the cycle. From round 3 a new Must or Should outside the files the previous round's fix changed blocks
+  only with `test:` or `command:`, else it is deferred in the ledger and leaves the stop; `risk: data-loss` and
+  `risk: security` always block. The final review's own findings are asked no test, command or ticket line,
+  though the round count still counts it. For a finding in a file that code reviewed in an `(added code round 1)`
+  round changed, the count restarts at that round, per finding file; other findings keep the ticket's count. The
+  Should rule uses the same count: from round 3 a new Should also rests on a ticket line or a failing case. A
+  round's fix is every commit from its head to the next head but merges, a debug episode's commits and
+  records-only commits; each file it changes needs a finding of the round or a Ruling naming it, synced and
+  `generated:` copies aside.
+- Converged means no Must is open and every Should is fixed with that test command passing; a Must or Should
+  deferred under the evidence rule, with its ledger line, does not block it. Nice findings go to the ledger as deferred, not fixed.
 - If round three still finds a new Must, the orchestrator says whether it traces to the ticket or the
   plan; if it does, the owner is asked before round four.
 - At most five rounds. Rounds four and five use a fresh executor one model tier higher.

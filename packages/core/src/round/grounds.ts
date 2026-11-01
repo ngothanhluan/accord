@@ -2,6 +2,7 @@
 // is the location of a finding or is named by a Ruling (ac-5, D-14). Pure: the host supplies the round facts it read from
 // git. No code runs at load but constants.
 import { ownRecordsOnly } from '../gate/done.js';
+import { addedResearch } from '../gate/research.js';
 import { factOf, isExempt } from '../gate/scope.js';
 import { laneTicket, workOf } from '../gate/work.js';
 import type { GateDraft, GateRule } from '../gate/rules.js';
@@ -113,15 +114,17 @@ export const fixFileUnexplained: GateRule['check'] = (snapshot, id) => {
   const branch = factOf(snapshot, id);
   const readable = branch !== undefined && !('error' in branch) ? branch : undefined;
   const rulings = workOf(snapshot, id)?.ledger?.rulings ?? [];
+  const wording = new Set((workOf(snapshot, id)?.ledger?.wordingOnly ?? []).map((w) => w.path));
+  const own = addedResearch(snapshot, id);
   const out: GateDraft[] = [];
   for (const at of placedRounds(rec)) {
     const located = new Set(at.round.findings.flatMap((f) => (f.file === undefined ? [] : [f.file])));
     const fix = fixCommits(id, facts.ranges[at.j - 1] ?? []);
     const paths = [...new Set(fix.flatMap((c) => c.files))].filter(
-      (p) => !ownRecordsOnly(id, [p]) && (readable === undefined || !isExempt(id, readable, p)),
+      (p) => !ownRecordsOnly(id, [p]) && (readable === undefined || !isExempt(id, readable, p, own)),
     );
     for (const path of paths) {
-      if (located.has(path) || rulings.some((r) => mentionsPath(r, path))) continue;
+      if (located.has(path) || wording.has(path) || rulings.some((r) => mentionsPath(r, path))) continue;
       const shas = fix.filter((c) => c.files.includes(path)).map((c) => c.sha.slice(0, 12));
       out.push({
         file: rec.file,

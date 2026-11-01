@@ -148,6 +148,9 @@ function read(root: string, id: string, walk: Walk | undefined, headPin: string 
   for (const e of debugEntries) if (e.debug !== 'D') specs.push(`${e.sha}:${debugPath}`);
   const texts = specs.length === 0 ? [] : catBatch(root, specs, 'the record history');
   const at = new Map(specs.map((s, i) => [s, texts[i]]));
+  // A record the commit's own diff says exists but git cannot hand over (a blobless clone) is an error, never an absent file.
+  for (const e of reviewEntries) if (e.review !== 'D' && at.get(`${e.sha}:${reviewPath}`) === undefined) throw new Error(`${reviewPath} at ${e.sha.slice(0, 12)} cannot be read`);
+  for (const e of debugEntries) if (e.debug !== 'D' && at.get(`${e.sha}:${debugPath}`) === undefined) throw new Error(`${debugPath} at ${e.sha.slice(0, 12)} cannot be read`);
 
   // R_j: the last commit at which the number of rounds rose to j, oldest to newest.
   const rounds: string[] = [];

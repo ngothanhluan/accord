@@ -1,4 +1,6 @@
 // ST-LN-57 task 3: which commit recorded each round, the pin at the first round, the base pin and the debug episodes.
+import { rmSync } from 'node:fs';
+import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { readHistory } from '../src/load/record-history.js';
 import { readWalk } from '../src/load/walk.js';
@@ -146,6 +148,31 @@ it('risk:security a record merged in from a branch off the default branch is rea
 
     const h = readHistory(repo, 'T-1', undefined, '0.3.1', DEF);
     expect(h).toMatchObject({ rounds: [m], pin: '0.3.1', pinAt: m });
+  } finally {
+    cleanup(repo);
+  }
+});
+
+it('risk:security a record blob git cannot read fails closed, not as an absent review.md', () => {
+  const repo = start(pinned('0.3.0'));
+  try {
+    gitRun(repo, 'switch', '-q', '-c', 't/T-1');
+    writeFiles(repo, { 'src/a.ts': 'export const a = 1;\n' });
+    commitMsg(repo, 'code');
+    writeFiles(repo, { [REVIEW]: v1(1) });
+    const r1 = commitMsg(repo, 'round 1');
+    writeFiles(repo, { [REVIEW]: v1(2) });
+    commitMsg(repo, 'round 2');
+    expect(readHistory(repo, 'T-1', undefined, '0.3.0', DEF)).toMatchObject({ rounds: [r1, expect.any(String)] });
+
+    // the blob of round 1's record is gone, as in a blobless clone
+    const blob = gitRun(repo, 'rev-parse', `${r1}:${REVIEW}`).trim();
+    rmSync(join(repo, '.git', 'objects', blob.slice(0, 2), blob.slice(2)), { force: true });
+
+    const h = readHistory(repo, 'T-1', undefined, '0.3.0', DEF);
+    expect(h).toHaveProperty('error');
+    expect((h as { error: string }).error).toContain(r1.slice(0, 12));
+    expect((h as { error: string }).error).toContain(REVIEW);
   } finally {
     cleanup(repo);
   }

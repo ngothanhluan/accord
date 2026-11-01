@@ -90,3 +90,17 @@ it('risk:security a version 1 record whose first round lowers the pin below the 
   expect(scopeProblems(onDefault, 'T-1')).toEqual([]);
   expect(pendingAddedCode(onDefault, 'T-1')).toBe(false);
 });
+
+it('risk:regression a ticket done on the default branch is skipped, not refused, when the round facts are an error', () => {
+  const broken: RoundFacts = { error: 'git failed reading the ticket branch: bad object' };
+  const v1 = 'Round record: 1\n\n## Round 1\n\nNo findings\n\nverdict: converged\n';
+  const v2 = v2Review([plain(2)], 'verdict: converged\n');
+  for (const review of [v1, v2]) {
+    // the default ref's own snapshot carries no round facts, as the host reads it
+    const onDefault = { ...scopeSnapshot({ review, facts: broken }), defaultRef: { ref: 'refs/heads/main', snapshot: scopeSnapshot({ review }) } };
+    expect(reasons(onDefault)).toEqual([]);
+    expect(scopeProblems(onDefault, 'T-1')).toEqual([]);
+    // the same facts on a ticket not done on the default branch still fail closed
+    expect(reasons(scopeSnapshot({ review, facts: broken })).join('\n')).toContain('cannot be checked');
+  }
+});

@@ -395,7 +395,7 @@ it('ac-2 a review round with only should findings converges without a re-review'
       'When it reported only Should findings, no reviewer is dispatched again for that fix: that command passing checks it.',
     ].filter((p) => !step4.includes(p)),
   ).toEqual([]);
-  expect(skill).toContain('**Converged** means no Must is open and every Should is fixed with that command passing.');
+  expect(skill).toContain('**Converged** means no Must is open and every Should is fixed with that command passing;');
   expect(skill).not.toContain('zero Must and zero Should');
   expect(step7).toContain('If it finds only Should findings, fix them and run that command as in step 4, with no re-review.');
   expect(record).toContain('every Should is fixed with that command passing');
@@ -1117,9 +1117,26 @@ it('risk:regression the review skills write version 2 records with heads marks a
       '`rests on: Understood "<quote>"`',
       '`rests on: Done when "<quote>"`',
       'keeps its `Round record: 1`',
+      'bind a `Round record: 2` record only',
+      'run that round first, headed `(added code round 1)`, before the verdict',
     ]),
-    ...['`command: <command>`', '`risk: security`'].filter((p) => !reviewer.includes(p)).map((p) => 'accord-reviewer lacks: ' + p),
-    ...missing('.claude/skills/accord-debug/SKILL.md', ["that round's fix"]),
+    ...missing('.claude/skills/accord-review/record.md', [
+      'bind a `Round record: 2` record only',
+      'run that round first, headed `(added code round 1)`, before the verdict',
+      'does not block it',
+      'the count restarts at that round, per finding file',
+    ]),
+    ...missing('.claude/skills/accord-review/SKILL.md', ['does not block it']),
+    ...[
+      '`command: <command>`',
+      '`risk: security`',
+      'Understood "<quote>" | Done when "<quote>"',
+      'lane S accepts only a quote from `## Understood` or `## Done when`',
+      'from round 3 the session grades it a Nice',
+    ]
+      .filter((p) => !reviewer.includes(p))
+      .map((p) => 'accord-reviewer lacks: ' + p),
+    ...missing('.claude/skills/accord-debug/SKILL.md', ["that round's fix", 'headed `(added code round 1)`']),
   ];
   expect(problems).toEqual([]);
 });

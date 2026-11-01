@@ -74,12 +74,17 @@ export function reach(walk: Walk, from: string): Set<string> {
   return seen;
 }
 
-/** Following first parents from `from`, `from` included, the first walk commit that is not records-only; the first commit reached outside the walk when there is none. */
+/**
+ * Following first parents from `from`, `from` included, the first walk commit that is not records-only; the first commit
+ * reached outside the walk when there is none. A merge with no path of its own is passed over only when every parent
+ * but the first lies outside the walk (a merge of main); one that brought in ticket commits is itself the code.
+ */
 export function nearestCode(walk: Walk, from: string, id: string): string {
   let sha = from.toLowerCase();
   for (;;) {
     const c = walk.commits.get(sha);
     if (c === undefined || !ownRecordsOnly(id, c.files) || c.parents.length === 0) return sha;
+    if (c.parents.slice(1).some((p) => walk.commits.has(p))) return sha;
     sha = c.parents[0];
   }
 }

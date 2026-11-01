@@ -150,3 +150,24 @@ it('risk:parsing a ruling names a path only as a whole token', () => {
   expect(reasonsOf(snap('- Ruling: src/c.tsx moved — reason — cost\n'), FIX_FILE)).toHaveLength(1);
   expect(reasonsOf(snap('- Ruling: the helper is src/c.ts. — reason — cost\n'), FIX_FILE)).toEqual([]);
 });
+
+it('risk:regression a ticket research record the fix added and a Wording-only line need no finding or Ruling for ac-5', () => {
+  const rounds: RoundSpec[] = [{ lines: [line('Must', 1, 'src/a.ts:1', 'fixed in abc1234')] }];
+  const research = 'accord/research/2026-11-01-x.md';
+  const branch: BranchFact = { base: 'b', changes: [{ path: research, kind: 'added', lines: 5 }], synced: [], baseConfig: '' };
+  const ranges = [[commit(['src/a.ts', research, 'docs/w.md', 'src/c.ts'])]];
+  const build = (ledger?: string, listed = true): RepoSnapshot => {
+    const snap = scopeSnapshot({ review: v2Review([rounds]), ledger, facts: facts(ranges), branch });
+    const t = snap.tickets['T-1'];
+    return listed ? { ...snap, tickets: { ...snap.tickets, 'T-1': { ...t, frontmatter: { ...t.frontmatter!, research: [research] } } } } : snap;
+  };
+  const named = (snap: RepoSnapshot): string => reasonsOf(snap, FIX_FILE).join('\n');
+
+  // the listed, added research record is the ticket's own file; an unlisted one is not
+  expect(named(build())).not.toContain(research);
+  expect(named(build(undefined, false))).toContain(research);
+
+  // a Wording-only line names its path as explained, and only that path
+  expect(named(build('- Wording-only: docs/w.md — a typo in the heading\n'))).not.toContain('docs/w.md');
+  expect(named(build('- Wording-only: docs/w.md — a typo in the heading\n'))).toContain('src/c.ts');
+});

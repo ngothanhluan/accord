@@ -49,7 +49,8 @@ fix.
    - An intent gap stops the run and asks the owner.
    - Nice findings go to the ledger under `## Deferred`, not fixed.
 
-5. **Converged** means no Must is open and every Should is fixed with that command passing.
+5. **Converged** means no Must is open and every Should is fixed with that command passing; a finding deferred
+   under `./record.md`'s evidence rule, with its `## Deferred` line, does not block it.
 
 6. **Cap.** Run `accord round <id>` before each round and before the verdict. Exit 0 prints `Round: <n> of <cap>` and
    `Fix executor model: <model>`. It counts at most five rounds, after verify counted from the first round after it, and

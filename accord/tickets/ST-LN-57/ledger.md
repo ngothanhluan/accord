@@ -87,6 +87,7 @@
 - Ruling: (task 8) grounds.ts reuses the exported `evidenceCount` from evidence.ts and rebuilds the version 2 / facts / skipped guard locally, so evidence.ts stays untouched — it keeps the task inside its `files:` line — if wrong, a few duplicated lines.
 - Ruling: (task 8) `restsOnHolds` decides by kind per lane: lane M accepts only ac, D-nn, Veto and Intent; lane S accepts only Understood and Done when quotes (D-11); a kind from the other lane never holds — each lane's ticket has only its own sections — if wrong, a lane S ticket cannot rest a Should on an ac id.
 - Ruling: (task 8) `gate.finding-grounds` and `gate.fix-file-unexplained` sit after `gate.finding-evidence` in both Done tables — it follows the plan — if wrong, the rule order in gate output changes.
+- Ruling: the skill size cap rises from 5120 to 6000 bytes (`MAX_SKILL_BYTES` in packages/core/test/skills.test.ts and the workflow spec §2 line "Each skill targets under 5 KB"), two files outside Task 9's `files:` line — Task 9's text puts the rendered review SKILL.md at 5152 bytes after both of its fallbacks, and the owner chose raising the cap over moving text to record.md or trimming wording — "I think make the limit 6000." (2026-11-01) — if wrong, skills grow longer before a load-reference split is forced.
 
 ## Deferred
 - plan round 1.8 (Nice): rolling back to the 0.3.0 CLI needs an owner allowance Ruling per cycle that went past round 3 with deferred findings (0.3.0 has no D-08); rolling forward sets line 1 back to `Round record: 2`

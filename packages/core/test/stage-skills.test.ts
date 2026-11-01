@@ -566,8 +566,8 @@ it('ac-1 a failure reported after verify goes to the debug stage before any fix'
 it('risk:complex-branching the fix review after verify reads only the changes after the review base and counts its own five rounds', () => {
   const rv = (files.find((f) => f.path === '.claude/skills/accord-review/SKILL.md')?.text ?? '').replace(/\s+/g, ' ');
   const step2 = rv.slice(rv.indexOf('2. **Package.**'), rv.indexOf('3. **Reviewers.**'));
-  expect(step2).toContain('`Review base: <sha>`');
-  expect(step2).toContain('`accord review-package <id> --base <sha>`');
+  expect(step2).toContain('after that head');
+  expect(step2).not.toContain('`Review base: <sha>`');
   expect(rv.slice(rv.indexOf('6. **Cap.**'), rv.indexOf('7. **Final review.**'))).toContain('after verify counted from the first round after it');
 });
 
@@ -1063,6 +1063,46 @@ it('risk:regression the accord skill routes pull request comments to comments.md
   expect(order.every((i, n) => i > -1 && (n === 0 || i > order[n - 1]!))).toBe(true);
 });
 
+it('risk:regression the review skills write version 2 records with heads marks and fix file rulings', () => {
+  const missing = (path: string, phrases: readonly string[]) => phrases.filter((p) => !flatText(path).includes(p)).map((p) => path + ' lacks: ' + p);
+  const rv = flatText('.claude/skills/accord-review/SKILL.md');
+  const step = (from: string, to: string) => rv.slice(rv.indexOf(from), rv.indexOf(to));
+  const step2 = step('2. **Package.**', '3. **Reviewers.**');
+  const step4 = step('4. **Classify.**', '5. **Converged**');
+  const step7 = step('7. **Final review.**', '8. **Record.**');
+  const reviewer = (agentTargets(config).find((f) => f.path === '.claude/agents/accord-reviewer.md')?.text ?? '').replace(/\s+/g, ' ');
+  const problems = [
+    ...missing('.claude/skills/accord-review/record.md', [
+      'Round record: 2',
+      '`## Round <n> head <sha>`',
+      '(added code round 1)',
+      '(final review)',
+      '`Head: <sha>`',
+      '`carried from <r>.<n>`',
+      '`risk: data-loss`',
+      '`test: <test id>`',
+      '`rests on: ac-<n>`',
+      '- review <r>.<n> cycle <k>: <finding>',
+      '`generated:`',
+      '--base <the noted sha>',
+      '`Review base: <sha>`',
+    ]),
+    ...['`Head: <sha>`', 'after that head'].filter((p) => !step2.includes(p)).map((p) => 'review step 2 lacks: ' + p),
+    ...(step4.includes('re-review only the fix diff: `accord review-package <id>` into') ? [] : ['review step 4 lacks the package without --base']),
+    ...(step4.includes('--base <the noted sha>') ? ['review step 4 still holds --base <the noted sha>'] : []),
+    ...["--base <the plan's baseline:>", '(final review)'].filter((p) => !step7.includes(p)).map((p) => 'review step 7 lacks: ' + p),
+    ...missing('.claude/skills/accord/lane-s.md', [
+      'Round record: 2',
+      '`rests on: Understood "<quote>"`',
+      '`rests on: Done when "<quote>"`',
+      'keeps its `Round record: 1`',
+    ]),
+    ...['`command: <command>`', '`risk: security`'].filter((p) => !reviewer.includes(p)).map((p) => 'accord-reviewer lacks: ' + p),
+    ...missing('.claude/skills/accord-debug/SKILL.md', ["that round's fix"]),
+  ];
+  expect(problems).toEqual([]);
+});
+
 it('risk:regression the review lane S and plan critique skills ask accord round and write the round record version line', () => {
   const missing = (path: string, phrases: readonly string[]) => phrases.filter((p) => !flatText(path).includes(p)).map((p) => path + ' lacks: ' + p);
   const review = '.claude/skills/accord-review/SKILL.md';
@@ -1074,7 +1114,7 @@ it('risk:regression the review lane S and plan critique skills ask accord round 
     ...missing(review, ['`accord round <id>`', 'Fix executor model', "with its path and step 6's `model`"]),
     ...['stop: report to owner', 'before each round and before the verdict'].filter((p) => !step6.includes(p)).map((p) => 'review step 6 lacks: ' + p),
     ...missing(record, [
-      'Round record: 1',
+      'Round record: 2',
       '## Return from verify <sha>',
       'committed before any fix executor is dispatched',
       '`haiku`, then `sonnet`, then `opus`; `opus` stays `opus`',
@@ -1085,7 +1125,7 @@ it('risk:regression the review lane S and plan critique skills ask accord round 
       'Before writing the verdict, run `accord round <id>`',
       'git log -1 --format=%H -- accord/tickets/<id>/review.md',
     ]),
-    ...missing('.claude/skills/accord/lane-s.md', ['`accord round <id>`', 'Round record: 1', 'stop: report to owner', "before appending step 5's verdict", '## Return from verify <sha>']),
+    ...missing('.claude/skills/accord/lane-s.md', ['`accord round <id>`', 'Round record: 2', 'stop: report to owner', "before appending step 5's verdict", '## Return from verify <sha>']),
     ...missing('.claude/skills/accord-plan/critique.md', [
       '`accord round <id> --plan`',
       'Round record: 1',

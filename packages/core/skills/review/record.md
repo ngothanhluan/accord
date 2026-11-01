@@ -7,21 +7,41 @@ kind: reference
 `accord/tickets/<id>/review.md` holds one section per review round, in
 order, and ends with the verdict.
 
-Its first line is `Round record: 1`, above every heading, and its only headings are `## Round <n>` and `## Return from verify <sha>`.
+Its first line is `Round record: 2`, above every heading, and its only headings are `## Round <n> head <sha>` and `## Return from verify <sha>`. A record whose first round was committed while `accord/config.yml` pinned accord 0.3.0 or earlier keeps its `Round record: 1` and its `## Round <n>` headings, without heads or marks, and its old packages: after committing a round, note the HEAD sha, and re-review a round with a Must with `accord review-package <id> --base <the noted sha>`; when `accord anchor` prints `Review base: <sha>`, build the package with `accord review-package <id> --base <sha>`.
 
 ```
-## Round <n>
+## Round <n> head <sha>
 
-Must|Should|Nice <n> [patch|plan-gap|intent-gap]: <finding> — <file:line> — fixed in <sha> | deferred | open
+Must|Should|Nice <n> [patch|plan-gap|intent-gap]: <finding> — <path>[:<line>] | none — fixed in <sha> | deferred | open[ — <mark>]…
 ```
 
-- One `## Round <n>` section per round, the final review included, each
+- One `## Round <n> head <sha>` section per round, the final review included, each
   listing that round's findings after merging and de-duplication, numbered
   within the round.
-- Each finding carries its severity, its class, what it is, where it is,
-  and what became of it: `fixed in <sha>` with the fix commit, `deferred`
+- `<sha>` is the `Head: <sha>` line `accord review-package` printed for that round, the last commit it
+  reviewed; accord checks in git that it lies between the previous round's head and the round's record. The
+  heading ends ` (added code round 1)` when `accord round` printed `Added code:` before the round, and
+  ` (final review)` on the final review, which is the last round or the one before it, until an owner allowance
+  gives more rounds.
+- Each finding carries its severity, its class, what it is, where it is (one repository path, with `:<line>` when known, or
+  `none`), and what became of it: `fixed in <sha>` with the fix commit, `deferred`
   for a Nice finding written to the ledger under `## Deferred`, or `open`.
 - A finding line starts with its severity word, `Must`, `Should` or `Nice`, never two of them or a question mark: accord refuses a round record whose severity it cannot read.
+- After its state a finding line carries its marks, each after ` — `: `carried from <r>.<n>` when round `<r>` of
+  this cycle reported it as finding `<n>`; `risk: data-loss` or `risk: security`; `test: <test id>` or
+  `command: <command>` when a failing test or a command reproduces it; `rests on: ac-<n>`, `rests on: D-<nn>`,
+  `rests on: Veto "<quote>"` or `rests on: Intent "<quote>"`, a quote of at least three words from that section.
+- From round 3 of a cycle, the final review not counted and, for a file code a debug episode or a merge added
+  changed, rounds counted from the one headed `(added code round 1)`: a Must or Should not carried from an earlier
+  round, whose location is not a file the previous round's fix changed, blocks only with `test:`, `command:` or a
+  `risk:` mark. Otherwise write it `deferred` and add the line `- review <r>.<n> cycle <k>: <finding>` under
+  `## Deferred` in the ledger (` cycle <k>` from cycle 2 on); it then leaves the stop from round 3. From round 3 a
+  new Should also needs `rests on:`, `test:`, `command:` or a `risk:` mark; without one, write it as a Nice.
+- A round's fix is every commit after its head, up to the next round's head or, after the last round, to the
+  last commit, but merges of the default branch, a debug episode's commits and commits that change only the
+  ticket's records. Each file a fix changes is the location of a finding of that round, or a Ruling under
+  `## Rulings` in the ledger names its path with a reason; a copy `accord skills sync` writes and a path under
+  `generated:` in `accord/config.yml` need neither.
 - Each round is written as it ends, the final review included, with every finding `open`, and committed before any fix executor is dispatched; each state then becomes `fixed in <sha>` or `deferred`.
 - A round with no findings says `No findings`.
 - Every `Confirmed wording-only: <path>` and `Not an interface: <path> — <reason>` line a reviewer reports is copied verbatim, one per line, into that round's section. Only the last `## Round` is read for them, so the last round, the final review, carries every one that still holds.

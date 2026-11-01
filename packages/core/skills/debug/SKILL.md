@@ -19,7 +19,8 @@ main session and orchestrate: debuggers investigate, executors fix.
    probes and what they showed, and each fix tried with its count. It
    survives compaction; after one, read it before anything else. Start
    each episode by appending `## Episode <n>` to it; the episode is open
-   while the last `## ` heading in the file is not `## Resolved`.
+   while the last `## ` heading in the file is not `## Resolved`. A commit after
+   the next review round is that round's fix.
 
 3. **Root cause.** No fix before a root cause. Dispatch a fresh
    `accord-debugger` with the path of the ticket file and the failing

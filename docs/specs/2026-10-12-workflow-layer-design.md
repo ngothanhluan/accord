@@ -274,7 +274,8 @@ findings and the round it came from; the run does not continue on a failing plan
 
 `plan.md` frontmatter carries `baseline:`, the commit the plan was written against. `accord gate plan`
 checks that it names a commit that is an ancestor of `HEAD`, and `accord review-package <id>` diffs from
-it when no base is given, so review always sees the whole ticket and nothing before it (phase 2).
+it when no base is given and no review round has recorded a head, so the first round sees the whole ticket and
+nothing before it (phase 2); after that it diffs from the last round's head (ST-LN-57).
 Only the first plan sets `baseline:`. A re-plan, after a change of course or a review plan gap, keeps
 `baseline:` and every task the ledger records with its number, numbers new or changed tasks after the
 highest, keeps `(new)` relative to the baseline, and does not re-run the baseline tests; the critic and
@@ -413,12 +414,25 @@ merges and de-duplicates findings before the fix loop.
 - Fix every Must and Should marked `patch`. After a round with a Must, re-review only the fix diff, with one
   reviewer; after a round with only Should findings, the affected tests over the fixed files, or the full suite
   when none apply, check the fix, with no re-review.
+- Review checks a pinned scope (ST-LN-57). `review.md` opens `Round record: 2`; each round is
+  `## Round <n> head <sha>`, the head the package printed as `Head:`, which git must place between the previous
+  head and the last code commit before the round's record. Each loop round's package holds only the ticket's
+  commits after the last head, without what a merge of the default branch brought in but with the merge's own
+  changes; `--base` is accepted only for the lane M final review, as the plan's baseline. A round after code a
+  debug episode or a merge added is headed `(added code round 1)`, the final review `(final review)`.
+- From round 3 of a cycle, the final review not counted and a file added code changed counted from that
+  code's own round 1, a new Must or Should outside the files the previous round's fix changed blocks only with
+  `test:` or `command:`, else it is deferred in the ledger and leaves the stop; a new Should also rests on a
+  ticket line or a failing case; `risk: data-loss` and `risk: security` always block. A round's fix is every
+  commit from its head to the next head but merges, a debug episode's commits and records-only commits; each
+  file it changes needs a finding of the round or a Ruling naming it, synced and `generated:` copies aside.
 - Converged means no Must is open and every Should is fixed with that test command passing. Nice findings go to the ledger as deferred, not fixed.
 - If round three still finds a new Must, the orchestrator says whether it traces to the ticket or the
   plan; if it does, the owner is asked before round four.
 - At most five rounds. Rounds four and five use a fresh executor one model tier higher.
 - At the cap the run stops and reports the open findings to the owner. It never reports done.
 - After convergence, one fresh final reviewer on the strongest configured model reads the whole diff once
+  (`accord review-package <id> --base <baseline>`, its round headed `(final review)`)
   (for diffs over about 1500 lines the integration reviewer takes this role). A Must gets one fix and one scoped
   re-review; a Should gets a fix checked by that test command; then stop.
 - `tickets/<id>/review.md` records each round and ends with `verdict: converged` or, after the cap,
@@ -432,7 +446,9 @@ merges and de-duplicates findings before the fix loop.
 - no failed case in the report (`gate.suite-not-passed`); the report is the output of `tests.full`;
 - `review.md` ends with `verdict: converged` or `verdict: accepted-by-owner`;
 - every task in `plan.md` has a ledger completion line;
-- the approval exists and still matches the ticket (`gate.approval-missing`, `gate.approval-stale`, section 4).
+- the approval exists and still matches the ticket (`gate.approval-missing`, `gate.approval-stale`, section 4);
+- for a version 2 `review.md`, the review scope checks of §10 (ST-LN-57), skipped with a notice when HEAD is already
+  on the default branch or the ticket is done there.
 
 The commit match (`commit:` in `verification.md`, `verified_commit:` in the ticket) passes when the recorded
 commit equals the gated commit, or when it is an ancestor of the gated commit and every file changed since

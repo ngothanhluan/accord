@@ -14,12 +14,11 @@ fix.
 
 1. Run `accord anchor`.
 
-2. **Package.** Run `accord review-package <id>` into a file outside the working tree. It holds the
-   commits, the stat, and the diff from the plan's `baseline:`, and lists under `## Undeclared files`
-   every changed file no task's `files:` line names, and under `## Interface signs` each sign of a new
-   interface the branch adds. The review unit is the whole ticket, whatever `review.mode` in
-   `accord/config.yml` says. When `accord anchor` prints `Review base: <sha>`, run
-   `accord review-package <id> --base <sha>` instead.
+2. **Package.** Run `accord review-package <id>` into a file outside the working tree. After a round with a head in
+   `review.md`, it holds the commits, the stat, and the diff after that head, without what a merge brought in from
+   the default branch; before round 1, from the plan's `baseline:`. It prints `Head: <sha>` for the round's heading,
+   and lists under `## Undeclared files` every changed file no task's `files:` line names, and under
+   `## Interface signs` each sign of a new interface the branch adds.
 
 3. **Reviewers.** Choose by the unit's diff size and risk:
    - up to about 500 changed lines: one `accord-reviewer`, lens `both`;
@@ -33,16 +32,17 @@ fix.
 
 4. **Classify.** De-duplicate the findings, then mark each one `patch`, `plan-gap`, or `intent-gap`.
    - Fix every Must and Should marked `patch` through `accord-build`'s executor path. Commit the round to `review.md` as
-     `./record.md` says, then note the HEAD sha. Write a brief file outside the working tree: copy the ticket file byte
+     `./record.md` says. Write a brief file outside the working tree: copy the ticket file byte
      for byte (never retype it), then append the findings to fix. Dispatch a fresh `accord-executor` with its path and
      step 6's `model`, and route its stops as `accord-build` does.
    - When it reports, run the `tests.affected` command over the files the fix touched, or `tests.full`
      when `tests.affected` is not configured or finds no test file. If it fails, dispatch a fresh
      executor with the same brief plus the failing output, in the same round.
-   - Copy every Ruling in its report, and each file outside the plan you accept as a Ruling naming the
-     file and its reason, into `accord/tickets/<id>/ledger.md` under `## Rulings`; commit the ledger.
+   - Copy every Ruling in its report, and each file outside the plan you accept, or that the fix changed with no
+     finding of the round in it, as a Ruling naming the file and its reason, into
+     `accord/tickets/<id>/ledger.md` under `## Rulings`; commit the ledger.
    - When the round reported a Must, re-review only the fix diff:
-     `accord review-package <id> --base <the noted sha>` into a file outside the working tree, one
+     `accord review-package <id>` into a file outside the working tree, one
      reviewer, lens `both`. When it reported only Should findings, no reviewer is dispatched again for
      that fix: that command passing checks it.
    - A plan gap goes back to `accord-plan` as a re-plan, where the critic runs again.
@@ -56,8 +56,9 @@ fix.
    tiers up from `escalation.fix_round_tier_up`. On `stop: report to owner` (a Should or a Must from round 3, or the cap)
    or `refused:`, act as `./record.md` says; never report the work finished.
 
-7. **Final review.** After convergence, one fresh `accord-final-reviewer` reads the whole review package once (over about
-   1500 changed lines, dispatch it with lens `integration`). If it finds a Must: one fix and one scoped re-review, as in
+7. **Final review.** After convergence, one fresh `accord-final-reviewer` reads the whole ticket once, from
+   `accord review-package <id> --base <the plan's baseline:>`, its round headed `(final review)` (over about 1500
+   changed lines, dispatch it with lens `integration`). If it finds a Must: one fix and one scoped re-review, as in
    step 4. If it finds only Should findings, fix them and run that command as in step 4, with no re-review. If a Must is
    still open after that, stop and ask the owner.
 

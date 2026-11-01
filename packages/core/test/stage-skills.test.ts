@@ -369,7 +369,7 @@ it('ac-1 the first plan critique is sized by the plan and a should only round re
   const criticPhrases = [
     'Mode `diff`:',
     '`fixed: <round>.<n>, <round>.<n>`',
-    '`criteria` runs only the first, second, third and fifth checks',
+    '`criteria` runs only the first, second, third, fifth and seventh checks',
     'On the changed hunks, check that no Veto is violated and that nothing goes beyond the acceptance criteria.',
     'and at the task or section each `open` or `unverified` finding names; never read the whole plan.',
     'a new numbered finding that starts `repeats <round>.<n>:`',

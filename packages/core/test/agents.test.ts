@@ -15,10 +15,9 @@ const scout = (c: AccordConfig): string => agentTargets(c).find((f) => f.path ==
 
 // What each agent must name, asserted over the RENDERED agent file, as REQUIRED is over a rendered skill.
 const AGENT_REQUIRED: Record<string, readonly string[]> = {
-  architect: ['first rung', 'climb further', 'what it does'],
   executor: ['plan.md', 'never weaken', 'BLOCKED', 'findings'],
-  critic: ['text only', 'three concrete failure scenarios', 'Check that no Veto is violated', 'without asking', 'Should'],
-  planner: ['(new)', 'must not change', 'wiring', 'polish', 'highest existing number', 'Keep `baseline:` as it is'],
+  critic: ['defer to plan', 'three concrete failure scenarios', 'Check that no Veto is violated', 'without asking', 'Should'],
+  planner: ['(new)', 'must not change', 'wiring', 'polish', 'highest existing number', 'Keep `baseline:` as it is', '`direction` mode', 'first rung', 'climb further'],
   reviewer: ['Extra', 'written conventions', 'product/', 'linter', 'Undeclared files', 'Ruling', 'lane S'],
   verifier: ['distrust', 'Substantive', 'Wired', 'Data flows', 'Result: blocked', 'verification.md'],
   debugger: ['measurement', 'cheapest probe', 'parallel round', '## Episode <n>'],
@@ -66,11 +65,11 @@ describe('rendered agents', () => {
     expect(frontmatter(text)).toMatchObject({ name: 'accord-auditor', tools: 'Read', model: 'opus', effort: 'medium' });
   });
 
+  // Title kept for the baseline: the architect is gone, so this now asserts the critic only and that no architect file renders.
   it('renders the architect and the critic read-only on their spec routes', () => {
-    for (const role of ['architect', 'critic']) {
-      const text = agentTargets(config()).find((f) => f.path === `.claude/agents/accord-${role}.md`)?.text ?? '';
-      expect(frontmatter(text)).toMatchObject({ name: `accord-${role}`, tools: 'Read, Grep, Glob', model: 'opus', effort: 'high' });
-    }
+    const text = agentTargets(config()).find((f) => f.path === '.claude/agents/accord-critic.md')?.text ?? '';
+    expect(frontmatter(text)).toMatchObject({ name: 'accord-critic', tools: 'Read, Grep, Glob', model: 'opus', effort: 'high' });
+    expect(agentTargets(config()).map((f) => f.path)).not.toContain('.claude/agents/accord-architect.md');
   });
 
   it('renders the final reviewer from the reviewer definition, routed by reviewer.final', () => {
@@ -150,7 +149,7 @@ it('ac-4 the planner runs every plan check of the critic before it replies', () 
   const rest = critic.slice(from + 1);
   const run = rest.slice(0, rest.indexOf(''));
   const checks = run.filter((l) => l.startsWith('- Check'));
-  expect(checks).toHaveLength(6);
+  expect(checks).toHaveLength(7);
   expect(checks).toEqual(run);
   const intro = planner.indexOf("Before you reply, run these checks of the critic's plan mode on your plan and fix what fails:");
   expect(intro).toBeGreaterThanOrEqual(0);
@@ -251,9 +250,9 @@ it('ac-3 the scout architect critic and planner read the research records and no
   const S =
     "Read every record the ticket's frontmatter `research:` key lists, when it has one: a record is evidence, not a contract, and holds at the commit it names, so check a claim against the code before you rely on it.";
   const files = agentTargets(config({ runtimes: ['claude', 'codex', 'cursor', 'copilot'] }));
-  const names = ['architect', 'auditor', 'critic', 'debugger', 'executor', 'final-reviewer', 'planner', 'reviewer', 'scout', 'verifier'];
+  const names = ['auditor', 'critic', 'debugger', 'executor', 'final-reviewer', 'planner', 'reviewer', 'scout', 'verifier'];
   expect(files.map((f) => f.path).sort()).toEqual(names.map((n) => `.claude/agents/accord-${n}.md`));
-  const readers = ['scout', 'architect', 'critic', 'planner'];
+  const readers = ['scout', 'critic', 'planner'];
   for (const f of files) {
     const role = f.path.replace('.claude/agents/accord-', '').replace('.md', '');
     if (readers.includes(role)) expect(f.text.replace(/\s+/g, ' '), f.path).toContain(S);

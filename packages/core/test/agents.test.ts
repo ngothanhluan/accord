@@ -70,6 +70,8 @@ describe('rendered agents', () => {
     const text = agentTargets(config()).find((f) => f.path === '.claude/agents/accord-critic.md')?.text ?? '';
     expect(frontmatter(text)).toMatchObject({ name: 'accord-critic', tools: 'Read, Grep, Glob', model: 'opus', effort: 'high' });
     expect(agentTargets(config()).map((f) => f.path)).not.toContain('.claude/agents/accord-architect.md');
+    const planner = agentTargets(config()).find((f) => f.path === '.claude/agents/accord-planner.md')?.text ?? '';
+    expect(frontmatter(planner)).toMatchObject({ name: 'accord-planner', tools: 'Read, Grep, Glob, Write, Edit', model: 'opus', effort: 'high' });
   });
 
   it('renders the final reviewer from the reviewer definition, routed by reviewer.final', () => {

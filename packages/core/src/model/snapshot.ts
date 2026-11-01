@@ -232,7 +232,7 @@ export interface TicketWork {
 }
 
 export type RouteKey =
-  | 'scout' | 'auditor' | 'architect' | 'critic' | 'planner'
+  | 'scout' | 'auditor' | 'critic' | 'planner'
   | 'executor' | 'reviewer' | 'reviewer.final' | 'verifier' | 'debugger';
 export type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
@@ -245,7 +245,7 @@ export interface AccordConfig {
   runtimes: ('claude' | 'codex' | 'cursor' | 'copilot')[];
   tests?: { report: string; affected?: string; full?: string }; // D-72: repo-relative path of the test report; commands the skills run
   review?: { mode: 'human' | 'outcome' }; // spec §7: absent means 'human', the 0.1.0 behaviour
-  models?: Partial<Record<RouteKey, { model: string; effort?: Effort }>>; // absent entries use the default routing
+  models?: Partial<Record<RouteKey | 'architect', { model: string; effort?: Effort }>>; // absent entries use the default routing; architect is still accepted and has no effect (ST-LN-80)
   escalation?: { fix_round_tier_up: string }; // '1'..'5'; YAML numerics stay strings
   stale_days?: string; // digits; YAML numerics stay strings
   people?: Record<string, string>; // email -> 2 to 4 capital letters (IDS-1)

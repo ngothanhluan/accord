@@ -181,7 +181,7 @@ Hidden complexity found mid-task lifts the lane; a lane never drops mid-task. A 
 
 `accord-debug` finds a root cause before any fix, ranks competing hypotheses before testing one, and returns to the stage it interrupted.
 
-**Agents.** Work that must not grade itself runs in fresh agent contexts, installed for the `claude` runtime at `.claude/agents/accord-<role>.md`: `scout`, `auditor`, `architect`, `critic`, `planner`, `executor`, `reviewer`, `final-reviewer`, `verifier`, and `debugger`. Every agent receives the ticket verbatim, never a summary; an executor gets it inside `accord brief <id> <task>` and never sees chat history.
+**Agents.** Work that must not grade itself runs in fresh agent contexts, installed for the `claude` runtime at `.claude/agents/accord-<role>.md`: `scout`, `auditor`, `critic`, `planner`, `executor`, `reviewer`, `final-reviewer`, `verifier`, and `debugger`. Every agent receives the ticket verbatim, never a summary; an executor gets it inside `accord brief <id> <task>` and never sees chat history.
 
 **Routing.** `models:` in `config.yml` sets each agent's model and effort; an absent entry falls back to the default (the values below for these three). `reviewer.final` routes the final reviewer. From the fix round `escalation.fix_round_tier_up` names (default 4), the executor is dispatched one tier higher, in the order `haiku`, `sonnet`, `opus`. `accord skills sync` renders these values into each agent's frontmatter.
 

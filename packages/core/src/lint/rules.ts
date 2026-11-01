@@ -2,6 +2,7 @@
 // `rule` and `level` from the row (D-58), so a level literal for a `lint.*` rule appears nowhere else.
 import type { Finding, Level } from '../model/finding.js';
 import type { RepoSnapshot } from '../model/snapshot.js';
+import { modelRetired } from './config.js';
 import { dependsCycle, dependsUnknown } from './depends.js';
 import { idConvention, initialsDuplicate } from './ids.js';
 import { dependsDropped, droppedReason } from './dropped.js';
@@ -93,4 +94,5 @@ export const RULES: readonly Rule[] = [
   { id: 'lint.token-hardcoded', level: 'warning', profiles: ['build', 'maintain'], check: tokenHardcoded },
   { id: 'lint.tokens-missing', level: 'warning', profiles: ['build', 'maintain'], check: tokensMissing },
   { id: 'lint.prototype-derivation', level: 'warning', profiles: ['build', 'maintain'], check: prototypeDerivation },
+  { id: 'lint.model-retired', level: 'warning', profiles: ['build', 'maintain'], check: modelRetired },
 ];

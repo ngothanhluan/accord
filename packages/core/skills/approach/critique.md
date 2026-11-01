@@ -1,0 +1,118 @@
+---
+kind: reference
+---
+
+# The approach critique loop
+
+The main session keeps every critic finding in
+`accord/tickets/<id>/approach-review.md`, in the format of
+`plan-review.md`: the line `Round record: 1` above every heading, one
+`## Round <n> (whole)` or `## Round <n> (diff)` section per round, and
+each finding on one line as `<n>. <Must|Should|Nice> — <finding> — <state>`.
+The state is `open`, `fixed`, `deferred` for a Nice, `unverified: <reason>`,
+`withdrawn`, `repeated as <round>.<n>`, and `owner: "<the owner's words>"`
+for one the owner dropped. A finding stays `open` or `unverified` until a
+critic lists it after `fixed:` or `withdrawn:`, or the owner drops it; the
+planner's word alone closes nothing. A round with no findings says
+`No findings`. Only the sections after the last `## Closed` line count.
+At most one last line, `verdict: accepted-by-owner "<the owner's sentence>"`,
+ends the file.
+
+## The ladder
+
+Step 2 of the skill writes the ladder Ruling from the planner's report, as one line:
+
+```text
+Ruling: the approach ladder is 1. <option>: <what it does>; 2. <option>: <what it does>; 3. <option>: <what it does>; <option> is Recommended because <the planner's line> — kept so a resumed or revised round critiques the option ## Approach names and nobody picks again — a ruled-out option comes back
+```
+
+The third entry is left out when the report has two options. The last
+ladder Ruling of the ledger is the one that holds. No part of the ladder
+Ruling names a file or a path: each option's description and the reason
+after `Recommended because` are plain words, never a `path:line`, because a
+Ruling that names a path stands as the reason for any fix commit to that
+path; the impact list stays in `## Approach`.
+
+Each cycle of the record ends with one of three headings, each carrying the
+name of the option `## Approach` names, spelt as the ladder Ruling spells it:
+
+- `## Closed <option>: ruled out by <round>.<n>`
+- `## Closed <option>: the owner picked <other option>`
+- `## Closed <option>: the owner's no`
+
+An option is ruled out when a `## Closed <option>: ruled out by <round>.<n>`
+heading after the last `: the owner's no` heading names it. The option under
+critique is always the one `## Approach` names: a resumed session or a
+revision keeps it, and only step 3 below or the owner moves to another. When
+another option of the ladder Ruling takes the place of the one `## Approach`
+names and this session no longer holds the planner's report, dispatch
+`accord-planner` in its `direction` mode with the ticket path, that option's
+name and its entry of the ladder Ruling, and write the draft it returns into
+`## Approach` as step 2 of the skill says.
+
+## The count
+
+Before each round and before appending `## Closed`, run
+`accord round <id> --approach`. Exit 0 gives the round's number and the cap.
+It counts only the rounds after the last `## Closed` line, at most five, and
+prints `stop: report to owner` from round 3 on a round that still reports a
+Should or a Must, and on a fifth round that reports any finding. On a stop,
+report what it prints to the owner as `./ask.md` says, and ask whether to
+change course to another option, accept the open findings, or allow more
+rounds. The answer is written as the last line
+`verdict: accepted-by-owner "<the owner's sentence>"` of
+`approach-review.md`, or as the owner allowance below, with r and k as the
+stop printed them:
+
+```text
+Ruling: the owner allows <n> more approach critique rounds after round <r> of cycle <k> — "<the owner's sentence>" — <cost if wrong>
+```
+
+Another option at a stop takes that same allowance, with n the rounds the
+owner gives it, and is then written into `## Approach` as step 2 of the
+skill says, because `## Closed` is refused while a stop holds. Never append
+`## Closed` while a stop holds. On a `refused:` that says the loop has ended,
+go to step 4 of the skill; on any other `refused:`, fix what it names and
+run it again.
+
+## The rounds
+
+1. **Read.** Round 1 is `whole`: one `accord-critic` in a fresh context, mode
+   `approach`, with the path of the ticket file, whose `## Approach` holds
+   only the draft of step 2. When the ticket touches auth, money, migration,
+   or data deletion, ask it for three concrete failure scenarios as well.
+   From round 2, even after a Must, the round is `diff`: write
+   `git diff <the previous round's commit> -- accord/tickets/<id>.md`, which
+   holds the amended `## Approach`, into a file outside the working tree, and
+   dispatch one `accord-critic` in a fresh context, mode `approach`, with the
+   paths of the ticket, that file, and `approach-review.md`, never the
+   planner's report.
+2. **Record.** Append the round's section and mark each new finding `open`.
+   Mark `fixed` each finding the critic lists after `fixed:`, and
+   `withdrawn` each one it lists after `withdrawn:`. A new finding that
+   starts `repeats <round>.<n>:` marks that earlier finding
+   `repeated as <this round>.<n>`. A Nice, a `defer to plan` one included, is
+   marked `deferred`, goes to the ledger under `## Deferred`, and never to
+   the planner.
+3. **Ruled out.** When a Must would break a Veto, Decision, or Correction,
+   the option is out: append `## Closed <option>: ruled out by <round>.<n>`,
+   naming that Must, to `approach-review.md`, take the first option of the
+   ladder Ruling that is not yet ruled out, write it into `## Approach` as
+   step 2 of the skill says (when this session no longer holds the planner's
+   report, as the ladder section above says), commit both files, and start
+   again at round 1. When no option is left, ask the owner.
+4. **Converged.** The loop ends only on a round that reports no Must and no
+   Should and leaves no Must or Should open or unverified, or on the owner's
+   acceptance after a stop: go to step 4 of the skill.
+5. **Fix.** Otherwise commit `accord/tickets/<id>.md` and
+   `approach-review.md` with the subject
+   `approach: <id> round <n>, <m> Must, <s> Should`, `<m>` and `<s>` counting
+   the Musts and the Shoulds after the last `## Closed` line that are `open`
+   or `unverified`; the next `diff` round reads from that commit. Dispatch
+   `accord-planner` in its `direction` mode with the ticket path, the name of
+   the option `## Approach` names, the path of `approach-review.md`, and every
+   Must and Should that is `open` or `unverified`, never a Nice, each
+   labelled `<round>.<n>`. Write the revised option, which keeps its name,
+   and the impact list it returns into `## Approach`, still without its
+   reasons, and each `unverified: <reason>` it replies into the state of the
+   finding with that label. Then go back to step 1.

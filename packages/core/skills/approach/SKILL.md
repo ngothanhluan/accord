@@ -1,9 +1,9 @@
 ---
 name: accord-approach
-description: Use when a lane M ticket has its intent and acceptance criteria and needs an approach. Chooses the lightest approach that works, has a critic argue against it, and takes the owner's explicit yes before accord approve.
+description: Use when a lane M ticket has its intent and acceptance criteria and needs an approach. Has the planner draft the lightest approach that works, has a critic argue against it in capped rounds, and takes the owner's explicit yes before accord approve.
 license: MIT
 kind: skill
-loads: [shared/ask.md]
+loads: [approach/critique.md, shared/ask.md]
 ---
 
 This stage chooses how the ticket will be built, lightest first, and takes
@@ -13,40 +13,46 @@ the owner's yes before anyone plans. You run it in the main session.
 
 1. Run `accord anchor`.
 
-2. **Options.** Dispatch `accord-architect` with the path of
-   `accord/tickets/<id>.md`. It runs an impact analysis (callers,
-   interfaces, tests, config, exports the change must reach) and proposes
-   two or three options in ladder order. The first option is always the
-   lightest that works. Every added layer of complexity names the
-   acceptance criterion or constraint that requires it, or is dropped.
+2. **Options.** Dispatch `accord-planner` in its `direction` mode with the path of
+   `accord/tickets/<id>.md`. It writes no file. Its report holds an impact
+   list naming file and line, two or three options in ladder order with the
+   lightest that works first, each added layer naming the criterion or
+   constraint that requires it, and, when the ticket touches auth, money,
+   migration, or data deletion, three failure scenarios in total with how
+   each is undone. The chosen option is the one it marks `Recommended`,
+   unless the owner has already picked another. Write into `## Approach`
+   only the chosen option's name, what it does, and the impact list, never
+   its reasons, its risk line, the other options or the `Recommended` line,
+   so the critic's review stays independent. Write the ladder Ruling of
+   `./critique.md` into `accord/tickets/<id>/ledger.md`. When a new session
+   or a revision needs the planner again, dispatch it in `direction` mode
+   with the name of the option `## Approach` names: it keeps that option,
+   and nobody picks again. Commit `accord/tickets/<id>.md` and
+   `accord/tickets/<id>/ledger.md`; keep the report for steps 3 and 4.
 
-3. **Critique.** The chosen option is the one the architect marks
-   `Recommended`, unless the owner has already picked another. Dispatch
-   `accord-critic` in a fresh context, mode `approach`, with the path of
-   the ticket file and the chosen option's text only (its name and what it
-   does), never the architect's reasoning, risk line, or `Recommended`
-   line, so its review stays independent. It argues the strongest case
-   against the chosen option and checks it against Vetoes, Decisions, and
-   Corrections. This runs for every ticket in lane M and above.
-   If a Must finding would break a Veto, Decision, or Correction, that
-   option is out: take the first option in the architect's ladder order
-   that is not yet ruled out, and run the critic again on it. If no option
-   is left, ask the owner. When the ticket touches auth, money, migration,
-   or data deletion, ask the critic for three concrete failure scenarios as
-   well.
+3. **Critique.** Run the loop in `./critique.md`, running
+   `accord round <id> --approach` before each round. One `accord-critic` in a
+   fresh context, mode `approach`, argues the strongest case against the
+   chosen option and checks it against Vetoes, Decisions, and Corrections,
+   for every ticket in lane M and above. A Must that would break a Veto,
+   Decision, or Correction rules the option out, and the first option of
+   the ladder Ruling that is not yet ruled out takes its place, as
+   `./critique.md` says; when none is left, ask the owner.
 
-4. **Write `## Approach`** in `accord/tickets/<id>.md`, about fifteen lines:
+4. **Write `## Approach`** in `accord/tickets/<id>.md`, in full, about fifteen lines:
 
-   - chosen option and why;
-   - rejected options and why;
-   - affected areas;
+   - a `- Chosen:` line, the option and why;
+   - one `- Rejected: <option> — <why>` line per other option the ladder
+     Ruling names, the why taken from its `## Closed` heading or the
+     Ruling's `Recommended` line;
+   - affected areas, from the impact list;
    - risks: every critic finding the chosen option keeps, Must findings
      first, so the owner approves with them in view; for a ticket that
-     touches auth, money, migration, or data deletion, each of the
-     critic's three failure scenarios and how it is undone;
+     touches auth, money, migration, or data deletion, each of the three
+     failure scenarios and how it is undone;
    - test strategy: which criterion is tested at which layer.
 
-   Commit `accord/tickets/<id>.md`.
+   Commit `accord/tickets/<id>.md` and `accord/tickets/<id>/approach-review.md`.
 
 5. **The owner's yes.** Run `accord show <id> --approval`; if it fails, stop and tell
    the owner. Paste its output, which holds every approved section, unchanged, as Markdown, not inside a code
@@ -63,11 +69,14 @@ the owner's yes before anyone plans. You run it in the main session.
    ticket waits for that ticket's merge, then after the merge run `git fetch`
    and `accord gate ready <id>` again. Then commit the ticket, with `approved_hash:` and `ac_hash:` in
    it. Then run `accord worktree push <id>`; go on even if it fails. If the
-   owner picks another option, go back to step 3 with that
-   option, rewrite `## Approach`, and ask again. On any other no, write the
-   owner's words under `## Corrections` first, empty `## Approach` below its
-   heading, go back to `accord-intent` step 8, and restart this stage at
-   step 2.
+   owner picks another option, append
+   `## Closed <option>: the owner picked <other option>` to
+   `accord/tickets/<id>/approach-review.md`, write that option into
+   `## Approach` as step 2 says, go back to step 3 with that option, and ask
+   again. On any other no, write the owner's words under `## Corrections`
+   first, append `## Closed <option>: the owner's no` to
+   `approach-review.md`, empty `## Approach` below its heading, go back to
+   `accord-intent` step 8, and restart this stage at step 2.
    `accord approve` runs only on a yes to the sections as shown. Never run
    `accord approve` without the owner's yes in this conversation.
 

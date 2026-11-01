@@ -7,6 +7,7 @@
 - task 4 done d5bdab866bca
 - task 5 done a9112c25cb76
 - task 6 done b22e062e87a9
+- task 7 done 79ba28583a61
 
 ## Rulings
 
@@ -80,6 +81,8 @@
 - Ruling: (task 5) shas in the review-scope messages are cut to 12 characters, including the rounds' highs listed in the version refusal — a 12-character head is valid and copyable — if wrong, a session retypes a longer sha.
 - Ruling: (task 6) the executor used the Task 4 and Task 5 code (`round/scope.ts`, `load/round-facts.ts`) as it stands and did not re-review it — both are outside this task's `files:` line and were recorded with their own tests — if wrong, a defect there is found only at review.
 - Ruling: (task 6) the first task 6 executor was cut off by the session's end before committing; a fresh executor got the same brief plus the uncommitted partial diff, checked it against the brief, kept it unchanged and showed the failing tests with the source changes set aside — no work is lost and the test-first evidence is still produced — if wrong, unchecked partial code reached the commit, which review reads in full.
+- Ruling: (task 7) `cycleState` takes the deferred set as a fourth parameter, and one exported `deferredFor(snapshot, id, kind, cycle)` in next.ts hands it to all three callers (`recordProblems`, `nextRound`, gate/rounds.ts), returning the empty set for plan records — one helper means the plan kind cannot receive a set by mistake — if wrong, a rename.
+- Ruling: (task 7) `gate.finding-evidence` sits after `gate.review-scope-skipped` in both Done tables (lane M and lane S), and its findings carry file review.md, the finding's line and the reason text the plan gives — it follows the plan — if wrong, the rule order in gate output changes.
 
 ## Deferred
 - plan round 1.8 (Nice): rolling back to the 0.3.0 CLI needs an owner allowance Ruling per cycle that went past round 3 with deferred findings (0.3.0 has no D-08); rolling forward sets line 1 back to `Round record: 2`

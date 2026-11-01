@@ -49,7 +49,7 @@ Feature: ST-LN-57
     Then it holds only the ticket branch's commits after that head commit, leaving out what a merge brought in from main but keeping the merge's own conflict resolutions
     And review.md records, for each round, the head commit that round reviewed up to
 
-  @ac-2
+  @ac-2 @test:packages/core/test/finding-evidence.test.ts#ac-2-from-round-3-a-new-finding-outside-the-last-fix-files-blocks-only-with-evidence
   Scenario: From round 3, a new finding outside the last fix's files blocks only with evidence
     Given review.md whose round 3 holds a Must or a Should that is not marked as carried forward from an earlier round
     And the file in the finding's location is one that none of round 2's fix commits, every commit after round 2 up to round 3 but a merge of main, a debug episode's commits and commits that change only the ticket's records, changed, or the finding gives no file
@@ -61,7 +61,7 @@ Feature: ST-LN-57
     And it passes the same finding without evidence when it is marked as data loss or security
     And a finding so deferred, with its Deferred line, does not count toward the stop ST-LN-17 prints from round 3, nor toward the gate done failure that stop causes
 
-  @ac-3
+  @ac-3 @test:packages/core/test/finding-evidence.test.ts#ac-3-code-added-by-a-debug-episode-or-a-merge-starts-its-own-round-1-for-the-evidence-rule
   Scenario: Code added by a debug episode or a merge starts its own round 1 for the evidence rule
     Given a ticket whose review reached round 4
     And a debug episode or a merge of main then added commits

@@ -34,3 +34,8 @@ Nice 29 [patch]: the review skill does not point to the fix-file exemptions or t
 Nice 30 [patch]: failure.md still describes the `Review base:` round, and a stage-skills test title says the package reads after the review base — packages/core/skills/shared/failure.md:47 — deferred
 Nice 31 [patch]: `<r>` in the Deferred line is not defined as the round's place in its cycle — packages/core/skills/review/record.md:37 — deferred
 Nice 32 [patch]: the `--base` help text still says the default is the plan's baseline — packages/cli/src/run.ts:173 — deferred
+
+## Round 2
+
+Should 1 [patch]: after a final review that already covered a merge, `accord round` still prints `Added code:` because pendingOf reads the span from the last round not headed `(final review)`, and record.md tells the session to run that round before the verdict; gate.review-scope never asks it, and if that round reports a Must its re-review leaves the final review two rounds from the end, so gate done fails — packages/core/src/round/scope.ts:170 — open
+Nice 2 [patch]: a version 2 record's unknown-heading error names the version 1 heading forms — packages/core/src/round/record.ts:149 — deferred

@@ -131,3 +131,4 @@
 - review 1.30 (Nice): failure.md still describes the `Review base:` round, and a stage-skills test title says the package reads after the review base — packages/core/skills/shared/failure.md:47
 - review 1.31 (Nice): `<r>` in the Deferred line is not defined as the round's place in its cycle — packages/core/skills/review/record.md:37
 - review 1.32 (Nice): the `--base` help text still says the default is the plan's baseline — packages/cli/src/run.ts:173
+- review 2.2 (Nice): a version 2 record's unknown-heading error names the version 1 heading forms — packages/core/src/round/record.ts:149

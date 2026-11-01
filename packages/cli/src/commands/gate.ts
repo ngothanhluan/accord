@@ -6,6 +6,7 @@
 // goes to stderr, so `jq '.findings[]'` works with no unwrapping (D-98).
 import { gateDone, gatePlan, gateReady, renderText, workOf } from '@accord-dev/accord-core';
 import { gitAfterReview, gitBranchCommits, gitPlanHistory, gitRecordsSinceFor, gitReviewCommit, gitReviewFact, UsageError, withDefaultRef, withReturnFacts } from '../load/fs.js';
+import { withRoundFacts } from '../load/round-facts.js';
 import { colourFindings } from '../render/color.js';
 import { branchFactFor } from './branch-fact.js';
 import type { CommandContext } from '../run.js';
@@ -48,12 +49,12 @@ export function gate(
         : ctx.snapshot;
   // ST-LN-17: Done confirms each ## Return from verify marker with git; an unversioned round record of a ticket
   // not done on the default branch needs that branch's snapshot.
-  const forRounds = which === 'done' ? withReturnFacts(ctx.root, gated, id) : gated;
+  // ST-LN-57: Done also reads the round facts from git, and the default ref's snapshot for every record with a round,
+  // whatever its version, so a ticket done there skips the review scope checks (D-10).
+  const forRounds = which === 'done' ? withRoundFacts(ctx.root, withReturnFacts(ctx.root, gated, id), id) : gated;
   const roundRecord = which === 'done' ? workOf(forRounds, id)?.rounds : which === 'plan' ? workOf(forRounds, id)?.planRounds : undefined;
-  const forGate =
-    roundRecord !== undefined && !roundRecord.versioned && roundRecord.cycles.some((c) => c.rounds.length > 0)
-      ? withDefaultRef(ctx.root, forRounds)
-      : forRounds;
+  const hasRounds = roundRecord !== undefined && roundRecord.cycles.some((c) => c.rounds.length > 0);
+  const forGate = hasRounds && (which === 'done' || !roundRecord.versioned) ? withDefaultRef(ctx.root, forRounds) : forRounds;
   const result =
     which === 'ready' ? gateReady(withDefaultRef(ctx.root, ctx.snapshot), id) : which === 'plan' ? gatePlan(forGate, id) : gateDone(forGate, id);
   ctx.stdout.write(

@@ -3,6 +3,7 @@
 import { laneTicket, workOf } from '../gate/work.js';
 import { headingKey, stripHtmlComments } from '../load/sections.js';
 import { AGENT_DEFAULTS } from '../skills/agents.js';
+import { pendingAddedCode, scopeProblems } from './scope.js';
 import type { RepoSnapshot, RoundCycle, RoundRecord } from '../model/snapshot.js';
 
 export const ROUND_CAP = 5;
@@ -22,6 +23,7 @@ export interface RoundAnswer {
   allowAfter?: number; // stop on a round run without being allowed: the round an owner allowance must follow (else `round`)
   model?: string;
   modelFor?: number; // the round `model` is for
+  addedCode?: true; // next on a version 2 review record: a debug episode or a merge added code that no round has reviewed (ST-LN-57)
 }
 
 const ALLOWANCE =
@@ -160,6 +162,8 @@ function approachOf(snapshot: RepoSnapshot, id: string): string[] {
   return lines;
 }
 
+const scopeReason = (p: { line?: number; reason: string }): string => (p.line === undefined ? p.reason : `line ${p.line}: ${p.reason}`);
+
 /** The decision for the next round of review.md or plan-review.md. */
 export function nextRound(snapshot: RepoSnapshot, id: string, kind: RoundKind): RoundAnswer {
   const laneS = laneTicket(snapshot, id)?.frontmatter?.lane === 'S';
@@ -181,15 +185,21 @@ export function nextRound(snapshot: RepoSnapshot, id: string, kind: RoundKind): 
         answer.modelFor = round;
       }
     }
+    if (kind === 'review' && pendingAddedCode(snapshot, id)) answer.addedCode = true;
     return answer;
   };
 
   if (rec === undefined || (!rec.versioned && rec.cycles.every((c) => c.rounds.length === 0))) return next(1, 1, ROUND_CAP);
   if (!rec.versioned) {
+    // ST-LN-57: a record the version cut-over refuses, or whose facts git could not give, says so before the missing version line.
+    const scope = kind === 'review' ? scopeProblems(snapshot, id) : [];
+    if (scope.length > 0) return refuse(...scope.map(scopeReason));
     return refuse(`${file} has no record version line; add the line "Round record: 1" above its first ## heading and ask again: its rounds count as cycle 1`);
   }
   const problems = recordProblems(snapshot, id, kind);
   if (problems.length > 0) return refuse(...problems.map((p) => p.reason));
+  const scope = kind === 'review' ? scopeProblems(snapshot, id) : [];
+  if (scope.length > 0) return refuse(...scope.map(scopeReason));
 
   const k = rec.cycles.length;
   const cyc = rec.cycles[k - 1];
@@ -250,7 +260,11 @@ export function nextRound(snapshot: RepoSnapshot, id: string, kind: RoundKind): 
 /** The text `accord round` prints. */
 export function roundText(answer: RoundAnswer): string {
   if (answer.kind === 'next') {
-    return `Round: ${answer.round} of ${answer.cap}\nCycle: ${answer.cycle}\n` + (answer.model === undefined ? '' : `Fix executor model: ${answer.model}\n`);
+    return (
+      `Round: ${answer.round} of ${answer.cap}\nCycle: ${answer.cycle}\n` +
+      (answer.addedCode === true ? `Added code: head round ${answer.round} as ## Round ${answer.round} head <sha> (added code round 1)\n` : '') +
+      (answer.model === undefined ? '' : `Fix executor model: ${answer.model}\n`)
+    );
   }
   if (answer.kind === 'refused') return answer.reasons.map((r) => `refused: ${r}\n`).join('');
   const file = answer.record === 'review' ? 'review.md' : 'plan-review.md';

@@ -2,6 +2,7 @@
 // plan-review.md. Exit 0 only for a next round; 1 for a stop or a refusal; 2 for a usage error.
 import { nextRound, roundText } from '@accord-dev/accord-core';
 import { UsageError, withReturnFacts } from '../load/fs.js';
+import { withRoundFacts } from '../load/round-facts.js';
 import type { CommandContext } from '../run.js';
 import { requireLaneTicket } from './lane-args.js';
 
@@ -12,7 +13,7 @@ export function round(ctx: CommandContext, id: string, options: { plan?: boolean
   if (plan && ticket.frontmatter?.lane === 'S') {
     throw new UsageError('lane S has no plan critique; accord round ' + id + ' counts its review rounds');
   }
-  const snapshot = plan ? ctx.snapshot : withReturnFacts(ctx.root, ctx.snapshot, id);
+  const snapshot = plan ? ctx.snapshot : withRoundFacts(ctx.root, withReturnFacts(ctx.root, ctx.snapshot, id), id);
   const answer = nextRound(snapshot, id, plan ? 'plan' : 'review');
   ctx.stdout.write(roundText(answer));
   return answer.kind === 'next' ? 0 : 1;

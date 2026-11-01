@@ -32,7 +32,7 @@ the owner's approval.
 ## 2. Principles
 
 1. **Enforce mechanically what matters; keep prose short.** A rule an agent can ignore will be ignored
-   eventually. Gates, `task-done`, and CI enforce; skill text guides. Each skill targets under 5 KB.
+   eventually. Gates, `task-done`, and CI enforce; skill text guides. Each skill targets at most 6000 bytes.
 2. **One ruleset.** Competing rule sources in context are themselves a cause of apparent disobedience.
    accord ships one compact ruleset and the owner disables overlapping plugins in accord repositories.
 3. **Every size runs the same six stages**, compressed rather than skipped:

@@ -4,7 +4,7 @@ import { RECORD_V2_FROM } from '@accord-dev/accord-core';
 import { cleanup, commitMsg, gitRun, makeEmptyRepo, run, writeFiles } from './helpers/repo.js';
 import { CONFIG, LANE_S_BODY, laneTicket } from '../../../test/helpers/lane.js';
 
-const pinned = (v: string): string => CONFIG.replace('accord: "0.3.0"', `accord: "${v}"`);
+const pinned = (v: string): string => CONFIG.replace('accord: "0.4.0"', `accord: "${v}"`);
 const V1 = 'Round record: 1\n\n## Round 1\n\nNo findings\n\nverdict: converged\n';
 const REVIEW = 'accord/tickets/T-1/review.md';
 

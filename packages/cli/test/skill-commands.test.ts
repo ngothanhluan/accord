@@ -16,7 +16,7 @@ import { describe, expect, it } from 'vitest';
 import { buildProgram } from '../src/run.js';
 
 const config = (over: Partial<AccordConfig> = {}): AccordConfig => ({
-  accord: '0.3.0',
+  accord: '0.4.0',
   profile: 'build',
   tracker: { adapter: 'none' },
   design: { tokens: 'src/styles/tokens.css' },

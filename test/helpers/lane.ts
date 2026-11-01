@@ -8,7 +8,7 @@ import { approvedHash, gateReady, loadSnapshot, setFrontmatterKey } from '../../
 export const REPORT = 'reports/junit.xml';
 
 export const CONFIG = [
-  'accord: "0.3.0"',
+  'accord: "0.4.0"',
   'profile: build',
   'tracker:',
   '  adapter: none',

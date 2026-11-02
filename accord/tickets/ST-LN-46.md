@@ -57,7 +57,7 @@ Feature: ST-LN-46
     Then the run's row shows whether its reply passes accord scout check, how many of the absences its reply logs under ## Absent a search of the repository at the sample's commit contradicts, and the share of that set of files whose full repository path its reply names
     And scoring the same run again gives the same row
 
-  @ac-3
+  @ac-3 @test:packages/core/test/benchmark-arms.test.ts#ac-3-the-report-shows-pass-mean-ranges-and-weighted-cost-per-arm-and-names-the-cheapest-arm-that-ties-the-best-one-or-no-winner
   Scenario: The report names the cheapest arm that ties the best one
     Given every arm has scored runs on every sample
     When the round report is written

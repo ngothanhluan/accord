@@ -9,7 +9,7 @@ kind: reference
    entry under `sensitive:` in `accord/config.yml` matches, with that entry's `path:line`, an entry ending in `/`
    matching every path below that folder; and the code locations a different reading of the request would change,
    or "not found" and where it looked. The scout reports facts and never judges the reading. It reports only the
-   files that exist; you add the new files the change creates.
+   files that exist; you add the new files the change creates. Check and save its reply as `./scout.md` says.
 2. From those facts, judge each lift condition yourself. When the scout names code locations a different reading
    would change, you form the one question that settles the reading from them, or count the request as having
    more than one plausible reading when no single question can.
@@ -23,7 +23,7 @@ stays lane S; the expected files, not counting test files and the copies accord 
 than 5 or span more than 3 code areas, a code area being a file's folder cut to its first four path segments.
 
 The expected files of that last condition are counted over the files the scout reports plus the new files you name,
-minus test files and the copies accord generates: a request that creates 7 new files is lane M.
+minus test files and the copies accord generates: a request that creates 7 new files is lane M. `accord scout check` prints these counts, and the sensitive matches, from the scout's `## Files` and the `## New files` you add.
 
 A test file sits under a folder named `test`, `tests` or `__tests__`, or its name holds `.test.` or `.spec.`.
 The copies accord generates are the files `accord skills sync` writes and the paths listed under `generated:` in

@@ -44,6 +44,10 @@
 - Ruling: the real gather picks its tickets with a scratch listing never committed — cost if wrong: a missed ticket is gathered by hand
 - Ruling: `parseRun`'s `ms` changes in place, so round 1 minutes also end at the last hand-back — cost if wrong: re-running round 1 shows different minutes
 - Ruling: r2-scout is committed with `prices: {}` and `pricesAt: ""`, and the owner gives the haiku and sonnet price factors at verify, where `--plan` refuses until they are set — D-08 sets them from the price list current when the round runs — cost if wrong: none, the refusal names the missing factor
+- Ruling: the owner's pick among untied lane-scout runs, and `--gather <id> <transcript>` for them, is a main-session step right after Task 3, before about 2026-11-11 — an executor cannot ask the owner — untied runs are lost if the main session skips it
+- Ruling: round 1's listed transcripts are neither copied nor added by gather — they are round 1's own samples already — none
+- Ruling: placeholders already in plan.md with a space (`<short agent>`) stay as they are; only new or touched ones are hyphenated — the plan gate passes with them — a lint warning
+
 ## Deferred
 - approach-review 1.9 (Nice): score scout check on the blobs at the sample commit, as `commitFacts` does, rather than on worktree files after the setup commands ran
 - approach-review 2.3 (Nice): the `--clean` guard never clears for a round whose agent has no scorer; `--force` then also drops the protection for a scout round in progress

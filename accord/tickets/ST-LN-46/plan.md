@@ -1,6 +1,6 @@
 ---
 baseline: 2bd987e53d9c77223669a3b50896993e4e0bef09
-plan_hash: "fnv1a64:8bace11df82f231e"
+plan_hash: "fnv1a64:d025efac6e10181c"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task can be finished from its own section, this preamble, the
@@ -11,7 +11,10 @@ Order: Task 1 is the wiring: a round definition becomes one dispatch row per sam
 gathering step, second in build order as the ledger Ruling sets, because the 30-day transcript retention starts
 dropping runs about 2026-11-11: Task 2 gathers the runs that name the ticket and ends by running `--gather` on the
 done tickets the scout round needs; Task 3 ties lane scouts to their ticket, takes runs named on the command line,
-lists untied scouts, runs `--gather` again on the same tickets and fixes the sample list of round `r2-scout`.
+lists untied scouts, runs `--gather` on every done ticket with more than 5 truth files and a tied or untied scout run,
+and fixes the sample list of round `r2-scout`. Right after Task 3, before about 2026-11-11, the main session puts
+Task 3's untied lists to the owner, runs `node scripts/benchmark.mjs --gather <id> <transcript>` for each run the
+owner names, sets `samples` of `r2-scout` again by Task 3's rule, and commits both json files.
 Tasks 4 and 5 score a scout run by script (@ac-2). Task 6 is the report (@ac-3). Task 7 matches and caches runs so
 none is run twice, and adds the report mode (@ac-4). Task 8 guards `--clean`. Tasks 9 and 10 are the remaining
 round 1 measurement fixes (minutes, overlap, judges).
@@ -82,7 +85,10 @@ Definitions shared by every task:
   has `snapshot`, else `<bench>/samples/<short agent>-<n>`; it holds `sample.json` (`{ transcript, prompt, cwd, ts,
   reads }`) and `root-reads.json`, the layout `runPlan` loads (scripts/benchmark.mjs:883-895).
 - Named state: `<bench>/round-<name>.json`, `{ worktrees, live, rows, leftOut: { <n>: <reason> }, scores: { <tag>:
-  <record> }, judges: { <tag>: [...] } }`. Worktrees: `<bench>/wt/<name>/<short agent>-<n>` (key
+  <record> }, judges: { <tag>: [...] } }`. It is read with `JSON.parse` when the file exists, `{}` when it does
+  not; a file that does not parse exits 2 `<file> does not parse: <message>; restore it or remove it` and is left as
+  it is. Every save writes `<file>.<process.pid>.tmp`, then `fs.renameSync`s it onto the file, as
+  packages/cli/src/commands/notice.ts:40-42 does. Worktrees: `<bench>/wt/<name>/<short agent>-<n>` (key
   `<name>/<short agent>-<n>`) for a read-only agent, `<bench>/wt/<name>/<tag>` with branch `bench/<name>/<tag>` for
   a writer (`WRITERS`). Briefs: `<bench>/briefs/<name>/<tag>.md`; files: `<bench>/files/<name>/<tag>/`.
 - Score record (Tasks 6, 7, 9, 10): `{ tag, n, agent, model, effort, k, transcript, reply, usage: { input,
@@ -138,7 +144,11 @@ Tests first, in packages/core/test/benchmark-arms.test.ts (new):
   and 3, two arms, two runs); `<t>/accord-bench/briefs/r9-test/scout-1-haiku-low-1.md` holds
   `<t>/accord-bench/wt/r9-test/scout-1` and not `<t>/orig`; the n 3 brief is written although T-9 does not exist
   at B; `<t>/accord-bench/wt/r9-test/scout-1` is a worktree at B; `round-r9-test.json` holds 8 rows and
-  `leftOut["2"]`. Then `--round r9-none --plan` exits 2 with `no sample left` on stderr.
+  `leftOut["2"]`, and no `.tmp` file is left in `<t>/accord-bench`. Then `git worktree remove --force
+  <t>/accord-bench/wt/r9-test/scout-1` (in `<t>/repo`) and `--round r9-test --plan` again: exit 0 and
+  `<t>/accord-bench/wt/r9-test/scout-1` is a worktree at B again. Then write `{"rows": [` into
+  `round-r9-test.json`: `--round r9-test --plan` exits 2 with `does not parse` on stderr and the file still holds
+  `{"rows": [`. Then `--round r9-none --plan` exits 2 with `no sample left` on stderr.
 
 Implementation, round.mjs:
 - `checkRound(name, def)` with the rules and messages above; `armTag` builds the tag; `armMatrix(def, samples)`
@@ -165,9 +175,12 @@ Implementation, benchmark.mjs:
   the first reason that holds: a gathered entry with `replay.ok === false` (`replay: <problems joined by '; '>`); no
   `sample.json` in its snapshot folder (`no snapshot under <bench>`); no `root-reads.json` (`no stored root reads
   in <folder>`); the snapshot's transcript tail differs (the round 1 text of :888); `sampleDrift` problems (joined).
-  (5) state: read or `{}`; `worktrees ??= {}`, `live ??= liveState(main)`, `leftOut = {}`. (6) rows =
-  `armMatrix(def, kept samples)`. (7) per kept sample, one `try` around its worktree (`prepareWorktree(main, state,
-  key, spec, setup, save)` as :906-926 builds `spec`, with the named paths and branches of the Definitions), then
+  (5) state: read and saved as the Definitions say; `worktrees ??= {}`, `live ??= liveState(main)`, `leftOut = {}`. (6) rows =
+  `armMatrix(def, kept samples)`. (7) per kept sample, one `try` around its worktree (a recorded worktree whose folder
+  no longer exists, as after `--clean --force`, first goes through `removeWorktree(main, rec)`, which prunes it,
+  deletes a writer branch still at its base and refuses one holding commits, and its record is deleted, so the next
+  call builds it again at base; then `prepareWorktree(main, state, key, spec, setup, save)` as :906-926 builds
+  `spec`, with the named paths and branches of the Definitions), then
   `verifierReport` for verifier rows, then `writeBrief` for each of its rows with `ticket` = `showAt(main, base,
   accord/tickets/<ticket>.md) ?? ''`; a thrown error or a problem leaves the sample out with its message (plus
   `planHint(e)` for a thrown one), prints `left out: <agent> <n>: <reason>` and drops its rows. (8) every reason
@@ -196,28 +209,39 @@ Consumes: `mainBench` (Task 1), `readSessions`, `rootReads`, `sampleDrift`, `sho
 `parseRun` returns (the first `gitBranch`, as it reads at :227).
 
 Tests first, in packages/core/test/benchmark-gather.test.ts (new), on one fixture builder at the top of the file:
-- Repo `<t>/repo`: commit 1 at 2026-10-01T00:00:00Z holds `a.txt` `a1`, `b.txt` `b1` and `accord/tickets/T-1.md`
-  (`---\nid: "T-1"\nverified_hash: ""\n---\n`); branch `t/T-1` at 02:00 changes `a.txt` and `b.txt`, adds `c.txt`
+- Repo `<t>/repo`: commit 1 at 2026-10-01T00:00:00Z holds `a.txt` `a1`, `b.txt` `b1`, `accord/tickets/T-1.md`
+  (`---\nid: "T-1"\nverified_hash: ""\n---\n`) and `scripts/benchmark-samples.json` (`{ round: 1, samples: [...] }`
+  with one `accord-scout` entry, n 1, ticket T-1, whose transcript is x5's below, as round 1 lists its own runs); branch `t/T-1` at 02:00 changes `a.txt` and `b.txt`, adds `c.txt`
   and sets `verified_hash: "fnv1a64:1"`; `main` merges it at 03:00 with subject `Merge branch 't/T-1'`.
 - Home `<t>/home`; transcript folder `<t>/home/.claude/projects/<main checkout with : \ / turned to ->/`. Session
-  `S1.jsonl`: an assistant line at 01:00 with cwd `<t>/repo` and four `Agent` tool uses: `toolu_A` (description `Scout
+  `S1.jsonl`: an assistant line at 01:00 with cwd `<t>/repo` and five `Agent` tool uses: `toolu_A` (description `Scout
   for T-1`, subagent_type `accord-scout`, prompt `Find the files for T-1 in <t>/repo.`), `toolu_B` (`Critique T-1
   plan`, `accord-critic`, prompt `Critique the plan of T-1.`), `toolu_C` (`bench r2-x scout-1-haiku-low-1`, `accord-scout`), `toolu_D` (`Explore T-1`,
-  `general-purpose`). Subagents `agent-x1` to `agent-x4` with those `toolUseId`s and agent types; x1 has `gitBranch`
-  `t/T-1`, a `Read` of `<t>/repo/a.txt` answered `     1\ta1`, and a `SubagentHandback`; the others hand back a line.
-  Build transcript lines the way packages/core/test/benchmark-reader.test.ts:19-49 does.
+  `general-purpose`), `toolu_E` (`Scout for T-1`, `accord-scout`). Subagents `agent-x1` to `agent-x5` with those
+  `toolUseId`s and agent types; x1 has `gitBranch` `t/T-1`, a `Read` of `<t>/repo/a.txt` answered `     1\ta1`, a
+  `Bash` answered `Output too large (3KB). Full output saved to: <P>\n\nPreview (first 2KB):\nx`, where `<P>` is
+  `<transcript-folder>/S1/tool-results/toolu_R.txt` with every `/` written `\` as Claude Code writes it on Windows
+  (that file exists and holds `full output\n`), and a `SubagentHandback`; the others hand back a line. x5 is round
+  1's own sample, so it is never gathered. Build transcript lines the way packages/core/test/benchmark-reader.test.ts:19-49 does.
 - ac-5: run `--gather T-1` (cwd `<t>/repo`, temp home): exit 0; first line `bench root: <t>/accord-bench`;
-  `<t>/accord-bench/samples/gathered/T-1/scout-x1/` and `critic-x2/` exist, nothing for x3 or x4; `transcript.jsonl`
+  `<t>/accord-bench/samples/gathered/T-1/scout-x1/` and `critic-x2/` exist, nothing for x3, x4 or x5; `transcript.jsonl`
   and `meta.json` equal the source files byte for byte; `prompt.md` is the dispatch prompt; `reads.json` holds the
-  read of `a.txt`; `scripts/benchmark-gathered.json` holds two entries, the scout one `{ agent: 'accord-scout', n: 1,
+  read of `a.txt`; `scout-x1/tool-results/toolu_R.txt` holds `full output\n`; no file under the bench root ends in
+  `.tmp`; `scripts/benchmark-gathered.json` holds two entries, the scout one `{ agent: 'accord-scout', n: 2,
   ticket: 'T-1', base: <commit 1>, ticketAtBase: true, truth: ['a.txt', 'accord/tickets/T-1.md', 'b.txt'], replay: {
   ok: true, problems: [] } }` (with `transcript`, `main`, `root`, `elsewhere`, `files`, `pairs`, `snapshot`; `c.txt`
   is new, so not in the truth; the ticket file is, as the ledger Ruling excludes nothing). Run it again: exit 0, the
   json is byte-identical, and every file under the bench root keeps its content and `mtimeMs`.
 - risk:data-loss: the same fixture before the branch and merge exist: `--gather T-1` exits 2, stderr names `T-1 is
-  not done`, the six files of `scout-x1/` exist with the transcript byte-equal, no json is written. Write `kept\n`
-  into `scout-x1/prompt.md`, then add the branch and merge: `--gather T-1` exits 0, adds the entries, and
-  `prompt.md` is still `kept\n`.
+  not done`, the six files of `scout-x1/` and `scout-x1/tool-results/toolu_R.txt` exist with the transcript
+  byte-equal, no json is written. Write `kept\n` into `scout-x1/prompt.md`, cut `scout-x1/transcript.jsonl` to its
+  first line (a partial copy), then add the branch and merge: `--gather T-1` exits 0, adds the entries, `prompt.md`
+  is still `kept\n`, `transcript.jsonl` still holds the one line, `scout-x1/transcript-<source-mtime-ms>.jsonl` (the
+  source file's `mtimeMs`, rounded down) equals the source byte for byte, and stdout holds `snapshot
+  <t>/accord-bench/samples/gathered/T-1/scout-x1/transcript.jsonl differs from its source; the source is kept beside
+  it as transcript-<source-mtime-ms>.jsonl`. Then remove the folder `critic-x2/` and run `--gather T-1` again: exit 0,
+  `critic-x2/` holds its six files again with `transcript.jsonl` byte-equal to its source, and
+  `scripts/benchmark-gathered.json` is byte-identical.
 
 Implementation:
 - `ticketMerges(repo, id)`: `git log --first-parent --merges --format=%H%x1f%P%x1f%ct%x1f%s%x1e <defaultRef>`; keep
@@ -231,13 +255,21 @@ Implementation:
 - `ticketRuns(runs, id)`: runs whose agent starts `accord-`, whose description does not start `bench `, and whose
   description or `branch` matches `(?<![\w-])<escaped id>(?![\w-])`; each returned as `{ run, tie: 'id' }`.
 - `runGather(repo, id, named)`: (1) `mainBench`, print the bench root line. (2) `readSessions(transcriptDirs(main,
-  []))`; the gathered list `<repo>/scripts/benchmark-gathered.json` (`{ samples: [] }` when missing); skip runs whose
-  `transcriptTail` is already listed. (3) for each remaining run, by start then file: folder
+  []))`; the gathered list `<repo>/scripts/benchmark-gathered.json` (`{ samples: [] }` when missing); drop runs whose
+  `transcriptTail` is listed in `<repo>/scripts/benchmark-samples.json` (round 1's own runs, already samples); runs
+  whose `transcriptTail` is in the gathered list go through step (3) into their entry's `snapshot` folder, which
+  only fills files that are missing, and get no new entry. (3) for each remaining run, by start then file: folder
   `<bench>/samples/gathered/<id>/<short agent>-<run id>`; copy the subagent `.jsonl` and `.meta.json` (located by
-  the folder name of `run.file` among the dirs) with `fs.copyFileSync(src, dst, fs.constants.COPYFILE_EXCL)`, then
-  write with `{ flag: 'wx' }` `prompt.md` (dispatch prompt, `''` without one), `reads.json` (`run.reads`),
-  `sample.json` (`{ transcript: run.file, prompt, cwd, ts, reads: {} }`) and `root-reads.json` (`rootReads(run,
-  root)`, root = the dispatch cwd with `/`); an existing file is kept, never rewritten; print `snapshot: <folder>`.
+  the folder name of `run.file` among the dirs) to `transcript.jsonl` and `meta.json`, write `prompt.md` (dispatch
+  prompt, `''` without one), `reads.json` (`run.reads`), `sample.json` (`{ transcript: run.file, prompt, cwd, ts,
+  reads: {} }`) and `root-reads.json` (`rootReads(run, root)`, root = the dispatch cwd with `/`), and copy each file a
+  tool result of the run names after `Full output saved to: ` (`\` turned to `/`) that exists inside a transcript
+  folder to `tool-results/<basename>`. Every file is written whole first, to `<name>.<process.pid>.tmp` opened with
+  flag `wx`, then `fs.renameSync`d onto its name only when that name does not exist (else the temp file is removed):
+  an existing file is kept, never rewritten. When `transcript.jsonl` already existed and its bytes differ from the
+  source, the source is also copied the same way to `transcript-<source-mtime-ms>.jsonl` (its `mtimeMs` rounded
+  down) and stdout gets `snapshot <folder>/transcript.jsonl differs from its source; the source is kept beside it as
+  transcript-<source-mtime-ms>.jsonl`. Print `snapshot: <folder>`.
   (4) only then the checks: not `ticketDone` → exit 2 `<id> is not done: accord/tickets/<id>.md on <ref> has no
   verified_hash; its runs are copied under <bench>/samples/gathered/<id>/; run --gather <id> again once it is
   done`; no merge → exit 2 `<id> has no merge into <ref>; its runs are copied under ...`. (5) per new run, an entry
@@ -274,7 +306,8 @@ files: scripts/benchmark.mjs, scripts/benchmark-gathered.json (new), scripts/ben
 verify: packages/core/test/benchmark-gather.test.ts#risk:complex-branching-a-lane-scout-is-tied-by-the-next-scout-report-commit-of-its-session-and-an-untied-scout-before-the-claim-is-printed-and-can-be-named
 
 Consumes: Task 2. Produces: `readSessions(dirs).commits` (`[{ session, ts, subject }]`), `ticketRuns(runs, id, {
-commits, named })` with ties `id`, `scout-commit` and `named`, the untied list, and the round's sample list.
+commits, named })` with ties `id`, `scout-commit` and `named`, exported `untiedScouts(repo, id, runs, commits)` (the
+untied list), named transcripts outside the default folders, and the round's sample list.
 
 Test first (same file, its own fixture): commit 1 at 2026-10-01T00:00:00Z holds `a.txt` and `b.txt` only; branch
 `t/T-1`: `new ticket T-1` at 01:05 (adds the ticket, `verified_hash: ""`), `claim: T-1` at 02:00, work at 02:30
@@ -285,11 +318,14 @@ commit -m "scout: T-0 report" -- x` answered `[main 1111111] scout: T-0 report` 
 Session `S3.jsonl`: scout y3 dispatched 01:20, ending 01:30, description `Look around`, no scout commit. Every
 scout's lines carry `gitBranch` `main`, and no prompt holds a path. Run
 `--gather T-1`: y2 is added with `ticketAtBase: false`, `replay.ok: true`, truth `['a.txt', 'b.txt']`; y1 is not
-added and not listed as untied (it is tied to T-0); stdout holds `untied scout run: <y3 file> ended
-2026-10-01T01:30:00.000Z; to add it: node scripts/benchmark.mjs --gather T-1 <y3 file>`. Run `--gather T-1 <y3
-file>`: y3 is added with `replay.ok: false` and the problem `accord/tickets/T-1.md does not exist at base`; y2 is not
-added again. A name that matches no run prints `no run <name> in the transcript folders` and makes the exit 2 after
-the other runs are copied and added.
+added and not listed as untied (it is tied to T-0); stdout holds `untied scout run: <y3-file> ended
+2026-10-01T01:30:00.000Z; to add it: node scripts/benchmark.mjs --gather T-1 <y3-file>`, and `untiedScouts(<t>/repo,
+'T-1', runs, commits)` on the same transcripts returns y3 only. Session `S4.jsonl` lies in `<t>/other/P/`, outside
+the temp home, with scout y4 dispatched 01:40, ending 01:45, description `Look again`, cwd `<t>/repo`. Run `--gather
+T-1 <y3-file> <t>/other/P/S4/subagents/agent-y4.jsonl` (the second an absolute path): y3 and y4 are added, each with
+`replay.ok: false` and the problem `accord/tickets/T-1.md does not exist at base`; y2 is not added again. A name that
+matches no run prints `no run <name> in the transcript folders` and makes the exit 2 after the other runs are copied
+and added.
 
 Implementation:
 - `readSessions`: per session file, for each user `tool_result` whose `tool_use_id` is a collected use with a
@@ -299,18 +335,30 @@ Implementation:
 - `ticketRuns(runs, id, { commits = [], named = [] })`: the Task 2 rule (`tie: 'id'`); plus each `accord-scout` run
   whose description and branch match no `ID` (:24), not `bench `, whose session's next `scout: <x> report` commit
   after the run's `end` has `x === id` (`tie: 'scout-commit'`); plus each run whose `transcriptTail` equals that of a
-  name in `named` (`/` turned) (`tie: 'named'`), once each.
-- `runGather`: passes `commits` and `named`; a `scout-commit` run whose ticket is missing at base records
-  `ticketAtBase: false` with no replay problem for it; untied list: `accord-scout` runs naming no id, not `bench `,
-  with no `scout:` commit after their end in their session, not already gathered for this id, whose `end` lies in
-  the 24 hours up to the earliest commit (from `branchCommits`) whose first line is `claim: <id>`; printed after the
-  copies and before the checks, sorted by end. Unmatched names: the notice, then exit 2 at the end.
+  name in `named` (`\` turned to `/`) (`tie: 'named'`), once each.
+- `untiedScouts(repo, id, runs, commits)`: `accord-scout` runs naming no id, not `bench `, with no `scout:` commit
+  after their end in their session, whose `end` lies in the 24 hours up to the earliest commit (from
+  `branchCommits`) whose first line is `claim: <id>`, sorted by end; `[]` with no such commit.
+- `runGather`: a name that is an existing file adds the folder three levels above it
+  (`<project>/<session>/subagents/agent-<run-id>.jsonl`) to `extra` of `transcriptDirs`, and is matched by its last
+  four path segments, the form `run.file` has; passes `commits` and `named`; a `scout-commit` run whose ticket is
+  missing at base records `ticketAtBase: false` with no replay problem for it; the untied list is `untiedScouts`
+  minus runs already gathered for this id, printed after the copies and before the checks. Unmatched names: the
+  notice, then exit 2 at the end.
 
-Ending step: run the Task 2 scratch listing again, counting scout runs with `ticketRuns(runs, id, { commits })`, and
-run `node scripts/benchmark.mjs --gather <id>` for each listed id (the Task 2 ids add only their tied lane scouts).
-Then set `samples` of round `r2-scout` in `scripts/benchmark-rounds.json` to every `n` of an `accord-scout` entry in
+Ending step, the real gathering of lane scouts (ledger Ruling: before about 2026-11-11). With a scratch module in the
+OS temp folder, never committed, that imports `scripts/benchmark.mjs` by file URL: take `runs` and `commits` from
+`readSessions(transcriptDirs(main, []))` of the main checkout; for every `accord/tickets/<id>.md` at `defaultRef` of
+the main checkout with `ticketDone` true and a merge, print `<id> <truth-count> <tied-scouts> <untied-scouts>`, where
+truth count is `truthOf(main, id, ticketMerges(main, id)[0].base).length`, tied scouts counts the `ticketRuns(runs,
+id, { commits })` results whose agent is `accord-scout`, and untied scouts is `untiedScouts(main, id, runs,
+commits).length`. Run `node scripts/benchmark.mjs --gather <id>` in this worktree for each id with more than 5 truth
+files and at least one tied or untied scout run (the Task 2 ids add only their tied lane scouts). Then set `samples`
+of round `r2-scout` in `scripts/benchmark-rounds.json` to every `n` of an `accord-scout` entry in
 `scripts/benchmark-samples.json` and `scripts/benchmark-gathered.json`, ascending (the round leaves out and names
-those it cannot use). Report the outputs and the untied lists for the owner, and commit both json files.
+those it cannot use). Report the listing, each command's output and every `untied scout run:` line with its ticket
+id, and commit both json files. The owner's choice among the untied runs is the main session's step after this
+task (preamble).
 
 Must not change: the Task 2 behaviour for runs that name the id; `runs` and `refusals` of `readSessions`.
 
@@ -369,12 +417,13 @@ path)`, `scoreScout(reply, { tracked, read, ticket, truth
 ticket, base, truth }, core)`; the named plan leaves out samples with no truth.
 
 Test first (ac-2, git): a temp repo, commit B with `src/a.ts` and `src/b.ts` as in Task 4, `src/c.ts` (`export const
-baz = 2;`), `README.md`, `accord/tickets/T-1.md`; branch `t/T-1` changes `README.md`, `src/a.ts`, `src/b.ts`,
+baz = 2;`), `README.md`, `accord/tickets/T-1.md` (its body holds the word `zed`); branch `t/T-1` changes `README.md`, `src/a.ts`, `src/b.ts`,
 `src/c.ts` and adds `src/d.ts`; `main` merges it (`Merge branch 't/T-1'`); a worktree at B. The reply: a `## Files`
 list naming `src/a.ts` (`defines foo and qux, src/a.ts:1, src/a.ts:1-2` in backticks) and `src/b.ts` (`calls foo,
 src/b.ts:2`); an `## Absent` table with a row `no other file defines bar` (pattern `bar`, folders `src`, allowed
 `src/a.ts`), which holds, and a row `nothing reads baz` (pattern `baz`, folders `src`, no allowed hit), which
-`src/c.ts:1` contradicts; prose lines `` `foo` is only called in `src/b.ts` `` (true: the definition line of
+`src/c.ts:1` contradicts, and a row `nothing else names zed` (pattern `zed`, folders `accord`, no allowed hit), which
+holds only because the ticket's own file is left out of the search; prose lines `` `foo` is only called in `src/b.ts` `` (true: the definition line of
 `src/a.ts` is cited), `` `qux` is only called in `src/b.ts` `` (false: `src/a.ts:3` is uncited), none of this touches
 `` `bar` `` (no path, so not searched), and `` `baz` is not found outside `src/c.ts` `` (already an Absent row).
 `truthOf(repo, 'T-1', B)` is `['README.md', 'src/a.ts', 'src/b.ts', 'src/c.ts']` (`src/d.ts` is new);
@@ -382,8 +431,9 @@ src/b.ts:2`); an `## Absent` table with a row `no other file defines bar` (patte
 2, recall: 0.75 }`, `beside: { unsearchable: 1 }` and `detail.failures` 1; a second call gives an equal result.
 
 Implementation:
-- `scoreScout`: `report = parseScoutReport(reply)`; `checked = scoutCheck({ text: reply, tracked, read, ...ticket })`;
-  `check` 1 when no failure, else 0. `absentFalse`: distinct row lines of failures matching `/\(row (\d+)\): .+
+- `scoreScout`: `report = parseScoutReport(reply)`; `checked = scoutCheck({ text: reply, tracked, read, ...(ticket
+  === undefined ? {} : { ticket }) })`, so a sample's ticket file is left out of Absent searches
+  (packages/core/src/scout/check.ts:85-101); `check` 1 when no failure, else 0. `absentFalse`: distinct row lines of failures matching `/\(row (\d+)\): .+
   matches its pattern outside its allowed hits$/`. Prose: `proseClaims(...)`; when it has rows, one more
   `scoutCheck` on a built report `## Absent` + header + separator + one row per claim (`| prose line <line> |
   <pattern, each '|' written '\|'> | <folders joined by ' '> | <allowed joined by ' '> |`) with the same facts and
@@ -451,11 +501,13 @@ Must not change: `report`, `suggest`, `better`, `byDefault`, `holds` (round 1 on
 ## Task 7: A printed plan lists only rows with no run, scores matched runs once, and `--round <name>` writes the report
 covers: @ac-4
 files: scripts/round.mjs, scripts/benchmark.mjs, packages/core/test/benchmark-arms.test.ts (new)
-verify: packages/core/test/benchmark-arms.test.ts#ac-4-a-printed-plan-lists-only-rows-with-no-matched-run-and-a-matched-run-with-no-score-is-scored-once-and-every-scored-run-is-counted (@ac-4), packages/core/test/benchmark-arms.test.ts#risk:complex-branching-a-named-round-report-for-an-agent-with-no-scorer-exits-2-naming-the-scorer-while-its-plan-still-prints-its-rows
+verify: packages/core/test/benchmark-arms.test.ts#ac-4-a-printed-plan-lists-only-rows-with-no-matched-run-and-a-matched-run-with-no-score-is-scored-once-and-every-scored-run-is-counted (@ac-4), packages/core/test/benchmark-arms.test.ts#risk:complex-branching-a-named-round-report-for-an-agent-with-no-scorer-exits-2-naming-the-scorer-while-its-plan-still-prints-its-rows, packages/core/test/benchmark-arms.test.ts#risk:complex-branching-a-matched-scout-run-is-scored-through-the-scout-scorer-cached-in-the-state-and-counted-in-the-named-report
 
 Consumes: Tasks 1, 5, 6. Produces: round.mjs `pendingRows(rows, runs, { name, scores, read })` → `{ dispatch,
 toScore: [{ row, run }], notCounted: [{ tag, why }] }` and a `describe` option on `matchRuns`; benchmark.mjs
-`SCORERS` (`accord-scout` only), `scoreRound(...)` shared by both modes, `runNamedRound(repo, name, extra)`, an async
+`SCORERS` (`accord-scout` only: `{ measures: SCOUT_MEASURES, besides: SCOUT_BESIDE, score: ({ dir, sample, run,
+truth, core }) => scoreScoutRun(dir, { reply: run.lastText, ticket: sample.ticket, base: sample.base, truth }, core)
+}`, the Task 5 signature), `scoreRound(...)` shared by both modes, `runNamedRound(repo, name, extra)`, an async
 `main`, and `stopOnEscape` taking the state file name and sample list.
 
 Tests first:
@@ -471,6 +523,16 @@ Tests first:
   sonnet medium, runs 1, judges 0, prices sonnet 3, samples [1]) and a temp home without transcripts: `--round
   r9-crit --plan` exits 0 and prints its one row; `--round r9-crit` exits 2 with `no scorer for accord-critic` on
   stderr and no `docs/benchmark/round-r9-crit.md` is written.
+- risk:complex-branching (process, the real scoring path): the Task 1 fixture builder with a round `r9-one`
+  (accord-scout, arm haiku low, runs 1, judges 0, prices haiku 1, pricesAt `2026-11-02`, samples [1]) and a temp
+  home. `--round r9-one --plan` (cwd `<t>/sub/linked`) prints the row `scout-1-haiku-low-1`. Then write a session
+  into `<t>/home/.claude/projects/<encoded-main-checkout>/` (`<t>/repo` with `:`, `\` and `/` turned to `-`), built
+  as packages/core/test/benchmark-reader.test.ts:19-49 builds one, timed after that plan, that dispatches the row as
+  the ac-4 runs are dispatched (description `bench r9-one scout-1-haiku-low-1`, `accord-scout`, the printed brief
+  path as the prompt) and whose reply names `a.txt`. `--round r9-one --plan` again: exit 0, stdout holds `scored
+  scout-1-haiku-low-1` and no table row for it, and `<t>/accord-bench/round-r9-one.json` holds
+  `scores['scout-1-haiku-low-1']` with `values.recall` 1 and a number for `values.check` and `values.falseClaims`.
+  `--round r9-one` exits 0 and writes `docs/benchmark/round-r9-one.md` under the cwd, holding `Winner: haiku low`.
 
 Implementation:
 - `matchRuns(rows, runs, { judges, describe: d = describe })`: uses `d(row.tag)` at :317; among several fresh runs
@@ -486,7 +548,7 @@ Implementation:
   Map() }, bench, { samples }, { state: 'round-<name>.json' })` exits 2 as round 1 does (`stopOnEscape` gains a last
   argument `{ state = 'round-1.json' } = {}` naming the state file it reads `live` from, and its first message names
   `--round <name> --plan` for a named state); each run scored by
-  `SCORERS[agent].score({ dir: row.worktree, sample, run, truth: truthOf(main, ...), core })`; a `problem` goes to
+  `SCORERS[agent].score({ dir: row.worktree, sample, run, truth: truthOf(main, sample.ticket, sample.base), core })`; a `problem` goes to
   `notCounted`; else `state.scores[tag]` = the record (`reply: run.lastText`, `usage: run.usage`, `start`, `end`: the
   last hand-back's time or `run.end`, `ms`, `flags: turnFlags(run.turns, row)`, and the scorer's `values`, `beside`,
   `detail`), saved at once; print `scored <tag>` and `not counted <tag>: <why>`. With no scorer, print `notice: no
@@ -510,9 +572,12 @@ verify: packages/core/test/benchmark-worktree.test.ts#risk:data-loss-clean-refus
 Consumes: `SCORERS` (Task 7), `mainBench`. Produces: `unscoredRounds(bench)` → `[{ name, count }]`, the guard, and an
 `onDelete` option of `cleanWorktrees`.
 
-Test first (new `it` in the existing file, a fixture as :16-40 builds): a bench worktree with branch
+Test first (new `it` in the existing file, a fixture as :16-40 builds, with `<repo>/docs/benchmark/round-1.md`
+written first so the round 1 guard (:809) lets the clean through): a bench worktree with branch
 `bench/r2-x/executor-1-sonnet-high-1`; `<t>/accord-bench/round-r2-x.json` with a row of `accord-scout` and no
-score: `cleanWorktrees(repo)` returns `{ refused: true, removed: [], failed: [] }` and the worktree stays; the same
+score: `cleanWorktrees(repo)` returns `{ refused: true, removed: [], failed: [] }` and the worktree stays, and
+`node scripts/benchmark.mjs --clean` (cwd `<repo>`) exits 2 with stderr holding `round r2-x has 1 rows with no
+score`; the same
 row with a score in `scores`, plus a round of `accord-critic` (no scorer) with an unscored row, does not refuse;
 `cleanWorktrees(repo, { onDelete })` calls `onDelete('bench/r2-x/executor-1-sonnet-high-1 <its tip sha>')` while
 that branch still exists, then the branch is gone.

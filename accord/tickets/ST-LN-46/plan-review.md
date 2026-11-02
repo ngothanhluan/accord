@@ -31,3 +31,8 @@ Critic: no lens, limited by the owner to checking the round 1 fixes. fixed: 1.1,
 
 ## Closed
 Converged at round 2: 0 Must open, 0 Should open, 7 Nice deferred, 3 Should dropped by the owner to the executor.
+
+## Round 1 (whole)
+1. Should — Task 2's `truthOf` matches `t/<ticket>` as a substring, so sample 5 (ST-LN-8) takes ST-LN-81's merge too and its recall is scored against the wrong files (D-03) (criteria) — open
+2. Should — Task 4 reuses round 1's `matchRuns`, which builds `r1` descriptions and picks `hit[0]` in file order before checking the agent, so no `bench r2-scout` run matches and the earliest valid run is not the one counted (build) — open
+3. Should — Task 4 drops round 1's per-turn model and effort check (`turnFlags`), so a row dispatched on the default model is scored and costed as its arm (Intent, ac-3) (criteria) — open

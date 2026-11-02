@@ -5,7 +5,7 @@ import { platform } from 'node:os';
 import { join } from 'node:path';
 import { templates } from '@accord-dev/accord-core';
 import { describe, expect, it } from 'vitest';
-import { cleanup, commitAll, commitAllAt, gitRun, makeEmptyRepo, makeLaneRepo, makeRepo, run, writeFiles } from './helpers/repo.js';
+import { cleanup, commitAll, commitAllAt, commitMsg, gitRun, makeEmptyRepo, makeLaneRepo, makeRepo, run, writeFiles } from './helpers/repo.js';
 import { CONFIG, junit, LANE_BODY, laneTicket, PLAN, REPORT } from '../../../test/helpers/lane.js';
 import { taskNumber } from '../src/commands/lane-args.js';
 import { commitSeconds } from '../src/commands/task-done.js';
@@ -62,6 +62,73 @@ describe('accord approve', () => {
       cleanup(repo);
     }
   });
+
+  it('ac-4 a lane M ticket is approved only with a scout report that passes the check or says why it was skipped', async () => {
+    const repo = makeLaneRepo({ 'src/a.ts': 'export function useA() {}\n' });
+    const S = 'accord/tickets/T-1/scout.md';
+    const before = ticketText(repo);
+    const reset = () => writeFiles(repo, { 'accord/tickets/T-1.md': before });
+    const USE = [
+      '## Files',
+      '- `src/a.ts`',
+      '',
+      '## Absent',
+      '| Claim | Pattern | Folders | Allowed hits |',
+      '|---|---|---|---|',
+      '| no caller of useA | `useA[(]` | `src/` | `src/a.ts` |',
+      '',
+    ].join('\n');
+    try {
+      // 1. no report at all
+      rmSync(join(repo, 'accord', 'tickets', 'T-1', 'scout.md'));
+      const none = await run(['approve', 'T-1'], repo);
+      expect(none.code).toBe(1);
+      expect(none.out).toContain('accord/tickets/T-1/scout.md is missing');
+      expect(ticketText(repo)).toBe(before);
+
+      // 2. a report that fails at the commit that last changed it
+      writeFiles(repo, { [S]: '## Files\n- `src/missing.ts`\n' });
+      commitMsg(repo, 'fixture');
+      const failing = await run(['approve', 'T-1'], repo);
+      expect(failing.code).toBe(1);
+      expect(failing.out).toContain('accord/tickets/T-1/scout.md fails accord scout check at commit');
+      expect(failing.out).toContain('the commit that last changed it');
+      expect(failing.out).toContain('## Files lists src/missing.ts, which git does not track');
+      expect(ticketText(repo)).toBe(before);
+
+      // 3. the failing report with a skipped line, uncommitted
+      writeFiles(repo, { [S]: '## Files\n- `src/missing.ts`\n\nskipped: the owner accepted the report as it is\n' });
+      const skipped = await run(['approve', 'T-1'], repo);
+      expect(skipped.code).toBe(0);
+      expect(skipped.out.startsWith('approved accord/tickets/T-1.md')).toBe(true);
+      reset();
+
+      // 4. a report that passes at the commit that last changed it, although the working tree no longer agrees
+      writeFiles(repo, { [S]: USE });
+      commitMsg(repo, 'scout');
+      writeFiles(repo, { 'src/b.ts': 'useA();\n' });
+      commitMsg(repo, 'b');
+      const atCommit = await run(['approve', 'T-1'], repo);
+      expect(atCommit.code).toBe(0);
+      expect(atCommit.out.startsWith('approved accord/tickets/T-1.md')).toBe(true);
+      reset();
+
+      // 5. the same report with an uncommitted change is judged on the working tree
+      writeFiles(repo, { [S]: USE + '- see src/a.ts:1\n' });
+      const onTree = await run(['approve', 'T-1'], repo);
+      expect(onTree.code).toBe(1);
+      expect(onTree.out).toContain('on the working tree, since it has uncommitted changes');
+      expect(onTree.out).toContain('src/b.ts:1');
+      expect(ticketText(repo)).toBe(before);
+
+      // 6. the command gives the same verdict on the same tree
+      const check = await run(['scout', 'check', S], repo);
+      expect(check.code).toBe(1);
+      expect(check.out).toContain('src/b.ts:1');
+    } finally {
+      cleanup(repo);
+    }
+  }, 120_000);
 });
 
 const REPORT_PATH = (repo: string) => join(repo, 'reports', 'junit.xml');

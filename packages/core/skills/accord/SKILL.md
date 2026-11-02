@@ -3,7 +3,7 @@ name: accord
 description: Use when starting any work in an accord repository, when seeing where work stands, or when continuing a ticket. Shows the dashboard, continues or picks up a ticket, and classifies a new request into a lane.
 license: MIT
 kind: skill
-loads: [accord/comments.md, accord/ids.md, accord/lane.md, accord/lane-s.md, accord/upgrade.md, accord/worktree.md, shared/ask.md, shared/failure.md, shared/finish.md]
+loads: [accord/comments.md, accord/ids.md, accord/lane.md, accord/lane-s.md, accord/upgrade.md, accord/worktree.md, shared/ask.md, shared/scout.md, shared/failure.md, shared/finish.md]
 ---
 
 First run the session check in `./worktree.md`, except for `/accord upgrade`. A failure reported in a ticket that has reached verify follows `./failure.md`. A request to handle the comments on a ticket's pull request follows `./comments.md`, without the session check.
@@ -59,7 +59,7 @@ Run `accord worktree open <id>`: it makes its `branch` from
 
 ## New request: `/accord <request>`
 
-Propose a lane as `./lane.md` says, for every new request however small it looks; the owner may override.
+Propose a lane as `./lane.md` says, for every new request however small it looks; the owner may override. Check and save the scout's reply as `./scout.md` says.
 
 | Lane | Example |
 |---|---|

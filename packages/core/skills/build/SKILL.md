@@ -3,7 +3,7 @@ name: accord-build
 description: Use when a lane M ticket has a plan that passed accord gate plan and needs building. Dispatches one fresh executor per task from accord brief, runs the affected tests itself, and records each task with accord task-done.
 license: MIT
 kind: skill
-loads: [shared/ask.md]
+loads: [shared/ask.md, shared/scout.md]
 ---
 
 This stage builds the plan one task at a time. You run it in the main
@@ -40,7 +40,7 @@ session and orchestrate: executors write the code.
 5. **Files.** A file outside the task's `files:` line must be declared
    in the report with a reason. When you accept it, record a Ruling.
 
-6. **Change of course.** When the approved approach cannot work, stop. Write a change note under the ticket's `## Approach`: what failed, which finished tasks still hold, and the proposed new approach. Ask the owner for a new yes; on yes run `accord approve <id>`, commit the ticket and run `accord worktree push <id>`; go on even if it fails. Then `accord-plan`'s re-plan covers only the tasks the change touches. Never re-plan quietly.
+6. **Change of course.** When the approved approach cannot work, stop. Write a change note under the ticket's `## Approach`: what failed, which finished tasks still hold, and the proposed new approach. Ask the owner for a new yes; on yes run `accord approve <id>`, commit the ticket and run `accord worktree push <id>`; go on even if it fails. When `accord approve` exits 1, follow `./scout.md`. Then `accord-plan`'s re-plan covers only the tasks the change touches. Never re-plan quietly.
 
 7. **Plan changed.** When `accord task-done` says `plan.md` changed,
    never run `accord gate plan` to clear it. Show the owner the diff of

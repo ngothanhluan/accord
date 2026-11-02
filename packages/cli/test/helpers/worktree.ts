@@ -43,7 +43,10 @@ export function makeClone(opts: { setup?: string[]; tickets?: string[] } = {}): 
     '.gitignore': 'node_modules/\n',
     'setup-step.js': STEP,
   };
-  for (const id of opts.tickets ?? ['ST-9']) files[`accord/tickets/${id}.md`] = laneTicket(id);
+  for (const id of opts.tickets ?? ['ST-9']) {
+    files[`accord/tickets/${id}.md`] = laneTicket(id);
+    files[`accord/tickets/${id}/scout.md`] = 'skipped: seeded by the test helper\n'; // ST-LN-81: approve needs a report
+  }
   writeFiles(made, files);
   gitRun(made, 'add', '-A');
   gitRun(made, 'commit', '-q', '-m', 'init');

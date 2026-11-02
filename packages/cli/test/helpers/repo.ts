@@ -189,5 +189,18 @@ export function makeLaneRepo(extra: Record<string, string> = {}): string {
     [REPORT]: junit({ 'export#writes-csv': 'passed', 'export#escapes-commas': 'passed' }),
     ...extra,
   });
+  seedScoutReports(repo, extra);
   return repo;
+}
+
+/** ST-LN-81: a lane M ticket the sandbox holds gets a skipped scout report, so its approve reaches the code under test. */
+function seedScoutReports(repo: string, extra: Record<string, string>): void {
+  const seeded: Record<string, string> = {};
+  for (const [key, text] of Object.entries({ 'accord/tickets/T-1.md': laneTicket('T-1'), ...extra })) {
+    const m = /^accord\/tickets\/([^/]+)\.md$/.exec(key);
+    if (m === null || !/^lane: M\s*$/m.test(text)) continue;
+    const report = 'accord/tickets/' + m[1] + '/scout.md';
+    if (!(report in extra)) seeded[report] = 'skipped: seeded by the test helper\n';
+  }
+  writeFiles(repo, seeded);
 }

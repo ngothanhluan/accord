@@ -3,7 +3,7 @@ name: accord-intent
 description: Use when a lane M ticket needs its intent captured, or when /accord routes a new request here. Runs the intent interview that writes the ticket's Intent, acceptance criteria, Vetoes, Decisions, and Corrections, so later stages cannot drift from what the owner meant.
 license: MIT
 kind: skill
-loads: [shared/ask.md, accord/ids.md, accord/lane.md, intent/research.md]
+loads: [shared/ask.md, shared/scout.md, accord/ids.md, accord/lane.md, intent/research.md]
 ---
 
 This stage writes down what the owner means, in the ticket, before anyone
@@ -15,8 +15,9 @@ plans or builds. You run it in the main session.
    creates it first: start there.
 
 2. **Look before asking.** Dispatch `accord-scout` with the path of
-   `accord/tickets/<id>.md` and the questions the code can answer. Never ask
-   the owner what the code answers. A question about an existing project
+   `accord/tickets/<id>.md` and the questions the code can answer. Check its
+   reply as `./scout.md` says, and save it as `accord/tickets/<id>/scout.md`
+   only when that file does not exist. Never ask the owner what the code answers. A question about an existing project
    cites the file that prompted it. Before any question, read `./research.md`.
 
 3. **Confirm the parts.** Before the first score, list the request's

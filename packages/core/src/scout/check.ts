@@ -1,5 +1,7 @@
 // ST-LN-81: the one function that judges a scout report against host facts it is given (a tracked path list and
 // a read callback). Pure: no node import, no filesystem; the CLI hands it the working tree's or a commit's facts.
+import { matches } from '../gate/scope.js';
+import { configLists } from '../load/config.js';
 import { normaliseText, splitFrontmatter } from '../load/frontmatter.js';
 import { isResearchRecord } from '../load/research.js';
 import { parseYamlMap } from '../load/yaml.js';
@@ -97,6 +99,30 @@ function ownFiles(facts: ScoutFacts, tracked: readonly string[]): Set<string> {
   return own;
 }
 
+const TEST_FOLDER = new Set(['test', 'tests', '__tests__']);
+const isTestFile = (path: string): boolean => {
+  const segments = path.split('/');
+  const name = segments[segments.length - 1];
+  return segments.slice(0, -1).some((s) => TEST_FOLDER.has(s)) || name.includes('.test.') || name.includes('.spec.');
+};
+
+/** The lane numbers of lane.md over the listed files: expected files, code areas, sensitive matches and the lifts. */
+function laneOf(facts: ScoutFacts, listed: readonly string[]): ScoutLane {
+  const lists = configLists(facts.config);
+  const rendered = new Set(facts.rendered ?? []);
+  const expected = listed.filter((p) => !isTestFile(p) && !rendered.has(p) && !lists.generated.some((e) => matches(e, p)));
+  const areas = [...new Set(expected.map((p) => (p.includes('/') ? p.split('/').slice(0, -1).slice(0, 4).join('/') : '.')))].sort(byCodePoint);
+  const sensitive = listed.flatMap((path) =>
+    lists.sensitive.filter((e) => matches(e.path, path)).map((e) => ({ path, entry: e.path, area: e.area, line: e.line })),
+  );
+  const lifts = [
+    ...(expected.length > 5 ? ['more than 5 expected files'] : []),
+    ...(areas.length > 3 ? ['more than 3 code areas'] : []),
+    ...(sensitive.length > 0 ? ['a listed sensitive area'] : []),
+  ];
+  return { expected, areas, sensitive, lifts };
+}
+
 export function scoutCheck(facts: ScoutFacts): ScoutResult {
   const report = parseScoutReport(facts.text);
   const tracked = [...facts.tracked].sort(byCodePoint);
@@ -158,6 +184,7 @@ export function scoutCheck(facts: ScoutFacts): ScoutResult {
   }
 
   const result: ScoutResult = { failures };
+  if (report.files !== undefined) result.lane = laneOf(facts, [...new Set([...report.files, ...report.newFiles])].sort(byCodePoint));
   if (report.skipped !== undefined) result.skipped = report.skipped;
   return result;
 }

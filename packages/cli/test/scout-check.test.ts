@@ -114,3 +114,41 @@ it('risk:complex-branching a saved report is not contradicted by its own ticket 
     cleanup(repo);
   }
 }, 120_000);
+
+it('ac-3 the check computes the lane lift conditions from the report file list', async () => {
+  const repo = makeEmptyRepo();
+  try {
+    const line = 'export const v = 1;\n';
+    const paths = [
+      'packages/core/src/load/a.ts',
+      'packages/core/src/load/b.ts',
+      'packages/core/src/load/c.ts',
+      'packages/cli/src/commands/x.ts',
+      'packages/cli/src/commands/y.ts',
+      'packages/cli/src/commands/deep/z.ts',
+      'packages/cli/test/scout.test.ts',
+      'packages/core/src/generated/skills.ts',
+    ];
+    writeFiles(repo, {
+      'accord/config.yml': CONFIG + 'sensitive:\n  interface:\n    - packages/cli/src/commands/x.ts\ngenerated:\n  - packages/core/src/generated/\n',
+      ...Object.fromEntries(paths.map((p) => [p, line])),
+    });
+    commitMsg(repo, 'fixture');
+    writeFileSync(join(repo, 'report.md'), '## Files\n' + paths.map((p) => '- `' + p + '`\n').join(''));
+
+    const out = await run(['scout', 'check', 'report.md'], repo);
+    expect(out.code).toBe(0);
+    expect(out.out).toContain(
+      [
+        'expected files: 6 (packages/cli/src/commands/deep/z.ts, packages/cli/src/commands/x.ts, packages/cli/src/commands/y.ts, packages/core/src/load/a.ts, packages/core/src/load/b.ts, packages/core/src/load/c.ts)',
+        'code areas: 2 (packages/cli/src/commands, packages/core/src/load)',
+        'sensitive: packages/cli/src/commands/x.ts is under packages/cli/src/commands/x.ts (interface), accord/config.yml:15',
+        'lifts to lane M: more than 5 expected files; a listed sensitive area',
+        'scout check passed',
+        '',
+      ].join('\n'),
+    );
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);

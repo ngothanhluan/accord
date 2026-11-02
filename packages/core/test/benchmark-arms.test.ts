@@ -348,3 +348,81 @@ it('ac-3 the report shows pass mean ranges and weighted cost per arm and names t
   expect(only.arms[0].passes).toBe(0);
   expect(name(only.winner)).toBe('haiku high');
 });
+
+it('risk:complex-branching round name scores each run matched by its tag and writes the round report', () => {
+  const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'bench-')));
+  const t = tmp.replaceAll('\\', '/');
+  try {
+    const f = armsFixture(t);
+    // Sample 1 is ticket T-1 (merged, changed a.txt); sample 3 is ticket T-2, which has no merge.
+    for (const dir of [f.repo, f.linked]) {
+      const file = dir + '/scripts/benchmark-samples.json';
+      const list = JSON.parse(readFileSync(file, 'utf8')) as { samples: { n: number; ticket: string }[] };
+      list.samples = list.samples.filter((s) => s.n !== 2).map((s) => (s.n === 3 ? { ...s, ticket: 'T-2' } : s));
+      writeFileSync(file, JSON.stringify(list));
+      writeFileSync(dir + '/scripts/benchmark-rounds.json', JSON.stringify({ rounds: {
+        'r9-arm': { agent: 'accord-scout', arms: [{ model: 'haiku', effort: 'low' }], runs: 1, judges: 0, prices: { haiku: 1 }, pricesAt: '2026-11-02', samples: [1, 3] },
+        'r9-exec': { agent: 'accord-executor', arms: [{ model: 'sonnet', effort: 'low' }], runs: 1, judges: 0, prices: { sonnet: 1 }, pricesAt: '2026-11-02', samples: [1] },
+      } }));
+    }
+    const early = f.cmd(f.repo, '--round', 'r9-arm');
+    expect(early.status).toBe(2);
+    expect(early.stderr).toContain('run --round r9-arm --plan first');
+
+    const plan = f.cmd(f.repo, '--round', 'r9-arm', '--plan');
+    expect(plan.status).toBe(0);
+    expect(plan.stdout).toContain('left out: accord-scout 3: no merge of t/T-2');
+    const rows = plan.stdout.split('\n').filter((l) => l.startsWith('| bench r9-arm '));
+    expect(rows).toHaveLength(1);
+    const [description, , , , brief] = rows[0].slice(2).split(' | ');
+    expect(description).toBe('bench r9-arm scout-1-haiku-low-1');
+
+    // Three runs of that description: another agent and another effort, dispatched before the valid one.
+    const folder = `${t}/repo`.replace(/[:\\/]/g, '-');
+    const sub = join(t, 'home', '.claude', 'projects', folder, 'S', 'subagents');
+    mkdirSync(sub, { recursive: true });
+    const at = (i: number) => new Date(Date.now() + 5000 + i * 1000).toISOString();
+    const jl = (...ls: unknown[]) => ls.map((l) => JSON.stringify(l)).join('\n') + '\n';
+    const reply = '## Files\n- a.txt\n\n## Absent\n| Claim | Pattern | Folders | Allowed hits |\n| --- | --- | --- | --- |\n| no use of zzz | `zzz` | . | |\n';
+    const runs = [
+      { id: 'x1', agent: 'accord-critic', effort: 'low' },
+      { id: 'x2', agent: 'accord-scout', effort: 'high' },
+      { id: 'x3', agent: 'accord-scout', effort: 'low' },
+    ];
+    const uses = runs.map((r, i) => ({
+      type: 'assistant', timestamp: at(i), cwd: f.repo,
+      message: { content: [{ type: 'tool_use', id: 'toolu_' + r.id, name: 'Agent', input: { description, subagent_type: r.agent, model: 'haiku', effort: r.effort, prompt: brief } }] },
+    }));
+    writeFileSync(join(sub, '..', '..', 'S.jsonl'), jl(...uses));
+    for (const [i, r] of runs.entries()) {
+      writeFileSync(join(sub, `agent-${r.id}.meta.json`), JSON.stringify({ agentType: r.agent, description, toolUseId: 'toolu_' + r.id }));
+      writeFileSync(join(sub, `agent-${r.id}.jsonl`), jl({
+        type: 'assistant', timestamp: at(i + 10), perTurnEffort: r.effort, requestedModel: 'claude-haiku-4-5',
+        message: { id: 'm' + i, model: 'claude-haiku-4-5', usage: { input_tokens: 10, cache_read_input_tokens: 100, cache_creation_input_tokens: 20, output_tokens: 1000 },
+          content: [{ type: 'tool_use', id: 'h' + i, name: 'SubagentHandback', input: { message: reply } }] },
+      }));
+    }
+
+    const out = f.cmd(f.repo, '--round', 'r9-arm');
+    expect(out.stderr).toBe('');
+    expect(out.status).toBe(0);
+    expect(out.stdout.split('\n')[0]).toBe(`bench root: ${t}/accord-bench`);
+    expect(out.stdout).toContain('docs/benchmark/round-r9-arm.md');
+    const md = readFileSync(f.repo + '/docs/benchmark/round-r9-arm.md', 'utf8');
+    expect(md).toContain('Winner: haiku low, the best arm on all three measures');
+    // One counted run: recall 1 on the one scored sample, cost 10 + 0.1 * 100 + 1.25 * 20 + 5 * 1000 times price 1.
+    expect(md).toContain('| haiku | low | 1 | ');
+    expect(md).toContain('| 1 (1 to 1) | 5045 |');
+    expect(md).toContain('- sample 3: no merge of t/T-2');
+    expect(md).toContain('- scout-1-haiku-low-1: run x1: dispatched as accord-critic where the row names accord-scout');
+    expect(md).toContain('- scout-1-haiku-low-1: run x2: turn 1: perTurnEffort is high where the round dispatched low');
+
+    // A round whose agent has no scorer.
+    writeFileSync(`${t}/accord-bench/round-r9-exec.json`, JSON.stringify({ rows: [{ tag: 'executor-1-sonnet-low-1' }], leftOut: {} }));
+    const noScorer = f.cmd(f.repo, '--round', 'r9-exec');
+    expect(noScorer.status).toBe(2);
+    expect(noScorer.stderr).toContain('accord-executor has no scorer');
+  } finally {
+    rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+}, 120_000);

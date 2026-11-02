@@ -6,12 +6,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createHash, randomUUID } from 'node:crypto';
 import { execFileSync, execSync } from 'node:child_process';
 import { parse as parseYaml } from 'yaml';
 import { parsePlanReview } from './plan-review.mjs';
-import { median, ROLES, RETIRED, WRITERS, checkSamples, readDiffers, runMatrix, rewriteBrief, dispatchTable, matchRuns, mustsOf, judgeBrief, parseVerdict, holds, turnFlags, report, carryJudgeBriefs, escapes, exitState, runProblem, checkRound, armMatrix, scoreScout } from './round.mjs';
+import { median, ROLES, RETIRED, WRITERS, checkSamples, readDiffers, runMatrix, rewriteBrief, dispatchTable, matchRuns, mustsOf, judgeBrief, parseVerdict, holds, turnFlags, report, carryJudgeBriefs, escapes, exitState, runProblem, checkRound, armMatrix, scoreScout, matchNamed, armReport, SCOUT_MEASURES } from './round.mjs';
 import { compliance, render as renderCompliance, parseCompliance, mergeCompliance } from './compliance.mjs';
 import { standsFor, firstCall, pendingProbes, probeVersion, textsOf, measure, render, ticketShares, PROBE_BRANCH, PROBE_BRIEF, PROBE_DESCRIPTION, PROBE_FORMS, PROBE_PREFIX, dispatchPrompt, phaseOne, shellLine } from './fixed-context.mjs';
 
@@ -1120,6 +1120,10 @@ export function runNamedPlan(repo, name) {
       if (transcriptTail(snap.transcript) !== transcriptTail(s.transcript)) { leave(n, `the snapshot in ${dir} is of ${snap.transcript}, not ${s.transcript}`); continue; }
       const drift = sampleDrift(main, s, reads);
       if (drift.length) { leave(n, drift.join('; ')); continue; }
+      // A sample with no true file list cannot be scored, so no row is dispatched for it.
+      const truth = truthOf(main, s.ticket, s.base);
+      if (!truth) { leave(n, `no merge of t/${s.ticket}`); continue; }
+      if (!truth.length) { leave(n, 'no file its merged diff changed existed at base'); continue; }
       kept.push(s);
       loaded.set(n, { snap, reads });
     }
@@ -1163,6 +1167,63 @@ export function runNamedPlan(repo, name) {
     save();
     process.stdout.write(dispatchTable(rows, name));
     process.stdout.write("Dispatch every row: description, subagent_type, model and effort as shown, and the prompt file's text as the prompt.\n");
+    return 0;
+  } catch (e) {
+    if (e instanceof PlanProblem) return err(e.message);
+    throw e;
+  }
+}
+
+// One scorer per agent: its measures and the function that scores a reply on a worktree (only the scout's so far).
+const SCORERS = { 'accord-scout': { measures: SCOUT_MEASURES, score: scoreScoutRun } };
+
+// `--round <name>`: matches each saved row to its run by tag, scores it by script and writes docs/benchmark/round-<name>.md
+// under `repo`. It keeps no state of its own: every run is matched and scored again on each call.
+export async function runNamedRound(repo, name) {
+  const err = (m) => { process.stderr.write(m + '\n'); return 2; };
+  const { main, bench } = mainBench(repo);
+  process.stdout.write(`bench root: ${bench}\n`);
+  try {
+    const roundsFile = path.join(repo, 'scripts', 'benchmark-rounds.json');
+    let rounds = {};
+    if (fs.existsSync(roundsFile)) {
+      try { rounds = JSON.parse(fs.readFileSync(roundsFile, 'utf8')).rounds ?? {}; } catch (e) { return err(`scripts/benchmark-rounds.json does not parse: ${e.message}`); }
+    }
+    if (!Object.hasOwn(rounds, name)) return err(`no round ${name} in scripts/benchmark-rounds.json`);
+    const def = rounds[name];
+    const problems = checkRound(name, def);
+    if (problems.length) return err(problems.join('\n'));
+    const state = readNamedState(`${bench}/round-${name}.json`);
+    if (!state.rows?.length) return err(`run --round ${name} --plan first`);
+    const scorer = SCORERS[def.agent];
+    if (!scorer) return err(`${def.agent} has no scorer; only ${Object.keys(SCORERS).join(', ')} can be scored`);
+    const coreFile = fileURLToPath(new URL('../packages/core/dist/index.js', import.meta.url));
+    if (!fs.existsSync(coreFile)) return err(`${slashed(coreFile)} is missing; run npm run build first`);
+    const core = await import(pathToFileURL(coreFile).href);
+
+    const dirs = fs.existsSync(projectsRoot) ? defaultDirs(main) : [];
+    const slurp = (p) => (fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : undefined);
+    const { counted, notCounted } = matchNamed(state.rows, readSessions(dirs).runs, name, slurp);
+    const samples = new Map(namedSamples(repo, def).map((s) => [s.n, s]));
+    const truths = new Map();
+    const records = [];
+    for (const row of state.rows) {
+      const run = counted.get(row.tag);
+      if (!run) continue;
+      const sample = samples.get(row.n);
+      if (!sample) { notCounted.push({ tag: row.tag, reason: `run ${run.id}: no sample ${row.n} in the sample lists` }); continue; }
+      if (!truths.has(row.n)) truths.set(row.n, truthOf(main, sample.ticket, sample.base));
+      const truth = truths.get(row.n);
+      if (!truth?.length) { notCounted.push({ tag: row.tag, reason: `run ${run.id}: sample ${row.n} has no true file list` }); continue; }
+      const values = scorer.score(row.worktree, { reply: run.lastText, ticket: sample.ticket, base: sample.base, truth }, core);
+      if (values.problem) { notCounted.push({ tag: row.tag, reason: `run ${run.id}: ${values.problem}` }); continue; }
+      records.push({ tag: row.tag, n: row.n, model: row.model, effort: row.effort, k: row.k, usage: run.usage, values });
+    }
+    const text = armReport({ name, def, measures: scorer.measures, records, leftOut: state.leftOut ?? {}, notCounted });
+    const rel = `docs/benchmark/round-${name}.md`;
+    fs.mkdirSync(path.join(repo, 'docs', 'benchmark'), { recursive: true });
+    fs.writeFileSync(path.join(repo, rel), text);
+    process.stdout.write(rel + '\n');
     return 0;
   } catch (e) {
     if (e instanceof PlanProblem) return err(e.message);
@@ -1332,8 +1393,9 @@ export function main(args) {
     return runPlan(process.cwd(), at >= 0 ? args[at + 1].split(',').filter(Boolean) : []);
   }
   if (args[0] === '--round' && args.length === 3 && args[2] === '--plan' && args[1] !== '1') return runNamedPlan(process.cwd(), args[1]);
+  if (args[0] === '--round' && args.length === 2 && args[1] !== '1') return runNamedRound(process.cwd(), args[1]);
   if (args.some((a) => a.startsWith('--'))) {
-    process.stderr.write('usage: node scripts/benchmark.mjs [--compliance | --round 1 [--samples | --plan [--rerun <tag>[,<tag>]] | --judge] | --round <name> --plan | --clean [--force] | --fixed [--probe]] [folder ...]\n');
+    process.stderr.write('usage: node scripts/benchmark.mjs [--compliance | --round 1 [--samples | --plan [--rerun <tag>[,<tag>]] | --judge] | --round <name> [--plan] | --clean [--force] | --fixed [--probe]] [folder ...]\n');
     return 2;
   }
   process.stdout.write(legacyReport(args.length ? args : defaultDirs(process.cwd())));
@@ -1713,4 +1775,4 @@ export function fixedReport({ repo, home, bench, dirs, forms = PROBE_FORMS }) {
 }
 
 // Last: the entry runs only once every top-level declaration above has been evaluated.
-if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) process.exitCode = main(process.argv.slice(2));
+if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) process.exitCode = await main(process.argv.slice(2));

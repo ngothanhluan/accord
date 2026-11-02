@@ -512,6 +512,34 @@ export function scoreScout(reply, { tracked, read, ticket, truth }, { scoutCheck
   return { check: result.failures.length === 0 ? 1 : 0, falseClaims: rows.size, recall: truth.length === 0 ? 1 : named / truth.length };
 }
 
+// ---- matching the runs of a named round (ST-LN-46) ----
+// Each saved row takes the run described `bench <name> <tag>`. Every such run is checked first: under the row's agent with the
+// row's brief (`runProblem`), dispatched after the row's worktree was prepared, and every turn on the row's model and effort.
+// Of the runs left the earliest dispatched counts, whatever the order of the transcript files. `read` reads a brief file.
+// Returns `counted` (tag to run) and `notCounted` ({ tag, reason } per run that does not count, and per row with no run).
+export function matchNamed(rows, runs, name, read) {
+  const counted = new Map(), notCounted = [];
+  const sent = (r) => r.dispatch?.ts ?? r.start ?? 0;
+  for (const row of rows) {
+    const all = runs.filter((r) => r.desc === describe(row.tag, name));
+    if (!all.length) { notCounted.push({ tag: row.tag, reason: `no run described ${describe(row.tag, name)}` }); continue; }
+    const fine = [];
+    for (const run of all) {
+      const flag = turnFlags(run.turns, row)[0];
+      const problem = runProblem(row, run, { read })
+        ?? (row.prepared != null && sent(run) < row.prepared ? 'dispatched before its worktree was prepared' : null)
+        ?? (flag ? `turn ${flag.turn}: ${flag.field} is ${flag.got} where the round dispatched ${flag.want}` : null)
+        ?? (run.turns.length ? null : 'no turn in the transcript');
+      if (problem) notCounted.push({ tag: row.tag, reason: `run ${run.id}: ${problem}` });
+      else fine.push(run);
+    }
+    fine.sort((a, b) => sent(a) - sent(b) || (a.file < b.file ? -1 : a.file > b.file ? 1 : 0));
+    if (fine.length) counted.set(row.tag, fine[0]);
+    for (const run of fine.slice(1)) notCounted.push({ tag: row.tag, reason: `run ${run.id}: run ${fine[0].id}, dispatched earlier, counts` });
+  }
+  return { counted, notCounted };
+}
+
 // ---- the arm report of a named round (ST-LN-46): means, pass-mean ranges, cost, and the cheapest arm that ties the best ----
 export const SCOUT_MEASURES = [
   { key: 'check', label: 'scout check passes', higher: true },

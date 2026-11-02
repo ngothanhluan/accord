@@ -63,6 +63,9 @@
 - Ruling (task 3): `armReport`'s `leftOut` is `{ <n>: reason }`, the shape of `state.leftOut` in `runNamedPlan`, and `notCounted` is `[{ tag, reason }]`; a left-out sample is dropped from the set a pass must cover — cost if wrong: Task 4 adapts the call
 - Ruling (task 3): round.mjs also exports `SCOUT_MEASURES`, `armStats` and `weighted` for Task 4 and the test — cost if wrong: none
 - Ruling (task 3): the winner is the cheapest arm with a complete pass that is best on, or within the best arm's pass-mean range (±1e-9) of, every measure; a cost tie goes to the arm listed first in the definition — cost if wrong: a different arm on an exact cost tie
+- Ruling (task 4): `--round <name>` loads core with a dynamic `import()` of packages/core/dist/index.js, so the entry line is `process.exitCode = await main(...)` — require(esm) prints an ExperimentalWarning on Node 22.12 — cost if wrong: none, no test calls `main` in-process
+- Ruling (task 4): `matchNamed` lists every run that does not count, including a valid run beaten by an earlier one and a row with no run; the report heading "Rows with no counted run" also lists runs of rows that do count — cost if wrong: report wording only
+- Ruling (task 4): `--plan` checks truth after the snapshot and drift checks; `--round` recomputes truth and lists a run it cannot score as not counted — cost if wrong: none
 
 ## Deferred
 - approach-review 1.9 (Nice): score scout check on the blobs at the sample commit, as `commitFacts` does, rather than on worktree files after the setup commands ran
@@ -90,3 +93,4 @@
 - task 1 done 9632d753fd2a
 - task 2 done 658c8030f2e8
 - task 3 done 26a28cc9d6a8
+- task 4 done 4167796f8d78

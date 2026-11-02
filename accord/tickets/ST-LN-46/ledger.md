@@ -68,6 +68,7 @@
 - Ruling (task 4): `--plan` checks truth after the snapshot and drift checks; `--round` recomputes truth and lists a run it cannot score as not counted — cost if wrong: none
 
 - Ruling (D-10, after the owner's correction to coordinate directly): ac-4 is built by the main session as one change with no plan task, planner or critic round — `repairBrief`, `afterRepair` and `fixTag` in scripts/round.mjs, `--round <name> --repair` and the after-repair table in scripts/benchmark.mjs, the ac-4 test in packages/core/test/benchmark-arms.test.ts — cost if wrong: a defect a plan critic would have caught is found only at review
+- Ruling: the owner limits D-10's repairs to the three haiku arms — "B" (2026-11-02, after haiku low repaired 0 of 6 runs to a passing scout check; option a, all 66 remaining repairs, and c, stop at 6, not chosen) — the sonnet arms keep no after-repair figures, so their after-repair rows show no complete pass and the after-repair winner is read among the haiku arms only — cost if wrong: no sonnet after-repair comparison
 ## Deferred
 - approach-review 1.9 (Nice): score scout check on the blobs at the sample commit, as `commitFacts` does, rather than on worktree files after the setup commands ran
 - approach-review 2.3 (Nice): the `--clean` guard never clears for a round whose agent has no scorer; `--force` then also drops the protection for a scout round in progress

@@ -24,3 +24,5 @@
 - Ruling: a gathered sample's base is the last commit on the run's branch before the dispatch, from merged history — replay needs a base — cost if wrong: drift marks the sample as unable to replay
 ## Deferred
 - approach-review 1.9 (Nice): score scout check on the blobs at the sample commit, as `commitFacts` does, rather than on worktree files after the setup commands ran
+- approach-review 2.3 (Nice): the `--clean` guard never clears for a round whose agent has no scorer; `--force` then also drops the protection for a scout round in progress
+- approach-review 2.4 (Nice, defer to plan): gathered entries need `root`, `main`, `elsewhere`, `files`, `pairs`, and the snapshot layout must match what `runPlan` loads

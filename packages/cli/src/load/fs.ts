@@ -33,6 +33,22 @@ function gitTree(root: string): string[] {
   return [...new Set(out.split('\0').filter((p) => p !== ''))].sort();
 }
 
+/** ST-LN-81: the paths git tracks (`git ls-files -z`, the index only, no untracked file), posix, sorted by code point. */
+export function gitTracked(root: string): string[] {
+  let out: string;
+  try {
+    out = execFileSync('git', ['ls-files', '-z'], {
+      cwd: root,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      maxBuffer: 64 * 1024 * 1024,
+    });
+  } catch {
+    throw new UsageError('git ls-files failed in ' + root);
+  }
+  return out.split('\0').filter((p) => p !== '').sort();
+}
+
 /** Every regular file under `accord/`, keyed by its posix path relative to the root (D-30). */
 function accordFiles(root: string): Record<string, string> {
   const accordDir = join(root, 'accord');

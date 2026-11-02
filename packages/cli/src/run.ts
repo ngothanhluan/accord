@@ -21,6 +21,7 @@ import { upgradeNotice } from './commands/notice.js';
 import { dashboardCommand } from './commands/dashboard.js';
 import { reviewPackage } from './commands/review-package.js';
 import { round } from './commands/round.js';
+import { scoutCheckCommand } from './commands/scout.js';
 import { skills } from './commands/skills.js';
 import { status } from './commands/status.js';
 import { taskDone } from './commands/task-done.js';
@@ -231,6 +232,14 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .description('print every case the test report records as skipped, with the operating system it ran on')
     .action(() => {
       setCode(testsSkipped(preflight(opts)));
+    });
+
+  const scout = program.command('scout').description('check a scout report');
+  scout
+    .command('check <file>')
+    .description("check a scout report's citations and logged absence searches against the files git tracks, and print its lane numbers")
+    .action((file: string) => {
+      setCode(scoutCheckCommand(preflight(opts), file, opts.cwd));
     });
 
   program

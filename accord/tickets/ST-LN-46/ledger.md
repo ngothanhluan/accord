@@ -32,3 +32,4 @@
 - approach-review 1.9 (Nice): score scout check on the blobs at the sample commit, as `commitFacts` does, rather than on worktree files after the setup commands ran
 - approach-review 2.3 (Nice): the `--clean` guard never clears for a round whose agent has no scorer; `--force` then also drops the protection for a scout round in progress
 - approach-review 2.4 (Nice, defer to plan): gathered entries need `root`, `main`, `elsewhere`, `files`, `pairs`, and the snapshot layout must match what `runPlan` loads
+- approach-review 4.2 (Nice, defer to plan): cut citation ranges and lists (`:164-170`, `:164,170`) as well as `:<line>` when reading a reply's file tokens

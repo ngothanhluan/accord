@@ -59,6 +59,7 @@
 - Ruling: `makeLaneRepo` also seeds a skipped report for its own lane M ticket T-1, and skips any ticket whose `scout.md` the caller passes — otherwise every test using the helper refuses at approve (task 6) — cost if wrong: a test that wants no T-1 report deletes it, as the ac-4 test does
 - Ruling: the scout prompt says "the command or endpoint that registers it" instead of the plan's "route" — packages/core/test/agents.test.ts:60 asserts the scout text never holds the word "route", and rewording is lighter than loosening that test (task 7) — cost if wrong: one word differs from the plan text
 - Ruling: the planner's new sentence sits on line 18 of packages/core/agents/planner.md, the `direction` mode impact-list bullet, the only line ending in "each with `path:line`." that the brief names (task 8) — cost if wrong: a one-line move
+- Ruling: `accord scout check <file>` gains an option `--ticket <id>` that leaves that ticket's own files and listed research records out of every search, as a file at `accord/tickets/<id>/scout.md` already does, and the scout steps pass it whenever the ticket exists; the owner chose this for final review finding 2.1 — "A" (2026-11-02; option A of three: add `--ticket <id>`, check a temporary file inside the ticket folder, or defer) — cost if wrong: one more option on a new command
 
 ## Deferred
 - approach-review 1.7 (Nice): bound the time or input of each logged regular expression so a pattern like `(a+)+$` cannot hang `accord approve`
@@ -70,6 +71,9 @@
 - review 1.2 (Nice): test the `## New files` rules: a tracked path fails, and new files count toward expected files and code areas
 - review 1.3 (Nice): cache file text across Absent rows in one check, so 10 root rows do not re-read every file 10 times
 - review 1.4 (Nice): tell the scout not to fence its whole reply, or strip one wrapping fence in `parseScoutReport`
+- review 2.2 (Nice): strip a `:<line>` suffix from Allowed hits entries as `listEntries` does for `## Files`
+- review 2.3 (Nice): drop the `lastCommitOf` and `hasLocalChanges` asserts from the blob-batching risk test, which the ac-4 test covers (Ruling 44)
+- review 2.4 (Nice): keep `printedClaim` module-local instead of exporting it from the core index
 - plan-review 3.1 (Nice): in `shared/scout.md`, write the owner's `skipped:` line into `scout.md` after step 5's copy, not before it
 
 ## Tasks

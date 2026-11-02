@@ -1,6 +1,6 @@
 ---
 baseline: 625431a8713b63d57c83bc5a28ac72c7dd17321b
-plan_hash: "fnv1a64:381b1a1bcf9f6956"
+plan_hash: "fnv1a64:5488c466ac7e62ca"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -9,7 +9,9 @@ preamble, the ticket and its ledger.
 Order. Task 1 builds the pure core module, the `accord scout check <file>` command and the logged-search half of
 the check end to end (@ac-1). Task 2 adds citations and the file-list checks (@ac-2). Task 3 leaves the ticket's
 own files out of every search. Task 4 adds the lane numbers (@ac-3). Task 5 adds the bounded reads of a commit's
-files. Task 6 makes `accord approve` refuse a lane M ticket without a passing or skipped report (@ac-4, D-02).
+files. Task 6 makes `accord approve` refuse a lane M ticket without a passing or skipped report, judged by the same
+check at the commit that last changed `scout.md`, or on the working tree while it has uncommitted changes (@ac-4,
+D-02, D-03).
 Task 7 rewrites the scout prompt into its fixed form and adds the `shared/scout.md` steps to the accord and
 intent skills (D-01). Task 8 wires the approach and build skills, the planner and the README.
 
@@ -43,8 +45,10 @@ Rules for every task:
   `'-c', 'log.showSignature=false', 'log', '--no-show-signature', ...` (the exact literal
   `packages/cli/test/spawn-surface.test.ts:84-100` checks), and every `execFileSync` that can return a long output
   passes `maxBuffer: 64 * 1024 * 1024`. Only `git` is spawned, by name, with no shell.
-- Printed output carries no backslash (D-51): every printed path is a posix path, and no printed line repeats a
-  logged pattern.
+- Printed output carries no backslash (D-51): every printed path is a posix path; the Pattern cell is never
+  printed; a Claim cell is printed as `printedClaim(claim)` from `check.ts`: every `\` turned into `/`, every
+  whitespace run turned into one space, then cut to its first 80 characters with `...` appended when longer. A
+  claim that quotes its pattern is printed in that form; the row number (`row <row>`) is what identifies the row.
 - A test that commits uses `commitMsg(repo, '<message>')` from `packages/cli/test/helpers/repo.ts:146`, never
   `-m` (`accord/product/conventions.md:6`). A CLI test passes `120_000` as the third argument of `it`.
 - Commits follow `accord/product/conventions.md`. End every task with `npm run lint` and `npm run typecheck`, then
@@ -90,6 +94,12 @@ Names shared by every task:
   `scoutCheck` calls `read` with at most 100 paths at a time. Failures come in this order: the report-level ones
   (no `## Files`, then `faults`), `## Files` entries, `## New files` entries, citations in the order they appear,
   then Absent rows in table order.
+- One check, two trees (ac-4, D-03). `scoutCheck` is the only judging function. `accord scout check <file>` hands
+  it the working tree's facts, `workingFacts(root)` in `scout.ts` (Task 1): `git ls-files -z` and the files on
+  disk. `accord approve <id>` hands the same function, for `accord/tickets/<id>/scout.md`, the facts of the commit
+  that last changed that file, `commitFacts(root, commit)` in `scout.ts` (Task 6): `git ls-tree -r -z -l` and the
+  blobs of that commit; or, while the file has uncommitted changes (or was never committed), `workingFacts(root)`
+  again. The two commands differ only in the facts they pass; no rule is written twice.
 - The printed form of a `ScoutResult`, built by `scoutLines(result: ScoutResult): string` in
   `packages/cli/src/commands/scout.ts`, every line ending in `\n`:
   1. `fail: <failure>` for each failure;
@@ -99,7 +109,7 @@ Names shared by every task:
      `lifts to lane M: <reasons joined by "; ">`, or `lifts to lane M: no counted condition holds`;
   3. `scout check passed` when there is no failure, else `scout check failed: <n> failure` (n = 1) or
      `scout check failed: <n> failures`.
-- The failure texts, exactly (`<claim>` is the Claim cell, `<row>` the row's report line):
+- The failure texts, exactly (`<claim>` is `printedClaim` of the Claim cell, `<row>` the row's report line):
   - `the report has no ## Files section, so no lane numbers can be computed` (Task 2)
   - `the ## Absent table header is not | Claim | Pattern | Folders | Allowed hits |` (Task 1)
   - `## Absent row at line <row> has <k> cells, not 4: escape a pipe inside a cell` (Task 1)
@@ -144,7 +154,9 @@ Consumes a report file and the working tree's tracked files. Produces:
   compile failure); the searched files are the tracked paths any folder entry covers (preamble); none gives the
   "cover no tracked file" failure; otherwise read them in slices of 100, normalise each text, and test the
   pattern on each line; a file not covered by any allowed-hit entry and with a matching line gives one failure at
-  its first matching line. An unreadable file is skipped. `skipped` is copied from the parsed report.
+  its first matching line. An unreadable file is skipped. `skipped` is copied from the parsed report. Also
+  `export function printedClaim(claim: string): string` as the preamble defines it, used by every failure text
+  that names a claim.
 - `packages/core/src/index.ts`: export `parseScoutReport`, `scoutCheck` and the types `AbsentRow`, `Citation`,
   `ScoutReport`, `ScoutFacts`, `ScoutLane`, `ScoutResult`.
 - `packages/cli/src/load/fs.ts`: `export function gitTracked(root: string): string[]`, the paths of
@@ -157,8 +169,10 @@ Consumes a report file and the working tree's tracked files. Produces:
   `UsageError('cannot read ' + file.replace(/\\/g, '/') + ': ' + <the error message>)`. The report's repository
   path is `relative(realpathSync.native(ctx.root), realpathSync.native(<the absolute file>))` with `sep` turned
   into `/`, left undefined when it is empty, starts with `..` or is absolute (realpath on both sides, since a
-  Windows temp folder can carry an 8.3 short name git does not print). Facts: `tracked = gitTracked(ctx.root)`,
-  `read` reading `join(ctx.root, ...p.split('/'))` as utf8 and giving undefined on any error. It writes
+  Windows temp folder can carry an 8.3 short name git does not print). Facts come from
+  `export function workingFacts(root: string): Pick<ScoutFacts, 'tracked' | 'read'>`: `tracked = gitTracked(root)`,
+  `read` reading `join(root, ...p.split('/'))` as utf8 and giving undefined on any error. It calls
+  `scoutCheck({ ...workingFacts(ctx.root), text, ...(path === undefined ? {} : { path }) })`, writes
   `scoutLines(result)` to `ctx.stdout` and returns 1 when there is a failure, else 0.
 - `packages/cli/src/run.ts`: after the `tests` block (line 222-234), the same namespace pattern:
 
@@ -194,8 +208,8 @@ then `commitMsg(repo, 'fixture')`. Afterwards write, untracked, `packages/cli/sr
 ```
 (in the test source the pattern is written `loadConfig\\(` inside a JavaScript string). `run(['scout', 'check',
 'report.md'], repo)` has code 1; its out holds `no other caller of loadConfig` and
-`packages/cli/src/commands/init.ts:2`, and does not hold `scratch.ts`. Then the same report with the Allowed hits
-cell `packages/core/src/load/config.ts, packages/cli/src/commands/init.ts`: code 0, out ends with
+`packages/cli/src/commands/init.ts:2`, and does not hold `scratch.ts` or a backslash. Then the same report with
+the Allowed hits cell `packages/core/src/load/config.ts, packages/cli/src/commands/init.ts`: code 0, out ends with
 `scout check passed\n`. Clean up in `finally`.
 
 ## Task 2: Citations and the file lists are checked against what git tracks
@@ -225,7 +239,9 @@ Must not change: Task 1's Absent parse and search; the ac-1 test passes unchange
 Test first. In `packages/cli/test/scout-check.test.ts`, a top-level `it` titled
 `ac-2 a citation that does not resolve fails the check`: `makeEmptyRepo()`, `writeFiles` with
 `'accord/config.yml': CONFIG` and `'packages/core/src/gate/scope.ts': 'export const a = 1;\nexport const b = 2;\nexport const c = 3;\n'`,
-`commitMsg`, then an untracked `report.md`:
+`commitMsg`. Afterwards write, untracked, `packages/core/src/missing.ts` holding five lines (`'1\n2\n3\n4\n5\n'`),
+so the second citation names a file that exists on disk but is not among the files git tracks (ac-2), and an
+untracked `report.md`:
 
 ```text
 ## Files
@@ -361,7 +377,7 @@ scout check passed
 
 ## Task 5: Files at a commit are read in bounded batches
 
-covers: @ac-4
+covers: @ac-4, D-03
 files: packages/cli/src/load/fs.ts, packages/cli/test/scout-check.test.ts (new)
 verify: packages/cli/test/scout-check.test.ts#risk:complex-branching-blob-reads-at-a-commit-split-into-bounded-batches-and-keep-their-order
 
@@ -396,23 +412,30 @@ rewritten.
 
 ## Task 6: `accord approve` refuses a lane M ticket without a passing or skipped report
 
-covers: @ac-4, D-02
-files: packages/cli/src/commands/approve.ts, packages/cli/src/commands/scout.ts (new), packages/cli/test/helpers/repo.ts, packages/cli/test/helpers/worktree.ts, packages/cli/test/lane-commands.test.ts, packages/cli/test/scout-check.test.ts (new)
-verify: packages/cli/test/lane-commands.test.ts#accord-approve->-ac-4-a-lane-M-ticket-is-approved-only-with-a-scout-report-that-passes-the-check-or-says-why-it-was-skipped (@ac-4), packages/cli/test/scout-check.test.ts#risk:complex-branching-approve-judges-a-committed-scout-report-at-the-commit-that-last-changed-it-and-an-uncommitted-one-against-the-working-tree
+covers: @ac-4, D-02, D-03
+files: packages/cli/src/commands/approve.ts, packages/cli/src/commands/scout.ts (new), packages/cli/test/helpers/repo.ts, packages/cli/test/helpers/worktree.ts, packages/cli/test/lane-commands.test.ts
+verify: packages/cli/test/lane-commands.test.ts#accord-approve->-ac-4-a-lane-M-ticket-is-approved-only-with-a-scout-report-that-passes-the-check-or-says-why-it-was-skipped (@ac-4)
 
-Consumes Tasks 1 to 5. Produces:
+Consumes Tasks 1 to 5. ac-4 and D-03: approve runs the very check `accord scout check` runs, `scoutCheck`, on
+`scout.md` as of the commit that last changed it, or on the working tree while the file has uncommitted changes
+or was never committed ("One check, two trees", preamble). Produces:
+- `scout.ts`: `export function commitFacts(root: string, commit: string): Pick<ScoutFacts, 'tracked' | 'read'>`:
+  `tracked` the paths of `gitTreeAt(root, commit)` sorted by code point; `read(paths)` looks each path up in that
+  tree and returns `readBlobs(root, <the blobs found>, 'commit ' + commit)` placed back in order, undefined for a
+  path the tree does not hold.
 - `scout.ts`: `export function scoutRefusal(ctx: CommandContext, id: string): string | undefined`, with
   `file = 'accord/tickets/' + id + '/scout.md'` and its disk path `join(ctx.root, 'accord', 'tickets', id, 'scout.md')`:
   1. Not a readable file: return
      `cannot approve <id>: <file> is missing; save the scout's report there once accord scout check passes on it, or write a line "skipped: <reason>" in it\n`.
   2. `parseScoutReport(text).skipped` set: return undefined (the check does not run).
-  3. Facts: when `hasLocalChanges(ctx.root, file)` is false and `lastCommitOf(ctx.root, file)` gives a commit, the
-     tracked list and reads of that commit (`gitTreeAt`, then `readBlobs` for the requested paths that the tree
-     holds, undefined for the rest); otherwise the working-tree facts Task 1 uses (ledger Ruling 23).
-  4. `scoutCheck({ path: file, text, tracked, read })`; no failure returns undefined; otherwise return
+  3. Which tree: `commit = hasLocalChanges(ctx.root, file) ? undefined : lastCommitOf(ctx.root, file)`; the facts
+     are `commitFacts(ctx.root, commit)` when `commit` is set, else `workingFacts(ctx.root)` (Task 1). The report
+     text is the file on disk, which equals the committed text whenever `commit` is set.
+  4. `scoutCheck({ ...facts, path: file, text })`, the same call `scoutCheckCommand` makes; no failure returns
+     undefined; otherwise return
      `cannot approve <id>: <file> fails accord scout check <where> and holds no line "skipped: <reason>"\n`, `<where>`
-     `at commit <first 12 characters>` or `against the working tree`, followed by one `fail: <failure>\n` line per
-     failure.
+     `at commit <first 12 characters>, the commit that last changed it` or
+     `on the working tree, since it has uncommitted changes`, followed by one `fail: <failure>\n` line per failure.
 - `approve.ts`: after the lane S refusal (line 11-13) and before `approvedHash`, when
   `ticket.frontmatter?.lane === 'M'`, a refusal is written to `ctx.stdout` and `approve` returns 1, writing nothing.
 - `packages/cli/test/helpers/repo.ts`, `makeLaneRepo`: after merging `extra`, every key matching
@@ -430,20 +453,9 @@ its body to expect it, keeps its title, and the change is a Ruling in the report
 
 Test first. Inside `describe('accord approve', ...)` of `packages/cli/test/lane-commands.test.ts`, an `it` titled
 `ac-4 a lane M ticket is approved only with a scout report that passes the check or says why it was skipped`:
-`repo = makeLaneRepo()`, `before = ticketText(repo)`, `S = 'accord/tickets/T-1/scout.md'`.
-1. `rmSync(join(repo, 'accord', 'tickets', 'T-1', 'scout.md'))`; `run(['approve', 'T-1'], repo)`: code 1, out holds
-   `accord/tickets/T-1/scout.md is missing`, `ticketText(repo)` equals `before`.
-2. `writeFiles(repo, { [S]: '## Files\n- `src/missing.ts`\n' })`, `commitMsg(repo, 'fixture')`; approve: code 1, out
-   holds `accord/tickets/T-1/scout.md fails accord scout check` and `## Files lists src/missing.ts, which git does not track`;
-   the ticket equals `before`.
-3. `writeFiles(repo, { [S]: '## Files\n- `src/missing.ts`\n\nskipped: the owner accepted the report as it is\n' })`
-   (left uncommitted); approve: code 0, out starts `approved accord/tickets/T-1.md`.
-4. `writeFiles(repo, { 'accord/tickets/T-1.md': before, [S]: '## Files\n- `src/export.ts`\n' })`, `commitMsg`; approve:
-   code 0, out starts `approved accord/tickets/T-1.md`.
-
-Then, in `packages/cli/test/scout-check.test.ts`, a top-level `it` titled
-`risk:complex-branching approve judges a committed scout report at the commit that last changed it and an uncommitted one against the working tree`:
-`makeLaneRepo({ 'src/a.ts': 'export function useA() {}\n', 'accord/tickets/T-1/scout.md': <report> })` with the report
+`repo = makeLaneRepo({ 'src/a.ts': 'export function useA() {}\n' })`, `before = ticketText(repo)`,
+`S = 'accord/tickets/T-1/scout.md'`, `reset = () => writeFiles(repo, { 'accord/tickets/T-1.md': before })`, and
+`USE` the report
 
 ```text
 ## Files
@@ -454,15 +466,29 @@ Then, in `packages/cli/test/scout-check.test.ts`, a top-level `it` titled
 |---|---|---|---|
 | no caller of useA | `useA[(]` | `src/` | `src/a.ts` |
 ```
-`commitMsg(repo, 'fixture')`; then `writeFiles` `src/b.ts` holding `useA();\n` and `commitMsg(repo, 'b')`.
-`run(['approve', 'T-1'], repo)`: code 0, since the report's commit holds no `src/b.ts`. Then append a line
-`- see src/a.ts:1\n` to the report and leave it uncommitted: `run(['approve', 'T-1'], repo)` has code 1 and an out
-holding `against the working tree` and `src/b.ts:1`.
+Each step runs `run(['approve', 'T-1'], repo)`:
+1. No report: `rmSync(join(repo, 'accord', 'tickets', 'T-1', 'scout.md'))`. Code 1, out holds
+   `accord/tickets/T-1/scout.md is missing`, `ticketText(repo)` equals `before`.
+2. A report that fails at the commit that last changed it: `writeFiles(repo, { [S]: '## Files\n- `src/missing.ts`\n' })`,
+   `commitMsg(repo, 'fixture')`. Code 1, out holds `accord/tickets/T-1/scout.md fails accord scout check at commit`,
+   `the commit that last changed it` and `## Files lists src/missing.ts, which git does not track`; the ticket
+   equals `before`.
+3. The failing report with a `skipped:` line, uncommitted: `writeFiles(repo, { [S]: '## Files\n- `src/missing.ts`\n\nskipped: the owner accepted the report as it is\n' })`.
+   Code 0, out starts `approved accord/tickets/T-1.md`. Then `reset()`.
+4. A report that passes at the commit that last changed it, although the working tree no longer agrees:
+   `writeFiles(repo, { [S]: USE })`, `commitMsg(repo, 'scout')`, then `writeFiles(repo, { 'src/b.ts': 'useA();\n' })`
+   and `commitMsg(repo, 'b')`, so `scout.md` is unchanged since its commit, which holds no `src/b.ts`. Code 0, out
+   starts `approved accord/tickets/T-1.md`. Then `reset()`.
+5. The same report with an uncommitted change is judged on the working tree: append `- see src/a.ts:1\n` to
+   `scout.md`. Code 1, out holds `on the working tree, since it has uncommitted changes` and `src/b.ts:1`; the
+   ticket equals `before`.
+6. `run(['scout', 'check', S], repo)` on that same working tree also has code 1 and out holding `src/b.ts:1`: the
+   command and approve give one verdict on one tree.
 
 ## Task 7: The scout writes the fixed form and the accord and intent skills check and save it
 
 covers: D-01
-files: packages/core/agents/scout.md, packages/core/skills/shared/scout.md (new), packages/core/skills/accord/lane.md, packages/core/skills/accord/SKILL.md, packages/core/skills/intent/SKILL.md, packages/core/src/generated/agents.ts, packages/core/src/generated/skills.ts, packages/core/test/stage-skills.test.ts, packages/core/test/scout-text.test.ts (new), .claude/agents/accord-scout.md, .claude/skills/accord/SKILL.md, .claude/skills/accord/lane.md, .claude/skills/accord/scout.md (new), .claude/skills/accord-intent/SKILL.md, .claude/skills/accord-intent/lane.md, .claude/skills/accord-intent/scout.md (new)
+files: packages/core/agents/scout.md, packages/core/skills/shared/scout.md (new), packages/core/skills/accord/lane.md, packages/core/skills/accord/SKILL.md, packages/core/skills/accord/worktree.md, packages/core/skills/intent/SKILL.md, packages/core/src/generated/agents.ts, packages/core/src/generated/skills.ts, packages/core/test/stage-skills.test.ts, packages/core/test/scout-text.test.ts (new), .claude/agents/accord-scout.md, .claude/skills/accord/SKILL.md, .claude/skills/accord/lane.md, .claude/skills/accord/worktree.md, .claude/skills/accord/scout.md (new), .claude/skills/accord-intent/SKILL.md, .claude/skills/accord-intent/lane.md, .claude/skills/accord-intent/scout.md (new), .claude/skills/accord-debug/worktree.md, .claude/skills/accord-verify/worktree.md
 verify: packages/core/test/scout-text.test.ts#risk:parsing-the-scout-prompt-and-the-scout-steps-write-the-report-form-accord-scout-check-parses
 
 Consumes `parseScoutReport` (Task 1). Produces:
@@ -504,28 +530,33 @@ kind: reference
 A reply of `accord-scout` that a lane, an answer or an approval rests on is checked by the CLI and saved in the
 ticket, so no agent after it searches again.
 
-1. **Check.** Write the reply, verbatim, to `accord/tickets/<id>/scout.md` once the ticket exists, or before that
-   to a file outside the working tree. Below it add a `## New files` section, one `- <path>` line per file the
-   change creates that you name, since the scout reports only files that exist. Run
-   `accord scout check "<file>"`, and use the lane numbers it prints when you propose a lane.
-2. **Exit 1.** Dispatch a fresh `accord-scout` once with its reply and everything the check printed, asking for
-   the same reply corrected in the same form; put the new reply in place of the old, keep `## New files`, and run
-   the check again. When it exits 1 again, show the owner what it prints and ask whether to accept the report as
-   it is.
+1. **Check.** Write a new reply, verbatim, to a file outside the working tree. Below it add a `## New files`
+   section, one `- <path>` line per file the change creates that you name, since the scout reports only files
+   that exist. Run `accord scout check "<file>"` on that file, and use the lane numbers it prints when you
+   propose a lane.
+2. **Exit 1.** Dispatch a fresh `accord-scout` once with the reply and everything the check printed, asking for
+   the same reply corrected in the same form; put the corrected reply in place of the old one in the file you
+   checked, keep its `## New files`, and run the check again. When it exits 1 again, show the owner what it
+   prints and ask whether to accept the report as it is.
 3. **Skipped.** Write a line `skipped: <reason>` into `scout.md` only when no scout ran, or when the owner
    accepts a failing report, the reason then quoting the owner's words. Never write it to get past the check.
-4. **Save.** For a new request in lane S or M, after `accord new ticket` and before you follow the `enter:` or
-   `stop:` line it printed, write the checked report to `<path>/accord/tickets/<id>/scout.md`, run
+4. **Save.** A checked report is copied to `accord/tickets/<id>/scout.md` only while that file does not exist:
+   the reply to another question never replaces a saved report or its `## New files`. For a new request in
+   lane S or M, after `accord new ticket` and before you follow the `enter:` or `stop:` line it printed, copy
+   the checked file to `<path>/accord/tickets/<id>/scout.md`, run
    `git -C "<path>" add -- accord/tickets/<id>/scout.md`, then
    `git -C "<path>" commit -m "scout: <id> report" -- accord/tickets/<id>/scout.md` and
    `git -C "<path>" push -u origin <branch>`. At intent step 2, when `accord/tickets/<id>/scout.md` does not
-   exist, write the checked reply there, commit it and run `accord worktree push <id>`.
+   exist, copy the checked reply there, add and commit it the same way and run `accord worktree push <id>`;
+   when it exists, use the checked reply for your questions and leave `scout.md` as it is.
 5. **Approval.** Before the owner's yes at approach step 5, run
    `accord scout check "accord/tickets/<id>/scout.md"`; when that file does not exist, dispatch `accord-scout`
    with the path of `accord/tickets/<id>.md`, asking for the existing files the approach touches, then check and
-   save its reply as steps 1 to 4 say. When `accord approve <id>` exits 1 naming `scout.md`, fix the report as
-   steps 1 to 3 say, commit it and run `accord approve <id>` again: the owner's yes still holds, since
-   `scout.md` is not among the approved sections.
+   save its reply as steps 1 to 4 say. A saved report that fails is corrected in place as step 2 says.
+   `accord approve <id>` runs the same check on `scout.md` as of the commit that last changed it, or on the
+   working tree while the file has uncommitted changes. When `accord approve <id>` exits 1 naming `scout.md`,
+   correct the report as steps 2 and 3 say, commit it and run `accord approve <id>` again: the owner's yes
+   still holds, since `scout.md` is not among the approved sections.
 6. **Read.** The planner, and every agent after it that needs the ticket's files, starts from
    `accord/tickets/<id>/scout.md`.
 ```
@@ -538,8 +569,15 @@ ticket, so no agent after it searches again.
   `the owner may override.`; append ` Check and save the scout's reply as `./scout.md` says.`
 - `packages/core/skills/intent/SKILL.md`: `loads:` (line 6) gains `shared/scout.md`; in step 2 (lines 17-20), after
   `the questions the code can answer.`, insert
-  ` Check its reply as `./scout.md` says, and save it as `accord/tickets/<id>/scout.md` when that file does not exist.`
+  ` Check its reply as `./scout.md` says, and save it as `accord/tickets/<id>/scout.md` only when that file does not exist.`
   Rewrap near the neighbouring line widths.
+- `packages/core/skills/accord/worktree.md` (rendered into the accord, debug and verify skills), line 53: replace
+  `never edit a file
+  there except the people entry below and, in a lane S ticket,` (the text across lines 52-53) so that it reads
+  `` never edit a file there except the people entry below, the scout's report `accord/tickets/<id>/scout.md` with the commit and push that save it, and, in a lane S ticket, ``
+  followed by the rest of the line unchanged. No `./scout.md` here: the debug and verify skills load no such
+  file (`packages/core/test/skills.test.ts:292-309`). `except the people entry below` stays one contiguous phrase
+  (`packages/core/test/stage-skills.test.ts:274`).
 - `packages/core/test/stage-skills.test.ts`: `REQUIRED.accord` and `REQUIRED.intent` (lines 23-24) each gain
   `'./scout.md'`.
 - Then `npm run gen`, `npm run build`, `node packages/cli/dist/cli.js skills sync`.
@@ -549,17 +587,23 @@ research sentence of the scout (`packages/core/test/agents.test.ts:251-263`); th
 rendered keys order (`agents.test.ts:51-60`, `:113`).
 
 Test first, `packages/core/test/scout-text.test.ts`, importing `agentTargets`, `parseScoutReport` and `skillTargets`
-from `../src/index.js`, `config()` as `packages/core/test/agents.test.ts:10-11`. A top-level `it` titled
+from `../src/index.js`, `config()` as `packages/core/test/agents.test.ts:10-11`, and
+`flat = (text: string) => text.replace(/\s+/g, ' ')`. Every `holds` below is
+`expect(flat(<rendered text>)).toContain(<phrase>)`: the source wraps lines and the renderer keeps the wraps, so a
+phrase is only ever compared against flattened text, skill files and agents alike. A top-level `it` titled
 `risk:parsing the scout prompt and the scout steps write the report form accord scout check parses`:
 - the rendered `.claude/agents/accord-scout.md` is not empty; the text of its first ```` ```markdown ```` fence
-  (`/```markdown\n([\s\S]*?)\n```/`) parsed by `parseScoutReport` has `faults` `[]`, `files` with at least one entry,
-  one `absent` row whose `folders` and `allowed` are not empty, and a `pattern` that `new RegExp` accepts;
-- the agent text, whitespace runs turned into one space, holds `search logged`, `never "proven absent"`,
-  `| Claim | Pattern | Folders | Allowed hits |`, `in full from the repository root` and
-  `Open every file the question names`;
+  (`/```markdown\n([\s\S]*?)\n```/`, matched on the raw text) parsed by `parseScoutReport` has `faults` `[]`,
+  `files` with at least one entry, one `absent` row whose `folders` and `allowed` are not empty, and a `pattern`
+  that `new RegExp` accepts;
+- the agent text holds `search logged`, `never "proven absent"`, `| Claim | Pattern | Folders | Allowed hits |`,
+  `in full from the repository root` and `Open every file the question names`;
 - for `accord` and `accord-intent`, `.claude/skills/<dir>/scout.md` holds `## New files`, `skipped: <reason>`,
-  `accord scout check "<file>"` and `` before you follow the `enter:` or `stop:` line ``, and both
-  `.claude/skills/<dir>/SKILL.md` and `.claude/skills/<dir>/lane.md` hold `` `./scout.md` ``.
+  `accord scout check "<file>"`, `` before you follow the `enter:` or `stop:` line `` and
+  `the reply to another question never replaces a saved report`, and both `.claude/skills/<dir>/SKILL.md` and
+  `.claude/skills/<dir>/lane.md` hold `` `./scout.md` ``;
+- `.claude/skills/accord/worktree.md` holds
+  `` except the people entry below, the scout's report `accord/tickets/<id>/scout.md` with the commit and push that save it ``.
 
 ## Task 8: The approach and build stages run the check and handle a refusal, and the planner and README name the report
 
@@ -583,7 +627,7 @@ Consumes Task 7's `shared/scout.md`. Produces:
   with
 
   ```text
-  A scout reads the code before any lane is proposed; `accord scout check` checks the citations and logged searches of its report and prints the lane numbers, and the report is saved as `accord/tickets/<id>/scout.md`, which `accord approve` requires of a lane M ticket unless the file holds a `skipped: <reason>` line. A lane S ticket records the files it expects to touch, and `accord gate done` fails it when it touches others.
+  A scout reads the code before any lane is proposed; `accord scout check` checks the citations and logged searches of its report and prints the lane numbers, and the report is saved as `accord/tickets/<id>/scout.md`, which `accord approve` requires of a lane M ticket, judged by the same check at the commit that last changed it, unless the file holds a `skipped: <reason>` line. A lane S ticket records the files it expects to touch, and `accord gate done` fails it when it touches others.
   ```
   and after the `accord show <id> [--json]` row of the table (line 135) add
 
@@ -600,14 +644,16 @@ every planner phrase `packages/core/test/agents.test.ts:17-24`, `:36-41`, `:143-
 (`packages/cli/test/readme.test.ts:21`).
 
 Test first, in `packages/core/test/scout-text.test.ts`, a top-level `it` titled
-`risk:complex-branching the approach and build stages send an approve refusal back to the scout steps`. With
-`flat(text) = text.replace(/\s+/g, ' ')`:
+`risk:complex-branching the approach and build stages send an approve refusal back to the scout steps`. Every
+text below, skill files and agents alike, is read as `flat(<rendered text>)` (Task 7), and every slice is taken
+from that flattened text, never from the raw one, since the source wraps its lines:
 - in the rendered `.claude/skills/accord-approach/SKILL.md`, the slice from `5. **The owner's yes.**` to `6. Next`
   holds `accord scout check "accord/tickets/<id>/scout.md"` before `accord show <id> --approval`, and holds
   `` `./scout.md` `` and `` when `accord approve` exits 1 ``;
 - in `.claude/skills/accord-build/SKILL.md`, the slice from `6. **Change of course.**` to `7. **Plan changed.**`
   holds `` When `accord approve` exits 1, follow `./scout.md`. ``;
 - `.claude/skills/accord-approach/scout.md` and `.claude/skills/accord-build/scout.md` each hold
-  `` When `accord approve <id>` exits 1 naming `scout.md` `` and `the owner's yes still holds`;
+  `` When `accord approve <id>` exits 1 naming `scout.md` ``, `the owner's yes still holds` and
+  `as of the commit that last changed it, or on the working tree while the file has uncommitted changes`;
 - the rendered `.claude/agents/accord-planner.md` holds
   `` Start from `accord/tickets/<id>/scout.md` when it exists, then run your own search. ``

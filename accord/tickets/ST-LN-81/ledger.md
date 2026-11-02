@@ -41,6 +41,10 @@
 - Ruling: two risk tests beyond the approach's test strategy, blob batching and approve judging a report at its commit versus the working tree — they guard approach-review 1.2 and 2.1 — cost if wrong: two extra tests
 - Ruling: this repository's own `.claude/` copies are re-rendered with `skills sync` — the conventions file and the approach's impact list say so — cost if wrong: the `.claude/` diff must be reverted
 - Ruling: the shared scout reference writes a path after `accord scout check` in double quotes — the skill-command test would otherwise read the next word as a command — cost if wrong: none
+- Ruling: the ac-4 test proves both trees and the matching `accord scout check` verdict, and the separate commit-versus-working-tree risk test is dropped, leaving blob batching as the one extra risk test — it would repeat a criterion test — cost if wrong: none
+- Ruling: a new scout reply is always checked in a file outside the working tree, and copied to `scout.md` only while that file does not exist — keeps the lane report and its `## New files` (plan-review 1.2) — cost if wrong: an intent reply with better facts is not saved
+- Ruling: worktree.md's `stop:` exception gains the saved `scout.md` and the commit and push that save it, with no `./scout.md` reference — debug and verify load worktree.md but not scout.md — cost if wrong: one more file allowed on `stop:`
+- Ruling: a claim is printed with backslashes turned into `/`, whitespace collapsed, and cut to 80 characters — D-51, plan-review 1.5 — cost if wrong: a long or backslashed claim reads slightly altered
 
 ## Deferred
 - approach-review 1.7 (Nice): bound the time or input of each logged regular expression so a pattern like `(a+)+$` cannot hang `accord approve`

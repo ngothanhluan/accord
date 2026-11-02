@@ -5,11 +5,19 @@ import { UsageError } from '../load/fs.js';
 import type { CommandContext } from '../run.js';
 import { writeKey } from '../write/key.js';
 import { requireLaneTicket } from './lane-args.js';
+import { scoutRefusal } from './scout.js';
 
 export function approve(ctx: CommandContext, id: string): number {
   const ticket = requireLaneTicket(ctx, id);
   if (ticket.frontmatter?.lane === 'S') {
     throw new UsageError(ticket.file + ' is a lane S ticket, which needs no approval: run accord gate ready ' + id);
+  }
+  if (ticket.frontmatter?.lane === 'M') {
+    const refusal = scoutRefusal(ctx, id);
+    if (refusal !== undefined) {
+      ctx.stdout.write(refusal);
+      return 1;
+    }
   }
   const hash = approvedHash(ticket);
   let wrote: boolean;

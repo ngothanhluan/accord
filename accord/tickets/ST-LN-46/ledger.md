@@ -26,6 +26,7 @@
 - Ruling: recall is scored on every scout sample with a merge, whatever its brief asks, so round 1's samples 1, 2, 4 and 5 stay in — D-03 names the 0.94 / 0.60 measure, taken over all real scout runs (approach-review 2.1) — cost if wrong: intent-stage samples widen recall ranges and make a cheaper arm tie more easily
 - Ruling: a prose claim is checked only when it names one subject and its own folders or files, and is searched only there — no search is wider than the claim (approach-review 2.2) — cost if wrong: a narrow claim false elsewhere is missed, the same for every arm
 - Ruling: named rounds, `--gather` and the `--clean` guard resolve the bench root from `--git-common-dir` of the main checkout — a hand-made worktree need not be a sibling of main — cost if wrong: nothing lost, the folder is printed and can be moved
+- Ruling: the owner allows 1 more approach critique rounds after round 3 of cycle 1 — "A" (2026-11-02, option a: one more round to fix 3.1; b, accept it, and c, the judged option, not chosen) — cost if wrong: one more critic and planner run
 ## Deferred
 - approach-review 1.9 (Nice): score scout check on the blobs at the sample commit, as `commitFacts` does, rather than on worktree files after the setup commands ran
 - approach-review 2.3 (Nice): the `--clean` guard never clears for a round whose agent has no scorer; `--force` then also drops the protection for a scout round in progress

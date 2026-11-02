@@ -511,3 +511,75 @@ export function scoreScout(reply, { tracked, read, ticket, truth }, { scoutCheck
   const named = truth.filter((p) => namesPath(reply, p)).length;
   return { check: result.failures.length === 0 ? 1 : 0, falseClaims: rows.size, recall: truth.length === 0 ? 1 : named / truth.length };
 }
+
+// ---- the arm report of a named round (ST-LN-46): means, pass-mean ranges, cost, and the cheapest arm that ties the best ----
+export const SCOUT_MEASURES = [
+  { key: 'check', label: 'scout check passes', higher: true },
+  { key: 'falseClaims', label: 'contradicted Absent rows', higher: false },
+  { key: 'recall', label: 'wiring recall', higher: true },
+];
+const EPS = 1e-9;
+const avg = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
+// Tokens weighted fresh input 1, cache read 0.1, cache write 1.25 and output 5 (D-08 multiplies this by the model's price factor).
+export const weighted = (u) => u.input + 0.1 * u.cacheRead + 1.25 * u.cacheWrite + 5 * u.output;
+
+// `records`: { tag, n, model, effort, k, usage, values }. `leftOut`: { <n>: reason }. A pass is run k over every sample not left
+// out and counts only when it has a run on every sample (D-06); an arm with no complete pass is never best or winner.
+export function armStats(def, measures, records, leftOut = {}) {
+  const samples = def.samples.filter((n) => !Object.hasOwn(leftOut, n));
+  const arms = def.arms.map(({ model, effort }) => {
+    const own = records.filter((r) => r.model === model && r.effort === effort && samples.includes(r.n));
+    const passes = [];
+    for (let k = 1; k <= def.runs; k++) {
+      const run = samples.map((n) => own.find((r) => r.k === k && r.n === n));
+      if (samples.length && run.every(Boolean)) passes.push(run);
+    }
+    const by = Object.fromEntries(measures.map((m) => {
+      const means = passes.map((p) => avg(p.map((r) => r.values[m.key])));
+      return [m.key, { mean: own.length ? avg(own.map((r) => r.values[m.key])) : null, range: means.length ? [Math.min(...means), Math.max(...means)] : null }];
+    }));
+    const cost = own.length ? avg(own.map((r) => weighted(r.usage))) * def.prices[model] : null;
+    return { model, effort, runs: own.length, passes: passes.length, by, cost };
+  });
+  const eligible = arms.filter((a) => a.passes > 0);
+  const cheaper = (a, b) => !b || a.cost < b.cost;
+  const best = {};
+  for (const m of measures) {
+    const sign = m.higher ? 1 : -1;
+    const top = eligible.reduce((t, a) => (t === null || sign * (a.by[m.key].mean - t) > 0 ? a.by[m.key].mean : t), null);
+    best[m.key] = eligible.filter((a) => Math.abs(a.by[m.key].mean - top) <= EPS).reduce((c, a) => (cheaper(a, c) ? a : c), null);
+  }
+  const ties = (a) => measures.every((m) => {
+    const b = best[m.key];
+    const [lo, hi] = b.by[m.key].range;
+    return a === b || (a.by[m.key].mean >= lo - EPS && a.by[m.key].mean <= hi + EPS);
+  });
+  const winner = eligible.length ? eligible.filter(ties).reduce((c, a) => (cheaper(a, c) ? a : c), null) : null;
+  return { samples, arms, best, winner };
+}
+
+export function armReport({ name, def, measures, records, leftOut = {}, notCounted = [] }) {
+  const { samples, arms, best, winner } = armStats(def, measures, records, leftOut);
+  const num = (v) => String(+v.toFixed(3));
+  const cell = (s) => (s.mean === null ? '-' : `${num(s.mean)} (${s.range ? `${num(s.range[0])} to ${num(s.range[1])}` : 'no complete pass'})`);
+  const label = (a) => `${a.model} ${a.effort}`;
+  const winLines = [];
+  if (winner) {
+    const all = measures.every((m) => best[m.key] === winner);
+    winLines.push(all ? `Winner: ${label(winner)}, the best arm on all three measures; no cheaper arm ties it.`
+      : `Winner: ${label(winner)}, the cheapest arm whose mean on every measure lies within the pass-mean range of the best arm on that measure.`);
+  } else winLines.push('No winner: the measures have different best arms and no arm ties on all three. The best arm of each measure follows.');
+  return [
+    `# Round ${name} benchmark: ${def.agent}`, '',
+    `Samples ${samples.join(', ') || 'none'}; ${def.runs} runs per arm and sample. Cost per run is weighted tokens (fresh input 1, cache read 0.1, cache write 1.25, output 5) times the model's price factor from ${def.pricesAt || 'no date'}. Suggestions only: this report changes no agent definition.`, '',
+    '## Arms', '',
+    `| model | effort | runs | ${measures.map((m) => `${m.label}: mean (range of pass means)`).join(' | ')} | mean cost per run |`,
+    `| --- | --- | ---: | ${measures.map(() => '---').join(' | ')} | ---: |`,
+    ...arms.map((a) => `| ${a.model} | ${a.effort} | ${a.runs} | ${measures.map((m) => cell(a.by[m.key])).join(' | ')} | ${a.cost === null ? '-' : Math.round(a.cost)} |`), '',
+    '## Best arm per measure', '',
+    ...measures.map((m) => `- ${m.label} (${m.higher ? 'highest' : 'lowest'} is best): ${best[m.key] ? label(best[m.key]) : 'none, no arm has a complete pass'}`), '',
+    '## Winner', '', ...winLines, '',
+    '## Samples left out', '', ...(Object.keys(leftOut).length ? Object.entries(leftOut).map(([n, why]) => `- sample ${n}: ${why}`) : ['None.']), '',
+    '## Rows with no counted run', '', ...(notCounted.length ? notCounted.map((r) => `- ${r.tag}: ${r.reason}`) : ['None.']), '',
+  ].join('\n');
+}

@@ -270,3 +270,81 @@ it('ac-2 a scout run is scored by script on scout check and contradicted absent 
     rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
   }
 }, 120_000);
+
+type Usage = { input: number; cacheRead: number; cacheWrite: number; output: number };
+type Rec = { tag: string; n: number; model: string; effort: string; k: number; usage: Usage; values: { check: number; falseClaims: number; recall: number } };
+type Measure = { key: 'check' | 'falseClaims' | 'recall'; label: string; higher: boolean };
+type ArmStat = { model: string; effort: string; runs: number; passes: number; cost: number | null; by: Record<string, { mean: number | null; range: [number, number] | null }> };
+type Reporter = {
+  SCOUT_MEASURES: Measure[];
+  armStats: (def: Def, measures: Measure[], records: Rec[], leftOut?: Record<number, string>) => { arms: ArmStat[]; best: Record<string, ArmStat | null>; winner: ArmStat | null };
+  armReport: (a: { name: string; def: Def; measures: Measure[]; records: Rec[]; leftOut?: Record<number, string>; notCounted?: { tag: string; reason: string }[] }) => string;
+};
+
+it('ac-3 the report shows pass mean ranges and weighted cost per arm and names the cheapest arm that ties the best one or no winner', async () => {
+  const { SCOUT_MEASURES, armStats, armReport } = (await import(new URL('../../../scripts/round.mjs', import.meta.url).href)) as Reporter;
+  const def: Def = {
+    agent: 'accord-scout', runs: 2, judges: 0, samples: [1, 2, 3], pricesAt: '2026-11-02', prices: { haiku: 1, sonnet: 3 },
+    arms: [{ model: 'haiku', effort: 'low' }, { model: 'haiku', effort: 'high' }, { model: 'sonnet', effort: 'low' }],
+  };
+  // Weighted tokens are 100 + 0.1 * 1000 + 1.25 * 200 + 5 * output: 700 for output 50, 1200 for output 150.
+  const use = (output: number): Usage => ({ input: 100, cacheRead: 1000, cacheWrite: 200, output });
+  // passes[k - 1][sample index] = [check, falseClaims, recall]; samples 1 and 2 are scored, sample 3 is left out.
+  const recs = (model: string, effort: string, output: number, passes: number[][][]): Rec[] => passes.flatMap((pass, i) => pass.map((v, s) => ({
+    tag: `scout-${s + 1}-${model}-${effort}-${i + 1}`, n: s + 1, model, effort, k: i + 1, usage: use(output), values: { check: v[0], falseClaims: v[1], recall: v[2] },
+  })));
+  const flat = (v: number[]) => [[v, v], [v, v]];
+  const left = { 3: 'no merge of t/T-3' };
+  const bad = [{ tag: 'scout-2-haiku-low-2', reason: 'dispatched before its worktree was prepared' }];
+  const name = (a: ArmStat | null) => (a ? `${a.model} ${a.effort}` : null);
+  const bestOf = (s: ReturnType<Reporter['armStats']>) => Object.fromEntries(Object.entries(s.best).map(([k, a]) => [k, name(a)]));
+
+  // 1. A cheaper arm ties the best one on every measure: haiku low (700) is inside haiku high's recall range 0.8 to 1.
+  const aTies = recs('haiku', 'low', 50, [[[1, 0, 1], [1, 0, 0.8]], [[1, 0, 0.8], [1, 0, 0.8]]]);
+  const bBest = recs('haiku', 'high', 150, [[[1, 0, 1], [1, 0, 1]], [[1, 0, 0.8], [1, 0, 0.8]]]);
+  const cWeak = recs('sonnet', 'low', 50, flat([1, 0, 0.5]));
+  const one = armStats(def, SCOUT_MEASURES, [...aTies, ...bBest, ...cWeak], left);
+  expect(one.arms.map((a) => a.cost)).toEqual([700, 1200, 2100]);
+  expect(one.arms[0].by.recall.mean).toBeCloseTo(0.85, 9);
+  expect(one.arms[0].by.recall.range).toEqual([expect.closeTo(0.8, 9), expect.closeTo(0.9, 9)]);
+  expect(bestOf(one)).toEqual({ check: 'haiku low', falseClaims: 'haiku low', recall: 'haiku high' });
+  expect(name(one.winner)).toBe('haiku low');
+  const md = armReport({ name: 'r2-scout', def, measures: SCOUT_MEASURES, records: [...aTies, ...bBest, ...cWeak], leftOut: left, notCounted: bad });
+  expect(md).toContain('| haiku | low | 4 | 1 (1 to 1) | 0 (0 to 0) | 0.85 (0.8 to 0.9) | 700 |');
+  expect(md).toContain('| sonnet | low | 4 | 1 (1 to 1) | 0 (0 to 0) | 0.5 (0.5 to 0.5) | 2100 |');
+  expect(md).toContain('Winner: haiku low, the cheapest arm whose mean');
+  expect(md).toContain('- sample 3: no merge of t/T-3');
+  expect(md).toContain('- scout-2-haiku-low-2: dispatched before its worktree was prepared');
+  expect(md).toContain('price factor from 2026-11-02');
+
+  // 2. One arm is best on all three and the cheaper arm is outside its range: haiku high wins.
+  const aWorse = recs('haiku', 'low', 50, flat([0, 1, 0.5]));
+  const cMid = recs('sonnet', 'low', 50, flat([1, 1, 0.5]));
+  const two = armStats(def, SCOUT_MEASURES, [...aWorse, ...recs('haiku', 'high', 150, flat([1, 0, 1])), ...cMid], left);
+  expect(bestOf(two)).toEqual({ check: 'haiku high', falseClaims: 'haiku high', recall: 'haiku high' });
+  expect(name(two.winner)).toBe('haiku high');
+  const md2 = armReport({ name: 'r2-scout', def, measures: SCOUT_MEASURES, records: [...aWorse, ...recs('haiku', 'high', 150, flat([1, 0, 1])), ...cMid], leftOut: left });
+  expect(md2).toContain('Winner: haiku high, the best arm on all three measures');
+
+  // 3. Different best arms and no arm ties all three: no winner, the best arm of each measure.
+  const three = [...recs('haiku', 'low', 50, flat([1, 0, 0.5])), ...recs('haiku', 'high', 150, [[[1, 0, 1], [0, 0, 1]], [[1, 0, 1], [0, 0, 1]]]), ...recs('sonnet', 'low', 50, flat([0, 1, 0.2]))];
+  expect(armStats(def, SCOUT_MEASURES, three, left).winner).toBeNull();
+  const md3 = armReport({ name: 'r2-scout', def, measures: SCOUT_MEASURES, records: three, leftOut: left });
+  expect(md3).toContain('No winner');
+  expect(md3).toContain('- scout check passes (highest is best): haiku low');
+  expect(md3).toContain('- contradicted Absent rows (lowest is best): haiku low');
+  expect(md3).toContain('- wiring recall (highest is best): haiku high');
+
+  // 4. An arm missing one run of a pass keeps its mean over the runs it has but leaves that pass out of its range.
+  const short = aTies.filter((r) => !(r.k === 2 && r.n === 2));
+  const four = armStats(def, SCOUT_MEASURES, [...short, ...bBest, ...cWeak], left);
+  expect(four.arms[0].runs).toBe(3);
+  expect(four.arms[0].passes).toBe(1);
+  expect(four.arms[0].by.recall.mean).toBeCloseTo((1 + 0.8 + 0.8) / 3, 9);
+  expect(four.arms[0].by.recall.range).toEqual([expect.closeTo(0.9, 9), expect.closeTo(0.9, 9)]);
+
+  // 5. An arm with no complete pass is never best or winner, however cheap.
+  const only = armStats(def, SCOUT_MEASURES, [...aTies.filter((r) => r.n === 1), ...bBest, ...cWeak], left);
+  expect(only.arms[0].passes).toBe(0);
+  expect(name(only.winner)).toBe('haiku high');
+});

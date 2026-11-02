@@ -28,6 +28,10 @@ export interface ScoutReport {
 
 const HEADER = ['claim', 'pattern', 'folders', 'allowed hits'];
 const SKIPPED = /^\s*(?:[-*+]\s+)?skipped:\s*(\S.*)$/;
+// A path, a colon and line numbers. A path preceded by `/`, `:` or another path character never starts a match,
+// so a URL or an absolute path is no citation.
+const CITATION =
+  /(?<![\p{L}\p{N}_.@+\-[\]/:])((?:[\p{L}\p{N}_.@+\-[\]]+\/)*[\p{L}\p{N}_.@+\-[\]]+):(\d+(?:-\d+)?(?:,\d+(?:-\d+)?)*)(?![\p{L}\p{N}_])/gu;
 
 /** One wrapping pair of backticks, when the text is at least two characters and starts and ends with one. */
 function unwrap(text: string): string {
@@ -108,6 +112,14 @@ export function parseScoutReport(text: string): ScoutReport {
         }
       }
     }
+  }
+
+  const seen = new Set<string>();
+  for (const m of norm.matchAll(CITATION)) {
+    const path = m[1];
+    if ((!path.includes('/') && !path.includes('.')) || seen.has(m[0])) continue;
+    seen.add(m[0]);
+    report.citations.push({ text: m[0], path, numbers: (m[2].match(/\d+/g) ?? []).map(Number) });
   }
 
   const inFence = (n: number) => fences.some((f) => n >= f.open && n <= f.close);

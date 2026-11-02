@@ -73,7 +73,35 @@ function readAll(facts: ScoutFacts, paths: readonly string[]): (string | undefin
 export function scoutCheck(facts: ScoutFacts): ScoutResult {
   const report = parseScoutReport(facts.text);
   const tracked = [...facts.tracked].sort(byCodePoint);
-  const failures: string[] = [...report.faults];
+  const trackedSet = new Set(tracked);
+  const failures: string[] = [];
+  if (report.files === undefined) failures.push('the report has no ## Files section, so no lane numbers can be computed');
+  failures.push(...report.faults);
+  for (const path of report.files ?? []) {
+    if (!trackedSet.has(path)) failures.push('## Files lists ' + path + ', which git does not track');
+  }
+  for (const path of report.newFiles) {
+    if (trackedSet.has(path)) failures.push('## New files lists ' + path + ', which git already tracks');
+  }
+
+  // Citations: a path compared exactly, never by suffix; each tracked cited path is read once.
+  const cited = [...new Set(report.citations.map((c) => c.path).filter((p) => trackedSet.has(p)))];
+  const citedTexts = new Map<string, string | undefined>();
+  readAll(facts, cited).forEach((text, i) => citedTexts.set(cited[i], text));
+  for (const c of report.citations) {
+    const where = 'citation ' + c.text + ' does not resolve: ';
+    if (!trackedSet.has(c.path)) {
+      failures.push(where + 'git does not track ' + c.path);
+      continue;
+    }
+    const text = citedTexts.get(c.path);
+    if (text === undefined) {
+      failures.push(where + c.path + ' cannot be read');
+      continue;
+    }
+    const count = linesOf(text).length;
+    if (c.numbers.some((n) => n < 1 || n > count)) failures.push(where + c.path + ' has ' + count + ' lines');
+  }
 
   for (const row of report.absent) {
     const where = 'absent claim "' + printedClaim(row.claim) + '" (row ' + row.line + '): ';

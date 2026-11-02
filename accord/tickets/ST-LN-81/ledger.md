@@ -52,6 +52,7 @@
 - Ruling: task 1's failing run was taken after the code was written, with the old core build still in place, so the ac-1 test failed on a missing command rather than on a pre-code checkout; the test body was not changed after that run — the test and code were written in one pass (task 1) — cost if wrong: the test was not seen failing on the exact assertion before the code existed
 - Ruling: the citation regular expression drops the escapes on `[`, `]` and `/` inside its character classes — eslint no-useless-escape rejects the escaped form, and both match the same text under the `u` flag (task 2) — cost if wrong: a lint error returns, nothing else changes
 - Ruling: the check prints failures in the order no `## Files`, parse faults, `## Files` entries, `## New files` entries, citations, then Absent rows, and a missing `## Files` does not stop the other checks — every failure is shown in one run (task 2) — cost if wrong: none
+- Ruling: the ticket's own-file set is built only when the report has Absent rows — only the Absent searches read it, so a report without rows skips the read of the ticket (task 3) — cost if wrong: none; citations and file lists ignore it by design
 
 ## Deferred
 - approach-review 1.7 (Nice): bound the time or input of each logged regular expression so a pattern like `(a+)+$` cannot hang `accord approve`
@@ -64,3 +65,4 @@
 ## Tasks
 - task 1 done 49b0ad1d3f4c
 - task 2 done 5ca16020b771
+- task 3 done f7f1e57911d3

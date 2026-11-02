@@ -124,7 +124,11 @@ describe('lane ticket flow', () => {
   it('risk:complex-branching Done passes on ticks at HEAD, still passes after the records are committed, and fails on a later product change', async () => {
     const repo = stageRepo(4);
     try {
-      writeFiles(repo, { 'accord/tickets/T-1/review.md': 'Round record: 1\n\n## Round 1\n\nNo findings\n\nverdict: converged\n' });
+      // The task's code on the branch: the version 2 record heads round 1 with the last code commit it reviewed.
+      writeFiles(repo, { 'src/export.ts': readFileSync(join(repo, 'src', 'export.ts'), 'utf8') + '// task 2\n' });
+      const head = commitMsg(repo, 'task 2: T-1');
+      freshReport(repo);
+      writeFiles(repo, { 'accord/tickets/T-1/review.md': `Round record: 2\n\n## Round 1 head ${head}\n\nNo findings\n\nverdict: converged\n` });
 
       // The reviewer verifies the committed tree: evidence and ticks bound to HEAD, left uncommitted.
       const sha = commitAll(repo);

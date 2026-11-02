@@ -100,7 +100,9 @@ it('ac-3 the dashboard lists a queued and a claimed lane S ticket with a lane co
 }, 120_000);
 
 // The reviewed state every gate-done verdict below starts from: base, ready (core-ready ac_hash) and change.
-const REVIEW = 'Round record: 1\n\n## Round 1\n\nNo findings\n\nverdict: converged\n';
+// Version 2 records, as the pin is at or above RECORD_V2_FROM: round 1 is headed by the change commit.
+let ROUND1 = '';
+let REVIEW = '';
 const RP = 'accord/tickets/S-1/review.md';
 const PASSED = junit({ 'a#b': 'passed' });
 const reviewedFiles: Record<string, string> = {
@@ -120,6 +122,8 @@ beforeAll(() => {
   commitMsg(reviewed, 'ready: S-1');
   writeFiles(reviewed, { 'src/a.ts': 'b\n' });
   commitMsg(reviewed, 'change');
+  ROUND1 = `Round record: 2\n\n## Round 1 head ${gitRun(reviewed, 'rev-parse', 'HEAD').trim()}\n\nNo findings\n`;
+  REVIEW = ROUND1 + '\nverdict: converged\n';
 });
 afterAll(() => cleanup(reviewed));
 
@@ -223,13 +227,13 @@ it('risk:complex-branching lane S gate done fails on a review commit that holds 
 }), 120_000);
 
 it('risk:complex-branching lane S gate done passes a verdict the owner accepted with a Must open', inReviewed(async (repo, { passes }) => {
-  writeFiles(repo, { [RP]: 'Round record: 1\n\n## Round 5\n\nMust 1: x — src/a.ts:1 — open\n\nverdict: accepted-by-owner "ship it"\n' });
+  writeFiles(repo, { [RP]: ROUND1.replace('No findings', 'Must 1: x — src/a.ts:1 — open') + '\nverdict: accepted-by-owner "ship it"\n' });
   commitMsg(repo, 'review: S-1');
   await passes();
 }), 120_000);
 
 it('risk:complex-branching lane S gate done fails on a fix committed between a round and its verdict', inReviewed(async (repo, { fails }) => {
-  writeFiles(repo, { [RP]: '## Round 1\n\nNo findings\n' });
+  writeFiles(repo, { [RP]: ROUND1 });
   commitMsg(repo, 'review: S-1 round 1');
   writeFiles(repo, { 'src/e.ts': 'e\n' });
   commitMsg(repo, 'fix after round');
@@ -239,7 +243,7 @@ it('risk:complex-branching lane S gate done fails on a fix committed between a r
 }), 120_000);
 
 it('risk:complex-branching lane S gate done passes a verdict committed right after its round', inReviewed(async (repo, { passes }) => {
-  writeFiles(repo, { [RP]: '## Round 1\n\nNo findings\n' });
+  writeFiles(repo, { [RP]: ROUND1 });
   commitMsg(repo, 'review: S-1 round 1');
   writeFiles(repo, { [RP]: REVIEW });
   commitMsg(repo, 'review: S-1 verdict');
@@ -247,7 +251,7 @@ it('risk:complex-branching lane S gate done passes a verdict committed right aft
 }), 120_000);
 
 it('risk:complex-branching lane S gate done fails on a verdict commit with code, names the file, and finds no commit after review', inReviewed(async (repo, { fails }) => {
-  writeFiles(repo, { [RP]: '## Round 1\n\nNo findings\n', 'src/e.ts': 'e\n' });
+  writeFiles(repo, { [RP]: ROUND1, 'src/e.ts': 'e\n' });
   commitMsg(repo, 'review: S-1 round 1');
   writeFiles(repo, { [RP]: REVIEW });
   commitMsg(repo, 'review: S-1 verdict');

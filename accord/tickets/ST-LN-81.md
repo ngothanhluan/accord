@@ -42,7 +42,7 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: ST-LN-81
 
-  @ac-1
+  @ac-1 @test:packages/cli/test/scout-check.test.ts#ac-1-a-logged-absence-claim-that-its-own-search-contradicts-fails-the-check
   Scenario: A logged absence claim that its own search contradicts fails the check
     Given a scout report whose absent table claims "no other caller of loadConfig", logging the JavaScript regular expression "loadConfig\(" over the files git tracks under "packages/", with "packages/core/src/load/config.ts" as its only allowed hit
     And the git-tracked file "packages/cli/src/commands/init.ts" also matches that expression

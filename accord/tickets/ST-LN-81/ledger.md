@@ -47,6 +47,9 @@
 - Ruling: a claim is printed with backslashes turned into `/`, whitespace collapsed, and cut to 80 characters — D-51, plan-review 1.5 — cost if wrong: a long or backslashed claim reads slightly altered
 - Ruling: a report saved at approach step 5 is committed and pushed before the owner's yes — approve then judges it at the commit that last changed it (D-03), and other clones see the same report — cost if wrong: one extra commit per approach stage that has no saved report
 - Ruling: the baseline suite ran on CI for draft PR #160 (run 41390327488, all four ubuntu and windows jobs on Node 22 and 24 green) instead of a local `tests.full`, and the plan preamble records it; the plan is committed again as `plan: ST-LN-81 ready` because the first ready commit did not touch `plan.md`, so the stage still read as plan — the owner prefers CI over a 30-minute local run — cost if wrong: none; the hash was renewed by `accord gate plan`
+- Ruling: Folders and Allowed hits entries strip one leading and one trailing backtick each, not one wrapping pair of the entry — the cell-level unwrap already removes the outer pair, so a cell written `` `a`, `b` `` would otherwise leave stray backticks (task 1) — cost if wrong: an entry that really starts or ends with a backtick loses it
+- Ruling: the "cannot read" usage error of `accord scout check` turns backslashes to slashes over the whole message, not only the file part — the OS error can hold a Windows path and D-51 forbids a printed backslash (task 1) — cost if wrong: none
+- Ruling: task 1's failing run was taken after the code was written, with the old core build still in place, so the ac-1 test failed on a missing command rather than on a pre-code checkout; the test body was not changed after that run — the test and code were written in one pass (task 1) — cost if wrong: the test was not seen failing on the exact assertion before the code existed
 
 ## Deferred
 - approach-review 1.7 (Nice): bound the time or input of each logged regular expression so a pattern like `(a+)+$` cannot hang `accord approve`
@@ -55,3 +58,6 @@
 - plan-review 1.6 (Nice): the approve refusal names the condition for `skipped:` (no scout ran, or the owner accepts) instead of offering it as a plain bypass
 - plan-review 1.7 (Nice): record the five extra risk tests or fold the Task 7 and 8 text checks into the existing REQUIRED lists
 - plan-review 3.1 (Nice): in `shared/scout.md`, write the owner's `skipped:` line into `scout.md` after step 5's copy, not before it
+
+## Tasks
+- task 1 done 49b0ad1d3f4c

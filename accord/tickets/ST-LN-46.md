@@ -92,6 +92,7 @@ Feature: ST-LN-46
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
 - 2026-11-02, at build task 1 of 10, translated: "good grief, my friend. it's only running a benchmark, isn't it? the same prompt run on 2 models at 3 different efforts, that's all?" then "do it. the problem is how to stop you over-engineering like this? you have done this many times."
 - 2026-11-02, at review, after the r2-scout report, translated: "that benchmark part is not effective yet. you have to check the quality when scout check runs to know, right? for example haiku low runs incomplete but after scout check again it gets a good result. the total tokens are still lower than sonnet low with scout check, right?"
+- 2026-11-02, at the re-plan for ac-4, translated: "stop. what is the planner doing? coordinate it directly yourself. tokens are about to run out"
 
 ## Open questions
 <!-- `- [ ]` items; Ready stays blocked while any is unchecked. -->

@@ -512,6 +512,31 @@ export function scoreScout(reply, { tracked, read, ticket, truth }, { scoutCheck
   return { check: result.failures.length === 0 ? 1 : 0, falseClaims: rows.size, recall: truth.length === 0 ? 1 : named / truth.length };
 }
 
+// ---- one repair of a failing scout reply (ST-LN-46 D-10, as packages/core/skills/shared/scout.md step 2) ----
+export const fixTag = (tag) => `${tag}-fix`;
+export function repairBrief(worktree, reply, failures) {
+  return [
+    `Repository root: ${worktree} (a git worktree; read only there).`, '',
+    'The reply below, from an earlier accord-scout, fails `accord scout check`. Give the same reply corrected in the same form: fix every failure the check printed, keep every other fact, and answer with the corrected reply only.', '',
+    '## What the check printed', '', ...failures.map((f) => `- ${f}`), '',
+    '## The reply', '', reply.replace(/\n+$/, ''), '',
+  ].join('\n');
+}
+// `first` and `fix`: records keyed by tag, as runNamedRound builds them; `fix` holds the repair run's scored record under the
+// first run's tag. A first reply that passed stands with its own cost; a failing one counts its repair's values and both
+// runs' tokens; a failing one with no repair is not counted.
+export function afterRepair(first, fix) {
+  const records = [], notCounted = [];
+  for (const r of first) {
+    if (r.values.check === 1) { records.push(r); continue; }
+    const f = fix.get(r.tag);
+    if (!f) { notCounted.push({ tag: fixTag(r.tag), reason: 'its first reply fails scout check and has no counted repair run' }); continue; }
+    const usage = Object.fromEntries(Object.keys(r.usage).map((k) => [k, (r.usage[k] ?? 0) + (f.usage[k] ?? 0)]));
+    records.push({ ...r, usage, values: f.values });
+  }
+  return { records, notCounted };
+}
+
 // ---- matching the runs of a named round (ST-LN-46) ----
 // Each saved row takes the run described `bench <name> <tag>`. Every such run is checked first: under the row's agent with the
 // row's brief (`runProblem`), dispatched after the row's worktree was prepared, and every turn on the row's model and effort.

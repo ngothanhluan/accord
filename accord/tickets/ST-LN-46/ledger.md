@@ -67,6 +67,7 @@
 - Ruling (task 4): `matchNamed` lists every run that does not count, including a valid run beaten by an earlier one and a row with no run; the report heading "Rows with no counted run" also lists runs of rows that do count — cost if wrong: report wording only
 - Ruling (task 4): `--plan` checks truth after the snapshot and drift checks; `--round` recomputes truth and lists a run it cannot score as not counted — cost if wrong: none
 
+- Ruling (D-10, after the owner's correction to coordinate directly): ac-4 is built by the main session as one change with no plan task, planner or critic round — `repairBrief`, `afterRepair` and `fixTag` in scripts/round.mjs, `--round <name> --repair` and the after-repair table in scripts/benchmark.mjs, the ac-4 test in packages/core/test/benchmark-arms.test.ts — cost if wrong: a defect a plan critic would have caught is found only at review
 ## Deferred
 - approach-review 1.9 (Nice): score scout check on the blobs at the sample commit, as `commitFacts` does, rather than on worktree files after the setup commands ran
 - approach-review 2.3 (Nice): the `--clean` guard never clears for a round whose agent has no scorer; `--force` then also drops the protection for a scout round in progress

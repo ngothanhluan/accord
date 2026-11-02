@@ -11,7 +11,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { execFileSync, execSync } from 'node:child_process';
 import { parse as parseYaml } from 'yaml';
 import { parsePlanReview } from './plan-review.mjs';
-import { median, ROLES, RETIRED, WRITERS, checkSamples, readDiffers, runMatrix, rewriteBrief, dispatchTable, matchRuns, mustsOf, judgeBrief, parseVerdict, holds, turnFlags, report, carryJudgeBriefs, escapes, exitState, runProblem, checkRound, armMatrix, scoreScout, matchNamed, armReport, SCOUT_MEASURES } from './round.mjs';
+import { median, ROLES, RETIRED, WRITERS, checkSamples, readDiffers, runMatrix, rewriteBrief, dispatchTable, matchRuns, mustsOf, judgeBrief, parseVerdict, holds, turnFlags, report, carryJudgeBriefs, escapes, exitState, runProblem, checkRound, armMatrix, scoreScout, matchNamed, armReport, SCOUT_MEASURES, fixTag, repairBrief, afterRepair } from './round.mjs';
 import { compliance, render as renderCompliance, parseCompliance, mergeCompliance } from './compliance.mjs';
 import { standsFor, firstCall, pendingProbes, probeVersion, textsOf, measure, render, ticketShares, PROBE_BRANCH, PROBE_BRIEF, PROBE_DESCRIPTION, PROBE_FORMS, PROBE_PREFIX, dispatchPrompt, phaseOne, shellLine } from './fixed-context.mjs';
 
@@ -1045,6 +1045,13 @@ export function truthOf(repo, ticket, base) {
 
 // Scores one scout reply on the sample's worktree: its tracked files and their text on disk. A worktree not at `base` gives
 // `{ problem }`. The ticket is passed only when its file is tracked there (a lane scout has none). `core` holds `scoutCheck`.
+// The failures `accord scout check` prints for a reply, on the facts scoreScoutRun scores it on.
+function scoutFailures(dir, reply, ticket, core) {
+  const tracked = gitIn(dir, ['ls-files', '-z']).split('\0').filter(Boolean);
+  const read = (paths) => paths.map((p) => { try { return fs.readFileSync(path.join(dir, ...p.split('/')), 'utf8'); } catch { return undefined; } });
+  return core.scoutCheck({ text: reply, tracked, read, ...(ticket && tracked.includes(`accord/tickets/${ticket}.md`) ? { ticket } : {}) }).failures;
+}
+
 export function scoreScoutRun(dir, { reply, ticket, base, truth }, core) {
   if (!atBase(dir, base)) return { problem: `${slashed(dir)} is not at ${base}` };
   const tracked = gitIn(dir, ['ls-files', '-z']).split('\0').filter(Boolean);
@@ -1179,7 +1186,7 @@ const SCORERS = { 'accord-scout': { measures: SCOUT_MEASURES, score: scoreScoutR
 
 // `--round <name>`: matches each saved row to its run by tag, scores it by script and writes docs/benchmark/round-<name>.md
 // under `repo`. It keeps no state of its own: every run is matched and scored again on each call.
-export async function runNamedRound(repo, name) {
+export async function runNamedRound(repo, name, { repair = false } = {}) {
   const err = (m) => { process.stderr.write(m + '\n'); return 2; };
   const { main, bench } = mainBench(repo);
   process.stdout.write(`bench root: ${bench}\n`);
@@ -1217,9 +1224,32 @@ export async function runNamedRound(repo, name) {
       if (!truth?.length) { notCounted.push({ tag: row.tag, reason: `run ${run.id}: sample ${row.n} has no true file list` }); continue; }
       const values = scorer.score(row.worktree, { reply: run.lastText, ticket: sample.ticket, base: sample.base, truth }, core);
       if (values.problem) { notCounted.push({ tag: row.tag, reason: `run ${run.id}: ${values.problem}` }); continue; }
-      records.push({ tag: row.tag, n: row.n, model: row.model, effort: row.effort, k: row.k, usage: run.usage, values });
+      records.push({ tag: row.tag, n: row.n, model: row.model, effort: row.effort, k: row.k, usage: run.usage, values, row, reply: run.lastText, sample, truth });
     }
-    const text = armReport({ name, def, measures: scorer.measures, records, leftOut: state.leftOut ?? {}, notCounted });
+    // D-10: one repair per failing first reply, by a fresh scout of the same model and effort (scout.md step 2).
+    const failing = records.filter((r) => r.values.check === 0);
+    const fixRows = failing.map((r) => ({ ...r.row, tag: fixTag(r.tag), prompt: `${bench}/briefs/${name}/${fixTag(r.tag)}.md`, prepared: null }));
+    if (repair) {
+      fs.mkdirSync(`${bench}/briefs/${name}`, { recursive: true });
+      for (const [i, r] of failing.entries()) {
+        const failures = scoutFailures(r.row.worktree, r.reply, r.sample.ticket, core);
+        fs.writeFileSync(fixRows[i].prompt, repairBrief(r.row.worktree, r.reply, failures));
+      }
+      process.stdout.write(dispatchTable(fixRows, name));
+      return 0;
+    }
+    const fixMatch = matchNamed(fixRows, readSessions(dirs).runs, name, slurp);
+    const fixed = new Map();
+    for (const r of failing) {
+      const run = fixMatch.counted.get(fixTag(r.tag));
+      if (!run) continue;
+      const values = scorer.score(r.row.worktree, { reply: run.lastText, ticket: r.sample.ticket, base: r.sample.base, truth: r.truth }, core);
+      if (values.problem) { fixMatch.notCounted.push({ tag: fixTag(r.tag), reason: `run ${run.id}: ${values.problem}` }); continue; }
+      fixed.set(r.tag, { usage: run.usage, values });
+    }
+    const after = afterRepair(records, fixed);
+    const text = armReport({ name, def, measures: scorer.measures, records, leftOut: state.leftOut ?? {}, notCounted })
+      + '\n' + armReport({ name: `${name} after one repair`, def, measures: scorer.measures, records: after.records, leftOut: state.leftOut ?? {}, notCounted: after.notCounted.concat(fixMatch.notCounted.filter((x) => !/^no run described/.test(x.reason))) });
     const rel = `docs/benchmark/round-${name}.md`;
     fs.mkdirSync(path.join(repo, 'docs', 'benchmark'), { recursive: true });
     fs.writeFileSync(path.join(repo, rel), text);
@@ -1394,8 +1424,9 @@ export function main(args) {
   }
   if (args[0] === '--round' && args.length === 3 && args[2] === '--plan' && args[1] !== '1') return runNamedPlan(process.cwd(), args[1]);
   if (args[0] === '--round' && args.length === 2 && args[1] !== '1') return runNamedRound(process.cwd(), args[1]);
+  if (args[0] === '--round' && args.length === 3 && args[2] === '--repair' && args[1] !== '1') return runNamedRound(process.cwd(), args[1], { repair: true });
   if (args.some((a) => a.startsWith('--'))) {
-    process.stderr.write('usage: node scripts/benchmark.mjs [--compliance | --round 1 [--samples | --plan [--rerun <tag>[,<tag>]] | --judge] | --round <name> [--plan] | --clean [--force] | --fixed [--probe]] [folder ...]\n');
+    process.stderr.write('usage: node scripts/benchmark.mjs [--compliance | --round 1 [--samples | --plan [--rerun <tag>[,<tag>]] | --judge] | --round <name> [--plan | --repair] | --clean [--force] | --fixed [--probe]] [folder ...]\n');
     return 2;
   }
   process.stdout.write(legacyReport(args.length ? args : defaultDirs(process.cwd())));

@@ -426,3 +426,43 @@ it('risk:complex-branching round name scores each run matched by its tag and wri
     rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
   }
 }, 120_000);
+
+type Repairer = Reporter & {
+  afterRepair: (first: Rec[], fix: Map<string, { usage: Usage; values: Rec['values'] }>) => { records: Rec[]; notCounted: { tag: string; reason: string }[] };
+  repairBrief: (worktree: string, reply: string, failures: string[]) => string;
+};
+
+it('ac-4 the report scores the reply after one repair with the cost of both runs and names the winner after repair', async () => {
+  const { SCOUT_MEASURES, armStats, afterRepair, repairBrief } = (await import(new URL('../../../scripts/round.mjs', import.meta.url).href)) as Repairer;
+  const def: Def = {
+    agent: 'accord-scout', runs: 1, judges: 0, samples: [1, 2], pricesAt: '2026-11-02', prices: { haiku: 1, sonnet: 10 },
+    arms: [{ model: 'haiku', effort: 'low' }, { model: 'sonnet', effort: 'low' }],
+  };
+  const use = (output: number): Usage => ({ input: 100, cacheRead: 0, cacheWrite: 0, output });
+  const rec = (model: string, n: number, v: number[], output = 20): Rec => ({
+    tag: `scout-${n}-${model}-low-1`, n, model, effort: 'low', k: 1, usage: use(output), values: { check: v[0], falseClaims: v[1], recall: v[2] },
+  });
+  // haiku fails check on both samples at first; sonnet passes on both, so sonnet wins on the first replies.
+  const first = [rec('haiku', 1, [0, 2, 0.5]), rec('haiku', 2, [0, 1, 0.5]), rec('sonnet', 1, [1, 0, 0.5]), rec('sonnet', 2, [1, 0, 0.5])];
+  expect(armStats(def, SCOUT_MEASURES, first).winner?.model).toBe('sonnet');
+  // A repair fixes haiku's sample 1; sample 2 has no repair run and is not counted.
+  const fix = new Map([['scout-1-haiku-low-1', { usage: use(40), values: { check: 1, falseClaims: 0, recall: 0.5 } }]]);
+  const after = afterRepair(first, fix);
+  expect(after.notCounted).toEqual([{ tag: 'scout-2-haiku-low-1-fix', reason: 'its first reply fails scout check and has no counted repair run' }]);
+  const repaired = after.records.find((r) => r.tag === 'scout-1-haiku-low-1');
+  expect(repaired?.values).toEqual({ check: 1, falseClaims: 0, recall: 0.5 });
+  expect(repaired?.usage).toEqual({ input: 200, cacheRead: 0, cacheWrite: 0, output: 60 });
+  // A first reply that passed stands with its own cost.
+  expect(after.records.filter((r) => r.model === 'sonnet')).toEqual(first.filter((r) => r.model === 'sonnet'));
+  // With both haiku replies repaired, haiku ties sonnet on every measure at a lower cost (first 200 plus repair 300 = 500, against 2000) and wins.
+  fix.set('scout-2-haiku-low-1', { usage: use(40), values: { check: 1, falseClaims: 0, recall: 0.5 } });
+  const both = armStats(def, SCOUT_MEASURES, afterRepair(first, fix).records);
+  expect(both.arms.map((a) => a.cost)).toEqual([500, 2000]);
+  expect(both.winner?.model).toBe('haiku');
+  // The repair brief holds the worktree, every failure the check printed and the first reply, asking for it corrected in the same form.
+  const brief = repairBrief('C:/w', 'reply text\n', ['citation a.ts:1 does not resolve', 'row 2 matches its pattern']);
+  expect(brief).toContain('Repository root: C:/w');
+  expect(brief).toContain('- citation a.ts:1 does not resolve\n- row 2 matches its pattern');
+  expect(brief).toContain('same reply corrected in the same form');
+  expect(brief).toContain('## The reply\n\nreply text\n');
+});

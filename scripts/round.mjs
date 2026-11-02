@@ -485,3 +485,29 @@ export function escapes(rows, { runs, judges }, live) {
   }
   return out;
 }
+
+// ---- scoring a scout run by script (ST-LN-46): scout check, contradicted Absent rows, wiring recall ----
+const CONTRADICTED = /^absent claim ".*" \(row (\d+)\): .* matches its pattern outside its allowed hits$/;
+const BEFORE = /[\p{L}\p{N}_.@+\-/]$/u;
+const AFTER = /^(?:[\p{L}\p{N}_@+\-/]|\.[\p{L}\p{N}_])/u;
+
+// Whether the text names `path` in full: not as the tail of a longer path or the head of a longer name; `./` may precede it.
+export function namesPath(text, path) {
+  const t = text.replace(/\\/g, '/');
+  for (let i = t.indexOf(path); i >= 0; i = t.indexOf(path, i + 1)) {
+    const from = i >= 2 && t.slice(i - 2, i) === './' ? i - 2 : i;
+    if (!BEFORE.test(t.slice(0, from)) && !AFTER.test(t.slice(i + path.length))) return true;
+  }
+  return false;
+}
+
+// `scoutCheck` is core's; the facts are the tree the sample is scored on. `ticket` is passed as `accord scout check --ticket`
+// passes it, or left out for a report with no ticket. `check` is 1 when the check reports no failure; `falseClaims` counts
+// the distinct Absent rows whose search hits outside their allowed hits; `recall` is the share of `truth` the reply names in full.
+export function scoreScout(reply, { tracked, read, ticket, truth }, { scoutCheck }) {
+  const result = scoutCheck({ text: reply, tracked, read, ...(ticket ? { ticket } : {}) });
+  const rows = new Set();
+  for (const f of result.failures) { const m = CONTRADICTED.exec(f); if (m) rows.add(m[1]); }
+  const named = truth.filter((p) => namesPath(reply, p)).length;
+  return { check: result.failures.length === 0 ? 1 : 0, falseClaims: rows.size, recall: truth.length === 0 ? 1 : named / truth.length };
+}

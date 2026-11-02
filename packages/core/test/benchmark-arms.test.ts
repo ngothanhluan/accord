@@ -191,3 +191,82 @@ it('risk:complex-branching a named plan run from a linked worktree uses the main
     rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
   }
 }, 120_000);
+
+// A repository for scoring: base B holds src/a.js, src/b.js (a use of `beta`), src/c.js and two ticket files; branch t/T-1
+// changes a.js, deletes c.js and adds new.js; branch t/T-10 changes b.js; both are merged into main.
+function scoutFixture(t: string) {
+  const repo = t + '/repo';
+  mkdirSync(repo + '/src', { recursive: true });
+  mkdirSync(repo + '/accord/tickets', { recursive: true });
+  const git = (cwd: string, ...a: string[]) =>
+    execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', '-c', 'commit.gpgsign=false', ...a], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+  const msg = (text: string) => { writeFileSync(t + '/msg.txt', text); return t + '/msg.txt'; };
+  const commit = (text: string) => git(repo, 'commit', '-q', '--no-verify', '-F', msg(text), '--cleanup=verbatim');
+  git(repo, 'init', '-q', '-b', 'main');
+  writeFileSync(repo + '/src/a.js', 'export const alpha = 1;\n');
+  writeFileSync(repo + '/src/b.js', 'export const beta = 2;\n');
+  writeFileSync(repo + '/src/c.js', 'export const chi = 3;\n');
+  writeFileSync(repo + '/accord/tickets/T-1.md', '---\nid: "T-1"\n---\n\n## Intent\nx\n');
+  writeFileSync(repo + '/accord/tickets/T-10.md', '---\nid: "T-10"\n---\n\n## Intent\ny\n');
+  git(repo, 'add', '.');
+  commit('base');
+  const B = git(repo, 'rev-parse', 'HEAD');
+  git(repo, 'checkout', '-q', '-b', 't/T-1');
+  writeFileSync(repo + '/src/a.js', 'export const alpha = 11;\n');
+  rmSync(repo + '/src/c.js');
+  writeFileSync(repo + '/src/new.js', 'export const nu = 4;\n');
+  git(repo, 'add', '-A');
+  commit('T-1 work');
+  git(repo, 'checkout', '-q', 'main');
+  git(repo, 'merge', '--no-ff', '-q', '-F', msg("Merge branch 't/T-1'"), '--cleanup=verbatim', 't/T-1');
+  git(repo, 'checkout', '-q', '-b', 't/T-10', B);
+  writeFileSync(repo + '/src/b.js', 'export const beta = 22;\n');
+  git(repo, 'add', '-A');
+  commit('T-10 work');
+  git(repo, 'checkout', '-q', 'main');
+  git(repo, 'merge', '--no-ff', '-q', '-F', msg("Merge branch 't/T-10'"), '--cleanup=verbatim', 't/T-10');
+  const wt = t + '/wt';
+  git(repo, 'worktree', 'add', '-q', '--detach', wt, B);
+  return { repo, wt, B, git };
+}
+
+it('ac-2 a scout run is scored by script on scout check and contradicted absent rows and recall against the merged diff and scoring again gives the same row', async () => {
+  const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'bench-')));
+  const t = tmp.replaceAll('\\', '/');
+  try {
+    const f = scoutFixture(t);
+    const { truthOf, scoreScoutRun } = (await import(new URL('../../../scripts/benchmark.mjs', import.meta.url).href)) as {
+      truthOf: (repo: string, ticket: string, base: string) => string[] | null;
+      scoreScoutRun: (dir: string, run: { reply: string; ticket: string; base: string; truth: string[] }, core: unknown) => { check: number; falseClaims: number; recall: number } | { problem: string };
+    };
+    const core = await import('../src/index.js');
+
+    // The files its merged diff changed that existed at base: not the added one, not another ticket's, null with no merge.
+    expect(truthOf(f.repo, 'T-1', f.B)).toEqual(['src/a.js', 'src/c.js']);
+    expect(truthOf(f.repo, 'T-10', f.B)).toEqual(['src/b.js']);
+    expect(truthOf(f.repo, 'T-2', f.B)).toBeNull();
+
+    const table = (rows: string[]) => ['| Claim | Pattern | Folders | Allowed hits |', '| --- | --- | --- | --- |', ...rows].join('\n');
+    const reply = (rows: string[], prose = '') => `${prose}\n## Files\n- src/a.js\n- src/b.js\n\n## Absent\n${table(rows)}\n`;
+    const run = (text: string) => ({ reply: text, ticket: 'T-1', base: f.B, truth: ['src/a.js', 'src/c.js'] });
+
+    // beta is used in src/b.js at B, so that row is contradicted; the gamma row holds. c.js is named but not in full.
+    const bad = run(reply(['| no use of beta | `beta` | src | |', '| no use of gamma | `gamma` | src | |'], 'The change touches c.js and lib/src/c.js too.'));
+    const first = scoreScoutRun(f.wt, bad, core);
+    expect(first).toEqual({ check: 0, falseClaims: 1, recall: 0.5 });
+    expect(scoreScoutRun(f.wt, bad, core)).toEqual(first);
+
+    // Without the contradicted row, with both changed files named in full, one of them after ./.
+    const good = run(`## Files\n- src/a.js\n- ./src/c.js\n\n## Absent\n${table(['| no use of gamma | `gamma` | src | |'])}\n`);
+    expect(scoreScoutRun(f.wt, good, core)).toEqual({ check: 1, falseClaims: 0, recall: 1 });
+
+    // A hit in an allowed file is not contradicted; two more rows on the same pattern count once each.
+    const allowed = run(reply(['| no use of beta | `beta` | src | src/b.js |', '| beta again | `beta` | src | |', '| beta third | `beta` | src | |']));
+    expect(scoreScoutRun(f.wt, allowed, core)).toMatchObject({ falseClaims: 2 });
+
+    // A worktree not at the sample's base is refused, not scored.
+    expect(scoreScoutRun(f.repo, bad, core)).toHaveProperty('problem');
+  } finally {
+    rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+}, 120_000);

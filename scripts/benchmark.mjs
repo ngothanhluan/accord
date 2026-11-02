@@ -11,7 +11,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { execFileSync, execSync } from 'node:child_process';
 import { parse as parseYaml } from 'yaml';
 import { parsePlanReview } from './plan-review.mjs';
-import { median, ROLES, RETIRED, WRITERS, checkSamples, readDiffers, runMatrix, rewriteBrief, dispatchTable, matchRuns, mustsOf, judgeBrief, parseVerdict, holds, turnFlags, report, carryJudgeBriefs, escapes, exitState, runProblem, checkRound, armMatrix } from './round.mjs';
+import { median, ROLES, RETIRED, WRITERS, checkSamples, readDiffers, runMatrix, rewriteBrief, dispatchTable, matchRuns, mustsOf, judgeBrief, parseVerdict, holds, turnFlags, report, carryJudgeBriefs, escapes, exitState, runProblem, checkRound, armMatrix, scoreScout } from './round.mjs';
 import { compliance, render as renderCompliance, parseCompliance, mergeCompliance } from './compliance.mjs';
 import { standsFor, firstCall, pendingProbes, probeVersion, textsOf, measure, render, ticketShares, PROBE_BRANCH, PROBE_BRIEF, PROBE_DESCRIPTION, PROBE_FORMS, PROBE_PREFIX, dispatchPrompt, phaseOne, shellLine } from './fixed-context.mjs';
 
@@ -1017,6 +1017,39 @@ function runPlan(repo, reruns = []) {
 export function mainBench(repo) {
   const main = slashed(path.dirname(gitIn(repo, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim()));
   return { main, bench: slashed(benchRoot(main)) };
+}
+
+// The sample's true file list (D-03): the files modified or deleted by each first-parent merge into the default branch whose
+// subject names `t/<ticket>` (the id ends there: `t/ST-LN-8` is not `t/ST-LN-81`), merge base to branch tip, renames off,
+// kept where tracked at `base`, sorted. Null when the ticket has no such merge. Computed by script, never edited.
+export function truthOf(repo, ticket, base) {
+  const ref = defaultRef(repo);
+  if (!ref) return null;
+  const named = new RegExp(`(?<![A-Za-z0-9_-])t/${esc(ticket)}(?![A-Za-z0-9_-])`);
+  const merges = gitIn(repo, ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '--first-parent', '--merges', '-z', '--format=%H%x1f%s', ref, '--'])
+    .split('\0').filter(Boolean).map((r) => r.split('\x1f')).filter(([, subject]) => named.test(subject));
+  if (!merges.length) return null;
+  const files = new Set();
+  for (const [sha] of merges) {
+    let names;
+    try {
+      const tip = `${sha}^2`;
+      const from = gitIn(repo, ['merge-base', `${sha}^1`, tip]).trim();
+      names = gitIn(repo, ['diff', '--name-only', '-z', '--no-renames', '--diff-filter=MD', from, tip, '--']).split('\0').filter(Boolean);
+    } catch { continue; }
+    for (const f of names) files.add(f);
+  }
+  const existing = new Set(gitIn(repo, ['ls-tree', '-r', '-z', '--name-only', base]).split('\0').filter(Boolean));
+  return [...files].filter((f) => existing.has(f)).sort();
+}
+
+// Scores one scout reply on the sample's worktree: its tracked files and their text on disk. A worktree not at `base` gives
+// `{ problem }`. The ticket is passed only when its file is tracked there (a lane scout has none). `core` holds `scoutCheck`.
+export function scoreScoutRun(dir, { reply, ticket, base, truth }, core) {
+  if (!atBase(dir, base)) return { problem: `${slashed(dir)} is not at ${base}` };
+  const tracked = gitIn(dir, ['ls-files', '-z']).split('\0').filter(Boolean);
+  const read = (paths) => paths.map((p) => { try { return fs.readFileSync(path.join(dir, ...p.split('/')), 'utf8'); } catch { return undefined; } });
+  return scoreScout(reply, { tracked, read, ticket: ticket && tracked.includes(`accord/tickets/${ticket}.md`) ? ticket : undefined, truth }, core);
 }
 
 class PlanProblem extends Error {}

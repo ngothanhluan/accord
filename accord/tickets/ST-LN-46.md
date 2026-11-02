@@ -59,8 +59,8 @@ Feature: ST-LN-46
   Scenario: The report names the cheapest arm that ties the best one
     Given every arm has scored runs on every sample
     When the round report is written
-    Then each arm shows, per measure, its mean and the lowest-to-highest range over its runs, and its mean cost per run weighted fresh input 1, cache read 0.1, cache write 1.25 and output 5
-    And the report names the arm with the lowest mean cost per run whose mean on each of the three measures lies within the range of the arm that is best on that measure, or the best arm when no cheaper one does
+    Then each arm shows, per measure, its mean and the lowest-to-highest range of its pass means, a pass being its k-th run over every sample, and its mean cost per run, tokens weighted fresh input 1, cache read 0.1, cache write 1.25 and output 5, times the price factor of its model in the round definition
+    And the report names the arm with the lowest mean cost per run whose mean on each of the three measures lies within the pass-mean range of the arm that is best on that measure, or the best arm when one arm is best on all three and no cheaper one ties, or no winner and the best arm of each measure when the measures have different best arms and no arm ties all three
 
   @ac-4
   Scenario: Runs already made are not run again
@@ -86,6 +86,9 @@ Feature: ST-LN-46
 - D-03 A sample's true file list is the existing files its ticket's merged diff changed, computed by the script with no hand edit, the same measure as the 0.94 / 0.60 recall in accord/research/2026-10-30-harness-architecture.md — "A" (2026-11-02, option a of the true-list question; b, the diff edited by hand, and c, the union of every arm's files edited by hand, not chosen)
 - D-04 The smallest version that counts as done is all six parts of D-01 — "A" (2026-11-02, option a of the smallest-version question; b, the scout benchmark, harness and snapshot only, with gathering and the round 1 fixes deferred, not chosen)
 - D-05 Each arm runs every sample three times, and the range D-02 compares against is the range of those runs — "A" (2026-11-02, option a of the runs question: three runs, as the spec's matrix sets; b, five runs, and c, one run, not chosen)
+- D-06 The range D-02 compares against is the lowest-to-highest of an arm's pass means, a pass being its k-th run over every sample, not the range of single runs — "as recommended" (2026-11-02, translated; option b of the range question, chosen over a, single runs, under which one failed scout check gives every arm the range 0 to 1)
+- D-07 When the three measures have different best arms and no arm ties all three, the report names no winner and lists the best arm of each measure for the owner to choose — "as recommended" (2026-11-02, translated; option a of the no-single-best question, chosen over b, a fixed order of measures)
+- D-08 An arm's cost is its weighted tokens times its model's price factor, set in the round definition from the price list current when the round runs — "as recommended" (2026-11-02, translated; option a of the model-price question, chosen over b, tokens only)
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->

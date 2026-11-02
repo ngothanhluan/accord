@@ -227,8 +227,9 @@ class Dag {
 }
 
 // ST-LN-17: a review.md carries the record version line, or gate done refuses it (gate.review-rounds).
-const REVIEWED = 'Round record: 1\n\n## Round 1\n\nNo findings\n\nverdict: converged\n';
-const UNFINISHED = 'Round record: 1\n\n## Round 1\n\nNo findings\n\nNo verdict yet.\n';
+// ST-LN-57: from accord 0.3.1 the record is version 2, its round headed by the commit the round reviewed.
+const REVIEWED = (head: string) => `Round record: 2\n\n## Round 1 head ${head}\n\nNo findings\n\nverdict: converged\n`;
+const UNFINISHED = (head: string) => `Round record: 2\n\n## Round 1 head ${head}\n\nNo findings\n\nNo verdict yet.\n`;
 const recordsOf = (id: string) => ({
   ticket: P(id),
   plan: `accord/tickets/${id}/plan.md`,
@@ -307,7 +308,12 @@ function step(b: Build, t: TicketSpec, phase: number): void {
   const nm = (s: string) => `${id}-${s}`;
   const add = (name: string, ops: Ops, msg: string, o: { from?: string; merge?: string } = {}) => dag.add(ref, nm(name), { ops, msg, ...o });
   const task = (n: number) => add(`task-${n}`, { [r.ledger]: ledgerText(n), [codeOf(id)]: codeText(id, n) }, `task ${n}: ${id}`);
-  const review = (text: string) => add('review', { [r.review]: text }, `review: ${id} converged`);
+  // The round's head is the branch tip before the review commit: write the pending commits so it has a sha.
+  const head = () => {
+    dag.flush();
+    return dag.sha(dag.tip(ref) as string);
+  };
+  const review = (text: (head: string) => string) => add('review', { [r.review]: text(head()) }, `review: ${id} converged`);
   const planReady = (baseline: string, missing = false) => add('plan', { [r.plan]: planText(t, config, baseline, missing) }, `plan: ${id} ready`);
   const moveMain = () => {
     const name = dag.add(MAIN, `main-${id}`, { ops: { [`main/${id}.txt`]: `main moved while ${id} was open\n` }, msg: `main: change while ${id} is open` });
@@ -332,7 +338,7 @@ function step(b: Build, t: TicketSpec, phase: number): void {
     if (t.kind === 'lane-s') {
       dag.add(ref, nm('ready'), { from: ROOT_COMMIT, ops: { [r.ticket]: readyText(t, config) }, msg: `ready: ${id}` });
       add('code', { [codeOf(id)]: codeText(id, 1) }, `change: ${id}`);
-      add('review', { [r.review]: REVIEWED }, `review: ${id} converged`);
+      review(REVIEWED);
       return;
     }
     approve();

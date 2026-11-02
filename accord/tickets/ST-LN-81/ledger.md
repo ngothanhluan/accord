@@ -53,6 +53,7 @@
 - Ruling: the citation regular expression drops the escapes on `[`, `]` and `/` inside its character classes — eslint no-useless-escape rejects the escaped form, and both match the same text under the `u` flag (task 2) — cost if wrong: a lint error returns, nothing else changes
 - Ruling: the check prints failures in the order no `## Files`, parse faults, `## Files` entries, `## New files` entries, citations, then Absent rows, and a missing `## Files` does not stop the other checks — every failure is shown in one run (task 2) — cost if wrong: none
 - Ruling: the ticket's own-file set is built only when the report has Absent rows — only the Absent searches read it, so a report without rows skips the read of the ticket (task 3) — cost if wrong: none; citations and file lists ignore it by design
+- Ruling: `configLists` sensitive entries now carry `line`, and `sensitiveEntries` in packages/core/src/gate/scope.ts passes the extra property through unchanged — the gate looks entries up by area and path only, so it behaves as before (task 4) — cost if wrong: a deep-equal test on `sensitiveEntries` output would need `line` stripped; none exists today
 
 ## Deferred
 - approach-review 1.7 (Nice): bound the time or input of each logged regular expression so a pattern like `(a+)+$` cannot hang `accord approve`
@@ -66,3 +67,4 @@
 - task 1 done 49b0ad1d3f4c
 - task 2 done 5ca16020b771
 - task 3 done f7f1e57911d3
+- task 4 done da069be272fe

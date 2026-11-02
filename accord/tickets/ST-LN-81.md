@@ -55,7 +55,7 @@ Feature: ST-LN-81
     When the owner runs "accord scout check" on the report
     Then it exits 1 and names both citations
 
-  @ac-3
+  @ac-3 @test:packages/cli/test/scout-check.test.ts#ac-3-the-check-computes-the-lane-lift-conditions-from-the-report-file-list
   Scenario: The check computes the lane lift conditions from the report's file list
     Given a scout report whose file list holds 8 existing files: 6 product files in 2 code areas, a code area being a file's folder cut to its first four path segments, plus 1 test file and 1 copy accord generates
     And one of the 6 sits under an entry of "sensitive:" in "accord/config.yml"

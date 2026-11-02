@@ -48,6 +48,10 @@
 - Ruling: round 1's listed transcripts are neither copied nor added by gather — they are round 1's own samples already — none
 - Ruling: placeholders in plan.md made only of plain words (`<short agent>`) are hyphenated at plan-ready, a text-only change; ones holding quotes or punctuation (`<problems joined by '; '>`) stay as written — the `plan: <id> ready` commit must touch plan.md for `accord anchor` to see the plan finished, and the first ready commit did not — cost if wrong: none, no task's meaning changes
 - Ruling: step 7's baseline `tests.full` runs in CI on a draft pull request instead of locally — the owner replaced the ~30 min local run with CI (ST-LN-17, ST-LN-75), and nothing outside accord/ changed since the baseline 2bd987e5 — a baseline failure is seen after the first build commits instead of before
+- Ruling (task 1): `left out: <agent> <n>: <reason>` lines go to stdout, with the table and the bench root line — the spec names no stream — a later test that expects stderr fails
+- Ruling (task 1): `writeBrief` takes no `repo` parameter — the body never uses it and eslint no-unused-vars rejects it — add it back with a use
+- Ruling (task 1): the process test writes scripts/benchmark-samples.json and benchmark-rounds.json untracked into `<t>/repo` and `<t>/sub/linked`, since base sha B cannot sit in a file committed in B; Task 7 reuses `armsFixture(t)` — cost if wrong: none
+- Ruling (task 1): `checkRound` skips the price check for an arm with an invalid model, and the duplicate check for an invalid effort or model, so each bad input gives one problem — cost if wrong: a second problem is hidden until the first is fixed
 
 ## Deferred
 - approach-review 1.9 (Nice): score scout check on the blobs at the sample commit, as `commitFacts` does, rather than on worktree files after the setup commands ran
@@ -70,3 +74,6 @@
 - plan-review round 2, out of scope (executor): a missing benchmark-samples.json counts as an empty list in Task 2 step (2); the Task 3 fixture has none
 - plan-review round 2, out of scope (approach): the untied-scout window is the 24 hours before the claim commit, so a ticket queued in a backlog PR and claimed days later never lists its lane scout; the `new ticket` commit is a better anchor
 - plan-review round 2, out of scope (approach): runs the owner names are stored with `replay.ok: false` (ticket missing at base), so r2-scout leaves them out; the untied path keeps transcripts from expiring but adds no round 2 sample
+
+## Tasks
+- task 1 done 9632d753fd2a

@@ -43,7 +43,7 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 ```gherkin
 Feature: ST-LN-46
 
-  @ac-1
+  @ac-1 @test:packages/core/test/benchmark-arms.test.ts#ac-1-a-round-plan-lists-every-sample-three-times-for-each-model-and-effort-arm-and-a-round-for-another-agent-is-planned-the-same-way
   Scenario: A round plan lists every sample for every model and effort arm
     Given a round for accord-scout whose arms are the models haiku and sonnet, each at the efforts low, medium and high, with three runs per arm
     When the round plan is printed

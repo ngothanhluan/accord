@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "npx --yes @accord-dev/accord@0.3.0 hook session-start",
+            "command": "npx --yes @accord-dev/accord@0.4.0 hook session-start",
             "timeout": 600
           }
         ]
@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "npx --yes @accord-dev/accord@0.3.0 hook session-resume",
+            "command": "npx --yes @accord-dev/accord@0.4.0 hook session-resume",
             "timeout": 600
           }
         ]
@@ -28,7 +28,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "npx --yes @accord-dev/accord@0.3.0 hook subagent-start"
+            "command": "npx --yes @accord-dev/accord@0.4.0 hook subagent-start"
           }
         ]
       }
@@ -39,7 +39,18 @@
         "hooks": [
           {
             "type": "command",
-            "command": "npx --yes @accord-dev/accord@0.3.0 hook prompt-expansion"
+            "command": "npx --yes @accord-dev/accord@0.4.0 hook prompt-expansion"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Agent|Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx --yes @accord-dev/accord@0.4.0 hook pre-tool-use"
           }
         ]
       }

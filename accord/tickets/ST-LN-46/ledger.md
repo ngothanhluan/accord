@@ -31,6 +31,19 @@
 - Ruling: the owner allows 1 more approach critique rounds after round 4 of cycle 1 — "tôi chọn A" — one more critic and planner run, the last the cap allows (2026-11-02, option a: round 5 applying the critic's fix to 4.1; b, apply it unreviewed, and c, accept 4.1 open, not chosen)
 - Ruling: a cited range allows its file when any line from its first to its last matches, read from the citation's text since `numbers` keeps only the ends — a range cites every line in it — cost if wrong: a reply citing a wide block around the subject's use has that file allowed
 - Ruling: a cited line is matched with the same bounded subject pattern the prose claim's Absent row searches with, on the text `scoutCheck` reads for the sample — the allowed set and the search agree on what a hit is — cost if wrong: none beyond the row's own pattern
+- Ruling: scout check is scored on the sample worktree's own files, the files the scout read, and scoring refuses a worktree not at the sample's base; approach-review 1.9 (score on blobs at the sample commit) is not applied — the scout check facts Ruling above names the worktree's tracked files and text — cost if wrong: a tracked file setup rewrote is scored on its rewritten text, the same for every arm
+- Ruling: rows of a round whose agent has no scorer never block `--clean`, so the scout round keeps its guard without `--force` (approach-review 2.3, plan Task 8) — cost if wrong: an unscored executor or planner round can be cleaned without `--force`
+- Ruling: branches are deleted with `git update-ref -d` and the printed sha, not `branch -D`, as accord/product/conventions.md requires — cost if wrong: none, git refuses a moved branch
+- Ruling: one prose claim per subject, a trailing `()` cut from the subject, `Skipped:` lines matched case-insensitively — cost if wrong: a repeated false claim counts once
+- Ruling: an arm with no complete pass takes no part in best or winner, and means within 1e-9 are equal — cost if wrong: such an arm is never named
+- Ruling: an arm's mean is over every scored run — cost if wrong: an incomplete pass shifts the mean
+- Ruling: when a row has several runs the earliest dispatched counts; a run with the wrong agent or prompt is not matched and is listed as not counted — cost if wrong: one more dispatch
+- Ruling: named rounds allow judges only for fact roles, the executor and the planner; a finding role with judges above 0 is refused, having no reference run — cost if wrong: ST-LN-89/90 add it
+- Ruling: named rounds do not require `compliance.md` — cost if wrong: none for the read-only scout
+- Ruling: r2-scout's `samples` lists every scout n and the round leaves out and names those it cannot use (ST-LN-33 has no merge) — cost if wrong: none
+- Ruling: the real gather picks its tickets with a scratch listing never committed — cost if wrong: a missed ticket is gathered by hand
+- Ruling: `parseRun`'s `ms` changes in place, so round 1 minutes also end at the last hand-back — cost if wrong: re-running round 1 shows different minutes
+- Ruling: r2-scout is committed with `prices: {}` and `pricesAt: ""`, and the owner gives the haiku and sonnet price factors at verify, where `--plan` refuses until they are set — D-08 sets them from the price list current when the round runs — cost if wrong: none, the refusal names the missing factor
 ## Deferred
 - approach-review 1.9 (Nice): score scout check on the blobs at the sample commit, as `commitFacts` does, rather than on worktree files after the setup commands ran
 - approach-review 2.3 (Nice): the `--clean` guard never clears for a round whose agent has no scorer; `--force` then also drops the protection for a scout round in progress

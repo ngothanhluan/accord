@@ -5,7 +5,7 @@ type: "story" # story | bug. An epic uses its own template
 status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
 # Tickets that must reach done before this one can start.
-depends_on: ["ST-LN-79", "ST-LN-46"]
+depends_on: ["ST-LN-79", "ST-LN-46", "ST-LN-89", "ST-LN-90"]
 # How the dashboard ranks this ticket: high | medium | low; absent means medium.
 # priority: medium
 # The epic this ticket belongs to.
@@ -31,6 +31,7 @@ ui: false
 Queued 2026-10-30, not approved; the intent interview replaces this:
 - Source: split from ST-LN-79 (its D-05, owner 2026-10-30: "A"). ST-LN-79 measures the fixed per-call context by owner, cost-weighted, for the main session and each accord agent; this ticket cuts from each accord agent what it never uses, without dropping a rule any agent follows. Owner, 2026-10-30: "token prices will rise a lot, so we must keep quality good at the lowest cost: quality > cost > speed" (translated).
 - Proof, from ST-LN-79 D-03 (owner "A") and D-04 (owner "C"): a cut is proven by replaying benchmark samples for every agent it changes, before and after the cut, at the agent's current model and effort, comparing the runs the judge holds; an agent that holds fewer runs after the cut keeps its old definition; a test also checks each agent still carries every rule and every tool its body names. The samples are ST-LN-46's round 2 samples (known or seeded Musts, judged more than once), because round 1 cannot see a cut make an agent worse: 17 of its samples hold by default (the first run found no Must), scout, architect and planner already miss at their current effort, and each sample runs once.
+- Re-checked 2026-11-02, when round 2 was split per agent (accord/research/2026-11-02-benchmark-per-agent.md): round 2 samples now come from ST-LN-46 (scout), ST-LN-89 (executor) and ST-LN-90 (planner), so this ticket waits on all three. Critic, reviewer, final reviewer, verifier, debugger and auditor have no round 2 ticket until the owner discusses them; a cut to one of them has no samples to be proven on, and the interview decides whether such an agent keeps its definition here or this ticket waits.
 - Candidates seen at ST-LN-79's interview (unmeasured): accord-executor has no `tools:` line, so it inherits every tool, MCP tools and the skill listing included; the 8-rule block (packages/core/templates/ruleset.md, about 2 KB) reaches every accord subagent through the SubagentStart hook while several agent bodies restate some rules.
 - The figures after the cut go in ST-LN-79's report format (scripts/benchmark.mjs fixed-context report), before and after.
 - Not here: the owner's own setup (plugins, MCP servers, CLAUDE.md, memory), which ST-LN-79's report lists for the owner to cut; shortening stage skills beyond what an agent never reads.

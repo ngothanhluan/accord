@@ -38,4 +38,12 @@ Converged at round 2: 0 Must open, 0 Should open, 7 Nice deferred, 3 Should drop
 3. Should — Task 4 drops round 1's per-turn model and effort check (`turnFlags`), so a row dispatched on the default model is scored and costed as its arm (Intent, ac-3) (criteria) — fixed
 
 ## Round 2 (diff)
-1. Should — Task 4 checks model and effort only on the run already chosen as earliest, so a row first dispatched at the wrong effort and then correctly has no counted run (D-06) (build) — open
+1. Should — Task 4 checks model and effort only on the run already chosen as earliest, so a row first dispatched at the wrong effort and then correctly has no counted run (D-06) (build) — fixed
+
+## Round 3 (diff)
+No findings
+
+Critic: the round 2 critic, on the changed lines only. fixed: 2.1. withdrawn: none.
+
+## Closed
+Converged at round 3 of cycle 2: 0 Must open, 0 Should open.

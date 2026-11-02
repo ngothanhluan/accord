@@ -1,11 +1,12 @@
 ---
 baseline: 2bd987e53d9c77223669a3b50896993e4e0bef09
-plan_hash: "fnv1a64:7ae8b117a1989228"
+plan_hash: "fnv1a64:1f308ee213fa8e50"
 ---
 
 Review mode `outcome`: one branch, no slices. Re-planned after the change of course of D-09: Task 1 is built (ledger),
 Tasks 2 to 4 finish the benchmark. Every task can be finished from its own section, this preamble, the ticket and its
-ledger; the executor reads the code and decides what a task leaves open.
+ledger; the executor reads the code and decides what a task leaves open. The re-plan was checked in cycle 2 of plan-review.md, which
+closed at round 3 with no Must or Should open.
 
 Order and dependencies: Task 1 (built) is the wiring. Task 2, the scout scorer (@ac-2), and Task 3, the arm report
 (@ac-3), depend on no task beyond Task 1 and can be built in either order. Task 4, `--round <name>`, depends on Tasks 1,

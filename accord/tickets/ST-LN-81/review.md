@@ -9,7 +9,9 @@ Nice 4 [patch]: a scout that wraps its reply in the prompt's example fence gets 
 
 ## Round 2 head 631de4aa371b1987082280976ccc01fd5fd9e213 (final review)
 
-Should 1 [patch]: a reply checked outside the working tree, as shared/scout.md steps 1 and 5 do, is searched without leaving out the ticket's own files, so a correct report fails there and passes once saved as `scout.md` — packages/core/src/scout/check.ts:85 — open
+Should 1 [patch]: a reply checked outside the working tree, as shared/scout.md steps 1 and 5 do, is searched without leaving out the ticket's own files, so a correct report fails there and passes once saved as `scout.md` — packages/core/src/scout/check.ts:85 — fixed in 1e138a88
 Nice 2 [patch]: an Allowed hits entry written with a `:<line>` suffix never matches, while `## Files` strips one — packages/core/src/scout/report.ts:68 — deferred
 Nice 3 [patch]: the blob-batching risk test also asserts `lastCommitOf` and `hasLocalChanges`, which the ac-4 test covers (Ruling 44) — packages/cli/test/scout-check.test.ts:171 — deferred
 Nice 4 [patch]: `printedClaim` is exported from the core index though nothing outside `check.ts` uses it and the plan's export list omits it — packages/core/src/index.ts:54 — deferred
+
+verdict: converged

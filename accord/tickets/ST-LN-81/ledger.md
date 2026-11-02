@@ -60,6 +60,9 @@
 - Ruling: the scout prompt says "the command or endpoint that registers it" instead of the plan's "route" — packages/core/test/agents.test.ts:60 asserts the scout text never holds the word "route", and rewording is lighter than loosening that test (task 7) — cost if wrong: one word differs from the plan text
 - Ruling: the planner's new sentence sits on line 18 of packages/core/agents/planner.md, the `direction` mode impact-list bullet, the only line ending in "each with `path:line`." that the brief names (task 8) — cost if wrong: a one-line move
 - Ruling: `accord scout check <file>` gains an option `--ticket <id>` that leaves that ticket's own files and listed research records out of every search, as a file at `accord/tickets/<id>/scout.md` already does, and the scout steps pass it whenever the ticket exists; the owner chose this for final review finding 2.1 — "A" (2026-11-02; option A of three: add `--ticket <id>`, check a temporary file inside the ticket folder, or defer) — cost if wrong: one more option on a new command
+- Ruling: `--ticket <other>` on a file at `accord/tickets/<id>/scout.md` uses `<other>`, so the option wins (final review fix) — cost if wrong: none
+- Ruling: a `--ticket` id must name an existing `accord/tickets/<id>.md` in the working tree, and an id holding `/`, `\` or `..` is refused with the same exit 2 — an id must never name a path outside the tickets folder (final review fix) — cost if wrong: none
+- Ruling: the final review fix changes packages/cli/src/run.ts, packages/cli/src/commands/scout.ts, packages/core/skills/shared/scout.md, README.md and packages/cli/README.md beyond the finding's own file — they hold the new option, the scout steps that pass it and the command rows that name it (final review fix) — cost if wrong: none
 
 ## Deferred
 - approach-review 1.7 (Nice): bound the time or input of each logged regular expression so a pattern like `(a+)+$` cannot hang `accord approve`

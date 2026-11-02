@@ -32,10 +32,10 @@ ac_hash: "fnv1a64:19d9afc4bc8c8045"
 ## Intent
 <!-- At most five lines: why, for whom, how success is measured, and what this does not do. -->
 Why: the scout's model and effort were never measured beyond haiku at low and medium (round 1 held 0 of 5 and 1 of 5 on wrong facts alone); the shipped default is haiku low, this repository runs sonnet low unmeasured, and the scout's real faults are false "only"/"none" claims and missed wiring files, which round 1 did not score.
-For: the owner choosing the scout's default from evidence (quality > cost > speed), and ST-LN-89 (executor) and ST-LN-90 (planner), which run on the harness built here.
-Success: a committed round 2 report runs six arms (haiku and sonnet at low, medium and high) on the same samples, scores each run by script on scout check, false "only"/"none" claims and wiring recall against the files the ticket's merged diff changed, shows cost-weighted figures, and names the cheapest arm that ties the best one within the spread of repeated runs.
-The harness takes the model as an arm, reuses runs already made, and a hand-run step gathers a done ticket's runs as samples with snapshots; transcripts a sample needs are snapshotted before about 2026-11-11.
-Not here: changing the scout's default or this repository's config (D-01); the executor, planner and other roles; routing per request; a shipped skill for gathering samples.
+For: the owner choosing the scout's default from evidence (quality > cost > speed).
+Success: a committed round 2 report runs six arms (haiku and sonnet at low, medium and high) on the same samples, scores each run by script on scout check, contradicted `## Absent` rows and wiring recall against the files the ticket's merged diff changed, shows cost-weighted figures, and names the cheapest arm that ties the best one within the spread of repeated runs.
+The harness takes the model as an arm. Transcripts were backed up by hand on 2026-11-02 to a folder outside the transcript folders, so nothing here races their expiry.
+Not here: changing the scout's default or this repository's config (D-01); the executor, planner and other roles; routing per request; gathering samples from done tickets, prose-claim scoring, judges, reuse of runs already made, and the round 1 measurement fixes (D-09).
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.
@@ -54,7 +54,7 @@ Feature: ST-LN-46
   Scenario: Each scout run is scored by script on the three measures
     Given a finished scout run on a sample whose ticket's merged diff changed a known set of files that existed before it
     When the round is scored
-    Then the run's row shows whether its reply passes accord scout check, how many of its "only" or "none" claims a search of the repository at the sample's commit contradicts, and the share of that set of files whose full repository path its reply names
+    Then the run's row shows whether its reply passes accord scout check, how many of the absences its reply logs under ## Absent a search of the repository at the sample's commit contradicts, and the share of that set of files whose full repository path its reply names
     And scoring the same run again gives the same row
 
   @ac-3
@@ -63,19 +63,6 @@ Feature: ST-LN-46
     When the round report is written
     Then each arm shows, per measure, its mean and the lowest-to-highest range of its pass means, a pass being its k-th run over every sample, and its mean cost per run, tokens weighted fresh input 1, cache read 0.1, cache write 1.25 and output 5, times the price factor of its model in the round definition
     And the report names the arm with the lowest mean cost per run whose mean on each of the three measures lies within the pass-mean range of the arm that is best on that measure (highest for scout check passes and recall, lowest for false claims, the cheapest of equally best arms; a pass counts only with a run on every sample), or the best arm when one arm is best on all three and no cheaper one ties, or no winner and the best arm of each measure when the measures have different best arms and no arm ties all three
-
-  @ac-4
-  Scenario: Runs already made are not run again
-    Given a round where some rows already have a matched run, scored or not
-    When the round plan is printed again
-    Then only the rows with no matched run are listed to dispatch, a matched run that is not scored yet is scored without being run again, and the report counts every scored run
-
-  @ac-5
-  Scenario: A done ticket's runs become snapshotted samples
-    Given a ticket that reached done, whose accord agent runs are still in the transcripts
-    When the gathering step runs with that ticket's id
-    Then each accord agent run of that ticket is added as a sample with the files its merged diff changed that existed before it, and its transcript, its prompt and the files it read are snapshotted under the bench root
-    And running the step again for the same ticket adds and overwrites nothing
 ```
 
 ## Vetoes
@@ -83,17 +70,19 @@ Feature: ST-LN-46
 
 ## Decisions
 <!-- Settled answers, one per line: - D-01 <decision> — "<the owner's sentence>" -->
-- D-01 The ticket holds six parts: the six scout arms; the new scoring (scout check, false "only"/"none" claims, wiring recall against a true file list per sample); the shared harness (model axis, cost-weighted report, reuse of earlier results, each run judged more than once); a hand-run step that gathers a done ticket's runs as samples and snapshots them; the round 1 measurement fixes; and the snapshot of needed transcripts before about 2026-11-11. Changing the scout's shipped default or this repository's config from the result is not part of it — "A" (2026-11-02, option a of the parts question: keep all six; options b, split out the gathering step, and c, also change the scout's default here, not chosen)
+- D-01 (replaced by D-09 on 2026-11-02) The ticket holds six parts: the six scout arms; the new scoring (scout check, false "only"/"none" claims, wiring recall against a true file list per sample); the shared harness (model axis, cost-weighted report, reuse of earlier results, each run judged more than once); a hand-run step that gathers a done ticket's runs as samples and snapshots them; the round 1 measurement fixes; and the snapshot of needed transcripts before about 2026-11-11. Changing the scout's shipped default or this repository's config from the result is not part of it — "A" (2026-11-02, option a of the parts question: keep all six; options b, split out the gathering step, and c, also change the scout's default here, not chosen)
 - D-02 A cheaper arm keeps quality when it ties the best arm on all three measures (scout check passes, false "only"/"none" claims, wiring recall) within the spread that repeated runs of the same sample show; the cheapest arm that ties wins; no fixed threshold — "A" (2026-11-02, option a of the quality-bar question; b, a fixed threshold, and c, both, not chosen)
 - D-03 A sample's true file list is the existing files its ticket's merged diff changed, computed by the script with no hand edit, the same measure as the 0.94 / 0.60 recall in accord/research/2026-10-30-harness-architecture.md — "A" (2026-11-02, option a of the true-list question; b, the diff edited by hand, and c, the union of every arm's files edited by hand, not chosen)
-- D-04 The smallest version that counts as done is all six parts of D-01 — "A" (2026-11-02, option a of the smallest-version question; b, the scout benchmark, harness and snapshot only, with gathering and the round 1 fixes deferred, not chosen)
+- D-04 (replaced by D-09 on 2026-11-02) The smallest version that counts as done is all six parts of D-01 — "A" (2026-11-02, option a of the smallest-version question; b, the scout benchmark, harness and snapshot only, with gathering and the round 1 fixes deferred, not chosen)
 - D-05 Each arm runs every sample three times, and the range D-02 compares against is the range of those runs — "A" (2026-11-02, option a of the runs question: three runs, as the spec's matrix sets; b, five runs, and c, one run, not chosen)
 - D-06 The range D-02 compares against is the lowest-to-highest of an arm's pass means, a pass being its k-th run over every sample, not the range of single runs — "as recommended" (2026-11-02, translated; option b of the range question, chosen over a, single runs, under which one failed scout check gives every arm the range 0 to 1)
 - D-07 When the three measures have different best arms and no arm ties all three, the report names no winner and lists the best arm of each measure for the owner to choose — "as recommended" (2026-11-02, translated; option a of the no-single-best question, chosen over b, a fixed order of measures)
 - D-08 An arm's cost is its weighted tokens times its model's price factor, set in the round definition from the price list current when the round runs — "as recommended" (2026-11-02, translated; option a of the model-price question, chosen over b, tokens only)
+- D-09 The ticket is cut to the benchmark itself: the six scout arms on the same samples, scored by script on scout check, contradicted `## Absent` rows and wiring recall, and the cost-weighted report that names the winner (ac-1 to ac-3); task 1, already built, stays. Dropped: the gathering step (ac-5; transcripts are backed up by hand instead), prose-claim scoring, judges, reuse of runs already made (ac-4), the `--clean` guard, and the round 1 measurement fixes. Changing the scout's shipped default or this repository's config stays out — "do it" (2026-11-02, translated; option A, cut to the minimum, after the owner's correction below; option B, keep all six parts, not chosen)
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->
+- 2026-11-02, at build task 1 of 10, translated: "good grief, my friend. it's only running a benchmark, isn't it? the same prompt run on 2 models at 3 different efforts, that's all?" then "do it. the problem is how to stop you over-engineering like this? you have done this many times."
 
 ## Open questions
 <!-- `- [ ]` items; Ready stays blocked while any is unchecked. -->
@@ -122,3 +111,4 @@ Feature: ST-LN-46
 - Not touched (D-01): packages/core/src/skills/agents.ts:15, accord/config.yml:32, .claude/agents/accord-scout.md.
 - Risks: approach-review 5.1 (Should, accepted by the owner, carried into the plan) — a file the reply cites for another fact at a line that names the subject hides a contradicting "only" claim; the plan allows a cited file only when every line of it matching the subject is cited. Deferred Nice items 1.9, 2.3, 2.4 and 4.2 stay in the ledger for the plan. Prose claims with no single subject or no folder are shown beside the false-claim measure, not in it, the same for every arm. Data deletion: the three failure scenarios and their undo are in the Failure handling bullet above.
 - Test strategy: ac-1 (plan rows per arm), ac-3 (report ranges, cost, winner or no winner) and ac-4 (cached scores, no re-run) as pure functions in packages/core/test/benchmark-arms.test.ts; ac-2 (three measures by script) on a temp git repo with a known reply, Absent rows and prose claims, in the same file; ac-5 (gather) in packages/core/test/benchmark-gather.test.ts on a temp repo and transcript folder; `risk:data-loss` tests for gather copying before any check and never overwriting, and for `--clean` refusing while a named round has unscored rows; the round-1 tests listed above stay green unchanged.
+- Change of course (2026-11-02, at build task 1 of 10, D-09): what failed — the approach grew to ten tasks and a plan of about 650 lines for a benchmark that runs one prompt on six arms; the owner cut it to ac-1 to ac-3. Finished work that holds: task 1 (round definitions, `--round <name> --plan` rows, bench root, worktrees and briefs per row, commit 9632d753). New approach: the same named rounds on the round-1 harness, with only three more steps — (1) a pure scout scorer: scout check by core `scoutCheck`, contradicted `## Absent` rows re-searched at the sample's commit, and recall against the sample's merged-diff file list (D-03), no prose claims and no judges; (2) the arm report of ac-3 (D-02, D-06, D-07, D-08); (3) `--round <name>` matching each row's transcript by its tag, scoring it and writing docs/benchmark/round-<name>.md, with no cached state beyond what matching needs. Dropped from the lines above: `--gather`, gathered samples, prose claims, k judges, minutes and overlap, the `--clean` guard, and cached scores (ac-4, ac-5).

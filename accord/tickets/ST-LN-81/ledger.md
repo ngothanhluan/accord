@@ -19,3 +19,6 @@
 - Ruling: the approve refusal applies to `lane: M` only, with no exemption for a lane M ticket re-approved after this change; such a ticket needs a report or a `skipped:` line — ac-4 names lane M — cost if wrong: a lane L story skips its scout unseen
 - Ruling: lane.md tells the main session to write the checked reply to the new ticket's `scout.md`, commit and push it, before following the `enter:` or `stop:` line, in lanes S and M; intent step 2 saves its own checked reply when no `scout.md` exists — the Intent's "the report is saved in the ticket" — cost if wrong: tickets queued before this change reach approve without a report
 - Ruling: the test helpers that build lane M repositories seed a `scout.md` holding a `skipped:` line — one change instead of about 20 test edits — cost if wrong: a test that lists a ticket folder or checks a clean tree changes
+
+## Deferred
+- approach-review 1.7 (Nice): bound the time or input of each logged regular expression so a pattern like `(a+)+$` cannot hang `accord approve`

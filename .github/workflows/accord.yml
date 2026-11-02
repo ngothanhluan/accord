@@ -42,7 +42,7 @@ jobs:
           set +e
           set -uo pipefail
           code=0
-          npx --yes @accord-dev/accord@0.3.0 lint || code=1
+          npx --yes @accord-dev/accord@0.4.0 lint || code=1
           # --diff-filter=d leaves deleted tickets out of the tickets to gate; the deletion check below decides
           # whether a deletion may land. [^/]+ keeps accord/tickets/<id>/verification.md out while
           # accord/tickets/<id>.md stays in. || true keeps a zero-match grep from reading as a failure.
@@ -196,6 +196,6 @@ jobs:
                 continue
               fi
             fi
-            npx --yes @accord-dev/accord@0.3.0 gate done "$id" || code=1
+            npx --yes @accord-dev/accord@0.4.0 gate done "$id" || code=1
           done <<< "$tickets"
           exit $code

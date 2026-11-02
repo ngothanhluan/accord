@@ -57,3 +57,6 @@
 - plan-review 1.20 (Nice): Task 1 fixture branches `t/T-1` and `t/T-9` both change `a.txt` from B, so the second `merge --no-ff` conflicts
 - plan-review 1.21 (Nice): Task 7's `r9-crit` definition has no `pricesAt`, which Task 1's `checkRound` refuses
 - plan-review 1.22 (Nice): Task 3 leaves the `<y3 file>` form and session S3's cwd open; print `run.file` in the untied line and give S3 cwd `<t>/repo`
+- plan-review 1.3 (Should, dropped by the owner to the executor): match a prose claim's subject against Absent rows with identifier bounds, not as a substring
+- plan-review 1.5 (Should, dropped by the owner to the executor): Task 4's test holds the `src/a.ts:1,3` span in the same reply, which cites both `qux` lines; move that span to a second reply
+- plan-review 1.13 (Should, dropped by the owner to the executor): the Task 1 fixture cannot hold its own commit's sha; commit the json files in a later commit C and keep `base: B`

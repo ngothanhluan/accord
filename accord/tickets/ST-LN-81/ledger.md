@@ -66,6 +66,10 @@
 - approach-review 3.1 (Nice): the scout check's own reads are bounded, but the full load before it (`gitTree`, no `maxBuffer`) still exits 2 past about 1 MiB of `git ls-files` output; a separate bug, not this ticket
 - plan-review 1.6 (Nice): the approve refusal names the condition for `skipped:` (no scout ran, or the owner accepts) instead of offering it as a plain bypass
 - plan-review 1.7 (Nice): record the five extra risk tests or fold the Task 7 and 8 text checks into the existing REQUIRED lists
+- review 1.1 (Nice): strip a leading `./` from a citation path as `listEntries` does for `## Files`, so `./src/a.ts:3` resolves
+- review 1.2 (Nice): test the `## New files` rules: a tracked path fails, and new files count toward expected files and code areas
+- review 1.3 (Nice): cache file text across Absent rows in one check, so 10 root rows do not re-read every file 10 times
+- review 1.4 (Nice): tell the scout not to fence its whole reply, or strip one wrapping fence in `parseScoutReport`
 - plan-review 3.1 (Nice): in `shared/scout.md`, write the owner's `skipped:` line into `scout.md` after step 5's copy, not before it
 
 ## Tasks

@@ -85,6 +85,7 @@ Feature: ST-LN-46
 - D-02 A cheaper arm keeps quality when it ties the best arm on all three measures (scout check passes, false "only"/"none" claims, wiring recall) within the spread that repeated runs of the same sample show; the cheapest arm that ties wins; no fixed threshold — "A" (2026-11-02, option a of the quality-bar question; b, a fixed threshold, and c, both, not chosen)
 - D-03 A sample's true file list is the existing files its ticket's merged diff changed, computed by the script with no hand edit, the same measure as the 0.94 / 0.60 recall in accord/research/2026-10-30-harness-architecture.md — "A" (2026-11-02, option a of the true-list question; b, the diff edited by hand, and c, the union of every arm's files edited by hand, not chosen)
 - D-04 The smallest version that counts as done is all six parts of D-01 — "A" (2026-11-02, option a of the smallest-version question; b, the scout benchmark, harness and snapshot only, with gathering and the round 1 fixes deferred, not chosen)
+- D-05 Each arm runs every sample three times, and the range D-02 compares against is the range of those runs — "A" (2026-11-02, option a of the runs question: three runs, as the spec's matrix sets; b, five runs, and c, one run, not chosen)
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->

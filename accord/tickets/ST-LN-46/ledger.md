@@ -56,6 +56,10 @@
 - Ruling (re-plan): Task 1's prose in plan.md is shortened to what it built; its covers, files and verify lines are unchanged, and the old text is in git at 80aceffd — cost if wrong: restore it from there
 - Ruling (re-plan): `--plan` leaves out a sample with no merge (sample 3, ST-LN-33), so its runs are never dispatched — cost if wrong: 18 wasted runs
 - Ruling (re-plan): `--round <name>` keeps no state and scores every matched run again on each call; scoring is deterministic — cost if wrong: runs whose transcripts expire (about 30 days) drop out, so the report is written within that window
+- Ruling (task 2): `scoreScoutRun` passes the ticket to `scoutCheck` only when `accord/tickets/<ticket>.md` is tracked in the worktree, so Task 4 always passes the sample's ticket and a lane scout gets none — cost if wrong: a ticket tracked but unreadable is still passed
+- Ruling (task 2): `scoreScout` gives recall 1 for an empty `truth`; Task 4 leaves such samples out at plan time — cost if wrong: an empty list reads as full recall
+- Ruling (task 2): a reply names a path in full when the path has no path character before it (a leading `./` allowed) and no name or path character after it, backslashes read as slashes, so `lib/src/c.js` does not name `src/c.js` — cost if wrong: recall slightly off for oddly written paths
+- Ruling (task 2): `falseClaims` is the distinct `row N` numbers parsed from `scoutCheck`'s "matches its pattern outside its allowed hits" failures — cost if wrong: breaks if core changes that text, which the test would catch
 
 ## Deferred
 - approach-review 1.9 (Nice): score scout check on the blobs at the sample commit, as `commitFacts` does, rather than on worktree files after the setup commands ran
@@ -81,3 +85,4 @@
 
 ## Tasks
 - task 1 done 9632d753fd2a
+- task 2 done 658c8030f2e8

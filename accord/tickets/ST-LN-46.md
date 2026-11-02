@@ -50,7 +50,7 @@ Feature: ST-LN-46
     Then every sample appears three times for each of the six arms, each row naming that arm's model and effort
     And a round for another agent, with its own list of model and effort arms, is planned the same way without a change to the script
 
-  @ac-2
+  @ac-2 @test:packages/core/test/benchmark-arms.test.ts#ac-2-a-scout-run-is-scored-by-script-on-scout-check-and-contradicted-absent-rows-and-recall-against-the-merged-diff-and-scoring-again-gives-the-same-row
   Scenario: Each scout run is scored by script on the three measures
     Given a finished scout run on a sample whose ticket's merged diff changed a known set of files that existed before it
     When the round is scored

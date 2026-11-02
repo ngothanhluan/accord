@@ -104,7 +104,7 @@ Lanes:
   `accord-debug` finds a root cause before any fix when something fails for a reason nobody has shown.
 - L (an epic) and P (a project) are not built yet. Accord proposes splitting such work into lane M tickets linked by `depends_on`.
 
-A request moves from S to M when it changes a public interface or schema, touches a listed sensitive area or auth, money or data deletion, has more than one plausible reading that one question cannot settle, or is expected to touch more than 5 files or more than 3 code areas, tests and generated copies not counted. A scout reads the code before any lane is proposed, a lane S ticket records the files it expects to touch, and `accord gate done` fails it when it touches others. A lane only rises, except that a lane M ticket whose intent is not yet approved may move to lane S in place, keeping its id, branch and worktree.
+A request moves from S to M when it changes a public interface or schema, touches a listed sensitive area or auth, money or data deletion, has more than one plausible reading that one question cannot settle, or is expected to touch more than 5 files or more than 3 code areas, tests and generated copies not counted. A scout reads the code before any lane is proposed; `accord scout check` checks the citations and logged searches of its report and prints the lane numbers, and the report is saved as `accord/tickets/<id>/scout.md`, which `accord approve` requires of a lane M ticket, judged by the same check at the commit that last changed it, unless the file holds a `skipped: <reason>` line. A lane S ticket records the files it expects to touch, and `accord gate done` fails it when it touches others. A lane only rises, except that a lane M ticket whose intent is not yet approved may move to lane S in place, keeping its id, branch and worktree.
 
 Each ticket is worked in its own git worktree, the sibling folder `<repository folder>-<id in lower case>`, prepared by the `setup` commands listed in `config.yml`. `accord worktree open <id>` prints the folder and the `/accord continue <id>` line to type in a session opened there. Tickets done on the remote main branch have their worktree and branches removed by `accord worktree clean`, which `/accord` runs.
 
@@ -135,6 +135,7 @@ The skills call the CLI for you. These are the commands most useful to run by ha
 | `accord status [--json] [--all]` | Print one row per ticket; `--all` includes archived tickets. |
 | `accord dashboard [--json]` | Print the ranked dashboard sections for you. |
 | `accord show <id> [--json]` | Print one ticket: its intent and each criterion with its state. |
+| `accord scout check <file>` | Check a scout report's citations and logged searches against the files git tracks, and print its lane numbers. |
 | `accord new ticket [id]` | Write `accord/tickets/<id>.md` from the template. |
 | `accord skills sync` | Write every skill the config declares into `.claude/skills/` and `.agents/skills/`. |
 | `accord worktree open <id>` | Find or prepare the ticket's worktree. |

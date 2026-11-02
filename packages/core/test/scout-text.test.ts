@@ -6,7 +6,8 @@ import type { AccordConfig } from '../src/index.js';
 const config = (): AccordConfig =>
   ({ accord: '0.1.0', profile: 'build', tracker: { adapter: 'none' }, design: { tokens: '' }, roles: ['ba', 'dev'], runtimes: ['claude'] }) as AccordConfig;
 const flat = (text: string): string => text.replace(/\s+/g, ' ');
-const agentText = (): string => agentTargets(config()).find((f) => f.path === '.claude/agents/accord-scout.md')?.text ?? '';
+const agentTextAt = (path: string): string => agentTargets(config()).find((f) => f.path === path)?.text ?? '';
+const agentText = (): string => agentTextAt('.claude/agents/accord-scout.md');
 const skillText = (path: string): string => skillTargets(config()).find((f) => f.path === path)?.text ?? '';
 
 it('risk:parsing the scout prompt and the scout steps write the report form accord scout check parses', () => {
@@ -52,5 +53,38 @@ it('risk:parsing the scout prompt and the scout steps write the report form acco
 
   expect(flat(skillText('.claude/skills/accord/worktree.md'))).toContain(
     "except the people entry below, the scout's report `accord/tickets/<id>/scout.md` with the commit and push that save it",
+  );
+});
+
+it('risk:complex-branching the approach and build stages send an approve refusal back to the scout steps', () => {
+  const approach = flat(skillText('.claude/skills/accord-approach/SKILL.md'));
+  const step5 = approach.slice(approach.indexOf("5. **The owner's yes.**"), approach.indexOf('6. Next'));
+  expect(step5.length, 'approach step 5 is missing').toBeGreaterThan(0);
+  const check = step5.indexOf('accord scout check "accord/tickets/<id>/scout.md"');
+  expect(check, 'approach step 5 does not run the check').toBeGreaterThanOrEqual(0);
+  expect(check, 'the check comes before accord show').toBeLessThan(step5.indexOf('accord show <id> --approval'));
+  expect(step5).toContain('`./scout.md`');
+  expect(step5).toContain('when `accord approve` exits 1');
+
+  const build = flat(skillText('.claude/skills/accord-build/SKILL.md'));
+  const step6 = build.slice(build.indexOf('6. **Change of course.**'), build.indexOf('7. **Plan changed.**'));
+  expect(step6.length, 'build step 6 is missing').toBeGreaterThan(0);
+  expect(step6).toContain('When `accord approve` exits 1, follow `./scout.md`.');
+
+  for (const dir of ['accord-approach', 'accord-build']) {
+    const scoutMd = flat(skillText(`.claude/skills/${dir}/scout.md`));
+    expect(scoutMd.length, `${dir}/scout.md is missing`).toBeGreaterThan(0);
+    for (const phrase of [
+      'When `accord approve <id>` exits 1 naming `scout.md`',
+      "the owner's yes still holds",
+      'as of the commit that last changed it, or on the working tree while the file has uncommitted changes',
+      "then `accord worktree push <id>`, all before the owner's yes",
+    ]) {
+      expect(scoutMd, `${dir}/scout.md`).toContain(phrase);
+    }
+  }
+
+  expect(flat(agentTextAt('.claude/agents/accord-planner.md'))).toContain(
+    'Start from `accord/tickets/<id>/scout.md` when it exists, then run your own search.',
   );
 });

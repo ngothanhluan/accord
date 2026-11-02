@@ -3,7 +3,7 @@ name: accord-approach
 description: Use when a lane M ticket has its intent and acceptance criteria and needs an approach. Has the planner draft the lightest approach that works, has a critic argue against it in capped rounds, and takes the owner's explicit yes before accord approve.
 license: MIT
 kind: skill
-loads: [approach/critique.md, shared/ask.md]
+loads: [approach/critique.md, shared/ask.md, shared/scout.md]
 ---
 
 This stage chooses how the ticket will be built, lightest first, and takes
@@ -54,8 +54,9 @@ the owner's yes before anyone plans. You run it in the main session.
 
    Commit `accord/tickets/<id>.md` and `accord/tickets/<id>/approach-review.md`, with the ledger if it changed.
 
-5. **The owner's yes.** Run `accord show <id> --approval`; if it fails, stop and tell
-   the owner. Paste its output, which holds every approved section, unchanged, as Markdown, not inside a code
+5. **The owner's yes.** Run `accord scout check "accord/tickets/<id>/scout.md"`, and follow `./scout.md` when
+   it does not exit 0 and when `accord approve` exits 1 below. Then run `accord show <id> --approval`; if it
+   fails, stop and tell the owner. Paste its output, which holds every approved section, unchanged, as Markdown, not inside a code
    block; below it put a horizontal rule, a heading "In plain words" written in the chat language, and one line
    per scenario that begins with its ac-n and says in plain words what it means; and ask for an explicit yes.
    The question

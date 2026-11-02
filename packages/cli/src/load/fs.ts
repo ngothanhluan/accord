@@ -1210,13 +1210,13 @@ export function gitDefaultRef(root: string): string | undefined {
  * The utf8 text of each `<ref>:<path>` spec, in order, read with one `git cat-file --batch`; a missing one is `undefined`.
  * `what` names the ref in the error.
  */
-export function catBatch(root: string, specs: readonly string[], what: string): (string | undefined)[] {
+export function catBatch(root: string, specs: readonly string[], what: string, maxBuffer = 64 * 1024 * 1024): (string | undefined)[] {
   let out: Buffer;
   try {
     out = execFileSync('git', ['cat-file', '--batch'], {
       cwd: root,
       stdio: ['pipe', 'pipe', 'pipe'],
-      maxBuffer: 64 * 1024 * 1024,
+      maxBuffer,
       env: { ...process.env, GIT_NO_LAZY_FETCH: '1' },
       input: specs.map((s) => s + '\n').join(''),
     });
@@ -1251,6 +1251,98 @@ export function gitFilesAt(root: string, ref: string, paths: readonly string[]):
     if (text !== undefined) files[path] = text;
   });
   return files;
+}
+
+/** ST-LN-81: every blob of `commit` with its size, from one `git ls-tree -r -z -l`; a submodule is skipped. */
+export function gitTreeAt(root: string, commit: string): { path: string; sha: string; size: number }[] {
+  let out: string;
+  try {
+    out = execFileSync('git', ['ls-tree', '-r', '-z', '-l', commit], {
+      cwd: root,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      maxBuffer: 64 * 1024 * 1024,
+      env: { ...process.env, GIT_NO_LAZY_FETCH: '1' },
+    });
+  } catch {
+    throw new UsageError('git ls-tree failed reading ' + commit);
+  }
+  const blobs: { path: string; sha: string; size: number }[] = [];
+  for (const record of out.split('\0')) {
+    const m = /^\d+ blob ([0-9a-f]+) +(\d+)\t([\s\S]+)$/.exec(record);
+    if (m !== null) blobs.push({ path: m[3], sha: m[1], size: Number(m[2]) });
+  }
+  return blobs;
+}
+
+/** Indexes of `sizes` grouped in order, each group summing to at most `limit`; a size above `limit` is a group of its own. */
+export function blobBatches(sizes: readonly number[], limit: number): number[][] {
+  const groups: number[][] = [];
+  let current: number[] = [];
+  let total = 0;
+  sizes.forEach((size, i) => {
+    if (size > limit) {
+      if (current.length > 0) groups.push(current);
+      groups.push([i]);
+      current = [];
+      total = 0;
+      return;
+    }
+    if (current.length > 0 && total + size > limit) {
+      groups.push(current);
+      current = [];
+      total = 0;
+    }
+    current.push(i);
+    total += size;
+  });
+  if (current.length > 0) groups.push(current);
+  return groups;
+}
+
+/** The utf8 text of each blob, in the order of `blobs`, read in `git cat-file --batch` calls of at most `limit` bytes of blobs each. */
+export function readBlobs(root: string, blobs: readonly { sha: string; size: number }[], what: string, limit = 32 * 1024 * 1024): (string | undefined)[] {
+  const texts: (string | undefined)[] = new Array<string | undefined>(blobs.length).fill(undefined);
+  for (const group of blobBatches(blobs.map((b) => b.size), limit)) {
+    const total = group.reduce((sum, i) => sum + blobs[i].size, 0) + 128 * group.length + 1024 * 1024;
+    const read = catBatch(root, group.map((i) => blobs[i].sha), what, total);
+    group.forEach((blobIndex, k) => {
+      texts[blobIndex] = read[k];
+    });
+  }
+  return texts;
+}
+
+/** ST-LN-81: the commit that last changed `path`, or undefined when none did or git fails. */
+export function lastCommitOf(root: string, path: string): string | undefined {
+  try {
+    const out = execFileSync('git', ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '-1', '--format=%H', '--', ':(literal)' + path], {
+      cwd: root,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      maxBuffer: 64 * 1024 * 1024,
+      env: { ...process.env, GIT_NO_LAZY_FETCH: '1' },
+    }).trim();
+    return out === '' ? undefined : out;
+  } catch {
+    return undefined;
+  }
+}
+
+/** ST-LN-81: whether `path` has an uncommitted change: staged, unstaged or untracked. */
+export function hasLocalChanges(root: string, path: string): boolean {
+  try {
+    const out = execFileSync('git', ['--no-optional-locks', 'status', '--porcelain', '-z', '--untracked-files=all', '--', ':(literal)' + path], {
+      cwd: root,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      maxBuffer: 64 * 1024 * 1024,
+      env: { ...process.env, GIT_NO_LAZY_FETCH: '1' },
+    });
+    return out !== '';
+  } catch {
+    throw new UsageError('git status failed in ' + root);
+  }
 }
 
 const firstLine = (text: string): string => text.trim().split('\n')[0];

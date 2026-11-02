@@ -3,6 +3,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { CONFIG, LANE_BODY, laneTicket } from '../../../test/helpers/lane.js';
+import { blobBatches, gitTreeAt, hasLocalChanges, lastCommitOf, readBlobs } from '../src/load/fs.js';
 import { cleanup, commitMsg, makeEmptyRepo, run, writeFiles } from './helpers/repo.js';
 
 const REPORT_HEAD = '## Files\n- `packages/core/src/load/config.ts`\n\n## Absent\n| Claim | Pattern | Folders | Allowed hits |\n|---|---|---|---|\n';
@@ -148,6 +149,29 @@ it('ac-3 the check computes the lane lift conditions from the report file list',
         '',
       ].join('\n'),
     );
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+it('risk:complex-branching blob reads at a commit split into bounded batches and keep their order', () => {
+  expect(blobBatches([10, 30, 5, 5], 16)).toEqual([[0], [1], [2, 3]]);
+  const repo = makeEmptyRepo();
+  try {
+    writeFiles(repo, { 'a.txt': 'a'.repeat(10), 'b.txt': 'b'.repeat(30), 'c.txt': 'c'.repeat(5), 'd.txt': 'd'.repeat(5) });
+    const commit = commitMsg(repo, 'fixture');
+    const blobs = gitTreeAt(repo, commit);
+    expect(blobs.map((b) => [b.path, b.size])).toEqual([
+      ['a.txt', 10],
+      ['b.txt', 30],
+      ['c.txt', 5],
+      ['d.txt', 5],
+    ]);
+    expect(readBlobs(repo, blobs, 'test', 16)).toEqual(['a'.repeat(10), 'b'.repeat(30), 'c'.repeat(5), 'd'.repeat(5)]);
+    expect(lastCommitOf(repo, 'a.txt')).toBe(commit);
+    expect(hasLocalChanges(repo, 'a.txt')).toBe(false);
+    writeFiles(repo, { 'a.txt': 'changed' });
+    expect(hasLocalChanges(repo, 'a.txt')).toBe(true);
   } finally {
     cleanup(repo);
   }

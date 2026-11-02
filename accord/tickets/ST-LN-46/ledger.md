@@ -50,3 +50,10 @@
 - approach-review 2.4 (Nice, defer to plan): gathered entries need `root`, `main`, `elsewhere`, `files`, `pairs`, and the snapshot layout must match what `runPlan` loads
 - approach-review 4.2 (Nice, defer to plan): cut citation ranges and lists (`:164-170`, `:164,170`) as well as `:<line>` when reading a reply's file tokens
 - approach-review 5.1 (Should, accepted by the owner, to the plan): a cited file is an allowed hit only when every line of it matching the prose claim's pattern at the sample's commit is among the reply's cited lines for that file, so a use cited for another fact does not hide a contradiction (`scripts/benchmark.mjs:956-990` covers 981 and 986, but 14, 594 and 597 stay uncited); round.mjs:164 stays allowed, so 3.1 holds
+- plan-review 1.16 (Nice): the preamble says round 1's output never changes while Task 9 changes `parseRun`'s `ms` in place as the ledger allows; name Task 9 as the exception
+- plan-review 1.17 (Nice): a sample left out on a later `--plan` drops its unscored rows from `state.rows`, so the clean guard stops protecting their worktrees; count over the whole matrix or keep those rows
+- plan-review 1.18 (Nice): a round name such as `reviewer-1` passes `r[a-z0-9-]+` and nests its worktrees inside round 1's `wt/reviewer-1`, which `--clean` removes; refuse round 1 keys or nest under `wt/rounds/<name>/`
+- plan-review 1.19 (Nice): `--clean` prints no sha for a detached-HEAD writer worktree (future executor rounds) before `worktree remove --force`
+- plan-review 1.20 (Nice): Task 1 fixture branches `t/T-1` and `t/T-9` both change `a.txt` from B, so the second `merge --no-ff` conflicts
+- plan-review 1.21 (Nice): Task 7's `r9-crit` definition has no `pricesAt`, which Task 1's `checkRound` refuses
+- plan-review 1.22 (Nice): Task 3 leaves the `<y3 file>` form and session S3's cwd open; print `run.file` in the untied line and give S3 cwd `<t>/repo`

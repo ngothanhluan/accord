@@ -51,7 +51,7 @@ Feature: ST-LN-81
 
   @ac-2
   Scenario: A citation that does not resolve fails the check
-    Given a scout report whose text holds "packages/core/src/gate/scope.ts:9999", past the end of that file, and "packages/core/src/missing.ts:3", a file git does not track
+    Given a scout report whose text holds "packages/core/src/gate/scope.ts:9999", past the end of that file, and "packages/core/src/missing.ts:3", a path that is not among the files git tracks
     When the owner runs "accord scout check" on the report
     Then it exits 1 and names both citations
 
@@ -60,14 +60,14 @@ Feature: ST-LN-81
     Given a scout report whose file list holds 8 existing files: 6 product files in 2 code areas, a code area being a file's folder cut to its first four path segments, plus 1 test file and 1 copy accord generates
     And one of the 6 sits under an entry of "sensitive:" in "accord/config.yml"
     When the owner runs "accord scout check" on the report
-    Then it prints 6 expected files, 2 code areas, the sensitive file with that entry's line in "accord/config.yml", and that the request lifts to lane M for more than 5 files and for a sensitive area
+    Then it prints 6 expected files, 2 code areas, the sensitive file with that entry's line number in "accord/config.yml", and that the request lifts to lane M for more than 5 files and for a sensitive area
 
   @ac-4
   Scenario: A lane M ticket is approved only with a scout report that passes the check or says why it was skipped
     Given a lane M ticket
-    When the owner runs "accord approve <id>" with no "accord/tickets/<id>/scout.md", or with one that "accord scout check" fails and that holds no line "skipped: <reason>"
+    When the owner runs "accord approve <id>" with no "accord/tickets/<id>/scout.md", or with one that fails the check run at the commit that last changed it, or on the working tree while it has uncommitted changes, and that holds no line "skipped: <reason>"
     Then it exits 1 and names the missing or failing report
-    And with a "scout.md" that the check passes, or that holds a line "skipped: <reason>", the approval goes on
+    And with a "scout.md" that passes that check, or that holds a line "skipped: <reason>", the approval goes on
 ```
 
 ## Vetoes
@@ -76,6 +76,7 @@ Feature: ST-LN-81
 ## Decisions
 - D-01 ST-LN-81 builds design 1 only: the scout prompt's fixed reply form, `accord scout check`, the saved report and the missing-report refusal; model and effort stay with ST-LN-46 — "OK, go with what you recommend" (2026-11-02, translated; the recommendation was option A, solution 1 only, model left to ST-LN-46)
 - D-02 The smallest version that counts as done is all four criteria, ac-1 to ac-4 — "Do it in full" (2026-11-02, translated)
+- D-03 ac-4 judges `scout.md` at the commit that last changed it, not on today's working tree, so a re-approval after build or a merge is not refused for a report that was right when made — "Approve" (2026-11-02, translated; answering plan-review 1.1 with option A, reword ac-4 and keep the commit mode)
 <!-- Settled answers, one per line: - D-01 <decision> — "<the owner's sentence>" -->
 
 ## Corrections

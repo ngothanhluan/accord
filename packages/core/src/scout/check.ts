@@ -9,6 +9,7 @@ import { parseScoutReport } from './report.js';
 
 export interface ScoutFacts {
   path?: string; // the report's repository path, when it lies inside the repository
+  ticket?: string; // the id of the ticket the report is for; wins over the id a saved report's own path names
   text: string; // the report
   tracked: readonly string[]; // every path git tracks, posix
   read: (paths: readonly string[]) => (string | undefined)[]; // text of each tracked path, undefined when unreadable
@@ -77,14 +78,14 @@ function readAll(facts: ScoutFacts, paths: readonly string[]): (string | undefin
 const SAVED_REPORT = /^accord\/tickets\/([^/]+)\/scout\.md$/;
 
 /**
- * The files no Absent row searches: the report itself and, for a saved report, its ticket file, everything under
- * the ticket's folder, and the research records its ticket lists. A missing or unreadable ticket adds no record.
+ * The files no Absent row searches: the report itself and, for a report of a ticket (a saved report, or any report
+ * checked with a ticket id), its ticket file, everything under the ticket's folder, and the research records its
+ * ticket lists. A missing or unreadable ticket adds no record.
  */
 function ownFiles(facts: ScoutFacts, tracked: readonly string[]): Set<string> {
   const own = new Set<string>();
-  if (facts.path === undefined) return own;
-  own.add(facts.path);
-  const id = SAVED_REPORT.exec(facts.path)?.[1];
+  if (facts.path !== undefined) own.add(facts.path);
+  const id = facts.ticket ?? (facts.path === undefined ? undefined : SAVED_REPORT.exec(facts.path)?.[1]);
   if (id === undefined) return own;
   const ticket = 'accord/tickets/' + id + '.md';
   own.add(ticket);

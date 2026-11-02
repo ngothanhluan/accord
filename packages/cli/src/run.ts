@@ -238,8 +238,9 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
   scout
     .command('check <file>')
     .description("check a scout report's citations and logged absence searches against the files git tracks, and print its lane numbers")
-    .action((file: string) => {
-      setCode(scoutCheckCommand(preflight(opts), file, opts.cwd));
+    .option('--ticket <id>', "leave that ticket's own files and listed research records out of every search")
+    .action((file: string, o: { ticket?: string }) => {
+      setCode(scoutCheckCommand(preflight(opts), file, opts.cwd, o.ticket));
     });
 
   program

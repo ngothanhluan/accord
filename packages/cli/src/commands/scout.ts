@@ -1,6 +1,6 @@
 // ST-LN-81 `accord scout check <file>`: core judges a scout report against the files git tracks; this file
 // contributes the facts (git's tracked list, the files on disk) and the printed form.
-import { readFileSync, realpathSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { parseScoutReport, scoutCheck } from '@accord-dev/accord-core';
 import type { ScoutFacts, ScoutResult } from '@accord-dev/accord-core';
@@ -46,7 +46,13 @@ function repoPath(root: string, abs: string): string | undefined {
 }
 
 /** The one judging call, for either tree: the facts of that tree plus the working tree's config and generated paths. */
-function judge(ctx: CommandContext, facts: Pick<ScoutFacts, 'tracked' | 'read'>, text: string, path: string | undefined): ScoutResult {
+function judge(
+  ctx: CommandContext,
+  facts: Pick<ScoutFacts, 'tracked' | 'read'>,
+  text: string,
+  path: string | undefined,
+  ticket?: string,
+): ScoutResult {
   let config: string | undefined;
   try {
     config = readFileSync(join(ctx.root, 'accord', 'config.yml'), 'utf8');
@@ -60,10 +66,17 @@ function judge(ctx: CommandContext, facts: Pick<ScoutFacts, 'tracked' | 'read'>,
     rendered,
     ...(config === undefined ? {} : { config }),
     ...(path === undefined ? {} : { path }),
+    ...(ticket === undefined ? {} : { ticket }),
   });
 }
 
-export function scoutCheckCommand(ctx: CommandContext, file: string, cwd: string): number {
+export function scoutCheckCommand(ctx: CommandContext, file: string, cwd: string, ticket?: string): number {
+  if (ticket !== undefined) {
+    const named = /^[^/\\]+$/.test(ticket) && ticket !== '.' && ticket !== '..';
+    if (!named || !existsSync(join(ctx.root, 'accord', 'tickets', ticket + '.md'))) {
+      throw new UsageError('--ticket ' + ticket.replace(/\\/g, '/') + ': there is no accord/tickets/' + ticket.replace(/\\/g, '/') + '.md');
+    }
+  }
   const abs = resolve(cwd, file);
   let text: string;
   try {
@@ -71,7 +84,7 @@ export function scoutCheckCommand(ctx: CommandContext, file: string, cwd: string
   } catch (err) {
     throw new UsageError(('cannot read ' + file + ': ' + (err instanceof Error ? err.message : String(err))).replace(/\\/g, '/'));
   }
-  const result = judge(ctx, workingFacts(ctx.root), text, repoPath(ctx.root, abs));
+  const result = judge(ctx, workingFacts(ctx.root), text, repoPath(ctx.root, abs), ticket);
   ctx.stdout.write(scoutLines(result));
   return result.failures.length > 0 ? 1 : 0;
 }

@@ -111,6 +111,22 @@ it('risk:complex-branching a saved report is not contradicted by its own ticket 
     const outside = await run(['scout', 'check', 'report.md'], repo);
     expect(outside.code).toBe(1);
     expect(outside.out).toContain('accord/tickets/T-1.md:');
+
+    const named = await run(['scout', 'check', 'report.md', '--ticket', 'T-1'], repo);
+    expect(named.out).toContain('accord/research/other.md:1');
+    expect(named.out).not.toContain('accord/tickets/T-1.md:');
+    expect(named.out).not.toContain('accord/tickets/T-1/plan.md:');
+    expect(named.out).not.toContain('accord/tickets/T-1/scout.md:');
+    expect(named.out).not.toContain('2026-01-01-r.md:');
+    expect(named.out).toContain('scout check failed: 1 failure');
+
+    const unknown = await run(['scout', 'check', 'report.md', '--ticket', 'NOPE-9'], repo);
+    expect(unknown.code).toBe(2);
+    expect(unknown.err).toContain('NOPE-9');
+
+    // the option wins over the ticket a saved report's own path names
+    const other = await run(['scout', 'check', 'accord/tickets/T-1/scout.md', '--ticket', 'NOPE-9'], repo);
+    expect(other.code).toBe(2);
   } finally {
     cleanup(repo);
   }

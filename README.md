@@ -133,7 +133,7 @@ The skills call the CLI for you. These are the commands most useful to run by ha
 | `accord status [--json] [--all]` | Print one row per ticket; `--all` includes archived tickets. |
 | `accord dashboard [--json]` | Print the ranked dashboard sections for you. |
 | `accord show <id> [--json]` | Print one ticket: its intent and each criterion with its state. |
-| `accord scout check <file>` | Check a scout report's citations and logged searches against the files git tracks, and print its lane numbers. |
+| `accord scout check <file> [--ticket <id>]` | Check a scout report's citations and logged searches against the files git tracks, and print its lane numbers. `--ticket` leaves that ticket's own files and listed research records out of every search, as for a saved `scout.md`. |
 | `accord new ticket [id]` | Write `accord/tickets/<id>.md` from the template. |
 | `accord skills sync` | Write every skill the config declares into `.claude/skills/` and `.agents/skills/`. |
 | `accord worktree open <id>` | Find or prepare the ticket's worktree. |

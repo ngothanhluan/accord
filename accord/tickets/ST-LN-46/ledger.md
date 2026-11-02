@@ -36,3 +36,4 @@
 - approach-review 2.3 (Nice): the `--clean` guard never clears for a round whose agent has no scorer; `--force` then also drops the protection for a scout round in progress
 - approach-review 2.4 (Nice, defer to plan): gathered entries need `root`, `main`, `elsewhere`, `files`, `pairs`, and the snapshot layout must match what `runPlan` loads
 - approach-review 4.2 (Nice, defer to plan): cut citation ranges and lists (`:164-170`, `:164,170`) as well as `:<line>` when reading a reply's file tokens
+- approach-review 5.1 (Should, accepted by the owner, to the plan): a cited file is an allowed hit only when every line of it matching the prose claim's pattern at the sample's commit is among the reply's cited lines for that file, so a use cited for another fact does not hide a contradiction (`scripts/benchmark.mjs:956-990` covers 981 and 986, but 14, 594 and 597 stay uncited); round.mjs:164 stays allowed, so 3.1 holds

@@ -26,3 +26,5 @@ Round record: 1
 
 ## Round 5 (diff)
 1. Should — a cited file becomes an allowed hit in full once any one cited line matches the subject, even a use cited for another fact, so a contradicting file is hidden in the clause's own counter-example: a reply citing `scripts/benchmark.mjs:956-990` (runPlan's brief step, lines 981 and 986 call `rewriteBrief`) and claiming "`rewriteBrief` is only called in `scripts/round.mjs`" counts 0 false claims though benchmark.mjs also uses it at 14, 594 and 597; wider ranges hide more, against ac-2; fix to consider: a cited file is allowed only when every line of it matching the pattern at the sample's commit is among the reply's cited lines for that file (round.mjs:164 stays allowed, so 3.1 holds) — open
+
+verdict: accepted-by-owner "A"

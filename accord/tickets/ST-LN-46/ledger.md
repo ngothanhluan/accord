@@ -46,7 +46,7 @@
 - Ruling: r2-scout is committed with `prices: {}` and `pricesAt: ""`, and the owner gives the haiku and sonnet price factors at verify, where `--plan` refuses until they are set — D-08 sets them from the price list current when the round runs — cost if wrong: none, the refusal names the missing factor
 - Ruling: the owner's pick among untied lane-scout runs, and `--gather <id> <transcript>` for them, is a main-session step right after Task 3, before about 2026-11-11 — an executor cannot ask the owner — untied runs are lost if the main session skips it
 - Ruling: round 1's listed transcripts are neither copied nor added by gather — they are round 1's own samples already — none
-- Ruling: placeholders already in plan.md with a space (`<short agent>`) stay as they are; only new or touched ones are hyphenated — the plan gate passes with them — a lint warning
+- Ruling: placeholders in plan.md made only of plain words (`<short agent>`) are hyphenated at plan-ready, a text-only change; ones holding quotes or punctuation (`<problems joined by '; '>`) stay as written — the `plan: <id> ready` commit must touch plan.md for `accord anchor` to see the plan finished, and the first ready commit did not — cost if wrong: none, no task's meaning changes
 - Ruling: step 7's baseline `tests.full` runs in CI on a draft pull request instead of locally — the owner replaced the ~30 min local run with CI (ST-LN-17, ST-LN-75), and nothing outside accord/ changed since the baseline 2bd987e5 — a baseline failure is seen after the first build commits instead of before
 
 ## Deferred

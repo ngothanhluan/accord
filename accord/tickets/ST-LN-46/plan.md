@@ -1,6 +1,6 @@
 ---
 baseline: 2bd987e53d9c77223669a3b50896993e4e0bef09
-plan_hash: "fnv1a64:d025efac6e10181c"
+plan_hash: "fnv1a64:b8cc592fe216cf3e"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task can be finished from its own section, this preamble, the
@@ -70,29 +70,29 @@ Rules for every task:
 Definitions shared by every task:
 - Main checkout of a repository `repo`: `path.dirname(gitIn(repo, ['rev-parse', '--path-format=absolute',
   '--git-common-dir']).trim())`, as scripts/benchmark.mjs:1149 resolves it. Bench root of every named-round mode,
-  of `--gather` and of the `--clean` guard: `slashed(benchRoot(<main checkout>))`; each of those modes prints
-  `bench root: <bench root>` as its first stdout line. Round 1 keeps `benchRoot(repo)`.
+  of `--gather` and of the `--clean` guard: `slashed(benchRoot(<main-checkout>))`; each of those modes prints
+  `bench root: <bench-root>` as its first stdout line. Round 1 keeps `benchRoot(repo)`.
 - Transcript folders: `transcriptDirs(main, extra)` = `defaultDirs(main)` when `~/.claude/projects` exists, else
   `[]`, then each folder in `extra`, without repeats.
 - Round definitions: `scripts/benchmark-rounds.json` of the repository the script runs in, `{ "rounds": { "<name>":
   { agent, arms: [{ model, effort }], runs, judges, prices: { <model>: <factor> }, pricesAt, samples: [<n>] } } }`.
 - Short agent name: the agent without `accord-` (`scout`). Arm row: `{ tag, agent, n, ticket, model, effort, k,
-  judge }`, with `tag = <short agent>-<n>-<model>-<effort>-<k>` and description `bench <name> <tag>`. Names start
+  judge }`, with `tag = <short-agent>-<n>-<model>-<effort>-<k>` and description `bench <name> <tag>`. Names start
   with `r`, so compliance keeps leaving these runs out (scripts/compliance.mjs:37).
 - Samples of a named round: the entries of `scripts/benchmark-samples.json` and `scripts/benchmark-gathered.json`
   (each optional, both `{ samples: [...] }`) of the repository the script runs in, whose `agent` is the round's
   agent and whose `n` is in its `samples`. Snapshot folder of an entry: `<bench>/<entry.snapshot>` when the entry
-  has `snapshot`, else `<bench>/samples/<short agent>-<n>`; it holds `sample.json` (`{ transcript, prompt, cwd, ts,
+  has `snapshot`, else `<bench>/samples/<short-agent>-<n>`; it holds `sample.json` (`{ transcript, prompt, cwd, ts,
   reads }`) and `root-reads.json`, the layout `runPlan` loads (scripts/benchmark.mjs:883-895).
 - Named state: `<bench>/round-<name>.json`, `{ worktrees, live, rows, leftOut: { <n>: <reason> }, scores: { <tag>:
   <record> }, judges: { <tag>: [...] } }`. It is read with `JSON.parse` when the file exists, `{}` when it does
   not; a file that does not parse exits 2 `<file> does not parse: <message>; restore it or remove it` and is left as
   it is. Every save writes `<file>.<process.pid>.tmp`, then `fs.renameSync`s it onto the file, as
-  packages/cli/src/commands/notice.ts:40-42 does. Worktrees: `<bench>/wt/<name>/<short agent>-<n>` (key
-  `<name>/<short agent>-<n>`) for a read-only agent, `<bench>/wt/<name>/<tag>` with branch `bench/<name>/<tag>` for
+  packages/cli/src/commands/notice.ts:40-42 does. Worktrees: `<bench>/wt/<name>/<short-agent>-<n>` (key
+  `<name>/<short-agent>-<n>`) for a read-only agent, `<bench>/wt/<name>/<tag>` with branch `bench/<name>/<tag>` for
   a writer (`WRITERS`). Briefs: `<bench>/briefs/<name>/<tag>.md`; files: `<bench>/files/<name>/<tag>/`.
 - Score record (Tasks 6, 7, 9, 10): `{ tag, n, agent, model, effort, k, transcript, reply, usage: { input,
-  cacheRead, cacheWrite, output, estimated }, start, end, ms, flags, values: { <measure key>: number }, beside: {
+  cacheRead, cacheWrite, output, estimated }, start, end, ms, flags, values: { <measure-key>: number }, beside: {
   <key>: number }, detail }`. Scout measures, in order: `check` "scout check passes" (higher is better),
   `falseClaims` "false only or none claims" (lower), `recall` "wiring recall" (higher); beside the measures:
   `unsearchable` "prose claims not searched".
@@ -228,7 +228,7 @@ Tests first, in packages/core/test/benchmark-gather.test.ts (new), on one fixtur
   and `meta.json` equal the source files byte for byte; `prompt.md` is the dispatch prompt; `reads.json` holds the
   read of `a.txt`; `scout-x1/tool-results/toolu_R.txt` holds `full output\n`; no file under the bench root ends in
   `.tmp`; `scripts/benchmark-gathered.json` holds two entries, the scout one `{ agent: 'accord-scout', n: 2,
-  ticket: 'T-1', base: <commit 1>, ticketAtBase: true, truth: ['a.txt', 'accord/tickets/T-1.md', 'b.txt'], replay: {
+  ticket: 'T-1', base: <commit-1>, ticketAtBase: true, truth: ['a.txt', 'accord/tickets/T-1.md', 'b.txt'], replay: {
   ok: true, problems: [] } }` (with `transcript`, `main`, `root`, `elsewhere`, `files`, `pairs`, `snapshot`; `c.txt`
   is new, so not in the truth; the ticket file is, as the ledger Ruling excludes nothing). Run it again: exit 0, the
   json is byte-identical, and every file under the bench root keeps its content and `mtimeMs`.
@@ -245,21 +245,21 @@ Tests first, in packages/core/test/benchmark-gather.test.ts (new), on one fixtur
 
 Implementation:
 - `ticketMerges(repo, id)`: `git log --first-parent --merges --format=%H%x1f%P%x1f%ct%x1f%s%x1e <defaultRef>`; keep
-  merges whose subject matches `(?<![\w-])t/<escaped id>(?![\w-])`; each `{ merge, base: <merge-base of its two
-  parents>, tip: <second parent>, at }`, oldest first.
+  merges whose subject matches `(?<![\w-])t/<escaped-id>(?![\w-])`; each `{ merge, base: <merge-base of its two
+  parents>, tip: <second-parent>, at }`, oldest first.
 - `truthOf(repo, id, base)`: null with no merge; else the union over merges of `git diff --no-renames
-  --diff-filter=MD --name-only -z <merge base> <tip>`, kept where present in `git ls-tree -r -z --name-only <base>`,
+  --diff-filter=MD --name-only -z <merge-base> <tip>`, kept where present in `git ls-tree -r -z --name-only <base>`,
   sorted (D-03; ledger Ruling: nothing else excluded).
 - `ticketDone(repo, id)`: `accord/tickets/<id>.md` at `defaultRef` has frontmatter `verified_hash` that is a
   non-empty string (parse with the `frontmatter` helper, :1232).
 - `ticketRuns(runs, id)`: runs whose agent starts `accord-`, whose description does not start `bench `, and whose
-  description or `branch` matches `(?<![\w-])<escaped id>(?![\w-])`; each returned as `{ run, tie: 'id' }`.
+  description or `branch` matches `(?<![\w-])<escaped-id>(?![\w-])`; each returned as `{ run, tie: 'id' }`.
 - `runGather(repo, id, named)`: (1) `mainBench`, print the bench root line. (2) `readSessions(transcriptDirs(main,
   []))`; the gathered list `<repo>/scripts/benchmark-gathered.json` (`{ samples: [] }` when missing); drop runs whose
   `transcriptTail` is listed in `<repo>/scripts/benchmark-samples.json` (round 1's own runs, already samples); runs
   whose `transcriptTail` is in the gathered list go through step (3) into their entry's `snapshot` folder, which
   only fills files that are missing, and get no new entry. (3) for each remaining run, by start then file: folder
-  `<bench>/samples/gathered/<id>/<short agent>-<run id>`; copy the subagent `.jsonl` and `.meta.json` (located by
+  `<bench>/samples/gathered/<id>/<short-agent>-<run-id>`; copy the subagent `.jsonl` and `.meta.json` (located by
   the folder name of `run.file` among the dirs) to `transcript.jsonl` and `meta.json`, write `prompt.md` (dispatch
   prompt, `''` without one), `reads.json` (`run.reads`), `sample.json` (`{ transcript: run.file, prompt, cwd, ts,
   reads: {} }`) and `root-reads.json` (`rootReads(run, root)`, root = the dispatch cwd with `/`), and copy each file a
@@ -274,7 +274,7 @@ Implementation:
   verified_hash; its runs are copied under <bench>/samples/gathered/<id>/; run --gather <id> again once it is
   done`; no merge → exit 2 `<id> has no merge into <ref>; its runs are copied under ...`. (5) per new run, an entry
   `{ agent, n, transcript: run.file, ticket: id, base, main, root, elsewhere, files: [], pairs, snapshot:
-  'samples/gathered/<id>/<short agent>-<run id>', ticketAtBase, truth, replay: { ok, problems } }` (and `task` when
+  'samples/gathered/<id>/<short-agent>-<run-id>', ticketAtBase, truth, replay: { ok, problems } }` (and `task` when
   `run.task`): `base` = the newest commit with commit time at or before the dispatch time (else `run.start`) on the
   run's branch from merged history: the first-parent history of each merge tip when the branch names the id, else
   of `defaultRef`; `main` the same on `defaultRef`; `elsewhere` the distinct absolute paths in the prompt (the `ABS`
@@ -283,7 +283,7 @@ Implementation:
   `existsAt`; `truth` = `truthOf(repo, id, base)`; `n` = one more than the highest `n` of that agent in both lists
   and the entries added so far. Replay problems: no dispatch; no base; `accord/tickets/<id>.md does not exist at
   base` when `ticketAtBase` is false; `sampleDrift(repo, entry, rootReads(run, root))`; `rewriteBrief(prompt, {
-  ticket: <ticket at base> ?? '', paths: [[root, '<bench>/wt/check'], ...elsewhere mapped to '<bench>/absent/<i>'],
+  ticket: <ticket-at-base> ?? '', paths: [[root, '<bench>/wt/check'], ...elsewhere mapped to '<bench>/absent/<i>'],
   pairs: entry pairs mapped to shas, check: { bench, allowed: [] } }).problems`. (6) when an entry was added, write
   the list (`JSON.stringify(list, null, 2) + '\n'`) and print `added <agent> <n> <transcript>: replay ok` or `...:
   replay <problems joined by '; '>`. Exit 0.
@@ -292,7 +292,7 @@ Implementation:
 
 Ending step, the real gathering (ledger Ruling: before about 2026-11-11). With a scratch module in the OS temp folder,
 never committed, that imports `scripts/benchmark.mjs` by file URL: for every `accord/tickets/<id>.md` at
-`defaultRef` of the main checkout with `ticketDone` true and a merge, print `<id> <truth count> <scout runs>`, where
+`defaultRef` of the main checkout with `ticketDone` true and a merge, print `<id> <truth-count> <scout-runs>`, where
 truth count is `truthOf(main, id, ticketMerges(main, id)[0].base).length` and scout runs counts the `ticketRuns`
 results whose agent is `accord-scout` among `readSessions(transcriptDirs(main, [])).runs`. Run `node
 scripts/benchmark.mjs --gather <id>` in this worktree for each id with more than 5 truth files and at least one
@@ -330,7 +330,7 @@ and added.
 Implementation:
 - `readSessions`: per session file, for each user `tool_result` whose `tool_use_id` is a collected use with a
   `command` matching `GIT_COMMIT` (:218), each git summary line `^\[[^\]\n]* ([0-9a-f]{7,40})\] (.+)$` gives `{
-  session: '<folder name>/<session>.jsonl', ts: <the user line's time, else the use's>, subject }`. `runs` and
+  session: '<folder-name>/<session>.jsonl', ts: <the user line's time, else the use's>, subject }`. `runs` and
   `refusals` stay as they are.
 - `ticketRuns(runs, id, { commits = [], named = [] })`: the Task 2 rule (`tie: 'id'`); plus each `accord-scout` run
   whose description and branch match no `ID` (:24), not `bench `, whose session's next `scout: <x> report` commit
@@ -458,7 +458,7 @@ verify: packages/core/test/benchmark-arms.test.ts#ac-3-the-report-shows-pass-mea
 Consumes: score records (Definitions). Produces: round.mjs `weighted(usage)`, `armStats({ def, measures, samples,
 records })` → `{ arms: [{ model, effort, runs, mean, range, cost, beside }], best: { <key>: arm }, winner }` and
 `armReport({ name, def, measures, besides, samples, leftOut, records, notCounted, flags })` → Markdown, where
-`samples` is `[{ n, ticket, truth: <truth file count> }]` of the kept samples, `leftOut` `[{ agent, n, reason }]`,
+`samples` is `[{ n, ticket, truth: <truth-file-count> }]` of the kept samples, `leftOut` `[{ agent, n, reason }]`,
 `notCounted` `[{ tag, why }]` and `flags` as `flagSection` takes them; benchmark.mjs `writeReport(root, text, rel =
 'docs/benchmark/round-1.md')`.
 
@@ -487,7 +487,7 @@ Implementation:
   measures (D-02); none → `winner: null` (D-07).
 - `armReport` text: `# Benchmark round <name>`; a line naming the agent, arm count, runs per arm, sample count, the
   prices and `pricesAt`, the cost formula, and that the report changes no agent definition; `## Arms` table `| model
-  | effort | runs | <label> mean | <label> pass range | ... | mean cost per run | <beside label> |` (means and ranges
+  | effort | runs | <label> mean | <label> pass range | ... | mean cost per run | <beside-label> |` (means and ranges
   to 2 decimals, `lo to hi` or `none`, cost rounded); `## Result`: `Winner: <model> <effort>, the cheapest arm whose
   mean on every measure lies within the pass-mean range of the best arm on that measure.`, or `No winner: the
   measures have different best arms and no arm ties all three.` (or `No winner: no arm has a complete pass.`), then
@@ -579,7 +579,7 @@ score: `cleanWorktrees(repo)` returns `{ refused: true, removed: [], failed: [] 
 `node scripts/benchmark.mjs --clean` (cwd `<repo>`) exits 2 with stderr holding `round r2-x has 1 rows with no
 score`; the same
 row with a score in `scores`, plus a round of `accord-critic` (no scorer) with an unscored row, does not refuse;
-`cleanWorktrees(repo, { onDelete })` calls `onDelete('bench/r2-x/executor-1-sonnet-high-1 <its tip sha>')` while
+`cleanWorktrees(repo, { onDelete })` calls `onDelete('bench/r2-x/executor-1-sonnet-high-1 <its-tip-sha>')` while
 that branch still exists, then the branch is gone.
 
 Implementation: `unscoredRounds(bench)` reads each `round-<r…>.json` under the bench root and counts rows with no

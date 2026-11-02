@@ -12,3 +12,7 @@
 - Ruling: the scout round has no judges (`judges: 0`); the judge count lives in each round definition — every scout measure is scored by script — cost if wrong: none for the scout; ST-LN-89/90 set their own count
 - Ruling: round names start with `r` (for example `r2-scout`), so the compliance report keeps leaving round runs out (scripts/compliance.mjs:37) — cost if wrong: round runs counted as real work in compliance
 - Ruling: the gathering task comes second in build order and ends by running `--gather` on the done tickets the scout round needs, those with a scout run and more than 5 truth files, before about 2026-11-11 — the transcript retention date — cost if wrong: samples lost to retention
+- Ruling: in ac-3, "best" is the highest mean for scout check passes and wiring recall and the lowest for false claims; when several arms share the best mean on a measure, the cheapest of them is the best arm of that measure; a pass counts only when it has a run on every sample — the auditor read ac-3 three ways on these points (2026-11-02); these readings follow D-02, D-06 and D-08 — cost if wrong: a different winner when best means tie
+
+## Deferred
+- approach-review 1.9 (Nice): score scout check on the blobs at the sample commit, as `commitFacts` does, rather than on worktree files after the setup commands ran

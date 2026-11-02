@@ -60,7 +60,7 @@ Feature: ST-LN-46
     Given every arm has scored runs on every sample
     When the round report is written
     Then each arm shows, per measure, its mean and the lowest-to-highest range of its pass means, a pass being its k-th run over every sample, and its mean cost per run, tokens weighted fresh input 1, cache read 0.1, cache write 1.25 and output 5, times the price factor of its model in the round definition
-    And the report names the arm with the lowest mean cost per run whose mean on each of the three measures lies within the pass-mean range of the arm that is best on that measure, or the best arm when one arm is best on all three and no cheaper one ties, or no winner and the best arm of each measure when the measures have different best arms and no arm ties all three
+    And the report names the arm with the lowest mean cost per run whose mean on each of the three measures lies within the pass-mean range of the arm that is best on that measure (highest for scout check passes and recall, lowest for false claims, the cheapest of equally best arms; a pass counts only with a run on every sample), or the best arm when one arm is best on all three and no cheaper one ties, or no winner and the best arm of each measure when the measures have different best arms and no arm ties all three
 
   @ac-4
   Scenario: Runs already made are not run again

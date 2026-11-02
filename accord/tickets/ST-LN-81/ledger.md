@@ -53,3 +53,4 @@
 - approach-review 3.1 (Nice): the scout check's own reads are bounded, but the full load before it (`gitTree`, no `maxBuffer`) still exits 2 past about 1 MiB of `git ls-files` output; a separate bug, not this ticket
 - plan-review 1.6 (Nice): the approve refusal names the condition for `skipped:` (no scout ran, or the owner accepts) instead of offering it as a plain bypass
 - plan-review 1.7 (Nice): record the five extra risk tests or fold the Task 7 and 8 text checks into the existing REQUIRED lists
+- plan-review 3.1 (Nice): in `shared/scout.md`, write the owner's `skipped:` line into `scout.md` after step 5's copy, not before it

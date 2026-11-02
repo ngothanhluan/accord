@@ -10,4 +10,9 @@ Round record: 1
 7. Nice — the plan adds five risk tests where the ledger records two, and the Task 7 and 8 text checks restate the inserted sentences; record them or fold into the existing REQUIRED lists — deferred
 
 ## Round 2 (whole)
-1. Should — `shared/scout.md` step 5 (a report saved at approach step 5) never says to commit and push it, so `scout.md` stays untracked: the report never reaches the branch, build step 6 later judges it on the working tree where its `## New files` are tracked, and worktree clean keeps the folder — open
+1. Should — `shared/scout.md` step 5 (a report saved at approach step 5) never says to commit and push it, so `scout.md` stays untracked: the report never reaches the branch, build step 6 later judges it on the working tree where its `## New files` are tracked, and worktree clean keeps the folder — fixed
+
+## Round 3 (diff)
+1. Nice — step 3 writes the owner's `skipped:` line into `scout.md` before step 5 copies the checked reply over it, so a new report the owner accepted loses the line and approve refuses once more; say the line goes into the copied `scout.md` after the copy — deferred
+
+## Closed

@@ -1,0 +1,20 @@
+{
+  "rounds": {
+    "r2-scout": {
+      "agent": "accord-scout",
+      "arms": [
+        { "model": "haiku", "effort": "low" },
+        { "model": "haiku", "effort": "medium" },
+        { "model": "haiku", "effort": "high" },
+        { "model": "sonnet", "effort": "low" },
+        { "model": "sonnet", "effort": "medium" },
+        { "model": "sonnet", "effort": "high" }
+      ],
+      "runs": 3,
+      "judges": 0,
+      "prices": {},
+      "pricesAt": "",
+      "samples": [1, 2, 3, 4, 5]
+    }
+  }
+}

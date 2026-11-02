@@ -25,8 +25,55 @@ export function steps(effort) {
 }
 
 export const tagOf = (agent, n, effort) => agent.slice('accord-'.length) + '-' + n + '-' + effort;
-export const describe = (tag) => 'bench r1 ' + tag;
-export const judgeDescribe = (tag) => describe(tag) + ' judge';
+export const describe = (tag, name = 'r1') => 'bench ' + name + ' ' + tag;
+export const judgeDescribe = (tag, name = 'r1') => describe(tag, name) + ' judge';
+
+// ---- named arm rounds (ST-LN-46): a round definition is data, one dispatch row per sample, arm and run ----
+const MODEL = /^[A-Za-z0-9._-]+$/;
+const whole = (v, least) => Number.isInteger(v) && v >= least;
+const isDate = (v) => {
+  if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  const at = new Date(v + 'T00:00:00Z');
+  return !Number.isNaN(at.getTime()) && at.toISOString().slice(0, 10) === v;
+};
+
+// The problems of a round definition; none when it can be planned. `<i>` counts arms from 1.
+export function checkRound(name, def) {
+  const out = [];
+  if (!/^r[a-z0-9-]+$/.test(String(name)) || name === 'r1') out.push(`round name ${name} must match r[a-z0-9-]+ and not be r1`);
+  def = def && typeof def === 'object' ? def : {};
+  if (typeof def.agent !== 'string' || !Object.hasOwn(ROLES, def.agent) || RETIRED.includes(def.agent)) out.push(`agent ${def.agent} is not a benchmark agent`);
+  const arms = Array.isArray(def.arms) ? def.arms : [];
+  const seen = new Set(), twice = new Set(), models = [];
+  arms.forEach((arm, i) => {
+    let ok = true;
+    if (!EFFORTS.includes(arm?.effort)) { out.push(`arm ${i + 1}: effort ${arm?.effort} is not one of ${EFFORTS.join(', ')}`); ok = false; }
+    if (typeof arm?.model !== 'string' || !MODEL.test(arm.model)) { out.push(`arm ${i + 1}: model ${arm?.model} is not a model name`); ok = false; }
+    else if (!models.includes(arm.model)) models.push(arm.model);
+    if (!ok) return;
+    const key = `${arm.model} ${arm.effort}`;
+    if (seen.has(key) && !twice.has(key)) { twice.add(key); out.push(`arm ${key} is listed twice`); }
+    seen.add(key);
+  });
+  const prices = def.prices && typeof def.prices === 'object' ? def.prices : {};
+  for (const m of models) {
+    const p = Object.hasOwn(prices, m) ? prices[m] : undefined;
+    if (typeof p !== 'number' || !Number.isFinite(p) || p <= 0) out.push(`model ${m} has no positive price in prices`);
+  }
+  if (!isDate(def.pricesAt)) out.push('pricesAt must be a date YYYY-MM-DD');
+  if (!whole(def.runs, 1)) out.push('runs must be a whole number of at least 1');
+  if (!whole(def.judges, 0)) out.push('judges must be a whole number of at least 0');
+  if (!Array.isArray(def.samples) || !def.samples.every((n) => whole(n, 1)) || new Set(def.samples).size !== def.samples.length) out.push('samples must be a list of distinct whole numbers of at least 1');
+  return out;
+}
+
+export const armTag = (agent, n, model, effort, k) => `${agent.slice('accord-'.length)}-${n}-${model}-${effort}-${k}`;
+
+// One row per sample (ascending n), arm (definition order) and run k. No `current`: a named round has no current-effort run.
+export function armMatrix(def, samples) {
+  return [...samples].sort((a, b) => a.n - b.n).flatMap((s) => def.arms.flatMap(({ model, effort }) =>
+    Array.from({ length: def.runs }, (_, i) => ({ tag: armTag(def.agent, s.n, model, effort, i + 1), agent: def.agent, n: s.n, ticket: s.ticket, model, effort, k: i + 1, judge: null }))));
+}
 
 const SHA = /^[0-9a-f]{40}$/;
 const absOk = (p) => typeof p === 'string' && /^([A-Za-z]:)?\//.test(p) && !p.includes('\\');
@@ -205,11 +252,11 @@ export function stripReadPrefixes(text) {
   return (cut < 0 ? lines : lines.slice(0, cut)).map((l) => l.replace(/^\s*\d+\t/, '')).join('\n').replace(/\n+$/, '');
 }
 
-export function dispatchTable(rows) {
+export function dispatchTable(rows, name = 'r1') {
   return [
     '| description | subagent_type | model | effort | prompt file | judge |',
     '| --- | --- | --- | --- | --- | --- |',
-    ...rows.map((r) => `| ${describe(r.tag)} | ${r.agent} | ${r.model} | ${r.effort} | ${r.prompt} | ${r.judge ? `${r.judge.agent} ${r.judge.model} ${r.judge.effort}` : '-'} |`),
+    ...rows.map((r) => `| ${describe(r.tag, name)} | ${r.agent} | ${r.model} | ${r.effort} | ${r.prompt} | ${r.judge ? `${r.judge.agent} ${r.judge.model} ${r.judge.effort}` : '-'} |`),
   ].join('\n') + '\n';
 }
 

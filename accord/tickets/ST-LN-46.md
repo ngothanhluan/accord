@@ -6,7 +6,7 @@ status: draft                              # draft | open | archived | dropped. 
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
 # Tickets that must reach done before this one can start.
 depends_on: ["ST-LN-14", "ST-LN-81"]
-research: ["accord/research/2026-11-02-benchmark-per-agent.md", "accord/research/2026-11-02-scout-trust.md"]
+research: ["accord/research/2026-11-02-benchmark-per-agent.md", "accord/research/2026-11-02-scout-trust.md", "accord/research/2026-11-02-scout-benchmark.md"]
 # How the dashboard ranks this ticket: high | medium | low; absent means medium.
 # priority: medium
 # The epic this ticket belongs to.
@@ -29,15 +29,11 @@ ui: false
 
 ## Intent
 <!-- At most five lines: why, for whom, how success is measured, and what this does not do. -->
-Queued 2026-10-22, rewritten 2026-11-02 when round 2 was split per agent; not approved, the intent interview replaces this:
-- Source: owner, 2026-11-02 (translated): "Scout: haiku and sonnet at low, medium, high. Executor: sonnet high and opus medium, or a new architecture is needed for the executor. Planner is certainly opus, only re-check the effort level, or a new architecture is needed. The other roles need discussing after implementing." This ticket keeps the scout and the shared harness; the executor is ST-LN-89, the planner ST-LN-90. The intent queued before the split, every role included, is moved verbatim to accord/research/2026-11-02-benchmark-per-agent.md.
-- Question: which model and effort the scout needs. Six arms: haiku and sonnet, each at low, medium and high, on the same samples. Today the shipped default is haiku low (packages/core/src/skills/agents.ts:15) and this repository runs sonnet low (accord/config.yml, ST-LN-47 D-02, unmeasured). Round 1 tried only haiku: low held 0 of 5, medium 1 of 5, with 2 to 5 wrong facts per run; sonnet and any high effort were never benchmarked (docs/benchmark/round-1.md:33-34, accord/research/2026-11-02-scout-trust.md). Owner, 2026-10-23: "so is haiku high better than sonnet low/medium?", then "ok add it".
-- Scoring: every reply goes through `accord scout check` (ST-LN-81: citations resolve, each logged search re-runs), then is scored on false "only" / "none" claims and on recall of wiring files (index.ts exports, CLI registration, README text restating a rule) against a true file list per sample. The 5 scout samples hold no true file list today (scripts/benchmark-samples.json:711-767), and no sample covers lane classification. Haiku is chosen only where it ties sonnet on wiring recall and on false absence claims (scout-trust record, recommendation). Report wrong facts, minutes and cost per arm; the cheapest arm that keeps quality wins (quality > cost > speed).
-- Shared harness, built here and reused by ST-LN-89 and ST-LN-90: a model axis in scripts/round.mjs (none today, scripts/round.mjs:91-100); results reported cost-weighted (cache read about 0.1, cache write 1.25, output 5), not in raw tokens; reuse of earlier results, since `--round` re-runs every executor suite (about 70 min); each run judged more than once.
-- Gather samples when a ticket is done, not by a shipped skill: a repo-internal step (a `scripts/benchmark.mjs` flag, run by hand after `accord gate done`) adds that ticket's agent runs to scripts/benchmark-samples.json and snapshots what each run read under the bench root, so the 30-day transcript retention cannot drop them. Not a shipped skill: transcripts are Claude Code's own format, while accord's skills must behave the same in Claude Code, Cursor, Codex and Copilot, and one ticket gives one sample per role.
-- Carry the round 1 measurement problems into the design: runs under machine load (10 to 45 node processes), sonnet verifiers at high hanging on `python3 - <<'E'` with an empty heredoc, judges counting per item or per criterion, judges reading transcripts beyond their brief.
-- Before about 2026-11-11 (date unverified) the 30-day transcript retention drops the first dogfood runs; round 1's samples are snapshotted under the bench root, other runs a sample needs must be snapshotted before then.
-- Not here: the executor (ST-LN-89) and the planner (ST-LN-90); critic, reviewer, final reviewer, verifier, debugger and auditor, which get no ticket until the owner discusses them once these are built (their notes are in the research record); a routing layer for scout count, model or effort per request (rejected in accord/research/2026-10-30-harness-architecture.md).
+Why: the scout's model and effort were never measured beyond haiku at low and medium (round 1 held 0 of 5 and 1 of 5 on wrong facts alone); the shipped default is haiku low, this repository runs sonnet low unmeasured, and the scout's real faults are false "only"/"none" claims and missed wiring files, which round 1 did not score.
+For: the owner choosing the scout's default from evidence (quality > cost > speed), and ST-LN-89 (executor) and ST-LN-90 (planner), which run on the harness built here.
+Success: a committed round 2 report runs six arms (haiku and sonnet at low, medium and high) on the same samples, scores each run by script on scout check, false "only"/"none" claims and wiring recall against the files the ticket's merged diff changed, shows cost-weighted figures, and names the cheapest arm that ties the best one within the spread of repeated runs.
+The harness takes the model as an arm, reuses runs already made, and a hand-run step gathers a done ticket's runs as samples with snapshots; transcripts a sample needs are snapshotted before about 2026-11-11.
+Not here: changing the scout's default or this repository's config (D-01); the executor, planner and other roles; routing per request; a shipped skill for gathering samples.
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.
@@ -46,10 +42,38 @@ A scenario that is not @ui also carries one @test:<id> tag naming the one test t
 Feature: ST-LN-46
 
   @ac-1
-  Scenario: <observable outcome>
-    Given ...
-    When ...
-    Then ...
+  Scenario: A round plan lists every sample for every model and effort arm
+    Given a round for accord-scout whose arms are the models haiku and sonnet, each at the efforts low, medium and high, with three runs per arm
+    When the round plan is printed
+    Then every sample appears three times for each of the six arms, each row naming that arm's model and effort
+    And a round for another agent, with its own list of model and effort arms, is planned the same way without a change to the script
+
+  @ac-2
+  Scenario: Each scout run is scored by script on the three measures
+    Given a finished scout run on a sample whose ticket's merged diff changed a known set of files that existed before it
+    When the round is scored
+    Then the run's row shows whether its reply passes accord scout check, how many of its "only" or "none" claims a search of the repository at the sample's commit contradicts, and the share of that set of files whose full repository path its reply names
+    And scoring the same run again gives the same row
+
+  @ac-3
+  Scenario: The report names the cheapest arm that ties the best one
+    Given every arm has scored runs on every sample
+    When the round report is written
+    Then each arm shows, per measure, its mean and the lowest-to-highest range over its runs, and its mean cost per run weighted fresh input 1, cache read 0.1, cache write 1.25 and output 5
+    And the report names the arm with the lowest mean cost per run whose mean on each of the three measures lies within the range of the arm that is best on that measure, or the best arm when no cheaper one does
+
+  @ac-4
+  Scenario: Runs already made are not run again
+    Given a round where some rows already have a matched run, scored or not
+    When the round plan is printed again
+    Then only the rows with no matched run are listed to dispatch, a matched run that is not scored yet is scored without being run again, and the report counts every scored run
+
+  @ac-5
+  Scenario: A done ticket's runs become snapshotted samples
+    Given a ticket that reached done, whose accord agent runs are still in the transcripts
+    When the gathering step runs with that ticket's id
+    Then each accord agent run of that ticket is added as a sample with the files its merged diff changed that existed before it, and its transcript, its prompt and the files it read are snapshotted under the bench root
+    And running the step again for the same ticket adds and overwrites nothing
 ```
 
 ## Vetoes
@@ -57,6 +81,10 @@ Feature: ST-LN-46
 
 ## Decisions
 <!-- Settled answers, one per line: - D-01 <decision> — "<the owner's sentence>" -->
+- D-01 The ticket holds six parts: the six scout arms; the new scoring (scout check, false "only"/"none" claims, wiring recall against a true file list per sample); the shared harness (model axis, cost-weighted report, reuse of earlier results, each run judged more than once); a hand-run step that gathers a done ticket's runs as samples and snapshots them; the round 1 measurement fixes; and the snapshot of needed transcripts before about 2026-11-11. Changing the scout's shipped default or this repository's config from the result is not part of it — "A" (2026-11-02, option a of the parts question: keep all six; options b, split out the gathering step, and c, also change the scout's default here, not chosen)
+- D-02 A cheaper arm keeps quality when it ties the best arm on all three measures (scout check passes, false "only"/"none" claims, wiring recall) within the spread that repeated runs of the same sample show; the cheapest arm that ties wins; no fixed threshold — "A" (2026-11-02, option a of the quality-bar question; b, a fixed threshold, and c, both, not chosen)
+- D-03 A sample's true file list is the existing files its ticket's merged diff changed, computed by the script with no hand edit, the same measure as the 0.94 / 0.60 recall in accord/research/2026-10-30-harness-architecture.md — "A" (2026-11-02, option a of the true-list question; b, the diff edited by hand, and c, the union of every arm's files edited by hand, not chosen)
+- D-04 The smallest version that counts as done is all six parts of D-01 — "A" (2026-11-02, option a of the smallest-version question; b, the scout benchmark, harness and snapshot only, with gathering and the round 1 fixes deferred, not chosen)
 
 ## Corrections
 <!-- Every correction the owner makes, verbatim, appended and never edited. -->

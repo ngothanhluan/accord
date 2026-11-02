@@ -1,0 +1,6 @@
+# Ledger
+
+## Rulings
+- Ruling: each arm runs every sample three times, and the spread D-02 compares against is the spread of those three runs — docs/specs/2026-10-12-workflow-layer-design.md "Matrix" sets three runs per cell, and D-02 needs repeated runs to see the spread — cost if wrong: about 90 scout runs for 5 samples; too few runs make a tie look wider than it is
+- Ruling: the samples are the 5 round 1 scout samples plus samples from done tickets with a merged diff, so that tickets touching more than 5 existing files are covered — recall drops from 0.94 to 0.60 above 5 files (accord/research/2026-10-30-harness-architecture.md:123), and how many of the 5 round 1 tickets touch more than 5 files is not checked yet — cost if wrong: more runs; the plan fixes the count
+- Ruling: the three measures of D-02 are computed by script wherever they can be (scout check exit, logged absent rows, recall against the D-03 list); a judge model is used only for a claim the script cannot decide, and judges it twice — a script gives the same score every time, which removes round 1's judge-counting noise — cost if wrong: a false "only"/"none" claim written outside the Absent table is missed if the judge brief does not ask for it

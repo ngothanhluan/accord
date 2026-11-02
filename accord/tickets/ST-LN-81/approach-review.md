@@ -10,6 +10,9 @@ Round record: 1
 7. Nice — a scout-written regular expression such as `(a+)+$` can hang `accord approve` with no time or input cap — deferred
 
 ## Round 2 (diff)
-1. Should — `approve` reads text at the report's commit with one `git cat-file --batch` call capped at 64 MiB, so a root row in a repository whose tracked files exceed 64 MiB makes approve exit 2 whether the report is true or not; read blobs in bounded batches — open
-2. Should — the impact list points the `research:` exclusion at `addedResearch`, which returns only records the branch adds and needs branch facts the scout module does not get, so a listed record already on the default branch is still searched — open
+1. Should — `approve` reads text at the report's commit with one `git cat-file --batch` call capped at 64 MiB, so a root row in a repository whose tracked files exceed 64 MiB makes approve exit 2 whether the report is true or not; read blobs in bounded batches — fixed
+2. Should — the impact list points the `research:` exclusion at `addedResearch`, which returns only records the branch adds and needs branch facts the scout module does not get, so a listed record already on the default branch is still searched — fixed
 3. Nice — approach step 5 checks the working tree while approve checks the report's commit, so a pass at step 5 does not guarantee approve passes after the owner's yes; give step 5 the same mode — deferred
+
+## Round 3 (diff)
+1. Nice — "no repository size makes approve exit 2" overstates: the load before the check runs `git ls-files` with Node's 1 MiB default buffer (`packages/cli/src/load/fs.ts:22-26`), and one blob past V8's string limit still crashes; limit the claim to the scout check's own reads and queue the load buffer as a separate bug — deferred

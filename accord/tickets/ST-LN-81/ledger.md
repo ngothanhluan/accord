@@ -32,3 +32,4 @@
 ## Deferred
 - approach-review 1.7 (Nice): bound the time or input of each logged regular expression so a pattern like `(a+)+$` cannot hang `accord approve`
 - approach-review 2.3 (Nice): give the check at approach step 5 the same "at its commit unless uncommitted" mode that approve uses
+- approach-review 3.1 (Nice): the scout check's own reads are bounded, but the full load before it (`gitTree`, no `maxBuffer`) still exits 2 past about 1 MiB of `git ls-files` output; a separate bug, not this ticket

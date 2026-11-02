@@ -1,10 +1,13 @@
 ---
 baseline: 625431a8713b63d57c83bc5a28ac72c7dd17321b
-plan_hash: "fnv1a64:8df9c9165c2e1338"
+plan_hash: "fnv1a64:99bdee741b4a3470"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
 preamble, the ticket and its ledger.
+
+Baseline tests: the full suite at the baseline passed on CI, ubuntu and windows on Node 22 and 24 (PR #160, run
+41390327488), so every failure during build is new.
 
 Order. Task 1 builds the pure core module, the `accord scout check <file>` command and the logged-search half of
 the check end to end (@ac-1). Task 2 adds citations and the file-list checks (@ac-2). Task 3 leaves the ticket's

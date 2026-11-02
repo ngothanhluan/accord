@@ -1,0 +1,12 @@
+# Ledger
+
+## Rulings
+- Ruling: the missing-report refusal sits in `accord approve` (lane M), not in `gate ready` — `gate ready` runs at every stage, so it would block every ticket already past approval; approve runs once, before the plan, after the intent scout ran — cost if wrong: a lane S ticket can still skip its scout unseen, to be closed in a follow-up
+- Ruling: lane S is not refused for a missing report in this ticket — lane S never runs `accord approve`, and its `## Scope` is already checked against the diff by `gate/scope.ts` — cost if wrong: a skipped lane S scout stays invisible
+- Ruling: a report saved before the ticket exists is written by the main session to `accord/tickets/<id>/scout.md` right after `accord new ticket`, and `accord scout check` takes a file path, not an id — the lane scout runs before any id exists (packages/core/skills/accord/SKILL.md:62,71) — cost if wrong: a second save path to add later
+- Ruling: the planner reads `scout.md` as its starting list and still runs its own impact search — ST-LN-80 D-03 keeps the planner's search — cost if wrong: the 65% re-read rate drops less than it could
+- Ruling: the lane numbers that `accord scout check` prints are information, not a failure; exit 1 is kept for a contradicted claim or an unresolved citation — the owner may override a lane (accord SKILL.md) — cost if wrong: an agent may ignore a lift it was shown
+- Ruling: lint does not re-check a saved report's citations as the code moves on — a report is evidence at its commit, like a research record — cost if wrong: an old report cites stale lines, which the planner's own search catches
+- Ruling: a logged search runs as a JavaScript regular expression over the files git tracks in the logged folders — build output and ignored files are not the scout's claim, and one dialect keeps Windows and POSIX equal — cost if wrong: a scout that searched with git grep syntax sees a check fail on an escape
+- Ruling: every `path:line` in the report text is a citation, and it resolves when git tracks the file and the line is within its length; the check does not judge what the line says — that needs a model — cost if wrong: a right line number with a wrong reading passes
+- Ruling: `accord approve` runs the same check on `scout.md` rather than only testing that the file exists — a failing report approved is the trust gap this ticket closes — cost if wrong: an approval blocked by a check bug until it is fixed

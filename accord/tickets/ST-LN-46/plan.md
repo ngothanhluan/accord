@@ -1,6 +1,6 @@
 ---
 baseline: 2bd987e53d9c77223669a3b50896993e4e0bef09
-plan_hash: "fnv1a64:6b04e1cad501f51b"
+plan_hash: "fnv1a64:7ae8b117a1989228"
 ---
 
 Review mode `outcome`: one branch, no slices. Re-planned after the change of course of D-09: Task 1 is built (ledger),
@@ -140,9 +140,9 @@ Depends on: Tasks 1, 2 and 3. Behaviour:
   `packages/core/dist/index.js` is missing (asking for `npm run build`).
 - It reads the runs from the main checkout's transcript folders and matches each saved row to its run by the
   description `bench <name> <tag>` (round 1's `matchRuns` builds `r1` descriptions, so it needs the round name): a run
-  under another agent or with another prompt, or dispatched before its worktree was prepared, does not count; of the
-  runs that do, the earliest dispatched counts (ledger Ruling), whatever the transcript file order; and a run whose
-  turns did not run on the row's model and effort (round 1's `turnFlags`) does not count, with that reason. Each counted run is scored with Task 2 on the row's worktree and the sample's
+  under another agent, with another prompt, dispatched before its worktree was prepared, or whose turns did not run on
+  the row's model and effort (round 1's `turnFlags`) does not count, each with its reason; these are checked on every
+  run first, and of the runs left the earliest dispatched counts (ledger Ruling), whatever the transcript file order. Each counted run is scored with Task 2 on the row's worktree and the sample's
   truth; a run whose scoring returns a problem does not count.
 - It writes `docs/benchmark/round-<name>.md` under the repository it runs in with Task 3's report and prints that
   path. It keeps no state of its own: every run is matched and scored again on each call. Round 1's report path stays.
@@ -150,7 +150,7 @@ Depends on: Tasks 1, 2 and 3. Behaviour:
 Test first (risk:complex-branching, process, on `armsFixture(t)`): a round with one arm, one run and two samples, one
 of whose tickets has no merge; `--plan` leaves that sample out and prints the other's row; a session in the temporary
 home dispatches that row as printed, with a reply naming the sample's changed file, and two more runs of the same
-description, one under another agent and dispatched first, and one with another effort; `--round <name>` exits 0 and the written report names the arm as winner, shows its
+description, one under another agent and one with another effort, both dispatched before the valid one; `--round <name>` exits 0 and the written report names the arm as winner, shows its
 recall as 1, and lists the left-out sample and the two runs that do not count, each with its reason.
 
 Must not change: Tasks 1 to 3 behaviour; round 1's `--round 1` and its `docs/benchmark/round-1.md`.

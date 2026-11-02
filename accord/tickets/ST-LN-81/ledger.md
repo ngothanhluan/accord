@@ -45,6 +45,7 @@
 - Ruling: a new scout reply is always checked in a file outside the working tree, and copied to `scout.md` only while that file does not exist — keeps the lane report and its `## New files` (plan-review 1.2) — cost if wrong: an intent reply with better facts is not saved
 - Ruling: worktree.md's `stop:` exception gains the saved `scout.md` and the commit and push that save it, with no `./scout.md` reference — debug and verify load worktree.md but not scout.md — cost if wrong: one more file allowed on `stop:`
 - Ruling: a claim is printed with backslashes turned into `/`, whitespace collapsed, and cut to 80 characters — D-51, plan-review 1.5 — cost if wrong: a long or backslashed claim reads slightly altered
+- Ruling: a report saved at approach step 5 is committed and pushed before the owner's yes — approve then judges it at the commit that last changed it (D-03), and other clones see the same report — cost if wrong: one extra commit per approach stage that has no saved report
 
 ## Deferred
 - approach-review 1.7 (Nice): bound the time or input of each logged regular expression so a pattern like `(a+)+$` cannot hang `accord approve`

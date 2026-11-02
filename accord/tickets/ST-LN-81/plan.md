@@ -1,6 +1,6 @@
 ---
 baseline: 625431a8713b63d57c83bc5a28ac72c7dd17321b
-plan_hash: "fnv1a64:5488c466ac7e62ca"
+plan_hash: "fnv1a64:8df9c9165c2e1338"
 ---
 
 Review mode `outcome`: one branch, no slices. Every task below can be finished from its own section, this
@@ -551,8 +551,11 @@ ticket, so no agent after it searches again.
    when it exists, use the checked reply for your questions and leave `scout.md` as it is.
 5. **Approval.** Before the owner's yes at approach step 5, run
    `accord scout check "accord/tickets/<id>/scout.md"`; when that file does not exist, dispatch `accord-scout`
-   with the path of `accord/tickets/<id>.md`, asking for the existing files the approach touches, then check and
-   save its reply as steps 1 to 4 say. A saved report that fails is corrected in place as step 2 says.
+   with the path of `accord/tickets/<id>.md`, asking for the existing files the approach touches, then check its
+   reply as steps 1 to 3 say, copy it to `accord/tickets/<id>/scout.md`, run
+   `git add -- accord/tickets/<id>/scout.md` and `git commit -m "scout: <id> report" -- accord/tickets/<id>/scout.md`,
+   then `accord worktree push <id>`, all before the owner's yes. A saved report that fails is corrected in place
+   as step 2 says, then committed and pushed the same way before the owner's yes.
    `accord approve <id>` runs the same check on `scout.md` as of the commit that last changed it, or on the
    working tree while the file has uncommitted changes. When `accord approve <id>` exits 1 naming `scout.md`,
    correct the report as steps 2 and 3 say, commit it and run `accord approve <id>` again: the owner's yes
@@ -653,7 +656,8 @@ from that flattened text, never from the raw one, since the source wraps its lin
 - in `.claude/skills/accord-build/SKILL.md`, the slice from `6. **Change of course.**` to `7. **Plan changed.**`
   holds `` When `accord approve` exits 1, follow `./scout.md`. ``;
 - `.claude/skills/accord-approach/scout.md` and `.claude/skills/accord-build/scout.md` each hold
-  `` When `accord approve <id>` exits 1 naming `scout.md` ``, `the owner's yes still holds` and
-  `as of the commit that last changed it, or on the working tree while the file has uncommitted changes`;
+  `` When `accord approve <id>` exits 1 naming `scout.md` ``, `the owner's yes still holds`,
+  `as of the commit that last changed it, or on the working tree while the file has uncommitted changes` and
+  `` then `accord worktree push <id>`, all before the owner's yes ``;
 - the rendered `.claude/agents/accord-planner.md` holds
   `` Start from `accord/tickets/<id>/scout.md` when it exists, then run your own search. ``

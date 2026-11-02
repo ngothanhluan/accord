@@ -12,7 +12,10 @@ Round record: 1
 9. Nice — score scout check on blobs at the sample commit (as `commitFacts` does) rather than worktree files after setup — deferred
 
 ## Round 2 (diff)
-1. Must — the brief filter matches none of the 5 round 1 scout briefs and intent-stage briefs ask questions, so every sample must be a gathered lane scout; a lane scout's base has no ticket file, the replay check does not notice, and the reused brief step (scripts/benchmark.mjs:956, outside any try) throws, aborting the plan or leaving the round with almost no samples — open
-2. Should — the prose-claim rule searches every backticked token on an "only" line across the whole repository, so true claims about common identifiers count as false and arms that cite more prose score worse — open
+1. Must — the brief filter matches none of the 5 round 1 scout briefs and intent-stage briefs ask questions, so every sample must be a gathered lane scout; a lane scout's base has no ticket file, the replay check does not notice, and the reused brief step (scripts/benchmark.mjs:956, outside any try) throws, aborting the plan or leaving the round with almost no samples — fixed
+2. Should — the prose-claim rule searches every backticked token on an "only" line across the whole repository, so true claims about common identifiers count as false and arms that cite more prose score worse — fixed
 3. Nice — the `--clean` guard never clears for a round whose agent has no scorer, so `--force` becomes the only way past and drops the protection for a scout round in progress — deferred
 4. Nice (defer to plan) — gathered entries lack `root`, `main`, `elsewhere`, `files`, `pairs` that `sampleDrift`, `rootReads` and the brief step read, and the snapshot layout differs from what `runPlan` loads — deferred
+
+## Round 3 (diff)
+1. Should — a prose claim's allowed hits are only the files its line names, so a true "only"/"no other" claim whose line cites the caller but not the definition counts as false (`rewriteBrief` is defined in scripts/round.mjs:164), and a root file such as README.md gives folder `.`, a search wider than the claim — open

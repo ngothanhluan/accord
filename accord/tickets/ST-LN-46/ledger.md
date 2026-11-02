@@ -52,6 +52,10 @@
 - Ruling (task 1): `writeBrief` takes no `repo` parameter — the body never uses it and eslint no-unused-vars rejects it — add it back with a use
 - Ruling (task 1): the process test writes scripts/benchmark-samples.json and benchmark-rounds.json untracked into `<t>/repo` and `<t>/sub/linked`, since base sha B cannot sit in a file committed in B; Task 7 reuses `armsFixture(t)` — cost if wrong: none
 - Ruling (task 1): `checkRound` skips the price check for an arm with an invalid model, and the duplicate check for an invalid effort or model, so each bad input gives one problem — cost if wrong: a second problem is hidden until the first is fixed
+- Ruling (re-plan after D-09): every Ruling above about gathering, gathered samples, untied lane scouts, prose claims, judges, minutes and overlap, the `--clean` guard and cached scores is retired with the parts D-09 dropped; the samples Ruling now means round 1's scout samples only — kept above as history rather than deleted — cost if wrong: an executor reads a retired Ruling as live, which the re-planned plan.md contradicts
+- Ruling (re-plan): Task 1's prose in plan.md is shortened to what it built; its covers, files and verify lines are unchanged, and the old text is in git at 80aceffd — cost if wrong: restore it from there
+- Ruling (re-plan): `--plan` leaves out a sample with no merge (sample 3, ST-LN-33), so its runs are never dispatched — cost if wrong: 18 wasted runs
+- Ruling (re-plan): `--round <name>` keeps no state and scores every matched run again on each call; scoring is deterministic — cost if wrong: runs whose transcripts expire (about 30 days) drop out, so the report is written within that window
 
 ## Deferred
 - approach-review 1.9 (Nice): score scout check on the blobs at the sample commit, as `commitFacts` does, rather than on worktree files after the setup commands ran

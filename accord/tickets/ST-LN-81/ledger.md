@@ -29,3 +29,4 @@
 
 ## Deferred
 - approach-review 1.7 (Nice): bound the time or input of each logged regular expression so a pattern like `(a+)+$` cannot hang `accord approve`
+- approach-review 2.3 (Nice): give the check at approach step 5 the same "at its commit unless uncommitted" mode that approve uses

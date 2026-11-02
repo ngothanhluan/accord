@@ -49,7 +49,7 @@ Feature: ST-LN-81
     When the owner runs "accord scout check" on the report
     Then it exits 1 and names the claim and "packages/cli/src/commands/init.ts"
 
-  @ac-2
+  @ac-2 @test:packages/cli/test/scout-check.test.ts#ac-2-a-citation-that-does-not-resolve-fails-the-check
   Scenario: A citation that does not resolve fails the check
     Given a scout report whose text holds "packages/core/src/gate/scope.ts:9999", past the end of that file, and "packages/core/src/missing.ts:3", a path that is not among the files git tracks
     When the owner runs "accord scout check" on the report

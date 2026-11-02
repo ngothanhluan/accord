@@ -50,6 +50,8 @@
 - Ruling: Folders and Allowed hits entries strip one leading and one trailing backtick each, not one wrapping pair of the entry — the cell-level unwrap already removes the outer pair, so a cell written `` `a`, `b` `` would otherwise leave stray backticks (task 1) — cost if wrong: an entry that really starts or ends with a backtick loses it
 - Ruling: the "cannot read" usage error of `accord scout check` turns backslashes to slashes over the whole message, not only the file part — the OS error can hold a Windows path and D-51 forbids a printed backslash (task 1) — cost if wrong: none
 - Ruling: task 1's failing run was taken after the code was written, with the old core build still in place, so the ac-1 test failed on a missing command rather than on a pre-code checkout; the test body was not changed after that run — the test and code were written in one pass (task 1) — cost if wrong: the test was not seen failing on the exact assertion before the code existed
+- Ruling: the citation regular expression drops the escapes on `[`, `]` and `/` inside its character classes — eslint no-useless-escape rejects the escaped form, and both match the same text under the `u` flag (task 2) — cost if wrong: a lint error returns, nothing else changes
+- Ruling: the check prints failures in the order no `## Files`, parse faults, `## Files` entries, `## New files` entries, citations, then Absent rows, and a missing `## Files` does not stop the other checks — every failure is shown in one run (task 2) — cost if wrong: none
 
 ## Deferred
 - approach-review 1.7 (Nice): bound the time or input of each logged regular expression so a pattern like `(a+)+$` cannot hang `accord approve`
@@ -61,3 +63,4 @@
 
 ## Tasks
 - task 1 done 49b0ad1d3f4c
+- task 2 done 5ca16020b771

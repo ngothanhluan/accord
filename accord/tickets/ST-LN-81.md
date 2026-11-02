@@ -62,7 +62,7 @@ Feature: ST-LN-81
     When the owner runs "accord scout check" on the report
     Then it prints 6 expected files, 2 code areas, the sensitive file with that entry's line number in "accord/config.yml", and that the request lifts to lane M for more than 5 files and for a sensitive area
 
-  @ac-4
+  @ac-4 @test:packages/cli/test/lane-commands.test.ts#accord-approve->-ac-4-a-lane-M-ticket-is-approved-only-with-a-scout-report-that-passes-the-check-or-says-why-it-was-skipped
   Scenario: A lane M ticket is approved only with a scout report that passes the check or says why it was skipped
     Given a lane M ticket
     When the owner runs "accord approve <id>" with no "accord/tickets/<id>/scout.md", or with one that fails the check run at the commit that last changed it, or on the working tree while it has uncommitted changes, and that holds no line "skipped: <reason>"

@@ -55,6 +55,8 @@
 - Ruling: the ticket's own-file set is built only when the report has Absent rows — only the Absent searches read it, so a report without rows skips the read of the ticket (task 3) — cost if wrong: none; citations and file lists ignore it by design
 - Ruling: `configLists` sensitive entries now carry `line`, and `sensitiveEntries` in packages/core/src/gate/scope.ts passes the extra property through unchanged — the gate looks entries up by area and path only, so it behaves as before (task 4) — cost if wrong: a deep-equal test on `sensitiveEntries` output would need `line` stripped; none exists today
 - Ruling: `lastCommitOf` returns undefined on any git failure and `hasLocalChanges` throws a usage error on failure — as the plan's Task 5 states (task 5) — cost if wrong: none expected
+- Ruling: `scoutCheckCommand` and the approve refusal share one private `judge` in packages/cli/src/commands/scout.ts that builds the config and rendered-path inputs and calls the core check once — the two cannot drift apart (task 6) — cost if wrong: none, internal only
+- Ruling: `makeLaneRepo` also seeds a skipped report for its own lane M ticket T-1, and skips any ticket whose `scout.md` the caller passes — otherwise every test using the helper refuses at approve (task 6) — cost if wrong: a test that wants no T-1 report deletes it, as the ac-4 test does
 
 ## Deferred
 - approach-review 1.7 (Nice): bound the time or input of each logged regular expression so a pattern like `(a+)+$` cannot hang `accord approve`
@@ -70,3 +72,4 @@
 - task 3 done f7f1e57911d3
 - task 4 done da069be272fe
 - task 5 done cc797d46096f
+- task 6 done 1b7e7e16a226

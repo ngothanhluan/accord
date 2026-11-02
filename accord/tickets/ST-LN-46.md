@@ -25,17 +25,17 @@ ui: false
 # The AC hash and the commit the ticks were made against.
 # verified_hash:
 # verified_commit:
-approved_hash: "fnv1a64:3cb39cb82b1a0f95"
-ac_hash: "fnv1a64:d40290c736e3ef66"
+approved_hash: "fnv1a64:742885978d0e79eb"
+ac_hash: "fnv1a64:74ec832c632a78d3"
 ---
 
 ## Intent
 <!-- At most five lines: why, for whom, how success is measured, and what this does not do. -->
 Why: the scout's model and effort were never measured beyond haiku at low and medium (round 1 held 0 of 5 and 1 of 5 on wrong facts alone); the shipped default is haiku low, this repository runs sonnet low unmeasured, and the scout's real faults are false "only"/"none" claims and missed wiring files, which round 1 did not score.
 For: the owner choosing the scout's default from evidence (quality > cost > speed).
-Success: a committed round 2 report runs six arms (haiku and sonnet at low, medium and high) on the same samples, scores each run by script on scout check, contradicted `## Absent` rows and wiring recall against the files the ticket's merged diff changed, shows cost-weighted figures, and names the cheapest arm that ties the best one within the spread of repeated runs.
+Success: a committed round 2 report runs six arms (haiku and sonnet at low, medium and high) on the same samples, scores each run by script on scout check, contradicted `## Absent` rows and wiring recall against the files the ticket's merged diff changed, shows cost-weighted figures, and names the cheapest arm that ties the best one within the spread of repeated runs; it does the same for the reply after one repair by a fresh scout of the same model and effort when the first reply fails scout check, the cost being both runs, as the scout's real flow does (D-10).
 The harness takes the model as an arm. Transcripts were backed up by hand on 2026-11-02 to a folder outside the transcript folders, so nothing here races their expiry.
-Not here: changing the scout's default or this repository's config (D-01); the executor, planner and other roles; routing per request; gathering samples from done tickets, prose-claim scoring, judges, reuse of runs already made, and the round 1 measurement fixes (D-09).
+Not here: changing the scout's default or this repository's config (D-01); the executor, planner and other roles; routing per request; gathering samples from done tickets, prose-claim scoring, judges, reuse of runs already made (except the r2-scout first replies the repair of D-10 takes as input), and the round 1 measurement fixes (D-09).
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.
@@ -63,6 +63,13 @@ Feature: ST-LN-46
     When the round report is written
     Then each arm shows, per measure, its mean and the lowest-to-highest range of its pass means, a pass being its k-th run over every sample, and its mean cost per run, tokens weighted fresh input 1, cache read 0.1, cache write 1.25 and output 5, times the price factor of its model in the round definition
     And the report names the arm with the lowest mean cost per run whose mean on each of the three measures lies within the pass-mean range of the arm that is best on that measure (highest for scout check passes and recall, lowest for false claims, the cheapest of equally best arms; a pass counts only with a run on every sample), or the best arm when one arm is best on all three and no cheaper one ties, or no winner and the best arm of each measure when the measures have different best arms and no arm ties all three
+
+  @ac-4
+  Scenario: The report also names the winner after one repair, as the scout's real flow does
+    Given a scored scout run whose reply fails scout check, and one fresh scout of the same model and effort dispatched with that reply and everything the check printed
+    When the round report is written
+    Then that run is scored on the three measures on the repaired reply, the first reply standing when it passed, and a run whose repair is missing is listed as not counted
+    And each arm shows its means, pass-mean ranges and mean cost per run after repair, the cost being both runs, and the winner after repair is named the same way as ac-3
 ```
 
 ## Vetoes
@@ -114,3 +121,4 @@ Feature: ST-LN-46
 - Risks: approach-review 5.1 (Should, accepted by the owner, carried into the plan) — a file the reply cites for another fact at a line that names the subject hides a contradicting "only" claim; the plan allows a cited file only when every line of it matching the subject is cited. Deferred Nice items 1.9, 2.3, 2.4 and 4.2 stay in the ledger for the plan. Prose claims with no single subject or no folder are shown beside the false-claim measure, not in it, the same for every arm. Data deletion: the three failure scenarios and their undo are in the Failure handling bullet above.
 - Test strategy: ac-1 (plan rows per arm), ac-3 (report ranges, cost, winner or no winner) and ac-4 (cached scores, no re-run) as pure functions in packages/core/test/benchmark-arms.test.ts; ac-2 (three measures by script) on a temp git repo with a known reply, Absent rows and prose claims, in the same file; ac-5 (gather) in packages/core/test/benchmark-gather.test.ts on a temp repo and transcript folder; `risk:data-loss` tests for gather copying before any check and never overwriting, and for `--clean` refusing while a named round has unscored rows; the round-1 tests listed above stay green unchanged.
 - Change of course (2026-11-02, at build task 1 of 10, D-09): what failed — the approach grew to ten tasks and a plan of about 650 lines for a benchmark that runs one prompt on six arms; the owner cut it to ac-1 to ac-3. Finished work that holds: task 1 (round definitions, `--round <name> --plan` rows, bench root, worktrees and briefs per row, commit 9632d753). New approach: the same named rounds on the round-1 harness, with only three more steps — (1) a pure scout scorer: scout check by core `scoutCheck`, contradicted `## Absent` rows re-searched at the sample's commit, and recall against the sample's merged-diff file list (D-03), no prose claims and no judges; (2) the arm report of ac-3 (D-02, D-06, D-07, D-08); (3) `--round <name>` matching each row's transcript by its tag, scoring it and writing docs/benchmark/round-<name>.md, with no cached state beyond what matching needs. Dropped from the lines above: `--gather`, gathered samples, prose claims, k judges, minutes and overlap, the `--clean` guard, and cached scores (ac-4, ac-5).
+- Change of course (2026-11-02, at review, D-10): what changed — the owner asked for the reply after the scout's one repair, which the first-reply report does not show; ac-4 was added. Finished work that holds: tasks 1 to 4 and the committed r2-scout first-reply report. New step: one more task — `--round <name> --repair` prints a dispatch row per counted run whose reply fails scout check (tag: the run's tag plus `-fix`, the same model and effort, a brief holding the first reply and everything the check printed, asking for the same reply corrected in the same form, as packages/core/skills/shared/scout.md step 2); `--round <name>` matches those runs by tag, scores the repaired reply (the first reply standing when it passed), adds both runs' cost, and writes a second arm table and winner "after one repair" under the first one with the same `armReport`; a failing run with no repair run is listed as not counted. Test ac-4 as a pure function in packages/core/test/benchmark-arms.test.ts.

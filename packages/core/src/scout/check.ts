@@ -1,6 +1,8 @@
 // ST-LN-81: the one function that judges a scout report against host facts it is given (a tracked path list and
 // a read callback). Pure: no node import, no filesystem; the CLI hands it the working tree's or a commit's facts.
-import { normaliseText } from '../load/frontmatter.js';
+import { normaliseText, splitFrontmatter } from '../load/frontmatter.js';
+import { isResearchRecord } from '../load/research.js';
+import { parseYamlMap } from '../load/yaml.js';
 import { parseScoutReport } from './report.js';
 
 export interface ScoutFacts {
@@ -70,6 +72,31 @@ function readAll(facts: ScoutFacts, paths: readonly string[]): (string | undefin
   return out;
 }
 
+const SAVED_REPORT = /^accord\/tickets\/([^/]+)\/scout\.md$/;
+
+/**
+ * The files no Absent row searches: the report itself and, for a saved report, its ticket file, everything under
+ * the ticket's folder, and the research records its ticket lists. A missing or unreadable ticket adds no record.
+ */
+function ownFiles(facts: ScoutFacts, tracked: readonly string[]): Set<string> {
+  const own = new Set<string>();
+  if (facts.path === undefined) return own;
+  own.add(facts.path);
+  const id = SAVED_REPORT.exec(facts.path)?.[1];
+  if (id === undefined) return own;
+  const ticket = 'accord/tickets/' + id + '.md';
+  own.add(ticket);
+  for (const p of tracked) if (p.startsWith('accord/tickets/' + id + '/')) own.add(p);
+  const text = facts.read([ticket])[0];
+  if (text === undefined) return own;
+  const yaml = splitFrontmatter(text).yaml;
+  if (yaml === null) return own;
+  const research = parseYamlMap(ticket, yaml, 1).map?.research;
+  if (!Array.isArray(research)) return own;
+  for (const entry of research) if (typeof entry === 'string' && isResearchRecord(entry)) own.add(entry);
+  return own;
+}
+
 export function scoutCheck(facts: ScoutFacts): ScoutResult {
   const report = parseScoutReport(facts.text);
   const tracked = [...facts.tracked].sort(byCodePoint);
@@ -103,6 +130,7 @@ export function scoutCheck(facts: ScoutFacts): ScoutResult {
     if (c.numbers.some((n) => n < 1 || n > count)) failures.push(where + c.path + ' has ' + count + ' lines');
   }
 
+  const own = report.absent.length > 0 ? ownFiles(facts, tracked) : new Set<string>();
   for (const row of report.absent) {
     const where = 'absent claim "' + printedClaim(row.claim) + '" (row ' + row.line + '): ';
     let pattern: RegExp;
@@ -113,7 +141,7 @@ export function scoutCheck(facts: ScoutFacts): ScoutResult {
       continue;
     }
     const covers = coverage(row.folders, tracked);
-    const searched = tracked.filter(covers);
+    const searched = tracked.filter((p) => covers(p) && !own.has(p));
     if (searched.length === 0) {
       failures.push(where + 'its folders cover no tracked file');
       continue;

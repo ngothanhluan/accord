@@ -25,5 +25,9 @@ Round record: 1
 22. Nice — Task 3 leaves the `<y3 file>` form and session S3's cwd open; print `run.file` in the untied line and give S3 cwd `<t>/repo` — deferred
 
 ## Round 2 (whole)
+No findings
 
 Critic: no lens, limited by the owner to checking the round 1 fixes. fixed: 1.1, 1.2, 1.4, 1.6 to 1.12, 1.14, 1.15. withdrawn: none.
+
+## Closed
+Converged at round 2: 0 Must open, 0 Should open, 7 Nice deferred, 3 Should dropped by the owner to the executor.

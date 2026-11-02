@@ -47,6 +47,7 @@
 - Ruling: the owner's pick among untied lane-scout runs, and `--gather <id> <transcript>` for them, is a main-session step right after Task 3, before about 2026-11-11 — an executor cannot ask the owner — untied runs are lost if the main session skips it
 - Ruling: round 1's listed transcripts are neither copied nor added by gather — they are round 1's own samples already — none
 - Ruling: placeholders already in plan.md with a space (`<short agent>`) stay as they are; only new or touched ones are hyphenated — the plan gate passes with them — a lint warning
+- Ruling: step 7's baseline `tests.full` runs in CI on a draft pull request instead of locally — the owner replaced the ~30 min local run with CI (ST-LN-17, ST-LN-75), and nothing outside accord/ changed since the baseline 2bd987e5 — a baseline failure is seen after the first build commits instead of before
 
 ## Deferred
 - approach-review 1.9 (Nice): score scout check on the blobs at the sample commit, as `commitFacts` does, rather than on worktree files after the setup commands ran

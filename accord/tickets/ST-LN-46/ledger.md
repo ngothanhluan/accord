@@ -64,3 +64,8 @@
 - plan-review 1.3 (Should, dropped by the owner to the executor): match a prose claim's subject against Absent rows with identifier bounds, not as a substring
 - plan-review 1.5 (Should, dropped by the owner to the executor): Task 4's test holds the `src/a.ts:1,3` span in the same reply, which cites both `qux` lines; move that span to a second reply
 - plan-review 1.13 (Should, dropped by the owner to the executor): the Task 1 fixture cannot hold its own commit's sha; commit the json files in a later commit C and keep `base: B`
+- plan-review round 2, out of scope (executor): Task 2 runGather steps (2) and (3) never say to apply `ticketRuns`; the ac-5 test catches it through x3 and x4
+- plan-review round 2, out of scope (executor): Task 5's `zed` Absent row folder `accord` holds only the ticket file, so scoutCheck adds "its folders cover no tracked file" (check.ts:171-174) and `detail.failures` is 2, not 1; add a non-ticket file under `accord/`
+- plan-review round 2, out of scope (executor): a missing benchmark-samples.json counts as an empty list in Task 2 step (2); the Task 3 fixture has none
+- plan-review round 2, out of scope (approach): the untied-scout window is the 24 hours before the claim commit, so a ticket queued in a backlog PR and claimed days later never lists its lane scout; the `new ticket` commit is a better anchor
+- plan-review round 2, out of scope (approach): runs the owner names are stored with `replay.ok: false` (ticket missing at base), so r2-scout leaves them out; the untied path keeps transcripts from expiring but adds no round 2 sample

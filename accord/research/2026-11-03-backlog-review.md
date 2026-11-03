@@ -18,7 +18,7 @@ Which queued tickets overlap, are stale, or are too large; what is missing from 
 - ST-LN-16's first half is done: BUG-LN-2 ("The dashboard shows every claimed ticket at the stage its branch holds") has `status.test.ts:317` "a ticket filed only on its pushed claim branch shows at that branch stage without a fetch". The open question in ST-LN-16 predates it.
 - ST-LN-22 proposes `accord new ticket --title`; `packages/cli/src/run.ts:192` records "`--title` was rejected under D-104".
 - ST-LN-22 and ST-LN-68 name `accord-architect`; `packages/core/agents/` holds no architect since ST-LN-80.
-- `main` has no branch protection (`gh api repos/ngothanhluan/accord/branches/main/protection`: "Branch not protected"), as ST-LN-37 says.
+- `main` has no classic branch protection, but a ruleset "Protection Rules" (created 2026-10-22, after ST-LN-37 was queued) covers the default branch: one approving review, no force push or deletion, and `required_status_checks` with an empty list (`gh api repos/ngothanhluan/accord/rulesets/<id>`). So the accord check still blocks no merge, which is ST-LN-37's gap, now narrowed to that empty list.
 - `packages/core/skills/accord/lane.md:21` lists "auth, money or data deletion", without migration, as ST-LN-36 says.
 - 551 `## Deferred` items sit in ticket ledgers (counted by script over `accord/tickets/*/ledger.md`); ST-LN-12 covers only items deferred from now on.
 - Benchmark run worktrees are still on disk (`git worktree list`: `accord-bench/rep46`, `accord-bench/wt/r2-scout/scout-{1,2,4,5}`), as ST-LN-88 says.
@@ -54,7 +54,7 @@ Each finding lists 2-3 options; the first is the one recommended.
 - (b) Split into four tickets.
 
 **F6. Priorities predate the current pain.** The dashboard ranks ST-LN-36, 37, 38 (2026-10-22 audit) first; the owner's recent Corrections are about cost and over-engineering.
-- (a) Re-rank by hand: high for BUG-LN-20, BUG-LN-16, F1(a), M1, ST-LN-37; low for ST-LN-40, 41, 42, 50.
+- (a) Re-rank by hand: high for BUG-LN-20, BUG-LN-16, F1(a), M1, ST-LN-37 (its gap is now one empty required-checks list); low for ST-LN-40, 41, 42, 50.
 - (b) A scored field (impact, confidence, cost) the dashboard ranks by; a schema change, so a public interface.
 
 **F7. 551 deferred items have no path.**

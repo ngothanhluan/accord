@@ -35,8 +35,8 @@ Each finding lists 2-3 options; the first is the one recommended.
 - (c) Keep one ticket; risks the 40-task plan the owner objected to.
 
 **F2. The benchmark track costs more than it returns.** ST-LN-46, 89, 90, 85, 70.
-- (a) Close ST-LN-46 on the runs already made (72 first replies, 36 repairs) and let the owner pick the scout default from them; defer ST-LN-90 until ST-LN-91 changes what the planner does; let ST-LN-85 prove its cheap cuts with a rule-coverage test instead of benchmark replays.
-- (b) Replace synthetic samples with replays of real tickets (the owner's 2026-11-03 Correction), first in ST-LN-89.
+- (a) ST-LN-46 is not done: it goes on as the owner's 2026-11-03 Correction says, replicating real tickets instead of synthetic briefs, and ST-LN-89 and ST-LN-90 reuse that method; defer ST-LN-90 until ST-LN-91 changes what the planner does; let ST-LN-85 prove its cheap cuts with a rule-coverage test instead of benchmark replays.
+- (b) Stop widening the arms or samples of ST-LN-46 until one replicated ticket per arm has been shown to the owner (the smallest experiment first, ST-LN-93).
 - (c) Shadow runs: each new ticket runs a second scout arm beside the real one, so samples accrue from real work at a spread-out cost.
 
 **F3. Stale tickets.** ST-LN-15, 43, 16, BUG-LN-19, ST-LN-22 (`--title`, architect), ST-LN-68 (architect).
@@ -91,7 +91,7 @@ Each finding lists 2-3 options; the first is the one recommended.
 
 | Phase | Work | Cost |
 |---|---|---|
-| P0 | BUG-LN-20, BUG-LN-16 (lane S); close ST-LN-46 on the runs made (F2a) | low |
+| P0 | BUG-LN-20, BUG-LN-16 (lane S); ST-LN-46 goes on in its own worktree with real-ticket replication (F2a) | low to medium |
 | P1 | This groom: the record, notes in stale and overlapping tickets, drafts for M1, M3, M7 | low |
 | P2 | F1(a) with M1 and M7, measured on three tickets; then the discuss stage as stories, with M5 | medium |
 | P3 | ST-LN-59 with the executor half of ST-LN-56; ST-LN-92 after measuring the lock and memory waits; ST-LN-10 and ST-LN-72, narrowed | medium |

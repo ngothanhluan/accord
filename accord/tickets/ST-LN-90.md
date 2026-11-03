@@ -6,7 +6,7 @@ status: draft                              # draft | open | archived | dropped. 
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
 # Tickets that must reach done before this one can start.
 depends_on: ["ST-LN-46"]
-research: ["accord/research/2026-11-02-benchmark-per-agent.md"]
+research: ["accord/research/2026-11-02-benchmark-per-agent.md", "accord/research/2026-11-03-backlog-review.md"]
 # How the dashboard ranks this ticket: high | medium | low; absent means medium.
 # priority: medium
 # The epic this ticket belongs to.
@@ -36,6 +36,7 @@ Queued 2026-11-02, not approved; the intent interview replaces this:
 - Scoring, from round 1's misses: three of five were `accord gate plan` failing on `gate.plan-deferral` for "later" used as an adjective, which the real plan stage fixes in one gate revision but the benchmark scores on the first write; report a gate failure on wording apart from Must found in the plan, judge each run more than once (high 3 and high 4 were judge noise as much as effort), and either say "later" is forbidden in every sense in the prompt or stop the rule matching "a later <noun>".
 - Fix-round samples: ST-LN-48's plan took four critic rounds (round 2 Must: Task 11 put after review by applying round 1's fix word for word; round 3 Should 3.2 the same misorder), and ST-LN-44's first plan took 5 Must and 14 Should (`verify: check:` ids are not junit cases and `accord task-done` refuses them, packages/core/src/gate/task.ts:27-33; ac tests recorded before the run whose files they read; tasks reading executor reports nothing stores). Run them with and without a self-check line: check every step against the order of the build, review and verify skills; every `verify:` id is a junit case that passes when its task is recorded; tests read only committed files; `accord gate plan` could reject a `check:` id. Report which runs catch the findings.
 - "Or a new architecture": a GSD-style planner prompt is tried only if the planner still misses after the effort arms; owner, 2026-10-25: "why does the planner keep getting sent back by the critic, when gsd-plan does very well?". Uses the harness of ST-LN-46. Not here: the critic's model or effort (no ticket until the owner discusses it).
+- Backlog review 2026-11-03: proposed to wait for ST-LN-91, which changes what the planner writes, so the effort is not measured on a planner about to change (record F2).
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.

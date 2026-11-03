@@ -4,6 +4,7 @@ title: "Each /accord action is its own command, so a person sees what to type"
 type: "story" # story | bug. An epic uses its own template
 status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
+research: ["accord/research/2026-11-03-backlog-review.md"]
 # Tickets that must reach done before this one can start.
 # depends_on: ["OTHER-ID"]
 # How the dashboard ranks this ticket: high | medium | low; absent means medium.
@@ -33,6 +34,7 @@ Queued 2026-10-24, not approved; the intent interview replaces this:
 - Today one `/accord` skill carries the dashboard (no argument), `pick-up <id>`, `continue <id>`, `upgrade` and `<request>`; nothing in the command list tells a person which of these exist or what argument each takes.
 - Owner leans to separate commands (for example dashboard, pick-up, continue, new request, upgrade) over argument hints on the one command; the interview settles the names, whether `/accord <request>` stays, and how the dashboard's action line names them.
 - Must hold the Compatibility constraint: the same commands in Claude Code, Cursor, Copilot and Codex, one definition each, rendered; the hooks, the pane's buttons and the docs that say `/accord …` move with it.
+- Backlog review 2026-11-03: proposed to be decided together with ST-LN-83 (record F4).
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.

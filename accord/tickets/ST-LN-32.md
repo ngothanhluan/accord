@@ -4,6 +4,7 @@ title: "The owner approves a ticket from a short view of its main points, not th
 type: "story" # story | bug. An epic uses its own template
 status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
+research: ["accord/research/2026-11-03-backlog-review.md"]
 # Tickets that must reach done before this one can start.
 # depends_on: ["OTHER-ID"]
 # How the dashboard ranks this ticket: high | medium | low; absent means medium.
@@ -33,6 +34,7 @@ Queued 2026-10-21, not approved; the intent interview replaces this:
 - Today: `accord-intent` step 9 and `accord-approach` step 5 paste `accord show <id> --approval` unchanged, which prints the whole Intent, every clause of every criterion, every Decision and the whole Approach; for ST-LN-26 that was several screens, with a plain-words line per criterion below it.
 - Proposal to confirm at intent: the owner is shown a short view (purpose, one line per criterion, the decisions that matter, the risks kept) with the path of the full ticket; the yes still binds the full text through `approved_hash`, so the full text stays one step away and nothing approved is hidden.
 - To settle at intent: whether the short view is printed by the CLI (deterministic, e.g. a `--brief` form of `accord show`) or written by the session (can drift from the text); whether it replaces the plain-words lines; whether the verify report to the owner gets the same treatment; overlap with ST-LN-12 (the verify report) and ST-LN-29 (queuing ideas mid-session, as this ticket was).
+- Backlog review 2026-11-03: proposed merge into ST-LN-91, whose discuss stage ends in the one approval this short view serves (record F4).
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.

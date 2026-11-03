@@ -4,6 +4,7 @@ title: "A review finding names the property that must hold, and its fix makes it
 type: "story" # story | bug. An epic uses its own template
 status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
+research: ["accord/research/2026-11-03-backlog-review.md"]
 # Tickets that must reach done before this one can start.
 # depends_on: ["OTHER-ID"]
 # How the dashboard ranks this ticket: high | medium | low; absent means medium.
@@ -36,6 +37,7 @@ Queued 2026-10-25, not approved; the intent interview replaces this:
 - Research: `accord/research/2026-10-25-review-convergence.md` (evidence, not a contract).
 - Merged from the plugin audit (owner, 2026-10-25, to the plugin audit's recommendation: "agreed. remember to save the research and have the related tickets reference it."): a reviewer of a fix diff gets the findings it re-checks and gives each one ADDRESSED or NOT ADDRESSED with `path:line`; a finding closes only on ADDRESSED, as plan critique closes one only after `fixed:`; anything outside the fix diff goes to the ledger as Deferred and starts no round (superpowers 7.0.0 `re-review-prompt.md`). Today accord-review steps 3 and 4 and lane-s step 4 give that reviewer the ticket, the package and the ledger only, and the main session writes `fixed in <sha>`.
 - Research: `accord/research/2026-10-25-plugin-audit.md` (evidence, not a contract).
+- Backlog review 2026-11-03: point (1) is ST-LN-91's checker rule; points (2)-(5) are executor behaviour, proposed to pair with ST-LN-59 (record F4).
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.

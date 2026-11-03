@@ -4,6 +4,7 @@ title: "A ticket's pull request cannot merge until accord's own CI check passes 
 type: "story" # story | bug. An epic uses its own template
 status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
+research: ["accord/research/2026-11-03-backlog-review.md"]
 # Tickets that must reach done before this one can start.
 # depends_on: ["OTHER-ID"]
 # How the dashboard ranks this ticket: high | medium | low; absent means medium.
@@ -33,6 +34,7 @@ Queued 2026-10-22, not approved; the intent interview replaces this:
 - Checked 2026-10-22: true locally, since `gate done` reads the `tests.report` file the session's own run wrote; but that file is gitignored and `.github/workflows/accord.yml` reruns the full suite and gates on its own report.
 - The real gaps: main has no branch protection or ruleset (`gh api`, 2026-10-22: "Branch not protected", rulesets `[]`), so the accord check never blocks a merge; accord-verify `ci.md` leaves out the accord workflow ("never wait for it"), so the owner's report never shows CI's gate verdict; a `pull_request` run uses the pull request's own `accord.yml`, test config and `accord/config.yml`, so the change under review can change what CI runs.
 - Proposal to confirm at intent: verify waits for the accord check on the verified commit and puts its verdict in the report; a ticket pull request that changes the accord workflow, the test config or the `tests.*` keys is flagged to the owner; `accord init` and the readme say how to make the accord check required. Rejected: pulling CI's report artifact into local `gate done` (network and gh, and the artifact comes from the same workflow the pull request controls). Related: ST-LN-11 (`accord init` CI runs `tests.full`).
+- Backlog review 2026-11-03: re-checked, main is still unprotected ("Branch not protected"); proposed to take in ST-LN-11 and be worked with BUG-LN-18 (record F4).
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.

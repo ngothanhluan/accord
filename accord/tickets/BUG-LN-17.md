@@ -4,6 +4,7 @@ title: "Two cli tests that pass alone time out under the full suite, so a baseli
 type: "bug" # story | bug. An epic uses its own template
 status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
+research: ["accord/research/2026-11-03-backlog-review.md"]
 # Tickets that must reach done before this one can start.
 # depends_on: ["OTHER-ID"]
 # How the dashboard ranks this ticket: high | medium | low; absent means medium.
@@ -33,6 +34,7 @@ Queued 2026-10-30, not approved; the intent interview replaces this:
 - Both were first sent to ST-LN-63 part 4: (2) by the owner ("a", 2026-10-28, PR #121, never merged), (1) by the owner ("Split it into a ticket, go on", 2026-10-30). ST-LN-63 was already in build, with an approved intent whose ac-4 names exactly four tests, so on 2026-10-30 the owner chose a ticket of their own for both instead ("New draft ticket").
 - Queued intent: each test passes inside the owner's full run within its own limit, whether through a cut on the command side or on the test side, as ST-LN-44 did.
 - Open for the interview: whether raising a limit counts as a fix (conventions.md asks a time bound to be wide enough for the full suite and below the stall it guards); whether one full run is enough to call each test fixed, since each failed in one run only; whether to measure again once ST-LN-63, which cuts the git processes per command, has merged.
+- Backlog review 2026-11-03: proposed merge into ST-LN-82 (record F4); the lane-commands test at :819 is now at :886.
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.

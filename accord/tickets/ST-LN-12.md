@@ -4,6 +4,7 @@ title: "Every deferred item is decided at verify: a backlog ticket or a reason t
 type: "story" # story | bug. An epic uses its own template
 status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
+research: ["accord/research/2026-11-03-backlog-review.md"]
 # Tickets that must reach done before this one can start.
 # depends_on: ["OTHER-ID"]
 # How the dashboard ranks this ticket: high | medium | low; absent means medium.
@@ -31,6 +32,7 @@ ui: false
 Queued 2026-10-17, not approved; the intent interview replaces this:
 - Dogfood item 22. At verify the owner decides each `## Deferred` item in the ledger: a draft ticket via `accord new ticket`, or dropped with a reason; `gate done` refuses an undecided item. No separate `accord deferred` command.
 - Today deferred items are carried by hand in docs/plans/2026-10-12-phase-2-dogfood.md and ticket ledgers (BUG-LN-2 holds 12).
+- Backlog review 2026-11-03: 551 Deferred items already sit in ticket ledgers and this ticket covers only new ones; options in record F7.
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.

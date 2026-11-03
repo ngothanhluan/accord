@@ -4,6 +4,7 @@ title: "Publish the next npm release"
 type: "story" # story | bug. An epic uses its own template
 status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
+research: ["accord/research/2026-11-03-backlog-review.md"]
 # Tickets that must reach done before this one can start.
 depends_on: ["ST-LN-8", "ST-LN-10", "ST-LN-11", "ST-LN-12", "ST-LN-13", "ST-LN-14", "ST-LN-16", "ST-LN-17", "BUG-LN-4"]
 # How the dashboard ranks this ticket: high | medium | low; absent means medium.
@@ -30,6 +31,7 @@ ui: false
 <!-- At most five lines: why, for whom, how success is measured, and what this does not do. -->
 Queued 2026-10-17, not approved; the intent interview replaces this:
 - Owner rule: release only after the whole queue is done, ST-LN-5 and ST-LN-7 included. 0.1.0 has no `dashboard` or `show`, so the panel fails for other users until this ships.
+- Backlog review 2026-11-03: stale. 0.2.0, 0.3.0 and 0.4.0 shipped (tag v0.4.0, 2026-11-02) while this ticket's depends_on still names draft tickets, so it shows blocked indefinitely; proposed: drop it, or replace the rule with a release policy the owner states (record F3).
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.

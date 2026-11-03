@@ -4,6 +4,7 @@ title: "A change to a skill's wording runs against a benchmark baseline before i
 type: "story" # story | bug. An epic uses its own template
 status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
+research: ["accord/research/2026-11-03-backlog-review.md"]
 # Tickets that must reach done before this one can start.
 # depends_on: ["OTHER-ID"]
 # How the dashboard ranks this ticket: high | medium | low; absent means medium.
@@ -33,6 +34,7 @@ Queued 2026-10-29, not approved; the intent interview replaces this:
 - Today a benchmark exists (`scripts/benchmark.mjs`, round 1 reported in `docs/benchmark/round-1.md`, from ST-LN-46), but nothing requires a change to a skill's or agent's wording under `packages/core/skills` or `packages/core/agents` to run against it, so a wording change can merge with no measured effect on how agents behave.
 - Queued intent: a ticket that changes a skill's or agent's wording records a benchmark run of the changed wording against a baseline before it merges, and the owner sees the comparison in the verify report.
 - Anthropic's skill authoring guide asks for evaluations with a baseline, tested on each model used. Research: `accord/research/2026-10-25-plugin-audit.md` §2 (the "Evaluations with a baseline, tested on each model used" row; evidence, not a contract).
+- Backlog review 2026-11-03: a benchmark per wording change costs more than it saves at today's benchmark cost; proposed: a static rule-coverage check plus the round counts ST-LN-17 records (record F8).
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.

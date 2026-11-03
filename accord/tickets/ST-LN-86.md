@@ -4,6 +4,7 @@ title: "An agent researches outside libraries, APIs and versions the code cannot
 type: "story" # story | bug. An epic uses its own template
 status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
+research: ["accord/research/2026-11-03-backlog-review.md"]
 # Tickets that must reach done before this one can start.
 depends_on: ["ST-LN-13", "ST-LN-80"]
 # How the dashboard ranks this ticket: high | medium | low; absent means medium.
@@ -35,6 +36,7 @@ Queued 2026-10-31, not approved; the intent interview replaces this:
 - Cost, from accord/research/2026-10-30-harness-architecture.md: quality > cost > speed (owner, 2026-10-30); multi-agent research used about 15x the tokens of one agent (section 3, Scout), so how many researchers run needs a reason.
 - Open for the interview (owner, 2026-10-30): what it searches and along which aspects (proposed: API and behaviour at the pinned version; versions and compatibility; known issues; prior art), and how many run (proposed: none by default, one per question group or library, in parallel, each writing a record).
 - Research: `accord/research/2026-10-30-research-records.md`, `accord/research/2026-10-30-harness-architecture.md` (evidence, not a contract).
+- Backlog review 2026-11-03: the architect and the approach stage this text names are gone or going (ST-LN-80, ST-LN-91); proposed to run the researcher in ST-LN-91's discuss stage.
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.

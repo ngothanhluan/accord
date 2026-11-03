@@ -4,6 +4,7 @@ title: "A hollow test checks what its name says again, and tests that only repea
 type: "story" # story | bug. An epic uses its own template
 status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
+research: ["accord/research/2026-11-03-backlog-review.md"]
 # Tickets that must reach done before this one can start.
 # depends_on: ["OTHER-ID"]
 # How the dashboard ranks this ticket: high | medium | low; absent means medium.
@@ -36,6 +37,7 @@ Queued 2026-10-22, not approved; the intent interview replaces this:
 - A2, medium confidence, owner decides per item. Rule-table guards, one group: core gate.test.ts:526, :535, :614, :626, :636, :862, :930; lint.test.ts:393. Core: gate.test.ts:287, :163; :686 (merge into :673); lint.test.ts:46; lane-plan.test.ts:60; lane-lint.test.ts:15; work.test.ts:35; skills.test.ts:204; scaffold.test.ts:313; schemas.test.ts:144 (keep the secret-name check), :186; bundle.test.ts:67 (trim, not delete); purity.test.ts:89, :97; gherkin.test.ts:172, :199, :222, :243 and sections.test.ts:196, :204 (loadSnapshot repeats of cheaper unit tests). Cli: load.test.ts:291, :208; init.test.ts:168, :177, :472, :509, :521, :389, :142; skills-sync.test.ts:562; workflow-script.test.ts:299; spawn-surface.test.ts:118 "skills sync" row; skill-commands.test.ts:91; lane-commands.test.ts:679, :612, :768; status.test.ts:105; pin.test.ts:50 (skills-sync.test.ts:340); hook.test.ts:39 (worktree.test.ts:1208, but the cheap one may be the better keeper); worktree.test.ts:514 (asserts this repo's config.yml setup list; named in ST-LN-7 plan.md:659). Naming: hook.test.ts:11-64 (5 tests) and all 7 in pin.test.ts lack an `ac-` or `risk:` prefix.
 - Also, from the plugin audit (owner, 2026-10-25, to the plugin audit's recommendation: "agreed. remember to save the research and have the related tickets reference it."): a rule that stops new hollow tests, for the executor, the planner and the reviewer's quality lens: name the production change that would make the test fail before writing it; never compute the expected value with the code under test; no test that only an intended change can fail; a mental mutation check before finishing (superpowers 7.0.0 `writing-good-tests.md`). Without it, the removals above come back.
 - Research: `accord/research/2026-10-25-plugin-audit.md` (evidence, not a contract).
+- Backlog review 2026-11-03: every line number here is from 8a8ba6f, 1,198 commits back (A0 moved from lane-commands.test.ts:95 to :163), and ST-LN-44 and ST-LN-75 have since moved or split tests; re-run the audit at the current commit before deleting anything. Proposed to follow ST-LN-82 (record F4).
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.

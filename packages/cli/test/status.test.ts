@@ -381,17 +381,27 @@ it('risk:regression on a git version before 2.45 a claim branch file a partial c
     const tip = commitAll(repo, 'task 1');
     gitRun(repo, 'update-ref', 'refs/heads/t/T-2', tip);
     gitRun(repo, 'reset', '-q', '--hard', baseSha);
+    // The plan's blob is the one the stand-in's partial clone lacks: every batch that reaches it stops there, as old git does,
+    // while a path a tree does not hold still reads `missing`.
+    const lacked = gitRun(repo, 'rev-parse', tip + ':accord/tickets/T-2/plan.md').trim();
+    const blobOf = (spec: string) => {
+      try {
+        return execFileSync('git', ['rev-parse', '--verify', '-q', spec], { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+      } catch {
+        return undefined;
+      }
+    };
     let stops = 0;
     spawnLog.fail = (args, options) => {
-      const specs = typeof options?.input === 'string' ? options.input.split('\n') : [];
-      const at = specs.findIndex((spec) => spec.endsWith(':accord/tickets/T-2/plan.md'));
-      if (!args.includes('cat-file') || !args.includes('--batch') || at < 0 || stops > 0) return false;
-      stops++;
+      if (!args.includes('cat-file') || !args.includes('--batch') || typeof options?.input !== 'string') return false;
+      const specs = options.input.split('\n');
       spawnLog.on = false; // the stand-in's own git is not the command's
       try {
-        const sha = gitRun(repo, 'rev-parse', specs[at]).trim();
-        const answered = at === 0 ? Buffer.alloc(0) : execFileSync('git', ['cat-file', '--batch'], { cwd: options?.cwd, input: specs.slice(0, at).join('\n') + '\n' });
-        const stderr = `warning: lazy fetching disabled; some objects may not be available\nfatal: could not fetch ${sha} from promisor remote\n`;
+        const at = specs.findIndex((spec) => spec.endsWith('/T-2/plan.md') && blobOf(spec) === lacked);
+        if (at < 0) return false;
+        stops++;
+        const answered = at === 0 ? Buffer.alloc(0) : execFileSync('git', ['cat-file', '--batch'], { cwd: repo, input: specs.slice(0, at).join('\n') + '\n' });
+        const stderr = `warning: lazy fetching disabled; some objects may not be available\nfatal: could not fetch ${lacked} from promisor remote\n`;
         return Object.assign(new Error('Command failed: git cat-file --batch'), { status: 128, stdout: answered, stderr: Buffer.from(stderr) });
       } finally {
         spawnLog.on = true;
@@ -402,11 +412,11 @@ it('risk:regression on a git version before 2.45 a claim branch file a partial c
       spawnLog.on = false;
       spawnLog.fail = undefined;
     });
-    expect(stops).toBe(1);
+    expect(stops).toBeGreaterThan(0);
     expect(json.code).toBe(0);
     const row = (JSON.parse(json.out) as StatusRow[]).find((r) => r.id === 'T-2');
-    expect(row).toMatchObject({ claimedBy: 'fixture@example.invalid', branch: 't/T-2' });
-    expect(row).not.toHaveProperty('tasksTotal');
+    // The ticket, read before the stop, is shown from its claim branch; the plan the clone lacks reads as absent, so no task is listed.
+    expect(row).toMatchObject({ claimedBy: 'fixture@example.invalid', branch: 't/T-2', stage: 'plan', tasksTotal: 0 });
   } finally {
     cleanup(repo);
   }

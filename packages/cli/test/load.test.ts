@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { loadSnapshot } from '@accord-dev/accord-core';
 import { describe, expect, it } from 'vitest';
 import { loadFromFs, UsageError } from '../src/load/fs.js';
+import { run } from './helpers/repo.js';
 
 const fixture = fileURLToPath(new URL('../../core/test/fixtures/valid-build/', import.meta.url));
 const golden = fileURLToPath(
@@ -46,7 +47,7 @@ function gitIn(tmp: string) {
     throw new Error('refusing to run git outside a temporary sandbox: ' + tmp);
   }
   return (...args: string[]) =>
-    execFileSync('git', args, { cwd: tmp, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    execFileSync('git', args, { cwd: tmp, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 });
 }
 const gitInit = (dir: string) => gitIn(dir)('init', '-q');
 // git object files are read-only on Windows; retries let rmSync win the race with the index writer.
@@ -287,6 +288,25 @@ describe('loadFromFs', () => {
       cleanup(tmp);
     }
   });
+
+  it('risk:regression lint does not exit 2 once git ls-files lists more than 1 MiB of paths (BUG-LN-20)', async () => {
+    const tmp = makeRepo();
+    try {
+      // Untracked files under one long directory name, which every listed path repeats, so few files pass
+      // 1 MiB; each absolute path stays under the 260 characters Windows allows. 6000 entries of ~186 bytes.
+      const dir = join(tmp, 'd'.repeat(180));
+      mkdirSync(dir);
+      for (let i = 0; i < 6000; i++) writeFileSync(join(dir, String(i).padStart(4, '0')), '');
+      const listing = gitIn(tmp)('ls-files', '--cached', '--others', '--exclude-standard', '-z');
+      expect(Buffer.byteLength(listing)).toBeGreaterThan(1024 * 1024);
+
+      const { code, err } = await run(['lint'], tmp);
+      expect(code).not.toBe(2);
+      expect(err).not.toContain('not a git repository (or git failed)');
+    } finally {
+      cleanup(tmp);
+    }
+  }, 120_000); // creating 6000 files is slow on Windows runners; wider than the config's 90 s, no stall to guard
 
   it('exposes exit code 2 on UsageError', () => {
     const dir = makeTmp();

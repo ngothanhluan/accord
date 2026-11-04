@@ -4,6 +4,7 @@ title: "The seven kept benchmark-worktree tests run --plan over every sample, so
 type: "story" # story | bug. An epic uses its own template
 status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
+research: ["accord/research/2026-11-03-backlog-review.md"]
 # Tickets that must reach done before this one can start.
 # depends_on: ["OTHER-ID"]
 # How the dashboard ranks this ticket: high | medium | low; absent means medium.
@@ -33,6 +34,7 @@ Queued 2026-10-30, not approved; the intent interview replaces this:
 - Queued intent: a sample filter in scripts/benchmark.mjs lets these tests run `--plan` over only the samples each one needs, so each is under 10 s in a full run, or kept with a reason and a ceiling the owner approves, as ST-LN-44 did.
 - Known constraints: the filter must not crash the executor loop at benchmark.mjs:859-862 (`rows.find(...)` returns undefined for a filtered-out sample, then `r.worktree` throws); it must keep the once-per-verifier-sample tests.full run and the report copy to its effort rows (benchmark.mjs:868-872, tested by #33); a real benchmark round still refuses a sample list that `checkSamples` rejects.
 - Open for the interview: whether the filter is a CLI flag, an environment variable, or a test-only entry; whether it relaxes `checkSamples` or runs after it; whether the 20-40 s guard test the critic sized for the crash fix is worth it or folds into an existing test.
+- Backlog review 2026-11-03: proposed merge into ST-LN-82, one test-cost budget (record F4).
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.

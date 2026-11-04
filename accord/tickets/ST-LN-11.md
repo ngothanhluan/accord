@@ -4,6 +4,7 @@ title: "CI and verify run the full test suite on the result that will merge"
 type: "story" # story | bug. An epic uses its own template
 status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
+research: ["accord/research/2026-11-03-backlog-review.md"]
 # Tickets that must reach done before this one can start.
 # depends_on: ["OTHER-ID"]
 # How the dashboard ranks this ticket: high | medium | low; absent means medium.
@@ -33,6 +34,7 @@ Queued 2026-10-17, not approved; the intent interview replaces this:
 - The accord-verify step that fetches and merges origin/main when behind moved to ST-LN-30 (its D-05, 2026-10-21); here verify runs `tests.full` on that merged result.
 - Added 2026-10-19 at the owner's "ok go with what you propose. as long as it is still good, has no impact and is still faster, that is fine": this repository's `ci.yml` runs two jobs on a pull request, ubuntu with Node 22 (the engines floor) and windows with Node 24 (the author's OS and the current LTS), and the full os x node matrix on a push to main. Why: a PR waits about 5 minutes, almost all of it the two windows jobs (`npm test` 198 s on Node 24, 254 s on Node 22, against 32-36 s on ubuntu); OS bugs and Node-version bugs are mostly independent, so two jobs cover both kinds. Cost: a bug only on windows with Node 22 shows after merge, on main, not on the PR. Rejected: skipping `ci` for PRs that touch only `accord/**`, since tests read this repository's own tickets and workflow (`show-approval.test.ts` "every real ticket", `workflow-script.test.ts`).
 - Decision to confirm at intent, same answer: `engines` stays `>=22.12.0`; the floor rises to Node 24 when Node 22 reaches end of life on 2027-04-30, or at the first npm release if that lands near it, and then the CLI checks the running Node version at start and exits 2 naming the version needed, since `engines` only warns.
+- Backlog review 2026-11-03: proposed merge into ST-LN-37, one CI gate (record F4).
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.

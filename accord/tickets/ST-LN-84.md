@@ -4,6 +4,7 @@ title: "A lasting rule the owner states reaches the repository, so every teammat
 type: "story" # story | bug. An epic uses its own template
 status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
+research: ["accord/research/2026-11-03-backlog-review.md"]
 # Tickets that must reach done before this one can start.
 # depends_on: ["OTHER-ID"]
 # How the dashboard ranks this ticket: high | medium | low; absent means medium.
@@ -34,6 +35,7 @@ Queued 2026-10-30, not approved; the intent interview replaces this:
 - Queued intent: when the owner states a lasting rule or overrides a skill at any stage, the agent offers to record it as a line in accord/product/conventions.md, a `Rejected:` line, or a backlog ticket, and writes it on a yes; today verify does this only for Corrections and Rulings.
 - Not here: an external memory plugin; a new memory store. Related: ST-LN-68 (refused options), ST-LN-22, ST-LN-28.
 - Open for the interview: how conventions stay small, since they are added to every executor brief; whether a conventions line cites its source ticket and date and lint warns when that ticket is dropped.
+- Backlog review 2026-11-03: proposed to take in ST-LN-68 (refused options) and the conventions input of ST-LN-22, and to offer a conventions line for a Correction that repeats across tickets (record F4, F5, M8).
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.

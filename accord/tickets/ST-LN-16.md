@@ -4,6 +4,7 @@ title: "The dashboard shows tickets a teammate has pushed without a manual git f
 type: "story" # story | bug. An epic uses its own template
 status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
+research: ["accord/research/2026-11-03-backlog-review.md"]
 # Tickets that must reach done before this one can start.
 # depends_on: ["OTHER-ID"]
 # How the dashboard ranks this ticket: high | medium | low; absent means medium.
@@ -31,6 +32,7 @@ ui: false
 Queued 2026-10-17, not approved; the intent interview replaces this:
 - Found while BUG-LN-3 was in review. `accord dashboard` reads the working tree, claim branches (`t/<id>` or the branch template) local and already fetched, and the default branch. It never fetches (packages/cli/src/load/fs.ts:552). A teammate's fresh claim stays invisible until `git fetch`, and tickets queued on a non-claim branch, such as PR #28's `backlog/queue-2026-10-17`, do not show at all.
 - Owner asked: "should the dashboard update tickets in real time for every branch? even the team's branches on the remote?", then "make a separate ticket. let's discuss it later." Open: whether the dashboard may touch the network (today it is offline and deterministic), and which branches beyond claims count.
+- Backlog review 2026-11-03: the stage-on-claim-branch half is done by BUG-LN-2 (packages/cli/test/status.test.ts:317); what is left is fetching without a manual git fetch and branches that are not claims, such as backlog/* (record F3).
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.

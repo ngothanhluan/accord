@@ -4,6 +4,7 @@ title: "An idea that comes up mid-session is queued as a draft ticket without le
 type: "story" # story | bug. An epic uses its own template
 status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
+research: ["accord/research/2026-11-03-backlog-review.md"]
 # Tickets that must reach done before this one can start.
 # depends_on: ["OTHER-ID"]
 # How the dashboard ranks this ticket: high | medium | low; absent means medium.
@@ -32,6 +33,7 @@ Queued 2026-10-19, not approved; the intent interview replaces this:
 - Raised during ST-LN-27. Owner: "while working with an accord session, and suddenly a thought or idea comes up, or a note like this. we need 1 skill to queue it. on the gsd-core side there are notes, todo... to pickup later. on the accord side I think just creating a ticket is fine." Today queuing is done by hand: a `backlog/<topic>-<date>` branch off `origin/main`, `accord new ticket`, a note in `## Intent`, a pull request (ST-LN-27, ST-LN-28). Owner: "pull requests of the add-ticket kind, auto merge them".
 - Proposal to confirm at intent: a skill of its own name, such as `/accord-queue <idea>`, never `/accord add` (today `/accord add …` is a New request), so ST-LN-27's prompt-expansion hook, which matches only `/accord`, does not block it in a ticket session; it writes the draft on a backlog branch off `origin/main` without touching the session's ticket branch, opens the pull request, and merges it when config.yml says so. Queuing is not working a ticket, but ST-LN-27 D-09 refuses `accord new ticket` in a ticket session, so the CLI path needs an exception the owner approves.
 - Also to settle: look for a similar ticket first and offer to fold the idea in; an idea about the ticket being worked goes to that ticket's ledger, not a new ticket; overlap with ST-LN-16 (queued tickets on the dashboard), BUG-LN-3 (a backlog pull request passes the accord check), ST-LN-22 (`--title`) and ST-LN-12 (deferred items become draft tickets at verify).
+- Backlog review 2026-11-03: proposed merge into ST-LN-83, where queuing an idea is one of the intents (record F4).
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.

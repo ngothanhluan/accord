@@ -4,6 +4,7 @@ title: "A request that is not a change goes to its own path, not to a scout and 
 type: "story" # story | bug. An epic uses its own template
 status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
+research: ["accord/research/2026-11-03-backlog-review.md"]
 # Tickets that must reach done before this one can start.
 # depends_on: ["OTHER-ID"]
 # How the dashboard ranks this ticket: high | medium | low; absent means medium.
@@ -34,6 +35,7 @@ Queued 2026-10-30, not approved; the intent interview replaces this:
 - Candidate intents for the interview to settle: change (story or bug, lanes S/M as today), question about code or accord, brainstorm or explore an idea, research (ST-LN-13), queue an idea for later (ST-LN-29), review code accord did not build, debug with no ticket, release or operations (ST-LN-15), change or drop an approved ticket.
 - Queued intent: a short intent step before the lane step routes to a skill only; when unsure it defaults to a change request, says the route out loud, and the owner can override. Model and effort are never chosen by this step (12 tier-up misses before ST-LN-17 moved that rule into the CLI).
 - Open for the interview: which intents get a path now and which stay New requests; whether the route is printed by the CLI from the request text or judged by the main session; relation to ST-LN-49 (one command per action) and ST-LN-22.
+- Backlog review 2026-11-03: proposed to take in ST-LN-29 and to be decided together with ST-LN-49, one command-shape decision (record F4).
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.

@@ -2,13 +2,16 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setFrontmatterKey } from '@accord-dev/accord-core';
-import { afterAll, beforeAll, expect, it } from 'vitest';
+import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import type { Files } from '../../../test/helpers/lane.js';
 import { approve, CONFIG, gateReadyIn, laneTicket, P, PLAN } from '../../../test/helpers/lane.js';
 import { loadFromFs } from '../src/load/fs.js';
+import { spawnLog } from './helpers/git-spawns.js';
 import { commitAllAt, commitMsg, gitRun, run, writeFiles } from './helpers/repo.js';
 import type { Clone } from './helpers/worktree.js';
 import { copyClone, makeTemplate } from './helpers/worktree.js';
+
+vi.mock('node:child_process', async (orig) => (await import('./helpers/git-spawns.js')).wrapChildProcess(await orig()));
 
 const TICKET = 'accord/tickets/ST-9.md';
 
@@ -126,6 +129,44 @@ it('risk:complex-branching a merge from origin main after verify is a commit aft
     const fact = () => state;
     expect(fact()?.map((x) => x.sha)).toEqual([T, F, M]);
     expect(fact()?.at(-1)).toEqual({ sha: M, parents: [F, Mn], files: [] });
+  } finally {
+    c.cleanupAll();
+  }
+}, 120_000);
+
+// BUG-LN-19: git 2.36 to 2.47 list a clean merge's files wrong when --remerge-diff meets --reverse (fixed in git 2.48), so the
+// host's git version decided the answer. The pair is refused here, as a stand-in for that git, on whatever git runs the test.
+it('risk:regression on a git version that gets --remerge-diff with --reverse wrong a merge from main after verify has no files and review-package keeps commit order', async () => {
+  const c = copyClone(tpl, [other]);
+  try {
+    const B0 = c.git('rev-parse', 'HEAD').trim();
+    const { T } = tip(c);
+    const F = fix(c);
+    const { Mn, M } = mergeMain(c, c.others[0]);
+    writeFiles(c.root, { 'src/b.ts': 'b\n' });
+    const G = commit(c.root, 'fix two');
+    // --reverse without --remerge-diff is right on every git, so the oldest-first subjects come from it.
+    const subjects = c.git('log', '--reverse', '--format=%s', B0 + '..HEAD', '^origin/main', '--').trim().split('\n');
+    spawnLog.fail = (args) => args.includes('--remerge-diff') && args.includes('--reverse');
+    spawnLog.on = true;
+    const read = async () => ({ state: loadFromFs(c.root).afterVerify?.['ST-9'], pkg: await run(['review-package', 'ST-9', '--base', B0], c.root) });
+    const { state, pkg } = await read().finally(() => {
+      spawnLog.on = false;
+      spawnLog.fail = undefined;
+    });
+    expect(state?.map((x) => x.sha)).toEqual([T, F, M, G]);
+    expect(state?.find((x) => x.sha === M)).toEqual({ sha: M, parents: [F, Mn], files: [] });
+    expect(pkg.code).toBe(0);
+    expect(pkg.out).toContain('without origin/main');
+    const section = (from: string) => {
+      const start = pkg.out.indexOf('\n' + from + '\n');
+      const end = pkg.out.indexOf('\n## ', start + 1);
+      return pkg.out.slice(start, end < 0 ? undefined : end);
+    };
+    const listed = (text: string) => [...text.matchAll(/^[0-9a-f]{7,} (.+)$/gm)].map((m) => m[1]);
+    expect(listed(section('## Stat'))).toEqual(subjects);
+    expect(listed(section('## Diff'))).toEqual(subjects);
+    expect(pkg.out).not.toContain('src/main.ts');
   } finally {
     c.cleanupAll();
   }

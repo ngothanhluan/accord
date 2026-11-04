@@ -4,6 +4,7 @@ title: "A ticket's tests are budgeted in seconds, reviewed for duplicates, and a
 type: "story" # story | bug. An epic uses its own template
 status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
+research: ["accord/research/2026-11-03-backlog-review.md"]
 # Tickets that must reach done before this one can start.
 # depends_on: ["OTHER-ID"]
 # How the dashboard ranks this ticket: high | medium | low; absent means medium.
@@ -34,6 +35,7 @@ Queued 2026-10-30, not approved; the intent interview replaces this:
 - Queued intent: the CLI reports the tests a ticket adds and their seconds against the plan baseline, with a budget in seconds, not a count; review has a test lens for duplicates, titles the body no longer checks, wrong layer and text-only checks; a fix extends the test that covers the code before adding a new one.
 - Not here: deleting tests by coverage alone (published studies lost 12.5-48% of fault detection); mutation testing (StrykerJS does not fit the CLI tests); the existing dedup and speed tickets ST-LN-43, ST-LN-44, ST-LN-74, ST-LN-75.
 - Open for the interview: is a test's cost counted in local Windows seconds or CI Linux seconds; do the 76 benchmark and dev-script tests count; do the 32 criterion tests that only check skill or agent text stay.
+- Backlog review 2026-11-03: proposed to take in ST-LN-74 and BUG-LN-17, with ST-LN-43 after it (record F4).
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.

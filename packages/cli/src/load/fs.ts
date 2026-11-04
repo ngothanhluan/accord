@@ -23,6 +23,7 @@ function gitTree(root: string): string[] {
       cwd: root,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
+      maxBuffer: 64 * 1024 * 1024,
     });
   } catch (err) {
     const e = err as { code?: string; stderr?: string };

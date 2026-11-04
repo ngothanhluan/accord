@@ -42,6 +42,45 @@
         4,
         5
       ]
+    },
+    "r2-replica": {
+      "agent": "accord-scout",
+      "arms": [
+        {
+          "model": "haiku",
+          "effort": "low"
+        },
+        {
+          "model": "haiku",
+          "effort": "medium"
+        },
+        {
+          "model": "haiku",
+          "effort": "high"
+        },
+        {
+          "model": "sonnet",
+          "effort": "low"
+        },
+        {
+          "model": "sonnet",
+          "effort": "medium"
+        },
+        {
+          "model": "sonnet",
+          "effort": "high"
+        }
+      ],
+      "runs": 1,
+      "judges": 0,
+      "prices": {
+        "haiku": 1,
+        "sonnet": 20
+      },
+      "pricesAt": "2026-11-02",
+      "samples": [
+        4
+      ]
     }
   }
 }

@@ -119,6 +119,17 @@ export function reviewPackage(ctx: CommandContext, id: string, options: { base?:
       return full([]);
     }
   };
+  // BUG-LN-19: oldest first without --reverse, since git 2.36 to 2.47 show a clean merge's changes wrong when --reverse meets
+  // --remerge-diff (fixed in git 2.48). Each commit's text starts at its \x01 header line; no diff or stat line starts with \x01.
+  const oldestFirst = (args: string[]): string => {
+    const text = log([...args, '--format=%x01%h %s']);
+    if (!text.startsWith('\x01')) return text;
+    const commits = text.slice(1).split('\n\x01');
+    return commits
+      .map((c, i) => (i < commits.length - 1 ? c + '\n' : c))
+      .reverse()
+      .join('');
+  };
   const f = branchFactFor(ctx, id, { defaultRef: def });
   const s = { ...ctx.snapshot, branchFacts: { [id]: f } };
   let parts: string[];
@@ -129,9 +140,9 @@ export function reviewPackage(ctx: CommandContext, id: string, options: { base?:
           '## Commits',
           gitLog(['--no-color', '--format=%h %s', base + '..HEAD', '^' + def, '--']).trimEnd() || '(none)',
           '## Stat',
-          log(['--reverse', '--no-color', '--no-ext-diff', '--stat', '--format=%h %s']).trimEnd() || '(no changes)',
+          oldestFirst(['--no-color', '--no-ext-diff', '--stat']).trimEnd() || '(no changes)',
           '## Diff',
-          log(['--reverse', '--no-color', '--no-ext-diff', '-p', '-U10', '--format=%h %s']).trimEnd() || '(no changes)',
+          oldestFirst(['--no-color', '--no-ext-diff', '-p', '-U10']).trimEnd() || '(no changes)',
         ]
       : [
           `# Review package: ${id} (${range})`,

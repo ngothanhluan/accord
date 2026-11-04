@@ -3,14 +3,18 @@
 // only way to pin a table), the character-set invariants that make that table safe on a legacy Windows
 // console — ASCII only, no escape, one row per line (PITFALLS section 12, T-05-11) — and the D-93
 // archived filter with its never-silent hidden count.
+import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { StatusRow } from '@accord-dev/accord-core';
 import { approve, laneTicket, P, PLAN, type Files } from '../../../test/helpers/lane.js';
+import { spawnLog } from './helpers/git-spawns.js';
 import { cleanup, commitAll, commitAllAt, gitRun, makeLaneRepo, makeRepo, run, writeFiles } from './helpers/repo.js';
+
+vi.mock('node:child_process', async (orig) => (await import('./helpers/git-spawns.js')).wrapChildProcess(await orig()));
 
 const ESC = String.fromCharCode(27);
 
@@ -334,7 +338,8 @@ it('ac-1 a ticket filed only on its pushed claim branch shows at that branch sta
     gitRun(repo, 'clone', '-q', '--filter=blob:none', pathToFileURL(repo).href, clone);
     gitRun(clone, 'config', 'user.email', 'an@example.com');
     const sha = gitRun(clone, 'rev-parse', 'refs/remotes/origin/t/T-2:accord/tickets/T-2.md').trim();
-    const absent = () => gitRun(clone as string, '--no-lazy-fetch', 'cat-file', '-e', sha);
+    // BUG-LN-19: the variable, not the `--no-lazy-fetch` option, which git only has from 2.45; before it the probe threw on the option.
+    const absent = () => execFileSync('git', ['cat-file', '-e', sha], { cwd: clone, stdio: 'ignore', env: { ...process.env, GIT_NO_LAZY_FETCH: '1' } });
     expect(absent).toThrow();
     expect((await run(['status', '--json'], clone)).code).toBe(0);
     expect((await run(['dashboard'], clone)).code).toBe(0);
@@ -359,6 +364,61 @@ it('ac-1 a ticket filed only on its pushed claim branch shows at that branch sta
   } finally {
     cleanup(repo);
     if (clone !== undefined) cleanup(clone);
+  }
+});
+
+// BUG-LN-19: git before 2.45 stops a whole `cat-file --batch` at the first blob a partial clone lacks ("could not fetch … from
+// promisor remote"), where newer git prints `<spec> missing` and goes on. That stop is played here, on whatever git runs the test.
+it('risk:regression on a git version before 2.45 a claim branch file a partial clone lacks reads as absent and status exits 0', async () => {
+  const repo = makeLaneRepo();
+  try {
+    const baseSha = commitAll(repo);
+    writeFiles(repo, { 'accord/tickets/T-2.md': laneTicket('T-2') });
+    approveIn(repo, 'T-2');
+    writeFiles(repo, { 'accord/tickets/T-2/plan.md': PLAN3 });
+    commitAll(repo, 'plan: T-2 ready');
+    writeFiles(repo, { 'accord/tickets/T-2/ledger.md': '## Tasks\n- task 1 done abc1234\n' });
+    const tip = commitAll(repo, 'task 1');
+    gitRun(repo, 'update-ref', 'refs/heads/t/T-2', tip);
+    gitRun(repo, 'reset', '-q', '--hard', baseSha);
+    // The plan's blob is the one the stand-in's partial clone lacks: every batch that reaches it stops there, as old git does,
+    // while a path a tree does not hold still reads `missing`.
+    const lacked = gitRun(repo, 'rev-parse', tip + ':accord/tickets/T-2/plan.md').trim();
+    const blobOf = (spec: string) => {
+      try {
+        return execFileSync('git', ['rev-parse', '--verify', '-q', spec], { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+      } catch {
+        return undefined;
+      }
+    };
+    let stops = 0;
+    spawnLog.fail = (args, options) => {
+      if (!args.includes('cat-file') || !args.includes('--batch') || typeof options?.input !== 'string') return false;
+      const specs = options.input.split('\n');
+      spawnLog.on = false; // the stand-in's own git is not the command's
+      try {
+        const at = specs.findIndex((spec) => spec.endsWith('/T-2/plan.md') && blobOf(spec) === lacked);
+        if (at < 0) return false;
+        stops++;
+        const answered = at === 0 ? Buffer.alloc(0) : execFileSync('git', ['cat-file', '--batch'], { cwd: repo, input: specs.slice(0, at).join('\n') + '\n' });
+        const stderr = `warning: lazy fetching disabled; some objects may not be available\nfatal: could not fetch ${lacked} from promisor remote\n`;
+        return Object.assign(new Error('Command failed: git cat-file --batch'), { status: 128, stdout: answered, stderr: Buffer.from(stderr) });
+      } finally {
+        spawnLog.on = true;
+      }
+    };
+    spawnLog.on = true;
+    const json = await run(['status', '--json'], repo).finally(() => {
+      spawnLog.on = false;
+      spawnLog.fail = undefined;
+    });
+    expect(stops).toBeGreaterThan(0);
+    expect(json.code).toBe(0);
+    const row = (JSON.parse(json.out) as StatusRow[]).find((r) => r.id === 'T-2');
+    // The ticket, read before the stop, is shown from its claim branch; the plan the clone lacks reads as absent, so no task is listed.
+    expect(row).toMatchObject({ claimedBy: 'fixture@example.invalid', branch: 't/T-2', stage: 'plan', tasksTotal: 0 });
+  } finally {
+    cleanup(repo);
   }
 });
 

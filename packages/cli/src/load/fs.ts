@@ -425,8 +425,10 @@ export function parseAfterLog(raw: string, remerged: boolean): AfterVerify {
  */
 function ownAfterVerify(root: string, def: string | undefined, want: { commit: string; tips: string[] }): AfterVerify | undefined {
   const opts = { cwd: root, ...GIT_QUIET, maxBuffer: 64 * 1024 * 1024, env: { ...process.env, GIT_NO_LAZY_FETCH: '1' } };
+  // BUG-LN-19: no --reverse, since git 2.36 to 2.47 list a clean merge's files wrong when it meets --remerge-diff (fixed in git
+  // 2.48); the list is put oldest first below instead, which is all --reverse does.
   const args = (remerge: boolean) => [
-    '-c', 'core.quotePath=false', '-c', 'log.showSignature=false', 'log', '--no-show-signature', '-z', '--topo-order', '--reverse', '--format=%x01%H%x00%P', '--name-only', '--no-renames',
+    '-c', 'core.quotePath=false', '-c', 'log.showSignature=false', 'log', '--no-show-signature', '-z', '--topo-order', '--format=%x01%H%x00%P', '--name-only', '--no-renames',
     ...(remerge ? ['--remerge-diff'] : []), ...want.tips, '^' + want.commit, ...(def === undefined ? [] : ['^' + def]), '--',
   ];
   let raw: string;
@@ -441,7 +443,7 @@ function ownAfterVerify(root: string, def: string | undefined, want: { commit: s
       return undefined;
     }
   }
-  return parseAfterLog(raw, remerged);
+  return parseAfterLog(raw, remerged).reverse();
 }
 
 /**
@@ -829,12 +831,9 @@ function gitDefaultBranch(root: string): DefaultBranch {
   const refs = ['refs/remotes/origin/HEAD', 'refs/remotes/origin/main', 'refs/remotes/origin/master'];
   let out: Buffer;
   try {
-    out = execFileSync('git', ['-c', 'credential.interactive=never', 'cat-file', '--batch'], {
-      cwd: root,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      maxBuffer: 64 * 1024 * 1024,
+    out = catFileBatch(root, [...refs.flatMap((r) => [r, r + ':accord/config.yml']), 'HEAD'], {
+      pre: ['-c', 'credential.interactive=never'],
       env: { ...process.env, GIT_NO_LAZY_FETCH: '1', GIT_TERMINAL_PROMPT: '0', GCM_INTERACTIVE: 'never' },
-      input: refs.map((r) => r + '\n' + r + ':accord/config.yml\n').join('') + 'HEAD\n',
     });
   } catch {
     return { exists: true };
@@ -1002,6 +1001,54 @@ export function loadLight(root: string): { input: SnapshotInput; parts: LightLoa
   return { input, parts: lightLoad as LightLoad };
 }
 
+/** How many whole answers a `cat-file --batch` output starts with, and where they end: `<oid> <type> <size>` and its content, or one `<spec> missing` line. */
+function batchAnswers(out: Buffer): { count: number; end: number } {
+  let count = 0;
+  let at = 0;
+  for (;;) {
+    const nl = out.indexOf(10, at);
+    if (nl < 0) return { count, end: at };
+    const m = /^[0-9a-f]+ [a-z]+ (\d+)$/.exec(out.toString('utf8', at, nl));
+    const end = m === null ? nl + 1 : nl + 1 + Number(m[1]) + 1;
+    if (end > out.length) return { count, end: at };
+    count++;
+    at = end;
+  }
+}
+
+/**
+ * The output of one `git cat-file --batch` over `specs`, run with `options` and no lazy fetch, as git 2.45 and newer give it.
+ * BUG-LN-19: before git 2.45, a blob a partial clone lacks stops the whole batch ("could not fetch … from promisor remote",
+ * exit 128) where newer git prints `<spec> missing`; the answers before it stand, it reads as missing, and the rest are asked
+ * again, so one more git process per such blob, on that git only. Any other failure is thrown as git gave it.
+ */
+function catFileBatch(root: string, specs: readonly string[], options: { pre?: string[]; env?: NodeJS.ProcessEnv; maxBuffer?: number } = {}): Buffer {
+  const parts: Buffer[] = [];
+  let rest = specs;
+  for (;;) {
+    try {
+      parts.push(
+        execFileSync('git', [...(options.pre ?? []), 'cat-file', '--batch'], {
+          cwd: root,
+          stdio: ['pipe', 'pipe', 'pipe'],
+          maxBuffer: options.maxBuffer ?? 64 * 1024 * 1024,
+          env: options.env ?? { ...process.env, GIT_NO_LAZY_FETCH: '1' },
+          input: rest.map((s) => s + '\n').join(''),
+        }),
+      );
+      return Buffer.concat(parts);
+    } catch (err) {
+      const { stdout, stderr } = err as { stdout?: unknown; stderr?: unknown };
+      if (!Buffer.isBuffer(stdout) || !/ from promisor remote/.test(String(stderr ?? ''))) throw err;
+      const { count, end } = batchAnswers(stdout);
+      if (count >= rest.length) throw err;
+      parts.push(stdout.subarray(0, end), Buffer.from(rest[count] + ' missing\n'));
+      rest = rest.slice(count + 1);
+      if (rest.length === 0) return Buffer.concat(parts);
+    }
+  }
+}
+
 /** The five records of a ticket, as repository paths. */
 const recordPaths = (id: string): string[] => [
   'accord/tickets/' + id + '.md',
@@ -1059,13 +1106,7 @@ export function loadClaimView(root: string): { checkout: SnapshotInput; view: Sn
   const wanted = candidates.flatMap(([id, ref]) => recordPaths(id).map((path) => ref + ':' + path));
   let out: Buffer;
   try {
-    out = execFileSync('git', ['cat-file', '--batch'], {
-      cwd: root,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      maxBuffer: 64 * 1024 * 1024,
-      env,
-      input: wanted.map((spec) => spec + '\n').join(''),
-    });
+    out = catFileBatch(root, wanted, { env });
   } catch (err) {
     const stderr = String((err as { stderr?: string }).stderr ?? '').trim();
     throw new UsageError('git cat-file failed reading the claim branches' + (stderr === '' ? '' : '\n' + stderr));
@@ -1214,13 +1255,7 @@ export function gitDefaultRef(root: string): string | undefined {
 export function catBatch(root: string, specs: readonly string[], what: string, maxBuffer = 64 * 1024 * 1024): (string | undefined)[] {
   let out: Buffer;
   try {
-    out = execFileSync('git', ['cat-file', '--batch'], {
-      cwd: root,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      maxBuffer,
-      env: { ...process.env, GIT_NO_LAZY_FETCH: '1' },
-      input: specs.map((s) => s + '\n').join(''),
-    });
+    out = catFileBatch(root, specs, { maxBuffer });
   } catch (err) {
     const stderr = String((err as { stderr?: string }).stderr ?? '').trim();
     throw new UsageError('git cat-file failed reading ' + what + (stderr === '' ? '' : '\n' + stderr));
@@ -1699,7 +1734,7 @@ export function gitPeopleOnRefs(root: string): { byRef: Record<string, Record<st
   if (refs.length === 0) return { byRef };
   let out: Buffer;
   try {
-    out = execFileSync('git', ['cat-file', '--batch'], { ...opts, input: refs.map((r) => r + ':accord/config.yml\n').join('') });
+    out = catFileBatch(root, refs.map((r) => r + ':accord/config.yml'), { env: opts.env });
   } catch (err) {
     return fail('reading accord/config.yml on every ref', err);
   }

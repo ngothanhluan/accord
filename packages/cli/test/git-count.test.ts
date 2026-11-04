@@ -238,11 +238,12 @@ function oracleAfter(root: string, def: string, id: string, start: string | unde
   const wanted = commit.toLowerCase();
   const listed = gitRun(root, 'rev-list', '--ignore-missing', commit, '^' + def, '--').split('\n').filter((l) => l !== '');
   if (!listed.some((sha) => sha.startsWith(wanted))) return undefined;
+  // BUG-LN-19: oldest first in code, not with --reverse, which git 2.36 to 2.47 get wrong together with --remerge-diff.
   const args = [
-    '-c', 'core.quotePath=false', '-c', 'log.showSignature=false', 'log', '--no-show-signature', '-z', '--topo-order', '--reverse', '--format=%x01%H%x00%P', '--name-only', '--no-renames',
+    '-c', 'core.quotePath=false', '-c', 'log.showSignature=false', 'log', '--no-show-signature', '-z', '--topo-order', '--format=%x01%H%x00%P', '--name-only', '--no-renames',
     '--remerge-diff', ...tips, '^' + commit, '^' + def, '--',
   ];
-  return parseAfter(gitRun(root, ...args), true);
+  return parseAfter(gitRun(root, ...args), true).reverse();
 }
 
 let walked: { c: Clone; expected: Record<string, AfterList>; tips: Record<string, string[]> } | undefined;
@@ -331,7 +332,8 @@ beforeAll(() => {
 afterAll(() => walked?.c.cleanupAll());
 
 const isStdin = (a: string[]) => a.includes('log') && a.includes('--stdin');
-const isTopo = (a: string[]) => a.includes('log') && a.includes('--topo-order') && a.includes('--reverse');
+// The per-ticket after-verify log: --reverse in git-counts.before.json, dropped by BUG-LN-19, so --topo-order alone names it in both.
+const isTopo = (a: string[]) => a.includes('log') && a.includes('--topo-order');
 const isReviewStart = (a: string[]) => a.includes('log') && a.includes('-1') && a.includes('--format=%H') && (a[a.length - 1] ?? '').endsWith('/review.md');
 const isRevList = (a: string[]) => a.includes('rev-list') && a.includes('--ignore-missing');
 const afterReads = (a: string[]) => isTopo(a) || isReviewStart(a) || isRevList(a) || isStdin(a);

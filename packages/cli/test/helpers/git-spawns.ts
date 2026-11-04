@@ -5,12 +5,13 @@
 export const spawnLog: {
   on: boolean;
   calls: string[][];
-  fail?: (args: string[]) => boolean;
+  /** True fails the call with a generic git error; an Error is thrown as it is, so a test can stand in for a git version. */
+  fail?: (args: string[], options?: { cwd?: string; input?: unknown }) => boolean | Error;
   after?: (args: string[], options?: { cwd?: string }) => void;
 } = { on: false, calls: [] };
 
 type Fn = (...a: unknown[]) => unknown;
-type Options = { cwd?: string };
+type Options = { cwd?: string; input?: unknown };
 
 /** `(file, args?, options?, callback?)` in any of the shapes node allows. */
 function shape(rest: unknown[]): { args: string[]; options?: Options } {
@@ -31,13 +32,15 @@ export function wrapChildProcess<T extends object>(actual: T): T {
       if (file !== 'git' || !spawnLog.on) return fn.call(this, file, ...rest);
       const { args, options } = shape(rest);
       spawnLog.calls.push([...args]);
-      if (spawnLog.fail?.(args) === true) {
+      const failed = spawnLog.fail?.(args, options);
+      if (failed === true || failed instanceof Error) {
+        const error = failed === true ? injected() : failed;
         const callback = rest.find((r) => typeof r === 'function') as ((e: Error) => void) | undefined;
         if (async && callback !== undefined) {
-          queueMicrotask(() => callback(injected()));
+          queueMicrotask(() => callback(error));
           return undefined;
         }
-        throw injected();
+        throw error;
       }
       const result = fn.call(this, file, ...rest);
       if (spawnLog.after !== undefined) {

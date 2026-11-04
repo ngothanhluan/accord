@@ -1,0 +1,468 @@
+import { execFileSync, spawnSync } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { expect, it } from 'vitest';
+
+const root = fileURLToPath(new URL('../../../', import.meta.url));
+
+type Arm = { model: string; effort: string };
+type Def = { agent: string; arms: Arm[]; runs: number; judges: number; prices: Record<string, number>; pricesAt: string; samples: number[] };
+type Row = { tag: string; agent: string; n: number; ticket: string; model: string; effort: string; k: number; judge: null; prompt?: string };
+type Round = {
+  armMatrix: (def: Def, samples: { agent: string; n: number; ticket: string }[]) => Row[];
+  armTag: (agent: string, n: number, model: string, effort: string, k: number) => string;
+  checkRound: (name: string, def: unknown) => string[];
+  dispatchTable: (rows: Row[], name?: string) => string;
+  describe: (tag: string, name?: string) => string;
+};
+const roundMod = async () => (await import(new URL('../../../scripts/round.mjs', import.meta.url).href)) as Round;
+
+const SIX: Arm[] = ['haiku', 'sonnet'].flatMap((model) => ['low', 'medium', 'high'].map((effort) => ({ model, effort })));
+
+// A repository `<t>/repo` with a base commit B, two tickets merged into main (T-1 changes a.txt, T-9 adds its ticket file
+// and changes a.txt), a linked worktree `<t>/sub/linked` at B, and the sample and round files the script reads. Task 7
+// reuses this builder.
+function armsFixture(t: string) {
+  const repo = t + '/repo';
+  mkdirSync(repo, { recursive: true });
+  const git = (cwd: string, ...a: string[]) =>
+    execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', '-c', 'commit.gpgsign=false', ...a], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+  const msg = (text: string) => { writeFileSync(t + '/msg.txt', text); return t + '/msg.txt'; };
+  const commit = (cwd: string, text: string) => git(cwd, 'commit', '-q', '--no-verify', '-F', msg(text), '--cleanup=verbatim');
+  git(repo, 'init', '-q', '-b', 'main');
+  mkdirSync(repo + '/accord/tickets', { recursive: true });
+  writeFileSync(repo + '/a.txt', 'a\nb\nc\nd\ne\nf\ng\n');
+  writeFileSync(repo + '/accord/config.yml', 'setup: []\n');
+  writeFileSync(repo + '/accord/tickets/T-1.md', '---\nid: "T-1"\n---\n\n## Intent\nx\n');
+  git(repo, 'add', '.');
+  commit(repo, 'base');
+  const B = git(repo, 'rev-parse', 'HEAD');
+  git(repo, 'checkout', '-q', '-b', 't/T-1');
+  writeFileSync(repo + '/a.txt', 'A\nb\nc\nd\ne\nf\ng\n');
+  git(repo, 'commit', '-q', '-a', '--no-verify', '-F', msg('T-1 work'), '--cleanup=verbatim');
+  git(repo, 'checkout', '-q', 'main');
+  git(repo, 'merge', '--no-ff', '-q', '-F', msg("Merge branch 't/T-1'"), '--cleanup=verbatim', 't/T-1');
+  git(repo, 'checkout', '-q', '-b', 't/T-9', B);
+  writeFileSync(repo + '/accord/tickets/T-9.md', '---\nid: "T-9"\n---\n\n## Intent\ny\n');
+  writeFileSync(repo + '/a.txt', 'a\nb\nc\nd\ne\nf\nG\n');
+  git(repo, 'add', '.');
+  commit(repo, 'T-9 work');
+  git(repo, 'checkout', '-q', 'main');
+  git(repo, 'merge', '--no-ff', '-q', '-F', msg("Merge branch 't/T-9'"), '--cleanup=verbatim', 't/T-9');
+  const linked = t + '/sub/linked';
+  git(repo, 'worktree', 'add', '-q', '--detach', linked, B);
+  const bench = t + '/accord-bench';
+  const transcript = (n: number) => `C--x/S/subagents/agent-${n}.jsonl`;
+  const sample = (n: number, ticket: string) => ({ agent: 'accord-scout', n, transcript: transcript(n), ticket, base: B, main: B, root: t + '/orig', elsewhere: [], files: [], pairs: [] });
+  const def = (samples: number[]) => ({ agent: 'accord-scout', arms: [{ model: 'haiku', effort: 'low' }, { model: 'sonnet', effort: 'low' }], runs: 2, judges: 0, prices: { haiku: 1, sonnet: 3 }, pricesAt: '2026-11-02', samples });
+  const writeFiles = (dir: string) => {
+    mkdirSync(dir + '/scripts', { recursive: true });
+    writeFileSync(dir + '/scripts/benchmark-samples.json', JSON.stringify({ round: 1, samples: [sample(1, 'T-1'), sample(2, 'T-1'), sample(3, 'T-9')] }));
+    writeFileSync(dir + '/scripts/benchmark-rounds.json', JSON.stringify({ rounds: { 'r9-test': def([1, 2, 3]), 'r9-none': def([2]) } }));
+  };
+  writeFiles(repo);
+  writeFiles(linked);
+  for (const n of [1, 3]) {
+    const dir = `${bench}/samples/scout-${n}`;
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(dir + '/sample.json', JSON.stringify({ transcript: transcript(n), prompt: `Scout ${t}/orig for T-1.`, cwd: t + '/orig', ts: 0, reads: {} }));
+    writeFileSync(dir + '/root-reads.json', '[]');
+  }
+  const home = t + '/home';
+  mkdirSync(home, { recursive: true });
+  const cmd = (cwd: string, ...args: string[]) => {
+    const r = spawnSync(process.execPath, [join(root, 'scripts', 'benchmark.mjs'), ...args], { cwd, encoding: 'utf8', env: { ...process.env, HOME: home, USERPROFILE: home } });
+    return { status: r.status, stdout: r.stdout, stderr: r.stderr };
+  };
+  return { repo, linked, bench, B, git, cmd };
+}
+
+it('ac-1 a round plan lists every sample three times for each model and effort arm and a round for another agent is planned the same way', async () => {
+  const round = await roundMod();
+  const rounds = JSON.parse(readFileSync(join(root, 'scripts', 'benchmark-rounds.json'), 'utf8')).rounds as Record<string, Def>;
+  const r2 = rounds['r2-scout'];
+  expect(r2.agent).toBe('accord-scout');
+  expect(r2.arms).toEqual(SIX);
+  expect(r2.runs).toBe(3);
+
+  const samples = [1, 2, 4].map((n) => ({ agent: 'accord-scout', n, ticket: 'T-' + n }));
+  const rows = round.armMatrix({ ...r2, samples: [1, 2, 4] }, samples);
+  expect(rows).toHaveLength(54);
+  for (const s of samples) {
+    for (const arm of SIX) {
+      const own = rows.filter((r) => r.n === s.n && r.model === arm.model && r.effort === arm.effort);
+      expect(own.map((r) => r.k)).toEqual([1, 2, 3]);
+      expect(own.every((r) => r.agent === 'accord-scout' && r.ticket === s.ticket && r.judge === null && !('current' in r))).toBe(true);
+      expect(own.map((r) => r.tag)).toEqual([1, 2, 3].map((k) => `scout-${s.n}-${arm.model}-${arm.effort}-${k}`));
+    }
+  }
+  expect(rows.map((r) => r.n)).toEqual([...rows.map((r) => r.n)].sort((a, b) => a - b));
+  const table = round.dispatchTable(rows.map((r) => ({ ...r, prompt: 'p' })), 'r2-scout');
+  expect(table.split('\n')).toContain('| bench r2-scout scout-4-sonnet-high-3 | accord-scout | sonnet | high | p | - |');
+
+  const exec: Def = {
+    agent: 'accord-executor', arms: [{ model: 'sonnet', effort: 'high' }, { model: 'opus', effort: 'medium' }], runs: 2, judges: 0,
+    prices: { sonnet: 3, opus: 5 }, pricesAt: '2026-11-02', samples: [7],
+  };
+  expect(round.checkRound('r3-exec', exec)).toEqual([]);
+  const erows = round.armMatrix(exec, [{ agent: 'accord-executor', n: 7, ticket: 'T-7' }]);
+  expect(erows.map((r) => r.tag)).toEqual(['executor-7-sonnet-high-1', 'executor-7-sonnet-high-2', 'executor-7-opus-medium-1', 'executor-7-opus-medium-2']);
+  const etable = round.dispatchTable(erows.map((r) => ({ ...r, prompt: 'q' })), 'r3-exec').split('\n');
+  expect(etable).toContain('| bench r3-exec executor-7-opus-medium-2 | accord-executor | opus | medium | q | - |');
+  expect(etable).toContain('| bench r3-exec executor-7-sonnet-high-1 | accord-executor | sonnet | high | q | - |');
+  expect(round.describe('scout-1-low')).toBe('bench r1 scout-1-low');
+  expect(round.armTag('accord-scout', 4, 'sonnet', 'high', 3)).toBe('scout-4-sonnet-high-3');
+});
+
+it('risk:parsing a round definition with a bad name or agent or arm or price or run count or sample list is refused', async () => {
+  const round = await roundMod();
+  const good: Def = {
+    agent: 'accord-scout', arms: [{ model: 'haiku', effort: 'low' }, { model: 'sonnet', effort: 'high' }], runs: 3, judges: 0,
+    prices: { haiku: 1, sonnet: 3 }, pricesAt: '2026-11-02', samples: [1, 2],
+  };
+  expect(round.checkRound('r2-scout', good)).toEqual([]);
+  const only = (name: string, def: unknown, want: string) => expect(round.checkRound(name, def)).toEqual([want]);
+  only('r1', good, 'round name r1 must match r[a-z0-9-]+ and not be r1');
+  only('x2', good, 'round name x2 must match r[a-z0-9-]+ and not be r1');
+  only('r2-scout', { ...good, agent: 'accord-debugger' }, 'agent accord-debugger is not a benchmark agent');
+  only('r2-scout', { ...good, agent: 'accord-architect' }, 'agent accord-architect is not a benchmark agent');
+  only('r2-scout', { ...good, arms: [good.arms[0], { model: 'sonnet', effort: 'ultra' }] }, 'arm 2: effort ultra is not one of low, medium, high, xhigh, max');
+  only('r2-scout', { ...good, arms: [{ model: 'hai ku', effort: 'low' }, good.arms[1]] }, 'arm 1: model hai ku is not a model name');
+  only('r2-scout', { ...good, arms: [good.arms[0], good.arms[1], { model: 'haiku', effort: 'low' }] }, 'arm haiku low is listed twice');
+  for (const price of [undefined, 0, -1, '3']) {
+    const prices: Record<string, unknown> = { haiku: 1, sonnet: price };
+    only('r2-scout', { ...good, prices }, 'model sonnet has no positive price in prices');
+  }
+  for (const at of ['', '2026-11', '11/02/2026', '2026-13-45']) only('r2-scout', { ...good, pricesAt: at }, 'pricesAt must be a date YYYY-MM-DD');
+  for (const runs of [0, 1.5]) only('r2-scout', { ...good, runs }, 'runs must be a whole number of at least 1');
+  only('r2-scout', { ...good, judges: -1 }, 'judges must be a whole number of at least 0');
+  for (const samples of [[0, 1], [1, 1], [1.5], 'all', [1, '2']]) only('r2-scout', { ...good, samples }, 'samples must be a list of distinct whole numbers of at least 1');
+});
+
+it('risk:complex-branching a named plan run from a linked worktree uses the main checkout bench root and leaves out a sample that fails a step', () => {
+  const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'bench-')));
+  const t = tmp.replaceAll('\\', '/');
+  try {
+    const f = armsFixture(t);
+    const out = f.cmd(f.linked, '--round', 'r9-test', '--plan');
+    expect(out.stderr).not.toContain('does not parse');
+    expect(out.status).toBe(0);
+    const lines = out.stdout.split('\n');
+    expect(lines[0]).toBe(`bench root: ${t}/accord-bench`);
+    expect(out.stdout).not.toContain(`${t}/sub/accord-bench`);
+    expect(lines).toContain(`left out: accord-scout 2: no snapshot under ${t}/accord-bench`);
+    const rows = lines.filter((l) => l.startsWith('| bench r9-test '));
+    expect(rows).toHaveLength(8);
+    expect(rows).toContain(`| bench r9-test scout-3-sonnet-low-2 | accord-scout | sonnet | low | ${t}/accord-bench/briefs/r9-test/scout-3-sonnet-low-2.md | - |`);
+    expect(rows.some((l) => l.includes(' scout-2-'))).toBe(false);
+
+    const brief = (n: number) => readFileSync(`${t}/accord-bench/briefs/r9-test/scout-${n}-haiku-low-1.md`, 'utf8');
+    expect(brief(1)).toContain(`${t}/accord-bench/wt/r9-test/scout-1`);
+    expect(brief(1)).not.toContain(`${t}/orig`);
+    // The lane-style sample: its ticket does not exist at B, and its brief is written anyway.
+    expect(brief(3)).toContain(`${t}/accord-bench/wt/r9-test/scout-3`);
+    expect(f.git(`${t}/accord-bench/wt/r9-test/scout-1`, 'rev-parse', 'HEAD')).toBe(f.B);
+
+    const stateFile = `${t}/accord-bench/round-r9-test.json`;
+    const state = JSON.parse(readFileSync(stateFile, 'utf8')) as { rows: unknown[]; leftOut: Record<string, string> };
+    expect(state.rows).toHaveLength(8);
+    expect(state.leftOut['2']).toBe(`no snapshot under ${t}/accord-bench`);
+    expect(readdirSync(`${t}/accord-bench`).filter((n) => n.endsWith('.tmp'))).toEqual([]);
+
+    // A worktree removed by hand (as after --clean --force) is built again at base.
+    f.git(f.repo, 'worktree', 'remove', '--force', `${t}/accord-bench/wt/r9-test/scout-1`);
+    expect(existsSync(`${t}/accord-bench/wt/r9-test/scout-1`)).toBe(false);
+    const again = f.cmd(f.linked, '--round', 'r9-test', '--plan');
+    expect(again.status).toBe(0);
+    expect(f.git(`${t}/accord-bench/wt/r9-test/scout-1`, 'rev-parse', 'HEAD')).toBe(f.B);
+
+    writeFileSync(stateFile, '{"rows": [');
+    const broken = f.cmd(f.linked, '--round', 'r9-test', '--plan');
+    expect(broken.status).toBe(2);
+    expect(broken.stderr).toContain('does not parse');
+    expect(readFileSync(stateFile, 'utf8')).toBe('{"rows": [');
+
+    const none = f.cmd(f.linked, '--round', 'r9-none', '--plan');
+    expect(none.status).toBe(2);
+    expect(none.stderr).toContain('no sample left');
+  } finally {
+    rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+}, 120_000);
+
+// A repository for scoring: base B holds src/a.js, src/b.js (a use of `beta`), src/c.js and two ticket files; branch t/T-1
+// changes a.js, deletes c.js and adds new.js; branch t/T-10 changes b.js; both are merged into main.
+function scoutFixture(t: string) {
+  const repo = t + '/repo';
+  mkdirSync(repo + '/src', { recursive: true });
+  mkdirSync(repo + '/accord/tickets', { recursive: true });
+  const git = (cwd: string, ...a: string[]) =>
+    execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', '-c', 'commit.gpgsign=false', ...a], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+  const msg = (text: string) => { writeFileSync(t + '/msg.txt', text); return t + '/msg.txt'; };
+  const commit = (text: string) => git(repo, 'commit', '-q', '--no-verify', '-F', msg(text), '--cleanup=verbatim');
+  git(repo, 'init', '-q', '-b', 'main');
+  writeFileSync(repo + '/src/a.js', 'export const alpha = 1;\n');
+  writeFileSync(repo + '/src/b.js', 'export const beta = 2;\n');
+  writeFileSync(repo + '/src/c.js', 'export const chi = 3;\n');
+  writeFileSync(repo + '/accord/tickets/T-1.md', '---\nid: "T-1"\n---\n\n## Intent\nx\n');
+  writeFileSync(repo + '/accord/tickets/T-10.md', '---\nid: "T-10"\n---\n\n## Intent\ny\n');
+  git(repo, 'add', '.');
+  commit('base');
+  const B = git(repo, 'rev-parse', 'HEAD');
+  git(repo, 'checkout', '-q', '-b', 't/T-1');
+  writeFileSync(repo + '/src/a.js', 'export const alpha = 11;\n');
+  rmSync(repo + '/src/c.js');
+  writeFileSync(repo + '/src/new.js', 'export const nu = 4;\n');
+  git(repo, 'add', '-A');
+  commit('T-1 work');
+  git(repo, 'checkout', '-q', 'main');
+  git(repo, 'merge', '--no-ff', '-q', '-F', msg("Merge branch 't/T-1'"), '--cleanup=verbatim', 't/T-1');
+  git(repo, 'checkout', '-q', '-b', 't/T-10', B);
+  writeFileSync(repo + '/src/b.js', 'export const beta = 22;\n');
+  git(repo, 'add', '-A');
+  commit('T-10 work');
+  git(repo, 'checkout', '-q', 'main');
+  git(repo, 'merge', '--no-ff', '-q', '-F', msg("Merge branch 't/T-10'"), '--cleanup=verbatim', 't/T-10');
+  const wt = t + '/wt';
+  git(repo, 'worktree', 'add', '-q', '--detach', wt, B);
+  return { repo, wt, B, git };
+}
+
+it('ac-2 a scout run is scored by script on scout check and contradicted absent rows and recall against the merged diff and scoring again gives the same row', async () => {
+  const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'bench-')));
+  const t = tmp.replaceAll('\\', '/');
+  try {
+    const f = scoutFixture(t);
+    const { truthOf, scoreScoutRun } = (await import(new URL('../../../scripts/benchmark.mjs', import.meta.url).href)) as {
+      truthOf: (repo: string, ticket: string, base: string) => string[] | null;
+      scoreScoutRun: (dir: string, run: { reply: string; ticket: string; base: string; truth: string[] }, core: unknown) => { check: number; falseClaims: number; recall: number } | { problem: string };
+    };
+    const core = await import('../src/index.js');
+
+    // The files its merged diff changed that existed at base: not the added one, not another ticket's, null with no merge.
+    expect(truthOf(f.repo, 'T-1', f.B)).toEqual(['src/a.js', 'src/c.js']);
+    expect(truthOf(f.repo, 'T-10', f.B)).toEqual(['src/b.js']);
+    expect(truthOf(f.repo, 'T-2', f.B)).toBeNull();
+
+    const table = (rows: string[]) => ['| Claim | Pattern | Folders | Allowed hits |', '| --- | --- | --- | --- |', ...rows].join('\n');
+    const reply = (rows: string[], prose = '') => `${prose}\n## Files\n- src/a.js\n- src/b.js\n\n## Absent\n${table(rows)}\n`;
+    const run = (text: string) => ({ reply: text, ticket: 'T-1', base: f.B, truth: ['src/a.js', 'src/c.js'] });
+
+    // beta is used in src/b.js at B, so that row is contradicted; the gamma row holds. c.js is named but not in full.
+    const bad = run(reply(['| no use of beta | `beta` | src | |', '| no use of gamma | `gamma` | src | |'], 'The change touches c.js and lib/src/c.js too.'));
+    const first = scoreScoutRun(f.wt, bad, core);
+    expect(first).toEqual({ check: 0, falseClaims: 1, recall: 0.5 });
+    expect(scoreScoutRun(f.wt, bad, core)).toEqual(first);
+
+    // Without the contradicted row, with both changed files named in full, one of them after ./.
+    const good = run(`## Files\n- src/a.js\n- ./src/c.js\n\n## Absent\n${table(['| no use of gamma | `gamma` | src | |'])}\n`);
+    expect(scoreScoutRun(f.wt, good, core)).toEqual({ check: 1, falseClaims: 0, recall: 1 });
+
+    // A hit in an allowed file is not contradicted; two more rows on the same pattern count once each.
+    const allowed = run(reply(['| no use of beta | `beta` | src | src/b.js |', '| beta again | `beta` | src | |', '| beta third | `beta` | src | |']));
+    expect(scoreScoutRun(f.wt, allowed, core)).toMatchObject({ falseClaims: 2 });
+
+    // A worktree not at the sample's base is refused, not scored.
+    expect(scoreScoutRun(f.repo, bad, core)).toHaveProperty('problem');
+  } finally {
+    rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+}, 120_000);
+
+type Usage = { input: number; cacheRead: number; cacheWrite: number; output: number };
+type Rec = { tag: string; n: number; model: string; effort: string; k: number; usage: Usage; values: { check: number; falseClaims: number; recall: number } };
+type Measure = { key: 'check' | 'falseClaims' | 'recall'; label: string; higher: boolean };
+type ArmStat = { model: string; effort: string; runs: number; passes: number; cost: number | null; by: Record<string, { mean: number | null; range: [number, number] | null }> };
+type Reporter = {
+  SCOUT_MEASURES: Measure[];
+  armStats: (def: Def, measures: Measure[], records: Rec[], leftOut?: Record<number, string>) => { arms: ArmStat[]; best: Record<string, ArmStat | null>; winner: ArmStat | null };
+  armReport: (a: { name: string; def: Def; measures: Measure[]; records: Rec[]; leftOut?: Record<number, string>; notCounted?: { tag: string; reason: string }[] }) => string;
+};
+
+it('ac-3 the report shows pass mean ranges and weighted cost per arm and names the cheapest arm that ties the best one or no winner', async () => {
+  const { SCOUT_MEASURES, armStats, armReport } = (await import(new URL('../../../scripts/round.mjs', import.meta.url).href)) as Reporter;
+  const def: Def = {
+    agent: 'accord-scout', runs: 2, judges: 0, samples: [1, 2, 3], pricesAt: '2026-11-02', prices: { haiku: 1, sonnet: 3 },
+    arms: [{ model: 'haiku', effort: 'low' }, { model: 'haiku', effort: 'high' }, { model: 'sonnet', effort: 'low' }],
+  };
+  // Weighted tokens are 100 + 0.1 * 1000 + 1.25 * 200 + 5 * output: 700 for output 50, 1200 for output 150.
+  const use = (output: number): Usage => ({ input: 100, cacheRead: 1000, cacheWrite: 200, output });
+  // passes[k - 1][sample index] = [check, falseClaims, recall]; samples 1 and 2 are scored, sample 3 is left out.
+  const recs = (model: string, effort: string, output: number, passes: number[][][]): Rec[] => passes.flatMap((pass, i) => pass.map((v, s) => ({
+    tag: `scout-${s + 1}-${model}-${effort}-${i + 1}`, n: s + 1, model, effort, k: i + 1, usage: use(output), values: { check: v[0], falseClaims: v[1], recall: v[2] },
+  })));
+  const flat = (v: number[]) => [[v, v], [v, v]];
+  const left = { 3: 'no merge of t/T-3' };
+  const bad = [{ tag: 'scout-2-haiku-low-2', reason: 'dispatched before its worktree was prepared' }];
+  const name = (a: ArmStat | null) => (a ? `${a.model} ${a.effort}` : null);
+  const bestOf = (s: ReturnType<Reporter['armStats']>) => Object.fromEntries(Object.entries(s.best).map(([k, a]) => [k, name(a)]));
+
+  // 1. A cheaper arm ties the best one on every measure: haiku low (700) is inside haiku high's recall range 0.8 to 1.
+  const aTies = recs('haiku', 'low', 50, [[[1, 0, 1], [1, 0, 0.8]], [[1, 0, 0.8], [1, 0, 0.8]]]);
+  const bBest = recs('haiku', 'high', 150, [[[1, 0, 1], [1, 0, 1]], [[1, 0, 0.8], [1, 0, 0.8]]]);
+  const cWeak = recs('sonnet', 'low', 50, flat([1, 0, 0.5]));
+  const one = armStats(def, SCOUT_MEASURES, [...aTies, ...bBest, ...cWeak], left);
+  expect(one.arms.map((a) => a.cost)).toEqual([700, 1200, 2100]);
+  expect(one.arms[0].by.recall.mean).toBeCloseTo(0.85, 9);
+  expect(one.arms[0].by.recall.range).toEqual([expect.closeTo(0.8, 9), expect.closeTo(0.9, 9)]);
+  expect(bestOf(one)).toEqual({ check: 'haiku low', falseClaims: 'haiku low', recall: 'haiku high' });
+  expect(name(one.winner)).toBe('haiku low');
+  const md = armReport({ name: 'r2-scout', def, measures: SCOUT_MEASURES, records: [...aTies, ...bBest, ...cWeak], leftOut: left, notCounted: bad });
+  expect(md).toContain('| haiku | low | 4 | 1 (1 to 1) | 0 (0 to 0) | 0.85 (0.8 to 0.9) | 700 |');
+  expect(md).toContain('| sonnet | low | 4 | 1 (1 to 1) | 0 (0 to 0) | 0.5 (0.5 to 0.5) | 2100 |');
+  expect(md).toContain('Winner: haiku low, the cheapest arm whose mean');
+  expect(md).toContain('- sample 3: no merge of t/T-3');
+  expect(md).toContain('- scout-2-haiku-low-2: dispatched before its worktree was prepared');
+  expect(md).toContain('price factor from 2026-11-02');
+
+  // 2. One arm is best on all three and the cheaper arm is outside its range: haiku high wins.
+  const aWorse = recs('haiku', 'low', 50, flat([0, 1, 0.5]));
+  const cMid = recs('sonnet', 'low', 50, flat([1, 1, 0.5]));
+  const two = armStats(def, SCOUT_MEASURES, [...aWorse, ...recs('haiku', 'high', 150, flat([1, 0, 1])), ...cMid], left);
+  expect(bestOf(two)).toEqual({ check: 'haiku high', falseClaims: 'haiku high', recall: 'haiku high' });
+  expect(name(two.winner)).toBe('haiku high');
+  const md2 = armReport({ name: 'r2-scout', def, measures: SCOUT_MEASURES, records: [...aWorse, ...recs('haiku', 'high', 150, flat([1, 0, 1])), ...cMid], leftOut: left });
+  expect(md2).toContain('Winner: haiku high, the best arm on all three measures');
+
+  // 3. Different best arms and no arm ties all three: no winner, the best arm of each measure.
+  const three = [...recs('haiku', 'low', 50, flat([1, 0, 0.5])), ...recs('haiku', 'high', 150, [[[1, 0, 1], [0, 0, 1]], [[1, 0, 1], [0, 0, 1]]]), ...recs('sonnet', 'low', 50, flat([0, 1, 0.2]))];
+  expect(armStats(def, SCOUT_MEASURES, three, left).winner).toBeNull();
+  const md3 = armReport({ name: 'r2-scout', def, measures: SCOUT_MEASURES, records: three, leftOut: left });
+  expect(md3).toContain('No winner');
+  expect(md3).toContain('- scout check passes (highest is best): haiku low');
+  expect(md3).toContain('- contradicted Absent rows (lowest is best): haiku low');
+  expect(md3).toContain('- wiring recall (highest is best): haiku high');
+
+  // 4. An arm missing one run of a pass keeps its mean over the runs it has but leaves that pass out of its range.
+  const short = aTies.filter((r) => !(r.k === 2 && r.n === 2));
+  const four = armStats(def, SCOUT_MEASURES, [...short, ...bBest, ...cWeak], left);
+  expect(four.arms[0].runs).toBe(3);
+  expect(four.arms[0].passes).toBe(1);
+  expect(four.arms[0].by.recall.mean).toBeCloseTo((1 + 0.8 + 0.8) / 3, 9);
+  expect(four.arms[0].by.recall.range).toEqual([expect.closeTo(0.9, 9), expect.closeTo(0.9, 9)]);
+
+  // 5. An arm with no complete pass is never best or winner, however cheap.
+  const only = armStats(def, SCOUT_MEASURES, [...aTies.filter((r) => r.n === 1), ...bBest, ...cWeak], left);
+  expect(only.arms[0].passes).toBe(0);
+  expect(name(only.winner)).toBe('haiku high');
+});
+
+it('risk:complex-branching round name scores each run matched by its tag and writes the round report', () => {
+  const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'bench-')));
+  const t = tmp.replaceAll('\\', '/');
+  try {
+    const f = armsFixture(t);
+    // Sample 1 is ticket T-1 (merged, changed a.txt); sample 3 is ticket T-2, which has no merge.
+    for (const dir of [f.repo, f.linked]) {
+      const file = dir + '/scripts/benchmark-samples.json';
+      const list = JSON.parse(readFileSync(file, 'utf8')) as { samples: { n: number; ticket: string }[] };
+      list.samples = list.samples.filter((s) => s.n !== 2).map((s) => (s.n === 3 ? { ...s, ticket: 'T-2' } : s));
+      writeFileSync(file, JSON.stringify(list));
+      writeFileSync(dir + '/scripts/benchmark-rounds.json', JSON.stringify({ rounds: {
+        'r9-arm': { agent: 'accord-scout', arms: [{ model: 'haiku', effort: 'low' }], runs: 1, judges: 0, prices: { haiku: 1 }, pricesAt: '2026-11-02', samples: [1, 3] },
+        'r9-exec': { agent: 'accord-executor', arms: [{ model: 'sonnet', effort: 'low' }], runs: 1, judges: 0, prices: { sonnet: 1 }, pricesAt: '2026-11-02', samples: [1] },
+      } }));
+    }
+    const early = f.cmd(f.repo, '--round', 'r9-arm');
+    expect(early.status).toBe(2);
+    expect(early.stderr).toContain('run --round r9-arm --plan first');
+
+    const plan = f.cmd(f.repo, '--round', 'r9-arm', '--plan');
+    expect(plan.status).toBe(0);
+    expect(plan.stdout).toContain('left out: accord-scout 3: no merge of t/T-2');
+    const rows = plan.stdout.split('\n').filter((l) => l.startsWith('| bench r9-arm '));
+    expect(rows).toHaveLength(1);
+    const [description, , , , brief] = rows[0].slice(2).split(' | ');
+    expect(description).toBe('bench r9-arm scout-1-haiku-low-1');
+
+    // Three runs of that description: another agent and another effort, dispatched before the valid one.
+    const folder = `${t}/repo`.replace(/[:\\/]/g, '-');
+    const sub = join(t, 'home', '.claude', 'projects', folder, 'S', 'subagents');
+    mkdirSync(sub, { recursive: true });
+    const at = (i: number) => new Date(Date.now() + 5000 + i * 1000).toISOString();
+    const jl = (...ls: unknown[]) => ls.map((l) => JSON.stringify(l)).join('\n') + '\n';
+    const reply = '## Files\n- a.txt\n\n## Absent\n| Claim | Pattern | Folders | Allowed hits |\n| --- | --- | --- | --- |\n| no use of zzz | `zzz` | . | |\n';
+    const runs = [
+      { id: 'x1', agent: 'accord-critic', effort: 'low' },
+      { id: 'x2', agent: 'accord-scout', effort: 'high' },
+      { id: 'x3', agent: 'accord-scout', effort: 'low' },
+    ];
+    const uses = runs.map((r, i) => ({
+      type: 'assistant', timestamp: at(i), cwd: f.repo,
+      message: { content: [{ type: 'tool_use', id: 'toolu_' + r.id, name: 'Agent', input: { description, subagent_type: r.agent, model: 'haiku', effort: r.effort, prompt: brief } }] },
+    }));
+    writeFileSync(join(sub, '..', '..', 'S.jsonl'), jl(...uses));
+    for (const [i, r] of runs.entries()) {
+      writeFileSync(join(sub, `agent-${r.id}.meta.json`), JSON.stringify({ agentType: r.agent, description, toolUseId: 'toolu_' + r.id }));
+      writeFileSync(join(sub, `agent-${r.id}.jsonl`), jl({
+        type: 'assistant', timestamp: at(i + 10), perTurnEffort: r.effort, requestedModel: 'claude-haiku-4-5',
+        message: { id: 'm' + i, model: 'claude-haiku-4-5', usage: { input_tokens: 10, cache_read_input_tokens: 100, cache_creation_input_tokens: 20, output_tokens: 1000 },
+          content: [{ type: 'tool_use', id: 'h' + i, name: 'SubagentHandback', input: { message: reply } }] },
+      }));
+    }
+
+    const out = f.cmd(f.repo, '--round', 'r9-arm');
+    expect(out.stderr).toBe('');
+    expect(out.status).toBe(0);
+    expect(out.stdout.split('\n')[0]).toBe(`bench root: ${t}/accord-bench`);
+    expect(out.stdout).toContain('docs/benchmark/round-r9-arm.md');
+    const md = readFileSync(f.repo + '/docs/benchmark/round-r9-arm.md', 'utf8');
+    expect(md).toContain('Winner: haiku low, the best arm on all three measures');
+    // One counted run: recall 1 on the one scored sample, cost 10 + 0.1 * 100 + 1.25 * 20 + 5 * 1000 times price 1.
+    expect(md).toContain('| haiku | low | 1 | ');
+    expect(md).toContain('| 1 (1 to 1) | 5045 |');
+    expect(md).toContain('- sample 3: no merge of t/T-2');
+    expect(md).toContain('- scout-1-haiku-low-1: run x1: dispatched as accord-critic where the row names accord-scout');
+    expect(md).toContain('- scout-1-haiku-low-1: run x2: turn 1: perTurnEffort is high where the round dispatched low');
+
+    // A round whose agent has no scorer.
+    writeFileSync(`${t}/accord-bench/round-r9-exec.json`, JSON.stringify({ rows: [{ tag: 'executor-1-sonnet-low-1' }], leftOut: {} }));
+    const noScorer = f.cmd(f.repo, '--round', 'r9-exec');
+    expect(noScorer.status).toBe(2);
+    expect(noScorer.stderr).toContain('accord-executor has no scorer');
+  } finally {
+    rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
+  }
+}, 120_000);
+
+type Repairer = Reporter & {
+  afterRepair: (first: Rec[], fix: Map<string, { usage: Usage; values: Rec['values'] }>) => { records: Rec[]; notCounted: { tag: string; reason: string }[] };
+  repairBrief: (worktree: string, reply: string, failures: string[]) => string;
+};
+
+it('ac-4 the report scores the reply after one repair with the cost of both runs and names the winner after repair', async () => {
+  const { SCOUT_MEASURES, armStats, afterRepair, repairBrief } = (await import(new URL('../../../scripts/round.mjs', import.meta.url).href)) as Repairer;
+  const def: Def = {
+    agent: 'accord-scout', runs: 1, judges: 0, samples: [1, 2], pricesAt: '2026-11-02', prices: { haiku: 1, sonnet: 10 },
+    arms: [{ model: 'haiku', effort: 'low' }, { model: 'sonnet', effort: 'low' }],
+  };
+  const use = (output: number): Usage => ({ input: 100, cacheRead: 0, cacheWrite: 0, output });
+  const rec = (model: string, n: number, v: number[], output = 20): Rec => ({
+    tag: `scout-${n}-${model}-low-1`, n, model, effort: 'low', k: 1, usage: use(output), values: { check: v[0], falseClaims: v[1], recall: v[2] },
+  });
+  // haiku fails check on both samples at first; sonnet passes on both, so sonnet wins on the first replies.
+  const first = [rec('haiku', 1, [0, 2, 0.5]), rec('haiku', 2, [0, 1, 0.5]), rec('sonnet', 1, [1, 0, 0.5]), rec('sonnet', 2, [1, 0, 0.5])];
+  expect(armStats(def, SCOUT_MEASURES, first).winner?.model).toBe('sonnet');
+  // A repair fixes haiku's sample 1; sample 2 has no repair run and is not counted.
+  const fix = new Map([['scout-1-haiku-low-1', { usage: use(40), values: { check: 1, falseClaims: 0, recall: 0.5 } }]]);
+  const after = afterRepair(first, fix);
+  expect(after.notCounted).toEqual([{ tag: 'scout-2-haiku-low-1-fix', reason: 'its first reply fails scout check and has no counted repair run' }]);
+  const repaired = after.records.find((r) => r.tag === 'scout-1-haiku-low-1');
+  expect(repaired?.values).toEqual({ check: 1, falseClaims: 0, recall: 0.5 });
+  expect(repaired?.usage).toEqual({ input: 200, cacheRead: 0, cacheWrite: 0, output: 60 });
+  // A first reply that passed stands with its own cost.
+  expect(after.records.filter((r) => r.model === 'sonnet')).toEqual(first.filter((r) => r.model === 'sonnet'));
+  // With both haiku replies repaired, haiku ties sonnet on every measure at a lower cost (first 200 plus repair 300 = 500, against 2000) and wins.
+  fix.set('scout-2-haiku-low-1', { usage: use(40), values: { check: 1, falseClaims: 0, recall: 0.5 } });
+  const both = armStats(def, SCOUT_MEASURES, afterRepair(first, fix).records);
+  expect(both.arms.map((a) => a.cost)).toEqual([500, 2000]);
+  expect(both.winner?.model).toBe('haiku');
+  // The repair brief holds the worktree, every failure the check printed and the first reply, asking for it corrected in the same form.
+  const brief = repairBrief('C:/w', 'reply text\n', ['citation a.ts:1 does not resolve', 'row 2 matches its pattern']);
+  expect(brief).toContain('Repository root: C:/w');
+  expect(brief).toContain('- citation a.ts:1 does not resolve\n- row 2 matches its pattern');
+  expect(brief).toContain('same reply corrected in the same form');
+  expect(brief).toContain('## The reply\n\nreply text\n');
+});

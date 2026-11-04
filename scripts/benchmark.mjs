@@ -6,12 +6,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createHash, randomUUID } from 'node:crypto';
 import { execFileSync, execSync } from 'node:child_process';
 import { parse as parseYaml } from 'yaml';
 import { parsePlanReview } from './plan-review.mjs';
-import { median, ROLES, RETIRED, WRITERS, checkSamples, readDiffers, runMatrix, rewriteBrief, dispatchTable, matchRuns, mustsOf, judgeBrief, parseVerdict, holds, turnFlags, report, carryJudgeBriefs, escapes, exitState, runProblem } from './round.mjs';
+import { median, ROLES, RETIRED, WRITERS, checkSamples, readDiffers, runMatrix, rewriteBrief, dispatchTable, matchRuns, mustsOf, judgeBrief, parseVerdict, holds, turnFlags, report, carryJudgeBriefs, escapes, exitState, runProblem, checkRound, armMatrix, scoreScout, matchNamed, armReport, SCOUT_MEASURES, fixTag, repairBrief, afterRepair } from './round.mjs';
 import { compliance, render as renderCompliance, parseCompliance, mergeCompliance } from './compliance.mjs';
 import { standsFor, firstCall, pendingProbes, probeVersion, textsOf, measure, render, ticketShares, PROBE_BRANCH, PROBE_BRIEF, PROBE_DESCRIPTION, PROBE_FORMS, PROBE_PREFIX, dispatchPrompt, phaseOne, shellLine } from './fixed-context.mjs';
 
@@ -869,6 +869,64 @@ export function runSuite(dir, repo, base) {
 const cli = (dir, args) => execFileSync(process.execPath, ['packages/cli/dist/cli.js', ...args], { cwd: dir, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] });
 const trimEnd = (t) => t.replace(/\n+$/, '');
 
+// A verifier's original ran after the verify stage's tests.full and read the report it wrote: leaves that report in the row's worktree.
+// `reported` maps `<agent>-<n>` to the first report made, copied to the sibling rows of the same sample. Returns a problem text, or null.
+export function verifierReport({ repo, row: r, reported }) {
+  const rel = configAt(r.worktree, repo).tests?.report;
+  if (typeof rel !== 'string') return `${r.agent} ${r.n}: the config at its base has no tests.report, which the verifier's worktree needs`;
+  const file = path.join(r.worktree, rel);
+  try {
+    if (!fs.existsSync(file)) {
+      const first = reported.get(`${r.agent}-${r.n}`);
+      if (first && fs.existsSync(first)) { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.copyFileSync(first, file); }
+      else { try { sh(configAt(r.worktree, repo).tests.full, r.worktree); } catch { /* the original saw a red suite's report too */ } }
+    }
+  } catch (e) { return `${r.tag}: ${e.message} (repeated on the next --plan run)`; }
+  if (!fs.existsSync(file)) return `${r.tag}: tests.full left no report at ${slashed(file)} (repeated on the next --plan run)`;
+  if (!reported.has(`${r.agent}-${r.n}`)) reported.set(`${r.agent}-${r.n}`, file);
+  return null;
+}
+
+// The brief of one row: its snapshot prompt and named files with every path and ref rewritten to the row's worktree.
+// `ticket` is the ticket text at the sample's base ('' for none: the whole text is rewritten); `own` is the row's branch.
+// Writes `<briefDir>/<tag>.md` and the files under `filesDir`; returns { prompt } or { problem }.
+export function writeBrief({ bench, row: r, sample: s, snap, ticket, briefDir, filesDir, own }) {
+  const writing = WRITERS.includes(r.agent);
+  const dest = (f) => `${filesDir}/${path.posix.basename(slashed(f.path))}`;
+  const paths = [[s.root, r.worktree], ...s.elsewhere.map((p, i) => [p, `${bench}/absent/${i + 1}`]), ...s.files.map((f) => [f.path, dest(f)])];
+  const pairs = s.pairs.flatMap(([from, to]) => {
+    if (writing && (from === `t/${s.ticket}` || from === `origin/t/${s.ticket}`)) return [[from, own]];
+    if (writing && from === 'HEAD') return [];
+    return [[from, s[to]]];
+  });
+  const allowed = writing ? ['HEAD', own] : [];
+  for (const f of s.files) {
+    let text = snap.reads[f.path];
+    if (f.from !== 'copy') {
+      const args = f.from === 'brief' ? ['brief', s.ticket, f.task] : ['review-package', s.ticket, '--base', f.base];
+      let built;
+      try { built = cli(r.worktree, args); } catch (e) { return { problem: `${r.tag}: ${args[0]} failed: ${String(e.stderr || e.message).trim()}` }; }
+      if (f.from === 'review-package') {
+        const drift = packageDrift(s, f, text, built);
+        if (drift) return { problem: drift };
+        text = built;
+      }
+      else if (trimEnd(built) === trimEnd(text)) text = built;
+      else process.stderr.write(`notice: ${r.tag}: ${f.path} is built differently at base; the text the run read is used\n`);
+    }
+    const out = rewriteBrief(text, { ticket, paths, pairs, check: { bench, allowed, refs: false } });
+    if (out.problems.length) return { problem: `${r.tag}: ${out.problems.join('; ')}` };
+    fs.mkdirSync(path.dirname(dest(f)), { recursive: true });
+    fs.writeFileSync(dest(f), out.text);
+  }
+  const out = rewriteBrief(snap.prompt, { ticket, paths, pairs, check: { bench, allowed } });
+  if (out.problems.length) return { problem: `${r.tag}: ${out.problems.join('; ')}` };
+  fs.mkdirSync(briefDir, { recursive: true });
+  const prompt = `${briefDir}/${r.tag}.md`;
+  fs.writeFileSync(prompt, out.text);
+  return { prompt };
+}
+
 function runPlan(repo, reruns = []) {
   const err = (m) => { process.stderr.write(m + '\n'); return 2; };
   const bench = slashed(benchRoot(repo));
@@ -936,57 +994,14 @@ function runPlan(repo, reruns = []) {
   // A verifier's original ran after the verify stage's tests.full, and read the report it wrote (a red suite leaves one too). Run it once per sample; its effort siblings have the same base and overlay, so they get a copy.
   const reported = new Map();
   for (const r of rows.filter((x) => x.agent === 'accord-verifier')) {
-    const rel = configAt(r.worktree, repo).tests?.report;
-    if (typeof rel !== 'string') return err(`${r.agent} ${r.n}: the config at its base has no tests.report, which the verifier's worktree needs`);
-    const file = path.join(r.worktree, rel);
-    try {
-      if (!fs.existsSync(file)) {
-        const first = reported.get(`${r.agent}-${r.n}`);
-        if (first && fs.existsSync(first)) { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.copyFileSync(first, file); }
-        else { try { sh(configAt(r.worktree, repo).tests.full, r.worktree); } catch { /* the original saw a red suite's report too */ } }
-      }
-    } catch (e) { return err(`${r.tag}: ${e.message} (repeated on the next --plan run)`); }
-    if (!fs.existsSync(file)) return err(`${r.tag}: tests.full left no report at ${slashed(file)} (repeated on the next --plan run)`);
-    if (!reported.has(`${r.agent}-${r.n}`)) reported.set(`${r.agent}-${r.n}`, file);
+    const problem = verifierReport({ repo, row: r, reported });
+    if (problem) return err(problem);
   }
-  fs.mkdirSync(`${bench}/briefs`, { recursive: true });
   for (const r of rows) {
-    const s = sampleOf(r);
-    const snap = snaps.get(r.agent.slice('accord-'.length) + '-' + r.n);
-    const ticket = gitIn(repo, ['-c', 'log.showSignature=false', 'show', '--no-show-signature', `${s.base}:accord/tickets/${s.ticket}.md`]);
-    const writing = WRITERS.includes(r.agent);
-    const own = `bench/${r.tag}`;
-    const dest = (f) => `${bench}/files/${r.tag}/${path.posix.basename(slashed(f.path))}`;
-    const paths = [[s.root, r.worktree], ...s.elsewhere.map((p, i) => [p, `${bench}/absent/${i + 1}`]), ...s.files.map((f) => [f.path, dest(f)])];
-    const pairs = s.pairs.flatMap(([from, to]) => {
-      if (writing && (from === `t/${s.ticket}` || from === `origin/t/${s.ticket}`)) return [[from, own]];
-      if (writing && from === 'HEAD') return [];
-      return [[from, s[to]]];
-    });
-    const allowed = writing ? ['HEAD', own] : [];
-    for (const f of s.files) {
-      let text = snap.reads[f.path];
-      if (f.from !== 'copy') {
-        const args = f.from === 'brief' ? ['brief', s.ticket, f.task] : ['review-package', s.ticket, '--base', f.base];
-        let built;
-        try { built = cli(r.worktree, args); } catch (e) { return err(`${r.tag}: ${args[0]} failed: ${String(e.stderr || e.message).trim()}`); }
-        if (f.from === 'review-package') {
-          const drift = packageDrift(s, f, text, built);
-          if (drift) return err(drift);
-          text = built;
-        }
-        else if (trimEnd(built) === trimEnd(text)) text = built;
-        else process.stderr.write(`notice: ${r.tag}: ${f.path} is built differently at base; the text the run read is used\n`);
-      }
-      const out = rewriteBrief(text, { ticket, paths, pairs, check: { bench, allowed, refs: false } });
-      if (out.problems.length) return err(`${r.tag}: ${out.problems.join('; ')}`);
-      fs.mkdirSync(path.dirname(dest(f)), { recursive: true });
-      fs.writeFileSync(dest(f), out.text);
-    }
-    const out = rewriteBrief(snap.prompt, { ticket, paths, pairs, check: { bench, allowed } });
-    if (out.problems.length) return err(`${r.tag}: ${out.problems.join('; ')}`);
-    r.prompt = `${bench}/briefs/${r.tag}.md`;
-    fs.writeFileSync(r.prompt, out.text);
+    const ticket = gitIn(repo, ['-c', 'log.showSignature=false', 'show', '--no-show-signature', `${sampleOf(r).base}:accord/tickets/${sampleOf(r).ticket}.md`]);
+    const out = writeBrief({ bench, row: r, sample: sampleOf(r), snap: snaps.get(r.agent.slice('accord-'.length) + '-' + r.n), ticket, briefDir: `${bench}/briefs`, filesDir: `${bench}/files/${r.tag}`, own: `bench/${r.tag}` });
+    if (out.problem) return err(out.problem);
+    r.prompt = out.prompt;
   }
   carryJudgeBriefs(rows, state.rows ?? []);
   state.rows = rows;
@@ -994,6 +1009,256 @@ function runPlan(repo, reruns = []) {
   process.stdout.write(dispatchTable(rows));
   process.stdout.write("Dispatch every row: description, subagent_type, model and effort as shown, and the prompt file's text as the prompt. Judges are printed by --round 1 --judge once these runs finish.\n");
   return 0;
+}
+
+// ---- named arm rounds (ST-LN-46) ---------------------------------------------------
+// The main checkout of a repository (the folder of its git common dir, whichever linked worktree `repo` is) and the
+// bench root beside it: every named-round mode reads and writes one bench, not one per checkout.
+export function mainBench(repo) {
+  const main = slashed(path.dirname(gitIn(repo, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim()));
+  return { main, bench: slashed(benchRoot(main)) };
+}
+
+// The sample's true file list (D-03): the files modified or deleted by each first-parent merge into the default branch whose
+// subject names `t/<ticket>` (the id ends there: `t/ST-LN-8` is not `t/ST-LN-81`), merge base to branch tip, renames off,
+// kept where tracked at `base`, sorted. Null when the ticket has no such merge. Computed by script, never edited.
+export function truthOf(repo, ticket, base) {
+  const ref = defaultRef(repo);
+  if (!ref) return null;
+  const named = new RegExp(`(?<![A-Za-z0-9_-])t/${esc(ticket)}(?![A-Za-z0-9_-])`);
+  const merges = gitIn(repo, ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '--first-parent', '--merges', '-z', '--format=%H%x1f%s', ref, '--'])
+    .split('\0').filter(Boolean).map((r) => r.split('\x1f')).filter(([, subject]) => named.test(subject));
+  if (!merges.length) return null;
+  const files = new Set();
+  for (const [sha] of merges) {
+    let names;
+    try {
+      const tip = `${sha}^2`;
+      const from = gitIn(repo, ['merge-base', `${sha}^1`, tip]).trim();
+      names = gitIn(repo, ['diff', '--name-only', '-z', '--no-renames', '--diff-filter=MD', from, tip, '--']).split('\0').filter(Boolean);
+    } catch { continue; }
+    for (const f of names) files.add(f);
+  }
+  const existing = new Set(gitIn(repo, ['ls-tree', '-r', '-z', '--name-only', base]).split('\0').filter(Boolean));
+  return [...files].filter((f) => existing.has(f)).sort();
+}
+
+// Scores one scout reply on the sample's worktree: its tracked files and their text on disk. A worktree not at `base` gives
+// `{ problem }`. The ticket is passed only when its file is tracked there (a lane scout has none). `core` holds `scoutCheck`.
+// The failures `accord scout check` prints for a reply, on the facts scoreScoutRun scores it on.
+function scoutFailures(dir, reply, ticket, core) {
+  const tracked = gitIn(dir, ['ls-files', '-z']).split('\0').filter(Boolean);
+  const read = (paths) => paths.map((p) => { try { return fs.readFileSync(path.join(dir, ...p.split('/')), 'utf8'); } catch { return undefined; } });
+  return core.scoutCheck({ text: reply, tracked, read, ...(ticket && tracked.includes(`accord/tickets/${ticket}.md`) ? { ticket } : {}) }).failures;
+}
+
+export function scoreScoutRun(dir, { reply, ticket, base, truth }, core) {
+  if (!atBase(dir, base)) return { problem: `${slashed(dir)} is not at ${base}` };
+  const tracked = gitIn(dir, ['ls-files', '-z']).split('\0').filter(Boolean);
+  const read = (paths) => paths.map((p) => { try { return fs.readFileSync(path.join(dir, ...p.split('/')), 'utf8'); } catch { return undefined; } });
+  return scoreScout(reply, { tracked, read, ticket: ticket && tracked.includes(`accord/tickets/${ticket}.md`) ? ticket : undefined, truth }, core);
+}
+
+class PlanProblem extends Error {}
+
+// A named round's state file: `{}` when missing; a file that does not parse is a PlanProblem and is left as it is.
+function readNamedState(file) {
+  if (!fs.existsSync(file)) return {};
+  try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch (e) { throw new PlanProblem(`${slashed(file)} does not parse: ${e.message}; restore it or remove it`, { cause: e }); }
+}
+// Written beside the file and renamed onto it, so a stop in the middle leaves the earlier state whole.
+function saveNamedState(file, state) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const tmp = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(state, null, 2) + '\n');
+  fs.renameSync(tmp, file);
+}
+
+// The entries of the round-1 list and of the gathered list (each optional) that a round's agent and sample numbers name.
+function namedSamples(repo, def) {
+  const found = [];
+  for (const f of ['benchmark-samples.json', 'benchmark-gathered.json']) {
+    const file = path.join(repo, 'scripts', f);
+    if (!fs.existsSync(file)) continue;
+    let list;
+    try { list = JSON.parse(fs.readFileSync(file, 'utf8')); } catch (e) { throw new PlanProblem(`scripts/${f} does not parse: ${e.message}`, { cause: e }); }
+    found.push(...(Array.isArray(list.samples) ? list.samples : []).filter((s) => s.agent === def.agent && def.samples.includes(s.n)));
+  }
+  return found;
+}
+
+// `--round <name> --plan`: one dispatch row per sample, arm and run, built from the main checkout's bench root.
+export function runNamedPlan(repo, name) {
+  const err = (m) => { process.stderr.write(m + '\n'); return 2; };
+  const { main, bench } = mainBench(repo);
+  process.stdout.write(`bench root: ${bench}\n`);
+  try {
+    const roundsFile = path.join(repo, 'scripts', 'benchmark-rounds.json');
+    let rounds = {};
+    if (fs.existsSync(roundsFile)) {
+      try { rounds = JSON.parse(fs.readFileSync(roundsFile, 'utf8')).rounds ?? {}; } catch (e) { return err(`scripts/benchmark-rounds.json does not parse: ${e.message}`); }
+    }
+    if (!Object.hasOwn(rounds, name)) return err(`no round ${name} in scripts/benchmark-rounds.json`);
+    const def = rounds[name];
+    const problems = checkRound(name, def);
+    if (problems.length) return err(problems.join('\n'));
+    const short = def.agent.slice('accord-'.length);
+    const stateFile = `${bench}/round-${name}.json`;
+    const state = readNamedState(stateFile);
+    state.worktrees ??= {};
+    state.live ??= liveState(main);
+    state.leftOut = {};
+    const save = () => saveNamedState(stateFile, state);
+    const leave = (n, why) => { state.leftOut[n] = why; process.stdout.write(`left out: ${def.agent} ${n}: ${why}\n`); };
+
+    const entries = namedSamples(repo, def);
+    const kept = [], loaded = new Map();
+    for (const n of [...def.samples].sort((a, b) => a - b)) {
+      const s = entries.find((x) => x.n === n);
+      if (!s) { leave(n, `no sample ${n}`); continue; }
+      if (s.replay?.ok === false) { leave(n, `replay: ${(s.replay.problems ?? []).join('; ')}`); continue; }
+      const dir = s.snapshot ? `${bench}/${s.snapshot}` : `${bench}/samples/${short}-${n}`;
+      const file = `${dir}/sample.json`;
+      if (!fs.existsSync(file)) { leave(n, `no snapshot under ${bench}`); continue; }
+      let snap;
+      try { snap = JSON.parse(fs.readFileSync(file, 'utf8')); } catch (e) { leave(n, `${file} does not parse: ${e.message}`); continue; }
+      const reads = storedReads(dir);
+      if (!reads) { leave(n, `no stored root reads in ${dir}`); continue; }
+      if (transcriptTail(snap.transcript) !== transcriptTail(s.transcript)) { leave(n, `the snapshot in ${dir} is of ${snap.transcript}, not ${s.transcript}`); continue; }
+      const drift = sampleDrift(main, s, reads);
+      if (drift.length) { leave(n, drift.join('; ')); continue; }
+      // A sample with no true file list cannot be scored, so no row is dispatched for it.
+      const truth = truthOf(main, s.ticket, s.base);
+      if (!truth) { leave(n, `no merge of t/${s.ticket}`); continue; }
+      if (!truth.length) { leave(n, 'no file its merged diff changed existed at base'); continue; }
+      kept.push(s);
+      loaded.set(n, { snap, reads });
+    }
+
+    let rows = armMatrix(def, kept);
+    const dropped = new Set();
+    for (const s of kept) {
+      const mine = rows.filter((r) => r.n === s.n);
+      try {
+        const { snap, reads } = loaded.get(s.n);
+        const overlay = (s.overlay ?? []).map((o) => ({ ...o, text: o.from === 'read' ? reads.find((x) => x.path === o.path && x.whole).text + '\n' : showAt(main, o.from, o.path) }));
+        for (const r of mine) {
+          const writing = WRITERS.includes(r.agent);
+          const key = writing ? `${name}/${r.tag}` : `${name}/${short}-${s.n}`;
+          const spec = { path: `${bench}/wt/${key}`, base: s.base, overlay, ...(writing ? { branch: `bench/${name}/${r.tag}` } : {}), ...(r.agent === 'accord-verifier' ? { report: true } : {}) };
+          // A recorded worktree whose folder is gone (after --clean --force) is pruned and its record dropped: it is built again at base.
+          const rec = state.worktrees[key];
+          if (rec && !fs.existsSync(rec.path)) { removeWorktree(main, rec); delete state.worktrees[key]; save(); }
+          r.worktree = prepareWorktree(main, state, key, spec, (d) => { for (const c of setupAt(d, main)) sh(c, d); }, save);
+          r.prepared = state.worktrees[key].preparedAt;
+        }
+        const reported = new Map();
+        for (const r of mine.filter((x) => x.agent === 'accord-verifier')) {
+          const problem = verifierReport({ repo: main, row: r, reported });
+          if (problem) throw new PlanProblem(problem);
+        }
+        const ticket = showAt(main, s.base, `accord/tickets/${s.ticket}.md`) ?? '';
+        for (const r of mine) {
+          const out = writeBrief({ bench, row: r, sample: s, snap, ticket, briefDir: `${bench}/briefs/${name}`, filesDir: `${bench}/files/${name}/${r.tag}`, own: `bench/${name}/${r.tag}` });
+          if (out.problem) throw new PlanProblem(out.problem);
+          r.prompt = out.prompt;
+        }
+      } catch (e) {
+        dropped.add(s.n);
+        leave(s.n, e instanceof PlanProblem ? e.message : `${e.message} ${planHint(e)}`);
+      }
+    }
+    rows = rows.filter((r) => !dropped.has(r.n));
+    if (!rows.length) { save(); return err('no sample left'); }
+    state.rows = rows;
+    save();
+    process.stdout.write(dispatchTable(rows, name));
+    process.stdout.write("Dispatch every row: description, subagent_type, model and effort as shown, and the prompt file's text as the prompt.\n");
+    return 0;
+  } catch (e) {
+    if (e instanceof PlanProblem) return err(e.message);
+    throw e;
+  }
+}
+
+// One scorer per agent: its measures and the function that scores a reply on a worktree (only the scout's so far).
+const SCORERS = { 'accord-scout': { measures: SCOUT_MEASURES, score: scoreScoutRun } };
+
+// `--round <name>`: matches each saved row to its run by tag, scores it by script and writes docs/benchmark/round-<name>.md
+// under `repo`. It keeps no state of its own: every run is matched and scored again on each call.
+export async function runNamedRound(repo, name, { repair = false } = {}) {
+  const err = (m) => { process.stderr.write(m + '\n'); return 2; };
+  const { main, bench } = mainBench(repo);
+  process.stdout.write(`bench root: ${bench}\n`);
+  try {
+    const roundsFile = path.join(repo, 'scripts', 'benchmark-rounds.json');
+    let rounds = {};
+    if (fs.existsSync(roundsFile)) {
+      try { rounds = JSON.parse(fs.readFileSync(roundsFile, 'utf8')).rounds ?? {}; } catch (e) { return err(`scripts/benchmark-rounds.json does not parse: ${e.message}`); }
+    }
+    if (!Object.hasOwn(rounds, name)) return err(`no round ${name} in scripts/benchmark-rounds.json`);
+    const def = rounds[name];
+    const problems = checkRound(name, def);
+    if (problems.length) return err(problems.join('\n'));
+    const state = readNamedState(`${bench}/round-${name}.json`);
+    if (!state.rows?.length) return err(`run --round ${name} --plan first`);
+    const scorer = SCORERS[def.agent];
+    if (!scorer) return err(`${def.agent} has no scorer; only ${Object.keys(SCORERS).join(', ')} can be scored`);
+    const coreFile = fileURLToPath(new URL('../packages/core/dist/index.js', import.meta.url));
+    if (!fs.existsSync(coreFile)) return err(`${slashed(coreFile)} is missing; run npm run build first`);
+    const core = await import(pathToFileURL(coreFile).href);
+
+    const dirs = fs.existsSync(projectsRoot) ? defaultDirs(main) : [];
+    const slurp = (p) => (fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : undefined);
+    const { counted, notCounted } = matchNamed(state.rows, readSessions(dirs).runs, name, slurp);
+    const samples = new Map(namedSamples(repo, def).map((s) => [s.n, s]));
+    const truths = new Map();
+    const records = [];
+    for (const row of state.rows) {
+      const run = counted.get(row.tag);
+      if (!run) continue;
+      const sample = samples.get(row.n);
+      if (!sample) { notCounted.push({ tag: row.tag, reason: `run ${run.id}: no sample ${row.n} in the sample lists` }); continue; }
+      if (!truths.has(row.n)) truths.set(row.n, truthOf(main, sample.ticket, sample.base));
+      const truth = truths.get(row.n);
+      if (!truth?.length) { notCounted.push({ tag: row.tag, reason: `run ${run.id}: sample ${row.n} has no true file list` }); continue; }
+      const values = scorer.score(row.worktree, { reply: run.lastText, ticket: sample.ticket, base: sample.base, truth }, core);
+      if (values.problem) { notCounted.push({ tag: row.tag, reason: `run ${run.id}: ${values.problem}` }); continue; }
+      records.push({ tag: row.tag, n: row.n, model: row.model, effort: row.effort, k: row.k, usage: run.usage, values, row, reply: run.lastText, sample, truth });
+    }
+    // D-10: one repair per failing first reply, by a fresh scout of the same model and effort (scout.md step 2).
+    const failing = records.filter((r) => r.values.check === 0);
+    const fixRows = failing.map((r) => ({ ...r.row, tag: fixTag(r.tag), prompt: `${bench}/briefs/${name}/${fixTag(r.tag)}.md`, prepared: null }));
+    if (repair) {
+      fs.mkdirSync(`${bench}/briefs/${name}`, { recursive: true });
+      for (const [i, r] of failing.entries()) {
+        const failures = scoutFailures(r.row.worktree, r.reply, r.sample.ticket, core);
+        fs.writeFileSync(fixRows[i].prompt, repairBrief(r.row.worktree, r.reply, failures));
+      }
+      process.stdout.write(dispatchTable(fixRows, name));
+      return 0;
+    }
+    const fixMatch = matchNamed(fixRows, readSessions(dirs).runs, name, slurp);
+    const fixed = new Map();
+    for (const r of failing) {
+      const run = fixMatch.counted.get(fixTag(r.tag));
+      if (!run) continue;
+      const values = scorer.score(r.row.worktree, { reply: run.lastText, ticket: r.sample.ticket, base: r.sample.base, truth: r.truth }, core);
+      if (values.problem) { fixMatch.notCounted.push({ tag: fixTag(r.tag), reason: `run ${run.id}: ${values.problem}` }); continue; }
+      fixed.set(r.tag, { usage: run.usage, values });
+    }
+    const after = afterRepair(records, fixed);
+    const text = armReport({ name, def, measures: scorer.measures, records, leftOut: state.leftOut ?? {}, notCounted })
+      + '\n' + armReport({ name: `${name} after one repair`, def, measures: scorer.measures, records: after.records, leftOut: state.leftOut ?? {}, notCounted: after.notCounted.concat(fixMatch.notCounted.filter((x) => !/^no run described/.test(x.reason))) });
+    const rel = `docs/benchmark/round-${name}.md`;
+    fs.mkdirSync(path.join(repo, 'docs', 'benchmark'), { recursive: true });
+    fs.writeFileSync(path.join(repo, rel), text);
+    process.stdout.write(rel + '\n');
+    return 0;
+  } catch (e) {
+    if (e instanceof PlanProblem) return err(e.message);
+    throw e;
+  }
 }
 
 function runCompliance(folders, repo) {
@@ -1157,8 +1422,11 @@ export function main(args) {
     if (at >= 0 && !args[at + 1]) { process.stderr.write('--rerun needs a comma-separated list of tags\n'); return 2; }
     return runPlan(process.cwd(), at >= 0 ? args[at + 1].split(',').filter(Boolean) : []);
   }
+  if (args[0] === '--round' && args.length === 3 && args[2] === '--plan' && args[1] !== '1') return runNamedPlan(process.cwd(), args[1]);
+  if (args[0] === '--round' && args.length === 2 && args[1] !== '1') return runNamedRound(process.cwd(), args[1]);
+  if (args[0] === '--round' && args.length === 3 && args[2] === '--repair' && args[1] !== '1') return runNamedRound(process.cwd(), args[1], { repair: true });
   if (args.some((a) => a.startsWith('--'))) {
-    process.stderr.write('usage: node scripts/benchmark.mjs [--compliance | --round 1 [--samples | --plan [--rerun <tag>[,<tag>]] | --judge] | --clean [--force] | --fixed [--probe]] [folder ...]\n');
+    process.stderr.write('usage: node scripts/benchmark.mjs [--compliance | --round 1 [--samples | --plan [--rerun <tag>[,<tag>]] | --judge] | --round <name> [--plan | --repair] | --clean [--force] | --fixed [--probe]] [folder ...]\n');
     return 2;
   }
   process.stdout.write(legacyReport(args.length ? args : defaultDirs(process.cwd())));
@@ -1538,4 +1806,4 @@ export function fixedReport({ repo, home, bench, dirs, forms = PROBE_FORMS }) {
 }
 
 // Last: the entry runs only once every top-level declaration above has been evaluated.
-if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) process.exitCode = main(process.argv.slice(2));
+if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) process.exitCode = await main(process.argv.slice(2));

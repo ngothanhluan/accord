@@ -25,8 +25,55 @@ export function steps(effort) {
 }
 
 export const tagOf = (agent, n, effort) => agent.slice('accord-'.length) + '-' + n + '-' + effort;
-export const describe = (tag) => 'bench r1 ' + tag;
-export const judgeDescribe = (tag) => describe(tag) + ' judge';
+export const describe = (tag, name = 'r1') => 'bench ' + name + ' ' + tag;
+export const judgeDescribe = (tag, name = 'r1') => describe(tag, name) + ' judge';
+
+// ---- named arm rounds (ST-LN-46): a round definition is data, one dispatch row per sample, arm and run ----
+const MODEL = /^[A-Za-z0-9._-]+$/;
+const whole = (v, least) => Number.isInteger(v) && v >= least;
+const isDate = (v) => {
+  if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  const at = new Date(v + 'T00:00:00Z');
+  return !Number.isNaN(at.getTime()) && at.toISOString().slice(0, 10) === v;
+};
+
+// The problems of a round definition; none when it can be planned. `<i>` counts arms from 1.
+export function checkRound(name, def) {
+  const out = [];
+  if (!/^r[a-z0-9-]+$/.test(String(name)) || name === 'r1') out.push(`round name ${name} must match r[a-z0-9-]+ and not be r1`);
+  def = def && typeof def === 'object' ? def : {};
+  if (typeof def.agent !== 'string' || !Object.hasOwn(ROLES, def.agent) || RETIRED.includes(def.agent)) out.push(`agent ${def.agent} is not a benchmark agent`);
+  const arms = Array.isArray(def.arms) ? def.arms : [];
+  const seen = new Set(), twice = new Set(), models = [];
+  arms.forEach((arm, i) => {
+    let ok = true;
+    if (!EFFORTS.includes(arm?.effort)) { out.push(`arm ${i + 1}: effort ${arm?.effort} is not one of ${EFFORTS.join(', ')}`); ok = false; }
+    if (typeof arm?.model !== 'string' || !MODEL.test(arm.model)) { out.push(`arm ${i + 1}: model ${arm?.model} is not a model name`); ok = false; }
+    else if (!models.includes(arm.model)) models.push(arm.model);
+    if (!ok) return;
+    const key = `${arm.model} ${arm.effort}`;
+    if (seen.has(key) && !twice.has(key)) { twice.add(key); out.push(`arm ${key} is listed twice`); }
+    seen.add(key);
+  });
+  const prices = def.prices && typeof def.prices === 'object' ? def.prices : {};
+  for (const m of models) {
+    const p = Object.hasOwn(prices, m) ? prices[m] : undefined;
+    if (typeof p !== 'number' || !Number.isFinite(p) || p <= 0) out.push(`model ${m} has no positive price in prices`);
+  }
+  if (!isDate(def.pricesAt)) out.push('pricesAt must be a date YYYY-MM-DD');
+  if (!whole(def.runs, 1)) out.push('runs must be a whole number of at least 1');
+  if (!whole(def.judges, 0)) out.push('judges must be a whole number of at least 0');
+  if (!Array.isArray(def.samples) || !def.samples.every((n) => whole(n, 1)) || new Set(def.samples).size !== def.samples.length) out.push('samples must be a list of distinct whole numbers of at least 1');
+  return out;
+}
+
+export const armTag = (agent, n, model, effort, k) => `${agent.slice('accord-'.length)}-${n}-${model}-${effort}-${k}`;
+
+// One row per sample (ascending n), arm (definition order) and run k. No `current`: a named round has no current-effort run.
+export function armMatrix(def, samples) {
+  return [...samples].sort((a, b) => a.n - b.n).flatMap((s) => def.arms.flatMap(({ model, effort }) =>
+    Array.from({ length: def.runs }, (_, i) => ({ tag: armTag(def.agent, s.n, model, effort, i + 1), agent: def.agent, n: s.n, ticket: s.ticket, model, effort, k: i + 1, judge: null }))));
+}
 
 const SHA = /^[0-9a-f]{40}$/;
 const absOk = (p) => typeof p === 'string' && /^([A-Za-z]:)?\//.test(p) && !p.includes('\\');
@@ -205,11 +252,11 @@ export function stripReadPrefixes(text) {
   return (cut < 0 ? lines : lines.slice(0, cut)).map((l) => l.replace(/^\s*\d+\t/, '')).join('\n').replace(/\n+$/, '');
 }
 
-export function dispatchTable(rows) {
+export function dispatchTable(rows, name = 'r1') {
   return [
     '| description | subagent_type | model | effort | prompt file | judge |',
     '| --- | --- | --- | --- | --- | --- |',
-    ...rows.map((r) => `| ${describe(r.tag)} | ${r.agent} | ${r.model} | ${r.effort} | ${r.prompt} | ${r.judge ? `${r.judge.agent} ${r.judge.model} ${r.judge.effort}` : '-'} |`),
+    ...rows.map((r) => `| ${describe(r.tag, name)} | ${r.agent} | ${r.model} | ${r.effort} | ${r.prompt} | ${r.judge ? `${r.judge.agent} ${r.judge.model} ${r.judge.effort}` : '-'} |`),
   ].join('\n') + '\n';
 }
 
@@ -437,4 +484,155 @@ export function escapes(rows, { runs, judges }, live) {
     }
   }
   return out;
+}
+
+// ---- scoring a scout run by script (ST-LN-46): scout check, contradicted Absent rows, wiring recall ----
+const CONTRADICTED = /^absent claim ".*" \(row (\d+)\): .* matches its pattern outside its allowed hits$/;
+const BEFORE = /[\p{L}\p{N}_.@+\-/]$/u;
+const AFTER = /^(?:[\p{L}\p{N}_@+\-/]|\.[\p{L}\p{N}_])/u;
+
+// Whether the text names `path` in full: not as the tail of a longer path or the head of a longer name; `./` may precede it.
+export function namesPath(text, path) {
+  const t = text.replace(/\\/g, '/');
+  for (let i = t.indexOf(path); i >= 0; i = t.indexOf(path, i + 1)) {
+    const from = i >= 2 && t.slice(i - 2, i) === './' ? i - 2 : i;
+    if (!BEFORE.test(t.slice(0, from)) && !AFTER.test(t.slice(i + path.length))) return true;
+  }
+  return false;
+}
+
+// `scoutCheck` is core's; the facts are the tree the sample is scored on. `ticket` is passed as `accord scout check --ticket`
+// passes it, or left out for a report with no ticket. `check` is 1 when the check reports no failure; `falseClaims` counts
+// the distinct Absent rows whose search hits outside their allowed hits; `recall` is the share of `truth` the reply names in full.
+export function scoreScout(reply, { tracked, read, ticket, truth }, { scoutCheck }) {
+  const result = scoutCheck({ text: reply, tracked, read, ...(ticket ? { ticket } : {}) });
+  const rows = new Set();
+  for (const f of result.failures) { const m = CONTRADICTED.exec(f); if (m) rows.add(m[1]); }
+  const named = truth.filter((p) => namesPath(reply, p)).length;
+  return { check: result.failures.length === 0 ? 1 : 0, falseClaims: rows.size, recall: truth.length === 0 ? 1 : named / truth.length };
+}
+
+// ---- one repair of a failing scout reply (ST-LN-46 D-10, as packages/core/skills/shared/scout.md step 2) ----
+export const fixTag = (tag) => `${tag}-fix`;
+export function repairBrief(worktree, reply, failures) {
+  return [
+    `Repository root: ${worktree} (a git worktree; read only there).`, '',
+    'The reply below, from an earlier accord-scout, fails `accord scout check`. Give the same reply corrected in the same form: fix every failure the check printed, keep every other fact, and answer with the corrected reply only.', '',
+    '## What the check printed', '', ...failures.map((f) => `- ${f}`), '',
+    '## The reply', '', reply.replace(/\n+$/, ''), '',
+  ].join('\n');
+}
+// `first` and `fix`: records keyed by tag, as runNamedRound builds them; `fix` holds the repair run's scored record under the
+// first run's tag. A first reply that passed stands with its own cost; a failing one counts its repair's values and both
+// runs' tokens; a failing one with no repair is not counted.
+export function afterRepair(first, fix) {
+  const records = [], notCounted = [];
+  for (const r of first) {
+    if (r.values.check === 1) { records.push(r); continue; }
+    const f = fix.get(r.tag);
+    if (!f) { notCounted.push({ tag: fixTag(r.tag), reason: 'its first reply fails scout check and has no counted repair run' }); continue; }
+    const usage = Object.fromEntries(Object.keys(r.usage).map((k) => [k, (r.usage[k] ?? 0) + (f.usage[k] ?? 0)]));
+    records.push({ ...r, usage, values: f.values });
+  }
+  return { records, notCounted };
+}
+
+// ---- matching the runs of a named round (ST-LN-46) ----
+// Each saved row takes the run described `bench <name> <tag>`. Every such run is checked first: under the row's agent with the
+// row's brief (`runProblem`), dispatched after the row's worktree was prepared, and every turn on the row's model and effort.
+// Of the runs left the earliest dispatched counts, whatever the order of the transcript files. `read` reads a brief file.
+// Returns `counted` (tag to run) and `notCounted` ({ tag, reason } per run that does not count, and per row with no run).
+export function matchNamed(rows, runs, name, read) {
+  const counted = new Map(), notCounted = [];
+  const sent = (r) => r.dispatch?.ts ?? r.start ?? 0;
+  for (const row of rows) {
+    const all = runs.filter((r) => r.desc === describe(row.tag, name));
+    if (!all.length) { notCounted.push({ tag: row.tag, reason: `no run described ${describe(row.tag, name)}` }); continue; }
+    const fine = [];
+    for (const run of all) {
+      const flag = turnFlags(run.turns, row)[0];
+      const problem = runProblem(row, run, { read })
+        ?? (row.prepared != null && sent(run) < row.prepared ? 'dispatched before its worktree was prepared' : null)
+        ?? (flag ? `turn ${flag.turn}: ${flag.field} is ${flag.got} where the round dispatched ${flag.want}` : null)
+        ?? (run.turns.length ? null : 'no turn in the transcript');
+      if (problem) notCounted.push({ tag: row.tag, reason: `run ${run.id}: ${problem}` });
+      else fine.push(run);
+    }
+    fine.sort((a, b) => sent(a) - sent(b) || (a.file < b.file ? -1 : a.file > b.file ? 1 : 0));
+    if (fine.length) counted.set(row.tag, fine[0]);
+    for (const run of fine.slice(1)) notCounted.push({ tag: row.tag, reason: `run ${run.id}: run ${fine[0].id}, dispatched earlier, counts` });
+  }
+  return { counted, notCounted };
+}
+
+// ---- the arm report of a named round (ST-LN-46): means, pass-mean ranges, cost, and the cheapest arm that ties the best ----
+export const SCOUT_MEASURES = [
+  { key: 'check', label: 'scout check passes', higher: true },
+  { key: 'falseClaims', label: 'contradicted Absent rows', higher: false },
+  { key: 'recall', label: 'wiring recall', higher: true },
+];
+const EPS = 1e-9;
+const avg = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
+// Tokens weighted fresh input 1, cache read 0.1, cache write 1.25 and output 5 (D-08 multiplies this by the model's price factor).
+export const weighted = (u) => u.input + 0.1 * u.cacheRead + 1.25 * u.cacheWrite + 5 * u.output;
+
+// `records`: { tag, n, model, effort, k, usage, values }. `leftOut`: { <n>: reason }. A pass is run k over every sample not left
+// out and counts only when it has a run on every sample (D-06); an arm with no complete pass is never best or winner.
+export function armStats(def, measures, records, leftOut = {}) {
+  const samples = def.samples.filter((n) => !Object.hasOwn(leftOut, n));
+  const arms = def.arms.map(({ model, effort }) => {
+    const own = records.filter((r) => r.model === model && r.effort === effort && samples.includes(r.n));
+    const passes = [];
+    for (let k = 1; k <= def.runs; k++) {
+      const run = samples.map((n) => own.find((r) => r.k === k && r.n === n));
+      if (samples.length && run.every(Boolean)) passes.push(run);
+    }
+    const by = Object.fromEntries(measures.map((m) => {
+      const means = passes.map((p) => avg(p.map((r) => r.values[m.key])));
+      return [m.key, { mean: own.length ? avg(own.map((r) => r.values[m.key])) : null, range: means.length ? [Math.min(...means), Math.max(...means)] : null }];
+    }));
+    const cost = own.length ? avg(own.map((r) => weighted(r.usage))) * def.prices[model] : null;
+    return { model, effort, runs: own.length, passes: passes.length, by, cost };
+  });
+  const eligible = arms.filter((a) => a.passes > 0);
+  const cheaper = (a, b) => !b || a.cost < b.cost;
+  const best = {};
+  for (const m of measures) {
+    const sign = m.higher ? 1 : -1;
+    const top = eligible.reduce((t, a) => (t === null || sign * (a.by[m.key].mean - t) > 0 ? a.by[m.key].mean : t), null);
+    best[m.key] = eligible.filter((a) => Math.abs(a.by[m.key].mean - top) <= EPS).reduce((c, a) => (cheaper(a, c) ? a : c), null);
+  }
+  const ties = (a) => measures.every((m) => {
+    const b = best[m.key];
+    const [lo, hi] = b.by[m.key].range;
+    return a === b || (a.by[m.key].mean >= lo - EPS && a.by[m.key].mean <= hi + EPS);
+  });
+  const winner = eligible.length ? eligible.filter(ties).reduce((c, a) => (cheaper(a, c) ? a : c), null) : null;
+  return { samples, arms, best, winner };
+}
+
+export function armReport({ name, def, measures, records, leftOut = {}, notCounted = [] }) {
+  const { samples, arms, best, winner } = armStats(def, measures, records, leftOut);
+  const num = (v) => String(+v.toFixed(3));
+  const cell = (s) => (s.mean === null ? '-' : `${num(s.mean)} (${s.range ? `${num(s.range[0])} to ${num(s.range[1])}` : 'no complete pass'})`);
+  const label = (a) => `${a.model} ${a.effort}`;
+  const winLines = [];
+  if (winner) {
+    const all = measures.every((m) => best[m.key] === winner);
+    winLines.push(all ? `Winner: ${label(winner)}, the best arm on all three measures; no cheaper arm ties it.`
+      : `Winner: ${label(winner)}, the cheapest arm whose mean on every measure lies within the pass-mean range of the best arm on that measure.`);
+  } else winLines.push('No winner: the measures have different best arms and no arm ties on all three. The best arm of each measure follows.');
+  return [
+    `# Round ${name} benchmark: ${def.agent}`, '',
+    `Samples ${samples.join(', ') || 'none'}; ${def.runs} runs per arm and sample. Cost per run is weighted tokens (fresh input 1, cache read 0.1, cache write 1.25, output 5) times the model's price factor from ${def.pricesAt || 'no date'}. Suggestions only: this report changes no agent definition.`, '',
+    '## Arms', '',
+    `| model | effort | runs | ${measures.map((m) => `${m.label}: mean (range of pass means)`).join(' | ')} | mean cost per run |`,
+    `| --- | --- | ---: | ${measures.map(() => '---').join(' | ')} | ---: |`,
+    ...arms.map((a) => `| ${a.model} | ${a.effort} | ${a.runs} | ${measures.map((m) => cell(a.by[m.key])).join(' | ')} | ${a.cost === null ? '-' : Math.round(a.cost)} |`), '',
+    '## Best arm per measure', '',
+    ...measures.map((m) => `- ${m.label} (${m.higher ? 'highest' : 'lowest'} is best): ${best[m.key] ? label(best[m.key]) : 'none, no arm has a complete pass'}`), '',
+    '## Winner', '', ...winLines, '',
+    '## Samples left out', '', ...(Object.keys(leftOut).length ? Object.entries(leftOut).map(([n, why]) => `- sample ${n}: ${why}`) : ['None.']), '',
+    '## Rows with no counted run', '', ...(notCounted.length ? notCounted.map((r) => `- ${r.tag}: ${r.reason}`) : ['None.']), '',
+  ].join('\n');
 }

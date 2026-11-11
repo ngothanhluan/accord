@@ -21,8 +21,16 @@ function compare(a: string, b: string): number {
   return 0;
 }
 
+/** ST-LN-93 D-08: the release that ships the plan size rule: a ticket with no `Expected size:` line is allowed only while its pin is below it. */
+export const PLAN_SIZE_FROM = '0.4.1';
+
+/** True only when `pin` is a plain x.y.z below `from` and, when `basePin` is a plain x.y.z, not below `basePin`: the rules before `from` hold. */
+export function pinBefore(from: string, pin: string | undefined, basePin?: string): boolean {
+  if (pin === undefined || !PLAIN.test(pin) || compare(pin, from) >= 0) return false;
+  return basePin === undefined || !PLAIN.test(basePin) || compare(pin, basePin) >= 0;
+}
+
 /** True only when `pin` is a plain x.y.z below RECORD_V2_FROM and, when `basePin` is a plain x.y.z, not below `basePin`. */
 export function pinAllowsV1(pin: string | undefined, basePin?: string): boolean {
-  if (pin === undefined || !PLAIN.test(pin) || compare(pin, RECORD_V2_FROM) >= 0) return false;
-  return basePin === undefined || !PLAIN.test(basePin) || compare(pin, basePin) >= 0;
+  return pinBefore(RECORD_V2_FROM, pin, basePin);
 }

@@ -4,6 +4,7 @@
 import { headingKey, LIST_MARKER, stripHtmlComments } from '../load/sections.js';
 import { FIELD, fieldLines, tokens } from '../load/work.js';
 import type { PlanTask, RepoSnapshot, Ticket } from '../model/snapshot.js';
+import { PLAN_SIZE_FROM, pinBefore } from '../round/pin.js';
 import { isSha } from './done.js';
 import type { GateRule } from './rules.js';
 import { laneTicket, planFile, workOf } from './work.js';
@@ -115,6 +116,28 @@ export const planSize: GateRule['check'] = (snapshot, id) => {
   if (expected === undefined) return [];
   const reason = sizeRefusal(work.plan.tasks.length, expected, work.ledger?.rulings ?? []);
   return reason === undefined ? [] : [{ file: work.plan.file, reason }];
+};
+
+/**
+ * ST-LN-93 D-08: a lane M ticket with a plan and no `Expected size:` line fails from PLAN_SIZE_FROM on. The pin is the one at the
+ * plan's baseline: commit (and its merge base) when the host supplied it, never the working-tree pin, which always equals the running
+ * version, so an upgrade does not block a ticket already in flight; without the fact the working-tree pin is all there is.
+ */
+export const planSizeMissing: GateRule['check'] = (snapshot, id) => {
+  const t = laneTicket(snapshot, id);
+  const plan = workOf(snapshot, id)?.plan;
+  // planMissing and planEmpty own a ticket with no plan or no task.
+  if (t === undefined || t.frontmatter?.lane === 'S' || plan === undefined || plan.tasks.length === 0 || expectedSize(t) !== undefined) return [];
+  const { pin, basePin } = Object.hasOwn(snapshot.planPins ?? {}, id) ? snapshot.planPins![id] : { pin: snapshot.config?.accord, basePin: undefined };
+  if (pinBefore(PLAN_SIZE_FROM, pin, basePin)) return [];
+  return [
+    {
+      file: t.file,
+      reason:
+        `## Intent has no "Expected size: <N> tasks" line; from accord ${PLAN_SIZE_FROM} gate plan needs it: ask the owner how many plan tasks ` +
+        'the work should take, write the line into ## Intent, and have the Intent approved again',
+    },
+  ];
 };
 
 export const taskCoversMissing: GateRule['check'] = (snapshot, id) =>

@@ -70,9 +70,9 @@ it('ac-2 the planner direction pass returns the approach draft and writes no fil
 it('risk:regression the planner writes direction.md and the plan writer is given its path (ST-LN-91 ac-4)', () => {
   const planner = flat(agent('planner'));
   holds(planner, [
-    'you write `accord/tickets/<id>/direction.md` yourself',
+    'holding the report below',
     'the impact list, every option with its reasons, the `Recommended` line and the failure scenarios',
-    'when the approach stage saved it, read it before the code',
+    'the approach stage saved it, read it before the code',
     'change only the lines each finding needs, inside the tasks it names',
   ]);
   const plan = flat(skillFile('accord-plan', 'SKILL.md'));

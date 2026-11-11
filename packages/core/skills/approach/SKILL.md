@@ -14,7 +14,7 @@ the owner's yes before anyone plans. You run it in the main session.
 1. Run `accord anchor`.
 
 2. **Options.** Dispatch `accord-planner` in its `direction` mode with the path of
-   `accord/tickets/<id>.md`. It writes no file. Its report holds an impact
+   `accord/tickets/<id>.md`. It writes only `accord/tickets/<id>/direction.md`, which the critic never reads. Its report holds an impact
    list naming file and line, two or three options in ladder order with the
    lightest that works first, each added layer naming the criterion or
    constraint that requires it, and, when the ticket touches auth, money,
@@ -27,7 +27,7 @@ the owner's yes before anyone plans. You run it in the main session.
    `./critique.md` into `accord/tickets/<id>/ledger.md`. When a new session
    or a revision needs the planner again, dispatch it in `direction` mode
    with the name of the option `## Approach` names: it keeps that option,
-   and nobody picks again. Commit `accord/tickets/<id>.md` and
+   and nobody picks again. Commit `accord/tickets/<id>.md`, its `direction.md` and
    `accord/tickets/<id>/ledger.md`; keep the report for steps 3 and 4.
 
 3. **Critique.** Run the loop in `./critique.md`, running

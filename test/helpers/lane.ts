@@ -127,7 +127,7 @@ export function junit(cases: Record<string, 'passed' | 'failed' | 'skipped'>): s
 }
 
 export type Files = Record<string, string>;
-export type Opts = { lane?: string; frontmatter?: string[] };
+export type Opts = { lane?: string; frontmatter?: string[]; body?: string };
 export const P = (id: string) => 'accord/tickets/' + id + '.md';
 export const AC = gateReady(loadSnapshot({ files: { 'accord/config.yml': CONFIG, [P('X-1')]: laneTicket('X-1') }, tree: [] }), 'X-1').acHash as string;
 export const approve = (files: Files, id: string) => {

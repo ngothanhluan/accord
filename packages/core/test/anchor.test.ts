@@ -24,6 +24,7 @@ describe('anchorText', () => {
         '',
         '## Intent',
         'Owners can export their report as CSV.',
+        'Expected size: 5 tasks',
         '',
         '## Vetoes',
         '- No new dependency.',

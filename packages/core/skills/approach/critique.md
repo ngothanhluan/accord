@@ -11,7 +11,10 @@ The main session keeps every critic finding in
 each finding on one line as `<n>. <Must|Should|Nice> — <finding> — <state>`.
 The state is `open`, `fixed`, `deferred` for a Nice, `unverified: <reason>`,
 `withdrawn`, `repeated as <round>.<n>`, and `owner: "<the owner's words>"`
-for one the owner dropped. A finding stays `open` or `unverified` until a
+for one the owner dropped. After the state the session copies the critic's
+marks, each as ` — <mark>`: `rests on: <the ticket line>`, `risk: data-loss`
+or `risk: security`, `test: <id>`, `command: <command>`. A finding stays
+`open` or `unverified` until a
 critic lists it after `fixed:` or `withdrawn:`, or the owner drops it; the
 planner's word alone closes nothing. A round with no findings says
 `No findings`. Only the sections after the last `## Closed` line count.
@@ -86,14 +89,21 @@ run it again.
    holds the amended `## Approach`, into a file outside the working tree, and
    dispatch one `accord-critic` in a fresh context, mode `approach`, with the
    paths of the ticket, that file, and `approach-review.md`, never the
-   planner's report.
+   planner's report or `accord/tickets/<id>/direction.md`, which holds its
+   reasons: that file is committed with the ticket and never given to the
+   critic.
 2. **Record.** Append the round's section and mark each new finding `open`.
    Mark `fixed` each finding the critic lists after `fixed:`, and
    `withdrawn` each one it lists after `withdrawn:`. A new finding that
    starts `repeats <round>.<n>:` marks that earlier finding
    `repeated as <this round>.<n>`. A Nice, a `defer to plan` one included, is
    marked `deferred`, goes to the ledger under `## Deferred`, and never to
-   the planner.
+   the planner. From round 2 (accord 0.4.1 and later) a new Must or Should
+   with none of the marks above is marked `deferred` too and goes to the
+   ledger under `## Deferred` as
+   `- approach <r>.<n>[ cycle <k>]: <finding> — failing case: <case>`
+   (` cycle <k>` from cycle 2 on), never to the planner. A finding with a
+   `risk:` mark is never deferred: it blocks in every round.
 3. **Ruled out.** When a Must would break a Veto, Decision, or Correction,
    the option is out: append `## Closed <option>: ruled out by <round>.<n>`,
    naming that Must, to `approach-review.md`, take the first option of the

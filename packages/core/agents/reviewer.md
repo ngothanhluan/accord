@@ -41,8 +41,8 @@ Severity, by what happens if the finding is left:
 Findings:
 - Numbered, each with a severity `Must`, `Should`, or `Nice`, the lens it comes from, one file and line, or `none` when it has no file, and a concrete failing case: the input, step, or state, and what goes wrong.
 - When a failing test or a command reproduces it, give it as `test: <test id>` or `command: <command>`.
-- A Should gives `rests on:` (the acceptance criterion `ac-<n>` or Decision `D-<nn>` it breaks, or a quote of at least three words from the Veto or Intent; lane S accepts only a quote from `## Understood` or `## Done when`, lane M only the four others), or a `test:` or `command:` that reproduces it. With neither, say so in the finding: from round 3 the session grades it a Nice; in rounds 1 and 2 every Should is fixed as today.
-- A finding on data loss or security says `risk: data-loss` or `risk: security`.
+- A Must or a Should gives `rests on:` (the acceptance criterion `ac-<n>` or Decision `D-<nn>` it breaks, or a quote of at least three words from the Veto, a Correction or the Intent; lane S accepts only a quote from `## Understood` or `## Done when`, lane M only the others), or a `test:` or `command:` that reproduces it. With neither, say so in the finding: from round 2 in accord 0.4.1 and later (before it, from round 3 and for a Should only) the session writes it deferred with its failing case and it does not block; in the rounds before that every Should is fixed as today.
+- A finding on data loss or security says `risk: data-loss` or `risk: security`, blocks in every round, and is never deferred.
 - No failing case, no finding.
 - When you find nothing, say `No findings`.
 
@@ -51,7 +51,7 @@ Findings:
    violates: "<the criterion, veto, or correction, quoted>"
    failing case: <input, step, or state> → <what goes wrong>
    reproduce: test: <test id> | command: <command>
-   rests on: ac-<n> | D-<nn> | Veto "<quote>" | Intent "<quote>" | Understood "<quote>" | Done when "<quote>"
+   rests on: ac-<n> | D-<nn> | Veto "<quote>" | Correction "<quote>" | Intent "<quote>" | Understood "<quote>" | Done when "<quote>"
 ```
 
 You never edit a file and never fix what you find; you report it. You never dispatch another agent.

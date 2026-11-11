@@ -1133,11 +1133,33 @@ it('risk:regression the review skills write version 2 records with heads marks a
       '`risk: security`',
       'Understood "<quote>" | Done when "<quote>"',
       'lane S accepts only a quote from `## Understood` or `## Done when`',
-      'from round 3 the session grades it a Nice',
+      'from round 2 in accord 0.4.1 and later',
     ]
       .filter((p) => !reviewer.includes(p))
       .map((p) => 'accord-reviewer lacks: ' + p),
     ...missing('.claude/skills/accord-debug/SKILL.md', ["that round's fix", 'headed `(added code round 1)`']),
+  ];
+  expect(problems).toEqual([]);
+});
+
+it('risk:regression the record rules defer an ungrounded later finding with its failing case and hold the plan fix to its tasks (ST-LN-91 ac-1)', () => {
+  const missing = (path: string, phrases: readonly string[]) => phrases.filter((p) => !flatText(path).includes(p)).map((p) => path + ' lacks: ' + p);
+  const reviewer = (role: string): string => (agentTargets(config).find((f) => f.path === `.claude/agents/accord-${role}.md`)?.text ?? '').replace(/\s+/g, ' ');
+  const problems = [
+    ...missing('.claude/skills/accord-plan/critique.md', [
+      '- plan <r>.<n>',
+      'failing case:',
+      'risk:',
+      'never deferred',
+      'only the lines a finding needs',
+      'the tasks it names',
+      'Ruling: the owner allows the plan fix after round <r> of cycle <k> to change',
+    ]),
+    ...missing('.claude/skills/accord-approach/critique.md', ['- approach <r>.<n>', 'failing case:', 'never given to the critic']),
+    ...missing('.claude/skills/accord-review/record.md', ['failing case:', 'from round 2']),
+    ...['reviewer', 'final-reviewer'].flatMap((role) =>
+      ['from round 2', 'deferred with its failing case'].filter((p) => !reviewer(role).includes(p)).map((p) => `accord-${role} lacks: ${p}`),
+    ),
   ];
   expect(problems).toEqual([]);
 });

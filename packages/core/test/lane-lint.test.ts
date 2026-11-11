@@ -41,6 +41,19 @@ describe('lane ticket headings (spec §4)', () => {
   });
 });
 
+describe('direction.md is a ticket record (ST-LN-91 ac-4)', () => {
+  it('risk:regression lint accepts a direction.md ticket record (ST-LN-91 ac-4)', () => {
+    const base = repo({ 'T-1': laneTicket('T-1') });
+    const withDirection = { ...base, 'accord/tickets/T-1/direction.md': '# Direction\n\nImpact list, options with their reasons.\n\n- Recommended: option 1\n' };
+    const before = lintSnapshot(load(base));
+    const after = lintSnapshot(load(withDirection));
+    expect(after.findings).toEqual(before.findings);
+    expect(loadSnapshot({ files: withDirection, tree: Object.keys(withDirection).sort() }).errors).toEqual(
+      loadSnapshot({ files: base, tree: Object.keys(base).sort() }).errors,
+    );
+  });
+});
+
 describe('EARS lint is off for lane tickets (spec §4, §15)', () => {
   const requirements = ['## Requirements', 'Owners like exports.', ...Array.from({ length: 15 }, () => 'The system shall export.'), ''];
   const body = LANE_BODY + requirements.join('\n');

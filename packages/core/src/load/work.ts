@@ -20,8 +20,9 @@ const NOT_INTERFACE = /^Not an interface:\s+(\S.*?)\s+—\s+(.*\S)$/;
 const VERDICT = /^verdict:\s*(\S+)(?:\s.*)?$/;
 
 const MARKER = /^\(@ac-[1-9][0-9]*\)$/;
-// ST-LN-57: `- review <round>.<n>[ cycle <k>]: <text>` under the ledger's first `## Deferred` section.
-const DEFERRED = /^\s*[-*+]\s+review ([1-9][0-9]*)\.([1-9][0-9]*)(?: cycle ([1-9][0-9]*))?:\s*\S/;
+// ST-LN-57, ST-LN-91 D-12: `- <review|plan|approach> <round>.<n>[ cycle <k>]: <text>[ — failing case: <case>]` under the ledger's first `## Deferred` section.
+const DEFERRED = /^\s*[-*+]\s+(review|plan|approach) ([1-9][0-9]*)\.([1-9][0-9]*)(?: cycle ([1-9][0-9]*))?:\s*\S/;
+const FAILING_CASE = / — failing case:\s*\S/;
 
 /** A declared path, trimmed, with one pair of surrounding backticks removed. */
 const declared = (t: string): string => {
@@ -147,12 +148,20 @@ export function parseLedger(file: string, text: string): Ledger {
   }
   const { sections, fences } = scan(normaliseText(text), 0);
   const section = sections.find((s) => headingKey(s.heading) === 'rulings');
-  const deferred: { round: number; n: number; cycle: number }[] = [];
+  const deferred: NonNullable<Ledger['deferred']> = [];
   const deferredSection = sections.find((s) => headingKey(s.heading) === 'deferred');
   const unfenced = (deferredSection?.lines ?? []).filter((l) => !fences.some((f) => l.line >= f.open && l.line <= f.close));
   for (const l of stripHtmlComments(unfenced)) {
     const d = DEFERRED.exec(l.text);
-    if (d) deferred.push({ round: Number(d[1]), n: Number(d[2]), cycle: d[3] === undefined ? 1 : Number(d[3]) });
+    if (d) {
+      deferred.push({
+        kind: d[1] as 'review' | 'plan' | 'approach',
+        round: Number(d[2]),
+        n: Number(d[3]),
+        cycle: d[4] === undefined ? 1 : Number(d[4]),
+        ...(FAILING_CASE.test(l.text) ? { failingCase: true as const } : {}),
+      });
+    }
   }
   const extra = {
     ...(wordingOnly.length > 0 ? { wordingOnly } : {}),

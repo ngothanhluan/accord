@@ -20,7 +20,7 @@ one at a time. You run it in the main session.
    ledger Ruling), read `review.mode` in
    `accord/config.yml` (absent counts as `human`), and dispatch
    `accord-planner` with the path of `accord/tickets/<id>.md`, that commit,
-   and the mode. It writes `accord/tickets/<id>/plan.md` with frontmatter
+   the mode, and `accord/tickets/<id>/direction.md` when it exists. It writes `accord/tickets/<id>/plan.md` with frontmatter
    `baseline: <that commit>` and one `## Task <n>: <title>` section
    per task. Each task carries a `covers:` line, a `files:` line, and a
    `verify:` line, then prose for the executor: the interface (consumes,

@@ -46,6 +46,12 @@ export interface SnapshotInput {
 
 /** ST-LN-57: one commit of a round's range: its kind and the paths it changes (for a merge, the paths its remerge diff shows). */
 export interface RangeCommit { sha: string; kind: 'commit' | 'merge' | 'episode'; files: string[] }
+/** ST-LN-91 D-11: the pin in accord/config.yml at the commit that first added a `## Round` heading to plan-review.md or approach-review.md, and at that commit's merge base with the default ref; `error` when git could not say. */
+export type RecordPin = { pin?: string; basePin?: string } | { error: string };
+/** ST-LN-91 D-14: one hunk of `git diff -U0` between two texts of plan.md: the old and new first line and line count (a count of 0 places the hunk after the line named). */
+export interface PlanHunk { oldStart: number; oldCount: number; newStart: number; newCount: number }
+/** ST-LN-91 D-14: the planner's fix of plan.md as the host read it: the commit it started from, its hunks and both texts; `error` when git could not say. */
+export type PlanFix = { base: string; hunks: PlanHunk[]; old?: string; new?: string } | { error: string };
 /** ST-LN-57: round j's head as the host read it: `high` the nearest code commit below the round's record, `low` the previous head. */
 export interface HeadFact { high: string; low?: string; bound?: boolean | 'unknown' } // bound: version 2 only; 'unknown': the head names no commit
 export type RoundFacts =
@@ -176,7 +182,8 @@ export interface Ledger {
   rulings: string[]; // every 'Ruling: …' line, list marker stripped
   rulingsSection?: string[]; // the '## Rulings' section's non-blank lines as written, comments stripped; absent without one
   wordingOnly?: { path: string; reason: string }[]; // every 'Wording-only: <path> — <reason>' line; absent when none
-  deferred?: { round: number; n: number; cycle: number }[]; // '- review <r>.<n>[ cycle <k>]: …' lines of the first '## Deferred' section; absent when none
+  // '- <review|plan|approach> <r>.<n>[ cycle <k>]: …' lines of the first '## Deferred' section; failingCase: the line holds ' — failing case: <case>' (ST-LN-91 D-12); absent when none
+  deferred?: { kind: 'review' | 'plan' | 'approach'; round: number; n: number; cycle: number; failingCase?: true }[];
 }
 
 export interface Review {
@@ -201,7 +208,7 @@ export interface RoundFinding {
   risk?: 'data-loss' | 'security';
   test?: string;
   command?: string;
-  restsOn?: { kind: 'ac' | 'decision' | 'Veto' | 'Intent' | 'Understood' | 'Done when'; ref: string }; // ref: ac-<n>, D-<nn>, or the quote without its quotes
+  restsOn?: { kind: 'ac' | 'decision' | 'Veto' | 'Correction' | 'Intent' | 'Understood' | 'Done when'; ref: string }; // ref: ac-<n>, D-<nn>, or the quote without its quotes
 }
 export interface RecordedRound {
   line: number; // of its ## Round heading
@@ -293,4 +300,10 @@ export interface RepoSnapshot {
   // ST-LN-93 D-08: host-supplied by gate plan for the gated ticket: the pin in accord/config.yml at the plan's
   // baseline: commit, and at that commit's merge base with the default ref. Absent when the host supplies none.
   planPins?: Record<string, { pin?: string; basePin?: string }>;
+  // ST-LN-91 D-11: host-supplied by accord round for the ticket it counts: the pin at the first round of its plan-review.md or
+  // approach-review.md, else HEAD's, and at that commit's merge base with the default ref. A record with no entry keeps the older grounds rule.
+  recordPins?: Record<string, { plan?: RecordPin; approach?: RecordPin }>;
+  // ST-LN-91 D-14: host-supplied by accord round --plan: the last commit that changed plan-review.md, the -U0 hunks of plan.md from it to the
+  // working tree, and both texts. A ticket with no entry (no such commit, or a pin below the cut-off) is not checked.
+  planFix?: Record<string, PlanFix>;
 }

@@ -1,9 +1,9 @@
 // ST-LN-57: the facts the review gate reads from git: each round's head bound or not, its range with the commit kinds,
 // the pin at the first round. Every git error fails closed (ledger Rulings 18, 23, 25).
 import { execFileSync } from 'node:child_process';
-import { pinAllowsV1 } from '@accord-dev/accord-core';
-import type { HeadFact, RangeCommit, RepoSnapshot, RoundFacts } from '@accord-dev/accord-core';
-import { defaultRefOf } from './fs.js';
+import { pinAllowsV1, pinOf } from '@accord-dev/accord-core';
+import type { HeadFact, RangeCommit, RecordPin, RepoSnapshot, RoundFacts } from '@accord-dev/accord-core';
+import { catBatch, defaultRefOf } from './fs.js';
 import { readHistory } from './record-history.js';
 import type { RecordHistory } from './record-history.js';
 import { nearestCode, readWalk, reach } from './walk.js';
@@ -17,7 +17,7 @@ const GIT = {
 };
 
 /** git's first non-blank stderr line without "fatal: ", else the error's own message. */
-function whyGit(e: unknown): string {
+export function whyGit(e: unknown): string {
   const stderr = String((e as { stderr?: string }).stderr ?? '').split('\n').find((l) => l.trim() !== '');
   return (stderr ?? (e as Error).message ?? 'git failed').replace(/^fatal: /, '').trim();
 }
@@ -168,4 +168,62 @@ export function roundFactsFor(root: string, snapshot: RepoSnapshot, id: string):
 export function withRoundFacts(root: string, snapshot: RepoSnapshot, id: string): RepoSnapshot {
   const facts = roundFactsFor(root, snapshot, id);
   return facts === undefined ? snapshot : { ...snapshot, roundFacts: { ...snapshot.roundFacts, [id]: facts } };
+}
+
+const RECORD_FILE = { plan: 'plan-review.md', approach: 'approach-review.md' } as const;
+
+/** The pin in accord/config.yml at `sha`; undefined when there is no config there or it pins nothing. */
+function pinAt(root: string, sha: string): string | undefined {
+  const text = catBatch(root, [`${sha}:accord/config.yml`], 'the record pin')[0];
+  return text === undefined ? undefined : pinOf(text);
+}
+
+/** `git merge-base`: exit 1 means no common commit, any other failure is an error. */
+function mergeBase(root: string, a: string, b: string): string | undefined {
+  try {
+    return execFileSync('git', ['merge-base', a, b], { cwd: root, ...GIT }).trim().toLowerCase();
+  } catch (e) {
+    if ((e as { status?: number }).status === 1) return undefined;
+    throw e;
+  }
+}
+
+/**
+ * ST-LN-91 D-11: the pin of one plan or approach record: in accord/config.yml at the oldest first-parent commit that adds or removes a
+ * `## Round` line of the record (HEAD's pin while no round is committed), and at that commit's merge base with the default ref.
+ * Any git failure is `{ error }`, which the grounds rule treats as the cut-off.
+ */
+function recordPinFor(root: string, snapshot: RepoSnapshot, id: string, kind: 'plan' | 'approach'): RecordPin {
+  const file = RECORD_FILE[kind];
+  try {
+    const log = execFileSync(
+      'git',
+      [
+        '-c', 'core.quotePath=false',
+        '-c', 'log.showSignature=false', 'log', '--no-show-signature', '--first-parent', '--diff-merges=first-parent', '--reverse',
+        '--format=%H', '-G^## Round ', 'HEAD', '--', `:(literal)accord/tickets/${id}/${file}`,
+      ],
+      { cwd: root, ...GIT },
+    );
+    const first = log.split('\n').find((l) => l.trim() !== '')?.trim().toLowerCase();
+    const pin = first === undefined ? snapshot.config?.accord : pinAt(root, first);
+    const def = defaultRefOf(root);
+    const baseAt = def === undefined ? undefined : mergeBase(root, first ?? 'HEAD', def);
+    const basePin = baseAt === undefined ? undefined : pinAt(root, baseAt);
+    return { ...(pin === undefined ? {} : { pin }), ...(basePin === undefined ? {} : { basePin }) };
+  } catch (e) {
+    return { error: `git failed reading the pin of ${file}: ${whyGit(e)}` };
+  }
+}
+
+/**
+ * `snapshot` with recordPins[id][kind] set, for the grounds rule of `accord round --plan` and `--approach`; `snapshot` itself when the
+ * record has no cycle with `minRounds` rounds (nothing is asked of it) or the snapshot has no HEAD. The grounds rule asks from round 2; the
+ * plan fix check (ST-LN-91 D-14) asks after round 1, so `accord round --plan` passes 1.
+ */
+export function withRecordPins(root: string, snapshot: RepoSnapshot, id: string, kind: 'plan' | 'approach', minRounds = 2): RepoSnapshot {
+  const rec = kind === 'plan' ? snapshot.work?.[id]?.planRounds : snapshot.work?.[id]?.approachRounds;
+  if (rec === undefined || snapshot.git === undefined || !rec.cycles.some((c) => c.rounds.length >= minRounds)) return snapshot;
+  const pin = recordPinFor(root, snapshot, id, kind);
+  return { ...snapshot, recordPins: { ...snapshot.recordPins, [id]: { ...snapshot.recordPins?.[id], [kind]: pin } } };
 }

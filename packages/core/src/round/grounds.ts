@@ -1,6 +1,7 @@
 // ST-LN-57: from round 3 a Should rests on a ticket line or a failing case (ac-4, D-07, D-11), and a file a fix changed
-// is the location of a finding or is named by a Ruling (ac-5, D-14). Pure: the host supplies the round facts it read from
-// git. No code runs at load but constants.
+// is the location of a finding or is named by a Ruling (ac-5, D-14). ST-LN-91 D-11 lowers that rule to round 2 and widens it
+// to Must and Should from GROUNDS_V2_FROM; it stays ONE rule, which gate.finding-grounds and accord round both call.
+// Pure: the host supplies the round facts it read from git. No code runs at load but constants.
 import { ownRecordsOnly } from '../gate/done.js';
 import { addedResearch } from '../gate/research.js';
 import { factOf, isExempt } from '../gate/scope.js';
@@ -9,11 +10,15 @@ import type { GateDraft, GateRule } from '../gate/rules.js';
 import { LIST_MARKER, headingKey, stripHtmlComments } from '../load/sections.js';
 import type { RepoSnapshot, RoundFinding, Ticket } from '../model/snapshot.js';
 import { evidenceCount } from './evidence.js';
+import type { RoundKind } from './next.js';
+import { GROUNDS_V2_FROM, pinBefore } from './pin.js';
 import { factsOf, fixCommits, placedRounds, skipped } from './scope.js';
 import type { Placed } from './scope.js';
 
-/** The count from which a Should needs grounds. */
+/** The count from which a Should needs grounds under a pin below GROUNDS_V2_FROM (ST-LN-57). */
 const FROM_ROUND = 3;
+/** The count from which a Must or Should needs grounds from GROUNDS_V2_FROM (ST-LN-91 D-11). */
+const FROM_ROUND_V2 = 2;
 
 const collapse = (s: string): string => s.replace(/\s+/g, ' ').trim();
 
@@ -52,39 +57,145 @@ export function restsOnHolds(ticket: Ticket, f: RoundFinding): boolean {
   }
   if (r.kind === 'Veto') return quoted(sectionText(ticket, 'vetoes'), r.ref);
   if (r.kind === 'Intent') return quoted(sectionText(ticket, 'intent'), r.ref);
+  if (r.kind === 'Correction') return quoted(sectionText(ticket, 'corrections'), r.ref);
   return false;
 }
 
-/** True when `f`, a finding of the round `at`, is a new Should from round 3 that asks grounds (version 2 record with facts, not skipped). */
+/**
+ * ST-LN-91 D-11: the grounds rule asks round 2 and Must as well as Should for the record of this kind. For review.md the host's round facts
+ * carry the pin at the first round (and at its merge base); for plan-review.md and approach-review.md the host's recordPins do. A version 1
+ * review record, no pin or a pin below GROUNDS_V2_FROM keeps the ST-LN-57 rule; a record whose pin git could not read fails closed.
+ */
+export function groundsV2(snapshot: RepoSnapshot, id: string, kind: RoundKind): boolean {
+  if (kind !== 'review') {
+    const fact = snapshot.recordPins?.[id]?.[kind];
+    if (fact === undefined) return false;
+    if ('error' in fact) return true;
+    return fact.pin !== undefined && !pinBefore(GROUNDS_V2_FROM, fact.pin, fact.basePin);
+  }
+  const facts = factsOf(snapshot, id);
+  if (facts === undefined || 'error' in facts || facts.pin === undefined) return false;
+  return !pinBefore(GROUNDS_V2_FROM, facts.pin, facts.basePin);
+}
+
+/** True when `f`, a finding of the round `at`, is a new Must or Should from round 2 (from round 3, Should only, under the older rule) that asks grounds (version 2 record with facts, not skipped). */
 export function needsGrounds(snapshot: RepoSnapshot, id: string, at: Placed, f: RoundFinding): boolean {
   const rec = workOf(snapshot, id)?.rounds;
   const facts = factsOf(snapshot, id);
   if (laneTicket(snapshot, id) === undefined || rec === undefined || rec.version !== 2 || facts === undefined || 'error' in facts) return false;
-  if (skipped(snapshot, id) || at.round.final || f.severity !== 'Should' || f.carried !== undefined || f.risk !== undefined) return false;
-  return evidenceCount(placedRounds(rec), facts.ranges, at, f.file, id) >= FROM_ROUND;
+  const v2 = groundsV2(snapshot, id, 'review');
+  const asked = v2 ? f.severity === 'Must' || f.severity === 'Should' : f.severity === 'Should';
+  if (skipped(snapshot, id) || at.round.final || !asked || f.carried !== undefined || f.risk !== undefined) return false;
+  return evidenceCount(placedRounds(rec), facts.ranges, at, f.file, id) >= (v2 ? FROM_ROUND_V2 : FROM_ROUND);
 }
 
-/** ac-4: each new Should from round 3 that rests on no ticket line, test or command. */
-export const findingGrounds: GateRule['check'] = (snapshot, id) => {
+/** The reason of one ungrounded finding; the forms a ticket line takes depend on the lane, and a Correction counts from GROUNDS_V2_FROM. */
+function reasonOf(ticket: Ticket, where: string, v2: boolean, kind: RoundKind): string {
+  const lines =
+    ticket.frontmatter?.lane === 'S'
+      ? 'Understood "<quote>" or Done when "<quote>"'
+      : v2
+        ? 'ac-<n>, D-<nn>, Veto "<quote>", Correction "<quote>" or Intent "<quote>"'
+        : 'ac-<n>, D-<nn>, Veto "<quote>" or Intent "<quote>"';
+  const ask = `a ticket line it rests on (rests on: ${lines}, a line the ticket holds, a quote of at least three words)`;
+  return v2
+    ? `${where}: from round 2 a Must or Should needs ${ask}, or test: or command:, or risk: data-loss or risk: security; ` +
+        `otherwise write it deferred and add under ## Deferred in the ledger: - ${kind} <round>.<n>[ cycle <k>]: <finding> — failing case: <case>`
+    : `${where}: from round 3 a Should needs ${ask} or test: or command:; otherwise it is a Nice`;
+}
+
+/** ST-LN-91 D-12: the ledger's ## Deferred holds the line of finding `n` of round `round` of cycle `cycle` of this record, with a failing case. */
+const hasFailingCase = (snapshot: RepoSnapshot, id: string, kind: RoundKind, round: number, n: number | undefined, cycle: number): boolean =>
+  n !== undefined &&
+  (workOf(snapshot, id)?.ledger?.deferred ?? []).some((d) => d.kind === kind && d.round === round && d.n === n && d.cycle === cycle && d.failingCase === true);
+
+/** One finding the grounds rule has something to say about: `risk` a risk-tagged finding written deferred; `ungrounded` one that rests on nothing; `excused` the latter deferred with its line and failing case. */
+interface Verdict { f: RoundFinding; cycle: number; round: number; what: 'risk' | 'ungrounded' | 'excused' }
+
+/** Every verdict of the record, in record line order; none when the grounds rule of this kind does not apply (an older pin, a record git could not read). */
+function verdictsOf(snapshot: RepoSnapshot, id: string, kind: RoundKind): Verdict[] {
   const ticket = laneTicket(snapshot, id);
-  const rec = workOf(snapshot, id)?.rounds;
+  const work = workOf(snapshot, id);
+  const rec = kind === 'review' ? work?.rounds : kind === 'plan' ? work?.planRounds : work?.approachRounds;
+  if (ticket === undefined || rec === undefined || !groundsV2(snapshot, id, kind)) return [];
+  const out: Verdict[] = [];
+  // D-12: a risk finding blocks in every round and is never deferred; a Must or Should that rests on nothing may be deferred with its failing case.
+  const judge = (f: RoundFinding, cycle: number, round: number, asked: boolean): void => {
+    if (f.risk !== undefined && f.state === 'deferred') {
+      out.push({ f, cycle, round, what: 'risk' });
+      return;
+    }
+    if (!asked || f.test !== undefined || f.command !== undefined || restsOnHolds(ticket, f)) return;
+    out.push({ f, cycle, round, what: f.state === 'deferred' && hasFailingCase(snapshot, id, kind, round, f.n, cycle) ? 'excused' : 'ungrounded' });
+  };
+  if (kind !== 'review') {
+    const fact = snapshot.recordPins?.[id]?.[kind];
+    if (fact !== undefined && 'error' in fact) return [];
+    rec.cycles.forEach((cycle, i) => {
+      cycle.rounds.forEach((round, k) => {
+        for (const f of round.findings) judge(f, i + 1, k + 1, k + 1 >= FROM_ROUND_V2 && f.severity !== 'Nice' && f.carried === undefined && f.risk === undefined);
+      });
+    });
+    return out;
+  }
+  if (rec.version !== 2) return out;
+  for (const at of placedRounds(rec)) {
+    for (const f of at.round.findings) judge(f, at.cycle, at.p, needsGrounds(snapshot, id, at, f));
+  }
+  return out;
+}
+
+/**
+ * ST-LN-91 D-12: the findings of one cycle (0-based) that the grounds rule skipped because they rest on nothing but are written deferred
+ * with their line and failing case; they leave ST-LN-17's stop. A risk-tagged finding is never among them.
+ */
+export function groundsDeferred(snapshot: RepoSnapshot, id: string, kind: RoundKind, cycle: number): ReadonlySet<RoundFinding> {
+  return new Set(verdictsOf(snapshot, id, kind).filter((v) => v.what === 'excused' && v.cycle === cycle + 1).map((v) => v.f));
+}
+
+/**
+ * The one grounds rule, as problems in record line order: each new finding that rests on no ticket line, test or command and carries no
+ * risk tag. `gate.finding-grounds` (review records, at Done) and `accord round` (all three records) both read it. A problem with no line
+ * is the host's own error: the pin of a plan or approach record could not be read.
+ */
+export function groundsProblems(snapshot: RepoSnapshot, id: string, kind: RoundKind): { line?: number; reason: string }[] {
+  const ticket = laneTicket(snapshot, id);
+  const work = workOf(snapshot, id);
+  const rec = kind === 'review' ? work?.rounds : kind === 'plan' ? work?.planRounds : work?.approachRounds;
   if (ticket === undefined || rec === undefined) return [];
-  const out: GateDraft[] = [];
+  const v2 = groundsV2(snapshot, id, kind);
+  const out: { line?: number; reason: string }[] = [];
+  if (kind !== 'review') {
+    if (!v2) return out;
+    const fact = snapshot.recordPins?.[id]?.[kind];
+    if (fact !== undefined && 'error' in fact) return [{ reason: fact.error }];
+  }
+  if (v2) {
+    for (const { f, cycle, round, what } of verdictsOf(snapshot, id, kind)) {
+      const where = `round ${round} of cycle ${cycle}, finding ${f.n ?? 'at line ' + f.line}`;
+      if (what === 'risk') {
+        out.push({ line: f.line, reason: `${where}: a finding tagged risk: ${f.risk} blocks in every round and is never deferred; fix it` });
+      } else if (what === 'ungrounded') {
+        out.push({ line: f.line, reason: reasonOf(ticket, where, true, kind) });
+      }
+    }
+    return out;
+  }
   for (const at of placedRounds(rec)) {
     for (const f of at.round.findings) {
       if (!needsGrounds(snapshot, id, at, f)) continue;
       if (f.test !== undefined || f.command !== undefined || restsOnHolds(ticket, f)) continue;
-      const lines = ticket.frontmatter?.lane === 'S' ? 'Understood "<quote>" or Done when "<quote>"' : 'ac-<n>, D-<nn>, Veto "<quote>" or Intent "<quote>"';
-      out.push({
-        file: rec.file,
-        line: f.line,
-        reason:
-          `round ${at.p} of cycle ${at.cycle}, finding ${f.n}: from round 3 a Should needs a ticket line it rests on (rests on: ${lines}, ` +
-          'a line the ticket holds, a quote of at least three words) or test: or command:; otherwise it is a Nice',
-      });
+      out.push({ line: f.line, reason: reasonOf(ticket, `round ${at.p} of cycle ${at.cycle}, finding ${f.n}`, false, kind) });
     }
   }
   return out;
+}
+
+/** ac-4: each new Should from round 3 (each new Must or Should from round 2 under GROUNDS_V2_FROM) that rests on no ticket line, test or command. */
+export const findingGrounds: GateRule['check'] = (snapshot, id) => {
+  const rec = workOf(snapshot, id)?.rounds;
+  if (rec === undefined) return [];
+  return groundsProblems(snapshot, id, 'review').map((p) => ({ file: rec.file, ...(p.line === undefined ? {} : { line: p.line }), reason: p.reason }));
 };
 
 const PATH_BEFORE = /[A-Za-z0-9_./-]/;

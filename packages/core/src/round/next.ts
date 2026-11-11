@@ -3,6 +3,8 @@
 import { laneTicket, workOf } from '../gate/work.js';
 import { headingKey, stripHtmlComments } from '../load/sections.js';
 import { AGENT_DEFAULTS } from '../skills/agents.js';
+import { fixScopeProblems } from './fixscope.js';
+import { groundsDeferred, groundsProblems, groundsV2 } from './grounds.js';
 import { pendingAddedCode, scopeProblems } from './scope.js';
 import type { RepoSnapshot, RoundCycle, RoundFinding, RoundRecord, TicketWork } from '../model/snapshot.js';
 import { deferredOf } from './evidence.js';
@@ -75,8 +77,13 @@ export function cycleState(cycle: RoundCycle, allowances: Allowance[], kind: Rou
 }
 
 /** The round a plan critique cycle stops at: the stop from round 3, else a last round with findings at the cap. */
-export function planStopOf(cycle: RoundCycle, allowances: Allowance[], kind: 'plan' | 'approach' = 'plan'): number | undefined {
-  const st = cycleState(cycle, allowances, kind);
+export function planStopOf(
+  cycle: RoundCycle,
+  allowances: Allowance[],
+  kind: 'plan' | 'approach' = 'plan',
+  deferred: ReadonlySet<RoundFinding> = new Set(),
+): number | undefined {
+  const st = cycleState(cycle, allowances, kind, deferred);
   const L = cycle.rounds.length;
   const stop = st.stopAt(L);
   if (stop !== undefined || L === 0 || L < st.cap) return stop;
@@ -90,9 +97,12 @@ const recordOf = (work: TicketWork | undefined, kind: RoundKind): RoundRecord | 
 
 const ofCycle =(all: Allowance[], index: number): Allowance[] => all.filter((a) => a.cycle === index + 1);
 
-/** The findings of one cycle (0-based) that leave the stop: review records only (ST-LN-57 D-08). */
+/**
+ * The findings of one cycle (0-based) that leave the stop: a review record's evidence deferrals (ST-LN-57 D-08) and, for every record
+ * kind, the ungrounded findings deferred with their failing case (ST-LN-91 D-12).
+ */
 export const deferredFor = (snapshot: RepoSnapshot, id: string, kind: RoundKind, cycle: number): ReadonlySet<RoundFinding> =>
-  kind === 'review' ? deferredOf(snapshot, id, cycle) : new Set();
+  new Set([...(kind === 'review' ? deferredOf(snapshot, id, cycle) : []), ...groundsDeferred(snapshot, id, kind, cycle)]);
 
 /** Every reason the record cannot be read as it stands, in line order. */
 export function recordProblems(snapshot: RepoSnapshot, id: string, kind: RoundKind): { line: number; reason: string }[] {
@@ -121,7 +131,7 @@ export function recordProblems(snapshot: RepoSnapshot, id: string, kind: RoundKi
       }
     }
     if (kind !== 'review' && cycle.closed !== undefined) {
-      const stop = planStopOf(cycle, ofCycle(all, i), kind);
+      const stop = planStopOf(cycle, ofCycle(all, i), kind, deferredFor(snapshot, id, kind, i));
       if (stop !== undefined) {
         add(cycle.closed, `## Closed while the stop at round ${stop} holds; the owner accepts with verdict: accepted-by-owner "<sentence>" after that round, or a round that reports no findings clears it`);
       }
@@ -211,13 +221,16 @@ export function nextRound(snapshot: RepoSnapshot, id: string, kind: RoundKind): 
   if (problems.length > 0) return refuse(...problems.map((p) => p.reason));
   const scope = kind === 'review' ? scopeProblems(snapshot, id) : [];
   if (scope.length > 0) return refuse(...scope.map(scopeReason));
+  // ST-LN-91 D-11: from the cut-off pin a Must or Should of round 2 or later cites a ticket line, test, command or risk tag.
+  const grounds = groundsV2(snapshot, id, kind) ? groundsProblems(snapshot, id, kind) : [];
+  if (grounds.length > 0) return refuse(...grounds.map(scopeReason));
 
   const k = rec.cycles.length;
   const cyc = rec.cycles[k - 1];
   const L = cyc.rounds.length;
   const all = allowancesOf(snapshot, id, kind);
   const st = cycleState(cyc, ofCycle(all, k - 1), kind, deferredFor(snapshot, id, kind, k - 1));
-  const stopOf = (q: number) => (kind !== 'review' ? planStopOf(cyc, ofCycle(all, k - 1), kind) : st.stopAt(q));
+  const stopOf = (q: number) => (kind !== 'review' ? planStopOf(cyc, ofCycle(all, k - 1), kind, deferredFor(snapshot, id, kind, k - 1)) : st.stopAt(q));
   const textsOf = (n: number) => ({ round: n, lines: cyc.rounds[n - 1].findings.map((f) => f.text) });
   const findingsFor = (s: number) => (L === s ? [textsOf(s)] : [textsOf(s), textsOf(L)]);
   const stop = (reasons: string[], s: number, extra: Partial<RoundAnswer> = {}): RoundAnswer => ({
@@ -256,7 +269,12 @@ export function nextRound(snapshot: RepoSnapshot, id: string, kind: RoundKind): 
   }
 
   const p = L + 1;
-  if (st.allowed(p)) return next(p, k, st.cap);
+  if (st.allowed(p)) {
+    // ST-LN-91 D-14: from the cut-off pin the planner's fix stays in the tasks the open findings name, unless the owner's Ruling allows more.
+    const fixed = kind === 'plan' ? fixScopeProblems(snapshot, id) : [];
+    if (fixed.length > 0) return { ...refuse(...fixed.map(scopeReason)), cycle: k, round: L, cap: st.cap };
+    return next(p, k, st.cap);
+  }
   if (L > 0 && cyc.rounds[L - 1].noFindings) {
     return { ...refuse(`round ${L} of cycle ${k} reported no findings and the cap of ${st.cap} rounds is reached; the loop has ended: write the verdict`), cycle: k, round: L, cap: st.cap };
   }

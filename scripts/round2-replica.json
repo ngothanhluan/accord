@@ -1,0 +1,59 @@
+{
+  "backup": "accord-transcripts-backup-2026-11-02",
+  "sets": {
+    "recommended": ["ST-LN-8", "ST-LN-13", "ST-LN-48"],
+    "cheapest": ["ST-LN-18", "ST-LN-64", "BUG-LN-13"]
+  },
+  "candidates": [
+    {
+      "id": "ST-LN-8",
+      "r1": "fb815f45515e299223a8d6895bb77fbf24df6ff9",
+      "r2": "b8d77ca17c2f0dfa72e997a13ee7101d89cac517",
+      "run": "C--Work-accord-st-ln-8/54bc8e69-8fa8-4bfb-86ca-a40e2e72a6a6/subagents/agent-a068f99d8658d3e8f.jsonl",
+      "model": "opus",
+      "effort": "high"
+    },
+    {
+      "id": "ST-LN-13",
+      "r1": "592eb9bd7fbbf1f39e16f62431da903a2db6a20b",
+      "r2": "974f7c8e626fc32898fd9f12e42c99068d24a540",
+      "run": "C--Work-accord-st-ln-13/69037e7f-8710-4df3-a467-db1a6b45311a/subagents/agent-a7a57c0870911ad97.jsonl",
+      "model": "opus",
+      "effort": "high"
+    },
+    {
+      "id": "ST-LN-48",
+      "r1": "33b324ef956c1b87631cc71f50b4d8d15fabd55c",
+      "r2": "b333fab8cdbd83cb9286c98d9849b2147c4d0eac",
+      "run": "C--Work-accord-st-ln-48/57120f4a-9cdc-4e12-9dff-810c94cf4d6f/subagents/agent-a41cdd27372232915.jsonl",
+      "model": "opus",
+      "effort": "xhigh",
+      "note": "The run is the retry. The first round-2 run (agent-a997e91ce769167ed) ended with an interruption and no reply, so the recorded round 2 (1 Must, 2 Should) is the retry's reply."
+    },
+    {
+      "id": "ST-LN-18",
+      "r1": "51061b7567270c6a8b3f1825b53145c34fbb7be6",
+      "r2": "6a83a4f36cef925db69c43412f0c4f2da07841c6",
+      "run": "C--Work-accord/315082cd-0fb1-4fb3-997c-28ebb64393ca/subagents/agent-ae9c91c27d9dc5247.jsonl",
+      "model": "opus",
+      "effort": "high"
+    },
+    {
+      "id": "ST-LN-64",
+      "r1": "ba7b65240fafab71ca165564d007f0ddd0de83be",
+      "r2": "52c0aac60e72f7fd0dfd7668af3b20d7cf539613",
+      "run": "C--Work-accord-st-ln-64/ab04a155-5aa8-459b-ab0a-6ea33daca058/subagents/agent-ab3275a1512435b78.jsonl",
+      "model": "opus",
+      "effort": "high"
+    },
+    {
+      "id": "BUG-LN-13",
+      "r1": "cf3c16552cb770802f831efa2d9c70cb53ce1453",
+      "r2": "0967ece413aab0cd83a3febe6c81a2b5b77fe4db",
+      "run": "C--Work-accord-bug-ln-13/74d01341-98c9-4f51-bcfd-73c7bd807567/subagents/agent-a8393660822571154.jsonl",
+      "model": "opus",
+      "effort": "high",
+      "note": "The first of two plan cycles: the ticket was re-planned after a final review, and the second cycle's round 2 is a different run."
+    }
+  ]
+}

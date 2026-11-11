@@ -73,8 +73,8 @@ it('risk:parsing a version 2 heading and a ledger deferred line are read or refu
 
   const ledger = parseLedger('l.md', '## Deferred\n- review 3.1: x\n- review 2.4 cycle 2: y\n- review x.1: z\n');
   expect(ledger.deferred).toEqual([
-    { round: 3, n: 1, cycle: 1 },
-    { round: 2, n: 4, cycle: 2 },
+    { kind: 'review', round: 3, n: 1, cycle: 1 },
+    { kind: 'review', round: 2, n: 4, cycle: 2 },
   ]);
   expect('deferred' in parseLedger('l.md', '## Deferred\n- nothing yet\n')).toBe(false);
   expect('deferred' in parseLedger('l.md', '## Rulings\n- review 3.1: x\n')).toBe(false);

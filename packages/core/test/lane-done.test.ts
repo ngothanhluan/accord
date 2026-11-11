@@ -1,6 +1,6 @@
 // Spec §8-§11: Done for a lane ticket needs every task recorded, a converged review, and a traced, green suite.
 import { describe, expect, it } from 'vitest';
-import { lintSnapshot, loadSnapshot, setFrontmatterKey } from '../src/index.js';
+import { lintSnapshot, loadSnapshot, ownRecordsOnly, setFrontmatterKey } from '../src/index.js';
 import { gateDone } from '../src/gate/index.js';
 import type { GateResult } from '../src/gate/index.js';
 import { acHash } from '../src/gate/hash.js';
@@ -64,6 +64,11 @@ const snap = (files: Record<string, string>) =>
   });
 const done = (files: Record<string, string>) => gateDone(snap(files), 'T-1');
 const errors = (r: GateResult) => r.findings.filter((f) => f.level === 'error').map((f) => f.rule);
+
+it("risk:regression direction.md is one of the ticket's own records (ST-LN-91 ac-4)", () => {
+  expect(ownRecordsOnly('T-1', ['accord/tickets/T-1/direction.md'])).toBe(true);
+  expect(ownRecordsOnly('T-1', ['accord/tickets/T-2/direction.md'])).toBe(false);
+});
 
 describe('Done for lane tickets', () => {
   it('passes with every task recorded, a converged review, and a traced green suite', () => {

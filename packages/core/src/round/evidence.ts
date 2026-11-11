@@ -58,7 +58,7 @@ export function needsEvidence(snapshot: RepoSnapshot, id: string, at: Placed, f:
 }
 
 const hasLine = (snapshot: RepoSnapshot, id: string, p: number, n: number | undefined, cycle: number): boolean =>
-  (workOf(snapshot, id)?.ledger?.deferred ?? []).some((d) => d.round === p && d.n === n && d.cycle === cycle);
+  (workOf(snapshot, id)?.ledger?.deferred ?? []).some((d) => d.kind === 'review' && d.round === p && d.n === n && d.cycle === cycle);
 
 /**
  * D-08: the findings of one cycle (0-based) that need evidence, are written deferred and have their line in the

@@ -1,0 +1,59 @@
+{
+  "caveat": "This measures round 2 of the plan critic on three replicated merged tickets after the ST-LN-91 changes, not a whole ticket's life: approach rounds, the other plan rounds, build and review are not replayed. Old figures come from the tickets' records and the backed-up transcripts of the original round-2 runs; new figures come from one re-run each with the new critic prompt and rules, on the same plan text at the same base commit.",
+  "rows": [
+    {
+      "ticket": "ST-LN-8",
+      "measured": true,
+      "oldRecord": 1,
+      "oldReply": 1,
+      "newMust": 0,
+      "newShould": 1,
+      "wouldBlock": 1,
+      "wouldDefer": 0,
+      "oldWeighted": 241571,
+      "newWeighted": 303736,
+      "oldPeak": 74528,
+      "newPeak": 76598
+    },
+    {
+      "ticket": "ST-LN-13",
+      "measured": true,
+      "oldRecord": 1,
+      "oldReply": 1,
+      "newMust": 0,
+      "newShould": 0,
+      "wouldBlock": 0,
+      "wouldDefer": 0,
+      "oldWeighted": 305064,
+      "newWeighted": 233944,
+      "oldPeak": 89101,
+      "newPeak": 75306
+    },
+    {
+      "ticket": "ST-LN-48",
+      "measured": true,
+      "oldRecord": 3,
+      "oldReply": 3,
+      "newMust": 0,
+      "newShould": 1,
+      "wouldBlock": 1,
+      "wouldDefer": 0,
+      "oldWeighted": 489342,
+      "newWeighted": 728498,
+      "oldPeak": 102392,
+      "newPeak": 138024
+    }
+  ],
+  "totals": {
+    "oldRecord": 5,
+    "oldReply": 5,
+    "newFindings": 2,
+    "wouldBlock": 2,
+    "wouldDefer": 0,
+    "oldWeighted": 1035977,
+    "newWeighted": 1266178
+  },
+  "notMeasured": [],
+  "fewerFindings": true,
+  "fewerTokens": false
+}

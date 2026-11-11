@@ -61,7 +61,7 @@ function check(snapshot: RepoSnapshot, id: string, kind: RoundKind): GateDraft[]
       );
     }
   } else {
-    const s = planStopOf(last, mine);
+    const s = planStopOf(last, mine, 'plan', deferredFor(snapshot, id, kind, k - 1));
     if (s !== undefined) {
       const cap = cycleState(last, mine, kind).cap;
       add(

@@ -1,6 +1,6 @@
 // ST-LN-93: gate plan holds a plan to twice the size its Intent expects, and the owner's fixed-form Ruling lifts it.
 import { describe, expect, it } from 'vitest';
-import { gatePlan, loadSnapshot } from '../src/index.js';
+import { gatePlan, loadSnapshot, PLAN_SIZE_FROM, pinAllowsV1, pinBefore } from '../src/index.js';
 import type { GateResult } from '../src/index.js';
 import { PLAN_RULES } from '../src/gate/rules.js';
 import { approved } from './helpers/approve.js';
@@ -21,11 +21,13 @@ interface Opts {
   lane?: string;
   plan?: string | null; // null: no plan.md
   ledger?: string;
+  config?: string;
+  pins?: { pin?: string; basePin?: string }; // the host fact gate plan merges: the pin at the plan baseline and at its merge base
 }
-const check = ({ body = sized(2), lane, plan = tasks(5), ledger }: Opts = {}): GateResult => {
+const check = ({ body = sized(2), lane, plan = tasks(5), ledger, config = CONFIG, pins }: Opts = {}): GateResult => {
   const files: Record<string, string> = approved(
     {
-      'accord/config.yml': CONFIG,
+      'accord/config.yml': config,
       'accord/tickets/T-1.md': laneTicket('T-1', { body, ...(lane === undefined ? {} : { lane }) }),
       [REPORT]: junit({ 'export#writes-csv': 'passed', 'export#escapes-commas': 'passed' }),
     },
@@ -33,9 +35,12 @@ const check = ({ body = sized(2), lane, plan = tasks(5), ledger }: Opts = {}): G
   );
   if (plan !== null) files['accord/tickets/T-1/plan.md'] = plan;
   if (ledger !== undefined) files['accord/tickets/T-1/ledger.md'] = ledger;
-  return gatePlan(loadSnapshot({ files, tree: Object.keys(files).sort() }), 'T-1');
+  const snapshot = loadSnapshot({ files, tree: Object.keys(files).sort() });
+  return gatePlan(pins === undefined ? snapshot : { ...snapshot, planPins: { 'T-1': pins } }, 'T-1');
 };
 const size = (r: GateResult) => r.findings.filter((f) => f.rule === 'gate.plan-size');
+const missing = (r: GateResult) => r.findings.filter((f) => f.rule === 'gate.plan-size-missing');
+const at = (v: string): string => CONFIG.replace('accord: "0.4.0"', `accord: "${v}"`);
 
 describe('plan size', () => {
   it('risk:complex-branching a plan over twice its expected size fails gate plan and names both numbers (ST-LN-93 ac-1)', () => {
@@ -93,5 +98,53 @@ describe('plan size', () => {
     const ids = PLAN_RULES.map((r) => r.id);
     expect(ids).toContain('gate.task-covers-missing');
     expect(ids).toContain('gate.plan-ref-unknown');
+  });
+});
+
+describe('expected size cut-off', () => {
+  const sizeless = { body: sized() };
+
+  it('risk:complex-branching a ticket with no expected size fails gate plan from the cut-off pin and passes before it (ST-LN-93 ac-3)', () => {
+    expect(missing(check({ ...sizeless, pins: { pin: '0.4.0' } }))).toEqual([]);
+    const r = check({ ...sizeless, plan: tasks(2), pins: { pin: PLAN_SIZE_FROM } });
+    expect(r.verdict).toBe('fail');
+    const f = missing(r);
+    expect(f).toHaveLength(1);
+    expect(f[0].level).toBe('error');
+    expect(f[0].reason).toContain('Expected size: <N> tasks');
+    expect(f[0].reason).toContain('## Intent');
+    expect(f[0].reason).toContain(PLAN_SIZE_FROM);
+    // a baseline pin lowered below the pin at its merge base counts as at the cut-off
+    expect(missing(check({ ...sizeless, pins: { pin: '0.4.0', basePin: PLAN_SIZE_FROM } }))).toHaveLength(1);
+    expect(missing(check({ ...sizeless, pins: { pin: '0.4.0', basePin: '0.4.0' } }))).toEqual([]);
+    // no host fact: the pin in the working-tree config decides
+    expect(missing(check({ ...sizeless }))).toEqual([]);
+    expect(missing(check({ ...sizeless, config: at(PLAN_SIZE_FROM) }))).toHaveLength(1);
+    // 0.4.10 counts as after 0.4.1; a pin that is not a plain x.y.z applies the rule
+    expect(missing(check({ ...sizeless, pins: { pin: '0.4.10' } }))).toHaveLength(1);
+    expect(missing(check({ ...sizeless, pins: { pin: '0.4.1-rc.1' } }))).toHaveLength(1);
+    expect(missing(check({ ...sizeless, pins: {} }))).toHaveLength(1);
+  });
+
+  it('risk:complex-branching a ticket with an expected size, or in lane S, never gets gate.plan-size-missing (ST-LN-93 ac-3)', () => {
+    for (const pin of ['0.4.0', PLAN_SIZE_FROM, '0.4.10', '0.5.0', 'next']) expect(missing(check({ pins: { pin } }))).toEqual([]);
+    expect(missing(check({ lane: 'S', body: LANE_S_BODY, pins: { pin: PLAN_SIZE_FROM } }))).toEqual([]);
+    expect(missing(check({ ...sizeless, plan: null, pins: { pin: PLAN_SIZE_FROM } }))).toEqual([]);
+    expect(missing(check({ ...sizeless, plan: tasks(0), pins: { pin: PLAN_SIZE_FROM } }))).toEqual([]);
+  });
+
+  it('risk:regression pinBefore orders versions by number and keeps pinAllowsV1 (ST-LN-93 ac-3)', () => {
+    expect(PLAN_SIZE_FROM).toBe('0.4.1');
+    expect(pinBefore('0.4.1', '0.4.0')).toBe(true);
+    expect(pinBefore('0.4.1', '0.4.1')).toBe(false);
+    expect(pinBefore('0.4.1', '0.4.10')).toBe(false);
+    expect(pinBefore('0.4.1', undefined)).toBe(false);
+    expect(pinBefore('0.4.1', '0.4.0', '0.4.1')).toBe(false);
+    expect(pinBefore('0.4.1', '0.4.0', 'main')).toBe(true);
+    expect(pinAllowsV1('0.3.0')).toBe(true);
+    expect(pinAllowsV1('0.3.1')).toBe(false);
+    expect(pinAllowsV1(undefined)).toBe(false);
+    expect(pinAllowsV1('0.3.0', '0.3.1')).toBe(false);
+    expect(pinAllowsV1('0.3.0', 'main')).toBe(true);
   });
 });

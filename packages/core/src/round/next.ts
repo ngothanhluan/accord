@@ -3,6 +3,7 @@
 import { laneTicket, workOf } from '../gate/work.js';
 import { headingKey, stripHtmlComments } from '../load/sections.js';
 import { AGENT_DEFAULTS } from '../skills/agents.js';
+import { groundsProblems, groundsV2 } from './grounds.js';
 import { pendingAddedCode, scopeProblems } from './scope.js';
 import type { RepoSnapshot, RoundCycle, RoundFinding, RoundRecord, TicketWork } from '../model/snapshot.js';
 import { deferredOf } from './evidence.js';
@@ -211,6 +212,9 @@ export function nextRound(snapshot: RepoSnapshot, id: string, kind: RoundKind): 
   if (problems.length > 0) return refuse(...problems.map((p) => p.reason));
   const scope = kind === 'review' ? scopeProblems(snapshot, id) : [];
   if (scope.length > 0) return refuse(...scope.map(scopeReason));
+  // ST-LN-91 D-11: from the cut-off pin a Must or Should of round 2 or later cites a ticket line, test, command or risk tag.
+  const grounds = groundsV2(snapshot, id, kind) ? groundsProblems(snapshot, id, kind) : [];
+  if (grounds.length > 0) return refuse(...grounds.map((p) => `line ${p.line}: ${p.reason}`));
 
   const k = rec.cycles.length;
   const cyc = rec.cycles[k - 1];

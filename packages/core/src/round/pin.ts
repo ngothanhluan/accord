@@ -24,6 +24,12 @@ function compare(a: string, b: string): number {
 /** ST-LN-93 D-08: the release that ships the plan size rule: a ticket with no `Expected size:` line is allowed only while its pin is below it. */
 export const PLAN_SIZE_FROM = '0.4.1';
 
+/**
+ * ST-LN-91 D-11 and D-14: the release from which a Must or Should of round 2 or later cites a ticket line (or a test, a command or a risk tag), and a
+ * planner's fix stays inside the tasks its findings name. A record whose first round was recorded under a pin below it keeps the older rules.
+ */
+export const GROUNDS_V2_FROM = '0.4.1';
+
 /** True only when `pin` is a plain x.y.z below `from` and, when `basePin` is a plain x.y.z, not below `basePin`: the rules before `from` hold. */
 export function pinBefore(from: string, pin: string | undefined, basePin?: string): boolean {
   if (pin === undefined || !PLAIN.test(pin) || compare(pin, from) >= 0) return false;

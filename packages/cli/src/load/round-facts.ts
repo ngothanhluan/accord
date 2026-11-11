@@ -17,7 +17,7 @@ const GIT = {
 };
 
 /** git's first non-blank stderr line without "fatal: ", else the error's own message. */
-function whyGit(e: unknown): string {
+export function whyGit(e: unknown): string {
   const stderr = String((e as { stderr?: string }).stderr ?? '').split('\n').find((l) => l.trim() !== '');
   return (stderr ?? (e as Error).message ?? 'git failed').replace(/^fatal: /, '').trim();
 }
@@ -218,11 +218,12 @@ function recordPinFor(root: string, snapshot: RepoSnapshot, id: string, kind: 'p
 
 /**
  * `snapshot` with recordPins[id][kind] set, for the grounds rule of `accord round --plan` and `--approach`; `snapshot` itself when the
- * record has no cycle with a second round (nothing is asked of it) or the snapshot has no HEAD.
+ * record has no cycle with `minRounds` rounds (nothing is asked of it) or the snapshot has no HEAD. The grounds rule asks from round 2; the
+ * plan fix check (ST-LN-91 D-14) asks after round 1, so `accord round --plan` passes 1.
  */
-export function withRecordPins(root: string, snapshot: RepoSnapshot, id: string, kind: 'plan' | 'approach'): RepoSnapshot {
+export function withRecordPins(root: string, snapshot: RepoSnapshot, id: string, kind: 'plan' | 'approach', minRounds = 2): RepoSnapshot {
   const rec = kind === 'plan' ? snapshot.work?.[id]?.planRounds : snapshot.work?.[id]?.approachRounds;
-  if (rec === undefined || snapshot.git === undefined || !rec.cycles.some((c) => c.rounds.length >= 2)) return snapshot;
+  if (rec === undefined || snapshot.git === undefined || !rec.cycles.some((c) => c.rounds.length >= minRounds)) return snapshot;
   const pin = recordPinFor(root, snapshot, id, kind);
   return { ...snapshot, recordPins: { ...snapshot.recordPins, [id]: { ...snapshot.recordPins?.[id], [kind]: pin } } };
 }

@@ -3,6 +3,7 @@
 import { laneTicket, workOf } from '../gate/work.js';
 import { headingKey, stripHtmlComments } from '../load/sections.js';
 import { AGENT_DEFAULTS } from '../skills/agents.js';
+import { fixScopeProblems } from './fixscope.js';
 import { groundsProblems, groundsV2 } from './grounds.js';
 import { pendingAddedCode, scopeProblems } from './scope.js';
 import type { RepoSnapshot, RoundCycle, RoundFinding, RoundRecord, TicketWork } from '../model/snapshot.js';
@@ -260,7 +261,12 @@ export function nextRound(snapshot: RepoSnapshot, id: string, kind: RoundKind): 
   }
 
   const p = L + 1;
-  if (st.allowed(p)) return next(p, k, st.cap);
+  if (st.allowed(p)) {
+    // ST-LN-91 D-14: from the cut-off pin the planner's fix stays in the tasks the open findings name, unless the owner's Ruling allows more.
+    const fixed = kind === 'plan' ? fixScopeProblems(snapshot, id) : [];
+    if (fixed.length > 0) return { ...refuse(...fixed.map(scopeReason)), cycle: k, round: L, cap: st.cap };
+    return next(p, k, st.cap);
+  }
   if (L > 0 && cyc.rounds[L - 1].noFindings) {
     return { ...refuse(`round ${L} of cycle ${k} reported no findings and the cap of ${st.cap} rounds is reached; the loop has ended: write the verdict`), cycle: k, round: L, cap: st.cap };
   }

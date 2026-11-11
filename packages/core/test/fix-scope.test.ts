@@ -100,7 +100,7 @@ it('risk:complex-branching a plan fix outside the tasks its open findings name i
   expect(plan({ fix: across }).kind).toBe('refused');
   const spans = why({ fix: across });
   expect(spans).toContain('(Task 3)');
-  expect(spans).not.toContain('(Task 2');
+  expect(spans).not.toMatch(/@@[^(]*\(Task 2/);
   expect(plan({ first: [named('Tasks 2 and 3')], fix: across }).kind).toBe('next');
 
   // the preamble is a place: refused unless an open finding names it

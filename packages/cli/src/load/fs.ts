@@ -3,7 +3,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { branchTemplateOf, CALL_SIGN, DEFAULT_BRANCH_TEMPLATE, isIntactRender, isResearchPath, isSha, loadSnapshot, normaliseText, peopleOf, RETIRED_FILES, scopeLines, workOf } from '@accord-dev/accord-core';
+import { branchTemplateOf, CALL_SIGN, DEFAULT_BRANCH_TEMPLATE, isIntactRender, isResearchPath, isSha, loadSnapshot, normaliseText, peopleOf, pinOf, RETIRED_FILES, scopeLines, workOf } from '@accord-dev/accord-core';
 import type { BranchChange, BranchFact, RepoSnapshot, SnapshotInput } from '@accord-dev/accord-core';
 
 /** Environment problem the user must fix (no git, not a repository, no accord/ folder); exit 2 in Phase 5. */
@@ -327,14 +327,47 @@ export function gitPlanHistory(
   root: string,
   snapshot: RepoSnapshot,
   id: string,
-): { ancestors?: Record<string, boolean>; baselineFiles?: Record<string, string[]> } {
+): { ancestors?: Record<string, boolean>; baselineFiles?: Record<string, string[]>; planPins?: Record<string, { pin?: string; basePin?: string }> } {
   const plan = workOf(snapshot, id)?.plan;
   const sha = plan?.baseline;
   if (plan === undefined || sha === undefined || !isSha(sha)) return {};
   const ancestors = gitAncestors(root, [sha]);
   const wanted = { [sha]: [...new Set(plan.tasks.flatMap((t) => t.files.filter((f) => !t.newFiles.includes(f))))] };
   const baselineFiles = gitBaselineFiles(root, wanted, ancestors);
-  return { ancestors, ...(Object.keys(baselineFiles).length === 0 ? {} : { baselineFiles }) };
+  const pins = gitPlanPins(root, sha);
+  return {
+    ancestors,
+    ...(Object.keys(baselineFiles).length === 0 ? {} : { baselineFiles }),
+    ...(Object.keys(pins).length === 0 ? {} : { planPins: { [id]: pins } }),
+  };
+}
+
+/**
+ * ST-LN-93 D-08: the `accord:` pin of accord/config.yml at the plan's baseline commit, and at that commit's merge base with the
+ * default ref (`basePin`, so a branch that lowers the pin and baselines on it is still caught). A key is left out when it cannot
+ * be read: no default ref, no common commit, an unknown commit or no config at that commit. The working-tree pin is never read
+ * here, since the CLI refuses unless it equals its own version.
+ */
+function gitPlanPins(root: string, sha: string): { pin?: string; basePin?: string } {
+  const ref = defaultRefOf(root);
+  let base: string | undefined;
+  if (ref !== undefined) {
+    try {
+      base = execFileSync('git', ['merge-base', sha, ref], { cwd: root, ...GIT_QUIET, maxBuffer: 64 * 1024 * 1024 }).trim().toLowerCase();
+    } catch {
+      base = undefined; // exit 1 is no common commit; any other failure leaves the pin unread, which the baseline rules report
+    }
+  }
+  const specs = [sha + ':accord/config.yml', ...(base === undefined || base === '' ? [] : [base + ':accord/config.yml'])];
+  let texts: (string | undefined)[];
+  try {
+    texts = catBatch(root, specs, 'the plan baseline pin');
+  } catch {
+    return {};
+  }
+  const pin = texts[0] === undefined ? undefined : pinOf(texts[0]);
+  const basePin = texts[1] === undefined ? undefined : pinOf(texts[1]);
+  return { ...(pin === undefined ? {} : { pin }), ...(basePin === undefined ? {} : { basePin }) };
 }
 
 /**

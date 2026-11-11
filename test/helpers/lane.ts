@@ -28,6 +28,7 @@ export const LANE_S_BODY = ['## Understood', 'The export button writes a csv fil
 export const LANE_BODY = [
   '## Intent',
   'Owners can export their report as CSV.',
+  'Expected size: 5 tasks',
   '',
   '## Acceptance criteria',
   '```gherkin',

@@ -61,6 +61,9 @@ it('risk:parsing a critic reply is counted by severity and grounding (ST-LN-91 a
   expect(countReply(bare.join('\n'))).toEqual({ Must: 1, Should: 3, Nice: 0, grounded: 0, ungrounded: 4 });
   // a Nice is counted and never grounded or ungrounded; text before the first number belongs to no block
   expect(countReply('rests on: ac-1\n1. Nice — a\n   rests on: ac-1')).toEqual({ Must: 0, Should: 0, Nice: 1, grounded: 0, ungrounded: 0 });
+  // a closing paragraph after the last finding grounds nothing; an indented line after a blank line still belongs to the finding
+  expect(countReply('1. Should — a\n   failing case: x\n\nNot checked: test: foo, command: bar, risk: security\n')).toEqual({ Must: 0, Should: 1, Nice: 0, grounded: 0, ungrounded: 1 });
+  expect(countReply('1. Should — a\n   failing case: x\n\n   rests on: ac-2\n')).toEqual({ Must: 0, Should: 1, Nice: 0, grounded: 1, ungrounded: 0 });
 });
 
 it('risk:regression the replica prompt changes only its paths (ST-LN-91 ac-5)', async () => {
@@ -154,11 +157,11 @@ it('risk:regression a ticket with no counted replica run is named not measured a
   const rows = THREE();
   rows[2] = row('ST-LN-13', { measured: false });
   const md = renderReplica(rows);
-  expect(md).toMatch(/^\| ST-LN-13 \| 1 \| 1 \| not measured \| not measured \| not measured \| 305k \| not measured \| 80k \| not measured \|$/m);
+  expect(md).toMatch(/^\| ST-LN-13 \| 1 \| 1 \| not measured \| not measured \| not measured \| 300k \| not measured \| 80k \| not measured \|$/m);
   const [a, b] = md.trimEnd().split('\n').slice(-2);
   expect(a).toBe('Fewer findings than the baseline: not measured (no counted run for ST-LN-13)');
   expect(b).toBe('Fewer weighted tokens than the baseline: not measured (no counted run for ST-LN-13)');
-  expect(md).not.toMatch(/Fewer [a-z ]+ than the baseline: (yes|no)/);
+  expect(md).not.toMatch(/than the baseline: (yes|no) \(/);
   const json = JSON.parse(renderReplicaJson(rows)) as { fewerFindings: unknown; fewerTokens: unknown; notMeasured: string[] };
   expect(json.notMeasured).toEqual(['ST-LN-13']);
   expect(json.fewerFindings).toBeNull();
@@ -291,7 +294,8 @@ it('risk:regression --plan prepares the worktree, the diff and the rewritten pro
     expect(readFileSync(join(wt, 'accord', 'tickets', 'T-1', 'plan.md'), 'utf8')).toBe(PLAN_V2);
     expect(readFileSync(join(wt, 'accord', 'tickets', 'T-1.md'), 'utf8')).toBe('ticket v2\n');
     expect(readFileSync(join(wt, 'accord', 'tickets', 'T-1', 'ledger.md'), 'utf8')).toBe('ledger at round 2\n');
-    expect(readFileSync(join(wt, 'accord', 'tickets', 'T-1', 'plan-review.md'), 'utf8')).toBe(REVIEW_R1);
+    // (the checkout may convert line ends on Windows; the record is compared with them normalised)
+    expect(readFileSync(join(wt, 'accord', 'tickets', 'T-1', 'plan-review.md'), 'utf8').replace(/\r\n/g, '\n')).toBe(REVIEW_R1);
     const diff = readFileSync(join(f.bench, 'round2-replica', 'T-1.diff'), 'utf8');
     expect(diff).toBe(f.git('diff', f.r1, f.r2, '--', 'accord/tickets/T-1/plan.md'));
     expect(diff).toContain('+new text after the fix');

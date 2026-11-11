@@ -1,7 +1,8 @@
 // ST-LN-93: `accord gate plan` on real git holds a plan to twice the size its Intent expects.
 import { expect, it } from 'vitest';
-import { cleanup, commitAll, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
-import { laneTicket, PLAN, sized } from '../../../test/helpers/lane.js';
+import { PLAN_SIZE_FROM } from '@accord-dev/accord-core';
+import { cleanup, commitAll, gitRun, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
+import { CONFIG, laneTicket, PLAN, sized } from '../../../test/helpers/lane.js';
 
 interface Found { rule: string; level: string; reason?: string }
 const findings = async (repo: string): Promise<Found[]> => JSON.parse((await run(['gate', 'plan', 'T-1', '--json'], repo)).out).findings as Found[];
@@ -30,5 +31,56 @@ it('risk:complex-branching accord gate plan refuses a plan over its expected siz
     expect((await findings(repo)).filter((f) => f.rule === 'gate.plan-size')).toEqual([]);
   } finally {
     cleanup(repo);
+  }
+});
+
+// The pin the cut-off reads is the one at the plan's baseline: commit, so the CONFIG pin of the running CLI (0.4.0) never decides.
+const pinned = (v: string): string => CONFIG.replace('accord: "0.4.0"', `accord: "${v}"`);
+const missing = (all: Found[]): Found[] => all.filter((f) => f.rule === 'gate.plan-size-missing');
+
+it('risk:complex-branching gate plan reads the pin at the plan baseline from git (ST-LN-93 ac-3)', async () => {
+  // (a) the baseline commit holds the cut-off pin; HEAD holds the running version's pin, so the CLI's own pin check passes.
+  const a = makeLaneRepo({ 'accord/tickets/T-1.md': laneTicket('T-1', { body: sized() }) });
+  try {
+    await run(['approve', 'T-1'], a);
+    writeFiles(a, { 'accord/config.yml': pinned(PLAN_SIZE_FROM) });
+    const baseline = commitAll(a);
+    writeFiles(a, { 'accord/tickets/T-1/plan.md': PLAN.replace('abc1234', baseline), 'accord/config.yml': CONFIG });
+    commitAll(a);
+    const got = missing(await findings(a));
+    expect(got).toHaveLength(1);
+    expect(got[0].reason).toContain('Expected size: <N> tasks');
+    expect(got[0].reason).toContain(PLAN_SIZE_FROM);
+  } finally {
+    cleanup(a);
+  }
+
+  // (b) the baseline commit holds 0.4.0: the ticket was planned under the old rules.
+  const b = makeLaneRepo({ 'accord/tickets/T-1.md': laneTicket('T-1', { body: sized() }) });
+  try {
+    await run(['approve', 'T-1'], b);
+    const baseline = commitAll(b);
+    writeFiles(b, { 'accord/tickets/T-1/plan.md': PLAN.replace('abc1234', baseline) });
+    commitAll(b);
+    expect(missing(await findings(b))).toEqual([]);
+  } finally {
+    cleanup(b);
+  }
+
+  // (c) main's tip holds the cut-off pin; a branch from it lowers the pin and takes that commit as baseline: caught through the merge base.
+  const c = makeLaneRepo({ 'accord/tickets/T-1.md': laneTicket('T-1', { body: sized() }) });
+  try {
+    await run(['approve', 'T-1'], c);
+    writeFiles(c, { 'accord/config.yml': pinned(PLAN_SIZE_FROM) });
+    commitAll(c);
+    gitRun(c, 'branch', '-M', 'main');
+    gitRun(c, 'switch', '-q', '-c', 't/T-1');
+    writeFiles(c, { 'accord/config.yml': CONFIG });
+    const baseline = commitAll(c);
+    writeFiles(c, { 'accord/tickets/T-1/plan.md': PLAN.replace('abc1234', baseline) });
+    commitAll(c);
+    expect(missing(await findings(c))).toHaveLength(1);
+  } finally {
+    cleanup(c);
   }
 });

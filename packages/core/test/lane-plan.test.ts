@@ -1,6 +1,6 @@
 // Spec §7: the plan covers every criterion and decision and defers nothing.
 import { describe, expect, it } from 'vitest';
-import { gatePlan, loadSnapshot } from '../src/index.js';
+import { gatePlan, loadSnapshot, PLAN_SIZE_FROM } from '../src/index.js';
 import type { GateResult } from '../src/index.js';
 import { approved } from './helpers/approve.js';
 import { CONFIG, junit, LANE_BODY, laneTicket, PLAN, REPORT } from '../../../test/helpers/lane.js';
@@ -239,4 +239,18 @@ it('risk:parsing the comma check reads the first verify line outside a fence', (
   expect(found[0][0]).toBe(line);
   expect(found[0][1]).toContain('a#b,c');
   expect(commaFindings(plan(base(), text('a#b')))).toEqual([]);
+});
+
+it('risk:regression the lane fixtures pass gate plan with the pin at the cut-off (ST-LN-93 ac-3)', () => {
+  const files = approved(
+    {
+      'accord/config.yml': CONFIG.replace('accord: "0.4.0"', `accord: "${PLAN_SIZE_FROM}"`),
+      'accord/tickets/T-1.md': laneTicket('T-1'),
+      [REPORT]: junit({ 'export#writes-csv': 'passed', 'export#escapes-commas': 'passed' }),
+    },
+    'T-1',
+  );
+  const r = plan(files, PLAN);
+  expect(r.findings.filter((f) => f.rule === 'gate.plan-size' || f.rule === 'gate.plan-size-missing')).toEqual([]);
+  expect(errors(r)).toEqual([]);
 });

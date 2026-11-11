@@ -248,6 +248,36 @@ it('ac-4 the executor runs only the test command its brief prints and never test
   }
 });
 
+it('risk:regression the critic lists what not to critique allows no findings and caps its report (ST-LN-91 D-13)', () => {
+  const flat = (s: string): string => s.replace(/\s+/g, ' ');
+  const critic = flat(agentTargets(config()).find((f) => f.path === '.claude/agents/accord-critic.md')?.text ?? '');
+  expect(critic, 'critic is empty').not.toBe('');
+  const list = critic.slice(critic.indexOf('Do not critique'));
+  expect(critic).toContain('Do not critique');
+  for (const p of ['wording', 'names', 'layout', 'delegates', 'outside the acceptance criteria', 'hypothetical future use', 'settled']) {
+    expect(list, `the do-not-critique list lacks: ${p}`).toContain(p);
+  }
+  expect(critic).toContain('`No findings` is a full answer');
+  expect(critic).toContain('at most four findings');
+  expect(critic).toContain('more only for a Must or a data-loss finding');
+});
+
+it('risk:regression the critic grounds every later must or should and names the task (ST-LN-91 ac-1)', () => {
+  const flat = (s: string): string => s.replace(/\s+/g, ' ');
+  const critic = flat(agentTargets(config()).find((f) => f.path === '.claude/agents/accord-critic.md')?.text ?? '');
+  expect(critic, 'critic is empty').not.toBe('');
+  for (const p of [
+    'From round 2',
+    '`rests on:`',
+    'Correction',
+    '`risk: data-loss`',
+    '`test:` or `command:`',
+    'deferred with its failing case',
+    'the `Task <n>` it is about, or `the preamble`',
+    'never read `accord/tickets/<id>/direction.md`',
+  ]) expect(critic, `critic lacks: ${p}`).toContain(p);
+});
+
 it('ac-3 the scout architect critic and planner read the research records and no other agent is told to', () => {
   const S =
     "Read every record the ticket's frontmatter `research:` key lists, when it has one: a record is evidence, not a contract, and holds at the commit it names, so check a claim against the code before you rely on it.";

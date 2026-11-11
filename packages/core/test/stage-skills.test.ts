@@ -1299,3 +1299,15 @@ it('risk:regression the worktree reference and the finish report say a session s
     );
   }
 });
+
+it('risk:regression the plan skill and the planner run a measurement one arm on one sample first and the intent skill asks the expected size (ST-LN-93 ac-4)', () => {
+  const plan = flatText('.claude/skills/accord-plan/SKILL.md');
+  const intent = flatText('.claude/skills/accord-intent/SKILL.md');
+  const planner = (agentTargets(config).find((f) => f.path === '.claude/agents/accord-planner.md')?.text ?? '').replace(/\s+/g, ' ');
+  expect(plan.length, 'accord-plan/SKILL.md is missing').toBeGreaterThan(0);
+  expect(intent.length, 'accord-intent/SKILL.md is missing').toBeGreaterThan(0);
+  expect(planner.length, 'accord-planner.md is missing').toBeGreaterThan(0);
+  for (const p of ['one arm on one sample', 'before widening', 'gate.plan-size']) expect(plan, p).toContain(p);
+  for (const p of ['one arm on one sample', 'Expected size']) expect(planner, p).toContain(p);
+  expect(intent).toContain('Expected size: <N> tasks');
+});

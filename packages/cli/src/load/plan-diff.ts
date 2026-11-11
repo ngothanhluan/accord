@@ -50,7 +50,7 @@ export function withPlanFix(root: string, snapshot: RepoSnapshot, id: string): R
   try {
     const base = execFileSync(
       'git',
-      ['-c', 'log.showSignature=false', 'log', '-1', '--no-show-signature', '--format=%H', 'HEAD', '--', `:(literal)${dir}/plan-review.md`],
+      ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '-1', '--format=%H', 'HEAD', '--', `:(literal)${dir}/plan-review.md`],
       { cwd: root, ...GIT },
     ).trim().toLowerCase();
     if (base === '') return snapshot;

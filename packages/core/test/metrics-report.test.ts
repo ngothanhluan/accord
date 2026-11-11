@@ -232,7 +232,8 @@ it('risk:parsing critic and planner runs are classed weighted and timed from a t
     expect(files).toEqual([...files].sort(byPath));
     const byFile = Object.fromEntries(json.runs.map((r: { file: string }) => [r.file, r]));
     expect(byFile[`${label}/S1/subagents/agent-c1.jsonl`]).toEqual({ file: `${label}/S1/subagents/agent-c1.jsonl`, ticket: 'ST-LN-1', class: 'critic: plan later, diff', weighted: 83530, peak: 310020, minutes: 6 });
-    expect(byFile[`${label}-st-ln-1/S2/subagents/agent-p2.jsonl`]).toMatchObject({ class: 'planner: writing', weighted: 750005, peak: 200005, minutes: 10 });
+    // m2 reports no output, so the reader raises it to the 4-characters-a-token estimate of its 'ok': 1 token, x5
+    expect(byFile[`${label}-st-ln-1/S2/subagents/agent-p2.jsonl`]).toMatchObject({ class: 'planner: writing', weighted: 750010, peak: 200005, minutes: 10 });
     expect(files.some((k) => /agent-(l1|b1|n1|x1|o1)\.jsonl$/.test(k))).toBe(false);
   } finally {
     f.done();

@@ -4,14 +4,17 @@
 // Repo-internal: not shipped and not an accord command. Spawns only git, never through a shell.
 // Usage: node scripts/metrics.mjs [--at <commit>] [--label <name>] [--transcripts <folder>|none] [--out <dir>] [--stdout [--json]]
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { STAGES, countRecord, stageTable, renderMarkdown, renderJson } from './metrics-count.mjs';
+import { STAGES, classifyRun, countRecord, stageTable, renderMarkdown, renderJson, weighted } from './metrics-count.mjs';
+import { readSessions } from './benchmark.mjs';
 
 const USAGE = 'usage: node scripts/metrics.mjs [--at <commit>] [--label <name>] [--transcripts <folder>|none] [--out <dir>] [--stdout [--json]]';
 // The label names the file metrics-<label>.md, so it can hold no path separator and cannot start with a dot.
 const LABEL = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+const TICKET_FILE = /^accord\/tickets\/([^/]+)\//;
 const RECORD = /^accord\/tickets\/([^/\0\r\n]+)\/(approach-review|plan-review|review)\.md$/;
 const KIND = { 'approach-review': 'approach', 'plan-review': 'plan', review: 'review' };
 const MAX_BUFFER = 64 * 1024 * 1024;
@@ -34,13 +37,17 @@ function parseArgs(argv) {
   return { opts };
 }
 
-/** Every record of the three kinds in `sha`, read with one ls-tree and one cat-file --batch; ids come from the paths only. */
+const byPath = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+
+/**
+ * Every record of the three kinds in `sha`, read with one ls-tree and one cat-file --batch, and the ids of the tickets
+ * that have a folder there. Ids come from the paths only.
+ */
 function readRecords(git, sha) {
-  const paths = git(['ls-tree', '-r', '-z', '--name-only', sha, '--', ':(literal)accord/tickets/'])
-    .split('\0')
-    .filter((p) => RECORD.test(p))
-    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
-  if (!paths.length) return [];
+  const all = git(['ls-tree', '-r', '-z', '--name-only', sha, '--', ':(literal)accord/tickets/']).split('\0');
+  const ids = new Set(all.map((p) => TICKET_FILE.exec(p)?.[1]).filter(Boolean));
+  const paths = all.filter((p) => RECORD.test(p)).sort(byPath);
+  if (!paths.length) return { records: [], ids };
   const raw = git(['cat-file', '--batch'], paths.map((p) => `${sha}:${p}`).join('\n') + '\n', 'buffer');
   const records = [];
   let pos = 0;
@@ -57,7 +64,34 @@ function readRecords(git, sha) {
     if (m[1] === 'blob') records.push({ path: p, id, kind: KIND[name], text: raw.subarray(nl + 1, nl + 1 + size).toString('utf8') });
     pos = nl + 1 + size + 1;
   }
-  return records;
+  return { records, ids };
+}
+
+/** Claude Code's project folder name for a checkout: every character but a letter or digit becomes `-`. */
+export const projectPrefix = (checkout) => String(checkout).replace(/[^A-Za-z0-9]/g, '-');
+
+/**
+ * The counted critic and planner runs. `folder` holds Claude Code project folders; only those of the main checkout
+ * and its worktrees (names starting with the main checkout's prefix) are read. A folder is named in the report by the
+ * checkout's own name plus the rest of the folder name, so no home path reaches the report.
+ */
+function readRuns(folder, main, ids, before) {
+  const prefix = projectPrefix(main).toLowerCase();
+  const names = fs
+    .readdirSync(folder, { withFileTypes: true })
+    .filter((d) => d.isDirectory() && d.name.toLowerCase().startsWith(prefix))
+    .map((d) => d.name)
+    .sort(byPath);
+  const own = projectPrefix(path.basename(main));
+  const labelOf = (name) => own + name.slice(prefix.length);
+  const runs = [];
+  for (const run of readSessions(names.map((n) => path.join(folder, n))).runs) {
+    const cls = classifyRun(run);
+    if (cls === undefined || run.start === null || run.start > before || !ids.has(run.ticket)) continue;
+    const name = run.file.slice(0, run.file.indexOf('/'));
+    runs.push({ file: labelOf(name) + run.file.slice(name.length), ticket: run.ticket, class: cls, weighted: weighted(run.usage), peak: run.peak, ms: run.ms });
+  }
+  return { folders: names.map(labelOf), runs: runs.sort((a, b) => byPath(a.file, b.file)) };
 }
 
 export async function main(argv, { cwd = process.cwd(), stdout = process.stdout, stderr = process.stderr } = {}) {
@@ -90,16 +124,26 @@ export async function main(argv, { cwd = process.cwd(), stdout = process.stdout,
     stderr.write(`metrics: "${opts.at}" is not a commit in this repository\n`);
     return 2;
   }
-  const [date] = git(['-c', 'log.showSignature=false', 'log', '-1', '--no-show-signature', '--format=%cs%x00%ct', sha]).trim().split('\0');
+  const [date, seconds] = git(['-c', 'log.showSignature=false', 'log', '-1', '--no-show-signature', '--format=%cs%x00%ct', sha]).trim().split('\0');
   const label = opts.label ?? date;
 
-  const records = readRecords(git, sha);
+  const { records, ids } = readRecords(git, sha);
   const stages = {};
   for (const kind of STAGES) {
     const mine = records.filter((r) => r.kind === kind);
     stages[kind] = { records: mine.length, ...stageTable(mine.flatMap((r) => countRecord(r.text, kind))) };
   }
-  const report = { label, commit: sha, date, stages, transcripts: { measured: false, folders: [], runs: 0 } };
+
+  // Transcripts: the named folder, else ~/.claude/projects when it exists; `none`, or a folder that is not there, is not measured.
+  const home = path.join(os.homedir(), '.claude', 'projects');
+  const folder = opts.transcripts === 'none' ? undefined : opts.transcripts === undefined ? (fs.existsSync(home) ? home : undefined) : path.resolve(cwd, opts.transcripts);
+  let transcripts = { folders: [], runs: [] };
+  if (folder !== undefined && !fs.existsSync(folder)) stderr.write(`metrics: no transcript folder at ${opts.transcripts}; the run columns are not measured\n`);
+  else if (folder !== undefined) {
+    const main = path.dirname(git(['rev-parse', '--path-format=absolute', '--git-common-dir']).trim());
+    transcripts = readRuns(folder, main, ids, Number(seconds) * 1000);
+  }
+  const report = { label, commit: sha, date, stages, transcripts: { folders: transcripts.folders }, runs: transcripts.runs };
   const md = renderMarkdown(report);
   const json = renderJson(report);
 

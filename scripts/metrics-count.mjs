@@ -90,22 +90,93 @@ export function stageTable(cycles) {
   return { cycles: cycles.length, byRound };
 }
 
+// ---- critic and planner runs (study §2) ---------------------------------------------------------------------
+// The 2026-10-30 study's weights (D-03): fresh x1, cache-write x1.25, cache-read x0.1, output x5; model prices ignored.
+export const WEIGHTS = { input: 1, cacheWrite: 1.25, cacheRead: 0.1, output: 5 };
+
+/** One run's weighted tokens, rounded to a whole token before any sum or median. */
+export const weighted = (u) =>
+  Math.round(u.input * WEIGHTS.input + u.cacheWrite * WEIGHTS.cacheWrite + u.cacheRead * WEIGHTS.cacheRead + u.output * WEIGHTS.output);
+
+/** Median of whole numbers: an even count gives the mean of the two middle values, rounded. */
+export function median(values) {
+  if (!values.length) return 0;
+  const s = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(s.length / 2);
+  return s.length % 2 ? s[mid] : Math.round((s[mid - 1] + s[mid]) / 2);
+}
+
+// The report prints the classes in this order.
+export const CLASSES = [
+  'critic: plan round 1, lens criteria',
+  'critic: plan round 1, lens build',
+  'critic: plan round 1, lens security',
+  'critic: plan round 1, no lens',
+  'critic: plan later, whole',
+  'critic: plan later, diff',
+  'critic: approach, first',
+  'critic: approach, later',
+  'critic: mode not recognised',
+  'planner: writing',
+  'planner: fix',
+];
+const MODE = /\bmode[:\s]+`?(approach|plan|diff)\b/i;
+const LENS = /\blens[:\s]+`?(criteria|build|security)\b/i;
+
+/**
+ * The class of a run read by benchmark.mjs's readSessions, or undefined when the report leaves it out. As the study:
+ * a critic's mode and lens come from its dispatch prompt, and it is "later" when the prompt names plan-review.md or
+ * approach-review.md or its mode is diff; a planner (or the older accord-architect) is a fix run when its dispatch
+ * description says fix. A run described `bench …` is a benchmark arm, not work.
+ */
+export function classifyRun(run) {
+  if (String(run.desc ?? '').startsWith('bench ')) return undefined;
+  if (run.agent === 'accord-planner' || run.agent === 'accord-architect') return run.fix ? 'planner: fix' : 'planner: writing';
+  if (run.agent !== 'accord-critic') return undefined;
+  const prompt = String(run.dispatch?.prompt ?? '');
+  const mode = MODE.exec(prompt)?.[1].toLowerCase();
+  const lens = LENS.exec(prompt)?.[1].toLowerCase();
+  const later = /plan-review\.md|approach-review\.md/.test(prompt) || mode === 'diff';
+  if (mode === 'approach') return later ? 'critic: approach, later' : 'critic: approach, first';
+  if (mode === 'diff') return 'critic: plan later, diff';
+  if (mode === 'plan') return later ? 'critic: plan later, whole' : `critic: plan round 1, ${lens ? `lens ${lens}` : 'no lens'}`;
+  return 'critic: mode not recognised';
+}
+
+/** One row per class with at least one run, in CLASSES order. `runs` carry `weighted`, `peak` and `ms`. */
+export function runTable(runs) {
+  return CLASSES.map((name) => {
+    const mine = runs.filter((r) => r.class === name);
+    if (!mine.length) return undefined;
+    return {
+      class: name,
+      runs: mine.length,
+      weightedMtok: (mine.reduce((sum, r) => sum + r.weighted, 0) / 1e6).toFixed(1),
+      medianWeightedK: Math.round(median(mine.map((r) => r.weighted)) / 1000),
+      medianPeakK: Math.round(median(mine.map((r) => r.peak)) / 1000),
+      medianMinutes: (median(mine.map((r) => r.ms)) / 60000).toFixed(1),
+    };
+  }).filter(Boolean);
+}
+
 const NOT = 'not measured';
 const TITLE = { approach: 'Approach', plan: 'Plan', review: 'Review' };
 
-/** The report in a fixed key order, so two runs on the same inputs give the same bytes. */
+/** The report in a fixed key order, so two runs on the same inputs give the same bytes. Runs keep numbers, ids and relative paths only. */
 function ordered(report) {
   const stage = (s) => ({
     records: s.records,
     cycles: s.cycles,
     byRound: s.byRound.map((r) => ({ round: r.round, run: r.run, must: r.must, should: r.should, nice: r.nice, perRound: r.perRound })),
   });
+  const runs = report.runs ?? [];
   return {
     label: report.label,
     commit: report.commit,
     date: report.date,
     stages: Object.fromEntries(STAGES.map((k) => [k, stage(report.stages[k])])),
-    transcripts: { measured: report.transcripts.measured, folders: [...report.transcripts.folders], runs: report.transcripts.runs },
+    transcripts: { measured: runs.length > 0, folders: [...report.transcripts.folders], runs: runs.length },
+    runs: runs.map((r) => ({ file: r.file, ticket: r.ticket, class: r.class, weighted: r.weighted, peak: r.peak, minutes: Number((r.ms / 60000).toFixed(1)) })),
   };
 }
 
@@ -136,8 +207,15 @@ export function renderMarkdown(report) {
     out.push('');
   }
   out.push('## Critic and planner runs', '');
-  out.push(`Transcripts: ${NOT}`, '');
+  out.push(
+    '- Runs of `accord-critic`, `accord-planner` and `accord-architect` in the Claude Code project folders of this repository and its worktrees, read as `scripts/benchmark.mjs` reads them (usage the max per message id). A run counts when it started at or before the commit\'s time and its ticket has a file under `accord/tickets/<id>/` in the commit; a run described `bench …` is a benchmark arm and is left out.',
+    '- Weighted tokens: fresh x1, cache-write x1.25, cache-read x0.1, output x5, rounded per run. Peak: the largest single-message context. Minutes: active time, a gap over 10 minutes not counted. Medians of an even count are the mean of the two middle runs.',
+    '',
+  );
+  const rows = runTable(report.runs ?? []);
+  out.push(r.transcripts.measured ? `Transcripts: ${r.transcripts.folders.length} folders, ${r.transcripts.runs} runs counted` : `Transcripts: ${NOT}`, '');
   out.push('| Run class | Runs | Weighted Mtok | Median weighted k | Median peak k | Median minutes |', '|---|---:|---:|---:|---:|---:|');
-  out.push(`| critic and planner runs | ${NOT} | ${NOT} | ${NOT} | ${NOT} | ${NOT} |`);
+  if (!rows.length) out.push(`| critic and planner runs | ${NOT} | ${NOT} | ${NOT} | ${NOT} | ${NOT} |`);
+  for (const x of rows) out.push(`| ${x.class} | ${x.runs} | ${x.weightedMtok} | ${x.medianWeightedK} | ${x.medianPeakK} | ${x.medianMinutes} |`);
   return out.join('\n') + '\n';
 }

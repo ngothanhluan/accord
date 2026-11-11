@@ -89,8 +89,8 @@ run it again.
    holds the amended `## Approach`, into a file outside the working tree, and
    dispatch one `accord-critic` in a fresh context, mode `approach`, with the
    paths of the ticket, that file, and `approach-review.md`, never the
-   planner's report or `accord/tickets/<id>/direction.md`, which holds its
-   reasons: that file is committed with the ticket and never given to the
+   planner's report. The planner's `accord/tickets/<id>/direction.md` holds
+   its reasons: it is committed with the ticket and never given to the
    critic.
 2. **Record.** Append the round's section and mark each new finding `open`.
    Mark `fixed` each finding the critic lists after `fixed:`, and

@@ -62,6 +62,14 @@ export const LANE_BODY = [
   '',
 ].join('\n');
 
+/** LANE_BODY with any `Expected size:` line dropped and, when `n` is given, one put under `## Intent` (ST-LN-93): a test of the size rule means the same whatever LANE_BODY carries. */
+export function sized(n?: number): string {
+  const lines = LANE_BODY.split('\n').filter((l) => !l.startsWith('Expected size:'));
+  if (n === undefined) return lines.join('\n');
+  lines.splice(lines.indexOf('## Intent') + 2, 0, `Expected size: ${n} tasks`);
+  return lines.join('\n');
+}
+
 /** A ticket file. `lane: ''` omits the key, which makes a 0.1.0 ticket. `frontmatter` lines go before the closing ---. */
 export function laneTicket(id: string, opts: { lane?: string; frontmatter?: string[]; body?: string } = {}): string {
   const lane = opts.lane ?? 'M';

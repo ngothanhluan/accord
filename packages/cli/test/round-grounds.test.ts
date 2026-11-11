@@ -5,14 +5,14 @@ import { GROUNDS_V2_FROM } from '@accord-dev/accord-core';
 import { cleanup, commitMsg, gitRun, makeEmptyRepo, run, writeFiles } from './helpers/repo.js';
 import { CONFIG, laneTicket } from '../../../test/helpers/lane.js';
 
-const pinned = (v: string): string => CONFIG.replace('accord: "0.4.0"', `accord: "${v}"`);
+const pinned = (v: string): string => CONFIG.replace(/accord: "[^"]+"/, `accord: "${v}"`);
 const REVIEW = 'accord/tickets/T-1/review.md';
 const should = (...marks: string[]): string => `Should 1 [patch]: the export drops a row — src/a.ts:1 — open${marks.map((m) => ' — ' + m).join('')}`;
 
 /** A branch whose review.md round 1 is committed under `pin` and whose HEAD config is CONFIG; returns the repo and a writer of round 2. */
 function reviewRepo(pin: string): { repo: string; write: (round2: string) => void } {
   const repo = makeEmptyRepo();
-  writeFiles(repo, { 'accord/config.yml': CONFIG, 'accord/tickets/T-1.md': laneTicket('T-1') });
+  writeFiles(repo, { 'accord/config.yml': pinned('0.4.0'), 'accord/tickets/T-1.md': laneTicket('T-1') });
   commitMsg(repo, 'base');
   gitRun(repo, 'branch', '-M', 'main');
   gitRun(repo, 'switch', '-q', '-c', 't/T-1');

@@ -15,11 +15,11 @@ it('ac-4 accord round approach counts approach critique rounds with the plan cap
     commitMsg(repo, 'fixture');
     expect(await run(['round', 'T-1', '--approach'], repo)).toEqual({ code: 0, out: 'Round: 1 of 5\nCycle: 1\n', err: '' });
 
-    const two = rec(r(1, 'whole', '1. Must — the option drops the header — fixed'), r(2, 'diff', '1. Should — the impact list misses a caller — fixed'));
+    const two = rec(r(1, 'whole', '1. Must — the option drops the header — fixed'), r(2, 'diff', '1. Should — the impact list misses a caller — fixed — rests on: ac-1'));
     writeFiles(repo, { [APPROACH]: two });
     expect(await run(['round', 'T-1', '--approach'], repo)).toEqual({ code: 0, out: 'Round: 3 of 5\nCycle: 1\n', err: '' });
 
-    const three = two + r(3, 'diff', '1. Should — a risk has no undo — open');
+    const three = two + r(3, 'diff', '1. Should — a risk has no undo — open — rests on: ac-1');
     writeFiles(repo, { [APPROACH]: three, [PLAN]: three });
     const a = await run(['round', 'T-1', '--approach'], repo);
     expect(a.code).toBe(1);

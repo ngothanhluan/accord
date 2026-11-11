@@ -38,12 +38,12 @@ const PLAN_FILE = 'accord/tickets/T-1/plan.md';
 const REVIEW_FILE = 'accord/tickets/T-1/plan-review.md';
 const LEDGER_FILE = 'accord/tickets/T-1/ledger.md';
 const ROUND_1 = 'Round record: 1\n\n## Round 1 (whole)\n\n1. Should — Task 2 lacks a verify line — open\n';
-const pinned = (v: string): string => CONFIG.replace('accord: "0.4.0"', `accord: "${v}"`);
+const pinned = (v: string): string => CONFIG.replace(/accord: "[^"]+"/, `accord: "${v}"`);
 
 /** A branch whose plan-review.md round 1 is committed with plan.md under `pin`, then HEAD's config goes back to the running version. */
 function planRepo(pin: string): string {
   const repo = makeEmptyRepo();
-  writeFiles(repo, { 'accord/config.yml': CONFIG, 'accord/tickets/T-1.md': laneTicket('T-1') });
+  writeFiles(repo, { 'accord/config.yml': pinned('0.4.0'), 'accord/tickets/T-1.md': laneTicket('T-1') });
   commitMsg(repo, 'base');
   gitRun(repo, 'branch', '-M', 'main');
   gitRun(repo, 'switch', '-q', '-c', 't/T-1');

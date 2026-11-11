@@ -1,0 +1,4468 @@
+{
+  "label": "v0.4.0",
+  "commit": "1e31a7013b28aa13780ba9cfce977b9d3d754f99",
+  "date": "2026-11-02",
+  "stages": {
+    "approach": {
+      "records": 0,
+      "cycles": 0,
+      "byRound": [
+        {
+          "round": "1",
+          "run": 0,
+          "must": 0,
+          "should": 0,
+          "nice": 0,
+          "perRound": "0.0"
+        },
+        {
+          "round": "2",
+          "run": 0,
+          "must": 0,
+          "should": 0,
+          "nice": 0,
+          "perRound": "0.0"
+        },
+        {
+          "round": "3",
+          "run": 0,
+          "must": 0,
+          "should": 0,
+          "nice": 0,
+          "perRound": "0.0"
+        },
+        {
+          "round": "4",
+          "run": 0,
+          "must": 0,
+          "should": 0,
+          "nice": 0,
+          "perRound": "0.0"
+        },
+        {
+          "round": "5+",
+          "run": 0,
+          "must": 0,
+          "should": 0,
+          "nice": 0,
+          "perRound": "0.0"
+        }
+      ]
+    },
+    "plan": {
+      "records": 35,
+      "cycles": 46,
+      "byRound": [
+        {
+          "round": "1",
+          "run": 46,
+          "must": 33,
+          "should": 183,
+          "nice": 119,
+          "perRound": "4.7"
+        },
+        {
+          "round": "2",
+          "run": 44,
+          "must": 6,
+          "should": 56,
+          "nice": 30,
+          "perRound": "1.4"
+        },
+        {
+          "round": "3",
+          "run": 26,
+          "must": 1,
+          "should": 27,
+          "nice": 16,
+          "perRound": "1.1"
+        },
+        {
+          "round": "4",
+          "run": 18,
+          "must": 1,
+          "should": 8,
+          "nice": 15,
+          "perRound": "0.5"
+        },
+        {
+          "round": "5+",
+          "run": 21,
+          "must": 2,
+          "should": 16,
+          "nice": 10,
+          "perRound": "0.9"
+        }
+      ]
+    },
+    "review": {
+      "records": 62,
+      "cycles": 64,
+      "byRound": [
+        {
+          "round": "1",
+          "run": 64,
+          "must": 2,
+          "should": 86,
+          "nice": 187,
+          "perRound": "1.4"
+        },
+        {
+          "round": "2",
+          "run": 56,
+          "must": 1,
+          "should": 34,
+          "nice": 58,
+          "perRound": "0.6"
+        },
+        {
+          "round": "3",
+          "run": 26,
+          "must": 1,
+          "should": 10,
+          "nice": 19,
+          "perRound": "0.4"
+        },
+        {
+          "round": "4",
+          "run": 12,
+          "must": 1,
+          "should": 3,
+          "nice": 16,
+          "perRound": "0.3"
+        },
+        {
+          "round": "5+",
+          "run": 21,
+          "must": 4,
+          "should": 23,
+          "nice": 34,
+          "perRound": "1.3"
+        }
+      ]
+    }
+  },
+  "transcripts": {
+    "measured": true,
+    "folders": [
+      "accord",
+      "accord-bench-fixed-empty",
+      "accord-bench-fixed-spike-empty",
+      "accord-bug-ln-10",
+      "accord-bug-ln-11",
+      "accord-bug-ln-13",
+      "accord-bug-ln-14",
+      "accord-bug-ln-15",
+      "accord-bug-ln-4",
+      "accord-bug-ln-9",
+      "accord-node-modules--cache-st-ln-3-spike",
+      "accord-probe",
+      "accord-search",
+      "accord-st-ln-13",
+      "accord-st-ln-17",
+      "accord-st-ln-26",
+      "accord-st-ln-27",
+      "accord-st-ln-30",
+      "accord-st-ln-31",
+      "accord-st-ln-33",
+      "accord-st-ln-34",
+      "accord-st-ln-44",
+      "accord-st-ln-46",
+      "accord-st-ln-48",
+      "accord-st-ln-51",
+      "accord-st-ln-55",
+      "accord-st-ln-57",
+      "accord-st-ln-58",
+      "accord-st-ln-60",
+      "accord-st-ln-61",
+      "accord-st-ln-63",
+      "accord-st-ln-64",
+      "accord-st-ln-66",
+      "accord-st-ln-67",
+      "accord-st-ln-73",
+      "accord-st-ln-75",
+      "accord-st-ln-78",
+      "accord-st-ln-79",
+      "accord-st-ln-8",
+      "accord-st-ln-80",
+      "accord-st-ln-81",
+      "accord-verify",
+      "accord-verify-st-ln-27"
+    ],
+    "runs": 534
+  },
+  "runs": [
+    {
+      "file": "accord-bug-ln-11/9b89b5cb-0318-4676-b467-3a9240f1f5f1/subagents/agent-a372a2df39a5fcfd3.jsonl",
+      "ticket": "BUG-LN-11",
+      "class": "planner: fix",
+      "weighted": 312920,
+      "peak": 80649,
+      "minutes": 4.3
+    },
+    {
+      "file": "accord-bug-ln-11/9b89b5cb-0318-4676-b467-3a9240f1f5f1/subagents/agent-a5644851b5b1a3263.jsonl",
+      "ticket": "BUG-LN-11",
+      "class": "planner: fix",
+      "weighted": 173928,
+      "peak": 58216,
+      "minutes": 1.9
+    },
+    {
+      "file": "accord-bug-ln-11/9b89b5cb-0318-4676-b467-3a9240f1f5f1/subagents/agent-a5aa292e8dd261a80.jsonl",
+      "ticket": "BUG-LN-11",
+      "class": "critic: plan later, whole",
+      "weighted": 865329,
+      "peak": 142905,
+      "minutes": 8
+    },
+    {
+      "file": "accord-bug-ln-11/9b89b5cb-0318-4676-b467-3a9240f1f5f1/subagents/agent-a656b3a6dd3ade1de.jsonl",
+      "ticket": "BUG-LN-11",
+      "class": "planner: writing",
+      "weighted": 338760,
+      "peak": 81469,
+      "minutes": 4
+    },
+    {
+      "file": "accord-bug-ln-11/9b89b5cb-0318-4676-b467-3a9240f1f5f1/subagents/agent-a6677f4b47f6101d9.jsonl",
+      "ticket": "BUG-LN-11",
+      "class": "critic: plan later, diff",
+      "weighted": 197597,
+      "peak": 65758,
+      "minutes": 2.5
+    },
+    {
+      "file": "accord-bug-ln-11/9b89b5cb-0318-4676-b467-3a9240f1f5f1/subagents/agent-a6d73e9fa87b983ba.jsonl",
+      "ticket": "BUG-LN-11",
+      "class": "critic: plan round 1, lens criteria",
+      "weighted": 379446,
+      "peak": 93336,
+      "minutes": 4.2
+    },
+    {
+      "file": "accord-bug-ln-11/9b89b5cb-0318-4676-b467-3a9240f1f5f1/subagents/agent-a8be217e34df45cbf.jsonl",
+      "ticket": "BUG-LN-11",
+      "class": "planner: writing",
+      "weighted": 1558648,
+      "peak": 242877,
+      "minutes": 13.2
+    },
+    {
+      "file": "accord-bug-ln-11/9b89b5cb-0318-4676-b467-3a9240f1f5f1/subagents/agent-aa4be538056a0fbdd.jsonl",
+      "ticket": "BUG-LN-11",
+      "class": "critic: approach, first",
+      "weighted": 295770,
+      "peak": 80680,
+      "minutes": 3.9
+    },
+    {
+      "file": "accord-bug-ln-11/9b89b5cb-0318-4676-b467-3a9240f1f5f1/subagents/agent-aa92fc0c845c5972a.jsonl",
+      "ticket": "BUG-LN-11",
+      "class": "critic: plan round 1, lens build",
+      "weighted": 899063,
+      "peak": 158752,
+      "minutes": 7.7
+    },
+    {
+      "file": "accord-bug-ln-11/9b89b5cb-0318-4676-b467-3a9240f1f5f1/subagents/agent-ae6400be3ac94fe26.jsonl",
+      "ticket": "BUG-LN-11",
+      "class": "planner: fix",
+      "weighted": 183290,
+      "peak": 56413,
+      "minutes": 3.2
+    },
+    {
+      "file": "accord-bug-ln-11/9b89b5cb-0318-4676-b467-3a9240f1f5f1/subagents/agent-afec44d79323b898d.jsonl",
+      "ticket": "BUG-LN-11",
+      "class": "critic: plan later, diff",
+      "weighted": 182878,
+      "peak": 54626,
+      "minutes": 3.1
+    },
+    {
+      "file": "accord-bug-ln-13/74d01341-98c9-4f51-bcfd-73c7bd807567/subagents/agent-a060528a4d9857ae4.jsonl",
+      "ticket": "BUG-LN-13",
+      "class": "critic: plan round 1, lens criteria",
+      "weighted": 733278,
+      "peak": 139621,
+      "minutes": 6.7
+    },
+    {
+      "file": "accord-bug-ln-13/74d01341-98c9-4f51-bcfd-73c7bd807567/subagents/agent-a080b8d73df98b7c7.jsonl",
+      "ticket": "BUG-LN-13",
+      "class": "critic: plan later, diff",
+      "weighted": 153366,
+      "peak": 53258,
+      "minutes": 2.1
+    },
+    {
+      "file": "accord-bug-ln-13/74d01341-98c9-4f51-bcfd-73c7bd807567/subagents/agent-a0ca2d3c7d7fbead2.jsonl",
+      "ticket": "BUG-LN-13",
+      "class": "planner: fix",
+      "weighted": 133572,
+      "peak": 49033,
+      "minutes": 1.5
+    },
+    {
+      "file": "accord-bug-ln-13/74d01341-98c9-4f51-bcfd-73c7bd807567/subagents/agent-a10b04487ca8cf7a3.jsonl",
+      "ticket": "BUG-LN-13",
+      "class": "planner: writing",
+      "weighted": 747680,
+      "peak": 139102,
+      "minutes": 8.8
+    },
+    {
+      "file": "accord-bug-ln-13/74d01341-98c9-4f51-bcfd-73c7bd807567/subagents/agent-a2b1d92d4e5a35060.jsonl",
+      "ticket": "BUG-LN-13",
+      "class": "critic: approach, first",
+      "weighted": 695730,
+      "peak": 143426,
+      "minutes": 7.5
+    },
+    {
+      "file": "accord-bug-ln-13/74d01341-98c9-4f51-bcfd-73c7bd807567/subagents/agent-a707af8cd6680f972.jsonl",
+      "ticket": "BUG-LN-13",
+      "class": "planner: writing",
+      "weighted": 1891595,
+      "peak": 266974,
+      "minutes": 16.9
+    },
+    {
+      "file": "accord-bug-ln-13/74d01341-98c9-4f51-bcfd-73c7bd807567/subagents/agent-a7a82c85d207dd6ae.jsonl",
+      "ticket": "BUG-LN-13",
+      "class": "planner: fix",
+      "weighted": 457007,
+      "peak": 117358,
+      "minutes": 6.6
+    },
+    {
+      "file": "accord-bug-ln-13/74d01341-98c9-4f51-bcfd-73c7bd807567/subagents/agent-a8189928a59c6ee8a.jsonl",
+      "ticket": "BUG-LN-13",
+      "class": "planner: writing",
+      "weighted": 859414,
+      "peak": 173920,
+      "minutes": 7.4
+    },
+    {
+      "file": "accord-bug-ln-13/74d01341-98c9-4f51-bcfd-73c7bd807567/subagents/agent-a8393660822571154.jsonl",
+      "ticket": "BUG-LN-13",
+      "class": "critic: plan later, diff",
+      "weighted": 64546,
+      "peak": 33409,
+      "minutes": 0.9
+    },
+    {
+      "file": "accord-bug-ln-13/74d01341-98c9-4f51-bcfd-73c7bd807567/subagents/agent-a90f4d3e64f969f59.jsonl",
+      "ticket": "BUG-LN-13",
+      "class": "critic: plan round 1, lens criteria",
+      "weighted": 277772,
+      "peak": 81718,
+      "minutes": 3.4
+    },
+    {
+      "file": "accord-bug-ln-13/74d01341-98c9-4f51-bcfd-73c7bd807567/subagents/agent-a9216ff776c23e954.jsonl",
+      "ticket": "BUG-LN-13",
+      "class": "critic: approach, first",
+      "weighted": 538258,
+      "peak": 117325,
+      "minutes": 5.9
+    },
+    {
+      "file": "accord-bug-ln-13/74d01341-98c9-4f51-bcfd-73c7bd807567/subagents/agent-aad16d8e4fc2ff7b7.jsonl",
+      "ticket": "BUG-LN-13",
+      "class": "critic: plan round 1, lens build",
+      "weighted": 1538899,
+      "peak": 209351,
+      "minutes": 9.6
+    },
+    {
+      "file": "accord-bug-ln-13/74d01341-98c9-4f51-bcfd-73c7bd807567/subagents/agent-ac73703cfaef79859.jsonl",
+      "ticket": "BUG-LN-13",
+      "class": "critic: plan round 1, lens build",
+      "weighted": 546547,
+      "peak": 123119,
+      "minutes": 4.4
+    },
+    {
+      "file": "accord-bug-ln-14/82b5077a-19c0-4765-8a23-5495c1e36e26/subagents/agent-a0fda3e2c7ae6df71.jsonl",
+      "ticket": "BUG-LN-14",
+      "class": "critic: plan round 1, lens security",
+      "weighted": 185519,
+      "peak": 61178,
+      "minutes": 3.1
+    },
+    {
+      "file": "accord-bug-ln-14/82b5077a-19c0-4765-8a23-5495c1e36e26/subagents/agent-a145d86344cd6e1c8.jsonl",
+      "ticket": "BUG-LN-14",
+      "class": "planner: fix",
+      "weighted": 240183,
+      "peak": 66820,
+      "minutes": 4.9
+    },
+    {
+      "file": "accord-bug-ln-14/82b5077a-19c0-4765-8a23-5495c1e36e26/subagents/agent-a1e135d3baa1b2005.jsonl",
+      "ticket": "BUG-LN-14",
+      "class": "critic: plan round 1, lens build",
+      "weighted": 554052,
+      "peak": 127591,
+      "minutes": 5.9
+    },
+    {
+      "file": "accord-bug-ln-14/82b5077a-19c0-4765-8a23-5495c1e36e26/subagents/agent-a2fe84c1aec74d9ff.jsonl",
+      "ticket": "BUG-LN-14",
+      "class": "critic: approach, first",
+      "weighted": 303995,
+      "peak": 75548,
+      "minutes": 5.2
+    },
+    {
+      "file": "accord-bug-ln-14/82b5077a-19c0-4765-8a23-5495c1e36e26/subagents/agent-a6692bbddda2114f8.jsonl",
+      "ticket": "BUG-LN-14",
+      "class": "planner: writing",
+      "weighted": 980131,
+      "peak": 197362,
+      "minutes": 11
+    },
+    {
+      "file": "accord-bug-ln-14/82b5077a-19c0-4765-8a23-5495c1e36e26/subagents/agent-ab2e2d2f3a1a0f179.jsonl",
+      "ticket": "BUG-LN-14",
+      "class": "planner: writing",
+      "weighted": 336447,
+      "peak": 103632,
+      "minutes": 4.4
+    },
+    {
+      "file": "accord-bug-ln-14/82b5077a-19c0-4765-8a23-5495c1e36e26/subagents/agent-ac246303aecbad0b6.jsonl",
+      "ticket": "BUG-LN-14",
+      "class": "critic: plan round 1, lens criteria",
+      "weighted": 462961,
+      "peak": 112786,
+      "minutes": 6.8
+    },
+    {
+      "file": "accord-bug-ln-14/82b5077a-19c0-4765-8a23-5495c1e36e26/subagents/agent-ac9bae8accc948e5d.jsonl",
+      "ticket": "BUG-LN-14",
+      "class": "critic: plan later, diff",
+      "weighted": 131162,
+      "peak": 41055,
+      "minutes": 2.4
+    },
+    {
+      "file": "accord-bug-ln-4/01d620bd-7372-4231-95c9-666939689cc1/subagents/agent-a0e6b315b63a15c69.jsonl",
+      "ticket": "BUG-LN-4",
+      "class": "planner: writing",
+      "weighted": 502499,
+      "peak": 124308,
+      "minutes": 7
+    },
+    {
+      "file": "accord-bug-ln-4/01d620bd-7372-4231-95c9-666939689cc1/subagents/agent-a1180ebee425e1cae.jsonl",
+      "ticket": "BUG-LN-4",
+      "class": "critic: plan later, diff",
+      "weighted": 123158,
+      "peak": 50914,
+      "minutes": 1.7
+    },
+    {
+      "file": "accord-bug-ln-4/01d620bd-7372-4231-95c9-666939689cc1/subagents/agent-a1224172321df4e90.jsonl",
+      "ticket": "BUG-LN-4",
+      "class": "planner: writing",
+      "weighted": 302197,
+      "peak": 78375,
+      "minutes": 4.7
+    },
+    {
+      "file": "accord-bug-ln-4/01d620bd-7372-4231-95c9-666939689cc1/subagents/agent-a330a26f98ebefaee.jsonl",
+      "ticket": "BUG-LN-4",
+      "class": "critic: plan round 1, lens criteria",
+      "weighted": 712836,
+      "peak": 135375,
+      "minutes": 10
+    },
+    {
+      "file": "accord-bug-ln-4/01d620bd-7372-4231-95c9-666939689cc1/subagents/agent-a3b30126d1beebee9.jsonl",
+      "ticket": "BUG-LN-4",
+      "class": "critic: plan round 1, lens security",
+      "weighted": 622738,
+      "peak": 121311,
+      "minutes": 10.5
+    },
+    {
+      "file": "accord-bug-ln-4/01d620bd-7372-4231-95c9-666939689cc1/subagents/agent-a3bcb3e7b2d5ac876.jsonl",
+      "ticket": "BUG-LN-4",
+      "class": "critic: plan round 1, lens build",
+      "weighted": 1117918,
+      "peak": 164503,
+      "minutes": 13.4
+    },
+    {
+      "file": "accord-bug-ln-4/01d620bd-7372-4231-95c9-666939689cc1/subagents/agent-a5b02d95bbeda1bbe.jsonl",
+      "ticket": "BUG-LN-4",
+      "class": "planner: writing",
+      "weighted": 134604,
+      "peak": 42295,
+      "minutes": 11.3
+    },
+    {
+      "file": "accord-bug-ln-4/01d620bd-7372-4231-95c9-666939689cc1/subagents/agent-a936f058f6e471509.jsonl",
+      "ticket": "BUG-LN-4",
+      "class": "planner: writing",
+      "weighted": 299303,
+      "peak": 73621,
+      "minutes": 4.5
+    },
+    {
+      "file": "accord-bug-ln-4/01d620bd-7372-4231-95c9-666939689cc1/subagents/agent-ae441989deee17df7.jsonl",
+      "ticket": "BUG-LN-4",
+      "class": "critic: plan later, whole",
+      "weighted": 797603,
+      "peak": 147893,
+      "minutes": 11.3
+    },
+    {
+      "file": "accord-bug-ln-4/01d620bd-7372-4231-95c9-666939689cc1/subagents/agent-af6e85ae5110a8bdd.jsonl",
+      "ticket": "BUG-LN-4",
+      "class": "critic: approach, first",
+      "weighted": 751271,
+      "peak": 138761,
+      "minutes": 11.8
+    },
+    {
+      "file": "accord-st-ln-13/69037e7f-8710-4df3-a467-db1a6b45311a/subagents/agent-a0c1a31ac1626a92b.jsonl",
+      "ticket": "ST-LN-13",
+      "class": "critic: plan round 1, lens security",
+      "weighted": 315800,
+      "peak": 90817,
+      "minutes": 5.1
+    },
+    {
+      "file": "accord-st-ln-13/69037e7f-8710-4df3-a467-db1a6b45311a/subagents/agent-a19c0ae0c5993dd29.jsonl",
+      "ticket": "ST-LN-13",
+      "class": "critic: plan round 1, lens criteria",
+      "weighted": 615142,
+      "peak": 124907,
+      "minutes": 6
+    },
+    {
+      "file": "accord-st-ln-13/69037e7f-8710-4df3-a467-db1a6b45311a/subagents/agent-a3931cfd2d9ee39c3.jsonl",
+      "ticket": "ST-LN-13",
+      "class": "critic: approach, first",
+      "weighted": 582209,
+      "peak": 113093,
+      "minutes": 6.8
+    },
+    {
+      "file": "accord-st-ln-13/69037e7f-8710-4df3-a467-db1a6b45311a/subagents/agent-a42859e5e2453e63f.jsonl",
+      "ticket": "ST-LN-13",
+      "class": "critic: approach, first",
+      "weighted": 648129,
+      "peak": 127752,
+      "minutes": 6.4
+    },
+    {
+      "file": "accord-st-ln-13/69037e7f-8710-4df3-a467-db1a6b45311a/subagents/agent-a59458ac598f089fb.jsonl",
+      "ticket": "ST-LN-13",
+      "class": "planner: fix",
+      "weighted": 193916,
+      "peak": 68262,
+      "minutes": 4.5
+    },
+    {
+      "file": "accord-st-ln-13/69037e7f-8710-4df3-a467-db1a6b45311a/subagents/agent-a5cf0ce2b9c91754c.jsonl",
+      "ticket": "ST-LN-13",
+      "class": "critic: plan round 1, lens build",
+      "weighted": 2168655,
+      "peak": 259519,
+      "minutes": 13.8
+    },
+    {
+      "file": "accord-st-ln-13/69037e7f-8710-4df3-a467-db1a6b45311a/subagents/agent-a7a57c0870911ad97.jsonl",
+      "ticket": "ST-LN-13",
+      "class": "critic: plan later, diff",
+      "weighted": 305064,
+      "peak": 89101,
+      "minutes": 4.4
+    },
+    {
+      "file": "accord-st-ln-13/69037e7f-8710-4df3-a467-db1a6b45311a/subagents/agent-a86966b4773fcc151.jsonl",
+      "ticket": "ST-LN-13",
+      "class": "planner: writing",
+      "weighted": 2765549,
+      "peak": 322655,
+      "minutes": 21
+    },
+    {
+      "file": "accord-st-ln-13/69037e7f-8710-4df3-a467-db1a6b45311a/subagents/agent-aa2e72ca67f665d73.jsonl",
+      "ticket": "ST-LN-13",
+      "class": "planner: writing",
+      "weighted": 655584,
+      "peak": 125037,
+      "minutes": 5.9
+    },
+    {
+      "file": "accord-st-ln-13/69037e7f-8710-4df3-a467-db1a6b45311a/subagents/agent-aa90a1d71e8215df2.jsonl",
+      "ticket": "ST-LN-13",
+      "class": "planner: fix",
+      "weighted": 640786,
+      "peak": 131716,
+      "minutes": 9.5
+    },
+    {
+      "file": "accord-st-ln-13/69037e7f-8710-4df3-a467-db1a6b45311a/subagents/agent-ad75fe65cc11bc513.jsonl",
+      "ticket": "ST-LN-13",
+      "class": "critic: approach, first",
+      "weighted": 673549,
+      "peak": 123906,
+      "minutes": 7.4
+    },
+    {
+      "file": "accord-st-ln-13/69037e7f-8710-4df3-a467-db1a6b45311a/subagents/agent-aed1b03b47b936534.jsonl",
+      "ticket": "ST-LN-13",
+      "class": "critic: plan later, diff",
+      "weighted": 164053,
+      "peak": 48303,
+      "minutes": 4.4
+    },
+    {
+      "file": "accord-st-ln-17/ed6a40e0-9bc9-4481-bc1c-bca36333c4f5/subagents/agent-a08e2b48be9bffdcc.jsonl",
+      "ticket": "ST-LN-17",
+      "class": "critic: plan later, whole",
+      "weighted": 1355896,
+      "peak": 207863,
+      "minutes": 11.2
+    },
+    {
+      "file": "accord-st-ln-17/ed6a40e0-9bc9-4481-bc1c-bca36333c4f5/subagents/agent-a15c765e254d783db.jsonl",
+      "ticket": "ST-LN-17",
+      "class": "critic: plan round 1, lens criteria",
+      "weighted": 715266,
+      "peak": 139296,
+      "minutes": 8.4
+    },
+    {
+      "file": "accord-st-ln-17/ed6a40e0-9bc9-4481-bc1c-bca36333c4f5/subagents/agent-a23f97d16613cd74b.jsonl",
+      "ticket": "ST-LN-17",
+      "class": "planner: fix",
+      "weighted": 738544,
+      "peak": 149323,
+      "minutes": 7.2
+    },
+    {
+      "file": "accord-st-ln-17/ed6a40e0-9bc9-4481-bc1c-bca36333c4f5/subagents/agent-a4b288a87745ec455.jsonl",
+      "ticket": "ST-LN-17",
+      "class": "critic: plan later, diff",
+      "weighted": 290208,
+      "peak": 87088,
+      "minutes": 3.4
+    },
+    {
+      "file": "accord-st-ln-17/ed6a40e0-9bc9-4481-bc1c-bca36333c4f5/subagents/agent-a4e6c4cfa705c8b79.jsonl",
+      "ticket": "ST-LN-17",
+      "class": "planner: fix",
+      "weighted": 334441,
+      "peak": 99174,
+      "minutes": 3.8
+    },
+    {
+      "file": "accord-st-ln-17/ed6a40e0-9bc9-4481-bc1c-bca36333c4f5/subagents/agent-a5eaf64e6480b597a.jsonl",
+      "ticket": "ST-LN-17",
+      "class": "planner: writing",
+      "weighted": 852279,
+      "peak": 168780,
+      "minutes": 9
+    },
+    {
+      "file": "accord-st-ln-17/ed6a40e0-9bc9-4481-bc1c-bca36333c4f5/subagents/agent-a5ff4cf7993880a15.jsonl",
+      "ticket": "ST-LN-17",
+      "class": "planner: writing",
+      "weighted": 491456,
+      "peak": 147883,
+      "minutes": 14.4
+    },
+    {
+      "file": "accord-st-ln-17/ed6a40e0-9bc9-4481-bc1c-bca36333c4f5/subagents/agent-a8ec8d49812d7efb9.jsonl",
+      "ticket": "ST-LN-17",
+      "class": "critic: plan later, whole",
+      "weighted": 2155712,
+      "peak": 255935,
+      "minutes": 15.7
+    },
+    {
+      "file": "accord-st-ln-17/ed6a40e0-9bc9-4481-bc1c-bca36333c4f5/subagents/agent-a9b7c0900678a662d.jsonl",
+      "ticket": "ST-LN-17",
+      "class": "critic: approach, first",
+      "weighted": 649460,
+      "peak": 127554,
+      "minutes": 9.4
+    },
+    {
+      "file": "accord-st-ln-17/ed6a40e0-9bc9-4481-bc1c-bca36333c4f5/subagents/agent-a9e0874fcd23852b6.jsonl",
+      "ticket": "ST-LN-17",
+      "class": "planner: fix",
+      "weighted": 2136063,
+      "peak": 271440,
+      "minutes": 20.6
+    },
+    {
+      "file": "accord-st-ln-17/ed6a40e0-9bc9-4481-bc1c-bca36333c4f5/subagents/agent-a9eaefb8a40dd3398.jsonl",
+      "ticket": "ST-LN-17",
+      "class": "critic: plan round 1, lens build",
+      "weighted": 1500772,
+      "peak": 210263,
+      "minutes": 10.4
+    },
+    {
+      "file": "accord-st-ln-17/ed6a40e0-9bc9-4481-bc1c-bca36333c4f5/subagents/agent-ac93d99a7c54141f7.jsonl",
+      "ticket": "ST-LN-17",
+      "class": "critic: approach, later",
+      "weighted": 760130,
+      "peak": 138669,
+      "minutes": 10.2
+    },
+    {
+      "file": "accord-st-ln-17/ed6a40e0-9bc9-4481-bc1c-bca36333c4f5/subagents/agent-acfc4f6d6869d93ff.jsonl",
+      "ticket": "ST-LN-17",
+      "class": "planner: writing",
+      "weighted": 2790283,
+      "peak": 283339,
+      "minutes": 24.4
+    },
+    {
+      "file": "accord-st-ln-17/ed6a40e0-9bc9-4481-bc1c-bca36333c4f5/subagents/agent-af44a25be32be0094.jsonl",
+      "ticket": "ST-LN-17",
+      "class": "critic: approach, first",
+      "weighted": 424348,
+      "peak": 87878,
+      "minutes": 7.6
+    },
+    {
+      "file": "accord-st-ln-26/c0a17689-483d-4eaa-873a-1b356e73e6f2/subagents/agent-a01ff5bda5cdf6e19.jsonl",
+      "ticket": "ST-LN-26",
+      "class": "critic: plan later, whole",
+      "weighted": 959447,
+      "peak": 178850,
+      "minutes": 11.7
+    },
+    {
+      "file": "accord-st-ln-26/c0a17689-483d-4eaa-873a-1b356e73e6f2/subagents/agent-a0eb9243a91371dca.jsonl",
+      "ticket": "ST-LN-26",
+      "class": "critic: plan round 1, lens build",
+      "weighted": 1302581,
+      "peak": 181217,
+      "minutes": 12.7
+    },
+    {
+      "file": "accord-st-ln-26/c0a17689-483d-4eaa-873a-1b356e73e6f2/subagents/agent-a1be6e9544704119e.jsonl",
+      "ticket": "ST-LN-26",
+      "class": "planner: writing",
+      "weighted": 291967,
+      "peak": 74483,
+      "minutes": 3.9
+    },
+    {
+      "file": "accord-st-ln-26/c0a17689-483d-4eaa-873a-1b356e73e6f2/subagents/agent-a3845a98704477082.jsonl",
+      "ticket": "ST-LN-26",
+      "class": "critic: plan later, diff",
+      "weighted": 133274,
+      "peak": 52348,
+      "minutes": 2.2
+    },
+    {
+      "file": "accord-st-ln-26/c0a17689-483d-4eaa-873a-1b356e73e6f2/subagents/agent-a41f9673c54af1b93.jsonl",
+      "ticket": "ST-LN-26",
+      "class": "planner: fix",
+      "weighted": 314241,
+      "peak": 87151,
+      "minutes": 3.7
+    },
+    {
+      "file": "accord-st-ln-26/c0a17689-483d-4eaa-873a-1b356e73e6f2/subagents/agent-a458134e0062c68f7.jsonl",
+      "ticket": "ST-LN-26",
+      "class": "critic: plan round 1, lens criteria",
+      "weighted": 452201,
+      "peak": 106082,
+      "minutes": 7
+    },
+    {
+      "file": "accord-st-ln-26/c0a17689-483d-4eaa-873a-1b356e73e6f2/subagents/agent-a4e62471279427faa.jsonl",
+      "ticket": "ST-LN-26",
+      "class": "critic: approach, first",
+      "weighted": 491406,
+      "peak": 102566,
+      "minutes": 8.5
+    },
+    {
+      "file": "accord-st-ln-26/c0a17689-483d-4eaa-873a-1b356e73e6f2/subagents/agent-a65077f4375617f42.jsonl",
+      "ticket": "ST-LN-26",
+      "class": "planner: fix",
+      "weighted": 170512,
+      "peak": 75292,
+      "minutes": 1.9
+    },
+    {
+      "file": "accord-st-ln-26/c0a17689-483d-4eaa-873a-1b356e73e6f2/subagents/agent-a8602e8d9bfdd0964.jsonl",
+      "ticket": "ST-LN-26",
+      "class": "planner: writing",
+      "weighted": 2118492,
+      "peak": 291768,
+      "minutes": 21.2
+    },
+    {
+      "file": "accord-st-ln-26/c0a17689-483d-4eaa-873a-1b356e73e6f2/subagents/agent-a9fffa616f7b4bf9c.jsonl",
+      "ticket": "ST-LN-26",
+      "class": "critic: plan later, diff",
+      "weighted": 91229,
+      "peak": 41843,
+      "minutes": 1.6
+    },
+    {
+      "file": "accord-st-ln-26/c0a17689-483d-4eaa-873a-1b356e73e6f2/subagents/agent-aa634444f19220c82.jsonl",
+      "ticket": "ST-LN-26",
+      "class": "critic: plan later, diff",
+      "weighted": 244087,
+      "peak": 72797,
+      "minutes": 3.7
+    },
+    {
+      "file": "accord-st-ln-26/c0a17689-483d-4eaa-873a-1b356e73e6f2/subagents/agent-abace7c46aaa0d945.jsonl",
+      "ticket": "ST-LN-26",
+      "class": "planner: fix",
+      "weighted": 50664,
+      "peak": 25789,
+      "minutes": 0.6
+    },
+    {
+      "file": "accord-st-ln-26/c0a17689-483d-4eaa-873a-1b356e73e6f2/subagents/agent-adce3f260f931f901.jsonl",
+      "ticket": "ST-LN-26",
+      "class": "planner: fix",
+      "weighted": 50641,
+      "peak": 25685,
+      "minutes": 0.6
+    },
+    {
+      "file": "accord-st-ln-26/c0a17689-483d-4eaa-873a-1b356e73e6f2/subagents/agent-ae8fa3d5738614250.jsonl",
+      "ticket": "ST-LN-26",
+      "class": "planner: fix",
+      "weighted": 446561,
+      "peak": 101960,
+      "minutes": 5.1
+    },
+    {
+      "file": "accord-st-ln-26/c0a17689-483d-4eaa-873a-1b356e73e6f2/subagents/agent-aea576de19b6a97a2.jsonl",
+      "ticket": "ST-LN-26",
+      "class": "critic: approach, first",
+      "weighted": 447368,
+      "peak": 95361,
+      "minutes": 7.4
+    },
+    {
+      "file": "accord-st-ln-26/c0a17689-483d-4eaa-873a-1b356e73e6f2/subagents/agent-afba2e62afb7d8a59.jsonl",
+      "ticket": "ST-LN-26",
+      "class": "critic: plan later, whole",
+      "weighted": 495951,
+      "peak": 116407,
+      "minutes": 6.6
+    },
+    {
+      "file": "accord-st-ln-27/534989db-2e8d-4ed8-aa14-256e70aeed28/subagents/agent-a1940662b8ca3e595.jsonl",
+      "ticket": "ST-LN-27",
+      "class": "critic: plan round 1, lens criteria",
+      "weighted": 340189,
+      "peak": 98358,
+      "minutes": 5.9
+    },
+    {
+      "file": "accord-st-ln-27/534989db-2e8d-4ed8-aa14-256e70aeed28/subagents/agent-a202e39b91bcca69a.jsonl",
+      "ticket": "ST-LN-27",
+      "class": "planner: fix",
+      "weighted": 108290,
+      "peak": 55748,
+      "minutes": 0.9
+    },
+    {
+      "file": "accord-st-ln-27/534989db-2e8d-4ed8-aa14-256e70aeed28/subagents/agent-a3c809104560879e8.jsonl",
+      "ticket": "ST-LN-27",
+      "class": "critic: plan later, whole",
+      "weighted": 854780,
+      "peak": 168733,
+      "minutes": 10.4
+    },
+    {
+      "file": "accord-st-ln-27/534989db-2e8d-4ed8-aa14-256e70aeed28/subagents/agent-a9a91d4343fafe4ad.jsonl",
+      "ticket": "ST-LN-27",
+      "class": "critic: plan round 1, lens build",
+      "weighted": 1012196,
+      "peak": 187046,
+      "minutes": 11.3
+    },
+    {
+      "file": "accord-st-ln-27/534989db-2e8d-4ed8-aa14-256e70aeed28/subagents/agent-a9e7d090f7fb1477a.jsonl",
+      "ticket": "ST-LN-27",
+      "class": "critic: plan later, diff",
+      "weighted": 486342,
+      "peak": 107096,
+      "minutes": 5.7
+    },
+    {
+      "file": "accord-st-ln-27/534989db-2e8d-4ed8-aa14-256e70aeed28/subagents/agent-aae2f5ff41c8d5f97.jsonl",
+      "ticket": "ST-LN-27",
+      "class": "planner: writing",
+      "weighted": 962251,
+      "peak": 192726,
+      "minutes": 10.7
+    },
+    {
+      "file": "accord-st-ln-27/534989db-2e8d-4ed8-aa14-256e70aeed28/subagents/agent-ad4157c8bacd5c337.jsonl",
+      "ticket": "ST-LN-27",
+      "class": "planner: writing",
+      "weighted": 438456,
+      "peak": 106895,
+      "minutes": 5.7
+    },
+    {
+      "file": "accord-st-ln-27/534989db-2e8d-4ed8-aa14-256e70aeed28/subagents/agent-ad97b8dbc62496e19.jsonl",
+      "ticket": "ST-LN-27",
+      "class": "planner: fix",
+      "weighted": 666202,
+      "peak": 128520,
+      "minutes": 8.2
+    },
+    {
+      "file": "accord-st-ln-27/534989db-2e8d-4ed8-aa14-256e70aeed28/subagents/agent-ae026383f3189ea70.jsonl",
+      "ticket": "ST-LN-27",
+      "class": "critic: approach, first",
+      "weighted": 228884,
+      "peak": 64468,
+      "minutes": 5.2
+    },
+    {
+      "file": "accord-st-ln-27/534989db-2e8d-4ed8-aa14-256e70aeed28/subagents/agent-ae79ec45b2ba9b80c.jsonl",
+      "ticket": "ST-LN-27",
+      "class": "planner: fix",
+      "weighted": 646042,
+      "peak": 136775,
+      "minutes": 7.7
+    },
+    {
+      "file": "accord-st-ln-27/534989db-2e8d-4ed8-aa14-256e70aeed28/subagents/agent-aea300a1903d0f114.jsonl",
+      "ticket": "ST-LN-27",
+      "class": "critic: plan later, diff",
+      "weighted": 147325,
+      "peak": 51248,
+      "minutes": 1.7
+    },
+    {
+      "file": "accord-st-ln-27/534989db-2e8d-4ed8-aa14-256e70aeed28/subagents/agent-af51ea1020741544c.jsonl",
+      "ticket": "ST-LN-27",
+      "class": "critic: approach, first",
+      "weighted": 348870,
+      "peak": 86895,
+      "minutes": 7.5
+    },
+    {
+      "file": "accord-st-ln-31/021f7083-2de2-476e-b06d-bc94942efcf4/subagents/agent-a0129f4bf7f89ead4.jsonl",
+      "ticket": "ST-LN-31",
+      "class": "critic: approach, first",
+      "weighted": 776843,
+      "peak": 153010,
+      "minutes": 6.7
+    },
+    {
+      "file": "accord-st-ln-31/021f7083-2de2-476e-b06d-bc94942efcf4/subagents/agent-a3a47d90de98b5982.jsonl",
+      "ticket": "ST-LN-31",
+      "class": "critic: approach, first",
+      "weighted": 538000,
+      "peak": 122862,
+      "minutes": 5.8
+    },
+    {
+      "file": "accord-st-ln-31/021f7083-2de2-476e-b06d-bc94942efcf4/subagents/agent-a64cc9d1a44fae216.jsonl",
+      "ticket": "ST-LN-31",
+      "class": "planner: writing",
+      "weighted": 1850427,
+      "peak": 256724,
+      "minutes": 32.7
+    },
+    {
+      "file": "accord-st-ln-31/021f7083-2de2-476e-b06d-bc94942efcf4/subagents/agent-aa0bcf2483345228f.jsonl",
+      "ticket": "ST-LN-31",
+      "class": "critic: approach, first",
+      "weighted": 857276,
+      "peak": 172429,
+      "minutes": 8.2
+    },
+    {
+      "file": "accord-st-ln-34/2ff3a8b3-86f4-4b81-aec3-eab96066b55a/subagents/agent-a0dd8eb4febef3125.jsonl",
+      "ticket": "ST-LN-34",
+      "class": "critic: approach, first",
+      "weighted": 389835,
+      "peak": 86294,
+      "minutes": 6.4
+    },
+    {
+      "file": "accord-st-ln-34/2ff3a8b3-86f4-4b81-aec3-eab96066b55a/subagents/agent-a1323fabb33f32555.jsonl",
+      "ticket": "ST-LN-34",
+      "class": "critic: plan later, diff",
+      "weighted": 51252,
+      "peak": 30142,
+      "minutes": 0.8
+    },
+    {
+      "file": "accord-st-ln-34/2ff3a8b3-86f4-4b81-aec3-eab96066b55a/subagents/agent-a149429c6eb1fb7f5.jsonl",
+      "ticket": "ST-LN-34",
+      "class": "planner: writing",
+      "weighted": 1170278,
+      "peak": 231861,
+      "minutes": 15.7
+    },
+    {
+      "file": "accord-st-ln-34/2ff3a8b3-86f4-4b81-aec3-eab96066b55a/subagents/agent-a1b7345ddecdac54b.jsonl",
+      "ticket": "ST-LN-34",
+      "class": "critic: approach, first",
+      "weighted": 185920,
+      "peak": 56793,
+      "minutes": 4.2
+    },
+    {
+      "file": "accord-st-ln-34/2ff3a8b3-86f4-4b81-aec3-eab96066b55a/subagents/agent-a3e8c7cf46dc072fc.jsonl",
+      "ticket": "ST-LN-34",
+      "class": "critic: plan later, whole",
+      "weighted": 819862,
+      "peak": 156243,
+      "minutes": 9.2
+    },
+    {
+      "file": "accord-st-ln-34/2ff3a8b3-86f4-4b81-aec3-eab96066b55a/subagents/agent-a5c15767f50aa4db0.jsonl",
+      "ticket": "ST-LN-34",
+      "class": "planner: writing",
+      "weighted": 495097,
+      "peak": 115332,
+      "minutes": 5.5
+    },
+    {
+      "file": "accord-st-ln-34/2ff3a8b3-86f4-4b81-aec3-eab96066b55a/subagents/agent-a64ca8f70c11c88df.jsonl",
+      "ticket": "ST-LN-34",
+      "class": "critic: plan round 1, lens criteria",
+      "weighted": 594699,
+      "peak": 112683,
+      "minutes": 6.2
+    },
+    {
+      "file": "accord-st-ln-34/2ff3a8b3-86f4-4b81-aec3-eab96066b55a/subagents/agent-ab482945581cf723b.jsonl",
+      "ticket": "ST-LN-34",
+      "class": "planner: fix",
+      "weighted": 78709,
+      "peak": 47393,
+      "minutes": 0.6
+    },
+    {
+      "file": "accord-st-ln-34/2ff3a8b3-86f4-4b81-aec3-eab96066b55a/subagents/agent-ac784d243d9100906.jsonl",
+      "ticket": "ST-LN-34",
+      "class": "critic: plan round 1, lens build",
+      "weighted": 657350,
+      "peak": 151111,
+      "minutes": 7.7
+    },
+    {
+      "file": "accord-st-ln-34/2ff3a8b3-86f4-4b81-aec3-eab96066b55a/subagents/agent-adc3c50ef0acf0fae.jsonl",
+      "ticket": "ST-LN-34",
+      "class": "planner: fix",
+      "weighted": 270912,
+      "peak": 74726,
+      "minutes": 3
+    },
+    {
+      "file": "accord-st-ln-34/2ff3a8b3-86f4-4b81-aec3-eab96066b55a/subagents/agent-af40de8e29eee2eb3.jsonl",
+      "ticket": "ST-LN-34",
+      "class": "critic: plan round 1, lens security",
+      "weighted": 228678,
+      "peak": 85311,
+      "minutes": 5.4
+    },
+    {
+      "file": "accord-st-ln-44/22ca97aa-db8d-499f-88d0-dd46be713538/subagents/agent-a0cf42ef7deb8f4cb.jsonl",
+      "ticket": "ST-LN-44",
+      "class": "critic: plan later, whole",
+      "weighted": 906213,
+      "peak": 178117,
+      "minutes": 6.9
+    },
+    {
+      "file": "accord-st-ln-44/22ca97aa-db8d-499f-88d0-dd46be713538/subagents/agent-a1501e963e785a9aa.jsonl",
+      "ticket": "ST-LN-44",
+      "class": "critic: plan later, diff",
+      "weighted": 56132,
+      "peak": 30188,
+      "minutes": 0.8
+    },
+    {
+      "file": "accord-st-ln-44/22ca97aa-db8d-499f-88d0-dd46be713538/subagents/agent-a158f938d3e07c55b.jsonl",
+      "ticket": "ST-LN-44",
+      "class": "planner: fix",
+      "weighted": 809578,
+      "peak": 160890,
+      "minutes": 9.8
+    },
+    {
+      "file": "accord-st-ln-44/22ca97aa-db8d-499f-88d0-dd46be713538/subagents/agent-a16079319cbd37dd4.jsonl",
+      "ticket": "ST-LN-44",
+      "class": "critic: plan round 1, lens build",
+      "weighted": 1913051,
+      "peak": 284853,
+      "minutes": 12
+    },
+    {
+      "file": "accord-st-ln-44/22ca97aa-db8d-499f-88d0-dd46be713538/subagents/agent-a2757be282131df22.jsonl",
+      "ticket": "ST-LN-44",
+      "class": "critic: plan later, whole",
+      "weighted": 1684758,
+      "peak": 235433,
+      "minutes": 12.9
+    },
+    {
+      "file": "accord-st-ln-44/22ca97aa-db8d-499f-88d0-dd46be713538/subagents/agent-a2e89638f07260b85.jsonl",
+      "ticket": "ST-LN-44",
+      "class": "planner: writing",
+      "weighted": 1224892,
+      "peak": 212528,
+      "minutes": 12
+    },
+    {
+      "file": "accord-st-ln-44/22ca97aa-db8d-499f-88d0-dd46be713538/subagents/agent-a3a6144461cbe4a5e.jsonl",
+      "ticket": "ST-LN-44",
+      "class": "critic: plan round 1, lens build",
+      "weighted": 880796,
+      "peak": 152994,
+      "minutes": 9.3
+    },
+    {
+      "file": "accord-st-ln-44/22ca97aa-db8d-499f-88d0-dd46be713538/subagents/agent-a3f7881d39c546845.jsonl",
+      "ticket": "ST-LN-44",
+      "class": "planner: fix",
+      "weighted": 469752,
+      "peak": 128604,
+      "minutes": 4.5
+    },
+    {
+      "file": "accord-st-ln-44/22ca97aa-db8d-499f-88d0-dd46be713538/subagents/agent-a43386fc45da20cc8.jsonl",
+      "ticket": "ST-LN-44",
+      "class": "critic: approach, first",
+      "weighted": 602829,
+      "peak": 137600,
+      "minutes": 6.8
+    },
+    {
+      "file": "accord-st-ln-44/22ca97aa-db8d-499f-88d0-dd46be713538/subagents/agent-a460ab5585895b8d2.jsonl",
+      "ticket": "ST-LN-44",
+      "class": "planner: writing",
+      "weighted": 1997886,
+      "peak": 294517,
+      "minutes": 17.8
+    },
+    {
+      "file": "accord-st-ln-44/22ca97aa-db8d-499f-88d0-dd46be713538/subagents/agent-a595062a4a3fda435.jsonl",
+      "ticket": "ST-LN-44",
+      "class": "planner: writing",
+      "weighted": 2848219,
+      "peak": 367422,
+      "minutes": 19.5
+    },
+    {
+      "file": "accord-st-ln-44/22ca97aa-db8d-499f-88d0-dd46be713538/subagents/agent-a60f3528609300371.jsonl",
+      "ticket": "ST-LN-44",
+      "class": "planner: fix",
+      "weighted": 117735,
+      "peak": 52358,
+      "minutes": 1.2
+    },
+    {
+      "file": "accord-st-ln-44/22ca97aa-db8d-499f-88d0-dd46be713538/subagents/agent-a621ed652c40225bd.jsonl",
+      "ticket": "ST-LN-44",
+      "class": "critic: approach, first",
+      "weighted": 814328,
+      "peak": 148420,
+      "minutes": 8.8
+    },
+    {
+      "file": "accord-st-ln-44/22ca97aa-db8d-499f-88d0-dd46be713538/subagents/agent-a69bf8a98b17b09a2.jsonl",
+      "ticket": "ST-LN-44",
+      "class": "planner: writing",
+      "weighted": 454951,
+      "peak": 119298,
+      "minutes": 5.2
+    },
+    {
+      "file": "accord-st-ln-44/22ca97aa-db8d-499f-88d0-dd46be713538/subagents/agent-a794541c90f4eeddf.jsonl",
+      "ticket": "ST-LN-44",
+      "class": "critic: plan round 1, lens security",
+      "weighted": 1238121,
+      "peak": 234345,
+      "minutes": 11.8
+    },
+    {
+      "file": "accord-st-ln-44/22ca97aa-db8d-499f-88d0-dd46be713538/subagents/agent-a7c8413e4dab55ece.jsonl",
+      "ticket": "ST-LN-44",
+      "class": "planner: writing",
+      "weighted": 2164343,
+      "peak": 321872,
+      "minutes": 18.8
+    },
+    {
+      "file": "accord-st-ln-44/22ca97aa-db8d-499f-88d0-dd46be713538/subagents/agent-a7dd836704f58023b.jsonl",
+      "ticket": "ST-LN-44",
+      "class": "planner: fix",
+      "weighted": 381730,
+      "peak": 92355,
+      "minutes": 4.6
+    },
+    {
+      "file": "accord-st-ln-44/22ca97aa-db8d-499f-88d0-dd46be713538/subagents/agent-a82a3c796bacf5a87.jsonl",
+      "ticket": "ST-LN-44",
+      "class": "planner: fix",
+      "weighted": 34774,
+      "peak": 24326,
+      "minutes": 0.4
+    },
+    {
+      "file": "accord-st-ln-44/22ca97aa-db8d-499f-88d0-dd46be713538/subagents/agent-a8929fd1de17eaf12.jsonl",
+      "ticket": "ST-LN-44",
+      "class": "critic: approach, first",
+      "weighted": 1092454,
+      "peak": 212400,
+      "minutes": 10.3
+    },
+    {
+      "file": "accord-st-ln-44/22ca97aa-db8d-499f-88d0-dd46be713538/subagents/agent-a9673278aa438d735.jsonl",
+      "ticket": "ST-LN-44",
+      "class": "critic: plan later, diff",
+      "weighted": 123605,
+      "peak": 54892,
+      "minutes": 1.7
+    },
+    {
+      "file": "accord-st-ln-44/22ca97aa-db8d-499f-88d0-dd46be713538/subagents/agent-a9bbc22e813581ff1.jsonl",
+      "ticket": "ST-LN-44",
+      "class": "critic: plan later, diff",
+      "weighted": 63445,
+      "peak": 36905,
+      "minutes": 0.6
+    },
+    {
+      "file": "accord-st-ln-44/22ca97aa-db8d-499f-88d0-dd46be713538/subagents/agent-aa3f3dca3baf2429c.jsonl",
+      "ticket": "ST-LN-44",
+      "class": "critic: plan round 1, lens criteria",
+      "weighted": 747691,
+      "peak": 167974,
+      "minutes": 7.8
+    },
+    {
+      "file": "accord-st-ln-44/22ca97aa-db8d-499f-88d0-dd46be713538/subagents/agent-aab21c8e2094e1ef3.jsonl",
+      "ticket": "ST-LN-44",
+      "class": "planner: fix",
+      "weighted": 1512665,
+      "peak": 211967,
+      "minutes": 12.3
+    },
+    {
+      "file": "accord-st-ln-44/22ca97aa-db8d-499f-88d0-dd46be713538/subagents/agent-aae68c2959edb4cca.jsonl",
+      "ticket": "ST-LN-44",
+      "class": "critic: plan round 1, lens criteria",
+      "weighted": 995949,
+      "peak": 171117,
+      "minutes": 8.4
+    },
+    {
+      "file": "accord-st-ln-44/22ca97aa-db8d-499f-88d0-dd46be713538/subagents/agent-ab0b19a0490d40783.jsonl",
+      "ticket": "ST-LN-44",
+      "class": "critic: approach, first",
+      "weighted": 1214456,
+      "peak": 180245,
+      "minutes": 11.4
+    },
+    {
+      "file": "accord-st-ln-44/22ca97aa-db8d-499f-88d0-dd46be713538/subagents/agent-ab120d3ded99cedc0.jsonl",
+      "ticket": "ST-LN-44",
+      "class": "planner: fix",
+      "weighted": 1240372,
+      "peak": 220486,
+      "minutes": 14.9
+    },
+    {
+      "file": "accord-st-ln-44/22ca97aa-db8d-499f-88d0-dd46be713538/subagents/agent-ab2d211b2e10ca8f9.jsonl",
+      "ticket": "ST-LN-44",
+      "class": "planner: fix",
+      "weighted": 108049,
+      "peak": 58106,
+      "minutes": 1.1
+    },
+    {
+      "file": "accord-st-ln-44/22ca97aa-db8d-499f-88d0-dd46be713538/subagents/agent-ab4a72d78ca0baed6.jsonl",
+      "ticket": "ST-LN-44",
+      "class": "critic: plan later, whole",
+      "weighted": 2830561,
+      "peak": 329351,
+      "minutes": 17.8
+    },
+    {
+      "file": "accord-st-ln-44/22ca97aa-db8d-499f-88d0-dd46be713538/subagents/agent-ab81a784bc850f816.jsonl",
+      "ticket": "ST-LN-44",
+      "class": "planner: writing",
+      "weighted": 1228972,
+      "peak": 223868,
+      "minutes": 9.1
+    },
+    {
+      "file": "accord-st-ln-44/22ca97aa-db8d-499f-88d0-dd46be713538/subagents/agent-ac66a527c1d734e74.jsonl",
+      "ticket": "ST-LN-44",
+      "class": "critic: plan later, diff",
+      "weighted": 200553,
+      "peak": 63870,
+      "minutes": 2.5
+    },
+    {
+      "file": "accord-st-ln-44/22ca97aa-db8d-499f-88d0-dd46be713538/subagents/agent-ac784662f4f14a687.jsonl",
+      "ticket": "ST-LN-44",
+      "class": "planner: writing",
+      "weighted": 1502342,
+      "peak": 259219,
+      "minutes": 20
+    },
+    {
+      "file": "accord-st-ln-44/22ca97aa-db8d-499f-88d0-dd46be713538/subagents/agent-ac959082047874a95.jsonl",
+      "ticket": "ST-LN-44",
+      "class": "planner: fix",
+      "weighted": 167183,
+      "peak": 55898,
+      "minutes": 1.9
+    },
+    {
+      "file": "accord-st-ln-44/22ca97aa-db8d-499f-88d0-dd46be713538/subagents/agent-acbd6af3613dcd16d.jsonl",
+      "ticket": "ST-LN-44",
+      "class": "critic: plan later, diff",
+      "weighted": 381180,
+      "peak": 105097,
+      "minutes": 5.1
+    },
+    {
+      "file": "accord-st-ln-44/22ca97aa-db8d-499f-88d0-dd46be713538/subagents/agent-ad561825a37024e07.jsonl",
+      "ticket": "ST-LN-44",
+      "class": "critic: approach, first",
+      "weighted": 865611,
+      "peak": 168467,
+      "minutes": 9.5
+    },
+    {
+      "file": "accord-st-ln-44/22ca97aa-db8d-499f-88d0-dd46be713538/subagents/agent-af3e9ea3c90dfb0a1.jsonl",
+      "ticket": "ST-LN-44",
+      "class": "critic: approach, first",
+      "weighted": 650695,
+      "peak": 129102,
+      "minutes": 8.9
+    },
+    {
+      "file": "accord-st-ln-44/22ca97aa-db8d-499f-88d0-dd46be713538/subagents/agent-af51c7046bc69f0f5.jsonl",
+      "ticket": "ST-LN-44",
+      "class": "critic: plan later, diff",
+      "weighted": 225552,
+      "peak": 71211,
+      "minutes": 3.4
+    },
+    {
+      "file": "accord-st-ln-48/57120f4a-9cdc-4e12-9dff-810c94cf4d6f/subagents/agent-a0b5a37d13d3305b1.jsonl",
+      "ticket": "ST-LN-48",
+      "class": "planner: fix",
+      "weighted": 147405,
+      "peak": 59980,
+      "minutes": 1.6
+    },
+    {
+      "file": "accord-st-ln-48/57120f4a-9cdc-4e12-9dff-810c94cf4d6f/subagents/agent-a3327bbbe5d38aeb3.jsonl",
+      "ticket": "ST-LN-48",
+      "class": "planner: writing",
+      "weighted": 640318,
+      "peak": 130503,
+      "minutes": 8
+    },
+    {
+      "file": "accord-st-ln-48/57120f4a-9cdc-4e12-9dff-810c94cf4d6f/subagents/agent-a41cdd27372232915.jsonl",
+      "ticket": "ST-LN-48",
+      "class": "critic: plan later, diff",
+      "weighted": 489342,
+      "peak": 102392,
+      "minutes": 6.5
+    },
+    {
+      "file": "accord-st-ln-48/57120f4a-9cdc-4e12-9dff-810c94cf4d6f/subagents/agent-a46431272b61f981a.jsonl",
+      "ticket": "ST-LN-48",
+      "class": "planner: fix",
+      "weighted": 91945,
+      "peak": 49619,
+      "minutes": 1
+    },
+    {
+      "file": "accord-st-ln-48/57120f4a-9cdc-4e12-9dff-810c94cf4d6f/subagents/agent-a4c61970707d5bfcc.jsonl",
+      "ticket": "ST-LN-48",
+      "class": "critic: plan round 1, lens criteria",
+      "weighted": 1217242,
+      "peak": 194143,
+      "minutes": 14.1
+    },
+    {
+      "file": "accord-st-ln-48/57120f4a-9cdc-4e12-9dff-810c94cf4d6f/subagents/agent-a531274ce24488dee.jsonl",
+      "ticket": "ST-LN-48",
+      "class": "critic: plan later, diff",
+      "weighted": 312011,
+      "peak": 71483,
+      "minutes": 4.9
+    },
+    {
+      "file": "accord-st-ln-48/57120f4a-9cdc-4e12-9dff-810c94cf4d6f/subagents/agent-a53e0c01a79634f8f.jsonl",
+      "ticket": "ST-LN-48",
+      "class": "critic: plan round 1, lens security",
+      "weighted": 1245164,
+      "peak": 180458,
+      "minutes": 13.8
+    },
+    {
+      "file": "accord-st-ln-48/57120f4a-9cdc-4e12-9dff-810c94cf4d6f/subagents/agent-a58a6bfbcb365165c.jsonl",
+      "ticket": "ST-LN-48",
+      "class": "critic: approach, first",
+      "weighted": 1709919,
+      "peak": 215043,
+      "minutes": 17.2
+    },
+    {
+      "file": "accord-st-ln-48/57120f4a-9cdc-4e12-9dff-810c94cf4d6f/subagents/agent-a6efdf0cc32da4d43.jsonl",
+      "ticket": "ST-LN-48",
+      "class": "planner: fix",
+      "weighted": 309072,
+      "peak": 87510,
+      "minutes": 3.9
+    },
+    {
+      "file": "accord-st-ln-48/57120f4a-9cdc-4e12-9dff-810c94cf4d6f/subagents/agent-a997e91ce769167ed.jsonl",
+      "ticket": "ST-LN-48",
+      "class": "critic: plan later, diff",
+      "weighted": 356993,
+      "peak": 94546,
+      "minutes": 23.8
+    },
+    {
+      "file": "accord-st-ln-48/57120f4a-9cdc-4e12-9dff-810c94cf4d6f/subagents/agent-a9d0bfec18cb72bab.jsonl",
+      "ticket": "ST-LN-48",
+      "class": "critic: plan round 1, lens build",
+      "weighted": 1936996,
+      "peak": 249337,
+      "minutes": 16
+    },
+    {
+      "file": "accord-st-ln-48/57120f4a-9cdc-4e12-9dff-810c94cf4d6f/subagents/agent-accf43631121537d0.jsonl",
+      "ticket": "ST-LN-48",
+      "class": "critic: plan later, whole",
+      "weighted": 1018606,
+      "peak": 169831,
+      "minutes": 12.4
+    },
+    {
+      "file": "accord-st-ln-48/57120f4a-9cdc-4e12-9dff-810c94cf4d6f/subagents/agent-af508791a8bdf392e.jsonl",
+      "ticket": "ST-LN-48",
+      "class": "planner: writing",
+      "weighted": 1770385,
+      "peak": 275410,
+      "minutes": 20.1
+    },
+    {
+      "file": "accord-st-ln-55/81a74d9c-0abd-4fca-8e8a-f89b22323eb0/subagents/agent-a07aedf9949ab8d28.jsonl",
+      "ticket": "ST-LN-55",
+      "class": "critic: plan later, diff",
+      "weighted": 190639,
+      "peak": 61962,
+      "minutes": 2.8
+    },
+    {
+      "file": "accord-st-ln-55/81a74d9c-0abd-4fca-8e8a-f89b22323eb0/subagents/agent-a1930bdfb7951ead2.jsonl",
+      "ticket": "ST-LN-55",
+      "class": "critic: plan round 1, lens build",
+      "weighted": 1587440,
+      "peak": 227398,
+      "minutes": 12.8
+    },
+    {
+      "file": "accord-st-ln-55/81a74d9c-0abd-4fca-8e8a-f89b22323eb0/subagents/agent-a1a291dcef5aef3c6.jsonl",
+      "ticket": "ST-LN-55",
+      "class": "planner: writing",
+      "weighted": 869811,
+      "peak": 160149,
+      "minutes": 6.8
+    },
+    {
+      "file": "accord-st-ln-55/81a74d9c-0abd-4fca-8e8a-f89b22323eb0/subagents/agent-a21c02bbc12de2cb1.jsonl",
+      "ticket": "ST-LN-55",
+      "class": "critic: approach, first",
+      "weighted": 499721,
+      "peak": 106051,
+      "minutes": 8.2
+    },
+    {
+      "file": "accord-st-ln-55/81a74d9c-0abd-4fca-8e8a-f89b22323eb0/subagents/agent-a2617e4f471159e5f.jsonl",
+      "ticket": "ST-LN-55",
+      "class": "critic: plan later, diff",
+      "weighted": 242448,
+      "peak": 62053,
+      "minutes": 3
+    },
+    {
+      "file": "accord-st-ln-55/81a74d9c-0abd-4fca-8e8a-f89b22323eb0/subagents/agent-a27da4edd33b4776f.jsonl",
+      "ticket": "ST-LN-55",
+      "class": "critic: plan later, whole",
+      "weighted": 572157,
+      "peak": 151122,
+      "minutes": 5.6
+    },
+    {
+      "file": "accord-st-ln-55/81a74d9c-0abd-4fca-8e8a-f89b22323eb0/subagents/agent-a2e97dd490acb9cb9.jsonl",
+      "ticket": "ST-LN-55",
+      "class": "critic: plan round 1, lens build",
+      "weighted": 1612649,
+      "peak": 235175,
+      "minutes": 13.1
+    },
+    {
+      "file": "accord-st-ln-55/81a74d9c-0abd-4fca-8e8a-f89b22323eb0/subagents/agent-a30a459400ee5675c.jsonl",
+      "ticket": "ST-LN-55",
+      "class": "critic: plan round 1, lens criteria",
+      "weighted": 754077,
+      "peak": 157191,
+      "minutes": 10
+    },
+    {
+      "file": "accord-st-ln-55/81a74d9c-0abd-4fca-8e8a-f89b22323eb0/subagents/agent-a39c650d03b3743ea.jsonl",
+      "ticket": "ST-LN-55",
+      "class": "critic: plan round 1, lens criteria",
+      "weighted": 706643,
+      "peak": 156334,
+      "minutes": 8.5
+    },
+    {
+      "file": "accord-st-ln-55/81a74d9c-0abd-4fca-8e8a-f89b22323eb0/subagents/agent-a5f2e105df6efdbea.jsonl",
+      "ticket": "ST-LN-55",
+      "class": "critic: approach, first",
+      "weighted": 532392,
+      "peak": 110752,
+      "minutes": 9.4
+    },
+    {
+      "file": "accord-st-ln-55/81a74d9c-0abd-4fca-8e8a-f89b22323eb0/subagents/agent-a7cefb8713001e367.jsonl",
+      "ticket": "ST-LN-55",
+      "class": "planner: fix",
+      "weighted": 220171,
+      "peak": 78606,
+      "minutes": 2.6
+    },
+    {
+      "file": "accord-st-ln-55/81a74d9c-0abd-4fca-8e8a-f89b22323eb0/subagents/agent-a9321250a373501de.jsonl",
+      "ticket": "ST-LN-55",
+      "class": "planner: writing",
+      "weighted": 764097,
+      "peak": 144616,
+      "minutes": 8.6
+    },
+    {
+      "file": "accord-st-ln-55/81a74d9c-0abd-4fca-8e8a-f89b22323eb0/subagents/agent-a9908af4ae7f25d3e.jsonl",
+      "ticket": "ST-LN-55",
+      "class": "planner: fix",
+      "weighted": 245757,
+      "peak": 70240,
+      "minutes": 2.6
+    },
+    {
+      "file": "accord-st-ln-55/81a74d9c-0abd-4fca-8e8a-f89b22323eb0/subagents/agent-ab5cd8cd6b1d5c39c.jsonl",
+      "ticket": "ST-LN-55",
+      "class": "planner: writing",
+      "weighted": 1673754,
+      "peak": 268015,
+      "minutes": 20.1
+    },
+    {
+      "file": "accord-st-ln-55/81a74d9c-0abd-4fca-8e8a-f89b22323eb0/subagents/agent-ab7edc832aebc95c6.jsonl",
+      "ticket": "ST-LN-55",
+      "class": "critic: plan round 1, lens security",
+      "weighted": 435214,
+      "peak": 123558,
+      "minutes": 7.9
+    },
+    {
+      "file": "accord-st-ln-55/81a74d9c-0abd-4fca-8e8a-f89b22323eb0/subagents/agent-abf1e2342bed0d884.jsonl",
+      "ticket": "ST-LN-55",
+      "class": "critic: plan round 1, lens security",
+      "weighted": 383294,
+      "peak": 101686,
+      "minutes": 7.9
+    },
+    {
+      "file": "accord-st-ln-55/81a74d9c-0abd-4fca-8e8a-f89b22323eb0/subagents/agent-ac0d45e37d3f7fe63.jsonl",
+      "ticket": "ST-LN-55",
+      "class": "critic: plan later, whole",
+      "weighted": 815691,
+      "peak": 169321,
+      "minutes": 11.3
+    },
+    {
+      "file": "accord-st-ln-55/81a74d9c-0abd-4fca-8e8a-f89b22323eb0/subagents/agent-ac71aa45f839b57f2.jsonl",
+      "ticket": "ST-LN-55",
+      "class": "planner: fix",
+      "weighted": 255710,
+      "peak": 86021,
+      "minutes": 2.9
+    },
+    {
+      "file": "accord-st-ln-55/81a74d9c-0abd-4fca-8e8a-f89b22323eb0/subagents/agent-ac8581219969eacf6.jsonl",
+      "ticket": "ST-LN-55",
+      "class": "critic: approach, first",
+      "weighted": 495897,
+      "peak": 107125,
+      "minutes": 7.5
+    },
+    {
+      "file": "accord-st-ln-55/81a74d9c-0abd-4fca-8e8a-f89b22323eb0/subagents/agent-ada5ddcd149827b59.jsonl",
+      "ticket": "ST-LN-55",
+      "class": "planner: fix",
+      "weighted": 645807,
+      "peak": 131521,
+      "minutes": 6.4
+    },
+    {
+      "file": "accord-st-ln-55/81a74d9c-0abd-4fca-8e8a-f89b22323eb0/subagents/agent-ae177f5a0fa258172.jsonl",
+      "ticket": "ST-LN-55",
+      "class": "planner: fix",
+      "weighted": 941584,
+      "peak": 180611,
+      "minutes": 12.6
+    },
+    {
+      "file": "accord-st-ln-55/81a74d9c-0abd-4fca-8e8a-f89b22323eb0/subagents/agent-aeea4cd139bdb8607.jsonl",
+      "ticket": "ST-LN-55",
+      "class": "critic: plan later, diff",
+      "weighted": 271702,
+      "peak": 76640,
+      "minutes": 4.5
+    },
+    {
+      "file": "accord-st-ln-55/81a74d9c-0abd-4fca-8e8a-f89b22323eb0/subagents/agent-afe5aaf6e3dad61f6.jsonl",
+      "ticket": "ST-LN-55",
+      "class": "critic: approach, first",
+      "weighted": 516189,
+      "peak": 114188,
+      "minutes": 7.8
+    },
+    {
+      "file": "accord-st-ln-57/921bef87-f3c7-44a7-ae79-e4c89633480a/subagents/agent-a0502e2038f59a6c8.jsonl",
+      "ticket": "ST-LN-57",
+      "class": "critic: plan later, diff",
+      "weighted": 147026,
+      "peak": 57369,
+      "minutes": 1.8
+    },
+    {
+      "file": "accord-st-ln-57/921bef87-f3c7-44a7-ae79-e4c89633480a/subagents/agent-a05c58a7e156ee803.jsonl",
+      "ticket": "ST-LN-57",
+      "class": "critic: plan round 1, lens criteria",
+      "weighted": 643417,
+      "peak": 135959,
+      "minutes": 8.8
+    },
+    {
+      "file": "accord-st-ln-57/921bef87-f3c7-44a7-ae79-e4c89633480a/subagents/agent-a4871f44b6ff4354d.jsonl",
+      "ticket": "ST-LN-57",
+      "class": "critic: plan later, diff",
+      "weighted": 170272,
+      "peak": 62507,
+      "minutes": 2.4
+    },
+    {
+      "file": "accord-st-ln-57/921bef87-f3c7-44a7-ae79-e4c89633480a/subagents/agent-a5e97fda77a7de1bb.jsonl",
+      "ticket": "ST-LN-57",
+      "class": "critic: plan round 1, lens build",
+      "weighted": 1925609,
+      "peak": 240337,
+      "minutes": 13.9
+    },
+    {
+      "file": "accord-st-ln-57/921bef87-f3c7-44a7-ae79-e4c89633480a/subagents/agent-a5f79d4f230e82d7f.jsonl",
+      "ticket": "ST-LN-57",
+      "class": "critic: approach, later",
+      "weighted": 779309,
+      "peak": 135414,
+      "minutes": 11.4
+    },
+    {
+      "file": "accord-st-ln-57/921bef87-f3c7-44a7-ae79-e4c89633480a/subagents/agent-a66c78de39fb3a1a2.jsonl",
+      "ticket": "ST-LN-57",
+      "class": "critic: plan round 1, lens security",
+      "weighted": 886524,
+      "peak": 157811,
+      "minutes": 11.2
+    },
+    {
+      "file": "accord-st-ln-57/921bef87-f3c7-44a7-ae79-e4c89633480a/subagents/agent-a6ca4db6e0191c586.jsonl",
+      "ticket": "ST-LN-57",
+      "class": "critic: approach, first",
+      "weighted": 639144,
+      "peak": 114902,
+      "minutes": 7.8
+    },
+    {
+      "file": "accord-st-ln-57/921bef87-f3c7-44a7-ae79-e4c89633480a/subagents/agent-a80cb546fd516226d.jsonl",
+      "ticket": "ST-LN-57",
+      "class": "planner: writing",
+      "weighted": 9823568,
+      "peak": 551882,
+      "minutes": 101.2
+    },
+    {
+      "file": "accord-st-ln-57/921bef87-f3c7-44a7-ae79-e4c89633480a/subagents/agent-a94e6abe0fd9cf8eb.jsonl",
+      "ticket": "ST-LN-57",
+      "class": "critic: approach, first",
+      "weighted": 593803,
+      "peak": 118627,
+      "minutes": 9.4
+    },
+    {
+      "file": "accord-st-ln-57/921bef87-f3c7-44a7-ae79-e4c89633480a/subagents/agent-a9aac235e5e198cf9.jsonl",
+      "ticket": "ST-LN-57",
+      "class": "critic: approach, later",
+      "weighted": 822474,
+      "peak": 144815,
+      "minutes": 11.7
+    },
+    {
+      "file": "accord-st-ln-57/921bef87-f3c7-44a7-ae79-e4c89633480a/subagents/agent-aad7bd4448a195cfe.jsonl",
+      "ticket": "ST-LN-57",
+      "class": "critic: approach, later",
+      "weighted": 492456,
+      "peak": 107389,
+      "minutes": 8.6
+    },
+    {
+      "file": "accord-st-ln-57/921bef87-f3c7-44a7-ae79-e4c89633480a/subagents/agent-ab925e8e021db2c20.jsonl",
+      "ticket": "ST-LN-57",
+      "class": "critic: plan later, whole",
+      "weighted": 1134166,
+      "peak": 185992,
+      "minutes": 10.7
+    },
+    {
+      "file": "accord-st-ln-57/921bef87-f3c7-44a7-ae79-e4c89633480a/subagents/agent-ac0d19610273bcf0a.jsonl",
+      "ticket": "ST-LN-57",
+      "class": "planner: writing",
+      "weighted": 3388426,
+      "peak": 271611,
+      "minutes": 84.6
+    },
+    {
+      "file": "accord-st-ln-57/921bef87-f3c7-44a7-ae79-e4c89633480a/subagents/agent-acf6fa6a7cddd480b.jsonl",
+      "ticket": "ST-LN-57",
+      "class": "critic: plan later, diff",
+      "weighted": 165611,
+      "peak": 56698,
+      "minutes": 2.5
+    },
+    {
+      "file": "accord-st-ln-57/921bef87-f3c7-44a7-ae79-e4c89633480a/subagents/agent-ae02c2987da273685.jsonl",
+      "ticket": "ST-LN-57",
+      "class": "critic: approach, later",
+      "weighted": 418920,
+      "peak": 102737,
+      "minutes": 6.2
+    },
+    {
+      "file": "accord-st-ln-58/7aad063c-4b5b-41ae-977b-9175aa0cfdfc/subagents/agent-a046c7710080c4aa0.jsonl",
+      "ticket": "ST-LN-58",
+      "class": "critic: approach, first",
+      "weighted": 574898,
+      "peak": 118709,
+      "minutes": 7.3
+    },
+    {
+      "file": "accord-st-ln-58/7aad063c-4b5b-41ae-977b-9175aa0cfdfc/subagents/agent-a2bd3d967903f3485.jsonl",
+      "ticket": "ST-LN-58",
+      "class": "critic: plan round 1, lens criteria",
+      "weighted": 1089050,
+      "peak": 170296,
+      "minutes": 11
+    },
+    {
+      "file": "accord-st-ln-58/7aad063c-4b5b-41ae-977b-9175aa0cfdfc/subagents/agent-a45e21b87eca27e6a.jsonl",
+      "ticket": "ST-LN-58",
+      "class": "critic: approach, first",
+      "weighted": 712343,
+      "peak": 121555,
+      "minutes": 8.2
+    },
+    {
+      "file": "accord-st-ln-58/7aad063c-4b5b-41ae-977b-9175aa0cfdfc/subagents/agent-a4fdf53dd5527acf9.jsonl",
+      "ticket": "ST-LN-58",
+      "class": "planner: writing",
+      "weighted": 1739845,
+      "peak": 251176,
+      "minutes": 18.4
+    },
+    {
+      "file": "accord-st-ln-58/7aad063c-4b5b-41ae-977b-9175aa0cfdfc/subagents/agent-a542c0d22b0e74c21.jsonl",
+      "ticket": "ST-LN-58",
+      "class": "critic: plan round 1, lens build",
+      "weighted": 1348473,
+      "peak": 213354,
+      "minutes": 12.4
+    },
+    {
+      "file": "accord-st-ln-58/7aad063c-4b5b-41ae-977b-9175aa0cfdfc/subagents/agent-ab899a968d43ef1f3.jsonl",
+      "ticket": "ST-LN-58",
+      "class": "planner: fix",
+      "weighted": 585925,
+      "peak": 118364,
+      "minutes": 6.6
+    },
+    {
+      "file": "accord-st-ln-58/7aad063c-4b5b-41ae-977b-9175aa0cfdfc/subagents/agent-acc2ddaed3f586ee2.jsonl",
+      "ticket": "ST-LN-58",
+      "class": "critic: plan later, diff",
+      "weighted": 344445,
+      "peak": 89039,
+      "minutes": 4
+    },
+    {
+      "file": "accord-st-ln-58/7aad063c-4b5b-41ae-977b-9175aa0cfdfc/subagents/agent-adf0738457835ac2c.jsonl",
+      "ticket": "ST-LN-58",
+      "class": "critic: plan round 1, lens security",
+      "weighted": 444893,
+      "peak": 97907,
+      "minutes": 6.8
+    },
+    {
+      "file": "accord-st-ln-58/7aad063c-4b5b-41ae-977b-9175aa0cfdfc/subagents/agent-af08454d44a3629f4.jsonl",
+      "ticket": "ST-LN-58",
+      "class": "planner: writing",
+      "weighted": 807637,
+      "peak": 141365,
+      "minutes": 7.7
+    },
+    {
+      "file": "accord-st-ln-63/27d25479-3864-4fe3-a0c2-56d0c39c1d35/subagents/agent-a154f3d6504f33e4a.jsonl",
+      "ticket": "ST-LN-63",
+      "class": "planner: writing",
+      "weighted": 742100,
+      "peak": 148765,
+      "minutes": 11.8
+    },
+    {
+      "file": "accord-st-ln-63/27d25479-3864-4fe3-a0c2-56d0c39c1d35/subagents/agent-a3fcb4c25c251a889.jsonl",
+      "ticket": "ST-LN-63",
+      "class": "critic: approach, first",
+      "weighted": 613593,
+      "peak": 152519,
+      "minutes": 8.6
+    },
+    {
+      "file": "accord-st-ln-63/27d25479-3864-4fe3-a0c2-56d0c39c1d35/subagents/agent-a4da963b769c7ba39.jsonl",
+      "ticket": "ST-LN-63",
+      "class": "planner: fix",
+      "weighted": 697712,
+      "peak": 126635,
+      "minutes": 7.2
+    },
+    {
+      "file": "accord-st-ln-63/27d25479-3864-4fe3-a0c2-56d0c39c1d35/subagents/agent-a50eb2dd115988242.jsonl",
+      "ticket": "ST-LN-63",
+      "class": "planner: writing",
+      "weighted": 2417114,
+      "peak": 361778,
+      "minutes": 31.5
+    },
+    {
+      "file": "accord-st-ln-63/27d25479-3864-4fe3-a0c2-56d0c39c1d35/subagents/agent-a52d48d3507fa1324.jsonl",
+      "ticket": "ST-LN-63",
+      "class": "critic: plan round 1, lens security",
+      "weighted": 315650,
+      "peak": 95733,
+      "minutes": 4.9
+    },
+    {
+      "file": "accord-st-ln-63/27d25479-3864-4fe3-a0c2-56d0c39c1d35/subagents/agent-a6b9f7b014cca8ce4.jsonl",
+      "ticket": "ST-LN-63",
+      "class": "critic: plan later, whole",
+      "weighted": 1226825,
+      "peak": 211946,
+      "minutes": 14.5
+    },
+    {
+      "file": "accord-st-ln-63/27d25479-3864-4fe3-a0c2-56d0c39c1d35/subagents/agent-a79c03992e9e04540.jsonl",
+      "ticket": "ST-LN-63",
+      "class": "critic: plan later, diff",
+      "weighted": 413934,
+      "peak": 112264,
+      "minutes": 4.7
+    },
+    {
+      "file": "accord-st-ln-63/27d25479-3864-4fe3-a0c2-56d0c39c1d35/subagents/agent-a948c46007bec2718.jsonl",
+      "ticket": "ST-LN-63",
+      "class": "critic: plan round 1, lens criteria",
+      "weighted": 687425,
+      "peak": 137127,
+      "minutes": 7.3
+    },
+    {
+      "file": "accord-st-ln-63/27d25479-3864-4fe3-a0c2-56d0c39c1d35/subagents/agent-ac563cf57b0434acd.jsonl",
+      "ticket": "ST-LN-63",
+      "class": "planner: writing",
+      "weighted": 717799,
+      "peak": 145589,
+      "minutes": 11.5
+    },
+    {
+      "file": "accord-st-ln-63/27d25479-3864-4fe3-a0c2-56d0c39c1d35/subagents/agent-aec8b83191b7d6373.jsonl",
+      "ticket": "ST-LN-63",
+      "class": "critic: plan round 1, lens build",
+      "weighted": 945498,
+      "peak": 174265,
+      "minutes": 10
+    },
+    {
+      "file": "accord-st-ln-63/27d25479-3864-4fe3-a0c2-56d0c39c1d35/subagents/agent-af4b26a99b96b7d2f.jsonl",
+      "ticket": "ST-LN-63",
+      "class": "planner: writing",
+      "weighted": 448652,
+      "peak": 121099,
+      "minutes": 5.8
+    },
+    {
+      "file": "accord-st-ln-64/ab04a155-5aa8-459b-ab0a-6ea33daca058/subagents/agent-a3531a2ea5b70efa4.jsonl",
+      "ticket": "ST-LN-64",
+      "class": "critic: approach, first",
+      "weighted": 426953,
+      "peak": 79505,
+      "minutes": 5.8
+    },
+    {
+      "file": "accord-st-ln-64/ab04a155-5aa8-459b-ab0a-6ea33daca058/subagents/agent-a5e67ed8c64c32e58.jsonl",
+      "ticket": "ST-LN-64",
+      "class": "planner: writing",
+      "weighted": 460401,
+      "peak": 93143,
+      "minutes": 5.3
+    },
+    {
+      "file": "accord-st-ln-64/ab04a155-5aa8-459b-ab0a-6ea33daca058/subagents/agent-a73f2b14fe32d4652.jsonl",
+      "ticket": "ST-LN-64",
+      "class": "planner: writing",
+      "weighted": 822332,
+      "peak": 173396,
+      "minutes": 9.9
+    },
+    {
+      "file": "accord-st-ln-64/ab04a155-5aa8-459b-ab0a-6ea33daca058/subagents/agent-a74ae299156606754.jsonl",
+      "ticket": "ST-LN-64",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 616052,
+      "peak": 131238,
+      "minutes": 6.5
+    },
+    {
+      "file": "accord-st-ln-64/ab04a155-5aa8-459b-ab0a-6ea33daca058/subagents/agent-ab3275a1512435b78.jsonl",
+      "ticket": "ST-LN-64",
+      "class": "critic: plan later, diff",
+      "weighted": 51560,
+      "peak": 26860,
+      "minutes": 0.8
+    },
+    {
+      "file": "accord-st-ln-64/ab04a155-5aa8-459b-ab0a-6ea33daca058/subagents/agent-acfa4bf459a979657.jsonl",
+      "ticket": "ST-LN-64",
+      "class": "planner: fix",
+      "weighted": 59820,
+      "peak": 33182,
+      "minutes": 0.7
+    },
+    {
+      "file": "accord-st-ln-73/d18596da-00c0-4d80-a086-5106abfb9288/subagents/agent-a0c2f8b74b2a3a60e.jsonl",
+      "ticket": "ST-LN-73",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 466162,
+      "peak": 90896,
+      "minutes": 6.2
+    },
+    {
+      "file": "accord-st-ln-73/d18596da-00c0-4d80-a086-5106abfb9288/subagents/agent-a134b98802416a228.jsonl",
+      "ticket": "ST-LN-73",
+      "class": "critic: plan later, whole",
+      "weighted": 439754,
+      "peak": 90365,
+      "minutes": 6.6
+    },
+    {
+      "file": "accord-st-ln-73/d18596da-00c0-4d80-a086-5106abfb9288/subagents/agent-a3861502eb134205f.jsonl",
+      "ticket": "ST-LN-73",
+      "class": "critic: approach, first",
+      "weighted": 297831,
+      "peak": 68389,
+      "minutes": 4.9
+    },
+    {
+      "file": "accord-st-ln-73/d18596da-00c0-4d80-a086-5106abfb9288/subagents/agent-a3c70115f762957c3.jsonl",
+      "ticket": "ST-LN-73",
+      "class": "planner: writing",
+      "weighted": 247242,
+      "peak": 68926,
+      "minutes": 3.5
+    },
+    {
+      "file": "accord-st-ln-73/d18596da-00c0-4d80-a086-5106abfb9288/subagents/agent-ad137031c134486ae.jsonl",
+      "ticket": "ST-LN-73",
+      "class": "planner: writing",
+      "weighted": 216233,
+      "peak": 54067,
+      "minutes": 4
+    },
+    {
+      "file": "accord-st-ln-73/d18596da-00c0-4d80-a086-5106abfb9288/subagents/agent-ae0e45cf12687fa56.jsonl",
+      "ticket": "ST-LN-73",
+      "class": "planner: writing",
+      "weighted": 641270,
+      "peak": 111973,
+      "minutes": 9.4
+    },
+    {
+      "file": "accord-st-ln-79/0d0a6364-c4d6-493a-8b1a-332862b0ff30/subagents/agent-a00f4aefc44435bc0.jsonl",
+      "ticket": "ST-LN-79",
+      "class": "planner: fix",
+      "weighted": 426232,
+      "peak": 120408,
+      "minutes": 3.9
+    },
+    {
+      "file": "accord-st-ln-79/0d0a6364-c4d6-493a-8b1a-332862b0ff30/subagents/agent-a0cacb66cfea398a8.jsonl",
+      "ticket": "ST-LN-79",
+      "class": "planner: writing",
+      "weighted": 1334674,
+      "peak": 250312,
+      "minutes": 15.5
+    },
+    {
+      "file": "accord-st-ln-79/0d0a6364-c4d6-493a-8b1a-332862b0ff30/subagents/agent-a121a8251ca749cb5.jsonl",
+      "ticket": "ST-LN-79",
+      "class": "planner: writing",
+      "weighted": 2418886,
+      "peak": 304039,
+      "minutes": 27.5
+    },
+    {
+      "file": "accord-st-ln-79/0d0a6364-c4d6-493a-8b1a-332862b0ff30/subagents/agent-a1db3d45ae064a11d.jsonl",
+      "ticket": "ST-LN-79",
+      "class": "critic: plan later, whole",
+      "weighted": 593046,
+      "peak": 148315,
+      "minutes": 6.1
+    },
+    {
+      "file": "accord-st-ln-79/0d0a6364-c4d6-493a-8b1a-332862b0ff30/subagents/agent-a1e3e7794129fabdd.jsonl",
+      "ticket": "ST-LN-79",
+      "class": "critic: plan later, diff",
+      "weighted": 170362,
+      "peak": 61766,
+      "minutes": 2.1
+    },
+    {
+      "file": "accord-st-ln-79/0d0a6364-c4d6-493a-8b1a-332862b0ff30/subagents/agent-a2bba2bb4330baabc.jsonl",
+      "ticket": "ST-LN-79",
+      "class": "planner: fix",
+      "weighted": 590740,
+      "peak": 131188,
+      "minutes": 10.3
+    },
+    {
+      "file": "accord-st-ln-79/0d0a6364-c4d6-493a-8b1a-332862b0ff30/subagents/agent-a35390ec1754b8e11.jsonl",
+      "ticket": "ST-LN-79",
+      "class": "critic: plan later, diff",
+      "weighted": 271952,
+      "peak": 92204,
+      "minutes": 3
+    },
+    {
+      "file": "accord-st-ln-79/0d0a6364-c4d6-493a-8b1a-332862b0ff30/subagents/agent-a38a65097d5effcd4.jsonl",
+      "ticket": "ST-LN-79",
+      "class": "critic: plan later, whole",
+      "weighted": 608148,
+      "peak": 130000,
+      "minutes": 7.8
+    },
+    {
+      "file": "accord-st-ln-79/0d0a6364-c4d6-493a-8b1a-332862b0ff30/subagents/agent-a3909d42369b9475b.jsonl",
+      "ticket": "ST-LN-79",
+      "class": "critic: plan later, diff",
+      "weighted": 382366,
+      "peak": 86673,
+      "minutes": 5
+    },
+    {
+      "file": "accord-st-ln-79/0d0a6364-c4d6-493a-8b1a-332862b0ff30/subagents/agent-a54366dc5cf5b3616.jsonl",
+      "ticket": "ST-LN-79",
+      "class": "critic: plan later, whole",
+      "weighted": 842503,
+      "peak": 216853,
+      "minutes": 9.2
+    },
+    {
+      "file": "accord-st-ln-79/0d0a6364-c4d6-493a-8b1a-332862b0ff30/subagents/agent-a60ff0399adcb8b3a.jsonl",
+      "ticket": "ST-LN-79",
+      "class": "planner: fix",
+      "weighted": 167555,
+      "peak": 69791,
+      "minutes": 1.9
+    },
+    {
+      "file": "accord-st-ln-79/0d0a6364-c4d6-493a-8b1a-332862b0ff30/subagents/agent-a6306f15075dccf4d.jsonl",
+      "ticket": "ST-LN-79",
+      "class": "critic: plan later, diff",
+      "weighted": 259098,
+      "peak": 81488,
+      "minutes": 2.7
+    },
+    {
+      "file": "accord-st-ln-79/0d0a6364-c4d6-493a-8b1a-332862b0ff30/subagents/agent-a630adce91f432463.jsonl",
+      "ticket": "ST-LN-79",
+      "class": "critic: plan later, whole",
+      "weighted": 298957,
+      "peak": 90410,
+      "minutes": 3.6
+    },
+    {
+      "file": "accord-st-ln-79/0d0a6364-c4d6-493a-8b1a-332862b0ff30/subagents/agent-a7df5ecd2574c079e.jsonl",
+      "ticket": "ST-LN-79",
+      "class": "critic: plan round 1, lens build",
+      "weighted": 629037,
+      "peak": 126084,
+      "minutes": 7.8
+    },
+    {
+      "file": "accord-st-ln-79/0d0a6364-c4d6-493a-8b1a-332862b0ff30/subagents/agent-a85c56c3a1131a596.jsonl",
+      "ticket": "ST-LN-79",
+      "class": "critic: plan later, whole",
+      "weighted": 283537,
+      "peak": 108164,
+      "minutes": 3
+    },
+    {
+      "file": "accord-st-ln-79/0d0a6364-c4d6-493a-8b1a-332862b0ff30/subagents/agent-a9569c44f29c18142.jsonl",
+      "ticket": "ST-LN-79",
+      "class": "planner: fix",
+      "weighted": 189355,
+      "peak": 79493,
+      "minutes": 1.8
+    },
+    {
+      "file": "accord-st-ln-79/0d0a6364-c4d6-493a-8b1a-332862b0ff30/subagents/agent-a964a27fde8932603.jsonl",
+      "ticket": "ST-LN-79",
+      "class": "critic: plan later, diff",
+      "weighted": 200226,
+      "peak": 66562,
+      "minutes": 2.2
+    },
+    {
+      "file": "accord-st-ln-79/0d0a6364-c4d6-493a-8b1a-332862b0ff30/subagents/agent-a997721c14109e0c2.jsonl",
+      "ticket": "ST-LN-79",
+      "class": "planner: fix",
+      "weighted": 446873,
+      "peak": 106299,
+      "minutes": 5.9
+    },
+    {
+      "file": "accord-st-ln-79/0d0a6364-c4d6-493a-8b1a-332862b0ff30/subagents/agent-a9cdc4bfb5363d52a.jsonl",
+      "ticket": "ST-LN-79",
+      "class": "critic: plan round 1, lens criteria",
+      "weighted": 350304,
+      "peak": 88919,
+      "minutes": 4.7
+    },
+    {
+      "file": "accord-st-ln-79/0d0a6364-c4d6-493a-8b1a-332862b0ff30/subagents/agent-acf647a7d0dbf7937.jsonl",
+      "ticket": "ST-LN-79",
+      "class": "planner: fix",
+      "weighted": 335617,
+      "peak": 108497,
+      "minutes": 3
+    },
+    {
+      "file": "accord-st-ln-79/0d0a6364-c4d6-493a-8b1a-332862b0ff30/subagents/agent-ad305181b799c6674.jsonl",
+      "ticket": "ST-LN-79",
+      "class": "planner: writing",
+      "weighted": 171711,
+      "peak": 69337,
+      "minutes": 1.4
+    },
+    {
+      "file": "accord-st-ln-79/0d4fb7ba-3711-488d-838f-bac5c54d9380/subagents/agent-a54e828a555b885c2.jsonl",
+      "ticket": "ST-LN-79",
+      "class": "critic: approach, first",
+      "weighted": 155463,
+      "peak": 38845,
+      "minutes": 3.7
+    },
+    {
+      "file": "accord-st-ln-79/0d4fb7ba-3711-488d-838f-bac5c54d9380/subagents/agent-aa2aa4195fb1375b0.jsonl",
+      "ticket": "ST-LN-79",
+      "class": "critic: approach, first",
+      "weighted": 237071,
+      "peak": 63900,
+      "minutes": 4.3
+    },
+    {
+      "file": "accord-st-ln-79/0d4fb7ba-3711-488d-838f-bac5c54d9380/subagents/agent-adc7a5d57bcd62459.jsonl",
+      "ticket": "ST-LN-79",
+      "class": "planner: writing",
+      "weighted": 251031,
+      "peak": 77105,
+      "minutes": 3.3
+    },
+    {
+      "file": "accord-st-ln-79/0d4fb7ba-3711-488d-838f-bac5c54d9380/subagents/agent-ae0efff270540ee81.jsonl",
+      "ticket": "ST-LN-79",
+      "class": "critic: approach, first",
+      "weighted": 199133,
+      "peak": 52639,
+      "minutes": 3.9
+    },
+    {
+      "file": "accord-st-ln-8/54bc8e69-8fa8-4bfb-86ca-a40e2e72a6a6/subagents/agent-a0592c1bfdda19799.jsonl",
+      "ticket": "ST-LN-8",
+      "class": "critic: approach, first",
+      "weighted": 299339,
+      "peak": 81117,
+      "minutes": 4.6
+    },
+    {
+      "file": "accord-st-ln-8/54bc8e69-8fa8-4bfb-86ca-a40e2e72a6a6/subagents/agent-a068f99d8658d3e8f.jsonl",
+      "ticket": "ST-LN-8",
+      "class": "critic: plan later, diff",
+      "weighted": 241571,
+      "peak": 74528,
+      "minutes": 2.9
+    },
+    {
+      "file": "accord-st-ln-8/54bc8e69-8fa8-4bfb-86ca-a40e2e72a6a6/subagents/agent-a1e367fd904ec6239.jsonl",
+      "ticket": "ST-LN-8",
+      "class": "critic: plan later, diff",
+      "weighted": 56787,
+      "peak": 36157,
+      "minutes": 0.9
+    },
+    {
+      "file": "accord-st-ln-8/54bc8e69-8fa8-4bfb-86ca-a40e2e72a6a6/subagents/agent-a4046dfa8dad354ea.jsonl",
+      "ticket": "ST-LN-8",
+      "class": "planner: fix",
+      "weighted": 285831,
+      "peak": 76551,
+      "minutes": 3.7
+    },
+    {
+      "file": "accord-st-ln-8/54bc8e69-8fa8-4bfb-86ca-a40e2e72a6a6/subagents/agent-a48f061679e876203.jsonl",
+      "ticket": "ST-LN-8",
+      "class": "critic: approach, first",
+      "weighted": 201418,
+      "peak": 53099,
+      "minutes": 3.5
+    },
+    {
+      "file": "accord-st-ln-8/54bc8e69-8fa8-4bfb-86ca-a40e2e72a6a6/subagents/agent-a58b69bce83397cf1.jsonl",
+      "ticket": "ST-LN-8",
+      "class": "planner: writing",
+      "weighted": 1485734,
+      "peak": 229821,
+      "minutes": 12.3
+    },
+    {
+      "file": "accord-st-ln-8/54bc8e69-8fa8-4bfb-86ca-a40e2e72a6a6/subagents/agent-a694f56c5d8cd0f93.jsonl",
+      "ticket": "ST-LN-8",
+      "class": "critic: plan round 1, lens criteria",
+      "weighted": 496401,
+      "peak": 114402,
+      "minutes": 6.2
+    },
+    {
+      "file": "accord-st-ln-8/54bc8e69-8fa8-4bfb-86ca-a40e2e72a6a6/subagents/agent-a8a38a3d0cfeb4854.jsonl",
+      "ticket": "ST-LN-8",
+      "class": "critic: plan round 1, lens build",
+      "weighted": 1490566,
+      "peak": 214609,
+      "minutes": 11.2
+    },
+    {
+      "file": "accord-st-ln-8/54bc8e69-8fa8-4bfb-86ca-a40e2e72a6a6/subagents/agent-a9b4d6465354a5922.jsonl",
+      "ticket": "ST-LN-8",
+      "class": "planner: fix",
+      "weighted": 78384,
+      "peak": 43304,
+      "minutes": 0.8
+    },
+    {
+      "file": "accord-st-ln-8/54bc8e69-8fa8-4bfb-86ca-a40e2e72a6a6/subagents/agent-ab1acb4acc3099f39.jsonl",
+      "ticket": "ST-LN-8",
+      "class": "planner: writing",
+      "weighted": 306544,
+      "peak": 81510,
+      "minutes": 3.2
+    },
+    {
+      "file": "accord-st-ln-80/26bb46c2-78d0-4960-843d-ddc0da3f9091/subagents/agent-a01aebae51d5cfc8b.jsonl",
+      "ticket": "ST-LN-80",
+      "class": "planner: fix",
+      "weighted": 809746,
+      "peak": 161390,
+      "minutes": 6.9
+    },
+    {
+      "file": "accord-st-ln-80/26bb46c2-78d0-4960-843d-ddc0da3f9091/subagents/agent-a077c52c7b85b7969.jsonl",
+      "ticket": "ST-LN-80",
+      "class": "critic: plan later, diff",
+      "weighted": 102368,
+      "peak": 49529,
+      "minutes": 1.2
+    },
+    {
+      "file": "accord-st-ln-80/26bb46c2-78d0-4960-843d-ddc0da3f9091/subagents/agent-a262498447ea82152.jsonl",
+      "ticket": "ST-LN-80",
+      "class": "planner: writing",
+      "weighted": 3036024,
+      "peak": 343877,
+      "minutes": 22.7
+    },
+    {
+      "file": "accord-st-ln-80/26bb46c2-78d0-4960-843d-ddc0da3f9091/subagents/agent-a5459664e43ebd5e3.jsonl",
+      "ticket": "ST-LN-80",
+      "class": "critic: approach, later",
+      "weighted": 454564,
+      "peak": 104770,
+      "minutes": 5.4
+    },
+    {
+      "file": "accord-st-ln-80/26bb46c2-78d0-4960-843d-ddc0da3f9091/subagents/agent-a76a67e870cc209b7.jsonl",
+      "ticket": "ST-LN-80",
+      "class": "critic: plan later, diff",
+      "weighted": 278013,
+      "peak": 87314,
+      "minutes": 3.2
+    },
+    {
+      "file": "accord-st-ln-80/26bb46c2-78d0-4960-843d-ddc0da3f9091/subagents/agent-a7ff1688ec8cb261d.jsonl",
+      "ticket": "ST-LN-80",
+      "class": "critic: plan round 1, lens criteria",
+      "weighted": 477626,
+      "peak": 109684,
+      "minutes": 5.4
+    },
+    {
+      "file": "accord-st-ln-80/26bb46c2-78d0-4960-843d-ddc0da3f9091/subagents/agent-a9db8894c3c1df155.jsonl",
+      "ticket": "ST-LN-80",
+      "class": "planner: fix",
+      "weighted": 128652,
+      "peak": 57610,
+      "minutes": 1.4
+    },
+    {
+      "file": "accord-st-ln-80/26bb46c2-78d0-4960-843d-ddc0da3f9091/subagents/agent-aa926bbe107b55dc3.jsonl",
+      "ticket": "ST-LN-80",
+      "class": "critic: plan round 1, lens security",
+      "weighted": 339074,
+      "peak": 89544,
+      "minutes": 3.5
+    },
+    {
+      "file": "accord-st-ln-80/26bb46c2-78d0-4960-843d-ddc0da3f9091/subagents/agent-adb0af30e4044034c.jsonl",
+      "ticket": "ST-LN-80",
+      "class": "planner: fix",
+      "weighted": 385073,
+      "peak": 92857,
+      "minutes": 4.4
+    },
+    {
+      "file": "accord-st-ln-80/26bb46c2-78d0-4960-843d-ddc0da3f9091/subagents/agent-aefeb6f9ee5c8b9b8.jsonl",
+      "ticket": "ST-LN-80",
+      "class": "critic: plan later, whole",
+      "weighted": 2095436,
+      "peak": 242390,
+      "minutes": 13.1
+    },
+    {
+      "file": "accord-st-ln-80/26bb46c2-78d0-4960-843d-ddc0da3f9091/subagents/agent-afb89903fb2f0274f.jsonl",
+      "ticket": "ST-LN-80",
+      "class": "planner: writing",
+      "weighted": 648181,
+      "peak": 140856,
+      "minutes": 5.6
+    },
+    {
+      "file": "accord-st-ln-80/26bb46c2-78d0-4960-843d-ddc0da3f9091/subagents/agent-affbd2dd5ea4cf701.jsonl",
+      "ticket": "ST-LN-80",
+      "class": "critic: plan round 1, lens build",
+      "weighted": 1779493,
+      "peak": 230489,
+      "minutes": 11.2
+    },
+    {
+      "file": "accord/08fcaf7a-a2ab-47c9-b0fb-f3e242e9b096/subagents/agent-a2b282152285844e8.jsonl",
+      "ticket": "ST-LN-6",
+      "class": "planner: writing",
+      "weighted": 686097,
+      "peak": 159818,
+      "minutes": 7.4
+    },
+    {
+      "file": "accord/08fcaf7a-a2ab-47c9-b0fb-f3e242e9b096/subagents/agent-a76641998432d0bdf.jsonl",
+      "ticket": "ST-LN-6",
+      "class": "critic: approach, first",
+      "weighted": 371078,
+      "peak": 98731,
+      "minutes": 3.7
+    },
+    {
+      "file": "accord/08fcaf7a-a2ab-47c9-b0fb-f3e242e9b096/subagents/agent-a97e81a6fac97968b.jsonl",
+      "ticket": "ST-LN-6",
+      "class": "planner: fix",
+      "weighted": 166800,
+      "peak": 47870,
+      "minutes": 11.5
+    },
+    {
+      "file": "accord/08fcaf7a-a2ab-47c9-b0fb-f3e242e9b096/subagents/agent-a9bdd05aec71e1a5d.jsonl",
+      "ticket": "BUG-LN-2",
+      "class": "critic: plan round 1, lens build",
+      "weighted": 515136,
+      "peak": 119335,
+      "minutes": 4.6
+    },
+    {
+      "file": "accord/08fcaf7a-a2ab-47c9-b0fb-f3e242e9b096/subagents/agent-aaad865622034d936.jsonl",
+      "ticket": "ST-LN-6",
+      "class": "planner: writing",
+      "weighted": 370494,
+      "peak": 112589,
+      "minutes": 3.6
+    },
+    {
+      "file": "accord/08fcaf7a-a2ab-47c9-b0fb-f3e242e9b096/subagents/agent-ab5c6451edcf00f25.jsonl",
+      "ticket": "BUG-LN-2",
+      "class": "critic: plan round 1, lens criteria",
+      "weighted": 278283,
+      "peak": 76485,
+      "minutes": 3
+    },
+    {
+      "file": "accord/08fcaf7a-a2ab-47c9-b0fb-f3e242e9b096/subagents/agent-af269a53c9b436686.jsonl",
+      "ticket": "BUG-LN-2",
+      "class": "critic: plan later, diff",
+      "weighted": 133175,
+      "peak": 60781,
+      "minutes": 1.8
+    },
+    {
+      "file": "accord/0faa2b47-22ec-4155-9819-74b1e6fabab9/subagents/agent-a3b5d0d3c59b3b6af.jsonl",
+      "ticket": "ST-LN-20",
+      "class": "planner: writing",
+      "weighted": 341176,
+      "peak": 107107,
+      "minutes": 5
+    },
+    {
+      "file": "accord/0faa2b47-22ec-4155-9819-74b1e6fabab9/subagents/agent-a4ec9d1a5eb059928.jsonl",
+      "ticket": "ST-LN-20",
+      "class": "critic: plan round 1, lens security",
+      "weighted": 148948,
+      "peak": 54054,
+      "minutes": 3
+    },
+    {
+      "file": "accord/0faa2b47-22ec-4155-9819-74b1e6fabab9/subagents/agent-a55833cb0be3295c4.jsonl",
+      "ticket": "ST-LN-20",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 239066,
+      "peak": 72873,
+      "minutes": 4.2
+    },
+    {
+      "file": "accord/0faa2b47-22ec-4155-9819-74b1e6fabab9/subagents/agent-a57eb9e423c07dd79.jsonl",
+      "ticket": "ST-LN-20",
+      "class": "critic: approach, first",
+      "weighted": 212073,
+      "peak": 56450,
+      "minutes": 3.7
+    },
+    {
+      "file": "accord/0faa2b47-22ec-4155-9819-74b1e6fabab9/subagents/agent-ab27cea45c2f774cc.jsonl",
+      "ticket": "ST-LN-20",
+      "class": "critic: plan later, whole",
+      "weighted": 237921,
+      "peak": 70350,
+      "minutes": 3.4
+    },
+    {
+      "file": "accord/0faa2b47-22ec-4155-9819-74b1e6fabab9/subagents/agent-abc8cc95a123e2edf.jsonl",
+      "ticket": "ST-LN-20",
+      "class": "planner: writing",
+      "weighted": 153307,
+      "peak": 52115,
+      "minutes": 2.3
+    },
+    {
+      "file": "accord/0faa2b47-22ec-4155-9819-74b1e6fabab9/subagents/agent-ad9f7826ba5ed916c.jsonl",
+      "ticket": "ST-LN-20",
+      "class": "planner: fix",
+      "weighted": 132635,
+      "peak": 46509,
+      "minutes": 1.9
+    },
+    {
+      "file": "accord/2c76daea-883d-4bcc-b318-c2e16eae0d09/subagents/agent-a104d9b84d6c0f60c.jsonl",
+      "ticket": "ST-LN-14",
+      "class": "critic: plan later, whole",
+      "weighted": 667026,
+      "peak": 136564,
+      "minutes": 10.2
+    },
+    {
+      "file": "accord/2c76daea-883d-4bcc-b318-c2e16eae0d09/subagents/agent-a16b7279f4d69050a.jsonl",
+      "ticket": "ST-LN-14",
+      "class": "planner: writing",
+      "weighted": 1560332,
+      "peak": 250998,
+      "minutes": 22.4
+    },
+    {
+      "file": "accord/2c76daea-883d-4bcc-b318-c2e16eae0d09/subagents/agent-a7881472916516d84.jsonl",
+      "ticket": "ST-LN-14",
+      "class": "critic: plan round 1, lens security",
+      "weighted": 402072,
+      "peak": 86565,
+      "minutes": 5.8
+    },
+    {
+      "file": "accord/2c76daea-883d-4bcc-b318-c2e16eae0d09/subagents/agent-a95e18f4af712ea42.jsonl",
+      "ticket": "ST-LN-14",
+      "class": "planner: fix",
+      "weighted": 208559,
+      "peak": 86936,
+      "minutes": 2.3
+    },
+    {
+      "file": "accord/2c76daea-883d-4bcc-b318-c2e16eae0d09/subagents/agent-a961309f3cfbeae96.jsonl",
+      "ticket": "ST-LN-14",
+      "class": "critic: plan later, whole",
+      "weighted": 497393,
+      "peak": 121955,
+      "minutes": 6.5
+    },
+    {
+      "file": "accord/2c76daea-883d-4bcc-b318-c2e16eae0d09/subagents/agent-aaa0e984d6f5826ee.jsonl",
+      "ticket": "ST-LN-14",
+      "class": "planner: fix",
+      "weighted": 348597,
+      "peak": 100887,
+      "minutes": 5
+    },
+    {
+      "file": "accord/2c76daea-883d-4bcc-b318-c2e16eae0d09/subagents/agent-aabbd7698fcf49140.jsonl",
+      "ticket": "ST-LN-14",
+      "class": "critic: plan round 1, lens criteria",
+      "weighted": 488643,
+      "peak": 108922,
+      "minutes": 7.1
+    },
+    {
+      "file": "accord/2c76daea-883d-4bcc-b318-c2e16eae0d09/subagents/agent-ab0170c43466fd44b.jsonl",
+      "ticket": "ST-LN-14",
+      "class": "planner: writing",
+      "weighted": 138459,
+      "peak": 64372,
+      "minutes": 1.6
+    },
+    {
+      "file": "accord/2c76daea-883d-4bcc-b318-c2e16eae0d09/subagents/agent-ab2fd30dbe0608cde.jsonl",
+      "ticket": "ST-LN-14",
+      "class": "critic: plan round 1, lens build",
+      "weighted": 504407,
+      "peak": 113499,
+      "minutes": 8.7
+    },
+    {
+      "file": "accord/2c76daea-883d-4bcc-b318-c2e16eae0d09/subagents/agent-ac8ea6454d7a4a086.jsonl",
+      "ticket": "ST-LN-14",
+      "class": "critic: plan later, whole",
+      "weighted": 644587,
+      "peak": 133302,
+      "minutes": 9.5
+    },
+    {
+      "file": "accord/2c76daea-883d-4bcc-b318-c2e16eae0d09/subagents/agent-ad07625e6fef711b2.jsonl",
+      "ticket": "ST-LN-14",
+      "class": "planner: fix",
+      "weighted": 933422,
+      "peak": 157276,
+      "minutes": 13.7
+    },
+    {
+      "file": "accord/2c76daea-883d-4bcc-b318-c2e16eae0d09/subagents/agent-aecdeedda06389e4f.jsonl",
+      "ticket": "ST-LN-14",
+      "class": "planner: writing",
+      "weighted": 228567,
+      "peak": 71428,
+      "minutes": 3.8
+    },
+    {
+      "file": "accord/2c76daea-883d-4bcc-b318-c2e16eae0d09/subagents/agent-af44698f46b662e0d.jsonl",
+      "ticket": "ST-LN-14",
+      "class": "critic: approach, first",
+      "weighted": 508265,
+      "peak": 107589,
+      "minutes": 7.9
+    },
+    {
+      "file": "accord/2f15fc76-08e1-4f90-b4be-702481226959/subagents/agent-a0ff2fd02737a1173.jsonl",
+      "ticket": "ST-LN-5",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 344160,
+      "peak": 85175,
+      "minutes": 3.9
+    },
+    {
+      "file": "accord/2f15fc76-08e1-4f90-b4be-702481226959/subagents/agent-a14bbe08943c07a49.jsonl",
+      "ticket": "ST-LN-21",
+      "class": "critic: plan later, diff",
+      "weighted": 70826,
+      "peak": 39076,
+      "minutes": 0.8
+    },
+    {
+      "file": "accord/2f15fc76-08e1-4f90-b4be-702481226959/subagents/agent-a1f9231b4d7306fa7.jsonl",
+      "ticket": "ST-LN-21",
+      "class": "planner: fix",
+      "weighted": 62543,
+      "peak": 45238,
+      "minutes": 0.6
+    },
+    {
+      "file": "accord/2f15fc76-08e1-4f90-b4be-702481226959/subagents/agent-a23906b4b7ded2cd8.jsonl",
+      "ticket": "ST-LN-21",
+      "class": "planner: writing",
+      "weighted": 228111,
+      "peak": 69670,
+      "minutes": 2.8
+    },
+    {
+      "file": "accord/2f15fc76-08e1-4f90-b4be-702481226959/subagents/agent-a3cca5ddf865a00c0.jsonl",
+      "ticket": "ST-LN-5",
+      "class": "planner: writing",
+      "weighted": 48536,
+      "peak": 30863,
+      "minutes": 0.7
+    },
+    {
+      "file": "accord/2f15fc76-08e1-4f90-b4be-702481226959/subagents/agent-a5cd3646931bfe182.jsonl",
+      "ticket": "ST-LN-21",
+      "class": "critic: approach, first",
+      "weighted": 221941,
+      "peak": 73863,
+      "minutes": 2.8
+    },
+    {
+      "file": "accord/2f15fc76-08e1-4f90-b4be-702481226959/subagents/agent-ab0b5e9d76d8e8d23.jsonl",
+      "ticket": "ST-LN-21",
+      "class": "planner: writing",
+      "weighted": 196308,
+      "peak": 65424,
+      "minutes": 2.5
+    },
+    {
+      "file": "accord/2f15fc76-08e1-4f90-b4be-702481226959/subagents/agent-ac47120f56a6ba603.jsonl",
+      "ticket": "ST-LN-21",
+      "class": "critic: approach, first",
+      "weighted": 148511,
+      "peak": 51778,
+      "minutes": 2.4
+    },
+    {
+      "file": "accord/2f15fc76-08e1-4f90-b4be-702481226959/subagents/agent-ad9252935d0bf8cf1.jsonl",
+      "ticket": "ST-LN-21",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 239534,
+      "peak": 72390,
+      "minutes": 3.1
+    },
+    {
+      "file": "accord/2f15fc76-08e1-4f90-b4be-702481226959/subagents/agent-ae148707e2025516b.jsonl",
+      "ticket": "ST-LN-5",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 330050,
+      "peak": 77657,
+      "minutes": 3.7
+    },
+    {
+      "file": "accord/315082cd-0fb1-4fb3-997c-28ebb64393ca/subagents/agent-a2ee26032ae11fffb.jsonl",
+      "ticket": "ST-LN-18",
+      "class": "planner: fix",
+      "weighted": 33870,
+      "peak": 25717,
+      "minutes": 0.3
+    },
+    {
+      "file": "accord/315082cd-0fb1-4fb3-997c-28ebb64393ca/subagents/agent-a36743beefecf8fc2.jsonl",
+      "ticket": "ST-LN-18",
+      "class": "critic: approach, first",
+      "weighted": 270623,
+      "peak": 85641,
+      "minutes": 3.8
+    },
+    {
+      "file": "accord/315082cd-0fb1-4fb3-997c-28ebb64393ca/subagents/agent-a8ac31241463e467c.jsonl",
+      "ticket": "ST-LN-18",
+      "class": "planner: writing",
+      "weighted": 261811,
+      "peak": 84128,
+      "minutes": 3.2
+    },
+    {
+      "file": "accord/315082cd-0fb1-4fb3-997c-28ebb64393ca/subagents/agent-aa4cb664f3fd82a93.jsonl",
+      "ticket": "ST-LN-18",
+      "class": "planner: writing",
+      "weighted": 330314,
+      "peak": 90142,
+      "minutes": 4
+    },
+    {
+      "file": "accord/315082cd-0fb1-4fb3-997c-28ebb64393ca/subagents/agent-accc6cdcc11be6f3d.jsonl",
+      "ticket": "ST-LN-18",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 273123,
+      "peak": 81836,
+      "minutes": 3.2
+    },
+    {
+      "file": "accord/315082cd-0fb1-4fb3-997c-28ebb64393ca/subagents/agent-ae9c91c27d9dc5247.jsonl",
+      "ticket": "ST-LN-18",
+      "class": "critic: plan later, diff",
+      "weighted": 34642,
+      "peak": 25690,
+      "minutes": 0.4
+    },
+    {
+      "file": "accord/4c922939-083e-4f93-af28-1fbb994a4bf3/subagents/agent-a14ee096d3f806828.jsonl",
+      "ticket": "ST-LN-20",
+      "class": "critic: plan round 1, lens criteria",
+      "weighted": 244882,
+      "peak": 73576,
+      "minutes": 4.1
+    },
+    {
+      "file": "accord/4c922939-083e-4f93-af28-1fbb994a4bf3/subagents/agent-a2603d8d5461b5046.jsonl",
+      "ticket": "ST-LN-20",
+      "class": "critic: plan later, diff",
+      "weighted": 93066,
+      "peak": 53179,
+      "minutes": 1.1
+    },
+    {
+      "file": "accord/4c922939-083e-4f93-af28-1fbb994a4bf3/subagents/agent-a50c62103207608e9.jsonl",
+      "ticket": "ST-LN-7",
+      "class": "critic: plan later, diff",
+      "weighted": 322685,
+      "peak": 94886,
+      "minutes": 3.6
+    },
+    {
+      "file": "accord/4c922939-083e-4f93-af28-1fbb994a4bf3/subagents/agent-a549ccfb5e3aae8b4.jsonl",
+      "ticket": "ST-LN-7",
+      "class": "critic: plan later, diff",
+      "weighted": 211077,
+      "peak": 73677,
+      "minutes": 2.8
+    },
+    {
+      "file": "accord/4c922939-083e-4f93-af28-1fbb994a4bf3/subagents/agent-a599e94ed23fcd114.jsonl",
+      "ticket": "ST-LN-20",
+      "class": "critic: plan later, diff",
+      "weighted": 168882,
+      "peak": 68573,
+      "minutes": 3.8
+    },
+    {
+      "file": "accord/4c922939-083e-4f93-af28-1fbb994a4bf3/subagents/agent-a5a76fedc3b2ac184.jsonl",
+      "ticket": "ST-LN-20",
+      "class": "critic: plan later, whole",
+      "weighted": 738853,
+      "peak": 157542,
+      "minutes": 9.5
+    },
+    {
+      "file": "accord/4c922939-083e-4f93-af28-1fbb994a4bf3/subagents/agent-a6382ec1bb68de00f.jsonl",
+      "ticket": "ST-LN-7",
+      "class": "planner: fix",
+      "weighted": 375995,
+      "peak": 110836,
+      "minutes": 7
+    },
+    {
+      "file": "accord/4c922939-083e-4f93-af28-1fbb994a4bf3/subagents/agent-a68e88348966f16a0.jsonl",
+      "ticket": "ST-LN-20",
+      "class": "critic: plan round 1, lens security",
+      "weighted": 272197,
+      "peak": 83083,
+      "minutes": 5.2
+    },
+    {
+      "file": "accord/4c922939-083e-4f93-af28-1fbb994a4bf3/subagents/agent-a72b82011cf50d24b.jsonl",
+      "ticket": "ST-LN-7",
+      "class": "planner: writing",
+      "weighted": 1001724,
+      "peak": 202854,
+      "minutes": 14.5
+    },
+    {
+      "file": "accord/4c922939-083e-4f93-af28-1fbb994a4bf3/subagents/agent-a8c693f7eeb069933.jsonl",
+      "ticket": "ST-LN-7",
+      "class": "planner: fix",
+      "weighted": 230611,
+      "peak": 80904,
+      "minutes": 2.3
+    },
+    {
+      "file": "accord/4c922939-083e-4f93-af28-1fbb994a4bf3/subagents/agent-aa520c21e4bba83c8.jsonl",
+      "ticket": "ST-LN-7",
+      "class": "critic: approach, first",
+      "weighted": 200522,
+      "peak": 57503,
+      "minutes": 3.9
+    },
+    {
+      "file": "accord/4c922939-083e-4f93-af28-1fbb994a4bf3/subagents/agent-aaa03ffb2fe483129.jsonl",
+      "ticket": "ST-LN-7",
+      "class": "planner: writing",
+      "weighted": 262106,
+      "peak": 99174,
+      "minutes": 2.8
+    },
+    {
+      "file": "accord/4c922939-083e-4f93-af28-1fbb994a4bf3/subagents/agent-ab4ae13df6b5a248b.jsonl",
+      "ticket": "ST-LN-7",
+      "class": "planner: writing",
+      "weighted": 474780,
+      "peak": 108795,
+      "minutes": 8.7
+    },
+    {
+      "file": "accord/4c922939-083e-4f93-af28-1fbb994a4bf3/subagents/agent-aba4b03574799b8ad.jsonl",
+      "ticket": "ST-LN-20",
+      "class": "planner: fix",
+      "weighted": 140632,
+      "peak": 76823,
+      "minutes": 2.3
+    },
+    {
+      "file": "accord/4c922939-083e-4f93-af28-1fbb994a4bf3/subagents/agent-ad4114afacc5457e6.jsonl",
+      "ticket": "ST-LN-20",
+      "class": "critic: plan round 1, lens build",
+      "weighted": 759488,
+      "peak": 159110,
+      "minutes": 8.8
+    },
+    {
+      "file": "accord/4c922939-083e-4f93-af28-1fbb994a4bf3/subagents/agent-ada1a05d8a4413680.jsonl",
+      "ticket": "ST-LN-20",
+      "class": "planner: fix",
+      "weighted": 514427,
+      "peak": 121039,
+      "minutes": 7.4
+    },
+    {
+      "file": "accord/4c922939-083e-4f93-af28-1fbb994a4bf3/subagents/agent-ae4e2402dd67afefb.jsonl",
+      "ticket": "ST-LN-20",
+      "class": "planner: fix",
+      "weighted": 105113,
+      "peak": 63252,
+      "minutes": 1.4
+    },
+    {
+      "file": "accord/4c922939-083e-4f93-af28-1fbb994a4bf3/subagents/agent-aebbfe698011f3a7b.jsonl",
+      "ticket": "ST-LN-7",
+      "class": "planner: writing",
+      "weighted": 136138,
+      "peak": 71942,
+      "minutes": 1.6
+    },
+    {
+      "file": "accord/4c922939-083e-4f93-af28-1fbb994a4bf3/subagents/agent-af001ade4e484d8b9.jsonl",
+      "ticket": "ST-LN-20",
+      "class": "critic: plan later, diff",
+      "weighted": 241475,
+      "peak": 87226,
+      "minutes": 3.7
+    },
+    {
+      "file": "accord/4c922939-083e-4f93-af28-1fbb994a4bf3/subagents/agent-af43285e2cc758741.jsonl",
+      "ticket": "ST-LN-20",
+      "class": "planner: fix",
+      "weighted": 115240,
+      "peak": 65031,
+      "minutes": 1.5
+    },
+    {
+      "file": "accord/4c922939-083e-4f93-af28-1fbb994a4bf3/subagents/agent-afc34479e9116a34b.jsonl",
+      "ticket": "ST-LN-20",
+      "class": "critic: plan later, diff",
+      "weighted": 111878,
+      "peak": 57328,
+      "minutes": 2.1
+    },
+    {
+      "file": "accord/63c6d5ec-c764-4830-ad6f-e51b73107666/subagents/agent-a0b4e51cded3ec7f0.jsonl",
+      "ticket": "ST-LN-30",
+      "class": "critic: approach, first",
+      "weighted": 278825,
+      "peak": 76346,
+      "minutes": 4.9
+    },
+    {
+      "file": "accord/63c6d5ec-c764-4830-ad6f-e51b73107666/subagents/agent-a20d51bf82a09b3b8.jsonl",
+      "ticket": "ST-LN-30",
+      "class": "critic: plan round 1, lens criteria",
+      "weighted": 367509,
+      "peak": 94793,
+      "minutes": 6.9
+    },
+    {
+      "file": "accord/63c6d5ec-c764-4830-ad6f-e51b73107666/subagents/agent-a20f5d6f35b71083e.jsonl",
+      "ticket": "ST-LN-30",
+      "class": "planner: writing",
+      "weighted": 1026688,
+      "peak": 179945,
+      "minutes": 14.1
+    },
+    {
+      "file": "accord/63c6d5ec-c764-4830-ad6f-e51b73107666/subagents/agent-a2cc40fb9461dfefc.jsonl",
+      "ticket": "ST-LN-30",
+      "class": "critic: plan later, diff",
+      "weighted": 87771,
+      "peak": 43277,
+      "minutes": 1.1
+    },
+    {
+      "file": "accord/63c6d5ec-c764-4830-ad6f-e51b73107666/subagents/agent-aa82ab839e61b4406.jsonl",
+      "ticket": "ST-LN-30",
+      "class": "critic: plan round 1, lens security",
+      "weighted": 223880,
+      "peak": 78082,
+      "minutes": 4.3
+    },
+    {
+      "file": "accord/63c6d5ec-c764-4830-ad6f-e51b73107666/subagents/agent-ab8b161bc2170855c.jsonl",
+      "ticket": "ST-LN-30",
+      "class": "critic: plan round 1, lens build",
+      "weighted": 946038,
+      "peak": 165162,
+      "minutes": 12.8
+    },
+    {
+      "file": "accord/63c6d5ec-c764-4830-ad6f-e51b73107666/subagents/agent-ac8f8129027665610.jsonl",
+      "ticket": "ST-LN-30",
+      "class": "planner: fix",
+      "weighted": 162771,
+      "peak": 58965,
+      "minutes": 3
+    },
+    {
+      "file": "accord/63c6d5ec-c764-4830-ad6f-e51b73107666/subagents/agent-ad85bae9b7f4829ac.jsonl",
+      "ticket": "ST-LN-30",
+      "class": "planner: writing",
+      "weighted": 515824,
+      "peak": 108591,
+      "minutes": 7.8
+    },
+    {
+      "file": "accord/6630d237-9633-47a4-9a06-d2d06bdcad82/subagents/agent-a001e2038bac7f77a.jsonl",
+      "ticket": "ST-LN-31",
+      "class": "critic: plan round 1, lens criteria",
+      "weighted": 748862,
+      "peak": 145493,
+      "minutes": 7.9
+    },
+    {
+      "file": "accord/6630d237-9633-47a4-9a06-d2d06bdcad82/subagents/agent-a036378b2b507803c.jsonl",
+      "ticket": "ST-LN-31",
+      "class": "critic: plan later, diff",
+      "weighted": 107971,
+      "peak": 45353,
+      "minutes": 1.4
+    },
+    {
+      "file": "accord/6630d237-9633-47a4-9a06-d2d06bdcad82/subagents/agent-a158c283e5e62b57a.jsonl",
+      "ticket": "ST-LN-31",
+      "class": "critic: plan later, diff",
+      "weighted": 286269,
+      "peak": 77122,
+      "minutes": 3.3
+    },
+    {
+      "file": "accord/6630d237-9633-47a4-9a06-d2d06bdcad82/subagents/agent-a516a276ef43d16fb.jsonl",
+      "ticket": "ST-LN-31",
+      "class": "planner: fix",
+      "weighted": 836399,
+      "peak": 177592,
+      "minutes": 9.9
+    },
+    {
+      "file": "accord/6630d237-9633-47a4-9a06-d2d06bdcad82/subagents/agent-a51fb8e4b882442bb.jsonl",
+      "ticket": "ST-LN-31",
+      "class": "planner: writing",
+      "weighted": 3493828,
+      "peak": 428259,
+      "minutes": 37.7
+    },
+    {
+      "file": "accord/6630d237-9633-47a4-9a06-d2d06bdcad82/subagents/agent-a60d129f852c53f68.jsonl",
+      "ticket": "ST-LN-31",
+      "class": "planner: writing",
+      "weighted": 2652490,
+      "peak": 351808,
+      "minutes": 23.2
+    },
+    {
+      "file": "accord/6630d237-9633-47a4-9a06-d2d06bdcad82/subagents/agent-a8d09e5b20c07a7cf.jsonl",
+      "ticket": "ST-LN-31",
+      "class": "planner: fix",
+      "weighted": 605331,
+      "peak": 125575,
+      "minutes": 5.8
+    },
+    {
+      "file": "accord/6630d237-9633-47a4-9a06-d2d06bdcad82/subagents/agent-a98e07269a1df9471.jsonl",
+      "ticket": "ST-LN-31",
+      "class": "critic: plan later, whole",
+      "weighted": 1504377,
+      "peak": 206633,
+      "minutes": 12.1
+    },
+    {
+      "file": "accord/6630d237-9633-47a4-9a06-d2d06bdcad82/subagents/agent-aaffb0e653dbe35ec.jsonl",
+      "ticket": "ST-LN-31",
+      "class": "critic: plan round 1, lens build",
+      "weighted": 2586696,
+      "peak": 307390,
+      "minutes": 17.1
+    },
+    {
+      "file": "accord/6630d237-9633-47a4-9a06-d2d06bdcad82/subagents/agent-ab73fb961e8d7e2af.jsonl",
+      "ticket": "ST-LN-31",
+      "class": "critic: plan round 1, lens security",
+      "weighted": 456303,
+      "peak": 114976,
+      "minutes": 6.3
+    },
+    {
+      "file": "accord/6630d237-9633-47a4-9a06-d2d06bdcad82/subagents/agent-abfb34d9bc7e8a8dc.jsonl",
+      "ticket": "ST-LN-31",
+      "class": "planner: fix",
+      "weighted": 144753,
+      "peak": 57141,
+      "minutes": 1.5
+    },
+    {
+      "file": "accord/85a8d848-5a23-40c9-ba62-5c6a98a38071/subagents/agent-a0239db806c11064b.jsonl",
+      "ticket": "ST-LN-62",
+      "class": "planner: writing",
+      "weighted": 793638,
+      "peak": 141407,
+      "minutes": 7
+    },
+    {
+      "file": "accord/85a8d848-5a23-40c9-ba62-5c6a98a38071/subagents/agent-a039681fb762a2cea.jsonl",
+      "ticket": "ST-LN-62",
+      "class": "critic: plan later, diff",
+      "weighted": 112692,
+      "peak": 51575,
+      "minutes": 1.4
+    },
+    {
+      "file": "accord/85a8d848-5a23-40c9-ba62-5c6a98a38071/subagents/agent-a0a7ca3d16ab8c6cd.jsonl",
+      "ticket": "ST-LN-62",
+      "class": "critic: plan later, diff",
+      "weighted": 108557,
+      "peak": 48391,
+      "minutes": 1.2
+    },
+    {
+      "file": "accord/85a8d848-5a23-40c9-ba62-5c6a98a38071/subagents/agent-a0ea0a12d3c4b92a7.jsonl",
+      "ticket": "ST-LN-62",
+      "class": "critic: plan round 1, lens build",
+      "weighted": 221247,
+      "peak": 81266,
+      "minutes": 1.8
+    },
+    {
+      "file": "accord/85a8d848-5a23-40c9-ba62-5c6a98a38071/subagents/agent-a15252917bc3f31d6.jsonl",
+      "ticket": "ST-LN-62",
+      "class": "planner: writing",
+      "weighted": 207477,
+      "peak": 83583,
+      "minutes": 2.2
+    },
+    {
+      "file": "accord/85a8d848-5a23-40c9-ba62-5c6a98a38071/subagents/agent-a450d04bf9a446dbc.jsonl",
+      "ticket": "ST-LN-62",
+      "class": "planner: writing",
+      "weighted": 2768993,
+      "peak": 351641,
+      "minutes": 21.8
+    },
+    {
+      "file": "accord/85a8d848-5a23-40c9-ba62-5c6a98a38071/subagents/agent-a4a4369441a94ae6b.jsonl",
+      "ticket": "ST-LN-62",
+      "class": "planner: fix",
+      "weighted": 428560,
+      "peak": 108711,
+      "minutes": 4.4
+    },
+    {
+      "file": "accord/85a8d848-5a23-40c9-ba62-5c6a98a38071/subagents/agent-a82e76c7a2a918221.jsonl",
+      "ticket": "ST-LN-62",
+      "class": "planner: fix",
+      "weighted": 158413,
+      "peak": 60197,
+      "minutes": 1.6
+    },
+    {
+      "file": "accord/85a8d848-5a23-40c9-ba62-5c6a98a38071/subagents/agent-ab0a096af2ac15311.jsonl",
+      "ticket": "ST-LN-62",
+      "class": "critic: approach, first",
+      "weighted": 421902,
+      "peak": 91452,
+      "minutes": 6.3
+    },
+    {
+      "file": "accord/85a8d848-5a23-40c9-ba62-5c6a98a38071/subagents/agent-ac6e6812eb806af37.jsonl",
+      "ticket": "ST-LN-62",
+      "class": "critic: plan round 1, lens criteria",
+      "weighted": 500008,
+      "peak": 108574,
+      "minutes": 7.3
+    },
+    {
+      "file": "accord/85a8d848-5a23-40c9-ba62-5c6a98a38071/subagents/agent-ac7e48a62cd145615.jsonl",
+      "ticket": "ST-LN-62",
+      "class": "critic: plan later, whole",
+      "weighted": 1461271,
+      "peak": 208906,
+      "minutes": 14.8
+    },
+    {
+      "file": "accord/85a8d848-5a23-40c9-ba62-5c6a98a38071/subagents/agent-acbe1274f2633f255.jsonl",
+      "ticket": "ST-LN-62",
+      "class": "planner: writing",
+      "weighted": 222619,
+      "peak": 87428,
+      "minutes": 2.3
+    },
+    {
+      "file": "accord/85a8d848-5a23-40c9-ba62-5c6a98a38071/subagents/agent-ad15ff7e4de9a7e1f.jsonl",
+      "ticket": "ST-LN-62",
+      "class": "critic: plan round 1, lens build",
+      "weighted": 1742529,
+      "peak": 202680,
+      "minutes": 14.8
+    },
+    {
+      "file": "accord/85a8d848-5a23-40c9-ba62-5c6a98a38071/subagents/agent-ad96afc0e615e7944.jsonl",
+      "ticket": "ST-LN-62",
+      "class": "critic: plan round 1, lens criteria",
+      "weighted": 274155,
+      "peak": 91515,
+      "minutes": 3.1
+    },
+    {
+      "file": "accord/ac051121-4fa1-4c39-b3d2-efcc56c8ef9f/subagents/agent-a46053b47f5e30868.jsonl",
+      "ticket": "ST-LN-5",
+      "class": "critic: approach, first",
+      "weighted": 282074,
+      "peak": 77002,
+      "minutes": 3.2
+    },
+    {
+      "file": "accord/ac051121-4fa1-4c39-b3d2-efcc56c8ef9f/subagents/agent-a4873592d96911495.jsonl",
+      "ticket": "ST-LN-5",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 216027,
+      "peak": 70548,
+      "minutes": 11.9
+    },
+    {
+      "file": "accord/ac051121-4fa1-4c39-b3d2-efcc56c8ef9f/subagents/agent-a50b77c48acc92a64.jsonl",
+      "ticket": "ST-LN-5",
+      "class": "planner: writing",
+      "weighted": 203606,
+      "peak": 63622,
+      "minutes": 2.5
+    },
+    {
+      "file": "accord/ac051121-4fa1-4c39-b3d2-efcc56c8ef9f/subagents/agent-aa832676c186559b0.jsonl",
+      "ticket": "ST-LN-5",
+      "class": "planner: writing",
+      "weighted": 183132,
+      "peak": 54174,
+      "minutes": 2.4
+    },
+    {
+      "file": "accord/be3afed9-29df-4993-8231-1a073a154d36/subagents/agent-a054d26eeaa892a69.jsonl",
+      "ticket": "ST-LN-25",
+      "class": "critic: plan round 1, lens security",
+      "weighted": 283220,
+      "peak": 88994,
+      "minutes": 4.3
+    },
+    {
+      "file": "accord/be3afed9-29df-4993-8231-1a073a154d36/subagents/agent-a0671a9f4125dc2d9.jsonl",
+      "ticket": "ST-LN-25",
+      "class": "critic: plan round 1, lens build",
+      "weighted": 1712534,
+      "peak": 253291,
+      "minutes": 11.5
+    },
+    {
+      "file": "accord/be3afed9-29df-4993-8231-1a073a154d36/subagents/agent-a2dc7a6a927d3201e.jsonl",
+      "ticket": "ST-LN-25",
+      "class": "planner: fix",
+      "weighted": 176069,
+      "peak": 66875,
+      "minutes": 1.8
+    },
+    {
+      "file": "accord/be3afed9-29df-4993-8231-1a073a154d36/subagents/agent-a2dd2e01b4ad79bf0.jsonl",
+      "ticket": "ST-LN-25",
+      "class": "planner: fix",
+      "weighted": 234162,
+      "peak": 70430,
+      "minutes": 2.4
+    },
+    {
+      "file": "accord/be3afed9-29df-4993-8231-1a073a154d36/subagents/agent-a3b3bbc8fca646408.jsonl",
+      "ticket": "ST-LN-25",
+      "class": "critic: plan later, diff",
+      "weighted": 267231,
+      "peak": 81450,
+      "minutes": 3.6
+    },
+    {
+      "file": "accord/be3afed9-29df-4993-8231-1a073a154d36/subagents/agent-a3ba91a9afd5f3eca.jsonl",
+      "ticket": "ST-LN-25",
+      "class": "critic: plan later, diff",
+      "weighted": 133963,
+      "peak": 52486,
+      "minutes": 1.6
+    },
+    {
+      "file": "accord/be3afed9-29df-4993-8231-1a073a154d36/subagents/agent-a3e8bf8e63f332b4b.jsonl",
+      "ticket": "ST-LN-25",
+      "class": "planner: writing",
+      "weighted": 511234,
+      "peak": 119760,
+      "minutes": 5.7
+    },
+    {
+      "file": "accord/be3afed9-29df-4993-8231-1a073a154d36/subagents/agent-a4cbbacc78821cb0a.jsonl",
+      "ticket": "ST-LN-25",
+      "class": "planner: writing",
+      "weighted": 57469,
+      "peak": 30705,
+      "minutes": 0.6
+    },
+    {
+      "file": "accord/be3afed9-29df-4993-8231-1a073a154d36/subagents/agent-a6042f4cb1e654144.jsonl",
+      "ticket": "ST-LN-25",
+      "class": "planner: fix",
+      "weighted": 863004,
+      "peak": 150267,
+      "minutes": 8
+    },
+    {
+      "file": "accord/be3afed9-29df-4993-8231-1a073a154d36/subagents/agent-a6af3f3e4a0d44591.jsonl",
+      "ticket": "ST-LN-25",
+      "class": "critic: plan later, whole",
+      "weighted": 1759606,
+      "peak": 245164,
+      "minutes": 14.2
+    },
+    {
+      "file": "accord/be3afed9-29df-4993-8231-1a073a154d36/subagents/agent-a979aa0053624f1dd.jsonl",
+      "ticket": "ST-LN-25",
+      "class": "critic: approach, first",
+      "weighted": 445287,
+      "peak": 105095,
+      "minutes": 7.7
+    },
+    {
+      "file": "accord/be3afed9-29df-4993-8231-1a073a154d36/subagents/agent-ab09fe078b35f7ece.jsonl",
+      "ticket": "ST-LN-25",
+      "class": "planner: writing",
+      "weighted": 1978557,
+      "peak": 314121,
+      "minutes": 19.5
+    },
+    {
+      "file": "accord/be3afed9-29df-4993-8231-1a073a154d36/subagents/agent-ac71fcee37f2e7258.jsonl",
+      "ticket": "ST-LN-25",
+      "class": "critic: plan later, diff",
+      "weighted": 224351,
+      "peak": 66420,
+      "minutes": 3.3
+    },
+    {
+      "file": "accord/be3afed9-29df-4993-8231-1a073a154d36/subagents/agent-acaf0e5f96358a567.jsonl",
+      "ticket": "ST-LN-25",
+      "class": "critic: plan round 1, lens criteria",
+      "weighted": 528578,
+      "peak": 134939,
+      "minutes": 5.5
+    },
+    {
+      "file": "accord/be3afed9-29df-4993-8231-1a073a154d36/subagents/agent-add857965e65057bd.jsonl",
+      "ticket": "ST-LN-25",
+      "class": "critic: plan later, whole",
+      "weighted": 88178,
+      "peak": 35876,
+      "minutes": 1.1
+    },
+    {
+      "file": "accord/be3afed9-29df-4993-8231-1a073a154d36/subagents/agent-afde5d3702e5d39e4.jsonl",
+      "ticket": "ST-LN-25",
+      "class": "planner: fix",
+      "weighted": 306663,
+      "peak": 80966,
+      "minutes": 3.3
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a00a7cffd53f8a582.jsonl",
+      "ticket": "BUG-LN-2",
+      "class": "critic: approach, first",
+      "weighted": 426803,
+      "peak": 101155,
+      "minutes": 6.3
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a048aa001622de70a.jsonl",
+      "ticket": "BUG-LN-3",
+      "class": "critic: plan round 1, lens build",
+      "weighted": 322367,
+      "peak": 74823,
+      "minutes": 4.7
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a053bcd3a4b14d217.jsonl",
+      "ticket": "ST-LN-3",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 941507,
+      "peak": 170540,
+      "minutes": 9.5
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a062598175cf79047.jsonl",
+      "ticket": "ST-LN-3",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 805166,
+      "peak": 165297,
+      "minutes": 8.1
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a068fbb4cbeb8374d.jsonl",
+      "ticket": "ST-LN-1",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 612668,
+      "peak": 120970,
+      "minutes": 7.4
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a070751af6beeff30.jsonl",
+      "ticket": "BUG-LN-1",
+      "class": "critic: approach, first",
+      "weighted": 227729,
+      "peak": 60872,
+      "minutes": 3.6
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a100cb01485d90fbe.jsonl",
+      "ticket": "ST-LN-4",
+      "class": "critic: approach, first",
+      "weighted": 204844,
+      "peak": 61315,
+      "minutes": 4.2
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a1bf58b8c4425c0bf.jsonl",
+      "ticket": "IDS-1",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 246219,
+      "peak": 62241,
+      "minutes": 4.4
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a2097ff92cc977ab6.jsonl",
+      "ticket": "ST-LN-1",
+      "class": "planner: fix",
+      "weighted": 57192,
+      "peak": 27287,
+      "minutes": 0.8
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a218d007cc0482dc5.jsonl",
+      "ticket": "ST-LN-1",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 497499,
+      "peak": 110708,
+      "minutes": 5.9
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a22db96d353cd5305.jsonl",
+      "ticket": "ST-LN-1",
+      "class": "critic: approach, first",
+      "weighted": 169305,
+      "peak": 53472,
+      "minutes": 3.3
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a2579aebf6a58715b.jsonl",
+      "ticket": "ST-LN-3",
+      "class": "planner: writing",
+      "weighted": 147043,
+      "peak": 64672,
+      "minutes": 2.1
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a2630dc6d9663a382.jsonl",
+      "ticket": "BUG-LN-3",
+      "class": "critic: plan round 1, lens criteria",
+      "weighted": 290545,
+      "peak": 74996,
+      "minutes": 5.1
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a266bbf29af457289.jsonl",
+      "ticket": "BUG-LN-3",
+      "class": "critic: approach, first",
+      "weighted": 319277,
+      "peak": 77737,
+      "minutes": 5.8
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a268d6a0a79fa7176.jsonl",
+      "ticket": "BUG-LN-1",
+      "class": "critic: approach, first",
+      "weighted": 351943,
+      "peak": 85446,
+      "minutes": 5.4
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a29be0c435bce4607.jsonl",
+      "ticket": "ST-LN-2",
+      "class": "critic: approach, first",
+      "weighted": 162805,
+      "peak": 51800,
+      "minutes": 2.9
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a30929ee728583b3b.jsonl",
+      "ticket": "ST-LN-3",
+      "class": "critic: approach, first",
+      "weighted": 600955,
+      "peak": 115258,
+      "minutes": 6.5
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a355109d8426435cf.jsonl",
+      "ticket": "ST-LN-4",
+      "class": "planner: writing",
+      "weighted": 433280,
+      "peak": 112526,
+      "minutes": 5.9
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a39e3eab2be92abb9.jsonl",
+      "ticket": "BUG-LN-2",
+      "class": "critic: plan round 1, lens criteria",
+      "weighted": 183215,
+      "peak": 68176,
+      "minutes": 2.2
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a3b86a17df3b507dc.jsonl",
+      "ticket": "BUG-LN-2",
+      "class": "critic: plan later, diff",
+      "weighted": 155407,
+      "peak": 58108,
+      "minutes": 2.6
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a3dbd59e0ecf0c6ef.jsonl",
+      "ticket": "BUG-LN-1",
+      "class": "planner: writing",
+      "weighted": 321536,
+      "peak": 90780,
+      "minutes": 7
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a473483ce3d639ccc.jsonl",
+      "ticket": "BUG-LN-3",
+      "class": "planner: writing",
+      "weighted": 131780,
+      "peak": 52273,
+      "minutes": 2.4
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a477fa24bdfc4ba03.jsonl",
+      "ticket": "IDS-1",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 715283,
+      "peak": 143551,
+      "minutes": 7.7
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a48020a5f920e363b.jsonl",
+      "ticket": "ST-LN-4",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 56016,
+      "peak": 40629,
+      "minutes": 1.7
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a48d3cce248ed96a2.jsonl",
+      "ticket": "ST-LN-3",
+      "class": "critic: approach, first",
+      "weighted": 362534,
+      "peak": 93398,
+      "minutes": 4.5
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a5228ecf92ff3d50f.jsonl",
+      "ticket": "ST-LN-4",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 319825,
+      "peak": 85193,
+      "minutes": 4.7
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a542ef89f46c42497.jsonl",
+      "ticket": "ST-LN-4",
+      "class": "planner: writing",
+      "weighted": 126710,
+      "peak": 49161,
+      "minutes": 1.9
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a6143d4eba6dad4ba.jsonl",
+      "ticket": "IDS-1",
+      "class": "planner: writing",
+      "weighted": 280283,
+      "peak": 73651,
+      "minutes": 3
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a65e2899bfd716954.jsonl",
+      "ticket": "ST-LN-4",
+      "class": "planner: writing",
+      "weighted": 151713,
+      "peak": 54618,
+      "minutes": 2
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a6734781120e3158a.jsonl",
+      "ticket": "ST-LN-3",
+      "class": "planner: fix",
+      "weighted": 64767,
+      "peak": 42378,
+      "minutes": 0.6
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a68decb879805796a.jsonl",
+      "ticket": "ST-LN-3",
+      "class": "critic: approach, first",
+      "weighted": 433358,
+      "peak": 115903,
+      "minutes": 5
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a69d154bd391d12e7.jsonl",
+      "ticket": "ST-LN-4",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 216985,
+      "peak": 74799,
+      "minutes": 4.3
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a6a3bc6ee02f1b414.jsonl",
+      "ticket": "ST-LN-2",
+      "class": "planner: writing",
+      "weighted": 231690,
+      "peak": 67665,
+      "minutes": 2.3
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a6ebb5ad21a85eef3.jsonl",
+      "ticket": "ST-LN-2",
+      "class": "planner: writing",
+      "weighted": 1642514,
+      "peak": 209483,
+      "minutes": 25.5
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a70e619ad47a612ab.jsonl",
+      "ticket": "ST-LN-2",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 709543,
+      "peak": 122610,
+      "minutes": 5.8
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a722006f243348876.jsonl",
+      "ticket": "ST-LN-3",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 356128,
+      "peak": 106213,
+      "minutes": 4.2
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a7261ce04c91035e8.jsonl",
+      "ticket": "IDS-1",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 728199,
+      "peak": 120582,
+      "minutes": 7.5
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a72839904944018d7.jsonl",
+      "ticket": "ST-LN-3",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 139594,
+      "peak": 68917,
+      "minutes": 2.7
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a7498a78dc844a108.jsonl",
+      "ticket": "BUG-LN-3",
+      "class": "planner: fix",
+      "weighted": 29631,
+      "peak": 20988,
+      "minutes": 0.5
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a7597950c955c691d.jsonl",
+      "ticket": "BUG-LN-3",
+      "class": "planner: fix",
+      "weighted": 61594,
+      "peak": 29727,
+      "minutes": 0.7
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a76d23ea507289b05.jsonl",
+      "ticket": "ST-LN-4",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 473251,
+      "peak": 106584,
+      "minutes": 5.5
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a77beff46e40a027d.jsonl",
+      "ticket": "BUG-LN-2",
+      "class": "planner: writing",
+      "weighted": 369130,
+      "peak": 92456,
+      "minutes": 3.5
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a79ef9e010a5f701b.jsonl",
+      "ticket": "BUG-LN-3",
+      "class": "planner: writing",
+      "weighted": 216780,
+      "peak": 63546,
+      "minutes": 3.7
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a7a1041d03712678c.jsonl",
+      "ticket": "ST-LN-3",
+      "class": "planner: writing",
+      "weighted": 2217023,
+      "peak": 212297,
+      "minutes": 53
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a7e065d4aedc08ee6.jsonl",
+      "ticket": "BUG-LN-1",
+      "class": "planner: writing",
+      "weighted": 218480,
+      "peak": 67515,
+      "minutes": 2.7
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a8152eade799c724c.jsonl",
+      "ticket": "ST-LN-4",
+      "class": "planner: writing",
+      "weighted": 97052,
+      "peak": 43696,
+      "minutes": 1.2
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a8b6c4f92394ea4c7.jsonl",
+      "ticket": "IDS-1",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 643001,
+      "peak": 125981,
+      "minutes": 7
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a8d309201e31f7817.jsonl",
+      "ticket": "ST-LN-3",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 703880,
+      "peak": 148260,
+      "minutes": 7.1
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a905c253ec1378300.jsonl",
+      "ticket": "IDS-1",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 1043696,
+      "peak": 165099,
+      "minutes": 11.2
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a91209aacd09deeb1.jsonl",
+      "ticket": "ST-LN-2",
+      "class": "critic: approach, first",
+      "weighted": 310406,
+      "peak": 71205,
+      "minutes": 4.2
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a91bff251071415b5.jsonl",
+      "ticket": "BUG-LN-2",
+      "class": "planner: fix",
+      "weighted": 51773,
+      "peak": 33808,
+      "minutes": 0.3
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a92cf5fe746d3e2b7.jsonl",
+      "ticket": "ST-LN-3",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 389445,
+      "peak": 103341,
+      "minutes": 4.6
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-a9a64543d732b4e5b.jsonl",
+      "ticket": "ST-LN-3",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 918315,
+      "peak": 189126,
+      "minutes": 9.3
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-aa0387620ab822dc7.jsonl",
+      "ticket": "BUG-LN-2",
+      "class": "critic: plan round 1, lens criteria",
+      "weighted": 511055,
+      "peak": 106486,
+      "minutes": 7
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-aa0c68f2be423f2a7.jsonl",
+      "ticket": "ST-LN-3",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 282096,
+      "peak": 93958,
+      "minutes": 2.9
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-aa5ebc3191ae7e68f.jsonl",
+      "ticket": "ST-LN-4",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 192408,
+      "peak": 68733,
+      "minutes": 2.8
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-aaad008b18093ff50.jsonl",
+      "ticket": "ST-LN-4",
+      "class": "planner: writing",
+      "weighted": 316060,
+      "peak": 86110,
+      "minutes": 4.5
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-aac86de4225afc5ab.jsonl",
+      "ticket": "BUG-LN-2",
+      "class": "planner: writing",
+      "weighted": 967177,
+      "peak": 159567,
+      "minutes": 31.9
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-aae18b751130dd5dd.jsonl",
+      "ticket": "ST-LN-2",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 605155,
+      "peak": 130135,
+      "minutes": 5.2
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-ab38f44a7ee20d550.jsonl",
+      "ticket": "ST-LN-3",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 130312,
+      "peak": 69484,
+      "minutes": 2.2
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-ab82e59a1a42e4e01.jsonl",
+      "ticket": "BUG-LN-1",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 329206,
+      "peak": 73328,
+      "minutes": 3.1
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-abcd91bd6706cc3ab.jsonl",
+      "ticket": "ST-LN-1",
+      "class": "planner: writing",
+      "weighted": 162516,
+      "peak": 55005,
+      "minutes": 2.4
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-abd9e229d8f729310.jsonl",
+      "ticket": "ST-LN-4",
+      "class": "planner: writing",
+      "weighted": 159481,
+      "peak": 54333,
+      "minutes": 2.3
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-ac6e8615f2c16de72.jsonl",
+      "ticket": "IDS-1",
+      "class": "critic: approach, first",
+      "weighted": 148030,
+      "peak": 53752,
+      "minutes": 3.8
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-acbb9c4c4429c8fac.jsonl",
+      "ticket": "ST-LN-3",
+      "class": "planner: fix",
+      "weighted": 111374,
+      "peak": 54774,
+      "minutes": 1.3
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-acc1b993fe17365e6.jsonl",
+      "ticket": "IDS-1",
+      "class": "critic: approach, first",
+      "weighted": 209699,
+      "peak": 61472,
+      "minutes": 3.7
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-ace4d8e754456b3f0.jsonl",
+      "ticket": "IDS-1",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 570189,
+      "peak": 111562,
+      "minutes": 6.3
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-ace920c3f2b7a7b8c.jsonl",
+      "ticket": "ST-LN-3",
+      "class": "planner: fix",
+      "weighted": 41641,
+      "peak": 24376,
+      "minutes": 0.3
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-ad98dce61d1fc8e94.jsonl",
+      "ticket": "ST-LN-2",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 664856,
+      "peak": 129476,
+      "minutes": 6.3
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-adcf0f86120c2f918.jsonl",
+      "ticket": "BUG-LN-1",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 390813,
+      "peak": 84892,
+      "minutes": 4
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-ade0d6e4badda53f5.jsonl",
+      "ticket": "BUG-LN-3",
+      "class": "critic: plan later, diff",
+      "weighted": 87608,
+      "peak": 41859,
+      "minutes": 1.2
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-ade6aa837a074d3f3.jsonl",
+      "ticket": "ST-LN-1",
+      "class": "critic: approach, first",
+      "weighted": 237472,
+      "peak": 64915,
+      "minutes": 4.2
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-adf6f6beaf16a9b20.jsonl",
+      "ticket": "ST-LN-1",
+      "class": "planner: writing",
+      "weighted": 872395,
+      "peak": 164256,
+      "minutes": 9.3
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-ae2c29efe736d3a94.jsonl",
+      "ticket": "ST-LN-3",
+      "class": "planner: writing",
+      "weighted": 111132,
+      "peak": 46813,
+      "minutes": 1.2
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-ae4c801260d07d788.jsonl",
+      "ticket": "ST-LN-2",
+      "class": "critic: approach, first",
+      "weighted": 158548,
+      "peak": 51289,
+      "minutes": 2.5
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-ae4d68c2ecd9676b1.jsonl",
+      "ticket": "ST-LN-1",
+      "class": "critic: approach, first",
+      "weighted": 199250,
+      "peak": 57873,
+      "minutes": 3.7
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-ae6b96223efd8ca89.jsonl",
+      "ticket": "BUG-LN-1",
+      "class": "critic: approach, first",
+      "weighted": 318862,
+      "peak": 71344,
+      "minutes": 5
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-ae8fa09ffd0662dde.jsonl",
+      "ticket": "BUG-LN-2",
+      "class": "critic: plan round 1, lens build",
+      "weighted": 581943,
+      "peak": 130903,
+      "minutes": 5.5
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-ae93778e8e47ad85d.jsonl",
+      "ticket": "ST-LN-1",
+      "class": "planner: fix",
+      "weighted": 202791,
+      "peak": 59575,
+      "minutes": 2.6
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-af29bb072cf95d426.jsonl",
+      "ticket": "IDS-1",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 152662,
+      "peak": 53486,
+      "minutes": 2.3
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-af2fab19740ee109b.jsonl",
+      "ticket": "BUG-LN-2",
+      "class": "planner: fix",
+      "weighted": 189899,
+      "peak": 55599,
+      "minutes": 3
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-af39659b6173d2b36.jsonl",
+      "ticket": "ST-LN-3",
+      "class": "planner: writing",
+      "weighted": 696089,
+      "peak": 158337,
+      "minutes": 6.2
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-af41958fb7e3a5e91.jsonl",
+      "ticket": "BUG-LN-2",
+      "class": "critic: plan later, diff",
+      "weighted": 36306,
+      "peak": 26926,
+      "minutes": 0.3
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-af4f7a74258b18491.jsonl",
+      "ticket": "ST-LN-4",
+      "class": "critic: approach, first",
+      "weighted": 223220,
+      "peak": 63887,
+      "minutes": 3.5
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-af6091ee0e1dd3d31.jsonl",
+      "ticket": "IDS-1",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 198791,
+      "peak": 62181,
+      "minutes": 2.7
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-af69370a2011c9c98.jsonl",
+      "ticket": "IDS-1",
+      "class": "planner: writing",
+      "weighted": 2182772,
+      "peak": 172837,
+      "minutes": 66.9
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-afd0d4fc56e943199.jsonl",
+      "ticket": "BUG-LN-2",
+      "class": "critic: plan round 1, lens build",
+      "weighted": 1293269,
+      "peak": 198671,
+      "minutes": 12.5
+    },
+    {
+      "file": "accord/c3d77780-626d-4476-ae0d-3058eca7e240/subagents/agent-aff0ff08a96161598.jsonl",
+      "ticket": "BUG-LN-2",
+      "class": "planner: writing",
+      "weighted": 433620,
+      "peak": 108359,
+      "minutes": 15.4
+    },
+    {
+      "file": "accord/cc17354f-112e-474f-be39-8636aa1d136a/subagents/agent-a06cc8043fef26553.jsonl",
+      "ticket": "VID-1",
+      "class": "planner: writing",
+      "weighted": 214586,
+      "peak": 57720,
+      "minutes": 3
+    },
+    {
+      "file": "accord/cc17354f-112e-474f-be39-8636aa1d136a/subagents/agent-a09a3f77b5ef1b854.jsonl",
+      "ticket": "REFS-1",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 228029,
+      "peak": 70907,
+      "minutes": 3
+    },
+    {
+      "file": "accord/cc17354f-112e-474f-be39-8636aa1d136a/subagents/agent-a0b8231f1a6faf9c4.jsonl",
+      "ticket": "REFS-1",
+      "class": "critic: approach, first",
+      "weighted": 188828,
+      "peak": 55988,
+      "minutes": 3.2
+    },
+    {
+      "file": "accord/cc17354f-112e-474f-be39-8636aa1d136a/subagents/agent-a1418c91525a04d50.jsonl",
+      "ticket": "BASE-1",
+      "class": "planner: writing",
+      "weighted": 193793,
+      "peak": 67087,
+      "minutes": 2.5
+    },
+    {
+      "file": "accord/cc17354f-112e-474f-be39-8636aa1d136a/subagents/agent-a1d1d13982dc7cbf4.jsonl",
+      "ticket": "BASE-1",
+      "class": "critic: approach, first",
+      "weighted": 365022,
+      "peak": 96077,
+      "minutes": 4.6
+    },
+    {
+      "file": "accord/cc17354f-112e-474f-be39-8636aa1d136a/subagents/agent-a1e975d3b1d92174a.jsonl",
+      "ticket": "ASK-1",
+      "class": "planner: writing",
+      "weighted": 265215,
+      "peak": 76469,
+      "minutes": 3.5
+    },
+    {
+      "file": "accord/cc17354f-112e-474f-be39-8636aa1d136a/subagents/agent-a21b674add2d62e40.jsonl",
+      "ticket": "BASE-1",
+      "class": "critic: approach, first",
+      "weighted": 319583,
+      "peak": 83253,
+      "minutes": 4.4
+    },
+    {
+      "file": "accord/cc17354f-112e-474f-be39-8636aa1d136a/subagents/agent-a21bbb42c02a457f7.jsonl",
+      "ticket": "TAGS-1",
+      "class": "critic: approach, first",
+      "weighted": 188202,
+      "peak": 51862,
+      "minutes": 3.2
+    },
+    {
+      "file": "accord/cc17354f-112e-474f-be39-8636aa1d136a/subagents/agent-a23b0da6c54c7242f.jsonl",
+      "ticket": "SHOW-1",
+      "class": "critic: approach, first",
+      "weighted": 133905,
+      "peak": 49646,
+      "minutes": 2.1
+    },
+    {
+      "file": "accord/cc17354f-112e-474f-be39-8636aa1d136a/subagents/agent-a25f32d50ccba6bb7.jsonl",
+      "ticket": "TAGS-1",
+      "class": "planner: writing",
+      "weighted": 263186,
+      "peak": 74754,
+      "minutes": 4.7
+    },
+    {
+      "file": "accord/cc17354f-112e-474f-be39-8636aa1d136a/subagents/agent-a4f78dbf5c6686560.jsonl",
+      "ticket": "BASE-1",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 500437,
+      "peak": 110352,
+      "minutes": 5.6
+    },
+    {
+      "file": "accord/cc17354f-112e-474f-be39-8636aa1d136a/subagents/agent-a65ce382601837f9b.jsonl",
+      "ticket": "SHOW-1",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 258688,
+      "peak": 77673,
+      "minutes": 5.3
+    },
+    {
+      "file": "accord/cc17354f-112e-474f-be39-8636aa1d136a/subagents/agent-a6e7833eb28b9147f.jsonl",
+      "ticket": "BASE-1",
+      "class": "planner: writing",
+      "weighted": 1205889,
+      "peak": 148040,
+      "minutes": 28.8
+    },
+    {
+      "file": "accord/cc17354f-112e-474f-be39-8636aa1d136a/subagents/agent-a7adee93f29d98cb5.jsonl",
+      "ticket": "SHOW-1",
+      "class": "critic: approach, first",
+      "weighted": 142743,
+      "peak": 46017,
+      "minutes": 2.6
+    },
+    {
+      "file": "accord/cc17354f-112e-474f-be39-8636aa1d136a/subagents/agent-a80d352e3c23d13b6.jsonl",
+      "ticket": "TAGS-1",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 483591,
+      "peak": 106704,
+      "minutes": 8.1
+    },
+    {
+      "file": "accord/cc17354f-112e-474f-be39-8636aa1d136a/subagents/agent-a8730d8c9cfd75af1.jsonl",
+      "ticket": "BASE-1",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 481318,
+      "peak": 96393,
+      "minutes": 5.3
+    },
+    {
+      "file": "accord/cc17354f-112e-474f-be39-8636aa1d136a/subagents/agent-a8a57971e31dbfbd8.jsonl",
+      "ticket": "ASK-1",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 248483,
+      "peak": 74685,
+      "minutes": 2.9
+    },
+    {
+      "file": "accord/cc17354f-112e-474f-be39-8636aa1d136a/subagents/agent-a8b22933594e0bb78.jsonl",
+      "ticket": "BASE-1",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 574724,
+      "peak": 123877,
+      "minutes": 6.3
+    },
+    {
+      "file": "accord/cc17354f-112e-474f-be39-8636aa1d136a/subagents/agent-a99e54bab285aeba1.jsonl",
+      "ticket": "SHOW-1",
+      "class": "planner: writing",
+      "weighted": 261875,
+      "peak": 69093,
+      "minutes": 3.6
+    },
+    {
+      "file": "accord/cc17354f-112e-474f-be39-8636aa1d136a/subagents/agent-a9e4fb534413c6a7b.jsonl",
+      "ticket": "SHOW-1",
+      "class": "critic: approach, first",
+      "weighted": 203224,
+      "peak": 55923,
+      "minutes": 4
+    },
+    {
+      "file": "accord/cc17354f-112e-474f-be39-8636aa1d136a/subagents/agent-aa06368f610d12eba.jsonl",
+      "ticket": "VID-1",
+      "class": "critic: approach, first",
+      "weighted": 249662,
+      "peak": 70000,
+      "minutes": 3.7
+    },
+    {
+      "file": "accord/cc17354f-112e-474f-be39-8636aa1d136a/subagents/agent-aa16eeca17612d8d6.jsonl",
+      "ticket": "TAGS-1",
+      "class": "planner: writing",
+      "weighted": 1174494,
+      "peak": 139360,
+      "minutes": 40.4
+    },
+    {
+      "file": "accord/cc17354f-112e-474f-be39-8636aa1d136a/subagents/agent-aac1f2a3a881ee1ec.jsonl",
+      "ticket": "SHOW-1",
+      "class": "planner: writing",
+      "weighted": 194382,
+      "peak": 56001,
+      "minutes": 2.7
+    },
+    {
+      "file": "accord/cc17354f-112e-474f-be39-8636aa1d136a/subagents/agent-ab82b1a3054aa65e4.jsonl",
+      "ticket": "TAGS-1",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 630701,
+      "peak": 130623,
+      "minutes": 8.3
+    },
+    {
+      "file": "accord/cc17354f-112e-474f-be39-8636aa1d136a/subagents/agent-ac1ef9c6997b1dd93.jsonl",
+      "ticket": "REFS-1",
+      "class": "critic: approach, first",
+      "weighted": 244187,
+      "peak": 59718,
+      "minutes": 3.9
+    },
+    {
+      "file": "accord/cc17354f-112e-474f-be39-8636aa1d136a/subagents/agent-ac3180de4c74b9ff8.jsonl",
+      "ticket": "VID-1",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 312643,
+      "peak": 81539,
+      "minutes": 4.3
+    },
+    {
+      "file": "accord/cc17354f-112e-474f-be39-8636aa1d136a/subagents/agent-ac6420bf7d808e34f.jsonl",
+      "ticket": "TAGS-1",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 364604,
+      "peak": 82052,
+      "minutes": 5.6
+    },
+    {
+      "file": "accord/cc17354f-112e-474f-be39-8636aa1d136a/subagents/agent-ac818eee80ddcc25a.jsonl",
+      "ticket": "VID-1",
+      "class": "planner: writing",
+      "weighted": 280735,
+      "peak": 80616,
+      "minutes": 3.7
+    },
+    {
+      "file": "accord/cc17354f-112e-474f-be39-8636aa1d136a/subagents/agent-acc9a35664d1e4bfd.jsonl",
+      "ticket": "SHOW-1",
+      "class": "critic: approach, first",
+      "weighted": 96614,
+      "peak": 40330,
+      "minutes": 2.2
+    },
+    {
+      "file": "accord/cc17354f-112e-474f-be39-8636aa1d136a/subagents/agent-ad8f94e11457dd6b9.jsonl",
+      "ticket": "VID-1",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 342466,
+      "peak": 85235,
+      "minutes": 4.3
+    },
+    {
+      "file": "accord/cc17354f-112e-474f-be39-8636aa1d136a/subagents/agent-ae5a603b2ab6f7cb9.jsonl",
+      "ticket": "ASK-1",
+      "class": "critic: approach, first",
+      "weighted": 348024,
+      "peak": 92697,
+      "minutes": 5.1
+    },
+    {
+      "file": "accord/cc17354f-112e-474f-be39-8636aa1d136a/subagents/agent-ae6424fa29d942d0e.jsonl",
+      "ticket": "ASK-1",
+      "class": "planner: writing",
+      "weighted": 186107,
+      "peak": 58158,
+      "minutes": 2.5
+    },
+    {
+      "file": "accord/cc17354f-112e-474f-be39-8636aa1d136a/subagents/agent-ae654ea4be42ff61c.jsonl",
+      "ticket": "REFS-1",
+      "class": "planner: writing",
+      "weighted": 201745,
+      "peak": 56814,
+      "minutes": 2.6
+    },
+    {
+      "file": "accord/cc17354f-112e-474f-be39-8636aa1d136a/subagents/agent-aeccdfd3083e26d48.jsonl",
+      "ticket": "VID-1",
+      "class": "planner: fix",
+      "weighted": 78842,
+      "peak": 30646,
+      "minutes": 1.2
+    },
+    {
+      "file": "accord/cc17354f-112e-474f-be39-8636aa1d136a/subagents/agent-aedff485d217dff15.jsonl",
+      "ticket": "REFS-1",
+      "class": "planner: writing",
+      "weighted": 213221,
+      "peak": 65940,
+      "minutes": 2.6
+    },
+    {
+      "file": "accord/cc17354f-112e-474f-be39-8636aa1d136a/subagents/agent-af55ba684f25683c5.jsonl",
+      "ticket": "ASK-1",
+      "class": "critic: approach, first",
+      "weighted": 187165,
+      "peak": 57536,
+      "minutes": 3.7
+    },
+    {
+      "file": "accord/cc17354f-112e-474f-be39-8636aa1d136a/subagents/agent-af7c4e66971f19088.jsonl",
+      "ticket": "SHOW-1",
+      "class": "critic: approach, first",
+      "weighted": 163011,
+      "peak": 52528,
+      "minutes": 2.8
+    },
+    {
+      "file": "accord/cc17354f-112e-474f-be39-8636aa1d136a/subagents/agent-afa98514004d3b0b7.jsonl",
+      "ticket": "TAGS-1",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 587567,
+      "peak": 117049,
+      "minutes": 8.6
+    },
+    {
+      "file": "accord/ddebb831-5b27-4d7f-b627-a62583202755/subagents/agent-a1c0720404e33cabe.jsonl",
+      "ticket": "BUG-LN-8",
+      "class": "critic: plan round 1, lens security",
+      "weighted": 468532,
+      "peak": 96026,
+      "minutes": 9.7
+    },
+    {
+      "file": "accord/ddebb831-5b27-4d7f-b627-a62583202755/subagents/agent-a23fbe0dccbcfd483.jsonl",
+      "ticket": "BUG-LN-8",
+      "class": "planner: writing",
+      "weighted": 255809,
+      "peak": 71242,
+      "minutes": 3.8
+    },
+    {
+      "file": "accord/ddebb831-5b27-4d7f-b627-a62583202755/subagents/agent-a266ba0df5d69b902.jsonl",
+      "ticket": "BUG-LN-8",
+      "class": "critic: plan round 1, no lens",
+      "weighted": 881185,
+      "peak": 128034,
+      "minutes": 22
+    },
+    {
+      "file": "accord/ddebb831-5b27-4d7f-b627-a62583202755/subagents/agent-a8faed41480d0b7ed.jsonl",
+      "ticket": "BUG-LN-8",
+      "class": "critic: plan later, diff",
+      "weighted": 291149,
+      "peak": 74190,
+      "minutes": 4.7
+    },
+    {
+      "file": "accord/ddebb831-5b27-4d7f-b627-a62583202755/subagents/agent-a91c4c9cb9fe4adac.jsonl",
+      "ticket": "BUG-LN-8",
+      "class": "critic: approach, first",
+      "weighted": 550409,
+      "peak": 107148,
+      "minutes": 8.7
+    },
+    {
+      "file": "accord/ddebb831-5b27-4d7f-b627-a62583202755/subagents/agent-ab97728a8a4c3e5e3.jsonl",
+      "ticket": "BUG-LN-8",
+      "class": "planner: writing",
+      "weighted": 184838,
+      "peak": 63596,
+      "minutes": 3.2
+    },
+    {
+      "file": "accord/ddebb831-5b27-4d7f-b627-a62583202755/subagents/agent-ae67f9265bc9bcb15.jsonl",
+      "ticket": "BUG-LN-8",
+      "class": "planner: fix",
+      "weighted": 150774,
+      "peak": 52936,
+      "minutes": 2.3
+    },
+    {
+      "file": "accord/f9a01bf4-dccd-4df4-9462-329f97db879c/subagents/agent-a41c2e39a3f34ae79.jsonl",
+      "ticket": "ST-LN-20",
+      "class": "critic: plan later, diff",
+      "weighted": 129402,
+      "peak": 53167,
+      "minutes": 2
+    },
+    {
+      "file": "accord/f9a01bf4-dccd-4df4-9462-329f97db879c/subagents/agent-a4923ca0f38fc6f95.jsonl",
+      "ticket": "ST-LN-19",
+      "class": "planner: writing",
+      "weighted": 515906,
+      "peak": 115052,
+      "minutes": 8
+    },
+    {
+      "file": "accord/f9a01bf4-dccd-4df4-9462-329f97db879c/subagents/agent-a70a73018e5a42a12.jsonl",
+      "ticket": "ST-LN-19",
+      "class": "critic: approach, first",
+      "weighted": 455571,
+      "peak": 98268,
+      "minutes": 9.3
+    },
+    {
+      "file": "accord/f9a01bf4-dccd-4df4-9462-329f97db879c/subagents/agent-a8645c0cc81ca306a.jsonl",
+      "ticket": "ST-LN-19",
+      "class": "planner: writing",
+      "weighted": 596024,
+      "peak": 140377,
+      "minutes": 8.1
+    },
+    {
+      "file": "accord/f9a01bf4-dccd-4df4-9462-329f97db879c/subagents/agent-aa25136fa144e9d0c.jsonl",
+      "ticket": "ST-LN-19",
+      "class": "planner: fix",
+      "weighted": 141333,
+      "peak": 51122,
+      "minutes": 2.2
+    },
+    {
+      "file": "accord/f9a01bf4-dccd-4df4-9462-329f97db879c/subagents/agent-abd3b8229b58a7442.jsonl",
+      "ticket": "ST-LN-20",
+      "class": "critic: plan round 1, lens criteria",
+      "weighted": 552411,
+      "peak": 123227,
+      "minutes": 6.7
+    },
+    {
+      "file": "accord/f9a01bf4-dccd-4df4-9462-329f97db879c/subagents/agent-ac247f5d32e938c64.jsonl",
+      "ticket": "ST-LN-20",
+      "class": "critic: plan round 1, lens build",
+      "weighted": 734453,
+      "peak": 134379,
+      "minutes": 7.7
+    }
+  ]
+}

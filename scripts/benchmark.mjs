@@ -293,6 +293,7 @@ function parseRun(file, id, meta, lines, session) {
     if (est > t.u.output) { t.u.output = est; usage.estimated = true; }
     for (const key of ['input', 'cacheRead', 'cacheWrite', 'output']) usage[key] += t.u[key];
   }
+  const peak = Math.max(0, ...[...turnsById.values()].map((t) => t.u.input + t.u.cacheRead + t.u.cacheWrite)); // largest single-message context (ST-LN-95)
   const desc = meta.description ?? '';
   const use = session.uses.get(meta.toolUseId);
   return {
@@ -305,7 +306,7 @@ function parseRun(file, id, meta, lines, session) {
     ms: times.slice(1).reduce((sum, x, i) => sum + Math.min(x - times[i], 10 * 60000), 0),
     dispatch: use ? { ...use.input, ts: use.ts, cwd: use.cwd } : null,
     turns: [...turnsById.values()].map(({ id: tid, ts, model, requestedModel, effort, perTurnEffort }) => ({ id: tid, ts, model, requestedModel, effort, perTurnEffort })),
-    usage, edits, commits: [...new Set(commitRows)], reads, handbacks,
+    usage, peak, edits, commits: [...new Set(commitRows)], reads, handbacks,
     outcome: (lastText.match(/^\s*(DONE|BLOCKED[^\n]*|NEEDS_CONTEXT)/) ?? [])[1]?.slice(0, 40) ?? '',
     lastText, sends: session.sends.filter((s) => s.to === id),
   };

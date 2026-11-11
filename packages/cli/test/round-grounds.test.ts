@@ -59,3 +59,77 @@ it('risk:complex-branching a record whose round 1 was committed under the older 
     cleanup(repo);
   }
 });
+
+const KINDS = [
+  { flag: '--plan', file: 'accord/tickets/T-1/plan-review.md' },
+  { flag: '--approach', file: 'accord/tickets/T-1/approach-review.md' },
+] as const;
+const ROUND_1 = 'Round record: 1\n\n## Round 1 (whole)\n\n1. Must — the plan drops a header — fixed\n\n';
+const later = (finding: string): string => `${ROUND_1}## Round 2 (diff)\n\n${finding}\n`;
+const unmarked = '1. Should — the impact list misses a caller — open';
+
+/** A branch whose record's round 1 is committed under `pin` (main's config pins `base`) and whose HEAD config is CONFIG. */
+function recordRepo(file: string, pin: string, base = '0.4.0'): { repo: string; write: (finding: string) => void } {
+  const repo = makeEmptyRepo();
+  writeFiles(repo, { 'accord/config.yml': pinned(base), 'accord/tickets/T-1.md': laneTicket('T-1') });
+  commitMsg(repo, 'base');
+  gitRun(repo, 'branch', '-M', 'main');
+  gitRun(repo, 'switch', '-q', '-c', 't/T-1');
+  writeFiles(repo, { 'accord/config.yml': pinned(pin), [file]: ROUND_1 });
+  commitMsg(repo, 'record round 1');
+  writeFiles(repo, { 'accord/config.yml': CONFIG, 'src/b.ts': 'export const b = 1;\n' });
+  commitMsg(repo, 'config back to the running version');
+  return {
+    repo,
+    write: (finding: string): void => {
+      writeFiles(repo, { [file]: later(finding) });
+      commitMsg(repo, 'record round 2');
+    },
+  };
+}
+
+it("risk:complex-branching accord round --plan and --approach read the pin of the record's first round from git (ST-LN-91 ac-1)", async () => {
+  for (const { flag, file } of KINDS) {
+    const cut = recordRepo(file, GROUNDS_V2_FROM);
+    try {
+      cut.write(unmarked);
+      const refused = await run(['round', 'T-1', flag], cut.repo);
+      expect(refused.code, flag).toBe(1);
+      expect(refused.out, flag).toContain('refused:');
+      expect(refused.out, flag).toContain('round 2');
+      expect(refused.out, flag).toContain('rests on');
+
+      cut.write(unmarked + ' — rests on: ac-1');
+      const grounded = await run(['round', 'T-1', flag], cut.repo);
+      expect(grounded.out, flag).toContain('Round: 3 of 5');
+      expect(grounded.code, flag).toBe(0);
+    } finally {
+      cleanup(cut.repo);
+    }
+
+    const older = recordRepo(file, '0.4.0');
+    try {
+      older.write(unmarked);
+      const r = await run(['round', 'T-1', flag], older.repo);
+      expect(r.out, flag).toContain('Round: 3 of 5');
+      expect(r.code, flag).toBe(0);
+    } finally {
+      cleanup(older.repo);
+    }
+  }
+}, 120_000);
+
+it('risk:complex-branching a pin lowered on the branch below the default branch pin counts as the cut-off for plan and approach records (ST-LN-91 ac-1)', async () => {
+  for (const { flag, file } of KINDS) {
+    const lowered = recordRepo(file, '0.4.0', GROUNDS_V2_FROM);
+    try {
+      lowered.write(unmarked);
+      const r = await run(['round', 'T-1', flag], lowered.repo);
+      expect(r.code, flag).toBe(1);
+      expect(r.out, flag).toContain('refused:');
+      expect(r.out, flag).toContain('round 2');
+    } finally {
+      cleanup(lowered.repo);
+    }
+  }
+}, 120_000);

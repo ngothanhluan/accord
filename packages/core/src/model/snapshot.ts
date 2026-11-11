@@ -182,7 +182,8 @@ export interface Ledger {
   rulings: string[]; // every 'Ruling: …' line, list marker stripped
   rulingsSection?: string[]; // the '## Rulings' section's non-blank lines as written, comments stripped; absent without one
   wordingOnly?: { path: string; reason: string }[]; // every 'Wording-only: <path> — <reason>' line; absent when none
-  deferred?: { round: number; n: number; cycle: number }[]; // '- review <r>.<n>[ cycle <k>]: …' lines of the first '## Deferred' section; absent when none
+  // '- <review|plan|approach> <r>.<n>[ cycle <k>]: …' lines of the first '## Deferred' section; failingCase: the line holds ' — failing case: <case>' (ST-LN-91 D-12); absent when none
+  deferred?: { kind: 'review' | 'plan' | 'approach'; round: number; n: number; cycle: number; failingCase?: true }[];
 }
 
 export interface Review {

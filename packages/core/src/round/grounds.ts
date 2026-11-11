@@ -90,7 +90,7 @@ export function needsGrounds(snapshot: RepoSnapshot, id: string, at: Placed, f: 
 }
 
 /** The reason of one ungrounded finding; the forms a ticket line takes depend on the lane, and a Correction counts from GROUNDS_V2_FROM. */
-function reasonOf(ticket: Ticket, where: string, v2: boolean): string {
+function reasonOf(ticket: Ticket, where: string, v2: boolean, kind: RoundKind): string {
   const lines =
     ticket.frontmatter?.lane === 'S'
       ? 'Understood "<quote>" or Done when "<quote>"'
@@ -100,8 +100,57 @@ function reasonOf(ticket: Ticket, where: string, v2: boolean): string {
   const ask = `a ticket line it rests on (rests on: ${lines}, a line the ticket holds, a quote of at least three words)`;
   return v2
     ? `${where}: from round 2 a Must or Should needs ${ask}, or test: or command:, or risk: data-loss or risk: security; ` +
-        'otherwise it does not block: write it deferred with its failing case under ## Deferred in the ledger'
+        `otherwise write it deferred and add under ## Deferred in the ledger: - ${kind} <round>.<n>[ cycle <k>]: <finding> — failing case: <case>`
     : `${where}: from round 3 a Should needs ${ask} or test: or command:; otherwise it is a Nice`;
+}
+
+/** ST-LN-91 D-12: the ledger's ## Deferred holds the line of finding `n` of round `round` of cycle `cycle` of this record, with a failing case. */
+const hasFailingCase = (snapshot: RepoSnapshot, id: string, kind: RoundKind, round: number, n: number | undefined, cycle: number): boolean =>
+  n !== undefined &&
+  (workOf(snapshot, id)?.ledger?.deferred ?? []).some((d) => d.kind === kind && d.round === round && d.n === n && d.cycle === cycle && d.failingCase === true);
+
+/** One finding the grounds rule has something to say about: `risk` a risk-tagged finding written deferred; `ungrounded` one that rests on nothing; `excused` the latter deferred with its line and failing case. */
+interface Verdict { f: RoundFinding; cycle: number; round: number; what: 'risk' | 'ungrounded' | 'excused' }
+
+/** Every verdict of the record, in record line order; none when the grounds rule of this kind does not apply (an older pin, a record git could not read). */
+function verdictsOf(snapshot: RepoSnapshot, id: string, kind: RoundKind): Verdict[] {
+  const ticket = laneTicket(snapshot, id);
+  const work = workOf(snapshot, id);
+  const rec = kind === 'review' ? work?.rounds : kind === 'plan' ? work?.planRounds : work?.approachRounds;
+  if (ticket === undefined || rec === undefined || !groundsV2(snapshot, id, kind)) return [];
+  const out: Verdict[] = [];
+  // D-12: a risk finding blocks in every round and is never deferred; a Must or Should that rests on nothing may be deferred with its failing case.
+  const judge = (f: RoundFinding, cycle: number, round: number, asked: boolean): void => {
+    if (f.risk !== undefined && f.state === 'deferred') {
+      out.push({ f, cycle, round, what: 'risk' });
+      return;
+    }
+    if (!asked || f.test !== undefined || f.command !== undefined || restsOnHolds(ticket, f)) return;
+    out.push({ f, cycle, round, what: f.state === 'deferred' && hasFailingCase(snapshot, id, kind, round, f.n, cycle) ? 'excused' : 'ungrounded' });
+  };
+  if (kind !== 'review') {
+    const fact = snapshot.recordPins?.[id]?.[kind];
+    if (fact !== undefined && 'error' in fact) return [];
+    rec.cycles.forEach((cycle, i) => {
+      cycle.rounds.forEach((round, k) => {
+        for (const f of round.findings) judge(f, i + 1, k + 1, k + 1 >= FROM_ROUND_V2 && f.severity !== 'Nice' && f.carried === undefined && f.risk === undefined);
+      });
+    });
+    return out;
+  }
+  if (rec.version !== 2) return out;
+  for (const at of placedRounds(rec)) {
+    for (const f of at.round.findings) judge(f, at.cycle, at.p, needsGrounds(snapshot, id, at, f));
+  }
+  return out;
+}
+
+/**
+ * ST-LN-91 D-12: the findings of one cycle (0-based) that the grounds rule skipped because they rest on nothing but are written deferred
+ * with their line and failing case; they leave ST-LN-17's stop. A risk-tagged finding is never among them.
+ */
+export function groundsDeferred(snapshot: RepoSnapshot, id: string, kind: RoundKind, cycle: number): ReadonlySet<RoundFinding> {
+  return new Set(verdictsOf(snapshot, id, kind).filter((v) => v.what === 'excused' && v.cycle === cycle + 1).map((v) => v.f));
 }
 
 /**
@@ -120,23 +169,23 @@ export function groundsProblems(snapshot: RepoSnapshot, id: string, kind: RoundK
     if (!v2) return out;
     const fact = snapshot.recordPins?.[id]?.[kind];
     if (fact !== undefined && 'error' in fact) return [{ reason: fact.error }];
-    rec.cycles.forEach((cycle, i) => {
-      cycle.rounds.forEach((round, k) => {
-        if (k + 1 < FROM_ROUND_V2) return;
-        for (const f of round.findings) {
-          if (f.severity === 'Nice' || f.carried !== undefined || f.risk !== undefined || f.test !== undefined || f.command !== undefined) continue;
-          if (restsOnHolds(ticket, f)) continue;
-          out.push({ line: f.line, reason: reasonOf(ticket, `round ${k + 1} of cycle ${i + 1}, finding ${f.n ?? 'at line ' + f.line}`, true) });
-        }
-      });
-    });
+  }
+  if (v2) {
+    for (const { f, cycle, round, what } of verdictsOf(snapshot, id, kind)) {
+      const where = `round ${round} of cycle ${cycle}, finding ${f.n ?? 'at line ' + f.line}`;
+      if (what === 'risk') {
+        out.push({ line: f.line, reason: `${where}: a finding tagged risk: ${f.risk} blocks in every round and is never deferred; fix it` });
+      } else if (what === 'ungrounded') {
+        out.push({ line: f.line, reason: reasonOf(ticket, where, true, kind) });
+      }
+    }
     return out;
   }
   for (const at of placedRounds(rec)) {
     for (const f of at.round.findings) {
       if (!needsGrounds(snapshot, id, at, f)) continue;
       if (f.test !== undefined || f.command !== undefined || restsOnHolds(ticket, f)) continue;
-      out.push({ line: f.line, reason: reasonOf(ticket, `round ${at.p} of cycle ${at.cycle}, finding ${f.n}`, v2) });
+      out.push({ line: f.line, reason: reasonOf(ticket, `round ${at.p} of cycle ${at.cycle}, finding ${f.n}`, false, kind) });
     }
   }
   return out;

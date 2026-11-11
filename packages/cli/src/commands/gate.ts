@@ -6,7 +6,7 @@
 // goes to stderr, so `jq '.findings[]'` works with no unwrapping (D-98).
 import { gateDone, gatePlan, gateReady, renderText, workOf } from '@accord-dev/accord-core';
 import { gitAfterReview, gitBranchCommits, gitPlanHistory, gitRecordsSinceFor, gitReviewCommit, gitReviewFact, UsageError, withDefaultRef, withReturnFacts } from '../load/fs.js';
-import { withRoundFacts } from '../load/round-facts.js';
+import { withRecordPins, withRoundFacts } from '../load/round-facts.js';
 import { colourFindings } from '../render/color.js';
 import { branchFactFor } from './branch-fact.js';
 import type { CommandContext } from '../run.js';
@@ -43,7 +43,8 @@ export function gate(
   // ST-LN-63: the history Plan and Done read is loaded here for the gated ticket alone, never at load for every ticket.
   const gated =
     which === 'plan'
-      ? { ...ctx.snapshot, ...gitPlanHistory(ctx.root, ctx.snapshot, id) }
+      ? // ST-LN-91 D-12: a deferral leaves the stop at gate plan as it does at accord round, so the record's pin is read when a stop is possible (round 3).
+        withRecordPins(ctx.root, { ...ctx.snapshot, ...gitPlanHistory(ctx.root, ctx.snapshot, id) }, id, 'plan', 3)
       : which === 'done'
         ? { ...forScope, ...gitRecordsSinceFor(ctx.root, ctx.snapshot, id) }
         : ctx.snapshot;

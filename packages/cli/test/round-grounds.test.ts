@@ -168,3 +168,25 @@ it('risk:complex-branching accord round --plan and --approach let a deferred ung
     }
   }
 }, 120_000);
+
+it('risk:complex-branching gate plan lets a deferred ungrounded round 3 finding leave the stop and keeps a grounded one (ST-LN-91 ac-1)', async () => {
+  const file = 'accord/tickets/T-1/plan-review.md';
+  const rules = async (repo: string): Promise<string[]> => {
+    const gated = await run(['gate', 'plan', 'T-1', '--json'], repo);
+    return (JSON.parse(gated.out) as { findings: { rule: string }[] }).findings.map((f) => f.rule);
+  };
+  const { repo } = recordRepo(file, GROUNDS_V2_FROM);
+  try {
+    const rounds = (round3: string): string => `${ROUND_1}## Round 2 (diff)\n\n1. Nice — a name — deferred\n\n## Round 3 (diff)\n\n${round3}\n`;
+    // round 3 reports a Should that rests on nothing, deferred with its line and failing case
+    writeFiles(repo, { [LEDGER]: '## Rulings\n\n## Deferred\n- plan 3.1: impact list — failing case: a caller of export is not listed\n', [file]: rounds(deferredShould) });
+    writeFiles(repo, { [file]: rounds(deferredShould) });
+    expect(await rules(repo)).not.toContain('gate.plan-rounds');
+
+    // the same round 3 with a Should that rests on ac-1 and is open stops the loop for the owner
+    writeFiles(repo, { [file]: rounds('1. Should — the impact list misses a caller — open — rests on: ac-1') });
+    expect(await rules(repo)).toContain('gate.plan-rounds');
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);

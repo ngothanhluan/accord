@@ -2,30 +2,35 @@
 // Workflow metrics at one commit (ST-LN-95): rounds and findings per stage from accord's round records, counted by the
 // 2026-11-02 study's rule, and the cost of critic and planner runs where Claude Code transcripts exist.
 // Repo-internal: not shipped and not an accord command. Spawns only git, never through a shell.
-// Usage: node scripts/metrics.mjs [--at <commit>] [--label <name>] [--transcripts <folder>|none] [--out <dir>] [--stdout [--json]]
+// --plan-size (ST-LN-93 D-05) adds how many plans core's own size rule would refuse, at 2 x the ticket's @ac-n count.
+// Usage: node scripts/metrics.mjs [--at <commit>] [--label <name>] [--transcripts <folder>|none] [--out <dir>] [--plan-size] [--stdout [--json]]
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { STAGES, classifyRun, countRecord, stageTable, renderMarkdown, renderJson, weighted } from './metrics-count.mjs';
 import { readSessions } from './benchmark.mjs';
 
-const USAGE = 'usage: node scripts/metrics.mjs [--at <commit>] [--label <name>] [--transcripts <folder>|none] [--out <dir>] [--stdout [--json]]';
+const USAGE = 'usage: node scripts/metrics.mjs [--at <commit>] [--label <name>] [--transcripts <folder>|none] [--out <dir>] [--plan-size] [--stdout [--json]]';
 // The label names the file metrics-<label>.md, so it can hold no path separator and cannot start with a dot.
 const LABEL = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const TICKET_FILE = /^accord\/tickets\/([^/]+)\//;
 const RECORD = /^accord\/tickets\/([^/\0\r\n]+)\/(approach-review|plan-review|review)\.md$/;
+const CONFIG = 'accord/config.yml';
+const TICKET_MD = /^accord\/tickets\/([^/\0\r\n]+)\.md$/;
+const PLAN_MD = /^accord\/tickets\/([^/\0\r\n]+)\/plan\.md$/;
 const KIND = { 'approach-review': 'approach', 'plan-review': 'plan', review: 'review' };
 const MAX_BUFFER = 64 * 1024 * 1024;
 
 function parseArgs(argv) {
-  const opts = { at: 'HEAD', label: undefined, transcripts: undefined, out: undefined, stdout: false, json: false };
+  const opts = { at: 'HEAD', label: undefined, transcripts: undefined, out: undefined, stdout: false, json: false, planSize: false };
   const VALUE = { '--at': 'at', '--label': 'label', '--transcripts': 'transcripts', '--out': 'out' };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--stdout') opts.stdout = true;
     else if (a === '--json') opts.json = true;
+    else if (a === '--plan-size') opts.planSize = true;
     else if (a in VALUE) {
       const v = argv[++i];
       if (v === undefined || v === '') return { error: `${a} needs a value` };
@@ -41,13 +46,18 @@ const byPath = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 
 /**
  * Every record of the three kinds in `sha`, read with one ls-tree and one cat-file --batch, and the ids of the tickets
- * that have a folder there. Ids come from the paths only.
+ * that have a folder there. Ids come from the paths only. With `planSize` the same batch also reads accord/config.yml,
+ * every ticket file and every plan.md, returned as `files`, with the listed paths as `tree` (the input of core's loadSnapshot).
  */
-function readRecords(git, sha) {
-  const all = git(['ls-tree', '-r', '-z', '--name-only', sha, '--', ':(literal)accord/tickets/']).split('\0');
+function readRecords(git, sha, planSize = false) {
+  const specs = [':(literal)accord/tickets/', ...(planSize ? [`:(literal)${CONFIG}`] : [])];
+  const all = git(['ls-tree', '-r', '-z', '--name-only', sha, '--', ...specs]).split('\0');
   const ids = new Set(all.map((p) => TICKET_FILE.exec(p)?.[1]).filter(Boolean));
-  const paths = all.filter((p) => RECORD.test(p)).sort(byPath);
-  if (!paths.length) return { records: [], ids };
+  const extra = (p) => planSize && (p === CONFIG || TICKET_MD.test(p) || PLAN_MD.test(p));
+  const paths = all.filter((p) => RECORD.test(p) || extra(p)).sort(byPath);
+  const tree = all.filter(Boolean);
+  const files = {};
+  if (!paths.length) return { records: [], ids, files, tree };
   const raw = git(['cat-file', '--batch'], paths.map((p) => `${sha}:${p}`).join('\n') + '\n', 'buffer');
   const records = [];
   let pos = 0;
@@ -60,11 +70,41 @@ function readRecords(git, sha) {
       continue;
     }
     const size = Number(m[2]);
-    const [, id, name] = RECORD.exec(p);
-    if (m[1] === 'blob') records.push({ path: p, id, kind: KIND[name], text: raw.subarray(nl + 1, nl + 1 + size).toString('utf8') });
+    const body = () => raw.subarray(nl + 1, nl + 1 + size).toString('utf8');
+    const rec = RECORD.exec(p);
+    if (m[1] === 'blob') {
+      if (rec) records.push({ path: p, id: rec[1], kind: KIND[rec[2]], text: body() });
+      else files[p] = body();
+    }
     pos = nl + 1 + size + 1;
   }
-  return { records, ids };
+  return { records, ids, files, tree };
+}
+
+/**
+ * ST-LN-93 D-05: how many plans core's own sizeRefusal would refuse with no owner Ruling, taking as the expected size N the
+ * number of distinct @ac-n tags of the ticket's scenarios (no old ticket records an expected size). The plans and scenarios
+ * are read by core's loadSnapshot, so the count is core's and not a regex's. A ticket with a plan and no @ac-n tag is listed
+ * apart and not counted. `files` is the number of plan.md files in the commit, which can exceed the plans read (core reads a
+ * plan only under a ticket file that has a lane).
+ */
+export function planSizeCount(core, files, tree) {
+  const snapshot = core.loadSnapshot({ files, tree });
+  const refused = [];
+  const noCriteria = [];
+  let plans = 0;
+  for (const id of Object.keys(snapshot.work ?? {}).sort(byPath)) {
+    const plan = snapshot.work[id].plan;
+    if (plan === undefined) continue;
+    const expected = new Set(snapshot.tickets[id].scenarios.map((s) => s.acTag).filter((tag) => tag !== undefined)).size;
+    if (expected === 0) {
+      noCriteria.push(id);
+      continue;
+    }
+    plans++;
+    if (core.sizeRefusal(plan.tasks.length, expected, []) !== undefined) refused.push({ ticket: id, tasks: plan.tasks.length, expected });
+  }
+  return { plans, refused, noCriteria, files: tree.filter((p) => PLAN_MD.test(p)).length };
 }
 
 /** Claude Code's project folder name for a checkout: every character but a letter or digit becomes `-`. */
@@ -127,7 +167,16 @@ export async function main(argv, { cwd = process.cwd(), stdout = process.stdout,
   const [date, seconds] = git(['-c', 'log.showSignature=false', 'log', '-1', '--no-show-signature', '--format=%cs%x00%ct', sha]).trim().split('\0');
   const label = opts.label ?? date;
 
-  const { records, ids } = readRecords(git, sha);
+  let core;
+  if (opts.planSize) {
+    const coreFile = fileURLToPath(new URL('../packages/core/dist/index.js', import.meta.url));
+    if (!fs.existsSync(coreFile)) {
+      stderr.write(`metrics: ${coreFile.split(path.sep).join('/')} is missing; run npm run build first\n`);
+      return 2;
+    }
+    core = await import(pathToFileURL(coreFile).href);
+  }
+  const { records, ids, files, tree } = readRecords(git, sha, opts.planSize);
   const stages = {};
   for (const kind of STAGES) {
     const mine = records.filter((r) => r.kind === kind);
@@ -144,6 +193,7 @@ export async function main(argv, { cwd = process.cwd(), stdout = process.stdout,
     transcripts = readRuns(folder, main, ids, Number(seconds) * 1000);
   }
   const report = { label, commit: sha, date, stages, transcripts: { folders: transcripts.folders }, runs: transcripts.runs };
+  if (opts.planSize) report.planSize = planSizeCount(core, files, tree);
   const md = renderMarkdown(report);
   const json = renderJson(report);
 

@@ -30,7 +30,9 @@ it('risk:regression the metrics scripts spawn only git and ship nowhere (ST-LN-9
   // the only way to child_process is the named execFileSync import; no namespace, default, require or dynamic import
   const childImports = entry.split('\n').filter((l) => /child_process/.test(l));
   expect(childImports).toEqual(["import { execFileSync } from 'node:child_process';"]);
-  expect(entry).not.toMatch(/\brequire\s*\(|\bimport\s*\(/);
+  expect(entry).not.toMatch(/\brequire\s*\(/);
+  // ST-LN-93 D-05: the one dynamic import is core's own built entry (--plan-size), as benchmark.mjs imports it; no other.
+  expect(entry.split('\n').filter((l) => /\bimport\s*\(/.test(l))).toEqual(['    core = await import(pathToFileURL(coreFile).href);']);
 
   const pure = readFileSync(join(scripts, 'metrics-count.mjs'), 'utf8');
   expect(pure).not.toMatch(/^\s*import\b|\bimport\s*\(|\brequire\s*\(/m);

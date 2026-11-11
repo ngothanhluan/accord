@@ -1,9 +1,9 @@
 // ST-LN-57 Task 8: ac-4 (from round 3 a Should rests on a ticket line or a failing case) and ac-5 (a file a fix changed
 // needs a finding or a Ruling), with D-07, D-11 and D-14's exemption for ac-5 alone.
 import { expect, it } from 'vitest';
-import { gateDone } from '../src/index.js';
+import { GROUNDS_V2_FROM, gateDone, nextRound } from '../src/index.js';
 import type { BranchFact, RangeCommit, RepoSnapshot } from '../src/index.js';
-import { mentionsPath } from '../src/round/grounds.js';
+import { groundsProblems, mentionsPath } from '../src/round/grounds.js';
 import { commit, facts, scopeSnapshot, v2Review } from '../../../test/helpers/review-v2.js';
 import type { RoundSpec } from '../../../test/helpers/review-v2.js';
 
@@ -170,4 +170,64 @@ it('risk:regression a ticket research record the fix added and a Wording-only li
   // a Wording-only line names its path as explained, and only that path
   expect(named(build('- Wording-only: docs/w.md — a typo in the heading\n'))).not.toContain('docs/w.md');
   expect(named(build('- Wording-only: docs/w.md — a typo in the heading\n'))).toContain('src/c.ts');
+});
+
+// ST-LN-91 D-11: the ST-LN-57 grounds rule lowered to round 2 and widened to Must and Should, from the cut-off pin.
+it('risk:complex-branching from pin 0.4.1 a round 2 must or should needs a ticket line or a risk tag (ST-LN-91 ac-1)', () => {
+  const two = (round2: string[], o: { pin?: string; basePin?: string; one?: string[] } = {}): RepoSnapshot =>
+    scopeSnapshot({
+      review: v2Review([[{ lines: o.one ?? [] }, { lines: round2 }]]),
+      facts: facts(none(2), { ...(o.pin === undefined ? {} : { pin: o.pin }), ...(o.basePin === undefined ? {} : { basePin: o.basePin }) }),
+    });
+  const from = (round2: string[], one?: string[]): RepoSnapshot => two(round2, { pin: GROUNDS_V2_FROM, ...(one === undefined ? {} : { one }) });
+  const should = (...marks: string[]): string => line('Should', 1, 'src/a.ts:1', 'open', ...marks);
+  const must = (...marks: string[]): string => line('Must', 1, 'src/a.ts:1', 'open', ...marks);
+  const answer = (snap: RepoSnapshot) => nextRound(snap, 'T-1', 'review');
+
+  // an unmarked round-2 Should and Must are refused, once each, and name the round and the finding
+  for (const bare of [should(), must()]) {
+    const snap = from([bare]);
+    const a = answer(snap);
+    expect(a.kind, bare).toBe('refused');
+    expect(groundsProblems(snap, 'T-1', 'review'), bare).toHaveLength(1);
+    const reason = a.reasons.join('\n');
+    expect(reason).toContain('round 2');
+    expect(reason).toContain('finding 1');
+    expect(reason).toContain('rests on');
+    expect(reasonsOf(snap, GROUNDS)).toHaveLength(1);
+  }
+
+  // a ticket line that exists, a failing test, a reproducing command, data loss or security
+  for (const mark of [
+    'rests on: ac-1',
+    'rests on: D-01',
+    'rests on: Veto "No new dependency."',
+    'rests on: Intent "export their report as CSV"',
+    'test: export#writes-csv',
+    'command: npm test',
+    'risk: data-loss',
+    'risk: security',
+  ]) {
+    for (const make of [should, must]) {
+      const snap = from([make(mark)]);
+      expect(groundsProblems(snap, 'T-1', 'review'), mark).toEqual([]);
+      expect(answer(snap).kind, mark).toBe('next');
+    }
+  }
+
+  // round 1 is never asked; a Nice and a carried Should are not new
+  const first = scopeSnapshot({ review: v2Review([[{ lines: [must()] }]]), facts: facts(none(1), { pin: GROUNDS_V2_FROM }) });
+  expect(groundsProblems(first, 'T-1', 'review')).toEqual([]);
+  expect(answer(first).kind).toBe('next');
+  expect(groundsProblems(from([line('Nice', 1, 'src/a.ts:1')]), 'T-1', 'review')).toEqual([]);
+  expect(groundsProblems(from([should('carried from 1.1')], [line('Nice', 1, 'src/q.ts:1', 'fixed in abc1234')]), 'T-1', 'review')).toEqual([]);
+
+  // under an older pin, or none, round 2 is as before: nothing asked, and the Done rule starts at round 3
+  for (const old of [two([should()], { pin: '0.4.0' }), two([should()])]) {
+    expect(answer(old).kind).toBe('next');
+    expect(reasonsOf(old, GROUNDS)).toEqual([]);
+  }
+  // a pin lowered below the one at the branch's merge base counts as the cut-off
+  const lowered = two([should()], { pin: '0.4.0', basePin: GROUNDS_V2_FROM });
+  expect(answer(lowered).kind).toBe('refused');
 });

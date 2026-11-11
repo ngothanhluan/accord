@@ -25,7 +25,9 @@ one at a time. You run it in the main session.
    per task. Each task carries a `covers:` line, a `files:` line, and a
    `verify:` line, then prose for the executor: the interface (consumes,
    produces) and the test written first. A task fits in about half an
-   executor's context; the planner splits anything larger. Only the first
+   executor's context; the planner splits anything larger. A ticket that
+   measures something runs its smallest experiment first, one arm on one sample,
+   shown to the owner before widening; the planner plans it so. Only the first
    plan sets `baseline:`. In `verify:`, write `(@ac-n)` after the id of the
    test that proves scenario `@ac-n`.
 
@@ -49,7 +51,9 @@ one at a time. You run it in the main session.
    `plan.md`. A plan changed after that, by a critic round or anything
    else, must pass `accord gate plan <id>` again before `accord task-done`
    records a task, so re-run the gate after every revision. A question it asks about the tests
-   baseline is answered at step 7; never create `accord/tests-baseline.txt` earlier. A gate
+   baseline is answered at step 7; never create `accord/tests-baseline.txt` earlier. On
+   `gate.plan-size`, ask the owner as `./ask.md` says whether to split the ticket or allow
+   the size, and write a yes as the Ruling the gate prints. A gate
    failure you cannot fix counts as an open finding in step 6.
 
 5. **Critique.** Run the loop in `./critique.md`: how many `accord-critic` agents

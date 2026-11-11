@@ -34,8 +34,8 @@ it('risk:complex-branching accord gate plan refuses a plan over its expected siz
   }
 });
 
-// The pin the cut-off reads is the one at the plan's baseline: commit, so the CONFIG pin of the running CLI (0.4.0) never decides.
-const pinned = (v: string): string => CONFIG.replace('accord: "0.4.0"', `accord: "${v}"`);
+// The pin the cut-off reads is the one at the plan's baseline: commit, so the CONFIG pin of the running CLI (the running version) never decides.
+const pinned = (v: string): string => CONFIG.replace(/accord: "[^"]*"/, `accord: "${v}"`);
 const missing = (all: Found[]): Found[] => all.filter((f) => f.rule === 'gate.plan-size-missing');
 
 it('risk:complex-branching gate plan reads the pin at the plan baseline from git (ST-LN-93 ac-3)', async () => {
@@ -55,12 +55,13 @@ it('risk:complex-branching gate plan reads the pin at the plan baseline from git
     cleanup(a);
   }
 
-  // (b) the baseline commit holds 0.4.0: the ticket was planned under the old rules.
+  // (b) the baseline commit holds 0.4.0: the ticket was planned under the old rules, whatever the working tree pins now.
   const b = makeLaneRepo({ 'accord/tickets/T-1.md': laneTicket('T-1', { body: sized() }) });
   try {
     await run(['approve', 'T-1'], b);
+    writeFiles(b, { 'accord/config.yml': pinned('0.4.0') });
     const baseline = commitAll(b);
-    writeFiles(b, { 'accord/tickets/T-1/plan.md': PLAN.replace('abc1234', baseline) });
+    writeFiles(b, { 'accord/tickets/T-1/plan.md': PLAN.replace('abc1234', baseline), 'accord/config.yml': CONFIG });
     commitAll(b);
     expect(missing(await findings(b))).toEqual([]);
   } finally {
@@ -75,9 +76,9 @@ it('risk:complex-branching gate plan reads the pin at the plan baseline from git
     commitAll(c);
     gitRun(c, 'branch', '-M', 'main');
     gitRun(c, 'switch', '-q', '-c', 't/T-1');
-    writeFiles(c, { 'accord/config.yml': CONFIG });
+    writeFiles(c, { 'accord/config.yml': pinned('0.4.0') });
     const baseline = commitAll(c);
-    writeFiles(c, { 'accord/tickets/T-1/plan.md': PLAN.replace('abc1234', baseline) });
+    writeFiles(c, { 'accord/tickets/T-1/plan.md': PLAN.replace('abc1234', baseline), 'accord/config.yml': CONFIG });
     commitAll(c);
     expect(missing(await findings(c))).toHaveLength(1);
   } finally {

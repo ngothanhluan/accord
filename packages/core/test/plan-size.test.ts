@@ -24,7 +24,7 @@ interface Opts {
   config?: string;
   pins?: { pin?: string; basePin?: string }; // the host fact gate plan merges: the pin at the plan baseline and at its merge base
 }
-const check = ({ body = sized(2), lane, plan = tasks(5), ledger, config = CONFIG, pins }: Opts = {}): GateResult => {
+const check = ({ body = sized(2), lane, plan = tasks(5), ledger, config = at('0.4.0'), pins }: Opts = {}): GateResult => {
   const files: Record<string, string> = approved(
     {
       'accord/config.yml': config,
@@ -40,7 +40,8 @@ const check = ({ body = sized(2), lane, plan = tasks(5), ledger, config = CONFIG
 };
 const size = (r: GateResult) => r.findings.filter((f) => f.rule === 'gate.plan-size');
 const missing = (r: GateResult) => r.findings.filter((f) => f.rule === 'gate.plan-size-missing');
-const at = (v: string): string => CONFIG.replace('accord: "0.4.0"', `accord: "${v}"`);
+// A release moves CONFIG's pin, so every case names the pin it means.
+const at = (v: string): string => CONFIG.replace(/accord: "[^"]*"/, `accord: "${v}"`);
 
 describe('plan size', () => {
   it('risk:complex-branching a plan over twice its expected size fails gate plan and names both numbers (ST-LN-93 ac-1)', () => {
@@ -117,7 +118,7 @@ describe('expected size cut-off', () => {
     // a baseline pin lowered below the pin at its merge base counts as at the cut-off
     expect(missing(check({ ...sizeless, pins: { pin: '0.4.0', basePin: PLAN_SIZE_FROM } }))).toHaveLength(1);
     expect(missing(check({ ...sizeless, pins: { pin: '0.4.0', basePin: '0.4.0' } }))).toEqual([]);
-    // no host fact: the pin in the working-tree config decides
+    // no host fact: the pin in the working-tree config decides (0.4.0 here)
     expect(missing(check({ ...sizeless }))).toEqual([]);
     expect(missing(check({ ...sizeless, config: at(PLAN_SIZE_FROM) }))).toHaveLength(1);
     // 0.4.10 counts as after 0.4.1; a pin that is not a plain x.y.z applies the rule

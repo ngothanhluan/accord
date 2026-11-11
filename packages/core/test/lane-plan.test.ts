@@ -244,7 +244,7 @@ it('risk:parsing the comma check reads the first verify line outside a fence', (
 it('risk:regression the lane fixtures pass gate plan with the pin at the cut-off (ST-LN-93 ac-3)', () => {
   const files = approved(
     {
-      'accord/config.yml': CONFIG.replace('accord: "0.4.0"', `accord: "${PLAN_SIZE_FROM}"`),
+      'accord/config.yml': CONFIG.replace(/accord: "[^"]*"/, `accord: "${PLAN_SIZE_FROM}"`),
       'accord/tickets/T-1.md': laneTicket('T-1'),
       [REPORT]: junit({ 'export#writes-csv': 'passed', 'export#escapes-commas': 'passed' }),
     },

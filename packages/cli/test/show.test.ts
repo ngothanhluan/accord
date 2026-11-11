@@ -29,6 +29,7 @@ it('ac-1 accord show prints the full detail as text', async () => {
         '',
         'Intent:',
         'Owners can export their report as CSV.',
+        'Expected size: 5 tasks',
         '',
         'ac-1 export writes a csv',
         '  Given a report',
@@ -67,7 +68,7 @@ it('ac-2 accord show json gives the same detail as data', async () => {
     expect(code).toBe(0);
     expect(JSON.parse(out)).toEqual({
       id: 'T-1', title: LONG, stage: 'intent', lane: 'M', tasksDone: 0, tasksTotal: 2, branch: 't/T-1', holder: null, blockedBy: [],
-      intent: ['Owners can export their report as CSV.'],
+      intent: ['Owners can export their report as CSV.', 'Expected size: 5 tasks'],
       criteria: [
         { id: 'ac-1', title: 'export writes a csv', steps: ['Given a report', 'When the owner exports it', 'Then a csv file is written', STEP],
           label: 'passing', test: 'export#writes-csv', testResult: 'passed', ticked: false, verification: null },
@@ -141,7 +142,7 @@ it('risk:regression show finds a ticket filed only on its claim branch at that b
     expect(j.code).toBe(0);
     expect(JSON.parse(j.out)).toMatchObject({
       id: 'T-2', stage: 'build', tasksDone: 1, tasksTotal: 2, branch: 't/T-2', holder: 'fixture@example.invalid', blockedBy: [],
-      intent: ['Owners can export their report as CSV.'],
+      intent: ['Owners can export their report as CSV.', 'Expected size: 5 tasks'],
     });
   } finally {
     cleanup(repo);

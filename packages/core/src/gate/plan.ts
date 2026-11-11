@@ -4,6 +4,7 @@
 import { headingKey, LIST_MARKER, stripHtmlComments } from '../load/sections.js';
 import { FIELD, fieldLines, tokens } from '../load/work.js';
 import type { PlanTask, RepoSnapshot, Ticket } from '../model/snapshot.js';
+import { PLAN_SIZE_FROM, pinBefore } from '../round/pin.js';
 import { isSha } from './done.js';
 import type { GateRule } from './rules.js';
 import { laneTicket, planFile, workOf } from './work.js';
@@ -70,6 +71,73 @@ export const planBaselineUnknown: GateRule['check'] = (snapshot, id) => {
   if (plan === undefined || sha === undefined || !isSha(sha) || snapshot.ancestors === undefined) return [];
   if (Object.hasOwn(snapshot.ancestors, sha) && snapshot.ancestors[sha]) return [];
   return [{ file: plan.file, reason: `baseline ${sha} is not a commit on the history of HEAD` }];
+};
+
+/** ST-LN-93 D-07: a plan may hold this many times the tasks its Intent expects. A constant, not a config.yml key. */
+export const SIZE_MULTIPLE = 2;
+
+// An anchored pattern per line, no nested quantifier. The first line of ## Intent that reads `Expected size: <N> tasks`, N a positive integer.
+const SIZE_LINE = /^Expected size:\s*([1-9][0-9]*)\s+tasks?\.?$/;
+// The owner's allowance, in the fixed form the round allowance Ruling of round/next.ts models; a line that does not match grants nothing.
+const SIZE_ALLOWANCE = /^Ruling: the owner allows ([1-9][0-9]*) plan tasks against an expected size of ([1-9][0-9]*) tasks? — ".*\S.*" — \S/;
+
+/** N of the `Expected size: N tasks` line under `## Intent`, comments and list marker stripped; undefined when there is no such line or N is not a positive integer. */
+function expectedSize(t: Ticket): number | undefined {
+  const s = t.sections.find((x) => headingKey(x.heading) === 'intent');
+  if (s === undefined) return undefined;
+  for (const l of stripHtmlComments(s.lines)) {
+    const m = SIZE_LINE.exec(l.text.replace(LIST_MARKER, '').trim());
+    const n = m === null ? NaN : Number(m[1]);
+    if (Number.isSafeInteger(n)) return n;
+  }
+  return undefined;
+}
+
+/** The reason a plan of `tasks` tasks is too large for `expected`, or undefined when it fits or an owner Ruling of `rulings` allows it. */
+export function sizeRefusal(tasks: number, expected: number, rulings: readonly string[]): string | undefined {
+  if (tasks <= SIZE_MULTIPLE * expected) return undefined;
+  for (const r of rulings) {
+    const m = SIZE_ALLOWANCE.exec(r);
+    if (m !== null && Number(m[2]) === expected && Number(m[1]) >= tasks) return undefined;
+  }
+  return (
+    `plan.md has ${tasks} tasks, more than ${SIZE_MULTIPLE} × ${expected} (Expected size: ${expected} tasks in ## Intent); ` +
+    `split the work into another ticket, or add under ## Rulings in the ledger: ` +
+    `Ruling: the owner allows ${tasks} plan tasks against an expected size of ${expected} tasks — "<the owner's sentence>" — <cost if wrong>`
+  );
+}
+
+/** ST-LN-93: silent unless a lane M ticket has a plan and an `Expected size:` line; gate.plan-size-missing owns the ticket without one. */
+export const planSize: GateRule['check'] = (snapshot, id) => {
+  const t = laneTicket(snapshot, id);
+  const work = workOf(snapshot, id);
+  if (t === undefined || t.frontmatter?.lane === 'S' || work?.plan === undefined) return [];
+  const expected = expectedSize(t);
+  if (expected === undefined) return [];
+  const reason = sizeRefusal(work.plan.tasks.length, expected, work.ledger?.rulings ?? []);
+  return reason === undefined ? [] : [{ file: work.plan.file, reason }];
+};
+
+/**
+ * ST-LN-93 D-08: a lane M ticket with a plan and no `Expected size:` line fails from PLAN_SIZE_FROM on. The pin is the one at the
+ * plan's baseline: commit (and its merge base) when the host supplied it, never the working-tree pin, which always equals the running
+ * version, so an upgrade does not block a ticket already in flight; without the fact the working-tree pin is all there is.
+ */
+export const planSizeMissing: GateRule['check'] = (snapshot, id) => {
+  const t = laneTicket(snapshot, id);
+  const plan = workOf(snapshot, id)?.plan;
+  // planMissing and planEmpty own a ticket with no plan or no task.
+  if (t === undefined || t.frontmatter?.lane === 'S' || plan === undefined || plan.tasks.length === 0 || expectedSize(t) !== undefined) return [];
+  const { pin, basePin } = Object.hasOwn(snapshot.planPins ?? {}, id) ? snapshot.planPins![id] : { pin: snapshot.config?.accord, basePin: undefined };
+  if (pinBefore(PLAN_SIZE_FROM, pin, basePin)) return [];
+  return [
+    {
+      file: t.file,
+      reason:
+        `## Intent has no "Expected size: <N> tasks" line; from accord ${PLAN_SIZE_FROM} gate plan needs it: ask the owner how many plan tasks ` +
+        'the work should take, write the line into ## Intent, and have the Intent approved again',
+    },
+  ];
 };
 
 export const taskCoversMissing: GateRule['check'] = (snapshot, id) =>

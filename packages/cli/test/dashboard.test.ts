@@ -6,7 +6,7 @@ import { renderDashboard } from '../src/render/dashboard.js';
 import { appendFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanup, commitAllAt, commitMsg, copyRepo, gitRun, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
-import { approve, building, CONFIG, done, gateReadyIn, LANE_BODY, laneTicket, P, ready } from '../../../test/helpers/lane.js';
+import { approve, building, CONFIG, done, gateReadyIn, LANE_BODY, laneTicket, P, ready, sized } from '../../../test/helpers/lane.js';
 import type { Files } from '../../../test/helpers/lane.js';
 
 const board = (files: Files, claims: Record<string, string> = {}, viewer = 'an@example.com') =>
@@ -37,7 +37,7 @@ beforeAll(() => {
   identity(tplCommitted);
   commitMsg(tplCommitted, 'fixture');
   tplIntent = makeLaneRepo({
-    [P('T-2')]: laneTicket('T-2', { body: LANE_BODY.replace('Owners can export their report as CSV.', '<!-- why, for whom -->\n') }),
+    [P('T-2')]: laneTicket('T-2', { body: sized().replace('Owners can export their report as CSV.', '<!-- why, for whom -->\n') }),
     [P('T-3')]: laneTicket('T-3', {
       body: LANE_BODY.replace(/```gherkin[\s\S]*?```/, '```gherkin\nFeature: T-3\n\n  @ac-1\n  Scenario: <observable outcome>\n    Given ...\n    When ...\n    Then ...\n```'),
     }),

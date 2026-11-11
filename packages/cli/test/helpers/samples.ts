@@ -7,7 +7,7 @@ import { mkdtempSync, readFileSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { loadSnapshot, setFrontmatterKey } from '@accord-dev/accord-core';
-import { AC, CONFIG, gateReadyIn, junit, LANE_S_BODY, laneTicket, P, PLAN, ready, REPORT } from '../../../../test/helpers/lane.js';
+import { AC, CONFIG, gateReadyIn, junit, LANE_S_BODY, laneTicket, P, PLAN, ready, REPORT, sized } from '../../../../test/helpers/lane.js';
 import type { Files } from '../../../../test/helpers/lane.js';
 import { cleanup, gitRun } from './repo.js';
 import { copyClone } from './worktree.js';
@@ -263,8 +263,9 @@ const verificationText = (id: string, sha: string) =>
   ].join('\n');
 
 const laneSBody = (id: string) => LANE_S_BODY + `\n## Scope\n${codeOf(id)}\n`;
-const draftText = (t: TicketSpec) => (t.kind === 'lane-s' ? laneTicket(t.id, { lane: 'S', body: laneSBody(t.id) }) : laneTicket(t.id));
-const droppedText = (id: string) => laneTicket(id, { frontmatter: ['status: dropped'] }) + '\n## Dropped\nSuperseded by another ticket.\n';
+// The recorded goldens (ST-LN-63) print the Intent as it was before LANE_BODY carried an `Expected size:` line (ST-LN-93), so the samples use `sized()`.
+const draftText = (t: TicketSpec) => (t.kind === 'lane-s' ? laneTicket(t.id, { lane: 'S', body: laneSBody(t.id) }) : laneTicket(t.id, { body: sized() }));
+const droppedText = (id: string) => laneTicket(id, { frontmatter: ['status: dropped'], body: sized() }) + '\n## Dropped\nSuperseded by another ticket.\n';
 
 /** The ticket as `accord approve` and `accord gate ready` leave it; a lane S ticket gets its ac_hash from `gate ready`. */
 function readyText(t: TicketSpec, config: string): string {
@@ -272,7 +273,7 @@ function readyText(t: TicketSpec, config: string): string {
   if (t.kind === 'lane-s') {
     files[P(t.id)] = draftText(t);
     if (gateReadyIn(files, t.id) !== 'pass') throw new Error('lane S fixture ticket does not pass gate ready: ' + t.id);
-  } else ready(files, t.id);
+  } else ready(files, t.id, { body: sized() });
   return files[P(t.id)];
 }
 

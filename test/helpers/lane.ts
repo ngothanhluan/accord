@@ -28,6 +28,7 @@ export const LANE_S_BODY = ['## Understood', 'The export button writes a csv fil
 export const LANE_BODY = [
   '## Intent',
   'Owners can export their report as CSV.',
+  'Expected size: 5 tasks',
   '',
   '## Acceptance criteria',
   '```gherkin',
@@ -61,6 +62,14 @@ export const LANE_BODY = [
   'Extend the existing report writer with a csv mode.',
   '',
 ].join('\n');
+
+/** LANE_BODY with any `Expected size:` line dropped and, when `n` is given, one put under `## Intent` (ST-LN-93): a test of the size rule means the same whatever LANE_BODY carries. */
+export function sized(n?: number): string {
+  const lines = LANE_BODY.split('\n').filter((l) => !l.startsWith('Expected size:'));
+  if (n === undefined) return lines.join('\n');
+  lines.splice(lines.indexOf('## Intent') + 2, 0, `Expected size: ${n} tasks`);
+  return lines.join('\n');
+}
 
 /** A ticket file. `lane: ''` omits the key, which makes a 0.1.0 ticket. `frontmatter` lines go before the closing ---. */
 export function laneTicket(id: string, opts: { lane?: string; frontmatter?: string[]; body?: string } = {}): string {
@@ -118,7 +127,7 @@ export function junit(cases: Record<string, 'passed' | 'failed' | 'skipped'>): s
 }
 
 export type Files = Record<string, string>;
-export type Opts = { lane?: string; frontmatter?: string[] };
+export type Opts = { lane?: string; frontmatter?: string[]; body?: string };
 export const P = (id: string) => 'accord/tickets/' + id + '.md';
 export const AC = gateReady(loadSnapshot({ files: { 'accord/config.yml': CONFIG, [P('X-1')]: laneTicket('X-1') }, tree: [] }), 'X-1').acHash as string;
 export const approve = (files: Files, id: string) => {

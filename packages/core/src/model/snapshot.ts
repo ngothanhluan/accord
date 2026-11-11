@@ -290,4 +290,7 @@ export interface RepoSnapshot {
   // 'refs/heads/main' in a clone without origin) and a snapshot of the records of the view's tickets and every
   // depends_on entry as that ref holds them. Only the done readers read it; absent when no default ref resolves.
   defaultRef?: { ref: string; snapshot: RepoSnapshot };
+  // ST-LN-93 D-08: host-supplied by gate plan for the gated ticket: the pin in accord/config.yml at the plan's
+  // baseline: commit, and at that commit's merge base with the default ref. Absent when the host supplies none.
+  planPins?: Record<string, { pin?: string; basePin?: string }>;
 }

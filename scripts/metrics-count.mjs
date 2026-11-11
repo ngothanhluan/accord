@@ -177,7 +177,41 @@ function ordered(report) {
     stages: Object.fromEntries(STAGES.map((k) => [k, stage(report.stages[k])])),
     transcripts: { measured: runs.length > 0, folders: [...report.transcripts.folders], runs: runs.length },
     runs: runs.map((r) => ({ file: r.file, ticket: r.ticket, class: r.class, weighted: r.weighted, peak: r.peak, minutes: Number((r.ms / 60000).toFixed(1)) })),
+    // ST-LN-93 D-05, only with --plan-size: the key is absent otherwise, so the default report keeps its bytes.
+    ...(report.planSize === undefined
+      ? {}
+      : {
+          planSize: {
+            plans: report.planSize.plans,
+            refused: report.planSize.refused.map((x) => ({ ticket: x.ticket, tasks: x.tasks, expected: x.expected })),
+            noCriteria: [...report.planSize.noCriteria],
+          },
+        }),
   };
+}
+
+/** The `## Plan size (D-05)` section: the stand-in sentence, the counts, the refused plans, the plans with no criteria. */
+function planSizeSection(report) {
+  const p = report.planSize;
+  const refused = [...p.refused].sort((a, b) => (a.ticket < b.ticket ? -1 : a.ticket > b.ticket ? 1 : 0));
+  const out = [
+    '## Plan size (D-05)',
+    '',
+    'Old tickets state no expected size, so the stand-in N is the ticket\'s number of distinct @ac-n criteria. The count shows how the size rule would bite today\'s plans, not how owners would have sized their tickets. Each plan is checked by core\'s own `sizeRefusal` over core\'s own plan parse, with no owner Ruling.',
+    '',
+    `Plans counted: ${p.plans}`,
+    `Refused at more than 2 × N tasks: ${refused.length} of ${p.plans}`,
+    '',
+  ];
+  if (refused.length) {
+    out.push('| Ticket | Tasks | N |', '|---|---:|---:|');
+    for (const x of refused) out.push(`| ${x.ticket} | ${x.tasks} | ${x.expected} |`);
+    out.push('');
+  }
+  out.push(`No criteria, not counted: ${p.noCriteria.length ? p.noCriteria.join(', ') : 'none'}`);
+  if (report.planSize.files !== undefined) out.push(`Plan files in the commit: ${report.planSize.files}`);
+  out.push('');
+  return out;
 }
 
 export function renderJson(report) {
@@ -206,6 +240,7 @@ export function renderMarkdown(report) {
     for (const x of s.byRound) out.push(`| ${x.round} | ${x.run} | ${x.must} | ${x.should} | ${x.nice} | ${x.perRound} |`);
     out.push('');
   }
+  if (r.planSize !== undefined) out.push(...planSizeSection(report));
   out.push('## Critic and planner runs', '');
   out.push(
     '- Runs of `accord-critic`, `accord-planner` and `accord-architect` in the Claude Code project folders of this repository and its worktrees, read as `scripts/benchmark.mjs` reads them (usage the max per message id). A run counts when it started at or before the commit\'s time and its ticket has a file under `accord/tickets/<id>/` in the commit; a run described `bench …` is a benchmark arm and is left out.',

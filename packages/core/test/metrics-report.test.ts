@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync,
 import { homedir, tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { expect, it } from 'vitest';
+import { CONFIG, laneTicket } from '../../../test/helpers/lane.js';
 
 type Sink = { write: (s: string) => boolean };
 type Metrics = {
@@ -294,5 +295,55 @@ it('risk:security the report holds no transcript text and no home path (ST-LN-95
     }
   } finally {
     f.done();
+  }
+}, 120_000);
+
+// ---- D-05: plans the size rule would refuse (ST-LN-93) ----------------------------------------------------
+const planOf = (tasks: number) =>
+  [
+    '---',
+    'baseline: abc1234',
+    '---',
+    '',
+    '# Plan',
+    '',
+    ...Array.from({ length: tasks }, (_, i) => [`## Task ${i + 1}: step ${i + 1}`, 'covers: @ac-1', 'files: src/a.ts', 'verify: a#b (@ac-1)', 'Do it.', ''].join('\n')),
+  ].join('\n');
+
+it('risk:regression the plan size section counts plans over twice their criteria with core\'s check (ST-LN-93 D-05)', async () => {
+  const { main } = await load();
+  const s = sandbox();
+  try {
+    write(s.root, {
+      'accord/config.yml': CONFIG,
+      'accord/tickets/T-1.md': laneTicket('T-1'),
+      'accord/tickets/T-1/plan.md': planOf(5),
+      'accord/tickets/T-2.md': laneTicket('T-2'),
+      'accord/tickets/T-2/plan.md': planOf(4),
+      'accord/tickets/T-3.md': laneTicket('T-3', { body: '## Intent\nNo criteria here.\n\n## Acceptance criteria\n\n' }),
+      'accord/tickets/T-3/plan.md': planOf(1),
+    });
+    const sha = commit(s, 'plans', '2026-01-02T12:00:00+0000');
+    const io = () => ({ cwd: s.root, stdout: sink(), stderr: sink() });
+    expect(await main(['--at', sha, '--transcripts', 'none', '--plan-size', '--label', 'sized'], io())).toBe(0);
+    const md = readFileSync(join(s.root, 'docs', 'benchmark', 'metrics-sized.md'), 'utf8');
+    const json = JSON.parse(readFileSync(join(s.root, 'docs', 'benchmark', 'metrics-sized.json'), 'utf8'));
+    expect(md).toMatch(/^## Plan size \(D-05\)$/m);
+    expect(md).toContain('Plans counted: 2');
+    expect(md).toContain('Refused at more than 2 × N tasks: 1 of 2');
+    expect(md).toContain('| T-1 | 5 | 2 |');
+    expect(md).not.toContain('| T-2 |');
+    expect(md).toContain('No criteria, not counted: T-3');
+    expect(md).toContain('no expected size');
+    expect(md).toContain('@ac-n');
+    expect(json.planSize).toEqual({ plans: 2, refused: [{ ticket: 'T-1', tasks: 5, expected: 2 }], noCriteria: ['T-3'] });
+    // Without the option nothing of it appears.
+    expect(await main(['--at', sha, '--transcripts', 'none', '--label', 'plain'], io())).toBe(0);
+    const plainMd = readFileSync(join(s.root, 'docs', 'benchmark', 'metrics-plain.md'), 'utf8');
+    const plainJson = JSON.parse(readFileSync(join(s.root, 'docs', 'benchmark', 'metrics-plain.json'), 'utf8'));
+    expect(plainMd).not.toContain('Plan size');
+    expect(Object.hasOwn(plainJson, 'planSize')).toBe(false);
+  } finally {
+    rmSync(s.root, { recursive: true, force: true, maxRetries: 5 });
   }
 }, 120_000);

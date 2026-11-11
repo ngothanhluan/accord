@@ -29,7 +29,9 @@ plans or builds. You run it in the main session.
    when the total (the mean) is 0.2 or less with no dimension above 0.4, or
    when the owner says "enough".
    Before you stop, ask once for the smallest version that still counts as
-   done.
+   done, and once how many plan tasks the work should take: the answer is N
+   in the Intent line `Expected size: <N> tasks`, and `accord gate plan`
+   refuses a plan of more than 2 × N tasks unless the owner allows it.
    On "enough", write `Ruling: interview stopped by the owner at <score>`
    into `accord/tickets/<id>/ledger.md` under `## Rulings`.
 
@@ -40,7 +42,7 @@ plans or builds. You run it in the main session.
 
    | Section | Content |
    |---|---|
-   | `## Intent` | at most five lines: why, for whom, success measure, non-goals; you draft, the owner approves |
+   | `## Intent` | at most five lines: why, for whom, success measure, non-goals; then one line `Expected size: <N> tasks`; you draft, the owner approves |
    | `## Acceptance criteria` | two to five Gherkin scenarios, `@ac-1` … `@ac-n`; you draft, the owner approves |
    | `## Vetoes` | what the owner forbids, in the owner's words |
    | `## Decisions` | settled answers in the owner's words: `- D-01 <decision> — "<the owner's sentence>"` |

@@ -35,6 +35,7 @@ export type {
   RangeCommit,
   HeadFact,
   RoundFacts,
+  RecordPin,
 } from './model/snapshot.js';
 export { loadSnapshot } from './load/snapshot.js';
 export { isResearchPath, isResearchRecord, recordHeaderFaults, RESEARCH_DIR } from './load/research.js';

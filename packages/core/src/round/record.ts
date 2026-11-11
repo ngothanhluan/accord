@@ -56,10 +56,44 @@ function readMark(seg: string): Mark | undefined {
   if ((m = /^command: (\S.*)$/.exec(seg))) return { command: dequote(m[1]) };
   if ((m = /^rests on: (ac-[1-9][0-9]*)$/.exec(seg))) return { restsOn: { kind: 'ac', ref: m[1] } };
   if ((m = /^rests on: (D-[0-9]{2,})$/.exec(seg))) return { restsOn: { kind: 'decision', ref: m[1] } };
-  if ((m = /^rests on: (Veto|Intent|Understood|Done when) "(.*\S.*)"$/.exec(seg))) {
-    return { restsOn: { kind: m[1] as 'Veto' | 'Intent' | 'Understood' | 'Done when', ref: m[2] } };
+  if ((m = /^rests on: (Veto|Correction|Intent|Understood|Done when) "(.*\S.*)"$/.exec(seg))) {
+    return { restsOn: { kind: m[1] as 'Veto' | 'Correction' | 'Intent' | 'Understood' | 'Done when', ref: m[2] } };
   }
   return undefined;
+}
+
+/**
+ * ST-LN-91 D-11: a version 1 plan or approach finding line `<n>. <Severity> — <finding> — <state>[ — <mark>]…`. The number, the state
+ * (open and unverified read as open), a `repeats <r>.<n>:` carry and the trailing marks are read only when the line has them; a line
+ * that splits no further gives nothing, so it reads as before.
+ */
+function readFindingV1(text: string): Partial<Omit<RoundFinding, 'severity' | 'line' | 'text'>> {
+  let t = text.trim().replace(/^[-*+] /, '');
+  const out: Partial<Omit<RoundFinding, 'severity' | 'line' | 'text'>> = {};
+  const num = /^([1-9][0-9]*)[.)]\s+/.exec(t);
+  if (num !== null) {
+    out.n = Number(num[1]);
+    t = t.slice(num[0].length);
+  }
+  const segs = splitDashes(t);
+  const marks: Mark = {};
+  while (segs.length > 1) {
+    const mark = readMark(segs[segs.length - 1].trim());
+    if (mark === undefined) break;
+    const [kind] = Object.keys(mark) as (keyof Mark)[];
+    if (marks[kind] !== undefined) break; // a second mark of one kind is text of the finding
+    Object.assign(marks, mark);
+    segs.pop();
+  }
+  if (segs.length >= 3) {
+    const state = segs[segs.length - 1].trim();
+    if (/^deferred\b/.test(state)) out.state = 'deferred';
+    else if (/^(?:open|unverified)\b/.test(state)) out.state = 'open';
+    else if (/^fixed\b/.test(state)) out.state = 'fixed';
+  }
+  const repeats = /^repeats ([1-9][0-9]*)\.([1-9][0-9]*):/.exec(t.replace(/^[^A-Za-z]*(?:must|should|nice)\b[^A-Za-z0-9]*/i, ''));
+  if (marks.carried === undefined && repeats !== null) marks.carried = { round: Number(repeats[1]), n: Number(repeats[2]) };
+  return { ...out, ...marks };
 }
 
 /** A version 2 finding line: `<Severity> <n>[ [class]]: <finding> — <location> — <state>[ — <mark>]…`, read from the end. */
@@ -200,7 +234,7 @@ export function parseRounds(file: string, text: string, kind: 'review' | 'plan' 
         if (target === undefined) {
           bad(l.line, `line ${l.line}: a finding outside a ## Round section`);
         } else if (!version2) {
-          target.findings.push({ severity: r.severity, line: l.line, text: t.trim() } satisfies RoundFinding);
+          target.findings.push({ severity: r.severity, line: l.line, text: t.trim(), ...(kind === 'review' ? {} : readFindingV1(t)) } satisfies RoundFinding);
         } else {
           const shown = t.trim().replace(/^[-*+] /, '');
           const f = parseFindingV2(shown);
@@ -226,7 +260,7 @@ export function parseRounds(file: string, text: string, kind: 'review' | 'plan' 
       if (lists && round.noFindings) bad(round.line, `${where} says No findings and lists findings`);
       for (const f of round.findings) {
         const c = f.carried;
-        if (c === undefined) continue;
+        if (c === undefined || !version2) continue; // a version 1 carry is read for the grounds rule, never checked
         const earlier = c.round < position ? cycle.rounds[c.round - 1] : undefined;
         if (earlier === undefined || !earlier.findings.some((x) => x.n === c.n)) {
           bad(f.line, `line ${f.line}: "carried from ${c.round}.${c.n}" names no finding ${c.n} of an earlier round of this cycle: "${f.text}"`);

@@ -214,7 +214,7 @@ export function nextRound(snapshot: RepoSnapshot, id: string, kind: RoundKind): 
   if (scope.length > 0) return refuse(...scope.map(scopeReason));
   // ST-LN-91 D-11: from the cut-off pin a Must or Should of round 2 or later cites a ticket line, test, command or risk tag.
   const grounds = groundsV2(snapshot, id, kind) ? groundsProblems(snapshot, id, kind) : [];
-  if (grounds.length > 0) return refuse(...grounds.map((p) => `line ${p.line}: ${p.reason}`));
+  if (grounds.length > 0) return refuse(...grounds.map(scopeReason));
 
   const k = rec.cycles.length;
   const cyc = rec.cycles[k - 1];

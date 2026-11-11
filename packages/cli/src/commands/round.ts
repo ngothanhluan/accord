@@ -2,7 +2,7 @@
 // review.md, plan-review.md or approach-review.md. Exit 0 only for a next round; 1 for a stop or a refusal; 2 for a usage error.
 import { nextRound, roundText } from '@accord-dev/accord-core';
 import { UsageError, withReturnFacts } from '../load/fs.js';
-import { withRoundFacts } from '../load/round-facts.js';
+import { withRecordPins, withRoundFacts } from '../load/round-facts.js';
 import type { CommandContext } from '../run.js';
 import { requireLaneTicket } from './lane-args.js';
 
@@ -18,7 +18,9 @@ export function round(ctx: CommandContext, id: string, options: { plan?: boolean
   if (approach && ticket.frontmatter?.lane === 'S') {
     throw new UsageError('lane S has no approach critique; accord round ' + id + ' counts its review rounds');
   }
-  const snapshot = plan || approach ? ctx.snapshot : withRoundFacts(ctx.root, withReturnFacts(ctx.root, ctx.snapshot, id), id);
+  // ST-LN-91 D-11: a plan or approach record is asked for grounds from round 2 under the pin of its own first round.
+  const snapshot =
+    plan || approach ? withRecordPins(ctx.root, ctx.snapshot, id, plan ? 'plan' : 'approach') : withRoundFacts(ctx.root, withReturnFacts(ctx.root, ctx.snapshot, id), id);
   const answer = nextRound(snapshot, id, plan ? 'plan' : approach ? 'approach' : 'review');
   ctx.stdout.write(roundText(answer));
   return answer.kind === 'next' ? 0 : 1;

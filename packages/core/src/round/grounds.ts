@@ -57,15 +57,22 @@ export function restsOnHolds(ticket: Ticket, f: RoundFinding): boolean {
   }
   if (r.kind === 'Veto') return quoted(sectionText(ticket, 'vetoes'), r.ref);
   if (r.kind === 'Intent') return quoted(sectionText(ticket, 'intent'), r.ref);
+  if (r.kind === 'Correction') return quoted(sectionText(ticket, 'corrections'), r.ref);
   return false;
 }
 
 /**
  * ST-LN-91 D-11: the grounds rule asks round 2 and Must as well as Should for the record of this kind. For review.md the host's round facts
- * carry the pin at the first round (and at its merge base); a version 1 record, no pin or a pin below GROUNDS_V2_FROM keeps the ST-LN-57 rule.
+ * carry the pin at the first round (and at its merge base); for plan-review.md and approach-review.md the host's recordPins do. A version 1
+ * review record, no pin or a pin below GROUNDS_V2_FROM keeps the ST-LN-57 rule; a record whose pin git could not read fails closed.
  */
 export function groundsV2(snapshot: RepoSnapshot, id: string, kind: RoundKind): boolean {
-  if (kind !== 'review') return false;
+  if (kind !== 'review') {
+    const fact = snapshot.recordPins?.[id]?.[kind];
+    if (fact === undefined) return false;
+    if ('error' in fact) return true;
+    return fact.pin !== undefined && !pinBefore(GROUNDS_V2_FROM, fact.pin, fact.basePin);
+  }
   const facts = factsOf(snapshot, id);
   if (facts === undefined || 'error' in facts || facts.pin === undefined) return false;
   return !pinBefore(GROUNDS_V2_FROM, facts.pin, facts.basePin);
@@ -82,28 +89,54 @@ export function needsGrounds(snapshot: RepoSnapshot, id: string, at: Placed, f: 
   return evidenceCount(placedRounds(rec), facts.ranges, at, f.file, id) >= (v2 ? FROM_ROUND_V2 : FROM_ROUND);
 }
 
-/** The one grounds rule, as problems in record line order: each new finding that rests on no ticket line, test or command (and carries no risk tag). */
-export function groundsProblems(snapshot: RepoSnapshot, id: string, kind: RoundKind): { line: number; reason: string }[] {
-  if (kind !== 'review') return [];
+/** The reason of one ungrounded finding; the forms a ticket line takes depend on the lane, and a Correction counts from GROUNDS_V2_FROM. */
+function reasonOf(ticket: Ticket, where: string, v2: boolean): string {
+  const lines =
+    ticket.frontmatter?.lane === 'S'
+      ? 'Understood "<quote>" or Done when "<quote>"'
+      : v2
+        ? 'ac-<n>, D-<nn>, Veto "<quote>", Correction "<quote>" or Intent "<quote>"'
+        : 'ac-<n>, D-<nn>, Veto "<quote>" or Intent "<quote>"';
+  const ask = `a ticket line it rests on (rests on: ${lines}, a line the ticket holds, a quote of at least three words)`;
+  return v2
+    ? `${where}: from round 2 a Must or Should needs ${ask}, or test: or command:, or risk: data-loss or risk: security; ` +
+        'otherwise it does not block: write it deferred with its failing case under ## Deferred in the ledger'
+    : `${where}: from round 3 a Should needs ${ask} or test: or command:; otherwise it is a Nice`;
+}
+
+/**
+ * The one grounds rule, as problems in record line order: each new finding that rests on no ticket line, test or command and carries no
+ * risk tag. `gate.finding-grounds` (review records, at Done) and `accord round` (all three records) both read it. A problem with no line
+ * is the host's own error: the pin of a plan or approach record could not be read.
+ */
+export function groundsProblems(snapshot: RepoSnapshot, id: string, kind: RoundKind): { line?: number; reason: string }[] {
   const ticket = laneTicket(snapshot, id);
-  const rec = workOf(snapshot, id)?.rounds;
+  const work = workOf(snapshot, id);
+  const rec = kind === 'review' ? work?.rounds : kind === 'plan' ? work?.planRounds : work?.approachRounds;
   if (ticket === undefined || rec === undefined) return [];
   const v2 = groundsV2(snapshot, id, kind);
-  const out: { line: number; reason: string }[] = [];
+  const out: { line?: number; reason: string }[] = [];
+  if (kind !== 'review') {
+    if (!v2) return out;
+    const fact = snapshot.recordPins?.[id]?.[kind];
+    if (fact !== undefined && 'error' in fact) return [{ reason: fact.error }];
+    rec.cycles.forEach((cycle, i) => {
+      cycle.rounds.forEach((round, k) => {
+        if (k + 1 < FROM_ROUND_V2) return;
+        for (const f of round.findings) {
+          if (f.severity === 'Nice' || f.carried !== undefined || f.risk !== undefined || f.test !== undefined || f.command !== undefined) continue;
+          if (restsOnHolds(ticket, f)) continue;
+          out.push({ line: f.line, reason: reasonOf(ticket, `round ${k + 1} of cycle ${i + 1}, finding ${f.n ?? 'at line ' + f.line}`, true) });
+        }
+      });
+    });
+    return out;
+  }
   for (const at of placedRounds(rec)) {
     for (const f of at.round.findings) {
       if (!needsGrounds(snapshot, id, at, f)) continue;
       if (f.test !== undefined || f.command !== undefined || restsOnHolds(ticket, f)) continue;
-      const lines = ticket.frontmatter?.lane === 'S' ? 'Understood "<quote>" or Done when "<quote>"' : 'ac-<n>, D-<nn>, Veto "<quote>" or Intent "<quote>"';
-      const where = `round ${at.p} of cycle ${at.cycle}, finding ${f.n}`;
-      const ask = `a ticket line it rests on (rests on: ${lines}, a line the ticket holds, a quote of at least three words)`;
-      out.push({
-        line: f.line,
-        reason: v2
-          ? `${where}: from round 2 a Must or Should needs ${ask}, or test: or command:, or risk: data-loss or risk: security; ` +
-            'otherwise it does not block: write it deferred with its failing case under ## Deferred in the ledger'
-          : `${where}: from round 3 a Should needs ${ask} or test: or command:; otherwise it is a Nice`,
-      });
+      out.push({ line: f.line, reason: reasonOf(ticket, `round ${at.p} of cycle ${at.cycle}, finding ${f.n}`, v2) });
     }
   }
   return out;
@@ -113,7 +146,7 @@ export function groundsProblems(snapshot: RepoSnapshot, id: string, kind: RoundK
 export const findingGrounds: GateRule['check'] = (snapshot, id) => {
   const rec = workOf(snapshot, id)?.rounds;
   if (rec === undefined) return [];
-  return groundsProblems(snapshot, id, 'review').map((p) => ({ file: rec.file, line: p.line, reason: p.reason }));
+  return groundsProblems(snapshot, id, 'review').map((p) => ({ file: rec.file, ...(p.line === undefined ? {} : { line: p.line }), reason: p.reason }));
 };
 
 const PATH_BEFORE = /[A-Za-z0-9_./-]/;

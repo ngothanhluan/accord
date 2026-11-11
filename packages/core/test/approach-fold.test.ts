@@ -57,14 +57,31 @@ const holds = (text: string, parts: string[]): void => {
 
 it('ac-2 the planner direction pass returns the approach draft and writes no file', () => {
   const planner = flat(agent('planner'));
-  holds(planner, ['`direction` mode', 'you write no file, neither `plan.md` nor the ticket', 'the impact list', '`path:line`', 'two or three options, the lightest that works first', 'first rung of the ladder', 'three failure scenarios in total', 'how it is undone', 'the `## Approach` draft the main session writes into the ticket']);
+  holds(planner, ['`direction` mode', 'you write only `accord/tickets/<id>/direction.md`, never `plan.md` or the ticket', 'the impact list', '`path:line`', 'two or three options, the lightest that works first', 'first rung of the ladder', 'three failure scenarios in total', 'how it is undone', 'the `## Approach` draft the main session writes into the ticket']);
   const skill = flat(skillFile('accord-approach', 'SKILL.md'));
   const from = skill.indexOf('2. **Options.**');
   const to = skill.indexOf('3. **Critique.**');
   expect(from).toBeGreaterThanOrEqual(0);
   expect(to).toBeGreaterThan(from);
-  holds(skill.slice(from, to), ['Dispatch `accord-planner` in its `direction` mode', 'It writes no file', 'three failure scenarios in total', "Write into `## Approach` only the chosen option's name, what it does, and the impact list"]);
+  holds(skill.slice(from, to), ['Dispatch `accord-planner` in its `direction` mode', 'It writes only `accord/tickets/<id>/direction.md`', 'three failure scenarios in total', "Write into `## Approach` only the chosen option's name, what it does, and the impact list"]);
   expect(skill).not.toContain('accord-architect');
+});
+
+it('risk:regression the planner writes direction.md and the plan writer is given its path (ST-LN-91 ac-4)', () => {
+  const planner = flat(agent('planner'));
+  holds(planner, [
+    'you write `accord/tickets/<id>/direction.md` yourself',
+    'the impact list, every option with its reasons, the `Recommended` line and the failure scenarios',
+    'when the approach stage saved it, read it before the code',
+    'change only the lines each finding needs, inside the tasks it names',
+  ]);
+  const plan = flat(skillFile('accord-plan', 'SKILL.md'));
+  const from = plan.indexOf('2. **Plan.**');
+  const to = plan.indexOf('3. **Slices.**');
+  expect(from).toBeGreaterThanOrEqual(0);
+  expect(to).toBeGreaterThan(from);
+  holds(plan.slice(from, to), ['`accord/tickets/<id>/direction.md`']);
+  holds(flat(skillFile('accord-approach', 'SKILL.md')), ['which the critic never reads']);
 });
 
 it('ac-3 approach critique defers detail to the plan and reads only the approach diff from round 2', () => {

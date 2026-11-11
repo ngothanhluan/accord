@@ -133,3 +133,38 @@ it('risk:complex-branching a pin lowered on the branch below the default branch 
     }
   }
 }, 120_000);
+
+// ST-LN-91 D-12: a round-2 finding without grounds deferred with its failing case does not block; a deferred risk finding does.
+const LEDGER = 'accord/tickets/T-1/ledger.md';
+const deferredShould = '1. Should — the impact list misses a caller — deferred';
+
+it('risk:complex-branching accord round --plan and --approach let a deferred ungrounded finding pass and refuse a deferred risk finding (ST-LN-91 ac-1)', async () => {
+  for (const { flag, file } of KINDS) {
+    const kind = flag === '--plan' ? 'plan' : 'approach';
+    const { repo, write } = recordRepo(file, GROUNDS_V2_FROM);
+    try {
+      // deferred with its line and failing case: round 3 is given
+      writeFiles(repo, { [LEDGER]: `## Rulings\n\n## Deferred\n- ${kind} 2.1: impact list — failing case: a caller of export is not listed\n` });
+      write(deferredShould);
+      const passed = await run(['round', 'T-1', flag], repo);
+      expect(passed.out, flag).toContain('Round: 3 of 5');
+      expect(passed.code, flag).toBe(0);
+
+      // without the failing case it is refused
+      writeFiles(repo, { [LEDGER]: `## Rulings\n\n## Deferred\n- ${kind} 2.1: impact list\n` });
+      const bare = await run(['round', 'T-1', flag], repo);
+      expect(bare.code, flag).toBe(1);
+      expect(bare.out, flag).toContain('refused:');
+      expect(bare.out, flag).toContain('rests on');
+
+      // a deferred data-loss finding is refused in the same round, with its line and failing case
+      writeFiles(repo, { [LEDGER]: `## Rulings\n\n## Deferred\n- ${kind} 2.1: impact list — failing case: a caller of export is not listed\n` });
+      write(deferredShould + ' — risk: data-loss');
+      const risky = await run(['round', 'T-1', flag], repo);
+      expect(risky.code, flag).toBe(1);
+      expect(risky.out, flag).toContain('never deferred');
+    } finally {
+      cleanup(repo);
+    }
+  }
+}, 120_000);

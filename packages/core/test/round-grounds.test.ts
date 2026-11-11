@@ -1,10 +1,13 @@
 // ST-LN-91 D-11: the grounds rule (ST-LN-57, lowered to round 2 and widened to Must and Should) for plan-review.md and
 // approach-review.md, which read their own round-1 pin from the host's recordPins; version 1 lines read their marks.
 import { expect, it } from 'vitest';
-import { GROUNDS_V2_FROM, loadSnapshot, nextRound, parseRounds } from '../src/index.js';
+import { GROUNDS_V2_FROM, loadSnapshot, nextRound, parseRounds, planStopOf } from '../src/index.js';
 import type { RecordPin, RepoSnapshot } from '../src/index.js';
+import { planRounds } from '../src/gate/rounds.js';
+import { parseLedger } from '../src/load/work.js';
 import { groundsProblems } from '../src/round/grounds.js';
-import { facts, v2Review } from '../../../test/helpers/review-v2.js';
+import { deferredFor } from '../src/round/next.js';
+import { facts, scopeSnapshot, v2Review } from '../../../test/helpers/review-v2.js';
 import { CONFIG, LANE_BODY, building, done } from '../../../test/helpers/lane.js';
 
 type Kind = 'plan' | 'approach';
@@ -15,11 +18,13 @@ const should = (...marks: string[]): string => `1. Should — Task 3 drops a hea
 const must = (...marks: string[]): string => `1. Must — Task 3 drops a header — open${marks.map((m) => ' — ' + m).join('')}`;
 
 /** A lane M ticket with a plan record of `kind`: round 1 holds a Must, round 2 the given lines; `pin` is the host's recordPins fact. */
-function snap(kind: Kind, round2: string[], o: { pin?: RecordPin; body?: string; first?: string[] } = {}): RepoSnapshot {
+function snap(kind: Kind, round2: string[], o: { pin?: RecordPin; body?: string; first?: string[]; round3?: string[]; deferred?: string[] } = {}): RepoSnapshot {
   const files: Record<string, string> = { 'accord/config.yml': CONFIG };
   building(files, 'T-1', o.body === undefined ? undefined : { body: o.body });
-  files['accord/tickets/T-1/ledger.md'] = '## Rulings\n- task 1 done abc1234\n- task 2 done abc1234\n';
-  files['accord/tickets/T-1/' + FILE[kind]] = 'Round record: 1\n\n' + round(1, 'whole', ...(o.first ?? [must('rests on: ac-2')])) + round(2, 'diff', ...round2);
+  files['accord/tickets/T-1/ledger.md'] =
+    '## Rulings\n- task 1 done abc1234\n- task 2 done abc1234\n' + (o.deferred === undefined ? '' : '\n## Deferred\n' + o.deferred.map((d) => '- ' + d + '\n').join(''));
+  files['accord/tickets/T-1/' + FILE[kind]] =
+    'Round record: 1\n\n' + round(1, 'whole', ...(o.first ?? [must('rests on: ac-2')])) + round(2, 'diff', ...round2) + (o.round3 === undefined ? '' : round(3, 'diff', ...o.round3));
   const base = loadSnapshot({ files, tree: Object.keys(files) });
   return o.pin === undefined ? base : { ...base, recordPins: { 'T-1': { [kind]: o.pin } } };
 }
@@ -118,4 +123,127 @@ it('risk:complex-branching a correction is a ticket line for grounds (ST-LN-91 a
   expect(review('rests on: Correction "The delimiter stays a semicolon"', CORRECTED)).toHaveLength(1);
   expect(review('rests on: Correction "stays a"', CORRECTED)).toHaveLength(1);
   expect(review('rests on: Correction "The delimiter stays a comma"')).toHaveLength(1);
+});
+
+// ST-LN-91 D-12: an ungrounded Must or Should from round 2 may be deferred with its failing case instead of blocking; a finding
+// tagged risk: data-loss or risk: security blocks in every round and is never deferred.
+const DEFERRED = '1. Should — Task 3 drops a header — deferred';
+const CASE = 'an empty cell gives no quote';
+const ledgerLine = (kind: string, at: string): string => `${kind} ${at}: Task 3 drops a header — failing case: ${CASE}`;
+const cycleOf = (s: RepoSnapshot, kind: Kind) => (kind === 'plan' ? s.work!['T-1'].planRounds! : s.work!['T-1'].approachRounds!).cycles[0];
+
+it('risk:complex-branching an ungrounded later finding deferred with its failing case does not block (ST-LN-91 ac-1)', () => {
+  for (const kind of ['plan', 'approach'] as const) {
+    // the finding is written deferred and the ledger holds its line with a failing case: it does not block
+    const ok = snap(kind, [DEFERRED], { pin: cut, deferred: [ledgerLine(kind, '2.1')] });
+    expect(answer(ok, kind).kind, kind).toBe('next');
+    expect(groundsProblems(ok, 'T-1', kind), kind).toEqual([]);
+    expect(answer(snap(kind, [DEFERRED], { pin: cut, deferred: [ledgerLine(kind, '2.1 cycle 1')] }), kind).kind, kind).toBe('next');
+
+    // without the failing case, the line of another finding, round, cycle or record, or without the line: refused
+    const other = kind === 'plan' ? 'approach' : 'plan';
+    for (const bad of [
+      `${kind} 2.1: Task 3 drops a header`,
+      `${kind} 2.1: Task 3 drops a header — failing case:`,
+      ledgerLine(kind, '2.2'),
+      ledgerLine(kind, '1.1'),
+      ledgerLine(kind, '2.1 cycle 2'),
+      ledgerLine(other, '2.1'),
+      ledgerLine('review', '2.1'),
+    ]) {
+      const a = answer(snap(kind, [DEFERRED], { pin: cut, deferred: [bad] }), kind);
+      expect(a.kind, kind + bad).toBe('refused');
+      expect(a.reasons.join('\n'), kind + bad).toContain('rests on');
+    }
+    expect(answer(snap(kind, [DEFERRED], { pin: cut }), kind).kind, kind).toBe('refused');
+    // the state decides: the same line under a finding written open still blocks
+    expect(answer(snap(kind, [should()], { pin: cut, deferred: [ledgerLine(kind, '2.1')] }), kind).kind, kind).toBe('refused');
+    // under the older pin nothing changes
+    expect(answer(snap(kind, [DEFERRED], { pin: { pin: '0.4.0' } }), kind).kind, kind).toBe('next');
+
+    // from round 3 a deferred ungrounded Should leaves the stop; the same Should grounded and open stops the loop
+    const three = snap(kind, ['1. Nice — a name — deferred'], { pin: cut, round3: [DEFERRED], deferred: [ledgerLine(kind, '3.1')] });
+    expect(answer(three, kind), kind).toMatchObject({ kind: 'next', round: 4 });
+    expect(planStopOf(cycleOf(three, kind), [], kind, deferredFor(three, 'T-1', kind, 0)), kind).toBeUndefined();
+    if (kind === 'plan') expect(planRounds(three, 'T-1')).toEqual([]);
+    const stops = snap(kind, ['1. Nice — a name — deferred'], { pin: cut, round3: [should('rests on: ac-1')] });
+    expect(answer(stops, kind).kind, kind).toBe('stop');
+    if (kind === 'plan') expect(planRounds(stops, 'T-1')).not.toEqual([]);
+  }
+
+  // a version 2 review record reads the same line with `review`
+  const review = (state: string, ledger: string[]) => {
+    const line = `Should 1 [patch]: x — src/a.ts:1 — ${state}`;
+    const snapshot = scopeSnapshot({
+      review: v2Review([[{ lines: [] }, { lines: [line] }]]),
+      ledger: '\n## Deferred\n' + ledger.map((l) => '- ' + l + '\n').join(''),
+      facts: facts([[], []], { pin: GROUNDS_V2_FROM }),
+    });
+    return { problems: groundsProblems(snapshot, 'T-1', 'review'), left: deferredFor(snapshot, 'T-1', 'review', 0).size };
+  };
+  expect(review('deferred', [`review 2.1: x — failing case: ${CASE}`])).toEqual({ problems: [], left: 1 });
+  expect(review('deferred', ['review 2.1: x']).problems).toHaveLength(1);
+  expect(review('deferred', []).problems).toHaveLength(1);
+  expect(review('open', [`review 2.1: x — failing case: ${CASE}`]).problems).toHaveLength(1);
+});
+
+it('risk:data-loss a data-loss or security finding blocks in every round (ST-LN-91 ac-2)', () => {
+  for (const kind of ['plan', 'approach'] as const) {
+    for (const risk of ['risk: data-loss', 'risk: security']) {
+      const tagged = (...marks: string[]): string => `1. Should — Task 3 drops a header — deferred — ${risk}${marks.map((m) => ' — ' + m).join('')}`;
+      const line = (at: string): string => ledgerLine(kind, at);
+      // round 2, with or without rests on and with or without its ticket line: refused, saying it is never deferred
+      for (const marked of [tagged(), tagged('rests on: ac-1')]) {
+        for (const deferred of [[line('2.1')], []]) {
+          const a = answer(snap(kind, [marked], { pin: cut, deferred }), kind);
+          expect(a.kind, kind + marked).toBe('refused');
+          expect(a.reasons.join('\n'), kind + marked).toContain('never deferred');
+          expect(a.reasons.join('\n'), kind + marked).toContain(risk);
+        }
+      }
+      // round 1 as well
+      const first = answer(snap(kind, ['No findings'], { pin: cut, first: [tagged()], deferred: [line('1.1')] }), kind);
+      expect(first.kind, kind + risk).toBe('refused');
+      expect(first.reasons.join('\n'), kind + risk).toContain('never deferred');
+      // the same finding written open is not refused for grounds
+      expect(answer(snap(kind, [`1. Should — Task 3 drops a header — open — ${risk}`], { pin: cut }), kind).kind, kind + risk).toBe('next');
+      // a round 3 whose only Should is risk-tagged and deferred still stops the loop
+      const three = snap(kind, ['1. Nice — a name — deferred'], { pin: cut, round3: [tagged()], deferred: [line('3.1')] });
+      expect(planStopOf(cycleOf(three, kind), [], kind, deferredFor(three, 'T-1', kind, 0)), kind + risk).toBe(3);
+      if (kind === 'plan') expect(planRounds(three, 'T-1'), risk).not.toEqual([]);
+    }
+  }
+
+  // a version 2 review record too
+  for (const risk of ['risk: data-loss', 'risk: security']) {
+    for (const round of [1, 2]) {
+      const marked = `Should 1 [patch]: x — src/a.ts:1 — deferred — ${risk}`;
+      const rounds = round === 1 ? [{ lines: [marked] }] : [{ lines: [] }, { lines: [marked] }];
+      const snapshot = scopeSnapshot({
+        review: v2Review([rounds]),
+        ledger: `\n## Deferred\n- review ${round}.1: x — failing case: ${CASE}\n`,
+        facts: facts(rounds.map(() => []), { pin: GROUNDS_V2_FROM }),
+      });
+      const found = groundsProblems(snapshot, 'T-1', 'review');
+      expect(found, risk + round).toHaveLength(1);
+      expect(found[0].reason, risk + round).toContain('never deferred');
+      expect(deferredFor(snapshot, 'T-1', 'review', 0).size, risk + round).toBe(0);
+    }
+  }
+});
+
+it('risk:regression old ledger lines are not read as deferrals (ST-LN-91 ac-1)', () => {
+  const text = [
+    '## Deferred',
+    '- plan round 1.2 (Nice): a name that could be shorter',
+    '- review 3.2: a deferral of ST-LN-57',
+    '- plan 2.1: a finding — failing case: an empty cell gives no quote',
+    '- approach 2.3 cycle 2: another finding',
+    '',
+  ].join('\n');
+  expect(parseLedger('ledger.md', text).deferred).toEqual([
+    { kind: 'review', round: 3, n: 2, cycle: 1 },
+    { kind: 'plan', round: 2, n: 1, cycle: 1, failingCase: true },
+    { kind: 'approach', round: 2, n: 3, cycle: 2 },
+  ]);
 });

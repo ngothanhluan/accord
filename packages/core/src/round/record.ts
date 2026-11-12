@@ -64,7 +64,7 @@ function readMark(seg: string): Mark | undefined {
 
 /**
  * ST-LN-91 D-11: a version 1 plan or approach finding line `<n>. <Severity> — <finding> — <state>[ — <mark>]…`. The number, the state
- * (open and unverified read as open), a `repeats <r>.<n>:` carry and the trailing marks are read only when the line has them; a line
+ * (open and unverified read as open; withdrawn, `repeated as <r>.<n>` and `owner: "..."` are their own closed states), a `repeats <r>.<n>:` carry and the trailing marks are read only when the line has them; a line
  * that splits no further gives nothing, so it reads as before.
  */
 function readFindingV1(text: string): Partial<Omit<RoundFinding, 'severity' | 'line' | 'text'>> {
@@ -90,6 +90,10 @@ function readFindingV1(text: string): Partial<Omit<RoundFinding, 'severity' | 'l
     if (/^deferred\b/.test(state)) out.state = 'deferred';
     else if (/^(?:open|unverified)\b/.test(state)) out.state = 'open';
     else if (/^fixed\b/.test(state)) out.state = 'fixed';
+    // critique.md: the states that close a finding with no fix: the critic's `withdrawn:`, a later round's `repeats`, the owner's drop.
+    else if (/^withdrawn\b/.test(state)) out.state = 'withdrawn';
+    else if (/^repeated as\b/.test(state)) out.state = 'repeated';
+    else if (/^owner:/.test(state)) out.state = 'owner';
   }
   const repeats = /^repeats ([1-9][0-9]*)\.([1-9][0-9]*):/.exec(t.replace(/^[^A-Za-z]*(?:must|should|nice)\b[^A-Za-z0-9]*/i, ''));
   if (marks.carried === undefined && repeats !== null) marks.carried = { round: Number(repeats[1]), n: Number(repeats[2]) };

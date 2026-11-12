@@ -205,7 +205,7 @@ export interface RoundFinding {
   // Version 2 only (ST-LN-57): the parts of the finding line the form names.
   n?: number;
   file?: string; // absent for `none`
-  state?: 'open' | 'fixed' | 'deferred';
+  state?: 'open' | 'fixed' | 'deferred' | 'withdrawn' | 'repeated' | 'owner'; // the last three: version 1 plan and approach lines only (ST-LN-91)
   carried?: { round: number; n: number };
   risk?: 'data-loss' | 'security';
   test?: string;

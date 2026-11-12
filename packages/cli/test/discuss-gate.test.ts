@@ -36,7 +36,7 @@ it('risk:complex-branching accord gate ready reads the claim pin from git (ST-LN
     await run(['approve', 'T-1'], b);
     writeFiles(b, { 'accord/config.yml': pinned('0.4.0') });
     commitMsg(b, 'claim: T-1');
-    writeFiles(b, { 'accord/config.yml': CONFIG });
+    writeFiles(b, { 'notes.txt': 'work after the claim\n' });
     commitAll(b);
     expect(missing((await findings(b)).found)).toEqual([]);
   } finally {

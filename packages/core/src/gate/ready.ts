@@ -4,6 +4,7 @@
 import { classifyEars } from '../lint/ears.js';
 import { headingKey, stripHtmlComments } from '../load/sections.js';
 import type { RepoSnapshot, Section, Ticket } from '../model/snapshot.js';
+import { claimPinBefore, DISCUSS_FROM } from '../round/pin.js';
 import { doneOnDefault } from '../status/stage.js';
 import { approvedHash } from './hash.js';
 import type { GateRule } from './rules.js';
@@ -89,6 +90,32 @@ export const sectionEmpty: GateRule['check'] = (snapshot, id) => {
     if (s === undefined || stripHtmlComments(s.lines).some((l) => l.text.trim() !== '')) return [];
     return [{ file: ticketFile(id), line: s.line, reason: `"## ${name}" is empty; a lane S ticket needs it written before any change` }];
   });
+};
+
+/**
+ * ST-LN-91 D-04, D-12, D-15, D-18: the discuss rules apply to a ticket with a lane other than S (D-18: lanes M, L and P all take the discuss
+ * stage, as `isLaneM` reads "lane M") claimed at DISCUSS_FROM or later. The pin is the ticket's claim pin, never the working-tree pin when the
+ * host read a claim fact, so an upgrade does not send a ticket claimed under 0.4.0 back to discuss.
+ */
+function discussApplies(snapshot: RepoSnapshot, id: string): boolean {
+  const lane = laneOf(snapshot, id);
+  if (lane === undefined || lane === 'S') return false;
+  return !claimPinBefore(snapshot, id, DISCUSS_FROM);
+}
+
+/** ST-LN-91 91d-ac-1: a ticket the discuss stage applies to needs `accord/tickets/<id>/discuss.md`. */
+export const discussMissing: GateRule['check'] = (snapshot, id) => {
+  if (!discussApplies(snapshot, id)) return [];
+  const file = 'accord/tickets/' + id + '/discuss.md';
+  if (snapshot.work?.[id]?.discuss !== undefined) return [];
+  return [
+    {
+      file,
+      reason:
+        file + ' is missing; from accord ' + DISCUSS_FROM + ' the discuss stage writes it: one line per gray area under ## Gray areas ' +
+        'with the D-nn its answer became under ## Decisions',
+    },
+  ];
 };
 
 /** Spec §4: no approval recorded. */

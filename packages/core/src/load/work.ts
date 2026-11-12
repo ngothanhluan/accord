@@ -2,7 +2,7 @@
 // review.md under accord/tickets/<id>/, and accord/tests-baseline.txt. Pure string work; every parser
 // normalises BOM and CRLF itself (D-38), so every encoding variant parses to one value.
 import type { LoadFinding } from '../model/finding.js';
-import type { Ledger, Line, Plan, PlanTask, Review } from '../model/snapshot.js';
+import type { Discuss, DiscussArea, Ledger, Line, Plan, PlanTask, Review } from '../model/snapshot.js';
 import { fnv1a64 } from '../gate/hash.js';
 import { normaliseText, splitFrontmatter } from './frontmatter.js';
 import { headingKey, LIST_MARKER, scan, stripHtmlComments } from './sections.js';
@@ -196,6 +196,42 @@ export function parseReview(file: string, text: string): Review {
   if (confirmed.length > 0) review = { ...review, confirmed };
   if (notInterface.length > 0) review = { ...review, notInterface };
   return review;
+}
+
+// ST-LN-91 D-04: the last part of a gray-area item: `D-07` or `D-07, D-08`. Anchored, and the alternatives cannot overlap, so no input backtracks.
+const DISCUSS_DECISIONS = /^D-[0-9]+(?:\s*,\s*D-[0-9]+)*$/;
+const DISCUSS_SEPARATOR = ' — ';
+
+/**
+ * ST-LN-91 D-04: `accord/tickets/<id>/discuss.md`. The areas are the list items under the first `## Gray areas` heading, outside fences
+ * and HTML comments: `- <group> — <gray area in plain words> — D-07` or `— D-07, D-08`. The text between the first and the last
+ * ` — ` is the gray area; with no `D-nn` last part the text is everything after the group, and an item with no separator is all text.
+ * Plain `split` on a fixed separator and one anchored pattern, so a long hostile line is read in linear time.
+ */
+export function parseDiscuss(file: string, text: string): Discuss {
+  const { sections, fences } = scan(normaliseText(text), 0);
+  const section = sections.find((s) => headingKey(s.heading) === 'gray areas');
+  const unfenced = (section?.lines ?? []).filter((l) => !fences.some((f) => l.line >= f.open && l.line <= f.close));
+  const areas: DiscussArea[] = [];
+  for (const l of stripHtmlComments(unfenced)) {
+    if (!LIST_MARKER.test(l.text)) continue;
+    const item = l.text.replace(LIST_MARKER, '').trim();
+    if (item === '') continue;
+    const parts = item.split(DISCUSS_SEPARATOR).map((p) => p.trim());
+    if (parts.length === 1) {
+      areas.push({ line: l.line, group: '', text: item, decisions: [] });
+      continue;
+    }
+    const last = parts[parts.length - 1];
+    const named = DISCUSS_DECISIONS.test(last);
+    areas.push({
+      line: l.line,
+      group: parts[0],
+      text: parts.slice(1, named ? -1 : undefined).join(DISCUSS_SEPARATOR),
+      decisions: named ? last.split(',').map((d) => d.trim()) : [],
+    });
+  }
+  return { file, areas };
 }
 
 /** One report case id per line; blank lines and comments (`#` alone or `# ` plus text) are skipped; `#123-x` is an id; sorted and unique. */

@@ -48,6 +48,8 @@ export interface SnapshotInput {
 export interface RangeCommit { sha: string; kind: 'commit' | 'merge' | 'episode'; files: string[] }
 /** ST-LN-91 D-11: the pin in accord/config.yml at the commit that first added a `## Round` heading to plan-review.md or approach-review.md, and at that commit's merge base with the default ref; `error` when git could not say. */
 export type RecordPin = { pin?: string; basePin?: string } | { error: string };
+/** ST-LN-91 D-15: the pin at a ticket's claim commit and at its merge base with the default ref; `{ error }` when git failed reading it. */
+export type ClaimPin = { sha?: string; pin?: string; basePin?: string } | { error: string };
 /** ST-LN-91 D-14: one hunk of `git diff -U0` between two texts of plan.md: the old and new first line and line count (a count of 0 places the hunk after the line named). */
 export interface PlanHunk { oldStart: number; oldCount: number; newStart: number; newCount: number }
 /** ST-LN-91 D-14: the planner's fix of plan.md as the host read it: the commit it started from, its hunks and both texts; `error` when git could not say. */
@@ -229,7 +231,21 @@ export interface RoundRecord {
   unreadable: { line: number; reason: string }[];
 }
 
+/** ST-LN-91 D-04: one gray area of discuss.md: its group, its text, and the `D-nn` ids its answer became. */
+export interface DiscussArea {
+  line: number; // Markdown line of the list item
+  group: string; // the part before the first ' — ', as written
+  text: string; // the gray area in plain words
+  decisions: string[]; // ['D-07', 'D-08']; empty when the line names none
+}
+/** ST-LN-91 D-04: accord/tickets/<id>/discuss.md, the ticket's record of every gray area and the Decision it became. */
+export interface Discuss {
+  file: string; // 'accord/tickets/LOGIN-1/discuss.md'
+  areas: DiscussArea[]; // the list items under the first '## Gray areas' heading, in order
+}
+
 export interface TicketWork {
+  discuss?: Discuss; // discuss.md (ST-LN-91)
   plan?: Plan;
   ledger?: Ledger;
   review?: Review;
@@ -300,6 +316,10 @@ export interface RepoSnapshot {
   // ST-LN-93 D-08: host-supplied by gate plan for the gated ticket: the pin in accord/config.yml at the plan's
   // baseline: commit, and at that commit's merge base with the default ref. Absent when the host supplies none.
   planPins?: Record<string, { pin?: string; basePin?: string }>;
+  // ST-LN-91 D-15: host-supplied by gate ready for the gated ticket: the pin in accord/config.yml at its claim commit (the oldest commit
+  // whose subject is exactly `claim: <id>`), else at the oldest commit that added its ticket file, and at that commit's merge base with the
+  // default ref. Absent when the host supplies none (no such commit, no git); read only through claimPinBefore.
+  claimPins?: Record<string, ClaimPin>;
   // ST-LN-91 D-11: host-supplied by accord round for the ticket it counts: the pin at the first round of its plan-review.md or
   // approach-review.md, else HEAD's, and at that commit's merge base with the default ref. A record with no entry keeps the older grounds rule.
   recordPins?: Record<string, { plan?: RecordPin; approach?: RecordPin }>;

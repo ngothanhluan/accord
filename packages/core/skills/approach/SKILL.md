@@ -3,7 +3,7 @@ name: accord-approach
 description: Use when a lane M ticket has its intent and acceptance criteria and needs an approach. Has the planner draft the lightest approach that works, has a critic argue against it in capped rounds, and takes the owner's explicit yes before accord approve.
 license: MIT
 kind: skill
-loads: [approach/critique.md, shared/ask.md, shared/scout.md]
+loads: [approach/approval.md, approach/critique.md, shared/ask.md, shared/scout.md]
 ---
 
 This stage chooses how the ticket will be built, lightest first, and takes
@@ -54,32 +54,11 @@ the owner's yes before anyone plans. You run it in the main session.
 
    Commit `accord/tickets/<id>.md` and `accord/tickets/<id>/approach-review.md`, with the ledger if it changed.
 
-5. **The owner's yes.** Run `accord scout check "accord/tickets/<id>/scout.md"`, and follow `./scout.md` when
-   it does not exit 0 and when `accord approve` exits 1 below. Then run `accord show <id> --approval`; if it
-   fails, stop and tell the owner. Paste its output, which holds every approved section, unchanged, as Markdown, not inside a code
-   block; below it put a horizontal rule, a heading "In plain words" written in the chat language, and one line
-   per scenario that begins with its ac-n and says in plain words what it means; and ask for an explicit yes.
-   The question
-   names the text above it and `accord/tickets/<id>.md`. Say that the yes
-   also approves the ticket's Intent, acceptance criteria, Vetoes,
-   Decisions, and Corrections as written: the approval covers them all. On
-   yes, run
-   `accord approve <id>`, then `accord gate ready <id>` and work from what it
-   prints. When it says a `depends_on` ticket is not done on the default
-   branch, never remove that entry from `depends_on`: tell the owner this
-   ticket waits for that ticket's merge, then after the merge run `git fetch`
-   and `accord gate ready <id>` again. Then commit the ticket, with `approved_hash:` and `ac_hash:` in
-   it, and the ledger if it changed. Then run `accord worktree push <id>`; go on even if it fails. If the
-   owner picks another option, append
-   `## Closed <option>: the owner picked <other option>` to
-   `accord/tickets/<id>/approach-review.md`, write that option into
-   `## Approach` as step 2 says, go back to step 3 with that option, and ask
-   again. On any other no, write the owner's words under `## Corrections`
-   first, append `## Closed <option>: the owner's no` to
-   `approach-review.md`, empty `## Approach` below its heading, go back to
-   `accord-intent` step 8, and restart this stage at step 2.
-   `accord approve` runs only on a yes to the sections as shown. Never run
-   `accord approve` without the owner's yes in this conversation.
+5. **The owner's yes.** The owner approves once, from the short view of the ticket, and
+   the yes covers the whole ticket as written. Follow `./approval.md`: it checks the scout file (`./scout.md`), shows
+   `accord show <id> --approval --short`, asks for the yes, and on yes runs
+   `accord approve <id>`, then `accord gate ready <id>`, and commits and pushes.
+   Never run `accord approve` without the owner's yes in this conversation.
 
 6. Next: `accord-plan`, only once `accord gate ready <id>` passes. While it
    fails, the commit in step 5 carries `approved_hash:` alone; after its push,

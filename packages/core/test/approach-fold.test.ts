@@ -94,12 +94,15 @@ it('ac-3 approach critique defers detail to the plan and reads only the approach
 
 it('risk:complex-branching a resumed or revised approach round keeps its option and skips every ruled-out one', () => {
   holds(flat(agent('planner')), ['you keep that option and its name, revise only it, and pick no other', 'that option alone with no `Recommended` line', 'draft the named one from that entry and the code']);
-  holds(flat(skillFile('accord-approach', 'SKILL.md')), [G, 'the first option of the ladder Ruling that is not yet ruled out', '`## Closed <option>: the owner picked <other option>`', "`## Closed <option>: the owner's no`"]);
+  holds(flat(skillFile('accord-approach', 'SKILL.md')), [G, 'the first option of the ladder Ruling that is not yet ruled out']);
+  // ST-LN-91 plan 03-05: the owner's yes, with its two Closed headings, lives in approval.md.
+  holds(flat(skillFile('accord-approach', 'approval.md')), ['`## Closed <option>: the owner picked <other option>`', "`## Closed <option>: the owner's no`"]);
   holds(flat(skillFile('accord-approach', 'critique.md')), [LADDER, H, J, M, N, '`## Closed <option>: ruled out by <round>.<n>`', 'the name of the option `## Approach` names']);
 });
 
 it('risk:data-loss every approach commit carries the ledger when it changed, so the pushed branch holds the deferred findings', () => {
   const skill = flat(skillFile('accord-approach', 'SKILL.md'));
-  holds(skill, ['Commit `accord/tickets/<id>.md` and `accord/tickets/<id>/approach-review.md`, with the ledger if it changed.', 'Then commit the ticket, with `approved_hash:` and `ac_hash:` in it, and the ledger if it changed.']);
+  holds(skill, ['Commit `accord/tickets/<id>.md` and `accord/tickets/<id>/approach-review.md`, with the ledger if it changed.']);
+  holds(flat(skillFile('accord-approach', 'approval.md')), ['Then commit the ticket, with `approved_hash:` and `ac_hash:` in it, and the ledger if it changed.']);
   holds(flat(skillFile('accord-approach', 'critique.md')), ['commit both files, with the ledger if it changed,', 'Otherwise commit `accord/tickets/<id>.md` and `approach-review.md`, with the ledger if it changed, with the subject']);
 });

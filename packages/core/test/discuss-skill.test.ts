@@ -135,13 +135,13 @@ it('risk:regression the approach critic runs at most twice from the cut-off (ST-
       continue;
     }
     for (const p of [
-      'from accord 0.4.1 the cap is two rounds',
+      'From accord 0.4.1 the cap is two rounds',
       'round 1 reads the whole `## Approach` against the ticket, the Decisions discuss wrote included',
       'round 2 checks only the fixes',
       '`Findings still open:`',
       'write those findings into `## Approach` as risks',
-      'no Ruling allows a third round',
-      'a ticket claimed under an older accord',
+      'No Ruling allows a third round',
+      'A ticket claimed under an older accord',
       'prints `of 5`',
       'the cap of five',
       'Blocking findings:',

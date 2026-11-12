@@ -59,7 +59,7 @@ npx --yes @accord-dev/accord@0.4.0 init
 - `accord/config.yml`, pinned to the running version, with `runtimes: [claude, codex]` and a comment on every key.
 - `accord/product/glossary.md`, `accord/product/business-rules.md` and `accord/product/conventions.md`, from templates.
 - `.github/workflows/accord.yml`, a GitHub Actions workflow that runs `lint` and `gate done` on the tickets a pull request changes, with the same pinned version.
-- The skills: `/accord` and the stage skills `accord-intent`, `accord-approach`, `accord-plan`, `accord-build`, `accord-review`, `accord-verify` and `accord-debug`, plus `accord-designer` for the `designer` role in `roles:`. Claude Code reads them from `.claude/skills/`, Codex from `.agents/skills/`.
+- The skills: `/accord` and the stage skills `accord-intent` (which holds the discuss stage), `accord-approach`, `accord-plan`, `accord-build`, `accord-review`, `accord-verify` and `accord-debug`, plus `accord-designer` for the `designer` role in `roles:`. Claude Code reads them from `.claude/skills/`, Codex from `.agents/skills/`.
 - For Claude Code only: the accord agents in `.claude/agents/`, the dashboard pane plugin in `.claude/accord-panel/`, and in `.claude/settings.json` the session hooks and the keys that enable the pane. Existing settings are kept.
 - A short accord block appended to `AGENTS.md` and `CLAUDE.md`, or those files created.
 
@@ -92,8 +92,8 @@ Lanes:
 
 - S, a small fix (a bug, a copy change, one flag). The session writes one line for what it understood and one for when it is done, makes the change, runs the affected tests, and runs review rounds with a fresh reviewer until no Must finding is open. Then `gate done` and a pull request.
 - M, a feature (one story). It passes through six stages, each a skill you can also call directly:
-  1. intent (`accord-intent`): an interview that writes the intent, acceptance criteria, vetoes and decisions.
-  2. approach (`accord-approach`): the planner drafts the lightest approach that works, a critic argues against it in rounds `accord round <id> --approach` counts, and the owner approves it.
+  1. intent (`accord-intent`): an interview that writes the intent, acceptance criteria, vetoes and decisions, then the discuss stage: it asks the owner every gray area one at a time, with a recommended default and what each choice costs, and writes each answer as a Decision.
+  2. approach (`accord-approach`): the planner drafts the lightest approach that works, a critic argues against it in at most two rounds `accord round <id> --approach` counts, and the owner approves the whole ticket once, from `accord show <id> --approval --short`.
   3. plan (`accord-plan`): a task-by-task plan checked by `accord gate plan`.
   4. build (`accord-build`): one fresh executor per task, each recorded with `accord task-done`.
   5. review (`accord-review`): reviewers until no Must is open and every Should is fixed.
@@ -132,7 +132,7 @@ The skills call the CLI for you. These are the commands most useful to run by ha
 | `accord gate done <id>` | Report whether the ticket passes the Done gate. |
 | `accord status [--json] [--all]` | Print one row per ticket; `--all` includes archived tickets. |
 | `accord dashboard [--json]` | Print the ranked dashboard sections for you. |
-| `accord show <id> [--json]` | Print one ticket: its intent and each criterion with its state. |
+| `accord show <id> [--json | --approval [--short]]` | Print one ticket: its intent and each criterion with its state. `--approval` prints what the owner approves, and `--short` the shorter view the owner's yes is asked from. |
 | `accord scout check <file> [--ticket <id>]` | Check a scout report's citations and logged searches against the files git tracks, and print its lane numbers. `--ticket` leaves that ticket's own files and listed research records out of every search, as for a saved `scout.md`. |
 | `accord new ticket [id]` | Write `accord/tickets/<id>.md` from the template. |
 | `accord skills sync` | Write every skill the config declares into `.claude/skills/` and `.agents/skills/`. |

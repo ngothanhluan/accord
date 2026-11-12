@@ -1,6 +1,6 @@
 // ST-LN-91 RR-WR-05: the CLI here runs as the cut-off release (0.4.1), so HEAD's pin can be 0.4.1 while a ticket was claimed under 0.4.0.
 // Only then does a test fail when the claim pin is not read: with HEAD at the running version's old pin the working-tree fallback gives the same answer.
-import { chmodSync, rmSync } from 'node:fs';
+import { chmodSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, it, vi } from 'vitest';
 import { APPROACH_CAP_FROM } from '@accord-dev/accord-core';
@@ -131,6 +131,76 @@ it('risk:security approve and show name the git error where a failed claim read 
     const shown = short.out.split('\n').filter((l) => l.includes('git failed reading the claim pin of T-1'));
     expect(shown).toHaveLength(1);
     expect(shown[0]).toContain(base);
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+// ST-LN-91 CR-01 (round 3, owner decision 1): every written form of a risk mark blocks, and a record accord cannot read stops the approval.
+const TICKET = join('accord', 'tickets', 'T-1.md');
+const FORMS = [
+  '1. Must — tokens reach the log — open — rests on: risk: security',
+  '1. Must — tokens reach the log — open — risk: Security',
+  '1. Must — an overwrite — risk: data-loss — open',
+  '1. Must - tokens reach the log - open - risk: security',
+  '1. Must -- an overwrite -- open -- risk: data-loss',
+];
+
+it('risk:security accord approve refuses every written form of a risk mark and the short view lists it as blocking (ST-LN-91 CR-01)', async () => {
+  const repo = claimed(APPROACH_CAP_FROM, rec(r(1, 'whole', FORMS[0]), r(2, 'diff', OPEN)));
+  try {
+    for (const form of FORMS) {
+      writeFiles(repo, { [APPROACH]: rec(r(1, 'whole', form), r(2, 'diff', OPEN)) });
+      const refused = await run(['approve', 'T-1'], repo);
+      expect(refused.code, form).toBe(1);
+      expect(refused.out, form).toContain('Round 1:\n' + form + '\n');
+      const short = await run(['show', 'T-1', '--approval', '--short'], repo);
+      expect(short.code, form).toBe(0);
+      const lines = short.out.split('\n');
+      expect(lines.indexOf('- round 1: ' + form), form).toBeGreaterThan(lines.indexOf('## Blocking findings'));
+      expect(lines.indexOf('## Risks') < lines.indexOf('## Blocking findings'), form).toBe(true);
+    }
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+it('risk:security accord approve refuses while the approach record has a line accord cannot read, and names it (ST-LN-91 CR-01)', async () => {
+  const bad = ['1. Must — tokens reach the log — open — risk: auth', '1. Must/Should — tokens reach the log — open — risk: security'];
+  const repo = claimed(APPROACH_CAP_FROM, rec(r(1, 'whole', bad[0]), r(2, 'diff', OPEN)));
+  try {
+    for (const line of bad) {
+      writeFiles(repo, { [APPROACH]: rec(r(1, 'whole', line), r(2, 'diff', OPEN)) });
+      const refused = await run(['approve', 'T-1'], repo);
+      expect(refused.code, line).toBe(1);
+      expect(refused.err, line).toBe('');
+      expect(refused.out, line).toContain('Record problems:\n');
+      expect(refused.out, line).toContain('line 5: ');
+      expect(refused.out, line).toContain('approach-review.md');
+      const short = await run(['show', 'T-1', '--approval', '--short'], repo);
+      expect(short.code, line).toBe(0);
+      expect(short.out, line).toContain('## Blocking findings');
+      expect(short.out, line).toContain('- record problem: ');
+      expect(short.out, line).toContain('line 5: ');
+    }
+    // Corrected, the same approach is approved.
+    writeFiles(repo, { [APPROACH]: rec(r(1, 'whole', '1. Must — tokens reach the log — fixed — risk: security'), r(2, 'diff', OPEN)) });
+    expect((await run(['approve', 'T-1'], repo)).code).toBe(0);
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+it('risk:regression a ticket claimed under 0.4.0 is approved over a record with a line accord cannot read (ST-LN-91 CR-01)', async () => {
+  const bad = rec(r(1, 'whole', '1. Must — tokens reach the log — open — risk: auth', '2. Must/Should — a name — open'), r(2, 'diff', OPEN));
+  const repo = claimed('0.4.0', bad);
+  try {
+    const short = await run(['show', 'T-1', '--approval', '--short'], repo);
+    expect(short.out).not.toContain('## Blocking findings');
+    const approved = await run(['approve', 'T-1'], repo);
+    expect(approved.code).toBe(0);
+    expect(approved.out).toMatch(/^approved /);
+    expect(readFileSync(join(repo, TICKET), 'utf8')).toContain('approved_hash');
   } finally {
     cleanup(repo);
   }

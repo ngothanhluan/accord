@@ -196,3 +196,41 @@ it('risk:parsing the git text of a failure is one line, also when the error carr
   // git's own stderr keeps its first non-blank line.
   expect(whyGit(Object.assign(new Error('Command failed'), { stderr: '\nfatal: bad object HEAD\nsecond line\n' }))).toBe('bad object HEAD');
 });
+
+// ST-LN-91 IN-02: the newest claim off the default ref is the claim; a test fails when step 1 of claimCommit takes the oldest again.
+it('risk:regression with two claim commits on the working branch the newer one is the claim, whatever the commit dates say (ST-LN-91 IN-02)', () => {
+  const repo = onMain('0.4.0', true);
+  try {
+    gitRun(repo, 'switch', '-q', '-c', 't/T-1');
+    writeFiles(repo, { 'notes.txt': 'first claim\n' });
+    const first = commitMsg(repo, 'claim: T-1'); // under 0.4.0
+    writeFiles(repo, { 'accord/config.yml': pinned('0.4.1') });
+    const second = commitMsg(repo, 'claim: T-1'); // the re-claim after the upgrade
+    expect(second).not.toBe(first);
+    expect(gitClaimFacts(repo, 'T-1')).toEqual({ sha: second, pin: '0.4.1', basePin: '0.4.0' });
+    expect(missing(withClaimPins(repo, snapshotAt('0.4.1'), 'T-1'))).toHaveLength(1);
+
+    // The same history with the re-claim dated before the first claim: ancestry, not the clock, says which is newer.
+    const dated = onMain('0.4.0', true);
+    try {
+      gitRun(dated, 'switch', '-q', '-c', 't/T-1');
+      writeFiles(dated, { 'notes.txt': 'first claim\n' });
+      commitMsg(dated, 'claim: T-1');
+      writeFiles(dated, { 'accord/config.yml': pinned('0.4.1') });
+      const saved = { c: process.env.GIT_COMMITTER_DATE, a: process.env.GIT_AUTHOR_DATE };
+      process.env.GIT_COMMITTER_DATE = process.env.GIT_AUTHOR_DATE = '2001-01-01T00:00:00Z';
+      let later: string;
+      try {
+        later = commitMsg(dated, 'claim: T-1');
+      } finally {
+        if (saved.c === undefined) delete process.env.GIT_COMMITTER_DATE; else process.env.GIT_COMMITTER_DATE = saved.c;
+        if (saved.a === undefined) delete process.env.GIT_AUTHOR_DATE; else process.env.GIT_AUTHOR_DATE = saved.a;
+      }
+      expect(gitClaimFacts(dated, 'T-1')).toEqual({ sha: later, pin: '0.4.1', basePin: '0.4.0' });
+    } finally {
+      cleanup(dated);
+    }
+  } finally {
+    cleanup(repo);
+  }
+});

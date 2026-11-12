@@ -148,15 +148,41 @@ describe('discuss record at gate ready', () => {
     expect(lone.map((x) => x.line)).toEqual([1]);
   });
 
-  it('risk:parsing a gray area indented by one to three spaces is an area, a deeper one a note (ST-LN-91 RR-WR-03, IN-01)', () => {
-    for (const indent of [' ', '  ', '   ']) {
-      const r = check({ pin: '0.4.1', discuss: '## Gray areas\n- direction — pick one — D-01\n' + indent + '- scope — never mapped\n' });
-      expect(r.verdict, JSON.stringify(indent)).toBe('fail');
-      expect(unmapped(r).map((x) => x.line), JSON.stringify(indent)).toEqual([3]);
-    }
+  it('risk:parsing a sibling area indented by one to three spaces is an area, a deeper one a note (ST-LN-91 RR-WR-03, IN-01, WR-02)', () => {
+    // After a "- " item (its text starts at column 2) a line indented by 1 is a sibling; after a "1. " item (column 3) a line indented by 1 or 2 is.
+    const sibling = (first: string, indent: string): (number | undefined)[] =>
+      unmapped(check({ pin: '0.4.1', discuss: '## Gray areas\n' + first + '\n' + indent + '- scope — never mapped\n' })).map((x) => x.line);
+    expect(sibling('- direction — pick one — D-01', ' ')).toEqual([3]);
+    expect(sibling('* direction — pick one — D-01', ' ')).toEqual([3]);
+    expect(sibling('1. direction — pick one — D-01', ' ')).toEqual([3]);
+    expect(sibling('1. direction — pick one — D-01', '  ')).toEqual([3]);
+    // A sibling after a sub-bullet is still a sibling.
+    const after = unmapped(check({ pin: '0.4.1', discuss: '## Gray areas\n- direction — pick one — D-01\n  - option A\n - scope — never mapped\n' }));
+    expect(after.map((x) => x.line)).toEqual([4]);
     // Four spaces or a tab is a sub-bullet; a numbered item with a closing parenthesis is an item.
     expect(discussFindings(check({ pin: '0.4.1', discuss: GRAY + '    - option A\n\t- option B\n' }))).toEqual([]);
     expect(unmapped(check({ pin: '0.4.1', discuss: '## Gray areas\n 1) a — one\n' })).map((x) => x.line)).toEqual([2]);
+  });
+
+  it('risk:parsing a sub-bullet indented as far as its item text is a note, not a gray area (ST-LN-91 WR-02)', () => {
+    // Round 1 IN-01's example: two spaces under "- ".
+    const nested = '## Gray areas\n\n- behaviour — what export prints for an empty report — D-01\n  - option A — cheap\n';
+    expect(discussFindings(check({ pin: '0.4.1', discuss: nested }))).toEqual([]);
+    // Two and three spaces under "- ", "* " and "+ " items, three under "1. ", four under "10. ", any depth below.
+    const firsts = [
+      '- a — x — D-01\n   - note',
+      '- a — x — D-01\n  * note\n    + deeper',
+      '1. a — x — D-01\n   - note\n   1. note',
+      '* a — x — D-01\n  - note',
+      '+ a — x — D-01\n  - note',
+      '10. a — x — D-01\n    - note',
+    ];
+    for (const first of firsts) expect(discussFindings(check({ pin: '0.4.1', discuss: '## Gray areas\n' + first + '\n' })), first).toEqual([]);
+    // A nested item alone is no area: the item before it is the area.
+    expect(unmapped(check({ pin: '0.4.1', discuss: '## Gray areas\n- a — x\n  - note — D-01\n' })).map((x) => x.line)).toEqual([2]);
+    // The offset starts again under a new heading: the first item of a later section is an area at any indent up to three.
+    const later = unmapped(check({ pin: '0.4.1', discuss: '## Gray areas\n- a — x — D-01\n\n## Gray areas\n  - b — y\n' }));
+    expect(later.map((x) => x.line)).toEqual([4, 5]);
   });
 
   it('risk:parsing a list item indented by four spaces or a tab is a note, never a gray area (ST-LN-91 IN-01)', () => {

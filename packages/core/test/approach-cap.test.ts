@@ -1,7 +1,7 @@
 // ST-LN-91 91d-ac-2: the approach critic gets two rounds for a ticket claimed from APPROACH_CAP_FROM, and round 3 is refused with the
 // findings still open. The cap reads the ticket's claim pin (D-15), never the approach record's own pin.
 import { expect, it } from 'vitest';
-import { APPROACH_CAP_FROM, approvalBlockers, approvalFindings, blockingFindings, loadSnapshot, nextRound, openFindings, recordProblems, roundText } from '../src/index.js';
+import { APPROACH_CAP_FROM, approvalBlockers, approvalFindings, approvalProblems, blockingFindings, loadSnapshot, nextRound, openFindings, recordProblems, roundText } from '../src/index.js';
 import type { ClaimPin, RepoSnapshot } from '../src/index.js';
 import { CONFIG, building } from '../../../test/helpers/lane.js';
 
@@ -372,4 +372,78 @@ it('risk:regression a failed claim read is named only in the refusals the cap ru
     expect(refused.kind, approach).toBe('refused');
     expect(refused.reasons.join('\n'), approach).toContain(error);
   }
+});
+
+// ST-LN-91 CR-01 (round 3, owner decision 1): every written form of a risk mark is read as risk-marked, and a `risk:` that cannot be read is a record problem.
+const WRITTEN_FORMS = [
+  '1. Must — tokens reach the log — open — rests on: risk: security', // what critic.md's template has the session copy
+  '1. Must — an overwrite — open — rests on: risk: data-loss',
+  '1. Must — tokens reach the log — open — rests on: Risk: Security',
+  '1. Must — tokens reach the log — open — risk: Security',
+  '1. Must — an overwrite — unverified — RISK: DATA-LOSS',
+  '1. Must — tokens reach the log — risk: security — open', // the mark before the state
+  '1. Must — tokens reach the log — risk: Security — unverified',
+  '1. Must — tokens reach the log — rests on: risk: security — open',
+  '1. Must - tokens reach the log - open - risk: security', // ASCII hyphens for the em-dashes
+  '1. Must -- an overwrite -- open -- risk: data-loss',
+  '1. Must - tokens reach the log - risk: security - open',
+  '1. Must - tokens reach the log - open - rests on: risk: security',
+  '- 1. Must — tokens reach the log — open — risk: security',
+];
+
+it('risk:security every written form of a risk mark blocks the approval (ST-LN-91 CR-01)', () => {
+  for (const line of WRITTEN_FORMS) {
+    const text = line.replace(/^- /, '');
+    const approach = HEAD + round(1, line) + round(2, R2_OPEN);
+    expect(blocked(approach), line).toEqual([{ round: 1, lines: [line.trim()] }]);
+    expect(recordProblems(repo({ claim: cut, approach }), 'T-1', 'approach'), line).toEqual([]);
+    expect(approvalProblems(repo({ claim: cut, approach }), 'T-1'), line).toEqual([]);
+    // An inherited risk is no ordinary risk: the risks list never carries the finding.
+    expect(approvalFindings(repo({ claim: cut, approach }), 'T-1').risks, line).toEqual([{ round: 2, lines: [R2_OPEN] }]);
+    // A fixed, withdrawn or owner-dropped state still closes it, in any of the forms.
+    const closes = text.replace(/\bopen\b|\bunverified\b/, 'fixed');
+    expect(blocked(HEAD + round(1, closes) + round(2, R2_OPEN)), closes).toEqual([]);
+  }
+  const dropped = '1. Must - tokens reach the log - owner: "ship it" - risk: Security';
+  const found = approvalFindings(repo({ claim: cut, approach: HEAD + round(1, dropped) + round(2, 'No findings') }), 'T-1');
+  expect(found).toEqual({ risks: [{ round: 1, lines: [dropped] }], blocking: [] });
+  // On a ticket claimed under 0.4.0 the same lines block nothing and are listed as risks.
+  const legacy = approvalFindings(repo({ claim: { pin: '0.4.0' }, approach: HEAD + round(1, WRITTEN_FORMS[0]) }), 'T-1');
+  expect(legacy).toEqual({ risks: [{ round: 1, lines: [WRITTEN_FORMS[0]] }], blocking: [] });
+});
+
+it('risk:security a risk text accord cannot read is a record problem that stops the approval, on the capped rules only (ST-LN-91 CR-01)', () => {
+  const unreadable = [
+    '1. Must — tokens reach the log — open — risk: auth',
+    '1. Must — tokens reach the log — open — risk: security.',
+    '1. Must — tokens reach the log — open — risk: security — risk: data-loss', // a second mark of one kind
+    '1. Must — tokens reach the log — open, risk: security',
+    '1. Must — tokens reach the log, risk: data-loss — open',
+    '1. Must: tokens reach the log, risk: security',
+    '1. Must - tokens reach the log - open - risk: secure',
+  ];
+  for (const line of unreadable) {
+    const approach = HEAD + round(1, line);
+    const problems = recordProblems(repo({ claim: cut, approach }), 'T-1', 'approach');
+    expect(problems, line).toHaveLength(1);
+    expect(problems[0].reason, line).toContain('line 5');
+    expect(approvalProblems(repo({ claim: cut, approach }), 'T-1'), line).toEqual(problems.map((p) => p.reason));
+    expect(nextRound(repo({ claim: cut, approach }), 'T-1', 'approach').kind, line).toBe('refused');
+  }
+  // A line whose severity accord cannot read is a record problem on its own (the round then also holds no finding).
+  const noSeverity = HEAD + round(1, '1. Must/Should — tokens reach the log — open — risk: security');
+  expect(approvalProblems(repo({ claim: cut, approach: noSeverity }), 'T-1').join(' | ')).toContain('line 5: a finding whose severity accord cannot read');
+  expect(nextRound(repo({ claim: cut, approach: noSeverity }), 'T-1', 'approach').kind).toBe('refused');
+  // A risk word in the finding's own text, with no mark form, is no problem.
+  const prose = HEAD + round(1, '1. Must — the risk of a leak is not stated — open', '2. Should — the risk: section is empty — open');
+  expect(recordProblems(repo({ claim: cut, approach: prose }), 'T-1', 'approach')).toEqual([]);
+  // A legacy ticket (claimed under 0.4.0) and a lane S ticket keep their old reading and old approve: no problem is reported to approve.
+  const bad = HEAD + round(1, '1. Must — tokens reach the log — open — risk: auth', '2. Must/Should — a name — open');
+  expect(approvalProblems(repo({ claim: { pin: '0.4.0' }, approach: bad }), 'T-1')).toEqual([]);
+  expect(approvalProblems(repo({ claim: cut, lane: 'S', approach: bad }), 'T-1')).toEqual([]);
+  expect(approvalProblems(repo({ claim: cut }), 'T-1')).toEqual([]);
+  // Every record problem stops the capped approval, not only a risk one.
+  const noRound = approvalProblems(repo({ claim: cut, approach: HEAD + '## Round 1\n\nnothing\n' }), 'T-1');
+  expect(noRound).toHaveLength(1);
+  expect(noRound[0]).toContain('holds no finding');
 });

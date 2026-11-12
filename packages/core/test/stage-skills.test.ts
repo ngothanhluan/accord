@@ -470,7 +470,7 @@ it('risk:security the approach yes step says accord approve refuses on a blockin
   for (const { dir, stage, step, bad: b } of steps) {
     if (b) { bad.push(dir + ' ' + stage + ' ' + b); continue; }
     if (stage !== 'approach') continue;
-    for (const p of ['## Blocking findings', 'risk: data-loss', 'risk: security', '`accord approve` refuses while one is open', 'Blocking findings:', 'never edit the findings or the ticket to get past it'])
+    for (const p of ['## Blocking findings', 'risk: data-loss', 'risk: security', '`accord approve` refuses while one is open', 'Blocking findings:', 'never edit the findings or the ticket to get past it', '`record problem:`', '`Record problems:`', 'only how a line is written'])
       if (!step.includes(p)) bad.push(dir + ' ' + stage + ' lacks ' + p);
   }
   expect(bad).toEqual([]);

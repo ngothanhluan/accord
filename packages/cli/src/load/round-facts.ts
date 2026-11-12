@@ -16,10 +16,11 @@ const GIT = {
   env: { ...process.env, GIT_NO_LAZY_FETCH: '1' },
 };
 
-/** git's first non-blank stderr line without "fatal: ", else the error's own message. */
+/** git's first non-blank stderr line without "fatal: ", else the error's own message; always one line (a multi-line message joins its non-blank lines with ": "). */
 export function whyGit(e: unknown): string {
   const stderr = String((e as { stderr?: string }).stderr ?? '').split('\n').find((l) => l.trim() !== '');
-  return (stderr ?? (e as Error).message ?? 'git failed').replace(/^fatal: /, '').trim();
+  const own = ((e as Error).message ?? 'git failed').split('\n').map((l) => l.trim()).filter((l) => l !== '').join(': ');
+  return (stderr ?? own).replace(/^fatal: /, '').trim();
 }
 
 /** A git failure that turns into the facts' error. */

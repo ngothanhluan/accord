@@ -13,13 +13,13 @@ const GIT = {
   env: { ...process.env, GIT_NO_LAZY_FETCH: '1' },
 };
 
-/** The commits reachable from HEAD (and not from the `notIn` refs) whose subject is exactly `claim: <id>`, oldest first. */
+/** The commits reachable from HEAD (and not from the `notIn` refs) whose subject is exactly `claim: <id>`, oldest first (topological: a claim is never listed before its ancestor, whatever the commit dates). */
 function claimsOf(root: string, id: string, notIn: string[]): string[] {
   const claim = 'claim: ' + id;
   // `--grep` only narrows the log (it also matches `claim: <id>0` and a body line), so the subject is compared exactly.
   const log = execFileSync(
     'git',
-    ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '--fixed-strings', '--grep=' + claim, '--reverse', '--format=%H %s', 'HEAD', ...notIn],
+    ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '--fixed-strings', '--grep=' + claim, '--topo-order', '--reverse', '--format=%H %s', 'HEAD', ...notIn],
     { cwd: root, ...GIT },
   );
   const hits: string[] = [];
@@ -31,36 +31,24 @@ function claimsOf(root: string, id: string, notIn: string[]): string[] {
 }
 
 /**
- * The commit a ticket's claim pin is read at (ST-LN-91 D-15, WR-02): one that tells when work on the ticket began.
- * 1. The oldest `claim: <id>` commit reachable from HEAD and not from the default ref `ref` (no `--first-parent`: a merged pull request holds
+ * The commit a ticket's claim pin is read at (ST-LN-91 D-15, WR-02, RR-CR-02, RR-IN-01): its `claim: <id>` commit, and only that. A ticket with no
+ * such commit has no claim fact, so the working-tree pin decides and a ticket added under an older accord gets the new rules after the upgrade.
+ * 1. The newest `claim: <id>` commit reachable from HEAD and not from the default ref `ref` (no `--first-parent`: a merged pull request holds
  *    it on the second-parent side), so a claim commit that reached the default branch never outranks the re-claim on the working branch.
- * 2. Else the oldest `claim: <id>` commit overall (the branch was merged).
- * 3. Else the oldest commit that added `accord/tickets/<id>.md` and is not reachable from `ref`. A commit already on the default branch (a ticket
- *    queued by a backlog pull request) says nothing about when work began, and with no default ref there is nothing to tell by.
- * Undefined with none of them: the working-tree pin decides, which after an upgrade means the new rules.
+ * 2. Else the newest `claim: <id>` commit overall (the branch was merged: the re-claim is still the claim, as it was on the branch).
+ * Undefined with none of them.
  */
 function claimCommit(root: string, id: string, ref: string | undefined): string | undefined {
   const off = claimsOf(root, id, ref === undefined ? [] : ['--not', ref]);
-  if (off.length > 0) return off[0];
+  if (off.length > 0) return off[off.length - 1];
   const any = ref === undefined ? [] : claimsOf(root, id, []);
-  if (any.length > 0) return any[0];
-  if (ref === undefined) return undefined;
-  const added = execFileSync(
-    'git',
-    [
-      '-c', 'core.quotePath=false', '-c', 'log.showSignature=false', 'log', '--no-show-signature', '--diff-filter=A', '--reverse',
-      '--format=%H', 'HEAD', '--not', ref, '--', `:(literal)accord/tickets/${id}.md`,
-    ],
-    { cwd: root, ...GIT },
-  );
-  return added.split('\n').find((l) => l.trim() !== '')?.trim().toLowerCase();
+  return any.length > 0 ? any[any.length - 1] : undefined;
 }
-
 
 /**
  * ST-LN-91 D-15: the claim pin of `id`: the `accord:` pin of accord/config.yml at the claim commit, and at that commit's merge base with the
- * default ref (`basePin`, so a branch that lowers the pin and claims on it is still caught). Undefined when `claimCommit` finds no commit that tells when
- * work began (no claim commit, and no adding commit off the default branch), or HEAD has no history to read; `{ error }` on any git failure. The working-tree pin is never read here.
+ * default ref (`basePin`, so a branch that lowers the pin and claims on it is still caught). Undefined when the ticket has no `claim: <id>` commit; `{ error }` on any
+ * git failure, and when accord/config.yml cannot be read at the claim commit (a blob a blobless clone never fetched). The working-tree pin is never read here.
  */
 export function gitClaimFacts(root: string, id: string): ClaimPin | undefined {
   try {
@@ -76,7 +64,8 @@ export function gitClaimFacts(root: string, id: string): ClaimPin | undefined {
       }
     }
     const texts = catBatch(root, [sha + ':accord/config.yml', ...(base === undefined || base === '' ? [] : [base + ':accord/config.yml'])], 'the claim pin');
-    const pin = texts[0] === undefined ? undefined : pinOf(texts[0]);
+    if (texts[0] === undefined) throw new Error(`accord/config.yml cannot be read at claim commit ${sha}`);
+    const pin = pinOf(texts[0]);
     const basePin = texts[1] === undefined ? undefined : pinOf(texts[1]);
     return { sha, ...(pin === undefined ? {} : { pin }), ...(basePin === undefined ? {} : { basePin }) };
   } catch (e) {

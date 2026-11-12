@@ -14,6 +14,10 @@ const pinned = (v: string): string => CONFIG.replace(/accord: "[^"]*"/, `accord:
 it('ac-4 accord round approach counts approach critique rounds with the plan cap and stop', async () => {
   const repo = makeLaneRepo({ 'accord/tickets/S-1.md': laneTicket('S-1', { lane: 'S', body: LANE_S_BODY }) });
   try {
+    // The five-round rules are what this case counts: the ticket is claimed under 0.4.0 (ST-LN-91 D-15), HEAD holds the running version's pin.
+    writeFiles(repo, { 'accord/config.yml': pinned('0.4.0') });
+    commitMsg(repo, 'claim: T-1');
+    writeFiles(repo, { 'accord/config.yml': CONFIG, 'notes.txt': 'work after the claim\n' });
     commitMsg(repo, 'fixture');
     expect(await run(['round', 'T-1', '--approach'], repo)).toEqual({ code: 0, out: 'Round: 1 of 5\nCycle: 1\n', err: '' });
 
@@ -63,7 +67,7 @@ it('risk:complex-branching accord round --approach refuses a third round on real
     commitMsg(repo, 'claim: T-1');
     const two = rec(
       r(1, 'whole', '1. Must — the option drops the header — fixed\n2. Must — no rollback — unverified'),
-      r(2, 'diff', '1. Should — the cache can go stale — open'),
+      r(2, 'diff', '1. Should — the cache can go stale — open — rests on: ac-1'),
     );
     writeFiles(repo, { 'accord/config.yml': CONFIG, [APPROACH]: two });
     commitMsg(repo, 'T-1 approach rounds');
@@ -91,22 +95,27 @@ it('risk:complex-branching accord round --approach refuses a third round on real
 }, 120_000);
 
 it('risk:regression accord round --approach keeps five rounds for a ticket claimed under 0.4.0 (ST-LN-91 91d-ac-2)', async () => {
-  // (a) claim commit and both rounds under CONFIG (0.4.0): round 3 of 5, exactly as before.
+  // (a) claim commit under 0.4.0, both rounds after it under CONFIG: round 3 of 5, exactly as before.
   const a = makeLaneRepo();
   try {
+    writeFiles(a, { 'accord/config.yml': pinned('0.4.0') });
     commitMsg(a, 'claim: T-1');
-    const two = rec(r(1, 'whole', '1. Must — the option drops the header — fixed'), r(2, 'diff', '1. Should — the impact list misses a caller — fixed'));
-    writeFiles(a, { [APPROACH]: two });
+    const two = rec(
+      r(1, 'whole', '1. Must — the option drops the header — fixed'),
+      r(2, 'diff', '1. Should — the impact list misses a caller — fixed — rests on: ac-1'),
+    );
+    writeFiles(a, { 'accord/config.yml': CONFIG, [APPROACH]: two });
     commitMsg(a, 'T-1 approach rounds');
     expect(await run(['round', 'T-1', '--approach'], a)).toEqual({ code: 0, out: 'Round: 3 of 5\nCycle: 1\n', err: '' });
   } finally {
     cleanup(a);
   }
 
-  // (b) claimed under CONFIG, round 1 recorded after an upgrade to the cut-off pin (so the Phase 2 grounds rule asks round 2 for
+  // (b) claimed under 0.4.0, round 1 recorded after an upgrade to the cut-off pin (so the Phase 2 grounds rule asks round 2 for
   // grounds), round 2 after it, HEAD back on CONFIG: the ticket still keeps five rounds (D-15).
   const b = makeLaneRepo();
   try {
+    writeFiles(b, { 'accord/config.yml': pinned('0.4.0') });
     commitMsg(b, 'claim: T-1');
     writeFiles(b, { 'accord/config.yml': pinned(APPROACH_CAP_FROM), [APPROACH]: rec(r(1, 'whole', '1. Must — the option drops the header — fixed')) });
     commitMsg(b, 'T-1 approach round 1');

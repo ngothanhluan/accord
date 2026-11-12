@@ -6,7 +6,7 @@ import { renderDashboard } from '../src/render/dashboard.js';
 import { appendFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanup, commitAllAt, commitMsg, copyRepo, gitRun, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
-import { approve, building, CONFIG, done, gateReadyIn, LANE_BODY, laneTicket, P, ready, sized } from '../../../test/helpers/lane.js';
+import { approve, building, CONFIG, discussFiles, done, gateReadyIn, LANE_BODY, laneTicket, P, ready, sized } from '../../../test/helpers/lane.js';
 import type { Files } from '../../../test/helpers/lane.js';
 
 const board = (files: Files, claims: Record<string, string> = {}, viewer = 'an@example.com') =>
@@ -50,10 +50,10 @@ afterAll(() => {
 const summaryLine = (text: string) => text.split('\n').find((l) => l.includes(' in progress, ')) as string;
 
 it('ac-2 rows carry titles and sections carry column headers', async () => {
-  const written: Files = { 'accord/config.yml': CONFIG, [P('ST-AN-1')]: laneTicket('ST-AN-1').replace('title: "Export"', 'title: "Password reset"') };
+  const written: Files = { 'accord/config.yml': CONFIG, [P('ST-AN-1')]: laneTicket('ST-AN-1').replace('title: "Export"', 'title: "Password reset"'), ...discussFiles('ST-AN-1') };
   approve(written, 'ST-AN-1');
   expect(gateReadyIn(written, 'ST-AN-1')).toBe('pass');
-  const repo = makeLaneRepo({ [P('ST-AN-1')]: written[P('ST-AN-1')] });
+  const repo = makeLaneRepo({ [P('ST-AN-1')]: written[P('ST-AN-1')], ...discussFiles('ST-AN-1') });
   try {
     gitRun(repo, 'config', 'user.email', 'an@example.com');
     const rows = JSON.parse((await run(['status', '--json'], repo)).out) as { id: string; title?: string }[];
@@ -150,13 +150,15 @@ it('ac-1 ready tickets are ranked by inherited priority then by id', async () =>
     [P('ST-AN-4')]: lt('ST-AN-4', ['priority: high']),
     [P('ST-AN-2')]: lt('ST-AN-2', ['priority: medium', 'depends_on: ["ST-AN-1"]']),
     [P('ST-AN-6')]: lt('ST-AN-6', ['priority: high', 'depends_on: ["ST-AN-2"]']),
+    ...discussFiles('ST-AN-1', 'ST-AN-3', 'ST-AN-4', 'ST-AN-2', 'ST-AN-6'),
   };
   for (const id of ['ST-AN-1', 'ST-AN-3', 'ST-AN-4', 'ST-AN-2', 'ST-AN-6']) {
     approve(written, id);
     // BUG-LN-13 D-06: a ticket whose prerequisite is not done fails gate ready.
     expect(gateReadyIn(written, id)).toBe(['ST-AN-2', 'ST-AN-6'].includes(id) ? 'fail' : 'pass');
   }
-  const repo = makeLaneRepo(Object.fromEntries(['ST-AN-1', 'ST-AN-3', 'ST-AN-4', 'ST-AN-2', 'ST-AN-6'].map((id) => [P(id), written[P(id)]])));
+  const ids = ['ST-AN-1', 'ST-AN-3', 'ST-AN-4', 'ST-AN-2', 'ST-AN-6'];
+  const repo = makeLaneRepo({ ...Object.fromEntries(ids.map((id) => [P(id), written[P(id)]])), ...discussFiles(...ids) });
   try {
     gitRun(repo, 'config', 'user.email', 'an@example.com');
     const d = JSON.parse((await run(['dashboard', '--json'], repo)).out) as Dashboard;

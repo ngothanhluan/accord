@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { templates } from '@accord-dev/accord-core';
 import { describe, expect, it } from 'vitest';
 import { cleanup, commitAll, commitAllAt, commitMsg, gitRun, makeEmptyRepo, makeLaneRepo, makeRepo, run, writeFiles } from './helpers/repo.js';
-import { CONFIG, junit, LANE_BODY, laneTicket, PLAN, REPORT } from '../../../test/helpers/lane.js';
+import { CONFIG, discussFiles, junit, LANE_BODY, laneTicket, PLAN, REPORT } from '../../../test/helpers/lane.js';
 import { taskNumber } from '../src/commands/lane-args.js';
 import { commitSeconds } from '../src/commands/task-done.js';
 
@@ -53,7 +53,7 @@ describe('accord approve', () => {
   });
 
   it('after approval gate ready passes', async () => {
-    const repo = makeLaneRepo();
+    const repo = makeLaneRepo(discussFiles('T-1'));
     try {
       expect((await run(['gate', 'ready', 'T-1'], repo)).code).toBe(1);
       await run(['approve', 'T-1'], repo);
@@ -718,7 +718,7 @@ describe('status, claims, and next', () => {
 
   // makeLaneRepo always writes a plan, but it is never committed, so the approved ticket sits at stage plan.
   it('next lists an approved, Ready, unclaimed ticket, and nothing once it is claimed', async () => {
-    const repo = makeLaneRepo();
+    const repo = makeLaneRepo(discussFiles('T-1'));
     try {
       await run(['approve', 'T-1'], repo);
       expect((await run(['next'], repo)).out).toBe('no ticket is ready to pick up\n');
@@ -947,7 +947,7 @@ const TAGLESS = laneTicket('T-1', { body: LANE_BODY.replace(' @test:export#write
 const MAPPED_PLAN = PLAN.replace(/verify: export#writes-csv[^\n]*\n/, 'verify: export#writes-csv (@ac-1)\n');
 
 async function atBaseline(extra: Record<string, string>, plan: string): Promise<string> {
-  const repo = makeLaneRepo(extra);
+  const repo = makeLaneRepo({ ...discussFiles('T-1'), ...extra });
   await run(['approve', 'T-1'], repo);
   await run(['gate', 'ready', 'T-1'], repo);
   const first = commitAll(repo);
@@ -1198,6 +1198,7 @@ it('ac-2 template branches and t branches both count as claims', async () => {
     'accord/tickets/ST-AN-2.md': laneTicket('ST-AN-2'),
     'accord/tickets/ST-AN-3.md': laneTicket('ST-AN-3'),
     'accord/tickets/ST-AN-4.md': laneTicket('ST-AN-4'),
+    ...discussFiles('ST-AN-2', 'ST-AN-3', 'ST-AN-4'),
   });
   try {
     for (const id of ['ST-AN-2', 'ST-AN-3', 'ST-AN-4']) {

@@ -19,7 +19,8 @@ it('risk:complex-branching accord gate ready reads the claim pin from git (ST-LN
     await run(['approve', 'T-1'], a);
     writeFiles(a, { 'accord/config.yml': pinned('0.4.1') });
     commitMsg(a, 'claim: T-1');
-    writeFiles(a, { 'accord/config.yml': CONFIG });
+    // A file too: at a release CONFIG equals the cut-off pin, and a commit that restores it alone would be empty.
+    writeFiles(a, { 'accord/config.yml': CONFIG, 'notes.txt': 'work after the claim\n' });
     commitAll(a);
     const got = await findings(a);
     expect(got.code).toBe(1);
@@ -36,7 +37,8 @@ it('risk:complex-branching accord gate ready reads the claim pin from git (ST-LN
     await run(['approve', 'T-1'], b);
     writeFiles(b, { 'accord/config.yml': pinned('0.4.0') });
     commitMsg(b, 'claim: T-1');
-    writeFiles(b, { 'notes.txt': 'work after the claim\n' });
+    // HEAD holds the running version's pin, so the CLI's own pin check passes whatever release runs the test.
+    writeFiles(b, { 'accord/config.yml': CONFIG, 'notes.txt': 'work after the claim\n' });
     commitAll(b);
     expect(missing((await findings(b)).found)).toEqual([]);
   } finally {
@@ -51,7 +53,7 @@ it('risk:complex-branching gate ready falls back to the commit that added the ti
     await run(['approve', 'T-1'], a);
     writeFiles(a, { 'accord/config.yml': pinned('0.4.1') });
     commitAll(a, 'add T-1');
-    writeFiles(a, { 'accord/config.yml': CONFIG });
+    writeFiles(a, { 'accord/config.yml': CONFIG, 'notes.txt': 'work after the claim\n' });
     commitAll(a);
     const got = await findings(a);
     expect(got.code).toBe(1);
@@ -70,7 +72,7 @@ it('risk:complex-branching gate ready falls back to the commit that added the ti
     gitRun(b, 'switch', '-q', '-c', 't/T-1');
     writeFiles(b, { 'accord/config.yml': pinned('0.4.0') });
     commitMsg(b, 'claim: T-1');
-    writeFiles(b, { 'notes.txt': 'work after the claim\n' });
+    writeFiles(b, { 'accord/config.yml': CONFIG, 'notes.txt': 'work after the claim\n' });
     commitAll(b);
     expect(missing((await findings(b)).found)).toHaveLength(1);
   } finally {

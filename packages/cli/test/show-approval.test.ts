@@ -4,8 +4,10 @@ import { join } from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { approvalView, loadSnapshot } from '@accord-dev/accord-core';
+import { approvedHash } from '@accord-dev/accord-core';
 import { expect, it, vi } from 'vitest';
 import { cleanup, makeEmptyRepo, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
+import { commitMsg, gitRun } from './helpers/repo.js';
 import { isUnsafe } from '../src/render/dashboard.js';
 import { CONFIG, laneTicket } from '../../../test/helpers/lane.js';
 
@@ -392,6 +394,79 @@ it('risk:complex-branching accord show --approval --short prints the short view 
     ]);
     expect(out).not.toContain('the option drops the header');
     expect(out).not.toContain('Secret open question');
+  } finally {
+    cleanup(repo);
+  }
+});
+
+it('risk:data-loss printing the short view leaves the ticket and its approved_hash unchanged (ST-LN-91 91d-ac-3)', async () => {
+  const repo = makeLaneRepo({ 'accord/tickets/T-1.md': laneTicket('T-1', { body: PROSE(SCEN) }) });
+  try {
+    expect((await run(['approve', 'T-1'], repo)).code).toBe(0);
+    writeFiles(repo, { [APPROACH_T1]: 'Round record: 1\n\n## Round 1 (whole)\n\n1. Should — the cache can go stale — open\n\n' });
+    commitMsg(repo, 'approved');
+    const file = join(repo, 'accord', 'tickets', 'T-1.md');
+    const hashOf = (): string => approvedHash(loadSnapshot({ files: { 'accord/config.yml': CONFIG, 'accord/tickets/T-1.md': readFileSync(file, 'utf8') }, tree: [] }).tickets['T-1']);
+    const before = { bytes: readFileSync(file), hash: hashOf() };
+    expect(before.bytes.toString('utf8')).toContain('approved_hash: "' + before.hash + '"');
+    const { code, out } = await run(['show', 'T-1', '--approval', '--short'], repo);
+    expect(code).toBe(0);
+    expect(out).toContain('- round 1: 1. Should — the cache can go stale — open');
+    expect(readFileSync(file).equals(before.bytes)).toBe(true);
+    expect(hashOf()).toBe(before.hash);
+    expect(gitRun(repo, 'status', '--porcelain')).toBe('');
+  } finally {
+    cleanup(repo);
+  }
+});
+
+it('risk:regression accord show --approval prints the full approved sections as before (ST-LN-91 91d-ac-3)', async () => {
+  const repo = makeLaneRepo({ 'accord/tickets/T-1.md': laneTicket('T-1', { body: PROSE(SCEN) }) });
+  try {
+    const ticket = loadSnapshot({ files: { 'accord/config.yml': CONFIG, 'accord/tickets/T-1.md': laneTicket('T-1', { body: PROSE(SCEN) }) }, tree: [] }).tickets['T-1'];
+    vi.stubEnv('FORCE_COLOR', undefined);
+    vi.stubEnv('NO_COLOR', '1');
+    const { code, out } = await run(['show', 'T-1', '--approval'], repo);
+    expect(code).toBe(0);
+    expect(out).toBe(approvalView(ticket).split('\n').map(clean).join('\n'));
+    expect(out).not.toContain('Full ticket:');
+    expect(out).not.toContain('## Risks');
+  } finally {
+    vi.unstubAllEnvs();
+    cleanup(repo);
+  }
+});
+
+it('risk:complex-branching --short alone or with --json is refused (ST-LN-91 91d-ac-3)', async () => {
+  const repo = makeLaneRepo({ 'accord/tickets/T-1.md': laneTicket('T-1', { body: PROSE(SCEN) }), 'accord/tickets/T-2.md': laneTicket('T-2', { body: PROSE(['Feature: X', '  Scenario: s', '    Given a', '    stray words', '    Then b']) }) });
+  try {
+    const alone = await run(['show', 'T-1', '--short'], repo);
+    expect(alone.code).toBe(2);
+    expect(alone.out).toBe('');
+    expect(alone.err).toContain('--approval');
+    const json = await run(['show', 'T-1', '--approval', '--short', '--json'], repo);
+    expect(json.code).toBe(2);
+    expect(json.out).toBe('');
+    const broken = await run(['show', 'T-2', '--approval', '--short'], repo);
+    expect(broken.code).toBe(1);
+    expect(broken.out).toBe('');
+    expect(broken.err).toContain('load.gherkin-parse');
+    expect(broken.err).toContain('accord/tickets/T-2.md has load findings; run accord lint');
+  } finally {
+    cleanup(repo);
+  }
+});
+
+it('risk:security unsafe characters in the short view print as spaces (ST-LN-91 91d-ac-3)', async () => {
+  const body = PROSE(SCEN).replace('- D-01 one', '- D-01 on\u202ee\u0007x').replace('Why: a.', 'Why: a\u001b[31mb.');
+  const repo = makeLaneRepo({ 'accord/tickets/T-1.md': laneTicket('T-1', { body }) });
+  try {
+    const { code, out } = await run(['show', 'T-1', '--approval', '--short'], repo);
+    expect(code).toBe(0);
+    expect([...out].filter((ch) => ch !== '\n' && isUnsafe(ch.codePointAt(0) ?? 0))).toEqual([]);
+    expect(out).not.toContain('\u202e');
+    expect(out.split('\n')).toContain('- D-01 on e x');
+    expect(out.split('\n')).toContain('Why: a [31mb.');
   } finally {
     cleanup(repo);
   }

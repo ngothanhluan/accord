@@ -1,5 +1,6 @@
 // ST-LN-19 `accord show <id> --approval`: the compact approval view, in-process through runCli.
 import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { approvalView, loadSnapshot } from '@accord-dev/accord-core';
@@ -366,6 +367,31 @@ it('risk:parsing approval prints a fenced block in a prose section byte for byte
   try {
     const { out } = await run(['show', 'T-1', '--approval'], repo);
     expect(out).toContain('\n' + fenced.join('\n') + '\n\n## Corrections');
+  } finally {
+    cleanup(repo);
+  }
+});
+
+const APPROACH_T1 = join('accord', 'tickets', 'T-1', 'approach-review.md');
+
+it('risk:complex-branching accord show --approval --short prints the short view with the open approach findings (ST-LN-91 91d-ac-3)', async () => {
+  const repo = makeLaneRepo({ 'accord/tickets/T-1.md': laneTicket('T-1', { body: PROSE(SCEN) }) });
+  try {
+    writeFiles(repo, {
+      [APPROACH_T1]: 'Round record: 1\n\n## Round 1 (whole)\n\n1. Must — the option drops the header — fixed\n2. Should — the cache can go stale — open\n\n',
+    });
+    const { code, out, err } = await run(['show', 'T-1', '--approval', '--short'], repo);
+    expect(err).toBe('');
+    expect(code).toBe(0);
+    expect(out.split('\n')).toEqual([
+      '## Intent', '', 'Why: a.', 'For whom: b.', '',
+      '## Criteria', '', '- ac-1 one', '- ac-2 two', '',
+      '## Decisions', '', '- D-01 one', '- D-02 two', '',
+      '## Risks', '', '- round 1: 2. Should — the cache can go stale — open', '',
+      'Full ticket: accord/tickets/T-1.md', '',
+    ]);
+    expect(out).not.toContain('the option drops the header');
+    expect(out).not.toContain('Secret open question');
   } finally {
     cleanup(repo);
   }

@@ -124,3 +124,10 @@ it('risk:security the critique loop names the exact forms accord reads, and what
   ]);
   holds(flat(agent('critic')), ['write the risk only as `risk: data-loss` or `risk: security`, never in backticks or quotes.']);
 });
+
+it('risk:security the plan critique loop names the same exact forms, so a plan record is not refused for a form the skill never gave (ST-LN-91 WR-01, round 4)', () => {
+  holds(flat(skillFile('accord-plan', 'critique.md')), [
+    'The separator is always ` — `, never a hyphen, and a risk is written exactly ` — risk: security` or ` — risk: data-loss`.',
+    'A line that names a risk in any other form (`risk: security` in backticks or quotes, a hyphen between the parts) is a record problem, and `accord round <id> --plan` refuses it on a plan record written under accord 0.4.1 or later.',
+  ]);
+});

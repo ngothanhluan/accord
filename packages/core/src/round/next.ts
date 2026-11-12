@@ -127,13 +127,57 @@ export function planStopOf(
 const recordOf = (work: TicketWork | undefined, kind: RoundKind): RoundRecord | undefined =>
   kind === 'review' ? work?.rounds : kind === 'plan' ? work?.planRounds : work?.approachRounds;
 
-/** The Must and Should findings of each round of the cycle still open (state open, unverified or none), those with a `risk:` mark when `marked`, else those without one. */
-function stillOpen(cycle: RoundCycle, marked: boolean): { round: number; lines: string[] }[] {
+/** How a finding counts for the approval: an ordinary open risk, a blocker, or a risk the owner closed with a drop. */
+type Class = 'open' | 'blocking' | 'accepted';
+
+/**
+ * ST-LN-91 D-22, RR-CR-01: the class of each finding of the cycle that counts. A finding is risk-marked when its own line says
+ * `risk: data-loss` or `risk: security`, or it carries (`repeats <r>.<n>:`) a risk-marked finding, or a risk-marked finding was
+ * `repeated as` it: a risk never drops out of a chain of repeats whose later line has no mark.
+ * A risk-marked finding of any severity blocks while it is open, unverified, deferred (a risk is never deferred) or repeated as a finding that is
+ * not in a later round; it stops blocking only when fixed or withdrawn, repeated as a finding that exists (which carries the risk on), or
+ * dropped with `owner: "<words>"` (then it is `accepted`: closed, and listed with the owner's words). An unmarked Must or Should is `open`
+ * while open or unverified.
+ */
+function classify(cycle: RoundCycle): Map<RoundFinding, Class> {
+  const at = (round: number, n: number): RoundFinding[] => cycle.rounds[round - 1]?.findings.filter((f) => f.n === n) ?? [];
+  const risk = new Set<RoundFinding>();
+  for (const r of cycle.rounds) for (const f of r.findings) if (f.risk !== undefined) risk.add(f);
+  const later = (f: RoundFinding, p: number): RoundFinding[] => (f.repeatedAs !== undefined && f.repeatedAs.round > p ? at(f.repeatedAs.round, f.repeatedAs.n) : []);
+  for (let again = true; again; ) {
+    again = false;
+    cycle.rounds.forEach((r, i) => {
+      for (const f of r.findings) {
+        const inherit = (from: RoundFinding[], to: RoundFinding[]) => {
+          if (!from.some((x) => risk.has(x))) return;
+          for (const x of to) if (!risk.has(x)) { risk.add(x); again = true; }
+        };
+        if (f.carried !== undefined && f.carried.round < i + 1) inherit(at(f.carried.round, f.carried.n), [f]);
+        if (f.state === 'repeated') inherit([f], later(f, i + 1));
+      }
+    });
+  }
+  const out = new Map<RoundFinding, Class>();
+  cycle.rounds.forEach((r, i) => {
+    for (const f of r.findings) {
+      const open = f.state === undefined || f.state === 'open';
+      if (risk.has(f)) {
+        if (open || f.state === 'deferred' || (f.state === 'repeated' && later(f, i + 1).length === 0)) out.set(f, 'blocking');
+        else if (f.state === 'owner') out.set(f, 'accepted');
+      } else if (f.severity !== 'Nice' && open) {
+        out.set(f, 'open');
+      }
+    }
+  });
+  return out;
+}
+
+/** The finding lines of each round of the cycle whose class passes `keep`. */
+function linesOf(cycle: RoundCycle, keep: (c: Class | undefined) => boolean): { round: number; lines: string[] }[] {
+  const classes = classify(cycle);
   const out: { round: number; lines: string[] }[] = [];
   cycle.rounds.forEach((r, i) => {
-    const lines = r.findings
-      .filter((f) => f.severity !== 'Nice' && (f.state === undefined || f.state === 'open') && (f.risk !== undefined) === marked)
-      .map((f) => f.text);
+    const lines = r.findings.filter((f) => keep(classes.get(f))).map((f) => f.text);
     if (lines.length > 0) out.push({ round: i + 1, lines });
   });
   return out;
@@ -141,24 +185,38 @@ function stillOpen(cycle: RoundCycle, marked: boolean): { round: number; lines: 
 
 /** ST-LN-91 D-02: per round of the cycle, the Must and Should findings still open that carry no `risk:` mark: the risks the approval lists. */
 export function openFindings(cycle: RoundCycle): { round: number; lines: string[] }[] {
-  return stillOpen(cycle, false);
+  return linesOf(cycle, (c) => c === 'open');
 }
 
-/** ST-LN-91 D-22: the same, for the findings marked `risk: data-loss` or `risk: security`: they block the approval and are never listed as risks. */
+/** ST-LN-91 D-22: the open findings marked `risk: data-loss` or `risk: security`, own mark or inherited through a repeat: they block the approval and are never listed as risks. */
 export function blockingFindings(cycle: RoundCycle): { round: number; lines: string[] }[] {
-  return stillOpen(cycle, true);
+  return linesOf(cycle, (c) => c === 'blocking');
 }
 
 /**
- * ST-LN-91 D-22: the open `risk: data-loss` and `risk: security` findings of the last approach cycle, per round, for a ticket on the capped rules
- * (its claim pin is at or after APPROACH_CAP_FROM): `accord show --approval --short` lists them and `accord approve` refuses while any is open.
- * A ticket claimed under an older accord keeps its five rounds and gets none (D-12); the owner's no (`## Closed`) opens a cycle that holds none.
+ * ST-LN-91 D-22, RR-WR-01: what `accord show --approval --short` lists and `accord approve` refuses on, from the last approach cycle. `blocking`: the open
+ * risk findings, on a ticket whose claim pin is at or after APPROACH_CAP_FROM (a ticket claimed under an older accord keeps its five rounds and its
+ * approve, D-12, and a lane S ticket has no approval; both get none). `risks`: the open findings with no risk mark, the risk findings the owner
+ * dropped (closed, listed with the owner's words), and on the older rules also the open risk findings, which then block nothing.
+ */
+export function approvalFindings(snapshot: RepoSnapshot, id: string): { risks: { round: number; lines: string[] }[]; blocking: { round: number; lines: string[] }[] } {
+  const rec = workOf(snapshot, id)?.approachRounds;
+  if (rec === undefined) return { risks: [], blocking: [] };
+  const cycle = rec.cycles[rec.cycles.length - 1];
+  const rules = capRulesOf(snapshot, id, 'approach');
+  const blocks = !rules.allowances && !rules.capStop && laneTicket(snapshot, id)?.frontmatter?.lane !== 'S';
+  return {
+    risks: linesOf(cycle, (c) => c === 'open' || c === 'accepted' || (!blocks && c === 'blocking')),
+    blocking: blocks ? blockingFindings(cycle) : [],
+  };
+}
+
+/**
+ * ST-LN-91 D-22: the open `risk: data-loss` and `risk: security` approach findings of the last approach cycle, per round, for a ticket on the capped rules:
+ * `accord approve` refuses while any is open. The owner's no (`## Closed`) opens a cycle that holds none.
  */
 export function approvalBlockers(snapshot: RepoSnapshot, id: string): { round: number; lines: string[] }[] {
-  const rec = workOf(snapshot, id)?.approachRounds;
-  const rules = capRulesOf(snapshot, id, 'approach');
-  if (rec === undefined || rules.allowances || rules.capStop) return [];
-  return blockingFindings(rec.cycles[rec.cycles.length - 1]);
+  return approvalFindings(snapshot, id).blocking;
 }
 
 const ofCycle =(all: Allowance[], index: number): Allowance[] => all.filter((a) => a.cycle === index + 1);

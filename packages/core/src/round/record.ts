@@ -92,8 +92,13 @@ function readFindingV1(text: string): Partial<Omit<RoundFinding, 'severity' | 'l
     else if (/^fixed\b/.test(state)) out.state = 'fixed';
     // critique.md: the states that close a finding with no fix: the critic's `withdrawn:`, a later round's `repeats`, the owner's drop.
     else if (/^withdrawn\b/.test(state)) out.state = 'withdrawn';
-    else if (/^repeated as\b/.test(state)) out.state = 'repeated';
-    else if (/^owner:/.test(state)) out.state = 'owner';
+    else if (/^repeated as\b/.test(state)) {
+      out.state = 'repeated';
+      const to = /^repeated as ([1-9][0-9]*)\.([1-9][0-9]*)\s*$/.exec(state);
+      if (to !== null) out.repeatedAs = { round: Number(to[1]), n: Number(to[2]) };
+    }
+    // The owner's drop needs the owner's words: a bare `owner:` closes nothing and reads as open.
+    else if (/^owner:\s*".*\S.*"\s*$/.test(state)) out.state = 'owner';
   }
   const repeats = /^repeats ([1-9][0-9]*)\.([1-9][0-9]*):/.exec(t.replace(/^[^A-Za-z]*(?:must|should|nice)\b[^A-Za-z0-9]*/i, ''));
   if (marks.carried === undefined && repeats !== null) marks.carried = { round: Number(repeats[1]), n: Number(repeats[2]) };

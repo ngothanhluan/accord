@@ -56,6 +56,7 @@ export {
   ROUND_CAP,
   allowancesOf,
   approvalBlockers,
+  approvalFindings,
   blockingFindings,
   capRulesOf,
   cycleState,

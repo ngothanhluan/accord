@@ -207,6 +207,7 @@ export interface RoundFinding {
   file?: string; // absent for `none`
   state?: 'open' | 'fixed' | 'deferred' | 'withdrawn' | 'repeated' | 'owner'; // the last three: version 1 plan and approach lines only (ST-LN-91)
   carried?: { round: number; n: number };
+  repeatedAs?: { round: number; n: number }; // state 'repeated' with a target (ST-LN-91 RR-CR-01): the round.n the finding was repeated as
   risk?: 'data-loss' | 'security';
   test?: string;
   command?: string;

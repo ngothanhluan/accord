@@ -252,13 +252,14 @@ export function recordProblems(snapshot: RepoSnapshot, id: string, kind: RoundKi
   const all = allowancesOf(snapshot, id, kind);
   const rules = capRulesOf(snapshot, id, kind);
   const add = (line: number, reason: string) => out.push({ line, reason: `line ${line}: ${reason}` });
-  // ST-LN-91 CR-01: a `risk:` in the last cycle that no mark form reads, where risk marks count: the approach record on the capped rules, a plan record on the grounds rule.
+  // ST-LN-91 round 4 (strict reading): a line that names a risk (`risk`, then `security` or `data-loss`) in a form accord does not read, where risk marks count: the approach record on the
+  // capped rules, a plan record on the grounds rule. Every cycle is held to it, as an unreadable line is: a problem in an older cycle stops the approval as well (IN-01).
   const marksCount = kind === 'approach' ? !rules.allowances && !rules.capStop : kind === 'plan' && groundsV2(snapshot, id, 'plan');
   if (marksCount) {
-    for (const round of rec.cycles[rec.cycles.length - 1].rounds) {
-      for (const f of round.findings) {
-        if (f.riskUnread !== undefined) {
-          add(f.line, `a risk mark accord cannot read ("${f.riskUnread}"); write it after the state as " — risk: data-loss" or " — risk: security"`);
+    for (const cycle of rec.cycles) {
+      for (const round of cycle.rounds) {
+        for (const u of round.riskUnread ?? []) {
+          add(u.line, `a risk accord cannot read ("${u.text}"); write it on the finding's line, after the state, exactly as " — risk: data-loss" or " — risk: security", never in backticks or quotes or with a hyphen between the parts`);
         }
       }
     }

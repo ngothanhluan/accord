@@ -209,7 +209,6 @@ export interface RoundFinding {
   carried?: { round: number; n: number };
   repeatedAs?: { round: number; n: number }; // state 'repeated' with a target (ST-LN-91 RR-CR-01): the round.n the finding was repeated as
   risk?: 'data-loss' | 'security';
-  riskUnread?: string; // version 1 plan and approach lines (ST-LN-91 CR-01): the text of a `risk:` that no mark form read
   test?: string;
   command?: string;
   restsOn?: { kind: 'ac' | 'decision' | 'Veto' | 'Correction' | 'Intent' | 'Understood' | 'Done when'; ref: string }; // ref: ac-<n>, D-<nn>, or the quote without its quotes
@@ -221,6 +220,7 @@ export interface RecordedRound {
   head?: string; // version 2 only (ST-LN-57): the commit the round reviewed up to, lower case
   added?: true; // version 2 only: the heading says (added code round 1)
   final?: true; // version 2 only: the heading says (final review)
+  riskUnread?: { line: number; text: string }[]; // version 1 plan and approach records (ST-LN-91 round 4): the lines of the round that name a risk in a form accord does not read
 }
 export interface RoundVerdict { value: string; quoted: boolean; line: number } // quoted: accepted-by-owner followed by a "sentence"
 export interface RoundCycle { line: number; marker?: string; rounds: RecordedRound[]; verdicts: RoundVerdict[]; closed?: number }

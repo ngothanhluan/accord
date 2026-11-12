@@ -114,12 +114,13 @@ it('risk:security the critique loop names the exact forms accord reads, and what
     'A risk is written exactly ` — risk: security` or ` — risk: data-loss`, in any letter case.',
     "The critic's `rests on: risk: security` is written that way, and the critic's own block, with `rests on: risk: security` on its own line under the finding, is read too.",
     'A line that names a risk in any other form (`risk: security` in backticks or quotes, a hyphen between the parts, `risk: security.`) is a record problem: `accord round <id> --approach` and `accord approve` refuse until it is rewritten in the exact form.',
-    'The test is the word `risk`, then only spaces and `: = - " \' ` * _ ( ) [ ]`, then `security` or `data-loss`; a `risk:` followed by other words is plain text.',
+    'A state that closes a finding (`fixed`, `withdrawn`, `repeated as <round>.<n>`, `owner: "<words>"`) is the whole segment: `fixed by a patch` leaves it open.',
+    'The test is the word `risk`, then only spaces, colons, equals signs, hyphens, dashes, quotes, backticks, asterisks, underscores and brackets, then `security` or `data-loss`; a `risk:` followed by other words is plain text.',
   ]);
   expect(loop).not.toContain('with ` — `, ` - `');
   holds(flat(skillFile('accord-approach', 'approval.md')), [
     'A `record problem:` item in that part is a line of `approach-review.md` that accord cannot read, or a risk written in a form accord does not read: the owner cannot say yes until it is fixed (step 4).',
     'as `./critique.md` gives the form',
   ]);
-  holds(flat(agent('critic')), ['Write a risk only as `risk: data-loss` or `risk: security`, never in backticks or quotes.']);
+  holds(flat(agent('critic')), ['write the risk only as `risk: data-loss` or `risk: security`, never in backticks or quotes.']);
 });

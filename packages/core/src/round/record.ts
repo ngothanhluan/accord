@@ -25,21 +25,26 @@ const DOUBTFUL = /^\s*(?:[/|?]|(?:or|and)\s+(?:must|should|nice)\b)/i;
 
 const dequote = (v: string): string => (v.length >= 2 && v.startsWith('`') && v.endsWith('`') ? v.slice(1, -1) : v);
 
-/** The separators a version 1 plan or approach line may use besides ' — ': an ASCII hyphen or two, an en dash (ST-LN-91 CR-01). */
-const LOOSE_SEPARATORS = [' -- ', ' - ', ' – '];
+// ST-LN-91 round 4 (owner decision 2026-11-13): a plan or approach line is read strictly. The one separator is ' — '; a hyphen, two hyphens or an en dash is part of the text
+// of a state, a reason, a test or a command. A line that names a risk in a form that is not read is a record problem. The test: the word `risk`, then only spaces and
+// `: = - – — " ' ` * _ ( ) [ ]`, then `security` or `data-loss` (`data loss` too). A `risk:` followed by other words, and a comma or a full stop before the kind, are plain text.
+const RISK_NAMED = /\brisk[\s:=\-–—"'`*_()[\]]*(?:security|data[\s-]loss)\b/i;
+// The critic's block (critic.md): the line under a finding that holds only `rests on: risk: security` or `rests on: risk: data-loss`.
+const BLOCK_RISK = /^\s*(?:[-*+]\s+)?rests on:\s*risk:\s*(data-loss|security)\s*$/i;
 
-/** Split a line on ' — ' (with `loose`, also on ' - ', ' -- ' and ' – ') outside double quotes and backticks; a quote with no closing twin is plain text. */
-function splitDashes(line: string, loose = false): string[] {
+const indentOf = (text: string): number => text.length - text.trimStart().length;
+
+/** Split a line on ' — ' outside double quotes and backticks; a quote with no closing twin is plain text. */
+function splitDashes(line: string): string[] {
   const parts: string[] = [];
   let from = 0;
   for (let i = 0; i < line.length; ) {
     const c = line[i];
-    const sep = line.startsWith(' — ', i) ? ' — ' : loose ? LOOSE_SEPARATORS.find((x) => line.startsWith(x, i)) : undefined;
     if ((c === '"' || c === '`') && line.indexOf(c, i + 1) !== -1) {
       i = line.indexOf(c, i + 1) + 1;
-    } else if (sep !== undefined) {
+    } else if (line.startsWith(' — ', i)) {
       parts.push(line.slice(from, i));
-      i += sep.length;
+      i += 3;
       from = i;
     } else {
       i++;
@@ -68,19 +73,19 @@ function readMark(seg: string): Mark | undefined {
 }
 
 /**
- * ST-LN-91 D-11: a version 1 plan or approach finding line `<n>. <Severity> — <finding> — <state>[ — <mark>]…`. The number, the state
- * (open and unverified read as open; withdrawn, `repeated as <r>.<n>` and `owner: "..."` are their own closed states), a `repeats <r>.<n>:` carry and the trailing marks are read only when the line has them; a line
- * that splits no further gives nothing, so it reads as before.
+ * ST-LN-91 D-11: a version 1 plan or approach finding line `<n>. <Severity> — <finding> — <state>[ — <mark>]…`, read strictly (round 4): the separator is ' — ' only. The number, the state
+ * (open and unverified read as open; `fixed`, `withdrawn[: <reason>]`, `repeated as <r>.<n>` and `owner: "..."` are closed states, each the whole segment), a `repeats <r>.<n>:` carry and the
+ * trailing marks are read only when the line has them; a line that splits no further gives nothing, so it reads as before. `riskUnread` is the text of a line that names a risk in no form read.
  */
-function readFindingV1(text: string): Partial<Omit<RoundFinding, 'severity' | 'line' | 'text'>> {
+function readFindingV1(text: string): Partial<Omit<RoundFinding, 'severity' | 'line' | 'text'>> & { riskUnread?: string } {
   let t = text.trim().replace(/^[-*+] /, '');
-  const out: Partial<Omit<RoundFinding, 'severity' | 'line' | 'text'>> = {};
+  const out: Partial<Omit<RoundFinding, 'severity' | 'line' | 'text'>> & { riskUnread?: string } = {};
   const num = /^([1-9][0-9]*)[.)]\s+/.exec(t);
   if (num !== null) {
     out.n = Number(num[1]);
     t = t.slice(num[0].length);
   }
-  const segs = splitDashes(t, true);
+  const segs = splitDashes(t);
   const marks: Mark = {};
   while (segs.length > 1) {
     const mark = readMark(segs[segs.length - 1].trim());
@@ -90,7 +95,7 @@ function readFindingV1(text: string): Partial<Omit<RoundFinding, 'severity' | 'l
     Object.assign(marks, mark);
     segs.pop();
   }
-  // ST-LN-91 CR-01: a risk mark written before the state (`<finding> — risk: security — open`) is read too; its segment is taken out.
+  // A risk mark written before the state (`<finding> — risk: security — open`) is read too; its segment is taken out.
   for (let k = segs.length - 2; k >= 2 && marks.risk === undefined; k--) {
     const mark = readMark(segs[k].trim());
     if (mark?.risk !== undefined) {
@@ -98,17 +103,15 @@ function readFindingV1(text: string): Partial<Omit<RoundFinding, 'severity' | 'l
       segs.splice(k, 1);
     }
   }
-  // A `risk:` that no mark form above read: after the finding's own words any `risk:`; in them (or in a line with no separator) a `risk:` with a risk word.
-  const unquoted = (x: string): string => x.replace(/"[^"]*"|`[^`]*`/g, '');
-  const stray = segs.find((x, k) => (k >= 2 ? /\brisk\s*:/i : /\brisk\s*:\s*(?:data-loss|security)\b/i).test(unquoted(x)));
-  if (stray !== undefined) out.riskUnread = stray.trim();
   if (segs.length >= 3) {
     const state = segs[segs.length - 1].trim();
-    if (/^deferred\b/.test(state)) out.state = 'deferred';
+    // An `unverified: <reason>` whose reason holds ' — ' is cut into segments; none of them is a state that closes the finding.
+    if (segs.slice(2, -1).some((x) => /^unverified\b/.test(x.trim()))) out.state = 'open';
+    else if (/^deferred\b/.test(state)) out.state = 'deferred';
     else if (/^(?:open|unverified)\b/.test(state)) out.state = 'open';
-    else if (/^fixed\b/.test(state)) out.state = 'fixed';
+    else if (state === 'fixed') out.state = 'fixed';
     // critique.md: the states that close a finding with no fix: the critic's `withdrawn:`, a later round's `repeats`, the owner's drop.
-    else if (/^withdrawn\b/.test(state)) out.state = 'withdrawn';
+    else if (/^withdrawn(?::.*)?$/.test(state)) out.state = 'withdrawn';
     else if (/^repeated as\b/.test(state)) {
       out.state = 'repeated';
       const to = /^repeated as ([1-9][0-9]*)\.([1-9][0-9]*)\s*$/.exec(state);
@@ -117,6 +120,10 @@ function readFindingV1(text: string): Partial<Omit<RoundFinding, 'severity' | 'l
     // The owner's drop needs the owner's words: a bare `owner:` closes nothing and reads as open.
     else if (/^owner:\s*".*\S.*"\s*$/.test(state)) out.state = 'owner';
   }
+  // A risk named in a form that is not read: the words of the line, the read marks and the owner's quoted words taken out.
+  const owned = out.state === 'owner' ? segs.length - 1 : -1;
+  const rest = segs.filter((_, k) => k !== owned).join(' — ');
+  if (RISK_NAMED.test(rest)) out.riskUnread = rest.length > 160 ? rest.slice(0, 157) + '...' : rest;
   const repeats = /^repeats ([1-9][0-9]*)\.([1-9][0-9]*):/.exec(t.replace(/^[^A-Za-z]*(?:must|should|nice)\b[^A-Za-z0-9]*/i, ''));
   if (marks.carried === undefined && repeats !== null) marks.carried = { round: Number(repeats[1]), n: Number(repeats[2]) };
   return { ...out, ...marks };
@@ -246,10 +253,30 @@ export function parseRounds(file: string, text: string, kind: 'review' | 'plan' 
 
     // Lines of an unknown heading are still read, against the cycle's last round when there is one.
     const target = round ?? cycle.rounds[cycle.rounds.length - 1];
+    // ST-LN-91 round 4: a plan or approach record names its risks strictly. The block of the last finding line (the lines indented deeper than it) may hold the critic's own
+    // `rests on: risk: security` line; any other line that names a risk in a form that is not read is kept on its round, and the record problems of the round report it.
+    const strict = kind !== 'review' && !version2;
+    let block: { f: RoundFinding; indent: number } | undefined;
+    const unread = (line: number, text: string) => {
+      if (target !== undefined) (target.riskUnread ??= []).push({ line, text: text.length > 160 ? text.slice(0, 157) + '...' : text });
+    };
     for (const l of section.lines) {
       const t = textOf(l.line);
       if (t === undefined) continue;
       const r = readLine(t);
+      if (strict && r.kind === 'prose' && t.trim() !== '') {
+        const indent = indentOf(t);
+        const m = BLOCK_RISK.exec(t);
+        if (block !== undefined && indent > block.indent) {
+          const risk = m === null ? undefined : (m[1].toLowerCase() as 'data-loss' | 'security');
+          if (risk !== undefined && (block.f.risk === undefined || block.f.risk === risk)) block.f.risk = risk;
+          else if (risk !== undefined || RISK_NAMED.test(t)) unread(l.line, t.trim());
+        } else {
+          block = undefined;
+          if (RISK_NAMED.test(t)) unread(l.line, t.trim());
+        }
+        continue;
+      }
       if (r.kind === 'verdict') {
         cycle.verdicts.push({ value: r.value, quoted: r.quoted, line: l.line });
       } else if (r.kind === 'none' && target !== undefined) {
@@ -260,7 +287,11 @@ export function parseRounds(file: string, text: string, kind: 'review' | 'plan' 
         if (target === undefined) {
           bad(l.line, `line ${l.line}: a finding outside a ## Round section`);
         } else if (!version2) {
-          target.findings.push({ severity: r.severity, line: l.line, text: t.trim(), ...(kind === 'review' ? {} : readFindingV1(t)) } satisfies RoundFinding);
+          const { riskUnread, ...read } = kind === 'review' ? {} as ReturnType<typeof readFindingV1> : readFindingV1(t);
+          const finding: RoundFinding = { severity: r.severity, line: l.line, text: t.trim(), ...read };
+          target.findings.push(finding);
+          if (strict) block = { f: finding, indent: indentOf(t) };
+          if (riskUnread !== undefined) unread(l.line, riskUnread);
         } else {
           const shown = t.trim().replace(/^[-*+] /, '');
           const f = parseFindingV2(shown);

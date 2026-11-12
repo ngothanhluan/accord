@@ -20,8 +20,9 @@ shortens what the yes covers; it never narrows it.
    `risk: data-loss` or `risk: security` finding, the owner cannot say yes:
    `accord approve` refuses while one is open. Show the part, say so, and ask
    for the no and its Correction (step 5) instead of the yes. A `record problem:`
-   item in that part is a line of `approach-review.md` that accord cannot read:
-   the owner cannot say yes until it is fixed (step 4).
+   item in that part is a line of `approach-review.md` that accord cannot read,
+   or a risk written in a form accord does not read: the owner cannot say yes
+   until it is fixed (step 4).
 
 3. The question names the text above it and `accord/tickets/<id>.md`, and
    says that the yes approves the ticket's Intent, acceptance criteria, Vetoes,

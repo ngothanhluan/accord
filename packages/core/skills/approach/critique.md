@@ -13,12 +13,22 @@ The state is `open`, `fixed`, `deferred` for a Nice, `unverified: <reason>`,
 `withdrawn`, `repeated as <round>.<n>`, and `owner: "<the owner's words>"`
 for one the owner dropped. After the state the session copies the critic's
 marks, each as ` — <mark>`: `rests on: <the ticket line>`, `risk: data-loss`
-or `risk: security`, `test: <id>`, `command: <command>`. The critic's
-`rests on: risk: security` or `rests on: risk: data-loss` is written as
-` — risk: security` or ` — risk: data-loss`, after the state. A `risk:` that
-accord cannot read in `approach-review.md` is a record problem:
-`accord round <id> --approach` refuses and `accord approve` refuses until it
-is fixed. A finding stays
+or `risk: security`, `test: <id>`, `command: <command>`. The separator is
+always ` — `, an em dash with a space on each side, never a hyphen: a hyphen
+in a state, a reason, a test or a command is part of its text. A state that
+closes a finding (`fixed`, `withdrawn`, `repeated as <round>.<n>`,
+`owner: "<words>"`) is the whole segment: `fixed by a patch` leaves it open.
+A risk is
+written exactly ` — risk: security` or ` — risk: data-loss`, in any letter case.
+The critic's `rests on: risk: security` is written that way, and the critic's
+own block, with `rests on: risk: security` on its own line under the finding,
+is read too. A line that names a risk in any other form
+(`risk: security` in backticks or quotes, a hyphen between the parts,
+`risk: security.`) is a record problem: `accord round <id> --approach` and
+`accord approve` refuse until it is rewritten in the exact form. The test is
+the word `risk`, then only spaces, colons, equals signs, hyphens, dashes,
+quotes, backticks, asterisks, underscores and brackets, then `security` or
+`data-loss`; a `risk:` followed by other words is plain text. A finding stays
 `open` or `unverified` until a
 critic lists it after `fixed:` or `withdrawn:`, or the owner drops it; the
 planner's word alone closes nothing. A round with no findings says

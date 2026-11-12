@@ -55,6 +55,7 @@ export {
   LEGACY_CAP,
   ROUND_CAP,
   allowancesOf,
+  approvalBlockers,
   blockingFindings,
   capRulesOf,
   cycleState,

@@ -201,12 +201,21 @@ export function parseReview(file: string, text: string): Review {
 // ST-LN-91 D-04: the last part of a gray-area item: `D-07` or `D-07, D-08`. Anchored, and the alternatives cannot overlap, so no input backtracks.
 const DISCUSS_DECISIONS = /^D-[0-9]+(?:\s*,\s*D-[0-9]+)*$/;
 const DISCUSS_SEPARATOR = ' — ';
-// An area is a list item at the top level of its line: Markdown reads up to three leading spaces as top level, so four or more spaces and a tab
-// make a note under an area, never an area (ST-LN-91 IN-01, RR-WR-03).
-const AREA_MARKER = /^ {0,3}(?:[-*+]|\d+[.)])\s+/;
+// An area is a list item at the top level of its line (ST-LN-91 IN-01, RR-WR-03, WR-02): up to three leading spaces, and, as CommonMark reads a list, not indented
+// as far as the text of the area before it (a sub-bullet under `- ` starts at column 2, under `1. ` at column 3). Four or more spaces and a tab are never an area.
+const AREA_MARKER = /^( {0,3})([-*+]|\d+[.)])(\s+)/;
+
+/** The column at which the text of a list item starts: its indent, its marker and the spaces after it (a tab to the next multiple of 4; five or more columns of space count as one). */
+function textColumn(indent: number, marker: string, gap: string): number {
+  let col = indent + marker.length;
+  const start = col;
+  for (const c of gap) col = c === '\t' ? col + 4 - (col % 4) : col + 1;
+  return col - start > 4 ? start + 1 : col;
+}
 
 /**
- * ST-LN-91 D-04: `accord/tickets/<id>/discuss.md`. The areas are the list items at the top level of a line (up to three spaces of indent) under every
+ * ST-LN-91 D-04: `accord/tickets/<id>/discuss.md`. The areas are the list items at the top level of a line (up to three spaces of indent, and indented less than the text
+ * of the area before it: a sub-bullet two spaces under `- ` is a note, WR-02) under every
  * `## Gray areas` heading and every heading whose key starts with `gray areas`, such as `## Gray areas (cont.)` (WR-03, RR-WR-03: the headings other than the one
  * exact `## Gray areas` are listed in `extraHeadings`, which the gate reports), outside fences and HTML comments: `- <group> — <gray area in plain words> — D-07` or `— D-07, D-08`. The text between the first and the last
  * ` — ` is the gray area; with no `D-nn` last part the text is everything after the group, and an item with no separator is all text.
@@ -216,10 +225,19 @@ export function parseDiscuss(file: string, text: string): Discuss {
   const { sections, fences } = scan(normaliseText(text), 0);
   const grays = sections.filter((s) => headingKey(s.heading).startsWith('gray areas'));
   const unfenced = grays.flatMap((s) => s.lines).filter((l) => !fences.some((f) => l.line >= f.open && l.line <= f.close));
+  const sectionOf = new Map(grays.flatMap((s, i) => s.lines.map((l) => [l.line, i] as const)));
   const areas: DiscussArea[] = [];
+  let column = 0; // where the text of the last top-level item of the section starts: a line indented to it or beyond is nested in it
+  let inSection = -1;
   for (const l of stripHtmlComments(unfenced)) {
-    if (!AREA_MARKER.test(l.text)) continue;
-    const item = l.text.replace(AREA_MARKER, '').trim();
+    if (sectionOf.get(l.line) !== inSection) {
+      inSection = sectionOf.get(l.line)!;
+      column = 0;
+    }
+    const marker = AREA_MARKER.exec(l.text);
+    if (marker === null || (column > 0 && marker[1].length >= column)) continue;
+    column = textColumn(marker[1].length, marker[2], marker[3]);
+    const item = l.text.slice(marker[0].length).trim();
     if (item === '') continue;
     const parts = item.split(DISCUSS_SEPARATOR).map((p) => p.trim());
     if (parts.length === 1) {

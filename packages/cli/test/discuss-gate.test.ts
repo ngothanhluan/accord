@@ -46,10 +46,15 @@ it('risk:complex-branching accord gate ready reads the claim pin from git (ST-LN
   }
 });
 
-it('risk:complex-branching gate ready falls back to the commit that added the ticket when there is no claim commit (ST-LN-91 91d-ac-1)', async () => {
-  // (a) no `claim:` commit: the commit that added the ticket holds the cut-off pin; HEAD holds the running version's pin.
+it('risk:complex-branching gate ready falls back to the commit that added the ticket off the default branch when there is no claim commit (ST-LN-91 91d-ac-1, WR-02)', async () => {
+  // (a) no `claim:` commit: the commit that added the ticket, on a branch off main, holds the cut-off pin; HEAD holds the running version's pin.
   const a = makeLaneRepo({ 'accord/tickets/T-1.md': laneTicket('T-1') });
   try {
+    // main holds the config alone, so the ticket's adding commit is not reachable from it.
+    gitRun(a, 'add', 'accord/config.yml');
+    gitRun(a, '-c', 'user.email=fixture@example.invalid', '-c', 'user.name=fixture', '-c', 'commit.gpgsign=false', 'commit', '-q', '--no-verify', '-m', 'base');
+    gitRun(a, 'branch', '-M', 'main');
+    gitRun(a, 'switch', '-q', '-c', 't/T-1');
     await run(['approve', 'T-1'], a);
     writeFiles(a, { 'accord/config.yml': pinned('0.4.1') });
     commitAll(a, 'add T-1');

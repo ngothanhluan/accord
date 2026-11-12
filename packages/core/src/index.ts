@@ -45,13 +45,27 @@ export type {
 export { loadSnapshot } from './load/snapshot.js';
 export { isResearchPath, isResearchRecord, recordHeaderFaults, RESEARCH_DIR } from './load/research.js';
 export { parseRounds, cycleOpen, ROUND_RECORD_LINE, ROUND_RECORD_LINE_2 } from './round/record.js';
-export { claimPinBefore, DISCUSS_FROM, GROUNDS_V2_FROM, PLAN_SIZE_FROM, RECORD_V2_FROM, pinAllowsV1, pinBefore, pinOf } from './round/pin.js';
+export { APPROACH_CAP_FROM, claimPinBefore, DISCUSS_FROM, GROUNDS_V2_FROM, PLAN_SIZE_FROM, RECORD_V2_FROM, pinAllowsV1, pinBefore, pinOf } from './round/pin.js';
 export { parseDiscuss } from './load/work.js';
 export { groundsDeferred, groundsProblems, groundsV2 } from './round/grounds.js';
 export { fixScopeProblems } from './round/fixscope.js';
 export { pendingAddedCode, scopeProblems } from './round/scope.js';
-export { ROUND_CAP, allowancesOf, cycleState, fixModel, modelFamily, nextRound, planStopOf, recordProblems, roundText } from './round/next.js';
-export type { Allowance, RoundAnswer, RoundKind } from './round/next.js';
+export {
+  APPROACH_CAP,
+  LEGACY_CAP,
+  ROUND_CAP,
+  allowancesOf,
+  capRulesOf,
+  cycleState,
+  fixModel,
+  modelFamily,
+  nextRound,
+  openFindings,
+  planStopOf,
+  recordProblems,
+  roundText,
+} from './round/next.js';
+export type { Allowance, CapRules, RoundAnswer, RoundKind } from './round/next.js';
 export { checkFixDispatch } from './round/dispatch.js';
 export { loadConfig } from './load/config.js';
 export { lintSnapshot } from './lint/index.js';

@@ -37,6 +37,12 @@ export const GROUNDS_V2_FROM = '0.4.1';
  */
 export const DISCUSS_FROM = '0.4.1';
 
+/**
+ * ST-LN-91 D-02, D-12 and D-15: the release that caps the approach critic at two rounds: a ticket whose claim pin is below it keeps five
+ * approach rounds and the stop from round 3, whatever pin its approach record began under. Read through claimPinBefore.
+ */
+export const APPROACH_CAP_FROM = '0.4.1';
+
 /** True only when `pin` is a plain x.y.z below `from` and, when `basePin` is a plain x.y.z, not below `basePin`: the rules before `from` hold. */
 export function pinBefore(from: string, pin: string | undefined, basePin?: string): boolean {
   if (pin === undefined || !PLAIN.test(pin) || compare(pin, from) >= 0) return false;

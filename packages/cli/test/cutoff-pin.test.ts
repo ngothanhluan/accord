@@ -136,17 +136,16 @@ it('risk:security approve and show name the git error where a failed claim read 
   }
 }, 120_000);
 
-// ST-LN-91 CR-01 (round 3, owner decision 1): every written form of a risk mark blocks, and a record accord cannot read stops the approval.
+// ST-LN-91 CR-01 (round 3, owner decision 1; round 4, strict reading): every read form of a risk mark blocks, and a record accord cannot read, or a risk it cannot read, stops the approval.
 const TICKET = join('accord', 'tickets', 'T-1.md');
 const FORMS = [
   '1. Must — tokens reach the log — open — rests on: risk: security',
   '1. Must — tokens reach the log — open — risk: Security',
   '1. Must — an overwrite — risk: data-loss — open',
-  '1. Must - tokens reach the log - open - risk: security',
-  '1. Must -- an overwrite -- open -- risk: data-loss',
+  '1. Must — tokens reach the log — open — RISK: SECURITY',
 ];
 
-it('risk:security accord approve refuses every written form of a risk mark and the short view lists it as blocking (ST-LN-91 CR-01)', async () => {
+it('risk:security accord approve refuses every read form of a risk mark and the short view lists it as blocking (ST-LN-91 CR-01)', async () => {
   const repo = claimed(APPROACH_CAP_FROM, rec(r(1, 'whole', FORMS[0]), r(2, 'diff', OPEN)));
   try {
     for (const form of FORMS) {
@@ -166,7 +165,7 @@ it('risk:security accord approve refuses every written form of a risk mark and t
 }, 120_000);
 
 it('risk:security accord approve refuses while the approach record has a line accord cannot read, and names it (ST-LN-91 CR-01)', async () => {
-  const bad = ['1. Must — tokens reach the log — open — risk: auth', '1. Must/Should — tokens reach the log — open — risk: security'];
+  const bad = ['1. Must — tokens reach the log — open — `risk: security`', '1. Must/Should — tokens reach the log — open — risk: security', '1. Must - tokens reach the log - open - risk: security'];
   const repo = claimed(APPROACH_CAP_FROM, rec(r(1, 'whole', bad[0]), r(2, 'diff', OPEN)));
   try {
     for (const line of bad) {
@@ -201,6 +200,24 @@ it('risk:regression a ticket claimed under 0.4.0 is approved over a record with 
     expect(approved.code).toBe(0);
     expect(approved.out).toMatch(/^approved /);
     expect(readFileSync(join(repo, TICKET), 'utf8')).toContain('approved_hash');
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+it('risk:security accord approve reads the critic block as printed and refuses a risk written in backticks, through the CLI (ST-LN-91 CR-02 round 4)', async () => {
+  const block = ['1. Must — tokens reach the log — open', '   failing case: a login with a bad password → the token is written to app.log', '   rests on: risk: security'].join('\n');
+  const repo = claimed(APPROACH_CAP_FROM, rec(r(1, 'whole', block), r(2, 'diff', 'No findings')));
+  try {
+    const refused = await run(['approve', 'T-1'], repo);
+    expect(refused.code).toBe(1);
+    expect(refused.out).toContain('Round 1:\n1. Must — tokens reach the log — open\n');
+    const short = await run(['show', 'T-1', '--approval', '--short'], repo);
+    const lines = short.out.split('\n');
+    expect(lines.indexOf('- round 1: 1. Must — tokens reach the log — open')).toBeGreaterThan(lines.indexOf('## Blocking findings'));
+    // Fixed, the block closes the finding and the approval goes through.
+    writeFiles(repo, { [APPROACH]: rec(r(1, 'whole', block.replace('open', 'fixed')), r(2, 'diff', 'No findings')) });
+    expect((await run(['approve', 'T-1'], repo)).code).toBe(0);
   } finally {
     cleanup(repo);
   }

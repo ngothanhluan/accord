@@ -243,7 +243,7 @@ export interface DiscussArea {
 export interface Discuss {
   file: string; // 'accord/tickets/LOGIN-1/discuss.md'
   areas: DiscussArea[]; // the column-0 list items under every '## Gray areas' heading, in order
-  extraHeadings?: number[]; // the lines of every '## Gray areas' heading after the first; absent when there is none
+  extraHeadings?: number[]; // the lines of every heading of gray areas but the first exact '## Gray areas' (a repeat, or '## Gray areas (cont.)'); absent when there is none
 }
 
 export interface TicketWork {

@@ -118,13 +118,13 @@ describe('discuss record at gate ready', () => {
     const f = unmapped(r);
     // The area of the second section is read and named on its own line; the repeated heading is a finding of its own.
     expect(f.map((x) => x.line)).toEqual([4, 5]);
-    expect(f[0].reason).toContain('duplicate heading "## Gray areas"');
+    expect(f[0].reason).toContain('put every gray area under the one "## Gray areas" heading');
     expect(f[1].reason).toContain('never mapped');
     // Every area mapped, the repeated heading still fails.
     const mapped = check({ pin: '0.4.1', discuss: '## Gray areas\n- a — first — D-01\n\n## Gray areas\n- b — second — D-01\n' });
     expect(mapped.verdict).toBe('fail');
     expect(unmapped(mapped)).toHaveLength(1);
-    expect(unmapped(mapped)[0].reason).toContain('duplicate heading');
+    expect(unmapped(mapped)[0].reason).toContain('put every gray area under the one');
     // Another section with another name is no gray-areas section and its items are no areas.
     expect(discussFindings(check({ pin: '0.4.1', discuss: GRAY + '\n## Notes\n- scope — a note\n' }))).toEqual([]);
     // A ticket the discuss stage does not apply to gets no finding for it.
@@ -159,11 +159,11 @@ describe('discuss record at gate ready', () => {
     expect(unmapped(check({ pin: '0.4.1', discuss: '## Gray areas\n 1) a — one\n' })).map((x) => x.line)).toEqual([2]);
   });
 
-  it('risk:parsing only a list item at the start of a line is a gray area (ST-LN-91 IN-01)', () => {
-    const nested = '## Gray areas\n- behaviour — what export prints for an empty report — D-01\n  - option A — cheap\n\t- option B — dear\n    * option C\n';
+  it('risk:parsing a list item indented by four spaces or a tab is a note, never a gray area (ST-LN-91 IN-01)', () => {
+    const nested = '## Gray areas\n- behaviour — what export prints for an empty report — D-01\n    - option A — cheap\n\t- option B — dear\n        * option C\n';
     expect(discussFindings(check({ pin: '0.4.1', discuss: nested }))).toEqual([]);
-    // An indented item alone is no area at all.
-    const only = missing(check({ pin: '0.4.1', discuss: '## Gray areas\n  - scope — indented — D-01\n' }));
+    // An item indented by four spaces alone is no area at all.
+    const only = missing(check({ pin: '0.4.1', discuss: '## Gray areas\n    - scope — indented — D-01\n' }));
     expect(only).toHaveLength(1);
     expect(only[0].reason).toContain('lists no gray area');
     // Numbered items and every bullet mark still count.

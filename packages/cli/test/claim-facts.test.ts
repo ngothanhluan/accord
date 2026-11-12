@@ -1,12 +1,12 @@
 // ST-LN-91 D-15 on real git: which commit gitClaimFacts reads a ticket's claim pin at, and what it does when git fails.
-import { mkdtempSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { chmodSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { claimPinBefore, DISCUSS_FROM, gateReady, loadSnapshot } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
 import { gitClaimFacts, withClaimPins } from '../src/load/claim-facts.js';
-import { cleanup, commitAll, commitMsg, gitRun, makeEmptyRepo, makeLaneRepo, writeFiles } from './helpers/repo.js';
+import { whyGit } from '../src/load/round-facts.js';
+import { cleanup, commitAll, commitMsg, gitRun, makeEmptyRepo, makeLaneRepo, mergeMsg, run, writeFiles } from './helpers/repo.js';
 import { CONFIG, laneTicket } from '../../../test/helpers/lane.js';
 
 const pinned = (v: string): string => CONFIG.replace(/accord: "[^"]*"/, `accord: "${v}"`);
@@ -46,17 +46,20 @@ it('risk:regression a ticket queued on main under 0.4.0 and worked after the upg
   }
 });
 
-it('risk:regression a ticket added on a branch under 0.4.0 keeps the old rules until it is claimed (ST-LN-91 WR-02)', () => {
+it('risk:regression a ticket added on a branch under 0.4.0 and never claimed gets the new rules (ST-LN-91 RR-CR-02)', () => {
   const repo = onMain('0.4.0', false);
   try {
     gitRun(repo, 'switch', '-q', '-c', 't/T-1');
     writeFiles(repo, { 'accord/tickets/T-1.md': TICKET });
-    const added = commitAll(repo, 'add T-1');
+    commitAll(repo, 'add T-1');
     writeFiles(repo, { 'accord/config.yml': pinned('0.4.1'), 'src/work.ts': 'export const w = 1;\n' });
     commitAll(repo, 'work after the upgrade');
-    // Not reachable from main: its commit is the evidence, so the pin at it (0.4.0) decides.
-    expect(gitClaimFacts(repo, 'T-1')).toEqual({ sha: added, pin: '0.4.0', basePin: '0.4.0' });
-    expect(missing(withClaimPins(repo, snapshotAt('0.4.1'), 'T-1'))).toEqual([]);
+    // No `claim: T-1` commit: the commit that added the ticket is no evidence of when work began, whatever branch it is on.
+    expect(gitClaimFacts(repo, 'T-1')).toBeUndefined();
+    const got = withClaimPins(repo, snapshotAt('0.4.1'), 'T-1');
+    expect(got.claimPins).toBeUndefined();
+    expect(claimPinBefore(got, 'T-1', DISCUSS_FROM)).toBe(false);
+    expect(missing(got)).toHaveLength(1);
   } finally {
     cleanup(repo);
   }
@@ -99,11 +102,11 @@ it('risk:parsing a near-miss claim subject or a claim line in a body is not the 
   try {
     gitRun(repo, 'switch', '-q', '-c', 't/T-1');
     writeFiles(repo, { 'accord/tickets/T-1.md': TICKET });
-    const added = commitAll(repo, 'add T-1');
-    // `claim: T-10` is another ticket's claim; the body line `claim: T-1` is not a subject. Both commits hold the cut-off pin.
+    commitAll(repo, 'add T-1');
+    // `claim: T-10` is another ticket's claim; the body line `claim: T-1` is not a subject: T-1 has no claim commit at all.
     writeFiles(repo, { 'accord/config.yml': pinned('0.4.1') });
     commitMsg(repo, 'claim: T-10\n\nclaim: T-1');
-    expect(gitClaimFacts(repo, 'T-1')).toEqual({ sha: added, pin: '0.4.0', basePin: '0.4.0' });
+    expect(gitClaimFacts(repo, 'T-1')).toBeUndefined();
     // The other way round: T-10 reads its own claim commit.
     expect(gitClaimFacts(repo, 'T-10')).toMatchObject({ pin: '0.4.1' });
   } finally {
@@ -111,23 +114,85 @@ it('risk:parsing a near-miss claim subject or a claim line in a body is not the 
   }
 });
 
-it('risk:regression a git failure reading the claim pin is an error fact and fails closed with the git text shown (ST-LN-91 IN-05, WR-01)', () => {
-  // Not a repository: every git call fails.
-  const nowhere = mkdtempSync(join(tmpdir(), 'accord-nogit-'));
+/** Remove one loose object, so git can no longer read it: a blob a blobless clone never fetched, or a commit lost from the history. */
+const dropObject = (repo: string, sha: string): void => {
+  const file = join(repo, '.git', 'objects', sha.slice(0, 2), sha.slice(2));
+  chmodSync(file, 0o666);
+  rmSync(file, { force: true });
+};
+
+it('risk:regression a git failure inside a real repository is an error fact on one line and fails closed with the git text shown (ST-LN-91 IN-05, WR-01, RR-WR-02)', async () => {
+  const repo = onMain('0.4.0', true);
   try {
-    const facts = gitClaimFacts(nowhere, 'T-1');
-    expect(facts).toBeDefined();
+    const base = gitRun(repo, 'rev-parse', 'HEAD').trim();
+    writeFiles(repo, { 'notes.txt': 'a draft\n' });
+    commitMsg(repo, 'claim: T-1');
+    // The claim commit's parent is gone: `git log` cannot walk to it, every other part of the repository still reads.
+    dropObject(repo, base);
+    const facts = gitClaimFacts(repo, 'T-1');
     expect(facts).toHaveProperty('error');
     const error = (facts as { error: string }).error;
-    expect(error).toContain('git failed reading the claim pin of T-1');
-    const got = withClaimPins(nowhere, snapshotAt('0.4.0'), 'T-1');
+    expect(error).toContain('git failed reading the claim pin of T-1: ');
+    expect(error).toContain(base);
+    expect(error).not.toContain('\n');
+    const got = withClaimPins(repo, snapshotAt('0.4.0'), 'T-1');
     expect(got.claimPins).toEqual({ 'T-1': { error } });
     // Fail closed: the new rules apply although the working tree is still at 0.4.0, and the finding says why.
     expect(claimPinBefore(got, 'T-1', DISCUSS_FROM)).toBe(false);
     const f = missing(got);
     expect(f).toHaveLength(1);
     expect(f[0].reason).toContain(error);
+    // The CLI takes the same path: it gets to the claim read, and says the same.
+    const cli = await run(['gate', 'ready', 'T-1', '--json'], repo);
+    expect(cli.code).toBe(1);
+    expect((JSON.parse(cli.out).findings as { rule: string; reason: string }[]).filter((x) => x.rule === 'gate.discuss-missing')[0].reason).toContain(error);
   } finally {
-    cleanup(nowhere);
+    cleanup(repo);
   }
+}, 120_000);
+
+it('risk:regression a config blob missing at the claim commit is an error fact that names the claim commit (ST-LN-91 RR-WR-02)', () => {
+  const repo = onMain('0.4.0', true);
+  try {
+    // A config of its own at the claim commit, so its blob is the claim's alone; a blobless clone holds the trees and not this blob.
+    writeFiles(repo, { 'accord/config.yml': pinned('0.4.0') + '# claimed\n' });
+    const claim = commitMsg(repo, 'claim: T-1');
+    const blob = gitRun(repo, 'rev-parse', claim + ':accord/config.yml').trim();
+    writeFiles(repo, { 'accord/config.yml': pinned('0.4.0'), 'notes.txt': 'work after the claim\n' });
+    commitAll(repo, 'work');
+    dropObject(repo, blob);
+    const facts = gitClaimFacts(repo, 'T-1');
+    expect(facts).toEqual({ error: `git failed reading the claim pin of T-1: accord/config.yml cannot be read at claim commit ${claim}` });
+    const got = withClaimPins(repo, snapshotAt('0.4.0'), 'T-1');
+    expect(claimPinBefore(got, 'T-1', DISCUSS_FROM)).toBe(false);
+    expect(missing(got)[0].reason).toContain('cannot be read at claim commit ' + claim);
+  } finally {
+    cleanup(repo);
+  }
+});
+
+it('risk:regression after the re-claim branch merges, the newest claim is still the claim (ST-LN-91 RR-IN-01)', () => {
+  const repo = onMain('0.4.0', true);
+  try {
+    writeFiles(repo, { 'notes.txt': 'a draft\n' });
+    commitMsg(repo, 'claim: T-1'); // under 0.4.0, on main
+    gitRun(repo, 'switch', '-q', '-c', 't/T-1');
+    writeFiles(repo, { 'accord/config.yml': pinned('0.4.1') });
+    const reclaim = commitMsg(repo, 'claim: T-1');
+    expect(gitClaimFacts(repo, 'T-1')).toMatchObject({ sha: reclaim, pin: '0.4.1' });
+    gitRun(repo, 'switch', '-q', 'main');
+    mergeMsg(repo, 't/T-1', 'Merge t/T-1');
+    // From main every claim is reachable from the default ref; the facts do not flip back to the older claim.
+    expect(gitClaimFacts(repo, 'T-1')).toMatchObject({ sha: reclaim, pin: '0.4.1' });
+  } finally {
+    cleanup(repo);
+  }
+});
+
+it('risk:parsing the git text of a failure is one line, also when the error carries its own stderr (ST-LN-91 RR-WR-02)', () => {
+  // catBatch throws `git cat-file failed reading <what>` and then git's stderr on the following lines.
+  const two = new Error('git cat-file failed reading the claim pin\nfatal: unable to read sha1 file of 0a1b2c\n');
+  expect(whyGit(two)).toBe('git cat-file failed reading the claim pin: fatal: unable to read sha1 file of 0a1b2c');
+  // git's own stderr keeps its first non-blank line.
+  expect(whyGit(Object.assign(new Error('Command failed'), { stderr: '\nfatal: bad object HEAD\nsecond line\n' }))).toBe('bad object HEAD');
 });

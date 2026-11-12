@@ -111,6 +111,22 @@ describe('discuss record at gate ready', () => {
     expect(discussFindings(check({ fact: { error: 'git failed' }, lane: 'S', body: LANE_S_BODY }))).toEqual([]);
   });
 
+  it('risk:complex-branching a failed claim read is named in the discuss finding and still fails closed (ST-LN-91 WR-01)', () => {
+    const fact = { error: 'git failed reading the claim pin of T-1: unable to read the index' };
+    const none = missing(check({ fact }));
+    expect(none).toHaveLength(1);
+    expect(none[0].reason).toContain(DISCUSS);
+    expect(none[0].reason).toContain(fact.error);
+    const empty = missing(check({ fact, discuss: '## Gray areas\n' }));
+    expect(empty).toHaveLength(1);
+    expect(empty[0].reason).toContain('lists no gray area');
+    expect(empty[0].reason).toContain(fact.error);
+    // A readable claim fact adds no such text.
+    expect(missing(check({ pin: '0.4.1' }))[0].reason).not.toContain('git failed');
+    // Mapped, the failed read adds no finding at all.
+    expect(discussFindings(check({ fact, discuss: GRAY }))).toEqual([]);
+  });
+
   it('risk:complex-branching a lane L or lane P ticket claimed at the cut-off takes the discuss rule (ST-LN-91 D-18)', () => {
     for (const lane of ['L', 'P']) {
       const f = missing(check({ pin: DISCUSS_FROM, lane }));

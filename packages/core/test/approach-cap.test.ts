@@ -267,3 +267,19 @@ it('risk:security approvalBlockers lists the open risk findings of the last appr
   expect(approvalBlockers(repo({ claim: { pin: '0.4.0' }, approach }), 'T-1')).toEqual([]);
   expect(approvalBlockers(repo({ claim: cut, approach }), 'T-404')).toEqual([]);
 });
+
+it('risk:complex-branching a failed claim read is named in the refusal that follows from the cap of two (ST-LN-91 WR-01)', () => {
+  const error = 'git failed reading the claim pin of T-1: unable to read the index';
+  const five = HEAD + [1, 2, 3, 4, 5].map((n) => round(n, '1. Nice — a wording — deferred')).join('');
+  const refused = nextRound(repo({ claim: { error }, approach: five }), 'T-1', 'approach');
+  expect(refused.kind).toBe('refused');
+  const reason = refused.reasons.join('\n');
+  expect(reason).toContain('past the cap of 2');
+  expect(reason).toContain(error);
+  expect(roundText(refused)).toContain('refused: ' + error);
+  // A readable fact adds no such line.
+  const plain = nextRound(repo({ claim: cut, approach: five }), 'T-1', 'approach');
+  expect(plain.reasons.join('\n')).not.toContain('git failed');
+  // A next round is no refusal and says nothing of git.
+  expect(roundText(nextRound(repo({ claim: { error } }), 'T-1', 'approach'))).toBe('Round: 1 of 2\nCycle: 1\n');
+});

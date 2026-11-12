@@ -164,9 +164,9 @@ it('risk:regression the release note describes the strict forms and no longer cl
   expect(note).not.toContain('RECORD_V2_FROM');
   for (const p of [
     'The approach record is read strictly',
-    'a risk in any other form is a record problem',
+    'A risk in any other form is a record problem',
     '`accord approve` refuses with exit 1',
     'Two rules follow the record or the plan',
-    'the same record problem refuses `accord round --plan` on a plan record that follows the grounds rule',
+    'the same record problem refuses `accord round --plan` on a plan record',
   ]) expect(note, p).toContain(p);
 });

@@ -1,7 +1,7 @@
 // ST-LN-91 91d-ac-2: the approach critic gets two rounds for a ticket claimed from APPROACH_CAP_FROM, and round 3 is refused with the
 // findings still open. The cap reads the ticket's claim pin (D-15), never the approach record's own pin.
 import { expect, it } from 'vitest';
-import { APPROACH_CAP_FROM, approvalBlockers, blockingFindings, loadSnapshot, nextRound, openFindings, recordProblems, roundText } from '../src/index.js';
+import { APPROACH_CAP_FROM, approvalBlockers, approvalFindings, blockingFindings, loadSnapshot, nextRound, openFindings, recordProblems, roundText } from '../src/index.js';
 import type { ClaimPin, RepoSnapshot } from '../src/index.js';
 import { CONFIG, building } from '../../../test/helpers/lane.js';
 
@@ -188,16 +188,15 @@ it('risk:complex-branching the claim pin, not the record pin, decides the approa
   expect(nextRound(withRecordPin({ claim: cut }, '0.4.0'), 'T-1', 'approach')).toMatchObject({ kind: 'next', round: 1, cap: 2 });
 });
 
-it('risk:complex-branching withdrawn, repeated and owner-dropped findings are not open and block nothing (ST-LN-91 CR-01)', () => {
+it('risk:complex-branching withdrawn, repeated and owner-dropped findings are not open and block nothing (ST-LN-91 CR-01, D-22)', () => {
   // The three closing states critique.md tells the session to write, on Must and Should lines, risk-marked or not.
   const WITHDRAWN = '1. Must — a withdrawn one — withdrawn';
   const DROPPED = '2. Should — the owner dropped it — owner: "drop it"';
   const REPEATED = '3. Must — a repeated one — repeated as 2.1';
   const SEC_WITHDRAWN = '4. Must — a withdrawn token leak — withdrawn — risk: security';
   const LOSS_DROPPED = '5. Must — an overwrite the owner accepted — owner: "accepted" — risk: data-loss';
-  const LOSS_REPEATED = '6. Must — a repeated overwrite — repeated as 2.2 — risk: data-loss';
   const REPEAT = '1. Must — repeats 1.3: a repeated one — open';
-  const approach = HEAD + round(1, WITHDRAWN, DROPPED, REPEATED, SEC_WITHDRAWN, LOSS_DROPPED, LOSS_REPEATED) + round(2, REPEAT);
+  const approach = HEAD + round(1, WITHDRAWN, DROPPED, REPEATED, SEC_WITHDRAWN, LOSS_DROPPED) + round(2, REPEAT);
   const snapshot = repo({ claim: cut, approach });
 
   // Only the open finding of round 2 is open: once, not under round 1 as well.
@@ -211,7 +210,7 @@ it('risk:complex-branching withdrawn, repeated and owner-dropped findings are no
   const text = roundText(refused);
   expect(text).not.toContain('Blocking findings:');
   expect(refused.reasons.join('\n')).not.toContain('blocks the approval');
-  for (const closed of [WITHDRAWN, DROPPED, REPEATED, SEC_WITHDRAWN, LOSS_DROPPED, LOSS_REPEATED]) expect(text, closed).not.toContain(closed);
+  for (const closed of [WITHDRAWN, DROPPED, REPEATED, SEC_WITHDRAWN, LOSS_DROPPED]) expect(text, closed).not.toContain(closed);
 
   // The states that stay open still count: open, unverified, and a line with no state.
   const stays = HEAD + round(1, '1. Must — one — open', '2. Should — two — unverified: no citation', '3. Must — three — open — risk: security') + round(2, R2_OPEN);
@@ -282,4 +281,72 @@ it('risk:complex-branching a failed claim read is named in the refusal that foll
   expect(plain.reasons.join('\n')).not.toContain('git failed');
   // A next round is no refusal and says nothing of git.
   expect(roundText(nextRound(repo({ claim: { error } }), 'T-1', 'approach'))).toBe('Round: 1 of 2\nCycle: 1\n');
+});
+
+// ST-LN-91 RR-CR-01 (owner decision 1): the states a risk-marked finding can be written in, and which of them leave the block.
+const LEAK = '1. Must — tokens reach the log — repeated as 2.1 — risk: security';
+const blocked = (approach: string, claim: ClaimPin = cut) => approvalBlockers(repo({ claim, approach }), 'T-1');
+
+it('risk:security a risk finding keeps its risk through a repeat whose line has no risk mark (ST-LN-91 RR-CR-01)', () => {
+  const REPEAT = '1. Must — repeats 1.1: tokens still reach the log — open';
+  // (a) the finding says `repeated as 2.1`, the repeat is unmarked: the repeat blocks, listed once.
+  expect(blocked(HEAD + round(1, LEAK) + round(2, REPEAT))).toEqual([{ round: 2, lines: [REPEAT] }]);
+  // (b) the repeat carries the finding while the finding stays open: both block (the carry inherits).
+  const OPEN = '1. Must — tokens reach the log — open — risk: security';
+  expect(blocked(HEAD + round(1, OPEN) + round(2, REPEAT))).toEqual([
+    { round: 1, lines: [OPEN] },
+    { round: 2, lines: [REPEAT] },
+  ]);
+  // (c) the repeated finding is fixed or withdrawn in round 2: nothing blocks.
+  expect(blocked(HEAD + round(1, LEAK) + round(2, REPEAT.replace('open', 'withdrawn')))).toEqual([]);
+  // (d) an inherited risk is no ordinary risk: the risks list of the approval never carries it.
+  const found = approvalFindings(repo({ claim: cut, approach: HEAD + round(1, LEAK) + round(2, REPEAT) }), 'T-1');
+  expect(found.risks).toEqual([]);
+  expect(found.blocking).toEqual([{ round: 2, lines: [REPEAT] }]);
+  // (e) a plain finding repeated as plain stays an ordinary risk.
+  const plain = HEAD + round(1, '1. Should — a wording — repeated as 2.1') + round(2, '1. Should — repeats 1.1: a wording — open');
+  expect(blocked(plain)).toEqual([]);
+  expect(approvalFindings(repo({ claim: cut, approach: plain }), 'T-1').risks).toEqual([{ round: 2, lines: ['1. Should — repeats 1.1: a wording — open'] }]);
+});
+
+it('risk:data-loss a risk finding repeated as nothing, deferred, or dropped without words still blocks (ST-LN-91 RR-CR-01)', () => {
+  const DANGLING = '6. Must — a repeated overwrite — repeated as 2.2 — risk: data-loss';
+  const NOTARGET = '7. Must — a repeated overwrite — repeated as — risk: data-loss';
+  const BACKWARD = '8. Must — a repeated overwrite — repeated as 1.1 — risk: data-loss';
+  const R2 = '1. Should — the cache can go stale — open';
+  expect(blocked(HEAD + round(1, DANGLING, NOTARGET, BACKWARD) + round(2, R2))).toEqual([{ round: 1, lines: [DANGLING, NOTARGET, BACKWARD] }]);
+  // Deferred is never a state of a risk finding: it stays open, whatever the severity.
+  const DEFERRED = '1. Must — an overwrite — deferred — risk: data-loss';
+  const NICE = '2. Nice — a token in a url — open — risk: security';
+  const NICE_DEFERRED = '3. Nice — a token in a url — deferred — risk: security';
+  expect(blocked(HEAD + round(1, DEFERRED, NICE, NICE_DEFERRED) + round(2, R2))).toEqual([{ round: 1, lines: [DEFERRED, NICE, NICE_DEFERRED] }]);
+  // `owner:` with no words closes nothing.
+  const BARE = '1. Must — an overwrite — owner: — risk: data-loss';
+  expect(blocked(HEAD + round(1, BARE))).toEqual([{ round: 1, lines: [BARE] }]);
+  // A plain Nice never blocks, nor does a plain deferred Should.
+  expect(blocked(HEAD + round(1, '1. Nice — a wording — deferred', '2. Should — a name — deferred'))).toEqual([]);
+});
+
+it('risk:data-loss an owner-dropped risk finding is closed: it does not block, and the approval lists it with the owner\'s words (ST-LN-91 RR-CR-01, D-22)', () => {
+  const DROPPED = '1. Must — tokens reach the log — owner: "ship it" — risk: security';
+  const approach = HEAD + round(1, DROPPED) + round(2, 'No findings');
+  expect(blocked(approach)).toEqual([]);
+  expect(approvalFindings(repo({ claim: cut, approach }), 'T-1')).toEqual({ risks: [{ round: 1, lines: [DROPPED] }], blocking: [] });
+});
+
+it('risk:security a ticket claimed under 0.4.0 lists an open risk finding under its risks and still approves (ST-LN-91 RR-WR-01)', () => {
+  const OPEN = '1. Must — tokens reach the log — open — risk: security';
+  const R2 = '1. Should — the cache can go stale — open';
+  const approach = HEAD + round(1, OPEN) + round(2, R2);
+  const found = approvalFindings(repo({ claim: { pin: '0.4.0' }, approach }), 'T-1');
+  expect(found.blocking).toEqual([]);
+  expect(found.risks).toEqual([{ round: 1, lines: [OPEN] }, { round: 2, lines: [R2] }]);
+  // On the capped rules the same record lists it as blocking, not as a risk.
+  expect(approvalFindings(repo({ claim: cut, approach }), 'T-1')).toEqual({ risks: [{ round: 2, lines: [R2] }], blocking: [{ round: 1, lines: [OPEN] }] });
+});
+
+it('risk:regression a lane S ticket has no approval to block (ST-LN-91 RR-IN-02)', () => {
+  const OPEN = '1. Must — tokens reach the log — open — risk: security';
+  expect(blocked(HEAD + round(1, OPEN))).toEqual([{ round: 1, lines: [OPEN] }]);
+  expect(approvalBlockers(repo({ claim: cut, lane: 'S', approach: HEAD + round(1, OPEN) }), 'T-1')).toEqual([]);
 });

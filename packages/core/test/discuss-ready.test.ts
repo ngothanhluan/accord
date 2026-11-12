@@ -185,6 +185,22 @@ describe('discuss record at gate ready', () => {
     expect(later.map((x) => x.line)).toEqual([4, 5]);
   });
 
+  it('risk:parsing a paragraph or a blank line that ends the list starts the offset again, so a later unmapped area is caught (ST-LN-91 WR-02 round 4)', () => {
+    const after = (between: string, item = '  - scope — never mapped'): (number | undefined)[] =>
+      unmapped(check({ pin: '0.4.1', discuss: '## Gray areas\n\n- behaviour — what export prints — D-01\n' + between + item + '\n' })).map((x) => x.line);
+    // W2e: a paragraph at column 0 after a blank line ends the list; the indented item after it is a new top-level list.
+    expect(after('\nThe planner also raised:\n\n')).toEqual([7]);
+    expect(after('\nThe planner also raised:\n')).toEqual([6]);
+    expect(after('\nA note.\n\nAnother note.\n\n')).toEqual([9]);
+    // A line that continues the item's paragraph (no blank line before it) does not end the list: the sub-bullet stays a note.
+    expect(after('continued text of the item\n')).toEqual([]);
+    expect(after('\n  more of the item, indented\n')).toEqual([]);
+    expect(after('\n')).toEqual([]);
+    // Five or more spaces after the marker: the text starts one column after it, so a sub-bullet two (or three) spaces in is nested in it.
+    expect(unmapped(check({ pin: '0.4.1', discuss: '## Gray areas\n-     behaviour — what export prints — D-01\n  - option A\n' })).map((x) => x.line)).toEqual([]);
+    expect(unmapped(check({ pin: '0.4.1', discuss: '## Gray areas\n1.     behaviour — what export prints — D-01\n   - option A\n' })).map((x) => x.line)).toEqual([]);
+  });
+
   it('risk:parsing a list item indented by four spaces or a tab is a note, never a gray area (ST-LN-91 IN-01)', () => {
     const nested = '## Gray areas\n- behaviour — what export prints for an empty report — D-01\n    - option A — cheap\n\t- option B — dear\n        * option C\n';
     expect(discussFindings(check({ pin: '0.4.1', discuss: nested }))).toEqual([]);

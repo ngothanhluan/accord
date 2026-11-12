@@ -107,10 +107,19 @@ it('risk:data-loss every approach commit carries the ledger when it changed, so 
   holds(flat(skillFile('accord-approach', 'critique.md')), ['commit both files, with the ledger if it changed,', 'Otherwise commit `accord/tickets/<id>.md` and `approach-review.md`, with the ledger if it changed, with the subject']);
 });
 
-it('risk:security the critique loop tells the session how to write the critic\'s risk mark, and what happens to one it cannot read (ST-LN-91 CR-01)', () => {
+it('risk:security the critique loop names the exact forms accord reads, and what happens to a risk written any other way (ST-LN-91 CR-01 CR-02, round 4)', () => {
   const loop = flat(skillFile('accord-approach', 'critique.md'));
   holds(loop, [
-    "The critic's `rests on: risk: security` or `rests on: risk: data-loss` is written as ` — risk: security` or ` — risk: data-loss`, after the state",
-    'A `risk:` that accord cannot read in `approach-review.md` is a record problem: `accord round <id> --approach` refuses and `accord approve` refuses until it is fixed.',
+    'The separator is always ` — `, an em dash with a space on each side, never a hyphen: a hyphen in a state, a reason, a test or a command is part of its text.',
+    'A risk is written exactly ` — risk: security` or ` — risk: data-loss`, in any letter case.',
+    "The critic's `rests on: risk: security` is written that way, and the critic's own block, with `rests on: risk: security` on its own line under the finding, is read too.",
+    'A line that names a risk in any other form (`risk: security` in backticks or quotes, a hyphen between the parts, `risk: security.`) is a record problem: `accord round <id> --approach` and `accord approve` refuse until it is rewritten in the exact form.',
+    'The test is the word `risk`, then only spaces and `: = - " \' ` * _ ( ) [ ]`, then `security` or `data-loss`; a `risk:` followed by other words is plain text.',
   ]);
+  expect(loop).not.toContain('with ` — `, ` - `');
+  holds(flat(skillFile('accord-approach', 'approval.md')), [
+    'A `record problem:` item in that part is a line of `approach-review.md` that accord cannot read, or a risk written in a form accord does not read: the owner cannot say yes until it is fixed (step 4).',
+    'as `./critique.md` gives the form',
+  ]);
+  holds(flat(agent('critic')), ['Write a risk only as `risk: data-loss` or `risk: security`, never in backticks or quotes.']);
 });

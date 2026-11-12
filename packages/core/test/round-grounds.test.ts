@@ -248,3 +248,28 @@ it('risk:regression old ledger lines are not read as deferrals (ST-LN-91 ac-1)',
     { kind: 'approach', round: 2, n: 3, cycle: 2 },
   ]);
 });
+
+// ST-LN-91 round-4 CR-01, WR-01: the strict reading. A ` - ` or ` -- ` inside a mark is never a separator; a risk in a form accord does not read is a record problem for a plan record on the grounds rule too.
+it('risk:parsing a command or a test holding hyphens stays whole, and the finding still reads its state and grounds (ST-LN-91 CR-01 F2 P1)', () => {
+  const cmd = '1. Should — Task 3 drops a header — open — command: npm test -- packages/cli/test/export.test.ts';
+  for (const kind of ['plan', 'approach'] as const) {
+    const s = snap(kind, [cmd], { pin: cut });
+    expect(answer(s, kind).kind, kind).toBe('next');
+    const f = (kind === 'plan' ? s.work!['T-1'].planRounds! : s.work!['T-1'].approachRounds!).cycles[0].rounds[1].findings[0];
+    expect(f).toMatchObject({ n: 1, state: 'open', command: 'npm test -- packages/cli/test/export.test.ts' });
+  }
+  const test = '1. Should — Task 3 drops a header — open — test: export - fixed width rows survive';
+  expect(parseRounds('x.md', 'Round record: 1\n\n## Round 2 (diff)\n\n' + test + '\n', 'plan').cycles[0].rounds[0].findings[0]).toMatchObject({ state: 'open', test: 'export - fixed width rows survive' });
+});
+
+it('risk:security a plan record on the grounds rule refuses a risk it cannot read, and prose with a risk word passes (ST-LN-91 WR-01 P2 P3)', () => {
+  const prose = '1. Should — Task 3 - risk: a stale read on reload — open — rests on: ac-1';
+  expect(answer(snap('plan', [prose], { pin: cut }), 'plan').kind).toBe('next');
+  for (const bad of ['1. Must — Task 3 logs tokens — open — `risk: security`', '1. Must - Task 3 logs tokens - open - risk: security']) {
+    const refused = answer(snap('plan', [bad], { pin: cut }), 'plan');
+    expect(refused.kind, bad).toBe('refused');
+    expect(refused.reasons.join('\n'), bad).toContain('risk: security');
+    // Before the grounds rule (no pin, or an older one) a plan record is read as it was.
+    expect(answer(snap('plan', [bad]), 'plan').kind, bad).toBe('next');
+  }
+});

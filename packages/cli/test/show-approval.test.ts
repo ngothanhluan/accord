@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
 import { fileURLToPath } from 'node:url';
-import { approvalView, loadSnapshot } from '@accord-dev/accord-core';
+import { APPROACH_CAP_FROM, approvalView, loadSnapshot } from '@accord-dev/accord-core';
 import { approvedHash } from '@accord-dev/accord-core';
 import { expect, it, vi } from 'vitest';
 import { cleanup, makeEmptyRepo, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
@@ -398,6 +398,35 @@ it('risk:complex-branching accord show --approval --short prints the short view 
     cleanup(repo);
   }
 });
+
+it('risk:security accord show --approval --short lists an open data-loss or security finding under Blocking findings (ST-LN-91 D-22)', async () => {
+  const repo = makeLaneRepo({ 'accord/tickets/T-1.md': laneTicket('T-1', { body: PROSE(SCEN) }) });
+  try {
+    // Claimed at the cut-off pin, HEAD back on the running version's pin, so the capped rules are the ticket's.
+    writeFiles(repo, { 'accord/config.yml': CONFIG.replace(/accord: "[^"]*"/, 'accord: "' + APPROACH_CAP_FROM + '"') });
+    commitMsg(repo, 'claim: T-1');
+    const LOSS = '1. Must — the export overwrites the old file — open — risk: data-loss';
+    const WITHDRAWN = '2. Must — a token leak — withdrawn — risk: security';
+    const OPEN = '1. Should — the cache can go stale — open';
+    const DROPPED = '3. Should — a wording the owner dropped — owner: "drop it"';
+    const record = ['Round record: 1', '', '## Round 1 (whole)', '', LOSS, WITHDRAWN, DROPPED, '', '## Round 2 (diff)', '', OPEN, ''].join('\n');
+    writeFiles(repo, { 'accord/config.yml': CONFIG, [APPROACH_T1]: record, 'notes.txt': 'work after the claim\n' });
+    commitMsg(repo, 'rounds');
+    const { code, out, err } = await run(['show', 'T-1', '--approval', '--short'], repo);
+    expect(err).toBe('');
+    expect(code).toBe(0);
+    expect(out.split('\n')).toEqual([
+      '## Intent', '', 'Why: a.', 'For whom: b.', '',
+      '## Criteria', '', '- ac-1 one', '- ac-2 two', '',
+      '## Decisions', '', '- D-01 one', '- D-02 two', '',
+      '## Risks', '', '- round 2: ' + OPEN, '',
+      '## Blocking findings', '', 'accord approve refuses while one is open; the owner may only say no.', '- round 1: ' + LOSS, '',
+      'Full ticket: accord/tickets/T-1.md', '',
+    ]);
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
 
 it('risk:data-loss printing the short view leaves the ticket and its approved_hash unchanged (ST-LN-91 91d-ac-3)', async () => {
   const repo = makeLaneRepo({ 'accord/tickets/T-1.md': laneTicket('T-1', { body: PROSE(SCEN) }) });

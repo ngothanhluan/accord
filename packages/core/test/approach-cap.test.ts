@@ -1,7 +1,7 @@
 // ST-LN-91 91d-ac-2: the approach critic gets two rounds for a ticket claimed from APPROACH_CAP_FROM, and round 3 is refused with the
 // findings still open. The cap reads the ticket's claim pin (D-15), never the approach record's own pin.
 import { expect, it } from 'vitest';
-import { APPROACH_CAP_FROM, blockingFindings, loadSnapshot, nextRound, openFindings, recordProblems, roundText } from '../src/index.js';
+import { APPROACH_CAP_FROM, approvalBlockers, blockingFindings, loadSnapshot, nextRound, openFindings, recordProblems, roundText } from '../src/index.js';
 import type { ClaimPin, RepoSnapshot } from '../src/index.js';
 import { CONFIG, building } from '../../../test/helpers/lane.js';
 
@@ -222,4 +222,48 @@ it('risk:complex-branching withdrawn, repeated and owner-dropped findings are no
     R2_OPEN,
   ]);
   expect(blockingFindings(cycleOf(open))).toEqual([{ round: 1, lines: ['3. Must — three — open — risk: security'] }]);
+});
+
+it('risk:security an open risk finding still blocks when round 2 reports no findings or a verdict ends the loop (ST-LN-91 D-22)', () => {
+  const SEC = '1. Must — tokens are written to the log — open — risk: security';
+  const blocked = (approach: string) => {
+    const refused = nextRound(repo({ claim: cut, approach }), 'T-1', 'approach');
+    expect(refused.kind).toBe('refused');
+    expect(refused.blocking).toEqual([{ round: 1, lines: [SEC] }]);
+    expect(refused.reasons.join('\n')).toContain('blocks the approval');
+    expect(roundText(refused)).toContain('Blocking findings:\nRound 1:\n' + SEC);
+    return refused;
+  };
+  // (a) round 2 is a diff round that lists nothing: the loop has ended, and the finding stays open.
+  const none = HEAD + round(1, SEC) + round(2, 'No findings');
+  blocked(none);
+  // (b) any verdict line after round 2, quoted or not, accepted or not.
+  for (const verdict of ['verdict: accepted-by-owner "fine"', 'verdict: accepted-by-owner', 'verdict: converged']) {
+    blocked(HEAD + round(1, SEC) + round(2, R2_OPEN) + verdict + '\n');
+    blocked(none + verdict + '\n');
+  }
+  // (c) with the finding fixed, the ended loop is the plain ended loop again.
+  const fixed = HEAD + round(1, SEC.replace('open', 'fixed')) + round(2, 'No findings');
+  const ended = nextRound(repo({ claim: cut, approach: fixed }), 'T-1', 'approach');
+  expect(ended.kind).toBe('refused');
+  expect(ended.blocking ?? []).toEqual([]);
+  expect(ended.reasons.join('\n')).not.toContain('blocks the approval');
+  // (d) a ticket claimed under 0.4.0 keeps the old loop: the verdict ends it with no blocking check.
+  const old = nextRound(repo({ claim: { pin: '0.4.0' }, approach: HEAD + round(1, SEC) + round(2, R2_OPEN) + 'verdict: converged\n' }), 'T-1', 'approach');
+  expect(old.blocking ?? []).toEqual([]);
+});
+
+it('risk:security approvalBlockers lists the open risk findings of the last approach cycle on the capped rules only (ST-LN-91 D-22)', () => {
+  const SEC = '1. Must — tokens are written to the log — open — risk: security';
+  const approach = HEAD + round(1, SEC) + round(2, R2_OPEN);
+  expect(approvalBlockers(repo({ claim: cut, approach }), 'T-1')).toEqual([{ round: 1, lines: [SEC] }]);
+  // Round 1 alone already blocks: the owner is not asked to say yes over it.
+  expect(approvalBlockers(repo({ claim: cut, approach: HEAD + round(1, SEC) }), 'T-1')).toEqual([{ round: 1, lines: [SEC] }]);
+  // The owner's no opens a new cycle, which holds nothing.
+  expect(approvalBlockers(repo({ claim: cut, approach: approach + closed() }), 'T-1')).toEqual([]);
+  expect(approvalBlockers(repo({ claim: cut, approach: HEAD + round(1, SEC.replace('open', 'fixed')) }), 'T-1')).toEqual([]);
+  // No record, a lane S ticket with no approach record, and a ticket claimed under 0.4.0 (five rounds, D-12): nothing blocks.
+  expect(approvalBlockers(repo({ claim: cut }), 'T-1')).toEqual([]);
+  expect(approvalBlockers(repo({ claim: { pin: '0.4.0' }, approach }), 'T-1')).toEqual([]);
+  expect(approvalBlockers(repo({ claim: cut, approach }), 'T-404')).toEqual([]);
 });

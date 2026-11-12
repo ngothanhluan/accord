@@ -52,7 +52,7 @@ it('risk:regression the discuss stage asks every gray area one at a time and wri
       bad.push(dir + ': discuss.md is missing');
       continue;
     }
-    for (const p of ['accord-planner', '`discuss` mode', ...GROUPS, 'recommended', 'consequence', 'one at a time', './ask.md', '## Decisions', 'D-nn', 'accord/tickets/<id>/discuss.md', '## Gray areas', 'with no cap', "the owner's sentence", 'never answer, merge or skip a gray area for the owner'])
+    for (const p of ['accord-planner', '`discuss` mode', ...GROUPS, 'recommended', 'consequence', 'one at a time', './ask.md', '## Decisions', 'D-nn', 'accord/tickets/<id>/discuss.md', '## Gray areas', 'with no cap', "the owner's sentence", 'Never answer, merge or skip a gray area for the owner'])
       if (!text.includes(p)) bad.push(dir + ' discuss.md lacks ' + p);
   }
   expect(bad).toEqual([]);

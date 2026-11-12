@@ -179,7 +179,7 @@ it('ac-1 the intent skill shows intent and the criteria verbatim before the arch
     const steps = text.split(/^(?=\d+\. )/m).filter((c) => /^\d+\. /.test(c)).map((c) => c.replace(/[ \t]*\n[ \t]*/g, ' '));
     const idx = (f: (s: string) => boolean) => steps.flatMap((s, i) => (f(s) ? [i] : []));
     const lists = {
-      sentence: idx((s) => /^\d+\. \*\*The owner's yes/.test(s)),
+      sentence: idx((s) => /^\d+\. \*\*Discuss\./.test(s)),
       auditor: idx((s) => s.includes('Dispatch `accord-auditor`')),
       next: idx((s) => /^\d+\. Next: `accord-approach`/.test(s)),
     };
@@ -418,7 +418,8 @@ function yesSteps(): { dir: string; stage: string; step: string; bad?: string }[
   const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
   const out: { dir: string; stage: string; step: string; bad?: string }[] = [];
   for (const dir of skillDirs(all)) {
-    for (const stage of ['intent', 'approach']) {
+    // ST-LN-91 plan 03-04: accord-intent step 9 is the discuss stage and asks no yes; the owner's one yes is approach step 5.
+    for (const stage of ['approach']) {
       const text = everyFile.get(dir + '/' + installedName(stage) + '/SKILL.md') ?? '';
       if (!text) { out.push({ dir, stage, step: '', bad: 'missing' }); continue; }
       const hits = text.split(/^(?=\d+\. |#)/m).filter((c) => /^\d+\. \*\*The owner's yes/.test(c));
@@ -427,6 +428,21 @@ function yesSteps(): { dir: string; stage: string; step: string; bad?: string }[
     }
   }
   return out;
+}
+
+/** Problems with accord-intent's step 9 in every render: it must be the discuss step, name ./discuss.md and ask no yes. */
+function intentStep9(): string[] {
+  const all = { ...config, runtimes: ['claude', 'codex', 'cursor', 'copilot'] } as AccordConfig;
+  const everyFile = new Map(skillTargets(all).map((f) => [f.path, f.text]));
+  const bad: string[] = [];
+  for (const dir of skillDirs(all)) {
+    const text = (everyFile.get(dir + '/' + installedName('intent') + '/SKILL.md') ?? '').replace(/\s+/g, ' ');
+    const step = text.slice(text.indexOf('9. **Discuss.**'), text.indexOf('10. Next'));
+    if (!step) { bad.push(dir + ' intent step 9 is not the discuss step'); continue; }
+    if (!step.includes('./discuss.md')) bad.push(dir + ' intent step 9 lacks ./discuss.md');
+    for (const p of ['explicit yes', '--approval']) if (step.includes(p)) bad.push(dir + ' intent step 9 still holds ' + p);
+  }
+  return bad;
 }
 
 it('ac-4 the intent and approach skills show the approval view at the owners yes', () => {
@@ -438,6 +454,7 @@ it('ac-4 the intent and approach skills show the approval view at the owners yes
     if (step.toLowerCase().includes('from the ticket file')) bad.push(dir + ' ' + stage + ' still says from the ticket file');
   }
   expect(bad).toEqual([]);
+  expect(intentStep9()).toEqual([]);
 });
 
 it('risk:regression the owners yes steps still ask for an explicit yes and commit the answer', () => {
@@ -445,9 +462,9 @@ it('risk:regression the owners yes steps still ask for an explicit yes and commi
   for (const { dir, stage, step, bad: b } of yesSteps()) {
     if (b) { bad.push(dir + ' ' + stage + ' ' + b); continue; }
     if (!step.includes('ask for an explicit yes')) bad.push(dir + ' ' + stage + ' ask for an explicit yes');
-    if (stage === 'intent' && !step.includes("on yes commit the ticket with the owner's answer quoted in the commit message")) bad.push(dir + ' ' + stage + ' commit');
   }
   expect(bad).toEqual([]);
+  expect(intentStep9()).toEqual([]);
 });
 
 it('risk:regression the verify skill merges the remote main after the review commit and before the full suite', () => {
@@ -878,7 +895,6 @@ it('risk:regression the stage skills run accord worktree push after each stage c
   const PUSH = 'run `accord worktree push <id>`';
   const GO = 'go on even if it fails';
   const ROWS: [stage: string, from: string, to: string, commit: string, go: boolean][] = [
-    ['intent', "9. **The owner's yes.**", '10. Next', 'uses `--allow-empty` when nothing changed', true],
     ['approach', "5. **The owner's yes.**", '6. Next', 'Then commit the ticket, with `approved_hash:` and `ac_hash:` in it', true],
     ['plan', '8. **Finish.**', '9. Next', 'with the subject `plan: <id> ready`', true],
     ['build', '3. **Record.**', '4. **Blocked.**', 'commit the ticket together with `accord/tickets/<id>/ledger.md`', true],
@@ -909,6 +925,11 @@ it('risk:regression the stage skills run accord worktree push after each stage c
       if (p < 0 || p < c) bad.push(`${dir} ${stage}: ${PUSH} not after the commit`);
       if (go && (p < 0 || step.indexOf(GO) < p)) bad.push(`${dir} ${stage}: go-on clause not after the push`);
     }
+    // ST-LN-91 plan 03-04: the intent yes step is gone; the discuss stage pushes after each answer's commit instead.
+    const discuss = flat(dir + '/' + installedName('intent') + '/discuss.md');
+    const dc = discuss.indexOf('Commit both files');
+    const dp = discuss.indexOf(PUSH, dc);
+    if (dc < 0 || dp < 0 || discuss.indexOf(GO, dp) < 0) bad.push(`${dir} intent discuss.md: ${PUSH} not after the commit with a go-on clause`);
     if (flat(dir + '/' + installedName('review') + '/SKILL.md').includes('worktree push')) bad.push(`${dir} review: pushes`);
   }
   const refs = every.filter((f) => f.path.endsWith('/worktree.md')).map((f) => f.path);

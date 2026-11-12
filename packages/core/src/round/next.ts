@@ -23,6 +23,7 @@ export interface RoundAnswer {
   cap: number; // ROUND_CAP, or the end of the furthest allowance of this cycle
   reasons: string[]; // stop and refused; empty on next
   findings?: { round: number; lines: string[] }[]; // stop: the stop round's finding lines, then the latest round's when it differs; refused past the approach cap: the findings still open
+  blocking?: { round: number; lines: string[] }[]; // refused past the approach cap: the open risk: data-loss or risk: security findings, which block the approval (D-22)
   approach?: string[]; // stop on a lane M ticket: the ## Approach lines
   allowAfter?: number; // stop on a round run without being allowed: the round an owner allowance must follow (else `round`)
   model?: string;
@@ -126,16 +127,26 @@ export function planStopOf(
 const recordOf = (work: TicketWork | undefined, kind: RoundKind): RoundRecord | undefined =>
   kind === 'review' ? work?.rounds : kind === 'plan' ? work?.planRounds : work?.approachRounds;
 
-/** ST-LN-91 D-02: per round of the cycle, the Must and Should findings still open (state open, unverified or none) that carry no `risk:` mark: the risks the approval lists. */
-export function openFindings(cycle: RoundCycle): { round: number; lines: string[] }[] {
+/** The Must and Should findings of each round of the cycle still open (state open, unverified or none), those with a `risk:` mark when `marked`, else those without one. */
+function stillOpen(cycle: RoundCycle, marked: boolean): { round: number; lines: string[] }[] {
   const out: { round: number; lines: string[] }[] = [];
   cycle.rounds.forEach((r, i) => {
     const lines = r.findings
-      .filter((f) => f.severity !== 'Nice' && (f.state === undefined || f.state === 'open') && f.risk === undefined)
+      .filter((f) => f.severity !== 'Nice' && (f.state === undefined || f.state === 'open') && (f.risk !== undefined) === marked)
       .map((f) => f.text);
     if (lines.length > 0) out.push({ round: i + 1, lines });
   });
   return out;
+}
+
+/** ST-LN-91 D-02: per round of the cycle, the Must and Should findings still open that carry no `risk:` mark: the risks the approval lists. */
+export function openFindings(cycle: RoundCycle): { round: number; lines: string[] }[] {
+  return stillOpen(cycle, false);
+}
+
+/** ST-LN-91 D-22: the same, for the findings marked `risk: data-loss` or `risk: security`: they block the approval and are never listed as risks. */
+export function blockingFindings(cycle: RoundCycle): { round: number; lines: string[] }[] {
+  return stillOpen(cycle, true);
 }
 
 const ofCycle =(all: Allowance[], index: number): Allowance[] => all.filter((a) => a.cycle === index + 1);
@@ -279,7 +290,7 @@ export function nextRound(snapshot: RepoSnapshot, id: string, kind: RoundKind): 
     kind !== 'review' ? planStopOf(cyc, ofCycle(all, k - 1), kind, deferredFor(snapshot, id, kind, k - 1), rules) : st.stopAt(q);
   // ST-LN-91 D-02: at the approach cap round 3 is a refusal, not a stop: no allowance lifts it and `## Closed` stays open to the owner's no.
   const capped = !rules.allowances && !rules.capStop;
-  const unlisted = (): { findings: { round: number; lines: string[] }[] } => ({ findings: openFindings(cyc) });
+  const unlisted = (): Pick<RoundAnswer, 'findings' | 'blocking'> => ({ findings: openFindings(cyc), blocking: blockingFindings(cyc) });
   const textsOf = (n: number) => ({ round: n, lines: cyc.rounds[n - 1].findings.map((f) => f.text) });
   const findingsFor = (s: number) => (L === s ? [textsOf(s)] : [textsOf(s), textsOf(L)]);
   const stop = (reasons: string[], s: number, extra: Partial<RoundAnswer> = {}): RoundAnswer => ({
@@ -332,8 +343,13 @@ export function nextRound(snapshot: RepoSnapshot, id: string, kind: RoundKind): 
     return { ...refuse(`round ${L} of cycle ${k} reported no findings and the cap of ${st.cap} rounds is reached; the loop has ended: write the verdict`), cycle: k, round: L, cap: st.cap };
   }
   if (capped) {
-    const reason = `round ${p} of cycle ${k} is past the cap of ${st.cap} approach critique rounds, which no Ruling raises; the loop has ended: write the findings still open into ## Approach as risks, and the owner decides at the approval`;
-    return { ...refuse(reason), cycle: k, round: L, cap: st.cap, ...unlisted() };
+    const left = unlisted();
+    // ST-LN-91 D-22: an open data-loss or security finding is no risk to approve with; the owner's no appends ## Closed and starts a new cycle.
+    const reason =
+      left.blocking!.length > 0
+        ? `round ${p} of cycle ${k} is past the cap of ${st.cap} approach critique rounds, which no Ruling raises; a finding marked risk: data-loss or risk: security is still open, and it blocks the approval: the owner cannot say yes to this approach; the owner's no with a Correction appends ## Closed and starts a new cycle of ${st.cap} rounds`
+        : `round ${p} of cycle ${k} is past the cap of ${st.cap} approach critique rounds, which no Ruling raises; the loop has ended: write the findings still open into ## Approach as risks, and the owner decides at the approval`;
+    return { ...refuse(reason), cycle: k, round: L, cap: st.cap, ...left };
   }
   const s = st.stopAt(L);
   if (s !== undefined) {
@@ -356,6 +372,10 @@ export function roundText(answer: RoundAnswer): string {
   }
   if (answer.kind === 'refused') {
     const out = answer.reasons.map((r) => `refused: ${r}\n`);
+    if (answer.blocking !== undefined && answer.blocking.length > 0) {
+      out.push('Blocking findings:\n');
+      for (const f of answer.blocking) out.push(`Round ${f.round}:\n`, ...f.lines.map((l) => l + '\n'));
+    }
     if (answer.findings !== undefined) {
       out.push(answer.findings.length === 0 ? 'Findings still open: none\n' : 'Findings still open:\n');
       for (const f of answer.findings) out.push(`Round ${f.round}:\n`, ...f.lines.map((l) => l + '\n'));

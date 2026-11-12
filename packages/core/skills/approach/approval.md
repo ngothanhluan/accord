@@ -16,14 +16,19 @@ shortens what the yes covers; it never narrows it.
    chat language, and one line per scenario that begins with its ac-n and says
    in plain words what it means, and ask for an explicit yes. The risks the
    view lists are the approach findings still open; the owner accepts them
-   with the yes.
+   with the yes. When the view has a `## Blocking findings` part, an open
+   `risk: data-loss` or `risk: security` finding, the owner cannot say yes:
+   `accord approve` refuses while one is open. Show the part, say so, and ask
+   for the no and its Correction (step 5) instead of the yes.
 
 3. The question names the text above it and `accord/tickets/<id>.md`, and
    says that the yes approves the ticket's Intent, acceptance criteria, Vetoes,
    Decisions, Corrections and Approach as written there, which the view
    shortens and the file holds in full.
 
-4. On yes, run `accord approve <id>`, then `accord gate ready <id>` and work
+4. On yes, run `accord approve <id>`. When it exits 1 and prints `Blocking findings:`,
+   the approval is refused: never edit the findings or the ticket to get past it;
+   go to step 5 as for a no. Otherwise run `accord gate ready <id>` and work
    from what it prints. When it says a `depends_on` ticket is not done on the
    default branch, never remove that entry from `depends_on`: tell the owner
    this ticket waits for that ticket's merge, then after the merge run

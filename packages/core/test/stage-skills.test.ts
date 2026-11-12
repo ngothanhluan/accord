@@ -463,6 +463,19 @@ it('ac-4 the intent and approach skills show the approval view at the owners yes
   expect(intentStep9()).toEqual([]);
 });
 
+it('risk:security the approach yes step says accord approve refuses on a blocking finding and why (ST-LN-91 D-22)', () => {
+  const bad: string[] = [];
+  const steps = yesSteps();
+  expect(steps.length).toBeGreaterThan(0);
+  for (const { dir, stage, step, bad: b } of steps) {
+    if (b) { bad.push(dir + ' ' + stage + ' ' + b); continue; }
+    if (stage !== 'approach') continue;
+    for (const p of ['## Blocking findings', 'risk: data-loss', 'risk: security', '`accord approve` refuses while one is open', 'Blocking findings:', 'never edit the findings or the ticket to get past it'])
+      if (!step.includes(p)) bad.push(dir + ' ' + stage + ' lacks ' + p);
+  }
+  expect(bad).toEqual([]);
+});
+
 it('risk:regression the owners yes steps still ask for an explicit yes and commit the answer', () => {
   const bad: string[] = [];
   for (const { dir, stage, step, bad: b } of yesSteps()) {

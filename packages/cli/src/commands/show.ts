@@ -5,6 +5,7 @@ import { colourApproval } from '../render/color.js';
 import { UsageError } from '../load/fs.js';
 import { isUnsafe } from '../render/dashboard.js';
 import type { CommandContext } from '../run.js';
+import { approachBlockers } from './approval-blockers.js';
 import { requireLaneTicket, requireTicket } from './lane-args.js';
 
 // Control, bidi and line-separator code points become one space each; nothing is cut or collapsed.
@@ -56,7 +57,9 @@ export function show(ctx: CommandContext, id: string, options: { json?: boolean;
       const rec = workOf(ctx.plain ?? ctx.snapshot, id)?.approachRounds;
       const cycle = rec?.cycles[rec.cycles.length - 1];
       const risks = cycle === undefined ? [] : openFindings(cycle).flatMap((r) => r.lines.map((l) => `round ${r.round}: ${l}`));
-      ctx.stdout.write(colourApproval(approvalShort(ticket, risks).split('\n').map(clean).join('\n'), ctx.stdout));
+      // D-22: an open data-loss or security finding is listed apart: it blocks the approval, so it is no risk to accept.
+      const blocking = approachBlockers(ctx, id).flatMap((r) => r.lines.map((l) => `round ${r.round}: ${l}`));
+      ctx.stdout.write(colourApproval(approvalShort(ticket, risks, blocking).split('\n').map(clean).join('\n'), ctx.stdout));
       return 0;
     }
     ctx.stdout.write(colourApproval(approvalView(ticket).split('\n').map(clean).join('\n'), ctx.stdout));

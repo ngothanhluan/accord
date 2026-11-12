@@ -187,3 +187,39 @@ it('risk:complex-branching the claim pin, not the record pin, decides the approa
   // (b) claimed at the cut-off, the record begun under 0.4.0: two rounds.
   expect(nextRound(withRecordPin({ claim: cut }, '0.4.0'), 'T-1', 'approach')).toMatchObject({ kind: 'next', round: 1, cap: 2 });
 });
+
+it('risk:complex-branching withdrawn, repeated and owner-dropped findings are not open and block nothing (ST-LN-91 CR-01)', () => {
+  // The three closing states critique.md tells the session to write, on Must and Should lines, risk-marked or not.
+  const WITHDRAWN = '1. Must — a withdrawn one — withdrawn';
+  const DROPPED = '2. Should — the owner dropped it — owner: "drop it"';
+  const REPEATED = '3. Must — a repeated one — repeated as 2.1';
+  const SEC_WITHDRAWN = '4. Must — a withdrawn token leak — withdrawn — risk: security';
+  const LOSS_DROPPED = '5. Must — an overwrite the owner accepted — owner: "accepted" — risk: data-loss';
+  const LOSS_REPEATED = '6. Must — a repeated overwrite — repeated as 2.2 — risk: data-loss';
+  const REPEAT = '1. Must — repeats 1.3: a repeated one — open';
+  const approach = HEAD + round(1, WITHDRAWN, DROPPED, REPEATED, SEC_WITHDRAWN, LOSS_DROPPED, LOSS_REPEATED) + round(2, REPEAT);
+  const snapshot = repo({ claim: cut, approach });
+
+  // Only the open finding of round 2 is open: once, not under round 1 as well.
+  expect(openFindings(cycleOf(snapshot))).toEqual([{ round: 2, lines: [REPEAT] }]);
+  expect(blockingFindings(cycleOf(snapshot))).toEqual([]);
+
+  const refused = nextRound(snapshot, 'T-1', 'approach');
+  expect(refused).toMatchObject({ kind: 'refused', cap: 2 });
+  expect(refused.findings).toEqual([{ round: 2, lines: [REPEAT] }]);
+  expect(refused.blocking ?? []).toEqual([]);
+  const text = roundText(refused);
+  expect(text).not.toContain('Blocking findings:');
+  expect(refused.reasons.join('\n')).not.toContain('blocks the approval');
+  for (const closed of [WITHDRAWN, DROPPED, REPEATED, SEC_WITHDRAWN, LOSS_DROPPED, LOSS_REPEATED]) expect(text, closed).not.toContain(closed);
+
+  // The states that stay open still count: open, unverified, and a line with no state.
+  const stays = HEAD + round(1, '1. Must — one — open', '2. Should — two — unverified: no citation', '3. Must — three — open — risk: security') + round(2, R2_OPEN);
+  const open = repo({ claim: cut, approach: stays });
+  expect(openFindings(cycleOf(open)).flatMap((r) => r.lines)).toEqual([
+    '1. Must — one — open',
+    '2. Should — two — unverified: no citation',
+    R2_OPEN,
+  ]);
+  expect(blockingFindings(cycleOf(open))).toEqual([{ round: 1, lines: ['3. Must — three — open — risk: security'] }]);
+});

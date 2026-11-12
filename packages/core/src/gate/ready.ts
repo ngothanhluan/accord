@@ -7,6 +7,7 @@ import type { RepoSnapshot, Section, Ticket } from '../model/snapshot.js';
 import { claimPinBefore, DISCUSS_FROM } from '../round/pin.js';
 import { doneOnDefault } from '../status/stage.js';
 import { approvedHash } from './hash.js';
+import { decisionIds } from './plan.js';
 import type { GateRule } from './rules.js';
 
 const ticketFile = (id: string) => 'accord/tickets/' + id + '.md';
@@ -107,15 +108,49 @@ function discussApplies(snapshot: RepoSnapshot, id: string): boolean {
 export const discussMissing: GateRule['check'] = (snapshot, id) => {
   if (!discussApplies(snapshot, id)) return [];
   const file = 'accord/tickets/' + id + '/discuss.md';
-  if (snapshot.work?.[id]?.discuss !== undefined) return [];
+  const discuss = snapshot.work?.[id]?.discuss;
+  if (discuss === undefined) {
+    return [
+      {
+        file,
+        reason:
+          file + ' is missing; from accord ' + DISCUSS_FROM + ' the discuss stage writes it: one line per gray area under ## Gray areas ' +
+          'with the D-nn its answer became under ## Decisions',
+      },
+    ];
+  }
+  if (discuss.areas.length > 0) return [];
   return [
     {
-      file,
-      reason:
-        file + ' is missing; from accord ' + DISCUSS_FROM + ' the discuss stage writes it: one line per gray area under ## Gray areas ' +
-        'with the D-nn its answer became under ## Decisions',
+      file: discuss.file,
+      reason: discuss.file + ' lists no gray area under ## Gray areas; the discuss stage writes one line per gray area the owner answered',
     },
   ];
+};
+
+/**
+ * ST-LN-91 91d-ac-1: each gray area of discuss.md names the `D-nn` its answer became, and `## Decisions` holds it. One finding per
+ * gray area with no D-nn and one per named D-nn the ticket does not hold, each on the area's own line and quoting its text.
+ */
+export const discussUnmapped: GateRule['check'] = (snapshot, id) => {
+  const ticket = ticketOf(snapshot, id);
+  const discuss = snapshot.work?.[id]?.discuss;
+  if (ticket === undefined || discuss === undefined || !discussApplies(snapshot, id)) return [];
+  const known = new Set(decisionIds(ticket));
+  return discuss.areas.flatMap((area) => {
+    const at = { file: discuss.file, line: area.line };
+    if (area.decisions.length === 0) {
+      return [
+        {
+          ...at,
+          reason: `gray area "${area.text}" maps to no Decision; write the answer the owner gave as a D-nn line under ## Decisions and name it at the end of this line`,
+        },
+      ];
+    }
+    return area.decisions
+      .filter((d) => !known.has(d))
+      .map((d) => ({ ...at, reason: `gray area "${area.text}" names ${d}, which ## Decisions does not hold` }));
+  });
 };
 
 /** Spec §4: no approval recorded. */

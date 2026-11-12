@@ -125,10 +125,38 @@ describe('discuss record at gate ready', () => {
     expect(mapped.verdict).toBe('fail');
     expect(unmapped(mapped)).toHaveLength(1);
     expect(unmapped(mapped)[0].reason).toContain('duplicate heading');
-    // Another heading of the same words with a suffix is no gray-areas section and its items are no areas.
+    // Another section with another name is no gray-areas section and its items are no areas.
     expect(discussFindings(check({ pin: '0.4.1', discuss: GRAY + '\n## Notes\n- scope — a note\n' }))).toEqual([]);
     // A ticket the discuss stage does not apply to gets no finding for it.
     expect(unmapped(check({ pin: '0.4.0', discuss: second }))).toEqual([]);
+  });
+
+  it('risk:parsing a heading that continues "Gray areas" is read too, and flagged (ST-LN-91 RR-WR-03)', () => {
+    for (const heading of ['## Gray areas (cont.)', '## Gray areas, continued', '## gray  areas 2']) {
+      const r = check({ pin: '0.4.1', discuss: '## Gray areas\n- direction — pick one — D-01\n\n' + heading + '\n- scope — never mapped\n' });
+      expect(r.verdict, heading).toBe('fail');
+      const f = unmapped(r);
+      expect(f.map((x) => x.line), heading).toEqual([4, 5]);
+      expect(f[0].reason, heading).toContain('put every gray area under the one "## Gray areas" heading');
+      expect(f[1].reason, heading).toContain('never mapped');
+    }
+    // Mapped, the continued heading alone still fails; with no plain heading at all the one heading present is flagged.
+    const mapped = unmapped(check({ pin: '0.4.1', discuss: '## Gray areas\n- a — first — D-01\n\n## Gray areas (cont.)\n- b — second — D-01\n' }));
+    expect(mapped).toHaveLength(1);
+    expect(mapped[0].line).toBe(4);
+    const lone = unmapped(check({ pin: '0.4.1', discuss: '## Gray areas (cont.)\n- b — second — D-01\n' }));
+    expect(lone.map((x) => x.line)).toEqual([1]);
+  });
+
+  it('risk:parsing a gray area indented by one to three spaces is an area, a deeper one a note (ST-LN-91 RR-WR-03, IN-01)', () => {
+    for (const indent of [' ', '  ', '   ']) {
+      const r = check({ pin: '0.4.1', discuss: '## Gray areas\n- direction — pick one — D-01\n' + indent + '- scope — never mapped\n' });
+      expect(r.verdict, JSON.stringify(indent)).toBe('fail');
+      expect(unmapped(r).map((x) => x.line), JSON.stringify(indent)).toEqual([3]);
+    }
+    // Four spaces or a tab is a sub-bullet; a numbered item with a closing parenthesis is an item.
+    expect(discussFindings(check({ pin: '0.4.1', discuss: GRAY + '    - option A\n\t- option B\n' }))).toEqual([]);
+    expect(unmapped(check({ pin: '0.4.1', discuss: '## Gray areas\n 1) a — one\n' })).map((x) => x.line)).toEqual([2]);
   });
 
   it('risk:parsing only a list item at the start of a line is a gray area (ST-LN-91 IN-01)', () => {

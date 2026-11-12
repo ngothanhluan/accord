@@ -150,3 +150,29 @@ it('risk:regression the approach critic runs at most twice from the cut-off (ST-
   }
   expect(bad).toEqual([]);
 });
+
+it('risk:regression the planner always returns the test-strategy area, so a ticket can pass Ready (ST-LN-91 IN-03)', () => {
+  const planner = flat(agents.get('.claude/agents/accord-planner.md') ?? '');
+  expect(planner).toContain('always return at least one gray area, the test strategy');
+  expect(planner).toContain('accord gate ready');
+  const bad: string[] = [];
+  for (const dir of skillDirs(all)) {
+    const text = flat(rendered.get(dir + '/' + installedName('intent') + '/discuss.md') ?? '');
+    for (const p of ['always returns at least the test-strategy gray area', 'under one `## Gray areas` heading', 'at the start of its line'])
+      if (!text.includes(p)) bad.push(dir + ' discuss.md lacks ' + p);
+  }
+  expect(bad).toEqual([]);
+});
+
+it('risk:regression intent step 9 acts on the exit code of accord gate ready (ST-LN-91 IN-04)', () => {
+  const bad: string[] = [];
+  for (const dir of skillDirs(all)) {
+    const skill = flat(rendered.get(dir + '/' + installedName('intent') + '/SKILL.md') ?? '');
+    const step = skill.slice(skill.indexOf('9. **Discuss.**'), skill.indexOf('10. Next'));
+    for (const p of ['read its exit code', 'On exit 2', 'stop and report what it printed to the owner', 'claimed before the discuss stage'])
+      if (!step.includes(p)) bad.push(dir + ' step 9 lacks ' + p);
+    // Exit 2 comes before the "names neither" reading, so a usage or pin error is never read as an old ticket.
+    if (step.indexOf('On exit 2') > step.indexOf('claimed before the discuss stage')) bad.push(dir + ' step 9 reads exit 2 after the old-ticket case');
+  }
+  expect(bad).toEqual([]);
+});

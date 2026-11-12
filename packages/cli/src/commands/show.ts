@@ -1,7 +1,8 @@
 // ST-LN-6 `accord show <id> [--json|--approval]`: one lane ticket in full as text or TicketDetail; --approval needs no lane.
-import { approvalView, ticketDetail } from '@accord-dev/accord-core';
+import { approvalShort, approvalView, openFindings, ticketDetail, workOf } from '@accord-dev/accord-core';
 import type { TicketDetail } from '@accord-dev/accord-core';
 import { colourApproval } from '../render/color.js';
+import { UsageError } from '../load/fs.js';
 import { isUnsafe } from '../render/dashboard.js';
 import type { CommandContext } from '../run.js';
 import { requireLaneTicket, requireTicket } from './lane-args.js';
@@ -37,7 +38,8 @@ function text(d: TicketDetail): string {
   return lines.map(clean).join('\n') + '\n';
 }
 
-export function show(ctx: CommandContext, id: string, options: { json?: boolean; approval?: boolean }): number {
+export function show(ctx: CommandContext, id: string, options: { json?: boolean; approval?: boolean; short?: boolean }): number {
+  if (options.short === true && options.approval !== true) throw new UsageError('--short goes with --approval');
   if (options.approval === true) {
     // The checkout, as `accord approve` reads it; no lane needed.
     const ticket = requireTicket(ctx.plain ?? ctx.snapshot, id);
@@ -47,6 +49,15 @@ export function show(ctx: CommandContext, id: string, options: { json?: boolean;
       for (const f of found) ctx.stderr.write(f.file + (f.line === undefined ? '' : ':' + f.line) + ': ' + f.rule + ' ' + f.reason + '\n');
       ctx.stderr.write(ticket.file + ' has load findings; run accord lint\n');
       return 1;
+    }
+    if (options.short === true) {
+      // The risks are the Must and Should findings of the last approach cycle still open and not marked data-loss or security (D-02, D-22).
+      // `ctx.plain` is the whole checkout snapshot, so it holds the work records; without it the claims snapshot is read.
+      const rec = workOf(ctx.plain ?? ctx.snapshot, id)?.approachRounds;
+      const cycle = rec?.cycles[rec.cycles.length - 1];
+      const risks = cycle === undefined ? [] : openFindings(cycle).flatMap((r) => r.lines.map((l) => `round ${r.round}: ${l}`));
+      ctx.stdout.write(colourApproval(approvalShort(ticket, risks).split('\n').map(clean).join('\n'), ctx.stdout));
+      return 0;
     }
     ctx.stdout.write(colourApproval(approvalView(ticket).split('\n').map(clean).join('\n'), ctx.stdout));
     return 0;

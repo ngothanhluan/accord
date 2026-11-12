@@ -71,3 +71,27 @@ export function approvalView(ticket: Ticket): string {
   const out = APPROVED_SECTIONS.flatMap((key, i) => [`## ${TITLES[i]}`, '', ...(key === 'acceptance criteria' ? criteria(ticket) : prose(ticket, key))]);
   return out.join('\n');
 }
+
+/** The lines of one section as the short view prints them: HTML comments and blank lines left out, `none` when nothing is left. */
+function plain(ticket: Ticket, key: string): string[] {
+  const s = ticket.sections.find((x) => headingKey(x.heading) === key);
+  const lines = (s === undefined ? [] : stripHtmlComments(s.lines)).map((l) => l.text.trimEnd()).filter((t) => t !== '');
+  return lines.length === 0 ? ['none'] : lines;
+}
+
+/**
+ * ST-LN-91 D-06: the short view the owner approves from: the Intent, one line per criterion (its ac id and name, never its steps),
+ * every Decision, the approach findings still open as `risks` (given as recorded) and the path of the full ticket. It only prints:
+ * approved_hash and APPROVED_SECTIONS are untouched, so the yes still binds the whole ticket as written.
+ */
+export function approvalShort(ticket: Ticket, risks: string[]): string {
+  const criteria = ticket.scenarios.map((s) => `- ${s.acTag === undefined ? '' : s.acTag + ' '}${s.name}`);
+  const out = [
+    '## Intent', '', ...plain(ticket, 'intent'), '',
+    '## Criteria', '', ...(criteria.length === 0 ? ['none'] : criteria), '',
+    '## Decisions', '', ...plain(ticket, 'decisions'), '',
+    '## Risks', '', ...(risks.length === 0 ? ['none'] : risks.map((r) => `- ${r}`)), '',
+    `Full ticket: ${ticket.file}`,
+  ];
+  return out.join('\n') + '\n';
+}

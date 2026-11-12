@@ -59,9 +59,11 @@ plans or builds. You run it in the main session.
    question. Then commit `accord/tickets/<id>.md`, with the ledger if it
    changed.
 
-9. **Discuss.** Run `accord gate ready <id>`. When it names `gate.discuss-missing` or `gate.discuss-unmapped`,
-   follow `./discuss.md`; otherwise the ticket was claimed before the discuss stage and goes on. Ask no yes here:
-   the owner approves once, at accord-approach step 5.
+9. **Discuss.** Run `accord gate ready <id>` and read its exit code. On exit 2 (a pin mismatch or a usage
+   error) stop and report what it printed to the owner: it says nothing about discuss. When it names
+   `gate.discuss-missing` or `gate.discuss-unmapped`, follow `./discuss.md`; when it names neither, the ticket
+   was claimed before the discuss stage or its discuss.md is mapped, and goes on. Ask no yes here: the owner
+   approves once, at accord-approach step 5.
 
 10. Next: `accord-approach`.
 

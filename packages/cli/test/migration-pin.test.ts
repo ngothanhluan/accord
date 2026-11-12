@@ -30,7 +30,8 @@ async function atApproach(claimPin: string, recordPin: string, rounds: string[])
   commitMsg(repo, 'claim: T-1');
   writeFiles(repo, { 'accord/config.yml': pinned(recordPin), [APPROACH]: rec(rounds[0]) });
   commitMsg(repo, 'T-1 approach round 1');
-  writeFiles(repo, { 'accord/config.yml': CONFIG, [APPROACH]: rec(...rounds) });
+  // notes.txt keeps the last commit from being empty when CONFIG already holds the pin of the record's first round.
+  writeFiles(repo, { 'accord/config.yml': CONFIG, [APPROACH]: rec(...rounds), 'notes.txt': 'work after the rounds\n' });
   commitAll(repo, 'T-1 approach rounds');
   return repo;
 }

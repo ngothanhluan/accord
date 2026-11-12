@@ -58,8 +58,12 @@ it('risk:parsing the scout prompt and the scout steps write the report form acco
 
 it('risk:complex-branching the approach and build stages send an approve refusal back to the scout steps', () => {
   const approach = flat(skillText('.claude/skills/accord-approach/SKILL.md'));
-  const step5 = approach.slice(approach.indexOf("5. **The owner's yes.**"), approach.indexOf('6. Next'));
-  expect(step5.length, 'approach step 5 is missing').toBeGreaterThan(0);
+  const skillStep5 = approach.slice(approach.indexOf("5. **The owner's yes.**"), approach.indexOf('6. Next'));
+  expect(skillStep5.length, 'approach step 5 is missing').toBeGreaterThan(0);
+  // ST-LN-91 plan 03-05: step 5 only names ./approval.md, where the scout check and the show step live, so the check is read there.
+  expect(skillStep5, 'approach step 5 does not name ./approval.md').toContain('`./approval.md`');
+  const step5 = flat(skillText('.claude/skills/accord-approach/approval.md'));
+  expect(step5.length, 'approach approval.md is missing').toBeGreaterThan(0);
   const check = step5.indexOf('accord scout check "accord/tickets/<id>/scout.md"');
   expect(check, 'approach step 5 does not run the check').toBeGreaterThanOrEqual(0);
   expect(check, 'the check comes before accord show').toBeLessThan(step5.indexOf('accord show <id> --approval'));

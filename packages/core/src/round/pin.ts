@@ -51,11 +51,15 @@ export function pinBefore(from: string, pin: string | undefined, basePin?: strin
 
 /**
  * ST-LN-91 D-15: true when the ticket `id` was claimed under rules older than `from`, so it keeps them until it is done, whatever the
- * working-tree pin says after an upgrade. The one reader of the claim pin for every Phase 3 rule (the discuss rule, the approach cap,
- * the plan format rules, the plan cap, its stop and the `Critics:` line): no rule asks any other pin, so the rules of one ticket never
- * disagree. The chain: the host's claim fact (`claimPins[id]`: the pin at the ticket's claim commit, else at the commit that added its
- * ticket file, and at that commit's merge base with the default ref); a fact with `error` is false (the new rules apply, fail closed);
- * with no fact (no claim commit, no git) the working-tree pin decides, as `planSizeMissing` falls back.
+ * working-tree pin says after an upgrade. The reader of the claim pin for the rules that follow the claim: the discuss rule (DISCUSS_FROM) and
+ * the approach cap with its `## Closed` and no-allowance rules and the approval block that goes with it (APPROACH_CAP_FROM). Other rules follow the
+ * record or the plan instead and do not ask this pin: the grounds rule and the plan fix scope read the pin at the first round of the record
+ * (GROUNDS_V2_FROM, `recordPins`, and the round facts of review.md), the version 2 review record reads it at the first review round (RECORD_V2_FROM),
+ * and the plan size rule reads the pin at the plan's baseline commit (PLAN_SIZE_FROM, `planPins`). So a record begun after an upgrade, on a ticket
+ * claimed before it, gets the grounds rule and keeps the five approach rounds. The chain: the host's claim fact (`claimPins[id]`: the pin at the
+ * ticket's claim commit, the newest `claim: <id>` commit that is not on the default ref, else the newest overall, and at that commit's merge base with the
+ * default ref; a ticket with no claim commit has no fact); a fact with `error` is false (the new rules apply, fail closed); with no fact (no claim commit, no git)
+ * the working-tree pin decides, as `planSizeMissing` falls back.
  */
 export function claimPinBefore(snapshot: RepoSnapshot, id: string, from: string): boolean {
   const fact = Object.hasOwn(snapshot.claimPins ?? {}, id) ? snapshot.claimPins![id] : undefined;

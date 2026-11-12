@@ -10,7 +10,7 @@ import {
   validate,
 } from '../src/index.js';
 import { approved } from './helpers/approve.js';
-import { CONFIG, laneTicket } from '../../../test/helpers/lane.js';
+import { CONFIG, discussFiles, laneTicket } from '../../../test/helpers/lane.js';
 
 const REC = (topic: string) => '# ' + topic + '\n\nDate: 2026-10-30. Repository at `5c083d3`. Feeds the ticket.\n';
 const R = 'accord/research/2026-10-30-x.md';
@@ -21,6 +21,7 @@ const build = (frontmatter: string[], extra: Record<string, string>) => {
     {
       'accord/config.yml': CONFIG,
       'accord/tickets/T-1.md': laneTicket('T-1', { frontmatter }),
+      ...discussFiles('T-1'), // a ticket claimed at the discuss cut-off carries its discuss record (ST-LN-91)
       ...extra,
     },
     'T-1',

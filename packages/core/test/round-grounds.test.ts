@@ -25,7 +25,8 @@ function snap(kind: Kind, round2: string[], o: { pin?: RecordPin; body?: string;
     '## Rulings\n- task 1 done abc1234\n- task 2 done abc1234\n' + (o.deferred === undefined ? '' : '\n## Deferred\n' + o.deferred.map((d) => '- ' + d + '\n').join(''));
   files['accord/tickets/T-1/' + FILE[kind]] =
     'Round record: 1\n\n' + round(1, 'whole', ...(o.first ?? [must('rests on: ac-2')])) + round(2, 'diff', ...round2) + (o.round3 === undefined ? '' : round(3, 'diff', ...o.round3));
-  const base = loadSnapshot({ files, tree: Object.keys(files) });
+  // The grounds rule reads the record pin; the ticket is claimed under 0.4.0, so the discuss and approach-cap rules, which read the claim pin (D-15), stay out of what these cases assert.
+  const base: RepoSnapshot = { ...loadSnapshot({ files, tree: Object.keys(files) }), claimPins: { 'T-1': { pin: '0.4.0' } } };
   return o.pin === undefined ? base : { ...base, recordPins: { 'T-1': { [kind]: o.pin } } };
 }
 const answer = (s: RepoSnapshot, kind: Kind) => nextRound(s, 'T-1', kind);

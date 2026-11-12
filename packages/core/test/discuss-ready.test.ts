@@ -94,7 +94,7 @@ describe('discuss record at gate ready', () => {
       { name: 'claim pin below its merge base pin', opts: { pin: '0.4.0', basePin: DISCUSS_FROM }, finding: true },
       { name: 'a pin that is not plain x.y.z', opts: { pin: 'main' }, finding: true },
       { name: 'a failed claim read', opts: { fact: { error: 'git failed' } }, finding: true },
-      { name: 'no claim fact, working tree at 0.4.0', opts: {}, finding: false },
+      { name: 'no claim fact, working tree at 0.4.0', opts: { config: at('0.4.0') }, finding: false },
       { name: 'no claim fact, working tree at the cut-off', opts: { config: at(DISCUSS_FROM) }, finding: true },
     ];
     for (const { name, opts, finding } of cases) {

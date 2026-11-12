@@ -241,7 +241,8 @@ export interface DiscussArea {
 /** ST-LN-91 D-04: accord/tickets/<id>/discuss.md, the ticket's record of every gray area and the Decision it became. */
 export interface Discuss {
   file: string; // 'accord/tickets/LOGIN-1/discuss.md'
-  areas: DiscussArea[]; // the list items under the first '## Gray areas' heading, in order
+  areas: DiscussArea[]; // the column-0 list items under every '## Gray areas' heading, in order
+  extraHeadings?: number[]; // the lines of every '## Gray areas' heading after the first; absent when there is none
 }
 
 export interface TicketWork {

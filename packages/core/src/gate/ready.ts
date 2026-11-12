@@ -136,15 +136,24 @@ export const discussMissing: GateRule['check'] = (snapshot, id) => {
 
 /**
  * ST-LN-91 91d-ac-1: each gray area of discuss.md names the `D-nn` its answer became, and `## Decisions` holds it. One finding per
- * gray area with no D-nn and one per named D-nn the ticket does not hold, each on the area's own line and quoting its text.
+ * gray area with no D-nn and one per named D-nn the ticket does not hold, each on the area's own line and quoting its text. An area with no
+ * text of its own (a group and a D-nn alone) counts as unmapped (IN-02), and a repeated `## Gray areas` heading is a finding (WR-03).
  */
 export const discussUnmapped: GateRule['check'] = (snapshot, id) => {
   const ticket = ticketOf(snapshot, id);
   const discuss = snapshot.work?.[id]?.discuss;
   if (ticket === undefined || discuss === undefined || !discussApplies(snapshot, id)) return [];
   const known = new Set(decisionIds(ticket));
-  return discuss.areas.flatMap((area) => {
+  const repeated = (discuss.extraHeadings ?? []).map((line) => ({
+    file: discuss.file,
+    line,
+    reason: 'duplicate heading "## Gray areas"; keep every gray area under the first one, so each is read once',
+  }));
+  const areas = discuss.areas.flatMap((area) => {
     const at = { file: discuss.file, line: area.line };
+    if (area.text === '') {
+      return [{ ...at, reason: 'this line names no gray area in plain words, only a group and a Decision; write the gray area between them' }];
+    }
     if (area.decisions.length === 0) {
       return [
         {
@@ -157,6 +166,7 @@ export const discussUnmapped: GateRule['check'] = (snapshot, id) => {
       .filter((d) => !known.has(d))
       .map((d) => ({ ...at, reason: `gray area "${area.text}" names ${d}, which ## Decisions does not hold` }));
   });
+  return [...repeated, ...areas].sort((a, b) => a.line - b.line);
 };
 
 /** Spec §4: no approval recorded. */

@@ -201,21 +201,23 @@ export function parseReview(file: string, text: string): Review {
 // ST-LN-91 D-04: the last part of a gray-area item: `D-07` or `D-07, D-08`. Anchored, and the alternatives cannot overlap, so no input backtracks.
 const DISCUSS_DECISIONS = /^D-[0-9]+(?:\s*,\s*D-[0-9]+)*$/;
 const DISCUSS_SEPARATOR = ' — ';
+// An area is a list item at the start of its line: an indented item is a note under an area, never an area (ST-LN-91 IN-01).
+const AREA_MARKER = /^(?:[-*+]|\d+\.)\s+/;
 
 /**
- * ST-LN-91 D-04: `accord/tickets/<id>/discuss.md`. The areas are the list items under the first `## Gray areas` heading, outside fences
- * and HTML comments: `- <group> — <gray area in plain words> — D-07` or `— D-07, D-08`. The text between the first and the last
+ * ST-LN-91 D-04: `accord/tickets/<id>/discuss.md`. The areas are the list items at the start of a line under every `## Gray areas`
+ * heading (WR-03: the lines of a repeated heading are listed in `extraHeadings`, which the gate reports), outside fences and HTML comments: `- <group> — <gray area in plain words> — D-07` or `— D-07, D-08`. The text between the first and the last
  * ` — ` is the gray area; with no `D-nn` last part the text is everything after the group, and an item with no separator is all text.
  * Plain `split` on a fixed separator and one anchored pattern, so a long hostile line is read in linear time.
  */
 export function parseDiscuss(file: string, text: string): Discuss {
   const { sections, fences } = scan(normaliseText(text), 0);
-  const section = sections.find((s) => headingKey(s.heading) === 'gray areas');
-  const unfenced = (section?.lines ?? []).filter((l) => !fences.some((f) => l.line >= f.open && l.line <= f.close));
+  const grays = sections.filter((s) => headingKey(s.heading) === 'gray areas');
+  const unfenced = grays.flatMap((s) => s.lines).filter((l) => !fences.some((f) => l.line >= f.open && l.line <= f.close));
   const areas: DiscussArea[] = [];
   for (const l of stripHtmlComments(unfenced)) {
-    if (!LIST_MARKER.test(l.text)) continue;
-    const item = l.text.replace(LIST_MARKER, '').trim();
+    if (!AREA_MARKER.test(l.text)) continue;
+    const item = l.text.replace(AREA_MARKER, '').trim();
     if (item === '') continue;
     const parts = item.split(DISCUSS_SEPARATOR).map((p) => p.trim());
     if (parts.length === 1) {
@@ -231,7 +233,8 @@ export function parseDiscuss(file: string, text: string): Discuss {
       decisions: named ? last.split(',').map((d) => d.trim()) : [],
     });
   }
-  return { file, areas };
+  const extraHeadings = grays.slice(1).map((s) => s.line);
+  return { file, areas, ...(extraHeadings.length > 0 ? { extraHeadings } : {}) };
 }
 
 /** One report case id per line; blank lines and comments (`#` alone or `# ` plus text) are skipped; `#123-x` is an id; sorted and unique. */

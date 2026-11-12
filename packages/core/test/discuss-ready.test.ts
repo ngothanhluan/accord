@@ -111,6 +111,51 @@ describe('discuss record at gate ready', () => {
     expect(discussFindings(check({ fact: { error: 'git failed' }, lane: 'S', body: LANE_S_BODY }))).toEqual([]);
   });
 
+  it('risk:parsing the gray areas of every ## Gray areas section count, and a repeated heading fails the gate (ST-LN-91 WR-03)', () => {
+    const second = '## Gray areas\n- direction — pick one — D-01\n\n## Gray areas\n- scope — never mapped —\n';
+    const r = check({ pin: '0.4.1', discuss: second });
+    expect(r.verdict).toBe('fail');
+    const f = unmapped(r);
+    // The area of the second section is read and named on its own line; the repeated heading is a finding of its own.
+    expect(f.map((x) => x.line)).toEqual([4, 5]);
+    expect(f[0].reason).toContain('duplicate heading "## Gray areas"');
+    expect(f[1].reason).toContain('never mapped');
+    // Every area mapped, the repeated heading still fails.
+    const mapped = check({ pin: '0.4.1', discuss: '## Gray areas\n- a — first — D-01\n\n## Gray areas\n- b — second — D-01\n' });
+    expect(mapped.verdict).toBe('fail');
+    expect(unmapped(mapped)).toHaveLength(1);
+    expect(unmapped(mapped)[0].reason).toContain('duplicate heading');
+    // Another heading of the same words with a suffix is no gray-areas section and its items are no areas.
+    expect(discussFindings(check({ pin: '0.4.1', discuss: GRAY + '\n## Notes\n- scope — a note\n' }))).toEqual([]);
+    // A ticket the discuss stage does not apply to gets no finding for it.
+    expect(unmapped(check({ pin: '0.4.0', discuss: second }))).toEqual([]);
+  });
+
+  it('risk:parsing only a list item at the start of a line is a gray area (ST-LN-91 IN-01)', () => {
+    const nested = '## Gray areas\n- behaviour — what export prints for an empty report — D-01\n  - option A — cheap\n\t- option B — dear\n    * option C\n';
+    expect(discussFindings(check({ pin: '0.4.1', discuss: nested }))).toEqual([]);
+    // An indented item alone is no area at all.
+    const only = missing(check({ pin: '0.4.1', discuss: '## Gray areas\n  - scope — indented — D-01\n' }));
+    expect(only).toHaveLength(1);
+    expect(only[0].reason).toContain('lists no gray area');
+    // Numbered items and every bullet mark still count.
+    const marks = check({ pin: '0.4.1', discuss: '## Gray areas\n1. a — one\n* b — two\n+ c — three\n' });
+    expect(unmapped(marks).map((x) => x.line)).toEqual([2, 3, 4]);
+  });
+
+  it('risk:parsing an area with no gray area text counts as unmapped (ST-LN-91 IN-02)', () => {
+    for (const line of ['- scope — D-01', '- x — D-01', '- scope —  — D-01']) {
+      const r = check({ pin: '0.4.1', discuss: '## Gray areas\n' + line + '\n' });
+      expect(r.verdict, line).toBe('fail');
+      const f = unmapped(r);
+      expect(f, line).toHaveLength(1);
+      expect(f[0].line).toBe(2);
+      expect(f[0].reason).toContain('names no gray area');
+    }
+    // With its words the same line passes.
+    expect(discussFindings(check({ pin: '0.4.1', discuss: '## Gray areas\n- scope — whether totals are exported — D-01\n' }))).toEqual([]);
+  });
+
   it('risk:complex-branching a failed claim read is named in the discuss finding and still fails closed (ST-LN-91 WR-01)', () => {
     const fact = { error: 'git failed reading the claim pin of T-1: unable to read the index' };
     const none = missing(check({ fact }));

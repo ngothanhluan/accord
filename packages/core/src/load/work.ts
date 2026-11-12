@@ -205,6 +205,17 @@ const DISCUSS_SEPARATOR = ' — ';
 // as far as the text of the area before it (a sub-bullet under `- ` starts at column 2, under `1. ` at column 3). Four or more spaces and a tab are never an area.
 const AREA_MARKER = /^( {0,3})([-*+]|\d+[.)])(\s+)/;
 
+/** The columns of white space at the start of a line (a tab to the next multiple of 4). */
+function leadingColumns(text: string): number {
+  let col = 0;
+  for (const c of text) {
+    if (c === ' ') col++;
+    else if (c === '\t') col += 4 - (col % 4);
+    else break;
+  }
+  return col;
+}
+
 /** The column at which the text of a list item starts: its indent, its marker and the spaces after it (a tab to the next multiple of 4; five or more columns of space count as one). */
 function textColumn(indent: number, marker: string, gap: string): number {
   let col = indent + marker.length;
@@ -229,13 +240,23 @@ export function parseDiscuss(file: string, text: string): Discuss {
   const areas: DiscussArea[] = [];
   let column = 0; // where the text of the last top-level item of the section starts: a line indented to it or beyond is nested in it
   let inSection = -1;
+  let blank = true; // the line before is blank (or this is the first of the section)
   for (const l of stripHtmlComments(unfenced)) {
     if (sectionOf.get(l.line) !== inSection) {
       inSection = sectionOf.get(l.line)!;
       column = 0;
+      blank = true;
     }
+    const after = blank;
+    blank = l.text.trim() === '';
     const marker = AREA_MARKER.exec(l.text);
-    if (marker === null || (column > 0 && marker[1].length >= column)) continue;
+    if (marker === null) {
+      // WR-02 (round 4): as CommonMark reads it, a paragraph after a blank line, indented less than the text of the item, ends the list: a list item after it is top-level again.
+      // A line with no blank line before it continues the item's paragraph and ends nothing.
+      if (after && !blank && column > 0 && leadingColumns(l.text) < column) column = 0;
+      continue;
+    }
+    if (column > 0 && marker[1].length >= column) continue;
     column = textColumn(marker[1].length, marker[2], marker[3]);
     const item = l.text.slice(marker[0].length).trim();
     if (item === '') continue;

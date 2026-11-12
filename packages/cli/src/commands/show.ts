@@ -58,8 +58,9 @@ export function show(ctx: CommandContext, id: string, options: { json?: boolean;
       // `ctx.plain` is the whole checkout snapshot, so it holds the work records; without it the claims snapshot is read.
       const facts = approachFacts(ctx, id);
       const show = (rounds: { round: number; lines: string[] }[]): string[] => rounds.flatMap((r) => r.lines.map((l) => `round ${r.round}: ${l}`));
-      const note = facts.error !== undefined && facts.blocking.length > 0 ? claimNote(facts.error) : undefined;
-      ctx.stdout.write(colourApproval(approvalShort(ticket, show(facts.risks), show(facts.blocking), note).split('\n').map(clean).join('\n'), ctx.stdout));
+      // CR-01: a record accord cannot read is listed there too, as `record problem:` lines: the approval waits for it.
+      const note = facts.error !== undefined && (facts.blocking.length > 0 || facts.problems.length > 0) ? claimNote(facts.error) : undefined;
+      ctx.stdout.write(colourApproval(approvalShort(ticket, show(facts.risks), show(facts.blocking), note, facts.problems).split('\n').map(clean).join('\n'), ctx.stdout));
       return 0;
     }
     ctx.stdout.write(colourApproval(approvalView(ticket).split('\n').map(clean).join('\n'), ctx.stdout));

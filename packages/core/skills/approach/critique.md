@@ -13,7 +13,12 @@ The state is `open`, `fixed`, `deferred` for a Nice, `unverified: <reason>`,
 `withdrawn`, `repeated as <round>.<n>`, and `owner: "<the owner's words>"`
 for one the owner dropped. After the state the session copies the critic's
 marks, each as ` — <mark>`: `rests on: <the ticket line>`, `risk: data-loss`
-or `risk: security`, `test: <id>`, `command: <command>`. A finding stays
+or `risk: security`, `test: <id>`, `command: <command>`. The critic's
+`rests on: risk: security` or `rests on: risk: data-loss` is written as
+` — risk: security` or ` — risk: data-loss`, after the state. A `risk:` that
+accord cannot read in `approach-review.md` is a record problem:
+`accord round <id> --approach` refuses and `accord approve` refuses until it
+is fixed. A finding stays
 `open` or `unverified` until a
 critic lists it after `fixed:` or `withdrawn:`, or the owner drops it; the
 planner's word alone closes nothing. A round with no findings says

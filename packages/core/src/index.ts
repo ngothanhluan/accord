@@ -57,6 +57,7 @@ export {
   allowancesOf,
   approvalBlockers,
   approvalFindings,
+  approvalProblems,
   blockingFindings,
   capRulesOf,
   cycleState,

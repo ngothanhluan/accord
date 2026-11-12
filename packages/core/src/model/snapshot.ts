@@ -209,6 +209,7 @@ export interface RoundFinding {
   carried?: { round: number; n: number };
   repeatedAs?: { round: number; n: number }; // state 'repeated' with a target (ST-LN-91 RR-CR-01): the round.n the finding was repeated as
   risk?: 'data-loss' | 'security';
+  riskUnread?: string; // version 1 plan and approach lines (ST-LN-91 CR-01): the text of a `risk:` that no mark form read
   test?: string;
   command?: string;
   restsOn?: { kind: 'ac' | 'decision' | 'Veto' | 'Correction' | 'Intent' | 'Understood' | 'Done when'; ref: string }; // ref: ac-<n>, D-<nn>, or the quote without its quotes
@@ -318,9 +319,10 @@ export interface RepoSnapshot {
   // ST-LN-93 D-08: host-supplied by gate plan for the gated ticket: the pin in accord/config.yml at the plan's
   // baseline: commit, and at that commit's merge base with the default ref. Absent when the host supplies none.
   planPins?: Record<string, { pin?: string; basePin?: string }>;
-  // ST-LN-91 D-15: host-supplied by gate ready for the gated ticket: the pin in accord/config.yml at its claim commit (the oldest commit
-  // whose subject is exactly `claim: <id>`), else at the oldest commit that added its ticket file, and at that commit's merge base with the
-  // default ref. Absent when the host supplies none (no such commit, no git); read only through claimPinBefore.
+  // ST-LN-91 D-15: host-supplied for the ticket (gate ready, accord round --approach, accord approve, accord show --approval --short): the pin in
+  // accord/config.yml at its claim commit (the newest commit whose subject is exactly `claim: <id>` that is not on the default ref, else the newest
+  // one overall), and at that commit's merge base with the default ref. A ticket with no `claim: <id>` commit has no fact: the commit that added its
+  // ticket file is no evidence of when work began. Absent when the host supplies none (no such commit, no git); read only through claimPinBefore.
   claimPins?: Record<string, ClaimPin>;
   // ST-LN-91 D-11: host-supplied by accord round for the ticket it counts: the pin at the first round of its plan-review.md or
   // approach-review.md, else HEAD's, and at that commit's merge base with the default ref. A record with no entry keeps the older grounds rule.

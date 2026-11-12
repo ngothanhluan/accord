@@ -20,10 +20,10 @@ export function approve(ctx: CommandContext, id: string): number {
       return 1;
     }
   }
-  // ST-LN-91 D-22: an open data-loss or security approach finding is no risk to approve with.
-  const { blocking, error } = approachFacts(ctx, id);
-  if (blocking.length > 0) {
-    ctx.stdout.write(blockedApproval(id, blocking, error));
+  // ST-LN-91 D-22: an open data-loss or security approach finding is no risk to approve with; CR-01: nor is an approach record accord cannot read.
+  const { blocking, problems, error } = approachFacts(ctx, id);
+  if (blocking.length > 0 || problems.length > 0) {
+    ctx.stdout.write(blockedApproval(id, blocking, error, problems));
     return 1;
   }
   const hash = approvedHash(ticket);

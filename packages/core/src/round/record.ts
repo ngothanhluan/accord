@@ -25,17 +25,21 @@ const DOUBTFUL = /^\s*(?:[/|?]|(?:or|and)\s+(?:must|should|nice)\b)/i;
 
 const dequote = (v: string): string => (v.length >= 2 && v.startsWith('`') && v.endsWith('`') ? v.slice(1, -1) : v);
 
-/** Split a line on ' — ' outside double quotes and backticks; a quote with no closing twin is plain text. */
-function splitDashes(line: string): string[] {
+/** The separators a version 1 plan or approach line may use besides ' — ': an ASCII hyphen or two, an en dash (ST-LN-91 CR-01). */
+const LOOSE_SEPARATORS = [' -- ', ' - ', ' – '];
+
+/** Split a line on ' — ' (with `loose`, also on ' - ', ' -- ' and ' – ') outside double quotes and backticks; a quote with no closing twin is plain text. */
+function splitDashes(line: string, loose = false): string[] {
   const parts: string[] = [];
   let from = 0;
   for (let i = 0; i < line.length; ) {
     const c = line[i];
+    const sep = line.startsWith(' — ', i) ? ' — ' : loose ? LOOSE_SEPARATORS.find((x) => line.startsWith(x, i)) : undefined;
     if ((c === '"' || c === '`') && line.indexOf(c, i + 1) !== -1) {
       i = line.indexOf(c, i + 1) + 1;
-    } else if (line.startsWith(' — ', i)) {
+    } else if (sep !== undefined) {
       parts.push(line.slice(from, i));
-      i += 3;
+      i += sep.length;
       from = i;
     } else {
       i++;
@@ -51,7 +55,8 @@ type Mark = Pick<RoundFinding, 'carried' | 'risk' | 'test' | 'command' | 'restsO
 function readMark(seg: string): Mark | undefined {
   let m: RegExpExecArray | null;
   if ((m = /^carried from ([1-9][0-9]*)\.([1-9][0-9]*)$/.exec(seg))) return { carried: { round: Number(m[1]), n: Number(m[2]) } };
-  if ((m = /^risk: (data-loss|security)$/.exec(seg))) return { risk: m[1] as 'data-loss' | 'security' };
+  // ST-LN-91 CR-01: the critic's template has the session copy `rests on: risk: security`; the letter case is the writer's.
+  if ((m = /^(?:rests on:\s*)?risk:\s*(data-loss|security)$/i.exec(seg))) return { risk: m[1].toLowerCase() as 'data-loss' | 'security' };
   if ((m = /^test: (\S.*)$/.exec(seg))) return { test: dequote(m[1]) };
   if ((m = /^command: (\S.*)$/.exec(seg))) return { command: dequote(m[1]) };
   if ((m = /^rests on: (ac-[1-9][0-9]*)$/.exec(seg))) return { restsOn: { kind: 'ac', ref: m[1] } };
@@ -75,7 +80,7 @@ function readFindingV1(text: string): Partial<Omit<RoundFinding, 'severity' | 'l
     out.n = Number(num[1]);
     t = t.slice(num[0].length);
   }
-  const segs = splitDashes(t);
+  const segs = splitDashes(t, true);
   const marks: Mark = {};
   while (segs.length > 1) {
     const mark = readMark(segs[segs.length - 1].trim());
@@ -85,6 +90,18 @@ function readFindingV1(text: string): Partial<Omit<RoundFinding, 'severity' | 'l
     Object.assign(marks, mark);
     segs.pop();
   }
+  // ST-LN-91 CR-01: a risk mark written before the state (`<finding> — risk: security — open`) is read too; its segment is taken out.
+  for (let k = segs.length - 2; k >= 2 && marks.risk === undefined; k--) {
+    const mark = readMark(segs[k].trim());
+    if (mark?.risk !== undefined) {
+      marks.risk = mark.risk;
+      segs.splice(k, 1);
+    }
+  }
+  // A `risk:` that no mark form above read: after the finding's own words any `risk:`; in them (or in a line with no separator) a `risk:` with a risk word.
+  const unquoted = (x: string): string => x.replace(/"[^"]*"|`[^`]*`/g, '');
+  const stray = segs.find((x, k) => (k >= 2 ? /\brisk\s*:/i : /\brisk\s*:\s*(?:data-loss|security)\b/i).test(unquoted(x)));
+  if (stray !== undefined) out.riskUnread = stray.trim();
   if (segs.length >= 3) {
     const state = segs[segs.length - 1].trim();
     if (/^deferred\b/.test(state)) out.state = 'deferred';

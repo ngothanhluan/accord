@@ -193,6 +193,12 @@ export function blockingFindings(cycle: RoundCycle): { round: number; lines: str
   return linesOf(cycle, (c) => c === 'blocking');
 }
 
+/** ST-LN-91 D-22: the approval is held to the capped rules: the ticket's claim pin is at or after APPROACH_CAP_FROM and it is no lane S ticket (which has no approval). */
+const approvalBlocks = (snapshot: RepoSnapshot, id: string): boolean => {
+  const rules = capRulesOf(snapshot, id, 'approach');
+  return !rules.allowances && !rules.capStop && laneTicket(snapshot, id)?.frontmatter?.lane !== 'S';
+};
+
 /**
  * ST-LN-91 D-22, RR-WR-01: what `accord show --approval --short` lists and `accord approve` refuses on, from the last approach cycle. `blocking`: the open
  * risk findings, on a ticket whose claim pin is at or after APPROACH_CAP_FROM (a ticket claimed under an older accord keeps its five rounds and its
@@ -203,8 +209,7 @@ export function approvalFindings(snapshot: RepoSnapshot, id: string): { risks: {
   const rec = workOf(snapshot, id)?.approachRounds;
   if (rec === undefined) return { risks: [], blocking: [] };
   const cycle = rec.cycles[rec.cycles.length - 1];
-  const rules = capRulesOf(snapshot, id, 'approach');
-  const blocks = !rules.allowances && !rules.capStop && laneTicket(snapshot, id)?.frontmatter?.lane !== 'S';
+  const blocks = approvalBlocks(snapshot, id);
   return {
     risks: linesOf(cycle, (c) => c === 'open' || c === 'accepted' || (!blocks && c === 'blocking')),
     blocking: blocks ? blockingFindings(cycle) : [],
@@ -217,6 +222,16 @@ export function approvalFindings(snapshot: RepoSnapshot, id: string): { risks: {
  */
 export function approvalBlockers(snapshot: RepoSnapshot, id: string): { round: number; lines: string[] }[] {
   return approvalFindings(snapshot, id).blocking;
+}
+
+/**
+ * ST-LN-91 CR-01: the record problems of the approach record that stop the approval, on the capped rules only (a ticket claimed under an older accord, and a lane
+ * S ticket, are asked nothing: their old records keep the forms they were written in, and `accord approve` read no record before 0.4.1). The same
+ * reasons `accord round --approach` refuses with, in line order: a line accord cannot read, a `risk:` mark it cannot read, a round with no finding.
+ */
+export function approvalProblems(snapshot: RepoSnapshot, id: string): string[] {
+  if (workOf(snapshot, id)?.approachRounds === undefined || !approvalBlocks(snapshot, id)) return [];
+  return recordProblems(snapshot, id, 'approach').map((p) => p.reason);
 }
 
 const ofCycle =(all: Allowance[], index: number): Allowance[] => all.filter((a) => a.cycle === index + 1);
@@ -237,6 +252,17 @@ export function recordProblems(snapshot: RepoSnapshot, id: string, kind: RoundKi
   const all = allowancesOf(snapshot, id, kind);
   const rules = capRulesOf(snapshot, id, kind);
   const add = (line: number, reason: string) => out.push({ line, reason: `line ${line}: ${reason}` });
+  // ST-LN-91 CR-01: a `risk:` in the last cycle that no mark form reads, where risk marks count: the approach record on the capped rules, a plan record on the grounds rule.
+  const marksCount = kind === 'approach' ? !rules.allowances && !rules.capStop : kind === 'plan' && groundsV2(snapshot, id, 'plan');
+  if (marksCount) {
+    for (const round of rec.cycles[rec.cycles.length - 1].rounds) {
+      for (const f of round.findings) {
+        if (f.riskUnread !== undefined) {
+          add(f.line, `a risk mark accord cannot read ("${f.riskUnread}"); write it after the state as " — risk: data-loss" or " — risk: security"`);
+        }
+      }
+    }
+  }
   rec.cycles.forEach((cycle, i) => {
     if (kind === 'review' && i >= 1) {
       const before = rec.cycles[i - 1];

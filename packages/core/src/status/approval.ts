@@ -84,18 +84,28 @@ function plain(ticket: Ticket, key: string): string[] {
  * every Decision, the approach findings still open as `risks` (given as recorded) and the path of the full ticket. It only prints:
  * approved_hash and APPROVED_SECTIONS are untouched, so the yes still binds the whole ticket as written. D-22: `blocking` are the open
  * data-loss and security findings; with any, a `## Blocking findings` part follows the risks, and with none the view is as before. `note` (one line)
- * is printed in that part: the git error that made the capped rules apply when the claim pin could not be read.
+ * is printed in that part: the git error that made the capped rules apply when the claim pin could not be read. CR-01: `problems` are the lines of the
+ * approach record accord cannot read; with any, the same part holds them as `record problem:` items, and the approval waits until the record is fixed.
  */
-export function approvalShort(ticket: Ticket, risks: string[], blocking: string[] = [], note?: string): string {
+export function approvalShort(ticket: Ticket, risks: string[], blocking: string[] = [], note?: string, problems: string[] = []): string {
   const criteria = ticket.scenarios.map((s) => `- ${s.acTag === undefined ? '' : s.acTag + ' '}${s.name}`);
   const out = [
     '## Intent', '', ...plain(ticket, 'intent'), '',
     '## Criteria', '', ...(criteria.length === 0 ? ['none'] : criteria), '',
     '## Decisions', '', ...plain(ticket, 'decisions'), '',
     '## Risks', '', ...(risks.length === 0 ? ['none'] : risks.map((r) => `- ${r}`)), '',
-    ...(blocking.length === 0
+    ...(blocking.length === 0 && problems.length === 0
       ? []
-      : ['## Blocking findings', '', 'accord approve refuses while one is open; the owner may only say no.', ...(note === undefined ? [] : [note]), ...blocking.map((b) => `- ${b}`), '']),
+      : [
+          '## Blocking findings',
+          '',
+          ...(blocking.length === 0 ? [] : ['accord approve refuses while one is open; the owner may only say no.']),
+          ...(problems.length === 0 ? [] : ['accord approve refuses while approach-review.md holds a line accord cannot read; fix the record first.']),
+          ...(note === undefined ? [] : [note]),
+          ...blocking.map((b) => `- ${b}`),
+          ...problems.map((p) => `- record problem: ${p}`),
+          '',
+        ]),
     `Full ticket: ${ticket.file}`,
   ];
   return out.join('\n') + '\n';

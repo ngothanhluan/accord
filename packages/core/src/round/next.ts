@@ -5,7 +5,7 @@ import { headingKey, stripHtmlComments } from '../load/sections.js';
 import { AGENT_DEFAULTS } from '../skills/agents.js';
 import { fixScopeProblems } from './fixscope.js';
 import { groundsDeferred, groundsProblems, groundsV2 } from './grounds.js';
-import { APPROACH_CAP_FROM, claimPinBefore } from './pin.js';
+import { APPROACH_CAP_FROM, claimPinBefore, claimPinError } from './pin.js';
 import { pendingAddedCode, scopeProblems } from './scope.js';
 import type { RepoSnapshot, RoundCycle, RoundFinding, RoundRecord, TicketWork } from '../model/snapshot.js';
 import { deferredOf } from './evidence.js';
@@ -257,7 +257,9 @@ export function nextRound(snapshot: RepoSnapshot, id: string, kind: RoundKind): 
   const laneS = laneTicket(snapshot, id)?.frontmatter?.lane === 'S';
   const rules = capRulesOf(snapshot, id, kind);
   const base: RoundAnswer = { kind: 'refused', ticket: id, record: kind, laneS, cycle: 1, round: 0, cap: rules.cap, reasons: [] };
-  const refuse = (...reasons: string[]): RoundAnswer => ({ ...base, reasons });
+  // ST-LN-91 WR-01: a failed read of the claim pin gives the capped rules (fail closed); every refusal of the approach record says why.
+  const claimError = kind === 'approach' ? claimPinError(snapshot, id) : undefined;
+  const refuse = (...reasons: string[]): RoundAnswer => ({ ...base, reasons: claimError === undefined ? reasons : [...reasons, claimError] });
   if (laneTicket(snapshot, id) === undefined) return refuse(`${id} is not a lane ticket`);
   if (kind !== 'review' && laneS) return refuse(`lane S has no ${NOUN[kind]}`);
   const lane = isLaneM(snapshot, id);

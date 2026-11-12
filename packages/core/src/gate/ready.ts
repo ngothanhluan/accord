@@ -4,7 +4,7 @@
 import { classifyEars } from '../lint/ears.js';
 import { headingKey, stripHtmlComments } from '../load/sections.js';
 import type { RepoSnapshot, Section, Ticket } from '../model/snapshot.js';
-import { claimPinBefore, DISCUSS_FROM } from '../round/pin.js';
+import { claimPinBefore, claimPinError, DISCUSS_FROM } from '../round/pin.js';
 import { doneOnDefault } from '../status/stage.js';
 import { approvedHash } from './hash.js';
 import { decisionIds } from './plan.js';
@@ -104,6 +104,12 @@ function discussApplies(snapshot: RepoSnapshot, id: string): boolean {
   return !claimPinBefore(snapshot, id, DISCUSS_FROM);
 }
 
+/** ST-LN-91 WR-01: when git failed reading the claim pin the rule applies as fail-closed, and the finding says why. */
+const whyApplies = (snapshot: RepoSnapshot, id: string): string => {
+  const error = claimPinError(snapshot, id);
+  return error === undefined ? '' : `; the discuss stage applies because ${error}`;
+};
+
 /** ST-LN-91 91d-ac-1: a ticket the discuss stage applies to needs `accord/tickets/<id>/discuss.md`. */
 export const discussMissing: GateRule['check'] = (snapshot, id) => {
   if (!discussApplies(snapshot, id)) return [];
@@ -115,7 +121,7 @@ export const discussMissing: GateRule['check'] = (snapshot, id) => {
         file,
         reason:
           file + ' is missing; from accord ' + DISCUSS_FROM + ' the discuss stage writes it: one line per gray area under ## Gray areas ' +
-          'with the D-nn its answer became under ## Decisions',
+          'with the D-nn its answer became under ## Decisions' + whyApplies(snapshot, id),
       },
     ];
   }
@@ -123,7 +129,7 @@ export const discussMissing: GateRule['check'] = (snapshot, id) => {
   return [
     {
       file: discuss.file,
-      reason: discuss.file + ' lists no gray area under ## Gray areas; the discuss stage writes one line per gray area the owner answered',
+      reason: discuss.file + ' lists no gray area under ## Gray areas; the discuss stage writes one line per gray area the owner answered' + whyApplies(snapshot, id),
     },
   ];
 };

@@ -64,6 +64,12 @@ export function claimPinBefore(snapshot: RepoSnapshot, id: string, from: string)
   return pinBefore(from, pin, basePin);
 }
 
+/** ST-LN-91 WR-01: the git error text when the host failed to read the claim pin of `id` (the new rules then apply), else undefined. */
+export function claimPinError(snapshot: RepoSnapshot, id: string): string | undefined {
+  const fact = Object.hasOwn(snapshot.claimPins ?? {}, id) ? snapshot.claimPins![id] : undefined;
+  return fact !== undefined && 'error' in fact ? fact.error : undefined;
+}
+
 /** True only when `pin` is a plain x.y.z below RECORD_V2_FROM and, when `basePin` is a plain x.y.z, not below `basePin`. */
 export function pinAllowsV1(pin: string | undefined, basePin?: string): boolean {
   return pinBefore(RECORD_V2_FROM, pin, basePin);

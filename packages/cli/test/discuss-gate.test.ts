@@ -1,6 +1,6 @@
 // ST-LN-91 91d-ac-1: `accord gate ready` on real git reads the cut-off pin at the ticket's claim commit (D-15).
 import { expect, it } from 'vitest';
-import { cleanup, commitAll, commitMsg, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
+import { cleanup, commitAll, commitMsg, gitRun, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
 import { CONFIG, laneTicket } from '../../../test/helpers/lane.js';
 
 interface Found { rule: string; level: string; reason?: string; file?: string }
@@ -39,6 +39,40 @@ it('risk:complex-branching accord gate ready reads the claim pin from git (ST-LN
     writeFiles(b, { 'notes.txt': 'work after the claim\n' });
     commitAll(b);
     expect(missing((await findings(b)).found)).toEqual([]);
+  } finally {
+    cleanup(b);
+  }
+});
+
+it('risk:complex-branching gate ready falls back to the commit that added the ticket when there is no claim commit (ST-LN-91 91d-ac-1)', async () => {
+  // (a) no `claim:` commit: the commit that added the ticket holds the cut-off pin; HEAD holds the running version's pin.
+  const a = makeLaneRepo({ 'accord/tickets/T-1.md': laneTicket('T-1') });
+  try {
+    await run(['approve', 'T-1'], a);
+    writeFiles(a, { 'accord/config.yml': pinned('0.4.1') });
+    commitAll(a, 'add T-1');
+    writeFiles(a, { 'accord/config.yml': CONFIG });
+    commitAll(a);
+    const got = await findings(a);
+    expect(got.code).toBe(1);
+    expect(missing(got.found)).toHaveLength(1);
+  } finally {
+    cleanup(a);
+  }
+
+  // (b) main's tip holds the cut-off pin; a branch from it lowers the pin in its claim commit: caught through the merge base.
+  const b = makeLaneRepo({ 'accord/tickets/T-1.md': laneTicket('T-1') });
+  try {
+    await run(['approve', 'T-1'], b);
+    writeFiles(b, { 'accord/config.yml': pinned('0.4.1') });
+    commitAll(b, 'add T-1');
+    gitRun(b, 'branch', '-M', 'main');
+    gitRun(b, 'switch', '-q', '-c', 't/T-1');
+    writeFiles(b, { 'accord/config.yml': pinned('0.4.0') });
+    commitMsg(b, 'claim: T-1');
+    writeFiles(b, { 'notes.txt': 'work after the claim\n' });
+    commitAll(b);
+    expect(missing((await findings(b)).found)).toHaveLength(1);
   } finally {
     cleanup(b);
   }

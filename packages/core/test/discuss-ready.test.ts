@@ -1,12 +1,14 @@
 // ST-LN-91 91d-ac-1: gate ready asks a lane M ticket claimed from DISCUSS_FROM on for accord/tickets/<id>/discuss.md.
 import { describe, expect, it } from 'vitest';
-import { gateReady, loadSnapshot } from '../src/index.js';
+import { claimPinBefore, DISCUSS_FROM, gateReady, loadSnapshot } from '../src/index.js';
 import type { GateResult, RepoSnapshot } from '../src/index.js';
 import { approved } from './helpers/approve.js';
-import { CONFIG, junit, laneTicket, REPORT } from '../../../test/helpers/lane.js';
+import { CONFIG, junit, LANE_S_BODY, laneTicket, REPORT } from '../../../test/helpers/lane.js';
 
 const DISCUSS = 'accord/tickets/T-1/discuss.md';
 const GRAY = '## Gray areas\n- behaviour — what export prints for an empty report — D-01\n';
+// A release moves CONFIG's pin, so every case names the pin it means.
+const at = (v: string): string => CONFIG.replace(/accord: "[^"]*"/, `accord: "${v}"`);
 
 interface Opts {
   discuss?: string; // text of discuss.md; absent: no file
@@ -15,22 +17,26 @@ interface Opts {
   fact?: { error: string }; // a failed claim read
   config?: string;
   lane?: string;
+  body?: string;
 }
-const check = ({ discuss, pin, basePin, fact, config = CONFIG, lane }: Opts = {}): GateResult => {
+const build = ({ discuss, pin, basePin, fact, config = CONFIG, lane, body }: Opts = {}): RepoSnapshot => {
   const files: Record<string, string> = approved(
     {
       'accord/config.yml': config,
-      'accord/tickets/T-1.md': laneTicket('T-1', lane === undefined ? {} : { lane }),
+      'accord/tickets/T-1.md': laneTicket('T-1', { ...(lane === undefined ? {} : { lane }), ...(body === undefined ? {} : { body }) }),
       [REPORT]: junit({ 'export#writes-csv': 'passed', 'export#escapes-commas': 'passed' }),
     },
     'T-1',
   );
   if (discuss !== undefined) files[DISCUSS] = discuss;
-  const snapshot: RepoSnapshot = loadSnapshot({ files, tree: Object.keys(files).sort() });
+  const snapshot = loadSnapshot({ files, tree: Object.keys(files).sort() });
   const claimed = fact ?? (pin === undefined ? undefined : { pin, ...(basePin === undefined ? {} : { basePin }) });
-  return gateReady(claimed === undefined ? snapshot : { ...snapshot, claimPins: { 'T-1': claimed } }, 'T-1');
+  return claimed === undefined ? snapshot : { ...snapshot, claimPins: { 'T-1': claimed } };
 };
+const check = (o: Opts = {}): GateResult => gateReady(build(o), 'T-1');
 const missing = (r: GateResult) => r.findings.filter((f) => f.rule === 'gate.discuss-missing');
+const unmapped = (r: GateResult) => r.findings.filter((f) => f.rule === 'gate.discuss-unmapped');
+const discussFindings = (r: GateResult) => r.findings.filter((f) => f.rule.startsWith('gate.discuss-'));
 
 describe('discuss record at gate ready', () => {
   it('risk:complex-branching a lane M ticket claimed at the cut-off with no discuss.md fails gate ready (ST-LN-91 91d-ac-1)', () => {
@@ -43,5 +49,82 @@ describe('discuss record at gate ready', () => {
     expect(f[0].reason).toContain(DISCUSS);
     expect(f[0].reason).toContain('0.4.1');
     expect(missing(check({ pin: '0.4.1', discuss: GRAY }))).toEqual([]);
+  });
+
+  it('risk:complex-branching a gray area that maps to no Decision fails gate ready and is named (ST-LN-91 91d-ac-1)', () => {
+    const text = '## Gray areas\n- scope — whether totals are exported\n- tests — which layer proves ac-2 — D-09\n- behaviour — what export prints for an empty report — D-01\n';
+    const r = check({ pin: '0.4.1', discuss: text });
+    expect(r.verdict).toBe('fail');
+    const f = unmapped(r);
+    expect(f).toHaveLength(2);
+    expect(f.every((x) => x.level === 'error' && x.file === DISCUSS)).toBe(true);
+    expect(f[0].line).toBe(2);
+    expect(f[0].reason).toContain('whether totals are exported');
+    expect(f[1].line).toBe(3);
+    expect(f[1].reason).toContain('which layer proves ac-2');
+    expect(f[1].reason).toContain('D-09');
+    expect(missing(r)).toEqual([]);
+    // `— D-01` passes; `— D-01, D-09` fails and names D-09.
+    expect(discussFindings(check({ pin: '0.4.1', discuss: GRAY }))).toEqual([]);
+    const two = unmapped(check({ pin: '0.4.1', discuss: '## Gray areas\n- failure — a missing cell — D-01, D-09\n' }));
+    expect(two).toHaveLength(1);
+    expect(two[0].reason).toContain('a missing cell');
+    expect(two[0].reason).toContain('D-09');
+    expect(two[0].reason).not.toContain('D-01,');
+  });
+
+  it('risk:complex-branching an empty discuss record fails gate ready (ST-LN-91 91d-ac-1)', () => {
+    const fenced = ['## Gray areas', '```text', '- scope — in a fence — D-01', '```', '<!-- - scope — in a comment — D-01 -->', ''].join('\n');
+    for (const discuss of ['## Gray areas\n', '# Discuss\n\nNothing to ask.\n', fenced]) {
+      const r = check({ pin: '0.4.1', discuss });
+      const f = missing(r);
+      expect(f, discuss).toHaveLength(1);
+      expect(f[0].file).toBe(DISCUSS);
+      expect(f[0].reason).toContain('lists no gray area');
+      expect(unmapped(r)).toEqual([]);
+    }
+  });
+
+  it('risk:complex-branching the claim pin decides the discuss rule on both sides of the cut-off (ST-LN-91 91d-ac-1)', () => {
+    const cases: { name: string; opts: Opts; finding: boolean }[] = [
+      { name: 'claimed under 0.4.0', opts: { pin: '0.4.0' }, finding: false },
+      { name: 'claimed under 0.4.0, working tree upgraded to the cut-off', opts: { pin: '0.4.0', config: at(DISCUSS_FROM) }, finding: false },
+      { name: 'claimed at the cut-off', opts: { pin: DISCUSS_FROM }, finding: true },
+      { name: 'claimed at 0.4.10', opts: { pin: '0.4.10' }, finding: true },
+      { name: 'claim pin below its merge base pin', opts: { pin: '0.4.0', basePin: DISCUSS_FROM }, finding: true },
+      { name: 'a pin that is not plain x.y.z', opts: { pin: 'main' }, finding: true },
+      { name: 'a failed claim read', opts: { fact: { error: 'git failed' } }, finding: true },
+      { name: 'no claim fact, working tree at 0.4.0', opts: {}, finding: false },
+      { name: 'no claim fact, working tree at the cut-off', opts: { config: at(DISCUSS_FROM) }, finding: true },
+    ];
+    for (const { name, opts, finding } of cases) {
+      const s = build(opts);
+      expect(missing(gateReady(s, 'T-1')), name).toHaveLength(finding ? 1 : 0);
+      // claimPinBefore is the one reader: true in exactly the cases that give no finding.
+      expect(claimPinBefore(s, 'T-1', DISCUSS_FROM), name).toBe(!finding);
+    }
+    // A lane S ticket and a ticket with no lane get no discuss finding at any pin.
+    for (const pin of ['0.4.0', DISCUSS_FROM, '0.4.10', 'main']) {
+      expect(discussFindings(check({ pin, lane: 'S', body: LANE_S_BODY })), 'lane S at ' + pin).toEqual([]);
+      expect(discussFindings(check({ pin, lane: '' })), 'no lane at ' + pin).toEqual([]);
+    }
+    expect(discussFindings(check({ fact: { error: 'git failed' }, lane: 'S', body: LANE_S_BODY }))).toEqual([]);
+  });
+
+  it('risk:complex-branching a lane L or lane P ticket claimed at the cut-off takes the discuss rule (ST-LN-91 D-18)', () => {
+    for (const lane of ['L', 'P']) {
+      const f = missing(check({ pin: DISCUSS_FROM, lane }));
+      expect(f, lane).toHaveLength(1);
+      expect(f[0].reason).toContain(DISCUSS);
+      expect(missing(check({ pin: '0.4.0', lane })), lane + ' claimed under 0.4.0').toEqual([]);
+    }
+  });
+
+  it('risk:dos a long hostile discuss line is read in bounded time (ST-LN-91 91d-ac-1)', () => {
+    const lines = ['## Gray areas', '- scope' + ' — D-'.repeat(40_000), '- tests — ' + 'x'.repeat(100_000) + ' — ' + 'D-1, '.repeat(20_000) + 'x', ''];
+    const started = Date.now();
+    const r = check({ pin: DISCUSS_FROM, discuss: lines.join('\n') });
+    expect(Date.now() - started).toBeLessThan(2000);
+    expect(unmapped(r).length).toBeGreaterThan(0);
   });
 });

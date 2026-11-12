@@ -64,13 +64,4 @@ it("risk:security the owner's no closes a blocked approach cycle and the next ap
   }
 }, 120_000);
 
-it('risk:regression a ticket claimed under 0.4.0 is approved with an open risk finding as before (ST-LN-91 D-12)', async () => {
-  const repo = claimed('0.4.0', rec(r(1, 'whole', LOSS), r(2, 'diff', OPEN)));
-  try {
-    const approved = await run(['approve', 'T-1'], repo);
-    expect(approved.code).toBe(0);
-    expect(approved.out).toMatch(/^approved /);
-  } finally {
-    cleanup(repo);
-  }
-}, 120_000);
+// A ticket claimed under 0.4.0 keeps its old rules: packages/cli/test/cutoff-pin.test.ts runs the CLI as 0.4.1, the only way that case can fail when the claim pin is not read.

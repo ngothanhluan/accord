@@ -350,3 +350,26 @@ it('risk:regression a lane S ticket has no approval to block (ST-LN-91 RR-IN-02)
   expect(blocked(HEAD + round(1, OPEN))).toEqual([{ round: 1, lines: [OPEN] }]);
   expect(approvalBlockers(repo({ claim: cut, lane: 'S', approach: HEAD + round(1, OPEN) }), 'T-1')).toEqual([]);
 });
+
+it('risk:regression a failed claim read is named only in the refusals the cap rules give, never in an unrelated one (ST-LN-91 RR-IN-03)', () => {
+  const error = 'git failed reading the claim pin of T-1: unable to read the index';
+  // A line of the record accord cannot read, a missing version line and a ticket that is no lane ticket: nothing to do with the claim pin.
+  const unreadable = nextRound(repo({ claim: { error }, approach: HEAD + round(1, '1. Must') }), 'T-1', 'approach');
+  expect(unreadable.kind).toBe('refused');
+  expect(unreadable.reasons.join('\n')).not.toContain(error);
+  const unversioned = nextRound(repo({ claim: { error }, approach: round(1, R1_FIXED) }), 'T-1', 'approach');
+  expect(unversioned.kind).toBe('refused');
+  expect(unversioned.reasons.join('\n')).not.toContain(error);
+  const snapshot = { ...repo({ approach: HEAD }), claimPins: { 'T-404': { error } } };
+  expect(nextRound(snapshot, 'T-404', 'approach').reasons.join('\n')).not.toContain(error);
+  // The cap rules still name it: past the cap, an ended loop and a blocked approval.
+  const risk = '1. Must — tokens reach the log — open — risk: security';
+  const past = HEAD + round(1, R1_FIXED) + round(2, R2_OPEN) + round(3, R2_OPEN);
+  const ended = HEAD + round(1, R1_FIXED) + round(2, 'No findings');
+  const blockedRecord = HEAD + round(1, risk) + round(2, 'No findings');
+  for (const approach of [past, ended, blockedRecord, HEAD + round(1, R1_FIXED) + round(2, R2_OPEN) + 'verdict: converged\n']) {
+    const refused = nextRound(repo({ claim: { error }, approach }), 'T-1', 'approach');
+    expect(refused.kind, approach).toBe('refused');
+    expect(refused.reasons.join('\n'), approach).toContain(error);
+  }
+});

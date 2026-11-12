@@ -83,9 +83,10 @@ function plain(ticket: Ticket, key: string): string[] {
  * ST-LN-91 D-06: the short view the owner approves from: the Intent, one line per criterion (its ac id and name, never its steps),
  * every Decision, the approach findings still open as `risks` (given as recorded) and the path of the full ticket. It only prints:
  * approved_hash and APPROVED_SECTIONS are untouched, so the yes still binds the whole ticket as written. D-22: `blocking` are the open
- * data-loss and security findings; with any, a `## Blocking findings` part follows the risks, and with none the view is as before.
+ * data-loss and security findings; with any, a `## Blocking findings` part follows the risks, and with none the view is as before. `note` (one line)
+ * is printed in that part: the git error that made the capped rules apply when the claim pin could not be read.
  */
-export function approvalShort(ticket: Ticket, risks: string[], blocking: string[] = []): string {
+export function approvalShort(ticket: Ticket, risks: string[], blocking: string[] = [], note?: string): string {
   const criteria = ticket.scenarios.map((s) => `- ${s.acTag === undefined ? '' : s.acTag + ' '}${s.name}`);
   const out = [
     '## Intent', '', ...plain(ticket, 'intent'), '',
@@ -94,7 +95,7 @@ export function approvalShort(ticket: Ticket, risks: string[], blocking: string[
     '## Risks', '', ...(risks.length === 0 ? ['none'] : risks.map((r) => `- ${r}`)), '',
     ...(blocking.length === 0
       ? []
-      : ['## Blocking findings', '', 'accord approve refuses while one is open; the owner may only say no.', ...blocking.map((b) => `- ${b}`), '']),
+      : ['## Blocking findings', '', 'accord approve refuses while one is open; the owner may only say no.', ...(note === undefined ? [] : [note]), ...blocking.map((b) => `- ${b}`), '']),
     `Full ticket: ${ticket.file}`,
   ];
   return out.join('\n') + '\n';

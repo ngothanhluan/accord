@@ -89,3 +89,64 @@ it('risk:regression Continue resumes a ticket whose intent is written at intent 
   }
   expect(bad).toEqual([]);
 });
+
+it('risk:regression the owner approves once from the short view in all four tools (ST-LN-91 91d-ac-4)', () => {
+  const bad: string[] = [];
+  for (const dir of skillDirs(all)) {
+    const skill = flat(rendered.get(dir + '/' + installedName('approach') + '/SKILL.md') ?? '');
+    const text = flat(rendered.get(dir + '/' + installedName('approach') + '/approval.md') ?? '');
+    if (!skill) bad.push(dir + ': accord-approach/SKILL.md is missing');
+    if (!text) {
+      bad.push(dir + ': approval.md is missing');
+      continue;
+    }
+    const from = skill.indexOf("5. **The owner's yes.**");
+    const to = skill.indexOf('6. Next');
+    const step = skill.slice(from, to);
+    if (from < 0 || to < from) bad.push(dir + ': approach step 5 is not the owner\'s yes');
+    else if (!step.includes('./approval.md')) bad.push(dir + ' approach step 5 does not name ./approval.md');
+    if (!skill.includes('approach/approval.md') && !skill.includes('./approval.md')) bad.push(dir + ' approach SKILL.md does not name approval.md');
+    for (const p of [
+      '`accord show <id> --approval --short`',
+      'not inside a code block',
+      'horizontal rule',
+      'In plain words',
+      'one line per scenario that begins with its ac-n',
+      'ask for an explicit yes',
+      '`accord/tickets/<id>.md`',
+      "the yes approves the ticket's Intent, acceptance criteria, Vetoes, Decisions, Corrections and Approach as written",
+      'the view shortens and the file holds in full',
+      '`accord approve <id>`',
+      '`accord gate ready <id>`',
+      'Never run `accord approve` without the owner\'s yes in this conversation',
+    ])
+      if (!text.includes(p)) bad.push(dir + ' approval.md lacks ' + p);
+    if (text.includes('`accord show <id> --approval`')) bad.push(dir + ' approval.md still runs the full view');
+  }
+  expect(bad).toEqual([]);
+});
+
+it('risk:regression the approach critic runs at most twice from the cut-off (ST-LN-91 91d-ac-4)', () => {
+  const bad: string[] = [];
+  for (const dir of skillDirs(all)) {
+    const text = flat(rendered.get(dir + '/' + installedName('approach') + '/critique.md') ?? '');
+    if (!text) {
+      bad.push(dir + ': critique.md is missing');
+      continue;
+    }
+    for (const p of [
+      'from accord 0.4.1 the cap is two rounds',
+      'round 1 reads the whole `## Approach` against the ticket, the Decisions discuss wrote included',
+      'round 2 checks only the fixes',
+      '`Findings still open:`',
+      'write those findings into `## Approach` as risks',
+      'no Ruling allows a third round',
+      'a ticket claimed under an older accord',
+      'prints `of 5`',
+      'the cap of five',
+      'Blocking findings:',
+    ])
+      if (!text.includes(p)) bad.push(dir + ' critique.md lacks ' + p);
+  }
+  expect(bad).toEqual([]);
+});

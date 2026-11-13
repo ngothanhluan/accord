@@ -10,7 +10,7 @@ import { defaultRefOf, gitDefaultRef, loadClaimView, loadFromFs } from '../src/l
 import { countedSync, spawnLog } from './helpers/git-spawns.js';
 import { counted, readGolden, runSample } from './helpers/runs.js';
 import { checkItem, expectFewer, ITEMS } from './helpers/items.js';
-import { cleanup, commitMsg, gitRun, makeEmptyRepo, mergeMsg, run, writeFiles } from './helpers/repo.js';
+import { cleanup, commitMsg, gitRun, makeEmptyRepo, makeLaneRepo, mergeMsg, run, writeFiles } from './helpers/repo.js';
 import { buildSample, oneTicketFrom, prepareSamples, SAMPLE_BUILD_LIMIT, samples, TWENTY, TWENTY_BUILD_LIMIT } from './helpers/samples.js';
 import type { Sample } from './helpers/samples.js';
 import type { Clone } from './helpers/worktree.js';
@@ -949,3 +949,34 @@ it('risk:complex-branching a start commit this repository does not hold costs a 
   expect(own.argv.length, 'without the shared walk every ticket is read on its own').toBeGreaterThan(one.argv.length);
   expect(one.out).toBe(own.out);
 }, 120_000);
+
+// ST-LN-91 91p-ac-3: gate plan reads the plan record's pin (a `git log -G'^## Round '` of plan-review.md) when a stop is possible: from round 2 for a ticket whose
+// claim pin gives the plan cap of three, from round 3 otherwise, so a ticket claimed under 0.4.0 starts exactly the git processes it started at 0.4.0.
+const isRecordPinRead = (a: string[]) => a.includes('log') && a.includes('-G^## Round ');
+
+it('risk:complex-branching gate plan reads the plan record pin from round 2 only when the ticket claim gives the plan cap of three (ST-LN-91 91p-ac-3)', async () => {
+  const plan = (k: number, rounds: number): string =>
+    'Round record: 1\n\n' +
+    Array.from({ length: rounds }, (_, i) => `## Round ${i + 1} (${i === 0 ? 'whole' : 'diff'})\n\n${Array.from({ length: k }, (_, j) => `${j + 1}. Should — task ${j + 1} drops a header — fixed`).join('\n')}\n\n`).join('');
+  const pinned = (v: string): string => CONFIG.replace(/accord: "[^"]*"/, `accord: "${v}"`);
+  const file = 'accord/tickets/T-1/plan-review.md';
+  const reads = async (claimPin: string, text: string): Promise<number> => {
+    const repo = makeLaneRepo();
+    try {
+      writeFiles(repo, { 'accord/config.yml': pinned(claimPin) });
+      commitMsg(repo, 'claim: T-1');
+      writeFiles(repo, { 'accord/config.yml': CONFIG, [file]: text });
+      commitMsg(repo, 'T-1 plan critique');
+      const r = await counted(['gate', 'plan', 'T-1', '--json'], repo);
+      return r.argv.filter(isRecordPinRead).length;
+    } finally {
+      cleanup(repo);
+    }
+  };
+  // The ticket claimed under 0.4.0: no read for two rounds (the count at 0.4.0), one for three.
+  expect(await reads('0.4.0', plan(2, 2))).toBe(0);
+  expect(await reads('0.4.0', plan(1, 3))).toBe(1);
+  // The ticket claimed at the cut-off: one read from round 2, none for one round.
+  expect(await reads('0.4.1', plan(2, 2))).toBe(1);
+  expect(await reads('0.4.1', plan(2, 1))).toBe(0);
+}, LIMIT);

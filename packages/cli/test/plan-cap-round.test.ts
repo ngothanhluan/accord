@@ -106,3 +106,29 @@ it('risk:complex-branching accord round --plan keeps the 0.4.0 round 1 for a tic
     cleanup(cut);
   }
 }, 120_000);
+
+// ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// accord gate plan: the same stops, read from the claim pin (ST-LN-91 91p-ac-3).
+const gateRounds = async (repo: string): Promise<string[]> => {
+  const gated = await run(['gate', 'plan', 'T-1', '--json'], repo);
+  return (JSON.parse(gated.out) as { findings: { rule: string; reason: string }[] }).findings.filter((f) => f.rule === 'gate.plan-rounds').map((f) => f.reason);
+};
+
+it('risk:complex-branching accord gate plan reports the count stop from the claim pin (ST-LN-91 91p-ac-3)', async () => {
+  const cut = claimed(PLAN_CAP_FROM, rec(shoulds(2), shoulds(2)));
+  try {
+    const reasons = await gateRounds(cut);
+    expect(reasons).toHaveLength(1);
+    expect(reasons[0]).toContain('the count did not fall: 2 Must and Should against 2 in round 1');
+    // accord round and gate plan agree.
+    expect((await run(['round', 'T-1', '--plan'], cut)).code).toBe(1);
+  } finally {
+    cleanup(cut);
+  }
+  const old = claimed('0.4.0', rec(shoulds(2), shoulds(2)));
+  try {
+    expect(await gateRounds(old)).toEqual([]);
+  } finally {
+    cleanup(old);
+  }
+}, 120_000);

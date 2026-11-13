@@ -2,7 +2,7 @@
 // for a ticket claimed from PLAN_CAP_FROM; a ticket claimed under 0.4.0 keeps five rounds and the stop from round 3 whatever pin its plan record began
 // under. The cap reads the ticket's claim pin (claimPinBefore), never the record pin, which stays the Phase 2 grounds rule's.
 import { expect, it } from 'vitest';
-import { GROUNDS_V2_FROM, PLAN_CAP, PLAN_CAP_FROM, capRulesOf, cycleState, loadSnapshot, nextRound, recordProblems, roundText } from '../src/index.js';
+import { GROUNDS_V2_FROM, PLAN_CAP, PLAN_CAP_FROM, capRulesOf, cycleState, gatePlan, loadSnapshot, nextRound, recordProblems, roundText } from '../src/index.js';
 import type { ClaimPin, RecordPin, RepoSnapshot } from '../src/index.js';
 import { CONFIG, building } from '../../../test/helpers/lane.js';
 
@@ -291,4 +291,60 @@ it('risk:complex-branching the plan rules are for a plan record only: review and
   expect(PLAN_CAP).toEqual({ cap: 3, firstStop: 3, fall: true, allowances: true, capStop: true });
   // The version cut-off sits beside the other cut-offs.
   expect(PLAN_CAP_FROM).toBe('0.4.1');
+});
+
+// ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// gate plan reads the same stops from the same rules (gate.plan-rounds), and names what stopped the loop.
+const gateRounds = (o: Opts): string[] =>
+  gatePlan(repo(o), 'T-1')
+    .findings.filter((f) => f.rule === 'gate.plan-rounds')
+    .map((f) => f.reason);
+const allow = (n: number, after: number): string => `${LEDGER}- Ruling: the owner allows ${n} more plan critique rounds after round ${after} of cycle 1 — "one more" — cost if wrong: ${n} rounds\n`;
+
+it('risk:complex-branching gate plan reports the count stop and a round past the cap of three (ST-LN-91 91p-ac-3)', () => {
+  // A record stopped by the count at round 2 with no verdict: the finding names the count and both numbers.
+  const stopped = gateRounds({ claim: cut, plan: record(2, 2) });
+  expect(stopped).toHaveLength(1);
+  expect(stopped[0]).toContain('round 2 of plan critique cycle 1 stops the loop for the owner');
+  expect(stopped[0]).toContain('the count did not fall: 2 Must and Should against 2 in round 1');
+  expect(stopped[0]).toContain('verdict: accepted-by-owner');
+
+  // The owner's verdict after the stop ends it.
+  expect(gateRounds({ claim: cut, plan: record(2, 2) + verdict() })).toEqual([]);
+  // A falling count is no stop.
+  expect(gateRounds({ claim: cut, plan: record(3, 1) })).toEqual([]);
+
+  // A round 3 with a finding stops from round 3 and at the cap of three, and says so.
+  const third = gateRounds({ claim: cut, plan: record(3, 2, 1) });
+  expect(third).toHaveLength(1);
+  expect(third[0]).toContain('a Should or a Must from round 3');
+  expect(third[0]).toContain('the cap of 3 rounds');
+
+  // A fourth round with no allowance ran past the cap of three.
+  const fourth = gateRounds({ claim: cut, plan: record(3, 2, 1, 'none') });
+  expect(fourth.join('\n')).toContain('round 4 of cycle 1 ran without an owner Ruling allowing it: past the cap of 3 rounds');
+  // With the owner's allowance Ruling the fourth round passes.
+  expect(gateRounds({ claim: cut, plan: record(3, 2, 1, 'none') + verdict('converged'), ledger: allow(1, 3) })).toEqual([]);
+  expect(gateRounds({ claim: cut, plan: record(3, 2, 1, 'none'), ledger: allow(1, 3) })).toEqual([]);
+  // A round run after the count stop, with no allowance, is named.
+  expect(gateRounds({ claim: cut, plan: record(2, 2, 1) }).join('\n')).toContain('round 3 of cycle 1 ran without an owner Ruling allowing it: after the stop at round 2');
+  // A data-loss finding is no way round the count: it counts, and a stop for it is a stop.
+  const pin = { pin: GROUNDS_V2_FROM };
+  expect(gateRounds({ claim: cut, recordPin: pin, plan: record(1, ['1. Must — task 1 overwrites a file — open — risk: data-loss']) })).toHaveLength(1);
+});
+
+it('risk:regression a ticket claimed under 0.4.0 keeps five plan rounds and the stop from round 3 at gate plan (ST-LN-91 91p-ac-3)', () => {
+  // Equal counts in rounds 1 and 2 are no stop, also when the plan critique began after the upgrade (D-15).
+  expect(gateRounds({ claim: old, plan: record(2, 2) })).toEqual([]);
+  const grounded2 = [1, 2].map((n) => `${n}. Should — task ${n} drops a header — open — rests on: ac-1`);
+  expect(gateRounds({ claim: old, config: at(PLAN_CAP_FROM), recordPin: { pin: PLAN_CAP_FROM }, plan: record(2, grounded2) })).toEqual([]);
+  // The stop from round 3 and its text are the 0.4.0 ones.
+  const three = gateRounds({ claim: old, plan: record(2, 2, 1) });
+  expect(three).toHaveLength(1);
+  expect(three[0]).toContain('(a Should or a Must from round 3, or the cap of 5 rounds)');
+  expect(three[0]).not.toContain('did not fall');
+  // Four rounds with findings are fine under five.
+  expect(gateRounds({ claim: old, plan: record('nice', 'nice', 'nice', 'nice') })).toEqual([]);
+  // The claim pin lowered on the branch gives the new rules.
+  expect(gateRounds({ claim: { pin: '0.4.0', basePin: PLAN_CAP_FROM }, plan: record(2, 2) })).toHaveLength(1);
 });

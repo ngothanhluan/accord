@@ -469,3 +469,30 @@ describe('plan format: a failed claim-pin read says why the rules apply (ST-LN-9
     for (const f of format(check({ plan: BROKEN, claim: OLD }))) expect(f.reason).not.toContain('could not be read');
   });
 });
+
+describe('plan format: the key is read in lowercase, as the other fields are (ST-LN-91 verifier Info 3)', () => {
+  const fields = (lines: string[]) => parsePlan('plan.md', ['## Task 1: Step', ...lines, ''].join('\n')).plan.tasks[0];
+
+  it('risk:regression covers:, files:, verify: and after: are read in lowercase only, so After: is no looser than Covers: (verifier Info 3)', () => {
+    const lower = fields(['covers: @ac-1', 'files: src/a.ts', 'verify: a#b (@ac-1)', 'after: 1']);
+    expect(lower).toMatchObject({ covers: ['@ac-1'], files: ['src/a.ts'], verify: ['a#b'] });
+    expect(lower.after).toMatchObject({ tasks: [1] });
+    const capital = fields(['Covers: @ac-1', 'Files: src/a.ts', 'Verify: a#b (@ac-1)', 'After: 1']);
+    expect(capital).toMatchObject({ covers: [], files: [], verify: [] });
+    expect(capital.after).toBeUndefined();
+  });
+
+  it('risk:regression a task whose after: line is not read says which line it skipped and why (verifier Info 3)', () => {
+    const reason = (lines: string[]): string => of(check({ plan: three(lines), claim: NEW }), 'gate.task-after-missing')[0].reason;
+    const base = 'task 2 has no after: line naming the tasks it follows (after: 1, 2), or after: none';
+    expect(reason(['After: 1'])).toBe(base + '; line 14 starts with "After:", which is not read: write the key in lowercase, as covers:, files: and verify: are');
+    expect(reason(['- AFTER: none'])).toContain('starts with "AFTER:"');
+    expect(reason(['after : 1'])).toContain('starts with "after :"');
+    // No hint where no line looks like the key.
+    expect(reason([])).toBe(base);
+    expect(reason(['afterwards: 1'])).toBe(base);
+    expect(reason(['```interfaces', 'After: 1', '```'])).toBe(base);
+    // A correct line beside a capital one: the task has its line, so nothing is missing.
+    expect(of(check({ plan: three(['After: 9', 'after: 1']), claim: NEW }), 'gate.task-after-missing')).toEqual([]);
+  });
+});

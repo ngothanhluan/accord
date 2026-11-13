@@ -50,6 +50,13 @@ export const APPROACH_CAP_FROM = '0.4.1';
  */
 export const PLAN_FORMAT_FROM = '0.4.1';
 
+/**
+ * ST-LN-91 D-07, D-12 and D-15: the release that caps plan critique at three rounds, stops it after a round whose Must + Should count did not fall, and
+ * has the plan skill dispatch one plan checker at round 1 (`Critics: plan checker`). A ticket whose claim pin is below it keeps five plan critique rounds,
+ * the stop from round 3 and the 0.4.0 round 1, whatever pin its plan-review.md began under. Read through claimPinBefore.
+ */
+export const PLAN_CAP_FROM = '0.4.1';
+
 /** True only when `pin` is a plain x.y.z below `from` and, when `basePin` is a plain x.y.z, not below `basePin`: the rules before `from` hold. */
 export function pinBefore(from: string, pin: string | undefined, basePin?: string): boolean {
   if (pin === undefined || !PLAIN.test(pin) || compare(pin, from) >= 0) return false;

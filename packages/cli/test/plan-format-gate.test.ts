@@ -3,7 +3,10 @@
 import { expect, it } from 'vitest';
 import { PLAN_FORMAT_FROM } from '@accord-dev/accord-core';
 import { cleanup, commitAll, commitMsg, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
-import { CONFIG, laneTicket, PLAN } from '../../../test/helpers/lane.js';
+import { CONFIG, laneTicket, PLAN as SHARED_PLAN } from '../../../test/helpers/lane.js';
+
+// The shared PLAN names each task's after: line; these cases are about the plan format rules, so they start from the plan without them.
+const PLAN = SHARED_PLAN.split('\n').filter((l) => !l.startsWith('after: ')).join('\n');
 
 interface Found { rule: string; level: string; reason?: string; file?: string }
 const NEW_RULES = ['gate.task-after-missing', 'gate.task-after-unknown', 'gate.task-code-block', 'gate.task-too-long'];

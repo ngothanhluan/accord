@@ -100,7 +100,7 @@ const FORMAT_RULES = ['gate.task-after-missing', 'gate.task-after-unknown', 'gat
  * A plan written under 0.4.0: no `after:` lines, a ts block and a task of 130 non-blank lines (3 task lines, 2 fence lines, 125 code lines).
  * `unknownAfter` adds the one `after:` line that names a task the plan does not hold, so gate.task-after-unknown has something to say.
  */
-const planText = (unknownAfter = false): string =>
+const planText = (unknownAfter = false, prose: string[] = []): string =>
   [
     '---',
     'baseline: abc1234',
@@ -121,6 +121,7 @@ const planText = (unknownAfter = false): string =>
     'files: src/export.ts',
     'verify: export#escapes-commas (@ac-2)',
     ...(unknownAfter ? ['after: 9'] : []),
+    ...prose,
     'Quote cells that contain a comma.',
     '',
   ].join('\n');
@@ -137,12 +138,13 @@ interface PlanPins {
   plan?: string; // plan-review.md
   approach?: string; // approach-review.md
   unknownAfter?: boolean;
+  prose?: string[]; // extra lines of task 2, above its prose
 }
 /** A lane M ticket with no discuss.md, the 130-line plan, and the given records and pins. */
 function planned(p: PlanPins): RepoSnapshot {
   const files: Record<string, string> = { 'accord/config.yml': p.config };
   building(files, 'T-1');
-  files['accord/tickets/T-1/plan.md'] = planText(p.unknownAfter);
+  files['accord/tickets/T-1/plan.md'] = planText(p.unknownAfter, p.prose);
   files['accord/tickets/T-1/ledger.md'] = '## Rulings\n- task 1 done abc1234\n- task 2 done abc1234\n';
   if (p.plan !== undefined) files['accord/tickets/T-1/plan-review.md'] = p.plan;
   if (p.approach !== undefined) files['accord/tickets/T-1/approach-review.md'] = p.approach;
@@ -224,4 +226,23 @@ it('risk:complex-branching the claim pin decides every Phase 3 rule at once (ST-
   const late = planned({ config, claim: cut, planBase: cut, planRecord: cut, approachRecord: cut, approach, plan: planRecord, unknownAfter: true });
   expect(nextRound(late, 'T-1', 'plan').kind).toBe('refused');
   expect(roundText(nextRound(late, 'T-1', 'plan'))).toContain('from round 1 a Must or Should');
+});
+
+it('risk:regression a prose line starting after: that defers work is refused at every claim pin exactly as origin/main b057d135 refused it (ST-LN-91 mig-ac-1, CR-01)', () => {
+  // RECORDED: gatePlan of origin/main b057d135 (its own core build) on these snapshots, `gate.plan-deferral` findings only. The PR is never compared with itself here.
+  const plan = (line: number, word: string) => [
+    { file: 'accord/tickets/T-1/plan.md', line, reason: `task 2 defers work: "${word}"`, rule: 'gate.plan-deferral', level: 'error' },
+  ];
+  const RECORDED: [string, string[], ReturnType<typeof plan>][] = [
+    ['a full stop after the word', ['after: the parser lands, wire it later.'], plan(143, 'later')],
+    ['the words for now', ['after: the writer lands we keep the flag for now'], plan(143, 'for now')],
+    ['a second after: line', ['after: none', 'after: the parser lands, wire it later.'], plan(144, 'later')],
+  ];
+  const deferrals = (s: RepoSnapshot) => planFindings(s).filter((f) => f.rule === 'gate.plan-deferral');
+  for (const [name, prose, recorded] of RECORDED) {
+    for (const claim of [{ pin: '0.4.0' }, { pin: CUT }]) {
+      const s = planned({ config: at(CUT), claim, prose });
+      expect(deferrals(s), `${name} at claim ${claim.pin}`).toEqual(recorded);
+    }
+  }
 });

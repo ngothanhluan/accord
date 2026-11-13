@@ -347,3 +347,27 @@ describe('plan format: the cut-off', () => {
     expect(format(r)).toEqual([]);
   });
 });
+
+describe('plan format: a line starting after: is read for deferral words as before (ST-LN-91 CR-01)', () => {
+  // The deferral rule reads an `after:` line as free text, as origin/main b057d135 did for every claim pin: a prose line that starts with `after:`
+  // never escapes it, and a second `after:` line (the format reader keeps only the first) hides nothing.
+  const DEFER: [string, string[], string][] = [
+    ['a full stop after the word', ['after: none', 'after: the parser lands, wire it later.'], 'later'],
+    ['the words for now', ['after: none', 'after: the writer lands we keep the flag for now'], 'for now'],
+    ['the only after: line', ['after: none for now'], 'for now'],
+    ['a second after: line', ['after: 1', 'after: the parser lands, wire it later.'], 'later'],
+    ['a capital After: line', ['after: none', 'After: the parser lands, wire it later.'], 'later'],
+    ['a list marker', ['after: none', '- after: wire it later.'], 'later'],
+    ['TBD with a comma', ['after: none', 'after: TBD, once the parser lands'], 'TBD'],
+  ];
+  it.each(DEFER)('risk:regression corpus: %s is a deferral at every claim pin (ST-LN-91 mig-ac-1, CR-01)', (_name, lines, word) => {
+    for (const claim of [OLD, NEW, { pin: '0.4.0', basePin: '0.4.0' }]) {
+      const found = of(check({ plan: three(lines), claim }), 'gate.plan-deferral');
+      expect(found.map((f) => f.reason), JSON.stringify(claim)).toEqual([`task 2 defers work: "${word}"`]);
+    }
+  });
+
+  it('risk:regression an after: line with a task number holds no deferral word (ST-LN-91 91p-ac-2)', () => {
+    for (const lines of [['after: none'], ['after: 1, 3'], ['after: 1 2'], ['- after: 1']]) expect(of(check({ plan: three(lines), claim: NEW }), 'gate.plan-deferral')).toEqual([]);
+  });
+});

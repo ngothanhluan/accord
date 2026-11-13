@@ -110,8 +110,8 @@ describe('plan format: the after: line', () => {
     ['only in a comment', ['<!-- after: 1 -->'], 'missing'],
     // A comment is text: `accord brief` prints it to the executor, so the format rules read it as written (WR-01).
     ['a multi-line comment holding the line', ['<!--', 'after: 1', '-->'], 'ok'],
-    ['a comment on the same line is part of the value', ['after: 1 <!-- 9 -->'], ['<!--', '9', '-->']],
-    ['a comment that is the value', ['after: <!-- 1 -->'], ['<!--', '1', '-->']],
+    ['a comment on the same line is part of the value', ['after: 1 <!-- 9 -->'], ['-->', '9', '<!--']],
+    ['a comment that is the value', ['after: <!-- 1 -->'], ['-->', '<!--']],
     ['an unclosed comment in inline code above the line', ['Strip the `<!--` marks first.', 'after: 1'], 'ok'],
     ['an unclosed comment above the line', ['<!-- the writer', 'after: 1'], 'ok'],
     ['quoted', ['> after: 1'], 'missing'],

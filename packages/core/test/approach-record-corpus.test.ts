@@ -2,7 +2,7 @@
 // The table is test/helpers/approach-corpus.ts; each row states what the owner decisions require (BLOCK, LIST, PASS, PROBLEM, LEGACY, LANE-S), not what the code did when it was written.
 // A fix of the record reader is held to this file: a row that goes red is a finding that came back.
 import { expect, it } from 'vitest';
-import { APPROACH_CAP_FROM, GROUNDS_V2_FROM, approvalBlockers, approvalFindings, approvalProblems, loadSnapshot, nextRound, recordProblems } from '../src/index.js';
+import { APPROACH_CAP_FROM, GROUNDS_V2_FROM, approvalBlockers, approvalFindings, approvalProblems, loadSnapshot, nextRound, parseRounds, recordProblems } from '../src/index.js';
 import type { RepoSnapshot } from '../src/index.js';
 import { PLAN_ROWS, ROWS } from '../../../test/helpers/approach-corpus.js';
 import type { PlanRow, Row } from '../../../test/helpers/approach-corpus.js';
@@ -105,3 +105,43 @@ function checkPlan(r: PlanRow): void {
 for (const r of PLAN_ROWS) {
   it('risk:security corpus plan ' + r.id + ' (' + r.src + ')', () => checkPlan(r));
 }
+
+// ST-LN-91 round 8 VR-CR-01: every kind one edit off (an insertion, a deletion, a substitution or an adjacent transposition over a-z, a space, a hyphen, an underscore, a dot, a comma and a slash) of
+// `security` and `data-loss` is a record problem, in the finding's mark slot and in the critic's `rests on:` line. None may be read as prose, which would let `approve` through on an open risk.
+const ALPHABET = 'abcdefghijklmnopqrstuvwxyz -_.,/';
+function oneEdit(w: string): string[] {
+  const out = new Set<string>();
+  for (let i = 0; i <= w.length; i++) for (const c of ALPHABET) out.add(w.slice(0, i) + c + w.slice(i));
+  for (let i = 0; i < w.length; i++) {
+    out.add(w.slice(0, i) + w.slice(i + 1));
+    for (const c of ALPHABET) out.add(w.slice(0, i) + c + w.slice(i + 1));
+    if (i + 1 < w.length) out.add(w.slice(0, i) + w[i + 1] + w[i] + w.slice(i + 2));
+  }
+  out.delete(w);
+  return [...out].filter((e) => e.trim() !== '');
+}
+const roundOf = (lines: string[]): string => 'Round record: 1\n\n## Round 1 (whole)\n\n' + lines.join('\n') + '\n\n## Round 2 (diff)\n\nNo findings\n';
+function outcomeOf(text: string): string {
+  const r = parseRounds('accord/tickets/T-1/approach-review.md', text, 'approach');
+  const rounds = r.cycles.flatMap((c) => c.rounds);
+  const unread = rounds.flatMap((x) => x.markUnread ?? []).length + (r.problems?.length ?? 0);
+  const risk = rounds.flatMap((x) => x.findings).find((f) => f.risk !== undefined)?.risk;
+  return unread > 0 ? 'problem' : risk !== undefined ? 'read:' + risk : 'prose';
+}
+
+it('risk:security every one-edit form of security and data-loss is a record problem or a risk, never prose (ST-LN-91 round 8 VR-CR-01)', () => {
+  const forms = ['security', 'data-loss'].flatMap(oneEdit);
+  expect(forms.length, 'the one-edit forms of both kinds').toBe(1148);
+  const escaped: string[] = [];
+  for (const e of forms) {
+    const line = outcomeOf(roundOf(['1. Must — tokens reach the log — open — risk: ' + e]));
+    const block = outcomeOf(roundOf(['1. Must — tokens reach the log — open', '   rests on: risk: ' + e]));
+    if (line === 'prose') escaped.push('line ' + JSON.stringify(e));
+    if (block === 'prose') escaped.push('block ' + JSON.stringify(e));
+  }
+  expect(escaped, 'forms read as prose').toEqual([]);
+  for (const k of ['security', 'data-loss']) {
+    expect(outcomeOf(roundOf(['1. Must — tokens reach the log — open — risk: ' + k])), k + ' on the line').toBe('read:' + k);
+    expect(outcomeOf(roundOf(['1. Must — tokens reach the log — open', '   rests on: risk: ' + k])), k + ' in the block').toBe('read:' + k);
+  }
+});

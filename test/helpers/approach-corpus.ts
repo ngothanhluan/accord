@@ -504,6 +504,26 @@ for (const k of ['sec', 'ecuri', 'lossy', 'dat-ss', 'sucurita']) {
 }
 add({ id: 'r7-CR01-control-data-los', src: 'round 7 controls (data-los, secrity, sceurity, ecurity were already problems)', r1: [LEAK + ' — risk: data-los'], out: 'PROBLEM' });
 
+// Round 8 VR-CR-01 (03-group1-VERIFY7.md, accord-vr7/cr01.mjs and dl1.mjs): a kind one edit off that holds a non-letter character is the same record problem. The reader joins up to three letter runs
+// separated by up to three non-letters and allows leading non-letters, so `data/loss`, `data.loss`, `data,loss`, `secu-rity` and `securi ty` are read like `data_loss`, on the finding line and in the block.
+add({ id: 'r8-VR01-E1-data-slash-loss', src: 'round 8 VR-CR-01 E1 (the hyphen of data-loss replaced by a slash)', r1: [LEAK + ' — risk: data/loss'], out: 'PROBLEM' });
+add({ id: 'r8-VR01-E2-data-dot-loss', src: 'round 8 VR-CR-01 E2', r1: [LEAK + ' — risk: data.loss'], out: 'PROBLEM' });
+add({ id: 'r8-VR01-E3-data-comma-loss', src: 'round 8 VR-CR-01 E3', r1: [LEAK + ' — risk: data,loss'], out: 'PROBLEM' });
+add({ id: 'r8-VR01-E4-secu-hyphen-rity', src: 'round 8 VR-CR-01 E4 (a separator inside security)', r1: [LEAK + ' — risk: secu-rity'], out: 'PROBLEM' });
+add({ id: 'r8-VR01-E5-block-data-slash-loss', src: 'round 8 VR-CR-01 E5 (the critic block)', r1: [LEAK, '   rests on: risk: data/loss'], out: 'PROBLEM', problem: ['rests on: risk: data/loss'] });
+add({ id: 'r8-VR01-E6-block-securi-space-ty', src: 'round 8 VR-CR-01 E6 (the critic block)', r1: [LEAK, '   rests on: risk: securi ty'], out: 'PROBLEM', problem: ['rests on: risk: securi ty'] });
+add({ id: 'r8-VR01-leading-dot', src: 'round 8 VR-CR-01 (a leading non-letter)', r1: [LEAK + ' — risk: .security'], out: 'PROBLEM' });
+add({ id: 'r8-VR01-leading-slash-block', src: 'round 8 VR-CR-01 (a leading non-letter, the critic block)', r1: [LEAK, '   rests on: risk: /data-loss'], out: 'PROBLEM', problem: ['rests on: risk: /data-loss'] });
+add({ id: 'r8-VR01-E7-control-data-underscore-loss', src: 'round 8 VR-CR-01 control E7', r1: [LEAK + ' — risk: data_loss'], out: 'PROBLEM' });
+add({ id: 'r8-VR01-E8-control-date-loss', src: 'round 8 VR-CR-01 control E8', r1: [LEAK + ' — risk: date-loss'], out: 'PROBLEM' });
+// What stays prose (the report's simulation): a value that is no kind, or two or more edits off, however it is written.
+const KEPT_PROSE = ['none', 'low', 'a partial file is left on a crash', 'data is stale', 'secure it', 'date of loss', 'database', 'datastore loss'];
+KEPT_PROSE.forEach((v, i) => {
+  const tag = 'r8-VR01-prose-' + String(i + 1).padStart(2, '0');
+  add({ id: tag + '-open', src: 'round 8 VR-CR-01 (a non-kind slot value stays prose: ' + v + ')', r1: ['1. Should — the export is slow — open — risk: ' + v + ' — rests on: ac-1'], out: 'LIST' });
+  add({ id: tag + '-fixed', src: 'round 8 VR-CR-01 (a non-kind slot value stays prose: ' + v + ')', r1: ['1. Should — the export is slow — fixed — risk: ' + v + ' — rests on: ac-1'], out: 'PASS' });
+});
+
 // CR-02: the critic's block may carry several `rests on:` lines, and a line ground may coexist with a block ground. Every valid ground is read; a second valid ground, or a second, different
 // test or command, is never a record problem. Only a mis-written risk kind is (the conflicting-risk row above stays a problem).
 const SHOULD_CSV = '1. Should — the delimiter is wrong — fixed';

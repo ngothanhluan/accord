@@ -76,6 +76,8 @@ const CLI_ROWS = new Set([
   'legacy-form-12',
   'r7-CR01-one-off-date-loss-after-state',
   'r7-CR01-one-off-block-date-loss',
+  'r8-VR01-E1-data-slash-loss',
+  'r8-VR01-E6-block-securi-space-ty',
   'r7-CR02-G1-line-ac-block-D',
   'r7-CR02-G4-open-two-block-grounds-r2',
 ]);

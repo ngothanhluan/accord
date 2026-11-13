@@ -277,7 +277,7 @@ it('risk:security a plan record on the grounds rule reads a risk structurally: a
     '1. Should — Task 3 - risk: a stale read on reload — open — rests on: ac-1',
     '1. Must — Task 1: a fetch prunes early; add a `risk:data-loss` test — open — rests on: ac-1',
     '1. Should — Task 2 drops headers — withdrawn: no risk: security headers are set by the proxy — rests on: ac-1',
-    '1. Should — Task 2 drops headers — open — rests on: ac-1 — security risk',
+    '1. Should — Task 2 drops headers — security risk — open — rests on: ac-1',
   ]) {
     expect(answer(snap('plan', [prose], { pin: cut }), 'plan').kind, prose).toBe('next');
     expect(answer(snap('plan', [prose, 'Security lens: no risk: security path is touched.', 'risks: security'], { pin: cut }), 'plan').kind, prose).toBe('next');

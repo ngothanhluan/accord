@@ -220,7 +220,7 @@ export interface RecordedRound {
   head?: string; // version 2 only (ST-LN-57): the commit the round reviewed up to, lower case
   added?: true; // version 2 only: the heading says (added code round 1)
   final?: true; // version 2 only: the heading says (final review)
-  riskUnread?: { line: number; text: string }[]; // version 1 plan and approach records (ST-LN-91 round 4): the lines of the round that name a risk in a form accord does not read
+  markUnread?: { line: number; text: string }[]; // version 1 plan and approach records (ST-LN-91 round 5): the mark slots of the round (a segment or a block line that starts with a mark key) whose value does not parse
 }
 export interface RoundVerdict { value: string; quoted: boolean; line: number } // quoted: accepted-by-owner followed by a "sentence"
 export interface RoundCycle { line: number; marker?: string; rounds: RecordedRound[]; verdicts: RoundVerdict[]; closed?: number }

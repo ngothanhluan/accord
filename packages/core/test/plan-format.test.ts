@@ -203,7 +203,7 @@ describe('plan format: fenced blocks', () => {
     ['a ts block on a list marker line', ['- ```ts', '  writer.csv = true;', '  ```'], 1, ['(ts)']],
     ['a ts block on an ordered marker line', ['1. ```ts', '   writer.csv = true;', '   ```'], 1, ['(ts)']],
     // The list item ends where CommonMark ends it, so a flush-left closing fence closes nothing: it opens a stray block of its own, which is refused too.
-    ['a block on a list marker line closed flush left', ['- ```ts', '  x();', '```'], 2, ['(ts)']],
+    ['a block on a list marker line closed flush left', ['- ```ts', '  x();', '```'], 2, ['task 2']],
     ['an interfaces block on a list marker line closed flush left', ['- ```interfaces', '  export function csv(): string', '```'], 1, ['task 2']],
     // ST-LN-91 g2 round 2 WR-01: a fence opened on a marker line, or indented under a list item, ends where the list item ends; the block that follows is read as a block.
     ['an unclosed interfaces block on a list marker line, then a ts block', ['- ```interfaces', '  export function csv(): string', '', 'Then the writer:', '', '```ts', 'writer.csv = true;', '```'], 1, ['(ts)']],
@@ -271,7 +271,7 @@ describe('plan format: fenced blocks', () => {
     expect(found).toHaveLength(1);
     expect(found[0].line).toBe(plan.split('\n').indexOf('```ts') + 1);
     expect(check({ plan, claim: NEW }).verdict).toBe('fail');
-    expect(check({ plan, claim: OLD }).verdict).toBe('pass');
+    expect(format(check({ plan, claim: OLD }))).toEqual([]);
   });
 
   // ST-LN-91 g2 round 2 IN-02: the closing line of a quoted block is read through its quote marks, so the after: line below it is still read.

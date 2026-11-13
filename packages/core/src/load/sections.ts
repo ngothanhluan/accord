@@ -158,8 +158,22 @@ const ITEM_PREFIX = /^[ \t]*(?:[-*+]|\d+[.)])[ \t]+/;
 const FENCE_RUN = /^[ \t]*(`{3,}|~{3,})(.*)$/;
 const BLOCK_CLOSE = /^[ \t]*(`{3,}|~{3,})\s*$/;
 
-/** The fence a line opens, if any: its marker run, its info string and whether a block-quote marker precedes it. */
-function opening(text: string): { marker: string; info: string; quoted: boolean } | undefined {
+/** The width of `text` in columns, a tab taking the next multiple of four. */
+function width(text: string): number {
+  let w = 0;
+  for (const c of text) w += c === '\t' ? 4 - (w % 4) : 1;
+  return w;
+}
+
+/** The column of a line's first character that is not whitespace. */
+const indentOf = (text: string): number => width(/^[ \t]*/.exec(text)![0]);
+
+/**
+ * The fence a line opens, if any: its marker run, its info string, whether a block-quote marker precedes it, and `indent`: for a fence on a list item's marker line the
+ * column the item's content starts at (the width of the stripped marker prefix, as CommonMark takes it), otherwise the column the fence's own line starts at.
+ * A quoted fence has none: a plan task may not hold one at all.
+ */
+function opening(text: string): { marker: string; info: string; quoted: boolean; indent: number; onItem: boolean } | undefined {
   let rest = text;
   let quoted = false;
   for (let i = 0; i < 8; i++) {
@@ -172,7 +186,8 @@ function opening(text: string): { marker: string; info: string; quoted: boolean 
   const m = FENCE_RUN.exec(rest);
   // CommonMark: a backtick fence's info string may not contain a backtick.
   if (m === null || (m[1][0] === '`' && m[2].includes('`'))) return undefined;
-  return { marker: m[1], info: m[2].trim(), quoted };
+  const onItem = rest.length < text.length;
+  return { marker: m[1], info: m[2].trim(), quoted, onItem, indent: quoted ? 0 : onItem ? width(text.slice(0, text.length - rest.length)) : indentOf(text) };
 }
 
 /** The closing run of a line inside a fence; a fence opened in a block quote closes on a line that carries the quote markers too. */
@@ -187,11 +202,19 @@ function closing(text: string, quoted: boolean): RegExpExecArray | null {
  * nothing: a fence inside a comment is a fence, a comment mark in inline code opens nothing, and every comment line counts toward the length. A
  * comment delimiter inside a fence is code. `quoted` marks a block inside a block quote, which a plan task may not hold. An unterminated block
  * closes at the last line.
+ *
+ * Round 2 WR-01: a fence inside a list item ends where CommonMark ends the item, and a block the item's end leaves open is read again from that line: a fence opened
+ * on a list marker line holds the lines indented as far as the item's content; a fence opened on an indented line of a task that holds a list item holds the lines
+ * indented as far as the fence line itself. The first non-blank line indented less ends the block, and is read as a possible opening. A flush-left closing fence
+ * therefore closes nothing: it opens a stray block of its own, and the plan task is refused for it. Where the end is in doubt the block is held to end: the
+ * block that follows is then read and refused, never taken for the content of an interfaces block.
  */
 export function fencedBlocks(lines: Line[]): Fence[] {
   const fences: Fence[] = [];
-  let open: { marker: string; quoted: boolean; fence: Fence } | undefined;
+  let open: { marker: string; quoted: boolean; indent: number; fence: Fence } | undefined;
+  let item = false; // a list item has been seen outside a fence: an indented fence may sit inside it
   for (const { line, text } of lines) {
+    if (open && open.indent > 0 && text.trim() !== '' && indentOf(text) < open.indent) open = undefined; // the list item ends here
     if (open) {
       const close = closing(text, open.quoted);
       if (close && close[1][0] === open.marker[0] && close[1].length >= open.marker.length) {
@@ -203,11 +226,12 @@ export function fencedBlocks(lines: Line[]): Fence[] {
       }
       continue;
     }
+    if (ITEM_PREFIX.test(text)) item = true;
     const m = opening(text);
     if (m) {
       const fence: Fence = { info: m.info, open: line, close: line, content: [], ...(m.quoted ? { quoted: true as const } : {}) };
       fences.push(fence);
-      open = { marker: m.marker, quoted: m.quoted, fence };
+      open = { marker: m.marker, quoted: m.quoted, indent: m.onItem || item ? m.indent : 0, fence };
     }
   }
   return fences;

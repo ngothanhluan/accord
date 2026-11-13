@@ -1,7 +1,7 @@
 // ST-LN-17 AC-3, AC-4: Done and the plan gate read the round records. A round run past the cap or past a stop,
 // a stop the owner has not lifted, and a record accord cannot read each fail, so the cap and the stop hold in
 // every tool and not only where a session asked `accord round`.
-import { allowancesOf, capRulesOf, cycleState, deferredFor, planStopOf, recordProblems } from '../round/next.js';
+import { allowancesOf, capRulesOf, cycleState, deferredFor, planStopOf, recordProblems, roundCount } from '../round/next.js';
 import { cycleOpen } from '../round/record.js';
 import { scopeProblems } from '../round/scope.js';
 import { doneOnDefault } from '../status/stage.js';
@@ -62,12 +62,18 @@ function check(snapshot: RepoSnapshot, id: string, kind: RoundKind): GateDraft[]
       );
     }
   } else {
-    const s = planStopOf(last, mine, 'plan', deferredFor(snapshot, id, kind, k - 1), rules);
+    const deferred = deferredFor(snapshot, id, kind, k - 1);
+    const s = planStopOf(last, mine, 'plan', deferred, rules);
     if (s !== undefined) {
       const cap = cycleState(last, mine, kind, undefined, rules).cap;
+      // ST-LN-91 D-07: the reason names what stopped the loop: the count (a stop below the first stop round), a Should or a Must from round 3, or the cap.
+      const cause =
+        rules.fall && s < (rules.firstStop ?? Infinity)
+          ? `the count did not fall: ${roundCount(last.rounds[s - 1], deferred)} Must and Should against ${roundCount(last.rounds[s - 2], deferred)} in round ${s - 1}`
+          : `a Should or a Must from round 3, or the cap of ${cap} rounds`;
       add(
         last.rounds[s - 1].line,
-        `round ${s} of plan critique cycle ${k} stops the loop for the owner (a Should or a Must from round 3, or the cap of ${cap} rounds); gate plan needs verdict: accepted-by-owner "<the owner's sentence>" after that round, or a round allowed by the owner that reports no findings`,
+        `round ${s} of plan critique cycle ${k} stops the loop for the owner (${cause}); gate plan needs verdict: accepted-by-owner "<the owner's sentence>" after that round, or a round allowed by the owner that reports no findings`,
       );
     }
   }

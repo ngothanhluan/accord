@@ -1,10 +1,12 @@
 // ST-LN-91 91p-ac-1 and 91p-ac-2: from PLAN_FORMAT_FROM, gate plan asks each task for its `after:` line, refuses a fenced block that is not an
 // interfaces block, and refuses a task of more than TASK_LINE_CAP non-blank lines. The claim pin decides (D-15), never the plan's baseline pin.
 // The plan text is read structurally: fixed fields at fixed positions, fences by their opening line, comments by their delimiters.
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { gatePlan, loadSnapshot, PLAN_FORMAT_FROM, TASK_LINE_CAP, taskLength } from '../src/index.js';
 import type { GateResult } from '../src/index.js';
 import { PLAN_RULES } from '../src/gate/rules.js';
+import { parsePlan } from '../src/load/work.js';
 import { approved } from './helpers/approve.js';
 import { CONFIG, junit, laneTicket, REPORT } from '../../../test/helpers/lane.js';
 
@@ -98,7 +100,6 @@ describe('plan format: the after: line', () => {
     ['self reference is left to the wave builder', ['after: 2'], 'ok'],
     ['first line wins', ['after: 1', 'after: 9'], 'ok'],
     ['a comment above the line', ['<!-- after: 9 -->', 'after: 1'], 'ok'],
-    ['a comment on the same line', ['after: 1 <!-- 9 -->'], 'ok'],
     ['no line', [], 'missing'],
     ['no value', ['after:'], 'missing'],
     ['blanks only', ['after:    '], 'missing'],
@@ -107,8 +108,12 @@ describe('plan format: the after: line', () => {
     ['another word', ['afterwards: 1'], 'missing'],
     ['space before the colon', ['after : 1'], 'missing'],
     ['only in a comment', ['<!-- after: 1 -->'], 'missing'],
-    ['only in a multi-line comment', ['<!--', 'after: 1', '-->'], 'missing'],
-    ['a comment that is the value', ['after: <!-- 1 -->'], 'missing'],
+    // A comment is text: `accord brief` prints it to the executor, so the format rules read it as written (WR-01).
+    ['a multi-line comment holding the line', ['<!--', 'after: 1', '-->'], 'ok'],
+    ['a comment on the same line is part of the value', ['after: 1 <!-- 9 -->'], ['<!--', '9', '-->']],
+    ['a comment that is the value', ['after: <!-- 1 -->'], ['<!--', '1', '-->']],
+    ['an unclosed comment in inline code above the line', ['Strip the `<!--` marks first.', 'after: 1'], 'ok'],
+    ['an unclosed comment above the line', ['<!-- the writer', 'after: 1'], 'ok'],
     ['quoted', ['> after: 1'], 'missing'],
     ['only in a fenced block', ['```interfaces', 'after: 1', '```'], 'missing'],
     ['a task number the plan lacks', ['after: 4'], ['4']],
@@ -190,10 +195,26 @@ describe('plan format: fenced blocks', () => {
     ['info after a space is not the first word', ['``` ts interfaces', 'x', '```'], 1, ['(ts interfaces)']],
     ['indented fence', ['  ```ts', '  x', '  ```'], 1, ['(ts)']],
     ['a list item holding a fence', ['- step', '  ```sh', '  npm test', '  ```'], 1, ['(sh)']],
+    // The fence sits on the marker line (WR-02): an interfaces block is allowed there, any other block is refused at the line it opens on.
+    ['an interfaces block on a list marker line', ['- ```interfaces', '  export function csv(): string', '  ```'], 0, []],
+    ['an interfaces block on an ordered marker line', ['1. ```interfaces', '   export function csv(): string', '   ```'], 0, []],
+    ['an interfaces block on a parenthesis marker line', ['1) ```interfaces ts', '   export function csv(): string', '   ```'], 0, []],
+    ['an interfaces block on a nested marker line', ['- step', '  - ```interfaces', '    export function csv(): string', '    ```'], 0, []],
+    ['a ts block on a list marker line', ['- ```ts', '  writer.csv = true;', '  ```'], 1, ['(ts)']],
+    ['a ts block on an ordered marker line', ['1. ```ts', '   writer.csv = true;', '   ```'], 1, ['(ts)']],
+    ['a block on a list marker line closed flush left', ['- ```ts', '  x();', '```'], 1, ['(ts)']],
+    ['a block in a blockquote', ['> ```ts', '> x', '> ```'], 1, ['(ts)', 'blockquote']],
+    ['an interfaces block in a blockquote', ['> ```interfaces', '> export function csv(): string', '> ```'], 1, ['(interfaces)', 'blockquote']],
+    ['an interfaces block in a blockquote without a space after the marker', ['>```interfaces', '>x', '>```'], 1, ['blockquote']],
+    ['a block in a list item inside a blockquote', ['> - ```ts', '>   x', '>   ```'], 1, ['(ts)', 'blockquote']],
+    ['a list marker line that is prose with inline code', ['- use ```ts``` here', '- and ``` too'], 0, []],
     ['unterminated', ['```ts', 'x'], 1, ['(ts)']],
     ['two blocks', ['```ts', 'x', '```', 'then', '```sh', 'y', '```'], 2, []],
     ['an interfaces block and a ts block', ['```interfaces', 'x', '```', '```ts', 'y', '```'], 1, ['(ts)']],
-    ['inside an HTML comment', ['<!--', '```ts', 'x', '```', '-->'], 0, []],
+    // A comment hides nothing from the executor, so it hides nothing from the rule (WR-01).
+    ['inside an HTML comment', ['<!--', '```ts', 'x', '```', '-->'], 1, ['(ts)']],
+    ['after an unclosed comment in inline code', ['Strip the `<!--` marks first.', '```ts', 'x', '```'], 1, ['(ts)']],
+    ['after an unclosed comment', ['<!-- the writer', '```ts', 'x', '```'], 1, ['(ts)']],
     ['inside a one-line comment', ['<!-- ```ts -->'], 0, []],
     ['an HTML comment inside an interfaces block does not hide its end', ['```interfaces', '<!-- x', '```', '```ts', 'y', '```'], 1, ['(ts)']],
     ['a backtick in the info string is not a fence', ['```ts`x`', 'text'], 0, []],
@@ -251,8 +272,10 @@ describe('plan format: the task cap', () => {
   const COUNT: [string, string[], number][] = [
     ['plain lines', filler(3), 3],
     ['blank lines are not counted', ['', filler(1)[0], '', '', '   ', filler(1, 'B')[0]], 2],
-    ['a comment line is not counted', ['<!-- note -->', 'text'], 1],
-    ['a multi-line comment is not counted', ['<!--', 'a', 'b', '-->', 'text'], 1],
+    ['a comment line is counted', ['<!-- note -->', 'text'], 2],
+    ['a multi-line comment is counted', ['<!--', 'a', 'b', '-->', 'text'], 5],
+    ['an unclosed comment in inline code counts the lines after it', ['Strip the `<!--` marks first.', 'a', 'b'], 3],
+    ['an unclosed comment counts the lines after it', ['<!-- the writer', 'a', 'b'], 3],
     ['text beside a comment is counted', ['text <!-- c -->', '<!-- c --> more'], 2],
     ['fenced lines are counted', ['```ts', 'a', '', 'b', '```'], 4],
     ['an interfaces block is counted', ['```interfaces', 'a', 'b', '```'], 4],
@@ -273,7 +296,7 @@ describe('plan format: the task cap', () => {
     const shapes: [string, (n: number) => string[]][] = [
       ['plain', (n) => withLength(n)],
       ['blanks between', (n) => ['after: 1', ...filler(n - 4).flatMap((l) => [l, ''])]],
-      ['comments between', (n) => ['after: 1', ...filler(n - 4).flatMap((l) => [l, '<!-- c -->'])]],
+      ['comments between', (n) => ['after: 1', ...Array.from({ length: n - 4 }, (_, i) => (i % 2 === 0 ? `Step ${i}.` : '<!-- c -->'))]],
       ['inside an interfaces block', (n) => ['after: 1', '```interfaces', ...filler(n - 6), '```']],
     ];
     for (const [name, shape] of shapes) {
@@ -369,5 +392,60 @@ describe('plan format: a line starting after: is read for deferral words as befo
 
   it('risk:regression an after: line with a task number holds no deferral word (ST-LN-91 91p-ac-2)', () => {
     for (const lines of [['after: none'], ['after: 1, 3'], ['after: 1 2'], ['- after: 1']]) expect(of(check({ plan: three(lines), claim: NEW }), 'gate.plan-deferral')).toEqual([]);
+  });
+});
+
+describe('plan format: the rules read the text accord brief prints (ST-LN-91 WR-01, WR-02)', () => {
+  const task2 = (lines: string[]) => build({ plan: three(lines), claim: NEW }).work!['T-1'].plan!.tasks[1];
+  const nonBlank = (lines: string[]): number => task2(lines).lines.filter((l) => l.text.trim() !== '').length;
+
+  it('risk:regression taskLength is the count of non-blank lines the executor receives, whatever comments the task holds (WR-01)', () => {
+    const SHAPES: [string, string[]][] = [
+      ['an unclosed comment in inline code', ['after: 1', 'Strip the `<!--` marks first.', ...filler(130)]],
+      ['an unclosed comment', ['after: 1', '<!-- the writer', ...filler(130)]],
+      ['a comment holding a fence', ['after: 1', '<!--', '```ts', 'x', '```', '-->', ...filler(120)]],
+      ['a comment holding a long run', ['after: 1', '<!--', ...filler(125), '-->']],
+      ['a closed comment', ['after: 1', '<!-- note -->', ...filler(3)]],
+      ['a comment inside an interfaces block', ['after: 1', '```interfaces', '<!-- a', 'b -->', '```']],
+    ];
+    for (const [name, lines] of SHAPES) expect(taskLength(task2(lines)), name).toBe(nonBlank(lines));
+    // The two probes of the review: 130 lines after the inline mark are 130 lines, and a fence in a comment is a fence.
+    expect(of(check({ plan: three(SHAPES[0][1]), claim: NEW }), 'gate.task-too-long')).toHaveLength(1);
+    expect(of(check({ plan: three(SHAPES[2][1]), claim: NEW }), 'gate.task-code-block')).toHaveLength(1);
+  });
+
+  it('risk:regression an unclosed comment mark does not hide the after: line below it (WR-01)', () => {
+    expect(of(check({ plan: three(['Strip the `<!--` marks first.', 'after: 1']), claim: NEW }), 'gate.task-after-missing')).toEqual([]);
+    expect(task2(['Strip the `<!--` marks first.', 'after: 1']).after).toMatchObject({ tasks: [1], unread: [] });
+  });
+
+  it('risk:regression every task of ST-LN-79/plan.md is measured by its raw non-blank lines: task 2 holds 98, not 53 (WR-01)', () => {
+    const p = 'accord/tickets/ST-LN-79/plan.md';
+    const tasks = parsePlan(p, readFileSync(new URL('../../../' + p, import.meta.url), 'utf8')).plan.tasks;
+    expect(tasks).toHaveLength(15);
+    for (const t of tasks) expect(taskLength(t), 'task ' + t.n).toBe(t.lines.filter((l) => l.text.trim() !== '').length);
+    expect(taskLength(tasks[1])).toBe(98);
+    expect(taskLength(tasks[11])).toBe(54);
+  });
+
+  it('risk:regression a block on a list marker line is named at the line it opens on and hides nothing below it (WR-02)', () => {
+    const lines = ['after: 1', 'Interfaces:', '- ```ts', '  writer.csv = true;', '  ```', 'then more.'];
+    const text = three(lines).split('\n');
+    const found = of(check({ plan: three(lines), claim: NEW }), 'gate.task-code-block');
+    expect(found).toHaveLength(1);
+    expect(found[0].line).toBe(text.indexOf('- ```ts') + 1);
+    expect(found[0].reason).toContain(`line ${found[0].line} `);
+    // A valid interfaces block there is accepted, and an after: line below it is still read.
+    const ok = ['Interfaces:', '- ```interfaces', '  export function csv(): string', '  ```', '', 'after: 1'];
+    expect(format(check({ plan: three(ok), claim: NEW }))).toEqual([]);
+    expect(of(check({ plan: three(['- ```interfaces', '  export function csv(): string', '  ```', 'after: none']), claim: NEW }), 'gate.task-after-missing')).toEqual([]);
+  });
+
+  it('risk:regression a code block in a blockquote is refused and says it is in a blockquote, at its opening line (WR-02)', () => {
+    const lines = ['after: 1', '> ```ts', '> x', '> ```'];
+    const found = of(check({ plan: three(lines), claim: NEW }), 'gate.task-code-block');
+    expect(found).toHaveLength(1);
+    expect(found[0].line).toBe(three(lines).split('\n').indexOf('> ```ts') + 1);
+    expect(found[0].reason).toContain('blockquote');
   });
 });

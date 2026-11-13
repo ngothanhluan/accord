@@ -200,3 +200,44 @@ it('risk:security the legacy round-1 dispatch also runs the security critic on a
   }
   expect(bad).toEqual([]);
 });
+
+// ST-LN-91 91p-ac-1, 91p-ac-2, D-09: the planner writes what gate plan's format rules check (an `after:` line per task, the interfaces between tasks in an
+// `interfaces` block and no other fenced block, at most 120 non-blank lines, what and not how), and the plan skill names the `after:` line.
+const plannerOf = (): string => agents('claude').find((f) => f.path === '.claude/agents/accord-planner.md')?.text ?? '';
+
+it('risk:regression the planner writes each task\'s after: line, interfaces in an interfaces block and no other code (ST-LN-91 91p-ac-1)', () => {
+  const text = plannerOf();
+  expect(text.length, 'accord-planner.md is missing from the render').toBeGreaterThan(0);
+  expect(
+    lacks(flat(text), [
+      'each with these four lines',
+      'covers: @ac-1, D-02',
+      'after: 1, 2',
+      'or `after: none` when it follows none',
+      'one fenced block whose info string is `interfaces`',
+      'no other fenced block goes in a task',
+      'at most 120 non-blank lines',
+      'says what, never how',
+    ]),
+  ).toEqual([]);
+  // the example block carries all four lines, in the order the plan skill lists them
+  const fence = text.split('```')[1] ?? '';
+  expect(fence.split('\n').filter((l) => /^(covers|files|verify|after):/.test(l)).map((l) => l.split(':')[0])).toEqual(['covers', 'files', 'verify', 'after']);
+  // the body keeps the cap of agents.test.ts and does not grow past the 59 lines it had when plan 03-11 began
+  const body = text.replace(/^---\n[\s\S]*?\n---\n/, '');
+  expect(body.split('\n').length).toBeLessThanOrEqual(59);
+});
+
+it('risk:regression the plan skill names the after: line (ST-LN-91 91p-ac-2)', () => {
+  const bad: string[] = [];
+  for (const runtime of RUNTIMES) {
+    const files = planFiles(runtime, 'SKILL.md');
+    if (files.length === 0) bad.push(runtime + ': accord-plan/SKILL.md is missing');
+    for (const f of files) {
+      if (!/`covers:` line, a `files:` line, a\s+`verify:` line, and an `after:` line/.test(f.text)) bad.push(f.path + ' does not list the after: line beside covers: and verify:');
+      if (f.text.split('\n').length > 120) bad.push(f.path + ' is over 120 lines');
+      if (Buffer.byteLength(f.text) > 6000) bad.push(f.path + ' is over 6000 bytes');
+    }
+  }
+  expect(bad).toEqual([]);
+});

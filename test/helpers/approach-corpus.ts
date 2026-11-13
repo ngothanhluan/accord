@@ -595,6 +595,11 @@ const LEGACY_FORMS: { line: string[]; listed: boolean }[] = [
   { line: ['1. Must — tokens reach the log — fixed — rests on: ac-1', '   rests on: D-01'], listed: false },
   { line: ['1. Should — the cache — fixed', '   - Risk: a stale cache shows old rows'], listed: false },
   { line: ['1. Must — tokens reach the log — open', 'rests on: risk: security'], listed: true },
+  { line: ['1. Must — tokens reach the log — open — risk: date-loss'], listed: true },
+  { line: ['1. Must — tokens reach the log — risk: dta-loss — open'], listed: true },
+  { line: ['1. Must — tokens reach the log — open', '   rests on: risk: date-loss'], listed: true },
+  { line: ['1. Must — the header row is written twice — fixed', '   rests on: ac-1', '   rests on: D-01'], listed: false },
+  { line: ['1. Should — the delimiter is wrong — fixed — test: export#writes-csv', '   rests on: test: export#delimiter'], listed: false },
 ];
 LEGACY_FORMS.forEach((f, i) =>
   add({

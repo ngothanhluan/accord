@@ -347,3 +347,49 @@ it('risk:regression the plan size section counts plans over twice their criteria
     rmSync(s.root, { recursive: true, force: true, maxRetries: 5 });
   }
 }, 120_000);
+
+// ---- 91p-ac-5, D-09: the task cap against the existing plans (ST-LN-91) ---------------------------------
+const taskOf = (n: number, o: { after?: boolean; fence?: string; extra?: number } = {}) =>
+  [
+    `## Task ${n}: step ${n}`,
+    'covers: @ac-1',
+    'files: src/a.ts',
+    'verify: a#b (@ac-1)',
+    ...(o.after ? [`after: ${n === 1 ? 'none' : n - 1}`] : []),
+    ...(o.fence === undefined ? [] : ['```' + o.fence, 'const a = 1;', '```']),
+    ...Array.from({ length: o.extra ?? 0 }, (_, i) => `Line ${i + 1}.`),
+    '',
+  ].join('\n');
+const planWith = (tasks: string[]) => ['---', 'baseline: abc1234', '---', '', '# Plan', '', ...tasks].join('\n');
+
+it('risk:regression the plan format section counts tasks over the cap with core\'s rule (ST-LN-91 91p-ac-5)', async () => {
+  const { main } = await load();
+  const s = sandbox();
+  try {
+    // T-1: no after: lines, a ts block and a task of 130 non-blank lines (4 task lines + 126 more). T-2: after: lines, an interfaces block, short tasks.
+    write(s.root, {
+      'accord/config.yml': CONFIG,
+      'accord/tickets/T-1.md': laneTicket('T-1'),
+      'accord/tickets/T-1/plan.md': planWith([taskOf(1, { fence: 'ts', extra: 122 }), taskOf(2)]),
+      'accord/tickets/T-2.md': laneTicket('T-2'),
+      'accord/tickets/T-2/plan.md': planWith([taskOf(1, { after: true, fence: 'interfaces' }), taskOf(2, { after: true })]),
+    });
+    const sha = commit(s, 'plans', '2026-01-02T12:00:00+0000');
+    const io = () => ({ cwd: s.root, stdout: sink(), stderr: sink() });
+    expect(await main(['--at', sha, '--transcripts', 'none', '--plan-format', '--label', 'fmt'], io())).toBe(0);
+    const md = readFileSync(join(s.root, 'docs', 'benchmark', 'metrics-fmt.md'), 'utf8');
+    const json = JSON.parse(readFileSync(join(s.root, 'docs', 'benchmark', 'metrics-fmt.json'), 'utf8'));
+    expect(md).toMatch(/^## Plan format \(ST-LN-91 D-09\)$/m);
+    expect(md).toMatch(/^Task length cap: 120 non-blank lines; refuses 1 of 4 tasks in 1 of 2 plans$/m);
+    expect(md).toContain('Plans with a fenced block other than interfaces: 1');
+    expect(md).toContain('Plans with a task lacking after:: 1');
+    expect(json.planFormat).toMatchObject({ cap: 120, tasks: 4, plans: 2, tasksOver: 1, plansOver: 1, plansFenced: 1, tasksFenced: 1, plansAfterless: 1 });
+    expect(json.planFormat.lengths.max).toBe(130);
+    // Without the option nothing of it appears.
+    expect(await main(['--at', sha, '--transcripts', 'none', '--label', 'plain'], io())).toBe(0);
+    expect(readFileSync(join(s.root, 'docs', 'benchmark', 'metrics-plain.md'), 'utf8')).not.toContain('Plan format');
+    expect(Object.hasOwn(JSON.parse(readFileSync(join(s.root, 'docs', 'benchmark', 'metrics-plain.json'), 'utf8')), 'planFormat')).toBe(false);
+  } finally {
+    rmSync(s.root, { recursive: true, force: true, maxRetries: 5 });
+  }
+}, 120_000);

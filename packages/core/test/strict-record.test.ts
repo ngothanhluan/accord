@@ -107,6 +107,25 @@ it("risk:security the block's other rests-on lines are read as grounds: ac, D, q
   expect(nextRound(repo(oneLine), 'T-1', 'approach').reasons.join('\n')).not.toContain('a ticket line it rests on');
 });
 
+it('risk:security every rests-on ground of the critic block is read: any one that holds grounds the finding, and none of them is a record problem (ST-LN-91 round 7 CR-02)', () => {
+  const head = '1. Must — the header row is written twice — open';
+  const ofBlock = (...grounds: string[]) => HEAD + round(1, R1_FIXED) + round(2, head, '   failing case: x', ...grounds.map((g) => '   rests on: ' + g));
+  const reasons = (approach: string) => nextRound(repo(approach), 'T-1', 'approach').reasons.join('\n');
+  // The first ground holds nothing (ac-9 is no scenario) and the second does: the finding rests on a ticket line, and the cap is what refuses round 3.
+  expect(reasons(ofBlock('ac-9', 'ac-1'))).not.toContain('a ticket line it rests on');
+  expect(reasons(ofBlock('ac-1', 'D-01'))).not.toContain('a ticket line it rests on');
+  // Two grounds that hold nothing are still refused for grounds; neither is a record problem.
+  expect(reasons(ofBlock('ac-9', 'D-77'))).toContain('a ticket line it rests on');
+  for (const grounds of [['ac-1', 'D-01'], ['ac-9', 'ac-1'], ['test: a#b', 'test: a#c'], ['command: npm test -- a', 'command: npm test -- b'], ['ac-1', 'test: a#b', 'D-01']]) {
+    expect(problemsOf(ofBlock(...grounds)), grounds.join('|')).toEqual([]);
+  }
+  // A ground on the finding line stands beside one in the block.
+  expect(problemsOf(HEAD + round(1, '1. Must — a — fixed — rests on: ac-1', '   rests on: D-01'))).toEqual([]);
+  // A mis-written risk kind beside valid grounds is still the one thing that is a problem, and two different risks conflict.
+  expect(problemsOf(ofBlock('ac-1', 'D-01', 'risk: secrity'))).toHaveLength(1);
+  expect(problemsOf(HEAD + round(1, '1. Must — a — open — risk: security', '   rests on: risk: data-loss'))).toHaveLength(1);
+});
+
 // Each form: a mark slot whose value does not parse is a record problem (approve refuses), or it is prose (listed under Risks if open, blocks nothing).
 const MARK_SLOT_PROBLEMS = [
   '1. Must — tokens reach the log — open — risks: security', // B1
@@ -315,7 +334,8 @@ it('risk:regression the release note describes the structural reading and no lon
     'Any other line under a finding, indented or not, is a note, and a note is prose',
     'A value that is no such kind is prose, not a problem',
     '`risk: none`, `risk: low`, `risk: a partial file is left on a crash` and `rests on: ac1` refuse nothing',
-    'a kind one letter off (`risk: secrity`, `risk: data-lost`)',
+    'a kind one edit off the whole word, the `data` part of `data-loss` included (`risk: secrity`, `risk: date-loss`, `risk: data-lost`; two or more edits off is prose)',
+    'a second ground, or a second `test:` or `command:`, is never a record problem',
     'is a record problem too, because Markdown renders it as part of the finding',
   ]) expect(note, p).toContain(p);
 });

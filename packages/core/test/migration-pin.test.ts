@@ -246,3 +246,10 @@ it('risk:regression a prose line starting after: that defers work is refused at 
     }
   }
 });
+
+it('risk:regression the five Phase 3 cut-offs are one release, so one claim pin decides every Phase 3 rule at once (ST-LN-91 D-15, IN-01)', () => {
+  // D-15 says a ticket is wholly old or wholly new. The constants are kept apart, one per rule, to read well; this test is what stops one of them moving alone.
+  const cutoffs = { DISCUSS_FROM, APPROACH_CAP_FROM, PLAN_FORMAT_FROM, PLAN_CAP_FROM, PLAN_GROUNDS_FROM };
+  expect(new Set(Object.values(cutoffs)).size, JSON.stringify(cutoffs)).toBe(1);
+  expect(CUT).toBe(DISCUSS_FROM);
+});

@@ -485,7 +485,8 @@ describe('plan format: the key is read in lowercase, as the other fields are (ST
   it('risk:regression a task whose after: line is not read says which line it skipped and why (verifier Info 3)', () => {
     const reason = (lines: string[]): string => of(check({ plan: three(lines), claim: NEW }), 'gate.task-after-missing')[0].reason;
     const base = 'task 2 has no after: line naming the tasks it follows (after: 1, 2), or after: none';
-    expect(reason(['After: 1'])).toBe(base + '; line 14 starts with "After:", which is not read: write the key in lowercase, as covers:, files: and verify: are');
+    const at = three(['After: 1']).split('\n').indexOf('After: 1') + 1;
+    expect(reason(['After: 1'])).toBe(base + `; line ${at} starts with "After:", which is not read: write the key in lowercase, as covers:, files: and verify: are`);
     expect(reason(['- AFTER: none'])).toContain('starts with "AFTER:"');
     expect(reason(['after : 1'])).toContain('starts with "after :"');
     // No hint where no line looks like the key.

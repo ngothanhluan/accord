@@ -109,7 +109,7 @@ describe('gate plan', () => {
       const r = gate({ abc1234: [] });
       expect(r.findings.filter((f) => f.rule === 'gate.task-file-unknown').map((f) => [f.line, f.reason])).toEqual([
         [8, 'task 1 names src/export.ts, which does not exist at baseline abc1234; correct the path, or write (new) after it if the task creates it'],
-        [14, 'task 2 names src/export.ts, which does not exist at baseline abc1234; correct the path, or write (new) after it if the task creates it'],
+        [15, 'task 2 names src/export.ts, which does not exist at baseline abc1234; correct the path, or write (new) after it if the task creates it'],
       ]);
     });
     it('a (new) path passes; no facts, or facts for another baseline, skip the rule', () => {
@@ -163,7 +163,7 @@ describe('gate plan', () => {
     expect(errors(plan(base(), paths))).toEqual([]);
     const r = plan(base(), paths.replace('Quote cells that contain a comma.', 'Quote cells later.'));
     expect(r.findings.filter((f) => f.rule === 'gate.plan-deferral').map((f) => [f.line, f.reason])).toEqual([
-      [18, 'task 2 defers work: "later"'],
+      [20, 'task 2 defers work: "later"'],
     ]);
   });
 

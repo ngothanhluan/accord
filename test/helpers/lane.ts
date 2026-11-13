@@ -95,7 +95,7 @@ export function laneTicket(id: string, opts: { lane?: string; frontmatter?: stri
 export const PLAN = [
   '---',
   'baseline: abc1234',
-  'plan_hash: "fnv1a64:061c24200fe9bbf9"',
+  'plan_hash: "fnv1a64:9225f0bf1d9c2674"',
   '---',
   '',
   '# Plan',
@@ -104,12 +104,14 @@ export const PLAN = [
   'covers: @ac-1, D-01',
   'files: src/export.ts',
   'verify: export#writes-csv (@ac-1)',
+  'after: none',
   'Add a csv branch to the writer.',
   '',
   '## Task 2: Escaping',
   'covers: @ac-2',
   'files: src/export.ts',
   'verify: export#escapes-commas (@ac-2)',
+  'after: 1',
   'Quote cells that contain a comma.',
   '',
 ].join('\n');

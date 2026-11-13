@@ -107,27 +107,30 @@ it('risk:data-loss every approach commit carries the ledger when it changed, so 
   holds(flat(skillFile('accord-approach', 'critique.md')), ['commit both files, with the ledger if it changed,', 'Otherwise commit `accord/tickets/<id>.md` and `approach-review.md`, with the ledger if it changed, with the subject']);
 });
 
-it('risk:security the critique loop names the exact forms accord reads, and what happens to a risk written any other way (ST-LN-91 CR-01 CR-02, round 4)', () => {
+it('risk:security the critique loop names the mark slot as the one place a risk is read, and what happens to a slot that does not parse (ST-LN-91 CR-01 CR-02, round 5)', () => {
   const loop = flat(skillFile('accord-approach', 'critique.md'));
   holds(loop, [
     'The separator is always ` — `, an em dash with a space on each side, never a hyphen: a hyphen in a state, a reason, a test or a command is part of its text.',
-    'A risk is written exactly ` — risk: security` or ` — risk: data-loss`, in any letter case.',
+    'A risk goes in the mark slot only: written exactly ` — risk: security` or ` — risk: data-loss` after the finding\'s text, in any letter case.',
     "The critic's `rests on: risk: security` is written that way, and the critic's own block, with `rests on: risk: security` on its own line under the finding, is read too.",
-    'A line that names a risk in any other form (`risk: security` in backticks or quotes, a hyphen between the parts, `risk: security.`) is a record problem: `accord round <id> --approach` and `accord approve` refuse until it is rewritten in the exact form.',
+    "The critic's other `rests on:` lines (`ac-<n>`, `D-<nn>`, a quote, `test:`, `command:`) are read as grounds the same way.",
+    "A risk named in the finding's words, a note, a reason or the owner's words is prose: accord reads no risk there and it blocks nothing, so write it in the mark slot.",
+    'A mark slot whose value does not parse (`risks: security`, `risk: data_loss`, `risk: security` in backticks or quotes) is a record problem: `accord round <id> --approach` and `accord approve` refuse until it is rewritten in the exact form.',
     'A state that closes a finding (`fixed`, `withdrawn`, `repeated as <round>.<n>`, `owner: "<words>"`) is the whole segment: `fixed by a patch` leaves it open.',
-    'The test is the word `risk`, then only spaces, colons, equals signs, hyphens, dashes, quotes, backticks, asterisks, underscores and brackets, then `security` or `data-loss`; a `risk:` followed by other words is plain text.',
   ]);
   expect(loop).not.toContain('with ` — `, ` - `');
+  expect(loop).not.toContain('The test is the word `risk`');
   holds(flat(skillFile('accord-approach', 'approval.md')), [
-    'A `record problem:` item in that part is a line of `approach-review.md` that accord cannot read, or a risk written in a form accord does not read: the owner cannot say yes until it is fixed (step 4).',
+    'A `record problem:` item in that part is a line of `approach-review.md` that accord cannot read, or a mark slot whose value does not parse: the owner cannot say yes until it is fixed (step 4).',
+    'A risk named only in prose is not read and does not block; the view lists the open finding under the risks.',
     'as `./critique.md` gives the form',
   ]);
-  holds(flat(agent('critic')), ['write the risk only as `risk: data-loss` or `risk: security`, never in backticks or quotes.']);
+  holds(flat(agent('critic')), ['write the risk only on its `rests on:` line, exactly `risk: data-loss` or `risk: security`, never in backticks, quotes or prose.']);
 });
 
-it('risk:security the plan critique loop names the same exact forms, so a plan record is not refused for a form the skill never gave (ST-LN-91 WR-01, round 4)', () => {
+it('risk:security the plan critique loop names the same mark slot, so a plan record is not refused for a form the skill never gave (ST-LN-91 WR-01, round 5)', () => {
   holds(flat(skillFile('accord-plan', 'critique.md')), [
-    'The separator is always ` — `, never a hyphen, and a risk is written exactly ` — risk: security` or ` — risk: data-loss`.',
-    'A line that names a risk in any other form (`risk: security` in backticks or quotes, a hyphen between the parts) is a record problem, and `accord round <id> --plan` refuses it on a plan record written under accord 0.4.1 or later.',
+    'The separator is always ` — `, never a hyphen, and a risk is written exactly ` — risk: security` or ` — risk: data-loss` after the finding\'s text: accord reads a risk from that mark slot only, never from the finding\'s words, a note or a reason.',
+    'A mark slot whose value does not parse (`risks: security`, `risk: data_loss`, `risk: security` in backticks or quotes) is a record problem, and `accord round <id> --plan` refuses it on a plan record written under accord 0.4.1 or later.',
   ]);
 });

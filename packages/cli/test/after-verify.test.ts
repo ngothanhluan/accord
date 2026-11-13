@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { setFrontmatterKey } from '@accord-dev/accord-core';
 import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import type { Files } from '../../../test/helpers/lane.js';
-import { approve, CONFIG, gateReadyIn, laneTicket, P, PLAN } from '../../../test/helpers/lane.js';
+import { approve, CONFIG, discussFiles, gateReadyIn, laneTicket, P, PLAN } from '../../../test/helpers/lane.js';
 import { loadFromFs } from '../src/load/fs.js';
 import { spawnLog } from './helpers/git-spawns.js';
 import { commitAllAt, commitMsg, gitRun, run, writeFiles } from './helpers/repo.js';
@@ -55,7 +55,7 @@ function mergeMain(c: Clone, o: string): { Mn: string; M: string } {
 
 /** The core form of `accord approve` and `accord gate ready` on the clone's ticket: writes both hashes. */
 function readied(root: string): string {
-  const f: Files = { 'accord/config.yml': CONFIG, [P('ST-9')]: laneTicket('ST-9') };
+  const f: Files = { 'accord/config.yml': CONFIG, [P('ST-9')]: laneTicket('ST-9'), ...discussFiles('ST-9') };
   approve(f, 'ST-9');
   const verdict = gateReadyIn(f, 'ST-9');
   writeFiles(root, { [P('ST-9')]: f[P('ST-9')] });

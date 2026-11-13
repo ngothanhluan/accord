@@ -2,7 +2,7 @@
 // review.md under accord/tickets/<id>/, and accord/tests-baseline.txt. Pure string work; every parser
 // normalises BOM and CRLF itself (D-38), so every encoding variant parses to one value.
 import type { LoadFinding } from '../model/finding.js';
-import type { Ledger, Line, Plan, PlanTask, Review } from '../model/snapshot.js';
+import type { Discuss, DiscussArea, Ledger, Line, Plan, PlanTask, Review } from '../model/snapshot.js';
 import { fnv1a64 } from '../gate/hash.js';
 import { normaliseText, splitFrontmatter } from './frontmatter.js';
 import { headingKey, LIST_MARKER, scan, stripHtmlComments } from './sections.js';
@@ -196,6 +196,87 @@ export function parseReview(file: string, text: string): Review {
   if (confirmed.length > 0) review = { ...review, confirmed };
   if (notInterface.length > 0) review = { ...review, notInterface };
   return review;
+}
+
+// ST-LN-91 D-04: the last part of a gray-area item: `D-07` or `D-07, D-08`. Anchored, and the alternatives cannot overlap, so no input backtracks.
+const DISCUSS_DECISIONS = /^D-[0-9]+(?:\s*,\s*D-[0-9]+)*$/;
+const DISCUSS_SEPARATOR = ' — ';
+// An area is a list item at the top level of its line (ST-LN-91 IN-01, RR-WR-03, WR-02): up to three leading spaces, and, as CommonMark reads a list, not indented
+// as far as the text of the area before it (a sub-bullet under `- ` starts at column 2, under `1. ` at column 3). Four or more spaces and a tab are never an area.
+const AREA_MARKER = /^( {0,3})([-*+]|\d+[.)])(\s+)/;
+
+/** The columns of white space at the start of a line (a tab to the next multiple of 4). */
+function leadingColumns(text: string): number {
+  let col = 0;
+  for (const c of text) {
+    if (c === ' ') col++;
+    else if (c === '\t') col += 4 - (col % 4);
+    else break;
+  }
+  return col;
+}
+
+/** The column at which the text of a list item starts: its indent, its marker and the spaces after it (a tab to the next multiple of 4; five or more columns of space count as one). */
+function textColumn(indent: number, marker: string, gap: string): number {
+  let col = indent + marker.length;
+  const start = col;
+  for (const c of gap) col = c === '\t' ? col + 4 - (col % 4) : col + 1;
+  return col - start > 4 ? start + 1 : col;
+}
+
+/**
+ * ST-LN-91 D-04: `accord/tickets/<id>/discuss.md`. The areas are the list items at the top level of a line (up to three spaces of indent, and indented less than the text
+ * of the area before it: a sub-bullet two spaces under `- ` is a note, WR-02) under every
+ * `## Gray areas` heading and every heading whose key starts with `gray areas`, such as `## Gray areas (cont.)` (WR-03, RR-WR-03: the headings other than the one
+ * exact `## Gray areas` are listed in `extraHeadings`, which the gate reports), outside fences and HTML comments: `- <group> — <gray area in plain words> — D-07` or `— D-07, D-08`. The text between the first and the last
+ * ` — ` is the gray area; with no `D-nn` last part the text is everything after the group, and an item with no separator is all text.
+ * Plain `split` on a fixed separator and one anchored pattern, so a long hostile line is read in linear time.
+ */
+export function parseDiscuss(file: string, text: string): Discuss {
+  const { sections, fences } = scan(normaliseText(text), 0);
+  const grays = sections.filter((s) => headingKey(s.heading).startsWith('gray areas'));
+  const unfenced = grays.flatMap((s) => s.lines).filter((l) => !fences.some((f) => l.line >= f.open && l.line <= f.close));
+  const sectionOf = new Map(grays.flatMap((s, i) => s.lines.map((l) => [l.line, i] as const)));
+  const areas: DiscussArea[] = [];
+  let column = 0; // where the text of the last top-level item of the section starts: a line indented to it or beyond is nested in it
+  let inSection = -1;
+  let blank = true; // the line before is blank (or this is the first of the section)
+  for (const l of stripHtmlComments(unfenced)) {
+    if (sectionOf.get(l.line) !== inSection) {
+      inSection = sectionOf.get(l.line)!;
+      column = 0;
+      blank = true;
+    }
+    const after = blank;
+    blank = l.text.trim() === '';
+    const marker = AREA_MARKER.exec(l.text);
+    if (marker === null) {
+      // WR-02 (round 4): as CommonMark reads it, a paragraph after a blank line, indented less than the text of the item, ends the list: a list item after it is top-level again.
+      // A line with no blank line before it continues the item's paragraph and ends nothing.
+      if (after && !blank && column > 0 && leadingColumns(l.text) < column) column = 0;
+      continue;
+    }
+    if (column > 0 && marker[1].length >= column) continue;
+    column = textColumn(marker[1].length, marker[2], marker[3]);
+    const item = l.text.slice(marker[0].length).trim();
+    if (item === '') continue;
+    const parts = item.split(DISCUSS_SEPARATOR).map((p) => p.trim());
+    if (parts.length === 1) {
+      areas.push({ line: l.line, group: '', text: item, decisions: [] });
+      continue;
+    }
+    const last = parts[parts.length - 1];
+    const named = DISCUSS_DECISIONS.test(last);
+    areas.push({
+      line: l.line,
+      group: parts[0],
+      text: parts.slice(1, named ? -1 : undefined).join(DISCUSS_SEPARATOR),
+      decisions: named ? last.split(',').map((d) => d.trim()) : [],
+    });
+  }
+  const plain = grays.findIndex((s) => headingKey(s.heading) === 'gray areas');
+  const extraHeadings = grays.filter((_, i) => i !== plain).map((s) => s.line);
+  return { file, areas, ...(extraHeadings.length > 0 ? { extraHeadings } : {}) };
 }
 
 /** One report case id per line; blank lines and comments (`#` alone or `# ` plus text) are skipped; `#123-x` is an id; sorted and unique. */

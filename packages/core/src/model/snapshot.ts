@@ -48,6 +48,8 @@ export interface SnapshotInput {
 export interface RangeCommit { sha: string; kind: 'commit' | 'merge' | 'episode'; files: string[] }
 /** ST-LN-91 D-11: the pin in accord/config.yml at the commit that first added a `## Round` heading to plan-review.md or approach-review.md, and at that commit's merge base with the default ref; `error` when git could not say. */
 export type RecordPin = { pin?: string; basePin?: string } | { error: string };
+/** ST-LN-91 D-15: the pin at a ticket's claim commit and at its merge base with the default ref; `{ error }` when git failed reading it. */
+export type ClaimPin = { sha?: string; pin?: string; basePin?: string } | { error: string };
 /** ST-LN-91 D-14: one hunk of `git diff -U0` between two texts of plan.md: the old and new first line and line count (a count of 0 places the hunk after the line named). */
 export interface PlanHunk { oldStart: number; oldCount: number; newStart: number; newCount: number }
 /** ST-LN-91 D-14: the planner's fix of plan.md as the host read it: the commit it started from, its hunks and both texts; `error` when git could not say. */
@@ -203,12 +205,14 @@ export interface RoundFinding {
   // Version 2 only (ST-LN-57): the parts of the finding line the form names.
   n?: number;
   file?: string; // absent for `none`
-  state?: 'open' | 'fixed' | 'deferred';
+  state?: 'open' | 'fixed' | 'deferred' | 'withdrawn' | 'repeated' | 'owner'; // the last three: version 1 plan and approach lines only (ST-LN-91)
   carried?: { round: number; n: number };
+  repeatedAs?: { round: number; n: number }; // state 'repeated' with a target (ST-LN-91 RR-CR-01): the round.n the finding was repeated as
   risk?: 'data-loss' | 'security';
   test?: string;
   command?: string;
   restsOn?: { kind: 'ac' | 'decision' | 'Veto' | 'Correction' | 'Intent' | 'Understood' | 'Done when'; ref: string }; // ref: ac-<n>, D-<nn>, or the quote without its quotes
+  restsOnAlso?: NonNullable<RoundFinding['restsOn']>[]; // ST-LN-91 round 7 CR-02: the further, different grounds the critic's block names after the first (never a record problem)
 }
 export interface RecordedRound {
   line: number; // of its ## Round heading
@@ -217,6 +221,7 @@ export interface RecordedRound {
   head?: string; // version 2 only (ST-LN-57): the commit the round reviewed up to, lower case
   added?: true; // version 2 only: the heading says (added code round 1)
   final?: true; // version 2 only: the heading says (final review)
+  markUnread?: { line: number; text: string }[]; // version 1 plan and approach records (ST-LN-91 round 5): the mark slots of the round (a segment or a block line that starts with a mark key) whose value does not parse
 }
 export interface RoundVerdict { value: string; quoted: boolean; line: number } // quoted: accepted-by-owner followed by a "sentence"
 export interface RoundCycle { line: number; marker?: string; rounds: RecordedRound[]; verdicts: RoundVerdict[]; closed?: number }
@@ -229,7 +234,22 @@ export interface RoundRecord {
   unreadable: { line: number; reason: string }[];
 }
 
+/** ST-LN-91 D-04: one gray area of discuss.md: its group, its text, and the `D-nn` ids its answer became. */
+export interface DiscussArea {
+  line: number; // Markdown line of the list item
+  group: string; // the part before the first ' — ', as written
+  text: string; // the gray area in plain words
+  decisions: string[]; // ['D-07', 'D-08']; empty when the line names none
+}
+/** ST-LN-91 D-04: accord/tickets/<id>/discuss.md, the ticket's record of every gray area and the Decision it became. */
+export interface Discuss {
+  file: string; // 'accord/tickets/LOGIN-1/discuss.md'
+  areas: DiscussArea[]; // the column-0 list items under every '## Gray areas' heading, in order
+  extraHeadings?: number[]; // the lines of every heading of gray areas but the first exact '## Gray areas' (a repeat, or '## Gray areas (cont.)'); absent when there is none
+}
+
 export interface TicketWork {
+  discuss?: Discuss; // discuss.md (ST-LN-91)
   plan?: Plan;
   ledger?: Ledger;
   review?: Review;
@@ -300,6 +320,11 @@ export interface RepoSnapshot {
   // ST-LN-93 D-08: host-supplied by gate plan for the gated ticket: the pin in accord/config.yml at the plan's
   // baseline: commit, and at that commit's merge base with the default ref. Absent when the host supplies none.
   planPins?: Record<string, { pin?: string; basePin?: string }>;
+  // ST-LN-91 D-15: host-supplied for the ticket (gate ready, accord round --approach, accord approve, accord show --approval --short): the pin in
+  // accord/config.yml at its claim commit (the newest commit whose subject is exactly `claim: <id>` that is not on the default ref, else the newest
+  // one overall), and at that commit's merge base with the default ref. A ticket with no `claim: <id>` commit has no fact: the commit that added its
+  // ticket file is no evidence of when work began. Absent when the host supplies none (no such commit, no git); read only through claimPinBefore.
+  claimPins?: Record<string, ClaimPin>;
   // ST-LN-91 D-11: host-supplied by accord round for the ticket it counts: the pin at the first round of its plan-review.md or
   // approach-review.md, else HEAD's, and at that commit's merge base with the default ref. A record with no entry keeps the older grounds rule.
   recordPins?: Record<string, { plan?: RecordPin; approach?: RecordPin }>;

@@ -4,8 +4,10 @@
 import { classifyEars } from '../lint/ears.js';
 import { headingKey, stripHtmlComments } from '../load/sections.js';
 import type { RepoSnapshot, Section, Ticket } from '../model/snapshot.js';
+import { claimPinBefore, claimPinError, DISCUSS_FROM } from '../round/pin.js';
 import { doneOnDefault } from '../status/stage.js';
 import { approvedHash } from './hash.js';
+import { decisionIds } from './plan.js';
 import type { GateRule } from './rules.js';
 
 const ticketFile = (id: string) => 'accord/tickets/' + id + '.md';
@@ -89,6 +91,82 @@ export const sectionEmpty: GateRule['check'] = (snapshot, id) => {
     if (s === undefined || stripHtmlComments(s.lines).some((l) => l.text.trim() !== '')) return [];
     return [{ file: ticketFile(id), line: s.line, reason: `"## ${name}" is empty; a lane S ticket needs it written before any change` }];
   });
+};
+
+/**
+ * ST-LN-91 D-04, D-12, D-15, D-18: the discuss rules apply to a ticket with a lane other than S (D-18: lanes M, L and P all take the discuss
+ * stage, as `isLaneM` reads "lane M") claimed at DISCUSS_FROM or later. The pin is the ticket's claim pin, never the working-tree pin when the
+ * host read a claim fact, so an upgrade does not send a ticket claimed under 0.4.0 back to discuss.
+ */
+function discussApplies(snapshot: RepoSnapshot, id: string): boolean {
+  const lane = laneOf(snapshot, id);
+  if (lane === undefined || lane === 'S') return false;
+  return !claimPinBefore(snapshot, id, DISCUSS_FROM);
+}
+
+/** ST-LN-91 WR-01: when git failed reading the claim pin the rule applies as fail-closed, and the finding says why. */
+const whyApplies = (snapshot: RepoSnapshot, id: string): string => {
+  const error = claimPinError(snapshot, id);
+  return error === undefined ? '' : `; the discuss stage applies because ${error}`;
+};
+
+/** ST-LN-91 91d-ac-1: a ticket the discuss stage applies to needs `accord/tickets/<id>/discuss.md`. */
+export const discussMissing: GateRule['check'] = (snapshot, id) => {
+  if (!discussApplies(snapshot, id)) return [];
+  const file = 'accord/tickets/' + id + '/discuss.md';
+  const discuss = snapshot.work?.[id]?.discuss;
+  if (discuss === undefined) {
+    return [
+      {
+        file,
+        reason:
+          file + ' is missing; from accord ' + DISCUSS_FROM + ' the discuss stage writes it: one line per gray area under ## Gray areas ' +
+          'with the D-nn its answer became under ## Decisions' + whyApplies(snapshot, id),
+      },
+    ];
+  }
+  if (discuss.areas.length > 0) return [];
+  return [
+    {
+      file: discuss.file,
+      reason: discuss.file + ' lists no gray area under ## Gray areas; the discuss stage writes one line per gray area the owner answered' + whyApplies(snapshot, id),
+    },
+  ];
+};
+
+/**
+ * ST-LN-91 91d-ac-1: each gray area of discuss.md names the `D-nn` its answer became, and `## Decisions` holds it. One finding per
+ * gray area with no D-nn and one per named D-nn the ticket does not hold, each on the area's own line and quoting its text. An area with no
+ * text of its own (a group and a D-nn alone) counts as unmapped (IN-02), and a repeated or continued `## Gray areas` heading is a finding (WR-03, RR-WR-03).
+ */
+export const discussUnmapped: GateRule['check'] = (snapshot, id) => {
+  const ticket = ticketOf(snapshot, id);
+  const discuss = snapshot.work?.[id]?.discuss;
+  if (ticket === undefined || discuss === undefined || !discussApplies(snapshot, id)) return [];
+  const known = new Set(decisionIds(ticket));
+  const repeated = (discuss.extraHeadings ?? []).map((line) => ({
+    file: discuss.file,
+    line,
+    reason: 'another heading of gray areas besides the first "## Gray areas"; put every gray area under the one "## Gray areas" heading, so each is read once',
+  }));
+  const areas = discuss.areas.flatMap((area) => {
+    const at = { file: discuss.file, line: area.line };
+    if (area.text === '') {
+      return [{ ...at, reason: 'this line names no gray area in plain words, only a group and a Decision; write the gray area between them' }];
+    }
+    if (area.decisions.length === 0) {
+      return [
+        {
+          ...at,
+          reason: `gray area "${area.text}" maps to no Decision; write the answer the owner gave as a D-nn line under ## Decisions and name it at the end of this line`,
+        },
+      ];
+    }
+    return area.decisions
+      .filter((d) => !known.has(d))
+      .map((d) => ({ ...at, reason: `gray area "${area.text}" names ${d}, which ## Decisions does not hold` }));
+  });
+  return [...repeated, ...areas].sort((a, b) => a.line - b.line);
 };
 
 /** Spec §4: no approval recorded. */

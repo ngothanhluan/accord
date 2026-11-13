@@ -36,8 +36,11 @@ const quoted = (text: string, quote: string): boolean => {
 
 /** The Ruling on `rests on`: the line a Should names exists in the ticket (lane S: only a quote of Understood or Done when). */
 export function restsOnHolds(ticket: Ticket, f: RoundFinding): boolean {
-  const r = f.restsOn;
-  if (r === undefined) return false;
+  // ST-LN-91 round 7 CR-02: the critic's block may name several grounds; the finding rests on a ticket line when any of them holds.
+  return [f.restsOn, ...(f.restsOnAlso ?? [])].some((r) => r !== undefined && groundHolds(ticket, r));
+}
+
+function groundHolds(ticket: Ticket, r: NonNullable<RoundFinding['restsOn']>): boolean {
   const laneS = ticket.frontmatter?.lane === 'S';
   if (laneS) {
     if (r.kind === 'Understood') return quoted(sectionText(ticket, 'understood'), r.ref);

@@ -4,11 +4,12 @@ import { loadSnapshot } from '../src/index.js';
 import { gateReady } from '../src/gate/index.js';
 import type { GateResult } from '../src/gate/index.js';
 import { approved } from './helpers/approve.js';
-import { CONFIG, junit, LANE_BODY, laneTicket, REPORT } from '../../../test/helpers/lane.js';
+import { CONFIG, discussFor, discussPath, junit, LANE_BODY, laneTicket, REPORT } from '../../../test/helpers/lane.js';
 
 const files = (text = laneTicket('T-1')) => ({
   'accord/config.yml': CONFIG,
   'accord/tickets/T-1.md': text,
+  [discussPath('T-1')]: discussFor('T-1'), // a ticket claimed at the discuss cut-off carries its discuss record (ST-LN-91)
   [REPORT]: junit({ 'export#writes-csv': 'passed', 'export#escapes-commas': 'passed' }),
 });
 const ready = (f: Record<string, string>) => gateReady(loadSnapshot({ files: f, tree: Object.keys(f).sort() }), 'T-1');

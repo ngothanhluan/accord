@@ -1,0 +1,36 @@
+---
+kind: reference
+---
+
+# The discuss stage
+
+Runs after the interview, in the main session. Every gray area the ticket leaves open is asked and settled
+before anyone drafts an approach.
+
+1. Dispatch `accord-planner` in its `discuss` mode with the paths of `accord/tickets/<id>.md` and
+   `accord/tickets/<id>/scout.md`. It replies with the gray areas by group: direction options, behaviour and
+   output, failure and data loss, scope edges, interfaces, measurement rules or heuristics, test strategy. It always returns at least the test-strategy gray area; when a reply holds none, write that one yourself. When
+   its reply names a question the code answers, dispatch `accord-scout` with that question and give the planner
+   the reply.
+
+2. Write `accord/tickets/<id>/discuss.md` as `# Discuss: <id>`, a blank line, and every gray area under one `## Gray areas` heading, one list item at the start of its line,
+   never indented: `- <group> — <the gray area in plain words> — ` with no D-nn yet. Commit it.
+
+3. Ask the owner every gray area, one at a time, with no cap, as `./ask.md` says: the question stands alone, in
+   plain words, with its options, the recommended one first, and the consequence of each. The planner's
+   recommendation is the default; the owner may take it or choose another.
+
+4. After each answer write it under `## Decisions` of the ticket as
+   `- D-nn <decision> — "<the owner's sentence>"` with the next free number: the owner's words, in English when
+   they were not. End that gray area's line in discuss.md with the same `D-nn`. A default the owner takes is
+   written the same way, with the owner's words. Commit both files, then run `accord worktree push <id>`; go on
+   even if it fails.
+
+5. Never answer, merge or skip a gray area for the owner. A gray area whose answer changes the Intent, a
+   criterion or a Veto stops discuss: write the owner's words under `## Corrections` and go back to step 6 of the
+   skill.
+
+6. On a resume, the first line of discuss.md with no D-nn is the next question.
+
+7. When every line names a D-nn, run `accord gate ready <id>`. Go on only when it names neither
+   `gate.discuss-missing` nor `gate.discuss-unmapped`; then `accord-approach`.

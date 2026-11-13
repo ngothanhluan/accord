@@ -1,8 +1,8 @@
 // ST-LN-6 Task 1: the detail of one lane ticket and the label of each criterion.
 import { expect, it } from 'vitest';
-import { loadSnapshot, ticketDetail } from '../src/index.js';
+import { approvalShort, loadSnapshot, ticketDetail } from '../src/index.js';
 import { acHash } from '../src/gate/hash.js';
-import { CONFIG, laneTicket, REPORT } from '../../../test/helpers/lane.js';
+import { CONFIG, LANE_BODY, laneTicket, REPORT } from '../../../test/helpers/lane.js';
 
 const scenario = (n: number, test: boolean) =>
   [`  @ac-${n}${test ? ` @test:t#c${n}` : ''}`, `  Scenario: criterion ${n}`, '    Given a thing', '    Then it holds', ''].join('\n');
@@ -90,4 +90,38 @@ it('risk:complex-branching holder and blocking tickets come from the row and a n
   expect(ticketDetail(s, 'T-3')).toBeUndefined();
   expect(ticketDetail(s, 'T-2')).toBeUndefined();
   expect(ticketDetail(s, 'toString')).toBeUndefined();
+});
+
+it('risk:complex-branching the short approval view prints exactly the intent, one line per criterion, the decisions, the risks and the ticket path (ST-LN-91 91d-ac-3)', () => {
+  const ticket = (b: string) => loadSnapshot({ files: { 'accord/config.yml': CONFIG, 'accord/tickets/X-1.md': laneTicket('X-1', { body: b }) }, tree: [] }).tickets['X-1'];
+  expect(approvalShort(ticket(LANE_BODY), ['round 2: 1. Should — the cache can go stale — open']).split('\n')).toEqual([
+    '## Intent',
+    '',
+    'Owners can export their report as CSV.',
+    'Expected size: 5 tasks',
+    '',
+    '## Criteria',
+    '',
+    '- ac-1 export writes a csv',
+    '- ac-2 commas are escaped',
+    '',
+    '## Decisions',
+    '',
+    '- D-01 Use the existing writer — "reuse what we have"',
+    '',
+    '## Risks',
+    '',
+    '- round 2: 1. Should — the cache can go stale — open',
+    '',
+    'Full ticket: accord/tickets/X-1.md',
+    '',
+  ]);
+  // No risk: none. A commented-out Decision and blank lines are left out.
+  const hidden = LANE_BODY.replace('## Corrections', '<!-- - D-02 hidden -->\n\n## Corrections');
+  const out = approvalShort(ticket(hidden), []);
+  expect(out).toContain('## Risks\n\nnone\n\nFull ticket: accord/tickets/X-1.md\n');
+  expect(out).not.toContain('hidden');
+  // An empty part prints none under its heading.
+  const bare = approvalShort(ticket('## Intent\n\n## Acceptance criteria\n\n## Decisions\n<!-- none yet -->\n'), []);
+  expect(bare.split('\n')).toEqual(['## Intent', '', 'none', '', '## Criteria', '', 'none', '', '## Decisions', '', 'none', '', '## Risks', '', 'none', '', 'Full ticket: accord/tickets/X-1.md', '']);
 });

@@ -3,7 +3,7 @@ name: accord-intent
 description: Use when a lane M ticket needs its intent captured, or when /accord routes a new request here. Runs the intent interview that writes the ticket's Intent, acceptance criteria, Vetoes, Decisions, and Corrections, so later stages cannot drift from what the owner meant.
 license: MIT
 kind: skill
-loads: [shared/ask.md, shared/scout.md, accord/ids.md, accord/lane.md, intent/research.md]
+loads: [shared/ask.md, shared/scout.md, accord/ids.md, accord/lane.md, intent/research.md, intent/discuss.md]
 ---
 
 This stage writes down what the owner means, in the ticket, before anyone
@@ -59,15 +59,11 @@ plans or builds. You run it in the main session.
    question. Then commit `accord/tickets/<id>.md`, with the ledger if it
    changed.
 
-9. **The owner's yes.** Run `accord show <id> --approval`; if it fails, stop and tell the
-   owner. Paste its output unchanged, as Markdown, not inside a code block; below it put a horizontal rule, a
-   heading "In plain words" written in the chat language, and one line per scenario that begins with its ac-n
-   and says in plain words what it means; ask for an explicit yes, and on yes commit the ticket with
-   the owner's answer quoted in the commit message. That commit holds `accord/tickets/<id>.md`, with the ledger
-   if it changed, and uses `--allow-empty` when nothing changed. Then run `accord worktree push <id>`; go on even
-   if it fails. On a no, write the owner's words under
-   `## Corrections` first, rewrite the sections they touch, take a changed criterion back to step 8, and show
-   the text again.
+9. **Discuss.** Run `accord gate ready <id>` and read its exit code. On exit 2 (a pin mismatch or a usage
+   error) stop and report what it printed to the owner: it says nothing about discuss. When it names
+   `gate.discuss-missing` or `gate.discuss-unmapped`, follow `./discuss.md`; when it names neither, the ticket
+   was claimed before the discuss stage or its discuss.md is mapped, and goes on. Ask no yes here: the owner
+   approves once, at accord-approach step 5.
 
 10. Next: `accord-approach`.
 

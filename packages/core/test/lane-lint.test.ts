@@ -54,6 +54,15 @@ describe('direction.md is a ticket record (ST-LN-91 ac-4)', () => {
   });
 });
 
+describe('discuss.md is a ticket record (ST-LN-91 91d-ac-1)', () => {
+  it('risk:regression lint accepts a discuss.md ticket record (ST-LN-91 91d-ac-1)', () => {
+    const base = repo({ 'T-1': laneTicket('T-1') });
+    const withDiscuss = { ...base, 'accord/tickets/T-1/discuss.md': '## Gray areas\n- behaviour — what export prints for an empty report — D-01\n' };
+    expect(lintSnapshot(load(withDiscuss)).findings).toEqual(lintSnapshot(load(base)).findings);
+    expect(load(withDiscuss).errors).toEqual(load(base).errors);
+  });
+});
+
 describe('EARS lint is off for lane tickets (spec §4, §15)', () => {
   const requirements = ['## Requirements', 'Owners like exports.', ...Array.from({ length: 15 }, () => 'The system shall export.'), ''];
   const body = LANE_BODY + requirements.join('\n');

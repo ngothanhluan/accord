@@ -152,6 +152,19 @@ export const done = (files: Files, id: string, opts?: Opts) => {
   files[P(id)] = setFrontmatterKey(files[P(id)], 'verified_hash', AC);
 };
 
+/** ST-LN-91: the path of a ticket's discuss record. */
+export const discussPath = (id: string): string => 'accord/tickets/' + id + '/discuss.md';
+
+/**
+ * ST-LN-91: a discuss record that maps its one gray area to D-01, the Decision LANE_BODY holds. A lane M fixture that must pass gate ready
+ * at the discuss cut-off (a ticket claimed at DISCUSS_FROM or later) carries it, and a test about the older rule leaves it out and pins its
+ * claim to 0.4.0 instead (D-15).
+ */
+export const discussFor = (id: string): string => ['# Discuss: ' + id, '', '## Gray areas', '- scope — whether totals are exported — D-01', ''].join('\n');
+
+/** The discuss records of `ids` as files, for `makeLaneRepo(discussFiles('T-1'))` and the like: a fixture that must pass Ready at the discuss cut-off. */
+export const discussFiles = (...ids: string[]): Record<string, string> => Object.fromEntries(ids.map((id) => [discussPath(id), discussFor(id)]));
+
 /** The core form of `accord gate ready`: on a pass it writes ac_hash into the ticket file, like the command. */
 export function gateReadyIn(files: Files, id: string): string {
   const r = gateReady(loadSnapshot({ files, tree: Object.keys(files) }), id);

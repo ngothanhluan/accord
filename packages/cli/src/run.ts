@@ -333,7 +333,8 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .description('print one ticket: with --approval its approved sections, otherwise the row facts of a lane ticket, Intent, and each criterion with its state')
     .option('--json', 'print the TicketDetail object instead of text')
     .addOption(new Option('--approval', "print the approved sections for the owner's yes, criteria compacted").conflicts('json'))
-    .action((id: string, options: { json?: boolean; approval?: boolean }) => {
+    .addOption(new Option('--short', 'with --approval: the short view the owner approves from, the full ticket one path away').conflicts('json'))
+    .action((id: string, options: { json?: boolean; approval?: boolean; short?: boolean }) => {
       setCode(show(preflight(opts, 'claims'), id, options));
     });
 

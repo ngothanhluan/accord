@@ -4,7 +4,7 @@ import { readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { recordTaskDone, setFrontmatterKey } from '@accord-dev/accord-core';
 import { describe, expect, it } from 'vitest';
-import { approve, gateReadyIn, P, PLAN, type Files } from '../../../test/helpers/lane.js';
+import { approve, discussFiles, discussPath, gateReadyIn, P, PLAN, type Files } from '../../../test/helpers/lane.js';
 import { cleanup, commitAll, commitMsg, gitRun, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
 
 /** The orchestrator ran the suite after the last commit: task-done refuses a report older than HEAD. */
@@ -37,7 +37,7 @@ const evidence = (sha: string) =>
 
 /** A lane repository brought to the state the old walk had at the start of stage `stage`, with no CLI run. */
 function stageRepo(stage: 2 | 3 | 4): string {
-  const repo = makeLaneRepo();
+  const repo = makeLaneRepo(discussFiles('T-1'));
   try {
     // makeLaneRepo sets no identity: commitMsg needs one, and the walk's commits were authored by this one.
     gitRun(repo, 'config', 'user.email', 'fixture@example.invalid');
@@ -48,7 +48,7 @@ function stageRepo(stage: 2 | 3 | 4): string {
     gitRun(repo, 'switch', '-q', '-c', 't/T-1');
     // accord approve and accord gate ready, run in core on the repository's own files.
     const files: Files = {};
-    for (const rel of ['accord/config.yml', P('T-1'), 'accord/tickets/T-1/plan.md', 'src/export.ts', 'reports/junit.xml']) {
+    for (const rel of ['accord/config.yml', P('T-1'), 'accord/tickets/T-1/plan.md', 'src/export.ts', 'reports/junit.xml', discussPath('T-1')]) {
       files[rel] = readFileSync(join(repo, ...rel.split('/')), 'utf8');
     }
     approve(files, 'T-1');
@@ -77,7 +77,7 @@ function stageRepo(stage: 2 | 3 | 4): string {
 describe('lane ticket flow', () => {
   // Each stage starts from core-ready files, so a test spawns only the CLI runs its title names.
   it('risk:complex-branching gate ready passes only after approve and gate plan passes on a plan against HEAD', async () => {
-    const repo = makeLaneRepo();
+    const repo = makeLaneRepo(discussFiles('T-1'));
     try {
       // The ticket is worked on its own branch: gate done reads the branch diff from the default branch.
       commitAll(repo, 'base');

@@ -439,6 +439,11 @@ describe('render output invariants', () => {
     // The subjects the READY_PROMOTE rules read. Each is legitimate on its own — the offence is naming
     // one in the same paragraph as the command that checks it.
     const PROMOTED = ['## Open questions', 'assumptions:', 'status: draft', 'TODO'];
+    // ST-LN-91 D-12: accord-intent names the two discuss rules because the answer of `accord gate ready` to them is the
+    // signal that the ticket still needs the discuss stage (the skill reads the tool, never the pin). That is the only
+    // place a rule id is named, and only these two ids.
+    const DISCUSS_SIGNAL = ['gate.discuss-missing', 'gate.discuss-unmapped'];
+    const DISCUSS_FILES = /\/accord-intent\/(SKILL|discuss)\.md$/;
 
     const offenders: { path: string; line: number; text: string }[] = [];
     let commands = 0;
@@ -446,7 +451,7 @@ describe('render output invariants', () => {
       const body = bodyOf(text);
       body.split('\n').forEach((line, i) => {
         const hit = (ban: string) => offenders.push({ path, line: i + 1, text: `${ban}: ${line.trim()}` });
-        for (const id of ruleIds) if (line.includes(id)) hit('rule id');
+        for (const id of ruleIds) if (line.includes(id) && !(DISCUSS_SIGNAL.includes(id) && DISCUSS_FILES.test(path))) hit('rule id');
         if (LEVEL.test(line)) hit('finding level');
         if (VERDICT.test(line)) hit('gate verdict');
       });

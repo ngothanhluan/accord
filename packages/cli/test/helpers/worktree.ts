@@ -7,7 +7,7 @@ import { afterAll, afterEach, beforeAll, expect, vi } from 'vitest';
 import * as limit from '../../src/commands/fetch-limit.js';
 import * as proc from '../../src/load/proc.js';
 import { approvedHash, gateReady, loadSnapshot, setFrontmatterKey } from '@accord-dev/accord-core';
-import { CONFIG, gateReadyIn, LANE_BODY, LANE_S_BODY, laneTicket, P, PLAN } from '../../../../test/helpers/lane.js';
+import { CONFIG, discussFor, discussPath, gateReadyIn, LANE_BODY, LANE_S_BODY, laneTicket, P, PLAN } from '../../../../test/helpers/lane.js';
 import { cleanup, commitMsg, gitRun, mergeMsg, run, writeFiles } from './repo.js';
 
 const STEP = [
@@ -46,6 +46,7 @@ export function makeClone(opts: { setup?: string[]; tickets?: string[] } = {}): 
   for (const id of opts.tickets ?? ['ST-9']) {
     files[`accord/tickets/${id}.md`] = laneTicket(id);
     files[`accord/tickets/${id}/scout.md`] = 'skipped: seeded by the test helper\n'; // ST-LN-81: approve needs a report
+    files[discussPath(id)] = discussFor(id); // ST-LN-91: gate ready at the discuss cut-off needs the discuss record
   }
   writeFiles(made, files);
   gitRun(made, 'add', '-A');

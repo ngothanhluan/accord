@@ -17,14 +17,14 @@ import { d07Key, duplicateHeadings, headingKey, laneKey, requirementLines, scan 
 import { isResearchPath } from './research.js';
 import { parseRounds } from '../round/record.js';
 import { parseVerification } from './verification.js';
-import { parseBaseline, parseLedger, parsePlan, parseReview } from './work.js';
+import { parseBaseline, parseDiscuss, parseLedger, parsePlan, parseReview } from './work.js';
 
 const CONFIG = 'accord/config.yml';
 // A3: a configured report with none of these is garbage, reported once rather than once per scenario.
 const REPORT_TAG = /<testsuites?\b|<testcase\b/;
 const TICKET = /^accord\/tickets\/([^/]+)\.md$/;
 const VERIFICATION = /^accord\/tickets\/([^/]+)\/verification\.md$/;
-const WORK = /^accord\/tickets\/([^/]+)\/(plan-review|approach-review|plan|ledger|review)\.md$/;
+const WORK = /^accord\/tickets\/([^/]+)\/(plan-review|approach-review|discuss|plan|ledger|review)\.md$/;
 const BASELINE = 'accord/tests-baseline.txt';
 export const PROTOTYPE = /^accord\/assets\/([^/]+)\/prototype\.html$/;
 
@@ -173,6 +173,8 @@ export function loadSnapshot(input: SnapshotInput): RepoSnapshot {
       errors.push(...r.findings);
     } else if (kind === 'ledger') {
       entry.ledger = parseLedger(file, files[file]);
+    } else if (kind === 'discuss') {
+      entry.discuss = parseDiscuss(file, files[file]);
     } else if (kind === 'approach-review') {
       entry.approachRounds = parseRounds(file, files[file], 'approach');
     } else if (kind === 'plan-review') {

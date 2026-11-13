@@ -70,6 +70,11 @@ it("risk:regression direction.md is one of the ticket's own records (ST-LN-91 ac
   expect(ownRecordsOnly('T-1', ['accord/tickets/T-2/direction.md'])).toBe(false);
 });
 
+it("risk:regression discuss.md is one of the ticket's own records (ST-LN-91 91d-ac-1)", () => {
+  expect(ownRecordsOnly('T-1', ['accord/tickets/T-1/discuss.md'])).toBe(true);
+  expect(ownRecordsOnly('T-1', ['accord/tickets/T-2/discuss.md'])).toBe(false);
+});
+
 describe('Done for lane tickets', () => {
   it('passes with every task recorded, a converged review, and a traced green suite', () => {
     const r = done(doneFiles());

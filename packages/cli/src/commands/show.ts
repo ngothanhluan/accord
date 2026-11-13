@@ -1,9 +1,11 @@
 // ST-LN-6 `accord show <id> [--json|--approval]`: one lane ticket in full as text or TicketDetail; --approval needs no lane.
-import { approvalView, ticketDetail } from '@accord-dev/accord-core';
+import { approvalShort, approvalView, ticketDetail } from '@accord-dev/accord-core';
 import type { TicketDetail } from '@accord-dev/accord-core';
 import { colourApproval } from '../render/color.js';
+import { UsageError } from '../load/fs.js';
 import { isUnsafe } from '../render/dashboard.js';
 import type { CommandContext } from '../run.js';
+import { approachFacts, claimNote } from './approval-blockers.js';
 import { requireLaneTicket, requireTicket } from './lane-args.js';
 
 // Control, bidi and line-separator code points become one space each; nothing is cut or collapsed.
@@ -37,7 +39,8 @@ function text(d: TicketDetail): string {
   return lines.map(clean).join('\n') + '\n';
 }
 
-export function show(ctx: CommandContext, id: string, options: { json?: boolean; approval?: boolean }): number {
+export function show(ctx: CommandContext, id: string, options: { json?: boolean; approval?: boolean; short?: boolean }): number {
+  if (options.short === true && options.approval !== true) throw new UsageError('--short goes with --approval');
   if (options.approval === true) {
     // The checkout, as `accord approve` reads it; no lane needed.
     const ticket = requireTicket(ctx.plain ?? ctx.snapshot, id);
@@ -47,6 +50,18 @@ export function show(ctx: CommandContext, id: string, options: { json?: boolean;
       for (const f of found) ctx.stderr.write(f.file + (f.line === undefined ? '' : ':' + f.line) + ': ' + f.rule + ' ' + f.reason + '\n');
       ctx.stderr.write(ticket.file + ' has load findings; run accord lint\n');
       return 1;
+    }
+    if (options.short === true) {
+      // The risks are the Must and Should findings of the last approach cycle still open and not marked data-loss or security, the risk findings the owner
+      // dropped, and on a ticket claimed under an older accord the open risk findings too, which block nothing there (D-02, D-22, RR-WR-01).
+      // An open data-loss or security finding on the capped rules is listed apart: it blocks the approval, so it is no risk to accept.
+      // `ctx.plain` is the whole checkout snapshot, so it holds the work records; without it the claims snapshot is read.
+      const facts = approachFacts(ctx, id);
+      const show = (rounds: { round: number; lines: string[] }[]): string[] => rounds.flatMap((r) => r.lines.map((l) => `round ${r.round}: ${l}`));
+      // CR-01: a record accord cannot read is listed there too, as `record problem:` lines: the approval waits for it.
+      const note = facts.error !== undefined && (facts.blocking.length > 0 || facts.problems.length > 0) ? claimNote(facts.error) : undefined;
+      ctx.stdout.write(colourApproval(approvalShort(ticket, show(facts.risks), show(facts.blocking), note, facts.problems).split('\n').map(clean).join('\n'), ctx.stdout));
+      return 0;
     }
     ctx.stdout.write(colourApproval(approvalView(ticket).split('\n').map(clean).join('\n'), ctx.stdout));
     return 0;

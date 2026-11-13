@@ -24,7 +24,9 @@ function repo(review: string | undefined, o: Opts = {}) {
   if (review !== undefined) files['accord/tickets/' + id + '/review.md'] = review;
   if (o.plan !== undefined) files['accord/tickets/' + id + '/plan-review.md'] = o.plan;
   if (o.approach !== undefined) files['accord/tickets/' + id + '/approach-review.md'] = o.approach;
-  return loadSnapshot({ files, tree: Object.keys(files), ...(o.returnFacts === undefined ? {} : { returnFacts: o.returnFacts }) });
+  // These cases are about the five-round rules and their allowances: the ticket is claimed under 0.4.0, which the claim pin keeps on them (ST-LN-91 D-15).
+  const snapshot = loadSnapshot({ files, tree: Object.keys(files), ...(o.returnFacts === undefined ? {} : { returnFacts: o.returnFacts }) });
+  return { ...snapshot, claimPins: { [id]: { pin: '0.4.0' } } };
 }
 
 it('ac-1 the round record gives the round the cap and the fix executor model and the tier stays raised after verify', () => {

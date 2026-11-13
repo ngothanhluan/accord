@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { setFrontmatterKey } from '@accord-dev/accord-core';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { cleanup, commitMsg, copyRepo, gitRun, makeEmptyRepo, run, writeFiles } from './helpers/repo.js';
-import { AC, approve, CONFIG, done, gateReadyIn, LANE_S_BODY, laneTicket, P } from '../../../test/helpers/lane.js';
+import { AC, approve, CONFIG, discussFiles, done, gateReadyIn, LANE_S_BODY, laneTicket, P } from '../../../test/helpers/lane.js';
 import type { Files } from '../../../test/helpers/lane.js';
 import { doneRef } from '../src/load/fs.js';
 
@@ -19,6 +19,7 @@ beforeAll(() => {
     [P('S-1')]: laneTicket('S-1', { lane: 'S', body: LANE_S_BODY }),
     [P('T-1')]: laneTicket('T-1'),
     [P('T-2')]: laneTicket('T-2', { frontmatter: ['depends_on: ["T-1"]'] }),
+    ...discussFiles('T-1', 'T-2'),
   };
   if (gateReadyIn(files, 'S-1') !== 'pass') throw new Error('S-1 did not pass gate ready');
   approve(files, 'T-1');

@@ -6,7 +6,7 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative, sep } from 'node:path';
-import { contentHash, hookEntries, markerHash, normaliseText, pluginTargets, withoutMarker } from '@accord-dev/accord-core';
+import { agentTargets, contentHash, hookEntries, loadConfig, markerHash, normaliseText, pluginTargets, skillTargets, withoutMarker } from '@accord-dev/accord-core';
 import { afterEach, describe, expect, it } from 'vitest';
 import pkg from '../package.json' with { type: 'json' };
 import { writeSkillFiles } from '../src/commands/skills.js';
@@ -740,4 +740,17 @@ it('risk:regression the committed panel hooks match what skills sync renders', (
     expect(t, p).toBeDefined();
     expect(withoutMarker(normaliseText(text)), p).toBe(withoutMarker((t as { text: string }).text));
   }
+});
+
+// ST-LN-91 round 6 WR-04: no test compared the committed copies with the rendered text, so a source edit that was never synced passed CI (round 4's drift). Every skill and agent this
+// repository's own accord/config.yml renders must equal the copy committed under .claude/ and .agents/.
+it('risk:drift every committed skill and agent copy equals the text the repository config renders', () => {
+  const root = new URL('../../../', import.meta.url);
+  const loaded = loadConfig('accord/config.yml', readFileSync(new URL('accord/config.yml', root), 'utf8'));
+  expect(loaded.findings).toEqual([]);
+  const config = loaded.config!;
+  const rendered = [...skillTargets(config), ...agentTargets(config)];
+  expect(rendered.length).toBeGreaterThan(20);
+  const drifted = rendered.filter((f) => normaliseText(readFileSync(new URL(f.path, root), 'utf8')) !== normaliseText(f.text)).map((f) => f.path);
+  expect(drifted, 'run accord skills sync: these copies differ from the rendered text').toEqual([]);
 });

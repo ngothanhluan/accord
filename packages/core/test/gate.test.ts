@@ -515,6 +515,7 @@ const GATE01: Record<string, string[]> = {
     'gate.approval-missing',
     'gate.approval-stale',
   ],
+  'a lane ticket claimed from accord 0.4.1: its discuss record (ST-LN-91)': ['gate.discuss-missing', 'gate.discuss-unmapped'],
   'a lane S ticket: Understood and Done when written': ['gate.section-empty'],
   'at least one tagged scenario': ['lint.no-scenarios', 'lint.ac-tag-missing'],
   'no LINT-06 findings': [...READY_PROMOTE],

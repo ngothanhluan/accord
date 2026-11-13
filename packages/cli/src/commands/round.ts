@@ -1,6 +1,7 @@
 // ST-LN-17 `accord round <id> [--plan | --approach]`: the next review, plan critique or approach critique round, read from
 // review.md, plan-review.md or approach-review.md. Exit 0 only for a next round; 1 for a stop or a refusal; 2 for a usage error.
 import { nextRound, roundText } from '@accord-dev/accord-core';
+import { withClaimPins } from '../load/claim-facts.js';
 import { UsageError, withReturnFacts } from '../load/fs.js';
 import { withPlanFix } from '../load/plan-diff.js';
 import { withRecordPins, withRoundFacts } from '../load/round-facts.js';
@@ -21,10 +22,12 @@ export function round(ctx: CommandContext, id: string, options: { plan?: boolean
   }
   // ST-LN-91 D-11: a plan or approach record is asked for grounds from round 2 under the pin of its own first round.
   // D-14: the plan's fix is checked from round 1 on, under the same pin, against the tasks its open findings name.
+  // ST-LN-91 D-15: every Phase 3 round rule reads the ticket's claim pin (the approach cap now, the plan cap in plan 03-09), loaded here
+  // beside the record pin, which stays the grounds rule's.
   const snapshot = plan
-    ? withPlanFix(ctx.root, withRecordPins(ctx.root, ctx.snapshot, id, 'plan', 1), id)
+    ? withPlanFix(ctx.root, withRecordPins(ctx.root, withClaimPins(ctx.root, ctx.snapshot, id), id, 'plan', 1), id)
     : approach
-      ? withRecordPins(ctx.root, ctx.snapshot, id, 'approach')
+      ? withRecordPins(ctx.root, withClaimPins(ctx.root, ctx.snapshot, id), id, 'approach')
       : withRoundFacts(ctx.root, withReturnFacts(ctx.root, ctx.snapshot, id), id);
   const answer = nextRound(snapshot, id, plan ? 'plan' : approach ? 'approach' : 'review');
   ctx.stdout.write(roundText(answer));

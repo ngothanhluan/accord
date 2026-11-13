@@ -25,7 +25,8 @@ function snap(kind: Kind, round2: string[], o: { pin?: RecordPin; body?: string;
     '## Rulings\n- task 1 done abc1234\n- task 2 done abc1234\n' + (o.deferred === undefined ? '' : '\n## Deferred\n' + o.deferred.map((d) => '- ' + d + '\n').join(''));
   files['accord/tickets/T-1/' + FILE[kind]] =
     'Round record: 1\n\n' + round(1, 'whole', ...(o.first ?? [must('rests on: ac-2')])) + round(2, 'diff', ...round2) + (o.round3 === undefined ? '' : round(3, 'diff', ...o.round3));
-  const base = loadSnapshot({ files, tree: Object.keys(files) });
+  // The grounds rule reads the record pin; the ticket is claimed under 0.4.0, so the discuss and approach-cap rules, which read the claim pin (D-15), stay out of what these cases assert.
+  const base: RepoSnapshot = { ...loadSnapshot({ files, tree: Object.keys(files) }), claimPins: { 'T-1': { pin: '0.4.0' } } };
   return o.pin === undefined ? base : { ...base, recordPins: { 'T-1': { [kind]: o.pin } } };
 }
 const answer = (s: RepoSnapshot, kind: Kind) => nextRound(s, 'T-1', kind);
@@ -246,4 +247,47 @@ it('risk:regression old ledger lines are not read as deferrals (ST-LN-91 ac-1)',
     { kind: 'plan', round: 2, n: 1, cycle: 1, failingCase: true },
     { kind: 'approach', round: 2, n: 3, cycle: 2 },
   ]);
+});
+
+// ST-LN-91 round-4 CR-01, WR-01: the strict reading. A ` - ` or ` -- ` inside a mark is never a separator; a risk in a form accord does not read is a record problem for a plan record on the grounds rule too.
+it('risk:parsing a command or a test holding hyphens stays whole, and the finding still reads its state and grounds (ST-LN-91 CR-01 F2 P1)', () => {
+  const cmd = '1. Should — Task 3 drops a header — open — command: npm test -- packages/cli/test/export.test.ts';
+  for (const kind of ['plan', 'approach'] as const) {
+    const s = snap(kind, [cmd], { pin: cut });
+    expect(answer(s, kind).kind, kind).toBe('next');
+    const f = (kind === 'plan' ? s.work!['T-1'].planRounds! : s.work!['T-1'].approachRounds!).cycles[0].rounds[1].findings[0];
+    expect(f).toMatchObject({ n: 1, state: 'open', command: 'npm test -- packages/cli/test/export.test.ts' });
+  }
+  const test = '1. Should — Task 3 drops a header — open — test: export - fixed width rows survive';
+  expect(parseRounds('x.md', 'Round record: 1\n\n## Round 2 (diff)\n\n' + test + '\n', 'plan').cycles[0].rounds[0].findings[0]).toMatchObject({ state: 'open', test: 'export - fixed width rows survive' });
+});
+
+it('risk:security a plan record on the grounds rule reads a risk structurally: a mark slot that does not parse refuses, prose never does (ST-LN-91 CR-01 CR-02 WR-05 M10 P1 P3)', () => {
+  // Grounded lines (rests on: ac-1), so the risk check, not the grounds rule, decides.
+  const grounded = (mark: string) => '1. Must — Task 3 logs tokens — open — rests on: ac-1 — ' + mark;
+  for (const bad of ['`risk: security`', 'risks: security', 'risk: data_loss', 'risk; security', 'risk: data‑loss','rests on: "risk: security"']) {
+    const refused = answer(snap('plan', [grounded(bad)], { pin: cut }), 'plan');
+    expect(refused.kind, bad).toBe('refused');
+    expect(refused.reasons.join('\n'), bad).toContain('a mark accord cannot read');
+    // Before the grounds rule (no pin, or an older one) a plan record is read as it was.
+    expect(answer(snap('plan', [grounded(bad)]), 'plan').kind, bad).toBe('next');
+  }
+  // Prose: the finding text, a test name, a note, a reason; none refuses, on a plan or an approach record.
+  for (const prose of [
+    '1. Should — Task 3 - risk: a stale read on reload — open — rests on: ac-1',
+    '1. Must — Task 1: a fetch prunes early; add a `risk:data-loss` test — open — rests on: ac-1',
+    '1. Should — Task 2 drops headers — withdrawn: no risk: security headers are set by the proxy — rests on: ac-1',
+    '1. Should — Task 2 drops headers — security risk — open — rests on: ac-1',
+  ]) {
+    expect(answer(snap('plan', [prose], { pin: cut }), 'plan').kind, prose).toBe('next');
+    expect(answer(snap('plan', [prose, 'Security lens: no risk: security path is touched.', '', 'risks: security'], { pin: cut }), 'plan').kind, prose).toBe('next');
+  }
+  // A risk line directly under the finding, with no blank line, is a lazy continuation of it: a record problem (ST-LN-91 WR-02, round 6), not silently ignored.
+  const lazy = answer(snap('plan', [should('rests on: ac-1'), 'rests on: risk: security'], { pin: cut }), 'plan');
+  expect(lazy.kind).toBe('refused');
+  expect(lazy.reasons.join('\n')).toContain('a mark accord cannot read');
+  // A plan record's critic block reads its rests-on line as grounds (WR-03).
+  const blockLines = ['1. Must — Task 3 logs tokens — open', '   failing case: a login → the token is logged', '   rests on: ac-1'];
+  expect(answer(snap('plan', blockLines, { pin: cut }), 'plan').kind).toBe('next');
+  expect(answer(snap('plan', [blockLines[0], blockLines[1], '   rests on: ac-9'], { pin: cut }), 'plan').kind).toBe('refused');
 });

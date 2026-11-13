@@ -124,7 +124,7 @@ const roundOf = (lines: string[]): string => 'Round record: 1\n\n## Round 1 (who
 function outcomeOf(text: string): string {
   const r = parseRounds('accord/tickets/T-1/approach-review.md', text, 'approach');
   const rounds = r.cycles.flatMap((c) => c.rounds);
-  const unread = rounds.flatMap((x) => x.markUnread ?? []).length + (r.problems?.length ?? 0);
+  const unread = rounds.flatMap((x) => x.markUnread ?? []).length + r.unreadable.length;
   const risk = rounds.flatMap((x) => x.findings).find((f) => f.risk !== undefined)?.risk;
   return unread > 0 ? 'problem' : risk !== undefined ? 'read:' + risk : 'prose';
 }

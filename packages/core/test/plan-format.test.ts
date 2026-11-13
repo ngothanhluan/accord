@@ -449,3 +449,23 @@ describe('plan format: the rules read the text accord brief prints (ST-LN-91 WR-
     expect(found[0].reason).toContain('blockquote');
   });
 });
+
+describe('plan format: a failed claim-pin read says why the rules apply (ST-LN-91 WR-04)', () => {
+  const GIT = 'git failed reading the claim pin of T-1: bad object';
+  const BROKEN = planOf(task(1, ['after: none']), task(2, ['```ts', 'x', '```', ...filler(130)]), task(3, ['after: 7']));
+
+  it('risk:security each of the four format findings names the git error, and none of them does when the pin was read (WR-04)', () => {
+    const failed = format(check({ plan: BROKEN, claim: { error: GIT } }));
+    expect([...new Set(failed.map((f) => f.rule))].sort()).toEqual([...NEW_RULES].sort());
+    for (const f of failed) {
+      expect(f.reason, f.rule).toContain(GIT);
+      expect(f.reason, f.rule).toContain('the claim pin could not be read');
+      expect(f.level).toBe('error');
+    }
+    // Only the reason differs from the answer for a claim at the cut-off.
+    const read = format(check({ plan: BROKEN, claim: NEW }));
+    expect(failed.map((f) => ({ ...f, reason: f.reason.split('; ' + GIT)[0] }))).toEqual(read);
+    for (const f of read) expect(f.reason).not.toContain('could not be read');
+    for (const f of format(check({ plan: BROKEN, claim: OLD }))) expect(f.reason).not.toContain('could not be read');
+  });
+});

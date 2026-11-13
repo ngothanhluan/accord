@@ -348,3 +348,49 @@ it('risk:regression a ticket claimed under 0.4.0 keeps five plan rounds and the 
   // The claim pin lowered on the branch gives the new rules.
   expect(gateRounds({ claim: { pin: '0.4.0', basePin: PLAN_CAP_FROM }, plan: record(2, 2) })).toHaveLength(1);
 });
+
+// ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// ST-LN-91 WR-04: a failed read of the claim pin gives the new plan rules (fail closed), and every plan answer that applies them says why, as the approach answers do.
+it('risk:security a failed claim-pin read names the git error in accord round --plan and in gate plan (ST-LN-91 WR-04)', () => {
+  const GIT = 'git failed reading the claim pin of T-1: bad object';
+  const claim = { error: GIT };
+  const says = (text: string): void => {
+    expect(text).toContain(GIT);
+    expect(text).toContain('the claim pin could not be read');
+  };
+
+  // The next round: the cap of three and the plan checker, with the reason.
+  const first = roundText(ask({ claim }));
+  expect(first).toContain('Round: 1 of 3');
+  expect(first).toContain('Critics: plan checker');
+  says(first);
+  // The count stop and the stop at the cap.
+  const counted = roundText(ask({ claim, plan: record(2, 2) }));
+  expect(counted.startsWith('stop: report to owner\n')).toBe(true);
+  says(counted);
+  says(roundText(ask({ claim, plan: record(3, 2, 1) })));
+  // A round run past the cap, and one run after a stop.
+  says(roundText(ask({ claim, plan: record(3, 2, 1, 'none') })));
+  says(roundText(ask({ claim, plan: record(2, 2, 1) })));
+  // The round-1 grounds refusal: asked because the new rules apply.
+  const bare = ask({ claim, plan: HEAD + '## Round 1 (whole)\n\n1. Should — task 1 drops a header — open\n\n' });
+  expect(bare.kind).toBe('refused');
+  says(roundText(bare));
+  // A plan record with a verdict: the loop has ended.
+  says(roundText(ask({ claim, plan: record(2, 2) + verdict() })));
+
+  // Without the failed read nothing is added, to a claim at either pin.
+  for (const c of [cut, old]) {
+    for (const plan of [undefined, record(2, 2), record(3, 2, 1)]) expect(roundText(ask({ claim: c, plan })), JSON.stringify(c)).not.toContain('claim pin could not be read');
+  }
+  // The answer is the same as for the working claim at the cut-off, plus the reason.
+  const plain = roundText(ask({ claim: cut, plan: record(2, 2) }));
+  expect(counted.startsWith(plain.split('\n')[0])).toBe(true);
+  expect(counted.split('\n').filter((l) => !l.includes('claim pin could not be read'))).toEqual(plain.split('\n'));
+
+  // gate plan: the stop finding names the error too.
+  const rounds = gateRounds({ claim, plan: record(2, 2) });
+  expect(rounds).toHaveLength(1);
+  says(rounds[0]);
+  expect(gateRounds({ claim: cut, plan: record(2, 2) })[0]).not.toContain('could not be read');
+});

@@ -309,3 +309,46 @@ it('risk:regression the release note describes the structural reading and no lon
     'Two rules follow the record or the plan',
   ]) expect(note, p).toContain(p);
 });
+
+// ST-LN-91 round 6 WR-04: three mutations of the reader survived round 5's tests; each of these fails when its line is removed (see the commit that adds them).
+it('risk:regression a ticket claimed under 0.4.0 is held to no mark check: a risks: security line still reads as the five-round loop (ST-LN-91 mig-ac-1, WR-04 MJ)', () => {
+  const legacy = { claim: { pin: '0.4.0' } };
+  for (const line of ['1. Must — tokens reach the log — open — risks: security', '1. Must — tokens reach the log — open — `risk: security`', '1. Must — tokens reach the log — risk: data_loss — open', '1. Must: tokens reach the log — risks: security — open']) {
+    const approach = HEAD + round(1, line) + round(2, 'No findings');
+    expect(recordProblems(repo(approach, legacy), 'T-1', 'approach'), line).toEqual([]);
+    expect(approvalProblems(repo(approach, legacy), 'T-1'), line).toEqual([]);
+    // The approach loop goes on: round 3 of five, no refusal over the mark.
+    expect(nextRound(repo(approach, legacy), 'T-1', 'approach'), line).toMatchObject({ kind: 'next', round: 3, cap: 5 });
+    // The same record on the capped rules is refused over the mark.
+    expect(recordProblems(repo(approach), 'T-1', 'approach'), line).toHaveLength(1);
+  }
+});
+
+it("risk:security the block ends at a line that is no deeper than the finding: an indented rests-on line after a note belongs to no finding (ST-LN-91 WR-04 MO)", () => {
+  // Directly after the note (no blank line) the indented risk line is a lazy continuation of the note: a record problem, attached to nothing.
+  const direct = twoRounds('1. Must — tokens reach the log — open', 'a note about the cache', '   rests on: risk: security');
+  expect(blockedBy(direct)).toEqual([]);
+  expect(problemsOf(direct)).toHaveLength(1);
+  expect(problemsOf(direct)[0]).toContain('line 7');
+  // After a blank line it is a paragraph of its own: prose, and the finding it follows is not marked.
+  const apart = twoRounds('1. Must — tokens reach the log — open', 'a note about the cache', '', '   rests on: risk: security');
+  expect(blockedBy(apart)).toEqual([]);
+  expect(problemsOf(apart)).toEqual([]);
+  expect(approvalFindings(repo(apart), 'T-1').risks).toEqual([{ round: 1, lines: ['1. Must — tokens reach the log — open'] }]);
+  // A second finding starts its own block and the first one keeps none.
+  const second = twoRounds('1. Must — tokens reach the log — open', '2. Should — the cache is stale — open', '   rests on: risk: data-loss');
+  expect(blockedBy(second)).toEqual([{ round: 1, lines: ['2. Should — the cache is stale — open'] }]);
+});
+
+it('risk:security a bulleted block line is a block line: its bullet is stripped before its key is read (ST-LN-91 WR-04 MG)', () => {
+  for (const bullet of ['-', '*', '+']) {
+    const marked = twoRounds('1. Must — tokens reach the log — open', `   ${bullet} rests on: risk: security`);
+    expect(blockedBy(marked), bullet).toEqual([{ round: 1, lines: ['1. Must — tokens reach the log — open'] }]);
+    expect(problemsOf(marked), bullet).toEqual([]);
+    // A bulleted line whose slot does not parse is a record problem, as an unbulleted one is.
+    expect(problemsOf(twoRounds('1. Must — tokens reach the log — open', `   ${bullet} rests on: \`risk: security\``)), bullet).toHaveLength(1);
+  }
+  // A bulleted ground is read as a ground: round 2 is not refused for grounds.
+  const grounded = HEAD + round(1, R1_FIXED) + round(2, '1. Must — the header row is written twice — open', '   - rests on: ac-1');
+  expect(nextRound(repo(grounded), 'T-1', 'approach').reasons.join('\n')).not.toContain('a ticket line it rests on');
+});

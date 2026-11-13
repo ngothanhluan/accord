@@ -165,7 +165,7 @@ it('risk:security accord approve refuses every read form of a risk mark and the 
 }, 120_000);
 
 it('risk:security accord approve refuses while the approach record has a line accord cannot read, and names it (ST-LN-91 CR-01)', async () => {
-  const bad = ['1. Must — tokens reach the log — open — `risk: security`', '1. Must/Should — tokens reach the log — open — risk: security', '1. Must - tokens reach the log - open - risk: security'];
+  const bad = ['1. Must — tokens reach the log — open — `risk: security`', '1. Must/Should — tokens reach the log — open — risk: security', '1. Must — tokens reach the log — open — risks: security', '1. Must — tokens reach the log — open — risk: data_loss'];
   const repo = claimed(APPROACH_CAP_FROM, rec(r(1, 'whole', bad[0]), r(2, 'diff', OPEN)));
   try {
     for (const line of bad) {
@@ -217,6 +217,37 @@ it('risk:security accord approve reads the critic block as printed and refuses a
     expect(lines.indexOf('- round 1: 1. Must — tokens reach the log — open')).toBeGreaterThan(lines.indexOf('## Blocking findings'));
     // Fixed, the block closes the finding and the approval goes through.
     writeFiles(repo, { [APPROACH]: rec(r(1, 'whole', block.replace('open', 'fixed')), r(2, 'diff', 'No findings')) });
+    expect((await run(['approve', 'T-1'], repo)).code).toBe(0);
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+it('risk:security accord approve never reads prose for a risk: an unmarked prose risk is listed under Risks and does not block; a mark slot that does not parse refuses (ST-LN-91 CR-02 round 5)', async () => {
+  const prose = [
+    '1. Must — tokens reach the log — open — security risk',
+    '1. Must — tokens reach the log — open — data-loss risk',
+    '1. Must - tokens reach the log - open - risk: security',
+    '1. Must — a fetch prunes early; add a `risk:data-loss` test — open',
+  ];
+  const repo = claimed(APPROACH_CAP_FROM, rec(r(1, 'whole', prose[0]), r(2, 'diff', 'No findings')));
+  try {
+    for (const line of prose) {
+      writeFiles(repo, { [APPROACH]: rec(r(1, 'whole', line), r(2, 'diff', 'No findings — 1.1 aside, risk: security remains in the log path')) });
+      const short = await run(['show', 'T-1', '--approval', '--short'], repo);
+      expect(short.code, line).toBe(0);
+      expect(short.out, line).not.toContain('## Blocking findings');
+      const lines = short.out.split('\n');
+      expect(lines.indexOf('- round 1: ' + line), line).toBeGreaterThan(lines.indexOf('## Risks'));
+    }
+    // The same finding with the mark slot written in a form that does not parse: a record problem, so approve refuses.
+    writeFiles(repo, { [APPROACH]: rec(r(1, 'whole', '1. Must — tokens reach the log — open — risks: security'), r(2, 'diff', 'No findings')) });
+    const refused = await run(['approve', 'T-1'], repo);
+    expect(refused.code).toBe(1);
+    expect(refused.out).toContain('Record problems:\n');
+    expect(refused.out).toContain('a mark accord cannot read');
+    // The prose forms are approved with the risks shown.
+    writeFiles(repo, { [APPROACH]: rec(r(1, 'whole', prose[0]), r(2, 'diff', 'No findings')) });
     expect((await run(['approve', 'T-1'], repo)).code).toBe(0);
   } finally {
     cleanup(repo);

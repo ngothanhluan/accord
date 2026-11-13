@@ -408,13 +408,13 @@ it('risk:security every read form of a risk mark blocks the approval (ST-LN-91 C
   expect(legacy).toEqual({ risks: [{ round: 1, lines: [WRITTEN_FORMS[0]] }], blocking: [] });
 });
 
-it('risk:security a risk named in a form accord cannot read is a record problem that stops the approval, on the capped rules only (ST-LN-91 CR-01)', () => {
+it('risk:security a mark slot whose value does not parse is a record problem that stops the approval, on the capped rules only (ST-LN-91 CR-01, round 5)', () => {
   const unreadable = [
     '1. Must — tokens reach the log — open — risk: security.',
-    '1. Must — tokens reach the log — open — risk: security — risk: data-loss', // a second mark of one kind
-    '1. Must — tokens reach the log — open, risk: security',
-    '1. Must — tokens reach the log, risk: data-loss — open',
-    '1. Must: tokens reach the log, risk: security',
+    '1. Must — tokens reach the log — open — risks: security',
+    '1. Must — tokens reach the log — open — risk: data_loss',
+    '1. Must — tokens reach the log — risk: data-lost — open',
+    '1. Must — tokens reach the log — open — `risk: security`',
   ];
   for (const line of unreadable) {
     const approach = HEAD + round(1, line);
@@ -428,8 +428,8 @@ it('risk:security a risk named in a form accord cannot read is a record problem 
   const noSeverity = HEAD + round(1, '1. Must/Should — tokens reach the log — open — risk: security');
   expect(approvalProblems(repo({ claim: cut, approach: noSeverity }), 'T-1').join(' | ')).toContain('line 5: a finding whose severity accord cannot read');
   expect(nextRound(repo({ claim: cut, approach: noSeverity }), 'T-1', 'approach').kind).toBe('refused');
-  // A risk word in the finding's own text, with no risk kind after it, is no problem (round 4: `risk: auth` and `risk: secure` are plain words).
-  const prose = HEAD + round(1, '1. Must — the risk of a leak is not stated — open', '2. Should — the risk: section is empty — open', '3. Must — tokens reach the log — open — risk: auth', '4. Must — tokens reach the log — open — risk: secure');
+  // A risk word in the finding's own text is prose and never a problem (round 5: the structural reading scans no words).
+  const prose = HEAD + round(1, '1. Must — the risk of a leak is not stated — open', '2. Should — the risk: section is empty — open', '3. Must — tokens reach the log, risk: security — open', '4. Must — tokens reach the log — open, risk: data-loss');
   expect(recordProblems(repo({ claim: cut, approach: prose }), 'T-1', 'approach')).toEqual([]);
   // A legacy ticket (claimed under 0.4.0) and a lane S ticket keep their old reading and old approve: no problem is reported to approve.
   const bad = HEAD + round(1, '1. Must — tokens reach the log — open — risk: security.', '2. Must/Should — a name — open');

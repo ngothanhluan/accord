@@ -262,14 +262,28 @@ it('risk:parsing a command or a test holding hyphens stays whole, and the findin
   expect(parseRounds('x.md', 'Round record: 1\n\n## Round 2 (diff)\n\n' + test + '\n', 'plan').cycles[0].rounds[0].findings[0]).toMatchObject({ state: 'open', test: 'export - fixed width rows survive' });
 });
 
-it('risk:security a plan record on the grounds rule refuses a risk it cannot read, and prose with a risk word passes (ST-LN-91 WR-01 P2 P3)', () => {
-  const prose = '1. Should — Task 3 - risk: a stale read on reload — open — rests on: ac-1';
-  expect(answer(snap('plan', [prose], { pin: cut }), 'plan').kind).toBe('next');
-  for (const bad of ['1. Must — Task 3 logs tokens — open — `risk: security`', '1. Must - Task 3 logs tokens - open - risk: security']) {
-    const refused = answer(snap('plan', [bad], { pin: cut }), 'plan');
+it('risk:security a plan record on the grounds rule reads a risk structurally: a mark slot that does not parse refuses, prose never does (ST-LN-91 CR-01 CR-02 WR-05 M10 P1 P3)', () => {
+  // Grounded lines (rests on: ac-1), so the risk check, not the grounds rule, decides.
+  const grounded = (mark: string) => '1. Must — Task 3 logs tokens — open — rests on: ac-1 — ' + mark;
+  for (const bad of ['`risk: security`', 'risks: security', 'risk: data_loss', 'risk; security', 'risk: data‑loss','rests on: "risk: security"']) {
+    const refused = answer(snap('plan', [grounded(bad)], { pin: cut }), 'plan');
     expect(refused.kind, bad).toBe('refused');
-    expect(refused.reasons.join('\n'), bad).toContain('risk: security');
+    expect(refused.reasons.join('\n'), bad).toContain('a mark accord cannot read');
     // Before the grounds rule (no pin, or an older one) a plan record is read as it was.
-    expect(answer(snap('plan', [bad]), 'plan').kind, bad).toBe('next');
+    expect(answer(snap('plan', [grounded(bad)]), 'plan').kind, bad).toBe('next');
   }
+  // Prose: the finding text, a test name, a note, a reason; none refuses, on a plan or an approach record.
+  for (const prose of [
+    '1. Should — Task 3 - risk: a stale read on reload — open — rests on: ac-1',
+    '1. Must — Task 1: a fetch prunes early; add a `risk:data-loss` test — open — rests on: ac-1',
+    '1. Should — Task 2 drops headers — withdrawn: no risk: security headers are set by the proxy — rests on: ac-1',
+    '1. Should — Task 2 drops headers — open — rests on: ac-1 — security risk',
+  ]) {
+    expect(answer(snap('plan', [prose], { pin: cut }), 'plan').kind, prose).toBe('next');
+    expect(answer(snap('plan', [prose, 'Security lens: no risk: security path is touched.', 'risks: security'], { pin: cut }), 'plan').kind, prose).toBe('next');
+  }
+  // A plan record's critic block reads its rests-on line as grounds (WR-03).
+  const blockLines = ['1. Must — Task 3 logs tokens — open', '   failing case: a login → the token is logged', '   rests on: ac-1'];
+  expect(answer(snap('plan', blockLines, { pin: cut }), 'plan').kind).toBe('next');
+  expect(answer(snap('plan', [blockLines[0], blockLines[1], '   rests on: ac-9'], { pin: cut }), 'plan').kind).toBe('refused');
 });

@@ -346,11 +346,10 @@ it('ac-1 the first plan critique is sized by the plan and a should only round re
   expect(['`accord round <id> --plan`', 'stop and tell the owner', '`accord gate plan <id>` still fails'].filter((p) => !skill.includes(p))).toEqual([]);
   expect(skill).not.toContain('have the planner fix every Must and every Should');
   const loopPhrases = [
-    'Round 1 is `whole` and sized by the plan.',
-    'Count the `## Task` sections of `plan.md` and judge from the ticket and the plan whether the ticket touches auth, money, migration, or data deletion.',
-    'one `accord-critic`, no lens, for a plan of one to three tasks',
-    'two critics for a plan of four or more tasks, lens `criteria`, which checks that the plan reaches the criteria and the Intent, and lens `build`, which checks that an executor can build each task',
-    'one more critic, lens `security`, for a plan of any size whose ticket touches auth, money, migration, or data deletion, so at most three',
+    'Round 1 is `whole`.',
+    'Judge from the ticket and the plan whether the ticket touches auth, money, migration, or data deletion, or the plan touches a path under `sensitive:` in `accord/config.yml`.',
+    'one `accord-critic`, no lens, the plan checker, which runs every check of its fixed checklist, for a plan of any size',
+    'one more `accord-critic`, lens `security`, when the ticket touches auth, money, migration, or data deletion, or the plan touches a path under `sensitive:` in `accord/config.yml`',
     'Merge and de-duplicate their findings into one round, numbered within it, before the planner gets them.',
     'After a round that reports a Must, or that leaves a Must from an earlier round open or unverified',
     'its section holds a Must, or `<m>` is above zero in step 5',
@@ -372,7 +371,7 @@ it('ac-1 the first plan critique is sized by the plan and a should only round re
   const criticPhrases = [
     'Mode `diff`:',
     '`fixed: <round>.<n>, <round>.<n>`',
-    '`criteria` runs only the first, second, third, fifth and seventh checks',
+    'In `plan` mode with no lens you are the plan checker',
     'On the changed hunks, check that no Veto is violated and that nothing goes beyond the acceptance criteria.',
     'and at the task or section each `open` or `unverified` finding names; never read the whole plan.',
     'a new numbered finding that starts `repeats <round>.<n>:`',

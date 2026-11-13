@@ -34,7 +34,10 @@ it('ac-5 the critic checks every decision and correction in plan mode and in dif
     expect(part).toContain('Must');
     expect(part).toContain('`D-nn`');
   }
-  expect(flat(critic.join('\n'))).toContain('the first, second, third, fifth and seventh checks');
+  const criticText = flat(critic.join('\n'));
+  expect(criticText).toContain('In `plan` mode with no lens you are the plan checker: run every check of the fixed `plan` mode list below');
+  expect(criticText).toContain('lens `security`');
+  expect(criticText).not.toMatch(/lens:? `?(criteria|build)\b|`(criteria|build)`/i);
   const intro = planner.indexOf("Before you reply, run these checks of the critic's plan mode on your plan and fix what fails:");
   expect(intro).toBeGreaterThanOrEqual(0);
   expect(planner.indexOf(SEVENTH), 'planner lacks SEVENTH').toBeGreaterThan(intro);

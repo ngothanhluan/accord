@@ -25,18 +25,45 @@ const DOUBTFUL = /^\s*(?:[/|?]|(?:or|and)\s+(?:must|should|nice)\b)/i;
 
 const dequote = (v: string): string => (v.length >= 2 && v.startsWith('`') && v.endsWith('`') ? v.slice(1, -1) : v);
 
-// ST-LN-91 round 5 (owner decision 2026-11-13): a risk is read structurally and never searched for in prose. A plan or approach line is read as segments split on ' — ' only (a hyphen,
-// two hyphens or an en dash is part of the text of a state, a reason, a test or a command). The finding's mark slot is a segment after the finding's text, or a line under the finding
-// that is indented deeper than it (the critic's block). A slot is a segment or line that starts with a mark key (`risk`, `risks` or `rests on` followed by a separator, with markup or a
-// bullet before it), or is nothing but `risk` and a kind. A slot is read when readMark parses it; a slot that does not parse is a record problem. Words anywhere else are prose.
+// ST-LN-91 rounds 5 and 6 (owner decisions 2026-11-13): a risk is read structurally and never searched for in prose. A plan or approach line is read as segments split on ' — ' only (a hyphen,
+// two hyphens or an en dash is part of the text of a state, a reason, a test or a command). The finding's mark slot is a segment after the finding's text, or, in the critic's block, a line
+// under the finding that is indented deeper than it and whose key is `rests on`. A segment or line is a RISK SLOT when its key is `risk`, `risks` or `rests on` (markup, a bullet and a
+// separator allowed around it) and its value is a security or data-loss kind written some way: right (`risk: security`, any letter case) or wrong (`risks: security`, `data_loss`, backticks,
+// quotes, another hyphen, a comma, a semicolon, a full stop). A risk slot is read when readMark parses it; one that does not parse is a record problem. A value that is no such kind
+// (`risk: none`, `risk: low`, `risk: a partial file is left on a crash`, `rests on: ac1`) is prose, as is every word anywhere else.
 const MARKUP = '[\\s`\'"*_()[\\]]*';
 const DASHES = '\\u2010-\\u2015\\u2212-';
-const MARK_KEY = new RegExp(
-  `^${MARKUP}(?:rests on\\s*[:;=]|risks?\\s*(?:[:;=]|$)|risks?[\\s,:;=_${DASHES}]*(?:security|data[\\s_${DASHES}]*loss)${MARKUP}$)`,
-  'i',
-);
-/** A segment or block line that sits in a mark slot (its key is a mark key), whether or not its value parses. */
-const inMarkSlot = (seg: string): boolean => MARK_KEY.test(seg);
+const SLOT_HEAD = new RegExp(`^${MARKUP}(?:rests on\\s*[:;=]?\\s*${MARKUP})?risks?[\\s,:;=_${DASHES}]*${MARKUP}`, 'i');
+const KIND_WORDS = new RegExp(`^([a-z]+)(?:[\\s_${DASHES}]*([a-z]+))?`, 'i');
+
+/** True when `a` is `b` or differs from it by one letter: a substitution, an insertion, a deletion or two letters swapped. */
+function oneOff(a: string, b: string): boolean {
+  if (a === b) return true;
+  if (Math.abs(a.length - b.length) > 1) return false;
+  let i = 0;
+  while (i < a.length && i < b.length && a[i] === b[i]) i++;
+  const [x, y] = [a.slice(i), b.slice(i)];
+  if (x.length === y.length) return x.slice(1) === y.slice(1) || (x.length >= 2 && x[0] === y[1] && x[1] === y[0] && x.slice(2) === y.slice(2));
+  return (x.length > y.length ? x.slice(1) === y : y.slice(1) === x);
+}
+
+/** A value that starts with a security or data-loss kind, written right or off by one letter (`security`, `secrity`, `data-loss`, `data_loss`, `dataloss`, `data lost`); `none`, `low` and a sentence are no kind. */
+function kindLike(value: string): boolean {
+  const m = KIND_WORDS.exec(value.toLowerCase());
+  if (m === null) return false;
+  return oneOff(m[1], 'security') || oneOff(m[1], 'dataloss') || (m[1] === 'data' && m[2] !== undefined && oneOff(m[2], 'loss'));
+}
+
+/** A segment or block line that sits in a risk slot, whether or not its value parses. */
+function inMarkSlot(seg: string): boolean {
+  const head = SLOT_HEAD.exec(seg);
+  return head !== null && kindLike(seg.slice(head[0].length));
+}
+/** A trailing segment that has a mark key and a value that is no kind: no mark and no state, so the state is read from the segment before it (`fixed — risk: none`). */
+const NEUTRAL_MARK = new RegExp(`^${MARKUP}(?:risks?|rests on)\\s*[:;=]`, 'i');
+const isNeutral = (seg: string): boolean => NEUTRAL_MARK.test(seg) && !inMarkSlot(seg);
+/** A block line is a mark slot only when its key is `rests on`, as agents/critic.md prints it; every other line under a finding is a note, which is prose. */
+const BLOCK_KEY = new RegExp(`^${MARKUP}rests on\\b`, 'i');
 
 /** A segment that is nothing but a severity word: the finding's text is then the next segment (` — `), else it is inside this one (`Must: <text>`, `Must - <text>`, `Must – <text>`). */
 const SEVERITY_ONLY = /^[^A-Za-z]*(?:must|should|nice)\b[^A-Za-z0-9]*$/i;
@@ -101,8 +128,13 @@ function readFindingV1(text: string): Partial<Omit<RoundFinding, 'severity' | 'l
   const head = SEVERITY_ONLY.test(segs[0]) ? 2 : 1;
   const marks: Mark = {};
   while (segs.length > head) {
-    const mark = readMark(segs[segs.length - 1].trim());
-    if (mark === undefined) break;
+    const last = segs[segs.length - 1].trim();
+    const mark = readMark(last);
+    if (mark === undefined) {
+      if (!isNeutral(last)) break;
+      segs.pop(); // ST-LN-91 round 6 WR-01: `risk: none`, `risk: <words>` or `rests on: <no ground>` after the state is neither a mark nor the state
+      continue;
+    }
     const [kind] = Object.keys(mark) as (keyof Mark)[];
     if (marks[kind] !== undefined) break; // a second mark of one kind is text of the finding
     Object.assign(marks, mark);
@@ -265,10 +297,13 @@ export function parseRounds(file: string, text: string, kind: 'review' | 'plan' 
 
     // Lines of an unknown heading are still read, against the cycle's last round when there is one.
     const target = round ?? cycle.rounds[cycle.rounds.length - 1];
-    // ST-LN-91 round 5: the critic's block is the lines under a finding line that are indented deeper than it. A block line whose key is a mark key is read as a segment is (a risk, a
-    // `rests on:` ground, a test or a command); one that does not parse is kept on its round, and the record problems of the round report it. Every other line is prose, read as nothing.
+    // ST-LN-91 rounds 5 and 6: the critic's block is the lines under a finding line that are indented deeper than it. Only a block line whose key is `rests on` is a mark slot: it is read as a
+    // segment is (a risk, a ground, a test or a command), and one that is a risk slot and does not parse is kept on its round, where the record problems report it. Every other line, a
+    // note that starts `Risk:` included, is prose, read as nothing. A line that is no deeper than the finding and comes with no blank line after it (a lazy continuation of the finding in
+    // Markdown) is prose too, unless it is a risk slot: then it is a record problem, never silently ignored (WR-02), because the rendered record shows it on the finding.
     const strict = kind !== 'review' && !version2;
     let block: { f: RoundFinding; indent: number } | undefined;
+    let lazy = false;
     const unread = (line: number, text: string) => {
       if (target !== undefined) (target.markUnread ??= []).push({ line, text: text.length > 160 ? text.slice(0, 157) + '...' : text });
     };
@@ -276,10 +311,11 @@ export function parseRounds(file: string, text: string, kind: 'review' | 'plan' 
       const t = textOf(l.line);
       if (t === undefined) continue;
       const r = readLine(t);
+      if (r.kind !== 'prose' || t.trim() === '') lazy = false;
       if (strict && r.kind === 'prose' && t.trim() !== '') {
+        const seg = t.trim().replace(/^[-*+]\s+/, '');
         if (block !== undefined && indentOf(t) > block.indent) {
-          const seg = t.trim().replace(/^[-*+]\s+/, '');
-          if (inMarkSlot(seg)) {
+          if (BLOCK_KEY.test(seg) && (readMark(seg) !== undefined || inMarkSlot(seg))) {
             const mark = readMark(seg);
             const key = mark === undefined ? undefined : (Object.keys(mark) as (keyof Mark)[])[0];
             // A second mark of one kind that differs from the one the finding already has is a conflict, a record problem.
@@ -287,6 +323,7 @@ export function parseRounds(file: string, text: string, kind: 'review' | 'plan' 
             else Object.assign(block.f, mark);
           }
         } else {
+          if (lazy && inMarkSlot(seg)) unread(l.line, t.trim());
           block = undefined;
         }
         continue;
@@ -304,7 +341,10 @@ export function parseRounds(file: string, text: string, kind: 'review' | 'plan' 
           const { markUnread, ...read } = kind === 'review' ? {} as ReturnType<typeof readFindingV1> : readFindingV1(t);
           const finding: RoundFinding = { severity: r.severity, line: l.line, text: t.trim(), ...read };
           target.findings.push(finding);
-          if (strict) block = { f: finding, indent: indentOf(t) };
+          if (strict) {
+            block = { f: finding, indent: indentOf(t) };
+            lazy = true;
+          }
           for (const x of markUnread ?? []) unread(l.line, x);
         } else {
           const shown = t.trim().replace(/^[-*+] /, '');

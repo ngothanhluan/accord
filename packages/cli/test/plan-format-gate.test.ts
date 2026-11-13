@@ -1,8 +1,10 @@
 // ST-LN-91 91p-ac-1 and 91p-ac-2: `accord gate plan` on real git reads the ticket's claim pin (D-15) for the plan format rules: the after: line,
 // fenced blocks other than interfaces, and the task cap. The plan baseline pin never decides them.
+import { chmodSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { PLAN_FORMAT_FROM } from '@accord-dev/accord-core';
-import { cleanup, commitAll, commitMsg, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
+import { cleanup, commitAll, commitMsg, gitRun, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
 import { CONFIG, laneTicket, PLAN as SHARED_PLAN } from '../../../test/helpers/lane.js';
 
 // The shared PLAN names each task's after: line; these cases are about the plan format rules, so they start from the plan without them.
@@ -67,7 +69,7 @@ it('risk:complex-branching accord gate plan reads the claim pin and refuses a ta
   }
 });
 
-it('risk:complex-branching accord gate plan reads a ticket with no claim commit through the working-tree pin and a git error as new rules (ST-LN-91 91p-ac-2, D-15)', async () => {
+it('risk:complex-branching accord gate plan reads a ticket with no claim commit through the working-tree pin (ST-LN-91 91p-ac-2, D-15)', async () => {
   // No `claim:` commit: the working-tree pin (CONFIG, the running version) decides. Below the cut-off the older rules hold; at it the ticket fails closed to the new ones.
   const working = /accord: "([^"]*)"/.exec(CONFIG)![1];
   const below = working.localeCompare(PLAN_FORMAT_FROM, undefined, { numeric: true }) < 0;
@@ -127,3 +129,46 @@ it('risk:complex-branching accord gate plan refuses a fenced block other than in
     cleanup(repo);
   }
 });
+
+/** Remove one loose object, so git can no longer read it (as claim-facts.test.ts does). */
+const dropObject = (repo: string, sha: string): void => {
+  const file = join(repo, '.git', 'objects', sha.slice(0, 2), sha.slice(2));
+  chmodSync(file, 0o666);
+  rmSync(file, { force: true });
+};
+
+it('risk:security accord gate plan and accord round --plan on a claim pin git cannot read apply the new plan rules and name the git error (ST-LN-91 WR-04, WR-05)', async () => {
+  const repo = makeLaneRepo({ 'accord/tickets/T-1.md': laneTicket('T-1') });
+  try {
+    await run(['approve', 'T-1'], repo);
+    // A config of its own at the claim commit, so its blob is the claim's alone and can be lost without losing another commit's config.
+    writeFiles(repo, { 'accord/config.yml': pinned('0.4.0') + '# claimed\n' });
+    const claim = commitMsg(repo, 'claim: T-1');
+    const blob = gitRun(repo, 'rev-parse', claim + ':accord/config.yml').trim();
+    writeFiles(repo, { 'accord/config.yml': CONFIG, 'notes.txt': 'work after the claim\n' });
+    const baseline = commitAll(repo);
+    writeFiles(repo, { 'accord/tickets/T-1/plan.md': PLAN.replace('abc1234', baseline) });
+    commitAll(repo);
+
+    // The claim pin reads as 0.4.0: the older plan format holds, and accord round --plan prints the five-round answer.
+    expect((await gate(repo)).found).toEqual([]);
+    const before = await run(['round', 'T-1', '--plan'], repo);
+    expect(before.out).toBe('Round: 1 of 5\nCycle: 1\n');
+
+    // git can no longer read the claim commit's config: the claim fact is an error, and both commands fail closed and say why.
+    dropObject(repo, blob);
+    const got = await gate(repo);
+    expect(got.code).toBe(1);
+    expect(got.found.map((f) => f.rule)).toEqual(['gate.task-after-missing', 'gate.task-after-missing']);
+    for (const f of got.found) {
+      expect(f.reason).toContain('git failed reading the claim pin of T-1: accord/config.yml cannot be read at claim commit ' + claim);
+      expect(f.reason).toContain('the claim pin could not be read, so the new plan rules apply');
+    }
+    const after = await run(['round', 'T-1', '--plan'], repo);
+    expect(after.code).toBe(0);
+    expect(after.out).toContain('Round: 1 of 3\nCycle: 1\nCritics: plan checker\n');
+    expect(after.out).toContain('Note: git failed reading the claim pin of T-1: accord/config.yml cannot be read at claim commit ' + claim);
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);

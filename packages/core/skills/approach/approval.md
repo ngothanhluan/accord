@@ -21,8 +21,9 @@ shortens what the yes covers; it never narrows it.
    `accord approve` refuses while one is open. Show the part, say so, and ask
    for the no and its Correction (step 5) instead of the yes. A `record problem:`
    item in that part is a line of `approach-review.md` that accord cannot read,
-   or a risk written in a form accord does not read: the owner cannot say yes
-   until it is fixed (step 4).
+   or a mark slot whose value does not parse: the owner cannot say yes until it
+   is fixed (step 4). A risk named only in prose is not read and does not block;
+   the view lists the open finding under the risks.
 
 3. The question names the text above it and `accord/tickets/<id>.md`, and
    says that the yes approves the ticket's Intent, acceptance criteria, Vetoes,

@@ -14,7 +14,7 @@ The main session keeps every critic finding in
 or `owner: "<the owner's words>"` for one the owner dropped. After the
 state the session copies the critic's marks, each as ` — <mark>`:
 `rests on: <the ticket line>`, `risk: data-loss` or `risk: security`,
-`test: <id>`, `command: <command>`. The separator is always ` — `, never a hyphen, and a risk is written exactly ` — risk: security` or ` — risk: data-loss`. A line that names a risk in any other form (`risk: security` in backticks or quotes, a hyphen between the parts) is a record problem, and `accord round <id> --plan` refuses it on a plan record written under accord 0.4.1 or later. A finding stays `open` or `unverified` until a critic lists it after `fixed:` or
+`test: <id>`, `command: <command>`. The separator is always ` — `, never a hyphen, and a risk is written exactly ` — risk: security` or ` — risk: data-loss` after the finding's text: accord reads a risk from that mark slot only, never from the finding's words, a note or a reason. A mark slot whose value does not parse (`risks: security`, `risk: data_loss`, `risk: security` in backticks or quotes) is a record problem, and `accord round <id> --plan` refuses it on a plan record written under accord 0.4.1 or later. A finding stays `open` or `unverified` until a critic lists it after `fixed:` or
 `withdrawn:`, or the owner drops it; the planner's word alone closes
 nothing. A round with no findings says `No findings`. Only the sections
 after the last `## Closed` line count; step 8 of the skill appends that

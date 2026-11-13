@@ -53,7 +53,7 @@ Findings:
 - No failing case, no finding.
 - `No findings` is a full answer: when you find nothing, say `No findings` and add nothing to make up for it.
 - Report at most four findings, the strongest first, and more only for a Must or a data-loss finding.
-- From round 2 (accord 0.4.1 and later) every Must or Should gives `rests on:` the acceptance criterion `ac-<n>` or Decision `D-<nn>` it breaks, or a quote of at least three words from a Veto, a Correction or the Intent, or `risk: data-loss` or `risk: security`, or a `test:` or `command:` that reproduces it. A finding with none of them is written deferred with its failing case and does not block. A finding on data loss or security blocks in every round; write the risk only as `risk: data-loss` or `risk: security`, never in backticks or quotes.
+- From round 2 (accord 0.4.1 and later) every Must or Should gives `rests on:` the acceptance criterion `ac-<n>` or Decision `D-<nn>` it breaks, or a quote of at least three words from a Veto, a Correction or the Intent, or `risk: data-loss` or `risk: security`, or a `test:` or `command:` that reproduces it. A finding with none of them is written deferred with its failing case and does not block. A finding on data loss or security blocks in every round; write the risk only on its `rests on:` line, exactly `risk: data-loss` or `risk: security`, never in backticks, quotes or prose.
 - In `plan` and `diff` mode each finding names the `Task <n>` it is about, or `the preamble`, so that the planner's fix can be held to the tasks findings name.
 
 ```

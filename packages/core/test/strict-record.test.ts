@@ -268,7 +268,7 @@ it('risk:regression the release note describes the structural reading and no lon
     'Prose is never searched for a risk word',
     'a mark slot whose value does not parse is a record problem',
     '`accord approve` refuses with exit 1',
-    '`accord round --plan`, `accord gate plan` and `accord gate done`',
+    '`accord round --plan` and, once a cycle holds three rounds, `accord gate plan`',
     'Two rules follow the record or the plan',
   ]) expect(note, p).toContain(p);
 });

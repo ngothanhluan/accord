@@ -18,18 +18,18 @@ always ` — `, an em dash with a space on each side, never a hyphen: a hyphen
 in a state, a reason, a test or a command is part of its text. A state that
 closes a finding (`fixed`, `withdrawn`, `repeated as <round>.<n>`,
 `owner: "<words>"`) is the whole segment: `fixed by a patch` leaves it open.
-A risk is
-written exactly ` — risk: security` or ` — risk: data-loss`, in any letter case.
+A risk goes in the mark slot only: written exactly ` — risk: security` or
+` — risk: data-loss` after the finding's text, in any letter case.
 The critic's `rests on: risk: security` is written that way, and the critic's
 own block, with `rests on: risk: security` on its own line under the finding,
-is read too. A line that names a risk in any other form
-(`risk: security` in backticks or quotes, a hyphen between the parts,
-`risk: security.`) is a record problem: `accord round <id> --approach` and
-`accord approve` refuse until it is rewritten in the exact form. The test is
-the word `risk`, then only spaces, colons, equals signs, hyphens, dashes,
-quotes, backticks, asterisks, underscores and brackets, then `security` or
-`data-loss`; a `risk:` followed by other words is plain text. A finding stays
-`open` or `unverified` until a
+is read too. The critic's other `rests on:` lines (`ac-<n>`, `D-<nn>`, a quote,
+`test:`, `command:`) are read as grounds the same way. A risk named in the
+finding's words, a note, a reason or the owner's words is prose: accord reads
+no risk there and it blocks nothing, so write it in the mark slot. A mark slot
+whose value does not parse (`risks: security`, `risk: data_loss`,
+`risk: security` in backticks or quotes) is a record problem:
+`accord round <id> --approach` and `accord approve` refuse until it is
+rewritten in the exact form. A finding stays `open` or `unverified` until a
 critic lists it after `fixed:` or `withdrawn:`, or the owner drops it; the
 planner's word alone closes nothing. A round with no findings says
 `No findings`. Only the sections after the last `## Closed` line count.

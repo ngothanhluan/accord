@@ -181,6 +181,22 @@ const withNote =
     return note === undefined ? drafts : drafts.map((d) => ({ ...d, reason: `${d.reason}; ${note}` }));
   };
 
+const NEAR_AFTER = /^(after\s*:)/i;
+
+/**
+ * The first line of the task outside a fenced block that looks like the `after:` key and is not (`After:`, `after :`): the key is read in lowercase, as `covers:`,
+ * `files:` and `verify:` are, so a task that wrote it another way is told which line was skipped.
+ */
+function skippedAfter(t: PlanTask): string {
+  const fences = fencedBlocks(t.lines);
+  for (const l of t.lines) {
+    if (fences.some((f) => l.line >= f.open && l.line <= f.close)) continue;
+    const m = NEAR_AFTER.exec(l.text.replace(LIST_MARKER, '').trim());
+    if (m !== null && m[1] !== 'after:') return `; line ${l.line} starts with "${m[1]}", which is not read: write the key in lowercase, as covers:, files: and verify: are`;
+  }
+  return '';
+}
+
 /** ST-LN-91 91p-ac-2: every task names the tasks it follows (`after: 1, 2`) or says `after: none`. */
 export const taskAfterMissing: GateRule['check'] = withNote((snapshot, id) =>
   formatTasks(snapshot, id)
@@ -188,7 +204,7 @@ export const taskAfterMissing: GateRule['check'] = withNote((snapshot, id) =>
     .map((t) => ({
       file: planFile(id),
       line: t.line,
-      reason: `task ${t.n} has no after: line naming the tasks it follows (after: 1, 2), or after: none`,
+      reason: `task ${t.n} has no after: line naming the tasks it follows (after: 1, 2), or after: none${skippedAfter(t)}`,
     })),
 );
 

@@ -239,16 +239,19 @@ add({
   tail: CLOSED + '## Round 1 (whole)\n\n1. Should — y — open — rests on: ac-1\n\n## Round 2 (diff)\n\nNo findings\n',
   out: 'PROBLEM',
 });
-// Owner decision round 6 (WR-01): a slot whose value is no mis-written kind is prose; a misspelt kind is such a value.
+// Owner decision round 6 (WR-01): a slot is a record problem when its value is a security or data-loss kind written wrongly. A kind one letter off (`secrity`, `data-lost`) is such a value (Ruling).
 add({
   id: 'r4-C2-misspelt-kind-in-closed-cycle',
   src: 'round 4 IN-01 C2',
   r1: ['1. Must — x — open — risk: secrity'],
   r2: null,
   tail: CLOSED + '## Round 1 (whole)\n\n1. Should — y — open — rests on: ac-1\n\n## Round 2 (diff)\n\nNo findings\n',
-  out: 'PASS',
+  out: 'PROBLEM',
   unspecified: true,
 });
+add({ id: 'r4-C2b-misspelt-kind-before-state', src: 'round 4 C2 (the misspelt kind in the current cycle, before the state)', r1: ['1. Must — x — risk: secrity — open'], out: 'PROBLEM', unspecified: true });
+add({ id: 'r4-C2c-data-lost', src: 'round 4 C2 (data-lost: one letter off data-loss)', r1: ['1. Must — x — open — risk: data-lost'], out: 'PROBLEM', unspecified: true });
+add({ id: 'r4-S1-lane-s-misspelt-mark', src: 'round 4 S1 (lane S asks no mark check)', lane: 'S', r1: ['1. Must/Should — x — open — risk: secrity'], out: 'LANE-S' });
 add({
   id: 'r4-N1-critic-block-verbatim',
   src: 'round 4 CR-02 N1',

@@ -280,8 +280,12 @@ it('risk:security a plan record on the grounds rule reads a risk structurally: a
     '1. Should — Task 2 drops headers — security risk — open — rests on: ac-1',
   ]) {
     expect(answer(snap('plan', [prose], { pin: cut }), 'plan').kind, prose).toBe('next');
-    expect(answer(snap('plan', [prose, 'Security lens: no risk: security path is touched.', 'risks: security'], { pin: cut }), 'plan').kind, prose).toBe('next');
+    expect(answer(snap('plan', [prose, 'Security lens: no risk: security path is touched.', '', 'risks: security'], { pin: cut }), 'plan').kind, prose).toBe('next');
   }
+  // A risk line directly under the finding, with no blank line, is a lazy continuation of it: a record problem (ST-LN-91 WR-02, round 6), not silently ignored.
+  const lazy = answer(snap('plan', [should('rests on: ac-1'), 'rests on: risk: security'], { pin: cut }), 'plan');
+  expect(lazy.kind).toBe('refused');
+  expect(lazy.reasons.join('\n')).toContain('a mark accord cannot read');
   // A plan record's critic block reads its rests-on line as grounds (WR-03).
   const blockLines = ['1. Must — Task 3 logs tokens — open', '   failing case: a login → the token is logged', '   rests on: ac-1'];
   expect(answer(snap('plan', blockLines, { pin: cut }), 'plan').kind).toBe('next');

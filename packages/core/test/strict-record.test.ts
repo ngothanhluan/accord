@@ -49,15 +49,44 @@ it("risk:security a block line at or above the finding's indent is no block line
   const same = ['1. Must — tokens reach the log — open', '   failing case: x → y', '1. Must — second — open', '   rests on: risk: security'];
   // The risk line belongs to finding 2 only (indented deeper than it); finding 1 stays unmarked.
   expect(blockedBy(twoRounds(same[0], ...same.slice(1)))).toEqual([{ round: 1, lines: ['1. Must — second — open'] }]);
+  // After a blank line the line is a paragraph of its own, no part of the finding: prose, read as nothing.
+  for (const flat of [
+    ['  1. Must — tokens reach the log — open', '', '  rests on: risk: security'],
+    ['  1. Must — tokens reach the log — open', '', ' rests on: risk: security'],
+    ['1. Must — tokens reach the log — open', '', 'rests on: risk: security'],
+    ['1. Must — tokens reach the log — open', '', 'risks: security'],
+  ]) {
+    const approach = twoRounds(flat[0], ...flat.slice(1));
+    expect(blockedBy(approach), flat.join('|')).toEqual([]);
+    expect(problemsOf(approach), flat.join('|')).toEqual([]);
+    expect(approvalFindings(repo(approach), 'T-1').risks, flat.join('|')).toEqual([{ round: 1, lines: [flat[0].trim()] }]);
+  }
+});
+
+it('risk:security a risk line directly under a finding at or above its indent is a record problem, never silently ignored (ST-LN-91 WR-02, round 6 Ruling)', () => {
+  // Markdown reads such a line as a lazy continuation of the finding, so the rendered record shows the mark on it: accord refuses it instead of reading nothing.
   for (const flat of [
     ['  1. Must — tokens reach the log — open', '  rests on: risk: security'],
     ['  1. Must — tokens reach the log — open', ' rests on: risk: security'],
     ['1. Must — tokens reach the log — open', 'rests on: risk: security'],
+    ['1. Must — tokens reach the log — open', 'risk: security'],
     ['1. Must — tokens reach the log — open', 'risks: security'],
+    ['1. Must — tokens reach the log — open', '   failing case: x → y', 'rests on: risk: data-loss'],
+    ['1. Must — tokens reach the log — open', 'a note', 'rests on: risk: security'],
   ]) {
-    expect(blockedBy(twoRounds(flat[0], flat[1])), flat.join('|')).toEqual([]);
-    expect(problemsOf(twoRounds(flat[0], flat[1])), flat.join('|')).toEqual([]);
-    expect(approvalFindings(repo(twoRounds(flat[0], flat[1])), 'T-1').risks, flat.join('|')).toEqual([{ round: 1, lines: [flat[0].trim()] }]);
+    const approach = twoRounds(flat[0], ...flat.slice(1));
+    const problems = problemsOf(approach);
+    expect(problems, flat.join('|')).toHaveLength(1);
+    expect(problems[0], flat.join('|')).toContain('line ' + (5 + flat.length - 1));
+    expect(approvalProblems(repo(approach), 'T-1'), flat.join('|')).toEqual(problems);
+  }
+  // `rests on risk: security` with no colon is a mark slot that does not parse.
+  expect(problemsOf(twoRounds('1. Must — tokens reach the log — open — rests on risk: security'))).toHaveLength(1);
+  // A note that starts `Risk:` under the finding, indented, is prose (round 6 CR-02): only the critic block's `rests on:` line is a mark slot there.
+  for (const note of ['   - Risk: a stale cache shows old rows for a minute', '   Risk: security headers are set by the proxy', '   risks: security', '   risk: data-loss']) {
+    const approach = twoRounds('1. Must — tokens reach the log — open', note);
+    expect(problemsOf(approach), note).toEqual([]);
+    expect(blockedBy(approach), note).toEqual([]);
   }
 });
 
@@ -98,16 +127,16 @@ const MARK_SLOT_PROBLEMS = [
   '1. Must — tokens reach the log — open — risk security',
   '1. Must — tokens reach the log — open — risk, security',
   '1. Must — tokens reach the log — open — Risks: security',
-  '1. Must — tokens reach the log — open — rests on: ac1', // a `rests on` key with a value that is no ground
+  '1. Must — tokens reach the log — open — rests on risk: security', // WR-02: no colon after rests on
+  '1. Must — tokens reach the log — open — risk: secrity', // one letter off the kind
+  '1. Must — tokens reach the log — open — risk: data-lost',
   '1. Must — tokens reach the log — risks: security — open', // before the state
-  '1. Must — tokens reach the log — risk: nothing — open',
 ];
 const MARK_SLOT_BLOCKS = [
   ['1. Must — tokens reach the log — open', '   rests on: `risk: security`'],
   ['1. Must — tokens reach the log — open', '   rests on: risk: security.'],
   ['1. Must — tokens reach the log — open', '   rests on: risk: data_loss'],
-  ['1. Must — tokens reach the log — open', '   risks: security'],
-  ['1. Must — tokens reach the log — open', '   rests on: ac1'],
+  ['1. Must — tokens reach the log — open', '   rests on risk: security'],
   ['1. Must — tokens reach the log — open — risk: security', '   rests on: risk: data-loss'], // a second, different mark
 ];
 
@@ -144,6 +173,13 @@ it('risk:security prose is never scanned for a risk word: the finding text, note
     '1. Must — tokens reach the log — unverified: the proxy sets them, so no risk: security issue',
     '1. Must — tokens reach the log — unverified: the proxy — no risk: security there — rests on: ac-1',
   ];
+  open.push(
+    '1. Must — tokens reach the log — open — risk: none',
+    '1. Must — tokens reach the log — open — risk: low',
+    '1. Must — tokens reach the log — open — risks: a partial file and a slow disk',
+    '1. Must — tokens reach the log — open — rests on: ac1',
+    '1. Must — tokens reach the log — risk: nothing — open',
+  );
   for (const line of open) {
     const approach = twoRounds(line);
     expect(problemsOf(approach), line).toEqual([]);

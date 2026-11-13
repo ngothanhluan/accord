@@ -148,3 +148,66 @@ export function requirementLines(section: Section, fences: Fence[]): Line[] {
     .map((l) => ({ line: l.line, text: l.text.replace(LIST_MARKER, '').trim() }))
     .filter((l) => l.text !== ''); // after the marker: a bullet with no text is not a requirement
 }
+
+// A block opens on any line whose first non-blank characters are a run of three backticks or tildes: a fence in a list item or with a
+// stray indent is still a fence here, so a plan task cannot hold code by indenting it (a false reading refuses and names the line).
+const BLOCK_OPEN = /^[ \t]*(`{3,}|~{3,})(.*)$/;
+const BLOCK_CLOSE = /^[ \t]*(`{3,}|~{3,})\s*$/;
+
+/**
+ * ST-LN-91 D-09: the lines of a plan task read in one pass that knows both fences and HTML comments: a comment is removed everywhere outside a
+ * fenced block (line count and numbers kept, as stripHtmlComments does), a fence inside a comment does not open, and a comment delimiter inside a
+ * fence is code, so it hides neither the fence's end nor the lines after it. `fences` are the blocks outside comments, an unterminated one closing at
+ * the last line.
+ */
+export function commentFreeLines(lines: Line[]): { lines: Line[]; fences: Fence[] } {
+  const out: Line[] = [];
+  const fences: Fence[] = [];
+  let inComment = false;
+  let open: { marker: string; fence: Fence } | undefined;
+  for (const { line, text } of lines) {
+    if (open) {
+      const close = BLOCK_CLOSE.exec(text);
+      if (close && close[1][0] === open.marker[0] && close[1].length >= open.marker.length) {
+        open.fence.close = line;
+        open = undefined;
+      } else {
+        open.fence.content.push({ line, text });
+        open.fence.close = line;
+      }
+      out.push({ line, text });
+      continue;
+    }
+    let kept = '';
+    let rest = text;
+    while (rest.length > 0) {
+      if (inComment) {
+        const end = rest.indexOf('-->');
+        if (end < 0) rest = '';
+        else {
+          rest = rest.slice(end + 3);
+          inComment = false;
+        }
+      } else {
+        const start = rest.indexOf('<!--');
+        if (start < 0) {
+          kept += rest;
+          rest = '';
+        } else {
+          kept += rest.slice(0, start);
+          rest = rest.slice(start + 4);
+          inComment = true;
+        }
+      }
+    }
+    const m = BLOCK_OPEN.exec(kept);
+    // CommonMark: a backtick fence's info string may not contain a backtick.
+    if (m && !(m[1][0] === '`' && m[2].includes('`'))) {
+      const fence: Fence = { info: m[2].trim(), open: line, close: line, content: [] };
+      fences.push(fence);
+      open = { marker: m[1], fence };
+    }
+    out.push({ line, text: kept });
+  }
+  return { lines: out, fences };
+}

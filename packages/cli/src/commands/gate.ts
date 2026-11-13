@@ -45,7 +45,8 @@ export function gate(
   const gated =
     which === 'plan'
       ? // ST-LN-91 D-12: a deferral leaves the stop at gate plan as it does at accord round, so the record's pin is read when a stop is possible (round 3).
-        withRecordPins(ctx.root, { ...ctx.snapshot, ...gitPlanHistory(ctx.root, ctx.snapshot, id) }, id, 'plan', 3)
+        // ST-LN-91 D-15: the plan format rules (and from plan 03-09 the plan cap) read the ticket's claim pin, never the plan baseline's.
+        withRecordPins(ctx.root, withClaimPins(ctx.root, { ...ctx.snapshot, ...gitPlanHistory(ctx.root, ctx.snapshot, id) }, id), id, 'plan', 3)
       : which === 'done'
         ? { ...forScope, ...gitRecordsSinceFor(ctx.root, ctx.snapshot, id) }
         : ctx.snapshot;

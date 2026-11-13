@@ -43,6 +43,13 @@ export const DISCUSS_FROM = '0.4.1';
  */
 export const APPROACH_CAP_FROM = '0.4.1';
 
+/**
+ * ST-LN-91 D-09, D-12 and D-15: the release that ships the plan format rules (an `after:` line per task, no fenced block other than an interfaces
+ * block, at most TASK_LINE_CAP non-blank lines per task). A ticket whose claim pin is below it keeps the older plan format, whatever pin its
+ * plan baseline holds. Read through claimPinBefore.
+ */
+export const PLAN_FORMAT_FROM = '0.4.1';
+
 /** True only when `pin` is a plain x.y.z below `from` and, when `basePin` is a plain x.y.z, not below `basePin`: the rules before `from` hold. */
 export function pinBefore(from: string, pin: string | undefined, basePin?: string): boolean {
   if (pin === undefined || !PLAIN.test(pin) || compare(pin, from) >= 0) return false;

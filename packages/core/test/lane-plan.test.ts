@@ -250,7 +250,8 @@ it('risk:regression the lane fixtures pass gate plan with the pin at the cut-off
     },
     'T-1',
   );
-  const r = plan(files, PLAN);
+  // ST-LN-91 D-09: from the cut-off a task also names what it follows, so the fixture plan gains its two after: lines here.
+  const r = plan(files, PLAN.replace('covers: @ac-1, D-01', 'after: none\ncovers: @ac-1, D-01').replace('covers: @ac-2', 'after: 1\ncovers: @ac-2'));
   expect(r.findings.filter((f) => f.rule === 'gate.plan-size' || f.rule === 'gate.plan-size-missing')).toEqual([]);
   expect(errors(r)).toEqual([]);
 });

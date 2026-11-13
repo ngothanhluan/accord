@@ -102,3 +102,100 @@ it('risk:regression plan critique stops at three rounds or when the count does n
         bad.push(f.path + ' lacks ' + p);
   expect(bad).toEqual([]);
 });
+
+// Task 2: a ticket claimed under an older accord keeps the 0.4.0 round-1 split, chosen by the line `accord round` prints.
+const LENS_PATTERNS = [/`criteria`/, /lens:? `?build\b/i, /\bbuild`? lens\b/i, /fifth and seventh/i, /fourth and sixth/i];
+const SPLIT_PATTERNS = [/fifth and seventh/i, /fourth and sixth/i];
+
+it('risk:regression the plan skill chooses the round-1 dispatch from the line accord round prints (ST-LN-91 D-12)', () => {
+  const bad: string[] = [];
+  for (const runtime of RUNTIMES) {
+    const critique = planFiles(runtime, 'critique.md');
+    const skill = planFiles(runtime, 'SKILL.md');
+    if (critique.length === 0 || skill.length === 0) bad.push(runtime + ': a plan skill file is missing');
+    for (const f of critique)
+      for (const p of lacks(flat(f.text), [
+        'Round 1 reads the output of `accord round <id> --plan` that the paragraph above runs before each round: when it holds `Critics: plan checker`, dispatch as below; when it holds no `Critics:` line, the ticket was claimed under an older accord: dispatch round 1 as `./legacy-round1.md` says, and every later round as below.',
+      ]))
+        bad.push(f.path + ' lacks ' + p);
+    for (const f of skill)
+      for (const p of lacks(flat(f.text), ['round 1 of the plan critique of a ticket claimed under an older accord follows `./legacy-round1.md`, as `./critique.md` says']))
+        bad.push(f.path + ' lacks ' + p);
+    if (planFiles(runtime, 'legacy-round1.md').length === 0) bad.push(runtime + ': plan/legacy-round1.md is not rendered');
+  }
+  expect(bad).toEqual([]);
+});
+
+it('risk:regression a ticket claimed under an older accord keeps the 0.4.0 round-1 split (ST-LN-91 D-12)', () => {
+  const bad: string[] = [];
+  for (const runtime of RUNTIMES) {
+    const files = planFiles(runtime, 'legacy-round1.md');
+    if (files.length === 0) bad.push(runtime + ': plan/legacy-round1.md is missing');
+    for (const f of files) {
+      const text = flat(f.text);
+      for (const p of lacks(text, [
+        'one `accord-critic` with no named checks for a plan of one to three tasks',
+        'two critics for a plan of four or more tasks, one told to run only the first, second, third, fifth and seventh checks under `Mode plan:` and one only the fourth and sixth',
+        'so at most three',
+        'a critic running every check or the first group, and every `diff` critic, checks the plan against every Decision and every Correction of the ticket',
+        'the cap and stop are what `accord round <id> --plan` prints for this ticket',
+      ]))
+        bad.push(f.path + ' lacks ' + p);
+      for (const re of [/`criteria`/, /lens:? `?build\b/i, /\bbuild`? lens\b/i]) if (re.test(f.text)) bad.push(f.path + ' matches ' + String(re));
+    }
+  }
+  expect(bad).toEqual([]);
+});
+
+it('risk:regression accord-critic runs only the checks its caller names for a ticket claimed under an older accord (ST-LN-91 D-12)', () => {
+  const agent = agents('claude').find((f) => f.path === '.claude/agents/accord-critic.md')?.text ?? '';
+  expect(agent, 'accord-critic is missing').not.toBe('');
+  expect(
+    lacks(flat(agent), ['for a ticket claimed before the plan checker, your caller may instead name which checks under `Mode `plan`:` to run, by their place in the list, and you run only those']),
+  ).toEqual([]);
+  const body = agent.split('\n---\n').slice(1).join('\n---\n').replace(/^\n+/, '');
+  const bodyLines = body.replace(/\n+$/, '').split('\n');
+  expect(bodyLines.filter((l) => !l.startsWith('<!--')).length).toBeLessThanOrEqual(59);
+  const at = agent.split('\n').indexOf('Mode `plan`:');
+  const block = agent.split('\n').slice(at + 1);
+  expect(block.slice(0, block.indexOf('')).filter((l) => l.startsWith('- Check'))).toHaveLength(7);
+});
+
+it('risk:regression the 0.4.0 split and the criteria and build lens names live only in legacy-round1.md (ST-LN-91 D-16)', () => {
+  const bad: string[] = [];
+  for (const runtime of RUNTIMES) {
+    const all = [...skills(runtime), ...agents(runtime)];
+    const legacy = all.filter((f) => f.path.endsWith('/accord-plan/legacy-round1.md'));
+    if (legacy.length !== 1) bad.push(runtime + ': expected exactly one render of plan/legacy-round1.md, found ' + legacy.length);
+    for (const f of all) {
+      if (f.path.endsWith('/accord-plan/legacy-round1.md')) continue;
+      for (const re of LENS_PATTERNS) if (re.test(f.text)) bad.push(runtime + ' ' + f.path + ' matches ' + String(re));
+    }
+    for (const f of legacy) {
+      for (const re of SPLIT_PATTERNS) if (!re.test(f.text)) bad.push(f.path + ' lacks ' + String(re));
+      for (const re of LENS_PATTERNS.slice(0, 3)) if (re.test(f.text)) bad.push(f.path + ' matches ' + String(re));
+    }
+  }
+  expect(bad).toEqual([]);
+});
+
+it('risk:security the legacy round-1 dispatch also runs the security critic on a sensitive: path (ST-LN-91 D-21)', () => {
+  const bad: string[] = [];
+  for (const runtime of RUNTIMES) {
+    const legacy = planFiles(runtime, 'legacy-round1.md');
+    if (legacy.length !== 1) bad.push(runtime + ': expected exactly one render of plan/legacy-round1.md, found ' + legacy.length);
+    for (const f of legacy) {
+      const lines = f.text.split('\n');
+      const at = lines.findIndex((l) => /^- /.test(l) && l.includes('lens `security`'));
+      if (at < 0) {
+        bad.push(f.path + ' has no list item dispatching lens `security`');
+        continue;
+      }
+      let end = at + 1;
+      while (end < lines.length && /^\s+\S/.test(lines[end])) end++;
+      const item = flat(lines.slice(at, end).join(' '));
+      for (const p of ['auth', 'money', 'migration', 'data deletion', '`sensitive:`']) if (!item.includes(p)) bad.push(f.path + ' security item lacks ' + p);
+    }
+  }
+  expect(bad).toEqual([]);
+});

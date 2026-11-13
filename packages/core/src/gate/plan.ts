@@ -1,7 +1,7 @@
 // Spec §7 plan gate: the plan of an approved lane ticket covers every criterion and decision and defers
 // nothing. Mechanical only — whether the plan is good is the critic's question; this gate answers whether
 // it is complete. Levels live in rules.ts (D-57).
-import { commentFreeLines, headingKey, LIST_MARKER, stripHtmlComments } from '../load/sections.js';
+import { fencedBlocks, headingKey, LIST_MARKER, stripHtmlComments } from '../load/sections.js';
 import { FIELD, fieldLines, tokens } from '../load/work.js';
 import type { PlanTask, RepoSnapshot, Ticket } from '../model/snapshot.js';
 import { claimPinBefore, PLAN_FORMAT_FROM, PLAN_SIZE_FROM, pinBefore } from '../round/pin.js';
@@ -197,21 +197,21 @@ export const taskAfterUnknown: GateRule['check'] = (snapshot, id) => {
 /** ST-LN-91 D-09: a plan task holds at most this many non-blank lines, fenced lines and interfaces blocks included. A constant, not a config.yml key. */
 export const TASK_LINE_CAP = 120;
 
-/** The non-blank lines under the task's heading with HTML comments removed outside fenced blocks; fenced lines count. */
-export const taskLength = (task: PlanTask): number => commentFreeLines(task.lines).lines.filter((l) => l.text.trim() !== '').length;
+/** The non-blank lines under the task's heading, as `accord brief` prints them: comment lines and fenced lines count (WR-01), so the gate measures what the executor receives. */
+export const taskLength = (task: PlanTask): number => task.lines.filter((l) => l.text.trim() !== '').length;
 
 /** ST-LN-91 91p-ac-1: a plan task says what, not how; the one block it may hold is a fence whose info string starts with the word interfaces. */
 export const taskCodeBlock: GateRule['check'] = (snapshot, id) =>
   formatTasks(snapshot, id).flatMap((t) =>
-    commentFreeLines(t.lines)
-      .fences.filter((f) => f.info.split(/\s+/)[0] !== 'interfaces')
+    fencedBlocks(t.lines)
+      .filter((f) => f.quoted === true || f.info.split(/\s+/)[0] !== 'interfaces')
       .map((f) => ({
         file: planFile(id),
         line: f.open,
         reason:
-          `task ${t.n} holds a fenced code block at line ${f.open}` +
+          `task ${t.n} holds a fenced code block${f.quoted === true ? ' in a blockquote' : ''} at line ${f.open}` +
           (f.info === '' ? '' : ` (${f.info})`) +
-          '; a plan task says what, not how: the only block allowed is an interfaces block, a fence whose info string starts with interfaces',
+          '; a plan task says what, not how: the only block allowed is an interfaces block, a fence whose info string starts with interfaces, outside a blockquote',
       })),
   );
 

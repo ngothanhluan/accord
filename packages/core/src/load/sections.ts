@@ -7,6 +7,7 @@ export interface Fence {
   open: number; // Markdown line of the opening fence
   close: number; // Markdown line of the closing fence, or the last body line when unterminated
   content: Line[]; // every line between the fences
+  quoted?: true; // opened inside a block quote: only fencedBlocks sets it, and only plan tasks read it
 }
 
 /** Case-insensitive, whitespace-collapsed heading identity (D-39). */
@@ -149,25 +150,50 @@ export function requirementLines(section: Section, fences: Fence[]): Line[] {
     .filter((l) => l.text !== ''); // after the marker: a bullet with no text is not a requirement
 }
 
-// A block opens on any line whose first non-blank characters are a run of three backticks or tildes: a fence in a list item or with a
-// stray indent is still a fence here, so a plan task cannot hold code by indenting it (a false reading refuses and names the line).
-const BLOCK_OPEN = /^[ \t]*(`{3,}|~{3,})(.*)$/;
+// A block opens on any line whose first non-blank characters, after any block-quote markers and list markers, are a run of three backticks or
+// tildes: a fence on a list item's marker line or in a block quote is still a fence here, so a plan task cannot hold code by nesting it (a false
+// reading refuses and names the line it opens on). One quote level or list marker is stripped per pass, up to a few levels.
+const QUOTE_PREFIX = /^[ \t]*>[ \t]?/;
+const ITEM_PREFIX = /^[ \t]*(?:[-*+]|\d+[.)])[ \t]+/;
+const FENCE_RUN = /^[ \t]*(`{3,}|~{3,})(.*)$/;
 const BLOCK_CLOSE = /^[ \t]*(`{3,}|~{3,})\s*$/;
 
+/** The fence a line opens, if any: its marker run, its info string and whether a block-quote marker precedes it. */
+function opening(text: string): { marker: string; info: string; quoted: boolean } | undefined {
+  let rest = text;
+  let quoted = false;
+  for (let i = 0; i < 8; i++) {
+    const q = QUOTE_PREFIX.exec(rest);
+    const m = q ?? ITEM_PREFIX.exec(rest);
+    if (m === null) break;
+    if (q !== null) quoted = true;
+    rest = rest.slice(m[0].length);
+  }
+  const m = FENCE_RUN.exec(rest);
+  // CommonMark: a backtick fence's info string may not contain a backtick.
+  if (m === null || (m[1][0] === '`' && m[2].includes('`'))) return undefined;
+  return { marker: m[1], info: m[2].trim(), quoted };
+}
+
+/** The closing run of a line inside a fence; a fence opened in a block quote closes on a line that carries the quote markers too. */
+function closing(text: string, quoted: boolean): RegExpExecArray | null {
+  let rest = text;
+  if (quoted) while (QUOTE_PREFIX.test(rest)) rest = rest.replace(QUOTE_PREFIX, '');
+  return BLOCK_CLOSE.exec(rest);
+}
+
 /**
- * ST-LN-91 D-09: the lines of a plan task read in one pass that knows both fences and HTML comments: a comment is removed everywhere outside a
- * fenced block (line count and numbers kept, as stripHtmlComments does), a fence inside a comment does not open, and a comment delimiter inside a
- * fence is code, so it hides neither the fence's end nor the lines after it. `fences` are the blocks outside comments, an unterminated one closing at
- * the last line.
+ * ST-LN-91 D-09, WR-01, WR-02: the fenced blocks of a plan task, read as `accord brief` prints the task: the lines as written. An HTML comment hides
+ * nothing: a fence inside a comment is a fence, a comment mark in inline code opens nothing, and every comment line counts toward the length. A
+ * comment delimiter inside a fence is code. `quoted` marks a block inside a block quote, which a plan task may not hold. An unterminated block
+ * closes at the last line.
  */
-export function commentFreeLines(lines: Line[]): { lines: Line[]; fences: Fence[] } {
-  const out: Line[] = [];
+export function fencedBlocks(lines: Line[]): Fence[] {
   const fences: Fence[] = [];
-  let inComment = false;
-  let open: { marker: string; fence: Fence } | undefined;
+  let open: { marker: string; quoted: boolean; fence: Fence } | undefined;
   for (const { line, text } of lines) {
     if (open) {
-      const close = BLOCK_CLOSE.exec(text);
+      const close = closing(text, open.quoted);
       if (close && close[1][0] === open.marker[0] && close[1].length >= open.marker.length) {
         open.fence.close = line;
         open = undefined;
@@ -175,39 +201,14 @@ export function commentFreeLines(lines: Line[]): { lines: Line[]; fences: Fence[
         open.fence.content.push({ line, text });
         open.fence.close = line;
       }
-      out.push({ line, text });
       continue;
     }
-    let kept = '';
-    let rest = text;
-    while (rest.length > 0) {
-      if (inComment) {
-        const end = rest.indexOf('-->');
-        if (end < 0) rest = '';
-        else {
-          rest = rest.slice(end + 3);
-          inComment = false;
-        }
-      } else {
-        const start = rest.indexOf('<!--');
-        if (start < 0) {
-          kept += rest;
-          rest = '';
-        } else {
-          kept += rest.slice(0, start);
-          rest = rest.slice(start + 4);
-          inComment = true;
-        }
-      }
-    }
-    const m = BLOCK_OPEN.exec(kept);
-    // CommonMark: a backtick fence's info string may not contain a backtick.
-    if (m && !(m[1][0] === '`' && m[2].includes('`'))) {
-      const fence: Fence = { info: m[2].trim(), open: line, close: line, content: [] };
+    const m = opening(text);
+    if (m) {
+      const fence: Fence = { info: m.info, open: line, close: line, content: [], ...(m.quoted ? { quoted: true as const } : {}) };
       fences.push(fence);
-      open = { marker: m[1], fence };
+      open = { marker: m.marker, quoted: m.quoted, fence };
     }
-    out.push({ line, text: kept });
   }
-  return { lines: out, fences };
+  return fences;
 }

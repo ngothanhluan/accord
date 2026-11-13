@@ -5,7 +5,7 @@ import type { LoadFinding } from '../model/finding.js';
 import type { Discuss, DiscussArea, Ledger, Line, Plan, PlanTask, Review } from '../model/snapshot.js';
 import { fnv1a64 } from '../gate/hash.js';
 import { normaliseText, splitFrontmatter } from './frontmatter.js';
-import { commentFreeLines, headingKey, LIST_MARKER, scan, stripHtmlComments } from './sections.js';
+import { fencedBlocks, headingKey, LIST_MARKER, scan, stripHtmlComments } from './sections.js';
 import { parseYamlMap } from './yaml.js';
 
 const TASK = /^Task\s+([1-9][0-9]*)\s*:\s*(.*)$/;
@@ -55,13 +55,13 @@ export function fieldLines(lines: Line[]): Partial<Record<Field, { line: number;
 const TASK_NUMBER = /^[1-9][0-9]*$/;
 
 /**
- * ST-LN-91 D-09: the first `after:` line of a task outside a fence and a comment, list marker stripped, as `{ line, tasks, unread }`: each token that is a
+ * ST-LN-91 D-09: the first `after:` line of a task outside a fence, list marker stripped, read as `accord brief` prints the task (WR-01: a comment is text), as `{ line, tasks, unread }`: each token that is a
  * task number goes to `tasks`, `none` is skipped, anything else (and `none` beside another token, which says two things) to `unread`. Undefined with no
  * such line, and when the first one holds no token, so the rule that asks for the line names it.
  */
 function afterField(lines: Line[]): PlanTask['after'] {
-  const { lines: free, fences } = commentFreeLines(lines);
-  for (const l of free) {
+  const fences = fencedBlocks(lines);
+  for (const l of lines) {
     if (fences.some((f) => l.line >= f.open && l.line <= f.close)) continue;
     const m = /^after:(.*)$/.exec(l.text.replace(LIST_MARKER, '').trim());
     if (m === null) continue;

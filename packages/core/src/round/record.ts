@@ -34,7 +34,8 @@ const dequote = (v: string): string => (v.length >= 2 && v.startsWith('`') && v.
 const MARKUP = '[\\s`\'"*_()[\\]]*';
 const DASHES = '\\u2010-\\u2015\\u2212-';
 const SLOT_HEAD = new RegExp(`^${MARKUP}(?:rests on\\s*[:;=]?\\s*${MARKUP})?risks?[\\s,:;=_${DASHES}]*${MARKUP}`, 'i');
-const KIND_WORDS = new RegExp(`^([a-z]+)(?:[\\s_${DASHES}]*([a-z]+))?`, 'i');
+// ST-LN-91 round 8 VR-CR-01: up to three letter runs, each pair separated by one to three non-letters, after any leading non-letters: `data/loss`, `secu-rity`, `securi ty` and `.security` all join to a kind.
+const KIND_WORDS = /^[^a-z]*([a-z]+)(?:[^a-z]{1,3}([a-z]+))?(?:[^a-z]{1,3}([a-z]+))?/;
 
 /** True when `a` is `b` or differs from it by one letter: a substitution, an insertion, a deletion or two letters swapped. */
 function oneOff(a: string, b: string): boolean {
@@ -47,12 +48,17 @@ function oneOff(a: string, b: string): boolean {
   return (x.length > y.length ? x.slice(1) === y : y.slice(1) === x);
 }
 
-/** A value that starts with a security or data-loss kind, written right or off by one letter (`security`, `secrity`, `data-loss`, `data_loss`, `dataloss`, `data lost`); `none`, `low` and a sentence are no kind. */
+/**
+ * A value that starts with a security or data-loss kind, written right or off by one edit (`security`, `secrity`, `data-loss`, `data_loss`, `dataloss`, `data lost`, `data/loss`, `secu-rity`); `none`, `low` and a sentence are no kind.
+ * ST-LN-91 round 7 CR-01 and round 8 VR-CR-01: the distance is measured over the whole kind string, the `data` part included, so `date-loss`, `dta-loss` and `data-los` are one edit off `data-loss` as `secrity` is
+ * off `security`; the first one, two or three letter runs are joined, whatever up to three non-letters separate them, so a separator inside a word or another one between the words changes nothing.
+ */
 function kindLike(value: string): boolean {
   const m = KIND_WORDS.exec(value.toLowerCase());
   if (m === null) return false;
-  // ST-LN-91 round 7 CR-01: the distance is measured over the whole kind string, the `data` part included, so `date-loss`, `dta-loss` and `data-los` are one edit off `data-loss` as `secrity` is off `security`.
-  return oneOff(m[1], 'security') || oneOff(m[1], 'dataloss') || (m[2] !== undefined && oneOff(m[1] + m[2], 'dataloss'));
+  const two = m[1] + (m[2] ?? '');
+  const three = two + (m[3] ?? '');
+  return [m[1], two, three].some((w) => oneOff(w, 'security') || oneOff(w, 'dataloss'));
 }
 
 /** A segment or block line that sits in a risk slot, whether or not its value parses. */

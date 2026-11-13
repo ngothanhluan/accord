@@ -202,7 +202,23 @@ describe('plan format: fenced blocks', () => {
     ['an interfaces block on a nested marker line', ['- step', '  - ```interfaces', '    export function csv(): string', '    ```'], 0, []],
     ['a ts block on a list marker line', ['- ```ts', '  writer.csv = true;', '  ```'], 1, ['(ts)']],
     ['a ts block on an ordered marker line', ['1. ```ts', '   writer.csv = true;', '   ```'], 1, ['(ts)']],
-    ['a block on a list marker line closed flush left', ['- ```ts', '  x();', '```'], 1, ['(ts)']],
+    // The list item ends where CommonMark ends it, so a flush-left closing fence closes nothing: it opens a stray block of its own, which is refused too.
+    ['a block on a list marker line closed flush left', ['- ```ts', '  x();', '```'], 2, ['(ts)']],
+    ['an interfaces block on a list marker line closed flush left', ['- ```interfaces', '  export function csv(): string', '```'], 1, ['task 2']],
+    // ST-LN-91 g2 round 2 WR-01: a fence opened on a marker line, or indented under a list item, ends where the list item ends; the block that follows is read as a block.
+    ['an unclosed interfaces block on a list marker line, then a ts block', ['- ```interfaces', '  export function csv(): string', '', 'Then the writer:', '', '```ts', 'writer.csv = true;', '```'], 1, ['(ts)']],
+    ['an unclosed interfaces block on an ordered marker line, then a sh block', ['1. ```interfaces', '   export function csv(): string', 'Then the writer:', '```sh', 'npm test', '```'], 1, ['(sh)']],
+    ['an unclosed interfaces block in tildes on a marker line, then a ts block', ['- ~~~interfaces', '  export function csv(): string', 'Then:', '```ts', 'x', '```'], 1, ['(ts)']],
+    ['an unclosed interfaces block on a nested marker line, then a ts block', ['- step', '  - ```interfaces', '    export function csv(): string', '  then', '```ts', 'x', '```'], 1, ['(ts)']],
+    ['an unclosed interfaces block indented under a list item, then a ts block', ['- Interfaces:', '  ```interfaces', '  export function csv(): string', '', 'Then the writer:', '', '```ts', 'writer.csv = true;', '```'], 1, ['(ts)']],
+    ['an unclosed interfaces block indented under an ordered item, then a ts block', ['1. Interfaces:', '', '   ```interfaces', '   export function csv(): string', 'Then:', '```ts', 'x', '```'], 1, ['(ts)']],
+    ['a ts block that opens on the line that ends the list item', ['- ```interfaces', '  export function csv(): string', '```ts', 'x', '```'], 1, ['(ts)']],
+    ['an interfaces block on a marker line with blank and deeper lines, unclosed to the end of the task', ['- ```interfaces', '  export function csv(): string', '', '    deeper: string', '  more'], 0, []],
+    ['an interfaces block indented under a list item, unclosed to the end of the task', ['- Interfaces:', '  ```interfaces', '  export function csv(): string'], 0, []],
+    ['an interfaces block indented under a list item, closed at the same indent, then prose', ['- Interfaces:', '  ```interfaces', '  export function csv(): string', '  ```', 'Then the writer.'], 0, []],
+    ['an interfaces block indented under a list item, closed flush left', ['- Interfaces:', '  ```interfaces', '  export function csv(): string', '```'], 1, ['task 2']],
+    ['an indented interfaces block with flush-left lines and no list in the task', ['  ```interfaces', 'export function csv(): string', '  ```'], 0, []],
+    ['an indented interfaces block with flush-left lines after a list item: the item may end, so the block is not trusted', ['- step', '  ```interfaces', 'export function csv(): string', '  ```'], 1, ['task 2']],
     ['a block in a blockquote', ['> ```ts', '> x', '> ```'], 1, ['(ts)', 'blockquote']],
     ['an interfaces block in a blockquote', ['> ```interfaces', '> export function csv(): string', '> ```'], 1, ['(interfaces)', 'blockquote']],
     ['an interfaces block in a blockquote without a space after the marker', ['>```interfaces', '>x', '>```'], 1, ['blockquote']],
@@ -243,6 +259,29 @@ describe('plan format: fenced blocks', () => {
     expect(found[0].reason).toContain(`line ${found[0].line}`);
     const text = three(['after: 1', '```ts', 'a', '```', '```sh', 'b', '```']).split('\n');
     expect(found.map((f) => f.line)).toEqual([text.indexOf('```ts') + 1, text.indexOf('```sh') + 1]);
+  });
+
+  // ST-LN-91 g2 round 2 WR-01: the block that follows a list item's unclosed fence is named at its own opening line, whichever way the fence was opened.
+  it.each([
+    ['a marker line', ['- ```interfaces', '  export function csv(): string', '', 'Then the writer:', '', '```ts', 'writer.csv = true;', '```']],
+    ['an indented line', ['- Interfaces:', '  ```interfaces', '  export function csv(): string', '', 'Then the writer:', '', '```ts', 'writer.csv = true;', '```']],
+  ])('risk:complex-branching the ts block after an interfaces block opened on %s is named at its own line (ST-LN-91 91p-ac-1)', (_name, lines) => {
+    const plan = three(['after: 1', ...lines]);
+    const found = of(check({ plan, claim: NEW }), 'gate.task-code-block');
+    expect(found).toHaveLength(1);
+    expect(found[0].line).toBe(plan.split('\n').indexOf('```ts') + 1);
+    expect(check({ plan, claim: NEW }).verdict).toBe('fail');
+    expect(check({ plan, claim: OLD }).verdict).toBe('pass');
+  });
+
+  // ST-LN-91 g2 round 2 IN-02: the closing line of a quoted block is read through its quote marks, so the after: line below it is still read.
+  it.each([
+    ['backticks', ['> ```ts', '> x', '> ```']],
+    ['tildes', ['> ~~~ts', '> x', '> ~~~']],
+    ['two quote levels', ['> > ```ts', '> > x', '> > ```']],
+  ])('risk:complex-branching a closed blockquote block in %s does not hold the after: line below it open (ST-LN-91 91p-ac-1)', (_name, quoted) => {
+    const r = check({ plan: three([...quoted, 'after: 1']), claim: NEW });
+    expect(format(r).map((f) => f.rule)).toEqual(['gate.task-code-block']);
   });
 });
 

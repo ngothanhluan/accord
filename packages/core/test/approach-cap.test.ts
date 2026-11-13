@@ -1,7 +1,7 @@
 // ST-LN-91 91d-ac-2: the approach critic gets two rounds for a ticket claimed from APPROACH_CAP_FROM, and round 3 is refused with the
 // findings still open. The cap reads the ticket's claim pin (D-15), never the approach record's own pin.
 import { expect, it } from 'vitest';
-import { APPROACH_CAP_FROM, approvalBlockers, approvalFindings, approvalProblems, blockingFindings, loadSnapshot, nextRound, openFindings, recordProblems, roundText } from '../src/index.js';
+import { APPROACH_CAP_FROM, GROUNDS_V2_FROM, approvalBlockers, approvalFindings, approvalProblems, blockingFindings, loadSnapshot, nextRound, openFindings, recordProblems, roundText } from '../src/index.js';
 import type { ClaimPin, RepoSnapshot } from '../src/index.js';
 import { CONFIG, building } from '../../../test/helpers/lane.js';
 
@@ -362,6 +362,13 @@ it('risk:regression a failed claim read is named only in the refusals the cap ru
   expect(unversioned.reasons.join('\n')).not.toContain(error);
   const snapshot = { ...repo({ approach: HEAD }), claimPins: { 'T-404': { error } } };
   expect(nextRound(snapshot, 'T-404', 'approach').reasons.join('\n')).not.toContain(error);
+  // The Phase 2 grounds refusal reads the record's pin, not the claim pin: a round-2 Should with no grounds is refused without the git error (round 2 review IN-01).
+  const ungrounded = HEAD + round(1, '1. Should — the writer drops a header — open — rests on: ac-1') + round(2, '1. Should — the csv mode skips quoting — open');
+  const grounds = nextRound(repo({ config: at(GROUNDS_V2_FROM), claim: { error }, approach: ungrounded }), 'T-1', 'approach');
+  expect(grounds.kind).toBe('refused');
+  const groundsText = roundText(grounds);
+  expect(groundsText).toContain('from round 2 a Must or Should needs');
+  expect(groundsText).not.toContain(error);
   // The cap rules still name it: past the cap, an ended loop and a blocked approval.
   const risk = '1. Must — tokens reach the log — open — risk: security';
   const past = HEAD + round(1, R1_FIXED) + round(2, R2_OPEN) + round(3, R2_OPEN);

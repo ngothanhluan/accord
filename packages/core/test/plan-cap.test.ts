@@ -376,6 +376,12 @@ it('risk:security a failed claim-pin read names the git error in accord round --
   const bare = ask({ claim, plan: HEAD + '## Round 1 (whole)\n\n1. Should — task 1 drops a header — open\n\n' });
   expect(bare.kind).toBe('refused');
   says(roundText(bare));
+  // A round-1 mark accord cannot read is a record problem only because the new rules apply: the refusal says why (round 2 review WR-02).
+  const markRound = ['## Round 1 (whole)', '', '1. Must — Task 2 deletes rows — open — risk: data_loss', '', ''].join('\n');
+  const mark = ask({ claim, plan: HEAD + markRound });
+  expect(mark.kind).toBe('refused');
+  expect(roundText(mark)).toContain('a mark accord cannot read');
+  says(roundText(mark));
   // A plan record with a verdict: the loop has ended.
   says(roundText(ask({ claim, plan: record(2, 2) + verdict() })));
 

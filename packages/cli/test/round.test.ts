@@ -2,7 +2,7 @@ import { appendFileSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { cleanup, commitMsg, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
-import { LANE_S_BODY, laneTicket } from '../../../test/helpers/lane.js';
+import { CONFIG, LANE_S_BODY, laneTicket } from '../../../test/helpers/lane.js';
 
 const REVIEW =
   'Round record: 1\n\n## Round 1\n\nMust 1 [patch]: the writer drops the header — src/export.ts:3 — fixed in abc1234\n\n' +
@@ -16,6 +16,10 @@ it('risk:complex-branching accord round exits 0 with the round and model and 1 w
     'accord/tickets/T-1/review.md': REVIEW,
   });
   try {
+    // The ticket is claimed under 0.4.0: this case is about the five-round answers, and the claim pin decides the plan cap and the Critics line (D-15).
+    writeFiles(repo, { 'accord/config.yml': CONFIG.replace(/accord: "[^"]*"/, 'accord: "0.4.0"') });
+    commitMsg(repo, 'claim: T-1');
+    writeFiles(repo, { 'accord/config.yml': CONFIG, 'notes.txt': 'work after the claim\n' });
     const sha1 = commitMsg(repo, 'fixture');
     expect(await run(['round', 'T-1'], repo)).toEqual({ code: 0, out: 'Round: 4 of 5\nCycle: 1\nFix executor model: opus\n', err: '' });
 

@@ -62,7 +62,7 @@ it('risk:regression a plan record committed under the cut-off pin on a ticket cl
     commitMsg(repo, 'claim: T-1');
     writeFiles(repo, { 'accord/config.yml': pinned(PLAN_GROUNDS_FROM), [PLAN]: rec([BARE]) });
     commitMsg(repo, 'T-1 plan critique round 1');
-    writeFiles(repo, { 'accord/config.yml': CONFIG });
+    writeFiles(repo, { 'accord/config.yml': CONFIG, 'notes.txt': 'work after the record\n' });
     commitMsg(repo, 'T-1 back to the older pin');
     return repo;
   };

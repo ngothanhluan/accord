@@ -32,7 +32,8 @@ function planRepo(text: string, ledger = '') {
   building(files, 'T-1');
   files['accord/tickets/T-1/ledger.md'] = RULINGS + ledger;
   files['accord/tickets/T-1/plan-review.md'] = text;
-  return load(files);
+  // Claimed under 0.4.0: these cases are about the five-round plan loop; the claim pin decides the plan cap (D-15).
+  return { ...load(files), claimPins: { 'T-1': { pin: '0.4.0' } } };
 }
 
 it('ac-3 a review that stops converging stops for the owner and gate done fails until acceptance or convergence', () => {

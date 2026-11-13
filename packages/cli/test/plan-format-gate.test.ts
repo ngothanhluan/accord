@@ -68,14 +68,18 @@ it('risk:complex-branching accord gate plan reads the claim pin and refuses a ta
 });
 
 it('risk:complex-branching accord gate plan reads a ticket with no claim commit through the working-tree pin and a git error as new rules (ST-LN-91 91p-ac-2, D-15)', async () => {
-  // No `claim:` commit: HEAD pins 0.4.0 (CONFIG), so the older rules hold.
+  // No `claim:` commit: the working-tree pin (CONFIG, the running version) decides. Below the cut-off the older rules hold; at it the ticket fails closed to the new ones.
+  const working = /accord: "([^"]*)"/.exec(CONFIG)![1];
+  const below = working.localeCompare(PLAN_FORMAT_FROM, undefined, { numeric: true }) < 0;
   const repo = makeLaneRepo({ 'accord/tickets/T-1.md': laneTicket('T-1') });
   try {
     await run(['approve', 'T-1'], repo);
     const baseline = commitAll(repo);
     writeFiles(repo, { 'accord/tickets/T-1/plan.md': PLAN.replace('abc1234', baseline) });
     commitAll(repo);
-    expect((await gate(repo)).found).toEqual([]);
+    const found = (await gate(repo)).found;
+    if (below) expect(found).toEqual([]);
+    else expect(found.map((f) => f.rule)).toEqual(['gate.task-after-missing', 'gate.task-after-missing']);
   } finally {
     cleanup(repo);
   }

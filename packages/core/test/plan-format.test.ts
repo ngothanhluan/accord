@@ -319,7 +319,7 @@ describe('plan format: the cut-off', () => {
     const KEPT: [string, Opts][] = [
       ['claim 0.4.0, base pin 0.4.0', { claim: { pin: '0.4.0', basePin: '0.4.0' } }],
       ['claim 0.3.9, base pin 0.3.0', { claim: { pin: '0.3.9', basePin: '0.3.0' } }],
-      ['no claim fact, working-tree pin 0.4.0', {}],
+      ['no claim fact, working-tree pin 0.4.0', { config: at('0.4.0') }],
     ];
     for (const [name, o] of KEPT) expect(rules(check({ plan: BROKEN, ...o })), name).toEqual([]);
   });

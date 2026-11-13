@@ -364,7 +364,7 @@ it('risk:regression a failed claim read is named only in the refusals the cap ru
   expect(nextRound(snapshot, 'T-404', 'approach').reasons.join('\n')).not.toContain(error);
   // The Phase 2 grounds refusal reads the record's pin, not the claim pin: a round-2 Should with no grounds is refused without the git error (round 2 review IN-01).
   const ungrounded = HEAD + round(1, '1. Should — the writer drops a header — open — rests on: ac-1') + round(2, '1. Should — the csv mode skips quoting — open');
-  const grounds = nextRound(repo({ config: at(GROUNDS_V2_FROM), claim: { error }, approach: ungrounded }), 'T-1', 'approach');
+  const grounds = nextRound({ ...repo({ claim: { error }, approach: ungrounded }), recordPins: { 'T-1': { approach: { pin: GROUNDS_V2_FROM } } } }, 'T-1', 'approach');
   expect(grounds.kind).toBe('refused');
   const groundsText = roundText(grounds);
   expect(groundsText).toContain('from round 2 a Must or Should needs');

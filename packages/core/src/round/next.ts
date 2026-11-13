@@ -393,13 +393,15 @@ export function nextRound(snapshot: RepoSnapshot, id: string, kind: RoundKind): 
     return refuse(`${file} has no record version line; add the line "Round record: 1" above its first ## heading and ask again: its rounds count as cycle 1`);
   }
   const problems = recordProblems(snapshot, id, kind);
-  if (problems.length > 0) return refuse(...problems.map((p) => p.reason));
+  // Round 2 review WR-02: a round-1 mark the plan record reading cannot parse is a problem only because the new plan rules apply, which a failed claim read decides: say so.
+  if (problems.length > 0) return (kind === 'plan' ? refuseCap : refuse)(...problems.map((p) => p.reason));
   const scope = kind === 'review' ? scopeProblems(snapshot, id) : [];
   if (scope.length > 0) return refuse(...scope.map(scopeReason));
   // ST-LN-91 D-11: from the cut-off pin a Must or Should of round 2 or later cites a ticket line, test, command or risk tag; D-19: for a plan record of a ticket
   // claimed at the plan cut-off, from round 1.
   const grounds = groundsOn(snapshot, id, kind) ? groundsProblems(snapshot, id, kind) : [];
-  if (grounds.length > 0) return refuseCap(...grounds.map(scopeReason));
+  // Round 2 review IN-01: the grounds rule reads the record's pin; only a plan's grounds rule from round 1 is decided by the claim pin.
+  if (grounds.length > 0) return (kind === 'plan' ? refuseCap : refuse)(...grounds.map(scopeReason));
 
   const k = rec.cycles.length;
   const cyc = rec.cycles[k - 1];

@@ -38,6 +38,9 @@ const MARK_KEY = new RegExp(
 /** A segment or block line that sits in a mark slot (its key is a mark key), whether or not its value parses. */
 const inMarkSlot = (seg: string): boolean => MARK_KEY.test(seg);
 
+/** A segment that is nothing but a severity word: the finding's text is then the next segment (` — `), else it is inside this one (`Must: <text>`, `Must - <text>`, `Must – <text>`). */
+const SEVERITY_ONLY = /^[^A-Za-z]*(?:must|should|nice)\b[^A-Za-z0-9]*$/i;
+
 const indentOf = (text: string): number => text.length - text.trimStart().length;
 
 /** Split a line on ' — ' outside double quotes and backticks; a quote with no closing twin is plain text. */
@@ -93,8 +96,11 @@ function readFindingV1(text: string): Partial<Omit<RoundFinding, 'severity' | 'l
     t = t.slice(num[0].length);
   }
   const segs = splitDashes(t);
+  // ST-LN-91 round 6 CR-01: the segments before `head` are the severity word and the finding's text; the state and the marks come after them. The text is `segs[1]` after `Must — `
+  // and the tail of `segs[0]` after `Must: `, `Must - ` or `Must – ` (the severity is no segment of its own there), so the position comes from the line, not from a fixed index.
+  const head = SEVERITY_ONLY.test(segs[0]) ? 2 : 1;
   const marks: Mark = {};
-  while (segs.length > 1) {
+  while (segs.length > head) {
     const mark = readMark(segs[segs.length - 1].trim());
     if (mark === undefined) break;
     const [kind] = Object.keys(mark) as (keyof Mark)[];
@@ -103,17 +109,17 @@ function readFindingV1(text: string): Partial<Omit<RoundFinding, 'severity' | 'l
     segs.pop();
   }
   // A risk mark written before the state (`<finding> — risk: security — open`) is read too; its segment is taken out.
-  for (let k = segs.length - 2; k >= 2 && marks.risk === undefined; k--) {
+  for (let k = segs.length - 2; k >= head && marks.risk === undefined; k--) {
     const mark = readMark(segs[k].trim());
     if (mark?.risk !== undefined) {
       marks.risk = mark.risk;
       segs.splice(k, 1);
     }
   }
-  if (segs.length >= 3) {
+  if (segs.length > head) {
     const state = segs[segs.length - 1].trim();
     // An `unverified: <reason>` whose reason holds ' — ' is cut into segments; none of them is a state that closes the finding.
-    if (segs.slice(2, -1).some((x) => /^unverified\b/.test(x.trim()))) out.state = 'open';
+    if (segs.slice(head, -1).some((x) => /^unverified\b/.test(x.trim()))) out.state = 'open';
     else if (/^deferred\b/.test(state)) out.state = 'deferred';
     else if (/^(?:open|unverified)\b/.test(state)) out.state = 'open';
     else if (state === 'fixed') out.state = 'fixed';
@@ -128,7 +134,7 @@ function readFindingV1(text: string): Partial<Omit<RoundFinding, 'severity' | 'l
     else if (/^owner:\s*".*\S.*"\s*$/.test(state)) out.state = 'owner';
   }
   // A mark slot whose value does not parse: a segment after the finding's text that starts with a mark key and is no mark read. Words anywhere else are prose.
-  const unread = segs.slice(2).map((x) => x.trim()).filter((x) => inMarkSlot(x) && readMark(x) === undefined);
+  const unread = segs.slice(head).map((x) => x.trim()).filter((x) => inMarkSlot(x) && readMark(x) === undefined);
   if (unread.length > 0) out.markUnread = unread;
   const repeats = /^repeats ([1-9][0-9]*)\.([1-9][0-9]*):/.exec(t.replace(/^[^A-Za-z]*(?:must|should|nice)\b[^A-Za-z0-9]*/i, ''));
   if (marks.carried === undefined && repeats !== null) marks.carried = { round: Number(repeats[1]), n: Number(repeats[2]) };

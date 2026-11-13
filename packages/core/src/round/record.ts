@@ -51,7 +51,8 @@ function oneOff(a: string, b: string): boolean {
 function kindLike(value: string): boolean {
   const m = KIND_WORDS.exec(value.toLowerCase());
   if (m === null) return false;
-  return oneOff(m[1], 'security') || oneOff(m[1], 'dataloss') || (m[1] === 'data' && m[2] !== undefined && oneOff(m[2], 'loss'));
+  // ST-LN-91 round 7 CR-01: the distance is measured over the whole kind string, the `data` part included, so `date-loss`, `dta-loss` and `data-los` are one edit off `data-loss` as `secrity` is off `security`.
+  return oneOff(m[1], 'security') || oneOff(m[1], 'dataloss') || (m[2] !== undefined && oneOff(m[1] + m[2], 'dataloss'));
 }
 
 /** A segment or block line that sits in a risk slot, whether or not its value parses. */
@@ -318,9 +319,14 @@ export function parseRounds(file: string, text: string, kind: 'review' | 'plan' 
           if (BLOCK_KEY.test(seg) && (readMark(seg) !== undefined || inMarkSlot(seg))) {
             const mark = readMark(seg);
             const key = mark === undefined ? undefined : (Object.keys(mark) as (keyof Mark)[])[0];
-            // A second mark of one kind that differs from the one the finding already has is a conflict, a record problem.
-            if (mark === undefined || key === undefined || (block.f[key] !== undefined && JSON.stringify(block.f[key]) !== JSON.stringify(mark[key]))) unread(l.line, t.trim());
-            else Object.assign(block.f, mark);
+            // A mark that is no mark read (a risk slot written wrongly) is a record problem; so is a second risk that differs from the one the finding has. Any other second mark is read and never a
+            // problem (round 7 CR-02): a second, different ground is kept beside the first, and the first test or command stays the one the finding has.
+            if (mark === undefined || key === undefined) unread(l.line, t.trim());
+            else if (block.f[key] === undefined) Object.assign(block.f, mark);
+            else if (JSON.stringify(block.f[key]) !== JSON.stringify(mark[key])) {
+              if (key === 'risk') unread(l.line, t.trim());
+              else if (key === 'restsOn' && mark.restsOn !== undefined) (block.f.restsOnAlso ??= []).push(mark.restsOn);
+            }
           }
         } else {
           if (lazy && inMarkSlot(seg)) unread(l.line, t.trim());

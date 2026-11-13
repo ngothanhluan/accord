@@ -212,6 +212,7 @@ export interface RoundFinding {
   test?: string;
   command?: string;
   restsOn?: { kind: 'ac' | 'decision' | 'Veto' | 'Correction' | 'Intent' | 'Understood' | 'Done when'; ref: string }; // ref: ac-<n>, D-<nn>, or the quote without its quotes
+  restsOnAlso?: NonNullable<RoundFinding['restsOn']>[]; // ST-LN-91 round 7 CR-02: the further, different grounds the critic's block names after the first (never a record problem)
 }
 export interface RecordedRound {
   line: number; // of its ## Round heading

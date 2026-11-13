@@ -293,6 +293,9 @@ it('risk:regression the release note describes the structural reading and no lon
   const note = readFileSync(fileURLToPath(new URL('../../../docs/releases.md', import.meta.url)), 'utf8').replace(/\s+/g, ' ');
   for (const gone of [
     'in every written form',
+    'while it is open the short view lists it under `## Risks`',
+    '`rests on: ac1` are problems',
+    'is read as `1. Must — <text> — risk: security — open` is)',
     'Three rules follow the record or the plan',
     'RECORD_V2_FROM',
     'a line under a `## Round` heading in which the word `risk` is followed',
@@ -307,6 +310,13 @@ it('risk:regression the release note describes the structural reading and no lon
     '`accord approve` refuses with exit 1',
     '`accord round --plan` and, once a cycle holds three rounds, `accord gate plan`',
     'Two rules follow the record or the plan',
+    'while it is an open Must or Should the short view lists it under `## Risks`, and an open Nice is never listed',
+    'whether the severity is followed by ` — `, a colon, a hyphen or an en dash',
+    'Any other line under a finding, indented or not, is a note, and a note is prose',
+    'A value that is no such kind is prose, not a problem',
+    '`risk: none`, `risk: low`, `risk: a partial file is left on a crash` and `rests on: ac1` refuse nothing',
+    'a kind one letter off (`risk: secrity`, `risk: data-lost`)',
+    'is a record problem too, because Markdown renders it as part of the finding',
   ]) expect(note, p).toContain(p);
 });
 

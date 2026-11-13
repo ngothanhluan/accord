@@ -116,13 +116,17 @@ it('risk:security the critique loop names the mark slot as the one place a risk 
     "The critic's other `rests on:` lines (`ac-<n>`, `D-<nn>`, a quote, `test:`, `command:`) are read as grounds the same way.",
     "A risk named in the finding's words, a note, a reason or the owner's words is prose: accord reads no risk there and it blocks nothing, so write it in the mark slot.",
     'A mark slot whose value does not parse (`risks: security`, `risk: data_loss`, `risk: security` in backticks or quotes) is a record problem: `accord round <id> --approach` and `accord approve` refuse until it is rewritten in the exact form.',
+    'A value that is no kind (`risk: none`, `risk: low`) is prose and refuses nothing; a `rests on: risk: security` line directly under the finding, not indented, is refused: indent it as the critic prints it.',
     'A state that closes a finding (`fixed`, `withdrawn`, `repeated as <round>.<n>`, `owner: "<words>"`) is the whole segment: `fixed by a patch` leaves it open.',
   ]);
   expect(loop).not.toContain('with ` — `, ` - `');
   expect(loop).not.toContain('The test is the word `risk`');
   holds(flat(skillFile('accord-approach', 'approval.md')), [
     'A `record problem:` item in that part is a line of `approach-review.md` that accord cannot read, or a mark slot whose value does not parse: the owner cannot say yes until it is fixed (step 4).',
-    'A risk named only in prose is not read and does not block; the view lists the open finding under the risks.',
+    'The risks the view lists are the Must and Should approach findings still open, never a Nice, and the risk findings the owner dropped; the owner accepts them with the yes.',
+    'A risk named only in prose is not read and does not block; an open Must or Should that names one is listed under the risks, and an open Nice is not listed.',
+    "rewrite a mark accord cannot read in the exact form it was meant to have, keeping the kind it names (`risks: security` becomes `risk: security`), and never change a finding's severity, state or the risk it names.",
+    'When you cannot tell what the mark was meant to say, ask the owner, or have the critic restate that one mark; do not guess.',
     'as `./critique.md` gives the form',
   ]);
   holds(flat(agent('critic')), ['write the risk only on its `rests on:` line, exactly `risk: data-loss` or `risk: security`, never in backticks, quotes or prose.']);
@@ -131,6 +135,6 @@ it('risk:security the critique loop names the mark slot as the one place a risk 
 it('risk:security the plan critique loop names the same mark slot, so a plan record is not refused for a form the skill never gave (ST-LN-91 WR-01, round 5)', () => {
   holds(flat(skillFile('accord-plan', 'critique.md')), [
     'The separator is always ` — `, never a hyphen, and a risk is written exactly ` — risk: security` or ` — risk: data-loss` after the finding\'s text: accord reads a risk from that mark slot only, never from the finding\'s words, a note or a reason.',
-    'A mark slot whose value does not parse (`risks: security`, `risk: data_loss`, `risk: security` in backticks or quotes) is a record problem, and `accord round <id> --plan` refuses it on a plan record written under accord 0.4.1 or later.',
+    'A mark slot whose value does not parse (`risks: security`, `risk: data_loss`, `risk: security` in backticks or quotes) is a record problem, and `accord round <id> --plan` refuses it on a plan record written under accord 0.4.1 or later. A value that is no kind (`risk: none`) is prose.',
   ]);
 });

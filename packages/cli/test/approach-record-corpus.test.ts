@@ -74,6 +74,10 @@ const CLI_ROWS = new Set([
   'r6-X7-bold-severity-and-mark',
   'r6-N-prose-nice-open',
   'legacy-form-12',
+  'r7-CR01-one-off-date-loss-after-state',
+  'r7-CR01-one-off-block-date-loss',
+  'r7-CR02-G1-line-ac-block-D',
+  'r7-CR02-G4-open-two-block-grounds-r2',
 ]);
 const SHAPES = ROWS.filter((r) => CLI_ROWS.has(r.id));
 const repos = new Map<string, string>();

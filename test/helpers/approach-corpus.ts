@@ -476,6 +476,55 @@ add({
   grounds: 'ok',
 });
 
+// ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Round 7 (03-group1-REVIEW7.md, probes accord-rr7/s/r7.mjs and r7c.mjs).
+// CR-01: a security or data-loss kind written one edit off (one insertion, deletion, substitution or adjacent transposition, measured over the whole kind string, the `data` part included) is a
+// record problem, on the finding line and on the critic's `rests on: risk:` line, in the current cycle and in a closed one. Two or more edits off is prose.
+const KIND_TYPOS = ['date-loss', 'dta-loss', 'daat-loss', 'data-los', 'datta-loss', 'data-lsos', 'data_lost', 'dataloss', 'secrity', 'secuirty', 'sceurity', 'ecurity', 'securty', 'securitty', 'seburity'];
+for (const k of KIND_TYPOS) {
+  const tag = k.replace(/[^a-z]+/g, '-');
+  add({ id: 'r7-CR01-one-off-' + tag + '-after-state', src: 'round 7 CR-01 (' + k + ' one edit off, after the state)', r1: [LEAK + ' — risk: ' + k], out: 'PROBLEM' });
+}
+add({ id: 'r7-CR01-one-off-date-loss-before-state', src: 'round 7 CR-01 (date-loss before the state)', r1: ['1. Must — ' + TOK + ' — risk: date-loss — open'], out: 'PROBLEM' });
+add({ id: 'r7-CR01-one-off-block-date-loss', src: 'round 7 CR-01 (the critic block: rests on: risk: date-loss)', r1: [LEAK, '   rests on: risk: date-loss'], out: 'PROBLEM', problem: ['rests on: risk: date-loss'] });
+add({ id: 'r7-CR01-one-off-block-dta-loss', src: 'round 7 CR-01 (the critic block: rests on: risk: dta-loss)', r1: [LEAK, '   failing case: a login → the token is in app.log', '   rests on: risk: dta-loss'], out: 'PROBLEM', problem: ['rests on: risk: dta-loss'] });
+add({ id: 'r7-CR01-one-off-block-secuirty', src: 'round 7 CR-01 (the critic block: rests on: risk: secuirty)', r1: [LEAK, '   rests on: risk: secuirty'], out: 'PROBLEM', problem: ['rests on: risk: secuirty'] });
+add({ id: 'r7-CR01-one-off-data-space-loss-typo', src: 'round 7 CR-01 (data loss with a space, a letter doubled)', r1: ['1. Must — ' + ROWS_LOSS + ' — open — risk: data lloss'], out: 'PROBLEM' });
+add({
+  id: 'r7-CR01-one-off-date-loss-in-closed-cycle',
+  src: 'round 7 CR-01 (MC-closed-date-loss: a closed cycle holds risk: date-loss, then a clean cycle)',
+  r1: [LEAK + ' — risk: date-loss'],
+  r2: null,
+  tail: CLOSED + '## Round 1 (whole)\n\n' + G1 + '\n\n## Round 2 (diff)\n\nNo findings\n',
+  out: 'PROBLEM',
+});
+// Two or more edits off stays prose (Ruling, round 6): none of these is a record problem, and an open one is an ordinary open finding.
+for (const k of ['sec', 'ecuri', 'lossy', 'dat-ss', 'sucurita']) {
+  add({ id: 'r7-CR01-two-off-' + k, src: 'round 7 CR-01 (two or more edits off is prose)', r1: ['1. Should — the export is slow — open — risk: ' + k + ' — rests on: ac-1'], out: 'LIST' });
+}
+add({ id: 'r7-CR01-control-data-los', src: 'round 7 controls (data-los, secrity, sceurity, ecurity were already problems)', r1: [LEAK + ' — risk: data-los'], out: 'PROBLEM' });
+
+// CR-02: the critic's block may carry several `rests on:` lines, and a line ground may coexist with a block ground. Every valid ground is read; a second valid ground, or a second, different
+// test or command, is never a record problem. Only a mis-written risk kind is (the conflicting-risk row above stays a problem).
+const SHOULD_CSV = '1. Should — the delimiter is wrong — fixed';
+add({ id: 'r7-CR02-G1-line-ac-block-D', src: 'round 7 CR-02 G1', r1: ['1. Must — the header row is written twice — fixed — rests on: ac-1', '   failing case: export → two headers', '   rests on: D-01'], out: 'PASS', grounds: 'ok' });
+add({ id: 'r7-CR02-G2-two-block-grounds', src: 'round 7 CR-02 G2', r1: ['1. Must — the header row is written twice — fixed', '   failing case: export → two headers', '   rests on: ac-1', '   rests on: D-01'], out: 'PASS', grounds: 'ok' });
+add({ id: 'r7-CR02-G3-line-test-block-test', src: 'round 7 CR-02 G3', r1: [SHOULD_CSV + ' — test: export#writes-csv', '   rests on: test: export#delimiter'], out: 'PASS', grounds: 'ok' });
+add({
+  id: 'r7-CR02-G4-open-two-block-grounds-r2',
+  src: 'round 7 CR-02 G4',
+  r1: [G1],
+  r2: ['1. Must — the header row is written twice — open', '   failing case: x', '   rests on: ac-1', '   rests on: D-01'],
+  out: 'LIST',
+  list: ['1. Must — the header row is written twice — open'],
+  grounds: 'ok',
+});
+add({ id: 'r7-CR02-two-block-commands', src: 'round 7 CR-02 (two different commands in the block)', r1: [SHOULD_CSV, '   rests on: command: npm test -- a', '   rests on: command: npm test -- b'], out: 'PASS', grounds: 'ok' });
+add({ id: 'r7-CR02-three-block-grounds-mixed', src: 'round 7 CR-02 (ac, decision and a test in one block)', r1: [SHOULD_CSV, '   rests on: ac-1', '   rests on: D-01', '   rests on: test: export#delimiter'], out: 'PASS', grounds: 'ok' });
+add({ id: 'r7-CR02-line-quote-block-ac', src: 'round 7 CR-02 (a quoted ticket line on the line, an ac in the block)', r1: [SHOULD_CSV + ' — rests on: Veto "No new dependency."', '   rests on: ac-1'], out: 'PASS', grounds: 'ok' });
+add({ id: 'r7-CR02-risk-line-second-ground-block', src: 'round 7 CR-02 (an open risk on the line keeps blocking with a second ground in the block)', r1: [LEAK + ' — risk: security', '   rests on: ac-1', '   rests on: D-01'], out: 'BLOCK' });
+add({ id: 'r7-CR02-second-ground-and-misspelt-risk-is-problem', src: 'round 7 CR-02 (a second valid ground does not hide a mis-written risk kind)', r1: [LEAK, '   rests on: ac-1', '   rests on: D-01', '   rests on: risk: secrity'], out: 'PROBLEM', problem: ['rests on: risk: secrity'] });
+
 // Every ground kind, as a one-line mark and as the critic's block line, in a round 2 Must that rests on nothing else (round 6 'norm').
 const KINDS: { mark: string; risk?: true }[] = [
   { mark: 'rests on: ac-1' },
@@ -605,6 +654,19 @@ export const PLAN_ROWS: readonly PlanRow[] = [
     id: 'plan-r6-CR02-indented-risk-note',
     src: 'round 6 CR-02 (the same note under a plan finding)',
     rounds: [['1. Should — Task 1: the cache is stale — fixed — rests on: ac-1', '   - Risk: a stale cache shows old rows for a minute']],
+    round: 'next',
+  },
+  {
+    id: 'plan-r7-CR01-one-off-date-loss',
+    src: 'round 7 CR-01 (a plan finding with a data-loss kind one edit off is a record problem under the grounds rule)',
+    rounds: [['1. Should — Task 1: quoting — open — risk: date-loss']],
+    problem: ['1. Should — Task 1: quoting — open — risk: date-loss'],
+    round: 'refused',
+  },
+  {
+    id: 'plan-r7-CR02-two-block-grounds',
+    src: 'round 7 CR-02 (a second valid ground under a plan finding is no record problem)',
+    rounds: [['1. Should — Task 1: the cache is stale — fixed', '   rests on: ac-1', '   rests on: D-01']],
     round: 'next',
   },
 ];

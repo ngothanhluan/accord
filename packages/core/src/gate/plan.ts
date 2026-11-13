@@ -240,7 +240,8 @@ export const taskCodeBlock: GateRule['check'] = withNote((snapshot, id) =>
         reason:
           `task ${t.n} holds a fenced code block${f.quoted === true ? ' in a blockquote' : ''} at line ${f.open}` +
           (f.info === '' ? '' : ` (${f.info})`) +
-          '; a plan task says what, not how: the only block allowed is an interfaces block, a fence whose info string starts with interfaces, outside a blockquote',
+          '; a plan task says what, not how: the only block allowed is an interfaces block, a fence whose info string starts with interfaces' +
+          (f.quoted === true ? ', and not inside a blockquote' : ''),
       })),
   ),
 );

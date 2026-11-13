@@ -48,7 +48,7 @@ it('risk:security the critic block as critic.md prints it is read: its rests-on 
 it("risk:security a block line at or above the finding's indent is no block line: it is prose, read as nothing (ST-LN-91 WR-05 M15)", () => {
   const same = ['1. Must — tokens reach the log — open', '   failing case: x → y', '1. Must — second — open', '   rests on: risk: security'];
   // The risk line belongs to finding 2 only (indented deeper than it); finding 1 stays unmarked.
-  expect(blockedBy(twoRounds(...same))).toEqual([{ round: 1, lines: ['1. Must — second — open'] }]);
+  expect(blockedBy(twoRounds(same[0], ...same.slice(1)))).toEqual([{ round: 1, lines: ['1. Must — second — open'] }]);
   for (const flat of [
     ['  1. Must — tokens reach the log — open', '  rests on: risk: security'],
     ['  1. Must — tokens reach the log — open', ' rests on: risk: security'],
@@ -96,6 +96,7 @@ const MARK_SLOT_PROBLEMS = [
   '1. Must — tokens reach the log — open — risk: data loss',
   '1. Must — tokens reach the log — open — risk: Security risk',
   '1. Must — tokens reach the log — open — risk security',
+  '1. Must — tokens reach the log — open — risk, security',
   '1. Must — tokens reach the log — open — Risks: security',
   '1. Must — tokens reach the log — open — rests on: ac1', // a `rests on` key with a value that is no ground
   '1. Must — tokens reach the log — risks: security — open', // before the state

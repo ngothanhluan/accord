@@ -366,11 +366,11 @@ it('risk:regression the plan format section counts tasks over the cap with core\
   const { main } = await load();
   const s = sandbox();
   try {
-    // T-1: no after: lines, a ts block and a task of 130 non-blank lines (4 task lines + 126 more). T-2: after: lines, an interfaces block, short tasks.
+    // T-1: no after: lines, a ts block and a task of 130 non-blank lines (3 task lines + 3 fence lines + 124 more). T-2: after: lines, an interfaces block, short tasks.
     write(s.root, {
       'accord/config.yml': CONFIG,
       'accord/tickets/T-1.md': laneTicket('T-1'),
-      'accord/tickets/T-1/plan.md': planWith([taskOf(1, { fence: 'ts', extra: 122 }), taskOf(2)]),
+      'accord/tickets/T-1/plan.md': planWith([taskOf(1, { fence: 'ts', extra: 124 }), taskOf(2)]),
       'accord/tickets/T-2.md': laneTicket('T-2'),
       'accord/tickets/T-2/plan.md': planWith([taskOf(1, { after: true, fence: 'interfaces' }), taskOf(2, { after: true })]),
     });

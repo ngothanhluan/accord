@@ -1,0 +1,168 @@
+{
+  "label": "st-ln-91-plan-format",
+  "commit": "b057d1359285fe26770d5332c71d68f990adf1d3",
+  "date": "2026-11-13",
+  "stages": {
+    "approach": {
+      "records": 1,
+      "cycles": 1,
+      "byRound": [
+        {
+          "round": "1",
+          "run": 1,
+          "must": 1,
+          "should": 5,
+          "nice": 1,
+          "perRound": "6.0"
+        },
+        {
+          "round": "2",
+          "run": 1,
+          "must": 0,
+          "should": 2,
+          "nice": 1,
+          "perRound": "2.0"
+        },
+        {
+          "round": "3",
+          "run": 1,
+          "must": 0,
+          "should": 0,
+          "nice": 1,
+          "perRound": "0.0"
+        },
+        {
+          "round": "4",
+          "run": 0,
+          "must": 0,
+          "should": 0,
+          "nice": 0,
+          "perRound": "0.0"
+        },
+        {
+          "round": "5+",
+          "run": 0,
+          "must": 0,
+          "should": 0,
+          "nice": 0,
+          "perRound": "0.0"
+        }
+      ]
+    },
+    "plan": {
+      "records": 36,
+      "cycles": 47,
+      "byRound": [
+        {
+          "round": "1",
+          "run": 47,
+          "must": 34,
+          "should": 187,
+          "nice": 121,
+          "perRound": "4.7"
+        },
+        {
+          "round": "2",
+          "run": 45,
+          "must": 6,
+          "should": 57,
+          "nice": 30,
+          "perRound": "1.4"
+        },
+        {
+          "round": "3",
+          "run": 27,
+          "must": 1,
+          "should": 27,
+          "nice": 17,
+          "perRound": "1.0"
+        },
+        {
+          "round": "4",
+          "run": 18,
+          "must": 1,
+          "should": 8,
+          "nice": 15,
+          "perRound": "0.5"
+        },
+        {
+          "round": "5+",
+          "run": 21,
+          "must": 2,
+          "should": 16,
+          "nice": 10,
+          "perRound": "0.9"
+        }
+      ]
+    },
+    "review": {
+      "records": 63,
+      "cycles": 65,
+      "byRound": [
+        {
+          "round": "1",
+          "run": 65,
+          "must": 2,
+          "should": 86,
+          "nice": 191,
+          "perRound": "1.4"
+        },
+        {
+          "round": "2",
+          "run": 57,
+          "must": 1,
+          "should": 35,
+          "nice": 61,
+          "perRound": "0.6"
+        },
+        {
+          "round": "3",
+          "run": 26,
+          "must": 1,
+          "should": 10,
+          "nice": 19,
+          "perRound": "0.4"
+        },
+        {
+          "round": "4",
+          "run": 12,
+          "must": 1,
+          "should": 3,
+          "nice": 16,
+          "perRound": "0.3"
+        },
+        {
+          "round": "5+",
+          "run": 21,
+          "must": 4,
+          "should": 23,
+          "nice": 34,
+          "perRound": "1.3"
+        }
+      ]
+    }
+  },
+  "transcripts": {
+    "measured": false,
+    "folders": [],
+    "runs": 0
+  },
+  "runs": [],
+  "planFormat": {
+    "cap": 120,
+    "tasks": 322,
+    "plans": 49,
+    "tasksOver": 12,
+    "plansOver": 11,
+    "tasksFenced": 67,
+    "plansFenced": 26,
+    "plansAfterless": 49,
+    "lengths": {
+      "p50": 47,
+      "p90": 102,
+      "p95": 119,
+      "max": 202
+    },
+    "files": 49
+  }
+}

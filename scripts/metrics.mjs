@@ -3,7 +3,8 @@
 // 2026-11-02 study's rule, and the cost of critic and planner runs where Claude Code transcripts exist.
 // Repo-internal: not shipped and not an accord command. Spawns only git, never through a shell.
 // --plan-size (ST-LN-93 D-05) adds how many plans core's own size rule would refuse, at 2 x the ticket's @ac-n count.
-// Usage: node scripts/metrics.mjs [--at <commit>] [--label <name>] [--transcripts <folder>|none] [--out <dir>] [--plan-size] [--stdout [--json]]
+// --plan-format (ST-LN-91 D-09, 91p-ac-5) adds how many tasks and plans core's own plan format rules would refuse (the task length cap, the fence rule, the after: line).
+// Usage: node scripts/metrics.mjs [--at <commit>] [--label <name>] [--transcripts <folder>|none] [--out <dir>] [--plan-size] [--plan-format] [--stdout [--json]]
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -12,7 +13,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { STAGES, classifyRun, countRecord, stageTable, renderMarkdown, renderJson, weighted } from './metrics-count.mjs';
 import { readSessions } from './benchmark.mjs';
 
-const USAGE = 'usage: node scripts/metrics.mjs [--at <commit>] [--label <name>] [--transcripts <folder>|none] [--out <dir>] [--plan-size] [--stdout [--json]]';
+const USAGE = 'usage: node scripts/metrics.mjs [--at <commit>] [--label <name>] [--transcripts <folder>|none] [--out <dir>] [--plan-size] [--plan-format] [--stdout [--json]]';
 // The label names the file metrics-<label>.md, so it can hold no path separator and cannot start with a dot.
 const LABEL = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const TICKET_FILE = /^accord\/tickets\/([^/]+)\//;
@@ -24,13 +25,14 @@ const KIND = { 'approach-review': 'approach', 'plan-review': 'plan', review: 're
 const MAX_BUFFER = 64 * 1024 * 1024;
 
 function parseArgs(argv) {
-  const opts = { at: 'HEAD', label: undefined, transcripts: undefined, out: undefined, stdout: false, json: false, planSize: false };
+  const opts = { at: 'HEAD', label: undefined, transcripts: undefined, out: undefined, stdout: false, json: false, planSize: false, planFormat: false };
   const VALUE = { '--at': 'at', '--label': 'label', '--transcripts': 'transcripts', '--out': 'out' };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--stdout') opts.stdout = true;
     else if (a === '--json') opts.json = true;
     else if (a === '--plan-size') opts.planSize = true;
+    else if (a === '--plan-format') opts.planFormat = true;
     else if (a in VALUE) {
       const v = argv[++i];
       if (v === undefined || v === '') return { error: `${a} needs a value` };
@@ -107,6 +109,62 @@ export function planSizeCount(core, files, tree) {
   return { plans, refused, noCriteria, files: tree.filter((p) => PLAN_MD.test(p)).length };
 }
 
+/** Nearest-rank percentile of an ascending list. */
+const rank = (sorted, p) => (sorted.length === 0 ? 0 : sorted[Math.max(0, Math.ceil((p / 100) * sorted.length) - 1)]);
+
+/**
+ * ST-LN-91 D-09, 91p-ac-5: how many tasks and plans core's plan format rules would refuse at the cap. The plans are read by core's
+ * loadSnapshot and the tasks are measured with core's own taskLength and TASK_LINE_CAP; the snapshot's claim pins put every ticket at
+ * PLAN_FORMAT_FROM (the pin the format rules read, D-15), and the fence and after: counts are the findings of core's gatePlan
+ * (gate.task-code-block, gate.task-after-missing, gate.task-too-long), so the report and the gate cannot disagree. A plan is counted
+ * when core reads it (a lane ticket other than S, as the format rules do); `files` is the number of plan.md files in the commit.
+ */
+export function planFormatCount(core, files, tree) {
+  const snapshot = core.loadSnapshot({ files, tree });
+  const ids = Object.keys(snapshot.work ?? {}).sort(byPath);
+  snapshot.claimPins = Object.fromEntries(ids.map((id) => [id, { pin: core.PLAN_FORMAT_FROM }]));
+  const lengths = [];
+  let tasks = 0;
+  let plans = 0;
+  let tasksOver = 0;
+  let plansOver = 0;
+  let tasksFenced = 0;
+  let plansFenced = 0;
+  let plansAfterless = 0;
+  let findingsOver = 0;
+  for (const id of ids) {
+    const plan = snapshot.work[id].plan;
+    if (plan === undefined || snapshot.tickets[id]?.frontmatter?.lane === 'S') continue;
+    plans++;
+    const findings = core.gatePlan(snapshot, id).findings;
+    const own = plan.tasks.map((t) => core.taskLength(t));
+    tasks += own.length;
+    lengths.push(...own);
+    const over = own.filter((n) => n > core.TASK_LINE_CAP).length;
+    tasksOver += over;
+    if (over > 0) plansOver++;
+    findingsOver += findings.filter((f) => f.rule === 'gate.task-too-long').length;
+    const fences = findings.filter((f) => f.rule === 'gate.task-code-block');
+    tasksFenced += plan.tasks.filter((t, i) => fences.some((f) => f.line >= t.line && (i + 1 === plan.tasks.length || f.line < plan.tasks[i + 1].line))).length;
+    if (fences.length > 0) plansFenced++;
+    if (findings.some((f) => f.rule === 'gate.task-after-missing')) plansAfterless++;
+  }
+  if (findingsOver !== tasksOver) throw new Error(`plan format count disagrees with gate plan: ${tasksOver} tasks over the cap by taskLength, ${findingsOver} gate.task-too-long findings`);
+  lengths.sort((a, b) => a - b);
+  return {
+    cap: core.TASK_LINE_CAP,
+    tasks,
+    plans,
+    tasksOver,
+    plansOver,
+    tasksFenced,
+    plansFenced,
+    plansAfterless,
+    lengths: { p50: rank(lengths, 50), p90: rank(lengths, 90), p95: rank(lengths, 95), max: lengths.length ? lengths[lengths.length - 1] : 0 },
+    files: tree.filter((p) => PLAN_MD.test(p)).length,
+  };
+}
+
 /** Claude Code's project folder name for a checkout: every character but a letter or digit becomes `-`. */
 export const projectPrefix = (checkout) => String(checkout).replace(/[^A-Za-z0-9]/g, '-');
 
@@ -168,7 +226,7 @@ export async function main(argv, { cwd = process.cwd(), stdout = process.stdout,
   const label = opts.label ?? date;
 
   let core;
-  if (opts.planSize) {
+  if (opts.planSize || opts.planFormat) {
     const coreFile = fileURLToPath(new URL('../packages/core/dist/index.js', import.meta.url));
     if (!fs.existsSync(coreFile)) {
       stderr.write(`metrics: ${coreFile.split(path.sep).join('/')} is missing; run npm run build first\n`);
@@ -176,7 +234,7 @@ export async function main(argv, { cwd = process.cwd(), stdout = process.stdout,
     }
     core = await import(pathToFileURL(coreFile).href);
   }
-  const { records, ids, files, tree } = readRecords(git, sha, opts.planSize);
+  const { records, ids, files, tree } = readRecords(git, sha, opts.planSize || opts.planFormat);
   const stages = {};
   for (const kind of STAGES) {
     const mine = records.filter((r) => r.kind === kind);
@@ -194,6 +252,7 @@ export async function main(argv, { cwd = process.cwd(), stdout = process.stdout,
   }
   const report = { label, commit: sha, date, stages, transcripts: { folders: transcripts.folders }, runs: transcripts.runs };
   if (opts.planSize) report.planSize = planSizeCount(core, files, tree);
+  if (opts.planFormat) report.planFormat = planFormatCount(core, files, tree);
   const md = renderMarkdown(report);
   const json = renderJson(report);
 

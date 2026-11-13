@@ -2,7 +2,7 @@
 // a ticket claimed under an older accord keeps the 0.4.0 split in plan/legacy-round1.md alone, asserted over the RENDERED
 // text of every tool a runtime loads (skillTargets and agentTargets), not the source files.
 import { expect, it } from 'vitest';
-import { agentTargets, skillDirs, skillTargets } from '../src/index.js';
+import { agentTargets, skillDirs, skillTargets, withoutMarker } from '../src/index.js';
 import type { AccordConfig } from '../src/index.js';
 
 const RUNTIMES: AccordConfig['runtimes'] = ['claude', 'codex', 'cursor', 'copilot'];
@@ -223,9 +223,9 @@ it('risk:regression the planner writes each task\'s after: line, interfaces in a
   // the example block carries all four lines, in the order the plan skill lists them
   const fence = text.split('```')[1] ?? '';
   expect(fence.split('\n').filter((l) => /^(covers|files|verify|after):/.test(l)).map((l) => l.split(':')[0])).toEqual(['covers', 'files', 'verify', 'after']);
-  // the body keeps the cap of agents.test.ts and does not grow past the 59 lines it had when plan 03-11 began
-  const body = text.replace(/^---\n[\s\S]*?\n---\n/, '');
-  expect(body.split('\n').length).toBeLessThanOrEqual(59);
+  // the body, counted as agents.test.ts counts it (marker removed, split at the frontmatter), does not grow past the 60 lines it had when plan 03-11 began (59 by awk)
+  const body = withoutMarker(text).split('\n---\n').slice(1).join('\n---\n');
+  expect(body.split('\n').length).toBeLessThanOrEqual(60);
 });
 
 it('risk:regression the plan skill names the after: line (ST-LN-91 91p-ac-2)', () => {

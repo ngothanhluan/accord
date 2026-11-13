@@ -22,8 +22,8 @@ one at a time. You run it in the main session.
    `accord-planner` with the path of `accord/tickets/<id>.md`, that commit,
    the mode, and `accord/tickets/<id>/direction.md` when it exists. It writes `accord/tickets/<id>/plan.md` with frontmatter
    `baseline: <that commit>` and one `## Task <n>: <title>` section
-   per task. Each task carries a `covers:` line, a `files:` line, and a
-   `verify:` line, then prose for the executor: the interface (consumes,
+   per task. Each task carries a `covers:` line, a `files:` line, a
+   `verify:` line, and an `after:` line (the tasks it follows, or `after: none`), then prose for the executor: the interface (consumes,
    produces) and the test written first. A task fits in about half an
    executor's context; the planner splits anything larger. A ticket that
    measures something runs its smallest experiment first, one arm on one sample,

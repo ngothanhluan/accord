@@ -5,7 +5,7 @@ import { headingKey, stripHtmlComments } from '../load/sections.js';
 import { AGENT_DEFAULTS } from '../skills/agents.js';
 import { fixScopeProblems } from './fixscope.js';
 import { groundsDeferred, groundsOn, groundsProblems } from './grounds.js';
-import { APPROACH_CAP_FROM, PLAN_CAP_FROM, claimPinBefore, claimPinError } from './pin.js';
+import { APPROACH_CAP_FROM, PLAN_CAP_FROM, claimPinBefore, claimPinError, claimPinNote } from './pin.js';
 import { pendingAddedCode, scopeProblems } from './scope.js';
 import type { RepoSnapshot, RoundCycle, RoundFinding, RoundRecord, TicketWork } from '../model/snapshot.js';
 import { deferredOf } from './evidence.js';
@@ -359,7 +359,8 @@ export function nextRound(snapshot: RepoSnapshot, id: string, kind: RoundKind): 
   const base: RoundAnswer = { kind: 'refused', ticket: id, record: kind, laneS, cycle: 1, round: 0, cap: rules.cap, reasons: [] };
   // ST-LN-91 WR-01, RR-IN-03: a failed read of the claim pin gives the capped rules (fail closed); a refusal the cap rules give (past the cap, an ended
   // loop, a blocked approval) says why; a refusal about the record or the ticket does not.
-  const claimError = kind === 'approach' ? claimPinError(snapshot, id) : undefined;
+  // WR-04: a plan answer says it too, in its own words, on every answer that applies the new plan rules: the next round, a stop, and a refusal.
+  const claimError = kind === 'approach' ? claimPinError(snapshot, id) : kind === 'plan' ? claimPinNote(snapshot, id) : undefined;
   const refuse = (...reasons: string[]): RoundAnswer => ({ ...base, reasons });
   const refuseCap = (...reasons: string[]): RoundAnswer => refuse(...reasons, ...(claimError === undefined ? [] : [claimError]));
   if (laneTicket(snapshot, id) === undefined) return refuse(`${id} is not a lane ticket`);
@@ -369,7 +370,7 @@ export function nextRound(snapshot: RepoSnapshot, id: string, kind: RoundKind): 
   const rec = recordOf(workOf(snapshot, id), kind);
 
   const next = (round: number, cycle: number, cap: number): RoundAnswer => {
-    const answer: RoundAnswer = { ...base, kind: 'next', cycle, round, cap };
+    const answer: RoundAnswer = { ...base, kind: 'next', cycle, round, cap, ...(kind === 'plan' && claimError !== undefined ? { reasons: [claimError] } : {}) };
     if (kind === 'review' && lane) {
       const m = fixModel(snapshot, id, round);
       if (m !== undefined && 'refused' in m) return refuse(m.refused);
@@ -398,7 +399,7 @@ export function nextRound(snapshot: RepoSnapshot, id: string, kind: RoundKind): 
   // ST-LN-91 D-11: from the cut-off pin a Must or Should of round 2 or later cites a ticket line, test, command or risk tag; D-19: for a plan record of a ticket
   // claimed at the plan cut-off, from round 1.
   const grounds = groundsOn(snapshot, id, kind) ? groundsProblems(snapshot, id, kind) : [];
-  if (grounds.length > 0) return refuse(...grounds.map(scopeReason));
+  if (grounds.length > 0) return refuseCap(...grounds.map(scopeReason));
 
   const k = rec.cycles.length;
   const cyc = rec.cycles[k - 1];
@@ -426,7 +427,7 @@ export function nextRound(snapshot: RepoSnapshot, id: string, kind: RoundKind): 
     cycle: k,
     round: L,
     cap: st.cap,
-    reasons,
+    reasons: [...reasons, ...(claimError === undefined ? [] : [claimError])],
     findings: findingsFor(s),
     ...(lane ? { approach: approachOf(snapshot, id) } : {}),
     ...extra,
@@ -510,7 +511,8 @@ export function roundText(answer: RoundAnswer): string {
       `Round: ${answer.round} of ${answer.cap}\nCycle: ${answer.cycle}\n` +
       (answer.checker === true ? 'Critics: plan checker\n' : '') +
       (answer.addedCode === true ? `Added code: head round ${answer.round} as ## Round ${answer.round} head <sha> (added code round 1)\n` : '') +
-      (answer.model === undefined ? '' : `Fix executor model: ${answer.model}\n`)
+      (answer.model === undefined ? '' : `Fix executor model: ${answer.model}\n`) +
+      answer.reasons.map((r) => `Note: ${r}\n`).join('')
     );
   }
   if (answer.kind === 'refused') {

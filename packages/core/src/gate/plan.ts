@@ -4,7 +4,7 @@
 import { fencedBlocks, headingKey, LIST_MARKER, stripHtmlComments } from '../load/sections.js';
 import { FIELD, fieldLines, tokens } from '../load/work.js';
 import type { PlanTask, RepoSnapshot, Ticket } from '../model/snapshot.js';
-import { claimPinBefore, PLAN_FORMAT_FROM, PLAN_SIZE_FROM, pinBefore } from '../round/pin.js';
+import { claimPinBefore, claimPinNote, PLAN_FORMAT_FROM, PLAN_SIZE_FROM, pinBefore } from '../round/pin.js';
 import { isSha } from './done.js';
 import type { GateRule } from './rules.js';
 import { laneTicket, planFile, workOf } from './work.js';
@@ -169,18 +169,31 @@ const formatTasks = (snapshot: RepoSnapshot, id: string): PlanTask[] => {
   return workOf(snapshot, id)?.plan?.tasks ?? [];
 };
 
+/**
+ * ST-LN-91 WR-04: a format rule applies to a ticket whose claim pin git could not read (fail closed), and then each finding says why: the git error and that the
+ * new plan rules apply because of it. A ticket whose claim pin was read is answered as before.
+ */
+const withNote =
+  (check: GateRule['check']): GateRule['check'] =>
+  (snapshot, id) => {
+    const note = claimPinNote(snapshot, id);
+    const drafts = check(snapshot, id);
+    return note === undefined ? drafts : drafts.map((d) => ({ ...d, reason: `${d.reason}; ${note}` }));
+  };
+
 /** ST-LN-91 91p-ac-2: every task names the tasks it follows (`after: 1, 2`) or says `after: none`. */
-export const taskAfterMissing: GateRule['check'] = (snapshot, id) =>
+export const taskAfterMissing: GateRule['check'] = withNote((snapshot, id) =>
   formatTasks(snapshot, id)
     .filter((t) => t.after === undefined)
     .map((t) => ({
       file: planFile(id),
       line: t.line,
       reason: `task ${t.n} has no after: line naming the tasks it follows (after: 1, 2), or after: none`,
-    }));
+    })),
+);
 
 /** ST-LN-91 91p-ac-2: an `after:` token that is not a task of the plan. A self reference or a cycle is left to the wave builder (Phase 4). */
-export const taskAfterUnknown: GateRule['check'] = (snapshot, id) => {
+export const taskAfterUnknown: GateRule['check'] = withNote((snapshot, id) => {
   const tasks = formatTasks(snapshot, id);
   const known = new Set(tasks.map((t) => t.n));
   return tasks.flatMap((t) =>
@@ -192,7 +205,7 @@ export const taskAfterUnknown: GateRule['check'] = (snapshot, id) => {
           reason: `task ${t.n} after: names ${token}, which is not a task of this plan`,
         })),
   );
-};
+});
 
 /** ST-LN-91 D-09: a plan task holds at most this many non-blank lines, fenced lines and interfaces blocks included. A constant, not a config.yml key. */
 export const TASK_LINE_CAP = 120;
@@ -201,7 +214,7 @@ export const TASK_LINE_CAP = 120;
 export const taskLength = (task: PlanTask): number => task.lines.filter((l) => l.text.trim() !== '').length;
 
 /** ST-LN-91 91p-ac-1: a plan task says what, not how; the one block it may hold is a fence whose info string starts with the word interfaces. */
-export const taskCodeBlock: GateRule['check'] = (snapshot, id) =>
+export const taskCodeBlock: GateRule['check'] = withNote((snapshot, id) =>
   formatTasks(snapshot, id).flatMap((t) =>
     fencedBlocks(t.lines)
       .filter((f) => f.quoted === true || f.info.split(/\s+/)[0] !== 'interfaces')
@@ -213,10 +226,11 @@ export const taskCodeBlock: GateRule['check'] = (snapshot, id) =>
           (f.info === '' ? '' : ` (${f.info})`) +
           '; a plan task says what, not how: the only block allowed is an interfaces block, a fence whose info string starts with interfaces, outside a blockquote',
       })),
-  );
+  ),
+);
 
 /** ST-LN-91 91p-ac-1: a task longer than TASK_LINE_CAP names its length. */
-export const taskTooLong: GateRule['check'] = (snapshot, id) =>
+export const taskTooLong: GateRule['check'] = withNote((snapshot, id) =>
   formatTasks(snapshot, id).flatMap((t) => {
     const length = taskLength(t);
     return length <= TASK_LINE_CAP
@@ -228,7 +242,8 @@ export const taskTooLong: GateRule['check'] = (snapshot, id) =>
             reason: `task ${t.n} is ${length} non-blank lines, more than ${TASK_LINE_CAP}; a plan task says what, not how: leave the how to the executor, or split the task`,
           },
         ];
-  });
+  }),
+);
 
 /** Spec §7: only when the host supplied the baseline's files; the baseline rules own a missing or unknown baseline. */
 export const taskFileUnknown: GateRule['check'] = (snapshot, id) => {

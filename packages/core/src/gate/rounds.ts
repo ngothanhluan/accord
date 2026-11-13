@@ -2,6 +2,7 @@
 // a stop the owner has not lifted, and a record accord cannot read each fail, so the cap and the stop hold in
 // every tool and not only where a session asked `accord round`.
 import { allowancesOf, capRulesOf, cycleState, deferredFor, planStopOf, recordProblems, roundCount } from '../round/next.js';
+import { claimPinNote } from '../round/pin.js';
 import { cycleOpen } from '../round/record.js';
 import { scopeProblems } from '../round/scope.js';
 import { doneOnDefault } from '../status/stage.js';
@@ -17,8 +18,10 @@ function check(snapshot: RepoSnapshot, id: string, kind: RoundKind): GateDraft[]
   if (ticket === undefined || rec === undefined) return [];
   const name = kind === 'review' ? 'review.md' : 'plan-review.md';
   const out: GateDraft[] = [];
+  // ST-LN-91 WR-04: when git failed reading the claim pin the plan rules apply as fail-closed, and each finding says why.
+  const note = kind === 'plan' ? claimPinNote(snapshot, id) : undefined;
   const add = (line: number | undefined, reason: string) =>
-    out.push({ file: rec.file, ...(line === undefined ? {} : { line }), reason });
+    out.push({ file: rec.file, ...(line === undefined ? {} : { line }), reason: note === undefined ? reason : `${reason}; ${note}` });
 
   if (!rec.versioned) {
     // An unversioned record is read by the old rules: where the host gave no default ref, or the ticket is done there.

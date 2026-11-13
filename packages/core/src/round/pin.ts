@@ -95,6 +95,15 @@ export function claimPinError(snapshot: RepoSnapshot, id: string): string | unde
   return fact !== undefined && 'error' in fact ? fact.error : undefined;
 }
 
+/**
+ * ST-LN-91 WR-04: the sentence a plan answer (`accord round --plan`, `accord gate plan`) adds when git failed reading the claim pin of `id`: the git error, and that
+ * the new plan rules apply because of it (fail closed). Undefined when the claim pin was read, so a ticket that has one is answered as before.
+ */
+export function claimPinNote(snapshot: RepoSnapshot, id: string): string | undefined {
+  const error = claimPinError(snapshot, id);
+  return error === undefined ? undefined : `${error}; the claim pin could not be read, so the new plan rules apply`;
+}
+
 /** True only when `pin` is a plain x.y.z below RECORD_V2_FROM and, when `basePin` is a plain x.y.z, not below `basePin`. */
 export function pinAllowsV1(pin: string | undefined, basePin?: string): boolean {
   return pinBefore(RECORD_V2_FROM, pin, basePin);

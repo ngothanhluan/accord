@@ -73,8 +73,8 @@ export function pinBefore(from: string, pin: string | undefined, basePin?: strin
 /**
  * ST-LN-91 D-15: true when the ticket `id` was claimed under rules older than `from`, so it keeps them until it is done, whatever the
  * working-tree pin says after an upgrade. The reader of the claim pin for the rules that follow the claim: the discuss rule (DISCUSS_FROM) and
- * the approach cap with its `## Closed` and no-allowance rules and the approval block that goes with it (APPROACH_CAP_FROM). Other rules follow the
- * record or the plan instead and do not ask this pin: the grounds rule and the plan fix scope read the pin at the first round of the record
+ * the approach cap with its `## Closed` and no-allowance rules and the approval block that goes with it (APPROACH_CAP_FROM), and the plan checker's round-1 grounds
+ * rule (PLAN_GROUNDS_FROM, D-19). Other rules follow the record or the plan instead and do not ask this pin: the Phase 2 grounds rule (which a ticket claimed earlier keeps) and the plan fix scope read the pin at the first round of the record
  * (GROUNDS_V2_FROM, `recordPins`, and the round facts of review.md), the version 2 review record reads it at the first review round (RECORD_V2_FROM),
  * and the plan size rule reads the pin at the plan's baseline commit (PLAN_SIZE_FROM, `planPins`). So a record begun after an upgrade, on a ticket
  * claimed before it, gets the grounds rule and keeps the five approach rounds. The chain: the host's claim fact (`claimPins[id]`: the pin at the

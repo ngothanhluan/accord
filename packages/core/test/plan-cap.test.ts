@@ -18,9 +18,9 @@ const lines = (s: Spec): string[] =>
     : s === 'nice'
       ? ['1. Nice — a wording in task 1 — open']
       : s === 'must'
-        ? ['1. Must — task 1 drops a header — open']
+        ? ['1. Must — task 1 drops a header — open — rests on: ac-1']
         : typeof s === 'number'
-          ? Array.from({ length: s }, (_, i) => `${i + 1}. Should — task ${i + 1} drops a header — open`)
+          ? Array.from({ length: s }, (_, i) => `${i + 1}. Should — task ${i + 1} drops a header — open — rests on: ac-1`)
           : s;
 const record = (...rounds: Spec[]): string => HEAD + rounds.map((s, i) => `## Round ${i + 1} (${i === 0 ? 'whole' : 'diff'})\n\n${lines(s).join('\n')}\n\n`).join('');
 const verdict = (v = 'accepted-by-owner "the owner takes it as it is"'): string => `verdict: ${v}\n\n`;
@@ -84,7 +84,7 @@ const rows: Row[] = [
   { id: 'new-count-falling-must-1', rounds: [2, 'must'], want: { kind: 'next', round: 3, cap: 3 } },
   { id: 'new-count-must-flat', rounds: ['must', 'must'], want: { kind: 'stop', round: 2 } },
   { id: 'new-round-2-only-a-nice', rounds: [2, 'nice'], want: { kind: 'next', round: 3, cap: 3 } },
-  { id: 'new-nice-is-not-counted', rounds: [['1. Should — task 1 drops a header — open', '2. Should — task 2 drops a header — open', '3. Nice — a wording — open', '4. Nice — another wording — open'], 2], want: { kind: 'stop', round: 2 } },
+  { id: 'new-nice-is-not-counted', rounds: [['1. Should — task 1 drops a header — open — rests on: ac-1', '2. Should — task 2 drops a header — open — rests on: ac-1', '3. Nice — a wording — open', '4. Nice — another wording — open'], 2], want: { kind: 'stop', round: 2 } },
   { id: 'new-zero-flat-nice-nice', rounds: ['nice', 'nice'], want: { kind: 'next', round: 3, cap: 3 } },
   { id: 'new-round-3-one-should-stops', rounds: [3, 2, 1], want: { kind: 'stop', round: 3, cap: 3, text: ['Reason: round 3 of cycle 1 still reports a Should or a Must, and from round 3 such a round stops the loop\nReason: the cap of 3 rounds in cycle 1 is reached\n'] } },
   {
@@ -108,13 +108,13 @@ const rows: Row[] = [
   {
     id: 'new-cycle-2-count-starts-again',
     rounds: [2, 2],
-    tail: verdict() + CLOSED + '## Round 1 (whole)\n\n1. Should — task 1 drops a header — open\n\n',
+    tail: verdict() + CLOSED + '## Round 1 (whole)\n\n1. Should — task 1 drops a header — open — rests on: ac-1\n\n',
     want: { kind: 'next', round: 2, cycle: 2, cap: 3, text: ['Round: 2 of 3\nCycle: 2\n'], not: ['Critics:'] },
   },
   {
     id: 'new-cycle-2-count-flat-stops',
     rounds: [2, 2],
-    tail: verdict() + CLOSED + '## Round 1 (whole)\n\n1. Should — task 1 drops a header — open\n\n## Round 2 (diff)\n\n1. Should — task 2 drops a header — open\n\n',
+    tail: verdict() + CLOSED + '## Round 1 (whole)\n\n1. Should — task 1 drops a header — open — rests on: ac-1\n\n## Round 2 (diff)\n\n1. Should — task 2 drops a header — open — rests on: ac-1\n\n',
     want: { kind: 'stop', round: 2, cycle: 2, text: ['round 2 of cycle 2 reports 1 Must and Should, not fewer than the 1 of round 1'] },
   },
   { id: 'new-lane-p-gets-the-plan-rules', rounds: [], lane: 'P', want: { kind: 'next', round: 1, cap: 3, text: [NEXT3] } },

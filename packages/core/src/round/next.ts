@@ -4,7 +4,7 @@ import { laneTicket, workOf } from '../gate/work.js';
 import { headingKey, stripHtmlComments } from '../load/sections.js';
 import { AGENT_DEFAULTS } from '../skills/agents.js';
 import { fixScopeProblems } from './fixscope.js';
-import { groundsDeferred, groundsProblems, groundsV2 } from './grounds.js';
+import { groundsDeferred, groundsOn, groundsProblems } from './grounds.js';
 import { APPROACH_CAP_FROM, PLAN_CAP_FROM, claimPinBefore, claimPinError } from './pin.js';
 import { pendingAddedCode, scopeProblems } from './scope.js';
 import type { RepoSnapshot, RoundCycle, RoundFinding, RoundRecord, TicketWork } from '../model/snapshot.js';
@@ -269,7 +269,7 @@ export function recordProblems(snapshot: RepoSnapshot, id: string, kind: RoundKi
   // security or data-loss kind written some way) whose value does not
   // parse, where marks count: the approach record on the capped rules, a plan record on the grounds rule. Every cycle is held to it, as an unreadable line is: a problem in an older cycle stops
   // the approval as well (IN-01). Words in the finding's text, a note, a reason or the owner's words are prose and never reach this list.
-  const marksCount = kind === 'approach' ? !rules.allowances && !rules.capStop : kind === 'plan' && groundsV2(snapshot, id, 'plan');
+  const marksCount = kind === 'approach' ? !rules.allowances && !rules.capStop : kind === 'plan' && groundsOn(snapshot, id, 'plan');
   if (marksCount) {
     for (const cycle of rec.cycles) {
       for (const round of cycle.rounds) {
@@ -395,8 +395,9 @@ export function nextRound(snapshot: RepoSnapshot, id: string, kind: RoundKind): 
   if (problems.length > 0) return refuse(...problems.map((p) => p.reason));
   const scope = kind === 'review' ? scopeProblems(snapshot, id) : [];
   if (scope.length > 0) return refuse(...scope.map(scopeReason));
-  // ST-LN-91 D-11: from the cut-off pin a Must or Should of round 2 or later cites a ticket line, test, command or risk tag.
-  const grounds = groundsV2(snapshot, id, kind) ? groundsProblems(snapshot, id, kind) : [];
+  // ST-LN-91 D-11: from the cut-off pin a Must or Should of round 2 or later cites a ticket line, test, command or risk tag; D-19: for a plan record of a ticket
+  // claimed at the plan cut-off, from round 1.
+  const grounds = groundsOn(snapshot, id, kind) ? groundsProblems(snapshot, id, kind) : [];
   if (grounds.length > 0) return refuse(...grounds.map(scopeReason));
 
   const k = rec.cycles.length;

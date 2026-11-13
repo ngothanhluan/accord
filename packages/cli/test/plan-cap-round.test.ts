@@ -11,7 +11,7 @@ const PLAN = join('accord', 'tickets', 'T-1', 'plan-review.md');
 const pinned = (v: string): string => CONFIG.replace(/accord: "[^"]*"/, `accord: "${v}"`);
 const rec = (...rounds: string[][]): string =>
   'Round record: 1\n\n' + rounds.map((lines, i) => `## Round ${i + 1} (${i === 0 ? 'whole' : 'diff'})\n\n${lines.join('\n')}\n\n`).join('');
-const shoulds = (k: number): string[] => Array.from({ length: k }, (_, i) => `${i + 1}. Should — task ${i + 1} drops a header — open`);
+const shoulds = (k: number): string[] => Array.from({ length: k }, (_, i) => `${i + 1}. Should — task ${i + 1} drops a header — open — rests on: ac-1`);
 
 /** The claim commit under `claimPin`, then the plan record committed under CONFIG: the shape of a ticket claimed at one release and worked on at another. */
 function claimed(claimPin: string, text?: string): string {

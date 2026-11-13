@@ -47,7 +47,7 @@ export { isResearchPath, isResearchRecord, recordHeaderFaults, RESEARCH_DIR } fr
 export { parseRounds, cycleOpen, ROUND_RECORD_LINE, ROUND_RECORD_LINE_2 } from './round/record.js';
 export { APPROACH_CAP_FROM, claimPinBefore, claimPinError, DISCUSS_FROM, GROUNDS_V2_FROM, PLAN_CAP_FROM, PLAN_FORMAT_FROM, PLAN_GROUNDS_FROM, PLAN_SIZE_FROM, RECORD_V2_FROM, pinAllowsV1, pinBefore, pinOf } from './round/pin.js';
 export { parseDiscuss } from './load/work.js';
-export { groundsDeferred, groundsProblems, groundsV2 } from './round/grounds.js';
+export { groundsDeferred, groundsFrom, groundsOn, groundsProblems, groundsV2 } from './round/grounds.js';
 export { fixScopeProblems } from './round/fixscope.js';
 export { pendingAddedCode, scopeProblems } from './round/scope.js';
 export {

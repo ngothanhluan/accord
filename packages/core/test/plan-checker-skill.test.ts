@@ -75,14 +75,22 @@ it('risk:regression the checker cites the ticket line each finding breaks (ST-LN
   ).toEqual([]);
 });
 
-it('risk:regression the grounds rule asks the plan checker from round 1 (ST-LN-91 D-19)', () => {
+it('risk:regression the grounds rule asks the plan checker and the security critic from round 1 (ST-LN-91 D-19, WR-03)', () => {
   const critic = criticOf();
-  expect(lacks(critic, ['From round 2 (accord 0.4.1 and later), and from round 1 when you are the plan checker, every Must or Should gives `rests on:`'])).toEqual([]);
+  // The tool asks every round-1 Must and Should of the plan record for grounds, whoever raised it, so every plan-mode critic of round 1 is told to give them.
+  expect(
+    lacks(critic, [
+      'From round 2 (accord 0.4.1 and later), and from round 1 in `plan` mode, whether you are the plan checker or the security critic, every Must or Should gives `rests on:`',
+      'a security finding rests on `risk: security`',
+    ]),
+  ).toEqual([]);
+  expect(critic).not.toContain('from round 1 when you are the plan checker');
   const bad: string[] = [];
   for (const runtime of RUNTIMES) {
     for (const f of planFiles(runtime, 'critique.md'))
       for (const p of lacks(flat(f.text), [
-        'From round 2 (accord 0.4.1 and later), and from round 1 under the plan checker when `accord round <id> --plan` refuses round 2 naming such a finding, a new Must or Should with none of the marks above is marked `deferred` too',
+        'From round 2 (accord 0.4.1 and later), and from round 1 under the plan checker or the security critic when `accord round <id> --plan` refuses round 2 naming such a finding, a new Must or Should with none of the marks above is marked `deferred` too',
+        'A finding of the security critic with none of the marks is never deferred silently: ask that critic once for its `rests on:` line (`risk: security` for a security finding), and name any finding it still leaves unmarked to the owner with its deferral',
       ]))
         bad.push(f.path + ' lacks ' + p);
     for (const f of skills(runtime).filter((x) => x.path.endsWith('/accord-approach/critique.md')))

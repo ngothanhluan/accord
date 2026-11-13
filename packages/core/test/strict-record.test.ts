@@ -334,7 +334,7 @@ it('risk:regression the release note describes the structural reading and no lon
     'Any other line under a finding, indented or not, is a note, and a note is prose',
     'A value that is no such kind is prose, not a problem',
     '`risk: none`, `risk: low`, `risk: a partial file is left on a crash` and `rests on: ac1` refuse nothing',
-    'a kind one edit off the whole word, the `data` part of `data-loss` included (`risk: secrity`, `risk: date-loss`, `risk: data-lost`; two or more edits off is prose)',
+    'a kind one edit off the whole word, counted over its letters, the `data` part of `data-loss` included, and whatever up to three characters that are no letter separate the letters or come before them (`risk: secrity`, `risk: date-loss`, `risk: data-lost`, `risk: data/loss`, `risk: secu-rity`, `risk: .security`; a value two or more letters off is prose)',
     'a second ground, or a second `test:` or `command:`, is never a record problem',
     'is a record problem too, because Markdown renders it as part of the finding',
   ]) expect(note, p).toContain(p);

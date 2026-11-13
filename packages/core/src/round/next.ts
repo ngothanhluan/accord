@@ -5,7 +5,7 @@ import { headingKey, stripHtmlComments } from '../load/sections.js';
 import { AGENT_DEFAULTS } from '../skills/agents.js';
 import { fixScopeProblems } from './fixscope.js';
 import { groundsDeferred, groundsProblems, groundsV2 } from './grounds.js';
-import { APPROACH_CAP_FROM, claimPinBefore, claimPinError } from './pin.js';
+import { APPROACH_CAP_FROM, PLAN_CAP_FROM, claimPinBefore, claimPinError } from './pin.js';
 import { pendingAddedCode, scopeProblems } from './scope.js';
 import type { RepoSnapshot, RoundCycle, RoundFinding, RoundRecord, TicketWork } from '../model/snapshot.js';
 import { deferredOf } from './evidence.js';
@@ -29,11 +29,12 @@ export interface RoundAnswer {
   model?: string;
   modelFor?: number; // the round `model` is for
   addedCode?: true; // next on a version 2 review record: a debug episode or a merge added code that no round has reviewed (ST-LN-57)
+  checker?: true; // a plan `next` answer at round 1 whose cap rules are PLAN_CAP: the plan skill dispatches one plan checker (ST-LN-91 D-12)
 }
 
 /**
  * The cap rules of one record (ST-LN-91 D-02): `cap` rounds; `firstStop` the first round that can stop the loop (none: no stop of rounds);
- * `fall` is reserved for the plan record's count stop; `allowances` whether an owner allowance Ruling raises the cap; `capStop` whether a
+ * `fall` the plan record's count stop (ST-LN-91 D-07): a round r >= 2 whose Must + Should count is above 0 and not below round r - 1's stops the loop; `allowances` whether an owner allowance Ruling raises the cap; `capStop` whether a
  * last round with findings at the cap is a stop (false: the cap is a refusal and `## Closed` is accepted).
  */
 export interface CapRules { cap: number; firstStop?: number; fall: boolean; allowances: boolean; capStop: boolean }
@@ -42,10 +43,14 @@ export const LEGACY_CAP: CapRules = { cap: ROUND_CAP, firstStop: 3, fall: false,
 /** ST-LN-91 D-02: two approach rounds, no stop, no allowance. */
 export const APPROACH_CAP: CapRules = { cap: 2, fall: false, allowances: false, capStop: false };
 
-/** The rules of the record `kind` of ticket `id`; the approach record reads the ticket's claim pin (D-15), never its own record pin. */
+/** ST-LN-91 D-07, D-17: three plan critique rounds, the stop from round 3 beside the count stop, and the owner's allowance Rulings kept. */
+export const PLAN_CAP: CapRules = { cap: 3, firstStop: 3, fall: true, allowances: true, capStop: true };
+
+/** The rules of the record `kind` of ticket `id`; the approach and plan records read the ticket's claim pin (D-15), never their own record pin. */
 export function capRulesOf(snapshot: RepoSnapshot, id: string, kind: RoundKind): CapRules {
-  if (kind !== 'approach') return LEGACY_CAP;
-  return claimPinBefore(snapshot, id, APPROACH_CAP_FROM) ? LEGACY_CAP : APPROACH_CAP;
+  if (kind === 'review') return LEGACY_CAP;
+  if (kind === 'approach') return claimPinBefore(snapshot, id, APPROACH_CAP_FROM) ? LEGACY_CAP : APPROACH_CAP;
+  return claimPinBefore(snapshot, id, PLAN_CAP_FROM) ? LEGACY_CAP : PLAN_CAP;
 }
 
 const ALLOWANCE =
@@ -67,6 +72,10 @@ export function allowancesOf(snapshot: RepoSnapshot, id: string, kind: RoundKind
   return out;
 }
 
+/** ST-LN-91 D-07: the Must and Should finding lines of a round that the stop does not defer; Nice lines and deferred ones are not counted. */
+export const roundCount = (round: { findings: RoundFinding[] }, deferred: ReadonlySet<RoundFinding> = new Set()): number =>
+  round.findings.filter((f) => f.severity !== 'Nice' && !deferred.has(f)).length;
+
 /** The cap, the allowed rounds and the stop of one cycle; the caller passes only that cycle's allowances. `deferred` (ST-LN-57 D-08) are findings that do not stop the loop. */
 export function cycleState(
   cycle: RoundCycle,
@@ -83,12 +92,16 @@ export function cycleState(
   const accepted = cycle.verdicts.filter((v) => v.quoted);
   const stopAt = (q: number): number | undefined => {
     const top = Math.min(q, rounds.length);
-    // The lowest round any stop of the rules can fall on: `firstStop`, none for APPROACH_CAP (the walk never runs). The plan count stop
-    // (plan 03-09) lowers it to 2 when `rules.fall` is set, independent of firstStop; the round-3 check below keeps applying from firstStop only.
-    const lowest = rules.firstStop ?? Infinity;
+    // The lowest round any stop of the rules can fall on: `firstStop`, none for APPROACH_CAP (the walk never runs). The count stop (ST-LN-91 D-07)
+    // lowers it to 2 when `rules.fall` is set, independent of firstStop; the stop from round 3 applies from firstStop only.
+    const first = rules.firstStop ?? Infinity;
+    const lowest = rules.fall ? Math.min(first, 2) : first;
     for (let s = top; s >= lowest; s--) {
       if (s < top && rounds[s].noFindings) return undefined; // round s + 1 reports no findings: it clears every stop up to s
-      if (!rounds[s - 1].findings.some((f) => f.severity !== 'Nice' && !deferred.has(f))) continue;
+      const reported = s >= first && rounds[s - 1].findings.some((f) => f.severity !== 'Nice' && !deferred.has(f));
+      const counted = roundCount(rounds[s - 1], deferred);
+      const fell = rules.fall && s >= 2 && counted > 0 && counted >= roundCount(rounds[s - 2], deferred);
+      if (!reported && !fell) continue;
       if (kind !== 'review') {
         const to = top < rounds.length ? rounds[top].line : Infinity;
         if (accepted.some((v) => v.line > rounds[s - 1].line && v.line < to)) continue;
@@ -366,6 +379,8 @@ export function nextRound(snapshot: RepoSnapshot, id: string, kind: RoundKind): 
       }
     }
     if (kind === 'review' && pendingAddedCode(snapshot, id)) answer.addedCode = true;
+    // ST-LN-91 D-12: round 1 under the new plan rules names its critic; under LEGACY_CAP nothing is added to the 0.4.0 output.
+    if (kind === 'plan' && round === 1 && rules.fall) answer.checker = true;
     return answer;
   };
 
@@ -472,7 +487,14 @@ export function nextRound(snapshot: RepoSnapshot, id: string, kind: RoundKind): 
   }
   const s = st.stopAt(L);
   if (s !== undefined) {
-    const reasons = [`round ${s} of cycle ${k} still reports a Should or a Must, and from round 3 such a round stops the loop`];
+    // ST-LN-91 D-07: a stop below the first stop round is the count stop.
+    const byCount = rules.fall && s < (rules.firstStop ?? Infinity);
+    const deferred = deferredFor(snapshot, id, kind, k - 1);
+    const reasons = [
+      byCount
+        ? `round ${s} of cycle ${k} reports ${roundCount(cyc.rounds[s - 1], deferred)} Must and Should, not fewer than the ${roundCount(cyc.rounds[s - 2], deferred)} of round ${s - 1}: the count did not fall, so the loop stops`
+        : `round ${s} of cycle ${k} still reports a Should or a Must, and from round 3 such a round stops the loop`,
+    ];
     if (L >= st.cap) reasons.push(`the cap of ${st.cap} rounds in cycle ${k} is reached`);
     const m = kind === 'review' && lane && L < st.cap ? fixModel(snapshot, id, L) : undefined;
     return stop(reasons, s, m !== undefined && 'model' in m ? { model: m.model, modelFor: L } : {});
@@ -485,6 +507,7 @@ export function roundText(answer: RoundAnswer): string {
   if (answer.kind === 'next') {
     return (
       `Round: ${answer.round} of ${answer.cap}\nCycle: ${answer.cycle}\n` +
+      (answer.checker === true ? 'Critics: plan checker\n' : '') +
       (answer.addedCode === true ? `Added code: head round ${answer.round} as ## Round ${answer.round} head <sha> (added code round 1)\n` : '') +
       (answer.model === undefined ? '' : `Fix executor model: ${answer.model}\n`)
     );

@@ -2,7 +2,7 @@
 // The table is test/helpers/approach-corpus.ts; each row states what the owner decisions require (BLOCK, LIST, PASS, PROBLEM, LEGACY, LANE-S), not what the code did when it was written.
 // A fix of the record reader is held to this file: a row that goes red is a finding that came back.
 import { expect, it } from 'vitest';
-import { APPROACH_CAP_FROM, GROUNDS_V2_FROM, approvalBlockers, approvalFindings, approvalProblems, loadSnapshot, nextRound, parseRounds, recordProblems } from '../src/index.js';
+import { APPROACH_CAP_FROM, GROUNDS_V2_FROM, PLAN_CAP_FROM, approvalBlockers, approvalFindings, approvalProblems, loadSnapshot, nextRound, parseRounds, recordProblems } from '../src/index.js';
 import type { RepoSnapshot } from '../src/index.js';
 import { PLAN_ROWS, ROWS } from '../../../test/helpers/approach-corpus.js';
 import type { PlanRow, Row } from '../../../test/helpers/approach-corpus.js';
@@ -96,11 +96,16 @@ for (const r of ROWS) {
 
 function checkPlan(r: PlanRow): void {
   const text = 'Round record: 1\n\n' + r.rounds.map((lines, i) => '## Round ' + (i + 1) + ' (' + (i === 0 ? 'whole' : 'diff') + ')\n\n' + lines.join('\n') + '\n\n').join('');
-  const s = repoOf('plan-review.md', text, undefined, APPROACH_CAP_FROM, r.record ?? GROUNDS_V2_FROM);
+  // The rows are about a ticket claimed under 0.4.0 whose plan critique began at the record pin (the table's own heading): the five-round rules, no count stop (D-15).
+  const s = repoOf('plan-review.md', text, undefined, '0.4.0', r.record ?? GROUNDS_V2_FROM);
   const named = (r.problem ?? []).map((x) => lineOf(text, x));
   const problems = recordProblems(s, 'T-1', 'plan');
   expect(problems.map((p) => p.line), r.id + ' record problems: ' + JSON.stringify(problems)).toEqual(named);
   expect(nextRound(s, 'T-1', 'plan').kind, r.id + ' round --plan').toBe(r.round);
+  // A ticket claimed at the cut-off (plan 03-09) has the same record problems: the plan cap changes the loop, never how a record line is read.
+  const cut = repoOf('plan-review.md', text, undefined, PLAN_CAP_FROM, r.record ?? GROUNDS_V2_FROM);
+  expect(recordProblems(cut, 'T-1', 'plan').map((p) => p.line), r.id + ' record problems at the cut-off').toEqual(named);
+  if (r.round === 'refused') expect(nextRound(cut, 'T-1', 'plan').kind, r.id + ' round --plan at the cut-off').toBe('refused');
 }
 for (const r of PLAN_ROWS) {
   it('risk:security corpus plan ' + r.id + ' (' + r.src + ')', () => checkPlan(r));

@@ -53,6 +53,7 @@ export { pendingAddedCode, scopeProblems } from './round/scope.js';
 export {
   APPROACH_CAP,
   LEGACY_CAP,
+  PLAN_CAP,
   ROUND_CAP,
   allowancesOf,
   approvalBlockers,
@@ -67,6 +68,7 @@ export {
   openFindings,
   planStopOf,
   recordProblems,
+  roundCount,
   roundText,
 } from './round/next.js';
 export type { Allowance, CapRules, RoundAnswer, RoundKind } from './round/next.js';

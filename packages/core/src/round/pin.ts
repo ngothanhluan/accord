@@ -57,6 +57,13 @@ export const PLAN_FORMAT_FROM = '0.4.1';
  */
 export const PLAN_CAP_FROM = '0.4.1';
 
+/**
+ * ST-LN-91 D-19, D-12 and D-15: the release from which the plan checker's round 1 is asked for grounds. A lane ticket other than lane S whose claim pin is not before it has
+ * the Must and Should of its plan record's round 1 rest on a ticket line, a test, a command or a risk tag, or be written deferred with a failing case; a ticket claimed earlier
+ * keeps GROUNDS_V2_FROM's rule from round 2, read from the pin at the record's first round. Read through claimPinBefore.
+ */
+export const PLAN_GROUNDS_FROM = '0.4.1';
+
 /** True only when `pin` is a plain x.y.z below `from` and, when `basePin` is a plain x.y.z, not below `basePin`: the rules before `from` hold. */
 export function pinBefore(from: string, pin: string | undefined, basePin?: string): boolean {
   if (pin === undefined || !PLAIN.test(pin) || compare(pin, from) >= 0) return false;

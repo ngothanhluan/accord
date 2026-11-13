@@ -47,6 +47,12 @@ export interface PlanRow {
   problem?: string[];
   /** `accord round --plan`: next (the next round is allowed), refused, or stop (the loop stops for the owner). */
   round: 'next' | 'refused' | 'stop';
+  /** ST-LN-91 D-19: the answer of `accord round --plan` for a ticket claimed at the cut-off (PLAN_GROUNDS_FROM), where the plan checker's round 1 is asked too and the record pin decides nothing; absent: not asserted. */
+  cut?: 'next' | 'refused' | 'stop';
+  /** The lines a record problem names at the cut-off, where the marks count from round 1 whatever the record pin says; default: the same as `problem`. */
+  cutProblem?: string[];
+  /** Lines of the ledger's ## Deferred. */
+  deferred?: string[];
 }
 
 const TOK = 'tokens reach the log';
@@ -637,6 +643,7 @@ export const ROWS: readonly Row[] = rows;
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // plan-review.md rows (the grounds rule reads the record's pin; a ticket claimed under 0.4.0 whose plan critique begins at 0.4.1 is held to it)
+const D19 = 'Task 1: the header is written twice';
 export const PLAN_ROWS: readonly PlanRow[] = [
   { id: 'plan-r5-P1-risk-test-name', src: 'round 5 CR-01 P1 (accord names its own tests risk:<kind>; 7 real plan records say so)', rounds: [['1. Must — Task 1: a fetch prunes early; add a `risk:data-loss` test — open']], round: 'next' },
   { id: 'plan-r5-P2-control', src: 'round 5 P2', rounds: [['1. Must — Task 1: a fetch prunes early; add a data-loss test — open']], round: 'next' },
@@ -673,6 +680,8 @@ export const PLAN_ROWS: readonly PlanRow[] = [
     src: 'round 6 PL5 (a plan record begun under 0.4.0 keeps the older rule, no mark is checked; refused by the stop at round 3)',
     record: '0.4.0',
     rounds: [['1. Should — Task 1: header twice — fixed'], ['1. Should — Task 1: delimiter — fixed'], ['1. Should — Task 1: quoting — open — risks: security']],
+    // D-19: at the cut-off the marks count whatever pin the record began under, so the mis-written mark is a record problem there.
+    cutProblem: ['1. Should — Task 1: quoting — open — risks: security'],
     round: 'stop',
   },
   {
@@ -693,5 +702,72 @@ export const PLAN_ROWS: readonly PlanRow[] = [
     src: 'round 7 CR-02 (a second valid ground under a plan finding is no record problem)',
     rounds: [['1. Should — Task 1: the cache is stale — fixed', '   rests on: ac-1', '   rests on: D-01']],
     round: 'next',
+  },
+  // ST-LN-91 D-19: the plan checker's round 1. `round` is the answer for a ticket claimed under 0.4.0 whose plan record began at 0.4.1 (Phase 2's rule: asked from round 2); `cut` the answer for a
+  // ticket claimed at the cut-off (asked from round 1, whatever pin the record began under). The marks are read as the approach record reads them.
+  { id: 'plan-d19-R1-should-ungrounded', src: 'D-19: a round-1 Should resting on nothing', rounds: [['1. Should — ' + D19 + ' — open']], round: 'next', cut: 'refused' },
+  { id: 'plan-d19-R2-must-ungrounded', src: 'D-19: a round-1 Must resting on nothing', rounds: [['1. Must — ' + D19 + ' — open']], round: 'next', cut: 'refused' },
+  { id: 'plan-d19-R3-rests-on-ac', src: 'D-19: a round-1 Must on a ticket scenario', rounds: [['1. Must — ' + D19 + ' — open — rests on: ac-1']], round: 'next', cut: 'next' },
+  { id: 'plan-d19-R4-rests-on-unknown', src: 'D-19: a ticket line the ticket does not hold grounds nothing', rounds: [['1. Should — ' + D19 + ' — open — rests on: ac-9']], round: 'next', cut: 'refused' },
+  {
+    id: 'plan-d19-R5-two-block-grounds',
+    src: 'D-19 with round 7 CR-02: a second valid ground in the critic block grounds the round-1 finding',
+    rounds: [['1. Should — ' + D19 + ' — open', '   rests on: ac-9', '   rests on: D-01']],
+    round: 'next',
+    cut: 'next',
+  },
+  {
+    id: 'plan-d19-R6-block-no-valid-ground',
+    src: 'D-19: a block whose every ground is unknown grounds nothing',
+    rounds: [['1. Should — ' + D19 + ' — open', '   rests on: ac-9', '   rests on: D-07']],
+    round: 'next',
+    cut: 'refused',
+  },
+  { id: 'plan-d19-R7-test-mark', src: 'D-19: a test mark grounds a round-1 finding', rounds: [['1. Should — ' + D19 + ' — open — test: export#writes-csv']], round: 'next', cut: 'next' },
+  { id: 'plan-d19-R8-command-mark', src: 'D-19: a command mark grounds a round-1 finding', rounds: [['1. Should — ' + D19 + ' — open — command: npm test']], round: 'next', cut: 'next' },
+  { id: 'plan-d19-R9-risk-tag-open', src: 'D-19: a round-1 finding with a risk tag grounds itself and is not refused', rounds: [['1. Must — ' + D19 + ' — open — risk: security']], round: 'next', cut: 'next' },
+  {
+    id: 'plan-d19-R10-deferred-with-case',
+    src: 'D-19: deferred with its ledger line and failing case',
+    rounds: [['1. Should — ' + D19 + ' — deferred']],
+    deferred: ['plan 1.1: ' + D19 + ' — failing case: an empty cell gives no quote'],
+    round: 'next',
+    cut: 'next',
+  },
+  { id: 'plan-d19-R11-deferred-no-case', src: 'D-19: deferred with no ledger line is refused at the cut-off', rounds: [['1. Should — ' + D19 + ' — deferred']], round: 'next', cut: 'refused' },
+  {
+    id: 'plan-d19-R12-deferred-case-empty',
+    src: 'D-19: a ledger line with an empty failing case excuses nothing',
+    rounds: [['1. Should — ' + D19 + ' — deferred']],
+    deferred: ['plan 1.1: ' + D19 + ' — failing case:'],
+    round: 'next',
+    cut: 'refused',
+  },
+  { id: 'plan-d19-R13-risk-deferred', src: 'D-19: a risk finding written deferred blocks in every round, round 1 included, at both pins', rounds: [['1. Should — ' + D19 + ' — deferred — risk: security']], round: 'refused', cut: 'refused' },
+  {
+    id: 'plan-d19-R14-risk-deferred-with-case',
+    src: 'D-19: a ledger line does not excuse a risk finding',
+    rounds: [['1. Must — ' + D19 + ' — deferred — risk: data-loss']],
+    deferred: ['plan 1.1: ' + D19 + ' — failing case: an empty cell gives no quote'],
+    round: 'refused',
+    cut: 'refused',
+  },
+  { id: 'plan-d19-R15-nice', src: 'D-19: a round-1 Nice is asked nothing', rounds: [['1. Nice — a name in task 1 — open']], round: 'next', cut: 'next' },
+  { id: 'plan-d19-R16-record-pin-lowered', src: 'D-19: a record pin below the cut-off cannot switch the rule off for a ticket claimed at it', record: '0.4.0', rounds: [['1. Should — ' + D19 + ' — open']], round: 'next', cut: 'refused' },
+  {
+    id: 'plan-d19-R17-risks-plural-round-1',
+    src: 'D-19 with round 6 PL3: a mis-written mark in round 1 is a record problem where the grounds rule asks round 1',
+    record: '0.4.0',
+    rounds: [['1. Should — ' + D19 + ' — open — risks: security']],
+    cutProblem: ['1. Should — ' + D19 + ' — open — risks: security'],
+    round: 'next',
+    cut: 'refused',
+  },
+  {
+    id: 'plan-d19-R18-round-2-still-asked',
+    src: 'D-19: round 2 is asked at both pins',
+    rounds: [['1. Should — ' + D19 + ' — fixed — rests on: ac-1'], ['1. Should — Task 1: the delimiter is a comma — open']],
+    round: 'refused',
+    cut: 'refused',
   },
 ];

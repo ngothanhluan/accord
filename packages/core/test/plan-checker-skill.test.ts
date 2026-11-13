@@ -2,7 +2,7 @@
 // a ticket claimed under an older accord keeps the 0.4.0 split in plan/legacy-round1.md alone, asserted over the RENDERED
 // text of every tool a runtime loads (skillTargets and agentTargets), not the source files.
 import { expect, it } from 'vitest';
-import { agentTargets, skillTargets } from '../src/index.js';
+import { agentTargets, skillDirs, skillTargets } from '../src/index.js';
 import type { AccordConfig } from '../src/index.js';
 
 const RUNTIMES: AccordConfig['runtimes'] = ['claude', 'codex', 'cursor', 'copilot'];
@@ -137,7 +137,7 @@ it('risk:regression a ticket claimed under an older accord keeps the 0.4.0 round
         'one `accord-critic` with no named checks for a plan of one to three tasks',
         'two critics for a plan of four or more tasks, one told to run only the first, second, third, fifth and seventh checks under `Mode plan:` and one only the fourth and sixth',
         'so at most three',
-        'a critic running every check or the first group, and every `diff` critic, checks the plan against every Decision and every Correction of the ticket',
+        'A critic running every check or the first group, and every `diff` critic, checks the plan against every Decision and every Correction of the ticket',
         'the cap and stop are what `accord round <id> --plan` prints for this ticket',
       ]))
         bad.push(f.path + ' lacks ' + p);
@@ -151,7 +151,7 @@ it('risk:regression accord-critic runs only the checks its caller names for a ti
   const agent = agents('claude').find((f) => f.path === '.claude/agents/accord-critic.md')?.text ?? '';
   expect(agent, 'accord-critic is missing').not.toBe('');
   expect(
-    lacks(flat(agent), ['for a ticket claimed before the plan checker, your caller may instead name which checks under `Mode `plan`:` to run, by their place in the list, and you run only those']),
+    lacks(flat(agent), ['for a ticket claimed before the plan checker, your caller may instead name which checks of that list to run, by their place in it, and you run only those']),
   ).toEqual([]);
   const body = agent.split('\n---\n').slice(1).join('\n---\n').replace(/^\n+/, '');
   const bodyLines = body.replace(/\n+$/, '').split('\n');
@@ -166,7 +166,7 @@ it('risk:regression the 0.4.0 split and the criteria and build lens names live o
   for (const runtime of RUNTIMES) {
     const all = [...skills(runtime), ...agents(runtime)];
     const legacy = all.filter((f) => f.path.endsWith('/accord-plan/legacy-round1.md'));
-    if (legacy.length !== 1) bad.push(runtime + ': expected exactly one render of plan/legacy-round1.md, found ' + legacy.length);
+    if (legacy.length !== skillDirs(config(runtime)).length) bad.push(runtime + ': expected one render of plan/legacy-round1.md per skill directory, found ' + legacy.length);
     for (const f of all) {
       if (f.path.endsWith('/accord-plan/legacy-round1.md')) continue;
       for (const re of LENS_PATTERNS) if (re.test(f.text)) bad.push(runtime + ' ' + f.path + ' matches ' + String(re));
@@ -183,7 +183,8 @@ it('risk:security the legacy round-1 dispatch also runs the security critic on a
   const bad: string[] = [];
   for (const runtime of RUNTIMES) {
     const legacy = planFiles(runtime, 'legacy-round1.md');
-    if (legacy.length !== 1) bad.push(runtime + ': expected exactly one render of plan/legacy-round1.md, found ' + legacy.length);
+    if (legacy.length === 0) bad.push(runtime + ': plan/legacy-round1.md is missing');
+    if (legacy.length !== skillDirs(config(runtime)).length) bad.push(runtime + ': expected one render of plan/legacy-round1.md per skill directory, found ' + legacy.length);
     for (const f of legacy) {
       const lines = f.text.split('\n');
       const at = lines.findIndex((l) => /^- /.test(l) && l.includes('lens `security`'));

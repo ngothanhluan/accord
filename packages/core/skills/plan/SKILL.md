@@ -3,7 +3,7 @@ name: accord-plan
 description: Use when a lane M ticket has an approved approach and needs a plan. Has the planner write plan.md task by task, checks it with accord gate plan and the critic, and runs the full test suite on the baseline before build.
 license: MIT
 kind: skill
-loads: [plan/baseline.md, plan/critique.md, shared/ask.md]
+loads: [plan/baseline.md, plan/critique.md, plan/legacy-round1.md, shared/ask.md]
 ---
 
 This stage turns the approved approach into tasks an executor can finish
@@ -58,6 +58,7 @@ one at a time. You run it in the main session.
 
 5. **Critique.** Run the loop in `./critique.md`: how many `accord-critic` agents
    read, and what, which findings `accord-planner` fixes, and when the loop ends.
+   When `accord round <id> --plan` prints no `Critics:` line, round 1 of the plan critique of a ticket claimed under an older accord follows `./legacy-round1.md`, as `./critique.md` says.
 
 6. **Rounds.** Run `accord round <id> --plan` before each critique round, as `./critique.md` says. On
    `stop: report to owner`, stop and tell the owner what is still open (a Must or Should still `open` or `unverified`, or `accord gate plan <id>` still fails), and show the revision with the fewest Must findings: its round and its commit, read from `git log` since the last `plan: <id> ready`, if any. Never continue on a failing plan.

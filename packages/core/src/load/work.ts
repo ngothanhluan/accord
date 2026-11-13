@@ -9,7 +9,9 @@ import { commentFreeLines, headingKey, LIST_MARKER, scan, stripHtmlComments } fr
 import { parseYamlMap } from './yaml.js';
 
 const TASK = /^Task\s+([1-9][0-9]*)\s*:\s*(.*)$/;
-export const FIELD = /^(covers|files|verify|after):(.*)$/;
+// The three fields the older rules read, and the deferral rule reads token by token. `after:` is not one of them (ST-LN-91 CR-01): its own reader is afterField,
+// and the deferral rule reads an `after:` line as free text, as it did before the line existed, so a prose line that starts with it never escapes.
+export const FIELD = /^(covers|files|verify):(.*)$/;
 const DONE = /^\s*[-*+]\s+task\s+([1-9][0-9]*)\s+done\s+([0-9a-fA-F]{7,})\s*$/;
 export const RULING = /^\s*(?:[-*+]\s+)?(Ruling:.*\S)\s*$/;
 // ST-LN-62: the path is everything up to the first ' — ', so a path may hold spaces.
@@ -30,7 +32,7 @@ const declared = (t: string): string => {
   return x.length >= 2 && x.startsWith('`') && x.endsWith('`') ? x.slice(1, -1).trim() : x;
 };
 
-type Field = 'covers' | 'files' | 'verify' | 'after';
+type Field = 'covers' | 'files' | 'verify';
 
 /** A field value: tokens separated by whitespace or commas, empty tokens dropped. */
 export const tokens = (v: string): string[] => v.split(/[\s,]+/).filter((x) => x !== '');

@@ -445,6 +445,14 @@ it('risk:complex-branching the dashboard lists lane R tickets with their stage (
     const j = JSON.parse((await run(['dashboard', '--json'], repo)).out) as Dashboard;
     expect(j.ready.rows.map((r) => [r.id, r.lane, r.stage])).toEqual([['R-1', 'R', 'research']]);
     expect(j.team.rows.map((r) => [r.id, r.lane, r.stage])).toEqual([['R-2', 'R', 'intent']]);
+    // The status table shows its lane columns for R rows, and accord anchor takes an R ticket.
+    const table = (await run(['status'], repo)).out.split('\n');
+    expect(table[0]).toMatch(/ stage +who +blocked by/);
+    expect(table.find((l) => l.startsWith('R-1 '))).toMatch(/ research +- +- /);
+    expect(table.find((l) => l.startsWith('R-2 '))).toMatch(/ intent +bo@example\.com /);
+    const anchor = await run(['anchor', 'R-1'], repo);
+    expect(anchor.code).toBe(0);
+    expect(anchor.out).toContain('Lane: R\nStage: research, next: the research, accord budget <id> between steps');
   } finally {
     cleanup(repo);
   }

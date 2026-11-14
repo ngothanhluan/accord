@@ -291,7 +291,7 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
   worktree
     .command('sync <id>')
     .alias('merge')
-    .description("before verify: fetch, then take the remote main into the ticket's branch the way git.merge in accord/config.yml says: merge (the default) or squash by a merge commit, rebase by rebasing and pushing with a lease; a conflict is aborted, named, and exits 2; git.sync, a team command, runs instead of either, with the ticket only in its environment; any failure of it is refused and exits 2")
+    .description("at verify, or at done under git.merge: rebase: fetch, then take the remote main into the ticket's branch the way git.merge in accord/config.yml says: merge (the default) or squash by a merge commit, rebase by rebasing and pushing with a lease, after first moving an unchanged verification (verified_commit and verification.md's commit) to the rebased commit in one records-only commit, or printing verify again when the ticket's files changed; a conflict is aborted, named, and exits 2; git.sync, a team command, runs instead of either, with the ticket only in its environment; any failure of it is refused and exits 2")
     .action((id: string) => {
       setCode(worktreeSync(preflight(opts, 'stage'), id));
     });

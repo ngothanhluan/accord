@@ -91,7 +91,7 @@ it('risk:complex-branching a changed ticket is never re-bound (ST-LN-96 t1-ac-4 
   expect(lines(r.out)).toContain(`verify again: ${ID}'s files changed since ${v.slice(0, 12)}: ${EXPORT}`);
   // no records commit: the branch's own commits were replayed and nothing was added
   expect(subject(sib)).toBe(`verify: ${ID}`);
-  expect(gitRun(sib, 'rev-list', '--count', 'origin/main..HEAD').trim()).toBe('2');
+  expect(gitRun(sib, 'rev-list', '--count', 'origin/main..HEAD').trim()).toBe('3'); // config, work, verify
   expect(at(sib, 'HEAD', TICKET)).toBe(ticket);
   expect(at(sib, 'HEAD', REVIEW_FILE)).toBe(review);
   expect(at(sib, 'HEAD', VERIFICATION)).toContain(`commit: ${v}`);

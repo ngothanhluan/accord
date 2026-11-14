@@ -451,33 +451,54 @@ export function gitContentSince(root: string, snapshot: RepoSnapshot, id: string
     ),
   ];
   const out: Record<string, ContentSince> = {};
-  let ownPaths: string[] | undefined;
-  const def = recorded.length === 0 ? undefined : defaultRefOf(root);
+  const memo: ContentMemo = recorded.length === 0 ? {} : { def: defaultRefOf(root), defRead: true };
   for (const sha of recorded) {
-    try {
-      try {
-        execFileSync('git', ['merge-base', '--is-ancestor', sha, 'HEAD'], { cwd: root, stdio: 'ignore' });
-        continue; // an ancestor: today's rule, a merge after verify still asks again
-      } catch (err) {
-        if ((err as { status?: number }).status !== 1) {
-          // Not a verdict of "not an ancestor": either the object is missing or git failed.
-          try {
-            execFileSync('git', ['cat-file', '-e', sha + '^{commit}'], { cwd: root, stdio: 'ignore' });
-          } catch (missing) {
-            if ((missing as { status?: number }).status === 128 || (missing as { status?: number }).status === 1) out[sha] = { absent: true };
-          }
-          continue;
-        }
-      }
-      if (def === undefined) continue;
-      ownPaths ??= branchPaths(root, def, 'HEAD');
-      out[sha] = { changed: changedSince(root, id, def, 'HEAD', sha, ownPaths) };
-    } catch {
-      // Any git failure leaves no entry: the sha comparison and its reason stand, which refuses.
-      delete out[sha];
-    }
+    const verdict = contentSinceOf(root, id, sha, memo);
+    if (verdict !== undefined) out[sha] = verdict;
   }
   return Object.keys(out).length === 0 ? {} : { contentSince: out };
+}
+
+/** What one run of gitContentSince reads once for all the commits it compares: the default ref and the ticket's own paths at HEAD. */
+export interface ContentMemo {
+  def?: string;
+  defRead?: true;
+  own?: string[];
+}
+
+/**
+ * ST-LN-96 D-04, D-16 Option A and E: the verdict gitContentSince gives one recorded commit `sha`, for the ticket `id` against HEAD of `root`. `{ absent: true }` when the
+ * commit is not in this clone; `{ changed }` (empty: none) when it exists and is not an ancestor of HEAD; undefined when it is an ancestor of HEAD (today's sha rule stands),
+ * when there is no default ref, and on any git failure. `accord worktree sync` asks it after its own rebase, with the pre-rebase sha, before it re-binds a verification.
+ * `memo` carries the default ref and the ticket's own paths between calls of one run.
+ */
+export function contentSinceOf(root: string, id: string, sha: string, memo: ContentMemo = {}): ContentSince | undefined {
+  try {
+    try {
+      execFileSync('git', ['merge-base', '--is-ancestor', sha, 'HEAD'], { cwd: root, stdio: 'ignore' });
+      return undefined; // an ancestor: today's rule, a merge after verify still asks again
+    } catch (err) {
+      if ((err as { status?: number }).status !== 1) {
+        // Not a verdict of "not an ancestor": either the object is missing or git failed.
+        try {
+          execFileSync('git', ['cat-file', '-e', sha + '^{commit}'], { cwd: root, stdio: 'ignore' });
+        } catch (missing) {
+          if ((missing as { status?: number }).status === 128 || (missing as { status?: number }).status === 1) return { absent: true };
+        }
+        return undefined;
+      }
+    }
+    if (memo.defRead !== true) {
+      memo.def = defaultRefOf(root);
+      memo.defRead = true;
+    }
+    if (memo.def === undefined) return undefined;
+    memo.own ??= branchPaths(root, memo.def, 'HEAD');
+    return { changed: changedSince(root, id, memo.def, 'HEAD', sha, memo.own) };
+  } catch {
+    // Any git failure leaves no verdict: the sha comparison and its reason stand, which refuses.
+    return undefined;
+  }
 }
 
 type AfterVerify = NonNullable<SnapshotInput['afterVerify']>[string];

@@ -3,9 +3,10 @@ import { execFileSync } from 'node:child_process';
 import { appendFileSync, closeSync, existsSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import type { Dirent } from 'node:fs';
 import { resolve } from 'node:path';
-import { DEFAULT_BRANCH_TEMPLATE, forbiddenLines, isResearchPath, isSha, loadConfig, loadSnapshot, pinBefore, pinOf, RULESET_FROM, setFrontmatterKey, statusRows, trailerReason } from '@accord-dev/accord-core';
+import { DEFAULT_BRANCH_TEMPLATE, forbiddenLines, isResearchPath, isSha, loadConfig, loadSnapshot, pinBefore, pinOf, RULESET_FROM, setFrontmatterKey, shaEqual, statusRows, trailerReason } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
-import { currentBranch, droppedOn, gitDefaultRef, gitFilesAt, gitUnpushedCommits, gitUserEmail, loadFromFs, loadWithBranch, snapshotAt, ticketOfBranch, UsageError } from '../load/fs.js';
+import type { ContentMemo } from '../load/fs.js';
+import { contentSinceOf, currentBranch, droppedOn, gitDefaultRef, gitFilesAt, gitUnpushedCommits, gitUserEmail, loadFromFs, loadWithBranch, snapshotAt, ticketOfBranch, UsageError } from '../load/fs.js';
 import { fetchLimitMs } from './fetch-limit.js';
 import { DEFAULT_DISPOSABLE, gitInside, hiddenEditReason, isDisposable, norm, repositoryReason, sweepForgotten, sweepRemoved } from './leftover.js';
 import { runTeamCommand } from '../load/team-run.js';
@@ -862,6 +863,64 @@ export function worktreePush(ctx: CommandContext, id: string, o: { lease?: boole
   return 0;
 }
 
+/** The two records that bind a verification to a commit: the ticket's `verified_commit` and verification.md's `commit`. */
+const BOUND = [
+  { label: 'verified_commit', key: 'verified_commit', rel: (id: string) => `accord/tickets/${id}.md` },
+  { label: 'verification commit', key: 'commit', rel: (id: string) => `accord/tickets/${id}/verification.md` },
+] as const;
+
+/**
+ * ST-LN-96 D-16 Option E, T-03.1-09: right after accord's own built-in rebase in `root`, move `verified_commit` and verification.md's `commit:` to the rebased HEAD in one
+ * records-only commit, so `accord gate done` passes in a clone that never held the old commit (CI after the force-push). Only a recorded commit the rebase rewrote (no longer an
+ * ancestor of HEAD) is re-bound, and only when contentSinceOf says no file of the ticket differs from what was verified; the old objects are still in this clone. A change, an
+ * absent object or a git failure writes nothing and prints `verify again:`. review.md heads and plan.md `baseline:` are never touched.
+ */
+function rebindAfterRebase(ctx: CommandContext, id: string, root: string): void {
+  const say = (line: string): void => void ctx.stdout.write(line + '\n');
+  const snap = loadSnapshot(loadFromFs(root));
+  const recorded: Record<string, string | undefined> = {
+    verified_commit: Object.hasOwn(snap.tickets, id) ? snap.tickets[id].frontmatter?.verified_commit : undefined,
+    commit: Object.hasOwn(snap.verifications, id) ? snap.verifications[id].frontmatter?.commit : undefined,
+  };
+  const head = git(root, ['rev-parse', 'HEAD']).trim();
+  const todo = BOUND.flatMap((b) => {
+    const sha = recorded[b.key];
+    // HEAD itself needs nothing, and a recorded commit still in HEAD's history was not rewritten: today's rule holds for it
+    if (sha === undefined || !isSha(sha) || shaEqual(sha, head) || gitOk(root, ['merge-base', '--is-ancestor', sha, 'HEAD'])) return [];
+    return [{ ...b, sha: sha.toLowerCase() }];
+  });
+  if (todo.length === 0) return;
+  const memo: ContentMemo = {};
+  const refused: string[] = [];
+  for (const sha of new Set(todo.map((t) => t.sha))) {
+    const verdict = contentSinceOf(root, id, sha, memo);
+    const was = sha.slice(0, 12);
+    if (verdict === undefined) refused.push(`verify again: ${id}'s files could not be compared with ${was}, so its verification was not re-bound`);
+    else if ('absent' in verdict) refused.push(`verify again: ${id}'s verified commit ${was} is not in this clone`);
+    else if (verdict.changed.length > 0) refused.push(`verify again: ${id}'s files changed since ${was}: ${verdict.changed.join(', ')}`);
+  }
+  if (refused.length > 0) {
+    for (const line of refused) say(line);
+    return;
+  }
+  const rels = todo.map((t) => ':(literal)' + t.rel(id));
+  try {
+    for (const t of todo) writeKey(root, t.rel(id), t.key, head);
+    git(root, ['add', '--', ...rels]);
+    git(root, ['commit', '-q', '-m', `verify: ${id} rebound after rebase`]);
+  } catch (e) {
+    // the rebase stands; the two records go back as the rebase left them, so the branch is never left half written
+    gitOk(root, ['checkout', 'HEAD', '--', ...rels]);
+    say(`verify again: ${id}'s verification could not be re-bound: ${firstLine(e instanceof UsageError ? e.message.split('\n').slice(-1)[0] : e)}`);
+    return;
+  }
+  for (const t of todo) {
+    // both records named one commit: the verified_commit line says it for both
+    if (t.key === 'commit' && todo.some((o) => o.key === 'verified_commit' && o.sha === t.sha)) continue;
+    say(`rebound: ${id} ${t.label} ${t.sha.slice(0, 12)} -> ${head.slice(0, 12)}`);
+  }
+}
+
 /**
  * ST-LN-30 D-03, D-04, D-09, ST-LN-96 D-14, D-15: fetch, then take the remote default branch into the ticket branch the way `git.merge` says (a merge commit, or
  * a rebase with a lease push); a conflict is aborted, named, and exits 2. `accord worktree merge` is the same command under its old name.
@@ -878,7 +937,10 @@ export function worktreeSync(ctx: CommandContext, id: string): number {
     throw new UsageError(`${ctx.root} has uncommitted changes to tracked files - commit them, then run accord worktree sync ${id} again; nothing was merged`);
   }
   const stage = statusRows(ctx.snapshot).find((r) => r.id === id)?.stage;
-  if (stage !== 'verify') {
+  // ST-LN-96 D-16: under the built-in rebase a verified ticket whose PR fell behind main is rebased and its verification re-bound; under merge, squash or git.sync a sync after
+  // verify asks for verification again (the contents rule), so there the stage stays verify only
+  const builtInRebase = ctx.snapshot.config?.git?.merge === 'rebase' && ctx.snapshot.config?.git?.sync === undefined;
+  if (stage !== 'verify' && !(stage === 'done' && builtInRebase)) {
     throw new UsageError(`${id} is at stage ${stage ?? 'none'}, and accord worktree sync runs only at verify, after review - nothing was merged`);
   }
   if (!gitOk(ctx.root, ['remote', 'get-url', 'origin'])) return 0;
@@ -895,7 +957,11 @@ export function worktreeSync(ctx: CommandContext, id: string): number {
   if (done.by !== undefined || strategy === 'rebase') {
     if (done.by !== undefined) ctx.stdout.write(`synced: ${branch} by ${done.by}\n`);
     // the records that name a commit by sha (review heads, plan baseline) stay owner-typed: the pairs are what to retype
-    else for (const [was, now] of done.rebased) ctx.stdout.write(`rebased: ${was} -> ${now}\n`);
+    else {
+      for (const [was, now] of done.rebased) ctx.stdout.write(`rebased: ${was} -> ${now}\n`);
+      // ST-LN-96 D-16 Option E: accord's own rebase keeps an unchanged verification valid; a hand rebase and a team script never reach this line
+      rebindAfterRebase(ctx, id, ctx.root);
+    }
     // every commit has a new sha, so a plain push is refused once origin holds the branch; the lease keeps a teammate's commit from being overwritten.
     // A team script is pushed too, even when origin has no such branch yet: the branch on origin must hold what the gate judges
     const push = pushAfterSync(ctx, ctx.root, branch, done.by !== undefined ? 'team' : 'rebase', done.by !== undefined ? 'push' : 'skip');

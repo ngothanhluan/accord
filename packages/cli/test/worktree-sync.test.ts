@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, expect, it, vi } from 'vitest';
 import { commitMsg, gitRun, run, writeFiles } from './helpers/repo.js';
-import { BEHIND, copy, type Clone, lines, pushMain, ticketWorktree, twoOnMain, useSandboxes, verifyStage } from './helpers/worktree.js';
+import { BEHIND, copy, type Clone, doneBranch, lines, pushMain, ticketWorktree, twoOnMain, useSandboxes, verifyStage } from './helpers/worktree.js';
 
 vi.mock('../src/load/proc.js', async (orig) => {
   const real = await orig<typeof import('../src/load/proc.js')>();
@@ -152,6 +152,20 @@ it('risk:regression worktree merge is an alias of worktree sync (ST-LN-96 t1-ac-
   expect([a.code, a.err]).toEqual([2, expect.stringContaining('only at verify')]);
   expect(b).toEqual(a);
 }, 360_000);
+
+it('risk:regression worktree sync refuses stage done under merge (ST-LN-96 t1-ac-3)', async () => {
+  // no git key, git.merge: merge and squash: a verified ticket whose PR fell behind main is refused with today's words; only built-in rebase runs at done
+  for (const gitKeys of [undefined, ['  merge: merge'], ['  merge: squash']]) {
+    const c = copy();
+    const { sib } = doneBranch(c, gitKeys === undefined ? {} : { gitKeys });
+    pushMain(c, 'next.txt', 'next\n');
+    const before = gitRun(sib, 'rev-parse', 'HEAD').trim();
+    const r = await run(['worktree', 'sync', 'ST-9'], sib);
+    expect([r.code, r.out, r.err], String(gitKeys)).toEqual([2, '', 'ST-9 is at stage done, and accord worktree sync runs only at verify, after review - nothing was merged\n']);
+    expect(gitRun(sib, 'rev-parse', 'HEAD').trim(), String(gitKeys)).toBe(before);
+    expect(existsSync(sib + '/next.txt'), String(gitKeys)).toBe(false);
+  }
+}, 240_000);
 
 // ---- ST-LN-96 D-03: `git.sync` is a team command that runs instead of the built-in merge or rebase ----
 

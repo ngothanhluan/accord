@@ -161,3 +161,42 @@ it('risk:complex-branching a branch whose own changes are only its records keeps
     cleanup(t.repo);
   }
 }, 120_000);
+
+const stageOf = async (repo: string): Promise<string | undefined> => {
+  const rows = JSON.parse((await run(['status', '--json'], repo)).out) as { id: string; stage: string }[];
+  return rows.find((r) => r.id === 'T-1')?.stage;
+};
+
+it('risk:complex-branching status and anchor give the stage gate done gives after a rebase, with an unrelated main change and then an edit (ST-LN-96 t1-ac-4)', async () => {
+  const t = ticketBranch({ work: 'export const write = 2;\n', main: { [UNRELATED]: 'two\n' } });
+  try {
+    t.sync('rebase');
+    expect(isAncestor(t.repo, t.v)).toBe(false);
+    // gate done keeps the verification, so the stage trace says done, in status and in anchor.
+    expect(await stale(t.repo)).toEqual([]);
+    expect(await stageOf(t.repo)).toBe('done');
+    expect((await run(['anchor', 'T-1'], t.repo)).out).toContain('Stage: done');
+
+    // gate done refuses once a ticket code file changed, so the trace says verify.
+    writeFiles(t.repo, { [EXPORT]: 'export const write = 3;\n' });
+    commitMsg(t.repo, 'T-1 edits the export after verify');
+    expect((await stale(t.repo)).length).toBe(2);
+    expect(await stageOf(t.repo)).toBe('verify');
+    expect((await run(['anchor', 'T-1'], t.repo)).out).toContain('Stage: verify');
+  } finally {
+    cleanup(t.repo);
+  }
+}, 120_000);
+
+it('risk:security status and anchor say verify after a rebase when the verified commit is not in this clone (ST-LN-96 t1-ac-4)', async () => {
+  const t = ticketBranch({ work: 'export const write = 2;\n', main: { [UNRELATED]: 'two\n' } });
+  try {
+    t.sync('rebase');
+    dropObject(t.repo, t.v);
+    expect((await stale(t.repo)).length).toBe(2);
+    expect(await stageOf(t.repo)).toBe('verify');
+    expect((await run(['anchor', 'T-1'], t.repo)).out).toContain('Stage: verify');
+  } finally {
+    cleanup(t.repo);
+  }
+}, 120_000);

@@ -262,3 +262,48 @@ export const researchShipped: GateRule['check'] = (snapshot, id) => {
       reason: c.path + ' is under packages/: a research ticket ships no code; a script that should ship is a new lane S or M ticket',
     }));
 };
+
+const OWNER_FORMS = ['Owner: write now — ', 'Owner: extended to '];
+
+/** D-14 Ruling: `Owner: write now — "<…>"` or `Owner: extended to <what> — "<…>"`, the text after its last ` — ` a quoted non-blank sentence. */
+const isOwnerAnswer = (line: string): boolean => OWNER_FORMS.some((f) => line.startsWith(f)) && quotesOwner(line);
+
+/**
+ * D-14, D-11, D-20: the last Spent line of each listed record present, against the ticket's current Timebox and Token budget, strictly over.
+ * A `not measured` token count leaves the time alone to decide. A record over either fails unless it holds the owner's quoted answer. An
+ * extension written into the ticket with its quoted D-nn (D-13) is the allowance compared, so it needs no Owner line. Silent when the ticket
+ * is not lane R or either allowance is unreadable (gate.research-field-missing's finding), and for a record with no Spent line
+ * (gate.research-spent-missing's).
+ */
+export const researchOverBudget: GateRule['check'] = (snapshot, id) => {
+  const t = laneR(snapshot, id);
+  if (t === undefined) return [];
+  const [timeboxText, budgetText] = [sectionValue(t, 'Timebox'), sectionValue(t, 'Token budget')];
+  const timebox = timeboxText === undefined ? undefined : readTimebox(timeboxText);
+  const budget = budgetText === undefined ? undefined : readTokenBudget(budgetText);
+  if (timebox === undefined || budget === undefined) return [];
+  return presentRecords(snapshot, t).flatMap((p) => {
+    const lines = recordLines(snapshot.files[p]);
+    let last: { line: number; spent: NonNullable<ReturnType<typeof parseSpent>> } | undefined;
+    for (const l of lines) {
+      const spent = parseSpent(l.text);
+      if (spent !== undefined) last = { line: l.line, spent };
+    }
+    if (last === undefined) return [];
+    const { minutes, tokens, time, tokensText } = last.spent;
+    const overTime = minutes > timebox;
+    const overTokens = tokens !== undefined && tokens > budget;
+    if ((!overTime && !overTokens) || lines.some((l) => isOwnerAnswer(l.text))) return [];
+    const passed = overTime && overTokens ? 'timebox and token budget' : overTime ? 'timebox' : 'token budget';
+    return [
+      {
+        file: p,
+        line: last.line,
+        reason:
+          `${p} spent ${time} of the ticket's ${timeboxText} and ${tokensText} of its ${budgetText}: over the ${passed}, with no owner answer; ` +
+          'the research stops and asks the owner (D-11), then writes Owner: write now — "<the owner\'s sentence>" or ' +
+          'Owner: extended to <what> — "<the owner\'s sentence>" into the record',
+      },
+    ];
+  });
+};

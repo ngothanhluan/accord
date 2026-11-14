@@ -79,7 +79,17 @@ export type { LintResult } from './lint/index.js';
 export { gateDone, gatePlan, gateReady } from './gate/index.js';
 export { isSha, ownRecordsOnly } from './gate/done.js';
 export { approvedHash, laneRHash } from './gate/hash.js';
-export { LANE_R_SECTIONS, laneR, readTimebox, readTokenBudget, researchBudgetUnanswered, researchFieldMissing, sectionValue } from './gate/lane-r.js';
+export {
+  LANE_R_SECTIONS,
+  laneR,
+  parseSpent,
+  readTimebox,
+  readTokenBudget,
+  researchBudgetUnanswered,
+  researchFieldMissing,
+  researchOverBudget,
+  sectionValue,
+} from './gate/lane-r.js';
 export { parseScoutReport } from './scout/report.js';
 export { printedClaim, scoutCheck } from './scout/check.js';
 export type { AbsentRow, Citation, ScoutReport } from './scout/report.js';

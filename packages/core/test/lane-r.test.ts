@@ -1,9 +1,9 @@
 // ST-LN-94 94-ac-1, D-10, D-13: a lane R ticket holds a question, a timebox and a token budget, and gate ready passes it with no
 // approval, Approach, discuss record or scenario. The config pins DISCUSS_FROM, so the discuss rules would apply to a lane M ticket here.
 import { expect, it } from 'vitest';
-import { DISCUSS_FROM, gatePlan, gateReady, laneRHash, loadSnapshot, readTimebox, readTokenBudget } from '../src/index.js';
+import { DISCUSS_FROM, gatePlan, gateReady, lintSnapshot, laneRHash, loadSnapshot, readTimebox, readTokenBudget } from '../src/index.js';
 import type { GateResult } from '../src/index.js';
-import { CONFIG, PLAN, laneTicket } from '../../../test/helpers/lane.js';
+import { CONFIG, PLAN, REPORT, junit, laneTicket } from '../../../test/helpers/lane.js';
 
 const QUOTE = '- D-01 Timebox 4 hours, token budget 800k weighted tokens — "four hours and 800k is enough"';
 const body = (o: { question?: string; timebox?: string; budget?: string; decisions?: string } = {}) =>
@@ -145,4 +145,32 @@ it('risk:regression gate plan refuses a lane R ticket as having no plan (ST-LN-9
   const stray = loadSnapshot({ files, tree: Object.keys(files).sort() });
   expect(stray.tickets['R-1'].frontmatter?.lane).toBe('R');
   only(gatePlan(stray, 'R-1'));
+});
+
+// ST-LN-94 D-10, research Pitfall 8: lint gives a lane R ticket its own headings and none of lane M's rules.
+const lintOf = (files: Record<string, string>) => lintSnapshot(loadSnapshot({ files: { 'accord/config.yml': config, ...files }, tree: ['accord/config.yml', ...Object.keys(files)].sort() })).findings;
+const rTicket = (b = body()) => laneTicket('R-1', { lane: 'R', body: b });
+
+it('risk:regression lint asks a lane R ticket for its own headings only (ST-LN-94 94-ac-1)', () => {
+  const heads = (b: string) => lintOf({ 'accord/tickets/R-1.md': rTicket(b) }).filter((f) => f.rule === 'lint.heading-missing').map((f) => f.reason);
+  expect(heads(body())).toEqual([]);
+  expect(heads(body({ timebox: '-' }))).toEqual(['missing "## Timebox"']);
+  const none = heads(['## Decisions', QUOTE, ''].join('\n'));
+  expect(none.sort()).toEqual(['missing "## Question"', 'missing "## Timebox"', 'missing "## Token budget"']);
+  for (const m of ['Approach', 'Acceptance criteria', 'Open questions', 'Intent', 'Vetoes']) expect(none).not.toContain(`missing "## ${m}"`);
+});
+
+it('risk:regression a lane R ticket needs no scenario and does not turn on the tests policy (ST-LN-94 94-ac-1)', () => {
+  const files = { 'accord/tickets/R-1.md': rTicket(), [REPORT]: junit({ 'a#untraced': 'passed' }) };
+  const rules = (f: Record<string, string>) => lintOf(f).map((x) => x.rule);
+  expect(rules(files)).not.toContain('lint.no-scenarios');
+  expect(rules(files)).not.toContain('lint.test-untraced');
+  // The report case is untraced: a lane M ticket turns the policy on, so the R ticket is what stays silent.
+  expect(rules({ ...files, 'accord/tickets/T-1.md': laneTicket('T-1') })).toContain('lint.test-untraced');
+});
+
+it('risk:regression accord lint reports nothing on a valid lane R ticket (ST-LN-94 94-ac-1)', () => {
+  const mine = (f: Record<string, string>) => lintOf(f).filter((x) => x.file === 'accord/tickets/R-1.md' || x.file.startsWith('accord/tickets/R-1/'));
+  expect(mine({ 'accord/tickets/R-1.md': rTicket() })).toEqual([]);
+  expect(mine({ 'accord/tickets/R-1.md': rTicket(), 'accord/tickets/R-1/review.md': 'Round record: 1\n\n## Round 1 (whole)\n\nNo findings\n' })).toEqual([]);
 });

@@ -122,9 +122,11 @@ it('risk:complex-branching accord gate plan refuses a fenced block other than in
   const repo = await planned(PLAN_FORMAT_FROM, '0.4.0', fenced);
   try {
     const got = await gate(repo);
-    expect(got.found.map((f) => f.rule)).toEqual(['gate.task-code-block']);
+    // Each fence line is refused at its own line: the opening and the closing line of the ts block (round 3, the owner's decision).
+    expect(got.found.map((f) => f.rule)).toEqual(['gate.task-code-block', 'gate.task-code-block']);
     expect(got.found[0].reason).toContain('task 1');
     expect(got.found[0].reason).toContain('(ts)');
+    expect(got.found[1].reason).toContain('task 1');
   } finally {
     cleanup(repo);
   }

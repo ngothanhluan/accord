@@ -179,109 +179,177 @@ describe('plan format: the after: line', () => {
 
 const BLOCK = (rule: string, r: GateResult) => of(r, rule);
 describe('plan format: fenced blocks', () => {
-  // [name, lines of task 2 (after the after: line), number of refusals, text each refusal holds]
-  const FENCES: [string, string[], number, string[]][] = [
-    ['ts', ['```ts', 'const a = 1;', '```'], 1, ['task 2', '(ts)']],
-    ['no info', ['```', 'x', '```'], 1, ['task 2']],
-    ['tilde with text', ['~~~ text', 'x', '~~~'], 1, ['(text)']],
-    ['interfaces', ['```interfaces', 'export function f(): void', '```'], 0, []],
-    ['interfaces with a language', ['```interfaces ts', 'export function f(): void', '```'], 0, []],
-    ['interfaces with a tab', ['```interfaces\tts', 'x', '```'], 0, []],
-    ['interfaces in tildes', ['~~~interfaces', 'x', '~~~'], 0, []],
-    ['a longer fence around an inner fence', ['````interfaces', '```ts', 'x', '```', '````'], 0, []],
-    ['capital I', ['```Interfaces', 'x', '```'], 1, ['(Interfaces)']],
-    ['a word that merely starts with interfaces', ['```interfaces-ts', 'x', '```'], 1, ['(interfaces-ts)']],
-    ['an attribute', ['```{.interfaces}', 'x', '```'], 1, []],
-    ['info after a space is not the first word', ['``` ts interfaces', 'x', '```'], 1, ['(ts interfaces)']],
-    ['indented fence', ['  ```ts', '  x', '  ```'], 1, ['(ts)']],
-    ['a list item holding a fence', ['- step', '  ```sh', '  npm test', '  ```'], 1, ['(sh)']],
-    // The fence sits on the marker line (WR-02): an interfaces block is allowed there, any other block is refused at the line it opens on.
-    ['an interfaces block on a list marker line', ['- ```interfaces', '  export function csv(): string', '  ```'], 0, []],
-    ['an interfaces block on an ordered marker line', ['1. ```interfaces', '   export function csv(): string', '   ```'], 0, []],
-    ['an interfaces block on a parenthesis marker line', ['1) ```interfaces ts', '   export function csv(): string', '   ```'], 0, []],
-    ['an interfaces block on a nested marker line', ['- step', '  - ```interfaces', '    export function csv(): string', '    ```'], 0, []],
-    ['a ts block on a list marker line', ['- ```ts', '  writer.csv = true;', '  ```'], 1, ['(ts)']],
-    ['a ts block on an ordered marker line', ['1. ```ts', '   writer.csv = true;', '   ```'], 1, ['(ts)']],
-    // The list item ends where CommonMark ends it, so a flush-left closing fence closes nothing: it opens a stray block of its own, which is refused too.
-    ['a block on a list marker line closed flush left', ['- ```ts', '  x();', '```'], 2, ['task 2']],
-    ['an interfaces block on a list marker line closed flush left', ['- ```interfaces', '  export function csv(): string', '```'], 1, ['task 2']],
-    // ST-LN-91 g2 round 2 WR-01: a fence opened on a marker line, or indented under a list item, ends where the list item ends; the block that follows is read as a block.
-    ['an unclosed interfaces block on a list marker line, then a ts block', ['- ```interfaces', '  export function csv(): string', '', 'Then the writer:', '', '```ts', 'writer.csv = true;', '```'], 1, ['(ts)']],
-    ['an unclosed interfaces block on an ordered marker line, then a sh block', ['1. ```interfaces', '   export function csv(): string', 'Then the writer:', '```sh', 'npm test', '```'], 1, ['(sh)']],
-    ['an unclosed interfaces block in tildes on a marker line, then a ts block', ['- ~~~interfaces', '  export function csv(): string', 'Then:', '```ts', 'x', '```'], 1, ['(ts)']],
-    ['an unclosed interfaces block on a nested marker line, then a ts block', ['- step', '  - ```interfaces', '    export function csv(): string', '  then', '```ts', 'x', '```'], 1, ['(ts)']],
-    ['an unclosed interfaces block indented under a list item, then a ts block', ['- Interfaces:', '  ```interfaces', '  export function csv(): string', '', 'Then the writer:', '', '```ts', 'writer.csv = true;', '```'], 1, ['(ts)']],
-    ['an unclosed interfaces block indented under an ordered item, then a ts block', ['1. Interfaces:', '', '   ```interfaces', '   export function csv(): string', 'Then:', '```ts', 'x', '```'], 1, ['(ts)']],
-    ['a ts block that opens on the line that ends the list item', ['- ```interfaces', '  export function csv(): string', '```ts', 'x', '```'], 1, ['(ts)']],
-    ['an interfaces block on a marker line with blank and deeper lines, unclosed to the end of the task', ['- ```interfaces', '  export function csv(): string', '', '    deeper: string', '  more'], 0, []],
-    ['an interfaces block indented under a list item, unclosed to the end of the task', ['- Interfaces:', '  ```interfaces', '  export function csv(): string'], 0, []],
-    ['an interfaces block indented under a list item, closed at the same indent, then prose', ['- Interfaces:', '  ```interfaces', '  export function csv(): string', '  ```', 'Then the writer.'], 0, []],
-    ['an interfaces block indented under a list item, closed flush left', ['- Interfaces:', '  ```interfaces', '  export function csv(): string', '```'], 1, ['task 2']],
-    ['an indented interfaces block with flush-left lines and no list in the task', ['  ```interfaces', 'export function csv(): string', '  ```'], 0, []],
-    ['an indented interfaces block with flush-left lines after a list item: the item may end, so the block is not trusted', ['- step', '  ```interfaces', 'export function csv(): string', '  ```'], 1, ['task 2']],
-    ['a block in a blockquote', ['> ```ts', '> x', '> ```'], 1, ['(ts)', 'blockquote']],
-    ['an interfaces block in a blockquote', ['> ```interfaces', '> export function csv(): string', '> ```'], 1, ['(interfaces)', 'blockquote']],
-    ['an interfaces block in a blockquote without a space after the marker', ['>```interfaces', '>x', '>```'], 1, ['blockquote']],
-    ['a block in a list item inside a blockquote', ['> - ```ts', '>   x', '>   ```'], 1, ['(ts)', 'blockquote']],
-    ['a list marker line that is prose with inline code', ['- use ```ts``` here', '- and ``` too'], 0, []],
-    ['unterminated', ['```ts', 'x'], 1, ['(ts)']],
-    ['two blocks', ['```ts', 'x', '```', 'then', '```sh', 'y', '```'], 2, []],
-    ['an interfaces block and a ts block', ['```interfaces', 'x', '```', '```ts', 'y', '```'], 1, ['(ts)']],
+  // ST-LN-91 g2 round 3, the owner's decision (2026-11-14): a task holds an interfaces block in one form only, a line that is exactly ```interfaces at column 0
+  // closed by the first following line that is exactly ``` at column 0. Every other fence-like line (after spaces, tabs, > and list markers, a run of three
+  // backticks or tildes) is refused at its own line, an unclosed interfaces block at its opening line.
+  // [name, lines of task 2 (after the after: line), the indexes into those lines of every refused line, text the first refusal holds]
+  const FENCES: [string, string[], number[], string[]][] = [
+    // The one accepted form.
+    ['interfaces', ['```interfaces', 'export function f(): void', '```'], [], []],
+    ['interfaces with trailing spaces and tabs', ['```interfaces  \t', 'export function f(): void', '``` \t'], [], []],
+    ['interfaces holding list items and quotes', ['```interfaces', '- item', '1. x', '> y', '```'], [], []],
+    ['two interfaces blocks', ['```interfaces', 'a', '```', 'then', '```interfaces', 'b', '```'], [], []],
+    ['interfaces with a blank line inside', ['```interfaces', 'a', '', 'b', '```'], [], []],
+    // Any other info string, character or run length.
+    ['ts', ['```ts', 'const a = 1;', '```'], [0, 2], ['task 2', '(ts)']],
+    ['no info', ['```', 'x', '```'], [0, 2], ['task 2']],
+    ['tilde with text', ['~~~ text', 'x', '~~~'], [0, 2], ['(text)']],
+    ['interfaces with a language', ['```interfaces ts', 'export function f(): void', '```'], [0, 2], ['(interfaces ts)']],
+    ['interfaces with a tab', ['```interfaces\tts', 'x', '```'], [0, 2], []],
+    ['interfaces in tildes', ['~~~interfaces', 'x', '~~~'], [0, 2], ['(interfaces)']],
+    ['interfaces in four backticks', ['````interfaces', 'x', '````'], [0, 2], ['(interfaces)']],
+    ['a longer fence around an inner fence', ['````interfaces', '```ts', 'x', '```', '````'], [0, 1, 3, 4], []],
+    ['capital I', ['```Interfaces', 'x', '```'], [0, 2], ['(Interfaces)']],
+    ['a word that merely starts with interfaces', ['```interfaces-ts', 'x', '```'], [0, 2], ['(interfaces-ts)']],
+    ['an attribute', ['```{.interfaces}', 'x', '```'], [0, 2], []],
+    ['info after a space', ['``` interfaces', 'x', '```'], [0, 2], ['(interfaces)']],
+    ['info after a space is not the first word', ['``` ts interfaces', 'x', '```'], [0, 2], ['(ts interfaces)']],
+    ['a backtick in the info string', ['```ts`x`', 'text'], [0], []],
+    ['four backticks', ['````ts', 'x', '````'], [0, 2], ['(ts)']],
+    // Indented by any amount.
+    ['an interfaces block indented one space', [' ```interfaces', 'x', ' ```'], [0, 2], ['(interfaces)']],
+    ['an indented interfaces block with flush-left lines', ['  ```interfaces', 'export function csv(): string', '  ```'], [0, 2], []],
+    ['an interfaces block indented by a tab', ['\t```interfaces', 'x', '\t```'], [0, 2], []],
+    ['indented fence', ['  ```ts', '  x', '  ```'], [0, 2], ['(ts)']],
+    ['a flush interfaces block closed by an indented fence, unclosed', ['```interfaces', 'x', '  ```'], [0, 2], ['no line closes']],
+    // After a list marker, with or without a space after it, and on its own line.
+    ['a list item holding a fence', ['- step', '  ```sh', '  npm test', '  ```'], [1, 3], ['(sh)']],
+    ['an interfaces block on a list marker line', ['- ```interfaces', '  export function csv(): string', '  ```'], [0, 2], ['(interfaces)']],
+    ['an interfaces block on a star marker line', ['* ```interfaces', '  x', '  ```'], [0, 2], []],
+    ['an interfaces block on a plus marker line', ['+ ```interfaces', '  x', '  ```'], [0, 2], []],
+    ['an interfaces block on an ordered marker line', ['1. ```interfaces', '   export function csv(): string', '   ```'], [0, 2], []],
+    ['an interfaces block on a parenthesis marker line', ['1) ```interfaces ts', '   export function csv(): string', '   ```'], [0, 2], []],
+    ['an interfaces block on a ten marker line', ['10. ```interfaces', '    x', '    ```'], [0, 2], []],
+    ['an interfaces block on a tab marker line', ['-\t```interfaces', '\texport function csv(): string', '\t```'], [0, 2], []],
+    ['an interfaces block on a nested marker line', ['- step', '  - ```interfaces', '    export function csv(): string', '    ```'], [1, 3], []],
+    ['a fence on a dash with no space', ['-```ts', 'x', '-```'], [0, 2], ['(ts)']],
+    ['a fence on a star with no space', ['*```ts', 'x'], [0], []],
+    ['a fence on an ordered marker with no space', ['1.```ts', 'x', '2)~~~'], [0, 2], []],
+    ['a bare dash marker, then an interfaces block under it, then ts', ['', '-', '  ```interfaces', '  export function csv(): string', '', '```ts', 'writer.csv = true;', '```'], [2, 5, 7], []],
+    ['a bare ordered marker, then an interfaces block under it, then ts', ['', '1.', '   ```interfaces', '   export function csv(): string', '', '```ts', 'writer.csv = true;', '```'], [2, 5, 7], []],
+    ['a ts block on a list marker line', ['- ```ts', '  writer.csv = true;', '  ```'], [0, 2], ['(ts)']],
+    ['a ts block on an ordered marker line', ['1. ```ts', '   writer.csv = true;', '   ```'], [0, 2], ['(ts)']],
+    ['a block on a list marker line closed flush left', ['- ```ts', '  x();', '```'], [0, 2], ['task 2']],
+    ['an interfaces block on a list marker line closed flush left', ['- ```interfaces', '  export function csv(): string', '```'], [0, 2], ['task 2']],
+    ['an unclosed interfaces block on a list marker line, then a ts block', ['- ```interfaces', '  export function csv(): string', '', 'Then the writer:', '', '```ts', 'writer.csv = true;', '```'], [0, 5, 7], []],
+    ['an unclosed interfaces block on an ordered marker line, then a sh block', ['1. ```interfaces', '   export function csv(): string', 'Then the writer:', '```sh', 'npm test', '```'], [0, 3, 5], []],
+    ['an unclosed interfaces block in tildes on a marker line, then a ts block', ['- ~~~interfaces', '  export function csv(): string', 'Then:', '```ts', 'x', '```'], [0, 3, 5], []],
+    ['an unclosed interfaces block on a nested marker line, then a ts block', ['- step', '  - ```interfaces', '    export function csv(): string', '  then', '```ts', 'x', '```'], [1, 4, 6], []],
+    ['an unclosed interfaces block indented under a list item, then a ts block', ['- Interfaces:', '  ```interfaces', '  export function csv(): string', '', 'Then the writer:', '', '```ts', 'writer.csv = true;', '```'], [1, 6, 8], []],
+    ['an unclosed interfaces block indented under an ordered item, then a ts block', ['1. Interfaces:', '', '   ```interfaces', '   export function csv(): string', 'Then:', '```ts', 'x', '```'], [2, 5, 7], []],
+    ['a ts block that opens on the line that ends the list item', ['- ```interfaces', '  export function csv(): string', '```ts', 'x', '```'], [0, 2, 4], []],
+    ['an interfaces block on a marker line, unclosed to the end of the task', ['- ```interfaces', '  export function csv(): string', '', '    deeper: string', '  more'], [0], []],
+    ['an interfaces block indented under a list item, unclosed to the end of the task', ['- Interfaces:', '  ```interfaces', '  export function csv(): string'], [1], []],
+    ['an interfaces block indented under a list item, closed at the same indent, then prose', ['- Interfaces:', '  ```interfaces', '  export function csv(): string', '  ```', 'Then the writer.'], [1, 3], []],
+    ['an interfaces block indented under a list item, closed flush left', ['- Interfaces:', '  ```interfaces', '  export function csv(): string', '```'], [1, 3], []],
+    ['an indented interfaces block after a list item', ['- step', '  ```interfaces', 'export function csv(): string', '  ```'], [1, 3], []],
+    // The round-3 bypasses (CR-01, CR-02, CR-03): every fence-like line is refused, so no reading of the list or the indent can hide the ts block.
+    ['CR-01: a long interfaces line after a list, re-read as an opening', ['- a step', '', 'Then:', '', '  ```interfaces', '````interfaces', 'export function csv(): string', '  ```', '```ts', 'writer.csv = true;', '````'], [4, 5, 7, 8, 10], []],
+    ['CR-01: a tilde interfaces line inside a list item', ['- Interfaces:', '', '    ```interfaces', '  ~~~interfaces', '  export function csv(): string', '    ```', '  ```ts', '  writer.csv = true;', '  ```'], [2, 3, 5, 6, 8], []],
+    ['CR-03: an interfaces line indented four spaces, then ts', ['', '    ```interfaces', '```ts', 'writer.csv = true;', '```'], [1, 2, 4], []],
+    ['CR-03: an interfaces line indented by a tab, then ts', ['', '\t```interfaces', '```ts', 'writer.csv = true;', '```'], [1, 2, 4], []],
+    ['CR-03: an interfaces line indented four spaces after a paragraph, then ts', ['Then:', '    ```interfaces', '```ts', 'writer.csv = true;', '```'], [1, 2, 4], []],
+    // In a block quote.
+    ['a block in a blockquote', ['> ```ts', '> x', '> ```'], [0, 2], ['(ts)', 'blockquote']],
+    ['an interfaces block in a blockquote', ['> ```interfaces', '> export function csv(): string', '> ```'], [0, 2], ['(interfaces)', 'blockquote']],
+    ['an interfaces block in a blockquote without a space after the marker', ['>```interfaces', '>x', '>```'], [0, 2], ['blockquote']],
+    ['a block in a list item inside a blockquote', ['> - ```ts', '>   x', '>   ```'], [0, 2], ['(ts)', 'blockquote']],
+    ['a block in two quote levels', ['> > ~~~ts', '> > x', '> > ~~~'], [0, 2], ['blockquote']],
+    // Inside the accepted block: every fence-like line is refused, and the block still ends at its first exact closing line.
+    ['a ts fence inside an interfaces block', ['```interfaces', '```ts', 'x', '```', 'after the block'], [1], ['(ts)', 'inside the interfaces block opened at line']],
+    ['an indented fence inside an interfaces block', ['```interfaces', '  ```ts', 'x', '  ```', '```'], [1, 3], ['inside the interfaces block']],
+    ['a tilde run inside an interfaces block', ['```interfaces', '~~~', '```'], [1], []],
+    ['a four-backtick run inside an interfaces block', ['```interfaces', '````', '```'], [1], []],
+    ['a quoted fence inside an interfaces block', ['```interfaces', '> ```', '```'], [1], ['blockquote']],
+    ['an interfaces line inside an interfaces block', ['```interfaces', '```interfaces', '```'], [1], []],
+    ['a fence on a list marker inside an interfaces block', ['```interfaces', '- ```ts', '```'], [1], []],
+    ['a closing line with text after it does not close', ['```interfaces', 'x', '``` x'], [0, 2], ['no line closes']],
+    // An unclosed interfaces block is refused at its opening line.
+    ['an unclosed interfaces block', ['```interfaces', 'x'], [0], ['no line closes']],
+    ['unterminated', ['```ts', 'x'], [0], ['(ts)']],
+    ['two blocks', ['```ts', 'x', '```', 'then', '```sh', 'y', '```'], [0, 2, 4, 6], []],
+    ['an interfaces block and a ts block', ['```interfaces', 'x', '```', '```ts', 'y', '```'], [3, 5], ['(ts)']],
+    ['a stray closing line after an interfaces block', ['```interfaces', 'x', '```', '```'], [3], []],
     // A comment hides nothing from the executor, so it hides nothing from the rule (WR-01).
-    ['inside an HTML comment', ['<!--', '```ts', 'x', '```', '-->'], 1, ['(ts)']],
-    ['after an unclosed comment in inline code', ['Strip the `<!--` marks first.', '```ts', 'x', '```'], 1, ['(ts)']],
-    ['after an unclosed comment', ['<!-- the writer', '```ts', 'x', '```'], 1, ['(ts)']],
-    ['inside a one-line comment', ['<!-- ```ts -->'], 0, []],
-    ['an HTML comment inside an interfaces block does not hide its end', ['```interfaces', '<!-- x', '```', '```ts', 'y', '```'], 1, ['(ts)']],
-    ['a backtick in the info string is not a fence', ['```ts`x`', 'text'], 0, []],
-    ['only two backticks', ['``ts', 'x', '``'], 0, []],
+    ['inside an HTML comment', ['<!--', '```ts', 'x', '```', '-->'], [1, 3], ['(ts)']],
+    ['after an unclosed comment in inline code', ['Strip the `<!--` marks first.', '```ts', 'x', '```'], [1, 3], ['(ts)']],
+    ['after an unclosed comment', ['<!-- the writer', '```ts', 'x', '```'], [1, 3], ['(ts)']],
+    ['inside a one-line comment', ['<!-- ```ts -->'], [], []],
+    ['an HTML comment inside an interfaces block does not hide its end', ['```interfaces', '<!-- x', '```', '```ts', 'y', '```'], [3, 5], ['(ts)']],
+    // Not fence-like.
+    ['a list marker line that is prose with inline code', ['- use ```ts``` here', '- and ``` too'], [], []],
+    ['only two backticks', ['``ts', 'x', '``'], [], []],
+    ['a run of three that is not at the start', ['Write `interfaces` blocks as ```interfaces', 'and ~~~ is a fence too'], [], []],
   ];
-  it.each(FENCES)('risk:complex-branching corpus: a task holding %s (ST-LN-91 91p-ac-1)', (_name, lines, count, texts) => {
+  it.each(FENCES)('risk:complex-branching corpus: a task holding %s (ST-LN-91 91p-ac-1)', (_name, lines, refused, texts) => {
+    const base = three(['after: 1', ...lines]).split('\n').indexOf('after: 1') + 1;
     for (const eol of ['\n', '\r\n']) {
       const r = check({ plan: three(['after: 1', ...lines], eol), claim: NEW });
       const found = BLOCK('gate.task-code-block', r);
-      expect(found).toHaveLength(count);
+      expect(found.map((f) => f.line)).toEqual(refused.map((i) => base + 1 + i));
       for (const f of found) {
         expect(f.level).toBe('error');
         expect(f.file).toBe('accord/tickets/T-1/plan.md');
-        expect(f.reason).toContain('task 2');
-        expect(f.reason).toContain('interfaces');
-        for (const t of texts) expect(f.reason).toContain(t);
+        expect(f.reason).toContain(`task 2 `);
+        expect(f.reason).toContain(`line ${f.line}`);
+        expect(f.reason).toContain('exactly ```interfaces at column 0');
       }
+      for (const t of texts) expect(found[0].reason).toContain(t);
+      expect(r.verdict).toBe(refused.length === 0 ? 'pass' : 'fail');
     }
   });
 
-  it('risk:complex-branching the block rule names each block of a task with the line it opens on (ST-LN-91 91p-ac-1)', () => {
-    const r = check({ plan: three(['after: 1', '```ts', 'a', '```', '```sh', 'b', '```']), claim: NEW });
-    const found = of(r, 'gate.task-code-block');
-    expect(found).toHaveLength(2);
-    expect((found[1].line as number) - (found[0].line as number)).toBe(3);
-    expect(found[0].reason).toContain(`line ${found[0].line}`);
-    const text = three(['after: 1', '```ts', 'a', '```', '```sh', 'b', '```']).split('\n');
-    expect(found.map((f) => f.line)).toEqual([text.indexOf('```ts') + 1, text.indexOf('```sh') + 1]);
+  it('risk:complex-branching each refusal says which kind of line it names (ST-LN-91 91p-ac-1)', () => {
+    const reasons = (lines: string[]) => BLOCK('gate.task-code-block', check({ plan: three(['after: 1', ...lines]), claim: NEW })).map((f) => f.reason.split(';')[0]);
+    const at = (lines: string[], i: number) => three(['after: 1', ...lines]).split('\n').indexOf('after: 1') + 2 + i;
+    const stray = ['  ```ts', 'x'];
+    expect(reasons(stray)).toEqual([`task 2 holds a fence line at line ${at(stray, 0)} (ts)`]);
+    const quoted = ['> ~~~'];
+    expect(reasons(quoted)).toEqual([`task 2 holds a fence line at line ${at(quoted, 0)} in a blockquote`]);
+    const inside = ['```interfaces', '~~~sh', '```'];
+    expect(reasons(inside)).toEqual([`task 2 holds a fence line at line ${at(inside, 1)} (sh) inside the interfaces block opened at line ${at(inside, 0)}`]);
+    const open = ['```interfaces', 'x'];
+    expect(reasons(open)).toEqual([`task 2 opens an interfaces block at line ${at(open, 0)} that no line closes`]);
   });
 
-  // ST-LN-91 g2 round 2 WR-01: the block that follows a list item's unclosed fence is named at its own opening line, whichever way the fence was opened.
+  // ST-LN-91 g2 round 2 WR-01: the block that follows a list item's fence is named at its own opening line, whichever way the fence was opened.
   it.each([
     ['a marker line', ['- ```interfaces', '  export function csv(): string', '', 'Then the writer:', '', '```ts', 'writer.csv = true;', '```']],
     ['an indented line', ['- Interfaces:', '  ```interfaces', '  export function csv(): string', '', 'Then the writer:', '', '```ts', 'writer.csv = true;', '```']],
   ])('risk:complex-branching the ts block after an interfaces block opened on %s is named at its own line (ST-LN-91 91p-ac-1)', (_name, lines) => {
     const plan = three(['after: 1', ...lines]);
     const found = of(check({ plan, claim: NEW }), 'gate.task-code-block');
-    expect(found).toHaveLength(1);
-    expect(found[0].line).toBe(plan.split('\n').indexOf('```ts') + 1);
+    expect(found.map((f) => f.line)).toContain(plan.split('\n').indexOf('```ts') + 1);
     expect(check({ plan, claim: NEW }).verdict).toBe('fail');
     expect(format(check({ plan, claim: OLD }))).toEqual([]);
   });
 
-  // ST-LN-91 g2 round 2 IN-02: the closing line of a quoted block is read through its quote marks, so the after: line below it is still read.
+  // ST-LN-91 g2 round 2 IN-02: a quoted fence line hides nothing, so the after: line below a quoted block is still read.
   it.each([
     ['backticks', ['> ```ts', '> x', '> ```']],
     ['tildes', ['> ~~~ts', '> x', '> ~~~']],
     ['two quote levels', ['> > ```ts', '> > x', '> > ```']],
   ])('risk:complex-branching a closed blockquote block in %s does not hold the after: line below it open (ST-LN-91 91p-ac-1)', (_name, quoted) => {
     const r = check({ plan: three([...quoted, 'after: 1']), claim: NEW });
-    expect(format(r).map((f) => f.rule)).toEqual(['gate.task-code-block']);
+    expect(format(r).map((f) => f.rule)).toEqual(['gate.task-code-block', 'gate.task-code-block']);
+  });
+
+  // The owner's decision, Ruling: only the accepted interfaces block hides lines from the after: readers; a refused fence line hides nothing.
+  it('risk:complex-branching the after: readers skip the lines of an accepted interfaces block and of nothing else (ST-LN-91 91p-ac-2)', () => {
+    const task2 = (lines: string[]) => build({ plan: three(lines), claim: NEW }).work!['T-1'].plan!.tasks[1];
+    // Inside an accepted block: not read, so the after: line below it is the task's.
+    expect(task2(['```interfaces', 'after: 9', '```', 'after: 1']).after).toMatchObject({ tasks: [1], unread: [] });
+    expect(task2(['```interfaces', 'after: 9', '```']).after).toBeUndefined();
+    // Inside an unclosed interfaces block, or between two refused fence lines: read.
+    expect(task2(['```interfaces', 'after: 1']).after).toMatchObject({ tasks: [1] });
+    expect(task2(['```ts', 'after: 1', '```']).after).toMatchObject({ tasks: [1] });
+    expect(task2(['- ```interfaces', '  after: 1', '  ```']).after).toMatchObject({ tasks: [1] });
+    expect(task2(['  ```interfaces', 'after: 1', '  ```']).after).toMatchObject({ tasks: [1] });
+    // The skipped-line hint follows the same reading.
+    const missing = (lines: string[]) => of(check({ plan: three(lines), claim: NEW }), 'gate.task-after-missing')[0].reason;
+    expect(missing(['```interfaces', 'After: 1', '```'])).not.toContain('starts with');
+    expect(missing(['  ```interfaces', 'After: 1', '  ```'])).toContain('starts with "After:"');
+    expect(missing(['```interfaces', 'After: 1'])).toContain('starts with "After:"');
   });
 });
 
@@ -450,7 +518,7 @@ describe('plan format: the rules read the text accord brief prints (ST-LN-91 WR-
     for (const [name, lines] of SHAPES) expect(taskLength(task2(lines)), name).toBe(nonBlank(lines));
     // The two probes of the review: 130 lines after the inline mark are 130 lines, and a fence in a comment is a fence.
     expect(of(check({ plan: three(SHAPES[0][1]), claim: NEW }), 'gate.task-too-long')).toHaveLength(1);
-    expect(of(check({ plan: three(SHAPES[2][1]), claim: NEW }), 'gate.task-code-block')).toHaveLength(1);
+    expect(of(check({ plan: three(SHAPES[2][1]), claim: NEW }), 'gate.task-code-block')).toHaveLength(2);
   });
 
   it('risk:regression an unclosed comment mark does not hide the after: line below it (WR-01)', () => {
@@ -471,19 +539,18 @@ describe('plan format: the rules read the text accord brief prints (ST-LN-91 WR-
     const lines = ['after: 1', 'Interfaces:', '- ```ts', '  writer.csv = true;', '  ```', 'then more.'];
     const text = three(lines).split('\n');
     const found = of(check({ plan: three(lines), claim: NEW }), 'gate.task-code-block');
-    expect(found).toHaveLength(1);
-    expect(found[0].line).toBe(text.indexOf('- ```ts') + 1);
+    expect(found.map((f) => f.line)).toEqual([text.indexOf('- ```ts') + 1, text.indexOf('  ```') + 1]);
     expect(found[0].reason).toContain(`line ${found[0].line} `);
-    // A valid interfaces block there is accepted, and an after: line below it is still read.
-    const ok = ['Interfaces:', '- ```interfaces', '  export function csv(): string', '  ```', '', 'after: 1'];
-    expect(format(check({ plan: three(ok), claim: NEW }))).toEqual([]);
+    // Round 3, the owner's decision: an interfaces block on a list marker line is refused too, and an after: line below it is still read.
+    const marker = ['Interfaces:', '- ```interfaces', '  export function csv(): string', '  ```', '', 'after: 1'];
+    expect(format(check({ plan: three(marker), claim: NEW })).map((f) => f.rule)).toEqual(['gate.task-code-block', 'gate.task-code-block']);
     expect(of(check({ plan: three(['- ```interfaces', '  export function csv(): string', '  ```', 'after: none']), claim: NEW }), 'gate.task-after-missing')).toEqual([]);
   });
 
   it('risk:regression a code block in a blockquote is refused and says it is in a blockquote, at its opening line (WR-02)', () => {
     const lines = ['after: 1', '> ```ts', '> x', '> ```'];
     const found = of(check({ plan: three(lines), claim: NEW }), 'gate.task-code-block');
-    expect(found).toHaveLength(1);
+    expect(found).toHaveLength(2);
     expect(found[0].line).toBe(three(lines).split('\n').indexOf('> ```ts') + 1);
     expect(found[0].reason).toContain('blockquote');
   });

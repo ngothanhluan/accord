@@ -59,8 +59,12 @@ export type ResearchFact = { error: string } | { claimTime?: number; changed: Re
 export interface RangeCommit { sha: string; kind: 'commit' | 'merge' | 'episode'; files: string[] }
 /** ST-LN-91 D-11: the pin in accord/config.yml at the commit that first added a `## Round` heading to plan-review.md or approach-review.md, and at that commit's merge base with the default ref; `error` when git could not say. */
 export type RecordPin = { pin?: string; basePin?: string } | { error: string };
-/** ST-LN-91 D-15: the pin at a ticket's claim commit and at its merge base with the default ref; `{ error }` when git failed reading it. */
-export type ClaimPin = { sha?: string; pin?: string; basePin?: string } | { error: string };
+/**
+ * ST-LN-91 D-15: the pin at a ticket's claim commit and at its merge base with the default ref; `{ error }` when git failed reading it.
+ * ST-LN-96 D-02: `ruleset` is the string `ruleset` the ticket file itself holds at the claim commit (absent when the file has none there, or a non-string):
+ * a rebase rewrites the claim commit onto the new base, so the config pin at it moves, and the ruleset the claim wrote does not.
+ */
+export type ClaimPin = { sha?: string; pin?: string; basePin?: string; ruleset?: string } | { error: string };
 /** ST-LN-91 D-14: one hunk of `git diff -U0` between two texts of plan.md: the old and new first line and line count (a count of 0 places the hunk after the line named). */
 export interface PlanHunk { oldStart: number; oldCount: number; newStart: number; newCount: number }
 /** ST-LN-91 D-14: the planner's fix of plan.md as the host read it: the commit it started from, its hunks and both texts; `error` when git could not say. */

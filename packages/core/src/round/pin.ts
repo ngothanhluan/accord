@@ -1,5 +1,5 @@
 // ST-LN-57: the accord release that cut over to version 2 review records, and the pin reads that decide which version a record may be.
-import { normaliseText } from '../load/frontmatter.js';
+import { normaliseText, splitFrontmatter } from '../load/frontmatter.js';
 import { parseYamlMap } from '../load/yaml.js';
 import type { RepoSnapshot } from '../model/snapshot.js';
 
@@ -12,6 +12,14 @@ const PLAIN = /^(\d+)\.(\d+)\.(\d+)$/;
 export function pinOf(configText: string): string | undefined {
   const pin = parseYamlMap('accord/config.yml', normaliseText(configText), 0).map?.accord;
   return typeof pin === 'string' ? pin : undefined;
+}
+
+/** ST-LN-96 D-02: the top-level `ruleset:` string of a ticket's frontmatter text, read even when the ticket fails its schema; undefined when there is none or it is not a string. */
+export function rulesetOfTicket(ticketText: string): string | undefined {
+  const yaml = splitFrontmatter(ticketText).yaml;
+  if (yaml === null) return undefined;
+  const ruleset = parseYamlMap('accord/tickets', yaml, 0).map?.ruleset;
+  return typeof ruleset === 'string' ? ruleset : undefined;
 }
 
 /** -1, 0 or 1; both arguments are plain x.y.z. */

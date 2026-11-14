@@ -6,10 +6,11 @@ import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from '
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
-import { RULESET_FROM } from '@accord-dev/accord-core';
+import { claimPinBefore, loadSnapshot, RULESET_FROM } from '@accord-dev/accord-core';
 import { cleanup, commitMsg, gitRun, run, writeFiles } from './helpers/repo.js';
 import { gitClaimFacts } from '../src/load/claim-facts.js';
-import { copy, type Clone, doneBranch, EXPORT, exportText, lines, pushMain, useSandboxes, VERIFICATION } from './helpers/worktree.js';
+import { loadFromFs } from '../src/load/fs.js';
+import { copy, type Clone, doneBranch, EXPORT, exportText, lines, pushMain, useSandboxes, verifyStage, VERIFICATION } from './helpers/worktree.js';
 import { P, pinned } from '../../../test/helpers/lane.js';
 
 // the running version: the package's own unless a test moves it (the backfill is about releases around RULESET_FROM)
@@ -262,26 +263,124 @@ it('risk:regression no backfill below the cut-off or for a ticket claimed at it 
   expect(await rulesetFindings(wtAt)).toEqual(['gate.ruleset-missing']);
 }, 240_000);
 
-it('risk:regression a rebase onto an upgraded main leaves no backfill and no false ruleset-changed (ST-LN-96 rel-ac-1)', async () => {
-  // KNOWN GAP, reported to the owner: a rebase replays the claim commit onto the upgraded base, so the pin at it is the new one and the claim-commit fallback
-  // answers "new rules". Writing the old pin from before the rebase would make gate.ruleset-changed refuse it (it compares with the pin at that commit), so nothing is written.
+// A ticket claimed before RULESET_FROM, then main upgraded: the first sync under a rebase (built-in, or a git.sync script) replays the claim commit onto the new pin. The backfill
+// is written from the claim pin BEFORE the sync so the rebase replays it (ST-LN-96 rel-ac-1, orchestrator Ruling 2026-11-15).
+type Way = 'rebase' | 'git.sync';
+// the two ways a first sync happens: `accord worktree sync` in the ticket's worktree (stage verify; a worktree whose pin is not the running one is refused before the
+// command runs, so the branch carries the new pin), and Continue from the main checkout (a stage before verify)
+type Via = 'sync' | 'continue';
+const VIAS: Via[] = ['sync', 'continue'];
+
+/** What a ticket's gates say about `ruleset`: the findings whose rule id starts `gate.ruleset-`, for each of the three gates. */
+async function rulesetOf(cwd: string): Promise<Record<string, { rule: string; reason: string }[]>> {
+  const out: Record<string, { rule: string; reason: string }[]> = {};
+  for (const which of ['ready', 'plan', 'done'] as const) {
+    const r = await run(['gate', which, ID, '--json'], cwd);
+    out[which] = (JSON.parse(r.out).findings as { rule: string; reason: string }[]).filter((f) => f.rule.startsWith('gate.ruleset-'));
+  }
+  return out;
+}
+
+/**
+ * ST-9 claimed on its own branch under 0.4.1 (no `ruleset`), main then upgraded to RULESET_FROM, and the first sync run under `way` through `via`.
+ * `dir` holds the team script for git.sync. Returns the clone, the ticket's worktree and what the command printed.
+ */
+async function syncedAfterUpgrade(way: Way, via: Via, dir: string): Promise<{ c: Clone; wt: string; out: string }> {
+  const keys = (() => {
+    if (way === 'rebase') return 'git:\n  merge: rebase\n';
+    const file = join(dir, 'team.mjs').replaceAll('\\', '/');
+    writeFileSync(file, "import { execFileSync } from 'node:child_process';\nexecFileSync('git', ['rebase', process.env.ACCORD_BASE_REF], { stdio: 'pipe' });\n");
+    return `git:\n  sync: 'node ${file}'\n`;
+  })();
   const c = copy({ tickets: [] });
-  const REBASING = 'git:\n  merge: rebase\n';
   running.v = '0.4.1';
-  writeFiles(c.root, { [CONFIG_REL]: pinned('0.4.1') + REBASING });
-  commitMsg(c.root, 'pin 0.4.1 and rebase');
+  writeFiles(c.root, { [CONFIG_REL]: pinned('0.4.1') + keys });
+  commitMsg(c.root, 'pin 0.4.1 with ' + way);
   c.git('push', '-q', 'origin', 'main');
   const wt = await claimedOnBranch(c);
-  expect(gitClaimFacts(wt, ID)).toMatchObject({ pin: '0.4.1' });
   running.v = RULESET_FROM;
-  writeFiles(c.root, { [CONFIG_REL]: pinned(RULESET_FROM) + REBASING });
+  if (via === 'sync') {
+    writeFiles(wt, { [CONFIG_REL]: pinned(RULESET_FROM) + keys });
+    commitMsg(wt, 'pin ' + RULESET_FROM + ' on the branch');
+    verifyStage(wt, ID);
+  }
+  expect(gitRun(wt, 'show', 'HEAD:' + TICKET)).not.toContain('ruleset');
+  gitRun(wt, 'push', '-q', '-u', 'origin', 't/ST-9');
+  expect(gitClaimFacts(wt, ID)).toMatchObject({ sha: claimSha(wt), pin: '0.4.1' });
+  writeFiles(c.root, { [CONFIG_REL]: pinned(RULESET_FROM) + keys });
   commitMsg(c.root, 'upgrade');
   c.git('push', '-q', 'origin', 'main');
-  const r = await run(['worktree', 'open', ID, '--continue'], c.root);
+  const r = via === 'sync' ? await run(['worktree', 'sync', ID], wt) : await run(['worktree', 'open', ID, '--continue'], c.root);
   expect([r.code, r.err]).toEqual([0, '']);
-  expect(lines(r.out).filter((l) => l.startsWith('rebased:'))).toHaveLength(1);
-  expect(gitClaimFacts(wt, ID)).toMatchObject({ pin: RULESET_FROM }); // the rewritten claim commit says the new pin
-  expect(backfilledLines(r.out)).toEqual([]);
-  expect(subjects(wt).some((l) => l.startsWith('ruleset: '))).toBe(false);
-  expect(await rulesetFindings(wt)).toEqual([]);
-}, 240_000);
+  return { c, wt, out: r.out };
+}
+
+/** The ticket kept the rules of the release it was claimed under: the field, the fact, the rule reader and the three gates. */
+async function expectKeptRules(wt: string): Promise<void> {
+  expect(gitRun(wt, 'show', 'HEAD:' + TICKET)).toMatch(/\r?\nruleset: "0\.4\.1"\r?\n/);
+  expect(gitRun(wt, 'show', 'HEAD:' + CONFIG_REL)).toContain(`accord: "${RULESET_FROM}"`);
+  expect(gitClaimFacts(wt, ID)).toMatchObject({ pin: RULESET_FROM, ruleset: '0.4.1' }); // the rewritten claim commit says the new pin; the first-written ruleset says the old one
+  expect(claimPinBefore(loadSnapshot(loadFromFs(wt)), ID, RULESET_FROM)).toBe(true); // the Phase 3 rules answer as at 0.4.1
+  expect(await rulesetOf(wt)).toEqual({ ready: [], plan: [], done: [] });
+}
+
+it('risk:complex-branching a ticket claimed before 0.5.0 keeps its rules through its first rebase sync (ST-LN-96 rel-ac-1)', async () => {
+  for (const via of VIAS) {
+    const dir = mkdtempSync(join(tmpdir(), 'accord-rebase-fx-'));
+    try {
+      const { c, wt, out } = await syncedAfterUpgrade('rebase', via, dir);
+      expect(lines(out).filter((l) => l.startsWith('rebased:')).length, via).toBeGreaterThan(0);
+      expect(backfilledLines(out), via).toEqual([`backfilled: ${ID} ruleset 0.4.1`]);
+      expect(subjects(wt)[0], via).toBe(`ruleset: ${ID} from its claim commit`); // made before the rebase, replayed by it
+      expect(subjects(wt).filter((l) => l === 'claim: ' + ID), via).toHaveLength(1);
+      await expectKeptRules(wt);
+      expect(head(c.remote, 'refs/heads/t/ST-9'), via).toBe(head(wt)); // pushed with the lease
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+}, 360_000);
+
+it('risk:complex-branching a ticket claimed before 0.5.0 keeps its rules through its first git.sync rebase script (ST-LN-96 rel-ac-1)', async () => {
+  for (const via of VIAS) {
+    const dir = mkdtempSync(join(tmpdir(), 'accord-rebase-fx-'));
+    try {
+      const { c, wt, out } = await syncedAfterUpgrade('git.sync', via, dir);
+      expect(lines(out), via).toContain(`synced: t/${ID} by git.sync`);
+      expect(backfilledLines(out), via).toEqual([`backfilled: ${ID} ruleset 0.4.1`]);
+      expect(subjects(wt)[0], via).toBe(`ruleset: ${ID} from its claim commit`);
+      await expectKeptRules(wt);
+      expect(head(c.remote, 'refs/heads/t/ST-9'), via).toBe(head(wt));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+}, 360_000);
+
+it('risk:complex-branching a hand edit of the backfilled ruleset fails changed and a removal fails missing (ST-LN-96 t1-ac-2)', async () => {
+  for (const via of VIAS) {
+    const dir = mkdtempSync(join(tmpdir(), 'accord-rebase-fx-'));
+    try {
+      const { wt } = await syncedAfterUpgrade('rebase', via, dir);
+      const file = wt + '/' + TICKET;
+      const kept = readFileSync(file, 'utf8');
+      expect(kept, via).toContain('ruleset: "0.4.1"');
+      // the edit the old restore hint asked for: move the ticket to the new rules
+      writeFileSync(file, kept.replace('ruleset: "0.4.1"', `ruleset: "${RULESET_FROM}"`));
+      commitMsg(wt, 'move the ruleset by hand');
+      for (const [which, found] of Object.entries(await rulesetOf(wt))) {
+        expect(found.map((f) => f.rule), via + ' ' + which).toEqual(['gate.ruleset-changed']);
+        expect(found[0].reason, via + ' ' + which).toContain(`"${RULESET_FROM}"`);
+        expect(found[0].reason, via + ' ' + which).toContain('"0.4.1"');
+      }
+      writeFileSync(file, kept.replace(/ruleset: "0\.4\.1"\r?\n/, ''));
+      commitMsg(wt, 'remove the ruleset by hand');
+      for (const [which, found] of Object.entries(await rulesetOf(wt))) {
+        expect(found.map((f) => f.rule), via + ' ' + which).toEqual(['gate.ruleset-missing']);
+        expect(found[0].reason, via + ' ' + which).toContain('"0.4.1"');
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+}, 360_000);

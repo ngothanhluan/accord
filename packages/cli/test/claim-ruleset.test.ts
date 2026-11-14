@@ -1,7 +1,7 @@
 // ST-LN-96 t1-ac-1: the claim writes `ruleset: "<pin>"` into the ticket in the claim commit, and a ticket squash-merged or rebased onto main keeps
 // the rules that field names. Real git in tmp sandboxes with a bare remote. The running version is mocked and every history pins its own version
 // explicitly (`pinned(v)`), so the test does not move when a release moves CONFIG's pin.
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { expect, it, vi } from 'vitest';
 import { RULESET_FROM } from '@accord-dev/accord-core';
 import { laneTicket, pinned } from '../../../test/helpers/lane.js';
@@ -136,4 +136,56 @@ it('risk:complex-branching a squash-merged and a rebased ticket keep the rules t
     const without = merged(how, undefined);
     expect(await discussMissing(without), how + ' without ruleset').toBe(1);
   }
+}, 120_000);
+
+/** The ruleset findings of one gate, run from `cwd`, as `rule: reason` lines. */
+const rulesetFindings = async (which: 'ready' | 'plan' | 'done', cwd: string): Promise<string[]> => {
+  const r = await run(['gate', which, 'ST-9', '--json'], cwd);
+  const found = JSON.parse(r.out) as { findings: { rule: string; reason: string }[] };
+  return found.findings.filter((f) => f.rule.startsWith('gate.ruleset-')).map((f) => `${f.rule}: ${f.reason}`);
+};
+
+it('risk:complex-branching a hand-edited ruleset fails gate done on real git (ST-LN-96 t1-ac-2)', async () => {
+  const c = copy();
+  pinTo(c, RULESET_FROM);
+  const opened = await run(['worktree', 'open', 'ST-9'], c.root);
+  expect(opened.err).toBe('');
+  expect(opened.code).toBe(0);
+  const wt = c.sibling('ST-9');
+  const ticket = `${wt}/accord/tickets/ST-9.md`;
+  for (const which of ['ready', 'plan', 'done'] as const) expect(await rulesetFindings(which, wt), 'untouched ' + which).toEqual([]);
+
+  // a later commit lowers the field by hand: the claim commit is reachable, so every gate refuses it and names both values
+  writeFileSync(ticket, readFileSync(ticket, 'utf8').replace('ruleset: "0.5.0"', 'ruleset: "0.4.0"'));
+  commitMsg(wt, 'lower the ruleset by hand');
+  for (const which of ['ready', 'plan', 'done'] as const) {
+    const f = await rulesetFindings(which, wt);
+    expect(f, which).toHaveLength(1);
+    expect(f[0], which).toMatch(/^gate\.ruleset-changed: /);
+    expect(f[0], which).toContain('0.4.0');
+    expect(f[0], which).toContain('0.5.0');
+  }
+
+  // a removed field fails too
+  writeFileSync(ticket, readFileSync(ticket, 'utf8').replace(/ruleset: "0\.4\.0"\r?\n/, ''));
+  commitMsg(wt, 'remove the ruleset by hand');
+  for (const which of ['ready', 'done'] as const) {
+    const f = await rulesetFindings(which, wt);
+    expect(f, which).toHaveLength(1);
+    expect(f[0], which).toMatch(/^gate\.ruleset-missing: /);
+    expect(f[0], which).toContain('0.5.0');
+  }
+
+  // squash-merged onto main (the branch pushed, taken by a teammate), no claim commit is reachable from main: nothing to compare with
+  writeFileSync(ticket, readFileSync(ticket, 'utf8').replace('ui: false', 'ruleset: "0.4.0"\nui: false'));
+  commitMsg(wt, 'lower the ruleset by hand again');
+  gitRun(wt, 'push', '-q', 'origin', 't/ST-9');
+  const o = c.otherClone();
+  gitRun(o, 'fetch', '-q', 'origin');
+  gitRun(o, 'merge', '--squash', '-q', 'origin/t/ST-9');
+  commitMsg(o, 'merge ST-9');
+  gitRun(o, 'push', '-q', 'origin', 'main');
+  c.git('pull', '-q', '--ff-only', 'origin', 'main');
+  expect(c.git('show', 'HEAD:accord/tickets/ST-9.md')).toContain('ruleset: "0.4.0"');
+  expect(await rulesetFindings('ready', c.root)).toEqual([]);
 }, 120_000);

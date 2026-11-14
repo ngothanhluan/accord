@@ -105,8 +105,8 @@ const R_BODY = [
 ].join('\n');
 const recordText = (...lines: string[]) => ['# Critic rounds', '', 'Date: 2026-11-20', 'Repository at `1c5704ee`', '', 'The critic needs one round.', '', ...lines, ''].join('\n');
 
-/** A repository on branch t/R-1 whose claim commit (dated `claimedAt`, an hour ago by default) and research commit over main add the ready R ticket, its record (with `spent`) and `extra`. */
-function rBranch(spent: string, extra: Record<string, string> = {}, claimedAt = new Date(Date.now() - 60 * 60_000)): string {
+/** A repository on branch t/R-1 whose claim commit (dated `claimedAt`, an hour ago by default) and research commit over main add the ready R ticket, its record `record` (with `spent`) and `extra`. */
+function rBranch(spent: string, extra: Record<string, string> = {}, claimedAt = new Date(Date.now() - 60 * 60_000), record = RECORD): string {
   const repo = makeEmptyRepo();
   writeFiles(repo, { 'accord/config.yml': CONFIG });
   commitMsg(repo, 'base', new Date(claimedAt.getTime() - 60_000));
@@ -117,11 +117,11 @@ function rBranch(spent: string, extra: Record<string, string> = {}, claimedAt = 
   commitMsg(repo, 'claim: R-1', claimedAt);
   const files: Record<string, string> = {
     'accord/config.yml': CONFIG,
-    [P('R-1')]: laneTicket('R-1', { lane: 'R', body: R_BODY, frontmatter: [`research: ["${RECORD}"]`] }),
-    [RECORD]: recordText(spent),
+    [P('R-1')]: laneTicket('R-1', { lane: 'R', body: R_BODY, frontmatter: [`research: ["${record}"]`] }),
+    [record]: recordText(spent),
   };
   expect(gateReadyIn(files, 'R-1')).toBe('pass');
-  writeFiles(repo, { [P('R-1')]: files[P('R-1')], [RECORD]: files[RECORD], ...extra });
+  writeFiles(repo, { [P('R-1')]: files[P('R-1')], [record]: files[record], ...extra });
   commitMsg(repo, 'research: R-1');
   return repo;
 }
@@ -287,6 +287,119 @@ it('risk:regression an epic is never lane R (ST-LN-94 D-10)', async () => {
     const l = await run(['new', 'ticket', 'E-2', '--type', 'epic', '--lane', 'L'], repo);
     expect(l.code, l.err).toBe(0);
     expect(l.out).toBe('accord/tickets/E-2.md\n');
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+type Row = { id: string; stage?: string; blockedBy?: string[] };
+const rowsIn = async (repo: string) => JSON.parse((await run(['status', '--json'], repo)).out) as Row[];
+const rowOf = async (repo: string, id: string) => (await rowsIn(repo)).find((r) => r.id === id);
+const GIT_ID = ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.com', '-c', 'commit.gpgsign=false'];
+
+// REVIEW2 CR-01: a squash merge leaves main no claim commit. A listed record then counts when a commit from the one that added the ticket file
+// on changed it, so the squash-merged ticket reads done on main and its dependant is unblocked; an older record listed as evidence still never counts.
+it('risk:security a squash-merged lane R ticket reads done on main and unblocks its dependant on real git (ST-LN-94 REVIEW2 CR-01)', async () => {
+  const PRIOR = 'accord/research/2026-11-01-prior.md';
+  const repo = makeEmptyRepo();
+  try {
+    writeFiles(repo, {
+      'accord/config.yml': CONFIG,
+      [PRIOR]: recordText('Spent: 1h 10m of 4 hours; not measured of 800k weighted tokens'),
+      [P('T-2')]: laneTicket('T-2', { frontmatter: ['depends_on: ["R-1"]'] }),
+    });
+    commitMsg(repo, 'base', new Date(Date.now() - 3 * 60 * 60_000));
+    gitRun(repo, 'branch', '-M', 'main');
+    gitRun(repo, 'switch', '-q', '-c', 't/R-1');
+    // As accord new ticket --lane R --worktree does: the claim commit adds the ticket file, listing the evidence.
+    const ready: Record<string, string> = { 'accord/config.yml': CONFIG, [P('R-1')]: laneTicket('R-1', { lane: 'R', body: R_BODY, frontmatter: [`research: ["${PRIOR}"]`] }), [PRIOR]: recordText() };
+    expect(gateReadyIn(ready, 'R-1')).toBe('pass');
+    const ticket = ready[P('R-1')];
+    writeFiles(repo, { [P('R-1')]: ticket });
+    commitMsg(repo, 'claim: R-1', new Date(Date.now() - 2 * 60 * 60_000));
+    writeFiles(repo, {
+      [P('R-1')]: ticket.replace(`research: ["${PRIOR}"]`, `research: ["${PRIOR}", "${RECORD}"]`),
+      [RECORD]: recordText('Spent: 0h 40m of 4 hours; not measured of 800k weighted tokens'),
+    });
+    commitMsg(repo, 'research: R-1');
+    const onBranch = await run(['gate', 'done', 'R-1', '--json'], repo);
+    expect(JSON.parse(onBranch.out).findings).toEqual([]);
+    expect(onBranch.code).toBe(0);
+    gitRun(repo, 'switch', '-q', 'main');
+    gitRun(repo, ...GIT_ID, 'merge', '--squash', '-q', 't/R-1');
+    commitMsg(repo, 'R-1 research (#1)');
+    // The branch still exists: the main checkout reads it from there; deleted, as GitHub does after the merge: read from main alone.
+    expect((await rowOf(repo, 'R-1'))?.stage).toBe('done');
+    gitRun(repo, 'branch', '-q', '-D', 't/R-1');
+    expect((await rowOf(repo, 'R-1'))?.stage).toBe('done');
+    expect((await rowOf(repo, 'T-2'))?.blockedBy ?? []).toEqual([]);
+    // A later pull request's CI runs gate done on the ticket from a branch of main with no claim commit.
+    gitRun(repo, 'switch', '-q', '-c', 't/T-2');
+    const later = await run(['gate', 'done', 'R-1', '--json'], repo);
+    expect(JSON.parse(later.out).findings).toEqual([]);
+    expect(later.code).toBe(0);
+    gitRun(repo, 'switch', '-q', 'main');
+    // An R ticket added to main later that lists only the older record: evidence, so it stays at research and gate done refuses it.
+    const ready2: Record<string, string> = { 'accord/config.yml': CONFIG, [P('R-2')]: laneTicket('R-2', { lane: 'R', body: R_BODY, frontmatter: [`research: ["${PRIOR}"]`] }), [PRIOR]: recordText() };
+    expect(gateReadyIn(ready2, 'R-2')).toBe('pass');
+    writeFiles(repo, { [P('R-2')]: ready2[P('R-2')] });
+    commitMsg(repo, 'backlog: queue R-2');
+    expect((await rowOf(repo, 'R-2'))?.stage).toBe('research');
+    const r2done = await run(['gate', 'done', 'R-2', '--json'], repo);
+    expect(r2done.code).toBe(1);
+    expect((JSON.parse(r2done.out).findings as F[]).map((f) => f.rule)).toContain('gate.research-record-missing');
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+// REVIEW2 WR-01: the main checkout reads a claimed R ticket from its branch, and its research from that branch's history.
+it('risk:regression the main checkout shows a finished lane R ticket on its branch as done on real git (ST-LN-94 REVIEW2 WR-01)', async () => {
+  const repo = rBranch('Spent: 0h 30m of 4 hours; not measured of 800k weighted tokens');
+  try {
+    expect((await rowOf(repo, 'R-1'))?.stage).toBe('done');
+    gitRun(repo, 'switch', '-q', 'main');
+    expect((await rowOf(repo, 'R-1'))?.stage).toBe('done');
+    const board = await run(['dashboard'], repo);
+    expect(board.out).not.toContain('next: the research');
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+// REVIEW2 WR-02: a record whose file name has a non-ASCII character is read from git unquoted, so it counts.
+it('risk:regression a research record with a non-ASCII file name counts on real git (ST-LN-94 REVIEW2 WR-02)', async () => {
+  const CAFE = 'accord/research/2026-11-20-café.md';
+  const repo = rBranch('Spent: 0h 30m of 4 hours; not measured of 800k weighted tokens', {}, undefined, CAFE);
+  try {
+    const r = await run(['gate', 'done', 'R-1', '--json'], repo);
+    expect(JSON.parse(r.out).findings).toEqual([]);
+    expect(r.code).toBe(0);
+    expect((await rowOf(repo, 'R-1'))?.stage).toBe('done');
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+// REVIEW2 WR-03: a rebase rewrites committer times to now but keeps author times, so the clock reads the claim's author time.
+it('risk:security a rebase of the lane R branch keeps the clock of accord budget and gate done on real git (ST-LN-94 REVIEW2 WR-03)', async () => {
+  const repo = rBranch('Spent: 0h 30m of 4 hours; not measured of 800k weighted tokens', {}, new Date(Date.now() - 10 * 60 * 60_000));
+  try {
+    gitRun(repo, 'switch', '-q', 'main');
+    writeFiles(repo, { 'other.txt': 'main moved\n' });
+    commitMsg(repo, 'main moves');
+    gitRun(repo, 'switch', '-q', 't/R-1');
+    gitRun(repo, ...GIT_ID, 'rebase', '-q', 'main');
+    const claimCt = Number(gitRun(repo, 'log', '-1', '--format=%ct', 'HEAD~1').trim());
+    expect(Date.now() / 1000 - claimCt).toBeLessThan(60 * 60); // the rebase moved the committer time to now
+    const budget = await run(['budget', 'R-1'], repo);
+    expect(budget.code).toBe(1);
+    expect(budget.out).toMatch(/1[01]h [0-9]+m of 4 hours/);
+    const done = await run(['gate', 'done', 'R-1', '--json'], repo);
+    expect(done.code).toBe(1);
+    const findings = JSON.parse(done.out).findings as F[];
+    expect(findings.map((f) => f.rule)).toEqual(['gate.research-over-budget']);
+    expect(findings[0].reason).toMatch(/1[01]h [0-9]+m since the claim/);
   } finally {
     cleanup(repo);
   }

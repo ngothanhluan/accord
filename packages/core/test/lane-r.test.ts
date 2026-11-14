@@ -406,3 +406,25 @@ it("risk:security gate done judges the timebox by git's time since the claim whe
   // A Spent line over the timebox still fails when git's time is lower.
   expect(ruled(done({ record: record('Spent: 5h 0m of 4 hours; not measured of 800k weighted tokens'), facts: late(10) }), 'gate.research-over-budget')).toHaveLength(1);
 });
+
+// REVIEW2 CR-01: with no claim commit to read from (main after a squash merge), the host's fact has no claim time; the record's own Spent
+// line alone judges the timebox, and a record changed since the ticket file was added is still the ticket's result.
+it('risk:security with no claim time the Spent line alone judges the timebox (ST-LN-94 REVIEW2 CR-01)', () => {
+  const squashed = (minutes: number): ResearchFact => ({ changed: { [RECORD]: CLAIM + minutes * 60 } });
+  const low = done({ record: record('Spent: 0h 30m of 4 hours; not measured of 800k weighted tokens'), facts: squashed(600) });
+  expect(low.findings).toEqual([]);
+  const snapLow = doneSnap({ record: record('Spent: 0h 30m of 4 hours; not measured of 800k weighted tokens'), facts: squashed(600) });
+  expect(progressOf(snapLow, snapLow.tickets['R-1'])?.stage).toBe('done');
+  const high = ruled(done({ record: record('Spent: 5h 0m of 4 hours; not measured of 800k weighted tokens'), facts: squashed(10) }), 'gate.research-over-budget');
+  expect(high).toHaveLength(1);
+  expect(high[0].reason).toContain('5h 0m');
+  expect(high[0].reason).not.toContain('since the claim commit');
+});
+
+// REVIEW2 IN-01: a ticket whose research: lists nothing is told so, not that git was not read.
+it('risk:regression gate done names an empty research: list on a lane R ticket (ST-LN-94 REVIEW2 IN-01)', () => {
+  const r = ruled(done({ research: [], record: null, facts: null }), 'gate.research-record-missing');
+  expect(r).toHaveLength(1);
+  expect(r[0].reason).toContain('research: lists no record under accord/research/');
+  expect(r[0].reason).not.toContain('git was not read');
+});

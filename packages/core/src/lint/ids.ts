@@ -99,10 +99,34 @@ export function initialsHolder(
   return undefined;
 }
 
+/** ST-LN-50 D-05 tracker mode: a Jira project key or Linear team key, a hyphen, then the issue number (bounded, no leading zero). */
+export const TRACKER_KEY = /^[A-Z][A-Z0-9_]{0,19}-[1-9][0-9]{0,8}$/;
+
+/** ST-LN-50 D-05: the key has the tracker form and, when `ids.projects` is set, its project is on the list. */
+export function trackerKeyOk(key: string, ids?: IdsConfig): boolean {
+  if (!TRACKER_KEY.test(key)) return false;
+  return ids?.projects === undefined || ids.projects.includes(key.slice(0, key.lastIndexOf('-')));
+}
+
 export const idConvention: Rule['check'] = (snapshot) => {
   const config = snapshot.config;
   if (config === undefined || (config.people === undefined && config.ids === undefined)) return []; // D-08: the convention is on when people or ids exists
   const legacy = config.legacy_ids ?? [];
+  if (config.ids?.mode === 'tracker') {
+    // the id is the tracker's key: only its form and project are checked, whatever the ticket's type
+    const projects = config.ids.projects;
+    return Object.values(snapshot.tickets).flatMap((t) =>
+      t.frontmatter === undefined || legacy.includes(t.id) || trackerKeyOk(t.id, config.ids)
+        ? []
+        : [
+            {
+              file: t.file,
+              pointer: '/id',
+              reason: `id "${t.id}" is not a tracker key (<PROJECT>-<number>)${projects === undefined ? '' : ' of ' + projects.join(', ')}; if it predates tracker mode, add it to legacy_ids in accord/config.yml`,
+            },
+          ],
+    );
+  }
   const pattern = config.ids?.pattern ?? DEFAULT_PATTERN;
   return Object.values(snapshot.tickets).flatMap((t) => {
     const type = t.frontmatter?.type;

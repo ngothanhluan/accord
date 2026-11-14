@@ -6,7 +6,7 @@
 // nothing to generate — only to substitute.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DEFAULT_PATTERN, initialsHolder, initialsOf, nextTicketId, setFrontmatterKey, templates } from '@accord-dev/accord-core';
+import { DEFAULT_PATTERN, initialsHolder, initialsOf, nextTicketId, setFrontmatterKey, templates, TRACKER_KEY, trackerKeyOk } from '@accord-dev/accord-core';
 import type { Lane } from '@accord-dev/accord-core';
 import { gitIsShallow, gitPeopleOnRefs, gitTicketIdsInHistory, gitUserEmail, UsageError } from '../load/fs.js';
 import { cleanQuietly, fetchOrigin, guardTicketSession, newTicketWorktree } from './worktree.js';
@@ -49,8 +49,30 @@ export function newTicket(
   const ids = ctx.snapshot.config?.ids;
   // ST-LN-50 D-05: accord assigns ids while the convention is on, that is while `people` or `ids` exists
   const assigns = people !== undefined || ids !== undefined;
+  // every id the clone knows: tickets, records, claims, and the history of every ref already fetched
+  const usedIds = (): string[] => [
+    ...Object.keys(ctx.snapshot.tickets),
+    ...Object.keys(ctx.snapshot.work ?? {}),
+    ...Object.keys(ctx.snapshot.claims ?? {}),
+    ...gitTicketIdsInHistory(ctx.root),
+  ];
   let id: string;
-  if (assigns && givenId !== undefined) {
+  if (ids?.mode === 'tracker') {
+    // ST-LN-50 D-05: the creator gives the Jira or Linear key; accord checks its form, its project and that it is unused, and assigns nothing
+    if (givenId === undefined) {
+      throw new UsageError('ids.mode is tracker: give the Jira or Linear key, e.g. accord new ticket ENG-123 - nothing was written');
+    }
+    if (!TRACKER_KEY.test(givenId)) {
+      throw new UsageError(givenId + ' is not a tracker key: a project key in capital letters, a hyphen and the issue number, e.g. ENG-123 - nothing was written');
+    }
+    if (!trackerKeyOk(givenId, ids)) {
+      throw new UsageError(givenId + ' is not in ids.projects (' + (ids.projects ?? []).join(', ') + ') of accord/config.yml - nothing was written');
+    }
+    if (usedIds().includes(givenId)) {
+      throw new UsageError(givenId + ' is already used by a ticket, a record, a claim or the history of a branch in this clone - nothing was written');
+    }
+    id = givenId;
+  } else if (assigns && givenId !== undefined) {
     throw new UsageError(
       givenId +
         ' was typed by hand; accord assigns ids while accord/config.yml has ' +
@@ -91,13 +113,7 @@ export function newTicket(
     } else if (gitIsShallow(ctx.root)) {
       throw new UsageError('this clone is shallow, so ticket numbers already used cannot be seen - run git fetch --unshallow, then try again');
     }
-    const seen = [
-      ...Object.keys(ctx.snapshot.tickets),
-      ...Object.keys(ctx.snapshot.work ?? {}),
-      ...Object.keys(ctx.snapshot.claims ?? {}),
-      ...gitTicketIdsInHistory(ctx.root),
-    ];
-    id = nextTicketId(options.type, initials, seen, ids);
+    id = nextTicketId(options.type, initials, usedIds(), ids);
   }
 
   // T-05-14: this is the only guard between an argv string and a filesystem write, so it runs before

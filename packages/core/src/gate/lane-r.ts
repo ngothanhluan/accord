@@ -136,3 +136,20 @@ export const researchBudgetUnanswered: GateRule['check'] = (snapshot, id) => {
     ];
   });
 };
+
+/**
+ * ST-LN-94 D-10, research Pitfall 8: lane R has no plan, so gate plan refuses an R ticket through PLAN_R_RULES and no lane M plan rule
+ * reads its records. Silent unless the ticket exists with `lane: R`.
+ */
+export const laneRPlan: GateRule['check'] = (snapshot, id) =>
+  laneR(snapshot, id) === undefined
+    ? []
+    : [
+        {
+          file: ticketFile(id),
+          pointer: '/lane',
+          reason:
+            'lane R has no plan: a research ticket ends in a record under accord/research/ that its research: lists; ' +
+            'run accord gate done ' + id + ' when the record is written',
+        },
+      ];

@@ -73,7 +73,7 @@ import {
   reviewUncommitted,
   sectionsChanged,
 } from './lane-s.js';
-import { researchBudgetUnanswered, researchFieldMissing } from './lane-r.js';
+import { laneRPlan, researchBudgetUnanswered, researchFieldMissing } from './lane-r.js';
 import { branchUnknown, interfaceSign, outOfScope, sensitiveTouched } from './scope.js';
 import { planRounds, reviewRounds } from './rounds.js';
 import { findingEvidence } from '../round/evidence.js';
@@ -245,6 +245,15 @@ export const DONE_RULES: readonly GateRule[] = [
   // two identities match on nearly every honest ticket; an error here would block every solo developer.
   { id: 'gate.author-match', level: 'warning', profiles: ['build', 'maintain'], check: authorMatch },
   { id: 'gate.author-skipped', level: 'warning', profiles: ['build', 'maintain'], check: authorSkipped },
+];
+
+/**
+ * ST-LN-94 D-10, research Pitfall 8: the plan gate of a lane R ticket. gatePlan picks it for lane R as gateDone picks DONE_S_RULES for
+ * lane S, so every PLAN_RULES row (the plan.ts rules, the plan rounds, the plan format rules) is out of R's reach through one choice.
+ */
+export const PLAN_R_RULES: readonly GateRule[] = [
+  TICKET_UNKNOWN,
+  { id: 'gate.lane-r-plan', level: 'error', profiles: ['build', 'maintain'], check: laneRPlan },
 ];
 
 /** ST-LN-31 D-04, D-12: the lane S Done table, with the suite rule; no plan, task, criteria or approval rows. */

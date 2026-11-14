@@ -6,7 +6,7 @@ import type { Finding } from '../model/finding.js';
 import type { RepoSnapshot } from '../model/snapshot.js';
 import { lintSnapshot } from '../lint/index.js';
 import { readyHash } from './hash.js';
-import { downgradeMaintain, DONE_RULES, DONE_S_RULES, PLAN_RULES, READY_PROMOTE, READY_RULES } from './rules.js';
+import { downgradeMaintain, DONE_RULES, DONE_S_RULES, PLAN_R_RULES, PLAN_RULES, READY_PROMOTE, READY_RULES } from './rules.js';
 import type { GateRule } from './rules.js';
 import { laneTicket, workOf } from './work.js';
 
@@ -87,8 +87,11 @@ export function gateReady(snapshot: RepoSnapshot, id: string): GateResult {
   return run('ready', READY_RULES, READY_PROMOTE, snapshot, id);
 }
 
-/** Spec §7: the plan gate plus the ticket-scoped lint findings, which include load findings on plan.md. */
+/** Spec §7: the plan gate plus the ticket-scoped lint findings, which include load findings on plan.md. Lane R runs PLAN_R_RULES. */
 export function gatePlan(snapshot: RepoSnapshot, id: string): GateResult {
+  // ST-LN-94 D-10: lane R has no plan; its own table refuses it, and it gets no planHash whatever plan.md it holds.
+  const lane = Object.hasOwn(snapshot.tickets, id) ? snapshot.tickets[id].frontmatter?.lane : undefined;
+  if (lane === 'R') return run('plan', PLAN_R_RULES, [], snapshot, id);
   const result = run('plan', PLAN_RULES, [], snapshot, id);
   const planHash = laneTicket(snapshot, id) === undefined ? undefined : workOf(snapshot, id)?.plan?.bodyHash;
   return planHash === undefined ? result : { ...result, planHash };

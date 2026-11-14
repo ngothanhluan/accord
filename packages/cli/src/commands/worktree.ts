@@ -2,6 +2,7 @@
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, closeSync, existsSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import type { Dirent } from 'node:fs';
+import { resolve } from 'node:path';
 import { DEFAULT_BRANCH_TEMPLATE, forbiddenLines, isResearchPath, isSha, loadConfig, loadSnapshot, pinBefore, pinOf, RULESET_FROM, setFrontmatterKey, statusRows, trailerReason } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
 import { currentBranch, droppedOn, gitDefaultRef, gitFilesAt, gitUnpushedCommits, gitUserEmail, loadFromFs, loadWithBranch, snapshotAt, ticketOfBranch, UsageError } from '../load/fs.js';
@@ -655,28 +656,58 @@ export function fetchOrigin(ctx: CommandContext, known?: boolean): { ctx: Comman
   return { ctx: full, fetched: 'ok' };
 }
 
-/** The merge of `ref` into the branch checked out in `root`, always `--no-ff`: a refused or conflicting merge is aborted, named, and leaves the branch as it was. */
-export function mergeDefault(root: string, ref: string, branch: string, again: { conflict: string; clash: string }): void {
+/**
+ * ST-LN-96 D-14: how a ticket branch takes `ref`, the fetched default branch, into the branch checked out in `root`. `merge` and `squash` (the
+ * team's PR merge style; accord never syncs with `git merge --squash`) are an ordinary `--no-ff` merge, `rebase` a `git rebase <ref>`; a refused or
+ * conflicting one is aborted, named, and leaves the branch as it was. A rebase returns the old-to-new commit pairs `git range-diff` reports.
+ */
+export function syncDefault(root: string, ref: string, branch: string, strategy: 'merge' | 'rebase' | 'squash' | undefined, again: { conflict: string; clash: string }): { rebased: Array<[string, string]> } {
   const def = ref.replace('refs/remotes/', '');
+  const rebase = strategy === 'rebase';
+  const verb = rebase ? 'rebase' : 'merge';
   // git 2.56 ort ignores --no-overwrite-ignore: refuse by hand when the merge adds a path that is an untracked (ignored) file here
   const mine = git(root, ['diff', '--name-only', '--no-renames', '--diff-filter=A', '-z', 'HEAD', ref]).split('\0').filter((l) => l !== '');
   // git itself says which of those paths are untracked here, so a tracked file under another case is no clash; the pathspecs keep it from walking node_modules
   const here = mine.filter((f) => existsSync(root + '/' + f)); // keeps the command line short: a big merged PR adds hundreds of paths, none normally on disk
   const clash = here.length === 0 ? undefined : git(root, ['ls-files', '--others', '-z', '--', ...here.map((f) => ':(literal)' + f)]).split('\0').find((l) => l !== '');
   if (clash !== undefined) {
-    throw new UsageError(`merge of ${def} into ${branch} failed: ${clash} is an ignored file here that the merge would overwrite - ${again.clash} - ${branch} is as it was`);
+    throw new UsageError(`${verb} of ${def} into ${branch} failed: ${clash} is an ignored file here that the ${verb} would overwrite - ${again.clash} - ${branch} is as it was`);
   }
+  if (!rebase) {
+    try {
+      // the full ref: a short origin/main would resolve to a local branch or tag of that name first
+      execFileSync('git', ['merge', '--no-ff', '--no-edit', '--no-overwrite-ignore', ref], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    } catch (e) {
+      const files = git(root, ['diff', '--name-only', '-z', '--diff-filter=U']).split('\0').filter((l) => l !== '');
+      if (gitOk(root, ['rev-parse', '-q', '--verify', 'MERGE_HEAD'])) git(root, ['merge', '--abort']);
+      if (files.length > 0) {
+        throw new UsageError(`merge of ${def} into ${branch} stopped on a conflict in ${files.join(', ')} - the merge was aborted and ${branch} is as it was; ${again.conflict}`);
+      }
+      throw new UsageError(`merge of ${def} into ${branch} failed: ${firstLine(e)} - ${branch} is as it was`);
+    }
+    return { rebased: [] };
+  }
+  const oldTip = git(root, ['rev-parse', 'HEAD']).trim();
+  const oldBase = git(root, ['merge-base', 'HEAD', ref]).trim();
   try {
-    // the full ref: a short origin/main would resolve to a local branch or tag of that name first
-    execFileSync('git', ['merge', '--no-ff', '--no-edit', '--no-overwrite-ignore', ref], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    execFileSync('git', ['rebase', ref], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   } catch (e) {
     const files = git(root, ['diff', '--name-only', '-z', '--diff-filter=U']).split('\0').filter((l) => l !== '');
-    if (gitOk(root, ['rev-parse', '-q', '--verify', 'MERGE_HEAD'])) git(root, ['merge', '--abort']);
+    const dirs = ['rebase-merge', 'rebase-apply'].map((n) => resolve(root, git(root, ['rev-parse', '--git-path', n]).trim()));
+    if (dirs.some((d) => existsSync(d))) git(root, ['rebase', '--abort']);
     if (files.length > 0) {
-      throw new UsageError(`merge of ${def} into ${branch} stopped on a conflict in ${files.join(', ')} - the merge was aborted and ${branch} is as it was; ${again.conflict}`);
+      throw new UsageError(`rebase of ${def} into ${branch} stopped on a conflict in ${files.join(', ')} - the rebase was aborted and ${branch} is as it was; ${again.conflict}`);
     }
-    throw new UsageError(`merge of ${def} into ${branch} failed: ${firstLine(e)} - ${branch} is as it was`);
+    throw new UsageError(`rebase of ${def} into ${branch} failed: ${firstLine(e)} - ${branch} is as it was`);
   }
+  // full shas (core.abbrev=40), cut to 12 below; a pair is a `=` or `!` line, an unpaired commit (`<` or `>`) names no old-to-new pair
+  const pairs: Array<[string, string]> = [];
+  const diff = git(root, ['-c', 'core.abbrev=40', 'range-diff', '--no-color', `${oldBase}..${oldTip}`, `${ref}..HEAD`]);
+  for (const line of diff.split('\n')) {
+    const m = /^\s*\d+:\s+([0-9a-f]{40})\s+[=!]\s+\d+:\s+([0-9a-f]{40})(?:\s|$)/.exec(line);
+    if (m !== null) pairs.push([m[1].slice(0, 12), m[2].slice(0, 12)]);
+  }
+  return { rebased: pairs };
 }
 
 /** ST-LN-25 D-01, D-09: Continue merges the fetched default branch into a ticket branch that is behind and still before verify, then runs setup and pushes; any doubt leaves the branch alone and prints the behind line. */
@@ -703,7 +734,8 @@ function continueMerge(ctx: CommandContext, id: string, path: string, branch: st
   } catch {
     return behind();
   }
-  mergeDefault(path, ref, branch, {
+  // plan 03.1-05 owns Continue's sync: it still merges, whatever git.merge says
+  syncDefault(path, ref, branch, 'merge', {
     conflict: `merge it by hand with git -C "${path}" merge ${def}, resolve the conflict and commit, then type /accord continue ${id}`,
     clash: `move it, then type /accord continue ${id}`,
   });
@@ -753,21 +785,24 @@ export function worktreePush(ctx: CommandContext, id: string, o: { lease?: boole
   return 0;
 }
 
-/** ST-LN-30 D-03, D-04, D-09: fetch, then merge the remote default branch into the ticket branch with a merge commit; a conflict is aborted, named, and exits 2. */
-export function worktreeMerge(ctx: CommandContext, id: string): number {
+/**
+ * ST-LN-30 D-03, D-04, D-09, ST-LN-96 D-14, D-15: fetch, then take the remote default branch into the ticket branch the way `git.merge` says (a merge commit, or
+ * a rebase with a lease push); a conflict is aborted, named, and exits 2. `accord worktree merge` is the same command under its old name.
+ */
+export function worktreeSync(ctx: CommandContext, id: string): number {
   if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id);
   const branch = branchOf(ctx.snapshot, id);
   // refusals first: a refused merge makes no network call
   const cur = ctx.branch === undefined ? currentBranch(ctx.root) : ctx.branch.name;
   if (cur !== branch) {
-    throw new UsageError(`${id} is merged on its branch ${branch}, and this checkout is on ${cur ? cur : 'a detached HEAD'} - run accord worktree merge ${id} in the ticket's worktree; nothing was merged`);
+    throw new UsageError(`${id} is merged on its branch ${branch}, and this checkout is on ${cur ? cur : 'a detached HEAD'} - run accord worktree sync ${id} in the ticket's worktree; nothing was merged`);
   }
   if (git(ctx.root, ['status', '--porcelain', '--untracked-files=no']).trim() !== '') {
-    throw new UsageError(`${ctx.root} has uncommitted changes to tracked files - commit them, then run accord worktree merge ${id} again; nothing was merged`);
+    throw new UsageError(`${ctx.root} has uncommitted changes to tracked files - commit them, then run accord worktree sync ${id} again; nothing was merged`);
   }
   const stage = statusRows(ctx.snapshot).find((r) => r.id === id)?.stage;
   if (stage !== 'verify') {
-    throw new UsageError(`${id} is at stage ${stage ?? 'none'}, and accord worktree merge runs only at verify, after review - nothing was merged`);
+    throw new UsageError(`${id} is at stage ${stage ?? 'none'}, and accord worktree sync runs only at verify, after review - nothing was merged`);
   }
   if (!gitOk(ctx.root, ['remote', 'get-url', 'origin'])) return 0;
   fetchOrigin(ctx, true);
@@ -777,7 +812,22 @@ export function worktreeMerge(ctx: CommandContext, id: string): number {
     return 0;
   }
   if (gitOk(ctx.root, ['merge-base', '--is-ancestor', ref, 'HEAD'])) return 0;
-  mergeDefault(ctx.root, ref, branch, { conflict: 'resolve the conflict, then start verify again', clash: 'move it, then start verify again' });
+  const strategy = ctx.snapshot.config?.git?.merge;
+  const { rebased } = syncDefault(ctx.root, ref, branch, strategy, { conflict: 'resolve the conflict, then start verify again', clash: 'move it, then start verify again' });
+  if (strategy === 'rebase') {
+    // the records that name a commit by sha (review heads, plan baseline) stay owner-typed: the pairs are what to retype
+    for (const [was, now] of rebased) ctx.stdout.write(`rebased: ${was} -> ${now}\n`);
+    // every commit has a new sha, so a plain push is refused once origin holds the branch; the lease keeps a teammate's commit from being overwritten
+    if (gitOk(ctx.root, ['rev-parse', '-q', '--verify', 'refs/remotes/origin/' + branch])) {
+      try {
+        gitNoPrompt(ctx.root, ['push', '--force-with-lease', '--force-if-includes', 'origin', `refs/heads/${branch}:refs/heads/${branch}`], undefined, ctx.ssh);
+        ctx.stdout.write(`pushed: ${branch}\n`);
+      } catch (e) {
+        const why = String((e as { stderr?: string }).stderr ?? '').split('\n').map((l) => l.trim()).find((l) => /^(!|error:|fatal:|remote:)/.test(l)) ?? firstLine(e);
+        ctx.stdout.write(`push of ${branch} failed: ${why} - run accord worktree push ${id} --force-with-lease after checking origin\n`);
+      }
+    }
+  }
   // preflight checked the pin before the merge, so this throws only when the merge changed it
   checkPin(ctx, id, ctx.root, branch, listWorktrees(ctx.root)[0].path);
   return 0;

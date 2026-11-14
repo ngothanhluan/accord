@@ -30,7 +30,7 @@ import { testsBaseline } from './commands/tests-baseline.js';
 import { testsSkipped } from './commands/tests-skipped.js';
 import { drop } from './commands/drop.js';
 import { upgrade } from './commands/upgrade.js';
-import { worktreeCheck, worktreeClean, worktreeMerge, worktreeOpen, worktreePush } from './commands/worktree.js';
+import { worktreeCheck, worktreeClean, worktreeOpen, worktreePush, worktreeSync } from './commands/worktree.js';
 import { loadClaimView, loadLight, loadWithBranch, UsageError, withDefaultRef } from './load/fs.js';
 import type { LightLoad } from './load/fs.js';
 import { pinMessage, versionOnDisk } from './pin.js';
@@ -289,10 +289,11 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
       setCode(worktreeOpen(preflight(opts, o.continue === true ? 'checkout' : 'light'), id, { continue: o.continue === true }));
     });
   worktree
-    .command('merge <id>')
-    .description("before verify: fetch, then merge the remote main into the ticket's branch with a merge commit; a conflict is aborted, named, and exits 2")
+    .command('sync <id>')
+    .alias('merge')
+    .description("before verify: fetch, then take the remote main into the ticket's branch the way git.merge in accord/config.yml says: merge (the default) or squash by a merge commit, rebase by rebasing and pushing with a lease; a conflict is aborted, named, and exits 2; git.sync names a team script instead")
     .action((id: string) => {
-      setCode(worktreeMerge(preflight(opts, 'stage'), id));
+      setCode(worktreeSync(preflight(opts, 'stage'), id));
     });
   worktree
     .command('push <id>')

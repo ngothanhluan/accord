@@ -300,6 +300,7 @@ export interface AccordConfig {
   commits?: { trailers?: 'allow' | 'forbid' }; // ST-LN-8 D-01: absent or allow is off
   generated?: string[]; // ST-LN-62: paths a lane S ticket may change without listing them in ## Scope; an entry ending in / matches the folder
   sensitive?: Record<string, string[]>; // ST-LN-62: area name -> paths whose change fails a lane S ticket; an entry ending in / matches the folder
+  git?: { merge?: 'merge' | 'rebase' | 'squash'; sync?: string }; // ST-LN-96 D-14: how `accord worktree sync` takes main; absent means merge, and squash names the team's PR merge style (the sync is still a merge). D-03: sync is the team's script, one command line
   disposable?: string[]; // ST-LN-55 D-08, D-12: file and folder names an ignored path may hold at any depth and still be deleted with its worktree; absent means node_modules, dist, .DS_Store, Thumbs.db
 }
 

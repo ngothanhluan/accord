@@ -1,13 +1,15 @@
 // Spec §6: where a lane ticket stands, read from its records. A trace, never a verdict (D-91): only
 // `gate ready` decides Ready and only `gate done` decides Done.
 import { handMade, shaEqual } from '../gate/done.js';
-import { acHash, approvedHash, laneSHash } from '../gate/hash.js';
+import { acHash, approvedHash, laneRHash, laneSHash } from '../gate/hash.js';
 import { VERDICTS, workOf } from '../gate/work.js';
+import { isResearchRecord } from '../load/research.js';
 import { headingKey, stripHtmlComments } from '../load/sections.js';
 import { cycleOpen } from '../round/record.js';
 import type { AfterVerifyCommit, RepoSnapshot, Ticket } from '../model/snapshot.js';
 
-export type Stage = 'intent' | 'plan' | 'build' | 'review' | 'verify' | 'done';
+// ST-LN-94 D-10: 'research' is lane R's own stage, between Ready and its record.
+export type Stage = 'intent' | 'plan' | 'build' | 'review' | 'verify' | 'done' | 'research';
 
 export interface Progress {
   stage: Stage;
@@ -26,7 +28,7 @@ const ticksBound = (ticket: Ticket): boolean => {
 const planReady = (facts: NonNullable<RepoSnapshot['planFacts']>, id: string): boolean =>
   Object.hasOwn(facts, id) && facts[id].clean && facts[id].subject === `plan: ${id} ready`;
 
-const NEXT: Record<Exclude<Stage, 'build' | 'intent'>, string> = {
+const NEXT: Record<Exclude<Stage, 'build' | 'intent' | 'research'>, string> = {
   plan: 'write the plan and pass accord gate plan',
   review: 'review to convergence',
   verify: "verification and the owner's tick",
@@ -36,6 +38,8 @@ const NEXT: Record<Exclude<Stage, 'build' | 'intent'>, string> = {
 /** Spec §6: what comes after `stage`. An unwritten intent (no Intent text, or only the template's scenario) points to the interview. */
 export function nextStep(ticket: Ticket, stage: Exclude<Stage, 'build'>): string {
   if (ticket.frontmatter?.lane === 'S') return laneSNext(stage as LaneSStage);
+  if (ticket.frontmatter?.lane === 'R') return laneRNext(stage as LaneRStage);
+  if (stage === 'research') return laneRNext(stage); // unreachable: only lane R has it
   if (stage !== 'intent') return NEXT[stage];
   const intent = ticket.sections.find((s) => headingKey(s.heading) === 'intent');
   const written = intent !== undefined && stripHtmlComments(intent.lines).some((l) => l.text.trim() !== '');
@@ -76,11 +80,31 @@ function laneSStage(snapshot: RepoSnapshot, ticket: Ticket): LaneSStage {
   return closed ? 'done' : 'review';
 }
 
+// ST-LN-94 D-10, 94-ac-5: lane R is intent until gate ready recorded ac_hash over its three sections, research until a record its
+// research: lists is in the snapshot, then done. It has no plan and no review, so it never reaches build, review or verify.
+export type LaneRStage = 'intent' | 'research' | 'done';
+
+export const LANE_R_NEXT: Record<LaneRStage, string> = {
+  intent: 'write ## Question, ask the owner to set ## Timebox and ## Token budget and quote the answer under ## Decisions, then pass accord gate ready (lane-r.md)',
+  research: 'the research, accord budget <id> between steps, and the record under accord/research/ listed in research: (lane-r.md)',
+  done: 'the pull request; run accord gate done (lane-r.md)',
+};
+
+export const laneRNext = (stage: LaneRStage): string => LANE_R_NEXT[stage];
+
+function laneRStage(snapshot: RepoSnapshot, ticket: Ticket): LaneRStage {
+  if (ticket.frontmatter?.ac_hash !== laneRHash(ticket)) return 'intent';
+  // T-03-33: only a Markdown record under accord/research/ counts; Object.hasOwn, as the path is written by hand.
+  const listed = ticket.frontmatter?.research ?? [];
+  return listed.some((p) => isResearchRecord(p) && Object.hasOwn(snapshot.files, p)) ? 'done' : 'research';
+}
+
 /** undefined for a ticket without lane, or whose frontmatter failed the schema. */
 export function progressOf(snapshot: RepoSnapshot, ticket: Ticket): Progress | undefined {
   const fm = ticket.frontmatter;
   if (fm?.lane === undefined) return undefined;
   if (fm.lane === 'S') return { stage: laneSStage(snapshot, ticket), tasksDone: 0, tasksTotal: 0 };
+  if (fm.lane === 'R') return { stage: laneRStage(snapshot, ticket), tasksDone: 0, tasksTotal: 0 };
   const work = workOf(snapshot, ticket.id);
   const tasks = [...(work?.plan?.tasks ?? [])].sort((a, b) => a.n - b.n);
   const done = work?.ledger?.done ?? {};

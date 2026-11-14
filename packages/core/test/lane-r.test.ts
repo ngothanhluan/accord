@@ -244,7 +244,7 @@ const STRAY = {
   'accord/tickets/R-1/plan.md': PLAN,
   'accord/tickets/R-1/review.md': 'Round record: 1\n\n## Round 1 (whole)\n\n1. Should — the record drops a source — open — rests on: ac-1\n',
   'accord/tickets/R-1/ledger.md': '## Tasks\n- task 1 done abc1234\n',
-  'accord/tickets/R-1/verification.md': '# Verification\n\nresult: fail\n',
+  'accord/tickets/R-1/verification.md': '---\nticket: R-1\ncommit: 1234567\nreviewed_on: 2026-11-20\n---\n\n## @ac-1 The record\n\nResult: fail\n',
 };
 
 it('risk:regression gate done on a lane R ticket runs none of the lane M Done rules (ST-LN-94 94-ac-2)', () => {

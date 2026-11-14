@@ -1,7 +1,9 @@
 // ST-LN-94 D-10, D-13, 94-ac-1: the Ready rules of a lane R ticket. It holds a question, a timebox and a token budget in body sections and
 // needs no approval, Approach, discuss record or scenario. Each check is silent unless the ticket exists with `lane: R`.
+import { isResearchRecord } from '../load/research.js';
 import { headingKey, LIST_MARKER, stripHtmlComments } from '../load/sections.js';
-import type { RepoSnapshot, Section, Ticket } from '../model/snapshot.js';
+import type { Line, RepoSnapshot, Section, Ticket } from '../model/snapshot.js';
+import { laneRHash } from './hash.js';
 import type { GateRule } from './rules.js';
 
 export { LANE_R_SECTIONS } from './hash.js';
@@ -153,3 +155,110 @@ export const laneRPlan: GateRule['check'] = (snapshot, id) =>
             'run accord gate done ' + id + ' when the record is written',
         },
       ];
+
+// ST-LN-94 D-10, D-11, 94-ac-2, 94-ac-3: the Done rules of a lane R ticket (DONE_R_RULES). It is done when a research record its
+// research: lists is in the checkout with a Spent line, and its branch changes nothing under packages/. Each check is silent unless the
+// ticket exists with `lane: R`.
+
+/** ST-LN-31's lane S rule for lane R: gate ready recorded the ticket's ac_hash. */
+export const researchReadyMissing: GateRule['check'] = (snapshot, id) => {
+  const t = laneR(snapshot, id);
+  if (t === undefined || t.frontmatter?.ac_hash !== undefined) return [];
+  return [{ file: ticketFile(id), pointer: '/ac_hash', reason: `gate ready has recorded no ac_hash for this lane R ticket; run accord gate ready ${id}` }];
+};
+
+/** ST-LN-31's lane S rule for lane R: the question, timebox and token budget still hash to the ac_hash gate ready recorded. */
+export const researchSectionsChanged: GateRule['check'] = (snapshot, id) => {
+  const t = laneR(snapshot, id);
+  const recorded = t?.frontmatter?.ac_hash;
+  if (t === undefined || recorded === undefined) return [];
+  const now = laneRHash(t);
+  if (recorded === now) return [];
+  return [
+    {
+      file: ticketFile(id),
+      pointer: '/ac_hash',
+      reason: `## Question, ## Timebox or ## Token budget changed since gate ready: ac_hash records ${recorded}, they hash to ${now} now; run accord gate ready ${id}`,
+    },
+  ];
+};
+
+/** T-03-33: the entries of research: that name a Markdown record under accord/research/ (no `..`, no backslash) the checkout holds. */
+function presentRecords(snapshot: RepoSnapshot, t: Ticket): string[] {
+  return (t.frontmatter?.research ?? []).filter((p) => isResearchRecord(p) && Object.hasOwn(snapshot.files, p));
+}
+
+/** A record's lines with HTML comments stripped and each line trimmed. */
+const recordLines = (text: string): Line[] =>
+  stripHtmlComments(text.split('\n').map((l, i) => ({ line: i + 1, text: l }))).map((l) => ({ line: l.line, text: l.text.trim() }));
+
+const SPENT = 'Spent: ';
+const SPENT_FORM = 'Spent: <h>h <m>m of <timebox>; <tokens or not measured> of <budget>';
+// T-03-49: anchored, on the short part before the first ` of ` only; the rest of the line is read with indexOf.
+const SPENT_TIME = /^([0-9]+)h ([0-9]+)m$/;
+const WHOLE = /^[0-9]+$/;
+
+/** Splits `text` once at the first `sep`; undefined when `sep` is absent or a side is empty. */
+function splitOnce(text: string, sep: string): [string, string] | undefined {
+  const at = text.indexOf(sep);
+  if (at === -1) return undefined;
+  const [a, b] = [text.slice(0, at).trim(), text.slice(at + sep.length).trim()];
+  return a === '' || b === '' ? undefined : [a, b];
+}
+
+/**
+ * D-11: a record's spend, read from `Spent: <h>h <m>m of <timebox>; <tokens or not measured> of <budget>` (the line accord budget prints):
+ * after `Spent: `, split once on `; ` and each half once on ` of `. The time spent reads `<h>h <m>m` and nothing else; the tokens spent are
+ * a whole number or `not measured` (D-20: a partial count is never a figure), `tokens` then undefined. Anything else is undefined.
+ */
+export function parseSpent(line: string): { minutes: number; tokens: number | undefined; time: string; tokensText: string } | undefined {
+  const text = line.trim();
+  if (!text.startsWith(SPENT)) return undefined;
+  const halves = splitOnce(text.slice(SPENT.length), '; ');
+  if (halves === undefined) return undefined;
+  const [time, tokens] = [splitOnce(halves[0], ' of '), splitOnce(halves[1], ' of ')];
+  if (time === undefined || tokens === undefined) return undefined;
+  const m = SPENT_TIME.exec(time[0]);
+  if (m === null) return undefined;
+  const minutes = Number(m[1]) * 60 + Number(m[2]);
+  if (!Number.isSafeInteger(minutes)) return undefined;
+  if (tokens[0] === 'not measured') return { minutes, tokens: undefined, time: time[0], tokensText: tokens[0] };
+  if (!WHOLE.test(tokens[0]) || !Number.isSafeInteger(Number(tokens[0]))) return undefined;
+  return { minutes, tokens: Number(tokens[0]), time: time[0], tokensText: tokens[0] };
+}
+
+/** 94-ac-2: none of the research: entries is a record under accord/research/ this checkout holds. */
+export const researchRecordMissing: GateRule['check'] = (snapshot, id) => {
+  const t = laneR(snapshot, id);
+  if (t === undefined || presentRecords(snapshot, t).length > 0) return [];
+  return [
+    {
+      file: ticketFile(id),
+      pointer: '/research',
+      reason: 'no record under accord/research/ that research: lists is in this checkout; a lane R ticket is done when its research record merges',
+    },
+  ];
+};
+
+/** 94-ac-2, D-11: each listed record present holds a Spent line, outside HTML comments, that parseSpent reads. */
+export const researchSpentMissing: GateRule['check'] = (snapshot, id) => {
+  const t = laneR(snapshot, id);
+  if (t === undefined) return [];
+  return presentRecords(snapshot, t)
+    .filter((p) => !recordLines(snapshot.files[p]).some((l) => parseSpent(l.text) !== undefined))
+    .map((p) => ({ file: p, reason: `${p} has no "${SPENT_FORM}" line; copy the one accord budget ${id} prints` }));
+};
+
+/** 94-ac-3, D-10: every path under packages/ the branch changes, in any way, is shipped code; a research ticket ships none. */
+export const researchShipped: GateRule['check'] = (snapshot, id) => {
+  if (laneR(snapshot, id) === undefined) return [];
+  const facts = snapshot.branchFacts;
+  const fact = facts !== undefined && Object.hasOwn(facts, id) ? facts[id] : undefined;
+  if (fact === undefined || 'error' in fact) return [];
+  return fact.changes
+    .filter((c) => c.path.startsWith('packages/'))
+    .map((c) => ({
+      file: c.path,
+      reason: c.path + ' is under packages/: a research ticket ships no code; a script that should ship is a new lane S or M ticket',
+    }));
+};

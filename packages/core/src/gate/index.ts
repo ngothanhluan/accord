@@ -6,7 +6,7 @@ import type { Finding } from '../model/finding.js';
 import type { RepoSnapshot } from '../model/snapshot.js';
 import { lintSnapshot } from '../lint/index.js';
 import { readyHash } from './hash.js';
-import { downgradeMaintain, DONE_RULES, DONE_S_RULES, PLAN_R_RULES, PLAN_RULES, READY_PROMOTE, READY_RULES } from './rules.js';
+import { downgradeMaintain, DONE_R_RULES, DONE_RULES, DONE_S_RULES, PLAN_R_RULES, PLAN_RULES, READY_PROMOTE, READY_RULES } from './rules.js';
 import type { GateRule } from './rules.js';
 import { laneTicket, workOf } from './work.js';
 
@@ -103,5 +103,6 @@ export function gatePlan(snapshot: RepoSnapshot, id: string): GateResult {
  */
 export function gateDone(snapshot: RepoSnapshot, id: string): GateResult {
   const lane = Object.hasOwn(snapshot.tickets, id) ? snapshot.tickets[id].frontmatter?.lane : undefined;
-  return run('done', lane === 'S' ? DONE_S_RULES : DONE_RULES, [], snapshot, id);
+  // ST-LN-94 D-10: lane R runs its own Done table, so no lane M Done rule reads an R ticket's records.
+  return run('done', lane === 'S' ? DONE_S_RULES : lane === 'R' ? DONE_R_RULES : DONE_RULES, [], snapshot, id);
 }

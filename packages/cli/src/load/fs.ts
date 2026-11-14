@@ -3,8 +3,8 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { branchTemplateOf, CALL_SIGN, DEFAULT_BRANCH_TEMPLATE, isIntactRender, isResearchPath, isResearchRecord, isSha, loadSnapshot, normaliseText, peopleOf, pinOf, RETIRED_FILES, scopeLines, workOf } from '@accord-dev/accord-core';
-import type { BranchChange, BranchFact, RepoSnapshot, ResearchFact, SnapshotInput } from '@accord-dev/accord-core';
+import { branchTemplateOf, CALL_SIGN, DEFAULT_BRANCH_TEMPLATE, isIntactRender, isResearchPath, isResearchRecord, isSha, loadSnapshot, normaliseText, ownRecordsOnly, peopleOf, pinOf, RETIRED_FILES, scopeLines, shaEqual, workOf } from '@accord-dev/accord-core';
+import type { BranchChange, BranchFact, ContentSince, RepoSnapshot, ResearchFact, SnapshotInput } from '@accord-dev/accord-core';
 import { gitResearchFact, researchFactsFor } from './research-facts.js';
 
 /** Environment problem the user must fix (no git, not a repository, no accord/ folder); exit 2 in Phase 5. */
@@ -387,6 +387,78 @@ export function gitRecordsSinceFor(root: string, snapshot: RepoSnapshot, id: str
   if (recorded.length === 0) return {};
   const recordsSince = gitRecordsSince(root, recorded);
   return Object.keys(recordsSince).length === 0 ? {} : { recordsSince };
+}
+
+/** The paths `git diff --name-only` reports between two commits (or a commit and HEAD), NUL-separated, never through a shell. */
+function diffNames(root: string, args: string[]): string[] {
+  const raw = execFileSync('git', ['diff', '--name-only', '-z', '--no-renames', ...args], {
+    cwd: root,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    maxBuffer: 64 * 1024 * 1024,
+  });
+  return raw.split(' ').filter((p) => p !== '');
+}
+
+/** Paths per `git diff` command line: a long list is cut into batches, never handed over unbounded. */
+const CONTENT_BATCH = 200;
+
+/**
+ * ST-LN-96 D-04, D-16 Option A: for each commit the gated ticket's ticks and review were made against that is not an ancestor of HEAD (a rebase or
+ * a team script rewrote it), what the contents of the ticket's files did since, read for `gate done` and the gated ticket alone.
+ *
+ * The ticket's files are the paths its branch changes at HEAD (from the merge base with the default ref) together with the paths it changed at the
+ * recorded commit (from that commit's merge base), less the ticket's own records. Only those paths are compared, so a change main brought to an unrelated
+ * file is never counted. A commit that is not in this clone is `{ absent: true }`; a commit that is an ancestor of HEAD, and any git failure, leave no entry,
+ * so today's sha rule and reason stand. An empty path set is `{ changed: [] }`: no pathspec would mean every path, not none.
+ */
+export function gitContentSince(root: string, snapshot: RepoSnapshot, id: string): { contentSince?: Record<string, ContentSince> } {
+  const host = snapshot.git?.commit;
+  if (host === undefined || !isSha(host)) return {};
+  const recorded = [
+    ...new Set(
+      [
+        Object.hasOwn(snapshot.tickets, id) ? snapshot.tickets[id].frontmatter?.verified_commit : undefined,
+        Object.hasOwn(snapshot.verifications, id) ? snapshot.verifications[id].frontmatter?.commit : undefined,
+      ]
+        .filter((c): c is string => c !== undefined && isSha(c) && !shaEqual(c, host))
+        .map((c) => c.toLowerCase()),
+    ),
+  ];
+  const out: Record<string, ContentSince> = {};
+  let ownPaths: string[] | undefined;
+  const def = recorded.length === 0 ? undefined : defaultRefOf(root);
+  const baseOf = (ref: string): string => execFileSync('git', ['merge-base', def as string, ref], { cwd: root, ...GIT_QUIET, maxBuffer: 64 * 1024 * 1024 }).trim();
+  for (const sha of recorded) {
+    try {
+      try {
+        execFileSync('git', ['merge-base', '--is-ancestor', sha, 'HEAD'], { cwd: root, stdio: 'ignore' });
+        continue; // an ancestor: today's rule, a merge after verify still asks again
+      } catch (err) {
+        if ((err as { status?: number }).status !== 1) {
+          // Not a verdict of "not an ancestor": either the object is missing or git failed.
+          try {
+            execFileSync('git', ['cat-file', '-e', sha + '^{commit}'], { cwd: root, stdio: 'ignore' });
+          } catch (missing) {
+            if ((missing as { status?: number }).status === 128 || (missing as { status?: number }).status === 1) out[sha] = { absent: true };
+          }
+          continue;
+        }
+      }
+      if (def === undefined) continue;
+      ownPaths ??= diffNames(root, [baseOf('HEAD'), 'HEAD', '--']);
+      const paths = [...new Set([...ownPaths, ...diffNames(root, [baseOf(sha), sha, '--'])])].filter((p) => !ownRecordsOnly(id, [p]));
+      const changed = new Set<string>();
+      for (let i = 0; i < paths.length; i += CONTENT_BATCH) {
+        for (const p of diffNames(root, [sha, 'HEAD', '--', ...paths.slice(i, i + CONTENT_BATCH).map((q) => ':(literal)' + q)])) changed.add(p);
+      }
+      out[sha] = { changed: [...changed].sort(byCodePoint) };
+    } catch {
+      // Any git failure leaves no entry: the sha comparison and its reason stand, which refuses.
+      delete out[sha];
+    }
+  }
+  return Object.keys(out).length === 0 ? {} : { contentSince: out };
 }
 
 type AfterVerify = NonNullable<SnapshotInput['afterVerify']>[string];

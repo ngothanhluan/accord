@@ -21,6 +21,9 @@ export interface SnapshotInput {
   // Host-supplied: a recorded verified_commit or verification commit, as written -> paths changed from it to HEAD.
   // Present only when the sha is an ancestor of HEAD.
   recordsSince?: Record<string, string[]>;
+  // Host-supplied by gate done for the gated ticket: a recorded verified_commit or verification commit that is not an ancestor of HEAD
+  // (a rebase or a team script rewrote it), lower case -> what the contents of the ticket's files did since. Absent when the host supplies none.
+  contentSince?: Record<string, ContentSince>;
   // Claim branch templates in force ('t/{id}', 'feature/{id}'). Absent when only the default applies.
   branchTemplates?: string[];
   // Ticket id -> short name of the winning claim ref ('feature/ST-AN-2'). Absent when no claim exists.
@@ -53,6 +56,9 @@ export interface SnapshotInput {
  * REVIEW2 CR-01: with no claim commit to read (the default branch after a squash merge), `claimTime` is absent and `changed` holds the records
  * changed from the commit that added the ticket file on. `error` when git could not say, or the ticket has neither commit.
  */
+/** ST-LN-96 D-04: `changed` is the ticket's files whose contents differ between the recorded commit and HEAD (empty: none); `absent`: the commit is not in this clone. */
+export type ContentSince = { changed: string[] } | { absent: true };
+
 export type ResearchFact = { error: string } | { claimTime?: number; changed: Record<string, number> };
 
 /** ST-LN-57: one commit of a round's range: its kind and the paths it changes (for a merge, the paths its remerge diff shows). */
@@ -322,6 +328,7 @@ export interface RepoSnapshot {
   ancestors?: Record<string, boolean>; // carried through from SnapshotInput
   baselineFiles?: Record<string, string[]>; // carried through from SnapshotInput
   recordsSince?: Record<string, string[]>; // carried through from SnapshotInput
+  contentSince?: Record<string, ContentSince>; // carried through from SnapshotInput
   commits?: { sha: string; message: string }[]; // ST-LN-8: host-supplied by gate done when commits.trailers is forbid
   branchTemplates?: string[]; // carried through from SnapshotInput
   claimBranches?: Record<string, string>; // carried through from SnapshotInput

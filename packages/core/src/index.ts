@@ -32,6 +32,7 @@ export type {
   RoundRecord,
   BranchChange,
   BranchFact,
+  ContentSince,
   ResearchFact,
   RangeCommit,
   HeadFact,
@@ -78,7 +79,7 @@ export { loadConfig } from './load/config.js';
 export { lintSnapshot } from './lint/index.js';
 export type { LintResult } from './lint/index.js';
 export { gateDone, gatePlan, gateReady } from './gate/index.js';
-export { isSha, ownRecordsOnly } from './gate/done.js';
+export { isSha, ownRecordsOnly, shaEqual } from './gate/done.js';
 export { approvedHash, laneRHash } from './gate/hash.js';
 export {
   budgetVerdict,

@@ -157,7 +157,7 @@ export const laneRPlan: GateRule['check'] = (snapshot, id) =>
       ];
 
 // ST-LN-94 D-10, D-11, 94-ac-2, 94-ac-3: the Done rules of a lane R ticket (DONE_R_RULES). It is done when a research record its
-// research: lists is in the checkout with a Spent line, and its branch changes nothing under packages/. Each check is silent unless the
+// research: lists is in the checkout with a Spent line, and its branch changes nothing outside accord/. Each check is silent unless the
 // ticket exists with `lane: R`.
 
 /** ST-LN-31's lane S rule for lane R: gate ready recorded the ticket's ac_hash. */
@@ -277,17 +277,23 @@ export const researchSpentMissing: GateRule['check'] = (snapshot, id) => {
     .map((p) => ({ file: p, reason: `${p} has no "${SPENT_FORM}" line; copy the one accord budget ${id} prints` }));
 };
 
-/** 94-ac-3, D-10: every path under packages/ the branch changes, in any way, is shipped code; a research ticket ships none. */
+/**
+ * 94-ac-3, UAT decision 3 (2026-11-14, replacing D-10's packages/-only check): every path outside accord/ the branch changes, in any way (a
+ * deletion, a mode or a whitespace-only change included), is refused; a research ticket changes only accord/, and its scripts live under
+ * accord/research/. A branch diff git could not read, or none, is gate.branch-unknown's finding, so this rule is silent for it.
+ */
 export const researchShipped: GateRule['check'] = (snapshot, id) => {
   if (laneR(snapshot, id) === undefined) return [];
   const facts = snapshot.branchFacts;
   const fact = facts !== undefined && Object.hasOwn(facts, id) ? facts[id] : undefined;
   if (fact === undefined || 'error' in fact) return [];
   return fact.changes
-    .filter((c) => c.path.startsWith('packages/'))
+    .filter((c) => !c.path.startsWith('accord/'))
     .map((c) => ({
       file: c.path,
-      reason: c.path + ' is under packages/: a research ticket ships no code; a script that should ship is a new lane S or M ticket',
+      reason:
+        c.path + ' is outside accord/: a research ticket changes only accord/; a research script goes under accord/research/, ' +
+        'and a change that should ship is a new lane S or M ticket',
     }));
 };
 

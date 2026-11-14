@@ -321,8 +321,8 @@ export const DONE_S_RULES: readonly GateRule[] = [
 /**
  * ST-LN-94 D-10, D-11, 94-ac-2, 94-ac-3, research Pitfall 8: the lane R Done table. gateDone picks it for lane R, so no lane M Done row (plan,
  * tasks, ticks, review, verification, suite, scope, interface signs) reaches an R ticket, whatever stray records it holds. It is done on a
- * listed research record with its Spent line, spent within the ticket's allowance or answered by the owner (D-14), and a branch that ships
- * nothing under packages/.
+ * listed research record with its Spent line, spent within the ticket's allowance or answered by the owner (D-14), and a branch that changes
+ * nothing outside accord/ (UAT decision 3, 2026-11-14).
  */
 export const DONE_R_RULES: readonly GateRule[] = [
   TICKET_UNKNOWN,

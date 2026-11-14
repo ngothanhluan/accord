@@ -206,13 +206,14 @@ it('risk:complex-branching a ticket tip on the default branch has no commits aft
   }
 }, 120_000);
 
-it('risk:complex-branching an unknown verified commit gives no commits after verify', () => {
+// ST-LN-96 t1-ac-4: a verified commit that is not in this clone is a rewrite the stage trace reads, as gate done does: verify again, never done.
+it('risk:complex-branching an unknown verified commit is one rewritten entry after verify, with no files', () => {
   const d = copyClone(tpl);
   try {
     d.git('switch', '-c', 't/ST-9');
     setKey(d.root, 'verified_commit', 'deadbee' + '0'.repeat(33));
-    commit(d.root, 'tick');
-    expect(loadFromFs(d.root).afterVerify?.['ST-9']).toBeUndefined();
+    const T = commit(d.root, 'tick');
+    expect(loadFromFs(d.root).afterVerify?.['ST-9']).toEqual([{ sha: T, parents: [] }]);
   } finally {
     d.cleanupAll();
   }

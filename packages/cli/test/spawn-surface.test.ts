@@ -70,14 +70,14 @@ describe('spawn surface', () => {
   });
 });
 
-it('risk:security only git gh ps and powershell are spawned by name and one setup site uses the shell', () => {
+it('risk:security only git gh ps and powershell are spawned by name and the setup and team-command sites use the shell', () => {
   const sites = spawnSites();
   const unnamed = sites.filter((s) => {
     const m = FIRST_ARG.exec(s.args);
     return m === null || !ALLOWED.includes(m[2]);
   });
-  expect(unnamed.map((s) => s.where.split(':')[0])).toEqual(['load/proc.ts']);
-  expect(unnamed[0].args).toContain('shell: true');
+  expect(unnamed.map((s) => s.where.split(':')[0])).toEqual(['load/proc.ts', 'load/team-run.ts']);
+  for (const s of unnamed) expect(s.args).toContain('shell: true');
   expect(sites.filter((s) => /\bshell\s*:/.test(s.args)).map((s) => s.where)).toEqual(unnamed.map((s) => s.where));
 });
 

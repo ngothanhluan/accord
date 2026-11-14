@@ -4,11 +4,9 @@
 // supplied, and both rules stay silent.
 // Levels live in rules.ts (D-57); a check returns a draft and never a level.
 import type { RepoSnapshot } from '../model/snapshot.js';
-import { pinBefore, RULESET_FROM } from '../round/pin.js';
 import type { GateRule } from './rules.js';
 
 const ticketFile = (id: string) => 'accord/tickets/' + id + '.md';
-const PLAIN = /^\d+\.\d+\.\d+$/;
 
 /**
  * The claim fact of `id` when the host read one with a pin: its commit (12 characters), the pin and the `ruleset` the ticket file held at that commit
@@ -55,16 +53,19 @@ export const rulesetChanged: GateRule['check'] = (snapshot, id) => {
   ];
 };
 
-/** The claim commit was made under a release that writes `ruleset` (a plain pin not before RULESET_FROM) and the ticket has none: a hand edit removed it. */
+/**
+ * The ticket file held a `ruleset` at its reachable claim commit and the ticket has none now: a hand edit removed it. A claim at or after RULESET_FROM always
+ * writes the field; a claim before it wrote none, so the rule stays silent for it, also after a rebase moved the config pin at the claim commit.
+ */
 export const rulesetMissing: GateRule['check'] = (snapshot, id) => {
   const own = rulesetOf(snapshot, id);
   const claim = claimOf(snapshot, id);
-  if (!own.known || own.value !== undefined || claim === undefined || !PLAIN.test(claim.pin) || pinBefore(RULESET_FROM, claim.pin)) return [];
+  if (!own.known || own.value !== undefined || claim === undefined || claim.ruleset === undefined) return [];
   return [
     {
       file: ticketFile(id),
       pointer: '/ruleset',
-      reason: `the claim commit ${claim.sha} was made under accord ${claim.pin}, which writes ruleset, and the ticket has none - restore ruleset: "${claim.pin}"`,
+      reason: `the ticket held ruleset "${claim.ruleset}" at the claim commit ${claim.sha} and has none now - restore ruleset: "${claim.ruleset}"`,
     },
   ];
 };

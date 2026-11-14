@@ -123,6 +123,40 @@
         "merge": { "type": "string", "enum": ["merge", "rebase", "squash"] },
         "sync": { "type": "string", "minLength": 1, "pattern": "^[^\\r\\n]+$" }
       }
+    },
+    "ids": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": { "type": "string", "enum": ["pattern", "tracker"] },
+        "pattern": {
+          "type": "string",
+          "maxLength": 64,
+          "allOf": [
+            { "pattern": "^(?:[A-Za-z0-9._-]|\\{type\\}|\\{initials\\}|\\{n\\})+$" },
+            { "pattern": "\\{n\\}" },
+            { "pattern": "^(?!.*\\{n\\}.*\\{n\\})" },
+            { "pattern": "^(?!.*\\{type\\}.*\\{type\\})" },
+            { "pattern": "^(?!.*\\{initials\\}.*\\{initials\\})" },
+            { "pattern": "^(?:[A-Za-z0-9]|\\{type\\}|\\{initials\\})" }
+          ]
+        },
+        "types": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "story": { "type": "string", "pattern": "^[A-Z][A-Z0-9]{0,9}$" },
+            "bug": { "type": "string", "pattern": "^[A-Z][A-Z0-9]{0,9}$" },
+            "epic": { "type": "string", "pattern": "^[A-Z][A-Z0-9]{0,9}$" }
+          }
+        },
+        "projects": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{0,19}$" }
+        }
+      }
     }
   }
 }

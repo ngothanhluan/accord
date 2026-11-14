@@ -6,7 +6,8 @@ import { afterAll, expect, it } from 'vitest';
 import { runTeamCommand } from '../src/load/team-run.js';
 
 const dir = mkdtempSync(join(tmpdir(), 'accord-team-run-'));
-afterAll(() => rmSync(dir, { recursive: true, force: true }));
+// a killed shell leaves its node child alive for a moment on Windows, and that child holds this folder as its cwd
+afterAll(() => rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }));
 
 /** A fixture script written as a .mjs file and run as `node <path>` (never `./x.sh`: cmd.exe cannot run it). */
 function fixture(name: string, body: string): string {
@@ -55,12 +56,14 @@ it('risk:security a team command that fails or writes is reported with its outpu
   expect(none.stdout).toBe('got:');
 });
 
-it('risk:complex-branching a command that outlives its timeout is killed and reported (ST-LN-96 t1-ac-3)', () => {
+it('risk:complex-branching a command that outlives its timeout is killed and reported (ST-LN-96 t1-ac-3)', async () => {
   const t0 = Date.now();
-  const r = runTeamCommand(fixture('sleep.mjs', 'setTimeout(() => {}, 60000);\n'), { cwd: dir, env: process.env, timeoutMs: 1000, maxBuffer: 1024 });
+  const r = runTeamCommand(fixture('sleep.mjs', 'setTimeout(() => {}, 3000);\n'), { cwd: dir, env: process.env, timeoutMs: 1000, maxBuffer: 1024 });
   expect(r.timedOut).toBe(true);
   expect(r.code).not.toBe(0);
   expect(Date.now() - t0).toBeLessThan(30_000);
+  // on Windows the shell is killed and its node child runs on: let it end before the folder is removed
+  await new Promise((done) => setTimeout(done, 3500));
 });
 
 it('risk:complex-branching output over maxBuffer is reported, not thrown (ST-LN-96 t1-ac-3)', () => {

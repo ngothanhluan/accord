@@ -8,6 +8,7 @@ import type { RepoSnapshot } from '@accord-dev/accord-core';
 import { currentBranch, droppedOn, gitDefaultRef, gitFilesAt, gitUnpushedCommits, gitUserEmail, loadFromFs, loadWithBranch, snapshotAt, ticketOfBranch, UsageError } from '../load/fs.js';
 import { fetchLimitMs } from './fetch-limit.js';
 import { DEFAULT_DISPOSABLE, gitInside, hiddenEditReason, isDisposable, norm, repositoryReason, sweepForgotten, sweepRemoved } from './leftover.js';
+import { runTeamCommand } from '../load/team-run.js';
 import { claudeEnv, describeSession, isLive, processTable, runSetup, sameSession, sessionIn } from '../load/proc.js';
 import type { Session } from '../load/proc.js';
 import type { CommandContext } from '../run.js';
@@ -660,8 +661,20 @@ export function fetchOrigin(ctx: CommandContext, known?: boolean): { ctx: Comman
  * ST-LN-96 D-14: how a ticket branch takes `ref`, the fetched default branch, into the branch checked out in `root`. `merge` and `squash` (the
  * team's PR merge style; accord never syncs with `git merge --squash`) are an ordinary `--no-ff` merge, `rebase` a `git rebase <ref>`; a refused or
  * conflicting one is aborted, named, and leaves the branch as it was. A rebase returns the old-to-new commit pairs `git range-diff` reports.
+ * ST-LN-96 D-03: with `team` (the `git.sync` command) the script runs instead, through runTeamCommand, and the result is `by: 'git.sync'`.
  */
-export function syncDefault(root: string, ref: string, branch: string, strategy: 'merge' | 'rebase' | 'squash' | undefined, again: { conflict: string; clash: string }): { rebased: Array<[string, string]> } {
+export function syncDefault(
+  root: string,
+  ref: string,
+  branch: string,
+  strategy: 'merge' | 'rebase' | 'squash' | undefined,
+  again: { conflict: string; clash: string },
+  team?: { command: string; ticket: string },
+): { rebased: Array<[string, string]>; by?: 'git.sync' } {
+  if (team !== undefined) {
+    runTeamSync(root, ref, branch, team);
+    return { rebased: [], by: 'git.sync' };
+  }
   const def = ref.replace('refs/remotes/', '');
   const rebase = strategy === 'rebase';
   const verb = rebase ? 'rebase' : 'merge';
@@ -710,6 +723,55 @@ export function syncDefault(root: string, ref: string, branch: string, strategy:
   return { rebased: pairs };
 }
 
+/** D-03 Ruling: a team sync script may run this long and print this much. */
+const TEAM_SYNC_TIMEOUT_MS = 600_000;
+const TEAM_SYNC_MAX_BUFFER = 64 * 1024 * 1024;
+
+/**
+ * ST-LN-96 D-03, D-01: run `git.sync` in the ticket's worktree with the ticket only in the environment, then judge it by exit code and by re-reading git:
+ * a non-zero exit, a timeout, a branch left mid-merge or mid-rebase, or uncommitted tracked files is a refusal that names the command. The script's output is
+ * quoted in the refusal, never read as a verdict. The ignored-file clash check is not made: accord cannot know what a team script writes.
+ */
+function runTeamSync(root: string, ref: string, branch: string, team: { command: string; ticket: string }): void {
+  const r = runTeamCommand(team.command, {
+    cwd: root,
+    env: { ...process.env, ACCORD_TICKET: team.ticket, ACCORD_BRANCH: branch, ACCORD_BASE_REF: ref, ACCORD_ROOT: root },
+    timeoutMs: TEAM_SYNC_TIMEOUT_MS,
+    maxBuffer: TEAM_SYNC_MAX_BUFFER,
+  });
+  const dirs = (): boolean => ['rebase-merge', 'rebase-apply'].some((n) => existsSync(resolve(root, git(root, ['rev-parse', '--git-path', n]).trim())));
+  let why: string | undefined;
+  if (r.timedOut) why = `timed out after ${TEAM_SYNC_TIMEOUT_MS / 1000} s`;
+  else if (r.oversize) why = `printed more than ${TEAM_SYNC_MAX_BUFFER / 1024 / 1024} MiB`;
+  else if (r.code !== 0) why = r.code === null ? `was killed${r.signal === null ? '' : ' by ' + r.signal}` : `exited ${r.code}`;
+  else if (gitOk(root, ['rev-parse', '-q', '--verify', 'MERGE_HEAD'])) why = 'left a merge unfinished';
+  else if (dirs()) why = 'left a rebase unfinished';
+  else if (git(root, ['status', '--porcelain', '--untracked-files=no']).trim() !== '') why = 'left uncommitted changes to tracked files';
+  if (why === undefined) return;
+  const text = (r.stderr.trim() !== '' ? r.stderr : r.stdout).trim();
+  const tail = text === '' ? '' : ' - ' + text.split('\n').slice(-20).map((l) => l.trimEnd()).join(' / ');
+  throw new UsageError(`git.sync "${team.command}" ${why}${tail} - ${branch} was not pushed`);
+}
+
+/**
+ * ST-LN-96 D-03, D-14: the push after a sync that may have rewritten the branch. `rebase` pushes with the lease when origin already holds the branch;
+ * `team` (a git.sync script) with the lease when origin's branch is not an ancestor of HEAD, plainly otherwise; `merge` plainly. `unpublished: 'skip'`
+ * pushes nothing when origin has no such branch. The lease keeps a teammate's commit from being overwritten.
+ */
+function pushAfterSync(ctx: CommandContext, root: string, branch: string, how: 'merge' | 'rebase' | 'team', unpublished: 'skip' | 'push'): { pushed: boolean; lease: boolean; why?: string } {
+  const own = 'refs/remotes/origin/' + branch;
+  const has = gitOk(root, ['rev-parse', '-q', '--verify', own]);
+  if (!has && unpublished === 'skip') return { pushed: false, lease: false };
+  const lease = has && (how === 'rebase' || (how === 'team' && !gitOk(root, ['merge-base', '--is-ancestor', own, 'HEAD'])));
+  try {
+    gitNoPrompt(root, ['push', ...(lease ? ['--force-with-lease', '--force-if-includes'] : []), 'origin', `refs/heads/${branch}:refs/heads/${branch}`], undefined, ctx.ssh);
+    return { pushed: true, lease };
+  } catch (e) {
+    const why = String((e as { stderr?: string }).stderr ?? '').split('\n').map((l) => l.trim()).find((l) => /^(!|error:|fatal:|remote:)/.test(l)) ?? firstLine(e);
+    return { pushed: false, lease, why };
+  }
+}
+
 /** ST-LN-25 D-01, D-09: Continue merges the fetched default branch into a ticket branch that is behind and still before verify, then runs setup and pushes; any doubt leaves the branch alone and prints the behind line. */
 function continueMerge(ctx: CommandContext, id: string, path: string, branch: string): void {
   const ref = gitDefaultRef(ctx.root);
@@ -717,7 +779,11 @@ function continueMerge(ctx: CommandContext, id: string, path: string, branch: st
   const n = Number(git(path, ['rev-list', '--count', 'HEAD..' + ref]).trim());
   if (n === 0) return;
   const def = ref.replace('refs/remotes/', '');
-  const behind = (): void => void ctx.stdout.write(`behind: ${branch} is ${n} commit${n === 1 ? '' : 's'} behind ${def}; merge them with git merge ${def}\n`);
+  // ST-LN-96 D-03, D-14: the way this team takes main is git.sync (a team command) before git.merge; absent both, a merge
+  const strategy = ctx.snapshot.config?.git?.merge;
+  const sync = ctx.snapshot.config?.git?.sync;
+  const way = sync !== undefined ? `sync them with git.sync, the team command (accord worktree sync ${id} runs it)` : strategy === 'rebase' ? `rebase onto it with accord worktree sync ${id}` : `merge them with git merge ${def}`;
+  const behind = (): void => void ctx.stdout.write(`behind: ${branch} is ${n} commit${n === 1 ? '' : 's'} behind ${def}; ${way}\n`);
   // a remote branch with commits this clone lacks (a teammate pushed): the stage here may be stale, and the push would be refused
   const own = 'refs/remotes/origin/' + branch;
   if (gitOk(path, ['rev-parse', '-q', '--verify', own]) && !gitOk(path, ['merge-base', '--is-ancestor', own, 'HEAD'])) return behind();
@@ -734,12 +800,24 @@ function continueMerge(ctx: CommandContext, id: string, path: string, branch: st
   } catch {
     return behind();
   }
-  // plan 03.1-05 owns Continue's sync: it still merges, whatever git.merge says
-  syncDefault(path, ref, branch, 'merge', {
-    conflict: `merge it by hand with git -C "${path}" merge ${def}, resolve the conflict and commit, then type /accord continue ${id}`,
-    clash: `move it, then type /accord continue ${id}`,
-  });
-  ctx.stdout.write(`merged: ${n} commit${n === 1 ? '' : 's'} of ${def} into ${branch}\n`);
+  const done = syncDefault(
+    path,
+    ref,
+    branch,
+    strategy,
+    {
+      conflict:
+        strategy === 'rebase'
+          ? `rebase it by hand with git -C "${path}" rebase ${def}, resolve the conflicts and finish with git rebase --continue, then type /accord continue ${id}`
+          : `merge it by hand with git -C "${path}" merge ${def}, resolve the conflict and commit, then type /accord continue ${id}`,
+      clash: `move it, then type /accord continue ${id}`,
+    },
+    sync === undefined ? undefined : { command: sync, ticket: id },
+  );
+  const how = done.by !== undefined ? 'team' : strategy === 'rebase' ? 'rebase' : 'merge';
+  if (how === 'team') ctx.stdout.write(`synced: ${branch} by git.sync\n`);
+  else if (how === 'rebase') for (const [was, now] of done.rebased) ctx.stdout.write(`rebased: ${was} -> ${now}\n`);
+  else ctx.stdout.write(`merged: ${n} commit${n === 1 ? '' : 's'} of ${def} into ${branch}\n`);
   // the marker of the pre-merge setup never stands for the merge commit
   rmSync(setupMarker(path), { force: true });
   let failure: unknown;
@@ -748,10 +826,9 @@ function continueMerge(ctx: CommandContext, id: string, path: string, branch: st
   } catch (e) {
     failure = e;
   }
-  try {
-    gitNoPrompt(path, ['push', 'origin', 'HEAD:refs/heads/' + branch], undefined, ctx.ssh);
-  } catch (e) {
-    ctx.stdout.write(`push of ${branch} failed: ${firstLine(e)} - push it with git -C "${path}" push origin ${branch}\n`);
+  const push = pushAfterSync(ctx, path, branch, how, 'push');
+  if (!push.pushed) {
+    ctx.stdout.write(`push of ${branch} failed: ${push.why} - ${push.lease ? `run accord worktree push ${id} --force-with-lease after checking origin` : `push it with git -C "${path}" push origin ${branch}`}\n`);
   }
   if (failure !== undefined) throw failure;
 }
@@ -813,20 +890,17 @@ export function worktreeSync(ctx: CommandContext, id: string): number {
   }
   if (gitOk(ctx.root, ['merge-base', '--is-ancestor', ref, 'HEAD'])) return 0;
   const strategy = ctx.snapshot.config?.git?.merge;
-  const { rebased } = syncDefault(ctx.root, ref, branch, strategy, { conflict: 'resolve the conflict, then start verify again', clash: 'move it, then start verify again' });
-  if (strategy === 'rebase') {
+  const sync = ctx.snapshot.config?.git?.sync;
+  const done = syncDefault(ctx.root, ref, branch, strategy, { conflict: 'resolve the conflict, then start verify again', clash: 'move it, then start verify again' }, sync === undefined ? undefined : { command: sync, ticket: id });
+  if (done.by !== undefined || strategy === 'rebase') {
+    if (done.by !== undefined) ctx.stdout.write(`synced: ${branch} by ${done.by}\n`);
     // the records that name a commit by sha (review heads, plan baseline) stay owner-typed: the pairs are what to retype
-    for (const [was, now] of rebased) ctx.stdout.write(`rebased: ${was} -> ${now}\n`);
-    // every commit has a new sha, so a plain push is refused once origin holds the branch; the lease keeps a teammate's commit from being overwritten
-    if (gitOk(ctx.root, ['rev-parse', '-q', '--verify', 'refs/remotes/origin/' + branch])) {
-      try {
-        gitNoPrompt(ctx.root, ['push', '--force-with-lease', '--force-if-includes', 'origin', `refs/heads/${branch}:refs/heads/${branch}`], undefined, ctx.ssh);
-        ctx.stdout.write(`pushed: ${branch}\n`);
-      } catch (e) {
-        const why = String((e as { stderr?: string }).stderr ?? '').split('\n').map((l) => l.trim()).find((l) => /^(!|error:|fatal:|remote:)/.test(l)) ?? firstLine(e);
-        ctx.stdout.write(`push of ${branch} failed: ${why} - run accord worktree push ${id} --force-with-lease after checking origin\n`);
-      }
-    }
+    else for (const [was, now] of done.rebased) ctx.stdout.write(`rebased: ${was} -> ${now}\n`);
+    // every commit has a new sha, so a plain push is refused once origin holds the branch; the lease keeps a teammate's commit from being overwritten.
+    // A team script is pushed too, even when origin has no such branch yet: the branch on origin must hold what the gate judges
+    const push = pushAfterSync(ctx, ctx.root, branch, done.by !== undefined ? 'team' : 'rebase', done.by !== undefined ? 'push' : 'skip');
+    if (push.pushed) ctx.stdout.write(`pushed: ${branch}\n`);
+    else if (push.why !== undefined) ctx.stdout.write(`push of ${branch} failed: ${push.why} - run accord worktree push ${id}${push.lease ? ' --force-with-lease' : ''} after checking origin\n`);
   }
   // preflight checked the pin before the merge, so this throws only when the merge changed it
   checkPin(ctx, id, ctx.root, branch, listWorktrees(ctx.root)[0].path);

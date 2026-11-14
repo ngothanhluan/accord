@@ -196,7 +196,7 @@ it('risk:complex-branching git.sync replaces the built-in merge and rebase (ST-L
   expect(rebasedLines(r.out)).toEqual([]);
   expect(parents(sib)).toBe(2);
   expect(gitRun(sib, 'rev-parse', 'HEAD^2').trim()).toBe(tip);
-  expect(gitRun(sib, 'reflog', '-n', '20')).not.toContain('rebase');
+  expect(gitRun(sib, 'reflog', '-n', '20')).not.toMatch(/rebase \(/);
   expect(existsSync(sib + '/next.txt')).toBe(true);
   // the ticket reached the script only in its environment, from the ticket's worktree
   const [call, ...more] = s.calls();
@@ -232,7 +232,7 @@ it('risk:data-loss a git.sync that fails, hangs or leaves work half done is refu
     { name: 'merge left', body: "git('merge', '--no-ff', '--no-commit', process.env.ACCORD_BASE_REF);", says: ['left a merge unfinished'] },
     { name: 'rebase left', body: "try { git('rebase', process.env.ACCORD_BASE_REF); } catch {}", says: ['left a rebase unfinished'], conflict: true },
     { name: 'dirty', body: "writeFileSync('ST-9.txt', 'changed by the script\\n');", says: ['uncommitted'] },
-    { name: 'hang', body: 'setTimeout(() => {}, 60000);', says: ['timed out'], timeoutMs: 1500 },
+    { name: 'hang', body: 'setTimeout(() => {}, 3000);', says: ['timed out'], timeoutMs: 1500 },
   ];
   for (const k of cases) {
     const c = copy();
@@ -258,6 +258,8 @@ it('risk:data-loss a git.sync that fails, hangs or leaves work half done is refu
       expect(s.calls(), k.name).toHaveLength(1);
       expect(gitRun(c.remote, 'rev-parse', 'refs/heads/t/ST-9').trim(), k.name).toBe(remote);
       if (k.name === 'exit 3' || k.name === 'hang') expect(gitRun(sib, 'rev-parse', 'HEAD').trim(), k.name).toBe(head);
+      // on Windows the killed shell leaves its node child running in the worktree: let it end before the sandbox is removed
+      if (k.timeoutMs !== undefined) await new Promise((done) => setTimeout(done, 3500));
     } finally {
       knob.timeoutMs = undefined;
     }

@@ -1,14 +1,28 @@
 // ST-LN-96 t1-ac-4, D-16 Option E: when accord's own rebase (`accord worktree sync` under git.merge: rebase) leaves the ticket's files unchanged, it re-binds
 // verified_commit and verification.md's commit: to the rebased HEAD in one records-only commit, so `gate done` passes in a fresh clone (CI) after the
 // force-push. A rebase by hand, or by a git.sync script, is never re-bound. Real git, a bare remote, and a fresh clone of it as CI has.
+// ST-LN-96 rel-ac-1 (Open Question 8): a ticket claimed before RULESET_FROM whose file lives only on its branch gets `ruleset` at its first sync.
 import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { expect, it, vi } from 'vitest';
-import { cleanup, gitRun, run } from './helpers/repo.js';
+import { afterEach, expect, it, vi } from 'vitest';
+import { RULESET_FROM } from '@accord-dev/accord-core';
+import { cleanup, commitMsg, gitRun, run, writeFiles } from './helpers/repo.js';
+import { gitClaimFacts } from '../src/load/claim-facts.js';
 import { copy, type Clone, doneBranch, EXPORT, exportText, lines, pushMain, useSandboxes, VERIFICATION } from './helpers/worktree.js';
-import { P } from '../../../test/helpers/lane.js';
+import { P, pinned } from '../../../test/helpers/lane.js';
 
+// the running version: the package's own unless a test moves it (the backfill is about releases around RULESET_FROM)
+const running = vi.hoisted(() => ({ v: undefined as string | undefined }));
+vi.mock('../package.json', async (orig) => {
+  const m = await orig<{ default: Record<string, unknown> }>();
+  const mocked = { ...m.default };
+  Object.defineProperty(mocked, 'version', { get: () => running.v ?? (m.default.version as string), enumerable: true });
+  return { default: mocked };
+});
+afterEach(() => {
+  running.v = undefined;
+});
 vi.mock('../src/load/proc.js', async (orig) => {
   const real = await orig<typeof import('../src/load/proc.js')>();
   return { ...real, processTable: vi.fn(real.processTable) };
@@ -18,7 +32,7 @@ vi.mock('../src/commands/fetch-limit.js', async (orig) => {
   return { ...real, fetchLimitMs: vi.fn(real.fetchLimitMs) };
 });
 
-useSandboxes([{}]);
+useSandboxes([{}, { tickets: [] }]);
 
 const REBASE = ['  merge: rebase'];
 const ID = 'ST-9';
@@ -155,3 +169,95 @@ it('risk:security a verified commit that is not in this clone is never re-bound 
   expect(at(sib, 'HEAD', TICKET)).toBe(before);
 }, 240_000);
 
+
+// ---- ST-LN-96 rel-ac-1: the sync-time ruleset backfill ----
+
+const CONFIG_REL = 'accord/config.yml';
+
+/** Pin the sandbox's main to `v` (config and the running version both), in the clone and on the remote. */
+function pinTo(c: Clone, v: string): void {
+  running.v = v;
+  writeFiles(c.root, { [CONFIG_REL]: pinned(v) });
+  commitMsg(c.root, 'pin ' + v, undefined, true);
+  c.git('push', '-q', 'origin', 'main');
+}
+
+/** A lane M ticket ST-9 created on its own branch by `new ticket --worktree` under the running version: its file is not on main. Returns its worktree. */
+async function claimedOnBranch(c: Clone): Promise<string> {
+  const made = await run(['new', 'ticket', ID, '--lane', 'M', '--worktree'], c.root);
+  expect([made.code, made.err]).toEqual([0, '']);
+  return c.sibling(ID);
+}
+
+const claimSha = (wt: string): string => gitRun(wt, 'log', '-1', '--format=%H', '--grep=^claim: ST-9$').trim();
+const rulesetFindings = async (cwd: string): Promise<string[]> => {
+  const r = await run(['gate', 'ready', ID, '--json'], cwd);
+  return (JSON.parse(r.out).findings as { rule: string }[]).map((f) => f.rule).filter((f) => f.startsWith('gate.ruleset-'));
+};
+const subjects = (wt: string): string[] => gitRun(wt, 'log', '--format=%s').split('\n').filter((l) => l !== '');
+const backfilledLines = (out: string): string[] => lines(out).filter((l) => l.startsWith('backfilled:'));
+
+it('risk:complex-branching a branch-only ticket claimed under 0.4.1 gets ruleset at its first sync (ST-LN-96 rel-ac-1)', async () => {
+  expect(RULESET_FROM).toBe('0.5.0');
+  const c = copy({ tickets: [] });
+  pinTo(c, '0.4.1');
+  const wt = await claimedOnBranch(c);
+  // the claim is the old kind: no ruleset, and the ticket file is on the branch only
+  expect(gitRun(wt, 'show', 'HEAD:' + TICKET)).not.toContain('ruleset');
+  expect(() => c.git('cat-file', '-e', 'origin/main:' + TICKET)).toThrow();
+  const claim = claimSha(wt);
+  const before = gitClaimFacts(wt, ID);
+  expect(before).toMatchObject({ sha: claim, pin: '0.4.1' });
+  pinTo(c, RULESET_FROM); // main moves on to a release that writes the field
+  const r = await run(['worktree', 'open', ID, '--continue'], c.root);
+  expect([r.code, r.err]).toEqual([0, '']);
+  expect(lines(r.out).some((l) => l.startsWith('merged:'))).toBe(true);
+  expect(backfilledLines(r.out)).toEqual([`backfilled: ${ID} ruleset 0.4.1`]);
+  // one records-only commit: its subject is not a claim, its diff is one added line
+  expect(subjects(wt)[0]).toBe(`ruleset: ${ID} from its claim commit`);
+  expect(gitRun(wt, 'diff', '--numstat', 'HEAD~1', 'HEAD').trim()).toBe(`1\t0\t${TICKET}`);
+  const added = gitRun(wt, 'diff', '-U0', 'HEAD~1', 'HEAD').split('\n').filter((l) => /^[+-][^+-]/.test(l));
+  expect(added).toEqual(['+ruleset: "0.4.1"']);
+  expect(subjects(wt).filter((l) => l === 'claim: ' + ID)).toHaveLength(1);
+  // the claim fact still names the original claim commit, and the gates hold no ruleset finding
+  expect(claimSha(wt)).toBe(claim);
+  expect(gitClaimFacts(wt, ID)).toMatchObject({ sha: claim, pin: '0.4.1' });
+  expect(await rulesetFindings(wt)).toEqual([]);
+  expect(gitRun(c.remote, 'rev-parse', 'refs/heads/t/ST-9').trim()).toBe(gitRun(wt, 'rev-parse', 'HEAD').trim()); // pushed with the sync
+  // a second sync writes nothing: the field is there
+  pushMain(c, 'next.txt', 'next\n');
+  const again = await run(['worktree', 'open', ID, '--continue'], c.root);
+  expect([again.code, again.err]).toEqual([0, '']);
+  expect(lines(again.out).some((l) => l.startsWith('merged:'))).toBe(true);
+  expect(backfilledLines(again.out)).toEqual([]);
+  expect(subjects(wt).filter((l) => l.startsWith('ruleset: '))).toHaveLength(1);
+}, 240_000);
+
+it('risk:regression no backfill below the cut-off or for a ticket claimed at it (ST-LN-96 rel-ac-1)', async () => {
+  // the branch is still pinned below RULESET_FROM after the sync: nothing is written, the older schema would refuse the field
+  const below = copy({ tickets: [] });
+  pinTo(below, '0.4.1');
+  const wtBelow = await claimedOnBranch(below);
+  pushMain(below, 'next.txt', 'next\n');
+  const b = await run(['worktree', 'open', ID, '--continue'], below.root);
+  expect([b.code, b.err]).toEqual([0, '']);
+  expect(lines(b.out).some((l) => l.startsWith('merged:'))).toBe(true);
+  expect(backfilledLines(b.out)).toEqual([]);
+  expect(subjects(wtBelow).some((l) => l.startsWith('ruleset: '))).toBe(false);
+  expect(gitRun(wtBelow, 'show', 'HEAD:' + TICKET)).not.toContain('ruleset');
+
+  // a ticket claimed at RULESET_FROM whose field was removed by hand is not backfilled: gate.ruleset-missing reports it
+  const at = copy({ tickets: [] });
+  pinTo(at, RULESET_FROM);
+  const wtAt = await claimedOnBranch(at);
+  expect(gitRun(wtAt, 'show', 'HEAD:' + TICKET)).toContain('ruleset: "0.5.0"');
+  writeFileSync(wtAt + '/' + TICKET, readFileSync(wtAt + '/' + TICKET, 'utf8').replace(/ruleset: "0\.5\.0"\r?\n/, ''));
+  commitMsg(wtAt, 'remove the ruleset by hand');
+  pushMain(at, 'next.txt', 'next\n');
+  const a = await run(['worktree', 'open', ID, '--continue'], at.root);
+  expect([a.code, a.err]).toEqual([0, '']);
+  expect(lines(a.out).some((l) => l.startsWith('merged:'))).toBe(true);
+  expect(backfilledLines(a.out)).toEqual([]);
+  expect(subjects(wtAt).some((l) => l.startsWith('ruleset: '))).toBe(false);
+  expect(await rulesetFindings(wtAt)).toEqual(['gate.ruleset-missing']);
+}, 240_000);

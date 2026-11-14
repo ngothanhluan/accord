@@ -2,7 +2,8 @@
 // ST-LN-20's clean of merged ticket branches and its prune of stale refs end this file, placed here by time (ST-LN-75).
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { expect, it, vi } from 'vitest';
-import { laneTicket } from '../../../test/helpers/lane.js';
+import { pinBefore, RULESET_FROM, setFrontmatterKey } from '@accord-dev/accord-core';
+import { laneTicket, RUNNING } from '../../../test/helpers/lane.js';
 import { gitRun, run, writeFiles } from './helpers/repo.js';
 import { A, clone, clones, type Clone, copy, copyClone, doneOnRemote, dropOnRemote, entries, envOf, has, lines, ME, mergeOnRemote, pushedWork, pushNext, setTable, sha, stopLines, tableOf, teammate, ticketBranch, ticketWorktree, useSandboxes } from './helpers/worktree.js';
 
@@ -219,7 +220,8 @@ it('ac-6 a new lane m ticket gets its own worktree with the ticket committed and
   expect(c.git('worktree', 'list', '--porcelain')).toContain('branch refs/heads/t/ST-9');
   expect(readFileSync(`${c.sibling('ST-9')}/setup.log`, 'utf8')).toBe('ci\n');
   expect(gitRun(c.remote, 'rev-parse', 'refs/heads/t/ST-9').trim()).toBe(gitRun(c.sibling('ST-9'), 'rev-parse', 'HEAD').trim());
-  expect(c.git('show', 't/ST-9:accord/tickets/ST-9.md')).toBe(text);
+  // ST-LN-96 t1-ac-1: from RULESET_FROM the claim writes the running pin as `ruleset` into the ticket it commits; below it the ticket is the one `new ticket` wrote.
+  expect(c.git('show', 't/ST-9:accord/tickets/ST-9.md')).toBe(pinBefore(RULESET_FROM, RUNNING) ? text : setFrontmatterKey(text, 'ruleset', RUNNING));
   expect(c.git('rev-parse', 't/ST-9^').trim()).toBe(base);
   expect(out.split('\n').slice(0, 4)).toEqual(['accord/tickets/ST-9.md', ...stopLines(c.sibling('ST-9'), 'ST-9')]);
   expect(c.git('branch', '--show-current').trim()).toBe('main');

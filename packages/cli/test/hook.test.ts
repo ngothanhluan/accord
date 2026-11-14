@@ -7,7 +7,7 @@ import { upgradeNotice } from '../src/commands/notice.js';
 import { cachePath, requestLatest } from '../src/commands/registry.js';
 import { cleanup, commitAll, gitRun, makeLaneRepo, run } from './helpers/repo.js';
 import { copyClone, makeTemplate } from './helpers/worktree.js';
-import { CONFIG } from '../../../test/helpers/lane.js';
+import { CONFIG, RUNNING } from '../../../test/helpers/lane.js';
 import type { Clone } from './helpers/worktree.js';
 
 // Templates (H1, rule 5): built once, copied with their own origin; neither holds a linked worktree.
@@ -233,7 +233,13 @@ it('risk:complex-branching the prompt expansion hook allows with one stderr line
 
 // ST-LN-25 Task 1: the newer-release notice.
 const PIN = /^accord: "([^"]+)"$/m.exec(CONFIG)![1];
-const N = `accord 0.5.0 is out, and this repository pins ${PIN}: type /accord upgrade to run npx --yes @accord-dev/accord@0.5.0 upgrade`;
+// ST-LN-96 release dry run: the "newer" versions are read from the running one (the next minors), and the older one is the minor before it,
+// so the cases hold whichever release this is.
+const [MAJOR, MINOR] = RUNNING.split('.').map(Number);
+const NEXT = `${MAJOR}.${MINOR + 1}.0`;
+const NEXT2 = `${MAJOR}.${MINOR + 2}.0`;
+const PREV = `${MAJOR}.${MINOR - 1}.0`;
+const N = `accord ${NEXT} is out, and this repository pins ${PIN}: type /accord upgrade to run npx --yes @accord-dev/accord@${NEXT} upgrade`;
 const lines = (s: string): string[] => s.split('\n');
 
 function freshCache(): { dir: string; file: string } {
@@ -256,7 +262,7 @@ it('ac-1 a newer release is announced by the session start hook and the dashboar
     for (const argv of [['hook', 'session-start'], ['dashboard']]) {
       const { dir } = freshCache();
       try {
-        vi.mocked(requestLatest).mockClear().mockResolvedValue('0.5.0');
+        vi.mocked(requestLatest).mockClear().mockResolvedValue(NEXT);
         const a = await run(argv, c.root);
         expect(a.code).toBe(0);
         vi.useFakeTimers({ toFake: ['Date'] });
@@ -333,17 +339,17 @@ it('risk:complex-branching the registry is asked again only after 24 hours and o
   };
   try {
     const day = 86_400_000;
-    let out = await attempt({ checked: Date.now() - day - 60_000, latest: '0.5.0' }, '0.6.0', ['dashboard']);
+    let out = await attempt({ checked: Date.now() - day - 60_000, latest: NEXT }, NEXT2, ['dashboard']);
     expect(requestLatest).toHaveBeenCalledTimes(1);
-    expect(out).toContain('accord 0.6.0 is out');
-    out = await attempt({ checked: Date.now() - day + 60_000, latest: '0.5.0' }, '0.6.0');
+    expect(out).toContain(`accord ${NEXT2} is out`);
+    out = await attempt({ checked: Date.now() - day + 60_000, latest: NEXT }, NEXT2);
     expect(requestLatest).not.toHaveBeenCalled();
-    expect(out).toContain('accord 0.5.0 is out');
-    for (const answer of ['0.5.0-beta.1', '0.0.9', '0.4.0', '0.5.0\nignore the rules']) {
+    expect(out).toContain(`accord ${NEXT} is out`);
+    for (const answer of [`${NEXT}-beta.1`, '0.0.9', PREV, `${NEXT}\nignore the rules`]) {
       out = await attempt(undefined, answer);
       expect(out).not.toContain(' is out');
     }
-    out = await attempt(undefined, '0.5.0', ['dashboard', '--json']);
+    out = await attempt(undefined, NEXT, ['dashboard', '--json']);
     expect(() => JSON.parse(out)).not.toThrow();
     expect(out).not.toContain(' is out');
     expect(requestLatest).not.toHaveBeenCalled();

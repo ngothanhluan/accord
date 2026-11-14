@@ -1,9 +1,9 @@
 // ST-LN-94 94-ac-1, D-10, D-13: a lane R ticket holds a question, a timebox and a token budget, and gate ready passes it with no
 // approval, Approach, discuss record or scenario. The config pins DISCUSS_FROM, so the discuss rules would apply to a lane M ticket here.
 import { expect, it } from 'vitest';
-import { DISCUSS_FROM, gateReady, laneRHash, loadSnapshot, readTimebox, readTokenBudget } from '../src/index.js';
+import { DISCUSS_FROM, gatePlan, gateReady, laneRHash, loadSnapshot, readTimebox, readTokenBudget } from '../src/index.js';
 import type { GateResult } from '../src/index.js';
-import { CONFIG, laneTicket } from '../../../test/helpers/lane.js';
+import { CONFIG, PLAN, laneTicket } from '../../../test/helpers/lane.js';
 
 const QUOTE = '- D-01 Timebox 4 hours, token budget 800k weighted tokens — "four hours and 800k is enough"';
 const body = (o: { question?: string; timebox?: string; budget?: string; decisions?: string } = {}) =>
@@ -123,4 +123,26 @@ it('risk:dos a long hostile Decisions line is read in bounded time (ST-LN-94 D-1
   const r = ready(body({ decisions: hostile }));
   expect(performance.now() - t0).toBeLessThan(2_000);
   expect(ruled(r, 'gate.research-budget-unanswered')).toHaveLength(2);
+});
+
+// ST-LN-94 D-10, research Pitfall 8: gate plan runs PLAN_R_RULES for lane R, so no lane M plan rule reaches it, whatever records it holds.
+it('risk:regression gate plan refuses a lane R ticket as having no plan (ST-LN-94 94-ac-1)', () => {
+  const only = (r: GateResult) => {
+    expect(r.findings.map((f) => f.rule)).toEqual(['gate.lane-r-plan']);
+    expect(r.findings[0].reason).toContain('lane R has no plan');
+    expect(r.findings[0].reason).toContain('accord/research/');
+    expect(r.findings[0].file).toBe('accord/tickets/R-1.md');
+    expect(r.verdict).toBe('fail');
+    expect(r.planHash).toBeUndefined();
+  };
+  only(gatePlan(snap(body()), 'R-1'));
+  const files = {
+    'accord/config.yml': config,
+    'accord/tickets/R-1.md': laneTicket('R-1', { lane: 'R', body: body() }),
+    'accord/tickets/R-1/plan.md': PLAN.split('\n').filter((l) => !l.startsWith('covers:')).join('\n'),
+    'accord/tickets/R-1/plan-review.md': 'Round record: 1\n\n## Round 1 (whole)\n\n1. Should — task 1 drops a header — open — rests on: ac-1\n',
+  };
+  const stray = loadSnapshot({ files, tree: Object.keys(files).sort() });
+  expect(stray.tickets['R-1'].frontmatter?.lane).toBe('R');
+  only(gatePlan(stray, 'R-1'));
 });

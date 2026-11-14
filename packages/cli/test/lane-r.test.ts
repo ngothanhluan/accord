@@ -48,6 +48,25 @@ it('risk:complex-branching accord new ticket --lane R writes the research templa
   }
 }, 120_000);
 
+it('risk:regression accord gate plan refuses a lane R ticket on real git (ST-LN-94 94-ac-1)', async () => {
+  const repo = makeEmptyRepo();
+  writeFiles(repo, { 'accord/config.yml': CONFIG });
+  try {
+    expect((await run(['new', 'ticket', 'R-1', '--lane', 'R'], repo)).code).toBe(0);
+    const file = join(repo, 'accord', 'tickets', 'R-1.md');
+    writeFileSync(file, decide(fill(readFileSync(file, 'utf8'))));
+    expect((await run(['gate', 'ready', 'R-1', '--json'], repo)).code).toBe(0);
+    const plan = await run(['gate', 'plan', 'R-1', '--json'], repo);
+    expect(plan.code).toBe(1);
+    const out = JSON.parse(plan.out) as { findings: F[]; planHash?: string };
+    expect(out.findings.map((f) => f.rule)).toEqual(['gate.lane-r-plan']);
+    expect(out.findings[0].reason).toContain('lane R has no plan');
+    expect(out.planHash).toBeUndefined();
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
 it('risk:complex-branching accord gate ready names the unanswered budget of a lane R ticket on real git (ST-LN-94 D-13)', async () => {
   const repo = makeEmptyRepo();
   writeFiles(repo, { 'accord/config.yml': CONFIG });

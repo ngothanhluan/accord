@@ -261,3 +261,27 @@ it('risk:regression no backfill below the cut-off or for a ticket claimed at it 
   expect(subjects(wtAt).some((l) => l.startsWith('ruleset: '))).toBe(false);
   expect(await rulesetFindings(wtAt)).toEqual(['gate.ruleset-missing']);
 }, 240_000);
+
+it('risk:regression a rebase onto an upgraded main leaves no backfill and no false ruleset-changed (ST-LN-96 rel-ac-1)', async () => {
+  // KNOWN GAP, reported to the owner: a rebase replays the claim commit onto the upgraded base, so the pin at it is the new one and the claim-commit fallback
+  // answers "new rules". Writing the old pin from before the rebase would make gate.ruleset-changed refuse it (it compares with the pin at that commit), so nothing is written.
+  const c = copy({ tickets: [] });
+  const REBASING = 'git:\n  merge: rebase\n';
+  running.v = '0.4.1';
+  writeFiles(c.root, { [CONFIG_REL]: pinned('0.4.1') + REBASING });
+  commitMsg(c.root, 'pin 0.4.1 and rebase');
+  c.git('push', '-q', 'origin', 'main');
+  const wt = await claimedOnBranch(c);
+  expect(gitClaimFacts(wt, ID)).toMatchObject({ pin: '0.4.1' });
+  running.v = RULESET_FROM;
+  writeFiles(c.root, { [CONFIG_REL]: pinned(RULESET_FROM) + REBASING });
+  commitMsg(c.root, 'upgrade');
+  c.git('push', '-q', 'origin', 'main');
+  const r = await run(['worktree', 'open', ID, '--continue'], c.root);
+  expect([r.code, r.err]).toEqual([0, '']);
+  expect(lines(r.out).filter((l) => l.startsWith('rebased:'))).toHaveLength(1);
+  expect(gitClaimFacts(wt, ID)).toMatchObject({ pin: RULESET_FROM }); // the rewritten claim commit says the new pin
+  expect(backfilledLines(r.out)).toEqual([]);
+  expect(subjects(wt).some((l) => l.startsWith('ruleset: '))).toBe(false);
+  expect(await rulesetFindings(wt)).toEqual([]);
+}, 240_000);

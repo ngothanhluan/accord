@@ -32,7 +32,7 @@ const CONFIG_REL = 'accord/config.yml';
 function pinTo(c: Clone, v: string): void {
   running.v = v;
   writeFiles(c.root, { [CONFIG_REL]: pinned(v) });
-  commitMsg(c.root, 'pin ' + v);
+  commitMsg(c.root, 'pin ' + v, undefined, true); // allow-empty: the sandbox may already hold this pin
   c.git('push', '-q', 'origin', 'main');
 }
 
@@ -50,7 +50,7 @@ it('risk:data-loss the claim commit writes ruleset and is never empty from RULES
   expect(stat(c, 't/ST-9')).toBe('1\t0\taccord/tickets/ST-9.md');
   const added = c.git('diff', '-U0', 't/ST-9^', 't/ST-9', '--', 'accord/tickets/ST-9.md').split('\n').filter((l) => /^[+-][^+-]/.test(l));
   expect(added).toEqual(['+ruleset: "0.5.0"']);
-  expect(readFileSync(`${c.sibling('ST-9')}/accord/tickets/ST-9.md`, 'utf8')).toContain('\nruleset: "0.5.0"\n');
+  expect(readFileSync(`${c.sibling('ST-9')}/accord/tickets/ST-9.md`, 'utf8')).toMatch(/\r?\nruleset: "0\.5\.0"\r?\n/); // a Windows checkout may hold CRLF
 });
 
 it('risk:data-loss a pick-up claim below RULESET_FROM stays empty and the ticket has no ruleset (ST-LN-96 t1-ac-1)', async () => {

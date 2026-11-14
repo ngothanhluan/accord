@@ -2,7 +2,7 @@
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, closeSync, existsSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import type { Dirent } from 'node:fs';
-import { DEFAULT_BRANCH_TEMPLATE, forbiddenLines, isResearchPath, isSha, loadConfig, loadSnapshot, statusRows, trailerReason } from '@accord-dev/accord-core';
+import { DEFAULT_BRANCH_TEMPLATE, forbiddenLines, isResearchPath, isSha, loadConfig, loadSnapshot, pinBefore, pinOf, RULESET_FROM, setFrontmatterKey, statusRows, trailerReason } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
 import { currentBranch, droppedOn, gitDefaultRef, gitFilesAt, gitUnpushedCommits, gitUserEmail, loadFromFs, loadWithBranch, snapshotAt, ticketOfBranch, UsageError } from '../load/fs.js';
 import { fetchLimitMs } from './fetch-limit.js';
@@ -11,6 +11,7 @@ import { claudeEnv, describeSession, isLive, processTable, runSetup, sameSession
 import type { Session } from '../load/proc.js';
 import type { CommandContext } from '../run.js';
 import { repoRoot } from '../root.js';
+import { writeKey } from '../write/key.js';
 import pkg from '../../package.json' with { type: 'json' };
 
 export const ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
@@ -554,13 +555,44 @@ export function worktreeOpen(ctx: CommandContext, id: string, opts: { continue?:
   if (all.some((w) => w.prunable !== undefined && norm(w.path) === norm(path))) refuseAt(id, path, 'nothing was created');
   git(ctx.root, ['worktree', 'add', '--no-track', '-b', branch, path, ref]);
   recordQuietly(ctx, id, path);
-  git(path, ['commit', '--allow-empty', '-q', '-m', 'claim: ' + id]);
+  const wrote = claimRuleset(path, `accord/tickets/${id}.md`);
+  if (wrote) git(path, ['add', '--', ':(literal)' + `accord/tickets/${id}.md`]);
+  git(path, ['commit', ...(wrote ? [] : ['--allow-empty']), '-q', '-m', 'claim: ' + id]);
   if (enter) {
     takeHold(ctx, id, path);
     checkPin(ctx, id, path, branch, mainPath);
   } else prepare(path);
   enterOrStop(ctx, id, path, branch, enter);
   return 0;
+}
+
+/**
+ * ST-LN-96 D-02: the pin the claim records as the ticket's `ruleset`: the `accord:` value of accord/config.yml in the new worktree (the commit the claim
+ * branches from), when it is a plain x.y.z not before RULESET_FROM. Undefined otherwise (an older pin, whose published schema refuses the field, a pre-release
+ * pin, or a config that cannot be read), and then the claim is written as before.
+ */
+function rulesetPinOf(path: string): string | undefined {
+  let pin: string | undefined;
+  try {
+    pin = pinOf(readFileSync(path + '/accord/config.yml', 'utf8'));
+  } catch {
+    return undefined;
+  }
+  return pin !== undefined && /^\d+\.\d+\.\d+$/.test(pin) && !pinBefore(RULESET_FROM, pin) ? pin : undefined;
+}
+
+/**
+ * ST-LN-96 D-02: write `ruleset: "<pin>"` into the ticket `rel` of the new worktree `path` so the claim commit carries it; true when the file changed. False
+ * when the pin is not one to record, when the file already holds that exact value, or when the ticket cannot take the key (the claim stays the empty commit it was).
+ */
+function claimRuleset(path: string, rel: string): boolean {
+  const pin = rulesetPinOf(path);
+  if (pin === undefined) return false;
+  try {
+    return writeKey(path, rel, 'ruleset', pin);
+  } catch {
+    return false;
+  }
 }
 
 /** The first word of a shell command line, quotes removed. */
@@ -1527,7 +1559,8 @@ export function newTicketWorktree(ctx: CommandContext, id: string, rel: string, 
   git(ctx.root, ['worktree', 'add', '--no-track', '-b', branch, path, ref]);
   recordQuietly(ctx, id, path);
   mkdirSync(path + '/accord/tickets', { recursive: true });
-  writeFileSync(path + '/' + rel, text);
+  const ruleset = rulesetPinOf(path);
+  writeFileSync(path + '/' + rel, ruleset === undefined ? text : setFrontmatterKey(text, 'ruleset', ruleset));
   git(path, ['add', '--', rel]);
   git(path, ['commit', '-q', '-m', 'claim: ' + id]);
   let holdError: unknown;

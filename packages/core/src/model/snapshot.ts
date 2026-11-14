@@ -133,6 +133,7 @@ export interface TicketFrontmatter {
   priority?: 'high' | 'medium' | 'low';// how the dashboard ranks this ticket; absent means medium
   approved_hash?: string; // spec §4: written by `accord approve`, 'fnv1a64:<16 hex>'
   ac_hash?: string;
+  ruleset?: string; // ST-LN-96 D-02: the accord pin the ticket was claimed under, written by the claim; 'x.y.z' (a pre-release is ignored by the readers)
   verified?: string[]; // ['ac-1']
   verified_hash?: string; // D-76: the AC hash the ticks were made against, 'fnv1a64:<16 hex>'
   verified_commit?: string; // D-76: the commit sha those ticks were made against, at least 7 hex characters

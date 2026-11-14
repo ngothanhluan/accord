@@ -178,7 +178,7 @@ it('risk:regression accord lint reports nothing on a valid lane R ticket (ST-LN-
 });
 
 // ST-LN-94 94-ac-2, 94-ac-3, D-10, D-11: gate done on a lane R ticket runs DONE_R_RULES. It is done when a record its research: lists is in the
-// checkout with a Spent line, and its branch changes nothing under packages/; it is asked for no plan, review, verification or ticks.
+// checkout with a Spent line, and its branch changes nothing outside accord/; it is asked for no plan, review, verification or ticks.
 const RECORD = 'accord/research/2026-11-20-critic-rounds.md';
 const SPENT = 'Spent: 2h 10m of 4 hours; 312000 of 800000 weighted tokens';
 const record = (...lines: string[]) => ['# Critic rounds', '', 'Date: 2026-11-20', 'Repository at `1c5704ee`', '', 'The critic needs one round.', '', ...lines, ''].join('\n');
@@ -186,7 +186,7 @@ const OWN: BranchChange[] = [
   { path: 'accord/tickets/R-1.md', kind: 'modified', lines: 2 },
   { path: RECORD, kind: 'added', lines: 9 },
 ];
-type DoneOpts = { body?: string; hashed?: string; research?: string[]; record?: string | null; extra?: Record<string, string>; fact?: BranchFact; hash?: false; facts?: ResearchFact | null };
+type DoneOpts = { body?: string; hashed?: string; research?: string[]; record?: string | null; extra?: Record<string, string>; fact?: BranchFact | null; hash?: false; facts?: ResearchFact | null };
 // CR-01, CR-02: the host's research fact: the claim commit's time and, for each listed record the branch changed since the claim, the time of
 // its last change. By default the record changed at the claim's second, so the Spent line alone decides the time.
 const CLAIM = 1_800_000_000;
@@ -204,7 +204,7 @@ const doneSnap = (o: DoneOpts = {}) => {
     ...(o.extra ?? {}),
   };
   const facts = o.facts === null ? {} : { researchFacts: { 'R-1': o.facts ?? OWN_FACT } };
-  return loadSnapshot({ files, tree: Object.keys(files).sort(), branchFacts: { 'R-1': o.fact ?? { base: 'b'.repeat(40), changes: OWN, synced: [] } }, ...facts });
+  return loadSnapshot({ files, tree: Object.keys(files).sort(), branchFacts: o.fact === null ? {} : { 'R-1': o.fact ?? { base: 'b'.repeat(40), changes: OWN, synced: [] } }, ...facts });
 };
 const done = (o: DoneOpts = {}) => gateDone(doneSnap(o), 'R-1');
 const rIds = () => DONE_R_RULES.map((r) => r.id);
@@ -278,24 +278,36 @@ it('risk:regression gate done on a lane R ticket runs none of the lane M Done ru
   for (const x of rIds()) expect(x).toMatch(/^gate\.(ticket-unknown|research-[a-z-]+|ready-missing|sections-changed|branch-unknown|commit-trailer)$/);
 });
 
-it('risk:security a change under packages/ on a lane R branch fails gate done and names the file (ST-LN-94 94-ac-3)', () => {
+// UAT decision 3 (2026-11-14): a lane R branch changes nothing outside accord/; a research script lives under accord/research/.
+it('risk:security a change outside accord/ on a lane R branch fails gate done and names each file (ST-LN-94 94-ac-3)', () => {
   const fact = (...extra: BranchChange[]): BranchFact => ({ base: 'b'.repeat(40), changes: [...OWN, ...extra], synced: [] });
-  const shipped = ruled(
-    done({ fact: fact({ path: 'packages/core/src/x.ts', kind: 'added', lines: 3 }, { path: 'packages/cli/README.md', kind: 'modified', lines: 1 }) }),
-    'gate.research-shipped',
-  );
-  expect(shipped.map((f) => f.file).sort()).toEqual(['packages/cli/README.md', 'packages/core/src/x.ts']);
+  const outside = ['src/x.ts', '.github/workflows/ci.yml', 'package.json', 'scripts/count-rounds.mjs', 'packages/core/src/x.ts', 'accordx/a.ts', 'README.md'];
+  const shipped = ruled(done({ fact: fact(...outside.map((path): BranchChange => ({ path, kind: 'added', lines: 3 }))) }), 'gate.research-shipped');
+  expect(shipped.map((f) => f.file).sort()).toEqual([...outside].sort());
   for (const f of shipped) {
-    expect(f.reason).toContain(f.file + ' is under packages/');
+    expect(f.reason).toContain(f.file + ' is outside accord/');
+    expect(f.reason).toContain('accord/research/');
     expect(f.level).toBe('error');
   }
-  expect(ruled(done({ fact: fact({ path: 'packages/core/src/old.ts', kind: 'deleted', lines: 4 }) }), 'gate.research-shipped')).toHaveLength(1);
-  const script = done({ fact: fact({ path: 'scripts/count-rounds.mjs', kind: 'added', lines: 20 }, { path: 'packagesx/a.ts', kind: 'added', lines: 1 }) });
-  expect(ruled(script, 'gate.research-shipped')).toEqual([]);
-  expect(script.verdict).toBe('pass');
-  const unread = done({ fact: { error: 'git merge-base failed reading the branch diff: no merge base' } });
-  expect(ruled(unread, 'gate.branch-unknown')).toHaveLength(1);
-  expect(unread.verdict).toBe('fail');
+  // Any kind of change counts: a deletion, a mode change, and a change of whitespace only.
+  for (const c of [
+    { path: 'src/old.ts', kind: 'deleted', lines: 4 },
+    { path: 'scripts/run.sh', kind: 'mode', lines: 0 },
+    { path: 'package.json', kind: 'modified', lines: 0 },
+  ] as BranchChange[]) {
+    const r = done({ fact: fact(c) });
+    expect(ruled(r, 'gate.research-shipped').map((f) => f.file), c.path).toEqual([c.path]);
+    expect(r.verdict, c.path).toBe('fail');
+  }
+  // Only accord/: the ticket, its records and a research script under accord/research/ pass.
+  const own = done({ fact: fact({ path: 'accord/research/count-rounds.mjs', kind: 'added', lines: 20 }, { path: 'accord/tickets/R-1/notes.md', kind: 'added', lines: 2 }) });
+  expect(ruled(own, 'gate.research-shipped')).toEqual([]);
+  expect(own.verdict).toBe('pass');
+  // A branch diff git could not read, or none at all, fails closed through gate.branch-unknown.
+  for (const unread of [done({ fact: { error: 'git merge-base failed reading the branch diff: no merge base' } }), done({ fact: null })]) {
+    expect(ruled(unread, 'gate.branch-unknown')).toHaveLength(1);
+    expect(unread.verdict).toBe('fail');
+  }
 });
 
 // ST-LN-94 D-14, D-11, D-20: gate done compares the record's last Spent line with the ticket's Timebox and Token budget, strictly over, and

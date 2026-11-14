@@ -234,11 +234,15 @@ export const notesNotLast: Rule['check'] = (snapshot) =>
 
 const workOf = (snapshot: RepoSnapshot, id: string) => (Object.hasOwn(snapshot.work ?? {}, id) ? snapshot.work?.[id] : undefined);
 
-/** A review.md without a plan.md on a lane M, L or P ticket is left from lane S (lift in place). */
+/**
+ * A review.md without a plan.md on a lane M, L or P ticket is left from lane S (lift in place). Silent for lane R (ST-LN-94 D-10): it holds
+ * neither record, gate.lane-r-plan refuses its plan, and no lane R Done rule reads a review.
+ */
 export const reviewWithoutPlan: Rule['check'] = (snapshot) =>
   typed(snapshot).flatMap((t) => {
     const w = workOf(snapshot, t.id);
-    return t.frontmatter.lane !== undefined && t.frontmatter.lane !== 'S' && w?.review !== undefined && w.plan === undefined
+    const lane = t.frontmatter.lane;
+    return lane !== undefined && lane !== 'S' && lane !== 'R' && w?.review !== undefined && w.plan === undefined
       ? [{ file: w.review.file, reason: 'review.md is left from lane S; a lane M ticket is reviewed after its plan, so remove it with git rm' }]
       : [];
   });

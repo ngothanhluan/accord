@@ -71,3 +71,56 @@ it('risk:complex-branching a lane R ticket missing its question, timebox or budg
   ]);
   expect([readTimebox('0 hours'), readTokenBudget('0 weighted tokens'), readTimebox('4 hours later')]).toEqual([undefined, undefined, undefined]);
 });
+
+const unanswered = (b: string) => ruled(ready(b), 'gate.research-budget-unanswered');
+
+it('risk:complex-branching gate ready passes a lane R ticket only with the owner\'s quoted timebox and budget (ST-LN-94 D-13)', () => {
+  expect(ready(body()).verdict).toBe('pass');
+  const none = unanswered(body({ decisions: '' }));
+  expect(none).toHaveLength(2);
+  const [tb, bud] = [none.find((f) => f.reason.includes('"## Timebox"')), none.find((f) => f.reason.includes('"## Token budget"'))];
+  expect(tb?.reason).toContain('4 hours');
+  expect(tb?.reason).toContain('the owner sets the timebox');
+  expect(bud?.reason).toContain('800k weighted tokens');
+  expect(bud?.reason).toContain('the owner sets the token budget');
+  expect(tb?.line).toBe(snap(body()).tickets['R-1'].sections.find((s) => s.heading.trim() === 'Timebox')?.line);
+  expect(tb?.level).toBe('error');
+  expect(ready(body({ decisions: '' })).verdict).toBe('fail');
+
+  const one = unanswered(body({ decisions: '- D-01 Timebox 4 hours — "four hours"' }));
+  expect(one).toHaveLength(1);
+  expect(one[0].reason).toContain('"## Token budget"');
+  expect(unanswered(body({ decisions: '- D-01 Timebox 4 hours — "four hours"\n- D-02 Token budget 800k weighted tokens — "800k"' }))).toEqual([]);
+  for (const d of [
+    '- D-01 Timebox 4 hours, token budget 800k weighted tokens',
+    '- D-01 Timebox 4 hours, token budget 800k weighted tokens — ""',
+    '- D-01 Timebox 4 hours, token budget 800k weighted tokens — "  "',
+    '- D-01 Timebox 4 hours, token budget 800k weighted tokens — four hours',
+    '<!-- - D-01 Timebox 4 hours, token budget 800k weighted tokens — "ok" -->',
+    'D-01 Timebox 4 hours, token budget 800k weighted tokens — "ok" said nobody',
+    '```\n- D-01 Timebox 4 hours, token budget 800k weighted tokens — "ok"\n```',
+    '- D-01 Timebox 14 hours, token budget 1800k weighted tokens — "ok"',
+  ]) {
+    expect(unanswered(body({ decisions: d })), d).toHaveLength(2);
+  }
+  expect(unanswered(body({ decisions: '- D-01 Timebox 4 HOURS,  token budget 800k   Weighted tokens — "ok"' }))).toEqual([]);
+  // An unreadable value is gate.research-field-missing's finding alone.
+  expect(unanswered(body({ timebox: 'about a day', decisions: '' })).map((f) => f.reason.includes('"## Token budget"'))).toEqual([true]);
+});
+
+it('risk:complex-branching an extended budget needs the owner\'s quoted extension (ST-LN-94 D-13)', () => {
+  const f = unanswered(body({ timebox: '6 hours' }));
+  expect(f).toHaveLength(1);
+  expect(f[0].reason).toContain('"## Timebox"');
+  expect(f[0].reason).toContain('6 hours');
+  expect(ready(body({ timebox: '6 hours', decisions: QUOTE + '\n- D-02 Timebox extended to 6 hours — "take two more hours"' })).verdict).toBe('pass');
+});
+
+it('risk:dos a long hostile Decisions line is read in bounded time (ST-LN-94 D-13)', () => {
+  const hostile = '- D-01 Timebox 4 hours' + ' — "'.repeat(50_000) + ' — ';
+  expect(hostile.length).toBeGreaterThanOrEqual(200_000);
+  const t0 = performance.now();
+  const r = ready(body({ decisions: hostile }));
+  expect(performance.now() - t0).toBeLessThan(2_000);
+  expect(ruled(r, 'gate.research-budget-unanswered')).toHaveLength(2);
+});

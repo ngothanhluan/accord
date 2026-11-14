@@ -47,3 +47,29 @@ it('risk:complex-branching accord new ticket --lane R writes the research templa
     cleanup(repo);
   }
 }, 120_000);
+
+it('risk:complex-branching accord gate ready names the unanswered budget of a lane R ticket on real git (ST-LN-94 D-13)', async () => {
+  const repo = makeEmptyRepo();
+  writeFiles(repo, { 'accord/config.yml': CONFIG });
+  try {
+    expect((await run(['new', 'ticket', 'R-1', '--lane', 'R'], repo)).code).toBe(0);
+    const file = join(repo, 'accord', 'tickets', 'R-1.md');
+    const filled = fill(readFileSync(file, 'utf8'));
+    writeFileSync(file, filled);
+    const first = await run(['gate', 'ready', 'R-1', '--json'], repo);
+    expect(first.code).toBe(1);
+    const findings = JSON.parse(first.out).findings as F[];
+    const open = findings.filter((f) => f.rule === 'gate.research-budget-unanswered');
+    expect(open).toHaveLength(2);
+    expect(open.some((f) => f.reason.includes('"## Timebox" 4 hours'))).toBe(true);
+    expect(open.some((f) => f.reason.includes('"## Token budget" 800k weighted tokens'))).toBe(true);
+    expect(findings.filter((f) => f.rule !== 'gate.research-budget-unanswered')).toEqual([]);
+    expect(first.err).not.toContain('ac_hash');
+    writeFileSync(file, decide(filled));
+    const second = await run(['gate', 'ready', 'R-1', '--json'], repo);
+    expect(second.code).toBe(0);
+    expect(second.err).toContain('wrote ac_hash');
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);

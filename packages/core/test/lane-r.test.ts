@@ -3,7 +3,8 @@
 import { expect, it } from 'vitest';
 import { DISCUSS_FROM, gateDone, gatePlan, gateReady, lintSnapshot, laneRHash, loadSnapshot, parseSpent, readTimebox, readTokenBudget, setFrontmatterKey } from '../src/index.js';
 import { DONE_R_RULES, DONE_RULES } from '../src/gate/rules.js';
-import type { BranchChange, BranchFact, GateResult } from '../src/index.js';
+import type { BranchChange, BranchFact, GateResult, ResearchFact } from '../src/index.js';
+import { progressOf } from '../src/status/stage.js';
 import { CONFIG, PLAN, REPORT, junit, laneTicket } from '../../../test/helpers/lane.js';
 
 const QUOTE = '- D-01 Timebox 4 hours, token budget 800k weighted tokens — "four hours and 800k is enough"';
@@ -185,7 +186,11 @@ const OWN: BranchChange[] = [
   { path: 'accord/tickets/R-1.md', kind: 'modified', lines: 2 },
   { path: RECORD, kind: 'added', lines: 9 },
 ];
-type DoneOpts = { body?: string; hashed?: string; research?: string[]; record?: string | null; extra?: Record<string, string>; fact?: BranchFact; hash?: false };
+type DoneOpts = { body?: string; hashed?: string; research?: string[]; record?: string | null; extra?: Record<string, string>; fact?: BranchFact; hash?: false; facts?: ResearchFact | null };
+// CR-01, CR-02: the host's research fact: the claim commit's time and, for each listed record the branch changed since the claim, the time of
+// its last change. By default the record changed at the claim's second, so the Spent line alone decides the time.
+const CLAIM = 1_800_000_000;
+const OWN_FACT: ResearchFact = { claimTime: CLAIM, changed: { [RECORD]: CLAIM } };
 /** An R ticket whose ac_hash gate ready recorded over `hashed` (default: its own body), with its record and branch fact. */
 const doneSnap = (o: DoneOpts = {}) => {
   const b = o.body ?? body();
@@ -198,7 +203,8 @@ const doneSnap = (o: DoneOpts = {}) => {
     ...(o.record === null ? {} : { [RECORD]: o.record ?? record(SPENT) }),
     ...(o.extra ?? {}),
   };
-  return loadSnapshot({ files, tree: Object.keys(files).sort(), branchFacts: { 'R-1': o.fact ?? { base: 'b'.repeat(40), changes: OWN, synced: [] } } });
+  const facts = o.facts === null ? {} : { researchFacts: { 'R-1': o.facts ?? OWN_FACT } };
+  return loadSnapshot({ files, tree: Object.keys(files).sort(), branchFacts: { 'R-1': o.fact ?? { base: 'b'.repeat(40), changes: OWN, synced: [] } }, ...facts });
 };
 const done = (o: DoneOpts = {}) => gateDone(doneSnap(o), 'R-1');
 const rIds = () => DONE_R_RULES.map((r) => r.id);
@@ -349,4 +355,54 @@ it('risk:dos a long hostile Spent or Owner line is read in bounded time (ST-LN-9
   expect(performance.now() - t0).toBeLessThan(2_000);
   expect(ruled(r, 'gate.research-over-budget')).toHaveLength(1);
   expect(parseSpent(spent)).toBeUndefined();
+});
+
+// CR-01: a record listed in research: is the ticket's result only when the branch added or changed it since the claim commit (the host's
+// research fact). A record that already existed is evidence: allowed, not read for Spent or budget, and never the result. No fact, or a git
+// error, fails closed.
+it("risk:security only a record the branch changed since the claim is a lane R ticket's result (ST-LN-94 CR-01)", () => {
+  const PRIOR = 'accord/research/2026-11-01-prior.md';
+  const prior = record('Spent: 1h 10m of 4 hours; not measured of 800k weighted tokens');
+  // Probe 1: the only listed record is an older one, with a Spent line; nothing was researched since the claim.
+  const evidenceOnly = doneSnap({ research: [PRIOR], extra: { [PRIOR]: prior }, record: null, facts: { claimTime: CLAIM, changed: {} } });
+  const r1 = gateDone(evidenceOnly, 'R-1');
+  expect(r1.verdict).toBe('fail');
+  const m = ruled(r1, 'gate.research-record-missing');
+  expect(m).toHaveLength(1);
+  expect(m[0].reason).toContain('since its claim');
+  expect(progressOf(evidenceOnly, evidenceOnly.tickets['R-1'])?.stage).toBe('research');
+  // Probe 2: evidence without a Spent line beside the ticket's own record: the evidence is not read, and the ticket is done.
+  const both = doneSnap({ research: [PRIOR, RECORD], extra: { [PRIOR]: record() } });
+  expect(gateDone(both, 'R-1').findings).toEqual([]);
+  expect(progressOf(both, both.tickets['R-1'])?.stage).toBe('done');
+  // An over-budget Spent line in the evidence is not the ticket's spend.
+  const overEvidence = doneSnap({ research: [PRIOR, RECORD], extra: { [PRIOR]: record('Spent: 9h 0m of 4 hours; not measured of 800k weighted tokens') } });
+  expect(gateDone(overEvidence, 'R-1').verdict).toBe('pass');
+  // The own record needs a Spent line before the stage reads done.
+  const noSpent = doneSnap({ record: record() });
+  expect(progressOf(noSpent, noSpent.tickets['R-1'])?.stage).toBe('research');
+  expect(ruled(gateDone(noSpent, 'R-1'), 'gate.research-spent-missing')).toHaveLength(1);
+  // Fail closed: no fact from the host, or a git error, counts no record as the result.
+  const none = doneSnap({ facts: null });
+  expect(ruled(gateDone(none, 'R-1'), 'gate.research-record-missing')).toHaveLength(1);
+  expect(progressOf(none, none.tickets['R-1'])?.stage).toBe('research');
+  const broken = doneSnap({ facts: { error: 'fatal: bad object deadbeef' } });
+  const b = ruled(gateDone(broken, 'R-1'), 'gate.research-record-missing');
+  expect(b).toHaveLength(1);
+  expect(b[0].reason).toContain('fatal: bad object deadbeef');
+  expect(progressOf(broken, broken.tickets['R-1'])?.stage).toBe('research');
+});
+
+// CR-02: the timebox is judged by the larger of the record's Spent time and git's time from the claim commit to the record's last change.
+it("risk:security gate done judges the timebox by git's time since the claim when the Spent line says less (ST-LN-94 CR-02)", () => {
+  const low = record('Spent: 0h 30m of 4 hours; not measured of 800k weighted tokens');
+  const late = (minutes: number): ResearchFact => ({ claimTime: CLAIM, changed: { [RECORD]: CLAIM + minutes * 60 } });
+  const f = ruled(done({ record: low, facts: late(600) }), 'gate.research-over-budget');
+  expect(f).toHaveLength(1);
+  for (const s of ['10h 0m', 'claim', 'over the timebox,', 'Owner: write now — "']) expect(f[0].reason).toContain(s);
+  expect(done({ record: low, facts: late(240) }).verdict).toBe('pass');
+  expect(ruled(done({ record: low, facts: late(241) }), 'gate.research-over-budget')).toHaveLength(1);
+  expect(done({ record: record('Spent: 0h 30m of 4 hours; not measured of 800k weighted tokens', WRITE_NOW), facts: late(600) }).verdict).toBe('pass');
+  // A Spent line over the timebox still fails when git's time is lower.
+  expect(ruled(done({ record: record('Spent: 5h 0m of 4 hours; not measured of 800k weighted tokens'), facts: late(10) }), 'gate.research-over-budget')).toHaveLength(1);
 });

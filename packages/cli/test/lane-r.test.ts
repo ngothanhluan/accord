@@ -105,13 +105,16 @@ const R_BODY = [
 ].join('\n');
 const recordText = (...lines: string[]) => ['# Critic rounds', '', 'Date: 2026-11-20', 'Repository at `1c5704ee`', '', 'The critic needs one round.', '', ...lines, ''].join('\n');
 
-/** A repository on branch t/R-1 whose one commit over main adds the ready R ticket, its record (with `spent`) and `extra`. */
-function rBranch(spent: string, extra: Record<string, string> = {}): string {
+/** A repository on branch t/R-1 whose claim commit (dated `claimedAt`, an hour ago by default) and research commit over main add the ready R ticket, its record (with `spent`) and `extra`. */
+function rBranch(spent: string, extra: Record<string, string> = {}, claimedAt = new Date(Date.now() - 60 * 60_000)): string {
   const repo = makeEmptyRepo();
   writeFiles(repo, { 'accord/config.yml': CONFIG });
-  commitMsg(repo, 'base');
+  commitMsg(repo, 'base', new Date(claimedAt.getTime() - 60_000));
   gitRun(repo, 'branch', '-M', 'main');
   gitRun(repo, 'switch', '-q', '-c', 't/R-1');
+  // CR-01, CR-02: the research is counted from the ticket's claim commit.
+  writeFiles(repo, { 'notes.txt': 'claimed\n' });
+  commitMsg(repo, 'claim: R-1', claimedAt);
   const files: Record<string, string> = {
     'accord/config.yml': CONFIG,
     [P('R-1')]: laneTicket('R-1', { lane: 'R', body: R_BODY, frontmatter: [`research: ["${RECORD}"]`] }),
@@ -151,6 +154,61 @@ it('risk:complex-branching accord gate done refuses an over-budget research reco
     expect(findings.map((f) => f.rule)).toEqual(['gate.research-over-budget']);
     expect(findings[0].file).toBe(RECORD);
     expect(findings[0].reason).toContain('5h 0m');
+    const file = join(repo, ...RECORD.split('/'));
+    writeFileSync(file, readFileSync(file, 'utf8') + 'Owner: write now — "write it now"\n');
+    commitMsg(repo, 'research: R-1 owner answer');
+    const second = await run(['gate', 'done', 'R-1', '--json'], repo);
+    expect(JSON.parse(second.out).findings).toEqual([]);
+    expect(second.code).toBe(0);
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+// CR-01: on real git, an older record listed as evidence is not the ticket's result; the record the branch adds after the claim is.
+it('risk:security accord gate done and accord status count only a record the branch changed since the claim on real git (ST-LN-94 CR-01)', async () => {
+  const PRIOR = 'accord/research/2026-11-01-prior.md';
+  const repo = makeEmptyRepo();
+  try {
+    const files: Record<string, string> = {
+      'accord/config.yml': CONFIG,
+      [P('R-1')]: laneTicket('R-1', { lane: 'R', body: R_BODY, frontmatter: [`research: ["${PRIOR}"]`] }),
+      [PRIOR]: recordText('Spent: 1h 10m of 4 hours; not measured of 800k weighted tokens'),
+    };
+    expect(gateReadyIn(files, 'R-1')).toBe('pass');
+    writeFiles(repo, files);
+    commitMsg(repo, 'base', new Date(Date.now() - 120_000));
+    gitRun(repo, 'branch', '-M', 'main');
+    gitRun(repo, 'switch', '-q', '-c', 't/R-1');
+    writeFiles(repo, { 'notes.txt': 'claimed\n' });
+    commitMsg(repo, 'claim: R-1', new Date(Date.now() - 60_000));
+    const stageOf = async () => (JSON.parse((await run(['status', '--json'], repo)).out) as { id: string; stage?: string }[]).find((r) => r.id === 'R-1')?.stage;
+    const first = await run(['gate', 'done', 'R-1', '--json'], repo);
+    expect(first.code).toBe(1);
+    expect((JSON.parse(first.out).findings as F[]).map((f) => f.rule)).toEqual(['gate.research-record-missing']);
+    expect(await stageOf()).toBe('research');
+    // The ticket's own record, added on the branch after the claim, is its result; the evidence stays listed.
+    const ticket = readFileSync(join(repo, ...P('R-1').split('/')), 'utf8').replace(`research: ["${PRIOR}"]`, `research: ["${PRIOR}", "${RECORD}"]`);
+    writeFiles(repo, { [P('R-1')]: ticket, [RECORD]: recordText('Spent: 0h 1m of 4 hours; not measured of 800k weighted tokens') });
+    commitMsg(repo, 'research: R-1');
+    const second = await run(['gate', 'done', 'R-1', '--json'], repo);
+    expect(JSON.parse(second.out).findings).toEqual([]);
+    expect(second.code).toBe(0);
+    expect(await stageOf()).toBe('done');
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+// CR-02: on real git, a Spent line lower than the time since the claim does not pass the timebox.
+it('risk:security accord gate done judges the timebox by the time since the claim commit on real git (ST-LN-94 CR-02)', async () => {
+  const repo = rBranch('Spent: 0h 30m of 4 hours; not measured of 800k weighted tokens', {}, new Date(Date.now() - 10 * 60 * 60_000));
+  try {
+    const first = await run(['gate', 'done', 'R-1', '--json'], repo);
+    expect(first.code).toBe(1);
+    const findings = JSON.parse(first.out).findings as F[];
+    expect(findings.map((f) => f.rule)).toEqual(['gate.research-over-budget']);
+    expect(findings[0].reason).toMatch(/1[01]h [0-9]+m since the claim/);
     const file = join(repo, ...RECORD.split('/'));
     writeFileSync(file, readFileSync(file, 'utf8') + 'Owner: write now — "write it now"\n');
     commitMsg(repo, 'research: R-1 owner answer');

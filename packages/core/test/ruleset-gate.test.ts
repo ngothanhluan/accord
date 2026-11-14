@@ -10,10 +10,11 @@ interface Opts {
   ruleset?: string; // the ticket's frontmatter value; absent: no key
   pin?: string; // claim pin; absent: no claim fact
   claimRuleset?: string; // the ruleset the ticket file held at the claim commit; absent: the claim fact carries none
+  rulesetCommit?: string; // the later commit that wrote claimRuleset (the backfill); absent: the claim commit wrote it
   fact?: { error: string }; // a failed claim read
   lane?: string;
 }
-const build = ({ ruleset, pin, claimRuleset, fact, lane }: Opts = {}): RepoSnapshot => {
+const build = ({ ruleset, pin, claimRuleset, rulesetCommit, fact, lane }: Opts = {}): RepoSnapshot => {
   const files: Record<string, string> = {
     'accord/config.yml': CONFIG,
     'accord/tickets/T-1.md': laneTicket('T-1', {
@@ -23,7 +24,7 @@ const build = ({ ruleset, pin, claimRuleset, fact, lane }: Opts = {}): RepoSnaps
     }),
   };
   const snapshot = loadSnapshot({ files, tree: Object.keys(files).sort() });
-  const claimed = fact ?? (pin === undefined ? undefined : { sha: SHA, pin, ...(claimRuleset === undefined ? {} : { ruleset: claimRuleset }) });
+  const claimed = fact ?? (pin === undefined ? undefined : { sha: SHA, pin, ...(claimRuleset === undefined ? {} : { ruleset: claimRuleset, ...(rulesetCommit === undefined ? {} : { rulesetCommit }) }) });
   return claimed === undefined ? snapshot : { ...snapshot, claimPins: { 'T-1': claimed } };
 };
 const GATES = { ready: gateReady, plan: gatePlan, done: gateDone } as const;
@@ -94,6 +95,23 @@ describe('gate.ruleset-changed with the claim-time ticket ruleset', () => {
     for (const lane of ['S', 'R']) {
       expect(changed('done', { lane, ruleset: '0.5.0', pin: '0.5.1', claimRuleset: '0.5.0' }), 'lane ' + lane).toEqual([]);
       expect(changed('done', { lane, ruleset: '0.4.0', pin: '0.5.1', claimRuleset: '0.5.0' }), 'lane ' + lane + ' edited').toHaveLength(1);
+    }
+  });
+
+  it('risk:complex-branching a ruleset the backfill wrote after the claim is what changed and missing compare with, not the config pin (ST-LN-96 rel-ac-1)', () => {
+    const BACKFILL = 'b'.repeat(40);
+    for (const which of ['ready', 'plan', 'done'] as const) {
+      // claimed under 0.4.1, backfilled at commit b, rebased onto 0.5.0: the config pin at the claim commit is 0.5.0 and the ticket says what was backfilled
+      expect(changed(which, { ruleset: '0.4.1', pin: '0.5.0', claimRuleset: '0.4.1', rulesetCommit: BACKFILL }), which + ' kept').toEqual([]);
+      const f = changed(which, { ruleset: '0.5.0', pin: '0.5.0', claimRuleset: '0.4.1', rulesetCommit: BACKFILL });
+      expect(f, which + ' hand-edited').toHaveLength(1);
+      expect(f[0].reason).toContain('"0.5.0"');
+      expect(f[0].reason).toContain('"0.4.1"');
+      expect(f[0].reason).toContain(BACKFILL.slice(0, 12));
+      expect(f[0].reason).toContain(SHA.slice(0, 12));
+      const m = missing(which, { pin: '0.5.0', claimRuleset: '0.4.1', rulesetCommit: BACKFILL });
+      expect(m, which + ' removed').toHaveLength(1);
+      expect(m[0].reason).toContain(BACKFILL.slice(0, 12));
     }
   });
 

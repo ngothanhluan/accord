@@ -582,7 +582,21 @@ function rulesetPinOf(path: string): string | undefined {
   } catch {
     return undefined;
   }
+  return writablePin(pin);
+}
+
+/** `pin` when it is a plain x.y.z not before RULESET_FROM, the pins whose published schema takes the field; undefined otherwise. */
+function writablePin(pin: string | undefined): string | undefined {
   return pin !== undefined && /^\d+\.\d+\.\d+$/.test(pin) && !pinBefore(RULESET_FROM, pin) ? pin : undefined;
+}
+
+/** The pin of accord/config.yml at `ref` (the default ref a sync is about to take in), when it is one to write a `ruleset` under; undefined when it is not or git cannot say. */
+function refPinOf(path: string, ref: string): string | undefined {
+  try {
+    return writablePin(pinOf(git(path, ['-c', 'log.showSignature=false', 'show', '--no-show-signature', `${ref}:accord/config.yml`])));
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -601,9 +615,9 @@ function claimRuleset(path: string, rel: string): boolean {
 
 /**
  * ST-LN-96 rel-ac-1 (RESEARCH Open Question 8): the claim pin to write as `ruleset` into the ticket of the worktree `path`, or undefined when nothing is to be
- * written: the ticket file holds no `ruleset`, it has a `claim: <id>` commit whose config pin is a plain x.y.z below RULESET_FROM, and git could read it. A ticket whose file is only
- * on its branch cannot be backfilled by `accord upgrade` (the upgrade branch has no such file), so its first sync does it. A rebase replays the claim commit onto the new base, so after one the claim pin is the new base's and there is nothing
- * to backfill (reported to the owner as a gap, not worked around here).
+ * written: the ticket file holds no `ruleset` and no commit on the branch ever wrote one, it has a `claim: <id>` commit whose config pin is a plain x.y.z below RULESET_FROM, and git
+ * could read it. A ticket whose file is only on its branch cannot be backfilled by `accord upgrade` (the upgrade branch has no such file), so its first sync does it. A rebase replays
+ * the claim commit onto the new base, so after one the claim pin is the new base's: the pin is read BEFORE the sync, while the original claim commit is reachable (backfillRuleset's `ref`).
  */
 function claimPinToBackfill(path: string, id: string): string | undefined {
   let text: string;
@@ -614,30 +628,59 @@ function claimPinToBackfill(path: string, id: string): string | undefined {
   }
   if (rulesetOfTicket(text) !== undefined) return undefined;
   const fact = gitClaimFacts(path, id);
-  if (fact === undefined || 'error' in fact) return undefined;
+  // a ruleset an earlier commit wrote and the file has lost is a hand removal: gate.ruleset-missing reports it, it is not backfilled
+  if (fact === undefined || 'error' in fact || fact.ruleset !== undefined) return undefined;
   return fact.pin !== undefined && /^\d+\.\d+\.\d+$/.test(fact.pin) && pinBefore(RULESET_FROM, fact.pin) ? fact.pin : undefined;
 }
 
+/** What backfillRuleset wrote: the pin, the commit it made and the commit before it. */
+interface Backfill {
+  pin: string;
+  commit: string;
+  before: string;
+}
+
 /**
- * ST-LN-96 rel-ac-1, T-03.1-10: after a sync, once the branch carries a pin that is a plain x.y.z not before RULESET_FROM (an older repository's published schema refuses the field),
- * write `ruleset: "<claim pin>"` into the ticket in one records-only commit whose subject is `ruleset: <id> from its claim commit`, never `claim: <id>`, so the claim reader still
- * reads the original claim commit. Nothing is written without a pin from claimPinToBackfill; a failed write or commit is undone and named, and the sync stands.
+ * ST-LN-96 rel-ac-1, T-03.1-10: write `ruleset: "<claim pin>"` into the ticket in one records-only commit whose subject is `ruleset: <id> from its claim commit`, never `claim: <id>`, so the claim
+ * reader still reads the original claim commit. Nothing is written without a pin from claimPinToBackfill, or unless the branch carries a pin that is a plain x.y.z not before RULESET_FROM (an
+ * older repository's published schema refuses the field): the pin of the worktree, or, with `ref` (a sync that rewrites the branch is about to take it in), the pin of that ref. A rebase and a
+ * git.sync script replay this commit, so they call it BEFORE the sync, with `ref`, when the claim commit and its merge base are still reachable; a merge keeps the claim commit and calls it after.
+ * A failed write or commit is undone and named, and the sync stands. Returns what it wrote, for the caller to report; undefined when nothing was written.
  */
-function backfillRuleset(ctx: CommandContext, id: string, path: string): void {
-  if (rulesetPinOf(path) === undefined) return;
+function backfillRuleset(ctx: CommandContext, id: string, path: string, ref?: string): Backfill | undefined {
+  if (rulesetPinOf(path) === undefined && (ref === undefined || refPinOf(path, ref) === undefined)) return undefined;
   const pin = claimPinToBackfill(path, id);
-  if (pin === undefined) return;
+  if (pin === undefined) return undefined;
   const rel = ':(literal)' + `accord/tickets/${id}.md`;
   try {
-    if (!writeKey(path, `accord/tickets/${id}.md`, 'ruleset', pin)) return;
+    const before = git(path, ['rev-parse', 'HEAD']).trim();
+    if (!writeKey(path, `accord/tickets/${id}.md`, 'ruleset', pin)) return undefined;
     git(path, ['add', '--', rel]);
     git(path, ['commit', '-q', '-m', `ruleset: ${id} from its claim commit`]);
+    return { pin, commit: git(path, ['rev-parse', 'HEAD']).trim(), before };
   } catch (e) {
     gitOk(path, ['checkout', 'HEAD', '--', rel]);
     ctx.stdout.write(`ruleset: ${id} could not be backfilled: ${firstLine(e instanceof UsageError ? e.message.split('\n').slice(-1)[0] : e)}\n`);
-    return;
+    return undefined;
   }
-  ctx.stdout.write(`backfilled: ${id} ruleset ${pin}\n`);
+}
+
+const backfilled = (ctx: CommandContext, id: string, b: Backfill | undefined): void => {
+  if (b !== undefined) ctx.stdout.write(`backfilled: ${id} ruleset ${b.pin}\n`);
+};
+
+/**
+ * The sync that followed a backfill commit was refused and left the branch as it was: take that commit off again, so the branch really is as it was (a branch pinned below RULESET_FROM
+ * must not keep a `ruleset`). Only while HEAD is still that commit, nothing is under way and the tree is clean; `--keep` moves nothing else. Never fails the refusal it follows.
+ */
+function undoBackfill(path: string, b: Backfill): void {
+  try {
+    if (git(path, ['rev-parse', 'HEAD']).trim() !== b.commit) return;
+    if (git(path, ['status', '--porcelain', '--untracked-files=no']).trim() !== '' || gitOk(path, ['rev-parse', '-q', '--verify', 'MERGE_HEAD'])) return;
+    git(path, ['reset', '-q', '--keep', b.before]);
+  } catch {
+    // the commit stays; it is one the next sync replays
+  }
 }
 
 /** The first word of a shell command line, quotes removed. */
@@ -843,25 +886,34 @@ function continueMerge(ctx: CommandContext, id: string, path: string, branch: st
   } catch {
     return behind();
   }
-  const done = syncDefault(
-    path,
-    ref,
-    branch,
-    strategy,
-    {
-      conflict:
-        strategy === 'rebase'
-          ? `rebase it by hand with git -C "${path}" rebase ${def}, resolve the conflicts and finish with git rebase --continue, then type /accord continue ${id}`
-          : `merge it by hand with git -C "${path}" merge ${def}, resolve the conflict and commit, then type /accord continue ${id}`,
-      clash: `move it, then type /accord continue ${id}`,
-    },
-    sync === undefined ? undefined : { command: sync, ticket: id },
-  );
+  // ST-LN-96 rel-ac-1: a rebase and a git.sync script rewrite the claim commit, so the backfill is committed first and replayed by them
+  const rewrites = sync !== undefined || strategy === 'rebase';
+  const early = rewrites ? backfillRuleset(ctx, id, path, ref) : undefined;
+  let done: ReturnType<typeof syncDefault>;
+  try {
+    done = syncDefault(
+      path,
+      ref,
+      branch,
+      strategy,
+      {
+        conflict:
+          strategy === 'rebase'
+            ? `rebase it by hand with git -C "${path}" rebase ${def}, resolve the conflicts and finish with git rebase --continue, then type /accord continue ${id}`
+            : `merge it by hand with git -C "${path}" merge ${def}, resolve the conflict and commit, then type /accord continue ${id}`,
+        clash: `move it, then type /accord continue ${id}`,
+      },
+      sync === undefined ? undefined : { command: sync, ticket: id },
+    );
+  } catch (e) {
+    if (early !== undefined) undoBackfill(path, early);
+    throw e;
+  }
   const how = done.by !== undefined ? 'team' : strategy === 'rebase' ? 'rebase' : 'merge';
   if (how === 'team') ctx.stdout.write(`synced: ${branch} by git.sync\n`);
   else if (how === 'rebase') for (const [was, now] of done.rebased) ctx.stdout.write(`rebased: ${was} -> ${now}\n`);
   else ctx.stdout.write(`merged: ${n} commit${n === 1 ? '' : 's'} of ${def} into ${branch}\n`);
-  backfillRuleset(ctx, id, path);
+  backfilled(ctx, id, early ?? (rewrites ? undefined : backfillRuleset(ctx, id, path)));
   // the marker of the pre-merge setup never stands for the merge commit
   rmSync(setupMarker(path), { force: true });
   let failure: unknown;
@@ -996,8 +1048,17 @@ export function worktreeSync(ctx: CommandContext, id: string): number {
   if (gitOk(ctx.root, ['merge-base', '--is-ancestor', ref, 'HEAD'])) return 0;
   const strategy = ctx.snapshot.config?.git?.merge;
   const sync = ctx.snapshot.config?.git?.sync;
-  const done = syncDefault(ctx.root, ref, branch, strategy, { conflict: 'resolve the conflict, then start verify again', clash: 'move it, then start verify again' }, sync === undefined ? undefined : { command: sync, ticket: id });
-  const rewrote = done.by !== undefined || strategy === 'rebase';
+  // ST-LN-96 rel-ac-1: a rebase and a git.sync script rewrite the claim commit, so the backfill is committed first and replayed by them
+  const rewrote = sync !== undefined || strategy === 'rebase';
+  const early = rewrote ? backfillRuleset(ctx, id, ctx.root, ref) : undefined;
+  let done: ReturnType<typeof syncDefault>;
+  try {
+    done = syncDefault(ctx.root, ref, branch, strategy, { conflict: 'resolve the conflict, then start verify again', clash: 'move it, then start verify again' }, sync === undefined ? undefined : { command: sync, ticket: id });
+  } catch (e) {
+    if (early !== undefined) undoBackfill(ctx.root, early);
+    throw e;
+  }
+
   if (rewrote) {
     if (done.by !== undefined) ctx.stdout.write(`synced: ${branch} by ${done.by}\n`);
     // the records that name a commit by sha (review heads, plan baseline) stay owner-typed: the pairs are what to retype
@@ -1007,7 +1068,7 @@ export function worktreeSync(ctx: CommandContext, id: string): number {
       rebindAfterRebase(ctx, id, ctx.root);
     }
   }
-  backfillRuleset(ctx, id, ctx.root);
+  backfilled(ctx, id, early ?? (rewrote ? undefined : backfillRuleset(ctx, id, ctx.root)));
   if (rewrote) {
     // every commit has a new sha, so a plain push is refused once origin holds the branch; the lease keeps a teammate's commit from being overwritten.
     // A team script is pushed too, even when origin has no such branch yet: the branch on origin must hold what the gate judges

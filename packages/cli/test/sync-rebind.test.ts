@@ -384,3 +384,28 @@ it('risk:complex-branching a hand edit of the backfilled ruleset fails changed a
     }
   }
 }, 360_000);
+
+it('risk:data-loss a refused rebase leaves a pre-0.5.0 ticket as it was, without the backfill commit (ST-LN-96 rel-ac-1)', async () => {
+  const REBASING = 'git:\n  merge: rebase\n';
+  const c = copy({ tickets: [] });
+  running.v = '0.4.1';
+  writeFiles(c.root, { [CONFIG_REL]: pinned('0.4.1') + REBASING, 'notes.txt': 'base\n' });
+  commitMsg(c.root, 'pin 0.4.1 with rebase');
+  c.git('push', '-q', 'origin', 'main');
+  const wt = await claimedOnBranch(c);
+  writeFiles(wt, { 'notes.txt': 'branch\n' });
+  commitMsg(wt, 'branch edits the notes');
+  gitRun(wt, 'push', '-q', '-u', 'origin', 't/ST-9');
+  running.v = RULESET_FROM;
+  writeFiles(c.root, { [CONFIG_REL]: pinned(RULESET_FROM) + REBASING, 'notes.txt': 'main\n' }); // the same lines, edited on both sides: the rebase stops
+  commitMsg(c.root, 'upgrade and edit the notes');
+  c.git('push', '-q', 'origin', 'main');
+  const tip = head(wt);
+  const r = await run(['worktree', 'open', ID, '--continue'], c.root);
+  expect(r.out + r.err).toMatch(/rebase of origin\/main into t\/ST-9 stopped on a conflict in notes\.txt/);
+  expect(gitRun(wt, 'reflog', '--format=%gs').includes('ruleset: ' + ID)).toBe(true); // it was made before the rebase, so the undo is what this case holds
+  expect(head(wt)).toBe(tip); // the branch is as it was: the backfill commit made for the rebase is taken off again
+  expect(subjects(wt).some((l) => l.startsWith('ruleset: '))).toBe(false);
+  expect(gitRun(wt, 'show', 'HEAD:' + TICKET)).not.toContain('ruleset');
+  expect(gitRun(wt, 'status', '--porcelain', '--untracked-files=no')).toBe('');
+}, 240_000);

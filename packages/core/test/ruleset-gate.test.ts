@@ -9,10 +9,11 @@ const SHA = 'a'.repeat(40);
 interface Opts {
   ruleset?: string; // the ticket's frontmatter value; absent: no key
   pin?: string; // claim pin; absent: no claim fact
+  claimRuleset?: string; // the ruleset the ticket file held at the claim commit; absent: the claim fact carries none
   fact?: { error: string }; // a failed claim read
   lane?: string;
 }
-const build = ({ ruleset, pin, fact, lane }: Opts = {}): RepoSnapshot => {
+const build = ({ ruleset, pin, claimRuleset, fact, lane }: Opts = {}): RepoSnapshot => {
   const files: Record<string, string> = {
     'accord/config.yml': CONFIG,
     'accord/tickets/T-1.md': laneTicket('T-1', {
@@ -22,7 +23,7 @@ const build = ({ ruleset, pin, fact, lane }: Opts = {}): RepoSnapshot => {
     }),
   };
   const snapshot = loadSnapshot({ files, tree: Object.keys(files).sort() });
-  const claimed = fact ?? (pin === undefined ? undefined : { sha: SHA, pin });
+  const claimed = fact ?? (pin === undefined ? undefined : { sha: SHA, pin, ...(claimRuleset === undefined ? {} : { ruleset: claimRuleset }) });
   return claimed === undefined ? snapshot : { ...snapshot, claimPins: { 'T-1': claimed } };
 };
 const GATES = { ready: gateReady, plan: gatePlan, done: gateDone } as const;
@@ -71,6 +72,39 @@ describe('gate.ruleset-changed', () => {
     expect(changed('ready', { ruleset: RULESET_FROM, pin: RULESET_FROM })).toEqual([]);
     expect(changed('ready', { ruleset: '0.5.1', pin: RULESET_FROM })).toHaveLength(1);
     expect(changed('ready', { ruleset: RULESET_FROM, pin: '0.4.1' })).toHaveLength(1);
+  });
+});
+
+// A rebase rewrites the claim commit onto the new base, so the config pin at it is main's new pin; the ruleset the claim commit's own ticket file holds is
+// what the claim wrote, and a rebase replays it unchanged.
+describe('gate.ruleset-changed with the claim-time ticket ruleset', () => {
+  it('risk:complex-branching the check compares with the claim-time ticket ruleset when the fact carries it (ST-LN-96 t1-ac-1)', () => {
+    for (const which of ['ready', 'plan', 'done'] as const) {
+      // rebased onto an upgraded main: the pin at the rewritten claim commit is 0.5.1, the claim wrote 0.5.0, the ticket still says 0.5.0
+      expect(changed(which, { ruleset: '0.5.0', pin: '0.5.1', claimRuleset: '0.5.0' }), which + ' rebased').toEqual([]);
+      // a hand edit after the claim still differs from what the claim wrote, even when it equals the pin at the claim commit
+      const f = changed(which, { ruleset: '0.5.1', pin: '0.5.1', claimRuleset: '0.5.0' });
+      expect(f, which + ' hand-edited').toHaveLength(1);
+      expect(f[0].level).toBe('error');
+      expect(f[0].pointer).toBe('/ruleset');
+      expect(f[0].reason).toContain('"0.5.1"');
+      expect(f[0].reason).toContain('"0.5.0"');
+      expect(f[0].reason).toContain(SHA.slice(0, 12));
+    }
+    for (const lane of ['S', 'R']) {
+      expect(changed('done', { lane, ruleset: '0.5.0', pin: '0.5.1', claimRuleset: '0.5.0' }), 'lane ' + lane).toEqual([]);
+      expect(changed('done', { lane, ruleset: '0.4.0', pin: '0.5.1', claimRuleset: '0.5.0' }), 'lane ' + lane + ' edited').toHaveLength(1);
+    }
+  });
+
+  it('risk:complex-branching a fact with no claim-time ruleset still compares with the config pin at the claim commit (ST-LN-96 t1-ac-2)', () => {
+    for (const which of ['ready', 'plan', 'done'] as const) {
+      const f = changed(which, { ruleset: '0.4.0', pin: '0.5.0' });
+      expect(f, which).toHaveLength(1);
+      expect(f[0].reason, which).toContain('0.4.0');
+      expect(f[0].reason, which).toContain('0.5.0');
+      expect(changed(which, { ruleset: '0.5.0', pin: '0.5.0' }), which + ' equal').toEqual([]);
+    }
   });
 });
 

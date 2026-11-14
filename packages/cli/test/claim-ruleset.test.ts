@@ -145,6 +145,46 @@ const rulesetFindings = async (which: 'ready' | 'plan' | 'done', cwd: string): P
   return found.findings.filter((f) => f.rule.startsWith('gate.ruleset-')).map((f) => `${f.rule}: ${f.reason}`);
 };
 
+/**
+ * A ticket claimed at RULESET_FROM (`ruleset: "0.5.0"`) by `worktree open`, then main moves its pin to `UPGRADED`, then the ticket branch is rebased onto
+ * main in its worktree: the rebase rewrites the claim commit onto the new base, so the config pin at the reachable claim commit is `UPGRADED` while the
+ * ticket file at it still holds the ruleset the claim wrote.
+ */
+const UPGRADED = '0.5.1';
+async function rebasedTicket(): Promise<{ c: Clone; wt: string; ticket: string }> {
+  const c = copy();
+  pinTo(c, RULESET_FROM);
+  const opened = await run(['worktree', 'open', 'ST-9'], c.root);
+  expect(opened.err).toBe('');
+  expect(opened.code).toBe(0);
+  const wt = c.sibling('ST-9');
+  pinTo(c, UPGRADED); // main moves on: the upgrade (also the running version now)
+  gitRun(wt, 'rebase', '-q', 'origin/main');
+  const claim = gitRun(wt, 'log', '-1', '--format=%H', '--grep=^claim: ST-9$').trim();
+  expect(gitRun(wt, 'show', claim + ':accord/config.yml')).toContain(`accord: "${UPGRADED}"`); // the pin at the rewritten claim commit is the new one
+  expect(gitRun(wt, 'show', claim + ':accord/tickets/ST-9.md')).toMatch(/\r?\nruleset: "0\.5\.0"\r?\n/); // the ticket at it still holds what the claim wrote
+  return { c, wt, ticket: `${wt}/accord/tickets/ST-9.md` };
+}
+
+it('risk:complex-branching a ticket rebased onto an upgraded main keeps its ruleset without gate.ruleset-changed (ST-LN-96 t1-ac-1)', async () => {
+  const { wt } = await rebasedTicket();
+  for (const which of ['ready', 'plan', 'done'] as const) expect(await rulesetFindings(which, wt), 'rebased ' + which).toEqual([]);
+}, 120_000);
+
+it('risk:complex-branching a ruleset hand-edited after the rebase still fails and names both values (ST-LN-96 t1-ac-2)', async () => {
+  const { wt, ticket } = await rebasedTicket();
+  // the edit the old restore hint asked for: move the ticket to the pin at the rewritten claim commit
+  writeFileSync(ticket, readFileSync(ticket, 'utf8').replace('ruleset: "0.5.0"', `ruleset: "${UPGRADED}"`));
+  commitMsg(wt, 'move the ruleset by hand');
+  for (const which of ['ready', 'plan', 'done'] as const) {
+    const f = await rulesetFindings(which, wt);
+    expect(f, which).toHaveLength(1);
+    expect(f[0], which).toMatch(/^gate\.ruleset-changed: /);
+    expect(f[0], which).toContain(`"${UPGRADED}"`);
+    expect(f[0], which).toContain(`"${RULESET_FROM}"`);
+  }
+}, 120_000);
+
 it('risk:complex-branching a hand-edited ruleset fails gate done on real git (ST-LN-96 t1-ac-2)', async () => {
   const c = copy();
   pinTo(c, RULESET_FROM);

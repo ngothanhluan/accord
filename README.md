@@ -100,6 +100,7 @@ Lanes:
   6. verify (`accord-verify`): a fresh verifier checks each criterion, writes `verification.md`, and `accord gate done` runs once the owner approves.
 
   `accord-debug` finds a root cause before any fix when something fails for a reason nobody has shown.
+- R, research: a question accord cannot answer from the code, with no change asked. `accord new ticket <id> --lane R` writes a ticket with a question, a timebox and a token budget the owner sets, quoted under `## Decisions`. The session researches within them, checks `accord budget <id>` between steps and stops to ask the owner past either, and ends in a record under `accord/research/`, written on its branch after the claim, that the ticket lists under `research:`; an older record listed there is evidence, not the result. There is no approach, plan, critic, review or verification; `accord gate done` refuses a branch that changes the shipped packages.
 - L (an epic) and P (a project) are not built yet. Accord proposes splitting such work into lane M tickets linked by `depends_on`.
 
 A request moves from S to M when it changes a public interface or schema, touches a listed sensitive area or auth, money or data deletion, has more than one plausible reading that one question cannot settle, or is expected to touch more than 5 files or more than 3 code areas, tests and generated copies not counted. A scout reads the code before any lane is proposed; `accord scout check` checks the citations and logged searches of its report and prints the lane numbers, and the report is saved as `accord/tickets/<id>/scout.md`, which `accord approve` requires of a lane M ticket, judged by the same check at the commit that last changed it, unless the file holds a `skipped: <reason>` line. A lane S ticket records the files it expects to touch, and `accord gate done` fails it when it touches others. A lane only rises, except that a lane M ticket whose intent is not yet approved may move to lane S in place, keeping its id, branch and worktree.
@@ -134,7 +135,8 @@ The skills call the CLI for you. These are the commands most useful to run by ha
 | `accord dashboard [--json]` | Print the ranked dashboard sections for you. |
 | `accord show <id> [--json | --approval [--short]]` | Print one ticket: its intent and each criterion with its state. `--approval` prints what the owner approves, and `--short` the shorter view the owner's yes is asked from. |
 | `accord scout check <file> [--ticket <id>]` | Check a scout report's citations and logged searches against the files git tracks, and print its lane numbers. `--ticket` leaves that ticket's own files and listed research records out of every search, as for a saved `scout.md`. |
-| `accord new ticket [id]` | Write `accord/tickets/<id>.md` from the template. |
+| `accord new ticket [id] [--lane <lane>]` | Write `accord/tickets/<id>.md` from the template, or from the lane's template under `--lane` (S, M, L, P, or R for research). |
+| `accord budget <id>` | Report whether a lane R ticket is within its timebox and token budget since its claim commit (exit 1 means stop and ask the owner), and print the `Spent:` line its research record states. Tokens read `not measured` when the checkout's own transcripts do not cover the time since the claim. |
 | `accord skills sync` | Write every skill the config declares into `.claude/skills/` and `.agents/skills/`. |
 | `accord worktree open <id>` | Find or prepare the ticket's worktree. |
 | `accord worktree clean` | Remove worktrees and branches of tickets done on the default branch. |

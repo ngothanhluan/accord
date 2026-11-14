@@ -6,7 +6,7 @@ import { UsageError, withReturnFacts } from '../load/fs.js';
 import { withPlanFix } from '../load/plan-diff.js';
 import { withRecordPins, withRoundFacts } from '../load/round-facts.js';
 import type { CommandContext } from '../run.js';
-import { requireLaneTicket } from './lane-args.js';
+import { refuseLaneR, requireLaneTicket } from './lane-args.js';
 
 /** ST-LN-17: the next review, plan critique or approach critique round, its cap and the fix executor's model, or the stop or refusal; exit 0 only for a next round. */
 export function round(ctx: CommandContext, id: string, options: { plan?: boolean; approach?: boolean }): number {
@@ -14,6 +14,7 @@ export function round(ctx: CommandContext, id: string, options: { plan?: boolean
   const plan = options.plan === true;
   const approach = options.approach === true;
   if (plan && approach) throw new UsageError('give --plan or --approach, not both');
+  refuseLaneR(ticket, id, plan ? 'plan critique' : approach ? 'approach critique' : 'review rounds');
   if (plan && ticket.frontmatter?.lane === 'S') {
     throw new UsageError('lane S has no plan critique; accord round ' + id + ' counts its review rounds');
   }

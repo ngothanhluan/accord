@@ -74,9 +74,20 @@ export function laneSHash(ticket: Ticket): string {
   return fnv1a64(LANE_S_SECTIONS.flatMap((k) => sectionParts(ticket, k)).join(SEP));
 }
 
-/** The hash `gate ready` records as `ac_hash`: the sections for lane S, the criteria otherwise. */
+/**
+ * ST-LN-94 94-ac-1: a lane R ticket has no criteria either: its Ready record hashes its question, timebox and token budget.
+ * ## Decisions stays outside; gate ready (and gate done) check the owner's quoted answer on every run instead.
+ */
+export const LANE_R_SECTIONS = ['question', 'timebox', 'token budget'] as const;
+
+export function laneRHash(ticket: Ticket): string {
+  return fnv1a64(LANE_R_SECTIONS.flatMap((k) => sectionParts(ticket, k)).join(SEP));
+}
+
+/** The hash `gate ready` records as `ac_hash`: the sections for lanes S and R, the criteria otherwise. */
 export function readyHash(ticket: Ticket): string | undefined {
-  return ticket.frontmatter?.lane === 'S' ? laneSHash(ticket) : acHash(ticket.scenarios);
+  const lane = ticket.frontmatter?.lane;
+  return lane === 'S' ? laneSHash(ticket) : lane === 'R' ? laneRHash(ticket) : acHash(ticket.scenarios);
 }
 
 /** Spec §4: recorded by `accord approve`; Ready fails when the ticket no longer hashes to it. */

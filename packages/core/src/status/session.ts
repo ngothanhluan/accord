@@ -6,7 +6,8 @@ import type { StatusRow } from './rows.js';
 /** The shipped ruleset with the pinned invocation filled in. */
 export const rulesetText = (invocation: string): string => templates['ruleset.md'].replace('{{invocation}}', invocation);
 
-const WORKING = ['plan', 'build', 'review', 'verify'];
+// ST-LN-94 94-ac-5: a claimed lane R ticket at research is work under way, as lane M at plan or build.
+const WORKING = ['plan', 'build', 'review', 'verify', 'research'];
 
 /** No newline. Dropped and archived rows count nowhere. */
 export function sessionLine(rows: StatusRow[]): string {

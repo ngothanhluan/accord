@@ -1,11 +1,11 @@
 // ST-LN-2 task 1: `accord dashboard` — sections, column headers, titles; ST-LN-61 lifted the row caps.
 import { afterAll, beforeAll, expect, it } from 'vitest';
-import { dashboard, loadSnapshot } from '@accord-dev/accord-core';
+import { dashboard, laneRHash, loadSnapshot } from '@accord-dev/accord-core';
 import type { Dashboard, StatusRow } from '@accord-dev/accord-core';
 import { renderDashboard } from '../src/render/dashboard.js';
 import { appendFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { cleanup, commitAllAt, commitMsg, copyRepo, gitRun, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
+import { cleanup, commitAllAt, commitMsg, copyRepo, gitRun, makeEmptyRepo, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
 import { approve, building, CONFIG, discussFiles, done, gateReadyIn, LANE_BODY, laneTicket, P, ready, sized } from '../../../test/helpers/lane.js';
 import type { Files } from '../../../test/helpers/lane.js';
 
@@ -414,3 +414,46 @@ it('ac-4 an unwritten intent points anchor and dashboard to the intent interview
     cleanup(repo);
   }
 });
+
+// ST-LN-94 94-ac-5: lane R rows show R's own stages; a ready unclaimed one is offered to pick up.
+const R_BODY = ['## Question', 'Does the critic need a second round?', '', '## Timebox', '4 hours', '', '## Token budget', '800k weighted tokens', '', '## Decisions', '- D-01 Timebox 4 hours, token budget 800k weighted tokens — "fine"', ''].join('\n');
+const rTicket = (id: string, fm: string[] = []) => laneTicket(id, { lane: 'R', body: R_BODY, frontmatter: [`research: ["accord/research/2026-11-14-${id}.md"]`, ...fm] });
+
+it('risk:complex-branching the dashboard lists lane R tickets with their stage (ST-LN-94 94-ac-5)', async () => {
+  const hash = laneRHash(loadSnapshot({ files: { 'accord/config.yml': CONFIG, [P('R-1')]: rTicket('R-1') }, tree: [] }).tickets['R-1']);
+  const repo = makeEmptyRepo();
+  try {
+    writeFiles(repo, { 'accord/config.yml': CONFIG, [P('R-1')]: rTicket('R-1', [`ac_hash: "${hash}"`]), [P('R-2')]: rTicket('R-2') });
+    identity(repo);
+    commitMsg(repo, 'fixture');
+    const sha = gitRun(repo, '-c', 'user.email=bo@example.com', '-c', 'user.name=x', '-c', 'commit.gpgsign=false', 'commit-tree', 'HEAD^{tree}', '-p', 'HEAD', '-m', 'claim').trim();
+    gitRun(repo, 'update-ref', 'refs/remotes/origin/t/R-2', sha);
+    gitRun(repo, 'config', 'user.email', 'an@example.com');
+    const res = await run(['dashboard'], repo);
+    expect(res.code).toBe(0);
+    const lines = res.out.split('\n');
+    const at = (name: string, id: string) => {
+      const from = lines.indexOf(name);
+      return lines.slice(from, lines.indexOf('', from)).find((l) => l.includes(id + ' ')) ?? '';
+    };
+    expect(at('READY', 'R-1')).toMatch(/^ {2}R-1 +R +Export +research, next: the research, accord budget <id> between steps/);
+    expect(at('TEAM', 'R-2')).toMatch(/^ {2}R-2 +R +Export +intent, next: write ## Question, /);
+    expect(at('TEAM', 'R-2')).toContain('bo@example.com');
+    expect(res.out).not.toMatch(/build \d/);
+    expect(summaryLine(res.out)).toBe('1 in progress, 1 ready, 0 blocked, 0 backlog, 0 done');
+    expect(lines[lines.length - 2]).toBe('-> [Pick up R-1]  [New request]');
+    const j = JSON.parse((await run(['dashboard', '--json'], repo)).out) as Dashboard;
+    expect(j.ready.rows.map((r) => [r.id, r.lane, r.stage])).toEqual([['R-1', 'R', 'research']]);
+    expect(j.team.rows.map((r) => [r.id, r.lane, r.stage])).toEqual([['R-2', 'R', 'intent']]);
+    // The status table shows its lane columns for R rows, and accord anchor takes an R ticket.
+    const table = (await run(['status'], repo)).out.split('\n');
+    expect(table[0]).toMatch(/ stage +who +blocked by/);
+    expect(table.find((l) => l.startsWith('R-1 '))).toMatch(/ research +- +- /);
+    expect(table.find((l) => l.startsWith('R-2 '))).toMatch(/ intent +bo@example\.com /);
+    const anchor = await run(['anchor', 'R-1'], repo);
+    expect(anchor.code).toBe(0);
+    expect(anchor.out).toContain('Lane: R\nStage: research, next: the research, accord budget <id> between steps');
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);

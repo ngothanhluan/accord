@@ -76,7 +76,7 @@ it('risk:regression the claim commit off the default branch outranks an older on
     const claim = commitMsg(repo, 'claim: T-1');
     writeFiles(repo, { 'src/work.ts': 'export const w = 1;\n' });
     commitAll(repo, 'work');
-    expect(gitClaimFacts(repo, 'T-1')).toEqual({ sha: claim, pin: '0.4.1', basePin: '0.4.0' });
+    expect(gitClaimFacts(repo, 'T-1')).toEqual({ sha: claim, time: expect.any(Number), pin: '0.4.1', basePin: '0.4.0' });
     expect(missing(withClaimPins(repo, snapshotAt('0.4.1'), 'T-1'))).toHaveLength(1);
   } finally {
     cleanup(repo);
@@ -207,7 +207,7 @@ it('risk:regression with two claim commits on the working branch the newer one i
     writeFiles(repo, { 'accord/config.yml': pinned('0.4.1') });
     const second = commitMsg(repo, 'claim: T-1'); // the re-claim after the upgrade
     expect(second).not.toBe(first);
-    expect(gitClaimFacts(repo, 'T-1')).toEqual({ sha: second, pin: '0.4.1', basePin: '0.4.0' });
+    expect(gitClaimFacts(repo, 'T-1')).toEqual({ sha: second, time: expect.any(Number), pin: '0.4.1', basePin: '0.4.0' });
     expect(missing(withClaimPins(repo, snapshotAt('0.4.1'), 'T-1'))).toHaveLength(1);
 
     // The same history with the re-claim dated before the first claim: ancestry, not the clock, says which is newer.
@@ -226,7 +226,7 @@ it('risk:regression with two claim commits on the working branch the newer one i
         if (saved.c === undefined) delete process.env.GIT_COMMITTER_DATE; else process.env.GIT_COMMITTER_DATE = saved.c;
         if (saved.a === undefined) delete process.env.GIT_AUTHOR_DATE; else process.env.GIT_AUTHOR_DATE = saved.a;
       }
-      expect(gitClaimFacts(dated, 'T-1')).toEqual({ sha: later, pin: '0.4.1', basePin: '0.4.0' });
+      expect(gitClaimFacts(dated, 'T-1')).toEqual({ sha: later, time: 978307200, pin: '0.4.1', basePin: '0.4.0' });
     } finally {
       cleanup(dated);
     }

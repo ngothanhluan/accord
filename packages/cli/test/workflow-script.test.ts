@@ -900,3 +900,47 @@ describe.skipIf(noBash)('the emitted workflow script — against the real CLI', 
     }
   });
 });
+
+// ST-LN-94 94-ac-3, research Pitfall 8: a lane R ticket has no approval, so ac_hash (written by gate ready) is what makes it ready, as on
+// lane S. The generated script gates a ready R ticket in an accord-only pull request, protects it from deletion, and never reports a plain R
+// that was never approved as a dropped lane; an approved ticket moved to R is refused like one moved to S (03-19 Ruling). The generated
+// script only: this repository's own workflow takes the change at the release's accord upgrade.
+it.skipIf(noBash)('risk:complex-branching the CI workflow gates a lane R pull request once it holds ac_hash (ST-LN-94 94-ac-3)', async () => {
+  const RECORD = 'accord/research/2026-11-20-critic-rounds.md';
+  const rText = (lane: string, hash: boolean, id = 'R-1'): string =>
+    `---\nid: ${id}\nstatus: open\nlane: ${lane}\n${hash ? '' : '# '}ac_hash: "fnv1a64:0000000000000000"\nresearch: ["${RECORD}"]\n---\n\n## Question\nq\n`;
+  const withRecord = (text: string) => (r: string): void => {
+    write(r, 'accord/tickets/R-1.md', text);
+    write(r, RECORD, '# Critic rounds\n');
+  };
+  const cases: Array<{ name: string; s: { repo: string; base: string }; gated: boolean; code: number; says?: string }> = [
+    { name: 'ready R, accord-only', s: sandbox(withRecord(rText('R   # R: a research question', true))), gated: true, code: 0 },
+    { name: 'ready R, quoted lane', s: sandbox(withRecord(rText('"R"', true))), gated: true, code: 0 },
+    { name: 'queued R', s: sandbox(withRecord(rText('R', false))), gated: false, code: 0, says: 'not gating R-1 - not approved' },
+    {
+      name: 'ready R at the base, lane S at HEAD',
+      s: sandbox((r) => write(r, 'accord/tickets/R-1.md', LS_TEXT.replace('LM-1', 'R-1')), withRecord(rText('R', true))),
+      gated: true,
+      code: 0,
+    },
+    {
+      name: 'ready R at the base, deleted',
+      s: sandbox((r) => rmSync(join(r, 'accord', 'tickets', 'R-1.md')), withRecord(rText('R', true))),
+      gated: false,
+      code: 1,
+      says: 'R-1: an approved or done ticket cannot be deleted before it is dropped',
+    },
+    { name: 'unapproved M at the base, ready R', s: history([putTicket(rText('R', true, LM_ID))], putTicket(LM_UNAPPROVED)), gated: true, code: 0 },
+    { name: 'approved M at the base, R', s: history([putTicket(rText('R', true, LM_ID))], putTicket(LM_APPROVED)), gated: false, code: 1, says: LANE_REFUSAL },
+  ];
+  const runs = await Promise.all(cases.map(({ s }) => runScriptAsync(s.repo, { base: s.base })));
+  for (const [i, c] of cases.entries()) {
+    const r = runs[i];
+    const said = r.out + r.err;
+    const id = c.name.includes(' M at the base') ? LM_ID : 'R-1';
+    expect(r.code, `${c.name}: ${said}`).toBe(c.code);
+    expect(r.calls.some((call) => call.endsWith(` gate done ${id}`)), `${c.name}: ${r.calls.join(' | ')}`).toBe(c.gated);
+    if (c.says !== undefined) expect(said, c.name).toContain(c.says);
+    if (c.says !== LANE_REFUSAL) expect(said, c.name).not.toContain('lane cannot drop after approval');
+  }
+}, 300_000);

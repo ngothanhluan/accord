@@ -5,11 +5,12 @@ import { UsageError } from '../load/fs.js';
 import { approachFacts, blockedApproval } from './approval-blockers.js';
 import type { CommandContext } from '../run.js';
 import { writeKey } from '../write/key.js';
-import { requireLaneTicket } from './lane-args.js';
+import { refuseLaneR, requireLaneTicket } from './lane-args.js';
 import { scoutRefusal } from './scout.js';
 
 export function approve(ctx: CommandContext, id: string): number {
   const ticket = requireLaneTicket(ctx, id);
+  refuseLaneR(ticket, id, 'approval');
   if (ticket.frontmatter?.lane === 'S') {
     throw new UsageError(ticket.file + ' is a lane S ticket, which needs no approval: run accord gate ready ' + id);
   }

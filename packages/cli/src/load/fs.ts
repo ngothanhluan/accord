@@ -3,8 +3,9 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { branchTemplateOf, CALL_SIGN, DEFAULT_BRANCH_TEMPLATE, isIntactRender, isResearchPath, isSha, loadSnapshot, normaliseText, peopleOf, pinOf, RETIRED_FILES, scopeLines, workOf } from '@accord-dev/accord-core';
-import type { BranchChange, BranchFact, RepoSnapshot, SnapshotInput } from '@accord-dev/accord-core';
+import { branchTemplateOf, CALL_SIGN, DEFAULT_BRANCH_TEMPLATE, isIntactRender, isResearchPath, isResearchRecord, isSha, loadSnapshot, normaliseText, peopleOf, pinOf, RETIRED_FILES, scopeLines, workOf } from '@accord-dev/accord-core';
+import type { BranchChange, BranchFact, RepoSnapshot, ResearchFact, SnapshotInput } from '@accord-dev/accord-core';
+import { gitResearchFact, researchFactsFor } from './research-facts.js';
 
 /** Environment problem the user must fix (no git, not a repository, no accord/ folder); exit 2 in Phase 5. */
 export class UsageError extends Error {
@@ -1000,9 +1001,12 @@ function loadParts(root: string, stage = false, light = false, defer = false, fr
       planFacts[id] = { ...(subject === undefined ? {} : { subject }), clean: !dirty.has(path) };
     }
   }
+  // ST-LN-94 CR-01: a lane R ticket is done only on a record its branch changed since the claim, which git says; none of this runs without one.
+  const researchFacts = facts === undefined ? undefined : researchFactsFor(root, first.tickets, { ref: researchRef(root, first.tickets) });
   const input: SnapshotInput = {
     files,
     tree,
+    ...(researchFacts === undefined ? {} : { researchFacts }),
     ...(planFacts === undefined ? {} : { planFacts }),
     ...(branchTemplates.length === 1 ? {} : { branchTemplates }),
     ...(git === undefined ? {} : { git }),
@@ -1228,11 +1232,22 @@ export function loadClaimView(root: string): { checkout: SnapshotInput; view: Sn
     const mine = researchListed({ [recordPaths(id)[0]]: text }, []).filter((p) => !Object.hasOwn(checkout.files, p) && !Object.hasOwn(files, p));
     Object.assign(files, gitFilesAt(root, ref, mine));
   }
+  // ST-LN-94 REVIEW2 WR-01: a lane R ticket read from its claimed branch has its research fact read at that branch's tip, where its claim is.
+  const researchFacts: Record<string, ResearchFact> = { ...bare.researchFacts };
+  let defaultRef: { ref: string | undefined } | undefined;
+  for (const [id, ref] of candidates) {
+    const text = read.get(ref + ':' + recordPaths(id)[0]);
+    if (text === undefined) continue;
+    const t = loadSnapshot({ files: { [recordPaths(id)[0]]: text }, tree: [] }).tickets[id];
+    if (t?.frontmatter?.lane !== 'R' || (t.frontmatter.research ?? []).length === 0) continue;
+    defaultRef ??= { ref: defaultRefOf(root) };
+    researchFacts[id] = gitResearchFact(root, t, { ref: defaultRef.ref, rev: ref, now: Math.floor(Date.now() / 1000) });
+  }
   const afterVerify: Record<string, AfterVerify> = {
     ...withAfter(checkoutEntries, fromCheckout, (id) => !candidates.some(([c]) => c === id)),
     ...withAfter(candidateEntries, lists.slice(checkoutEntries.length)),
   };
-  return { checkout, view: { ...bare, files, planFacts, ...(Object.keys(afterVerify).length === 0 ? {} : { afterVerify }) }, branch, ...(refs === undefined ? {} : { refs }) };
+  return { checkout, view: { ...bare, files, planFacts, ...(Object.keys(researchFacts).length === 0 ? {} : { researchFacts }), ...(Object.keys(afterVerify).length === 0 ? {} : { afterVerify }) }, branch, ...(refs === undefined ? {} : { refs }) };
 }
 
 /** IDS-1: `git config user.email`, trimmed; '' when unset (git exits 1). */
@@ -1645,10 +1660,23 @@ export function droppedOn(root: string, ref: string, ids: readonly string[]): Se
   return new Set(ids.filter((id) => Object.hasOwn(tickets, id) && tickets[id]?.frontmatter?.status === 'dropped'));
 }
 
-/** ST-LN-25: a snapshot of `ref`'s config and the records of `ids`, read from the git tree with no checkout. */
+/**
+ * ST-LN-25: a snapshot of `ref`'s config and the records of `ids`, read from the git tree with no checkout. ST-LN-94 CR-01: a lane R ticket's
+ * listed research records are read from `ref` too, with its research fact at `ref`, so a merged R ticket reads done there.
+ */
 export function snapshotAt(root: string, ref: string, ids: readonly string[]): RepoSnapshot {
   const paths = ['accord/config.yml', ...ids.flatMap((i) => ['accord/tickets/' + i + '.md', 'accord/tickets/' + i + '/plan.md', 'accord/tickets/' + i + '/ledger.md', 'accord/tickets/' + i + '/review.md'])];
-  return loadSnapshot({ files: gitFilesAt(root, ref, paths), tree: [] });
+  const files = gitFilesAt(root, ref, paths);
+  const first = loadSnapshot({ files, tree: [] });
+  const records = [...new Set(Object.values(first.tickets).filter((t) => t.frontmatter?.lane === 'R').flatMap((t) => (t.frontmatter?.research ?? []).filter(isResearchRecord)))];
+  if (records.length === 0) return first;
+  const researchFacts = researchFactsFor(root, first.tickets, { ref, rev: ref });
+  return loadSnapshot({ files: { ...files, ...gitFilesAt(root, ref, records) }, tree: [], ...(researchFacts === undefined ? {} : { researchFacts }) });
+}
+
+/** CR-01: the default ref, read only when some lane R ticket lists research (the one git spawn a repository without one never pays). */
+function researchRef(root: string, tickets: RepoSnapshot['tickets']): string | undefined {
+  return Object.values(tickets).some((t) => t.frontmatter?.lane === 'R' && (t.frontmatter.research ?? []).length > 0) ? defaultRefOf(root) : undefined;
 }
 
 /** BUG-LN-13 D-01: origin's default ref (gitDefaultRef); in a clone with no `origin` remote, the first of refs/heads/main and refs/heads/master that resolves; else undefined. Never fetches. */

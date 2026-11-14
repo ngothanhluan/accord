@@ -11,6 +11,7 @@ import { anchor } from './commands/anchor.js';
 import { show } from './commands/show.js';
 import { approve } from './commands/approve.js';
 import { brief } from './commands/brief.js';
+import { budget } from './commands/budget.js';
 import { gate } from './commands/gate.js';
 import { hook, HOOK_EVENTS } from './commands/hook.js';
 import { init } from './commands/init.js';
@@ -185,6 +186,13 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
       setCode(round(preflight(opts), id, options));
     });
 
+  program
+    .command('budget <id>')
+    .description('print whether a lane R ticket is within its timebox and token budget since its claim commit, or stop: ask owner, and the Spent line its research record states')
+    .action((id: string) => {
+      setCode(budget(preflight(opts), id));
+    });
+
   // D-95: `new ticket` is deliberately *not* exempt from the pin. The ticket template changes between
   // versions, so scaffolding from a template the repository is not pinned to is exactly the split
   // PITFALLS section 11 describes — the same shared preflight therefore stops it before any path is
@@ -201,7 +209,7 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
         .choices(['epic', 'story', 'bug'])
         .default('story'),
     )
-    .addOption(new Option('--lane <lane>', 'write a lane ticket (S, M, L, or P)').choices(['S', 'M', 'L', 'P']))
+    .addOption(new Option('--lane <lane>', 'write a lane ticket (S, M, L, P, or R: research)').choices(['S', 'M', 'L', 'P', 'R']))
     .option('--worktree', 'write the ticket in its own new worktree on its claim branch, commit and push it, then run setup there')
     .action((id: string | undefined, options: { type: 'epic' | 'story' | 'bug'; lane?: Lane; worktree?: boolean }) => {
       setCode(newTicket(preflight(opts, options.worktree === true ? 'light' : 'checkout'), id, options));

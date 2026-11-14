@@ -19,6 +19,15 @@ export function requireTicket(snapshot: RepoSnapshot, id: string): Ticket {
   return snapshot.tickets[id];
 }
 
+/**
+ * ST-LN-94 D-10: the refusal of a command that has nothing for a lane R ticket; `what` names what lane R lacks. Run before any work.
+ */
+export function refuseLaneR(ticket: Ticket, id: string, what: string): void {
+  if (ticket.frontmatter?.lane === 'R') {
+    throw new UsageError('lane R has no ' + what + ': a research ticket ends in a record under accord/research/; see accord gate done ' + id);
+  }
+}
+
 /** The ticket when it exists, its frontmatter loaded, and it carries `lane:`; a UsageError otherwise. */
 export function requireLaneTicket(ctx: CommandContext, id: string): Ticket {
   const ticket = requireTicket(ctx.snapshot, id);

@@ -142,14 +142,20 @@ function commitFlags(dir: string): string[] {
   ];
 }
 
-/** Commit everything with `-F <file> --cleanup=verbatim` (conventions.md), never `-m`; returns the new HEAD sha. */
-export function commitMsg(dir: string, text: string): string {
+/**
+ * Commit everything with `-F <file> --cleanup=verbatim` (conventions.md), never `-m`; returns the new HEAD sha. `when` sets the author and
+ * committer date, so a test can age a commit.
+ */
+export function commitMsg(dir: string, text: string, when?: Date): string {
   const folder = mkdtempSync(join(tmpdir(), 'accord-msg-'));
   try {
     const file = join(folder, 'msg.txt');
     writeFileSync(file, text + '\n');
     gitRun(dir, 'add', '-A');
-    gitRun(dir, ...commitFlags(dir), 'commit', '-q', '-F', file, '--cleanup=verbatim');
+    const stamp = when === undefined ? undefined : `@${Math.floor(when.getTime() / 1000)} +0000`;
+    gitIn(dir, stamp === undefined ? undefined : { GIT_COMMITTER_DATE: stamp, GIT_AUTHOR_DATE: stamp })(
+      ...commitFlags(dir), 'commit', '-q', '-F', file, '--cleanup=verbatim',
+    );
     return gitRun(dir, 'rev-parse', 'HEAD').trim();
   } finally {
     cleanup(folder);

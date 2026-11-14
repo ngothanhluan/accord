@@ -95,7 +95,10 @@ export function newTicket(
   }
 
   // R14a: an epic groups stories, so lane M (one feature) is meaningless for it; refuse before any write.
-  if (options.type === 'epic' && (options.lane === 'M' || options.lane === 'S')) throw new UsageError('an epic is lane L or P, not M');
+  // ST-LN-94 D-10: nor lane R, a research question. The M and S message stays as it was.
+  if (options.type === 'epic' && (options.lane === 'M' || options.lane === 'S' || options.lane === 'R')) {
+    throw new UsageError('an epic is lane L or P, not ' + (options.lane === 'R' ? 'R' : 'M'));
+  }
 
   // The generated record on the core public API is the only template source: packages/core/templates/
   // is not shipped into a consumer's node_modules the way the generated module is. `epic` has its own
@@ -106,7 +109,9 @@ export function newTicket(
         ? ('epic-lane.md' as const)
         : options.lane === 'S'
           ? ('ticket-lane-s.md' as const)
-          : ('ticket-lane.md' as const)
+          : options.lane === 'R'
+            ? ('ticket-lane-r.md' as const) // ST-LN-94 D-10, D-13: a question, a timebox and a token budget the owner sets
+            : ('ticket-lane.md' as const)
       : options.type === 'epic'
         ? ('epic.md' as const)
         : (`ticket-${ctx.snapshot.config?.profile ?? 'build'}.md` as const);

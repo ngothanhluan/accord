@@ -73,6 +73,17 @@ import {
   reviewUncommitted,
   sectionsChanged,
 } from './lane-s.js';
+import {
+  laneRPlan,
+  researchBudgetUnanswered,
+  researchFieldMissing,
+  researchOverBudget,
+  researchReadyMissing,
+  researchRecordMissing,
+  researchSectionsChanged,
+  researchShipped,
+  researchSpentMissing,
+} from './lane-r.js';
 import { branchUnknown, interfaceSign, outOfScope, sensitiveTouched } from './scope.js';
 import { planRounds, reviewRounds } from './rounds.js';
 import { findingEvidence } from '../round/evidence.js';
@@ -129,6 +140,15 @@ export const SECTION_EMPTY: GateRule = {
   check: sectionEmpty,
 };
 
+/** ST-LN-94 94-ac-1, D-13: Ready and lane R's Done both ask for the question, timebox and token budget and the owner's quoted answer. */
+const RESEARCH_FIELD_MISSING: GateRule = { id: 'gate.research-field-missing', level: 'error', profiles: ['build', 'maintain'], check: researchFieldMissing };
+const RESEARCH_BUDGET_UNANSWERED: GateRule = {
+  id: 'gate.research-budget-unanswered',
+  level: 'error',
+  profiles: ['build', 'maintain'],
+  check: researchBudgetUnanswered,
+};
+
 export const READY_RULES: readonly GateRule[] = [
   TICKET_UNKNOWN,
   { id: 'gate.design-missing', level: 'error', profiles: ['build', 'maintain'], check: designMissing },
@@ -138,6 +158,8 @@ export const READY_RULES: readonly GateRule[] = [
   { id: 'gate.discuss-missing', level: 'error', profiles: ['build', 'maintain'], check: discussMissing },
   { id: 'gate.discuss-unmapped', level: 'error', profiles: ['build', 'maintain'], check: discussUnmapped },
   SECTION_EMPTY,
+  RESEARCH_FIELD_MISSING,
+  RESEARCH_BUDGET_UNANSWERED,
   APPROVAL_MISSING,
   APPROVAL_STALE,
   { id: 'gate.depends-unmerged', level: 'error', profiles: ['build', 'maintain'], check: dependsUnmerged },
@@ -244,12 +266,38 @@ export const DONE_RULES: readonly GateRule[] = [
   { id: 'gate.author-skipped', level: 'warning', profiles: ['build', 'maintain'], check: authorSkipped },
 ];
 
+/**
+ * ST-LN-94 D-10, research Pitfall 8: the plan gate of a lane R ticket. gatePlan picks it for lane R as gateDone picks DONE_S_RULES for
+ * lane S, so every PLAN_RULES row (the plan.ts rules, the plan rounds, the plan format rules) is out of R's reach through one choice.
+ */
+export const PLAN_R_RULES: readonly GateRule[] = [
+  TICKET_UNKNOWN,
+  { id: 'gate.lane-r-plan', level: 'error', profiles: ['build', 'maintain'], check: laneRPlan },
+];
+
+/**
+ * ST-LN-31 and ST-LN-94: lanes S and R both hash their sections at Ready, so one row each serves both Done tables (GATE-06). Each half is silent
+ * for the other lane.
+ */
+const READY_MISSING: GateRule = {
+  id: 'gate.ready-missing',
+  level: 'error',
+  profiles: ['build', 'maintain'],
+  check: (s, id) => [...readyMissing(s, id), ...researchReadyMissing(s, id)],
+};
+const SECTIONS_CHANGED: GateRule = {
+  id: 'gate.sections-changed',
+  level: 'error',
+  profiles: ['build', 'maintain'],
+  check: (s, id) => [...sectionsChanged(s, id), ...researchSectionsChanged(s, id)],
+};
+
 /** ST-LN-31 D-04, D-12: the lane S Done table, with the suite rule; no plan, task, criteria or approval rows. */
 export const DONE_S_RULES: readonly GateRule[] = [
   TICKET_UNKNOWN,
   SECTION_EMPTY,
-  { id: 'gate.ready-missing', level: 'error', profiles: ['build', 'maintain'], check: readyMissing },
-  { id: 'gate.sections-changed', level: 'error', profiles: ['build', 'maintain'], check: sectionsChanged },
+  READY_MISSING,
+  SECTIONS_CHANGED,
   REVIEW_MISSING,
   REVIEW_UNCONVERGED,
   REVIEW_ROUNDS,
@@ -268,6 +316,26 @@ export const DONE_S_RULES: readonly GateRule[] = [
   { id: 'gate.out-of-scope', level: 'error', profiles: ['build', 'maintain'], check: outOfScope },
   { id: 'gate.sensitive-touched', level: 'error', profiles: ['build', 'maintain'], check: sensitiveTouched },
   INTERFACE_SIGN,
+];
+
+/**
+ * ST-LN-94 D-10, D-11, 94-ac-2, 94-ac-3, research Pitfall 8: the lane R Done table. gateDone picks it for lane R, so no lane M Done row (plan,
+ * tasks, ticks, review, verification, suite, scope, interface signs) reaches an R ticket, whatever stray records it holds. It is done on a
+ * listed research record with its Spent line, spent within the ticket's allowance or answered by the owner (D-14), and a branch that ships
+ * nothing under packages/.
+ */
+export const DONE_R_RULES: readonly GateRule[] = [
+  TICKET_UNKNOWN,
+  RESEARCH_FIELD_MISSING,
+  RESEARCH_BUDGET_UNANSWERED,
+  READY_MISSING,
+  SECTIONS_CHANGED,
+  { id: 'gate.research-record-missing', level: 'error', profiles: ['build', 'maintain'], check: researchRecordMissing },
+  { id: 'gate.research-spent-missing', level: 'error', profiles: ['build', 'maintain'], check: researchSpentMissing },
+  { id: 'gate.research-over-budget', level: 'error', profiles: ['build', 'maintain'], check: researchOverBudget },
+  { id: 'gate.research-shipped', level: 'error', profiles: ['build', 'maintain'], check: researchShipped },
+  BRANCH_UNKNOWN,
+  COMMIT_TRAILER,
 ];
 
 /** D-89: the three LINT-06 hygiene rules Ready promotes from warning to blocking. */

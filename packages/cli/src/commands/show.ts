@@ -21,8 +21,10 @@ function text(d: TicketDetail): string {
     'Holder: ' + (d.holder ?? 'none'),
     'Blocked by: ' + (d.blockedBy.length === 0 ? 'none' : d.blockedBy.join(' ')),
     '',
-    'Intent:',
-    ...(d.intent.length === 0 ? ['none'] : d.intent),
+    // ST-LN-94 94-ac-5: a lane R ticket shows its question where a lane M ticket shows its Intent.
+    ...(d.question === undefined
+      ? ['Intent:', ...(d.intent.length === 0 ? ['none'] : d.intent)]
+      : ['Question:', ...(d.question.length === 0 ? ['none'] : d.question)]),
   ];
   for (const c of d.criteria) {
     lines.push(

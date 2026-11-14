@@ -31,6 +31,12 @@ const LANE_S_REQUIRED: Record<'story' | 'bug' | 'epic', string[]> = {
   bug: ['Understood', 'Done when'],
   epic: ['Understood', 'Done when'],
 };
+// ST-LN-94 94-ac-1: a lane R ticket holds its question, timebox and token budget whatever its type; gate.research-field-missing reads them.
+const LANE_R_REQUIRED: Record<'story' | 'bug' | 'epic', string[]> = {
+  story: ['Question', 'Timebox', 'Token budget'],
+  bug: ['Question', 'Timebox', 'Token budget'],
+  epic: ['Question', 'Timebox', 'Token budget'],
+};
 // D-73 sentinels: uppercase whole words, an angle-bracket placeholder outside HTML tags, a `...` step.
 const WORD = /(?:^|[^A-Za-z0-9_])(TODO|TBD|FIXME|TICKET-ID)(?![A-Za-z0-9_])/g;
 const PLACEHOLDER = /<[a-z][a-z]* [^<>="/]+>/g;
@@ -56,7 +62,13 @@ const typed = (snapshot: RepoSnapshot): Typed[] => tickets(snapshot).filter((t):
 /** D-71: every required heading for the ticket's type, in table order, no line. */
 export const headingMissing: Rule['check'] = (snapshot) =>
   typed(snapshot).flatMap((t) =>
-    (t.frontmatter.lane === 'S' ? LANE_S_REQUIRED : t.frontmatter.lane === undefined ? REQUIRED : LANE_REQUIRED)[t.frontmatter.type]
+    (t.frontmatter.lane === 'S'
+      ? LANE_S_REQUIRED
+      : t.frontmatter.lane === 'R'
+        ? LANE_R_REQUIRED
+        : t.frontmatter.lane === undefined
+          ? REQUIRED
+          : LANE_REQUIRED)[t.frontmatter.type]
       .filter((name) => section(t, headingKey(name)) === undefined)
       .map((name) => ({ file: t.file, reason: `missing "## ${name}"` })),
   );
@@ -222,11 +234,15 @@ export const notesNotLast: Rule['check'] = (snapshot) =>
 
 const workOf = (snapshot: RepoSnapshot, id: string) => (Object.hasOwn(snapshot.work ?? {}, id) ? snapshot.work?.[id] : undefined);
 
-/** A review.md without a plan.md on a lane M, L or P ticket is left from lane S (lift in place). */
+/**
+ * A review.md without a plan.md on a lane M, L or P ticket is left from lane S (lift in place). Silent for lane R (ST-LN-94 D-10): it holds
+ * neither record, gate.lane-r-plan refuses its plan, and no lane R Done rule reads a review.
+ */
 export const reviewWithoutPlan: Rule['check'] = (snapshot) =>
   typed(snapshot).flatMap((t) => {
     const w = workOf(snapshot, t.id);
-    return t.frontmatter.lane !== undefined && t.frontmatter.lane !== 'S' && w?.review !== undefined && w.plan === undefined
+    const lane = t.frontmatter.lane;
+    return lane !== undefined && lane !== 'S' && lane !== 'R' && w?.review !== undefined && w.plan === undefined
       ? [{ file: w.review.file, reason: 'review.md is left from lane S; a lane M ticket is reviewed after its plan, so remove it with git rm' }]
       : [];
   });

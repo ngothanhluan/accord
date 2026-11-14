@@ -25,7 +25,7 @@ export interface StatusRow {
   title?: string; // ST-LN-2 D-07: lane rows only, so a 0.1.0 row stays byte-identical
   lane?: Lane;
   stage?: Stage;
-  next?: string; // what follows an unwritten or unapproved intent; set only at stage intent, and for lane S also at review
+  next?: string; // what follows an unwritten or unapproved intent; set only at stage intent, for lane S also at review, and for lane R at every stage
   tasksDone?: number;
   tasksTotal?: number;
   dependsOn?: string[]; // spec §5, as written
@@ -87,7 +87,9 @@ export function statusRows(snapshot: RepoSnapshot, now?: number, plain?: RepoSna
               title: fm.title,
               lane: fm.lane,
               stage: progress.stage,
-              ...(progress.stage === 'intent' || (fm.lane === 'S' && progress.stage === 'review') ? { next: nextStep(ticket, progress.stage as 'intent' | 'review') } : {}),
+              ...(progress.stage === 'intent' || (fm.lane === 'S' && progress.stage === 'review') || fm.lane === 'R'
+                ? { next: nextStep(ticket, progress.stage as 'intent' | 'review' | 'research' | 'done') }
+                : {}),
               tasksDone: progress.tasksDone,
               tasksTotal: progress.tasksTotal,
               ...(deps === undefined ? {} : { dependsOn: deps, blockedBy: deps.filter((d) => !doneOnDefault(snapshot, d, plain ?? snapshot)) }),
@@ -108,11 +110,12 @@ export function statusRows(snapshot: RepoSnapshot, now?: number, plain?: RepoSna
 /**
  * Spec §6 `accord next`: lane tickets that passed Ready (approved at the current hash, and `ac_hash`,
  * which only a passing `gate ready` writes, matching the current criteria), have no task recorded yet, are not archived, wait on no dependency, and are unclaimed.
+ * A lane R ticket is offered at its own stage research (ST-LN-94 94-ac-5).
  */
 export function nextRows(rows: StatusRow[]): StatusRow[] {
   return rows.filter(
     (r) =>
-      (r.stage === 'plan' || r.stage === 'build') &&
+      (r.stage === 'plan' || r.stage === 'build' || (r.lane === 'R' && r.stage === 'research')) &&
       r.tasksDone === 0 &&
       r.ready === 'ok' &&
       (r.blockedBy ?? []).length === 0 &&

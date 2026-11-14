@@ -4,6 +4,9 @@ kind: reference
 
 # Proposing a lane
 
+A request that only asks a question, and asks for no change to code, docs or configuration, is lane R: propose lane R
+with that reason, without the scout of step 1, and the accord skill follows its `lane-r.md`. The owner may override.
+
 1. For every new request, however small it looks, first dispatch `accord-scout` with the request's text and ask
    for facts only, each with its `path:line`: the existing files the change is expected to touch; which of them an
    entry under `sensitive:` in `accord/config.yml` matches, with that entry's `path:line`, an entry ending in `/`

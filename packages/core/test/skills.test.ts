@@ -10,7 +10,7 @@ import type { Tags } from 'yaml';
 import { agentTargets, allSkillDirs, contentHash, installedName, markerHash, renderSkill, skillDirs, skills, STAGES, skillTargets, withoutMarker } from '../src/index.js';
 import type { SkillFile, SkillKey } from '../src/index.js';
 import type { AccordConfig } from '../src/index.js';
-import { DONE_RULES, DONE_S_RULES, READY_RULES } from '../src/gate/rules.js';
+import { DONE_R_RULES, DONE_RULES, DONE_S_RULES, PLAN_R_RULES, READY_RULES } from '../src/gate/rules.js';
 import { RULES } from '../src/lint/rules.js';
 
 const skillsDir = fileURLToPath(new URL('../skills/', import.meta.url));
@@ -426,7 +426,7 @@ describe('render output invariants', () => {
     // paraphrase in a skill body is a second, unversioned copy of the engine that nothing keeps in step.
     // The rule ids are computed from the live tables rather than listed, so a rule a later phase adds is
     // covered here with no edit. Line numbers are relative to the body, which is what the scan reads.
-    const ruleIds = [...new Set([...RULES, ...READY_RULES, ...DONE_RULES, ...DONE_S_RULES].map((r) => r.id))];
+    const ruleIds = [...new Set([...RULES, ...READY_RULES, ...DONE_RULES, ...DONE_S_RULES, ...PLAN_R_RULES, ...DONE_R_RULES].map((r) => r.id))];
     // `warning` is a finding level, and reporting a level is the CLI's job. `error` is deliberately not
     // here (A-16): every occurrence in the definitions is about the reader's own software — an EARS
     // example, a review dimension, a stack trace — never about a finding level.

@@ -1,6 +1,7 @@
 // ST-LN-6 task 2: `accord show <id> [--json]`, in-process through runCli on a fixture repository.
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { cleanup, commitAll, commitMsg, copyRepo, gitRun, makeLaneRepo, run, writeFiles } from './helpers/repo.js';
+import { laneRHash, loadSnapshot } from '@accord-dev/accord-core';
 import { approve, building, done, LANE_BODY, laneTicket, P, PLAN } from '../../../test/helpers/lane.js';
 import type { Files } from '../../../test/helpers/lane.js';
 
@@ -216,3 +217,28 @@ it('risk:complex-branching show takes the stage of a ticket done only on its cla
     cleanup(repo);
   }
 });
+
+// ST-LN-94 94-ac-5: a lane R ticket is shown as lane R, with its question in place of an empty Intent.
+it("risk:regression accord show prints a lane R ticket's question (ST-LN-94 94-ac-5)", async () => {
+  const body = ['## Question', 'Does the critic‮ need a second round?', '<!-- one question -->', 'And who reads the record?', '', '## Timebox', '4 hours', '', '## Token budget', '800k weighted tokens', '', '## Decisions', '- D-01 Timebox 4 hours, token budget 800k weighted tokens — "fine"', ''].join('\n');
+  const r1 = (fm: string[]) => laneTicket('R-1', { lane: 'R', body, frontmatter: ['research: ["accord/research/2026-11-14-critic.md"]', ...fm] });
+  const hash = laneRHash(loadSnapshot({ files: { [P('R-1')]: r1([]) }, tree: [] }).tickets['R-1']);
+  const repo = makeLaneRepo({ [P('R-1')]: r1([`ac_hash: "${hash}"`]) });
+  try {
+    const text = await run(['show', 'R-1'], repo);
+    expect(text.code).toBe(0);
+    expect(text.out).toBe(
+      ['R-1 Export', 'Stage: research', 'Lane: R', 'Tasks: 0/0', 'Branch: t/R-1', 'Holder: none', 'Blocked by: none', '', 'Question:', 'Does the critic  need a second round?', 'And who reads the record?', ''].join('\n'),
+    );
+    expect(text.out).not.toContain('Intent:');
+    const j = JSON.parse((await run(['show', 'R-1', '--json'], repo)).out);
+    expect(j).toMatchObject({ lane: 'R', stage: 'research', intent: [], criteria: [] });
+    expect(j.question).toEqual(['Does the critic‮ need a second round?', 'And who reads the record?']);
+    // A lane M ticket's detail carries no question field and keeps its Intent.
+    const m = JSON.parse((await run(['show', 'T-1', '--json'], repo)).out);
+    expect(Object.hasOwn(m, 'question')).toBe(false);
+    expect((await run(['show', 'T-1'], repo)).out).toContain('\nIntent:\nOwners can export their report as CSV.\n');
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);

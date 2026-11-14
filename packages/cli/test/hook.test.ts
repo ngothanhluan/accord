@@ -232,8 +232,8 @@ it('risk:complex-branching the prompt expansion hook allows with one stderr line
 });
 
 // ST-LN-25 Task 1: the newer-release notice.
-const N = 'accord 0.5.0 is out, and this repository pins 0.4.0: type /accord upgrade to run npx --yes @accord-dev/accord@0.5.0 upgrade';
 const PIN = /^accord: "([^"]+)"$/m.exec(CONFIG)![1];
+const N = `accord 0.5.0 is out, and this repository pins ${PIN}: type /accord upgrade to run npx --yes @accord-dev/accord@0.5.0 upgrade`;
 const lines = (s: string): string[] => s.split('\n');
 
 function freshCache(): { dir: string; file: string } {

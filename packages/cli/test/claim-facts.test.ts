@@ -7,7 +7,7 @@ import type { RepoSnapshot } from '@accord-dev/accord-core';
 import { gitClaimFacts, withClaimPins } from '../src/load/claim-facts.js';
 import { whyGit } from '../src/load/round-facts.js';
 import { cleanup, commitAll, commitMsg, gitRun, makeEmptyRepo, makeLaneRepo, mergeMsg, run, writeFiles } from './helpers/repo.js';
-import { CONFIG, laneTicket } from '../../../test/helpers/lane.js';
+import { CONFIG, laneTicket, RUNNING } from '../../../test/helpers/lane.js';
 
 const pinned = (v: string): string => CONFIG.replace(/accord: "[^"]*"/, `accord: "${v}"`);
 const TICKET = laneTicket('T-1');
@@ -142,7 +142,9 @@ it('risk:regression a git failure inside a real repository is an error fact on o
     const f = missing(got);
     expect(f).toHaveLength(1);
     expect(f[0].reason).toContain(error);
-    // The CLI takes the same path: it gets to the claim read, and says the same.
+    // The CLI takes the same path: it gets to the claim read, and says the same. It refuses any pin but its own, so the working tree
+    // moves to the running version first; the claim read still fails on the missing parent, whatever the working tree pins.
+    writeFiles(repo, { 'accord/config.yml': pinned(RUNNING) });
     const cli = await run(['gate', 'ready', 'T-1', '--json'], repo);
     expect(cli.code).toBe(1);
     expect((JSON.parse(cli.out).findings as { rule: string; reason: string }[]).filter((x) => x.rule === 'gate.discuss-missing')[0].reason).toContain(error);

@@ -79,7 +79,9 @@ describe('lane R in the accord skill', () => {
         '`Owner: write now — "<the owner\'s sentence>"`',
         '`Owner: extended to <value> — "<the owner\'s sentence>"`',
         'run `accord gate ready <id>` again',
-        '`packages/`',
+        // D-10: named as the shipped packages, never as `packages/`, which no rendered text may name (skills.test.ts, REPO_ONLY)
+        'stays out of the shipped packages',
+        'names any file of them the branch changes',
         'a new lane S or M ticket',
         '`accord/research/<YYYY-MM-DD>-<topic>.md`',
         '`Date: <YYYY-MM-DD>`',
@@ -99,7 +101,7 @@ describe('lane R in the accord skill', () => {
       // D-13: the owner sets the allowance; the step that asks for it recommends nothing
       const ask = r.slice(r.indexOf('**Allowance.**'), r.indexOf('**Research.**'));
       expect(ask.length).toBeGreaterThan(0);
-      expect(ask).not.toMatch(/\brecommend(?:ed|s)? (?:a |the )?(?:timebox|budget|value)\b/i);
+      expect(ask).not.toMatch(/\b(?:propose|suggest|recommend)s? (?:a|an|the) (?:timebox|token budget|budget|value)\b/i);
       // D-11: the stop comes before any further research and needs the owner's answer
       const stop = r.slice(r.indexOf('**Stop.**'), r.indexOf('**Record.**'));
       expect(stop).toContain('`stop: ask owner`');

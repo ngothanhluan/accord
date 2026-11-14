@@ -109,16 +109,34 @@ describe('gate.ruleset-changed with the claim-time ticket ruleset', () => {
 });
 
 describe('gate.ruleset-missing', () => {
-  it('risk:complex-branching a ticket claimed from RULESET_FROM with no ruleset fails every gate (ST-LN-96 t1-ac-2)', () => {
+  it('risk:complex-branching a ticket whose claim commit held a ruleset and has none now fails every gate (ST-LN-96 t1-ac-2)', () => {
     for (const which of ['ready', 'plan', 'done'] as const) {
-      const f = missing(which, { pin: '0.5.0' });
+      const f = missing(which, { pin: '0.5.0', claimRuleset: '0.5.0' });
       expect(f, which).toHaveLength(1);
       expect(f[0].level).toBe('error');
       expect(f[0].file).toBe('accord/tickets/T-1.md');
       expect(f[0].pointer).toBe('/ruleset');
       expect(f[0].reason).toContain('0.5.0');
       expect(f[0].reason).toContain(SHA.slice(0, 12));
-      expect(missing(which, { lane: 'S', pin: '0.5.0' }), 'lane S ' + which).toHaveLength(1);
+      expect(missing(which, { lane: 'S', pin: '0.5.0', claimRuleset: '0.5.0' }), 'lane S ' + which).toHaveLength(1);
+    }
+  });
+
+  it('risk:complex-branching a rebased claim names the ruleset the claim wrote, not the pin at the rewritten claim commit (ST-LN-96 t1-ac-1)', () => {
+    for (const which of ['ready', 'plan', 'done'] as const) {
+      const f = missing(which, { pin: '0.5.1', claimRuleset: '0.5.0' });
+      expect(f, which).toHaveLength(1);
+      expect(f[0].reason, which).toContain('"0.5.0"');
+      expect(f[0].reason, which).not.toContain('0.5.1');
+    }
+  });
+
+  it('risk:complex-branching a claim that wrote no ruleset never fails missing, whatever the pin at the claim commit is (ST-LN-96 t1-ac-1)', () => {
+    for (const which of ['ready', 'plan', 'done'] as const) {
+      // claimed before RULESET_FROM, then rebased onto a main pinned at or after it: the pin at the rewritten claim commit moved, the claim wrote nothing
+      expect(missing(which, { pin: '0.5.0' }), which).toEqual([]);
+      expect(missing(which, { pin: '0.5.1' }), which + ' later pin').toEqual([]);
+      expect(missing(which, { lane: 'S', pin: '0.5.0' }), 'lane S ' + which).toEqual([]);
     }
   });
 

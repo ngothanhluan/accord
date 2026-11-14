@@ -185,6 +185,34 @@ it('risk:complex-branching a ruleset hand-edited after the rebase still fails an
   }
 }, 120_000);
 
+it('risk:complex-branching a ticket claimed before RULESET_FROM with no ruleset and rebased onto an upgraded main has no gate.ruleset-missing (ST-LN-96 t1-ac-1)', async () => {
+  const c = copy();
+  pinTo(c, '0.4.1');
+  const opened = await run(['worktree', 'open', 'ST-9'], c.root);
+  expect(opened.err).toBe('');
+  expect(opened.code).toBe(0);
+  const wt = c.sibling('ST-9');
+  expect(gitRun(wt, 'show', 'HEAD:accord/tickets/ST-9.md')).not.toContain('ruleset'); // the claim wrote none
+  pinTo(c, RULESET_FROM); // main moves on to a release that writes the field (also the running version now)
+  gitRun(wt, 'rebase', '-q', 'origin/main');
+  const claim = gitRun(wt, 'log', '-1', '--format=%H', '--grep=^claim: ST-9$').trim();
+  expect(gitRun(wt, 'show', claim + ':accord/config.yml')).toContain(`accord: "${RULESET_FROM}"`); // the pin at the rewritten claim commit is the new one
+  for (const which of ['ready', 'plan', 'done'] as const) expect(await rulesetFindings(which, wt), 'rebased ' + which).toEqual([]);
+}, 120_000);
+
+it('risk:complex-branching a ruleset removed by hand after a claim that wrote it still fails, also after a rebase (ST-LN-96 t1-ac-2)', async () => {
+  const { wt, ticket } = await rebasedTicket();
+  writeFileSync(ticket, readFileSync(ticket, 'utf8').replace(/ruleset: "0\.5\.0"\r?\n/, ''));
+  commitMsg(wt, 'remove the ruleset by hand');
+  for (const which of ['ready', 'plan', 'done'] as const) {
+    const f = await rulesetFindings(which, wt);
+    expect(f, which).toHaveLength(1);
+    expect(f[0], which).toMatch(/^gate\.ruleset-missing: /);
+    expect(f[0], which).toContain(`"${RULESET_FROM}"`);
+    expect(f[0], which).not.toContain(UPGRADED);
+  }
+}, 120_000);
+
 it('risk:complex-branching a hand-edited ruleset fails gate done on real git (ST-LN-96 t1-ac-2)', async () => {
   const c = copy();
   pinTo(c, RULESET_FROM);

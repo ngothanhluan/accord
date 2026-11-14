@@ -1,8 +1,9 @@
 // ST-LN-94 94-ac-1, D-10, D-13: a lane R ticket holds a question, a timebox and a token budget, and gate ready passes it with no
 // approval, Approach, discuss record or scenario. The config pins DISCUSS_FROM, so the discuss rules would apply to a lane M ticket here.
 import { expect, it } from 'vitest';
-import { DISCUSS_FROM, gatePlan, gateReady, lintSnapshot, laneRHash, loadSnapshot, readTimebox, readTokenBudget } from '../src/index.js';
-import type { GateResult } from '../src/index.js';
+import { DISCUSS_FROM, gateDone, gatePlan, gateReady, lintSnapshot, laneRHash, loadSnapshot, readTimebox, readTokenBudget, setFrontmatterKey } from '../src/index.js';
+import { DONE_R_RULES, DONE_RULES } from '../src/gate/rules.js';
+import type { BranchChange, BranchFact, GateResult } from '../src/index.js';
 import { CONFIG, PLAN, REPORT, junit, laneTicket } from '../../../test/helpers/lane.js';
 
 const QUOTE = '- D-01 Timebox 4 hours, token budget 800k weighted tokens — "four hours and 800k is enough"';
@@ -173,4 +174,120 @@ it('risk:regression accord lint reports nothing on a valid lane R ticket (ST-LN-
   const mine = (f: Record<string, string>) => lintOf(f).filter((x) => x.file === 'accord/tickets/R-1.md' || x.file.startsWith('accord/tickets/R-1/'));
   expect(mine({ 'accord/tickets/R-1.md': rTicket() })).toEqual([]);
   expect(mine({ 'accord/tickets/R-1.md': rTicket(), 'accord/tickets/R-1/review.md': 'Round record: 1\n\n## Round 1 (whole)\n\nNo findings\n' })).toEqual([]);
+});
+
+// ST-LN-94 94-ac-2, 94-ac-3, D-10, D-11: gate done on a lane R ticket runs DONE_R_RULES. It is done when a record its research: lists is in the
+// checkout with a Spent line, and its branch changes nothing under packages/; it is asked for no plan, review, verification or ticks.
+const RECORD = 'accord/research/2026-11-20-critic-rounds.md';
+const SPENT = 'Spent: 2h 10m of 4 hours; 312000 of 800000 weighted tokens';
+const record = (...lines: string[]) => ['# Critic rounds', '', 'Date: 2026-11-20', 'Repository at `1c5704ee`', '', 'The critic needs one round.', '', ...lines, ''].join('\n');
+const OWN: BranchChange[] = [
+  { path: 'accord/tickets/R-1.md', kind: 'modified', lines: 2 },
+  { path: RECORD, kind: 'added', lines: 9 },
+];
+type DoneOpts = { body?: string; hashed?: string; research?: string[]; record?: string | null; extra?: Record<string, string>; fact?: BranchFact; hash?: false };
+/** An R ticket whose ac_hash gate ready recorded over `hashed` (default: its own body), with its record and branch fact. */
+const doneSnap = (o: DoneOpts = {}) => {
+  const b = o.body ?? body();
+  const listed = o.research ?? [RECORD];
+  let ticket = laneTicket('R-1', { lane: 'R', body: b, frontmatter: listed.length === 0 ? [] : ['research: [' + listed.map((p) => JSON.stringify(p)).join(', ') + ']'] });
+  if (o.hash !== false) ticket = setFrontmatterKey(ticket, 'ac_hash', laneRHash(snap(o.hashed ?? b).tickets['R-1']));
+  const files: Record<string, string> = {
+    'accord/config.yml': config,
+    'accord/tickets/R-1.md': ticket,
+    ...(o.record === null ? {} : { [RECORD]: o.record ?? record(SPENT) }),
+    ...(o.extra ?? {}),
+  };
+  return loadSnapshot({ files, tree: Object.keys(files).sort(), branchFacts: { 'R-1': o.fact ?? { base: 'b'.repeat(40), changes: OWN, synced: [] } } });
+};
+const done = (o: DoneOpts = {}) => gateDone(doneSnap(o), 'R-1');
+const rIds = () => DONE_R_RULES.map((r) => r.id);
+
+it('risk:complex-branching a lane R ticket is done when its listed research record is present, with no plan, review or verification asked (ST-LN-94 94-ac-2)', () => {
+  const ok = done();
+  expect(ok.findings).toEqual([]);
+  expect(ok.verdict).toBe('pass');
+  const laneM = DONE_RULES.map((r) => r.id).filter((x) => !rIds().includes(x));
+  for (const x of ['gate.verification-missing', 'gate.task-incomplete', 'gate.review-missing', 'gate.tick-unbound', 'gate.suite-not-passed']) expect(laneM).toContain(x);
+
+  const missing = done({ record: null });
+  const m = ruled(missing, 'gate.research-record-missing');
+  expect(m).toHaveLength(1);
+  expect(m[0]).toMatchObject({ file: 'accord/tickets/R-1.md', pointer: '/research', level: 'error' });
+  expect(m[0].reason).toContain('accord/research/');
+  expect(missing.verdict).toBe('fail');
+  expect(ruled(done({ research: [] }), 'gate.research-record-missing')).toHaveLength(1);
+  // T-03-33: only an entry that names a record under accord/research/ counts.
+  expect(ruled(done({ research: ['accord/research/../tickets/R-1.md'] }), 'gate.research-record-missing')).toHaveLength(1);
+
+  for (const r of [
+    record(),
+    record('Spent: 1h of 4 hours; not measured of 800000 weighted tokens'),
+    record('<!-- ' + SPENT + ' -->'),
+    record('Spent: 2h 10m of 4 hours'),
+    record('Spent: 2h 10m of 4 hours; lots of 800000 weighted tokens'),
+  ]) {
+    const f = ruled(done({ record: r }), 'gate.research-spent-missing');
+    expect(f, r).toHaveLength(1);
+    expect(f[0].file).toBe(RECORD);
+    expect(f[0].reason).toContain('Spent: <h>h <m>m of <timebox>; <tokens or not measured> of <budget>');
+  }
+  expect(done({ record: record('Spent: 1h 0m of 4 hours; not measured of 800000 weighted tokens') }).verdict).toBe('pass');
+
+  // The Ready record still holds at Done: no ac_hash, or a question changed since gate ready, fails; so does D-13's quoted Decision.
+  expect(ruled(done({ hash: false }), 'gate.ready-missing')).toHaveLength(1);
+  expect(ruled(done({ body: body({ question: 'Does the planner need a second round?' }), hashed: body() }), 'gate.sections-changed')).toHaveLength(1);
+  expect(ruled(done({ body: body({ decisions: '' }) }), 'gate.research-budget-unanswered')).toHaveLength(2);
+});
+
+const STRAY = {
+  'accord/tickets/R-1/plan.md': PLAN,
+  'accord/tickets/R-1/review.md': 'Round record: 1\n\n## Round 1 (whole)\n\n1. Should — the record drops a source — open — rests on: ac-1\n',
+  'accord/tickets/R-1/ledger.md': '## Tasks\n- task 1 done abc1234\n',
+  'accord/tickets/R-1/verification.md': '# Verification\n\nresult: fail\n',
+};
+
+it('risk:regression gate done on a lane R ticket runs none of the lane M Done rules (ST-LN-94 94-ac-2)', () => {
+  const ok = done({ extra: STRAY });
+  expect(ok.findings.filter((f) => f.level === 'error')).toEqual([]);
+  expect(ok.verdict).toBe('pass');
+  const failing: DoneOpts[] = [
+    { record: null },
+    { record: record() },
+    { hash: false },
+    { body: body({ decisions: '' }) },
+    { body: body({ timebox: '-' }) },
+    { fact: { base: 'b'.repeat(40), changes: [...OWN, { path: 'packages/core/src/x.ts', kind: 'added', lines: 3 }], synced: [] } },
+    { fact: { error: 'git diff failed' } },
+    { fact: { base: 'b'.repeat(40), changes: [], synced: [] } },
+  ];
+  for (const o of failing) {
+    const r = done({ ...o, extra: STRAY });
+    expect(r.verdict, JSON.stringify(o)).toBe('fail');
+    const gated = r.findings.filter((f) => f.rule.startsWith('gate.')).map((f) => f.rule);
+    expect(gated.length, JSON.stringify(o)).toBeGreaterThan(0);
+    for (const x of gated) expect(rIds(), x).toContain(x);
+  }
+  // The table itself: no plan, review, verification, suite, tick, scope or interface row.
+  for (const x of rIds()) expect(x).toMatch(/^gate\.(ticket-unknown|research-[a-z-]+|ready-missing|sections-changed|branch-unknown|commit-trailer)$/);
+});
+
+it('risk:security a change under packages/ on a lane R branch fails gate done and names the file (ST-LN-94 94-ac-3)', () => {
+  const fact = (...extra: BranchChange[]): BranchFact => ({ base: 'b'.repeat(40), changes: [...OWN, ...extra], synced: [] });
+  const shipped = ruled(
+    done({ fact: fact({ path: 'packages/core/src/x.ts', kind: 'added', lines: 3 }, { path: 'packages/cli/README.md', kind: 'modified', lines: 1 }) }),
+    'gate.research-shipped',
+  );
+  expect(shipped.map((f) => f.file).sort()).toEqual(['packages/cli/README.md', 'packages/core/src/x.ts']);
+  for (const f of shipped) {
+    expect(f.reason).toContain(f.file + ' is under packages/');
+    expect(f.level).toBe('error');
+  }
+  expect(ruled(done({ fact: fact({ path: 'packages/core/src/old.ts', kind: 'deleted', lines: 4 }) }), 'gate.research-shipped')).toHaveLength(1);
+  const script = done({ fact: fact({ path: 'scripts/count-rounds.mjs', kind: 'added', lines: 20 }, { path: 'packagesx/a.ts', kind: 'added', lines: 1 }) });
+  expect(ruled(script, 'gate.research-shipped')).toEqual([]);
+  expect(script.verdict).toBe('pass');
+  const unread = done({ fact: { error: 'git merge-base failed reading the branch diff: no merge base' } });
+  expect(ruled(unread, 'gate.branch-unknown')).toHaveLength(1);
+  expect(unread.verdict).toBe('fail');
 });

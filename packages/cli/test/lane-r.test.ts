@@ -2,8 +2,8 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
-import { cleanup, makeEmptyRepo, run, writeFiles } from './helpers/repo.js';
-import { CONFIG } from '../../../test/helpers/lane.js';
+import { cleanup, commitMsg, gitRun, makeEmptyRepo, run, writeFiles } from './helpers/repo.js';
+import { CONFIG, gateReadyIn, laneTicket, P } from '../../../test/helpers/lane.js';
 
 type F = { rule: string; reason: string; file: string; level: string };
 
@@ -88,6 +88,54 @@ it('risk:complex-branching accord gate ready names the unanswered budget of a la
     const second = await run(['gate', 'ready', 'R-1', '--json'], repo);
     expect(second.code).toBe(0);
     expect(second.err).toContain('wrote ac_hash');
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+// ST-LN-94 94-ac-2, 94-ac-3: gate done on a lane R branch, on real git. The base commit holds the config on main; the ticket branch adds the
+// ready R ticket (ac_hash recorded by gate ready's core) and its research record.
+const RECORD = 'accord/research/2026-11-20-critic-rounds.md';
+const R_BODY = [
+  '## Question', 'Does the critic need a second round?', '',
+  '## Timebox', '4 hours', '',
+  '## Token budget', '800k weighted tokens', '',
+  '## Decisions', DECISION,
+].join('\n');
+const recordText = (...lines: string[]) => ['# Critic rounds', '', 'Date: 2026-11-20', 'Repository at `1c5704ee`', '', 'The critic needs one round.', '', ...lines, ''].join('\n');
+
+/** A repository on branch t/R-1 whose one commit over main adds the ready R ticket, its record (with `spent`) and `extra`. */
+function rBranch(spent: string, extra: Record<string, string> = {}): string {
+  const repo = makeEmptyRepo();
+  writeFiles(repo, { 'accord/config.yml': CONFIG });
+  commitMsg(repo, 'base');
+  gitRun(repo, 'branch', '-M', 'main');
+  gitRun(repo, 'switch', '-q', '-c', 't/R-1');
+  const files: Record<string, string> = {
+    'accord/config.yml': CONFIG,
+    [P('R-1')]: laneTicket('R-1', { lane: 'R', body: R_BODY, frontmatter: [`research: ["${RECORD}"]`] }),
+    [RECORD]: recordText(spent),
+  };
+  expect(gateReadyIn(files, 'R-1')).toBe('pass');
+  writeFiles(repo, { [P('R-1')]: files[P('R-1')], [RECORD]: files[RECORD], ...extra });
+  commitMsg(repo, 'research: R-1');
+  return repo;
+}
+
+it('risk:security accord gate done refuses a lane R branch that changes packages/ on real git (ST-LN-94 94-ac-3)', async () => {
+  const repo = rBranch('Spent: 2h 10m of 4 hours; 312000 of 800k weighted tokens', { 'packages/core/src/x.ts': 'export const x = 1;\n' });
+  try {
+    const first = await run(['gate', 'done', 'R-1', '--json'], repo);
+    expect(first.code).toBe(1);
+    const findings = JSON.parse(first.out).findings as F[];
+    expect(findings.map((f) => f.rule)).toEqual(['gate.research-shipped']);
+    expect(findings[0].file).toBe('packages/core/src/x.ts');
+    expect(findings[0].reason).toContain('packages/core/src/x.ts is under packages/');
+    gitRun(repo, 'rm', '-q', 'packages/core/src/x.ts');
+    commitMsg(repo, 'research: R-1 drops the script');
+    const second = await run(['gate', 'done', 'R-1', '--json'], repo);
+    expect(JSON.parse(second.out).findings).toEqual([]);
+    expect(second.code).toBe(0);
   } finally {
     cleanup(repo);
   }

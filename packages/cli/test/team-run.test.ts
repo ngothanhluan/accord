@@ -85,13 +85,19 @@ ${then}
   return `node ${path}`;
 }
 
-/** True while a process with this id exists. */
+/** True while a process with this id exists and is not a zombie (killed, not yet reaped by init). */
 function alive(pid: number): boolean {
   try {
     process.kill(pid, 0);
-    return true;
   } catch (e) {
     return (e as NodeJS.ErrnoException).code === 'EPERM';
+  }
+  try {
+    // Linux: field 3 of /proc/<pid>/stat is the state; Z is a killed process its new parent has not reaped yet.
+    const stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
+    return stat.slice(stat.lastIndexOf(')') + 2).split(' ')[0] !== 'Z';
+  } catch {
+    return true;
   }
 }
 

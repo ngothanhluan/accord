@@ -1,7 +1,7 @@
 // CLI-05 status goldens (D-91, D-92, D-93). Rows cover the whole repository, so the case table is one
 // row per fixture. Regenerate one with `npm test -- --project core status -u -t "<case name>"`.
 import { beforeAll, describe, expect, it } from 'vitest';
-import { checkFixDispatch, laneRHash, loadSnapshot, statusRows } from '../src/index.js';
+import { anchorText, checkFixDispatch, laneRHash, loadSnapshot, statusRows } from '../src/index.js';
 import { doneOnDefault, isDone } from '../src/status/stage.js';
 import { CONFIG, laneTicket } from '../../../test/helpers/lane.js';
 import type { RepoSnapshot, SnapshotInput, StatusRow } from '../src/index.js';
@@ -191,6 +191,42 @@ describe('lane R stages', () => {
       tree: [],
     });
   const row = (s: RepoSnapshot, id = 'R-1') => statusRows(s).find((r) => r.id === id);
+
+  it("risk:regression the anchor prints a lane R ticket's own facts (ST-LN-94 94-ac-5)", () => {
+    expect(anchorText(load([`ac_hash: "${hash}"`], false), 'R-1')).toBe(
+      [
+        '# Anchor: R-1 "Export"',
+        '',
+        'Lane: R',
+        'Stage: research, next: the research, accord budget <id> between steps, and the record under accord/research/ listed in research: (lane-r.md)',
+        '',
+        '## Question',
+        'Does the critic need a second round?',
+        '',
+        '## Timebox',
+        '4 hours',
+        '',
+        '## Token budget',
+        '800k weighted tokens',
+        '',
+        '## Decisions',
+        '- D-01 Timebox 4 hours, token budget 800k weighted tokens — "fine"',
+        '',
+        '## Research',
+        REC_PATH,
+        '',
+        '## Rulings',
+        '(none)',
+        '',
+      ].join('\n'),
+    );
+    // At intent the anchor names what Ready needs; Vetoes and Corrections print when the ticket has them.
+    const text = anchorText(loadSnapshot({ files: { 'accord/config.yml': CONFIG, 'accord/tickets/R-1.md': rTicket() + '\n## Vetoes\n- No new package.\n' }, tree: [] }), 'R-1') ?? '';
+    expect(text).toContain('Lane: R\nStage: intent, next: write ## Question, ask the owner to set ## Timebox and ## Token budget');
+    expect(text).toContain('## Vetoes\n- No new package.');
+    expect(text).not.toContain('## Intent');
+    expect(text).not.toContain('## Corrections');
+  });
 
   it('risk:complex-branching a lane R ticket moves from intent to research to done on its records (ST-LN-94 94-ac-5)', () => {
     const intent = load([], false);

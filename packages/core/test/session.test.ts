@@ -31,6 +31,11 @@ describe('sessionLine', () => {
     const r = row({ stage: 'build', tasksDone: 1, tasksTotal: 2 });
     expect(sessionLine([r])).toBe('accord: 1 in progress, 0 ready to pick up · type /accord');
   });
+  it('risk:regression the session line counts a claimed lane R ticket at research as in progress (ST-LN-94 94-ac-5)', () => {
+    const rows = [row({ id: 'R-1', lane: 'R', stage: 'research', claimedBy: 'an@example.com' }), row({ id: 'R-2', lane: 'R', stage: 'research' })];
+    expect(sessionLine(rows)).toBe('accord: 1 in progress, 1 ready to pick up · type /accord');
+    expect(sessionLine([row({ id: 'R-3', lane: 'R', stage: 'intent', ready: 'none' })])).toBe('accord: 0 in progress, 0 ready to pick up · type /accord');
+  });
   it('counts a dropped row nowhere', () => {
     expect(sessionLine([row({ status: 'dropped' })])).toBe(
       'accord: no lane tickets yet · type /accord <request> to start one',

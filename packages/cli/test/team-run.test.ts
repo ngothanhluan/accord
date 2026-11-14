@@ -1,13 +1,12 @@
 // ST-LN-96 t1-ac-3: `runTeamCommand`, the one runner for committed team commands (git.sync, later tracker.command): the ticket reaches the script only in its environment.
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, expect, it } from 'vitest';
 import { runTeamCommand } from '../src/load/team-run.js';
 
 const dir = mkdtempSync(join(tmpdir(), 'accord-team-run-'));
-// a killed shell leaves its node child alive for a moment on Windows, and that child holds this folder as its cwd
-afterAll(() => rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }));
+afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
 /** A fixture script written as a .mjs file and run as `node <path>` (never `./x.sh`: cmd.exe cannot run it). */
 function fixture(name: string, body: string): string {
@@ -56,14 +55,12 @@ it('risk:security a team command that fails or writes is reported with its outpu
   expect(none.stdout).toBe('got:');
 });
 
-it('risk:complex-branching a command that outlives its timeout is killed and reported (ST-LN-96 t1-ac-3)', async () => {
+it('risk:complex-branching a command that outlives its timeout is killed and reported (ST-LN-96 t1-ac-3)', () => {
   const t0 = Date.now();
   const r = runTeamCommand(fixture('sleep.mjs', 'setTimeout(() => {}, 3000);\n'), { cwd: dir, env: process.env, timeoutMs: 1000, maxBuffer: 1024 });
   expect(r.timedOut).toBe(true);
   expect(r.code).not.toBe(0);
   expect(Date.now() - t0).toBeLessThan(30_000);
-  // on Windows the shell is killed and its node child runs on: let it end before the folder is removed
-  await new Promise((done) => setTimeout(done, 3500));
 });
 
 it('risk:complex-branching output over maxBuffer is reported, not thrown (ST-LN-96 t1-ac-3)', () => {
@@ -72,3 +69,47 @@ it('risk:complex-branching output over maxBuffer is reported, not thrown (ST-LN-
   expect(r.timedOut).toBe(false);
   expect(r.code).not.toBe(0);
 });
+
+/** A script that starts a long-lived child in `folder` (so the child holds it as its cwd), records the child's pid, then does `then`. */
+function treeScript(folder: string, pidFile: string, then: string): string {
+  const path = join(folder, 'tree.mjs').replaceAll('\\', '/');
+  writeFileSync(
+    path,
+    `import { spawn } from 'node:child_process';
+import { writeFileSync } from 'node:fs';
+const c = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 20000)'], { stdio: 'ignore', cwd: ${JSON.stringify(folder)} });
+writeFileSync(${JSON.stringify(pidFile)}, String(c.pid));
+${then}
+`,
+  );
+  return `node ${path}`;
+}
+
+/** True while a process with this id exists. */
+function alive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return (e as NodeJS.ErrnoException).code === 'EPERM';
+  }
+}
+
+// ST-LN-96 t1-ac-3: a killed team command takes its whole process tree with it, so the ticket's worktree can be removed at once.
+it.each([
+  ['times out', 'setTimeout(() => {}, 20000);', { timeoutMs: 3000, maxBuffer: 1024 * 1024 }, 'timedOut'],
+  ['prints too much', "process.stdout.write('x'.repeat(200000)); setTimeout(() => {}, 20000);", { timeoutMs: 20_000, maxBuffer: 1024 }, 'oversize'],
+] as const)(
+  'risk:resource a team command that %s leaves no process holding the worktree (ST-LN-96 t1-ac-3)',
+  (_name, then, limits, flag) => {
+    const folder = mkdtempSync(join(tmpdir(), 'accord-team-tree-'));
+    const pidFile = join(dir, `child-${flag}.pid`);
+    const r = runTeamCommand(treeScript(folder, pidFile, then), { cwd: folder, env: process.env, ...limits });
+    expect(r[flag]).toBe(true);
+    expect(existsSync(pidFile)).toBe(true);
+    // at once: no retry and no wait for the child; a child still running holds the folder (EBUSY on Windows)
+    rmSync(folder, { recursive: true });
+    expect(existsSync(folder)).toBe(false);
+    expect(alive(Number(readFileSync(pidFile, 'utf8')))).toBe(false);
+  },
+);

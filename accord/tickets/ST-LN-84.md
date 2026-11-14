@@ -4,7 +4,7 @@ title: "A lasting rule the owner states reaches the repository, so every teammat
 type: "story" # story | bug. An epic uses its own template
 status: draft                              # draft | open | archived | dropped. Document lifecycle only; work status stays in the tracker
 lane: "M" # M: one feature | L: a story of an epic | P: part of a whole project
-research: ["accord/research/2026-11-03-backlog-review.md"]
+research: ["accord/research/2026-11-03-backlog-review.md", "accord/research/2026-11-14-rule-enforcement.md"]
 # Tickets that must reach done before this one can start.
 # depends_on: ["OTHER-ID"]
 # How the dashboard ranks this ticket: high | medium | low; absent means medium.
@@ -38,6 +38,7 @@ Queued 2026-10-30, not approved; the intent interview replaces this:
 - Backlog review 2026-11-03: proposed to take in ST-LN-68 (refused options) and the conventions input of ST-LN-22, and to offer a conventions line for a Correction that repeats across tickets (record F4, F5, M8).
 - Hard enforcement first (owner, 2026-11-14, after Lauren Tan's talk on agent guardrails, https://www.youtube.com/watch?v=Cmoh-yR-usA, which says rules kept only as soft text decay and a review comment that repeats should become a lint rule or a CI failure): "OK, go with the proposal, but remember to note it in memory to measure and go with direction B later" (translated). Queued addition: for each rule offered at verify step 6, the agent proposes the strongest enforcement that works, in this order: remove the cause (an API or type change), an accord gate or CI check, a lint rule, a test that scans the source (as `packages/cli/test/spawn-surface.test.ts` does for `git log` flags); a conventions line alone only when none of these works. A code option is queued as a draft backlog ticket and the conventions line is written meanwhile; once that ticket merges, the line ends `enforced by: <path>` and `accord lint` checks that the path exists. Sources stay the ticket's Corrections and Rulings.
 - Deferred, direction B: review findings that repeat across tickets as a further source. First measure how often a finding of the same kind recurs across the `review.md` records; decide from that number at the interview or in a follow-up ticket.
+- Measured 2026-11-14 (`accord/research/2026-11-14-rule-enforcement.md` section 2): 166 Must and Should findings in 43 tickets; 75.9% fall in a kind seen in two or more tickets, 62.0% in three or more; 93 sit in kinds no check or conventions line covers. Most repeated kinds are broad skill-text or gate-bypass kinds that no lint rule can catch; the grouping is one reader's judgment. Proposed for the interview (owner, 2026-11-14: "OK, put them into the backlog, and discuss them when we work on them", translated): take direction B, with verify step 6 also reading the ticket's Must and Should findings and proposing a hard check only for a kind a machine can check. The same record found 79 of 173 accord rules held only as prose, 38 of them checkable.
 
 ## Acceptance criteria
 <!-- One fenced gherkin block; every scenario tagged @ac-n with a unique n; 2 to 5 scenarios.

@@ -254,12 +254,23 @@ export function renderDiscussReplicaJson(raw) {
   );
 }
 
+/** The stop path's caveat: what the replica would have covered, with nothing claimed as run or answered. */
+export function notRunCaveat(ticket) {
+  const id = ticket && TICKET.test(ticket) ? `, ${ticket},` : '';
+  return (
+    `This would have covered one merged ticket${id} and only the discuss stage and the approach critic (at most two rounds) after the ST-LN-91 changes, ` +
+    "not a whole ticket's life, and one ticket shows no trend. No model run was dispatched, so no gray area was raised or answered, " +
+    'no Decision was written and no critic round was counted: every replica step is not measured, and no verdict is drawn.'
+  );
+}
+
 /** The stop path: the caveat and the not-run line, and no verdict. */
-export function renderNotRun(reason) {
+export function renderNotRun(reason, ticket) {
   const why = oneLine(reason);
+  const text = notRunCaveat(ticket);
   return {
-    md: [TITLE, '', caveat(null), '', `The replica was not run: ${why}`, ''].join('\n'),
-    json: JSON.stringify({ caveat: caveat(null), notRun: true, reason: why }, null, 2) + '\n',
+    md: [TITLE, '', text, '', `The replica was not run: ${why}`, ''].join('\n'),
+    json: JSON.stringify({ caveat: text, notRun: true, reason: why }, null, 2) + '\n',
   };
 }
 
@@ -343,7 +354,13 @@ export async function main(argv, { cwd = process.cwd(), stdout = process.stdout,
   };
 
   if (opts.notRun !== undefined) {
-    const { md, json } = renderNotRun(opts.notRun);
+    let ticket;
+    try {
+      ticket = readConfig(opts.config === undefined ? CONFIG_FILE : path.resolve(cwd, opts.config)).ticket;
+    } catch {
+      ticket = undefined; // the not-run report stands without the config; it then names no ticket
+    }
+    const { md, json } = renderNotRun(opts.notRun, ticket);
     return writeReport(md, json);
   }
 

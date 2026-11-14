@@ -14,7 +14,7 @@ type Replica = {
   main: (argv: string[], io: { cwd: string; stdout: Sink; stderr: Sink }) => Promise<number>;
   renderDiscussReplica: (row: Row) => string;
   renderDiscussReplicaJson: (row: Row) => string;
-  renderNotRun: (reason: string) => { md: string; json: string };
+  renderNotRun: (reason: string, ticket?: string) => { md: string; json: string };
   countSteps: (runs: Run[], ticket?: string) => Record<string, { weighted: number; runs: number }>;
 };
 const load = async () => (await import(new URL('../../../scripts/discuss-replica.mjs', import.meta.url).href)) as Replica;
@@ -122,6 +122,9 @@ it('risk:regression the not-run path claims no result (ST-LN-91 91r-ac-1)', asyn
     expect(md.split('\n\n')[1]).toContain('one merged ticket');
     expect(md).toContain('The replica was not run: the owner chose not to spend the tokens');
     expect(md).not.toMatch(/^Fewer /m);
+    expect(md).not.toMatch(/replica ran|were answered/);
+    expect(md.split('\n\n')[1]).toContain('one merged ticket, ST-LN-81,');
+    expect(md.split('\n\n')[1]).toContain('No model run was dispatched');
     expect(json).toMatchObject({ notRun: true, reason: 'the owner chose not to spend the tokens' });
     expect(stdout.text).toContain('discuss-replica.md');
     expect(renderNotRun('a\n  b').md).toContain('The replica was not run: a b');

@@ -4,6 +4,8 @@ import { execFileSync } from 'node:child_process';
 import { pinOf } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
 import { catBatch, defaultRefOf } from './fs.js';
+import { claimCommitOf } from './research-facts.js';
+import type { Claim } from './research-facts.js';
 import { whyGit } from './round-facts.js';
 
 /** The claim fact: the ClaimPin core reads, plus the claim commit's committer time (seconds) the host reads for accord budget. */
@@ -16,46 +18,13 @@ const GIT = {
   env: { ...process.env, GIT_NO_LAZY_FETCH: '1' },
 };
 
-/** One `claim: <id>` commit: its sha and its committer time in seconds since the epoch (ST-LN-94 D-11: the research clock starts there). */
-interface Claim {
-  sha: string;
-  time: number;
-}
-
-/** The commits reachable from HEAD (and not from the `notIn` refs) whose subject is exactly `claim: <id>`, oldest first (topological: a claim is never listed before its ancestor, whatever the commit dates). */
-function claimsOf(root: string, id: string, notIn: string[]): Claim[] {
-  const claim = 'claim: ' + id;
-  // `--grep` only narrows the log (it also matches `claim: <id>0` and a body line), so the subject is compared exactly.
-  const log = execFileSync(
-    'git',
-    ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '--fixed-strings', '--grep=' + claim, '--topo-order', '--reverse', '--format=%H %ct %s', 'HEAD', ...notIn],
-    { cwd: root, ...GIT },
-  );
-  const hits: Claim[] = [];
-  for (const line of log.split('\n')) {
-    const space = line.indexOf(' ');
-    const second = space > 0 ? line.indexOf(' ', space + 1) : -1;
-    if (second > 0 && line.slice(second + 1) === claim) {
-      hits.push({ sha: line.slice(0, space).toLowerCase(), time: Number(line.slice(space + 1, second)) });
-    }
-  }
-  return hits;
-}
-
 /**
  * The commit a ticket's claim pin is read at (ST-LN-91 D-15, WR-02, RR-CR-02, RR-IN-01): its `claim: <id>` commit, and only that. A ticket with no
  * such commit has no claim fact, so the working-tree pin decides and a ticket added under an older accord gets the new rules after the upgrade.
- * 1. The newest `claim: <id>` commit reachable from HEAD and not from the default ref `ref` (no `--first-parent`: a merged pull request holds
- *    it on the second-parent side), so a claim commit that reached the default branch never outranks the re-claim on the working branch.
- * 2. Else the newest `claim: <id>` commit overall (the branch was merged: the re-claim is still the claim, as it was on the branch).
- * Undefined with none of them.
+ * claimCommitOf (research-facts.ts, shared with the lane R research fact) picks it: the newest `claim: <id>` commit reachable from HEAD and not
+ * from the default ref, else the newest one overall. Undefined with none of them.
  */
-function claimCommit(root: string, id: string, ref: string | undefined): Claim | undefined {
-  const off = claimsOf(root, id, ref === undefined ? [] : ['--not', ref]);
-  if (off.length > 0) return off[off.length - 1];
-  const any = ref === undefined ? [] : claimsOf(root, id, []);
-  return any.length > 0 ? any[any.length - 1] : undefined;
-}
+const claimCommit = (root: string, id: string, ref: string | undefined): Claim | undefined => claimCommitOf(root, id, ref)?.claim;
 
 /**
  * ST-LN-91 D-15: the claim pin of `id`: the `accord:` pin of accord/config.yml at the claim commit, and at that commit's merge base with the

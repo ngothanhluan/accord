@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fixModel, loadSnapshot, nextRound } from '@accord-dev/accord-core';
 import { expect, it } from 'vitest';
-import { cleanup, commitMsg, gitRun, makeEmptyRepo, run, writeFiles } from './helpers/repo.js';
+import { cleanup, commitMsg, gitRun, makeEmptyRepo, mergeMsg, run, writeFiles } from './helpers/repo.js';
 import { CONFIG, gateReadyIn, laneTicket, P } from '../../../test/helpers/lane.js';
 
 type F = { rule: string; reason: string; file: string; level: string };
@@ -174,6 +174,7 @@ it('risk:security accord gate done and accord status count only a record the bra
       'accord/config.yml': CONFIG,
       [P('R-1')]: laneTicket('R-1', { lane: 'R', body: R_BODY, frontmatter: [`research: ["${PRIOR}"]`] }),
       [PRIOR]: recordText('Spent: 1h 10m of 4 hours; not measured of 800k weighted tokens'),
+      [P('T-2')]: laneTicket('T-2', { frontmatter: ['depends_on: ["R-1"]'] }),
     };
     expect(gateReadyIn(files, 'R-1')).toBe('pass');
     writeFiles(repo, files);
@@ -182,7 +183,10 @@ it('risk:security accord gate done and accord status count only a record the bra
     gitRun(repo, 'switch', '-q', '-c', 't/R-1');
     writeFiles(repo, { 'notes.txt': 'claimed\n' });
     commitMsg(repo, 'claim: R-1', new Date(Date.now() - 60_000));
-    const stageOf = async () => (JSON.parse((await run(['status', '--json'], repo)).out) as { id: string; stage?: string }[]).find((r) => r.id === 'R-1')?.stage;
+    type Row = { id: string; stage?: string; blockedBy?: string[] };
+    const rows = async () => JSON.parse((await run(['status', '--json'], repo)).out) as Row[];
+    const stageOf = async () => (await rows()).find((r) => r.id === 'R-1')?.stage;
+    const blocked = async () => (await rows()).find((r) => r.id === 'T-2')?.blockedBy;
     const first = await run(['gate', 'done', 'R-1', '--json'], repo);
     expect(first.code).toBe(1);
     expect((JSON.parse(first.out).findings as F[]).map((f) => f.rule)).toEqual(['gate.research-record-missing']);
@@ -195,6 +199,12 @@ it('risk:security accord gate done and accord status count only a record the bra
     expect(JSON.parse(second.out).findings).toEqual([]);
     expect(second.code).toBe(0);
     expect(await stageOf()).toBe('done');
+    // Not yet on main: the dependant waits. Merged into main: done there too, read from main's tree and history.
+    expect(await blocked()).toEqual(['R-1']);
+    gitRun(repo, 'switch', '-q', 'main');
+    mergeMsg(repo, 't/R-1', 'Merge t/R-1');
+    expect(await stageOf()).toBe('done');
+    expect(await blocked()).toEqual([]);
   } finally {
     cleanup(repo);
   }

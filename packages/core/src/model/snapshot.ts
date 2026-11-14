@@ -42,7 +42,17 @@ export interface SnapshotInput {
   returnFacts?: Record<string, Record<string, boolean>>;
   // ST-LN-57: ticket id -> the round facts the host read from git (heads, ranges, pin). Absent when the host supplies none.
   roundFacts?: Record<string, RoundFacts>;
+  // ST-LN-94 CR-01, CR-02: lane R ticket id -> its research fact. Absent when the host supplies none, which counts no record as the result.
+  researchFacts?: Record<string, ResearchFact>;
 }
+
+/**
+ * ST-LN-94 CR-01, CR-02: what git says of a lane R ticket's research. `claimTime` is the committer time (seconds) of the claim commit accord
+ * budget clocks from; `changed` maps each listed record the branch added or changed after that commit to the time (seconds) of its last change:
+ * the committer time of the last commit that touched it, or the host's clock for a change not yet committed. `error` when git could not say,
+ * or the ticket has no `claim: <id>` commit.
+ */
+export type ResearchFact = { error: string } | { claimTime: number; changed: Record<string, number> };
 
 /** ST-LN-57: one commit of a round's range: its kind and the paths it changes (for a merge, the paths its remerge diff shows). */
 export interface RangeCommit { sha: string; kind: 'commit' | 'merge' | 'episode'; files: string[] }
@@ -315,6 +325,7 @@ export interface RepoSnapshot {
   branchFacts?: Record<string, BranchFact>; // carried through from SnapshotInput
   returnFacts?: Record<string, Record<string, boolean>>; // carried through from SnapshotInput
   roundFacts?: Record<string, RoundFacts>; // carried through from SnapshotInput
+  researchFacts?: Record<string, ResearchFact>; // carried through from SnapshotInput
   // BUG-LN-13 D-01: host-supplied after load: the default ref as git names it ('refs/remotes/origin/main', or
   // 'refs/heads/main' in a clone without origin) and a snapshot of the records of the view's tickets and every
   // depends_on entry as that ref holds them. Only the done readers read it; absent when no default ref resolves.

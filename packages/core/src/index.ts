@@ -32,6 +32,7 @@ export type {
   RoundRecord,
   BranchChange,
   BranchFact,
+  ResearchFact,
   RangeCommit,
   HeadFact,
   RoundFacts,

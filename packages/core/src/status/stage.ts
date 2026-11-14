@@ -2,8 +2,8 @@
 // `gate ready` decides Ready and only `gate done` decides Done.
 import { handMade, shaEqual } from '../gate/done.js';
 import { acHash, approvedHash, laneRHash, laneSHash } from '../gate/hash.js';
+import { hasOwnSpentRecord } from '../gate/lane-r.js';
 import { VERDICTS, workOf } from '../gate/work.js';
-import { isResearchRecord } from '../load/research.js';
 import { headingKey, stripHtmlComments } from '../load/sections.js';
 import { cycleOpen } from '../round/record.js';
 import type { AfterVerifyCommit, RepoSnapshot, Ticket } from '../model/snapshot.js';
@@ -81,7 +81,7 @@ function laneSStage(snapshot: RepoSnapshot, ticket: Ticket): LaneSStage {
 }
 
 // ST-LN-94 D-10, 94-ac-5: lane R is intent until gate ready recorded ac_hash over its three sections, research until a record its
-// research: lists is in the snapshot, then done. It has no plan and no review, so it never reaches build, review or verify.
+// research: lists, added or changed since the claim (CR-01) and holding a Spent line, is in the snapshot, then done. It has no plan and no review, so it never reaches build, review or verify.
 export type LaneRStage = 'intent' | 'research' | 'done';
 
 export const LANE_R_NEXT: Record<LaneRStage, string> = {
@@ -94,9 +94,9 @@ export const laneRNext = (stage: LaneRStage): string => LANE_R_NEXT[stage];
 
 function laneRStage(snapshot: RepoSnapshot, ticket: Ticket): LaneRStage {
   if (ticket.frontmatter?.ac_hash !== laneRHash(ticket)) return 'intent';
-  // T-03-33: only a Markdown record under accord/research/ counts; Object.hasOwn, as the path is written by hand.
-  const listed = ticket.frontmatter?.research ?? [];
-  return listed.some((p) => isResearchRecord(p) && Object.hasOwn(snapshot.files, p)) ? 'done' : 'research';
+  // T-03-33, CR-01: only a Markdown record under accord/research/ that the branch added or changed since the claim commit, with a Spent line,
+  // makes it done; an older record listed as evidence never does, and with no research fact from the host the stage stays research.
+  return hasOwnSpentRecord(snapshot, ticket) ? 'done' : 'research';
 }
 
 /** undefined for a ticket without lane, or whose frontmatter failed the schema. */

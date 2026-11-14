@@ -176,7 +176,7 @@ describe('status edge cases a golden cannot express', () => {
 // ST-LN-94 94-ac-5, D-10: a lane R ticket has its own stages, read from ac_hash and from the records its research: lists.
 describe('lane R stages', () => {
   const REC_PATH = 'accord/research/2026-11-14-critic.md';
-  const REC = '# Critic rounds\n\nDate: 2026-11-14. Repository at `1c5704e`.\nOwner: write now — "enough"\n';
+  const REC = '# Critic rounds\n\nDate: 2026-11-14. Repository at `1c5704e`.\nSpent: 1h 0m of 4 hours; not measured of 800k weighted tokens\nOwner: write now — "enough"\n';
   const R_BODY = ['## Question', 'Does the critic need a second round?', '', '## Timebox', '4 hours', '', '## Token budget', '800k weighted tokens', '', '## Decisions', '- D-01 Timebox 4 hours, token budget 800k weighted tokens — "fine"', ''].join('\n');
   const rTicket = (fm: string[] = []) => laneTicket('R-1', { lane: 'R', body: R_BODY, frontmatter: [`research: ["${REC_PATH}"]`, ...fm] });
   const hash = laneRHash(loadSnapshot({ files: { 'accord/config.yml': CONFIG, 'accord/tickets/R-1.md': rTicket() }, tree: [] }).tickets['R-1']);
@@ -189,6 +189,8 @@ describe('lane R stages', () => {
         ...(record ? { [REC_PATH]: REC } : {}),
       },
       tree: [],
+      // CR-01: the host says the branch changed the record after the claim.
+      ...(record ? { researchFacts: { 'R-1': { claimTime: 0, changed: { [REC_PATH]: 60 } } } } : {}),
     });
   const row = (s: RepoSnapshot, id = 'R-1') => statusRows(s).find((r) => r.id === id);
 

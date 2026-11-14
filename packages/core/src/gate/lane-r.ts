@@ -2,7 +2,7 @@
 // needs no approval, Approach, discuss record or scenario. Each check is silent unless the ticket exists with `lane: R`.
 import { isResearchRecord } from '../load/research.js';
 import { headingKey, LIST_MARKER, stripHtmlComments } from '../load/sections.js';
-import type { Line, RepoSnapshot, Section, Ticket } from '../model/snapshot.js';
+import type { Line, RepoSnapshot, ResearchFact, Section, Ticket } from '../model/snapshot.js';
 import { laneRHash } from './hash.js';
 import type { GateRule } from './rules.js';
 
@@ -188,6 +188,27 @@ function presentRecords(snapshot: RepoSnapshot, t: Ticket): string[] {
   return (t.frontmatter?.research ?? []).filter((p) => isResearchRecord(p) && Object.hasOwn(snapshot.files, p));
 }
 
+/** CR-01: the host's research fact for the ticket; undefined when the host supplied none. */
+function researchFactOf(snapshot: RepoSnapshot, id: string): ResearchFact | undefined {
+  const facts = snapshot.researchFacts;
+  return facts !== undefined && Object.hasOwn(facts, id) ? facts[id] : undefined;
+}
+
+/**
+ * CR-01: the ticket's own records: the listed records present that the branch added or changed after the claim commit, as the host's research
+ * fact says. Any other listed record is evidence, never the result, and is not read for Spent or budget. No fact, or a git error, gives none.
+ */
+function ownRecords(snapshot: RepoSnapshot, t: Ticket): string[] {
+  const fact = researchFactOf(snapshot, t.id);
+  if (fact === undefined || 'error' in fact) return [];
+  return presentRecords(snapshot, t).filter((p) => Object.hasOwn(fact.changed, p));
+}
+
+/** CR-01, 94-ac-5: a lane R ticket's research is done when one of its own records holds a Spent line parseSpent reads (the stage's test). */
+export function hasOwnSpentRecord(snapshot: RepoSnapshot, t: Ticket): boolean {
+  return ownRecords(snapshot, t).some((p) => recordLines(snapshot.files[p]).some((l) => parseSpent(l.text) !== undefined));
+}
+
 /** A record's lines with HTML comments stripped and each line trimmed. */
 const recordLines = (text: string): Line[] =>
   stripHtmlComments(text.split('\n').map((l, i) => ({ line: i + 1, text: l }))).map((l) => ({ line: l.line, text: l.text.trim() }));
@@ -227,24 +248,31 @@ export function parseSpent(line: string): { minutes: number; tokens: number | un
   return { minutes, tokens: Number(tokens[0]), time: time[0], tokensText: tokens[0] };
 }
 
-/** 94-ac-2: none of the research: entries is a record under accord/research/ this checkout holds. */
+/**
+ * 94-ac-2, CR-01: none of the research: entries is a record under accord/research/ this checkout holds that the branch added or changed since the
+ * claim commit. A record that already existed is evidence, never the result. Fails closed when the host supplied no fact or git failed.
+ */
 export const researchRecordMissing: GateRule['check'] = (snapshot, id) => {
   const t = laneR(snapshot, id);
-  if (t === undefined || presentRecords(snapshot, t).length > 0) return [];
+  if (t === undefined || ownRecords(snapshot, t).length > 0) return [];
+  const fact = researchFactOf(snapshot, id);
+  const why = fact === undefined ? '; git was not read for it' : 'error' in fact ? '; git could not say which records changed: ' + fact.error : '';
   return [
     {
       file: ticketFile(id),
       pointer: '/research',
-      reason: 'no record under accord/research/ that research: lists is in this checkout; a lane R ticket is done when its research record merges',
+      reason:
+        'no record under accord/research/ that research: lists was added or changed on this branch since its claim commit' + why +
+        '; a record that already existed is evidence, not the result; a lane R ticket is done when its own research record merges',
     },
   ];
 };
 
-/** 94-ac-2, D-11: each listed record present holds a Spent line, outside HTML comments, that parseSpent reads. */
+/** 94-ac-2, D-11, CR-01: each of the ticket's own records holds a Spent line, outside HTML comments, that parseSpent reads. */
 export const researchSpentMissing: GateRule['check'] = (snapshot, id) => {
   const t = laneR(snapshot, id);
   if (t === undefined) return [];
-  return presentRecords(snapshot, t)
+  return ownRecords(snapshot, t)
     .filter((p) => !recordLines(snapshot.files[p]).some((l) => parseSpent(l.text) !== undefined))
     .map((p) => ({ file: p, reason: `${p} has no "${SPENT_FORM}" line; copy the one accord budget ${id} prints` }));
 };
@@ -269,8 +297,10 @@ const OWNER_FORMS = ['Owner: write now — ', 'Owner: extended to '];
 const isOwnerAnswer = (line: string): boolean => OWNER_FORMS.some((f) => line.startsWith(f)) && quotesOwner(line);
 
 /**
- * D-14, D-11, D-20: the last Spent line of each listed record present, against the ticket's current Timebox and Token budget, strictly over.
- * A `not measured` token count leaves the time alone to decide. A record over either fails unless it holds the owner's quoted answer. An
+ * D-14, D-11, D-20: the last Spent line of each of the ticket's own records (CR-01), against the ticket's current Timebox and Token budget,
+ * strictly over. CR-02: the time compared is the larger of the Spent time and git's whole minutes from the claim commit to the record's last
+ * change, the calendar clock accord budget reads, so a Spent line written lower than the time since the claim decides nothing. The token half
+ * cannot be measured from git, so the Spent tokens are read as written. A `not measured` token count leaves the time alone to decide. A record over either fails unless it holds the owner's quoted answer. An
  * extension written into the ticket with its quoted D-nn (D-13) is the allowance compared, so it needs no Owner line. Silent when the ticket
  * is not lane R or either allowance is unreadable (gate.research-field-missing's finding), and for a record with no Spent line
  * (gate.research-spent-missing's).
@@ -282,7 +312,8 @@ export const researchOverBudget: GateRule['check'] = (snapshot, id) => {
   const timebox = timeboxText === undefined ? undefined : readTimebox(timeboxText);
   const budget = budgetText === undefined ? undefined : readTokenBudget(budgetText);
   if (timebox === undefined || budget === undefined) return [];
-  return presentRecords(snapshot, t).flatMap((p) => {
+  const fact = researchFactOf(snapshot, id);
+  return ownRecords(snapshot, t).flatMap((p) => {
     const lines = recordLines(snapshot.files[p]);
     let last: { line: number; spent: NonNullable<ReturnType<typeof parseSpent>> } | undefined;
     for (const l of lines) {
@@ -291,7 +322,9 @@ export const researchOverBudget: GateRule['check'] = (snapshot, id) => {
     }
     if (last === undefined) return [];
     const { minutes, tokens, time, tokensText } = last.spent;
-    const overTime = minutes > timebox;
+    // ownRecords returned p, so the fact holds its change time.
+    const gitMinutes = fact === undefined || 'error' in fact ? 0 : Math.max(0, Math.floor((fact.changed[p] - fact.claimTime) / 60));
+    const overTime = Math.max(minutes, gitMinutes) > timebox;
     const overTokens = tokens !== undefined && tokens > budget;
     if ((!overTime && !overTokens) || lines.some((l) => isOwnerAnswer(l.text))) return [];
     const passed = overTime && overTokens ? 'timebox and token budget' : overTime ? 'timebox' : 'token budget';
@@ -300,7 +333,9 @@ export const researchOverBudget: GateRule['check'] = (snapshot, id) => {
         file: p,
         line: last.line,
         reason:
-          `${p} spent ${time} of the ticket's ${timeboxText} and ${tokensText} of its ${budgetText}: over the ${passed}, with no owner answer; ` +
+          `${p} spent ${time} of the ticket's ${timeboxText} and ${tokensText} of its ${budgetText}` +
+          (gitMinutes > minutes ? `, and git counts ${hoursMinutes(gitMinutes)} since the claim commit to the record's last change` : '') +
+          `: over the ${passed}, with no owner answer; ` +
           'the research stops and asks the owner (D-11), then writes Owner: write now — "<the owner\'s sentence>" or ' +
           'Owner: extended to <what> — "<the owner\'s sentence>" into the record',
       },

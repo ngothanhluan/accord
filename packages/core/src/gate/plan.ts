@@ -1,7 +1,7 @@
 // Spec §7 plan gate: the plan of an approved lane ticket covers every criterion and decision and defers
 // nothing. Mechanical only — whether the plan is good is the critic's question; this gate answers whether
 // it is complete. Levels live in rules.ts (D-57).
-import { fencedBlocks, headingKey, LIST_MARKER, stripHtmlComments } from '../load/sections.js';
+import { headingKey, LIST_MARKER, stripHtmlComments, taskBlocks } from '../load/sections.js';
 import { FIELD, fieldLines, tokens } from '../load/work.js';
 import type { PlanTask, RepoSnapshot, Ticket } from '../model/snapshot.js';
 import { claimPinBefore, claimPinNote, PLAN_FORMAT_FROM, PLAN_SIZE_FROM, pinBefore } from '../round/pin.js';
@@ -184,13 +184,13 @@ const withNote =
 const NEAR_AFTER = /^(after\s*:)/i;
 
 /**
- * The first line of the task outside a fenced block that looks like the `after:` key and is not (`After:`, `after :`): the key is read in lowercase, as `covers:`,
+ * The first line of the task outside its accepted interfaces blocks (any other fence line hides nothing, ST-LN-91 group 2 round 3) that looks like the `after:` key and is not (`After:`, `after :`): the key is read in lowercase, as `covers:`,
  * `files:` and `verify:` are, so a task that wrote it another way is told which line was skipped.
  */
 function skippedAfter(t: PlanTask): string {
-  const fences = fencedBlocks(t.lines);
+  const { blocks } = taskBlocks(t.lines);
   for (const l of t.lines) {
-    if (fences.some((f) => l.line >= f.open && l.line <= f.close)) continue;
+    if (blocks.some((b) => l.line >= b.open && l.line <= b.close)) continue;
     const m = NEAR_AFTER.exec(l.text.replace(LIST_MARKER, '').trim());
     if (m !== null && m[1] !== 'after:') return `; line ${l.line} starts with "${m[1]}", which is not read: write the key in lowercase, as covers:, files: and verify: are`;
   }
@@ -229,20 +229,27 @@ export const TASK_LINE_CAP = 120;
 /** The non-blank lines under the task's heading, as `accord brief` prints them: comment lines and fenced lines count (WR-01), so the gate measures what the executor receives. */
 export const taskLength = (task: PlanTask): number => task.lines.filter((l) => l.text.trim() !== '').length;
 
-/** ST-LN-91 91p-ac-1: a plan task says what, not how; the one block it may hold is a fence whose info string starts with the word interfaces. */
+/** The one form a plan task's interfaces block may take (ST-LN-91 D-09, group 2 round 3), as each refusal says it. */
+const ONE_FORM =
+  'a plan task says what, not how: the only block it may hold is an interfaces block, opened by a line that is exactly ```interfaces at column 0 and closed by the first line that is exactly ``` at column 0; ' +
+  'no other line may start with three backticks or tildes, even after spaces, tabs, > or a list marker, inside the block or out';
+
+/** ST-LN-91 91p-ac-1: a plan task says what, not how; it holds interfaces blocks only in the one form, and each other fence-like line is refused at its own line. */
 export const taskCodeBlock: GateRule['check'] = withNote((snapshot, id) =>
   formatTasks(snapshot, id).flatMap((t) =>
-    fencedBlocks(t.lines)
-      .filter((f) => f.quoted === true || f.info.split(/\s+/)[0] !== 'interfaces')
-      .map((f) => ({
-        file: planFile(id),
-        line: f.open,
-        reason:
-          `task ${t.n} holds a fenced code block${f.quoted === true ? ' in a blockquote' : ''} at line ${f.open}` +
-          (f.info === '' ? '' : ` (${f.info})`) +
-          '; a plan task says what, not how: the only block allowed is an interfaces block, a fence whose info string starts with interfaces' +
-          (f.quoted === true ? ', and not inside a blockquote' : ''),
-      })),
+    taskBlocks(t.lines).refused.map((f) => ({
+      file: planFile(id),
+      line: f.line,
+      reason:
+        (f.kind === 'unclosed'
+          ? `task ${t.n} opens an interfaces block at line ${f.line} that no line closes`
+          : `task ${t.n} holds a fence line at line ${f.line}` +
+            (f.info === '' ? '' : ` (${f.info})`) +
+            (f.quoted ? ' in a blockquote' : '') +
+            (f.from === undefined ? '' : ` inside the interfaces block opened at line ${f.from}`)) +
+        '; ' +
+        ONE_FORM,
+    })),
   ),
 );
 

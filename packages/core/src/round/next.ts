@@ -393,7 +393,8 @@ export function nextRound(snapshot: RepoSnapshot, id: string, kind: RoundKind): 
     return refuse(`${file} has no record version line; add the line "Round record: 1" above its first ## heading and ask again: its rounds count as cycle 1`);
   }
   const problems = recordProblems(snapshot, id, kind);
-  // Round 2 review WR-02: a round-1 mark the plan record reading cannot parse is a problem only because the new plan rules apply, which a failed claim read decides: say so.
+  // Round 2 review WR-02, round 3 IN-03: a plan record problem names a failed claim read, as gate plan names it on every plan finding. Not every such problem
+  // depends on the claim pin (a mark no rule reads is refused under a readable claim too); the note then names a cause that changes nothing, which is accepted.
   if (problems.length > 0) return (kind === 'plan' ? refuseCap : refuse)(...problems.map((p) => p.reason));
   const scope = kind === 'review' ? scopeProblems(snapshot, id) : [];
   if (scope.length > 0) return refuse(...scope.map(scopeReason));

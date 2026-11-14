@@ -295,7 +295,8 @@ describe('plan format: fenced blocks', () => {
         expect(f.reason).toContain('exactly ```interfaces at column 0');
       }
       for (const t of texts) expect(found[0].reason).toContain(t);
-      expect(r.verdict).toBe(refused.length === 0 ? 'pass' : 'fail');
+      if (refused.length > 0) expect(r.verdict).toBe('fail');
+      else expect(format(r)).toEqual([]);
     }
   });
 
@@ -336,7 +337,9 @@ describe('plan format: fenced blocks', () => {
 
   // The owner's decision, Ruling: only the accepted interfaces block hides lines from the after: readers; a refused fence line hides nothing.
   it('risk:complex-branching the after: readers skip the lines of an accepted interfaces block and of nothing else (ST-LN-91 91p-ac-2)', () => {
-    const task2 = (lines: string[]) => build({ plan: three(lines), claim: NEW }).work!['T-1'].plan!.tasks[1];
+    // Task 2 is the last task, so a block it leaves open swallows no heading of the plan-level reading.
+    const last = (lines: string[]): string => planOf(task(1, ['after: none']), task(2, lines));
+    const task2 = (lines: string[]) => build({ plan: last(lines), claim: NEW }).work!['T-1'].plan!.tasks[1];
     // Inside an accepted block: not read, so the after: line below it is the task's.
     expect(task2(['```interfaces', 'after: 9', '```', 'after: 1']).after).toMatchObject({ tasks: [1], unread: [] });
     expect(task2(['```interfaces', 'after: 9', '```']).after).toBeUndefined();
@@ -346,7 +349,7 @@ describe('plan format: fenced blocks', () => {
     expect(task2(['- ```interfaces', '  after: 1', '  ```']).after).toMatchObject({ tasks: [1] });
     expect(task2(['  ```interfaces', 'after: 1', '  ```']).after).toMatchObject({ tasks: [1] });
     // The skipped-line hint follows the same reading.
-    const missing = (lines: string[]) => of(check({ plan: three(lines), claim: NEW }), 'gate.task-after-missing')[0].reason;
+    const missing = (lines: string[]) => of(check({ plan: last(lines), claim: NEW }), 'gate.task-after-missing')[0].reason;
     expect(missing(['```interfaces', 'After: 1', '```'])).not.toContain('starts with');
     expect(missing(['  ```interfaces', 'After: 1', '  ```'])).toContain('starts with "After:"');
     expect(missing(['```interfaces', 'After: 1'])).toContain('starts with "After:"');

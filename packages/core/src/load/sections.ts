@@ -7,7 +7,6 @@ export interface Fence {
   open: number; // Markdown line of the opening fence
   close: number; // Markdown line of the closing fence, or the last body line when unterminated
   content: Line[]; // every line between the fences
-  quoted?: true; // opened inside a block quote: only fencedBlocks sets it, and only plan tasks read it
 }
 
 /** Case-insensitive, whitespace-collapsed heading identity (D-39). */
@@ -150,89 +149,51 @@ export function requirementLines(section: Section, fences: Fence[]): Line[] {
     .filter((l) => l.text !== ''); // after the marker: a bullet with no text is not a requirement
 }
 
-// A block opens on any line whose first non-blank characters, after any block-quote markers and list markers, are a run of three backticks or
-// tildes: a fence on a list item's marker line or in a block quote is still a fence here, so a plan task cannot hold code by nesting it (a false
-// reading refuses and names the line it opens on). One quote level or list marker is stripped per pass, up to a few levels.
-const QUOTE_PREFIX = /^[ \t]*>[ \t]?/;
-const ITEM_PREFIX = /^[ \t]*(?:[-*+]|\d+[.)])[ \t]+/;
-const FENCE_RUN = /^[ \t]*(`{3,}|~{3,})(.*)$/;
-const BLOCK_CLOSE = /^[ \t]*(`{3,}|~{3,})\s*$/;
+// ST-LN-91 D-09, group 2 round 3 (the owner's decision, 2026-11-14): a plan task holds an interfaces block in one form only, and the reader models no
+// CommonMark container. The block opens on a line that is exactly ```interfaces at column 0 and ends at the first following line that is exactly ``` at
+// column 0, trailing spaces, tabs and a carriage return allowed. Any other line that is fence-like is refused: one that, after any mix of leading spaces,
+// tabs, `>` quote marks and list markers (`-`, `*`, `+`, `1.`, `1)`, with or without the space after them), starts with three or more backticks or tildes.
+const INTERFACES_OPEN = /^```interfaces[ \t\r]*$/;
+const INTERFACES_CLOSE = /^```[ \t\r]*$/;
+const FENCE_LIKE = /^((?:[ \t>]|[-*+]|[0-9]+[.)])*)(`{3,}|~{3,})(.*)$/;
 
-/** The width of `text` in columns, a tab taking the next multiple of four. */
-function width(text: string): number {
-  let w = 0;
-  for (const c of text) w += c === '\t' ? 4 - (w % 4) : 1;
-  return w;
+/** A line of a plan task that the one interfaces block form does not allow. */
+export interface FenceLine {
+  line: number; // Markdown line of the refused line: for `unclosed`, the opening line of the interfaces block no line closes
+  kind: 'fence' | 'inside' | 'unclosed'; // a fence-like line outside the block, one inside it (`from` names its opening line), or a block left open
+  info: string; // what follows the run of backticks or tildes, trimmed
+  quoted: boolean; // a `>` precedes the run
+  from?: number; // for `inside`: the opening line of the interfaces block the line sits in
 }
 
-/** The column of a line's first character that is not whitespace. */
-const indentOf = (text: string): number => width(/^[ \t]*/.exec(text)![0]);
+/** Whether a fence-like line is quoted, and what follows its run; undefined when the line is not fence-like. */
+const fenceLike = (text: string): { quoted: boolean; info: string } | undefined => {
+  const m = FENCE_LIKE.exec(text);
+  return m === null ? undefined : { quoted: m[1].includes('>'), info: m[3].trim() };
+};
 
 /**
- * The fence a line opens, if any: its marker run, its info string, whether a block-quote marker precedes it, and `indent`: for a fence on a list item's marker line the
- * column the item's content starts at (the width of the stripped marker prefix, as CommonMark takes it), otherwise the column the fence's own line starts at.
- * A quoted fence has none: a plan task may not hold one at all.
+ * ST-LN-91 D-09: the interfaces blocks of a plan task and every line the one accepted form does not allow, read from the lines as `accord brief` prints
+ * them: an HTML comment hides nothing, and a comment delimiter inside the block is part of it. `blocks` holds each accepted block, opening and closing
+ * line; `refused` every other fence-like line, in line order, an interfaces block that no line closes named at its opening line.
  */
-function opening(text: string): { marker: string; info: string; quoted: boolean; indent: number; onItem: boolean } | undefined {
-  let rest = text;
-  let quoted = false;
-  for (let i = 0; i < 8; i++) {
-    const q = QUOTE_PREFIX.exec(rest);
-    const m = q ?? ITEM_PREFIX.exec(rest);
-    if (m === null) break;
-    if (q !== null) quoted = true;
-    rest = rest.slice(m[0].length);
-  }
-  const m = FENCE_RUN.exec(rest);
-  // CommonMark: a backtick fence's info string may not contain a backtick.
-  if (m === null || (m[1][0] === '`' && m[2].includes('`'))) return undefined;
-  const onItem = rest.length < text.length;
-  return { marker: m[1], info: m[2].trim(), quoted, onItem, indent: quoted ? 0 : onItem ? width(text.slice(0, text.length - rest.length)) : indentOf(text) };
-}
-
-/** The closing run of a line inside a fence; a fence opened in a block quote closes on a line that carries the quote markers too. */
-function closing(text: string, quoted: boolean): RegExpExecArray | null {
-  let rest = text;
-  if (quoted) while (QUOTE_PREFIX.test(rest)) rest = rest.replace(QUOTE_PREFIX, '');
-  return BLOCK_CLOSE.exec(rest);
-}
-
-/**
- * ST-LN-91 D-09, WR-01, WR-02: the fenced blocks of a plan task, read as `accord brief` prints the task: the lines as written. An HTML comment hides
- * nothing: a fence inside a comment is a fence, a comment mark in inline code opens nothing, and every comment line counts toward the length. A
- * comment delimiter inside a fence is code. `quoted` marks a block inside a block quote, which a plan task may not hold. An unterminated block
- * closes at the last line.
- *
- * Round 2 WR-01: a fence inside a list item ends where CommonMark ends the item, and a block the item's end leaves open is read again from that line: a fence opened
- * on a list marker line holds the lines indented as far as the item's content; a fence opened on an indented line of a task that holds a list item holds the lines
- * indented as far as the fence line itself. The first non-blank line indented less ends the block, and is read as a possible opening. A flush-left closing fence
- * therefore closes nothing: it opens a stray block of its own, and the plan task is refused for it. Where the end is in doubt the block is held to end: the
- * block that follows is then read and refused, never taken for the content of an interfaces block.
- */
-export function fencedBlocks(lines: Line[]): Fence[] {
-  const fences: Fence[] = [];
-  let open: { marker: string; quoted: boolean; indent: number; fence: Fence } | undefined;
-  let item = false; // a list item has been seen outside a fence: an indented fence may sit inside it
+export function taskBlocks(lines: Line[]): { blocks: { open: number; close: number }[]; refused: FenceLine[] } {
+  const blocks: { open: number; close: number }[] = [];
+  const refused: FenceLine[] = [];
+  let open: number | undefined;
   for (const { line, text } of lines) {
-    if (open && open.indent > 0 && text.trim() !== '' && indentOf(text) < open.indent) open = undefined; // the list item ends here
-    if (open) {
-      const close = closing(text, open.quoted);
-      if (close && close[1][0] === open.marker[0] && close[1].length >= open.marker.length) {
-        open.fence.close = line;
-        open = undefined;
-      } else {
-        open.fence.content.push({ line, text });
-        open.fence.close = line;
-      }
+    if (open !== undefined && INTERFACES_CLOSE.test(text)) {
+      blocks.push({ open, close: line });
+      open = undefined;
       continue;
     }
-    if (ITEM_PREFIX.test(text)) item = true;
-    const m = opening(text);
-    if (m) {
-      const fence: Fence = { info: m.info, open: line, close: line, content: [], ...(m.quoted ? { quoted: true as const } : {}) };
-      fences.push(fence);
-      open = { marker: m.marker, quoted: m.quoted, indent: m.onItem || item ? m.indent : 0, fence };
+    if (open === undefined && INTERFACES_OPEN.test(text)) {
+      open = line;
+      continue;
     }
+    const f = fenceLike(text);
+    if (f !== undefined) refused.push({ line, kind: open === undefined ? 'fence' : 'inside', ...f, ...(open === undefined ? {} : { from: open }) });
   }
-  return fences;
+  if (open !== undefined) refused.push({ line: open, kind: 'unclosed', info: 'interfaces', quoted: false });
+  return { blocks, refused: refused.sort((a, b) => a.line - b.line) };
 }

@@ -1600,12 +1600,44 @@ function safeTip(root: string, tip: string, vc: string | undefined, ref: string,
   try {
     out = execFileSync('git', ['merge-tree', '--write-tree', ref, tip], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   } catch (e) {
-    return (e as { status?: number | null }).status === 1 ? 'conflict' : 'unsafe';
+    // ST-LN-96 t1-ac-5: a squash- or rebase-merged branch whose files main edited again conflicts, yet everything it wrote is in main's history
+    if ((e as { status?: number | null }).status !== 1) return 'unsafe';
+    return blobsOnRef(root, tip, ref) ? 'safe' : 'conflict';
   }
   try {
     return out.split('\n')[0].trim() === git(root, ['rev-parse', ref + '^{tree}']).trim() ? 'safe' : 'unsafe';
   } catch {
     return 'unsafe';
+  }
+}
+
+/** The most changed paths `blobsOnRef` looks up, one `git log` each. */
+const BLOB_PATHS_MAX = 200;
+
+/**
+ * ST-LN-96 t1-ac-5, D-04: is every file the branch `tip` wrote, since it left `ref`, a blob that the history of `ref` already holds at that path?
+ * A squash or rebase merge writes the same blobs under other commits, so a branch whose files main then edited again has this proof and no
+ * ancestry. True only when the branch's own changes are plain additions and modifications of regular files (a deletion, a rename, a type or
+ * mode change, a link or a submodule gives false), there are at most BLOB_PATHS_MAX of them, and every blob is found by `--find-object`; a miss
+ * or a git failure gives false, so the branch is kept.
+ */
+function blobsOnRef(root: string, tip: string, ref: string): boolean {
+  try {
+    const base = git(root, ['merge-base', ref, tip]).trim();
+    if (base === '') return false;
+    const fields = git(root, ['diff', '--raw', '-z', '--no-renames', '--no-abbrev', base, tip, '--']).split('\0');
+    if (fields.pop() !== '') return false;
+    // each change is a header (":<old mode> <new mode> <old sha> <new sha> <status>") then its path
+    if (fields.length % 2 !== 0 || fields.length / 2 > BLOB_PATHS_MAX) return false;
+    for (let i = 0; i < fields.length; i += 2) {
+      const h = /^:(\d{6}) (\d{6}) [0-9a-f]+ ([0-9a-f]+) ([AM])$/.exec(fields[i]);
+      if (h === null || (h[4] === 'A' ? h[2] !== '100644' : h[1] !== h[2] || (h[2] !== '100644' && h[2] !== '100755'))) return false;
+      const file = fields[i + 1];
+      if (file === '' || git(root, ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '-1', '--format=%H', '--find-object=' + h[3], ref, '--', ':(literal)' + file]).trim() === '') return false;
+    }
+    return true;
+  } catch {
+    return false;
   }
 }
 

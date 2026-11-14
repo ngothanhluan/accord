@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { compilePattern, initialsHolder, lintSnapshot, loadSnapshot, nextTicketId, peopleOf } from '../src/index.js';
+import { compilePattern, initialsHolder, lintSnapshot, loadSnapshot, nextTicketId, peopleOf, trackerKeyOk } from '../src/index.js';
 import { CONFIG, laneTicket } from '../../../test/helpers/lane.js';
 
 it('risk:complex-branching the default branch decides who holds initials before any other ref', () => {
@@ -72,4 +72,29 @@ it('risk:complex-branching lint.id-convention reads the team pattern (ST-LN-50 t
   expect(onlyIds.map((f) => f.file)).toEqual(['accord/tickets/ST-LN-1.md']);
   // neither ids nor people: no convention
   expect(convention(CONFIG, { 'FOO-1': laneTicket('FOO-1') })).toEqual([]);
+});
+
+it('risk:complex-branching a tracker key is checked for form and project (ST-LN-50 t2-ac-1)', () => {
+  const tracker = { mode: 'tracker' as const };
+  for (const ok of ['ENG-123', 'A-1', 'PROJ_2-9', 'ENG-999999999']) expect(trackerKeyOk(ok, tracker), ok).toBe(true);
+  for (const bad of ['eng-123', 'ENG-0', 'ENG-', '123', 'ENG-1-2', 'ENG-01', '-1', 'ENG-1234567890', 'ENG_-', 'E NG-1', 'ENG-1\n', 'A'.repeat(21) + '-1']) expect(trackerKeyOk(bad, tracker), bad).toBe(false);
+  expect(trackerKeyOk('OPS-4', { mode: 'tracker', projects: ['ENG'] })).toBe(false);
+  expect(trackerKeyOk('ENG-4', { mode: 'tracker', projects: ['ENG', 'OPS'] })).toBe(true);
+  expect(trackerKeyOk('ENG-4')).toBe(true); // no ids: the form alone
+  const started = Date.now();
+  expect(trackerKeyOk('A'.repeat(200_000) + '-1', tracker)).toBe(false);
+  expect(Date.now() - started).toBeLessThan(2000);
+  // lint in tracker mode checks the key form and the project list, and spares legacy_ids
+  const config = CONFIG + 'ids:\n  mode: tracker\n  projects: [ENG]\nlegacy_ids: [SHOW-1]\n';
+  const found = convention(config, {
+    'ENG-123': laneTicket('ENG-123'),
+    'ST-LN-1': laneTicket('ST-LN-1'),
+    'OPS-4': asBug('OPS-4'),
+    'SHOW-1': laneTicket('SHOW-1'),
+  });
+  expect(found.map((f) => f.file)).toEqual(['accord/tickets/OPS-4.md', 'accord/tickets/ST-LN-1.md']);
+  expect(found[1]?.reason).toContain('tracker key');
+  expect(found[1]?.reason).toContain('legacy_ids');
+  // a tracker key has no type, so a bug may carry any project key of the list
+  expect(convention(CONFIG + 'ids:\n  mode: tracker\n', { 'ENG-5': asBug('ENG-5') })).toEqual([]);
 });

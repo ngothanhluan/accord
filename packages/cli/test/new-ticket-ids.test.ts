@@ -79,3 +79,49 @@ it('risk:complex-branching with no ids key the ids are today\'s and a pattern-fr
   expect(err).toContain('a ticket id is required');
   expect(existsSync(ticket(bare, 'FEAT-1'))).toBe(false);
 });
+
+const TRACKER = 'ids:\n  mode: tracker\n  projects: [ENG]\n';
+
+it('risk:complex-branching tracker mode takes a given key and refuses a bad one (ST-LN-50 t2-ac-1)', async () => {
+  const repo = sandbox(TRACKER);
+  const first = await run(['new', 'ticket', 'ENG-123', '--type', 'story'], repo);
+  expect(first.code).toBe(0);
+  expect(first.out).toBe('accord/tickets/ENG-123.md\n');
+  expect(readFileSync(ticket(repo, 'ENG-123'), 'utf8')).toContain('id: "ENG-123"');
+  const lint = await run(['lint'], repo); // no people table is needed, and the key passes the convention
+  expect(lint.err + lint.out).not.toContain('lint.id-convention');
+  expect(lint.code).toBe(0);
+  // a key only on another branch of the clone, and a key only as a claim
+  commitAll(repo);
+  const home = gitRun(repo, 'branch', '--show-current').trim();
+  gitRun(repo, 'checkout', '-q', '-b', 'side');
+  writeFiles(repo, { 'accord/tickets/ENG-8.md': readFileSync(ticket(repo, 'ENG-123'), 'utf8').replaceAll('ENG-123', 'ENG-8') });
+  commitAll(repo);
+  gitRun(repo, 'checkout', '-q', home);
+  gitRun(repo, 'update-ref', 'refs/remotes/origin/t/ENG-9', 'HEAD');
+  const before = listing(repo);
+  for (const [args, reason] of [
+    [['new', 'ticket'], 'ENG-123'],
+    [['new', 'ticket', 'eng-7'], 'tracker key'],
+    [['new', 'ticket', 'ENG-0'], 'tracker key'],
+    [['new', 'ticket', 'OPS-4'], 'ids.projects'],
+    [['new', 'ticket', 'ENG-123'], 'already'],
+    [['new', 'ticket', 'ENG-8'], 'already'],
+    [['new', 'ticket', 'ENG-9'], 'already'],
+  ] as const) {
+    const refused = await run([...args], repo);
+    expect(refused.code, args.join(' ')).toBe(2);
+    expect(refused.err, args.join(' ')).toContain(reason);
+    expect(listing(repo), args.join(' ')).toEqual(before);
+  }
+  // a key never seen before is taken, and the working tree of the other branch stays out of this one
+  expect((await run(['new', 'ticket', 'ENG-10'], repo)).out).toBe('accord/tickets/ENG-10.md\n');
+});
+
+it('risk:complex-branching tracker mode with no project list takes any well-formed key (ST-LN-50 t2-ac-1)', async () => {
+  const repo = sandbox('ids:\n  mode: tracker\n');
+  expect((await run(['new', 'ticket', 'PLAT_2-41', '--type', 'bug'], repo)).out).toBe('accord/tickets/PLAT_2-41.md\n');
+  const refused = await run(['new', 'ticket', 'plat-1'], repo);
+  expect(refused.code).toBe(2);
+  expect(existsSync(ticket(repo, 'plat-1'))).toBe(false);
+});

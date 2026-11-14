@@ -274,8 +274,8 @@ it('risk:regression gate done on a lane R ticket runs none of the lane M Done ru
     expect(gated.length, JSON.stringify(o)).toBeGreaterThan(0);
     for (const x of gated) expect(rIds(), x).toContain(x);
   }
-  // The table itself: no plan, review, verification, suite, tick, scope or interface row.
-  for (const x of rIds()) expect(x).toMatch(/^gate\.(ticket-unknown|research-[a-z-]+|ready-missing|sections-changed|branch-unknown|commit-trailer)$/);
+  // The table itself: no plan, review, verification, suite, tick, scope or interface row (ST-LN-96: the two ruleset rows are in every table).
+  for (const x of rIds()) expect(x).toMatch(/^gate\.(ticket-unknown|ruleset-changed|ruleset-missing|research-[a-z-]+|ready-missing|sections-changed|branch-unknown|commit-trailer)$/);
 });
 
 // UAT decision 3 (2026-11-14): a lane R branch changes nothing outside accord/; a research script lives under accord/research/.

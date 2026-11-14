@@ -525,6 +525,7 @@ const GATE01: Record<string, string[]> = {
   'no LINT-06 findings': [...READY_PROMOTE],
   'a design reference when the profile requires it': ['gate.design-missing'],
   'the ticket exists at all': ['gate.ticket-unknown'],
+  'the ticket keeps the ruleset its claim wrote, unedited by hand (ST-LN-96)': ['gate.ruleset-changed', 'gate.ruleset-missing'],
   'every prerequisite done on the default branch': ['gate.depends-unmerged'],
 };
 

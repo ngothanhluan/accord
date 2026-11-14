@@ -57,12 +57,13 @@ export function gitClaimFacts(root: string, id: string): ClaimFacts | undefined 
 }
 
 /**
- * `snapshot` with claimPins[id] set, for the discuss rule of `accord gate ready`; `snapshot` itself for a ticket that is unknown, has no lane
- * or is lane S (the rule never asks it), when the snapshot has no HEAD, or when the ticket has no claim fact.
+ * `snapshot` with claimPins[id] set, for the rules that read the claim pin; `snapshot` itself for a ticket that is unknown or has no lane, when the
+ * snapshot has no HEAD, or when the ticket has no claim fact. ST-LN-96 D-02: lane S and lane R are served too, and `accord gate done` calls it, because
+ * gate.ruleset-changed and gate.ruleset-missing read the claim fact in every gate and lane (a hand edit can happen at any stage).
  */
 export function withClaimPins(root: string, snapshot: RepoSnapshot, id: string): RepoSnapshot {
   const lane = Object.hasOwn(snapshot.tickets, id) ? snapshot.tickets[id].frontmatter?.lane : undefined;
-  if (lane === undefined || lane === 'S' || snapshot.git === undefined) return snapshot;
+  if (lane === undefined || snapshot.git === undefined) return snapshot;
   const fact = gitClaimFacts(root, id);
   return fact === undefined ? snapshot : { ...snapshot, claimPins: { ...snapshot.claimPins, [id]: fact } };
 }

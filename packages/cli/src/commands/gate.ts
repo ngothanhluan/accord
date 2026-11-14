@@ -51,7 +51,8 @@ export function gate(
         // ST-LN-91 D-15: the plan format rules and the plan cap read the ticket's claim pin, never the plan baseline's.
         withRecordPins(ctx.root, claimPinned, id, 'plan', capRulesOf(claimPinned, id, 'plan').fall ? 2 : 3)
       : which === 'done'
-        ? { ...forScope, ...gitRecordsSinceFor(ctx.root, ctx.snapshot, id) }
+        ? // ST-LN-96 D-02: Done holds the claim fact too, for gate.ruleset-changed and gate.ruleset-missing, in every lane.
+          withClaimPins(ctx.root, { ...forScope, ...gitRecordsSinceFor(ctx.root, ctx.snapshot, id) }, id)
         : ctx.snapshot;
   // ST-LN-17: Done confirms each ## Return from verify marker with git; an unversioned round record of a ticket
   // not done on the default branch needs that branch's snapshot.

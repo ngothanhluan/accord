@@ -42,7 +42,7 @@ jobs:
           set +e
           set -uo pipefail
           code=0
-          npx --yes @accord-dev/accord@0.4.0 lint || code=1
+          npx --yes @accord-dev/accord@0.4.1 lint || code=1
           # --diff-filter=d leaves deleted tickets out of the tickets to gate; the deletion check below decides
           # whether a deletion may land. [^/]+ keeps accord/tickets/<id>/verification.md out while
           # accord/tickets/<id>.md stays in. || true keeps a zero-match grep from reading as a failure.
@@ -77,18 +77,18 @@ jobs:
             if grep -Evq "^([[:space:]]|#|-([[:space:]]|$)|${qc}?[[:alnum:]_-]+${qc}?[[:space:]]*:([[:space:]]|#|$)|$)" <<< "$fm"; then return 2; fi
             return 0
           }
-          # Approved means an approved_hash key in that version of path $2, or, on a lane S ticket, an ac_hash key, since
-          # a lane S ticket needs no approval. An unsettled read counts as approved.
+          # Approved means an approved_hash key in that version of path $2, or, on a lane S or R ticket, an ac_hash key, since
+          # neither a lane S nor a lane R ticket needs approval. An unsettled read counts as approved.
           approved_at() {
             fm_at "$1" "$2"
             local rc=$?
             if [ "$rc" -eq 1 ]; then return 1; fi
             if [ "$rc" -ne 0 ]; then return 0; fi
             grep -Eq "^[[:space:]]*${qc}?approved_hash${qc}?[[:space:]]*:" <<< "$fm" && return 0
-            grep -Eq "^${qc}?lane${qc}?[[:space:]]*:[[:space:]]*${qc}?S${qc}?[[:space:]]*(#.*)?$" <<< "$fm" && grep -Eq "^[[:space:]]*${qc}?ac_hash${qc}?[[:space:]]*:" <<< "$fm"
+            grep -Eq "^${qc}?lane${qc}?[[:space:]]*:[[:space:]]*${qc}?[SR]${qc}?[[:space:]]*(#.*)?$" <<< "$fm" && grep -Eq "^[[:space:]]*${qc}?ac_hash${qc}?[[:space:]]*:" <<< "$fm"
           }
           # Protected at revision $1 means deleting path $2 needs a drop first (D-01, D-04): an approved_hash key; a
-          # verified key whose value is not []; an ac_hash key on lane S, with no lane key, or with a lane key whose
+          # verified key whose value is not []; an ac_hash key on lane S or R, with no lane key, or with a lane key whose
           # value is not on its key line. An unsettled read counts as protected.
           protected_at() {
             fm_at "$1" "$2"
@@ -100,7 +100,7 @@ jobs:
             grep -Eq "^[[:space:]]*${qc}?ac_hash${qc}?[[:space:]]*:" <<< "$fm" || return 1
             grep -Eq "^${qc}?lane${qc}?[[:space:]]*:[[:space:]]*([|>][^#]*)?(#.*)?$" <<< "$fm" && return 0
             grep -Eq "^${qc}?lane${qc}?[[:space:]]*:" <<< "$fm" || return 0
-            grep -Eq "^${qc}?lane${qc}?[[:space:]]*:[[:space:]]*${qc}?S${qc}?[[:space:]]*(#.*)?$" <<< "$fm"
+            grep -Eq "^${qc}?lane${qc}?[[:space:]]*:[[:space:]]*${qc}?[SR]${qc}?[[:space:]]*(#.*)?$" <<< "$fm"
           }
           # Dropped needs status: dropped and a reason under ## Dropped, as lint reads it. Where this reading
           # cannot match lint (a comment spanning lines, a stray fence) the answer is not dropped: fail closed.
@@ -115,9 +115,10 @@ jobs:
           # key is in its version at the base or at any commit this pull request adds (git rev-list "$BASE..HEAD",
           # merge sides included), or when it was lane L or P at the base. At HEAD, only no lane key, or lane keys
           # that each hold a plain M, L or P on the key line, rule lane S out: a value off its key line or behind a
-          # tag may still read as S. A lane M ticket never approved may move to lane S in place. An unsettled read
-          # at HEAD is gated, since approved_at counts it as approved; at the base or at a commit of this pull
-          # request, an unsettled read or a failing rev-list fails closed. An absent file is skipped.
+          # tag may still read as S. Lane R needs no approval either, so it is read as S is here: a move to R after
+          # approval is a drop, an R ticket never approved is not. A lane M ticket never approved may move to lane S
+          # in place. An unsettled read at HEAD is gated, since approved_at counts it as approved; at the base or at a
+          # commit of this pull request, an unsettled read or a failing rev-list fails closed. An absent file is skipped.
           lane_dropped() {
             local rc revs rev lanes
             fm_at HEAD "$file" || return 1
@@ -196,6 +197,6 @@ jobs:
                 continue
               fi
             fi
-            npx --yes @accord-dev/accord@0.4.0 gate done "$id" || code=1
+            npx --yes @accord-dev/accord@0.4.1 gate done "$id" || code=1
           done <<< "$tickets"
           exit $code

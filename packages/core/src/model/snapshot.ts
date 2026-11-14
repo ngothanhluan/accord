@@ -21,6 +21,9 @@ export interface SnapshotInput {
   // Host-supplied: a recorded verified_commit or verification commit, as written -> paths changed from it to HEAD.
   // Present only when the sha is an ancestor of HEAD.
   recordsSince?: Record<string, string[]>;
+  // Host-supplied by gate done for the gated ticket: a recorded verified_commit or verification commit that is not an ancestor of HEAD
+  // (a rebase or a team script rewrote it), lower case -> what the contents of the ticket's files did since. Absent when the host supplies none.
+  contentSince?: Record<string, ContentSince>;
   // Claim branch templates in force ('t/{id}', 'feature/{id}'). Absent when only the default applies.
   branchTemplates?: string[];
   // Ticket id -> short name of the winning claim ref ('feature/ST-AN-2'). Absent when no claim exists.
@@ -53,14 +56,22 @@ export interface SnapshotInput {
  * REVIEW2 CR-01: with no claim commit to read (the default branch after a squash merge), `claimTime` is absent and `changed` holds the records
  * changed from the commit that added the ticket file on. `error` when git could not say, or the ticket has neither commit.
  */
+/** ST-LN-96 D-04: `changed` is the ticket's files whose contents differ between the recorded commit and HEAD (empty: none); `absent`: the commit is not in this clone. */
+export type ContentSince = { changed: string[] } | { absent: true };
+
 export type ResearchFact = { error: string } | { claimTime?: number; changed: Record<string, number> };
 
 /** ST-LN-57: one commit of a round's range: its kind and the paths it changes (for a merge, the paths its remerge diff shows). */
 export interface RangeCommit { sha: string; kind: 'commit' | 'merge' | 'episode'; files: string[] }
 /** ST-LN-91 D-11: the pin in accord/config.yml at the commit that first added a `## Round` heading to plan-review.md or approach-review.md, and at that commit's merge base with the default ref; `error` when git could not say. */
 export type RecordPin = { pin?: string; basePin?: string } | { error: string };
-/** ST-LN-91 D-15: the pin at a ticket's claim commit and at its merge base with the default ref; `{ error }` when git failed reading it. */
-export type ClaimPin = { sha?: string; pin?: string; basePin?: string } | { error: string };
+/**
+ * ST-LN-91 D-15: the pin at a ticket's claim commit and at its merge base with the default ref; `{ error }` when git failed reading it.
+ * ST-LN-96 D-02: `ruleset` is the string `ruleset` the ticket file first held on its branch (absent when no commit wrote one, or a non-string): the one at the claim commit, else the
+ * one in the first commit since the claim that wrote it (the backfill of a ticket claimed before RULESET_FROM), `rulesetCommit` being that commit. A rebase rewrites the claim commit
+ * onto the new base, so the config pin at it moves, and the ruleset the first commit wrote does not.
+ */
+export type ClaimPin = { sha?: string; pin?: string; basePin?: string; ruleset?: string; rulesetCommit?: string } | { error: string };
 /** ST-LN-91 D-14: one hunk of `git diff -U0` between two texts of plan.md: the old and new first line and line count (a count of 0 places the hunk after the line named). */
 export interface PlanHunk { oldStart: number; oldCount: number; newStart: number; newCount: number }
 /** ST-LN-91 D-14: the planner's fix of plan.md as the host read it: the commit it started from, its hunks and both texts; `error` when git could not say. */
@@ -133,6 +144,7 @@ export interface TicketFrontmatter {
   priority?: 'high' | 'medium' | 'low';// how the dashboard ranks this ticket; absent means medium
   approved_hash?: string; // spec §4: written by `accord approve`, 'fnv1a64:<16 hex>'
   ac_hash?: string;
+  ruleset?: string; // ST-LN-96 D-02: the accord pin the ticket was claimed under, written by the claim; 'x.y.z' (a pre-release is ignored by the readers)
   verified?: string[]; // ['ac-1']
   verified_hash?: string; // D-76: the AC hash the ticks were made against, 'fnv1a64:<16 hex>'
   verified_commit?: string; // D-76: the commit sha those ticks were made against, at least 7 hex characters
@@ -295,6 +307,7 @@ export interface AccordConfig {
   commits?: { trailers?: 'allow' | 'forbid' }; // ST-LN-8 D-01: absent or allow is off
   generated?: string[]; // ST-LN-62: paths a lane S ticket may change without listing them in ## Scope; an entry ending in / matches the folder
   sensitive?: Record<string, string[]>; // ST-LN-62: area name -> paths whose change fails a lane S ticket; an entry ending in / matches the folder
+  git?: { merge?: 'merge' | 'rebase' | 'squash'; sync?: string }; // ST-LN-96 D-14: how `accord worktree sync` takes main; absent means merge, and squash names the team's PR merge style (the sync is still a merge). D-03: sync is the team's script, one command line
   disposable?: string[]; // ST-LN-55 D-08, D-12: file and folder names an ignored path may hold at any depth and still be deleted with its worktree; absent means node_modules, dist, .DS_Store, Thumbs.db
 }
 
@@ -316,6 +329,7 @@ export interface RepoSnapshot {
   ancestors?: Record<string, boolean>; // carried through from SnapshotInput
   baselineFiles?: Record<string, string[]>; // carried through from SnapshotInput
   recordsSince?: Record<string, string[]>; // carried through from SnapshotInput
+  contentSince?: Record<string, ContentSince>; // carried through from SnapshotInput
   commits?: { sha: string; message: string }[]; // ST-LN-8: host-supplied by gate done when commits.trailers is forbid
   branchTemplates?: string[]; // carried through from SnapshotInput
   claimBranches?: Record<string, string>; // carried through from SnapshotInput

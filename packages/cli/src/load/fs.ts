@@ -3,8 +3,8 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { branchTemplateOf, CALL_SIGN, DEFAULT_BRANCH_TEMPLATE, isIntactRender, isResearchPath, isResearchRecord, isSha, loadSnapshot, normaliseText, peopleOf, pinOf, RETIRED_FILES, scopeLines, workOf } from '@accord-dev/accord-core';
-import type { BranchChange, BranchFact, RepoSnapshot, ResearchFact, SnapshotInput } from '@accord-dev/accord-core';
+import { branchTemplateOf, CALL_SIGN, DEFAULT_BRANCH_TEMPLATE, isIntactRender, isResearchPath, isResearchRecord, isSha, loadSnapshot, normaliseText, ownRecordsOnly, peopleOf, pinOf, RETIRED_FILES, scopeLines, shaEqual, workOf } from '@accord-dev/accord-core';
+import type { BranchChange, BranchFact, ContentSince, RepoSnapshot, ResearchFact, SnapshotInput } from '@accord-dev/accord-core';
 import { gitResearchFact, researchFactsFor } from './research-facts.js';
 
 /** Environment problem the user must fix (no git, not a repository, no accord/ folder); exit 2 in Phase 5. */
@@ -389,6 +389,118 @@ export function gitRecordsSinceFor(root: string, snapshot: RepoSnapshot, id: str
   return Object.keys(recordsSince).length === 0 ? {} : { recordsSince };
 }
 
+/** The paths `git diff --name-only` reports between two commits (or a commit and HEAD), NUL-separated, never through a shell. */
+function diffNames(root: string, args: string[]): string[] {
+  const raw = execFileSync('git', ['diff', '--name-only', '-z', '--no-renames', ...args], {
+    cwd: root,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    maxBuffer: 64 * 1024 * 1024,
+  });
+  return raw.split(' ').filter((p) => p !== '');
+}
+
+/** Paths per `git diff` command line: a long list is cut into batches, never handed over unbounded. */
+const CONTENT_BATCH = 200;
+
+/** The merge base of `ref` with the default ref `def`. */
+function mergeBaseOf(root: string, def: string, ref: string): string {
+  return execFileSync('git', ['merge-base', def, ref], { cwd: root, ...GIT_QUIET, maxBuffer: 64 * 1024 * 1024 }).trim();
+}
+
+/** The paths the branch at `tip` changes against the default ref `def`: the ticket's own work, as far as git can tell. */
+function branchPaths(root: string, def: string, tip: string): string[] {
+  return diffNames(root, [mergeBaseOf(root, def, tip), tip, '--']);
+}
+
+/**
+ * ST-LN-96 D-04, D-16 Option A: the ticket's files whose contents differ between the commit `sha` and `tip`, sorted by code point. The ticket's files are `own`
+ * (the paths its branch changes at `tip`) together with the paths it changed at `sha` (from that commit's merge base), less the ticket's own records. Only
+ * those paths are compared, so a change main brought to an unrelated file is never counted. An empty path set is no change: no pathspec would mean every path.
+ * One code for gate done (`gitContentSince`) and the stage trace (`rewrittenAfter`), so the two cannot disagree.
+ */
+function changedSince(root: string, id: string, def: string, tip: string, sha: string, own: string[]): string[] {
+  const paths = [...new Set([...own, ...branchPaths(root, def, sha)])].filter((p) => !ownRecordsOnly(id, [p]));
+  const changed = new Set<string>();
+  for (let i = 0; i < paths.length; i += CONTENT_BATCH) {
+    for (const p of diffNames(root, [sha, tip, '--', ...paths.slice(i, i + CONTENT_BATCH).map((q) => ':(literal)' + q)])) changed.add(p);
+  }
+  return [...changed].sort(byCodePoint);
+}
+
+/**
+ * ST-LN-96 D-04, D-16 Option A: for each commit the gated ticket's ticks and review were made against that is not an ancestor of HEAD (a rebase or
+ * a team script rewrote it), what the contents of the ticket's files did since, read for `gate done` and the gated ticket alone.
+ *
+ * The ticket's files are the paths its branch changes at HEAD (from the merge base with the default ref) together with the paths it changed at the
+ * recorded commit (from that commit's merge base), less the ticket's own records. Only those paths are compared, so a change main brought to an unrelated
+ * file is never counted. A commit that is not in this clone is `{ absent: true }`; a commit that is an ancestor of HEAD, and any git failure, leave no entry,
+ * so today's sha rule and reason stand. An empty path set is `{ changed: [] }`: no pathspec would mean every path, not none.
+ */
+export function gitContentSince(root: string, snapshot: RepoSnapshot, id: string): { contentSince?: Record<string, ContentSince> } {
+  const host = snapshot.git?.commit;
+  if (host === undefined || !isSha(host)) return {};
+  const recorded = [
+    ...new Set(
+      [
+        Object.hasOwn(snapshot.tickets, id) ? snapshot.tickets[id].frontmatter?.verified_commit : undefined,
+        Object.hasOwn(snapshot.verifications, id) ? snapshot.verifications[id].frontmatter?.commit : undefined,
+      ]
+        .filter((c): c is string => c !== undefined && isSha(c) && !shaEqual(c, host))
+        .map((c) => c.toLowerCase()),
+    ),
+  ];
+  const out: Record<string, ContentSince> = {};
+  const memo: ContentMemo = recorded.length === 0 ? {} : { def: defaultRefOf(root), defRead: true };
+  for (const sha of recorded) {
+    const verdict = contentSinceOf(root, id, sha, memo);
+    if (verdict !== undefined) out[sha] = verdict;
+  }
+  return Object.keys(out).length === 0 ? {} : { contentSince: out };
+}
+
+/** What one run of gitContentSince reads once for all the commits it compares: the default ref and the ticket's own paths at HEAD. */
+export interface ContentMemo {
+  def?: string;
+  defRead?: true;
+  own?: string[];
+}
+
+/**
+ * ST-LN-96 D-04, D-16 Option A and E: the verdict gitContentSince gives one recorded commit `sha`, for the ticket `id` against HEAD of `root`. `{ absent: true }` when the
+ * commit is not in this clone; `{ changed }` (empty: none) when it exists and is not an ancestor of HEAD; undefined when it is an ancestor of HEAD (today's sha rule stands),
+ * when there is no default ref, and on any git failure. `accord worktree sync` asks it after its own rebase, with the pre-rebase sha, before it re-binds a verification.
+ * `memo` carries the default ref and the ticket's own paths between calls of one run.
+ */
+export function contentSinceOf(root: string, id: string, sha: string, memo: ContentMemo = {}): ContentSince | undefined {
+  try {
+    try {
+      execFileSync('git', ['merge-base', '--is-ancestor', sha, 'HEAD'], { cwd: root, stdio: 'ignore' });
+      return undefined; // an ancestor: today's rule, a merge after verify still asks again
+    } catch (err) {
+      if ((err as { status?: number }).status !== 1) {
+        // Not a verdict of "not an ancestor": either the object is missing or git failed.
+        try {
+          execFileSync('git', ['cat-file', '-e', sha + '^{commit}'], { cwd: root, stdio: 'ignore' });
+        } catch (missing) {
+          if ((missing as { status?: number }).status === 128 || (missing as { status?: number }).status === 1) return { absent: true };
+        }
+        return undefined;
+      }
+    }
+    if (memo.defRead !== true) {
+      memo.def = defaultRefOf(root);
+      memo.defRead = true;
+    }
+    if (memo.def === undefined) return undefined;
+    memo.own ??= branchPaths(root, memo.def, 'HEAD');
+    return { changed: changedSince(root, id, memo.def, 'HEAD', sha, memo.own) };
+  } catch {
+    // Any git failure leaves no verdict: the sha comparison and its reason stand, which refuses.
+    return undefined;
+  }
+}
+
 type AfterVerify = NonNullable<SnapshotInput['afterVerify']>[string];
 
 const GIT_QUIET = { encoding: 'utf8' as const, stdio: ['ignore', 'pipe', 'pipe'] as ['ignore', 'pipe', 'pipe'] };
@@ -452,12 +564,73 @@ export function parseAfterLog(raw: string, remerged: boolean): AfterVerify {
   return commits;
 }
 
+/** Whether the object `sha` names a commit in this clone. `cat-file -e` exits 1 or 128 for one that is not there; any other failure counts as present. */
+function commitPresent(root: string, sha: string): boolean {
+  try {
+    execFileSync('git', ['cat-file', '-e', sha + '^{commit}'], { cwd: root, stdio: 'ignore' });
+    return true;
+  } catch (err) {
+    const status = (err as { status?: number }).status;
+    return !(status === 1 || status === 128);
+  }
+}
+
+/** Whether `git merge-base --is-ancestor sha ref` says yes (true), no (false) or cannot say (undefined). */
+function isAncestorOf(root: string, sha: string, ref: string): boolean | undefined {
+  try {
+    execFileSync('git', ['merge-base', '--is-ancestor', sha, ref], { cwd: root, stdio: 'ignore' });
+    return true;
+  } catch (err) {
+    return (err as { status?: number }).status === 1 ? false : undefined;
+  }
+}
+
+/**
+ * ST-LN-96 D-04, D-16 Option A, t1-ac-4: what the after-verify readers give a ticket whose start commit (the commit its ticks or its verification
+ * were made against) is in no tip's history, because a rebase or a team script rewrote it. The stage trace answers as gate done does (`gitContentSince`),
+ * from the same path set and batched diff (`changedSince`): `[]` when no ticket file changed; one entry `{ sha: <tip commit>, parents: [], files: <changed> }` when
+ * some did, which `progressOf` reads as a hand-made commit with no parent, so verify again with no review base; the same entry with no `files` when the start
+ * is not in this clone or git cannot compare. `undefined` when the rule does not apply and today's reading stands: the start is an ancestor of a tip (a merge of
+ * main after verify still asks again), it is an ancestor of the default ref (the work is already there), or git cannot say. A git failure after that reads as verify.
+ */
+function rewrittenAfter(root: string, id: string, start: string, tips: string[], def: string | undefined): AfterVerify | undefined {
+  if (!isSha(start) || tips.length === 0) return undefined;
+  const sha = start.toLowerCase();
+  let present = true;
+  for (const tip of tips) {
+    const ancestor = isAncestorOf(root, sha, tip);
+    if (ancestor === true) return undefined;
+    if (ancestor === false) continue;
+    // Not a verdict of "not an ancestor": either the object is missing, which is the rewrite this reads, or git failed for another reason.
+    if (commitPresent(root, sha)) return undefined;
+    present = false;
+    break;
+  }
+  if (present && def !== undefined && isAncestorOf(root, sha, def) === true) return undefined;
+  let head: string;
+  try {
+    head = execFileSync('git', ['rev-parse', '--verify', tips[0] as string], { cwd: root, ...GIT_QUIET }).trim().toLowerCase();
+  } catch {
+    return undefined;
+  }
+  const unknown: AfterVerify = [{ sha: head, parents: [] }];
+  if (!present || def === undefined) return unknown;
+  try {
+    const changed = changedSince(root, id, def, tips[0] as string, sha, branchPaths(root, def, tips[0] as string));
+    return changed.length === 0 ? [] : [{ sha: head, parents: [], files: changed }];
+  } catch {
+    return unknown;
+  }
+}
+
 /**
  * ST-LN-26: one ticket's commits reachable from its tips and not from its start commit nor the default ref, oldest first in
  * graph order, with the paths each changes. ST-LN-63: the body of the former per-ticket loop, one log with `--remerge-diff`
  * and once more without it when that fails; undefined when both fail.
  */
-function ownAfterVerify(root: string, def: string | undefined, want: { commit: string; tips: string[] }): AfterVerify | undefined {
+function ownAfterVerify(root: string, id: string, def: string | undefined, want: { commit: string; tips: string[] }): AfterVerify | undefined {
+  const rewritten = rewrittenAfter(root, id, want.commit, want.tips, def);
+  if (rewritten !== undefined) return rewritten;
   const opts = { cwd: root, ...GIT_QUIET, maxBuffer: 64 * 1024 * 1024, env: { ...process.env, GIT_NO_LAZY_FETCH: '1' } };
   // BUG-LN-19: no --reverse, since git 2.36 to 2.47 list a clean merge's files wrong when it meets --remerge-diff (fixed in git
   // 2.48); the list is put oldest first below instead, which is all --reverse does.
@@ -484,7 +657,7 @@ function ownAfterVerify(root: string, def: string | undefined, want: { commit: s
  * ST-LN-26: per ticket, the commits reachable from its tips and not from its start commit nor the default ref, oldest
  * first in graph order, with the paths each changes. A git failure drops the entry; it is never an environment error.
  */
-function gitAfterVerify(root: string, wanted: Record<string, { commit: string; tips: string[] }>): Record<string, AfterVerify> {
+function gitAfterVerify(root: string, wanted: Record<string, { commit: string; tips: string[]; id?: string }>): Record<string, AfterVerify> {
   const out: Record<string, AfterVerify> = {};
   let entries = Object.entries(wanted);
   if (entries.length === 0) return out;
@@ -500,17 +673,27 @@ function gitAfterVerify(root: string, wanted: Record<string, { commit: string; t
     } catch {
       return out;
     }
+    const unlisted = entries.filter(([, w]) => !listed.some((sha) => sha.startsWith(w.commit.toLowerCase())));
     entries = entries.filter(([, w]) => listed.some((sha) => sha.startsWith(w.commit.toLowerCase())));
+    // A start commit rev-list drops may be missing from this clone, a rewrite the stage trace reads; one on the default ref stays dropped.
+    for (const [key, w] of unlisted) {
+      const id = w.id ?? key;
+      const lost = rewrittenAfter(root, id, w.commit, w.tips, def);
+      if (lost !== undefined) out[key] = lost;
+    }
   }
-  for (const [id, w] of entries) {
-    const commits = ownAfterVerify(root, def, w);
-    if (commits !== undefined) out[id] = commits;
+  for (const [key, w] of entries) {
+    const commits = ownAfterVerify(root, w.id ?? key, def, w);
+    if (commits !== undefined) out[key] = commits;
   }
   return out;
 }
 
 type WalkCommit = { parents: string[]; files: string[]; subject: string };
 type Walk = Map<string, WalkCommit>;
+
+/** ST-LN-96: the positives `walkOver` found missing from this repository for a walk it had to retry; never set for a walk that went through the first time. */
+const MISSING_STARTS = new WeakMap<Walk, ReadonlySet<string>>();
 
 /**
  * ST-LN-63: false only for a ticket with a lane other than `S` and an open task. Core reads `afterVerify` for a lane S
@@ -768,7 +951,9 @@ function walkOver(root: string, positives: readonly string[]): { walk: Walk | un
   if (walk !== undefined) return { walk, def, refs };
   const missing = new Set(missingShas(root, positives));
   const rest = positives.filter((p) => !missing.has(p));
-  return { walk: missing.size === 0 || rest.length === 0 ? undefined : gitWalk(root, def, rest), def, refs };
+  const retried = missing.size === 0 || rest.length === 0 ? undefined : gitWalk(root, def, rest);
+  if (retried !== undefined) MISSING_STARTS.set(retried, missing);
+  return { walk: retried, def, refs };
 }
 
 /**
@@ -790,13 +975,13 @@ function resolveAfter(root: string, entries: readonly AfterEntry[], walk: Walk |
     return at;
   });
   const resolved = new Map<number, AfterVerify>();
-  const viaGit: Record<string, { commit: string; tips: string[] }> = {};
+  const viaGit: Record<string, { commit: string; tips: string[]; id: string }> = {};
   const reviewPath = (id: string) => `accord/tickets/${id}/review.md`;
   unique.forEach((e, i) => {
     // Without a walk, or with a tip git has no sha for, the ticket is read by git alone, as before (D-08).
     if (walk === undefined || e.shas === undefined) {
       const commit = e.start ?? reviewStartOf(root, e.id, e.tips);
-      if (commit !== undefined) viaGit[String(i)] = { commit, tips: e.tips };
+      if (commit !== undefined) viaGit[String(i)] = { commit, tips: e.tips, id: e.id };
       return;
     }
     let commit = e.start;
@@ -810,8 +995,13 @@ function resolveAfter(root: string, entries: readonly AfterEntry[], walk: Walk |
       if (commit === undefined || !walk.has(commit.toLowerCase())) return; // a sha not in the walk is on the default ref
     }
     const after = walkAfter(walk, commit, e.shas);
-    if (after === 'drop') return;
-    const list = after === 'own' ? ownAfterVerify(root, def, { commit, tips: e.tips }) : after;
+    if (after === 'drop') {
+      // The start is on the default ref or missing from this clone: only a missing one is a rewrite the stage trace reads (ST-LN-96), and the
+      // walk already knows which: a start on the default ref made the first walk go through, so no process runs here.
+      if (MISSING_STARTS.get(walk)?.has(commit) === true) resolved.set(i, [{ sha: (e.shas[0] as string).toLowerCase(), parents: [] }]);
+      return;
+    }
+    const list = after === 'own' ? ownAfterVerify(root, e.id, def, { commit, tips: e.tips }) : after;
     if (list !== undefined) resolved.set(i, list);
   });
   const fromGit = gitAfterVerify(root, viaGit);

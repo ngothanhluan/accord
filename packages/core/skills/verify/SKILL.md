@@ -14,11 +14,14 @@ judges, the owner decides.
 
 1. Run `accord anchor`.
 
-2. **Merge and suite.** First commit everything, `review.md` included, so the working tree is clean. Then run `accord
-   worktree merge <id>`. It fetches, and when the ticket branch lacks commits of the remote's default branch it merges
-   them with a merge commit, never a rebase. Show a line starting `fetch from origin failed` verbatim and go on. When
-   it exits 2 (a conflict it aborted, a failed merge, or a refusal), show the message and stop. The owner resolves a
-   conflict, or you do when the owner says so, and then this stage starts again. Start CI as `./ci.md` says, then run
+2. **Sync and suite.** First commit everything, `review.md` included, so the working tree is clean. Then run `accord
+   worktree sync <id>`. It fetches, and when the ticket branch lacks commits of the remote's default branch it takes
+   them in the way `git.merge` in `accord/config.yml` sets: a merge commit when the key is absent, a rebase under
+   `rebase`, or the team's `git.sync` command, which runs instead. Show its `rebased:`, `rebound:` and `verify again:`
+   lines verbatim; on `verify again:` the earlier verification does not hold, so verify it again below. Show a line
+   starting `fetch from origin failed` verbatim and go on. When it exits 2 (a conflict it aborted, a failed sync, or a
+   refusal), show the message and stop. The owner resolves a conflict, or you do when the owner says so, and then this
+   stage starts again. Start CI as `./ci.md` says, then run
    the `tests.full` command from `accord/config.yml` at the commit now checked out, so the report `tests.report` names
    is fresh: that commit is the one verified. Right after it, before the verifier, run `accord tests skipped` and keep
    what it prints.

@@ -1,5 +1,5 @@
 // ST-LN-57: the accord release that cut over to version 2 review records, and the pin reads that decide which version a record may be.
-import { normaliseText } from '../load/frontmatter.js';
+import { normaliseText, splitFrontmatter } from '../load/frontmatter.js';
 import { parseYamlMap } from '../load/yaml.js';
 import type { RepoSnapshot } from '../model/snapshot.js';
 
@@ -12,6 +12,14 @@ const PLAIN = /^(\d+)\.(\d+)\.(\d+)$/;
 export function pinOf(configText: string): string | undefined {
   const pin = parseYamlMap('accord/config.yml', normaliseText(configText), 0).map?.accord;
   return typeof pin === 'string' ? pin : undefined;
+}
+
+/** ST-LN-96 D-02: the top-level `ruleset:` string of a ticket's frontmatter text, read even when the ticket fails its schema; undefined when there is none or it is not a string. */
+export function rulesetOfTicket(ticketText: string): string | undefined {
+  const yaml = splitFrontmatter(ticketText).yaml;
+  if (yaml === null) return undefined;
+  const ruleset = parseYamlMap('accord/tickets', yaml, 0).map?.ruleset;
+  return typeof ruleset === 'string' ? ruleset : undefined;
 }
 
 /** -1, 0 or 1; both arguments are plain x.y.z. */
@@ -64,6 +72,12 @@ export const PLAN_CAP_FROM = '0.4.1';
  */
 export const PLAN_GROUNDS_FROM = '0.4.1';
 
+/**
+ * ST-LN-96 D-02: the release from which the claim writes `ruleset: "<pin>"` into the ticket, in the claim commit, and every claimPinBefore reader reads it first. A ticket claimed
+ * under a pin below it has no such field and keeps the claim-commit reader. A repository pinned below it is never given the field (its published schema refuses it).
+ */
+export const RULESET_FROM = '0.5.0';
+
 /** True only when `pin` is a plain x.y.z below `from` and, when `basePin` is a plain x.y.z, not below `basePin`: the rules before `from` hold. */
 export function pinBefore(from: string, pin: string | undefined, basePin?: string): boolean {
   if (pin === undefined || !PLAIN.test(pin) || compare(pin, from) >= 0) return false;
@@ -75,7 +89,9 @@ export function pinBefore(from: string, pin: string | undefined, basePin?: strin
  * working-tree pin says after an upgrade. The reader of the claim pin for every Phase 3 rule that follows the claim: the discuss rule (DISCUSS_FROM), the
  * approach cap with its `## Closed` and no-allowance rules and the approval block that goes with it (APPROACH_CAP_FROM), the plan format rules (PLAN_FORMAT_FROM:
  * the `after:` line, the interfaces block, the task length), the plan cap with its count stop and the plan checker at round 1 (PLAN_CAP_FROM), and the plan
- * checker's round-1 grounds rule (PLAN_GROUNDS_FROM, D-19). The five constants are one release, and a test names the equality (D-15). Other rules follow the record or the plan instead and do not ask this pin: the Phase 2 grounds rule (which a ticket claimed earlier keeps) and the plan fix scope read the pin at the first round of the record
+ * checker's round-1 grounds rule (PLAN_GROUNDS_FROM, D-19). ST-LN-96 D-02: the read order is fixed. First the ticket's own frontmatter `ruleset` when it is a plain x.y.z (written
+ * at the claim from RULESET_FROM, so a squash or a rebase merge, which drops or rewrites the claim commit, cannot change the rules the ticket was claimed under); a `ruleset` that
+ * is not a plain x.y.z is ignored. Then the chain below, unchanged. The five constants are one release, and a test names the equality (D-15). Other rules follow the record or the plan instead and do not ask this pin: the Phase 2 grounds rule (which a ticket claimed earlier keeps) and the plan fix scope read the pin at the first round of the record
  * (GROUNDS_V2_FROM, `recordPins`, and the round facts of review.md), the version 2 review record reads it at the first review round (RECORD_V2_FROM),
  * and the plan size rule reads the pin at the plan's baseline commit (PLAN_SIZE_FROM, `planPins`). So a record begun after an upgrade, on a ticket
  * claimed before it, gets the grounds rule and keeps the five approach rounds. The chain: the host's claim fact (`claimPins[id]`: the pin at the
@@ -84,6 +100,8 @@ export function pinBefore(from: string, pin: string | undefined, basePin?: strin
  * the working-tree pin decides, as `planSizeMissing` falls back.
  */
 export function claimPinBefore(snapshot: RepoSnapshot, id: string, from: string): boolean {
+  const own = Object.hasOwn(snapshot.tickets, id) ? snapshot.tickets[id].frontmatter?.ruleset : undefined;
+  if (own !== undefined && PLAIN.test(own)) return pinBefore(from, own);
   const fact = Object.hasOwn(snapshot.claimPins ?? {}, id) ? snapshot.claimPins![id] : undefined;
   if (fact !== undefined && 'error' in fact) return false;
   const { pin, basePin } = fact ?? { pin: snapshot.config?.accord, basePin: undefined };

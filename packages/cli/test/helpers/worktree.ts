@@ -7,8 +7,9 @@ import { afterAll, afterEach, beforeAll, expect, vi } from 'vitest';
 import * as limit from '../../src/commands/fetch-limit.js';
 import * as proc from '../../src/load/proc.js';
 import { approvedHash, gateReady, loadSnapshot, setFrontmatterKey } from '@accord-dev/accord-core';
-import { CONFIG, discussFor, discussPath, gateReadyIn, LANE_BODY, LANE_S_BODY, laneTicket, P, PLAN } from '../../../../test/helpers/lane.js';
+import { CONFIG, discussFor, discussPath, done, gateReadyIn, LANE_BODY, LANE_S_BODY, laneTicket, P, PLAN } from '../../../../test/helpers/lane.js';
 import { cleanup, commitMsg, gitRun, mergeMsg, run, writeFiles } from './repo.js';
+import type { Files } from '../../../../test/helpers/lane.js';
 
 const STEP = [
   "require('node:fs').appendFileSync('setup.log', process.argv[2] + '\\n');",
@@ -230,6 +231,22 @@ export function mergeOnRemote(c: Clone, ...ids: string[]) {
   gitRun(other, 'fetch', '-q', 'origin');
   for (const id of ids) gitRun(other, 'merge', '-q', '--no-ff', '-m', 'merge ' + id, `origin/t/${id}`);
   gitRun(other, 'push', '-q', 'origin', 'main');
+}
+
+/**
+ * A GitHub-style rebase merge of `origin/t/<id>`, from a teammate's clone: the branch's commits are replayed onto `origin/main` and main is
+ * fast-forwarded to the result, so history stays linear with no merge commit and every commit of the branch gets a new sha. `c` does not fetch.
+ */
+export function rebaseOnRemote(c: Clone, id: string): string {
+  const o = c.otherClone();
+  gitRun(o, 'fetch', '-q', 'origin');
+  gitRun(o, 'switch', '-q', '-c', `rebase-${id}`, `origin/t/${id}`);
+  gitRun(o, 'rebase', '-q', 'origin/main');
+  const tip = gitRun(o, 'rev-parse', 'HEAD').trim();
+  gitRun(o, 'switch', '-q', 'main');
+  gitRun(o, 'merge', '--ff-only', '-q', tip);
+  gitRun(o, 'push', '-q', 'origin', 'main');
+  return tip;
 }
 
 /** The ticket file as verify leaves it: every criterion ticked at verified commit `v`. */
@@ -459,3 +476,45 @@ export const T = '2026-10-27T03:03:00.000Z';
 export const A2 = { ...A, marker: 'sess-A2' };
 export const clearOf = (cwd: string, s: { marker: string; pid: number }) =>
   run(['hook', 'session-resume'], cwd, envOf(s), JSON.stringify({ session_id: s.marker, cwd, source: 'clear' }));
+// ST-LN-96 D-16: a ticket whose verification is done and bound, on a branch with a bare remote.
+export const EXPORT = 'src/export.ts';
+export const VERIFICATION = 'accord/tickets/ST-9/verification.md';
+/** Twelve lines: a change to the first and a change to the last never touch the same hunk, so a rebase of one over the other is clean. */
+export const EXPORT_LINES = Array.from({ length: 12 }, (_, i) => `export const line${String(i + 1).padStart(2, '0')} = ${i + 1};`);
+export const exportText = (edits: Record<number, string> = {}): string => EXPORT_LINES.map((l, i) => edits[i + 1] ?? l).join('\n') + '\n';
+const reviewOf = (commit: string): string => `---\nticket: ST-9\ncommit: ${commit}\nreviewed_on: 2026-11-14\n---\n\n## @ac-1 Export works\n\nResult: pass\n\nEvidence: ${EXPORT}\n`;
+
+/**
+ * ST-9 on `t/ST-9` in its sibling worktree, pushed: main holds src/export.ts; the branch edits its first line (commit `v`), then verify's commit
+ * `tip` ticks both criteria at `v` and writes a verification.md naming `v`. `gitKeys` are lines under a `git:` key in the branch's config. `after` makes
+ * one more commit that edits line 3 of src/export.ts after verify and re-reads the review, so the ticket reads as at verify, not done. The clone has not fetched; main
+ * has not moved. Returns the worktree, `v` and the tip.
+ */
+export function doneBranch(c: Clone, opts: { gitKeys?: string[]; after?: boolean } = {}): { sib: string; v: string; tip: string } {
+  writeFiles(c.root, { [EXPORT]: exportText() });
+  commitMsg(c.root, 'export');
+  c.git('push', '-q', 'origin', 'main');
+  const sib = c.sibling('ST-9');
+  c.git('worktree', 'add', '-q', '-b', 't/ST-9', sib, 'origin/main');
+  if (opts.gitKeys !== undefined) {
+    writeFiles(sib, { 'accord/config.yml': readFileSync(sib + '/accord/config.yml', 'utf8').replace(/\r\n/g, '\n') + 'git:\n' + opts.gitKeys.join('\n') + '\n' });
+    commitMsg(sib, 'config: git');
+  }
+  writeFiles(sib, { [EXPORT]: exportText({ 1: 'export const line01 = 100;' }) });
+  const v = commitMsg(sib, 'ST-9 work');
+  const files: Files = {};
+  done(files, 'ST-9');
+  files[P('ST-9')] = setFrontmatterKey(files[P('ST-9')], 'verified_commit', v);
+  writeFiles(sib, { ...files, [VERIFICATION]: reviewOf(v) });
+  const tip = commitMsg(sib, 'verify: ST-9');
+  if (opts.after === true) {
+    // the same commit re-reads the review (review.md changes ahead of its verdict), so the stage is verify and not review with a base
+    writeFiles(sib, {
+      [EXPORT]: exportText({ 1: 'export const line01 = 100;', 3: 'export const line03 = 300;' }),
+      'accord/tickets/ST-9/review.md': '## Note\nre-read after the edit\n\nverdict: converged\n',
+    });
+    commitMsg(sib, 'ST-9 edits the export after verify');
+  }
+  gitRun(sib, 'push', '-q', '-u', 'origin', 't/ST-9');
+  return { sib, v, tip };
+}

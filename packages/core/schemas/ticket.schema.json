@@ -40,6 +40,7 @@
     "priority": { "type": "string", "enum": ["high", "medium", "low"] },
     "approved_hash": { "type": "string", "pattern": "^fnv1a64:[0-9a-f]{16}$" },
     "ac_hash": { "type": "string", "minLength": 1 },
+    "ruleset": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?$" },
     "verified_hash": { "type": "string", "pattern": "^fnv1a64:[0-9a-f]{16}$" },
     "verified_commit": { "type": "string", "pattern": "^[0-9a-fA-F]+$", "minLength": 7 },
     "verified": {

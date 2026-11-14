@@ -76,7 +76,9 @@ export const earsMissing: GateRule['check'] = (snapshot, id) => {
 
 /** Spec §7: the owner approves an approach, so an empty one cannot be approved meaningfully. */
 export const approachEmpty: GateRule['check'] = (snapshot, id) => {
-  if (laneOf(snapshot, id) === undefined) return [];
+  // ST-LN-94 D-10: a lane R ticket has no Approach.
+  const lane = laneOf(snapshot, id);
+  if (lane === undefined || lane === 'R') return [];
   const s = section(snapshot, id, 'approach');
   if (s === undefined) return []; // lint.heading-missing owns the absent heading
   if (stripHtmlComments(s.lines).some((l) => l.text.trim() !== '')) return [];
@@ -100,7 +102,8 @@ export const sectionEmpty: GateRule['check'] = (snapshot, id) => {
  */
 function discussApplies(snapshot: RepoSnapshot, id: string): boolean {
   const lane = laneOf(snapshot, id);
-  if (lane === undefined || lane === 'S') return false;
+  // ST-LN-94 D-10: a lane R ticket has no discuss stage, as it has no approach.
+  if (lane === undefined || lane === 'S' || lane === 'R') return false;
   return !claimPinBefore(snapshot, id, DISCUSS_FROM);
 }
 
@@ -172,7 +175,8 @@ export const discussUnmapped: GateRule['check'] = (snapshot, id) => {
 /** Spec §4: no approval recorded. */
 export const approvalMissing: GateRule['check'] = (snapshot, id) => {
   const fm = ticketOf(snapshot, id)?.frontmatter;
-  if (fm?.lane === undefined || fm.lane === 'S' || fm.approved_hash !== undefined) return [];
+  // ST-LN-94 D-10: lane R needs no approval, as lane S needs none; gate ready asks it for the owner's quoted budget instead (D-13).
+  if (fm?.lane === undefined || fm.lane === 'S' || fm.lane === 'R' || fm.approved_hash !== undefined) return [];
   return [
     {
       file: ticketFile(id),
@@ -186,7 +190,7 @@ export const approvalMissing: GateRule['check'] = (snapshot, id) => {
 export const approvalStale: GateRule['check'] = (snapshot, id) => {
   const ticket = ticketOf(snapshot, id);
   const recorded = ticket?.frontmatter?.approved_hash;
-  if (ticket === undefined || ticket.frontmatter?.lane === undefined || ticket.frontmatter.lane === 'S' || recorded === undefined) return [];
+  if (ticket === undefined || ticket.frontmatter?.lane === undefined || ticket.frontmatter.lane === 'S' || ticket.frontmatter.lane === 'R' || recorded === undefined) return [];
   const now = approvedHash(ticket);
   if (recorded === now) return [];
   return [

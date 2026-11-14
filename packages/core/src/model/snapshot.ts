@@ -103,7 +103,7 @@ export interface ScenarioRef {
   steps: string[]; // Background steps then scenario steps, whitespace-collapsed (D-47, D-48)
 }
 
-export type Lane = 'S' | 'M' | 'L' | 'P';
+export type Lane = 'S' | 'M' | 'L' | 'P' | 'R';
 
 export interface TicketFrontmatter {
   id: string; // 'LOGIN-1', kept verbatim (D-34)

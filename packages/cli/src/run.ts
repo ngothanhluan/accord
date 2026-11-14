@@ -201,7 +201,7 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
         .choices(['epic', 'story', 'bug'])
         .default('story'),
     )
-    .addOption(new Option('--lane <lane>', 'write a lane ticket (S, M, L, or P)').choices(['S', 'M', 'L', 'P']))
+    .addOption(new Option('--lane <lane>', 'write a lane ticket (S, M, L, P, or R: research)').choices(['S', 'M', 'L', 'P', 'R']))
     .option('--worktree', 'write the ticket in its own new worktree on its claim branch, commit and push it, then run setup there')
     .action((id: string | undefined, options: { type: 'epic' | 'story' | 'bug'; lane?: Lane; worktree?: boolean }) => {
       setCode(newTicket(preflight(opts, options.worktree === true ? 'light' : 'checkout'), id, options));

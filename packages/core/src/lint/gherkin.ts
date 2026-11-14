@@ -48,11 +48,11 @@ export const stepEmpty: Rule['check'] = (snapshot) =>
       : s.steps.flatMap((step, i) => (/\s/.test(step) ? [] : [`scenario "${s.name}" step ${i + 1} "${step}" has no text`])),
   );
 
-/** LINT-03: a story or bug with no scenario; at the `## Acceptance criteria` heading when present (Pitfall 9: needs frontmatter). */
+/** LINT-03: a story or bug with no scenario (lanes S and R hold none, ST-LN-94 D-10); at the `## Acceptance criteria` heading when present (Pitfall 9: needs frontmatter). */
 export const noScenarios: Rule['check'] = (snapshot) =>
   Object.values(snapshot.tickets).flatMap((t) => {
     const type = t.frontmatter?.type;
-    if ((type !== 'story' && type !== 'bug') || t.scenarios.length > 0 || t.frontmatter?.lane === 'S') return [];
+    if ((type !== 'story' && type !== 'bug') || t.scenarios.length > 0 || t.frontmatter?.lane === 'S' || t.frontmatter?.lane === 'R') return [];
     const ac = t.sections.find((s) => headingKey(s.heading) === 'acceptance criteria');
     return [{ file: t.file, ...(ac === undefined ? {} : { line: ac.line }), reason: `a ${type} needs at least one tagged scenario` }];
   });

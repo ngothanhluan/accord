@@ -106,7 +106,9 @@ export function newTicket(
         ? ('epic-lane.md' as const)
         : options.lane === 'S'
           ? ('ticket-lane-s.md' as const)
-          : ('ticket-lane.md' as const)
+          : options.lane === 'R'
+            ? ('ticket-lane-r.md' as const) // ST-LN-94 D-10, D-13: a question, a timebox and a token budget the owner sets
+            : ('ticket-lane.md' as const)
       : options.type === 'epic'
         ? ('epic.md' as const)
         : (`ticket-${ctx.snapshot.config?.profile ?? 'build'}.md` as const);

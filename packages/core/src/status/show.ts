@@ -27,6 +27,7 @@ export interface TicketDetail {
   holder: string | null;
   blockedBy: string[];
   intent: string[];
+  question?: string[]; // ST-LN-94: lane R only, the ## Question lines; intent stays empty for lane R
   criteria: CriterionDetail[];
 }
 
@@ -37,8 +38,12 @@ export function ticketDetail(snapshot: RepoSnapshot, id: string, plain?: RepoSna
   const fm = ticket.frontmatter;
   const row = statusRows(snapshot, undefined, plain).find((r) => r.id === id);
   if (fm === undefined || row?.lane === undefined || row.stage === undefined) return undefined;
-  const section = ticket.sections.find((x) => headingKey(x.heading) === headingKey('Intent'));
-  const intent = section === undefined ? [] : stripHtmlComments(section.lines).map((l) => l.text).filter((t) => t.trim() !== '');
+  const lines = (name: string): string[] => {
+    const section = ticket.sections.find((x) => headingKey(x.heading) === headingKey(name));
+    return section === undefined ? [] : stripHtmlComments(section.lines).map((l) => l.text).filter((t) => t.trim() !== '');
+  };
+  const laneR = row.lane === 'R';
+  const intent = laneR ? [] : lines('Intent');
   const bound = fm.verified_hash === acHash(ticket.scenarios);
   const blocks = Object.hasOwn(snapshot.verifications, id) ? snapshot.verifications[id].blocks : [];
   const criteria = ticket.scenarios.map((s): CriterionDetail => {
@@ -59,6 +64,6 @@ export function ticketDetail(snapshot: RepoSnapshot, id: string, plain?: RepoSna
   return {
     id, title: row.title ?? '', stage: row.stage, lane: row.lane,
     tasksDone: row.tasksDone ?? 0, tasksTotal: row.tasksTotal ?? 0, branch: row.branch ?? '',
-    holder: row.claimedBy ?? null, blockedBy: row.blockedBy ?? [], intent, criteria,
+    holder: row.claimedBy ?? null, blockedBy: row.blockedBy ?? [], intent, ...(laneR ? { question: lines('Question') } : {}), criteria,
   };
 }

@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { forbiddenLines, normaliseKey, recordTaskDone, taskVerdict, trailerReason, workOf, writeTestTags } from '@accord-dev/accord-core';
 import { gitBranchCommits, UsageError } from '../load/fs.js';
 import type { CommandContext } from '../run.js';
-import { requireLaneTicket, taskNumber } from './lane-args.js';
+import { refuseLaneR, requireLaneTicket, taskNumber } from './lane-args.js';
 
 /** `git show -s --format=%ct` output as seconds; anything but digits would make every report look fresh. */
 export function commitSeconds(out: string): number {
@@ -40,7 +40,7 @@ export function staleReport(ctx: CommandContext): string | undefined {
 
 export function taskDone(ctx: CommandContext, id: string, task: string): number {
   const n = taskNumber(task);
-  requireLaneTicket(ctx, id);
+  refuseLaneR(requireLaneTicket(ctx, id), id, 'plan tasks');
   const commit = ctx.snapshot.git?.commit;
   if (commit === undefined) throw new UsageError('the repository has no commit; commit the task before recording it');
   // T-05-07: `id` is a key the loader found on disk, so it is a file stem and never a traversal.

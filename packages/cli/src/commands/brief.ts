@@ -7,7 +7,7 @@ import { normaliseText, planFile, workOf } from '@accord-dev/accord-core';
 import type { PlanTask } from '@accord-dev/accord-core';
 import { UsageError } from '../load/fs.js';
 import type { CommandContext } from '../run.js';
-import { requireLaneTicket, taskNumber } from './lane-args.js';
+import { refuseLaneR, requireLaneTicket, taskNumber } from './lane-args.js';
 
 const ONLY = 'This is the only test command the executor runs for this task.';
 const FULL_WHY = 'tests.full is printed because accord/config.yml has no tests.affected.';
@@ -38,6 +38,7 @@ function testBlock(ctx: CommandContext, t: PlanTask): string {
 export function brief(ctx: CommandContext, id: string, task: string): number {
   const n = taskNumber(task);
   const ticket = requireLaneTicket(ctx, id);
+  refuseLaneR(ticket, id, 'plan tasks');
   const plan = workOf(ctx.snapshot, id)?.plan;
   if (plan === undefined) throw new UsageError('no plan at ' + planFile(id));
   const t = plan.tasks.find((x) => x.n === n);

@@ -318,9 +318,10 @@ export function modelFamily(model: string): 'haiku' | 'sonnet' | 'opus' | undefi
   return m === null ? undefined : (m[1].toLowerCase() as 'haiku' | 'sonnet' | 'opus');
 }
 
+/** A lane ticket with review rounds and fix executors: any lane but S and, ST-LN-94 D-10, R (a research ticket has neither). */
 const isLaneM = (snapshot: RepoSnapshot, id: string): boolean => {
   const t = laneTicket(snapshot, id);
-  return t !== undefined && t.frontmatter?.lane !== 'S';
+  return t !== undefined && t.frontmatter?.lane !== 'S' && t.frontmatter?.lane !== 'R';
 };
 
 /** The model of the executor that fixes round `round`'s findings (default: the latest recorded round). */
@@ -365,6 +366,8 @@ export function nextRound(snapshot: RepoSnapshot, id: string, kind: RoundKind): 
   const refuseCap = (...reasons: string[]): RoundAnswer => refuse(...reasons, ...(claimError === undefined ? [] : [claimError]));
   if (laneTicket(snapshot, id) === undefined) return refuse(`${id} is not a lane ticket`);
   if (kind !== 'review' && laneS) return refuse(`lane S has no ${NOUN[kind]}`);
+  // ST-LN-94 D-10: a research ticket has no rounds of any kind; it ends in a record under accord/research/.
+  if (laneTicket(snapshot, id)?.frontmatter?.lane === 'R') return refuse(`lane R has no ${kind === 'review' ? 'review rounds' : NOUN[kind]}`);
   const lane = isLaneM(snapshot, id);
   const file = FILE[kind];
   const rec = recordOf(workOf(snapshot, id), kind);

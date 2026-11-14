@@ -6,14 +6,16 @@ import { defaultRefOf, UsageError } from '../load/fs.js';
 import { nearestCode, readWalk } from '../load/walk.js';
 import type { CommandContext } from '../run.js';
 import { branchFactFor } from './branch-fact.js';
-import { requireLaneTicket } from './lane-args.js';
+import { refuseLaneR, requireLaneTicket } from './lane-args.js';
 
 // No leading '-', so a ref can never be read as a git option; no spaces or shell metacharacters.
 // `~` and `^` after the first character admit HEAD~3 and main^.
 const REF = /^[A-Za-z0-9][A-Za-z0-9._/~^-]*$/;
 
 export function reviewPackage(ctx: CommandContext, id: string, options: { base?: string }): number {
-  const laneS = requireLaneTicket(ctx, id).frontmatter?.lane === 'S';
+  const ticket = requireLaneTicket(ctx, id);
+  refuseLaneR(ticket, id, 'review package');
+  const laneS = ticket.frontmatter?.lane === 'S';
   const git = (args: string[]) =>
     execFileSync('git', args, {
       cwd: ctx.root,

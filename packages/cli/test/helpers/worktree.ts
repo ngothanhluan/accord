@@ -232,6 +232,22 @@ export function mergeOnRemote(c: Clone, ...ids: string[]) {
   gitRun(other, 'push', '-q', 'origin', 'main');
 }
 
+/**
+ * A GitHub-style rebase merge of `origin/t/<id>`, from a teammate's clone: the branch's commits are replayed onto `origin/main` and main is
+ * fast-forwarded to the result, so history stays linear with no merge commit and every commit of the branch gets a new sha. `c` does not fetch.
+ */
+export function rebaseOnRemote(c: Clone, id: string): string {
+  const o = c.otherClone();
+  gitRun(o, 'fetch', '-q', 'origin');
+  gitRun(o, 'switch', '-q', '-c', `rebase-${id}`, `origin/t/${id}`);
+  gitRun(o, 'rebase', '-q', 'origin/main');
+  const tip = gitRun(o, 'rev-parse', 'HEAD').trim();
+  gitRun(o, 'switch', '-q', 'main');
+  gitRun(o, 'merge', '--ff-only', '-q', tip);
+  gitRun(o, 'push', '-q', 'origin', 'main');
+  return tip;
+}
+
 /** The ticket file as verify leaves it: every criterion ticked at verified commit `v`. */
 export function doneTicket(id: string, v: string): string {
   const t = loadSnapshot({ files: { 'accord/config.yml': CONFIG, ['accord/tickets/' + id + '.md']: laneTicket(id) }, tree: [] });

@@ -7,7 +7,7 @@ import { mkdtempSync, readFileSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { loadSnapshot, setFrontmatterKey } from '@accord-dev/accord-core';
-import { AC, CONFIG, gateReadyIn, junit, LANE_S_BODY, laneTicket, P, PLAN, ready, REPORT, sized } from '../../../../test/helpers/lane.js';
+import { AC, CONFIG, gateReadyIn, junit, LANE_S_BODY, laneTicket, P, PLAN, ready, REPORT, RUNNING, sized } from '../../../../test/helpers/lane.js';
 import type { Files } from '../../../../test/helpers/lane.js';
 import { cleanup, gitRun } from './repo.js';
 import { copyClone } from './worktree.js';
@@ -82,7 +82,15 @@ export const SIDE: TicketSpec[] = [
 export const SAMPLE_BUILD_LIMIT = 60_000;
 
 const MAIN = 'refs/heads/main';
-const ROOT_COMMIT = 'main-1';
+const ROOT_COMMIT = 'main-2';
+/**
+ * The commit every sample plan is baselined on: the root's tree with the pin at 0.4.0, the release the goldens were recorded under
+ * (ST-LN-63). ROOT_COMMIT then moves the pin to the running CLI, as `accord upgrade` would, so the commands run, and a plan keeps the
+ * rules of its baseline's pin: the samples' tickets carry no `Expected size:` line (ST-LN-93), which PLAN_SIZE_FROM asks of a plan
+ * baselined at 0.4.1 or later.
+ */
+const PLANNED_AT = 'main-1';
+const PLANNED_PIN = '0.4.0';
 const WITH_MERGE: Kind[] = ['verify-merged', 'verify-merged-before'];
 
 type Ops = Record<string, string | null>;
@@ -322,7 +330,10 @@ function step(b: Build, t: TicketSpec, phase: number): void {
   };
   const mergeMain = (second: string) =>
     add('merge', dag.delta(second, ROOT_COMMIT), `Merge branch 'main' into ${branchOf(b, id)}`, { merge: second });
-  const approve = () => dag.add(ref, nm('approve'), { from: ROOT_COMMIT, ops: { [r.ticket]: readyText(t, config) }, msg: `approve: ${id}` });
+  // A ticket of kind plan was approved and planned before the upgrade, on a branch that has not merged main since: its plan commit is the
+  // foreign baseline of plan-foreign-baseline, read at 0.4.0 like every other sample plan's baseline.
+  const approve = () =>
+    dag.add(ref, nm('approve'), { from: t.kind === 'plan' ? PLANNED_AT : ROOT_COMMIT, ops: { [r.ticket]: readyText(t, config) }, msg: `approve: ${id}` });
   const record = () => {
     const sha = dag.sha(nm('review'));
     const done = t.kind.startsWith('done');
@@ -349,20 +360,20 @@ function step(b: Build, t: TicketSpec, phase: number): void {
   if (phase === 1) {
     switch (t.kind) {
       case 'plan':
-        add('plan', { [r.plan]: planText(t, config, dag.sha(ROOT_COMMIT)) }, `plan: ${id} draft`);
+        add('plan', { [r.plan]: planText(t, config, dag.sha(PLANNED_AT)) }, `plan: ${id} draft`);
         break;
       case 'build-missing-file':
-        planReady(dag.sha(ROOT_COMMIT), true);
+        planReady(dag.sha(PLANNED_AT), true);
         task(1);
         break;
       case 'review':
-        planReady(dag.sha(ROOT_COMMIT));
+        planReady(dag.sha(PLANNED_AT));
         task(1);
         task(2);
         review(UNFINISHED);
         break;
       case 'verify-merged': {
-        planReady(dag.sha(ROOT_COMMIT));
+        planReady(dag.sha(PLANNED_AT));
         task(1);
         task(2);
         review(REVIEWED);
@@ -370,14 +381,14 @@ function step(b: Build, t: TicketSpec, phase: number): void {
         break;
       }
       case 'verify-straight':
-        planReady(dag.sha(ROOT_COMMIT));
+        planReady(dag.sha(PLANNED_AT));
         task(1);
         task(2);
         review(REVIEWED);
         moveMain();
         break;
       case 'verify-merged-before':
-        planReady(dag.sha(ROOT_COMMIT));
+        planReady(dag.sha(PLANNED_AT));
         task(1);
         task(2);
         mergeMain(moveMain());
@@ -388,7 +399,7 @@ function step(b: Build, t: TicketSpec, phase: number): void {
       case 'done-squash':
       case 'done-rebased':
       case 'done-extra':
-        planReady(dag.sha(ROOT_COMMIT));
+        planReady(dag.sha(PLANNED_AT));
         task(1);
         task(2);
         review(REVIEWED);
@@ -469,7 +480,8 @@ export function buildSample(tickets: TicketSpec[], opts: { template?: string; ah
     mainFiles[P(t.id)] = draftText(t);
     mainFiles[codeOf(t.id)] = codeText(t.id, 0);
   }
-  dag.add(MAIN, ROOT_COMMIT, { ops: mainFiles, msg: 'init: accord and the draft tickets' });
+  dag.add(MAIN, PLANNED_AT, { ops: { ...mainFiles, 'accord/config.yml': config.replace(/accord: "[^"]*"/, `accord: "${PLANNED_PIN}"`) }, msg: 'init: accord and the draft tickets' });
+  dag.add(MAIN, ROOT_COMMIT, { ops: { 'accord/config.yml': config }, msg: `upgrade: accord ${RUNNING}` });
   for (const phase of [0, 1, 2]) {
     for (const t of tickets) step(build, t, phase);
     dag.flush();

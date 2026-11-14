@@ -4,11 +4,21 @@
 // directory scans and add goldens nobody asked for. Both test trees import DOWNWARDS from here.
 
 import { approvedHash, gateReady, loadSnapshot, setFrontmatterKey } from '../../packages/core/src/index.js';
+import cliPkg from '../../packages/cli/package.json' with { type: 'json' };
 
 export const REPORT = 'reports/junit.xml';
 
+/**
+ * The version of the CLI under test. CONFIG pins it, because every command that reads the repository refuses any other pin: a test about the
+ * running version reads it here, and a test about an older rule pins its history to that older version itself (`pinned('0.4.0')`).
+ */
+export const RUNNING: string = cliPkg.version;
+
+/** CONFIG with its `accord:` pin replaced by `v`, for a test whose history is pinned to an older (or newer) release. */
+export const pinned = (v: string): string => CONFIG.replace(/accord: "[^"]*"/, `accord: "${v}"`);
+
 export const CONFIG = [
-  'accord: "0.4.0"',
+  `accord: "${RUNNING}"`,
   'profile: build',
   'tracker:',
   '  adapter: none',

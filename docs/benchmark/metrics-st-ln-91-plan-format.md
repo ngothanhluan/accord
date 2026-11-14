@@ -52,10 +52,10 @@ Cycles: 65
 
 Task length cap: 120 non-blank lines; refuses 12 of 322 tasks in 11 of 49 plans
 
-Each plan is read by core's own loadSnapshot; a task is measured with core's own `taskLength` (non-blank lines under its heading as `accord brief` prints them: comment lines and fenced lines counted) against `TASK_LINE_CAP`. The fence and after: counts are the findings of core's own `gatePlan` with every ticket at the pin the format rules read, so this report and the gate cannot disagree. Only lane tickets other than S with a plan are counted.
+Each plan is read by core's own loadSnapshot; a task is measured with core's own `taskLength` (non-blank lines under its heading as `accord brief` prints them: comment lines and fenced lines counted) against `TASK_LINE_CAP`. The fence and after: counts are the findings of core's own `gatePlan` with every ticket at the pin the format rules read, so this report and the gate cannot disagree. A fence-like line is one that, after any leading spaces, tabs, `>` or list markers, starts with three or more backticks or tildes, other than the two lines of an interfaces block in its one form; a code span at the start of a line is one too. Only lane tickets other than S with a plan are counted.
 
-Plans with a fenced block other than interfaces: 26 of 49
-Tasks with a fenced block other than interfaces: 67 of 322
+Plans with a fence-like line the format rule refuses: 27 of 49
+Tasks with a fence-like line the format rule refuses: 68 of 322
 Plans with a task lacking after:: 49 of 49
 
 Task length in non-blank lines (nearest rank):

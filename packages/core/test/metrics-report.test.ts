@@ -381,7 +381,7 @@ it('risk:regression the plan format section counts tasks over the cap with core\
     const json = JSON.parse(readFileSync(join(s.root, 'docs', 'benchmark', 'metrics-fmt.json'), 'utf8'));
     expect(md).toMatch(/^## Plan format \(ST-LN-91 D-09\)$/m);
     expect(md).toMatch(/^Task length cap: 120 non-blank lines; refuses 1 of 4 tasks in 1 of 2 plans$/m);
-    expect(md).toContain('Plans with a fenced block other than interfaces: 1');
+    expect(md).toContain('Plans with a fence-like line the format rule refuses: 1');
     expect(md).toContain('Plans with a task lacking after:: 1');
     expect(json.planFormat).toMatchObject({ cap: 120, tasks: 4, plans: 2, tasksOver: 1, plansOver: 1, plansFenced: 1, tasksFenced: 1, plansAfterless: 1 });
     expect(json.planFormat.lengths.max).toBe(130);

@@ -1,8 +1,10 @@
 // CLI-05 status goldens (D-91, D-92, D-93). Rows cover the whole repository, so the case table is one
 // row per fixture. Regenerate one with `npm test -- --project core status -u -t "<case name>"`.
 import { beforeAll, describe, expect, it } from 'vitest';
-import { loadSnapshot, statusRows } from '../src/index.js';
-import type { SnapshotInput, StatusRow } from '../src/index.js';
+import { checkFixDispatch, laneRHash, loadSnapshot, statusRows } from '../src/index.js';
+import { doneOnDefault, isDone } from '../src/status/stage.js';
+import { CONFIG, laneTicket } from '../../../test/helpers/lane.js';
+import type { RepoSnapshot, SnapshotInput, StatusRow } from '../src/index.js';
 import { readFixture, stableJson } from './helpers/fixture.js';
 
 interface Case {
@@ -168,5 +170,56 @@ describe('status edge cases a golden cannot express', () => {
     expect(Object.hasOwn(broken as object, 'type')).toBe(false);
     expect(Object.hasOwn(broken as object, 'status')).toBe(false);
     expect(broken?.errors).toBeGreaterThan(0);
+  });
+});
+
+// ST-LN-94 94-ac-5, D-10: a lane R ticket has its own stages, read from ac_hash and from the records its research: lists.
+describe('lane R stages', () => {
+  const REC_PATH = 'accord/research/2026-11-14-critic.md';
+  const REC = '# Critic rounds\n\nDate: 2026-11-14. Repository at `1c5704e`.\nOwner: write now — "enough"\n';
+  const R_BODY = ['## Question', 'Does the critic need a second round?', '', '## Timebox', '4 hours', '', '## Token budget', '800k weighted tokens', '', '## Decisions', '- D-01 Timebox 4 hours, token budget 800k weighted tokens — "fine"', ''].join('\n');
+  const rTicket = (fm: string[] = []) => laneTicket('R-1', { lane: 'R', body: R_BODY, frontmatter: [`research: ["${REC_PATH}"]`, ...fm] });
+  const hash = laneRHash(loadSnapshot({ files: { 'accord/config.yml': CONFIG, 'accord/tickets/R-1.md': rTicket() }, tree: [] }).tickets['R-1']);
+  const load = (fm: string[], record: boolean) =>
+    loadSnapshot({
+      files: {
+        'accord/config.yml': CONFIG,
+        'accord/tickets/R-1.md': rTicket(fm),
+        'accord/tickets/T-2.md': laneTicket('T-2', { frontmatter: ['depends_on: ["R-1"]'] }),
+        ...(record ? { [REC_PATH]: REC } : {}),
+      },
+      tree: [],
+    });
+  const row = (s: RepoSnapshot, id = 'R-1') => statusRows(s).find((r) => r.id === id);
+
+  it('risk:complex-branching a lane R ticket moves from intent to research to done on its records (ST-LN-94 94-ac-5)', () => {
+    const intent = load([], false);
+    expect(row(intent)).toMatchObject({ lane: 'R', stage: 'intent', ready: 'none', tasksDone: 0, tasksTotal: 0 });
+    for (const s of ['## Question', '## Timebox', '## Token budget', '## Decisions', 'accord gate ready']) expect(row(intent)?.next).toContain(s);
+    // A stale ac_hash (the question changed after gate ready) is intent again.
+    expect(row(load(['ac_hash: "fnv1a64:0000000000000000"'], true))?.stage).toBe('intent');
+    const research = load([`ac_hash: "${hash}"`], false);
+    expect(row(research)).toMatchObject({ lane: 'R', stage: 'research', ready: 'ok', tasksDone: 0 });
+    expect(row(research)?.next).toContain('accord budget <id>');
+    expect(row(research)?.next).toContain('accord/research/');
+    // A listed path that is not a Markdown record under accord/research/ never makes it done.
+    const odd = loadSnapshot({ files: { 'accord/config.yml': CONFIG, 'accord/tickets/R-1.md': rTicket([`ac_hash: "${hash}"`]).replace(REC_PATH, 'accord/research/notes.txt'), 'accord/research/notes.txt': 'x\n' }, tree: [] });
+    expect(row(odd)?.stage).toBe('research');
+    const finished = load([`ac_hash: "${hash}"`], true);
+    expect(row(finished)).toMatchObject({ stage: 'done', next: 'the pull request; run accord gate done (lane-r.md)' });
+    expect([intent, research, finished].map((s) => isDone(s, 'R-1'))).toEqual([false, false, true]);
+    // Dependants: done on the default ref the host read, else in the checkout.
+    expect(row(research, 'T-2')?.blockedBy).toEqual(['R-1']);
+    expect(row(finished, 'T-2')?.blockedBy).toEqual([]);
+    const ref = (s: RepoSnapshot) => ({ ...finished, defaultRef: { ref: 'refs/remotes/origin/main', snapshot: s } });
+    expect(row(ref(research), 'T-2')?.blockedBy).toEqual(['R-1']);
+    expect(row(ref(finished), 'T-2')?.blockedBy).toEqual([]);
+    expect(doneOnDefault(ref(research), 'R-1')).toBe(false);
+    expect(doneOnDefault(ref(finished), 'R-1')).toBe(true);
+    // An R ticket never reaches review, so the fix-dispatch check never acts on it.
+    for (const s of [intent, research, finished]) {
+      expect(['intent', 'research', 'done']).toContain(row(s)?.stage);
+      expect(checkFixDispatch(s, 'R-1', 'opus')).toBeUndefined();
+    }
   });
 });

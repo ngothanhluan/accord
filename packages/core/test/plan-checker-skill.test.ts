@@ -222,13 +222,18 @@ it('risk:regression the planner writes each task\'s after: line, interfaces in a
       'covers: @ac-1, D-02',
       'after: 1, 2',
       'or `after: none` when it follows none',
-      'its first line is exactly three backticks and the word interfaces, at column 0',
-      'the first line after it that is exactly three backticks, at column 0, closes it',
+      'go in interfaces blocks, each of this form',
+      'its first line is three backticks and the word interfaces, at column 0',
+      'the first line after it that is three backticks, at column 0, closes it',
+      'either line may end in spaces or tabs, and holds nothing else',
       'No other line of a task starts with three backticks or tildes, even after spaces, a list marker or',
       'at most 120 non-blank lines',
       'says what, never how',
     ]),
   ).toEqual([]);
+  // the gate accepts any number of interfaces blocks and trailing spaces or tabs on their two lines, so the planner says neither "one" nor "exactly" of them
+  expect(flat(text)).not.toContain('one interfaces block');
+  expect(flat(text)).not.toContain('exactly three backticks');
   // the example block carries all four lines, in the order the plan skill lists them
   const fence = text.split('```')[1] ?? '';
   expect(fence.split('\n').filter((l) => /^(covers|files|verify|after):/.test(l)).map((l) => l.split(':')[0])).toEqual(['covers', 'files', 'verify', 'after']);

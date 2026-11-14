@@ -144,9 +144,9 @@ function commitFlags(dir: string): string[] {
 
 /**
  * Commit everything with `-F <file> --cleanup=verbatim` (conventions.md), never `-m`; returns the new HEAD sha. `when` sets the author and
- * committer date, so a test can age a commit.
+ * committer date, so a test can age a commit. `empty` commits with no change, as a claim commit does.
  */
-export function commitMsg(dir: string, text: string, when?: Date): string {
+export function commitMsg(dir: string, text: string, when?: Date, empty = false): string {
   const folder = mkdtempSync(join(tmpdir(), 'accord-msg-'));
   try {
     const file = join(folder, 'msg.txt');
@@ -154,7 +154,7 @@ export function commitMsg(dir: string, text: string, when?: Date): string {
     gitRun(dir, 'add', '-A');
     const stamp = when === undefined ? undefined : `@${Math.floor(when.getTime() / 1000)} +0000`;
     gitIn(dir, stamp === undefined ? undefined : { GIT_COMMITTER_DATE: stamp, GIT_AUTHOR_DATE: stamp })(
-      ...commitFlags(dir), 'commit', '-q', '-F', file, '--cleanup=verbatim',
+      ...commitFlags(dir), 'commit', '-q', ...(empty ? ['--allow-empty'] : []), '-F', file, '--cleanup=verbatim',
     );
     return gitRun(dir, 'rev-parse', 'HEAD').trim();
   } finally {

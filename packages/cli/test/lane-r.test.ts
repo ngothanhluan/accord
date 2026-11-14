@@ -105,16 +105,18 @@ const R_BODY = [
 ].join('\n');
 const recordText = (...lines: string[]) => ['# Critic rounds', '', 'Date: 2026-11-20', 'Repository at `1c5704ee`', '', 'The critic needs one round.', '', ...lines, ''].join('\n');
 
-/** A repository on branch t/R-1 whose claim commit (dated `claimedAt`, an hour ago by default) and research commit over main add the ready R ticket, its record `record` (with `spent`) and `extra`. */
-function rBranch(spent: string, extra: Record<string, string> = {}, claimedAt = new Date(Date.now() - 60 * 60_000), record = RECORD): string {
+/**
+ * A repository on branch t/R-1 whose empty claim commit (dated `claimedAt`, an hour ago by default) and research commit over main add the
+ * ready R ticket, its record `record` (with `spent`) and `extra`; main's base commit holds the config and `base`.
+ */
+function rBranch(spent: string, extra: Record<string, string> = {}, claimedAt = new Date(Date.now() - 60 * 60_000), record = RECORD, base: Record<string, string> = {}): string {
   const repo = makeEmptyRepo();
-  writeFiles(repo, { 'accord/config.yml': CONFIG });
+  writeFiles(repo, { 'accord/config.yml': CONFIG, ...base });
   commitMsg(repo, 'base', new Date(claimedAt.getTime() - 60_000));
   gitRun(repo, 'branch', '-M', 'main');
   gitRun(repo, 'switch', '-q', '-c', 't/R-1');
-  // CR-01, CR-02: the research is counted from the ticket's claim commit.
-  writeFiles(repo, { 'notes.txt': 'claimed\n' });
-  commitMsg(repo, 'claim: R-1', claimedAt);
+  // CR-01, CR-02: the research is counted from the ticket's claim commit, which changes no file.
+  commitMsg(repo, 'claim: R-1', claimedAt, true);
   const files: Record<string, string> = {
     'accord/config.yml': CONFIG,
     [P('R-1')]: laneTicket('R-1', { lane: 'R', body: R_BODY, frontmatter: [`research: ["${record}"]`] }),
@@ -126,20 +128,39 @@ function rBranch(spent: string, extra: Record<string, string> = {}, claimedAt = 
   return repo;
 }
 
-it('risk:security accord gate done refuses a lane R branch that changes packages/ on real git (ST-LN-94 94-ac-3)', async () => {
-  const repo = rBranch('Spent: 2h 10m of 4 hours; 312000 of 800k weighted tokens', { 'packages/core/src/x.ts': 'export const x = 1;\n' });
+// UAT decision 3 (2026-11-14): gate done refuses every path outside accord/ the lane R branch changes, a deletion included.
+it('risk:security accord gate done refuses a lane R branch that changes anything outside accord/ on real git (ST-LN-94 94-ac-3)', async () => {
+  const OUTSIDE = ['.github/workflows/ci.yml', 'package.json', 'scripts/count-rounds.mjs', 'src/x.ts'];
+  const repo = rBranch('Spent: 2h 10m of 4 hours; 312000 of 800k weighted tokens', Object.fromEntries(OUTSIDE.map((p) => [p, 'x\n'])));
   try {
     const first = await run(['gate', 'done', 'R-1', '--json'], repo);
     expect(first.code).toBe(1);
     const findings = JSON.parse(first.out).findings as F[];
-    expect(findings.map((f) => f.rule)).toEqual(['gate.research-shipped']);
-    expect(findings[0].file).toBe('packages/core/src/x.ts');
-    expect(findings[0].reason).toContain('packages/core/src/x.ts is under packages/');
-    gitRun(repo, 'rm', '-q', 'packages/core/src/x.ts');
-    commitMsg(repo, 'research: R-1 drops the script');
+    expect(findings.map((f) => f.rule)).toEqual(OUTSIDE.map(() => 'gate.research-shipped'));
+    expect(findings.map((f) => f.file).sort()).toEqual(OUTSIDE);
+    for (const f of findings) expect(f.reason).toContain(f.file + ' is outside accord/');
+    gitRun(repo, 'rm', '-q', ...OUTSIDE);
+    // The research script lives under accord/research/, which the rule allows.
+    writeFiles(repo, { 'accord/research/count-rounds.mjs': 'console.log(1);\n' });
+    commitMsg(repo, 'research: R-1 moves the script under accord/research/');
     const second = await run(['gate', 'done', 'R-1', '--json'], repo);
     expect(JSON.parse(second.out).findings).toEqual([]);
     expect(second.code).toBe(0);
+  } finally {
+    cleanup(repo);
+  }
+}, 120_000);
+
+it('risk:security accord gate done refuses a lane R branch that deletes a file outside accord/ on real git (ST-LN-94 94-ac-3)', async () => {
+  const repo = rBranch('Spent: 2h 10m of 4 hours; 312000 of 800k weighted tokens', {}, undefined, RECORD, { 'README.md': '# Fixture\n' });
+  try {
+    expect((await run(['gate', 'done', 'R-1', '--json'], repo)).code).toBe(0);
+    gitRun(repo, 'rm', '-q', 'README.md');
+    commitMsg(repo, 'research: R-1 drops the readme');
+    const r = await run(['gate', 'done', 'R-1', '--json'], repo);
+    expect(r.code).toBe(1);
+    const findings = JSON.parse(r.out).findings as F[];
+    expect(findings.map((f) => [f.rule, f.file])).toEqual([['gate.research-shipped', 'README.md']]);
   } finally {
     cleanup(repo);
   }
@@ -184,7 +205,8 @@ it('risk:security accord gate done and accord status count only a record the bra
     commitMsg(repo, 'base', new Date(Date.now() - 120_000));
     gitRun(repo, 'branch', '-M', 'main');
     gitRun(repo, 'switch', '-q', '-c', 't/R-1');
-    writeFiles(repo, { 'notes.txt': 'claimed\n' });
+    // A change under accord/ only, so the branch diff is not empty and gate.research-shipped stays silent.
+    writeFiles(repo, { 'accord/config.yml': CONFIG + '# claimed\n' });
     commitMsg(repo, 'claim: R-1', new Date(Date.now() - 60_000));
     type Row = { id: string; stage?: string; blockedBy?: string[] };
     const rows = async () => JSON.parse((await run(['status', '--json'], repo)).out) as Row[];
@@ -336,13 +358,18 @@ it('risk:security a squash-merged lane R ticket reads done on main and unblocks 
     gitRun(repo, 'branch', '-q', '-D', 't/R-1');
     expect((await rowOf(repo, 'R-1'))?.stage).toBe('done');
     expect((await rowOf(repo, 'T-2'))?.blockedBy ?? []).toEqual([]);
-    // A later pull request's CI runs gate done on the ticket from a branch of main with no claim commit.
+    // A later pull request's CI runs gate done on the ticket from a branch of main with no claim commit. gate done judges the branch it runs
+    // on: the records still count there, and a change outside accord/ on that branch is refused (UAT decision 3).
     gitRun(repo, 'switch', '-q', '-c', 't/T-2');
-    writeFiles(repo, { 'notes.txt': 'T-2 work\n' });
+    writeFiles(repo, { [P('T-2')]: laneTicket('T-2', { frontmatter: ['depends_on: ["R-1"]', 'priority: high'] }) });
     commitMsg(repo, 'T-2 work');
     const later = await run(['gate', 'done', 'R-1', '--json'], repo);
     expect(JSON.parse(later.out).findings).toEqual([]);
     expect(later.code).toBe(0);
+    writeFiles(repo, { 'notes.txt': 'T-2 work\n' });
+    commitMsg(repo, 'T-2 code');
+    const coded = await run(['gate', 'done', 'R-1', '--json'], repo);
+    expect((JSON.parse(coded.out).findings as F[]).map((f) => [f.rule, f.file])).toEqual([['gate.research-shipped', 'notes.txt']]);
     gitRun(repo, 'switch', '-q', 'main');
     // An R ticket added to main later that lists only the older record: evidence, so it stays at research and gate done refuses it.
     const ready2: Record<string, string> = { 'accord/config.yml': CONFIG, [P('R-2')]: laneTicket('R-2', { lane: 'R', body: R_BODY, frontmatter: [`research: ["${PRIOR}"]`] }), [PRIOR]: recordText() };

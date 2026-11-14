@@ -2,15 +2,20 @@
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, closeSync, existsSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import type { Dirent } from 'node:fs';
-import { DEFAULT_BRANCH_TEMPLATE, forbiddenLines, isResearchPath, isSha, loadConfig, loadSnapshot, statusRows, trailerReason } from '@accord-dev/accord-core';
+import { resolve } from 'node:path';
+import { DEFAULT_BRANCH_TEMPLATE, forbiddenLines, isResearchPath, isSha, loadConfig, loadSnapshot, pinBefore, pinOf, RULESET_FROM, rulesetOfTicket, setFrontmatterKey, shaEqual, statusRows, trailerReason } from '@accord-dev/accord-core';
 import type { RepoSnapshot } from '@accord-dev/accord-core';
-import { currentBranch, droppedOn, gitDefaultRef, gitFilesAt, gitUnpushedCommits, gitUserEmail, loadFromFs, loadWithBranch, snapshotAt, ticketOfBranch, UsageError } from '../load/fs.js';
+import type { ContentMemo } from '../load/fs.js';
+import { gitClaimFacts } from '../load/claim-facts.js';
+import { contentSinceOf, currentBranch, droppedOn, gitDefaultRef, gitFilesAt, gitUnpushedCommits, gitUserEmail, loadFromFs, loadWithBranch, snapshotAt, ticketOfBranch, UsageError } from '../load/fs.js';
 import { fetchLimitMs } from './fetch-limit.js';
 import { DEFAULT_DISPOSABLE, gitInside, hiddenEditReason, isDisposable, norm, repositoryReason, sweepForgotten, sweepRemoved } from './leftover.js';
+import { runTeamCommand } from '../load/team-run.js';
 import { claudeEnv, describeSession, isLive, processTable, runSetup, sameSession, sessionIn } from '../load/proc.js';
 import type { Session } from '../load/proc.js';
 import type { CommandContext } from '../run.js';
 import { repoRoot } from '../root.js';
+import { writeKey } from '../write/key.js';
 import pkg from '../../package.json' with { type: 'json' };
 
 export const ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
@@ -554,13 +559,128 @@ export function worktreeOpen(ctx: CommandContext, id: string, opts: { continue?:
   if (all.some((w) => w.prunable !== undefined && norm(w.path) === norm(path))) refuseAt(id, path, 'nothing was created');
   git(ctx.root, ['worktree', 'add', '--no-track', '-b', branch, path, ref]);
   recordQuietly(ctx, id, path);
-  git(path, ['commit', '--allow-empty', '-q', '-m', 'claim: ' + id]);
+  const wrote = claimRuleset(path, `accord/tickets/${id}.md`);
+  if (wrote) git(path, ['add', '--', ':(literal)' + `accord/tickets/${id}.md`]);
+  git(path, ['commit', ...(wrote ? [] : ['--allow-empty']), '-q', '-m', 'claim: ' + id]);
   if (enter) {
     takeHold(ctx, id, path);
     checkPin(ctx, id, path, branch, mainPath);
   } else prepare(path);
   enterOrStop(ctx, id, path, branch, enter);
   return 0;
+}
+
+/**
+ * ST-LN-96 D-02: the pin the claim records as the ticket's `ruleset`: the `accord:` value of accord/config.yml in the new worktree (the commit the claim
+ * branches from), when it is a plain x.y.z not before RULESET_FROM. Undefined otherwise (an older pin, whose published schema refuses the field, a pre-release
+ * pin, or a config that cannot be read), and then the claim is written as before.
+ */
+function rulesetPinOf(path: string): string | undefined {
+  let pin: string | undefined;
+  try {
+    pin = pinOf(readFileSync(path + '/accord/config.yml', 'utf8'));
+  } catch {
+    return undefined;
+  }
+  return writablePin(pin);
+}
+
+/** `pin` when it is a plain x.y.z not before RULESET_FROM, the pins whose published schema takes the field; undefined otherwise. */
+function writablePin(pin: string | undefined): string | undefined {
+  return pin !== undefined && /^\d+\.\d+\.\d+$/.test(pin) && !pinBefore(RULESET_FROM, pin) ? pin : undefined;
+}
+
+/** The pin of accord/config.yml at `ref` (the default ref a sync is about to take in), when it is one to write a `ruleset` under; undefined when it is not or git cannot say. */
+function refPinOf(path: string, ref: string): string | undefined {
+  try {
+    return writablePin(pinOf(git(path, ['-c', 'log.showSignature=false', 'show', '--no-show-signature', `${ref}:accord/config.yml`])));
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * ST-LN-96 D-02: write `ruleset: "<pin>"` into the ticket `rel` of the new worktree `path` so the claim commit carries it; true when the file changed. False
+ * when the pin is not one to record, when the file already holds that exact value, or when the ticket cannot take the key (the claim stays the empty commit it was).
+ */
+function claimRuleset(path: string, rel: string): boolean {
+  const pin = rulesetPinOf(path);
+  if (pin === undefined) return false;
+  try {
+    return writeKey(path, rel, 'ruleset', pin);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * ST-LN-96 rel-ac-1 (RESEARCH Open Question 8): the claim pin to write as `ruleset` into the ticket of the worktree `path`, or undefined when nothing is to be
+ * written: the ticket file holds no `ruleset` and no commit on the branch ever wrote one, it has a `claim: <id>` commit whose config pin is a plain x.y.z below RULESET_FROM, and git
+ * could read it. A ticket whose file is only on its branch cannot be backfilled by `accord upgrade` (the upgrade branch has no such file), so its first sync does it. A rebase replays
+ * the claim commit onto the new base, so after one the claim pin is the new base's: the pin is read BEFORE the sync, while the original claim commit is reachable (backfillRuleset's `ref`).
+ */
+function claimPinToBackfill(path: string, id: string): string | undefined {
+  let text: string;
+  try {
+    text = readFileSync(`${path}/accord/tickets/${id}.md`, 'utf8');
+  } catch {
+    return undefined;
+  }
+  if (rulesetOfTicket(text) !== undefined) return undefined;
+  const fact = gitClaimFacts(path, id);
+  // a ruleset an earlier commit wrote and the file has lost is a hand removal: gate.ruleset-missing reports it, it is not backfilled
+  if (fact === undefined || 'error' in fact || fact.ruleset !== undefined) return undefined;
+  return fact.pin !== undefined && /^\d+\.\d+\.\d+$/.test(fact.pin) && pinBefore(RULESET_FROM, fact.pin) ? fact.pin : undefined;
+}
+
+/** What backfillRuleset wrote: the pin, the commit it made and the commit before it. */
+interface Backfill {
+  pin: string;
+  commit: string;
+  before: string;
+}
+
+/**
+ * ST-LN-96 rel-ac-1, T-03.1-10: write `ruleset: "<claim pin>"` into the ticket in one records-only commit whose subject is `ruleset: <id> from its claim commit`, never `claim: <id>`, so the claim
+ * reader still reads the original claim commit. Nothing is written without a pin from claimPinToBackfill, or unless the branch carries a pin that is a plain x.y.z not before RULESET_FROM (an
+ * older repository's published schema refuses the field): the pin of the worktree, or, with `ref` (a sync that rewrites the branch is about to take it in), the pin of that ref. A rebase and a
+ * git.sync script replay this commit, so they call it BEFORE the sync, with `ref`, when the claim commit and its merge base are still reachable; a merge keeps the claim commit and calls it after.
+ * A failed write or commit is undone and named, and the sync stands. Returns what it wrote, for the caller to report; undefined when nothing was written.
+ */
+function backfillRuleset(ctx: CommandContext, id: string, path: string, ref?: string): Backfill | undefined {
+  if (rulesetPinOf(path) === undefined && (ref === undefined || refPinOf(path, ref) === undefined)) return undefined;
+  const pin = claimPinToBackfill(path, id);
+  if (pin === undefined) return undefined;
+  const rel = ':(literal)' + `accord/tickets/${id}.md`;
+  try {
+    const before = git(path, ['rev-parse', 'HEAD']).trim();
+    if (!writeKey(path, `accord/tickets/${id}.md`, 'ruleset', pin)) return undefined;
+    git(path, ['add', '--', rel]);
+    git(path, ['commit', '-q', '-m', `ruleset: ${id} from its claim commit`]);
+    return { pin, commit: git(path, ['rev-parse', 'HEAD']).trim(), before };
+  } catch (e) {
+    gitOk(path, ['checkout', 'HEAD', '--', rel]);
+    ctx.stdout.write(`ruleset: ${id} could not be backfilled: ${firstLine(e instanceof UsageError ? e.message.split('\n').slice(-1)[0] : e)}\n`);
+    return undefined;
+  }
+}
+
+const backfilled = (ctx: CommandContext, id: string, b: Backfill | undefined): void => {
+  if (b !== undefined) ctx.stdout.write(`backfilled: ${id} ruleset ${b.pin}\n`);
+};
+
+/**
+ * The sync that followed a backfill commit was refused and left the branch as it was: take that commit off again, so the branch really is as it was (a branch pinned below RULESET_FROM
+ * must not keep a `ruleset`). Only while HEAD is still that commit, nothing is under way and the tree is clean; `--keep` moves nothing else. Never fails the refusal it follows.
+ */
+function undoBackfill(path: string, b: Backfill): void {
+  try {
+    if (git(path, ['rev-parse', 'HEAD']).trim() !== b.commit) return;
+    if (git(path, ['status', '--porcelain', '--untracked-files=no']).trim() !== '' || gitOk(path, ['rev-parse', '-q', '--verify', 'MERGE_HEAD'])) return;
+    git(path, ['reset', '-q', '--keep', b.before]);
+  } catch {
+    // the commit stays; it is one the next sync replays
+  }
 }
 
 /** The first word of a shell command line, quotes removed. */
@@ -623,27 +743,118 @@ export function fetchOrigin(ctx: CommandContext, known?: boolean): { ctx: Comman
   return { ctx: full, fetched: 'ok' };
 }
 
-/** The merge of `ref` into the branch checked out in `root`, always `--no-ff`: a refused or conflicting merge is aborted, named, and leaves the branch as it was. */
-export function mergeDefault(root: string, ref: string, branch: string, again: { conflict: string; clash: string }): void {
+/**
+ * ST-LN-96 D-14: how a ticket branch takes `ref`, the fetched default branch, into the branch checked out in `root`. `merge` and `squash` (the
+ * team's PR merge style; accord never syncs with `git merge --squash`) are an ordinary `--no-ff` merge, `rebase` a `git rebase <ref>`; a refused or
+ * conflicting one is aborted, named, and leaves the branch as it was. A rebase returns the old-to-new commit pairs `git range-diff` reports.
+ * ST-LN-96 D-03: with `team` (the `git.sync` command) the script runs instead, through runTeamCommand, and the result is `by: 'git.sync'`.
+ */
+export function syncDefault(
+  root: string,
+  ref: string,
+  branch: string,
+  strategy: 'merge' | 'rebase' | 'squash' | undefined,
+  again: { conflict: string; clash: string },
+  team?: { command: string; ticket: string },
+): { rebased: Array<[string, string]>; by?: 'git.sync' } {
+  if (team !== undefined) {
+    runTeamSync(root, ref, branch, team);
+    return { rebased: [], by: 'git.sync' };
+  }
   const def = ref.replace('refs/remotes/', '');
+  const rebase = strategy === 'rebase';
+  const verb = rebase ? 'rebase' : 'merge';
   // git 2.56 ort ignores --no-overwrite-ignore: refuse by hand when the merge adds a path that is an untracked (ignored) file here
   const mine = git(root, ['diff', '--name-only', '--no-renames', '--diff-filter=A', '-z', 'HEAD', ref]).split('\0').filter((l) => l !== '');
   // git itself says which of those paths are untracked here, so a tracked file under another case is no clash; the pathspecs keep it from walking node_modules
   const here = mine.filter((f) => existsSync(root + '/' + f)); // keeps the command line short: a big merged PR adds hundreds of paths, none normally on disk
   const clash = here.length === 0 ? undefined : git(root, ['ls-files', '--others', '-z', '--', ...here.map((f) => ':(literal)' + f)]).split('\0').find((l) => l !== '');
   if (clash !== undefined) {
-    throw new UsageError(`merge of ${def} into ${branch} failed: ${clash} is an ignored file here that the merge would overwrite - ${again.clash} - ${branch} is as it was`);
+    throw new UsageError(`${verb} of ${def} into ${branch} failed: ${clash} is an ignored file here that the ${verb} would overwrite - ${again.clash} - ${branch} is as it was`);
   }
+  if (!rebase) {
+    try {
+      // the full ref: a short origin/main would resolve to a local branch or tag of that name first
+      execFileSync('git', ['merge', '--no-ff', '--no-edit', '--no-overwrite-ignore', ref], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    } catch (e) {
+      const files = git(root, ['diff', '--name-only', '-z', '--diff-filter=U']).split('\0').filter((l) => l !== '');
+      if (gitOk(root, ['rev-parse', '-q', '--verify', 'MERGE_HEAD'])) git(root, ['merge', '--abort']);
+      if (files.length > 0) {
+        throw new UsageError(`merge of ${def} into ${branch} stopped on a conflict in ${files.join(', ')} - the merge was aborted and ${branch} is as it was; ${again.conflict}`);
+      }
+      throw new UsageError(`merge of ${def} into ${branch} failed: ${firstLine(e)} - ${branch} is as it was`);
+    }
+    return { rebased: [] };
+  }
+  const oldTip = git(root, ['rev-parse', 'HEAD']).trim();
+  const oldBase = git(root, ['merge-base', 'HEAD', ref]).trim();
   try {
-    // the full ref: a short origin/main would resolve to a local branch or tag of that name first
-    execFileSync('git', ['merge', '--no-ff', '--no-edit', '--no-overwrite-ignore', ref], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    execFileSync('git', ['rebase', ref], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   } catch (e) {
     const files = git(root, ['diff', '--name-only', '-z', '--diff-filter=U']).split('\0').filter((l) => l !== '');
-    if (gitOk(root, ['rev-parse', '-q', '--verify', 'MERGE_HEAD'])) git(root, ['merge', '--abort']);
+    const dirs = ['rebase-merge', 'rebase-apply'].map((n) => resolve(root, git(root, ['rev-parse', '--git-path', n]).trim()));
+    if (dirs.some((d) => existsSync(d))) git(root, ['rebase', '--abort']);
     if (files.length > 0) {
-      throw new UsageError(`merge of ${def} into ${branch} stopped on a conflict in ${files.join(', ')} - the merge was aborted and ${branch} is as it was; ${again.conflict}`);
+      throw new UsageError(`rebase of ${def} into ${branch} stopped on a conflict in ${files.join(', ')} - the rebase was aborted and ${branch} is as it was; ${again.conflict}`);
     }
-    throw new UsageError(`merge of ${def} into ${branch} failed: ${firstLine(e)} - ${branch} is as it was`);
+    throw new UsageError(`rebase of ${def} into ${branch} failed: ${firstLine(e)} - ${branch} is as it was`);
+  }
+  // full shas (core.abbrev=40), cut to 12 below; a pair is a `=` or `!` line, an unpaired commit (`<` or `>`) names no old-to-new pair
+  const pairs: Array<[string, string]> = [];
+  const diff = git(root, ['-c', 'core.abbrev=40', 'range-diff', '--no-color', `${oldBase}..${oldTip}`, `${ref}..HEAD`]);
+  for (const line of diff.split('\n')) {
+    const m = /^\s*\d+:\s+([0-9a-f]{40})\s+[=!]\s+\d+:\s+([0-9a-f]{40})(?:\s|$)/.exec(line);
+    if (m !== null) pairs.push([m[1].slice(0, 12), m[2].slice(0, 12)]);
+  }
+  return { rebased: pairs };
+}
+
+/** D-03 Ruling: a team sync script may run this long and print this much. */
+const TEAM_SYNC_TIMEOUT_MS = 600_000;
+const TEAM_SYNC_MAX_BUFFER = 64 * 1024 * 1024;
+
+/**
+ * ST-LN-96 D-03, D-01: run `git.sync` in the ticket's worktree with the ticket only in the environment, then judge it by exit code and by re-reading git:
+ * a non-zero exit, a timeout, a branch left mid-merge or mid-rebase, or uncommitted tracked files is a refusal that names the command. The script's output is
+ * quoted in the refusal, never read as a verdict. The ignored-file clash check is not made: accord cannot know what a team script writes.
+ */
+function runTeamSync(root: string, ref: string, branch: string, team: { command: string; ticket: string }): void {
+  const r = runTeamCommand(team.command, {
+    cwd: root,
+    env: { ...process.env, ACCORD_TICKET: team.ticket, ACCORD_BRANCH: branch, ACCORD_BASE_REF: ref, ACCORD_ROOT: root },
+    timeoutMs: TEAM_SYNC_TIMEOUT_MS,
+    maxBuffer: TEAM_SYNC_MAX_BUFFER,
+  });
+  const dirs = (): boolean => ['rebase-merge', 'rebase-apply'].some((n) => existsSync(resolve(root, git(root, ['rev-parse', '--git-path', n]).trim())));
+  let why: string | undefined;
+  if (r.timedOut) why = `timed out after ${TEAM_SYNC_TIMEOUT_MS / 1000} s`;
+  else if (r.oversize) why = `printed more than ${TEAM_SYNC_MAX_BUFFER / 1024 / 1024} MiB`;
+  else if (r.code !== 0) why = r.code === null ? `was killed${r.signal === null ? '' : ' by ' + r.signal}` : `exited ${r.code}`;
+  else if (gitOk(root, ['rev-parse', '-q', '--verify', 'MERGE_HEAD'])) why = 'left a merge unfinished';
+  else if (dirs()) why = 'left a rebase unfinished';
+  else if (git(root, ['status', '--porcelain', '--untracked-files=no']).trim() !== '') why = 'left uncommitted changes to tracked files';
+  if (why === undefined) return;
+  const text = (r.stderr.trim() !== '' ? r.stderr : r.stdout).trim();
+  const tail = text === '' ? '' : ' - ' + text.split('\n').slice(-20).map((l) => l.trimEnd()).join(' / ');
+  throw new UsageError(`git.sync "${team.command}" ${why}${tail} - ${branch} was not pushed`);
+}
+
+/**
+ * ST-LN-96 D-03, D-14: the push after a sync that may have rewritten the branch. `rebase` pushes with the lease when origin already holds the branch;
+ * `team` (a git.sync script) with the lease when origin's branch is not an ancestor of HEAD, plainly otherwise; `merge` plainly. `unpublished: 'skip'`
+ * pushes nothing when origin has no such branch. The lease keeps a teammate's commit from being overwritten.
+ */
+function pushAfterSync(ctx: CommandContext, root: string, branch: string, how: 'merge' | 'rebase' | 'team', unpublished: 'skip' | 'push'): { pushed: boolean; lease: boolean; why?: string } {
+  const own = 'refs/remotes/origin/' + branch;
+  const has = gitOk(root, ['rev-parse', '-q', '--verify', own]);
+  if (!has && unpublished === 'skip') return { pushed: false, lease: false };
+  const lease = has && (how === 'rebase' || (how === 'team' && !gitOk(root, ['merge-base', '--is-ancestor', own, 'HEAD'])));
+  try {
+    gitNoPrompt(root, ['push', ...(lease ? ['--force-with-lease', '--force-if-includes'] : []), 'origin', `refs/heads/${branch}:refs/heads/${branch}`], undefined, ctx.ssh);
+    return { pushed: true, lease };
+  } catch (e) {
+    const why = String((e as { stderr?: string }).stderr ?? '').split('\n').map((l) => l.trim()).find((l) => /^(!|error:|fatal:|remote:)/.test(l)) ?? firstLine(e);
+    return { pushed: false, lease, why };
   }
 }
 
@@ -654,7 +865,11 @@ function continueMerge(ctx: CommandContext, id: string, path: string, branch: st
   const n = Number(git(path, ['rev-list', '--count', 'HEAD..' + ref]).trim());
   if (n === 0) return;
   const def = ref.replace('refs/remotes/', '');
-  const behind = (): void => void ctx.stdout.write(`behind: ${branch} is ${n} commit${n === 1 ? '' : 's'} behind ${def}; merge them with git merge ${def}\n`);
+  // ST-LN-96 D-03, D-14: the way this team takes main is git.sync (a team command) before git.merge; absent both, a merge
+  const strategy = ctx.snapshot.config?.git?.merge;
+  const sync = ctx.snapshot.config?.git?.sync;
+  const way = sync !== undefined ? `sync them with git.sync, the team command (accord worktree sync ${id} runs it)` : strategy === 'rebase' ? `rebase onto it with accord worktree sync ${id}` : `merge them with git merge ${def}`;
+  const behind = (): void => void ctx.stdout.write(`behind: ${branch} is ${n} commit${n === 1 ? '' : 's'} behind ${def}; ${way}\n`);
   // a remote branch with commits this clone lacks (a teammate pushed): the stage here may be stale, and the push would be refused
   const own = 'refs/remotes/origin/' + branch;
   if (gitOk(path, ['rev-parse', '-q', '--verify', own]) && !gitOk(path, ['merge-base', '--is-ancestor', own, 'HEAD'])) return behind();
@@ -671,11 +886,34 @@ function continueMerge(ctx: CommandContext, id: string, path: string, branch: st
   } catch {
     return behind();
   }
-  mergeDefault(path, ref, branch, {
-    conflict: `merge it by hand with git -C "${path}" merge ${def}, resolve the conflict and commit, then type /accord continue ${id}`,
-    clash: `move it, then type /accord continue ${id}`,
-  });
-  ctx.stdout.write(`merged: ${n} commit${n === 1 ? '' : 's'} of ${def} into ${branch}\n`);
+  // ST-LN-96 rel-ac-1: a rebase and a git.sync script rewrite the claim commit, so the backfill is committed first and replayed by them
+  const rewrites = sync !== undefined || strategy === 'rebase';
+  const early = rewrites ? backfillRuleset(ctx, id, path, ref) : undefined;
+  let done: ReturnType<typeof syncDefault>;
+  try {
+    done = syncDefault(
+      path,
+      ref,
+      branch,
+      strategy,
+      {
+        conflict:
+          strategy === 'rebase'
+            ? `rebase it by hand with git -C "${path}" rebase ${def}, resolve the conflicts and finish with git rebase --continue, then type /accord continue ${id}`
+            : `merge it by hand with git -C "${path}" merge ${def}, resolve the conflict and commit, then type /accord continue ${id}`,
+        clash: `move it, then type /accord continue ${id}`,
+      },
+      sync === undefined ? undefined : { command: sync, ticket: id },
+    );
+  } catch (e) {
+    if (early !== undefined) undoBackfill(path, early);
+    throw e;
+  }
+  const how = done.by !== undefined ? 'team' : strategy === 'rebase' ? 'rebase' : 'merge';
+  if (how === 'team') ctx.stdout.write(`synced: ${branch} by git.sync\n`);
+  else if (how === 'rebase') for (const [was, now] of done.rebased) ctx.stdout.write(`rebased: ${was} -> ${now}\n`);
+  else ctx.stdout.write(`merged: ${n} commit${n === 1 ? '' : 's'} of ${def} into ${branch}\n`);
+  backfilled(ctx, id, early ?? (rewrites ? undefined : backfillRuleset(ctx, id, path)));
   // the marker of the pre-merge setup never stands for the merge commit
   rmSync(setupMarker(path), { force: true });
   let failure: unknown;
@@ -684,10 +922,9 @@ function continueMerge(ctx: CommandContext, id: string, path: string, branch: st
   } catch (e) {
     failure = e;
   }
-  try {
-    gitNoPrompt(path, ['push', 'origin', 'HEAD:refs/heads/' + branch], undefined, ctx.ssh);
-  } catch (e) {
-    ctx.stdout.write(`push of ${branch} failed: ${firstLine(e)} - push it with git -C "${path}" push origin ${branch}\n`);
+  const push = pushAfterSync(ctx, path, branch, how, 'push');
+  if (!push.pushed) {
+    ctx.stdout.write(`push of ${branch} failed: ${push.why} - ${push.lease ? `run accord worktree push ${id} --force-with-lease after checking origin` : `push it with git -C "${path}" push origin ${branch}`}\n`);
   }
   if (failure !== undefined) throw failure;
 }
@@ -721,21 +958,85 @@ export function worktreePush(ctx: CommandContext, id: string, o: { lease?: boole
   return 0;
 }
 
-/** ST-LN-30 D-03, D-04, D-09: fetch, then merge the remote default branch into the ticket branch with a merge commit; a conflict is aborted, named, and exits 2. */
-export function worktreeMerge(ctx: CommandContext, id: string): number {
+/** The two records that bind a verification to a commit: the ticket's `verified_commit` and verification.md's `commit`. */
+const BOUND = [
+  { label: 'verified_commit', key: 'verified_commit', rel: (id: string) => `accord/tickets/${id}.md` },
+  { label: 'verification commit', key: 'commit', rel: (id: string) => `accord/tickets/${id}/verification.md` },
+] as const;
+
+/**
+ * ST-LN-96 D-16 Option E, T-03.1-09: right after accord's own built-in rebase in `root`, move `verified_commit` and verification.md's `commit:` to the rebased HEAD in one
+ * records-only commit, so `accord gate done` passes in a clone that never held the old commit (CI after the force-push). Only a recorded commit the rebase rewrote (no longer an
+ * ancestor of HEAD) is re-bound, and only when contentSinceOf says no file of the ticket differs from what was verified; the old objects are still in this clone. A change, an
+ * absent object or a git failure writes nothing and prints `verify again:`. review.md heads and plan.md `baseline:` are never touched.
+ */
+function rebindAfterRebase(ctx: CommandContext, id: string, root: string): void {
+  const say = (line: string): void => void ctx.stdout.write(line + '\n');
+  const snap = loadSnapshot(loadFromFs(root));
+  const recorded: Record<string, string | undefined> = {
+    verified_commit: Object.hasOwn(snap.tickets, id) ? snap.tickets[id].frontmatter?.verified_commit : undefined,
+    commit: Object.hasOwn(snap.verifications, id) ? snap.verifications[id].frontmatter?.commit : undefined,
+  };
+  const head = git(root, ['rev-parse', 'HEAD']).trim();
+  const todo = BOUND.flatMap((b) => {
+    const sha = recorded[b.key];
+    // HEAD itself needs nothing, and a recorded commit still in HEAD's history was not rewritten: today's rule holds for it
+    if (sha === undefined || !isSha(sha) || shaEqual(sha, head) || gitOk(root, ['merge-base', '--is-ancestor', sha, 'HEAD'])) return [];
+    return [{ ...b, sha: sha.toLowerCase() }];
+  });
+  if (todo.length === 0) return;
+  const memo: ContentMemo = {};
+  const refused: string[] = [];
+  for (const sha of new Set(todo.map((t) => t.sha))) {
+    const verdict = contentSinceOf(root, id, sha, memo);
+    const was = sha.slice(0, 12);
+    if (verdict === undefined) refused.push(`verify again: ${id}'s files could not be compared with ${was}, so its verification was not re-bound`);
+    else if ('absent' in verdict) refused.push(`verify again: ${id}'s verified commit ${was} is not in this clone`);
+    else if (verdict.changed.length > 0) refused.push(`verify again: ${id}'s files changed since ${was}: ${verdict.changed.join(', ')}`);
+  }
+  if (refused.length > 0) {
+    for (const line of refused) say(line);
+    return;
+  }
+  const rels = todo.map((t) => ':(literal)' + t.rel(id));
+  try {
+    for (const t of todo) writeKey(root, t.rel(id), t.key, head);
+    git(root, ['add', '--', ...rels]);
+    git(root, ['commit', '-q', '-m', `verify: ${id} rebound after rebase`]);
+  } catch (e) {
+    // the rebase stands; the two records go back as the rebase left them, so the branch is never left half written
+    gitOk(root, ['checkout', 'HEAD', '--', ...rels]);
+    say(`verify again: ${id}'s verification could not be re-bound: ${firstLine(e instanceof UsageError ? e.message.split('\n').slice(-1)[0] : e)}`);
+    return;
+  }
+  for (const t of todo) {
+    // both records named one commit: the verified_commit line says it for both
+    if (t.key === 'commit' && todo.some((o) => o.key === 'verified_commit' && o.sha === t.sha)) continue;
+    say(`rebound: ${id} ${t.label} ${t.sha.slice(0, 12)} -> ${head.slice(0, 12)}`);
+  }
+}
+
+/**
+ * ST-LN-30 D-03, D-04, D-09, ST-LN-96 D-14, D-15: fetch, then take the remote default branch into the ticket branch the way `git.merge` says (a merge commit, or
+ * a rebase with a lease push); a conflict is aborted, named, and exits 2. `accord worktree merge` is the same command under its old name.
+ */
+export function worktreeSync(ctx: CommandContext, id: string): number {
   if (!ID.test(id)) throw new UsageError('not a valid ticket id: ' + id);
   const branch = branchOf(ctx.snapshot, id);
   // refusals first: a refused merge makes no network call
   const cur = ctx.branch === undefined ? currentBranch(ctx.root) : ctx.branch.name;
   if (cur !== branch) {
-    throw new UsageError(`${id} is merged on its branch ${branch}, and this checkout is on ${cur ? cur : 'a detached HEAD'} - run accord worktree merge ${id} in the ticket's worktree; nothing was merged`);
+    throw new UsageError(`${id} is merged on its branch ${branch}, and this checkout is on ${cur ? cur : 'a detached HEAD'} - run accord worktree sync ${id} in the ticket's worktree; nothing was merged`);
   }
   if (git(ctx.root, ['status', '--porcelain', '--untracked-files=no']).trim() !== '') {
-    throw new UsageError(`${ctx.root} has uncommitted changes to tracked files - commit them, then run accord worktree merge ${id} again; nothing was merged`);
+    throw new UsageError(`${ctx.root} has uncommitted changes to tracked files - commit them, then run accord worktree sync ${id} again; nothing was merged`);
   }
   const stage = statusRows(ctx.snapshot).find((r) => r.id === id)?.stage;
-  if (stage !== 'verify') {
-    throw new UsageError(`${id} is at stage ${stage ?? 'none'}, and accord worktree merge runs only at verify, after review - nothing was merged`);
+  // ST-LN-96 D-16: under the built-in rebase a verified ticket whose PR fell behind main is rebased and its verification re-bound; under merge, squash or git.sync a sync after
+  // verify asks for verification again (the contents rule), so there the stage stays verify only
+  const builtInRebase = ctx.snapshot.config?.git?.merge === 'rebase' && ctx.snapshot.config?.git?.sync === undefined;
+  if (stage !== 'verify' && !(stage === 'done' && builtInRebase)) {
+    throw new UsageError(`${id} is at stage ${stage ?? 'none'}, and accord worktree sync runs only at verify, after review - nothing was merged`);
   }
   if (!gitOk(ctx.root, ['remote', 'get-url', 'origin'])) return 0;
   fetchOrigin(ctx, true);
@@ -745,7 +1046,36 @@ export function worktreeMerge(ctx: CommandContext, id: string): number {
     return 0;
   }
   if (gitOk(ctx.root, ['merge-base', '--is-ancestor', ref, 'HEAD'])) return 0;
-  mergeDefault(ctx.root, ref, branch, { conflict: 'resolve the conflict, then start verify again', clash: 'move it, then start verify again' });
+  const strategy = ctx.snapshot.config?.git?.merge;
+  const sync = ctx.snapshot.config?.git?.sync;
+  // ST-LN-96 rel-ac-1: a rebase and a git.sync script rewrite the claim commit, so the backfill is committed first and replayed by them
+  const rewrote = sync !== undefined || strategy === 'rebase';
+  const early = rewrote ? backfillRuleset(ctx, id, ctx.root, ref) : undefined;
+  let done: ReturnType<typeof syncDefault>;
+  try {
+    done = syncDefault(ctx.root, ref, branch, strategy, { conflict: 'resolve the conflict, then start verify again', clash: 'move it, then start verify again' }, sync === undefined ? undefined : { command: sync, ticket: id });
+  } catch (e) {
+    if (early !== undefined) undoBackfill(ctx.root, early);
+    throw e;
+  }
+
+  if (rewrote) {
+    if (done.by !== undefined) ctx.stdout.write(`synced: ${branch} by ${done.by}\n`);
+    // the records that name a commit by sha (review heads, plan baseline) stay owner-typed: the pairs are what to retype
+    else {
+      for (const [was, now] of done.rebased) ctx.stdout.write(`rebased: ${was} -> ${now}\n`);
+      // ST-LN-96 D-16 Option E: accord's own rebase keeps an unchanged verification valid; a hand rebase and a team script never reach this line
+      rebindAfterRebase(ctx, id, ctx.root);
+    }
+  }
+  backfilled(ctx, id, early ?? (rewrote ? undefined : backfillRuleset(ctx, id, ctx.root)));
+  if (rewrote) {
+    // every commit has a new sha, so a plain push is refused once origin holds the branch; the lease keeps a teammate's commit from being overwritten.
+    // A team script is pushed too, even when origin has no such branch yet: the branch on origin must hold what the gate judges
+    const push = pushAfterSync(ctx, ctx.root, branch, done.by !== undefined ? 'team' : 'rebase', done.by !== undefined ? 'push' : 'skip');
+    if (push.pushed) ctx.stdout.write(`pushed: ${branch}\n`);
+    else if (push.why !== undefined) ctx.stdout.write(`push of ${branch} failed: ${push.why} - run accord worktree push ${id}${push.lease ? ' --force-with-lease' : ''} after checking origin\n`);
+  }
   // preflight checked the pin before the merge, so this throws only when the merge changed it
   checkPin(ctx, id, ctx.root, branch, listWorktrees(ctx.root)[0].path);
   return 0;
@@ -1270,12 +1600,44 @@ function safeTip(root: string, tip: string, vc: string | undefined, ref: string,
   try {
     out = execFileSync('git', ['merge-tree', '--write-tree', ref, tip], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   } catch (e) {
-    return (e as { status?: number | null }).status === 1 ? 'conflict' : 'unsafe';
+    // ST-LN-96 t1-ac-5: a squash- or rebase-merged branch whose files main edited again conflicts, yet everything it wrote is in main's history
+    if ((e as { status?: number | null }).status !== 1) return 'unsafe';
+    return blobsOnRef(root, tip, ref) ? 'safe' : 'conflict';
   }
   try {
     return out.split('\n')[0].trim() === git(root, ['rev-parse', ref + '^{tree}']).trim() ? 'safe' : 'unsafe';
   } catch {
     return 'unsafe';
+  }
+}
+
+/** The most changed paths `blobsOnRef` looks up, one `git log` each. */
+const BLOB_PATHS_MAX = 200;
+
+/**
+ * ST-LN-96 t1-ac-5, D-04: is every file the branch `tip` wrote, since it left `ref`, a blob that the history of `ref` already holds at that path?
+ * A squash or rebase merge writes the same blobs under other commits, so a branch whose files main then edited again has this proof and no
+ * ancestry. True only when the branch's own changes are plain additions and modifications of regular files (a deletion, a rename, a type or
+ * mode change, a link or a submodule gives false), there are at most BLOB_PATHS_MAX of them, and every blob is found by `--find-object`; a miss
+ * or a git failure gives false, so the branch is kept.
+ */
+function blobsOnRef(root: string, tip: string, ref: string): boolean {
+  try {
+    const base = git(root, ['merge-base', ref, tip]).trim();
+    if (base === '') return false;
+    const fields = git(root, ['diff', '--raw', '-z', '--no-renames', '--no-abbrev', base, tip, '--']).split('\0');
+    if (fields.pop() !== '') return false;
+    // each change is a header (":<old mode> <new mode> <old sha> <new sha> <status>") then its path
+    if (fields.length % 2 !== 0 || fields.length / 2 > BLOB_PATHS_MAX) return false;
+    for (let i = 0; i < fields.length; i += 2) {
+      const h = /^:(\d{6}) (\d{6}) [0-9a-f]+ ([0-9a-f]+) ([AM])$/.exec(fields[i]);
+      if (h === null || (h[4] === 'A' ? h[2] !== '100644' : h[1] !== h[2] || (h[2] !== '100644' && h[2] !== '100755'))) return false;
+      const file = fields[i + 1];
+      if (file === '' || git(root, ['-c', 'log.showSignature=false', 'log', '--no-show-signature', '-1', '--format=%H', '--find-object=' + h[3], ref, '--', ':(literal)' + file]).trim() === '') return false;
+    }
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -1527,7 +1889,8 @@ export function newTicketWorktree(ctx: CommandContext, id: string, rel: string, 
   git(ctx.root, ['worktree', 'add', '--no-track', '-b', branch, path, ref]);
   recordQuietly(ctx, id, path);
   mkdirSync(path + '/accord/tickets', { recursive: true });
-  writeFileSync(path + '/' + rel, text);
+  const ruleset = rulesetPinOf(path);
+  writeFileSync(path + '/' + rel, ruleset === undefined ? text : setFrontmatterKey(text, 'ruleset', ruleset));
   git(path, ['add', '--', rel]);
   git(path, ['commit', '-q', '-m', 'claim: ' + id]);
   let holdError: unknown;

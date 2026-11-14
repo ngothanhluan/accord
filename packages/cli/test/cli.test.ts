@@ -103,6 +103,15 @@ describe('accord argument handling', () => {
     expect(out).toContain('lint');
   });
 
+  it('worktree sync --help names merge, rebase and the git.sync team command, and no longer assumes a merge commit', async () => {
+    const { code, out } = await run(['worktree', 'sync', '--help'], repo);
+    expect(code).toBe(0);
+    const text = out.replace(/\s+/g, ' ');
+    for (const w of ['merge', 'rebase', 'git.merge', 'git.sync']) expect(text).toContain(w);
+    expect(text).toContain('git.sync, a team command, runs instead');
+    expect(text).not.toContain('with a merge commit');
+  });
+
   it('exits 2 on an unknown command (STACK Decision 1 puts bad args at 2)', async () => {
     const { code, err } = await run(['nope'], repo);
     expect(code).toBe(2);

@@ -1,5 +1,5 @@
 // ST-LN-26 @ac-3: the CLI reads the commits after verify from git for the ticket on its branch and for claimed tickets.
-import { readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setFrontmatterKey } from '@accord-dev/accord-core';
 import { afterAll, beforeAll, expect, it, vi } from 'vitest';
@@ -206,13 +206,14 @@ it('risk:complex-branching a ticket tip on the default branch has no commits aft
   }
 }, 120_000);
 
-it('risk:complex-branching an unknown verified commit gives no commits after verify', () => {
+// ST-LN-96 t1-ac-4: a verified commit that is not in this clone is a rewrite the stage trace reads, as gate done does: verify again, never done.
+it('risk:complex-branching an unknown verified commit is one rewritten entry after verify, with no files', () => {
   const d = copyClone(tpl);
   try {
     d.git('switch', '-c', 't/ST-9');
     setKey(d.root, 'verified_commit', 'deadbee' + '0'.repeat(33));
-    commit(d.root, 'tick');
-    expect(loadFromFs(d.root).afterVerify?.['ST-9']).toBeUndefined();
+    const T = commit(d.root, 'tick');
+    expect(loadFromFs(d.root).afterVerify?.['ST-9']).toEqual([{ sha: T, parents: [] }]);
   } finally {
     d.cleanupAll();
   }
@@ -391,6 +392,96 @@ it('risk:regression of a real bug: a fix made at verify, before any verification
     const fixed = await run(['anchor'], c.root);
     expect(fixed.out).toContain('Stage: review');
     expect(fixed.out).toContain(`Review base: ${R}`);
+  } finally {
+    c.cleanupAll();
+  }
+}, 120_000);
+
+// ST-LN-96 t1-ac-4, D-04, D-16 Option A: a rebase rewrites the verified commit, so the stage follows the contents of the ticket's files, as gate done does.
+/** Remove one loose object: a commit lost from the clone, as after a force-push CI never fetched. */
+function dropObject(repo: string, sha: string): void {
+  const file = join(repo, '.git', 'objects', sha.slice(0, 2), sha.slice(2));
+  chmodSync(file, 0o666);
+  rmSync(file, { force: true });
+}
+
+/** The done ticket on its branch, rebased onto a main that moved on an unrelated file; returns the verified commit the rebase rewrote. */
+function rebasedDone(c: Clone): string {
+  const old = c.git('rev-parse', doneT + '^').trim();
+  c.git('switch', 'main');
+  writeFiles(c.root, { 'notes/unrelated.txt': 'two\n' });
+  commit(c.root, 'main moves');
+  c.git('push', '-q', 'origin', 'main');
+  c.git('switch', 't/ST-9');
+  c.git('rebase', '-q', 'main');
+  expect(c.git('rev-parse', 'HEAD').trim()).not.toBe(doneT);
+  expect(() => c.git('merge-base', '--is-ancestor', old, 'HEAD')).toThrow();
+  return old;
+}
+
+/** Runs `read` with the host's walk allowed (the walk path) or failed (the git path), as git-count.test.ts forces them. */
+async function through<T>(path: 'walk' | 'git', read: () => Promise<T> | T): Promise<T> {
+  spawnLog.fail = path === 'git' ? (args) => args.includes('--stdin') : undefined;
+  spawnLog.on = true;
+  try {
+    return await read();
+  } finally {
+    spawnLog.on = false;
+    spawnLog.fail = undefined;
+  }
+}
+
+for (const path of ['walk', 'git'] as const) {
+  it(`risk:complex-branching the stage after a rebase follows the ticket's contents, through the ${path} path (ST-LN-96 t1-ac-4)`, async () => {
+    const c = copyClone(doneTpl);
+    try {
+      rebasedDone(c);
+      const row = rowOf(c);
+      const head = c.git('rev-parse', 'HEAD').trim();
+      // Unchanged contents: a change main brought to an unrelated file is not the ticket's, so the ticks stand.
+      expect(await through(path, row)).toBe('done');
+      expect(await through(path, () => loadFromFs(c.root, { stage: true }).afterVerify?.['ST-9'])).toEqual([]);
+      expect((await through(path, () => run(['anchor'], c.root))).out).toContain('Stage: done');
+
+      // The ticket edits one of its own code files after the rebase: verify again, with no review base.
+      writeFiles(c.root, { 'src/a.ts': 'edited\n' });
+      const edited = commit(c.root, 'edit after the rebase');
+      expect(await through(path, row)).toBe('verify');
+      expect(await through(path, () => loadFromFs(c.root, { stage: true }).afterVerify?.['ST-9'])).toEqual([{ sha: edited, parents: [], files: ['src/a.ts'] }]);
+      const anchor = (await through(path, () => run(['anchor'], c.root))).out;
+      expect(anchor).toContain('Stage: verify');
+      expect(anchor).not.toContain('Review base:');
+      expect(head).not.toBe(edited);
+    } finally {
+      c.cleanupAll();
+    }
+  }, 120_000);
+
+  it(`risk:security a rebased ticket whose verified commit is not in this clone is at verify, through the ${path} path (ST-LN-96 t1-ac-4)`, async () => {
+    const c = copyClone(doneTpl);
+    try {
+      const old = rebasedDone(c);
+      dropObject(c.root, old);
+      const head = c.git('rev-parse', 'HEAD').trim();
+      const after = (await through(path, () => loadFromFs(c.root, { stage: true }).afterVerify?.['ST-9'])) ?? [];
+      expect(after).toEqual([{ sha: head, parents: [] }]);
+      expect(after[0]).not.toHaveProperty('files');
+      expect(await through(path, rowOf(c))).toBe('verify');
+      expect((await through(path, () => run(['anchor'], c.root))).out).toContain('Stage: verify');
+    } finally {
+      c.cleanupAll();
+    }
+  }, 120_000);
+}
+
+it('risk:regression a merge of main after verify still sends the ticket back to verify, as before the rewrite rule (ST-LN-96 t1-ac-4)', async () => {
+  const c = copyClone(doneTpl, [doneTpl.otherClone()]);
+  try {
+    const { M } = mergeMain(c, c.others[0]);
+    const after = loadFromFs(c.root, { stage: true }).afterVerify?.['ST-9'];
+    expect(after?.at(-1)).toMatchObject({ sha: M });
+    expect(after?.at(-1)?.parents).toHaveLength(2);
+    expect(await rowOf(c)()).toBe('verify');
   } finally {
     c.cleanupAll();
   }

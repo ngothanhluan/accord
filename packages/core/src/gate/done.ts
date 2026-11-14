@@ -213,6 +213,27 @@ const onlyOwnRecords = (snapshot: RepoSnapshot, id: string, recorded: string): b
   return ownRecordsOnly(id, since[recorded]);
 };
 
+/**
+ * ST-LN-96 D-04: the recorded commit is not in the gated commit's history, so the host compared the contents of the ticket's files.
+ * `{ pass }`: none differs; `{ reason }`: the refusal's wording; undefined: the host supplied no fact for it, and today's reason stands.
+ */
+const contentVerdict = (
+  snapshot: RepoSnapshot,
+  recorded: string,
+  host: string,
+  what: 'ticks' | 'review',
+  today: string,
+): { pass: true } | { reason: string } | undefined => {
+  const facts = snapshot.contentSince;
+  const key = recorded.toLowerCase();
+  if (facts === undefined || !Object.hasOwn(facts, key)) return undefined;
+  const fact = facts[key];
+  if ('absent' in fact) return { reason: `${today}; the verified commit is not in this clone, so its contents cannot be compared - verify again` };
+  if (fact.changed.length === 0) return { pass: true };
+  const made = what === 'ticks' ? 'the ticks were made' : 'the review was written';
+  return { reason: `${made} against commit ${recorded}, which is not in the history of the gated commit ${host}; these ticket files changed since: ${fact.changed.join(', ')}` };
+};
+
 /** GATE-11: the ticks were made against a different commit. Both values are guarded on `isSha` first,
  * so a too-short value produces `gate.sha-too-short` alone and never two reasons for one typo (D-81). */
 export const tickStaleCommit: GateRule['check'] = (snapshot, id) => {
@@ -220,13 +241,10 @@ export const tickStaleCommit: GateRule['check'] = (snapshot, id) => {
   const host = snapshot.git?.commit;
   if (tick === undefined || host === undefined || !isSha(tick) || !isSha(host) || shaEqual(tick, host)) return [];
   if (onlyOwnRecords(snapshot, id, tick)) return [];
-  return [
-    {
-      file: ticketFile(id),
-      pointer: '/verified_commit',
-      reason: `the ticks were made against commit ${tick}; the gated commit is ${host}`,
-    },
-  ];
+  const today = `the ticks were made against commit ${tick}; the gated commit is ${host}`;
+  const content = contentVerdict(snapshot, tick, host, 'ticks', today);
+  if (content !== undefined && 'pass' in content) return [];
+  return [{ file: ticketFile(id), pointer: '/verified_commit', reason: content === undefined ? today : content.reason }];
 };
 
 /** ROADMAP criterion 2 and docs/design.md §5: the review must be of the code being gated. */
@@ -235,13 +253,10 @@ export const staleReview: GateRule['check'] = (snapshot, id) => {
   const host = snapshot.git?.commit;
   if (review === undefined || host === undefined || !isSha(review) || !isSha(host) || shaEqual(review, host)) return [];
   if (onlyOwnRecords(snapshot, id, review)) return [];
-  return [
-    {
-      file: verificationFile(id),
-      pointer: '/commit',
-      reason: `the review was written against commit ${review}; the gated commit is ${host}`,
-    },
-  ];
+  const today = `the review was written against commit ${review}; the gated commit is ${host}`;
+  const content = contentVerdict(snapshot, review, host, 'review', today);
+  if (content !== undefined && 'pass' in content) return [];
+  return [{ file: verificationFile(id), pointer: '/commit', reason: content === undefined ? today : content.reason }];
 };
 
 // --- The Machine layer: does the report say the test that proves this scenario passed? (GATE-08, D-80) ---

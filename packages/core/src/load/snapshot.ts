@@ -203,6 +203,7 @@ export function loadSnapshot(input: SnapshotInput): RepoSnapshot {
     ...(input.ancestors === undefined ? {} : { ancestors: input.ancestors }),
     ...(input.baselineFiles === undefined ? {} : { baselineFiles: input.baselineFiles }),
     ...(input.recordsSince === undefined ? {} : { recordsSince: input.recordsSince }),
+    ...(input.contentSince === undefined ? {} : { contentSince: input.contentSince }),
     ...(input.branchTemplates === undefined ? {} : { branchTemplates: input.branchTemplates }),
     ...(input.claimBranches === undefined ? {} : { claimBranches: input.claimBranches }),
     ...(input.claimTemplate === undefined ? {} : { claimTemplate: input.claimTemplate }),

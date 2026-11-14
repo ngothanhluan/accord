@@ -172,6 +172,21 @@ describe('generated module', () => {
   });
 });
 
+// ST-LN-96 t1-ac-5, D-04 Ruling: no step assumes a merge commit, so no skill source may name the sync as one. The split literals keep this file out of
+// its own scan; the text is read with whitespace collapsed, so a phrase wrapped across two lines is still found.
+const MERGE_WORDING = ['with a ' + 'merge commit', 'never a ' + 'rebase', 'worktree ' + 'merge'];
+
+it('risk:regression no skill source says the sync is a merge commit (ST-LN-96 t1-ac-5)', () => {
+  const found: string[] = [];
+  const sources = readdirSync(skillsDir, { recursive: true, withFileTypes: true }).filter((e) => e.isFile());
+  expect(sources.length, 'nothing was scanned').toBeGreaterThan(0);
+  for (const e of sources) {
+    const text = readFileSync(join(e.parentPath, e.name), 'utf8').replace(/\s+/g, ' ');
+    for (const phrase of MERGE_WORDING) if (text.includes(phrase)) found.push(`${relative(skillsDir, join(e.parentPath, e.name)).split(sep).join('/')}: ${phrase}`);
+  }
+  expect(found.sort()).toEqual([]);
+});
+
 // Everything below iterates the whole render output rather than a named role, so a definition added by a
 // later plan inherits these gates the moment it lands — no plan has to restate a criterion to be covered.
 const SPEC_FIELDS = ['name', 'description', 'license', 'compatibility', 'metadata', 'allowed-tools'];

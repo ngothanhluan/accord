@@ -326,6 +326,10 @@ beforeAll(() => {
     const list = oracleAfter(c.root, def, id, starts[id], tips[id]);
     if (list !== undefined) expected[id] = list;
   }
+  // ST-LN-96 t1-ac-4: W-5's start is in no tip's history, as after a rewrite, so its answer is gate done's content verdict, not its whole branch:
+  // one entry at the tip commit with no parent, naming the ticket files that differ from the start (its branch's and the start's own paths).
+  expect(expected['W-5']?.length).toBeGreaterThan(1);
+  expected['W-5'] = [{ sha: gitRun(c.root, 'rev-parse', tips['W-5'][0]).trim(), parents: [], files: ['src/W-5.ts', 'src/W-5b.ts', 'src/side-d.ts'] }];
   walked = { c, expected, tips };
 }, 180_000);
 
@@ -352,9 +356,9 @@ it('risk:complex-branching the shared walk gives each ticket what its own git lo
   expect(reviews).toHaveLength(1);
   expect(reviews[0]).toEqual(expect.arrayContaining(tips['W-2']));
   const topo = a.argv.filter(isTopo);
-  expect(topo).toHaveLength(2);
+  expect(topo).toHaveLength(1);
   expect(topo.some((x) => tips['W-2'].every((t) => x.includes(t)))).toBe(true);
-  expect(topo.some((x) => tips['W-5'].every((t) => x.includes(t)))).toBe(true);
+  expect(topo.some((x) => tips['W-5'].every((t) => x.includes(t)))).toBe(false);
   expect(a.argv.filter(isRevList)).toEqual([]);
 
   // The walk fails: every ticket is read by today's calls and the answers are the same.
@@ -372,7 +376,7 @@ it('risk:complex-branching the shared walk gives each ticket what its own git lo
   expect(b.argv.findIndex(isTopo)).toBeGreaterThan(stdinAt);
   expect(b.argv.filter(isReviewStart).length).toBeGreaterThanOrEqual(3);
   expect(b.argv.filter(isRevList)).toHaveLength(1);
-  expect(b.argv.filter(isTopo)).toHaveLength(4);
+  expect(b.argv.filter(isTopo)).toHaveLength(3);
 
   await expectFewer('wt-A-7 anchor', afterReads);
   await expectFewer('main lint', afterReads);

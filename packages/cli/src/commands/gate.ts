@@ -5,7 +5,7 @@
 // than instead of it (D-97). Under `--json` stdout carries the GateResult verbatim and every notice
 // goes to stderr, so `jq '.findings[]'` works with no unwrapping (D-98).
 import { capRulesOf, gateDone, gatePlan, gateReady, renderText, workOf } from '@accord-dev/accord-core';
-import { gitAfterReview, gitBranchCommits, gitPlanHistory, gitRecordsSinceFor, gitReviewCommit, gitReviewFact, UsageError, withDefaultRef, withReturnFacts } from '../load/fs.js';
+import { gitAfterReview, gitBranchCommits, gitContentSince, gitPlanHistory, gitRecordsSinceFor, gitReviewCommit, gitReviewFact, UsageError, withDefaultRef, withReturnFacts } from '../load/fs.js';
 import { withClaimPins } from '../load/claim-facts.js';
 import { withRecordPins, withRoundFacts } from '../load/round-facts.js';
 import { colourFindings } from '../render/color.js';
@@ -51,7 +51,8 @@ export function gate(
         // ST-LN-91 D-15: the plan format rules and the plan cap read the ticket's claim pin, never the plan baseline's.
         withRecordPins(ctx.root, claimPinned, id, 'plan', capRulesOf(claimPinned, id, 'plan').fall ? 2 : 3)
       : which === 'done'
-        ? { ...forScope, ...gitRecordsSinceFor(ctx.root, ctx.snapshot, id) }
+        ? // ST-LN-96 D-02: Done holds the claim fact too, for gate.ruleset-changed and gate.ruleset-missing, in every lane.
+          withClaimPins(ctx.root, { ...forScope, ...gitRecordsSinceFor(ctx.root, ctx.snapshot, id), ...gitContentSince(ctx.root, ctx.snapshot, id) }, id)
         : ctx.snapshot;
   // ST-LN-17: Done confirms each ## Return from verify marker with git; an unversioned round record of a ticket
   // not done on the default branch needs that branch's snapshot.

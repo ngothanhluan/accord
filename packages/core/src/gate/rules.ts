@@ -86,6 +86,7 @@ import {
 } from './lane-r.js';
 import { branchUnknown, interfaceSign, outOfScope, sensitiveTouched } from './scope.js';
 import { planRounds, reviewRounds } from './rounds.js';
+import { rulesetChanged, rulesetMissing } from './ruleset.js';
 import { findingEvidence } from '../round/evidence.js';
 import { findingGrounds, fixFileUnexplained } from '../round/grounds.js';
 import { reviewScope, reviewScopeSkipped } from '../round/scope.js';
@@ -119,6 +120,13 @@ const TICKET_UNKNOWN: GateRule = {
   check: ticketUnknown,
 };
 
+/**
+ * ST-LN-96 D-02, t1-ac-2: a hand edit of `ruleset` can happen at any stage and in any lane, so both rows follow TICKET_UNKNOWN in every table that holds it. They read the
+ * claim fact the host supplies for every ticket with a lane and are silent without one (after a squash).
+ */
+const RULESET_CHANGED: GateRule = { id: 'gate.ruleset-changed', level: 'error', profiles: ['build', 'maintain'], check: rulesetChanged };
+const RULESET_MISSING: GateRule = { id: 'gate.ruleset-missing', level: 'error', profiles: ['build', 'maintain'], check: rulesetMissing };
+
 /** Spec §4, §7, §11: Ready, Plan, and Done all refuse a lane ticket whose approval is absent or stale. */
 const APPROVAL_MISSING: GateRule = {
   id: 'gate.approval-missing',
@@ -151,6 +159,8 @@ const RESEARCH_BUDGET_UNANSWERED: GateRule = {
 
 export const READY_RULES: readonly GateRule[] = [
   TICKET_UNKNOWN,
+  RULESET_CHANGED,
+  RULESET_MISSING,
   { id: 'gate.design-missing', level: 'error', profiles: ['build', 'maintain'], check: designMissing },
   { id: 'gate.intent-empty', level: 'error', profiles: ['build', 'maintain'], check: intentEmpty },
   { id: 'gate.ears-missing', level: 'error', profiles: ['build', 'maintain'], check: earsMissing },
@@ -168,6 +178,8 @@ export const READY_RULES: readonly GateRule[] = [
 /** Spec §7: the plan gate. Every row is an error except the last, which only asks: an incomplete plan never reaches an executor. */
 export const PLAN_RULES: readonly GateRule[] = [
   TICKET_UNKNOWN,
+  RULESET_CHANGED,
+  RULESET_MISSING,
   { id: 'gate.lane-missing', level: 'error', profiles: ['build', 'maintain'], check: laneMissing },
   APPROVAL_MISSING,
   APPROVAL_STALE,
@@ -222,6 +234,8 @@ const INTERFACE_SIGN: GateRule = { id: 'gate.interface-sign', level: 'error', pr
  * gate that must not be talked past, and GATE-06 forbids a level that depends on a flag. */
 export const DONE_RULES: readonly GateRule[] = [
   TICKET_UNKNOWN,
+  RULESET_CHANGED,
+  RULESET_MISSING,
   { id: 'gate.no-scenarios', level: 'error', profiles: ['build', 'maintain'], check: noScenarios },
   { id: 'gate.tags-differ', level: 'error', profiles: ['build', 'maintain'], check: tagsDiffer },
   { id: 'gate.verification-missing', level: 'error', profiles: ['build', 'maintain'], check: verificationMissing },
@@ -272,6 +286,8 @@ export const DONE_RULES: readonly GateRule[] = [
  */
 export const PLAN_R_RULES: readonly GateRule[] = [
   TICKET_UNKNOWN,
+  RULESET_CHANGED,
+  RULESET_MISSING,
   { id: 'gate.lane-r-plan', level: 'error', profiles: ['build', 'maintain'], check: laneRPlan },
 ];
 
@@ -295,6 +311,8 @@ const SECTIONS_CHANGED: GateRule = {
 /** ST-LN-31 D-04, D-12: the lane S Done table, with the suite rule; no plan, task, criteria or approval rows. */
 export const DONE_S_RULES: readonly GateRule[] = [
   TICKET_UNKNOWN,
+  RULESET_CHANGED,
+  RULESET_MISSING,
   SECTION_EMPTY,
   READY_MISSING,
   SECTIONS_CHANGED,
@@ -326,6 +344,8 @@ export const DONE_S_RULES: readonly GateRule[] = [
  */
 export const DONE_R_RULES: readonly GateRule[] = [
   TICKET_UNKNOWN,
+  RULESET_CHANGED,
+  RULESET_MISSING,
   RESEARCH_FIELD_MISSING,
   RESEARCH_BUDGET_UNANSWERED,
   READY_MISSING,

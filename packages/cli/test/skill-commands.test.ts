@@ -33,9 +33,12 @@ const config = (over: Partial<AccordConfig> = {}): AccordConfig => ({
 function commandPaths(node: Command, prefix = ''): string[] {
   const out: string[] = [];
   for (const child of node.commands) {
-    const path = (prefix + ' ' + child.name()).trim();
-    if (child.commands.length > 0) out.push(...commandPaths(child, path));
-    else out.push(path);
+    // ST-LN-96 D-15: an alias is a path a skill may name as well, so `worktree merge` stays real beside `worktree sync`
+    for (const name of [child.name(), ...child.aliases()]) {
+      const path = (prefix + ' ' + name).trim();
+      if (child.commands.length > 0) out.push(...commandPaths(child, path));
+      else out.push(path);
+    }
   }
   return out.sort();
 }
@@ -89,7 +92,7 @@ function mentions(files: SkillFile[]): Mention[] {
 
 describe('the commands a skill may name (SKILL-08, D-110)', () => {
   it('reads the real paths off the commander tree the CLI runs', () => {
-    expect(REAL).toEqual(['anchor', 'approve', 'brief', 'budget', 'dashboard', 'drop', 'gate done', 'gate plan', 'gate ready', 'hook', 'init', 'lint', 'new ticket', 'next', 'review-package', 'round', 'scout check', 'show', 'skills sync', 'status', 'task-done', 'tests baseline', 'tests skipped', 'upgrade', 'worktree check', 'worktree clean', 'worktree merge', 'worktree open', 'worktree push']);
+    expect(REAL).toEqual(['anchor', 'approve', 'brief', 'budget', 'dashboard', 'drop', 'gate done', 'gate plan', 'gate ready', 'hook', 'init', 'lint', 'new ticket', 'next', 'review-package', 'round', 'scout check', 'show', 'skills sync', 'status', 'task-done', 'tests baseline', 'tests skipped', 'upgrade', 'worktree check', 'worktree clean', 'worktree merge', 'worktree open', 'worktree push', 'worktree sync']);
   });
 
   it('treats a namespace with no action of its own as not a command', () => {

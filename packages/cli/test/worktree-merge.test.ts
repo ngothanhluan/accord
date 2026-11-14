@@ -544,13 +544,18 @@ it('risk:data-loss clean deletes a done lane S branch with no verified commit on
   expect(has(f.root, 'refs/heads/t/ST-12')).toBe(false);
 }, 240_000);
 
-it('risk:data-loss clean keeps a done lane S branch whose merge into main conflicts', async () => {
+it('risk:data-loss clean keeps a done lane S branch whose merge into main conflicts and whose content main lacks', async () => {
   const g = copy();
-  const t14 = await laneSBranch(g, 'ST-14', 'added.txt');
+  await laneSBranch(g, 'ST-14', 'added.txt');
   const sg = g.sibling('ST-14');
   const go = conflictOnMain(g);
   const grows = JSON.parse((await run(['status', '--json'], go)).out) as { id: string; stage: string }[];
   expect(grows.find((r) => r.id === 'ST-14')?.stage).toBe('done');
+  // ST-LN-96 t1-ac-5: the squash-merged branch alone is deleted although main edited its file afterwards (worktree-clean.test.ts); this one holds a later commit main never had
+  writeFiles(sg, { 'added.txt': 'ST-14 later\n' });
+  const t14 = commitMsg(sg, 'later change');
+  gitRun(sg, 'push', '-q', 'origin', 't/ST-14');
+  gitRun(go, 'fetch', '-q', 'origin');
   let status: unknown;
   try {
     execFileSync('git', ['merge-tree', '--write-tree', 'main', 'origin/t/ST-14'], { cwd: go, stdio: 'pipe' });
@@ -566,11 +571,14 @@ it('risk:data-loss clean keeps a done lane S branch whose merge into main confli
   expect(has(g.remote, 'refs/heads/t/ST-14')).toBe(true);
 }, 240_000);
 
-it('risk:data-loss clean keeps a done lane S origin branch whose merge into main conflicts', async () => {
+it('risk:data-loss clean keeps a done lane S origin branch whose merge into main conflicts and whose content main lacks', async () => {
   const g = copy();
-  const t14 = await laneSBranch(g, 'ST-14', 'added.txt');
+  await laneSBranch(g, 'ST-14', 'added.txt');
   const sg = g.sibling('ST-14');
   conflictOnMain(g);
+  writeFiles(sg, { 'added.txt': 'ST-14 later\n' });
+  const t14 = commitMsg(sg, 'later change');
+  gitRun(sg, 'push', '-q', 'origin', 't/ST-14');
   gitRun(g.root, 'worktree', 'remove', '--force', sg);
   g.git('update-ref', '-d', 'refs/heads/t/ST-14');
   const r5 = await run(['worktree', 'clean'], g.root);

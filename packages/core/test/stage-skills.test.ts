@@ -485,23 +485,23 @@ it('risk:regression the owners yes steps still ask for an explicit yes and commi
   expect(intentStep9()).toEqual([]);
 });
 
-it('risk:regression the verify skill merges the remote main after the review commit and before the full suite', () => {
+it('risk:regression the verify skill syncs the remote main after the review commit and before the full suite', () => {
   const get = (p: string) => (files.find((f) => f.path === p)?.text ?? '').replace(/\s+/g, ' ');
   const text = get('.claude/skills/accord-verify/SKILL.md');
   const ref = get('.claude/skills/accord/worktree.md');
   const slice = (s: string, a: string, b: string) => s.slice(s.indexOf(a), s.indexOf(b));
-  const step = slice(text, '2. **Merge and suite.**', '3. **Verifier.**');
+  const step = slice(text, '2. **Sync and suite.**', '3. **Verifier.**');
   expect(step.length).toBeGreaterThan(0);
   const c = step.indexOf('commit everything');
-  const m = step.indexOf('`accord worktree merge <id>`');
+  const m = step.indexOf('`accord worktree sync <id>`');
   const t = step.indexOf('`tests.full`');
   expect(c).toBeGreaterThan(-1);
   expect(m).toBeGreaterThan(c);
   expect(t).toBeGreaterThan(m);
-  for (const p of ['exits 2', 'stop', 'never a rebase', '`fetch from origin failed`', 'that commit is the one verified'])
+  for (const p of ['exits 2', 'stop', '`git.merge`', '`git.sync`', '`rebased:`, `rebound:` and `verify again:`', '`fetch from origin failed`', 'that commit is the one verified'])
     expect(step).toContain(p);
-  expect(text.indexOf('`accord worktree merge <id>`')).toBeLessThan(text.indexOf('accord-verifier'));
-  for (const p of ['A line starting `fetch from origin failed`', 'A line starting `behind:`', 'Never merge here'])
+  expect(text.indexOf('`accord worktree sync <id>`')).toBeLessThan(text.indexOf('accord-verifier'));
+  for (const p of ['A line starting `fetch from origin failed`', 'A line starting `behind:`', 'Never sync here'])
     expect(ref).toContain(p);
 });
 
@@ -612,7 +612,7 @@ const verifySteps = () => {
   const v = flatText('.claude/skills/accord-verify/SKILL.md');
   return {
     v,
-    s2: v.slice(v.indexOf('2. **Merge and suite.**'), v.indexOf('3. **Verifier.**')),
+    s2: v.slice(v.indexOf('2. **Sync and suite.**'), v.indexOf('3. **Verifier.**')),
     s4: v.slice(v.indexOf('4. **Report.**'), v.indexOf('5. **Owner.**')),
   };
 };
@@ -878,7 +878,7 @@ it('risk:regression the accord skill routes upgrade to its reference and the wor
   for (const s of [
     'A line starting `merged:`',
     'A line starting `behind:`',
-    'Never merge here',
+    'Never sync here',
     'only from `/accord` with no argument and from `/accord upgrade`',
     '`removed`, `deleted` or `kept`',
     'A New request the session check stops cleans nothing',
@@ -919,7 +919,7 @@ it('risk:regression the stage skills run accord worktree push after each stage c
     ['build', '3. **Record.**', '4. **Blocked.**', 'commit the ticket together with `accord/tickets/<id>/ledger.md`', true],
     ['build', '6. **Change of course.**', '7. **Plan changed.**', 'on yes run `accord approve <id>`, commit the ticket', true],
   ];
-  const OPEN = 'A line starting `push of` that `accord worktree open <id> --continue` prints: the merge commit was not pushed.';
+  const OPEN = 'A line starting `push of` that `accord worktree open <id> --continue` prints: the sync was not pushed.';
   const OLD = 'A line starting `push of` (Continue only)';
   const FROM = 'A line starting `push of` from `accord worktree push <id>`';
   const NEXT = 'Lines starting `removed`';

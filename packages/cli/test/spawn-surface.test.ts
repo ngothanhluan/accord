@@ -14,8 +14,8 @@ import { describe, expect, it } from 'vitest';
 import { cleanup, makeRepo, run } from './helpers/repo.js';
 
 const srcDir = fileURLToPath(new URL('../src/', import.meta.url));
-// `ps` and `powershell` read the process table for the hold (D-17).
-const ALLOWED = ['git', 'gh', 'ps', 'powershell'];
+// `ps` and `powershell` read the process table for the hold (D-17); `taskkill` ends a timed-out team command's whole process tree on Windows (ST-LN-96).
+const ALLOWED = ['git', 'gh', 'ps', 'powershell', 'taskkill'];
 const SPAWN = /\b(?:execFileSync|execFile|spawnSync|spawn)\s*\(/g;
 const FIRST_ARG = /^\s*(['"])([^'"]*)\1\s*[,)]/;
 
@@ -70,7 +70,7 @@ describe('spawn surface', () => {
   });
 });
 
-it('risk:security only git gh ps and powershell are spawned by name and the setup and team-command sites use the shell', () => {
+it('risk:security only git gh ps powershell and taskkill are spawned by name and the setup and team-command sites use the shell', () => {
   const sites = spawnSites();
   const unnamed = sites.filter((s) => {
     const m = FIRST_ARG.exec(s.args);

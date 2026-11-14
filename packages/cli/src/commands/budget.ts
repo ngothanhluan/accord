@@ -1,9 +1,11 @@
 // ST-LN-94 `accord budget <id>` (94-ac-4, D-11): whether a lane R ticket is within its Timebox and Token budget, clocked from the committer
 // time of its claim commit, modelled on `accord round <id>`. Exit 0 within budget; 1 for `stop: ask owner`; 2 for a usage error (not a lane R
-// ticket, an unreadable Timebox or Token budget, no claim commit).
+// ticket, an unreadable Timebox or Token budget, no claim commit). The tokens come from the checkout's own Claude Code transcripts since the
+// claim, or are `not measured` with the reason printed (D-20: a partial count is never printed as a figure).
 import { budgetVerdict, readTimebox, readTokenBudget, sectionValue } from '@accord-dev/accord-core';
 import { gitClaimFacts } from '../load/claim-facts.js';
 import { UsageError } from '../load/fs.js';
+import { transcriptTokens } from '../load/transcripts.js';
 import type { CommandContext } from '../run.js';
 import { requireLaneTicket } from './lane-args.js';
 
@@ -27,16 +29,18 @@ export function budget(ctx: CommandContext, id: string): number {
   if ('error' in fact) throw new UsageError(fact.error);
   // A claim commit dated after now (clock skew) counts as no time spent.
   const elapsedMinutes = Math.max(0, Math.floor((Date.now() - fact.time * 1000) / 60_000));
+  const measured = transcriptTokens(ctx.root, fact.time, ctx.env);
   const answer = budgetVerdict({
     id,
     elapsedMinutes,
     timeboxMinutes: timebox.n,
     timebox: timebox.text,
-    // Plan 03-21 supplies the tokens measured from the Claude Code transcripts (D-11, D-20); until then they are not measured.
-    tokens: undefined,
+    // D-11, D-20: a figure only when the transcripts hold the whole time since the claim; otherwise the time alone decides.
+    tokens: 'tokens' in measured ? measured.tokens : undefined,
     budgetTokens: budgetLine.n,
     budget: budgetLine.text,
   });
-  ctx.stdout.write(answer.lines.join('\n') + '\n');
+  const lines = 'notMeasured' in measured ? [...answer.lines, `Tokens not measured: ${measured.notMeasured}`] : answer.lines;
+  ctx.stdout.write(lines.join('\n') + '\n');
   return answer.stop ? 1 : 0;
 }

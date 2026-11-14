@@ -1,0 +1,19 @@
+{
+  "backup": "accord-transcripts-backup-2026-11-02",
+  "ticket": "ST-LN-81",
+  "base": "eafdf635c376adb8f62a80923612f8a5b8fc9ede",
+  "merge": "625431a8713b63d57c83bc5a28ac72c7dd17321b",
+  "original": {
+    "planner": [
+      "C--Work-accord-st-ln-81/fbde91ef-b0c7-4beb-88f6-1242ab310b6b/subagents/agent-afb7901c96c4871f5.jsonl"
+    ],
+    "critic": [
+      "C--Work-accord-st-ln-81/fbde91ef-b0c7-4beb-88f6-1242ab310b6b/subagents/agent-a61332eb638821988.jsonl",
+      "C--Work-accord-st-ln-81/fbde91ef-b0c7-4beb-88f6-1242ab310b6b/subagents/agent-ab9e5a6bf267e86a2.jsonl",
+      "C--Work-accord-st-ln-81/fbde91ef-b0c7-4beb-88f6-1242ab310b6b/subagents/agent-a30f1d48433cfb66d.jsonl"
+    ],
+    "scout": [
+      "C--Work-accord-st-ln-81/fbde91ef-b0c7-4beb-88f6-1242ab310b6b/subagents/agent-a2bed8c1203279717.jsonl"
+    ]
+  }
+}

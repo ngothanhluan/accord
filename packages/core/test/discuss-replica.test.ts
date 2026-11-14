@@ -101,7 +101,7 @@ it('risk:regression the discuss replica report states its one-ticket caveat firs
   const partial = renderDiscussReplica(ROW({ steps }));
   expect(partial).toContain('| revise-1 | not measured | - |');
   expect(partial.trimEnd().split('\n').at(-1)).toBe('Fewer weighted tokens than the original: not measured (no counted run for revise-1)');
-  expect(partial).not.toMatch(/Fewer weighted tokens than the original: (yes|no)/);
+  expect(partial).not.toMatch(/Fewer weighted tokens than the original: (yes|no) \(/);
   expect((JSON.parse(renderDiscussReplicaJson(ROW({ steps }))) as { fewerTokens: unknown }).fewerTokens).toBeNull();
   // fewer tokens, the other way
   const cheap = (ROW().steps as Row[]).map((s) => ({ ...s, weighted: 100000 }));

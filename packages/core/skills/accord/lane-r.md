@@ -52,8 +52,8 @@ shipped packages.
    `Owner:` line of step 4 when there is one. Add its path to the ticket's `research:` list, and commit both.
 6. **Pull request.** Run `accord gate done <id>` and fix what it prints. Push the branch with
    `git push -u origin <branch>` and open a pull request with `gh pr create --fill` when `gh` is available, otherwise
-   ask the owner to open it. It waits for the owner's merge; the ticket is done once the record merges. Report the
-   finish as `./finish.md` says.
+   ask the owner to open it. It waits for the owner's merge; the ticket is done once the record merges, by a merge
+   commit, a squash or a rebase. Report the finish as `./finish.md` says.
 
 ## Rules
 

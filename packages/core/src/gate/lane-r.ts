@@ -256,7 +256,7 @@ export const researchRecordMissing: GateRule['check'] = (snapshot, id) => {
   const t = laneR(snapshot, id);
   if (t === undefined || ownRecords(snapshot, t).length > 0) return [];
   const fact = researchFactOf(snapshot, id);
-  const why = fact === undefined ? '; git was not read for it' : 'error' in fact ? '; git could not say which records changed: ' + fact.error : '';
+  const why = (t.frontmatter?.research ?? []).length === 0 ? '; research: lists no record under accord/research/' : fact === undefined ? '; git was not read for it' : 'error' in fact ? '; git could not say which records changed: ' + fact.error : '';
   return [
     {
       file: ticketFile(id),
@@ -299,7 +299,8 @@ const isOwnerAnswer = (line: string): boolean => OWNER_FORMS.some((f) => line.st
 /**
  * D-14, D-11, D-20: the last Spent line of each of the ticket's own records (CR-01), against the ticket's current Timebox and Token budget,
  * strictly over. CR-02: the time compared is the larger of the Spent time and git's whole minutes from the claim commit to the record's last
- * change, the calendar clock accord budget reads, so a Spent line written lower than the time since the claim decides nothing. The token half
+ * change, the calendar clock accord budget reads, so a Spent line written lower than the time since the claim decides nothing; with no claim
+ * time in the fact (REVIEW2 CR-01: the default branch after a squash merge, judged on the branch before it) the Spent time alone. The token half
  * cannot be measured from git, so the Spent tokens are read as written. A `not measured` token count leaves the time alone to decide. A record over either fails unless it holds the owner's quoted answer. An
  * extension written into the ticket with its quoted D-nn (D-13) is the allowance compared, so it needs no Owner line. Silent when the ticket
  * is not lane R or either allowance is unreadable (gate.research-field-missing's finding), and for a record with no Spent line
@@ -323,7 +324,7 @@ export const researchOverBudget: GateRule['check'] = (snapshot, id) => {
     if (last === undefined) return [];
     const { minutes, tokens, time, tokensText } = last.spent;
     // ownRecords returned p, so the fact holds its change time.
-    const gitMinutes = fact === undefined || 'error' in fact ? 0 : Math.max(0, Math.floor((fact.changed[p] - fact.claimTime) / 60));
+    const gitMinutes = fact === undefined || 'error' in fact || fact.claimTime === undefined ? 0 : Math.max(0, Math.floor((fact.changed[p] - fact.claimTime) / 60));
     const overTime = Math.max(minutes, gitMinutes) > timebox;
     const overTokens = tokens !== undefined && tokens > budget;
     if ((!overTime && !overTokens) || lines.some((l) => isOwnerAnswer(l.text))) return [];

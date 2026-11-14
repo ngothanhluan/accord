@@ -177,6 +177,9 @@ it('risk:security accord gate done and accord status count only a record the bra
       [P('T-2')]: laneTicket('T-2', { frontmatter: ['depends_on: ["R-1"]'] }),
     };
     expect(gateReadyIn(files, 'R-1')).toBe('pass');
+    // The evidence was on main before the ticket was written (REVIEW2 CR-01: a record added in the commit that adds the ticket file counts).
+    writeFiles(repo, { 'accord/config.yml': CONFIG, [PRIOR]: files[PRIOR] });
+    commitMsg(repo, 'evidence', new Date(Date.now() - 180_000));
     writeFiles(repo, files);
     commitMsg(repo, 'base', new Date(Date.now() - 120_000));
     gitRun(repo, 'branch', '-M', 'main');
@@ -335,6 +338,8 @@ it('risk:security a squash-merged lane R ticket reads done on main and unblocks 
     expect((await rowOf(repo, 'T-2'))?.blockedBy ?? []).toEqual([]);
     // A later pull request's CI runs gate done on the ticket from a branch of main with no claim commit.
     gitRun(repo, 'switch', '-q', '-c', 't/T-2');
+    writeFiles(repo, { 'notes.txt': 'T-2 work\n' });
+    commitMsg(repo, 'T-2 work');
     const later = await run(['gate', 'done', 'R-1', '--json'], repo);
     expect(JSON.parse(later.out).findings).toEqual([]);
     expect(later.code).toBe(0);

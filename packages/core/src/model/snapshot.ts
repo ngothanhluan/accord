@@ -47,12 +47,13 @@ export interface SnapshotInput {
 }
 
 /**
- * ST-LN-94 CR-01, CR-02: what git says of a lane R ticket's research. `claimTime` is the committer time (seconds) of the claim commit accord
- * budget clocks from; `changed` maps each listed record the branch added or changed after that commit to the time (seconds) of its last change:
- * the committer time of the last commit that touched it, or the host's clock for a change not yet committed. `error` when git could not say,
- * or the ticket has no `claim: <id>` commit.
+ * ST-LN-94 CR-01, CR-02: what git says of a lane R ticket's research. `claimTime` is the author time (seconds, kept by a rebase: REVIEW2 WR-03)
+ * of the claim commit accord budget clocks from; `changed` maps each listed record the branch added or changed after that commit to the time
+ * (seconds) of its last change: the author time of the last commit that touched it, or the host's clock for a change not yet committed.
+ * REVIEW2 CR-01: with no claim commit to read (the default branch after a squash merge), `claimTime` is absent and `changed` holds the records
+ * changed from the commit that added the ticket file on. `error` when git could not say, or the ticket has neither commit.
  */
-export type ResearchFact = { error: string } | { claimTime: number; changed: Record<string, number> };
+export type ResearchFact = { error: string } | { claimTime?: number; changed: Record<string, number> };
 
 /** ST-LN-57: one commit of a round's range: its kind and the paths it changes (for a merge, the paths its remerge diff shows). */
 export interface RangeCommit { sha: string; kind: 'commit' | 'merge' | 'episode'; files: string[] }

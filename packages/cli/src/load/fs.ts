@@ -4,8 +4,8 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { branchTemplateOf, CALL_SIGN, DEFAULT_BRANCH_TEMPLATE, isIntactRender, isResearchPath, isResearchRecord, isSha, loadSnapshot, normaliseText, peopleOf, pinOf, RETIRED_FILES, scopeLines, workOf } from '@accord-dev/accord-core';
-import type { BranchChange, BranchFact, RepoSnapshot, SnapshotInput } from '@accord-dev/accord-core';
-import { researchFactsFor } from './research-facts.js';
+import type { BranchChange, BranchFact, RepoSnapshot, ResearchFact, SnapshotInput } from '@accord-dev/accord-core';
+import { gitResearchFact, researchFactsFor } from './research-facts.js';
 
 /** Environment problem the user must fix (no git, not a repository, no accord/ folder); exit 2 in Phase 5. */
 export class UsageError extends Error {
@@ -1232,11 +1232,22 @@ export function loadClaimView(root: string): { checkout: SnapshotInput; view: Sn
     const mine = researchListed({ [recordPaths(id)[0]]: text }, []).filter((p) => !Object.hasOwn(checkout.files, p) && !Object.hasOwn(files, p));
     Object.assign(files, gitFilesAt(root, ref, mine));
   }
+  // ST-LN-94 REVIEW2 WR-01: a lane R ticket read from its claimed branch has its research fact read at that branch's tip, where its claim is.
+  const researchFacts: Record<string, ResearchFact> = { ...bare.researchFacts };
+  let defaultRef: { ref: string | undefined } | undefined;
+  for (const [id, ref] of candidates) {
+    const text = read.get(ref + ':' + recordPaths(id)[0]);
+    if (text === undefined) continue;
+    const t = loadSnapshot({ files: { [recordPaths(id)[0]]: text }, tree: [] }).tickets[id];
+    if (t?.frontmatter?.lane !== 'R' || (t.frontmatter.research ?? []).length === 0) continue;
+    defaultRef ??= { ref: defaultRefOf(root) };
+    researchFacts[id] = gitResearchFact(root, t, { ref: defaultRef.ref, rev: ref, now: Math.floor(Date.now() / 1000) });
+  }
   const afterVerify: Record<string, AfterVerify> = {
     ...withAfter(checkoutEntries, fromCheckout, (id) => !candidates.some(([c]) => c === id)),
     ...withAfter(candidateEntries, lists.slice(checkoutEntries.length)),
   };
-  return { checkout, view: { ...bare, files, planFacts, ...(Object.keys(afterVerify).length === 0 ? {} : { afterVerify }) }, branch, ...(refs === undefined ? {} : { refs }) };
+  return { checkout, view: { ...bare, files, planFacts, ...(Object.keys(researchFacts).length === 0 ? {} : { researchFacts }), ...(Object.keys(afterVerify).length === 0 ? {} : { afterVerify }) }, branch, ...(refs === undefined ? {} : { refs }) };
 }
 
 /** IDS-1: `git config user.email`, trimmed; '' when unset (git exits 1). */

@@ -1,4 +1,4 @@
-// ST-LN-94 94-ac-4, D-11, D-20: `accord budget <id>` on real git. The clock runs from the committer time of the ticket's `claim: <id>` commit;
+// ST-LN-94 94-ac-4, D-11, D-20: `accord budget <id>` on real git. The clock runs from the author time of the ticket's `claim: <id>` commit;
 // the tokens are the weighted sum of the checkout's own Claude Code transcripts since the claim, or `not measured` when the checkout has no
 // transcript folder or the earliest transcript left in it starts after the claim. CLAUDE_CONFIG_DIR always points at a temporary folder, so no
 // test reads the real ~/.claude.
@@ -30,8 +30,8 @@ function claimed(minutesAgo: number, budget = '800k weighted tokens'): string {
   return repo;
 }
 
-/** The claim commit's committer time, in seconds. */
-const claimAt = (repo: string) => Number(gitRun(repo, 'log', '-1', '--format=%ct').trim());
+/** The claim commit's author time, in seconds (REVIEW2 WR-03). */
+const claimAt = (repo: string) => Number(gitRun(repo, 'log', '-1', '--format=%at').trim());
 
 /** Claude Code's folder name for the checkout: its path with every character outside A-Z, a-z, 0-9 as `-`, here in the other letter case. */
 function folderOf(repo: string): string {

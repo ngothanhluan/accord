@@ -8,7 +8,7 @@ import { claimCommitOf } from './research-facts.js';
 import type { Claim } from './research-facts.js';
 import { whyGit } from './round-facts.js';
 
-/** The claim fact: the ClaimPin core reads, plus the claim commit's committer time (seconds) the host reads for accord budget. */
+/** The claim fact: the ClaimPin core reads, plus the claim commit's author time (seconds, kept by a rebase) the host reads for accord budget. */
 export type ClaimFacts = { sha: string; time: number; pin?: string; basePin?: string } | { error: string };
 
 const GIT = {
@@ -30,7 +30,7 @@ const claimCommit = (root: string, id: string, ref: string | undefined): Claim |
  * ST-LN-91 D-15: the claim pin of `id`: the `accord:` pin of accord/config.yml at the claim commit, and at that commit's merge base with the
  * default ref (`basePin`, so a branch that lowers the pin and claims on it is still caught). Undefined when the ticket has no `claim: <id>` commit; `{ error }` on any
  * git failure, and when accord/config.yml cannot be read at the claim commit (a blob a blobless clone never fetched). The working-tree pin is never read here.
- * ST-LN-94 D-11: `time` is the claim commit's committer time in seconds, read in the same log call; accord budget clocks a research ticket from it.
+ * ST-LN-94 D-11: `time` is the claim commit's author time in seconds (REVIEW2 WR-03: a rebase keeps it), read in the same log call; accord budget clocks a research ticket from it.
  */
 export function gitClaimFacts(root: string, id: string): ClaimFacts | undefined {
   try {

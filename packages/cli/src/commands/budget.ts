@@ -1,5 +1,5 @@
-// ST-LN-94 `accord budget <id>` (94-ac-4, D-11): whether a lane R ticket is within its Timebox and Token budget, clocked from the committer
-// time of its claim commit, modelled on `accord round <id>`. Exit 0 within budget; 1 for `stop: ask owner`; 2 for a usage error (not a lane R
+// ST-LN-94 `accord budget <id>` (94-ac-4, D-11): whether a lane R ticket is within its Timebox and Token budget, clocked from the author
+// time of its claim commit (REVIEW2 WR-03: a rebase keeps it), modelled on `accord round <id>`. Exit 0 within budget; 1 for `stop: ask owner`; 2 for a usage error (not a lane R
 // ticket, an unreadable Timebox or Token budget, no claim commit). The tokens come from the checkout's own Claude Code transcripts since the
 // claim, or are `not measured` with the reason printed (D-20: a partial count is never printed as a figure).
 import { budgetVerdict, readTimebox, readTokenBudget, sectionValue } from '@accord-dev/accord-core';

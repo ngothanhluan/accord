@@ -40,7 +40,7 @@ after: 1, 2
   of a real bug). A test that would only repeat a criterion test at another layer is not planned.
 - A test name never holds `@` or a comma.
 - A path the task creates is followed by `(new)` on its `files:` line. Every other path must exist at the baseline.
-- A task says what, never how: its prose gives the interface (what the task consumes, what it produces) and the test written first, and the executor chooses the how. The interfaces between tasks go in one fenced block whose info string is `interfaces`; no other fenced block goes in a task.
+- A task says what, never how: its prose gives the interface (what the task consumes, what it produces) and the test written first, and the executor chooses the how. The interfaces between tasks go in one interfaces block: its first line is exactly three backticks and the word interfaces, at column 0, and the first line after it that is exactly three backticks, at column 0, closes it. No other line of a task starts with three backticks or tildes, even after spaces, a list marker or `>`, inside the block or out.
 - A task that edits an existing file names the behaviour there that must not change.
 - A task fits in about half an executor's context and at most 120 non-blank lines; split anything larger. Keep the plan within twice the `Expected size:` of `## Intent` unless the ledger holds the owner's size Ruling. A ticket that measures something gets as its first task one arm on one sample, which the owner sees before any task widens it.
 - Order tasks so the one that proves the approach end to end (the wiring) comes first; polish comes last.

@@ -80,6 +80,7 @@ export { gateDone, gatePlan, gateReady } from './gate/index.js';
 export { isSha, ownRecordsOnly } from './gate/done.js';
 export { approvedHash, laneRHash } from './gate/hash.js';
 export {
+  budgetVerdict,
   LANE_R_SECTIONS,
   laneR,
   parseSpent,
@@ -89,6 +90,7 @@ export {
   researchFieldMissing,
   researchOverBudget,
   sectionValue,
+  spentLine,
 } from './gate/lane-r.js';
 export { parseScoutReport } from './scout/report.js';
 export { printedClaim, scoutCheck } from './scout/check.js';

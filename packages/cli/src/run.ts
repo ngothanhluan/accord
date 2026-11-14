@@ -11,6 +11,7 @@ import { anchor } from './commands/anchor.js';
 import { show } from './commands/show.js';
 import { approve } from './commands/approve.js';
 import { brief } from './commands/brief.js';
+import { budget } from './commands/budget.js';
 import { gate } from './commands/gate.js';
 import { hook, HOOK_EVENTS } from './commands/hook.js';
 import { init } from './commands/init.js';
@@ -183,6 +184,13 @@ export function buildProgram(opts: RunOptions, setCode: (n: number) => void): Co
     .option('--approach', 'count the approach critique rounds in approach-review.md')
     .action((id: string, options: { plan?: boolean; approach?: boolean }) => {
       setCode(round(preflight(opts), id, options));
+    });
+
+  program
+    .command('budget <id>')
+    .description('print whether a lane R ticket is within its timebox and token budget since its claim commit, or stop: ask owner, and the Spent line its research record states')
+    .action((id: string) => {
+      setCode(budget(preflight(opts), id));
     });
 
   // D-95: `new ticket` is deliberately *not* exempt from the pin. The ticket template changes between

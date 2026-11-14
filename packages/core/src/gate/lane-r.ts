@@ -307,3 +307,49 @@ export const researchOverBudget: GateRule['check'] = (snapshot, id) => {
     ];
   });
 };
+
+/** `<h>h <m>m` for whole minutes, m below 60: the time form parseSpent reads. */
+const hoursMinutes = (minutes: number): string => `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+
+/**
+ * 94-ac-4, D-11: the line a research record states its spend in, `Spent: <h>h <m>m of <timebox>; <tokens or not measured> of <budget>`,
+ * the form parseSpent reads. `timebox` and `budget` are the ticket's Timebox and Token budget lines as written; tokens that were not
+ * measured are written `not measured`, never a number (D-20).
+ */
+export function spentLine(o: { elapsedMinutes: number; timebox: string; tokens: number | undefined; budget: string }): string {
+  return `Spent: ${hoursMinutes(o.elapsedMinutes)} of ${o.timebox}; ${o.tokens === undefined ? 'not measured' : String(o.tokens)} of ${o.budget}`;
+}
+
+/**
+ * 94-ac-4, D-11, D-13, D-14: the answer of `accord budget <id>`. A stop once the elapsed minutes or the measured tokens are strictly over the
+ * allowance (at exactly either it is still within budget: the budget is what the owner allowed); unmeasured tokens leave the time alone to
+ * decide. `timeboxMinutes` and `budgetTokens` are what readTimebox and readTokenBudget give; `timebox` and `budget` the same lines as written.
+ * The lines: the verdict, Elapsed, Tokens, the Spent line, and on a stop the owner's question and how the answer is written.
+ */
+export function budgetVerdict(o: {
+  id: string;
+  elapsedMinutes: number;
+  timeboxMinutes: number;
+  timebox: string;
+  tokens: number | undefined;
+  budgetTokens: number;
+  budget: string;
+}): { stop: boolean; lines: string[] } {
+  const stop = o.elapsedMinutes > o.timeboxMinutes || (o.tokens !== undefined && o.tokens > o.budgetTokens);
+  const tokens = o.tokens === undefined ? 'not measured' : String(o.tokens);
+  const lines = [
+    stop ? 'stop: ask owner' : 'within budget',
+    `Elapsed: ${hoursMinutes(o.elapsedMinutes)} of ${o.timebox}`,
+    `Tokens: ${tokens} of ${o.budget}`,
+    spentLine(o),
+  ];
+  if (stop) {
+    lines.push(
+      'Ask the owner whether to write the record from what the research has, or to extend ## Timebox or ## Token budget in the ticket; ' +
+        'do no more research until the owner answers.',
+      'Write the answer as Owner: write now — "<the owner\'s sentence>" in the record, or write the extended value into the ticket with a ' +
+        `D-nn under ## Decisions quoting the owner and run accord gate ready ${o.id} again; accord gate done checks it.`,
+    );
+  }
+  return { stop, lines };
+}
